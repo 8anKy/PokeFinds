@@ -29,6 +29,7 @@ interface CmCard {
 interface ApiProduct {
   name: string;
   cardmarket_id: number | null;
+  image?: string;
   prices?: { cardmarket?: { lowest?: number | null; "30d_average"?: number | null; available_items?: number | null } | null } | null;
   episode?: { name?: string } | null;
 }
@@ -181,6 +182,11 @@ export async function runCardmarketRefresh(
         if (!best || bestScore < 0.55) continue;
       }
       if (best.cardmarket_id == null) continue;
+      // Self-heal: håll sealed-bilden i synk med CM-katalogens per-produkt-bild
+      // (tcggo). Endast på EXAKT cmid-match (fuzzy kan välja fel produkt).
+      if (exact && best.image && best.image !== p.imageUrl) {
+        await prisma.product.update({ where: { id: p.id }, data: { imageUrl: best.image } });
+      }
       const cmp = best.prices?.cardmarket ?? {};
       // I lager = aktuell `lowest`/From → From-priset. Ur lager = ingen aktuell
       // annons → OUT_OF_STOCK + 30d-snitt. Flippar dynamiskt mellan körningar.
