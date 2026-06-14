@@ -1,0 +1,325 @@
+/**
+ * Fuzzy-matchning av inkommande produkttitlar mot Product-katalogen.
+ * Strategi: normalisera → token-överlapp (Dice-koefficient på bigram)
+ * plus bonus för matchande setnummer (t.ex. "123/198").
+ */
+import { prisma } from "../lib/db";
+import { normalizeTitle } from "../lib/utils";
+
+/** Lägsta konfidens för att en matchning ska accepteras. */
+const MIN_CONFIDENCE = 0.55;
+
+/** Extraherar setnummer som "123/198" ur en titel. */
+export function extractSetNumber(title: string): { num: number; total: number } | null {
+  const m = /\b(\d{1,3})\s*\/\s*(\d{1,3})\b/.exec(title);
+  if (!m) return null;
+  return { num: parseInt(m[1], 10), total: parseInt(m[2], 10) };
+}
+
+function bigrams(s: string): Map<string, number> {
+  const grams = new Map<string, number>();
+  const clean = s.replace(/\s+/g, " ");
+  for (let i = 0; i < clean.length - 1; i++) {
+    const g = clean.slice(i, i + 2);
+    grams.set(g, (grams.get(g) ?? 0) + 1);
+  }
+  return grams;
+}
+
+/**
+ * Likhet mellan två strängar: Dice-koefficient på teckenbigram (0..1).
+ * Exporteras för enhetstester.
+ */
+export function scoreSimilarity(a: string, b: string): number {
+  const na = normalizeTitle(a);
+  const nb = normalizeTitle(b);
+  if (!na || !nb) return 0;
+  if (na === nb) return 1;
+  const ga = bigrams(na);
+  const gb = bigrams(nb);
+  let overlap = 0;
+  let totalA = 0;
+  let totalB = 0;
+  for (const count of ga.values()) totalA += count;
+  for (const count of gb.values()) totalB += count;
+  for (const [gram, count] of ga) {
+    const other = gb.get(gram);
+    if (other) overlap += Math.min(count, other);
+  }
+  if (totalA + totalB === 0) return 0;
+  return (2 * overlap) / (totalA + totalB);
+}
+
+/**
+ * Klassificerar produktform (display/ETB/booster/bundle/...) ur en titel.
+ * Används för att hindra att t.ex. en booster-pack matchas mot en booster box.
+ */
+export function classifyForm(title: string): string | null {
+  const t = title.toLowerCase();
+  if (/(portfolio|binder|sleeves?\b|playmat|toploader|deck\s*box)/.test(t)) return "accessory";
+  // Case-/kartongannonser (6 displayer i en kartong) är aldrig en enskild produkt
+  if (/\bcase\b|kartong/.test(t)) return "case";
+  // Kvantitetslistningar ("4x bundles", "5 x boosterpaket", "3 st booster",
+  // "8pkt", "(6 Booster Boxar)", ledande antal "3 Pokemon ... booster box") är
+  // multipack-annonser — får aldrig matcha en enskild produkt. OBS: "1x" är
+  // vanlig singelnotation, "X 4/108" (Mega Charizard X + setnummer) är inte en
+  // kvantitet (kräv 2+ och inget setnummer-snedstreck efter), och antal framför
+  // formord begränsas till 2–20 så att set-namn som "151 Booster Box" inte träffas.
+  if (
+    /\b([2-9]|\d{2,})\s*x\b(?!\s*\d*\/)|\bx\s*([2-9]|\d{2,})\b(?!\s*\/)/.test(t) ||
+    /\b([2-9]|\d{2,})\s*(st|pkt|paket)\b/.test(t) ||
+    /^\s*([2-9]|1[0-9]|20)\s+/.test(t) ||
+    // Antal framför formord kräver radstart/skiljetecken före siffran —
+    // annars träffas set-namn som "Base Set 2 Booster Box" eller "Vol 3 Booster"
+    /(^|[([+&,;:-])\s*([2-9]|1[0-9]|20)\s+(booster|boosters|boosterpaket|elite|etb|display|displayer|box|boxar|bundle|bundles|tin|tins|blister)\b/.test(t)
+  )
+    return "multipack";
+  // Kombo-annonser: två olika produktformer i samma titel ("ETB och ...
+  // Booster Bundle", "bundle + display") eller plus-tecken mellan produkter.
+  {
+    const formHits = [
+      /(elite trainer box|\betb\b)/,
+      /(booster\s*box|boosterbox|\bdisplay\b)/,
+      /booster ?bundle/,
+    ].filter((re) => re.test(t)).length;
+    if (formHits >= 2 || /(\s|\d)\+|\+(\s|\d)/.test(t)) return "combo";
+  }
+  // "Mini Tin Display" = display av tins, inte booster display — kolla före display
+  if (/mini\s*tin/.test(t)) return "tin";
+  if (/(booster\s*box|boosterbox|display|displaylåda)/.test(t)) return "display";
+  if (/(elite trainer box|\betb\b)/.test(t)) return "etb";
+  if (/booster ?bundle/.test(t)) return "bundle";
+  // Blister före generiska "N-pack": "3-pack Blister" är en enskild butiksprodukt
+  if (/(blister|checklane)/.test(t)) return "blister";
+  if (/(\b\d+\s*[- ]?pack\b|three pack)/.test(t)) return "multipack";
+  // "boosterpaket" = svenska för booster pack (ett ord, så \bbooster\b missar)
+  if (/(sleeved booster|booster ?pack|boosterpaket|\bbooster\b)/.test(t)) return "booster";
+  if (/\btin\b/.test(t)) return "tin";
+  if (/(battle deck|theme deck|league battle|deck)/.test(t)) return "deck";
+  if (/(collection|premium|box)/.test(t)) return "collection";
+  return null;
+}
+
+/**
+ * Generiska ord som inte särskiljer produkter — får inte styra
+ * kandidatval eller ordöverlapp (annars matchar "Ascended Heroes ETB"
+ * mot "Destined Rivals ETB" bara för att båda är Pokémon-ETB:er).
+ */
+const STOPWORDS = new Set([
+  "pokemon",
+  "pokémon",
+  "tcg",
+  "the",
+  "card",
+  "cards",
+  "game",
+  "trading",
+  "and",
+  "med",
+  "och",
+  "for",
+  "new",
+  "nytt",
+  "sealed",
+  "english",
+  "eng",
+]);
+
+/** Ord som beskriver produktform — hanteras av classifyForm, inte ordöverlapp. */
+const FORM_WORDS = new Set([
+  "booster",
+  "boosters",
+  "box",
+  "display",
+  "pack",
+  "packs",
+  "elite",
+  "trainer",
+  "etb",
+  "bundle",
+  "blister",
+  "tin",
+  "deck",
+  "collection",
+  "premium",
+]);
+
+/** Tokenisering för databasfiltrering: betydelsebärande ord (längd >= 3). */
+function significantTokens(normalized: string): string[] {
+  return normalized
+    .split(" ")
+    .filter((t) => t.length >= 3 && !STOPWORDS.has(t))
+    .slice(0, 6);
+}
+
+/** Särskiljande ord (ej stoppord/formord/siffror) — set-namn, Pokémon-namn osv. */
+function distinctiveWords(normalized: string): Set<string> {
+  return new Set(
+    normalized
+      .split(" ")
+      .filter(
+        (t) => t.length >= 3 && !STOPWORDS.has(t) && !FORM_WORDS.has(t) && !/^\d/.test(t)
+      )
+  );
+}
+
+/**
+ * Hur stor andel av KANDIDATENS särskiljande ord som täcks av den inkommande
+ * titeln. Kandidatsidan är rätt mått: butikstitlar innehåller ofta extra brus
+ * ("Scarlet & Violet 8 ... max 1 per kund") som inte får straffa en korrekt
+ * matchning, men kandidatens egna särskiljande ord ("destined rivals",
+ * "first partners deluxe pin") MÅSTE finnas i den inkommande titeln.
+ * Saknar kandidaten särskiljande ord krävs i stället att den inkommande
+ * titeln inte har några egna ("Fusion Strike" får inte matcha "151").
+ */
+export function distinctiveOverlap(incoming: string, candidate: string): number {
+  const a = distinctiveWords(normalizeTitle(incoming));
+  const b = distinctiveWords(normalizeTitle(candidate));
+  if (b.size === 0) return a.size === 0 ? 1 : 0;
+  let shared = 0;
+  for (const w of b) if (a.has(w)) shared++;
+  return shared / b.size;
+}
+
+/** Språkmarkörer i titlar — japanska/kinesiska produkter får inte matcha EN-katalogen. */
+const NON_EN_LANGUAGE = /\b(japansk\w*|japanese|jpn?\b|kinesisk\w*|chinese|korean\w*|koreansk\w*)\b/i;
+
+/** True om titlarna har olika språkmarkörer (en har japansk/kinesisk, andra inte). */
+export function languageMismatch(incoming: string, candidate: string): boolean {
+  return NON_EN_LANGUAGE.test(incoming) !== NON_EN_LANGUAGE.test(candidate);
+}
+
+/** Lägsta andel delade särskiljande ord för att en kandidat ska godkännas. */
+const MIN_DISTINCTIVE_OVERLAP = 0.5;
+
+/**
+ * Försöker matcha en normaliserad titel mot en produkt i katalogen.
+ * Returnerar bästa kandidat med konfidens, eller null om ingen är
+ * tillräckligt lik.
+ */
+export async function matchProduct(
+  normalizedTitle: string
+): Promise<{ productId: string; confidence: number } | null> {
+  const normalized = normalizeTitle(normalizedTitle);
+  if (!normalized) return null;
+
+  // 1. Exakt träff på normaliserad titel
+  const exact = await prisma.product.findFirst({
+    where: { normalizedTitle: normalized },
+    select: { id: true },
+  });
+  if (exact) return { productId: exact.id, confidence: 1 };
+
+  // 2. Kandidater: hämta per token (union) så att sällsynta tokens som
+  //    "ascended" inte drunknar bland tusentals "pokemon"-träffar.
+  const tokens = significantTokens(normalized);
+  if (tokens.length === 0) return null;
+
+  const candidateMap = new Map<string, { id: string; normalizedTitle: string }>();
+  for (const t of tokens) {
+    const rows = await prisma.product.findMany({
+      where: { normalizedTitle: { contains: t } },
+      select: { id: true, normalizedTitle: true },
+      take: 60,
+    });
+    for (const r of rows) candidateMap.set(r.id, r);
+    if (candidateMap.size >= 300) break;
+  }
+  const candidates = [...candidateMap.values()];
+  if (candidates.length === 0) return null;
+
+  const incomingSetNum = extractSetNumber(normalized);
+  const incomingForm = classifyForm(normalized);
+  // Lot-annonser (flera produkter i en annons) får ALDRIG matcha någon
+  // katalogprodukt — inte ens singelkort (vars form är null och därför
+  // annars slinker förbi formvakten).
+  if (incomingForm === "multipack" || incomingForm === "case" || incomingForm === "combo") {
+    return null;
+  }
+  let best: { productId: string; confidence: number } | null = null;
+
+  for (const c of candidates) {
+    let score = scoreSimilarity(normalized, c.normalizedTitle);
+    // Olika produktform (t.ex. booster pack vs booster box) → förkasta
+    const candidateForm = classifyForm(c.normalizedTitle);
+    if (incomingForm && candidateForm && incomingForm !== candidateForm) {
+      continue;
+    }
+    // Fel språk (japansk/kinesisk utgåva) → förkasta
+    if (languageMismatch(normalized, c.normalizedTitle)) {
+      continue;
+    }
+    // Fel set/kort: kandidaten saknar de särskiljande orden → förkasta
+    // (hindrar "Ascended Heroes ETB" från att matcha "Destined Rivals ETB")
+    const overlap = distinctiveOverlap(normalized, c.normalizedTitle);
+    if (overlap < MIN_DISTINCTIVE_OVERLAP) {
+      continue;
+    }
+    // Liten bonus för högre ordöverlapp — föredrar "Mega Evolution Booster Pack"
+    // framför "Mega Evolution Chaos Rising Booster Pack" vid likvärdig Dice.
+    score = Math.min(1, score + 0.1 * overlap);
+    // Bonus/straff för setnummer
+    const candidateSetNum = extractSetNumber(c.normalizedTitle);
+    if (incomingSetNum && candidateSetNum) {
+      if (
+        incomingSetNum.num === candidateSetNum.num &&
+        incomingSetNum.total === candidateSetNum.total
+      ) {
+        score = Math.min(1, score + 0.15);
+      } else {
+        score = Math.max(0, score - 0.3);
+      }
+    }
+    if (!best || score > best.confidence) {
+      best = { productId: c.id, confidence: score };
+    }
+  }
+
+  if (best && best.confidence >= MIN_CONFIDENCE) return best;
+  return null;
+}
+
+/**
+ * Rimlighetsvakt för marknadsplats-listningar (Tradera): ett pris som
+ * kraftigt överstiger produktens Cardmarket-marknadspris är nästan alltid
+ * en lot (flera enheter) eller en felmatchad premiumvariant — t.ex.
+ * "Pokémon Booster Bundle Ascended Heroes" som visade sig vara 4 bundles
+ * för 4 200 kr.
+ *
+ * Olika regler per produkttyp:
+ * - Sealed: > 2,5× CM-priset är orimligt (butikskonkurrens håller svensk
+ *   marknad nära CM — högre tyder på flera enheter/fel produkt).
+ * - Singlar/graderade: svenska säljare prissätter billiga kort långt över
+ *   CM-trend (69 kr för ett 7-korts-kort är ett riktigt pris) — orimligt
+ *   först vid > 4× OCH > 400 kr över CM (fångar boxar/collections som
+ *   felmatchats mot singelkort, utan att rensa legitima singel-listningar).
+ *
+ * Returnerar true när priset är rimligt eller CM-referenspris saknas.
+ */
+export const MARKETPLACE_MAX_PRICE_RATIO = 2.5;
+const SINGLES_MAX_RATIO = 4;
+const SINGLES_MAX_DIFF_ORE = 40_000;
+
+export async function isPlausibleListingPrice(
+  productId: string,
+  priceOre: number
+): Promise<boolean> {
+  const [cmOffer, product] = await Promise.all([
+    prisma.offer.findFirst({
+      where: { productId, retailer: { name: "Cardmarket" }, price: { not: null } },
+      select: { price: true },
+    }),
+    prisma.product.findUnique({ where: { id: productId }, select: { category: true } }),
+  ]);
+  if (cmOffer?.price == null) return true;
+
+  const isSingle =
+    product?.category === "SINGLE_CARD" || product?.category === "GRADED_CARD";
+  if (isSingle) {
+    return (
+      priceOre <= cmOffer.price * SINGLES_MAX_RATIO ||
+      priceOre - cmOffer.price <= SINGLES_MAX_DIFF_ORE
+    );
+  }
+  return priceOre <= cmOffer.price * MARKETPLACE_MAX_PRICE_RATIO;
+}

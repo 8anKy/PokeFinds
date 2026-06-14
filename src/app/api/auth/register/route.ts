@@ -1,0 +1,70 @@
+import crypto from "crypto";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/db";
+import { apiError, jsonOk } from "@/lib/api";
+import { rateLimit } from "@/lib/rate-limit";
+import { sendMail } from "@/lib/mailer";
+import { welcomeEmail, verifyEmail } from "@/emails/templates";
+
+export const dynamic = "force-dynamic";
+
+const schema = z.object({
+  name: z.string().trim().min(2, "Namnet måste vara minst 2 tecken.").max(80),
+  email: z.string().trim().email("Ogiltig e-postadress."),
+  password: z.string().min(8, "Lösenordet måste vara minst 8 tecken.").max(128),
+});
+
+export async function POST(req: NextRequest) {
+  try {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anon";
+    const { ok } = await rateLimit(`register:${ip}`, 5, 15 * 60 * 1000);
+    if (!ok) {
+      return NextResponse.json(
+        { error: "För många försök. Vänta en stund och försök igen." },
+        { status: 429 }
+      );
+    }
+
+    const { name, email, password } = schema.parse(await req.json());
+    const normalizedEmail = email.toLowerCase();
+
+    const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    if (existing) {
+      return NextResponse.json(
+        { error: "E-postadressen är redan registrerad." },
+        { status: 409 }
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+
+    const user = await prisma.user.create({
+      data: { name, email: normalizedEmail, passwordHash, verificationToken },
+      select: { id: true, name: true, email: true },
+    });
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const verifyUrl = `${appUrl}/verifiera?token=${verificationToken}`;
+
+    // E-postfel ska inte stoppa registreringen
+    try {
+      const welcome = welcomeEmail(user.name);
+      const verify = verifyEmail(user.name, verifyUrl);
+      await sendMail({ to: user.email, ...welcome });
+      await sendMail({ to: user.email, ...verify });
+    } catch (mailError) {
+      console.error("Kunde inte skicka registreringsmejl:", mailError);
+    }
+
+    return jsonOk(
+      { message: "Kontot har skapats. Kolla din inkorg för att bekräfta din e-postadress." },
+      { status: 201 }
+    );
+  } catch (e) {
+    return apiError(e);
+  }
+}

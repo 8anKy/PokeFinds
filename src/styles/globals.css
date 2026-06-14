@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+}
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    @apply bg-surface font-sans text-ink antialiased;
+    font-feature-settings: "cv05", "cv11", "tnum";
+  }
+  ::selection {
+    @apply bg-holo-cyan/25 text-white;
+  }
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  /* Synlig tangentbordsfokus överallt */
+  :focus-visible {
+    outline: 2px solid theme("colors.holo.cyan");
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@layer components {
+  /* Varumärkesaccent: solid teal */
+  .holo-text {
+    color: theme("colors.holo.cyan");
+  }
+  .card-surface {
+    @apply rounded-xl border border-surface-border bg-surface-raised transition-all duration-200;
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.02) inset,
+      0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+  .card-surface:hover {
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.03) inset,
+      0 8px 28px -14px rgba(0, 0, 0, 0.7);
+  }
+  .skeleton {
+    @apply animate-pulse rounded-md bg-surface-overlay;
+  }
+  /* Tunn accent-linje — signaturaccent för aktiva/premium-ytor */
+  .foil-line {
+    background: linear-gradient(90deg, transparent, theme("colors.holo.cyan"), theme("colors.brand.dark"));
+    height: 2px;
+    border-radius: 1px;
+  }
+
+  /* Staggered fade-in for lists — apply .stagger-list to parent */
+  .stagger-list > * {
+    @apply animate-fade-in-up;
+  }
+  .stagger-list > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger-list > *:nth-child(2) { animation-delay: 60ms; }
+  .stagger-list > *:nth-child(3) { animation-delay: 120ms; }
+  .stagger-list > *:nth-child(4) { animation-delay: 180ms; }
+  .stagger-list > *:nth-child(5) { animation-delay: 240ms; }
+  .stagger-list > *:nth-child(6) { animation-delay: 300ms; }
+  .stagger-list > *:nth-child(n+7) { animation-delay: 360ms; }
+}
+
+/* Siffror i tabeller och priser: lika breda siffror */
+.tabular-nums,
+table td,
+[data-price] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tunn scrollbar för dark theme */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a0c;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a30;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a42;
+}
+
+/* Reduced motion: stäng av all dekorativ rörelse */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Pris-chart: mjuk uttoning av spöklinjen efter markören (reduced-motion-säker via regeln ovan) */
+.price-fade-stop {
+  transition: stop-opacity 220ms ease-out;
+}

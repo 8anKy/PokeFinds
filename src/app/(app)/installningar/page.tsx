@@ -1,0 +1,65 @@
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { SettingsClient, type NotificationSettings, type SettingsUser } from "./settings-client";
+
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Inställningar",
+};
+
+function parseNotificationSettings(json: unknown): NotificationSettings {
+  const defaults: NotificationSettings = {
+    email: true,
+    inApp: true,
+    push: false,
+    weeklyReport: true,
+  };
+  if (typeof json !== "object" || json === null) return defaults;
+  const o = json as Record<string, unknown>;
+  return {
+    email: typeof o.email === "boolean" ? o.email : defaults.email,
+    inApp: typeof o.inApp === "boolean" ? o.inApp : defaults.inApp,
+    push: typeof o.push === "boolean" ? o.push : defaults.push,
+    weeklyReport: typeof o.weeklyReport === "boolean" ? o.weeklyReport : defaults.weeklyReport,
+  };
+}
+
+export default async function SettingsPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/logga-in");
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: {
+      name: true,
+      email: true,
+      bio: true,
+      planTier: true,
+      notificationSettings: true,
+    },
+  });
+  if (!user) redirect("/logga-in");
+
+  const settingsUser: SettingsUser = {
+    name: user.name,
+    email: user.email,
+    bio: user.bio,
+    planTier: user.planTier,
+    notificationSettings: parseNotificationSettings(user.notificationSettings),
+  };
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="font-display text-2xl font-bold text-ink">Inställningar</h1>
+        <p className="mt-1 text-sm text-ink-muted">
+          Hantera din profil, dina notiser och ditt konto.
+        </p>
+      </div>
+      <SettingsClient user={settingsUser} />
+    </div>
+  );
+}

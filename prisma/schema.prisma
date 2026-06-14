@@ -1,0 +1,588 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+  SUPERADMIN
+}
+
+enum ProductCategory {
+  SINGLE_CARD
+  BOOSTER_BOX
+  BOOSTER_PACK
+  ETB
+  COLLECTION_BOX
+  TIN
+  BLISTER
+  BUNDLE
+  ACCESSORY
+  GRADED_CARD
+  OTHER
+}
+
+enum StockStatus {
+  IN_STOCK
+  OUT_OF_STOCK
+  PREORDER
+  LIMITED
+  UNKNOWN
+}
+
+enum CardLanguage {
+  SV
+  EN
+  JP
+  DE
+  FR
+  OTHER
+}
+
+enum CardCondition {
+  MINT
+  NEAR_MINT
+  EXCELLENT
+  GOOD
+  PLAYED
+  POOR
+  SEALED
+}
+
+enum AlertType {
+  PRICE_DROP
+  PRICE_TARGET
+  RESTOCK
+  TREND
+  SYSTEM
+}
+
+enum AlertChannel {
+  IN_APP
+  EMAIL
+  PUSH
+}
+
+enum AlertStatus {
+  PENDING
+  SENT
+  FAILED
+  READ
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum SourceType {
+  API
+  FEED
+  SCRAPER
+  MANUAL
+  MOCK
+}
+
+enum PostCategory {
+  PULLS
+  TRADES
+  QUESTIONS
+  MARKET
+  NEWS
+  COLLECTIONS
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  ACTIONED
+  DISMISSED
+}
+
+enum PlanTier {
+  FREE
+  PREMIUM
+}
+
+// ---------- Auth & användare ----------
+
+model User {
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  name                 String
+  passwordHash         String
+  role                 Role      @default(USER)
+  planTier             PlanTier  @default(FREE)
+  avatarUrl            String?
+  bio                  String?
+  emailVerifiedAt      DateTime?
+  verificationToken    String?   @unique
+  resetToken           String?   @unique
+  resetTokenExpiresAt  DateTime?
+  onboardingCompleted  Boolean   @default(false)
+  notificationSettings Json      @default("{\"email\":true,\"inApp\":true,\"push\":false,\"weeklyReport\":true}")
+  preferences          Json      @default("{}")
+  reputationScore      Int       @default(0)
+  isPublicCollection   Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  watchlistItems  WatchlistItem[]
+  alerts          Alert[]
+  collectionItems CollectionItem[]
+  posts           CommunityPost[]
+  comments        Comment[]
+  likes           Like[]
+  scannerJobs     ScannerJob[]
+  gradingJobs     GradingJob[]
+  auditLogs       AuditLog[]
+  notifications   Notification[]
+  reports         Report[]
+  savedPosts      SavedPost[]
+
+  @@index([email])
+}
+
+// ---------- Kortdata ----------
+
+model CardSet {
+  id          String    @id @default(cuid())
+  name        String
+  series      String
+  releaseDate DateTime?
+  logoUrl     String?
+  symbolUrl   String?
+  externalId  String?   @unique
+  totalCards  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  cards    Card[]
+  products Product[]
+
+  @@index([name])
+}
+
+model Card {
+  id            String       @id @default(cuid())
+  name          String
+  setId         String
+  number        String
+  rarity        String
+  imageUrl      String?
+  language      CardLanguage @default(EN)
+  tcgExternalId String?      @unique
+  supertype     String?
+  subtype       String?
+  artist        String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  set             CardSet          @relation(fields: [setId], references: [id])
+  products        Product[]
+  collectionItems CollectionItem[]
+
+  // OBS: kortnummer är INTE unikt inom ett set (t.ex. Celebrations Classic
+  // Collection har fyra kort med nummer 15). Identitet bygger på tcgExternalId
+  // (globalt unikt API-id). Nummer+set är bara ett index för uppslag.
+  @@index([setId, number, language])
+  @@index([name])
+  @@index([setId])
+}
+
+// ---------- Produkter & priser ----------
+
+model Product {
+  id              String          @id @default(cuid())
+  title           String
+  normalizedTitle String
+  slug            String          @unique
+  category        ProductCategory
+  cardId          String?
+  setId           String?
+  imageUrl        String?
+  description     String?
+  releaseDate     DateTime?
+  language        CardLanguage    @default(EN)
+  viewCount       Int             @default(0)
+  clickCount      Int             @default(0)
+  // Denormaliserat lägsta prissatta offer-pris (öre) — null = inget pris (gömd ur
+  // katalogen tills den får ett pris). Möjliggör DB-nivå prissortering +
+  // paginering (infinite scroll) utan att läsa in alla offers. Räknas om av
+  // recomputeProductPriceCache() efter scrape/refresh.
+  lowestPriceOre  Int?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  card              Card?              @relation(fields: [cardId], references: [id])
+  set               CardSet?           @relation(fields: [setId], references: [id])
+  offers            Offer[]
+  priceObservations PriceObservation[]
+  restockEvents     RestockEvent[]
+  watchlistItems    WatchlistItem[]
+  alerts            Alert[]
+  collectionItems   CollectionItem[]
+  priceSnapshots    PriceSnapshot[]
+
+  @@index([normalizedTitle])
+  @@index([category])
+  @@index([setId])
+  @@index([lowestPriceOre])
+}
+
+model Retailer {
+  id               String   @id @default(cuid())
+  name             String   @unique
+  websiteUrl       String
+  logoUrl          String?
+  country          String   @default("SE")
+  isActive         Boolean  @default(true)
+  sourceType       SourceType @default(MANUAL)
+  affiliateEnabled Boolean  @default(false)
+  affiliateParams  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  offers        Offer[]
+  restockEvents RestockEvent[]
+}
+
+model Offer {
+  id            String        @id @default(cuid())
+  productId     String
+  retailerId    String
+  url           String
+  price         Int? // öre — null = länk-offer utan känt pris (t.ex. auktioner)
+  currency      String        @default("SEK")
+  stockStatus   StockStatus   @default(UNKNOWN)
+  shippingPrice Int?
+  condition     CardCondition @default(SEALED)
+  language      CardLanguage  @default(EN)
+  lastSeenAt    DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  retailer Retailer @relation(fields: [retailerId], references: [id])
+
+  @@unique([productId, retailerId, condition, language])
+  @@index([productId])
+  @@index([stockStatus])
+}
+
+model PriceObservation {
+  id         String        @id @default(cuid())
+  productId  String
+  sourceId   String?
+  price      Int // öre
+  currency   String        @default("SEK")
+  condition  CardCondition @default(SEALED)
+  observedAt DateTime      @default(now())
+  rawData    Json?
+
+  product Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  source  ScrapeSource? @relation(fields: [sourceId], references: [id])
+
+  @@index([productId, observedAt])
+}
+
+// Daglig aggregerad prisdata för snabba grafer
+model PriceSnapshot {
+  id        String   @id @default(cuid())
+  productId String
+  date      DateTime @db.Date
+  minPrice  Int
+  maxPrice  Int
+  avgPrice  Int
+  volume    Int      @default(0)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, date])
+  @@index([productId, date])
+}
+
+model RestockEvent {
+  id         String      @id @default(cuid())
+  productId  String
+  retailerId String
+  oldStatus  StockStatus
+  newStatus  StockStatus
+  price      Int?
+  detectedAt DateTime    @default(now())
+
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  retailer Retailer @relation(fields: [retailerId], references: [id])
+
+  @@index([productId, detectedAt])
+  @@index([detectedAt])
+}
+
+// ---------- Bevakning & alerts ----------
+
+model WatchlistItem {
+  id           String   @id @default(cuid())
+  userId       String
+  productId    String
+  targetPrice  Int?
+  maxPrice     Int?
+  restockAlert Boolean  @default(true)
+  priceAlert   Boolean  @default(true)
+  channels     Json     @default("[\"IN_APP\",\"EMAIL\"]")
+  isPaused     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+}
+
+model Alert {
+  id          String       @id @default(cuid())
+  userId      String
+  productId   String?
+  type        AlertType
+  message     String
+  channel     AlertChannel @default(IN_APP)
+  status      AlertStatus  @default(PENDING)
+  retryCount  Int          @default(0)
+  triggeredAt DateTime     @default(now())
+  sentAt      DateTime?
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([status])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  body      String
+  linkUrl   String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+}
+
+// ---------- Samling ----------
+
+model CollectionItem {
+  id             String         @id @default(cuid())
+  userId         String
+  cardId         String?
+  productId      String?
+  quantity       Int            @default(1)
+  condition      CardCondition  @default(NEAR_MINT)
+  language       CardLanguage   @default(EN)
+  purchasePrice  Int? // öre
+  purchaseDate   DateTime?
+  estimatedValue Int? // öre
+  gradingCompany String?
+  grade          String?
+  notes          String?
+  imageUrl       String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card    Card?    @relation(fields: [cardId], references: [id])
+  product Product? @relation(fields: [productId], references: [id])
+
+  @@index([userId])
+}
+
+// ---------- Community ----------
+
+model CommunityPost {
+  id        String       @id @default(cuid())
+  userId    String
+  title     String
+  content   String
+  imageUrl  String?
+  category  PostCategory
+  isHidden  Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments   Comment[]
+  likes      Like[]
+  reports    Report[]
+  savedPosts SavedPost[]
+
+  @@index([category, createdAt])
+  @@index([userId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  content   String
+  isHidden  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model SavedPost {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model Report {
+  id         String       @id @default(cuid())
+  postId     String
+  reporterId String
+  reason     String
+  status     ReportStatus @default(OPEN)
+  createdAt  DateTime     @default(now())
+  resolvedAt DateTime?
+
+  post     CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  reporter User          @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+// ---------- Datainsamling ----------
+
+model ScrapeSource {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  baseUrl   String
+  type      SourceType @default(MOCK)
+  isActive  Boolean    @default(true)
+  config    Json       @default("{}")
+  lastRunAt DateTime?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  jobs              ScrapeJob[]
+  priceObservations PriceObservation[]
+}
+
+model ScrapeJob {
+  id           String    @id @default(cuid())
+  sourceId     String
+  status       JobStatus @default(QUEUED)
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  itemsFound   Int       @default(0)
+  itemsUpdated Int       @default(0)
+  errorMessage String?
+  logs         Json      @default("[]")
+  createdAt    DateTime  @default(now())
+
+  source ScrapeSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId, createdAt])
+  @@index([status])
+}
+
+// ---------- Kortskanning ----------
+
+model ScannerJob {
+  id         String    @id @default(cuid())
+  userId     String
+  imageUrl   String
+  status     JobStatus @default(QUEUED)
+  result     Json?
+  confidence Float?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// AI-baserad kortgradering (PSA-liknande uppskattning från fram-/baksidesbild).
+model GradingJob {
+  id            String    @id @default(cuid())
+  userId        String
+  frontImageUrl String
+  backImageUrl  String
+  status        JobStatus @default(QUEUED)
+  // result innehåller delpoäng (centering/corners/edges/surface), motivering,
+  // använd modell + ev. matchat kort. overallGrade = sammanvägd 1–10.
+  result        Json?
+  overallGrade  Float?
+  confidence    Float?
+  modelUsed     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, createdAt])
+}
+
+// ---------- Audit & analytics ----------
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, createdAt])
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  eventType String // product_view, retailer_click, watchlist_add, search, alert_sent
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([eventType, createdAt])
+}

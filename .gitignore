@@ -1,0 +1,15 @@
+node_modules/
+.next/
+.env
+.env.local
+*.log
+coverage/
+playwright-report/
+test-results/
+prisma/migrations/dev/
+.DS_Store
+.cache/
+.scratch/
+*.tsbuildinfo
+next-env.d.ts
+.claude/settings.local.json
