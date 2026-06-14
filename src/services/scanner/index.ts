@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { extractSetNumber, scoreSimilarity } from "@/scrapers/matching";
 import { getCardValues } from "@/services/products";
+import { ClaudeVisionOcrAdapter } from "@/services/scanner/claude-vision";
 import { MockOcrAdapter } from "@/services/scanner/ocr-mock";
 import type { OcrAdapter, OcrResult, ScanCandidate } from "@/services/scanner/types";
 
@@ -29,6 +30,10 @@ export function getOcrAdapter(): OcrAdapter {
   switch (provider) {
     case "mock":
       return new MockOcrAdapter();
+    case "claude":
+      return new ClaudeVisionOcrAdapter(
+        process.env.SCANNER_MODEL ?? "claude-haiku-4-5"
+      );
     default:
       throw new ServiceError(
         503,
@@ -85,6 +90,7 @@ export async function matchCards(ocr: OcrResult): Promise<ScanCandidate[]> {
       rarity: card.rarity,
       imageUrl: card.imageUrl,
       score: Math.round(score * 1000) / 1000,
+      slug: null,
       estimatedValue: null,
     };
   });
@@ -94,9 +100,23 @@ export async function matchCards(ocr: OcrResult): Promise<ScanCandidate[]> {
     .sort((a, b) => b.score - a.score)
     .slice(0, MAX_CANDIDATES);
 
-  // Bifoga aktuellt marknadsvärde (Cardmarket-trend) för de visade kandidaterna.
-  const values = await getCardValues(top.map((c) => c.cardId));
-  for (const c of top) c.estimatedValue = values.get(c.cardId) ?? null;
+  // Bifoga aktuellt marknadsvärde (Cardmarket-trend) + produkt-slug (djuplänk)
+  // för de visade kandidaterna.
+  const cardIds = top.map((c) => c.cardId);
+  const [values, products] = await Promise.all([
+    getCardValues(cardIds),
+    prisma.product.findMany({
+      where: { cardId: { in: cardIds } },
+      select: { cardId: true, slug: true },
+    }),
+  ]);
+  const slugByCard = new Map(
+    products.flatMap((p) => (p.cardId ? [[p.cardId, p.slug] as const] : []))
+  );
+  for (const c of top) {
+    c.estimatedValue = values.get(c.cardId) ?? null;
+    c.slug = slugByCard.get(c.cardId) ?? null;
+  }
 
   return top;
 }
@@ -181,4 +201,32 @@ export async function listScannerJobs(userId: string, take = 10) {
 export async function estimateCardValue(cardId: string): Promise<number | null> {
   const values = await getCardValues([cardId]);
   return values.get(cardId) ?? null;
+}
+
+export interface IdentifyResult {
+  /** Adaptern som användes ("mock" = simulerad, "claude" = riktig vision). */
+  provider: string;
+  guessedName: string | null;
+  guessedNumber: string | null;
+  confidence: number;
+  candidates: ScanCandidate[];
+}
+
+/**
+ * Live-identifiering: kör OCR-/vision-adaptern + matchar mot katalogen UTAN att
+ * skapa ett ScannerJob (billigt nog att polla med nedskalade videorutor).
+ * Returnerar bästa katalogträffar + aktuellt marknadsvärde.
+ */
+export async function identifyCard(imageDataUrl: string): Promise<IdentifyResult> {
+  const adapter = getOcrAdapter();
+  const ocr = await adapter.extractCardInfo(imageDataUrl);
+  const candidates =
+    ocr.guessedName || ocr.rawText.trim() ? await matchCards(ocr) : [];
+  return {
+    provider: adapter.name,
+    guessedName: ocr.guessedName ?? null,
+    guessedNumber: ocr.guessedNumber ?? null,
+    confidence: ocr.confidence,
+    candidates,
+  };
 }

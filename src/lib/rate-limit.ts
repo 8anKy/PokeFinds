@@ -13,10 +13,15 @@ export async function rateLimit(
 ): Promise<{ ok: boolean; remaining: number }> {
   const redis = getRedis();
   if (redis) {
-    const redisKey = `ratelimit:${key}`;
-    const count = await redis.incr(redisKey);
-    if (count === 1) await redis.pexpire(redisKey, windowMs);
-    return { ok: count <= limit, remaining: Math.max(0, limit - count) };
+    try {
+      const redisKey = `ratelimit:${key}`;
+      const count = await redis.incr(redisKey);
+      if (count === 1) await redis.pexpire(redisKey, windowMs);
+      return { ok: count <= limit, remaining: Math.max(0, limit - count) };
+    } catch {
+      // Redis konfigurerad men onåbar (servern nere) → degradera graciöst till
+      // in-memory istället för att 500:a. Per-instans, men funktionellt i dev.
+    }
   }
   // In-memory fallback
   const now = Date.now();

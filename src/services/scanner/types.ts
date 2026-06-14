@@ -33,6 +33,8 @@ export interface ScanCandidate {
   number: string;
   rarity: string;
   imageUrl: string | null;
+  /** Produktens slug för djuplänk till produktsidan, om kortet har en produkt. */
+  slug: string | null;
   /** Matchningspoäng 0..1. */
   score: number;
   /** Aktuellt marknadsvärde i öre (Cardmarket-trend via kortets produkt), om känt. */
