@@ -20,6 +20,7 @@ import {
   IconX,
   type IconProps,
 } from "@/components/ui/icons";
+import { BrandLogo } from "@/components/layout/brand-logo";
 
 const NAV: { href: string; label: string; icon: (p: IconProps) => JSX.Element }[] = [
   { href: "/dashboard", label: "Översikt", icon: IconDashboard },
@@ -86,8 +87,8 @@ export function AppShell({
       {/* Desktop sidebar */}
       <aside className="hidden w-60 shrink-0 border-r border-surface-border bg-surface-raised/40 lg:block">
         <div className="flex h-16 items-center border-b border-surface-border px-5">
-          <Link href="/" className="text-lg font-bold">
-            Poke<span className="holo-text">Finds</span>
+          <Link href="/" aria-label="Foilio — startsida">
+            <BrandLogo markSize={26} textClass="text-lg" />
           </Link>
         </div>
         {nav}
@@ -105,8 +106,8 @@ export function AppShell({
             >
               {mobileOpen ? <IconX size={20} /> : <IconMenu size={20} />}
             </button>
-            <Link href="/" className="text-lg font-bold lg:hidden">
-              Poke<span className="holo-text">Finds</span>
+            <Link href="/" className="lg:hidden" aria-label="Foilio — startsida">
+              <BrandLogo markSize={26} textClass="text-lg" />
             </Link>
           </div>
           <div className="flex items-center gap-3">

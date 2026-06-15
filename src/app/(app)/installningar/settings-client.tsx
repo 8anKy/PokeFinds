@@ -192,7 +192,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
         <CardContent>
           <p className="text-sm text-ink-muted">
             {user.planTier === "PREMIUM"
-              ? "Du har Premium — tack för att du stöttar PokeFinds! Obegränsade bevakningar och full prishistorik."
+              ? "Du har Premium — tack för att du stöttar Foilio! Obegränsade bevakningar och full prishistorik."
               : "Med Premium får du obegränsade bevakningar, full prishistorik och prioriterade larm."}
           </p>
           {user.planTier === "FREE" && (

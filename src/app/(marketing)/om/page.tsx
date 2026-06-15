@@ -2,21 +2,21 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Om PokeFinds",
-  description: "PokeFinds är Sveriges marknadsplattform för Pokémon TCG — prisbevakning, restock-alerts och samlingsverktyg.",
+  title: "Om Foilio",
+  description: "Foilio är Sveriges marknadsplattform för Pokémon TCG — prisbevakning, restock-alerts och samlingsverktyg.",
 };
 
 export default function AboutPage() {
   return (
     <article className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-      <h1 className="font-display text-3xl font-bold text-ink">Om PokeFinds</h1>
+      <h1 className="font-display text-3xl font-bold text-ink">Om Foilio</h1>
       <p className="mt-2 text-sm text-ink-faint">Sveriges Pokémon TCG-plattform</p>
 
       <div className="mt-8 space-y-8 text-sm leading-relaxed text-ink-muted [&_h2]:font-display [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-ink">
         <section>
-          <h2>Vad är PokeFinds?</h2>
+          <h2>Vad är Foilio?</h2>
           <p className="mt-2">
-            PokeFinds är en svensk webbplattform byggd för Pokémon TCG-samlare.
+            Foilio är en svensk webbplattform byggd för Pokémon TCG-samlare.
             Vi samlar priser och lagerstatus från svenska butiker så att du slipper
             kolla varje sajt manuellt. Här kan du jämföra priser, bevaka produkter,
             få restock-alerts och hålla koll på värdet av din samling — allt på ett ställe.
@@ -52,7 +52,7 @@ export default function AboutPage() {
         <section>
           <h2>Oberoende tjänst</h2>
           <p className="mt-2">
-            PokeFinds är en helt oberoende tjänst. Vi är inte anslutna till,
+            Foilio är en helt oberoende tjänst. Vi är inte anslutna till,
             sponsrade av eller godkända av The Pokémon Company, Nintendo eller
             någon återförsäljare. Pokémon och relaterade namn är varumärken som
             tillhör sina respektive ägare.
@@ -63,8 +63,8 @@ export default function AboutPage() {
           <h2>Kontakta oss</h2>
           <p className="mt-2">
             Har du frågor, feedback eller vill rapportera ett problem? Skriv till{" "}
-            <a href="mailto:hej@pokefinds.se" className="text-holo-cyan hover:underline">
-              hej@pokefinds.se
+            <a href="mailto:hej@foilio.se" className="text-holo-cyan hover:underline">
+              hej@foilio.se
             </a>{" "}
             eller besök vår{" "}
             <Link href="/kontakt" className="text-holo-cyan hover:underline">

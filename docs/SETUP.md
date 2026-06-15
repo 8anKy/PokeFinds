@@ -1,6 +1,6 @@
 # Installation & utvecklingsmiljö
 
-Detaljerad guide för att få igång PokeFinds lokalt.
+Detaljerad guide för att få igång Foilio lokalt.
 
 ## Förkrav
 
@@ -46,7 +46,7 @@ Bygger appen i container och kör den mot containrarnas Postgres/Redis. OBS: kö
 - Kör gärna kommandona i **Git Bash** eller **WSL2** för bäst kompatibilitet med npm-scripts.
 - Docker Desktop kräver WSL2-backend på Windows Home.
 - Om `npx prisma generate` låser filer (EPERM på `query_engine-windows.dll.node`): stäng dev-servern/editorn som håller filen och kör igen.
-- Sökvägar med mellanslag (t.ex. `D:\AI Hemsidor\PokeFinds`) fungerar, men citera dem alltid i terminalen.
+- Sökvägar med mellanslag (t.ex. `D:\AI Hemsidor\Foilio`) fungerar, men citera dem alltid i terminalen.
 
 ## Miljövariabler (.env)
 
@@ -60,7 +60,7 @@ Alla variabler finns i `.env.example`:
 | `REDIS_URL` | Nej | Redis för kö/cache (BullMQ). **Valfri** — utan Redis används in-memory fallback (`src/lib/queue.ts`) |
 | `EMAIL_MODE` | Ja | `console` (loggar mejl till terminalen, dev) eller `smtp` (riktig sändning) |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Vid `smtp` | SMTP-uppgifter för utgående e-post |
-| `EMAIL_FROM` | Ja | Avsändaradress, t.ex. `PokeFinds <noreply@pokefinds.se>` |
+| `EMAIL_FROM` | Ja | Avsändaradress, t.ex. `Foilio <noreply@foilio.se>` |
 | `OCR_PROVIDER` | Ja | `mock` i MVP. Koppla riktig vision-API senare (se docs/SCANNER.md) |
 | `OCR_API_KEY` | Vid riktig OCR | API-nyckel till vald OCR-leverantör |
 | `STRIPE_ENABLED` | Ja | `false` i MVP — betalmodulen är förberedd men avstängd |
@@ -68,7 +68,7 @@ Alla variabler finns i `.env.example`:
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Nej | Web push (förberett, kräver VAPID-nyckelpar) |
 | `CRON_SECRET` | Ja (för cron) | Hemlighet för `/api/cron/scrape` — anropet måste skicka headern `x-cron-secret`. Utan satt variabel är cron-routen avstängd (503) |
 | `NEXT_PUBLIC_APP_URL` | Ja | Publik bas-URL (används bl.a. i e-postlänkar) |
-| `NEXT_PUBLIC_APP_NAME` | Ja | Appnamn, `PokeFinds` |
+| `NEXT_PUBLIC_APP_NAME` | Ja | Appnamn, `Foilio` |
 
 ## Felsökning
 

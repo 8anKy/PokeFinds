@@ -1,5 +1,5 @@
 /**
- * PokeFinds ikonbibliotek — ett enhetligt set med stroke-ikoner (24×24, stroke 1.75).
+ * Foilio ikonbibliotek — ett enhetligt set med stroke-ikoner (24×24, stroke 1.75).
  * Använd alltid dessa istället för emojis i UI:t.
  */
 import type { SVGProps } from "react";

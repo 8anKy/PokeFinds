@@ -5,7 +5,7 @@
  * Webhallen exponerar en JSON-API under /api/search som returnerar
  * strukturerad produktdata — inget HTML-scraping behövs.
  *
- * ETIK: politeFetch (robots.txt, crawl-delay, PokeFindsBot UA, backoff).
+ * ETIK: politeFetch (robots.txt, crawl-delay, FoilioBot UA, backoff).
  */
 import { StockStatus, SourceType } from "@prisma/client";
 import { politeFetch } from "../http";

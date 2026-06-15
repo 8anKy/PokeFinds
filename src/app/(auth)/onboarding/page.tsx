@@ -131,7 +131,7 @@ export default function OnboardingPage() {
         <div>
           <h1 className="font-display text-2xl font-bold text-ink">Vad samlar du på?</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Hjälp oss skräddarsy PokeFinds efter dina intressen.
+            Hjälp oss skräddarsy Foilio efter dina intressen.
           </p>
 
           <div className="mt-5">

@@ -62,7 +62,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const categoryLabel = CATEGORY_LABELS[product.category] ?? "Produkt";
   const description =
     product.description ??
-    `Jämför priser på ${product.title} (${categoryLabel}) hos svenska butiker. Lägsta pris just nu: ${formatPrice(product.lowestPrice)}. Bevaka pris och restock på PokeFinds.`;
+    `Jämför priser på ${product.title} (${categoryLabel}) hos svenska butiker. Lägsta pris just nu: ${formatPrice(product.lowestPrice)}. Bevaka pris och restock på Foilio.`;
   return {
     title: product.title,
     description,

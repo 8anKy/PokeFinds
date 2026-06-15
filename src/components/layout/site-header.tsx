@@ -2,16 +2,15 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { LinkButton } from "@/components/ui/button";
 import { HeaderNav } from "@/components/layout/header-nav";
+import { BrandLogo } from "@/components/layout/brand-logo";
 
 export async function SiteHeader() {
   const session = await auth();
   return (
     <header className="sticky top-0 z-40 border-b border-surface-border bg-surface/85 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2">
-          <span className="text-xl font-bold tracking-tight">
-            Poke<span className="holo-text">Finds</span>
-          </span>
+        <Link href="/" aria-label="Foilio — startsida">
+          <BrandLogo />
         </Link>
         <HeaderNav />
         <div className="flex items-center gap-3">

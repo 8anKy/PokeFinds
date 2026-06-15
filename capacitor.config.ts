@@ -1,9 +1,9 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 /**
- * Capacitor-konfiguration för PokeFinds iOS/Android-app.
+ * Capacitor-konfiguration för Foilio iOS/Android-app.
  *
- * PokeFinds är en fullstack-Next.js-app (server-komponenter, API-routes, NextAuth,
+ * Foilio är en fullstack-Next.js-app (server-komponenter, API-routes, NextAuth,
  * Prisma/Postgres) → den kan INTE exporteras statiskt. Den native appen är därför
  * ett tunt Capacitor-skal som laddar den HOSTADE webbappen via `server.url`
  * (ingen UI-omskrivning — samma app i App Store / Google Play som på webben).
@@ -17,7 +17,7 @@ const SERVER_URL = process.env.CAP_SERVER_URL?.trim() || "https://pokefinds.verc
 
 const config: CapacitorConfig = {
   appId: "se.pokefinds.app",
-  appName: "PokeFinds",
+  appName: "Foilio",
   webDir: "mobile-shell",
   backgroundColor: "#0a0a0c",
   server: SERVER_URL

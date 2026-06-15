@@ -15,7 +15,7 @@
  *
  * robots.txt (verifierad 2026-06-15): tillåter /sv/pokemon (endast /cgi-bin/,
  * /webbadmin och /sok är Disallow). ETIK: politeFetch (robots.txt, delay,
- * PokeFindsBot UA, backoff). Inga inloggningar/captcha/personuppgifter.
+ * FoilioBot UA, backoff). Inga inloggningar/captcha/personuppgifter.
  */
 import { StockStatus, SourceType } from "@prisma/client";
 import { politeFetch } from "../http";

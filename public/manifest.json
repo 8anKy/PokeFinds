@@ -1,6 +1,6 @@
 {
-  "name": "PokeFinds",
-  "short_name": "PokeFinds",
+  "name": "Foilio",
+  "short_name": "Foilio",
   "description": "Din kontrollpanel för Pokémon TCG-marknaden. Bevaka priser, lagerstatus och värdet på din samling.",
   "lang": "sv",
   "start_url": "/",
@@ -8,12 +8,6 @@
   "background_color": "#0a0a0c",
   "theme_color": "#0a0a0c",
   "icons": [
-    {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
@@ -24,7 +18,13 @@
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

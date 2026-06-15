@@ -4,7 +4,7 @@ import { IconMail, IconShield } from "@/components/ui/icons";
 
 export const metadata: Metadata = {
   title: "Kontakt",
-  description: "Kontakta PokeFinds — frågor, feedback, buggrapporter eller samarbetsförfrågningar.",
+  description: "Kontakta Foilio — frågor, feedback, buggrapporter eller samarbetsförfrågningar.",
 };
 
 export default function ContactPage() {
@@ -26,10 +26,10 @@ export default function ContactPage() {
             Allmänna frågor, feedback och samarbeten.
           </p>
           <a
-            href="mailto:hej@pokefinds.se"
+            href="mailto:hej@foilio.se"
             className="mt-auto text-sm font-medium text-holo-cyan hover:underline"
           >
-            hej@pokefinds.se
+            hej@foilio.se
           </a>
         </div>
 
@@ -42,10 +42,10 @@ export default function ContactPage() {
             Rapportera säkerhetsproblem eller begär dataexport/radering.
           </p>
           <a
-            href="mailto:hej@pokefinds.se"
+            href="mailto:hej@foilio.se"
             className="mt-auto text-sm font-medium text-holo-cyan hover:underline"
           >
-            hej@pokefinds.se
+            hej@foilio.se
           </a>
         </div>
       </div>

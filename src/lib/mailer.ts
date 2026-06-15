@@ -17,7 +17,7 @@ export interface MailInput {
   text: string;
 }
 
-const FROM = process.env.EMAIL_FROM ?? "PokeFinds <noreply@pokefinds.se>";
+const FROM = process.env.EMAIL_FROM ?? "Foilio <noreply@foilio.se>";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let transporter: any | null = null;

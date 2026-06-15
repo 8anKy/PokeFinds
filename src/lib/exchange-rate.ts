@@ -112,7 +112,7 @@ export async function getRatesOre(): Promise<RatesOre> {
 
   try {
     const res = await fetch(FRANKFURTER_URL, {
-      headers: { "User-Agent": "PokeFinds/1.0 (+https://pokefinds.se)" },
+      headers: { "User-Agent": "Foilio/1.0 (+https://foilio.se)" },
     });
     if (res.ok) {
       const json = (await res.json()) as {

@@ -11,7 +11,7 @@ export async function GET() {
     return new Response(csv, {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="pokefinds-samling.csv"',
+        "Content-Disposition": 'attachment; filename="foilio-samling.csv"',
       },
     });
   } catch (e) {

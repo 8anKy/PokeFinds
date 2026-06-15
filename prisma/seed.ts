@@ -1,5 +1,5 @@
 /**
- * PokeFinds seed-script.
+ * Foilio seed-script.
  *
  * RIKTIG DATA: sets, kort, bilder och butiker är verkliga.
  *  - Sets/kort/bilder kommer från en statisk snapshot av officiella
@@ -128,7 +128,7 @@ function rarityFallbackOre(rarity: string): number {
 }
 
 async function main() {
-  console.log("🌱 Seedar PokeFinds (riktiga sets/kort/butiker, offline-snapshot)...");
+  console.log("🌱 Seedar Foilio (riktiga sets/kort/butiker, offline-snapshot)...");
 
   // Rensa i beroendeordning
   await prisma.analyticsEvent.deleteMany();
@@ -222,7 +222,7 @@ async function main() {
         isActive: true,
         sourceType: "MANUAL", // ingen automatisk insamling förrän robots/villkor verifierats
         affiliateEnabled: r.affiliate,
-        affiliateParams: r.affiliate ? "ref=pokefinds" : null,
+        affiliateParams: r.affiliate ? "ref=foilio" : null,
       },
     }));
   }
@@ -266,7 +266,7 @@ async function main() {
         isActive: hasAdapter && r.robotsAllowed === true,
         config: {
           robots: { checkedAt: r.robotsAllowed === null ? null : ROBOTS_CHECKED_AT, allowed: r.robotsAllowed, note: r.robotsNote },
-          userAgent: "PokeFindsBot/1.0 (+kontakt: admin@pokefinds.se)",
+          userAgent: "FoilioBot/1.0 (+kontakt: hej@foilio.se)",
           etik: "Respektera robots.txt och rate limits. Ingen captcha-/login-bypass.",
           adapterImplemented: hasAdapter,
         },

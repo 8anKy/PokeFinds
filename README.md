@@ -1,4 +1,4 @@
-# PokeFinds
+# Foilio
 
 **Sveriges kontrollpanel för Pokémon TCG-marknaden.** Bevaka priser och lagerstatus, följ marknadstrender, värdera din samling, skanna kort och häng med communityn — allt på ett ställe, helt på svenska.
 

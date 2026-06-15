@@ -11,7 +11,7 @@ Datainsamlingen är adapterbaserad: varje datakälla implementerar `SourceAdapte
 
 ## Etiska regler (obligatoriska — inbyggda i `src/scrapers/http.ts`)
 - **robots.txt respekteras** (`checkRobotsTxt`) — blockerade paths hämtas aldrig
-- **Tydlig user-agent**: `PokeFindsBot/1.0 (+kontakt: admin@pokefinds.se)`
+- **Tydlig user-agent**: `FoilioBot/1.0 (+kontakt: hej@foilio.se)`
 - **Delay mellan requests** per host + exponential backoff (1s/2s/4s)
 - **Auto-stopp** vid >20 fel i ett jobb
 - **Aldrig**: captcha-bypass, inloggning, betalväggar, persondata, aggressiv trafik

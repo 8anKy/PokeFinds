@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Integritetspolicy",
-  description: "Så behandlar PokeFinds dina personuppgifter — i enlighet med GDPR.",
+  description: "Så behandlar Foilio dina personuppgifter — i enlighet med GDPR.",
 };
 
 const UPDATED = "1 juni 2026";
@@ -18,10 +18,10 @@ export default function PrivacyPage() {
         <section>
           <h2>1. Personuppgiftsansvarig</h2>
           <p className="mt-2">
-            PokeFinds är personuppgiftsansvarig för behandlingen av dina
+            Foilio är personuppgiftsansvarig för behandlingen av dina
             personuppgifter i tjänsten. Kontakta oss på{" "}
-            <a href="mailto:hej@pokefinds.se" className="text-holo-cyan hover:underline">
-              hej@pokefinds.se
+            <a href="mailto:hej@foilio.se" className="text-holo-cyan hover:underline">
+              hej@foilio.se
             </a>{" "}
             vid frågor om denna policy.
           </p>

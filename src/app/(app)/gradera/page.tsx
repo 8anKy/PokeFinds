@@ -362,7 +362,7 @@ export default function GraderaPage() {
               <Link href="/samling" className="font-medium text-holo-cyan hover:underline">
                 samling
               </Link>{" "}
-              och ange gradingbolag &ldquo;PokeFinds AI&rdquo; med graden ovan.
+              och ange gradingbolag &ldquo;Foilio AI&rdquo; med graden ovan.
             </p>
           </CardContent>
         </Card>

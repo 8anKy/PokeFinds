@@ -4,7 +4,7 @@
  * robots.txt verifierad 2026-06-11: produktsidor tillåtna
  * (checkout/admin/account/availability_alert disallowed).
  *
- * ETIK: politeFetch (robots.txt, PokeFindsBot UA, backoff).
+ * ETIK: politeFetch (robots.txt, FoilioBot UA, backoff).
  */
 import { StockStatus, SourceType } from "@prisma/client";
 import { politeFetch } from "../http";

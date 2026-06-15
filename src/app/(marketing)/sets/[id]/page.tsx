@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!set) return { title: "Setet hittades inte" };
   return {
     title: set.name,
-    description: `Produkter och priser för ${set.name} (${set.series}) — jämför svenska butiker på PokeFinds.`,
+    description: `Produkter och priser för ${set.name} (${set.series}) — jämför svenska butiker på Foilio.`,
   };
 }
 

@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Cookiepolicy",
-  description: "Information om hur PokeFinds använder cookies och liknande tekniker.",
+  description: "Information om hur Foilio använder cookies och liknande tekniker.",
 };
 
 const UPDATED = "1 juni 2026";
@@ -45,7 +45,7 @@ export default function CookiesPage() {
                 Sparar dina val, som tema och cookie-samtycke.
               </p>
               <ul className="mt-2 list-disc space-y-1 pl-5">
-                <li><strong>pokefinds-cookie-consent</strong> — ditt val i cookie-bannern</li>
+                <li><strong>foilio-cookie-consent</strong> — ditt val i cookie-bannern</li>
               </ul>
             </div>
           </div>
@@ -54,7 +54,7 @@ export default function CookiesPage() {
         <section>
           <h2>3. Tredjepartscookies</h2>
           <p className="mt-2">
-            PokeFinds använder inga tredjepartscookies för spårning eller reklam.
+            Foilio använder inga tredjepartscookies för spårning eller reklam.
             Vi säljer aldrig data till tredje part.
           </p>
         </section>
@@ -84,8 +84,8 @@ export default function CookiesPage() {
           <h2>6. Kontakt</h2>
           <p className="mt-2">
             Har du frågor om vår cookiehantering? Kontakta oss på{" "}
-            <a href="mailto:hej@pokefinds.se" className="text-holo-cyan hover:underline">
-              hej@pokefinds.se
+            <a href="mailto:hej@foilio.se" className="text-holo-cyan hover:underline">
+              hej@foilio.se
             </a>.
           </p>
         </section>

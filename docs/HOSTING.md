@@ -67,7 +67,7 @@ Den ska bli grön och uppdatera priser i Neon.
 ## Steg 4 — Webbsajt på Vercel
 
 1. Skapa konto på <https://vercel.com> med GitHub.
-2. **Add New… → Project** → importera `8anKy/PokeFinds`.
+2. **Add New… → Project** → importera `8anKy/Foilio`.
 3. Under **Environment Variables**, lägg till (Production):
 
    | Variabel | Värde |
@@ -76,7 +76,7 @@ Den ska bli grön och uppdatera priser i Neon.
    | `NEXTAUTH_URL` | din Vercel-URL (t.ex. `https://pokefinds.vercel.app`) |
    | `NEXTAUTH_SECRET` | en lång slumpsträng (`openssl rand -base64 32`) |
    | `NEXT_PUBLIC_APP_URL` | samma som NEXTAUTH_URL |
-   | `NEXT_PUBLIC_APP_NAME` | `PokeFinds` |
+   | `NEXT_PUBLIC_APP_NAME` | `Foilio` |
    | `OCR_PROVIDER` | `claude` (för riktig kortidentifiering) |
    | `ANTHROPIC_API_KEY` | din Anthropic-nyckel (skanner + gradering) |
    | `GRADING_PROVIDER` | `claude` |

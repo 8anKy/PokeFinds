@@ -8,7 +8,7 @@ product
 Svenska Pokémon TCG-samlare, 18–40 år: allt från casual-samlare som vill veta vad lådan på vinden är värd, till investerare som bevakar sealed-priser dagligen. De använder tjänsten hemma på mobilen (kvällsbruk, mörka rum) och vid datorn för djupare marknadsanalys. Jobbet: hitta rätt pris, hinna före på restocks, och förstå värdet på sin samling utan kalkylark.
 
 ## Product Purpose
-PokeFinds är en kontrollpanel för den svenska Pokémon TCG-marknaden: prisbevakning, restock-alerts, samlingsvärde, marknadstrender, kortskanning och community. Framgång = användaren litar på siffrorna och agerar på alerts (klick till butik, fler bevakningar, återkommande dagliga besök).
+Foilio är en kontrollpanel för den svenska Pokémon TCG-marknaden: prisbevakning, restock-alerts, samlingsvärde, marknadstrender, kortskanning och community. Framgång = användaren litar på siffrorna och agerar på alerts (klick till butik, fler bevakningar, återkommande dagliga besök).
 
 ## Brand Personality
 Skarp, samlarvänlig, premium. Tonen är en kunnig vän vid spelbordet — entusiastisk men aldrig barnslig. Datat känns som en finansterminal; ytan känns som holographic foil i mörkt rum. Tre ord: precis, levande, pålitlig.

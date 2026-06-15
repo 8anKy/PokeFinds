@@ -45,7 +45,7 @@ function isMockRaw(raw: unknown): raw is MockRaw {
 export class MockAdapter implements SourceAdapter {
   name = "Mock-källa";
   type: SourceType = SourceType.MOCK;
-  baseUrl = "https://mock.pokefinds.local";
+  baseUrl = "https://mock.foilio.local";
   supportsSearch = false;
   supportsStock = true;
 

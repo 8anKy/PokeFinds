@@ -263,7 +263,7 @@ export function RetailersClient({ retailers }: { retailers: RetailerRow[] }) {
               onChange={(e) =>
                 setEditForm((f) => ({ ...f, affiliateParams: e.target.value }))
               }
-              placeholder="t.ex. utm_source=pokefinds&ref=pf"
+              placeholder="t.ex. utm_source=foilio&ref=pf"
             />
           </div>
           <div className="flex justify-end gap-3">
@@ -352,7 +352,7 @@ export function RetailersClient({ retailers }: { retailers: RetailerRow[] }) {
               onChange={(e) =>
                 setCreateForm((f) => ({ ...f, affiliateParams: e.target.value }))
               }
-              placeholder="t.ex. utm_source=pokefinds&ref=pf"
+              placeholder="t.ex. utm_source=foilio&ref=pf"
             />
           </div>
           <div className="flex justify-end gap-3">

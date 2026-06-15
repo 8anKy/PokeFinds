@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       data: { emailVerifiedAt: new Date(), verificationToken: null },
     });
 
-    return jsonOk({ message: "Din e-postadress är nu bekräftad. Välkommen till PokeFinds!" });
+    return jsonOk({ message: "Din e-postadress är nu bekräftad. Välkommen till Foilio!" });
   } catch (e) {
     return apiError(e);
   }

@@ -97,7 +97,7 @@ async function resolveRedirect(
         method: "GET",
         redirect: "manual",
         headers: {
-          "User-Agent": "PokeFinds/1.0 (prisbevakning, https://pokefinds.se)",
+          "User-Agent": "Foilio/1.0 (prisbevakning, https://foilio.se)",
         },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });

@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">PokeFinds</string>
-    <string name="title_activity_main">PokeFinds</string>
+    <string name="app_name">Foilio</string>
+    <string name="title_activity_main">Foilio</string>
     <string name="package_name">se.pokefinds.app</string>
     <string name="custom_url_scheme">se.pokefinds.app</string>
 </resources>

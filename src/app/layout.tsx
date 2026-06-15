@@ -14,23 +14,23 @@ import { ServiceWorkerRegister } from "@/components/pwa-register";
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
   title: {
-    default: "PokeFinds — Din kontrollpanel för Pokémon TCG-marknaden",
-    template: "%s | PokeFinds",
+    default: "Foilio — Din kontrollpanel för Pokémon TCG-marknaden",
+    template: "%s | Foilio",
   },
   description:
-    "Bevaka priser, lagerstatus och värdet på din samling. PokeFinds samlar prisdata, restock-alerts och marknadstrender för Pokémon TCG i Sverige.",
+    "Bevaka priser, lagerstatus och värdet på din samling. Foilio samlar prisdata, restock-alerts och marknadstrender för Pokémon TCG i Sverige.",
   openGraph: {
     type: "website",
     locale: "sv_SE",
-    siteName: "PokeFinds",
-    title: "PokeFinds — Din kontrollpanel för Pokémon TCG-marknaden",
+    siteName: "Foilio",
+    title: "Foilio — Din kontrollpanel för Pokémon TCG-marknaden",
     description:
       "Bevaka priser, lagerstatus och värdet på din samling. Håll koll på marknaden innan alla andra.",
   },
   icons: {
     icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
-      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
     ],
     apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
   },

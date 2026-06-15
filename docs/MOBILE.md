@@ -1,6 +1,6 @@
-# PokeFinds som iOS- & Android-app (Capacitor)
+# Foilio som iOS- & Android-app (Capacitor)
 
-PokeFinds paketeras som native-appar med **Capacitor**. Eftersom PokeFinds är en
+Foilio paketeras som native-appar med **Capacitor**. Eftersom Foilio är en
 fullstack-Next.js-app (server-komponenter, API-routes, NextAuth, Prisma/Postgres)
 går den **inte** att exportera statiskt. Den native appen är därför ett tunt
 **Capacitor-skal** som laddar den **hostade** webbappen i en WebView via
@@ -30,7 +30,7 @@ Capacitor WebView ──► server.url = https://din-hostade-app  (Vercel)
    (kamera, ev. push)
 ```
 
-- `capacitor.config.ts` — appId `se.pokefinds.app`, appName `PokeFinds`,
+- `capacitor.config.ts` — appId `se.pokefinds.app`, appName `Foilio`,
   `server.url` läses från env `CAP_SERVER_URL`.
 - `mobile-shell/index.html` — offline-/fallback-skal (visas bara om ingen
   server-URL är satt eller appen är offline).
@@ -86,7 +86,7 @@ simulator/enhet, **Product ▸ Archive** → ladda upp till App Store Connect.
 Lägg till i `ios/App/App/Info.plist` (kamera-behörighet, annars kraschar skannern):
 ```xml
 <key>NSCameraUsageDescription</key>
-<string>PokeFinds använder kameran för att skanna och identifiera dina kort.</string>
+<string>Foilio använder kameran för att skanna och identifiera dina kort.</string>
 ```
 
 **B. Utan egen Mac — moln-byggtjänst:** [Codemagic](https://codemagic.io),
@@ -96,7 +96,7 @@ låt molnet köra `cap add ios` + archive.
 
 ## Branded ikoner & splash (inför store-inlämning)
 
-Capacitor genererar standardikoner. Byt mot PokeFinds-märket:
+Capacitor genererar standardikoner. Byt mot Foilio-märket:
 ```bash
 npm i -D @capacitor/assets
 # lägg en 1024×1024 PNG i assets/icon.png (+ valfri assets/splash.png 2732×2732)
@@ -107,13 +107,13 @@ npm run cap:sync
 
 ## Store-godkännande (viktigt)
 
-- **Apple-riktlinje 4.2** kan avvisa rena "webbsajt-i-skal"-appar. PokeFinds
+- **Apple-riktlinje 4.2** kan avvisa rena "webbsajt-i-skal"-appar. Foilio
   motiverar native-status via **kamera-skannern** och (rekommenderat) **push**.
   Inför inlämning: aktivera minst en tydlig native-funktion och beskriv den.
 - **Native push (rekommenderad uppgradering):** webb-push fungerar i Android-
   WebView men är begränsad på iOS. För riktiga restock-/pris-aviseringar i appen,
   lägg till `@capacitor/push-notifications` (APNs/FCM) och registrera token mot
-  PokeFinds notifikationssystem. Dokumenteras som nästa steg.
+  Foilio notifikationssystem. Dokumenteras som nästa steg.
 - **Konton/avgifter:** Apple Developer $99/år, Google Play $25 engång.
 
 ## Konfiguration i korthet
@@ -121,7 +121,7 @@ npm run cap:sync
 | Sak | Var |
 | --- | --- |
 | Server-URL appen laddar | env `CAP_SERVER_URL` (vid `cap sync`/bygge) |
-| App-id / namn | `capacitor.config.ts` (`se.pokefinds.app` / `PokeFinds`) |
+| App-id / namn | `capacitor.config.ts` (`se.pokefinds.app` / `Foilio`) |
 | Android-behörigheter | `android/app/src/main/AndroidManifest.xml` |
 | iOS-behörigheter | `ios/App/App/Info.plist` (på Mac) |
 | Offline-skal | `mobile-shell/index.html` |

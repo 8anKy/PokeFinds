@@ -1,9 +1,9 @@
 /**
- * PokeFinds service worker — minimal PWA-skal för installerbarhet och
+ * Foilio service worker — minimal PWA-skal för installerbarhet och
  * offline-tålighet. Cache-first för statiska resurser (hash:ade), network-first
  * för sidnavigeringar med cache-fallback. API-anrop hanteras alltid live.
  */
-const CACHE = "pokefinds-v1";
+const CACHE = "foilio-v1";
 
 self.addEventListener("install", () => {
   self.skipWaiting();

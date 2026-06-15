@@ -6,7 +6,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // PokeFinds design tokens — neutral charcoal dark theme, teal signature
+        // Foilio design tokens — neutral charcoal dark theme, teal signature
         surface: {
           DEFAULT: "#0a0a0c",
           raised: "#141417",

@@ -14,7 +14,7 @@ function expectValidEmail(email: EmailContent) {
   expect(email.subject.length).toBeGreaterThan(0);
   expect(email.html).toContain("<!DOCTYPE html>");
   expect(email.html).toContain('lang="sv"');
-  expect(email.html).toContain("PokeFinds");
+  expect(email.html).toContain("Foilio");
   expect(email.text.length).toBeGreaterThan(0);
   // Textversionen ska inte innehålla HTML-taggar
   expect(email.text).not.toMatch(/<[a-z][\s\S]*>/i);

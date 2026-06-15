@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
-const STORAGE_KEY = "pokefinds-cookie-consent";
+const STORAGE_KEY = "foilio-cookie-consent";
 
 export function CookieBanner() {
   const [visible, setVisible] = useState(false);

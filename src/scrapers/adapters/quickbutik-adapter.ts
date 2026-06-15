@@ -9,7 +9,7 @@
  *   köpknapp ELLER sold-out-länk area-label="Ej tillgänglig".
  *
  * Konkreta butiker = tunna subklasser längst ner (sätter name + baseUrl).
- * ETIK: politeFetch (robots.txt, delay, PokeFindsBot UA, backoff).
+ * ETIK: politeFetch (robots.txt, delay, FoilioBot UA, backoff).
  */
 import { StockStatus, SourceType } from "@prisma/client";
 import { politeFetch } from "../http";

@@ -1,6 +1,6 @@
 /**
  * E-postmallar på svenska. Returnerar {subject, html, text}.
- * Mörkvänlig, enkel inline-stylad HTML med PokeFinds-branding.
+ * Mörkvänlig, enkel inline-stylad HTML med Foilio-branding.
  */
 
 export interface EmailContent {
@@ -16,7 +16,7 @@ export interface WeeklyStats {
   biggestDrop?: { title: string; percent: number };
 }
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pokefinds.se";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://foilio.se";
 
 function formatSek(ore: number): string {
   return `${(ore / 100).toLocaleString("sv-SE", { minimumFractionDigits: 2 })} kr`;
@@ -30,17 +30,17 @@ function layout(title: string, bodyHtml: string): string {
 <body style="margin:0;padding:0;background-color:#0f1115;font-family:'Segoe UI',Arial,sans-serif;">
   <div style="max-width:560px;margin:0 auto;padding:32px 16px;">
     <div style="text-align:center;padding-bottom:24px;">
-      <span style="font-size:24px;font-weight:800;color:#fbbf24;">Poke</span><span style="font-size:24px;font-weight:800;color:#60a5fa;">Finds</span>
+      <span style="font-size:24px;font-weight:800;color:#34c47e;letter-spacing:-0.5px;">Foilio</span>
     </div>
     <div style="background-color:#1a1d24;border:1px solid #2a2e38;border-radius:12px;padding:32px 28px;color:#e5e7eb;">
       <h1 style="margin:0 0 16px;font-size:20px;color:#ffffff;">${title}</h1>
       ${bodyHtml}
     </div>
     <div style="text-align:center;padding-top:24px;font-size:12px;color:#6b7280;line-height:1.6;">
-      Du får detta mejl för att du har ett konto på PokeFinds.<br>
+      Du får detta mejl för att du har ett konto på Foilio.<br>
       Du kan ändra dina aviseringsinställningar eller avsluta utskick under
-      <a href="${APP_URL}/installningar" style="color:#60a5fa;">Inställningar</a>.<br>
-      © PokeFinds · Sveriges marknadsplats för Pokémon TCG
+      <a href="${APP_URL}/installningar" style="color:#2dd4bf;">Inställningar</a>.<br>
+      © Foilio · Sveriges marknadsplats för Pokémon TCG
     </div>
   </div>
 </body>
@@ -56,22 +56,22 @@ function button(url: string, label: string): string {
 const textFooter =
   "\n\n—\nDu kan ändra dina aviseringsinställningar på " +
   APP_URL +
-  "/installningar\nPokeFinds · Sveriges marknadsplats för Pokémon TCG";
+  "/installningar\nFoilio · Sveriges marknadsplats för Pokémon TCG";
 
 export function welcomeEmail(name: string): EmailContent {
-  const subject = "Välkommen till PokeFinds!";
+  const subject = "Välkommen till Foilio!";
   const html = layout(
     `Välkommen, ${name}!`,
-    `<p style="line-height:1.6;color:#cbd5e1;">Kul att ha dig här! Med PokeFinds kan du jämföra priser på Pokémon TCG-produkter, bevaka dina favoriter och få aviseringar när priser sjunker eller produkter kommer tillbaka i lager.</p>
+    `<p style="line-height:1.6;color:#cbd5e1;">Kul att ha dig här! Med Foilio kan du jämföra priser på Pokémon TCG-produkter, bevaka dina favoriter och få aviseringar när priser sjunker eller produkter kommer tillbaka i lager.</p>
      <p style="line-height:1.6;color:#cbd5e1;">Kom igång genom att lägga till produkter i din bevakningslista.</p>
      ${button(`${APP_URL}/produkter`, "Utforska produkter")}`
   );
-  const text = `Välkommen, ${name}!\n\nKul att ha dig här! Med PokeFinds kan du jämföra priser, bevaka produkter och få aviseringar vid prisfall och restocks.\n\nKom igång: ${APP_URL}/produkter${textFooter}`;
+  const text = `Välkommen, ${name}!\n\nKul att ha dig här! Med Foilio kan du jämföra priser, bevaka produkter och få aviseringar vid prisfall och restocks.\n\nKom igång: ${APP_URL}/produkter${textFooter}`;
   return { subject, html, text };
 }
 
 export function verifyEmail(name: string, verifyUrl: string): EmailContent {
-  const subject = "Bekräfta din e-postadress – PokeFinds";
+  const subject = "Bekräfta din e-postadress – Foilio";
   const html = layout(
     "Bekräfta din e-postadress",
     `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Klicka på knappen nedan för att bekräfta din e-postadress och aktivera ditt konto.</p>
@@ -111,7 +111,7 @@ export function restockAlertEmail(
     "Åter i lager!",
     `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! En produkt du bevakar finns nu i lager igen:</p>
      <p style="font-size:16px;font-weight:700;color:#ffffff;margin:16px 0 4px;">${productTitle}</p>
-     <p style="color:#cbd5e1;margin:0 0 8px;">Hos: <strong style="color:#60a5fa;">${retailerName}</strong></p>
+     <p style="color:#cbd5e1;margin:0 0 8px;">Hos: <strong style="color:#2dd4bf;">${retailerName}</strong></p>
      <p style="line-height:1.6;color:#fbbf24;font-size:13px;">Populära produkter säljer ofta slut snabbt — skynda dig!</p>
      ${button(url, "Köp nu")}`
   );
@@ -120,7 +120,7 @@ export function restockAlertEmail(
 }
 
 export function weeklyReportEmail(name: string, stats: WeeklyStats): EmailContent {
-  const subject = "Din veckorapport från PokeFinds";
+  const subject = "Din veckorapport från Foilio";
   const biggestDropHtml = stats.biggestDrop
     ? `<p style="line-height:1.6;color:#cbd5e1;">Största prisfallet: <strong style="color:#34d399;">${stats.biggestDrop.title}</strong> (−${stats.biggestDrop.percent} %)</p>`
     : "";
@@ -130,7 +130,7 @@ export function weeklyReportEmail(name: string, stats: WeeklyStats): EmailConten
      <table style="width:100%;margin:16px 0;border-collapse:collapse;">
        <tr><td style="padding:8px 0;color:#cbd5e1;">Bevakade produkter</td><td style="text-align:right;font-weight:700;color:#ffffff;">${stats.watchedProducts}</td></tr>
        <tr><td style="padding:8px 0;color:#cbd5e1;">Prisfall denna vecka</td><td style="text-align:right;font-weight:700;color:#34d399;">${stats.priceDrops}</td></tr>
-       <tr><td style="padding:8px 0;color:#cbd5e1;">Restocks denna vecka</td><td style="text-align:right;font-weight:700;color:#60a5fa;">${stats.restocks}</td></tr>
+       <tr><td style="padding:8px 0;color:#cbd5e1;">Restocks denna vecka</td><td style="text-align:right;font-weight:700;color:#2dd4bf;">${stats.restocks}</td></tr>
      </table>
      ${biggestDropHtml}
      ${button(`${APP_URL}/bevakningar`, "Se dina bevakningar")}`
@@ -143,7 +143,7 @@ export function weeklyReportEmail(name: string, stats: WeeklyStats): EmailConten
 }
 
 export function passwordResetEmail(name: string, resetUrl: string): EmailContent {
-  const subject = "Återställ ditt lösenord – PokeFinds";
+  const subject = "Återställ ditt lösenord – Foilio";
   const html = layout(
     "Återställ ditt lösenord",
     `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Vi fick en begäran om att återställa ditt lösenord. Klicka på knappen nedan för att välja ett nytt. Länken är giltig i 1 timme.</p>

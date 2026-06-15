@@ -22,7 +22,7 @@ const prisma = new PrismaClient();
 let EUR_TO_ORE = EUR_FALLBACK_ORE;
 let USD_TO_ORE = USD_FALLBACK_ORE;
 const DELAY_MS = 120;
-const UA = "PokeFinds/1.0 (prisjamforelse; kontakt@pokefinds.se)";
+const UA = "Foilio/1.0 (prisjamforelse; hej@foilio.se)";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

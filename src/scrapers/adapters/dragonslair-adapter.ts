@@ -4,7 +4,7 @@
  * robots.txt verifierad 2026-06-11: tillåter crawling (crawl-delay 10s).
  * Hämtar Pokémon TCG-kategorisidor och extraherar produktdata ur HTML.
  *
- * ETIK: politeFetch (robots.txt, PokeFindsBot UA, backoff).
+ * ETIK: politeFetch (robots.txt, FoilioBot UA, backoff).
  * Crawl-delay satt till 10s per robots.txt.
  */
 import { StockStatus, SourceType } from "@prisma/client";

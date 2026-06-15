@@ -5,7 +5,7 @@ import { IconCheck, IconPlus } from "@/components/ui/icons";
 export const metadata: Metadata = {
   title: "Priser",
   description:
-    "Kom igång gratis med PokeFinds eller uppgradera till Premium för obegränsade bevakningar, snabbare restock-notiser och full samlingsanalys.",
+    "Kom igång gratis med Foilio eller uppgradera till Premium för obegränsade bevakningar, snabbare restock-notiser och full samlingsanalys.",
 };
 
 const FREE_FEATURES = [

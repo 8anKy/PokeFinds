@@ -9,7 +9,7 @@
  *  - vi kringgår ALDRIG captcha, inloggning eller betalväggar
  */
 
-export const BOT_USER_AGENT = "PokeFindsBot/1.0 (+kontakt: admin@pokefinds.se)";
+export const BOT_USER_AGENT = "FoilioBot/1.0 (+kontakt: hej@foilio.se)";
 
 /** Standardfördröjning mellan förfrågningar mot samma värd. */
 const DEFAULT_DELAY_MS = 1500;
@@ -40,7 +40,7 @@ function parseRobotsTxt(text: string): RobotsRules {
     const value = rest.join(":").trim();
     if (key === "user-agent") {
       const ua = value.toLowerCase();
-      applies = ua === "*" || ua.includes("pokefindsbot");
+      applies = ua === "*" || ua.includes("foiliobot");
     } else if (applies && key === "disallow" && value) {
       rules.disallow.push(value);
     } else if (applies && key === "allow" && value) {
@@ -108,7 +108,7 @@ export interface PoliteFetchOptions {
 
 /**
  * Hämtar en URL artigt: kontrollerar robots.txt, väntar mellan förfrågningar
- * mot samma värd, identifierar sig som PokeFindsBot och gör omförsök med
+ * mot samma värd, identifierar sig som FoilioBot och gör omförsök med
  * exponentiell backoff.
  */
 export async function politeFetch(

@@ -4,7 +4,7 @@
  * Detta är en RIKTIG datakälla via officiellt, gratis API (ingen scraping):
  *  - Fungerar utan nyckel (lägre rate limit). Sätt POKEMONTCG_API_KEY i .env
  *    för högre gränser (gratis nyckel via https://dev.pokemontcg.io).
- *  - All trafik går via politeFetch (robots.txt, PokeFindsBot-UA, backoff).
+ *  - All trafik går via politeFetch (robots.txt, FoilioBot-UA, backoff).
  *  - Cardmarket-priser är i EUR → konverteras till öre med live-kurs från
  *    src/lib/exchange-rate (Frankfurter, cachad per dygn). TCGplayer-priser är
  *    i USD och används som fallback. Anropa getRatesOre() i början av en

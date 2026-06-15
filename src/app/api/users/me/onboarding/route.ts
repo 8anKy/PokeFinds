@@ -52,7 +52,7 @@ export async function POST(req: Request) {
       select: { id: true, onboardingCompleted: true, preferences: true, notificationSettings: true },
     });
 
-    return jsonOk({ message: "Onboarding klar. Välkommen till PokeFinds!", user });
+    return jsonOk({ message: "Onboarding klar. Välkommen till Foilio!", user });
   } catch (e) {
     return apiError(e);
   }

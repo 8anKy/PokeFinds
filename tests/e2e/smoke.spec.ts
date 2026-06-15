@@ -1,5 +1,5 @@
 /**
- * Röktester (smoke tests) för PokeFinds.
+ * Röktester (smoke tests) för Foilio.
  *
  * FÖRUTSÄTTNINGAR:
  *  - Databasen körs och är migrerad + seedad:
@@ -13,15 +13,15 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Röktester — publika sidor", () => {
-  test("startsidan laddar med PokeFinds i titeln", async ({ page }) => {
+  test("startsidan laddar med Foilio i titeln", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveTitle(/PokeFinds/);
+    await expect(page).toHaveTitle(/Foilio/);
     await expect(page.locator("body")).toBeVisible();
   });
 
   test("navigering till /produkter renderar produktkatalogen", async ({ page }) => {
     await page.goto("/produkter");
-    await expect(page).toHaveTitle(/PokeFinds/);
+    await expect(page).toHaveTitle(/Foilio/);
     // Sidan ska rendera innehåll (inte 404/500)
     await expect(page.locator("h1").first()).toBeVisible();
   });
@@ -36,7 +36,7 @@ test.describe("Röktester — publika sidor", () => {
 
   test("/priser renderar prissidan", async ({ page }) => {
     await page.goto("/priser");
-    await expect(page).toHaveTitle(/PokeFinds/);
+    await expect(page).toHaveTitle(/Foilio/);
     await expect(page.locator("h1").first()).toBeVisible();
   });
 });

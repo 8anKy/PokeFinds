@@ -9,7 +9,7 @@
  * (verifierat 2026-06-14; endast sort_by- och recommendations-vägar är Disallow).
  *
  * Konkreta butiker = tunna subklasser längst ner (sätter name + baseUrl).
- * ETIK: politeFetch (robots.txt, delay, PokeFindsBot UA, backoff). Inga
+ * ETIK: politeFetch (robots.txt, delay, FoilioBot UA, backoff). Inga
  * inloggningar/captcha/personuppgifter.
  */
 import { StockStatus, SourceType } from "@prisma/client";

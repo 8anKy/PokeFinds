@@ -4,7 +4,7 @@
  * robots.txt verifierad 2026-06-11: produktsidor tillåtna.
  * Hämtar produktkategori-sidor, extraherar titel/pris/lager/URL.
  *
- * ETIK: politeFetch (robots.txt, crawl-delay, PokeFindsBot UA, backoff).
+ * ETIK: politeFetch (robots.txt, crawl-delay, FoilioBot UA, backoff).
  * Inga captcha-bypass, inga inloggningar, inga personuppgifter.
  */
 import { StockStatus, SourceType } from "@prisma/client";

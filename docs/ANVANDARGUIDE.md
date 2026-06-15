@@ -1,6 +1,6 @@
-# PokeFinds — Användarguide
+# Foilio — Användarguide
 
-Den här guiden visar hur du startar, testar och använder PokeFinds lokalt — funktion för funktion.
+Den här guiden visar hur du startar, testar och använder Foilio lokalt — funktion för funktion.
 
 ---
 
@@ -106,7 +106,7 @@ npm run dev                # startar dev-servern
 ## 4. Så fungerar systemet (kort)
 
 - **Priser** lagras alltid i **öre** (heltal) och formateras med `formatPrice()`.
-- **Datakällor** hämtas via adapter-mönstret i `src/scrapers/` — alla adapters respekterar robots.txt, rate limits och identifierar sig som `PokeFindsBot/1.0`. Ingen captcha-/login-bypass.
+- **Datakällor** hämtas via adapter-mönstret i `src/scrapers/` — alla adapters respekterar robots.txt, rate limits och identifierar sig som `FoilioBot/1.0`. Ingen captcha-/login-bypass.
 - **Kortdata & bilder** kommer från det officiella Pokémon TCG-API:et (api.pokemontcg.io).
 - **Notiser**: prisfall/restock skapar `Notification` (in-app) + e-post (terminal i dev).
 - **Bakgrundsjobb** körs via BullMQ om Redis finns, annars in-memory fallback — Redis är valfritt.

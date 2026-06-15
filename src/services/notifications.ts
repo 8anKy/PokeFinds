@@ -9,7 +9,7 @@ import { sendMail } from "@/lib/mailer";
 import { priceAlertEmail, restockAlertEmail } from "@/emails/templates";
 
 const MAX_RETRIES = 3;
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pokefinds.se";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://foilio.se";
 
 export interface NotificationInput {
   title: string;
@@ -95,7 +95,7 @@ async function buildAlertEmail(alert: {
   }
   // Generiskt fallback-mejl
   return {
-    subject: "Avisering från PokeFinds",
+    subject: "Avisering från Foilio",
     html: `<p>Hej ${alert.user.name}!</p><p>${alert.message}</p>`,
     text: `Hej ${alert.user.name}!\n\n${alert.message}`,
   };
