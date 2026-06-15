@@ -13,3 +13,6 @@ prisma/migrations/dev/
 *.tsbuildinfo
 next-env.d.ts
 .claude/settings.local.json
+.vercel
+
+.vercel
