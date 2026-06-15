@@ -17,7 +17,12 @@
     "import:tcg": "tsx scripts/import-tcg-data.ts",
     "scrape": "tsx scripts/run-scrapers.ts",
     "cleanup:offers": "tsx scripts/cleanup-fake-offers.ts",
-    "jobs:worker": "tsx src/jobs/worker.ts"
+    "jobs:worker": "tsx src/jobs/worker.ts",
+    "cap:add:android": "cap add android",
+    "cap:add:ios": "cap add ios",
+    "cap:sync": "cap sync",
+    "cap:android": "cap open android",
+    "cap:ios": "cap open ios"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -25,6 +30,11 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
     "@auth/prisma-adapter": "^2.7.0",
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/app": "^6.0.3",
+    "@capacitor/cli": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
+    "@capacitor/ios": "^6.2.1",
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.25.6",
