@@ -13,6 +13,7 @@ const NEW_SHOPIFY = [
   { name: "Goblinen", baseUrl: "https://goblinen.com" }, // Shopify
   { name: "Swepoke", baseUrl: "https://www.swepoke.se" }, // Quickbutik
   { name: "Shinycards", baseUrl: "https://www.shinycards.se" }, // Quickbutik
+  { name: "MaxGaming", baseUrl: "https://www.maxgaming.se" }, // Custom (PT_-markup), Wave 3
 ];
 // Befintliga butiker som ska med i den frekventa restock-bevakningen
 const EXISTING_WATCH = ["Webhallen", "Spelexperten", "Alphaspel"];

@@ -25,6 +25,7 @@ import {
   SwepokeAdapter,
   ShinycardsAdapter,
 } from "@/scrapers/adapters/quickbutik-adapter";
+import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
 import { isPlausibleListingPrice, matchProduct } from "@/scrapers/matching";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
 import type { SourceAdapter } from "@/scrapers/types";
@@ -47,6 +48,8 @@ const SCRAPER_ADAPTERS: Record<string, new () => SourceAdapter> = {
   // Quickbutik-butiker (återanvändbar QuickbutikAdapter)
   Swepoke: SwepokeAdapter,
   Shinycards: ShinycardsAdapter,
+  // Custom-plattform (server-renderad PT_-markup)
+  MaxGaming: MaxGamingAdapter,
 };
 
 function getAdapter(type: SourceType, sourceName?: string): SourceAdapter {
