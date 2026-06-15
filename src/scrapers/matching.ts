@@ -185,6 +185,50 @@ export function distinctiveOverlap(incoming: string, candidate: string): number 
   return shared / b.size;
 }
 
+/**
+ * Era-/serievarumärken (Mega Evolution, Scarlet & Violet …). De är GEMENSAMMA för
+ * många produkter inom en era och får därför inte ensamma binda en offert till en
+ * bas-produkt. De behålls i distinctiveOverlap (skiljer bas-set åt) men exkluderas
+ * när vi kollar att offertens EGNA särskiljande ord täcks av kandidaten.
+ */
+const ERA_PHRASES = [
+  /\bmega evolution\b/g,
+  /\bscarlet( and| &)? violet\b/g,
+  /\bsword( and| &)? shield\b/g,
+  /\bsun( and| &)? moon\b/g,
+];
+/** Butiksbrus som inte särskiljer produkt (kvantitetsgräns, skick, varianttext). */
+const NOISE_WORDS = new Set([
+  "max", "per", "kund", "styck", "version", "kopia", "copy", "exklusivt", "exclusive", "promo",
+  "hushall", "hushåll", "person", "antal", "pokemonkort", "pokémonkort", "forseglad", "oppen", "obs",
+]);
+/** Inkommande titelns särskiljande ord MINUS era-varumärken och butiksbrus. */
+function nonEraDistinctiveWords(title: string): Set<string> {
+  let t = normalizeTitle(title);
+  for (const re of ERA_PHRASES) t = t.replace(re, " ");
+  const words = distinctiveWords(t);
+  for (const n of NOISE_WORDS) words.delete(n);
+  return words;
+}
+
+/**
+ * Andel av INKOMMANDE titelns icke-era särskiljande ord som täcks av kandidaten.
+ * Låg täckning ⇒ inkommande beskriver en mer specifik/annan produkt (t.ex.
+ * "Mega Evolution Perfect Order ETB" mot bas-"Mega Evolution ETB" — "perfect
+ * order" saknas i basen). 1 om inkommande saknar egna icke-era-ord (= ren bas-titel).
+ */
+export function nonEraCoverage(incoming: string, candidate: string): number {
+  // Stamma bort plural-/genitiv-s ("rockets"→"rocket", "Rocket's"→"rocket s"→"rocket")
+  // så att samma produkt inte felflaggas pga tokeniseringsskillnad.
+  const stem = (w: string) => (w.length > 3 && w.endsWith("s") ? w.slice(0, -1) : w);
+  const inc = new Set([...nonEraDistinctiveWords(incoming)].map(stem));
+  if (inc.size === 0) return 1;
+  const cand = new Set([...distinctiveWords(normalizeTitle(candidate))].map(stem));
+  let covered = 0;
+  for (const w of inc) if (cand.has(w)) covered++;
+  return covered / inc.size;
+}
+
 /** Språkmarkörer i titlar — japanska/kinesiska produkter får inte matcha EN-katalogen. */
 const NON_EN_LANGUAGE = /\b(japansk\w*|japanese|jpn?\b|kinesisk\w*|chinese|korean\w*|koreansk\w*)\b/i;
 
@@ -257,6 +301,13 @@ export async function matchProduct(
     // (hindrar "Ascended Heroes ETB" från att matcha "Destined Rivals ETB")
     const overlap = distinctiveOverlap(normalized, c.normalizedTitle);
     if (overlap < MIN_DISTINCTIVE_OVERLAP) {
+      continue;
+    }
+    // Offertens EGNA icke-era särskiljande ord ("perfect order", "chaos rising")
+    // måste täckas av kandidaten — annars är offerten en mer specifik produkt och
+    // får inte matcha bas-produkten (bas-"Mega Evolution ETB" fångar då inte en
+    // "Mega Evolution Perfect Order ETB"-annons).
+    if (nonEraCoverage(normalized, c.normalizedTitle) < MIN_DISTINCTIVE_OVERLAP) {
       continue;
     }
     // Liten bonus för högre ordöverlapp — föredrar "Mega Evolution Booster Pack"

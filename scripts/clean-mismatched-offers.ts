@@ -12,7 +12,7 @@
  *           DELETE=1 npx tsx scripts/clean-mismatched-offers.ts (radera)
  */
 import { PrismaClient } from "@prisma/client";
-import { classifyForm, distinctiveOverlap, languageMismatch } from "../src/scrapers/matching";
+import { classifyForm, distinctiveOverlap, languageMismatch, nonEraCoverage } from "../src/scrapers/matching";
 
 const prisma = new PrismaClient();
 
@@ -98,13 +98,21 @@ async function main() {
     const formClash =
       formA !== null && formB !== null && formA !== formB &&
       formA !== "multipack" && formB !== "multipack";
+    // Offertens egna icke-era ord (t.ex. "perfect order") måste täckas av produkten,
+    // annars är annonsen en mer specifik produkt felmatchad mot en bas-produkt.
+    // cov === 0 = INGET av offertens egna icke-era ord finns i produkten → en
+    // specifik variant felmatchad mot en bas-/annan produkt (t.ex. "Perfect Order
+    // ETB" på bas-"Mega Evolution ETB"). Pålitligt. cov 0,2–0,49 lämnas (kan vara
+    // samma set med setkod/art-namn) — matcharens <0,5-vakt hindrar nya fel.
+    const cov = nonEraCoverage(scrapedTitle, o.product.title);
+    const subExpansionMiss = cov === 0;
 
-    if (formClash || overlap === 0 || languageMismatch(scrapedTitle, o.product.title)) {
+    if (formClash || overlap === 0 || subExpansionMiss || languageMismatch(scrapedTitle, o.product.title)) {
       mismatched++;
       toDelete.push(o.id);
       if (mismatched <= 60) {
         console.log(
-          `  ✗ [${retailerName.get(o.retailerId)}] "${scrapedTitle}" ≠ "${o.product.title}" (överlapp ${overlap.toFixed(2)}${formClash ? `, form ${formA}≠${formB}` : ""})`
+          `  ✗ [${retailerName.get(o.retailerId)}] "${scrapedTitle}" ≠ "${o.product.title}" (överlapp ${overlap.toFixed(2)}${formClash ? `, form ${formA}≠${formB}` : ""}${subExpansionMiss ? `, sub-expansion cov=${cov.toFixed(2)}` : ""})`
         );
       }
     }
