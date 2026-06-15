@@ -24,15 +24,23 @@ const MAX_CANDIDATES = 5;
  * Returnerar konfigurerad OCR-adapter utifrån env-variabeln OCR_PROVIDER.
  * "mock" (standard) använder utvecklingsmocken. Nya leverantörer
  * registreras här — se docs/SCANNER.md.
+ *
+ * `precise` väljer en starkare (men dyrare) vision-modell. Live-loopen pollar
+ * med den snabba/billiga modellen (SCANNER_MODEL, Haiku); den precisa modellen
+ * (SCANNER_MODEL_PRECISE, Sonnet) körs bara EN gång per kort — vid uppladdning
+ * och vid den slutliga bekräftelsen innan ett kort låses — så att träffsäkerheten
+ * blir hög utan att varje videoruta kostar Sonnet-tokens.
  */
-export function getOcrAdapter(): OcrAdapter {
+export function getOcrAdapter(precise = false): OcrAdapter {
   const provider = process.env.OCR_PROVIDER ?? "mock";
   switch (provider) {
     case "mock":
       return new MockOcrAdapter();
     case "claude":
       return new ClaudeVisionOcrAdapter(
-        process.env.SCANNER_MODEL ?? "claude-haiku-4-5"
+        precise
+          ? process.env.SCANNER_MODEL_PRECISE ?? "claude-sonnet-4-6"
+          : process.env.SCANNER_MODEL ?? "claude-haiku-4-5"
       );
     default:
       throw new ServiceError(
@@ -215,10 +223,14 @@ export interface IdentifyResult {
 /**
  * Live-identifiering: kör OCR-/vision-adaptern + matchar mot katalogen UTAN att
  * skapa ett ScannerJob (billigt nog att polla med nedskalade videorutor).
- * Returnerar bästa katalogträffar + aktuellt marknadsvärde.
+ * Returnerar bästa katalogträffar + aktuellt marknadsvärde. Sätt `precise` för
+ * den starkare vision-modellen (bekräftelse/uppladdning).
  */
-export async function identifyCard(imageDataUrl: string): Promise<IdentifyResult> {
-  const adapter = getOcrAdapter();
+export async function identifyCard(
+  imageDataUrl: string,
+  opts: { precise?: boolean } = {}
+): Promise<IdentifyResult> {
+  const adapter = getOcrAdapter(opts.precise);
   const ocr = await adapter.extractCardInfo(imageDataUrl);
   const candidates =
     ocr.guessedName || ocr.rawText.trim() ? await matchCards(ocr) : [];

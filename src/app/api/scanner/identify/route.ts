@@ -22,6 +22,9 @@ const schema = z.object({
     .string()
     .min(1, "Bild saknas.")
     .regex(/^data:image\/[a-z+.-]+;base64,/i, "Bilden måste vara en data-URL (image/*)."),
+  // Starkare (dyrare) vision-modell — körs bara vid bekräftelse/uppladdning,
+  // inte för varje live-ruta.
+  precise: z.boolean().optional(),
 });
 
 export async function POST(req: Request) {
@@ -34,12 +37,12 @@ export async function POST(req: Request) {
       throw new ServiceError(429, "För många skanningar på kort tid — vänta en stund.");
     }
 
-    const { image } = schema.parse(await req.json());
+    const { image, precise } = schema.parse(await req.json());
     if (image.length > MAX_IMAGE_BYTES * 1.4) {
       throw new ServiceError(413, "Bilden är för stor. Skala ner videorutan innan den skickas.");
     }
 
-    const result = await identifyCard(image);
+    const result = await identifyCard(image, { precise });
     return jsonOk(result);
   } catch (e) {
     return apiError(e);

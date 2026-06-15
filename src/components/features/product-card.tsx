@@ -77,6 +77,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
             src={product.imageUrl}
             alt={product.title}
             loading="lazy"
+            decoding="async"
             className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
           />
         ) : (

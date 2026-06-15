@@ -6,7 +6,7 @@ import { HeaderNav } from "@/components/layout/header-nav";
 export async function SiteHeader() {
   const session = await auth();
   return (
-    <header className="sticky top-0 z-40 border-b border-surface-border bg-surface/70 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-surface-border bg-surface/85 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2">
           <span className="text-xl font-bold tracking-tight">

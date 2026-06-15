@@ -37,6 +37,17 @@ export const IconSearch = (p: IconProps) => (
   </svg>
 );
 
+/** Skann-/sökare-ram (hörnparenteser + scanlinje) — live kortidentifiering. */
+export const IconScan = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M4 8V6.5A2.5 2.5 0 0 1 6.5 4H8" />
+    <path d="M16 4h1.5A2.5 2.5 0 0 1 20 6.5V8" />
+    <path d="M20 16v1.5a2.5 2.5 0 0 1-2.5 2.5H16" />
+    <path d="M8 20H6.5A2.5 2.5 0 0 1 4 17.5V16" />
+    <path d="M4 12h16" />
+  </svg>
+);
+
 export const IconBell = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />

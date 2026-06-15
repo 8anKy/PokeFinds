@@ -12,7 +12,7 @@ import {
 } from "@/services/products";
 import { StockBadge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PriceChart } from "@/components/features/price-chart";
+import { PriceChartLazy } from "@/components/features/price-chart-lazy";
 import { ProductCard, CATEGORY_LABELS } from "@/components/features/product-card";
 import { ProductActions } from "@/components/features/product-actions";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
@@ -297,7 +297,7 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
               </div>
             </CardHeader>
             <CardContent>
-              <PriceChart data={chartData} />
+              <PriceChartLazy data={chartData} />
             </CardContent>
           </Card>
         </div>

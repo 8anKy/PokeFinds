@@ -13,7 +13,7 @@ import { ExploreFeed } from "@/components/features/explore-feed";
 import { Input, Select, Label, Checkbox } from "@/components/ui/input";
 import { Button, LinkButton } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { IconSearch } from "@/components/ui/icons";
+import { IconSearch, IconScan } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -142,13 +142,24 @@ export default async function ProductsPage({
           <form method="GET" action="/produkter" className="card-surface sticky top-20 space-y-4 p-5">
             <div>
               <Label htmlFor="q">Sök</Label>
-              <Input
-                id="q"
-                name="q"
-                type="search"
-                placeholder="T.ex. Charizard, Booster Box…"
-                defaultValue={searchParams.q ?? ""}
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  id="q"
+                  name="q"
+                  type="search"
+                  placeholder="T.ex. Charizard, Booster Box…"
+                  defaultValue={searchParams.q ?? ""}
+                  className="flex-1"
+                />
+                <Link
+                  href="/skanna"
+                  aria-label="Identifiera kort med kameran"
+                  title="Skanna ett kort med kameran"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-surface-border bg-surface-overlay text-ink-muted transition-colors hover:border-holo-cyan/60 hover:text-holo-cyan focus-visible:border-holo-cyan/60 focus-visible:text-holo-cyan"
+                >
+                  <IconScan size={20} />
+                </Link>
+              </div>
             </div>
             <div>
               <Label htmlFor="kategori">Kategori</Label>

@@ -229,6 +229,39 @@ export function nonEraCoverage(incoming: string, candidate: string): number {
   return covered / inc.size;
 }
 
+/**
+ * Deck-produkter (League/Battle/Theme/Starter Deck) delar produktlinje-orden
+ * "league/battle/deck/mega/…" men särskiljs av KARAKTÄREN (Palkia, Mewtwo,
+ * Lucario …). De linje-orden får därför inte ensamma binda ihop två olika
+ * decks. `deckIdentity` = de särskiljande orden MINUS linje-orden = karaktären.
+ */
+const DECK_LINE_WORDS = new Set([
+  "league",
+  "battle",
+  "theme",
+  "starter",
+  "challenge",
+  "mega",
+  "tag",
+  "vstar",
+  "vmax",
+  "gmax",
+]);
+export function deckIdentity(title: string): Set<string> {
+  const words = distinctiveWords(normalizeTitle(title));
+  for (const w of DECK_LINE_WORDS) words.delete(w);
+  return words;
+}
+
+/** True om två deck-titlar beskriver olika karaktärer (inga delade karaktärsord). */
+export function deckCharacterMismatch(incoming: string, candidate: string): boolean {
+  const a = deckIdentity(incoming);
+  const b = deckIdentity(candidate);
+  if (a.size === 0 || b.size === 0) return false; // för lite info → låt övriga vakter avgöra
+  for (const w of a) if (b.has(w)) return false;
+  return true;
+}
+
 /** Språkmarkörer i titlar — japanska/kinesiska produkter får inte matcha EN-katalogen. */
 const NON_EN_LANGUAGE = /\b(japansk\w*|japanese|jpn?\b|kinesisk\w*|chinese|korean\w*|koreansk\w*)\b/i;
 
@@ -291,6 +324,15 @@ export async function matchProduct(
     // Olika produktform (t.ex. booster pack vs booster box) → förkasta
     const candidateForm = classifyForm(c.normalizedTitle);
     if (incomingForm && candidateForm && incomingForm !== candidateForm) {
+      continue;
+    }
+    // Två decks med olika karaktär (Palkia VSTAR ≠ Inteleon VMAX) → förkasta.
+    // "League Battle Deck" delar linje-orden men karaktären måste stämma.
+    if (
+      incomingForm === "deck" &&
+      candidateForm === "deck" &&
+      deckCharacterMismatch(normalized, c.normalizedTitle)
+    ) {
       continue;
     }
     // Fel språk (japansk/kinesisk utgåva) → förkasta

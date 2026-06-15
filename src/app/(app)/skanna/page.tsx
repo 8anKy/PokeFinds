@@ -70,6 +70,11 @@ const SCAN_INTERVAL_MS = 1500;
 const DOWNSCALE_MAX = 640;
 const MIN_SHOW_CONF = 0.25;
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
+// Klient-grindar: en videoruta skickas till modellen BARA när ett kort faktiskt
+// hålls upp (tillräcklig bildkontrast i mittregionen) OCH hålls stilla (låg
+// rörelse mot förra rutan). Pekas kameran mot en tom yta spenderas inga tokens.
+const DETAIL_MIN = 12; // std-avvikelse i luminans (0–255) i mittregionen
+const MOTION_MAX = 7; // medel-abs-diff mot förra rutan (0–255)
 
 type CameraState = "idle" | "starting" | "live" | "error" | "unsupported";
 
@@ -84,6 +89,7 @@ export default function SkannaPage() {
   const busyRef = useRef(false);
   const lockedRef = useRef(false);
   const recentRef = useRef<string[]>([]);
+  const prevLumRef = useRef<number[] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [cameraState, setCameraState] = useState<CameraState>("idle");
@@ -94,7 +100,9 @@ export default function SkannaPage() {
   const [match, setMatch] = useState<Candidate | null>(null);
   const [confidence, setConfidence] = useState(0);
   const [locked, setLocked] = useState(false);
-  const [searching, setSearching] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [liveHint, setLiveHint] = useState("Håll upp ett kort framför kameran…");
 
   const [quantity, setQuantity] = useState(1);
   const [condition, setCondition] = useState<string>("NEAR_MINT");
@@ -102,33 +110,27 @@ export default function SkannaPage() {
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
 
-  const applyIdentify = useCallback((data: IdentifyResponse) => {
+  const showMatch = useCallback((data: IdentifyResponse): string | null => {
     setProvider(data.provider);
-    if (lockedRef.current) return; // behåll det låsta resultatet
     const top = data.candidates[0];
     if (top && data.confidence >= MIN_SHOW_CONF) {
       setMatch(top);
       setConfidence(data.confidence);
-      setSearching(false);
-      const recent = [...recentRef.current.slice(-1), top.cardId];
-      recentRef.current = recent;
-      if (recent.length >= 2 && recent[0] === recent[1]) {
-        lockedRef.current = true;
-        setLocked(true);
-      }
-    } else {
-      recentRef.current = [];
-      setSearching(true);
+      return top.cardId;
     }
+    return null;
   }, []);
 
   const runIdentify = useCallback(
-    async (dataUrl: string, opts: { surfaceErrors?: boolean } = {}) => {
+    async (
+      dataUrl: string,
+      opts: { surfaceErrors?: boolean; precise?: boolean } = {}
+    ): Promise<IdentifyResponse | null> => {
       try {
         const res = await fetch("/api/scanner/identify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: dataUrl }),
+          body: JSON.stringify({ image: dataUrl, precise: opts.precise ?? false }),
         });
         const data = (await res.json()) as IdentifyResponse & { error?: string };
         if (!res.ok) {
@@ -136,44 +138,143 @@ export default function SkannaPage() {
           else if (opts.surfaceErrors && data.error) {
             toast({ title: "Kunde inte identifiera", description: data.error, variant: "error" });
           }
-          return;
+          return null;
         }
         setConfigError("");
-        applyIdentify(data);
+        return data;
       } catch {
         // Nätverksglapp under live-loopen — ignorera tyst.
+        return null;
       }
     },
-    [applyIdentify, toast]
+    [toast]
   );
 
-  const captureFrame = useCallback((): string | null => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas || video.readyState < 2 || !video.videoWidth) return null;
-    const scale = Math.min(1, DOWNSCALE_MAX / video.videoWidth);
-    const w = Math.round(video.videoWidth * scale);
-    const h = Math.round(video.videoHeight * scale);
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-    ctx.drawImage(video, 0, 0, w, h);
-    return canvas.toDataURL("image/jpeg", 0.7);
-  }, []);
+  /**
+   * Ritar ned en nedskalad videoruta och mäter — helt på klienten, utan tokens —
+   * om ett kort hålls upp: `detail` = bildkontrast i mittregionen (tom yta → lågt),
+   * `motion` = skillnad mot förra rutan (kameran rör sig → högt). Returnerar även
+   * JPEG-data-URL:en så att en godkänd ruta kan skickas till modellen direkt.
+   */
+  const analyzeFrame = useCallback(
+    (): { detail: number; motion: number; dataUrl: string } | null => {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas || video.readyState < 2 || !video.videoWidth) return null;
+      const scale = Math.min(1, DOWNSCALE_MAX / video.videoWidth);
+      const w = Math.round(video.videoWidth * scale);
+      const h = Math.round(video.videoHeight * scale);
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return null;
+      ctx.drawImage(video, 0, 0, w, h);
+
+      // Mittregion = skanningsramen (58 % × 78 %, centrerad).
+      const rx = Math.floor(w * 0.21);
+      const ry = Math.floor(h * 0.11);
+      const rw = Math.max(1, Math.floor(w * 0.58));
+      const rh = Math.max(1, Math.floor(h * 0.78));
+      const { data } = ctx.getImageData(rx, ry, rw, rh);
+      const GRID = 24;
+      const lum: number[] = [];
+      for (let gy = 0; gy < GRID; gy++) {
+        for (let gx = 0; gx < GRID; gx++) {
+          const px = Math.min(rw - 1, Math.floor(((gx + 0.5) / GRID) * rw));
+          const py = Math.min(rh - 1, Math.floor(((gy + 0.5) / GRID) * rh));
+          const i = (py * rw + px) * 4;
+          lum.push(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+        }
+      }
+      let mean = 0;
+      for (const v of lum) mean += v;
+      mean /= lum.length;
+      let varc = 0;
+      for (const v of lum) varc += (v - mean) ** 2;
+      const detail = Math.sqrt(varc / lum.length);
+
+      const prev = prevLumRef.current;
+      let motion = Infinity; // första rutan saknar referens → behandla som rörlig
+      if (prev && prev.length === lum.length) {
+        let diff = 0;
+        for (let i = 0; i < lum.length; i++) diff += Math.abs(lum[i] - prev[i]);
+        motion = diff / lum.length;
+      }
+      prevLumRef.current = lum;
+
+      return { detail, motion, dataUrl: canvas.toDataURL("image/jpeg", 0.7) };
+    },
+    []
+  );
 
   const scanTick = useCallback(async () => {
     if (!runningRef.current) return;
-    if (!lockedRef.current && !busyRef.current) {
-      const frame = captureFrame();
-      if (frame) {
-        busyRef.current = true;
-        await runIdentify(frame);
-        busyRef.current = false;
+    const reschedule = () => {
+      if (runningRef.current)
+        loopRef.current = setTimeout(() => void scanTick(), SCAN_INTERVAL_MS);
+    };
+
+    // Hoppa över helt när kortet är låst, ett anrop pågår eller fliken är dold.
+    if (
+      lockedRef.current ||
+      busyRef.current ||
+      (typeof document !== "undefined" && document.hidden)
+    ) {
+      reschedule();
+      return;
+    }
+
+    const frame = analyzeFrame();
+    if (!frame) {
+      reschedule();
+      return;
+    }
+
+    // GRIND: spendera inga tokens på en tom eller rörlig ruta.
+    if (frame.detail < DETAIL_MIN) {
+      recentRef.current = [];
+      setLiveHint("Håll upp ett kort framför kameran…");
+      reschedule();
+      return;
+    }
+    if (frame.motion > MOTION_MAX) {
+      setLiveHint("Håll kortet stilla…");
+      reschedule();
+      return;
+    }
+
+    busyRef.current = true;
+    setLiveHint("Identifierar…");
+    const data = await runIdentify(frame.dataUrl);
+    if (!lockedRef.current && data) {
+      const id = showMatch(data);
+      if (id) {
+        const recent = [...recentRef.current.slice(-1), id];
+        recentRef.current = recent;
+        // Två likadana snabbläsningar (Haiku) i rad → bekräfta EN gång med den
+        // precisa modellen (Sonnet) innan vi låser. Hög träffsäkerhet, men bara
+        // ett dyrare anrop per kort.
+        if (recent.length >= 2 && recent[0] === recent[1]) {
+          setConfirming(true);
+          const precise = await runIdentify(frame.dataUrl, { precise: true });
+          if (precise && precise.candidates[0] && precise.confidence >= MIN_SHOW_CONF) {
+            showMatch(precise);
+            lockedRef.current = true;
+            setLocked(true);
+          } else {
+            // Precis modell osäker → lås inte på en möjlig felläsning.
+            recentRef.current = [];
+          }
+          setConfirming(false);
+        }
+      } else {
+        recentRef.current = [];
+        setLiveHint("Håll upp ett kort framför kameran…");
       }
     }
-    if (runningRef.current) loopRef.current = setTimeout(() => void scanTick(), SCAN_INTERVAL_MS);
-  }, [captureFrame, runIdentify]);
+    busyRef.current = false;
+    reschedule();
+  }, [analyzeFrame, runIdentify, showMatch]);
 
   const stopCamera = useCallback(() => {
     runningRef.current = false;
@@ -188,12 +289,14 @@ export default function SkannaPage() {
   const resetMatch = useCallback(() => {
     lockedRef.current = false;
     recentRef.current = [];
+    prevLumRef.current = null;
     setLocked(false);
+    setConfirming(false);
     setMatch(null);
     setConfidence(0);
     setAdded(false);
-    setSearching(cameraState === "live");
-  }, [cameraState]);
+    setLiveHint("Håll upp ett kort framför kameran…");
+  }, []);
 
   const startCamera = useCallback(async () => {
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
@@ -215,7 +318,7 @@ export default function SkannaPage() {
         await video.play().catch(() => undefined);
       }
       setCameraState("live");
-      setSearching(true);
+      setLiveHint("Håll upp ett kort framför kameran…");
       runningRef.current = true;
       loopRef.current = setTimeout(() => void scanTick(), 600);
     } catch (err) {
@@ -250,8 +353,17 @@ export default function SkannaPage() {
       recentRef.current = [];
       setLocked(false);
       setAdded(false);
-      setSearching(true);
-      void runIdentify(reader.result, { surfaceErrors: true }).then(() => setSearching(false));
+      setUploadBusy(true);
+      // En uppladdad bild är ett medvetet engångsval → kör direkt med den
+      // precisa modellen och lås resultatet.
+      void runIdentify(reader.result, { surfaceErrors: true, precise: true })
+        .then((data) => {
+          if (data && showMatch(data)) {
+            lockedRef.current = true;
+            setLocked(true);
+          }
+        })
+        .finally(() => setUploadBusy(false));
     };
     reader.readAsDataURL(file);
   }
@@ -340,11 +452,7 @@ export default function SkannaPage() {
           <CardTitle>Live-skanning</CardTitle>
           {cameraState === "live" && (
             <p className="text-sm text-ink-muted">
-              {locked
-                ? "Kort identifierat ✓"
-                : searching
-                  ? "Håll upp ett kort i bild…"
-                  : "Identifierar…"}
+              {locked ? "Kort identifierat ✓" : confirming ? "Bekräftar kortet…" : liveHint}
             </p>
           )}
         </CardHeader>
@@ -564,7 +672,11 @@ export default function SkannaPage() {
             Välj en bild på kortet så identifierar vi det på samma sätt.
           </p>
           <div>
-            <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+            <Button
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              loading={uploadBusy}
+            >
               <IconSearch size={16} /> Välj bild
             </Button>
             <input
