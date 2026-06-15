@@ -96,6 +96,10 @@ export function classifyForm(title: string): string | null {
   if (/(sleeved booster|booster ?pack|boosterpaket|\bbooster\b)/.test(t)) return "booster";
   if (/\btin\b/.test(t)) return "tin";
   if (/(battle deck|theme deck|league battle|deck)/.test(t)) return "deck";
+  // "Chest" (Adventure Chest, Battle Chest …) = collection-/kistprodukt, ALDRIG en
+  // booster box. Egen form så formvakten förkastar t.ex. "Paldea Adventure Chest"
+  // mot "Paldea Evolved Booster Box" (delar bara set-ordet "paldea").
+  if (/\bchest\b/.test(t)) return "chest";
   if (/(collection|premium|box)/.test(t)) return "collection";
   return null;
 }

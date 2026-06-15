@@ -22,6 +22,14 @@ const SCRAPED_RETAILERS = [
   "Dragon's Lair",
   "Alphaspel",
   "Tradera",
+  // Wave 1–3 butiks-adaptrar (saknades tidigare → deras felmatchningar
+  // validerades aldrig, t.ex. Shinycards "Paldea Adventure Chest").
+  "Speltrollet",
+  "Samlarhobby",
+  "Goblinen",
+  "Swepoke",
+  "Shinycards",
+  "MaxGaming",
 ];
 
 const DELETE = process.env.DELETE === "1";
@@ -70,24 +78,33 @@ async function main() {
   for (const o of offers) {
     const scrapedTitle = titleFromUrl(o.url);
     if (!scrapedTitle || /^\d+$/.test(scrapedTitle.trim())) continue; // sök-URL eller rent artikelnummer — kan inte valideras
+    // Validera ENDAST sealed-produkter. Singlar/graderade går inte att validera
+    // pålitligt via URL-slug: butikstitlar varierar för mycket (flavor-text som
+    // "deck exklusivt", utelämnade set-namn, reverse/holo-varianter, kortnamn med
+    // formord som "Booster Energy Capsule") → för många falska positiva.
+    if (o.product.category === "SINGLE_CARD" || o.product.category === "GRADED_CARD") continue;
     checked++;
 
     const overlap = distinctiveOverlap(scrapedTitle, o.product.title);
     const formA = classifyForm(scrapedTitle);
     const formB = classifyForm(o.product.title);
-    const isSingleProduct =
-      o.product.category === "SINGLE_CARD" || o.product.category === "GRADED_CARD";
-    const formMismatch =
-      (formA !== null && formB !== null && formA !== formB) ||
-      // Sealed-form (tin/display/collection...) på ett singelkort = fel match
-      (isSingleProduct && formA !== null);
+    // Form-konflikt mellan två tydliga sealed-former (chest≠display, tin≠bundle …)
+    // är pålitlig. Ren LÅG överlapp är det INTE — hyphen/omskrivning ger 0,33 på rätt
+    // produkt ("Prismatic Super Premium" ↔ "Prismatic Evolutions Super-Premium
+    // Collection") → kräv överlapp == 0 (inga delade särskiljande ord alls).
+    // "multipack" exkluderas: ett "3-pack blister" klassas ibland som multipack
+    // (inledande "3") och ibland som blister → opålitlig formsignal. Riktiga lot-
+    // annonser stoppas redan av matcharen (incomingForm multipack → null).
+    const formClash =
+      formA !== null && formB !== null && formA !== formB &&
+      formA !== "multipack" && formB !== "multipack";
 
-    if (overlap < 0.5 || formMismatch || languageMismatch(scrapedTitle, o.product.title)) {
+    if (formClash || overlap === 0 || languageMismatch(scrapedTitle, o.product.title)) {
       mismatched++;
       toDelete.push(o.id);
-      if (mismatched <= 30) {
+      if (mismatched <= 60) {
         console.log(
-          `  ✗ [${retailerName.get(o.retailerId)}] "${scrapedTitle}" ≠ "${o.product.title}" (överlapp ${overlap.toFixed(2)}${formMismatch ? `, form ${formA}≠${formB}` : ""})`
+          `  ✗ [${retailerName.get(o.retailerId)}] "${scrapedTitle}" ≠ "${o.product.title}" (överlapp ${overlap.toFixed(2)}${formClash ? `, form ${formA}≠${formB}` : ""})`
         );
       }
     }
