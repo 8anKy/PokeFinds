@@ -20,11 +20,28 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # Self-healing-vakt: tills molnhostingen (Neon) är konfigurerad saknas
+      # DATABASE_URL-secret. Då hoppar vi över körningen och lyckas grönt (ingen
+      # mejl-spam). Så fort secreten finns kör jobbet automatiskt på riktigt.
+      - name: Förkrav — DATABASE_URL måste vara satt
+        id: guard
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::notice::DATABASE_URL saknas — hoppar över tills molnhosting (Neon) är konfigurerad. Förväntat = grön körning."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/checkout@v4
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: npm
-      - run: npm ci --legacy-peer-deps
-      - run: npx prisma generate
-      - run: npx tsx scripts/restock-watch-run.ts
+      - if: steps.guard.outputs.ready == 'true'
+        run: npm ci --legacy-peer-deps
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx prisma generate
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx tsx scripts/restock-watch-run.ts
