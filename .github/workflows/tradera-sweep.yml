@@ -1,0 +1,30 @@
+name: Tradera-svep (dagligen)
+
+# Hämtar Tradera-annonser via det officiella SOAP-API:t en gång per dygn
+# (6 separata kvoter = 600 anrop/dygn). Körs i molnet — datorn behöver inte vara på.
+on:
+  schedule:
+    - cron: "0 4 * * *" # 04:00 UTC dagligen
+  workflow_dispatch: {}
+
+concurrency:
+  group: tradera-sweep
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TRADERA_APP_ID: ${{ secrets.TRADERA_APP_ID }}
+      TRADERA_APP_KEY: ${{ secrets.TRADERA_APP_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx prisma generate
+      - run: npx tsx scripts/tradera-full-sweep.ts

@@ -1,0 +1,31 @@
+name: Cardmarket-priser (dagligen)
+
+# Uppdaterar singel- + sealed-priser från CardMarket API TCG (RapidAPI) en gång
+# per dygn. Körs i molnet via GitHub Actions — kräver INTE att datorn är på.
+on:
+  schedule:
+    - cron: "0 5 * * *" # 05:00 UTC dagligen
+  workflow_dispatch: {} # manuell "Run workflow"-knapp
+
+concurrency:
+  group: cardmarket-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      CARDMARKET_RAPIDAPI_HOST: ${{ secrets.CARDMARKET_RAPIDAPI_HOST }}
+      CARDMARKET_RAPIDAPI_KEY: ${{ secrets.CARDMARKET_RAPIDAPI_KEY }}
+      EUR_SEK: ${{ secrets.EUR_SEK }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx prisma generate
+      - run: npx tsx scripts/cardmarket-refresh-run.ts

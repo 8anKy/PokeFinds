@@ -1,0 +1,30 @@
+name: Restock-bevakning (var 2:e timme)
+
+# Kör de restock-bevakade svenska butikerna och skickar restock-alerts vid
+# lagerövergång (slut -> i lager). Var 2:a timme för att hålla GitHub Actions
+# gratis-minuter (2000/mån privat repo). Vill du tätare alerts: gör repot
+# publikt (obegränsade Actions) eller dra ned cron-intervallet.
+on:
+  schedule:
+    - cron: "0 */2 * * *" # var 2:e timme
+  workflow_dispatch: {}
+
+concurrency:
+  group: restock-watch
+  cancel-in-progress: true
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx prisma generate
+      - run: npx tsx scripts/restock-watch-run.ts

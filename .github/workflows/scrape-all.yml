@@ -1,0 +1,34 @@
+name: Full insamling (dagligen)
+
+# Ett komplett insamlingspass: alla aktiva butiks-skrapor + CM-prisguide +
+# priscache-omräkning + alert-utskick. Dagligen (inte var 8:e h som lokalt) för
+# att inte krocka med Tradera-svepets dygnskvot. Ser du Tradera-kvotvarningar:
+# avaktivera detta jobb eller Tradera-källan så bara tradera-sweep.yml når Tradera.
+on:
+  schedule:
+    - cron: "0 2 * * *" # 02:00 UTC dagligen
+  workflow_dispatch: {}
+
+concurrency:
+  group: scrape-all
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TRADERA_APP_ID: ${{ secrets.TRADERA_APP_ID }}
+      TRADERA_APP_KEY: ${{ secrets.TRADERA_APP_KEY }}
+      CARDMARKET_RAPIDAPI_HOST: ${{ secrets.CARDMARKET_RAPIDAPI_HOST }}
+      CARDMARKET_RAPIDAPI_KEY: ${{ secrets.CARDMARKET_RAPIDAPI_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx prisma generate
+      - run: npx tsx scripts/scrape-all-run.ts
