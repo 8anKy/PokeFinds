@@ -5,6 +5,7 @@
 import { prisma } from "@/lib/db";
 import { normalizeTitle } from "@/lib/utils";
 import { ServiceError } from "@/lib/errors";
+import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import type {
   CardLanguage,
   Prisma,
@@ -68,7 +69,7 @@ function daysAgo(days: number): Date {
 type ProductWithRelations = Prisma.ProductGetPayload<{
   include: {
     set: { select: { id: true; name: true } };
-    offers: { select: { price: true; stockStatus: true } };
+    offers: { select: { price: true; stockStatus: true; url: true } };
     priceSnapshots: { select: { date: true; avgPrice: true } };
     restockEvents: { select: { detectedAt: true } };
     _count: { select: { watchlistItems: true } };
@@ -105,7 +106,12 @@ function computePriceChange7d(
 }
 
 function toListItem(p: ProductWithRelations): ProductListItem {
-  const lowest = computeLowestPrice(p.offers);
+  // Endast offers med direkt produktlänk räknas — exakt som produktsidan.
+  // Sök-/bläddringslänkar (Cardmarket-sök, CM-redirect, utgångna Tradera-annonser)
+  // döljs och får INTE påverka lägsta pris eller butiksantal (annars visar katalogen
+  // ett lägre "pris" än produktsidan, t.ex. 69 kr vs 251 kr).
+  const visible = p.offers.filter((o) => isDirectOfferUrl(o.url));
+  const lowest = computeLowestPrice(visible);
   const change = computePriceChange7d(p.priceSnapshots);
   return {
     id: p.id,
@@ -118,8 +124,8 @@ function toListItem(p: ProductWithRelations): ProductListItem {
     setName: p.set?.name ?? null,
     lowestPrice: lowest.price,
     lowestPriceStockStatus: lowest.stockStatus,
-    offerCount: p.offers.length,
-    inStockCount: p.offers.filter((o) => o.stockStatus === "IN_STOCK").length,
+    offerCount: visible.length,
+    inStockCount: visible.filter((o) => o.stockStatus === "IN_STOCK").length,
     watchCount: p._count.watchlistItems,
     viewCount: p.viewCount,
     priceChange7d: change.change,
@@ -140,16 +146,33 @@ export const HIDDEN_CATEGORIES: ProductCategory[] = ["ACCESSORY", "GRADED_CARD",
  * pris igen). Körs efter scrape/refresh/import. Idempotent.
  */
 export async function recomputeProductPriceCache(): Promise<void> {
-  // price > 0: €0,00-offers räknas inte som ett riktigt pris (samma som computeLowestPrice).
+  // En "räknbar" offer = prissatt (>0) OCH direkt produktlänk. URL-villkoren
+  // speglar isDirectOfferUrl() i src/lib/marketplace-urls.ts (sök-/bläddringslänkar
+  // + CM-redirecten exkluderas) så att cachen = produktsidans lägsta pris.
+  // COALESCE(MIN i lager, MIN alla) = computeLowestPrice (IN_STOCK prioriteras).
+  const DIRECT_PRICED = `
+    price > 0
+    AND lower(url) NOT LIKE '%/search%'
+    AND lower(url) NOT LIKE '%searchstring=%'
+    AND lower(url) NOT LIKE '%sokstr=%'
+    AND lower(url) NOT LIKE '%funk=sok%'
+    AND lower(url) NOT LIKE '%?query=%' AND lower(url) NOT LIKE '%&query=%'
+    AND lower(url) NOT LIKE '%?q=%' AND lower(url) NOT LIKE '%&q=%'
+    AND lower(url) NOT LIKE '%prices.pokemontcg.io/cardmarket%'
+  `;
   await prisma.$executeRawUnsafe(`
     UPDATE "Product" p SET "lowestPriceOre" = sub.lowest
-    FROM (SELECT "productId", MIN(price) AS lowest FROM "Offer" WHERE price > 0 GROUP BY "productId") sub
+    FROM (
+      SELECT "productId",
+        COALESCE(MIN(price) FILTER (WHERE "stockStatus" = 'IN_STOCK'), MIN(price)) AS lowest
+      FROM "Offer" WHERE ${DIRECT_PRICED} GROUP BY "productId"
+    ) sub
     WHERE p.id = sub."productId" AND p."lowestPriceOre" IS DISTINCT FROM sub.lowest
   `);
   await prisma.$executeRawUnsafe(`
     UPDATE "Product" SET "lowestPriceOre" = NULL
     WHERE "lowestPriceOre" IS NOT NULL
-      AND id NOT IN (SELECT "productId" FROM "Offer" WHERE price > 0)
+      AND id NOT IN (SELECT "productId" FROM "Offer" WHERE ${DIRECT_PRICED})
   `);
 }
 
@@ -232,7 +255,7 @@ function feedOrderBy(sort: ProductSort): Prisma.ProductOrderByWithRelationInput 
 
 const FEED_INCLUDE = {
   set: { select: { id: true, name: true } },
-  offers: { select: { price: true, stockStatus: true } },
+  offers: { select: { price: true, stockStatus: true, url: true } },
   priceSnapshots: { where: { date: { gte: daysAgo(7) } }, select: { date: true, avgPrice: true } },
   restockEvents: { orderBy: { detectedAt: "desc" }, take: 1, select: { detectedAt: true } },
   _count: { select: { watchlistItems: true } },
@@ -305,7 +328,7 @@ export async function searchProducts(params: SearchProductsParams): Promise<{
     where,
     include: {
       set: { select: { id: true, name: true } },
-      offers: { select: { price: true, stockStatus: true } },
+      offers: { select: { price: true, stockStatus: true, url: true } },
       priceSnapshots: {
         where: { date: { gte: daysAgo(7) } },
         select: { date: true, avgPrice: true },
@@ -407,7 +430,9 @@ export async function getProductBySlug(slug: string) {
   if (!product) throw new ServiceError(404, "Produkten hittades inte.");
 
   const lowest = computeLowestPrice(
-    product.offers.map((o) => ({ price: o.price, stockStatus: o.stockStatus }))
+    product.offers
+      .filter((o) => isDirectOfferUrl(o.url))
+      .map((o) => ({ price: o.price, stockStatus: o.stockStatus }))
   );
   const change = computePriceChange7d(product.priceSnapshots);
 
@@ -505,7 +530,7 @@ export async function getSimilarProducts(productId: string, limit = 8) {
 
   const include = {
     set: { select: { id: true, name: true } },
-    offers: { select: { price: true, stockStatus: true } },
+    offers: { select: { price: true, stockStatus: true, url: true } },
   } as const;
 
   const sameSet = product.setId
@@ -532,7 +557,7 @@ export async function getSimilarProducts(productId: string, limit = 8) {
   }
 
   return results.map((p) => {
-    const lowest = computeLowestPrice(p.offers);
+    const lowest = computeLowestPrice(p.offers.filter((o) => isDirectOfferUrl(o.url)));
     return {
       id: p.id,
       title: p.title,
@@ -559,10 +584,10 @@ export async function getProductValues(
   if (productIds.length === 0) return map;
   const products = await prisma.product.findMany({
     where: { id: { in: productIds } },
-    select: { id: true, offers: { select: { price: true, stockStatus: true } } },
+    select: { id: true, offers: { select: { price: true, stockStatus: true, url: true } } },
   });
   for (const p of products) {
-    const { price } = computeLowestPrice(p.offers);
+    const { price } = computeLowestPrice(p.offers.filter((o) => isDirectOfferUrl(o.url)));
     if (price != null) map.set(p.id, price);
   }
   return map;
@@ -580,11 +605,11 @@ export async function getCardValues(
   if (cardIds.length === 0) return map;
   const products = await prisma.product.findMany({
     where: { cardId: { in: cardIds } },
-    select: { cardId: true, offers: { select: { price: true, stockStatus: true } } },
+    select: { cardId: true, offers: { select: { price: true, stockStatus: true, url: true } } },
   });
   for (const p of products) {
     if (!p.cardId) continue;
-    const { price } = computeLowestPrice(p.offers);
+    const { price } = computeLowestPrice(p.offers.filter((o) => isDirectOfferUrl(o.url)));
     if (price == null) continue;
     const prev = map.get(p.cardId);
     if (prev == null || price < prev) map.set(p.cardId, price);
