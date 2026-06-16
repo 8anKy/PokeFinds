@@ -7,7 +7,7 @@ import { LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PriceChange } from "@/components/ui/price-change";
 import { ProductCard } from "@/components/features/product-card";
-import { PriceChart } from "@/components/features/price-chart";
+import { PriceChartLazy } from "@/components/features/price-chart-lazy";
 import {
   IconArrowRight,
   IconBell,
@@ -250,7 +250,7 @@ export default async function LandingPage() {
                   senaste 90 dagarna.
                 </p>
                 <Card className="mt-6 p-4">
-                  <PriceChart data={showcase.points} />
+                  <PriceChartLazy data={showcase.points} />
                 </Card>
               </div>
             )}

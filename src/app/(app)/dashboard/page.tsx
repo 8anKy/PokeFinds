@@ -9,7 +9,7 @@ import { getRecentRestocks, getTopDrops } from "@/services/market";
 import { listAlerts } from "@/services/alerts";
 import { getFeed } from "@/services/community";
 import { StatCard } from "@/components/features/stat-card";
-import { PriceChart } from "@/components/features/price-chart";
+import { PriceChartLazy } from "@/components/features/price-chart-lazy";
 import { CATEGORY_LABELS } from "@/components/features/product-card";
 import { NotificationsBell } from "@/components/features/notifications-bell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -149,7 +149,7 @@ export default async function DashboardPage() {
             </Link>
           </CardHeader>
           <CardContent>
-            <PriceChart data={chartData} />
+            <PriceChartLazy data={chartData} />
           </CardContent>
         </Card>
       )}

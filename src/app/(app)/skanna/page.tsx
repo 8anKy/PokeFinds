@@ -1,34 +1,41 @@
 "use client";
 
 /**
- * Live kortidentifierare — håll upp ett kort framför kameran så känns det igen
- * i realtid (ingen fotografering) och visar vilket kort det är + aktuellt pris.
- * Pollar nedskalade videorutor mot /api/scanner/identify (ingen ScannerJob per
- * ruta). Låser resultatet när samma kort identifieras stabilt. Faller tillbaka
- * på bilduppladdning när kamera saknas. (Skicket bedöms separat under /gradera.)
+ * Kortskanner (capture-baserad) — rikta kameran mot ett kort och TRYCK på
+ * slutarknappen för att fånga EN ruta. Bilden stannar i appen (canvas → JPEG i
+ * minnet, sparas ALDRIG i kamerarullen) och skickas till /api/scanner/identify.
+ * Träffar samlas i en lista; granska och lägg till hela batchen i samlingen.
+ * (Live-loopen är borttagen — användaren bestämmer när en bild tas.) Skick bedöms
+ * separat under /gradera.
  */
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
+  type ReactNode,
+  type RefObject,
 } from "react";
 import Link from "next/link";
 import { Button, LinkButton } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input, Label, Select } from "@/components/ui/input";
-import { EmptyState } from "@/components/ui/empty-state";
+import { Label, Select } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/format";
 import {
   IconAlertTriangle,
+  IconArrowRight,
   IconCamera,
   IconCards,
   IconCheck,
+  IconChevronLeft,
   IconSearch,
+  IconSettings,
   IconSparkle,
+  IconUpload,
+  IconX,
 } from "@/components/ui/icons";
 
 interface Candidate {
@@ -51,6 +58,20 @@ interface IdentifyResponse {
   candidates: Candidate[];
 }
 
+type ScanStatus = "identifying" | "matched" | "nomatch" | "error";
+
+interface ScanItem {
+  id: string;
+  status: ScanStatus;
+  captured: string; // data-URL, endast i minnet
+  match: Candidate | null;
+  candidates: Candidate[];
+  confidence: number;
+  quantity: number;
+  condition: string;
+  language: string;
+}
+
 const CONDITIONS = [
   { value: "MINT", label: "Mint" },
   { value: "NEAR_MINT", label: "Near Mint" },
@@ -66,17 +87,36 @@ const LANGUAGES = [
   { value: "JP", label: "Japanska" },
 ] as const;
 
-const SCAN_INTERVAL_MS = 1500;
-const DOWNSCALE_MAX = 640;
-const MIN_SHOW_CONF = 0.25;
-const MAX_FILE_BYTES = 4 * 1024 * 1024;
-// Klient-grindar: en videoruta skickas till modellen BARA när ett kort faktiskt
-// hålls upp (tillräcklig bildkontrast i mittregionen) OCH hålls stilla (låg
-// rörelse mot förra rutan). Pekas kameran mot en tom yta spenderas inga tokens.
-const DETAIL_MIN = 12; // std-avvikelse i luminans (0–255) i mittregionen
-const MOTION_MAX = 7; // medel-abs-diff mot förra rutan (0–255)
+const CONDITION_LABEL: Record<string, string> = Object.fromEntries(
+  CONDITIONS.map((c) => [c.value, c.label])
+);
 
-type CameraState = "idle" | "starting" | "live" | "error" | "unsupported";
+const CAPTURE_MAX = 900; // px bredd på fångad ruta — räcker för identifiering
+const MAX_FILE_BYTES = 8 * 1024 * 1024;
+const MIN_MATCH_CONF = 0.2;
+
+type CameraState = "starting" | "live" | "error" | "unsupported";
+type View = "launch" | "capture" | "review";
+
+let scanCounter = 0;
+const nextId = () => `scan-${Date.now()}-${scanCounter++}`;
+
+/** Fångar en nedskalad JPEG-ruta ur videoflödet (i minnet, ej i kamerarullen). */
+function captureFrame(
+  video: HTMLVideoElement,
+  canvas: HTMLCanvasElement
+): string | null {
+  if (video.readyState < 2 || !video.videoWidth) return null;
+  const scale = Math.min(1, CAPTURE_MAX / video.videoWidth);
+  const w = Math.round(video.videoWidth * scale);
+  const h = Math.round(video.videoHeight * scale);
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.drawImage(video, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
 
 export default function SkannaPage() {
   const { toast } = useToast();
@@ -84,218 +124,101 @@ export default function SkannaPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const loopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const runningRef = useRef(false);
-  const busyRef = useRef(false);
-  const lockedRef = useRef(false);
-  const recentRef = useRef<string[]>([]);
-  const prevLumRef = useRef<number[] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
 
-  const [cameraState, setCameraState] = useState<CameraState>("idle");
-  const [cameraError, setCameraError] = useState<string>("");
-  const [configError, setConfigError] = useState<string>("");
+  const [view, setView] = useState<View>("launch");
+  const [cameraState, setCameraState] = useState<CameraState>("starting");
+  const [cameraError, setCameraError] = useState("");
+  const [configError, setConfigError] = useState("");
   const [provider, setProvider] = useState<string | null>(null);
 
-  const [match, setMatch] = useState<Candidate | null>(null);
-  const [confidence, setConfidence] = useState(0);
-  const [locked, setLocked] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const [uploadBusy, setUploadBusy] = useState(false);
-  const [liveHint, setLiveHint] = useState("Håll upp ett kort framför kameran…");
+  const [scans, setScans] = useState<ScanItem[]>([]);
+  const [flash, setFlash] = useState(false);
+  const [shutterCooling, setShutterCooling] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [defaultCondition, setDefaultCondition] = useState("NEAR_MINT");
+  const [defaultLanguage, setDefaultLanguage] = useState("EN");
+  const [detailsId, setDetailsId] = useState<string | null>(null);
 
-  const [quantity, setQuantity] = useState(1);
-  const [condition, setCondition] = useState<string>("NEAR_MINT");
-  const [language, setLanguage] = useState<string>("EN");
-  const [adding, setAdding] = useState(false);
-  const [added, setAdded] = useState(false);
+  const [addingAll, setAddingAll] = useState(false);
+  const [addedCount, setAddedCount] = useState<number | null>(null);
 
-  const showMatch = useCallback((data: IdentifyResponse): string | null => {
-    setProvider(data.provider);
-    const top = data.candidates[0];
-    if (top && data.confidence >= MIN_SHOW_CONF) {
-      setMatch(top);
-      setConfidence(data.confidence);
-      return top.cardId;
-    }
-    return null;
-  }, []);
+  const overlayOpen = view !== "launch";
+  const isMock = provider === "mock";
+
+  const matched = useMemo(
+    () => scans.filter((s) => s.status === "matched" && s.match),
+    [scans]
+  );
+  const noMatchCount = useMemo(
+    () => scans.filter((s) => s.status === "nomatch" || s.status === "error").length,
+    [scans]
+  );
+  const total = useMemo(
+    () =>
+      matched.reduce(
+        (sum, s) => sum + (s.match?.estimatedValue ?? 0) * s.quantity,
+        0
+      ),
+    [matched]
+  );
+
+  // ---- Identifiering -------------------------------------------------------
 
   const runIdentify = useCallback(
-    async (
-      dataUrl: string,
-      opts: { surfaceErrors?: boolean; precise?: boolean } = {}
-    ): Promise<IdentifyResponse | null> => {
+    async (dataUrl: string): Promise<IdentifyResponse | null> => {
       try {
         const res = await fetch("/api/scanner/identify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: dataUrl, precise: opts.precise ?? false }),
+          body: JSON.stringify({ image: dataUrl, precise: true }),
         });
         const data = (await res.json()) as IdentifyResponse & { error?: string };
         if (!res.ok) {
           if (res.status === 503 && data.error) setConfigError(data.error);
-          else if (opts.surfaceErrors && data.error) {
-            toast({ title: "Kunde inte identifiera", description: data.error, variant: "error" });
-          }
           return null;
         }
         setConfigError("");
+        setProvider(data.provider);
         return data;
       } catch {
-        // Nätverksglapp under live-loopen — ignorera tyst.
         return null;
       }
-    },
-    [toast]
-  );
-
-  /**
-   * Ritar ned en nedskalad videoruta och mäter — helt på klienten, utan tokens —
-   * om ett kort hålls upp: `detail` = bildkontrast i mittregionen (tom yta → lågt),
-   * `motion` = skillnad mot förra rutan (kameran rör sig → högt). Returnerar även
-   * JPEG-data-URL:en så att en godkänd ruta kan skickas till modellen direkt.
-   */
-  const analyzeFrame = useCallback(
-    (): { detail: number; motion: number; dataUrl: string } | null => {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      if (!video || !canvas || video.readyState < 2 || !video.videoWidth) return null;
-      const scale = Math.min(1, DOWNSCALE_MAX / video.videoWidth);
-      const w = Math.round(video.videoWidth * scale);
-      const h = Math.round(video.videoHeight * scale);
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      if (!ctx) return null;
-      ctx.drawImage(video, 0, 0, w, h);
-
-      // Mittregion = skanningsramen (58 % × 78 %, centrerad).
-      const rx = Math.floor(w * 0.21);
-      const ry = Math.floor(h * 0.11);
-      const rw = Math.max(1, Math.floor(w * 0.58));
-      const rh = Math.max(1, Math.floor(h * 0.78));
-      const { data } = ctx.getImageData(rx, ry, rw, rh);
-      const GRID = 24;
-      const lum: number[] = [];
-      for (let gy = 0; gy < GRID; gy++) {
-        for (let gx = 0; gx < GRID; gx++) {
-          const px = Math.min(rw - 1, Math.floor(((gx + 0.5) / GRID) * rw));
-          const py = Math.min(rh - 1, Math.floor(((gy + 0.5) / GRID) * rh));
-          const i = (py * rw + px) * 4;
-          lum.push(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
-        }
-      }
-      let mean = 0;
-      for (const v of lum) mean += v;
-      mean /= lum.length;
-      let varc = 0;
-      for (const v of lum) varc += (v - mean) ** 2;
-      const detail = Math.sqrt(varc / lum.length);
-
-      const prev = prevLumRef.current;
-      let motion = Infinity; // första rutan saknar referens → behandla som rörlig
-      if (prev && prev.length === lum.length) {
-        let diff = 0;
-        for (let i = 0; i < lum.length; i++) diff += Math.abs(lum[i] - prev[i]);
-        motion = diff / lum.length;
-      }
-      prevLumRef.current = lum;
-
-      return { detail, motion, dataUrl: canvas.toDataURL("image/jpeg", 0.7) };
     },
     []
   );
 
-  const scanTick = useCallback(async () => {
-    if (!runningRef.current) return;
-    const reschedule = () => {
-      if (runningRef.current)
-        loopRef.current = setTimeout(() => void scanTick(), SCAN_INTERVAL_MS);
-    };
-
-    // Hoppa över helt när kortet är låst, ett anrop pågår eller fliken är dold.
-    if (
-      lockedRef.current ||
-      busyRef.current ||
-      (typeof document !== "undefined" && document.hidden)
-    ) {
-      reschedule();
-      return;
-    }
-
-    const frame = analyzeFrame();
-    if (!frame) {
-      reschedule();
-      return;
-    }
-
-    // GRIND: spendera inga tokens på en tom eller rörlig ruta.
-    if (frame.detail < DETAIL_MIN) {
-      recentRef.current = [];
-      setLiveHint("Håll upp ett kort framför kameran…");
-      reschedule();
-      return;
-    }
-    if (frame.motion > MOTION_MAX) {
-      setLiveHint("Håll kortet stilla…");
-      reschedule();
-      return;
-    }
-
-    busyRef.current = true;
-    setLiveHint("Identifierar…");
-    const data = await runIdentify(frame.dataUrl);
-    if (!lockedRef.current && data) {
-      const id = showMatch(data);
-      if (id) {
-        const recent = [...recentRef.current.slice(-1), id];
-        recentRef.current = recent;
-        // Två likadana snabbläsningar (Haiku) i rad → bekräfta EN gång med den
-        // precisa modellen (Sonnet) innan vi låser. Hög träffsäkerhet, men bara
-        // ett dyrare anrop per kort.
-        if (recent.length >= 2 && recent[0] === recent[1]) {
-          setConfirming(true);
-          const precise = await runIdentify(frame.dataUrl, { precise: true });
-          if (precise && precise.candidates[0] && precise.confidence >= MIN_SHOW_CONF) {
-            showMatch(precise);
-            lockedRef.current = true;
-            setLocked(true);
-          } else {
-            // Precis modell osäker → lås inte på en möjlig felläsning.
-            recentRef.current = [];
+  const identifyInto = useCallback(
+    async (id: string, dataUrl: string) => {
+      const data = await runIdentify(dataUrl);
+      setScans((prev) =>
+        prev.map((s) => {
+          if (s.id !== id) return s;
+          if (!data) return { ...s, status: "error" };
+          const top = data.candidates[0];
+          if (top && data.confidence >= MIN_MATCH_CONF) {
+            return {
+              ...s,
+              status: "matched",
+              match: top,
+              candidates: data.candidates,
+              confidence: data.confidence,
+            };
           }
-          setConfirming(false);
-        }
-      } else {
-        recentRef.current = [];
-        setLiveHint("Håll upp ett kort framför kameran…");
-      }
-    }
-    busyRef.current = false;
-    reschedule();
-  }, [analyzeFrame, runIdentify, showMatch]);
+          return { ...s, status: "nomatch", candidates: data.candidates };
+        })
+      );
+    },
+    [runIdentify]
+  );
+
+  // ---- Kamera --------------------------------------------------------------
 
   const stopCamera = useCallback(() => {
-    runningRef.current = false;
-    if (loopRef.current) clearTimeout(loopRef.current);
-    loopRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
-    setCameraState("idle");
-  }, []);
-
-  const resetMatch = useCallback(() => {
-    lockedRef.current = false;
-    recentRef.current = [];
-    prevLumRef.current = null;
-    setLocked(false);
-    setConfirming(false);
-    setMatch(null);
-    setConfidence(0);
-    setAdded(false);
-    setLiveHint("Håll upp ett kort framför kameran…");
   }, []);
 
   const startCamera = useCallback(async () => {
@@ -305,7 +228,6 @@ export default function SkannaPage() {
     }
     setCameraState("starting");
     setCameraError("");
-    resetMatch();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" } },
@@ -318,54 +240,116 @@ export default function SkannaPage() {
         await video.play().catch(() => undefined);
       }
       setCameraState("live");
-      setLiveHint("Håll upp ett kort framför kameran…");
-      runningRef.current = true;
-      loopRef.current = setTimeout(() => void scanTick(), 600);
     } catch (err) {
       const name = err instanceof DOMException ? err.name : "";
       setCameraError(
         name === "NotAllowedError" || name === "SecurityError"
-          ? "Kameraåtkomst nekades. Tillåt kameran i webbläsaren och försök igen."
+          ? "Kameraåtkomst nekades. Tillåt kameran i webbläsaren, eller välj en bild från enheten."
           : name === "NotFoundError"
-            ? "Ingen kamera hittades. Anslut en kamera eller ladda upp en bild nedan."
-            : "Kunde inte starta kameran. Ladda upp en bild nedan istället."
+            ? "Ingen kamera hittades. Välj en bild från enheten istället."
+            : "Kunde inte starta kameran. Välj en bild från enheten istället."
       );
       setCameraState("error");
     }
-  }, [resetMatch, scanTick]);
+  }, []);
 
-  // Stoppa kameran när komponenten lämnas.
+  const openScanner = useCallback(() => {
+    setView("capture");
+    setAddedCount(null);
+    void startCamera();
+  }, [startCamera]);
+
+  const closeScanner = useCallback(() => {
+    if (scans.length > 0 && addedCount === null) {
+      const ok = window.confirm(
+        `Du har ${scans.length} oskannade träffar. Stäng skannern och kasta dem?`
+      );
+      if (!ok) return;
+    }
+    stopCamera();
+    setView("launch");
+    setScans([]);
+    setDetailsId(null);
+    setSettingsOpen(false);
+    setAddedCount(null);
+  }, [scans.length, addedCount, stopCamera]);
+
+  // Stoppa kameran när komponenten lämnas helt.
   useEffect(() => () => stopCamera(), [stopCamera]);
 
-  function handleFile(file: File) {
+  // Lås body-scroll + Escape-stäng medan overlayn är öppen, fokusera stäng-knapp.
+  useEffect(() => {
+    if (!overlayOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeBtnRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (detailsId) setDetailsId(null);
+        else if (settingsOpen) setSettingsOpen(false);
+        else if (view === "review") setView("capture");
+        else closeScanner();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [overlayOpen, detailsId, settingsOpen, view, closeScanner]);
+
+  // ---- Fånga / ladda upp ---------------------------------------------------
+
+  const addScan = useCallback(
+    (dataUrl: string) => {
+      const id = nextId();
+      setScans((prev) => [
+        ...prev,
+        {
+          id,
+          status: "identifying",
+          captured: dataUrl,
+          match: null,
+          candidates: [],
+          confidence: 0,
+          quantity: 1,
+          condition: defaultCondition,
+          language: defaultLanguage,
+        },
+      ]);
+      void identifyInto(id, dataUrl);
+    },
+    [defaultCondition, defaultLanguage, identifyInto]
+  );
+
+  const capture = useCallback(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || cameraState !== "live" || shutterCooling) return;
+    const dataUrl = captureFrame(video, canvas);
+    if (!dataUrl) return;
+    setFlash(true);
+    window.setTimeout(() => setFlash(false), 180);
+    setShutterCooling(true);
+    window.setTimeout(() => setShutterCooling(false), 450);
+    addScan(dataUrl);
+  }, [cameraState, shutterCooling, addScan]);
+
+  function handleFile(file: File): boolean {
     if (!file.type.startsWith("image/")) {
       toast({ title: "Fel filtyp", description: "Välj en bildfil (JPG, PNG eller WebP).", variant: "error" });
-      return;
+      return false;
     }
     if (file.size > MAX_FILE_BYTES) {
-      toast({ title: "Bilden är för stor", description: "Max 4 MB.", variant: "error" });
-      return;
+      toast({ title: "Bilden är för stor", description: "Max 8 MB.", variant: "error" });
+      return false;
     }
     const reader = new FileReader();
     reader.onload = () => {
-      if (typeof reader.result !== "string") return;
-      lockedRef.current = false;
-      recentRef.current = [];
-      setLocked(false);
-      setAdded(false);
-      setUploadBusy(true);
-      // En uppladdad bild är ett medvetet engångsval → kör direkt med den
-      // precisa modellen och lås resultatet.
-      void runIdentify(reader.result, { surfaceErrors: true, precise: true })
-        .then((data) => {
-          if (data && showMatch(data)) {
-            lockedRef.current = true;
-            setLocked(true);
-          }
-        })
-        .finally(() => setUploadBusy(false));
+      if (typeof reader.result === "string") addScan(reader.result);
     };
     reader.readAsDataURL(file);
+    return true;
   }
 
   function onInputChange(e: ChangeEvent<HTMLInputElement>) {
@@ -374,329 +358,995 @@ export default function SkannaPage() {
     e.target.value = "";
   }
 
-  async function addToCollection() {
-    if (!match) return;
-    setAdding(true);
-    try {
-      const res = await fetch("/api/collection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cardId: match.cardId,
-          quantity,
-          condition,
-          language,
-          ...(match.estimatedValue != null ? { estimatedValue: match.estimatedValue } : {}),
-        }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error ?? "Kunde inte lägga till kortet.");
-      setAdded(true);
-      toast({ title: "Tillagt i samlingen", description: `${match.name} har lagts till.`, variant: "success" });
-    } catch (err) {
-      toast({
-        title: "Något gick fel",
-        description: err instanceof Error ? err.message : "Okänt fel.",
-        variant: "error",
-      });
-    } finally {
-      setAdding(false);
+  // ---- Granska / lägg till -------------------------------------------------
+
+  const patchScan = useCallback((id: string, patch: Partial<ScanItem>) => {
+    setScans((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  }, []);
+
+  const removeScan = useCallback((id: string) => {
+    setScans((prev) => prev.filter((s) => s.id !== id));
+    setDetailsId((d) => (d === id ? null : d));
+  }, []);
+
+  const chooseCandidate = useCallback((id: string, cand: Candidate) => {
+    setScans((prev) =>
+      prev.map((s) =>
+        s.id === id ? { ...s, status: "matched", match: cand } : s
+      )
+    );
+    setDetailsId(null);
+  }, []);
+
+  async function addAll() {
+    if (matched.length === 0) return;
+    setAddingAll(true);
+    let ok = 0;
+    for (const s of matched) {
+      try {
+        const res = await fetch("/api/collection", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cardId: s.match!.cardId,
+            quantity: s.quantity,
+            condition: s.condition,
+            language: s.language,
+            ...(s.match!.estimatedValue != null
+              ? { estimatedValue: s.match!.estimatedValue }
+              : {}),
+          }),
+        });
+        if (res.ok) ok += 1;
+      } catch {
+        /* fortsätt med nästa */
+      }
     }
+    setAddingAll(false);
+    setAddedCount(ok);
+    toast({
+      title: ok === matched.length ? "Tillagt i samlingen" : "Delvis tillagt",
+      description:
+        ok === matched.length
+          ? `${ok} kort lades till i din samling.`
+          : `${ok} av ${matched.length} kort lades till.`,
+      variant: ok === matched.length ? "success" : "error",
+    });
   }
 
-  const isMock = provider === "mock";
+  const detailsItem = detailsId ? scans.find((s) => s.id === detailsId) ?? null : null;
 
-  return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <div>
-        <h1 className="font-display text-2xl font-semibold text-ink">Identifiera kort</h1>
-        <p className="mt-1 text-sm text-ink-muted">
-          Håll upp ett kort framför kameran — vi känner igen det direkt och visar vilket kort det
-          är och dess aktuella pris. Ingen fotografering behövs.
-        </p>
-        <p className="mt-2 text-sm text-ink-muted">
+  // =========================================================================
+  // Launch-skärm (i app-skalet)
+  // =========================================================================
+  if (view === "launch") {
+    return (
+      <div className="mx-auto flex max-w-2xl flex-col gap-8">
+        <header>
+          <h1 className="font-display text-2xl font-semibold text-ink">Identifiera kort</h1>
+          <p className="mt-2 max-w-prose text-sm leading-relaxed text-ink-muted">
+            Rikta kameran mot ett kort och tryck på knappen för att fånga det. Vi
+            känner igen kortet och visar dess aktuella marknadsvärde. Bilden tas
+            bara i appen — inget sparas i din kamerarulle.
+          </p>
+        </header>
+
+        {isMock && <MockNotice />}
+        {configError && <ConfigNotice text={configError} />}
+
+        <div className="relative overflow-hidden rounded-2xl border border-surface-border bg-surface-gradient p-8 shadow-card">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-holo-cyan/10 blur-3xl"
+          />
+          <div className="relative flex flex-col items-center gap-5 text-center">
+            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-holo-cyan/10 text-holo-cyan ring-1 ring-holo-cyan/30">
+              <IconCamera size={30} />
+            </span>
+            <div>
+              <p className="text-lg font-semibold text-ink">Öppna skannern</p>
+              <p className="mt-1 text-sm text-ink-muted">
+                Fånga ett eller flera kort i rad och lägg till hela batchen på en gång.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Button onClick={openScanner} className="px-6">
+                <IconCamera size={18} /> Starta skanner
+              </Button>
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                <IconUpload size={16} /> Välj bild
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-sm text-ink-muted">
           Vill du bedöma kortets skick istället?{" "}
           <Link href="/gradera" className="font-medium text-holo-cyan hover:underline">
             Gradera kortet med AI →
           </Link>
         </p>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (file && handleFile(file)) setView("review");
+          }}
+        />
+        {/* Dolda element så refs finns även från launch (vid uppladdning). */}
+        <canvas ref={canvasRef} className="hidden" />
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // Overlay (capture + review) — fullskärm, immersivt
+  // =========================================================================
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Kortskanner"
+      className="fixed inset-0 z-[60] flex flex-col bg-black text-ink"
+    >
+      {/* Topbar */}
+      <div className="relative z-20 flex items-center justify-between gap-3 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <button
+          ref={closeBtnRef}
+          type="button"
+          onClick={
+            view === "review"
+              ? () => (streamRef.current ? setView("capture") : closeScanner())
+              : closeScanner
+          }
+          aria-label={view === "review" ? "Tillbaka till kameran" : "Stäng skannern"}
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-ink backdrop-blur transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
+        >
+          {view === "review" ? <IconChevronLeft size={20} /> : <IconX size={20} />}
+        </button>
+        <div className="text-center">
+          <p className="text-sm font-semibold text-ink">
+            {view === "review" ? "Granska träffar" : "Skanna kort"}
+          </p>
+          <p className="text-[11px] text-ink-faint">Pokémon TCG</p>
+        </div>
+        <div className="h-10 w-10" aria-hidden="true" />
       </div>
 
-      {isMock && (
-        <div className="flex items-start gap-3 rounded-xl border border-holo-cyan/30 bg-holo-cyan/5 px-4 py-3">
-          <span aria-hidden="true" className="mt-0.5 shrink-0 text-holo-cyan">
-            <IconSparkle size={18} />
-          </span>
-          <p className="text-sm text-ink-muted">
-            <span className="font-semibold text-ink">Demoläge:</span> igenkänningen körs med en
-            simulerad tjänst, så träffarna är exempel ur katalogen. Sätt{" "}
-            <code className="rounded bg-surface-overlay px-1 text-xs">OCR_PROVIDER=claude</code> +{" "}
-            <code className="rounded bg-surface-overlay px-1 text-xs">ANTHROPIC_API_KEY</code> för
-            riktig bildigenkänning.
-          </p>
-        </div>
-      )}
-
-      {configError && (
-        <div className="flex items-start gap-3 rounded-xl border border-fall/30 bg-fall/5 px-4 py-3">
-          <span aria-hidden="true" className="mt-0.5 shrink-0 text-fall">
-            <IconAlertTriangle size={18} />
-          </span>
-          <p className="text-sm text-ink-muted">{configError}</p>
-        </div>
-      )}
-
-      {/* Live-kamera */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Live-skanning</CardTitle>
-          {cameraState === "live" && (
-            <p className="text-sm text-ink-muted">
-              {locked ? "Kort identifierat ✓" : confirming ? "Bekräftar kortet…" : liveHint}
-            </p>
-          )}
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="relative overflow-hidden rounded-xl border border-surface-border bg-surface-overlay">
-            {/* Video alltid monterad så ref finns; visas bara live. */}
-            <video
-              ref={videoRef}
-              playsInline
-              muted
-              aria-label="Kameraflöde för kortskanning"
-              className={cn(
-                "aspect-[4/3] w-full bg-black object-cover",
-                cameraState === "live" ? "block" : "hidden"
-              )}
-            />
-            <canvas ref={canvasRef} className="hidden" />
-
-            {cameraState === "live" && (
-              // Skanningsram-overlay
-              <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <div
-                  className={cn(
-                    "h-[78%] w-[58%] rounded-xl border-2 transition-colors",
-                    locked ? "border-rise shadow-glow" : "border-holo-cyan/70"
-                  )}
-                />
-              </div>
-            )}
-
-            {cameraState !== "live" && (
-              <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-3 px-6 text-center">
-                {cameraState === "starting" ? (
-                  <p className="text-sm text-ink-muted">Startar kameran…</p>
-                ) : cameraState === "unsupported" ? (
-                  <>
-                    <span aria-hidden="true" className="text-ink-faint">
-                      <IconCamera size={36} />
-                    </span>
-                    <p className="text-sm font-medium text-ink">Kamera stöds inte här</p>
-                    <p className="max-w-sm text-xs text-ink-faint">
-                      Din webbläsare gav ingen kameraåtkomst. Ladda upp en bild nedan istället.
-                    </p>
-                  </>
-                ) : cameraState === "error" ? (
-                  <>
-                    <span aria-hidden="true" className="text-fall">
-                      <IconAlertTriangle size={32} />
-                    </span>
-                    <p className="max-w-sm text-sm text-ink-muted">{cameraError}</p>
-                    <Button variant="outline" onClick={() => void startCamera()}>
-                      Försök igen
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <span aria-hidden="true" className="text-ink-faint">
-                      <IconCamera size={36} />
-                    </span>
-                    <p className="text-sm font-medium text-ink">Starta kameran och håll upp ett kort</p>
-                    <p className="max-w-sm text-xs text-ink-faint">
-                      Kortet identifieras automatiskt — du behöver inte ta något foto.
-                    </p>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            {cameraState === "live" ? (
-              <Button variant="outline" onClick={stopCamera}>
-                Stäng kameran
-              </Button>
-            ) : (
-              <Button
-                onClick={() => void startCamera()}
-                loading={cameraState === "starting"}
-                disabled={cameraState === "unsupported"}
-              >
-                Starta kameran
-              </Button>
-            )}
-            {locked && (
-              <Button variant="ghost" onClick={resetMatch}>
-                Skanna nästa kort
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Resultat */}
-      {match && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle>{locked ? "Identifierat kort" : "Trolig träff"}</CardTitle>
-              {locked && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-rise/10 px-2 py-0.5 text-xs font-medium text-rise">
-                  <IconCheck size={14} /> Stabil
-                </span>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex items-start gap-4">
-              {match.imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={match.imageUrl}
-                  alt={match.name}
-                  className="h-32 w-24 shrink-0 rounded-lg object-cover shadow-card"
-                />
-              ) : (
-                <div
-                  aria-hidden="true"
-                  className="flex h-32 w-24 shrink-0 items-center justify-center rounded-lg bg-surface-overlay text-ink-faint"
-                >
-                  <IconCards size={28} />
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="text-lg font-semibold text-ink">{match.name}</p>
-                <p className="mt-0.5 text-sm text-ink-muted">
-                  {match.setName} · #{match.number} · {match.rarity}
-                </p>
-                <div className="mt-3">
-                  <p className="text-2xl font-semibold tabular-nums text-holo-cyan">
-                    {match.estimatedValue != null ? formatPrice(match.estimatedValue) : "Pris saknas"}
-                  </p>
-                  <p className="text-xs text-ink-faint">Aktuellt marknadsvärde · Marknadstrend (Cardmarket)</p>
-                </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-overlay">
-                    <div
-                      className={cn("h-full rounded-full", locked ? "bg-rise" : "bg-holo-cyan")}
-                      style={{ width: `${Math.round(confidence * 100)}%` }}
-                    />
-                  </div>
-                  <span className="text-xs tabular-nums text-ink-muted">
-                    {Math.round(confidence * 100)} % säkerhet
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Åtgärder */}
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div>
-                <Label htmlFor="quantity">Antal</Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  min={1}
-                  max={10000}
-                  value={quantity}
-                  onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                />
-              </div>
-              <div>
-                <Label htmlFor="condition">Skick</Label>
-                <Select id="condition" value={condition} onChange={(e) => setCondition(e.target.value)}>
-                  {CONDITIONS.map((c) => (
-                    <option key={c.value} value={c.value}>
-                      {c.label}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="language">Språk</Label>
-                <Select id="language" value={language} onChange={(e) => setLanguage(e.target.value)}>
-                  {LANGUAGES.map((l) => (
-                    <option key={l.value} value={l.value}>
-                      {l.label}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button onClick={() => void addToCollection()} loading={adding} disabled={added}>
-                Lägg till i samlingen
-              </Button>
-              {match.slug ? (
-                <LinkButton href={`/produkter/${match.slug}`} variant="outline">
-                  Visa produkt →
-                </LinkButton>
-              ) : (
-                <LinkButton href={`/produkter?q=${encodeURIComponent(match.name)}`} variant="outline">
-                  Sök produkt →
-                </LinkButton>
-              )}
-              {added && (
-                <LinkButton href="/samling" variant="ghost">
-                  Visa min samling →
-                </LinkButton>
-              )}
-            </div>
-            {!locked && (
-              <p className="text-xs text-ink-faint">
-                Håll kortet stilla en stund så låses identifieringen.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Uppladdning som reserv */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Ingen kamera? Ladda upp en bild</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <p className="text-sm text-ink-muted">
-            Välj en bild på kortet så identifierar vi det på samma sätt.
-          </p>
-          <div>
-            <Button
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              loading={uploadBusy}
-            >
-              <IconSearch size={16} /> Välj bild
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={onInputChange}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {!match && cameraState !== "live" && (
-        <EmptyState
-          icon={<IconCards size={32} />}
-          title="Inget kort identifierat ännu"
-          description="Starta kameran och håll upp ett kort, eller ladda upp en bild."
+      {view === "capture" ? (
+        <CaptureView
+          videoRef={videoRef}
+          canvasRef={canvasRef}
+          cameraState={cameraState}
+          cameraError={cameraError}
+          flash={flash}
+          scans={scans}
+          total={total}
+          matchedCount={matched.length}
+          isMock={isMock}
+          shutterCooling={shutterCooling}
+          onRetryCamera={() => void startCamera()}
+          onCapture={capture}
+          onGallery={() => fileInputRef.current?.click()}
+          onSettings={() => setSettingsOpen(true)}
+          onReview={() => setView("review")}
+          onOpenDetails={setDetailsId}
+        />
+      ) : (
+        <ReviewView
+          scans={scans}
+          matchedCount={matched.length}
+          noMatchCount={noMatchCount}
+          total={total}
+          addingAll={addingAll}
+          addedCount={addedCount}
+          onPatch={patchScan}
+          onRemove={removeScan}
+          onOpenDetails={setDetailsId}
+          onAddAll={() => void addAll()}
+          onScanMore={() => {
+            setScans([]);
+            setAddedCount(null);
+            setView("capture");
+          }}
+          onClose={closeScanner}
         />
       )}
+
+      {/* Settings-sheet */}
+      {settingsOpen && (
+        <SettingsSheet
+          condition={defaultCondition}
+          language={defaultLanguage}
+          onCondition={setDefaultCondition}
+          onLanguage={setDefaultLanguage}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
+
+      {/* Scan-details-sheet */}
+      {detailsItem && (
+        <ScanDetailsSheet
+          item={detailsItem}
+          onClose={() => setDetailsId(null)}
+          onChoose={(c) => chooseCandidate(detailsItem.id, c)}
+          onRemove={() => removeScan(detailsItem.id)}
+        />
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={onInputChange}
+      />
+    </div>
+  );
+}
+
+/* ===========================================================================
+ * Capture-vy
+ * ======================================================================== */
+function CaptureView(props: {
+  videoRef: RefObject<HTMLVideoElement>;
+  canvasRef: RefObject<HTMLCanvasElement>;
+  cameraState: CameraState;
+  cameraError: string;
+  flash: boolean;
+  scans: ScanItem[];
+  total: number;
+  matchedCount: number;
+  isMock: boolean;
+  shutterCooling: boolean;
+  onRetryCamera: () => void;
+  onCapture: () => void;
+  onGallery: () => void;
+  onSettings: () => void;
+  onReview: () => void;
+  onOpenDetails: (id: string) => void;
+}) {
+  const {
+    videoRef,
+    canvasRef,
+    cameraState,
+    cameraError,
+    flash,
+    scans,
+    total,
+    matchedCount,
+    isMock,
+    shutterCooling,
+  } = props;
+
+  return (
+    <>
+      {/* Kameralager (fyller bakom) */}
+      <div className="absolute inset-0 z-0 bg-black">
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          aria-label="Kameraflöde"
+          className={cn(
+            "h-full w-full object-cover",
+            cameraState === "live" ? "block" : "hidden"
+          )}
+        />
+        <canvas ref={canvasRef} className="hidden" />
+
+        {/* Vinjett upptill/nedtill för läsbarhet */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/70 to-transparent"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-72 bg-gradient-to-t from-black/85 to-transparent"
+        />
+
+        {cameraState !== "live" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-8 text-center">
+            {cameraState === "starting" ? (
+              <>
+                <span className="animate-pulse-soft text-holo-cyan">
+                  <IconCamera size={40} />
+                </span>
+                <p className="text-sm text-ink-muted">Startar kameran…</p>
+              </>
+            ) : cameraState === "unsupported" ? (
+              <>
+                <IconCamera size={40} className="text-ink-faint" />
+                <p className="text-sm font-medium text-ink">Kamera stöds inte här</p>
+                <p className="max-w-xs text-xs text-ink-faint">
+                  Välj en bild från enheten med galleriknappen nedan.
+                </p>
+              </>
+            ) : (
+              <>
+                <IconAlertTriangle size={36} className="text-fall" />
+                <p className="max-w-xs text-sm text-ink-muted">{cameraError}</p>
+                <Button variant="outline" onClick={props.onRetryCamera}>
+                  Försök igen
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Kortram-overlay */}
+      {cameraState === "live" && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center pt-2"
+        >
+          <div className="relative mt-[8vh] aspect-[5/7] w-[68%] max-w-[20rem]">
+            <CornerFrame />
+          </div>
+        </div>
+      )}
+
+      {/* Capture-flash */}
+      {flash && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-30 bg-white/80 animate-fade-in"
+        />
+      )}
+
+      {/* Botten: hint, strip, kontroller */}
+      <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col gap-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {isMock && (
+          <p className="mx-auto rounded-full bg-black/70 px-3 py-1 text-center text-[11px] font-medium text-holo-gold ring-1 ring-holo-gold/30 backdrop-blur">
+            Demoläge — träffar är exempel ur katalogen
+          </p>
+        )}
+
+        {scans.length > 0 && <ScanStrip scans={scans} total={total} onOpen={props.onOpenDetails} />}
+
+        {scans.length === 0 && cameraState === "live" && (
+          <p className="text-center text-sm text-ink-muted">
+            Håll kortet inom ramen och tryck på knappen
+          </p>
+        )}
+
+        <div className="flex items-center justify-between">
+          {/* Galleri */}
+          <button
+            type="button"
+            onClick={props.onGallery}
+            aria-label="Välj bild från enheten"
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-ink backdrop-blur transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
+          >
+            <IconUpload size={20} />
+          </button>
+
+          {/* Inställningar */}
+          <button
+            type="button"
+            onClick={props.onSettings}
+            aria-label="Skannerinställningar"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-ink-muted transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
+          >
+            <IconSettings size={20} />
+          </button>
+
+          {/* Slutare */}
+          <button
+            type="button"
+            onClick={props.onCapture}
+            disabled={cameraState !== "live"}
+            aria-label="Ta bild av kortet"
+            className={cn(
+              "flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full ring-4 ring-white/30 transition-transform",
+              "disabled:opacity-40",
+              shutterCooling ? "scale-90" : "active:scale-90"
+            )}
+          >
+            <span className="h-[3.6rem] w-[3.6rem] rounded-full bg-white shadow-[0_2px_12px_rgba(0,0,0,0.4)]" />
+          </button>
+
+          {/* Bekräfta/granska */}
+          <button
+            type="button"
+            onClick={props.onReview}
+            disabled={scans.length === 0}
+            aria-label="Granska träffar"
+            className={cn(
+              "relative flex h-12 w-12 items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan",
+              scans.length > 0
+                ? "bg-holo-cyan text-black hover:bg-holo-cyan/90"
+                : "bg-white/10 text-ink-faint"
+            )}
+          >
+            <IconCheck size={22} />
+            {matchedCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rise px-1 text-[11px] font-semibold tabular-nums text-black">
+                {matchedCount}
+              </span>
+            )}
+          </button>
+
+          {/* Symmetri-spacer mot galleriknappen */}
+          <span className="h-12 w-12" aria-hidden="true" />
+        </div>
+      </div>
+    </>
+  );
+}
+
+function CornerFrame() {
+  return (
+    <div className="absolute inset-0">
+      {/* mjuk ram */}
+      <div className="absolute inset-0 rounded-2xl border border-white/25" />
+      {/* hörn-parenteser i accentfärg */}
+      {(
+        [
+          "left-0 top-0 border-l-2 border-t-2 rounded-tl-2xl",
+          "right-0 top-0 border-r-2 border-t-2 rounded-tr-2xl",
+          "left-0 bottom-0 border-l-2 border-b-2 rounded-bl-2xl",
+          "right-0 bottom-0 border-r-2 border-b-2 rounded-br-2xl",
+        ] as const
+      ).map((c) => (
+        <span
+          key={c}
+          className={cn("absolute h-8 w-8 border-holo-cyan", c)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ScanStrip({
+  scans,
+  total,
+  onOpen,
+}: {
+  scans: ScanItem[];
+  total: number;
+  onOpen: (id: string) => void;
+}) {
+  return (
+    <div className="rounded-2xl bg-black/55 p-2.5 backdrop-blur">
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {scans.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => onOpen(s.id)}
+            className="flex w-40 shrink-0 animate-scale-in items-center gap-2 rounded-xl bg-white/8 p-2 text-left transition-colors hover:bg-white/12 focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
+          >
+            <ScanThumb item={s} />
+            <span className="min-w-0 flex-1">
+              {s.status === "identifying" ? (
+                <span className="block text-xs text-ink-muted">Identifierar…</span>
+              ) : s.status === "matched" && s.match ? (
+                <>
+                  <span className="block truncate text-xs font-medium text-ink">
+                    {s.match.name}
+                  </span>
+                  <span className="block truncate text-[11px] text-ink-faint">
+                    #{s.match.number}
+                  </span>
+                  <span className="block text-xs font-semibold tabular-nums text-holo-cyan">
+                    {s.match.estimatedValue != null ? formatPrice(s.match.estimatedValue) : "–"}
+                  </span>
+                </>
+              ) : (
+                <span className="block text-xs font-medium text-fall">Ingen träff</span>
+              )}
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center justify-between px-1 pt-1.5">
+        <span className="text-[11px] text-ink-faint">
+          {scans.length} {scans.length === 1 ? "skanning" : "skanningar"}
+        </span>
+        <span className="text-sm font-semibold text-ink">
+          Totalt: <span className="tabular-nums text-holo-cyan">{formatPrice(total)}</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ScanThumb({ item, size = "sm" }: { item: ScanItem; size?: "sm" | "lg" }) {
+  const dim = size === "lg" ? "h-24 w-[4.3rem]" : "h-14 w-10";
+  if (item.status === "identifying") {
+    return (
+      <span
+        className={cn(
+          "flex shrink-0 animate-pulse-soft items-center justify-center rounded-md bg-white/10",
+          dim
+        )}
+      >
+        <IconCards size={16} className="text-ink-faint" />
+      </span>
+    );
+  }
+  const src = item.match?.imageUrl ?? item.captured;
+  // eslint-disable-next-line @next/next/no-img-element
+  return (
+    <img
+      src={src}
+      alt={item.match?.name ?? "Skannat kort"}
+      className={cn("shrink-0 rounded-md object-cover", dim)}
+    />
+  );
+}
+
+/* ===========================================================================
+ * Review-vy
+ * ======================================================================== */
+function ReviewView(props: {
+  scans: ScanItem[];
+  matchedCount: number;
+  noMatchCount: number;
+  total: number;
+  addingAll: boolean;
+  addedCount: number | null;
+  onPatch: (id: string, patch: Partial<ScanItem>) => void;
+  onRemove: (id: string) => void;
+  onOpenDetails: (id: string) => void;
+  onAddAll: () => void;
+  onScanMore: () => void;
+  onClose: () => void;
+}) {
+  const {
+    scans,
+    matchedCount,
+    noMatchCount,
+    total,
+    addingAll,
+    addedCount,
+    onPatch,
+    onRemove,
+    onOpenDetails,
+  } = props;
+
+  const done = addedCount !== null;
+
+  return (
+    <div className="relative z-10 flex min-h-0 flex-1 flex-col bg-surface">
+      <div className="flex-1 overflow-y-auto px-4 pb-40">
+        <p className="py-3 text-sm text-ink-muted">
+          Lägger till i:{" "}
+          <span className="font-semibold text-holo-cyan">Min samling</span>
+        </p>
+
+        {scans.length === 0 && (
+          <div className="flex flex-col items-center gap-2 py-16 text-center">
+            <IconCards size={32} className="text-ink-faint" />
+            <p className="text-sm text-ink-muted">Inga skanningar ännu.</p>
+          </div>
+        )}
+
+        <ul className="flex flex-col gap-3">
+          {scans.map((s) => (
+            <li
+              key={s.id}
+              className="overflow-hidden rounded-2xl border border-surface-border bg-surface-raised"
+            >
+              {s.status === "matched" && s.match ? (
+                <div className="flex gap-3 p-3">
+                  <button
+                    type="button"
+                    onClick={() => onOpenDetails(s.id)}
+                    className="shrink-0 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
+                    aria-label="Visa skanningsdetaljer"
+                  >
+                    <ScanThumb item={s} size="lg" />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-ink">{s.match.name}</p>
+                        <p className="truncate text-xs text-ink-muted">
+                          {s.match.setName} · #{s.match.number}
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-right text-sm font-semibold tabular-nums text-holo-cyan">
+                        {s.match.estimatedValue != null ? formatPrice(s.match.estimatedValue) : "–"}
+                      </p>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11px] text-ink-faint">Skick</span>
+                        <Select
+                          value={s.condition}
+                          onChange={(e) => onPatch(s.id, { condition: e.target.value })}
+                          className="h-9 text-sm"
+                        >
+                          {CONDITIONS.map((c) => (
+                            <option key={c.value} value={c.value}>{c.label}</option>
+                          ))}
+                        </Select>
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11px] text-ink-faint">Språk</span>
+                        <Select
+                          value={s.language}
+                          onChange={(e) => onPatch(s.id, { language: e.target.value })}
+                          className="h-9 text-sm"
+                        >
+                          {LANGUAGES.map((l) => (
+                            <option key={l.value} value={l.value}>{l.label}</option>
+                          ))}
+                        </Select>
+                      </label>
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between">
+                      <Stepper
+                        value={s.quantity}
+                        onChange={(q) => onPatch(s.id, { quantity: q })}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => onRemove(s.id)}
+                        className="text-xs text-ink-faint underline-offset-2 hover:text-fall hover:underline"
+                      >
+                        Ta bort
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : s.status === "identifying" ? (
+                <div className="flex items-center gap-3 p-3">
+                  <ScanThumb item={s} size="lg" />
+                  <p className="text-sm text-ink-muted">Identifierar…</p>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 p-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={s.captured}
+                    alt="Skannat kort utan träff"
+                    className="h-24 w-[4.3rem] shrink-0 rounded-md object-cover opacity-80"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-ink">Ingen träff</p>
+                    <p className="text-xs text-ink-muted">
+                      Kunde inte matcha kortet automatiskt.
+                    </p>
+                    <div className="mt-2 flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => onOpenDetails(s.id)}
+                        className="text-xs font-medium text-holo-cyan hover:underline"
+                      >
+                        Sök manuellt
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onRemove(s.id)}
+                        className="text-xs text-ink-faint hover:text-fall"
+                      >
+                        Ta bort
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Sticky botten-CTA */}
+      <div className="absolute inset-x-0 bottom-0 border-t border-surface-border bg-surface/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+        <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
+          <div>
+            <p className="text-xs text-ink-muted">
+              {matchedCount} matchade
+              {noMatchCount > 0 && (
+                <span className="text-fall"> · {noMatchCount} utan träff</span>
+              )}
+            </p>
+            <p className="text-lg font-semibold text-ink">
+              Totalt: <span className="tabular-nums text-holo-cyan">{formatPrice(total)}</span>
+            </p>
+          </div>
+          {done ? (
+            <div className="flex items-center gap-2">
+              <LinkButton href="/samling" variant="outline">
+                Visa samling
+              </LinkButton>
+              <Button onClick={props.onScanMore}>Skanna fler</Button>
+            </div>
+          ) : (
+            <Button
+              onClick={props.onAddAll}
+              loading={addingAll}
+              disabled={matchedCount === 0}
+              className="px-5"
+            >
+              Lägg till {matchedCount > 0 ? `${matchedCount} ` : ""}i samlingen
+            </Button>
+          )}
+        </div>
+        {done && (
+          <p className="mt-2 text-center text-xs text-rise">
+            <IconCheck size={13} className="mr-1 inline" />
+            {addedCount} kort tillagda i din samling.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Stepper({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="inline-flex items-center rounded-lg border border-surface-border">
+      <button
+        type="button"
+        aria-label="Minska antal"
+        onClick={() => onChange(Math.max(1, value - 1))}
+        className="flex h-8 w-8 items-center justify-center text-ink-muted hover:text-ink disabled:opacity-40"
+        disabled={value <= 1}
+      >
+        −
+      </button>
+      <span className="w-8 text-center text-sm font-medium tabular-nums text-ink">{value}</span>
+      <button
+        type="button"
+        aria-label="Öka antal"
+        onClick={() => onChange(Math.min(9999, value + 1))}
+        className="flex h-8 w-8 items-center justify-center text-ink-muted hover:text-ink"
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+/* ===========================================================================
+ * Settings-sheet
+ * ======================================================================== */
+function SettingsSheet(props: {
+  condition: string;
+  language: string;
+  onCondition: (v: string) => void;
+  onLanguage: (v: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Sheet title="Standardval för nya skanningar" onClose={props.onClose}>
+      <div className="flex flex-col gap-4">
+        <div>
+          <Label htmlFor="def-condition">Skick</Label>
+          <Select
+            id="def-condition"
+            value={props.condition}
+            onChange={(e) => props.onCondition(e.target.value)}
+          >
+            {CONDITIONS.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="def-language">Språk</Label>
+          <Select
+            id="def-language"
+            value={props.language}
+            onChange={(e) => props.onLanguage(e.target.value)}
+          >
+            {LANGUAGES.map((l) => (
+              <option key={l.value} value={l.value}>{l.label}</option>
+            ))}
+          </Select>
+        </div>
+        <p className="text-xs text-ink-faint">
+          Gäller kort du skannar härnäst. Du kan ändra per kort i granskningen.
+        </p>
+        <Button onClick={props.onClose}>Klar</Button>
+      </div>
+    </Sheet>
+  );
+}
+
+/* ===========================================================================
+ * Scan-details-sheet (Din bild vs Din träff)
+ * ======================================================================== */
+function ScanDetailsSheet(props: {
+  item: ScanItem;
+  onClose: () => void;
+  onChoose: (c: Candidate) => void;
+  onRemove: () => void;
+}) {
+  const { item } = props;
+  const alternatives = item.candidates.filter(
+    (c) => c.cardId !== item.match?.cardId
+  );
+
+  return (
+    <Sheet title="Skanningsdetaljer" onClose={props.onClose}>
+      <div className="flex flex-col gap-5">
+        {/* Din bild vs din träff */}
+        <div className="grid grid-cols-2 gap-3">
+          <figure className="flex flex-col items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={item.captured}
+              alt="Din bild"
+              className="aspect-[5/7] w-full rounded-xl object-cover ring-1 ring-surface-border"
+            />
+            <figcaption className="text-xs text-ink-faint">Din bild</figcaption>
+          </figure>
+          <figure className="flex flex-col items-center gap-2">
+            {item.match?.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={item.match.imageUrl}
+                alt="Din träff"
+                className="aspect-[5/7] w-full rounded-xl object-cover ring-1 ring-holo-cyan/40"
+              />
+            ) : (
+              <span className="flex aspect-[5/7] w-full items-center justify-center rounded-xl bg-surface-overlay text-ink-faint ring-1 ring-surface-border">
+                <IconSearch size={24} />
+              </span>
+            )}
+            <figcaption className="text-xs text-ink-faint">
+              {item.match ? "Din träff" : "Ingen träff"}
+            </figcaption>
+          </figure>
+        </div>
+
+        {/* Träff-meta */}
+        {item.match && (
+          <div>
+            <div className="flex items-baseline justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-lg font-semibold text-ink">{item.match.name}</p>
+                <p className="truncate text-sm text-ink-muted">
+                  {item.match.setName} · #{item.match.number}
+                </p>
+              </div>
+              <p className="shrink-0 text-lg font-semibold tabular-nums text-holo-cyan">
+                {item.match.estimatedValue != null ? formatPrice(item.match.estimatedValue) : "–"}
+              </p>
+            </div>
+            <p className="mt-1 text-xs text-ink-faint">
+              Skick {CONDITION_LABEL[item.condition]} · raw (ograderat) ·
+              Marknadstrend (Cardmarket)
+            </p>
+          </div>
+        )}
+
+        {/* Alternativ */}
+        {alternatives.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-medium text-ink-muted">
+              {item.match ? "Inte rätt? Välj ett annat" : "Möjliga träffar"}
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {alternatives.slice(0, 5).map((c) => (
+                <button
+                  key={c.cardId}
+                  type="button"
+                  onClick={() => props.onChoose(c)}
+                  className="flex items-center gap-3 rounded-xl border border-surface-border p-2 text-left transition-colors hover:border-holo-cyan/50 hover:bg-surface-overlay focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
+                >
+                  {c.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={c.imageUrl} alt="" className="h-12 w-9 shrink-0 rounded object-cover" />
+                  ) : (
+                    <span className="flex h-12 w-9 shrink-0 items-center justify-center rounded bg-surface-overlay text-ink-faint">
+                      <IconCards size={14} />
+                    </span>
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-ink">{c.name}</span>
+                    <span className="block truncate text-xs text-ink-faint">
+                      {c.setName} · #{c.number}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-sm tabular-nums text-ink-muted">
+                    {c.estimatedValue != null ? formatPrice(c.estimatedValue) : "–"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Åtgärder */}
+        <div className="flex flex-wrap gap-2">
+          {item.match?.slug ? (
+            <LinkButton href={`/produkter/${item.match.slug}`} variant="outline">
+              Visa produkt & prishistorik <IconArrowRight size={15} />
+            </LinkButton>
+          ) : (
+            <LinkButton
+              href={`/produkter?q=${encodeURIComponent(item.match?.name ?? "")}`}
+              variant="outline"
+            >
+              <IconSearch size={15} /> Sök manuellt
+            </LinkButton>
+          )}
+          <Button variant="ghost" onClick={props.onRemove}>
+            Ta bort skanning
+          </Button>
+        </div>
+      </div>
+    </Sheet>
+  );
+}
+
+/* ===========================================================================
+ * Bottom-sheet-primitiv
+ * ======================================================================== */
+function Sheet({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="absolute inset-0 z-40 flex flex-col justify-end">
+      <button
+        type="button"
+        aria-label="Stäng"
+        onClick={onClose}
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
+      />
+      <div className="relative max-h-[85%] overflow-y-auto rounded-t-3xl border-t border-surface-border bg-surface-raised p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-card animate-fade-in-up">
+        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-surface-border" aria-hidden="true" />
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="font-display text-base font-semibold text-ink">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Stäng"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-ink-muted hover:bg-surface-overlay hover:text-ink"
+          >
+            <IconX size={18} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* ===========================================================================
+ * Notiser
+ * ======================================================================== */
+function MockNotice() {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-holo-cyan/30 bg-holo-cyan/5 px-4 py-3">
+      <span aria-hidden="true" className="mt-0.5 shrink-0 text-holo-cyan">
+        <IconSparkle size={18} />
+      </span>
+      <p className="text-sm text-ink-muted">
+        <span className="font-semibold text-ink">Demoläge:</span> igenkänningen körs
+        med en simulerad tjänst, så träffarna är exempel ur katalogen.
+      </p>
+    </div>
+  );
+}
+
+function ConfigNotice({ text }: { text: string }) {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-fall/30 bg-fall/5 px-4 py-3">
+      <span aria-hidden="true" className="mt-0.5 shrink-0 text-fall">
+        <IconAlertTriangle size={18} />
+      </span>
+      <p className="text-sm text-ink-muted">{text}</p>
     </div>
   );
 }

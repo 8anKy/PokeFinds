@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { listCollection, computeCollectionValue } from "@/services/collection";
 import { formatPrice, formatPercent } from "@/lib/format";
 import { StatCard } from "@/components/features/stat-card";
-import { PriceChart } from "@/components/features/price-chart";
+import { PriceChartLazy } from "@/components/features/price-chart-lazy";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   IconGem,
@@ -97,7 +97,7 @@ export default async function CollectionPage() {
             </p>
           </CardHeader>
           <CardContent>
-            <PriceChart data={chartData} />
+            <PriceChartLazy data={chartData} />
           </CardContent>
         </Card>
 
