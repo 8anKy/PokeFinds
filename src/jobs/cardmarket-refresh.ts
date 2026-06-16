@@ -24,6 +24,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Samtidiga DB-skrivningar (≤ DB_POOL i db.ts). Kortar 18k sekventiella
 // cross-region-uppdateringar från ~30 min till några minuter.
 const DB_CONCURRENCY = 8;
+// Samtidiga API-sidhämtningar. Döljer nätverkslatens (US-runner → RapidAPI)
+// utan att överskrida 300/min: varje task sover throttle×API_CONCURRENCY.
+const API_CONCURRENCY = 4;
 
 interface CmCard {
   tcgid: string | null;
@@ -106,29 +109,34 @@ export async function runCardmarketRefresh(
       await sleep(throttle);
     } while (page++ < total);
 
-    // Fas 1: hämta priser (sekventiellt, rate-limitat). Fas 2: skriv samtidigt.
-    const singleOps: { productId: string; offerId?: string; priceOre: number; url: string }[] = [];
+    // Fas 1: hämta priser. Hämtningen är latensbunden (US-runner → RapidAPI, en
+    // sida i taget tar ~38 min). Kör API_CONCURRENCY sidor parallellt men låt
+    // varje task sova throttle×API_CONCURRENCY → aggregerad takt ≤ 1/throttle
+    // (~273/min, under 300/min-kvoten) oavsett latens. Fas 2: skriv samtidigt.
+    const pageTasks: { epId: number; pg: number }[] = [];
     for (const ep of eps.filter((e) => e.cards_total > 0)) {
-      for (let pg = 1; pg <= Math.ceil(ep.cards_total / 20); pg++) {
-        const d = await api<{ data: CmCard[] }>(`https://${HOST}/pokemon/episodes/${ep.id}/cards?page=${pg}`);
-        await sleep(throttle);
-        if (!d) continue;
-        for (const card of d.data) {
-          const entry = card.tcgid ? map.get(card.tcgid) : undefined;
-          if (!entry) continue;
-          const cmp = card.prices?.cardmarket ?? {};
-          const eur = cmp.lowest_near_mint ?? cmp["30d_average"] ?? null; // exakt From; fallback snitt om From saknas
-          if (eur == null) continue;
-          const priceOre = Math.round(eur * rates.eurToOre);
-          const url =
-            entry.url && isEnglishCardmarketUrl(entry.url) ? withNearMint(entry.url)
-              : card.cardmarket_id != null ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true })
-                : entry.url ?? null;
-          if (!url) continue;
-          singleOps.push({ productId: entry.productId, offerId: entry.offerId, priceOre, url });
-        }
-      }
+      for (let pg = 1; pg <= Math.ceil(ep.cards_total / 20); pg++) pageTasks.push({ epId: ep.id, pg });
     }
+    const singleOps: { productId: string; offerId?: string; priceOre: number; url: string }[] = [];
+    await mapPool(pageTasks, API_CONCURRENCY, async ({ epId, pg }) => {
+      const d = await api<{ data: CmCard[] }>(`https://${HOST}/pokemon/episodes/${epId}/cards?page=${pg}`);
+      await sleep(throttle * API_CONCURRENCY);
+      if (!d) return;
+      for (const card of d.data) {
+        const entry = card.tcgid ? map.get(card.tcgid) : undefined;
+        if (!entry) continue;
+        const cmp = card.prices?.cardmarket ?? {};
+        const eur = cmp.lowest_near_mint ?? cmp["30d_average"] ?? null; // exakt From; fallback snitt om From saknas
+        if (eur == null) continue;
+        const priceOre = Math.round(eur * rates.eurToOre);
+        const url =
+          entry.url && isEnglishCardmarketUrl(entry.url) ? withNearMint(entry.url)
+            : card.cardmarket_id != null ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true })
+              : entry.url ?? null;
+        if (!url) continue;
+        singleOps.push({ productId: entry.productId, offerId: entry.offerId, priceOre, url });
+      }
+    });
     await mapPool(singleOps, DB_CONCURRENCY, async (op) => {
       if (op.offerId) {
         await prisma.offer.update({ where: { id: op.offerId }, data: { price: op.priceOre, url: op.url, stockStatus: "IN_STOCK", condition: "NEAR_MINT", lastSeenAt: new Date() } });
