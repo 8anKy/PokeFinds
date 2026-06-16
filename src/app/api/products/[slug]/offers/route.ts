@@ -2,6 +2,7 @@ import { apiError, jsonOk } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
+import { NON_STORE_RETAILER_NAMES } from "@/services/products";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,11 @@ export async function GET(
 
     // Visa bara offers med direkt produktlänk — sök-/bläddringslänkar döljs och
     // räknas inte in i prisstatistiken (priset hör inte ihop med en köpbar sida).
-    const directOffers = product.offers.filter((o) => isDirectOfferUrl(o.url));
+    const directOffers = product.offers.filter(
+      (o) =>
+        isDirectOfferUrl(o.url) &&
+        !NON_STORE_RETAILER_NAMES.includes(o.retailer?.name ?? "")
+    );
 
     const priced = directOffers.filter(
       (o): o is (typeof directOffers)[number] & { price: number } => o.price !== null && o.price > 0

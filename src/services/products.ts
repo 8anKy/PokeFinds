@@ -460,6 +460,17 @@ export async function getPriceHistory(productId: string, days: number) {
 /** Källor vars observationer utgör marknadspriset (Cardmarket-data). */
 export const CARDMARKET_SOURCE_NAMES = ["Cardmarket", "Pokémon TCG API", "TCGdex API"];
 
+/**
+ * "Återförsäljare" som egentligen är pris-DATAKÄLLOR (inte köpbara butiker) eller
+ * mock — ska ALDRIG visas i butiksfiltret eller som köpbara offers. Cardmarket och
+ * Tradera är riktiga marknadsplatser och behålls.
+ */
+export const NON_STORE_RETAILER_NAMES = [
+  "Pokémon TCG API",
+  "TCGdex API",
+  "Mock-datakälla",
+];
+
 export interface SourceHistoryPoint {
   date: string; // YYYY-MM-DD
   price: number; // öre, dagligt snitt

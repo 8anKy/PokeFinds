@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import {
   getExploreFeed,
   HIDDEN_CATEGORIES,
+  NON_STORE_RETAILER_NAMES,
   type ProductSort,
   type SearchProductsParams,
 } from "@/services/products";
@@ -121,7 +122,7 @@ export default async function ProductsPage({
       orderBy: { releaseDate: "desc" },
     }),
     prisma.retailer.findMany({
-      where: { isActive: true },
+      where: { isActive: true, name: { notIn: NON_STORE_RETAILER_NAMES } },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

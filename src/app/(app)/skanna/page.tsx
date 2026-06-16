@@ -91,7 +91,7 @@ const CONDITION_LABEL: Record<string, string> = Object.fromEntries(
   CONDITIONS.map((c) => [c.value, c.label])
 );
 
-const CAPTURE_MAX = 900; // px bredd på fångad ruta — räcker för identifiering
+const CAPTURE_MAX = 1280; // px bredd på fångad ruta — högre = tydligare korttext för OCR
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 const MIN_MATCH_CONF = 0.2;
 
@@ -115,7 +115,7 @@ function captureFrame(
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
   ctx.drawImage(video, 0, 0, w, h);
-  return canvas.toDataURL("image/jpeg", 0.82);
+  return canvas.toDataURL("image/jpeg", 0.85);
 }
 
 export default function SkannaPage() {
