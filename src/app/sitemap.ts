@@ -3,6 +3,18 @@ import { prisma } from "@/lib/db";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
+// Generera vid förfrågan, INTE vid build — annars kör en DB-fråga mot Neon under
+// `next build` och en långsam/hängande anslutning fryser hela bygget.
+export const dynamic = "force-dynamic";
+
+/** Avbryter ett löfte efter `ms` så att en hängande DB-anslutning aldrig låser. */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("timeout")), ms)),
+  ]);
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${BASE_URL}/`, changeFrequency: "daily", priority: 1 },
@@ -17,19 +29,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   let products: { slug: string; updatedAt: Date }[] = [];
   let sets: { id: string; updatedAt: Date }[] = [];
   try {
-    [products, sets] = await Promise.all([
-      prisma.product.findMany({
-        select: { slug: true, updatedAt: true },
-        orderBy: { viewCount: "desc" },
-        take: 5000,
-      }),
-      prisma.cardSet.findMany({
-        select: { id: true, updatedAt: true },
-        take: 1000,
-      }),
-    ]);
+    [products, sets] = await withTimeout(
+      Promise.all([
+        prisma.product.findMany({
+          select: { slug: true, updatedAt: true },
+          orderBy: { viewCount: "desc" },
+          take: 5000,
+        }),
+        prisma.cardSet.findMany({
+          select: { id: true, updatedAt: true },
+          take: 1000,
+        }),
+      ]),
+      8000
+    );
   } catch {
-    // DB ej tillgänglig (t.ex. vid build utan databas) — returnera statiska rutter.
+    // DB ej tillgänglig eller långsam — returnera bara de statiska rutterna.
     return staticRoutes;
   }
 
