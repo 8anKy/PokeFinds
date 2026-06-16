@@ -1,5 +1,8 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // "native" = lokal Windows-motor (dev); "rhel-openssl-3.0.x" = Vercels Linux-
+  // runtime (AL2023/OpenSSL 3) så att en lokalt byggd (prebuilt) deploy funkar.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {

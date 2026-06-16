@@ -4,6 +4,12 @@ const nextConfig = {
   experimental: {
     instrumentationHook: true,
     serverComponentsExternalPackages: ["bullmq", "ioredis", "nodemailer", "redis-parser"],
+    // Prebuilt deploy: vi bygger på Windows men Vercels runtime är Linux (rhel/OpenSSL 3).
+    // Tvinga in Linux-Prisma-motorn i varje serverless-funktion så att @prisma/client
+    // hittar rätt query engine i drift (annars "Query engine ... rhel-openssl-3.0.x not found").
+    outputFileTracingIncludes: {
+      "**/*": ["./node_modules/.prisma/client/libquery_engine-rhel-openssl-3.0.x.so.node"],
+    },
   },
   images: {
     remotePatterns: [
