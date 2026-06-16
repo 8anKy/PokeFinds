@@ -20,9 +20,14 @@
  */
 import { StockStatus } from "@prisma/client";
 import { prisma } from "../lib/db";
+import { mapPool } from "../lib/concurrency";
 import { normalizeTitle } from "../lib/utils";
 import { matchProduct, isPlausibleListingPrice } from "../scrapers/matching";
 import { traderaSearchUrlSpecific } from "../lib/marketplace-urls";
+
+// Samtidiga DB-anrop (≤ DB_POOL i db.ts) — matchning + skrivning är annars
+// tusentals sekventiella cross-region-queries och jobbet timeoutar.
+const DB_CONCURRENCY = 8;
 
 const SEARCH_API = "https://api.tradera.com/v3/searchservice.asmx";
 const PUBLIC_API = "https://api.tradera.com/v3/publicservice.asmx";
@@ -360,33 +365,34 @@ export async function runTraderaSweep(
   let matched = 0, noMatch = 0, implausible = 0, categoryMismatch = 0;
   const bestByProduct = new Map<string, { price: number; item: TraderaItem }>();
 
-  let i = 0;
-  for (const item of allItems.values()) {
-    i++;
-    if (i % 2000 === 0) log(`   [${i}/${allItems.size}] matchade: ${matched}`);
+  const itemsArr = [...allItems.values()];
+  let processed = 0;
+  await mapPool(itemsArr, DB_CONCURRENCY, async (item) => {
+    if (++processed % 2000 === 0) log(`   [${processed}/${itemsArr.length}] matchade: ${matched}`);
 
     const normalized = normalizeTitle(item.title);
     const match = await matchProduct(normalized);
-    if (!match) { noMatch++; continue; }
+    if (!match) { noMatch++; return; }
 
     const product = await prisma.product.findUnique({
       where: { id: match.productId },
       select: { id: true, category: true },
     });
-    if (!product) { noMatch++; continue; }
+    if (!product) { noMatch++; return; }
 
     const isSingleListing = item.categoryId === 1001337;
     const isSingleProduct = SINGLE_CATEGORIES.has(product.category);
-    if (isSingleListing !== isSingleProduct) { categoryMismatch++; continue; }
+    if (isSingleListing !== isSingleProduct) { categoryMismatch++; return; }
 
-    if (!(await isPlausibleListingPrice(product.id, item.priceOre))) { implausible++; continue; }
+    if (!(await isPlausibleListingPrice(product.id, item.priceOre))) { implausible++; return; }
 
     matched++;
+    // get+set utan await emellan → atomiskt per task, säkert under mapPool.
     const existing = bestByProduct.get(product.id);
     if (!existing || item.priceOre < existing.price) {
       bestByProduct.set(product.id, { price: item.priceOre, item });
     }
-  }
+  });
 
   log(`   Matchade: ${matched} annonser → ${bestByProduct.size} unika produkter`);
   log(`   Ej matchade: ${noMatch} | Kategorifel: ${categoryMismatch} | Orimligt pris: ${implausible}`);
@@ -400,7 +406,7 @@ export async function runTraderaSweep(
   if (!dryRun) {
     log("\n💾 Uppdaterar databasen...");
 
-    for (const [productId, { price, item }] of bestByProduct) {
+    await mapPool([...bestByProduct.entries()], DB_CONCURRENCY, async ([productId, { price, item }]) => {
       const product = await prisma.product.findUnique({
         where: { id: productId },
         select: { category: true },
@@ -480,7 +486,7 @@ export async function runTraderaSweep(
           },
         });
       }
-    }
+    });
 
     log(`   ✅ ${written} nya/uppdaterade, ${priceUpdated} billigare pris, ${unchanged} redan billigare`);
 
@@ -515,7 +521,7 @@ export async function runTraderaSweep(
       },
     });
 
-    for (const offer of staleOffers) {
+    await mapPool(staleOffers, DB_CONCURRENCY, async (offer) => {
       const p = offer.product;
       let searchTerm: string;
       if (p.card) {
@@ -543,7 +549,7 @@ export async function runTraderaSweep(
         },
       });
       expired++;
-    }
+    });
 
     log(`   ${expired} offers nollställda (troligen utgångna annonser)`);
   }

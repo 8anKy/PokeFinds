@@ -46,6 +46,7 @@ const LANGUAGE_LABELS: Record<string, string> = {
 };
 
 const PERIODS = [
+  { value: "1w", label: "1V", days: 7 },
   { value: "1m", label: "1M", days: 30 },
   { value: "3m", label: "3M", days: 90 },
   { value: "6m", label: "6M", days: 180 },
@@ -53,6 +54,7 @@ const PERIODS = [
   { value: "max", label: "MAX", days: 3650 },
 ] as const;
 const MAX_PERIOD = PERIODS[PERIODS.length - 1];
+const DEFAULT_PERIOD = PERIODS.find((p) => p.value === "3m")!;
 
 interface PageProps {
   params: { slug: string };
@@ -90,7 +92,7 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
   if (!product) notFound();
 
   const requestedPeriod = PERIODS.find((p) => p.value === searchParams.period);
-  let period = requestedPeriod ?? PERIODS[1];
+  let period = requestedPeriod ?? DEFAULT_PERIOD;
 
   const [historyBySource, historyBySource30, similar, affiliateRetailers] = await Promise.all([
     getPriceHistoryBySource(product.id, period.days),

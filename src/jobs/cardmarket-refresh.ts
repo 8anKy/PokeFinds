@@ -10,6 +10,7 @@
  * Prishistoriken/grafen (CM trend) rörs INTE — bara Offer.price.
  */
 import { prisma } from "../lib/db";
+import { mapPool } from "../lib/concurrency";
 import { getRatesOre } from "../lib/exchange-rate";
 import {
   cardmarketProductUrl,
@@ -20,6 +21,9 @@ import { classifyForm, scoreSimilarity } from "../scrapers/matching";
 import { recomputeProductPriceCache } from "../services/products";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// Samtidiga DB-skrivningar (≤ DB_POOL i db.ts). Kortar 18k sekventiella
+// cross-region-uppdateringar från ~30 min till några minuter.
+const DB_CONCURRENCY = 8;
 
 interface CmCard {
   tcgid: string | null;
@@ -102,6 +106,8 @@ export async function runCardmarketRefresh(
       await sleep(throttle);
     } while (page++ < total);
 
+    // Fas 1: hämta priser (sekventiellt, rate-limitat). Fas 2: skriv samtidigt.
+    const singleOps: { productId: string; offerId?: string; priceOre: number; url: string }[] = [];
     for (const ep of eps.filter((e) => e.cards_total > 0)) {
       for (let pg = 1; pg <= Math.ceil(ep.cards_total / 20); pg++) {
         const d = await api<{ data: CmCard[] }>(`https://${HOST}/pokemon/episodes/${ep.id}/cards?page=${pg}`);
@@ -119,20 +125,23 @@ export async function runCardmarketRefresh(
               : card.cardmarket_id != null ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true })
                 : entry.url ?? null;
           if (!url) continue;
-          if (entry.offerId) {
-            await prisma.offer.update({ where: { id: entry.offerId }, data: { price: priceOre, url, stockStatus: "IN_STOCK", condition: "NEAR_MINT", lastSeenAt: new Date() } });
-            res.singlesUpdated++;
-          } else {
-            await prisma.offer.upsert({
-              where: { productId_retailerId_condition_language: { productId: entry.productId, retailerId: cm.id, condition: "NEAR_MINT", language: "EN" } },
-              update: { price: priceOre, url, stockStatus: "IN_STOCK", lastSeenAt: new Date() },
-              create: { productId: entry.productId, retailerId: cm.id, condition: "NEAR_MINT", language: "EN", price: priceOre, currency: "SEK", stockStatus: "IN_STOCK", url },
-            });
-            res.singlesCreated++;
-          }
+          singleOps.push({ productId: entry.productId, offerId: entry.offerId, priceOre, url });
         }
       }
     }
+    await mapPool(singleOps, DB_CONCURRENCY, async (op) => {
+      if (op.offerId) {
+        await prisma.offer.update({ where: { id: op.offerId }, data: { price: op.priceOre, url: op.url, stockStatus: "IN_STOCK", condition: "NEAR_MINT", lastSeenAt: new Date() } });
+        res.singlesUpdated++;
+      } else {
+        await prisma.offer.upsert({
+          where: { productId_retailerId_condition_language: { productId: op.productId, retailerId: cm.id, condition: "NEAR_MINT", language: "EN" } },
+          update: { price: op.priceOre, url: op.url, stockStatus: "IN_STOCK", lastSeenAt: new Date() },
+          create: { productId: op.productId, retailerId: cm.id, condition: "NEAR_MINT", language: "EN", price: op.priceOre, currency: "SEK", stockStatus: "IN_STOCK", url: op.url },
+        });
+        res.singlesCreated++;
+      }
+    });
     console.log(`[cm-refresh] Singlar: ${res.singlesUpdated} uppdaterade, ${res.singlesCreated} nya.`);
   }
 
@@ -158,6 +167,8 @@ export async function runCardmarketRefresh(
       where: { category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY"] } },
       include: { set: { select: { name: true } }, offers: { select: { id: true, retailerId: true, price: true, stockStatus: true, url: true } } },
     });
+    type SealedOp = { productId: string; offerId?: string; imageUrl?: string; priceOre: number; url: string; stock: "IN_STOCK" | "OUT_OF_STOCK" };
+    const sealedOps: SealedOp[] = [];
     for (const p of ours) {
       const cmOffer = p.offers.find((o) => o.retailerId === cm.id);
       // 1) Exakt via cardmarket_id (idProduct i offer-URL:en) — täcker även
@@ -182,11 +193,6 @@ export async function runCardmarketRefresh(
         if (!best || bestScore < 0.55) continue;
       }
       if (best.cardmarket_id == null) continue;
-      // Self-heal: håll sealed-bilden i synk med CM-katalogens per-produkt-bild
-      // (tcggo). Endast på EXAKT cmid-match (fuzzy kan välja fel produkt).
-      if (exact && best.image && best.image !== p.imageUrl) {
-        await prisma.product.update({ where: { id: p.id }, data: { imageUrl: best.image } });
-      }
       const cmp = best.prices?.cardmarket ?? {};
       // I lager = aktuell `lowest`/From → From-priset. Ur lager = ingen aktuell
       // annons → OUT_OF_STOCK + 30d-snitt. Flippar dynamiskt mellan körningar.
@@ -202,19 +208,25 @@ export async function runCardmarketRefresh(
         const storeMin = storePrices.length ? Math.min(...storePrices) : null;
         if (storeMin != null && priceOre > storeMin * 2.5) continue;
       }
-      const url = cardmarketProductUrl(best.cardmarket_id);
+      // Self-heal: håll sealed-bilden i synk med CM-katalogens per-produkt-bild
+      // (tcggo). Endast på EXAKT cmid-match (fuzzy kan välja fel produkt).
+      const imageUrl = exact && best.image && best.image !== p.imageUrl ? best.image : undefined;
+      sealedOps.push({ productId: p.id, offerId: cmOffer?.id, imageUrl, priceOre, url: cardmarketProductUrl(best.cardmarket_id), stock });
+    }
+    await mapPool(sealedOps, DB_CONCURRENCY, async (op) => {
+      if (op.imageUrl) await prisma.product.update({ where: { id: op.productId }, data: { imageUrl: op.imageUrl } });
       // Sätt ALLTID price (även null) så ett gammalt uppblåst pris nollas när lowest försvinner.
-      if (cmOffer) {
-        await prisma.offer.update({ where: { id: cmOffer.id }, data: { price: priceOre, url, stockStatus: stock, condition: "SEALED", lastSeenAt: new Date() } });
+      if (op.offerId) {
+        await prisma.offer.update({ where: { id: op.offerId }, data: { price: op.priceOre, url: op.url, stockStatus: op.stock, condition: "SEALED", lastSeenAt: new Date() } });
       } else {
         await prisma.offer.upsert({
-          where: { productId_retailerId_condition_language: { productId: p.id, retailerId: cm.id, condition: "SEALED", language: "EN" } },
-          update: { price: priceOre, url, stockStatus: stock, lastSeenAt: new Date() },
-          create: { productId: p.id, retailerId: cm.id, condition: "SEALED", language: "EN", price: priceOre, currency: "SEK", stockStatus: stock, url },
+          where: { productId_retailerId_condition_language: { productId: op.productId, retailerId: cm.id, condition: "SEALED", language: "EN" } },
+          update: { price: op.priceOre, url: op.url, stockStatus: op.stock, lastSeenAt: new Date() },
+          create: { productId: op.productId, retailerId: cm.id, condition: "SEALED", language: "EN", price: op.priceOre, currency: "SEK", stockStatus: op.stock, url: op.url },
         });
       }
       res.sealedUpdated++;
-    }
+    });
     console.log(`[cm-refresh] Sealed: ${res.sealedUpdated} uppdaterade.`);
   }
 

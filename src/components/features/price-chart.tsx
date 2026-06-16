@@ -183,12 +183,21 @@ export function PriceChart({ data, className }: PriceChartProps) {
                 mjuk uttoning till spöklik efter den. Tonstyrkan animeras
                 (stop-opacity) vid hover in/ut. */}
             <linearGradient id={lineFadeId} x1="0" y1="0" x2="1" y2="0">
+              {/* Skarp fram till markören, sedan KONSTANT uttonad hela vägen till
+                  nu (ett hårt steg vid markören, inte en gradient som bleknar
+                  bort) — lika "mörk" från vald dag fram till idag. */}
               <stop offset="0%" stopColor={LINE} stopOpacity={1} />
               <stop offset={splitPct} stopColor={LINE} stopOpacity={1} />
               <stop
+                offset={splitPct}
+                stopColor={LINE}
+                stopOpacity={hovering ? 0.22 : 1}
+                className="price-fade-stop"
+              />
+              <stop
                 offset="100%"
                 stopColor={LINE}
-                stopOpacity={hovering ? 0.12 : 1}
+                stopOpacity={hovering ? 0.22 : 1}
                 className="price-fade-stop"
               />
             </linearGradient>

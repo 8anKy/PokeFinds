@@ -16,9 +16,10 @@ concurrency:
 jobs:
   watch:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DB_POOL: "10" # större Prisma-pool → mapPool-samtidighet utan pool_timeout
     steps:
       # Self-healing-vakt: tills molnhostingen (Neon) är konfigurerad saknas
       # DATABASE_URL-secret. Då hoppar vi över körningen och lyckas grönt (ingen
