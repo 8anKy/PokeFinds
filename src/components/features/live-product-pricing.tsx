@@ -225,9 +225,11 @@ export function LivePricePanel({
 
 export interface LiveOffersTableProps {
   slug: string;
+  /** Reserv-länk "Sök på Tradera" (sealed utan direkt Tradera-annons). */
+  traderaSearch?: string | null;
 }
 
-export function LiveOffersTable({ slug }: LiveOffersTableProps) {
+export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
   const { offers, updatedAt, affiliateIds } = useLivePricing();
 
   // Visa alla offers med direkt produktlänk (sök-/bläddringslänkar filtreras
@@ -242,6 +244,11 @@ export function LiveOffersTable({ slug }: LiveOffersTableProps) {
       if (b.price == null) return -1;
       return a.price - b.price;
     });
+
+  // Tradera-reserv: visa "Sök på Tradera" när produkten saknar en direkt
+  // Tradera-annons (gäller sealed) så att det alltid finns en väg till Tradera.
+  const showTraderaSearch =
+    !!traderaSearch && !directOffers.some((o) => o.retailer.name === "Tradera");
 
   return (
     <>
@@ -308,6 +315,16 @@ export function LiveOffersTable({ slug }: LiveOffersTableProps) {
               annonslänkar — det påverkar aldrig priserna vi visar.
             </p>
           </div>
+        )}
+        {showTraderaSearch && (
+          <a
+            href={traderaSearch!}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            className="mt-4 inline-flex items-center gap-2 rounded-lg border border-surface-border px-4 py-2.5 text-sm font-medium text-ink-muted transition-colors hover:border-holo-cyan/60 hover:text-holo-cyan"
+          >
+            <IconStore size={16} /> Sök efter den här produkten på Tradera →
+          </a>
         )}
       </section>
 

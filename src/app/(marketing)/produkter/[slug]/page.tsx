@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PriceChartLazy } from "@/components/features/price-chart-lazy";
 import { ProductCard, CATEGORY_LABELS } from "@/components/features/product-card";
 import { ProductActions } from "@/components/features/product-actions";
-import { isDirectOfferUrl } from "@/lib/marketplace-urls";
+import { isDirectOfferUrl, traderaSearchUrlSpecific } from "@/lib/marketplace-urls";
 import {
   LivePricingProvider,
   LivePricePanel,
@@ -24,6 +24,17 @@ import {
 import { IconCards } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
+
+/** Sealed-kategorier (ej singel/gradat) — får alltid en Tradera-länk. */
+const SEALED_CATEGORIES: string[] = [
+  "BOOSTER_BOX",
+  "BOOSTER_PACK",
+  "ETB",
+  "COLLECTION_BOX",
+  "TIN",
+  "BLISTER",
+  "BUNDLE",
+];
 
 const LANGUAGE_LABELS: Record<string, string> = {
   SV: "Svenska",
@@ -325,7 +336,14 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
         )}
 
         {/* Erbjudanden — live-uppdateras via polling */}
-        <LiveOffersTable slug={product.slug} />
+        <LiveOffersTable
+          slug={product.slug}
+          traderaSearch={
+            SEALED_CATEGORIES.includes(product.category)
+              ? traderaSearchUrlSpecific(product.title, product.category)
+              : null
+          }
+        />
 
         {/* Restock history */}
         <section className="mt-10">
