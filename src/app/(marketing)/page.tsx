@@ -62,7 +62,7 @@ async function getShowcase() {
   if (!product) return null;
   return {
     product,
-    points: history.map((s) => ({ date: s.date.toISOString(), price: s.avgPrice })),
+    points: history.map((s) => ({ date: new Date(s.date).toISOString(), price: s.avgPrice })),
   };
 }
 

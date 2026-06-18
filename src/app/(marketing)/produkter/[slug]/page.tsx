@@ -211,7 +211,7 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
         offerCount: directOffers.length,
       }}
       affiliateRetailerIds={affiliateRetailers.map((r) => r.id)}
-      initialUpdatedAt={product.updatedAt.toISOString()}
+      initialUpdatedAt={new Date(product.updatedAt).toISOString()}
     >
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <script

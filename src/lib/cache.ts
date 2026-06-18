@@ -1,16 +1,20 @@
+import { unstable_cache } from "next/cache";
+
 /**
- * TTL-cache för publika läsfrågor (sänker Neon network transfer).
+ * TTL-cache för publika läsfrågor. Datan uppdateras ~en gång/dygn av de schemalagda
+ * jobben, så ~10 min inaktualitet är OK — varje cache-träff är en Neon-fråga + en
+ * Vercel-funktionskörning som UTEBLIR (sänker både egress och Fluid Active CPU).
  *
- * TILLFÄLLIGT AVSTÄNGD (passthrough): `unstable_cache` serialiserar returvärdet →
- * Date-fält kommer tillbaka som STRÄNGAR, och anropare som gör `date.toISOString()`
- * / `date.getTime()` kraschar (TypeError på landningssidan). Återinförs när de
- * cachade funktionerna returnerar serialiserings-säker data (datum som ISO-sträng)
- * + lokal runtime-verifiering. Strukturen behålls så återinförandet blir en ändring.
+ * VIKTIGT: `unstable_cache` serialiserar returvärdet → Date-fält blir STRÄNGAR vid
+ * cache-träff. Anropare som gör datummatematik på cachad data MÅSTE wrappa i
+ * `new Date(x)` (tål både Date och sträng). Annars kraschar sidan (TypeError).
+ *
+ * ponytail: bara TTL, ingen tagg-invalidering.
  */
 export function cachedRead<A extends unknown[], R>(
   fn: (...args: A) => Promise<R>,
-  _key: string,
-  _revalidateSeconds = 600
+  key: string,
+  revalidateSeconds = 600
 ): (...args: A) => Promise<R> {
-  return fn;
+  return unstable_cache(fn, [key], { revalidate: revalidateSeconds });
 }
