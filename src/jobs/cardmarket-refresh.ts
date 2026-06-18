@@ -54,6 +54,7 @@ export interface CmRefreshResult {
   singlesUpdated: number;
   singlesCreated: number;
   sealedUpdated: number;
+  historyPoints: number;
   apiCalls: number;
   remaining: number;
 }
@@ -64,7 +65,7 @@ export async function runCardmarketRefresh(
   const HOST = process.env.CARDMARKET_RAPIDAPI_HOST ?? "cardmarket-api-tcg.p.rapidapi.com";
   const KEY = process.env.CARDMARKET_RAPIDAPI_KEY ?? "";
   const throttle = opts.throttleMs ?? 220;
-  const res: CmRefreshResult = { ran: false, singlesUpdated: 0, singlesCreated: 0, sealedUpdated: 0, apiCalls: 0, remaining: Infinity };
+  const res: CmRefreshResult = { ran: false, singlesUpdated: 0, singlesCreated: 0, sealedUpdated: 0, historyPoints: 0, apiCalls: 0, remaining: Infinity };
   if (!KEY) {
     console.warn("[cm-refresh] CARDMARKET_RAPIDAPI_KEY saknas — hoppar över.");
     return res;
@@ -126,7 +127,10 @@ export async function runCardmarketRefresh(
     // varje task sova throttle×API_CONCURRENCY → aggregerad takt ≤ 1/throttle
     // (~273/min, under 300/min-kvoten) oavsett latens. Fas 2: skriv samtidigt.
     const pageTasks: { epId: number; pg: number }[] = [];
-    for (const ep of eps.filter((e) => e.cards_total > 0)) {
+    // CM_LIMIT_EPISODES > 0 → bara N första set (för lokal testning, sparar kvot).
+    const limitEps = parseInt(process.env.CM_LIMIT_EPISODES ?? "0", 10);
+    const withCards = eps.filter((e) => e.cards_total > 0);
+    for (const ep of (limitEps > 0 ? withCards.slice(0, limitEps) : withCards)) {
       for (let pg = 1; pg <= Math.ceil(ep.cards_total / 20); pg++) pageTasks.push({ epId: ep.id, pg });
     }
     // MEP Black Star Promos (412) rapporterar cards_total=0 i episode-listan
@@ -168,7 +172,25 @@ export async function runCardmarketRefresh(
         res.singlesCreated++;
       }
     });
-    console.log(`[cm-refresh] Singlar: ${res.singlesUpdated} uppdaterade, ${res.singlesCreated} nya.`);
+
+    // Daglig CM-historikpunkt per uppdaterat kort → matar produktgrafen
+    // (getPriceHistoryBySource grupperar PriceObservation per dag/källa) + de
+    // dagliga snapshotsen (landning/dashboard). Detta är ENDA källan till ÄKTA
+    // daglig historik — den byggs FRAMÅT (ingen API ger en historisk serie).
+    // Värdet = samma From-pris vi visar (lowest_near_mint).
+    const cmSource = await prisma.scrapeSource.findFirst({ where: { name: "Cardmarket" }, select: { id: true } });
+    if (cmSource && singleOps.length > 0) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      await prisma.priceObservation.createMany({
+        data: singleOps.map((op) => ({ productId: op.productId, sourceId: cmSource.id, price: op.priceOre, currency: "SEK" })),
+      });
+      await prisma.priceSnapshot.createMany({
+        data: singleOps.map((op) => ({ productId: op.productId, date: today, minPrice: op.priceOre, maxPrice: op.priceOre, avgPrice: op.priceOre, volume: 1 })),
+        skipDuplicates: true,
+      });
+      res.historyPoints = singleOps.length;
+    }
+    console.log(`[cm-refresh] Singlar: ${res.singlesUpdated} uppdaterade, ${res.singlesCreated} nya, ${res.historyPoints} historikpunkter.`);
   }
 
   if (opts.sealed !== false) {
