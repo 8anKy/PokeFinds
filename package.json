@@ -17,6 +17,7 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
+    "db:studio:prod": "node scripts/studio-prod.mjs",
     "icons:gen": "node scripts/generate-icons.mjs",
     "import:tcg": "tsx scripts/import-tcg-data.ts",
     "scrape": "tsx scripts/run-scrapers.ts",
