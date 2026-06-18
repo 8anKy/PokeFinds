@@ -3,6 +3,7 @@
  * Rena funktioner utan framework-beroenden.
  */
 import { prisma } from "@/lib/db";
+import { cachedRead } from "@/lib/cache";
 import { normalizeTitle } from "@/lib/utils";
 import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
@@ -266,7 +267,7 @@ const FEED_INCLUDE = {
  * sorteringar paginerar över HELA katalogen; beräknade sorteringar (prisfall/
  * trend/restock) körs över topp-MAX_CANDIDATES (scrollen stannar där).
  */
-export async function getExploreFeed(
+async function getExploreFeedRaw(
   params: SearchProductsParams,
   offset: number,
   limit: number
@@ -311,7 +312,7 @@ export async function getExploreFeed(
   return { items: items.slice(offset, offset + limit), total, hasMore: offset + limit < total };
 }
 
-export async function searchProducts(params: SearchProductsParams): Promise<{
+async function searchProductsRaw(params: SearchProductsParams): Promise<{
   items: ProductListItem[];
   total: number;
   page: number;
@@ -405,7 +406,7 @@ export async function searchProducts(params: SearchProductsParams): Promise<{
   };
 }
 
-export async function getProductBySlug(slug: string) {
+async function getProductBySlugRaw(slug: string) {
   const product = await prisma.product.findUnique({
     where: { slug },
     include: {
@@ -448,7 +449,7 @@ export async function getProductBySlug(slug: string) {
 }
 
 /** Prishistorik (dagliga snapshots) för grafer. */
-export async function getPriceHistory(productId: string, days: number) {
+async function getPriceHistoryRaw(productId: string, days: number) {
   const snapshots = await prisma.priceSnapshot.findMany({
     where: { productId, date: { gte: daysAgo(days) } },
     orderBy: { date: "asc" },
@@ -532,7 +533,7 @@ export async function getPriceHistoryBySource(
 }
 
 /** Liknande produkter: samma set i första hand, annars samma kategori. */
-export async function getSimilarProducts(productId: string, limit = 8) {
+async function getSimilarProductsRaw(productId: string, limit = 8) {
   const product = await prisma.product.findUnique({
     where: { id: productId },
     select: { id: true, setId: true, category: true },
@@ -627,3 +628,11 @@ export async function getCardValues(
   }
   return map;
 }
+
+// ponytail: publika läsfrågor cachas (datan uppdateras ~en gång/dygn av jobben).
+// Sänker Neon network transfer — upprepade sidvisningar/crawls träffar cachen, inte DB:n.
+export const getExploreFeed = cachedRead(getExploreFeedRaw, "getExploreFeed");
+export const searchProducts = cachedRead(searchProductsRaw, "searchProducts");
+export const getProductBySlug = cachedRead(getProductBySlugRaw, "getProductBySlug");
+export const getPriceHistory = cachedRead(getPriceHistoryRaw, "getPriceHistory");
+export const getSimilarProducts = cachedRead(getSimilarProductsRaw, "getSimilarProducts");

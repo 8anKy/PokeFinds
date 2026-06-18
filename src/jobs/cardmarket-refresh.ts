@@ -99,6 +99,18 @@ export async function runCardmarketRefresh(
       if (ext) map.set(ext, { productId: p.id, offerId: p.offers[0]?.id, url: p.offers[0]?.url });
     }
 
+    // Promo-/specialset utan pokemontcg.io-tcgid (t.ex. MEP Black Star Promos) →
+    // matchas på cardmarket_id istället.
+    const cmidMap = new Map<number, { productId: string; offerId?: string; url?: string }>();
+    const cmidProducts = await prisma.product.findMany({
+      where: { category: "SINGLE_CARD", card: { cardmarketId: { not: null }, tcgExternalId: null } },
+      select: { id: true, card: { select: { cardmarketId: true } }, offers: { where: { retailerId: cm.id }, select: { id: true, url: true }, take: 1 } },
+    });
+    for (const p of cmidProducts) {
+      const id = p.card?.cardmarketId;
+      if (id != null) cmidMap.set(id, { productId: p.id, offerId: p.offers[0]?.id, url: p.offers[0]?.url });
+    }
+
     const eps: { id: number; cards_total: number }[] = [];
     let page = 1, total = 1;
     do {
@@ -117,13 +129,19 @@ export async function runCardmarketRefresh(
     for (const ep of eps.filter((e) => e.cards_total > 0)) {
       for (let pg = 1; pg <= Math.ceil(ep.cards_total / 20); pg++) pageTasks.push({ epId: ep.id, pg });
     }
+    // MEP Black Star Promos (412) rapporterar cards_total=0 i episode-listan
+    // (tcggo-metadata-bugg) men har ~93 kort → force-hämta dess sidor; matchas
+    // på cardmarket_id nedan. Tomma sidor returnerar inget (ofarligt).
+    if (cmidMap.size > 0) for (let pg = 1; pg <= 6; pg++) pageTasks.push({ epId: 412, pg });
     const singleOps: { productId: string; offerId?: string; priceOre: number; url: string }[] = [];
     await mapPool(pageTasks, API_CONCURRENCY, async ({ epId, pg }) => {
       const d = await api<{ data: CmCard[] }>(`https://${HOST}/pokemon/episodes/${epId}/cards?page=${pg}`);
       await sleep(throttle * API_CONCURRENCY);
       if (!d) return;
       for (const card of d.data) {
-        const entry = card.tcgid ? map.get(card.tcgid) : undefined;
+        const entry =
+          (card.tcgid ? map.get(card.tcgid) : undefined) ??
+          (card.cardmarket_id != null ? cmidMap.get(card.cardmarket_id) : undefined);
         if (!entry) continue;
         const cmp = card.prices?.cardmarket ?? {};
         const eur = cmp.lowest_near_mint ?? cmp["30d_average"] ?? null; // exakt From; fallback snitt om From saknas

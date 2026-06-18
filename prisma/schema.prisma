@@ -186,6 +186,9 @@ model Card {
   imageUrl      String?
   language      CardLanguage @default(EN)
   tcgExternalId String?      @unique
+  // Cardmarket idProduct — identitet för promo-/specialset utan pokemontcg.io-tcgid
+  // (t.ex. MEP Black Star Promos). Möjliggör idempotent import + daglig pris-refresh.
+  cardmarketId  Int?         @unique
   supertype     String?
   subtype       String?
   artist        String?

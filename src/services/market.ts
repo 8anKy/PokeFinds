@@ -1,5 +1,6 @@
 /** Marknadstjänster: trender, prisras, mest bevakade, restocks, set-index, statistik. */
 import { prisma } from "@/lib/db";
+import { cachedRead } from "@/lib/cache";
 
 function daysAgo(days: number): Date {
   const d = new Date();
@@ -77,7 +78,7 @@ async function attachProducts(changes: ProductChange[]) {
 }
 
 /** Produkter med störst prisökning senaste 7 dagarna. */
-export async function getTrending(limit = 10) {
+async function getTrendingRaw(limit = 10) {
   const changes = (await computeChanges(7))
     .filter((c) => c.change > 0)
     .sort((a, b) => b.changePercent - a.changePercent)
@@ -86,7 +87,7 @@ export async function getTrending(limit = 10) {
 }
 
 /** Produkter med störst prisfall senaste 7 dagarna. */
-export async function getTopDrops(limit = 10) {
+async function getTopDropsRaw(limit = 10) {
   const changes = (await computeChanges(7))
     .filter((c) => c.change < 0)
     .sort((a, b) => a.changePercent - b.changePercent)
@@ -95,7 +96,7 @@ export async function getTopDrops(limit = 10) {
 }
 
 /** Mest bevakade produkter. */
-export async function getMostWatched(limit = 10) {
+async function getMostWatchedRaw(limit = 10) {
   const grouped = await prisma.watchlistItem.groupBy({
     by: ["productId"],
     _count: { productId: true },
@@ -134,7 +135,7 @@ export async function getMostWatched(limit = 10) {
 }
 
 /** Senaste påfyllningar. */
-export async function getRecentRestocks(limit = 20) {
+async function getRecentRestocksRaw(limit = 20) {
   return prisma.restockEvent.findMany({
     where: { newStatus: "IN_STOCK" },
     include: {
@@ -147,7 +148,7 @@ export async function getRecentRestocks(limit = 20) {
 }
 
 /** Genomsnittlig prisförändring per set (7 dagar). */
-export async function getSetIndex() {
+async function getSetIndexRaw() {
   const changes = await computeChanges(7);
   if (changes.length === 0) return [];
 
@@ -185,7 +186,7 @@ export async function getSetIndex() {
 }
 
 /** Övergripande marknadsstatistik. */
-export async function getMarketStats() {
+async function getMarketStatsRaw() {
   const [
     productCount,
     offerCount,
@@ -218,3 +219,11 @@ export async function getMarketStats() {
     watchlistCount,
   };
 }
+
+// ponytail: marknadssidan + landningen cachas (datan uppdateras ~en gång/dygn av jobben).
+export const getTrending = cachedRead(getTrendingRaw, "getTrending");
+export const getTopDrops = cachedRead(getTopDropsRaw, "getTopDrops");
+export const getMostWatched = cachedRead(getMostWatchedRaw, "getMostWatched");
+export const getRecentRestocks = cachedRead(getRecentRestocksRaw, "getRecentRestocks");
+export const getSetIndex = cachedRead(getSetIndexRaw, "getSetIndex");
+export const getMarketStats = cachedRead(getMarketStatsRaw, "getMarketStats");
