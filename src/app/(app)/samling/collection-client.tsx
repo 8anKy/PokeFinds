@@ -36,6 +36,7 @@ export const LANGUAGE_LABELS: Record<string, string> = {
 export interface CollectionRow {
   id: string;
   name: string;
+  imageUrl: string | null;
   setName: string | null;
   quantity: number;
   condition: string;
@@ -573,7 +574,24 @@ export function CollectionClient({
               const profit = profitPercent(item);
               return (
                 <TR key={item.id}>
-                  <TD className="font-medium">{item.name}</TD>
+                  <TD className="font-medium">
+                    <div className="flex items-center gap-3">
+                      {item.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={item.imageUrl}
+                          alt=""
+                          className="h-12 w-9 shrink-0 rounded object-contain bg-surface-overlay"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <span className="flex h-12 w-9 shrink-0 items-center justify-center rounded bg-surface-overlay text-ink-faint">
+                          <IconPackage size={16} aria-hidden="true" />
+                        </span>
+                      )}
+                      <span>{item.name}</span>
+                    </div>
+                  </TD>
                   <TD className="text-ink-muted">{item.setName ?? "–"}</TD>
                   <TD className="tabular-nums">{item.quantity}</TD>
                   <TD>{CONDITION_LABELS[item.condition] ?? item.condition}</TD>

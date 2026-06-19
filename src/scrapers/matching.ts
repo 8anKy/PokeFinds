@@ -56,7 +56,9 @@ export function scoreSimilarity(a: string, b: string): number {
  */
 export function classifyForm(title: string): string | null {
   const t = title.toLowerCase();
-  if (/(portfolio|binder|sleeves?\b|playmat|toploader|deck\s*box)/.test(t)) return "accessory";
+  // Tillbehör (inkl. svenska: samlarpärm/pärm/album/4-pocket) — får ALDRIG matcha
+  // en sealed-/collection-produkt. "Greninja samlarpärm" ≠ "Greninja ex UPC".
+  if (/(portfolio|binder|samlarp(ä|a)rm|\bp(ä|a)rm\b|\balbum\b|sleeves?\b|playmat|toploader|deck\s*box)/.test(t)) return "accessory";
   // Case-/kartongannonser (6 displayer i en kartong) är aldrig en enskild produkt
   if (/\bcase\b|kartong/.test(t)) return "case";
   // Kvantitetslistningar ("4x bundles", "5 x boosterpaket", "3 st booster",
@@ -84,8 +86,10 @@ export function classifyForm(title: string): string | null {
     ].filter((re) => re.test(t)).length;
     if (formHits >= 2 || /(\s|\d)\+|\+(\s|\d)/.test(t)) return "combo";
   }
-  // "Mini Tin Display" = display av tins, inte booster display — kolla före display
-  if (/mini\s*tin/.test(t)) return "tin";
+  // "Mini Tin Display" = display av MÅNGA tins (dyrt) ≠ en enskild "Mini Tin"
+  // (billig). Bara enskild mini tin → "tin"; med "display" faller den vidare
+  // till display-regeln nedan så att en singeltin inte matchar ett tin-display.
+  if (/mini\s*tin/.test(t) && !/display/.test(t)) return "tin";
   if (/(booster\s*box|boosterbox|display|displaylåda)/.test(t)) return "display";
   if (/(elite trainer box|\betb\b)/.test(t)) return "etb";
   if (/booster ?bundle/.test(t)) return "bundle";
@@ -385,17 +389,39 @@ export async function matchProduct(
  *
  * Olika regler per produkttyp:
  * - Sealed: > 2,5× CM-priset är orimligt (butikskonkurrens håller svensk
- *   marknad nära CM — högre tyder på flera enheter/fel produkt).
+ *   marknad nära CM — högre tyder på flera enheter/fel produkt). OCKSÅ
+ *   < 0,15× CM = orimligt billigt: en FELMATCHAD produkt (t.ex. en 149 kr
+ *   Webhallen-länk på en 2 333 kr sealed = 6 %, eller en samlarpärm på en UPC).
+ *   Tröskeln är AVSIKTLIGT extrem (15 %) — vår sealed-CM-mappning är ibland för
+ *   hög (en singel booster pack kan ha fel CM-id → ~250 kr istället för ~60 kr),
+ *   och en ärlig billig butiksannons (pack 69 kr ≈ 28 % av fel-CM) får INTE
+ *   raderas. Bara grova felmatchningar (< 15 %) fångas.
  * - Singlar/graderade: svenska säljare prissätter billiga kort långt över
  *   CM-trend (69 kr för ett 7-korts-kort är ett riktigt pris) — orimligt
  *   först vid > 4× OCH > 400 kr över CM (fångar boxar/collections som
  *   felmatchats mot singelkort, utan att rensa legitima singel-listningar).
+ *   Ingen under-pris-vakt på singlar (billiga kort varierar fritt nedåt).
  *
  * Returnerar true när priset är rimligt eller CM-referenspris saknas.
  */
 export const MARKETPLACE_MAX_PRICE_RATIO = 2.5;
+const SEALED_MIN_PRICE_RATIO = 0.15;
 const SINGLES_MAX_RATIO = 4;
 const SINGLES_MAX_DIFF_ORE = 40_000;
+/**
+ * Pris-vakten (både över och under) gäller BARA inneboende dyra sealed-kategorier.
+ * Där är CM pålitligt och det absoluta kr-gapet stort → en bråkdel = säker felmatch,
+ * ett mångdubbel = lot. Billiga kategorier (BOOSTER_PACK/TIN/BLISTER) är opålitliga
+ * åt BÅDA håll: CM-ref kan vara felmappad för hög, OCH svensk butik markup:ar en
+ * 50 kr-pack till 129 kr (2,5×) helt lagligt. Där förlitar vi oss på form-matchning
+ * (classifyForm) istället för pris. Lot-annonser fångas av multipack-vakten.
+ */
+const PRICE_GUARDED_SEALED_CATEGORIES = new Set([
+  "BOOSTER_BOX",
+  "ETB",
+  "COLLECTION_BOX",
+  "BUNDLE",
+]);
 
 export async function isPlausibleListingPrice(
   productId: string,
@@ -418,5 +444,11 @@ export async function isPlausibleListingPrice(
       priceOre - cmOffer.price <= SINGLES_MAX_DIFF_ORE
     );
   }
-  return priceOre <= cmOffer.price * MARKETPLACE_MAX_PRICE_RATIO;
+  // Pris-vakt bara för dyra sealed-kategorier (se ovan). Billiga: alltid rimligt
+  // pris-mässigt (form-matchning sköter felmatch där).
+  if (!PRICE_GUARDED_SEALED_CATEGORIES.has(product?.category ?? "")) return true;
+  return (
+    priceOre <= cmOffer.price * MARKETPLACE_MAX_PRICE_RATIO &&
+    priceOre >= cmOffer.price * SEALED_MIN_PRICE_RATIO
+  );
 }

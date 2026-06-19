@@ -62,6 +62,7 @@ interface LivePricingState {
   updatedAt: string;
   flash: boolean;
   affiliateIds: Set<string>;
+  refresh: () => void;
 }
 
 const LivePricingContext = createContext<LivePricingState | null>(null);
@@ -143,7 +144,7 @@ export function LivePricingProvider({
 
   return (
     <LivePricingContext.Provider
-      value={{ offers, stats, updatedAt, flash, affiliateIds }}
+      value={{ offers, stats, updatedAt, flash, affiliateIds, refresh: fetchOffers }}
     >
       {children}
     </LivePricingContext.Provider>
@@ -227,10 +228,25 @@ export interface LiveOffersTableProps {
   slug: string;
   /** Reserv-länk "Sök på Tradera" (sealed utan direkt Tradera-annons). */
   traderaSearch?: string | null;
+  /** Visar admin-knapp "Ta bort" per rad (ADMIN/SUPERADMIN). */
+  isAdmin?: boolean;
 }
 
-export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
-  const { offers, updatedAt, affiliateIds } = useLivePricing();
+export function LiveOffersTable({ slug, traderaSearch, isAdmin }: LiveOffersTableProps) {
+  const { offers, updatedAt, affiliateIds, refresh } = useLivePricing();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function deleteOffer(offerId: string) {
+    if (!confirm("Ta bort detta erbjudande permanent?")) return;
+    setDeletingId(offerId);
+    try {
+      const res = await fetch(`/api/admin/offers/${offerId}`, { method: "DELETE" });
+      if (res.ok) refresh();
+      else alert("Kunde inte ta bort erbjudandet.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   // Visa alla offers med direkt produktlänk (sök-/bläddringslänkar filtreras
   // redan bort på servern; detta är en defensiv extra gallring). Pris kan
@@ -299,11 +315,24 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
                         <StockBadge stockStatus={offer.stockStatus} />
                       </TD>
                       <TD className="text-right">
-                        <OfferClickButton
-                          slug={slug}
-                          offerId={offer.id}
-                          fallbackUrl={offer.url}
-                        />
+                        <div className="inline-flex items-center gap-2">
+                          <OfferClickButton
+                            slug={slug}
+                            offerId={offer.id}
+                            fallbackUrl={offer.url}
+                          />
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => deleteOffer(offer.id)}
+                              disabled={deletingId === offer.id}
+                              className="rounded-md border border-fall/40 px-2 py-1 text-xs font-medium text-fall transition-colors hover:bg-fall/10 disabled:opacity-50"
+                              title="Ta bort felmatchat erbjudande (admin)"
+                            >
+                              {deletingId === offer.id ? "Tar bort…" : "Ta bort"}
+                            </button>
+                          )}
+                        </div>
                       </TD>
                     </TR>
                   ))}

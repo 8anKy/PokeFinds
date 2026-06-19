@@ -86,13 +86,11 @@ async function matchAndUpsertOffer(
     return false;
   }
 
-  // Marknadsplats-lots: Tradera-pris långt över CM-marknadspriset är nästan
-  // alltid flera enheter i samma annons — skippa helt (även observationen).
-  if (
-    retailerName === "Tradera" &&
-    !(await isPlausibleListingPrice(bestMatch.id, raw.price))
-  ) {
-    console.log(`   ⚠️ Orimligt pris vs marknadspris (trolig lot): "${raw.title}" ${raw.price} öre`);
+  // Rimlighetsvakt mot CM-marknadspriset (alla butiker/marknadsplatser): för HÖGT
+  // = trolig lot/fel variant, för LÅGT = felmatchad produkt (t.ex. en 149 kr
+  // butikslänk på en 2 333 kr sealed). Skippa helt — priset hör inte till produkten.
+  if (!(await isPlausibleListingPrice(bestMatch.id, raw.price))) {
+    console.log(`   ⚠️ Orimligt pris vs marknadspris (trolig lot/felmatch): "${raw.title}" ${raw.price} öre`);
     return false;
   }
 

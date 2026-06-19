@@ -27,6 +27,7 @@ import {
 } from "@/scrapers/adapters/quickbutik-adapter";
 import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
 import { isPlausibleListingPrice, matchProduct } from "@/scrapers/matching";
+import { isRealStockTransition, isRestock } from "@/scrapers/restock";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
 import type { SourceAdapter } from "@/scrapers/types";
 import { checkPriceAlerts, checkRestockAlerts } from "@/services/alerts";
@@ -146,14 +147,15 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
         // normalized.price är trend-priset som prishistoriken/grafen bygger på.
         let offerPrice = normalized.offerPrice ?? normalized.price;
 
-        // Marknadsplats-lots: Tradera-pris långt över CM-marknadspriset är
-        // nästan alltid flera enheter i samma annons — skippa helt (även
-        // observationen — priset avser inte EN enhet).
+        // Rimlighetsvakt mot CM-marknadspriset (gäller alla butiker/marknadsplatser,
+        // ej pris-datakällorna själva): för HÖGT = trolig lot/fel variant (Tradera),
+        // för LÅGT = felmatchad produkt (t.ex. en 149 kr butikslänk på en 2 333 kr
+        // sealed). Skippa helt — priset hör inte till den här produkten.
         if (
-          source.name === "Tradera" &&
+          !CARDMARKET_SOURCE_NAMES.includes(source.name) &&
           !(await isPlausibleListingPrice(productId, normalized.price))
         ) {
-          logs.push(`Orimligt pris vs marknadspris (trolig lot): "${rawProduct.title}" ${normalized.price} öre`);
+          logs.push(`Orimligt pris vs marknadspris (trolig lot/felmatch): "${rawProduct.title}" ${normalized.price} öre`);
           continue;
         }
 
@@ -252,9 +254,16 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
           });
           itemsUpdated++;
 
-          // Lagerstatus-förändring → RestockEvent + restock-alerts
+          // Lagerstatus-förändring → RestockEvent + restock-alerts.
+          // VIKTIGT: bara ÄKTA övergångar mellan KÄNDA statusar räknas. Första
+          // gången vi ser en offer är oldStatus = UNKNOWN — det är INTE en restock
+          // (det var bara första observationen), och en alert där leder till en
+          // länk som "inte är i lager". Kräv previousOffer + att ingen status är
+          // UNKNOWN. Alert skickas ENDAST vid den faktiska restocken OUT → IN.
           const oldStatus = previousOffer?.stockStatus ?? StockStatus.UNKNOWN;
-          if (oldStatus !== normalized.stockStatus) {
+          if (
+            isRealStockTransition(previousOffer != null, oldStatus, normalized.stockStatus)
+          ) {
             await prisma.restockEvent.create({
               data: {
                 productId,
@@ -264,7 +273,7 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
                 price: offerPrice,
               },
             });
-            if (normalized.stockStatus === StockStatus.IN_STOCK) {
+            if (isRestock(oldStatus, normalized.stockStatus)) {
               await checkRestockAlerts(productId);
             }
             logs.push(

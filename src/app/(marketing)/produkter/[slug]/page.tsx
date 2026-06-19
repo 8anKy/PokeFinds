@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { auth, hasRole } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { formatPrice, formatRelative } from "@/lib/format";
 import {
@@ -90,6 +91,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function ProductPage({ params, searchParams }: PageProps) {
   const product = await loadProduct(params.slug);
   if (!product) notFound();
+
+  const session = await auth();
+  const isAdmin = session ? hasRole(session.user.role, "ADMIN") : false;
 
   const requestedPeriod = PERIODS.find((p) => p.value === searchParams.period);
   let period = requestedPeriod ?? DEFAULT_PERIOD;
@@ -340,6 +344,7 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
         {/* Erbjudanden — live-uppdateras via polling */}
         <LiveOffersTable
           slug={product.slug}
+          isAdmin={isAdmin}
           traderaSearch={
             SEALED_CATEGORIES.includes(product.category)
               ? traderaSearchUrlSpecific(product.title, product.category)

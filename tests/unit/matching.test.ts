@@ -5,9 +5,23 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/db", () => ({ prisma: {} }));
+const { offerFindFirst, productFindUnique } = vi.hoisted(() => ({
+  offerFindFirst: vi.fn(),
+  productFindUnique: vi.fn(),
+}));
+vi.mock("@/lib/db", () => ({
+  prisma: {
+    offer: { findFirst: offerFindFirst },
+    product: { findUnique: productFindUnique },
+  },
+}));
 
-import { extractSetNumber, scoreSimilarity } from "@/scrapers/matching";
+import {
+  classifyForm,
+  extractSetNumber,
+  isPlausibleListingPrice,
+  scoreSimilarity,
+} from "@/scrapers/matching";
 
 describe("scoreSimilarity", () => {
   it("identiska titlar ger 1", () => {
@@ -68,5 +82,73 @@ describe("extractSetNumber", () => {
 
   it("hanterar nummer med inledande nollor", () => {
     expect(extractSetNumber("Eevee 025/102")).toEqual({ num: 25, total: 102 });
+  });
+});
+
+describe("classifyForm", () => {
+  it("svensk samlarpärm/album klassas som tillbehör (matchar ej collection/box)", () => {
+    expect(classifyForm("Ultra-Pro Samlarpärm 4-pocket binder Pokemon Greninja")).toBe("accessory");
+    expect(classifyForm("Ultra-Pro Greninja 2-inch album for Pokemon")).toBe("accessory");
+  });
+
+  it("en enskild Mini Tin är 'tin', men ett Mini Tin Display är 'display'", () => {
+    expect(classifyForm("Ascended Heroes Mini Tin")).toBe("tin");
+    expect(classifyForm("Ascended Heroes: Mini Tin Display")).toBe("display");
+  });
+});
+
+describe("isPlausibleListingPrice", () => {
+  const CM = 233_300; // 2 333 kr i öre (Mega Charizard X UPC)
+  const setCm = (price: number | null, category: string) => {
+    offerFindFirst.mockResolvedValue(price == null ? null : { price });
+    productFindUnique.mockResolvedValue({ category });
+  };
+
+  it("dyr kategori (COLLECTION_BOX): grovt under-pris (149 kr på 2 333 kr = 6 %) förkastas", async () => {
+    setCm(CM, "COLLECTION_BOX");
+    expect(await isPlausibleListingPrice("p1", 14_900)).toBe(false);
+  });
+
+  it("dyr kategori: rimligt pris nära CM godkänns", async () => {
+    setCm(CM, "COLLECTION_BOX");
+    expect(await isPlausibleListingPrice("p1", 210_000)).toBe(true);
+  });
+
+  it("billig kategori (BOOSTER_PACK): under-vakten gäller INTE — ärligt billig pack behålls", async () => {
+    // 69 kr pack där CM-ref felaktigt är 860 kr (sealed-id-bugg) = 8 %. Ingen
+    // under-vakt på pack → behålls (annars raderar vi rätt pris, behåller fel CM).
+    setCm(86_000, "BOOSTER_PACK");
+    expect(await isPlausibleListingPrice("p1", 6_900)).toBe(true);
+  });
+
+  it("billig kategori (TIN): under-vakten gäller inte", async () => {
+    setCm(29_000, "TIN");
+    expect(await isPlausibleListingPrice("p1", 1_900)).toBe(true);
+  });
+
+  it("dyr kategori (BUNDLE): över-pris (>2,5×) förkastas oavsett", async () => {
+    setCm(25_000, "BUNDLE");
+    expect(await isPlausibleListingPrice("p1", 229_500)).toBe(false);
+  });
+
+  it("billig kategori (BOOSTER_PACK): butiks-markup 2,5×+ över CM är lagligt → behålls", async () => {
+    // 50 kr CM-pack som butiken säljer för 129 kr (2,58×) = normal svensk markup.
+    setCm(5_000, "BOOSTER_PACK");
+    expect(await isPlausibleListingPrice("p1", 12_900)).toBe(true);
+  });
+
+  it("sealed: lott-pris långt över CM (3×) förkastas", async () => {
+    setCm(CM, "BOOSTER_BOX");
+    expect(await isPlausibleListingPrice("p1", CM * 3)).toBe(false);
+  });
+
+  it("singel: billigt pris har ingen under-vakt → godkänns", async () => {
+    setCm(20_000, "SINGLE_CARD");
+    expect(await isPlausibleListingPrice("p1", 1_000)).toBe(true);
+  });
+
+  it("saknas CM-referens → godkänns (kan inte bedöma)", async () => {
+    setCm(null, "COLLECTION_BOX");
+    expect(await isPlausibleListingPrice("p1", 100)).toBe(true);
   });
 });

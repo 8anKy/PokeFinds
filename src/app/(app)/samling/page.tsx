@@ -39,6 +39,7 @@ export default async function CollectionPage() {
   const rows: CollectionRow[] = items.map((item) => ({
     id: item.id,
     name: item.card?.name ?? item.product?.title ?? item.notes ?? "Okänt objekt",
+    imageUrl: item.imageUrl ?? item.card?.imageUrl ?? item.product?.imageUrl ?? null,
     setName: item.card?.set?.name ?? null,
     quantity: item.quantity,
     condition: item.condition,
