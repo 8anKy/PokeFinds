@@ -1,11 +1,12 @@
 name: Hot-card-priser (2×/dygn)
 
-# Uppdaterar From-priset för de mest bevakade/visade korten två gånger per dygn
-# (utöver den dagliga fulla refreshen 05:00) → intradags-färska priser på korten
+# Uppdaterar From-priset för de mest bevakade/visade korten en gång per kväll
+# (utöver den dagliga fulla refreshen 13:00) → intradags-färska priser på korten
 # folk tittar på. ~HOT_CARD_LIMIT anrop/körning → ryms i RapidAPI-kvotens slack.
+# OBS: kör KVÄLL (21:00), EJ runt 13:00 — då äger den fulla refreshen den färska kvoten.
 on:
   schedule:
-    - cron: "0 13,21 * * *" # 13:00 + 21:00 UTC (förskjutet från full refresh 05:00)
+    - cron: "0 21 * * *" # 21:00 UTC (efter full refresh 13:00, samma kvotfönster)
   workflow_dispatch: {} # manuell "Run workflow"-knapp
 
 concurrency:

@@ -4,7 +4,7 @@ name: Cardmarket-priser (dagligen)
 # per dygn. Körs i molnet via GitHub Actions — kräver INTE att datorn är på.
 on:
   schedule:
-    - cron: "0 5 * * *" # 05:00 UTC dagligen
+    - cron: "0 13 * * *" # 13:00 UTC — direkt efter RapidAPI-kvotens dagsreset (12:59 UTC) så fulla refreshen får färsk kvot först
   workflow_dispatch: {} # manuell "Run workflow"-knapp
 
 concurrency:
