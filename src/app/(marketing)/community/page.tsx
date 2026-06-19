@@ -18,6 +18,7 @@ import {
   IconChevronRight,
   IconHeart,
   IconMessage,
+  IconShare,
 } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
@@ -110,34 +111,71 @@ export default async function CommunityPage({
             description="Bli först att starta diskussionen — dela en pull eller ställ en fråga!"
           />
         ) : (
-          feed.items.map((post) => (
-            <Card key={post.id} className="transition-colors hover:border-holo-cyan/40">
-              <Link href={`/community/${post.id}`} className="block p-5">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-ink-faint">
-                  <Badge variant={POST_CATEGORY_VARIANTS[post.category]}>
-                    {POST_CATEGORY_LABELS[post.category]}
-                  </Badge>
-                  <span className="font-medium text-ink-muted">{post.user.name}</span>
-                  <span>·</span>
-                  <span>{formatRelative(post.createdAt)}</span>
-                </div>
-                <h2 className="mt-2 font-display text-lg font-semibold text-ink">
-                  {post.title}
-                </h2>
-                <p className="mt-1 text-sm text-ink-muted">{excerpt(post.content)}</p>
-                <p className="mt-3 flex items-center gap-4 text-xs text-ink-muted">
-                  <span className="inline-flex items-center gap-1.5">
-                    <IconHeart size={14} />
-                    <span className="tabular-nums">{post.likeCount}</span> gilla-markeringar
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <IconMessage size={14} />
-                    <span className="tabular-nums">{post.commentCount}</span> kommentarer
-                  </span>
-                </p>
-              </Link>
-            </Card>
-          ))
+          feed.items.map((post) => {
+            const author = post.user.name ?? "Samlare";
+            const initial = author.trim().charAt(0).toUpperCase() || "S";
+            return (
+              <Card key={post.id} className="overflow-hidden transition-colors hover:border-holo-cyan/40">
+                <Link href={`/community/${post.id}`} className="block p-4 sm:p-5">
+                  {/* Författarrad */}
+                  <div className="flex items-center gap-3">
+                    {post.user.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={post.user.avatarUrl}
+                        alt=""
+                        className="h-10 w-10 shrink-0 rounded-full border border-surface-border object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-holo-cyan/15 text-sm font-bold text-holo-cyan ring-1 ring-holo-cyan/30">
+                        {initial}
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink">{author}</p>
+                      <p className="text-xs text-ink-faint">{formatRelative(post.createdAt)}</p>
+                    </div>
+                    <Badge variant={POST_CATEGORY_VARIANTS[post.category]}>
+                      {POST_CATEGORY_LABELS[post.category]}
+                    </Badge>
+                  </div>
+
+                  {/* Innehåll */}
+                  {post.title && (
+                    <h2 className="mt-3 font-display text-base font-semibold text-ink">{post.title}</h2>
+                  )}
+                  <p className="mt-1 text-sm leading-relaxed text-ink-muted">{excerpt(post.content)}</p>
+
+                  {/* Media */}
+                  {post.imageUrl && (
+                    <div className="mt-3 overflow-hidden rounded-xl border border-surface-border bg-black">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={post.imageUrl}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className="max-h-96 w-full object-contain"
+                      />
+                    </div>
+                  )}
+
+                  {/* Åtgärder */}
+                  <div className="mt-4 flex items-center gap-6 border-t border-surface-border pt-3 text-ink-muted">
+                    <span className="inline-flex items-center gap-1.5">
+                      <IconHeart size={18} className={post.hasLiked ? "text-holo-pink" : undefined} />
+                      <span className="font-mono text-sm tabular-nums">{post.likeCount}</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <IconMessage size={18} />
+                      <span className="font-mono text-sm tabular-nums">{post.commentCount}</span>
+                    </span>
+                    <IconShare size={18} className="ml-auto" />
+                  </div>
+                </Link>
+              </Card>
+            );
+          })
         )}
       </div>
 

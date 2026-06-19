@@ -15,6 +15,7 @@ import {
   IconTrendingUp,
 } from "@/components/ui/icons";
 import { CollectionClient, type CollectionRow } from "./collection-client";
+import { MobileCollectionGrid } from "./mobile-collection-grid";
 
 export const dynamic = "force-dynamic";
 
@@ -36,9 +37,30 @@ export default async function CollectionPage() {
     }),
   ]);
 
+  // Slug per singel-kort → produktsida att inspektera (kortets billigaste produkt).
+  const slugByCard = new Map<string, string>();
+  const cardIds = items.map((i) => i.cardId).filter((v): v is string => v != null);
+  if (cardIds.length > 0) {
+    const cardProducts = await prisma.product.findMany({
+      where: { cardId: { in: cardIds } },
+      select: { cardId: true, slug: true, lowestPriceOre: true },
+    });
+    const bestPrice = new Map<string, number>();
+    for (const p of cardProducts) {
+      if (!p.cardId) continue;
+      const lp = p.lowestPriceOre ?? Number.MAX_SAFE_INTEGER;
+      const prev = bestPrice.get(p.cardId);
+      if (prev == null || lp < prev) {
+        bestPrice.set(p.cardId, lp);
+        slugByCard.set(p.cardId, p.slug);
+      }
+    }
+  }
+
   const rows: CollectionRow[] = items.map((item) => ({
     id: item.id,
     name: item.card?.name ?? item.product?.title ?? item.notes ?? "Okänt objekt",
+    slug: item.product?.slug ?? (item.cardId ? slugByCard.get(item.cardId) ?? null : null),
     imageUrl: item.imageUrl ?? item.card?.imageUrl ?? item.product?.imageUrl ?? null,
     setName: item.card?.set?.name ?? null,
     quantity: item.quantity,
@@ -58,6 +80,9 @@ export default async function CollectionPage() {
     price: p.value,
   }));
 
+  const gainUp = value.profit >= 0;
+  const topMovers = value.movers.slice(0, 2);
+
   return (
     <div className="space-y-8">
       <div>
@@ -67,8 +92,32 @@ export default async function CollectionPage() {
         </p>
       </div>
 
-      {/* Nyckeltal */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Mobil-hero: totalt värde + förändring */}
+      <section className="lg:hidden">
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Totalt värde</p>
+        <div className="mt-1 flex flex-wrap items-baseline gap-3">
+          <span className="font-display text-4xl font-bold tabular-nums text-ink">
+            {formatPrice(value.totalValue)}
+          </span>
+          {value.profitPercent != null && (
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                gainUp ? "bg-rise/15 text-rise" : "bg-fall/15 text-fall"
+              }`}
+            >
+              {gainUp ? <IconTrendingUp size={14} /> : <IconTrendingDown size={14} />}
+              {formatPercent(value.profitPercent)}
+            </span>
+          )}
+        </div>
+        <p className="mt-1 text-sm text-ink-muted">
+          {gainUp ? "+" : ""}
+          {formatPrice(value.profit)} sedan inköp · {value.itemCount} objekt
+        </p>
+      </section>
+
+      {/* Nyckeltal — desktop */}
+      <div className="hidden grid-cols-1 gap-4 sm:grid-cols-2 lg:grid xl:grid-cols-4">
         <StatCard
           label="Totalt värde"
           value={formatPrice(value.totalValue)}
@@ -98,12 +147,12 @@ export default async function CollectionPage() {
             </p>
           </CardHeader>
           <CardContent>
-            <PriceChartLazy data={chartData} />
+            <PriceChartLazy data={chartData} monthly />
           </CardContent>
         </Card>
 
-        {/* Mest värdefulla */}
-        <Card>
+        {/* Mest värdefulla — lista (desktop) */}
+        <Card className="hidden lg:block">
           <CardHeader>
             <CardTitle>Mest värdefulla</CardTitle>
           </CardHeader>
@@ -136,18 +185,55 @@ export default async function CollectionPage() {
         </Card>
       </div>
 
-      {value.profitPercent != null && (
-        <p className="text-sm text-ink-muted">
-          Total avkastning: <span className="font-medium text-ink">{formatPercent(value.profitPercent)}</span>{" "}
-          jämfört med inköpskostnaden.
-        </p>
+      {/* Top movers — störst prisökning senaste 7 dagarna (mobil) */}
+      {topMovers.length > 0 && (
+        <section className="lg:hidden">
+          <h2 className="mb-3 font-display text-xl font-bold text-ink">Top movers</h2>
+          <div className="grid grid-cols-2 gap-3">
+            {topMovers.map((m) => (
+              <div key={m.id} className="card-surface flex flex-col gap-2 p-3">
+                <div className="h-28 w-full overflow-hidden rounded-lg bg-surface-overlay">
+                  {m.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={m.imageUrl}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-contain p-1"
+                    />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center text-ink-faint">
+                      <IconPackage size={26} />
+                    </span>
+                  )}
+                </div>
+                <p className="truncate text-xs font-medium text-ink-muted">{m.name}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-sm font-semibold tabular-nums text-ink">
+                    {m.value != null ? formatPrice(m.value) : "–"}
+                  </span>
+                  <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-rise">
+                    <IconTrendingUp size={13} />
+                    {formatPercent(m.percent)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
-      {/* Tabell + verktyg (klient) */}
-      <CollectionClient
-        initialItems={rows}
-        isPublicCollection={user?.isPublicCollection ?? false}
-      />
+      {/* Samlingen som rutnät (mobil) — tryck = inspektera, håll inne = väljläge */}
+      {rows.length > 0 && <MobileCollectionGrid rows={rows} />}
+
+      {/* Tabell + verktyg (klient) — desktop */}
+      <div className="hidden lg:block">
+        <CollectionClient
+          initialItems={rows}
+          isPublicCollection={user?.isPublicCollection ?? false}
+        />
+      </div>
     </div>
   );
 }

@@ -18,6 +18,7 @@ import {
   IconWrench,
   IconMenu,
   IconX,
+  IconUser,
   type IconProps,
 } from "@/components/ui/icons";
 import { BrandLogo } from "@/components/layout/brand-logo";
@@ -114,10 +115,17 @@ export function AppShell({
             <span className="hidden text-sm text-ink-muted sm:inline">Hej, {userName}</span>
             <button
               onClick={() => signOut({ callbackUrl: "/" })}
-              className="rounded-lg px-3 py-1.5 text-sm text-ink-muted hover:bg-surface-overlay hover:text-ink"
+              className="hidden rounded-lg px-3 py-1.5 text-sm text-ink-muted hover:bg-surface-overlay hover:text-ink sm:inline-block"
             >
               Logga ut
             </button>
+            <Link
+              href="/installningar"
+              aria-label="Profil"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-surface-border text-ink-muted hover:border-holo-cyan/40 hover:text-holo-cyan"
+            >
+              <IconUser size={18} />
+            </Link>
           </div>
         </header>
 
@@ -126,7 +134,7 @@ export function AppShell({
           <div className="animate-fade-in border-b border-surface-border bg-surface-raised lg:hidden">{nav}</div>
         )}
 
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="flex-1 px-4 py-6 pb-20 sm:px-6 lg:px-8 lg:pb-6">{children}</main>
       </div>
     </div>
   );

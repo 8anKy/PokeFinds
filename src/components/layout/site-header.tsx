@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { LinkButton } from "@/components/ui/button";
 import { HeaderNav } from "@/components/layout/header-nav";
 import { BrandLogo } from "@/components/layout/brand-logo";
+import { IconUser } from "@/components/ui/icons";
 
 export async function SiteHeader() {
   const session = await auth();
@@ -15,9 +16,18 @@ export async function SiteHeader() {
         <HeaderNav />
         <div className="flex items-center gap-3">
           {session?.user ? (
-            <LinkButton href="/dashboard" variant="primary" size="sm">
-              Min översikt
-            </LinkButton>
+            <>
+              <LinkButton href="/dashboard" variant="primary" size="sm" className="hidden sm:inline-flex">
+                Min översikt
+              </LinkButton>
+              <Link
+                href="/installningar"
+                aria-label="Profil"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-surface-border text-ink-muted hover:border-holo-cyan/40 hover:text-holo-cyan"
+              >
+                <IconUser size={18} />
+              </Link>
+            </>
           ) : (
             <>
               <LinkButton href="/logga-in" variant="ghost" size="sm">

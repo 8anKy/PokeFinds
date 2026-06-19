@@ -36,6 +36,7 @@ export const LANGUAGE_LABELS: Record<string, string> = {
 export interface CollectionRow {
   id: string;
   name: string;
+  slug: string | null; // produktsida att inspektera (singel → kortets billigaste produkt)
   imageUrl: string | null;
   setName: string | null;
   quantity: number;

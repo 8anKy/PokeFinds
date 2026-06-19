@@ -55,6 +55,7 @@ const config: Config = {
         shimmer: "shimmer 1.6s linear infinite",
         "pulse-soft": "pulseSoft 2s ease-in-out infinite",
         "counter": "counter 0.6s ease-out both",
+        scanline: "scanline 2.4s ease-in-out infinite",
       },
       keyframes: {
         fadeIn: {
@@ -84,6 +85,12 @@ const config: Config = {
         counter: {
           "0%": { opacity: "0", transform: "translateY(8px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        scanline: {
+          "0%": { top: "4%", opacity: "0" },
+          "12%": { opacity: "1" },
+          "88%": { opacity: "1" },
+          "100%": { top: "96%", opacity: "0" },
         },
       },
     },

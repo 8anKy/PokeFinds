@@ -1,0 +1,129 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth, hasRole } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import {
+  IconShield,
+  IconBell,
+  IconChart,
+  IconDashboard,
+  IconSettings,
+  IconWrench,
+  IconTrophy,
+  IconInfo,
+  IconChevronRight,
+  type IconProps,
+} from "@/components/ui/icons";
+import { LogoutButton } from "./logout-button";
+
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Mer",
+};
+
+interface MenuLink {
+  href: string;
+  label: string;
+  icon: (p: IconProps) => JSX.Element;
+  iconClass: string;
+  badge?: string;
+}
+
+export default async function MerPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/logga-in");
+  const isAdmin = hasRole(session.user.role, "MODERATOR");
+  const isPremium = session.user.planTier === "PREMIUM";
+
+  const watchCount = await prisma.watchlistItem.count({
+    where: { userId: session.user.id },
+  });
+
+  const name = session.user.name ?? "Samlare";
+  const initial = name.trim().charAt(0).toUpperCase() || "S";
+
+  const links: MenuLink[] = [
+    { href: "/marknad", label: "Marknad", icon: IconChart, iconClass: "text-holo-cyan" },
+    {
+      href: "/bevakningar",
+      label: "Bevakningar",
+      icon: IconBell,
+      iconClass: "text-rise",
+      badge: watchCount > 0 ? `${watchCount} aktiva` : undefined,
+    },
+    { href: "/gradera", label: "AI-gradering", icon: IconShield, iconClass: "text-holo-violet" },
+    { href: "/dashboard", label: "Översikt", icon: IconDashboard, iconClass: "text-ink-muted" },
+    {
+      href: "/priser",
+      label: isPremium ? "Prenumeration" : "Uppgradera till Premium",
+      icon: IconTrophy,
+      iconClass: "text-holo-gold",
+    },
+    { href: "/installningar", label: "Inställningar", icon: IconSettings, iconClass: "text-ink-muted" },
+    { href: "/kontakt", label: "Support & FAQ", icon: IconInfo, iconClass: "text-ink-muted" },
+  ];
+
+  return (
+    <div className="mx-auto max-w-md space-y-6">
+      {/* Rubrik */}
+      <header>
+        <h1 className="font-display text-2xl font-bold text-ink">Mer</h1>
+        <p className="mt-1 text-sm text-ink-muted">Hantera ditt konto och dina inställningar</p>
+      </header>
+
+      {/* Konto + meny i ett grupperat kort */}
+      <div className="overflow-hidden rounded-2xl border border-surface-border bg-surface-raised/40">
+        {/* Profilrad */}
+        <Link
+          href="/installningar"
+          className="flex items-center gap-3 border-b border-surface-border bg-surface-overlay/40 px-4 py-4 transition-colors hover:bg-surface-overlay"
+        >
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-holo-cyan/15 text-lg font-bold text-holo-cyan ring-1 ring-holo-cyan/30">
+            {initial}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-base font-semibold text-ink">{name}</span>
+            <span className="block text-xs text-ink-muted">
+              {isPremium ? "Premium-medlem" : "Gratismedlem"}
+            </span>
+          </span>
+          <IconChevronRight size={18} className="shrink-0 text-ink-muted" />
+        </Link>
+
+        {/* Menyrader */}
+        <nav className="flex flex-col">
+          {links.map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              className="flex items-center gap-3 border-b border-surface-border px-4 py-3.5 transition-colors last:border-b-0 hover:bg-surface-overlay/60"
+            >
+              <l.icon size={20} className={`shrink-0 ${l.iconClass}`} />
+              <span className="flex-1 text-sm font-medium text-ink">{l.label}</span>
+              {l.badge && (
+                <span className="rounded-full border border-surface-border bg-surface-overlay px-2 py-0.5 text-[11px] font-medium tabular-nums text-ink-muted">
+                  {l.badge}
+                </span>
+              )}
+              <IconChevronRight size={18} className="shrink-0 text-ink-muted" />
+            </Link>
+          ))}
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className="flex items-center gap-3 border-t border-surface-border px-4 py-3.5 transition-colors hover:bg-surface-overlay/60"
+            >
+              <IconWrench size={20} className="shrink-0 text-holo-violet" />
+              <span className="flex-1 text-sm font-medium text-ink">Adminpanel</span>
+              <IconChevronRight size={18} className="shrink-0 text-ink-muted" />
+            </Link>
+          )}
+        </nav>
+      </div>
+
+      <LogoutButton />
+    </div>
+  );
+}

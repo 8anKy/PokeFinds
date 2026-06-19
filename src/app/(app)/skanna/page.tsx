@@ -711,9 +711,17 @@ function CaptureView(props: {
         {scans.length > 0 && <ScanStrip scans={scans} total={total} onOpen={props.onOpenDetails} />}
 
         {scans.length === 0 && cameraState === "live" && (
-          <p className="text-center text-sm text-ink-muted">
-            Håll kortet inom ramen och tryck på knappen
-          </p>
+          <div className="flex flex-col items-center gap-3">
+            <p className="text-center text-sm text-ink-muted">
+              Håll kortet inom ramen och tryck på knappen
+            </p>
+            <Link
+              href="/produkter"
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-5 py-2 text-sm font-medium text-ink backdrop-blur transition-colors hover:bg-white/15"
+            >
+              <IconSearch size={16} /> Manuell inmatning
+            </Link>
+          </div>
         )}
 
         <div className="flex items-center justify-between">
@@ -786,6 +794,10 @@ function CornerFrame() {
     <div className="absolute inset-0">
       {/* mjuk ram */}
       <div className="absolute inset-0 rounded-2xl border border-white/25" />
+      {/* animerad skanningslinje */}
+      <div className="pointer-events-none absolute inset-1 overflow-hidden rounded-2xl">
+        <div className="absolute inset-x-0 top-0 h-0.5 animate-scanline bg-gradient-to-r from-transparent via-holo-cyan to-transparent shadow-[0_0_12px_2px_rgba(45,212,191,0.6)]" />
+      </div>
       {/* hörn-parenteser i accentfärg */}
       {(
         [

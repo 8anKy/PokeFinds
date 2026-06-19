@@ -93,7 +93,7 @@ export function computeLowestPrice(
 }
 
 /** Prisförändring senaste 7 dagarna utifrån dagliga snapshots (öre + procent). */
-function computePriceChange7d(
+export function computePriceChange7d(
   snapshots: { date: Date; avgPrice: number }[]
 ): { change: number | null; percent: number | null } {
   if (snapshots.length < 2) return { change: null, percent: null };

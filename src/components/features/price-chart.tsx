@@ -22,6 +22,8 @@ export interface PriceChartPoint {
 export interface PriceChartProps {
   data: PriceChartPoint[];
   className?: string;
+  /** Månadsaggregerad serie → visa "mån åååå" på axeln (utan vilseledande dag). */
+  monthly?: boolean;
 }
 
 const LINE = "#2dd4bf"; // turquoise — brand signature line
@@ -29,11 +31,11 @@ const GRID = "#26262b"; // subtle neutral guide line
 const TICK = "#8a8a93"; // muted neutral axis label
 const SURFACE = "#0a0a0c"; // page background (endpoint halo cutout)
 
-function shortDate(d: string, withYear = false): string {
+function shortDate(d: string, withYear = false, monthly = false): string {
   return new Date(d).toLocaleDateString("sv-SE", {
-    day: "numeric",
+    ...(monthly ? {} : { day: "numeric" }),
     month: "short",
-    ...(withYear ? { year: "numeric" } : {}),
+    ...(withYear || monthly ? { year: "numeric" } : {}),
   });
 }
 
@@ -41,13 +43,14 @@ function ChartTooltip({
   active,
   payload,
   label,
-}: TooltipProps<number, string>) {
+  monthly = false,
+}: TooltipProps<number, string> & { monthly?: boolean }) {
   if (!active || !payload || payload.length === 0) return null;
   const value = payload[0]?.value;
   return (
     <div className="rounded-lg bg-surface-raised px-3.5 py-2 shadow-xl ring-1 ring-white/10">
       <p className="text-[11px] font-medium text-ink-muted">
-        {shortDate(String(label), true)}
+        {shortDate(String(label), true, monthly)}
       </p>
       <div className="mt-0.5 flex items-center gap-1.5">
         <span
@@ -88,7 +91,7 @@ function ChartCursor({
   );
 }
 
-export function PriceChart({ data, className }: PriceChartProps) {
+export function PriceChart({ data, className, monthly = false }: PriceChartProps) {
   const uid = useId().replace(/:/g, "");
   const lineFadeId = `lf-${uid}`;
   const areaFillId = `af-${uid}`;
@@ -115,7 +118,8 @@ export function PriceChart({ data, className }: PriceChartProps) {
           Senaste marknadspris ·{" "}
           {shortDate(
             data[0].date,
-            data[0].date.slice(0, 4) !== String(new Date().getFullYear())
+            data[0].date.slice(0, 4) !== String(new Date().getFullYear()),
+            monthly
           )}
         </p>
         <p className="mt-1 font-display text-4xl font-bold text-ink" data-price>
@@ -215,7 +219,7 @@ export function PriceChart({ data, className }: PriceChartProps) {
           <CartesianGrid stroke={GRID} strokeDasharray="2 6" vertical={false} />
           <XAxis
             dataKey="date"
-            tickFormatter={(d: string) => shortDate(d, spansYears)}
+            tickFormatter={(d: string) => shortDate(d, spansYears, monthly)}
             tick={{ fill: TICK, fontSize: 11 }}
             angle={-40}
             textAnchor="end"
@@ -233,7 +237,7 @@ export function PriceChart({ data, className }: PriceChartProps) {
             domain={["auto", "auto"]}
           />
           <Tooltip
-            content={<ChartTooltip />}
+            content={<ChartTooltip monthly={monthly} />}
             cursor={<ChartCursor gradientId={cursorId} />}
           />
           <Area

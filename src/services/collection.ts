@@ -2,7 +2,12 @@
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
-import { getCardValues, getProductValues } from "@/services/products";
+import {
+  getCardValues,
+  getProductValues,
+  computeLowestPrice,
+} from "@/services/products";
+import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import type { CardCondition, CardLanguage } from "@prisma/client";
 
 const COLLECTION_INCLUDE = {
@@ -111,7 +116,37 @@ export async function valueCollectionItems(
   return result;
 }
 
-/** Beräknar samlingens värde, kostnad, vinst och värdeutveckling över tid. */
+export interface CollectionMover {
+  id: string; // collection item-id
+  name: string;
+  imageUrl: string | null;
+  setName: string | null;
+  value: number | null; // aktuellt pris per styck (öre)
+  percent: number; // 7-dagars prisförändring (%)
+}
+
+type Snap = { date: Date; avgPrice: number };
+const SNAP_OFFER_SELECT = { price: true, stockStatus: true, url: true } as const;
+const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+/** Senaste avgPrice med datum <= `end`, annars äldsta tillgängliga (snaps är sorterade asc). */
+function avgAtOrBefore(snaps: Snap[], end: number): number | null {
+  let v: number | null = null;
+  for (const s of snaps) {
+    if (s.date.getTime() <= end) v = s.avgPrice;
+    else break;
+  }
+  return v ?? (snaps[0]?.avgPrice ?? null);
+}
+
+/**
+ * Beräknar samlingens värde, kostnad, vinst, top movers och värdeutveckling över tid.
+ *
+ * Värdeutvecklingen är portföljens MARKNADSVÄRDE per månad: för varje månad summeras
+ * varje ägt objekts marknadsvärde DEN månaden (CM-trend ur priceSnapshots) × antal.
+ * Objekt räknas med från sin inköpsmånad, så kurvan stiger när man lägger till objekt
+ * OCH rör sig när objektens priser ändras (kan alltså gå både upp och ner). Innevarande
+ * månad använder aktuellt värde så slutpunkten matchar "Totalt värde".
+ */
 export async function computeCollectionValue(userId: string) {
   const items = await prisma.collectionItem.findMany({
     where: { userId },
@@ -145,26 +180,125 @@ export async function computeCollectionValue(userId: string) {
       totalValue: (valueOf(i.id) ?? 0) * i.quantity,
     }));
 
-  // Enkel värdeutveckling: kumulativt nuvarande marknadsvärde per inköpsmånad.
-  const dated = items
-    .filter((i) => valueOf(i.id) != null)
-    .map((i) => ({
-      date: i.purchaseDate ?? i.createdAt,
-      value: (valueOf(i.id) ?? 0) * i.quantity,
-    }))
-    .sort((a, b) => a.date.getTime() - b.date.getTime());
+  // ---- Prissnapshots per objekt (för historik + movers) ----
+  const firstMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
+  const ownedFrom = (i: (typeof items)[number]) => firstMonth(i.purchaseDate ?? i.createdAt);
+  const valued = items.filter((i) => valueOf(i.id) != null);
 
-  const monthly = new Map<string, number>();
-  let cumulative = 0;
-  for (const d of dated) {
-    cumulative += d.value;
-    const key = `${d.date.getFullYear()}-${String(d.date.getMonth() + 1).padStart(2, "0")}`;
-    monthly.set(key, cumulative);
+  const valueOverTime: { month: string; value: number }[] = [];
+  let movers: CollectionMover[] = [];
+
+  if (valued.length > 0) {
+    const startMonth = valued.map(ownedFrom).reduce((a, b) => (b < a ? b : a));
+    const cardIds = valued.map((i) => i.cardId).filter((v): v is string => v != null);
+    const productIds = valued.map((i) => i.productId).filter((v): v is string => v != null);
+    const snapSelect = {
+      where: { date: { gte: startMonth } },
+      select: { date: true, avgPrice: true },
+      orderBy: { date: "asc" as const },
+    };
+
+    const [cardProducts, prods] = await Promise.all([
+      cardIds.length
+        ? prisma.product.findMany({
+            where: { cardId: { in: cardIds } },
+            select: { cardId: true, offers: { select: SNAP_OFFER_SELECT }, priceSnapshots: snapSelect },
+          })
+        : Promise.resolve([]),
+      productIds.length
+        ? prisma.product.findMany({
+            where: { id: { in: productIds } },
+            select: { id: true, offers: { select: SNAP_OFFER_SELECT }, priceSnapshots: snapSelect },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    // Per kort: snapshots från produkten med lägst aktuellt pris (= getCardValues).
+    const cardSnaps = new Map<string, Snap[]>();
+    const cardPrice = new Map<string, number>();
+    for (const p of cardProducts) {
+      if (!p.cardId) continue;
+      const { price } = computeLowestPrice(p.offers.filter((o) => isDirectOfferUrl(o.url)));
+      if (price == null) continue;
+      const prev = cardPrice.get(p.cardId);
+      if (prev == null || price < prev) {
+        cardPrice.set(p.cardId, price);
+        cardSnaps.set(p.cardId, p.priceSnapshots);
+      }
+    }
+    const prodSnaps = new Map<string, Snap[]>();
+    for (const p of prods) prodSnaps.set(p.id, p.priceSnapshots);
+
+    const snapsForItem = (i: (typeof items)[number]): Snap[] | undefined =>
+      i.cardId ? cardSnaps.get(i.cardId) : i.productId ? prodSnaps.get(i.productId) : undefined;
+
+    // Värdeutveckling: per objekt ANKRAS i dess AKTUELLA värde (samma källa som
+    // "Totalt värde" → ingen klippa/enhetskrock), och CM-trenden används bara för
+    // den RELATIVA rörelsen bakåt i tiden: värde(månad) = nuvärde × trend(månad)/trend(nu).
+    // Objekt utan trend → platt på nuvärdet. Slutpunkten = summan av nuvärden = Totalt värde.
+    const nowMs = Date.now();
+    const valuedInfo = valued.map((i) => {
+      const snaps = snapsForItem(i);
+      const trendNow = snaps && snaps.length ? avgAtOrBefore(snaps, nowMs) : null;
+      return {
+        quantity: i.quantity,
+        current: valueOf(i.id) ?? 0,
+        from: ownedFrom(i).getTime(),
+        snaps: snaps && snaps.length && trendNow && trendNow > 0 ? snaps : null,
+        trendNow: trendNow ?? 0,
+      };
+    });
+
+    const endMs = firstMonth(new Date()).getTime();
+    const cursor = new Date(startMonth);
+    while (cursor.getTime() <= endMs) {
+      const monthEnd = new Date(
+        cursor.getFullYear(),
+        cursor.getMonth() + 1,
+        0,
+        23,
+        59,
+        59
+      ).getTime();
+      let total = 0;
+      for (const v of valuedInfo) {
+        if (v.from > cursor.getTime()) continue;
+        let per = v.current;
+        if (v.snaps) {
+          const t = avgAtOrBefore(v.snaps, monthEnd);
+          if (t != null) per = Math.round(v.current * (t / v.trendNow));
+        }
+        total += per * v.quantity;
+      }
+      valueOverTime.push({ month: monthKey(cursor), value: total });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+
+    // Top movers — störst 7-dagars prisökning (kräver ≥2 objekt i samlingen).
+    if (items.length >= 2) {
+      const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const list: CollectionMover[] = [];
+      for (const i of valued) {
+        const snaps = snapsForItem(i);
+        if (!snaps || snaps.length < 2) continue;
+        const latest = snaps[snaps.length - 1].avgPrice;
+        const old = avgAtOrBefore(snaps, weekAgo);
+        if (old == null || old <= 0) continue;
+        const percent = Math.round(((latest - old) / old) * 10000) / 100;
+        if (percent <= 0) continue;
+        list.push({
+          id: i.id,
+          name: i.card?.name ?? i.product?.title ?? "Okänt objekt",
+          imageUrl: i.imageUrl ?? i.card?.imageUrl ?? i.product?.imageUrl ?? null,
+          setName: i.card?.set?.name ?? null,
+          value: valueOf(i.id),
+          percent,
+        });
+      }
+      list.sort((a, b) => b.percent - a.percent);
+      movers = list;
+    }
   }
-  const valueOverTime = Array.from(monthly.entries()).map(([month, value]) => ({
-    month,
-    value,
-  }));
 
   return {
     itemCount: items.reduce((sum, i) => sum + i.quantity, 0),
@@ -174,6 +308,7 @@ export async function computeCollectionValue(userId: string) {
     profit,
     profitPercent,
     topItems,
+    movers,
     valueOverTime,
     /** itemId → aktuellt värde per styck (öre). För live-priser i tabellen. */
     itemValues: Object.fromEntries(itemValues),
