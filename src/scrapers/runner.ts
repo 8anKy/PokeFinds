@@ -27,7 +27,7 @@ import {
 } from "@/scrapers/adapters/quickbutik-adapter";
 import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
 import { isPlausibleListingPrice, matchProduct } from "@/scrapers/matching";
-import { isRealStockTransition, isRestock } from "@/scrapers/restock";
+import { netStockEvent } from "@/scrapers/restock";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
 import type { SourceAdapter } from "@/scrapers/types";
 import { checkPriceAlerts, checkRestockAlerts } from "@/services/alerts";
@@ -120,6 +120,15 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
     // Billigaste annonsen vinner: när flera annonser i samma körning matchar
     // samma produkt ska offerten visa den billigaste, inte den senast bearbetade.
     const bestPriceThisRun = new Map<string, number>();
+    // Restock-händelser räknas på NETTO per offer per körning (inte per upsert):
+    // startStatus = lagerstatus vid körningens början (null = ny offer), finalState
+    // = den billigaste vinnande annonsens status. Annars ger två kolliderande
+    // annonser en spök-restock (IN→OUT→IN) varje körning. Se netStockEvent.
+    const offerStartStatus = new Map<string, StockStatus | null>();
+    const offerFinalState = new Map<
+      string,
+      { productId: string; newStatus: StockStatus; price: number }
+    >();
 
     for (const rawProduct of result.products) {
       if (errorCount > MAX_ERRORS) {
@@ -214,6 +223,20 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
         if (!skipOfferUpdate) {
           bestPriceThisRun.set(offerKey, offerPrice);
 
+          // Startstatus fångas EN gång (första annonsen för denna offer denna
+          // körning) — innan vi skriver något. Senare annonser läser om
+          // previousOffer från DB och ser vår egen färska skrivning, så de får
+          // INTE användas som "tidigare status".
+          if (!offerStartStatus.has(offerKey)) {
+            offerStartStatus.set(offerKey, previousOffer?.stockStatus ?? null);
+          }
+          // Billigaste vinnaren = offerns slutstatus för körningen.
+          offerFinalState.set(offerKey, {
+            productId,
+            newStatus: normalized.stockStatus,
+            price: offerPrice,
+          });
+
           // Bevara en redan löst engelsk CM-slug: PokemonTcgAdapter emittar en
           // bar prices.pokemontcg.io-redirect som annars skulle skriva över den
           // (och tappa ?language=1) vid varje körning. Behåll den lösta slugen;
@@ -253,33 +276,8 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
             },
           });
           itemsUpdated++;
-
-          // Lagerstatus-förändring → RestockEvent + restock-alerts.
-          // VIKTIGT: bara ÄKTA övergångar mellan KÄNDA statusar räknas. Första
-          // gången vi ser en offer är oldStatus = UNKNOWN — det är INTE en restock
-          // (det var bara första observationen), och en alert där leder till en
-          // länk som "inte är i lager". Kräv previousOffer + att ingen status är
-          // UNKNOWN. Alert skickas ENDAST vid den faktiska restocken OUT → IN.
-          const oldStatus = previousOffer?.stockStatus ?? StockStatus.UNKNOWN;
-          if (
-            isRealStockTransition(previousOffer != null, oldStatus, normalized.stockStatus)
-          ) {
-            await prisma.restockEvent.create({
-              data: {
-                productId,
-                retailerId: retailer.id,
-                oldStatus,
-                newStatus: normalized.stockStatus,
-                price: offerPrice,
-              },
-            });
-            if (isRestock(oldStatus, normalized.stockStatus)) {
-              await checkRestockAlerts(productId);
-            }
-            logs.push(
-              `Lagerstatus ändrad för produkt ${productId}: ${oldStatus} → ${normalized.stockStatus}`
-            );
-          }
+          // Restock-händelsen avgörs efter körningen (netto), inte här — se
+          // offerStartStatus/offerFinalState ovan och emit-loopen efter loopen.
         }
 
         // Rå observation — rådata lagras separat från normaliserad data
@@ -330,6 +328,27 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
         const msg = err instanceof Error ? err.message : String(err);
         logs.push(`Fel vid bearbetning av ${rawProduct.externalId}: ${msg}`);
       }
+    }
+
+    // Netto-restock per offer: en händelse per offer, körningens startstatus →
+    // billigaste vinnande annonsens status. Eliminerar spök-IN→OUT→IN-flapparna.
+    for (const [offerKey, st] of offerFinalState) {
+      const start = offerStartStatus.get(offerKey) ?? null;
+      const ev = netStockEvent(start, st.newStatus);
+      if (!ev.emit) continue;
+      await prisma.restockEvent.create({
+        data: {
+          productId: st.productId,
+          retailerId: retailer.id,
+          oldStatus: ev.oldStatus,
+          newStatus: st.newStatus,
+          price: st.price,
+        },
+      });
+      if (ev.isRestock) await checkRestockAlerts(st.productId);
+      logs.push(
+        `Lagerstatus ändrad för produkt ${st.productId}: ${ev.oldStatus} → ${st.newStatus}`
+      );
     }
 
     const status = aborted ? JobStatus.FAILED : JobStatus.COMPLETED;

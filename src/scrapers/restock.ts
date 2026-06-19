@@ -23,3 +23,26 @@ export function isRealStockTransition(
 export function isRestock(oldStatus: StockStatus, newStatus: StockStatus): boolean {
   return oldStatus === StockStatus.OUT_OF_STOCK && newStatus === StockStatus.IN_STOCK;
 }
+
+export interface NetStockEvent {
+  emit: boolean; // skapa en RestockEvent?
+  oldStatus: StockStatus;
+  isRestock: boolean; // skicka restock-alert?
+}
+
+/**
+ * Nettoförändring för EN offer under EN körning. Flera annonser kan kollapsa till
+ * samma offer (samma produkt+butik+skick+språk) — t.ex. "Astral Radiance Sleeved
+ * Booster Pack" + "Astral Radiance Booster Pack". Då räknas bara övergången mellan
+ * körningens STARTstatus (start = null om offern är ny) och den billigaste vinnande
+ * annonsens status. Mellanliggande upserts inom samma körning ignoreras — det var
+ * de som spammade falska restocks (IN→OUT→IN) varje körning.
+ */
+export function netStockEvent(
+  start: StockStatus | null,
+  finalStatus: StockStatus
+): NetStockEvent {
+  const oldStatus = start ?? StockStatus.UNKNOWN;
+  const emit = isRealStockTransition(start !== null, oldStatus, finalStatus);
+  return { emit, oldStatus, isRestock: emit && isRestock(oldStatus, finalStatus) };
+}

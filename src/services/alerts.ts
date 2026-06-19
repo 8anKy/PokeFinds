@@ -128,12 +128,15 @@ export async function checkRestockAlerts(productId: string) {
   const writes: Prisma.PrismaPromise<unknown>[] = [];
   for (const w of watchers) {
     writes.push(
+      // EMAIL-kanal → dispatchPendingAlerts skickar mejl (default IN_APP gjorde
+      // att restocks aldrig mejlades). Notification nedan = in-app-notisen.
       prisma.alert.create({
         data: {
           userId: w.userId,
           productId,
           type: "RESTOCK",
           message,
+          channel: "EMAIL",
         },
       }),
       prisma.notification.create({
