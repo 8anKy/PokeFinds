@@ -18,10 +18,13 @@ Active CPU (4h/mo), Vercel Function Invocations (1M/mo), Neon CU-hrs + 5 GB/mo t
 
 App-level limits reduce cost; **provider spend caps guarantee you can't be surprised by a bill.**
 Do these in the dashboards — they're the real safety net behind all the code below:
-- [ ] **Anthropic console → monthly spend limit** (hard ceiling on ALL Claude cost: grading + scanner).
-      This is the single most important budget protection for Claude.
-- [ ] **Keep `OCR_PROVIDER=mock` in prod** until you're ready to pay for live vision. While mock, the
-      live scanner costs **$0 Claude**. Flip to `claude` only with the Anthropic spend cap in place.
+- [ ] **Anthropic console → monthly spend limit** — ⚠️ **NOW CRITICAL.** Claude is LIVE in prod
+      (`OCR_PROVIDER=claude` + `GRADING_PROVIDER=claude`, enabled 2026-06-21). Scanner + grading now
+      cost real $ per use. This cap is the single most important budget protection — set it if not done.
+- [x] ~~Keep `OCR_PROVIDER=mock`~~ — **scanner + grading switched to real Claude (2026-06-21)** per
+      product decision. Cost hotspot = the **live scanner** (Claude Haiku vision on every ~1.5s poll).
+      If bills spike, the cheapest mitigation is leaning on the one-shot capture/upload flow over
+      continuous live polling, and/or wiring Upstash Redis so the 60/min rate limit holds globally.
 - [ ] **Vercel → Spend Management** (set a budget + action: notify/pause at threshold).
 - [ ] **Neon → cap autoscale max CU** (lower the .25–8 range) and/or set plan limits so a runaway
       query can't scale compute to 8 CU and burn CU-hrs.
