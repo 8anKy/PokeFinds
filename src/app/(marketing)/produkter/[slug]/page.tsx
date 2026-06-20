@@ -26,6 +26,14 @@ import { IconCards } from "@/components/ui/icons";
 // polling. Sparar Vercel CPU + Neon på den största crawl-ytan (~20k produktsidor).
 export const revalidate = 3600;
 
+// Tom lista → inget prerenderas vid build (undvik ~20k renders); varje slug
+// genereras on-demand vid första besök och cachas sedan (ISR). KRÄVS för cache:
+// utan generateStaticParams renderas dynamiska segment dynamiskt per request
+// (no-store) trots `revalidate`.
+export async function generateStaticParams() {
+  return [];
+}
+
 /** Sealed-kategorier (ej singel/gradat) — får alltid en Tradera-länk. */
 const SEALED_CATEGORIES: string[] = [
   "BOOSTER_BOX",

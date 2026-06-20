@@ -11,6 +11,13 @@ import { IconPackage } from "@/components/ui/icons";
 // Set-data ändras ~en gång/dygn → cacha per set (ISR). Sparar Vercel CPU + Neon.
 export const revalidate = 3600;
 
+// Tom lista → inget prerenderas vid build; varje set genereras on-demand vid
+// första besök och cachas sedan (ISR). KRÄVS för cache: utan generateStaticParams
+// renderas dynamiska segment dynamiskt per request (no-store) trots `revalidate`.
+export async function generateStaticParams() {
+  return [];
+}
+
 interface PageProps {
   params: { id: string };
 }
