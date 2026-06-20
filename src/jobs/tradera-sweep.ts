@@ -23,7 +23,59 @@ import { prisma } from "../lib/db";
 import { mapPool } from "../lib/concurrency";
 import { normalizeTitle } from "../lib/utils";
 import { matchProduct, isPlausibleListingPrice } from "../scrapers/matching";
-import { traderaSearchUrlSpecific } from "../lib/marketplace-urls";
+import { traderaSearchUrlSpecific, TRADERA_CATEGORY } from "../lib/marketplace-urls";
+
+// Tradera-kategori → produktform-grupp. Säljaren listar varje annons under EN
+// kategori; den signalen är mer pålitlig än titeln (en pack-annons kan heta bara
+// "...Journey Together." utan formord och annars matcha en ETB). En annons i en
+// känd grupp får bara bli offerten för en produkt i SAMMA grupp.
+const TRADERA_CAT_GROUP: Record<number, string> = {
+  1001337: "single", // Löskort
+  1001339: "pack",   // Boosterpaket (+ blister)
+  1001340: "box",    // Boosterboxar
+  1001341: "sealed", // Övrigt sealed (ETB, collection, tin, bundle)
+};
+const PRODUCT_CAT_GROUP: Record<string, string> = {
+  SINGLE_CARD: "single", GRADED_CARD: "single",
+  BOOSTER_PACK: "pack", BLISTER: "pack",
+  BOOSTER_BOX: "box",
+  ETB: "sealed", COLLECTION_BOX: "sealed", TIN: "sealed", BUNDLE: "sealed", OTHER: "sealed",
+};
+
+/** Produktform som behövs för att bygga en Tradera-sök-URL vid nollställning. */
+export type TraderaResetProduct = {
+  title: string;
+  category: string;
+  card: { name: string; set: { name: string } } | null;
+};
+
+/** Tradera-sök-URL för en produkt — ersätter en utgången direktlänk (alltid levande). */
+export function traderaResetSearchUrl(p: TraderaResetProduct): string {
+  const searchTerm = p.card
+    ? `Pokemon ${p.card.name} ${p.card.set.name}`
+    : /^pok[eé]mon/i.test(p.title) ? p.title : `Pokemon ${p.title}`;
+  const catMap: Record<string, string> = {
+    SINGLE_CARD: "SINGLE_CARD", BOOSTER_BOX: "BOOSTER_BOX",
+    BOOSTER_PACK: "BOOSTER_PACK", ETB: "OTHER",
+  };
+  return traderaSearchUrlSpecific(searchTerm, catMap[p.category] ?? p.category);
+}
+
+/**
+ * Får en Tradera-annons i kategori `listingCategoryId` bli offerten för en
+ * produkt i kategori `productCategory`? Känd kategori på båda sidor måste tillhöra
+ * samma form-grupp (pack ≠ box ≠ ETB ≠ singel). Okänd annonskategori → behåll den
+ * gamla singel/icke-singel-vakten (en singelprodukt kräver kategoribekräftelse).
+ */
+export function traderaCategoryCompatible(
+  productCategory: string,
+  listingCategoryId: number | undefined
+): boolean {
+  const productGroup = PRODUCT_CAT_GROUP[productCategory] ?? "sealed";
+  const listingGroup = listingCategoryId ? TRADERA_CAT_GROUP[listingCategoryId] : undefined;
+  if (listingGroup) return listingGroup === productGroup;
+  return productGroup !== "single";
+}
 
 // Samtidiga DB-anrop (≤ DB_POOL i db.ts) — matchning + skrivning är annars
 // tusentals sekventiella cross-region-queries och jobbet timeoutar.
@@ -211,6 +263,22 @@ function makeSearchFns(appId: string, appKey: string): { name: string; fn: Searc
   ];
 }
 
+// ─── Targeted per-product search (hot-products phase) ────────────────────────
+
+/**
+ * Riktad SearchAdvanced på en specifik produkt (namn + kategori), billigast först.
+ * Den breda svepet paginerar bara några sidor per priskategori och missar därför
+ * ofta den billigaste annonsen för en enskild populär produkt — en namn-specifik
+ * sökning går rakt på den. Använder samma SearchAdvanced-metod som SS.SearchAdv.
+ */
+function searchAdvancedFor(
+  appId: string, appKey: string, words: string, catId: number
+): Promise<string> {
+  return callApi(SEARCH_API,
+    `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><SearchAdvanced xmlns="http://api.tradera.com"><request><SearchWords>${esc(words)}</SearchWords><CategoryId>${catId}</CategoryId><SearchInDescription>false</SearchInDescription><PageNumber>1</PageNumber><OrderBy>PriceAscending</OrderBy><ItemStatus>Active</ItemStatus><ItemType>BuyItNow</ItemType><ItemsPerPage>50</ItemsPerPage><CountyId>0</CountyId><OnlyAuctionsWithBuyNow>false</OnlyAuctionsWithBuyNow><OnlyItemsWithThumbnail>false</OnlyItemsWithThumbnail></request></SearchAdvanced></soap:Body></soap:Envelope>`,
+    "SearchAdvanced", appId, appKey);
+}
+
 // ─── Price ranges: spread calls across different price bands ─────────────────
 
 interface PriceRange { min?: number; max?: number; label: string }
@@ -275,10 +343,52 @@ export async function runTraderaSweep(
 
   const searchFns = makeSearchFns(appId, appKey);
 
-  // ── Fas 1: Bred sökning (5 metoder × 100 anrop) ───────────────────────
-  log("📡 Fas 1: Bred sökning (5 sökmetoder)...\n");
+  // ── Fas 0: Riktade sökningar på hetaste produkterna ───────────────────
+  // De mest bevakade/visade produkterna får en namn-specifik sökning så att
+  // deras VERKLIGT billigaste annons hamnar i poolen (det breda svepet
+  // paginerar för grunt för att garantera det). Förbrukar SearchAdvanced-
+  // metodens kvot → Fas 1 hoppar därför över SS.SearchAdv (samma metod).
+  const HOT_LIMIT = parseInt(process.env.TRADERA_HOT_LIMIT ?? "90", 10);
+  let hotCalls = 0;
+  if (HOT_LIMIT > 0) {
+    log("📡 Fas 0: Riktade hot-produkt-sökningar...");
+    const hot = await prisma.product.findMany({
+      where: { category: { not: "ACCESSORY" } },
+      select: {
+        title: true, category: true,
+        card: { select: { name: true, set: { select: { name: true } } } },
+      },
+      orderBy: [{ watchlistItems: { _count: "desc" } }, { viewCount: "desc" }],
+      take: HOT_LIMIT,
+    });
+    const before = allItems.size;
+    for (const p of hot) {
+      if (hotCalls >= HOT_LIMIT) break;
+      const words = p.card ? `${p.card.name} ${p.card.set.name}` : p.title;
+      const catId = p.card ? TRADERA_CATEGORY.SINGLE_CARD : (TRADERA_CATEGORY[p.category] ?? 293307);
+      try {
+        const xml = await searchAdvancedFor(appId, appKey, words, catId);
+        hotCalls++;
+        const result = parseItemsFromXml(xml);
+        for (const item of result.items) {
+          if (!allItems.has(item.itemId)) allItems.set(item.itemId, item);
+          if (item.sellerId) sellerCounts.set(item.sellerId, (sellerCounts.get(item.sellerId) ?? 0) + 1);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("429") || msg.includes("AboveCallLimit")) break;
+      }
+    }
+    callsByMethod["Fas0.HotSearch"] = hotCalls;
+    log(`   ${hotCalls} anrop → +${allItems.size - before} nya (${allItems.size} totalt)\n`);
+  }
+
+  // ── Fas 1: Bred sökning (sökmetoder × 100 anrop) ──────────────────────
+  log("📡 Fas 1: Bred sökning...\n");
 
   for (const { name, fn } of searchFns) {
+    // Fas 0 förbrukade SearchAdvanced-kvoten → hoppa över den breda varianten.
+    if (hotCalls > 0 && name === "SS.SearchAdv") continue;
     let calls = 0;
     let quotaHit = false;
     const beforeCount = allItems.size;
@@ -360,7 +470,6 @@ export async function runTraderaSweep(
 
   // ── Matchning ──────────────────────────────────────────────────────────
   log("\n🔗 Matchar mot databasen...");
-  const SINGLE_CATEGORIES = new Set(["SINGLE_CARD", "GRADED_CARD"]);
 
   let matched = 0, noMatch = 0, implausible = 0, categoryMismatch = 0;
   const bestByProduct = new Map<string, { price: number; item: TraderaItem }>();
@@ -380,9 +489,7 @@ export async function runTraderaSweep(
     });
     if (!product) { noMatch++; return; }
 
-    const isSingleListing = item.categoryId === 1001337;
-    const isSingleProduct = SINGLE_CATEGORIES.has(product.category);
-    if (isSingleListing !== isSingleProduct) { categoryMismatch++; return; }
+    if (!traderaCategoryCompatible(product.category, item.categoryId)) { categoryMismatch++; return; }
 
     if (!(await isPlausibleListingPrice(product.id, item.priceOre))) { implausible++; return; }
 
@@ -427,46 +534,44 @@ export async function runTraderaSweep(
         select: { id: true, price: true, url: true },
       });
 
-      if (existingOffer?.price != null && existingOffer.price <= price) {
-        // Befintligt pris är redan billigare — uppdatera bara lastSeenAt
-        await prisma.offer.update({
-          where: { id: existingOffer.id },
-          data: { lastSeenAt: new Date() },
-        });
-        unchanged++;
-      } else {
-        // Nytt billigare pris eller ingen offer ännu
-        if (existingOffer?.price != null && price < existingOffer.price) priceUpdated++;
-        await prisma.offer.upsert({
-          where: {
-            productId_retailerId_condition_language: {
-              productId,
-              retailerId: tradera.id,
-              condition,
-              language: "EN",
-            },
-          },
-          update: {
-            price,
-            currency: "SEK",
-            stockStatus: StockStatus.IN_STOCK,
-            url: item.url,
-            lastSeenAt: new Date(),
-          },
-          create: {
+      // Skriv ALLTID denna körnings billigaste LEVANDE annons — behåll inte ett
+      // lagrat "billigare" pris, för den annonsen kan ha löpt ut/sålts sedan dess
+      // (Tradera-annonser är kortlivade). Att behålla den pinnar fast en död länk
+      // och bump:ar lastSeenAt så expiry aldrig slår till. Den färska annonsen är
+      // det ärliga aktuella priset, även när den är dyrare (den billiga såldes).
+      if (existingOffer?.price != null) {
+        if (price < existingOffer.price) priceUpdated++;
+        else if (price === existingOffer.price) unchanged++;
+      }
+      await prisma.offer.upsert({
+        where: {
+          productId_retailerId_condition_language: {
             productId,
             retailerId: tradera.id,
-            price,
-            currency: "SEK",
-            stockStatus: StockStatus.IN_STOCK,
-            url: item.url,
             condition,
             language: "EN",
-            lastSeenAt: new Date(),
           },
-        });
-        written++;
-      }
+        },
+        update: {
+          price,
+          currency: "SEK",
+          stockStatus: StockStatus.IN_STOCK,
+          url: item.url,
+          lastSeenAt: new Date(),
+        },
+        create: {
+          productId,
+          retailerId: tradera.id,
+          price,
+          currency: "SEK",
+          stockStatus: StockStatus.IN_STOCK,
+          url: item.url,
+          condition,
+          language: "EN",
+          lastSeenAt: new Date(),
+        },
+      });
+      written++;
 
       if (source) {
         await prisma.priceObservation.create({
@@ -522,23 +627,7 @@ export async function runTraderaSweep(
     });
 
     await mapPool(staleOffers, DB_CONCURRENCY, async (offer) => {
-      const p = offer.product;
-      let searchTerm: string;
-      if (p.card) {
-        searchTerm = `Pokemon ${p.card.name} ${p.card.set.name}`;
-      } else {
-        searchTerm = /^pok[eé]mon/i.test(p.title) ? p.title : `Pokemon ${p.title}`;
-      }
-      const catMap: Record<string, string> = {
-        SINGLE_CARD: "SINGLE_CARD",
-        BOOSTER_BOX: "BOOSTER_BOX",
-        BOOSTER_PACK: "BOOSTER_PACK",
-        ETB: "OTHER",
-      };
-      const searchUrl = traderaSearchUrlSpecific(
-        searchTerm,
-        catMap[p.category] ?? p.category
-      );
+      const searchUrl = traderaResetSearchUrl(offer.product);
 
       await prisma.offer.update({
         where: { id: offer.id },

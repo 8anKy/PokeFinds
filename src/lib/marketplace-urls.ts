@@ -100,7 +100,7 @@ export function traderaSearchUrl(term: string): string {
 /**
  * Tradera-kategorier för Pokémon TCG (under Samlarsaker → Pokémonkort = 293307).
  */
-const TRADERA_CATEGORY: Record<string, number> = {
+export const TRADERA_CATEGORY: Record<string, number> = {
   SINGLE_CARD: 1001337,   // Löskort/Singles
   BOOSTER_BOX: 1001340,   // Boosterboxar
   BOOSTER_PACK: 1001339,  // Boosterpaket (bundles listas ofta här)
