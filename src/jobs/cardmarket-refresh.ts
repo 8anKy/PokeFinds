@@ -275,7 +275,23 @@ export async function runCardmarketRefresh(
       }
       res.sealedUpdated++;
     });
-    console.log(`[cm-refresh] Sealed: ${res.sealedUpdated} uppdaterade.`);
+
+    // Daglig CM-historikpunkt även för sealed (samma mönster som singlar ovan).
+    // Utan detta uppdateras bara Offer.price → sealed-grafen fryser på prod och
+    // hänger bara med via manuell synk. Värdet = priset vi visar (lowest/30d).
+    const cmSourceSealed = await prisma.scrapeSource.findFirst({ where: { name: "Cardmarket" }, select: { id: true } });
+    if (cmSourceSealed && sealedOps.length > 0) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      await prisma.priceObservation.createMany({
+        data: sealedOps.map((op) => ({ productId: op.productId, sourceId: cmSourceSealed.id, price: op.priceOre, currency: "SEK" })),
+      });
+      await prisma.priceSnapshot.createMany({
+        data: sealedOps.map((op) => ({ productId: op.productId, date: today, minPrice: op.priceOre, maxPrice: op.priceOre, avgPrice: op.priceOre, volume: 1 })),
+        skipDuplicates: true,
+      });
+      res.historyPoints += sealedOps.length;
+    }
+    console.log(`[cm-refresh] Sealed: ${res.sealedUpdated} uppdaterade, ${sealedOps.length} historikpunkter.`);
   }
 
   // Uppdatera denormaliserat lägstapris (katalog-feed: sortering + gömning).
