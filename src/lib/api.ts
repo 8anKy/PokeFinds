@@ -30,3 +30,20 @@ export function apiError(error: unknown): NextResponse {
 export function jsonOk<T>(data: T, init?: ResponseInit) {
   return NextResponse.json(data as Record<string, unknown> | unknown[], init);
 }
+
+/**
+ * Som `jsonOk` men med edge-cache-header. ENDAST för publik, opersonlig data —
+ * samtidiga/upprepade träffar (flera användare, bot-crawl, pagination) serveras
+ * då från Vercels CDN utan att köra en funktion eller fråga Neon. `stale-while-
+ * revalidate` serverar genast medan en bakgrundsuppdatering hämtar färskt.
+ * Routen får INTE ha `export const dynamic = "force-dynamic"` (sätter no-store).
+ */
+export function jsonCached<T>(data: T, sMaxAgeSeconds: number, init?: ResponseInit) {
+  return NextResponse.json(data as Record<string, unknown> | unknown[], {
+    ...init,
+    headers: {
+      ...init?.headers,
+      "Cache-Control": `public, s-maxage=${sMaxAgeSeconds}, stale-while-revalidate=${sMaxAgeSeconds * 5}`,
+    },
+  });
+}

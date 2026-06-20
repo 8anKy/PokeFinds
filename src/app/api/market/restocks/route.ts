@@ -1,9 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { apiError, jsonOk } from "@/lib/api";
+import { apiError, jsonCached } from "@/lib/api";
 import { getRecentRestocks } from "@/services/market";
-
-export const dynamic = "force-dynamic";
 
 const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -15,7 +13,7 @@ export async function GET(req: NextRequest) {
       Object.fromEntries(req.nextUrl.searchParams.entries())
     );
     const items = await getRecentRestocks(limit);
-    return jsonOk({ items });
+    return jsonCached({ items }, 300);
   } catch (e) {
     return apiError(e);
   }

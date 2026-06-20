@@ -1,10 +1,8 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { apiError, jsonOk } from "@/lib/api";
+import { apiError, jsonCached } from "@/lib/api";
 import { getExploreFeed } from "@/services/products";
 import { CardLanguage, ProductCategory, StockStatus } from "@prisma/client";
-
-export const dynamic = "force-dynamic";
 
 /** Utforska-feed: offset-paginerad (infinite scroll). */
 const feedSchema = z.object({
@@ -29,7 +27,7 @@ export async function GET(req: NextRequest) {
       Object.fromEntries(req.nextUrl.searchParams.entries())
     );
     const result = await getExploreFeed({ ...params, page: 1, pageSize: limit }, offset, limit);
-    return jsonOk(result);
+    return jsonCached(result, 120);
   } catch (e) {
     return apiError(e);
   }

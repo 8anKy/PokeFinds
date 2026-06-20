@@ -1,9 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { apiError, jsonOk } from "@/lib/api";
-
-export const dynamic = "force-dynamic";
+import { apiError, jsonCached } from "@/lib/api";
 
 const querySchema = z.object({
   query: z.string().trim().max(200).optional(),
@@ -36,13 +34,16 @@ export async function GET(req: NextRequest) {
       prisma.cardSet.count({ where }),
     ]);
 
-    return jsonOk({
-      items,
-      total,
-      page,
-      pageSize,
-      totalPages: Math.max(1, Math.ceil(total / pageSize)),
-    });
+    return jsonCached(
+      {
+        items,
+        total,
+        page,
+        pageSize,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      },
+      600
+    );
   } catch (e) {
     return apiError(e);
   }

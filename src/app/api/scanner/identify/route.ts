@@ -31,8 +31,12 @@ export async function POST(req: Request) {
   try {
     const user = await requireUser();
 
-    // Live-flödet pollar ~var 1,5 s → generös men begränsad kvot (skydd mot missbruk/kostnad).
-    const { ok } = await rateLimit(`scanner-identify:${user.id}`, 120, 60 * 1000);
+    // Live-flödet pollar ~var 1,5 s (= ~40/min) → 60/min ger marginal men halverar
+    // värsta-fallet (varje anrop = Claude vision = kostnad). OBS: rate-limit är
+    // in-memory utan Redis → per-instans/svag på serverless. Hård budget-spärr =
+    // Anthropic-kontots spend limit (sätt i konsolen) + ev. Upstash/Redis för äkta
+    // distribuerad gräns. Se docs/LAUNCH-CHECKLIST.md Section 0.
+    const { ok } = await rateLimit(`scanner-identify:${user.id}`, 60, 60 * 1000);
     if (!ok) {
       throw new ServiceError(429, "För många skanningar på kort tid — vänta en stund.");
     }

@@ -1,10 +1,8 @@
-import { apiError, jsonOk } from "@/lib/api";
+import { apiError, jsonCached } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { NON_STORE_RETAILER_NAMES } from "@/services/products";
-
-export const dynamic = "force-dynamic";
 
 export async function GET(
   _req: Request,
@@ -44,17 +42,20 @@ export async function GET(
     const pool = inStock.length > 0 ? inStock : priced;
     const best = pool.length > 0 ? pool.reduce((a, b) => (b.price < a.price ? b : a)) : null;
 
-    return jsonOk({
-      offers: directOffers,
-      stats: {
-        lowestPrice: best?.price ?? null,
-        lowestPriceStockStatus: best?.stockStatus ?? null,
-        highestPrice: prices.length > 0 ? Math.max(...prices) : null,
-        avgPrice: prices.length > 0 ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : null,
-        offerCount: directOffers.length,
+    return jsonCached(
+      {
+        offers: directOffers,
+        stats: {
+          lowestPrice: best?.price ?? null,
+          lowestPriceStockStatus: best?.stockStatus ?? null,
+          highestPrice: prices.length > 0 ? Math.max(...prices) : null,
+          avgPrice: prices.length > 0 ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : null,
+          offerCount: directOffers.length,
+        },
+        updatedAt: product.updatedAt,
       },
-      updatedAt: product.updatedAt,
-    });
+      60
+    );
   } catch (e) {
     return apiError(e);
   }

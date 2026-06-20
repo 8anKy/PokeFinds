@@ -1,8 +1,6 @@
-import { apiError, jsonOk } from "@/lib/api";
+import { apiError, jsonCached } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
-
-export const dynamic = "force-dynamic";
 
 export async function GET(
   _req: Request,
@@ -36,7 +34,7 @@ export async function GET(
     });
 
     const { products: _products, _count, ...rest } = set;
-    return jsonOk({ ...rest, cardCount: _count.cards, products });
+    return jsonCached({ ...rest, cardCount: _count.cards, products }, 600);
   } catch (e) {
     return apiError(e);
   }
