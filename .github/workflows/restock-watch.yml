@@ -16,7 +16,13 @@ concurrency:
 jobs:
   watch:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    # 9 butiker skrapas sekventiellt ~28–40 min → 40 var för snävt (jobbet dödades
+    # mitt i loopen, hoppade resterande butiker OCH den avslutande
+    # dispatchPendingAlerts → inga alerts den cykeln). Publikt repo = obegränsade
+    # Actions-minuter, så generös marginal är gratis. 90 < 120 (2h-cron) → krockar
+    # aldrig med nästa körning. ponytail: höj taket; parallellisera butikerna
+    # (mapPool) först om listan växer så mycket att 90 min inte räcker.
+    timeout-minutes: 90
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DB_POOL: "10" # större Prisma-pool → mapPool-samtidighet utan pool_timeout
