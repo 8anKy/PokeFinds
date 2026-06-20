@@ -11,6 +11,16 @@ export async function register() {
   // Kör bara på servern (inte Edge runtime)
   if (process.env.NEXT_RUNTIME === "edge") return;
 
+  // På Vercel kör GitHub Actions ALLA jobb gratis (cardmarket-refresh,
+  // tradera-sweep, scrape-all, restock-watch). In-process setInterval-loopar
+  // håller däremot Fluid-instansen aktiv och bränner Active CPU i onödan
+  // (timer = aktiv funktion, även mellan requests). Kör dem därför ALDRIG på
+  // Vercel — oavsett env. Lokalt/egen server: env-flaggorna nedan styr som vanligt.
+  if (process.env.VERCEL) {
+    console.log("[instrumentation] Vercel upptäckt — in-process jobb av (GitHub Actions kör dem).");
+    return;
+  }
+
   // Frekvent restock-bevakning (oberoende av den fulla 8h-insamlingen): kör de
   // källor som flaggats config.restockWatch var ~45:e minut → tidiga restock-
   // alerts. Sätt RESTOCK_WATCH_MINUTES=0 för att stänga av.
