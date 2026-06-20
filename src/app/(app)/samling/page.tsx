@@ -111,6 +111,11 @@ export default async function CollectionPage() {
           {gainUp ? "+" : ""}
           {formatPrice(value.profit)} sedan inköp · {value.itemCount} objekt
         </p>
+
+        {/* Grafen ligger direkt på bakgrunden, kant-till-kant (ingen kort-yta) */}
+        <div className="-mx-4 mt-5 sm:-mx-6">
+          <CollectionValueChart data={chartData} isPremium={isPremium} bleed />
+        </div>
       </section>
 
       {/* Nyckeltal — desktop */}
@@ -134,7 +139,7 @@ export default async function CollectionPage() {
         <StatCard label="Antal objekt" value={`${value.itemCount}`} icon={<IconPackage size={20} />} />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="hidden gap-6 lg:grid lg:grid-cols-3">
         {/* Värdeutveckling */}
         <Card className="lg:col-span-2">
           <CardHeader>

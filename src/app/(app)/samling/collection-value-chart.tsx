@@ -24,7 +24,16 @@ function cutoff(lastDate: string, days: number): string {
   ).padStart(2, "0")}`;
 }
 
-export function CollectionValueChart({ data, isPremium }: { data: Point[]; isPremium: boolean }) {
+export function CollectionValueChart({
+  data,
+  isPremium,
+  bleed = false,
+}: {
+  data: Point[];
+  isPremium: boolean;
+  /** Kant-till-kant utan kort: graf först, periodväljaren centrerad under. */
+  bleed?: boolean;
+}) {
   const [range, setRange] = useState<string>("max");
 
   const r = RANGES.find((x) => x.key === range) ?? RANGES[RANGES.length - 1];
@@ -33,41 +42,54 @@ export function CollectionValueChart({ data, isPremium }: { data: Point[]; isPre
       ? data
       : data.filter((p) => p.date >= cutoff(data[data.length - 1].date, r.days));
 
+  const selector = (
+    <div className={cn("flex flex-wrap gap-1", bleed ? "mt-3 justify-center px-4" : "mb-3")}>
+      {RANGES.map((opt) => {
+        // Max är en premium-funktion: gratis-användare ser bara upp till 6 mån.
+        if (opt.key === "max" && !isPremium) {
+          return (
+            <Link
+              key={opt.key}
+              href="/priser"
+              className="rounded-full px-3.5 py-1.5 text-xs font-semibold text-ink-faint hover:text-holo-cyan"
+              title="Lås upp full historik med Premium"
+            >
+              🔒 Max
+            </Link>
+          );
+        }
+        return (
+          <button
+            key={opt.key}
+            type="button"
+            onClick={() => setRange(opt.key)}
+            className={cn(
+              "rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors",
+              range === opt.key
+                ? "bg-holo-cyan/15 text-holo-cyan"
+                : "text-ink-muted hover:text-ink"
+            )}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div>
-      <div className="mb-3 flex flex-wrap gap-1">
-        {RANGES.map((opt) => {
-          // Max är en premium-funktion: gratis-användare ser bara upp till 6 mån.
-          if (opt.key === "max" && !isPremium) {
-            return (
-              <Link
-                key={opt.key}
-                href="/priser"
-                className="rounded-md px-2.5 py-1 text-xs font-medium text-ink-faint hover:text-holo-cyan"
-                title="Lås upp full historik med Premium"
-              >
-                🔒 Max
-              </Link>
-            );
-          }
-          return (
-            <button
-              key={opt.key}
-              type="button"
-              onClick={() => setRange(opt.key)}
-              className={cn(
-                "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                range === opt.key
-                  ? "bg-holo-cyan/15 text-holo-cyan"
-                  : "text-ink-muted hover:bg-surface-overlay"
-              )}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
-      </div>
-      <PriceChartLazy data={filtered} minimal />
+      {bleed ? (
+        <>
+          <PriceChartLazy data={filtered} minimal />
+          {selector}
+        </>
+      ) : (
+        <>
+          {selector}
+          <PriceChartLazy data={filtered} minimal />
+        </>
+      )}
     </div>
   );
 }

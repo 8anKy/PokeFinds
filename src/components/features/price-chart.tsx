@@ -178,7 +178,7 @@ export function PriceChart({ data, className, monthly = false, minimal = false }
       <ResponsiveContainer width="100%" height={300}>
         <AreaChart
           data={data}
-          margin={{ top: 12, right: 16, bottom: 0, left: minimal ? 8 : 0 }}
+          margin={{ top: 12, right: 16, bottom: 0, left: 0 }}
           onMouseMove={(state) => {
             const i = state?.activeTooltipIndex;
             setActiveIndex(typeof i === "number" ? i : null);
@@ -209,7 +209,8 @@ export function PriceChart({ data, className, monthly = false, minimal = false }
               />
             </linearGradient>
             <linearGradient id={areaFillId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={LINE} stopOpacity={0.13} />
+              {/* Avskalad portföljvy → fylligare ton (kant-till-kant på bakgrunden). */}
+              <stop offset="0%" stopColor={LINE} stopOpacity={minimal ? 0.3 : 0.13} />
               <stop offset="100%" stopColor={LINE} stopOpacity={0} />
             </linearGradient>
             <linearGradient id={cursorId} x1="0" y1="0" x2="0" y2="1">
@@ -221,6 +222,7 @@ export function PriceChart({ data, className, monthly = false, minimal = false }
           </defs>
           {!minimal && <CartesianGrid stroke={GRID} strokeDasharray="2 6" vertical={false} />}
           <XAxis
+            hide={minimal}
             dataKey="date"
             tickFormatter={(d: string) => shortDate(d, spansYears, monthly)}
             tick={{ fill: TICK, fontSize: 11 }}
