@@ -4,7 +4,7 @@
  *
  * Körs manuellt: npx tsx scripts/tradera-full-sweep.ts
  * Env:  DRY_RUN=1       Enbart rapport, inga DB-ändringar
- *       EXPIRY_DAYS=7   Dagar innan en oförnyad listing nollställs
+ *       EXPIRY_DAYS=3   Dagar utan återfunnen levande annons innan nollställning
  */
 import * as fs from "fs";
 import * as path from "path";
@@ -23,7 +23,7 @@ import { runTraderaSweep } from "../src/jobs/tradera-sweep";
 
 runTraderaSweep({
   dryRun: process.env.DRY_RUN === "1",
-  expiryDays: parseInt(process.env.EXPIRY_DAYS ?? "7", 10),
+  expiryDays: parseInt(process.env.EXPIRY_DAYS ?? "3", 10),
 })
   .catch((e) => {
     console.error("Misslyckades:", e);

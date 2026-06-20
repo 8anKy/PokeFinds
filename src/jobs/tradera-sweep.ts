@@ -296,7 +296,7 @@ const PRICE_RANGES: PriceRange[] = [
 
 export interface TraderaSweepOptions {
   dryRun?: boolean;
-  /** Dagar innan en oförnyad listing anses utgången och nollställs. */
+  /** Dagar utan en enda återfunnen levande annons innan offerten nollställs (default 3). */
   expiryDays?: number;
   /** Loggfunktion (default console.log). */
   log?: (msg: string) => void;
@@ -322,7 +322,11 @@ export async function runTraderaSweep(
   opts: TraderaSweepOptions = {}
 ): Promise<TraderaSweepResult> {
   const dryRun = opts.dryRun ?? false;
-  const expiryDays = opts.expiryDays ?? 7;
+  // 3 dagar: skriv-logiken byter länk direkt när en produkt återfinns levande,
+  // så expiry rör bara produkter med NOLL levande annonser. Då är en sök-URL
+  // alltid giltig medan en kvarhängande direktlänk är direkt fel → snabbare
+  // gallring vinner. Phase 0 skyddar populära produkter mot falsk-expiry.
+  const expiryDays = opts.expiryDays ?? 3;
   const log = opts.log ?? ((m: string) => console.log(m));
 
   const appId = process.env.TRADERA_APP_ID;
