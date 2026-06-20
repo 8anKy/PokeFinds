@@ -67,7 +67,7 @@ export function CollectionValueChart({ data, isPremium }: { data: Point[]; isPre
           );
         })}
       </div>
-      <PriceChartLazy data={filtered} />
+      <PriceChartLazy data={filtered} minimal />
     </div>
   );
 }

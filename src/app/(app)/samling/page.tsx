@@ -87,12 +87,7 @@ export default async function CollectionPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="font-display text-2xl font-bold text-ink">Min samling</h1>
-        <p className="mt-1 text-sm text-ink-muted">
-          Håll koll på vad din samling är värd — kort för kort, box för box.
-        </p>
-      </div>
+      <h1 className="font-display text-2xl font-bold text-ink">Min samling</h1>
 
       {/* Mobil-hero: totalt värde + förändring */}
       <section className="lg:hidden">
@@ -144,9 +139,6 @@ export default async function CollectionPage() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Värdeutveckling</CardTitle>
-            <p className="text-sm text-ink-muted">
-              Samlingens uppskattade värde över tid, baserat på inköpsdatum.
-            </p>
           </CardHeader>
           <CardContent>
             <CollectionValueChart data={chartData} isPremium={isPremium} />

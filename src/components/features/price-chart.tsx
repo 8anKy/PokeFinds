@@ -24,6 +24,9 @@ export interface PriceChartProps {
   className?: string;
   /** Månadsaggregerad serie → visa "mån åååå" på axeln (utan vilseledande dag). */
   monthly?: boolean;
+  /** Avskalad variant (portfölj): döljer rutnät + y-axelns siffror, behåller
+   *  linje/datum/endpoint/tooltip. Y-domänen skalas fortfarande till datat. */
+  minimal?: boolean;
 }
 
 const LINE = "#2dd4bf"; // turquoise — brand signature line
@@ -91,7 +94,7 @@ function ChartCursor({
   );
 }
 
-export function PriceChart({ data, className, monthly = false }: PriceChartProps) {
+export function PriceChart({ data, className, monthly = false, minimal = false }: PriceChartProps) {
   const uid = useId().replace(/:/g, "");
   const lineFadeId = `lf-${uid}`;
   const areaFillId = `af-${uid}`;
@@ -175,7 +178,7 @@ export function PriceChart({ data, className, monthly = false }: PriceChartProps
       <ResponsiveContainer width="100%" height={300}>
         <AreaChart
           data={data}
-          margin={{ top: 12, right: 16, bottom: 0, left: 0 }}
+          margin={{ top: 12, right: 16, bottom: 0, left: minimal ? 8 : 0 }}
           onMouseMove={(state) => {
             const i = state?.activeTooltipIndex;
             setActiveIndex(typeof i === "number" ? i : null);
@@ -216,7 +219,7 @@ export function PriceChart({ data, className, monthly = false }: PriceChartProps
               <stop offset="100%" stopColor={LINE} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid stroke={GRID} strokeDasharray="2 6" vertical={false} />
+          {!minimal && <CartesianGrid stroke={GRID} strokeDasharray="2 6" vertical={false} />}
           <XAxis
             dataKey="date"
             tickFormatter={(d: string) => shortDate(d, spansYears, monthly)}
@@ -229,6 +232,7 @@ export function PriceChart({ data, className, monthly = false }: PriceChartProps
             minTickGap={28}
           />
           <YAxis
+            hide={minimal}
             tickFormatter={formatTick}
             tick={{ fill: TICK, fontSize: 11 }}
             axisLine={false}
