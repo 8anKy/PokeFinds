@@ -24,7 +24,8 @@ import {
   IconTrendingUp,
 } from "@/components/ui/icons";
 
-export const dynamic = "force-dynamic";
+// Marknadsöversikten ändras ~en gång/dygn → cacha (ISR). Sparar Vercel CPU + Neon.
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "Marknad",

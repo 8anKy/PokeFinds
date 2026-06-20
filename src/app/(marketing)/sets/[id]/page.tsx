@@ -8,7 +8,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ProductCard } from "@/components/features/product-card";
 import { IconPackage } from "@/components/ui/icons";
 
-export const dynamic = "force-dynamic";
+// Set-data ändras ~en gång/dygn → cacha per set (ISR). Sparar Vercel CPU + Neon.
+export const revalidate = 3600;
 
 interface PageProps {
   params: { id: string };

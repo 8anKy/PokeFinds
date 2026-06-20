@@ -11,7 +11,6 @@ import { Providers } from "@/components/providers";
 import { CookieBanner } from "@/components/features/cookie-banner";
 import { ServiceWorkerRegister } from "@/components/pwa-register";
 import { BottomTabs } from "@/components/layout/bottom-tabs";
-import { auth } from "@/lib/auth";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
@@ -43,14 +42,13 @@ export const viewport: Viewport = {
   themeColor: "#0a0a0c",
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth();
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="sv" className={`dark ${inter.variable}`}>
       <body>
         <Providers>
           {children}
-          {session?.user && <BottomTabs />}
+          <BottomTabs />
           <CookieBanner />
           <ServiceWorkerRegister />
         </Providers>

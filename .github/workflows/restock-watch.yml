@@ -1,12 +1,14 @@
-name: Restock-bevakning (var 2:e timme)
+name: Restock-bevakning (var 4:e timme)
 
 # Kör de restock-bevakade svenska butikerna och skickar restock-alerts vid
-# lagerövergång (slut -> i lager). Var 2:a timme för att hålla GitHub Actions
-# gratis-minuter (2000/mån privat repo). Vill du tätare alerts: gör repot
-# publikt (obegränsade Actions) eller dra ned cron-intervallet.
+# lagerövergång (slut -> i lager). Var 4:e timme: varje körning håller Neons
+# compute igång ~30–90 min, så tätare cron lät den aldrig skala till noll och
+# brände CU-hrs. 6 körningar/dygn räcker gott för en hobby. Vill du tätare:
+# dra ned intervallet igen (Actions-minuter är gratis på publikt repo; Neon-CU
+# är flaskhalsen).
 on:
   schedule:
-    - cron: "0 */2 * * *" # var 2:e timme
+    - cron: "0 */4 * * *" # var 4:e timme
   workflow_dispatch: {}
 
 concurrency:

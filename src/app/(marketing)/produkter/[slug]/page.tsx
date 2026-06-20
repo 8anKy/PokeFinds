@@ -3,8 +3,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { auth, hasRole } from "@/lib/auth";
-import { cn } from "@/lib/utils";
 import { formatPrice, formatRelative } from "@/lib/format";
 import {
   getPriceHistoryBySource,
@@ -12,8 +10,7 @@ import {
   getSimilarProducts,
 } from "@/services/products";
 import { StockBadge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PriceChartLazy } from "@/components/features/price-chart-lazy";
+import { ProductPriceCard } from "@/components/features/product-price-card";
 import { ProductCard, CATEGORY_LABELS } from "@/components/features/product-card";
 import { ProductActions } from "@/components/features/product-actions";
 import { isDirectOfferUrl, traderaSearchUrlSpecific } from "@/lib/marketplace-urls";
@@ -24,7 +21,10 @@ import {
 } from "@/components/features/live-product-pricing";
 import { IconCards } from "@/components/ui/icons";
 
-export const dynamic = "force-dynamic";
+// Produktsidan läser inte längre URL-param (perioden filtreras i klienten) eller
+// session → den kan ISR-cachas. Live-priser/offers uppdateras ändå klient-sida via
+// polling. Sparar Vercel CPU + Neon på den största crawl-ytan (~20k produktsidor).
+export const revalidate = 3600;
 
 /** Sealed-kategorier (ej singel/gradat) — får alltid en Tradera-länk. */
 const SEALED_CATEGORIES: string[] = [
@@ -46,20 +46,10 @@ const LANGUAGE_LABELS: Record<string, string> = {
   OTHER: "Övrigt",
 };
 
-const PERIODS = [
-  { value: "1w", label: "1V", days: 7 },
-  { value: "1m", label: "1M", days: 30 },
-  { value: "3m", label: "3M", days: 90 },
-  { value: "6m", label: "6M", days: 180 },
-  { value: "1y", label: "1ÅR", days: 365 },
-  { value: "max", label: "MAX", days: 3650 },
-] as const;
-const MAX_PERIOD = PERIODS[PERIODS.length - 1];
-const DEFAULT_PERIOD = PERIODS.find((p) => p.value === "3m")!;
+const MAX_DAYS = 3650; // ~10 år → "hela serien" (klienten filtrerar perioden)
 
 interface PageProps {
   params: { slug: string };
-  searchParams: { period?: string };
 }
 
 async function loadProduct(slug: string) {
@@ -88,19 +78,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default async function ProductPage({ params, searchParams }: PageProps) {
+export default async function ProductPage({ params }: PageProps) {
   const product = await loadProduct(params.slug);
   if (!product) notFound();
 
-  const session = await auth();
-  const isAdmin = session ? hasRole(session.user.role, "ADMIN") : false;
-
-  const requestedPeriod = PERIODS.find((p) => p.value === searchParams.period);
-  let period = requestedPeriod ?? DEFAULT_PERIOD;
-
-  const [historyBySource, historyBySource30, similar, affiliateRetailers] = await Promise.all([
-    getPriceHistoryBySource(product.id, period.days),
-    getPriceHistoryBySource(product.id, 30),
+  const [historyBySource, similar, affiliateRetailers] = await Promise.all([
+    getPriceHistoryBySource(product.id, MAX_DAYS),
     getSimilarProducts(product.id, 4),
     prisma.retailer.findMany({
       where: {
@@ -136,20 +119,11 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
       : null;
 
   // Prishistorik och prisförändring baseras enbart på Cardmarket (tidigare
-  // sålda Tradera-varor går inte att hämta legitimt).
-  let chartData = historyBySource.cardmarket;
-  const cm30 = historyBySource30.cardmarket;
-
-  // Gles historik (t.ex. äldre sealed med en arkivpunkt långt bak): har
-  // standardperioden färre än 2 punkter men full historik fler, visa MAX
-  // istället för ett ensamt nuläge. Endast när användaren inte valt period.
-  if (!requestedPeriod && chartData.length < 2) {
-    const maxSeries = (await getPriceHistoryBySource(product.id, MAX_PERIOD.days)).cardmarket;
-    if (maxSeries.length >= 2) {
-      chartData = maxSeries;
-      period = MAX_PERIOD;
-    }
-  }
+  // sålda Tradera-varor går inte att hämta legitimt). Hela serien skickas till
+  // klient-kortet som filtrerar vald period; 30d-snittet räcker att slica ut här.
+  const chartData = historyBySource.cardmarket;
+  const monthAgo = Date.now() - 30 * 86_400_000;
+  const cm30 = chartData.filter((p) => new Date(p.date).getTime() >= monthAgo);
 
   const pctChange = (series: { price: number }[]): number | null =>
     series.length >= 2 && series[0].price > 0
@@ -277,46 +251,17 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
             )}
           </div>
 
-          <Card>
-            <CardHeader className="flex-row items-start justify-between gap-4">
-              <div>
-                <CardTitle>
-                  {product.category === "SINGLE_CARD"
-                    ? "Ograderad prishistorik"
-                    : "Prishistorik"}
-                </CardTitle>
-                <p className="mt-1 text-xs text-ink-muted">
-                  {product.category === "SINGLE_CARD"
-                    ? "Raw (Near Mint), ej graderad · Cardmarket"
-                    : "Marknadstrend · Cardmarket"}
-                </p>
-              </div>
-              <div
-                className="flex shrink-0 gap-0.5 rounded-lg border border-surface-border bg-surface p-1"
-                role="group"
-                aria-label="Period"
-              >
-                {PERIODS.map((p) => (
-                  <Link
-                    key={p.value}
-                    href={`/produkter/${product.slug}?period=${p.value}`}
-                    aria-current={p.value === period.value ? "page" : undefined}
-                    className={cn(
-                      "rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
-                      p.value === period.value
-                        ? "bg-holo-cyan/15 text-holo-cyan"
-                        : "text-ink-muted hover:text-ink"
-                    )}
-                  >
-                    {p.label}
-                  </Link>
-                ))}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <PriceChartLazy data={chartData} />
-            </CardContent>
-          </Card>
+          <ProductPriceCard
+            title={
+              product.category === "SINGLE_CARD" ? "Ograderad prishistorik" : "Prishistorik"
+            }
+            subtitle={
+              product.category === "SINGLE_CARD"
+                ? "Raw (Near Mint), ej graderad · Cardmarket"
+                : "Marknadstrend · Cardmarket"
+            }
+            series={chartData}
+          />
         </div>
 
         {/* Prispanel — live-uppdateras via polling */}
@@ -344,7 +289,6 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
         {/* Erbjudanden — live-uppdateras via polling */}
         <LiveOffersTable
           slug={product.slug}
-          isAdmin={isAdmin}
           traderaSearch={
             SEALED_CATEGORIES.includes(product.category)
               ? traderaSearchUrlSpecific(product.title, product.category)

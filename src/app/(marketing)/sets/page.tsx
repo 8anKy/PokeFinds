@@ -5,7 +5,8 @@ import { formatDate } from "@/lib/format";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconCards, IconChevronRight } from "@/components/ui/icons";
 
-export const dynamic = "force-dynamic";
+// Katalogdata ändras ~en gång/dygn → cacha (ISR). Sparar Vercel CPU + Neon-läsningar.
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "Set",

@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useSession } from "next-auth/react";
 import { formatPrice, formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Badge, StockBadge } from "@/components/ui/badge";
@@ -228,13 +229,16 @@ export interface LiveOffersTableProps {
   slug: string;
   /** Reserv-länk "Sök på Tradera" (sealed utan direkt Tradera-annons). */
   traderaSearch?: string | null;
-  /** Visar admin-knapp "Ta bort" per rad (ADMIN/SUPERADMIN). */
-  isAdmin?: boolean;
 }
 
-export function LiveOffersTable({ slug, traderaSearch, isAdmin }: LiveOffersTableProps) {
+export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
   const { offers, updatedAt, affiliateIds, refresh } = useLivePricing();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Admin-status läses klient-sida → produktsidan slipper server-`auth()` och kan
+  // ISR-cachas. "Ta bort"-knappen visas bara för ADMIN/SUPERADMIN.
+  const { data: session } = useSession();
+  const isAdmin =
+    session?.user?.role === "ADMIN" || session?.user?.role === "SUPERADMIN";
 
   async function deleteOffer(offerId: string) {
     if (!confirm("Ta bort detta erbjudande permanent?")) return;

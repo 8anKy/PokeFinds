@@ -22,7 +22,8 @@ import {
   IconTrendingUp,
 } from "@/components/ui/icons";
 
-export const dynamic = "force-dynamic";
+// Startsidans data ändras ~en gång/dygn → cacha (ISR). Sparar Vercel CPU + Neon.
+export const revalidate = 3600;
 
 const FAQ: { q: string; a: string }[] = [
   {
