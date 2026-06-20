@@ -14,35 +14,47 @@
 Every item here is "what costs money per user action". Free-tier ceilings: Vercel Fluid
 Active CPU (4h/mo), Vercel Function Invocations (1M/mo), Neon CU-hrs + 5 GB/mo transfer.
 
+### ⚠️ Provider spend caps — the HARD budget backstop (only the account owner can set these)
+
+App-level limits reduce cost; **provider spend caps guarantee you can't be surprised by a bill.**
+Do these in the dashboards — they're the real safety net behind all the code below:
+- [ ] **Anthropic console → monthly spend limit** (hard ceiling on ALL Claude cost: grading + scanner).
+      This is the single most important budget protection for Claude.
+- [ ] **Keep `OCR_PROVIDER=mock` in prod** until you're ready to pay for live vision. While mock, the
+      live scanner costs **$0 Claude**. Flip to `claude` only with the Anthropic spend cap in place.
+- [ ] **Vercel → Spend Management** (set a budget + action: notify/pause at threshold).
+- [ ] **Neon → cap autoscale max CU** (lower the .25–8 range) and/or set plan limits so a runaway
+      query can't scale compute to 8 CU and burn CU-hrs.
+
 **Done**
 - [x] Public catalog pages cached (ISR) — `/`, `/marknad`, `/sets` static; `/sets/[id]`,
       `/produkter/[slug]` on-demand ISR (`revalidate=3600` + `generateStaticParams`). A cached
       page view = **0 functions, 0 Neon queries**. Verified live (`X-Vercel-Cache: HIT`). 2026-06-20.
+- [x] Public, non-personalized GET APIs CDN-cached via `jsonCached()` (`Cache-Control: s-maxage` +
+      `stale-while-revalidate`): `/api/products/feed`, `/api/products/[slug]/{offers,prices}`,
+      `/api/market/*`, `/api/sets`, `/api/sets/[id]`, `/api/cards`. Concurrent/repeat/bot hits serve
+      from the edge: **0 functions, 0 Neon**. Verified live (MISS→HIT). 2026-06-20.
+- [x] Offers refetch on product view — kept (live price feature), but now cost-bounded because
+      `/api/products/[slug]/offers` is CDN-cached (60s); popular products serve from edge.
 - [x] Chrome reads session client-side (no server `auth()` in root/marketing layout or header)
       so caching isn't defeated. See CLAUDE.md "Caching/ISR".
 - [x] `restock-watch` cron 2h → 4h (was keeping Neon compute from scaling to zero).
 - [x] In-process scrape/restock loops OFF on Vercel; all batch jobs run on GitHub Actions (free).
 - [x] Heavy chart lib (recharts) lazy-loaded (`PriceChartLazy`); product page price-period
       filtered in-browser from one payload (no per-period API call).
+- [x] Claude endpoints auth-gated + rate-limited; grading has a DB-backed daily quota
+      (`GRADING_FREE_DAILY_LIMIT`, distributed-safe). Scanner live-identify limit tightened 120→60/min.
 
-**Open — each is a Neon read and/or function call PER user action**
-- [ ] **Offers refetch on every product-page view** — `LivePricingProvider` fires one
-      `/api/products/[slug]/offers` (→ Neon) on mount, even on cached pages. Prices change ~daily;
-      cached page is ≤1h fresh. Option: drop the auto-refetch, rely on ISR data (loses the live
-      price "flash"). **Biggest remaining per-view cost on the busiest page type.**
+**Open — residual per-user cost / hardening**
 - [ ] **`/produkter` is dynamic** (reads `searchParams`) — every filtered/sorted/paged view =
       1 function + Neon query. Unavoidable for arbitrary filters, but the *default* unfiltered
       view (most bots/first hits) could be special-cased to a cached variant. **VERIFY** worth it.
-- [ ] **All `/api/*` routes are `force-dynamic`** — every call = function invocation + Neon.
-      Hot ones: `/api/products/feed` (infinite-scroll), `/api/products/[slug]/offers`,
-      `/api/market/*`, `/api/collection/value`. Add short `Cache-Control: s-maxage` to the
-      *public, non-personalized* ones (feed, market, prices) so repeat/bot hits serve from CDN.
-- [ ] **Rate limiting** — none in front of expensive endpoints (scanner, grading, feed, offers).
-      One abusive client or crawler can burn Vercel functions + Neon + Claude API budget. Add
-      per-IP limits on `/api/scanner/*`, `/api/grading/*`, and the feed.
-- [ ] **Claude API cost** — `/skanna` (vision OCR) and `/gradera` cost real $ per call. FREE tier
-      daily limit exists (`GRADING_FREE_DAILY_LIMIT`); confirm the scanner has an equivalent cap
-      and that limits are enforced server-side, not just UI. **VERIFY**.
+- [ ] **Rate limiting is in-memory** (`src/lib/rate-limit.ts`) → per-instance/weak on serverless.
+      For a real distributed limit, set up Upstash/Vercel KV Redis (free tier) — `rateLimit` already
+      uses Redis when `getRedis()` is available. Backstop until then = the Anthropic spend cap above.
+- [ ] **Live scanner Claude cost** if `OCR_PROVIDER=claude` — each poll = 1 Claude vision call, and
+      the per-minute limit is the only app guard (no daily cap on the live path, since it writes no
+      DB rows by design). Mitigation = keep mock in prod + Anthropic spend cap (see top of section).
 - [ ] **RapidAPI (Cardmarket) quota** — 3000/day; full refresh ~1100 + hot-card 800. Known and
       bounded by cron, not user traffic. Watch it doesn't get exceeded (see price-history memory).
 - [ ] **Neon 5 GB/mo transfer cap** — caching should cut egress a lot; re-check the meter in a
@@ -71,7 +83,7 @@ Active CPU (4h/mo), Vercel Function Invocations (1M/mo), Neon CU-hrs + 5 GB/mo t
 - [x] Terms / privacy / cookie banner (`/villkor`, `/integritetspolicy`, `/cookies`, `CookieBanner`)
 
 ## 2. Performance
-- [x] Caching + CDN (Vercel edge + ISR — Section 0)
+- [x] Caching + CDN (Vercel edge + ISR on pages + CDN cache on public APIs — Section 0)
 - [x] Lazy loading where it matters (charts, images `loading="lazy"`)
 - [x] Bundle: recharts code-split
 - [ ] API response times under load — **VERIFY** (load test)
@@ -97,7 +109,8 @@ Active CPU (4h/mo), Vercel Function Invocations (1M/mo), Neon CU-hrs + 5 GB/mo t
 - [x] Admin routes role-gated (RBAC `role`, `requireRole`)
 - [ ] **Authorization / IDOR test** — can User A read User B's data by changing an ID? Test
       `/api/collection/[id]`, `/api/watchlist/[id]`, etc. **VERIFY — do this carefully.**
-- [ ] Rate limiting / brute-force protection — **MISSING** (see Section 0)
+- [ ] Rate limiting / brute-force protection — **PARTIAL**: per-endpoint limits exist but are
+      in-memory (weak on serverless). Needs Redis for a real distributed limit (see Section 0).
 - [ ] File upload restrictions (scanner) — type/size limits enforced? **VERIFY**
 - [ ] Dependency vulnerability scan (`npm audit`) — **VERIFY**
 - [ ] CSRF / XSS review — **VERIFY** (NextAuth + React give baseline; audit custom forms)
@@ -179,7 +192,8 @@ Active CPU (4h/mo), Vercel Function Invocations (1M/mo), Neon CU-hrs + 5 GB/mo t
 - [x] Static assets via CDN (Vercel)
 - [x] Bottleneck known (Neon CU + transfer; Vercel Active CPU)
 - [ ] File uploads in object storage, not local disk — **VERIFY** (scanner)
-- [ ] Rate limits + per-user quotas (uploads, scans, requests) — **MISSING** (Section 0)
+- [ ] Rate limits + per-user quotas (uploads, scans, requests) — **PARTIAL**: limits + grading
+      daily quota exist; needs Redis for distributed enforcement (Section 0)
 - [x] Third-party API limits understood (RapidAPI 3000/day, Claude tiered)
 - [ ] Horizontal scaling validated (Vercel scales functions; Neon compute autoscales .25–8 CU) — **VERIFY** under load
 
