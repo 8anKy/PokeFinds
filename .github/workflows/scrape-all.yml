@@ -16,7 +16,9 @@ concurrency:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    # Full insamling (alla källor). Körtid 20–38 min och växer med katalogen →
+    # 50 var i underkant. Daglig cron → ingen krock. Publikt repo = gratis minuter.
+    timeout-minutes: 120
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DB_POOL: "10" # större Prisma-pool → mapPool-samtidighet utan pool_timeout

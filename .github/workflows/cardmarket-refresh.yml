@@ -14,7 +14,10 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    # Skriver dagens pris + historik (singlar + sealed). Körtid 23–46 min och en
+    # körning dödades vid 50m → för snävt; en timeout mitt i = partiell historik.
+    # Daglig cron (24h mellan körningar) → ingen krock. Publikt repo = gratis minuter.
+    timeout-minutes: 120
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DB_POOL: "10" # större Prisma-pool → mapPool-samtidighet utan pool_timeout
