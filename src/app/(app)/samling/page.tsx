@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { listCollection, computeCollectionValue } from "@/services/collection";
 import { formatPrice, formatPercent } from "@/lib/format";
 import { StatCard } from "@/components/features/stat-card";
-import { PriceChartLazy } from "@/components/features/price-chart-lazy";
+import { CollectionValueChart } from "./collection-value-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   IconGem,
@@ -28,9 +28,11 @@ export default async function CollectionPage() {
   if (!session?.user) redirect("/logga-in");
   const userId = session.user.id;
 
+  const isPremium = session.user.planTier === "PREMIUM";
   const [items, value, user] = await Promise.all([
     listCollection(userId),
-    computeCollectionValue(userId),
+    // Gratis: max 6 mån historik. Premium: full (range-väljaren styr visningen).
+    computeCollectionValue(userId, { maxDays: isPremium ? null : 183 }),
     prisma.user.findUnique({
       where: { id: userId },
       select: { isPublicCollection: true },
@@ -76,7 +78,7 @@ export default async function CollectionPage() {
   }));
 
   const chartData = value.valueOverTime.map((p) => ({
-    date: `${p.month}-01`,
+    date: p.date,
     price: p.value,
   }));
 
@@ -147,7 +149,7 @@ export default async function CollectionPage() {
             </p>
           </CardHeader>
           <CardContent>
-            <PriceChartLazy data={chartData} monthly />
+            <CollectionValueChart data={chartData} isPremium={isPremium} />
           </CardContent>
         </Card>
 

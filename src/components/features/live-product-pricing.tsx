@@ -282,62 +282,96 @@ export function LiveOffersTable({ slug, traderaSearch, isAdmin }: LiveOffersTabl
         ) : (
           <div className="mt-4">
             {directOffers.length > 0 && (
-              <Table>
-                <THead>
-                  <TR>
-                    <TH>Butik</TH>
-                    <TH>Pris</TH>
-                    <TH>Frakt</TH>
-                    <TH>Lagerstatus</TH>
-                    <TH className="text-right">Länk</TH>
-                  </TR>
-                </THead>
-                <TBody>
+              <>
+                {/* Mobil: staplade kort (tabellen ryms inte utan sidoscroll) */}
+                <div className="space-y-3 sm:hidden">
                   {directOffers.map((offer) => (
-                    <TR key={offer.id}>
-                      <TD>
-                        <span className="font-medium">{offer.retailer.name}</span>
-                        {affiliateIds.has(offer.retailerId) && (
-                          <Badge className="ml-2">Annonslänk</Badge>
-                        )}
-                      </TD>
-                      <TD className="font-semibold tabular-nums">
-                        {offer.price != null ? formatPrice(offer.price) : "–"}
-                      </TD>
-                      <TD className="tabular-nums text-ink-muted">
-                        {offer.shippingPrice != null
-                          ? offer.shippingPrice === 0
-                            ? "Fri frakt"
-                            : formatPrice(offer.shippingPrice)
-                          : "–"}
-                      </TD>
-                      <TD>
-                        <StockBadge stockStatus={offer.stockStatus} />
-                      </TD>
-                      <TD className="text-right">
-                        <div className="inline-flex items-center gap-2">
-                          <OfferClickButton
-                            slug={slug}
-                            offerId={offer.id}
-                            fallbackUrl={offer.url}
-                          />
-                          {isAdmin && (
-                            <button
-                              type="button"
-                              onClick={() => deleteOffer(offer.id)}
-                              disabled={deletingId === offer.id}
-                              className="rounded-md border border-fall/40 px-2 py-1 text-xs font-medium text-fall transition-colors hover:bg-fall/10 disabled:opacity-50"
-                              title="Ta bort felmatchat erbjudande (admin)"
-                            >
-                              {deletingId === offer.id ? "Tar bort…" : "Ta bort"}
-                            </button>
-                          )}
+                    <div
+                      key={offer.id}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-surface-border p-4"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">{offer.retailer.name}</span>
+                          {affiliateIds.has(offer.retailerId) && <Badge>Annonslänk</Badge>}
                         </div>
-                      </TD>
-                    </TR>
+                        <div className="mt-1 flex items-center gap-2">
+                          <span className="font-semibold tabular-nums">
+                            {offer.price != null ? formatPrice(offer.price) : "–"}
+                          </span>
+                          <StockBadge stockStatus={offer.stockStatus} />
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-2">
+                        <OfferClickButton slug={slug} offerId={offer.id} fallbackUrl={offer.url} />
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => deleteOffer(offer.id)}
+                            disabled={deletingId === offer.id}
+                            className="rounded-md border border-fall/40 px-2 py-1 text-xs font-medium text-fall transition-colors hover:bg-fall/10 disabled:opacity-50"
+                            title="Ta bort felmatchat erbjudande (admin)"
+                          >
+                            {deletingId === offer.id ? "Tar bort…" : "Ta bort"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   ))}
-                </TBody>
-              </Table>
+                </div>
+
+                {/* Desktop: tabell */}
+                <div className="hidden sm:block">
+                  <Table>
+                    <THead>
+                      <TR>
+                        <TH>Butik</TH>
+                        <TH>Pris</TH>
+                        <TH>Lagerstatus</TH>
+                        <TH className="text-right">Länk</TH>
+                      </TR>
+                    </THead>
+                    <TBody>
+                      {directOffers.map((offer) => (
+                        <TR key={offer.id}>
+                          <TD>
+                            <span className="font-medium">{offer.retailer.name}</span>
+                            {affiliateIds.has(offer.retailerId) && (
+                              <Badge className="ml-2">Annonslänk</Badge>
+                            )}
+                          </TD>
+                          <TD className="font-semibold tabular-nums">
+                            {offer.price != null ? formatPrice(offer.price) : "–"}
+                          </TD>
+                          <TD>
+                            <StockBadge stockStatus={offer.stockStatus} />
+                          </TD>
+                          <TD className="text-right">
+                            <div className="inline-flex items-center gap-2">
+                              <OfferClickButton
+                                slug={slug}
+                                offerId={offer.id}
+                                fallbackUrl={offer.url}
+                              />
+                              {isAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={() => deleteOffer(offer.id)}
+                                  disabled={deletingId === offer.id}
+                                  className="rounded-md border border-fall/40 px-2 py-1 text-xs font-medium text-fall transition-colors hover:bg-fall/10 disabled:opacity-50"
+                                  title="Ta bort felmatchat erbjudande (admin)"
+                                >
+                                  {deletingId === offer.id ? "Tar bort…" : "Ta bort"}
+                                </button>
+                              )}
+                            </div>
+                          </TD>
+                        </TR>
+                      ))}
+                    </TBody>
+                  </Table>
+                </div>
+              </>
             )}
             <p className="mt-3 text-xs text-ink-faint">
               Alla länkar går direkt till produkten hos butiken. Vissa är

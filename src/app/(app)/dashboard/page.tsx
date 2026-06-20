@@ -70,14 +70,14 @@ export default async function DashboardPage() {
       }),
     ]);
 
-  // Förändring 7d uppskattas från samlingens värdekurva (senaste två punkterna).
+  // Förändring 7d uppskattas från samlingens värdekurva (daglig: nu vs ~7 dagar bak,
+  // eller äldsta punkten om historiken är kortare än så).
   const series = collection.valueOverTime;
+  const ref7d = series.length >= 2 ? series[Math.max(0, series.length - 8)] : null;
   const change7d =
-    series.length >= 2 && series[series.length - 2].value > 0
+    ref7d && ref7d.value > 0
       ? Math.round(
-          ((series[series.length - 1].value - series[series.length - 2].value) /
-            series[series.length - 2].value) *
-            10000
+          ((series[series.length - 1].value - ref7d.value) / ref7d.value) * 10000
         ) / 100
       : null;
 
@@ -88,7 +88,7 @@ export default async function DashboardPage() {
   ).slice(0, 4);
   const topDrops = drops.slice(0, 4);
 
-  const chartData = series.map((p) => ({ date: `${p.month}-01`, price: p.value }));
+  const chartData = series.map((p) => ({ date: p.date, price: p.value }));
 
   return (
     <div className="space-y-8">

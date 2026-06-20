@@ -127,7 +127,8 @@ export interface CollectionMover {
 
 type Snap = { date: Date; avgPrice: number };
 const SNAP_OFFER_SELECT = { price: true, stockStatus: true, url: true } as const;
-const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+const dayKey = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 /** Senaste avgPrice med datum <= `end`, annars äldsta tillgängliga (snaps är sorterade asc). */
 function avgAtOrBefore(snaps: Snap[], end: number): number | null {
   let v: number | null = null;
@@ -147,7 +148,10 @@ function avgAtOrBefore(snaps: Snap[], end: number): number | null {
  * OCH rör sig när objektens priser ändras (kan alltså gå både upp och ner). Innevarande
  * månad använder aktuellt värde så slutpunkten matchar "Totalt värde".
  */
-export async function computeCollectionValue(userId: string) {
+export async function computeCollectionValue(
+  userId: string,
+  opts?: { maxDays?: number | null }
+) {
   const items = await prisma.collectionItem.findMany({
     where: { userId },
     include: COLLECTION_INCLUDE,
@@ -181,19 +185,19 @@ export async function computeCollectionValue(userId: string) {
     }));
 
   // ---- Prissnapshots per objekt (för historik + movers) ----
-  const firstMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
-  const ownedFrom = (i: (typeof items)[number]) => firstMonth(i.purchaseDate ?? i.createdAt);
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const ownedFrom = (i: (typeof items)[number]) => startOfDay(i.purchaseDate ?? i.createdAt);
   const valued = items.filter((i) => valueOf(i.id) != null);
 
-  const valueOverTime: { month: string; value: number }[] = [];
+  const valueOverTime: { date: string; value: number }[] = [];
   let movers: CollectionMover[] = [];
 
   if (valued.length > 0) {
-    const startMonth = valued.map(ownedFrom).reduce((a, b) => (b < a ? b : a));
+    const startDay = valued.map(ownedFrom).reduce((a, b) => (b < a ? b : a));
     const cardIds = valued.map((i) => i.cardId).filter((v): v is string => v != null);
     const productIds = valued.map((i) => i.productId).filter((v): v is string => v != null);
     const snapSelect = {
-      where: { date: { gte: startMonth } },
+      where: { date: { gte: startDay } },
       select: { date: true, avgPrice: true },
       orderBy: { date: "asc" as const },
     };
@@ -249,13 +253,19 @@ export async function computeCollectionValue(userId: string) {
       };
     });
 
-    const endMs = firstMonth(new Date()).getTime();
-    const cursor = new Date(startMonth);
+    const endMs = startOfDay(new Date()).getTime();
+    // Plan-tak: gratis-användare ser bara de senaste maxDays dagarna (premium = full).
+    const capStart =
+      opts?.maxDays != null
+        ? startOfDay(new Date(endMs - opts.maxDays * 86_400_000))
+        : null;
+    const seriesStart = capStart && capStart > startDay ? capStart : startDay;
+    const cursor = new Date(seriesStart);
     while (cursor.getTime() <= endMs) {
-      const monthEnd = new Date(
+      const dayEnd = new Date(
         cursor.getFullYear(),
-        cursor.getMonth() + 1,
-        0,
+        cursor.getMonth(),
+        cursor.getDate(),
         23,
         59,
         59
@@ -265,13 +275,13 @@ export async function computeCollectionValue(userId: string) {
         if (v.from > cursor.getTime()) continue;
         let per = v.current;
         if (v.snaps) {
-          const t = avgAtOrBefore(v.snaps, monthEnd);
+          const t = avgAtOrBefore(v.snaps, dayEnd);
           if (t != null) per = Math.round(v.current * (t / v.trendNow));
         }
         total += per * v.quantity;
       }
-      valueOverTime.push({ month: monthKey(cursor), value: total });
-      cursor.setMonth(cursor.getMonth() + 1);
+      valueOverTime.push({ date: dayKey(cursor), value: total });
+      cursor.setDate(cursor.getDate() + 1);
     }
 
     // Top movers — störst 7-dagars prisökning (kräver ≥2 objekt i samlingen).

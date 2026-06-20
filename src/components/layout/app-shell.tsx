@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import {
@@ -16,8 +15,6 @@ import {
   IconMessage,
   IconSettings,
   IconWrench,
-  IconMenu,
-  IconX,
   IconUser,
   type IconProps,
 } from "@/components/ui/icons";
@@ -45,16 +42,13 @@ export function AppShell({
   isAdmin?: boolean;
 }) {
   const pathname = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   const nav = (
     <nav className="flex flex-col gap-1 p-3">
       {NAV.map((item) => (
         <Link
           key={item.href}
-          href={item.href}
-          onClick={() => setMobileOpen(false)}
-          className={cn(
+          href={item.href}          className={cn(
             "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
             pathname?.startsWith(item.href)
               ? "bg-holo-cyan/10 text-holo-cyan"
@@ -67,9 +61,7 @@ export function AppShell({
       ))}
       {isAdmin && (
         <Link
-          href="/admin"
-          onClick={() => setMobileOpen(false)}
-          className={cn(
+          href="/admin"          className={cn(
             "mt-2 flex items-center gap-3 rounded-lg border border-holo-violet/30 px-3 py-2 text-sm",
             pathname?.startsWith("/admin")
               ? "bg-surface-overlay text-holo-violet"
@@ -99,16 +91,8 @@ export function AppShell({
         {/* Topbar */}
         <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-surface-border bg-surface/90 px-4 backdrop-blur-md">
           <div className="flex items-center gap-3">
-            <button
-              className="rounded-lg p-2 text-ink-muted hover:bg-surface-overlay lg:hidden"
-              onClick={() => setMobileOpen(!mobileOpen)}
-              aria-label={mobileOpen ? "Stäng meny" : "Öppna meny"}
-              aria-expanded={mobileOpen}
-            >
-              {mobileOpen ? <IconX size={20} /> : <IconMenu size={20} />}
-            </button>
             <Link href="/" className="lg:hidden" aria-label="Foilio — startsida">
-              <BrandLogo markSize={26} textClass="text-lg" />
+              <BrandLogo />
             </Link>
           </div>
           <div className="flex items-center gap-3">
@@ -128,11 +112,6 @@ export function AppShell({
             </Link>
           </div>
         </header>
-
-        {/* Mobile nav */}
-        {mobileOpen && (
-          <div className="animate-fade-in border-b border-surface-border bg-surface-raised lg:hidden">{nav}</div>
-        )}
 
         <main className="flex-1 px-4 py-6 pb-20 sm:px-6 lg:px-8 lg:pb-6">{children}</main>
       </div>

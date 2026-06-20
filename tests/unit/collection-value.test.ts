@@ -130,7 +130,7 @@ describe("computeCollectionValue", () => {
     expect(result.topItems.map((t) => t.name)).not.toContain("Utan värde");
   });
 
-  it("valueOverTime ackumulerar värde per inköpsmånad", async () => {
+  it("valueOverTime ackumulerar värde per inköpsdag (daglig serie)", async () => {
     findMany.mockResolvedValue([
       item({ estimatedValue: 10000, purchaseDate: new Date("2025-01-10") }),
       item({ estimatedValue: 20000, purchaseDate: new Date("2025-01-20") }),
@@ -138,11 +138,17 @@ describe("computeCollectionValue", () => {
     ]);
 
     const result = await computeCollectionValue("user-1");
+    const byDate = Object.fromEntries(result.valueOverTime.map((p) => [p.date, p.value]));
 
-    expect(result.valueOverTime).toEqual([
-      { month: "2025-01", value: 30000 },
-      { month: "2025-03", value: 35000 },
-    ]);
+    // Serien börjar på första inköpsdagen och har en punkt per dag fram till idag.
+    expect(result.valueOverTime[0].date).toBe("2025-01-10");
+    expect(byDate["2025-01-10"]).toBe(10000); // bara objekt 1 ägs
+    expect(byDate["2025-01-19"]).toBe(10000);
+    expect(byDate["2025-01-20"]).toBe(30000); // objekt 2 tillkommer
+    expect(byDate["2025-03-04"]).toBe(30000);
+    expect(byDate["2025-03-05"]).toBe(35000); // objekt 3 tillkommer
+    // Utan prishistorik är värdet platt på slutvärdet ända till idag.
+    expect(result.valueOverTime[result.valueOverTime.length - 1].value).toBe(35000);
   });
 
   it("använder produkttitel som namn när kort saknas", async () => {
