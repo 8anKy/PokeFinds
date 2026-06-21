@@ -30,7 +30,7 @@ function layout(title: string, bodyHtml: string): string {
 <body style="margin:0;padding:0;background-color:#0f1115;font-family:'Segoe UI',Arial,sans-serif;">
   <div style="max-width:560px;margin:0 auto;padding:32px 16px;">
     <div style="text-align:center;padding-bottom:24px;">
-      <span style="font-size:24px;font-weight:800;color:#34c47e;letter-spacing:-0.5px;">Foilio</span>
+      <img src="${APP_URL}/brand/foilio-logo.png" alt="Foilio" width="56" height="56" style="display:inline-block;border:0;width:56px;height:56px;">
     </div>
     <div style="background-color:#1a1d24;border:1px solid #2a2e38;border-radius:12px;padding:32px 28px;color:#e5e7eb;">
       <h1 style="margin:0 0 16px;font-size:20px;color:#ffffff;">${title}</h1>
