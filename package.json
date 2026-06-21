@@ -7,8 +7,8 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "postinstall": "prisma generate",
+    "build": "prisma generate && next build",
+    "postinstall": "prisma generate || true",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
