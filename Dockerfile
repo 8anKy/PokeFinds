@@ -22,8 +22,6 @@ ENV NODE_ENV=production \
     NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Diagnostik: skriver "has_dburl=yes" om Railway skickar build-arg:en, annars tomt.
-RUN echo "has_dburl=${DATABASE_URL:+yes}"
 RUN npm run build
 
 FROM base AS runner
