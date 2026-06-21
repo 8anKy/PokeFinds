@@ -1,25 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
 import { LinkButton } from "@/components/ui/button";
 import { IconUser } from "@/components/ui/icons";
+import { hasAuthHint } from "@/lib/auth-hint";
 
 /**
- * Header-knapparna som beror på inloggning. Läses klient-sida (useSession) så att
- * SiteHeader/marketing-layouten slipper server-`auth()` — det tvingade annars hela
- * den publika katalogen att renderas dynamiskt per request (brände Vercel Active
- * CPU + Neon-läsningar). Under laddning visas inget → ingen layout-flicker av vikt.
+ * Header-knapparna som beror på inloggning. Läses från fo_auth-cookien (klient,
+ * efter mount) i stället för useSession → ingen /api/auth/session-hämtning per
+ * sidvisning (det brände Vercel Active CPU). SiteHeader/marketing-layouten slipper
+ * server-`auth()` och kan ISR-cachas. Före mount (= SSR) visas en spacer.
  */
 export function HeaderAuthActions() {
-  const { data: session, status } = useSession();
+  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
+  useEffect(() => setLoggedIn(hasAuthHint()), []);
 
-  if (status === "loading") {
-    // Reservera ungefär samma bredd så headern inte hoppar vid hydrering.
+  if (loggedIn === null) {
+    // Före mount: reservera ungefär samma bredd så headern inte hoppar vid hydrering.
     return <div className="h-9 w-32" aria-hidden />;
   }
 
-  if (session?.user) {
+  if (loggedIn) {
     return (
       <>
         <LinkButton href="/dashboard" variant="primary" size="sm" className="hidden sm:inline-flex">

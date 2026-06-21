@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { setAuthHint } from "@/lib/auth-hint";
 import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
 
@@ -61,6 +62,7 @@ export default function RegisterPage() {
         router.push("/logga-in");
         return;
       }
+      setAuthHint(true);
       router.push("/onboarding");
       router.refresh();
     } catch {

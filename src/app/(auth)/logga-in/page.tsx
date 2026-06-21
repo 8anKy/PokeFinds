@@ -4,6 +4,7 @@ import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { setAuthHint } from "@/lib/auth-hint";
 import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
 
@@ -32,6 +33,7 @@ function LoginForm() {
         setLoading(false);
         return;
       }
+      setAuthHint(true);
       router.push(callbackUrl);
       router.refresh();
     } catch {

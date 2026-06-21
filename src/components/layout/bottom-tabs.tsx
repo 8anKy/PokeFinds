@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
+import { hasAuthHint } from "@/lib/auth-hint";
 import {
   IconSearch,
   IconPackage,
@@ -23,10 +24,11 @@ const TABS: { href: string; label: string; icon: (p: IconProps) => JSX.Element }
 
 export function BottomTabs() {
   const pathname = usePathname();
-  // Sessionen läses klient-sida → inget server-`auth()` som tvingar hela appen
-  // dynamisk (det brände Vercel Active CPU). Dölj tab-baren för utloggade.
-  const { data: session } = useSession();
-  if (!session?.user) return null;
+  // Inloggad? läses från fo_auth-cookien (efter mount) → ingen /api/auth/session-
+  // hämtning per sidvisning (det brände Vercel Active CPU). Dölj tab-baren för utloggade.
+  const [loggedIn, setLoggedIn] = useState(false);
+  useEffect(() => setLoggedIn(hasAuthHint()), []);
+  if (!loggedIn) return null;
   return (
     <>
       {/* Klarering: fixed nav överlappar sidans botten — denna spacer ger

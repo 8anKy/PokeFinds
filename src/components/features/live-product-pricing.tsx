@@ -9,7 +9,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useSession } from "next-auth/react";
+import { getSession } from "next-auth/react";
+import { hasAuthHint } from "@/lib/auth-hint";
 import { formatPrice, formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Badge, StockBadge } from "@/components/ui/badge";
@@ -137,11 +138,11 @@ export function LivePricingProvider({
     }
   }, [slug]);
 
-  useEffect(() => {
-    // En färsk hämtning vid sidvisning räcker — priserna uppdateras av
-    // skrapjobben var 8:e timme, inte i realtid.
-    void fetchOffers();
-  }, [fetchOffers]);
+  // Ingen hämtning vid sidvisning: servern lägger redan initialOffers/initialStats
+  // i den ISR-cachade HTML:en (≤1h gammalt; priser ändras var 8:e h av skrapjobben).
+  // En klient-fetch per produktsidvisning (~20k sidor) körde en serverless-funktion
+  // + Neon-fråga i onödan och brände Vercel Active CPU. `refresh` finns kvar för
+  // admins manuella uppdatering efter att ha tagit bort ett erbjudande.
 
   return (
     <LivePricingContext.Provider
@@ -234,11 +235,17 @@ export interface LiveOffersTableProps {
 export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
   const { offers, updatedAt, affiliateIds, refresh } = useLivePricing();
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  // Admin-status läses klient-sida → produktsidan slipper server-`auth()` och kan
-  // ISR-cachas. "Ta bort"-knappen visas bara för ADMIN/SUPERADMIN.
-  const { data: session } = useSession();
-  const isAdmin =
-    session?.user?.role === "ADMIN" || session?.user?.role === "SUPERADMIN";
+  // Admin-status: produktsidan ISR-cachas → ingen server-`auth()`. Hämtar bara
+  // sessionen on-demand om fo_auth-cookien finns (= inloggad), så utloggade
+  // besökare aldrig anropar /api/auth/session. "Ta bort" visas bara för admins.
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    if (!hasAuthHint()) return;
+    void getSession().then((s) => {
+      const role = s?.user?.role;
+      setIsAdmin(role === "ADMIN" || role === "SUPERADMIN");
+    });
+  }, []);
 
   async function deleteOffer(offerId: string) {
     if (!confirm("Ta bort detta erbjudande permanent?")) return;

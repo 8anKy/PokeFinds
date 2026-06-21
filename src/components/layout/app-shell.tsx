@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
+import { setAuthHint } from "@/lib/auth-hint";
 import { cn } from "@/lib/utils";
 import {
   IconDashboard,
@@ -98,7 +99,10 @@ export function AppShell({
           <div className="flex items-center gap-3">
             <span className="hidden text-sm text-ink-muted sm:inline">Hej, {userName}</span>
             <button
-              onClick={() => signOut({ callbackUrl: "/" })}
+              onClick={() => {
+                setAuthHint(false);
+                void signOut({ callbackUrl: "/" });
+              }}
               className="hidden rounded-lg px-3 py-1.5 text-sm text-ink-muted hover:bg-surface-overlay hover:text-ink sm:inline-block"
             >
               Logga ut

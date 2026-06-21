@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { signOut } from "next-auth/react";
+import { setAuthHint } from "@/lib/auth-hint";
 import { apiFetch } from "@/lib/client-api";
 import { useToast } from "@/components/ui/toast";
 import { Button, LinkButton } from "@/components/ui/button";
@@ -91,6 +92,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
     try {
       await apiFetch("/api/users/me", { method: "DELETE" });
       toast({ title: "Ditt konto har raderats", variant: "success" });
+      setAuthHint(false);
       await signOut({ callbackUrl: "/" });
     } catch (e) {
       toast({
