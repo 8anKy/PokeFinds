@@ -1,8 +1,9 @@
 generator client {
   provider      = "prisma-client-js"
   // "native" = lokal Windows-motor (dev); "rhel-openssl-3.0.x" = Vercels Linux-
-  // runtime (AL2023/OpenSSL 3) så att en lokalt byggd (prebuilt) deploy funkar.
-  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  // runtime (AL2023/OpenSSL 3); "debian-openssl-*" = Railways Debian-image (Railpack).
+  // Flera targets så samma schema funkar på alla tre värdar.
+  binaryTargets = ["native", "rhel-openssl-3.0.x", "debian-openssl-3.0.x", "debian-openssl-1.1.x"]
 }
 
 datasource db {
