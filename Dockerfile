@@ -11,11 +11,8 @@ COPY package.json package-lock.json* ./
 RUN npm ci || npm install
 
 FROM base AS build
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-# npm run build kör "prisma generate && next build". DATABASE_URL behövs för ISR-
-# statisk generering av /, /marknad, /sets; NEXT_PUBLIC_* bakas in i klientbunten.
-# Railway skickar service-variablerna som build-args.
+# Build-args måste deklareras före användning. DATABASE_URL behövs för ISR-statisk
+# generering av /, /marknad, /sets; NEXT_PUBLIC_* bakas in i klientbunten.
 ARG DATABASE_URL
 ARG NEXT_PUBLIC_APP_NAME
 ARG NEXT_PUBLIC_APP_URL
@@ -23,6 +20,10 @@ ENV NODE_ENV=production \
     DATABASE_URL=$DATABASE_URL \
     NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME \
     NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+# Diagnostik: skriver "has_dburl=yes" om Railway skickar build-arg:en, annars tomt.
+RUN echo "has_dburl=${DATABASE_URL:+yes}"
 RUN npm run build
 
 FROM base AS runner
