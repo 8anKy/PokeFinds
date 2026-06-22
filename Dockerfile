@@ -32,4 +32,8 @@ COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/public ./public
 EXPOSE 3000
-CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
+# migrate får INTE blockera start: med App Sleeping (scale-to-zero) körs detta vid
+# varje cold start, och en långsam/kall Neon-anslutning fick `&&` att döda containern
+# (CRASHED). `|| true; ` → appen startar alltid; migrationer appliceras ändå vid en
+# frisk boot. Vid faktiska schemaändringar: kör `npx prisma migrate deploy` manuellt.
+CMD ["sh", "-c", "npx prisma migrate deploy || true; npm start"]
