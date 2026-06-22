@@ -5,10 +5,12 @@ import { IconTrendingDown, IconTrendingUp } from "@/components/ui/icons";
 export interface PriceChangeProps {
   percent: number;
   className?: string;
+  /** Dölj upp/ner-pilen (tecknet +/− bär ändå riktningen). Default: visa pil. */
+  hideIcon?: boolean;
 }
 
 /** Visar prisförändring med pil och färg: grön upp, röd ner, neutral nära noll. */
-export function PriceChange({ percent, className }: PriceChangeProps) {
+export function PriceChange({ percent, className, hideIcon = false }: PriceChangeProps) {
   const isFlat = Math.abs(percent) < 0.05;
   const isUp = percent > 0;
 
@@ -22,6 +24,7 @@ export function PriceChange({ percent, className }: PriceChangeProps) {
       title={isFlat ? "Oförändrat pris" : isUp ? "Priset har gått upp" : "Priset har gått ner"}
     >
       {!isFlat &&
+        !hideIcon &&
         (isUp ? (
           <IconTrendingUp size={14} className="shrink-0" />
         ) : (

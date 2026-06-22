@@ -46,7 +46,7 @@ const LANGUAGE_LABELS: Record<CardLanguage, string> = {
 };
 
 /** Språk som visas i katalogfiltret (övriga gömda tills vidare, 2026-06-14). */
-const BROWSE_LANGUAGES: CardLanguage[] = ["EN", "JP"];
+const BROWSE_LANGUAGES: CardLanguage[] = ["EN"];
 
 interface CatalogSearchParams {
   q?: string;

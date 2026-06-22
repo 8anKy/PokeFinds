@@ -29,6 +29,7 @@ import {
   IconArrowRight,
   IconCamera,
   IconCards,
+  IconChart,
   IconCheck,
   IconChevronLeft,
   IconSearch,
@@ -421,51 +422,79 @@ export default function SkannaPage() {
   // =========================================================================
   if (view === "launch") {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-8">
-        <header>
-          <h1 className="font-display text-2xl font-semibold text-ink">Identifiera kort</h1>
-          <p className="mt-2 max-w-prose text-sm leading-relaxed text-ink-muted">
-            Rikta kameran mot ett kort och tryck på knappen för att fånga det. Vi
-            känner igen kortet och visar dess aktuella marknadsvärde. Bilden tas
-            bara i appen — inget sparas i din kamerarulle.
-          </p>
-        </header>
+      <div className="mx-auto flex max-w-md flex-col gap-5">
+        <h1 className="font-display text-2xl font-semibold text-ink">Skanna kort</h1>
 
         {isMock && <MockNotice />}
         {configError && <ConfigNotice text={configError} />}
 
-        <div className="relative overflow-hidden rounded-2xl border border-surface-border bg-surface-gradient p-8 shadow-card">
+        <div className="relative overflow-hidden rounded-2xl border border-surface-border bg-surface-gradient p-6 shadow-card">
           <div
             aria-hidden="true"
             className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-holo-cyan/10 blur-3xl"
           />
-          <div className="relative flex flex-col items-center gap-5 text-center">
-            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-holo-cyan/10 text-holo-cyan ring-1 ring-holo-cyan/30">
-              <IconCamera size={30} />
-            </span>
-            <div>
-              <p className="text-lg font-semibold text-ink">Öppna skannern</p>
-              <p className="mt-1 text-sm text-ink-muted">
-                Fånga ett eller flera kort i rad och lägg till hela batchen på en gång.
-              </p>
+          <div className="relative flex flex-col items-center gap-5 py-2 text-center">
+            {/* Animerad skanruta — signalerar igenkänning, ger sidan liv */}
+            <div className="relative grid h-24 w-24 place-items-center rounded-2xl bg-holo-cyan/5 text-holo-cyan ring-1 ring-holo-cyan/20">
+              <IconCamera size={34} />
+              {(
+                [
+                  "left-2 top-2 border-l-2 border-t-2 rounded-tl-md",
+                  "right-2 top-2 border-r-2 border-t-2 rounded-tr-md",
+                  "left-2 bottom-2 border-l-2 border-b-2 rounded-bl-md",
+                  "right-2 bottom-2 border-r-2 border-b-2 rounded-br-md",
+                ] as const
+              ).map((c) => (
+                <span key={c} className={cn("absolute h-4 w-4 border-holo-cyan/70", c)} aria-hidden />
+              ))}
+              <span className="pointer-events-none absolute inset-2 overflow-hidden rounded-xl" aria-hidden>
+                <span className="absolute inset-x-0 top-0 h-0.5 animate-scanline bg-gradient-to-r from-transparent via-holo-cyan to-transparent shadow-[0_0_12px_2px_rgba(45,212,191,0.6)]" />
+              </span>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Button onClick={openScanner} className="px-6">
+            <div className="flex w-full flex-col gap-2.5">
+              <Button onClick={openScanner} size="lg" className="w-full">
                 <IconCamera size={18} /> Starta skanner
               </Button>
-              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full"
+              >
                 <IconUpload size={16} /> Välj bild
               </Button>
             </div>
+            <p className="text-xs text-ink-faint">
+              Bilden stannar i appen — inget sparas i kamerarullen.
+            </p>
           </div>
         </div>
 
-        <p className="text-sm text-ink-muted">
-          Vill du bedöma kortets skick istället?{" "}
-          <Link href="/gradera" className="font-medium text-holo-cyan hover:underline">
-            Gradera kortet med AI →
-          </Link>
-        </p>
+        <Link
+          href="/gradera"
+          className="flex items-center justify-between rounded-xl border border-surface-border bg-surface-raised px-4 py-3 text-sm text-ink-muted transition-colors hover:border-holo-cyan/40 hover:text-ink"
+        >
+          Bedöma skicket istället?
+          <span className="font-medium text-holo-cyan">Gradera med AI →</span>
+        </Link>
+
+        {/* Så funkar det — ikon-driven flödesöversikt (fyller ytan, minimal text) */}
+        <div className="grid grid-cols-3 gap-2 rounded-2xl border border-surface-border bg-surface-raised/60 p-4">
+          {(
+            [
+              { icon: IconCamera, label: "Fånga kortet" },
+              { icon: IconSparkle, label: "Vi känner igen det" },
+              { icon: IconChart, label: "Se marknadsvärdet" },
+            ] as const
+          ).map(({ icon: Icon, label }) => (
+            <div key={label} className="flex flex-col items-center gap-2 text-center">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-holo-cyan/10 text-holo-cyan">
+                <Icon size={18} />
+              </span>
+              <span className="text-[11px] leading-tight text-ink-muted">{label}</span>
+            </div>
+          ))}
+        </div>
 
         <input
           ref={fileInputRef}

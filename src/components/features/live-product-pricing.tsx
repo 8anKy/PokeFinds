@@ -192,7 +192,7 @@ export function LivePricePanel({
             <StockBadge stockStatus={stats.lowestPriceStockStatus} />
           )}
           {priceChange7dPercent != null && (
-            <PriceChange percent={priceChange7dPercent} />
+            <PriceChange percent={priceChange7dPercent} hideIcon />
           )}
         </div>
       </div>
@@ -213,7 +213,7 @@ export function LivePricePanel({
           <dt className="text-ink-faint">30 dagar</dt>
           <dd>
             {change30 != null ? (
-              <PriceChange percent={change30} />
+              <PriceChange percent={change30} hideIcon />
             ) : (
               <span className="text-ink-faint">–</span>
             )}

@@ -90,26 +90,28 @@ export function ProductCard({ product, className }: ProductCardProps) {
         )}
       </div>
 
-      <div className="space-y-2 p-4">
-        <p className="text-xs font-medium text-ink-faint">{categoryLabel}</p>
-        <h3 className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold text-ink transition-colors group-hover:text-holo-cyan">
+      <div className="space-y-2 p-3.5">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-ink-faint">
+          {categoryLabel}
+        </p>
+        <h3 className="line-clamp-2 min-h-[2.25rem] text-sm font-medium leading-snug text-ink transition-colors group-hover:text-holo-cyan">
           {product.title}
         </h3>
 
-        <div className="flex items-end justify-between gap-2">
+        <div className="flex items-end justify-between gap-2 pt-0.5">
           <div>
-            <p data-price className="text-lg font-bold text-ink">
+            <p data-price className="font-display text-lg font-bold tracking-tight text-ink">
               {formatPrice(product.lowestPrice)}
             </p>
             {product.priceChange7d != null && (
-              <PriceChange percent={product.priceChange7d} className="text-xs" />
+              <PriceChange percent={product.priceChange7d} className="text-xs" hideIcon />
             )}
           </div>
           {product.stockStatus && <StockBadge stockStatus={product.stockStatus} />}
         </div>
 
         {product.retailerCount != null && product.retailerCount > 0 && (
-          <p className="text-xs text-ink-muted">
+          <p className="text-[11px] text-ink-faint">
             {product.retailerCount === 1
               ? "Hos 1 butik"
               : `Hos ${product.retailerCount} butiker`}

@@ -82,40 +82,21 @@ export default async function CollectionPage() {
     price: p.value,
   }));
 
-  const gainUp = value.profit >= 0;
   const topMovers = value.movers.slice(0, 2);
 
   return (
     <div className="space-y-8">
       <h1 className="font-display text-2xl font-bold text-ink">Min samling</h1>
 
-      {/* Mobil-hero: totalt värde + förändring */}
+      {/* Mobil-hero: totalt värde + förändring över vald period + graf */}
       <section className="lg:hidden">
-        <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Totalt värde</p>
-        <div className="mt-1 flex flex-wrap items-baseline gap-3">
-          <span className="font-display text-4xl font-bold tabular-nums text-ink">
-            {formatPrice(value.totalValue)}
-          </span>
-          {value.profitPercent != null && (
-            <span
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                gainUp ? "bg-rise/15 text-rise" : "bg-fall/15 text-fall"
-              }`}
-            >
-              {gainUp ? <IconTrendingUp size={14} /> : <IconTrendingDown size={14} />}
-              {formatPercent(value.profitPercent)}
-            </span>
-          )}
-        </div>
-        <p className="mt-1 text-sm text-ink-muted">
-          {gainUp ? "+" : ""}
-          {formatPrice(value.profit)} sedan inköp · {value.itemCount} objekt
-        </p>
-
-        {/* Grafen ligger direkt på bakgrunden, kant-till-kant (ingen kort-yta) */}
-        <div className="-mx-4 mt-5 sm:-mx-6">
-          <CollectionValueChart data={chartData} isPremium={isPremium} bleed />
-        </div>
+        <CollectionValueChart
+          data={chartData}
+          isPremium={isPremium}
+          bleed
+          totalValue={value.totalValue}
+          itemCount={value.itemCount}
+        />
       </section>
 
       {/* Nyckeltal — desktop */}
