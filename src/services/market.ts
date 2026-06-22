@@ -134,17 +134,38 @@ async function getMostWatchedRaw(limit = 10) {
     });
 }
 
-/** Senaste påfyllningar. */
+/**
+ * Senaste påfyllningar — bara de som FORTFARANDE är i lager. En restock-händelse
+ * är historik; allokerings-droppar (t.ex. Webhallen "Tillfälligt fullbokad") kan
+ * vara slutsålda igen inom minuter. Vi visar därför bara events vars offer just nu
+ * är IN_STOCK (samma offer-status som produktsidans pristabell läser), så listan
+ * aldrig säger "I lager" på något som klick-länken visar som slut.
+ */
 async function getRecentRestocksRaw(limit = 20) {
-  return prisma.restockEvent.findMany({
+  const events = await prisma.restockEvent.findMany({
     where: { newStatus: "IN_STOCK" },
     include: {
       product: { select: { id: true, title: true, slug: true, imageUrl: true } },
       retailer: { select: { id: true, name: true, logoUrl: true } },
     },
     orderBy: { detectedAt: "desc" },
-    take: limit,
+    take: limit * 4, // över-hämta: vissa filtreras bort som slutsålda
   });
+
+  // Aktuell lagerstatus per (produkt, butik) — finns någon IN_STOCK-offer kvar?
+  const inStock = await prisma.offer.findMany({
+    where: {
+      stockStatus: "IN_STOCK",
+      productId: { in: events.map((e) => e.productId) },
+      retailerId: { in: events.map((e) => e.retailerId) },
+    },
+    select: { productId: true, retailerId: true },
+  });
+  const live = new Set(inStock.map((o) => `${o.productId}:${o.retailerId}`));
+
+  return events
+    .filter((e) => live.has(`${e.productId}:${e.retailerId}`))
+    .slice(0, limit);
 }
 
 /** Genomsnittlig prisförändring per set (7 dagar). */
