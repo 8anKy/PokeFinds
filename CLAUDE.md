@@ -22,6 +22,9 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   observationsskrivningar → håller knappt Neon vaken, därför timvis (vs gamla 4h). Täcker ALLA sealed-produkter butikerna
   aktivt säljer (singlar/marknadsplats-only = Cardmarket/Tradera = ej restockWatch). Nya produkter skapas av daglig scrape-all
   och spåras sedan av skanningen; priser uppdateras av scrape-all. Kräver RESEND_API_KEY i workflow (annars console-mode = inga mejl).
+  **Restock-alerts mottagare**: bevakare av produkten (`WatchlistItem.restockAlert`) UNION användare med `notificationSettings.allRestocks=true`
+  (opt-in "Alla restocks" i inställningar, default AV) — de senare får larm för VILKEN sealed-produkt som helst utan att bevaka den.
+  Union+dedup i `checkRestockAlerts` (`src/services/alerts.ts`). Master e-post-toggle respekteras ändå i `dispatchPendingAlerts`.
 - **Funktioner live**: watchlist/prisbevakning, restock-alerts (8 butikskällor), samlingsvärde (live),
   AI-gradering (`/gradera`, Claude vision), live kort-skanner (`/skanna`, capture-baserad), community, admin, PWA.
 - **Status**: 83/83 unit-tester gröna, `npm run build` grön.

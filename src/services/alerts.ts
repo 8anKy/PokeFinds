@@ -109,7 +109,13 @@ export async function checkPriceAlerts(productId: string, newPrice: number) {
 
 /**
  * Kontrollerar restock-larm för en produkt när påfyllning upptäckts.
- * Skapar Alert + Notification för bevakningar med restockAlert.
+ * Mottagare = bevakare av produkten (restockAlert) UNION användare som valt att
+ * få ALLA restocks (notificationSettings.allRestocks=true), utan att bevaka just
+ * den produkten. Skapar Alert (EMAIL) + Notification per unik användare.
+ *
+ * ponytail: ett mejl per restock per mottagare. Vid stora drop-vågor kan en
+ * "alla restocks"-prenumerant få många mejl — lägg en daglig digest om det blir
+ * ett problem (samla restocks under körningen och skicka en sammanfattning).
  */
 export async function checkRestockAlerts(productId: string) {
   const product = await prisma.product.findUnique({
@@ -118,21 +124,31 @@ export async function checkRestockAlerts(productId: string) {
   });
   if (!product) return { triggered: 0 };
 
-  const watchers = await prisma.watchlistItem.findMany({
-    where: { productId, restockAlert: true, isPaused: false },
-    select: { userId: true },
-  });
-  if (watchers.length === 0) return { triggered: 0 };
+  const [watchers, allSubs] = await Promise.all([
+    prisma.watchlistItem.findMany({
+      where: { productId, restockAlert: true, isPaused: false },
+      select: { userId: true },
+    }),
+    prisma.user.findMany({
+      where: { notificationSettings: { path: ["allRestocks"], equals: true } },
+      select: { id: true },
+    }),
+  ]);
+
+  const userIds = new Set<string>();
+  for (const w of watchers) userIds.add(w.userId);
+  for (const u of allSubs) userIds.add(u.id);
+  if (userIds.size === 0) return { triggered: 0 };
 
   const message = `${product.title} finns i lager igen!`;
   const writes: Prisma.PrismaPromise<unknown>[] = [];
-  for (const w of watchers) {
+  for (const userId of userIds) {
     writes.push(
       // EMAIL-kanal → dispatchPendingAlerts skickar mejl (default IN_APP gjorde
       // att restocks aldrig mejlades). Notification nedan = in-app-notisen.
       prisma.alert.create({
         data: {
-          userId: w.userId,
+          userId,
           productId,
           type: "RESTOCK",
           message,
@@ -141,7 +157,7 @@ export async function checkRestockAlerts(productId: string) {
       }),
       prisma.notification.create({
         data: {
-          userId: w.userId,
+          userId,
           title: "Åter i lager",
           body: message,
           linkUrl: `/produkter/${product.slug}`,
@@ -150,5 +166,5 @@ export async function checkRestockAlerts(productId: string) {
     );
   }
   await prisma.$transaction(writes);
-  return { triggered: watchers.length };
+  return { triggered: userIds.size };
 }

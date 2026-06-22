@@ -16,6 +16,7 @@ export interface NotificationSettings {
   inApp: boolean;
   push: boolean;
   weeklyReport: boolean;
+  allRestocks: boolean;
 }
 
 export interface SettingsUser {
@@ -106,6 +107,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
 
   const notificationOptions: { key: keyof NotificationSettings; label: string; hint: string }[] = [
     { key: "email", label: "E-postnotiser", hint: "Prislarm och restocks via e-post." },
+    { key: "allRestocks", label: "Alla restocks", hint: "Få larm när VILKEN sealed-produkt som helst kommer i lager — utan att bevaka den." },
     { key: "inApp", label: "Notiser i appen", hint: "Visas i klockan uppe till höger." },
     { key: "push", label: "Pushnotiser", hint: "Direkt till din enhet (kommer snart)." },
     { key: "weeklyReport", label: "Veckorapport", hint: "Sammanfattning av din samling varje vecka." },

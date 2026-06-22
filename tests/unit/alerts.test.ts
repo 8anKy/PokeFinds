@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const productFindUnique = vi.fn();
 const watchlistFindMany = vi.fn();
+const userFindMany = vi.fn();
 const alertCreate = vi.fn();
 const notificationCreate = vi.fn();
 const transaction = vi.fn();
@@ -16,6 +17,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     product: { findUnique: (...args: unknown[]) => productFindUnique(...args) },
     watchlistItem: { findMany: (...args: unknown[]) => watchlistFindMany(...args) },
+    user: { findMany: (...args: unknown[]) => userFindMany(...args) },
     alert: { create: (...args: unknown[]) => alertCreate(...args) },
     notification: { create: (...args: unknown[]) => notificationCreate(...args) },
     $transaction: (...args: unknown[]) => transaction(...args),
@@ -29,6 +31,7 @@ const PRODUCT = { id: "prod-1", title: "Surging Sparks Booster Box", slug: "surg
 beforeEach(() => {
   productFindUnique.mockReset().mockResolvedValue(PRODUCT);
   watchlistFindMany.mockReset().mockResolvedValue([]);
+  userFindMany.mockReset().mockResolvedValue([]);
   alertCreate.mockReset().mockImplementation((args: unknown) => args);
   notificationCreate.mockReset().mockImplementation((args: unknown) => args);
   transaction.mockReset().mockResolvedValue([]);
@@ -134,10 +137,30 @@ describe("checkRestockAlerts", () => {
     );
   });
 
-  it("utlöser inget utan bevakare", async () => {
+  it("utlöser inget utan bevakare och utan alla-restocks-prenumeranter", async () => {
     const result = await checkRestockAlerts("prod-1");
     expect(result.triggered).toBe(0);
     expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it("larmar 'alla restocks'-prenumeranter utan att de bevakar produkten", async () => {
+    watchlistFindMany.mockResolvedValue([]); // ingen bevakar produkten
+    userFindMany.mockResolvedValue([{ id: "sub-1" }]);
+
+    const result = await checkRestockAlerts("prod-1");
+
+    expect(result.triggered).toBe(1);
+    expect((alertCreate.mock.calls[0][0] as { data: { userId: string } }).data.userId).toBe("sub-1");
+  });
+
+  it("dedupar: bevakare som OCKSÅ prenumererar på alla restocks får ett larm", async () => {
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+    userFindMany.mockResolvedValue([{ id: "user-1" }, { id: "sub-2" }]);
+
+    const result = await checkRestockAlerts("prod-1");
+
+    expect(result.triggered).toBe(2); // user-1 (en gång) + sub-2
+    expect(alertCreate).toHaveBeenCalledTimes(2);
   });
 
   it("returnerar 0 om produkten inte finns", async () => {

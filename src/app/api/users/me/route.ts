@@ -28,6 +28,7 @@ const notificationSettingsSchema = z.object({
   inApp: z.boolean().optional(),
   push: z.boolean().optional(),
   weeklyReport: z.boolean().optional(),
+  allRestocks: z.boolean().optional(),
 });
 
 const patchSchema = z.object({
