@@ -35,6 +35,11 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
 - **Mobilapp via Capacitor** (`android/` finns): kräver Apple/Google-konton; iOS-bygge kräver Mac/cloud-build (användaren på Windows).
 - **Sealed CM-trendrad i pristabellen** kan vara fel pga felmappad `idProduct` (headline-lägsta är ändå rätt — butik vinner);
   kräver bättre sealed→idProduct-mappning.
+- **Auto-import av nya set/produkter (FRAMTID — medvetet manuellt nu)**: katalogen fylls bara av manuella import-skript
+  (`npm run import:tcg` = set+singlar, `scripts/import-sealed-from-cardmarket.ts` = sealed). Restock-skanningen spårar BARA
+  produkter som redan finns i katalogen → ett nytt set syns inte förrän importen körts. Inget schemalagt import-workflow (set
+  släpps ~kvartalsvis → manuell körning räcker, sparar Neon-compute + RapidAPI-kvot). Vill man göra det helt hands-off:
+  lägg ett veckovis Actions-workflow som kör import-skripten (bevaka Neon-transfer + RapidAPI-kvot). Beslut 2026-06-22.
 - **Genuint utan CM-marknadsdata**: ~868 singlar + ~24 sealed → ärlig "–"/döljs tills data finns.
 - **Prishistorik byggs FRAMÅT** — ingen legitim källa ger äkta retroaktiv daglig historik (CM-graf får ej skrapas, RapidAPI ger bara 7d/30d-snitt).
 - Stripe avstängd (`STRIPE_ENABLED=false`); web push förberett men kräver VAPID-nycklar.
