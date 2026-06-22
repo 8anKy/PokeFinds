@@ -16,3 +16,8 @@ next-env.d.ts
 .vercel
 
 .vercel
+.claude/skills/ponytail/
+.claude/skills/ponytail-audit/
+.claude/skills/ponytail-debt/
+.claude/skills/ponytail-help/
+.claude/skills/ponytail-review/
