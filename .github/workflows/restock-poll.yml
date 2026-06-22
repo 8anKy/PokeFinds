@@ -1,0 +1,48 @@
+name: Restock-poll (var 30:e minut)
+
+# Lätt, frekvent koll av SLUTSÅLDA offers på BEVAKADE produkter (Shopify/Webhallen).
+# Bara de kan utlösa ett restock-alert, så mängden är liten → körningen tar sekunder
+# och håller knappt Neon vaken (till skillnad från den fulla restock-watch var 4:e h).
+# Fångar drops inom ~30 min i stället för upp till 4 h. Actions-minuter är gratis
+# (publikt repo); Neon-compute är flaskhalsen → 30 min är vald för att rymmas i free-tier.
+on:
+  schedule:
+    - cron: "*/30 * * * *" # var 30:e minut
+  workflow_dispatch: {}
+
+concurrency:
+  group: restock-poll
+  cancel-in-progress: true
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DB_POOL: "10"
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }} # utan denna mailas inga alerts (mailer går i console-mode)
+    steps:
+      # Self-healing-vakt: hoppa över grönt tills DATABASE_URL-secret finns.
+      - name: Förkrav — DATABASE_URL måste vara satt
+        id: guard
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::notice::DATABASE_URL saknas — hoppar över tills molnhosting (Neon) är konfigurerad. Förväntat = grön körning."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/checkout@v4
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - if: steps.guard.outputs.ready == 'true'
+        run: npm ci --legacy-peer-deps
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx prisma generate
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx tsx scripts/restock-poll-run.ts
