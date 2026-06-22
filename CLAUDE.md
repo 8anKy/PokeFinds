@@ -14,12 +14,14 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
 - **Katalog komplett**: ~173 set, ~20k singlar + ~1558 sealed-produkter (0 saknade set/kort mot pokemontcg.io).
 - **Priser**: singlar = Cardmarket engelska NM-"From" (RapidAPI) × live-kurs; sealed = CM `lowest`. Graf/historik = CM trend.
 - **Auto-uppdatering** via GitHub Actions (repot är publikt → obegränsade Actions-minuter):
-  `cardmarket-refresh` (dagl 05:00 UTC), `tradera-sweep` (dagl 04:00), `scrape-all` (dagl 02:00), `restock-watch` (var 4:e h
-  — sänkt från 2h: höll annars Neons compute igång och brände CU-hrs), `restock-poll` (var 30:e min).
+  `cardmarket-refresh` (dagl 05:00 UTC), `tradera-sweep` (dagl 04:00), `scrape-all` (dagl 02:00), `restock-watch` (VARJE timme).
   Jobben kör DB-skrivningar med `mapPool`-samtidighet så de hinner klart innan timeout.
-  **restock-poll** (`src/jobs/restock-poll.ts`) = lätt, frekvent koll av ENBART slutsålda offers på BEVAKADE produkter
-  (Shopify/Webhallen via `src/scrapers/stock-probe.ts`, en produkt-endpoint per offer, ingen katalog-skrapning). Bara de kan
-  utlösa alert → liten mängd → sekunder, knappt Neon-compute. Fångar drops inom ~30 min (vs 4h). Kräver RESEND_API_KEY i workflow.
+  **restock-watch** = `runRestockScan()` i `src/scrapers/runner.ts` (ej längre tunga runScrapeJob-loopen): hämtar de
+  restock-bevakade butikernas (config.restockWatch) kataloger PARALLELLT (bara HTTP → Neon sover), läser sedan befintliga
+  offers EN gång och diffar lagerstatus per URL i minnet. Skriver BARA lagerövergångar (+ restock-alerts), inga pris-/
+  observationsskrivningar → håller knappt Neon vaken, därför timvis (vs gamla 4h). Täcker ALLA sealed-produkter butikerna
+  aktivt säljer (singlar/marknadsplats-only = Cardmarket/Tradera = ej restockWatch). Nya produkter skapas av daglig scrape-all
+  och spåras sedan av skanningen; priser uppdateras av scrape-all. Kräver RESEND_API_KEY i workflow (annars console-mode = inga mejl).
 - **Funktioner live**: watchlist/prisbevakning, restock-alerts (8 butikskällor), samlingsvärde (live),
   AI-gradering (`/gradera`, Claude vision), live kort-skanner (`/skanna`, capture-baserad), community, admin, PWA.
 - **Status**: 83/83 unit-tester gröna, `npm run build` grön.

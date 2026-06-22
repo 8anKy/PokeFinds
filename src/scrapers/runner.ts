@@ -32,6 +32,8 @@ import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-
 import type { SourceAdapter } from "@/scrapers/types";
 import { checkPriceAlerts, checkRestockAlerts } from "@/services/alerts";
 import { CARDMARKET_SOURCE_NAMES } from "@/services/products";
+import { dispatchPendingAlerts } from "@/services/notifications";
+import { mapPool } from "@/lib/concurrency";
 
 const MAX_ERRORS = 20;
 
@@ -88,6 +90,124 @@ async function getRetailerForSource(sourceName: string, baseUrl: string, type: S
     update: {},
     create: { name: sourceName, websiteUrl: baseUrl, sourceType: type },
   });
+}
+
+export interface RestockScanResult {
+  sources: number;
+  checked: number;
+  restocks: number;
+  alertsSent: number;
+}
+
+/** Hur många butiker som hämtas parallellt (olika hostar → artigt per värd ändå). */
+const RESTOCK_SCAN_CONCURRENCY = 4;
+
+/**
+ * Lätt restock-skanning av ALLA sealed-produkter som de restock-bevakade butikerna
+ * aktivt säljer (ej singlar, ej marknadsplats-only — de kommer från Cardmarket/Tradera
+ * som inte är restockWatch-källor). Två faser så Neon hålls vaken minimalt:
+ *
+ *   1. Hämta alla butikers kataloger PARALLELLT (bara HTTP → Neon sover).
+ *   2. Läs befintliga offers EN gång och diffa lagerstatus per URL i minnet; skriv
+ *      bara faktiska lagerövergångar (+ restock-alerts). Inga pris-/observationsskrivningar.
+ *
+ * Detta ersätter den tunga runScrapeJob-loopen för restock-bevakning: den skrev
+ * pris + observation per produkt och höll Neon igång ~40 min/körning, vilket
+ * tvingade fram 4h-takt. Den här är billig nog att köra varje timme inom free-tier.
+ *
+ * Nya produkter (ingen offer än) plockas upp av daglig scrape-all och spåras sedan
+ * härifrån. Priser uppdateras av scrape-all (denna rör bara lagerstatus).
+ */
+export async function runRestockScan(): Promise<RestockScanResult> {
+  const active = await prisma.scrapeSource.findMany({ where: { isActive: true } });
+  const sources = active.filter(
+    (s) => (s.config as { restockWatch?: boolean } | null)?.restockWatch === true
+  );
+  if (sources.length === 0) {
+    console.log("[restock-scan] Inga restock-watch-källor flaggade.");
+    return { sources: 0, checked: 0, restocks: 0, alertsSent: 0 };
+  }
+
+  // Fas 1: parallell katalog-hämtning (ingen DB → Neon sover under tiden).
+  const fetched: { sourceName: string; items: { url: string; stockStatus: StockStatus }[] }[] =
+    new Array(sources.length);
+  await mapPool(sources, RESTOCK_SCAN_CONCURRENCY, async (source, i) => {
+    try {
+      const adapter = getAdapter(source.type, source.name);
+      const result = await adapter.fetchProducts();
+      const items = result.products
+        .filter((p) => adapter.validateResult(p))
+        .map((p) => {
+          const n = adapter.normalizeProduct(p);
+          return { url: n.url, stockStatus: n.stockStatus };
+        });
+      fetched[i] = { sourceName: source.name, items };
+    } catch (err) {
+      console.error(`[restock-scan] ${source.name} misslyckades:`, err instanceof Error ? err.message : err);
+      fetched[i] = { sourceName: source.name, items: [] };
+    }
+  });
+
+  // Fas 2 (DB-burst): retailer per källa + alla befintliga offers i EN läsning.
+  const retailerByName = new Map<string, string>();
+  for (const source of sources) {
+    const r = await getRetailerForSource(source.name, source.baseUrl, source.type);
+    retailerByName.set(source.name, r.id);
+  }
+  const retailerIds = [...new Set(retailerByName.values())];
+  const offers = await prisma.offer.findMany({
+    where: { retailerId: { in: retailerIds } },
+    select: { id: true, url: true, productId: true, retailerId: true, stockStatus: true },
+  });
+  const offerByKey = new Map<string, (typeof offers)[number]>();
+  for (const o of offers) offerByKey.set(`${o.retailerId}:${o.url}`, o);
+
+  // Färsk lagerstatus per (retailer, url). IN_STOCK vinner om en URL dyker upp flera ggr.
+  const fresh = new Map<string, StockStatus>();
+  for (const { sourceName, items } of fetched) {
+    const retailerId = retailerByName.get(sourceName);
+    if (!retailerId) continue;
+    for (const it of items) {
+      const key = `${retailerId}:${it.url}`;
+      if (fresh.get(key) === StockStatus.IN_STOCK) continue;
+      fresh.set(key, it.stockStatus);
+    }
+  }
+
+  let checked = 0;
+  let restocks = 0;
+  for (const [key, newStatus] of fresh) {
+    const offer = offerByKey.get(key);
+    if (!offer) continue; // ny produkt utan offer → daglig scrape-all skapar den
+    checked++;
+    if (offer.stockStatus !== newStatus) {
+      await prisma.offer.update({
+        where: { id: offer.id },
+        data: { stockStatus: newStatus, lastSeenAt: new Date() },
+      });
+    }
+    const ev = netStockEvent(offer.stockStatus, newStatus);
+    if (!ev.emit) continue;
+    await prisma.restockEvent.create({
+      data: {
+        productId: offer.productId,
+        retailerId: offer.retailerId,
+        oldStatus: ev.oldStatus,
+        newStatus,
+        price: null,
+      },
+    });
+    if (ev.isRestock) {
+      await checkRestockAlerts(offer.productId);
+      restocks++;
+    }
+  }
+
+  const { sent } = await dispatchPendingAlerts();
+  console.log(
+    `[restock-scan] ${sources.length} butiker, ${checked} kollade, ${restocks} restocks, ${sent} alerts.`
+  );
+  return { sources: sources.length, checked, restocks, alertsSent: sent };
 }
 
 export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> {

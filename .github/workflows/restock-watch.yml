@@ -1,14 +1,16 @@
-name: Restock-bevakning (var 4:e timme)
+name: Restock-bevakning (varje timme)
 
-# Kör de restock-bevakade svenska butikerna och skickar restock-alerts vid
-# lagerövergång (slut -> i lager). Var 4:e timme: varje körning håller Neons
-# compute igång ~30–90 min, så tätare cron lät den aldrig skala till noll och
-# brände CU-hrs. 6 körningar/dygn räcker gott för en hobby. Vill du tätare:
-# dra ned intervallet igen (Actions-minuter är gratis på publikt repo; Neon-CU
-# är flaskhalsen).
+# Lätt restock-skanning (runRestockScan): hämtar de restock-bevakade butikernas
+# kataloger PARALLELLT (bara HTTP → Neon sover) och diffar sedan lagerstatus mot
+# befintliga offers i en kort DB-burst. Skriver bara lagerövergångar (+ alerts) —
+# inga pris-/observationsskrivningar. Därför håller den knappt Neon vaken (jfr den
+# gamla tunga loopen som höll compute igång ~40 min och tvingade fram 4h-takt), så
+# vi kör nu VARJE TIMME inom Neon free-tier. Täcker ALLA sealed-produkter butikerna
+# säljer (singlar/marknadsplats-only = Cardmarket/Tradera, ej restockWatch-källor).
+# Vill du tätare (t.ex. 30 min): bevaka Neon-compute — kan kräva betald plan.
 on:
   schedule:
-    - cron: "0 */4 * * *" # var 4:e timme
+    - cron: "0 * * * *" # varje hel timme
   workflow_dispatch: {}
 
 concurrency:
@@ -18,13 +20,9 @@ concurrency:
 jobs:
   watch:
     runs-on: ubuntu-latest
-    # 9 butiker skrapas sekventiellt ~28–40 min → 40 var för snävt (jobbet dödades
-    # mitt i loopen, hoppade resterande butiker OCH den avslutande
-    # dispatchPendingAlerts → inga alerts den cykeln). Publikt repo = obegränsade
-    # Actions-minuter, så generös marginal är gratis. 90 < 120 (2h-cron) → krockar
-    # aldrig med nästa körning. ponytail: höj taket; parallellisera butikerna
-    # (mapPool) först om listan växer så mycket att 90 min inte räcker.
-    timeout-minutes: 90
+    # Parallell hämtning (mapPool) → körningen är HTTP-bunden men klar långt under
+    # taket. Publikt repo = obegränsade Actions-minuter. 30 < 60 (1h-cron) → ingen krock.
+    timeout-minutes: 30
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DB_POOL: "10" # större Prisma-pool → mapPool-samtidighet utan pool_timeout

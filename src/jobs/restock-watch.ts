@@ -1,18 +1,13 @@
 /**
- * Frekvent restock-bevakning (Wave 1). Kör ENBART de källor som flaggats med
- * `config.restockWatch = true` (lätta JSON-butiker + befintliga butiks-adaptrar)
- * och skickar väntande alerts. Tänkt att köras var ~30–60:e minut → tidiga
- * restock-alerts utan att belasta den fulla 8h-insamlingen (priskällor m.m.).
+ * Restock-bevakning: lätt skanning av ALLA sealed-produkter som de restock-
+ * bevakade butikerna (config.restockWatch=true) aktivt säljer. Delegerar till
+ * runRestockScan i runnern (parallell katalog-hämtning + DB-diff per URL, inga
+ * pris-/observationsskrivningar → billigt nog för timvis körning inom Neon free-tier).
  *
- * Restock-detektering sker i runnern: när en offer går OUT_OF_STOCK → IN_STOCK
- * skapas en RestockEvent och `checkRestockAlerts` notifierar bevakare.
- *
- * Delas av jobb-schemaläggaren (worker/instrumentation) + CLI-wrappern
- * scripts/restock-watch-run.ts.
+ * Körs av GitHub Actions (`restock-watch` var timme) + ev. BullMQ-worker/instrumentation.
+ * Den fulla pris-/katalog-insamlingen ligger kvar i scrape-all (dagligen).
  */
-import { prisma } from "../lib/db";
-import { runScrapeJob } from "../scrapers/runner";
-import { dispatchPendingAlerts } from "../services/notifications";
+import { runRestockScan } from "../scrapers/runner";
 
 export interface RestockWatchResult {
   sources: number;
@@ -21,27 +16,6 @@ export interface RestockWatchResult {
 }
 
 export async function runRestockWatch(): Promise<RestockWatchResult> {
-  const active = await prisma.scrapeSource.findMany({ where: { isActive: true } });
-  const watch = active.filter(
-    (s) => (s.config as { restockWatch?: boolean } | null)?.restockWatch === true
-  );
-  if (watch.length === 0) {
-    console.log("[restock-watch] Inga restock-watch-källor flaggade.");
-    return { sources: 0, itemsUpdated: 0, alertsSent: 0 };
-  }
-
-  let itemsUpdated = 0;
-  for (const s of watch) {
-    try {
-      const summary = await runScrapeJob(s.id);
-      itemsUpdated += summary.itemsUpdated;
-      console.log(`[restock-watch] ${s.name}: ${summary.itemsFound} hittade, ${summary.itemsUpdated} uppdaterade.`);
-    } catch (err) {
-      console.error(`[restock-watch] ${s.name} misslyckades:`, err instanceof Error ? err.message : err);
-    }
-  }
-
-  const alerts = await dispatchPendingAlerts();
-  console.log(`[restock-watch] Klart: ${watch.length} källor, ${itemsUpdated} uppdaterade, ${alerts.sent} alerts skickade.`);
-  return { sources: watch.length, itemsUpdated, alertsSent: alerts.sent };
+  const r = await runRestockScan();
+  return { sources: r.sources, itemsUpdated: r.checked, alertsSent: r.alertsSent };
 }
