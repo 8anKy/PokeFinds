@@ -85,10 +85,10 @@ export function CollectionValueChart({
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
-        up ? "bg-rise/15 text-rise" : "bg-fall/15 text-fall"
+        flat ? "bg-surface-raised text-ink-muted" : up ? "bg-rise/15 text-rise" : "bg-fall/15 text-fall"
       )}
     >
-      {up ? <IconTrendingUp size={14} /> : <IconTrendingDown size={14} />}
+      {!flat && (up ? <IconTrendingUp size={14} /> : <IconTrendingDown size={14} />)}
       {formatPercent(Math.round(pct * 100) / 100)}
     </span>
   );
