@@ -16,8 +16,8 @@ export async function register() {
   // håller däremot Fluid-instansen aktiv och bränner Active CPU i onödan
   // (timer = aktiv funktion, även mellan requests). Kör dem därför ALDRIG på
   // Vercel — oavsett env. Lokalt/egen server: env-flaggorna nedan styr som vanligt.
-  if (process.env.VERCEL) {
-    console.log("[instrumentation] Vercel upptäckt — in-process jobb av (GitHub Actions kör dem).");
+  if (process.env.VERCEL || process.env.RAILWAY_ENVIRONMENT) {
+    console.log("[instrumentation] Hostad (Vercel/Railway) — in-process jobb av (GitHub Actions kör dem, sparar minne/CPU).");
     return;
   }
 

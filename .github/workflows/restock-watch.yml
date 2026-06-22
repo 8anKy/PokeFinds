@@ -28,6 +28,7 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DB_POOL: "10" # större Prisma-pool → mapPool-samtidighet utan pool_timeout
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }} # utan denna mailas inga alerts (mailer går i console-mode)
     steps:
       # Self-healing-vakt: tills molnhostingen (Neon) är konfigurerad saknas
       # DATABASE_URL-secret. Då hoppar vi över körningen och lyckas grönt (ingen
