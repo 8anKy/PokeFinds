@@ -23,8 +23,10 @@ workflows:
         script: npm ci --legacy-peer-deps
       - name: Generera iOS-projektet
         script: |
-          npx cap add ios
-          npx cap sync ios
+          set -e
+          # Anropa Capacitor-CLI:t direkt (npx cap kan annars hämta fel npm-paket "cap").
+          ./node_modules/.bin/cap add ios --verbose
+          ./node_modules/.bin/cap sync ios --verbose
       - name: Sätt build-nummer
         script: |
           cd ios/App
