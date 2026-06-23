@@ -461,6 +461,9 @@ async function getPriceHistoryRaw(productId: string, days: number) {
 /** Källor vars observationer utgör marknadspriset (Cardmarket-data). */
 export const CARDMARKET_SOURCE_NAMES = ["Cardmarket", "Pokémon TCG API", "TCGdex API"];
 
+/** Marknadsplatser/priskällor — INTE butiker. Restock-larm ska aldrig avse dessa. */
+export const NON_RETAIL_SOURCE_NAMES = [...CARDMARKET_SOURCE_NAMES, "Tradera"];
+
 /**
  * "Återförsäljare" som egentligen är pris-DATAKÄLLOR (inte köpbara butiker) eller
  * mock — ska ALDRIG visas i butiksfiltret eller som köpbara offers. Cardmarket och

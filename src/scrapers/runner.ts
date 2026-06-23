@@ -31,7 +31,7 @@ import { netStockEvent } from "@/scrapers/restock";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
 import type { SourceAdapter } from "@/scrapers/types";
 import { checkPriceAlerts, checkRestockAlerts } from "@/services/alerts";
-import { CARDMARKET_SOURCE_NAMES } from "@/services/products";
+import { CARDMARKET_SOURCE_NAMES, NON_RETAIL_SOURCE_NAMES } from "@/services/products";
 import { dispatchPendingAlerts } from "@/services/notifications";
 import { mapPool } from "@/lib/concurrency";
 
@@ -465,7 +465,10 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
           price: st.price,
         },
       });
-      if (ev.isRestock) await checkRestockAlerts(st.productId);
+      // Restock-larm BARA för riktiga butiker — aldrig Cardmarket/Tradera.
+      if (ev.isRestock && !NON_RETAIL_SOURCE_NAMES.includes(retailer.name)) {
+        await checkRestockAlerts(st.productId);
+      }
       logs.push(
         `Lagerstatus ändrad för produkt ${st.productId}: ${ev.oldStatus} → ${st.newStatus}`
       );

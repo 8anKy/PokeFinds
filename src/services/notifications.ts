@@ -7,9 +7,10 @@ import { AlertChannel, AlertStatus, AlertType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { sendMail } from "@/lib/mailer";
 import { priceAlertEmail, restockAlertEmail } from "@/emails/templates";
+import { NON_RETAIL_SOURCE_NAMES } from "@/services/products";
 
 const MAX_RETRIES = 3;
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://foilio.se";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.foilio.se";
 
 export interface NotificationInput {
   title: string;
@@ -67,7 +68,7 @@ async function buildAlertEmail(alert: {
         offers: {
           where: { price: { not: null } },
           orderBy: { price: "asc" },
-          take: 1,
+          take: 10,
           include: { retailer: true },
         },
       },
@@ -84,10 +85,18 @@ async function buildAlertEmail(alert: {
         );
       }
       if (alert.type === AlertType.RESTOCK) {
+        // Restock = butiks-händelse: visa billigaste butik som har den i lager,
+        // aldrig Cardmarket/Tradera (de utlöser inte restock-larm).
+        const retailOffer =
+          product.offers.find(
+            (o) =>
+              o.stockStatus === "IN_STOCK" &&
+              !NON_RETAIL_SOURCE_NAMES.includes(o.retailer.name)
+          ) ?? bestOffer;
         return restockAlertEmail(
           alert.user.name,
           product.title,
-          bestOffer?.retailer.name ?? "en återförsäljare",
+          retailOffer?.retailer.name ?? "en återförsäljare",
           productUrl
         );
       }

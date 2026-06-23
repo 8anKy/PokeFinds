@@ -16,7 +16,7 @@ export interface WeeklyStats {
   biggestDrop?: { title: string; percent: number };
 }
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://foilio.se";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.foilio.se";
 
 function formatSek(ore: number): string {
   return `${(ore / 100).toLocaleString("sv-SE", { minimumFractionDigits: 2 })} kr`;
