@@ -5,7 +5,9 @@ import { BrandLogo } from "@/components/layout/brand-logo";
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-40 border-b border-surface-border bg-surface/85 backdrop-blur-md">
+    {/* Mobil: scrollar bort (bottom-tabs är navet) → blockerar inte innehåll.
+        Desktop: sticky som vanligt. */}
+    <header className="z-40 border-b border-surface-border bg-surface/85 backdrop-blur-md lg:sticky lg:top-0">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         <Link href="/" aria-label="Foilio — startsida">
           <BrandLogo />

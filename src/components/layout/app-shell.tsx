@@ -90,7 +90,7 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Topbar */}
-        <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-surface-border bg-surface/90 px-4 backdrop-blur-md">
+        <header className="z-40 flex h-16 items-center justify-between border-b border-surface-border bg-surface/90 px-4 backdrop-blur-md lg:sticky lg:top-0">
           <div className="flex items-center gap-3">
             <Link href="/" className="lg:hidden" aria-label="Foilio — startsida">
               <BrandLogo />
