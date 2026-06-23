@@ -23,15 +23,9 @@ workflows:
         script: npm ci --legacy-peer-deps
       - name: Generera iOS-projektet
         script: |
-          # All output → fil (Codemagic-loggvisaren visar inget) + artifact-nedladdning.
-          exec > >(tee "$CM_BUILD_DIR/gen-ios.log") 2>&1
-          set -x
-          pwd
-          node --version
-          ls -la node_modules/.bin/ | grep -i cap || echo "NO CAP BIN"
-          ./node_modules/.bin/cap --version || echo "cap --version failed"
-          ./node_modules/.bin/cap add ios --verbose || echo "ADD FAILED rc=$?"
-          ./node_modules/.bin/cap sync ios --verbose || echo "SYNC FAILED rc=$?"
+          set -e
+          ./node_modules/.bin/cap add ios
+          ./node_modules/.bin/cap sync ios
       - name: Sätt build-nummer
         script: |
           cd ios/App
@@ -50,7 +44,6 @@ workflows:
             --scheme "$XCODE_SCHEME"
     artifacts:
       - build/ios/ipa/*.ipa
-      - gen-ios.log
     publishing:
       app_store_connect:
         auth: integration
