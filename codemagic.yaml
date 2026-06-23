@@ -37,6 +37,8 @@ workflows:
           agvtool new-version -all "$BUILD_NUMBER"
       - name: Kodsignering (auto via App Store Connect API-nyckel)
         script: |
+          exec > >(tee "$CM_BUILD_DIR/sign.log") 2>&1
+          set -x
           keychain initialize
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE --create
@@ -51,6 +53,7 @@ workflows:
     artifacts:
       - build/ios/ipa/*.ipa
       - gen-ios.log
+      - sign.log
       - build-ipa.log
       - /tmp/xcodebuild_logs/*.log
     publishing:
