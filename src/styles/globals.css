@@ -11,6 +11,9 @@
 @layer base {
   html {
     @apply scroll-smooth;
+    /* Klipp horisontellt spill (t.ex. -mx-4-kanter) så mobil-WebView:en inte kan
+       scrollas i sidled. På html (rot-scrollern) → bryter inte sticky-headern. */
+    overflow-x: hidden;
   }
   body {
     @apply bg-surface font-sans text-ink antialiased;

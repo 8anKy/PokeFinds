@@ -43,6 +43,9 @@ export const viewport: Viewport = {
   // Explicit annars tappas device-width i Capacitor-WebView:en → desktop-layout på mobil.
   width: "device-width",
   initialScale: 1,
+  // cover = innehåll edge-to-edge + env(safe-area-inset-*) får riktiga värden så
+  // sticky-headern kan padda undan iOS-statusfältet (notch). Se headers + globals.css.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
