@@ -40,8 +40,12 @@ workflows:
           exec > >(tee "$CM_BUILD_DIR/sign.log") 2>&1
           set -x
           keychain initialize
+          # Apple ger inte privata nyckeln för befintliga cert → vi förser en egen;
+          # --create skapar (och återanvänder) ett distributions-cert från den.
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE --create
+            --type IOS_APP_STORE \
+            --certificate-key @env:CERTIFICATE_PRIVATE_KEY \
+            --create
           keychain add-certificates
           xcode-project use-profiles
       - name: Bygg IPA

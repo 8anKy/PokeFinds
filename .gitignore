@@ -21,3 +21,4 @@ next-env.d.ts
 .claude/skills/ponytail-debt/
 .claude/skills/ponytail-help/
 .claude/skills/ponytail-review/
+codemagic-cert-key.pem
