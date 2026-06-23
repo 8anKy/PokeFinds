@@ -13,7 +13,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * Saknas den laddas det lokala offline-skalet (mobile-shell/index.html) som ber
  * dig sätta URL:en. Se docs/MOBILE.md.
  */
-const SERVER_URL = process.env.CAP_SERVER_URL?.trim() || "https://pokefinds.vercel.app";
+const SERVER_URL = process.env.CAP_SERVER_URL?.trim() || "https://www.foilio.se";
 
 const config: CapacitorConfig = {
   appId: "se.pokefinds.app",

@@ -40,6 +40,7 @@
     "@capacitor/core": "^6.2.1",
     "@capacitor/ios": "^6.2.1",
     "@prisma/client": "^5.22.0",
+    "@revenuecat/purchases-capacitor": "^13.2.0",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.25.6",
     "clsx": "^2.1.1",

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { LinkButton, Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/button";
 import { IconCheck, IconPlus } from "@/components/ui/icons";
+import { UpgradeButton } from "./upgrade-button";
 
 export const metadata: Metadata = {
   title: "Priser",
@@ -102,12 +103,7 @@ export default function PricingPage() {
             <div className="mt-8 flex-1">
               <FeatureList items={PREMIUM_FEATURES} />
             </div>
-            <Button disabled className="mt-8 w-full">
-              Kommer snart
-            </Button>
-            <p className="mt-2 text-center text-xs text-ink-faint">
-              Betalning lanseras inom kort. Ingen bindningstid.
-            </p>
+            <UpgradeButton />
           </div>
         </div>
       </div>
