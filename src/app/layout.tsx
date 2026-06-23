@@ -11,7 +11,6 @@ import { Providers } from "@/components/providers";
 import { CookieBanner } from "@/components/features/cookie-banner";
 import { ServiceWorkerRegister } from "@/components/pwa-register";
 import { BottomTabs } from "@/components/layout/bottom-tabs";
-import { DebugInfo } from "@/components/debug-info";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
@@ -44,9 +43,6 @@ export const viewport: Viewport = {
   // Explicit annars tappas device-width i Capacitor-WebView:en → desktop-layout på mobil.
   width: "device-width",
   initialScale: 1,
-  // cover = innehåll edge-to-edge + env(safe-area-inset-*) får riktiga värden så
-  // sticky-headern kan padda undan iOS-statusfältet (notch). Se headers + globals.css.
-  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -56,7 +52,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           {children}
           <BottomTabs />
-          <DebugInfo />
           <CookieBanner />
           <ServiceWorkerRegister />
         </Providers>

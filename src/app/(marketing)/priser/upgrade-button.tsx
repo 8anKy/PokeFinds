@@ -44,8 +44,9 @@ export function UpgradeButton() {
     setBusy(true);
     setMsg(null);
     try {
+      // /api/users/me returnerar user-objektet direkt (jsonOk → ingen data-wrapper).
       const me = await fetch("/api/users/me").then((r) => r.json());
-      const id = me?.data?.id;
+      const id = me?.id;
       if (!id) throw new Error("Kunde inte läsa kontot.");
       const ok = await action(id);
       if (ok) {
