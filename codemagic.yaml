@@ -24,9 +24,13 @@ workflows:
       - name: Generera iOS-projektet
         script: |
           exec > >(tee "$CM_BUILD_DIR/gen-ios.log") 2>&1
-          set -x
-          ./node_modules/.bin/cap add ios || echo "ADD FAILED rc=$?"
-          ./node_modules/.bin/cap sync ios || echo "SYNC FAILED rc=$?"
+          set -ex
+          # cap add genererar ios/ men dess pod install fallerar (RevenueCat-podden
+          # kräver iOS 15.0, Capacitor genererar 13.0) → || true, vi fixar target nedan.
+          ./node_modules/.bin/cap add ios || true
+          sed -i '' "s/platform :ios, '13.0'/platform :ios, '15.0'/" ios/App/Podfile
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13.0/IPHONEOS_DEPLOYMENT_TARGET = 15.0/g' ios/App/App.xcodeproj/project.pbxproj
+          (cd ios/App && pod install)
       - name: Sätt build-nummer
         script: |
           cd ios/App
