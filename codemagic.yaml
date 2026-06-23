@@ -1,0 +1,49 @@
+# Codemagic CI — bygger iOS-skalet (Capacitor) och laddar upp till TestFlight.
+# Förutsätter: App Store Connect-integration i Codemagic (Team settings → Integrations)
+# och bundle-id se.foilio.app registrerat i Developer-portalen (det är det — appen finns
+# i App Store Connect). ios/ är INTE incheckat → genereras med `cap add ios` i bygget.
+workflows:
+  ios-testflight:
+    name: Foilio iOS → TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: foilio-asc        # namnet du ger integrationen i Codemagic-UI
+    environment:
+      node: 22
+      xcode: latest
+      cocoapods: default
+      vars:
+        CAP_SERVER_URL: "https://www.foilio.se"
+        BUNDLE_ID: "se.foilio.app"
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+    scripts:
+      - name: Installera deps
+        script: npm ci --legacy-peer-deps
+      - name: Generera iOS-projektet
+        script: |
+          npx cap add ios
+          npx cap sync ios
+      - name: Sätt build-nummer
+        script: |
+          cd ios/App
+          agvtool new-version -all "$BUILD_NUMBER"
+      - name: Kodsignering (auto via App Store Connect API-nyckel)
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE --create
+          keychain add-certificates
+          xcode-project use-profiles
+      - name: Bygg IPA
+        script: |
+          xcode-project build-ipa \
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
