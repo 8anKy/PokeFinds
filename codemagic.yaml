@@ -13,6 +13,8 @@ workflows:
       node: 22
       xcode: latest
       cocoapods: default
+      groups:
+        - ios_signing        # innehåller CERTIFICATE_PRIVATE_KEY (Codemagic-UI, Secure)
       vars:
         CAP_SERVER_URL: "https://www.foilio.se"
         BUNDLE_ID: "se.foilio.app"
