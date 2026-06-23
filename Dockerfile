@@ -8,7 +8,7 @@ WORKDIR /app
 
 FROM base AS deps
 COPY package.json package-lock.json* ./
-RUN npm ci || npm install
+RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
 FROM base AS build
 # Build-args måste deklareras före användning. DATABASE_URL behövs för ISR-statisk
