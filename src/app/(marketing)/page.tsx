@@ -28,7 +28,7 @@ export const revalidate = 3600;
 const FAQ: { q: string; a: string }[] = [
   {
     q: "Är Foilio gratis?",
-    a: "Ja. Med ett gratiskonto kan du bevaka upp till 10 produkter, hantera en grundläggande samling och ta del av marknadsdata. Premium låser upp obegränsade bevakningar, snabbare restock-notiser och avancerad analys.",
+    a: "Ja. Med ett gratiskonto kan du bevaka upp till 10 produkter, hantera en grundläggande samling och ta del av marknadsdata. Pro låser upp obegränsade bevakningar, alla restock-larm, AI-gradering och avancerad analys.",
   },
   {
     q: "Vilka butiker bevakar ni?",

@@ -60,9 +60,17 @@ export async function PATCH(req: Request) {
 
     const current = await prisma.user.findUnique({
       where: { id: sessionUser.id },
-      select: { notificationSettings: true, preferences: true },
+      select: { notificationSettings: true, preferences: true, planTier: true },
     });
     if (!current) throw new AuthError(404, "Användaren hittades inte.");
+
+    // "Alla restocks" är Pro-only — tysta ner försök från gratisanvändare.
+    if (
+      input.notificationSettings?.allRestocks === true &&
+      current.planTier !== "PREMIUM"
+    ) {
+      input.notificationSettings.allRestocks = false;
+    }
 
     const data: Prisma.UserUpdateInput = {};
     if (input.name !== undefined) data.name = input.name;

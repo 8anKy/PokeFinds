@@ -18,7 +18,7 @@ export function SiteFooter() {
             <li><Link href="/produkter" className="transition-colors duration-150 hover:text-ink">Utforska produkter</Link></li>
             <li><Link href="/marknad" className="transition-colors duration-150 hover:text-ink">Marknadstrender</Link></li>
             <li><Link href="/skanna" className="transition-colors duration-150 hover:text-ink">Skanna kort</Link></li>
-            <li><Link href="/priser" className="transition-colors duration-150 hover:text-ink">Priser & Premium</Link></li>
+            <li><Link href="/priser" className="transition-colors duration-150 hover:text-ink">Priser & Pro</Link></li>
           </ul>
         </div>
         <div>

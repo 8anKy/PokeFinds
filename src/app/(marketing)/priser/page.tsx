@@ -6,11 +6,12 @@ import { UpgradeButton } from "./upgrade-button";
 export const metadata: Metadata = {
   title: "Priser",
   description:
-    "Kom igång gratis med Foilio eller uppgradera till Premium för obegränsade bevakningar, snabbare restock-notiser och full samlingsanalys.",
+    "Kom igång gratis med Foilio eller uppgradera till Pro för obegränsade bevakningar, alla restock-larm och AI-gradering.",
 };
 
 const FREE_FEATURES = [
   "10 bevakningar med pris- och restock-alerts",
+  "5 AI-graderingar och 10 skanningar per dag",
   "Grundläggande samling med värdeöversikt",
   "Grundläggande marknadsdata och prisgrafer",
   "Community-åtkomst",
@@ -18,25 +19,25 @@ const FREE_FEATURES = [
 
 const PREMIUM_FEATURES = [
   "Obegränsade alerts och bevakningar",
-  "Snabbare restock-notiser — först till kvarn",
+  "Alla restocks — larm för varje sealed-produkt",
+  "AI-gradering med starkare modell (30/dygn)",
+  "Kortskanning (100/dygn)",
   "Avancerade prisgrafer och längre historik",
-  "CSV-import och -export av samlingen",
-  "Full samlingsanalys med värdeutveckling",
-  "Veckorapporter direkt i inkorgen",
+  "CSV-import och -export samt veckorapporter",
 ];
 
 const FAQ = [
   {
     q: "Kan jag byta plan när som helst?",
-    a: "Ja. Du kan uppgradera eller säga upp Premium när du vill i Inställningar, utan bindningstid.",
+    a: "Ja. Du kan uppgradera eller säga upp Pro när du vill, utan bindningstid. Köpet hanteras av App Store / Google Play.",
   },
   {
     q: "Vad händer med mina bevakningar om jag nedgraderar?",
     a: "Dina bevakningar finns kvar, men bara de 10 senaste är aktiva på gratisnivån. Du väljer själv vilka som ska vara aktiva.",
   },
   {
-    q: "Hur betalar jag för Premium?",
-    a: "Betalning med kort lanseras inom kort. Fram till dess är Premium inte tillgängligt att köpa — men gratisnivån är öppen för alla.",
+    q: "Hur betalar jag för Pro?",
+    a: "I appen sker köpet säkert via App Store eller Google Play. På webben lanseras betalning inom kort — tills dess är gratisnivån öppen för alla.",
   },
 ];
 
@@ -88,7 +89,7 @@ export default function PricingPage() {
           <div className="foil-line" aria-hidden="true" />
           <div className="flex flex-1 flex-col p-8">
             <div className="flex items-baseline justify-between gap-3">
-              <h2 className="font-display text-xl font-semibold text-ink">Premium</h2>
+              <h2 className="font-display text-xl font-semibold text-ink">Pro</h2>
               <span className="text-xs font-medium text-holo-cyan">
                 För seriösa samlare
               </span>

@@ -48,16 +48,16 @@ describe("freeDailyLimit", () => {
 });
 
 describe("getGradingQuota", () => {
-  it("PREMIUM är obegränsad", async () => {
+  it("PREMIUM har fair-use-gräns (30/dygn default)", async () => {
+    count.mockResolvedValue(4);
     const q = await getGradingQuota("u1", "PREMIUM");
-    expect(q).toEqual({ used: 0, limit: null, remaining: null });
-    expect(count).not.toHaveBeenCalled();
+    expect(q).toEqual({ used: 4, limit: 30, remaining: 26, isPremium: true });
   });
 
   it("FREE räknar dagens jobb och returnerar återstående", async () => {
     count.mockResolvedValue(2);
     const q = await getGradingQuota("u1", "FREE");
-    expect(q).toEqual({ used: 2, limit: 5, remaining: 3 });
+    expect(q).toEqual({ used: 2, limit: 5, remaining: 3, isPremium: false });
   });
 });
 
@@ -66,6 +66,15 @@ describe("runGradingJob", () => {
     count.mockResolvedValue(5);
     await expect(
       runGradingJob("u1", "FREE", PNG, PNG)
+    ).rejects.toMatchObject({ status: 429 });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("blockerar även PREMIUM vid fair-use-gränsen (429)", async () => {
+    process.env.GRADING_PREMIUM_DAILY_LIMIT = "30";
+    count.mockResolvedValue(30);
+    await expect(
+      runGradingJob("u1", "PREMIUM", PNG, PNG)
     ).rejects.toMatchObject({ status: 429 });
     expect(create).not.toHaveBeenCalled();
   });

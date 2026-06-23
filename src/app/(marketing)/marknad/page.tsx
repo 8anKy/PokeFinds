@@ -297,13 +297,13 @@ export default async function MarketPage() {
             Vill du gräva djupare i datan?
           </h2>
           <p className="relative mx-auto mt-2 max-w-xl text-ink-muted">
-            Med Premium får du längre prishistorik, avancerade grafer,
-            veckorapporter och snabbare restock-notiser — så att du agerar innan
+            Med Pro får du längre prishistorik, avancerade grafer,
+            veckorapporter och alla restock-larm — så att du agerar innan
             alla andra.
           </p>
           <div className="relative mt-6">
             <LinkButton href="/priser" size="lg">
-              Se vad Premium ger dig
+              Se vad Pro ger dig
             </LinkButton>
           </div>
         </div>

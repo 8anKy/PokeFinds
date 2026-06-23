@@ -5,7 +5,7 @@
  * imageUrl sätts till "inline-upload". I produktion laddas bilden upp till
  * S3-kompatibel objektlagring och URL:en sparas här (se docs/SCANNER.md).
  */
-import type { Prisma, ScannerJob } from "@prisma/client";
+import type { PlanTier, Prisma, ScannerJob } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { extractSetNumber, scoreSimilarity } from "@/scrapers/matching";
@@ -19,6 +19,40 @@ const INLINE_UPLOAD = "inline-upload";
 
 /** Max antal kandidater som returneras. */
 const MAX_CANDIDATES = 5;
+
+/** Dygnsgräns för sparade skanningar per plan (skyddar mot AI-missbruk). */
+function scannerLimitForTier(planTier: PlanTier): number {
+  const env =
+    planTier === "PREMIUM"
+      ? process.env.SCANNER_PREMIUM_DAILY_LIMIT ?? "100"
+      : process.env.SCANNER_FREE_DAILY_LIMIT ?? "10";
+  const n = Number(env);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : planTier === "PREMIUM" ? 100 : 10;
+}
+
+function startOfTodayUtc(): Date {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
+export interface ScannerQuota {
+  used: number;
+  limit: number;
+  remaining: number;
+}
+
+/** Dagens skanningskvot (misslyckade jobb räknas inte). */
+export async function getScannerQuota(
+  userId: string,
+  planTier: PlanTier
+): Promise<ScannerQuota> {
+  const limit = scannerLimitForTier(planTier);
+  const used = await prisma.scannerJob.count({
+    where: { userId, createdAt: { gte: startOfTodayUtc() }, status: { not: "FAILED" } },
+  });
+  return { used, limit, remaining: Math.max(0, limit - used) };
+}
 
 /**
  * Returnerar konfigurerad OCR-adapter utifrån env-variabeln OCR_PROVIDER.
@@ -141,8 +175,19 @@ export interface ScanResult {
  */
 export async function runScannerJob(
   userId: string,
+  planTier: PlanTier,
   imageDataUrl: string
 ): Promise<ScanResult> {
+  const quota = await getScannerQuota(userId, planTier);
+  if (quota.remaining <= 0) {
+    throw new ServiceError(
+      429,
+      planTier === "PREMIUM"
+        ? `Du har nått dagens gräns på ${quota.limit} skanningar. Försök igen i morgon.`
+        : `Du har använt dina ${quota.limit} gratis skanningar i dag. Uppgradera till Pro för fler.`
+    );
+  }
+
   const adapter = getOcrAdapter();
 
   const job = await prisma.scannerJob.create({

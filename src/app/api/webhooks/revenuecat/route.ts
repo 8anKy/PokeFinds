@@ -1,24 +1,7 @@
 import { prisma } from "@/lib/db";
+import { planForEvent } from "./mapping";
 
 export const dynamic = "force-dynamic";
-
-// RevenueCat-event → vad planTier ska bli. null = ignorera (t.ex. CANCELLATION =
-// "förnyas inte" men access finns kvar till EXPIRATION fyrar). Se RC webhook-docs.
-export function planForEvent(type: string): "PREMIUM" | "FREE" | null {
-  switch (type) {
-    case "INITIAL_PURCHASE":
-    case "RENEWAL":
-    case "UNCANCELLATION":
-    case "PRODUCT_CHANGE":
-    case "NON_RENEWING_PURCHASE":
-    case "SUBSCRIPTION_EXTENDED":
-      return "PREMIUM";
-    case "EXPIRATION":
-      return "FREE";
-    default:
-      return null;
-  }
-}
 
 export async function POST(req: Request) {
   // Verifiering = delad hemlig Authorization-header satt i RevenueCat-dashboarden.

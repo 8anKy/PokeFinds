@@ -82,12 +82,12 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2>6. Premium och betalning</h2>
+          <h2>6. Pro och betalning</h2>
           <p className="mt-2">
-            Vissa funktioner kräver ett Premium-abonnemang. Aktuella priser och
+            Vissa funktioner kräver ett Pro-abonnemang. Aktuella priser och
             funktioner framgår av prissidan. Abonnemanget löper månadsvis utan
-            bindningstid och kan sägas upp när som helst i Inställningar; det gäller
-            då till slutet av den betalda perioden.
+            bindningstid. I appen hanteras köp och uppsägning av App Store eller
+            Google Play; en uppsägning gäller till slutet av den betalda perioden.
           </p>
         </section>
 

@@ -52,7 +52,7 @@ export function UpgradeButton() {
         setMsg(okMsg);
         setTimeout(() => location.reload(), 1500); // webhooken hinner skriva planTier
       } else {
-        setMsg("Ingen aktiv Premium hittades.");
+        setMsg("Ingen aktiv Pro hittades.");
       }
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Köpet kunde inte slutföras.");
@@ -66,14 +66,14 @@ export function UpgradeButton() {
       <Button
         className="mt-8 w-full"
         disabled={busy}
-        onClick={() => run(purchasePremium, "Tack! Premium aktiveras strax.")}
+        onClick={() => run(purchasePremium, "Tack! Pro aktiveras strax.")}
       >
-        {busy ? "Bearbetar…" : "Uppgradera till Premium"}
+        {busy ? "Bearbetar…" : "Uppgradera till Pro"}
       </Button>
       <button
         type="button"
         disabled={busy}
-        onClick={() => run(restorePremium, "Premium återställt.")}
+        onClick={() => run(restorePremium, "Pro återställt.")}
         className="mt-3 w-full text-center text-xs text-ink-faint underline disabled:opacity-50"
       >
         Återställ köp

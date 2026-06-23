@@ -57,7 +57,7 @@ export default async function MerPage() {
     { href: "/dashboard", label: "Översikt", icon: IconDashboard, iconClass: "text-ink-muted" },
     {
       href: "/priser",
-      label: isPremium ? "Prenumeration" : "Uppgradera till Premium",
+      label: isPremium ? "Prenumeration" : "Uppgradera till Pro",
       icon: IconTrophy,
       iconClass: "text-holo-gold",
     },
@@ -86,7 +86,7 @@ export default async function MerPage() {
           <span className="min-w-0 flex-1">
             <span className="block truncate text-base font-semibold text-ink">{name}</span>
             <span className="block text-xs text-ink-muted">
-              {isPremium ? "Premium-medlem" : "Gratismedlem"}
+              {isPremium ? "Pro-medlem" : "Gratismedlem"}
             </span>
           </span>
           <IconChevronRight size={18} className="shrink-0 text-ink-muted" />

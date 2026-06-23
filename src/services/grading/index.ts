@@ -24,6 +24,16 @@ export function freeDailyLimit(): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 5;
 }
 
+/** Daglig fair-use-gräns för Pro (skyddar marginalen mot Sonnet-missbruk). */
+export function premiumDailyLimit(): number {
+  const n = Number(process.env.GRADING_PREMIUM_DAILY_LIMIT ?? "30");
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 30;
+}
+
+function limitForTier(planTier: PlanTier): number {
+  return planTier === "PREMIUM" ? premiumDailyLimit() : freeDailyLimit();
+}
+
 function modelForTier(planTier: PlanTier): string {
   return planTier === "PREMIUM"
     ? process.env.GRADING_MODEL_PREMIUM ?? "claude-sonnet-4-6"
@@ -55,10 +65,12 @@ function startOfTodayUtc(): Date {
 export interface GradingQuota {
   /** Antal graderingar gjorda i dag. */
   used: number;
-  /** Dygnsgräns (null = obegränsat, dvs PREMIUM). */
+  /** Dygnsgräns. */
   limit: number | null;
-  /** Återstående i dag (null = obegränsat). */
+  /** Återstående i dag. */
   remaining: number | null;
+  /** True för Pro (styr UI-text: ingen "uppgradera"-knapp). */
+  isPremium: boolean;
 }
 
 /** Returnerar dagens kvotstatus för en användare. */
@@ -66,10 +78,7 @@ export async function getGradingQuota(
   userId: string,
   planTier: PlanTier
 ): Promise<GradingQuota> {
-  if (planTier === "PREMIUM") {
-    return { used: 0, limit: null, remaining: null };
-  }
-  const limit = freeDailyLimit();
+  const limit = limitForTier(planTier);
   // Misslyckade graderingar ska inte tära på dygnskvoten.
   const used = await prisma.gradingJob.count({
     where: {
@@ -78,7 +87,12 @@ export async function getGradingQuota(
       status: { not: "FAILED" },
     },
   });
-  return { used, limit, remaining: Math.max(0, limit - used) };
+  return {
+    used,
+    limit,
+    remaining: Math.max(0, limit - used),
+    isPremium: planTier === "PREMIUM",
+  };
 }
 
 export interface GradingJobResult {
@@ -96,15 +110,15 @@ export async function runGradingJob(
   backDataUrl: string,
   context?: GradingContext
 ): Promise<GradingJobResult> {
-  // Kvot för gratisanvändare.
-  if (planTier === "FREE") {
-    const quota = await getGradingQuota(userId, planTier);
-    if (quota.remaining !== null && quota.remaining <= 0) {
-      throw new ServiceError(
-        429,
-        `Du har använt dina ${quota.limit} gratis graderingar i dag. Uppgradera till Premium för fler.`
-      );
-    }
+  // Daglig kvot (FREE = gratisgräns, PREMIUM = fair-use-gräns mot missbruk).
+  const quota = await getGradingQuota(userId, planTier);
+  if (quota.remaining !== null && quota.remaining <= 0) {
+    throw new ServiceError(
+      429,
+      planTier === "PREMIUM"
+        ? `Du har nått dagens gräns på ${quota.limit} graderingar. Försök igen i morgon.`
+        : `Du har använt dina ${quota.limit} gratis graderingar i dag. Uppgradera till Pro för fler.`
+    );
   }
 
   const adapter = getGradingAdapter(planTier);

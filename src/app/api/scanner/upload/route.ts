@@ -39,7 +39,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { job, candidates } = await runScannerJob(user.id, image);
+    const { job, candidates } = await runScannerJob(user.id, user.planTier, image);
 
     return jsonOk(
       {

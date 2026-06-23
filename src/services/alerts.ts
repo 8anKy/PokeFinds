@@ -130,7 +130,12 @@ export async function checkRestockAlerts(productId: string) {
       select: { userId: true },
     }),
     prisma.user.findMany({
-      where: { notificationSettings: { path: ["allRestocks"], equals: true } },
+      // "Alla restocks" är en Pro-förmån — gratisanvändare får bara larm på
+      // produkter de själva bevakar (restockAlert ovan).
+      where: {
+        notificationSettings: { path: ["allRestocks"], equals: true },
+        planTier: "PREMIUM",
+      },
       select: { id: true },
     }),
   ]);

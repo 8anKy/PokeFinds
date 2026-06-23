@@ -30,7 +30,7 @@ Capacitor WebView ──► server.url = https://din-hostade-app  (Railway)
    (kamera, ev. push)
 ```
 
-- `capacitor.config.ts` — appId `se.pokefinds.app`, appName `Foilio`,
+- `capacitor.config.ts` — appId `se.foilio.app`, appName `Foilio`,
   `server.url` läses från env `CAP_SERVER_URL`.
 - `mobile-shell/index.html` — offline-/fallback-skal (visas bara om ingen
   server-URL är satt eller appen är offline).
@@ -88,7 +88,7 @@ export CAP_SERVER_URL="https://www.foilio.se"
 npm run cap:sync
 npm run cap:ios                           # öppnar Xcode
 ```
-I Xcode: sätt Team (Apple Developer, $99/år), Bundle Id `se.pokefinds.app`, kör på
+I Xcode: sätt Team (Apple Developer, $99/år), Bundle Id `se.foilio.app`, kör på
 simulator/enhet, **Product ▸ Archive** → ladda upp till App Store Connect.
 
 Lägg till i `ios/App/App/Info.plist` (kamera-behörighet, annars kraschar skannern):
@@ -165,7 +165,7 @@ npm run cap:sync
 | Sak | Var |
 | --- | --- |
 | Server-URL appen laddar | env `CAP_SERVER_URL` (vid `cap sync`/bygge) |
-| App-id / namn | `capacitor.config.ts` (`se.pokefinds.app` / `Foilio`) |
+| App-id / namn | `capacitor.config.ts` (`se.foilio.app` / `Foilio`) |
 | Android-behörigheter | `android/app/src/main/AndroidManifest.xml` |
 | iOS-behörigheter | `ios/App/App/Info.plist` (på Mac) |
 | Offline-skal | `mobile-shell/index.html` |

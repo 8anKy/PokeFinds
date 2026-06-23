@@ -40,6 +40,7 @@ interface Quota {
   used: number;
   limit: number | null;
   remaining: number | null;
+  isPremium: boolean;
 }
 
 interface GradeResponse {
@@ -263,14 +264,14 @@ export default function GraderaPage() {
       {quota?.limit != null && (
         <div className="flex items-center justify-between rounded-xl border border-surface-border bg-surface-raised px-4 py-3 text-sm">
           <span className="text-ink-muted">
-            Gratis graderingar i dag:{" "}
+            {quota.isPremium ? "Graderingar i dag:" : "Gratis graderingar i dag:"}{" "}
             <span className="font-semibold text-ink">
               {quota.used} / {quota.limit}
             </span>
           </span>
-          {limitReached && (
+          {limitReached && !quota.isPremium && (
             <LinkButton href="/priser" size="sm" variant="secondary">
-              Uppgradera till Premium
+              Uppgradera till Pro
             </LinkButton>
           )}
         </div>
@@ -312,7 +313,9 @@ export default function GraderaPage() {
             )}
             {limitReached && (
               <span className="text-sm text-amber-400">
-                Dagens gratis graderingar är slut.
+                {quota?.isPremium
+                  ? "Dagens graderingar är slut — tillbaka i morgon."
+                  : "Dagens gratis graderingar är slut."}
               </span>
             )}
           </div>

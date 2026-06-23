@@ -163,22 +163,29 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {notificationOptions.map((opt) => (
-              <div key={opt.key} className="flex items-start gap-3">
-                <Checkbox
-                  id={`notif-${opt.key}`}
-                  checked={settings[opt.key]}
-                  disabled={savingSettings}
-                  onChange={(e) =>
-                    void saveNotificationSettings({ ...settings, [opt.key]: e.target.checked })
-                  }
-                />
-                <label htmlFor={`notif-${opt.key}`} className="cursor-pointer">
-                  <span className="block text-sm font-medium text-ink">{opt.label}</span>
-                  <span className="block text-xs text-ink-muted">{opt.hint}</span>
-                </label>
-              </div>
-            ))}
+            {notificationOptions.map((opt) => {
+              // "Alla restocks" är en Pro-förmån.
+              const locked = opt.key === "allRestocks" && user.planTier !== "PREMIUM";
+              return (
+                <div key={opt.key} className="flex items-start gap-3">
+                  <Checkbox
+                    id={`notif-${opt.key}`}
+                    checked={settings[opt.key] && !locked}
+                    disabled={savingSettings || locked}
+                    onChange={(e) =>
+                      void saveNotificationSettings({ ...settings, [opt.key]: e.target.checked })
+                    }
+                  />
+                  <label htmlFor={`notif-${opt.key}`} className="cursor-pointer">
+                    <span className="block text-sm font-medium text-ink">
+                      {opt.label}
+                      {locked && <span className="ml-2 text-xs text-holo-cyan">Pro</span>}
+                    </span>
+                    <span className="block text-xs text-ink-muted">{opt.hint}</span>
+                  </label>
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -188,7 +195,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
         <CardHeader className="flex-row items-center justify-between">
           <CardTitle>Plan</CardTitle>
           {user.planTier === "PREMIUM" ? (
-            <Badge variant="holo">Premium</Badge>
+            <Badge variant="holo">Pro</Badge>
           ) : (
             <Badge>Gratis</Badge>
           )}
@@ -196,13 +203,13 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
         <CardContent>
           <p className="text-sm text-ink-muted">
             {user.planTier === "PREMIUM"
-              ? "Du har Premium — tack för att du stöttar Foilio! Obegränsade bevakningar och full prishistorik."
-              : "Med Premium får du obegränsade bevakningar, full prishistorik och prioriterade larm."}
+              ? "Du har Pro — tack för att du stöttar Foilio! Obegränsade bevakningar, alla restocks och AI-gradering."
+              : "Med Pro får du obegränsade bevakningar, alla restocks, AI-gradering och full prishistorik."}
           </p>
           {user.planTier === "FREE" && (
-            <Button className="mt-4" disabled>
-              Uppgradera — kommer snart
-            </Button>
+            <LinkButton href="/priser" className="mt-4">
+              Uppgradera till Pro
+            </LinkButton>
           )}
         </CardContent>
       </Card>

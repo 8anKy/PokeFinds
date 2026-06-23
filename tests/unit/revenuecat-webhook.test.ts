@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planForEvent } from "@/app/api/webhooks/revenuecat/route";
+import { planForEvent } from "@/app/api/webhooks/revenuecat/mapping";
 
 describe("planForEvent", () => {
   it("ger PREMIUM på köp/förnyelse", () => {

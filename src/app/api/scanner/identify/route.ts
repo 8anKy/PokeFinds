@@ -46,7 +46,11 @@ export async function POST(req: Request) {
       throw new ServiceError(413, "Bilden är för stor. Skala ner videorutan innan den skickas.");
     }
 
-    const result = await identifyCard(image, { precise });
+    // Den dyra Sonnet-bekräftelsen (precise) är en Pro-förmån; gratisanvändare
+    // identifieras med den billiga Haiku-modellen även vid bekräftelse.
+    const result = await identifyCard(image, {
+      precise: precise && user.planTier === "PREMIUM",
+    });
     return jsonOk(result);
   } catch (e) {
     return apiError(e);
