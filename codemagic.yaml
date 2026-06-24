@@ -33,9 +33,12 @@ workflows:
           ./node_modules/.bin/cap add ios || true
           sed -i '' "s/platform :ios, '13.0'/platform :ios, '15.0'/" ios/App/Podfile
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13.0/IPHONEOS_DEPLOYMENT_TARGET = 15.0/g' ios/App/App.xcodeproj/project.pbxproj
-          # Stäng av WKWebView-studsen (iOS rubber-band) direkt på bridge-webviewens
-          # scrollView — ingen Capacitor-config finns. perl = pålitlig flerrads-injekt.
-          perl -0pi -e 's/func applicationDidBecomeActive\(_ application: UIApplication\) \{/func applicationDidBecomeActive(_ application: UIApplication) {\n        (window?.rootViewController as? CAPBridgeViewController)?.webView?.scrollView.bounces = false/' ios/App/App/AppDelegate.swift
+          # Stäng av WKWebView-studsen (iOS rubber-band). Casta INTE till
+          # CAPBridgeViewController (rootVC kan vara inkapslad → cast no-oppar).
+          # Walka vy-hierarkin från window och nolla bounce på varje UIScrollView.
+          perl -0pi -e 's/func applicationDidBecomeActive\(_ application: UIApplication\) \{/func applicationDidBecomeActive(_ application: UIApplication) {\n        func killBounce(_ v: UIView) {\n            if let sv = v as? UIScrollView { sv.bounces = false; sv.alwaysBounceVertical = false }\n            v.subviews.forEach(killBounce)\n        }\n        if let w = window { killBounce(w) }/' ios/App/App/AppDelegate.swift
+          # Misslyckas högt om injektet inte tog (mall ändrad) → slipp falsk patch.
+          grep -q killBounce ios/App/App/AppDelegate.swift
           (cd ios/App && pod install)
       - name: Sätt build-nummer
         script: |
