@@ -30,12 +30,10 @@ import {
   IconArrowRight,
   IconCamera,
   IconCards,
-  IconChart,
   IconCheck,
   IconChevronLeft,
   IconSearch,
   IconSettings,
-  IconSparkle,
   IconTrash,
   IconUpload,
   IconX,
@@ -99,7 +97,7 @@ const MAX_FILE_BYTES = 8 * 1024 * 1024;
 const MIN_MATCH_CONF = 0.2;
 
 type CameraState = "starting" | "live" | "error" | "unsupported";
-type View = "launch" | "capture" | "review";
+type View = "capture" | "review";
 
 let scanCounter = 0;
 const nextId = () => `scan-${Date.now()}-${scanCounter++}`;
@@ -134,7 +132,6 @@ export default function SkannaPage() {
   const [view, setView] = useState<View>("capture");
   const [cameraState, setCameraState] = useState<CameraState>("starting");
   const [cameraError, setCameraError] = useState("");
-  const [configError, setConfigError] = useState("");
   const [provider, setProvider] = useState<string | null>(null);
 
   const [scans, setScans] = useState<ScanItem[]>([]);
@@ -148,7 +145,6 @@ export default function SkannaPage() {
   const [addingAll, setAddingAll] = useState(false);
   const [addedCount, setAddedCount] = useState<number | null>(null);
 
-  const overlayOpen = view !== "launch";
   const isMock = provider === "mock";
 
   const matched = useMemo(
@@ -179,11 +175,7 @@ export default function SkannaPage() {
           body: JSON.stringify({ image: dataUrl, precise: true }),
         });
         const data = (await res.json()) as IdentifyResponse & { error?: string };
-        if (!res.ok) {
-          if (res.status === 503 && data.error) setConfigError(data.error);
-          return null;
-        }
-        setConfigError("");
+        if (!res.ok) return null;
         setProvider(data.provider);
         return data;
       } catch {
@@ -257,12 +249,6 @@ export default function SkannaPage() {
     }
   }, []);
 
-  const openScanner = useCallback(() => {
-    setView("capture");
-    setAddedCount(null);
-    void startCamera();
-  }, [startCamera]);
-
   const closeScanner = useCallback(() => {
     if (scans.length > 0 && addedCount === null) {
       const ok = window.confirm(
@@ -280,7 +266,6 @@ export default function SkannaPage() {
 
   // Öppna kameran när capture-vyn visas OCH återanslut strömmen om videon
   // monterats om (review→capture monterar ett nytt <video> → annars svart bild).
-  // ponytail: launch-vyn nedan är kvar som oåtkomlig fallback (close navigerar bort).
   useEffect(() => {
     if (view !== "capture") return;
     const v = videoRef.current;
@@ -294,9 +279,8 @@ export default function SkannaPage() {
     }
   }, [view, startCamera]);
 
-  // Lås body-scroll + Escape-stäng medan overlayn är öppen, fokusera stäng-knapp.
+  // Lås body-scroll + Escape-stäng medan skannern är öppen.
   useEffect(() => {
-    if (!overlayOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     // INGEN auto-fokus på stäng-knappen: effekten re-körs vid varje delete
@@ -315,7 +299,7 @@ export default function SkannaPage() {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
-  }, [overlayOpen, detailsId, settingsOpen, view, closeScanner]);
+  }, [detailsId, settingsOpen, view, closeScanner]);
 
   // ---- Fånga / ladda upp ---------------------------------------------------
 
@@ -436,103 +420,7 @@ export default function SkannaPage() {
   const detailsItem = detailsId ? scans.find((s) => s.id === detailsId) ?? null : null;
 
   // =========================================================================
-  // Launch-skärm (i app-skalet)
-  // =========================================================================
-  if (view === "launch") {
-    return (
-      <div className="mx-auto flex max-w-md flex-col gap-5">
-        <h1 className="font-display text-2xl font-semibold text-ink">Skanna kort</h1>
-
-        {isMock && <MockNotice />}
-        {configError && <ConfigNotice text={configError} />}
-
-        <div className="relative overflow-hidden rounded-2xl border border-surface-border bg-surface-gradient p-6 shadow-card">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-holo-cyan/10 blur-3xl"
-          />
-          <div className="relative flex flex-col items-center gap-5 py-2 text-center">
-            {/* Animerad skanruta — signalerar igenkänning, ger sidan liv */}
-            <div className="relative grid h-24 w-24 place-items-center rounded-2xl bg-holo-cyan/5 text-holo-cyan ring-1 ring-holo-cyan/20">
-              <IconCamera size={34} />
-              {(
-                [
-                  "left-2 top-2 border-l-2 border-t-2 rounded-tl-md",
-                  "right-2 top-2 border-r-2 border-t-2 rounded-tr-md",
-                  "left-2 bottom-2 border-l-2 border-b-2 rounded-bl-md",
-                  "right-2 bottom-2 border-r-2 border-b-2 rounded-br-md",
-                ] as const
-              ).map((c) => (
-                <span key={c} className={cn("absolute h-4 w-4 border-holo-cyan/70", c)} aria-hidden />
-              ))}
-              <span className="pointer-events-none absolute inset-2 overflow-hidden rounded-xl" aria-hidden>
-                <span className="absolute inset-x-0 top-0 h-0.5 animate-scanline bg-gradient-to-r from-transparent via-holo-cyan to-transparent shadow-[0_0_12px_2px_rgba(45,212,191,0.6)]" />
-              </span>
-            </div>
-            <div className="flex w-full flex-col gap-2.5">
-              <Button onClick={openScanner} size="lg" className="w-full">
-                <IconCamera size={18} /> Starta skanner
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full"
-              >
-                <IconUpload size={16} /> Välj bild
-              </Button>
-            </div>
-            <p className="text-xs text-ink-faint">
-              Bilden stannar i appen — inget sparas i kamerarullen.
-            </p>
-          </div>
-        </div>
-
-        <Link
-          href="/gradera"
-          className="flex items-center justify-between rounded-xl border border-surface-border bg-surface-raised px-4 py-3 text-sm text-ink-muted transition-colors hover:border-holo-cyan/40 hover:text-ink"
-        >
-          Bedöma skicket istället?
-          <span className="font-medium text-holo-cyan">Gradera med AI →</span>
-        </Link>
-
-        {/* Så funkar det — ikon-driven flödesöversikt (fyller ytan, minimal text) */}
-        <div className="grid grid-cols-3 gap-2 rounded-2xl border border-surface-border bg-surface-raised/60 p-4">
-          {(
-            [
-              { icon: IconCamera, label: "Fånga kortet" },
-              { icon: IconSparkle, label: "Vi känner igen det" },
-              { icon: IconChart, label: "Se marknadsvärdet" },
-            ] as const
-          ).map(({ icon: Icon, label }) => (
-            <div key={label} className="flex flex-col items-center gap-2 text-center">
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-holo-cyan/10 text-holo-cyan">
-                <Icon size={18} />
-              </span>
-              <span className="text-[11px] leading-tight text-ink-muted">{label}</span>
-            </div>
-          ))}
-        </div>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = "";
-            if (file && handleFile(file)) setView("review");
-          }}
-        />
-        {/* Dolda element så refs finns även från launch (vid uppladdning). */}
-        <canvas ref={canvasRef} className="hidden" />
-      </div>
-    );
-  }
-
-  // =========================================================================
-  // Overlay (capture + review) — fullskärm, immersivt
+  // Skanner-overlay (capture + review) — fullskärm, immersivt
   // =========================================================================
   return (
     <div
@@ -1542,34 +1430,6 @@ function Sheet({
         </button>
         {children}
       </div>
-    </div>
-  );
-}
-
-/* ===========================================================================
- * Notiser
- * ======================================================================== */
-function MockNotice() {
-  return (
-    <div className="flex items-start gap-3 rounded-xl border border-holo-cyan/30 bg-holo-cyan/5 px-4 py-3">
-      <span aria-hidden="true" className="mt-0.5 shrink-0 text-holo-cyan">
-        <IconSparkle size={18} />
-      </span>
-      <p className="text-sm text-ink-muted">
-        <span className="font-semibold text-ink">Demoläge:</span> igenkänningen körs
-        med en simulerad tjänst, så träffarna är exempel ur katalogen.
-      </p>
-    </div>
-  );
-}
-
-function ConfigNotice({ text }: { text: string }) {
-  return (
-    <div className="flex items-start gap-3 rounded-xl border border-fall/30 bg-fall/5 px-4 py-3">
-      <span aria-hidden="true" className="mt-0.5 shrink-0 text-fall">
-        <IconAlertTriangle size={18} />
-      </span>
-      <p className="text-sm text-ink-muted">{text}</p>
     </div>
   );
 }
