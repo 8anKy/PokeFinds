@@ -83,6 +83,13 @@ describe("extractSetNumber", () => {
   it("hanterar nummer med inledande nollor", () => {
     expect(extractSetNumber("Eevee 025/102")).toEqual({ num: 25, total: 102 });
   });
+
+  it("parsar promo-format med bokstavsprefix (RC5/RC32, TG12/TG30)", () => {
+    expect(extractSetNumber("Charizard RC5/RC32")).toEqual({ num: 5, total: 32 });
+    expect(extractSetNumber("Giratina TG12/TG30")).toEqual({ num: 12, total: 30 });
+    // Promo-numret skiljer sig från ett 151-kort → de får inte se likadana ut.
+    expect(extractSetNumber("Charizard ex 151 6/165")).toEqual({ num: 6, total: 165 });
+  });
 });
 
 describe("classifyForm", () => {

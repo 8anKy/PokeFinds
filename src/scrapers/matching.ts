@@ -9,9 +9,14 @@ import { normalizeTitle } from "../lib/utils";
 /** Lägsta konfidens för att en matchning ska accepteras. */
 const MIN_CONFIDENCE = 0.55;
 
-/** Extraherar setnummer som "123/198" ur en titel. */
+/**
+ * Extraherar setnummer som "123/198" ur en titel — inkl. promo-format med
+ * bokstavsprefix: "RC5/RC32", "TG12/TG30", "GG44/GG70", "H5/H32". Siffrorna
+ * plockas ur varje sida (RC5 → 5). Utan detta kastas promo-numret bort och
+ * "Charizard RC5/RC32" matchar fel kort ("Charizard 6/165").
+ */
 export function extractSetNumber(title: string): { num: number; total: number } | null {
-  const m = /\b(\d{1,3})\s*\/\s*(\d{1,3})\b/.exec(title);
+  const m = /\b[a-z]{0,4}(\d{1,3})\s*\/\s*[a-z]{0,4}(\d{1,3})\b/i.exec(title);
   if (!m) return null;
   return { num: parseInt(m[1], 10), total: parseInt(m[2], 10) };
 }
@@ -359,7 +364,9 @@ export async function matchProduct(
     // Liten bonus för högre ordöverlapp — föredrar "Mega Evolution Booster Pack"
     // framför "Mega Evolution Chaos Rising Booster Pack" vid likvärdig Dice.
     score = Math.min(1, score + 0.1 * overlap);
-    // Bonus/straff för setnummer
+    // Setnummer = kortets identitet. Har BÅDA titlarna ett nummer och de KROCKAR
+    // (annat num/total) → olika kort → förkasta hårt. Mjuk straff räckte inte:
+    // "Charizard 4/102" mot "5/102" har så hög Dice att -0.3 ändå klarade tröskeln.
     const candidateSetNum = extractSetNumber(c.normalizedTitle);
     if (incomingSetNum && candidateSetNum) {
       if (
@@ -368,7 +375,7 @@ export async function matchProduct(
       ) {
         score = Math.min(1, score + 0.15);
       } else {
-        score = Math.max(0, score - 0.3);
+        continue;
       }
     }
     if (!best || score > best.confidence) {
