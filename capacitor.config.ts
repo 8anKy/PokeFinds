@@ -38,6 +38,11 @@ const config: CapacitorConfig = {
     allowMixedContent: false,
     backgroundColor: "#0a0a0c",
   },
+  plugins: {
+    // resize: none → WebView:en ändrar INTE storlek när tangentbordet öppnas, så
+    // position:fixed (bottom-tabs) hoppar inte. Tangentbordet läggs ovanpå i stället.
+    Keyboard: { resize: "none" },
+  },
 };
 
 export default config;
