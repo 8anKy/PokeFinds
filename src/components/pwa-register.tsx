@@ -18,9 +18,9 @@ export function ServiceWorkerRegister() {
   useEffect(() => {
     // iOS WKWebView studsar HELA dokumentet förbi toppen (rubber-band) trots
     // native scrollView.bounces=false. Blockera nedåt-drag BARA när sidan redan
-    // är i topp; tillåt nästlade scrollers som har plats kvar. Endast native-appen.
-    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-    if (!cap?.isNativePlatform?.()) return;
+    // är i topp; tillåt nästlade scrollers som har plats kvar. Gate:ade förut på
+    // window.Capacitor men den finns INTE på remote-laddade sidor (server.url) →
+    // körs nu överallt (overscroll-behavior:none är ändå globalt önskat).
     let startY = 0;
     const onStart = (e: TouchEvent) => { startY = e.touches[0].clientY; };
     const onMove = (e: TouchEvent) => {
