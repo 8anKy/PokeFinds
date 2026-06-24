@@ -16,7 +16,8 @@ workflows:
       groups:
         - ios_signing        # innehåller CERTIFICATE_PRIVATE_KEY (Codemagic-UI, Secure)
       vars:
-        CAP_SERVER_URL: "https://www.foilio.se"
+        # Appen öppnar direkt på Utforska (ingen blink av marknadsförings-startsidan).
+        CAP_SERVER_URL: "https://www.foilio.se/produkter"
         BUNDLE_ID: "se.foilio.app"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"

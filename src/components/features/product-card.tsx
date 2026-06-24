@@ -98,20 +98,19 @@ export function ProductCard({ product, className }: ProductCardProps) {
           {product.title}
         </h3>
 
-        <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-1 pt-0.5">
-          <div className="min-w-0">
-            <p data-price className="font-display text-lg font-bold tracking-tight text-ink">
-              {formatPrice(product.lowestPrice)}
-            </p>
-            {product.priceChange7d != null && (
+        <div className="pt-0.5">
+          <p data-price className="font-display text-lg font-bold tracking-tight text-ink">
+            {formatPrice(product.lowestPrice)}
+          </p>
+          {/* Konsekvent rad: prisförändring vänster, lagerstatus alltid höger. */}
+          <div className="mt-1.5 flex items-center justify-between gap-2">
+            {product.priceChange7d != null ? (
               <PriceChange percent={product.priceChange7d} className="text-xs" hideIcon />
+            ) : (
+              <span />
             )}
+            {product.stockStatus && <StockBadge stockStatus={product.stockStatus} />}
           </div>
-          {product.stockStatus && (
-            <div className="shrink-0">
-              <StockBadge stockStatus={product.stockStatus} />
-            </div>
-          )}
         </div>
 
         {product.retailerCount != null && product.retailerCount > 0 && (

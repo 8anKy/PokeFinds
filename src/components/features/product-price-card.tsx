@@ -56,7 +56,7 @@ export function ProductPriceCard({
           <p className="mt-1 text-xs text-ink-muted">{subtitle}</p>
         </div>
         <div
-          className="flex shrink-0 gap-0.5 rounded-lg border border-surface-border bg-surface p-1"
+          className="flex shrink-0 gap-0.5 self-start rounded-lg border border-surface-border bg-surface p-1"
           role="group"
           aria-label="Period"
         >
