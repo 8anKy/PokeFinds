@@ -29,8 +29,14 @@ declare module "next-auth/jwt" {
     role: Role;
     planTier: PlanTier;
     onboardingCompleted: boolean;
+    refreshedAt: number;
   }
 }
+
+// ponytail: re-read role/plan/onboarding from DB at most this often per session.
+// Bounds the staleness window for out-of-band changes (RC webhook, admin edit)
+// without a DB hit on every request. Lower it if 5 min feels too slow.
+const TOKEN_REFRESH_MS = 5 * 60 * 1000;
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt", maxAge: 30 * 24 * 3600 },
@@ -70,14 +76,19 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role;
         token.planTier = user.planTier;
         token.onboardingCompleted = user.onboardingCompleted;
+        token.refreshedAt = Date.now();
       }
-      // Uppdatera token vid session.update() (t.ex. efter onboarding)
-      if (trigger === "update" && token.id) {
+      // Re-läs från DB vid session.update() (t.ex. efter onboarding) ELLER när
+      // token är äldre än TTL:n → fångar upp out-of-band ändringar (RC-webhook
+      // sätter planTier=PREMIUM, admin-redigering) utan re-login.
+      const stale = Date.now() - (token.refreshedAt ?? 0) > TOKEN_REFRESH_MS;
+      if ((trigger === "update" || stale) && token.id) {
         const fresh = await prisma.user.findUnique({ where: { id: token.id } });
         if (fresh) {
           token.role = fresh.role;
           token.planTier = fresh.planTier;
           token.onboardingCompleted = fresh.onboardingCompleted;
+          token.refreshedAt = Date.now();
         }
       }
       return token;
