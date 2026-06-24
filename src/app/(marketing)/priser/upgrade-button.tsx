@@ -17,13 +17,33 @@ export function UpgradeButton() {
   const { update } = useSession();
   const [native, setNative] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
+  const [isPro, setIsPro] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
     setNative(purchasesAvailable());
-    setLoggedIn(hasAuthHint());
+    const logged = hasAuthHint();
+    setLoggedIn(logged);
+    if (logged) {
+      fetch("/api/users/me")
+        .then((r) => r.json())
+        .then((me) => setIsPro(me?.planTier === "PREMIUM"))
+        .catch(() => undefined);
+    }
   }, []);
+
+  // Redan Pro → visa nuvarande plan istället för köpknapp (oavsett native/webb).
+  if (isPro) {
+    return (
+      <div className="mt-8 w-full rounded-xl border border-holo-cyan/40 bg-holo-cyan/5 px-4 py-3 text-center">
+        <p className="text-sm font-semibold text-holo-cyan">Din nuvarande plan ✓</p>
+        <p className="mt-1 text-xs text-ink-muted">
+          Hantera eller säg upp i App Store (Inställningar → ditt namn → Prenumerationer).
+        </p>
+      </div>
+    );
+  }
 
   if (!native) {
     return (
