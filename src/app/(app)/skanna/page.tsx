@@ -299,7 +299,9 @@ export default function SkannaPage() {
     if (!overlayOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    closeBtnRef.current?.focus();
+    // INGEN auto-fokus på stäng-knappen: effekten re-körs vid varje delete
+    // (closeScanner-dep byter identitet) → programmatisk focus tände en cyan
+    // :focus-visible-ring på X/tillbaka-knappen. Escape lyssnar på window ändå.
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (detailsId) setDetailsId(null);
@@ -730,7 +732,7 @@ function CaptureView(props: {
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
         >
-          <div className="relative aspect-[5/7] w-[68%] max-w-[20rem]">
+          <div className="relative mb-[14vh] aspect-[5/7] w-[68%] max-w-[20rem]">
             <CornerFrame />
           </div>
         </div>
@@ -1400,9 +1402,11 @@ function SwipeToDelete({
         fg.style.transform = "translateX(-110%)";
         window.setTimeout(() => {
           onDelete();
-          // Hindra kvarhängande fokus-ring (cyan) på CTA-knappen efter att det
-          // svepta kortet avmonterats och fokus hoppar vidare.
-          (document.activeElement as HTMLElement | null)?.blur?.();
+          // Blur:a EFTER att React flyttat fokus (nästa frame) annars hinner
+          // CTA:n fånga fokus och visa en cyan ring när listan tömts.
+          requestAnimationFrame(() =>
+            (document.activeElement as HTMLElement | null)?.blur?.()
+          );
         }, 230);
       } else {
         fg.style.transform = "";
