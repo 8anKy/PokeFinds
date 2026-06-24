@@ -93,14 +93,21 @@ table td,
        länkar/bilder/tabs — annars ser appen ut att "länka till webben". */
     -webkit-touch-callout: none;
   }
-  /* Hindra text-markeringslupp på chrome (länkar/knappar). Bryt-/brödtext är
-     fortfarande markerbar via .selectable vid behov. */
+  /* Hindra text-markeringslupp + drag-ut av länkar/bilder (annars kan man dra en
+     URL in i sökfältet → ser ut som en webbsida). */
   a,
   button,
   img,
   [role="button"] {
     -webkit-user-select: none;
     user-select: none;
+    -webkit-user-drag: none;
+  }
+  /* iOS auto-zoomar vid fokus på input med font < 16px → tvinga 16px på touch. */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
   }
 }
 
