@@ -24,12 +24,23 @@ export const purchasesAvailable = () => Capacitor.isNativePlatform() && !!API_KE
 export async function purchasePremium(userId: string): Promise<boolean> {
   await ensureConfigured(userId);
   const offerings = await Purchases.getOfferings();
-  // Planen är 49 kr/MÅNAD → välj månadspaketet deterministiskt. availablePackages[0]
-  // är ordningsberoende: har offeringen fler paket (t.ex. ett RC Web Billing-paket)
-  // kunde [0] ibland bli webb-paketet → köpet öppnade Safari istället för App Store-arket.
   const offering = offerings.current;
-  const pkg = offering?.monthly ?? offering?.availablePackages[0];
-  if (!pkg) throw new Error("Ingen prenumeration tillgänglig just nu.");
+  const all = offering?.availablePackages ?? [];
+  // Ett paket med webCheckoutUrl är ett RC Web Checkout-paket → purchasePackage
+  // öppnar det i Safari. Köp BARA App Store-paket (webCheckoutUrl == null), och
+  // föredra månadspaketet (planen = 49 kr/mån). availablePackages[0] var fel:
+  // ordningsberoende, kunde bli webb-paketet → Safari.
+  const native = all.filter((p) => p.webCheckoutUrl == null);
+  if (native.length === 0) {
+    throw new Error(
+      `Inget App Store-paket i offeringen (${all.length} paket, alla web checkout). ` +
+        `Lägg App Store-produkten i RevenueCat-offeringen.`
+    );
+  }
+  const pkg =
+    offering?.monthly && offering.monthly.webCheckoutUrl == null
+      ? offering.monthly
+      : native.find((p) => p.packageType === "MONTHLY") ?? native[0];
   const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
   return !!customerInfo.entitlements.active[ENTITLEMENT];
 }
