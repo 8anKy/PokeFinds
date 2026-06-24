@@ -21,6 +21,26 @@ export function extractSetNumber(title: string): { num: number; total: number } 
   return { num: parseInt(m[1], 10), total: parseInt(m[2], 10) };
 }
 
+/**
+ * Normaliserad kortnummer-nyckel: bokstavsprefix (gemener) + heltal utan
+ * inledande nollor. "RC5"→"rc5", "GG01"→"gg1", "006"→"6". Total-delen ignoreras
+ * med flit — promo-set anger ofta fel total i annonser ("RC5/RC32" mot katalogens
+ * "RC5/83"), men SJÄLVA kortnumret (RC5) är kortets identitet.
+ */
+export function cardNumberKey(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const m = /^\s*([a-z]+)?0*(\d{1,4})/i.exec(raw);
+  if (!m) return null;
+  return (m[1]?.toLowerCase() ?? "") + parseInt(m[2], 10);
+}
+
+/** Tryckt kortnummer (vänstersidan av "X/Y") ur en titel, som cardNumberKey. */
+export function printedNumberKey(title: string): string | null {
+  const m = /\b([a-z]{0,4})(\d{1,3})\s*\/\s*[a-z]{0,4}\d{1,3}\b/i.exec(title);
+  if (!m) return null;
+  return m[1].toLowerCase() + parseInt(m[2], 10);
+}
+
 function bigrams(s: string): Map<string, number> {
   const grams = new Map<string, number>();
   const clean = s.replace(/\s+/g, " ");
@@ -156,6 +176,14 @@ const FORM_WORDS = new Set([
   "collection",
   "premium",
 ]);
+
+/** True om alla betydelsebärande ord i kortnamnet finns i den normaliserade titeln. */
+function cardNameInTitle(name: string, normalizedListing: string): boolean {
+  const words = significantTokens(normalizeTitle(name));
+  if (words.length === 0) return false;
+  const set = new Set(normalizedListing.split(" "));
+  return words.every((w) => set.has(w));
+}
 
 /** Tokenisering för databasfiltrering: betydelsebärande ord (längd >= 3). */
 function significantTokens(normalized: string): string[] {
@@ -305,15 +333,20 @@ export async function matchProduct(
   const tokens = significantTokens(normalized);
   if (tokens.length === 0) return null;
 
-  const candidateMap = new Map<string, { id: string; normalizedTitle: string }>();
+  const candidateMap = new Map<
+    string,
+    { id: string; normalizedTitle: string; card: { name: string; number: string } | null }
+  >();
   for (const t of tokens) {
+    // take 200 (ej 60): vanliga namn ("charizard") har >100 produkter och rätt
+    // kort måste rymmas i poolen för nummer-passet nedan. Samma seq-scan, fler rader.
     const rows = await prisma.product.findMany({
       where: { normalizedTitle: { contains: t } },
-      select: { id: true, normalizedTitle: true },
-      take: 60,
+      select: { id: true, normalizedTitle: true, card: { select: { name: true, number: true } } },
+      take: 200,
     });
     for (const r of rows) candidateMap.set(r.id, r);
-    if (candidateMap.size >= 300) break;
+    if (candidateMap.size >= 400) break;
   }
   const candidates = [...candidateMap.values()];
   if (candidates.length === 0) return null;
@@ -326,6 +359,34 @@ export async function matchProduct(
   if (incomingForm === "multipack" || incomingForm === "case" || incomingForm === "combo") {
     return null;
   }
+
+  // ── Singel-identitet: tryckt nummer + Pokémon-namn ──────────────────────
+  // Promo-/setnummer (RC5, GG01, 6) är kortets identitet. Fuzzy namnöverlapp
+  // kollapsar annars varje "Charizard X" mot kortet vars enda särskiljande ord
+  // är "charizard". Kräver SAMMA nummernyckel OCH att kortnamnet finns i titeln
+  // → hög konfidens även utan setnamn (säljare utelämnar ofta setet i promos).
+  // Bara för singel-listningar (incomingForm === null); sealed har formord.
+  if (!incomingForm) {
+    const listingKey = printedNumberKey(normalized);
+    if (listingKey) {
+      const hits = candidates.filter(
+        (c) =>
+          c.card &&
+          cardNumberKey(c.card.number) === listingKey &&
+          cardNameInTitle(c.card.name, normalized)
+      );
+      if (hits.length === 1) return { productId: hits[0].id, confidence: 0.9 };
+      if (hits.length > 1) {
+        // Samma kortnummer i flera set → bryt lika på total (165 i "6/165").
+        const total = extractSetNumber(normalized)?.total;
+        const byTotal = hits.filter(
+          (c) => extractSetNumber(c.normalizedTitle)?.total === total
+        );
+        if (byTotal.length === 1) return { productId: byTotal[0].id, confidence: 0.9 };
+      }
+    }
+  }
+
   let best: { productId: string; confidence: number } | null = null;
 
   for (const c of candidates) {

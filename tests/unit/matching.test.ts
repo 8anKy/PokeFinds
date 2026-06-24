@@ -17,9 +17,11 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import {
+  cardNumberKey,
   classifyForm,
   extractSetNumber,
   isPlausibleListingPrice,
+  printedNumberKey,
   scoreSimilarity,
 } from "@/scrapers/matching";
 
@@ -89,6 +91,32 @@ describe("extractSetNumber", () => {
     expect(extractSetNumber("Giratina TG12/TG30")).toEqual({ num: 12, total: 30 });
     // Promo-numret skiljer sig från ett 151-kort → de får inte se likadana ut.
     expect(extractSetNumber("Charizard ex 151 6/165")).toEqual({ num: 6, total: 165 });
+  });
+});
+
+describe("cardNumberKey / printedNumberKey", () => {
+  it("normaliserar kortnummer (prefix + heltal utan nollor, total ignoreras)", () => {
+    expect(cardNumberKey("RC5")).toBe("rc5");
+    expect(cardNumberKey("GG01")).toBe("gg1");
+    expect(cardNumberKey("006")).toBe("6");
+    expect(cardNumberKey("6")).toBe("6");
+    expect(cardNumberKey(null)).toBeNull();
+  });
+
+  it("plockar tryckt nummer ur titel (vänstersidan av X/Y) med samma nyckel", () => {
+    expect(printedNumberKey("charizard rc5/rc32")).toBe("rc5");
+    expect(printedNumberKey("charizard ex 151 6/165")).toBe("6");
+    expect(printedNumberKey("hisuian voltorb crown zenith gg01/70")).toBe("gg1");
+    expect(printedNumberKey("ingen siffra här")).toBeNull();
+  });
+
+  it("samma kort matchar, fel kort (151 #6 vs promo RC5) skiljer sig", () => {
+    // Kärnan i buggen: en RC5-annons får INTE dela nyckel med 151-kortets #6.
+    expect(printedNumberKey("charizard rc5/rc32")).not.toBe(
+      printedNumberKey("charizard ex 151 6/165")
+    );
+    // Men RC5-annonsens nyckel == katalogens RC5-kortnummer.
+    expect(printedNumberKey("charizard rc5/rc32")).toBe(cardNumberKey("RC5"));
   });
 });
 
