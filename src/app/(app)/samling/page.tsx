@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -83,6 +84,9 @@ export default async function CollectionPage() {
   }));
 
   const topMovers = value.movers.slice(0, 2);
+  // movers bär ingen slug — men dess id = samlings-objektets id, samma som rows
+  // (som redan löst produkt-sluggen) → slå upp där så korten blir klickbara.
+  const slugByItem = new Map(rows.map((r) => [r.id, r.slug]));
 
   return (
     <div className="space-y-8">
@@ -170,35 +174,48 @@ export default async function CollectionPage() {
         <section className="lg:hidden">
           <h2 className="mb-3 font-display text-xl font-bold text-ink">Top movers</h2>
           <div className="grid grid-cols-2 gap-3">
-            {topMovers.map((m) => (
-              <div key={m.id} className="card-surface flex flex-col gap-2 p-3">
-                <div className="h-28 w-full overflow-hidden rounded-lg bg-surface-overlay">
-                  {m.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={m.imageUrl}
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
-                      className="h-full w-full object-contain p-1"
-                    />
-                  ) : (
-                    <span className="flex h-full w-full items-center justify-center text-ink-faint">
-                      <IconPackage size={26} />
+            {topMovers.map((m) => {
+              const slug = slugByItem.get(m.id);
+              const content = (
+                <>
+                  <div className="h-28 w-full overflow-hidden rounded-lg bg-surface-overlay">
+                    {m.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={m.imageUrl}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-contain p-1"
+                      />
+                    ) : (
+                      <span className="flex h-full w-full items-center justify-center text-ink-faint">
+                        <IconPackage size={26} />
+                      </span>
+                    )}
+                  </div>
+                  <p className="truncate text-xs font-medium text-ink-muted">{m.name}</p>
+                  <div className="flex items-baseline justify-between gap-1.5">
+                    <span className="whitespace-nowrap font-mono text-xs font-semibold tabular-nums text-ink">
+                      {m.value != null ? formatPrice(m.value) : "–"}
                     </span>
-                  )}
+                    <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-rise">
+                      {formatPercent(m.percent)}
+                    </span>
+                  </div>
+                </>
+              );
+              const cls = "card-surface flex flex-col gap-2 p-3";
+              return slug ? (
+                <Link key={m.id} href={`/produkter/${slug}`} className={cls}>
+                  {content}
+                </Link>
+              ) : (
+                <div key={m.id} className={cls}>
+                  {content}
                 </div>
-                <p className="truncate text-xs font-medium text-ink-muted">{m.name}</p>
-                <div className="flex items-baseline justify-between gap-1.5">
-                  <span className="whitespace-nowrap font-mono text-xs font-semibold tabular-nums text-ink">
-                    {m.value != null ? formatPrice(m.value) : "–"}
-                  </span>
-                  <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-rise">
-                    {formatPercent(m.percent)}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
