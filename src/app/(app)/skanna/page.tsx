@@ -1340,24 +1340,35 @@ function Sheet({
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const startY = useRef(0);
+  const activeRef = useRef(false); // ref, inte state: gaten måste gälla redan i första touchmove
   const [dragY, setDragY] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const [closing, setClosing] = useState(false);
 
   // Svep nedåt för att stänga. Drag startar bara när panelen är scrollad till
-  // toppen, annars vinner den inre scrollen.
+  // toppen, annars vinner den inre scrollen. Fingret följer 1:1 (ingen
+  // transition under drag); släpp förbi tröskeln → glid ner och stäng.
   function onTouchStart(e: TouchEvent<HTMLDivElement>) {
     if ((panelRef.current?.scrollTop ?? 0) > 0) return;
     startY.current = e.touches[0].clientY;
+    activeRef.current = true;
     setDragging(true);
   }
   function onTouchMove(e: TouchEvent<HTMLDivElement>) {
-    if (!dragging) return;
-    setDragY(Math.max(0, e.touches[0].clientY - startY.current));
+    if (!activeRef.current) return;
+    const dy = e.touches[0].clientY - startY.current;
+    if (dy > 0) setDragY(dy);
   }
   function onTouchEnd() {
+    if (!activeRef.current) return;
+    activeRef.current = false;
     setDragging(false);
-    if (dragY > 120) onClose();
-    else setDragY(0);
+    if (dragY > 140) {
+      setClosing(true);
+      window.setTimeout(onClose, 220);
+    } else {
+      setDragY(0);
+    }
   }
 
   return (
@@ -1374,8 +1385,12 @@ function Sheet({
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
         style={{
-          transform: dragY ? `translateY(${dragY}px)` : undefined,
-          transition: dragging ? undefined : "transform 0.2s ease",
+          transform: closing
+            ? "translateY(110%)"
+            : dragY
+              ? `translateY(${dragY}px)`
+              : undefined,
+          transition: dragging ? undefined : "transform 0.22s ease",
         }}
         className="relative max-h-[85%] overflow-y-auto rounded-t-3xl border-t border-surface-border bg-surface-raised p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-card animate-fade-in-up"
       >
