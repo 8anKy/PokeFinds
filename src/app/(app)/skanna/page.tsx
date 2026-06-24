@@ -1358,6 +1358,9 @@ function Sheet({
       dragging = true;
       startY = e.clientY;
       dy = 0;
+      // animate-fade-in-up (fill-mode: both) pinnar transform och överröstar
+      // vår inline-transform → måste rensas, annars syns ingen följning/glid.
+      panel.style.animation = "none";
       panel.style.transition = "none";
       handle.setPointerCapture(e.pointerId);
     };
