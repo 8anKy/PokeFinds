@@ -89,6 +89,18 @@ table td,
   }
   * {
     scrollbar-width: none;
+    /* App-känsla: stäng av iOS long-press-meny (Öppna länk / Spara bild) på
+       länkar/bilder/tabs — annars ser appen ut att "länka till webben". */
+    -webkit-touch-callout: none;
+  }
+  /* Hindra text-markeringslupp på chrome (länkar/knappar). Bryt-/brödtext är
+     fortfarande markerbar via .selectable vid behov. */
+  a,
+  button,
+  img,
+  [role="button"] {
+    -webkit-user-select: none;
+    user-select: none;
   }
 }
 
