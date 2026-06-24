@@ -178,7 +178,7 @@ export function PriceChart({ data, className, monthly = false, minimal = false }
       <ResponsiveContainer width="100%" height={300}>
         <AreaChart
           data={data}
-          margin={{ top: 12, right: 16, bottom: 0, left: 0 }}
+          margin={{ top: 12, right: 30, bottom: 0, left: 0 }}
           onMouseMove={(state) => {
             const i = state?.activeTooltipIndex;
             setActiveIndex(typeof i === "number" ? i : null);

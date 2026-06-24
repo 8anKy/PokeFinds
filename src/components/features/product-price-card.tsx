@@ -50,7 +50,7 @@ export function ProductPriceCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between gap-4">
+      <CardHeader className="flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div>
           <CardTitle>{title}</CardTitle>
           <p className="mt-1 text-xs text-ink-muted">{subtitle}</p>

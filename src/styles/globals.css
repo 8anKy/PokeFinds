@@ -82,7 +82,17 @@ table td,
   font-variant-numeric: tabular-nums;
 }
 
-/* Tunn scrollbar för dark theme */
+/* Touch-enheter (mobil/app): dölj scrollbaren helt — iOS overlay-scroll räcker. */
+@media (pointer: coarse) {
+  ::-webkit-scrollbar {
+    display: none;
+  }
+  * {
+    scrollbar-width: none;
+  }
+}
+
+/* Tunn scrollbar för dark theme (desktop) */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
