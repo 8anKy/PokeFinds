@@ -19,6 +19,7 @@ import {
   type RefObject,
 } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Label, Select } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
@@ -121,6 +122,7 @@ function captureFrame(
 
 export default function SkannaPage() {
   const { toast } = useToast();
+  const router = useRouter();
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -128,7 +130,7 @@ export default function SkannaPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
 
-  const [view, setView] = useState<View>("launch");
+  const [view, setView] = useState<View>("capture");
   const [cameraState, setCameraState] = useState<CameraState>("starting");
   const [cameraError, setCameraError] = useState("");
   const [configError, setConfigError] = useState("");
@@ -268,15 +270,18 @@ export default function SkannaPage() {
       if (!ok) return;
     }
     stopCamera();
-    setView("launch");
-    setScans([]);
-    setDetailsId(null);
-    setSettingsOpen(false);
-    setAddedCount(null);
-  }, [scans.length, addedCount, stopCamera]);
+    // Skannern ÄR fliken nu → stäng = lämna fliken (router, ej hård nav i Capacitor).
+    router.back();
+  }, [scans.length, addedCount, stopCamera, router]);
 
   // Stoppa kameran när komponenten lämnas helt.
   useEffect(() => () => stopCamera(), [stopCamera]);
+
+  // Öppna kameran direkt när fliken visas — ingen mellanlanding.
+  // ponytail: launch-vyn nedan är kvar som oåtkomlig fallback (close navigerar bort).
+  useEffect(() => {
+    void startCamera();
+  }, [startCamera]);
 
   // Lås body-scroll + Escape-stäng medan overlayn är öppen, fokusera stäng-knapp.
   useEffect(() => {
