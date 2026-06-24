@@ -41,6 +41,17 @@ workflows:
           perl -0pi -e 's/func applicationDidBecomeActive\(_ application: UIApplication\) \{/func applicationDidBecomeActive(_ application: UIApplication) {\n        func killBounce(_ v: UIView) {\n            if let sv = v as? UIScrollView { sv.contentInsetAdjustmentBehavior = .never; sv.bounces = false; sv.alwaysBounceVertical = false }\n            v.subviews.forEach(killBounce)\n        }\n        application.windows.forEach(killBounce)\n        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { application.windows.forEach(killBounce) }/' ios/App/App/AppDelegate.swift
           # Misslyckas högt om injektet inte tog (mall ändrad) → slipp falsk patch.
           grep -q killBounce ios/App/App/AppDelegate.swift
+          # Kamera (skanna kort): WKWebView DÖLJER navigator.mediaDevices.getUserMedia
+          # om Info.plist saknar NSCameraUsageDescription → appen visar "Kamera stöds
+          # inte här". Lägg till usage-strings (Add faller om nyckeln finns → Set).
+          PL=ios/App/App/Info.plist
+          CAM='Foilio använder kameran för att skanna dina Pokémon-kort.'
+          PHOTO='Foilio öppnar bildbiblioteket så att du kan välja en kortbild att skanna.'
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string \"$CAM\"" "$PL" || \
+            /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription \"$CAM\"" "$PL"
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string \"$PHOTO\"" "$PL" || \
+            /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription \"$PHOTO\"" "$PL"
+          /usr/libexec/PlistBuddy -c "Print :NSCameraUsageDescription" "$PL"
           (cd ios/App && pod install)
       - name: Sätt build-nummer
         script: |
