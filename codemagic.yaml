@@ -33,10 +33,12 @@ workflows:
           ./node_modules/.bin/cap add ios || true
           sed -i '' "s/platform :ios, '13.0'/platform :ios, '15.0'/" ios/App/Podfile
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13.0/IPHONEOS_DEPLOYMENT_TARGET = 15.0/g' ios/App/App.xcodeproj/project.pbxproj
-          # Stäng av WKWebView-studsen (iOS rubber-band). Casta INTE till
-          # CAPBridgeViewController (rootVC kan vara inkapslad → cast no-oppar).
-          # Walka vy-hierarkin från window och nolla bounce på varje UIScrollView.
-          perl -0pi -e 's/func applicationDidBecomeActive\(_ application: UIApplication\) \{/func applicationDidBecomeActive(_ application: UIApplication) {\n        func killBounce(_ v: UIView) {\n            if let sv = v as? UIScrollView { sv.bounces = false; sv.alwaysBounceVertical = false }\n            v.subviews.forEach(killBounce)\n        }\n        application.windows.forEach(killBounce)\n        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { application.windows.forEach(killBounce) }/' ios/App/App/AppDelegate.swift
+          # Fixa headern som glider NER efter scroll: WKWebView lägger automatiskt
+          # på top-contentInset för safe-area (default .automatic) OVANPÅ vår CSS
+          # padding-top: env(safe-area-inset-top) → dubbel topp efter första scroll.
+          # .never = stäng av auto-inseten, vår CSS sköter notchen. Nollar även bounce.
+          # CSS/JS kan INTE röra detta (native scrollView). Walka från windows.
+          perl -0pi -e 's/func applicationDidBecomeActive\(_ application: UIApplication\) \{/func applicationDidBecomeActive(_ application: UIApplication) {\n        func killBounce(_ v: UIView) {\n            if let sv = v as? UIScrollView { sv.contentInsetAdjustmentBehavior = .never; sv.bounces = false; sv.alwaysBounceVertical = false }\n            v.subviews.forEach(killBounce)\n        }\n        application.windows.forEach(killBounce)\n        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { application.windows.forEach(killBounce) }/' ios/App/App/AppDelegate.swift
           # Misslyckas högt om injektet inte tog (mall ändrad) → slipp falsk patch.
           grep -q killBounce ios/App/App/AppDelegate.swift
           (cd ios/App && pod install)
