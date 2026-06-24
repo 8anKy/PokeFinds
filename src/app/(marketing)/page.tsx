@@ -135,7 +135,9 @@ export default async function LandingPage() {
     safe(searchProducts({ sort: "popular", page: 1, pageSize: 4 }), {
       items: [],
       total: 0,
-      hasMore: false,
+      page: 1,
+      pageSize: 4,
+      totalPages: 0,
     }),
   ]);
 
