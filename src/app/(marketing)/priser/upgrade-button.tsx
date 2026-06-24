@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Button, LinkButton } from "@/components/ui/button";
 import { hasAuthHint } from "@/lib/auth-hint";
 import { purchasesAvailable, purchasePremium, restorePremium } from "@/lib/purchases";
@@ -13,6 +14,7 @@ import { purchasesAvailable, purchasePremium, restorePremium } from "@/lib/purch
  */
 export function UpgradeButton() {
   const router = useRouter();
+  const { update } = useSession();
   const [native, setNative] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -53,10 +55,21 @@ export function UpgradeButton() {
       const ok = await action(id);
       if (ok) {
         setMsg(okMsg);
-        // router.refresh() (INTE location.reload): en hård reload av en remote-URL
-        // i Capacitor-WebView:en eskalerar till externa Safari. Soft refresh hämtar
-        // server-komponenterna i appen. Fördröjning → webhooken hinner skriva planTier.
-        setTimeout(() => router.refresh(), 1500);
+        // RevenueCat-webhooken (server→server) skriver planTier=PREMIUM i DB.
+        // Polla session-update (jwt-callbackens "update"-trigger re-läser planTier
+        // från DB) tills den flippar — webhooken landar oftast på 1–3 s. Sen soft
+        // refresh (INTE location.reload → eskalerar till Safari i Capacitor-WebView).
+        let activated = false;
+        for (let i = 0; i < 6; i++) {
+          await new Promise((r) => setTimeout(r, 1500));
+          const s = await update();
+          if (s?.user?.planTier === "PREMIUM") {
+            activated = true;
+            break;
+          }
+        }
+        setMsg(activated ? "Pro aktiverat! 🎉" : "Köpet gick igenom — Pro aktiveras strax.");
+        router.refresh();
       } else {
         setMsg("Ingen aktiv Pro hittades.");
       }
