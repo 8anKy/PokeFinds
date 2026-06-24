@@ -840,10 +840,6 @@ function CornerFrame() {
     <div className="absolute inset-0">
       {/* mjuk ram */}
       <div className="absolute inset-0 rounded-2xl border border-white/25" />
-      {/* animerad skanningslinje */}
-      <div className="pointer-events-none absolute inset-1 overflow-hidden rounded-2xl">
-        <div className="absolute inset-x-0 top-0 h-0.5 animate-scanline bg-gradient-to-r from-transparent via-holo-cyan to-transparent shadow-[0_0_12px_2px_rgba(45,212,191,0.6)]" />
-      </div>
       {/* hörn-parenteser i accentfärg */}
       {(
         [
