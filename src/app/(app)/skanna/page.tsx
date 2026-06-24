@@ -1125,10 +1125,10 @@ function ReviewView(props: {
               onClick={props.onAddAll}
               loading={addingAll}
               disabled={matchedCount === 0}
-              // Ingen fokus-ring: när sista kortet tas bort hinner WebKit fokusera
-              // knappen precis innan den blir disabled → cyan ring fastnar (går ej
-              // att blur:a på en disabled-knapp). Tar bort ringen helt på denna CTA.
-              className="px-5 focus-visible:ring-0 focus-visible:ring-offset-0"
+              // Disabled = solid dämpad yta i FULL opacitet (ej dimmad teal). Den
+              // gamla disabled:opacity-50 på teal-knappen lämnade en ljus cyan
+              // "spök"-remsa i WebKit:s compositing-lager när sista kortet togs bort.
+              className="px-5 disabled:bg-surface-overlay disabled:text-ink-faint disabled:opacity-100"
             >
               Lägg till {matchedCount > 0 ? `${matchedCount} ` : ""}i samlingen
             </Button>
