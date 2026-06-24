@@ -28,7 +28,25 @@ export function BottomTabs() {
   // hämtning per sidvisning (det brände Vercel Active CPU). Dölj tab-baren för utloggade.
   const [loggedIn, setLoggedIn] = useState(false);
   useEffect(() => setLoggedIn(hasAuthHint()), []);
-  if (!loggedIn) return null;
+
+  // iOS-tangentbordet flyttar position:fixed-element när det öppnas → göm tab-baren
+  // medan ett textfält är fokuserat (man behöver den inte när man skriver ändå).
+  const [typing, setTyping] = useState(false);
+  useEffect(() => {
+    const isField = (el: EventTarget | null) =>
+      el instanceof HTMLElement &&
+      (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+    const onIn = (e: FocusEvent) => isField(e.target) && setTyping(true);
+    const onOut = () => setTyping(false);
+    document.addEventListener("focusin", onIn);
+    document.addEventListener("focusout", onOut);
+    return () => {
+      document.removeEventListener("focusin", onIn);
+      document.removeEventListener("focusout", onOut);
+    };
+  }, []);
+
+  if (!loggedIn || typing) return null;
   return (
     <>
       {/* Klarering: fixed nav överlappar sidans botten — denna spacer ger
