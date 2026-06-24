@@ -1338,40 +1338,39 @@ function Sheet({
   children: ReactNode;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const handleRef = useRef<HTMLDivElement>(null);
 
-  // Svep nedåt för att stänga. Native (icke-passiva) lyssnare så vi kan
-  // preventDefault och stoppa iOS rubber-band-scroll som annars gör draget
-  // hackigt; vi skriver transform direkt på elementet (mjukare än React-state
-  // per ruta). Drag startar bara när panelen är scrollad till toppen.
+  // Svep nedåt på handtaget/rubriken för att stänga. Pointer-capture gör att
+  // ALLA move-events går hit när fingret väl tagit i handtaget — webbläsarens
+  // egen scroll/bounce kan inte stjäla gesten. touch-action:none på handtaget
+  // stoppar native scroll från att ens starta där. Transformen skrivs direkt
+  // på panelen (mjukare än React-state per ruta). Panelens kropp scrollar som
+  // vanligt — draget och scrollen krockar inte eftersom de bor på olika ytor.
   useEffect(() => {
     const panel = panelRef.current;
-    if (!panel) return;
+    const handle = handleRef.current;
+    if (!panel || !handle) return;
     let startY = 0;
     let dy = 0;
     let dragging = false;
 
-    const onStart = (e: TouchEvent) => {
-      if (panel.scrollTop > 0) return;
-      startY = e.touches[0].clientY;
-      dy = 0;
+    const onDown = (e: PointerEvent) => {
       dragging = true;
+      startY = e.clientY;
+      dy = 0;
       panel.style.transition = "none";
+      handle.setPointerCapture(e.pointerId);
     };
-    const onMove = (e: TouchEvent) => {
+    const onMove = (e: PointerEvent) => {
       if (!dragging) return;
-      dy = e.touches[0].clientY - startY;
-      if (dy <= 0) {
-        panel.style.transform = "";
-        return;
-      }
-      e.preventDefault(); // stoppa native bounce → 1:1-följning
+      dy = Math.max(0, e.clientY - startY);
       panel.style.transform = `translateY(${dy}px)`;
     };
-    const onEnd = () => {
+    const onUp = () => {
       if (!dragging) return;
       dragging = false;
       panel.style.transition = "transform 0.25s ease";
-      if (dy > 120) {
+      if (dy > 100) {
         panel.style.transform = "translateY(110%)";
         window.setTimeout(onClose, 230);
       } else {
@@ -1379,15 +1378,15 @@ function Sheet({
       }
     };
 
-    panel.addEventListener("touchstart", onStart, { passive: true });
-    panel.addEventListener("touchmove", onMove, { passive: false });
-    panel.addEventListener("touchend", onEnd);
-    panel.addEventListener("touchcancel", onEnd);
+    handle.addEventListener("pointerdown", onDown);
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointercancel", onUp);
     return () => {
-      panel.removeEventListener("touchstart", onStart);
-      panel.removeEventListener("touchmove", onMove);
-      panel.removeEventListener("touchend", onEnd);
-      panel.removeEventListener("touchcancel", onEnd);
+      handle.removeEventListener("pointerdown", onDown);
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onUp);
+      handle.removeEventListener("pointercancel", onUp);
     };
   }, [onClose]);
 
@@ -1403,18 +1402,23 @@ function Sheet({
         ref={panelRef}
         className="relative max-h-[85%] overflow-y-auto rounded-t-3xl border-t border-surface-border bg-surface-raised p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-card animate-fade-in-up"
       >
-        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-surface-border" aria-hidden="true" />
-        <div className="mb-4 flex items-center justify-between gap-3">
+        {/* Dragyta: handtag + rubrik. touch-action:none → ingen native scroll här. */}
+        <div
+          ref={handleRef}
+          style={{ touchAction: "none" }}
+          className="-mx-5 -mt-5 cursor-grab px-5 pb-4 pt-5 active:cursor-grabbing"
+        >
+          <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-surface-border" aria-hidden="true" />
           <h2 className="font-display text-base font-semibold text-ink">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Stäng"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-ink-muted hover:bg-surface-overlay hover:text-ink"
-          >
-            <IconX size={18} />
-          </button>
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Stäng"
+          className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full text-ink-muted hover:bg-surface-overlay hover:text-ink"
+        >
+          <IconX size={18} />
+        </button>
         {children}
       </div>
     </div>
