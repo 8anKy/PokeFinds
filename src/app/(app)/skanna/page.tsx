@@ -1125,7 +1125,10 @@ function ReviewView(props: {
               onClick={props.onAddAll}
               loading={addingAll}
               disabled={matchedCount === 0}
-              className="px-5"
+              // Ingen fokus-ring: när sista kortet tas bort hinner WebKit fokusera
+              // knappen precis innan den blir disabled → cyan ring fastnar (går ej
+              // att blur:a på en disabled-knapp). Tar bort ringen helt på denna CTA.
+              className="px-5 focus-visible:ring-0 focus-visible:ring-offset-0"
             >
               Lägg till {matchedCount > 0 ? `${matchedCount} ` : ""}i samlingen
             </Button>
