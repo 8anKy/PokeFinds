@@ -43,6 +43,9 @@ export const viewport: Viewport = {
   // Explicit annars tappas device-width i Capacitor-WebView:en → desktop-layout på mobil.
   width: "device-width",
   initialScale: 1,
+  // cover → env(safe-area-inset-*) får riktiga värden så bottom-tabs kan klara
+  // home-indicatorn (pb i bottom-tabs.tsx). Headern är icke-sticky → ingen wobble.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

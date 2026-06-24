@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { PriceChange } from "@/components/ui/price-change";
 import { ProductCard } from "@/components/features/product-card";
 import { PriceChartLazy } from "@/components/features/price-chart-lazy";
+import { NativeHomeRedirect } from "@/components/native-home-redirect";
 import {
   IconArrowRight,
   IconBell,
@@ -131,6 +132,7 @@ export default async function LandingPage() {
 
   return (
     <div>
+      <NativeHomeRedirect />
       {/* ── Hero ── */}
       <section className="relative overflow-hidden">
         <div
