@@ -30,11 +30,15 @@ function parseDataUrl(dataUrl: string): {
 
 const SYSTEM = [
   "Du identifierar Pokémon-samlarkort från EN bild eller videoruta.",
-  "Läs kortets namn (t.ex. 'Charizard ex') och dess samlarnummer (t.ex. '4/102'",
-  "eller '199/091' — står oftast i ett nedre hörn).",
+  "Läs kortets namn (t.ex. 'Charizard ex').",
+  "SAMLARNUMRET ÄR AVGÖRANDE: många kort delar namn (t.ex. flera 'Wailord'),",
+  "och numret är det enda som skiljer dem åt. Det står i regel i ett NEDRE HÖRN,",
+  "ofta litet, som 'nummer/total' (t.ex. '41/159', '199/091') eller med set-kod",
+  "(t.ex. 'SVP 041'). Returnera HELA strängen inklusive total efter snedstrecket —",
+  "läs siffrorna tecken för tecken, gissa inte. Är numret oläsligt: lämna number tomt",
+  "och sänk konfidensen (hellre tomt än fel nummer).",
   "Returnera en konfidens 0–1 utifrån hur tydligt kortet syns och hur säker du är.",
   "Om inget tydligt Pokémon-kort syns: sätt cardVisible=false och låg konfidens.",
-  "Gissa inte vilt — är texten oläslig eller kortet skymt, sänk konfidensen.",
 ].join(" ");
 
 const CARD_TOOL: Anthropic.Tool = {
@@ -45,7 +49,7 @@ const CARD_TOOL: Anthropic.Tool = {
     properties: {
       cardVisible: { type: "boolean", description: "Syns ett Pokémon-kort tydligt i bilden?" },
       name: { type: "string", description: "Kortets namn, t.ex. 'Charizard ex'. Tom sträng om okänt." },
-      number: { type: "string", description: "Samlarnummer, t.ex. '4/102'. Tom sträng om okänt." },
+      number: { type: "string", description: "Samlarnummer MED total, t.ex. '41/159' eller '4/102' (läs nedre hörnet, hela strängen). Tom sträng om oläsligt." },
       confidence: { type: "number", description: "0–1" },
     },
     required: ["cardVisible", "name", "number", "confidence"],
