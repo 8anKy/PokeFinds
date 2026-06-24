@@ -114,15 +114,16 @@ export async function matchCards(ocr: OcrResult): Promise<ScanCandidate[]> {
 
   const scored = candidates.map((card): ScanCandidate => {
     let score = scoreSimilarity(query, card.name);
-    // Bonus för matchande setnummer (t.ex. "25/102").
+    // Setnummer (t.ex. "25/102") är AVGÖRANDE när flera kort delar namn
+    // (Wailord-reprints scorar identiskt på namn → utan en stark nummer-vikt
+    // vinner bara den DB-rad som råkar komma först). Boosten är därför stor och
+    // OCAPPAD så att rätt-numrerade kortet alltid sorteras före namntvillingar.
     if (guessedNum) {
       const cardNum = parseInt(card.number, 10);
       const matchesNumber = !Number.isNaN(cardNum) && cardNum === guessedNum.num;
       const matchesTotal =
         card.set.totalCards === 0 || card.set.totalCards === guessedNum.total;
-      if (matchesNumber && matchesTotal) {
-        score = Math.min(1, score + 0.2);
-      }
+      if (matchesNumber && matchesTotal) score += 0.5;
     }
     return {
       cardId: card.id,

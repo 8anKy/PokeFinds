@@ -17,6 +17,7 @@ import {
   type ChangeEvent,
   type ReactNode,
   type RefObject,
+  type TouchEvent,
 } from "react";
 import Link from "next/link";
 import { Button, LinkButton } from "@/components/ui/button";
@@ -1337,6 +1338,28 @@ function Sheet({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const startY = useRef(0);
+  const [dragY, setDragY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+
+  // Svep nedåt för att stänga. Drag startar bara när panelen är scrollad till
+  // toppen, annars vinner den inre scrollen.
+  function onTouchStart(e: TouchEvent<HTMLDivElement>) {
+    if ((panelRef.current?.scrollTop ?? 0) > 0) return;
+    startY.current = e.touches[0].clientY;
+    setDragging(true);
+  }
+  function onTouchMove(e: TouchEvent<HTMLDivElement>) {
+    if (!dragging) return;
+    setDragY(Math.max(0, e.touches[0].clientY - startY.current));
+  }
+  function onTouchEnd() {
+    setDragging(false);
+    if (dragY > 120) onClose();
+    else setDragY(0);
+  }
+
   return (
     <div className="absolute inset-0 z-40 flex flex-col justify-end">
       <button
@@ -1345,7 +1368,17 @@ function Sheet({
         onClick={onClose}
         className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
       />
-      <div className="relative max-h-[85%] overflow-y-auto rounded-t-3xl border-t border-surface-border bg-surface-raised p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-card animate-fade-in-up">
+      <div
+        ref={panelRef}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        style={{
+          transform: dragY ? `translateY(${dragY}px)` : undefined,
+          transition: dragging ? undefined : "transform 0.2s ease",
+        }}
+        className="relative max-h-[85%] overflow-y-auto rounded-t-3xl border-t border-surface-border bg-surface-raised p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-card animate-fade-in-up"
+      >
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-surface-border" aria-hidden="true" />
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="font-display text-base font-semibold text-ink">{title}</h2>
