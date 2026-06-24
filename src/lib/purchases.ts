@@ -59,8 +59,16 @@ export async function purchasePremium(userId: string): Promise<boolean> {
     offering?.monthly && offering.monthly.webCheckoutUrl == null
       ? offering.monthly
       : native.find((p) => p.packageType === "MONTHLY") ?? native[0];
-  const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
-  return !!customerInfo.entitlements.active[ENTITLEMENT];
+  // ponytail: TEMP — fånga exakt vad purchasePackage gör (fel-kod/meddelande).
+  try {
+    const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
+    return !!customerInfo.entitlements.active[ENTITLEMENT];
+  } catch (e) {
+    const err = e as { code?: string | number; underlyingErrorMessage?: string; message?: string };
+    throw new Error(
+      `purchasePackage code=${err.code ?? "?"} msg=${err.message ?? e} underlying=${err.underlyingErrorMessage ?? "-"}`
+    );
+  }
 }
 
 /** Återställ tidigare köp (App Store-krav: knapp för "Restore purchases"). */

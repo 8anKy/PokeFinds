@@ -62,7 +62,9 @@ export function UpgradeButton() {
         setMsg("Ingen aktiv Pro hittades.");
       }
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Köpet kunde inte slutföras.");
+      const m = e instanceof Error ? e.message : "Köpet kunde inte slutföras.";
+      alert("KÖP-FEL: " + m); // ponytail: TEMP — fånga felet på enheten
+      setMsg(m);
     } finally {
       setBusy(false);
     }
