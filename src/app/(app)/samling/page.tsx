@@ -190,10 +190,10 @@ export default async function CollectionPage() {
                 </div>
                 <p className="truncate text-xs font-medium text-ink-muted">{m.name}</p>
                 <div className="flex items-baseline justify-between gap-1.5">
-                  <span className="whitespace-nowrap font-mono text-sm font-semibold tabular-nums text-ink">
+                  <span className="whitespace-nowrap font-mono text-xs font-semibold tabular-nums text-ink">
                     {m.value != null ? formatPrice(m.value) : "–"}
                   </span>
-                  <span className="shrink-0 whitespace-nowrap text-[11px] font-semibold text-rise">
+                  <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-rise">
                     {formatPercent(m.percent)}
                   </span>
                 </div>
