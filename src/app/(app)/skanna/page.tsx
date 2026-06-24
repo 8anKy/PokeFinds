@@ -36,6 +36,7 @@ import {
   IconSearch,
   IconSettings,
   IconSparkle,
+  IconTrash,
   IconUpload,
   IconX,
 } from "@/components/ui/icons";
@@ -977,10 +978,8 @@ function ReviewView(props: {
 
         <ul className="flex flex-col gap-3">
           {scans.map((s) => (
-            <li
-              key={s.id}
-              className="overflow-hidden rounded-2xl border border-surface-border bg-surface-raised"
-            >
+            <li key={s.id}>
+             <SwipeToDelete onDelete={() => onRemove(s.id)}>
               {s.status === "matched" && s.match ? (
                 <div className="flex gap-3 p-3">
                   <button
@@ -1083,6 +1082,7 @@ function ReviewView(props: {
                   </div>
                 </div>
               )}
+             </SwipeToDelete>
             </li>
           ))}
         </ul>
@@ -1327,6 +1327,102 @@ function ScanDetailsSheet(props: {
         </div>
       </div>
     </Sheet>
+  );
+}
+
+/* ===========================================================================
+ * Svep-för-att-radera — vänstersvep avslöjar röd raderingsyta; släpp förbi
+ * halva kortet → radera (samma glid + 0.25s ease som sheet-svepet). Native
+ * pointer-events + pan-y så vertikal listscroll förblir webbläsarens.
+ * ======================================================================== */
+function SwipeToDelete({
+  onDelete,
+  children,
+}: {
+  onDelete: () => void;
+  children: ReactNode;
+}) {
+  const fgRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const fg = fgRef.current;
+    if (!fg) return;
+    let startX = 0;
+    let startY = 0;
+    let dx = 0;
+    let dragging = false;
+    let axis: "x" | "y" | null = null;
+
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      dragging = true;
+      axis = null;
+      dx = 0;
+      startX = e.clientX;
+      startY = e.clientY;
+      fg.style.transition = "none";
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!dragging) return;
+      const mx = e.clientX - startX;
+      const my = e.clientY - startY;
+      // Vänta tills riktningen är tydlig; vertikalt → släpp till native scroll.
+      if (axis === null) {
+        if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
+        axis = Math.abs(mx) > Math.abs(my) ? "x" : "y";
+        if (axis === "y") {
+          dragging = false;
+          return;
+        }
+        fg.setPointerCapture(e.pointerId);
+      }
+      dx = Math.min(0, mx); // bara vänster
+      fg.style.transform = `translateX(${dx}px)`;
+    };
+    const onUp = () => {
+      if (!dragging) return;
+      dragging = false;
+      if (axis !== "x") {
+        fg.style.transform = "";
+        return;
+      }
+      fg.style.transition = "transform 0.25s ease";
+      if (-dx > fg.offsetWidth / 2) {
+        fg.style.transform = "translateX(-110%)";
+        window.setTimeout(onDelete, 230);
+      } else {
+        fg.style.transform = "";
+      }
+    };
+
+    fg.addEventListener("pointerdown", onDown);
+    fg.addEventListener("pointermove", onMove);
+    fg.addEventListener("pointerup", onUp);
+    fg.addEventListener("pointercancel", onUp);
+    return () => {
+      fg.removeEventListener("pointerdown", onDown);
+      fg.removeEventListener("pointermove", onMove);
+      fg.removeEventListener("pointerup", onUp);
+      fg.removeEventListener("pointercancel", onUp);
+    };
+  }, [onDelete]);
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl">
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 flex items-center justify-end bg-fall px-6 text-white"
+      >
+        <IconTrash size={22} />
+      </div>
+      <div
+        ref={fgRef}
+        style={{ touchAction: "pan-y" }}
+        className="relative rounded-2xl border border-surface-border bg-surface-raised"
+      >
+        {children}
+      </div>
+    </div>
   );
 }
 
