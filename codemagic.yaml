@@ -33,8 +33,9 @@ workflows:
           ./node_modules/.bin/cap add ios || true
           sed -i '' "s/platform :ios, '13.0'/platform :ios, '15.0'/" ios/App/Podfile
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13.0/IPHONEOS_DEPLOYMENT_TARGET = 15.0/g' ios/App/App.xcodeproj/project.pbxproj
-          # Stäng av WKWebView-studsen (iOS rubber-band) — ingen Capacitor-config finns.
-          sed -i '' 's|// Override point for customization after application launch.|UIScrollView.appearance().bounces = false|' ios/App/App/AppDelegate.swift
+          # Stäng av WKWebView-studsen (iOS rubber-band) direkt på bridge-webviewens
+          # scrollView — ingen Capacitor-config finns. perl = pålitlig flerrads-injekt.
+          perl -0pi -e 's/func applicationDidBecomeActive\(_ application: UIApplication\) \{/func applicationDidBecomeActive(_ application: UIApplication) {\n        (window?.rootViewController as? CAPBridgeViewController)?.webView?.scrollView.bounces = false/' ios/App/App/AppDelegate.swift
           (cd ios/App && pod install)
       - name: Sätt build-nummer
         script: |
