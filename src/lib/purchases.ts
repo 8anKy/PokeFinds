@@ -20,57 +20,16 @@ async function ensureConfigured(userId: string) {
 
 export const purchasesAvailable = () => Capacitor.isNativePlatform() && !!API_KEY;
 
-// ponytail: TEMP diagnostik — ta bort när Safari-redirect-buggen är löst.
-// Visar plattform + offeringens paket (id, typ, web-checkout, produkt-id) så vi
-// ser exakt vad som händer på enheten istället för att gissa.
-export async function describeOfferings(userId: string): Promise<string> {
-  if (!Capacitor.isNativePlatform()) return `native=false platform=${Capacitor.getPlatform()}`;
-  if (!API_KEY) return `native=true men API_KEY SAKNAS (platform=${Capacitor.getPlatform()})`;
-  await ensureConfigured(userId);
-  const o = await Purchases.getOfferings();
-  const cur = o.current;
-  const pkgs = (cur?.availablePackages ?? []).map(
-    (p) => `${p.identifier}/${p.packageType}/web=${p.webCheckoutUrl ? "JA" : "nej"}/${p.product.identifier}`
-  );
-  // Nyckel-PREFIX (ej hemligheten): appl_ = rätt App Store-nyckel → native köp.
-  // rcb_/strp_/sk_ = Web Billing → purchasePackage öppnar Safari. Detta är testet.
-  const keyPrefix = API_KEY ? API_KEY.slice(0, 5) : "SAKNAS";
-  return `key=${keyPrefix} platform=${Capacitor.getPlatform()} current=${cur?.identifier ?? "INGEN"} antal=${pkgs.length}\n${pkgs.join("\n")}`;
-}
-
 /** Köp Premium. Returnerar true om köpet gav premium-entitlement. */
 export async function purchasePremium(userId: string): Promise<boolean> {
   await ensureConfigured(userId);
   const offerings = await Purchases.getOfferings();
   const offering = offerings.current;
-  const all = offering?.availablePackages ?? [];
-  // Ett paket med webCheckoutUrl är ett RC Web Checkout-paket → purchasePackage
-  // öppnar det i Safari. Köp BARA App Store-paket (webCheckoutUrl == null), och
-  // föredra månadspaketet (planen = 49 kr/mån). availablePackages[0] var fel:
-  // ordningsberoende, kunde bli webb-paketet → Safari.
-  const native = all.filter((p) => p.webCheckoutUrl == null);
-  if (native.length === 0) {
-    throw new Error(
-      `Inget App Store-paket i offeringen (${all.length} paket, alla web checkout). ` +
-        `Lägg App Store-produkten i RevenueCat-offeringen.`
-    );
-  }
-  const pkg =
-    offering?.monthly && offering.monthly.webCheckoutUrl == null
-      ? offering.monthly
-      : native.find((p) => p.packageType === "MONTHLY") ?? native[0];
-  // ponytail: TEMP — fånga exakt vad purchasePackage gör (fel-kod/meddelande).
-  alert(`A: anropar purchasePackage (${pkg.identifier})`);
-  try {
-    const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
-    alert(`B: purchasePackage KLAR, premium=${!!customerInfo.entitlements.active[ENTITLEMENT]}`);
-    return !!customerInfo.entitlements.active[ENTITLEMENT];
-  } catch (e) {
-    const err = e as { code?: string | number; underlyingErrorMessage?: string; message?: string };
-    throw new Error(
-      `purchasePackage code=${err.code ?? "?"} msg=${err.message ?? e} underlying=${err.underlyingErrorMessage ?? "-"}`
-    );
-  }
+  // Planen är 49 kr/MÅNAD → välj månadspaketet deterministiskt.
+  const pkg = offering?.monthly ?? offering?.availablePackages[0];
+  if (!pkg) throw new Error("Ingen prenumeration tillgänglig just nu.");
+  const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
+  return !!customerInfo.entitlements.active[ENTITLEMENT];
 }
 
 /** Återställ tidigare köp (App Store-krav: knapp för "Restore purchases"). */

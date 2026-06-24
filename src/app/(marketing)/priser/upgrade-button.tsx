@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
 import { hasAuthHint } from "@/lib/auth-hint";
-import { describeOfferings, purchasesAvailable, purchasePremium, restorePremium } from "@/lib/purchases";
+import { purchasesAvailable, purchasePremium, restorePremium } from "@/lib/purchases";
 
 /**
  * I native-appen (Capacitor) = riktig Apple/Google In-App Purchase via RevenueCat.
@@ -11,6 +12,7 @@ import { describeOfferings, purchasesAvailable, purchasePremium, restorePremium 
  * och webb-Stripe är medvetet inte byggt än).
  */
 export function UpgradeButton() {
+  const router = useRouter();
   const [native, setNative] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -48,23 +50,18 @@ export function UpgradeButton() {
       const me = await fetch("/api/users/me").then((r) => r.json());
       const id = me?.id;
       if (!id) throw new Error("Kunde inte läsa kontot.");
-      // ponytail: TEMP diagnostik — visa runtime-state innan köp. Ta bort sen.
-      try {
-        alert(await describeOfferings(id));
-      } catch (e) {
-        alert("describeOfferings fel: " + (e instanceof Error ? e.message : String(e)));
-      }
       const ok = await action(id);
       if (ok) {
         setMsg(okMsg);
-        setTimeout(() => location.reload(), 1500); // webhooken hinner skriva planTier
+        // router.refresh() (INTE location.reload): en hård reload av en remote-URL
+        // i Capacitor-WebView:en eskalerar till externa Safari. Soft refresh hämtar
+        // server-komponenterna i appen. Fördröjning → webhooken hinner skriva planTier.
+        setTimeout(() => router.refresh(), 1500);
       } else {
         setMsg("Ingen aktiv Pro hittades.");
       }
     } catch (e) {
-      const m = e instanceof Error ? e.message : "Köpet kunde inte slutföras.";
-      alert("KÖP-FEL: " + m); // ponytail: TEMP — fånga felet på enheten
-      setMsg(m);
+      setMsg(e instanceof Error ? e.message : "Köpet kunde inte slutföras.");
     } finally {
       setBusy(false);
     }
