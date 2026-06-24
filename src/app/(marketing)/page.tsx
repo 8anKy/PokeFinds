@@ -122,12 +122,21 @@ const FEATURES = [
   },
 ];
 
+// Bygget statiskt-genererar (ISR) startsidan → en transient Neon-blink (P1001) fick
+// hela Railway-bygget att faila. Fall tillbaka på tomt data så bygget aldrig blockeras;
+// ISR-revalideringen fyller på riktig data direkt efteråt.
+const safe = <T,>(p: Promise<T>, fallback: T): Promise<T> => p.catch(() => fallback);
+
 export default async function LandingPage() {
   const [trending, drops, showcase, popular] = await Promise.all([
-    getTrending(4),
-    getTopDrops(4),
-    getShowcase(),
-    searchProducts({ sort: "popular", page: 1, pageSize: 4 }),
+    safe(getTrending(4), []),
+    safe(getTopDrops(4), []),
+    safe(getShowcase(), null),
+    safe(searchProducts({ sort: "popular", page: 1, pageSize: 4 }), {
+      items: [],
+      total: 0,
+      hasMore: false,
+    }),
   ]);
 
   return (
