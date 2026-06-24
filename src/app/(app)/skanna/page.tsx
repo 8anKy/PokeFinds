@@ -278,11 +278,21 @@ export default function SkannaPage() {
   // Stoppa kameran när komponenten lämnas helt.
   useEffect(() => () => stopCamera(), [stopCamera]);
 
-  // Öppna kameran direkt när fliken visas — ingen mellanlanding.
+  // Öppna kameran när capture-vyn visas OCH återanslut strömmen om videon
+  // monterats om (review→capture monterar ett nytt <video> → annars svart bild).
   // ponytail: launch-vyn nedan är kvar som oåtkomlig fallback (close navigerar bort).
   useEffect(() => {
-    void startCamera();
-  }, [startCamera]);
+    if (view !== "capture") return;
+    const v = videoRef.current;
+    if (streamRef.current) {
+      if (v && v.srcObject !== streamRef.current) {
+        v.srcObject = streamRef.current;
+        void v.play().catch(() => undefined);
+      }
+    } else {
+      void startCamera();
+    }
+  }, [view, startCamera]);
 
   // Lås body-scroll + Escape-stäng medan overlayn är öppen, fokusera stäng-knapp.
   useEffect(() => {
@@ -548,7 +558,6 @@ export default function SkannaPage() {
           <p className="text-sm font-semibold text-ink">
             {view === "review" ? "Granska träffar" : "Skanna kort"}
           </p>
-          <p className="text-[11px] text-ink-faint">Pokémon TCG</p>
         </div>
         <div className="h-10 w-10" aria-hidden="true" />
       </div>
@@ -719,9 +728,9 @@ function CaptureView(props: {
       {cameraState === "live" && (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center pt-2"
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
         >
-          <div className="relative mt-[8vh] aspect-[5/7] w-[68%] max-w-[20rem]">
+          <div className="relative aspect-[5/7] w-[68%] max-w-[20rem]">
             <CornerFrame />
           </div>
         </div>
@@ -1389,7 +1398,12 @@ function SwipeToDelete({
       fg.style.transition = "transform 0.25s ease";
       if (-dx > fg.offsetWidth / 2) {
         fg.style.transform = "translateX(-110%)";
-        window.setTimeout(onDelete, 230);
+        window.setTimeout(() => {
+          onDelete();
+          // Hindra kvarhängande fokus-ring (cyan) på CTA-knappen efter att det
+          // svepta kortet avmonterats och fokus hoppar vidare.
+          (document.activeElement as HTMLElement | null)?.blur?.();
+        }, 230);
       } else {
         fg.style.transform = "";
       }
