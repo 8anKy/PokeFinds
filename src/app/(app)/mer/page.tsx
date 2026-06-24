@@ -12,6 +12,7 @@ import {
   IconWrench,
   IconTrophy,
   IconInfo,
+  IconFlag,
   IconChevronRight,
   type IconProps,
 } from "@/components/ui/icons";
@@ -110,6 +111,23 @@ export default async function MerPage() {
               <IconChevronRight size={18} className="shrink-0 text-ink-muted" />
             </Link>
           ))}
+          {/* Rapportera bugg — mailto öppnar mejlappen (funkar även i Capacitor),
+              ingen backend behövs. ponytail: byt till formulär om volymen kräver det. */}
+          <a
+            href={
+              "mailto:hej@foilio.se?subject=" +
+              encodeURIComponent("Buggrapport – Foilio-appen") +
+              "&body=" +
+              encodeURIComponent(
+                "Beskriv buggen så detaljerat du kan:\n\n\nVad gjorde du när det hände?\n\n\n— Skickat från Foilio-appen"
+              )
+            }
+            className="flex items-center gap-3 border-b border-surface-border px-4 py-3.5 transition-colors last:border-b-0 hover:bg-surface-overlay/60"
+          >
+            <IconFlag size={20} className="shrink-0 text-rise" />
+            <span className="flex-1 text-sm font-medium text-ink">Rapportera bugg</span>
+            <IconChevronRight size={18} className="shrink-0 text-ink-muted" />
+          </a>
           {isAdmin && (
             <Link
               href="/admin"
