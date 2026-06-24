@@ -60,8 +60,10 @@ export async function purchasePremium(userId: string): Promise<boolean> {
       ? offering.monthly
       : native.find((p) => p.packageType === "MONTHLY") ?? native[0];
   // ponytail: TEMP — fånga exakt vad purchasePackage gör (fel-kod/meddelande).
+  alert(`A: anropar purchasePackage (${pkg.identifier})`);
   try {
     const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
+    alert(`B: purchasePackage KLAR, premium=${!!customerInfo.entitlements.active[ENTITLEMENT]}`);
     return !!customerInfo.entitlements.active[ENTITLEMENT];
   } catch (e) {
     const err = e as { code?: string | number; underlyingErrorMessage?: string; message?: string };
