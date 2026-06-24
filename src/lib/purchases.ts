@@ -32,7 +32,10 @@ export async function describeOfferings(userId: string): Promise<string> {
   const pkgs = (cur?.availablePackages ?? []).map(
     (p) => `${p.identifier}/${p.packageType}/web=${p.webCheckoutUrl ? "JA" : "nej"}/${p.product.identifier}`
   );
-  return `platform=${Capacitor.getPlatform()} current=${cur?.identifier ?? "INGEN"} antal=${pkgs.length}\n${pkgs.join("\n")}`;
+  // Nyckel-PREFIX (ej hemligheten): appl_ = rätt App Store-nyckel → native köp.
+  // rcb_/strp_/sk_ = Web Billing → purchasePackage öppnar Safari. Detta är testet.
+  const keyPrefix = API_KEY ? API_KEY.slice(0, 5) : "SAKNAS";
+  return `key=${keyPrefix} platform=${Capacitor.getPlatform()} current=${cur?.identifier ?? "INGEN"} antal=${pkgs.length}\n${pkgs.join("\n")}`;
 }
 
 /** Köp Premium. Returnerar true om köpet gav premium-entitlement. */
