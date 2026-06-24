@@ -17,7 +17,6 @@ import {
   type ChangeEvent,
   type ReactNode,
   type RefObject,
-  type TouchEvent,
 } from "react";
 import Link from "next/link";
 import { Button, LinkButton } from "@/components/ui/button";
@@ -1339,37 +1338,58 @@ function Sheet({
   children: ReactNode;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const startY = useRef(0);
-  const activeRef = useRef(false); // ref, inte state: gaten måste gälla redan i första touchmove
-  const [dragY, setDragY] = useState(0);
-  const [dragging, setDragging] = useState(false);
-  const [closing, setClosing] = useState(false);
 
-  // Svep nedåt för att stänga. Drag startar bara när panelen är scrollad till
-  // toppen, annars vinner den inre scrollen. Fingret följer 1:1 (ingen
-  // transition under drag); släpp förbi tröskeln → glid ner och stäng.
-  function onTouchStart(e: TouchEvent<HTMLDivElement>) {
-    if ((panelRef.current?.scrollTop ?? 0) > 0) return;
-    startY.current = e.touches[0].clientY;
-    activeRef.current = true;
-    setDragging(true);
-  }
-  function onTouchMove(e: TouchEvent<HTMLDivElement>) {
-    if (!activeRef.current) return;
-    const dy = e.touches[0].clientY - startY.current;
-    if (dy > 0) setDragY(dy);
-  }
-  function onTouchEnd() {
-    if (!activeRef.current) return;
-    activeRef.current = false;
-    setDragging(false);
-    if (dragY > 140) {
-      setClosing(true);
-      window.setTimeout(onClose, 220);
-    } else {
-      setDragY(0);
-    }
-  }
+  // Svep nedåt för att stänga. Native (icke-passiva) lyssnare så vi kan
+  // preventDefault och stoppa iOS rubber-band-scroll som annars gör draget
+  // hackigt; vi skriver transform direkt på elementet (mjukare än React-state
+  // per ruta). Drag startar bara när panelen är scrollad till toppen.
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    let startY = 0;
+    let dy = 0;
+    let dragging = false;
+
+    const onStart = (e: TouchEvent) => {
+      if (panel.scrollTop > 0) return;
+      startY = e.touches[0].clientY;
+      dy = 0;
+      dragging = true;
+      panel.style.transition = "none";
+    };
+    const onMove = (e: TouchEvent) => {
+      if (!dragging) return;
+      dy = e.touches[0].clientY - startY;
+      if (dy <= 0) {
+        panel.style.transform = "";
+        return;
+      }
+      e.preventDefault(); // stoppa native bounce → 1:1-följning
+      panel.style.transform = `translateY(${dy}px)`;
+    };
+    const onEnd = () => {
+      if (!dragging) return;
+      dragging = false;
+      panel.style.transition = "transform 0.25s ease";
+      if (dy > 120) {
+        panel.style.transform = "translateY(110%)";
+        window.setTimeout(onClose, 230);
+      } else {
+        panel.style.transform = "";
+      }
+    };
+
+    panel.addEventListener("touchstart", onStart, { passive: true });
+    panel.addEventListener("touchmove", onMove, { passive: false });
+    panel.addEventListener("touchend", onEnd);
+    panel.addEventListener("touchcancel", onEnd);
+    return () => {
+      panel.removeEventListener("touchstart", onStart);
+      panel.removeEventListener("touchmove", onMove);
+      panel.removeEventListener("touchend", onEnd);
+      panel.removeEventListener("touchcancel", onEnd);
+    };
+  }, [onClose]);
 
   return (
     <div className="absolute inset-0 z-40 flex flex-col justify-end">
@@ -1381,17 +1401,6 @@ function Sheet({
       />
       <div
         ref={panelRef}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        style={{
-          transform: closing
-            ? "translateY(110%)"
-            : dragY
-              ? `translateY(${dragY}px)`
-              : undefined,
-          transition: dragging ? undefined : "transform 0.22s ease",
-        }}
         className="relative max-h-[85%] overflow-y-auto rounded-t-3xl border-t border-surface-border bg-surface-raised p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-card animate-fade-in-up"
       >
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-surface-border" aria-hidden="true" />
