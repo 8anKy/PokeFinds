@@ -30,23 +30,19 @@ export function BottomTabs() {
   useEffect(() => setLoggedIn(hasAuthHint()), []);
 
   // iOS-tangentbordet flyttar position:fixed-element när det öppnas → göm tab-baren
-  // medan ett textfält är fokuserat (man behöver den inte när man skriver ändå).
-  const [typing, setTyping] = useState(false);
+  // medan tangentbordet är uppe. visualViewport krymper när tangentbordet visas
+  // (mer pålitligt än focus-event i WebView:en).
+  const [keyboard, setKeyboard] = useState(false);
   useEffect(() => {
-    const isField = (el: EventTarget | null) =>
-      el instanceof HTMLElement &&
-      (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
-    const onIn = (e: FocusEvent) => isField(e.target) && setTyping(true);
-    const onOut = () => setTyping(false);
-    document.addEventListener("focusin", onIn);
-    document.addEventListener("focusout", onOut);
-    return () => {
-      document.removeEventListener("focusin", onIn);
-      document.removeEventListener("focusout", onOut);
-    };
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => setKeyboard(window.innerHeight - vv.height > 120);
+    vv.addEventListener("resize", onResize);
+    onResize();
+    return () => vv.removeEventListener("resize", onResize);
   }, []);
 
-  if (!loggedIn || typing) return null;
+  if (!loggedIn || keyboard) return null;
   return (
     <>
       {/* Klarering: fixed nav överlappar sidans botten — denna spacer ger

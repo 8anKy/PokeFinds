@@ -21,6 +21,8 @@
     /* viewport-fit=cover lägger innehållet edge-to-edge under statusfältet →
        padda ner så headern/logon hamnar UNDER klockan (0 på webben). */
     padding-top: env(safe-area-inset-top);
+    /* Ingen rubber-band-studs förbi toppen (app-känsla). */
+    overscroll-behavior: none;
   }
   ::selection {
     @apply bg-holo-cyan/25 text-white;
