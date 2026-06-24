@@ -24,7 +24,11 @@ export const purchasesAvailable = () => Capacitor.isNativePlatform() && !!API_KE
 export async function purchasePremium(userId: string): Promise<boolean> {
   await ensureConfigured(userId);
   const offerings = await Purchases.getOfferings();
-  const pkg = offerings.current?.availablePackages[0];
+  // Planen är 49 kr/MÅNAD → välj månadspaketet deterministiskt. availablePackages[0]
+  // är ordningsberoende: har offeringen fler paket (t.ex. ett RC Web Billing-paket)
+  // kunde [0] ibland bli webb-paketet → köpet öppnade Safari istället för App Store-arket.
+  const offering = offerings.current;
+  const pkg = offering?.monthly ?? offering?.availablePackages[0];
   if (!pkg) throw new Error("Ingen prenumeration tillgänglig just nu.");
   const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
   return !!customerInfo.entitlements.active[ENTITLEMENT];
