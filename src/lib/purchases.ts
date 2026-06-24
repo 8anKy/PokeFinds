@@ -20,6 +20,21 @@ async function ensureConfigured(userId: string) {
 
 export const purchasesAvailable = () => Capacitor.isNativePlatform() && !!API_KEY;
 
+// ponytail: TEMP diagnostik — ta bort när Safari-redirect-buggen är löst.
+// Visar plattform + offeringens paket (id, typ, web-checkout, produkt-id) så vi
+// ser exakt vad som händer på enheten istället för att gissa.
+export async function describeOfferings(userId: string): Promise<string> {
+  if (!Capacitor.isNativePlatform()) return `native=false platform=${Capacitor.getPlatform()}`;
+  if (!API_KEY) return `native=true men API_KEY SAKNAS (platform=${Capacitor.getPlatform()})`;
+  await ensureConfigured(userId);
+  const o = await Purchases.getOfferings();
+  const cur = o.current;
+  const pkgs = (cur?.availablePackages ?? []).map(
+    (p) => `${p.identifier}/${p.packageType}/web=${p.webCheckoutUrl ? "JA" : "nej"}/${p.product.identifier}`
+  );
+  return `platform=${Capacitor.getPlatform()} current=${cur?.identifier ?? "INGEN"} antal=${pkgs.length}\n${pkgs.join("\n")}`;
+}
+
 /** Köp Premium. Returnerar true om köpet gav premium-entitlement. */
 export async function purchasePremium(userId: string): Promise<boolean> {
   await ensureConfigured(userId);

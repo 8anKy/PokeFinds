@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button, LinkButton } from "@/components/ui/button";
 import { hasAuthHint } from "@/lib/auth-hint";
-import { purchasesAvailable, purchasePremium, restorePremium } from "@/lib/purchases";
+import { describeOfferings, purchasesAvailable, purchasePremium, restorePremium } from "@/lib/purchases";
 
 /**
  * I native-appen (Capacitor) = riktig Apple/Google In-App Purchase via RevenueCat.
@@ -48,6 +48,12 @@ export function UpgradeButton() {
       const me = await fetch("/api/users/me").then((r) => r.json());
       const id = me?.id;
       if (!id) throw new Error("Kunde inte läsa kontot.");
+      // ponytail: TEMP diagnostik — visa runtime-state innan köp. Ta bort sen.
+      try {
+        alert(await describeOfferings(id));
+      } catch (e) {
+        alert("describeOfferings fel: " + (e instanceof Error ? e.message : String(e)));
+      }
       const ok = await action(id);
       if (ok) {
         setMsg(okMsg);
