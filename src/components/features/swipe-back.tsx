@@ -2,15 +2,18 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { useViewTransitionBack } from "@/lib/use-view-transition-back";
 
 /**
  * Svep åt höger för att gå tillbaka — till Utforska/Portfölj exakt där du var.
- * router.back() återställer scrollpositionen via webbläsarens history, så samma
- * komponent funkar oavsett varifrån produkten öppnades. Följer fingret och
- * glider ut mjukt (transform 0.25s ease) — samma känsla som övriga svep i appen.
+ * Sidan följer fingret; vid släpp glider den ut åt höger och destinationen
+ * avtäcks UNDER den via en native View Transition (se globals.css). router.back()
+ * återställer scrollpositionen, så samma komponent funkar oavsett varifrån
+ * produkten öppnades.
  */
 export function SwipeBack({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const back = useViewTransitionBack();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -59,14 +62,17 @@ export function SwipeBack({ children }: { children: ReactNode }) {
         el.style.transform = "";
         return;
       }
-      el.style.transition = "transform 0.25s ease";
       if (dx > el.offsetWidth / 4) {
-        el.style.transform = "translateX(110%)";
-        window.setTimeout(() => {
-          if (window.history.length > 1) router.back();
-          else router.push("/produkter");
-        }, 230);
+        // Lämna over till View Transition: börja sliden där fingret släppte
+        // (--vt-x) och nollställ den live-transformen så snapshotten tas i
+        // hemläge. Vid avsaknad av VT-stöd faller hooken tillbaka på vanlig nav.
+        document.documentElement.style.setProperty("--vt-x", `${dx}px`);
+        el.style.transition = "none";
+        el.style.transform = "";
+        if (window.history.length > 1) back(() => router.back());
+        else back(() => router.push("/produkter"));
       } else {
+        el.style.transition = "transform 0.25s ease";
         el.style.transform = "";
       }
     };
@@ -81,7 +87,7 @@ export function SwipeBack({ children }: { children: ReactNode }) {
       el.removeEventListener("pointerup", onUp);
       el.removeEventListener("pointercancel", onUp);
     };
-  }, [router]);
+  }, [router, back]);
 
   return (
     <div ref={ref} style={{ touchAction: "pan-y" }}>

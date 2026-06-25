@@ -148,3 +148,19 @@ table td,
 .price-fade-stop {
   transition: stop-opacity 220ms ease-out;
 }
+
+/* Svep-tillbaka: utgående sida glider åt höger och avtäcker destinationen som
+   ligger stilla under. --vt-x = där fingret släppte (sätts av swipe-handlern).
+   Bara aktiv när .vt-back finns på <html> → påverkar inga andra navigeringar. */
+@keyframes vt-back-out {
+  from { transform: translateX(var(--vt-x, 0px)); }
+  to   { transform: translateX(100%); }
+}
+.vt-back::view-transition-old(root) {
+  animation: vt-back-out 0.3s ease both;
+  z-index: 2;
+}
+.vt-back::view-transition-new(root) {
+  animation: none;
+  z-index: 1;
+}

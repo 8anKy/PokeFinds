@@ -20,6 +20,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useViewTransitionBack } from "@/lib/use-view-transition-back";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Label, Select } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
@@ -122,7 +123,9 @@ function captureFrame(
 export default function SkannaPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const back = useViewTransitionBack();
 
+  const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -258,8 +261,9 @@ export default function SkannaPage() {
     }
     stopCamera();
     // Skannern ÄR fliken nu → stäng = lämna fliken (router, ej hård nav i Capacitor).
-    router.back();
-  }, [scans.length, addedCount, stopCamera, router]);
+    // View Transition → destinationen glider fram under skannern (samma som svep).
+    back(() => router.back());
+  }, [scans.length, addedCount, stopCamera, router, back]);
 
   // Stoppa kameran när komponenten lämnas helt.
   useEffect(() => () => stopCamera(), [stopCamera]);
@@ -300,6 +304,40 @@ export default function SkannaPage() {
       window.removeEventListener("keydown", onKey);
     };
   }, [detailsId, settingsOpen, view, closeScanner]);
+
+  // Svep åt höger för att stänga skannern (samma gest som produkt-sidan). Ingen
+  // finger-följning här — kameravyn ska inte translateras; en tydlig höger-svep
+  // räcker → closeScanner() (med osparade-träffar-vakten + View Transition).
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    if (!window.matchMedia("(pointer: coarse)").matches) return;
+    let startX = 0;
+    let startY = 0;
+    let active = false;
+
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType === "mouse") return;
+      active = true;
+      startX = e.clientX;
+      startY = e.clientY;
+    };
+    const onUp = (e: PointerEvent) => {
+      if (!active) return;
+      active = false;
+      const mx = e.clientX - startX;
+      const my = e.clientY - startY;
+      if (mx > 80 && mx > Math.abs(my) * 1.5) closeScanner();
+    };
+
+    el.addEventListener("pointerdown", onDown);
+    el.addEventListener("pointerup", onUp);
+    el.addEventListener("pointercancel", () => (active = false));
+    return () => {
+      el.removeEventListener("pointerdown", onDown);
+      el.removeEventListener("pointerup", onUp);
+    };
+  }, [closeScanner]);
 
   // ---- Fånga / ladda upp ---------------------------------------------------
 
@@ -424,6 +462,7 @@ export default function SkannaPage() {
   // =========================================================================
   return (
     <div
+      ref={rootRef}
       role="dialog"
       aria-modal="true"
       aria-label="Kortskanner"
