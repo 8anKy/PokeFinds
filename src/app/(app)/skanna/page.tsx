@@ -322,6 +322,8 @@ export default function SkannaPage() {
 
     const onStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
+      // Skanningsremsan scrollar horisontellt → svep där ska INTE stänga skannern.
+      if ((e.target as HTMLElement)?.closest?.("[data-no-swipe]")) return;
       dragging = true;
       axis = null;
       dx = 0;
@@ -834,7 +836,7 @@ function ScanStrip({
   onOpen: (id: string) => void;
 }) {
   return (
-    <div className="rounded-2xl bg-black/55 p-2.5 backdrop-blur">
+    <div data-no-swipe className="rounded-2xl bg-black/55 p-2.5 backdrop-blur">
       <div className="flex gap-2 overflow-x-auto pb-1">
         {scans.map((s) => (
           <button
