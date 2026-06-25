@@ -1,4 +1,4 @@
-name: Restock-bevakning (varje timme)
+name: Restock-bevakning (varannan timme)
 
 # Lätt restock-skanning (runRestockScan): hämtar de restock-bevakade butikernas
 # kataloger PARALLELLT (bara HTTP → Neon sover) och diffar sedan lagerstatus mot
@@ -10,7 +10,7 @@ name: Restock-bevakning (varje timme)
 # Vill du tätare (t.ex. 30 min): bevaka Neon-compute — kan kräva betald plan.
 on:
   schedule:
-    - cron: "0 * * * *" # varje hel timme
+    - cron: "0 */2 * * *" # varannan timme (halverar Neon-uppvakningar vs varje timme; restocks fångas inom 2h)
   workflow_dispatch: {}
 
 concurrency:
