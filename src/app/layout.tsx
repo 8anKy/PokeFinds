@@ -58,8 +58,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <Providers>
           {children}
-          <BottomTabs />
+          {/* Overlay FÖRE bottom-tabs: båda z-40 → tabs (senare i DOM) målas
+              ovanpå overlayn (syns/klickbara), medan overlayn täcker sidans egen
+              header (annars dubbel header). */}
           <ProductOverlayHost />
+          <BottomTabs />
           <CookieBanner />
           <ServiceWorkerRegister />
         </Providers>

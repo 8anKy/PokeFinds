@@ -250,16 +250,19 @@ export default function SkannaPage() {
     }
   }, []);
 
-  const closeScanner = useCallback(() => {
+  // Returnerar false om stängningen avbröts (osparade träffar) → svep-gesten
+  // fjädrar tillbaka i stället för att lämna skannern osynlig utanför skärmen.
+  const closeScanner = useCallback((): boolean => {
     if (scans.length > 0 && addedCount === null) {
       const ok = window.confirm(
         `Du har ${scans.length} oskannade träffar. Stäng skannern och kasta dem?`
       );
-      if (!ok) return;
+      if (!ok) return false;
     }
     stopCamera();
     // Skannern ÄR fliken nu → stäng = lämna fliken (router, ej hård nav i Capacitor).
     router.back();
+    return true;
   }, [scans.length, addedCount, stopCamera, router]);
 
   // Stoppa kameran när komponenten lämnas helt.
@@ -302,37 +305,76 @@ export default function SkannaPage() {
     };
   }, [detailsId, settingsOpen, view, closeScanner]);
 
-  // Svep åt höger för att stänga skannern (samma gest som produkt-sidan). Ingen
-  // finger-följning här — kameravyn ska inte translateras; en tydlig höger-svep
-  // räcker → closeScanner() (med osparade-träffar-vakten + View Transition).
+  // Svep åt HÖGER för att stänga skannern — fingret följer och skannern glider
+  // ut, sedan closeScanner() (med osparade-träffar-vakten). Samma touch-event-
+  // teknik som produkt-overlayn (WKWebView kapar annars gesten). BARA högersvep
+  // engagerar → vänster-svep (kort-radering i granskningsvyn) + vertikal scroll
+  // släpps igenom orörda.
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return;
     if (!window.matchMedia("(pointer: coarse)").matches) return;
     let startX = 0;
     let startY = 0;
-    let active = false;
+    let dx = 0;
+    let dragging = false;
+    let axis: "x" | "y" | null = null;
 
-    const onDown = (e: PointerEvent) => {
-      if (e.pointerType === "mouse") return;
-      active = true;
-      startX = e.clientX;
-      startY = e.clientY;
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      dragging = true;
+      axis = null;
+      dx = 0;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      el.style.transition = "none";
     };
-    const onUp = (e: PointerEvent) => {
-      if (!active) return;
-      active = false;
-      const mx = e.clientX - startX;
-      const my = e.clientY - startY;
-      if (mx > 80 && mx > Math.abs(my) * 1.5) closeScanner();
+    const onMove = (e: TouchEvent) => {
+      if (!dragging) return;
+      const t = e.touches[0];
+      const mx = t.clientX - startX;
+      const my = t.clientY - startY;
+      if (axis === null) {
+        if (Math.abs(mx) < 10 && Math.abs(my) < 10) return;
+        // Bara höger-svep stänger; vänster (radera-svep) + vertikalt → släpp igenom.
+        if (mx <= 0 || Math.abs(mx) <= Math.abs(my)) {
+          dragging = false;
+          return;
+        }
+        axis = "x";
+      }
+      e.preventDefault();
+      dx = Math.max(0, mx);
+      el.style.transform = `translateX(${dx}px)`;
+    };
+    const onEnd = () => {
+      if (!dragging) return;
+      dragging = false;
+      if (axis !== "x") {
+        el.style.transform = "";
+        return;
+      }
+      el.style.transition = "transform 0.25s ease";
+      if (dx > el.offsetWidth / 3) {
+        el.style.transform = "translateX(110%)";
+        window.setTimeout(() => {
+          // Avbrutet (osparade träffar) → fjädra tillbaka in.
+          if (!closeScanner()) el.style.transform = "";
+        }, 230);
+      } else {
+        el.style.transform = "";
+      }
     };
 
-    el.addEventListener("pointerdown", onDown);
-    el.addEventListener("pointerup", onUp);
-    el.addEventListener("pointercancel", () => (active = false));
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove", onMove, { passive: false });
+    el.addEventListener("touchend", onEnd);
+    el.addEventListener("touchcancel", onEnd);
     return () => {
-      el.removeEventListener("pointerdown", onDown);
-      el.removeEventListener("pointerup", onUp);
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("touchend", onEnd);
+      el.removeEventListener("touchcancel", onEnd);
     };
   }, [closeScanner]);
 
