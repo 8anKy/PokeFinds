@@ -178,6 +178,9 @@ export function ProductOverlayHost() {
     // släpps igenom (native scroll). touchmove MÅSTE vara passive:false.
     const onStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
+      // Hoppa över ytor som äger horisontellt drag själva (pris-grafen) → svepet
+      // ska inte stänga overlayn när man scrubbar grafen.
+      if ((e.target as HTMLElement | null)?.closest?.("[data-swipe-ignore]")) return;
       dragging = true;
       axis = null;
       dx = 0;
@@ -244,7 +247,7 @@ export function ProductOverlayHost() {
         ref={panelRef}
         tabIndex={-1}
         style={{ touchAction: "pan-y" }}
-        className="overlay-in absolute inset-0 overflow-y-auto overscroll-contain bg-surface-gradient pt-[env(safe-area-inset-top)] pb-[calc(4rem+env(safe-area-inset-bottom))] outline-none"
+        className="overlay-in absolute inset-0 overflow-y-auto overscroll-none bg-surface-gradient pt-[env(safe-area-inset-top)] pb-[calc(4rem+env(safe-area-inset-bottom))] outline-none"
       >
         <SiteHeader />
         {data ? <ProductDetailView data={data} /> : <DetailSkeleton />}

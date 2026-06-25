@@ -79,7 +79,11 @@ export function ProductPriceCard({
         </div>
       </CardHeader>
       <CardContent>
-        <PriceChartLazy data={data} />
+        {/* data-swipe-ignore: horisontellt drag på grafen = tooltip-scrubbing,
+            inte svep-tillbaka (overlayns gest hoppar över den här ytan). */}
+        <div data-swipe-ignore>
+          <PriceChartLazy data={data} />
+        </div>
       </CardContent>
     </Card>
   );
