@@ -20,6 +20,7 @@ import {
   LiveOffersTable,
 } from "@/components/features/live-product-pricing";
 import { IconCards } from "@/components/ui/icons";
+import { SwipeBack } from "@/components/features/swipe-back";
 
 // Produktsidan läser inte längre URL-param (perioden filtreras i klienten) eller
 // session → den kan ISR-cachas. Live-priser/offers uppdateras ändå klient-sida via
@@ -199,6 +200,7 @@ export default async function ProductPage({ params }: PageProps) {
       affiliateRetailerIds={affiliateRetailers.map((r) => r.id)}
       initialUpdatedAt={new Date(product.updatedAt).toISOString()}
     >
+      <SwipeBack>
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <script
           type="application/ld+json"
@@ -361,6 +363,7 @@ export default async function ProductPage({ params }: PageProps) {
           </section>
         )}
       </div>
+      </SwipeBack>
     </LivePricingProvider>
   );
 }
