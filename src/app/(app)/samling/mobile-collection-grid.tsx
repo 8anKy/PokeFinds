@@ -13,6 +13,7 @@ import { useToast } from "@/components/ui/toast";
 import { formatPrice } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { IconCheck, IconPackage, IconTrash, IconX } from "@/components/ui/icons";
+import { openProductOverlay } from "@/lib/product-overlay-open";
 import type { CollectionRow } from "./collection-client";
 
 const LONG_PRESS_MS = 450;
@@ -72,7 +73,9 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
         return;
       }
       if (row.slug) {
-        router.push(`/produkter/${row.slug}`);
+        // Öppna overlayn (svep-tillbaka funkar) — på touch. Faller tillbaka på
+        // vanlig nav om overlayn inte är tillgänglig (desktop).
+        if (!openProductOverlay(row.slug)) router.push(`/produkter/${row.slug}`);
       } else {
         toast({
           title: "Ingen produktsida",

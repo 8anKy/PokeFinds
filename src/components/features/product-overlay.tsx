@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ProductDetailData } from "@/services/products";
 import { ProductDetailView } from "@/components/features/product-detail-view";
 import { SiteHeader } from "@/components/layout/site-header";
+import { registerOverlayOpen } from "@/lib/product-overlay-open";
 
 /**
  * Produkt-overlay: öppnar produktdetaljer OVANPÅ den fortfarande monterade
@@ -67,6 +68,12 @@ export function ProductOverlayHost() {
     },
     [fetchDetail]
   );
+
+  // Registrera den imperativa öppnaren (för kort som navigerar via onClick).
+  useEffect(() => {
+    registerOverlayOpen(open);
+    return () => registerOverlayOpen(null);
+  }, [open]);
 
   // Mjuk stängning (state only) — historiken hanteras av anroparen.
   const softClose = useCallback(() => {
