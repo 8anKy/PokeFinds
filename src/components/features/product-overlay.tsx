@@ -171,60 +171,64 @@ export function ProductOverlayHost() {
     let dragging = false;
     let axis: "x" | "y" | null = null;
 
-    const onDown = (e: PointerEvent) => {
-      if (e.pointerType === "mouse") return;
+    // TOUCH-events (ej pointer): i iOS-appen (WKWebView) kapar systemets
+    // kant-svep (back-gest) annars hela höger-svepet → "stängdes direkt utan att
+    // fingret följde". e.preventDefault() på horisontellt touchmove STOPPAR den
+    // native gesten OCH ev. horisontell scroll → vår glid vinner. Vertikalt
+    // släpps igenom (native scroll). touchmove MÅSTE vara passive:false.
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
       dragging = true;
       axis = null;
       dx = 0;
-      startX = e.clientX;
-      startY = e.clientY;
-      // .overlay-in har animation:...both → fill-mode PINNAR transform och
-      // överröstar vår inline-transform (fingret följde inte). Måste nollas.
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      // .overlay-in animation:...both → fill-mode pinnar transform → nolla den.
       el.style.animation = "none";
       el.style.transition = "none";
     };
-    const onMove = (e: PointerEvent) => {
+    const onMove = (e: TouchEvent) => {
       if (!dragging) return;
-      const mx = e.clientX - startX;
-      const my = e.clientY - startY;
+      const t = e.touches[0];
+      const mx = t.clientX - startX;
+      const my = t.clientY - startY;
       if (axis === null) {
         if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
         axis = mx > Math.abs(my) ? "x" : "y";
         if (axis !== "x") {
-          dragging = false;
+          dragging = false; // vertikalt → låt native scroll ta över
           return;
         }
-        el.setPointerCapture(e.pointerId);
       }
+      e.preventDefault(); // kapa native kant-svep/scroll, vi äger gesten
       dx = Math.max(0, mx);
       el.style.transform = `translateX(${dx}px)`;
     };
-    const onUp = () => {
+    const onEnd = () => {
       if (!dragging) return;
       dragging = false;
       if (axis !== "x") {
         el.style.transform = "";
         return;
       }
+      el.style.transition = "transform 0.25s ease";
       if (dx > el.offsetWidth / 4) {
-        el.style.transition = "transform 0.25s ease";
         el.style.transform = "translateX(110%)";
         window.setTimeout(close, 230);
       } else {
-        el.style.transition = "transform 0.25s ease";
         el.style.transform = "";
       }
     };
 
-    el.addEventListener("pointerdown", onDown);
-    el.addEventListener("pointermove", onMove);
-    el.addEventListener("pointerup", onUp);
-    el.addEventListener("pointercancel", onUp);
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove", onMove, { passive: false });
+    el.addEventListener("touchend", onEnd);
+    el.addEventListener("touchcancel", onEnd);
     return () => {
-      el.removeEventListener("pointerdown", onDown);
-      el.removeEventListener("pointermove", onMove);
-      el.removeEventListener("pointerup", onUp);
-      el.removeEventListener("pointercancel", onUp);
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("touchend", onEnd);
+      el.removeEventListener("touchcancel", onEnd);
     };
   }, [slug, close]);
 
