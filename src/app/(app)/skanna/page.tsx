@@ -20,7 +20,6 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useViewTransitionBack } from "@/lib/use-view-transition-back";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Label, Select } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
@@ -123,7 +122,6 @@ function captureFrame(
 export default function SkannaPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const back = useViewTransitionBack();
 
   const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -261,9 +259,8 @@ export default function SkannaPage() {
     }
     stopCamera();
     // Skannern ÄR fliken nu → stäng = lämna fliken (router, ej hård nav i Capacitor).
-    // View Transition → destinationen glider fram under skannern (samma som svep).
-    back(() => router.back());
-  }, [scans.length, addedCount, stopCamera, router, back]);
+    router.back();
+  }, [scans.length, addedCount, stopCamera, router]);
 
   // Stoppa kameran när komponenten lämnas helt.
   useEffect(() => () => stopCamera(), [stopCamera]);

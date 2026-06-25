@@ -492,7 +492,7 @@ export interface PriceHistoryBySource {
  * - tradera: skrapade Tradera-listningar
  * - butiker: svenska butiksskrapare (Spelexperten, Webhallen m.fl.)
  */
-export async function getPriceHistoryBySource(
+async function getPriceHistoryBySourceRaw(
   productId: string,
   days: number
 ): Promise<PriceHistoryBySource> {
@@ -532,6 +532,173 @@ export async function getPriceHistoryBySource(
     cardmarket: toSeries(buckets.cardmarket),
     tradera: toSeries(buckets.tradera),
     butiker: toSeries(buckets.butiker),
+  };
+}
+
+/**
+ * Hela produktsidans data i ETT serialiserbart paket — delas av SSR-sidan
+ * (`/produkter/[slug]`) och produkt-overlayn (`/api/products/[slug]/detail`).
+ * Datum är ISO-strängar (tål både Date och cache-serialiserad sträng).
+ */
+export interface ProductDetailData {
+  id: string;
+  slug: string;
+  title: string;
+  category: ProductCategory;
+  language: CardLanguage;
+  description: string | null;
+  imageUrl: string | null;
+  watchCount: number;
+  updatedAt: string;
+  set: { id: string; name: string } | null;
+  restockEvents: {
+    id: string;
+    retailerName: string;
+    newStatus: StockStatus;
+    detectedAt: string;
+  }[];
+  /** Cardmarket-trendserie (hela perioden; klienten filtrerar). */
+  chartData: SourceHistoryPoint[];
+  change7: number | null;
+  change30: number | null;
+  offerCount: number;
+  stats: LiveOfferStats;
+  serializedOffers: SerializedOffer[];
+  affiliateRetailerIds: string[];
+  similar: {
+    slug: string;
+    title: string;
+    imageUrl: string | null;
+    category: ProductCategory;
+    lowestPrice: number | null;
+    lowestPriceStockStatus: StockStatus | null;
+  }[];
+}
+
+interface LiveOfferStats {
+  lowestPrice: number | null;
+  lowestPriceStockStatus: StockStatus | null;
+  highestPrice: number | null;
+  avgPrice: number | null;
+  offerCount: number;
+}
+
+interface SerializedOffer {
+  id: string;
+  price: number | null;
+  shippingPrice: number | null;
+  stockStatus: StockStatus;
+  url: string;
+  retailerId: string;
+  retailer: {
+    id: string;
+    name: string;
+    logoUrl: string | null;
+    websiteUrl: string;
+    affiliateEnabled: boolean;
+  };
+}
+
+const DETAIL_MAX_DAYS = 3650; // ~10 år = "hela serien" (klienten filtrerar period)
+
+async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | null> {
+  const product = await getProductBySlug(slug).catch(() => null);
+  if (!product) return null;
+
+  const [historyBySource, similar, affiliateRetailers] = await Promise.all([
+    getPriceHistoryBySource(product.id, DETAIL_MAX_DAYS),
+    getSimilarProducts(product.id, 4),
+    prisma.retailer.findMany({
+      where: {
+        id: { in: product.offers.map((o) => o.retailerId) },
+        affiliateEnabled: true,
+      },
+      select: { id: true },
+    }),
+  ]);
+  const affiliateIds = new Set(affiliateRetailers.map((r) => r.id));
+
+  // Endast direkta produktlänkar visas/räknas (samma regel som produktsidan).
+  const directOffers = product.offers.filter((o) => isDirectOfferUrl(o.url));
+  const prices = directOffers
+    .map((o) => o.price)
+    .filter((p): p is number => p !== null);
+  const highestNow = prices.length > 0 ? Math.max(...prices) : null;
+  const avgNow =
+    prices.length > 0
+      ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
+      : null;
+  const directPriced = directOffers.filter(
+    (o): o is (typeof directOffers)[number] & { price: number } => o.price !== null
+  );
+  const directInStock = directPriced.filter((o) => o.stockStatus === "IN_STOCK");
+  const lowestPool = directInStock.length > 0 ? directInStock : directPriced;
+  const directLowest =
+    lowestPool.length > 0
+      ? lowestPool.reduce((a, b) => (b.price < a.price ? b : a))
+      : null;
+
+  // Prisförändring = enbart Cardmarket-trend (samma som produktsidan).
+  const chartData = historyBySource.cardmarket;
+  const monthAgo = Date.now() - 30 * 86_400_000;
+  const cm30 = chartData.filter((p) => new Date(p.date).getTime() >= monthAgo);
+  const pctChange = (series: { price: number }[]): number | null =>
+    series.length >= 2 && series[0].price > 0
+      ? Math.round(
+          ((series[series.length - 1].price - series[0].price) / series[0].price) * 10000
+        ) / 100
+      : null;
+  const change30 = pctChange(cm30);
+  const weekAgo = Date.now() - 7 * 86_400_000;
+  const change7 = pctChange(cm30.filter((p) => new Date(p.date).getTime() >= weekAgo));
+
+  const serializedOffers: SerializedOffer[] = directOffers.map((o) => ({
+    id: o.id,
+    price: o.price,
+    shippingPrice: o.shippingPrice,
+    stockStatus: o.stockStatus,
+    url: o.url,
+    retailerId: o.retailerId,
+    retailer: {
+      id: o.retailer.id,
+      name: o.retailer.name,
+      logoUrl: o.retailer.logoUrl,
+      websiteUrl: o.retailer.websiteUrl,
+      affiliateEnabled: affiliateIds.has(o.retailerId),
+    },
+  }));
+
+  return {
+    id: product.id,
+    slug: product.slug,
+    title: product.title,
+    category: product.category,
+    language: product.language,
+    description: product.description,
+    imageUrl: product.imageUrl,
+    watchCount: product.watchCount,
+    updatedAt: new Date(product.updatedAt).toISOString(),
+    set: product.set ? { id: product.set.id, name: product.set.name } : null,
+    restockEvents: product.restockEvents.map((e) => ({
+      id: e.id,
+      retailerName: e.retailer.name,
+      newStatus: e.newStatus,
+      detectedAt: new Date(e.detectedAt).toISOString(),
+    })),
+    chartData,
+    change7,
+    change30,
+    offerCount: directOffers.length,
+    stats: {
+      lowestPrice: directLowest?.price ?? null,
+      lowestPriceStockStatus: directLowest?.stockStatus ?? null,
+      highestPrice: highestNow,
+      avgPrice: avgNow,
+      offerCount: directOffers.length,
+    },
+    serializedOffers,
+    affiliateRetailerIds: affiliateRetailers.map((r) => r.id),
+    similar,
   };
 }
 
@@ -638,4 +805,11 @@ export const getExploreFeed = cachedRead(getExploreFeedRaw, "getExploreFeed");
 export const searchProducts = cachedRead(searchProductsRaw, "searchProducts");
 export const getProductBySlug = cachedRead(getProductBySlugRaw, "getProductBySlug");
 export const getPriceHistory = cachedRead(getPriceHistoryRaw, "getPriceHistory");
+export const getPriceHistoryBySource = cachedRead(
+  getPriceHistoryBySourceRaw,
+  "getPriceHistoryBySource"
+);
 export const getSimilarProducts = cachedRead(getSimilarProductsRaw, "getSimilarProducts");
+// Hela produktsidans data, cachad per slug → upprepade overlay-öppningar/sidvisningar
+// träffar cachen (inte Neon). Datum serialiseras till strängar — ofarligt (se ProductDetailData).
+export const loadProductDetail = cachedRead(loadProductDetailRaw, "loadProductDetail");

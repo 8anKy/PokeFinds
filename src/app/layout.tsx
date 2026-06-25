@@ -11,6 +11,7 @@ import { Providers } from "@/components/providers";
 import { CookieBanner } from "@/components/features/cookie-banner";
 import { ServiceWorkerRegister } from "@/components/pwa-register";
 import { BottomTabs } from "@/components/layout/bottom-tabs";
+import { ProductOverlayHost } from "@/components/features/product-overlay";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
@@ -58,6 +59,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           {children}
           <BottomTabs />
+          <ProductOverlayHost />
           <CookieBanner />
           <ServiceWorkerRegister />
         </Providers>
