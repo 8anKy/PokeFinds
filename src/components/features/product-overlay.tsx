@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import type { ProductDetailData } from "@/services/products";
 import { ProductDetailView } from "@/components/features/product-detail-view";
+import { SiteHeader } from "@/components/layout/site-header";
 
 /**
  * Produkt-overlay: öppnar produktdetaljer OVANPÅ den fortfarande monterade
@@ -177,6 +178,9 @@ export function ProductOverlayHost() {
       dx = 0;
       startX = e.clientX;
       startY = e.clientY;
+      // .overlay-in har animation:...both → fill-mode PINNAR transform och
+      // överröstar vår inline-transform (fingret följde inte). Måste nollas.
+      el.style.animation = "none";
       el.style.transition = "none";
     };
     const onMove = (e: PointerEvent) => {
@@ -227,13 +231,17 @@ export function ProductOverlayHost() {
   if (!slug) return null;
 
   return (
-    <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="Produktdetaljer">
+    // z-30: UNDER de globala bottom-flikarna (z-40) så de syns/funkar medan man
+    // inspekterar; ÖVER sidans innehåll (z-auto). SiteHeader renderas i panelen
+    // (logo + profil) precis som på en vanlig sida.
+    <div className="fixed inset-0 z-30" role="dialog" aria-label="Produktdetaljer">
       <div
         ref={panelRef}
         tabIndex={-1}
         style={{ touchAction: "pan-y" }}
-        className="overlay-in absolute inset-0 overflow-y-auto overscroll-contain bg-surface-gradient outline-none"
+        className="overlay-in absolute inset-0 overflow-y-auto overscroll-contain bg-surface-gradient pb-[calc(4rem+env(safe-area-inset-bottom))] outline-none"
       >
+        <SiteHeader />
         {data ? <ProductDetailView data={data} /> : <DetailSkeleton />}
       </div>
     </div>
