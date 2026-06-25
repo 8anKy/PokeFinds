@@ -247,10 +247,13 @@ export function ProductOverlayHost() {
   return (
     // z-40 = täcker sidans egen header (annars dubbel header). Bottom-flikarna
     // (också z-40 men SENARE i DOM, se layout.tsx) målas ovanpå → syns/klickbara.
-    // Panelen börjar UNDER safe-area (top-[safe-area], ej padding) → safe-area-
-    // remsan visar sidans mörka bg-surface bakom (matchar headern exakt, precis
-    // som på en vanlig sida) i stället för gradientens ljusa topp. SiteHeader i panelen.
     <div className="fixed inset-0 z-40" role="dialog" aria-label="Produktdetaljer">
+      {/* Solid safe-area-remsa (bg-surface, som headern) → täcker sidan bakom så
+          inget skiner igenom under klockan. Panelen börjar under remsan. */}
+      <div
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-[env(safe-area-inset-top)] bg-surface"
+      />
       <div
         ref={panelRef}
         tabIndex={-1}
