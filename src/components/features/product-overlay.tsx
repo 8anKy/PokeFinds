@@ -240,14 +240,15 @@ export function ProductOverlayHost() {
   return (
     // z-40 = täcker sidans egen header (annars dubbel header). Bottom-flikarna
     // (också z-40 men SENARE i DOM, se layout.tsx) målas ovanpå → syns/klickbara.
-    // pt-safe-area: fixed-overlayn ärver inte body:ns safe-area-padding → annars
-    // hamnar headern UNDER klockan. SiteHeader renderas i panelen (logo + profil).
+    // Panelen börjar UNDER safe-area (top-[safe-area], ej padding) → safe-area-
+    // remsan visar sidans mörka bg-surface bakom (matchar headern exakt, precis
+    // som på en vanlig sida) i stället för gradientens ljusa topp. SiteHeader i panelen.
     <div className="fixed inset-0 z-40" role="dialog" aria-label="Produktdetaljer">
       <div
         ref={panelRef}
         tabIndex={-1}
         style={{ touchAction: "pan-y" }}
-        className="overlay-in absolute inset-0 overflow-y-auto overscroll-none bg-surface-gradient pt-[env(safe-area-inset-top)] pb-[calc(4rem+env(safe-area-inset-bottom))] outline-none"
+        className="overlay-in absolute inset-x-0 bottom-0 top-[env(safe-area-inset-top)] overflow-y-auto overscroll-none bg-surface-gradient pb-[calc(4rem+env(safe-area-inset-bottom))] outline-none"
       >
         <SiteHeader />
         {data ? <ProductDetailView data={data} /> : <DetailSkeleton />}
