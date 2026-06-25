@@ -111,16 +111,12 @@ export function ProductOverlayHost() {
       const s = productSlug(a?.getAttribute("href") ?? null);
       if (s) void fetchDetail(s); // förvärm cachen innan tappet släpps
     };
-    const onClick = (e: MouseEvent) => {
-      if (
-        e.defaultPrevented ||
-        e.button !== 0 ||
-        e.metaKey ||
-        e.ctrlKey ||
-        e.shiftKey ||
-        e.altKey
-      )
-        return;
+    // CAPTURE-fas: måste köra FÖRE Next <Link>:s egen onClick (som annars
+    // navigerar via routern + preventDefault → vår bubble-listener bommade och
+    // overlayn öppnades aldrig). stopPropagation hindrar både routern och
+    // webbläsarens default-navigering.
+    const onClickCapture = (e: MouseEvent) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       const a = (e.target as HTMLElement | null)?.closest?.("a[href]") as
         | HTMLAnchorElement
         | null;
@@ -129,18 +125,19 @@ export function ProductOverlayHost() {
       const s = productSlug(href);
       if (s) {
         e.preventDefault();
+        e.stopPropagation();
         open(s);
       } else if (slugRef.current !== null && href?.startsWith("/")) {
-        // En annan intern länk inuti overlayn → stäng och låt navigeringen ske.
+        // Annan intern länk inuti overlayn → stäng och låt navigeringen ske.
         softClose();
       }
     };
 
     document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("click", onClick);
+    document.addEventListener("click", onClickCapture, true);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("click", onClick);
+      document.removeEventListener("click", onClickCapture, true);
     };
   }, [open, fetchDetail, softClose]);
 
