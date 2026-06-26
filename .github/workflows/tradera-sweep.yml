@@ -1,7 +1,9 @@
 name: Tradera-svep (dagligen)
 
-# Hämtar Tradera-annonser via det officiella SOAP-API:t en gång per dygn
-# (6 separata kvoter = 600 anrop/dygn). Körs i molnet — datorn behöver inte vara på.
+# Hämtar Tradera-annonser via det officiella SOAP-API:t en gång per dygn.
+# Tradera-kvoten är 10000 anrop/dygn PER metod (SearchAdvanced m.fl.) → vi namn-söker
+# TRADERA_SEARCH_BUDGET produkter/dygn och roterar genom hela katalogen över ~en vecka.
+# Körs i molnet — datorn behöver inte vara på.
 on:
   schedule:
     - cron: "0 4 * * *" # 04:00 UTC dagligen
@@ -14,12 +16,16 @@ concurrency:
 jobs:
   sweep:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 60
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DB_POOL: "10" # större Prisma-pool → mapPool-samtidighet utan pool_timeout
       TRADERA_APP_ID: ${{ secrets.TRADERA_APP_ID }}
       TRADERA_APP_KEY: ${{ secrets.TRADERA_APP_KEY }}
+      # Namn-sökningar/dygn (Fas 0). 10000/dygn-kvoten klarar mer, men håll under
+      # timeout-minutes (sekventiella SOAP-anrop ~0,4s/st). Roterar genom hela
+      # katalogen (~21k) på ~7 dygn; bevakade/populära produkter söks varje dygn.
+      TRADERA_SEARCH_BUDGET: "3000"
     steps:
       # Self-healing-vakt: hoppa över grönt tills DATABASE_URL-secret finns
       # (molnhosting konfigurerad). Inga misslyckade-mejl innan dess.
