@@ -1,25 +1,54 @@
 "use client";
 /**
- * Klient-sida native push (iOS/APNs via @capacitor/push-notifications).
- * Bara i den native appen — på web är Capacitor.isNativePlatform() false och
- * allt blir no-ops. Enhetstoken POST:as till /api/push/subscribe.
+ * Klient-sida native push (iOS/APNs). Använder den native-injicerade bryggan
+ * `window.Capacitor` DIREKT i stället för att importera @capacitor/core — den
+ * bundlade importen gav `Capacitor === undefined` i WebView:n (ESM/CJS-interop)
+ * vilket kraschade på isNativePlatform. Bryggan finns garanterat i appen.
+ * No-ops på web (ingen brygga). Enhetstoken POST:as till /api/push/subscribe.
  */
 import { apiFetch } from "@/lib/client-api";
 
-type PushPlugin = (typeof import("@capacitor/push-notifications"))["PushNotifications"];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Bridge = {
+  isNativePlatform: () => boolean;
+  getPlatform: () => string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  Plugins?: { PushNotifications?: any };
+};
 
-async function getPlugin(): Promise<{ PushNotifications: PushPlugin; platform: string } | null> {
-  const { Capacitor } = await import("@capacitor/core");
-  if (!Capacitor.isNativePlatform()) return null;
-  const { PushNotifications } = await import("@capacitor/push-notifications");
-  return { PushNotifications, platform: Capacitor.getPlatform() };
+function bridge(): Bridge | null {
+  const cap = (globalThis as { Capacitor?: Bridge }).Capacitor;
+  return cap && typeof cap.isNativePlatform === "function" && cap.isNativePlatform() ? cap : null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function getPushPlugin(): Promise<{ PushNotifications: any; platform: string } | null> {
+  const cap = bridge();
+  if (!cap) return null;
+  // 1) Native-bryggans plugin-proxy (robust, ingen bundling-interop).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let PushNotifications: any = cap.Plugins?.PushNotifications;
+  // 2) Fallback: npm-paketet (interop-tålig destructure).
+  if (!PushNotifications) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mod: any = await import("@capacitor/push-notifications");
+      PushNotifications = mod.PushNotifications ?? mod.default?.PushNotifications;
+    } catch {
+      /* paketet ej tillgängligt → null nedan */
+    }
+  }
+  if (!PushNotifications) return null;
+  return { PushNotifications, platform: cap.getPlatform() };
 }
 
 let registrationWired = false;
-async function wireRegistration(PushNotifications: PushPlugin, platform: string) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function wireRegistration(PushNotifications: any, platform: string) {
   if (registrationWired) return;
   registrationWired = true;
-  await PushNotifications.addListener("registration", (token) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await PushNotifications.addListener("registration", (token: any) => {
     void apiFetch("/api/push/subscribe", {
       method: "POST",
       body: { token: token.value, platform },
@@ -27,7 +56,8 @@ async function wireRegistration(PushNotifications: PushPlugin, platform: string)
   });
   // APNs-registrering kan misslyckas asynkront (t.ex. saknad aps-environment-
   // entitlement) → rapportera felet så vi kan se det server-sida.
-  await PushNotifications.addListener("registrationError", (err) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await PushNotifications.addListener("registrationError", (err: any) => {
     void apiFetch("/api/push/subscribe", {
       method: "POST",
       body: { error: `registrationError: ${JSON.stringify(err)}` },
@@ -41,8 +71,8 @@ async function wireRegistration(PushNotifications: PushPlugin, platform: string)
  */
 export async function enablePush(): Promise<{ ok: boolean; reason?: string }> {
   try {
-    const p = await getPlugin();
-    if (!p) return { ok: false, reason: "ej native (web-läge)" };
+    const p = await getPushPlugin();
+    if (!p) return { ok: false, reason: "ej native eller plugin saknas i bygget" };
     await wireRegistration(p.PushNotifications, p.platform);
     const perm = await p.PushNotifications.requestPermissions();
     if (perm.receive !== "granted") return { ok: false, reason: `behörighet: ${perm.receive}` };
@@ -55,9 +85,13 @@ export async function enablePush(): Promise<{ ok: boolean; reason?: string }> {
 
 /** Tyst om-registrering vid app-start om tillstånd redan givet (fångar roterade tokens). */
 export async function refreshPush(): Promise<void> {
-  const p = await getPlugin();
-  if (!p) return;
-  await wireRegistration(p.PushNotifications, p.platform);
-  const perm = await p.PushNotifications.checkPermissions();
-  if (perm.receive === "granted") await p.PushNotifications.register();
+  try {
+    const p = await getPushPlugin();
+    if (!p) return;
+    await wireRegistration(p.PushNotifications, p.platform);
+    const perm = await p.PushNotifications.checkPermissions();
+    if (perm.receive === "granted") await p.PushNotifications.register();
+  } catch {
+    /* tyst — bästa-ansträngning vid start */
+  }
 }

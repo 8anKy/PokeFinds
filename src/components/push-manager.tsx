@@ -6,20 +6,20 @@
  */
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { refreshPush } from "@/lib/push-client";
+import { getPushPlugin, refreshPush } from "@/lib/push-client";
 
 export function PushManager() {
   const router = useRouter();
   useEffect(() => {
     let cleanup: (() => void) | undefined;
     void (async () => {
-      const { Capacitor } = await import("@capacitor/core");
-      if (!Capacitor.isNativePlatform()) return;
-      const { PushNotifications } = await import("@capacitor/push-notifications");
-      const handle = await PushNotifications.addListener(
+      const p = await getPushPlugin();
+      if (!p) return;
+      const handle = await p.PushNotifications.addListener(
         "pushNotificationActionPerformed",
-        (action) => {
-          const url = action.notification.data?.url;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (action: any) => {
+          const url = action?.notification?.data?.url;
           if (typeof url === "string" && url.startsWith("/")) router.push(url);
         }
       );
