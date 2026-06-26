@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { LinkButton } from "@/components/ui/button";
 import { IconUser } from "@/components/ui/icons";
-import { hasAuthHint } from "@/lib/auth-hint";
+import { useAuthHint } from "@/lib/auth-hint";
 
 /**
  * Header-knapparna som beror på inloggning. Läses från fo_auth-cookien (klient,
@@ -13,8 +12,7 @@ import { hasAuthHint } from "@/lib/auth-hint";
  * server-`auth()` och kan ISR-cachas. Före mount (= SSR) visas en spacer.
  */
 export function HeaderAuthActions() {
-  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
-  useEffect(() => setLoggedIn(hasAuthHint()), []);
+  const loggedIn = useAuthHint();
 
   if (loggedIn === null) {
     // Före mount: reservera ungefär samma bredd så headern inte hoppar vid hydrering.

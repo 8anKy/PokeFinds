@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { hasAuthHint } from "@/lib/auth-hint";
 import {
   IconSearch,
   IconPackage,
@@ -24,10 +23,8 @@ const TABS: { href: string; label: string; icon: (p: IconProps) => JSX.Element }
 
 export function BottomTabs() {
   const pathname = usePathname();
-  // Inloggad? läses från fo_auth-cookien (efter mount) → ingen /api/auth/session-
-  // hämtning per sidvisning (det brände Vercel Active CPU). Dölj tab-baren för utloggade.
-  const [loggedIn, setLoggedIn] = useState(false);
-  useEffect(() => setLoggedIn(hasAuthHint()), []);
+  // Tab-baren visas alltid (in- som utloggad) — den är appens primära navigering.
+  // Skyddade tabbar (Portfölj/Skanna) skickar utloggade till login via middleware.
 
   // iOS-tangentbordet flyttar position:fixed-element när det öppnas → göm tab-baren
   // medan tangentbordet är uppe. visualViewport krymper när tangentbordet visas
@@ -42,7 +39,7 @@ export function BottomTabs() {
     return () => vv.removeEventListener("resize", onResize);
   }, []);
 
-  if (!loggedIn || keyboard) return null;
+  if (keyboard) return null;
   return (
     <>
       {/* Klarering: fixed nav överlappar sidans botten — denna spacer ger
