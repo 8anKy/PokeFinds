@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { signOut } from "next-auth/react";
 import { setAuthHint } from "@/lib/auth-hint";
 import { apiFetch } from "@/lib/client-api";
@@ -43,6 +43,13 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
+
+  // Försoning: står push redan PÅ men enheten inte är registrerad (gammal data eller
+  // ett nytt enhet) → registrera den faktiskt när inställningarna öppnas. No-op på web
+  // och om token redan finns; prompt:ar bara om behörighet ännu inte är avgjord.
+  useEffect(() => {
+    if (user.notificationSettings.push) void enablePush();
+  }, [user.notificationSettings.push]);
 
   async function saveProfile() {
     if (name.trim().length < 2) {
