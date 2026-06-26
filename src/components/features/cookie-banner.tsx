@@ -11,6 +11,12 @@ export function CookieBanner() {
 
   useEffect(() => {
     try {
+      // Visa INTE bannern i native-appen (WKWebView): den fixed-positionerade rutan
+      // täcker bottenmenyn, och en cookie-popup i en app är märklig. Bara nödvändiga
+      // cookies (inloggning/funktion) används → inget samtyckeskrav.
+      const isNative = (globalThis as { Capacitor?: { isNativePlatform?: () => boolean } })
+        .Capacitor?.isNativePlatform?.();
+      if (isNative) return;
       if (!window.localStorage.getItem(STORAGE_KEY)) {
         setVisible(true);
       }
