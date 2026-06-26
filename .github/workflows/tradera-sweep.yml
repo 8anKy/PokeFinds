@@ -22,10 +22,10 @@ jobs:
       DB_POOL: "10" # större Prisma-pool → mapPool-samtidighet utan pool_timeout
       TRADERA_APP_ID: ${{ secrets.TRADERA_APP_ID }}
       TRADERA_APP_KEY: ${{ secrets.TRADERA_APP_KEY }}
-      # Namn-sökningar/dygn (Fas 0). 10000/dygn-kvoten klarar mer, men håll under
-      # timeout-minutes (sekventiella SOAP-anrop ~0,4s/st). Roterar genom hela
-      # katalogen (~21k) på ~7 dygn; bevakade/populära produkter söks varje dygn.
-      TRADERA_SEARCH_BUDGET: "3000"
+      # Namn-sökningar/dygn (Fas 0, direkt-match → billigt). Parallellt + under
+      # 10000/dygn-kvoten. Roterar genom hela katalogen (~21k) på ~4 dygn;
+      # bevakade/populära produkter söks varje dygn.
+      TRADERA_SEARCH_BUDGET: "5000"
     steps:
       # Self-healing-vakt: hoppa över grönt tills DATABASE_URL-secret finns
       # (molnhosting konfigurerad). Inga misslyckade-mejl innan dess.

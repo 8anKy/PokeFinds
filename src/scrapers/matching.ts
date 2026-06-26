@@ -460,6 +460,69 @@ export async function matchProduct(
 }
 
 /**
+ * Riktad matchning: passar EN känd produkt mot en annons-titel. Tradera-svepets
+ * Fas 0 vet REDAN vilken produkt den namn-sökte → den slipper matchProducts
+ * katalog-breda kandidatsökning (dyr seq-scan per annons) och får samtidigt
+ * exaktare resultat (ingen kors-match mot fel produkt). SAMMA vakter som
+ * matchProduct-loopen → identisk kvalitet. Ren funktion (ingen DB). Anroparen
+ * sköter Tradera-kategori-vakten + pris-rimlighet separat.
+ */
+export function matchListingToProduct(
+  listingTitle: string,
+  product: { normalizedTitle: string; card: { name: string; number: string } | null }
+): number | null {
+  const normalized = normalizeTitle(listingTitle);
+  if (!normalized) return null;
+
+  const incomingForm = classifyForm(normalized);
+  if (incomingForm === "multipack" || incomingForm === "case" || incomingForm === "combo") {
+    return null;
+  }
+
+  const candidateForm = classifyForm(product.normalizedTitle);
+  if (incomingForm && candidateForm && incomingForm !== candidateForm) return null;
+
+  // Singel-identitet: tryckt nummer + kortnamn (samma som matchProduct).
+  if (!incomingForm && product.card) {
+    const listingKey = printedNumberKey(normalized);
+    if (listingKey) {
+      if (cardNumberKey(product.card.number) !== listingKey) return null;
+      if (!cardNameInTitle(product.card.name, normalized)) return null;
+      return 0.9;
+    }
+  }
+
+  if (
+    incomingForm === "deck" &&
+    candidateForm === "deck" &&
+    deckCharacterMismatch(normalized, product.normalizedTitle)
+  ) {
+    return null;
+  }
+  if (languageMismatch(normalized, product.normalizedTitle)) return null;
+
+  const overlap = distinctiveOverlap(normalized, product.normalizedTitle);
+  if (overlap < MIN_DISTINCTIVE_OVERLAP) return null;
+  if (nonEraCoverage(normalized, product.normalizedTitle) < MIN_DISTINCTIVE_OVERLAP) return null;
+
+  let score = scoreSimilarity(normalized, product.normalizedTitle);
+  score = Math.min(1, score + 0.1 * overlap);
+
+  const incomingSetNum = extractSetNumber(normalized);
+  const candidateSetNum = extractSetNumber(product.normalizedTitle);
+  if (incomingSetNum && candidateSetNum) {
+    if (incomingSetNum.num === candidateSetNum.num && incomingSetNum.total === candidateSetNum.total) {
+      score = Math.min(1, score + 0.15);
+    } else {
+      return null;
+    }
+  }
+
+  if (score < MIN_CONFIDENCE) return null;
+  return score;
+}
+
+/**
  * Rimlighetsvakt för marknadsplats-listningar (Tradera): ett pris som
  * kraftigt överstiger produktens Cardmarket-marknadspris är nästan alltid
  * en lot (flera enheter) eller en felmatchad premiumvariant — t.ex.

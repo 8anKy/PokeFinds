@@ -21,6 +21,7 @@ import {
   classifyForm,
   extractSetNumber,
   isPlausibleListingPrice,
+  matchListingToProduct,
   nonEraCoverage,
   printedNumberKey,
   scoreSimilarity,
@@ -144,6 +145,32 @@ describe("nonEraCoverage — set-markör 'go' (Pokémon GO 10.5)", () => {
 
   it("äkta bas-pack matchar fortfarande sig själv (ren era-titel → full täckning)", () => {
     expect(nonEraCoverage(BASE, BASE)).toBe(1);
+  });
+});
+
+describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
+  const swshPack = { normalizedTitle: "sword shield booster pack", card: null };
+  const umbreon = {
+    normalizedTitle: "umbreon vmax evolving skies 95 203",
+    card: { name: "Umbreon VMAX", number: "95" },
+  };
+
+  it("ren bas-pack-annons matchar bas-produkten", () => {
+    expect(matchListingToProduct("Sword & Shield Booster Pack förseglad", swshPack)).not.toBeNull();
+  });
+
+  it("GO 10.5-pack matchar INTE bas-'Sword & Shield Booster Pack'", () => {
+    expect(
+      matchListingToProduct("Pokemon Sword & Shield 10.5: Pokémon GO Booster Pack", swshPack)
+    ).toBeNull();
+  });
+
+  it("singel matchar på rätt tryckt nummer + namn", () => {
+    expect(matchListingToProduct("Umbreon VMAX 95/203 Evolving Skies", umbreon)).toBe(0.9);
+  });
+
+  it("fel nummer (Moonbreon 215/203) matchar INTE 95/203-kortet", () => {
+    expect(matchListingToProduct("Umbreon VMAX Alt Art 215/203", umbreon)).toBeNull();
   });
 });
 

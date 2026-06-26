@@ -2,11 +2,12 @@
  * Daglig Tradera-svepning — kärnlogik (delas av CLI-script + jobb-worker).
  *
  * ┌─────────────────────────────────────────────────────────────────────┐
- * │  Budget: 600 anrop/24h (6 metoder × 100 egen kvot), Unlimited/min    │
+ * │  Tradera-kvot: 10000 anrop/24h PER metod, Unlimited/min             │
  * │                                                                     │
- * │  Fas 1 (≤500 anrop): Bred sökning — 5 sökmetoder × 100 anrop         │
- * │  Fas 2 (≤100 anrop): Top-säljare — GetSellerItems                    │
- * │  Fas 3 (0 anrop):    Expiry — nollställ offer ej sedda på X dagar    │
+ * │  Fas 0 (≤budget):  Namn-sök per produkt + DIREKT-match (roterar)    │
+ * │  Fas 1 (≤500):     Bred sökning — sökmetoder × sidor (pool)         │
+ * │  Fas 2 (≤100):     Top-säljare — GetSellerItems (pool)              │
+ * │  Fas 3 (0 anrop):  Expiry — nollställ namn-sökta utan färsk träff   │
  * └─────────────────────────────────────────────────────────────────────┘
  *
  * Prislogik per produkt (productId:retailerId:condition:language):
@@ -22,7 +23,7 @@ import { StockStatus } from "@prisma/client";
 import { prisma } from "../lib/db";
 import { mapPool } from "../lib/concurrency";
 import { normalizeTitle } from "../lib/utils";
-import { matchProduct, isPlausibleListingPrice } from "../scrapers/matching";
+import { matchProduct, matchListingToProduct, isPlausibleListingPrice } from "../scrapers/matching";
 import { traderaSearchUrlSpecific, TRADERA_CATEGORY } from "../lib/marketplace-urls";
 
 // Tradera-kategori → produktform-grupp. Säljaren listar varje annons under EN
@@ -347,29 +348,32 @@ export async function runTraderaSweep(
 
   const searchFns = makeSearchFns(appId, appKey);
 
-  // ── Fas 0: Riktade sökningar på hetaste produkterna ───────────────────
-  // De mest bevakade/visade produkterna får en namn-specifik sökning så att
-  // deras VERKLIGT billigaste annons hamnar i poolen (det breda svepet
-  // paginerar för grunt för att garantera det). Förbrukar SearchAdvanced-
-  // metodens kvot → Fas 1 hoppar därför över SS.SearchAdv (samma metod).
-  // Budget = antal namn-specifika sökningar/körning. Roterar genom HELA katalogen
-  // (äldst kontrollerade först) → varje produkt täcks över tid. Höj budgeten ≥
-  // katalogstorlek om Tradera ger oss högre anropsgräns. TRADERA_HOT_LIMIT = alias.
+  // ── Fas 0: Riktade namn-sökningar (roterande full-katalog) ────────────
+  // Vi namn-söker en produkt i taget och matchar träffarna DIREKT mot just den
+  // produkten (matchListingToProduct) — ingen katalog-bred matchProduct-scan per
+  // annons. Det gör Fas 0 billig nog att skala till tusentals produkter/dygn och
+  // tar bort risken för kors-match. Budget = sökningar/körning; roterar äldst-
+  // först → hela katalogen täcks över tid (höj budgeten närmare 10000/dygn-kvoten
+  // för snabbare täckning). TRADERA_HOT_LIMIT = alias. Parallellt (per-minut =
+  // Unlimited hos Tradera) så stora budgetar ryms inom körningens tidsgräns.
   const SEARCH_BUDGET = parseInt(
     process.env.TRADERA_SEARCH_BUDGET ?? process.env.TRADERA_HOT_LIMIT ?? "200",
     10
   );
+  const SEARCH_CONCURRENCY = parseInt(process.env.TRADERA_SEARCH_CONCURRENCY ?? "6", 10);
   let hotCalls = 0;
   // Produkter vi FAKTISKT namn-sökte denna körning. Bara dessa får nollställas i
   // Fas 3 (annars gömdes giltiga länkar för produkter vi inte ens kollade om).
   const searchedProductIds = new Set<string>();
+  // Direkt-matchade Fas 0-träffar (productId → billigaste rimliga annons).
+  const directMatches = new Map<string, { price: number; item: TraderaItem }>();
   if (SEARCH_BUDGET > 0) {
-    log("📡 Fas 0: Riktade namn-sökningar (roterande full-katalog)...");
+    log("📡 Fas 0: Riktade namn-sökningar (roterande full-katalog, direkt-match)...");
     const hot = await prisma.product.findMany({
       where: { category: { not: "ACCESSORY" } },
       select: {
-        id: true, title: true, category: true,
-        card: { select: { name: true, set: { select: { name: true } } } },
+        id: true, title: true, normalizedTitle: true, category: true,
+        card: { select: { name: true, number: true, set: { select: { name: true } } } },
       },
       orderBy: [
         { watchlistItems: { _count: "desc" } },
@@ -378,25 +382,36 @@ export async function runTraderaSweep(
       ],
       take: SEARCH_BUDGET,
     });
-    const before = allItems.size;
-    for (const p of hot) {
-      if (hotCalls >= SEARCH_BUDGET) break;
+    let quotaHit = false;
+    await mapPool(hot, SEARCH_CONCURRENCY, async (p) => {
+      if (quotaHit) return;
       const words = p.card ? `${p.card.name} ${p.card.set.name}` : p.title;
       const catId = p.card ? TRADERA_CATEGORY.SINGLE_CARD : (TRADERA_CATEGORY[p.category] ?? 293307);
+      let result;
       try {
         const xml = await searchAdvancedFor(appId, appKey, words, catId);
-        hotCalls++;
-        searchedProductIds.add(p.id);
-        const result = parseItemsFromXml(xml);
-        for (const item of result.items) {
-          if (!allItems.has(item.itemId)) allItems.set(item.itemId, item);
-          if (item.sellerId) sellerCounts.set(item.sellerId, (sellerCounts.get(item.sellerId) ?? 0) + 1);
-        }
+        result = parseItemsFromXml(xml);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes("429") || msg.includes("AboveCallLimit")) break;
+        if (msg.includes("429") || msg.includes("AboveCallLimit")) quotaHit = true;
+        return;
       }
-    }
+      hotCalls++;
+      searchedProductIds.add(p.id);
+
+      // Billigaste annons som genuint matchar JUST denna produkt.
+      let best: { price: number; item: TraderaItem } | null = null;
+      for (const item of result.items) {
+        if (item.sellerId) sellerCounts.set(item.sellerId, (sellerCounts.get(item.sellerId) ?? 0) + 1);
+        if (!traderaCategoryCompatible(p.category, item.categoryId)) continue;
+        if (matchListingToProduct(item.title, p) == null) continue;
+        if (!best || item.priceOre < best.price) best = { price: item.priceOre, item };
+      }
+      // Pris-rimlighet körs bara på den valda (en DB-koll per produkt, ej per annons).
+      if (best && (await isPlausibleListingPrice(p.id, best.price))) {
+        directMatches.set(p.id, best);
+      }
+    });
     // Stämpla rotations-markören så nästa körning tar nästa batch (även vid kvot-stopp).
     if (searchedProductIds.size > 0 && !dryRun) {
       await prisma.product.updateMany({
@@ -405,7 +420,7 @@ export async function runTraderaSweep(
       });
     }
     callsByMethod["Fas0.HotSearch"] = hotCalls;
-    log(`   ${hotCalls} anrop → +${allItems.size - before} nya (${allItems.size} totalt)\n`);
+    log(`   ${hotCalls} sökningar → ${directMatches.size} direkt-matchade produkter\n`);
   }
 
   // ── Fas 1: Bred sökning (sökmetoder × 100 anrop) ──────────────────────
@@ -526,7 +541,14 @@ export async function runTraderaSweep(
     }
   });
 
-  log(`   Matchade: ${matched} annonser → ${bestByProduct.size} unika produkter`);
+  // Slå ihop Fas 0:s direkt-matchningar (billigast vinner). De har redan passerat
+  // kategori- + pris-vakten, så de läggs in rakt av.
+  for (const [productId, hit] of directMatches) {
+    const existing = bestByProduct.get(productId);
+    if (!existing || hit.price < existing.price) bestByProduct.set(productId, hit);
+  }
+
+  log(`   Matchade: ${matched} pool-annonser + ${directMatches.size} direkt (Fas 0) → ${bestByProduct.size} unika produkter`);
   log(`   Ej matchade: ${noMatch} | Kategorifel: ${categoryMismatch} | Orimligt pris: ${implausible}`);
 
   let written = 0;
