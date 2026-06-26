@@ -3,7 +3,7 @@
  * offline-tålighet. Cache-first för statiska resurser (hash:ade), network-first
  * för sidnavigeringar med cache-fallback. API-anrop hanteras alltid live.
  */
-const CACHE = "foilio-v1";
+const CACHE = "foilio-v2";
 
 self.addEventListener("install", () => {
   self.skipWaiting();

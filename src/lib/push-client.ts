@@ -8,6 +8,9 @@
  */
 import { apiFetch } from "@/lib/client-api";
 
+// Bumpa vid varje push-deploy → syns i _pushError så vi vet vilken JS enheten kör.
+const PUSH_CLIENT_VERSION = "v4";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Bridge = { isNativePlatform: () => boolean; getPlatform: () => string; Plugins?: { PushNotifications?: any } };
 
@@ -17,7 +20,10 @@ function bridge(): Bridge | null {
 }
 
 function report(msg: string) {
-  void apiFetch("/api/push/subscribe", { method: "POST", body: { error: msg } }).catch(() => {});
+  void apiFetch("/api/push/subscribe", {
+    method: "POST",
+    body: { error: `[${PUSH_CLIENT_VERSION}] ${msg}` },
+  }).catch(() => {});
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -98,8 +104,13 @@ export async function enablePush(): Promise<{ ok: boolean; reason?: string }> {
 /** Tyst om-registrering vid app-start om tillstånd redan givet (fångar roterade tokens). */
 export async function refreshPush(): Promise<void> {
   try {
+    report("refreshPush: mount/heartbeat");
     const p = await resolvePlugin();
-    if (!p) return;
+    if (!p) {
+      report("refreshPush: ingen plugin (ej native/saknas)");
+      return;
+    }
+    report(`refreshPush: source=${p.source}`);
     await wireRegistration(p.PushNotifications, p.platform);
     const perm = await p.PushNotifications.checkPermissions();
     if (perm?.receive === "granted") await p.PushNotifications.register();
