@@ -7,10 +7,7 @@
  * runScheduledScrapesOnce + dispatchPendingAlerts.
  */
 import { Worker, type Job } from "bullmq";
-import { prisma } from "../lib/db";
 import { isRedisAvailable } from "../lib/queue";
-import { sendMail } from "../lib/mailer";
-import { weeklyReportEmail } from "../emails/templates";
 import { runAllActiveSources, runScrapeJob } from "../scrapers/runner";
 import { dispatchPendingAlerts } from "../services/notifications";
 import { runTraderaSweep } from "./tradera-sweep";
@@ -24,64 +21,6 @@ import {
 } from "./scheduler";
 
 const FALLBACK_INTERVAL_MS = 8 * 60 * 60 * 1000; // 8 timmar
-
-/** Skickar veckorapporter (måndagar) till användare som valt det. */
-async function maybeSendWeeklyReports(): Promise<void> {
-  const now = new Date();
-  if (now.getDay() !== 1) {
-    console.log("[worker] Ingen veckorapport idag (skickas måndagar).");
-    return;
-  }
-  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const users = await prisma.user.findMany({
-    where: { watchlistItems: { some: {} } },
-    include: { watchlistItems: { select: { productId: true } } },
-    take: 1000,
-  });
-
-  let sentCount = 0;
-  for (const user of users) {
-    const settings = user.notificationSettings as { weeklyReport?: boolean; email?: boolean };
-    if (settings?.weeklyReport === false || settings?.email === false) continue;
-
-    const productIds = user.watchlistItems.map((w) => w.productId);
-    try {
-      const restocks = await prisma.restockEvent.count({
-        where: {
-          productId: { in: productIds },
-          newStatus: "IN_STOCK",
-          detectedAt: { gte: weekAgo },
-        },
-      });
-      // Prisfall: produkter vars senaste snapshot är billigare än för en vecka sedan
-      let priceDrops = 0;
-      for (const productId of productIds.slice(0, 50)) {
-        const [latest, oldSnap] = await Promise.all([
-          prisma.priceSnapshot.findFirst({
-            where: { productId },
-            orderBy: { date: "desc" },
-          }),
-          prisma.priceSnapshot.findFirst({
-            where: { productId, date: { lte: weekAgo } },
-            orderBy: { date: "desc" },
-          }),
-        ]);
-        if (latest && oldSnap && latest.avgPrice < oldSnap.avgPrice) priceDrops++;
-      }
-
-      const mail = weeklyReportEmail(user.name, {
-        watchedProducts: productIds.length,
-        priceDrops,
-        restocks,
-      });
-      await sendMail({ to: user.email, ...mail });
-      sentCount++;
-    } catch (err) {
-      console.error(`[worker] Veckorapport misslyckades för ${user.id}:`, err);
-    }
-  }
-  console.log(`[worker] Veckorapporter skickade: ${sentCount}`);
-}
 
 async function processJob(job: Job): Promise<void> {
   console.log(`[worker] Bearbetar jobb "${job.name}" (${job.id})`);
@@ -104,10 +43,6 @@ async function processJob(job: Job): Promise<void> {
     case "dispatch-alerts": {
       const alerts = await dispatchPendingAlerts();
       console.log(`[worker] Alerts: ${alerts.sent} skickade, ${alerts.failed} misslyckade.`);
-      break;
-    }
-    case "weekly-report-check": {
-      await maybeSendWeeklyReports();
       break;
     }
     case "tradera-sweep": {

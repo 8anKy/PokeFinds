@@ -135,7 +135,7 @@ model User {
   resetToken           String?   @unique
   resetTokenExpiresAt  DateTime?
   onboardingCompleted  Boolean   @default(false)
-  notificationSettings Json      @default("{\"email\":true,\"inApp\":true,\"push\":false,\"weeklyReport\":true}")
+  notificationSettings Json      @default("{\"email\":true,\"push\":false,\"allRestocks\":false}")
   preferences          Json      @default("{}")
   reputationScore      Int       @default(0)
   isPublicCollection   Boolean   @default(false)
@@ -154,8 +154,22 @@ model User {
   notifications   Notification[]
   reports         Report[]
   savedPosts      SavedPost[]
+  pushTokens      PushToken[]
 
   @@index([email])
+}
+
+// Enhetstoken för native push (iOS/APNs). En användare kan ha flera enheter.
+model PushToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  platform  String   @default("ios")
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // ---------- Kortdata ----------
@@ -229,6 +243,9 @@ model Product {
   // paginering (infinite scroll) utan att läsa in alla offers. Räknas om av
   // recomputeProductPriceCache() efter scrape/refresh.
   lowestPriceOre  Int?
+  // Senast namn-sökt på Tradera (roterande full-katalog-svep). null = aldrig sökt
+  // → prioriteras först. Se src/jobs/tradera-sweep.ts (Fas 0).
+  traderaCheckedAt DateTime?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
@@ -362,6 +379,7 @@ model Alert {
   id          String       @id @default(cuid())
   userId      String
   productId   String?
+  retailerId  String?      // butiken som utlöste larmet (restock) → mejl länkar direkt dit
   type        AlertType
   message     String
   channel     AlertChannel @default(IN_APP)

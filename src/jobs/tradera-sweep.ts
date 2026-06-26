@@ -352,27 +352,41 @@ export async function runTraderaSweep(
   // deras VERKLIGT billigaste annons hamnar i poolen (det breda svepet
   // paginerar för grunt för att garantera det). Förbrukar SearchAdvanced-
   // metodens kvot → Fas 1 hoppar därför över SS.SearchAdv (samma metod).
-  const HOT_LIMIT = parseInt(process.env.TRADERA_HOT_LIMIT ?? "90", 10);
+  // Budget = antal namn-specifika sökningar/körning. Roterar genom HELA katalogen
+  // (äldst kontrollerade först) → varje produkt täcks över tid. Höj budgeten ≥
+  // katalogstorlek om Tradera ger oss högre anropsgräns. TRADERA_HOT_LIMIT = alias.
+  const SEARCH_BUDGET = parseInt(
+    process.env.TRADERA_SEARCH_BUDGET ?? process.env.TRADERA_HOT_LIMIT ?? "200",
+    10
+  );
   let hotCalls = 0;
-  if (HOT_LIMIT > 0) {
-    log("📡 Fas 0: Riktade hot-produkt-sökningar...");
+  // Produkter vi FAKTISKT namn-sökte denna körning. Bara dessa får nollställas i
+  // Fas 3 (annars gömdes giltiga länkar för produkter vi inte ens kollade om).
+  const searchedProductIds = new Set<string>();
+  if (SEARCH_BUDGET > 0) {
+    log("📡 Fas 0: Riktade namn-sökningar (roterande full-katalog)...");
     const hot = await prisma.product.findMany({
       where: { category: { not: "ACCESSORY" } },
       select: {
-        title: true, category: true,
+        id: true, title: true, category: true,
         card: { select: { name: true, set: { select: { name: true } } } },
       },
-      orderBy: [{ watchlistItems: { _count: "desc" } }, { viewCount: "desc" }],
-      take: HOT_LIMIT,
+      orderBy: [
+        { watchlistItems: { _count: "desc" } },
+        { traderaCheckedAt: { sort: "asc", nulls: "first" } },
+        { viewCount: "desc" },
+      ],
+      take: SEARCH_BUDGET,
     });
     const before = allItems.size;
     for (const p of hot) {
-      if (hotCalls >= HOT_LIMIT) break;
+      if (hotCalls >= SEARCH_BUDGET) break;
       const words = p.card ? `${p.card.name} ${p.card.set.name}` : p.title;
       const catId = p.card ? TRADERA_CATEGORY.SINGLE_CARD : (TRADERA_CATEGORY[p.category] ?? 293307);
       try {
         const xml = await searchAdvancedFor(appId, appKey, words, catId);
         hotCalls++;
+        searchedProductIds.add(p.id);
         const result = parseItemsFromXml(xml);
         for (const item of result.items) {
           if (!allItems.has(item.itemId)) allItems.set(item.itemId, item);
@@ -382,6 +396,13 @@ export async function runTraderaSweep(
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes("429") || msg.includes("AboveCallLimit")) break;
       }
+    }
+    // Stämpla rotations-markören så nästa körning tar nästa batch (även vid kvot-stopp).
+    if (searchedProductIds.size > 0 && !dryRun) {
+      await prisma.product.updateMany({
+        where: { id: { in: [...searchedProductIds] } },
+        data: { traderaCheckedAt: new Date() },
+      });
     }
     callsByMethod["Fas0.HotSearch"] = hotCalls;
     log(`   ${hotCalls} anrop → +${allItems.size - before} nya (${allItems.size} totalt)\n`);
@@ -600,7 +621,11 @@ export async function runTraderaSweep(
     log(`   ✅ ${written} nya/uppdaterade, ${priceUpdated} billigare pris, ${unchanged} redan billigare`);
 
     // ── Fas 3: Expiry — nollställ utgångna listings ────────────────────
-    log(`\n🕐 Fas 3: Expiry (offers ej sedda på ${expiryDays} dagar)...`);
+    // BARA produkter vi NAMN-SÖKTE denna körning (searchedProductIds) får
+    // nollställas. Med roterande full-katalog-svep hinner vi inte se varje
+    // produkts annons varje körning → utan denna spärr gömdes giltiga direkt-
+    // länkar för produkter vi inte ens kollade om (= huvudbuggen).
+    log(`\n🕐 Fas 3: Expiry (namn-sökta utan färsk träff på ${expiryDays} dagar)...`);
 
     const expiryCutoff = new Date();
     expiryCutoff.setDate(expiryCutoff.getDate() - expiryDays);
@@ -610,6 +635,7 @@ export async function runTraderaSweep(
         retailerId: tradera.id,
         price: { not: null },
         lastSeenAt: { lt: expiryCutoff },
+        productId: { in: [...searchedProductIds] },
       },
       select: {
         id: true,

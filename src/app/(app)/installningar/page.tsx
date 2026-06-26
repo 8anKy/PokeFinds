@@ -13,18 +13,14 @@ export const metadata: Metadata = {
 function parseNotificationSettings(json: unknown): NotificationSettings {
   const defaults: NotificationSettings = {
     email: true,
-    inApp: true,
     push: false,
-    weeklyReport: true,
     allRestocks: false,
   };
   if (typeof json !== "object" || json === null) return defaults;
   const o = json as Record<string, unknown>;
   return {
     email: typeof o.email === "boolean" ? o.email : defaults.email,
-    inApp: typeof o.inApp === "boolean" ? o.inApp : defaults.inApp,
     push: typeof o.push === "boolean" ? o.push : defaults.push,
-    weeklyReport: typeof o.weeklyReport === "boolean" ? o.weeklyReport : defaults.weeklyReport,
     allRestocks: typeof o.allRestocks === "boolean" ? o.allRestocks : defaults.allRestocks,
   };
 }

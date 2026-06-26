@@ -2,7 +2,6 @@
  * Schemaläggning av återkommande jobb.
  * Med Redis: BullMQ-kö med repeterbara jobb
  *   - "scrape-all": var 8:e timme (alla aktiva källor)
- *   - "weekly-report-check": varje morgon 08:00 (skickar veckorapporter på måndagar)
  * Utan Redis: använd runScheduledScrapesOnce() manuellt / via cron-route.
  */
 /**
@@ -86,12 +85,6 @@ export async function setupRepeatableJobs(): Promise<boolean> {
       {},
       { repeat: { every: 8 * 60 * 60 * 1000 }, removeOnComplete: 20, removeOnFail: 50 }
     );
-    // Veckorapport-koll varje morgon kl 08:00
-    await q.add(
-      "weekly-report-check",
-      {},
-      { repeat: { pattern: "0 8 * * *" }, removeOnComplete: 20, removeOnFail: 50 }
-    );
     // Tradera-svepning EN gång per dygn kl 04:00 — egen 24h-kvot, får inte
     // ligga i scrape-all (var 8:e h) som annars skulle tömma kvoten direkt.
     await q.add(
@@ -114,7 +107,7 @@ export async function setupRepeatableJobs(): Promise<boolean> {
       {},
       { repeat: { every: restockMinutes * 60 * 1000 }, removeOnComplete: 20, removeOnFail: 50 }
     );
-    console.log("[scheduler] Repeterbara jobb registrerade (scrape var 8:e timme, rapport 08:00, Tradera-svep 04:00, CM-refresh 05:00).");
+    console.log("[scheduler] Repeterbara jobb registrerade (scrape var 8:e timme, Tradera-svep 04:00, CM-refresh 05:00).");
     return true;
   } catch (err) {
     console.error("[scheduler] Kunde inte registrera repeterbara jobb:", err);

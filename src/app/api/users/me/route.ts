@@ -25,9 +25,7 @@ const profileSelect = {
 
 const notificationSettingsSchema = z.object({
   email: z.boolean().optional(),
-  inApp: z.boolean().optional(),
   push: z.boolean().optional(),
-  weeklyReport: z.boolean().optional(),
   allRestocks: z.boolean().optional(),
 });
 

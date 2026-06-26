@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signOut } from "next-auth/react";
 import { setAuthHint } from "@/lib/auth-hint";
 import { apiFetch } from "@/lib/client-api";
+import { enablePush } from "@/lib/push-client";
 import { useToast } from "@/components/ui/toast";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,9 +14,7 @@ import { Input, Textarea, Label, Checkbox, FieldError } from "@/components/ui/in
 
 export interface NotificationSettings {
   email: boolean;
-  inApp: boolean;
   push: boolean;
-  weeklyReport: boolean;
   allRestocks: boolean;
 }
 
@@ -65,6 +64,22 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
     }
   }
 
+  async function toggleSetting(key: keyof NotificationSettings, checked: boolean) {
+    // Slår man på push i den native appen → be om tillstånd + registrera enheten.
+    if (key === "push" && checked) {
+      const ok = await enablePush();
+      if (!ok) {
+        toast({
+          title: "Push kunde inte aktiveras",
+          description: "Tillåt notiser för Foilio i enhetens inställningar och försök igen.",
+          variant: "error",
+        });
+        return;
+      }
+    }
+    await saveNotificationSettings({ ...settings, [key]: checked });
+  }
+
   async function saveNotificationSettings(next: NotificationSettings) {
     const previous = settings;
     setSettings(next);
@@ -108,9 +123,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   const notificationOptions: { key: keyof NotificationSettings; label: string; hint: string }[] = [
     { key: "email", label: "E-postnotiser", hint: "Prislarm och restocks via e-post." },
     { key: "allRestocks", label: "Alla restocks", hint: "Få larm när VILKEN sealed-produkt som helst kommer i lager — utan att bevaka den." },
-    { key: "inApp", label: "Notiser i appen", hint: "Visas i klockan uppe till höger." },
-    { key: "push", label: "Pushnotiser", hint: "Direkt till din enhet (kommer snart)." },
-    { key: "weeklyReport", label: "Veckorapport", hint: "Sammanfattning av din samling varje vecka." },
+    { key: "push", label: "Pushnotiser", hint: "Direkt till din enhet (endast i appen)." },
   ];
 
   return (
@@ -172,9 +185,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
                     id={`notif-${opt.key}`}
                     checked={settings[opt.key] && !locked}
                     disabled={savingSettings || locked}
-                    onChange={(e) =>
-                      void saveNotificationSettings({ ...settings, [opt.key]: e.target.checked })
-                    }
+                    onChange={(e) => void toggleSetting(opt.key, e.target.checked)}
                   />
                   <label htmlFor={`notif-${opt.key}`} className="cursor-pointer">
                     <span className="block text-sm font-medium text-ink">

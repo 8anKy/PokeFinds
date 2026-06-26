@@ -11,7 +11,6 @@ import { getFeed } from "@/services/community";
 import { StatCard } from "@/components/features/stat-card";
 import { PriceChartLazy } from "@/components/features/price-chart-lazy";
 import { CATEGORY_LABELS } from "@/components/features/product-card";
-import { NotificationsBell } from "@/components/features/notifications-bell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PriceChange } from "@/components/ui/price-change";
@@ -21,7 +20,6 @@ import {
   IconBell,
   IconGem,
   IconHeart,
-  IconMail,
   IconMessage,
   IconSearch,
   IconTrendingUp,
@@ -55,11 +53,10 @@ export default async function DashboardPage() {
   if (!session?.user) redirect("/logga-in");
   const userId = session.user.id;
 
-  const [collection, watchlistCount, unreadNotifications, restocks, drops, alerts, feed, watchedCategories] =
+  const [collection, watchlistCount, restocks, drops, alerts, feed, watchedCategories] =
     await Promise.all([
       computeCollectionValue(userId),
       prisma.watchlistItem.count({ where: { userId } }),
-      prisma.notification.count({ where: { userId, isRead: false } }),
       getRecentRestocks(5),
       getTopDrops(12),
       listAlerts(userId, { page: 1, pageSize: 5 }),
@@ -114,7 +111,6 @@ export default async function DashboardPage() {
               <IconSearch size={18} />
             </Button>
           </form>
-          <NotificationsBell />
         </div>
       </div>
 
@@ -132,11 +128,6 @@ export default async function DashboardPage() {
           icon={<IconTrendingUp size={20} />}
         />
         <StatCard label="Aktiva bevakningar" value={watchlistCount} icon={<IconBell size={20} />} />
-        <StatCard
-          label="Olästa notiser"
-          value={unreadNotifications}
-          icon={<IconMail size={20} />}
-        />
       </div>
 
       {/* Värdeutveckling */}

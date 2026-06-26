@@ -1,57 +1,30 @@
 /**
  * Notifikationer och utskick av väntande alerts.
- * Respekterar användarens notificationSettings
- * ({email, inApp, push, weeklyReport}).
+ * Respekterar användarens notificationSettings ({email, push}).
  */
-import { AlertChannel, AlertStatus, AlertType } from "@prisma/client";
+import { AlertStatus, AlertType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { sendMail } from "@/lib/mailer";
+import { sendPush } from "@/lib/apns";
 import { priceAlertEmail, restockAlertEmail } from "@/emails/templates";
 import { NON_RETAIL_SOURCE_NAMES } from "@/services/products";
 
 const MAX_RETRIES = 3;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.foilio.se";
 
-export interface NotificationInput {
-  title: string;
-  body: string;
-  linkUrl?: string;
-}
-
 interface NotificationSettings {
   email: boolean;
-  inApp: boolean;
   push: boolean;
-  weeklyReport: boolean;
 }
 
 function parseSettings(json: unknown): NotificationSettings {
-  const defaults: NotificationSettings = {
-    email: true,
-    inApp: true,
-    push: false,
-    weeklyReport: true,
-  };
+  const defaults: NotificationSettings = { email: true, push: false };
   if (typeof json !== "object" || json === null) return defaults;
   const o = json as Record<string, unknown>;
   return {
     email: typeof o.email === "boolean" ? o.email : defaults.email,
-    inApp: typeof o.inApp === "boolean" ? o.inApp : defaults.inApp,
     push: typeof o.push === "boolean" ? o.push : defaults.push,
-    weeklyReport: typeof o.weeklyReport === "boolean" ? o.weeklyReport : defaults.weeklyReport,
   };
-}
-
-/** Skapar en in-app-notis. */
-export async function createNotification(userId: string, input: NotificationInput) {
-  return prisma.notification.create({
-    data: {
-      userId,
-      title: input.title,
-      body: input.body,
-      linkUrl: input.linkUrl,
-    },
-  });
 }
 
 /** Bygger e-postinnehåll för en alert baserat på typ. */
@@ -59,6 +32,7 @@ async function buildAlertEmail(alert: {
   type: AlertType;
   message: string;
   productId: string | null;
+  retailerId: string | null;
   user: { name: string };
 }): Promise<{ subject: string; html: string; text: string }> {
   if (alert.productId) {
@@ -85,19 +59,23 @@ async function buildAlertEmail(alert: {
         );
       }
       if (alert.type === AlertType.RESTOCK) {
-        // Restock = butiks-händelse: visa billigaste butik som har den i lager,
-        // aldrig Cardmarket/Tradera (de utlöser inte restock-larm).
+        // Restock = butiks-händelse. Länka DIREKT till butiken som fick lager igen
+        // (alert.retailerId), annars billigaste butik i lager. Aldrig Cardmarket/
+        // Tradera (de utlöser inte restock-larm). "Köp nu" → butikens egen produktsida.
         const retailOffer =
+          (alert.retailerId &&
+            product.offers.find((o) => o.retailerId === alert.retailerId)) ||
           product.offers.find(
             (o) =>
               o.stockStatus === "IN_STOCK" &&
               !NON_RETAIL_SOURCE_NAMES.includes(o.retailer.name)
-          ) ?? bestOffer;
+          ) ||
+          bestOffer;
         return restockAlertEmail(
           alert.user.name,
           product.title,
           retailOffer?.retailer.name ?? "en återförsäljare",
-          productUrl
+          retailOffer?.url ?? productUrl
         );
       }
     }
@@ -110,10 +88,32 @@ async function buildAlertEmail(alert: {
   };
 }
 
+/** Skickar en alert som native push till användarens enheter (om någon finns). */
+async function sendAlertPush(alert: {
+  userId: string;
+  type: AlertType;
+  message: string;
+  product: { slug: string } | null;
+}): Promise<void> {
+  const tokens = await prisma.pushToken.findMany({
+    where: { userId: alert.userId },
+    select: { token: true },
+  });
+  if (tokens.length === 0) return;
+  const title = alert.type === AlertType.RESTOCK ? "Åter i lager!" : "Prislarm";
+  const url = alert.product ? `/produkter/${alert.product.slug}` : undefined;
+  const { invalidTokens } = await sendPush(
+    tokens.map((t) => t.token),
+    { title, body: alert.message, url }
+  );
+  if (invalidTokens.length > 0) {
+    await prisma.pushToken.deleteMany({ where: { token: { in: invalidTokens } } });
+  }
+}
+
 /**
- * Skickar alla väntande alerts. EMAIL-kanal skickas via mailer,
- * IN_APP skapar en Notification. Markerar SENT/FAILED och räknar
- * omförsök (max 3).
+ * Skickar alla väntande alerts till användarens PÅSLAGNA kanaler (e-post och/eller
+ * native push). Markerar SENT/FAILED och räknar omförsök (max 3).
  */
 export async function dispatchPendingAlerts(): Promise<{ sent: number; failed: number }> {
   const pending = await prisma.alert.findMany({
@@ -129,34 +129,12 @@ export async function dispatchPendingAlerts(): Promise<{ sent: number; failed: n
   for (const alert of pending) {
     const settings = parseSettings(alert.user.notificationSettings);
     try {
-      if (alert.channel === AlertChannel.EMAIL) {
-        if (!settings.email) {
-          // Användaren har stängt av e-post — markera som skickad utan utskick
-          await prisma.alert.update({
-            where: { id: alert.id },
-            data: { status: AlertStatus.SENT, sentAt: new Date() },
-          });
-          continue;
-        }
+      if (settings.email) {
         const mail = await buildAlertEmail(alert);
         await sendMail({ to: alert.user.email, ...mail });
-      } else if (alert.channel === AlertChannel.IN_APP) {
-        if (settings.inApp) {
-          await createNotification(alert.userId, {
-            title: "Avisering",
-            body: alert.message,
-            linkUrl: alert.product ? `${APP_URL}/produkter/${alert.product.slug}` : undefined,
-          });
-        }
-      } else if (alert.channel === AlertChannel.PUSH) {
-        // Push stöds inte ännu — markera som skickad om avstängd, annars hoppa över tyst
-        if (!settings.push) {
-          await prisma.alert.update({
-            where: { id: alert.id },
-            data: { status: AlertStatus.SENT, sentAt: new Date() },
-          });
-          continue;
-        }
+      }
+      if (settings.push) {
+        await sendAlertPush(alert);
       }
 
       await prisma.alert.update({

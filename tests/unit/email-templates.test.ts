@@ -5,7 +5,6 @@ import {
   priceAlertEmail,
   restockAlertEmail,
   verifyEmail,
-  weeklyReportEmail,
   welcomeEmail,
   type EmailContent,
 } from "@/emails/templates";
@@ -63,37 +62,14 @@ describe("restockAlertEmail", () => {
     expect(email.text).toContain("Demobutiken");
     expect(email.text).toContain("Booster Box");
   });
-});
 
-describe("weeklyReportEmail", () => {
-  it("innehåller statistik", () => {
-    const email = weeklyReportEmail("Anna", {
-      watchedProducts: 7,
-      priceDrops: 3,
-      restocks: 2,
-    });
-    expectValidEmail(email);
-    expect(email.subject).toContain("veckorapport");
-    expect(email.text).toContain("Bevakade produkter: 7");
-    expect(email.text).toContain("Prisfall: 3");
-    expect(email.text).toContain("Restocks: 2");
-  });
-
-  it("visar största prisfallet när det finns", () => {
-    const email = weeklyReportEmail("Anna", {
-      watchedProducts: 1,
-      priceDrops: 1,
-      restocks: 0,
-      biggestDrop: { title: "Booster Box", percent: 12.5 },
-    });
-    expect(email.html).toContain("Booster Box");
-    expect(email.text).toContain("Booster Box");
-    expect(email.text).toContain("12.5");
-  });
-
-  it("utelämnar största prisfallet när det saknas", () => {
-    const email = weeklyReportEmail("Anna", { watchedProducts: 0, priceDrops: 0, restocks: 0 });
-    expect(email.text).not.toContain("Största prisfallet");
+  it("'Köp nu'-knappen länkar exakt till angiven butiks-URL", () => {
+    // buildAlertEmail skickar butikens offer.url hit → knappen MÅSTE peka dit
+    // (ej vår produktsida). Restock-mejlet ska öppna butiken med rätt produkt.
+    const storeUrl = "https://shinycards.se/produkt/sword-shield-booster";
+    const email = restockAlertEmail("Milos", "Sword & Shield Booster Pack", "Shinycards", storeUrl);
+    expect(email.html).toContain(`href="${storeUrl}"`);
+    expect(email.text).toContain(storeUrl);
   });
 });
 

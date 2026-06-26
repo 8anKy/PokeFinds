@@ -6,6 +6,10 @@ import { setAuthHint, hasAuthHint } from "@/lib/auth-hint";
 describe("auth-hint", () => {
   beforeEach(() => {
     (globalThis as { document?: { cookie: string } }).document = { cookie: "" };
+    // setAuthHint kallar window.dispatchEvent → stubba window i node-env.
+    (globalThis as { window?: { dispatchEvent: () => boolean } }).window = {
+      dispatchEvent: () => true,
+    };
   });
 
   it("round-trippar inloggad-hinten", () => {

@@ -32,8 +32,6 @@ Alla endpoints ligger under `/api`. Autentisering via NextAuth-session (cookie).
 | PATCH/DELETE | /api/watchlist/[id] | ✅ | Uppdatera/ta bort |
 | GET | /api/alerts | ✅ | Alert-historik |
 | POST | /api/alerts/[id]/read | ✅ | Markera läst |
-| GET | /api/notifications | ✅ | In-app-notiser |
-| POST | /api/notifications/read-all | ✅ | Markera alla lästa |
 
 ## Samling
 | GET/POST | /api/collection | ✅ | Lista/lägg till objekt |

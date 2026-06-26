@@ -1,8 +1,8 @@
 /**
  * Tester för checkPriceAlerts/checkRestockAlerts i src/services/alerts.ts.
- * Prisma mockas — vi verifierar att Alert + Notification skapas för rätt
- * bevakningar och att filtreringen (targetPrice >= nytt pris, ej pausad) skickas
- * till databasen korrekt.
+ * Prisma mockas — vi verifierar att EMAIL-alerts skapas för rätt bevakningar och
+ * att filtreringen (targetPrice >= nytt pris, ej pausad) skickas till DB korrekt.
+ * (In-app-notiser borttagna → ingen Notification-skrivning längre.)
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,7 +10,6 @@ const productFindUnique = vi.fn();
 const watchlistFindMany = vi.fn();
 const userFindMany = vi.fn();
 const alertCreate = vi.fn();
-const notificationCreate = vi.fn();
 const transaction = vi.fn();
 
 vi.mock("@/lib/db", () => ({
@@ -19,7 +18,6 @@ vi.mock("@/lib/db", () => ({
     watchlistItem: { findMany: (...args: unknown[]) => watchlistFindMany(...args) },
     user: { findMany: (...args: unknown[]) => userFindMany(...args) },
     alert: { create: (...args: unknown[]) => alertCreate(...args) },
-    notification: { create: (...args: unknown[]) => notificationCreate(...args) },
     $transaction: (...args: unknown[]) => transaction(...args),
   },
 }));
@@ -33,12 +31,11 @@ beforeEach(() => {
   watchlistFindMany.mockReset().mockResolvedValue([]);
   userFindMany.mockReset().mockResolvedValue([]);
   alertCreate.mockReset().mockImplementation((args: unknown) => args);
-  notificationCreate.mockReset().mockImplementation((args: unknown) => args);
   transaction.mockReset().mockResolvedValue([]);
 });
 
 describe("checkPriceAlerts", () => {
-  it("skapar Alert + Notification när målpris nås", async () => {
+  it("skapar EMAIL-alert när målpris nås", async () => {
     watchlistFindMany.mockResolvedValue([
       { userId: "user-1", targetPrice: 150000 },
       { userId: "user-2", targetPrice: 160000 },
@@ -49,20 +46,15 @@ describe("checkPriceAlerts", () => {
     expect(result.triggered).toBe(2);
     expect(transaction).toHaveBeenCalledTimes(1);
     expect(alertCreate).toHaveBeenCalledTimes(2);
-    expect(notificationCreate).toHaveBeenCalledTimes(2);
 
     const alertArgs = alertCreate.mock.calls[0][0] as {
-      data: { userId: string; productId: string; type: string; message: string };
+      data: { userId: string; productId: string; type: string; message: string; channel: string };
     };
     expect(alertArgs.data.type).toBe("PRICE_TARGET");
+    expect(alertArgs.data.channel).toBe("EMAIL");
     expect(alertArgs.data.userId).toBe("user-1");
     expect(alertArgs.data.productId).toBe("prod-1");
     expect(alertArgs.data.message).toContain(PRODUCT.title);
-
-    const notifArgs = notificationCreate.mock.calls[0][0] as {
-      data: { linkUrl: string; title: string };
-    };
-    expect(notifArgs.data.linkUrl).toBe(`/produkter/${PRODUCT.slug}`);
   });
 
   it("filtrerar bevakningar i databasen: targetPrice >= nytt pris, aktivt prislarm, ej pausad", async () => {
@@ -88,7 +80,6 @@ describe("checkPriceAlerts", () => {
     expect(result.triggered).toBe(0);
     expect(transaction).not.toHaveBeenCalled();
     expect(alertCreate).not.toHaveBeenCalled();
-    expect(notificationCreate).not.toHaveBeenCalled();
   });
 
   it("returnerar 0 om produkten inte finns", async () => {
@@ -102,25 +93,22 @@ describe("checkPriceAlerts", () => {
 });
 
 describe("checkRestockAlerts", () => {
-  it("skapar RESTOCK-alert + notifikation för aktiva bevakningar", async () => {
+  it("skapar RESTOCK EMAIL-alert med butikens retailerId för aktiva bevakningar", async () => {
     watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
 
-    const result = await checkRestockAlerts("prod-1");
+    const result = await checkRestockAlerts("prod-1", "ret-1");
 
     expect(result.triggered).toBe(1);
     expect(transaction).toHaveBeenCalledTimes(1);
 
     const alertArgs = alertCreate.mock.calls[0][0] as {
-      data: { type: string; message: string };
+      data: { type: string; message: string; channel: string; retailerId?: string };
     };
     expect(alertArgs.data.type).toBe("RESTOCK");
+    expect(alertArgs.data.channel).toBe("EMAIL");
     expect(alertArgs.data.message).toContain("i lager");
-
-    const notifArgs = notificationCreate.mock.calls[0][0] as {
-      data: { title: string; linkUrl: string };
-    };
-    expect(notifArgs.data.title).toBe("Åter i lager");
-    expect(notifArgs.data.linkUrl).toBe(`/produkter/${PRODUCT.slug}`);
+    // retailerId trådas in → mejlet kan länka direkt till butiken som fick lager.
+    expect(alertArgs.data.retailerId).toBe("ret-1");
   });
 
   it("filtrerar på restockAlert och ej pausad", async () => {

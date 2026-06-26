@@ -41,7 +41,7 @@ export default function OnboardingPage() {
   const [sets, setSets] = useState<SetItem[]>([]);
   const [setsLoading, setSetsLoading] = useState(true);
   const [favoriteSets, setFavoriteSets] = useState<string[]>([]);
-  const [notif, setNotif] = useState({ email: true, inApp: true, weeklyReport: true });
+  const [notif, setNotif] = useState({ email: true });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -274,22 +274,6 @@ export default function OnboardingPage() {
                 label="E-postaviseringar vid prisfall och restocks"
                 checked={notif.email}
                 onChange={(e) => setNotif((n) => ({ ...n, email: e.target.checked }))}
-              />
-            </div>
-            <div className="rounded-lg border border-surface-border bg-surface-raised p-3">
-              <Checkbox
-                id="notif-inapp"
-                label="Aviseringar i appen"
-                checked={notif.inApp}
-                onChange={(e) => setNotif((n) => ({ ...n, inApp: e.target.checked }))}
-              />
-            </div>
-            <div className="rounded-lg border border-surface-border bg-surface-raised p-3">
-              <Checkbox
-                id="notif-weekly"
-                label="Veckorapport med marknadsöversikt"
-                checked={notif.weeklyReport}
-                onChange={(e) => setNotif((n) => ({ ...n, weeklyReport: e.target.checked }))}
               />
             </div>
           </div>

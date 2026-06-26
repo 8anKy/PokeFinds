@@ -21,6 +21,7 @@ import {
   classifyForm,
   extractSetNumber,
   isPlausibleListingPrice,
+  nonEraCoverage,
   printedNumberKey,
   scoreSimilarity,
 } from "@/scrapers/matching";
@@ -129,6 +130,20 @@ describe("classifyForm", () => {
   it("en enskild Mini Tin är 'tin', men ett Mini Tin Display är 'display'", () => {
     expect(classifyForm("Ascended Heroes Mini Tin")).toBe("tin");
     expect(classifyForm("Ascended Heroes: Mini Tin Display")).toBe("display");
+  });
+});
+
+describe("nonEraCoverage — set-markör 'go' (Pokémon GO 10.5)", () => {
+  const GO = "Pokemon Sword & Shield 10.5: Pokémon GO Booster Pack";
+  const BASE = "Sword & Shield Booster Pack";
+
+  it("GO-packen täcker INTE bas-'Sword & Shield Booster Pack' (under tröskel → förkastas)", () => {
+    // 'go' är enda särskiljande markören; bas-produkten saknar den → ingen täckning.
+    expect(nonEraCoverage(GO, BASE)).toBeLessThan(0.5);
+  });
+
+  it("äkta bas-pack matchar fortfarande sig själv (ren era-titel → full täckning)", () => {
+    expect(nonEraCoverage(BASE, BASE)).toBe(1);
   });
 });
 

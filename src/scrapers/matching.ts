@@ -239,11 +239,22 @@ const NOISE_WORDS = new Set([
   "max", "per", "kund", "styck", "version", "kopia", "copy", "exklusivt", "exclusive", "promo",
   "hushall", "hushåll", "person", "antal", "pokemonkort", "pokémonkort", "forseglad", "oppen", "obs",
 ]);
+/**
+ * Korta set-markörer som distinctiveWords annars tappar (för korta/numeriska),
+ * men som ÄR det enda som skiljer två annars identiska produkter åt.
+ * "go" = Pokémon GO (SWSH10.5) — utan detta matchar "...10.5 Pokémon GO Booster
+ * Pack" fel mot bas-"Sword & Shield Booster Pack" (sword/shield är en era-fras).
+ * Lägg till fler markörer här vid behov.
+ */
+const SET_QUALIFIER_WORDS = new Set(["go"]);
 /** Inkommande titelns särskiljande ord MINUS era-varumärken och butiksbrus. */
 function nonEraDistinctiveWords(title: string): Set<string> {
   let t = normalizeTitle(title);
   for (const re of ERA_PHRASES) t = t.replace(re, " ");
   const words = distinctiveWords(t);
+  // Behåll set-markörer (t.ex. "go") som distinctiveWords tappar — annars osynlig
+  // skillnad mot en bas-produkt som saknar markören.
+  for (const tok of t.split(" ")) if (SET_QUALIFIER_WORDS.has(tok)) words.add(tok);
   for (const n of NOISE_WORDS) words.delete(n);
   return words;
 }

@@ -9,13 +9,6 @@ export interface EmailContent {
   text: string;
 }
 
-export interface WeeklyStats {
-  watchedProducts: number;
-  priceDrops: number;
-  restocks: number;
-  biggestDrop?: { title: string; percent: number };
-}
-
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.foilio.se";
 
 function formatSek(ore: number): string {
@@ -116,29 +109,6 @@ export function restockAlertEmail(
      ${button(url, "Köp nu")}`
   );
   const text = `Hej ${name}!\n\nÅter i lager: ${productTitle}\nHos: ${retailerName}\n\nKöp nu: ${url}\n\nPopulära produkter säljer ofta slut snabbt!${textFooter}`;
-  return { subject, html, text };
-}
-
-export function weeklyReportEmail(name: string, stats: WeeklyStats): EmailContent {
-  const subject = "Din veckorapport från Foilio";
-  const biggestDropHtml = stats.biggestDrop
-    ? `<p style="line-height:1.6;color:#cbd5e1;">Största prisfallet: <strong style="color:#34d399;">${stats.biggestDrop.title}</strong> (−${stats.biggestDrop.percent} %)</p>`
-    : "";
-  const html = layout(
-    "Din veckorapport",
-    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Här är veckans sammanfattning för dina bevakade produkter:</p>
-     <table style="width:100%;margin:16px 0;border-collapse:collapse;">
-       <tr><td style="padding:8px 0;color:#cbd5e1;">Bevakade produkter</td><td style="text-align:right;font-weight:700;color:#ffffff;">${stats.watchedProducts}</td></tr>
-       <tr><td style="padding:8px 0;color:#cbd5e1;">Prisfall denna vecka</td><td style="text-align:right;font-weight:700;color:#34d399;">${stats.priceDrops}</td></tr>
-       <tr><td style="padding:8px 0;color:#cbd5e1;">Restocks denna vecka</td><td style="text-align:right;font-weight:700;color:#2dd4bf;">${stats.restocks}</td></tr>
-     </table>
-     ${biggestDropHtml}
-     ${button(`${APP_URL}/bevakningar`, "Se dina bevakningar")}`
-  );
-  const biggestDropText = stats.biggestDrop
-    ? `\nStörsta prisfallet: ${stats.biggestDrop.title} (−${stats.biggestDrop.percent} %)`
-    : "";
-  const text = `Hej ${name}!\n\nVeckans sammanfattning:\n- Bevakade produkter: ${stats.watchedProducts}\n- Prisfall: ${stats.priceDrops}\n- Restocks: ${stats.restocks}${biggestDropText}\n\nSe dina bevakningar: ${APP_URL}/bevakningar${textFooter}`;
   return { subject, html, text };
 }
 

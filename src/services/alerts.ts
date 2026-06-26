@@ -91,14 +91,7 @@ export async function checkPriceAlerts(productId: string, newPrice: number) {
           productId,
           type: "PRICE_TARGET",
           message,
-        },
-      }),
-      prisma.notification.create({
-        data: {
-          userId: w.userId,
-          title: "Prislarm utlöst",
-          body: message,
-          linkUrl: `/produkter/${product.slug}`,
+          channel: "EMAIL",
         },
       })
     );
@@ -117,7 +110,7 @@ export async function checkPriceAlerts(productId: string, newPrice: number) {
  * "alla restocks"-prenumerant få många mejl — lägg en daglig digest om det blir
  * ett problem (samla restocks under körningen och skicka en sammanfattning).
  */
-export async function checkRestockAlerts(productId: string) {
+export async function checkRestockAlerts(productId: string, retailerId?: string) {
   const product = await prisma.product.findUnique({
     where: { id: productId },
     select: { id: true, title: true, slug: true },
@@ -150,22 +143,16 @@ export async function checkRestockAlerts(productId: string) {
   for (const userId of userIds) {
     writes.push(
       // EMAIL-kanal → dispatchPendingAlerts skickar mejl (default IN_APP gjorde
-      // att restocks aldrig mejlades). Notification nedan = in-app-notisen.
+      // att restocks aldrig mejlades). retailerId = butiken som fick lager igen →
+      // mejlets "Köp nu" länkar direkt dit (buildAlertEmail).
       prisma.alert.create({
         data: {
           userId,
           productId,
+          retailerId,
           type: "RESTOCK",
           message,
           channel: "EMAIL",
-        },
-      }),
-      prisma.notification.create({
-        data: {
-          userId,
-          title: "Åter i lager",
-          body: message,
-          linkUrl: `/produkter/${product.slug}`,
         },
       })
     );

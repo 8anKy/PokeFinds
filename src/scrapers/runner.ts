@@ -198,7 +198,7 @@ export async function runRestockScan(): Promise<RestockScanResult> {
       },
     });
     if (ev.isRestock) {
-      await checkRestockAlerts(offer.productId);
+      await checkRestockAlerts(offer.productId, offer.retailerId);
       restocks++;
     }
   }
@@ -467,7 +467,7 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
       });
       // Restock-larm BARA för riktiga butiker — aldrig Cardmarket/Tradera.
       if (ev.isRestock && !NON_RETAIL_SOURCE_NAMES.includes(retailer.name)) {
-        await checkRestockAlerts(st.productId);
+        await checkRestockAlerts(st.productId, retailer.id);
       }
       logs.push(
         `Lagerstatus ändrad för produkt ${st.productId}: ${ev.oldStatus} → ${st.newStatus}`
