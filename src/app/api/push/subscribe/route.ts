@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { apiError, jsonOk } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
@@ -19,21 +18,11 @@ export async function POST(req: Request) {
     const { token, platform, error } = schema.parse(await req.json());
     if (error) {
       console.error(`[push] registrationError user=${user.id}: ${error}`);
-      // Stasha senaste felet på användaren (debug — läsbart via DB, ingen migration).
-      const u = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: { notificationSettings: true },
-      });
-      const ns = (u?.notificationSettings ?? {}) as Record<string, unknown>;
+      // Egen kolumn → clobbras inte av inställnings-PATCH:en (till skillnad från
+      // ett fält i notificationSettings-JSON:en).
       await prisma.user.update({
         where: { id: user.id },
-        data: {
-          notificationSettings: {
-            ...ns,
-            _pushError: error,
-            _pushErrorAt: new Date().toISOString(),
-          } as Prisma.InputJsonValue,
-        },
+        data: { lastPushError: `${new Date().toISOString()} ${error}`.slice(0, 1900) },
       });
       return jsonOk({ ok: true });
     }

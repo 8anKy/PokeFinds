@@ -136,6 +136,7 @@ model User {
   resetTokenExpiresAt  DateTime?
   onboardingCompleted  Boolean   @default(false)
   notificationSettings Json      @default("{\"email\":true,\"push\":false,\"allRestocks\":false}")
+  lastPushError        String?    // debug: senaste APNs/push-registreringsfel (egen kolumn → ej clobbrad av settings-PATCH)
   preferences          Json      @default("{}")
   reputationScore      Int       @default(0)
   isPublicCollection   Boolean   @default(false)

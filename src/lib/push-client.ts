@@ -9,7 +9,7 @@
 import { apiFetch } from "@/lib/client-api";
 
 // Bumpa vid varje push-deploy → syns i _pushError så vi vet vilken JS enheten kör.
-const PUSH_CLIENT_VERSION = "v4";
+const PUSH_CLIENT_VERSION = "v5";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Bridge = { isNativePlatform: () => boolean; getPlatform: () => string; Plugins?: { PushNotifications?: any } };
