@@ -8,7 +8,11 @@ export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
   if (!token) {
-    const loginUrl = new URL("/logga-in", req.url);
+    // Behåll EXAKT samma origin som inkommande request (www vs apex) — annars blir
+    // omdirigeringen cross-origin och Capacitor-WebView:en kastar ut den till Safari.
+    const loginUrl = req.nextUrl.clone();
+    loginUrl.pathname = "/logga-in";
+    loginUrl.search = "";
     loginUrl.searchParams.set("callbackUrl", pathname + search);
     return NextResponse.redirect(loginUrl);
   }

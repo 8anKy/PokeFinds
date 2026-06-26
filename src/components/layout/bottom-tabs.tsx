@@ -39,7 +39,10 @@ export function BottomTabs() {
     return () => vv.removeEventListener("resize", onResize);
   }, []);
 
-  if (keyboard) return null;
+  // Auth/onboarding = fokuserat flöde utan tab-bar (spacern fick dessutom login-
+  // sidan att scrolla).
+  const hidden = ["/logga-in", "/registrera", "/glomt-losenord", "/aterstall-losenord", "/verifiera", "/onboarding"];
+  if (keyboard || hidden.some((p) => pathname === p || pathname?.startsWith(`${p}/`))) return null;
   return (
     <>
       {/* Klarering: fixed nav överlappar sidans botten — denna spacer ger

@@ -28,6 +28,10 @@ const config: CapacitorConfig = {
         url: SERVER_URL,
         cleartext: false,
         androidScheme: "https",
+        // Håll BÅDA foilio-värdarna (apex + www) inne i WebView:en — annars öppnar
+        // Capacitor en navigering till "fel" värd i Safari (t.ex. en redirect till
+        // apex medan appen kör på www). Butikslänkar är INTE med → de öppnar externt.
+        allowNavigation: ["foilio.se", "www.foilio.se"],
       }
     : { androidScheme: "https" },
   ios: {
