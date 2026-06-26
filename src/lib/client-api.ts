@@ -11,6 +11,9 @@ export async function apiFetch<T = unknown>(
 ): Promise<T> {
   const { body, headers, ...rest } = init ?? {};
   const res = await fetch(url, {
+    // iOS-WKWebView skickar inte alltid session-cookien på fetch utan detta →
+    // skrivningar (PATCH/POST) tyst-failade med 401 i native-appen. Tvinga cookies.
+    credentials: "include",
     ...rest,
     headers: {
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
