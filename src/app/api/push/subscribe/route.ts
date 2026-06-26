@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { apiError, jsonOk } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
@@ -18,6 +19,22 @@ export async function POST(req: Request) {
     const { token, platform, error } = schema.parse(await req.json());
     if (error) {
       console.error(`[push] registrationError user=${user.id}: ${error}`);
+      // Stasha senaste felet på användaren (debug — läsbart via DB, ingen migration).
+      const u = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { notificationSettings: true },
+      });
+      const ns = (u?.notificationSettings ?? {}) as Record<string, unknown>;
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          notificationSettings: {
+            ...ns,
+            _pushError: error,
+            _pushErrorAt: new Date().toISOString(),
+          } as Prisma.InputJsonValue,
+        },
+      });
       return jsonOk({ ok: true });
     }
     if (!token) return jsonOk({ ok: true });
