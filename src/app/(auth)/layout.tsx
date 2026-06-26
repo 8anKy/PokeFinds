@@ -4,7 +4,7 @@ import { BrandLogo } from "@/components/layout/brand-logo";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex h-[calc(100dvh-env(safe-area-inset-top))] flex-col items-center justify-start overflow-hidden bg-surface-gradient px-4 pt-6">
+    <div className="flex h-[100dvh] flex-col items-center justify-start overflow-hidden bg-surface-gradient px-4 mt-[calc(env(safe-area-inset-top)*-1)] pt-[calc(env(safe-area-inset-top)+1.5rem)]">
       <Link href="/" className="mb-8" aria-label="Foilio — startsida">
         <BrandLogo markSize={36} textClass="text-3xl font-extrabold" />
       </Link>
