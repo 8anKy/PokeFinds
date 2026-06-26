@@ -31,6 +31,12 @@ workflows:
           # cap add genererar ios/ men dess pod install fallerar (RevenueCat-podden
           # kräver iOS 15.0, Capacitor genererar 13.0) → || true, vi fixar target nedan.
           ./node_modules/.bin/cap add ios || true
+          # App-ikon: Capacitor 6 genererar EN universell 1024-ikon (AppIcon-512@2x.png).
+          # Skriv över den med vår → ingen icon-generator-dep, ingen per-storlek-resize.
+          # test = fail loud om Capacitor byter filnamn (samma mönster som grep nedan).
+          ICON=ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+          test -f "$ICON"
+          cp resources/icon-1024.png "$ICON"
           sed -i '' "s/platform :ios, '13.0'/platform :ios, '15.0'/" ios/App/Podfile
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13.0/IPHONEOS_DEPLOYMENT_TARGET = 15.0/g' ios/App/App.xcodeproj/project.pbxproj
           # Fixa headern som glider NER efter scroll: WKWebView lägger automatiskt
