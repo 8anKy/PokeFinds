@@ -39,15 +39,16 @@ export function BottomTabs() {
     return () => vv.removeEventListener("resize", onResize);
   }, []);
 
-  // Auth/onboarding = fokuserat flöde utan tab-bar (spacern fick dessutom login-
-  // sidan att scrolla).
-  const hidden = ["/logga-in", "/registrera", "/glomt-losenord", "/aterstall-losenord", "/verifiera", "/onboarding"];
-  if (keyboard || hidden.some((p) => pathname === p || pathname?.startsWith(`${p}/`))) return null;
+  if (keyboard) return null;
+  // Auth/onboarding: VISA tab-baren (så man kan tabba vidare även från login) men
+  // UTAN klarerings-spacern — den fixerade login-sidan (h-[100dvh]) scrollar annars.
+  const noSpacer = ["/logga-in", "/registrera", "/glomt-losenord", "/aterstall-losenord", "/verifiera", "/onboarding"];
+  const hideSpacer = noSpacer.some((p) => pathname === p || pathname?.startsWith(`${p}/`));
   return (
     <>
       {/* Klarering: fixed nav överlappar sidans botten — denna spacer ger
           scroll-utrymme så sista innehållet inte göms (ersätter layoutens pb-20). */}
-      <div aria-hidden className="h-16 lg:hidden" />
+      {!hideSpacer && <div aria-hidden className="h-16 lg:hidden" />}
       <nav
         aria-label="Huvudnavigering"
         className="fixed inset-x-0 bottom-0 z-40 border-t border-surface-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
