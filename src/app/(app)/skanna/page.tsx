@@ -25,6 +25,7 @@ import { Label, Select } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/format";
+import { hasAuthHint } from "@/lib/auth-hint";
 import {
   IconAlertTriangle,
   IconArrowRight,
@@ -119,7 +120,21 @@ function captureFrame(
   return canvas.toDataURL("image/jpeg", 0.85);
 }
 
+// Klient-gate: utloggad → redirecta till login I APPEN (router.replace = SPA-nav,
+// ingen hård navigering som Capacitor kastar till Safari). Scanner monteras (och
+// kameran startar) först när inloggning bekräftats, så ingen kamera-flash.
 export default function SkannaPage() {
+  const router = useRouter();
+  const [authed, setAuthed] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (hasAuthHint()) setAuthed(true);
+    else router.replace("/logga-in?callbackUrl=/skanna");
+  }, [router]);
+  if (!authed) return null;
+  return <Scanner />;
+}
+
+function Scanner() {
   const { toast } = useToast();
   const router = useRouter();
 

@@ -31,8 +31,9 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/bevakningar/:path*",
-    "/samling/:path*",
-    "/skanna/:path*",
+    // /samling + /skanna gatas på sid-nivå (server-redirect / klient-gate) i stället
+    // för här — middleware-redirecten följdes som en HÅRD navigering → Capacitor
+    // kastade ut den till Safari. Sid-nivå-redirect (som /mer) stannar i appen.
     "/installningar/:path*",
     "/onboarding/:path*",
     "/admin/:path*",
