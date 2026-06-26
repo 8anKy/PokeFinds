@@ -58,6 +58,22 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string \"$PHOTO\"" "$PL" || \
             /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription \"$PHOTO\"" "$PL"
           /usr/libexec/PlistBuddy -c "Print :NSCameraUsageDescription" "$PL"
+          # Push Notifications: Capacitor lägger inte till aps-environment-entitlementen.
+          # Utan den får appen aldrig en APNs-token (registreringen tyst-failar). Skapa
+          # entitlement-filen och koppla den till App-targeten (ingen Xcode behövs).
+          # "production" = rätt för TestFlight/App Store (de använder produktions-APNs).
+          cat > ios/App/App/App.entitlements <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>aps-environment</key>
+            <string>production</string>
+          </dict>
+          </plist>
+          PLIST
+          ruby -e 'require "xcodeproj"; p=Xcodeproj::Project.open("ios/App/App.xcodeproj"); t=p.targets.find{|x| x.name=="App"}; t.build_configurations.each{|c| c.build_settings["CODE_SIGN_ENTITLEMENTS"]="App/App.entitlements"}; p.save'
+          grep -q aps-environment ios/App/App/App.entitlements  # fail-loud om injektet inte tog
           (cd ios/App && pod install)
       - name: Sätt build-nummer
         script: |
