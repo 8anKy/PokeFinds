@@ -25,19 +25,20 @@ function bridge(): Bridge | null {
 export async function getPushPlugin(): Promise<{ PushNotifications: any; platform: string } | null> {
   const cap = bridge();
   if (!cap) return null;
-  // 1) Native-bryggans plugin-proxy (robust, ingen bundling-interop).
+  // 1) npm-paketets PushNotifications (registerPlugin → korrekt event-routing för
+  //    'registration'/'registrationError'; den råa bryggans proxy levererar inte
+  //    event). Interop-tålig destructure. Bara @capacitor/core-importen var trasig.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let PushNotifications: any = cap.Plugins?.PushNotifications;
-  // 2) Fallback: npm-paketet (interop-tålig destructure).
-  if (!PushNotifications) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mod: any = await import("@capacitor/push-notifications");
-      PushNotifications = mod.PushNotifications ?? mod.default?.PushNotifications;
-    } catch {
-      /* paketet ej tillgängligt → null nedan */
-    }
+  let PushNotifications: any;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mod: any = await import("@capacitor/push-notifications");
+    PushNotifications = mod.PushNotifications ?? mod.default?.PushNotifications;
+  } catch {
+    /* paketet ej tillgängligt → bryggan nedan */
   }
+  // 2) Fallback: native-bryggans proxy (om paketet inte gick att ladda).
+  if (!PushNotifications) PushNotifications = cap.Plugins?.PushNotifications;
   if (!PushNotifications) return null;
   return { PushNotifications, platform: cap.getPlatform() };
 }
