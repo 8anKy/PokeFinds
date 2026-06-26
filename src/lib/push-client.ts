@@ -25,17 +25,32 @@ async function wireRegistration(PushNotifications: PushPlugin, platform: string)
       body: { token: token.value, platform },
     }).catch(() => {});
   });
+  // APNs-registrering kan misslyckas asynkront (t.ex. saknad aps-environment-
+  // entitlement) → rapportera felet så vi kan se det server-sida.
+  await PushNotifications.addListener("registrationError", (err) => {
+    void apiFetch("/api/push/subscribe", {
+      method: "POST",
+      body: { error: `registrationError: ${JSON.stringify(err)}` },
+    }).catch(() => {});
+  });
 }
 
-/** Anropas när användaren slår PÅ push: be om tillstånd och registrera enheten. */
-export async function enablePush(): Promise<boolean> {
-  const p = await getPlugin();
-  if (!p) return false;
-  await wireRegistration(p.PushNotifications, p.platform);
-  const perm = await p.PushNotifications.requestPermissions();
-  if (perm.receive !== "granted") return false;
-  await p.PushNotifications.register();
-  return true;
+/**
+ * Anropas när användaren slår PÅ push: be om tillstånd och registrera enheten.
+ * Returnerar {ok:false, reason} så UI:t kan visa VARFÖR det misslyckades.
+ */
+export async function enablePush(): Promise<{ ok: boolean; reason?: string }> {
+  try {
+    const p = await getPlugin();
+    if (!p) return { ok: false, reason: "ej native (web-läge)" };
+    await wireRegistration(p.PushNotifications, p.platform);
+    const perm = await p.PushNotifications.requestPermissions();
+    if (perm.receive !== "granted") return { ok: false, reason: `behörighet: ${perm.receive}` };
+    await p.PushNotifications.register();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 /** Tyst om-registrering vid app-start om tillstånd redan givet (fångar roterade tokens). */

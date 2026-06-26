@@ -67,11 +67,11 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   async function toggleSetting(key: keyof NotificationSettings, checked: boolean) {
     // Slår man på push i den native appen → be om tillstånd + registrera enheten.
     if (key === "push" && checked) {
-      const ok = await enablePush();
-      if (!ok) {
+      const res = await enablePush();
+      if (!res.ok) {
         toast({
           title: "Push kunde inte aktiveras",
-          description: "Tillåt notiser för Foilio i enhetens inställningar och försök igen.",
+          description: res.reason ?? "Tillåt notiser för Foilio i enhetens inställningar och försök igen.",
           variant: "error",
         });
         return;
