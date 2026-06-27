@@ -573,6 +573,12 @@ export interface ProductDetailData {
     lowestPrice: number | null;
     lowestPriceStockStatus: StockStatus | null;
   }[];
+  /** Andra Cardmarket-versioner av samma kort (common ↔ special-variant). */
+  variants: {
+    slug: string;
+    label: string;
+    lowestPrice: number | null;
+  }[];
 }
 
 interface LiveOfferStats {
@@ -605,7 +611,7 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
   const product = await getProductBySlug(slug).catch(() => null);
   if (!product) return null;
 
-  const [historyBySource, similar, affiliateRetailers] = await Promise.all([
+  const [historyBySource, similar, affiliateRetailers, variantSiblings] = await Promise.all([
     getPriceHistoryBySource(product.id, DETAIL_MAX_DAYS),
     getSimilarProducts(product.id, 4),
     prisma.retailer.findMany({
@@ -615,7 +621,19 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
       },
       select: { id: true },
     }),
+    // Andra produkter för samma kort = Cardmarket-versioner (common ↔ variant).
+    product.cardId
+      ? prisma.product.findMany({
+          where: { cardId: product.cardId, id: { not: product.id } },
+          select: { slug: true, variantLabel: true, offers: { select: { price: true, stockStatus: true, url: true } } },
+        })
+      : Promise.resolve([]),
   ]);
+  const variants = variantSiblings.map((v) => ({
+    slug: v.slug,
+    label: v.variantLabel ?? "Vanlig version",
+    lowestPrice: computeLowestPrice(v.offers.filter((o) => isDirectOfferUrl(o.url))).price,
+  }));
   const affiliateIds = new Set(affiliateRetailers.map((r) => r.id));
 
   // Endast direkta produktlänkar visas/räknas (samma regel som produktsidan).
@@ -699,6 +717,7 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
     serializedOffers,
     affiliateRetailerIds: affiliateRetailers.map((r) => r.id),
     similar,
+    variants,
   };
 }
 

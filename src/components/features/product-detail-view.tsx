@@ -92,6 +92,25 @@ export function ProductDetailView({ data }: { data: ProductDetailData }) {
           </p>
         </header>
 
+        {/* Andra Cardmarket-versioner av samma kort (common ↔ special-variant) */}
+        {data.variants.length > 0 && (
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-ink-muted">Andra versioner:</span>
+            {data.variants.map((v) => (
+              <Link
+                key={v.slug}
+                href={`/produkter/${v.slug}`}
+                className="card-surface rounded-full px-3 py-1 text-ink transition hover:text-holo-cyan"
+              >
+                {v.label}
+                {v.lowestPrice != null && (
+                  <span className="text-ink-muted"> · {formatPrice(v.lowestPrice)}</span>
+                )}
+              </Link>
+            ))}
+          </div>
+        )}
+
         {/* Bild | Prishistorik */}
         <div className="mt-8 grid gap-6 lg:grid-cols-[320px_1fr]">
           <div className="card-surface flex aspect-[4/3] items-center justify-center overflow-hidden bg-surface-overlay lg:aspect-auto">
