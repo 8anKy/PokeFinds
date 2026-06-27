@@ -167,6 +167,16 @@ export async function fetchTcgCardsForSet(
   return cards;
 }
 
+/** Hämtar ETT kort på tcgExternalId (för variant-prissättning via CM-trend). */
+export async function fetchTcgCardById(id: string): Promise<TcgCard | null> {
+  try {
+    const json = await fetchTcgJson<{ data: TcgCard }>(`/cards/${encodeURIComponent(id)}`);
+    return json.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** "2023/03/31" → Date (API:t använder snedstreck). */
 export function parseTcgDate(value?: string): Date | null {
   if (!value) return null;

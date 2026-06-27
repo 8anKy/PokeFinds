@@ -19,6 +19,7 @@ import {
 } from "../lib/marketplace-urls";
 import { classifyForm, scoreSimilarity } from "../scrapers/matching";
 import { recomputeProductPriceCache } from "../services/products";
+import { fetchTcgCardById, cardMarketPriceOre } from "../scrapers/adapters/pokemontcg-adapter";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Samtidiga DB-skrivningar (≤ DB_POOL i db.ts). Kortar 18k sekventiella
@@ -59,6 +60,47 @@ export interface CmRefreshResult {
   remaining: number;
 }
 
+/**
+ * Prissätter SINGLE_CARD-produkter med variantLabel != null (specialvarianter
+ * som Cardmarket listar separat men RapidAPI saknar) via pokemontcg.io:s
+ * Cardmarket-trend för samma tcgExternalId. Uppdaterar CM-offer + skriver en
+ * daglig historikpunkt så variantgrafen lever framåt. Returnerar antal kort.
+ */
+export async function runVariantRefresh(): Promise<number> {
+  await getRatesOre(); // värm kursen (cardMarketPriceOre läser den synkront)
+  const cm = await prisma.retailer.findFirst({ where: { name: "Cardmarket" }, select: { id: true } });
+  const cmSource = await prisma.scrapeSource.findFirst({ where: { name: "Cardmarket" }, select: { id: true } });
+  const variants = await prisma.product.findMany({
+    where: { category: "SINGLE_CARD", variantLabel: { not: null }, card: { tcgExternalId: { not: null } } },
+    select: { id: true, card: { select: { tcgExternalId: true } }, offers: { where: { retailerId: cm?.id }, select: { id: true }, take: 1 } },
+  });
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  let n = 0;
+  for (const p of variants) {
+    const ext = p.card?.tcgExternalId;
+    if (!ext) continue;
+    const card = await fetchTcgCardById(ext);
+    if (!card) continue;
+    const priceOre = cardMarketPriceOre(card); // CM-trend (EUR) → öre
+    if (priceOre == null) continue;
+    const offerId = p.offers[0]?.id;
+    if (offerId) {
+      await prisma.offer.update({ where: { id: offerId }, data: { price: priceOre, stockStatus: "IN_STOCK", condition: "NEAR_MINT", lastSeenAt: new Date() } });
+    }
+    if (cmSource) {
+      await prisma.priceObservation.create({ data: { productId: p.id, sourceId: cmSource.id, price: priceOre, currency: "SEK" } });
+      await prisma.priceSnapshot.upsert({
+        where: { productId_date: { productId: p.id, date: today } },
+        update: { minPrice: priceOre, maxPrice: priceOre, avgPrice: priceOre },
+        create: { productId: p.id, date: today, minPrice: priceOre, maxPrice: priceOre, avgPrice: priceOre, volume: 1 },
+      });
+    }
+    n++;
+  }
+  if (n > 0) console.log(`[cm-refresh] Varianter: ${n} prissatta via pokemontcg.io-trend.`);
+  return n;
+}
+
 export async function runCardmarketRefresh(
   opts: { singles?: boolean; sealed?: boolean; throttleMs?: number } = {}
 ): Promise<CmRefreshResult> {
@@ -91,7 +133,9 @@ export async function runCardmarketRefresh(
 
   if (opts.singles !== false) {
     const products = await prisma.product.findMany({
-      where: { category: "SINGLE_CARD", card: { tcgExternalId: { not: null } } },
+      // variantLabel:null = bas-common. Specialvariter (GameStop-promo, reverse
+      // m.m.) prissätts INTE av RapidAPI (saknar dem) utan av runVariantRefresh.
+      where: { category: "SINGLE_CARD", variantLabel: null, card: { tcgExternalId: { not: null } } },
       select: { id: true, card: { select: { tcgExternalId: true } }, offers: { where: { retailerId: cm.id }, select: { id: true, url: true }, take: 1 } },
     });
     const map = new Map<string, { productId: string; offerId?: string; url?: string }>();
@@ -293,6 +337,9 @@ export async function runCardmarketRefresh(
     }
     console.log(`[cm-refresh] Sealed: ${res.sealedUpdated} uppdaterade, ${sealedOps.length} historikpunkter.`);
   }
+
+  // Specialvariant-priser (GameStop-promo, reverse m.m.) via pokemontcg.io-trend.
+  res.historyPoints += await runVariantRefresh();
 
   // Uppdatera denormaliserat lägstapris (katalog-feed: sortering + gömning).
   await recomputeProductPriceCache();

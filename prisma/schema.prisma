@@ -231,6 +231,12 @@ model Product {
   normalizedTitle String
   slug            String          @unique
   category        ProductCategory
+  // Cardmarket har ofta flera produkter under samma kortnummer (vanlig common +
+  // Poké/Master Ball reverse + promo). pokemontcg.io och RapidAPI mappar samma
+  // tcgid till OLIKA CM-produkter. variantLabel != null = specialvariant som
+  // prissätts via pokemontcg.io-trend (RapidAPI saknar den); null = bas-common
+  // som prissätts via RapidAPI From. Se cardmarket-refresh.ts.
+  variantLabel    String?
   cardId          String?
   setId           String?
   imageUrl        String?
