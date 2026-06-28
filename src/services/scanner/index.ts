@@ -57,16 +57,13 @@ export async function getScannerQuota(
   return { used, limit, remaining: Math.max(0, limit - used) };
 }
 
-/** Bokför en skanning mot månadskvoten. Träff = COMPLETED (räknas), no-match = FAILED
- *  (gratis — vi tar Haiku-kostnaden men belastar inte användarens kvot). Live-skannern
- *  (/api/scanner/identify) skapar inget jobb själv, så detta är dess kvot-liggare. */
-export async function recordScanUsage(userId: string, matched: boolean): Promise<void> {
+/** Bokför en skanning mot månadskvoten. VARJE scan som nådde vision-API:t räknas
+ *  (träff ELLER no-match) — annars kan no-match-scans dränera API-budgeten gratis
+ *  (bara 60/min skyddar). Live-skannern (/api/scanner/identify) skapar inget jobb
+ *  själv, så detta är dess kvot-liggare. Endast äkta fel (API kastar) räknas inte. */
+export async function recordScanUsage(userId: string): Promise<void> {
   await prisma.scannerJob.create({
-    data: {
-      userId,
-      imageUrl: INLINE_UPLOAD,
-      status: matched ? "COMPLETED" : "FAILED",
-    },
+    data: { userId, imageUrl: INLINE_UPLOAD, status: "COMPLETED" },
   });
 }
 
@@ -232,15 +229,11 @@ export async function runScannerJob(
       candidates: candidates.map((c) => ({ ...c })),
     };
 
-    // No-match räknas inte mot kvoten (FAILED) — vi tar Haiku-kostnaden men
-    // belastar inte användarens månadskvot för en skanning som inte hittade kortet.
+    // Varje genomförd skanning räknas (träff eller no-match) — bara äkta fel
+    // (catch nedan → FAILED) är gratis.
     const updated = await prisma.scannerJob.update({
       where: { id: job.id },
-      data: {
-        status: candidates.length > 0 ? "COMPLETED" : "FAILED",
-        result,
-        confidence: ocr.confidence,
-      },
+      data: { status: "COMPLETED", result, confidence: ocr.confidence },
     });
 
     return { job: updated, candidates };

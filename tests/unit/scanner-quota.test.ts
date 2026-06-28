@@ -52,16 +52,10 @@ describe("getScannerQuota", () => {
 });
 
 describe("recordScanUsage", () => {
-  it("träff = COMPLETED (räknas)", async () => {
+  it("varje genomförd skanning räknas (COMPLETED)", async () => {
     create.mockResolvedValue({});
-    await recordScanUsage("u1", true);
+    await recordScanUsage("u1");
     expect(create.mock.calls[0][0].data.status).toBe("COMPLETED");
-  });
-
-  it("no-match = FAILED (gratis)", async () => {
-    create.mockResolvedValue({});
-    await recordScanUsage("u1", false);
-    expect(create.mock.calls[0][0].data.status).toBe("FAILED");
   });
 });
 

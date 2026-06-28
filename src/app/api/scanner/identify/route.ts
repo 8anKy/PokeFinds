@@ -63,8 +63,9 @@ export async function POST(req: Request) {
       precise: precise && user.planTier === "PREMIUM",
     });
 
-    // Bokför mot kvoten: träff räknas, no-match är gratis.
-    await recordScanUsage(user.id, result.candidates.length > 0);
+    // Bokför mot kvoten: varje genomförd skanning räknas (träff eller no-match),
+    // annars kan no-match-scans dränera API-budgeten gratis.
+    await recordScanUsage(user.id);
 
     return jsonOk({ ...result, remaining: Math.max(0, quota.remaining - 1) });
   } catch (e) {
