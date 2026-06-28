@@ -12,6 +12,7 @@ import { CookieBanner } from "@/components/features/cookie-banner";
 import { ServiceWorkerRegister } from "@/components/pwa-register";
 import { BottomTabs } from "@/components/layout/bottom-tabs";
 import { ProductOverlayHost } from "@/components/features/product-overlay";
+import { PushManager } from "@/components/push-manager";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
@@ -63,6 +64,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               header (annars dubbel header). */}
           <ProductOverlayHost />
           <BottomTabs />
+          {/* Push-tap-navigering: mountad i ROT-layouten (ej (app)-gruppen) så
+              notis-tap landar rätt även när appen står på en marketing-route som
+              Utforska (/produkter). Capacitor retainar tap-eventet tills en lyssnare
+              finns → tidigare gick det förlorat på de routerna. */}
+          <PushManager />
           <CookieBanner />
           <ServiceWorkerRegister />
         </Providers>
