@@ -3,8 +3,8 @@
  * gratisnivån och kör graderingen som ett GradingJob.
  *
  * Plan → modell:
- *   FREE    → GRADING_MODEL_FREE    (default claude-haiku-4-5), max N/dygn
- *   PREMIUM → GRADING_MODEL_PREMIUM (default claude-sonnet-4-6), obegränsat
+ *   FREE    → GRADING_MODEL_FREE    (default claude-haiku-4-5), max N/månad
+ *   PREMIUM → GRADING_MODEL_PREMIUM (default claude-sonnet-4-6), max N/månad
  *
  * Bildlagring (MVP): base64-datan persisteras inte; frontImageUrl/backImageUrl
  * sätts till "inline-upload" (jfr skannern). I produktion → objektlagring.
@@ -18,20 +18,20 @@ import type { GradingAdapter, GradingContext } from "@/services/grading/types";
 
 const INLINE_UPLOAD = "inline-upload";
 
-/** Antal gratis graderingar per kalenderdygn (FREE-plan). */
-export function freeDailyLimit(): number {
-  const n = Number(process.env.GRADING_FREE_DAILY_LIMIT ?? "5");
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 5;
+/** Antal gratis graderingar per kalendermånad (FREE-plan). */
+export function freeMonthlyLimit(): number {
+  const n = Number(process.env.GRADING_FREE_MONTHLY_LIMIT ?? "3");
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 3;
 }
 
-/** Daglig fair-use-gräns för Pro (skyddar marginalen mot Sonnet-missbruk). */
-export function premiumDailyLimit(): number {
-  const n = Number(process.env.GRADING_PREMIUM_DAILY_LIMIT ?? "30");
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 30;
+/** Månadsgräns för Pro (Sonnet — binder marginalen mot Pro-priset). */
+export function premiumMonthlyLimit(): number {
+  const n = Number(process.env.GRADING_PREMIUM_MONTHLY_LIMIT ?? "15");
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 15;
 }
 
 function limitForTier(planTier: PlanTier): number {
-  return planTier === "PREMIUM" ? premiumDailyLimit() : freeDailyLimit();
+  return planTier === "PREMIUM" ? premiumMonthlyLimit() : freeMonthlyLimit();
 }
 
 function modelForTier(planTier: PlanTier): string {
@@ -56,34 +56,35 @@ export function getGradingAdapter(planTier: PlanTier): GradingAdapter {
   }
 }
 
-function startOfTodayUtc(): Date {
+function startOfMonthUtc(): Date {
   const d = new Date();
+  d.setUTCDate(1);
   d.setUTCHours(0, 0, 0, 0);
   return d;
 }
 
 export interface GradingQuota {
-  /** Antal graderingar gjorda i dag. */
+  /** Antal graderingar gjorda denna månad. */
   used: number;
-  /** Dygnsgräns. */
+  /** Månadsgräns. */
   limit: number | null;
-  /** Återstående i dag. */
+  /** Återstående denna månad. */
   remaining: number | null;
   /** True för Pro (styr UI-text: ingen "uppgradera"-knapp). */
   isPremium: boolean;
 }
 
-/** Returnerar dagens kvotstatus för en användare. */
+/** Returnerar månadens kvotstatus för en användare. */
 export async function getGradingQuota(
   userId: string,
   planTier: PlanTier
 ): Promise<GradingQuota> {
   const limit = limitForTier(planTier);
-  // Misslyckade graderingar ska inte tära på dygnskvoten.
+  // Misslyckade graderingar ska inte tära på månadskvoten.
   const used = await prisma.gradingJob.count({
     where: {
       userId,
-      createdAt: { gte: startOfTodayUtc() },
+      createdAt: { gte: startOfMonthUtc() },
       status: { not: "FAILED" },
     },
   });
@@ -110,14 +111,14 @@ export async function runGradingJob(
   backDataUrl: string,
   context?: GradingContext
 ): Promise<GradingJobResult> {
-  // Daglig kvot (FREE = gratisgräns, PREMIUM = fair-use-gräns mot missbruk).
+  // Månadskvot (FREE = gratisgräns, PREMIUM = Pro-gräns mot Sonnet-kostnad).
   const quota = await getGradingQuota(userId, planTier);
   if (quota.remaining !== null && quota.remaining <= 0) {
     throw new ServiceError(
       429,
       planTier === "PREMIUM"
-        ? `Du har nått dagens gräns på ${quota.limit} graderingar. Försök igen i morgon.`
-        : `Du har använt dina ${quota.limit} gratis graderingar i dag. Uppgradera till Pro för fler.`
+        ? `Du har nått månadens gräns på ${quota.limit} graderingar. Tillbaka nästa månad.`
+        : `Du har använt dina ${quota.limit} gratis graderingar denna månad. Uppgradera till Pro för fler.`
     );
   }
 

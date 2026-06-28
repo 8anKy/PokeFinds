@@ -1,5 +1,5 @@
 /**
- * Tester för graderingens kvotlogik (FREE 5/dygn) och plan→modell-val.
+ * Tester för graderingens kvotlogik (FREE 3/mån, PREMIUM 15/mån) och plan→modell-val.
  * Prisma och adaptern mockas via GRADING_PROVIDER=mock.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,7 +19,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import {
-  freeDailyLimit,
+  freeMonthlyLimit,
   getGradingQuota,
   runGradingJob,
 } from "@/services/grading";
@@ -29,50 +29,61 @@ beforeEach(() => {
   create.mockReset();
   update.mockReset();
   process.env.GRADING_PROVIDER = "mock";
-  process.env.GRADING_FREE_DAILY_LIMIT = "5";
+  delete process.env.GRADING_FREE_MONTHLY_LIMIT;
+  delete process.env.GRADING_PREMIUM_MONTHLY_LIMIT;
 });
 
 const PNG =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
-describe("freeDailyLimit", () => {
-  it("läser GRADING_FREE_DAILY_LIMIT", () => {
-    process.env.GRADING_FREE_DAILY_LIMIT = "3";
-    expect(freeDailyLimit()).toBe(3);
+describe("freeMonthlyLimit", () => {
+  it("läser GRADING_FREE_MONTHLY_LIMIT", () => {
+    process.env.GRADING_FREE_MONTHLY_LIMIT = "7";
+    expect(freeMonthlyLimit()).toBe(7);
   });
 
-  it("faller tillbaka på 5 vid ogiltigt värde", () => {
-    process.env.GRADING_FREE_DAILY_LIMIT = "noll";
-    expect(freeDailyLimit()).toBe(5);
+  it("faller tillbaka på 3 vid ogiltigt värde", () => {
+    process.env.GRADING_FREE_MONTHLY_LIMIT = "noll";
+    expect(freeMonthlyLimit()).toBe(3);
   });
 });
 
 describe("getGradingQuota", () => {
-  it("PREMIUM har fair-use-gräns (30/dygn default)", async () => {
+  it("PREMIUM = 15/mån default", async () => {
     count.mockResolvedValue(4);
     const q = await getGradingQuota("u1", "PREMIUM");
-    expect(q).toEqual({ used: 4, limit: 30, remaining: 26, isPremium: true });
+    expect(q).toEqual({ used: 4, limit: 15, remaining: 11, isPremium: true });
   });
 
-  it("FREE räknar dagens jobb och returnerar återstående", async () => {
+  it("FREE = 3/mån default, räknar månadens jobb", async () => {
     count.mockResolvedValue(2);
     const q = await getGradingQuota("u1", "FREE");
-    expect(q).toEqual({ used: 2, limit: 5, remaining: 3, isPremium: false });
+    expect(q).toEqual({ used: 2, limit: 3, remaining: 1, isPremium: false });
+  });
+
+  it("räknar bara denna månads icke-misslyckade jobb", async () => {
+    count.mockResolvedValue(0);
+    await getGradingQuota("u1", "FREE");
+    const where = count.mock.calls[0][0].where;
+    expect(where.status).toEqual({ not: "FAILED" });
+    const expected = new Date();
+    expected.setUTCDate(1);
+    expected.setUTCHours(0, 0, 0, 0);
+    expect((where.createdAt.gte as Date).getTime()).toBe(expected.getTime());
   });
 });
 
 describe("runGradingJob", () => {
-  it("blockerar FREE-användare som nått dygnsgränsen (429)", async () => {
-    count.mockResolvedValue(5);
+  it("blockerar FREE-användare som nått månadsgränsen (429)", async () => {
+    count.mockResolvedValue(3);
     await expect(
       runGradingJob("u1", "FREE", PNG, PNG)
     ).rejects.toMatchObject({ status: 429 });
     expect(create).not.toHaveBeenCalled();
   });
 
-  it("blockerar även PREMIUM vid fair-use-gränsen (429)", async () => {
-    process.env.GRADING_PREMIUM_DAILY_LIMIT = "30";
-    count.mockResolvedValue(30);
+  it("blockerar även PREMIUM vid månadsgränsen (429)", async () => {
+    count.mockResolvedValue(15);
     await expect(
       runGradingJob("u1", "PREMIUM", PNG, PNG)
     ).rejects.toMatchObject({ status: 429 });

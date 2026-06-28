@@ -111,7 +111,7 @@ describe("checkRestockAlerts", () => {
     expect(alertArgs.data.retailerId).toBe("ret-1");
   });
 
-  it("filtrerar på restockAlert och ej pausad", async () => {
+  it("filtrerar på restockAlert, ej pausad, och endast Pro-bevakare", async () => {
     await checkRestockAlerts("prod-1");
 
     expect(watchlistFindMany).toHaveBeenCalledWith(
@@ -120,6 +120,7 @@ describe("checkRestockAlerts", () => {
           productId: "prod-1",
           restockAlert: true,
           isPaused: false,
+          user: { planTier: "PREMIUM" },
         }),
       })
     );

@@ -102,9 +102,10 @@ export async function checkPriceAlerts(productId: string, newPrice: number) {
 
 /**
  * Kontrollerar restock-larm för en produkt när påfyllning upptäckts.
- * Mottagare = bevakare av produkten (restockAlert) UNION användare som valt att
- * få ALLA restocks (notificationSettings.allRestocks=true), utan att bevaka just
- * den produkten. Skapar Alert (EMAIL) + Notification per unik användare.
+ * Restock-larm är en Pro-förmån: mottagare = PRO-bevakare av produkten
+ * (restockAlert) UNION Pro-användare som valt att få ALLA restocks
+ * (notificationSettings.allRestocks=true). Gratisanvändare får inga restock-larm.
+ * Skapar Alert (EMAIL) + Notification per unik användare.
  *
  * ponytail: ett mejl per restock per mottagare. Vid stora drop-vågor kan en
  * "alla restocks"-prenumerant få många mejl — lägg en daglig digest om det blir
@@ -119,12 +120,12 @@ export async function checkRestockAlerts(productId: string, retailerId?: string)
 
   const [watchers, allSubs] = await Promise.all([
     prisma.watchlistItem.findMany({
-      where: { productId, restockAlert: true, isPaused: false },
+      // Restock-larm är Pro-only — även bevakade produkter larmar bara för Pro.
+      where: { productId, restockAlert: true, isPaused: false, user: { planTier: "PREMIUM" } },
       select: { userId: true },
     }),
     prisma.user.findMany({
-      // "Alla restocks" är en Pro-förmån — gratisanvändare får bara larm på
-      // produkter de själva bevakar (restockAlert ovan).
+      // "Alla restocks" är också en Pro-förmån.
       where: {
         notificationSettings: { path: ["allRestocks"], equals: true },
         planTier: "PREMIUM",

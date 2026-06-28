@@ -264,7 +264,7 @@ export default function GraderaPage() {
       {quota?.limit != null && (
         <div className="flex items-center justify-between rounded-xl border border-surface-border bg-surface-raised px-4 py-3 text-sm">
           <span className="text-ink-muted">
-            {quota.isPremium ? "Graderingar i dag:" : "Gratis graderingar i dag:"}{" "}
+            {quota.isPremium ? "Graderingar denna månad:" : "Gratis graderingar denna månad:"}{" "}
             <span className="font-semibold text-ink">
               {quota.used} / {quota.limit}
             </span>
