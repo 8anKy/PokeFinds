@@ -359,6 +359,26 @@ export async function matchProduct(
     for (const r of rows) candidateMap.set(r.id, r);
     if (candidateMap.size >= 400) break;
   }
+
+  // Katalogtiteln kan vara en ren delmängd av en brusig butikstitel ("white flare
+  // booster pack" ⊂ "scarlet violet 10 5 white flare booster pack"). Token-unionen
+  // ovan missar den då varje token har >200 katalog-syskon och fel 200 hämtas
+  // (take utan ordning). Lägg därför till produkter vars HELA normaliserade titel
+  // finns som delsträng i den inkommande — exakt, billigt, få träffar.
+  // normalizedTitle är alnum+mellanslag → inga LIKE-jokrar att escapa.
+  const subsetIds: { id: string }[] = await prisma.$queryRaw`
+    SELECT id FROM "Product"
+    WHERE char_length("normalizedTitle") >= 8
+      AND ${normalized} LIKE '%' || "normalizedTitle" || '%'
+    LIMIT 50`;
+  if (subsetIds.length > 0) {
+    const rows = await prisma.product.findMany({
+      where: { id: { in: subsetIds.map((s) => s.id) } },
+      select: { id: true, normalizedTitle: true, card: { select: { name: true, number: true } } },
+    });
+    for (const r of rows) candidateMap.set(r.id, r);
+  }
+
   const candidates = [...candidateMap.values()];
   if (candidates.length === 0) return null;
 
