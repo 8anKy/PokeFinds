@@ -72,6 +72,7 @@ interface ScanItem {
   quantity: number;
   condition: string;
   language: string;
+  errorMessage?: string;
 }
 
 const CONDITIONS = [
@@ -183,19 +184,23 @@ function Scanner() {
   // ---- Identifiering -------------------------------------------------------
 
   const runIdentify = useCallback(
-    async (dataUrl: string): Promise<IdentifyResponse | null> => {
+    async (dataUrl: string): Promise<IdentifyResponse | { error: string }> => {
       try {
+        // Standard = billiga Haiku-modellen (ingen `precise`) — håller scan-kostnaden
+        // mot Pro-priset. Sonnet körs bara på uttryckligt "försök igen, skarpare".
         const res = await fetch("/api/scanner/identify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: dataUrl, precise: true }),
+          body: JSON.stringify({ image: dataUrl }),
         });
         const data = (await res.json()) as IdentifyResponse & { error?: string };
-        if (!res.ok) return null;
+        if (!res.ok) {
+          return { error: data.error ?? "Något gick fel. Försök igen." };
+        }
         setProvider(data.provider);
         return data;
       } catch {
-        return null;
+        return { error: "Något gick fel. Försök igen." };
       }
     },
     []
@@ -207,7 +212,7 @@ function Scanner() {
       setScans((prev) =>
         prev.map((s) => {
           if (s.id !== id) return s;
-          if (!data) return { ...s, status: "error" };
+          if ("error" in data) return { ...s, status: "error", errorMessage: data.error };
           const top = data.candidates[0];
           if (top && data.confidence >= MIN_MATCH_CONF) {
             return {
@@ -1049,9 +1054,11 @@ function ReviewView(props: {
                     className="h-24 w-[4.3rem] shrink-0 rounded-md object-cover opacity-80"
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-ink">Ingen träff</p>
+                    <p className="font-medium text-ink">
+                      {s.status === "error" && s.errorMessage ? "Skanning stoppad" : "Ingen träff"}
+                    </p>
                     <p className="text-xs text-ink-muted">
-                      Kunde inte matcha kortet automatiskt.
+                      {s.errorMessage ?? "Kunde inte matcha kortet automatiskt."}
                     </p>
                     <div className="mt-2 flex items-center gap-3">
                       <button

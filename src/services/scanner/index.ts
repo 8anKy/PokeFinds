@@ -20,18 +20,21 @@ const INLINE_UPLOAD = "inline-upload";
 /** Max antal kandidater som returneras. */
 const MAX_CANDIDATES = 5;
 
-/** Dygnsgräns för sparade skanningar per plan (skyddar mot AI-missbruk). */
+/** Månadsgräns för sparade skanningar per plan (skyddar mot AI-missbruk + kostnad).
+ *  Per-scan vision-anrop är enda rörliga kostnaden; månadstak (inte dygnstak) är det
+ *  som faktiskt binder kostnaden mot Pro-priset ($4,99/mån). Haiku ≈ $0,0025/scan. */
 function scannerLimitForTier(planTier: PlanTier): number {
   const env =
     planTier === "PREMIUM"
-      ? process.env.SCANNER_PREMIUM_DAILY_LIMIT ?? "100"
-      : process.env.SCANNER_FREE_DAILY_LIMIT ?? "10";
+      ? process.env.SCANNER_PREMIUM_MONTHLY_LIMIT ?? "100"
+      : process.env.SCANNER_FREE_MONTHLY_LIMIT ?? "30";
   const n = Number(env);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : planTier === "PREMIUM" ? 100 : 10;
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : planTier === "PREMIUM" ? 100 : 30;
 }
 
-function startOfTodayUtc(): Date {
+function startOfMonthUtc(): Date {
   const d = new Date();
+  d.setUTCDate(1);
   d.setUTCHours(0, 0, 0, 0);
   return d;
 }
@@ -42,16 +45,29 @@ export interface ScannerQuota {
   remaining: number;
 }
 
-/** Dagens skanningskvot (misslyckade jobb räknas inte). */
+/** Månadens skanningskvot (misslyckade/no-match-jobb räknas inte). */
 export async function getScannerQuota(
   userId: string,
   planTier: PlanTier
 ): Promise<ScannerQuota> {
   const limit = scannerLimitForTier(planTier);
   const used = await prisma.scannerJob.count({
-    where: { userId, createdAt: { gte: startOfTodayUtc() }, status: { not: "FAILED" } },
+    where: { userId, createdAt: { gte: startOfMonthUtc() }, status: { not: "FAILED" } },
   });
   return { used, limit, remaining: Math.max(0, limit - used) };
+}
+
+/** Bokför en skanning mot månadskvoten. Träff = COMPLETED (räknas), no-match = FAILED
+ *  (gratis — vi tar Haiku-kostnaden men belastar inte användarens kvot). Live-skannern
+ *  (/api/scanner/identify) skapar inget jobb själv, så detta är dess kvot-liggare. */
+export async function recordScanUsage(userId: string, matched: boolean): Promise<void> {
+  await prisma.scannerJob.create({
+    data: {
+      userId,
+      imageUrl: INLINE_UPLOAD,
+      status: matched ? "COMPLETED" : "FAILED",
+    },
+  });
 }
 
 /**
@@ -216,9 +232,15 @@ export async function runScannerJob(
       candidates: candidates.map((c) => ({ ...c })),
     };
 
+    // No-match räknas inte mot kvoten (FAILED) — vi tar Haiku-kostnaden men
+    // belastar inte användarens månadskvot för en skanning som inte hittade kortet.
     const updated = await prisma.scannerJob.update({
       where: { id: job.id },
-      data: { status: "COMPLETED", result, confidence: ocr.confidence },
+      data: {
+        status: candidates.length > 0 ? "COMPLETED" : "FAILED",
+        result,
+        confidence: ocr.confidence,
+      },
     });
 
     return { job: updated, candidates };

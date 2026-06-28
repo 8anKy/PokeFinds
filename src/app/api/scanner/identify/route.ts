@@ -10,7 +10,7 @@ import { apiError, jsonOk } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
-import { identifyCard } from "@/services/scanner";
+import { getScannerQuota, identifyCard, recordScanUsage } from "@/services/scanner";
 
 export const dynamic = "force-dynamic";
 
@@ -46,12 +46,27 @@ export async function POST(req: Request) {
       throw new ServiceError(413, "Bilden är för stor. Skala ner videorutan innan den skickas.");
     }
 
-    // Den dyra Sonnet-bekräftelsen (precise) är en Pro-förmån; gratisanvändare
-    // identifieras med den billiga Haiku-modellen även vid bekräftelse.
+    // Månadskvot (binder vision-kostnaden mot Pro-priset). No-match räknas inte.
+    const quota = await getScannerQuota(user.id, user.planTier);
+    if (quota.remaining <= 0) {
+      throw new ServiceError(
+        429,
+        user.planTier === "PREMIUM"
+          ? `Du har nått månadens gräns på ${quota.limit} skanningar. Tillbaka nästa månad.`
+          : `Du har använt dina ${quota.limit} gratis skanningar denna månad. Uppgradera till Pro för fler.`
+      );
+    }
+
+    // Standard = billiga Haiku-modellen. Den dyra Sonnet-modellen (precise) körs bara
+    // när klienten uttryckligen ber om det (t.ex. "försök igen, skarpare") OCH är Pro.
     const result = await identifyCard(image, {
       precise: precise && user.planTier === "PREMIUM",
     });
-    return jsonOk(result);
+
+    // Bokför mot kvoten: träff räknas, no-match är gratis.
+    await recordScanUsage(user.id, result.candidates.length > 0);
+
+    return jsonOk({ ...result, remaining: Math.max(0, quota.remaining - 1) });
   } catch (e) {
     return apiError(e);
   }
