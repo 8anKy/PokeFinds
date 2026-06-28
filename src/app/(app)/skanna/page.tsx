@@ -58,6 +58,13 @@ interface IdentifyResponse {
   guessedNumber: string | null;
   confidence: number;
   candidates: Candidate[];
+  remaining?: number;
+}
+
+interface ScanQuota {
+  remaining: number;
+  limit: number;
+  isPremium: boolean;
 }
 
 type ScanStatus = "identifying" | "matched" | "nomatch" | "error";
@@ -161,6 +168,21 @@ function Scanner() {
 
   const [addingAll, setAddingAll] = useState(false);
   const [addedCount, setAddedCount] = useState<number | null>(null);
+  const [quota, setQuota] = useState<ScanQuota | null>(null);
+
+  // Hämta kvoten när skannern öppnas (badge: "X skanningar kvar").
+  useEffect(() => {
+    let active = true;
+    fetch("/api/scanner/quota")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (active && d && typeof d.remaining === "number") setQuota(d as ScanQuota);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const isMock = provider === "mock";
 
@@ -209,6 +231,10 @@ function Scanner() {
   const identifyInto = useCallback(
     async (id: string, dataUrl: string) => {
       const data = await runIdentify(dataUrl);
+      if (!("error" in data) && typeof data.remaining === "number") {
+        const r = data.remaining;
+        setQuota((q) => (q ? { ...q, remaining: r } : q));
+      }
       setScans((prev) =>
         prev.map((s) => {
           if (s.id !== id) return s;
@@ -564,6 +590,8 @@ function Scanner() {
           matchedCount={matched.length}
           isMock={isMock}
           shutterCooling={shutterCooling}
+          quota={quota}
+          onUpgrade={() => router.push("/priser")}
           onRetryCamera={() => void startCamera()}
           onCapture={capture}
           onGallery={() => fileInputRef.current?.click()}
@@ -627,6 +655,57 @@ function Scanner() {
 /* ===========================================================================
  * Capture-vy
  * ======================================================================== */
+/** Liten kvot-badge i kameravyn. Free = tappbar → /priser; Pro = bara info. */
+function QuotaBadge({ quota, onUpgrade }: { quota: ScanQuota; onUpgrade: () => void }) {
+  const { remaining, isPremium } = quota;
+  const pill = (
+    <span
+      className={cn(
+        "shrink-0 rounded-md px-2 py-1 text-xs font-bold tracking-wide",
+        isPremium
+          ? "bg-holo-gold text-black"
+          : "bg-holo-cyan/20 text-holo-cyan ring-1 ring-holo-cyan/40"
+      )}
+    >
+      {isPremium ? "PRO" : "GRATIS"}
+    </span>
+  );
+  const body = (
+    <span className="min-w-0 text-left">
+      <span className="block text-sm font-semibold text-ink">
+        {remaining} {remaining === 1 ? "skanning" : "skanningar"} kvar
+      </span>
+      <span className="block text-xs text-ink-muted">
+        {isPremium ? "Förnyas nästa månad" : "Tryck här för fler med Pro"}
+      </span>
+    </span>
+  );
+  const cls =
+    "mx-auto flex w-full max-w-sm items-center gap-3 rounded-2xl bg-black/70 px-4 py-3 ring-1 ring-white/10 backdrop-blur";
+  if (isPremium) {
+    return (
+      <div className={cls}>
+        {pill}
+        {body}
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onUpgrade}
+      className={cn(
+        cls,
+        "transition-colors hover:bg-black/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
+      )}
+    >
+      {pill}
+      {body}
+      <IconArrowRight size={18} className="ml-auto shrink-0 text-ink-muted" />
+    </button>
+  );
+}
+
 function CaptureView(props: {
   videoRef: RefObject<HTMLVideoElement>;
   canvasRef: RefObject<HTMLCanvasElement>;
@@ -638,6 +717,8 @@ function CaptureView(props: {
   matchedCount: number;
   isMock: boolean;
   shutterCooling: boolean;
+  quota: ScanQuota | null;
+  onUpgrade: () => void;
   onRetryCamera: () => void;
   onCapture: () => void;
   onGallery: () => void;
@@ -656,6 +737,7 @@ function CaptureView(props: {
     matchedCount,
     isMock,
     shutterCooling,
+    quota,
   } = props;
 
   return (
@@ -734,8 +816,10 @@ function CaptureView(props: {
         />
       )}
 
-      {/* Botten: hint, strip, kontroller */}
+      {/* Botten: kvot-badge, hint, strip, kontroller */}
       <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col gap-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {quota && <QuotaBadge quota={quota} onUpgrade={props.onUpgrade} />}
+
         {isMock && (
           <p className="mx-auto rounded-full bg-black/70 px-3 py-1 text-center text-[11px] font-medium text-holo-gold ring-1 ring-holo-gold/30 backdrop-blur">
             Demoläge — träffar är exempel ur katalogen
