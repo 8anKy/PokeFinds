@@ -663,7 +663,7 @@ function QuotaBadge({ quota, onUpgrade }: { quota: ScanQuota; onUpgrade: () => v
       className={cn(
         "shrink-0 rounded-md px-2 py-1 text-xs font-bold tracking-wide",
         isPremium
-          ? "bg-holo-gold text-black"
+          ? "bg-holo-cyan text-black"
           : "bg-holo-cyan/20 text-holo-cyan ring-1 ring-holo-cyan/40"
       )}
     >
@@ -680,8 +680,9 @@ function QuotaBadge({ quota, onUpgrade }: { quota: ScanQuota; onUpgrade: () => v
       </span>
     </span>
   );
+  // Lika bred som kortramen i kameravyn (w-[68%] max-w-[20rem] av helskärm).
   const cls =
-    "mx-auto flex w-full max-w-sm items-center gap-3 rounded-2xl bg-black/70 px-4 py-3 ring-1 ring-white/10 backdrop-blur";
+    "mx-auto flex w-[min(68vw,20rem)] items-center gap-3 rounded-2xl bg-black/70 px-4 py-3 ring-1 ring-white/10 backdrop-blur";
   if (isPremium) {
     return (
       <div className={cls}>
