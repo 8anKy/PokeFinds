@@ -27,6 +27,12 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DB_POOL: "10" # större Prisma-pool → mapPool-samtidighet utan pool_timeout
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }} # utan denna mailas inga alerts (mailer går i console-mode)
+      # APNs (iOS push). Utan APNS_KEY blir sendPush en no-op → bara mejl, ingen pushnotis.
+      APNS_KEY: ${{ secrets.APNS_KEY }}
+      APNS_KEY_ID: SMQBU7MM82
+      APNS_TEAM_ID: F2XP44FF3B
+      APNS_BUNDLE_ID: se.foilio.app
+      APNS_PRODUCTION: "true"
     steps:
       # Self-healing-vakt: tills molnhostingen (Neon) är konfigurerad saknas
       # DATABASE_URL-secret. Då hoppar vi över körningen och lyckas grönt (ingen
