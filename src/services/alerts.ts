@@ -76,6 +76,8 @@ export async function checkPriceAlerts(productId: string, newPrice: number) {
       priceAlert: true,
       isPaused: false,
       targetPrice: { not: null, gte: newPrice },
+      // Prislarm är en Pro-förmån (jfr restock-larm).
+      user: { planTier: "PREMIUM" },
     },
     select: { userId: true, targetPrice: true },
   });

@@ -57,7 +57,7 @@ describe("checkPriceAlerts", () => {
     expect(alertArgs.data.message).toContain(PRODUCT.title);
   });
 
-  it("filtrerar bevakningar i databasen: targetPrice >= nytt pris, aktivt prislarm, ej pausad", async () => {
+  it("filtrerar bevakningar i databasen: targetPrice >= nytt pris, aktivt prislarm, ej pausad, endast Pro", async () => {
     await checkPriceAlerts("prod-1", 99900);
 
     expect(watchlistFindMany).toHaveBeenCalledWith(
@@ -67,6 +67,7 @@ describe("checkPriceAlerts", () => {
           priceAlert: true,
           isPaused: false,
           targetPrice: { not: null, gte: 99900 },
+          user: { planTier: "PREMIUM" },
         }),
       })
     );
