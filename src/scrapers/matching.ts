@@ -111,6 +111,11 @@ export function classifyForm(title: string): string | null {
     ].filter((re) => re.test(t)).length;
     if (formHits >= 2 || /(\s|\d)\+|\+(\s|\d)/.test(t)) return "combo";
   }
+  // "Build & Battle" (Box/Kit/Stadium/Display) = egen produktfamilj. Får ALDRIG
+  // matcha en booster box/ETB bara för att set-namnet delas — en butiks "Surging
+  // Sparks Build & Battle" (~599 kr) hamnade annars som offer på "Surging Sparks
+  // Booster Box" (~2 000 kr). Egen form före box/display/collection-reglerna.
+  if (/build\s*&?\s*battle/.test(t)) return "buildbattle";
   // "Mini Tin Display" = display av MÅNGA tins (dyrt) ≠ en enskild "Mini Tin"
   // (billig). Bara enskild mini tin → "tin"; med "display" faller den vidare
   // till display-regeln nedan så att en singeltin inte matchar ett tin-display.
