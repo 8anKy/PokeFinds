@@ -31,7 +31,7 @@ import { netStockEvent } from "@/scrapers/restock";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
 import type { SourceAdapter } from "@/scrapers/types";
 import { checkPriceAlerts, checkRestockAlerts } from "@/services/alerts";
-import { CARDMARKET_SOURCE_NAMES, NON_RETAIL_SOURCE_NAMES } from "@/services/products";
+import { CARDMARKET_SOURCE_NAMES, HIDDEN_CATEGORIES, NON_RETAIL_SOURCE_NAMES } from "@/services/products";
 import { dispatchPendingAlerts } from "@/services/notifications";
 import { mapPool } from "@/lib/concurrency";
 
@@ -156,7 +156,8 @@ export async function runRestockScan(): Promise<RestockScanResult> {
   }
   const retailerIds = [...new Set(retailerByName.values())];
   const offers = await prisma.offer.findMany({
-    where: { retailerId: { in: retailerIds } },
+    // Gömda kategorier (pärmar/sleeves/graderat m.m.) ska aldrig ge restock-alerts.
+    where: { retailerId: { in: retailerIds }, product: { category: { notIn: HIDDEN_CATEGORIES } } },
     select: { id: true, url: true, productId: true, retailerId: true, stockStatus: true },
   });
   const offerByKey = new Map<string, (typeof offers)[number]>();
