@@ -15,7 +15,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { getScannerQuota, recordScanUsage, runScannerJob } from "@/services/scanner";
+import { getScannerQuota, isIntroScan, recordScanUsage, runScannerJob } from "@/services/scanner";
 
 beforeEach(() => {
   count.mockReset();
@@ -23,6 +23,7 @@ beforeEach(() => {
   process.env.OCR_PROVIDER = "mock";
   delete process.env.SCANNER_FREE_MONTHLY_LIMIT;
   delete process.env.SCANNER_PREMIUM_MONTHLY_LIMIT;
+  delete process.env.SCANNER_INTRO_SONNET_SCANS;
 });
 
 const PNG =
@@ -56,6 +57,26 @@ describe("recordScanUsage", () => {
     create.mockResolvedValue({});
     await recordScanUsage("u1");
     expect(create.mock.calls[0][0].data.status).toBe("COMPLETED");
+  });
+});
+
+describe("isIntroScan", () => {
+  it("första skanningen (0 tidigare) = Sonnet", async () => {
+    count.mockResolvedValue(0);
+    expect(await isIntroScan("u1")).toBe(true);
+  });
+
+  it("efter första (≥1 tidigare) = Haiku", async () => {
+    count.mockResolvedValue(1);
+    expect(await isIntroScan("u1")).toBe(false);
+  });
+
+  it("respekterar SCANNER_INTRO_SONNET_SCANS", async () => {
+    process.env.SCANNER_INTRO_SONNET_SCANS = "3";
+    count.mockResolvedValue(2);
+    expect(await isIntroScan("u1")).toBe(true);
+    count.mockResolvedValue(3);
+    expect(await isIntroScan("u1")).toBe(false);
   });
 });
 

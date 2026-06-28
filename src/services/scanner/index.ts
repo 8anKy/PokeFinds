@@ -67,6 +67,18 @@ export async function recordScanUsage(userId: string): Promise<void> {
   });
 }
 
+/** Användarens N FÖRSTA skanningar (livstid) körs med den dyra, träffsäkra
+ *  Sonnet-modellen för att imponera på nya användare; därefter Haiku. Engångskostnad
+ *  ~$0,01/användare. SCANNER_INTRO_SONNET_SCANS (default 1) = hur många. */
+export async function isIntroScan(userId: string): Promise<boolean> {
+  const n = Number(process.env.SCANNER_INTRO_SONNET_SCANS ?? "1");
+  const intro = Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
+  const prior = await prisma.scannerJob.count({
+    where: { userId, status: { not: "FAILED" } },
+  });
+  return prior < intro;
+}
+
 /**
  * Returnerar konfigurerad OCR-adapter utifrån env-variabeln OCR_PROVIDER.
  * "mock" (standard) använder utvecklingsmocken. Nya leverantörer

@@ -10,7 +10,7 @@ import { apiError, jsonOk } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
-import { getScannerQuota, identifyCard, recordScanUsage } from "@/services/scanner";
+import { getScannerQuota, identifyCard, isIntroScan, recordScanUsage } from "@/services/scanner";
 
 export const dynamic = "force-dynamic";
 
@@ -57,10 +57,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // Standard = billiga Haiku-modellen. Den dyra Sonnet-modellen (precise) körs bara
-    // när klienten uttryckligen ber om det (t.ex. "försök igen, skarpare") OCH är Pro.
+    // Standard = billiga Haiku-modellen. Sonnet (precise) körs när: (a) det är
+    // användarens första skanning(ar) — wow-faktor för nya användare, eller
+    // (b) klienten uttryckligen ber om det ("försök igen, skarpare") OCH är Pro.
+    const intro = await isIntroScan(user.id);
     const result = await identifyCard(image, {
-      precise: precise && user.planTier === "PREMIUM",
+      precise: intro || (precise && user.planTier === "PREMIUM"),
     });
 
     // Bokför mot kvoten: varje genomförd skanning räknas (träff eller no-match),
