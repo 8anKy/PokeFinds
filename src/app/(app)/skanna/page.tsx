@@ -91,12 +91,6 @@ const CONDITIONS = [
   { value: "POOR", label: "Poor" },
 ] as const;
 
-const LANGUAGES = [
-  { value: "SV", label: "Svenska" },
-  { value: "EN", label: "Engelska" },
-  { value: "JP", label: "Japanska" },
-] as const;
-
 const CONDITION_LABEL: Record<string, string> = Object.fromEntries(
   CONDITIONS.map((c) => [c.value, c.label])
 );
@@ -163,7 +157,8 @@ function Scanner() {
   const [shutterCooling, setShutterCooling] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [defaultCondition, setDefaultCondition] = useState("NEAR_MINT");
-  const [defaultLanguage, setDefaultLanguage] = useState("EN");
+  // Skannern är endast engelska — inget språkval.
+  const defaultLanguage = "EN";
   const [detailsId, setDetailsId] = useState<string | null>(null);
 
   const [addingAll, setAddingAll] = useState(false);
@@ -624,9 +619,7 @@ function Scanner() {
       {settingsOpen && (
         <SettingsSheet
           condition={defaultCondition}
-          language={defaultLanguage}
           onCondition={setDefaultCondition}
-          onLanguage={setDefaultLanguage}
           onClose={() => setSettingsOpen(false)}
         />
       )}
@@ -1083,7 +1076,7 @@ function ReviewView(props: {
                       </p>
                     </div>
 
-                    <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="mt-3">
                       <label className="flex flex-col gap-1">
                         <span className="text-[11px] text-ink-faint">Skick</span>
                         <Select
@@ -1093,18 +1086,6 @@ function ReviewView(props: {
                         >
                           {CONDITIONS.map((c) => (
                             <option key={c.value} value={c.value}>{c.label}</option>
-                          ))}
-                        </Select>
-                      </label>
-                      <label className="flex flex-col gap-1">
-                        <span className="text-[11px] text-ink-faint">Språk</span>
-                        <Select
-                          value={s.language}
-                          onChange={(e) => onPatch(s.id, { language: e.target.value })}
-                          className="h-9 text-sm"
-                        >
-                          {LANGUAGES.map((l) => (
-                            <option key={l.value} value={l.value}>{l.label}</option>
                           ))}
                         </Select>
                       </label>
@@ -1246,9 +1227,7 @@ function Stepper({ value, onChange }: { value: number; onChange: (v: number) => 
  * ======================================================================== */
 function SettingsSheet(props: {
   condition: string;
-  language: string;
   onCondition: (v: string) => void;
-  onLanguage: (v: string) => void;
   onClose: () => void;
 }) {
   return (
@@ -1266,20 +1245,8 @@ function SettingsSheet(props: {
             ))}
           </Select>
         </div>
-        <div>
-          <Label htmlFor="def-language">Språk</Label>
-          <Select
-            id="def-language"
-            value={props.language}
-            onChange={(e) => props.onLanguage(e.target.value)}
-          >
-            {LANGUAGES.map((l) => (
-              <option key={l.value} value={l.value}>{l.label}</option>
-            ))}
-          </Select>
-        </div>
         <p className="text-xs text-ink-faint">
-          Gäller kort du skannar härnäst. Du kan ändra per kort i granskningen.
+          Gäller kort du skannar härnäst. Du kan ändra skick per kort i granskningen.
         </p>
         <Button onClick={props.onClose}>Klar</Button>
       </div>
