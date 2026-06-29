@@ -46,12 +46,11 @@ export function CopyOnHoldTitle({ text, className }: { text: string; className?:
     const start = downAt.current;
     downAt.current = null;
     if (start == null || Date.now() - start < HOLD_MS) return;
-    const ok = copyText(text);
-    toast(
-      ok
-        ? { title: "Namnet kopierat", variant: "success" }
-        : { title: "Kunde inte kopiera", variant: "error" }
-    );
+    // Tyst vid miss (t.ex. liten svep → iOS nekar in-page-kopian) — bara kvitto
+    // när det faktiskt lyckas, ingen störande "Kunde inte kopiera".
+    if (copyText(text)) {
+      toast({ title: "Namnet kopierat", variant: "success" });
+    }
   }
 
   return (
