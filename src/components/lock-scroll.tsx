@@ -13,7 +13,7 @@ export function LockScroll() {
     const prevBody = document.body.style.overflow;
     // Nollställ FÖRE lås — annars fryses sidan på föregående tabbens scroll-position
     // (overflow:hidden återställer inte scrollTop) → låst halvvägs nedscrollad.
-    window.scrollTo(0, 0);
+    window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
     html.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
     return () => {
