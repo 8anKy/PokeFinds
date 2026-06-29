@@ -6,8 +6,6 @@ import { prisma } from "@/lib/db";
 import {
   IconShield,
   IconBell,
-  IconChart,
-  IconDashboard,
   IconSettings,
   IconWrench,
   IconTrophy,
@@ -46,7 +44,6 @@ export default async function MerPage() {
   const initial = name.trim().charAt(0).toUpperCase() || "S";
 
   const links: MenuLink[] = [
-    { href: "/marknad", label: "Marknad", icon: IconChart, iconClass: "text-holo-cyan" },
     {
       href: "/bevakningar",
       label: "Bevakningar",
@@ -55,7 +52,6 @@ export default async function MerPage() {
       badge: watchCount > 0 ? `${watchCount} aktiva` : undefined,
     },
     { href: "/gradera", label: "AI-gradering", icon: IconShield, iconClass: "text-holo-violet" },
-    { href: "/dashboard", label: "Översikt", icon: IconDashboard, iconClass: "text-ink-muted" },
     {
       href: "/priser",
       label: isPremium ? "Prenumeration" : "Uppgradera till Pro",
