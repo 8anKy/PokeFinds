@@ -56,13 +56,14 @@ export function CopyOnHoldTitle({ text, className }: { text: string; className?:
   return (
     <h1
       className={className}
-      onPointerDown={() => {
+      // touch-action: none → en liten svep medan man håller tolkas inte som scroll
+      // (annars pointercancel → kopian avbryts). Bara hålltiden räknas, inte rörelsen.
+      style={{ touchAction: "none" }}
+      onPointerDown={(e) => {
         downAt.current = Date.now();
+        e.currentTarget.setPointerCapture(e.pointerId);
       }}
       onPointerUp={onUp}
-      onPointerLeave={() => {
-        downAt.current = null;
-      }}
       onPointerCancel={() => {
         downAt.current = null;
       }}
