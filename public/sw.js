@@ -1,9 +1,17 @@
 /**
- * Foilio service worker — minimal PWA-skal för installerbarhet och
- * offline-tålighet. Cache-first för statiska resurser (hash:ade), network-first
- * för sidnavigeringar med cache-fallback. API-anrop hanteras alltid live.
+ * Foilio service worker — minimal PWA-skal för installerbarhet.
+ *
+ * VIKTIGT (2026-06-29): den gamla versionen cachade HTML-navigeringar och
+ * behöll cachen mellan deployer (CACHE-namnet bumpades aldrig). I native-
+ * WebView:en gav det ett INAKTUELLT app-skal som pekade på borttagna JS-chunks
+ * → Next hård-laddade om för att återhämta sig → samma stale skal → reload-loop
+ * ("flimmer som en ficklampa"). Force-close hjälpte inte (SW-cachen överlever).
+ *
+ * Fix: bumpa version → rensa ALLA gamla cachar, ladda om klienter EN gång till
+ * färskt innehåll. HTML-navigeringar cachas INTE längre (ingen stale shell);
+ * bara immutabla, hash:ade statiska resurser cachas (säkert).
  */
-const CACHE = "foilio-v2";
+const CACHE = "foilio-v3";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -12,9 +20,16 @@ self.addEventListener("install", () => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
+      // Rensa ALLT (inkl. ev. gamla shells) — bygg upp statisk cache på nytt.
       const keys = await caches.keys();
-      await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+      await Promise.all(keys.map((k) => caches.delete(k)));
       await self.clients.claim();
+      // Bryt en pågående reload-loop: ladda varje öppet fönster en gång till
+      // färskt nätverksinnehåll nu när stale-cachen är borta.
+      const clients = await self.clients.matchAll({ type: "window" });
+      for (const client of clients) {
+        client.navigate(client.url);
+      }
     })()
   );
 });
@@ -28,24 +43,6 @@ async function cacheFirst(request) {
   return res;
 }
 
-async function networkFirst(request) {
-  const cache = await caches.open(CACHE);
-  try {
-    const res = await fetch(request);
-    if (res.ok) cache.put(request, res.clone());
-    return res;
-  } catch {
-    const cached = await cache.match(request);
-    if (cached) return cached;
-    const shell = await cache.match("/");
-    if (shell) return shell;
-    return new Response("Du är offline.", {
-      status: 503,
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-    });
-  }
-}
-
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
@@ -54,6 +51,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return; // API alltid live
 
+  // Bara immutabla, hash:ade resurser cachas (kollisionsfria URL:er → aldrig stale).
   const isStatic =
     url.pathname.startsWith("/_next/static") ||
     /\.(?:png|jpe?g|svg|webp|gif|ico|woff2?)$/.test(url.pathname);
@@ -63,7 +61,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (request.mode === "navigate") {
-    event.respondWith(networkFirst(request));
-  }
+  // HTML-navigeringar: alltid nätverk (ingen cache → ingen stale shell → ingen loop).
+  // Lämnas annars orörd → webbläsaren hanterar den som vanligt.
 });
