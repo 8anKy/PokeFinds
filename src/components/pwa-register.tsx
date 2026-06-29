@@ -3,16 +3,25 @@
 import { useEffect } from "react";
 
 /**
- * Registrerar service workern (/sw.js) så appen blir installerbar och
- * offline-tålig. Endast i produktion — i dev stör en SW HMR/cache.
+ * Service workern är BORTTAGEN (2026-06-29). Den cachade resurser och orsakade
+ * upprepade reload-loopar ("flimmer") i Capacitor-WebView:en efter deployer, utan
+ * att ge något värde för den native appen (alltid online). I stället AVREGISTRERAR
+ * vi alla kvarvarande SW:ar och rensar cachar så stuck:ade enheter självläker.
+ * (Behåller overscroll-handlern nedan.)
  */
 export function ServiceWorkerRegister() {
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production") return;
     if (!("serviceWorker" in navigator)) return;
-    navigator.serviceWorker.register("/sw.js").catch(() => {
-      // registreringsfel ska aldrig krascha appen
-    });
+    navigator.serviceWorker
+      .getRegistrations()
+      .then((regs) => regs.forEach((r) => void r.unregister()))
+      .catch(() => {});
+    if (typeof caches !== "undefined") {
+      caches
+        .keys()
+        .then((keys) => keys.forEach((k) => void caches.delete(k)))
+        .catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
