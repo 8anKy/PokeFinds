@@ -5,27 +5,29 @@ import { useToast } from "@/components/ui/toast";
 
 const HOLD_MS = 450;
 
-// Kopierar via clipboard-API, faller tillbaka på execCommand. MÅSTE anropas i en
-// användargest (pointerup) — annars ger WKWebView NotAllowedError. Textarean är
-// markeringsbar trots global user-select:none (input/textarea är återställda).
-function copyText(text: string): Promise<boolean> {
-  if (navigator.clipboard?.writeText) {
-    return navigator.clipboard.writeText(text).then(
-      () => true,
-      () => legacyCopy(text)
-    );
-  }
-  return Promise.resolve(legacyCopy(text));
-}
-
-function legacyCopy(text: string): boolean {
+// Synkron kopiering via execCommand i själva gesten. Den async clipboard-API:n
+// avvisas av WKWebView när gesten rörde sig (tolkas som drag, inte tap) — därför
+// undviker vi den här och gör en markering + copy direkt. iOS kräver Range +
+// setSelectionRange (inte bara .select()). Textarean är markeringsbar trots global
+// user-select:none (input/textarea är återställda).
+function copyText(text: string): boolean {
   try {
     const ta = document.createElement("textarea");
     ta.value = text;
+    ta.readOnly = true; // hindrar tangentbordet från att poppa upp
+    ta.contentEditable = "true";
     ta.style.position = "fixed";
+    ta.style.top = "0";
     ta.style.opacity = "0";
     document.body.appendChild(ta);
-    ta.select();
+
+    const range = document.createRange();
+    range.selectNodeContents(ta);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+    ta.setSelectionRange(0, text.length);
+
     const ok = document.execCommand("copy");
     document.body.removeChild(ta);
     return ok;
@@ -44,12 +46,11 @@ export function CopyOnHoldTitle({ text, className }: { text: string; className?:
     const start = downAt.current;
     downAt.current = null;
     if (start == null || Date.now() - start < HOLD_MS) return;
-    void copyText(text).then((ok) =>
-      toast(
-        ok
-          ? { title: "Namnet kopierat", variant: "success" }
-          : { title: "Kunde inte kopiera", variant: "error" }
-      )
+    const ok = copyText(text);
+    toast(
+      ok
+        ? { title: "Namnet kopierat", variant: "success" }
+        : { title: "Kunde inte kopiera", variant: "error" }
     );
   }
 
