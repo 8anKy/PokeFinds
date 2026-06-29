@@ -9,7 +9,7 @@ export function NavBeacon() {
   const pathname = usePathname();
   useEffect(() => {
     try {
-      void fetch("/api/_debug", {
+      void fetch("/api/navlog", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
