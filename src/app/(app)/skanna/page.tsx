@@ -128,10 +128,13 @@ function captureFrame(
 export default function SkannaPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState<boolean | null>(null);
+  // Kör EN gång ([] deps). Med [router] kunde detta re-köras när kamera-permission
+  // beviljas (→ re-render → instabil router-ref) och router.replace loopa = flimmer.
   useEffect(() => {
     if (hasAuthHint()) setAuthed(true);
     else router.replace("/logga-in?callbackUrl=/skanna");
-  }, [router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   if (!authed) return null;
   return <Scanner />;
 }
