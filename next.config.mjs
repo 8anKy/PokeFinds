@@ -12,12 +12,35 @@ const nextConfig = {
     },
   },
   images: {
+    // Endast den officiella Pokémon-TCG-bild-CDN:en. Appen använder INTE next/image
+    // (0 importer — allt är vanliga <img>), så bred "**" gjorde bara /_next/image
+    // till en öppen optimizer-proxy (DoS/SSRF). Lås den.
     remotePatterns: [
-      // Officiell bild-CDN för Pokémon TCG API (kort-, logo- och symbolbilder)
       { protocol: "https", hostname: "images.pokemontcg.io" },
-      // Övriga källor (avatarer, community-bilder) — snäva åt i prod vid behov
-      { protocol: "https", hostname: "**" },
     ],
+  },
+  // Bas-säkerhetsheaders på alla svar. Striktare CSP (script/style-nonces) är ett
+  // eget jobb — dessa fem är de billiga, brytningssäkra vinsterna.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            // Kameran behövs för skannern (samma origin) → self; övrigt av.
+            key: "Permissions-Policy",
+            value: "camera=(self), microphone=(), geolocation=(), browsing-topics=()",
+          },
+        ],
+      },
+    ];
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {
