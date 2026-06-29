@@ -3,7 +3,7 @@ import { BrandLogo } from "@/components/layout/brand-logo";
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-surface-border bg-surface-raised/50">
+    <footer className="hidden border-t border-surface-border bg-surface-raised/50 lg:block">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
         <div>
           <BrandLogo markSize={26} textClass="text-lg" />
