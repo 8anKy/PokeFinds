@@ -245,6 +245,9 @@ export function PriceChart({ data, className, monthly = false, minimal = false }
           <Tooltip
             content={<ChartTooltip monthly={monthly} />}
             cursor={<ChartCursor gradientId={cursorId} />}
+            // Nåla tooltipen vid toppen (y=0) så fingret aldrig täcker den; x följer
+            // ändå scrubbningen. Recharts behåller spårning på axeln man inte sätter.
+            position={{ y: 0 }}
           />
           <Area
             type="monotone"
