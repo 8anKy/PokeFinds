@@ -11,11 +11,12 @@ export function LogoutButton() {
     <button
       onClick={async () => {
         // redirect:false → ingen hård navigering (den skickar ut till Safari i
-        // Capacitor-appen). Vi rensar hinten och navigerar klient-sida i stället.
+        // Capacitor-appen). EN enda navigering (replace, ingen refresh): refresh()
+        // re-hämtade den nu utloggade /mer-sidan → server-redirect till /logga-in
+        // SAMTIDIGT som push:en ville till /produkter = kapplöpning/flimmer i WebView:en.
         await signOut({ redirect: false });
         setAuthHint(false);
-        router.push("/produkter");
-        router.refresh();
+        router.replace("/produkter");
       }}
       className="flex w-full items-center justify-center gap-2 rounded-full border border-surface-border px-4 py-3 text-sm font-semibold text-fall transition-colors hover:bg-surface-overlay"
     >
