@@ -69,7 +69,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div
         aria-live="polite"
-        className="pointer-events-none fixed bottom-4 right-4 z-[70] flex w-full max-w-sm flex-col gap-2"
+        // Lyft ovanför den fixerade bottom-tab-baren på mobil (+ safe-area) så
+        // toasten inte hamnar bakom tabbarna/utanför ramen. På desktop (lg) finns
+        // ingen tab-bar → vanlig bottom-4.
+        className="pointer-events-none fixed inset-x-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[70] ml-auto flex w-auto max-w-sm flex-col gap-2 lg:inset-x-auto lg:right-4 lg:bottom-4"
       >
         {toasts.map((t) => {
           const variant = t.variant ?? "default";
