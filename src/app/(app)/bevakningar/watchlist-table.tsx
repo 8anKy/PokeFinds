@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatPrice } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/client-api";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -119,8 +120,115 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
     }
   }
 
+  const actionButtons = (item: WatchlistRow) => (
+    <>
+      <Button size="sm" variant="ghost" onClick={() => openEdit(item)}>
+        Redigera
+      </Button>
+      <Button
+        size="sm"
+        variant="secondary"
+        loading={busyId === item.id}
+        onClick={() =>
+          void patchItem(
+            item.id,
+            { isPaused: !item.isPaused },
+            item.isPaused ? "Bevakningen är igång igen" : "Bevakningen är pausad"
+          )
+        }
+      >
+        {item.isPaused ? "Återuppta" : "Pausa"}
+      </Button>
+      <Button size="sm" variant="danger" onClick={() => setDeleting(item)}>
+        Ta bort
+      </Button>
+    </>
+  );
+
   return (
     <>
+      {/* Mobil: kort-layout — tabellen tvingar horisontell scroll på liten skärm. */}
+      <div className="space-y-3 lg:hidden">
+        {items.map((item) => (
+          <div
+            key={item.id}
+            className={cn(
+              "rounded-xl border border-surface-border bg-surface-raised/40 p-4",
+              item.isPaused && "opacity-60"
+            )}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <Link
+                  href={`/produkter/${item.product.slug}`}
+                  className="font-medium text-ink transition-colors hover:text-holo-cyan"
+                >
+                  {item.product.title}
+                </Link>
+                {item.product.setName && (
+                  <p className="text-xs text-ink-muted">{item.product.setName}</p>
+                )}
+              </div>
+              {item.isPaused ? (
+                <Badge variant="warning">Pausad</Badge>
+              ) : (
+                <Badge variant="success">Aktiv</Badge>
+              )}
+            </div>
+
+            <div className="mt-3 flex gap-6 text-sm">
+              <div>
+                <p className="text-xs text-ink-muted">Lägsta pris nu</p>
+                <p data-price className="font-semibold text-ink">
+                  {formatPrice(item.product.lowestPrice)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-ink-muted">Målpris</p>
+                <p data-price className="font-semibold text-ink">
+                  {item.targetPrice != null ? formatPrice(item.targetPrice) : "–"}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-col gap-2">
+              <label className="flex items-center gap-2 text-sm text-ink">
+                <Checkbox
+                  checked={item.restockAlert}
+                  disabled={busyId === item.id}
+                  onChange={(e) =>
+                    void patchItem(
+                      item.id,
+                      { restockAlert: e.target.checked },
+                      e.target.checked ? "Restock-larm på" : "Restock-larm av"
+                    )
+                  }
+                />
+                Restock-larm
+              </label>
+              <label className="flex items-center gap-2 text-sm text-ink">
+                <Checkbox
+                  checked={item.priceAlert}
+                  disabled={busyId === item.id}
+                  onChange={(e) =>
+                    void patchItem(
+                      item.id,
+                      { priceAlert: e.target.checked },
+                      e.target.checked ? "Prislarm på" : "Prislarm av"
+                    )
+                  }
+                />
+                Prislarm
+              </label>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">{actionButtons(item)}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop: full tabell. */}
+      <div className="hidden lg:block">
       <Table>
         <THead>
           <TR>
@@ -187,33 +295,13 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
                 )}
               </TD>
               <TD>
-                <div className="flex justify-end gap-2">
-                  <Button size="sm" variant="ghost" onClick={() => openEdit(item)}>
-                    Redigera
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    loading={busyId === item.id}
-                    onClick={() =>
-                      void patchItem(
-                        item.id,
-                        { isPaused: !item.isPaused },
-                        item.isPaused ? "Bevakningen är igång igen" : "Bevakningen är pausad"
-                      )
-                    }
-                  >
-                    {item.isPaused ? "Återuppta" : "Pausa"}
-                  </Button>
-                  <Button size="sm" variant="danger" onClick={() => setDeleting(item)}>
-                    Ta bort
-                  </Button>
-                </div>
+                <div className="flex justify-end gap-2">{actionButtons(item)}</div>
               </TD>
             </TR>
           ))}
         </TBody>
       </Table>
+      </div>
 
       {/* Redigera målpris */}
       <Modal

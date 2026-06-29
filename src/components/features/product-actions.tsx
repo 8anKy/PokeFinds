@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
+import { Input, Label } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { IconBell, IconPackage, IconPlus, IconShare } from "@/components/ui/icons";
 
@@ -15,6 +17,8 @@ type ActionKey = "price" | "restock" | "collection" | "share";
 
 export function ProductActions({ productId, title }: ProductActionsProps) {
   const [loading, setLoading] = useState<ActionKey | null>(null);
+  const [priceModalOpen, setPriceModalOpen] = useState(false);
+  const [targetValue, setTargetValue] = useState("");
   const { toast } = useToast();
   const router = useRouter();
 
@@ -52,6 +56,27 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
     }
   }
 
+  async function savePriceWatch() {
+    const trimmed = targetValue.trim();
+    let targetPrice: number | undefined;
+    if (trimmed) {
+      const kr = Number(trimmed.replace(",", "."));
+      if (!Number.isFinite(kr) || kr < 0) {
+        toast({ title: "Ogiltigt pris", description: "Ange ett pris i kronor.", variant: "error" });
+        return;
+      }
+      targetPrice = Math.round(kr * 100);
+    }
+    setPriceModalOpen(false);
+    await post(
+      "price",
+      "/api/watchlist",
+      { productId, priceAlert: true, ...(targetPrice != null ? { targetPrice } : {}) },
+      "Prisbevakning skapad"
+    );
+    setTargetValue("");
+  }
+
   async function share() {
     setLoading("share");
     try {
@@ -70,18 +95,9 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
   }
 
   return (
+    <>
     <div className="flex flex-wrap gap-2">
-      <Button
-        loading={loading === "price"}
-        onClick={() =>
-          post(
-            "price",
-            "/api/watchlist",
-            { productId, priceAlert: true },
-            "Prisbevakning skapad"
-          )
-        }
-      >
+      <Button loading={loading === "price"} onClick={() => setPriceModalOpen(true)}>
         <IconBell size={16} />
         Bevaka pris
       </Button>
@@ -120,5 +136,43 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
         Dela
       </Button>
     </div>
+
+      <Modal
+        open={priceModalOpen}
+        onClose={() => setPriceModalOpen(false)}
+        title="Bevaka pris"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setPriceModalOpen(false)}>
+              Avbryt
+            </Button>
+            <Button onClick={() => void savePriceWatch()} loading={loading === "price"}>
+              Bevaka
+            </Button>
+          </>
+        }
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void savePriceWatch();
+          }}
+        >
+          <p className="mb-4 text-sm text-ink-muted">
+            Vi larmar dig när <span className="font-medium text-ink">{title}</span> kostar lika med
+            eller mindre än ditt målpris. Lämna tomt för att bara bevaka prisfall.
+          </p>
+          <Label htmlFor="watchTargetPrice">Målpris (kr)</Label>
+          <Input
+            id="watchTargetPrice"
+            inputMode="decimal"
+            placeholder="t.ex. 499"
+            value={targetValue}
+            onChange={(e) => setTargetValue(e.target.value)}
+            autoFocus
+          />
+        </form>
+      </Modal>
+    </>
   );
 }
