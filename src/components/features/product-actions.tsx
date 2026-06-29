@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -19,8 +19,36 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
   const [loading, setLoading] = useState<ActionKey | null>(null);
   const [priceModalOpen, setPriceModalOpen] = useState(false);
   const [targetValue, setTargetValue] = useState("");
+  const [alreadyWatched, setAlreadyWatched] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+
+  // Är produkten redan i bevakningarna? Rå fetch (inte apiFetch) så en utloggad
+  // besökare inte slängs till login av 401 på denna passiva koll.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/watchlist", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { items?: { product?: { id?: string } }[] } | null) => {
+        if (cancelled || !d?.items) return;
+        setAlreadyWatched(d.items.some((it) => it.product?.id === productId));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [productId]);
+
+  function openPriceWatch() {
+    if (alreadyWatched) {
+      toast({
+        title: "Du bevakar redan den här produkten",
+        description: "Ändra målpriset under Bevakningar.",
+      });
+      return;
+    }
+    setPriceModalOpen(true);
+  }
 
   async function post(
     key: ActionKey,
@@ -75,6 +103,7 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
       "Prisbevakning skapad"
     );
     setTargetValue("");
+    setAlreadyWatched(true);
   }
 
   async function share() {
@@ -97,7 +126,7 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
   return (
     <>
     <div className="flex flex-wrap gap-2">
-      <Button loading={loading === "price"} onClick={() => setPriceModalOpen(true)}>
+      <Button loading={loading === "price"} onClick={openPriceWatch}>
         <IconBell size={16} />
         Bevaka pris
       </Button>
