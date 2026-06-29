@@ -18,6 +18,11 @@ const FOCUSABLE_SELECTOR =
 
 export function Modal({ open, onClose, title, children, footer, className }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  // onClose är ofta en inline-arrow (ny identitet varje render). Läs den via ref så
+  // effekten nedan BARA beror på `open` — annars körs den om vid varje tangenttryck
+  // och stjäl fokus från inputen (→ tangentbordet stängs efter en siffra).
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   // ESC för att stänga + enkel fokusfälla
   useEffect(() => {
@@ -29,7 +34,7 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key === "Tab" && panelRef.current) {
@@ -60,7 +65,7 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
       document.body.style.overflow = "";
       previouslyFocused?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

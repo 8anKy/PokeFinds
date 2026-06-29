@@ -191,7 +191,7 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
               </div>
             </div>
 
-            <div className="mt-3 flex flex-col gap-2">
+            <div className="mt-3 flex flex-col items-start gap-2">
               <label className="flex items-center gap-2 text-sm text-ink">
                 <Checkbox
                   checked={item.restockAlert}
