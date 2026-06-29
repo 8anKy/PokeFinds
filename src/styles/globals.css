@@ -23,6 +23,17 @@
     padding-top: env(safe-area-inset-top);
     /* Ingen rubber-band-studs förbi toppen (app-känsla). */
     overscroll-behavior: none;
+    /* App-känsla: ingen text-markering / iOS-"Copy"-callout. Formulärfält
+       återställs nedan så man fortfarande kan redigera. */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  input,
+  textarea,
+  [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
   }
   ::selection {
     @apply bg-holo-cyan/25 text-white;

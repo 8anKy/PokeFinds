@@ -8,6 +8,7 @@ import { StockBadge } from "@/components/ui/badge";
 import { ProductPriceCard } from "@/components/features/product-price-card";
 import { ProductCard, CATEGORY_LABELS } from "@/components/features/product-card";
 import { ProductActions } from "@/components/features/product-actions";
+import { CopyOnHoldTitle } from "@/components/features/copy-on-hold-title";
 import { traderaSearchUrlSpecific } from "@/lib/marketplace-urls";
 import {
   LivePricingProvider,
@@ -71,9 +72,10 @@ export function ProductDetailView({ data }: { data: ProductDetailData }) {
 
         {/* Title */}
         <header>
-          <h1 className="font-display text-3xl font-bold text-ink sm:text-4xl">
-            {data.title}
-          </h1>
+          <CopyOnHoldTitle
+            text={data.title}
+            className="font-display text-3xl font-bold text-ink sm:text-4xl"
+          />
           <p className="mt-2 text-sm text-ink-muted">
             {data.set && (
               <>
