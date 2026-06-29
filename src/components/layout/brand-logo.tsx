@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils";
  */
 export function BrandLogo({
   className,
-  markSize = 28,
-  textClass = "text-xl",
+  markSize = 34,
+  textClass = "text-2xl",
 }: {
   className?: string;
   markSize?: number;
