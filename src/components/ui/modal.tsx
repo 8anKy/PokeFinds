@@ -73,7 +73,7 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
     <div
       // Mobil: toppställd (pt-[8vh]) så tangentbordet inte täcker footern/knappen.
       // Desktop: centrerad som vanligt.
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-[8vh] sm:items-center sm:pt-4"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-[18vh] sm:items-center sm:pt-4"
       role="dialog"
       aria-modal="true"
       aria-label={title}
