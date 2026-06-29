@@ -7,10 +7,15 @@ import { useEffect } from "react";
 // bara den tomma svansen; återställs när man navigerar bort.
 export function LockScroll() {
   useEffect(() => {
-    const prev = document.body.style.overflow;
+    // Scroll-container är <html> (se globals.css), inte body → lås båda.
+    const html = document.documentElement;
+    const prevHtml = html.style.overflow;
+    const prevBody = document.body.style.overflow;
+    html.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = prev;
+      html.style.overflow = prevHtml;
+      document.body.style.overflow = prevBody;
     };
   }, []);
   return null;
