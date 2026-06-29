@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: "Så behandlar Foilio dina personuppgifter — i enlighet med GDPR.",
 };
 
-const UPDATED = "1 juni 2026";
+const UPDATED = "29 juni 2026";
 
 export default function PrivacyPage() {
   return (
@@ -34,6 +34,7 @@ export default function PrivacyPage() {
             <li><strong className="text-ink">Samlingsdata:</strong> kort och produkter du registrerat, inköpspriser, skick och anteckningar.</li>
             <li><strong className="text-ink">Bevakningar och notiser:</strong> vilka produkter du bevakar och dina notisinställningar.</li>
             <li><strong className="text-ink">Community-innehåll:</strong> inlägg, kommentarer och reaktioner du publicerar.</li>
+            <li><strong className="text-ink">Kortbilder vid skanning:</strong> när du skannar eller laddar upp ett kort skickas bilden till vår AI-leverantör för identifiering. Bilden behandlas tillfälligt och sparas inte i din kamerarulle eller långsiktigt hos oss.</li>
             <li><strong className="text-ink">Teknisk data:</strong> nödvändiga sessionsuppgifter för inloggning.</li>
           </ul>
         </section>
@@ -106,10 +107,20 @@ export default function PrivacyPage() {
         <section>
           <h2>7. Delning och underleverantörer</h2>
           <p className="mt-2">
-            Uppgifter kan behandlas av driftleverantörer (hosting, e-postutskick) som
-            agerar personuppgiftsbiträden enligt avtal med oss. Vi strävar efter att
-            all behandling sker inom EU/EES; om överföring till tredjeland sker
-            används godkända skyddsmekanismer enligt GDPR.
+            Vi anlitar följande personuppgiftsbiträden för att driva tjänsten, alla
+            bundna av personuppgiftsbiträdesavtal:
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li><strong className="text-ink">Databas:</strong> Neon (serverlös PostgreSQL, datalagring inom EU/EES, Frankfurt).</li>
+            <li><strong className="text-ink">Drift/hosting:</strong> vår molnvärd som kör applikationen.</li>
+            <li><strong className="text-ink">E-postutskick:</strong> Resend, för alerts och kontomejl (USA).</li>
+            <li><strong className="text-ink">AI-identifiering av kort:</strong> Anthropic (Claude), som bearbetar skannade kortbilder (USA). Bilderna sparas inte hos leverantören efter bearbetning.</li>
+          </ul>
+          <p className="mt-2">
+            Lagring av din kontodata sker inom EU/EES. Vid överföring till tredjeland
+            (t.ex. USA för e-post och AI-identifiering) används godkända
+            skyddsmekanismer enligt GDPR, såsom EU:s standardavtalsklausuler. Vi säljer
+            aldrig dina uppgifter.
           </p>
         </section>
 
