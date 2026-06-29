@@ -1,3 +1,5 @@
+import { withSentryConfig } from "@sentry/nextjs";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -65,4 +67,12 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+// Wrappa med Sentry för full server-/route-felrapportering. Ingen authToken →
+// källkartor laddas inte upp (minifierade stackar duger); silent + telemetry av.
+// Bevarar headers/webpack/images ovan. (Var oskyldig till SW-reload-loopen.)
+export default withSentryConfig(nextConfig, {
+  org: "milos-t6",
+  project: "foilio",
+  silent: true,
+  telemetry: false,
+});
