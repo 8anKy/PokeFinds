@@ -11,7 +11,20 @@
  * Och APNs-nyckeln (.p8) måste täcka PRODUKTION (TestFlight = produktions-APNs);
  * en Sandbox-scopad nyckel ger 403 BadEnvironmentKeyInToken.
  */
-import { apiFetch } from "@/lib/client-api";
+import { hasAuthHint } from "@/lib/auth-hint";
+
+// Bakgrunds-POST som ALDRIG hård-redirectar vid 401. apiFetch:s 401-hantering gör
+// window.location.href = /logga-in → på inloggningssidan blev det en OÄNDLIG
+// reload-loop (token-sync → 401 → reload → token-sync → 401 → ...). Token-sync är
+// best-effort → tyst miss när man är utloggad.
+function postPush(body: Record<string, unknown>): void {
+  void fetch("/api/push/subscribe", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).catch(() => {});
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Bridge = { isNativePlatform: () => boolean; getPlatform: () => string; Plugins?: { PushNotifications?: any } };
@@ -48,19 +61,13 @@ async function wireRegistration(PushNotifications: any, platform: string) {
   registrationWired = true;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await PushNotifications.addListener("registration", (token: any) => {
-    void apiFetch("/api/push/subscribe", {
-      method: "POST",
-      body: { token: token.value, platform },
-    }).catch(() => {});
+    postPush({ token: token.value, platform });
   });
   // APNs-registrering kan misslyckas asynkront (t.ex. fel nyckel-miljö) → rapportera
   // felet så det går att felsöka (lagras i User.lastPushError server-sida).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await PushNotifications.addListener("registrationError", (err: any) => {
-    void apiFetch("/api/push/subscribe", {
-      method: "POST",
-      body: { error: `registrationError: ${JSON.stringify(err)}` },
-    }).catch(() => {});
+    postPush({ error: `registrationError: ${JSON.stringify(err)}` });
   });
 }
 
@@ -85,6 +92,9 @@ export async function enablePush(): Promise<{ ok: boolean; reason?: string }> {
 /** Tyst om-registrering vid app-start om tillstånd redan givet (fångar roterade tokens). */
 export async function refreshPush(): Promise<void> {
   try {
+    // Bara för inloggade — token hör till en användare. Utloggad → hoppa över
+    // (annars 401 på token-POSTen, helt onödigt).
+    if (!hasAuthHint()) return;
     const p = await getPushPlugin();
     if (!p) return;
     await wireRegistration(p.PushNotifications, p.platform);
