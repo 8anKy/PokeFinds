@@ -13,7 +13,6 @@ import { ServiceWorkerRegister } from "@/components/pwa-register";
 import { BottomTabs } from "@/components/layout/bottom-tabs";
 import { ProductOverlayHost } from "@/components/features/product-overlay";
 import { PushManager } from "@/components/push-manager";
-import { NavBeacon } from "@/components/nav-beacon";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
@@ -72,7 +71,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <PushManager />
           <CookieBanner />
           <ServiceWorkerRegister />
-          <NavBeacon />
         </Providers>
       </body>
     </html>
