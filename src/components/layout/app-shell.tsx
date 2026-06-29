@@ -81,9 +81,7 @@ export function AppShell({
       {/* Desktop sidebar */}
       <aside className="hidden w-60 shrink-0 border-r border-surface-border bg-surface-raised/40 lg:block">
         <div className="flex h-16 items-center border-b border-surface-border px-5">
-          <Link href="/" aria-label="Foilio — startsida">
-            <BrandLogo markSize={26} textClass="text-lg" />
-          </Link>
+          <BrandLogo markSize={26} textClass="text-lg" />
         </div>
         {nav}
       </aside>
@@ -92,9 +90,9 @@ export function AppShell({
         {/* Topbar */}
         <header className="z-40 flex h-16 items-center justify-between border-b border-surface-border bg-surface/85 px-4 backdrop-blur-md lg:sticky lg:top-0">
           <div className="flex items-center gap-3">
-            <Link href="/" className="lg:hidden" aria-label="Foilio — startsida">
+            <span className="lg:hidden">
               <BrandLogo />
-            </Link>
+            </span>
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden text-sm text-ink-muted sm:inline">Hej, {userName}</span>
