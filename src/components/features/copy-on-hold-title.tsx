@@ -3,35 +3,69 @@
 import { useRef } from "react";
 import { useToast } from "@/components/ui/toast";
 
-// Långtryck (~500 ms) på produktnamnet kopierar det — ersätter den avstängda
-// markera-och-kopiera-gesten. ponytail: enkel timer, ingen press-feedback-anim.
+const HOLD_MS = 450;
+
+// Kopierar via clipboard-API, faller tillbaka på execCommand. MÅSTE anropas i en
+// användargest (pointerup) — annars ger WKWebView NotAllowedError. Textarean är
+// markeringsbar trots global user-select:none (input/textarea är återställda).
+function copyText(text: string): Promise<boolean> {
+  if (navigator.clipboard?.writeText) {
+    return navigator.clipboard.writeText(text).then(
+      () => true,
+      () => legacyCopy(text)
+    );
+  }
+  return Promise.resolve(legacyCopy(text));
+}
+
+function legacyCopy(text: string): boolean {
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+// Långtryck (~450 ms) på produktnamnet kopierar det — ersätter den avstängda
+// markera-och-kopiera-gesten. Kopian sker på pointerup så gesten bevaras.
 export function CopyOnHoldTitle({ text, className }: { text: string; className?: string }) {
   const { toast } = useToast();
-  const timer = useRef<number | null>(null);
+  const downAt = useRef<number | null>(null);
 
-  function start() {
-    timer.current = window.setTimeout(() => {
-      void navigator.clipboard
-        .writeText(text)
-        .then(() => toast({ title: "Namnet kopierat", variant: "success" }))
-        .catch(() => toast({ title: "Kunde inte kopiera", variant: "error" }));
-    }, 500);
-  }
-
-  function cancel() {
-    if (timer.current != null) {
-      clearTimeout(timer.current);
-      timer.current = null;
-    }
+  function onUp() {
+    const start = downAt.current;
+    downAt.current = null;
+    if (start == null || Date.now() - start < HOLD_MS) return;
+    void copyText(text).then((ok) =>
+      toast(
+        ok
+          ? { title: "Namnet kopierat", variant: "success" }
+          : { title: "Kunde inte kopiera", variant: "error" }
+      )
+    );
   }
 
   return (
     <h1
       className={className}
-      onPointerDown={start}
-      onPointerUp={cancel}
-      onPointerLeave={cancel}
-      onPointerCancel={cancel}
+      onPointerDown={() => {
+        downAt.current = Date.now();
+      }}
+      onPointerUp={onUp}
+      onPointerLeave={() => {
+        downAt.current = null;
+      }}
+      onPointerCancel={() => {
+        downAt.current = null;
+      }}
     >
       {text}
     </h1>
