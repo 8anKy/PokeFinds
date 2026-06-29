@@ -14,7 +14,12 @@ export async function middleware(req: NextRequest) {
     loginUrl.pathname = "/logga-in";
     loginUrl.search = "";
     loginUrl.searchParams.set("callbackUrl", pathname + search);
-    return NextResponse.redirect(loginUrl);
+    const res = NextResponse.redirect(loginUrl);
+    // Ingen giltig session men klient-hinten `fo_auth` kan vara kvar (utgången
+    // session rensar den inte) → chrome tror "inloggad" medan servern säger nej =
+    // omdirigerings-flimmer. Rensa hinten så klient och server är överens.
+    res.cookies.set("fo_auth", "", { maxAge: 0, path: "/" });
+    return res;
   }
 
   if (pathname.startsWith("/admin")) {

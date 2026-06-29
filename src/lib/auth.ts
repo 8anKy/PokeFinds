@@ -2,7 +2,7 @@ import { type NextAuthOptions, getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, peekRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import type { Role, PlanTier } from "@prisma/client";
 
 declare module "next-auth" {
@@ -54,16 +54,20 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials.password) return null;
         const email = credentials.email.toLowerCase().trim();
-        // Broms mot lösenordsgissning: max 10 försök / 5 min per konto. Distribuerat
-        // när Redis finns, annars per-instans (samma som övriga endpoints).
-        const gate = await rateLimit(`login:${email}`, 10, 5 * 60_000);
-        if (!gate.ok) return null;
+        // Broms mot lösenordsgissning: BARA misslyckade försök räknas (lyckad
+        // inloggning spärrar aldrig en flitig användare). Blockera efter 10 fel/5 min.
+        const failKey = `login-fail:${email}`;
+        if ((await peekRateLimit(failKey)) >= 10) return null;
         const user = await prisma.user.findUnique({
           where: { email },
         });
-        if (!user) return null;
-        const valid = await bcrypt.compare(credentials.password, user.passwordHash);
-        if (!valid) return null;
+        const valid =
+          !!user && (await bcrypt.compare(credentials.password, user.passwordHash));
+        if (!valid || !user) {
+          await rateLimit(failKey, 10, 5 * 60_000); // räkna upp misslyckandet
+          return null;
+        }
+        await clearRateLimit(failKey); // lyckad → nollställ
         return {
           id: user.id,
           email: user.email,

@@ -33,3 +33,33 @@ export async function rateLimit(
   entry.count++;
   return { ok: entry.count <= limit, remaining: Math.max(0, limit - entry.count) };
 }
+
+/** Läser räknaren UTAN att öka den (för "räkna bara misslyckanden"-mönster). */
+export async function peekRateLimit(key: string): Promise<number> {
+  const redis = getRedis();
+  if (redis) {
+    try {
+      const v = await redis.get(`ratelimit:${key}`);
+      return v ? parseInt(v, 10) : 0;
+    } catch {
+      // faller igenom till in-memory
+    }
+  }
+  const entry = memory.get(key);
+  if (!entry || entry.resetAt < Date.now()) return 0;
+  return entry.count;
+}
+
+/** Nollställer en räknare (t.ex. lyckad inloggning rensar misslyckade försök). */
+export async function clearRateLimit(key: string): Promise<void> {
+  const redis = getRedis();
+  if (redis) {
+    try {
+      await redis.del(`ratelimit:${key}`);
+      return;
+    } catch {
+      // faller igenom till in-memory
+    }
+  }
+  memory.delete(key);
+}
