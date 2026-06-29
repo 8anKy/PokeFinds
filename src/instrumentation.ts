@@ -7,8 +7,21 @@
  *
  * Sätt SCRAPE_INTERVAL_MINUTES=0 för att stänga av auto-scrape.
  */
+import * as Sentry from "@sentry/nextjs";
+
+// Fånga fel i server-/route-/RSC-rendering (Sentry v8+).
+export const onRequestError = Sentry.captureRequestError;
+
 export async function register() {
-  // Kör bara på servern (inte Edge runtime)
+  // Sentry-init FÖRE returerna nedan — annars startar den aldrig på Railway/edge.
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    await import("../sentry.server.config");
+  }
+  if (process.env.NEXT_RUNTIME === "edge") {
+    await import("../sentry.edge.config");
+  }
+
+  // Kör bara server-jobben på Node-runtime (inte Edge runtime)
   if (process.env.NEXT_RUNTIME === "edge") return;
 
   // På Vercel kör GitHub Actions ALLA jobb gratis (cardmarket-refresh,

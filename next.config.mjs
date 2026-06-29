@@ -1,3 +1,5 @@
+import { withSentryConfig } from "@sentry/nextjs";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -65,4 +67,11 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+// Wrappa med Sentry. Ingen authToken → källkartor laddas INTE upp (minifierade
+// stackar duger nu); silent + telemetry av. Bevarar headers/webpack ovan.
+export default withSentryConfig(nextConfig, {
+  org: "milos-t6",
+  project: "foilio",
+  silent: true,
+  telemetry: false,
+});
