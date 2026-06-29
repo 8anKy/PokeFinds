@@ -812,7 +812,9 @@ function CaptureView(props: {
 
       {/* Botten: kvot-badge, hint, strip, kontroller */}
       <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col gap-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-        {quota && <QuotaBadge quota={quota} onUpgrade={props.onUpgrade} />}
+        {/* Kvot-badgen göms när remsan visas — annars trycks den upp i kortramen
+            (remsan visar ändå antalet skanningar). Syns före första skanningen. */}
+        {quota && scans.length === 0 && <QuotaBadge quota={quota} onUpgrade={props.onUpgrade} />}
 
         {isMock && (
           <p className="mx-auto rounded-full bg-black/70 px-3 py-1 text-center text-[11px] font-medium text-holo-gold ring-1 ring-holo-gold/30 backdrop-blur">
