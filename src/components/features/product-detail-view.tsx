@@ -134,7 +134,11 @@ export function ProductDetailView({ data }: { data: ProductDetailData }) {
             subtitle={
               isSingle
                 ? "Raw (Near Mint), ej graderad · Cardmarket"
-                : "Marknadstrend · Cardmarket"
+                : data.trendSource === "butiker"
+                  ? "Marknadstrend · Butiker"
+                  : data.trendSource === "tradera"
+                    ? "Marknadstrend · Tradera"
+                    : "Marknadstrend · Cardmarket"
             }
             series={data.chartData}
           />

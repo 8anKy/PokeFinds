@@ -598,6 +598,8 @@ export interface ProductDetailData {
   }[];
   /** Cardmarket-trendserie (hela perioden; klienten filtrerar). */
   chartData: SourceHistoryPoint[];
+  /** Källa för historik-grafen → graf-rubrik (CM-trend vs butiks-snitt vs Tradera). */
+  trendSource: "cardmarket" | "butiker" | "tradera";
   change7: number | null;
   change30: number | null;
   offerCount: number;
@@ -695,8 +697,18 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
       ? lowestPool.reduce((a, b) => (b.price < a.price ? b : a))
       : null;
 
-  // Prisförändring = enbart Cardmarket-trend (samma som produktsidan).
-  const chartData = historyBySource.cardmarket;
+  // Prishistorik: Cardmarket-trend i första hand. Butiksprissatta produkter (utan
+  // CM-trend, t.ex. league/GO-battle-decks) faller tillbaka på butikernas dagliga
+  // snittpris, annars Tradera. trendSource → korrekt graf-rubrik.
+  const trendSource: "cardmarket" | "butiker" | "tradera" =
+    historyBySource.cardmarket.length > 0
+      ? "cardmarket"
+      : historyBySource.butiker.length > 0
+        ? "butiker"
+        : historyBySource.tradera.length > 0
+          ? "tradera"
+          : "cardmarket";
+  const chartData = historyBySource[trendSource];
   const monthAgo = Date.now() - 30 * 86_400_000;
   const cm30 = chartData.filter((p) => new Date(p.date).getTime() >= monthAgo);
   const pctChange = (series: { price: number }[]): number | null =>
@@ -743,6 +755,7 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
       detectedAt: new Date(e.detectedAt).toISOString(),
     })),
     chartData,
+    trendSource,
     change7,
     change30,
     offerCount: directOffers.length,
