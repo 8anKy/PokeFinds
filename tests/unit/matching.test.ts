@@ -132,6 +132,17 @@ describe("classifyForm", () => {
     expect(classifyForm("Ascended Heroes Mini Tin")).toBe("tin");
     expect(classifyForm("Ascended Heroes: Mini Tin Display")).toBe("display");
   });
+
+  it("'Battle Academy' klassas som deck → karaktärsvakt skiljer den från annan deck", () => {
+    expect(classifyForm("Pokemon TCG Battle Academy 2024")).toBe("deck");
+    // Får INTE matcha en helt annan deck bara för det delade ordet "battle".
+    expect(
+      matchListingToProduct("Pokemon TCG Battle Academy 2024", {
+        normalizedTitle: "pokemon go battle deck melmetal v",
+        card: null,
+      })
+    ).toBeNull();
+  });
 });
 
 describe("nonEraCoverage — set-markör 'go' (Pokémon GO 10.5)", () => {

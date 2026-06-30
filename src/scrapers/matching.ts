@@ -133,6 +133,12 @@ export function classifyForm(title: string): string | null {
   // "Chest" (Adventure Chest, Battle Chest …) = collection-/kistprodukt, ALDRIG en
   // booster box. Egen form så formvakten förkastar t.ex. "Paldea Adventure Chest"
   // mot "Paldea Evolved Booster Box" (delar bara set-ordet "paldea").
+  // "Battle Academy" = egen starter-produktfamilj (Pikachu/Eevee/Cinderace,
+  // Battle Academy 2024 …) — ALDRIG en booster/deck för ett annat Pokémon. Egen
+  // "deck"-form så att deckCharacterMismatch förkastar den mot t.ex. "Melmetal V
+  // GO Battle Deck" (delar bara linje-ordet "battle"). Efter deck-regeln ovan så
+  // att en äkta "Battle Academy ... Deck" inte fastnar fel.
+  if (/battle academy/.test(t)) return "deck";
   if (/\bchest\b/.test(t)) return "chest";
   if (/(collection|premium|box)/.test(t)) return "collection";
   return null;
