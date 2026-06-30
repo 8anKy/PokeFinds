@@ -83,7 +83,7 @@ export function classifyForm(title: string): string | null {
   const t = title.toLowerCase();
   // Tillbehör (inkl. svenska: samlarpärm/pärm/album/4-pocket) — får ALDRIG matcha
   // en sealed-/collection-produkt. "Greninja samlarpärm" ≠ "Greninja ex UPC".
-  if (/(portfolio|binder|samlarp(ä|a)rm|\bp(ä|a)rm\b|\balbum\b|sleeves?\b|playmat|toploader|deck\s*box)/.test(t)) return "accessory";
+  if (/(portfolio|binder|samlarp(ä|a)rm|\bp(ä|a)rm\b|\balbum\b|sleeves?\b|playmat|spelbordsmatta|spelmatta|toploader|deck\s*box)/.test(t)) return "accessory";
   // Case-/kartongannonser (6 displayer i en kartong) är aldrig en enskild produkt
   if (/\bcase\b|kartong/.test(t)) return "case";
   // Kvantitetslistningar ("4x bundles", "5 x boosterpaket", "3 st booster",

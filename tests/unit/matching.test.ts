@@ -128,6 +128,12 @@ describe("classifyForm", () => {
     expect(classifyForm("Ultra-Pro Greninja 2-inch album for Pokemon")).toBe("accessory");
   });
 
+  it("svensk spelbordsmatta/spelmatta (playmat) klassas som tillbehör", () => {
+    // Webhallen: "Ultra Pro Pokemon Mega Charizard X&Y Spelbordsmatta" fastnade fel
+    // som offer på "Mega Charizard X ex Ultra Premium Collection".
+    expect(classifyForm("Ultra Pro Pokemon Mega Charizard X&Y Spelbordsmatta 6 FT")).toBe("accessory");
+  });
+
   it("en enskild Mini Tin är 'tin', men ett Mini Tin Display är 'display'", () => {
     expect(classifyForm("Ascended Heroes Mini Tin")).toBe("tin");
     expect(classifyForm("Ascended Heroes: Mini Tin Display")).toBe("display");
