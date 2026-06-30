@@ -18,7 +18,7 @@ import {
   withNearMint,
 } from "../lib/marketplace-urls";
 import { classifyForm, scoreSimilarity } from "../scrapers/matching";
-import { recomputeProductPriceCache } from "../services/products";
+import { recomputeProductPriceCache, snapshotStorePricedProducts } from "../services/products";
 import { fetchTcgCardById, cardMarketPriceOre } from "../scrapers/adapters/pokemontcg-adapter";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -343,6 +343,10 @@ export async function runCardmarketRefresh(
 
   // Uppdatera denormaliserat lägstapris (katalog-feed: sortering + gömning).
   await recomputeProductPriceCache();
+  // Daglig historikpunkt för sealed UTAN CM-trend (butiksprissatta) — annars
+  // fryser deras graf. Kör SIST: CM-mappade har redan snapshot, lowestPriceOre färskt.
+  const storeSnaps = await snapshotStorePricedProducts();
+  if (storeSnaps > 0) console.log(`[cm-refresh] Butikshistorik: ${storeSnaps} snapshots (sealed utan CM-trend).`);
   console.log(`[cm-refresh] Klart: ${res.apiCalls} API-anrop, kvot kvar ${res.remaining}.`);
   return res;
 }

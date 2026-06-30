@@ -178,6 +178,45 @@ export async function recomputeProductPriceCache(): Promise<void> {
 }
 
 /**
+ * Skriver en daglig PriceSnapshot från det visade lägstapriset (`lowestPriceOre`)
+ * för sealed-produkter som INTE redan fått en snapshot idag — dvs de som saknar
+ * Cardmarket-trend (prissätts bara av svenska butiker, t.ex. league/GO-battle-decks).
+ * Utan detta fryser deras historikgraf (cardmarket-refresh snapshottar bara CM-
+ * mappade produkter). Priserna är ÄKTA observerade butikspriser → ingen fabrikation;
+ * historiken byggs framåt. Kör SIST i den dagliga refreshen (efter CM-snapshots +
+ * recompute) så CM-mappade produkter behåller sin trend och inget dubbelskrivs.
+ * Returnerar antal skrivna snapshots.
+ */
+export async function snapshotStorePricedProducts(): Promise<number> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const haveToday = new Set(
+    (await prisma.priceSnapshot.findMany({ where: { date: today }, select: { productId: true } }))
+      .map((s) => s.productId)
+  );
+  const products = await prisma.product.findMany({
+    where: {
+      lowestPriceOre: { not: null },
+      category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY"] },
+    },
+    select: { id: true, lowestPriceOre: true },
+  });
+  const data = products
+    .filter((p) => !haveToday.has(p.id))
+    .map((p) => ({
+      productId: p.id,
+      date: today,
+      minPrice: p.lowestPriceOre!,
+      maxPrice: p.lowestPriceOre!,
+      avgPrice: p.lowestPriceOre!,
+      volume: 1,
+    }));
+  if (data.length === 0) return 0;
+  await prisma.priceSnapshot.createMany({ data, skipDuplicates: true });
+  return data.length;
+}
+
+/**
  * Bygger Prisma-where ur sökparametrar (delas av katalog + utforska-feed).
  * Gömmer produkter UTAN prissatt offer (`lowestPriceOre = null`) — de dyker upp
  * automatiskt igen när de får ett pris (Cardmarket/Tradera).
