@@ -1,16 +1,18 @@
-name: Restock-bevakning (varannan timme)
+name: Restock-bevakning (var 30:e minut)
 
 # Lätt restock-skanning (runRestockScan): hämtar de restock-bevakade butikernas
 # kataloger PARALLELLT (bara HTTP → Neon sover) och diffar sedan lagerstatus mot
 # befintliga offers i en kort DB-burst. Skriver bara lagerövergångar (+ alerts) —
-# inga pris-/observationsskrivningar. Därför håller den knappt Neon vaken (jfr den
-# gamla tunga loopen som höll compute igång ~40 min och tvingade fram 4h-takt), så
-# vi kör nu VARJE TIMME inom Neon free-tier. Täcker ALLA sealed-produkter butikerna
-# säljer (singlar/marknadsplats-only = Cardmarket/Tradera, ej restockWatch-källor).
-# Vill du tätare (t.ex. 30 min): bevaka Neon-compute — kan kräva betald plan.
+# inga pris-/observationsskrivningar. Ett körning tar ~60-65s totalt varav bara
+# ~15-20s rör DB:n (mätt i produktion) → billigt nog för var-30:e-minut-takt.
+# Täcker ALLA sealed-produkter butikerna säljer (singlar/marknadsplats-only =
+# Cardmarket/Tradera, ej restockWatch-källor). Tätades 2026-07-01 från 2h → 30min
+# eftersom snabba slutsälj-restocker (populära ETB/booster box-drops) missades
+# helt mellan skanningar. Bevaka Neon-compute — om det spikar, gå tillbaka till
+# "0 */2 * * *" (varannan timme).
 on:
   schedule:
-    - cron: "0 */2 * * *" # varannan timme (halverar Neon-uppvakningar vs varje timme; restocks fångas inom 2h)
+    - cron: "*/30 * * * *" # var 30:e minut
   workflow_dispatch: {}
 
 concurrency:
@@ -20,9 +22,9 @@ concurrency:
 jobs:
   watch:
     runs-on: ubuntu-latest
-    # Parallell hämtning (mapPool) → körningen är HTTP-bunden men klar långt under
-    # taket. Publikt repo = obegränsade Actions-minuter. 30 < 60 (1h-cron) → ingen krock.
-    timeout-minutes: 30
+    # Parallell hämtning (mapPool) → körningen är HTTP-bunden men klar på ~60-65s
+    # (mätt i produktion), långt under taket. Publikt repo = obegränsade Actions-minuter.
+    timeout-minutes: 15
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DB_POOL: "10" # större Prisma-pool → mapPool-samtidighet utan pool_timeout

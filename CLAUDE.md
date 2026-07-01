@@ -16,12 +16,13 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
 - **Katalog komplett**: ~173 set, ~20k singlar + ~1558 sealed-produkter (0 saknade set/kort mot pokemontcg.io).
 - **Priser**: singlar = Cardmarket engelska NM-"From" (RapidAPI) × live-kurs; sealed = CM `lowest`. Graf/historik = CM trend.
 - **Auto-uppdatering** via GitHub Actions (repot är publikt → obegränsade Actions-minuter):
-  `cardmarket-refresh` (dagl 05:00 UTC), `tradera-sweep` (dagl 04:00), `scrape-all` (dagl 02:00), `restock-watch` (VARJE timme).
+  `cardmarket-refresh` (dagl 05:00 UTC), `tradera-sweep` (dagl 04:00), `scrape-all` (dagl 02:00), `restock-watch` (var 30:e minut).
   Jobben kör DB-skrivningar med `mapPool`-samtidighet så de hinner klart innan timeout.
   **restock-watch** = `runRestockScan()` i `src/scrapers/runner.ts` (ej längre tunga runScrapeJob-loopen): hämtar de
   restock-bevakade butikernas (config.restockWatch) kataloger PARALLELLT (bara HTTP → Neon sover), läser sedan befintliga
   offers EN gång och diffar lagerstatus per URL i minnet. Skriver BARA lagerövergångar (+ restock-alerts), inga pris-/
-  observationsskrivningar → håller knappt Neon vaken, därför timvis (vs gamla 4h). Täcker ALLA sealed-produkter butikerna
+  observationsskrivningar → håller knappt Neon vaken, därför var 30:e minut (tätades 2026-07-01 från 2h eftersom snabba
+  slutsälj-restocker missades mellan skanningar; bevaka Neon-compute om det spikar). Täcker ALLA sealed-produkter butikerna
   aktivt säljer (singlar/marknadsplats-only = Cardmarket/Tradera = ej restockWatch). Nya produkter skapas av daglig scrape-all
   och spåras sedan av skanningen; priser uppdateras av scrape-all. Kräver RESEND_API_KEY i workflow (annars console-mode = inga mejl).
   **Restock-alerts = Pro-only**: PRO-bevakare av produkten (`WatchlistItem.restockAlert` + `user.planTier=PREMIUM`) UNION Pro-användare med
