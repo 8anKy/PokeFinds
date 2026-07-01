@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { apiError, jsonOk } from "@/lib/api";
 import { requireRole } from "@/lib/auth";
 import { buildTraderaLoginUrl } from "@/lib/tradera-auth";
@@ -18,9 +18,16 @@ function shape(v: string | undefined) {
   };
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     await requireRole("ADMIN");
+
+    // ponytail: TEMPORÄR — ekar mottagna query-params så vi kan se om en riktig
+    // 307 INOM VÅR EGEN domän tappar/lägger till citattecken i transit. Ta bort igen.
+    if (req.nextUrl.searchParams.get("echo") === "1") {
+      return jsonOk({ receivedAppId: req.nextUrl.searchParams.get("testAppId") });
+    }
+
     const builtUrl = buildTraderaLoginUrl("debug-skey");
     const redirectRes = NextResponse.redirect(builtUrl);
     return jsonOk({

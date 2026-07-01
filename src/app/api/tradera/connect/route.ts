@@ -21,6 +21,11 @@ export async function GET(req: NextRequest) {
   if (req.nextUrl.searchParams.get("debug") === "1") {
     return NextResponse.json({ url });
   }
-
+  // ponytail: TEMPORÄR — riktig 307 inom VÅR EGEN domän (ingen extern trafik) med
+  // samma appId=6129-mönster, för att se om något 307-svar tappar/lägger till
+  // citattecken i transit, eller om det är specifikt för Tradera. Ta bort igen.
+  if (req.nextUrl.searchParams.get("debug") === "2") {
+    return NextResponse.redirect(`${APP_URL}/api/tradera/debug-env?echo=1&testAppId=6129`);
+  }
   return NextResponse.redirect(url);
 }
