@@ -1,5 +1,6 @@
 import { apiError, jsonOk } from "@/lib/api";
 import { requireRole } from "@/lib/auth";
+import { buildTraderaLoginUrl } from "@/lib/tradera-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ export async function GET() {
     return jsonOk({
       TRADERA_APP_ID: shape(process.env.TRADERA_APP_ID),
       TRADERA_PUBLIC_KEY: shape(process.env.TRADERA_PUBLIC_KEY),
+      builtLoginUrl: buildTraderaLoginUrl("debug-skey"),
     });
   } catch (e) {
     return apiError(e);
