@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { apiError, jsonOk } from "@/lib/api";
 import { requireRole } from "@/lib/auth";
 import { buildTraderaLoginUrl } from "@/lib/tradera-auth";
@@ -20,10 +21,13 @@ function shape(v: string | undefined) {
 export async function GET() {
   try {
     await requireRole("ADMIN");
+    const builtUrl = buildTraderaLoginUrl("debug-skey");
+    const redirectRes = NextResponse.redirect(builtUrl);
     return jsonOk({
       TRADERA_APP_ID: shape(process.env.TRADERA_APP_ID),
       TRADERA_PUBLIC_KEY: shape(process.env.TRADERA_PUBLIC_KEY),
-      builtLoginUrl: buildTraderaLoginUrl("debug-skey"),
+      builtLoginUrl: builtUrl,
+      redirectLocationHeader: redirectRes.headers.get("location"),
     });
   } catch (e) {
     return apiError(e);
