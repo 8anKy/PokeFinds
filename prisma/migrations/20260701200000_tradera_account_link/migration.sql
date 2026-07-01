@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "traderaUserId" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "traderaToken" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "traderaTokenExpiresAt" TIMESTAMP(3);

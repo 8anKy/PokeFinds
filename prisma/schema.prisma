@@ -140,6 +140,9 @@ model User {
   preferences          Json      @default("{}")
   reputationScore      Int       @default(0)
   isPublicCollection   Boolean   @default(false)
+  traderaUserId        String? // Traderas userId när kontot är kopplat (för "Sälj på Tradera")
+  traderaToken         String? // AuthToken från FetchToken; behandlas som en hemlighet
+  traderaTokenExpiresAt DateTime? // HardExpirationTime — koppla om kontot när denna passeras
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

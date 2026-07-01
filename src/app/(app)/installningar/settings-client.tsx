@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { setAuthHint } from "@/lib/auth-hint";
 import { apiFetch } from "@/lib/client-api";
@@ -24,10 +25,48 @@ export interface SettingsUser {
   bio: string | null;
   planTier: "FREE" | "PREMIUM";
   notificationSettings: NotificationSettings;
+  traderaUserId: string | null;
 }
 
 export function SettingsClient({ user }: { user: SettingsUser }) {
   const { toast } = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Tradera-koppling
+  const [traderaUserId, setTraderaUserId] = useState(user.traderaUserId);
+  const [disconnectingTradera, setDisconnectingTradera] = useState(false);
+
+  useEffect(() => {
+    const status = searchParams.get("tradera");
+    if (!status) return;
+    if (status === "ansluten") {
+      toast({ title: "Tradera-kontot är kopplat", variant: "success" });
+    } else if (status === "nekad") {
+      toast({ title: "Tradera-kopplingen avbröts", variant: "error" });
+    } else if (status === "fel") {
+      toast({ title: "Kunde inte koppla Tradera-kontot", description: "Försök igen.", variant: "error" });
+    }
+    router.replace("/installningar");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function disconnectTradera() {
+    setDisconnectingTradera(true);
+    try {
+      await apiFetch("/api/tradera", { method: "DELETE" });
+      setTraderaUserId(null);
+      toast({ title: "Tradera-kontot är frånkopplat", variant: "success" });
+    } catch (e) {
+      toast({
+        title: "Det gick inte att koppla från",
+        description: e instanceof Error ? e.message : undefined,
+        variant: "error",
+      });
+    } finally {
+      setDisconnectingTradera(false);
+    }
+  }
 
   // Profil
   const [name, setName] = useState(user.name);
@@ -229,6 +268,37 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
               Uppgradera till Pro
             </LinkButton>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Tradera */}
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <CardTitle>Sälj på Tradera</CardTitle>
+          {traderaUserId ? <Badge variant="holo">Ansluten</Badge> : <Badge>Ej ansluten</Badge>}
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-ink-muted">
+            {traderaUserId
+              ? `Ditt Tradera-konto (id ${traderaUserId}) är kopplat. Du kan sälja produkter från skannern och din samling direkt till Tradera.`
+              : "Koppla ditt Tradera-konto för att kunna lägga upp kort och sealed-produkter till försäljning direkt från skannern och din samling."}
+          </p>
+          <div className="mt-4">
+            {traderaUserId ? (
+              <Button variant="secondary" loading={disconnectingTradera} onClick={() => void disconnectTradera()}>
+                Koppla från Tradera
+              </Button>
+            ) : (
+              // Vanlig <a>, INTE next/link: måste vara en riktig sidnavigering (cookie +
+              // 307 till tradera.com) — Next Links klientrouting kan inte hantera det.
+              <a
+                href="/api/tradera/connect"
+                className="inline-flex h-10 items-center justify-center rounded-lg bg-holo-cyan px-4 text-sm font-semibold text-surface transition-all duration-200 ease-out hover:bg-holo-cyan/90 hover:shadow-glow active:scale-[0.97] active:bg-holo-cyan/80"
+              >
+                Anslut Tradera-konto
+              </a>
+            )}
+          </div>
         </CardContent>
       </Card>
 

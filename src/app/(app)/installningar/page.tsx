@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -37,6 +38,7 @@ export default async function SettingsPage() {
       bio: true,
       planTier: true,
       notificationSettings: true,
+      traderaUserId: true,
     },
   });
   if (!user) redirect("/logga-in");
@@ -47,6 +49,7 @@ export default async function SettingsPage() {
     bio: user.bio,
     planTier: user.planTier,
     notificationSettings: parseNotificationSettings(user.notificationSettings),
+    traderaUserId: user.traderaUserId,
   };
 
   return (
@@ -57,7 +60,9 @@ export default async function SettingsPage() {
           Hantera din profil, dina notiser och ditt konto.
         </p>
       </div>
-      <SettingsClient user={settingsUser} />
+      <Suspense>
+        <SettingsClient user={settingsUser} />
+      </Suspense>
     </div>
   );
 }
