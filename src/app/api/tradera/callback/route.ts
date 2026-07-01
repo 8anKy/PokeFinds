@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     settingsUrl.searchParams.set("tradera", "fel-fetchtoken");
     settingsUrl.searchParams.set(
       "tradera_detail",
-      (err instanceof Error ? err.message : String(err)).slice(0, 200)
+      `userId=${traderaUserId} ${(err instanceof Error ? err.message : String(err)).slice(0, 160)}`
     );
   }
 
