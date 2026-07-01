@@ -14,5 +14,10 @@ export async function GET() {
   }
 
   const skey = crypto.randomUUID();
-  return NextResponse.redirect(buildTraderaLoginUrl(skey));
+  const url = buildTraderaLoginUrl(skey);
+  // ponytail: TEMPORÄR — bevisar om DENNA route kör färsk kod (ta bort igen).
+  const res = NextResponse.redirect(url);
+  res.headers.set("X-Debug-Marker", "v3-" + url.length);
+  res.headers.set("X-Debug-Url", url);
+  return res;
 }
