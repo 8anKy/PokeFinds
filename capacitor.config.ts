@@ -31,7 +31,11 @@ const config: CapacitorConfig = {
         // Håll BÅDA foilio-värdarna (apex + www) inne i WebView:en — annars öppnar
         // Capacitor en navigering till "fel" värd i Safari (t.ex. en redirect till
         // apex medan appen kör på www). Butikslänkar är INTE med → de öppnar externt.
-        allowNavigation: ["foilio.se", "www.foilio.se"],
+        // api.tradera.com: Tradera-kontokopplingens hela inloggnings-omväg (token-login
+        // → accept → tillbaka till foilio.se) måste stanna i WebView:en, annars öppnar
+        // det i system-Safari (en HELT separat cookie-jar) → skey-cookien tappas och
+        // /installningar visas med Safaris egen (ev. andra) inloggade session.
+        allowNavigation: ["foilio.se", "www.foilio.se", "api.tradera.com"],
       }
     : { androidScheme: "https" },
   ios: {
