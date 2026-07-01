@@ -9,7 +9,16 @@ const APP_KEY = process.env.TRADERA_APP_KEY ?? "";
 const PUBLIC_KEY = process.env.TRADERA_PUBLIC_KEY ?? "";
 
 export function buildTraderaLoginUrl(skey: string): string {
-  const params = new URLSearchParams({ appId: APP_ID, pkey: PUBLIC_KEY, skey });
+  // ruparams: Tradera ekar tillbaka detta okodat på Accept URL:en. Vi använder det
+  // för att få tillbaka skey utan att lita på en cookie som ska överleva hela
+  // foilio.se → tradera.com → foilio.se-omvägen (WKWebView tappar Set-Cookie på
+  // redirect-svar i native-appen — det var buggen).
+  const params = new URLSearchParams({
+    appId: APP_ID,
+    pkey: PUBLIC_KEY,
+    skey,
+    ruparams: `skey=${skey}`,
+  });
   return `https://api.tradera.com/token-login?${params.toString()}`;
 }
 

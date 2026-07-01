@@ -14,6 +14,12 @@ describe("buildTraderaLoginUrl", () => {
     expect(url).toContain("https://api.tradera.com/token-login?");
     expect(url).toContain("skey=77FA15BA-E13C-4D83-B6DC-E7F9FFB6601F");
   });
+
+  it("ekar skey via ruparams — inte en cookie — så Tradera skickar tillbaka den på Accept URL:en", () => {
+    const url = buildTraderaLoginUrl("my-skey");
+    const parsed = new URL(url);
+    expect(parsed.searchParams.get("ruparams")).toBe("skey=my-skey");
+  });
 });
 
 describe("fetchTraderaToken", () => {

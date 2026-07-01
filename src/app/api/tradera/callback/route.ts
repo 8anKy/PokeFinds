@@ -5,7 +5,6 @@ import { fetchTraderaToken } from "@/lib/tradera-auth";
 
 export const dynamic = "force-dynamic";
 
-const SKEY_COOKIE = "tradera_skey";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 /** Accept URL för Tradera token-login (Option 2): byter userId+skey mot en riktig token. */
@@ -13,17 +12,19 @@ export async function GET(req: NextRequest) {
   const settingsUrl = new URL("/installningar", APP_URL);
 
   const session = await auth();
-  const skey = req.cookies.get(SKEY_COOKIE)?.value;
+  // skey kommer tillbaka via ruparams (Tradera ekar det okodat), INTE en cookie —
+  // en cookie satt på ett redirect-svar överlever inte native-appens WKWebView-omväg.
+  const skey = req.nextUrl.searchParams.get("skey");
   const traderaUserId = req.nextUrl.searchParams.get("userId");
 
   // ponytail: felkoden i URL:en (inte bara loggar) så vi kan diagnostisera utan
-  // Railway-logg-åtkomst — ta bort igen när flödet är verifierat i produktion.
+  // Railway-loggåtkomst — ta bort igen när flödet är verifierat i produktion.
   if (!session?.user) {
     settingsUrl.searchParams.set("tradera", "fel-ingen-session");
     return NextResponse.redirect(settingsUrl);
   }
   if (!skey) {
-    settingsUrl.searchParams.set("tradera", "fel-ingen-cookie");
+    settingsUrl.searchParams.set("tradera", "fel-ingen-skey");
     return NextResponse.redirect(settingsUrl);
   }
   if (!traderaUserId) {
@@ -47,7 +48,5 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const res = NextResponse.redirect(settingsUrl);
-  res.cookies.delete({ name: SKEY_COOKIE, path: "/api/tradera" });
-  return res;
+  return NextResponse.redirect(settingsUrl);
 }
