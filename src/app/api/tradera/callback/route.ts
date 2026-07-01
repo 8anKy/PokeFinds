@@ -41,6 +41,10 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     console.error("[tradera-callback] FetchToken misslyckades:", err);
     settingsUrl.searchParams.set("tradera", "fel-fetchtoken");
+    settingsUrl.searchParams.set(
+      "tradera_detail",
+      (err instanceof Error ? err.message : String(err)).slice(0, 200)
+    );
   }
 
   const res = NextResponse.redirect(settingsUrl);
