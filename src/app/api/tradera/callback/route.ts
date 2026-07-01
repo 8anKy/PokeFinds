@@ -6,10 +6,11 @@ import { fetchTraderaToken } from "@/lib/tradera-auth";
 export const dynamic = "force-dynamic";
 
 const SKEY_COOKIE = "tradera_skey";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 /** Accept URL för Tradera token-login (Option 2): byter userId+skey mot en riktig token. */
 export async function GET(req: NextRequest) {
-  const settingsUrl = new URL("/installningar", req.nextUrl.origin);
+  const settingsUrl = new URL("/installningar", APP_URL);
 
   const session = await auth();
   const skey = req.cookies.get(SKEY_COOKIE)?.value;
