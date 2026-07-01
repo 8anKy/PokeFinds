@@ -210,8 +210,10 @@ export class TraderaAdapter implements SourceAdapter {
     const products: RawProductData[] = [];
     const errors: string[] = [];
 
-    const appId = process.env.TRADERA_APP_ID;
-    const appKey = process.env.TRADERA_APP_KEY;
+    // Railway-panelen visar värdet utan citattecken, men det injicerade env-värdet
+    // har visat sig ändå innehålla omslutande "..." — trimma bort dem oavsett källa.
+    const appId = process.env.TRADERA_APP_ID?.trim().replace(/^["']|["']$/g, "");
+    const appKey = process.env.TRADERA_APP_KEY?.trim().replace(/^["']|["']$/g, "");
     if (!appId || !appKey) {
       return {
         products,

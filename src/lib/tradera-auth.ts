@@ -4,9 +4,13 @@
  * själva token server-till-server via FetchToken (token syns aldrig i URL:en).
  * https://api.tradera.com/documentation/authorization
  */
-const APP_ID = process.env.TRADERA_APP_ID ?? "";
-const APP_KEY = process.env.TRADERA_APP_KEY ?? "";
-const PUBLIC_KEY = process.env.TRADERA_PUBLIC_KEY ?? "";
+// Railway-panelen visar värdet utan citattecken, men det injicerade env-värdet
+// har visat sig ändå innehålla omslutande "..." (bekräftat via appId=%226129%22
+// i en riktig token-login-URL) — trimma bort dem oavsett källa.
+const stripQuotes = (v: string) => v.trim().replace(/^["']|["']$/g, "");
+const APP_ID = stripQuotes(process.env.TRADERA_APP_ID ?? "");
+const APP_KEY = stripQuotes(process.env.TRADERA_APP_KEY ?? "");
+const PUBLIC_KEY = stripQuotes(process.env.TRADERA_PUBLIC_KEY ?? "");
 
 export function buildTraderaLoginUrl(skey: string): string {
   // ruparams: Tradera ekar tillbaka detta okodat på Accept URL:en. Vi använder det
