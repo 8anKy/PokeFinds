@@ -44,8 +44,9 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
       toast({ title: "Tradera-kontot är kopplat", variant: "success" });
     } else if (status === "nekad") {
       toast({ title: "Tradera-kopplingen avbröts", variant: "error" });
-    } else if (status === "fel") {
-      toast({ title: "Kunde inte koppla Tradera-kontot", description: "Försök igen.", variant: "error" });
+    } else if (status.startsWith("fel")) {
+      // ponytail: temporär felkods-suffix för felsökning — ta bort description när flödet är verifierat.
+      toast({ title: "Kunde inte koppla Tradera-kontot", description: status, variant: "error" });
     }
     router.replace("/installningar");
     // eslint-disable-next-line react-hooks/exhaustive-deps

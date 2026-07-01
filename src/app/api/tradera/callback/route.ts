@@ -16,8 +16,18 @@ export async function GET(req: NextRequest) {
   const skey = req.cookies.get(SKEY_COOKIE)?.value;
   const traderaUserId = req.nextUrl.searchParams.get("userId");
 
-  if (!session?.user || !skey || !traderaUserId) {
-    settingsUrl.searchParams.set("tradera", "fel");
+  // ponytail: felkoden i URL:en (inte bara loggar) så vi kan diagnostisera utan
+  // Railway-logg-åtkomst — ta bort igen när flödet är verifierat i produktion.
+  if (!session?.user) {
+    settingsUrl.searchParams.set("tradera", "fel-ingen-session");
+    return NextResponse.redirect(settingsUrl);
+  }
+  if (!skey) {
+    settingsUrl.searchParams.set("tradera", "fel-ingen-cookie");
+    return NextResponse.redirect(settingsUrl);
+  }
+  if (!traderaUserId) {
+    settingsUrl.searchParams.set("tradera", "fel-ingen-userid");
     return NextResponse.redirect(settingsUrl);
   }
 
@@ -30,7 +40,7 @@ export async function GET(req: NextRequest) {
     settingsUrl.searchParams.set("tradera", "ansluten");
   } catch (err) {
     console.error("[tradera-callback] FetchToken misslyckades:", err);
-    settingsUrl.searchParams.set("tradera", "fel");
+    settingsUrl.searchParams.set("tradera", "fel-fetchtoken");
   }
 
   const res = NextResponse.redirect(settingsUrl);
