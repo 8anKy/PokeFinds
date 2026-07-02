@@ -40,6 +40,9 @@ export function BottomTabs() {
   }, []);
 
   if (keyboard) return null;
+  // Lösenordsåterställning nås via e-postlänk i Safari (inte appen) → visa ingen
+  // app-navigering här, den lockar bara användaren att browsa webben i stället.
+  if (pathname === "/aterstall-losenord" || pathname?.startsWith("/aterstall-losenord/")) return null;
   // Auth/onboarding: VISA tab-baren (så man kan tabba vidare även från login) men
   // UTAN klarerings-spacern — den fixerade login-sidan (h-[100dvh]) scrollar annars.
   const noSpacer = ["/logga-in", "/registrera", "/glomt-losenord", "/aterstall-losenord", "/verifiera", "/onboarding"];
