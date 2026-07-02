@@ -15,10 +15,10 @@ import { Input, Textarea, Select, Label, FieldError } from "@/components/ui/inpu
 import { CONDITION_LABELS, LANGUAGE_LABELS, type CollectionRow } from "./collection-client";
 
 /** Standardbeskrivning att förifylla textrutan med (användaren kan redigera). */
-function defaultDescription(row: CollectionRow): string {
+function defaultDescription(row: CollectionRow, condition: string): string {
   return [
     `${row.name}${row.setName ? ` — ${row.setName}` : ""}`,
-    `Skick: ${CONDITION_LABELS[row.condition] ?? row.condition}`,
+    `Skick: ${CONDITION_LABELS[condition] ?? condition}`,
     `Språk: ${LANGUAGE_LABELS[row.language] ?? row.language}`,
     "",
     "Bilden visar det exakta objektet. Säljes av privatperson.",
@@ -60,7 +60,7 @@ export function SellButton({
     setPrice(row.estimatedValue != null ? String(Math.round(row.estimatedValue / 100)) : "");
     setCondition(row.condition);
     setShipping("20");
-    setDescription(defaultDescription(row));
+    setDescription(defaultDescription(row, row.condition));
     setImages([]);
     setError(null);
     setResultUrl(null);
@@ -173,7 +173,15 @@ export function SellButton({
             <Select
               id="sellCondition"
               value={condition}
-              onChange={(e) => setCondition(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                // Håll beskrivningens Skick-rad i synk — men bara om texten inte
+                // redigerats (dvs. fortfarande är auto-texten för nuvarande skick).
+                setDescription((prev) =>
+                  prev === defaultDescription(row, condition) ? defaultDescription(row, next) : prev
+                );
+                setCondition(next);
+              }}
             >
               {Object.entries(CONDITION_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
@@ -191,6 +199,11 @@ export function SellButton({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Beskriv objektet…"
+              // Skrolla upp fältet ovanför tangentbordet när det öppnas (mobil).
+              onFocus={(e) => {
+                const el = e.currentTarget;
+                setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 300);
+              }}
             />
           </div>
 
