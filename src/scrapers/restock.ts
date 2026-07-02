@@ -24,6 +24,20 @@ export function isRestock(oldStatus: StockStatus, newStatus: StockStatus): boole
   return oldStatus === StockStatus.OUT_OF_STOCK && newStatus === StockStatus.IN_STOCK;
 }
 
+/**
+ * Ny produkt i lager: en HELT ny offer (ingen tidigare status = start null) som är
+ * I LAGER. netStockEvent emittar inte detta (ingen övergång att räkna), men det är
+ * en "ny produkt i lager" värd ett larm — precis som feed-först ger för URL:er
+ * utanför katalogen. Övriga vakter (butiken skrapad förut = ej tyst seed, sealed,
+ * riktig butik) kontrolleras vid anropet i runScrapeJob.
+ */
+export function isNewInStockArrival(
+  start: StockStatus | null,
+  finalStatus: StockStatus
+): boolean {
+  return start === null && finalStatus === StockStatus.IN_STOCK;
+}
+
 export interface NetStockEvent {
   emit: boolean; // skapa en RestockEvent?
   oldStatus: StockStatus;

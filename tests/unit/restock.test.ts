@@ -4,7 +4,12 @@
  */
 import { describe, expect, it } from "vitest";
 import { StockStatus } from "@prisma/client";
-import { isRealStockTransition, isRestock, netStockEvent } from "@/scrapers/restock";
+import {
+  isNewInStockArrival,
+  isRealStockTransition,
+  isRestock,
+  netStockEvent,
+} from "@/scrapers/restock";
 
 const { IN_STOCK, OUT_OF_STOCK, UNKNOWN } = StockStatus;
 
@@ -64,5 +69,20 @@ describe("netStockEvent (netto per körning, dödar spök-flapparna)", () => {
   it("ny offer (start null) → ingen händelse, oavsett status", () => {
     expect(netStockEvent(null, IN_STOCK).emit).toBe(false);
     expect(netStockEvent(null, OUT_OF_STOCK).emit).toBe(false);
+  });
+});
+
+describe("isNewInStockArrival (ny produkt i lager, larmas separat)", () => {
+  it("ny offer i lager = ny produkt i lager", () => {
+    expect(isNewInStockArrival(null, IN_STOCK)).toBe(true);
+  });
+
+  it("ny offer men slutsåld → inget larm", () => {
+    expect(isNewInStockArrival(null, OUT_OF_STOCK)).toBe(false);
+  });
+
+  it("befintlig offer (hade tidigare status) → inte en ny produkt", () => {
+    expect(isNewInStockArrival(OUT_OF_STOCK, IN_STOCK)).toBe(false);
+    expect(isNewInStockArrival(IN_STOCK, IN_STOCK)).toBe(false);
   });
 });

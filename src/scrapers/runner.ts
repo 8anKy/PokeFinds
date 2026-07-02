@@ -27,7 +27,7 @@ import {
 } from "@/scrapers/adapters/quickbutik-adapter";
 import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
 import { isPlausibleListingPrice, matchProduct } from "@/scrapers/matching";
-import { netStockEvent, isRestock } from "@/scrapers/restock";
+import { netStockEvent, isRestock, isNewInStockArrival } from "@/scrapers/restock";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
 import type { SourceAdapter } from "@/scrapers/types";
 import { checkPriceAlerts, checkRestockAlerts, checkListingAlerts } from "@/services/alerts";
@@ -333,6 +333,9 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
     const retailer = await getRetailerForSource(source.name, source.baseUrl, source.type);
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
+    // Har butiken skrapats förut? Om inte = första skrapningen → seeda TYST (larma
+    // inte hela dess katalog som "nya produkter"). Läs FÖRE vi uppdaterar lastRunAt.
+    const scrapedBefore = source.lastRunAt != null;
 
     // Billigaste annonsen vinner: när flera annonser i samma körning matchar
     // samma produkt ska offerten visa den billigaste, inte den senast bearbetade.
@@ -344,7 +347,7 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
     const offerStartStatus = new Map<string, StockStatus | null>();
     const offerFinalState = new Map<
       string,
-      { productId: string; newStatus: StockStatus; price: number }
+      { productId: string; newStatus: StockStatus; price: number; category: string | null }
     >();
 
     for (const rawProduct of result.products) {
@@ -452,6 +455,7 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
             productId,
             newStatus: normalized.stockStatus,
             price: offerPrice,
+            category: normalized.category ?? null,
           });
 
           // Bevara en redan löst engelsk CM-slug: PokemonTcgAdapter emittar en
@@ -552,6 +556,34 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
     for (const [offerKey, st] of offerFinalState) {
       const start = offerStartStatus.get(offerKey) ?? null;
       const ev = netStockEvent(start, st.newStatus);
+
+      // Ny produkt i lager: en helt ny offer (start=null) som är I LAGER = butiken
+      // har börjat sälja något vi katalogför men inte hade en offer för. netStockEvent
+      // emittar INTE detta (ingen tidigare status), så vi larmar det separat — samma
+      // "Ny produkt i lager" som feed-först ger för okatalogiserade URL:er. Vakter:
+      // riktig butik, bara sealed (singlar spammar), och EJ butikens första skrapning
+      // (då seedas katalogen tyst). ponytail: en burst är möjlig om matchern plötsligt
+      // matchar många nya produkter en körning — sällsynt, samma exponering som restock.
+      if (
+        isNewInStockArrival(start, st.newStatus) &&
+        scrapedBefore &&
+        !NON_RETAIL_SOURCE_NAMES.includes(retailer.name) &&
+        SEALED_FEED_CATEGORIES.has(st.category ?? "")
+      ) {
+        await prisma.restockEvent.create({
+          data: {
+            productId: st.productId,
+            retailerId: retailer.id,
+            oldStatus: StockStatus.OUT_OF_STOCK,
+            newStatus: StockStatus.IN_STOCK,
+            price: st.price,
+          },
+        });
+        await checkRestockAlerts(st.productId, retailer.id);
+        logs.push(`Ny produkt i lager: ${st.productId} hos ${retailer.name}`);
+        continue;
+      }
+
       if (!ev.emit) continue;
       await prisma.restockEvent.create({
         data: {
