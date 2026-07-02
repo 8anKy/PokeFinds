@@ -160,8 +160,30 @@ model User {
   reports         Report[]
   savedPosts      SavedPost[]
   pushTokens      PushToken[]
+  sales           Sale[]
 
   @@index([email])
+}
+
+// Såld annons (ögonblicksbild) — byggs när ett samlingsobjekts Tradera-annons säljs.
+// Fristående från CollectionItem så sålda poster aldrig läcker in i aktiv samling/värde.
+model Sale {
+  id               String   @id @default(cuid())
+  userId           String
+  name             String // namn vid försäljningstillfället (kortet kan vara borta ur samlingen)
+  setName          String?
+  imageUrl         String?
+  condition        String
+  language         String
+  purchasePriceOre Int? // inköpspris (kostnadsbas), om känt
+  salePriceOre     Int // Traderas transaktionsbelopp (brutto, före avgifter)
+  soldAt           DateTime // transaktionens datum
+  traderaItemId    String?
+  createdAt        DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, soldAt])
 }
 
 // Enhetstoken för native push (iOS/APNs). En användare kan ha flera enheter.

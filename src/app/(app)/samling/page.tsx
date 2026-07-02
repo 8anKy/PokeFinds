@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { listCollection, computeCollectionValue } from "@/services/collection";
+import { listSales } from "@/services/sales";
 import { syncSoldCollectionItems } from "@/jobs/tradera-sold-sync";
 import { formatPrice, formatPercent } from "@/lib/format";
 import { StatCard } from "@/components/features/stat-card";
@@ -18,6 +19,8 @@ import {
 } from "@/components/ui/icons";
 import { CollectionClient, type CollectionRow } from "./collection-client";
 import { MobileCollectionGrid } from "./mobile-collection-grid";
+import { PortfolioTabs } from "./portfolio-tabs";
+import { SoldList } from "./sold-list";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +40,7 @@ export default async function CollectionPage() {
   );
 
   const isPremium = session.user.planTier === "PREMIUM";
-  const [items, value, user] = await Promise.all([
+  const [items, value, user, sales] = await Promise.all([
     listCollection(userId),
     // Gratis: max 6 mån historik. Premium: full (range-väljaren styr visningen).
     computeCollectionValue(userId, { maxDays: isPremium ? null : 183 }),
@@ -45,6 +48,7 @@ export default async function CollectionPage() {
       where: { id: userId },
       select: { isPublicCollection: true },
     }),
+    listSales(userId),
   ]);
 
   // Slug per singel-kort → produktsida att inspektera (kortets billigaste produkt).
@@ -99,6 +103,11 @@ export default async function CollectionPage() {
     <div className="space-y-8">
       <h1 className="font-display text-2xl font-bold text-ink">Min samling</h1>
 
+      <PortfolioTabs
+        soldCount={sales.length}
+        sold={<SoldList sales={sales} />}
+        collection={
+          <div className="space-y-8">
       {/* Mobil-hero: totalt värde + förändring över vald period + graf */}
       <section className="lg:hidden">
         <CollectionValueChart
@@ -237,6 +246,9 @@ export default async function CollectionPage() {
           isPublicCollection={user?.isPublicCollection ?? false}
         />
       </div>
+          </div>
+        }
+      />
     </div>
   );
 }
