@@ -6,7 +6,7 @@ import { AlertStatus, AlertType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { sendMail } from "@/lib/mailer";
 import { sendPush } from "@/lib/apns";
-import { newListingEmail, priceAlertEmail, restockAlertEmail } from "@/emails/templates";
+import { newListingEmail, preorderEmail, priceAlertEmail, restockAlertEmail } from "@/emails/templates";
 import { NON_RETAIL_SOURCE_NAMES } from "@/services/products";
 
 const MAX_RETRIES = 3;
@@ -50,6 +50,11 @@ async function buildAlertEmail(alert: {
         listing.retailer.name,
         listing.url,
       ] as const;
+      // Förhandsbokning känns igen på annonsens lagerstatus, inte AlertType (den
+      // lagras som NEW_LISTING). Köpbar nu, levereras vid release → egen copy.
+      if (listing.stockStatus === "PREORDER") {
+        return preorderEmail(...args, listing.price ?? undefined);
+      }
       return alert.type === AlertType.NEW_LISTING
         ? newListingEmail(...args, listing.price ?? undefined)
         : restockAlertEmail(...args);

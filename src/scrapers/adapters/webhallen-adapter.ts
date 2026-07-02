@@ -38,6 +38,8 @@ interface WebhallenProduct {
   price: { price: string; currency: string } | null;
   stock?: { web?: number | null } | null;
   regularPrice?: { price: string };
+  /** Unix-tidsstämpel (sekunder) för lanseringsdatum. Framtida datum = förhandsbokning. */
+  release?: { timestamp?: number | null } | null;
   /** T.ex. "Leksaker & Hobby/Samlarkortspel/Pokémon" */
   categoryTree?: string | null;
   thumbnail?: string;
@@ -48,13 +50,27 @@ interface WebhallenRaw {
   name: string;
   priceOre: number;
   url: string;
-  inStock: boolean;
+  stockStatus: StockStatus;
   imageUrl?: string;
   rawProduct: WebhallenProduct;
 }
 
 function isWebhallenRaw(raw: unknown): raw is WebhallenRaw {
   return typeof raw === "object" && raw !== null && "priceOre" in raw && "id" in raw;
+}
+
+/**
+ * Webhallen säljer slut-lager (web>0), utgångna (web=0, släppt) och FÖRHANDSBOKNING
+ * (web=0 men lanseringsdatum i framtiden — köpbar nu, levereras vid release). De två
+ * senare ser identiska ut i lagerfältet; bara `release`-datumet skiljer dem åt.
+ */
+export function webhallenStockStatus(item: WebhallenProduct): StockStatus {
+  if ((item.stock?.web ?? 0) > 0) return StockStatus.IN_STOCK;
+  const releaseTs = item.release?.timestamp;
+  if (typeof releaseTs === "number" && releaseTs * 1000 > Date.now()) {
+    return StockStatus.PREORDER;
+  }
+  return StockStatus.OUT_OF_STOCK;
 }
 
 function guessCategory(title: string): string {
@@ -117,7 +133,7 @@ export class WebhallenAdapter implements SourceAdapter {
           if (!Number.isFinite(priceSek) || priceSek <= 0) continue;
           const priceOre = Math.round(priceSek * 100);
 
-          const inStock = (item.stock?.web ?? 0) > 0;
+          const stockStatus = webhallenStockStatus(item);
           const productUrl = `${BASE_URL}/se/product/${item.id}`;
 
           const raw: WebhallenRaw = {
@@ -125,7 +141,7 @@ export class WebhallenAdapter implements SourceAdapter {
             name: item.name,
             priceOre,
             url: productUrl,
-            inStock,
+            stockStatus,
             imageUrl: item.thumbnail,
             rawProduct: item,
           };
@@ -136,7 +152,7 @@ export class WebhallenAdapter implements SourceAdapter {
             url: productUrl,
             price: priceOre,
             currency: "SEK",
-            stockStatus: inStock ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
+            stockStatus,
             imageUrl: item.thumbnail,
             category: guessCategory(item.name),
             raw,
@@ -168,9 +184,7 @@ export class WebhallenAdapter implements SourceAdapter {
   }
 
   detectStockStatus(raw: unknown): StockStatus {
-    if (isWebhallenRaw(raw)) {
-      return raw.inStock ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK;
-    }
+    if (isWebhallenRaw(raw)) return raw.stockStatus;
     return StockStatus.UNKNOWN;
   }
 

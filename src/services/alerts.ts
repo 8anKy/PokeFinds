@@ -173,7 +173,7 @@ export async function checkRestockAlerts(productId: string, retailerId?: string)
  */
 export async function checkListingAlerts(
   listing: { id: string; title: string; retailerId: string },
-  kind: "NEW_LISTING" | "RESTOCK"
+  kind: "NEW_LISTING" | "RESTOCK" | "PREORDER"
 ) {
   const subs = await prisma.user.findMany({
     where: {
@@ -187,14 +187,19 @@ export async function checkListingAlerts(
   const message =
     kind === "NEW_LISTING"
       ? `${listing.title} — ny produkt i lager!`
-      : `${listing.title} finns i lager igen!`;
+      : kind === "PREORDER"
+        ? `${listing.title} — öppen för förhandsbokning!`
+        : `${listing.title} finns i lager igen!`;
+  // Förhandsbokning saknar egen AlertType — lagras som NEW_LISTING (det ÄR en ny
+  // produkt). Mejlet väljs ändå på annonsens PREORDER-lagerstatus i buildAlertEmail.
+  const type = kind === "PREORDER" ? "NEW_LISTING" : kind;
   const writes: Prisma.PrismaPromise<unknown>[] = subs.map((u) =>
     prisma.alert.create({
       data: {
         userId: u.id,
         retailerId: listing.retailerId,
         storeListingId: listing.id,
-        type: kind,
+        type,
         message,
         channel: "EMAIL",
       },

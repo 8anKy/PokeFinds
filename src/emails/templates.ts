@@ -132,6 +132,30 @@ export function newListingEmail(
   return { subject, html, text };
 }
 
+export function preorderEmail(
+  name: string,
+  productTitle: string,
+  retailerName: string,
+  url: string,
+  price?: number
+): EmailContent {
+  const subject = `Förhandsboka nu: ${productTitle} hos ${retailerName}`;
+  const priceLine = price
+    ? `<p style="font-size:22px;font-weight:800;color:#34d399;margin:0 0 8px;">${formatSek(price)}</p>`
+    : "";
+  const html = layout(
+    "Öppen för förhandsbokning! 📦",
+    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! En produkt går nu att förhandsboka:</p>
+     <p style="font-size:16px;font-weight:700;color:#ffffff;margin:16px 0 4px;">${productTitle}</p>
+     ${priceLine}
+     <p style="color:#cbd5e1;margin:0 0 8px;">Hos: <strong style="color:#2dd4bf;">${retailerName}</strong></p>
+     <p style="line-height:1.6;color:#fbbf24;font-size:13px;">Förhandsbokningar tar ofta slut innan release — säkra din nu.</p>
+     ${button(url, "Förhandsboka hos " + retailerName)}`
+  );
+  const text = `Hej ${name}!\n\nÖppen för förhandsbokning: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nFörhandsboka: ${url}\n\nFörhandsbokningar tar ofta slut innan release!${textFooter}`;
+  return { subject, html, text };
+}
+
 export function passwordResetEmail(name: string, resetUrl: string): EmailContent {
   const subject = "Återställ ditt lösenord – Foilio";
   const html = layout(

@@ -290,9 +290,16 @@ export async function runRestockScan(opts?: {
           stockStatus: newStatus,
         },
       });
-      if (seededRetailers.has(it.retailerId) && newStatus === StockStatus.IN_STOCK) {
-        await checkListingAlerts(created, "NEW_LISTING");
-        newListings++;
+      // Larma bara om butiken redan har historik (ej tyst seed). Ny produkt I LAGER
+      // = NEW_LISTING; ny produkt i FÖRHANDSBOKNING = PREORDER (köpbar inför release).
+      if (seededRetailers.has(it.retailerId)) {
+        if (newStatus === StockStatus.IN_STOCK) {
+          await checkListingAlerts(created, "NEW_LISTING");
+          newListings++;
+        } else if (newStatus === StockStatus.PREORDER) {
+          await checkListingAlerts(created, "PREORDER");
+          newListings++;
+        }
       }
       continue;
     }
@@ -315,6 +322,17 @@ export async function runRestockScan(opts?: {
         "RESTOCK"
       );
       restocks++;
+    } else if (
+      // Öppnad för förhandsbokning (t.ex. var slut/okänd, nu köpbar inför release).
+      // stockStatus är redan uppdaterad i DB ovan → buildAlertEmail väljer preorder-copy.
+      newStatus === StockStatus.PREORDER &&
+      listing.stockStatus !== StockStatus.PREORDER
+    ) {
+      await checkListingAlerts(
+        { id: listing.id, title: it.title, retailerId: it.retailerId },
+        "PREORDER"
+      );
+      newListings++;
     }
   }
 
