@@ -189,6 +189,16 @@ describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
   it("fel nummer (Moonbreon 215/203) matchar INTE 95/203-kortet", () => {
     expect(matchListingToProduct("Umbreon VMAX Alt Art 215/203", umbreon)).toBeNull();
   });
+
+  it("japansk 'Violet ex'-pack matchar INTE engelska 'Scarlet & Violet Booster Pack'", () => {
+    const svPack = { normalizedTitle: "scarlet violet booster pack", card: null };
+    // Japansk sv1V-annons, "japansk" står bara i beskrivningen (ej titeln).
+    expect(
+      matchListingToProduct("Scarlet & Violet: Violet ex Booster Pack - Pokemon Trading Card Game", svPack)
+    ).toBeNull();
+    // Äkta engelsk bas-pack matchar fortfarande.
+    expect(matchListingToProduct("Pokemon Scarlet & Violet Booster Pack", svPack)).not.toBeNull();
+  });
 });
 
 describe("isPlausibleListingPrice", () => {

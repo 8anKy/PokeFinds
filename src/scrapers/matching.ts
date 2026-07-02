@@ -324,9 +324,22 @@ export function deckCharacterMismatch(incoming: string, candidate: string): bool
 /** Språkmarkörer i titlar — japanska/kinesiska produkter får inte matcha EN-katalogen. */
 const NON_EN_LANGUAGE = /\b(japansk\w*|japanese|jpn?\b|kinesisk\w*|chinese|korean\w*|koreansk\w*)\b/i;
 
-/** True om titlarna har olika språkmarkörer (en har japansk/kinesisk, andra inte). */
+/**
+ * De japanska basseten sv1S/sv1V heter "Scarlet ex" / "Violet ex" och kolliderar
+ * med engelska "Scarlet & Violet" (delar orden scarlet/violet). En annons som säger
+ * "Violet ex Booster Pack" är japansk även utan ordet "japansk" i titeln (säljaren
+ * skriver ofta det bara i beskrivningen, som vi inte läser). Engelska produkter heter
+ * aldrig "<X> ex" som SET-namn → säker markör. Behandlas som en icke-EN-markör.
+ */
+const JP_SET_MARKERS = /\b(scarlet|violet)\s+ex\b/i;
+
+function hasNonEnMarker(t: string): boolean {
+  return NON_EN_LANGUAGE.test(t) || JP_SET_MARKERS.test(t);
+}
+
+/** True om titlarna har olika språkmarkörer (en har japansk/kinesisk/JP-set, andra inte). */
 export function languageMismatch(incoming: string, candidate: string): boolean {
-  return NON_EN_LANGUAGE.test(incoming) !== NON_EN_LANGUAGE.test(candidate);
+  return hasNonEnMarker(incoming) !== hasNonEnMarker(candidate);
 }
 
 /** Lägsta andel delade särskiljande ord för att en kandidat ska godkännas. */
