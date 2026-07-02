@@ -27,6 +27,7 @@ const schema = z.object({
   priceKr: z.number().int().positive(),
   shippingKr: z.number().int().min(0),
   condition: z.string().optional(),
+  description: z.string().trim().max(4000).optional(), // egen text; annars auto-genererad
   // data:-URL:er med foton på det egna objektet (första = huvudbild). Tradera tar max 12.
   imagesBase64: z.array(z.string().min(100)).min(1).max(12),
 });
@@ -63,7 +64,7 @@ export async function POST(req: Request) {
     const titleParts = [name, setName, number ? `#${number}` : null].filter(Boolean).join(" · ");
     const title = `${titleParts} · ${conditionLabel}`;
 
-    const description = [
+    const autoDescription = [
       `${name}${setName ? ` — ${setName}` : ""}${number ? ` (#${number})` : ""}`,
       `Skick: ${conditionLabel}`,
       isSingle ? "Språk: " + (traderaLanguageTerm(item.language) ?? item.language) : null,
@@ -72,6 +73,7 @@ export async function POST(req: Request) {
     ]
       .filter((l) => l !== null)
       .join("\n");
+    const description = input.description || autoDescription;
 
     const { url, itemId } = await createTraderaListing({
       userId: me.traderaUserId,

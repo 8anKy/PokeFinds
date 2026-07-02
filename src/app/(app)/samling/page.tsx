@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { listCollection, computeCollectionValue } from "@/services/collection";
+import { syncSoldCollectionItems } from "@/jobs/tradera-sold-sync";
 import { formatPrice, formatPercent } from "@/lib/format";
 import { StatCard } from "@/components/features/stat-card";
 import { CollectionValueChart } from "./collection-value-chart";
@@ -28,6 +29,12 @@ export default async function CollectionPage() {
   const session = await auth();
   if (!session?.user) redirect("/logga-in");
   const userId = session.user.id;
+
+  // Ta bort sålda Tradera-annonser innan samlingen listas (känns "direkt" för
+  // säljaren). No-op + inget Tradera-anrop när användaren inte har utlagda objekt.
+  await syncSoldCollectionItems(userId).catch((e) =>
+    console.error("[samling] sålt-synk misslyckades:", e)
+  );
 
   const isPremium = session.user.planTier === "PREMIUM";
   const [items, value, user] = await Promise.all([

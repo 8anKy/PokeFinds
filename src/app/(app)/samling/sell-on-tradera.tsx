@@ -11,8 +11,19 @@ import { apiFetch } from "@/lib/client-api";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { Input, Select, Label, FieldError } from "@/components/ui/input";
-import { CONDITION_LABELS, type CollectionRow } from "./collection-client";
+import { Input, Textarea, Select, Label, FieldError } from "@/components/ui/input";
+import { CONDITION_LABELS, LANGUAGE_LABELS, type CollectionRow } from "./collection-client";
+
+/** Standardbeskrivning att förifylla textrutan med (användaren kan redigera). */
+function defaultDescription(row: CollectionRow): string {
+  return [
+    `${row.name}${row.setName ? ` — ${row.setName}` : ""}`,
+    `Skick: ${CONDITION_LABELS[row.condition] ?? row.condition}`,
+    `Språk: ${LANGUAGE_LABELS[row.language] ?? row.language}`,
+    "",
+    "Bilden visar det exakta objektet. Säljes av privatperson.",
+  ].join("\n");
+}
 
 function readAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -39,6 +50,7 @@ export function SellButton({
   const [price, setPrice] = useState("");
   const [condition, setCondition] = useState(row.condition);
   const [shipping, setShipping] = useState("20");
+  const [description, setDescription] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +60,7 @@ export function SellButton({
     setPrice(row.estimatedValue != null ? String(Math.round(row.estimatedValue / 100)) : "");
     setCondition(row.condition);
     setShipping("20");
+    setDescription(defaultDescription(row));
     setImages([]);
     setError(null);
     setResultUrl(null);
@@ -66,7 +79,14 @@ export function SellButton({
     try {
       const { url } = await apiFetch<{ url: string }>("/api/tradera/sell", {
         method: "POST",
-        body: { collectionItemId: row.id, priceKr, shippingKr, condition, imagesBase64: images },
+        body: {
+          collectionItemId: row.id,
+          priceKr,
+          shippingKr,
+          condition,
+          description: description.trim() || undefined,
+          imagesBase64: images,
+        },
       });
       setResultUrl(url);
       toast({ title: "Annonsen är skapad på Tradera", variant: "success" });
@@ -161,6 +181,17 @@ export function SellButton({
                 </option>
               ))}
             </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="sellDescription">Beskrivning</Label>
+            <Textarea
+              id="sellDescription"
+              rows={5}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Beskriv objektet…"
+            />
           </div>
 
           <div>
