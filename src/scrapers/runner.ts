@@ -27,15 +27,13 @@ import {
 } from "@/scrapers/adapters/quickbutik-adapter";
 import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
 import { isPlausibleListingPrice, matchProduct } from "@/scrapers/matching";
-import { netStockEvent, isRestock, isNewInStockArrival, feedFingerprint } from "@/scrapers/restock";
+import { netStockEvent, isRestock, isNewInStockArrival } from "@/scrapers/restock";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
 import type { SourceAdapter } from "@/scrapers/types";
 import { checkPriceAlerts, checkRestockAlerts, checkListingAlerts } from "@/services/alerts";
 import { CARDMARKET_SOURCE_NAMES, HIDDEN_CATEGORIES, NON_RETAIL_SOURCE_NAMES } from "@/services/products";
 import { dispatchPendingAlerts } from "@/services/notifications";
 import { mapPool } from "@/lib/concurrency";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
-import { dirname } from "path";
 
 const MAX_ERRORS = 20;
 
@@ -143,7 +141,17 @@ const SEALED_FEED_CATEGORIES = new Set([
  * Nya produkter (ingen offer än) plockas upp av daglig scrape-all och spåras sedan
  * härifrån. Priser uppdateras av scrape-all (denna rör bara lagerstatus).
  */
-export async function runRestockScan(): Promise<RestockScanResult> {
+/**
+ * `shouldProcess`: valfri grind som körs efter fas 1 (feed-hämtning) med de hämtade
+ * annonserna. Returnerar false → hoppa DB-fasen (Neon förblir sovande). CLI-wrappern
+ * skickar in en fingerprint-jämförelse här (fs/crypto bor i scriptet, EJ i denna modul
+ * som Next buntar). Utan grind körs allt som vanligt.
+ */
+export async function runRestockScan(opts?: {
+  shouldProcess?: (
+    fetched: { sourceName: string; items: { url: string; stockStatus: StockStatus } [] }[]
+  ) => boolean | Promise<boolean>;
+}): Promise<RestockScanResult> {
   const active = await prisma.scrapeSource.findMany({ where: { isActive: true } });
   const sources = active.filter(
     (s) => (s.config as { restockWatch?: boolean } | null)?.restockWatch === true
@@ -179,19 +187,11 @@ export async function runRestockScan(): Promise<RestockScanResult> {
     }
   });
 
-  // Ändringsgrind (kvot-kritisk): väck INTE Neon om ingen lagerstatus flippat sedan
-  // förra körningen. Låter oss köra tätare (snabbare restock-fångst) utan mer compute.
-  const fpFile = process.env.RESTOCK_FINGERPRINT_FILE;
-  const fingerprint = fpFile ? feedFingerprint(fetched.flatMap((f) => f.items)) : null;
-  if (fpFile && fingerprint) {
-    try {
-      if (existsSync(fpFile) && readFileSync(fpFile, "utf8").trim() === fingerprint) {
-        console.log("[restock-scan] Oförändrad feed sedan förra körningen — hoppar över DB-fasen (Neon sover vidare).");
-        return { sources: sources.length, checked: 0, restocks: 0, newListings: 0, alertsSent: 0, skipped: true };
-      }
-    } catch (e) {
-      console.warn("[restock-scan] Kunde inte läsa fingerprint-filen:", e instanceof Error ? e.message : e);
-    }
+  // Ändringsgrind (kvot-kritisk): väck INTE Neon om grinden säger att inget flippat
+  // sedan förra körningen. Låter oss köra tätare (snabbare restock-fångst) utan mer
+  // compute. Grinden (fingerprint-jämförelse + fs) skickas in av CLI-wrappern.
+  if (opts?.shouldProcess && !(await opts.shouldProcess(fetched))) {
+    return { sources: sources.length, checked: 0, restocks: 0, newListings: 0, alertsSent: 0, skipped: true };
   }
 
   // Fas 2 (DB-burst): retailer per källa + alla befintliga offers i EN läsning.
@@ -322,15 +322,6 @@ export async function runRestockScan(): Promise<RestockScanResult> {
   console.log(
     `[restock-scan] ${sources.length} butiker, ${checked} kollade, ${restocks} restocks, ${newListings} nya, ${sent} alerts.`
   );
-  // Spara feed-avtrycket så nästa körning kan hoppa DB-fasen om inget ändrats.
-  if (fpFile && fingerprint) {
-    try {
-      mkdirSync(dirname(fpFile), { recursive: true });
-      writeFileSync(fpFile, fingerprint);
-    } catch (e) {
-      console.warn("[restock-scan] Kunde inte skriva fingerprint-filen:", e instanceof Error ? e.message : e);
-    }
-  }
   return { sources: sources.length, checked, restocks, newListings, alertsSent: sent };
 }
 

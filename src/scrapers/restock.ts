@@ -1,17 +1,4 @@
 import { StockStatus } from "@prisma/client";
-import { createHash } from "crypto";
-
-/**
- * Fingeravtryck av HELA feed-läget (url → lagerstatus). Låter restock-skanningen
- * köras TÄTARE utan mer Neon-compute: oförändrat avtryck = ingen lagerstatus har
- * flippat → DB-fasen hoppas (ren HTTP, Neon sover). Pris ingår INTE (bara stock) så
- * prisruck inte väcker Neon i onödan. En ny URL ändrar avtrycket → väcker + fångas.
- * VIKTIGT: måste ändras när stock ändras, annars missas restocks (grinden fastnar i skip).
- */
-export function feedFingerprint(items: { url: string; stockStatus: StockStatus }[]): string {
-  const lines = items.map((it) => `${it.url}\t${it.stockStatus}`).sort();
-  return createHash("sha1").update(lines.join("\n")).digest("hex");
-}
 
 /**
  * En ÄKTA lagerövergång (värd en RestockEvent): vi har sett erbjudandet förut,

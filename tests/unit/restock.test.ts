@@ -5,12 +5,12 @@
 import { describe, expect, it } from "vitest";
 import { StockStatus } from "@prisma/client";
 import {
-  feedFingerprint,
   isNewInStockArrival,
   isRealStockTransition,
   isRestock,
   netStockEvent,
 } from "@/scrapers/restock";
+import { feedFingerprint } from "@/lib/feed-fingerprint";
 
 const { IN_STOCK, OUT_OF_STOCK, UNKNOWN } = StockStatus;
 
