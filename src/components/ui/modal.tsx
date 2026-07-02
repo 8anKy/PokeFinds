@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { IconX } from "@/components/ui/icons";
 
@@ -23,6 +23,26 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
   // och stjäl fokus från inputen (→ tangentbordet stängs efter en siffra).
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+
+  // Krymp overlayn till den SYNLIGA ytan (visualViewport) när tangentbordet öppnas.
+  // En `fixed inset-0`-overlay mäts annars mot layout-viewporten, som inte krymper
+  // i WKWebView → panelens innehåll hamnar bakom tangentbordet. Med rätt höjd kan
+  // panelens egen overflow-scroll visa fältet man skriver i.
+  const [viewport, setViewport] = useState<{ top: number; height: number } | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const vp = window.visualViewport;
+    if (!vp) return;
+    const update = () => setViewport({ top: vp.offsetTop, height: vp.height });
+    update();
+    vp.addEventListener("resize", update);
+    vp.addEventListener("scroll", update);
+    return () => {
+      vp.removeEventListener("resize", update);
+      vp.removeEventListener("scroll", update);
+      setViewport(null);
+    };
+  }, [open]);
 
   // ESC för att stänga + enkel fokusfälla
   useEffect(() => {
@@ -71,9 +91,11 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
 
   return (
     <div
-      // Mobil: toppställd (pt-[8vh]) så tangentbordet inte täcker footern/knappen.
-      // Desktop: centrerad som vanligt.
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-[18vh] sm:items-center sm:pt-4"
+      // Mobil: toppställd så tangentbordet inte täcker footern/knappen.
+      // Desktop: centrerad som vanligt. Höjd/top styrs av visualViewport när
+      // tangentbordet är uppe (annars hela skärmen).
+      className="fixed inset-x-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-8 sm:items-center sm:pt-4"
+      style={viewport ? { top: viewport.top, height: viewport.height } : { top: 0, bottom: 0 }}
       role="dialog"
       aria-modal="true"
       aria-label={title}
