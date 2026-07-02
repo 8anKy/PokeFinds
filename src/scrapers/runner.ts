@@ -55,7 +55,7 @@ const SCRAPER_ADAPTERS: Record<string, new () => SourceAdapter> = {
   MaxGaming: MaxGamingAdapter,
 };
 
-function getAdapter(type: SourceType, sourceName?: string): SourceAdapter {
+export function getAdapter(type: SourceType, sourceName?: string): SourceAdapter {
   switch (type) {
     case SourceType.MOCK:
       return new MockAdapter();

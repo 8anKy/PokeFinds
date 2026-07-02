@@ -1,0 +1,47 @@
+name: Butiks-hälsokoll (veckovis)
+
+# Hämtar varje restock-bevakad butiksadapter och blir RÖD om någon returnerar 0
+# produkter — en adapter som dött tyst (butik bytt plattform/HTML). Larm = GitHub
+# mejlar repo-ägaren automatiskt vid röd körning; loggen namnger butiken. Lagar
+# INTE adaptern (kräver en människa) — gör bara ett tyst flerveckorsutfall synligt
+# inom 7 dagar. Läser bara butiksfeeds + en kort DB-läsning (källistan).
+on:
+  schedule:
+    - cron: "0 6 * * 1" # måndagar 06:00 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group: store-health
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      # Samma vakt som restock-watch: utan DATABASE_URL hoppar vi över och lyckas
+      # grönt (ingen falsk-röd/mejlspam innan molnhosting är konfigurerad).
+      - name: Förkrav — DATABASE_URL måste vara satt
+        id: guard
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::notice::DATABASE_URL saknas — hoppar över tills Neon är konfigurerad."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/checkout@v4
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - if: steps.guard.outputs.ready == 'true'
+        run: npm ci --legacy-peer-deps
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx prisma generate
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx tsx scripts/check-store-health.ts
