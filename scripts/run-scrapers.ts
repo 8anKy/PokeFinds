@@ -8,7 +8,7 @@ import { PrismaClient } from "@prisma/client";
 // Måste importera med relativ sökväg (inte @/) för tsx utan alias
 import { SpelexpertenAdapter } from "../src/scrapers/adapters/spelexperten-adapter";
 import { WebhallenAdapter } from "../src/scrapers/adapters/webhallen-adapter";
-import { DragonsLairAdapter } from "../src/scrapers/adapters/dragonslair-adapter";
+import { DragonsLairAdapter } from "../src/scrapers/adapters/shopify-adapter";
 import { AlphaspelAdapter } from "../src/scrapers/adapters/alphaspel-adapter";
 import { TraderaAdapter } from "../src/scrapers/adapters/tradera-adapter";
 import { normalizeTitle, slugify } from "../src/lib/utils";

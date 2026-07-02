@@ -12,7 +12,6 @@ import { MockAdapter } from "@/scrapers/adapters/mock-adapter";
 import { PokemonTcgAdapter } from "@/scrapers/adapters/pokemontcg-adapter";
 import { SpelexpertenAdapter } from "@/scrapers/adapters/spelexperten-adapter";
 import { WebhallenAdapter } from "@/scrapers/adapters/webhallen-adapter";
-import { DragonsLairAdapter } from "@/scrapers/adapters/dragonslair-adapter";
 import { AlphaspelAdapter } from "@/scrapers/adapters/alphaspel-adapter";
 import { TraderaAdapter } from "@/scrapers/adapters/tradera-adapter";
 import { CardmarketPriceGuideAdapter } from "@/scrapers/adapters/cardmarket-adapter";
@@ -20,6 +19,7 @@ import {
   SpeltrolletAdapter,
   SamlarhobbyAdapter,
   GoblinenAdapter,
+  DragonsLairAdapter,
 } from "@/scrapers/adapters/shopify-adapter";
 import {
   SwepokeAdapter,

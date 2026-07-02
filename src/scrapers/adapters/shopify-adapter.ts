@@ -195,3 +195,13 @@ export class GoblinenAdapter extends ShopifyAdapter {
   name = "Goblinen";
   baseUrl = "https://goblinen.com";
 }
+// Dragon's Lair bytte plattform (Vendre → Shopify) ~2026-07. Fler-spels-butik:
+// collections.json-namnfiltret hittar inte de generiska sealed-kollektionerna, men
+// master-kollektionen "pokemon-the-trading-card-game" täcker allt Pokémon-sealed.
+export class DragonsLairAdapter extends ShopifyAdapter {
+  name = "Dragon's Lair";
+  baseUrl = "https://dragonslair.se";
+  protected async pokemonCollections(): Promise<string[]> {
+    return ["pokemon-the-trading-card-game"];
+  }
+}
