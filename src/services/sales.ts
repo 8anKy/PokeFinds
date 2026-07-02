@@ -12,6 +12,40 @@ export interface SaleRow {
   soldAt: string; // ISO
 }
 
+export interface SalesSummary {
+  count: number;
+  totalSaleOre: number; // summa försäljningspris (brutto)
+  totalCostOre: number; // summa inköpspris (endast poster med känt inköp)
+  resultOre: number; // summa (sålt − inköp) för poster med känt inköp
+  resultPercent: number | null;
+  bestResultOre: number | null;
+}
+
+/** Aggregerad realiserad performance ur en lista sålda objekt (rent, testbart). */
+export function salesSummary(sales: SaleRow[]): SalesSummary {
+  let totalSaleOre = 0;
+  let totalCostOre = 0;
+  let resultOre = 0;
+  let bestResultOre: number | null = null;
+  for (const s of sales) {
+    totalSaleOre += s.salePriceOre;
+    if (s.purchasePriceOre != null) {
+      totalCostOre += s.purchasePriceOre;
+      const r = s.salePriceOre - s.purchasePriceOre;
+      resultOre += r;
+      if (bestResultOre == null || r > bestResultOre) bestResultOre = r;
+    }
+  }
+  return {
+    count: sales.length,
+    totalSaleOre,
+    totalCostOre,
+    resultOre,
+    resultPercent: totalCostOre > 0 ? (resultOre / totalCostOre) * 100 : null,
+    bestResultOre,
+  };
+}
+
 /** Användarens sålda objekt (nyast först). */
 export async function listSales(userId: string): Promise<SaleRow[]> {
   const sales = await prisma.sale.findMany({

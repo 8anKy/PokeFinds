@@ -1,8 +1,15 @@
 import { formatPrice, formatDate } from "@/lib/format";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
-import { IconPackage } from "@/components/ui/icons";
-import type { SaleRow } from "@/services/sales";
+import { StatCard } from "@/components/features/stat-card";
+import {
+  IconGem,
+  IconPackage,
+  IconReceipt,
+  IconTrendingDown,
+  IconTrendingUp,
+} from "@/components/ui/icons";
+import { salesSummary, type SaleRow } from "@/services/sales";
 import { CONDITION_LABELS } from "./collection-client";
 
 /** Resultat före avgifter (sålt − inköp), eller null om inköpspris saknas. */
@@ -32,8 +39,31 @@ export function SoldList({ sales }: { sales: SaleRow[] }) {
     );
   }
 
+  const summary = salesSummary(sales);
+
   return (
     <>
+      {/* Realiserad performance (före Traderas avgifter) */}
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          label="Sålt totalt"
+          value={formatPrice(summary.totalSaleOre)}
+          icon={<IconReceipt size={20} />}
+        />
+        <StatCard
+          label="Resultat (före avgifter)"
+          value={formatPrice(summary.resultOre)}
+          change={summary.resultPercent ?? undefined}
+          icon={summary.resultOre >= 0 ? <IconTrendingUp size={20} /> : <IconTrendingDown size={20} />}
+        />
+        <StatCard label="Antal sålda" value={`${summary.count}`} icon={<IconPackage size={20} />} />
+        <StatCard
+          label="Bästa affär"
+          value={summary.bestResultOre != null ? formatPrice(summary.bestResultOre) : "–"}
+          icon={<IconGem size={20} />}
+        />
+      </div>
+
       {/* Mobil: kort */}
       <div className="space-y-3 lg:hidden">
         {sales.map((s) => (
