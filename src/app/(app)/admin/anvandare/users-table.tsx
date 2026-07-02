@@ -38,6 +38,13 @@ const ROLE_VARIANTS: Record<Role, BadgeVariant> = {
 
 const ALL_ROLES: Role[] = ["USER", "MODERATOR", "ADMIN", "SUPERADMIN"];
 
+const PLAN_LABELS: Record<PlanTier, string> = {
+  FREE: "Gratis",
+  PREMIUM: "Premium",
+};
+
+const ALL_PLANS: PlanTier[] = ["FREE", "PREMIUM"];
+
 interface UsersTableProps {
   users: AdminUserRow[];
   total: number;
@@ -104,6 +111,35 @@ export function UsersTable({
     }
   }
 
+  async function handlePlanChange(userId: string, planTier: PlanTier) {
+    setSavingId(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planTier }),
+      });
+      const data: { error?: string } = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Kunde inte uppdatera planen.");
+      }
+      toast({
+        title: "Plan uppdaterad",
+        description: `Användaren har nu ${PLAN_LABELS[planTier]}.`,
+        variant: "success",
+      });
+      router.refresh();
+    } catch (error) {
+      toast({
+        title: "Fel vid uppdatering",
+        description: error instanceof Error ? error.message : "Något gick fel.",
+        variant: "error",
+      });
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <form onSubmit={handleSearch} className="flex max-w-md items-center gap-2">
@@ -151,11 +187,19 @@ export function UsersTable({
                   <Badge variant={ROLE_VARIANTS[user.role]}>{ROLE_LABELS[user.role]}</Badge>
                 </TD>
                 <TD>
-                  {user.planTier === "PREMIUM" ? (
-                    <Badge variant="holo">Premium</Badge>
-                  ) : (
-                    <Badge>Gratis</Badge>
-                  )}
+                  <Select
+                    value={user.planTier}
+                    disabled={savingId === user.id}
+                    onChange={(e) => handlePlanChange(user.id, e.target.value as PlanTier)}
+                    aria-label={`Ändra plan för ${user.name}`}
+                    className="h-9 w-32"
+                  >
+                    {ALL_PLANS.map((plan) => (
+                      <option key={plan} value={plan}>
+                        {PLAN_LABELS[plan]}
+                      </option>
+                    ))}
+                  </Select>
                 </TD>
                 <TD className="whitespace-nowrap text-ink-muted">
                   {formatDateTime(user.createdAt)}
