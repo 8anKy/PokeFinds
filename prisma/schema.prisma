@@ -463,6 +463,8 @@ model CollectionItem {
   grade          String?
   notes          String?
   imageUrl       String?
+  // Traderas objektnr när objektet lagts ut till försäljning (för auto-borttagning vid sålt).
+  traderaItemId  String?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 

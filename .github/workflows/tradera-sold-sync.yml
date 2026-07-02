@@ -1,0 +1,46 @@
+name: Tradera sålt-synk (dagligen)
+
+# Tar bort samlingsobjekt vars Tradera-annons har sålts (matchar på objektnr mot
+# säljarens transaktioner). Körs i molnet — datorn behöver inte vara på.
+on:
+  schedule:
+    - cron: "30 5 * * *" # 05:30 UTC dagligen
+  workflow_dispatch: {}
+
+concurrency:
+  group: tradera-sold-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DB_POOL: "10"
+      TRADERA_APP_ID: ${{ secrets.TRADERA_APP_ID }}
+      TRADERA_APP_KEY: ${{ secrets.TRADERA_APP_KEY }}
+    steps:
+      # Self-healing-vakt: hoppa över grönt tills DATABASE_URL-secret finns.
+      - name: Förkrav — DATABASE_URL måste vara satt
+        id: guard
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::notice::DATABASE_URL saknas — hoppar över tills Neon är konfigurerad."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/checkout@v4
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - if: steps.guard.outputs.ready == 'true'
+        run: npm ci --legacy-peer-deps
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx prisma generate
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx tsx scripts/tradera-sold-sync.ts

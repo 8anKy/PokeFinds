@@ -73,7 +73,7 @@ export async function POST(req: Request) {
       .filter((l) => l !== null)
       .join("\n");
 
-    const { url } = await createTraderaListing({
+    const { url, itemId } = await createTraderaListing({
       userId: me.traderaUserId,
       token: me.traderaToken,
       title,
@@ -84,6 +84,14 @@ export async function POST(req: Request) {
       languageTerm: isSingle ? traderaLanguageTerm(item.language) : undefined,
       images: input.imagesBase64.map(parseImage),
     });
+
+    // Spara objektnr → sold-sync-jobbet kan ta bort objektet ur samlingen när det säljs.
+    // Best-effort: annonsen är redan skapad, låt aldrig detta fälla svaret.
+    if (itemId) {
+      await prisma.collectionItem
+        .update({ where: { id: item.id }, data: { traderaItemId: itemId } })
+        .catch((e) => console.error("[tradera-sell] kunde inte spara traderaItemId:", e));
+    }
 
     return jsonOk({ url });
   } catch (e) {

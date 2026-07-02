@@ -81,8 +81,10 @@ async function call(path: string, h: Record<string, string>, body?: unknown) {
   return res;
 }
 
-/** Skapar annonsen och returnerar dess publika Tradera-URL. Kastar vid fel. */
-export async function createTraderaListing(input: ListingInput): Promise<{ url: string }> {
+/** Skapar annonsen och returnerar dess publika Tradera-URL + objektnr. Kastar vid fel. */
+export async function createTraderaListing(
+  input: ListingInput
+): Promise<{ url: string; itemId?: string }> {
   const h = headers(input);
 
   const created = await call("/v4/listings/items", h, {
@@ -119,5 +121,6 @@ export async function createTraderaListing(input: ListingInput): Promise<{ url: 
     url: itemId
       ? `https://www.tradera.com/item/0/${itemId}`
       : "https://www.tradera.com/my/items/selling",
+    itemId: itemId != null ? String(itemId) : undefined,
   };
 }
