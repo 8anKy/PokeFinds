@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { IconPackage, IconPlus, IconTrendingDown, IconTrendingUp } from "@/components/ui/icons";
+import { SellButton } from "./sell-on-tradera";
 
 export const CONDITION_LABELS: Record<string, string> = {
   MINT: "Mint",
@@ -627,6 +628,7 @@ export function CollectionClient({
                   </TD>
                   <TD>
                     <div className="flex justify-end gap-2">
+                      <SellButton row={item} />
                       <Button size="sm" variant="ghost" onClick={() => openEdit(item)}>
                         Redigera
                       </Button>

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { IconCheck, IconPackage, IconTrash, IconX } from "@/components/ui/icons";
 import { openProductOverlay } from "@/lib/product-overlay-open";
 import type { CollectionRow } from "./collection-client";
+import { SellButton } from "./sell-on-tradera";
 
 const LONG_PRESS_MS = 450;
 
@@ -156,9 +157,10 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
         {rows.map((r) => {
           const isSelected = selected.has(r.id);
           return (
-            <button
+            <div
               key={r.id}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={() => handleClick(r)}
               onPointerDown={() => startPress(r.id)}
               onPointerUp={cancelPress}
@@ -207,7 +209,15 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
                 </span>
                 {r.quantity > 1 && <span className="text-xs text-ink-muted">{r.quantity} st</span>}
               </div>
-            </button>
+              {!selectMode && (
+                <span
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <SellButton row={r} className="w-full" />
+                </span>
+              )}
+            </div>
           );
         })}
       </div>
