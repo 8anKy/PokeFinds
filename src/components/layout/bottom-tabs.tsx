@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { isEmailLandingRoute } from "@/lib/auth-routes";
 import {
   IconSearch,
   IconPackage,
@@ -40,9 +41,9 @@ export function BottomTabs() {
   }, []);
 
   if (keyboard) return null;
-  // Lösenordsåterställning nås via e-postlänk i Safari (inte appen) → visa ingen
-  // app-navigering här, den lockar bara användaren att browsa webben i stället.
-  if (pathname === "/aterstall-losenord" || pathname?.startsWith("/aterstall-losenord/")) return null;
+  // Återställ lösenord / verifiera e-post nås via e-postlänk i Safari (inte appen)
+  // → visa ingen app-navigering, den lockar bara användaren att browsa webben.
+  if (isEmailLandingRoute(pathname)) return null;
   // Auth/onboarding: VISA tab-baren (så man kan tabba vidare även från login) men
   // UTAN klarerings-spacern — den fixerade login-sidan (h-[100dvh]) scrollar annars.
   const noSpacer = ["/logga-in", "/registrera", "/glomt-losenord", "/aterstall-losenord", "/verifiera", "/onboarding"];

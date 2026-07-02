@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { setAuthHint } from "@/lib/auth-hint";
 import { Button } from "@/components/ui/button";
-import { Input, Label, FieldError } from "@/components/ui/input";
+import { Input, PasswordInput, Label, FieldError } from "@/components/ui/input";
 
 function LoginForm() {
   const router = useRouter();
@@ -72,9 +72,8 @@ function LoginForm() {
               Glömt lösenordet?
             </Link>
           </div>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="current-password"
             required
             placeholder="••••••••"

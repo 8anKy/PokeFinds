@@ -3,7 +3,7 @@
 import { Suspense, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
-import { Input, Label, FieldError } from "@/components/ui/input";
+import { PasswordInput, Label, FieldError } from "@/components/ui/input";
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -86,9 +86,8 @@ function ResetPasswordForm() {
       <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
         <div>
           <Label htmlFor="password">Nytt lösenord</Label>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="new-password"
             required
             minLength={8}
@@ -99,9 +98,8 @@ function ResetPasswordForm() {
         </div>
         <div>
           <Label htmlFor="confirm">Bekräfta nytt lösenord</Label>
-          <Input
+          <PasswordInput
             id="confirm"
-            type="password"
             autoComplete="new-password"
             required
             placeholder="Upprepa lösenordet"

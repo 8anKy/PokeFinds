@@ -56,10 +56,9 @@ export function welcomeEmail(name: string): EmailContent {
   const html = layout(
     `Välkommen, ${name}!`,
     `<p style="line-height:1.6;color:#cbd5e1;">Kul att ha dig här! Med Foilio kan du jämföra priser på Pokémon TCG-produkter, bevaka dina favoriter och få aviseringar när priser sjunker eller produkter kommer tillbaka i lager.</p>
-     <p style="line-height:1.6;color:#cbd5e1;">Kom igång genom att lägga till produkter i din bevakningslista.</p>
-     ${button(`${APP_URL}/produkter`, "Utforska produkter")}`
+     <p style="line-height:1.6;color:#cbd5e1;">Öppna Foilio-appen och lägg till produkter i din bevakningslista för att komma igång.</p>`
   );
-  const text = `Välkommen, ${name}!\n\nKul att ha dig här! Med Foilio kan du jämföra priser, bevaka produkter och få aviseringar vid prisfall och restocks.\n\nKom igång: ${APP_URL}/produkter${textFooter}`;
+  const text = `Välkommen, ${name}!\n\nKul att ha dig här! Med Foilio kan du jämföra priser, bevaka produkter och få aviseringar vid prisfall och restocks.\n\nÖppna Foilio-appen för att komma igång.${textFooter}`;
   return { subject, html, text };
 }
 

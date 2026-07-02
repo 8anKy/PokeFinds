@@ -267,6 +267,14 @@ export const IconEye = (p: IconProps) => (
   </svg>
 );
 
+export const IconEyeOff = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M9.9 5.1A9.6 9.6 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3 3.7M6.6 6.6C3.6 8.3 2 12 2 12s3.5 7 10 7a9.6 9.6 0 0 0 4.4-1.1" />
+    <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+    <path d="m2 2 20 20" />
+  </svg>
+);
+
 export const IconUpload = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />

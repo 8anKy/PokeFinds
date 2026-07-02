@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { setAuthHint } from "@/lib/auth-hint";
 import { Button } from "@/components/ui/button";
-import { Input, Label, FieldError } from "@/components/ui/input";
+import { Input, PasswordInput, Label, FieldError } from "@/components/ui/input";
 
 interface FieldErrors {
   name?: string;
@@ -107,9 +107,8 @@ export default function RegisterPage() {
         </div>
         <div>
           <Label htmlFor="password">Lösenord</Label>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="new-password"
             required
             minLength={8}
@@ -121,9 +120,8 @@ export default function RegisterPage() {
         </div>
         <div>
           <Label htmlFor="confirm">Bekräfta lösenord</Label>
-          <Input
+          <PasswordInput
             id="confirm"
-            type="password"
             autoComplete="new-password"
             required
             placeholder="Upprepa lösenordet"

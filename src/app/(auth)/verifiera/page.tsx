@@ -2,7 +2,6 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { LinkButton } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 
 type Status = "loading" | "success" | "error";
@@ -65,9 +64,9 @@ function VerifyContent() {
           <p className="rounded-lg border border-rise/30 bg-rise/10 px-4 py-3 text-sm text-rise">
             {message}
           </p>
-          <LinkButton href="/logga-in" className="w-full" size="lg">
-            Logga in
-          </LinkButton>
+          <p className="text-sm text-ink-muted">
+            Klart! Öppna Foilio-appen och logga in med ditt konto.
+          </p>
         </div>
       )}
 
@@ -76,9 +75,9 @@ function VerifyContent() {
           <p className="rounded-lg border border-fall/30 bg-fall/10 px-4 py-3 text-sm text-fall">
             {message}
           </p>
-          <LinkButton href="/logga-in" variant="secondary" className="w-full" size="lg">
-            Till inloggning
-          </LinkButton>
+          <p className="text-sm text-ink-muted">
+            Öppna Foilio-appen och försök igen därifrån.
+          </p>
         </div>
       )}
     </div>

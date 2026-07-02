@@ -11,7 +11,6 @@ const INTERESTS = [
   "Sealed",
   "Singles",
   "Slabs/Gradat",
-  "Japanskt",
   "Engelskt",
   "Investering",
   "Casual collecting",
@@ -102,7 +101,7 @@ export default function OnboardingPage() {
         return;
       }
       await update();
-      router.push("/dashboard");
+      router.push("/produkter");
       router.refresh();
     } catch {
       setError("Något gick fel. Försök igen.");
