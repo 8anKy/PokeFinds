@@ -13,9 +13,13 @@ const BASE = "https://api.tradera.com";
 // Tradera item-typ 3 = "Endast Köp Nu" (fast pris). 60 dagars löptid = längsta.
 const ITEM_TYPE_BUY_NOW = 3;
 const DURATION_DAYS = 60;
-// "Alternative"-frakt (id 10): säljaren anger egen fraktkostnad. Bekräftat via
-// GET /v4/reference-data/shipping-options för detta konto.
-const SHIPPING_OPTION_ALTERNATIVE = 10;
+// "Alternative"-frakt: säljaren anger egen fraktkostnad. Måste anges som
+// shippingProviderId (6), INTE shippingOptionId — API:t kräver exakt ett av dem,
+// och shippingOptionId:10 ger 500. Bekräftat via dry-run mot API:t 2026-07-02.
+const SHIPPING_PROVIDER_ALTERNATIVE = 6;
+// Köpare inom Sverige (GET /v4/reference-data/accepted-bidder-types: 1=SE, 3=Int, 4=EU).
+// Krävs — utan den svarar API:t "AllowedBuyerRegionInvalid".
+const ACCEPTED_BIDDER_SWEDEN = 1;
 // Språk-attributet för Pokémon-kategorierna (GET .../attribute-definitions).
 const LANGUAGE_ATTRIBUTE_ID = 124;
 
@@ -93,9 +97,10 @@ export async function createTraderaListing(input: ListingInput): Promise<{ url: 
     restarts: 0,
     description: input.description,
     autoCommit: false,
+    acceptedBidderId: ACCEPTED_BIDDER_SWEDEN,
     ownReferences: [ownRef],
     shippingOptions: [
-      { shippingOptionId: SHIPPING_OPTION_ALTERNATIVE, cost: Math.round(input.shippingKr) },
+      { shippingProviderId: SHIPPING_PROVIDER_ALTERNATIVE, cost: Math.round(input.shippingKr) },
     ],
     ...(input.languageTerm
       ? { attributeValues: { terms: [{ id: LANGUAGE_ATTRIBUTE_ID, values: [input.languageTerm] }] } }
