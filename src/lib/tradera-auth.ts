@@ -1,60 +1,18 @@
 /**
- * Tradera kontokoppling — "token login"-flödet (Option 2, Traderas rekommenderade):
- * användaren loggar in på Tradera, Tradera skickar tillbaka userId, och vi hämtar
- * själva token server-till-server via FetchToken (token syns aldrig i URL:en).
+ * Tradera kontokoppling — "token login", Option 3 (token i retur-URL:en).
+ * Användaren loggar in på Tradera, godkänner appen, och Tradera lägger
+ * `token`, `exp` och `userId` direkt på vår Accept URL. Ingen FetchToken,
+ * ingen skey-round-trip (skey krävs bara för Option 1 och 2).
+ * Kräver "Display token on return URL" = PÅ i appens Tradera-inställningar.
  * https://api.tradera.com/documentation/authorization
  */
 // Railway-panelen visar värdet utan citattecken, men det injicerade env-värdet
-// har visat sig ändå innehålla omslutande "..." (bekräftat via appId=%226129%22
-// i en riktig token-login-URL) — trimma bort dem oavsett källa.
+// har visat sig ändå innehålla omslutande "..." — trimma bort dem oavsett källa.
 const stripQuotes = (v: string) => v.trim().replace(/^["']|["']$/g, "");
 const APP_ID = stripQuotes(process.env.TRADERA_APP_ID ?? "");
-const APP_KEY = stripQuotes(process.env.TRADERA_APP_KEY ?? "");
 const PUBLIC_KEY = stripQuotes(process.env.TRADERA_PUBLIC_KEY ?? "");
 
-export function buildTraderaLoginUrl(skey: string): string {
-  // ruparams: Tradera ekar tillbaka detta okodat på Accept URL:en. Vi använder det
-  // för att få tillbaka skey utan att lita på en cookie som ska överleva hela
-  // foilio.se → tradera.com → foilio.se-omvägen (WKWebView tappar Set-Cookie på
-  // redirect-svar i native-appen — det var buggen).
-  const params = new URLSearchParams({
-    appId: APP_ID,
-    pkey: PUBLIC_KEY,
-    skey,
-    ruparams: `skey=${skey}`,
-  });
+export function buildTraderaLoginUrl(): string {
+  const params = new URLSearchParams({ appId: APP_ID, pkey: PUBLIC_KEY });
   return `https://api.tradera.com/token-login?${params.toString()}`;
-}
-
-function tagText(xml: string, name: string): string | undefined {
-  const m = xml.match(new RegExp(`<${name}(?:\\s[^>]*)?>([^<]*)</${name}>`));
-  return m ? m[1].trim() : undefined;
-}
-
-export interface TraderaToken {
-  token: string;
-  expiresAt: Date;
-}
-
-/** Byter en Tradera-userId + skey mot en AuthToken via PublicService.FetchToken. */
-export async function fetchTraderaToken(
-  traderaUserId: string,
-  skey: string
-): Promise<TraderaToken> {
-  const params = new URLSearchParams({
-    appId: APP_ID,
-    appKey: APP_KEY,
-    userId: traderaUserId,
-    secretKey: skey,
-  });
-  const res = await fetch(
-    `https://api.tradera.com/v3/PublicService.asmx/FetchToken?${params.toString()}`
-  );
-  const xml = await res.text();
-  const token = tagText(xml, "AuthToken");
-  const expiresAtText = tagText(xml, "HardExpirationTime");
-  if (!res.ok || !token || !expiresAtText) {
-    throw new Error(`Tradera FetchToken misslyckades: ${xml.slice(0, 300)}`);
-  }
-  return { token, expiresAt: new Date(expiresAtText) };
 }
