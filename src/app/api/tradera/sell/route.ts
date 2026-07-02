@@ -27,6 +27,7 @@ const schema = z.object({
   priceKr: z.number().int().positive(),
   shippingKr: z.number().int().min(0),
   condition: z.string().optional(),
+  purchasePriceKr: z.number().int().min(0).optional(), // vad användaren betalade (för vinstberäkning)
   description: z.string().trim().max(4000).optional(), // egen text; annars auto-genererad
   // data:-URL:er med foton på det egna objektet (första = huvudbild). Tradera tar max 12.
   imagesBase64: z.array(z.string().min(100)).min(1).max(12),
@@ -87,12 +88,15 @@ export async function POST(req: Request) {
       images: input.imagesBase64.map(parseImage),
     });
 
-    // Spara objektnr → sold-sync-jobbet kan ta bort objektet ur samlingen när det säljs.
+    // Spara objektnr (→ sold-sync) + ev. inköpspris (→ vinstberäkning i Sålt-fliken).
     // Best-effort: annonsen är redan skapad, låt aldrig detta fälla svaret.
-    if (itemId) {
+    const update: { traderaItemId?: string; purchasePrice?: number } = {};
+    if (itemId) update.traderaItemId = itemId;
+    if (input.purchasePriceKr != null) update.purchasePrice = input.purchasePriceKr * 100;
+    if (Object.keys(update).length > 0) {
       await prisma.collectionItem
-        .update({ where: { id: item.id }, data: { traderaItemId: itemId } })
-        .catch((e) => console.error("[tradera-sell] kunde inte spara traderaItemId:", e));
+        .update({ where: { id: item.id }, data: update })
+        .catch((e) => console.error("[tradera-sell] kunde inte spara annons-metadata:", e));
     }
 
     return jsonOk({ url });

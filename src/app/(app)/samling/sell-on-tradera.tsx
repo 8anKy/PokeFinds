@@ -50,6 +50,7 @@ export function SellButton({
   const [price, setPrice] = useState("");
   const [condition, setCondition] = useState(row.condition);
   const [shipping, setShipping] = useState("20");
+  const [purchasePrice, setPurchasePrice] = useState("");
   const [description, setDescription] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -60,6 +61,7 @@ export function SellButton({
     setPrice(row.estimatedValue != null ? String(Math.round(row.estimatedValue / 100)) : "");
     setCondition(row.condition);
     setShipping("20");
+    setPurchasePrice(row.purchasePrice != null ? String(Math.round(row.purchasePrice / 100)) : "");
     setDescription(defaultDescription(row, row.condition));
     setImages([]);
     setError(null);
@@ -84,6 +86,10 @@ export function SellButton({
           priceKr,
           shippingKr,
           condition,
+          purchasePriceKr:
+            purchasePrice.trim() && Number.isFinite(Number(purchasePrice))
+              ? Math.round(Number(purchasePrice))
+              : undefined,
           description: description.trim() || undefined,
           imagesBase64: images,
         },
@@ -189,6 +195,17 @@ export function SellButton({
                 </option>
               ))}
             </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="sellPurchase">Inköpspris (kr)</Label>
+            <Input
+              id="sellPurchase"
+              inputMode="numeric"
+              value={purchasePrice}
+              onChange={(e) => setPurchasePrice(e.target.value)}
+              placeholder="Vad du betalade — för vinstberäkning (valfritt)"
+            />
           </div>
 
           <div>
