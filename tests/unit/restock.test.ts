@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { StockStatus } from "@prisma/client";
 import {
+  feedFingerprint,
   isNewInStockArrival,
   isRealStockTransition,
   isRestock,
@@ -84,5 +85,26 @@ describe("isNewInStockArrival (ny produkt i lager, larmas separat)", () => {
   it("befintlig offer (hade tidigare status) → inte en ny produkt", () => {
     expect(isNewInStockArrival(OUT_OF_STOCK, IN_STOCK)).toBe(false);
     expect(isNewInStockArrival(IN_STOCK, IN_STOCK)).toBe(false);
+  });
+});
+
+describe("feedFingerprint (ändringsgrind: väck Neon bara vid ändring)", () => {
+  const feed = [
+    { url: "https://a.se/x", stockStatus: IN_STOCK },
+    { url: "https://a.se/y", stockStatus: OUT_OF_STOCK },
+  ];
+
+  it("samma feed → samma avtryck (ordningsoberoende)", () => {
+    expect(feedFingerprint(feed)).toBe(feedFingerprint([feed[1], feed[0]]));
+  });
+
+  it("ändrad lagerstatus → ANNAT avtryck (annars missas restocken)", () => {
+    const flipped = [feed[0], { url: "https://a.se/y", stockStatus: IN_STOCK }];
+    expect(feedFingerprint(flipped)).not.toBe(feedFingerprint(feed));
+  });
+
+  it("ny URL → annat avtryck (fångar nya produkter)", () => {
+    const added = [...feed, { url: "https://a.se/z", stockStatus: IN_STOCK }];
+    expect(feedFingerprint(added)).not.toBe(feedFingerprint(feed));
   });
 });

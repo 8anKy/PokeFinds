@@ -1,18 +1,20 @@
-name: Restock-bevakning (var 30:e minut)
+name: Restock-bevakning (var 10:e minut)
 
 # Lätt restock-skanning (runRestockScan): hämtar de restock-bevakade butikernas
 # kataloger PARALLELLT (bara HTTP → Neon sover) och diffar sedan lagerstatus mot
-# befintliga offers i en kort DB-burst. Skriver bara lagerövergångar (+ alerts) —
-# inga pris-/observationsskrivningar. Ett körning tar ~60-65s totalt varav bara
-# ~15-20s rör DB:n (mätt i produktion) → billigt nog för var-30:e-minut-takt.
+# befintliga offers i en kort DB-burst. Skriver bara lagerövergångar (+ alerts).
 # Täcker ALLA sealed-produkter butikerna säljer (singlar/marknadsplats-only =
-# Cardmarket/Tradera, ej restockWatch-källor). Tätades 2026-07-01 från 2h → 30min
-# eftersom snabba slutsälj-restocker (populära ETB/booster box-drops) missades
-# helt mellan skanningar. Bevaka Neon-compute — om det spikar, gå tillbaka till
-# "0 */2 * * *" (varannan timme).
+# Cardmarket/Tradera, ej restockWatch-källor).
+#
+# Tätades 2026-07-03 från 30min → 10min för snabbare fångst inför stora drops (t.ex.
+# 30-årsjubileumssetet). Kostar INTE mer Neon-compute: en ÄNDRINGSGRIND
+# (RESTOCK_FINGERPRINT_FILE + feedFingerprint) väcker DB:n BARA när någon lagerstatus
+# faktiskt flippat. Oförändrad feed = ren HTTP, Neon sover → merparten av de tätare
+# körningarna rör aldrig DB:n. Avtrycket cachas mellan körningar via actions/cache.
+# (Obs: GitHub schemalägger cron "best effort" — kan vara några min sena vid hög last.)
 on:
   schedule:
-    - cron: "*/30 * * * *" # var 30:e minut
+    - cron: "*/10 * * * *" # var 10:e minut (ändringsgrind → Neon väcks bara vid ändring)
   workflow_dispatch: {}
 
 concurrency:
@@ -35,6 +37,9 @@ jobs:
       APNS_TEAM_ID: F2XP44FF3B
       APNS_BUNDLE_ID: se.foilio.app
       APNS_PRODUCTION: "true"
+      # Ändringsgrind: feed-avtrycket sparas här och cachas mellan körningar (nedan).
+      # Oförändrad feed → DB-fasen hoppas → Neon sover → tätare takt utan mer compute.
+      RESTOCK_FINGERPRINT_FILE: .restock-cache/fingerprint.txt
     steps:
       # Self-healing-vakt: tills molnhostingen (Neon) är konfigurerad saknas
       # DATABASE_URL-secret. Då hoppar vi över körningen och lyckas grönt (ingen
@@ -50,6 +55,15 @@ jobs:
           fi
       - if: steps.guard.outputs.ready == 'true'
         uses: actions/checkout@v4
+      # Feed-avtrycket från förra körningen (ändringsgrind). Rullande nyckel: sparas
+      # under run_id (unik → kan alltid skrivas), restore-keys hämtar senaste tidigare.
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/cache@v4
+        with:
+          path: .restock-cache
+          key: restock-fp-${{ github.run_id }}
+          restore-keys: |
+            restock-fp-
       - if: steps.guard.outputs.ready == 'true'
         uses: actions/setup-node@v4
         with:

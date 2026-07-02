@@ -27,13 +27,15 @@ import {
 } from "@/scrapers/adapters/quickbutik-adapter";
 import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
 import { isPlausibleListingPrice, matchProduct } from "@/scrapers/matching";
-import { netStockEvent, isRestock, isNewInStockArrival } from "@/scrapers/restock";
+import { netStockEvent, isRestock, isNewInStockArrival, feedFingerprint } from "@/scrapers/restock";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
 import type { SourceAdapter } from "@/scrapers/types";
 import { checkPriceAlerts, checkRestockAlerts, checkListingAlerts } from "@/services/alerts";
 import { CARDMARKET_SOURCE_NAMES, HIDDEN_CATEGORIES, NON_RETAIL_SOURCE_NAMES } from "@/services/products";
 import { dispatchPendingAlerts } from "@/services/notifications";
 import { mapPool } from "@/lib/concurrency";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { dirname } from "path";
 
 const MAX_ERRORS = 20;
 
@@ -98,6 +100,7 @@ export interface RestockScanResult {
   restocks: number;
   newListings: number;
   alertsSent: number;
+  skipped?: boolean; // true = feed oförändrad, DB-fasen hoppades över (Neon sov)
 }
 
 /** Hur många butiker som hämtas parallellt (olika hostar → artigt per värd ändå). */
@@ -175,6 +178,21 @@ export async function runRestockScan(): Promise<RestockScanResult> {
       fetched[i] = { sourceName: source.name, items: [] };
     }
   });
+
+  // Ändringsgrind (kvot-kritisk): väck INTE Neon om ingen lagerstatus flippat sedan
+  // förra körningen. Låter oss köra tätare (snabbare restock-fångst) utan mer compute.
+  const fpFile = process.env.RESTOCK_FINGERPRINT_FILE;
+  const fingerprint = fpFile ? feedFingerprint(fetched.flatMap((f) => f.items)) : null;
+  if (fpFile && fingerprint) {
+    try {
+      if (existsSync(fpFile) && readFileSync(fpFile, "utf8").trim() === fingerprint) {
+        console.log("[restock-scan] Oförändrad feed sedan förra körningen — hoppar över DB-fasen (Neon sover vidare).");
+        return { sources: sources.length, checked: 0, restocks: 0, newListings: 0, alertsSent: 0, skipped: true };
+      }
+    } catch (e) {
+      console.warn("[restock-scan] Kunde inte läsa fingerprint-filen:", e instanceof Error ? e.message : e);
+    }
+  }
 
   // Fas 2 (DB-burst): retailer per källa + alla befintliga offers i EN läsning.
   const retailerByName = new Map<string, string>();
@@ -304,6 +322,15 @@ export async function runRestockScan(): Promise<RestockScanResult> {
   console.log(
     `[restock-scan] ${sources.length} butiker, ${checked} kollade, ${restocks} restocks, ${newListings} nya, ${sent} alerts.`
   );
+  // Spara feed-avtrycket så nästa körning kan hoppa DB-fasen om inget ändrats.
+  if (fpFile && fingerprint) {
+    try {
+      mkdirSync(dirname(fpFile), { recursive: true });
+      writeFileSync(fpFile, fingerprint);
+    } catch (e) {
+      console.warn("[restock-scan] Kunde inte skriva fingerprint-filen:", e instanceof Error ? e.message : e);
+    }
+  }
   return { sources: sources.length, checked, restocks, newListings, alertsSent: sent };
 }
 
