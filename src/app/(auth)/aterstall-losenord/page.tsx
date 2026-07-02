@@ -70,9 +70,9 @@ function ResetPasswordForm() {
         <p className="mt-2 rounded-lg border border-rise/30 bg-rise/10 px-4 py-3 text-sm text-rise">
           {success}
         </p>
-        <LinkButton href="/logga-in" className="mt-6 w-full" size="lg">
-          Logga in
-        </LinkButton>
+        <p className="mt-4 text-sm text-ink-muted">
+          Klart! Öppna Foilio-appen och logga in med ditt nya lösenord.
+        </p>
       </div>
     );
   }
