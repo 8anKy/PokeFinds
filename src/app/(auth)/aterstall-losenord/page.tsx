@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
@@ -116,12 +115,6 @@ function ResetPasswordForm() {
         <Button type="submit" loading={loading} className="w-full" size="lg">
           Uppdatera lösenord
         </Button>
-
-        <p className="text-center text-sm text-ink-muted">
-          <Link href="/logga-in" className="font-medium text-holo-cyan hover:underline">
-            Tillbaka till inloggning
-          </Link>
-        </p>
       </form>
     </div>
   );
