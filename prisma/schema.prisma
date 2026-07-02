@@ -65,6 +65,7 @@ enum AlertType {
   PRICE_DROP
   PRICE_TARGET
   RESTOCK
+  NEW_LISTING
   TREND
   SYSTEM
 }
@@ -290,6 +291,30 @@ model Retailer {
 
   offers        Offer[]
   restockEvents RestockEvent[]
+  storeListings StoreListing[]
+}
+
+// Feed-först-huvudbok: RÅ butiksannonser per URL, oberoende av katalogen. Låter
+// restock-skanningen larma om HELT NYA produkter (URL:er vi aldrig sett) och om
+// restocks av produkter som inte finns i katalogen — det som matchnings-baserade
+// offers missar. Bara URL:er UTAN en matchande Offer hamnar här (matchade sköts av
+// den beprövade offer-diffen). Se runRestockScan.
+model StoreListing {
+  id          String      @id @default(cuid())
+  retailerId  String
+  url         String
+  title       String
+  price       Int? // öre — från feeden (kan saknas)
+  imageUrl    String?
+  stockStatus StockStatus @default(UNKNOWN)
+  firstSeenAt DateTime    @default(now())
+  lastSeenAt  DateTime    @default(now())
+
+  retailer Retailer @relation(fields: [retailerId], references: [id])
+  alerts   Alert[]
+
+  @@unique([retailerId, url])
+  @@index([retailerId])
 }
 
 model Offer {
@@ -387,19 +412,21 @@ model WatchlistItem {
 
 model Alert {
   id          String       @id @default(cuid())
-  userId      String
-  productId   String?
-  retailerId  String?      // butiken som utlöste larmet (restock) → mejl länkar direkt dit
-  type        AlertType
-  message     String
-  channel     AlertChannel @default(IN_APP)
-  status      AlertStatus  @default(PENDING)
-  retryCount  Int          @default(0)
-  triggeredAt DateTime     @default(now())
-  sentAt      DateTime?
+  userId         String
+  productId      String?
+  retailerId     String?      // butiken som utlöste larmet (restock) → mejl länkar direkt dit
+  storeListingId String?      // feed-först-larm (ny produkt/restock utanför katalogen) → mejl bygger på annonsen
+  type           AlertType
+  message        String
+  channel        AlertChannel @default(IN_APP)
+  status         AlertStatus  @default(PENDING)
+  retryCount     Int          @default(0)
+  triggeredAt    DateTime     @default(now())
+  sentAt         DateTime?
 
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product      Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  storeListing StoreListing? @relation(fields: [storeListingId], references: [id], onDelete: SetNull)
 
   @@index([userId, status])
   @@index([status])

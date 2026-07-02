@@ -22,7 +22,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { checkPriceAlerts, checkRestockAlerts } from "@/services/alerts";
+import { checkPriceAlerts, checkRestockAlerts, checkListingAlerts } from "@/services/alerts";
 
 const PRODUCT = { id: "prod-1", title: "Surging Sparks Booster Box", slug: "surging-sparks-booster-box" };
 
@@ -157,5 +157,47 @@ describe("checkRestockAlerts", () => {
     productFindUnique.mockResolvedValue(null);
     const result = await checkRestockAlerts("saknas");
     expect(result.triggered).toBe(0);
+  });
+});
+
+describe("checkListingAlerts (feed-först: rå butiksannonser utanför katalogen)", () => {
+  const LISTING = { id: "sl-1", title: "Poké Ball Tin 2025 v2", retailerId: "ret-9" };
+
+  it("skapar NEW_LISTING EMAIL-alert med storeListingId för alla-restocks-Pro-prenumeranter", async () => {
+    userFindMany.mockResolvedValue([{ id: "sub-1" }]);
+
+    const result = await checkListingAlerts(LISTING, "NEW_LISTING");
+
+    expect(result.triggered).toBe(1);
+    const args = alertCreate.mock.calls[0][0] as {
+      data: { type: string; channel: string; storeListingId: string; retailerId: string; productId?: string; message: string };
+    };
+    expect(args.data.type).toBe("NEW_LISTING");
+    expect(args.data.channel).toBe("EMAIL");
+    expect(args.data.storeListingId).toBe("sl-1");
+    expect(args.data.retailerId).toBe("ret-9");
+    expect(args.data.productId).toBeUndefined(); // utanför katalogen → ingen produkt
+    expect(args.data.message).toContain(LISTING.title);
+  });
+
+  it("RESTOCK-varianten använder RESTOCK-typen", async () => {
+    userFindMany.mockResolvedValue([{ id: "sub-1" }]);
+    await checkListingAlerts(LISTING, "RESTOCK");
+    expect((alertCreate.mock.calls[0][0] as { data: { type: string } }).data.type).toBe("RESTOCK");
+  });
+
+  it("filtrerar på Pro + allRestocks=true, och larmar inget utan prenumeranter", async () => {
+    userFindMany.mockResolvedValue([]);
+    const result = await checkListingAlerts(LISTING, "NEW_LISTING");
+    expect(result.triggered).toBe(0);
+    expect(transaction).not.toHaveBeenCalled();
+    expect(userFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          notificationSettings: { path: ["allRestocks"], equals: true },
+          planTier: "PREMIUM",
+        }),
+      })
+    );
   });
 });

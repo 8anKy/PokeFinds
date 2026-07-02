@@ -27,10 +27,10 @@ import {
 } from "@/scrapers/adapters/quickbutik-adapter";
 import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
 import { isPlausibleListingPrice, matchProduct } from "@/scrapers/matching";
-import { netStockEvent } from "@/scrapers/restock";
+import { netStockEvent, isRestock } from "@/scrapers/restock";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
 import type { SourceAdapter } from "@/scrapers/types";
-import { checkPriceAlerts, checkRestockAlerts } from "@/services/alerts";
+import { checkPriceAlerts, checkRestockAlerts, checkListingAlerts } from "@/services/alerts";
 import { CARDMARKET_SOURCE_NAMES, HIDDEN_CATEGORIES, NON_RETAIL_SOURCE_NAMES } from "@/services/products";
 import { dispatchPendingAlerts } from "@/services/notifications";
 import { mapPool } from "@/lib/concurrency";
@@ -96,11 +96,33 @@ export interface RestockScanResult {
   sources: number;
   checked: number;
   restocks: number;
+  newListings: number;
   alertsSent: number;
 }
 
 /** Hur många butiker som hämtas parallellt (olika hostar → artigt per värd ändå). */
 const RESTOCK_SCAN_CONCURRENCY = 4;
+
+/** En normaliserad annons från en butiksfeed, med det som ett feed-först-larm behöver. */
+type FeedItem = {
+  url: string;
+  stockStatus: StockStatus;
+  title: string;
+  price: number | null;
+  imageUrl: string | null;
+  category: string | null;
+};
+
+/**
+ * Feed-först-larm är BARA för sealed — singlar/övrigt (adaptrarnas guessCategory →
+ * "OTHER") sköts av Cardmarket/Tradera och skulle spamma (butiker som Swepoke/
+ * Shinycards har tusentals singlar). Alla watched-adaptrar delar dessa etiketter.
+ * ponytail: ett sealed som guessCategory missar (→ "OTHER") får inget ny-produkt-larm
+ * här, men daglig scrape-all matchar+skapar dess offer och offer-grenen täcker restocks.
+ */
+const SEALED_FEED_CATEGORIES = new Set([
+  "BOOSTER_BOX", "BOOSTER_PACK", "ETB", "BUNDLE", "COLLECTION_BOX", "TIN", "BLISTER",
+]);
 
 /**
  * Lätt restock-skanning av ALLA sealed-produkter som de restock-bevakade butikerna
@@ -125,21 +147,27 @@ export async function runRestockScan(): Promise<RestockScanResult> {
   );
   if (sources.length === 0) {
     console.log("[restock-scan] Inga restock-watch-källor flaggade.");
-    return { sources: 0, checked: 0, restocks: 0, alertsSent: 0 };
+    return { sources: 0, checked: 0, restocks: 0, newListings: 0, alertsSent: 0 };
   }
 
   // Fas 1: parallell katalog-hämtning (ingen DB → Neon sover under tiden).
-  const fetched: { sourceName: string; items: { url: string; stockStatus: StockStatus }[] }[] =
-    new Array(sources.length);
+  const fetched: { sourceName: string; items: FeedItem[] }[] = new Array(sources.length);
   await mapPool(sources, RESTOCK_SCAN_CONCURRENCY, async (source, i) => {
     try {
       const adapter = getAdapter(source.type, source.name);
       const result = await adapter.fetchProducts();
-      const items = result.products
+      const items: FeedItem[] = result.products
         .filter((p) => adapter.validateResult(p))
         .map((p) => {
           const n = adapter.normalizeProduct(p);
-          return { url: n.url, stockStatus: n.stockStatus };
+          return {
+            url: n.url,
+            stockStatus: n.stockStatus,
+            title: p.title,
+            price: n.offerPrice ?? n.price ?? null,
+            imageUrl: n.imageUrl ?? p.imageUrl ?? null,
+            category: n.category ?? null,
+          };
         });
       fetched[i] = { sourceName: source.name, items };
     } catch (err) {
@@ -155,60 +183,128 @@ export async function runRestockScan(): Promise<RestockScanResult> {
     retailerByName.set(source.name, r.id);
   }
   const retailerIds = [...new Set(retailerByName.values())];
+  // ALLA offers (även gömda kategorier) så matchade URL:er känns igen som matchade
+  // och inte felaktigt hamnar i feed-först-grenen. Gömda larmas ändå aldrig (guard nedan).
   const offers = await prisma.offer.findMany({
-    // Gömda kategorier (pärmar/sleeves/graderat m.m.) ska aldrig ge restock-alerts.
-    where: { retailerId: { in: retailerIds }, product: { category: { notIn: HIDDEN_CATEGORIES } } },
-    select: { id: true, url: true, productId: true, retailerId: true, stockStatus: true },
+    where: { retailerId: { in: retailerIds } },
+    select: {
+      id: true, url: true, productId: true, retailerId: true, stockStatus: true,
+      product: { select: { category: true } },
+    },
   });
   const offerByKey = new Map<string, (typeof offers)[number]>();
   for (const o of offers) offerByKey.set(`${o.retailerId}:${o.url}`, o);
 
-  // Färsk lagerstatus per (retailer, url). IN_STOCK vinner om en URL dyker upp flera ggr.
-  const fresh = new Map<string, StockStatus>();
+  // Feed-först-huvudbok: rå annonser per URL, BARA för URL:er utan en Offer.
+  const listings = await prisma.storeListing.findMany({
+    where: { retailerId: { in: retailerIds } },
+    select: { id: true, url: true, retailerId: true, stockStatus: true },
+  });
+  const listingByKey = new Map<string, (typeof listings)[number]>();
+  for (const l of listings) listingByKey.set(`${l.retailerId}:${l.url}`, l);
+  // Butiker vi aldrig fört huvudbok för seedas TYST (skapa rader, larma ej) — så
+  // första körningen (och en nytillagd butik) inte mejlar hela dess katalog som "ny".
+  const seededRetailers = new Set(listings.map((l) => l.retailerId));
+
+  // Färsk annons per (retailer, url). IN_STOCK vinner om en URL dyker upp flera ggr.
+  const fresh = new Map<string, FeedItem & { retailerId: string }>();
   for (const { sourceName, items } of fetched) {
     const retailerId = retailerByName.get(sourceName);
     if (!retailerId) continue;
     for (const it of items) {
       const key = `${retailerId}:${it.url}`;
-      if (fresh.get(key) === StockStatus.IN_STOCK) continue;
-      fresh.set(key, it.stockStatus);
+      if (fresh.get(key)?.stockStatus === StockStatus.IN_STOCK) continue;
+      fresh.set(key, { ...it, retailerId });
     }
   }
 
   let checked = 0;
   let restocks = 0;
-  for (const [key, newStatus] of fresh) {
+  let newListings = 0;
+  for (const [key, it] of fresh) {
+    const newStatus = it.stockStatus;
     const offer = offerByKey.get(key);
-    if (!offer) continue; // ny produkt utan offer → daglig scrape-all skapar den
+
+    // ---- Matchad produkt: beprövad offer-diff (oförändrad logik) ----
+    if (offer) {
+      checked++;
+      if (offer.stockStatus !== newStatus) {
+        await prisma.offer.update({
+          where: { id: offer.id },
+          data: { stockStatus: newStatus, lastSeenAt: new Date() },
+        });
+      }
+      // Gömda kategorier (pärmar/sleeves/graderat) uppdaterar lager men larmar aldrig.
+      if (HIDDEN_CATEGORIES.includes(offer.product.category)) continue;
+      const ev = netStockEvent(offer.stockStatus, newStatus);
+      if (!ev.emit) continue;
+      await prisma.restockEvent.create({
+        data: {
+          productId: offer.productId,
+          retailerId: offer.retailerId,
+          oldStatus: ev.oldStatus,
+          newStatus,
+          price: null,
+        },
+      });
+      if (ev.isRestock) {
+        await checkRestockAlerts(offer.productId, offer.retailerId);
+        restocks++;
+      }
+      continue;
+    }
+
+    // ---- Feed-först: URL utan Offer (ny SKU / art-variant / produkt utanför katalogen) ----
+    // Bara sealed — singlar/övrigt skulle spamma (se SEALED_FEED_CATEGORIES).
+    if (!SEALED_FEED_CATEGORIES.has(it.category ?? "")) continue;
     checked++;
-    if (offer.stockStatus !== newStatus) {
-      await prisma.offer.update({
-        where: { id: offer.id },
-        data: { stockStatus: newStatus, lastSeenAt: new Date() },
+    const listing = listingByKey.get(key);
+    if (!listing) {
+      // Aldrig sedd → skapa huvudboksrad. Larma BARA om butiken redan har historik
+      // (annars = tyst seedning) och annonsen faktiskt är i lager.
+      const created = await prisma.storeListing.create({
+        data: {
+          retailerId: it.retailerId,
+          url: it.url,
+          title: it.title,
+          price: it.price,
+          imageUrl: it.imageUrl,
+          stockStatus: newStatus,
+        },
+      });
+      if (seededRetailers.has(it.retailerId) && newStatus === StockStatus.IN_STOCK) {
+        await checkListingAlerts(created, "NEW_LISTING");
+        newListings++;
+      }
+      continue;
+    }
+    // Sedd förut → diffa lagerstatus (skriv bara vid faktisk ändring, spara Neon-writes).
+    if (listing.stockStatus !== newStatus) {
+      await prisma.storeListing.update({
+        where: { id: listing.id },
+        data: {
+          stockStatus: newStatus,
+          lastSeenAt: new Date(),
+          title: it.title,
+          price: it.price,
+          imageUrl: it.imageUrl,
+        },
       });
     }
-    const ev = netStockEvent(offer.stockStatus, newStatus);
-    if (!ev.emit) continue;
-    await prisma.restockEvent.create({
-      data: {
-        productId: offer.productId,
-        retailerId: offer.retailerId,
-        oldStatus: ev.oldStatus,
-        newStatus,
-        price: null,
-      },
-    });
-    if (ev.isRestock) {
-      await checkRestockAlerts(offer.productId, offer.retailerId);
+    if (isRestock(listing.stockStatus, newStatus)) {
+      await checkListingAlerts(
+        { id: listing.id, title: it.title, retailerId: it.retailerId },
+        "RESTOCK"
+      );
       restocks++;
     }
   }
 
   const { sent } = await dispatchPendingAlerts();
   console.log(
-    `[restock-scan] ${sources.length} butiker, ${checked} kollade, ${restocks} restocks, ${sent} alerts.`
+    `[restock-scan] ${sources.length} butiker, ${checked} kollade, ${restocks} restocks, ${newListings} nya, ${sent} alerts.`
   );
-  return { sources: sources.length, checked, restocks, alertsSent: sent };
+  return { sources: sources.length, checked, restocks, newListings, alertsSent: sent };
 }
 
 export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> {

@@ -163,3 +163,43 @@ export async function checkRestockAlerts(productId: string, retailerId?: string)
   await prisma.$transaction(writes);
   return { triggered: userIds.size };
 }
+
+/**
+ * Feed-först-larm för en RÅ butiksannons (StoreListing) som INTE finns i katalogen
+ * — antingen en helt ny produkt (NEW_LISTING) eller en restock av något vi inte har
+ * som Offer (RESTOCK). Mottagare = Pro-användare med "Alla restocks/nya produkter"
+ * påslaget (notificationSettings.allRestocks=true). Watchlist-bevakare kan inte gälla
+ * (ingen katalog-produkt att bevaka). Mejlet byggs från annonsen (storeListingId).
+ */
+export async function checkListingAlerts(
+  listing: { id: string; title: string; retailerId: string },
+  kind: "NEW_LISTING" | "RESTOCK"
+) {
+  const subs = await prisma.user.findMany({
+    where: {
+      notificationSettings: { path: ["allRestocks"], equals: true },
+      planTier: "PREMIUM",
+    },
+    select: { id: true },
+  });
+  if (subs.length === 0) return { triggered: 0 };
+
+  const message =
+    kind === "NEW_LISTING"
+      ? `${listing.title} — ny produkt i lager!`
+      : `${listing.title} finns i lager igen!`;
+  const writes: Prisma.PrismaPromise<unknown>[] = subs.map((u) =>
+    prisma.alert.create({
+      data: {
+        userId: u.id,
+        retailerId: listing.retailerId,
+        storeListingId: listing.id,
+        type: kind,
+        message,
+        channel: "EMAIL",
+      },
+    })
+  );
+  await prisma.$transaction(writes);
+  return { triggered: subs.length };
+}

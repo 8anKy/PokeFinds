@@ -6,7 +6,7 @@ import { AlertStatus, AlertType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { sendMail } from "@/lib/mailer";
 import { sendPush } from "@/lib/apns";
-import { priceAlertEmail, restockAlertEmail } from "@/emails/templates";
+import { newListingEmail, priceAlertEmail, restockAlertEmail } from "@/emails/templates";
 import { NON_RETAIL_SOURCE_NAMES } from "@/services/products";
 
 const MAX_RETRIES = 3;
@@ -33,8 +33,28 @@ async function buildAlertEmail(alert: {
   message: string;
   productId: string | null;
   retailerId: string | null;
+  storeListingId: string | null;
   user: { name: string };
 }): Promise<{ subject: string; html: string; text: string }> {
+  // Feed-först-larm (ny produkt/restock utanför katalogen) — bygg mejlet från den
+  // råa annonsen och länka DIREKT till butiken (ingen Foilio-produktsida finns).
+  if (alert.storeListingId) {
+    const listing = await prisma.storeListing.findUnique({
+      where: { id: alert.storeListingId },
+      include: { retailer: { select: { name: true } } },
+    });
+    if (listing) {
+      const args = [
+        alert.user.name,
+        listing.title,
+        listing.retailer.name,
+        listing.url,
+      ] as const;
+      return alert.type === AlertType.NEW_LISTING
+        ? newListingEmail(...args, listing.price ?? undefined)
+        : restockAlertEmail(...args);
+    }
+  }
   if (alert.productId) {
     const product = await prisma.product.findUnique({
       where: { id: alert.productId },

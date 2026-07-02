@@ -1,6 +1,7 @@
 /** Tester för e-postmallarna i src/emails/templates.ts (svenskt innehåll). */
 import { describe, expect, it } from "vitest";
 import {
+  newListingEmail,
   passwordResetEmail,
   priceAlertEmail,
   restockAlertEmail,
@@ -70,6 +71,26 @@ describe("restockAlertEmail", () => {
     const email = restockAlertEmail("Milos", "Sword & Shield Booster Pack", "Shinycards", storeUrl);
     expect(email.html).toContain(`href="${storeUrl}"`);
     expect(email.text).toContain(storeUrl);
+  });
+});
+
+describe("newListingEmail", () => {
+  it("länkar direkt till butiken och visar pris när det finns", () => {
+    const storeUrl = "https://webhallen.com/se/product/poke-ball-tin-2025-v2";
+    const email = newListingEmail("Milos", "Poké Ball Tin 2025 v2", "Webhallen", storeUrl, 24900);
+    expectValidEmail(email);
+    expect(email.subject).toContain("Ny produkt i lager");
+    expect(email.subject).toContain("Poké Ball Tin 2025 v2");
+    expect(email.html).toContain(`href="${storeUrl}"`);
+    expect(email.html).toContain("Webhallen");
+    expect(email.text).toContain(storeUrl);
+    expect(email.html).toMatch(/249,00\s?kr/u);
+  });
+
+  it("fungerar utan pris (feeden saknade pris)", () => {
+    const email = newListingEmail("Milos", "Okänd Booster", "Samlarhobby", "https://samlarhobby.se/p");
+    expectValidEmail(email);
+    expect(email.text).not.toMatch(/kr/); // inget prisrad när price saknas
   });
 });
 
