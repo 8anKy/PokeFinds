@@ -39,7 +39,7 @@ export function SellButton({
   const [price, setPrice] = useState("");
   const [condition, setCondition] = useState(row.condition);
   const [shipping, setShipping] = useState("20");
-  const [image, setImage] = useState<string | null>(null);
+  const [images, setImages] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
@@ -48,7 +48,7 @@ export function SellButton({
     setPrice(row.estimatedValue != null ? String(Math.round(row.estimatedValue / 100)) : "");
     setCondition(row.condition);
     setShipping("20");
-    setImage(null);
+    setImages([]);
     setError(null);
     setResultUrl(null);
     setOpen(true);
@@ -59,14 +59,14 @@ export function SellButton({
     const shippingKr = Math.round(Number(shipping));
     if (!Number.isFinite(priceKr) || priceKr <= 0) return setError("Ange ett pris i kronor.");
     if (!Number.isFinite(shippingKr) || shippingKr < 0) return setError("Ogiltig fraktkostnad.");
-    if (!image) return setError("Ladda upp ett foto på objektet.");
+    if (images.length === 0) return setError("Ladda upp minst ett foto på objektet.");
 
     setSaving(true);
     setError(null);
     try {
       const { url } = await apiFetch<{ url: string }>("/api/tradera/sell", {
         method: "POST",
-        body: { collectionItemId: row.id, priceKr, shippingKr, condition, imageBase64: image },
+        body: { collectionItemId: row.id, priceKr, shippingKr, condition, imagesBase64: images },
       });
       setResultUrl(url);
       toast({ title: "Annonsen är skapad på Tradera", variant: "success" });
@@ -164,26 +164,43 @@ export function SellButton({
           </div>
 
           <div>
-            <Label htmlFor="sellPhoto">Foto på objektet</Label>
+            <Label htmlFor="sellPhoto">Foton på objektet (första blir huvudbild)</Label>
             <input
               ref={fileRef}
               id="sellPhoto"
               type="file"
               accept="image/*"
-              capture="environment"
+              multiple
               className="block w-full text-sm text-ink-muted file:mr-3 file:rounded-lg file:border-0 file:bg-surface-overlay file:px-3 file:py-2 file:text-sm file:text-ink"
               onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (file) setImage(await readAsDataUrl(file));
+                const files = Array.from(e.target.files ?? []);
+                if (files.length === 0) return;
+                const urls = await Promise.all(files.map(readAsDataUrl));
+                setImages((prev) => [...prev, ...urls].slice(0, 12));
+                if (fileRef.current) fileRef.current.value = ""; // tillåt samma fil igen
               }}
             />
-            {image && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={image}
-                alt="Förhandsvisning"
-                className="mt-2 h-32 w-auto rounded-lg object-contain bg-surface-overlay"
-              />
+            {images.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {images.map((src, i) => (
+                  <div key={i} className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={src}
+                      alt={`Foto ${i + 1}`}
+                      className="h-20 w-20 rounded-lg object-cover bg-surface-overlay"
+                    />
+                    <button
+                      type="button"
+                      aria-label="Ta bort foto"
+                      onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
+                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-fall text-xs font-bold text-white"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 

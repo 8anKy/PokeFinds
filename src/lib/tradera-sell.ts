@@ -56,7 +56,7 @@ interface ListingInput {
   priceKr: number; // Köp nu-pris i hela kronor
   shippingKr: number; // fraktkostnad i hela kronor
   languageTerm?: string;
-  image: { data: string; format: number };
+  images: { data: string; format: number }[]; // första bilden = huvudbild
 }
 
 function headers(input: ListingInput): Record<string, string> {
@@ -81,12 +81,9 @@ async function call(path: string, h: Record<string, string>, body?: unknown) {
   return res;
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 /** Skapar annonsen och returnerar dess publika Tradera-URL. Kastar vid fel. */
 export async function createTraderaListing(input: ListingInput): Promise<{ url: string }> {
   const h = headers(input);
-  const ownRef = `foilio-${input.userId}-${Date.now()}`;
 
   const created = await call("/v4/listings/items", h, {
     title: input.title.slice(0, 50),
@@ -98,7 +95,6 @@ export async function createTraderaListing(input: ListingInput): Promise<{ url: 
     description: input.description,
     autoCommit: false,
     acceptedBidderId: ACCEPTED_BIDDER_SWEDEN,
-    ownReferences: [ownRef],
     shippingOptions: [
       { shippingProviderId: SHIPPING_PROVIDER_ALTERNATIVE, cost: Math.round(input.shippingKr) },
     ],
@@ -106,27 +102,22 @@ export async function createTraderaListing(input: ListingInput): Promise<{ url: 
       ? { attributeValues: { terms: [{ id: LANGUAGE_ATTRIBUTE_ID, values: [input.languageTerm] }] } }
       : {}),
   });
-  const { requestId } = (await created.json()) as { requestId: number };
+  const { requestId, itemId } = (await created.json()) as { requestId: number; itemId?: number };
 
-  await call(`/v4/listings/items/${requestId}/images`, h, {
-    imageData: input.image.data,
-    imageFormat: input.image.format,
-    hasMega: false,
-  });
+  // En bild-POST per foto (första = huvudbild). Bilderna läggs på samma request.
+  for (const img of input.images) {
+    await call(`/v4/listings/items/${requestId}/images`, h, {
+      imageData: img.data,
+      imageFormat: img.format,
+      hasMega: false,
+    });
+  }
   await call(`/v4/listings/items/${requestId}/commit`, h);
 
-  // Listningen köas → annonsen dyker upp om någon sekund. Hämta URL:en genom att
-  // matcha vår ownReference i säljarens annonser.
-  // ponytail: pollar seller-items (10×1,5s). Räcker för enstaka användarinitierad
-  // listning; byt till request-results-poll om det blir en batch-funktion.
-  for (let i = 0; i < 10; i++) {
-    await sleep(1500);
-    const res = await fetch(`${BASE}/v4/listings/seller-items`, { headers: h });
-    if (!res.ok) continue;
-    const items = (await res.json()) as { itemLink?: string; ownReferences?: string[] }[];
-    const mine = items.find((it) => it.ownReferences?.includes(ownRef));
-    if (mine?.itemLink) return { url: mine.itemLink };
-  }
-  // Skapad men URL:en hann inte synka — skicka användaren till sina annonser.
-  return { url: "https://www.tradera.com/my/items/selling" };
+  // itemId från create-svaret = annonsens objektnr → bygg publik URL direkt.
+  return {
+    url: itemId
+      ? `https://www.tradera.com/item/0/${itemId}`
+      : "https://www.tradera.com/my/items/selling",
+  };
 }

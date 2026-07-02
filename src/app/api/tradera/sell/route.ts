@@ -27,7 +27,8 @@ const schema = z.object({
   priceKr: z.number().int().positive(),
   shippingKr: z.number().int().min(0),
   condition: z.string().optional(),
-  imageBase64: z.string().min(100), // data:-URL med foto på det egna kortet
+  // data:-URL:er med foton på det egna objektet (första = huvudbild). Tradera tar max 12.
+  imagesBase64: z.array(z.string().min(100)).min(1).max(12),
 });
 
 export async function POST(req: Request) {
@@ -81,7 +82,7 @@ export async function POST(req: Request) {
       priceKr: input.priceKr,
       shippingKr: input.shippingKr,
       languageTerm: isSingle ? traderaLanguageTerm(item.language) : undefined,
-      image: parseImage(input.imageBase64),
+      images: input.imagesBase64.map(parseImage),
     });
 
     return jsonOk({ url });
