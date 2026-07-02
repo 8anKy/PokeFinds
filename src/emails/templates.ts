@@ -31,8 +31,7 @@ function layout(title: string, bodyHtml: string): string {
     </div>
     <div style="text-align:center;padding-top:24px;font-size:12px;color:#6b7280;line-height:1.6;">
       Du får detta mejl för att du har ett konto på Foilio.<br>
-      Du kan ändra dina aviseringsinställningar eller avsluta utskick under
-      <a href="${APP_URL}/installningar" style="color:#2dd4bf;">Inställningar</a>.<br>
+      Du kan ändra dina aviseringsinställningar i Foilio-appen.<br>
       © Foilio · Sveriges marknadsplats för Pokémon TCG
     </div>
   </div>
@@ -47,9 +46,7 @@ function button(url: string, label: string): string {
 }
 
 const textFooter =
-  "\n\n—\nDu kan ändra dina aviseringsinställningar på " +
-  APP_URL +
-  "/installningar\nFoilio · Sveriges marknadsplats för Pokémon TCG";
+  "\n\n—\nDu kan ändra dina aviseringsinställningar i Foilio-appen.\nFoilio · Sveriges marknadsplats för Pokémon TCG";
 
 export function welcomeEmail(name: string): EmailContent {
   const subject = "Välkommen till Foilio!";
