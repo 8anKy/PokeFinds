@@ -3,23 +3,30 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
+function scrollActiveIntoView() {
+  const el = document.activeElement as HTMLElement | null;
+  if (el && el.matches("input, textarea")) {
+    requestAnimationFrame(() => el.scrollIntoView({ block: "center" }));
+  }
+}
+
 /**
  * Yttre skal för auth-sidorna. Capacitor kör Keyboard resize:none → WKWebView:en
  * krymper INTE när tangentbordet öppnas, så en vanlig 100dvh-sida behåller full
  * höjd och fokuserade fält (t.ex. bekräfta lösenord) hamnar bakom tangentbordet.
  *
  * Samma lösning som Modal.tsx: när tangentbordet är uppe pinnar vi skalet till den
- * SYNLIGA ytan (visualViewport top/height) och låter innehållet scrolla där → fältet
- * man skriver i kan skrollas fram ovanför tangentbordet.
+ * SYNLIGA ytan (visualViewport top/height) → innehållet blir högre än ytan och kan
+ * scrolla, och vi skrollar fram det fokuserade fältet ovanför tangentbordet.
  */
 export function AuthShell({ children }: { children: ReactNode }) {
   const [vp, setVp] = useState<{ top: number; height: number } | null>(null);
+
   useEffect(() => {
     const v = window.visualViewport;
     if (!v) return;
     const update = () => {
-      const keyboardUp = window.innerHeight - v.height > 120;
-      setVp(keyboardUp ? { top: v.offsetTop, height: v.height } : null);
+      setVp(window.innerHeight - v.height > 120 ? { top: v.offsetTop, height: v.height } : null);
     };
     update();
     v.addEventListener("resize", update);
@@ -29,6 +36,18 @@ export function AuthShell({ children }: { children: ReactNode }) {
       v.removeEventListener("scroll", update);
     };
   }, []);
+
+  // Byte mellan fält medan tangentbordet redan är uppe (vp ändras inte) → skrolla ändå.
+  useEffect(() => {
+    const onFocus = () => setTimeout(scrollActiveIntoView, 300);
+    document.addEventListener("focusin", onFocus);
+    return () => document.removeEventListener("focusin", onFocus);
+  }, []);
+
+  // När skalet fått ny höjd (tangentbord upp) är layouten klar → skrolla fram fältet.
+  useEffect(() => {
+    if (vp) scrollActiveIntoView();
+  }, [vp]);
 
   return (
     <div
