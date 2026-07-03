@@ -195,6 +195,12 @@ export class GoblinenAdapter extends ShopifyAdapter {
   name = "Goblinen";
   baseUrl = "https://goblinen.com";
 }
+// Fler-spels-butik (MTG/FaB/Pokémon) — collections.json-namnfiltret plockar
+// Pokémon-kollektionerna ("pokemon-booster-boxes", "pokemon-elite-trainer-boxes" …).
+export class ManatorskAdapter extends ShopifyAdapter {
+  name = "Manatörsk";
+  baseUrl = "https://manatorsk.com";
+}
 // Dragon's Lair bytte plattform (Vendre → Shopify) ~2026-07. Fler-spels-butik:
 // collections.json-namnfiltret hittar inte de generiska sealed-kollektionerna, men
 // master-kollektionen "pokemon-the-trading-card-game" täcker allt Pokémon-sealed.

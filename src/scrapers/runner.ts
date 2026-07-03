@@ -20,6 +20,7 @@ import {
   SamlarhobbyAdapter,
   GoblinenAdapter,
   DragonsLairAdapter,
+  ManatorskAdapter,
 } from "@/scrapers/adapters/shopify-adapter";
 import {
   SwepokeAdapter,
@@ -48,6 +49,7 @@ const SCRAPER_ADAPTERS: Record<string, new () => SourceAdapter> = {
   Speltrollet: SpeltrolletAdapter,
   Samlarhobby: SamlarhobbyAdapter,
   Goblinen: GoblinenAdapter,
+  Manatörsk: ManatorskAdapter,
   // Quickbutik-butiker (återanvändbar QuickbutikAdapter)
   Swepoke: SwepokeAdapter,
   Shinycards: ShinycardsAdapter,
