@@ -1,5 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import createMiddleware from "next-intl/middleware";
+import { routing } from "@/i18n/routing";
+
+const intlMiddleware = createMiddleware(routing);
 
 const MODERATOR_ROLES = new Set(["MODERATOR", "ADMIN", "SUPERADMIN"]);
 
@@ -19,6 +23,17 @@ const PROTECTED_PREFIXES = [
   "/admin",
 ];
 
+// Tar bort ev. /en-prefix så skydds-kollen fungerar likadant på båda språken.
+// Returnerar [avskalad väg, prefix] där prefix = "" (sv) eller "/en".
+function splitLocale(pathname: string): [string, string] {
+  for (const l of routing.locales) {
+    if (l === routing.defaultLocale) continue;
+    if (pathname === `/${l}`) return ["/", `/${l}`];
+    if (pathname.startsWith(`/${l}/`)) return [pathname.slice(l.length + 1), `/${l}`];
+  }
+  return [pathname, ""];
+}
+
 export async function middleware(req: NextRequest) {
   const ua = req.headers.get("user-agent") ?? "";
   if (BLOCKED_BOTS.test(ua)) {
@@ -26,53 +41,40 @@ export async function middleware(req: NextRequest) {
   }
 
   const { pathname, search } = req.nextUrl;
+  const [path, prefix] = splitLocale(pathname);
 
-  // Publika sidor (inkl. /produkter, /sets) auth-gatas inte — släpp igenom efter
-  // bot-kollen ovan. Bara de skyddade prefixen kräver inloggning.
-  if (!PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
-    return NextResponse.next();
+  // Publika sidor auth-gatas inte — låt next-intl sköta locale-routing direkt.
+  const isProtected = PROTECTED_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
+  if (!isProtected) {
+    return intlMiddleware(req);
   }
 
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
 
   if (!token) {
-    // Behåll EXAKT samma origin som inkommande request (www vs apex) — annars blir
-    // omdirigeringen cross-origin och Capacitor-WebView:en kastar ut den till Safari.
+    // Behåll EXAKT samma origin + locale-prefix — annars cross-origin/språkbyte.
     const loginUrl = req.nextUrl.clone();
-    loginUrl.pathname = "/logga-in";
+    loginUrl.pathname = `${prefix}/logga-in`;
     loginUrl.search = "";
     loginUrl.searchParams.set("callbackUrl", pathname + search);
     const res = NextResponse.redirect(loginUrl);
-    // Ingen giltig session men klient-hinten `fo_auth` kan vara kvar (utgången
-    // session rensar den inte) → chrome tror "inloggad" medan servern säger nej =
-    // omdirigerings-flimmer. Rensa hinten så klient och server är överens.
     res.cookies.set("fo_auth", "", { maxAge: 0, path: "/" });
     return res;
   }
 
-  if (pathname.startsWith("/admin")) {
+  if (path.startsWith("/admin")) {
     const role = typeof token.role === "string" ? token.role : "";
     if (!MODERATOR_ROLES.has(role)) {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
+      return NextResponse.redirect(new URL(`${prefix}/dashboard`, req.url));
     }
   }
 
-  return NextResponse.next();
+  // Autentiserad OK → låt next-intl sätta locale-context/rewrite.
+  return intlMiddleware(req);
 }
 
 export const config = {
-  matcher: [
-    "/dashboard/:path*",
-    "/bevakningar/:path*",
-    // /samling + /skanna gatas på sid-nivå (server-redirect / klient-gate) i stället
-    // för här — middleware-redirecten följdes som en HÅRD navigering → Capacitor
-    // kastade ut den till Safari. Sid-nivå-redirect (som /mer) stannar i appen.
-    "/installningar/:path*",
-    "/onboarding/:path*",
-    "/admin/:path*",
-    // Crawl-tunga publika ytor — bara för bot-403:an ovan (auth-gatas inte).
-    // Produktsidorna är den dyra ytan (~20k DB-renders); sets renderar per slug med.
-    "/produkter/:path*",
-    "/sets/:path*",
-  ],
+  // Kör på alla sidvägar (så next-intl kan locale-routa + bot-403:an täcker allt);
+  // hoppa api, _next, _vercel och filer med punkt (robots.txt, bilder, sw.js …).
+  matcher: ["/((?!api|_next|_vercel|.*\\..*).*)"],
 };

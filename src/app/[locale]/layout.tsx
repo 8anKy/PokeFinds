@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { notFound } from "next/navigation";
+import { NextIntlClientProvider, hasLocale } from "next-intl";
+import { getMessages, setRequestLocale } from "next-intl/server";
 import "@/styles/globals.css";
+import { routing } from "@/i18n/routing";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -54,26 +58,46 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export function generateStaticParams() {
+  return routing.locales.map((locale) => ({ locale }));
+}
+
+export default async function LocaleLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode;
+  params: { locale: string };
+}) {
+  const { locale } = params;
+  if (!hasLocale(routing.locales, locale)) {
+    notFound();
+  }
+  // Aktiverar statisk rendering (ISR) för locale-segmentet — annars blir sidorna dynamiska.
+  setRequestLocale(locale);
+  const messages = await getMessages();
+
   return (
-    <html lang="sv" className={`dark ${inter.variable}`}>
+    <html lang={locale} className={`dark ${inter.variable}`}>
       <body>
-        <Providers>
-          {children}
-          {/* Overlay FÖRE bottom-tabs: båda z-40 → tabs (senare i DOM) målas
-              ovanpå overlayn (syns/klickbara), medan overlayn täcker sidans egen
-              header (annars dubbel header). */}
-          <ProductOverlayHost />
-          <BottomTabs />
-          {/* Push-tap-navigering: mountad i ROT-layouten (ej (app)-gruppen) så
-              notis-tap landar rätt även när appen står på en marketing-route som
-              Utforska (/produkter). Capacitor retainar tap-eventet tills en lyssnare
-              finns → tidigare gick det förlorat på de routerna. */}
-          <PushManager />
-          <CookieBanner />
-          <ServiceWorkerRegister />
-          <ScrollReset />
-        </Providers>
+        <NextIntlClientProvider messages={messages}>
+          <Providers>
+            {children}
+            {/* Overlay FÖRE bottom-tabs: båda z-40 → tabs (senare i DOM) målas
+                ovanpå overlayn (syns/klickbara), medan overlayn täcker sidans egen
+                header (annars dubbel header). */}
+            <ProductOverlayHost />
+            <BottomTabs />
+            {/* Push-tap-navigering: mountad i ROT-layouten (ej (app)-gruppen) så
+                notis-tap landar rätt även när appen står på en marketing-route som
+                Utforska (/produkter). Capacitor retainar tap-eventet tills en lyssnare
+                finns → tidigare gick det förlorat på de routerna. */}
+            <PushManager />
+            <CookieBanner />
+            <ServiceWorkerRegister />
+            <ScrollReset />
+          </Providers>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

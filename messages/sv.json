@@ -1,0 +1,56 @@
+{
+  "LocaleSwitcher": {
+    "label": "Språk",
+    "sv": "Svenska",
+    "en": "English"
+  },
+  "Home": {
+    "hero": {
+      "titleLead": "Din kontrollpanel för",
+      "subtitle": "Bevaka priser, lagerstatus och värdet på din samling — samlat på ett ställe, uppdaterat dygnet runt.",
+      "ctaJoin": "Gå med gratis",
+      "ctaExplore": "Utforska marknaden"
+    },
+    "snapshot": {
+      "title": "Marknaden just nu",
+      "window": "Senaste 7 dagarna",
+      "trendingUp": "Trendar uppåt",
+      "topDrops": "Största prisfallen",
+      "seeAll": "Se hela marknaden"
+    },
+    "features": {
+      "heading": "Allt du behöver som samlare",
+      "sub": "Från prisbevakning till community — verktyg byggda för den svenska marknaden.",
+      "items": [
+        { "title": "Prisbevakning & restock-alerts", "text": "Sätt ett målpris eller bevaka lagerstatus. Vi meddelar dig direkt när något händer." },
+        { "title": "Samlingsvärde", "text": "Registrera din samling och se vad den är värd — uppdaterat med aktuell marknadsdata." },
+        { "title": "Marknadstrender", "text": "Prisindex, trendkurvor och de största prisfallen — allt i ett svep." },
+        { "title": "Kortskanning", "text": "Skanna korten med kameran och lägg till dem i samlingen på sekunder." },
+        { "title": "Community", "text": "Dela pulls, diskutera trades och följ andra svenska samlare." },
+        { "title": "Transparent prisdata", "text": "Varje produktsida visar källa och senaste uppdatering. Inga dolda justeringar." }
+      ]
+    },
+    "showcase": {
+      "heading": "Prishistorik som ger dig övertaget",
+      "lead": "Se hur priserna rör sig och köp när läget är rätt. Här är <product>{name}</product> senaste 90 dagarna."
+    },
+    "popular": {
+      "heading": "Populärt just nu"
+    },
+    "faq": {
+      "heading": "Vanliga frågor",
+      "items": [
+        { "q": "Är Foilio gratis?", "a": "Ja. Med ett gratiskonto kan du bevaka upp till 10 produkter, hantera en grundläggande samling och ta del av marknadsdata. Pro låser upp obegränsade bevakningar, alla restock-larm, AI-gradering och avancerad analys." },
+        { "q": "Vilka butiker bevakar ni?", "a": "Vi följer ett växande antal svenska återförsäljare av Pokémon TCG. Listan utökas löpande — saknar du en butik får du gärna höra av dig." },
+        { "q": "Hur ofta uppdateras priserna?", "a": "Priser och lagerstatus hämtas in löpande, flera gånger per dygn. Varje produktsida visar när datan senast uppdaterades." },
+        { "q": "Hur funkar restock-alerts?", "a": "Du bevakar en produkt och väljer restock-alert. Så fort vi upptäcker att produkten finns i lager igen hos någon butik skickar vi en notis — i appen och via e-post om du vill." }
+      ]
+    },
+    "cta": {
+      "heading": "Håll koll på marknaden innan alla andra.",
+      "sub": "Skapa ett gratiskonto och börja bevaka dina favoritprodukter redan i dag.",
+      "ctaJoin": "Gå med gratis",
+      "seePlans": "Se prisplaner"
+    }
+  }
+}

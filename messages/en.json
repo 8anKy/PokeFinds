@@ -1,0 +1,56 @@
+{
+  "LocaleSwitcher": {
+    "label": "Language",
+    "sv": "Svenska",
+    "en": "English"
+  },
+  "Home": {
+    "hero": {
+      "titleLead": "Your control panel for",
+      "subtitle": "Track prices, stock status and the value of your collection — all in one place, updated around the clock.",
+      "ctaJoin": "Join for free",
+      "ctaExplore": "Explore the market"
+    },
+    "snapshot": {
+      "title": "The market right now",
+      "window": "Last 7 days",
+      "trendingUp": "Trending up",
+      "topDrops": "Biggest price drops",
+      "seeAll": "See the whole market"
+    },
+    "features": {
+      "heading": "Everything you need as a collector",
+      "sub": "From price tracking to community — tools built for the Swedish market.",
+      "items": [
+        { "title": "Price tracking & restock alerts", "text": "Set a target price or watch stock status. We notify you the moment something happens." },
+        { "title": "Collection value", "text": "Register your collection and see what it's worth — updated with current market data." },
+        { "title": "Market trends", "text": "Price index, trend curves and the biggest price drops — all at a glance." },
+        { "title": "Card scanning", "text": "Scan your cards with the camera and add them to your collection in seconds." },
+        { "title": "Community", "text": "Share pulls, discuss trades and follow other Swedish collectors." },
+        { "title": "Transparent price data", "text": "Every product page shows the source and last update. No hidden adjustments." }
+      ]
+    },
+    "showcase": {
+      "heading": "Price history that gives you the edge",
+      "lead": "See how prices move and buy when the timing is right. Here's <product>{name}</product> over the last 90 days."
+    },
+    "popular": {
+      "heading": "Popular right now"
+    },
+    "faq": {
+      "heading": "Frequently asked questions",
+      "items": [
+        { "q": "Is Foilio free?", "a": "Yes. With a free account you can track up to 10 products, manage a basic collection and access market data. Pro unlocks unlimited watches, all restock alerts, AI grading and advanced analytics." },
+        { "q": "Which stores do you track?", "a": "We follow a growing number of Swedish Pokémon TCG retailers. The list keeps expanding — if a store is missing, feel free to get in touch." },
+        { "q": "How often are prices updated?", "a": "Prices and stock status are collected continuously, several times a day. Each product page shows when the data was last updated." },
+        { "q": "How do restock alerts work?", "a": "You watch a product and enable a restock alert. As soon as we detect it's back in stock at any store, we send a notification — in the app and by email if you like." }
+      ]
+    },
+    "cta": {
+      "heading": "Stay ahead of the market.",
+      "sub": "Create a free account and start tracking your favorite products today.",
+      "ctaJoin": "Join for free",
+      "seePlans": "See pricing plans"
+    }
+  }
+}
