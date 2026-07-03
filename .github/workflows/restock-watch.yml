@@ -6,15 +6,22 @@ name: Restock-bevakning (var 10:e minut)
 # Täcker ALLA sealed-produkter butikerna säljer (singlar/marknadsplats-only =
 # Cardmarket/Tradera, ej restockWatch-källor).
 #
-# Tätades 2026-07-03 från 30min → 10min för snabbare fångst inför stora drops (t.ex.
-# 30-årsjubileumssetet). Kostar INTE mer Neon-compute: en ÄNDRINGSGRIND
-# (RESTOCK_FINGERPRINT_FILE + feedFingerprint) väcker DB:n BARA när någon lagerstatus
-# faktiskt flippat. Oförändrad feed = ren HTTP, Neon sover → merparten av de tätare
-# körningarna rör aldrig DB:n. Avtrycket cachas mellan körningar via actions/cache.
-# (Obs: GitHub schemalägger cron "best effort" — kan vara några min sena vid hög last.)
+# Kostar INTE mer Neon-compute: en ÄNDRINGSGRIND (RESTOCK_FINGERPRINT_FILE +
+# feedFingerprint) väcker DB:n BARA när någon lagerstatus faktiskt flippat. Oförändrad
+# feed = ren HTTP, Neon sover → merparten av körningarna rör aldrig DB:n. Avtrycket
+# cachas mellan körningar via actions/cache.
+#
+# TRIGGER (2026-07-03): GitHub `schedule:`-cron är "best effort" och kördes i praktiken
+# bara var 1,5–3,5 h (mätt) trots "*/10" → restocks kom timmar sent. workflow_dispatch
+# fyrar däremot inom sekunder och throttlas INTE. Primär trigger är därför en extern
+# cron (cron-job.org) som POST:ar till GitHub-API:t var 10:e minut:
+#   POST https://api.github.com/repos/8anKy/PokeFinds/actions/workflows/restock-watch.yml/dispatches
+#   headers: Authorization: Bearer <PAT (Actions: read+write)>, Accept: application/vnd.github+json
+#   body: {"ref":"main"}
+# `schedule:` nedan behålls BARA som gles reserv om pingern dör (den fyrar ändå ~1-2 h).
 on:
   schedule:
-    - cron: "*/10 * * * *" # var 10:e minut (ändringsgrind → Neon väcks bara vid ändring)
+    - cron: "0 * * * *" # RESERV — opålitlig (~1-2 h fördröjning). Riktig takt = pinger via workflow_dispatch.
   workflow_dispatch: {}
 
 concurrency:
