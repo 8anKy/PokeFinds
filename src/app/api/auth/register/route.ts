@@ -34,7 +34,18 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
       return NextResponse.json(
-        { error: "E-postadressen är redan registrerad." },
+        { error: "Du har redan ett konto med den här e-postadressen – logga in istället." },
+        { status: 409 }
+      );
+    }
+
+    const nameTaken = await prisma.user.findFirst({
+      where: { name: { equals: name, mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (nameTaken) {
+      return NextResponse.json(
+        { error: "Användarnamnet är upptaget. Välj ett annat." },
         { status: 409 }
       );
     }

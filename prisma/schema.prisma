@@ -125,6 +125,8 @@ enum PlanTier {
 model User {
   id                   String    @id @default(cuid())
   email                String    @unique
+  // Case-insensitivt unikt (lower(name)) via råmigration User_name_lower_key —
+  // kan inte uttryckas här. Kör INTE `migrate dev` så att indexet tappas.
   name                 String
   passwordHash         String
   role                 Role      @default(USER)

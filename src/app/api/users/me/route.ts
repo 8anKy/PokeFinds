@@ -71,7 +71,14 @@ export async function PATCH(req: Request) {
     }
 
     const data: Prisma.UserUpdateInput = {};
-    if (input.name !== undefined) data.name = input.name;
+    if (input.name !== undefined) {
+      const nameTaken = await prisma.user.findFirst({
+        where: { name: { equals: input.name, mode: "insensitive" }, id: { not: sessionUser.id } },
+        select: { id: true },
+      });
+      if (nameTaken) throw new AuthError(409, "Användarnamnet är upptaget. Välj ett annat.");
+      data.name = input.name;
+    }
     if (input.bio !== undefined) data.bio = input.bio;
     if (input.isPublicCollection !== undefined) data.isPublicCollection = input.isPublicCollection;
     if (input.notificationSettings !== undefined) {
