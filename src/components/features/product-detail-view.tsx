@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { formatPrice, formatRelative } from "@/lib/format";
 import type { ProductDetailData } from "@/services/products";
 import { StockBadge } from "@/components/ui/badge";

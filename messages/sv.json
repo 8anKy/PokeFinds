@@ -4,6 +4,38 @@
     "sv": "Svenska",
     "en": "English"
   },
+  "Settings": {
+    "languageTitle": "Språk",
+    "languageDesc": "Välj språk för Foilio. Ditt val sparas på den här enheten."
+  },
+  "Nav": {
+    "explore": "Utforska",
+    "market": "Marknad",
+    "community": "Community",
+    "pricing": "Priser",
+    "portfolio": "Portfölj",
+    "scan": "Skanna",
+    "more": "Mer"
+  },
+  "Footer": {
+    "tagline": "Din kontrollpanel för Pokémon TCG-marknaden. Bevaka priser, lagerstatus och värdet på din samling.",
+    "serviceHeading": "Tjänsten",
+    "exploreProducts": "Utforska produkter",
+    "marketTrends": "Marknadstrender",
+    "scanCards": "Skanna kort",
+    "pricingPro": "Priser & Pro",
+    "communityHeading": "Community",
+    "feed": "Flödet",
+    "pulls": "Pulls",
+    "trades": "Trades",
+    "aboutLegalHeading": "Om & Juridik",
+    "aboutFoilio": "Om Foilio",
+    "contact": "Kontakt",
+    "terms": "Användarvillkor",
+    "privacy": "Integritetspolicy",
+    "cookies": "Cookiepolicy",
+    "copyright": "© {year} Foilio. Pokémon och alla relaterade namn är varumärken som tillhör sina respektive ägare. Foilio är en oberoende tjänst."
+  },
   "Home": {
     "hero": {
       "titleLead": "Din kontrollpanel för",

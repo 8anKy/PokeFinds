@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { IconMail, IconShield } from "@/components/ui/icons";
 
 export const metadata: Metadata = {

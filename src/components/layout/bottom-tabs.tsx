@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { isEmailLandingRoute } from "@/lib/auth-routes";
 import {
@@ -14,15 +15,16 @@ import {
   type IconProps,
 } from "@/components/ui/icons";
 
-const TABS: { href: string; label: string; icon: (p: IconProps) => JSX.Element }[] = [
-  { href: "/produkter", label: "Utforska", icon: IconSearch },
-  { href: "/samling", label: "Portfölj", icon: IconPackage },
-  { href: "/skanna", label: "Skanna", icon: IconCamera },
-  { href: "/community", label: "Community", icon: IconMessage },
-  { href: "/mer", label: "Mer", icon: IconMenu },
+const TABS: { href: string; key: string; icon: (p: IconProps) => JSX.Element }[] = [
+  { href: "/produkter", key: "explore", icon: IconSearch },
+  { href: "/samling", key: "portfolio", icon: IconPackage },
+  { href: "/skanna", key: "scan", icon: IconCamera },
+  { href: "/community", key: "community", icon: IconMessage },
+  { href: "/mer", key: "more", icon: IconMenu },
 ];
 
 export function BottomTabs() {
+  const tNav = useTranslations("Nav");
   const pathname = usePathname();
   // Tab-baren visas alltid (in- som utloggad) — den är appens primära navigering.
   // Skyddade tabbar (Portfölj/Skanna) skickar utloggade till login via middleware.
@@ -71,7 +73,7 @@ export function BottomTabs() {
                 )}
               >
                 <t.icon size={22} className="shrink-0" />
-                {t.label}
+                {tNav(t.key)}
               </Link>
             </li>
           );

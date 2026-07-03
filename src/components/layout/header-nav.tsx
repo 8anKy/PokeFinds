@@ -1,17 +1,19 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
+import { usePathname } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
-  { href: "/produkter", label: "Utforska" },
-  { href: "/marknad", label: "Marknad" },
-  { href: "/community", label: "Community" },
-  { href: "/priser", label: "Priser" },
-];
+  { href: "/produkter", key: "explore" },
+  { href: "/marknad", key: "market" },
+  { href: "/community", key: "community" },
+  { href: "/priser", key: "pricing" },
+] as const;
 
 export function HeaderNav() {
+  const t = useTranslations("Nav");
   const pathname = usePathname();
   return (
     <nav className="hidden items-center gap-1 md:flex">
@@ -29,7 +31,7 @@ export function HeaderNav() {
                 : "text-ink-muted hover:text-ink"
             )}
           >
-            {l.label}
+            {t(l.key)}
           </Link>
         );
       })}

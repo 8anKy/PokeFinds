@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { formatRelative } from "@/lib/format";
 import { apiFetch } from "@/lib/client-api";
 import { useToast } from "@/components/ui/toast";

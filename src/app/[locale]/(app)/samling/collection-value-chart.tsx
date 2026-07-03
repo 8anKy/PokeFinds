@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { PriceChartLazy } from "@/components/features/price-chart-lazy";
 import { IconLock, IconTrendingDown, IconTrendingUp } from "@/components/ui/icons";
 import { formatPrice, formatPercent } from "@/lib/format";

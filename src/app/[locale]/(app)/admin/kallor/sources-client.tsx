@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import type { SourceType } from "@prisma/client";
 import { formatRelative } from "@/lib/format";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";

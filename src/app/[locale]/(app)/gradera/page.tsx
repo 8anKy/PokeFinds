@@ -6,7 +6,7 @@
  * <input capture>. Detta är en uppskattning, inte en officiell gradering.
  */
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname } from "@/i18n/navigation";
 import type { ProductDetailData } from "@/services/products";
 import { ProductDetailView } from "@/components/features/product-detail-view";
 import { SiteHeader } from "@/components/layout/site-header";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { formatPrice, formatPercent, formatDate } from "@/lib/format";
 import { apiFetch } from "@/lib/client-api";
 import { useToast } from "@/components/ui/toast";

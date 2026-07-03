@@ -4,6 +4,38 @@
     "sv": "Svenska",
     "en": "English"
   },
+  "Settings": {
+    "languageTitle": "Language",
+    "languageDesc": "Choose the language for Foilio. Your choice is saved on this device."
+  },
+  "Nav": {
+    "explore": "Explore",
+    "market": "Market",
+    "community": "Community",
+    "pricing": "Pricing",
+    "portfolio": "Portfolio",
+    "scan": "Scan",
+    "more": "More"
+  },
+  "Footer": {
+    "tagline": "Your control panel for the Pokémon TCG market. Track prices, stock status and the value of your collection.",
+    "serviceHeading": "The service",
+    "exploreProducts": "Explore products",
+    "marketTrends": "Market trends",
+    "scanCards": "Scan cards",
+    "pricingPro": "Pricing & Pro",
+    "communityHeading": "Community",
+    "feed": "The feed",
+    "pulls": "Pulls",
+    "trades": "Trades",
+    "aboutLegalHeading": "About & Legal",
+    "aboutFoilio": "About Foilio",
+    "contact": "Contact",
+    "terms": "Terms of use",
+    "privacy": "Privacy policy",
+    "cookies": "Cookie policy",
+    "copyright": "© {year} Foilio. Pokémon and all related names are trademarks of their respective owners. Foilio is an independent service."
+  },
   "Home": {
     "hero": {
       "titleLead": "Your control panel for",

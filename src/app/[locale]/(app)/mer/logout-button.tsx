@@ -1,7 +1,7 @@
 "use client";
 
 import { signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { setAuthHint } from "@/lib/auth-hint";
 import { IconLogout } from "@/components/ui/icons";
 

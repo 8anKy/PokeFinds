@@ -7,7 +7,7 @@
  *    radera dem på en gång. Radering går mot DELETE /api/collection/{id}.
  */
 import { useCallback, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { apiFetch } from "@/lib/client-api";
 import { useToast } from "@/components/ui/toast";
 import { formatPrice } from "@/lib/format";

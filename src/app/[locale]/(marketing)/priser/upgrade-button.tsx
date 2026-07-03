@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { useSession } from "next-auth/react";
 import { Button, LinkButton } from "@/components/ui/button";
 import { hasAuthHint } from "@/lib/auth-hint";

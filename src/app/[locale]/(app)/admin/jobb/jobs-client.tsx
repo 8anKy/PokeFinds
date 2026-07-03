@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import type { JobStatus } from "@prisma/client";
 import { formatDateTime } from "@/lib/format";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";

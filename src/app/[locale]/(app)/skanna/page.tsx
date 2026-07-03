@@ -18,8 +18,8 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link } from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Label, Select } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";

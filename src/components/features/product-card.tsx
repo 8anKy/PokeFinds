@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 /* eslint-disable @next/next/no-img-element */
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/format";

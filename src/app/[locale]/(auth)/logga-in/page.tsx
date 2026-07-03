@@ -1,8 +1,9 @@
 "use client";
 
 import { Suspense, useState, type FormEvent } from "react";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Link } from "@/i18n/navigation";
+import { useSearchParams } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { signIn } from "next-auth/react";
 import { setAuthHint } from "@/lib/auth-hint";
 import { Button } from "@/components/ui/button";

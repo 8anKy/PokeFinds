@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { useSearchParams } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { signOut } from "next-auth/react";
+import { LocaleSwitcher } from "@/components/locale-switcher";
 import { setAuthHint } from "@/lib/auth-hint";
 import { apiFetch } from "@/lib/client-api";
 import { enablePush } from "@/lib/push-client";
@@ -30,6 +33,7 @@ export interface SettingsUser {
 
 export function SettingsClient({ user }: { user: SettingsUser }) {
   const { toast } = useToast();
+  const tSettings = useTranslations("Settings");
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -180,6 +184,17 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
 
   return (
     <div className="space-y-6">
+      {/* Språk */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{tSettings("languageTitle")}</CardTitle>
+          <p className="text-sm text-ink-muted">{tSettings("languageDesc")}</p>
+        </CardHeader>
+        <CardContent>
+          <LocaleSwitcher />
+        </CardContent>
+      </Card>
+
       {/* Profil */}
       <Card>
         <CardHeader>

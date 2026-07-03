@@ -10,7 +10,6 @@ import { PriceChange } from "@/components/ui/price-change";
 import { ProductCard } from "@/components/features/product-card";
 import { PriceChartLazy } from "@/components/features/price-chart-lazy";
 import { NativeHomeRedirect } from "@/components/native-home-redirect";
-import { LocaleSwitcher } from "@/components/locale-switcher";
 import {
   IconArrowRight,
   IconBell,
@@ -114,9 +113,6 @@ export default async function LandingPage({
         />
         <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-24 lg:grid-cols-[1.1fr_1fr]">
           <div className="animate-fade-in-up">
-            <div className="mb-6">
-              <LocaleSwitcher />
-            </div>
             <h1 className="max-w-xl font-display text-4xl font-bold tracking-tight text-ink sm:text-5xl lg:text-[3.5rem] lg:leading-[1.1]">
               {t("hero.titleLead")}{" "}
               <span className="holo-text">Pokémon&nbsp;TCG</span>

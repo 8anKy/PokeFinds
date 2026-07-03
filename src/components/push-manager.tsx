@@ -5,7 +5,7 @@
  * gör en tyst om-registrering vid start så roterade tokens fångas. No-op på web.
  */
 import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { getPushPlugin, refreshPush } from "@/lib/push-client";
 
 export function PushManager() {
