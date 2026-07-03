@@ -186,6 +186,12 @@ const FORM_WORDS = new Set([
   "deck",
   "collection",
   "premium",
+  // Sammansatta formord (svenska/hopskrivna) — annars behandlas de som särskiljande
+  // ("boosterpack" gjorde att en äkta "Scarlet & Violet Base Boosterpack" förkastades).
+  "boosterpack",
+  "boosterpaket",
+  "boosterbox",
+  "boosterboxar",
 ]);
 
 /** True om alla betydelsebärande ord i kortnamnet finns i den normaliserade titeln. */
@@ -249,6 +255,10 @@ const ERA_PHRASES = [
 const NOISE_WORDS = new Set([
   "max", "per", "kund", "styck", "version", "kopia", "copy", "exklusivt", "exclusive", "promo",
   "hushall", "hushåll", "person", "antal", "pokemonkort", "pokémonkort", "forseglad", "oppen", "obs",
+  // "base"/"base set" = kvalificerar BAS-setet (t.ex. "Scarlet & Violet Base Booster
+  // Pack"), inte en särskiljande delprodukt. Utan detta blir "base" enda kvarvarande
+  // ordet efter era-strykning → nonEraCoverage=0 → äkta engelsk bas-pack förkastas.
+  "base",
 ]);
 /**
  * Korta set-markörer som distinctiveWords annars tappar (för korta/numeriska),
@@ -258,7 +268,16 @@ const NOISE_WORDS = new Set([
  * Lägg till fler markörer här vid behov.
  */
 const SET_QUALIFIER_WORDS = new Set(["go"]);
-/** Inkommande titelns särskiljande ord MINUS era-varumärken och butiksbrus. */
+/**
+ * Set-koder (sv01, swsh12, sm11 …) är IDENTIFIERARE för setet, inte särskiljande
+ * delprodukt-ord. En äkta engelsk "SV01 Scarlet & Violet Booster Pack" fick annars
+ * nonEraCoverage=0 (scarlet/violet är era-ord som stryks → "sv01" blev det enda
+ * kvarvarande ordet, saknas i katalogtiteln → förkastad). Japanska delset förkastas
+ * ändå av sitt DELSET-NAMN (Cyber Judge, Paradise Dragona) som är kvar. JP-basseten
+ * sv1S/sv1V fångas av JP_SET_MARKERS. Behåll listan snäv (kända serie-prefix).
+ */
+const SET_CODE = /^(sv|swsh|sm|xy|bw|dp|hgss)\d{1,3}[a-z]?$/i;
+/** Inkommande titelns särskiljande ord MINUS era-varumärken, set-koder och butiksbrus. */
 function nonEraDistinctiveWords(title: string): Set<string> {
   let t = normalizeTitle(title);
   for (const re of ERA_PHRASES) t = t.replace(re, " ");
@@ -267,6 +286,7 @@ function nonEraDistinctiveWords(title: string): Set<string> {
   // skillnad mot en bas-produkt som saknar markören.
   for (const tok of t.split(" ")) if (SET_QUALIFIER_WORDS.has(tok)) words.add(tok);
   for (const n of NOISE_WORDS) words.delete(n);
+  for (const w of [...words]) if (SET_CODE.test(w)) words.delete(w);
   return words;
 }
 

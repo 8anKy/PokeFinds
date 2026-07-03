@@ -199,6 +199,16 @@ describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
     // Äkta engelsk bas-pack matchar fortfarande.
     expect(matchListingToProduct("Pokemon Scarlet & Violet Booster Pack", svPack)).not.toBeNull();
   });
+
+  it("äkta engelska bas-pack med set-kod/'Base'/sammansatt formord matchar bas-produkten", () => {
+    const svPack = { normalizedTitle: "scarlet violet booster pack", card: null };
+    // Verkliga Tradera-titlar (set-kod SV01, "Base", hopskrivet "Boosterpack").
+    expect(matchListingToProduct("Pokémon SV01: Scarlet & Violet Booster Pack", svPack)).not.toBeNull();
+    expect(matchListingToProduct("Scarlet & Violet Base Boosterpack - Pokémon", svPack)).not.toBeNull();
+    // Men ett japanskt DELSET (eget namn kvar) matchar fortfarande INTE.
+    expect(matchListingToProduct("Scarlet & Violet: Cyber Judge Booster Pack", svPack)).toBeNull();
+    expect(matchListingToProduct("Pokemon booster pack Obsidian Flames", svPack)).toBeNull();
+  });
 });
 
 describe("isPlausibleListingPrice", () => {
