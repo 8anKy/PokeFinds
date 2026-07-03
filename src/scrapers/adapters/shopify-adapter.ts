@@ -40,6 +40,15 @@ interface ShopifyProduct {
 const MAX_COLLECTIONS = 30;
 const MAX_PAGES_PER_COLLECTION = 8;
 
+/**
+ * Shopify Markets serverar products.json med pris per BESÖKARENS marknad (geo/cookie).
+ * Våra jobb kör på GitHub Actions (US-datacenter) → utan detta får vi den utländska
+ * marknadens EX-moms-pris (Goblinen: 55,20 = 69/1,25; DE-marknaden gav t.o.m. 6,95).
+ * `localization`-cookien är auktoritativ och överstyr geo → pinna svenska marknaden så
+ * priset ALLTID är ink. moms, oavsett var runnern står. Butiker utan Markets ignorerar den.
+ */
+const SE_MARKET_HEADERS = { cookie: "localization=SE", "accept-language": "sv-SE" } as const;
+
 function guessCategory(title: string): string {
   const t = title.toLowerCase();
   if (/booster\s*(box|display)/.test(t)) return "BOOSTER_BOX";
@@ -71,7 +80,7 @@ export abstract class ShopifyAdapter implements SourceAdapter {
 
   /** Hämtar Pokémon-kollektionernas handles (cachar inte — körs sällan). */
   protected async pokemonCollections(errors: string[]): Promise<string[]> {
-    const res = await politeFetch(`${this.baseUrl}/collections.json?limit=250`, { delayMs: 1200 });
+    const res = await politeFetch(`${this.baseUrl}/collections.json?limit=250`, { delayMs: 1200, headers: SE_MARKET_HEADERS });
     if (!res.ok) {
       errors.push(`${this.name}: collections.json HTTP ${res.status}`);
       return [];
@@ -95,7 +104,7 @@ export abstract class ShopifyAdapter implements SourceAdapter {
       for (const handle of handles) {
         for (let page = 1; page <= MAX_PAGES_PER_COLLECTION; page++) {
           const url = `${this.baseUrl}/collections/${handle}/products.json?limit=250&page=${page}`;
-          const res = await politeFetch(url, { delayMs: 1200 });
+          const res = await politeFetch(url, { delayMs: 1200, headers: SE_MARKET_HEADERS });
           if (!res.ok) {
             errors.push(`${this.name}: HTTP ${res.status} ${url}`);
             break;
