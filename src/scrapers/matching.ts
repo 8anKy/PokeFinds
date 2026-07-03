@@ -210,15 +210,24 @@ function significantTokens(normalized: string): string[] {
     .slice(0, 6);
 }
 
+/** Era-/serievarumärke någonstans i titeln? (icke-global → säkra .test-anrop). */
+const ERA_RE = /\b(mega evolution|scarlet( and| &)? violet|sword( and| &)? shield|sun( and| &)? moon)\b/i;
+
 /** Särskiljande ord (ej stoppord/formord/siffror) — set-namn, Pokémon-namn osv. */
 function distinctiveWords(normalized: string): Set<string> {
-  return new Set(
+  const words = new Set(
     normalized
       .split(" ")
       .filter(
         (t) => t.length >= 3 && !STOPWORDS.has(t) && !FORM_WORDS.has(t) && !/^\d/.test(t)
       )
   );
+  // "base" är vintage-set-IDENTITET (Base Set 1999) BARA utan era-fras. Med en era-fras
+  // ("Scarlet & Violet Base Boosterpack") är "base" en redundant kvalificerare — räkna
+  // det då inte som identitet, annars kolliderar S&V-"Base"-annonser med vintage
+  // "Base Booster Pack" (delade ordet "base" gav 0,64 träff på fel produkt).
+  if (words.has("base") && ERA_RE.test(normalized)) words.delete("base");
+  return words;
 }
 
 /**

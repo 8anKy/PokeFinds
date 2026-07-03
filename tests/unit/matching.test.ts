@@ -210,13 +210,15 @@ describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
     expect(matchListingToProduct("Pokemon booster pack Obsidian Flames", svPack)).toBeNull();
   });
 
-  it("'base' är ett äkta vintage-setnamn — inte brus (vintage-basen matchar sig själv)", () => {
+  it("'base' = identitet utan era, kvalificerare med era (vintage vs S&V-kollision)", () => {
     const svPack = { normalizedTitle: "scarlet violet booster pack", card: null };
     const vintageBase = { normalizedTitle: "base booster pack", card: null };
-    // Vintage bas-pack matchar sin egen produkt, inte S&V (om "base" vore brus skulle
-    // vintage-basen tappa sitt enda särskiljande ord och sluta matcha).
+    // Äkta vintage bas-pack matchar sin egen produkt (base = identitet utan era).
     expect(matchListingToProduct("Pokemon Base Set Booster Pack", vintageBase)).not.toBeNull();
     expect(matchListingToProduct("Pokemon Base Set Booster Pack", svPack)).toBeNull();
+    // En S&V "Base Boosterpack"-annons (base = kvalificerare med era) får INTE matcha
+    // vintage-basen — det delade ordet "base" gav tidigare 0,64 träff på fel produkt.
+    expect(matchListingToProduct("Scarlet & Violet Base Boosterpack", vintageBase)).toBeNull();
   });
 });
 
