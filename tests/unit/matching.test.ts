@@ -220,6 +220,17 @@ describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
     // vintage-basen — det delade ordet "base" gav tidigare 0,64 träff på fel produkt.
     expect(matchListingToProduct("Scarlet & Violet Base Boosterpack", vintageBase)).toBeNull();
   });
+
+  it("brusiga men äkta vintage-titlar matchar (skick/upplaga/förlag = brus, ej identitet)", () => {
+    const vintageBase = { normalizedTitle: "base booster pack", card: null };
+    const megaETB = { normalizedTitle: "mega evolution elite trainer box", card: null };
+    // RECALL: brus (1999/WOTC/Unlimited/Shadowless/oöppnad) får inte sänka täckningen.
+    expect(matchListingToProduct("Pokemon Base Set Booster Pack 1999 WOTC", vintageBase)).not.toBeNull();
+    expect(matchListingToProduct("Pokémon Base Set Unlimited Booster Pack", vintageBase)).not.toBeNull();
+    expect(matchListingToProduct("Base Set Booster Pack oöppnad fabriksförseglad", vintageBase)).not.toBeNull();
+    // PRECISION: ett delset-NAMN är inte brus → "Perfect Order" får ändå ej matcha basen.
+    expect(matchListingToProduct("Mega Evolution Perfect Order Elite Trainer Box", megaETB)).toBeNull();
+  });
 });
 
 describe("isPlausibleListingPrice", () => {

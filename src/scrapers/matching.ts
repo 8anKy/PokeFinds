@@ -264,9 +264,14 @@ const ERA_PHRASES = [
 const NOISE_WORDS = new Set([
   "max", "per", "kund", "styck", "version", "kopia", "copy", "exklusivt", "exclusive", "promo",
   "hushall", "hushåll", "person", "antal", "pokemonkort", "pokémonkort", "forseglad", "oppen", "obs",
-  // OBS: "base" får INTE vara brusord — det är ett äkta vintage-setnamn ("Base Set",
-  // "Base Booster Pack" 1999). Att stryka det kolliderade "Scarlet & Violet Base
-  // Boosterpack" med vintage-basen OCH sänkte vintage-basens egen matchning.
+  // Skick/tryck-upplaga/förlag = generiskt brus, aldrig produkt-IDENTITET. Utan detta
+  // sänker de nonEraCoverage för äkta men brusiga annonser (t.ex. vintage "Base Set
+  // Booster Pack 1999 WOTC Unlimited Shadowless oöppnad"). ASCII (normalizeTitle
+  // strippar diakritik). "unlimited"/"shadowless" = tryck-upplagor vi ej katalogför
+  // → tryggt brus. Delset-NAMN (Perfect Order, Cyber Judge) är INTE här → precisionen
+  // hålls. OBS: "base"/"set" får ALDRIG in här (äkta vintage-setnamn).
+  "wotc", "unlimited", "shadowless", "unopened", "ooppnad", "oanvand", "anvand",
+  "nyskick", "fabriksforseglad", "farsk", "ladan", "helt", "aldrig", "mint", "factory",
 ]);
 /**
  * Korta set-markörer som distinctiveWords annars tappar (för korta/numeriska),
