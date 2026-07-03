@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { useSession } from "next-auth/react";
 import { Button, LinkButton } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import { purchasesAvailable, purchasePremium, restorePremium } from "@/lib/purch
  * och webb-Stripe är medvetet inte byggt än).
  */
 export function UpgradeButton() {
+  const t = useTranslations("Upgrade");
   const router = useRouter();
   const { update } = useSession();
   const [native, setNative] = useState(false);
@@ -37,9 +39,9 @@ export function UpgradeButton() {
   if (isPro) {
     return (
       <div className="mt-8 w-full rounded-xl border border-holo-cyan/40 bg-holo-cyan/5 px-4 py-3 text-center">
-        <p className="text-sm font-semibold text-holo-cyan">Din nuvarande plan ✓</p>
+        <p className="text-sm font-semibold text-holo-cyan">{t("currentPlan")}</p>
         <p className="mt-1 text-xs text-ink-muted">
-          Hantera eller säg upp i App Store (Inställningar → ditt namn → Prenumerationer).
+          {t("manageSub")}
         </p>
       </div>
     );
@@ -48,9 +50,9 @@ export function UpgradeButton() {
   if (!native) {
     return (
       <>
-        <Button disabled className="mt-8 w-full">Kommer snart</Button>
+        <Button disabled className="mt-8 w-full">{t("comingSoon")}</Button>
         <p className="mt-2 text-center text-xs text-ink-faint">
-          Betalning lanseras inom kort. Ingen bindningstid.
+          {t("paymentSoon")}
         </p>
       </>
     );
@@ -59,7 +61,7 @@ export function UpgradeButton() {
   if (!loggedIn) {
     return (
       <LinkButton href="/logga-in" className="mt-8 w-full">
-        Logga in för att uppgradera
+        {t("loginToUpgrade")}
       </LinkButton>
     );
   }
@@ -71,7 +73,7 @@ export function UpgradeButton() {
       // /api/users/me returnerar user-objektet direkt (jsonOk → ingen data-wrapper).
       const me = await fetch("/api/users/me").then((r) => r.json());
       const id = me?.id;
-      if (!id) throw new Error("Kunde inte läsa kontot.");
+      if (!id) throw new Error(t("msgAccountRead"));
       const ok = await action(id);
       if (ok) {
         setMsg(okMsg);
@@ -88,13 +90,13 @@ export function UpgradeButton() {
             break;
           }
         }
-        setMsg(activated ? "Pro aktiverat! 🎉" : "Köpet gick igenom — Pro aktiveras strax.");
+        setMsg(activated ? t("msgActivated") : t("msgPurchasePending"));
         router.refresh();
       } else {
-        setMsg("Ingen aktiv Pro hittades.");
+        setMsg(t("msgNoActivePro"));
       }
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Köpet kunde inte slutföras.");
+      setMsg(e instanceof Error ? e.message : t("msgFailed"));
     } finally {
       setBusy(false);
     }
@@ -105,17 +107,17 @@ export function UpgradeButton() {
       <Button
         className="mt-8 w-full"
         disabled={busy}
-        onClick={() => run(purchasePremium, "Tack! Pro aktiveras strax.")}
+        onClick={() => run(purchasePremium, t("msgThanks"))}
       >
-        {busy ? "Bearbetar…" : "Uppgradera till Pro"}
+        {busy ? t("processing") : t("upgradeToPro")}
       </Button>
       <button
         type="button"
         disabled={busy}
-        onClick={() => run(restorePremium, "Pro återställt.")}
+        onClick={() => run(restorePremium, t("msgRestored"))}
         className="mt-3 w-full text-center text-xs text-ink-faint underline disabled:opacity-50"
       >
-        Återställ köp
+        {t("restore")}
       </button>
       {msg && <p className="mt-2 text-center text-xs text-ink-muted">{msg}</p>}
     </>

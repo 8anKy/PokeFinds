@@ -1,6 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { formatPrice, formatRelative } from "@/lib/format";
 import type { ProductDetailData } from "@/services/products";
@@ -28,14 +29,7 @@ const SEALED_CATEGORIES: string[] = [
   "BUNDLE",
 ];
 
-const LANGUAGE_LABELS: Record<string, string> = {
-  SV: "Svenska",
-  EN: "Engelska",
-  JP: "Japanska",
-  DE: "Tyska",
-  FR: "Franska",
-  OTHER: "Övrigt",
-};
+const LANGUAGE_KEYS = ["SV", "EN", "JP", "DE", "FR", "OTHER"];
 
 /**
  * Hela produktsidans innehåll, delat av SSR-sidan (`/produkter/[slug]`) och
@@ -43,6 +37,9 @@ const LANGUAGE_LABELS: Record<string, string> = {
  * `loadProductDetail`. JSON-LD ligger kvar på SSR-sidan (SEO), inte här.
  */
 export function ProductDetailView({ data }: { data: ProductDetailData }) {
+  const t = useTranslations("Detail");
+  const tCat = useTranslations("Category");
+  const tLang = useTranslations("Language");
   const lastInStock = data.restockEvents.find((e) => e.newStatus === "IN_STOCK");
   const isSingle = data.category === "SINGLE_CARD";
 
@@ -56,8 +53,8 @@ export function ProductDetailView({ data }: { data: ProductDetailData }) {
     >
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         {/* Breadcrumb */}
-        <nav aria-label="Brödsmulor" className="mb-4 text-sm text-ink-muted">
-          <Link href="/produkter" className="hover:text-ink">Produkter</Link>
+        <nav aria-label={t("breadcrumbAria")} className="mb-4 text-sm text-ink-muted">
+          <Link href="/produkter" className="hover:text-ink">{t("products")}</Link>
           {data.set && (
             <>
               <span className="mx-2 text-ink-faint" aria-hidden="true">›</span>
@@ -88,16 +85,16 @@ export function ProductDetailView({ data }: { data: ProductDetailData }) {
                 <span className="mx-2 text-ink-faint" aria-hidden="true">·</span>
               </>
             )}
-            {CATEGORY_LABELS[data.category] ?? CATEGORY_LABELS.OTHER}
+            {data.category in CATEGORY_LABELS ? tCat(data.category) : tCat("OTHER")}
             <span className="mx-2 text-ink-faint" aria-hidden="true">·</span>
-            {LANGUAGE_LABELS[data.language] ?? data.language}
+            {LANGUAGE_KEYS.includes(data.language) ? tLang(data.language) : data.language}
           </p>
         </header>
 
         {/* Andra Cardmarket-versioner av samma kort (common ↔ special-variant) */}
         {data.variants.length > 0 && (
           <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-ink-muted">Andra versioner:</span>
+            <span className="text-ink-muted">{t("otherVersions")}</span>
             {data.variants.map((v) => (
               <Link
                 key={v.slug}
@@ -130,15 +127,15 @@ export function ProductDetailView({ data }: { data: ProductDetailData }) {
           </div>
 
           <ProductPriceCard
-            title={isSingle ? "Ograderad prishistorik" : "Prishistorik"}
+            title={isSingle ? t("historyRawTitle") : t("historyTitle")}
             subtitle={
               isSingle
-                ? "Raw (Near Mint), ej graderad · Cardmarket"
+                ? t("rawSubtitle")
                 : data.trendSource === "butiker"
-                  ? "Marknadstrend · Butiker"
+                  ? t("trendStores")
                   : data.trendSource === "tradera"
-                    ? "Marknadstrend · Tradera"
-                    : "Marknadstrend · Cardmarket"
+                    ? t("trendTradera")
+                    : t("trendCardmarket")
             }
             series={data.chartData}
           />
@@ -148,16 +145,12 @@ export function ProductDetailView({ data }: { data: ProductDetailData }) {
         <LivePricePanel
           priceChange7dPercent={data.change7}
           change30={data.change30}
-          priceLabel={
-            isSingle ? "Lägsta pris · NM engelska (Cardmarket)" : "Lägsta pris just nu"
-          }
+          priceLabel={isSingle ? t("priceLabelSingle") : t("priceLabelDefault")}
         />
         <div className="mt-6 flex flex-wrap items-center gap-4">
           <ProductActions productId={data.id} title={data.title} />
           <p className="text-xs text-ink-faint">
-            {data.watchCount === 1
-              ? "1 samlare bevakar denna produkt"
-              : `${data.watchCount} samlare bevakar denna produkt`}
+            {t("watchers", { count: data.watchCount })}
           </p>
         </div>
         {data.description && (
@@ -177,17 +170,20 @@ export function ProductDetailView({ data }: { data: ProductDetailData }) {
         {/* Restock history */}
         <section className="mt-10">
           <h2 className="font-display text-xl font-semibold text-ink">
-            Restock-historik
+            {t("restockHistory")}
           </h2>
           {lastInStock && (
             <p className="mt-2 text-sm text-ink-muted">
-              Senast i lager: <span className="text-rise">{formatRelative(lastInStock.detectedAt)}</span>
-              {" "}hos {lastInStock.retailerName}
+              {t.rich("lastInStock", {
+                whenText: formatRelative(lastInStock.detectedAt),
+                store: lastInStock.retailerName,
+                when: (chunks) => <span className="text-rise">{chunks}</span>,
+              })}
             </p>
           )}
           {data.restockEvents.length === 0 ? (
             <p className="mt-3 text-sm text-ink-muted">
-              Inga registrerade lagerförändringar ännu.
+              {t("noRestocks")}
             </p>
           ) : (
             <ul className="mt-4 space-y-2">
@@ -211,7 +207,7 @@ export function ProductDetailView({ data }: { data: ProductDetailData }) {
         {data.similar.length > 0 && (
           <section className="mt-10">
             <h2 className="font-display text-xl font-semibold text-ink">
-              Liknande produkter
+              {t("similar")}
             </h2>
             <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
               {data.similar.map((p) => (

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { formatPrice } from "@/lib/format";
 import { getProductBySlug, loadProductDetail } from "@/services/products";
 import { CATEGORY_LABELS } from "@/components/features/product-card";
@@ -19,7 +20,7 @@ export async function generateStaticParams() {
 }
 
 interface PageProps {
-  params: { slug: string };
+  params: { locale: string; slug: string };
 }
 
 async function loadProduct(slug: string) {
@@ -31,12 +32,19 @@ async function loadProduct(slug: string) {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const t = await getTranslations({ locale: params.locale, namespace: "Detail" });
+  const tCat = await getTranslations({ locale: params.locale, namespace: "Category" });
   const product = await loadProduct(params.slug);
-  if (!product) return { title: "Produkten hittades inte" };
-  const categoryLabel = CATEGORY_LABELS[product.category] ?? "Produkt";
+  if (!product) return { title: t("metaNotFound") };
+  const categoryLabel =
+    product.category in CATEGORY_LABELS ? tCat(product.category) : t("fallbackCategory");
   const description =
     product.description ??
-    `Jämför priser på ${product.title} (${categoryLabel}) hos svenska butiker. Lägsta pris just nu: ${formatPrice(product.lowestPrice)}. Bevaka pris och restock på Foilio.`;
+    t("metaDescription", {
+      title: product.title,
+      category: categoryLabel,
+      price: formatPrice(product.lowestPrice),
+    });
   return {
     title: product.title,
     description,

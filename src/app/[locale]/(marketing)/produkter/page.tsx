@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { getTranslations, setRequestLocale } from "next-intl/server";
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { prisma } from "@/lib/db";
 import {
@@ -18,32 +20,30 @@ import { IconSearch, IconScan, IconCards, IconFilter } from "@/components/ui/ico
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Utforska produkter",
-  description:
-    "Sök och jämför priser på Pokémon TCG-produkter hos svenska butiker. Filtrera på kategori, set, pris och lagerstatus.",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: { locale: string };
+}): Promise<Metadata> {
+  const t = await getTranslations({ locale: params.locale, namespace: "Products" });
+  return { title: t("metaTitle"), description: t("metaDescription") };
+}
 
 const PAGE_SIZE = 24;
 
-const SORT_OPTIONS: { value: string; label: string; sort: ProductSort }[] = [
-  { value: "popular", label: "Mest populär", sort: "popular" },
-  { value: "lagsta-pris", label: "Lägsta pris", sort: "price_asc" },
-  { value: "hogsta-pris", label: "Högsta pris", sort: "price_desc" },
-  { value: "prisfall", label: "Störst prisfall", sort: "biggest_drop" },
-  { value: "restock", label: "Senast restockad", sort: "recently_restocked" },
-  { value: "bevakad", label: "Mest bevakad", sort: "most_watched" },
-  { value: "trend", label: "Trendar", sort: "trending" },
+// value = URL-parameter (stabil), key = översättningsnyckel (Products.sort.*).
+const SORT_OPTIONS: { value: string; key: string; sort: ProductSort }[] = [
+  { value: "popular", key: "popular", sort: "popular" },
+  { value: "lagsta-pris", key: "price_asc", sort: "price_asc" },
+  { value: "hogsta-pris", key: "price_desc", sort: "price_desc" },
+  { value: "prisfall", key: "biggest_drop", sort: "biggest_drop" },
+  { value: "restock", key: "recently_restocked", sort: "recently_restocked" },
+  { value: "bevakad", key: "most_watched", sort: "most_watched" },
+  { value: "trend", key: "trending", sort: "trending" },
 ];
 
-const LANGUAGE_LABELS: Record<CardLanguage, string> = {
-  SV: "Svenska",
-  EN: "Engelska",
-  JP: "Japanska",
-  DE: "Tyska",
-  FR: "Franska",
-  OTHER: "Övriga",
-};
+// Giltiga språknycklar (för validering av ?sprak); visning via Language-namespace.
+const LANGUAGE_KEYS: CardLanguage[] = ["SV", "EN", "JP", "DE", "FR", "OTHER"];
 
 /** Språk som visas i katalogfiltret (övriga gömda tills vidare, 2026-06-14). */
 const BROWSE_LANGUAGES: CardLanguage[] = ["EN"];
@@ -74,7 +74,9 @@ function buildParams(sp: CatalogSearchParams): SearchProductsParams {
       ? (sp.kategori as ProductCategory)
       : undefined;
   const language =
-    sp.sprak && sp.sprak in LANGUAGE_LABELS ? (sp.sprak as CardLanguage) : undefined;
+    sp.sprak && LANGUAGE_KEYS.includes(sp.sprak as CardLanguage)
+      ? (sp.sprak as CardLanguage)
+      : undefined;
   const sort =
     SORT_OPTIONS.find((o) => o.value === sp.sortera)?.sort ?? "popular";
   const page = Math.max(1, Number(sp.sida) || 1);
@@ -111,22 +113,23 @@ function buildFeedQuery(p: SearchProductsParams): string {
 
 /** Sök-fält (q) med skanna-genväg — desktop-varianten. */
 function SearchField({ defaultQuery }: { defaultQuery?: string }) {
+  const t = useTranslations("Products");
   return (
     <div>
-      <Label htmlFor="q">Sök</Label>
+      <Label htmlFor="q">{t("search")}</Label>
       <div className="flex items-center gap-2">
         <Input
           id="q"
           name="q"
           type="search"
-          placeholder="T.ex. Charizard, Booster Box…"
+          placeholder={t("searchPlaceholder")}
           defaultValue={defaultQuery ?? ""}
           className="flex-1"
         />
         <Link
           href="/skanna"
-          aria-label="Identifiera kort med kameran"
-          title="Skanna ett kort med kameran"
+          aria-label={t("scanAria")}
+          title={t("scanTitle")}
           className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-surface-border bg-surface-overlay text-ink-muted transition-colors hover:border-holo-cyan/60 hover:text-holo-cyan focus-visible:border-holo-cyan/60 focus-visible:text-holo-cyan"
         >
           <IconScan size={20} />
@@ -152,25 +155,28 @@ function CatalogFilterFields({
   retailers: { id: string; name: string }[];
   idPrefix: string;
 }) {
+  const t = useTranslations("Products");
+  const tCat = useTranslations("Category");
+  const tLang = useTranslations("Language");
   return (
     <>
       <div>
-        <Label htmlFor={`${idPrefix}kategori`}>Kategori</Label>
+        <Label htmlFor={`${idPrefix}kategori`}>{t("category")}</Label>
         <Select id={`${idPrefix}kategori`} name="kategori" defaultValue={searchParams.kategori ?? ""}>
-          <option value="">Alla kategorier</option>
-          {Object.entries(CATEGORY_LABELS)
-            .filter(([value]) => !HIDDEN_CATEGORIES.includes(value as ProductCategory))
-            .map(([value, label]) => (
+          <option value="">{t("allCategories")}</option>
+          {Object.keys(CATEGORY_LABELS)
+            .filter((value) => !HIDDEN_CATEGORIES.includes(value as ProductCategory))
+            .map((value) => (
               <option key={value} value={value}>
-                {label}
+                {tCat(value)}
               </option>
             ))}
         </Select>
       </div>
       <div>
-        <Label htmlFor={`${idPrefix}set`}>Set</Label>
+        <Label htmlFor={`${idPrefix}set`}>{t("set")}</Label>
         <Select id={`${idPrefix}set`} name="set" defaultValue={searchParams.set ?? ""}>
-          <option value="">Alla set</option>
+          <option value="">{t("allSets")}</option>
           {sets.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}
@@ -179,9 +185,9 @@ function CatalogFilterFields({
         </Select>
       </div>
       <div>
-        <Label htmlFor={`${idPrefix}butik`}>Butik</Label>
+        <Label htmlFor={`${idPrefix}butik`}>{t("store")}</Label>
         <Select id={`${idPrefix}butik`} name="butik" defaultValue={searchParams.butik ?? ""}>
-          <option value="">Alla butiker</option>
+          <option value="">{t("allStores")}</option>
           {retailers.map((r) => (
             <option key={r.id} value={r.id}>
               {r.name}
@@ -190,14 +196,14 @@ function CatalogFilterFields({
         </Select>
       </div>
       <div>
-        <Label>Pris (kr)</Label>
+        <Label>{t("price")}</Label>
         <div className="flex items-center gap-2">
           <Input
             name="minPris"
             type="number"
             min={0}
-            placeholder="Min"
-            aria-label="Lägsta pris i kronor"
+            placeholder={t("min")}
+            aria-label={t("minAria")}
             defaultValue={searchParams.minPris ?? ""}
           />
           <span className="text-ink-faint">–</span>
@@ -205,19 +211,19 @@ function CatalogFilterFields({
             name="maxPris"
             type="number"
             min={0}
-            placeholder="Max"
-            aria-label="Högsta pris i kronor"
+            placeholder={t("max")}
+            aria-label={t("maxAria")}
             defaultValue={searchParams.maxPris ?? ""}
           />
         </div>
       </div>
       <div>
-        <Label htmlFor={`${idPrefix}sprak`}>Språk</Label>
+        <Label htmlFor={`${idPrefix}sprak`}>{t("language")}</Label>
         <Select id={`${idPrefix}sprak`} name="sprak" defaultValue={searchParams.sprak ?? ""}>
-          <option value="">Alla språk</option>
+          <option value="">{t("allLanguages")}</option>
           {BROWSE_LANGUAGES.map((value) => (
             <option key={value} value={value}>
-              {LANGUAGE_LABELS[value]}
+              {tLang(value)}
             </option>
           ))}
         </Select>
@@ -226,37 +232,41 @@ function CatalogFilterFields({
         id={`${idPrefix}lager`}
         name="lager"
         value="1"
-        label="Endast i lager"
+        label={t("inStockOnly")}
         defaultChecked={searchParams.lager === "1"}
       />
       <div>
-        <Label htmlFor={`${idPrefix}sortera`}>Sortera efter</Label>
+        <Label htmlFor={`${idPrefix}sortera`}>{t("sortBy")}</Label>
         <Select id={`${idPrefix}sortera`} name="sortera" defaultValue={searchParams.sortera ?? "popular"}>
           {SORT_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {t(`sort.${o.key}`)}
             </option>
           ))}
         </Select>
       </div>
       <Button type="submit" className="w-full">
-        Filtrera
+        {t("filter")}
       </Button>
       <Link
         href="/produkter"
         className="block text-center text-sm text-ink-muted hover:text-ink"
       >
-        Rensa filter
+        {t("clearFilters")}
       </Link>
     </>
   );
 }
 
 export default async function ProductsPage({
+  params: routeParams,
   searchParams,
 }: {
+  params: { locale: string };
   searchParams: CatalogSearchParams;
 }) {
+  setRequestLocale(routeParams.locale);
+  const t = await getTranslations("Products");
   const params = buildParams(searchParams);
   const [result, sets, retailers, recentSets] = await Promise.all([
     getExploreFeed(params, 0, PAGE_SIZE),
@@ -279,18 +289,17 @@ export default async function ProductsPage({
   ]);
   const feedQuery = buildFeedQuery(params);
 
-  const resultCount =
-    result.total === 1 ? "1 produkt" : `${result.total.toLocaleString("sv-SE")} produkter`;
+  const resultCount = t("resultCount", { count: result.total });
 
   const feed =
     result.items.length === 0 ? (
       <EmptyState
         icon={<IconSearch size={32} />}
-        title="Inga produkter matchade"
-        description="Prova att bredda sökningen eller rensa filtren — marknaden fylls på hela tiden."
+        title={t("noMatchTitle")}
+        description={t("noMatchDesc")}
         action={
           <LinkButton href="/produkter" variant="secondary" size="sm">
-            Rensa filter
+            {t("clearFilters")}
           </LinkButton>
         }
       />
@@ -308,9 +317,9 @@ export default async function ProductsPage({
   const justDropped = recentSets.length > 0 && (
     <section>
       <div className="mb-3 flex items-end justify-between">
-        <h2 className="font-display text-xl font-bold text-ink">Nyss släppt</h2>
+        <h2 className="font-display text-xl font-bold text-ink">{t("justDropped")}</h2>
         <Link href="/sets" className="text-xs font-semibold text-holo-cyan hover:underline">
-          Visa alla
+          {t("showAll")}
         </Link>
       </div>
       <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -337,7 +346,7 @@ export default async function ProductsPage({
             <div className="p-3">
               <h3 className="truncate text-sm font-semibold text-ink">{s.name}</h3>
               <p className="mt-1 text-xs text-ink-muted">
-                {s.totalCards > 0 ? `${s.totalCards} kort` : "Set"}
+                {s.totalCards > 0 ? t("setCards", { count: s.totalCards }) : t("setFallback")}
               </p>
             </div>
           </Link>
@@ -350,10 +359,9 @@ export default async function ProductsPage({
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:py-10">
       {/* Rubrik — endast desktop (mobilen leder med sökfältet) */}
       <div className="hidden lg:block">
-        <h1 className="font-display text-3xl font-bold text-ink">Utforska produkter</h1>
+        <h1 className="font-display text-3xl font-bold text-ink">{t("h1")}</h1>
         <p className="mt-2 text-ink-muted">
-          Jämför priser och lagerstatus hos svenska butiker — och bevaka det du inte
-          vill missa.
+          {t("intro")}
         </p>
       </div>
 
@@ -368,12 +376,12 @@ export default async function ProductsPage({
               name="q"
               type="search"
               defaultValue={searchParams.q ?? ""}
-              placeholder="Sök Pokémon, set, produkter…"
+              placeholder={t("mobileSearchPlaceholder")}
               className="w-full bg-transparent py-3 text-sm text-ink placeholder:text-ink-muted focus:outline-none"
             />
             <label
               htmlFor="filt-toggle"
-              aria-label="Filter och sortering"
+              aria-label={t("filterAria")}
               className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-lg text-ink-muted transition-colors hover:text-holo-cyan peer-checked:text-holo-cyan"
             >
               <IconFilter size={20} />
@@ -391,7 +399,7 @@ export default async function ProductsPage({
 
         <section>
           <div className="mb-3 flex items-end justify-between">
-            <h2 className="font-display text-xl font-bold text-ink">Marknadskatalog</h2>
+            <h2 className="font-display text-xl font-bold text-ink">{t("catalogTitle")}</h2>
             <span className="text-xs font-medium text-ink-muted" aria-live="polite">
               {resultCount}
             </span>
@@ -421,9 +429,7 @@ export default async function ProductsPage({
         </aside>
         <section>
           <p className="mb-4 text-sm text-ink-muted" aria-live="polite">
-            {result.total === 1
-              ? "1 produkt hittades"
-              : `${result.total} produkter hittades`}
+            {t("resultFound", { count: result.total })}
           </p>
           {feed}
         </section>

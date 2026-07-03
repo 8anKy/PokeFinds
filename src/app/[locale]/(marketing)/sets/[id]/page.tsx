@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -19,7 +20,7 @@ export async function generateStaticParams() {
 }
 
 interface PageProps {
-  params: { id: string };
+  params: { locale: string; id: string };
 }
 
 async function getSet(id: string) {
@@ -38,18 +39,21 @@ async function getSet(id: string) {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const t = await getTranslations({ locale: params.locale, namespace: "Sets" });
   const set = await prisma.cardSet.findUnique({
     where: { id: params.id },
     select: { name: true, series: true },
   });
-  if (!set) return { title: "Setet hittades inte" };
+  if (!set) return { title: t("notFound") };
   return {
     title: set.name,
-    description: `Produkter och priser för ${set.name} (${set.series}) — jämför svenska butiker på Foilio.`,
+    description: t("detailDescription", { name: set.name, series: set.series }),
   };
 }
 
 export default async function SetPage({ params }: PageProps) {
+  setRequestLocale(params.locale);
+  const t = await getTranslations("Sets");
   const set = await getSet(params.id);
   if (!set) notFound();
 
@@ -71,8 +75,8 @@ export default async function SetPage({ params }: PageProps) {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <nav aria-label="Brödsmulor" className="mb-6 text-sm text-ink-muted">
-        <Link href="/sets" className="hover:text-ink">Set</Link>
+      <nav aria-label={t("breadcrumb")} className="mb-6 text-sm text-ink-muted">
+        <Link href="/sets" className="hover:text-ink">{t("breadcrumb")}</Link>
         <span className="mx-2 text-ink-faint" aria-hidden="true">/</span>
         <span className="text-ink">{set.name}</span>
       </nav>
@@ -82,17 +86,17 @@ export default async function SetPage({ params }: PageProps) {
         <Badge variant="holo">{set.series}</Badge>
       </div>
       <p className="mt-2 text-sm text-ink-muted">
-        Release: {formatDate(set.releaseDate)} ·{" "}
-        {set.totalCards > 0 ? set.totalCards : set._count.cards} kort ·{" "}
-        {products.length} produkter
+        {t("releaseColon", { date: formatDate(set.releaseDate) })} ·{" "}
+        {t("cards", { count: set.totalCards > 0 ? set.totalCards : set._count.cards })} ·{" "}
+        {t("products", { count: products.length })}
       </p>
 
       {products.length === 0 ? (
         <EmptyState
           className="mt-8"
           icon={<IconPackage size={32} />}
-          title="Inga produkter i setet ännu"
-          description="Vi har inte hittat några produkter från det här setet hos bevakade butiker."
+          title={t("emptyProductsTitle")}
+          description={t("emptyProductsDesc")}
         />
       ) : (
         <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
