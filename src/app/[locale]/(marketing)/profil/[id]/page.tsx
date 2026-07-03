@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate, formatPrice, formatRelative } from "@/lib/format";
 import { computeCollectionValue } from "@/services/collection";
-import { POST_CATEGORY_LABELS, POST_CATEGORY_VARIANTS } from "@/lib/community-labels";
+import { POST_CATEGORY_VARIANTS } from "@/lib/community-labels";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconHeart, IconMessage, IconSparkle } from "@/components/ui/icons";
@@ -15,16 +16,19 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({
   params,
 }: {
-  params: { id: string };
+  params: { locale: string; id: string };
 }): Promise<Metadata> {
+  const t = await getTranslations({ locale: params.locale, namespace: "Profile" });
   const user = await prisma.user.findUnique({
     where: { id: params.id },
     select: { name: true },
   });
-  return { title: user ? `${user.name} — profil` : "Profilen hittades inte" };
+  return { title: user ? t("metaSuffix", { name: user.name }) : t("metaNotFound") };
 }
 
-export default async function ProfilePage({ params }: { params: { id: string } }) {
+export default async function ProfilePage({ params }: { params: { locale: string; id: string } }) {
+  const t = await getTranslations("Profile");
+  const tPost = await getTranslations("PostCategory");
   const [session, user] = await Promise.all([
     auth(),
     prisma.user.findUnique({
@@ -63,9 +67,9 @@ export default async function ProfilePage({ params }: { params: { id: string } }
 
   // Enkla utmärkelser
   const badges: { label: string; variant: "holo" | "info" | "success" }[] = [];
-  if (user.reputationScore > 100) badges.push({ label: "Veteran", variant: "holo" });
-  if (user.isPublicCollection) badges.push({ label: "Samlare", variant: "info" });
-  if (user._count.posts > 10) badges.push({ label: "Aktiv", variant: "success" });
+  if (user.reputationScore > 100) badges.push({ label: t("badgeVeteran"), variant: "holo" });
+  if (user.isPublicCollection) badges.push({ label: t("badgeCollector"), variant: "info" });
+  if (user._count.posts > 10) badges.push({ label: t("badgeActive"), variant: "success" });
 
   const initials = user.name
     .split(/\s+/)
@@ -82,7 +86,7 @@ export default async function ProfilePage({ params }: { params: { id: string } }
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={user.avatarUrl}
-            alt={`Profilbild för ${user.name}`}
+            alt={t("avatarAlt", { name: user.name })}
             className="h-20 w-20 rounded-full border border-surface-border object-cover"
           />
         ) : (
@@ -98,10 +102,10 @@ export default async function ProfilePage({ params }: { params: { id: string } }
           <p className="mt-1 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm text-ink-muted sm:justify-start">
             <span className="inline-flex items-center gap-1.5">
               <IconSparkle size={15} className="text-holo-gold" />
-              <span className="tabular-nums">{user.reputationScore}</span> i rykte
+              <span className="tabular-nums">{user.reputationScore}</span> {t("reputation")}
             </span>
             <span aria-hidden="true" className="text-ink-faint">·</span>
-            <span>Medlem sedan {formatDate(user.createdAt)}</span>
+            <span>{t("memberSince", { date: formatDate(user.createdAt) })}</span>
           </p>
           {badges.length > 0 && (
             <div className="mt-2 flex flex-wrap justify-center gap-2 sm:justify-start">
@@ -121,19 +125,19 @@ export default async function ProfilePage({ params }: { params: { id: string } }
       {collection && (user.isPublicCollection || isOwnProfile) && (
         <Card className="mt-8">
           <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>Samling</CardTitle>
+            <CardTitle>{t("collectionTitle")}</CardTitle>
             {isOwnProfile ? (
               <span className="font-display text-lg font-bold text-holo-cyan">
                 {formatPrice(collection.totalValue)}
               </span>
             ) : (
-              <span className="text-sm text-ink-faint">{collection.itemCount} objekt</span>
+              <span className="text-sm text-ink-faint">{t("itemsCount", { count: collection.itemCount })}</span>
             )}
           </CardHeader>
           <CardContent className="p-0">
             {collection.topItems.length === 0 ? (
               <p className="px-5 py-8 text-center text-sm text-ink-muted">
-                Inga visningsbara objekt i samlingen ännu.
+                {t("noItems")}
               </p>
             ) : (
               <ol className="divide-y divide-surface-border">
@@ -145,7 +149,7 @@ export default async function ProfilePage({ params }: { params: { id: string } }
                     <p className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
                       {item.name}
                     </p>
-                    <span className="shrink-0 text-xs text-ink-muted">{item.quantity} st</span>
+                    <span className="shrink-0 text-xs text-ink-muted">{t("pieces", { count: item.quantity })}</span>
                     {isOwnProfile && (
                       <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">
                         {formatPrice(item.totalValue)}
@@ -162,12 +166,12 @@ export default async function ProfilePage({ params }: { params: { id: string } }
       {/* Senaste inlägg */}
       <Card className="mt-8">
         <CardHeader>
-          <CardTitle>Senaste inlägg</CardTitle>
+          <CardTitle>{t("recentPosts")}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {recentPosts.length === 0 ? (
             <p className="px-5 py-8 text-center text-sm text-ink-muted">
-              {user.name} har inte skrivit några inlägg ännu.
+              {t("noPosts", { name: user.name })}
             </p>
           ) : (
             <ul className="divide-y divide-surface-border">
@@ -179,7 +183,7 @@ export default async function ProfilePage({ params }: { params: { id: string } }
                   >
                     <div className="flex items-center gap-2">
                       <Badge variant={POST_CATEGORY_VARIANTS[post.category]}>
-                        {POST_CATEGORY_LABELS[post.category]}
+                        {tPost(post.category)}
                       </Badge>
                       <span className="text-xs text-ink-faint">
                         {formatRelative(post.createdAt)}
@@ -190,12 +194,12 @@ export default async function ProfilePage({ params }: { params: { id: string } }
                       <span className="inline-flex items-center gap-1">
                         <IconHeart size={13} />
                         <span className="tabular-nums">{post._count.likes}</span>
-                        <span className="sr-only">gilla-markeringar</span>
+                        <span className="sr-only">{t("likes")}</span>
                       </span>
                       <span className="inline-flex items-center gap-1">
                         <IconMessage size={13} />
                         <span className="tabular-nums">{post._count.comments}</span>
-                        <span className="sr-only">kommentarer</span>
+                        <span className="sr-only">{t("comments")}</span>
                       </span>
                     </p>
                   </Link>

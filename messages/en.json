@@ -345,6 +345,31 @@
   "Legal": {
     "lastUpdated": "Last updated: {date}"
   },
+  "Community": {
+    "metaTitle": "Community",
+    "metaDescription": "Community on Foilio — pulls, trades and market talk for Swedish Pokémon TCG collectors. Coming soon.",
+    "h1": "Community",
+    "comingSoon": "Coming soon",
+    "placeholderBody": "We're building a place for pulls, trades and market talk — by collectors, for collectors. Stay tuned, it opens soon."
+  },
+  "Profile": {
+    "metaSuffix": "{name} — profile",
+    "metaNotFound": "Profile not found",
+    "reputation": "in reputation",
+    "memberSince": "Member since {date}",
+    "badgeVeteran": "Veteran",
+    "badgeCollector": "Collector",
+    "badgeActive": "Active",
+    "avatarAlt": "Profile picture for {name}",
+    "collectionTitle": "Collection",
+    "itemsCount": "{count} items",
+    "noItems": "No showable items in the collection yet.",
+    "pieces": "{count} pcs",
+    "recentPosts": "Latest posts",
+    "noPosts": "{name} hasn't written any posts yet.",
+    "likes": "likes",
+    "comments": "comments"
+  },
   "Cookies": {
     "metaTitle": "Cookie policy",
     "metaDescription": "Information on how Foilio uses cookies and similar technologies.",

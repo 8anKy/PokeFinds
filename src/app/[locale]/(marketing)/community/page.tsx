@@ -1,16 +1,26 @@
 import type { Metadata } from "next";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { IconLock, IconMessage } from "@/components/ui/icons";
 import { LockScroll } from "@/components/lock-scroll";
 
-export const metadata: Metadata = {
-  title: "Community",
-  description:
-    "Community på Foilio — pulls, byten och marknadssnack för svenska Pokémon TCG-samlare. Snart här.",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: { locale: string };
+}): Promise<Metadata> {
+  const t = await getTranslations({ locale: params.locale, namespace: "Community" });
+  return { title: t("metaTitle"), description: t("metaDescription") };
+}
 
 // ponytail: community är pausad → statisk "snart här"-skärm (ingen DB-hämtning).
 // Flödeskoden finns kvar i git-historiken när det är dags att öppna igen.
-export default function CommunityPage() {
+export default async function CommunityPage({
+  params,
+}: {
+  params: { locale: string };
+}) {
+  setRequestLocale(params.locale);
+  const t = await getTranslations("Community");
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col items-center px-4 py-20 text-center">
       <LockScroll />
@@ -21,14 +31,13 @@ export default function CommunityPage() {
         </span>
       </span>
 
-      <h1 className="mt-6 font-display text-3xl font-bold text-ink">Community</h1>
+      <h1 className="mt-6 font-display text-3xl font-bold text-ink">{t("h1")}</h1>
       <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-holo-cyan/30 bg-holo-cyan/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-holo-cyan">
-        Snart här
+        {t("comingSoon")}
       </span>
 
       <p className="mt-4 max-w-md text-sm leading-relaxed text-ink-muted">
-        Vi bygger en plats för pulls, byten och marknadssnack — av samlare, för
-        samlare. Håll utkik, den öppnar snart.
+        {t("placeholderBody")}
       </p>
     </div>
   );
