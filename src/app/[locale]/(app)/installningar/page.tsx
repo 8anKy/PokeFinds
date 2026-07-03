@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -7,9 +8,10 @@ import { SettingsClient, type NotificationSettings, type SettingsUser } from "./
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Inställningar",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("Settings");
+  return { title: t("pageTitle") };
+}
 
 function parseNotificationSettings(json: unknown): NotificationSettings {
   const defaults: NotificationSettings = {
@@ -29,6 +31,7 @@ function parseNotificationSettings(json: unknown): NotificationSettings {
 export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user) redirect("/logga-in");
+  const t = await getTranslations("Settings");
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
@@ -55,9 +58,9 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-display text-2xl font-bold text-ink">Inställningar</h1>
+        <h1 className="font-display text-2xl font-bold text-ink">{t("pageTitle")}</h1>
         <p className="mt-1 text-sm text-ink-muted">
-          Hantera din profil, dina notiser och ditt konto.
+          {t("pageSubtitle")}
         </p>
       </div>
       <Suspense>

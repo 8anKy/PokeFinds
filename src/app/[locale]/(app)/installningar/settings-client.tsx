@@ -34,6 +34,8 @@ export interface SettingsUser {
 export function SettingsClient({ user }: { user: SettingsUser }) {
   const { toast } = useToast();
   const tSettings = useTranslations("Settings");
+  const tc = useTranslations("Common");
+  const deleteWord = tSettings("deleteWord");
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -45,14 +47,14 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
     const status = searchParams.get("tradera");
     if (!status) return;
     if (status === "ansluten") {
-      toast({ title: "Tradera-kontot är kopplat", variant: "success" });
+      toast({ title: tSettings("traderaConnectedToast"), variant: "success" });
     } else if (status === "nekad") {
-      toast({ title: "Tradera-kopplingen avbröts", variant: "error" });
+      toast({ title: tSettings("traderaCancelledToast"), variant: "error" });
     } else if (status.startsWith("fel")) {
       // ponytail: temporär felkods-suffix för felsökning — ta bort description när flödet är verifierat.
       const detail = searchParams.get("tradera_detail");
       toast({
-        title: "Kunde inte koppla Tradera-kontot",
+        title: tSettings("traderaErrorToast"),
         description: detail ? `${status}: ${detail}` : status,
         variant: "error",
       });
@@ -66,10 +68,10 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
     try {
       await apiFetch("/api/tradera", { method: "DELETE" });
       setTraderaUserId(null);
-      toast({ title: "Tradera-kontot är frånkopplat", variant: "success" });
+      toast({ title: tSettings("traderaDisconnectedToast"), variant: "success" });
     } catch (e) {
       toast({
-        title: "Det gick inte att koppla från",
+        title: tSettings("disconnectFail"),
         description: e instanceof Error ? e.message : undefined,
         variant: "error",
       });
@@ -102,7 +104,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
 
   async function saveProfile() {
     if (name.trim().length < 2) {
-      setProfileError("Namnet måste vara minst 2 tecken.");
+      setProfileError(tSettings("nameMin"));
       return;
     }
     setSavingProfile(true);
@@ -112,9 +114,9 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
         method: "PATCH",
         body: { name: name.trim(), bio: bio.trim() || null },
       });
-      toast({ title: "Profilen har sparats", variant: "success" });
+      toast({ title: tSettings("profileSaved"), variant: "success" });
     } catch (e) {
-      setProfileError(e instanceof Error ? e.message : "Något gick fel.");
+      setProfileError(e instanceof Error ? e.message : tSettings("genericFail"));
     } finally {
       setSavingProfile(false);
     }
@@ -126,8 +128,8 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
       const res = await enablePush();
       if (!res.ok) {
         toast({
-          title: "Push kunde inte aktiveras",
-          description: res.reason ?? "Tillåt notiser för Foilio i enhetens inställningar och försök igen.",
+          title: tSettings("pushFailTitle"),
+          description: res.reason ?? tSettings("pushFailDesc"),
           variant: "error",
         });
         return;
@@ -145,11 +147,11 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
         method: "PATCH",
         body: { notificationSettings: next },
       });
-      toast({ title: "Notisinställningarna har sparats", variant: "success" });
+      toast({ title: tSettings("notifSaved"), variant: "success" });
     } catch (e) {
       setSettings(previous);
       toast({
-        title: "Det gick inte att spara",
+        title: tSettings("saveFail"),
         description: e instanceof Error ? e.message : undefined,
         variant: "error",
       });
@@ -159,16 +161,16 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   }
 
   async function deleteAccount() {
-    if (confirmText !== "RADERA") return;
+    if (confirmText !== deleteWord) return;
     setDeleting(true);
     try {
       await apiFetch("/api/users/me", { method: "DELETE" });
-      toast({ title: "Ditt konto har raderats", variant: "success" });
+      toast({ title: tSettings("deleteSuccess"), variant: "success" });
       setAuthHint(false);
       await signOut({ callbackUrl: "/" });
     } catch (e) {
       toast({
-        title: "Det gick inte att radera kontot",
+        title: tSettings("deleteFail"),
         description: e instanceof Error ? e.message : undefined,
         variant: "error",
       });
@@ -177,9 +179,9 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   }
 
   const notificationOptions: { key: keyof NotificationSettings; label: string; hint: string }[] = [
-    { key: "email", label: "E-postnotiser", hint: "Prislarm och restocks via e-post." },
-    { key: "allRestocks", label: "Alla restocks", hint: "Få larm när VILKEN sealed-produkt som helst kommer i lager — utan att bevaka den." },
-    { key: "push", label: "Pushnotiser", hint: "Direkt till din enhet (endast i appen)." },
+    { key: "email", label: tSettings("notifEmail"), hint: tSettings("notifEmailHint") },
+    { key: "allRestocks", label: tSettings("notifAll"), hint: tSettings("notifAllHint") },
+    { key: "push", label: tSettings("notifPush"), hint: tSettings("notifPushHint") },
   ];
 
   return (
@@ -198,8 +200,8 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
       {/* Profil */}
       <Card>
         <CardHeader>
-          <CardTitle>Profil</CardTitle>
-          <p className="text-sm text-ink-muted">Så här visas du för andra samlare.</p>
+          <CardTitle>{tSettings("profileTitle")}</CardTitle>
+          <p className="text-sm text-ink-muted">{tSettings("profileDesc")}</p>
         </CardHeader>
         <CardContent>
           <form
@@ -210,18 +212,18 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
             }}
           >
             <div>
-              <Label htmlFor="name">Namn</Label>
+              <Label htmlFor="name">{tSettings("nameLabel")}</Label>
               <Input id="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
             </div>
             <div>
-              <Label htmlFor="email">E-post</Label>
+              <Label htmlFor="email">{tSettings("emailLabel")}</Label>
               <Input id="email" value={user.email} disabled />
             </div>
             <div>
-              <Label htmlFor="bio">Bio</Label>
+              <Label htmlFor="bio">{tSettings("bioLabel")}</Label>
               <Textarea
                 id="bio"
-                placeholder="Berätta vad du samlar på…"
+                placeholder={tSettings("bioPlaceholder")}
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 maxLength={500}
@@ -229,7 +231,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
             </div>
             <FieldError message={profileError} />
             <Button type="submit" loading={savingProfile}>
-              Spara profil
+              {tSettings("saveProfile")}
             </Button>
           </form>
         </CardContent>
@@ -238,8 +240,8 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
       {/* Notiser */}
       <Card>
         <CardHeader>
-          <CardTitle>Notiser</CardTitle>
-          <p className="text-sm text-ink-muted">Välj hur du vill bli larmad.</p>
+          <CardTitle>{tSettings("notifTitle")}</CardTitle>
+          <p className="text-sm text-ink-muted">{tSettings("notifDesc")}</p>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -257,7 +259,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
                   <label htmlFor={`notif-${opt.key}`} className="cursor-pointer">
                     <span className="block text-sm font-medium text-ink">
                       {opt.label}
-                      {locked && <span className="ml-2 text-xs text-holo-cyan">Pro</span>}
+                      {locked && <span className="ml-2 text-xs text-holo-cyan">{tSettings("proTag")}</span>}
                     </span>
                     <span className="block text-xs text-ink-muted">{opt.hint}</span>
                   </label>
@@ -271,22 +273,22 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
       {/* Premium */}
       <Card>
         <CardHeader className="flex-row items-center justify-between">
-          <CardTitle>Plan</CardTitle>
+          <CardTitle>{tSettings("planTitle")}</CardTitle>
           {user.planTier === "PREMIUM" ? (
-            <Badge variant="holo">Pro</Badge>
+            <Badge variant="holo">{tSettings("proBadge")}</Badge>
           ) : (
-            <Badge>Gratis</Badge>
+            <Badge>{tSettings("freeBadge")}</Badge>
           )}
         </CardHeader>
         <CardContent>
           <p className="text-sm text-ink-muted">
             {user.planTier === "PREMIUM"
-              ? "Du har Pro — tack för att du stöttar Foilio! Obegränsade bevakningar, alla restocks och AI-gradering."
-              : "Med Pro får du obegränsade bevakningar, alla restocks, AI-gradering och full prishistorik."}
+              ? tSettings("planProDesc")
+              : tSettings("planFreeDesc")}
           </p>
           {user.planTier === "FREE" && (
             <LinkButton href="/priser" className="mt-4">
-              Uppgradera till Pro
+              {tSettings("upgradeCta")}
             </LinkButton>
           )}
         </CardContent>
@@ -295,19 +297,19 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
       {/* Tradera */}
       <Card>
         <CardHeader className="flex-row items-center justify-between">
-          <CardTitle>Sälj på Tradera</CardTitle>
-          {traderaUserId ? <Badge variant="holo">Ansluten</Badge> : <Badge>Ej ansluten</Badge>}
+          <CardTitle>{tSettings("traderaTitle")}</CardTitle>
+          {traderaUserId ? <Badge variant="holo">{tSettings("connected")}</Badge> : <Badge>{tSettings("notConnected")}</Badge>}
         </CardHeader>
         <CardContent>
           <p className="text-sm text-ink-muted">
             {traderaUserId
-              ? `Ditt Tradera-konto (id ${traderaUserId}) är kopplat. Du kan sälja produkter från skannern och din samling direkt till Tradera.`
-              : "Koppla ditt Tradera-konto för att kunna lägga upp kort och sealed-produkter till försäljning direkt från skannern och din samling."}
+              ? tSettings("traderaConnectedDesc", { id: traderaUserId })
+              : tSettings("traderaDisconnectedDesc")}
           </p>
           <div className="mt-4">
             {traderaUserId ? (
               <Button variant="secondary" loading={disconnectingTradera} onClick={() => void disconnectTradera()}>
-                Koppla från Tradera
+                {tSettings("disconnectTradera")}
               </Button>
             ) : (
               // Vanlig <a>, INTE next/link: måste vara en riktig sidnavigering (cookie +
@@ -316,7 +318,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
                 href="/api/tradera/connect"
                 className="inline-flex h-10 items-center justify-center rounded-lg bg-holo-cyan px-4 text-sm font-semibold text-surface transition-all duration-200 ease-out hover:bg-holo-cyan/90 hover:shadow-glow active:scale-[0.97] active:bg-holo-cyan/80"
               >
-                Anslut Tradera-konto
+                {tSettings("connectTradera")}
               </a>
             )}
           </div>
@@ -326,18 +328,18 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
       {/* Konto / GDPR */}
       <Card className="border-fall/30">
         <CardHeader>
-          <CardTitle>Konto &amp; integritet (GDPR)</CardTitle>
+          <CardTitle>{tSettings("gdprTitle")}</CardTitle>
           <p className="text-sm text-ink-muted">
-            Din data är din. Exportera allt vi har om dig, eller radera kontot permanent.
+            {tSettings("gdprDesc")}
           </p>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-3">
             <LinkButton href="/api/users/me/export" variant="secondary">
-              Exportera mina data
+              {tSettings("exportData")}
             </LinkButton>
             <Button variant="danger" onClick={() => setDeleteOpen(true)}>
-              Radera konto
+              {tSettings("deleteAccount")}
             </Button>
           </div>
         </CardContent>
@@ -350,7 +352,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
           setDeleteOpen(false);
           setConfirmText("");
         }}
-        title="Radera konto permanent"
+        title={tSettings("deleteModalTitle")}
         footer={
           <>
             <Button
@@ -360,27 +362,31 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
                 setConfirmText("");
               }}
             >
-              Avbryt
+              {tc("cancel")}
             </Button>
             <Button
               variant="danger"
-              disabled={confirmText !== "RADERA"}
+              disabled={confirmText !== deleteWord}
               loading={deleting}
               onClick={() => void deleteAccount()}
             >
-              Radera mitt konto
+              {tSettings("deleteConfirmBtn")}
             </Button>
           </>
         }
       >
         <div className="space-y-4">
           <p className="text-sm text-ink-muted">
-            Detta raderar ditt konto, din samling, dina bevakningar och alla inlägg —{" "}
-            <span className="font-semibold text-fall">permanent och utan ångerrätt</span>.
+            {tSettings.rich("deleteWarning", {
+              b: (chunks) => <span className="font-semibold text-fall">{chunks}</span>,
+            })}
           </p>
           <div>
             <Label htmlFor="confirmDelete">
-              Skriv <span className="font-mono font-bold">RADERA</span> för att bekräfta
+              {tSettings.rich("deleteConfirmPrompt", {
+                word: deleteWord,
+                code: (chunks) => <span className="font-mono font-bold">{chunks}</span>,
+              })}
             </Label>
             <Input
               id="confirmDelete"
