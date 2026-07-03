@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
 import { formatPrice } from "@/lib/format";
@@ -41,6 +42,8 @@ function krInputToOre(value: string): number | null {
 }
 
 export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] }) {
+  const t = useTranslations("Watchlist");
+  const tc = useTranslations("Common");
   const [items, setItems] = useState(initialItems);
   const [editing, setEditing] = useState<WatchlistRow | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -73,7 +76,7 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
       toast({ title: successTitle, variant: "success" });
     } catch (e) {
       toast({
-        title: "Det gick inte att uppdatera bevakningen",
+        title: t("updateFail"),
         description: e instanceof Error ? e.message : undefined,
         variant: "error",
       });
@@ -91,11 +94,11 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
     if (!editing) return;
     const ore = krInputToOre(editValue);
     if (editValue.trim() && ore == null) {
-      toast({ title: "Ogiltigt pris", description: "Ange ett pris i kronor.", variant: "error" });
+      toast({ title: t("invalidPrice"), description: t("invalidPriceDesc"), variant: "error" });
       return;
     }
     setSaving(true);
-    await patchItem(editing.id, { targetPrice: ore }, "Målpriset har uppdaterats");
+    await patchItem(editing.id, { targetPrice: ore }, t("targetSaved"));
     setSaving(false);
     setEditing(null);
   }
@@ -106,11 +109,11 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
     try {
       await apiFetch(`/api/watchlist/${deleting.id}`, { method: "DELETE" });
       setItems((prev) => prev.filter((it) => it.id !== deleting.id));
-      toast({ title: "Bevakningen har tagits bort", variant: "success" });
+      toast({ title: t("removed"), variant: "success" });
       router.refresh();
     } catch (e) {
       toast({
-        title: "Det gick inte att ta bort bevakningen",
+        title: t("removeFail"),
         description: e instanceof Error ? e.message : undefined,
         variant: "error",
       });
@@ -123,7 +126,7 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
   const actionButtons = (item: WatchlistRow) => (
     <>
       <Button size="sm" variant="ghost" onClick={() => openEdit(item)}>
-        Redigera
+        {tc("edit")}
       </Button>
       <Button
         size="sm"
@@ -133,14 +136,14 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
           void patchItem(
             item.id,
             { isPaused: !item.isPaused },
-            item.isPaused ? "Bevakningen är igång igen" : "Bevakningen är pausad"
+            item.isPaused ? t("resumed") : t("pausedToast")
           )
         }
       >
-        {item.isPaused ? "Återuppta" : "Pausa"}
+        {item.isPaused ? t("resume") : t("pause")}
       </Button>
       <Button size="sm" variant="danger" onClick={() => setDeleting(item)}>
-        Ta bort
+        {tc("delete")}
       </Button>
     </>
   );
@@ -170,21 +173,21 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
                 )}
               </div>
               {item.isPaused ? (
-                <Badge variant="warning">Pausad</Badge>
+                <Badge variant="warning">{t("paused")}</Badge>
               ) : (
-                <Badge variant="success">Aktiv</Badge>
+                <Badge variant="success">{t("active")}</Badge>
               )}
             </div>
 
             <div className="mt-3 flex gap-6 text-sm">
               <div>
-                <p className="text-xs text-ink-muted">Lägsta pris nu</p>
+                <p className="text-xs text-ink-muted">{t("lowestNow")}</p>
                 <p data-price className="font-semibold text-ink">
                   {formatPrice(item.product.lowestPrice)}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-ink-muted">Målpris</p>
+                <p className="text-xs text-ink-muted">{t("target")}</p>
                 <p data-price className="font-semibold text-ink">
                   {item.targetPrice != null ? formatPrice(item.targetPrice) : "–"}
                 </p>
@@ -200,11 +203,11 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
                     void patchItem(
                       item.id,
                       { restockAlert: e.target.checked },
-                      e.target.checked ? "Restock-larm på" : "Restock-larm av"
+                      e.target.checked ? t("restockOn") : t("restockOff")
                     )
                   }
                 />
-                Restock-larm
+                {t("restockLabel")}
               </label>
               <label className="flex items-center gap-2 text-sm text-ink">
                 <Checkbox
@@ -214,11 +217,11 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
                     void patchItem(
                       item.id,
                       { priceAlert: e.target.checked },
-                      e.target.checked ? "Prislarm på" : "Prislarm av"
+                      e.target.checked ? t("priceOn") : t("priceOff")
                     )
                   }
                 />
-                Prislarm
+                {t("priceLabel")}
               </label>
             </div>
 
@@ -232,13 +235,13 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
       <Table>
         <THead>
           <TR>
-            <TH>Produkt</TH>
-            <TH>Lägsta pris nu</TH>
-            <TH>Målpris</TH>
-            <TH>Restock</TH>
-            <TH>Prislarm</TH>
-            <TH>Status</TH>
-            <TH className="text-right">Åtgärder</TH>
+            <TH>{t("colProduct")}</TH>
+            <TH>{t("colLowest")}</TH>
+            <TH>{t("colTarget")}</TH>
+            <TH>{t("colRestock")}</TH>
+            <TH>{t("colPriceAlert")}</TH>
+            <TH>{t("colStatus")}</TH>
+            <TH className="text-right">{t("colActions")}</TH>
           </TR>
         </THead>
         <TBody>
@@ -263,12 +266,12 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
                 <Checkbox
                   checked={item.restockAlert}
                   disabled={busyId === item.id}
-                  aria-label={`Restock-larm för ${item.product.title}`}
+                  aria-label={t("restockAria", { title: item.product.title })}
                   onChange={(e) =>
                     void patchItem(
                       item.id,
                       { restockAlert: e.target.checked },
-                      e.target.checked ? "Restock-larm på" : "Restock-larm av"
+                      e.target.checked ? t("restockOn") : t("restockOff")
                     )
                   }
                 />
@@ -277,21 +280,21 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
                 <Checkbox
                   checked={item.priceAlert}
                   disabled={busyId === item.id}
-                  aria-label={`Prislarm för ${item.product.title}`}
+                  aria-label={t("priceAria", { title: item.product.title })}
                   onChange={(e) =>
                     void patchItem(
                       item.id,
                       { priceAlert: e.target.checked },
-                      e.target.checked ? "Prislarm på" : "Prislarm av"
+                      e.target.checked ? t("priceOn") : t("priceOff")
                     )
                   }
                 />
               </TD>
               <TD>
                 {item.isPaused ? (
-                  <Badge variant="warning">Pausad</Badge>
+                  <Badge variant="warning">{t("paused")}</Badge>
                 ) : (
-                  <Badge variant="success">Aktiv</Badge>
+                  <Badge variant="success">{t("active")}</Badge>
                 )}
               </TD>
               <TD>
@@ -307,14 +310,14 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
       <Modal
         open={editing != null}
         onClose={() => setEditing(null)}
-        title="Redigera målpris"
+        title={t("editTarget")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setEditing(null)}>
-              Avbryt
+              {tc("cancel")}
             </Button>
             <Button onClick={() => void saveTargetPrice()} loading={saving}>
-              Spara
+              {tc("save")}
             </Button>
           </>
         }
@@ -326,14 +329,16 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
           }}
         >
           <p className="mb-4 text-sm text-ink-muted">
-            Vi larmar dig när <span className="font-medium text-ink">{editing?.product.title}</span>{" "}
-            kostar lika med eller mindre än ditt målpris. Lämna tomt för att ta bort målpriset.
+            {t.rich("editHint", {
+              title: editing?.product.title ?? "",
+              b: (chunks) => <span className="font-medium text-ink">{chunks}</span>,
+            })}
           </p>
-          <Label htmlFor="targetPrice">Målpris (kr)</Label>
+          <Label htmlFor="targetPrice">{t("targetPriceLabel")}</Label>
           <Input
             id="targetPrice"
             inputMode="decimal"
-            placeholder="t.ex. 499"
+            placeholder={t("targetPlaceholder")}
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             autoFocus
@@ -345,22 +350,23 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
       <Modal
         open={deleting != null}
         onClose={() => setDeleting(null)}
-        title="Ta bort bevakning?"
+        title={t("deleteTitle")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setDeleting(null)}>
-              Avbryt
+              {tc("cancel")}
             </Button>
             <Button variant="danger" onClick={() => void confirmDelete()} loading={saving}>
-              Ta bort
+              {tc("delete")}
             </Button>
           </>
         }
       >
         <p className="text-sm text-ink-muted">
-          Är du säker på att du vill sluta bevaka{" "}
-          <span className="font-medium text-ink">{deleting?.product.title}</span>? Du får inga fler
-          larm för den här produkten.
+          {t.rich("deleteConfirm", {
+            title: deleting?.product.title ?? "",
+            b: (chunks) => <span className="font-medium text-ink">{chunks}</span>,
+          })}
         </p>
       </Modal>
     </>

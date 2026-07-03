@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { listWatchlist } from "@/services/watchlist";
@@ -13,20 +14,22 @@ import { WatchlistTable, type WatchlistRow } from "./watchlist-table";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Bevakningar",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("Watchlist");
+  return { title: t("metaTitle") };
+}
 
-const ALERT_STATUS: Record<string, { label: string; variant: BadgeVariant }> = {
-  PENDING: { label: "Väntar", variant: "warning" },
-  SENT: { label: "Skickad", variant: "info" },
-  FAILED: { label: "Misslyckad", variant: "danger" },
-  READ: { label: "Läst", variant: "default" },
+const ALERT_STATUS: Record<string, { labelKey: string; variant: BadgeVariant }> = {
+  PENDING: { labelKey: "statusPending", variant: "warning" },
+  SENT: { labelKey: "statusSent", variant: "info" },
+  FAILED: { labelKey: "statusFailed", variant: "danger" },
+  READ: { labelKey: "statusRead", variant: "default" },
 };
 
 export default async function WatchlistPage() {
   const session = await auth();
   if (!session?.user) redirect("/logga-in");
+  const t = await getTranslations("Watchlist");
 
   const [items, alerts] = await Promise.all([
     listWatchlist(session.user.id),
@@ -52,23 +55,23 @@ export default async function WatchlistPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink">Bevakningar</h1>
+          <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Vi larmar dig vid prisfall, målpriser och restocks — innan alla andra hinner före.
+            {t("subtitle")}
           </p>
         </div>
         <LinkButton href="/produkter" variant="outline">
           <IconPlus size={16} />
-          Hitta produkter att bevaka
+          {t("findProducts")}
         </LinkButton>
       </div>
 
       {rows.length === 0 ? (
         <EmptyState
           icon={<IconBell size={32} />}
-          title="Du bevakar inget än"
-          description="Lägg till produkter i din bevakningslista så säger vi till så fort priset faller eller lagret fylls på."
-          action={<LinkButton href="/produkter">Utforska produkter</LinkButton>}
+          title={t("emptyTitle")}
+          description={t("emptyDesc")}
+          action={<LinkButton href="/produkter">{t("exploreProducts")}</LinkButton>}
         />
       ) : (
         <WatchlistTable initialItems={rows} />
@@ -77,13 +80,13 @@ export default async function WatchlistPage() {
       {/* Alerthistorik */}
       <Card>
         <CardHeader>
-          <CardTitle>Alerthistorik</CardTitle>
-          <p className="text-sm text-ink-muted">Dina senast utlösta larm.</p>
+          <CardTitle>{t("alertHistory")}</CardTitle>
+          <p className="text-sm text-ink-muted">{t("alertHistorySub")}</p>
         </CardHeader>
         <CardContent className="p-0">
           {alerts.items.length === 0 ? (
             <p className="px-5 py-8 text-center text-sm text-ink-muted">
-              Inga larm har utlösts ännu. När något händer hittar du historiken här.
+              {t("noAlerts")}
             </p>
           ) : (
             <ul className="divide-y divide-surface-border">
@@ -94,12 +97,12 @@ export default async function WatchlistPage() {
                     <div className="min-w-0">
                       <p className="text-sm text-ink">{a.message}</p>
                       <p className="mt-0.5 text-xs text-ink-faint">
-                        Utlöst {formatRelative(a.triggeredAt)}
-                        {a.sentAt ? ` · Skickad ${formatDateTime(a.sentAt)}` : ""}
+                        {t("triggered", { when: formatRelative(a.triggeredAt) })}
+                        {a.sentAt ? t("sentSuffix", { when: formatDateTime(a.sentAt) }) : ""}
                       </p>
                     </div>
                     <Badge variant={status.variant} className="shrink-0">
-                      {status.label}
+                      {t(status.labelKey)}
                     </Badge>
                   </li>
                 );

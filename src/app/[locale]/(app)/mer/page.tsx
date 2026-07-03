@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { redirect } from "next/navigation";
 import { auth, hasRole } from "@/lib/auth";
@@ -19,9 +20,10 @@ import { LockScroll } from "@/components/lock-scroll";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Mer",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("More");
+  return { title: t("metaTitle") };
+}
 
 interface MenuLink {
   href: string;
@@ -34,6 +36,7 @@ interface MenuLink {
 export default async function MerPage() {
   const session = await auth();
   if (!session?.user) redirect("/logga-in");
+  const t = await getTranslations("More");
   const isAdmin = hasRole(session.user.role, "MODERATOR");
   const isPremium = session.user.planTier === "PREMIUM";
 
@@ -41,26 +44,26 @@ export default async function MerPage() {
     where: { userId: session.user.id },
   });
 
-  const name = session.user.name ?? "Samlare";
+  const name = session.user.name ?? t("defaultName");
   const initial = name.trim().charAt(0).toUpperCase() || "S";
 
   const links: MenuLink[] = [
     {
       href: "/bevakningar",
-      label: "Bevakningar",
+      label: t("watches"),
       icon: IconBell,
       iconClass: "text-rise",
-      badge: watchCount > 0 ? `${watchCount} aktiva` : undefined,
+      badge: watchCount > 0 ? t("watchesBadge", { count: watchCount }) : undefined,
     },
-    { href: "/gradera", label: "AI-gradering", icon: IconShield, iconClass: "text-holo-violet" },
+    { href: "/gradera", label: t("grading"), icon: IconShield, iconClass: "text-holo-violet" },
     {
       href: "/priser",
-      label: isPremium ? "Prenumeration" : "Uppgradera till Pro",
+      label: isPremium ? t("subscription") : t("upgrade"),
       icon: IconTrophy,
       iconClass: "text-holo-gold",
     },
-    { href: "/installningar", label: "Inställningar", icon: IconSettings, iconClass: "text-ink-muted" },
-    { href: "/kontakt", label: "Support & FAQ", icon: IconInfo, iconClass: "text-ink-muted" },
+    { href: "/installningar", label: t("settings"), icon: IconSettings, iconClass: "text-ink-muted" },
+    { href: "/kontakt", label: t("support"), icon: IconInfo, iconClass: "text-ink-muted" },
   ];
 
   return (
@@ -68,8 +71,8 @@ export default async function MerPage() {
       <LockScroll />
       {/* Rubrik */}
       <header>
-        <h1 className="font-display text-2xl font-bold text-ink">Mer</h1>
-        <p className="mt-1 text-sm text-ink-muted">Hantera ditt konto och dina inställningar</p>
+        <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
+        <p className="mt-1 text-sm text-ink-muted">{t("subtitle")}</p>
       </header>
 
       {/* Konto + meny i ett grupperat kort */}
@@ -85,7 +88,7 @@ export default async function MerPage() {
           <span className="min-w-0 flex-1">
             <span className="block truncate text-base font-semibold text-ink">{name}</span>
             <span className="block text-xs text-ink-muted">
-              {isPremium ? "Pro-medlem" : "Gratismedlem"}
+              {isPremium ? t("proMember") : t("freeMember")}
             </span>
           </span>
           <IconChevronRight size={18} className="shrink-0 text-ink-muted" />
@@ -114,16 +117,14 @@ export default async function MerPage() {
           <a
             href={
               "mailto:hej@foilio.se?subject=" +
-              encodeURIComponent("Buggrapport – Foilio-appen") +
+              encodeURIComponent(t("bugSubject")) +
               "&body=" +
-              encodeURIComponent(
-                "Beskriv buggen så detaljerat du kan:\n\n\nVad gjorde du när det hände?\n\n\n— Skickat från Foilio-appen"
-              )
+              encodeURIComponent(t("bugBody"))
             }
             className="flex items-center gap-3 border-b border-surface-border px-4 py-3.5 transition-colors last:border-b-0 hover:bg-surface-overlay/60"
           >
             <IconFlag size={20} className="shrink-0 text-rise" />
-            <span className="flex-1 text-sm font-medium text-ink">Rapportera bugg</span>
+            <span className="flex-1 text-sm font-medium text-ink">{t("reportBug")}</span>
             <IconChevronRight size={18} className="shrink-0 text-ink-muted" />
           </a>
           {isAdmin && (
@@ -132,7 +133,7 @@ export default async function MerPage() {
               className="flex items-center gap-3 border-t border-surface-border px-4 py-3.5 transition-colors hover:bg-surface-overlay/60"
             >
               <IconWrench size={20} className="shrink-0 text-holo-violet" />
-              <span className="flex-1 text-sm font-medium text-ink">Adminpanel</span>
+              <span className="flex-1 text-sm font-medium text-ink">{t("admin")}</span>
               <IconChevronRight size={18} className="shrink-0 text-ink-muted" />
             </Link>
           )}
