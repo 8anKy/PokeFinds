@@ -7,6 +7,7 @@
  * Kräver att Tradera-kontot är kopplat (Inställningar) — annars svarar API:t 400.
  */
 import { useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { apiFetch } from "@/lib/client-api";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -14,14 +15,22 @@ import { Modal } from "@/components/ui/modal";
 import { Input, Textarea, Select, Label, FieldError } from "@/components/ui/input";
 import { CONDITION_LABELS, LANGUAGE_LABELS, type CollectionRow } from "./collection-client";
 
+type Translators = {
+  t: ReturnType<typeof useTranslations>;
+  tCond: ReturnType<typeof useTranslations>;
+  tLang: ReturnType<typeof useTranslations>;
+};
+
 /** Standardbeskrivning att förifylla textrutan med (användaren kan redigera). */
-function defaultDescription(row: CollectionRow, condition: string): string {
+function defaultDescription(row: CollectionRow, condition: string, tr: Translators): string {
+  const condLabel = condition in CONDITION_LABELS ? tr.tCond(condition) : condition;
+  const langLabel = row.language in LANGUAGE_LABELS ? tr.tLang(row.language) : row.language;
   return [
     `${row.name}${row.setName ? ` — ${row.setName}` : ""}`,
-    `Skick: ${CONDITION_LABELS[condition] ?? condition}`,
-    `Språk: ${LANGUAGE_LABELS[row.language] ?? row.language}`,
+    tr.t("sellDescCondition", { condition: condLabel }),
+    tr.t("sellDescLanguage", { language: langLabel }),
     "",
-    "Bilden visar det exakta objektet. Säljes av privatperson.",
+    tr.t("sellDescFooter"),
   ].join("\n");
 }
 
@@ -44,6 +53,10 @@ export function SellButton({
   size?: "sm" | "md";
 }) {
   const { toast } = useToast();
+  const t = useTranslations("Collection");
+  const tCond = useTranslations("Condition");
+  const tLang = useTranslations("Language");
+  const tr: Translators = { t, tCond, tLang };
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [open, setOpen] = useState(false);
@@ -62,7 +75,7 @@ export function SellButton({
     setCondition(row.condition);
     setShipping("20");
     setPurchasePrice(row.purchasePrice != null ? String(Math.round(row.purchasePrice / 100)) : "");
-    setDescription(defaultDescription(row, row.condition));
+    setDescription(defaultDescription(row, row.condition, tr));
     setImages([]);
     setError(null);
     setResultUrl(null);
@@ -72,9 +85,9 @@ export function SellButton({
   async function submit() {
     const priceKr = Math.round(Number(price));
     const shippingKr = Math.round(Number(shipping));
-    if (!Number.isFinite(priceKr) || priceKr <= 0) return setError("Ange ett pris i kronor.");
-    if (!Number.isFinite(shippingKr) || shippingKr < 0) return setError("Ogiltig fraktkostnad.");
-    if (images.length === 0) return setError("Ladda upp minst ett foto på objektet.");
+    if (!Number.isFinite(priceKr) || priceKr <= 0) return setError(t("sellErrPrice"));
+    if (!Number.isFinite(shippingKr) || shippingKr < 0) return setError(t("sellErrShipping"));
+    if (images.length === 0) return setError(t("sellErrPhoto"));
 
     setSaving(true);
     setError(null);
@@ -95,9 +108,9 @@ export function SellButton({
         },
       });
       setResultUrl(url);
-      toast({ title: "Annonsen är skapad på Tradera", variant: "success" });
+      toast({ title: t("sellCreatedToast"), variant: "success" });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Något gick fel.");
+      setError(e instanceof Error ? e.message : t("genericFail"));
     } finally {
       setSaving(false);
     }
@@ -106,18 +119,18 @@ export function SellButton({
   return (
     <>
       <Button size={size} variant="secondary" className={className} onClick={openModal}>
-        Sälj
+        {t("sell")}
       </Button>
 
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Sälj på Tradera"
+        title={t("sellTitle")}
         footer={
           resultUrl ? (
             <>
               <Button variant="ghost" onClick={() => setOpen(false)}>
-                Stäng
+                {t("sellClose")}
               </Button>
               <a
                 href={resultUrl}
@@ -125,16 +138,16 @@ export function SellButton({
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center rounded-lg bg-holo-cyan px-4 py-2 text-sm font-semibold text-black transition-opacity hover:opacity-90"
               >
-                Visa annonsen
+                {t("sellViewListing")}
               </a>
             </>
           ) : (
             <>
               <Button variant="ghost" onClick={() => setOpen(false)}>
-                Avbryt
+                {t("gridSelectCancel")}
               </Button>
               <Button onClick={() => void submit()} loading={saving}>
-                Skapa annons
+                {t("sellCreate")}
               </Button>
             </>
           )
@@ -142,29 +155,34 @@ export function SellButton({
       >
         {resultUrl ? (
           <p className="text-sm text-ink-muted">
-            <span className="font-medium text-ink">{row.name}</span> ligger nu uppe på Tradera som
-            Köp nu-annons. Det kan ta en liten stund innan den syns i sök.
+            {t.rich("sellResultText", {
+              name: row.name,
+              b: (chunks) => <span className="font-medium text-ink">{chunks}</span>,
+            })}
           </p>
         ) : (
         <div className="space-y-4">
           <p className="text-sm text-ink-muted">
-            <span className="font-medium text-ink">{row.name}</span>
-            {row.setName ? ` · ${row.setName}` : ""} läggs upp som Köp nu-annons (60 dagar).
+            {t.rich("sellIntro", {
+              name: row.name,
+              setSuffix: row.setName ? ` · ${row.setName}` : "",
+              b: (chunks) => <span className="font-medium text-ink">{chunks}</span>,
+            })}
           </p>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="sellPrice">Pris (kr)</Label>
+              <Label htmlFor="sellPrice">{t("sellPrice")}</Label>
               <Input
                 id="sellPrice"
                 inputMode="numeric"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                placeholder="t.ex. 399"
+                placeholder={t("sellPricePlaceholder")}
               />
             </div>
             <div>
-              <Label htmlFor="sellShipping">Frakt (kr)</Label>
+              <Label htmlFor="sellShipping">{t("sellShipping")}</Label>
               <Input
                 id="sellShipping"
                 inputMode="numeric"
@@ -175,7 +193,7 @@ export function SellButton({
           </div>
 
           <div>
-            <Label htmlFor="sellCondition">Skick</Label>
+            <Label htmlFor="sellCondition">{t("condition")}</Label>
             <Select
               id="sellCondition"
               value={condition}
@@ -184,38 +202,38 @@ export function SellButton({
                 // Håll beskrivningens Skick-rad i synk — men bara om texten inte
                 // redigerats (dvs. fortfarande är auto-texten för nuvarande skick).
                 setDescription((prev) =>
-                  prev === defaultDescription(row, condition) ? defaultDescription(row, next) : prev
+                  prev === defaultDescription(row, condition, tr) ? defaultDescription(row, next, tr) : prev
                 );
                 setCondition(next);
               }}
             >
-              {Object.entries(CONDITION_LABELS).map(([value, label]) => (
+              {Object.keys(CONDITION_LABELS).map((value) => (
                 <option key={value} value={value}>
-                  {label}
+                  {tCond(value)}
                 </option>
               ))}
             </Select>
           </div>
 
           <div>
-            <Label htmlFor="sellPurchase">Inköpspris (kr)</Label>
+            <Label htmlFor="sellPurchase">{t("sellPurchasePrice")}</Label>
             <Input
               id="sellPurchase"
               inputMode="numeric"
               value={purchasePrice}
               onChange={(e) => setPurchasePrice(e.target.value)}
-              placeholder="Vad du betalade — för vinstberäkning (valfritt)"
+              placeholder={t("sellPurchasePlaceholder")}
             />
           </div>
 
           <div>
-            <Label htmlFor="sellDescription">Beskrivning</Label>
+            <Label htmlFor="sellDescription">{t("sellDescription")}</Label>
             <Textarea
               id="sellDescription"
               rows={5}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Beskriv objektet…"
+              placeholder={t("sellDescriptionPlaceholder")}
               // Skrolla upp fältet ovanför tangentbordet när det öppnas (mobil).
               onFocus={(e) => {
                 const el = e.currentTarget;
@@ -225,7 +243,7 @@ export function SellButton({
           </div>
 
           <div>
-            <Label htmlFor="sellPhoto">Foton på objektet (första blir huvudbild)</Label>
+            <Label htmlFor="sellPhoto">{t("sellPhotos")}</Label>
             <input
               ref={fileRef}
               id="sellPhoto"
@@ -248,12 +266,12 @@ export function SellButton({
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={src}
-                      alt={`Foto ${i + 1}`}
+                      alt={t("sellPhotoAlt", { n: i + 1 })}
                       className="h-20 w-20 rounded-lg object-cover bg-surface-overlay"
                     />
                     <button
                       type="button"
-                      aria-label="Ta bort foto"
+                      aria-label={t("sellRemovePhoto")}
                       onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
                       className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-fall text-xs font-bold text-white"
                     >

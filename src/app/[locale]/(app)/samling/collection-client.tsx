@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { formatPrice, formatPercent, formatDate } from "@/lib/format";
 import { apiFetch } from "@/lib/client-api";
@@ -163,6 +164,10 @@ export function CollectionClient({
   initialItems: CollectionRow[];
   isPublicCollection: boolean;
 }) {
+  const t = useTranslations("Collection");
+  const tCond = useTranslations("Condition");
+  const tLang = useTranslations("Language");
+  const tc = useTranslations("Common");
   const [items, setItems] = useState(initialItems);
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<CollectionRow | null>(null);
@@ -214,10 +219,10 @@ export function CollectionClient({
   function buildPayload(f: FormState): Record<string, unknown> | { error: string } {
     const quantity = Number(f.quantity);
     if (!Number.isInteger(quantity) || quantity < 1) {
-      return { error: "Antal måste vara minst 1." };
+      return { error: t("qtyMinError") };
     }
     if (!f.cardId && !f.freeText.trim()) {
-      return { error: "Välj ett kort eller skriv in ett namn." };
+      return { error: t("chooseOrNameError") };
     }
     const notes = f.cardId
       ? f.notes.trim() || undefined
@@ -246,13 +251,13 @@ export function CollectionClient({
     setFormError(null);
     try {
       await apiFetch("/api/collection", { method: "POST", body: payload });
-      toast({ title: "Tillagd i samlingen", variant: "success" });
+      toast({ title: t("addedToast"), variant: "success" });
       setAddOpen(false);
       setForm(EMPTY_FORM);
       setSearch("");
       router.refresh();
     } catch (e) {
-      setFormError(e instanceof Error ? e.message : "Något gick fel.");
+      setFormError(e instanceof Error ? e.message : t("genericFail"));
     } finally {
       setSaving(false);
     }
@@ -279,7 +284,7 @@ export function CollectionClient({
     if (!editing) return;
     const quantity = Number(form.quantity);
     if (!Number.isInteger(quantity) || quantity < 1) {
-      setFormError("Antal måste vara minst 1.");
+      setFormError(t("qtyMinError"));
       return;
     }
     setSaving(true);
@@ -299,11 +304,11 @@ export function CollectionClient({
           ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
         },
       });
-      toast({ title: "Objektet har uppdaterats", variant: "success" });
+      toast({ title: t("updatedToast"), variant: "success" });
       setEditing(null);
       router.refresh();
     } catch (e) {
-      setFormError(e instanceof Error ? e.message : "Något gick fel.");
+      setFormError(e instanceof Error ? e.message : t("genericFail"));
     } finally {
       setSaving(false);
     }
@@ -315,11 +320,11 @@ export function CollectionClient({
     try {
       await apiFetch(`/api/collection/${deleting.id}`, { method: "DELETE" });
       setItems((prev) => prev.filter((it) => it.id !== deleting.id));
-      toast({ title: "Objektet har tagits bort", variant: "success" });
+      toast({ title: t("deletedToast"), variant: "success" });
       router.refresh();
     } catch (e) {
       toast({
-        title: "Det gick inte att ta bort objektet",
+        title: t("deleteFailToast"),
         description: e instanceof Error ? e.message : undefined,
         variant: "error",
       });
@@ -337,8 +342,8 @@ export function CollectionClient({
       const rows = parseCsv(text);
       if (rows.length === 0) {
         toast({
-          title: "Tom CSV-fil",
-          description: "Filen innehöll inga rader att importera.",
+          title: t("emptyCsvTitle"),
+          description: t("emptyCsvDesc"),
           variant: "error",
         });
         return;
@@ -349,15 +354,15 @@ export function CollectionClient({
       );
       setImportErrors(result.errors);
       toast({
-        title: `${result.imported} objekt importerade`,
+        title: t("importedToast", { count: result.imported }),
         description:
-          result.errors.length > 0 ? `${result.errors.length} rader kunde inte importeras.` : undefined,
+          result.errors.length > 0 ? t("importPartialDesc", { count: result.errors.length }) : undefined,
         variant: result.errors.length > 0 ? "default" : "success",
       });
       router.refresh();
     } catch (e) {
       toast({
-        title: "Importen misslyckades",
+        title: t("importFailToast"),
         description: e instanceof Error ? e.message : undefined,
         variant: "error",
       });
@@ -372,13 +377,13 @@ export function CollectionClient({
     try {
       await apiFetch("/api/users/me", { method: "PATCH", body: { isPublicCollection: next } });
       toast({
-        title: next ? "Din samling är nu offentlig" : "Din samling är nu privat",
+        title: next ? t("nowPublicToast") : t("nowPrivateToast"),
         variant: "success",
       });
     } catch (e) {
       setIsPublic(!next);
       toast({
-        title: "Det gick inte att ändra synligheten",
+        title: t("visibilityFailToast"),
         description: e instanceof Error ? e.message : undefined,
         variant: "error",
       });
@@ -388,7 +393,7 @@ export function CollectionClient({
   const sharedFields = (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div>
-        <Label htmlFor="quantity">Antal</Label>
+        <Label htmlFor="quantity">{t("quantity")}</Label>
         <Input
           id="quantity"
           type="number"
@@ -398,35 +403,35 @@ export function CollectionClient({
         />
       </div>
       <div>
-        <Label htmlFor="condition">Skick</Label>
+        <Label htmlFor="condition">{t("condition")}</Label>
         <Select
           id="condition"
           value={form.condition}
           onChange={(e) => setField("condition", e.target.value)}
         >
-          {Object.entries(CONDITION_LABELS).map(([value, label]) => (
+          {Object.keys(CONDITION_LABELS).map((value) => (
             <option key={value} value={value}>
-              {label}
+              {tCond(value)}
             </option>
           ))}
         </Select>
       </div>
       <div>
-        <Label htmlFor="language">Språk</Label>
+        <Label htmlFor="language">{t("language")}</Label>
         <Select
           id="language"
           value={form.language}
           onChange={(e) => setField("language", e.target.value)}
         >
-          {Object.entries(LANGUAGE_LABELS).map(([value, label]) => (
+          {Object.keys(LANGUAGE_LABELS).map((value) => (
             <option key={value} value={value}>
-              {label}
+              {tLang(value)}
             </option>
           ))}
         </Select>
       </div>
       <div>
-        <Label htmlFor="purchaseDate">Inköpsdatum</Label>
+        <Label htmlFor="purchaseDate">{t("purchaseDate")}</Label>
         <Input
           id="purchaseDate"
           type="date"
@@ -435,48 +440,48 @@ export function CollectionClient({
         />
       </div>
       <div>
-        <Label htmlFor="purchasePrice">Inköpspris (kr)</Label>
+        <Label htmlFor="purchasePrice">{t("purchasePrice")}</Label>
         <Input
           id="purchasePrice"
           inputMode="decimal"
-          placeholder="t.ex. 249,50"
+          placeholder={t("purchasePricePlaceholder")}
           value={form.purchasePrice}
           onChange={(e) => setField("purchasePrice", e.target.value)}
         />
       </div>
       <div>
-        <Label htmlFor="estimatedValue">Uppskattat värde (kr)</Label>
+        <Label htmlFor="estimatedValue">{t("estimatedValue")}</Label>
         <Input
           id="estimatedValue"
           inputMode="decimal"
-          placeholder="t.ex. 399"
+          placeholder={t("estimatedValuePlaceholder")}
           value={form.estimatedValue}
           onChange={(e) => setField("estimatedValue", e.target.value)}
         />
       </div>
       <div>
-        <Label htmlFor="gradingCompany">Gradingbolag</Label>
+        <Label htmlFor="gradingCompany">{t("gradingCompany")}</Label>
         <Input
           id="gradingCompany"
-          placeholder="t.ex. PSA"
+          placeholder={t("gradingCompanyPlaceholder")}
           value={form.gradingCompany}
           onChange={(e) => setField("gradingCompany", e.target.value)}
         />
       </div>
       <div>
-        <Label htmlFor="grade">Grad</Label>
+        <Label htmlFor="grade">{t("grade")}</Label>
         <Input
           id="grade"
-          placeholder="t.ex. 10"
+          placeholder={t("gradePlaceholder")}
           value={form.grade}
           onChange={(e) => setField("grade", e.target.value)}
         />
       </div>
       <div className="sm:col-span-2">
-        <Label htmlFor="notes">Anteckningar</Label>
+        <Label htmlFor="notes">{t("notes")}</Label>
         <Textarea
           id="notes"
-          placeholder="Valfria anteckningar…"
+          placeholder={t("notesPlaceholder")}
           value={form.notes}
           onChange={(e) => setField("notes", e.target.value)}
         />
@@ -497,24 +502,24 @@ export function CollectionClient({
           }}
         >
           <IconPlus size={16} />
-          Lägg till manuellt
+          {t("addManually")}
         </Button>
         <LinkButton href="/api/collection/export" variant="secondary">
-          Exportera CSV
+          {t("exportCsv")}
         </LinkButton>
         <Button
           variant="secondary"
           loading={importing}
           onClick={() => fileRef.current?.click()}
         >
-          Importera CSV
+          {t("importCsv")}
         </Button>
         <input
           ref={fileRef}
           type="file"
           accept=".csv,text/csv"
           className="hidden"
-          aria-label="Välj CSV-fil att importera"
+          aria-label={t("chooseCsvAria")}
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) void handleImportFile(file);
@@ -523,7 +528,7 @@ export function CollectionClient({
         <div className="ml-auto">
           <Checkbox
             id="publicCollection"
-            label="Offentlig samling"
+            label={t("publicCollection")}
             checked={isPublic}
             onChange={(e) => void togglePublic(e.target.checked)}
           />
@@ -535,14 +540,14 @@ export function CollectionClient({
           role="alert"
           className="rounded-xl border border-fall/30 bg-fall/5 px-4 py-3 text-sm text-ink"
         >
-          <p className="font-semibold text-fall">Rader som inte kunde importeras:</p>
+          <p className="font-semibold text-fall">{t("importFailedRows")}</p>
           <ul className="mt-2 list-inside list-disc space-y-1 text-ink-muted">
             {importErrors.slice(0, 10).map((err) => (
               <li key={err.row}>
-                Rad {err.row}: {err.message}
+                {t("importRow", { row: err.row, message: err.message })}
               </li>
             ))}
-            {importErrors.length > 10 && <li>… och {importErrors.length - 10} till.</li>}
+            {importErrors.length > 10 && <li>{t("importAndMore", { count: importErrors.length - 10 })}</li>}
           </ul>
         </div>
       )}
@@ -551,24 +556,24 @@ export function CollectionClient({
       {items.length === 0 ? (
         <EmptyState
           icon={<IconPackage size={32} />}
-          title="Din samling är tom"
-          description="Lägg till dina kort och sealed-produkter manuellt eller importera en CSV-fil — så håller vi koll på värdet åt dig."
-          action={<Button onClick={() => setAddOpen(true)}>Lägg till första objektet</Button>}
+          title={t("emptyTitle")}
+          description={t("emptyDesc")}
+          action={<Button onClick={() => setAddOpen(true)}>{t("addFirst")}</Button>}
         />
       ) : (
         <Table>
           <THead>
             <TR>
-              <TH>Namn</TH>
-              <TH>Set</TH>
-              <TH>Antal</TH>
-              <TH>Skick</TH>
-              <TH>Språk</TH>
-              <TH>Inköpspris</TH>
-              <TH>Värde nu</TH>
-              <TH>Vinst</TH>
-              <TH>Grading</TH>
-              <TH className="text-right">Åtgärder</TH>
+              <TH>{t("colName")}</TH>
+              <TH>{t("colSet")}</TH>
+              <TH>{t("colQty")}</TH>
+              <TH>{t("colCondition")}</TH>
+              <TH>{t("colLanguage")}</TH>
+              <TH>{t("colPurchasePrice")}</TH>
+              <TH>{t("colValueNow")}</TH>
+              <TH>{t("colProfit")}</TH>
+              <TH>{t("colGrading")}</TH>
+              <TH className="text-right">{t("colActions")}</TH>
             </TR>
           </THead>
           <TBody>
@@ -596,8 +601,8 @@ export function CollectionClient({
                   </TD>
                   <TD className="text-ink-muted">{item.setName ?? "–"}</TD>
                   <TD className="tabular-nums">{item.quantity}</TD>
-                  <TD>{CONDITION_LABELS[item.condition] ?? item.condition}</TD>
-                  <TD>{LANGUAGE_LABELS[item.language] ?? item.language}</TD>
+                  <TD>{item.condition in CONDITION_LABELS ? tCond(item.condition) : item.condition}</TD>
+                  <TD>{item.language in LANGUAGE_LABELS ? tLang(item.language) : item.language}</TD>
                   <TD data-price>{formatPrice(item.purchasePrice)}</TD>
                   <TD data-price className="font-semibold">
                     {formatPrice(item.estimatedValue)}
@@ -630,10 +635,10 @@ export function CollectionClient({
                     <div className="flex justify-end gap-2">
                       <SellButton row={item} />
                       <Button size="sm" variant="ghost" onClick={() => openEdit(item)}>
-                        Redigera
+                        {tc("edit")}
                       </Button>
                       <Button size="sm" variant="danger" onClick={() => setDeleting(item)}>
-                        Ta bort
+                        {tc("delete")}
                       </Button>
                     </div>
                   </TD>
@@ -648,25 +653,25 @@ export function CollectionClient({
       <Modal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        title="Lägg till i samlingen"
+        title={t("addTitle")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setAddOpen(false)}>
-              Avbryt
+              {tc("cancel")}
             </Button>
             <Button onClick={() => void submitAdd()} loading={saving}>
-              Lägg till
+              {t("add")}
             </Button>
           </>
         }
       >
         <div className="space-y-4">
           <div>
-            <Label htmlFor="cardSearch">Sök kort</Label>
+            <Label htmlFor="cardSearch">{t("searchCard")}</Label>
             <div className="relative">
               <Input
                 id="cardSearch"
-                placeholder="t.ex. Charizard ex"
+                placeholder={t("searchCardPlaceholder")}
                 value={form.cardId ? form.cardLabel : search}
                 onChange={(e) => {
                   setField("cardId", "");
@@ -688,14 +693,14 @@ export function CollectionClient({
                       type="button"
                       className="w-full px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-surface-raised"
                       onClick={() => {
-                        const label = `${hit.name} · ${hit.set?.name ?? "Okänt set"} #${hit.number}`;
+                        const label = `${hit.name} · ${hit.set?.name ?? t("unknownSet")} #${hit.number}`;
                         setForm((prev) => ({ ...prev, cardId: hit.id, cardLabel: label, freeText: "" }));
                         setHits([]);
                       }}
                     >
                       {hit.name}{" "}
                       <span className="text-ink-muted">
-                        · {hit.set?.name ?? "Okänt set"} #{hit.number}
+                        · {hit.set?.name ?? t("unknownSet")} #{hit.number}
                       </span>
                     </button>
                   </li>
@@ -706,10 +711,10 @@ export function CollectionClient({
 
           {!form.cardId && (
             <div>
-              <Label htmlFor="freeText">…eller fritext (produkt/kort som inte hittas)</Label>
+              <Label htmlFor="freeText">{t("orFreeText")}</Label>
               <Input
                 id="freeText"
-                placeholder="t.ex. Obsidian Flames Booster Box"
+                placeholder={t("freeTextPlaceholder")}
                 value={form.freeText}
                 onChange={(e) => setField("freeText", e.target.value)}
               />
@@ -725,14 +730,14 @@ export function CollectionClient({
       <Modal
         open={editing != null}
         onClose={() => setEditing(null)}
-        title={`Redigera: ${editing?.name ?? ""}`}
+        title={t("editTitle", { name: editing?.name ?? "" })}
         footer={
           <>
             <Button variant="ghost" onClick={() => setEditing(null)}>
-              Avbryt
+              {tc("cancel")}
             </Button>
             <Button onClick={() => void submitEdit()} loading={saving}>
-              Spara
+              {tc("save")}
             </Button>
           </>
         }
@@ -747,22 +752,23 @@ export function CollectionClient({
       <Modal
         open={deleting != null}
         onClose={() => setDeleting(null)}
-        title="Ta bort objekt?"
+        title={t("deleteTitle")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setDeleting(null)}>
-              Avbryt
+              {tc("cancel")}
             </Button>
             <Button variant="danger" onClick={() => void confirmDelete()} loading={saving}>
-              Ta bort
+              {tc("delete")}
             </Button>
           </>
         }
       >
         <p className="text-sm text-ink-muted">
-          Är du säker på att du vill ta bort{" "}
-          <span className="font-medium text-ink">{deleting?.name}</span> från din samling? Detta går
-          inte att ångra.
+          {t.rich("deleteConfirm", {
+            name: deleting?.name ?? "",
+            b: (chunks) => <span className="font-medium text-ink">{chunks}</span>,
+          })}
         </p>
       </Modal>
     </div>

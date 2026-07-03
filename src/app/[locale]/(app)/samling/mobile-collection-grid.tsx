@@ -7,6 +7,7 @@
  *    radera dem på en gång. Radering går mot DELETE /api/collection/{id}.
  */
 import { useCallback, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { apiFetch } from "@/lib/client-api";
 import { useToast } from "@/components/ui/toast";
@@ -20,6 +21,7 @@ import { SellButton } from "./sell-on-tradera";
 const LONG_PRESS_MS = 450;
 
 export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
+  const t = useTranslations("Collection");
   const router = useRouter();
   const { toast } = useToast();
 
@@ -79,18 +81,18 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
         if (!openProductOverlay(row.slug)) router.push(`/produkter/${row.slug}`);
       } else {
         toast({
-          title: "Ingen produktsida",
-          description: "Det här objektet saknar en kopplad produkt att inspektera.",
+          title: t("gridNoProductTitle"),
+          description: t("gridNoProductDesc"),
           variant: "error",
         });
       }
     },
-    [router, selectMode, toggle, toast]
+    [router, selectMode, toggle, toast, t]
   );
 
   async function deleteSelected() {
     if (selected.size === 0) return;
-    if (!window.confirm(`Radera ${selected.size} objekt ur din samling?`)) return;
+    if (!window.confirm(t("gridConfirmDelete", { count: selected.size }))) return;
     setDeleting(true);
     const ids = [...selected];
     let ok = 0;
@@ -105,11 +107,11 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
     setDeleting(false);
     exitSelect();
     toast({
-      title: ok === ids.length ? "Objekt raderade" : "Delvis raderat",
+      title: ok === ids.length ? t("gridDeletedTitle") : t("gridPartialTitle"),
       description:
         ok === ids.length
-          ? `${ok} objekt togs bort.`
-          : `${ok} av ${ids.length} objekt togs bort.`,
+          ? t("gridDeletedDesc", { count: ok })
+          : t("gridPartialDesc", { ok, total: ids.length }),
       variant: ok === ids.length ? "success" : "error",
     });
     router.refresh();
@@ -126,9 +128,9 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
               onClick={exitSelect}
               className="inline-flex items-center gap-1 text-sm font-medium text-ink-muted hover:text-ink"
             >
-              <IconX size={16} /> Avbryt
+              <IconX size={16} /> {t("gridSelectCancel")}
             </button>
-            <span className="text-sm font-semibold text-ink">{selected.size} valda</span>
+            <span className="text-sm font-semibold text-ink">{t("gridSelected", { count: selected.size })}</span>
             <Button
               variant="danger"
               size="sm"
@@ -136,18 +138,18 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
               loading={deleting}
               disabled={selected.size === 0}
             >
-              <IconTrash size={16} /> Radera
+              <IconTrash size={16} /> {t("gridDelete")}
             </Button>
           </>
         ) : (
           <>
-            <h2 className="font-display text-xl font-bold text-ink">Din samling</h2>
+            <h2 className="font-display text-xl font-bold text-ink">{t("gridYourCollection")}</h2>
             <button
               type="button"
               onClick={() => setSelectMode(true)}
               className="text-sm font-semibold text-holo-cyan hover:underline"
             >
-              Välj
+              {t("gridSelect")}
             </button>
           </>
         )}
@@ -207,7 +209,7 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
                 <span className="font-mono text-sm font-semibold tabular-nums text-ink">
                   {r.estimatedValue != null ? formatPrice(r.estimatedValue) : "–"}
                 </span>
-                {r.quantity > 1 && <span className="text-xs text-ink-muted">{r.quantity} st</span>}
+                {r.quantity > 1 && <span className="text-xs text-ink-muted">{t("pieces", { count: r.quantity })}</span>}
               </div>
               {!selectMode && (
                 <span
