@@ -6,6 +6,7 @@
  * <input capture>. Detta är en uppskattning, inte en officiell gradering.
  */
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useTranslations, useLocale } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,11 +65,11 @@ interface GradingJobDto {
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
-const SUB_LABELS: { key: keyof SubScores; label: string }[] = [
-  { key: "centering", label: "Centrering" },
-  { key: "corners", label: "Hörn" },
-  { key: "edges", label: "Kanter" },
-  { key: "surface", label: "Yta" },
+const SUB_LABELS: { key: keyof SubScores; labelKey: string }[] = [
+  { key: "centering", labelKey: "subCentering" },
+  { key: "corners", labelKey: "subCorners" },
+  { key: "edges", labelKey: "subEdges" },
+  { key: "surface", labelKey: "subSurface" },
 ];
 
 /** Färg utifrån grad (1–10): grönt högt, turkos mitten, gult/rött lågt. */
@@ -109,6 +110,7 @@ function ImageDropzone({
   inputRef: React.RefObject<HTMLInputElement>;
   onChange: (e: ChangeEvent<HTMLInputElement>) => void;
 }) {
+  const t = useTranslations("Grading");
   return (
     <div className="flex flex-col gap-2">
       <button
@@ -125,7 +127,7 @@ function ImageDropzone({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={preview}
-            alt={`Förhandsvisning: ${label}`}
+            alt={t("previewAlt", { label })}
             className="h-full w-full rounded-lg object-contain"
           />
         ) : (
@@ -134,7 +136,7 @@ function ImageDropzone({
               <IconCamera size={30} />
             </span>
             <p className="text-sm font-medium text-ink">{label}</p>
-            <p className="text-xs text-ink-faint">Tryck för att fota eller välja</p>
+            <p className="text-xs text-ink-faint">{t("tapToCapture")}</p>
           </>
         )}
       </button>
@@ -151,6 +153,8 @@ function ImageDropzone({
 }
 
 export default function GraderaPage() {
+  const t = useTranslations("Grading");
+  const locale = useLocale();
   const { toast } = useToast();
   const frontRef = useRef<HTMLInputElement>(null);
   const backRef = useRef<HTMLInputElement>(null);
@@ -180,13 +184,13 @@ export default function GraderaPage() {
 
   function handleFile(file: File, side: "front" | "back") {
     if (!file.type.startsWith("image/")) {
-      toast({ title: "Fel filtyp", description: "Välj en bildfil.", variant: "error" });
+      toast({ title: t("wrongFileType"), description: t("chooseImage"), variant: "error" });
       return;
     }
     if (file.size > MAX_FILE_BYTES) {
       toast({
-        title: "Bilden är för stor",
-        description: "Max 5 MB — prova att komprimera bilden.",
+        title: t("tooLarge"),
+        description: t("tooLargeDesc"),
         variant: "error",
       });
       return;
@@ -220,14 +224,14 @@ export default function GraderaPage() {
         body: JSON.stringify({ front, back }),
       });
       const data = (await res.json()) as GradeResponse & { error?: string };
-      if (!res.ok) throw new Error(data.error ?? "Graderingen misslyckades.");
+      if (!res.ok) throw new Error(data.error ?? t("gradeFailMsg"));
       setResult(data);
       setQuota(data.quota);
       void loadJobs();
     } catch (err) {
       toast({
-        title: "Kunde inte gradera kortet",
-        description: err instanceof Error ? err.message : "Okänt fel.",
+        title: t("gradeFailTitle"),
+        description: err instanceof Error ? err.message : t("unknownError"),
         variant: "error",
       });
     } finally {
@@ -241,10 +245,9 @@ export default function GraderaPage() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div>
-        <h1 className="font-display text-2xl font-semibold text-ink">Gradera kort</h1>
+        <h1 className="font-display text-2xl font-semibold text-ink">{t("h1")}</h1>
         <p className="mt-1 text-sm text-ink-muted">
-          Fota fram- och baksidan så ger vår AI en uppskattad gradering av kortets
-          skick — centrering, hörn, kanter och yta.
+          {t("intro")}
         </p>
       </div>
 
@@ -254,9 +257,7 @@ export default function GraderaPage() {
           <IconAlertTriangle size={18} />
         </span>
         <p className="text-sm text-ink-muted">
-          <span className="font-semibold text-ink">AI-uppskattning:</span> detta är
-          inte en officiell PSA- eller BGS-gradering, utan en vägledande bedömning
-          baserad på dina bilder. Använd den som riktmärke.
+          <span className="font-semibold text-ink">{t("disclaimerLabel")}</span> {t("disclaimerText")}
         </p>
       </div>
 
@@ -264,14 +265,14 @@ export default function GraderaPage() {
       {quota?.limit != null && (
         <div className="flex items-center justify-between rounded-xl border border-surface-border bg-surface-raised px-4 py-3 text-sm">
           <span className="text-ink-muted">
-            {quota.isPremium ? "Graderingar denna månad:" : "Gratis graderingar denna månad:"}{" "}
+            {quota.isPremium ? t("quotaPremium") : t("quotaFree")}{" "}
             <span className="font-semibold text-ink">
               {quota.used} / {quota.limit}
             </span>
           </span>
           {limitReached && !quota.isPremium && (
             <LinkButton href="/priser" size="sm" variant="secondary">
-              Uppgradera till Pro
+              {t("upgradeCta")}
             </LinkButton>
           )}
         </div>
@@ -280,19 +281,19 @@ export default function GraderaPage() {
       {/* Uppladdning */}
       <Card>
         <CardHeader>
-          <CardTitle>1. Lägg till bilder</CardTitle>
+          <CardTitle>{t("step1")}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
             <ImageDropzone
-              label="Framsida"
+              label={t("front")}
               preview={front}
               onPick={() => frontRef.current?.click()}
               inputRef={frontRef}
               onChange={onChange("front")}
             />
             <ImageDropzone
-              label="Baksida"
+              label={t("back")}
               preview={back}
               onPick={() => backRef.current?.click()}
               inputRef={backRef}
@@ -306,16 +307,14 @@ export default function GraderaPage() {
               loading={grading}
             >
               <IconShield size={16} />
-              Gradera kort
+              {t("gradeBtn")}
             </Button>
             {grading && (
-              <span className="text-sm text-ink-muted">Analyserar skicket…</span>
+              <span className="text-sm text-ink-muted">{t("analyzing")}</span>
             )}
             {limitReached && (
               <span className="text-sm text-amber-400">
-                {quota?.isPremium
-                  ? "Dagens graderingar är slut — tillbaka i morgon."
-                  : "Dagens gratis graderingar är slut."}
+                {quota?.isPremium ? t("limitPremium") : t("limitFree")}
               </span>
             )}
           </div>
@@ -326,7 +325,7 @@ export default function GraderaPage() {
       {result && (
         <Card>
           <CardHeader>
-            <CardTitle>2. Bedömt skick</CardTitle>
+            <CardTitle>{t("step2")}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
             <div className="flex items-center gap-5">
@@ -340,32 +339,34 @@ export default function GraderaPage() {
                   {result.result.overall.toFixed(1)}
                 </span>
                 <span className="text-[11px] uppercase tracking-wide text-ink-faint">
-                  av 10
+                  {t("outOf10")}
                 </span>
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-ink">Helhetsgrad</p>
+                <p className="text-sm font-semibold text-ink">{t("overallGrade")}</p>
                 <p className="mt-1 text-sm text-ink-muted">{result.result.rationale}</p>
               </div>
             </div>
 
             <div className="flex flex-col gap-3">
-              {SUB_LABELS.map(({ key, label }) => (
-                <ScoreBar key={key} label={label} score={result.result.subScores[key]} />
+              {SUB_LABELS.map(({ key, labelKey }) => (
+                <ScoreBar key={key} label={t(labelKey)} score={result.result.subScores[key]} />
               ))}
             </div>
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-faint">
-              <span>Konfidens: {Math.round(result.result.confidence * 100)} %</span>
-              <span>Modell: {result.result.modelUsed}</span>
+              <span>{t("confidence", { pct: Math.round(result.result.confidence * 100) })}</span>
+              <span>{t("model", { model: result.result.modelUsed })}</span>
             </div>
 
             <p className="rounded-lg bg-surface-overlay px-3 py-2 text-xs text-ink-muted">
-              Vill du spara kortet? Lägg till det i din{" "}
-              <Link href="/samling" className="font-medium text-holo-cyan hover:underline">
-                samling
-              </Link>{" "}
-              och ange gradingbolag &ldquo;Foilio AI&rdquo; med graden ovan.
+              {t.rich("saveHint", {
+                link: (chunks) => (
+                  <Link href="/samling" className="font-medium text-holo-cyan hover:underline">
+                    {chunks}
+                  </Link>
+                ),
+              })}
             </p>
           </CardContent>
         </Card>
@@ -374,7 +375,7 @@ export default function GraderaPage() {
       {/* Historik */}
       <Card>
         <CardHeader>
-          <CardTitle>Senaste graderingar</CardTitle>
+          <CardTitle>{t("historyTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
           {jobs === null ? (
@@ -384,8 +385,8 @@ export default function GraderaPage() {
           ) : jobs.length === 0 ? (
             <EmptyState
               icon={<IconSparkle size={32} />}
-              title="Inga graderingar ännu"
-              description="Dina graderade kort dyker upp här. Lägg till en fram- och baksidesbild ovan."
+              title={t("noHistory")}
+              description={t("noHistoryDesc")}
             />
           ) : (
             <ul className="divide-y divide-surface-border">
@@ -405,13 +406,13 @@ export default function GraderaPage() {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-ink">
                         {failed
-                          ? "Misslyckades"
+                          ? t("failed")
                           : job.overallGrade != null
-                            ? `Grad ${job.overallGrade.toFixed(1)} / 10`
-                            : "Gradering"}
+                            ? t("gradeLine", { grade: job.overallGrade.toFixed(1) })
+                            : t("gradingWord")}
                       </p>
                       <p className="text-xs text-ink-faint">
-                        {new Date(job.createdAt).toLocaleString("sv-SE")}
+                        {new Date(job.createdAt).toLocaleString(locale)}
                         {job.modelUsed ? ` · ${job.modelUsed}` : ""}
                       </p>
                     </div>

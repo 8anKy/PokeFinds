@@ -18,6 +18,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
@@ -140,6 +141,7 @@ export default function SkannaPage() {
 }
 
 function Scanner() {
+  const t = useTranslations("Scanner");
   const { toast } = useToast();
   const router = useRouter();
 
@@ -215,15 +217,15 @@ function Scanner() {
         });
         const data = (await res.json()) as IdentifyResponse & { error?: string };
         if (!res.ok) {
-          return { error: data.error ?? "Något gick fel. Försök igen." };
+          return { error: data.error ?? t("genericError") };
         }
         setProvider(data.provider);
         return data;
       } catch {
-        return { error: "Något gick fel. Försök igen." };
+        return { error: t("genericError") };
       }
     },
-    []
+    [t]
   );
 
   const identifyInto = useCallback(
@@ -285,29 +287,27 @@ function Scanner() {
       const name = err instanceof DOMException ? err.name : "";
       setCameraError(
         name === "NotAllowedError" || name === "SecurityError"
-          ? "Kameraåtkomst nekades. Tillåt kameran i webbläsaren, eller välj en bild från enheten."
+          ? t("cameraDenied")
           : name === "NotFoundError"
-            ? "Ingen kamera hittades. Välj en bild från enheten istället."
-            : "Kunde inte starta kameran. Välj en bild från enheten istället."
+            ? t("cameraNotFound")
+            : t("cameraFailed")
       );
       setCameraState("error");
     }
-  }, []);
+  }, [t]);
 
   // Returnerar false om stängningen avbröts (osparade träffar) → svep-gesten
   // fjädrar tillbaka i stället för att lämna skannern osynlig utanför skärmen.
   const closeScanner = useCallback((): boolean => {
     if (scans.length > 0 && addedCount === null) {
-      const ok = window.confirm(
-        `Du har ${scans.length} oskannade träffar. Stäng skannern och kasta dem?`
-      );
+      const ok = window.confirm(t("unsavedConfirm", { count: scans.length }));
       if (!ok) return false;
     }
     stopCamera();
     // Skannern ÄR fliken nu → stäng = lämna fliken (router, ej hård nav i Capacitor).
     router.back();
     return true;
-  }, [scans.length, addedCount, stopCamera, router]);
+  }, [scans.length, addedCount, stopCamera, router, t]);
 
   // Stoppa kameran när komponenten lämnas helt.
   useEffect(() => () => stopCamera(), [stopCamera]);
@@ -463,11 +463,11 @@ function Scanner() {
 
   function handleFile(file: File): boolean {
     if (!file.type.startsWith("image/")) {
-      toast({ title: "Fel filtyp", description: "Välj en bildfil (JPG, PNG eller WebP).", variant: "error" });
+      toast({ title: t("wrongFileType"), description: t("chooseImageFile"), variant: "error" });
       return false;
     }
     if (file.size > MAX_FILE_BYTES) {
-      toast({ title: "Bilden är för stor", description: "Max 8 MB.", variant: "error" });
+      toast({ title: t("tooLarge"), description: t("tooLargeDesc"), variant: "error" });
       return false;
     }
     const reader = new FileReader();
@@ -531,11 +531,11 @@ function Scanner() {
     setAddingAll(false);
     setAddedCount(ok);
     toast({
-      title: ok === matched.length ? "Tillagt i samlingen" : "Delvis tillagt",
+      title: ok === matched.length ? t("addedAllTitle") : t("addedPartialTitle"),
       description:
         ok === matched.length
-          ? `${ok} kort lades till i din samling.`
-          : `${ok} av ${matched.length} kort lades till.`,
+          ? t("addedAllDesc", { count: ok })
+          : t("addedPartialDesc", { ok, total: matched.length }),
       variant: ok === matched.length ? "success" : "error",
     });
   }
@@ -550,7 +550,7 @@ function Scanner() {
       ref={rootRef}
       role="dialog"
       aria-modal="true"
-      aria-label="Kortskanner"
+      aria-label={t("dialogAria")}
       className="fixed inset-0 z-[60] flex flex-col bg-black text-ink"
     >
       {/* Topbar */}
@@ -563,14 +563,14 @@ function Scanner() {
               ? () => (streamRef.current ? setView("capture") : closeScanner())
               : closeScanner
           }
-          aria-label={view === "review" ? "Tillbaka till kameran" : "Stäng skannern"}
+          aria-label={view === "review" ? t("backToCamera") : t("closeScanner")}
           className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-ink backdrop-blur transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
         >
           {view === "review" ? <IconChevronLeft size={20} /> : <IconX size={20} />}
         </button>
         <div className="text-center">
           <p className="text-sm font-semibold text-ink">
-            {view === "review" ? "Granska träffar" : "Skanna kort"}
+            {view === "review" ? t("reviewTitle") : t("captureTitle")}
           </p>
         </div>
         <div className="h-10 w-10" aria-hidden="true" />
@@ -653,6 +653,7 @@ function Scanner() {
  * ======================================================================== */
 /** Liten kvot-badge i kameravyn. Free = tappbar → /priser; Pro = bara info. */
 function QuotaBadge({ quota, onUpgrade }: { quota: ScanQuota; onUpgrade: () => void }) {
+  const t = useTranslations("Scanner");
   const { remaining, isPremium } = quota;
   const pill = (
     <span
@@ -663,16 +664,16 @@ function QuotaBadge({ quota, onUpgrade }: { quota: ScanQuota; onUpgrade: () => v
           : "bg-holo-cyan/20 text-holo-cyan ring-1 ring-holo-cyan/40"
       )}
     >
-      {isPremium ? "PRO" : "GRATIS"}
+      {isPremium ? t("pro") : t("free")}
     </span>
   );
   const body = (
     <span className="min-w-0 text-left">
       <span className="block text-sm font-semibold text-ink">
-        {remaining} {remaining === 1 ? "skanning" : "skanningar"} kvar
+        {t("scansLeft", { count: remaining })}
       </span>
       <span className="block text-xs text-ink-muted">
-        {isPremium ? "Förnyas nästa månad" : "Tryck här för fler med Pro"}
+        {isPremium ? t("renewsNextMonth") : t("tapForMore")}
       </span>
     </span>
   );
@@ -723,6 +724,7 @@ function CaptureView(props: {
   onReview: () => void;
   onOpenDetails: (id: string) => void;
 }) {
+  const t = useTranslations("Scanner");
   const {
     videoRef,
     canvasRef,
@@ -745,7 +747,7 @@ function CaptureView(props: {
           ref={videoRef}
           playsInline
           muted
-          aria-label="Kameraflöde"
+          aria-label={t("cameraFeed")}
           className={cn(
             "h-full w-full object-cover",
             cameraState === "live" ? "block" : "hidden"
@@ -770,14 +772,14 @@ function CaptureView(props: {
                 <span className="animate-pulse-soft text-holo-cyan">
                   <IconCamera size={40} />
                 </span>
-                <p className="text-sm text-ink-muted">Startar kameran…</p>
+                <p className="text-sm text-ink-muted">{t("startingCamera")}</p>
               </>
             ) : cameraState === "unsupported" ? (
               <>
                 <IconCamera size={40} className="text-ink-faint" />
-                <p className="text-sm font-medium text-ink">Kamera stöds inte här</p>
+                <p className="text-sm font-medium text-ink">{t("cameraUnsupported")}</p>
                 <p className="max-w-xs text-xs text-ink-faint">
-                  Välj en bild från enheten med galleriknappen nedan.
+                  {t("cameraUnsupportedHint")}
                 </p>
               </>
             ) : (
@@ -785,7 +787,7 @@ function CaptureView(props: {
                 <IconAlertTriangle size={36} className="text-fall" />
                 <p className="max-w-xs text-sm text-ink-muted">{cameraError}</p>
                 <Button variant="outline" onClick={props.onRetryCamera}>
-                  Försök igen
+                  {t("retryCamera")}
                 </Button>
               </>
             )}
@@ -821,7 +823,7 @@ function CaptureView(props: {
 
         {isMock && (
           <p className="mx-auto rounded-full bg-black/70 px-3 py-1 text-center text-[11px] font-medium text-holo-gold ring-1 ring-holo-gold/30 backdrop-blur">
-            Demoläge — träffar är exempel ur katalogen
+            {t("demoMode")}
           </p>
         )}
 
@@ -830,13 +832,13 @@ function CaptureView(props: {
         {scans.length === 0 && cameraState === "live" && (
           <div className="flex flex-col items-center gap-3">
             <p className="text-center text-sm text-ink-muted">
-              Håll kortet inom ramen och tryck på knappen
+              {t("holdCard")}
             </p>
             <Link
               href="/produkter"
               className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-5 py-2 text-sm font-medium text-ink backdrop-blur transition-colors hover:bg-white/15"
             >
-              <IconSearch size={16} /> Manuell inmatning
+              <IconSearch size={16} /> {t("manualEntry")}
             </Link>
           </div>
         )}
@@ -846,7 +848,7 @@ function CaptureView(props: {
           <button
             type="button"
             onClick={props.onGallery}
-            aria-label="Välj bild från enheten"
+            aria-label={t("chooseFromDevice")}
             className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-ink backdrop-blur transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
           >
             <IconUpload size={20} />
@@ -856,7 +858,7 @@ function CaptureView(props: {
           <button
             type="button"
             onClick={props.onSettings}
-            aria-label="Skannerinställningar"
+            aria-label={t("scannerSettings")}
             className="flex h-11 w-11 items-center justify-center rounded-full text-ink-muted transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
           >
             <IconSettings size={20} />
@@ -867,7 +869,7 @@ function CaptureView(props: {
             type="button"
             onClick={props.onCapture}
             disabled={cameraState !== "live"}
-            aria-label="Ta bild av kortet"
+            aria-label={t("takePhoto")}
             className={cn(
               "flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full ring-4 ring-white/30 transition-transform",
               "disabled:opacity-40",
@@ -882,7 +884,7 @@ function CaptureView(props: {
             type="button"
             onClick={props.onReview}
             disabled={scans.length === 0}
-            aria-label="Granska träffar"
+            aria-label={t("reviewMatches")}
             className={cn(
               "relative flex h-12 w-12 items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan",
               scans.length > 0
@@ -938,6 +940,7 @@ function ScanStrip({
   total: number;
   onOpen: (id: string) => void;
 }) {
+  const t = useTranslations("Scanner");
   return (
     <div data-no-swipe className="rounded-2xl bg-black/55 p-2.5 backdrop-blur">
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -951,7 +954,7 @@ function ScanStrip({
             <ScanThumb item={s} />
             <span className="min-w-0 flex-1">
               {s.status === "identifying" ? (
-                <span className="block text-xs text-ink-muted">Identifierar…</span>
+                <span className="block text-xs text-ink-muted">{t("identifying")}</span>
               ) : s.status === "matched" && s.match ? (
                 <>
                   <span className="block truncate text-xs font-medium text-ink">
@@ -965,7 +968,7 @@ function ScanStrip({
                   </span>
                 </>
               ) : (
-                <span className="block text-xs font-medium text-fall">Ingen träff</span>
+                <span className="block text-xs font-medium text-fall">{t("noMatch")}</span>
               )}
             </span>
           </button>
@@ -973,10 +976,10 @@ function ScanStrip({
       </div>
       <div className="flex items-center justify-between px-1 pt-1.5">
         <span className="text-[11px] text-ink-faint">
-          {scans.length} {scans.length === 1 ? "skanning" : "skanningar"}
+          {t("scansCount", { count: scans.length })}
         </span>
         <span className="text-sm font-semibold text-ink">
-          Totalt: <span className="tabular-nums text-holo-cyan">{formatPrice(total)}</span>
+          {t("total")} <span className="tabular-nums text-holo-cyan">{formatPrice(total)}</span>
         </span>
       </div>
     </div>
@@ -984,6 +987,7 @@ function ScanStrip({
 }
 
 function ScanThumb({ item, size = "sm" }: { item: ScanItem; size?: "sm" | "lg" }) {
+  const t = useTranslations("Scanner");
   const dim = size === "lg" ? "h-24 w-[4.3rem]" : "h-14 w-10";
   if (item.status === "identifying") {
     return (
@@ -1002,7 +1006,7 @@ function ScanThumb({ item, size = "sm" }: { item: ScanItem; size?: "sm" | "lg" }
   return (
     <img
       src={src}
-      alt={item.match?.name ?? "Skannat kort"}
+      alt={item.match?.name ?? t("scannedCardAlt")}
       className={cn("shrink-0 rounded-md object-cover", dim)}
     />
   );
@@ -1025,6 +1029,8 @@ function ReviewView(props: {
   onScanMore: () => void;
   onClose: () => void;
 }) {
+  const t = useTranslations("Scanner");
+  const tCond = useTranslations("Condition");
   const {
     scans,
     matchedCount,
@@ -1043,14 +1049,14 @@ function ReviewView(props: {
     <div className="relative z-10 flex min-h-0 flex-1 flex-col bg-surface">
       <div className="flex-1 overflow-y-auto px-4 pb-40">
         <p className="py-3 text-sm text-ink-muted">
-          Lägger till i:{" "}
-          <span className="font-semibold text-holo-cyan">Min samling</span>
+          {t("addingTo")}{" "}
+          <span className="font-semibold text-holo-cyan">{t("myCollection")}</span>
         </p>
 
         {scans.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-16 text-center">
             <IconCards size={32} className="text-ink-faint" />
-            <p className="text-sm text-ink-muted">Inga skanningar ännu.</p>
+            <p className="text-sm text-ink-muted">{t("noScansYet")}</p>
           </div>
         )}
 
@@ -1064,7 +1070,7 @@ function ReviewView(props: {
                     type="button"
                     onClick={() => onOpenDetails(s.id)}
                     className="shrink-0 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
-                    aria-label="Visa skanningsdetaljer"
+                    aria-label={t("showScanDetails")}
                   >
                     <ScanThumb item={s} size="lg" />
                   </button>
@@ -1083,14 +1089,14 @@ function ReviewView(props: {
 
                     <div className="mt-3">
                       <label className="flex flex-col gap-1">
-                        <span className="text-[11px] text-ink-faint">Skick</span>
+                        <span className="text-[11px] text-ink-faint">{t("condition")}</span>
                         <Select
                           value={s.condition}
                           onChange={(e) => onPatch(s.id, { condition: e.target.value })}
                           className="h-9 text-sm"
                         >
                           {CONDITIONS.map((c) => (
-                            <option key={c.value} value={c.value}>{c.label}</option>
+                            <option key={c.value} value={c.value}>{tCond(c.value)}</option>
                           ))}
                         </Select>
                       </label>
@@ -1106,7 +1112,7 @@ function ReviewView(props: {
                         onClick={() => onRemove(s.id)}
                         className="text-xs text-ink-faint underline-offset-2 hover:text-fall hover:underline"
                       >
-                        Ta bort
+                        {t("remove")}
                       </button>
                     </div>
                   </div>
@@ -1114,22 +1120,22 @@ function ReviewView(props: {
               ) : s.status === "identifying" ? (
                 <div className="flex items-center gap-3 p-3">
                   <ScanThumb item={s} size="lg" />
-                  <p className="text-sm text-ink-muted">Identifierar…</p>
+                  <p className="text-sm text-ink-muted">{t("identifying")}</p>
                 </div>
               ) : (
                 <div className="flex items-center gap-3 p-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={s.captured}
-                    alt="Skannat kort utan träff"
+                    alt={t("noMatchCardAlt")}
                     className="h-24 w-[4.3rem] shrink-0 rounded-md object-cover opacity-80"
                   />
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-ink">
-                      {s.status === "error" && s.errorMessage ? "Skanning stoppad" : "Ingen träff"}
+                      {s.status === "error" && s.errorMessage ? t("scanStopped") : t("noMatch")}
                     </p>
                     <p className="text-xs text-ink-muted">
-                      {s.errorMessage ?? "Kunde inte matcha kortet automatiskt."}
+                      {s.errorMessage ?? t("couldntMatch")}
                     </p>
                     <div className="mt-2 flex items-center gap-3">
                       <button
@@ -1137,14 +1143,14 @@ function ReviewView(props: {
                         onClick={() => onOpenDetails(s.id)}
                         className="text-xs font-medium text-holo-cyan hover:underline"
                       >
-                        Sök manuellt
+                        {t("searchManually")}
                       </button>
                       <button
                         type="button"
                         onClick={() => onRemove(s.id)}
                         className="text-xs text-ink-faint hover:text-fall"
                       >
-                        Ta bort
+                        {t("remove")}
                       </button>
                     </div>
                   </div>
@@ -1161,21 +1167,21 @@ function ReviewView(props: {
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
           <div>
             <p className="text-xs text-ink-muted">
-              {matchedCount} matchade
+              {t("matchedCount", { count: matchedCount })}
               {noMatchCount > 0 && (
-                <span className="text-fall"> · {noMatchCount} utan träff</span>
+                <span className="text-fall"> · {t("noMatchSuffix", { count: noMatchCount })}</span>
               )}
             </p>
             <p className="text-lg font-semibold text-ink">
-              Totalt: <span className="tabular-nums text-holo-cyan">{formatPrice(total)}</span>
+              {t("total")} <span className="tabular-nums text-holo-cyan">{formatPrice(total)}</span>
             </p>
           </div>
           {done ? (
             <div className="flex items-center gap-2">
               <LinkButton href="/samling" variant="outline">
-                Visa samling
+                {t("showCollection")}
               </LinkButton>
-              <Button onClick={props.onScanMore}>Skanna fler</Button>
+              <Button onClick={props.onScanMore}>{t("scanMore")}</Button>
             </div>
           ) : (
             <Button
@@ -1187,14 +1193,14 @@ function ReviewView(props: {
               // "spök"-remsa i WebKit:s compositing-lager när sista kortet togs bort.
               className="px-5 disabled:bg-surface-overlay disabled:text-ink-faint disabled:opacity-100"
             >
-              Lägg till {matchedCount > 0 ? `${matchedCount} ` : ""}i samlingen
+              {matchedCount > 0 ? t("addToCollectionN", { count: matchedCount }) : t("addToCollection")}
             </Button>
           )}
         </div>
         {done && (
           <p className="mt-2 text-center text-xs text-rise">
             <IconCheck size={13} className="mr-1 inline" />
-            {addedCount} kort tillagda i din samling.
+            {t("cardsAdded", { count: addedCount })}
           </p>
         )}
       </div>
@@ -1203,11 +1209,12 @@ function ReviewView(props: {
 }
 
 function Stepper({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const t = useTranslations("Scanner");
   return (
     <div className="inline-flex items-center rounded-lg border border-surface-border">
       <button
         type="button"
-        aria-label="Minska antal"
+        aria-label={t("decreaseQty")}
         onClick={() => onChange(Math.max(1, value - 1))}
         className="flex h-8 w-8 items-center justify-center text-ink-muted hover:text-ink disabled:opacity-40"
         disabled={value <= 1}
@@ -1217,7 +1224,7 @@ function Stepper({ value, onChange }: { value: number; onChange: (v: number) => 
       <span className="w-8 text-center text-sm font-medium tabular-nums text-ink">{value}</span>
       <button
         type="button"
-        aria-label="Öka antal"
+        aria-label={t("increaseQty")}
         onClick={() => onChange(Math.min(9999, value + 1))}
         className="flex h-8 w-8 items-center justify-center text-ink-muted hover:text-ink"
       >
@@ -1235,25 +1242,27 @@ function SettingsSheet(props: {
   onCondition: (v: string) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations("Scanner");
+  const tCond = useTranslations("Condition");
   return (
-    <Sheet title="Standardval för nya skanningar" onClose={props.onClose}>
+    <Sheet title={t("settingsTitle")} onClose={props.onClose}>
       <div className="flex flex-col gap-4">
         <div>
-          <Label htmlFor="def-condition">Skick</Label>
+          <Label htmlFor="def-condition">{t("condition")}</Label>
           <Select
             id="def-condition"
             value={props.condition}
             onChange={(e) => props.onCondition(e.target.value)}
           >
             {CONDITIONS.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
+              <option key={c.value} value={c.value}>{tCond(c.value)}</option>
             ))}
           </Select>
         </div>
         <p className="text-xs text-ink-faint">
-          Gäller kort du skannar härnäst. Du kan ändra skick per kort i granskningen.
+          {t("settingsHint")}
         </p>
-        <Button onClick={props.onClose}>Klar</Button>
+        <Button onClick={props.onClose}>{t("done")}</Button>
       </div>
     </Sheet>
   );
@@ -1268,13 +1277,15 @@ function ScanDetailsSheet(props: {
   onChoose: (c: Candidate) => void;
   onRemove: () => void;
 }) {
+  const t = useTranslations("Scanner");
+  const tCond = useTranslations("Condition");
   const { item } = props;
   const alternatives = item.candidates.filter(
     (c) => c.cardId !== item.match?.cardId
   );
 
   return (
-    <Sheet title="Skanningsdetaljer" onClose={props.onClose}>
+    <Sheet title={t("scanDetails")} onClose={props.onClose}>
       <div className="flex flex-col gap-5">
         {/* Din bild vs din träff */}
         <div className="grid grid-cols-2 gap-3">
@@ -1282,17 +1293,17 @@ function ScanDetailsSheet(props: {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={item.captured}
-              alt="Din bild"
+              alt={t("yourImage")}
               className="aspect-[5/7] w-full rounded-xl object-cover ring-1 ring-surface-border"
             />
-            <figcaption className="text-xs text-ink-faint">Din bild</figcaption>
+            <figcaption className="text-xs text-ink-faint">{t("yourImage")}</figcaption>
           </figure>
           <figure className="flex flex-col items-center gap-2">
             {item.match?.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={item.match.imageUrl}
-                alt="Din träff"
+                alt={t("yourMatch")}
                 className="aspect-[5/7] w-full rounded-xl object-cover ring-1 ring-holo-cyan/40"
               />
             ) : (
@@ -1301,7 +1312,7 @@ function ScanDetailsSheet(props: {
               </span>
             )}
             <figcaption className="text-xs text-ink-faint">
-              {item.match ? "Din träff" : "Ingen träff"}
+              {item.match ? t("yourMatch") : t("noMatch")}
             </figcaption>
           </figure>
         </div>
@@ -1321,8 +1332,9 @@ function ScanDetailsSheet(props: {
               </p>
             </div>
             <p className="mt-1 text-xs text-ink-faint">
-              Skick {CONDITION_LABEL[item.condition]} · raw (ograderat) ·
-              Marknadstrend (Cardmarket)
+              {t("conditionMeta", {
+                condition: item.condition in CONDITION_LABEL ? tCond(item.condition) : item.condition,
+              })}
             </p>
           </div>
         )}
@@ -1331,7 +1343,7 @@ function ScanDetailsSheet(props: {
         {alternatives.length > 0 && (
           <div>
             <p className="mb-2 text-xs font-medium text-ink-muted">
-              {item.match ? "Inte rätt? Välj ett annat" : "Möjliga träffar"}
+              {item.match ? t("notRight") : t("possibleMatches")}
             </p>
             <div className="flex flex-col gap-1.5">
               {alternatives.slice(0, 5).map((c) => (
@@ -1368,18 +1380,18 @@ function ScanDetailsSheet(props: {
         <div className="flex flex-wrap gap-2">
           {item.match?.slug ? (
             <LinkButton href={`/produkter/${item.match.slug}`} variant="outline">
-              Visa produkt & prishistorik <IconArrowRight size={15} />
+              {t("showProduct")} <IconArrowRight size={15} />
             </LinkButton>
           ) : (
             <LinkButton
               href={`/produkter?q=${encodeURIComponent(item.match?.name ?? "")}`}
               variant="outline"
             >
-              <IconSearch size={15} /> Sök manuellt
+              <IconSearch size={15} /> {t("searchManually")}
             </LinkButton>
           )}
           <Button variant="ghost" onClick={props.onRemove}>
-            Ta bort skanning
+            {t("removeScan")}
           </Button>
         </div>
       </div>
@@ -1502,6 +1514,7 @@ function Sheet({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const t = useTranslations("Scanner");
   const panelRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<HTMLDivElement>(null);
 
@@ -1562,7 +1575,7 @@ function Sheet({
     <div className="absolute inset-0 z-40 flex flex-col justify-end">
       <button
         type="button"
-        aria-label="Stäng"
+        aria-label={t("close")}
         onClick={onClose}
         className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
       />
@@ -1582,7 +1595,7 @@ function Sheet({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Stäng"
+          aria-label={t("close")}
           className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full text-ink-muted hover:bg-surface-overlay hover:text-ink"
         >
           <IconX size={18} />
