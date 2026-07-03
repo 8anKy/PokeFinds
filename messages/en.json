@@ -141,6 +141,105 @@
       "intCasual": "Casual collecting"
     }
   },
+  "Category": {
+    "SINGLE_CARD": "Single card",
+    "BOOSTER_BOX": "Booster Box",
+    "BOOSTER_PACK": "Booster Pack",
+    "ETB": "Elite Trainer Box",
+    "COLLECTION_BOX": "Collection Box",
+    "TIN": "Tin",
+    "BLISTER": "Blister",
+    "BUNDLE": "Bundle",
+    "ACCESSORY": "Accessory",
+    "GRADED_CARD": "Graded card",
+    "OTHER": "Other"
+  },
+  "Product": {
+    "atStores": "{count, plural, =1 {At 1 store} other {At # stores}}"
+  },
+  "Market": {
+    "metaTitle": "Market",
+    "metaDescription": "Market overview for Pokémon TCG in Sweden — trends, price drops, most watched products, restocks and a price index per set.",
+    "h1": "The market",
+    "intro": "The state of the Swedish Pokémon TCG market right now — updated continuously.",
+    "statWatchedLabel": "tracked products",
+    "statOffersLabel": "offers in stock",
+    "statOffersValue": "{inStock} of {total}",
+    "statRestocksLabel": "restocks in the last 24h",
+    "statObsLabel": "price observations per day",
+    "noData": "No data yet",
+    "gainsTitle": "Biggest gains — 7 days",
+    "gainsEmpty": "We need a few days of price data before gains show up here.",
+    "dropsTitle": "Biggest drops — 7 days",
+    "dropsEmpty": "We need a few days of price data before drops show up here.",
+    "mostWatchedTitle": "Most watched",
+    "noWatchesTitle": "No watches yet",
+    "noWatchesDesc": "Be the first — create a watch on your favorite product.",
+    "restocksTitle": "Latest restocks",
+    "noRestocksTitle": "No restocks recorded",
+    "noRestocksDesc": "When a sold-out product comes back in stock, it shows up here.",
+    "colProduct": "Product",
+    "colStore": "Store",
+    "colStatus": "Status",
+    "colWhen": "When",
+    "setIndexTitle": "Price index per set — 7 days",
+    "noIndexTitle": "No index yet",
+    "noIndexDesc": "The price index per set appears once we've collected enough data.",
+    "colSet": "Set",
+    "colSeries": "Series",
+    "colProducts": "Products",
+    "colAvgChange": "Avg. change",
+    "proTitle": "Want to dig deeper into the data?",
+    "proDesc": "With Pro you get longer price history, advanced charts, weekly reports and all restock alerts — so you act before everyone else.",
+    "proCta": "See what Pro gives you"
+  },
+  "Sets": {
+    "metaTitle": "Sets",
+    "metaDescription": "Browse all Pokémon TCG sets — series, release dates and products with current prices.",
+    "h1": "Sets",
+    "intro": "Every set we track — with products, prices and a price index.",
+    "emptyTitle": "No sets yet",
+    "emptyDesc": "We're still filling in sets and products. Check back soon.",
+    "release": "Released {date}",
+    "cards": "{count} cards",
+    "products": "{count} products"
+  },
+  "Pricing": {
+    "metaTitle": "Pricing",
+    "metaDescription": "Get started free with Foilio or upgrade to Pro for unlimited watches, all restock alerts and AI grading.",
+    "h1": "Simple pricing, no surprises",
+    "subtitle": "Get started free. Upgrade when you want full control of the market — cancel any time.",
+    "perMonth": "/ month",
+    "freeName": "Free",
+    "freeTagline": "For those who want to test the waters.",
+    "freePrice": "0 kr",
+    "freeCta": "Create free account",
+    "proName": "Pro",
+    "proAudience": "For serious collectors",
+    "proTagline": "Full control of the market — before everyone else.",
+    "proPrice": "49 kr",
+    "freeFeatures": [
+      "10 watches with price and restock alerts",
+      "5 AI gradings and 10 scans per day",
+      "Basic collection with value overview",
+      "Basic market data and price charts",
+      "Community access"
+    ],
+    "premiumFeatures": [
+      "Unlimited alerts and watches",
+      "All restocks — alerts for every sealed product",
+      "AI grading with a stronger model (30/day)",
+      "Card scanning (100/day)",
+      "Advanced price charts and longer history",
+      "CSV import/export and weekly reports"
+    ],
+    "faqTitle": "Questions about the plans",
+    "faqItems": [
+      { "q": "Can I switch plans any time?", "a": "Yes. You can upgrade or cancel Pro whenever you like, with no lock-in. The purchase is handled by the App Store / Google Play." },
+      { "q": "What happens to my watches if I downgrade?", "a": "Your watches are kept, but only the 10 most recent are active on the free tier. You choose which ones stay active." },
+      { "q": "How do I pay for Pro?", "a": "In the app the purchase is made securely via the App Store or Google Play. On the web, payment launches soon — until then the free tier is open to everyone." }
+    ]
+  },
   "Home": {
     "hero": {
       "titleLead": "Your control panel for",

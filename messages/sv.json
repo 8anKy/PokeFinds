@@ -141,6 +141,105 @@
       "intCasual": "Casual collecting"
     }
   },
+  "Category": {
+    "SINGLE_CARD": "Singelkort",
+    "BOOSTER_BOX": "Booster Box",
+    "BOOSTER_PACK": "Booster Pack",
+    "ETB": "Elite Trainer Box",
+    "COLLECTION_BOX": "Collection Box",
+    "TIN": "Tin",
+    "BLISTER": "Blister",
+    "BUNDLE": "Bundle",
+    "ACCESSORY": "Tillbehör",
+    "GRADED_CARD": "Gradat kort",
+    "OTHER": "Övrigt"
+  },
+  "Product": {
+    "atStores": "{count, plural, =1 {Hos 1 butik} other {Hos # butiker}}"
+  },
+  "Market": {
+    "metaTitle": "Marknad",
+    "metaDescription": "Marknadsöversikt för Pokémon TCG i Sverige — trender, prisfall, mest bevakade produkter, restocks och prisindex per set.",
+    "h1": "Marknaden",
+    "intro": "Läget på den svenska Pokémon TCG-marknaden just nu — uppdaterat löpande.",
+    "statWatchedLabel": "bevakade produkter",
+    "statOffersLabel": "erbjudanden i lager",
+    "statOffersValue": "{inStock} av {total}",
+    "statRestocksLabel": "restocks senaste dygnet",
+    "statObsLabel": "prisobservationer per dygn",
+    "noData": "Ingen data ännu",
+    "gainsTitle": "Störst uppgång — 7 dagar",
+    "gainsEmpty": "Vi behöver några dagars prisdata innan uppgångarna visas här.",
+    "dropsTitle": "Största prisfall — 7 dagar",
+    "dropsEmpty": "Vi behöver några dagars prisdata innan prisfallen visas här.",
+    "mostWatchedTitle": "Mest bevakade",
+    "noWatchesTitle": "Inga bevakningar ännu",
+    "noWatchesDesc": "Bli först — skapa en bevakning på din favoritprodukt.",
+    "restocksTitle": "Senaste restocks",
+    "noRestocksTitle": "Inga restocks registrerade",
+    "noRestocksDesc": "När en slutsåld produkt kommer tillbaka i lager dyker den upp här.",
+    "colProduct": "Produkt",
+    "colStore": "Butik",
+    "colStatus": "Status",
+    "colWhen": "När",
+    "setIndexTitle": "Prisindex per set — 7 dagar",
+    "noIndexTitle": "Inget index ännu",
+    "noIndexDesc": "Prisindex per set visas när vi samlat in tillräckligt med data.",
+    "colSet": "Set",
+    "colSeries": "Serie",
+    "colProducts": "Produkter",
+    "colAvgChange": "Snittförändring",
+    "proTitle": "Vill du gräva djupare i datan?",
+    "proDesc": "Med Pro får du längre prishistorik, avancerade grafer, veckorapporter och alla restock-larm — så att du agerar innan alla andra.",
+    "proCta": "Se vad Pro ger dig"
+  },
+  "Sets": {
+    "metaTitle": "Set",
+    "metaDescription": "Bläddra bland alla Pokémon TCG-set — serier, releasedatum och produkter med aktuella priser.",
+    "h1": "Set",
+    "intro": "Alla set vi följer — med produkter, priser och prisindex.",
+    "emptyTitle": "Inga set ännu",
+    "emptyDesc": "Vi håller på att fylla på med set och produkter. Titta tillbaka snart.",
+    "release": "Release {date}",
+    "cards": "{count} kort",
+    "products": "{count} produkter"
+  },
+  "Pricing": {
+    "metaTitle": "Priser",
+    "metaDescription": "Kom igång gratis med Foilio eller uppgradera till Pro för obegränsade bevakningar, alla restock-larm och AI-gradering.",
+    "h1": "Enkel prissättning, inga överraskningar",
+    "subtitle": "Kom igång gratis. Uppgradera när du vill ha full koll på marknaden — säg upp när som helst.",
+    "perMonth": "/ månad",
+    "freeName": "Free",
+    "freeTagline": "För dig som vill testa vattnet.",
+    "freePrice": "0 kr",
+    "freeCta": "Skapa gratiskonto",
+    "proName": "Pro",
+    "proAudience": "För seriösa samlare",
+    "proTagline": "Full koll på marknaden — innan alla andra.",
+    "proPrice": "49 kr",
+    "freeFeatures": [
+      "10 bevakningar med pris- och restock-alerts",
+      "5 AI-graderingar och 10 skanningar per dag",
+      "Grundläggande samling med värdeöversikt",
+      "Grundläggande marknadsdata och prisgrafer",
+      "Community-åtkomst"
+    ],
+    "premiumFeatures": [
+      "Obegränsade alerts och bevakningar",
+      "Alla restocks — larm för varje sealed-produkt",
+      "AI-gradering med starkare modell (30/dygn)",
+      "Kortskanning (100/dygn)",
+      "Avancerade prisgrafer och längre historik",
+      "CSV-import och -export samt veckorapporter"
+    ],
+    "faqTitle": "Frågor om planerna",
+    "faqItems": [
+      { "q": "Kan jag byta plan när som helst?", "a": "Ja. Du kan uppgradera eller säga upp Pro när du vill, utan bindningstid. Köpet hanteras av App Store / Google Play." },
+      { "q": "Vad händer med mina bevakningar om jag nedgraderar?", "a": "Dina bevakningar finns kvar, men bara de 10 senaste är aktiva på gratisnivån. Du väljer själv vilka som ska vara aktiva." },
+      { "q": "Hur betalar jag för Pro?", "a": "I appen sker köpet säkert via App Store eller Google Play. På webben lanseras betalning inom kort — tills dess är gratisnivån öppen för alla." }
+    ]
+  },
   "Home": {
     "hero": {
       "titleLead": "Din kontrollpanel för",

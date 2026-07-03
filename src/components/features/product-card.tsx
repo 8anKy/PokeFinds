@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 /* eslint-disable @next/next/no-img-element */
 import { cn } from "@/lib/utils";
@@ -59,7 +60,9 @@ export interface ProductCardProps {
 }
 
 export function ProductCard({ product, className }: ProductCardProps) {
-  const categoryLabel = CATEGORY_LABELS[product.category] ?? CATEGORY_LABELS.OTHER;
+  const tCat = useTranslations("Category");
+  const tProduct = useTranslations("Product");
+  const categoryLabel = product.category in CATEGORY_LABELS ? tCat(product.category) : tCat("OTHER");
   const CategoryIcon = CATEGORY_ICONS[product.category] ?? CATEGORY_ICONS.OTHER;
 
   return (
@@ -115,9 +118,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
 
         {product.retailerCount != null && product.retailerCount > 0 && (
           <p className="text-[11px] text-ink-faint">
-            {product.retailerCount === 1
-              ? "Hos 1 butik"
-              : `Hos ${product.retailerCount} butiker`}
+            {tProduct("atStores", { count: product.retailerCount })}
           </p>
         )}
       </div>

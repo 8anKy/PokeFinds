@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
@@ -8,13 +9,22 @@ import { IconCards, IconChevronRight } from "@/components/ui/icons";
 // Katalogdata ändras ~en gång/dygn → cacha (ISR). Sparar Vercel CPU + Neon-läsningar.
 export const revalidate = 3600;
 
-export const metadata: Metadata = {
-  title: "Set",
-  description:
-    "Bläddra bland alla Pokémon TCG-set — serier, releasedatum och produkter med aktuella priser.",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: { locale: string };
+}): Promise<Metadata> {
+  const t = await getTranslations({ locale: params.locale, namespace: "Sets" });
+  return { title: t("metaTitle"), description: t("metaDescription") };
+}
 
-export default async function SetsPage() {
+export default async function SetsPage({
+  params,
+}: {
+  params: { locale: string };
+}) {
+  setRequestLocale(params.locale);
+  const t = await getTranslations("Sets");
   const sets = await prisma.cardSet.findMany({
     include: { _count: { select: { cards: true, products: true } } },
     orderBy: { releaseDate: "desc" },
@@ -33,17 +43,17 @@ export default async function SetsPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-      <h1 className="font-display text-3xl font-bold text-ink">Set</h1>
+      <h1 className="font-display text-3xl font-bold text-ink">{t("h1")}</h1>
       <p className="mt-2 text-ink-muted">
-        Alla set vi följer — med produkter, priser och prisindex.
+        {t("intro")}
       </p>
 
       {sets.length === 0 ? (
         <EmptyState
           className="mt-8"
           icon={<IconCards size={32} />}
-          title="Inga set ännu"
-          description="Vi håller på att fylla på med set och produkter. Titta tillbaka snart."
+          title={t("emptyTitle")}
+          description={t("emptyDesc")}
         />
       ) : (
         <div className="mt-8 space-y-10">
@@ -62,14 +72,14 @@ export default async function SetsPage() {
                           {set.name}
                         </p>
                         <p className="mt-0.5 text-xs text-ink-faint">
-                          Release {formatDate(set.releaseDate)}
+                          {t("release", { date: formatDate(set.releaseDate) })}
                         </p>
                       </div>
                       <p className="hidden shrink-0 text-sm tabular-nums text-ink-muted sm:block">
-                        {set.totalCards > 0 ? set.totalCards : set._count.cards} kort
+                        {t("cards", { count: set.totalCards > 0 ? set.totalCards : set._count.cards })}
                       </p>
                       <p className="shrink-0 text-sm tabular-nums text-ink-muted">
-                        {set._count.products} produkter
+                        {t("products", { count: set._count.products })}
                       </p>
                       <IconChevronRight
                         size={18}

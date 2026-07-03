@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { formatPrice, formatRelative } from "@/lib/format";
 import {
@@ -27,20 +28,33 @@ import {
 // Marknadsöversikten ändras ~en gång/dygn → cacha (ISR). Sparar Vercel CPU + Neon.
 export const revalidate = 3600;
 
-export const metadata: Metadata = {
-  title: "Marknad",
-  description:
-    "Marknadsöversikt för Pokémon TCG i Sverige — trender, prisfall, mest bevakade produkter, restocks och prisindex per set.",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: { locale: string };
+}): Promise<Metadata> {
+  const t = await getTranslations({ locale: params.locale, namespace: "Market" });
+  return { title: t("metaTitle"), description: t("metaDescription") };
+}
 
 type ChangeItem = Awaited<ReturnType<typeof getTrending>>[number];
 
-function ChangeList({ items, emptyText }: { items: ChangeItem[]; emptyText: string }) {
+function ChangeList({
+  items,
+  emptyText,
+  noDataTitle,
+  catLabel,
+}: {
+  items: ChangeItem[];
+  emptyText: string;
+  noDataTitle: string;
+  catLabel: (category: string) => string;
+}) {
   if (items.length === 0) {
     return (
       <EmptyState
         icon={<IconChart size={32} />}
-        title="Ingen data ännu"
+        title={noDataTitle}
         description={emptyText}
       />
     );
@@ -58,7 +72,7 @@ function ChangeList({ items, emptyText }: { items: ChangeItem[]; emptyText: stri
                 {item.product.title}
               </p>
               <p className="mt-0.5 truncate text-xs text-ink-faint">
-                {CATEGORY_LABELS[item.product.category] ?? CATEGORY_LABELS.OTHER}
+                {catLabel(item.product.category)}
                 {item.product.set ? ` · ${item.product.set.name}` : ""}
               </p>
             </div>
@@ -81,7 +95,18 @@ function ChangeList({ items, emptyText }: { items: ChangeItem[]; emptyText: stri
   );
 }
 
-export default async function MarketPage() {
+export default async function MarketPage({
+  params,
+}: {
+  params: { locale: string };
+}) {
+  setRequestLocale(params.locale);
+  const t = await getTranslations("Market");
+  const tCat = await getTranslations("Category");
+  const catLabel = (category: string) =>
+    category in CATEGORY_LABELS ? tCat(category) : tCat("OTHER");
+  const nf = new Intl.NumberFormat(params.locale);
+
   const [stats, trending, drops, mostWatched, restocks, setIndex] =
     await Promise.all([
       getMarketStats(),
@@ -93,20 +118,23 @@ export default async function MarketPage() {
     ]);
 
   const statItems = [
-    { label: "bevakade produkter", value: stats.productCount.toLocaleString("sv-SE") },
+    { label: t("statWatchedLabel"), value: nf.format(stats.productCount) },
     {
-      label: "erbjudanden i lager",
-      value: `${stats.inStockOffers.toLocaleString("sv-SE")} av ${stats.offerCount.toLocaleString("sv-SE")}`,
+      label: t("statOffersLabel"),
+      value: t("statOffersValue", {
+        inStock: nf.format(stats.inStockOffers),
+        total: nf.format(stats.offerCount),
+      }),
     },
-    { label: "restocks senaste dygnet", value: stats.restocks24h.toLocaleString("sv-SE") },
-    { label: "prisobservationer per dygn", value: stats.observations24h.toLocaleString("sv-SE") },
+    { label: t("statRestocksLabel"), value: nf.format(stats.restocks24h) },
+    { label: t("statObsLabel"), value: nf.format(stats.observations24h) },
   ];
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <h1 className="font-display text-3xl font-bold text-ink">Marknaden</h1>
+      <h1 className="font-display text-3xl font-bold text-ink">{t("h1")}</h1>
       <p className="mt-2 text-ink-muted">
-        Läget på den svenska Pokémon TCG-marknaden just nu — uppdaterat löpande.
+        {t("intro")}
       </p>
 
       {/* Datapuls — kompakt rad istället för statkort */}
@@ -131,24 +159,28 @@ export default async function MarketPage() {
         <section>
           <h2 className="flex items-center gap-2 font-display text-xl font-semibold text-ink">
             <IconTrendingUp size={20} className="text-rise" />
-            Störst uppgång — 7 dagar
+            {t("gainsTitle")}
           </h2>
           <div className="mt-4">
             <ChangeList
               items={trending}
-              emptyText="Vi behöver några dagars prisdata innan uppgångarna visas här."
+              emptyText={t("gainsEmpty")}
+              noDataTitle={t("noData")}
+              catLabel={catLabel}
             />
           </div>
         </section>
         <section>
           <h2 className="flex items-center gap-2 font-display text-xl font-semibold text-ink">
             <IconTrendingDown size={20} className="text-fall" />
-            Största prisfall — 7 dagar
+            {t("dropsTitle")}
           </h2>
           <div className="mt-4">
             <ChangeList
               items={drops}
-              emptyText="Vi behöver några dagars prisdata innan prisfallen visas här."
+              emptyText={t("dropsEmpty")}
+              noDataTitle={t("noData")}
+              catLabel={catLabel}
             />
           </div>
         </section>
@@ -158,14 +190,14 @@ export default async function MarketPage() {
       <section className="mt-12">
         <h2 className="flex items-center gap-2 font-display text-xl font-semibold text-ink">
           <IconEye size={20} className="text-holo-violet" />
-          Mest bevakade
+          {t("mostWatchedTitle")}
         </h2>
         <div className="mt-4">
           {mostWatched.length === 0 ? (
             <EmptyState
               icon={<IconBell size={32} />}
-              title="Inga bevakningar ännu"
-              description="Bli först — skapa en bevakning på din favoritprodukt."
+              title={t("noWatchesTitle")}
+              description={t("noWatchesDesc")}
             />
           ) : (
             <ul className="card-surface divide-y divide-surface-border">
@@ -197,23 +229,23 @@ export default async function MarketPage() {
       <section className="mt-12">
         <h2 className="flex items-center gap-2 font-display text-xl font-semibold text-ink">
           <IconPackage size={20} className="text-holo-cyan" />
-          Senaste restocks
+          {t("restocksTitle")}
         </h2>
         <div className="mt-4">
           {restocks.length === 0 ? (
             <EmptyState
               icon={<IconPackage size={32} />}
-              title="Inga restocks registrerade"
-              description="När en slutsåld produkt kommer tillbaka i lager dyker den upp här."
+              title={t("noRestocksTitle")}
+              description={t("noRestocksDesc")}
             />
           ) : (
             <Table>
               <THead>
                 <TR>
-                  <TH>Produkt</TH>
-                  <TH>Butik</TH>
-                  <TH>Status</TH>
-                  <TH>När</TH>
+                  <TH>{t("colProduct")}</TH>
+                  <TH>{t("colStore")}</TH>
+                  <TH>{t("colStatus")}</TH>
+                  <TH>{t("colWhen")}</TH>
                 </TR>
               </THead>
               <TBody>
@@ -246,23 +278,23 @@ export default async function MarketPage() {
       <section className="mt-12">
         <h2 className="flex items-center gap-2 font-display text-xl font-semibold text-ink">
           <IconChart size={20} className="text-holo-cyan" />
-          Prisindex per set — 7 dagar
+          {t("setIndexTitle")}
         </h2>
         <div className="mt-4">
           {setIndex.length === 0 ? (
             <EmptyState
               icon={<IconChart size={32} />}
-              title="Inget index ännu"
-              description="Prisindex per set visas när vi samlat in tillräckligt med data."
+              title={t("noIndexTitle")}
+              description={t("noIndexDesc")}
             />
           ) : (
             <Table>
               <THead>
                 <TR>
-                  <TH>Set</TH>
-                  <TH>Serie</TH>
-                  <TH>Produkter</TH>
-                  <TH>Snittförändring</TH>
+                  <TH>{t("colSet")}</TH>
+                  <TH>{t("colSeries")}</TH>
+                  <TH>{t("colProducts")}</TH>
+                  <TH>{t("colAvgChange")}</TH>
                 </TR>
               </THead>
               <TBody>
@@ -294,16 +326,14 @@ export default async function MarketPage() {
             className="pointer-events-none absolute inset-0 bg-holo-gradient opacity-[0.06]"
           />
           <h2 className="relative font-display text-2xl font-bold text-ink">
-            Vill du gräva djupare i datan?
+            {t("proTitle")}
           </h2>
           <p className="relative mx-auto mt-2 max-w-xl text-ink-muted">
-            Med Pro får du längre prishistorik, avancerade grafer,
-            veckorapporter och alla restock-larm — så att du agerar innan
-            alla andra.
+            {t("proDesc")}
           </p>
           <div className="relative mt-6">
             <LinkButton href="/priser" size="lg">
-              Se vad Pro ger dig
+              {t("proCta")}
             </LinkButton>
           </div>
         </div>
