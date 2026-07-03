@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useTranslations } from "next-intl";
 
 /** Flikväxlare i portföljen: aktiv samling vs sålda objekt. Båda hålls monterade
  *  (döljs med CSS) så samlingens klient-state inte tappas vid flikbyte. */
@@ -13,6 +14,7 @@ export function PortfolioTabs({
   sold: ReactNode;
   soldCount: number;
 }) {
+  const t = useTranslations("Collection");
   const [tab, setTab] = useState<"collection" | "sold">("collection");
 
   const tabClass = (active: boolean) =>
@@ -32,7 +34,7 @@ export function PortfolioTabs({
           className={tabClass(tab === "collection")}
           onClick={() => setTab("collection")}
         >
-          Samling
+          {t("tabCollection")}
         </button>
         <button
           type="button"
@@ -41,7 +43,7 @@ export function PortfolioTabs({
           className={tabClass(tab === "sold")}
           onClick={() => setTab("sold")}
         >
-          Sålt{soldCount > 0 ? ` (${soldCount})` : ""}
+          {t("tabSold")}{soldCount > 0 ? ` (${soldCount})` : ""}
         </button>
       </div>
 

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -24,14 +25,16 @@ import { SoldList } from "./sold-list";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Min samling",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("Collection");
+  return { title: t("metaTitle") };
+}
 
 export default async function CollectionPage() {
   const session = await auth();
   if (!session?.user) redirect("/logga-in");
   const userId = session.user.id;
+  const t = await getTranslations("Collection");
 
   // Ta bort sålda Tradera-annonser innan samlingen listas (känns "direkt" för
   // säljaren). No-op + inget Tradera-anrop när användaren inte har utlagda objekt.
@@ -73,7 +76,7 @@ export default async function CollectionPage() {
 
   const rows: CollectionRow[] = items.map((item) => ({
     id: item.id,
-    name: item.card?.name ?? item.product?.title ?? item.notes ?? "Okänt objekt",
+    name: item.card?.name ?? item.product?.title ?? item.notes ?? t("unknownItem"),
     slug: item.product?.slug ?? (item.cardId ? slugByCard.get(item.cardId) ?? null : null),
     imageUrl: item.imageUrl ?? item.card?.imageUrl ?? item.product?.imageUrl ?? null,
     setName: item.card?.set?.name ?? null,
@@ -101,7 +104,7 @@ export default async function CollectionPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="font-display text-2xl font-bold text-ink">Min samling</h1>
+      <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
 
       <PortfolioTabs
         soldCount={sales.length}
@@ -122,29 +125,29 @@ export default async function CollectionPage() {
       {/* Nyckeltal — desktop */}
       <div className="hidden grid-cols-1 gap-4 sm:grid-cols-2 lg:grid xl:grid-cols-4">
         <StatCard
-          label="Totalt värde"
+          label={t("statTotalValue")}
           value={formatPrice(value.totalValue)}
           icon={<IconGem size={20} />}
         />
         <StatCard
-          label="Total kostnad"
+          label={t("statTotalCost")}
           value={formatPrice(value.totalCost)}
           icon={<IconReceipt size={20} />}
         />
         <StatCard
-          label="Vinst / förlust"
+          label={t("statProfit")}
           value={formatPrice(value.profit)}
           change={value.profitPercent ?? undefined}
           icon={value.profit >= 0 ? <IconTrendingUp size={20} /> : <IconTrendingDown size={20} />}
         />
-        <StatCard label="Antal objekt" value={`${value.itemCount}`} icon={<IconPackage size={20} />} />
+        <StatCard label={t("statItemCount")} value={`${value.itemCount}`} icon={<IconPackage size={20} />} />
       </div>
 
       <div className="hidden gap-6 lg:grid lg:grid-cols-3">
         {/* Värdeutveckling */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Värdeutveckling</CardTitle>
+            <CardTitle>{t("valueTrend")}</CardTitle>
           </CardHeader>
           <CardContent>
             <CollectionValueChart data={chartData} isPremium={isPremium} />
@@ -154,12 +157,12 @@ export default async function CollectionPage() {
         {/* Mest värdefulla — lista (desktop) */}
         <Card className="hidden lg:block">
           <CardHeader>
-            <CardTitle>Mest värdefulla</CardTitle>
+            <CardTitle>{t("mostValuable")}</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {value.topItems.length === 0 ? (
               <p className="px-5 py-8 text-center text-sm text-ink-muted">
-                Lägg till uppskattade värden på dina objekt så toppar vi listan här.
+                {t("noValuable")}
               </p>
             ) : (
               <ol className="divide-y divide-surface-border">
@@ -171,7 +174,7 @@ export default async function CollectionPage() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-ink">{item.name}</p>
                       <p className="text-xs text-ink-muted">
-                        {item.quantity} st · {formatPrice(item.estimatedValue)} / st
+                        {t("pieces", { count: item.quantity })} · {formatPrice(item.estimatedValue)} {t("perPiece")}
                       </p>
                     </div>
                     <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">
@@ -188,7 +191,7 @@ export default async function CollectionPage() {
       {/* Top movers — störst prisökning senaste 7 dagarna (mobil) */}
       {topMovers.length > 0 && (
         <section className="lg:hidden">
-          <h2 className="mb-3 font-display text-xl font-bold text-ink">Top movers</h2>
+          <h2 className="mb-3 font-display text-xl font-bold text-ink">{t("topMovers")}</h2>
           <div className="grid grid-cols-2 gap-3">
             {topMovers.map((m) => {
               const slug = slugByItem.get(m.id);

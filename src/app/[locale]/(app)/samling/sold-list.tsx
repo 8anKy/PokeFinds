@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { formatPrice, formatDate } from "@/lib/format";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -28,13 +29,15 @@ function ResultText({ value }: { value: number | null }) {
   );
 }
 
-export function SoldList({ sales }: { sales: SaleRow[] }) {
+export async function SoldList({ sales }: { sales: SaleRow[] }) {
+  const t = await getTranslations("Collection");
+  const tCond = await getTranslations("Condition");
   if (sales.length === 0) {
     return (
       <EmptyState
         icon={<IconPackage size={32} />}
-        title="Inga sålda objekt än"
-        description="När en av dina Tradera-annonser säljs dyker objektet upp här med försäljningspris och resultat."
+        title={t("soldEmptyTitle")}
+        description={t("soldEmptyDesc")}
       />
     );
   }
@@ -46,19 +49,19 @@ export function SoldList({ sales }: { sales: SaleRow[] }) {
       {/* Realiserad performance (före Traderas avgifter) */}
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
-          label="Sålt totalt"
+          label={t("soldTotal")}
           value={formatPrice(summary.totalSaleOre)}
           icon={<IconReceipt size={20} />}
         />
         <StatCard
-          label="Resultat (före avgifter)"
+          label={t("soldResult")}
           value={formatPrice(summary.resultOre)}
           change={summary.resultPercent ?? undefined}
           icon={summary.resultOre >= 0 ? <IconTrendingUp size={20} /> : <IconTrendingDown size={20} />}
         />
-        <StatCard label="Antal sålda" value={`${summary.count}`} icon={<IconPackage size={20} />} />
+        <StatCard label={t("soldCount")} value={`${summary.count}`} icon={<IconPackage size={20} />} />
         <StatCard
-          label="Bästa affär"
+          label={t("soldBestDeal")}
           value={summary.bestResultOre != null ? formatPrice(summary.bestResultOre) : "–"}
           icon={<IconGem size={20} />}
         />
@@ -99,13 +102,13 @@ export function SoldList({ sales }: { sales: SaleRow[] }) {
         <Table>
           <THead>
             <TR>
-              <TH>Namn</TH>
-              <TH>Set</TH>
-              <TH>Skick</TH>
-              <TH>Såld</TH>
-              <TH>Inköp</TH>
-              <TH>Sålt för</TH>
-              <TH>Resultat (före avgifter)</TH>
+              <TH>{t("colName")}</TH>
+              <TH>{t("colSet")}</TH>
+              <TH>{t("colCondition")}</TH>
+              <TH>{t("colSold")}</TH>
+              <TH>{t("colPurchase")}</TH>
+              <TH>{t("colSoldFor")}</TH>
+              <TH>{t("colResult")}</TH>
             </TR>
           </THead>
           <TBody>
@@ -130,7 +133,7 @@ export function SoldList({ sales }: { sales: SaleRow[] }) {
                   </div>
                 </TD>
                 <TD className="text-ink-muted">{s.setName ?? "–"}</TD>
-                <TD>{CONDITION_LABELS[s.condition] ?? s.condition}</TD>
+                <TD>{s.condition in CONDITION_LABELS ? tCond(s.condition) : s.condition}</TD>
                 <TD className="text-ink-muted">{formatDate(s.soldAt)}</TD>
                 <TD data-price>{formatPrice(s.purchasePriceOre)}</TD>
                 <TD data-price className="font-semibold">

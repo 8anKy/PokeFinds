@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { PriceChartLazy } from "@/components/features/price-chart-lazy";
 import { IconLock, IconTrendingDown, IconTrendingUp } from "@/components/ui/icons";
@@ -10,11 +11,11 @@ import { cn } from "@/lib/utils";
 type Point = { date: string; price: number };
 
 const RANGES = [
-  { key: "1v", label: "1v", days: 7, period: "senaste veckan" },
-  { key: "1m", label: "1m", days: 30, period: "senaste 30 dagarna" },
-  { key: "3m", label: "3m", days: 90, period: "senaste 3 månaderna" },
-  { key: "6m", label: "6m", days: 183, period: "senaste 6 månaderna" },
-  { key: "max", label: "Max", days: null, period: "sedan start" },
+  { key: "1v", labelKey: "range1w", days: 7, periodKey: "periodWeek" },
+  { key: "1m", labelKey: "range1m", days: 30, periodKey: "periodMonth" },
+  { key: "3m", labelKey: "range3m", days: 90, periodKey: "period3m" },
+  { key: "6m", labelKey: "range6m", days: 183, periodKey: "period6m" },
+  { key: "max", labelKey: "rangeMax", days: null, periodKey: "periodStart" },
 ] as const;
 
 /** Beräknar datumsträng (YYYY-MM-DD) N dagar före `lastDate`. */
@@ -42,6 +43,7 @@ export function CollectionValueChart({
   /** Mobil-hero (bleed): antal objekt. */
   itemCount?: number;
 }) {
+  const t = useTranslations("Collection");
   const [range, setRange] = useState<string>("max");
   // Hero-förändring: visa kr som standard, tryck för att växla till procent.
   const [showPct, setShowPct] = useState(false);
@@ -69,7 +71,7 @@ export function CollectionValueChart({
       <button
         type="button"
         onClick={() => setShowPct((v) => !v)}
-        aria-label={showPct ? "Visa förändring i kronor" : "Visa förändring i procent"}
+        aria-label={showPct ? t("showInKr") : t("showInPct")}
         className={cn(
           "font-semibold tabular-nums underline-offset-4 transition-opacity hover:opacity-80 hover:underline",
           changeColor
@@ -104,9 +106,9 @@ export function CollectionValueChart({
                 key={opt.key}
                 href="/priser"
                 className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold text-ink-faint transition-colors hover:text-holo-cyan"
-                title="Lås upp full historik med Premium"
+                title={t("unlockMax")}
               >
-                <IconLock size={12} /> Max
+                <IconLock size={12} /> {t("rangeMax")}
               </Link>
             );
           }
@@ -123,7 +125,7 @@ export function CollectionValueChart({
                   : "text-ink-muted hover:text-ink"
               )}
             >
-              {opt.label}
+              {t(opt.labelKey)}
             </button>
           );
         })}
@@ -136,7 +138,7 @@ export function CollectionValueChart({
     return (
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-          Totalt värde
+          {t("totalValueLabel")}
         </p>
         <div className="mt-1.5">
           <span className="font-display text-5xl font-bold tracking-tight tabular-nums text-ink">
@@ -144,8 +146,8 @@ export function CollectionValueChart({
           </span>
         </div>
         <p className="mt-2 text-sm text-ink-muted">
-          {heroChange} {r.period}
-          {itemCount != null && <> · {itemCount} objekt</>}
+          {heroChange} {t(r.periodKey)}
+          {itemCount != null && <> · {t("itemsCount", { count: itemCount })}</>}
         </p>
         <div className="-mx-4 mt-5 sm:-mx-6">
           <PriceChartLazy data={filtered} minimal />
@@ -162,7 +164,7 @@ export function CollectionValueChart({
         {selector}
         <div className="flex items-center gap-2">
           {changePill}
-          <span className="hidden text-xs text-ink-muted sm:inline">{r.period}</span>
+          <span className="hidden text-xs text-ink-muted sm:inline">{t(r.periodKey)}</span>
         </div>
       </div>
       <PriceChartLazy data={filtered} minimal />
