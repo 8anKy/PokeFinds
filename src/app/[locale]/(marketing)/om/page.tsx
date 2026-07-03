@@ -1,75 +1,67 @@
 import type { Metadata } from "next";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 
-export const metadata: Metadata = {
-  title: "Om Foilio",
-  description: "Foilio är Sveriges marknadsplattform för Pokémon TCG — prisbevakning, restock-alerts och samlingsverktyg.",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: { locale: string };
+}): Promise<Metadata> {
+  const t = await getTranslations({ locale: params.locale, namespace: "About" });
+  return { title: t("metaTitle"), description: t("metaDescription") };
+}
 
-export default function AboutPage() {
+export default async function AboutPage({
+  params,
+}: {
+  params: { locale: string };
+}) {
+  setRequestLocale(params.locale);
+  const t = await getTranslations("About");
+  const doItems = [1, 2, 3, 4, 5] as const;
+
   return (
     <article className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-      <h1 className="font-display text-3xl font-bold text-ink">Om Foilio</h1>
-      <p className="mt-2 text-sm text-ink-faint">Sveriges Pokémon TCG-plattform</p>
+      <h1 className="font-display text-3xl font-bold text-ink">{t("h1")}</h1>
+      <p className="mt-2 text-sm text-ink-faint">{t("subtitle")}</p>
 
       <div className="mt-8 space-y-8 text-sm leading-relaxed text-ink-muted [&_h2]:font-display [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-ink">
         <section>
-          <h2>Vad är Foilio?</h2>
-          <p className="mt-2">
-            Foilio är en svensk webbplattform byggd för Pokémon TCG-samlare.
-            Vi samlar priser och lagerstatus från svenska butiker så att du slipper
-            kolla varje sajt manuellt. Här kan du jämföra priser, bevaka produkter,
-            få restock-alerts och hålla koll på värdet av din samling — allt på ett ställe.
-          </p>
+          <h2>{t("whatTitle")}</h2>
+          <p className="mt-2">{t("whatBody")}</p>
         </section>
 
         <section>
-          <h2>Vad vi gör</h2>
+          <h2>{t("doTitle")}</h2>
           <ul className="mt-2 list-disc space-y-2 pl-5">
-            <li>
-              <strong>Prisjämförelse</strong> — Vi hämtar priser från flera svenska
-              butiker och visar det lägsta priset, prishistorik och trender.
-            </li>
-            <li>
-              <strong>Restock-alerts</strong> — Få notifikationer direkt när en
-              produkt du bevakar kommer i lager igen.
-            </li>
-            <li>
-              <strong>Samlingshantering</strong> — Logga dina kort och sealed-produkter,
-              se totalvärde och följ hur din samling utvecklas.
-            </li>
-            <li>
-              <strong>Marknadsdata</strong> — Trender, prisfall, mest bevakade produkter
-              och set-index ger dig koll på marknaden.
-            </li>
-            <li>
-              <strong>Community</strong> — Dela pulls, diskutera trades och häng med
-              andra svenska samlare.
-            </li>
+            {doItems.map((n) => (
+              <li key={n}>
+                <strong>{t(`do${n}Lead`)}</strong> — {t(`do${n}Text`)}
+              </li>
+            ))}
           </ul>
         </section>
 
         <section>
-          <h2>Oberoende tjänst</h2>
-          <p className="mt-2">
-            Foilio är en helt oberoende tjänst. Vi är inte anslutna till,
-            sponsrade av eller godkända av The Pokémon Company, Nintendo eller
-            någon återförsäljare. Pokémon och relaterade namn är varumärken som
-            tillhör sina respektive ägare.
-          </p>
+          <h2>{t("independentTitle")}</h2>
+          <p className="mt-2">{t("independentBody")}</p>
         </section>
 
         <section>
-          <h2>Kontakta oss</h2>
+          <h2>{t("contactTitle")}</h2>
           <p className="mt-2">
-            Har du frågor, feedback eller vill rapportera ett problem? Skriv till{" "}
-            <a href="mailto:hej@foilio.se" className="text-holo-cyan hover:underline">
-              hej@foilio.se
-            </a>{" "}
-            eller besök vår{" "}
-            <Link href="/kontakt" className="text-holo-cyan hover:underline">
-              kontaktsida
-            </Link>.
+            {t.rich("contactBody", {
+              email: (chunks) => (
+                <a href="mailto:hej@foilio.se" className="text-holo-cyan hover:underline">
+                  {chunks}
+                </a>
+              ),
+              link: (chunks) => (
+                <Link href="/kontakt" className="text-holo-cyan hover:underline">
+                  {chunks}
+                </Link>
+              ),
+            })}
           </p>
         </section>
       </div>
