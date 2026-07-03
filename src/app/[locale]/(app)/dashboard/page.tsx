@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -27,31 +28,26 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Översikt",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("Dashboard");
+  return { title: t("metaTitle") };
+}
 
-const POST_CATEGORY_LABELS: Record<string, string> = {
-  PULLS: "Pulls",
-  TRADES: "Byten",
-  QUESTIONS: "Frågor",
-  MARKET: "Marknad",
-  NEWS: "Nyheter",
-  COLLECTIONS: "Samlingar",
-};
-
-function greeting(): string {
+function greetingKey(): string {
   const hour = new Date().getHours();
-  if (hour < 5) return "God natt";
-  if (hour < 10) return "God morgon";
-  if (hour < 18) return "Hej";
-  return "God kväll";
+  if (hour < 5) return "greetingNight";
+  if (hour < 10) return "greetingMorning";
+  if (hour < 18) return "greetingDay";
+  return "greetingEvening";
 }
 
 export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user) redirect("/logga-in");
   const userId = session.user.id;
+  const t = await getTranslations("Dashboard");
+  const tCat = await getTranslations("Category");
+  const tPost = await getTranslations("PostCategory");
 
   const [collection, watchlistCount, restocks, drops, alerts, feed, watchedCategories] =
     await Promise.all([
@@ -93,10 +89,10 @@ export default async function DashboardPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink">
-            {greeting()}, {session.user.name}!
+            {t(greetingKey())}, {session.user.name}!
           </h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Här är läget på din samling och marknaden just nu.
+            {t("intro")}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -104,10 +100,10 @@ export default async function DashboardPage() {
             <Input
               type="search"
               name="q"
-              placeholder="Sök produkt eller kort…"
-              aria-label="Sök produkter"
+              placeholder={t("searchPlaceholder")}
+              aria-label={t("searchAria")}
             />
-            <Button type="submit" variant="secondary" aria-label="Sök">
+            <Button type="submit" variant="secondary" aria-label={t("searchBtn")}>
               <IconSearch size={18} />
             </Button>
           </form>
@@ -117,26 +113,26 @@ export default async function DashboardPage() {
       {/* Nyckeltal */}
       <div className="stagger-list grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Samlingsvärde"
+          label={t("statValue")}
           value={formatPrice(collection.totalValue)}
           icon={<IconGem size={20} />}
         />
         <StatCard
-          label="Förändring 7d"
+          label={t("statChange7d")}
           value={change7d != null ? formatPercent(change7d) : "–"}
           change={change7d ?? undefined}
           icon={<IconTrendingUp size={20} />}
         />
-        <StatCard label="Aktiva bevakningar" value={watchlistCount} icon={<IconBell size={20} />} />
+        <StatCard label={t("statWatches")} value={watchlistCount} icon={<IconBell size={20} />} />
       </div>
 
       {/* Värdeutveckling */}
       {chartData.length > 0 && (
         <Card>
           <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>Samlingens värdeutveckling</CardTitle>
+            <CardTitle>{t("valueTrend")}</CardTitle>
             <Link href="/samling" className="text-sm font-medium text-holo-cyan hover:underline">
-              Till samlingen →
+              {t("toCollection")}
             </Link>
           </CardHeader>
           <CardContent>
@@ -149,15 +145,15 @@ export default async function DashboardPage() {
         {/* Senaste restocks */}
         <Card>
           <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>Senaste restocks</CardTitle>
+            <CardTitle>{t("recentRestocks")}</CardTitle>
             <Link href="/marknad" className="text-sm font-medium text-holo-cyan hover:underline">
-              Visa alla →
+              {t("showAll")}
             </Link>
           </CardHeader>
           <CardContent className="p-0">
             {restocks.length === 0 ? (
               <p className="px-5 py-8 text-center text-sm text-ink-muted">
-                Inga restocks upptäckta ännu. Vi håller utkik åt dig.
+                {t("noRestocks")}
               </p>
             ) : (
               <ul className="divide-y divide-surface-border">
@@ -179,7 +175,7 @@ export default async function DashboardPage() {
                             {formatPrice(r.price)}
                           </span>
                         )}
-                        <Badge variant="success">I lager</Badge>
+                        <Badge variant="success">{t("inStock")}</Badge>
                       </div>
                     </Link>
                   </li>
@@ -192,15 +188,15 @@ export default async function DashboardPage() {
         {/* Dina senaste alerts */}
         <Card>
           <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>Dina senaste alerts</CardTitle>
+            <CardTitle>{t("yourAlerts")}</CardTitle>
             <Link href="/bevakningar" className="text-sm font-medium text-holo-cyan hover:underline">
-              Bevakningar →
+              {t("toWatches")}
             </Link>
           </CardHeader>
           <CardContent className="p-0">
             {alerts.items.length === 0 ? (
               <p className="px-5 py-8 text-center text-sm text-ink-muted">
-                Inga alerts ännu. Lägg till bevakningar så säger vi till vid prisfall och restocks.
+                {t("noAlerts")}
               </p>
             ) : (
               <ul className="divide-y divide-surface-border">
@@ -210,7 +206,7 @@ export default async function DashboardPage() {
                       className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
                         a.status === "READ" ? "bg-surface-border" : "bg-holo-cyan"
                       }`}
-                      aria-label={a.status === "READ" ? "Läst" : "Oläst"}
+                      aria-label={a.status === "READ" ? t("read") : t("unread")}
                     />
                     <div className="min-w-0">
                       <p
@@ -233,18 +229,18 @@ export default async function DashboardPage() {
       {/* Största prisfall */}
       <Card>
         <CardHeader className="flex-row items-center justify-between">
-          <CardTitle>Största prisfall (7 dagar)</CardTitle>
+          <CardTitle>{t("topDrops")}</CardTitle>
           <Link
             href="/produkter?sortera=prisfall"
             className="text-sm font-medium text-holo-cyan hover:underline"
           >
-            Visa fler →
+            {t("showMore")}
           </Link>
         </CardHeader>
         <CardContent className="p-0">
           {topDrops.length === 0 ? (
             <p className="px-5 py-8 text-center text-sm text-ink-muted">
-              Inga större prisfall just nu — marknaden håller andan.
+              {t("noDrops")}
             </p>
           ) : (
             <ul className="divide-y divide-surface-border">
@@ -257,7 +253,7 @@ export default async function DashboardPage() {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-ink">{d.product.title}</p>
                       <p className="text-xs text-ink-muted">
-                        {CATEGORY_LABELS[d.product.category] ?? "Övrigt"}
+                        {d.product.category in CATEGORY_LABELS ? tCat(d.product.category) : tCat("OTHER")}
                         {d.product.set ? ` · ${d.product.set.name}` : ""}
                       </p>
                     </div>
@@ -279,16 +275,15 @@ export default async function DashboardPage() {
         {/* Rekommenderade fynd */}
         <Card>
           <CardHeader>
-            <CardTitle>Rekommenderade fynd</CardTitle>
+            <CardTitle>{t("recommended")}</CardTitle>
             <p className="text-sm text-ink-muted">
-              Prisfall inom kategorierna du bevakar.
+              {t("recommendedSub")}
             </p>
           </CardHeader>
           <CardContent className="p-0">
             {recommended.length === 0 ? (
               <p className="px-5 py-8 text-center text-sm text-ink-muted">
-                Inga fynd att rekommendera just nu. Lägg till fler bevakningar så lär vi oss vad du
-                samlar på.
+                {t("noRecommended")}
               </p>
             ) : (
               <ul className="divide-y divide-surface-border">
@@ -301,7 +296,7 @@ export default async function DashboardPage() {
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-ink">{d.product.title}</p>
                         <p className="text-xs text-ink-muted">
-                          {CATEGORY_LABELS[d.product.category] ?? "Övrigt"}
+                          {d.product.category in CATEGORY_LABELS ? tCat(d.product.category) : tCat("OTHER")}
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-3">
@@ -321,15 +316,15 @@ export default async function DashboardPage() {
         {/* Senaste från communityt */}
         <Card>
           <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>Senaste från communityt</CardTitle>
+            <CardTitle>{t("community")}</CardTitle>
             <Link href="/community" className="text-sm font-medium text-holo-cyan hover:underline">
-              Till communityt →
+              {t("toCommunity")}
             </Link>
           </CardHeader>
           <CardContent className="p-0">
             {feed.items.length === 0 ? (
               <p className="px-5 py-8 text-center text-sm text-ink-muted">
-                Inga inlägg ännu — bli först att dela en pull!
+                {t("noPosts")}
               </p>
             ) : (
               <ul className="divide-y divide-surface-border">
@@ -340,7 +335,7 @@ export default async function DashboardPage() {
                       className="block px-5 py-3 transition-colors hover:bg-surface-overlay/50"
                     >
                       <div className="flex items-center gap-2">
-                        <Badge variant="info">{POST_CATEGORY_LABELS[p.category] ?? p.category}</Badge>
+                        <Badge variant="info">{tPost.has(p.category) ? tPost(p.category) : p.category}</Badge>
                         <span className="text-xs text-ink-faint">
                           {p.user.name} · {formatRelative(p.createdAt)}
                         </span>
@@ -350,12 +345,12 @@ export default async function DashboardPage() {
                         <span className="inline-flex items-center gap-1">
                           <IconHeart size={13} aria-hidden="true" />
                           {p.likeCount}
-                          <span className="sr-only">gillningar</span>
+                          <span className="sr-only">{t("likes")}</span>
                         </span>
                         <span className="inline-flex items-center gap-1">
                           <IconMessage size={13} aria-hidden="true" />
                           {p.commentCount}
-                          <span className="sr-only">kommentarer</span>
+                          <span className="sr-only">{t("comments")}</span>
                         </span>
                       </p>
                     </Link>
