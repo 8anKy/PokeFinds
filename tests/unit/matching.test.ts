@@ -200,14 +200,23 @@ describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
     expect(matchListingToProduct("Pokemon Scarlet & Violet Booster Pack", svPack)).not.toBeNull();
   });
 
-  it("äkta engelska bas-pack med set-kod/'Base'/sammansatt formord matchar bas-produkten", () => {
+  it("äkta engelsk bas-pack med set-kod (SV01) + hopskrivet formord matchar bas-produkten", () => {
     const svPack = { normalizedTitle: "scarlet violet booster pack", card: null };
-    // Verkliga Tradera-titlar (set-kod SV01, "Base", hopskrivet "Boosterpack").
+    // Verklig Tradera-titel med set-kod SV01 resp. hopskrivet "Boosterpack".
     expect(matchListingToProduct("Pokémon SV01: Scarlet & Violet Booster Pack", svPack)).not.toBeNull();
-    expect(matchListingToProduct("Scarlet & Violet Base Boosterpack - Pokémon", svPack)).not.toBeNull();
-    // Men ett japanskt DELSET (eget namn kvar) matchar fortfarande INTE.
+    expect(matchListingToProduct("Scarlet & Violet Booster Pack SV01", svPack)).not.toBeNull();
+    // Japanskt DELSET (eget namn kvar) matchar fortfarande INTE.
     expect(matchListingToProduct("Scarlet & Violet: Cyber Judge Booster Pack", svPack)).toBeNull();
     expect(matchListingToProduct("Pokemon booster pack Obsidian Flames", svPack)).toBeNull();
+  });
+
+  it("'base' är ett äkta vintage-setnamn — inte brus (vintage-basen matchar sig själv)", () => {
+    const svPack = { normalizedTitle: "scarlet violet booster pack", card: null };
+    const vintageBase = { normalizedTitle: "base booster pack", card: null };
+    // Vintage bas-pack matchar sin egen produkt, inte S&V (om "base" vore brus skulle
+    // vintage-basen tappa sitt enda särskiljande ord och sluta matcha).
+    expect(matchListingToProduct("Pokemon Base Set Booster Pack", vintageBase)).not.toBeNull();
+    expect(matchListingToProduct("Pokemon Base Set Booster Pack", svPack)).toBeNull();
   });
 });
 

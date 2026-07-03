@@ -255,10 +255,9 @@ const ERA_PHRASES = [
 const NOISE_WORDS = new Set([
   "max", "per", "kund", "styck", "version", "kopia", "copy", "exklusivt", "exclusive", "promo",
   "hushall", "hushåll", "person", "antal", "pokemonkort", "pokémonkort", "forseglad", "oppen", "obs",
-  // "base"/"base set" = kvalificerar BAS-setet (t.ex. "Scarlet & Violet Base Booster
-  // Pack"), inte en särskiljande delprodukt. Utan detta blir "base" enda kvarvarande
-  // ordet efter era-strykning → nonEraCoverage=0 → äkta engelsk bas-pack förkastas.
-  "base",
+  // OBS: "base" får INTE vara brusord — det är ett äkta vintage-setnamn ("Base Set",
+  // "Base Booster Pack" 1999). Att stryka det kolliderade "Scarlet & Violet Base
+  // Boosterpack" med vintage-basen OCH sänkte vintage-basens egen matchning.
 ]);
 /**
  * Korta set-markörer som distinctiveWords annars tappar (för korta/numeriska),
