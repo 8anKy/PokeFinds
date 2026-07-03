@@ -36,6 +36,111 @@
     "cookies": "Cookie policy",
     "copyright": "© {year} Foilio. Pokémon and all related names are trademarks of their respective owners. Foilio is an independent service."
   },
+  "Meta": {
+    "title": "Foilio — Your control panel for the Pokémon TCG market",
+    "description": "Track prices, stock status and the value of your collection. Foilio brings together price data, restock alerts and market trends for Pokémon TCG in Sweden.",
+    "ogDescription": "Track prices, stock status and the value of your collection. Stay ahead of the market.",
+    "ogLocale": "en_US"
+  },
+  "HeaderActions": {
+    "overview": "My overview",
+    "profile": "Profile",
+    "login": "Log in",
+    "joinFree": "Join for free"
+  },
+  "Auth": {
+    "emailLabel": "Email address",
+    "emailPlaceholder": "you@email.com",
+    "passwordLabel": "Password",
+    "genericError": "Something went wrong. Try again.",
+    "login": {
+      "title": "Log in",
+      "subtitle": "Welcome back! Log in to see your watches.",
+      "forgot": "Forgot your password?",
+      "submit": "Log in",
+      "noAccount": "Don't have an account?",
+      "createAccount": "Create account",
+      "badCredentials": "Wrong email or password."
+    },
+    "register": {
+      "title": "Create account",
+      "subtitle": "Free to get started. Track prices, restocks and your collection.",
+      "nameLabel": "Name",
+      "namePlaceholder": "Your name",
+      "passwordPlaceholder": "At least 8 characters",
+      "confirmLabel": "Confirm password",
+      "confirmPlaceholder": "Repeat the password",
+      "submit": "Create account",
+      "haveAccount": "Already have an account?",
+      "login": "Log in",
+      "errName": "The name must be at least 2 characters.",
+      "errEmail": "Invalid email address.",
+      "errPassword": "The password must be at least 8 characters.",
+      "errConfirm": "The passwords don't match."
+    },
+    "forgot": {
+      "title": "Forgot your password?",
+      "subtitle": "No worries. Enter your email address and we'll send a link to reset it.",
+      "submit": "Send reset link",
+      "backToLogin": "Back to login",
+      "fallbackSuccess": "If the account exists, we'll send a reset link."
+    },
+    "reset": {
+      "invalidTitle": "Invalid link",
+      "invalidBody": "The reset link is missing or incomplete. Request a new one below.",
+      "requestNew": "Request a new link",
+      "successTitle": "Password updated",
+      "successOpenApp": "Done! Open the Foilio app and log in with your new password.",
+      "title": "Choose a new password",
+      "subtitle": "Enter your new password below. At least 8 characters.",
+      "newPasswordLabel": "New password",
+      "confirmNewLabel": "Confirm new password",
+      "submit": "Update password",
+      "fallbackSuccess": "Your password has been updated.",
+      "errPassword": "The password must be at least 8 characters.",
+      "errConfirm": "The passwords don't match."
+    },
+    "verify": {
+      "title": "Confirm email address",
+      "loading": "Verifying your email address…",
+      "missing": "The verification link is missing or incomplete.",
+      "fallbackSuccess": "Your email address is now confirmed.",
+      "successOpenApp": "Done! Open the Foilio app and log in with your account.",
+      "errorRetry": "Verification failed. Try again.",
+      "errorOpenApp": "Open the Foilio app and try again from there."
+    },
+    "onboarding": {
+      "step": "Step {step} of 3",
+      "interestsTitle": "What do you collect?",
+      "interestsSubtitle": "Help us tailor Foilio to your interests.",
+      "interestsLabel": "Interests",
+      "budgetLabel": "Budget per month",
+      "budgetLow": "Low",
+      "budgetLowDesc": "Under 500 kr/month",
+      "budgetMedium": "Medium",
+      "budgetMediumDesc": "500–2000 kr/month",
+      "budgetHigh": "High",
+      "budgetHighDesc": "2000+ kr/month",
+      "continue": "Continue",
+      "favoritesTitle": "Your favorite sets",
+      "favoritesSubtitle": "Pick the sets you follow most closely. You can change this later.",
+      "loadingSets": "Loading sets…",
+      "noSets": "No sets found right now. You can skip this step.",
+      "back": "Back",
+      "notifTitle": "Notifications",
+      "notifSubtitle": "How would you like to be notified about price drops and restocks?",
+      "notifEmail": "Email notifications for price drops and restocks",
+      "finish": "Finish",
+      "errInterest": "Choose at least one interest.",
+      "errBudget": "Choose your approximate budget.",
+      "intSealed": "Sealed",
+      "intSingles": "Singles",
+      "intSlabs": "Slabs/Graded",
+      "intEnglish": "English",
+      "intInvestment": "Investment",
+      "intCasual": "Casual collecting"
+    }
+  },
   "Home": {
     "hero": {
       "titleLead": "Your control panel for",

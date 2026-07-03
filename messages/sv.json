@@ -36,6 +36,111 @@
     "cookies": "Cookiepolicy",
     "copyright": "© {year} Foilio. Pokémon och alla relaterade namn är varumärken som tillhör sina respektive ägare. Foilio är en oberoende tjänst."
   },
+  "Meta": {
+    "title": "Foilio — Din kontrollpanel för Pokémon TCG-marknaden",
+    "description": "Bevaka priser, lagerstatus och värdet på din samling. Foilio samlar prisdata, restock-alerts och marknadstrender för Pokémon TCG i Sverige.",
+    "ogDescription": "Bevaka priser, lagerstatus och värdet på din samling. Håll koll på marknaden innan alla andra.",
+    "ogLocale": "sv_SE"
+  },
+  "HeaderActions": {
+    "overview": "Min översikt",
+    "profile": "Profil",
+    "login": "Logga in",
+    "joinFree": "Gå med gratis"
+  },
+  "Auth": {
+    "emailLabel": "E-postadress",
+    "emailPlaceholder": "din@epost.se",
+    "passwordLabel": "Lösenord",
+    "genericError": "Något gick fel. Försök igen.",
+    "login": {
+      "title": "Logga in",
+      "subtitle": "Välkommen tillbaka! Logga in för att se dina bevakningar.",
+      "forgot": "Glömt lösenordet?",
+      "submit": "Logga in",
+      "noAccount": "Har du inget konto?",
+      "createAccount": "Skapa konto",
+      "badCredentials": "Fel e-post eller lösenord."
+    },
+    "register": {
+      "title": "Skapa konto",
+      "subtitle": "Gratis att komma igång. Bevaka priser, restocks och din samling.",
+      "nameLabel": "Namn",
+      "namePlaceholder": "Ditt namn",
+      "passwordPlaceholder": "Minst 8 tecken",
+      "confirmLabel": "Bekräfta lösenord",
+      "confirmPlaceholder": "Upprepa lösenordet",
+      "submit": "Skapa konto",
+      "haveAccount": "Har du redan ett konto?",
+      "login": "Logga in",
+      "errName": "Namnet måste vara minst 2 tecken.",
+      "errEmail": "Ogiltig e-postadress.",
+      "errPassword": "Lösenordet måste vara minst 8 tecken.",
+      "errConfirm": "Lösenorden matchar inte."
+    },
+    "forgot": {
+      "title": "Glömt lösenordet?",
+      "subtitle": "Ingen fara. Ange din e-postadress så skickar vi en länk för att återställa det.",
+      "submit": "Skicka återställningslänk",
+      "backToLogin": "Tillbaka till inloggning",
+      "fallbackSuccess": "Om kontot finns skickar vi en återställningslänk."
+    },
+    "reset": {
+      "invalidTitle": "Ogiltig länk",
+      "invalidBody": "Återställningslänken saknas eller är ofullständig. Begär en ny länk nedan.",
+      "requestNew": "Begär ny länk",
+      "successTitle": "Lösenordet är uppdaterat",
+      "successOpenApp": "Klart! Öppna Foilio-appen och logga in med ditt nya lösenord.",
+      "title": "Välj nytt lösenord",
+      "subtitle": "Ange ditt nya lösenord nedan. Minst 8 tecken.",
+      "newPasswordLabel": "Nytt lösenord",
+      "confirmNewLabel": "Bekräfta nytt lösenord",
+      "submit": "Uppdatera lösenord",
+      "fallbackSuccess": "Ditt lösenord har uppdaterats.",
+      "errPassword": "Lösenordet måste vara minst 8 tecken.",
+      "errConfirm": "Lösenorden matchar inte."
+    },
+    "verify": {
+      "title": "Bekräfta e-postadress",
+      "loading": "Verifierar din e-postadress…",
+      "missing": "Verifieringslänken saknas eller är ofullständig.",
+      "fallbackSuccess": "Din e-postadress är nu bekräftad.",
+      "successOpenApp": "Klart! Öppna Foilio-appen och logga in med ditt konto.",
+      "errorRetry": "Verifieringen misslyckades. Försök igen.",
+      "errorOpenApp": "Öppna Foilio-appen och försök igen därifrån."
+    },
+    "onboarding": {
+      "step": "Steg {step} av 3",
+      "interestsTitle": "Vad samlar du på?",
+      "interestsSubtitle": "Hjälp oss skräddarsy Foilio efter dina intressen.",
+      "interestsLabel": "Intressen",
+      "budgetLabel": "Budget per månad",
+      "budgetLow": "Låg",
+      "budgetLowDesc": "Under 500 kr/mån",
+      "budgetMedium": "Mellan",
+      "budgetMediumDesc": "500–2000 kr/mån",
+      "budgetHigh": "Hög",
+      "budgetHighDesc": "2000+ kr/mån",
+      "continue": "Fortsätt",
+      "favoritesTitle": "Dina favoritset",
+      "favoritesSubtitle": "Välj de set du följer extra noga. Du kan ändra detta senare.",
+      "loadingSets": "Hämtar set…",
+      "noSets": "Inga set hittades just nu. Du kan hoppa över detta steg.",
+      "back": "Tillbaka",
+      "notifTitle": "Aviseringar",
+      "notifSubtitle": "Hur vill du bli notifierad vid prisfall och restocks?",
+      "notifEmail": "E-postaviseringar vid prisfall och restocks",
+      "finish": "Slutför",
+      "errInterest": "Välj minst ett intresse.",
+      "errBudget": "Välj din ungefärliga budget.",
+      "intSealed": "Sealed",
+      "intSingles": "Singles",
+      "intSlabs": "Slabs/Gradat",
+      "intEnglish": "Engelskt",
+      "intInvestment": "Investering",
+      "intCasual": "Casual collecting"
+    }
+  },
   "Home": {
     "hero": {
       "titleLead": "Din kontrollpanel för",

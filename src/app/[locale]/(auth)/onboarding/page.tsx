@@ -1,27 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Checkbox, FieldError, Label } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
+// value = lagrat/skickat till API (stabilt), key = översättningsnyckel för visning.
 const INTERESTS = [
-  "Sealed",
-  "Singles",
-  "Slabs/Gradat",
-  "Engelskt",
-  "Investering",
-  "Casual collecting",
+  { value: "Sealed", key: "intSealed" },
+  { value: "Singles", key: "intSingles" },
+  { value: "Slabs/Gradat", key: "intSlabs" },
+  { value: "Engelskt", key: "intEnglish" },
+  { value: "Investering", key: "intInvestment" },
+  { value: "Casual collecting", key: "intCasual" },
 ] as const;
 
 type Budget = "low" | "medium" | "high";
 
-const BUDGETS: { value: Budget; label: string; description: string }[] = [
-  { value: "low", label: "Låg", description: "Under 500 kr/mån" },
-  { value: "medium", label: "Mellan", description: "500–2000 kr/mån" },
-  { value: "high", label: "Hög", description: "2000+ kr/mån" },
+const BUDGETS: { value: Budget; labelKey: string; descKey: string }[] = [
+  { value: "low", labelKey: "budgetLow", descKey: "budgetLowDesc" },
+  { value: "medium", labelKey: "budgetMedium", descKey: "budgetMediumDesc" },
+  { value: "high", labelKey: "budgetHigh", descKey: "budgetHighDesc" },
 ];
 
 interface SetItem {
@@ -31,6 +33,8 @@ interface SetItem {
 }
 
 export default function OnboardingPage() {
+  const t = useTranslations("Auth.onboarding");
+  const tError = useTranslations("Auth");
   const router = useRouter();
   const { update } = useSession();
 
@@ -69,11 +73,11 @@ export default function OnboardingPage() {
 
   function nextFromStep1() {
     if (interests.length === 0) {
-      setError("Välj minst ett intresse.");
+      setError(t("errInterest"));
       return;
     }
     if (!budget) {
-      setError("Välj din ungefärliga budget.");
+      setError(t("errBudget"));
       return;
     }
     setError(null);
@@ -96,7 +100,7 @@ export default function OnboardingPage() {
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        setError(data?.error ?? "Något gick fel. Försök igen.");
+        setError(data?.error ?? tError("genericError"));
         setSubmitting(false);
         return;
       }
@@ -104,7 +108,7 @@ export default function OnboardingPage() {
       router.push("/produkter");
       router.refresh();
     } catch {
-      setError("Något gick fel. Försök igen.");
+      setError(tError("genericError"));
       setSubmitting(false);
     }
   }
@@ -112,7 +116,7 @@ export default function OnboardingPage() {
   return (
     <div>
       <div className="mb-6">
-        <p className="text-xs font-medium text-holo-cyan">Steg {step} av 3</p>
+        <p className="text-xs font-medium text-holo-cyan">{t("step", { step })}</p>
         <div className="mt-2 flex gap-1.5">
           {[1, 2, 3].map((s) => (
             <span
@@ -128,22 +132,22 @@ export default function OnboardingPage() {
 
       {step === 1 && (
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink">Vad samlar du på?</h1>
+          <h1 className="font-display text-2xl font-bold text-ink">{t("interestsTitle")}</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Hjälp oss skräddarsy Foilio efter dina intressen.
+            {t("interestsSubtitle")}
           </p>
 
           <div className="mt-5">
-            <Label>Intressen</Label>
+            <Label>{t("interestsLabel")}</Label>
             <div className="flex flex-wrap gap-2">
               {INTERESTS.map((interest) => {
-                const active = interests.includes(interest);
+                const active = interests.includes(interest.value);
                 return (
                   <button
-                    key={interest}
+                    key={interest.value}
                     type="button"
                     aria-pressed={active}
-                    onClick={() => toggle(interests, interest, setInterests)}
+                    onClick={() => toggle(interests, interest.value, setInterests)}
                     className={cn(
                       "rounded-full border px-3.5 py-1.5 text-sm transition-colors",
                       active
@@ -151,7 +155,7 @@ export default function OnboardingPage() {
                         : "border-surface-border bg-surface-raised text-ink-muted hover:border-holo-cyan/50 hover:text-ink"
                     )}
                   >
-                    {interest}
+                    {t(interest.key)}
                   </button>
                 );
               })}
@@ -159,7 +163,7 @@ export default function OnboardingPage() {
           </div>
 
           <div className="mt-5">
-            <Label>Budget per månad</Label>
+            <Label>{t("budgetLabel")}</Label>
             <div className="grid grid-cols-3 gap-2">
               {BUDGETS.map((b) => {
                 const active = budget === b.value;
@@ -182,9 +186,9 @@ export default function OnboardingPage() {
                         active ? "text-holo-cyan" : "text-ink"
                       )}
                     >
-                      {b.label}
+                      {t(b.labelKey)}
                     </span>
-                    <span className="mt-0.5 block text-xs text-ink-muted">{b.description}</span>
+                    <span className="mt-0.5 block text-xs text-ink-muted">{t(b.descKey)}</span>
                   </button>
                 );
               })}
@@ -194,24 +198,24 @@ export default function OnboardingPage() {
           <FieldError message={error} className="mt-4" />
 
           <Button onClick={nextFromStep1} className="mt-6 w-full" size="lg">
-            Fortsätt
+            {t("continue")}
           </Button>
         </div>
       )}
 
       {step === 2 && (
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink">Dina favoritset</h1>
+          <h1 className="font-display text-2xl font-bold text-ink">{t("favoritesTitle")}</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Välj de set du följer extra noga. Du kan ändra detta senare.
+            {t("favoritesSubtitle")}
           </p>
 
           <div className="mt-5 max-h-72 overflow-y-auto pr-1">
             {setsLoading ? (
-              <p className="py-8 text-center text-sm text-ink-muted">Hämtar set…</p>
+              <p className="py-8 text-center text-sm text-ink-muted">{t("loadingSets")}</p>
             ) : sets.length === 0 ? (
               <p className="py-8 text-center text-sm text-ink-muted">
-                Inga set hittades just nu. Du kan hoppa över detta steg.
+                {t("noSets")}
               </p>
             ) : (
               <div className="grid grid-cols-2 gap-2">
@@ -250,10 +254,10 @@ export default function OnboardingPage() {
 
           <div className="mt-6 flex gap-3">
             <Button variant="secondary" onClick={() => setStep(1)} className="flex-1" size="lg">
-              Tillbaka
+              {t("back")}
             </Button>
             <Button onClick={() => setStep(3)} className="flex-1" size="lg">
-              Fortsätt
+              {t("continue")}
             </Button>
           </div>
         </div>
@@ -261,16 +265,16 @@ export default function OnboardingPage() {
 
       {step === 3 && (
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink">Aviseringar</h1>
+          <h1 className="font-display text-2xl font-bold text-ink">{t("notifTitle")}</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Hur vill du bli notifierad vid prisfall och restocks?
+            {t("notifSubtitle")}
           </p>
 
           <div className="mt-5 space-y-3">
             <div className="rounded-lg border border-surface-border bg-surface-raised p-3">
               <Checkbox
                 id="notif-email"
-                label="E-postaviseringar vid prisfall och restocks"
+                label={t("notifEmail")}
                 checked={notif.email}
                 onChange={(e) => setNotif((n) => ({ ...n, email: e.target.checked }))}
               />
@@ -287,10 +291,10 @@ export default function OnboardingPage() {
               size="lg"
               disabled={submitting}
             >
-              Tillbaka
+              {t("back")}
             </Button>
             <Button onClick={handleSubmit} loading={submitting} className="flex-1" size="lg">
-              Slutför
+              {t("finish")}
             </Button>
           </div>
         </div>

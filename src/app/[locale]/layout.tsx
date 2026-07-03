@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { notFound } from "next/navigation";
 import { NextIntlClientProvider, hasLocale } from "next-intl";
-import { getMessages, setRequestLocale } from "next-intl/server";
+import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 import "@/styles/globals.css";
 import { routing } from "@/i18n/routing";
 
@@ -19,31 +19,36 @@ import { ProductOverlayHost } from "@/components/features/product-overlay";
 import { PushManager } from "@/components/push-manager";
 import { ScrollReset } from "@/components/scroll-reset";
 
-export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
-  title: {
-    default: "Foilio — Din kontrollpanel för Pokémon TCG-marknaden",
-    template: "%s | Foilio",
-  },
-  description:
-    "Bevaka priser, lagerstatus och värdet på din samling. Foilio samlar prisdata, restock-alerts och marknadstrender för Pokémon TCG i Sverige.",
-  openGraph: {
-    type: "website",
-    locale: "sv_SE",
-    siteName: "Foilio",
-    title: "Foilio — Din kontrollpanel för Pokémon TCG-marknaden",
-    description:
-      "Bevaka priser, lagerstatus och värdet på din samling. Håll koll på marknaden innan alla andra.",
-  },
-  icons: {
-    icon: [
-      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
-      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
-    ],
-    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
-  },
-  manifest: "/manifest.json",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: { locale: string };
+}): Promise<Metadata> {
+  const t = await getTranslations({ locale: params.locale, namespace: "Meta" });
+  return {
+    metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
+    title: {
+      default: t("title"),
+      template: "%s | Foilio",
+    },
+    description: t("description"),
+    openGraph: {
+      type: "website",
+      locale: t("ogLocale"),
+      siteName: "Foilio",
+      title: t("title"),
+      description: t("ogDescription"),
+    },
+    icons: {
+      icon: [
+        { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+        { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      ],
+      apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+    },
+    manifest: "/manifest.json",
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: "#0a0a0c",

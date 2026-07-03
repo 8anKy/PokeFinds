@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
 
 export default function ForgotPasswordPage() {
+  const t = useTranslations("Auth");
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -25,13 +27,13 @@ export default function ForgotPasswordPage() {
         | { message?: string; error?: string }
         | null;
       if (!res.ok) {
-        setError(data?.error ?? "Något gick fel. Försök igen.");
+        setError(data?.error ?? t("genericError"));
         setLoading(false);
         return;
       }
-      setSuccess(data?.message ?? "Om kontot finns skickar vi en återställningslänk.");
+      setSuccess(data?.message ?? t("forgot.fallbackSuccess"));
     } catch {
-      setError("Något gick fel. Försök igen.");
+      setError(t("genericError"));
     } finally {
       setLoading(false);
     }
@@ -39,9 +41,9 @@ export default function ForgotPasswordPage() {
 
   return (
     <div>
-      <h1 className="font-display text-2xl font-bold text-ink">Glömt lösenordet?</h1>
+      <h1 className="font-display text-2xl font-bold text-ink">{t("forgot.title")}</h1>
       <p className="mt-1 text-sm text-ink-muted">
-        Ingen fara. Ange din e-postadress så skickar vi en länk för att återställa det.
+        {t("forgot.subtitle")}
       </p>
 
       {success ? (
@@ -53,19 +55,19 @@ export default function ForgotPasswordPage() {
             href="/logga-in"
             className="block text-center text-sm font-medium text-holo-cyan hover:underline"
           >
-            Tillbaka till inloggning
+            {t("forgot.backToLogin")}
           </Link>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
           <div>
-            <Label htmlFor="email">E-postadress</Label>
+            <Label htmlFor="email">{t("emailLabel")}</Label>
             <Input
               id="email"
               type="email"
               autoComplete="email"
               required
-              placeholder="din@epost.se"
+              placeholder={t("emailPlaceholder")}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -74,12 +76,12 @@ export default function ForgotPasswordPage() {
           <FieldError message={error} />
 
           <Button type="submit" loading={loading} className="w-full" size="lg">
-            Skicka återställningslänk
+            {t("forgot.submit")}
           </Button>
 
           <p className="text-center text-sm text-ink-muted">
             <Link href="/logga-in" className="font-medium text-holo-cyan hover:underline">
-              Tillbaka till inloggning
+              {t("forgot.backToLogin")}
             </Link>
           </p>
         </form>

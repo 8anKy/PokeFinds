@@ -1,18 +1,20 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { Spinner } from "@/components/ui/spinner";
 
 type Status = "loading" | "success" | "error";
 
 function VerifyContent() {
+  const t = useTranslations("Auth");
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
 
   const [status, setStatus] = useState<Status>(token ? "loading" : "error");
   const [message, setMessage] = useState<string>(
-    token ? "Verifierar din e-postadress…" : "Verifieringslänken saknas eller är ofullständig."
+    token ? t("verify.loading") : t("verify.missing")
   );
 
   useEffect(() => {
@@ -31,26 +33,27 @@ function VerifyContent() {
         if (cancelled) return;
         if (res.ok) {
           setStatus("success");
-          setMessage(data?.message ?? "Din e-postadress är nu bekräftad.");
+          setMessage(data?.message ?? t("verify.fallbackSuccess"));
         } else {
           setStatus("error");
-          setMessage(data?.error ?? "Verifieringen misslyckades. Försök igen.");
+          setMessage(data?.error ?? t("verify.errorRetry"));
         }
       } catch {
         if (!cancelled) {
           setStatus("error");
-          setMessage("Något gick fel. Försök igen.");
+          setMessage(t("genericError"));
         }
       }
     })();
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   return (
     <div className="text-center">
-      <h1 className="font-display text-2xl font-bold text-ink">Bekräfta e-postadress</h1>
+      <h1 className="font-display text-2xl font-bold text-ink">{t("verify.title")}</h1>
 
       {status === "loading" && (
         <div className="mt-6 flex flex-col items-center gap-3">
@@ -65,7 +68,7 @@ function VerifyContent() {
             {message}
           </p>
           <p className="text-sm text-ink-muted">
-            Klart! Öppna Foilio-appen och logga in med ditt konto.
+            {t("verify.successOpenApp")}
           </p>
         </div>
       )}
@@ -76,7 +79,7 @@ function VerifyContent() {
             {message}
           </p>
           <p className="text-sm text-ink-muted">
-            Öppna Foilio-appen och försök igen därifrån.
+            {t("verify.errorOpenApp")}
           </p>
         </div>
       )}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { LinkButton } from "@/components/ui/button";
 import { IconUser } from "@/components/ui/icons";
@@ -12,6 +13,7 @@ import { useAuthHint } from "@/lib/auth-hint";
  * server-`auth()` och kan ISR-cachas. Före mount (= SSR) visas en spacer.
  */
 export function HeaderAuthActions() {
+  const t = useTranslations("HeaderActions");
   const loggedIn = useAuthHint();
 
   if (loggedIn === null) {
@@ -23,11 +25,11 @@ export function HeaderAuthActions() {
     return (
       <>
         <LinkButton href="/dashboard" variant="primary" size="sm" className="hidden sm:inline-flex">
-          Min översikt
+          {t("overview")}
         </LinkButton>
         <Link
           href="/installningar"
-          aria-label="Profil"
+          aria-label={t("profile")}
           className="flex h-9 w-9 items-center justify-center rounded-full border border-surface-border text-ink-muted hover:border-holo-cyan/40 hover:text-holo-cyan"
         >
           <IconUser size={18} />
@@ -39,10 +41,10 @@ export function HeaderAuthActions() {
   return (
     <>
       <LinkButton href="/logga-in" variant="ghost" size="sm">
-        Logga in
+        {t("login")}
       </LinkButton>
       <LinkButton href="/registrera" variant="primary" size="sm">
-        Gå med gratis
+        {t("joinFree")}
       </LinkButton>
     </>
   );

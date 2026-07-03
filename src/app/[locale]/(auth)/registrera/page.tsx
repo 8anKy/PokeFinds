@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
 import { signIn } from "next-auth/react";
@@ -16,6 +17,7 @@ interface FieldErrors {
 }
 
 export default function RegisterPage() {
+  const t = useTranslations("Auth");
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -27,10 +29,10 @@ export default function RegisterPage() {
 
   function validate(): boolean {
     const errors: FieldErrors = {};
-    if (name.trim().length < 2) errors.name = "Namnet måste vara minst 2 tecken.";
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) errors.email = "Ogiltig e-postadress.";
-    if (password.length < 8) errors.password = "Lösenordet måste vara minst 8 tecken.";
-    if (confirm !== password) errors.confirm = "Lösenorden matchar inte.";
+    if (name.trim().length < 2) errors.name = t("register.errName");
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) errors.email = t("register.errEmail");
+    if (password.length < 8) errors.password = t("register.errPassword");
+    if (confirm !== password) errors.confirm = t("register.errConfirm");
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -48,7 +50,7 @@ export default function RegisterPage() {
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        setError(data?.error ?? "Något gick fel. Försök igen.");
+        setError(data?.error ?? t("genericError"));
         setLoading(false);
         return;
       }
@@ -66,65 +68,65 @@ export default function RegisterPage() {
       router.push("/onboarding");
       router.refresh();
     } catch {
-      setError("Något gick fel. Försök igen.");
+      setError(t("genericError"));
       setLoading(false);
     }
   }
 
   return (
     <div>
-      <h1 className="font-display text-2xl font-bold text-ink">Skapa konto</h1>
+      <h1 className="font-display text-2xl font-bold text-ink">{t("register.title")}</h1>
       <p className="mt-1 text-sm text-ink-muted">
-        Gratis att komma igång. Bevaka priser, restocks och din samling.
+        {t("register.subtitle")}
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
         <div>
-          <Label htmlFor="name">Namn</Label>
+          <Label htmlFor="name">{t("register.nameLabel")}</Label>
           <Input
             id="name"
             type="text"
             autoComplete="name"
             required
-            placeholder="Ditt namn"
+            placeholder={t("register.namePlaceholder")}
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
           <FieldError message={fieldErrors.name} />
         </div>
         <div>
-          <Label htmlFor="email">E-postadress</Label>
+          <Label htmlFor="email">{t("emailLabel")}</Label>
           <Input
             id="email"
             type="email"
             autoComplete="email"
             required
-            placeholder="din@epost.se"
+            placeholder={t("emailPlaceholder")}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
           <FieldError message={fieldErrors.email} />
         </div>
         <div>
-          <Label htmlFor="password">Lösenord</Label>
+          <Label htmlFor="password">{t("passwordLabel")}</Label>
           <PasswordInput
             id="password"
             autoComplete="new-password"
             required
             minLength={8}
-            placeholder="Minst 8 tecken"
+            placeholder={t("register.passwordPlaceholder")}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
           <FieldError message={fieldErrors.password} />
         </div>
         <div>
-          <Label htmlFor="confirm">Bekräfta lösenord</Label>
+          <Label htmlFor="confirm">{t("register.confirmLabel")}</Label>
           <PasswordInput
             id="confirm"
             autoComplete="new-password"
             required
-            placeholder="Upprepa lösenordet"
+            placeholder={t("register.confirmPlaceholder")}
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
           />
@@ -134,14 +136,14 @@ export default function RegisterPage() {
         <FieldError message={error} />
 
         <Button type="submit" loading={loading} className="w-full" size="lg">
-          Skapa konto
+          {t("register.submit")}
         </Button>
       </form>
 
       <p className="mt-6 text-center text-sm text-ink-muted">
-        Har du redan ett konto?{" "}
+        {t("register.haveAccount")}{" "}
         <Link href="/logga-in" className="font-medium text-holo-cyan hover:underline">
-          Logga in
+          {t("register.login")}
         </Link>
       </p>
     </div>

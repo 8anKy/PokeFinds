@@ -1,11 +1,13 @@
 "use client";
 
 import { Suspense, useState, type FormEvent } from "react";
+import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
 import { PasswordInput, Label, FieldError } from "@/components/ui/input";
 
 function ResetPasswordForm() {
+  const t = useTranslations("Auth");
   const searchParams = useSearchParams();
   const token = searchParams.get("token") ?? "";
 
@@ -19,11 +21,11 @@ function ResetPasswordForm() {
     e.preventDefault();
     setError(null);
     if (password.length < 8) {
-      setError("Lösenordet måste vara minst 8 tecken.");
+      setError(t("reset.errPassword"));
       return;
     }
     if (confirm !== password) {
-      setError("Lösenorden matchar inte.");
+      setError(t("reset.errConfirm"));
       return;
     }
     setLoading(true);
@@ -37,13 +39,13 @@ function ResetPasswordForm() {
         | { message?: string; error?: string }
         | null;
       if (!res.ok) {
-        setError(data?.error ?? "Något gick fel. Försök igen.");
+        setError(data?.error ?? t("genericError"));
         setLoading(false);
         return;
       }
-      setSuccess(data?.message ?? "Ditt lösenord har uppdaterats.");
+      setSuccess(data?.message ?? t("reset.fallbackSuccess"));
     } catch {
-      setError("Något gick fel. Försök igen.");
+      setError(t("genericError"));
       setLoading(false);
     }
   }
@@ -51,12 +53,12 @@ function ResetPasswordForm() {
   if (!token) {
     return (
       <div>
-        <h1 className="font-display text-2xl font-bold text-ink">Ogiltig länk</h1>
+        <h1 className="font-display text-2xl font-bold text-ink">{t("reset.invalidTitle")}</h1>
         <p className="mt-2 text-sm text-ink-muted">
-          Återställningslänken saknas eller är ofullständig. Begär en ny länk nedan.
+          {t("reset.invalidBody")}
         </p>
         <LinkButton href="/glomt-losenord" className="mt-6 w-full" size="lg">
-          Begär ny länk
+          {t("reset.requestNew")}
         </LinkButton>
       </div>
     );
@@ -65,12 +67,12 @@ function ResetPasswordForm() {
   if (success) {
     return (
       <div>
-        <h1 className="font-display text-2xl font-bold text-ink">Lösenordet är uppdaterat</h1>
+        <h1 className="font-display text-2xl font-bold text-ink">{t("reset.successTitle")}</h1>
         <p className="mt-2 rounded-lg border border-rise/30 bg-rise/10 px-4 py-3 text-sm text-rise">
           {success}
         </p>
         <p className="mt-4 text-sm text-ink-muted">
-          Klart! Öppna Foilio-appen och logga in med ditt nya lösenord.
+          {t("reset.successOpenApp")}
         </p>
       </div>
     );
@@ -78,31 +80,31 @@ function ResetPasswordForm() {
 
   return (
     <div>
-      <h1 className="font-display text-2xl font-bold text-ink">Välj nytt lösenord</h1>
+      <h1 className="font-display text-2xl font-bold text-ink">{t("reset.title")}</h1>
       <p className="mt-1 text-sm text-ink-muted">
-        Ange ditt nya lösenord nedan. Minst 8 tecken.
+        {t("reset.subtitle")}
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
         <div>
-          <Label htmlFor="password">Nytt lösenord</Label>
+          <Label htmlFor="password">{t("reset.newPasswordLabel")}</Label>
           <PasswordInput
             id="password"
             autoComplete="new-password"
             required
             minLength={8}
-            placeholder="Minst 8 tecken"
+            placeholder={t("register.passwordPlaceholder")}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
         </div>
         <div>
-          <Label htmlFor="confirm">Bekräfta nytt lösenord</Label>
+          <Label htmlFor="confirm">{t("reset.confirmNewLabel")}</Label>
           <PasswordInput
             id="confirm"
             autoComplete="new-password"
             required
-            placeholder="Upprepa lösenordet"
+            placeholder={t("register.confirmPlaceholder")}
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
           />
@@ -111,7 +113,7 @@ function ResetPasswordForm() {
         <FieldError message={error} />
 
         <Button type="submit" loading={loading} className="w-full" size="lg">
-          Uppdatera lösenord
+          {t("reset.submit")}
         </Button>
       </form>
     </div>
