@@ -593,6 +593,10 @@ export function matchListingToProduct(
       if (!cardNameInTitle(product.card.name, normalized)) return null;
       return 0.9;
     }
+    // Inget tryckt nummer i annonsen → kräv ändå kortnamnet. Annars matchar vilket
+    // kort som helst ur samma set på delade set-ord ("Forretress ex Paldean Fates"
+    // fastnade på Xatu/Ralts/Flittle m.fl. via överlapp på just "paldean fates").
+    if (!cardNameInTitle(product.card.name, normalized)) return null;
   }
 
   if (

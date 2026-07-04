@@ -190,6 +190,15 @@ describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
     expect(matchListingToProduct("Umbreon VMAX Alt Art 215/203", umbreon)).toBeNull();
   });
 
+  it("singel utan tryckt nummer kräver kortnamnet (fel kort ur samma set förkastas)", () => {
+    const xatu = { normalizedTitle: "xatu paldean fates 152", card: { name: "Xatu", number: "152" } };
+    // Annons utan slash-nummer, delar bara set-orden "paldean fates" → förkastas.
+    expect(matchListingToProduct("Forretress ex Paldean Fates", xatu)).toBeNull();
+    // Rätt kort (namnet finns) matchar fortfarande utan slash-nummer.
+    const forretress = { normalizedTitle: "forretress ex paldean fates 130", card: { name: "Forretress ex", number: "130" } };
+    expect(matchListingToProduct("Forretress ex Paldean Fates", forretress)).not.toBeNull();
+  });
+
   it("japansk 'Violet ex'-pack matchar INTE engelska 'Scarlet & Violet Booster Pack'", () => {
     const svPack = { normalizedTitle: "scarlet violet booster pack", card: null };
     // Japansk sv1V-annons, "japansk" står bara i beskrivningen (ej titeln).
