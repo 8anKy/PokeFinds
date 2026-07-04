@@ -110,6 +110,22 @@ export function getOcrAdapter(precise = false): OcrAdapter {
 }
 
 /**
+ * Tolkar OCR:ens gissade kortnummer. `extractSetNumber` kräver formatet "N/T"
+ * (t.ex. "143/195"); modellen läser ofta BARA numret ("143") och tappar totalen
+ * → utan detta blev numret null och IGNORERADES helt, så namntvillingar (t.ex.
+ * flera "Altaria") rankades på DB-ordning. Fall tillbaka på ett naket nummer.
+ */
+export function parseGuessedNumber(
+  raw: string | null | undefined
+): { num: number; total: number | null } | null {
+  if (!raw) return null;
+  const withTotal = extractSetNumber(raw);
+  if (withTotal) return withTotal;
+  const m = /(\d{1,3})/.exec(raw); // naket nummer utan total
+  return m ? { num: parseInt(m[1], 10), total: null } : null;
+}
+
+/**
  * Matchar ett OCR-resultat mot kortkatalogen.
  * Strategi: kandidatfiltrering via namn (contains, skiftlägesokänslig) →
  * Dice-bigram-likhet (scoreSimilarity) → bonus för matchande setnummer.
@@ -135,20 +151,27 @@ export async function matchCards(ocr: OcrResult): Promise<ScanCandidate[]> {
   });
   if (candidates.length === 0) return [];
 
-  const guessedNum = ocr.guessedNumber ? extractSetNumber(ocr.guessedNumber) : null;
+  const guessedNum = parseGuessedNumber(ocr.guessedNumber);
 
   const scored = candidates.map((card): ScanCandidate => {
     let score = scoreSimilarity(query, card.name);
     // Setnummer (t.ex. "25/102") är AVGÖRANDE när flera kort delar namn
-    // (Wailord-reprints scorar identiskt på namn → utan en stark nummer-vikt
-    // vinner bara den DB-rad som råkar komma först). Boosten är därför stor och
-    // OCAPPAD så att rätt-numrerade kortet alltid sorteras före namntvillingar.
+    // (Wailord/Altaria-reprints scorar identiskt på namn → utan en stark
+    // nummer-vikt vinner bara den DB-rad som råkar komma först). Boosten är
+    // därför stor och OCAPPAD så att rätt-numrerade kortet sorteras överst.
     if (guessedNum) {
       const cardNum = parseInt(card.number, 10);
       const matchesNumber = !Number.isNaN(cardNum) && cardNum === guessedNum.num;
-      const matchesTotal =
-        card.set.totalCards === 0 || card.set.totalCards === guessedNum.total;
-      if (matchesNumber && matchesTotal) score += 0.5;
+      if (matchesNumber) {
+        if (guessedNum.total == null) {
+          // Nummer matchar men total okänd → fortfarande avgörande över namn-
+          // tvillingar (som scorar identiskt), men svagare än en full N/T-träff.
+          score += 0.35;
+        } else if (card.set.totalCards === 0 || card.set.totalCards === guessedNum.total) {
+          score += 0.5; // nummer + total matchar → starkast
+        }
+        // nummer matchar men känd total skiljer → ingen boost (troligen annat set)
+      }
     }
     return {
       cardId: card.id,

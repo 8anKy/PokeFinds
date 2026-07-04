@@ -15,7 +15,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { getScannerQuota, isIntroScan, recordScanUsage, runScannerJob } from "@/services/scanner";
+import { getScannerQuota, isIntroScan, parseGuessedNumber, recordScanUsage, runScannerJob } from "@/services/scanner";
 
 beforeEach(() => {
   count.mockReset();
@@ -84,5 +84,21 @@ describe("runScannerJob", () => {
   it("blockerar vid månadsgränsen (429) innan jobbet skapas", async () => {
     count.mockResolvedValue(30);
     await expect(runScannerJob("u1", "FREE", PNG)).rejects.toMatchObject({ status: 429 });
+  });
+});
+
+describe("parseGuessedNumber (nummer-tolkning för matchning)", () => {
+  it("läser full N/T", () => {
+    expect(parseGuessedNumber("143/195")).toEqual({ num: 143, total: 195 });
+  });
+  it("läser naket nummer utan total (buggen som gömde rätt Altaria)", () => {
+    expect(parseGuessedNumber("143")).toEqual({ num: 143, total: null });
+  });
+  it("plockar numret ur brus", () => {
+    expect(parseGuessedNumber("no. 25")).toEqual({ num: 25, total: null });
+  });
+  it("null när inget nummer finns", () => {
+    expect(parseGuessedNumber("Altaria")).toBeNull();
+    expect(parseGuessedNumber(null)).toBeNull();
   });
 });
