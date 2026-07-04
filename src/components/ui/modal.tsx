@@ -24,25 +24,38 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
-  // Krymp overlayn till den SYNLIGA ytan (visualViewport) när tangentbordet öppnas.
-  // En `fixed inset-0`-overlay mäts annars mot layout-viewporten, som inte krymper
-  // i WKWebView → panelens innehåll hamnar bakom tangentbordet. Med rätt höjd kan
-  // panelens egen overflow-scroll visa fältet man skriver i.
-  const [viewport, setViewport] = useState<{ top: number; height: number; keyboardOpen: boolean } | null>(null);
+  // Tangentbordshöjd → kapa overlayn ovanför tangentbordet så panelen aldrig hamnar
+  // bakom det. VIKTIGT: native-appen kör Keyboard resize:none → WKWebView:en OCH
+  // window.visualViewport krymper INTE när tangentbordet öppnas. Enda pålitliga
+  // signalen där är Capacitor Keyboard-pluginet (via window.Capacitor-bryggan — den
+  // bundlade @capacitor-importen är undefined i den hostade webben, se push-client).
+  // På webb/PWA finns ingen brygga → falla tillbaka på visualViewport (krymper där).
+  const [kbHeight, setKbHeight] = useState(0);
   useEffect(() => {
     if (!open) return;
-    const vp = window.visualViewport;
-    if (!vp) return;
-    // keyboardOpen = den synliga ytan är märkbart kortare än fönstret (tangentbord uppe).
-    const update = () =>
-      setViewport({ top: vp.offsetTop, height: vp.height, keyboardOpen: vp.height < window.innerHeight - 120 });
-    update();
-    vp.addEventListener("resize", update);
-    vp.addEventListener("scroll", update);
+    const cleanups: (() => void)[] = [];
+    const kb = (globalThis as { Capacitor?: { Plugins?: { Keyboard?: any } } }).Capacitor?.Plugins?.Keyboard;
+    if (kb?.addListener) {
+      const add = (ev: string, fn: (i: any) => void) => {
+        const p = kb.addListener(ev, fn);
+        Promise.resolve(p).then((h) => cleanups.push(() => h?.remove?.())).catch(() => {});
+      };
+      add("keyboardWillShow", (i: { keyboardHeight?: number }) => setKbHeight(i?.keyboardHeight ?? 0));
+      add("keyboardWillHide", () => setKbHeight(0));
+    } else if (window.visualViewport) {
+      const vp = window.visualViewport;
+      const update = () => setKbHeight(Math.max(0, window.innerHeight - vp.height - vp.offsetTop));
+      update();
+      vp.addEventListener("resize", update);
+      vp.addEventListener("scroll", update);
+      cleanups.push(() => {
+        vp.removeEventListener("resize", update);
+        vp.removeEventListener("scroll", update);
+      });
+    }
     return () => {
-      vp.removeEventListener("resize", update);
-      vp.removeEventListener("scroll", update);
-      setViewport(null);
+      cleanups.forEach((c) => c());
+      setKbHeight(0);
     };
   }, [open]);
 
@@ -110,18 +123,16 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
 
   return (
     <div
-      // Centrerad i den SYNLIGA ytan: höjden begränsas till visualViewport när
-      // tangentbordet är uppe, så centrering lägger panelen i gapet mellan
-      // statusraden och tangentbordet (i st.f. att slå i toppen av telefonen).
-      // Tangentbord uppe: BOTTEN-ställd mot tangentbordet med ett fast gap (pb-16) så
-      // ALLA modaler — oavsett höjd — lyfts lika högt ovanför tangentbordet. Annars
-      // centrerad. max-h-full räknar mot den minskade ytan så höga modaler scrollar
-      // internt istället för att slå i toppen.
+      // Overlayn spänner top:0 → bottom:kbHeight = ytan OVANFÖR tangentbordet.
+      // Tangentbord uppe (kbHeight>0): BOTTEN-ställd med fast gap (pb-8) så ALLA
+      // modaler lyfts lika högt ovanför tangentbordet, och max-h-full kapar panelen
+      // till den ytan → höga modaler (Sälj) scrollar internt istället för att gömmas
+      // bakom tangentbordet. Inget tangentbord: centrerad i hela skärmen.
       className={cn(
-        "fixed inset-x-0 z-50 flex justify-center overflow-y-auto px-4",
-        viewport?.keyboardOpen ? "items-end pb-16 pt-4" : "items-center py-4"
+        "fixed inset-x-0 top-0 z-50 flex justify-center overflow-y-auto px-4",
+        kbHeight > 0 ? "items-end pb-8 pt-4" : "items-center py-4"
       )}
-      style={viewport ? { top: viewport.top, height: viewport.height } : { top: 0, bottom: 0 }}
+      style={{ bottom: kbHeight }}
       role="dialog"
       aria-modal="true"
       aria-label={title}
