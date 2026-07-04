@@ -1,0 +1,72 @@
+name: Restock-snabbfil Manatörsk (var 2:e minut)
+
+# SNABB-FIL för butiker som gör snabba slutsälj-drops (Manatörsk: "Max 1st per hushåll"
+# → i lager och slut igen inom minuter, missas av 10-min-lanen). Samma runRestockScan +
+# fingeravtrycks-grind som restock-watch.yml, men BEGRÄNSAD till Manatörsk via
+# RESTOCK_ONLY_SOURCES → fingeravtrycket täcker bara Manatörsk, så Neon väcks BARA när
+# Manatörsk faktiskt flippar. Oförändrad feed = ren HTTP, Neon sover. Ingen extra
+# Neon-/Railway-compute på no-op-körningar (99%). Eget cache + egen concurrency-grupp
+# så den inte kolliderar med 10-min-lanen.
+#
+# LÄGG TILL FLER BUTIKER: sätt RESTOCK_ONLY_SOURCES=Manatörsk,AnnanButik nedan.
+#
+# TRIGGER: som 10-min-lanen throttlas GitHub `schedule:` → riktig takt = extern cron
+# (cron-job.org) som POST:ar var 2:a minut:
+#   POST https://api.github.com/repos/8anKy/PokeFinds/actions/workflows/restock-watch-manatorsk.yml/dispatches
+#   headers: Authorization: Bearer <PAT (Actions: read+write)>, Accept: application/vnd.github+json
+#   body: {"ref":"main"}
+# `schedule:` nedan är BARA gles reserv om pingern dör.
+on:
+  schedule:
+    - cron: "*/15 * * * *" # RESERV — opålitlig. Riktig takt = pinger var 2:a min via workflow_dispatch.
+  workflow_dispatch: {}
+
+concurrency:
+  group: restock-watch-manatorsk
+  cancel-in-progress: true
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DB_POOL: "10"
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }} # utan denna mailas inga alerts (console-mode)
+      APNS_KEY: ${{ secrets.APNS_KEY }}
+      APNS_KEY_ID: SMQBU7MM82
+      APNS_TEAM_ID: F2XP44FF3B
+      APNS_BUNDLE_ID: se.foilio.app
+      APNS_PRODUCTION: "true"
+      RESTOCK_ONLY_SOURCES: "Manatörsk" # snabb-fil scopad hit; komma-lista för fler
+      RESTOCK_FINGERPRINT_FILE: .restock-cache-manatorsk/fingerprint.txt # EGET avtryck, ej 10-min-lanens
+    steps:
+      - name: Förkrav — DATABASE_URL måste vara satt
+        id: guard
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::notice::DATABASE_URL saknas — hoppar över tills Neon är konfigurerad."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/checkout@v4
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/cache@v4
+        with:
+          path: .restock-cache-manatorsk
+          key: restock-fp-manatorsk-${{ github.run_id }}
+          restore-keys: |
+            restock-fp-manatorsk-
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - if: steps.guard.outputs.ready == 'true'
+        run: npm ci --legacy-peer-deps
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx prisma generate
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx tsx scripts/restock-watch-run.ts

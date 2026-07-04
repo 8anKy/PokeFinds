@@ -31,7 +31,10 @@ async function main() {
     return true;
   };
 
-  const r = await runRestockScan({ shouldProcess });
+  // Snabb-fil: RESTOCK_ONLY_SOURCES=Manatörsk (komma-lista) begränsar skanningen till
+  // butiker som gör snabba slutsälj-drops. Utelämnas = alla restock-watch-källor.
+  const onlySources = process.env.RESTOCK_ONLY_SOURCES?.split(",").map((s) => s.trim()).filter(Boolean);
+  const r = await runRestockScan({ onlySources, shouldProcess });
 
   // Skriv nytt avtryck bara när vi FAKTISKT körde DB-fasen (annars är det oförändrat).
   if (fpFile && currentFp && !r.skipped) {

@@ -150,14 +150,21 @@ const SEALED_FEED_CATEGORIES = new Set([
  * som Next buntar). Utan grind körs allt som vanligt.
  */
 export async function runRestockScan(opts?: {
+  // Snabb-fil: begränsa till namngivna butiker (t.ex. ["Manatörsk"]) → fingeravtrycket
+  // täcker bara dem, så en tät körning väcker Neon bara när DE flippar. Utelämnas = alla.
+  onlySources?: string[];
   shouldProcess?: (
     fetched: { sourceName: string; items: { url: string; stockStatus: StockStatus } [] }[]
   ) => boolean | Promise<boolean>;
 }): Promise<RestockScanResult> {
   const active = await prisma.scrapeSource.findMany({ where: { isActive: true } });
-  const sources = active.filter(
+  let sources = active.filter(
     (s) => (s.config as { restockWatch?: boolean } | null)?.restockWatch === true
   );
+  if (opts?.onlySources?.length) {
+    const only = new Set(opts.onlySources);
+    sources = sources.filter((s) => only.has(s.name));
+  }
   if (sources.length === 0) {
     console.log("[restock-scan] Inga restock-watch-källor flaggade.");
     return { sources: 0, checked: 0, restocks: 0, newListings: 0, alertsSent: 0 };
