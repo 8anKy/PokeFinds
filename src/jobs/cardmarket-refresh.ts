@@ -45,6 +45,16 @@ interface ApiProduct {
 const norm = (s: string) =>
   s.toLowerCase().replace(/pok[eé]mon|tcg|:/g, "").replace(/&/g, "and")
     .replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+
+// Prisvakt mot glitchad micro-lowest. En äkta CM From/lowest är aldrig <20% av
+// 30d-snittet; RapidAPI gav 2026-07-03 t.ex. €0.03 på en €300-box → 0,33 kr,
+// vilket korrumperade både Offer.price OCH prishistoriken (30 sealed-produkter).
+// Faller tillbaka på 30d-snittet när lowest saknas ELLER är orimligt låg.
+export function sanePriceEur(low: number | null | undefined, avg: number | null | undefined): number | null {
+  const l = low ?? null, a = avg ?? null;
+  if (l != null && l > 0 && (a == null || l >= a * 0.2)) return l;
+  return a;
+}
 const EXPECTED_FORM: Record<string, string> = {
   BOOSTER_BOX: "display", BOOSTER_PACK: "booster", ETB: "etb",
   BUNDLE: "bundle", COLLECTION_BOX: "collection", BLISTER: "blister", TIN: "tin",
@@ -192,7 +202,7 @@ export async function runCardmarketRefresh(
           (card.cardmarket_id != null ? cmidMap.get(card.cardmarket_id) : undefined);
         if (!entry) continue;
         const cmp = card.prices?.cardmarket ?? {};
-        const eur = cmp.lowest_near_mint ?? cmp["30d_average"] ?? null; // exakt From; fallback snitt om From saknas
+        const eur = sanePriceEur(cmp.lowest_near_mint, cmp["30d_average"]); // exakt From; fallback snitt om From saknas/glitchad
         if (eur == null) continue;
         const priceOre = Math.round(eur * rates.eurToOre);
         const url =
@@ -290,10 +300,12 @@ export async function runCardmarketRefresh(
       // annons → OUT_OF_STOCK + 30d-snitt. Flippar dynamiskt mellan körningar.
       const low = cmp.lowest ?? null;
       const avg = cmp["30d_average"] ?? null;
-      const eur = low ?? avg;
+      const eur = sanePriceEur(low, avg);
       const priceOre = eur != null ? Math.round(eur * rates.eurToOre) : null;
       if (priceOre == null) continue; // ingen prisdata alls
-      const stock = low != null ? "IN_STOCK" : "OUT_OF_STOCK";
+      // Glitchad micro-lowest → sanePriceEur gav 30d-snittet; behandla som ur lager
+      // (ingen tillförlitlig aktuell annons) istället för att låtsas IN_STOCK.
+      const stock = low != null && eur === low ? "IN_STOCK" : "OUT_OF_STOCK";
       // butik-cross-check bara för fuzzy-träffar (exakt cmid = rätt produkt)
       if (!exact && priceOre != null) {
         const storePrices = p.offers.filter((o) => o.retailerId !== cm.id && o.price != null && o.stockStatus === "IN_STOCK").map((o) => o.price as number);
