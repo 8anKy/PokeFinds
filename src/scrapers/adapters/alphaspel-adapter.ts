@@ -43,6 +43,20 @@ function parseSekPrice(text: string): number | null {
   return Math.round(num * 100);
 }
 
+/**
+ * Alphaspel lagerstatus. ALLOWLIST (inte denylist): köpbar bara när texten
+ * uttryckligen visar tillgängligt antal — "I lager", "N i butiken", "N på
+ * postorder". Allt annat (Slutsåld, Ej i lager, "Första leveransen fullbokad…",
+ * framtida okända fraser) = ur lager. Säkra riktningen: hellre ur lager än
+ * falskt "i lager".
+ */
+export function alphaspelInStock(stockText: string): boolean {
+  const t = stockText.toLowerCase();
+  return (
+    /i butiken|på postorder/.test(t) || (/i lager/.test(t) && !/ej i lager/.test(t))
+  );
+}
+
 /** Avkodar de vanligaste HTML-entiteterna i titlar. */
 function decodeEntities(text: string): string {
   return text
@@ -86,10 +100,10 @@ function extractProducts(html: string): AlphaspelRaw[] {
     const priceOre = parseSekPrice(priceMatch[1]);
     if (!priceOre) continue;
 
-    // Lagerstatus ur stock-diven
+    // Lagerstatus ur stock-diven (se alphaspelInStock).
     const stockMatch = block.match(/<div class="stock">\s*([\s\S]*?)\s*<\/div>/);
     const stockText = stockMatch?.[1]?.replace(/<br\s*\/?>/gi, " ") ?? "";
-    const inStock = !/slutsåld|ej i lager|kommer snart|bevaka/i.test(stockText);
+    const inStock = alphaspelInStock(stockText);
 
     const imgMatch = block.match(/<img[^>]*src="(\/media\/[^"]+)"/);
     const imageUrl = imgMatch?.[1] ? `${BASE_URL}${imgMatch[1]}` : undefined;
