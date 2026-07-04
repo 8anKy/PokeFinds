@@ -198,20 +198,24 @@ export function LivePricePanel({
           )}
         </div>
       </div>
-      <dl className="flex flex-wrap gap-x-8 gap-y-2 border-t border-surface-border px-5 py-3 text-sm">
-        <div className="flex items-baseline gap-2">
-          <dt className="text-ink-faint">{t("highestNow")}</dt>
-          <dd data-price className="font-semibold text-ink">
-            {formatPrice(stats.highestPrice)}
-          </dd>
+      {/* Deterministisk layout (samma oavsett värdenas bredd/språk): Högsta +
+          Snittpris staplade till vänster, 30-dagars uppe till höger. */}
+      <dl className="flex items-start justify-between gap-4 border-t border-surface-border px-5 py-3 text-sm">
+        <div className="space-y-1.5">
+          <div className="flex items-baseline gap-2">
+            <dt className="text-ink-faint">{t("highestNow")}</dt>
+            <dd data-price className="font-semibold text-ink">
+              {formatPrice(stats.highestPrice)}
+            </dd>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <dt className="text-ink-faint">{t("avgPrice")}</dt>
+            <dd data-price className="font-semibold text-ink">
+              {formatPrice(stats.avgPrice)}
+            </dd>
+          </div>
         </div>
-        <div className="flex items-baseline gap-2">
-          <dt className="text-ink-faint">{t("avgPrice")}</dt>
-          <dd data-price className="font-semibold text-ink">
-            {formatPrice(stats.avgPrice)}
-          </dd>
-        </div>
-        <div className="flex items-baseline gap-2">
+        <div className="flex shrink-0 items-baseline gap-2">
           <dt className="text-ink-faint">{t("days30")}</dt>
           <dd>
             {change30 != null ? (

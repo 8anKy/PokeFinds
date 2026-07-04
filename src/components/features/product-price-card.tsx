@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PriceChartLazy } from "@/components/features/price-chart-lazy";
@@ -11,12 +12,12 @@ export interface PricePoint {
 }
 
 const PERIODS = [
-  { value: "1w", label: "1V", days: 7 },
-  { value: "1m", label: "1M", days: 30 },
-  { value: "3m", label: "3M", days: 90 },
-  { value: "6m", label: "6M", days: 180 },
-  { value: "1y", label: "1ÅR", days: 365 },
-  { value: "max", label: "MAX", days: Infinity },
+  { value: "1w", labelKey: "period1w", days: 7 },
+  { value: "1m", labelKey: "period1m", days: 30 },
+  { value: "3m", labelKey: "period3m", days: 90 },
+  { value: "6m", labelKey: "period6m", days: 180 },
+  { value: "1y", labelKey: "period1y", days: 365 },
+  { value: "max", labelKey: "periodMax", days: Infinity },
 ] as const;
 
 const DEFAULT = PERIODS.find((p) => p.value === "3m")!;
@@ -41,6 +42,7 @@ export function ProductPriceCard({
   subtitle: string;
   series: PricePoint[];
 }) {
+  const t = useTranslations("Detail");
   const [period, setPeriod] = useState<(typeof PERIODS)[number]>(DEFAULT);
 
   const filtered = withinDays(series, period.days);
@@ -73,7 +75,7 @@ export function ProductPriceCard({
                   : "text-ink-muted hover:text-ink"
               )}
             >
-              {p.label}
+              {t(p.labelKey)}
             </button>
           ))}
         </div>

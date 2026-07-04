@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import {
   Area,
   AreaChart,
@@ -34,8 +35,8 @@ const GRID = "#26262b"; // subtle neutral guide line
 const TICK = "#8a8a93"; // muted neutral axis label
 const SURFACE = "#0a0a0c"; // page background (endpoint halo cutout)
 
-function shortDate(d: string, withYear = false, monthly = false): string {
-  return new Date(d).toLocaleDateString("sv-SE", {
+function shortDate(d: string, withYear = false, monthly = false, dateLocale = "sv-SE"): string {
+  return new Date(d).toLocaleDateString(dateLocale, {
     ...(monthly ? {} : { day: "numeric" }),
     month: "short",
     ...(withYear || monthly ? { year: "numeric" } : {}),
@@ -47,13 +48,14 @@ function ChartTooltip({
   payload,
   label,
   monthly = false,
-}: TooltipProps<number, string> & { monthly?: boolean }) {
+  dateLocale = "sv-SE",
+}: TooltipProps<number, string> & { monthly?: boolean; dateLocale?: string }) {
   if (!active || !payload || payload.length === 0) return null;
   const value = payload[0]?.value;
   return (
     <div className="rounded-lg bg-surface-raised px-3.5 py-2 shadow-xl ring-1 ring-white/10">
       <p className="text-[11px] font-medium text-ink-muted">
-        {shortDate(String(label), true, monthly)}
+        {shortDate(String(label), true, monthly, dateLocale)}
       </p>
       <div className="mt-0.5 flex items-center gap-1.5">
         <span
@@ -95,6 +97,11 @@ function ChartCursor({
 }
 
 export function PriceChart({ data, className, monthly = false, minimal = false }: PriceChartProps) {
+  const t = useTranslations("Detail");
+  const locale = useLocale();
+  // Datumaxel följer språket (en-GB behåller dag-månad-ordningen "18 Jun");
+  // y-axelns SIFFROR lämnas i sv-SE så de matchar SEK-rubriken (t.ex. "3 750,20 kr").
+  const dateLocale = locale === "en" ? "en-GB" : "sv-SE";
   const uid = useId().replace(/:/g, "");
   const lineFadeId = `lf-${uid}`;
   const areaFillId = `af-${uid}`;
@@ -104,8 +111,8 @@ export function PriceChart({ data, className, monthly = false, minimal = false }
   if (data.length === 0) {
     return (
       <EmptyState
-        title="Ingen prishistorik ännu"
-        description="Vi har inte samlat in tillräckligt med prisdata för den här produkten."
+        title={t("chartEmptyTitle")}
+        description={t("chartEmptyDesc")}
         className={className}
       />
     );
@@ -118,19 +125,19 @@ export function PriceChart({ data, className, monthly = false, minimal = false }
         className={`flex h-[300px] flex-col items-center justify-center text-center ${className ?? ""}`}
       >
         <p className="text-xs text-ink-muted">
-          Senaste marknadspris ·{" "}
+          {t("chartLatest")} ·{" "}
           {shortDate(
             data[0].date,
             data[0].date.slice(0, 4) !== String(new Date().getFullYear()),
-            monthly
+            monthly,
+            dateLocale
           )}
         </p>
         <p className="mt-1 font-display text-4xl font-bold text-ink" data-price>
           {formatPrice(data[0].price)}
         </p>
         <p className="mt-3 max-w-xs text-xs text-ink-faint">
-          Historiken byggs upp automatiskt — kurvan visas när fler mätpunkter
-          har samlats in.
+          {t("chartBuilding")}
         </p>
       </div>
     );
@@ -224,7 +231,7 @@ export function PriceChart({ data, className, monthly = false, minimal = false }
           <XAxis
             hide={minimal}
             dataKey="date"
-            tickFormatter={(d: string) => shortDate(d, spansYears, monthly)}
+            tickFormatter={(d: string) => shortDate(d, spansYears, monthly, dateLocale)}
             tick={{ fill: TICK, fontSize: 11 }}
             angle={-40}
             textAnchor="end"
@@ -243,7 +250,7 @@ export function PriceChart({ data, className, monthly = false, minimal = false }
             domain={["auto", "auto"]}
           />
           <Tooltip
-            content={<ChartTooltip monthly={monthly} />}
+            content={<ChartTooltip monthly={monthly} dateLocale={dateLocale} />}
             cursor={<ChartCursor gradientId={cursorId} />}
             // Nåla tooltipen vid toppen (y=0) så fingret aldrig täcker den; x följer
             // ändå scrubbningen. Recharts behåller spårning på axeln man inte sätter.

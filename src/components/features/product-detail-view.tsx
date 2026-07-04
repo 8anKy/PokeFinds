@@ -153,9 +153,8 @@ export function ProductDetailView({ data }: { data: ProductDetailData }) {
             {t("watchers", { count: data.watchCount })}
           </p>
         </div>
-        {data.description && (
-          <p className="mt-6 max-w-2xl text-sm text-ink-muted">{data.description}</p>
-        )}
+        {/* Beskrivning borttagen: dubblade rubriken (Set · Kategori · Språk) och
+            fanns bara på ~54 sealed-produkter som svensk boilerplate. */}
 
         {/* Erbjudanden — live-uppdateras via polling */}
         <LiveOffersTable
