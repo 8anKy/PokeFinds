@@ -15,12 +15,22 @@ import { Capacitor } from "@capacitor/core";
  */
 let redirected = false;
 
+/** Läser det sparade språkvalet (NEXT_LOCALE-cookien). */
+function savedLocale(): "sv" | "en" | null {
+  const m = document.cookie.match(/(?:^|;\s*)NEXT_LOCALE=(sv|en)\b/);
+  return (m?.[1] as "sv" | "en") ?? null;
+}
+
 export function NativeHomeRedirect() {
   const router = useRouter();
   useEffect(() => {
     if (redirected || !Capacitor.isNativePlatform()) return;
     redirected = true;
-    router.replace("/produkter");
+    // Appen startar alltid på "/" (= default-locale sv med `as-needed`), så en
+    // EN-användare skulle annars landa på svenska. Tvinga fram det SPARADE språket
+    // här — cookien är källan till sanning, inte den prefix-lösa start-URL:en.
+    const locale = savedLocale();
+    router.replace("/produkter", locale ? { locale } : undefined);
   }, [router]);
   return null;
 }
