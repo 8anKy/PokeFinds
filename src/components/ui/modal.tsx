@@ -91,10 +91,10 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
 
   return (
     <div
-      // Mobil: toppställd så tangentbordet inte täcker footern/knappen.
-      // Desktop: centrerad som vanligt. Höjd/top styrs av visualViewport när
-      // tangentbordet är uppe (annars hela skärmen).
-      className="fixed inset-x-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-8 sm:items-center sm:pt-4"
+      // Centrerad i den SYNLIGA ytan: höjden begränsas till visualViewport när
+      // tangentbordet är uppe, så centrering lägger panelen i gapet mellan
+      // statusraden och tangentbordet (i st.f. att slå i toppen av telefonen).
+      className="fixed inset-x-0 z-50 flex items-center justify-center overflow-y-auto p-4"
       style={viewport ? { top: viewport.top, height: viewport.height } : { top: 0, bottom: 0 }}
       role="dialog"
       aria-modal="true"
