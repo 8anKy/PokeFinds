@@ -13,6 +13,8 @@ import { apiFetch } from "@/lib/client-api";
 import { useToast } from "@/components/ui/toast";
 import { formatPrice } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
+import { Input, Label } from "@/components/ui/input";
 import { IconCheck, IconPackage, IconTrash, IconX } from "@/components/ui/icons";
 import { openProductOverlay } from "@/lib/product-overlay-open";
 import type { CollectionRow } from "./collection-client";
@@ -28,6 +30,9 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  // Stackad post (quantity>1) som ska delvis tas bort → fråga hur många.
+  const [removeTarget, setRemoveTarget] = useState<CollectionRow | null>(null);
+  const [removeQty, setRemoveQty] = useState("1");
 
   const pressTimer = useRef<number | null>(null);
   const longPressed = useRef(false);
@@ -92,6 +97,15 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
 
   async function deleteSelected() {
     if (selected.size === 0) return;
+    // Exakt en stackad post vald → fråga hur många som ska tas bort istället för allt.
+    if (selected.size === 1) {
+      const only = rows.find((r) => r.id === [...selected][0]);
+      if (only && only.quantity > 1) {
+        setRemoveQty("1");
+        setRemoveTarget(only);
+        return;
+      }
+    }
     if (!window.confirm(t("gridConfirmDelete", { count: selected.size }))) return;
     setDeleting(true);
     const ids = [...selected];
@@ -115,6 +129,32 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
       variant: ok === ids.length ? "success" : "error",
     });
     router.refresh();
+  }
+
+  // Ta bort N av en stack: N<antal → minska quantity, N>=antal → radera hela posten.
+  async function confirmRemove() {
+    if (!removeTarget) return;
+    const max = removeTarget.quantity;
+    const n = Math.min(max, Math.max(1, Math.floor(Number(removeQty)) || 1));
+    setDeleting(true);
+    try {
+      if (n >= max) {
+        await apiFetch(`/api/collection/${removeTarget.id}`, { method: "DELETE" });
+      } else {
+        await apiFetch(`/api/collection/${removeTarget.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ quantity: max - n }),
+        });
+      }
+      toast({ title: t("gridDeletedTitle"), description: t("gridRemovedDesc", { count: n, total: max }), variant: "success" });
+    } catch {
+      toast({ title: t("gridPartialTitle"), variant: "error" });
+    } finally {
+      setDeleting(false);
+      setRemoveTarget(null);
+      exitSelect();
+      router.refresh();
+    }
   }
 
   return (
@@ -223,6 +263,43 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
           );
         })}
       </div>
+
+      <Modal
+        open={removeTarget != null}
+        onClose={() => setRemoveTarget(null)}
+        title={t("gridRemoveTitle")}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRemoveTarget(null)}>
+              {t("gridSelectCancel")}
+            </Button>
+            <Button variant="danger" onClick={() => void confirmRemove()} loading={deleting}>
+              <IconTrash size={16} /> {t("gridDelete")}
+            </Button>
+          </>
+        }
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void confirmRemove();
+          }}
+        >
+          <p className="mb-3 truncate text-sm font-medium text-ink">{removeTarget?.name}</p>
+          <Label htmlFor="removeQty">{t("gridRemoveLabel", { max: removeTarget?.quantity ?? 1 })}</Label>
+          <Input
+            id="removeQty"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={removeTarget?.quantity ?? 1}
+            step={1}
+            value={removeQty}
+            onChange={(e) => setRemoveQty(e.target.value)}
+            autoFocus
+          />
+        </form>
+      </Modal>
     </section>
   );
 }
