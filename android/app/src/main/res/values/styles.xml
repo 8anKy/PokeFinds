@@ -13,6 +13,9 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Matcha statusfältet mot appens mörka bakgrund (annars systemets grå). Vita ikoner. -->
+        <item name="android:statusBarColor">#0a0a0c</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 
 

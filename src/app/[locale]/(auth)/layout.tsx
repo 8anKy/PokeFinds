@@ -2,6 +2,12 @@ import type { ReactNode } from "react";
 import { AuthBrand } from "@/components/layout/auth-brand";
 import { AuthShell } from "@/components/layout/auth-shell";
 
+// ponytail: auth-sidorna cachades statiskt (s-maxage=1år + Vary: RSC). WebView:ens
+// HTTP-cache respekterar inte Vary: RSC → serverade RSC-varianten (text/x-component)
+// som ett dokument = råtext-skärmen i appen. force-dynamic → no-store, ingen cache.
+// Gäller alla (auth)-sidor (login/registrera/…) via layout-segmentet. Billigt: låg trafik.
+export const dynamic = "force-dynamic";
+
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <AuthShell>
