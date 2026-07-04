@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { LinkButton } from "@/components/ui/button";
 import { IconCheck, IconPlus, IconX } from "@/components/ui/icons";
 import { UpgradeButton } from "./upgrade-button";
+import { FreePlanCta } from "./free-plan-cta";
 
 export async function generateMetadata({
   params,
@@ -67,9 +67,7 @@ export default async function PricingPage({
           <div className="mt-8 flex-1">
             <FeatureList items={freeFeatures} excluded={freeExcluded} />
           </div>
-          <LinkButton href="/registrera" variant="secondary" className="mt-8 w-full">
-            {t("freeCta")}
-          </LinkButton>
+          <FreePlanCta />
         </div>
 
         {/* Premium — rekommenderad: foil-linje + tydligare kant */}
