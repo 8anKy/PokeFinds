@@ -38,6 +38,12 @@ function bridge(): Bridge | null {
 export async function getPushPlugin(): Promise<{ PushNotifications: any; platform: string } | null> {
   const cap = bridge();
   if (!cap) return null;
+  // ponytail: Android push är AV tills Firebase/FCM (google-services.json) är uppsatt.
+  // PushNotifications.register() kastar "Default FirebaseApp is not initialized" som en
+  // NATIV, ofångbar exception (kraschar hela appen → tillbaka till hemskärmen). iOS/APNs
+  // är opåverkat. Ta bort denna guard när FCM är konfigurerat. Fixet ligger i webb-bundeln
+  // → deploy räcker, ingen APK-ombyggnad behövs (register() anropas bara från JS).
+  if (cap.getPlatform() === "android") return null;
   // npm-paketets PushNotifications (registerPlugin → korrekt event-routing). Bara
   // @capacitor/core-importen var trasig; push-paketet funkar. Interop-tålig destructure.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
