@@ -94,7 +94,10 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
       // Centrerad i den SYNLIGA ytan: höjden begränsas till visualViewport när
       // tangentbordet är uppe, så centrering lägger panelen i gapet mellan
       // statusraden och tangentbordet (i st.f. att slå i toppen av telefonen).
-      className="fixed inset-x-0 z-50 flex items-center justify-center overflow-y-auto p-4"
+      // pb > pt biasar centreringen en aning UPPÅT (panelen satt annars en gnutta
+      // för lågt i gapet) — max-h-full räknar mot den minskade ytan så höga modaler
+      // fortfarande klarar tangentbordet.
+      className="fixed inset-x-0 z-50 flex items-center justify-center overflow-y-auto p-4 pb-20"
       style={viewport ? { top: viewport.top, height: viewport.height } : { top: 0, bottom: 0 }}
       role="dialog"
       aria-modal="true"
