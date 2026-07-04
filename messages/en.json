@@ -988,19 +988,19 @@
     "proTagline": "Full control of the market — before everyone else.",
     "proPrice": "49 kr",
     "freeFeatures": [
-      "10 watches with price and restock alerts",
-      "5 AI gradings and 10 scans per day",
-      "Basic collection with value overview",
-      "Basic market data and price charts",
+      "Save up to 10 products to your watchlist",
+      "Collection with value overview",
+      "3 AI gradings and 30 scans per month",
+      "Market data and price charts",
       "Community access"
     ],
+    "proLead": "Everything in Free, plus:",
     "premiumFeatures": [
-      "Unlimited alerts and watches",
+      "Unlimited watches with price and restock alerts",
       "All restocks — alerts for every sealed product",
-      "AI grading with a stronger model (30/day)",
-      "Card scanning (100/day)",
-      "Advanced price charts and longer history",
-      "CSV import/export and weekly reports"
+      "15 AI gradings per month (stronger model)",
+      "100 scans per month",
+      "Advanced price charts and longer history"
     ],
     "faqTitle": "Questions about the plans",
     "faqItems": [

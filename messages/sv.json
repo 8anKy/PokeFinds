@@ -988,19 +988,19 @@
     "proTagline": "Full koll på marknaden — innan alla andra.",
     "proPrice": "49 kr",
     "freeFeatures": [
-      "10 bevakningar med pris- och restock-alerts",
-      "5 AI-graderingar och 10 skanningar per dag",
-      "Grundläggande samling med värdeöversikt",
-      "Grundläggande marknadsdata och prisgrafer",
+      "Spara upp till 10 produkter i din bevakningslista",
+      "Samling med värdeöversikt",
+      "3 AI-graderingar och 30 skanningar per månad",
+      "Marknadsdata och prisgrafer",
       "Community-åtkomst"
     ],
+    "proLead": "Allt i Free, plus:",
     "premiumFeatures": [
-      "Obegränsade alerts och bevakningar",
+      "Obegränsade bevakningar med pris- och restock-alerts",
       "Alla restocks — larm för varje sealed-produkt",
-      "AI-gradering med starkare modell (30/dygn)",
-      "Kortskanning (100/dygn)",
-      "Avancerade prisgrafer och längre historik",
-      "CSV-import och -export samt veckorapporter"
+      "15 AI-graderingar per månad (starkare modell)",
+      "100 skanningar per månad",
+      "Avancerade prisgrafer och längre historik"
     ],
     "faqTitle": "Frågor om planerna",
     "faqItems": [

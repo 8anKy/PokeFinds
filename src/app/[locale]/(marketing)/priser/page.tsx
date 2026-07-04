@@ -83,6 +83,7 @@ export default async function PricingPage({
               <span className="text-ink-muted"> {t("perMonth")}</span>
             </p>
             <div className="mt-8 flex-1">
+              <p className="mb-3 text-sm font-medium text-ink">{t("proLead")}</p>
               <FeatureList items={premiumFeatures} />
             </div>
             <UpgradeButton />
