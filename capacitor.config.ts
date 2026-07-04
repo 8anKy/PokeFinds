@@ -16,8 +16,8 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const SERVER_URL = process.env.CAP_SERVER_URL?.trim() || "https://www.foilio.se";
 
 const config: CapacitorConfig = {
-  // ponytail: android/ är fortfarande genererat med gamla se.pokefinds.app —
-  // regenerera (radera android/ + `npx cap add android`) före Android-launch.
+  // android/ har applicationId se.foilio.app (build.gradle); intern namespace är
+  // kvar som se.pokefinds.app med flit — osynligt för användare, se build.gradle.
   appId: "se.foilio.app",
   appName: "Foilio",
   webDir: "mobile-shell",

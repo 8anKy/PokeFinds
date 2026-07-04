@@ -34,12 +34,29 @@ function defaultDescription(row: CollectionRow, condition: string, tr: Translato
   ].join("\n");
 }
 
+/**
+ * Läs in ett foto och skala ner till max 1600 px JPEG — ett rått mobilfoto är
+ * 5–12 MB och 12 st som base64 blev en ~100 MB+ POST (långsam/omöjlig på mobilnät;
+ * API:t cappar dessutom 8M tecken/bild). 1600 px räcker gott för Tradera-annonser.
+ */
 function readAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Kunde inte läsa bilden."));
+    };
+    img.src = url;
   });
 }
 

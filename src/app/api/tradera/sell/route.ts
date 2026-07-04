@@ -30,7 +30,8 @@ const schema = z.object({
   purchasePriceKr: z.number().int().min(0).optional(), // vad användaren betalade (för vinstberäkning)
   description: z.string().trim().max(4000).optional(), // egen text; annars auto-genererad
   // data:-URL:er med foton på det egna objektet (första = huvudbild). Tradera tar max 12.
-  imagesBase64: z.array(z.string().min(100)).min(1).max(12),
+  // max 8M tecken/bild (≈6 MB binärt) — utan tak kan en inloggad användare POSTa obegränsat stora bodies.
+  imagesBase64: z.array(z.string().min(100).max(8_000_000)).min(1).max(12),
 });
 
 export async function POST(req: Request) {

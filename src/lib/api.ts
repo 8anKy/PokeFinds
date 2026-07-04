@@ -32,10 +32,11 @@ export function jsonOk<T>(data: T, init?: ResponseInit) {
 }
 
 /**
- * Som `jsonOk` men med edge-cache-header. ENDAST för publik, opersonlig data —
- * samtidiga/upprepade träffar (flera användare, bot-crawl, pagination) serveras
- * då från Vercels CDN utan att köra en funktion eller fråga Neon. `stale-while-
- * revalidate` serverar genast medan en bakgrundsuppdatering hämtar färskt.
+ * Som `jsonOk` men med cache-header. ENDAST för publik, opersonlig data.
+ * `max-age` låter webbläsaren återanvända svaret (Railway har ingen CDN, så
+ * s-maxage ensam gjorde INGENTING där — varje träff blev en Neon-fråga);
+ * `s-maxage` behålls ifall en CDN sätts framför senare. Datat ändras ~1×/dygn
+ * så sekunder–minuter av webbläsar-cache är osynligt för användaren.
  * Routen får INTE ha `export const dynamic = "force-dynamic"` (sätter no-store).
  */
 export function jsonCached<T>(data: T, sMaxAgeSeconds: number, init?: ResponseInit) {
@@ -43,7 +44,7 @@ export function jsonCached<T>(data: T, sMaxAgeSeconds: number, init?: ResponseIn
     ...init,
     headers: {
       ...init?.headers,
-      "Cache-Control": `public, s-maxage=${sMaxAgeSeconds}, stale-while-revalidate=${sMaxAgeSeconds * 5}`,
+      "Cache-Control": `public, max-age=${sMaxAgeSeconds}, s-maxage=${sMaxAgeSeconds}, stale-while-revalidate=${sMaxAgeSeconds * 5}`,
     },
   });
 }

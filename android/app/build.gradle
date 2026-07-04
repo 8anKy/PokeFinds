@@ -1,10 +1,13 @@
 apply plugin: 'com.android.application'
 
 android {
+    // ponytail: namespace (intern Java-package) lämnas som se.pokefinds.app med flit —
+    // applicationId nedan är det enda Play Store/användare ser, och att byta namespace
+    // kräver flytt av MainActivity.java utan någon vinst.
     namespace "se.pokefinds.app"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "se.pokefinds.app"
+        applicationId "se.foilio.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
