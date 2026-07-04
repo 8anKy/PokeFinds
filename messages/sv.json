@@ -1,4 +1,11 @@
 {
+  "Stock": {
+    "IN_STOCK": "Finns",
+    "OUT_OF_STOCK": "Slut",
+    "PREORDER": "Förhandsboka",
+    "LIMITED": "Begränsat",
+    "UNKNOWN": "Okänt"
+  },
   "LocaleSwitcher": {
     "label": "Språk",
     "sv": "Svenska",

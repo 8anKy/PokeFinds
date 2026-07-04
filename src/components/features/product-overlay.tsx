@@ -29,7 +29,8 @@ function productSlug(href: string | null): string | null {
       return null;
     }
   }
-  const m = path.match(/^\/produkter\/([^/?#]+)$/);
+  // Valfritt locale-prefix (/en) framför — engelska URL:er är /en/produkter/...
+  const m = path.match(/^(?:\/[a-z]{2})?\/produkter\/([^/?#]+)$/);
   return m ? m[1] : null;
 }
 

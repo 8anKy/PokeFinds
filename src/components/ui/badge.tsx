@@ -1,4 +1,5 @@
 import type { HTMLAttributes } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 export type BadgeVariant = "default" | "success" | "danger" | "warning" | "info" | "holo";
@@ -31,14 +32,6 @@ export function Badge({ variant = "default", className, ...props }: BadgeProps) 
 
 export type StockStatus = "IN_STOCK" | "OUT_OF_STOCK" | "PREORDER" | "LIMITED" | "UNKNOWN";
 
-export const STOCK_LABELS: Record<StockStatus, string> = {
-  IN_STOCK: "I lager",
-  OUT_OF_STOCK: "Ur lager",
-  PREORDER: "Förhandsboka",
-  LIMITED: "Begränsat",
-  UNKNOWN: "Okänt",
-};
-
 const stockVariants: Record<StockStatus, BadgeVariant> = {
   IN_STOCK: "success", // grön
   OUT_OF_STOCK: "warning", // amber — t.ex. sealed utan aktuell annons (visar 30d-snitt)
@@ -52,11 +45,12 @@ export interface StockBadgeProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 export function StockBadge({ stockStatus, className, ...props }: StockBadgeProps) {
+  const t = useTranslations("Stock");
   const status: StockStatus =
-    stockStatus && stockStatus in STOCK_LABELS ? (stockStatus as StockStatus) : "UNKNOWN";
+    stockStatus && stockStatus in stockVariants ? (stockStatus as StockStatus) : "UNKNOWN";
   return (
     <Badge variant={stockVariants[status]} className={className} {...props}>
-      {STOCK_LABELS[status]}
+      {t(status)}
     </Badge>
   );
 }

@@ -1,4 +1,11 @@
 {
+  "Stock": {
+    "IN_STOCK": "In stock",
+    "OUT_OF_STOCK": "Sold out",
+    "PREORDER": "Preorder",
+    "LIMITED": "Limited",
+    "UNKNOWN": "Unknown"
+  },
   "LocaleSwitcher": {
     "label": "Language",
     "sv": "Svenska",
