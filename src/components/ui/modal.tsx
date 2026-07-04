@@ -111,7 +111,10 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
         ref={panelRef}
         tabIndex={-1}
         className={cn(
-          "card-surface relative z-10 w-full max-w-lg animate-scale-in shadow-card outline-none",
+          // flex-col + max-h-full: panelen kapas till den synliga ytan (containerns
+          // höjd = visualViewport när tangentbordet är uppe) så header + footer alltid
+          // syns och BARA innehållet scrollar — footern hamnar aldrig bakom tangentbordet.
+          "card-surface relative z-10 flex max-h-full w-full max-w-lg flex-col overflow-hidden animate-scale-in shadow-card outline-none",
           className
         )}
       >
@@ -126,7 +129,7 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
             <IconX size={18} />
           </button>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
         {footer && (
           <div className="flex items-center justify-end gap-3 border-t border-surface-border px-5 py-4">
             {footer}

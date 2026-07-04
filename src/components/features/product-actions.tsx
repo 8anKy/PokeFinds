@@ -85,12 +85,13 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
         return;
       }
       if (!res.ok) {
-        const data: { error?: string } = await res.json().catch(() => ({}));
-        toast({
-          title: t("actionFailed"),
-          description: data.error ?? t("tryAgain"),
-          variant: "error",
-        });
+        // Servern svarar med svenska felmeddelanden → visa ALDRIG data.error rått
+        // (läcker svenska i EN-läget). 409 = redan bevakad → lokaliserat meddelande.
+        if (res.status === 409) {
+          toast({ title: t("alreadyWatching"), description: t("alreadyWatchingDesc") });
+          return;
+        }
+        toast({ title: t("actionFailed"), description: t("tryAgain"), variant: "error" });
         return;
       }
       toast({ title: successTitle, variant: "success" });

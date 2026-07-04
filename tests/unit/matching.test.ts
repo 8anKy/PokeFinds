@@ -200,6 +200,17 @@ describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
     expect(matchListingToProduct("Pokemon Scarlet & Violet Booster Pack", svPack)).not.toBeNull();
   });
 
+  it("151-pack (S&V 3.5) matchar INTE bas-'Scarlet & Violet Booster Pack' och tvärtom", () => {
+    const svPack = { normalizedTitle: "scarlet violet booster pack", card: null };
+    const p151 = { normalizedTitle: "151 booster pack", card: null };
+    // Verklig Samlarhobby-titel: "151" delar era-ord (scarlet/violet) med bas-S&V.
+    const listing = "Pokemon Scarlet & Violet 3.5 Pokemon 151 1 booster pack";
+    expect(matchListingToProduct(listing, svPack)).toBeNull();
+    expect(matchListingToProduct(listing, p151)).not.toBeNull();
+    // Ren bas-annons matchar INTE 151-produkten.
+    expect(matchListingToProduct("Pokemon Scarlet & Violet Booster Pack", p151)).toBeNull();
+  });
+
   it("äkta engelsk bas-pack med set-kod (SV01) + hopskrivet formord matchar bas-produkten", () => {
     const svPack = { normalizedTitle: "scarlet violet booster pack", card: null };
     // Verklig Tradera-titel med set-kod SV01 resp. hopskrivet "Boosterpack".

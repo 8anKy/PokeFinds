@@ -213,13 +213,23 @@ function significantTokens(normalized: string): string[] {
 /** Era-/serievarumärke någonstans i titeln? (icke-global → säkra .test-anrop). */
 const ERA_RE = /\b(mega evolution|scarlet( and| &)? violet|sword( and| &)? shield|sun( and| &)? moon)\b/i;
 
+/**
+ * Sifferset-namn som ÄR produktidentitet trots att de börjar på siffra ("151" =
+ * Scarlet & Violet 3.5). Utan detta tappar distinctiveWords dem → 151-produkten får
+ * noll särskiljande ord och kan aldrig vinna mot bas-S&V. Lägg till fler vid behov.
+ */
+const NUMERIC_SET_NAMES = new Set(["151"]);
 /** Särskiljande ord (ej stoppord/formord/siffror) — set-namn, Pokémon-namn osv. */
 function distinctiveWords(normalized: string): Set<string> {
   const words = new Set(
     normalized
       .split(" ")
       .filter(
-        (t) => t.length >= 3 && !STOPWORDS.has(t) && !FORM_WORDS.has(t) && !/^\d/.test(t)
+        (t) =>
+          t.length >= 3 &&
+          !STOPWORDS.has(t) &&
+          !FORM_WORDS.has(t) &&
+          (!/^\d/.test(t) || NUMERIC_SET_NAMES.has(t))
       )
   );
   // "base" är vintage-set-IDENTITET (Base Set 1999) BARA utan era-fras. Med en era-fras
@@ -375,6 +385,18 @@ export function languageMismatch(incoming: string, candidate: string): boolean {
   return hasNonEnMarker(incoming) !== hasNonEnMarker(candidate);
 }
 
+/**
+ * En annons/produkt som nämner ett sifferset (NUMERIC_SET_NAMES, t.ex. "151") får
+ * inte matcha en som inte gör det — annars matchar "Scarlet & Violet 3.5 … 151
+ * Booster Pack" fel mot bas-"S&V Booster Pack" (delar era-orden scarlet/violet).
+ */
+export function setMarkerMismatch(a: string, b: string): boolean {
+  const ta = new Set(normalizeTitle(a).split(" "));
+  const tb = new Set(normalizeTitle(b).split(" "));
+  for (const name of NUMERIC_SET_NAMES) if (ta.has(name) !== tb.has(name)) return true;
+  return false;
+}
+
 /** Lägsta andel delade särskiljande ord för att en kandidat ska godkännas. */
 const MIN_DISTINCTIVE_OVERLAP = 0.5;
 
@@ -497,6 +519,10 @@ export async function matchProduct(
     if (languageMismatch(normalized, c.normalizedTitle)) {
       continue;
     }
+    // Fel sifferset (151 vs bas-S&V) → förkasta
+    if (setMarkerMismatch(normalized, c.normalizedTitle)) {
+      continue;
+    }
     // Fel set/kort: kandidaten saknar de särskiljande orden → förkasta
     // (hindrar "Ascended Heroes ETB" från att matcha "Destined Rivals ETB")
     const overlap = distinctiveOverlap(normalized, c.normalizedTitle);
@@ -512,7 +538,7 @@ export async function matchProduct(
     }
     // Liten bonus för högre ordöverlapp — föredrar "Mega Evolution Booster Pack"
     // framför "Mega Evolution Chaos Rising Booster Pack" vid likvärdig Dice.
-    score = Math.min(1, score + 0.1 * overlap);
+    score = Math.min(1, score + 0.15 * overlap);
     // Setnummer = kortets identitet. Har BÅDA titlarna ett nummer och de KROCKAR
     // (annat num/total) → olika kort → förkasta hårt. Mjuk straff räckte inte:
     // "Charizard 4/102" mot "5/102" har så hög Dice att -0.3 ändå klarade tröskeln.
@@ -577,13 +603,14 @@ export function matchListingToProduct(
     return null;
   }
   if (languageMismatch(normalized, product.normalizedTitle)) return null;
+  if (setMarkerMismatch(normalized, product.normalizedTitle)) return null;
 
   const overlap = distinctiveOverlap(normalized, product.normalizedTitle);
   if (overlap < MIN_DISTINCTIVE_OVERLAP) return null;
   if (nonEraCoverage(normalized, product.normalizedTitle) < MIN_DISTINCTIVE_OVERLAP) return null;
 
   let score = scoreSimilarity(normalized, product.normalizedTitle);
-  score = Math.min(1, score + 0.1 * overlap);
+  score = Math.min(1, score + 0.15 * overlap);
 
   const incomingSetNum = extractSetNumber(normalized);
   const candidateSetNum = extractSetNumber(product.normalizedTitle);
