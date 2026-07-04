@@ -14,7 +14,7 @@ import { Button, LinkButton } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
-import { Input, Textarea, Label, Checkbox, FieldError } from "@/components/ui/input";
+import { Input, Label, Checkbox, FieldError } from "@/components/ui/input";
 
 export interface NotificationSettings {
   email: boolean;
@@ -82,7 +82,6 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
 
   // Profil
   const [name, setName] = useState(user.name);
-  const [bio, setBio] = useState(user.bio ?? "");
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
@@ -103,7 +102,8 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   }, [user.notificationSettings.push]);
 
   async function saveProfile() {
-    if (name.trim().length < 2) {
+    const trimmed = name.trim();
+    if (trimmed.length < 4 || trimmed.length > 12) {
       setProfileError(tSettings("nameMin"));
       return;
     }
@@ -112,7 +112,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
     try {
       await apiFetch("/api/users/me", {
         method: "PATCH",
-        body: { name: name.trim(), bio: bio.trim() || null },
+        body: { name: trimmed },
       });
       toast({ title: tSettings("profileSaved"), variant: "success" });
     } catch (e) {
@@ -213,21 +213,11 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
           >
             <div>
               <Label htmlFor="name">{tSettings("nameLabel")}</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
+              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={12} />
             </div>
             <div>
               <Label htmlFor="email">{tSettings("emailLabel")}</Label>
               <Input id="email" value={user.email} disabled />
-            </div>
-            <div>
-              <Label htmlFor="bio">{tSettings("bioLabel")}</Label>
-              <Textarea
-                id="bio"
-                placeholder={tSettings("bioPlaceholder")}
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                maxLength={500}
-              />
             </div>
             <FieldError message={profileError} />
             <Button type="submit" loading={savingProfile}>

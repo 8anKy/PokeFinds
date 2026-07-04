@@ -37,7 +37,6 @@ export default async function ProfilePage({ params }: { params: { locale: string
         id: true,
         name: true,
         avatarUrl: true,
-        bio: true,
         reputationScore: true,
         isPublicCollection: true,
         createdAt: true,
@@ -118,8 +117,6 @@ export default async function ProfilePage({ params }: { params: { locale: string
           )}
         </div>
       </div>
-
-      {user.bio && <p className="mt-6 text-sm leading-relaxed text-ink-muted">{user.bio}</p>}
 
       {/* Offentlig samling */}
       {collection && (user.isPublicCollection || isOwnProfile) && (

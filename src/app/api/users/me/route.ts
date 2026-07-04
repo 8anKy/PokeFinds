@@ -30,8 +30,7 @@ const notificationSettingsSchema = z.object({
 });
 
 const patchSchema = z.object({
-  name: z.string().trim().min(2, "Namnet måste vara minst 2 tecken.").max(80).optional(),
-  bio: z.string().trim().max(500).nullable().optional(),
+  name: z.string().trim().min(4, "Namnet måste vara 4–12 tecken.").max(12, "Namnet måste vara 4–12 tecken.").optional(),
   notificationSettings: notificationSettingsSchema.optional(),
   preferences: z.record(z.unknown()).optional(),
   isPublicCollection: z.boolean().optional(),
@@ -79,7 +78,6 @@ export async function PATCH(req: Request) {
       if (nameTaken) throw new AuthError(409, "Användarnamnet är upptaget. Välj ett annat.");
       data.name = input.name;
     }
-    if (input.bio !== undefined) data.bio = input.bio;
     if (input.isPublicCollection !== undefined) data.isPublicCollection = input.isPublicCollection;
     if (input.notificationSettings !== undefined) {
       const existing = (current.notificationSettings ?? {}) as Record<string, unknown>;
