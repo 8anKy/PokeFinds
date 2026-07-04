@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { LinkButton } from "@/components/ui/button";
-import { IconCheck, IconPlus } from "@/components/ui/icons";
+import { IconCheck, IconPlus, IconX } from "@/components/ui/icons";
 import { UpgradeButton } from "./upgrade-button";
 
 export async function generateMetadata({
@@ -13,13 +13,19 @@ export async function generateMetadata({
   return { title: t("metaTitle"), description: t("metaDescription") };
 }
 
-function FeatureList({ items }: { items: string[] }) {
+function FeatureList({ items, excluded = [] }: { items: string[]; excluded?: string[] }) {
   return (
     <ul className="space-y-3">
       {items.map((f) => (
         <li key={f} className="flex items-start gap-2.5 text-sm text-ink-muted">
           <IconCheck size={18} className="mt-0.5 shrink-0 text-rise" />
           {f}
+        </li>
+      ))}
+      {excluded.map((f) => (
+        <li key={f} className="flex items-start gap-2.5 text-sm text-ink-faint">
+          <IconX size={18} className="mt-0.5 shrink-0 text-ink-faint/70" />
+          <span className="line-through decoration-ink-faint/40">{f}</span>
         </li>
       ))}
     </ul>
@@ -34,6 +40,7 @@ export default async function PricingPage({
   setRequestLocale(params.locale);
   const t = await getTranslations("Pricing");
   const freeFeatures = t.raw("freeFeatures") as string[];
+  const freeExcluded = t.raw("freeExcluded") as string[];
   const premiumFeatures = t.raw("premiumFeatures") as string[];
   const faq = t.raw("faqItems") as { q: string; a: string }[];
 
@@ -58,7 +65,7 @@ export default async function PricingPage({
             <span className="text-ink-muted"> {t("perMonth")}</span>
           </p>
           <div className="mt-8 flex-1">
-            <FeatureList items={freeFeatures} />
+            <FeatureList items={freeFeatures} excluded={freeExcluded} />
           </div>
           <LinkButton href="/registrera" variant="secondary" className="mt-8 w-full">
             {t("freeCta")}

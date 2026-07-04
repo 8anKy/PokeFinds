@@ -41,7 +41,13 @@ function krInputToOre(value: string): number | null {
   return Math.round(kr * 100);
 }
 
-export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] }) {
+export function WatchlistTable({
+  initialItems,
+  isPro,
+}: {
+  initialItems: WatchlistRow[];
+  isPro: boolean;
+}) {
   const t = useTranslations("Watchlist");
   const tc = useTranslations("Common");
   const [items, setItems] = useState(initialItems);
@@ -150,6 +156,19 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
 
   return (
     <>
+      {/* Gratiskonto: larm avfyras aldrig (Pro-förmån) → vaddera INTE larmet som
+          aktivt. Visa upsell + inaktivera reglagen nedan. */}
+      {!isPro && (
+        <div className="mb-4 rounded-lg border border-holo-cyan/30 bg-holo-cyan/5 px-4 py-3 text-sm text-ink-muted">
+          {t.rich("freeAlertsBanner", {
+            link: (c) => (
+              <Link href="/priser" className="font-medium text-holo-cyan hover:underline">
+                {c}
+              </Link>
+            ),
+          })}
+        </div>
+      )}
       {/* Mobil: kort-layout — tabellen tvingar horisontell scroll på liten skärm. */}
       <div className="space-y-3 lg:hidden">
         {items.map((item) => (
@@ -197,8 +216,8 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
             <div className="mt-3 flex flex-col items-start gap-2">
               <label className="flex items-center gap-2 text-sm text-ink">
                 <Checkbox
-                  checked={item.restockAlert}
-                  disabled={busyId === item.id}
+                  checked={isPro && item.restockAlert}
+                  disabled={busyId === item.id || !isPro}
                   onChange={(e) =>
                     void patchItem(
                       item.id,
@@ -211,8 +230,8 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
               </label>
               <label className="flex items-center gap-2 text-sm text-ink">
                 <Checkbox
-                  checked={item.priceAlert}
-                  disabled={busyId === item.id}
+                  checked={isPro && item.priceAlert}
+                  disabled={busyId === item.id || !isPro}
                   onChange={(e) =>
                     void patchItem(
                       item.id,
@@ -264,8 +283,8 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
               <TD data-price>{item.targetPrice != null ? formatPrice(item.targetPrice) : "–"}</TD>
               <TD>
                 <Checkbox
-                  checked={item.restockAlert}
-                  disabled={busyId === item.id}
+                  checked={isPro && item.restockAlert}
+                  disabled={busyId === item.id || !isPro}
                   aria-label={t("restockAria", { title: item.product.title })}
                   onChange={(e) =>
                     void patchItem(
@@ -278,8 +297,8 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistRow[] 
               </TD>
               <TD>
                 <Checkbox
-                  checked={item.priceAlert}
-                  disabled={busyId === item.id}
+                  checked={isPro && item.priceAlert}
+                  disabled={busyId === item.id || !isPro}
                   aria-label={t("priceAria", { title: item.product.title })}
                   onChange={(e) =>
                     void patchItem(

@@ -716,6 +716,7 @@
   },
   "Watchlist": {
     "metaTitle": "Watches",
+    "freeAlertsBanner": "Price and restock alerts are a Pro feature — <link>upgrade to activate them</link>. You can still save products here.",
     "h1": "Watches",
     "subtitle": "We alert you on price drops, target prices and restocks — before everyone else.",
     "findProducts": "Find products to watch",
@@ -905,6 +906,9 @@
     "chartBuilding": "History builds automatically — the curve appears once more data points are collected.",
     "watchPrice": "Watch price",
     "watchRestock": "Watch restock",
+    "saveToWatchlist": "Save to watchlist",
+    "savedToWatchlist": "Saved to your watchlist",
+    "alertsProCta": "Get price & restock alerts with Pro →",
     "addToCollection": "Add to collection",
     "watchCta": "Watch",
     "alreadyWatching": "You're already watching this product",
@@ -991,8 +995,13 @@
       "Save up to 10 products to your watchlist",
       "Collection with value overview",
       "3 AI gradings and 30 scans per month",
-      "Market data and price charts",
-      "Community access"
+      "Market data and price charts"
+    ],
+    "freeExcluded": [
+      "Price and restock alerts",
+      "Restock alerts on every sealed product",
+      "Unlimited watches",
+      "Advanced price charts and longer history"
     ],
     "proLead": "Everything in Free, plus:",
     "premiumFeatures": [
@@ -1025,13 +1034,12 @@
     },
     "features": {
       "heading": "Everything you need as a collector",
-      "sub": "From price tracking to community — tools built for the Swedish market.",
+      "sub": "From price tracking to card scanning — tools built for the Swedish market.",
       "items": [
         { "title": "Price tracking & restock alerts", "text": "Set a target price or watch stock status. We notify you the moment something happens." },
         { "title": "Collection value", "text": "Register your collection and see what it's worth — updated with current market data." },
         { "title": "Market trends", "text": "Price index, trend curves and the biggest price drops — all at a glance." },
         { "title": "Card scanning", "text": "Scan your cards with the camera and add them to your collection in seconds." },
-        { "title": "Community", "text": "Share pulls, discuss trades and follow other Swedish collectors." },
         { "title": "Transparent price data", "text": "Every product page shows the source and last update. No hidden adjustments." }
       ]
     },

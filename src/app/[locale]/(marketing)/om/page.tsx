@@ -18,7 +18,7 @@ export default async function AboutPage({
 }) {
   setRequestLocale(params.locale);
   const t = await getTranslations("About");
-  const doItems = [1, 2, 3, 4, 5] as const;
+  const doItems = [1, 2, 3, 4] as const;
 
   return (
     <article className="mx-auto max-w-3xl px-4 py-16 sm:px-6">

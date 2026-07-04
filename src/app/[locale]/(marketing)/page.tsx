@@ -15,7 +15,6 @@ import {
   IconBell,
   IconCamera,
   IconChart,
-  IconMessage,
   IconPackage,
   IconPlus,
   IconSparkle,
@@ -71,7 +70,7 @@ function MoverRow({ mover }: { mover: Mover }) {
 }
 
 // Ikoner i kod, texter från översättningar (features.items[i]).
-const FEATURE_ICONS = [IconBell, IconSparkle, IconChart, IconCamera, IconMessage, IconPackage];
+const FEATURE_ICONS = [IconBell, IconSparkle, IconChart, IconCamera, IconPackage];
 
 // Bygget statiskt-genererar (ISR) startsidan → en transient Neon-blink (P1001) fick
 // hela Railway-bygget att faila. Fall tillbaka på tomt data så bygget aldrig blockeras;

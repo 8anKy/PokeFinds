@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useRouter } from "@/i18n/navigation";
+import { getSession } from "next-auth/react";
+import { Link, useRouter } from "@/i18n/navigation";
+import { hasAuthHint } from "@/lib/auth-hint";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Input, Label } from "@/components/ui/input";
@@ -23,8 +25,18 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
   const [priceModalOpen, setPriceModalOpen] = useState(false);
   const [targetValue, setTargetValue] = useState("");
   const [alreadyWatched, setAlreadyWatched] = useState(false);
+  // null = okänt (utloggad/laddar) → visa standard-knapparna; false = gratiskonto
+  // (larm avfyras aldrig → erbjud "spara" + upsell istället för larm-knappar).
+  const [isPro, setIsPro] = useState<boolean | null>(null);
   const { toast } = useToast();
   const router = useRouter();
+
+  // Läs plan klient-sida (produktsidan ISR-cachas → ingen server-auth). Bara om
+  // fo_auth-cookien finns, så utloggade aldrig träffar /api/auth/session.
+  useEffect(() => {
+    if (!hasAuthHint()) return;
+    void getSession().then((s) => setIsPro(s?.user?.planTier === "PREMIUM"));
+  }, []);
 
   // Är produkten redan i bevakningarna? Rå fetch (inte apiFetch) så en utloggad
   // besökare inte slängs till login av 401 på denna passiva koll.
@@ -109,28 +121,53 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
     setAlreadyWatched(true);
   }
 
+  // Gratiskonto: larm är en Pro-förmån → spara produkten UTAN larmflaggor (ren
+  // bevakningslista) istället för att låtsas skapa ett larm som aldrig avfyras.
+  function saveWatch() {
+    if (alreadyWatched) {
+      toast({ title: t("alreadyWatching"), description: t("alreadyWatchingDesc") });
+      return;
+    }
+    void post(
+      "price",
+      "/api/watchlist",
+      { productId, priceAlert: false, restockAlert: false },
+      t("savedToWatchlist")
+    );
+    setAlreadyWatched(true);
+  }
+
   return (
     <>
-    <div className="flex flex-wrap gap-2">
-      <Button loading={loading === "price"} onClick={openPriceWatch}>
-        <IconBell size={16} />
-        {t("watchPrice")}
-      </Button>
-      <Button
-        variant="secondary"
-        loading={loading === "restock"}
-        onClick={() =>
-          post(
-            "restock",
-            "/api/watchlist",
-            { productId, restockAlert: true },
-            t("restockWatchCreated")
-          )
-        }
-      >
-        <IconPackage size={16} />
-        {t("watchRestock")}
-      </Button>
+    <div className="flex flex-wrap items-center gap-2">
+      {isPro === false ? (
+        <Button loading={loading === "price"} onClick={saveWatch}>
+          <IconBell size={16} />
+          {t("saveToWatchlist")}
+        </Button>
+      ) : (
+        <>
+          <Button loading={loading === "price"} onClick={openPriceWatch}>
+            <IconBell size={16} />
+            {t("watchPrice")}
+          </Button>
+          <Button
+            variant="secondary"
+            loading={loading === "restock"}
+            onClick={() =>
+              post(
+                "restock",
+                "/api/watchlist",
+                { productId, restockAlert: true },
+                t("restockWatchCreated")
+              )
+            }
+          >
+            <IconPackage size={16} />
+            {t("watchRestock")}
+          </Button>
+        </>
+      )}
       <Button
         variant="secondary"
         loading={loading === "collection"}
@@ -146,6 +183,11 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
         <IconPlus size={16} />
         {t("addToCollection")}
       </Button>
+      {isPro === false && (
+        <Link href="/priser" className="text-xs font-medium text-holo-cyan hover:underline">
+          {t("alertsProCta")}
+        </Link>
+      )}
     </div>
 
       <Modal
