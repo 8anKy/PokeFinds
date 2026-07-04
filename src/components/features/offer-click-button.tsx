@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 
@@ -13,6 +14,7 @@ export interface OfferClickButtonProps {
 
 /** Registrerar klicket via API och öppnar butikens sida i ny flik. */
 export function OfferClickButton({ slug, offerId, fallbackUrl, label }: OfferClickButtonProps) {
+  const t = useTranslations("Detail");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -33,7 +35,7 @@ export function OfferClickButton({ slug, offerId, fallbackUrl, label }: OfferCli
       if (win) win.location.href = url;
       else window.location.href = url; // popup blockerad → samma flik
     } catch {
-      toast({ title: "Kunde inte öppna butiken", variant: "error" });
+      toast({ title: t("couldNotOpenStore"), variant: "error" });
       if (win) win.location.href = fallbackUrl;
       else window.location.href = fallbackUrl;
     } finally {
@@ -49,7 +51,7 @@ export function OfferClickButton({ slug, offerId, fallbackUrl, label }: OfferCli
       onClick={handleClick}
       className="whitespace-nowrap"
     >
-      {label ?? "Till butik →"}
+      {label ?? t("toStore")}
     </Button>
   );
 }

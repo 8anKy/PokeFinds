@@ -10,8 +10,9 @@ import {
   type ReactNode,
 } from "react";
 import { getSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import { hasAuthHint } from "@/lib/auth-hint";
-import { formatPrice, formatRelative } from "@/lib/format";
+import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Badge, StockBadge } from "@/components/ui/badge";
 import { PriceChange } from "@/components/ui/price-change";
@@ -170,6 +171,7 @@ export function LivePricePanel({
   change30,
   priceLabel = "Lägsta pris just nu",
 }: LivePricePanelProps) {
+  const t = useTranslations("Detail");
   const { stats, flash } = useLivePricing();
 
   return (
@@ -198,19 +200,19 @@ export function LivePricePanel({
       </div>
       <dl className="flex flex-wrap gap-x-8 gap-y-2 border-t border-surface-border px-5 py-3 text-sm">
         <div className="flex items-baseline gap-2">
-          <dt className="text-ink-faint">Högsta nu</dt>
+          <dt className="text-ink-faint">{t("highestNow")}</dt>
           <dd data-price className="font-semibold text-ink">
             {formatPrice(stats.highestPrice)}
           </dd>
         </div>
         <div className="flex items-baseline gap-2">
-          <dt className="text-ink-faint">Snittpris</dt>
+          <dt className="text-ink-faint">{t("avgPrice")}</dt>
           <dd data-price className="font-semibold text-ink">
             {formatPrice(stats.avgPrice)}
           </dd>
         </div>
         <div className="flex items-baseline gap-2">
-          <dt className="text-ink-faint">30 dagar</dt>
+          <dt className="text-ink-faint">{t("days30")}</dt>
           <dd>
             {change30 != null ? (
               <PriceChange percent={change30} hideIcon />
@@ -233,7 +235,8 @@ export interface LiveOffersTableProps {
 }
 
 export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
-  const { offers, updatedAt, affiliateIds, refresh } = useLivePricing();
+  const t = useTranslations("Detail");
+  const { offers, affiliateIds, refresh } = useLivePricing();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   // Admin-status: produktsidan ISR-cachas → ingen server-`auth()`. Hämtar bara
   // sessionen on-demand om fo_auth-cookien finns (= inloggad), så utloggade
@@ -248,12 +251,12 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
   }, []);
 
   async function deleteOffer(offerId: string) {
-    if (!confirm("Ta bort detta erbjudande permanent?")) return;
+    if (!confirm(t("confirmRemoveOffer"))) return;
     setDeletingId(offerId);
     try {
       const res = await fetch(`/api/admin/offers/${offerId}`, { method: "DELETE" });
       if (res.ok) refresh();
-      else alert("Kunde inte ta bort erbjudandet.");
+      else alert(t("removeOfferFailed"));
     } finally {
       setDeletingId(null);
     }
@@ -281,14 +284,14 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
     <>
       <section className="mt-10">
         <h2 className="font-display text-xl font-semibold text-ink">
-          Priser hos butiker
+          {t("storePrices")}
         </h2>
         {directOffers.length === 0 ? (
           <EmptyState
             className="mt-4"
             icon={<IconStore size={32} />}
-            title="Inga erbjudanden just nu"
-            description="Vi har inte hittat den här produkten med en direktlänk hos någon bevakad butik ännu."
+            title={t("noOffers")}
+            description={t("noOffersDesc")}
           />
         ) : (
           <div className="mt-4">
@@ -304,7 +307,7 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-medium">{offer.retailer.name}</span>
-                          {affiliateIds.has(offer.retailerId) && <Badge>Annonslänk</Badge>}
+                          {affiliateIds.has(offer.retailerId) && <Badge>{t("adLink")}</Badge>}
                         </div>
                         <div className="mt-1 flex items-center gap-2">
                           <span className="font-semibold tabular-nums">
@@ -323,7 +326,7 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
                             className="rounded-md border border-fall/40 px-2 py-1 text-xs font-medium text-fall transition-colors hover:bg-fall/10 disabled:opacity-50"
                             title="Ta bort felmatchat erbjudande (admin)"
                           >
-                            {deletingId === offer.id ? "Tar bort…" : "Ta bort"}
+                            {deletingId === offer.id ? t("removingOffer") : t("removeOffer")}
                           </button>
                         )}
                       </div>
@@ -336,10 +339,10 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
                   <Table>
                     <THead>
                       <TR>
-                        <TH>Butik</TH>
-                        <TH>Pris</TH>
-                        <TH>Lagerstatus</TH>
-                        <TH className="text-right">Länk</TH>
+                        <TH>{t("thStore")}</TH>
+                        <TH>{t("thPrice")}</TH>
+                        <TH>{t("thStock")}</TH>
+                        <TH className="text-right">{t("thLink")}</TH>
                       </TR>
                     </THead>
                     <TBody>
@@ -348,7 +351,7 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
                           <TD>
                             <span className="font-medium">{offer.retailer.name}</span>
                             {affiliateIds.has(offer.retailerId) && (
-                              <Badge className="ml-2">Annonslänk</Badge>
+                              <Badge className="ml-2">{t("adLink")}</Badge>
                             )}
                           </TD>
                           <TD className="font-semibold tabular-nums">
@@ -372,7 +375,7 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
                                   className="rounded-md border border-fall/40 px-2 py-1 text-xs font-medium text-fall transition-colors hover:bg-fall/10 disabled:opacity-50"
                                   title="Ta bort felmatchat erbjudande (admin)"
                                 >
-                                  {deletingId === offer.id ? "Tar bort…" : "Ta bort"}
+                                  {deletingId === offer.id ? t("removingOffer") : t("removeOffer")}
                                 </button>
                               )}
                             </div>
@@ -384,10 +387,6 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
                 </div>
               </>
             )}
-            <p className="mt-3 text-xs text-ink-faint">
-              Alla länkar går direkt till produkten hos butiken. Vissa är
-              annonslänkar — det påverkar aldrig priserna vi visar.
-            </p>
           </div>
         )}
         {showTraderaSearch && (
@@ -397,15 +396,10 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
             rel="noopener noreferrer nofollow"
             className="mt-4 inline-flex items-center gap-2 rounded-lg border border-surface-border px-4 py-2.5 text-sm font-medium text-ink-muted transition-colors hover:border-holo-cyan/60 hover:text-holo-cyan"
           >
-            <IconStore size={16} /> Sök efter den här produkten på Tradera →
+            <IconStore size={16} /> {t("traderaSearchLink")}
           </a>
         )}
       </section>
-
-      <p className="mt-10 text-xs text-ink-faint">
-        Priser uppdateras var 8:e timme · Senast uppdaterad{" "}
-        {formatRelative(updatedAt)}
-      </p>
     </>
   );
 }

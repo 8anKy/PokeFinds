@@ -1,21 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Input, Label } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
-import { IconBell, IconPackage, IconPlus, IconShare } from "@/components/ui/icons";
+import { IconBell, IconPackage, IconPlus } from "@/components/ui/icons";
 
 export interface ProductActionsProps {
   productId: string;
   title: string;
 }
 
-type ActionKey = "price" | "restock" | "collection" | "share";
+type ActionKey = "price" | "restock" | "collection";
 
 export function ProductActions({ productId, title }: ProductActionsProps) {
+  const t = useTranslations("Detail");
+  const tc = useTranslations("Common");
   const [loading, setLoading] = useState<ActionKey | null>(null);
   const [priceModalOpen, setPriceModalOpen] = useState(false);
   const [targetValue, setTargetValue] = useState("");
@@ -42,8 +45,8 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
   function openPriceWatch() {
     if (alreadyWatched) {
       toast({
-        title: "Du bevakar redan den här produkten",
-        description: "Ändra målpriset under Bevakningar.",
+        title: t("alreadyWatching"),
+        description: t("alreadyWatchingDesc"),
       });
       return;
     }
@@ -70,15 +73,15 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
       if (!res.ok) {
         const data: { error?: string } = await res.json().catch(() => ({}));
         toast({
-          title: "Det gick inte",
-          description: data.error ?? "Något gick fel. Försök igen.",
+          title: t("actionFailed"),
+          description: data.error ?? t("tryAgain"),
           variant: "error",
         });
         return;
       }
       toast({ title: successTitle, variant: "success" });
     } catch {
-      toast({ title: "Något gick fel. Försök igen.", variant: "error" });
+      toast({ title: t("tryAgain"), variant: "error" });
     } finally {
       setLoading(null);
     }
@@ -90,7 +93,7 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
     if (trimmed) {
       const kr = Number(trimmed.replace(",", "."));
       if (!Number.isFinite(kr) || kr < 0) {
-        toast({ title: "Ogiltigt pris", description: "Ange ett pris i kronor.", variant: "error" });
+        toast({ title: t("invalidPrice"), description: t("invalidPriceDesc"), variant: "error" });
         return;
       }
       targetPrice = Math.round(kr * 100);
@@ -100,27 +103,10 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
       "price",
       "/api/watchlist",
       { productId, priceAlert: true, ...(targetPrice != null ? { targetPrice } : {}) },
-      "Prisbevakning skapad"
+      t("priceWatchCreated")
     );
     setTargetValue("");
     setAlreadyWatched(true);
-  }
-
-  async function share() {
-    setLoading("share");
-    try {
-      const url = window.location.href;
-      if (navigator.share) {
-        await navigator.share({ title, url });
-      } else {
-        await navigator.clipboard.writeText(url);
-        toast({ title: "Länken kopierad", variant: "success" });
-      }
-    } catch {
-      // Användaren avbröt delningen — inget fel
-    } finally {
-      setLoading(null);
-    }
   }
 
   return (
@@ -128,7 +114,7 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
     <div className="flex flex-wrap gap-2">
       <Button loading={loading === "price"} onClick={openPriceWatch}>
         <IconBell size={16} />
-        Bevaka pris
+        {t("watchPrice")}
       </Button>
       <Button
         variant="secondary"
@@ -138,12 +124,12 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
             "restock",
             "/api/watchlist",
             { productId, restockAlert: true },
-            "Restock-bevakning skapad"
+            t("restockWatchCreated")
           )
         }
       >
         <IconPackage size={16} />
-        Bevaka restock
+        {t("watchRestock")}
       </Button>
       <Button
         variant="secondary"
@@ -153,30 +139,26 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
             "collection",
             "/api/collection",
             { productId, quantity: 1 },
-            "Tillagd i din samling"
+            t("addedToCollection")
           )
         }
       >
         <IconPlus size={16} />
-        Lägg till i samling
-      </Button>
-      <Button variant="ghost" loading={loading === "share"} onClick={share}>
-        <IconShare size={16} />
-        Dela
+        {t("addToCollection")}
       </Button>
     </div>
 
       <Modal
         open={priceModalOpen}
         onClose={() => setPriceModalOpen(false)}
-        title="Bevaka pris"
+        title={t("watchPrice")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setPriceModalOpen(false)}>
-              Avbryt
+              {tc("cancel")}
             </Button>
             <Button onClick={() => void savePriceWatch()} loading={loading === "price"}>
-              Bevaka
+              {t("watchCta")}
             </Button>
           </>
         }
@@ -188,14 +170,16 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
           }}
         >
           <p className="mb-4 text-sm text-ink-muted">
-            Vi larmar dig när <span className="font-medium text-ink">{title}</span> kostar lika med
-            eller mindre än ditt målpris. Lämna tomt för att bara bevaka prisfall.
+            {t.rich("priceModalIntro", {
+              b: (c) => <span className="font-medium text-ink">{c}</span>,
+              title,
+            })}
           </p>
-          <Label htmlFor="watchTargetPrice">Målpris (kr)</Label>
+          <Label htmlFor="watchTargetPrice">{t("targetPriceLabel")}</Label>
           <Input
             id="watchTargetPrice"
             inputMode="decimal"
-            placeholder="t.ex. 499"
+            placeholder={t("targetPricePlaceholder")}
             value={targetValue}
             onChange={(e) => setTargetValue(e.target.value)}
             autoFocus
