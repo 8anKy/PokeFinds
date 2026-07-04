@@ -28,12 +28,14 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
   // En `fixed inset-0`-overlay mäts annars mot layout-viewporten, som inte krymper
   // i WKWebView → panelens innehåll hamnar bakom tangentbordet. Med rätt höjd kan
   // panelens egen overflow-scroll visa fältet man skriver i.
-  const [viewport, setViewport] = useState<{ top: number; height: number } | null>(null);
+  const [viewport, setViewport] = useState<{ top: number; height: number; keyboardOpen: boolean } | null>(null);
   useEffect(() => {
     if (!open) return;
     const vp = window.visualViewport;
     if (!vp) return;
-    const update = () => setViewport({ top: vp.offsetTop, height: vp.height });
+    // keyboardOpen = den synliga ytan är märkbart kortare än fönstret (tangentbord uppe).
+    const update = () =>
+      setViewport({ top: vp.offsetTop, height: vp.height, keyboardOpen: vp.height < window.innerHeight - 120 });
     update();
     vp.addEventListener("resize", update);
     vp.addEventListener("scroll", update);
@@ -94,10 +96,14 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
       // Centrerad i den SYNLIGA ytan: höjden begränsas till visualViewport när
       // tangentbordet är uppe, så centrering lägger panelen i gapet mellan
       // statusraden och tangentbordet (i st.f. att slå i toppen av telefonen).
-      // pb > pt biasar centreringen en aning UPPÅT (panelen satt annars en gnutta
-      // för lågt i gapet) — max-h-full räknar mot den minskade ytan så höga modaler
-      // fortfarande klarar tangentbordet.
-      className="fixed inset-x-0 z-50 flex items-center justify-center overflow-y-auto p-4 pb-20"
+      // Tangentbord uppe: BOTTEN-ställd mot tangentbordet med ett fast gap (pb-8) så
+      // ALLA modaler — oavsett höjd — klarar tangentbordet med samma avstånd. Annars
+      // centrerad. max-h-full räknar mot den minskade ytan så höga modaler scrollar
+      // internt istället för att slå i toppen.
+      className={cn(
+        "fixed inset-x-0 z-50 flex justify-center overflow-y-auto px-4",
+        viewport?.keyboardOpen ? "items-end pb-8 pt-4" : "items-center py-4"
+      )}
       style={viewport ? { top: viewport.top, height: viewport.height } : { top: 0, bottom: 0 }}
       role="dialog"
       aria-modal="true"
