@@ -46,6 +46,23 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
     };
   }, [open]);
 
+  // Fokuserat fält (t.ex. Sälj-modalens beskrivning) scrollas in i vy när
+  // tangentbordet öppnas — annars döljs det bakom tangentbordet. När fältet lämnas
+  // och tangentbordet stängs växer den synliga ytan tillbaka → allt syns igen.
+  useEffect(() => {
+    if (!open) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const onFocusIn = (e: FocusEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (!el?.matches?.("input, textarea, select")) return;
+      // Vänta ut tangentbordets animation (visualViewport krymper) före scroll.
+      window.setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 300);
+    };
+    panel.addEventListener("focusin", onFocusIn);
+    return () => panel.removeEventListener("focusin", onFocusIn);
+  }, [open]);
+
   // ESC för att stänga + enkel fokusfälla
   useEffect(() => {
     if (!open) return;
@@ -96,13 +113,13 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
       // Centrerad i den SYNLIGA ytan: höjden begränsas till visualViewport när
       // tangentbordet är uppe, så centrering lägger panelen i gapet mellan
       // statusraden och tangentbordet (i st.f. att slå i toppen av telefonen).
-      // Tangentbord uppe: BOTTEN-ställd mot tangentbordet med ett fast gap (pb-8) så
-      // ALLA modaler — oavsett höjd — klarar tangentbordet med samma avstånd. Annars
+      // Tangentbord uppe: BOTTEN-ställd mot tangentbordet med ett fast gap (pb-16) så
+      // ALLA modaler — oavsett höjd — lyfts lika högt ovanför tangentbordet. Annars
       // centrerad. max-h-full räknar mot den minskade ytan så höga modaler scrollar
       // internt istället för att slå i toppen.
       className={cn(
         "fixed inset-x-0 z-50 flex justify-center overflow-y-auto px-4",
-        viewport?.keyboardOpen ? "items-end pb-8 pt-4" : "items-center py-4"
+        viewport?.keyboardOpen ? "items-end pb-16 pt-4" : "items-center py-4"
       )}
       style={viewport ? { top: viewport.top, height: viewport.height } : { top: 0, bottom: 0 }}
       role="dialog"
