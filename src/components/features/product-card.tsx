@@ -112,7 +112,9 @@ export function ProductCard({ product, className }: ProductCardProps) {
             ) : (
               <span />
             )}
-            {product.stockStatus && <StockBadge stockStatus={product.stockStatus} />}
+            {product.stockStatus && (
+              <StockBadge stockStatus={product.stockStatus} className="min-w-[4.75rem] justify-center" />
+            )}
           </div>
         </div>
 
