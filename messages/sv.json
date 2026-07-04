@@ -928,7 +928,7 @@
     "priceModalIntro": "Vi larmar dig när <b>{title}</b> kostar lika med eller mindre än ditt målpris. Lämna tomt för att bara bevaka prisfall.",
     "targetPriceLabel": "Målpris (kr)",
     "targetPricePlaceholder": "t.ex. 499",
-    "toStore": "Till butik →",
+    "toStore": "Till butik",
     "couldNotOpenStore": "Kunde inte öppna butiken",
     "storePrices": "Priser hos butiker",
     "highestNow": "Högsta nu",

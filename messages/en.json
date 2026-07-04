@@ -928,7 +928,7 @@
     "priceModalIntro": "We'll alert you when <b>{title}</b> costs at or below your target price. Leave blank to only watch for price drops.",
     "targetPriceLabel": "Target price (kr)",
     "targetPricePlaceholder": "e.g. 499",
-    "toStore": "To store →",
+    "toStore": "To store",
     "couldNotOpenStore": "Couldn't open the store",
     "storePrices": "Prices at stores",
     "highestNow": "Highest now",
