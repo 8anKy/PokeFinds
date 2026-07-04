@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { getSession } from "next-auth/react";
+import { useRouter } from "@/i18n/navigation";
+import { hasAuthHint } from "@/lib/auth-hint";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { IconLock } from "@/components/ui/icons";
 import { PriceChartLazy } from "@/components/features/price-chart-lazy";
 
 export interface PricePoint {
@@ -43,7 +47,15 @@ export function ProductPriceCard({
   series: PricePoint[];
 }) {
   const t = useTranslations("Detail");
+  const router = useRouter();
   const [period, setPeriod] = useState<(typeof PERIODS)[number]>(DEFAULT);
+  // Full historik (MAX) är en Pro-förmån. Sidan ISR-cachas → plan läses klient-sida.
+  // null/false = ej Pro → MAX låst (klick → prissida). Utloggad räknas som ej Pro.
+  const [isPro, setIsPro] = useState(false);
+  useEffect(() => {
+    if (!hasAuthHint()) return;
+    void getSession().then((s) => setIsPro(s?.user?.planTier === "PREMIUM"));
+  }, []);
 
   const filtered = withinDays(series, period.days);
   // Gles historik (t.ex. äldre sealed med en ensam arkivpunkt): har vald period
@@ -62,22 +74,29 @@ export function ProductPriceCard({
           role="group"
           aria-label="Period"
         >
-          {PERIODS.map((p) => (
-            <button
-              key={p.value}
-              type="button"
-              onClick={() => setPeriod(p)}
-              aria-current={p.value === period.value ? "true" : undefined}
-              className={cn(
-                "rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
-                p.value === period.value
-                  ? "bg-holo-cyan/15 text-holo-cyan"
-                  : "text-ink-muted hover:text-ink"
-              )}
-            >
-              {t(p.labelKey)}
-            </button>
-          ))}
+          {PERIODS.map((p) => {
+            const locked = p.value === "max" && !isPro;
+            return (
+              <button
+                key={p.value}
+                type="button"
+                onClick={() => (locked ? router.push("/priser") : setPeriod(p))}
+                aria-current={p.value === period.value ? "true" : undefined}
+                title={locked ? t("maxProOnly") : undefined}
+                className={cn(
+                  "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
+                  p.value === period.value
+                    ? "bg-holo-cyan/15 text-holo-cyan"
+                    : locked
+                      ? "text-ink-faint hover:text-holo-cyan"
+                      : "text-ink-muted hover:text-ink"
+                )}
+              >
+                {locked && <IconLock size={11} />}
+                {t(p.labelKey)}
+              </button>
+            );
+          })}
         </div>
       </CardHeader>
       <CardContent>
