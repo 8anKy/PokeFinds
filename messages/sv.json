@@ -919,6 +919,7 @@
     "priceWatchCreated": "Prisbevakning skapad",
     "restockWatchCreated": "Restock-bevakning skapad",
     "addedToCollection": "Tillagd i din samling",
+    "quantityLabel": "Antal",
     "invalidPrice": "Ogiltigt pris",
     "invalidPriceDesc": "Ange ett pris i kronor.",
     "priceModalIntro": "Vi larmar dig när <b>{title}</b> kostar lika med eller mindre än ditt målpris. Lämna tomt för att bara bevaka prisfall.",

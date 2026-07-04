@@ -23,6 +23,8 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
   const tc = useTranslations("Common");
   const [loading, setLoading] = useState<ActionKey | null>(null);
   const [priceModalOpen, setPriceModalOpen] = useState(false);
+  const [collectionModalOpen, setCollectionModalOpen] = useState(false);
+  const [quantity, setQuantity] = useState("1");
   const [targetValue, setTargetValue] = useState("");
   const [alreadyWatched, setAlreadyWatched] = useState(false);
   // null = okänt (utloggad/laddar) → visa standard-knapparna; false = gratiskonto
@@ -121,6 +123,17 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
     setAlreadyWatched(true);
   }
 
+  async function saveCollection() {
+    const qty = Math.floor(Number(quantity));
+    if (!Number.isFinite(qty) || qty < 1) {
+      toast({ title: t("invalidPrice"), description: t("tryAgain"), variant: "error" });
+      return;
+    }
+    setCollectionModalOpen(false);
+    await post("collection", "/api/collection", { productId, quantity: qty }, t("addedToCollection"));
+    setQuantity("1");
+  }
+
   // Gratiskonto: larm är en Pro-förmån → spara produkten UTAN larmflaggor (ren
   // bevakningslista) istället för att låtsas skapa ett larm som aldrig avfyras.
   function saveWatch() {
@@ -171,14 +184,7 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
       <Button
         variant="secondary"
         loading={loading === "collection"}
-        onClick={() =>
-          post(
-            "collection",
-            "/api/collection",
-            { productId, quantity: 1 },
-            t("addedToCollection")
-          )
-        }
+        onClick={() => setCollectionModalOpen(true)}
       >
         <IconPlus size={16} />
         {t("addToCollection")}
@@ -224,6 +230,41 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
             placeholder={t("targetPricePlaceholder")}
             value={targetValue}
             onChange={(e) => setTargetValue(e.target.value)}
+            autoFocus
+          />
+        </form>
+      </Modal>
+
+      <Modal
+        open={collectionModalOpen}
+        onClose={() => setCollectionModalOpen(false)}
+        title={t("addToCollection")}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setCollectionModalOpen(false)}>
+              {tc("cancel")}
+            </Button>
+            <Button onClick={() => void saveCollection()} loading={loading === "collection"}>
+              {t("addToCollection")}
+            </Button>
+          </>
+        }
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void saveCollection();
+          }}
+        >
+          <Label htmlFor="collectionQuantity">{t("quantityLabel")}</Label>
+          <Input
+            id="collectionQuantity"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            step={1}
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
             autoFocus
           />
         </form>

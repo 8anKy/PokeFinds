@@ -919,6 +919,7 @@
     "priceWatchCreated": "Price watch created",
     "restockWatchCreated": "Restock watch created",
     "addedToCollection": "Added to your collection",
+    "quantityLabel": "Quantity",
     "invalidPrice": "Invalid price",
     "invalidPriceDesc": "Enter a price in kronor.",
     "priceModalIntro": "We'll alert you when <b>{title}</b> costs at or below your target price. Leave blank to only watch for price drops.",
