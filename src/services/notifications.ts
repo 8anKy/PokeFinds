@@ -105,13 +105,15 @@ async function buildAlertEmail(alert: {
         );
       }
       if (alert.type === AlertType.NEW_LISTING) {
-        // Auto-importerad ny produkt → länka VÅR produktsida (visar butikens offer +
-        // köp-knapp). PREORDER lagras som NEW_LISTING → välj copy på offerns lagerstatus.
+        // Ny produkt i lager = butiks-händelse. Mejlet länkar DIREKT till butikens
+        // egen produktsida (som RESTOCK ovan), inte vår Foilio-sida. Pushen länkar
+        // fortfarande till vår produktsida (se sendAlertPush). PREORDER lagras som
+        // NEW_LISTING → välj copy på offerns lagerstatus.
         const listingOffer =
           (alert.retailerId && product.offers.find((o) => o.retailerId === alert.retailerId)) ||
           product.offers[0];
         const storeName = listingOffer?.retailer.name ?? "en butik";
-        const args = [alert.user.name, product.title, storeName, productUrl, listingOffer?.price ?? undefined] as const;
+        const args = [alert.user.name, product.title, storeName, listingOffer?.url ?? productUrl, listingOffer?.price ?? undefined] as const;
         return listingOffer?.stockStatus === StockStatus.PREORDER
           ? preorderEmail(...args)
           : newListingEmail(...args);
