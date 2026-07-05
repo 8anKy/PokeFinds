@@ -50,8 +50,29 @@ export async function addCollectionItem(userId: string, input: CollectionItemInp
     });
     if (!product) throw new ServiceError(404, "Produkten hittades inte.");
   }
+  const addQty = input.quantity ?? 1;
+  // Stacka på befintlig identisk post istället för att skapa en ny (samma kort/produkt,
+  // skick, språk och gradering = samma stack). ponytail: matchar på identitet, inte köppris.
+  const existing = await prisma.collectionItem.findFirst({
+    where: {
+      userId,
+      cardId: input.cardId ?? null,
+      productId: input.productId ?? null,
+      condition: input.condition ?? "NEAR_MINT", // matchar create-defaulten i schemat
+      language: input.language ?? "EN",
+      gradingCompany: input.gradingCompany ?? null,
+      grade: input.grade ?? null,
+    },
+  });
+  if (existing) {
+    return prisma.collectionItem.update({
+      where: { id: existing.id },
+      data: { quantity: existing.quantity + addQty },
+      include: COLLECTION_INCLUDE,
+    });
+  }
   return prisma.collectionItem.create({
-    data: { userId, ...input, quantity: input.quantity ?? 1 },
+    data: { userId, ...input, quantity: addQty },
     include: COLLECTION_INCLUDE,
   });
 }

@@ -98,6 +98,41 @@ const EXPECTED_FORM: Record<string, string> = {
   BUNDLE: "bundle", COLLECTION_BOX: "collection", BLISTER: "blister", TIN: "tin",
 };
 
+// Global namnmatch (set-lösa stubs) kräver högre tröskel än set-scopat: hela
+// katalogen är i spel, så namnet måste ensamt bära set-infon.
+const SET_SCOPED_MIN_SCORE = 0.55;
+const GLOBAL_MIN_SCORE = 0.72;
+
+/**
+ * Bästa CM-katalogmatch för en sealed-produkt (form-gate + namnlikhet). Med set
+ * = set-scopat som förr. UTAN set (auto-importerade butiks-stubs saknar episode)
+ * = matcha mot HELA katalogen med högre tröskel så de ändå får CM-pris/trend.
+ * ponytail: global namnmatch kan fel-länka udda titlar; store-cross-check i
+ * anroparen (priceOre > storeMin×2.5 → skip) är säkerhetsnätet — höj
+ * GLOBAL_MIN_SCORE om fel-länkningar dyker upp.
+ */
+export function bestSealedMatch(
+  product: { title: string; category: string; setName: string | null },
+  apiProducts: ApiProduct[],
+  byEpisode: Map<string, ApiProduct[]>
+): { match: ApiProduct; score: number } | null {
+  const setLess = !product.setName;
+  const cands = setLess ? apiProducts : byEpisode.get(norm(product.setName!));
+  if (!cands?.length) return null;
+  const minScore = setLess ? GLOBAL_MIN_SCORE : SET_SCOPED_MIN_SCORE;
+  const expForm = EXPECTED_FORM[product.category] ?? null;
+  const ourClean = norm(product.title);
+  let best: ApiProduct | null = null;
+  let bestScore = 0;
+  for (const c of cands) {
+    if (expForm && classifyForm(c.name) !== expForm) continue;
+    if (product.category === "BOOSTER_BOX" && !/booster/i.test(c.name)) continue;
+    const s = scoreSimilarity(ourClean, norm(c.name));
+    if (s > bestScore) { bestScore = s; best = c; }
+  }
+  return best && bestScore >= minScore ? { match: best, score: bestScore } : null;
+}
+
 export interface CmRefreshResult {
   ran: boolean;
   singlesUpdated: number;
@@ -319,20 +354,15 @@ export async function runCardmarketRefresh(
       let exact = false;
       const idm = cmOffer?.url?.match(/idProduct=(\d+)/);
       if (idm) { best = apiByCmId.get(parseInt(idm[1], 10)) ?? null; exact = best != null; }
-      // 2) Annars fuzzy (produkter utan CM-offer): set + form + namnlikhet.
+      // 2) Annars fuzzy (produkter utan CM-offer): set-scopat, ELLER globalt för
+      //    set-lösa auto-importerade stubs så även de får CM-pris/trend.
       if (!best) {
-        const cands = byEpisode.get(norm(p.set?.name ?? ""));
-        if (!cands?.length) continue;
-        const expForm = EXPECTED_FORM[p.category] ?? null;
-        const ourClean = norm(p.title);
-        let bestScore = 0;
-        for (const c of cands) {
-          if (expForm && classifyForm(c.name) !== expForm) continue;
-          if (p.category === "BOOSTER_BOX" && !/booster/i.test(c.name)) continue;
-          const s = scoreSimilarity(ourClean, norm(c.name));
-          if (s > bestScore) { bestScore = s; best = c; }
-        }
-        if (!best || bestScore < 0.55) continue;
+        const m = bestSealedMatch(
+          { title: p.title, category: p.category, setName: p.set?.name ?? null },
+          apiProducts, byEpisode
+        );
+        if (!m) continue;
+        best = m.match;
       }
       if (best.cardmarket_id == null) continue;
       const cmp = best.prices?.cardmarket ?? {};
