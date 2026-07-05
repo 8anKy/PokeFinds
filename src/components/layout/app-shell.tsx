@@ -20,6 +20,7 @@ import {
   type IconProps,
 } from "@/components/ui/icons";
 import { BrandLogo } from "@/components/layout/brand-logo";
+import { SiteHeader } from "@/components/layout/site-header";
 
 const NAV: { href: string; label: string; icon: (p: IconProps) => JSX.Element }[] = [
   { href: "/dashboard", label: "Översikt", icon: IconDashboard },
@@ -87,13 +88,14 @@ export function AppShell({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Topbar */}
-        <header className="z-40 flex h-16 items-center justify-between border-b border-surface-border bg-surface/85 px-4 backdrop-blur-md lg:sticky lg:top-0">
-          <div className="flex items-center gap-3">
-            <span className="lg:hidden">
-              <BrandLogo />
-            </span>
-          </div>
+        {/* Mobil: SAMMA header som (marketing)-tabbarna (Utforska/Community) så
+            headern inte byter utseende/position när man tabbar mellan grupperna. */}
+        <div className="lg:hidden">
+          <SiteHeader />
+        </div>
+        {/* Desktop-topbar (sidomeny finns → egen topbar med hälsning/logga ut) */}
+        <header className="z-40 hidden h-16 items-center justify-between border-b border-surface-border bg-surface/85 px-4 backdrop-blur-md lg:sticky lg:top-0 lg:flex">
+          <div className="flex items-center gap-3" />
           <div className="flex items-center gap-3">
             <span className="hidden text-sm text-ink-muted sm:inline">Hej, {userName}</span>
             <button
