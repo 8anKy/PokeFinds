@@ -187,6 +187,22 @@ export async function ensureListingProduct(
  * skickar in en fingerprint-jämförelse här (fs/crypto bor i scriptet, EJ i denna modul
  * som Next buntar). Utan grind körs allt som vanligt.
  */
+/**
+ * Vilka offers ska markeras slutsålda? De vars butik hämtades den här körningen
+ * (`feedRetailers`, ≥1 produkt) men vars URL saknas i feeden (`freshKeys`) och som
+ * inte redan är slutsålda. Ren funktion → testbar utan DB/adaptrar.
+ */
+export function offersToMarkSoldOut<
+  T extends { retailerId: string; url: string; stockStatus: StockStatus }
+>(offers: T[], freshKeys: Set<string>, feedRetailers: Set<string>): T[] {
+  return offers.filter(
+    (o) =>
+      feedRetailers.has(o.retailerId) &&
+      o.stockStatus !== StockStatus.OUT_OF_STOCK &&
+      !freshKeys.has(`${o.retailerId}:${o.url}`)
+  );
+}
+
 export async function runRestockScan(opts?: {
   // Snabb-fil: begränsa till namngivna butiker (t.ex. ["Manatörsk"]) → fingeravtrycket
   // täcker bara dem, så en tät körning väcker Neon bara när DE flippar. Utelämnas = alla.
@@ -386,9 +402,30 @@ export async function runRestockScan(opts?: {
     }
   }
 
+  // Försvunnen-ur-feeden-försoning: en butik som droppar en slutsåld produkt ur
+  // sin katalog slutar skicka dess URL → offer-diffen ovan rör den aldrig och den
+  // fryser på senast kända IN_STOCK för evigt (buggen: Speltrollet-box låg kvar
+  // "i lager" i 2 v). Fixa: offers vars URL INTE fanns i feeden denna körning →
+  // OUT_OF_STOCK. Bara för butiker vars feed faktiskt hämtades (≥1 produkt) så ett
+  // nätverksfel/tom feed inte nollar hela butiken.
+  // ponytail: sällsynt falskt slutsålt om en butik omkategoriserar en produkt UR
+  // alla Pokémon-kollektioner men fortfarande säljer den; bättre än falskt i-lager.
+  const feedRetailers = new Set<string>();
+  for (const { sourceName, items } of fetched) {
+    if (items.length > 0) {
+      const rid = retailerByName.get(sourceName);
+      if (rid) feedRetailers.add(rid);
+    }
+  }
+  let soldOutReconciled = 0;
+  for (const o of offersToMarkSoldOut(offers, new Set(fresh.keys()), feedRetailers)) {
+    await prisma.offer.update({ where: { id: o.id }, data: { stockStatus: StockStatus.OUT_OF_STOCK } });
+    soldOutReconciled++;
+  }
+
   const { sent } = await dispatchPendingAlerts();
   console.log(
-    `[restock-scan] ${sources.length} butiker, ${checked} kollade, ${restocks} restocks, ${newListings} nya, ${sent} alerts.`
+    `[restock-scan] ${sources.length} butiker, ${checked} kollade, ${restocks} restocks, ${newListings} nya, ${soldOutReconciled} slutsåld-försoning, ${sent} alerts.`
   );
   return { sources: sources.length, checked, restocks, newListings, alertsSent: sent };
 }
