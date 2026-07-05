@@ -45,6 +45,8 @@ interface TraderaItemDetail {
   ended: boolean;
   remaining: number;
   endsAt: Date | null;
+  priceOre: number | null; // BuyItNowPrice × 100 (null om ej fast pris)
+  url: string | null; // direkt annons-URL
 }
 
 function tag(xml: string, name: string): string {
@@ -77,12 +79,16 @@ export async function fetchTraderaItem(
   if (xml.includes("<faultstring>")) return null;
   const endRaw = tag(xml, "EndDate");
   const endsAt = endRaw ? new Date(endRaw) : null;
+  const bin = parseInt(tag(xml, "BuyItNowPrice") || "", 10);
+  const rawUrl = tag(xml, "Url") || tag(xml, "ItemLink") || null;
   return {
     title: tag(xml, "ShortDescription"),
     description: tag(xml, "LongDescription"),
     ended: tag(xml, "Ended").toLowerCase() === "true",
     remaining: parseInt(tag(xml, "RemainingQuantity") || "1", 10) || 0,
     endsAt: endsAt && !isNaN(endsAt.getTime()) ? endsAt : null,
+    priceOre: Number.isFinite(bin) && bin > 0 ? bin * 100 : null,
+    url: rawUrl ? rawUrl.replace(/^http:\/\//, "https://") : null,
   };
 }
 
@@ -99,8 +105,11 @@ const SYSTEM = [
   "   Sun & Moon, Mega Evolution, XY m.fl. — det är setets familj, ingen variant); 'Display'/'Display Box' =",
   "   'Booster Box' (båda = 36 paket = hel box); att annonsen är skriven på svenska; annan ordföljd/stavning.",
   "   Osäker UTAN konkret motsägelse: sätt sameProduct = true (dölj inte en trolig äkta annons).",
-  "2. sealedComplete — komplett, oöppnad, oskadad enligt titel + beskrivning?",
-  "   false om tom ask, endast asken, öppnad, skadad, trasig, defekt, kopia/proxy, eller saknade delar.",
+  "2. sealedComplete — är det fortfarande den KOMPLETTA, fabriksförseglade (oöppnade) produkten?",
+  "   false BARA om den är öppnad, tom ('tom ask'), endast asken, av-/omförseglad, saknar innehåll,",
+  "   är en kopia/proxy, eller på annat sätt inte längre den förseglade produkten.",
+  "   Mindre KOSMETISKA skavanker på en fortfarande FÖRSEGLAD vara (buckla, veck, repa, solblekning,",
+  "   litet tryckmärke, 'skick som på bilderna'-friskrivning) gör den INTE ofullständig → sealedComplete = true.",
   "Ge en KORT motivering på svenska. Anropa alltid report_verification.",
 ].join(" ");
 
@@ -260,21 +269,38 @@ export interface VerifyMatchesResult {
   ok: number;
   wrong: number;
   hidden: number;
+  restored: number;
   skipped: number;
 }
 
+/** Tradera-itemId för en offer: ur URL:en, annars ur senaste sweep-observationens rawData. */
+async function resolveItemId(offer: { url: string; productId: string }): Promise<string | null> {
+  const fromUrl = extractTraderaItemId(offer.url);
+  if (fromUrl) return fromUrl;
+  // Nollställda offers har sök-URL (ingen itemId) → ta itemId från sweepens observation.
+  const obs = await prisma.priceObservation.findFirst({
+    where: { productId: offer.productId, rawData: { path: ["source"], equals: "tradera-sweep" } },
+    orderBy: { observedAt: "desc" },
+    select: { rawData: true },
+  });
+  const id = obs?.rawData && typeof obs.rawData === "object" ? (obs.rawData as Record<string, unknown>).itemId : null;
+  return typeof id === "string" ? id : null;
+}
+
 /**
- * GLOBAL Tradera-matchningsverifiering (alla sealed IN_STOCK-offers, inte bara fynd).
- * Bigram-matchningen felmatchar mall-namngivna sealed-produkter ("Palkia VSTAR Premium"
- * mot "Arceus VSTAR Premium") och japanska annonser mot engelska. Varje annons LLM-koll:
- * är det VERKLIGEN samma produkt? Felmatch → nollställ offer (pris null + sök-URL, så
- * isDirectOfferUrl döljer den ÖVERALLT) och kom ihåg domen i TraderaMatch så sweepen
- * aldrig återskapar den. Varje (annons, produkt) kollas EN gång (stabilt) → billigt i drift.
+ * GLOBAL Tradera-matchningsverifiering (ALLA sealed-offers, inte bara fynd). Bigram-
+ * matchningen felmatchar mall-namngivna sealed-produkter ("Palkia VSTAR Premium" mot
+ * "Arceus VSTAR Premium"), japanska mot engelska, öppnade/tomma varor m.m. Varje annons
+ * LLM-koll (samma produkt + komplett/oöppnad/aktiv). SJÄLVLÄKANDE:
+ *  - fel/skräp → nollställ offer (pris null + sök-URL → isDirectOfferUrl döljer överallt),
+ *  - ok men dold → ÅTERSTÄLL (pris + direktlänk från GetItem) om en tidigare dom var för hård.
+ * Domen cachas i TraderaMatch (annons+produkt, stabilt) så sweepen aldrig återskapar en känd
+ * felmatch. Kör om en (annons, produkt) tas bort ur TraderaMatch → omprövas med aktuell prompt.
  */
 export async function verifyTraderaMatches(
   log: (msg: string) => void = console.log
 ): Promise<VerifyMatchesResult> {
-  const res: VerifyMatchesResult = { offers: 0, checked: 0, ok: 0, wrong: 0, hidden: 0, skipped: 0 };
+  const res: VerifyMatchesResult = { offers: 0, checked: 0, ok: 0, wrong: 0, hidden: 0, restored: 0, skipped: 0 };
   const appId = process.env.TRADERA_APP_ID;
   const appKey = process.env.TRADERA_APP_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
@@ -286,18 +312,17 @@ export async function verifyTraderaMatches(
   if (!tradera) return res;
   const client = new Anthropic({ apiKey: anthropicKey });
 
-  // Bara sealed (singlar matchas på setnummer — annan väg). IN_STOCK + prissatt + direktlänk.
+  // ALLA sealed Tradera-offers (inkl. nollställda/dolda, så en för hård dom kan läkas).
   const offers = await prisma.offer.findMany({
     where: {
       retailerId: tradera.id,
-      price: { gt: 0 },
-      stockStatus: "IN_STOCK",
       product: { category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY", "OTHER"] } },
     },
     select: {
       id: true,
       productId: true,
       url: true,
+      price: true,
       product: {
         select: { title: true, category: true, card: { select: { name: true, set: { select: { name: true } } } } },
       },
@@ -314,12 +339,8 @@ export async function verifyTraderaMatches(
   );
 
   await mapPool(offers, 3, async (offer) => {
-    const itemId = extractTraderaItemId(offer.url);
-    if (!itemId) {
-      res.skipped++;
-      return;
-    }
-    if (known.has(`${itemId}|${offer.productId}`)) {
+    const itemId = await resolveItemId(offer);
+    if (!itemId || known.has(`${itemId}|${offer.productId}`)) {
       res.skipped++;
       return;
     }
@@ -350,24 +371,30 @@ export async function verifyTraderaMatches(
       create: { itemId, productId: offer.productId, ok, reason },
       update: { ok, reason, checkedAt: new Date() },
     });
-    if (ok) {
-      res.ok++;
-    } else {
+
+    if (!ok) {
       res.wrong++;
       // Dölj felmatchen/skräpet överallt: pris null + sök-URL (ej direktlänk → isDirectOfferUrl false).
       await prisma.offer.update({
         where: { id: offer.id },
-        data: {
-          price: null,
-          stockStatus: StockStatus.UNKNOWN,
-          url: traderaResetSearchUrl(offer.product),
-        },
+        data: { price: null, stockStatus: StockStatus.UNKNOWN, url: traderaResetSearchUrl(offer.product) },
       });
       res.hidden++;
-      log(`   ❌ dolde: ${offer.product.title} ← "${item.title.slice(0, 45)}" (${reason.slice(0, 55)})`);
+      log(`   ❌ dolde: ${offer.product.title} ← "${item.title.slice(0, 45)}" (${reason.slice(0, 50)})`);
+    } else {
+      res.ok++;
+      // Var offern dold av en tidigare (för hård) dom? Återställ pris + direktlänk från GetItem.
+      if (offer.price == null && item.priceOre && item.url) {
+        await prisma.offer.update({
+          where: { id: offer.id },
+          data: { price: item.priceOre, stockStatus: StockStatus.IN_STOCK, url: item.url, lastSeenAt: new Date() },
+        });
+        res.restored++;
+        log(`   ♻️  återställde: ${offer.product.title} ← "${item.title.slice(0, 45)}"`);
+      }
     }
   });
 
-  log(`[verify-matches] kollade ${res.checked} (ok ${res.ok}, fel ${res.wrong} → dolda ${res.hidden}), hoppade ${res.skipped}.`);
+  log(`[verify-matches] kollade ${res.checked} (ok ${res.ok}, fel ${res.wrong} → dolda ${res.hidden}, återställda ${res.restored}), hoppade ${res.skipped}.`);
   return res;
 }
