@@ -44,6 +44,17 @@ export async function GET() {
     });
     if (!user) throw new AuthError(404, "Användaren hittades inte.");
 
+    // Interna debug-nycklar (t.ex. _pushError) läcker annars in i en användarvänd
+    // GDPR-export. Behåll bara "riktiga" inställningar, inte underscore-prefix.
+    const cleanSettings =
+      user.notificationSettings && typeof user.notificationSettings === "object"
+        ? Object.fromEntries(
+            Object.entries(user.notificationSettings as Record<string, unknown>).filter(
+              ([k]) => !k.startsWith("_"),
+            ),
+          )
+        : user.notificationSettings;
+
     const exportData = {
       exportedAt: new Date().toISOString(),
       service: "Foilio",
@@ -58,7 +69,7 @@ export async function GET() {
         bio: user.bio,
         emailVerifiedAt: user.emailVerifiedAt,
         onboardingCompleted: user.onboardingCompleted,
-        notificationSettings: user.notificationSettings,
+        notificationSettings: cleanSettings,
         preferences: user.preferences,
         reputationScore: user.reputationScore,
         isPublicCollection: user.isPublicCollection,
