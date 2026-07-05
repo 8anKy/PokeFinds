@@ -20,11 +20,15 @@ if (fs.existsSync(envPath)) {
 
 import { prisma } from "../src/lib/db";
 import { runTraderaSweep } from "../src/jobs/tradera-sweep";
+import { verifyDeals } from "../src/jobs/verify-deals";
 
 runTraderaSweep({
   dryRun: process.env.DRY_RUN === "1",
   expiryDays: parseInt(process.env.EXPIRY_DAYS ?? "3", 10),
 })
+  // Verifiera fynd-kandidater (LLM) EFTER svepet — kandidatmängden är liten.
+  // Fel här får inte fälla svepet (som redan lyckats).
+  .then(() => verifyDeals().catch((e) => console.error("[verify-deals] fel:", e)))
   .catch((e) => {
     console.error("Misslyckades:", e);
     process.exit(1);

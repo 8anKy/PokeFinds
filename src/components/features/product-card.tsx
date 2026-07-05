@@ -56,6 +56,7 @@ export interface ProductCardProps {
     stockStatus?: string | null;
     retailerCount?: number;
     dealPercent?: number | null; // Fynd-feed: % under Cardmarket-referens
+    dealListingTitle?: string | null; // Fynd-feed: verifierad Tradera-annonstitel
   };
   className?: string;
 }
@@ -124,10 +125,17 @@ export function ProductCard({ product, className }: ProductCardProps) {
           </div>
         </div>
 
-        {product.retailerCount != null && product.retailerCount > 0 && (
-          <p className="text-[11px] text-ink-faint">
-            {tProduct("atStores", { count: product.retailerCount })}
+        {product.dealListingTitle ? (
+          <p className="line-clamp-1 text-[11px] text-ink-faint" title={product.dealListingTitle}>
+            Tradera: {product.dealListingTitle}
           </p>
+        ) : (
+          product.retailerCount != null &&
+          product.retailerCount > 0 && (
+            <p className="text-[11px] text-ink-faint">
+              {tProduct("atStores", { count: product.retailerCount })}
+            </p>
+          )
         )}
       </div>
     </Link>

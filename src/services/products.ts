@@ -57,13 +57,14 @@ export interface ProductListItem {
   priceChange7dPercent: number | null;
   lastRestockAt: Date | null;
   dealPercent?: number | null; // Fynd-feed: % under Cardmarket-referens (annars undefined)
+  dealListingTitle?: string | null; // Fynd-feed: verifierad Tradera-annonstitel
 }
 
 /**
  * Ett "fynd" = en live Tradera-annons minst så här långt UNDER produktens
  * Cardmarket-referenspris. Global tröskel via env, default 30 %. Ren funktion → testbar.
  */
-const DEAL_MIN_DISCOUNT = Math.min(
+export const DEAL_MIN_DISCOUNT = Math.min(
   0.95,
   Math.max(0.05, (Number(process.env.DEAL_MIN_DISCOUNT_PCT) || 30) / 100)
 );
@@ -74,7 +75,7 @@ const DEAL_MIN_DISCOUNT = Math.min(
  * (CM "From" är osmoothad → en enda feldyr/graderad annons drar upp riktmärket).
  * Läs-tids-filter (INGEN skrivvakt, historiken lämnas rå). Env-styrt, default 85 %.
  */
-const DEAL_MAX_DISCOUNT = Math.min(
+export const DEAL_MAX_DISCOUNT = Math.min(
   0.99,
   Math.max(DEAL_MIN_DISCOUNT, (Number(process.env.DEAL_MAX_DISCOUNT_PCT) || 85) / 100)
 );
@@ -390,12 +391,61 @@ async function getExploreFeedRaw(
   return { items: items.slice(offset, offset + limit), total, hasMore: offset + limit < total };
 }
 
+// Gemensamt villkor: en Tradera-offer (alias o, produkt p, cm-CTE) i fynd-bandet mot
+// Cardmarket, bara sealed, direkt annons-URL. Params: $1=cmId $2=traderaId $3=min $4=max.
+const CM_MIN_CTE = `WITH cm AS (
+  SELECT "productId", MIN(price) AS price FROM "Offer"
+  WHERE "retailerId" = $1 AND price > 0 GROUP BY "productId"
+)`;
+const DEAL_OFFER_WHERE = `o."retailerId" = $2 AND o."stockStatus" = 'IN_STOCK' AND o.price > 0
+  AND ${DIRECT_URL_SQL}
+  AND p.category NOT IN ('SINGLE_CARD', 'GRADED_CARD', 'ACCESSORY', 'OTHER')
+  AND o.price <= cm.price * (1 - $3)
+  AND o.price >= cm.price * (1 - $4)`;
+
+export interface DealCandidate {
+  offerId: string;
+  productId: string;
+  traderaUrl: string;
+  traderaPrice: number;
+  cmPrice: number;
+  title: string;
+  category: string;
+}
+
 /**
- * Fynd-feed (Pro): produkter med en live Tradera-annons långt under sitt Cardmarket-pris.
+ * Fynd-KANDIDATER (per Tradera-offer, ej verifierade) — indata till verify-deals-jobbet.
  * Referens = billigaste CM-offer (ALDRIG Product.lowestPriceOre — den inkluderar redan
- * Tradera-annonsen och skulle sänka sitt eget riktmärke). Sorterat på störst rabatt.
- * ponytail: hämtar alla kvalade id:n (2 fält/rad) per sida — fynd är en liten mängd;
- * paginera i SQL först om detta växer stort. Ignorerar övriga katalogfilter i v1.
+ * Tradera-annonsen). Bara sealed (singlar har skick-brus). Liten mängd.
+ */
+export async function dealCandidateOffers(): Promise<DealCandidate[]> {
+  const [cm, tr] = await Promise.all([
+    prisma.retailer.findFirst({ where: { name: "Cardmarket" }, select: { id: true } }),
+    prisma.retailer.findFirst({ where: { name: "Tradera" }, select: { id: true } }),
+  ]);
+  if (!cm || !tr) return [];
+  return prisma.$queryRawUnsafe<DealCandidate[]>(
+    `${CM_MIN_CTE}
+    SELECT o.id AS "offerId", o."productId" AS "productId", o.url AS "traderaUrl",
+           o.price AS "traderaPrice", cm.price AS "cmPrice",
+           p.title AS title, p.category::text AS category
+    FROM "Offer" o
+      JOIN cm ON cm."productId" = o."productId"
+      JOIN "Product" p ON p.id = o."productId"
+    WHERE ${DEAL_OFFER_WHERE}`,
+    cm.id,
+    tr.id,
+    DEAL_MIN_DISCOUNT,
+    DEAL_MAX_DISCOUNT
+  );
+}
+
+/**
+ * Fynd-feed (Pro): produkter med en LLM-VERIFIERAD Tradera-annons långt under sitt
+ * Cardmarket-pris. Bara annonser vars DealCheck.ok=true, vars pris inte ändrats sedan
+ * verifieringen, och som inte löpt ut. Väljer billigaste verifierade annons per produkt,
+ * sorterat på störst rabatt.
+ * ponytail: hämtar alla kvalade rader (3 fält) per sida — fynd är en liten mängd.
  */
 async function getDealsRaw(
   offset: number,
@@ -407,30 +457,27 @@ async function getDealsRaw(
   ]);
   if (!cm || !tr) return { items: [], total: 0, hasMore: false };
 
-  const rows = await prisma.$queryRawUnsafe<{ productId: string; discount: number }[]>(
-    `
-    WITH cm AS (
-      SELECT "productId", MIN(price) AS price FROM "Offer"
-      WHERE "retailerId" = $1 AND price > 0 GROUP BY "productId"
-    ),
-    tr AS (
-      SELECT "productId", MIN(price) AS price FROM "Offer"
-      WHERE "retailerId" = $2 AND "stockStatus" = 'IN_STOCK' AND price > 0
-        AND ${DIRECT_URL_SQL}
-      GROUP BY "productId"
-    )
-    SELECT tr."productId" AS "productId",
-           (cm.price - tr.price)::float / cm.price AS discount
-    FROM tr
-      JOIN cm ON cm."productId" = tr."productId"
-      JOIN "Product" p ON p.id = tr."productId"
-    -- Bara sealed: singlar har skick-variation (CM = NM engelska, en billig Tradera-kopia
-    -- är ofta sliten/skadad) → "rabatten" är inte ett fynd. Sealed = otvetydigt marknadspris.
-    WHERE p.category NOT IN ('SINGLE_CARD', 'GRADED_CARD', 'ACCESSORY', 'OTHER')
-      AND tr.price <= cm.price * (1 - $3)
-      AND tr.price >= cm.price * (1 - $4)
-    ORDER BY discount DESC
-    `,
+  const rows = await prisma.$queryRawUnsafe<
+    { productId: string; discount: number; listingTitle: string | null }[]
+  >(
+    `${CM_MIN_CTE}
+    SELECT d."productId", d.discount, d."listingTitle"
+    FROM (
+      SELECT DISTINCT ON (o."productId")
+             o."productId" AS "productId",
+             (cm.price - o.price)::float / cm.price AS discount,
+             dc."listingTitle" AS "listingTitle"
+      FROM "Offer" o
+        JOIN cm ON cm."productId" = o."productId"
+        JOIN "Product" p ON p.id = o."productId"
+        JOIN "DealCheck" dc ON dc."offerId" = o.id
+      WHERE ${DEAL_OFFER_WHERE}
+        AND dc.ok = true
+        AND dc."checkedPrice" = o.price
+        AND (dc."endsAt" IS NULL OR dc."endsAt" > now())
+      ORDER BY o."productId", o.price ASC
+    ) d
+    ORDER BY d.discount DESC`,
     cm.id,
     tr.id,
     DEAL_MIN_DISCOUNT,
@@ -447,7 +494,8 @@ async function getDealsRaw(
   const items: ProductListItem[] = [];
   for (const r of pageRows) {
     const item = byId.get(r.productId);
-    if (item) items.push({ ...item, dealPercent: Math.round(r.discount * 100) });
+    if (item)
+      items.push({ ...item, dealPercent: Math.round(r.discount * 100), dealListingTitle: r.listingTitle });
   }
   return { items, total, hasMore: offset + pageRows.length < total };
 }

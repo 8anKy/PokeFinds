@@ -356,12 +356,27 @@ model Offer {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  retailer Retailer @relation(fields: [retailerId], references: [id])
+  product   Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  retailer  Retailer   @relation(fields: [retailerId], references: [id])
+  dealCheck DealCheck?
 
   @@unique([productId, retailerId, condition, language])
   @@index([productId])
   @@index([stockStatus])
+}
+
+// Fynd-verifiering (Pro): LLM-koll att en Tradera-annons VERKLIGEN är samma sealed
+// produkt och är komplett/oöppnad/oskadad. Körs bara på fynd-kandidater (liten mängd)
+// så vi har råd med ett dyrt anrop per annons. 1:1 mot Offer.
+model DealCheck {
+  offerId      String    @id
+  offer        Offer     @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  ok           Boolean // sameProduct && sealedComplete && !ended
+  checkedPrice Int // öre priset verifierades vid — omverifiera om Offer.price ändras
+  listingTitle String? // Tradera ShortDescription (visas på kortet för transparens)
+  reason       String? // kort motivering (t.ex. "tom ask", "fel produkt")
+  endsAt       DateTime? // Tradera EndDate → dölj när annonsen löpt ut
+  checkedAt    DateTime  @default(now())
 }
 
 model PriceObservation {
