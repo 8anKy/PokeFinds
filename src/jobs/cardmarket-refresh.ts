@@ -55,6 +55,44 @@ export function sanePriceEur(low: number | null | undefined, avg: number | null 
   if (l != null && l > 0 && (a == null || l >= a * 0.2)) return l;
   return a;
 }
+
+// Dag-över-dag-vakt: en äkta CM-From/lowest rör sig aldrig ≥3x på ett dygn. Ett sådant
+// hopp = glitchad RapidAPI-data (2026-07-05 korrumperade 2104 priser, både uppåt på
+// commons och krascher på boxar). Behåll då gårdagens snapshot-värde tills nästa körning.
+// sanePriceEur fångar bara micro-krascher (<20% av snittet), inte inflation → denna vakt
+// täcker BÅDA riktningarna. `priorOre` = produktens senaste snapshot-avgPrice före idag.
+export const DAY_MOVE_MAX = Number(process.env.CM_DAY_MOVE_MAX) || 3;
+export function saneDayMove(newOre: number, priorOre: number | null | undefined): number {
+  if (priorOre == null || priorOre <= 0) return newOre;
+  const r = newOre / priorOre;
+  return r >= DAY_MOVE_MAX || r <= 1 / DAY_MOVE_MAX ? priorOre : newOre;
+}
+
+/** Senaste snapshot-avgPrice FÖRE idag per produkt (last-known-good för dag-vakten). */
+async function priorSnapshotMap(productIds: string[]): Promise<Map<string, number>> {
+  if (productIds.length === 0) return new Map();
+  const rows = await prisma.$queryRawUnsafe<{ productId: string; prev: number }[]>(
+    `SELECT DISTINCT ON ("productId") "productId", "avgPrice" AS prev
+     FROM "PriceSnapshot" WHERE "productId" = ANY($1) AND date < CURRENT_DATE AND "avgPrice" > 0
+     ORDER BY "productId", date DESC`,
+    productIds
+  );
+  return new Map(rows.map((r) => [r.productId, r.prev]));
+}
+
+/** Klämmer orimliga dagshopp i en Ops-lista mot gårdagens snapshot. Returnerar antal klämda. */
+async function clampDayMoves(ops: { productId: string; priceOre: number }[]): Promise<number> {
+  const prior = await priorSnapshotMap(ops.map((o) => o.productId));
+  let clamped = 0;
+  for (const op of ops) {
+    const safe = saneDayMove(op.priceOre, prior.get(op.productId));
+    if (safe !== op.priceOre) {
+      op.priceOre = safe;
+      clamped++;
+    }
+  }
+  return clamped;
+}
 const EXPECTED_FORM: Record<string, string> = {
   BOOSTER_BOX: "display", BOOSTER_PACK: "booster", ETB: "etb",
   BUNDLE: "bundle", COLLECTION_BOX: "collection", BLISTER: "blister", TIN: "tin",
@@ -213,6 +251,8 @@ export async function runCardmarketRefresh(
         singleOps.push({ productId: entry.productId, offerId: entry.offerId, priceOre, url });
       }
     });
+    const singleClamped = await clampDayMoves(singleOps);
+    if (singleClamped) console.log(`[cm-refresh] Singlar: klämde ${singleClamped} orimliga dagshopp (≥${DAY_MOVE_MAX}x) till gårdagens värde.`);
     await mapPool(singleOps, DB_CONCURRENCY, async (op) => {
       if (op.offerId) {
         await prisma.offer.update({ where: { id: op.offerId }, data: { price: op.priceOre, url: op.url, stockStatus: "IN_STOCK", condition: "NEAR_MINT", lastSeenAt: new Date() } });
@@ -317,6 +357,8 @@ export async function runCardmarketRefresh(
       const imageUrl = exact && best.image && best.image !== p.imageUrl ? best.image : undefined;
       sealedOps.push({ productId: p.id, offerId: cmOffer?.id, imageUrl, priceOre, url: cardmarketProductUrl(best.cardmarket_id), stock });
     }
+    const sealedClamped = await clampDayMoves(sealedOps as { productId: string; priceOre: number }[]);
+    if (sealedClamped) console.log(`[cm-refresh] Sealed: klämde ${sealedClamped} orimliga dagshopp (≥${DAY_MOVE_MAX}x) till gårdagens värde.`);
     await mapPool(sealedOps, DB_CONCURRENCY, async (op) => {
       if (op.imageUrl) await prisma.product.update({ where: { id: op.productId }, data: { imageUrl: op.imageUrl } });
       // Sätt ALLTID price (även null) så ett gammalt uppblåst pris nollas när lowest försvinner.
