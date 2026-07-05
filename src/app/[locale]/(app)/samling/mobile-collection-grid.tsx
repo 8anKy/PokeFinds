@@ -143,7 +143,7 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
       } else {
         await apiFetch(`/api/collection/${removeTarget.id}`, {
           method: "PATCH",
-          body: JSON.stringify({ quantity: max - n }),
+          body: { quantity: max - n },
         });
       }
       toast({ title: t("gridDeletedTitle"), description: t("gridRemovedDesc", { count: n, total: max }), variant: "success" });
