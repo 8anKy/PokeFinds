@@ -45,13 +45,20 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   kräver bättre sealed→idProduct-mappning.
 - **Auto-import av sealed butiks-SKU:er = LIVE (2026-07-05)**: restock-skanningen skapar/länkar nu automatiskt en katalogprodukt
   för varje sealed butiks-URL utan Offer (`ensureListingProduct()`, dedup via `matchProduct`≥0.85 annars ny produkt). Nya sealed-
-  produkter dyker alltså upp i appen utan manuell körning. Auto-skapade produkter är butiks-prissatta tills en CM-match/import ger
-  dem CM-pris/bild (samma som befintliga butiks-prissatta sealed). Ceiling: `matchProduct`≥0.85 kan ge enstaka dubbletter/fel-länk
+  produkter dyker alltså upp i appen utan manuell körning. Ceiling: `matchProduct`≥0.85 kan ge enstaka dubbletter/fel-länk
   på udda titlar (den kända sealed-matchnings-osäkerheten) — höj tröskeln eller merge-städa vid behov.
+- **Sealed CM-pris/trend är nu HANDS-OFF (2026-07-05)**: dagliga `runCardmarketRefresh` (`cardmarket-refresh.ts`) matchar
+  set-LÖSA auto-importerade stubs mot HELA CM-katalogen (`bestSealedMatch`, global namn+form-match, tröskel `GLOBAL_MIN_SCORE`=0.72
+  vs 0.55 set-scopat) → de får CM-offer, pris och daglig trendpunkt automatiskt (ingen manuell `rapidapi-fill-sealed` längre).
+  Säkerhetsnät = befintlig store-cross-check (`priceOre > storeMin×2.5` → skip); stubs har alltid en butiks-offer så den är aktiv.
+  Tradera-länkar + butikslänkar var redan automatiska (tradera-sweep matchar på titel; butiks-offer skapas vid import). CM-BILDEN
+  hämtas bara vid EXAKT `idProduct`-match (fuzzy bild = för riskabelt) → stub visar butiksfoto tills dess. Ceiling: global namn-
+  match kan sällan fel-länka udda titlar → höj `GLOBAL_MIN_SCORE`.
 - **KVAR manuellt**: SINGLAR + hela nya SET med CM-data (priser/bilder/setId) fylls fortfarande av import-skripten
-  (`npm run import:tcg` = set+singlar, `scripts/import-sealed-from-cardmarket.ts` = sealed m. CM-pris). Auto-importen ovan ger en
-  produkt med butikspris men INGEN CM-trend/setId/cardId förrän en riktig import körs. Set släpps ~kvartalsvis → manuell körning
-  räcker; vill man ha det hands-off: veckovis Actions-workflow som kör import-skripten (bevaka Neon-transfer + RapidAPI-kvot).
+  (`npm run import:tcg` = set+singlar, `scripts/import-sealed-from-cardmarket.ts` = sealed m. CM-pris). Sealed-STUBS får numera
+  CM-pris/trend automatiskt (se ovan) men fortfarande INGET setId/cardId/set-etikett förrän en riktig import körs. Set släpps
+  ~kvartalsvis → manuell körning räcker; vill man ha det hands-off: veckovis Actions-workflow som kör import-skripten (bevaka
+  Neon-transfer + RapidAPI-kvot).
 - **Genuint utan CM-marknadsdata**: ~868 singlar + ~24 sealed → ärlig "–"/döljs tills data finns.
 - **Prishistorik byggs FRAMÅT** — ingen legitim källa ger äkta retroaktiv daglig historik (CM-graf får ej skrapas, RapidAPI ger bara 7d/30d-snitt).
 - Stripe avstängd (`STRIPE_ENABLED=false`); web push förberett men kräver VAPID-nycklar.
