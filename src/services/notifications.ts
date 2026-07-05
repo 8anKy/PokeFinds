@@ -57,7 +57,7 @@ async function buildAlertEmail(alert: {
       }
       return alert.type === AlertType.NEW_LISTING
         ? newListingEmail(...args, listing.price ?? undefined)
-        : restockAlertEmail(...args);
+        : restockAlertEmail(...args, listing.price ?? undefined);
     }
   }
   if (alert.productId) {
@@ -100,7 +100,8 @@ async function buildAlertEmail(alert: {
           alert.user.name,
           product.title,
           retailOffer?.retailer.name ?? "en återförsäljare",
-          retailOffer?.url ?? productUrl
+          retailOffer?.url ?? productUrl,
+          retailOffer?.price ?? undefined
         );
       }
     }

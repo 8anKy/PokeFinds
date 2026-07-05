@@ -93,18 +93,23 @@ export function restockAlertEmail(
   name: string,
   productTitle: string,
   retailerName: string,
-  url: string
+  url: string,
+  price?: number
 ): EmailContent {
   const subject = `Åter i lager: ${productTitle} hos ${retailerName}`;
+  const priceLine = price
+    ? `<p style="font-size:22px;font-weight:800;color:#34d399;margin:0 0 8px;">${formatSek(price)}</p>`
+    : "";
   const html = layout(
     "Åter i lager!",
     `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! En produkt du bevakar finns nu i lager igen:</p>
      <p style="font-size:16px;font-weight:700;color:#ffffff;margin:16px 0 4px;">${productTitle}</p>
+     ${priceLine}
      <p style="color:#cbd5e1;margin:0 0 8px;">Hos: <strong style="color:#2dd4bf;">${retailerName}</strong></p>
      <p style="line-height:1.6;color:#fbbf24;font-size:13px;">Populära produkter säljer ofta slut snabbt — skynda dig!</p>
      ${button(url, "Köp nu")}`
   );
-  const text = `Hej ${name}!\n\nÅter i lager: ${productTitle}\nHos: ${retailerName}\n\nKöp nu: ${url}\n\nPopulära produkter säljer ofta slut snabbt!${textFooter}`;
+  const text = `Hej ${name}!\n\nÅter i lager: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nKöp nu: ${url}\n\nPopulära produkter säljer ofta slut snabbt!${textFooter}`;
   return { subject, html, text };
 }
 
