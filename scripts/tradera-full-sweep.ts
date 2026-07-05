@@ -20,14 +20,16 @@ if (fs.existsSync(envPath)) {
 
 import { prisma } from "../src/lib/db";
 import { runTraderaSweep } from "../src/jobs/tradera-sweep";
-import { verifyDeals } from "../src/jobs/verify-deals";
+import { verifyDeals, verifyTraderaMatches } from "../src/jobs/verify-deals";
 
 runTraderaSweep({
   dryRun: process.env.DRY_RUN === "1",
   expiryDays: parseInt(process.env.EXPIRY_DAYS ?? "3", 10),
 })
-  // Verifiera fynd-kandidater (LLM) EFTER svepet — kandidatmängden är liten.
-  // Fel här får inte fälla svepet (som redan lyckats).
+  // EFTER svepet, LLM-verifiering (fel här får inte fälla svepet som redan lyckats):
+  //  1) global matchning — dölj felmatchade sealed-offers överallt,
+  //  2) fynd-kandidater — striktare koll (komplett/oöppnad) för Fynd-feeden.
+  .then(() => verifyTraderaMatches().catch((e) => console.error("[verify-matches] fel:", e)))
   .then(() => verifyDeals().catch((e) => console.error("[verify-deals] fel:", e)))
   .catch((e) => {
     console.error("Misslyckades:", e);

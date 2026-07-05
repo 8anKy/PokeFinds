@@ -365,6 +365,21 @@ model Offer {
   @@index([stockStatus])
 }
 
+// Global Tradera-matchningsdom: har en LLM bekräftat att Tradera-annonsen (itemId)
+// VERKLIGEN är samma produkt OCH komplett/oöppnad/oskadad/aktiv? Överlever offer-
+// nollställning → sweepen slår upp ok=false och återskapar ALDRIG en känd felmatch.
+// Bara sealed (singlar matchas på setnummer). Keyad på annons+produkt (stabilt).
+model TraderaMatch {
+  itemId    String
+  productId String
+  ok        Boolean // sameProduct && sealedComplete && !ended && remaining>0
+  reason    String?
+  checkedAt DateTime @default(now())
+
+  @@id([itemId, productId])
+  @@index([productId])
+}
+
 // Fynd-verifiering (Pro): LLM-koll att en Tradera-annons VERKLIGEN är samma sealed
 // produkt och är komplett/oöppnad/oskadad. Körs bara på fynd-kandidater (liten mängd)
 // så vi har råd med ett dyrt anrop per annons. 1:1 mot Offer.

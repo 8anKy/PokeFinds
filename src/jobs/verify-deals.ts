@@ -17,6 +17,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/db";
 import { mapPool } from "@/lib/concurrency";
 import { dealCandidateOffers, DEAL_MIN_DISCOUNT, DEAL_MAX_DISCOUNT } from "@/services/products";
+import { traderaResetSearchUrl } from "@/jobs/tradera-sweep";
+import { StockStatus } from "@prisma/client";
 
 const PUBLIC_API = "https://api.tradera.com/v3/publicservice.asmx";
 const VERIFY_MODEL = process.env.DEALS_VERIFY_MODEL ?? "claude-haiku-4-5-20251001";
@@ -85,12 +87,19 @@ export async function fetchTraderaItem(
 }
 
 const SYSTEM = [
-  "Du verifierar om en svensk Tradera-annons matchar en katalogprodukt (Pokémon TCG sealed-produkt).",
+  "Du verifierar om en svensk Tradera-annons är SAMMA Pokémon TCG sealed-produkt som en katalogpost.",
   "Avgör TVÅ saker:",
-  "1. sameProduct: är annonsen EXAKT samma produkt som katalogposten? Var strikt på varianter —",
-  "   'Prismatic Evolutions' ≠ 'Evolutions', 'Ultra-Premium' ≠ 'Premium', olika Pokémon (Palkia ≠ Arceus),",
-  "   1-pack ≠ 3-pack blister, japansk ≠ engelsk. Vid minsta tvekan: false.",
-  "2. sealedComplete: är varan komplett, oöppnad och oskadad enligt titel + beskrivning?",
+  "1. sameProduct — samma set + samma produkttyp + samma variant? Avvisa (false) BARA vid en KONKRET motsägelse:",
+  "   - olika set/expansion (Prismatic Evolutions ≠ Evolutions, Stellar Crown ≠ Stellar Miracle),",
+  "   - olika Pokémon/variant (Palkia ≠ Arceus, Zapdos 3-pack ≠ Pikachu 3-pack, Vaporeon ≠ Meowth),",
+  "   - olika produkttyp (booster pack ≠ box ≠ ETB ≠ tin ≠ blister ≠ collection; sampling pack ≠ booster pack),",
+  "   - olika antal (half booster box/18 paket ≠ hel box/36; enkelpack ≠ 3-pack),",
+  "   - japansk produkt ≠ engelsk produkt, samt 'Ultra-Premium' ≠ 'Premium'.",
+  "   Följande är INTE skillnader (= samma produkt): serie-/era-namn som prefix (Scarlet & Violet, Sword & Shield,",
+  "   Sun & Moon, Mega Evolution, XY m.fl. — det är setets familj, ingen variant); 'Display'/'Display Box' =",
+  "   'Booster Box' (båda = 36 paket = hel box); att annonsen är skriven på svenska; annan ordföljd/stavning.",
+  "   Osäker UTAN konkret motsägelse: sätt sameProduct = true (dölj inte en trolig äkta annons).",
+  "2. sealedComplete — komplett, oöppnad, oskadad enligt titel + beskrivning?",
   "   false om tom ask, endast asken, öppnad, skadad, trasig, defekt, kopia/proxy, eller saknade delar.",
   "Ge en KORT motivering på svenska. Anropa alltid report_verification.",
 ].join(" ");
@@ -109,11 +118,12 @@ const VERIFY_TOOL: Anthropic.Tool = {
   },
 };
 
-async function verifyMatch(
+export async function verifyMatch(
   client: Anthropic,
-  product: { title: string; category: string; refKr: number },
+  product: { title: string; category: string; refKr?: number },
   listing: { title: string; description: string }
 ): Promise<{ sameProduct: boolean; sealedComplete: boolean; reason: string }> {
+  const priceLine = product.refKr ? `Ungefärligt marknadspris: ${product.refKr} kr\n` : "";
   const response = await client.messages.create({
     model: VERIFY_MODEL,
     max_tokens: 512,
@@ -124,7 +134,7 @@ async function verifyMatch(
       {
         role: "user",
         content:
-          `KATALOGPRODUKT:\nTitel: ${product.title}\nKategori: ${product.category}\nUngefärligt marknadspris: ${product.refKr} kr\n\n` +
+          `KATALOGPRODUKT:\nTitel: ${product.title}\nKategori: ${product.category}\n${priceLine}\n` +
           `TRADERA-ANNONS:\nTitel: ${listing.title}\nBeskrivning: ${listing.description || "(ingen beskrivning)"}\n\n` +
           `Är annonsen exakt samma produkt, och är den komplett/oöppnad/oskadad? Anropa report_verification.`,
       },
@@ -241,5 +251,123 @@ export async function verifyDeals(
   });
 
   log(`[verify-deals] verifierade ${res.verified} (ok ${res.ok}, avvisade ${res.rejected}), hoppade ${res.skipped}.`);
+  return res;
+}
+
+export interface VerifyMatchesResult {
+  offers: number;
+  checked: number;
+  ok: number;
+  wrong: number;
+  hidden: number;
+  skipped: number;
+}
+
+/**
+ * GLOBAL Tradera-matchningsverifiering (alla sealed IN_STOCK-offers, inte bara fynd).
+ * Bigram-matchningen felmatchar mall-namngivna sealed-produkter ("Palkia VSTAR Premium"
+ * mot "Arceus VSTAR Premium") och japanska annonser mot engelska. Varje annons LLM-koll:
+ * är det VERKLIGEN samma produkt? Felmatch → nollställ offer (pris null + sök-URL, så
+ * isDirectOfferUrl döljer den ÖVERALLT) och kom ihåg domen i TraderaMatch så sweepen
+ * aldrig återskapar den. Varje (annons, produkt) kollas EN gång (stabilt) → billigt i drift.
+ */
+export async function verifyTraderaMatches(
+  log: (msg: string) => void = console.log
+): Promise<VerifyMatchesResult> {
+  const res: VerifyMatchesResult = { offers: 0, checked: 0, ok: 0, wrong: 0, hidden: 0, skipped: 0 };
+  const appId = process.env.TRADERA_APP_ID;
+  const appKey = process.env.TRADERA_APP_KEY;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  if (!appId || !appKey || !anthropicKey) {
+    log("[verify-matches] saknar TRADERA_APP_ID/KEY eller ANTHROPIC_API_KEY — hoppar över.");
+    return res;
+  }
+  const tradera = await prisma.retailer.findFirst({ where: { name: "Tradera" }, select: { id: true } });
+  if (!tradera) return res;
+  const client = new Anthropic({ apiKey: anthropicKey });
+
+  // Bara sealed (singlar matchas på setnummer — annan väg). IN_STOCK + prissatt + direktlänk.
+  const offers = await prisma.offer.findMany({
+    where: {
+      retailerId: tradera.id,
+      price: { gt: 0 },
+      stockStatus: "IN_STOCK",
+      product: { category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY", "OTHER"] } },
+    },
+    select: {
+      id: true,
+      productId: true,
+      url: true,
+      product: {
+        select: { title: true, category: true, card: { select: { name: true, set: { select: { name: true } } } } },
+      },
+    },
+  });
+  res.offers = offers.length;
+  log(`[verify-matches] ${offers.length} sealed Tradera-offers.`);
+
+  // Redan avgjorda (annons, produkt)-par hoppas över — domen är stabil.
+  const known = new Set(
+    (await prisma.traderaMatch.findMany({ select: { itemId: true, productId: true } })).map(
+      (m) => `${m.itemId}|${m.productId}`
+    )
+  );
+
+  await mapPool(offers, 3, async (offer) => {
+    const itemId = extractTraderaItemId(offer.url);
+    if (!itemId) {
+      res.skipped++;
+      return;
+    }
+    if (known.has(`${itemId}|${offer.productId}`)) {
+      res.skipped++;
+      return;
+    }
+    const item = await fetchTraderaItem(itemId, appId, appKey);
+    if (!item) {
+      res.skipped++;
+      return;
+    }
+    res.checked++;
+
+    let ok: boolean;
+    let reason: string;
+    if (item.ended || item.remaining < 1) {
+      ok = false;
+      reason = "Annonsen avslutad";
+    } else {
+      const v = await verifyMatch(
+        client,
+        { title: offer.product.title, category: offer.product.category },
+        { title: item.title, description: item.description }
+      );
+      ok = dealVerdict({ sameProduct: v.sameProduct, sealedComplete: v.sealedComplete, ended: item.ended, remaining: item.remaining });
+      reason = v.reason;
+    }
+
+    await prisma.traderaMatch.upsert({
+      where: { itemId_productId: { itemId, productId: offer.productId } },
+      create: { itemId, productId: offer.productId, ok, reason },
+      update: { ok, reason, checkedAt: new Date() },
+    });
+    if (ok) {
+      res.ok++;
+    } else {
+      res.wrong++;
+      // Dölj felmatchen/skräpet överallt: pris null + sök-URL (ej direktlänk → isDirectOfferUrl false).
+      await prisma.offer.update({
+        where: { id: offer.id },
+        data: {
+          price: null,
+          stockStatus: StockStatus.UNKNOWN,
+          url: traderaResetSearchUrl(offer.product),
+        },
+      });
+      res.hidden++;
+      log(`   ❌ dolde: ${offer.product.title} ← "${item.title.slice(0, 45)}" (${reason.slice(0, 55)})`);
+    }
+  });
+
+  log(`[verify-matches] kollade ${res.checked} (ok ${res.ok}, fel ${res.wrong} → dolda ${res.hidden}), hoppade ${res.skipped}.`);
   return res;
 }

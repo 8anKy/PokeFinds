@@ -560,7 +560,18 @@ export async function runTraderaSweep(
   if (!dryRun) {
     log("\n💾 Uppdaterar databasen...");
 
+    // Kända felmatchningar/skräp (LLM-dömda av verifyTraderaMatches) — återskapa ALDRIG.
+    const rejected = new Set(
+      (await prisma.traderaMatch.findMany({ where: { ok: false }, select: { itemId: true, productId: true } }))
+        .map((m) => `${m.itemId}|${m.productId}`)
+    );
+    let skippedRejects = 0;
+
     await mapPool([...bestByProduct.entries()], DB_CONCURRENCY, async ([productId, { price, item }]) => {
+      if (rejected.has(`${item.itemId}|${productId}`)) {
+        skippedRejects++;
+        return;
+      }
       const product = await prisma.product.findUnique({
         where: { id: productId },
         select: { category: true },
@@ -640,7 +651,7 @@ export async function runTraderaSweep(
       }
     });
 
-    log(`   ✅ ${written} nya/uppdaterade, ${priceUpdated} billigare pris, ${unchanged} redan billigare`);
+    log(`   ✅ ${written} nya/uppdaterade, ${priceUpdated} billigare pris, ${unchanged} redan billigare${skippedRejects ? `, ${skippedRejects} hoppade (känd felmatch)` : ""}`);
 
     // ── Fas 3: Expiry — nollställ utgångna listings ────────────────────
     // BARA produkter vi NAMN-SÖKTE denna körning (searchedProductIds) får
