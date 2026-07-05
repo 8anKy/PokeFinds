@@ -325,7 +325,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-3">
-            <LinkButton href="/api/users/me/export" variant="secondary">
+            <LinkButton href="/api/users/me/export" variant="secondary" native>
               {tSettings("exportData")}
             </LinkButton>
             <Button variant="danger" onClick={() => setDeleteOpen(true)}>

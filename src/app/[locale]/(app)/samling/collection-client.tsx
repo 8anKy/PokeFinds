@@ -504,7 +504,7 @@ export function CollectionClient({
           <IconPlus size={16} />
           {t("addManually")}
         </Button>
-        <LinkButton href="/api/collection/export" variant="secondary">
+        <LinkButton href="/api/collection/export" variant="secondary" native>
           {t("exportCsv")}
         </LinkButton>
         <Button
