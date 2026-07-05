@@ -23,8 +23,10 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   offers EN gång och diffar lagerstatus per URL i minnet. Skriver BARA lagerövergångar (+ restock-alerts), inga pris-/
   observationsskrivningar → håller knappt Neon vaken, därför var 30:e minut (tätades 2026-07-01 från 2h eftersom snabba
   slutsälj-restocker missades mellan skanningar; bevaka Neon-compute om det spikar). Täcker ALLA sealed-produkter butikerna
-  aktivt säljer (singlar/marknadsplats-only = Cardmarket/Tradera = ej restockWatch). Nya produkter skapas av daglig scrape-all
-  och spåras sedan av skanningen; priser uppdateras av scrape-all. Kräver RESEND_API_KEY i workflow (annars console-mode = inga mejl).
+  aktivt säljer (singlar/marknadsplats-only = Cardmarket/Tradera = ej restockWatch). **AUTO-IMPORT (2026-07-05)**: en sealed
+  butiks-URL utan Offer skapar/länkar nu automatiskt en katalogprodukt + offer via `ensureListingProduct()` (`src/scrapers/runner.ts`)
+  — nya SKU:er dyker upp i appen utan manuell import, och feed-först-larmen länkar till VÅR produktsida (`Alert.productId`), inte butikens URL.
+  Priser uppdateras av scrape-all/cardmarket-refresh. Kräver RESEND_API_KEY i workflow (annars console-mode = inga mejl).
   **Restock-alerts = Pro-only**: PRO-bevakare av produkten (`WatchlistItem.restockAlert` + `user.planTier=PREMIUM`) UNION Pro-användare med
   `notificationSettings.allRestocks=true` (opt-in "Alla restocks", default AV — larm för VILKEN sealed-produkt som helst). Gratisanvändare får
   INGA restock-larm. Union+dedup i `checkRestockAlerts` (`src/services/alerts.ts`). Master e-post-toggle respekteras ändå i `dispatchPendingAlerts`.
@@ -41,11 +43,15 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
 - **Mobilapp via Capacitor** (`android/` finns): kräver Apple/Google-konton; iOS-bygge kräver Mac/cloud-build (användaren på Windows).
 - **Sealed CM-trendrad i pristabellen** kan vara fel pga felmappad `idProduct` (headline-lägsta är ändå rätt — butik vinner);
   kräver bättre sealed→idProduct-mappning.
-- **Auto-import av nya set/produkter (FRAMTID — medvetet manuellt nu)**: katalogen fylls bara av manuella import-skript
-  (`npm run import:tcg` = set+singlar, `scripts/import-sealed-from-cardmarket.ts` = sealed). Restock-skanningen spårar BARA
-  produkter som redan finns i katalogen → ett nytt set syns inte förrän importen körts. Inget schemalagt import-workflow (set
-  släpps ~kvartalsvis → manuell körning räcker, sparar Neon-compute + RapidAPI-kvot). Vill man göra det helt hands-off:
-  lägg ett veckovis Actions-workflow som kör import-skripten (bevaka Neon-transfer + RapidAPI-kvot). Beslut 2026-06-22.
+- **Auto-import av sealed butiks-SKU:er = LIVE (2026-07-05)**: restock-skanningen skapar/länkar nu automatiskt en katalogprodukt
+  för varje sealed butiks-URL utan Offer (`ensureListingProduct()`, dedup via `matchProduct`≥0.85 annars ny produkt). Nya sealed-
+  produkter dyker alltså upp i appen utan manuell körning. Auto-skapade produkter är butiks-prissatta tills en CM-match/import ger
+  dem CM-pris/bild (samma som befintliga butiks-prissatta sealed). Ceiling: `matchProduct`≥0.85 kan ge enstaka dubbletter/fel-länk
+  på udda titlar (den kända sealed-matchnings-osäkerheten) — höj tröskeln eller merge-städa vid behov.
+- **KVAR manuellt**: SINGLAR + hela nya SET med CM-data (priser/bilder/setId) fylls fortfarande av import-skripten
+  (`npm run import:tcg` = set+singlar, `scripts/import-sealed-from-cardmarket.ts` = sealed m. CM-pris). Auto-importen ovan ger en
+  produkt med butikspris men INGEN CM-trend/setId/cardId förrän en riktig import körs. Set släpps ~kvartalsvis → manuell körning
+  räcker; vill man ha det hands-off: veckovis Actions-workflow som kör import-skripten (bevaka Neon-transfer + RapidAPI-kvot).
 - **Genuint utan CM-marknadsdata**: ~868 singlar + ~24 sealed → ärlig "–"/döljs tills data finns.
 - **Prishistorik byggs FRAMÅT** — ingen legitim källa ger äkta retroaktiv daglig historik (CM-graf får ej skrapas, RapidAPI ger bara 7d/30d-snitt).
 - Stripe avstängd (`STRIPE_ENABLED=false`); web push förberett men kräver VAPID-nycklar.
