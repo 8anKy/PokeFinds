@@ -868,6 +868,9 @@
     "showAll": "Visa alla",
     "setCards": "{count, plural, =1 {1 kort} other {# kort}}",
     "setFallback": "Set",
+    "dealsProTitle": "Fynd är en Pro-funktion",
+    "dealsProDesc": "Hitta kort och produkter som säljs långt under sitt marknadsvärde. Uppgradera till Pro för att jaga fynden.",
+    "dealsProCta": "Se vad Pro ger dig",
     "sort": {
       "popular": "Mest populär",
       "price_asc": "Lägsta pris",
@@ -875,7 +878,8 @@
       "biggest_drop": "Störst prisfall",
       "recently_restocked": "Senast restockad",
       "most_watched": "Mest bevakad",
-      "trending": "Trendar"
+      "trending": "Trendar",
+      "deals": "Fynd"
     }
   },
   "Sets": {

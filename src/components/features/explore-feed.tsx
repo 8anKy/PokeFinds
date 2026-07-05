@@ -16,6 +16,7 @@ export interface FeedItem {
   lowestPriceStockStatus: StockStatus | null;
   inStockCount: number;
   priceChange7dPercent: number | null;
+  dealPercent?: number | null;
 }
 
 interface FeedResponse {
@@ -94,6 +95,7 @@ export function ExploreFeed({
               priceChange7d: p.priceChange7dPercent,
               stockStatus: p.lowestPriceStockStatus,
               retailerCount: p.inStockCount,
+              dealPercent: p.dealPercent,
             }}
           />
         ))}

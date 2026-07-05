@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
   getExploreFeed,
@@ -16,7 +17,7 @@ import { ExploreFeed } from "@/components/features/explore-feed";
 import { Input, Select, Label, Checkbox } from "@/components/ui/input";
 import { Button, LinkButton } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { IconSearch, IconScan, IconCards, IconFilter } from "@/components/ui/icons";
+import { IconSearch, IconScan, IconCards, IconFilter, IconGem } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,7 @@ const SORT_OPTIONS: { value: string; key: string; sort: ProductSort }[] = [
   { value: "restock", key: "recently_restocked", sort: "recently_restocked" },
   { value: "bevakad", key: "most_watched", sort: "most_watched" },
   { value: "trend", key: "trending", sort: "trending" },
+  { value: "fynd", key: "deals", sort: "deals" }, // Pro-only: gatas i sidan/feed-API:t
 ];
 
 // Giltiga språknycklar (för validering av ?sprak); visning via Language-namespace.
@@ -268,8 +270,14 @@ export default async function ProductsPage({
   setRequestLocale(routeParams.locale);
   const t = await getTranslations("Products");
   const params = buildParams(searchParams);
+  const session = await auth();
+  // Fynd är en Pro-funktion: gratis/utloggade får en uppgraderingsprompt istället för
+  // resultat (och kör inte den tyngre fynd-frågan).
+  const dealsLocked = params.sort === "deals" && session?.user?.planTier !== "PREMIUM";
   const [result, sets, retailers, recentSets] = await Promise.all([
-    getExploreFeed(params, 0, PAGE_SIZE),
+    dealsLocked
+      ? Promise.resolve({ items: [], total: 0, hasMore: false })
+      : getExploreFeed(params, 0, PAGE_SIZE),
     prisma.cardSet.findMany({
       select: { id: true, name: true },
       orderBy: { releaseDate: "desc" },
@@ -291,8 +299,18 @@ export default async function ProductsPage({
 
   const resultCount = t("resultCount", { count: result.total });
 
-  const feed =
-    result.items.length === 0 ? (
+  const feed = dealsLocked ? (
+    <EmptyState
+      icon={<IconGem size={32} />}
+      title={t("dealsProTitle")}
+      description={t("dealsProDesc")}
+      action={
+        <LinkButton href="/priser" size="sm">
+          {t("dealsProCta")}
+        </LinkButton>
+      }
+    />
+  ) : result.items.length === 0 ? (
       <EmptyState
         icon={<IconSearch size={32} />}
         title={t("noMatchTitle")}

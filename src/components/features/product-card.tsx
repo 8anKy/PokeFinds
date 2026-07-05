@@ -55,6 +55,7 @@ export interface ProductCardProps {
     priceChange7d?: number | null;
     stockStatus?: string | null;
     retailerCount?: number;
+    dealPercent?: number | null; // Fynd-feed: % under Cardmarket-referens
   };
   className?: string;
 }
@@ -75,6 +76,11 @@ export function ProductCard({ product, className }: ProductCardProps) {
     >
       {/* Bild eller kategoriikon som placeholder */}
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-surface-overlay">
+        {product.dealPercent != null && product.dealPercent > 0 && (
+          <span className="absolute left-2 top-2 z-10 rounded-md bg-holo-cyan px-1.5 py-0.5 text-[11px] font-bold text-surface shadow">
+            −{product.dealPercent}%
+          </span>
+        )}
         {product.imageUrl ? (
           <img
             src={product.imageUrl}

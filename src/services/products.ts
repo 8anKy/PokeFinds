@@ -21,7 +21,8 @@ export type ProductSort =
   | "popular"
   | "recently_restocked"
   | "most_watched"
-  | "trending";
+  | "trending"
+  | "deals";
 
 export interface SearchProductsParams {
   query?: string;
@@ -55,10 +56,57 @@ export interface ProductListItem {
   priceChange7d: number | null; // öre
   priceChange7dPercent: number | null;
   lastRestockAt: Date | null;
+  dealPercent?: number | null; // Fynd-feed: % under Cardmarket-referens (annars undefined)
+}
+
+/**
+ * Ett "fynd" = en live Tradera-annons minst så här långt UNDER produktens
+ * Cardmarket-referenspris. Global tröskel via env, default 30 %. Ren funktion → testbar.
+ */
+const DEAL_MIN_DISCOUNT = Math.min(
+  0.95,
+  Math.max(0.05, (Number(process.env.DEAL_MIN_DISCOUNT_PCT) || 30) / 100)
+);
+
+/**
+ * Övre tak: en rabatt STÖRRE än så här är nästan alltid skräp, inte ett fynd —
+ * felmatchad Tradera-annons, auktions-startpris, eller en uppblåst CM-referens
+ * (CM "From" är osmoothad → en enda feldyr/graderad annons drar upp riktmärket).
+ * Läs-tids-filter (INGEN skrivvakt, historiken lämnas rå). Env-styrt, default 85 %.
+ */
+const DEAL_MAX_DISCOUNT = Math.min(
+  0.99,
+  Math.max(DEAL_MIN_DISCOUNT, (Number(process.env.DEAL_MAX_DISCOUNT_PCT) || 85) / 100)
+);
+
+/** True om Tradera-priset (öre) ligger i fynd-bandet [min, max] under referenspriset. */
+export function qualifiesAsDeal(
+  traderaOre: number,
+  referenceOre: number,
+  minDiscount = DEAL_MIN_DISCOUNT,
+  maxDiscount = DEAL_MAX_DISCOUNT
+): boolean {
+  if (referenceOre <= 0 || traderaOre <= 0) return false;
+  const discount = 1 - traderaOre / referenceOre;
+  return discount >= minDiscount && discount <= maxDiscount;
 }
 
 /** Max antal produkter som hämtas för beräknade sorteringar. */
 const MAX_CANDIDATES = 500;
+
+/**
+ * SQL-villkor som speglar isDirectOfferUrl() (src/lib/marketplace-urls.ts):
+ * sök-/bläddringslänkar + CM-redirecten exkluderas. Delas av pris-cachen och Fynd-feeden.
+ */
+const DIRECT_URL_SQL = `
+  lower(url) NOT LIKE '%/search%'
+  AND lower(url) NOT LIKE '%searchstring=%'
+  AND lower(url) NOT LIKE '%sokstr=%'
+  AND lower(url) NOT LIKE '%funk=sok%'
+  AND lower(url) NOT LIKE '%?query=%' AND lower(url) NOT LIKE '%&query=%'
+  AND lower(url) NOT LIKE '%?q=%' AND lower(url) NOT LIKE '%&q=%'
+  AND lower(url) NOT LIKE '%prices.pokemontcg.io/cardmarket%'
+`;
 
 function daysAgo(days: number): Date {
   const d = new Date();
@@ -147,20 +195,10 @@ export const HIDDEN_CATEGORIES: ProductCategory[] = ["ACCESSORY", "GRADED_CARD",
  * pris igen). Körs efter scrape/refresh/import. Idempotent.
  */
 export async function recomputeProductPriceCache(): Promise<void> {
-  // En "räknbar" offer = prissatt (>0) OCH direkt produktlänk. URL-villkoren
-  // speglar isDirectOfferUrl() i src/lib/marketplace-urls.ts (sök-/bläddringslänkar
-  // + CM-redirecten exkluderas) så att cachen = produktsidans lägsta pris.
+  // En "räknbar" offer = prissatt (>0) OCH direkt produktlänk. URL-villkoret
+  // speglar isDirectOfferUrl() så att cachen = produktsidans lägsta pris.
   // COALESCE(MIN i lager, MIN alla) = computeLowestPrice (IN_STOCK prioriteras).
-  const DIRECT_PRICED = `
-    price > 0
-    AND lower(url) NOT LIKE '%/search%'
-    AND lower(url) NOT LIKE '%searchstring=%'
-    AND lower(url) NOT LIKE '%sokstr=%'
-    AND lower(url) NOT LIKE '%funk=sok%'
-    AND lower(url) NOT LIKE '%?query=%' AND lower(url) NOT LIKE '%&query=%'
-    AND lower(url) NOT LIKE '%?q=%' AND lower(url) NOT LIKE '%&q=%'
-    AND lower(url) NOT LIKE '%prices.pokemontcg.io/cardmarket%'
-  `;
+  const DIRECT_PRICED = `price > 0 AND ${DIRECT_URL_SQL}`;
   await prisma.$executeRawUnsafe(`
     UPDATE "Product" p SET "lowestPriceOre" = sub.lowest
     FROM (
@@ -312,6 +350,7 @@ async function getExploreFeedRaw(
   limit: number
 ): Promise<{ items: ProductListItem[]; total: number; hasMore: boolean }> {
   const { sort = "popular", minPrice, maxPrice } = params;
+  if (sort === "deals") return getDealsRaw(offset, limit);
   const where = await buildProductWhere(params);
   if (minPrice !== undefined || maxPrice !== undefined) {
     where.lowestPriceOre = {
@@ -349,6 +388,68 @@ async function getExploreFeedRaw(
   else if (sort === "recently_restocked") items.sort((a, b) => (b.lastRestockAt?.getTime() ?? 0) - (a.lastRestockAt?.getTime() ?? 0));
   const total = Math.min(items.length, MAX_CANDIDATES);
   return { items: items.slice(offset, offset + limit), total, hasMore: offset + limit < total };
+}
+
+/**
+ * Fynd-feed (Pro): produkter med en live Tradera-annons långt under sitt Cardmarket-pris.
+ * Referens = billigaste CM-offer (ALDRIG Product.lowestPriceOre — den inkluderar redan
+ * Tradera-annonsen och skulle sänka sitt eget riktmärke). Sorterat på störst rabatt.
+ * ponytail: hämtar alla kvalade id:n (2 fält/rad) per sida — fynd är en liten mängd;
+ * paginera i SQL först om detta växer stort. Ignorerar övriga katalogfilter i v1.
+ */
+async function getDealsRaw(
+  offset: number,
+  limit: number
+): Promise<{ items: ProductListItem[]; total: number; hasMore: boolean }> {
+  const [cm, tr] = await Promise.all([
+    prisma.retailer.findFirst({ where: { name: "Cardmarket" }, select: { id: true } }),
+    prisma.retailer.findFirst({ where: { name: "Tradera" }, select: { id: true } }),
+  ]);
+  if (!cm || !tr) return { items: [], total: 0, hasMore: false };
+
+  const rows = await prisma.$queryRawUnsafe<{ productId: string; discount: number }[]>(
+    `
+    WITH cm AS (
+      SELECT "productId", MIN(price) AS price FROM "Offer"
+      WHERE "retailerId" = $1 AND price > 0 GROUP BY "productId"
+    ),
+    tr AS (
+      SELECT "productId", MIN(price) AS price FROM "Offer"
+      WHERE "retailerId" = $2 AND "stockStatus" = 'IN_STOCK' AND price > 0
+        AND ${DIRECT_URL_SQL}
+      GROUP BY "productId"
+    )
+    SELECT tr."productId" AS "productId",
+           (cm.price - tr.price)::float / cm.price AS discount
+    FROM tr
+      JOIN cm ON cm."productId" = tr."productId"
+      JOIN "Product" p ON p.id = tr."productId"
+    -- Bara sealed: singlar har skick-variation (CM = NM engelska, en billig Tradera-kopia
+    -- är ofta sliten/skadad) → "rabatten" är inte ett fynd. Sealed = otvetydigt marknadspris.
+    WHERE p.category NOT IN ('SINGLE_CARD', 'GRADED_CARD', 'ACCESSORY', 'OTHER')
+      AND tr.price <= cm.price * (1 - $3)
+      AND tr.price >= cm.price * (1 - $4)
+    ORDER BY discount DESC
+    `,
+    cm.id,
+    tr.id,
+    DEAL_MIN_DISCOUNT,
+    DEAL_MAX_DISCOUNT
+  );
+
+  const total = rows.length;
+  const pageRows = rows.slice(offset, offset + limit);
+  const products = await prisma.product.findMany({
+    where: { id: { in: pageRows.map((r) => r.productId) } },
+    include: FEED_INCLUDE,
+  });
+  const byId = new Map(products.map((p) => [p.id, toListItem(p)]));
+  const items: ProductListItem[] = [];
+  for (const r of pageRows) {
+    const item = byId.get(r.productId);
+    if (item) items.push({ ...item, dealPercent: Math.round(r.discount * 100) });
+  }
+  return { items, total, hasMore: offset + pageRows.length < total };
 }
 
 async function searchProductsRaw(params: SearchProductsParams): Promise<{

@@ -868,6 +868,9 @@
     "showAll": "Show all",
     "setCards": "{count, plural, =1 {1 card} other {# cards}}",
     "setFallback": "Set",
+    "dealsProTitle": "Deals is a Pro feature",
+    "dealsProDesc": "Find cards and products selling far below market value. Upgrade to Pro to hunt the deals.",
+    "dealsProCta": "See what Pro gives you",
     "sort": {
       "popular": "Most popular",
       "price_asc": "Lowest price",
@@ -875,7 +878,8 @@
       "biggest_drop": "Biggest drop",
       "recently_restocked": "Recently restocked",
       "most_watched": "Most watched",
-      "trending": "Trending"
+      "trending": "Trending",
+      "deals": "Deals"
     }
   },
   "Sets": {
