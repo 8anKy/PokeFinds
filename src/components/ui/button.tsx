@@ -58,8 +58,6 @@ export interface LinkButtonProps {
   className?: string;
   children: ReactNode;
   prefetch?: boolean;
-  /** Render a plain <a> (real browser navigation) instead of next/link. Needed for API/download endpoints — next/link client-routes to them and 404s. */
-  native?: boolean;
 }
 
 export function LinkButton({
@@ -69,18 +67,13 @@ export function LinkButton({
   className,
   children,
   prefetch,
-  native,
 }: LinkButtonProps) {
-  const classes = cn(baseClasses, variantClasses[variant], sizeClasses[size], className);
-  if (native) {
-    return (
-      <a href={href} className={classes}>
-        {children}
-      </a>
-    );
-  }
   return (
-    <Link href={href} prefetch={prefetch} className={classes}>
+    <Link
+      href={href}
+      prefetch={prefetch}
+      className={cn(baseClasses, variantClasses[variant], sizeClasses[size], className)}
+    >
       {children}
     </Link>
   );

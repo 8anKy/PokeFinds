@@ -11,6 +11,7 @@ import { apiFetch } from "@/lib/client-api";
 import { enablePush } from "@/lib/push-client";
 import { useToast } from "@/components/ui/toast";
 import { Button, LinkButton } from "@/components/ui/button";
+import { downloadFromApi } from "@/lib/download";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
@@ -325,9 +326,16 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-3">
-            <LinkButton href="/api/users/me/export" variant="secondary" native>
+            <Button
+              variant="secondary"
+              onClick={() =>
+                downloadFromApi("/api/users/me/export", "foilio-data.json").catch(() =>
+                  toast({ title: tSettings("genericFail"), variant: "error" }),
+                )
+              }
+            >
               {tSettings("exportData")}
-            </LinkButton>
+            </Button>
             <Button variant="danger" onClick={() => setDeleteOpen(true)}>
               {tSettings("deleteAccount")}
             </Button>

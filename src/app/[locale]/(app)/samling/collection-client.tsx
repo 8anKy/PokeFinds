@@ -6,7 +6,8 @@ import { useRouter } from "@/i18n/navigation";
 import { formatPrice, formatPercent, formatDate } from "@/lib/format";
 import { apiFetch } from "@/lib/client-api";
 import { useToast } from "@/components/ui/toast";
-import { Button, LinkButton } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { downloadFromApi } from "@/lib/download";
 import { Modal } from "@/components/ui/modal";
 import { Input, Textarea, Select, Label, Checkbox, FieldError } from "@/components/ui/input";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
@@ -504,9 +505,16 @@ export function CollectionClient({
           <IconPlus size={16} />
           {t("addManually")}
         </Button>
-        <LinkButton href="/api/collection/export" variant="secondary" native>
+        <Button
+          variant="secondary"
+          onClick={() =>
+            downloadFromApi("/api/collection/export", "foilio-samling.csv").catch(() =>
+              toast({ title: t("genericFail"), variant: "error" }),
+            )
+          }
+        >
           {t("exportCsv")}
-        </LinkButton>
+        </Button>
         <Button
           variant="secondary"
           loading={importing}
