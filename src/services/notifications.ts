@@ -120,14 +120,24 @@ async function sendAlertPush(alert: {
   type: AlertType;
   message: string;
   product: { slug: string } | null;
+  storeListing: { url: string } | null;
 }): Promise<void> {
   const tokens = await prisma.pushToken.findMany({
     where: { userId: alert.userId },
     select: { token: true },
   });
   if (tokens.length === 0) return;
-  const title = alert.type === AlertType.RESTOCK ? "Åter i lager!" : "Prislarm";
-  const url = alert.product ? `/produkter/${alert.product.slug}` : undefined;
+  const title =
+    alert.type === AlertType.RESTOCK
+      ? "Åter i lager!"
+      : alert.type === AlertType.NEW_LISTING
+        ? "Ny produkt i lager!"
+        : "Prislarm";
+  // Katalogprodukt → in-app-sida; feed-först-larm (ingen produkt) → butikens annons-URL
+  // (klienten öppnar http-länkar externt, som mejlets "Till produkten"-knapp).
+  const url = alert.product
+    ? `/produkter/${alert.product.slug}`
+    : alert.storeListing?.url ?? undefined;
   const { invalidTokens } = await sendPush(
     tokens.map((t) => t.token),
     { title, body: alert.message, url }
@@ -144,7 +154,7 @@ async function sendAlertPush(alert: {
 export async function dispatchPendingAlerts(): Promise<{ sent: number; failed: number }> {
   const pending = await prisma.alert.findMany({
     where: { status: AlertStatus.PENDING, retryCount: { lt: MAX_RETRIES } },
-    include: { user: true, product: true },
+    include: { user: true, product: true, storeListing: { select: { url: true } } },
     take: 200,
     orderBy: { triggeredAt: "asc" },
   });

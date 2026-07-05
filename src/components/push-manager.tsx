@@ -25,7 +25,11 @@ export function PushManager() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (action: any) => {
           const url = action?.notification?.data?.url;
-          if (typeof url === "string" && url.startsWith("/")) routerRef.current.push(url);
+          if (typeof url !== "string") return;
+          // In-app-sida → Next-router. Extern butikslänk (feed-först-larm) → system-
+          // webbläsaren via window.open (öppnar utanför WebView:en, som mejlet).
+          if (url.startsWith("/")) routerRef.current.push(url);
+          else if (/^https?:\/\//.test(url)) window.open(url, "_blank");
         }
       );
       cleanup = () => void handle.remove();
