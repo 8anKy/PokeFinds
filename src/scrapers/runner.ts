@@ -6,8 +6,9 @@
  *
  * Säkerhetsregler: jobbet avbryts automatiskt om felräknaren passerar 20.
  */
-import { JobStatus, SourceType, StockStatus, type Prisma } from "@prisma/client";
+import { JobStatus, SourceType, StockStatus, type Prisma, type ProductCategory } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { normalizeTitle, slugify } from "@/lib/utils";
 import { MockAdapter } from "@/scrapers/adapters/mock-adapter";
 import { PokemonTcgAdapter } from "@/scrapers/adapters/pokemontcg-adapter";
 import { SpelexpertenAdapter } from "@/scrapers/adapters/spelexperten-adapter";
@@ -126,6 +127,43 @@ type FeedItem = {
 const SEALED_FEED_CATEGORIES = new Set([
   "BOOSTER_BOX", "BOOSTER_PACK", "ETB", "BUNDLE", "COLLECTION_BOX", "TIN", "BLISTER",
 ]);
+
+/**
+ * Auto-import: säkerställ att en katalogprodukt finns för en sealed butiksannons (feed-
+ * först). Länkar till befintlig produkt vid HÖG matchkonfidens (≥0.85), annars skapar en
+ * ny — så nya SKU:er dyker upp i appen automatiskt (ingen manuell import). Upsertar
+ * butikens offer så URL:en får ett Offer → nästa skanning går via den beprövade offer-
+ * diffen. Returnerar productId (null om kategori saknas).
+ * ponytail: dedup = matchProduct≥0.85. Kan skapa enstaka dubbletter vid udda titlar; en
+ * merge-städning får ta det. Höj tröskeln om fel-länkningar dyker upp.
+ */
+export async function ensureListingProduct(
+  it: { title: string; url: string; price: number | null; imageUrl: string | null; retailerId: string; category: string | null },
+  stockStatus: StockStatus
+): Promise<string | null> {
+  const category = (it.category ?? null) as ProductCategory | null;
+  if (!category) return null;
+  const normalized = normalizeTitle(it.title);
+  const match = await matchProduct(normalized);
+  let productId = match && match.confidence >= 0.85 ? match.productId : null;
+  if (!productId) {
+    let slug = slugify(it.title) || `produkt-${Date.now().toString(36)}`;
+    if (await prisma.product.findUnique({ where: { slug }, select: { id: true } })) {
+      slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
+    }
+    const p = await prisma.product.create({
+      data: { title: it.title, normalizedTitle: normalized, slug, category, imageUrl: it.imageUrl, language: "EN" },
+      select: { id: true },
+    });
+    productId = p.id;
+  }
+  await prisma.offer.upsert({
+    where: { productId_retailerId_condition_language: { productId, retailerId: it.retailerId, condition: "SEALED", language: "EN" } },
+    update: { price: it.price, url: it.url, stockStatus, lastSeenAt: new Date() },
+    create: { productId, retailerId: it.retailerId, condition: "SEALED", language: "EN", price: it.price, currency: "SEK", stockStatus, url: it.url },
+  });
+  return productId;
+}
 
 /**
  * Lätt restock-skanning av ALLA sealed-produkter som de restock-bevakade butikerna
@@ -285,6 +323,9 @@ export async function runRestockScan(opts?: {
     // Bara sealed — singlar/övrigt skulle spamma (se SEALED_FEED_CATEGORIES).
     if (!SEALED_FEED_CATEGORIES.has(it.category ?? "")) continue;
     checked++;
+    // Auto-import: skapa/länka katalogprodukt + offer → larmet pekar på VÅR produktsida
+    // (in-app), och nästa skanning spårar URL:en via offer-diffen ovan.
+    const productId = await ensureListingProduct(it, newStatus);
     const listing = listingByKey.get(key);
     if (!listing) {
       // Aldrig sedd → skapa huvudboksrad. Larma BARA om butiken redan har historik
@@ -303,10 +344,10 @@ export async function runRestockScan(opts?: {
       // = NEW_LISTING; ny produkt i FÖRHANDSBOKNING = PREORDER (köpbar inför release).
       if (seededRetailers.has(it.retailerId)) {
         if (newStatus === StockStatus.IN_STOCK) {
-          await checkListingAlerts(created, "NEW_LISTING");
+          await checkListingAlerts({ ...created, productId }, "NEW_LISTING");
           newListings++;
         } else if (newStatus === StockStatus.PREORDER) {
-          await checkListingAlerts(created, "PREORDER");
+          await checkListingAlerts({ ...created, productId }, "PREORDER");
           newListings++;
         }
       }
@@ -327,7 +368,7 @@ export async function runRestockScan(opts?: {
     }
     if (isRestock(listing.stockStatus, newStatus)) {
       await checkListingAlerts(
-        { id: listing.id, title: it.title, retailerId: it.retailerId },
+        { id: listing.id, title: it.title, retailerId: it.retailerId, productId },
         "RESTOCK"
       );
       restocks++;
@@ -338,7 +379,7 @@ export async function runRestockScan(opts?: {
       listing.stockStatus !== StockStatus.PREORDER
     ) {
       await checkListingAlerts(
-        { id: listing.id, title: it.title, retailerId: it.retailerId },
+        { id: listing.id, title: it.title, retailerId: it.retailerId, productId },
         "PREORDER"
       );
       newListings++;

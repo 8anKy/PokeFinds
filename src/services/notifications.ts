@@ -2,7 +2,7 @@
  * Notifikationer och utskick av väntande alerts.
  * Respekterar användarens notificationSettings ({email, push}).
  */
-import { AlertStatus, AlertType } from "@prisma/client";
+import { AlertStatus, AlertType, StockStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { sendMail } from "@/lib/mailer";
 import { sendPush } from "@/lib/apns";
@@ -103,6 +103,18 @@ async function buildAlertEmail(alert: {
           retailOffer?.url ?? productUrl,
           retailOffer?.price ?? undefined
         );
+      }
+      if (alert.type === AlertType.NEW_LISTING) {
+        // Auto-importerad ny produkt → länka VÅR produktsida (visar butikens offer +
+        // köp-knapp). PREORDER lagras som NEW_LISTING → välj copy på offerns lagerstatus.
+        const listingOffer =
+          (alert.retailerId && product.offers.find((o) => o.retailerId === alert.retailerId)) ||
+          product.offers[0];
+        const storeName = listingOffer?.retailer.name ?? "en butik";
+        const args = [alert.user.name, product.title, storeName, productUrl, listingOffer?.price ?? undefined] as const;
+        return listingOffer?.stockStatus === StockStatus.PREORDER
+          ? preorderEmail(...args)
+          : newListingEmail(...args);
       }
     }
   }

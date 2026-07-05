@@ -176,8 +176,16 @@ describe("checkListingAlerts (feed-först: rå butiksannonser utanför katalogen
     expect(args.data.channel).toBe("EMAIL");
     expect(args.data.storeListingId).toBe("sl-1");
     expect(args.data.retailerId).toBe("ret-9");
-    expect(args.data.productId).toBeUndefined(); // utanför katalogen → ingen produkt
+    expect(args.data.productId).toBeNull(); // ingen produkt → faller tillbaka på storeListingId
     expect(args.data.message).toContain(LISTING.title);
+  });
+
+  it("auto-importerad: sätter productId (in-app-länk) och släpper storeListingId", async () => {
+    userFindMany.mockResolvedValue([{ id: "sub-1" }]);
+    await checkListingAlerts({ ...LISTING, productId: "prod-9" }, "NEW_LISTING");
+    const args = alertCreate.mock.calls[0][0] as { data: { productId: string | null; storeListingId: string | null } };
+    expect(args.data.productId).toBe("prod-9");
+    expect(args.data.storeListingId).toBeNull();
   });
 
   it("RESTOCK-varianten använder RESTOCK-typen", async () => {

@@ -172,7 +172,7 @@ export async function checkRestockAlerts(productId: string, retailerId?: string)
  * (ingen katalog-produkt att bevaka). Mejlet byggs från annonsen (storeListingId).
  */
 export async function checkListingAlerts(
-  listing: { id: string; title: string; retailerId: string },
+  listing: { id: string; title: string; retailerId: string; productId?: string | null },
   kind: "NEW_LISTING" | "RESTOCK" | "PREORDER"
 ) {
   const subs = await prisma.user.findMany({
@@ -198,7 +198,9 @@ export async function checkListingAlerts(
       data: {
         userId: u.id,
         retailerId: listing.retailerId,
-        storeListingId: listing.id,
+        // Auto-importerad → länka VÅR produkt (in-app), annars den råa annonsen.
+        productId: listing.productId ?? null,
+        storeListingId: listing.productId ? null : listing.id,
         type,
         message,
         channel: "EMAIL",
