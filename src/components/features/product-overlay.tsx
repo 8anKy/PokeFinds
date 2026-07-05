@@ -59,6 +59,7 @@ export function ProductOverlayHost() {
       slugRef.current = s;
       setSlug(s);
       setData(null);
+      panelRef.current?.scrollTo(0, 0); // nytt kort → tillbaka till toppen (namn/bild)
       // En history-markör med SAMMA URL → back/svep stänger utan list-omrendering.
       const here = window.location.href;
       if (wasOpen) window.history.replaceState({ foilioOverlay: true }, "", here);
