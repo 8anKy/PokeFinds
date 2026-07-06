@@ -25,7 +25,25 @@ import {
   nonEraCoverage,
   printedNumberKey,
   scoreSimilarity,
+  seriesMismatch,
 } from "@/scrapers/matching";
+
+describe("seriesMismatch (Series 1 vs Series 2)", () => {
+  it("olika serienummer = mismatch", () => {
+    expect(seriesMismatch("First Partner Illustration Collection Series 1", "first partner illustration collection series 2")).toBe(true);
+    expect(seriesMismatch("First Partner Series 1 Boosterpakke", "first partner illustration booster series 2")).toBe(true);
+  });
+  it("samma serienummer / saknat nummer = ingen mismatch", () => {
+    expect(seriesMismatch("First Partner Collection Series 2", "first partner illustration collection series 2")).toBe(false);
+    expect(seriesMismatch("Surging Sparks Booster Box", "surging sparks booster box")).toBe(false);
+  });
+  it("matchListingToProduct förkastar fel serie men behåller rätt", () => {
+    const s1 = { normalizedTitle: "first partner illustration collection series 1", card: null };
+    expect(matchListingToProduct("Pokémon First Partner Illustration Collection Series 2", s1)).toBeNull();
+    const s2 = { normalizedTitle: "first partner illustration collection series 2", card: null };
+    expect(matchListingToProduct("Pokémon First Partner Illustration Collection Series 2", s2)).not.toBeNull();
+  });
+});
 
 describe("scoreSimilarity", () => {
   it("identiska titlar ger 1", () => {

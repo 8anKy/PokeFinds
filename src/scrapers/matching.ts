@@ -397,6 +397,23 @@ export function setMarkerMismatch(a: string, b: string): boolean {
   return false;
 }
 
+/** "Series N" / "Vol N" ur en titel — produktidentitet för numrerade utgåvor. */
+function seriesNumber(t: string): string | null {
+  const m = /\b(?:series|serie|vol|volume)\s*(\d{1,2})\b/i.exec(t);
+  return m ? m[1] : null;
+}
+/**
+ * Två titlar med OLIKA serienummer är olika produkter — "First Partner Illustration
+ * Collection Series 1" ≠ "Series 2" (siffran tappas annars i distinctiveWords, så
+ * de delar alla särskiljande ord och matchar fel). Bara ett hårt nej när BÅDA anger
+ * ett nummer och de skiljer sig.
+ */
+export function seriesMismatch(a: string, b: string): boolean {
+  const sa = seriesNumber(a);
+  const sb = seriesNumber(b);
+  return sa !== null && sb !== null && sa !== sb;
+}
+
 /** Lägsta andel delade särskiljande ord för att en kandidat ska godkännas. */
 const MIN_DISTINCTIVE_OVERLAP = 0.5;
 
@@ -523,6 +540,10 @@ export async function matchProduct(
     if (setMarkerMismatch(normalized, c.normalizedTitle)) {
       continue;
     }
+    // Fel serienummer (Series 1 vs Series 2) → förkasta
+    if (seriesMismatch(normalized, c.normalizedTitle)) {
+      continue;
+    }
     // Fel set/kort: kandidaten saknar de särskiljande orden → förkasta
     // (hindrar "Ascended Heroes ETB" från att matcha "Destined Rivals ETB")
     const overlap = distinctiveOverlap(normalized, c.normalizedTitle);
@@ -608,6 +629,7 @@ export function matchListingToProduct(
   }
   if (languageMismatch(normalized, product.normalizedTitle)) return null;
   if (setMarkerMismatch(normalized, product.normalizedTitle)) return null;
+  if (seriesMismatch(normalized, product.normalizedTitle)) return null;
 
   const overlap = distinctiveOverlap(normalized, product.normalizedTitle);
   if (overlap < MIN_DISTINCTIVE_OVERLAP) return null;
