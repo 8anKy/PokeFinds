@@ -191,15 +191,23 @@ export async function ensureListingProduct(
  * Vilka offers ska markeras slutsålda? De vars butik hämtades den här körningen
  * (`feedRetailers`, ≥1 produkt) men vars URL saknas i feeden (`freshKeys`) och som
  * inte redan är slutsålda. Ren funktion → testbar utan DB/adaptrar.
+ *
+ * DEBOUNCE (`graceMs`): vissa feeds (Quickbutik/Swepoke) roterar vilka produkter de
+ * returnerar per hämtning → en produkt "försvinner" en skanning och är tillbaka nästa,
+ * utan att lagret ändrats. Ett enda missat besök får därför INTE slutsälja: kräv att
+ * offern varit borta i minst `graceMs` (senast sedd `lastSeenAt` äldre än så). Riktig
+ * slutförsäljning via butikens egen "slut"-flagga går ändå direkt (offer-diffen, ej
+ * hit). En helt borttagen produkt slutsäljs efter grace-fönstret (ej fryst för evigt).
  */
 export function offersToMarkSoldOut<
-  T extends { retailerId: string; url: string; stockStatus: StockStatus }
->(offers: T[], freshKeys: Set<string>, feedRetailers: Set<string>): T[] {
+  T extends { retailerId: string; url: string; stockStatus: StockStatus; lastSeenAt: Date | null }
+>(offers: T[], freshKeys: Set<string>, feedRetailers: Set<string>, now: Date, graceMs: number): T[] {
   return offers.filter(
     (o) =>
       feedRetailers.has(o.retailerId) &&
       o.stockStatus !== StockStatus.OUT_OF_STOCK &&
-      !freshKeys.has(`${o.retailerId}:${o.url}`)
+      !freshKeys.has(`${o.retailerId}:${o.url}`) &&
+      (o.lastSeenAt == null || now.getTime() - o.lastSeenAt.getTime() >= graceMs)
   );
 }
 
@@ -269,7 +277,7 @@ export async function runRestockScan(opts?: {
   const offers = await prisma.offer.findMany({
     where: { retailerId: { in: retailerIds } },
     select: {
-      id: true, url: true, productId: true, retailerId: true, stockStatus: true,
+      id: true, url: true, productId: true, retailerId: true, stockStatus: true, lastSeenAt: true,
       product: { select: { category: true } },
     },
   });
@@ -417,8 +425,18 @@ export async function runRestockScan(opts?: {
       if (rid) feedRetailers.add(rid);
     }
   }
+  // Bumpa lastSeenAt för alla offers som fanns i feeden denna körning (även oförändrade)
+  // så debounce-ankaret hålls färskt → en rullande-men-närvarande offer slutsäljs aldrig.
+  // En batch-updateMany (ej per offer) → billigt; Neon är redan vaket i denna fas.
+  const freshKeys = new Set(fresh.keys());
+  const now = new Date();
+  const seenOfferIds = offers.filter((o) => freshKeys.has(`${o.retailerId}:${o.url}`)).map((o) => o.id);
+  if (seenOfferIds.length) {
+    await prisma.offer.updateMany({ where: { id: { in: seenOfferIds } }, data: { lastSeenAt: now } });
+  }
+  const graceMs = Number(process.env.RESTOCK_SOLDOUT_GRACE_HOURS ?? 24) * 3600_000;
   let soldOutReconciled = 0;
-  for (const o of offersToMarkSoldOut(offers, new Set(fresh.keys()), feedRetailers)) {
+  for (const o of offersToMarkSoldOut(offers, freshKeys, feedRetailers, now, graceMs)) {
     await prisma.offer.update({ where: { id: o.id }, data: { stockStatus: StockStatus.OUT_OF_STOCK } });
     soldOutReconciled++;
   }
