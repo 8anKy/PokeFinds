@@ -34,7 +34,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         prisma.product.findMany({
           select: { slug: true, updatedAt: true },
           orderBy: { viewCount: "desc" },
-          take: 5000,
+          // Hela katalogen (long-tail-SEO är sajtens poäng); sitemap-taket är 50k URL:er.
+          take: 40000,
         }),
         prisma.cardSet.findMany({
           select: { id: true, updatedAt: true },
@@ -48,10 +49,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     return staticRoutes;
   }
 
+  // "weekly", inte "daily": daily fick Google att omcrawla tiotusentals produkt-
+  // sidor per dygn → varje träff efter ISR-TTL = en DB-render på Neon. Priserna i
+  // sök-snippets tål en veckas lagg; själva sidan är alltid ≤1h gammal vid besök.
   const productRoutes: MetadataRoute.Sitemap = products.map((p) => ({
     url: `${BASE_URL}/produkter/${p.slug}`,
     lastModified: p.updatedAt,
-    changeFrequency: "daily",
+    changeFrequency: "weekly",
     priority: 0.7,
   }));
 

@@ -3,6 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { auth } from "@/lib/auth";
+import { cachedRead } from "@/lib/cache";
 import { prisma } from "@/lib/db";
 import {
   getExploreFeed,
@@ -31,6 +32,40 @@ export async function generateMetadata({
 }
 
 const PAGE_SIZE = 24;
+
+// Filterfacetterna (set-/butikslistor) ändras ~aldrig men sidan är force-dynamic
+// (searchParams) → utan cache kördes de tre frågorna på VARJE sidvisning/crawl-träff
+// (~900k CardSet-skanningar på Neon). 1h TTL är osynlig för användare.
+const getFilterSets = cachedRead(
+  () =>
+    prisma.cardSet.findMany({
+      select: { id: true, name: true },
+      orderBy: { releaseDate: "desc" },
+    }),
+  "produkterFilterSets",
+  3600
+);
+const getFilterRetailers = cachedRead(
+  () =>
+    prisma.retailer.findMany({
+      where: { isActive: true, name: { notIn: NON_STORE_RETAILER_NAMES } },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  "produkterFilterRetailers",
+  3600
+);
+const getRecentSets = cachedRead(
+  () =>
+    prisma.cardSet.findMany({
+      where: { releaseDate: { not: null } },
+      select: { id: true, name: true, logoUrl: true, totalCards: true },
+      orderBy: { releaseDate: "desc" },
+      take: 12,
+    }),
+  "produkterRecentSets",
+  3600
+);
 
 // value = URL-parameter (stabil), key = översättningsnyckel (Products.sort.*).
 const SORT_OPTIONS: { value: string; key: string; sort: ProductSort }[] = [
@@ -278,22 +313,10 @@ export default async function ProductsPage({
     dealsLocked
       ? Promise.resolve({ items: [], total: 0, hasMore: false })
       : getExploreFeed(params, 0, PAGE_SIZE),
-    prisma.cardSet.findMany({
-      select: { id: true, name: true },
-      orderBy: { releaseDate: "desc" },
-    }),
-    prisma.retailer.findMany({
-      where: { isActive: true, name: { notIn: NON_STORE_RETAILER_NAMES } },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    }),
+    getFilterSets(),
+    getFilterRetailers(),
     // "Just Dropped" — senast släppta set.
-    prisma.cardSet.findMany({
-      where: { releaseDate: { not: null } },
-      select: { id: true, name: true, logoUrl: true, totalCards: true },
-      orderBy: { releaseDate: "desc" },
-      take: 12,
-    }),
+    getRecentSets(),
   ]);
   const feedQuery = buildFeedQuery(params);
 

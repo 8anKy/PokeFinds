@@ -106,6 +106,29 @@ type View = "capture" | "review";
 let scanCounter = 0;
 const nextId = () => `scan-${Date.now()}-${scanCounter++}`;
 
+/** Skalar ner en uppladdad bild till samma storlek som kamerarutorna (längsta sida
+ *  ≤ CAPTURE_MAX). Råa mobilfoton (8 MB → ~11 MB base64) sprängde API-routens
+ *  storleksgräns OCH kostade onödigt många vision-tokens per skanning. */
+function downscaleDataUrl(dataUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const longest = Math.max(img.naturalWidth, img.naturalHeight);
+      const scale = Math.min(1, CAPTURE_MAX / longest);
+      if (scale === 1 && dataUrl.startsWith("data:image/jpeg")) return resolve(dataUrl);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return resolve(dataUrl);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 /** Fångar en nedskalad JPEG-ruta ur videoflödet (i minnet, ej i kamerarullen). */
 function captureFrame(
   video: HTMLVideoElement,
@@ -472,7 +495,10 @@ function Scanner() {
     }
     const reader = new FileReader();
     reader.onload = () => {
-      if (typeof reader.result === "string") addScan(reader.result);
+      if (typeof reader.result === "string") {
+        // Nedskalning i klienten — samma pixelbudget som kamerarutorna.
+        void downscaleDataUrl(reader.result).then(addScan);
+      }
     };
     reader.readAsDataURL(file);
     return true;

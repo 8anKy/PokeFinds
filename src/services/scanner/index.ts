@@ -67,12 +67,14 @@ export async function recordScanUsage(userId: string): Promise<void> {
   });
 }
 
-/** Användarens N FÖRSTA skanningar (livstid) körs med den dyra, träffsäkra
- *  Sonnet-modellen för att imponera på nya användare; därefter Haiku. Engångskostnad
- *  ~$0,01/användare. SCANNER_INTRO_SONNET_SCANS (default 1) = hur många. */
+/** Användarens N FÖRSTA skanningar (livstid) kan köras med den dyra, träffsäkra
+ *  Sonnet-modellen (wow-faktor, ~$0,01/scan mot Haikus ~$0,002). DEFAULT AV
+ *  (2026-07-07, kostnadsmål ~$0,002/scan) — sätt SCANNER_INTRO_SONNET_SCANS=1
+ *  för att slå på igen. */
 export async function isIntroScan(userId: string): Promise<boolean> {
-  const n = Number(process.env.SCANNER_INTRO_SONNET_SCANS ?? "1");
-  const intro = Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
+  const n = Number(process.env.SCANNER_INTRO_SONNET_SCANS ?? "0");
+  const intro = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  if (intro === 0) return false;
   const prior = await prisma.scannerJob.count({
     where: { userId, status: { not: "FAILED" } },
   });

@@ -24,28 +24,29 @@ interface ProductChange {
  */
 const MOVER_MIN_PRICE_ORE = 1000;
 
-/** Beräknar prisförändring per produkt utifrån snapshots de senaste `days` dagarna. */
-async function computeChanges(days = 7): Promise<ProductChange[]> {
-  const snapshots = await prisma.priceSnapshot.findMany({
-    where: { date: { gte: daysAgo(days) } },
-    orderBy: [{ productId: "asc" }, { date: "asc" }],
-    select: { productId: true, date: true, avgPrice: true },
-  });
-
-  const byProduct = new Map<string, { first: number; last: number; days: number }>();
-  for (const s of snapshots) {
-    const entry = byProduct.get(s.productId);
-    if (!entry) {
-      byProduct.set(s.productId, { first: s.avgPrice, last: s.avgPrice, days: 1 });
-    } else {
-      entry.last = s.avgPrice;
-      entry.days += 1;
-    }
-  }
+/** Beräknar prisförändring per produkt utifrån snapshots de senaste `days` dagarna.
+ *  Aggregeras i SQL (första/sista avgPrice per produkt) — att hämta ALLA snapshot-
+ *  rader (~150k) hit och vika dem i JS var Neons enskilt största egress-post
+ *  (~15 MB/anrop). Nu returneras ≤1 liten rad per produkt. */
+async function computeChangesRaw(days = 7): Promise<ProductChange[]> {
+  // Explicit datumsträng + ::date-cast: en rå timestamp-parameter jämförs mot
+  // DATE-kolumnen med andra tidszons-/cast-regler än Prismas query engine och
+  // förskjuter fönstret en dag.
+  const since = daysAgo(days);
+  const sinceStr = `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, "0")}-${String(since.getDate()).padStart(2, "0")}`;
+  const rows = await prisma.$queryRaw<
+    { productId: string; first: number; last: number }[]
+  >`
+    SELECT "productId",
+           (array_agg("avgPrice" ORDER BY date ASC))[1]  AS first,
+           (array_agg("avgPrice" ORDER BY date DESC))[1] AS last
+    FROM "PriceSnapshot"
+    WHERE date >= ${sinceStr}::date
+    GROUP BY "productId"
+    HAVING count(*) >= 2`;
 
   const changes: ProductChange[] = [];
-  for (const [productId, { first, last, days: dayCount }] of byProduct) {
-    if (dayCount < 2) continue;
+  for (const { productId, first, last } of rows) {
     if (first < MOVER_MIN_PRICE_ORE || last < MOVER_MIN_PRICE_ORE) continue;
     const change = last - first;
     changes.push({
@@ -58,6 +59,10 @@ async function computeChanges(days = 7): Promise<ProductChange[]> {
   }
   return changes;
 }
+
+// Delas av trending/ras/set-index (tidigare körde var och en sin egen fullskanning).
+// Snapshots skrivs ~en gång/dygn → 1h cache är osynlig.
+const computeChanges = cachedRead(computeChangesRaw, "computeChanges", 3600);
 
 async function attachProducts(changes: ProductChange[]) {
   const products = await prisma.product.findMany({

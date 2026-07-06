@@ -1,5 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
+import { cachedRead } from "@/lib/cache";
 import { prisma } from "@/lib/db";
 import { formatPrice } from "@/lib/format";
 import { getTrending, getTopDrops } from "@/services/market";
@@ -25,7 +26,7 @@ import {
 // Startsidans data ändras ~en gång/dygn → cacha (ISR). Sparar Vercel CPU + Neon.
 export const revalidate = 3600;
 
-async function getShowcase() {
+async function getShowcaseRaw() {
   const grouped = await prisma.priceSnapshot.groupBy({
     by: ["productId"],
     _count: { productId: true },
@@ -47,6 +48,10 @@ async function getShowcase() {
     points: history.map((s) => ({ date: new Date(s.date).toISOString(), price: s.avgPrice })),
   };
 }
+
+// groupBy:t skannar HELA PriceSnapshot (~420k rader) — vilket kort som har flest
+// snapshots ändras i praktiken aldrig → en skanning/dygn räcker.
+const getShowcase = cachedRead(getShowcaseRaw, "homeShowcase", 86400);
 
 type Mover = Awaited<ReturnType<typeof getTrending>>[number];
 

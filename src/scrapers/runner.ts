@@ -103,6 +103,16 @@ export interface RestockScanResult {
   newListings: number;
   alertsSent: number;
   skipped?: boolean; // true = feed oförändrad, DB-fasen hoppades över (Neon sov)
+  /** Källorna skanningen använde — CLI-wrappern cachar listan på disk så nästa
+   *  körning slipper väcka Neon bara för källist-uppslaget. */
+  sourceList?: RestockSourceInfo[];
+}
+
+/** Det minimum en restock-skanning behöver veta om en källa (cachebart som JSON). */
+export interface RestockSourceInfo {
+  name: string;
+  type: SourceType;
+  baseUrl: string;
 }
 
 /** Hur många butiker som hämtas parallellt (olika hostar → artigt per värd ändå). */
@@ -216,21 +226,29 @@ export async function runRestockScan(opts?: {
   // Snabb-fil: begränsa till namngivna butiker (t.ex. ["Manatörsk"]) → fingeravtrycket
   // täcker bara dem, så en tät körning väcker Neon bara när DE flippar. Utelämnas = alla.
   onlySources?: string[];
+  // Cachad källista (från förra körningen) — utan denna väcker redan källist-
+  // uppslaget Neon på VARJE körning, vilket på 2-min-snabbfilen = aldrig scale-to-zero.
+  sources?: RestockSourceInfo[];
   shouldProcess?: (
     fetched: { sourceName: string; items: { url: string; stockStatus: StockStatus } [] }[]
   ) => boolean | Promise<boolean>;
 }): Promise<RestockScanResult> {
-  const active = await prisma.scrapeSource.findMany({ where: { isActive: true } });
-  let sources = active.filter(
-    (s) => (s.config as { restockWatch?: boolean } | null)?.restockWatch === true
-  );
+  let sources: RestockSourceInfo[];
+  if (opts?.sources?.length) {
+    sources = opts.sources;
+  } else {
+    const active = await prisma.scrapeSource.findMany({ where: { isActive: true } });
+    sources = active
+      .filter((s) => (s.config as { restockWatch?: boolean } | null)?.restockWatch === true)
+      .map((s) => ({ name: s.name, type: s.type, baseUrl: s.baseUrl }));
+  }
   if (opts?.onlySources?.length) {
     const only = new Set(opts.onlySources);
     sources = sources.filter((s) => only.has(s.name));
   }
   if (sources.length === 0) {
     console.log("[restock-scan] Inga restock-watch-källor flaggade.");
-    return { sources: 0, checked: 0, restocks: 0, newListings: 0, alertsSent: 0 };
+    return { sources: 0, checked: 0, restocks: 0, newListings: 0, alertsSent: 0, sourceList: [] };
   }
 
   // Fas 1: parallell katalog-hämtning (ingen DB → Neon sover under tiden).
@@ -263,7 +281,10 @@ export async function runRestockScan(opts?: {
   // sedan förra körningen. Låter oss köra tätare (snabbare restock-fångst) utan mer
   // compute. Grinden (fingerprint-jämförelse + fs) skickas in av CLI-wrappern.
   if (opts?.shouldProcess && !(await opts.shouldProcess(fetched))) {
-    return { sources: sources.length, checked: 0, restocks: 0, newListings: 0, alertsSent: 0, skipped: true };
+    return {
+      sources: sources.length, checked: 0, restocks: 0, newListings: 0, alertsSent: 0,
+      skipped: true, sourceList: sources,
+    };
   }
 
   // Fas 2 (DB-burst): retailer per källa + alla befintliga offers i EN läsning.
@@ -449,7 +470,7 @@ export async function runRestockScan(opts?: {
   console.log(
     `[restock-scan] ${sources.length} butiker, ${checked} kollade, ${restocks} restocks, ${newListings} nya, ${soldOutReconciled} slutsåld-försoning, ${sent} alerts.`
   );
-  return { sources: sources.length, checked, restocks, newListings, alertsSent: sent };
+  return { sources: sources.length, checked, restocks, newListings, alertsSent: sent, sourceList: sources };
 }
 
 export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> {

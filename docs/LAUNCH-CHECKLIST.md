@@ -19,7 +19,14 @@
 - **GDPR** — export (`/api/users/me/export`) + account delete cascades; data minimization.
 - **Analytics** — first-party only, strips userId/email/ip. "No third-party tracking" claim is TRUE.
 - **Caching** — ISR on public pages, CDN-cached public GET APIs.
-- **Tests** — 138 unit tests green; `npm run build` green.
+- **Neon cost pass (2026-07-07)** — computeChanges aggregates in SQL + shared 1h cache
+  (was ~150k rows/call ≈ most of the 30 GB egress); homepage showcase groupBy cached 24h;
+  /produkter filter facets cached 1h; restock fast-lane reads the source list from a disk
+  cache (the 2-min lane no longer wakes Neon every run → scale-to-zero works again);
+  robots.txt blocks /produkter?-facet crawling; sitemap weekly changefreq + full catalog.
+- **Scan cost (2026-07-07)** — uploads downscaled client-side to 1280px (same as camera
+  frames); intro-Sonnet default OFF (`SCANNER_INTRO_SONNET_SCANS=0`) → ~$0.002/scan on Haiku.
+- **Tests** — 215 unit tests green; `npm run build` green.
 - **Spend caps** — Anthropic / Neon / Railway set in dashboards (the hard budget backstop).
 - **Health endpoint** — `/api/health` (liveness only, no DB ping → doesn't keep Neon awake).
 

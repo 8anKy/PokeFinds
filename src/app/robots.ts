@@ -8,7 +8,17 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/admin", "/api", "/dashboard", "/installningar"],
+        // /produkter?… (filter/sök/paginering) är en oändlig URL-rymd av dynamiska
+        // renders (varje träff = Neon-frågor). Produkterna nås ändå via sitemap +
+        // /produkter utan query + set-sidorna, så inget innehåll göms för Google.
+        disallow: [
+          "/admin",
+          "/api",
+          "/dashboard",
+          "/installningar",
+          "/produkter?",
+          "/en/produkter?",
+        ],
       },
       {
         // Lågvärdes-crawlers som svepte hela ~20k-produktkatalogen var par sekund

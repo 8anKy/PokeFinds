@@ -61,12 +61,17 @@ describe("recordScanUsage", () => {
 });
 
 describe("isIntroScan", () => {
-  it("första skanningen (0 tidigare) = Sonnet", async () => {
+  it("default AV (kostnadsmål ~$0,002/scan) — även första skanningen = Haiku", async () => {
     count.mockResolvedValue(0);
-    expect(await isIntroScan("u1")).toBe(true);
+    expect(await isIntroScan("u1")).toBe(false);
+    // Ingen DB-fråga alls när intro är avstängt.
+    expect(count).not.toHaveBeenCalled();
   });
 
-  it("efter första (≥1 tidigare) = Haiku", async () => {
+  it("påslaget (=1): första skanningen = Sonnet, därefter Haiku", async () => {
+    process.env.SCANNER_INTRO_SONNET_SCANS = "1";
+    count.mockResolvedValue(0);
+    expect(await isIntroScan("u1")).toBe(true);
     count.mockResolvedValue(1);
     expect(await isIntroScan("u1")).toBe(false);
   });
