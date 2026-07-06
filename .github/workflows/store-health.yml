@@ -20,6 +20,7 @@ jobs:
     timeout-minutes: 15
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }} # stub-dedupen (Haiku, ören/vecka)
     steps:
       # Samma vakt som restock-watch: utan DATABASE_URL hoppar vi över och lyckas
       # grönt (ingen falsk-röd/mejlspam innan molnhosting är konfigurerad).
@@ -50,3 +51,7 @@ jobs:
       # efterhand (de vaktar bara NYA matchningar). Röd körning = mejl till ägaren.
       - if: steps.guard.outputs.ready == 'true'
         run: npx tsx scripts/audit-links.ts
+      # Stub-dedup: auto-importens dubblettprodukter (olika butiksnamn på samma SKU)
+      # merge:as LLM-verifierat (Haiku, två titlar/anrop). Se src/jobs/dedupe-stubs.ts.
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx tsx scripts/dedupe-stubs-run.ts

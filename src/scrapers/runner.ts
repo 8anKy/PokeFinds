@@ -28,7 +28,7 @@ import {
   ShinycardsAdapter,
 } from "@/scrapers/adapters/quickbutik-adapter";
 import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
-import { isPlausibleListingPrice, matchProduct } from "@/scrapers/matching";
+import { cleanListingTitle, isPlausibleListingPrice, matchProduct } from "@/scrapers/matching";
 import { netStockEvent, isRestock, isNewInStockArrival } from "@/scrapers/restock";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
 import { isBlockedListingLanguage, listingCardLanguage } from "@/lib/listing-language";
@@ -162,16 +162,20 @@ export async function ensureListingProduct(
     select: { productId: true },
   });
   if (owner) return owner.productId;
-  const normalized = normalizeTitle(it.title);
+  // Butiks-skräp ("MAX 1 per kund", "förhandsbokning", "(kopia)") bort INNAN
+  // matchning/namnsättning — annars blir samma SKU från olika butiker
+  // dubblettprodukter med skräpiga katalogtitlar.
+  const cleanTitle = cleanListingTitle(it.title);
+  const normalized = normalizeTitle(cleanTitle);
   const match = await matchProduct(normalized);
   let productId = match && match.confidence >= 0.85 ? match.productId : null;
   if (!productId) {
-    let slug = slugify(it.title) || `produkt-${Date.now().toString(36)}`;
+    let slug = slugify(cleanTitle) || `produkt-${Date.now().toString(36)}`;
     if (await prisma.product.findUnique({ where: { slug }, select: { id: true } })) {
       slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
     }
     const p = await prisma.product.create({
-      data: { title: it.title, normalizedTitle: normalized, slug, category, imageUrl: it.imageUrl, language: listingCardLanguage(it.title) },
+      data: { title: cleanTitle, normalizedTitle: normalized, slug, category, imageUrl: it.imageUrl, language: listingCardLanguage(it.title) },
       select: { id: true },
     });
     productId = p.id;

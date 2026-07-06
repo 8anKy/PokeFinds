@@ -22,6 +22,9 @@ jobs:
       DB_POOL: "10" # större Prisma-pool → mapPool-samtidighet utan pool_timeout
       TRADERA_APP_ID: ${{ secrets.TRADERA_APP_ID }}
       TRADERA_APP_KEY: ${{ secrets.TRADERA_APP_KEY }}
+      # LLM-verifieringen (verify-matches/verify-deals) efter svepet — utan nyckeln
+      # hoppas den TYST över i molnet (kördes bara lokalt t.o.m. 2026-07-07).
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       # Namn-sökningar/dygn (Fas 0, direkt-match → billigt). Parallellt + under
       # 10000/dygn-kvoten. Roterar genom hela katalogen (~21k) på ~4 dygn;
       # bevakade/populära produkter söks varje dygn.

@@ -414,6 +414,34 @@ export function seriesMismatch(a: string, b: string): boolean {
   return sa !== null && sb !== null && sa !== sb;
 }
 
+/**
+ * Butiks-skräp i annonstitlar som varken är produktidentitet eller språk:
+ * köpbegränsningar, förbokningsmarkörer, butikens egna kopie-/antalssuffix.
+ * Tas bort innan titeln används som katalognamn eller matchas — annars hamnar
+ * "(MAX 1 per kund)" i produkttiteln och sänker matchpoängen så att samma SKU
+ * från olika butiker blir dubblettprodukter.
+ */
+const LISTING_TITLE_JUNK: RegExp[] = [
+  /\(?\bmax\.? ?\d+(?: ?st\.?)?\s*(?:\/|per\b)? ?(?:kund|hushåll|person|customer)?!?\)?/gi,
+  /\(?\bförhandsbok\w*\)?/gi,
+  /\(?\bpre-?order\w*\)?/gi,
+  /\((?:copy|kopia)(?: \d+)?\)/gi,
+  /[-–—]\s*(?:copy|kopia)(?: \d+)?\s*$/gi,
+  /\(\d+ ?(?:pcs|st)\.?\)/gi,
+];
+
+/** Rensar butiks-skräp ur en annonstitel (identitet + språkmarkörer lämnas orörda). */
+export function cleanListingTitle(title: string): string {
+  let s = title;
+  for (const re of LISTING_TITLE_JUNK) s = s.replace(re, " ");
+  return s
+    .replace(/[[(]\s*[\])]/g, " ") // tomma parentes-/hakparentespar efter junk-strip
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,)!])/g, "$1")
+    .replace(/^[\s,–—-]+|[\s,–—-]+$/g, "")
+    .trim();
+}
+
 /** Lägsta andel delade särskiljande ord för att en kandidat ska godkännas. */
 const MIN_DISTINCTIVE_OVERLAP = 0.5;
 

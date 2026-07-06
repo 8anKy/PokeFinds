@@ -38,7 +38,18 @@ interface ApiProduct {
   name: string;
   cardmarket_id: number | null;
   image?: string;
-  prices?: { cardmarket?: { lowest?: number | null; "30d_average"?: number | null; available_items?: number | null } | null } | null;
+  prices?: {
+    cardmarket?: {
+      lowest?: number | null;
+      "30d_average"?: number | null;
+      available_items?: number | null;
+      // Språk-överstyrda lägsta (DE/FR/ES/IT) — används av tunndata-vakten nedan.
+      lowest_DE?: number | null;
+      lowest_FR?: number | null;
+      lowest_ES?: number | null;
+      lowest_IT?: number | null;
+    } | null;
+  } | null;
   episode?: { name?: string } | null;
 }
 
@@ -375,6 +386,17 @@ export async function runCardmarketRefresh(
       // annons → OUT_OF_STOCK + 30d-snitt. Flippar dynamiskt mellan körningar.
       const low = cmp.lowest ?? null;
       const avg = cmp["30d_average"] ?? null;
+      // Tunndata-vakt (vintage): ingen engelsk annons alls OCH billigaste annons på
+      // NÅGOT språk ligger >3x över 30d-snittet → snittet är internt inkonsistent
+      // med marknadens faktiska utbud och går inte att lita på (B&W Booster Box:
+      // 1 st DE-annons €7 500 mot "snitt" €890 → headline 9 804 kr på en 130 000 kr-
+      // box). Hoppa hellre över än vilseled — priset lämnas orört/null.
+      const langLows = [cmp.lowest_DE, cmp.lowest_FR, cmp.lowest_ES, cmp.lowest_IT].filter(
+        (v): v is number => typeof v === "number" && v > 0
+      );
+      if (low == null && avg != null && langLows.length > 0 && Math.min(...langLows) > avg * 3) {
+        continue;
+      }
       const eur = sanePriceEur(low, avg);
       const priceOre = eur != null ? Math.round(eur * rates.eurToOre) : null;
       if (priceOre == null) continue; // ingen prisdata alls
