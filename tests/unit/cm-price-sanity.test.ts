@@ -14,6 +14,12 @@ describe("sanePriceEur", () => {
     expect(sanePriceEur(0, 50)).toBe(50);
   });
 
+  it("förkastar glitchad hög lowest (>1.8x snittet) → 30d-snittet", () => {
+    expect(sanePriceEur(9.9, 4.91)).toBe(4.91); // Paradox Rift Booster 2026-07-03 (2.0x)
+    expect(sanePriceEur(9.1, 5)).toBe(5); // 1.82x → klämt
+    expect(sanePriceEur(8.9, 5)).toBe(8.9); // 1.78x → ok (marknad kan stiga lite)
+  });
+
   it("faller tillbaka på snittet när lowest saknas", () => {
     expect(sanePriceEur(null, 42)).toBe(42);
     expect(sanePriceEur(undefined, 42)).toBe(42);

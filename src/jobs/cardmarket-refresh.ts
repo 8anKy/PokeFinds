@@ -46,13 +46,18 @@ const norm = (s: string) =>
   s.toLowerCase().replace(/pok[eé]mon|tcg|:/g, "").replace(/&/g, "and")
     .replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 
-// Prisvakt mot glitchad micro-lowest. En äkta CM From/lowest är aldrig <20% av
-// 30d-snittet; RapidAPI gav 2026-07-03 t.ex. €0.03 på en €300-box → 0,33 kr,
-// vilket korrumperade både Offer.price OCH prishistoriken (30 sealed-produkter).
-// Faller tillbaka på 30d-snittet när lowest saknas ELLER är orimligt låg.
+// Prisvakt mot glitchad lowest åt BÅDA håll. En äkta CM From/lowest (billigaste
+// aktuella annonsen) sitter alltid i botten av spannet: aldrig <20% av 30d-snittet
+// (RapidAPI gav 2026-07-03 €0.03 på en €300-box → 0,33 kr) och aldrig långt ÖVER
+// det heller — golvet kan per definition inte ligga 1,8x över snittet. 2026-07-03
+// gav RapidAPI €9.9 på ett €4.9-snitt (2,0x) för Paradox Rift Booster; det slank
+// under 3x-dagvakten och frös headline på ~113 kr. Utanför [0.2x, 1.8x] av snittet
+// = glitch → fall tillbaka på 30d-snittet. ponytail: 1.8x fångar glitchen med marg;
+// en genuint stigande marknad döljs tillfälligt bakom snittet (self-heal nästa dag).
+export const HIGH_MULT = Number(process.env.CM_HIGH_MULT) || 1.8;
 export function sanePriceEur(low: number | null | undefined, avg: number | null | undefined): number | null {
   const l = low ?? null, a = avg ?? null;
-  if (l != null && l > 0 && (a == null || l >= a * 0.2)) return l;
+  if (l != null && l > 0 && (a == null || (l >= a * 0.2 && l <= a * HIGH_MULT))) return l;
   return a;
 }
 
