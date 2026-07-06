@@ -120,6 +120,27 @@ export async function checkRestockAlerts(productId: string, retailerId?: string)
   });
   if (!product) return { triggered: 0 };
 
+  // Restock-cooldown: en del butiksfeeds (t.ex. Quickbutik/Swepoke) roterar vilka
+  // produkter de returnerar per hämtning → försvunnen-ur-feeden-försoningen flippar
+  // dem OUT och nästa skanning IN igen → falska "Åter i lager" var 30:e min. Skicka
+  // därför inte om samma produkt+butik redan larmat inom fönstret. En ÄKTA restock
+  // efter en verklig fleradagars slutförsäljning har inget larm i fönstret → går fram.
+  // ponytail: rent tidsfönster; kan dämpa en genuin flash-restock inom N h — spam-
+  // skyddet väger tyngre. Sänk RESTOCK_ALERT_COOLDOWN_HOURS om det behövs.
+  const cooldownH = Number(process.env.RESTOCK_ALERT_COOLDOWN_HOURS ?? 12);
+  if (cooldownH > 0 && retailerId) {
+    const recent = await prisma.alert.findFirst({
+      where: {
+        type: "RESTOCK",
+        productId,
+        retailerId,
+        triggeredAt: { gte: new Date(Date.now() - cooldownH * 3600_000) },
+      },
+      select: { id: true },
+    });
+    if (recent) return { triggered: 0 };
+  }
+
   const [watchers, allSubs] = await Promise.all([
     prisma.watchlistItem.findMany({
       // Restock-larm är Pro-only — även bevakade produkter larmar bara för Pro.

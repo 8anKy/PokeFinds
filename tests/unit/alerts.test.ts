@@ -10,6 +10,7 @@ const productFindUnique = vi.fn();
 const watchlistFindMany = vi.fn();
 const userFindMany = vi.fn();
 const alertCreate = vi.fn();
+const alertFindFirst = vi.fn();
 const transaction = vi.fn();
 
 vi.mock("@/lib/db", () => ({
@@ -17,7 +18,10 @@ vi.mock("@/lib/db", () => ({
     product: { findUnique: (...args: unknown[]) => productFindUnique(...args) },
     watchlistItem: { findMany: (...args: unknown[]) => watchlistFindMany(...args) },
     user: { findMany: (...args: unknown[]) => userFindMany(...args) },
-    alert: { create: (...args: unknown[]) => alertCreate(...args) },
+    alert: {
+      create: (...args: unknown[]) => alertCreate(...args),
+      findFirst: (...args: unknown[]) => alertFindFirst(...args),
+    },
     $transaction: (...args: unknown[]) => transaction(...args),
   },
 }));
@@ -31,6 +35,7 @@ beforeEach(() => {
   watchlistFindMany.mockReset().mockResolvedValue([]);
   userFindMany.mockReset().mockResolvedValue([]);
   alertCreate.mockReset().mockImplementation((args: unknown) => args);
+  alertFindFirst.mockReset().mockResolvedValue(null); // inget nyligt restock-larm → cooldown öppen
   transaction.mockReset().mockResolvedValue([]);
 });
 
@@ -110,6 +115,22 @@ describe("checkRestockAlerts", () => {
     expect(alertArgs.data.message).toContain("i lager");
     // retailerId trådas in → mejlet kan länka direkt till butiken som fick lager.
     expect(alertArgs.data.retailerId).toBe("ret-1");
+  });
+
+  it("tystar upprepad restock för samma produkt+butik inom cooldown-fönstret", async () => {
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+    alertFindFirst.mockResolvedValue({ id: "nyligt-larm" }); // redan larmat nyss
+
+    const result = await checkRestockAlerts("prod-1", "ret-1");
+
+    expect(result.triggered).toBe(0);
+    expect(alertCreate).not.toHaveBeenCalled();
+    // cooldown scopas per produkt+butik+typ
+    expect(alertFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ type: "RESTOCK", productId: "prod-1", retailerId: "ret-1" }),
+      })
+    );
   });
 
   it("filtrerar på restockAlert, ej pausad, och endast Pro-bevakare", async () => {
