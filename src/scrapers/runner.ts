@@ -154,6 +154,14 @@ export async function ensureListingProduct(
 ): Promise<string | null> {
   const category = (it.category ?? null) as ProductCategory | null;
   if (!category) return null;
+  // Cross-produkt-vakt: ägs URL:en redan av en produkt (t.ex. länkad av scrape-all-
+  // matcharen) → använd DEN länken. Skapa aldrig en andra produkt/offer för samma
+  // butikssida — det var så dubblettstubbarna uppstod (34 delade URL:er, städat 07-07).
+  const owner = await prisma.offer.findFirst({
+    where: { retailerId: it.retailerId, url: it.url },
+    select: { productId: true },
+  });
+  if (owner) return owner.productId;
   const normalized = normalizeTitle(it.title);
   const match = await matchProduct(normalized);
   let productId = match && match.confidence >= 0.85 ? match.productId : null;
@@ -168,11 +176,18 @@ export async function ensureListingProduct(
     });
     productId = p.id;
   }
-  await prisma.offer.upsert({
-    where: { productId_retailerId_condition_language: { productId, retailerId: it.retailerId, condition: "SEALED", language: "EN" } },
-    update: { price: it.price, url: it.url, stockStatus, lastSeenAt: new Date() },
-    create: { productId, retailerId: it.retailerId, condition: "SEALED", language: "EN", price: it.price, currency: "SEK", stockStatus, url: it.url },
+  // Butiken kan redan ha en offer för produkten via en ANNAN sida (variant) — kapa
+  // inte den offerens URL (varianten spåras i StoreListing-huvudboken). Bara skapa
+  // när offer saknas helt; URL:en själv är obelagd (owner-vakten ovan returnerade annars).
+  const existing = await prisma.offer.findFirst({
+    where: { productId, retailerId: it.retailerId, condition: "SEALED", language: "EN" },
+    select: { id: true },
   });
+  if (!existing) {
+    await prisma.offer.create({
+      data: { productId, retailerId: it.retailerId, condition: "SEALED", language: "EN", price: it.price, currency: "SEK", stockStatus, url: it.url },
+    });
+  }
   return productId;
 }
 
@@ -497,6 +512,20 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
     for (const e of result.errors) logs.push(`Adapterfel: ${e}`);
 
     const retailer = await getRetailerForSource(source.name, source.baseUrl, source.type);
+
+    // Cross-produkt-vakt: en butiks-URL får bara ägas av EN produkt. Utan denna kan
+    // matcharen här och restock-auto-importen länka samma URL till olika produkter —
+    // så uppstod både dubblettstubbar och fel-serie-länkar (First Partner S1↔S2).
+    // Först skriven vinner; scripts/audit-links.ts flaggar innehållsfel veckovis.
+    const urlOwner = new Map<string, string>(
+      (
+        await prisma.offer.findMany({
+          where: { retailerId: retailer.id },
+          select: { url: true, productId: true },
+        })
+      ).map((o) => [o.url, o.productId])
+    );
+
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
     // Har butiken skrapats förut? Om inte = första skrapningen → seeda TYST (larma
@@ -536,6 +565,15 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
           continue;
         }
         const { productId } = match;
+
+        // URL:en ägs redan av en ANNAN produkt → länka inte om (matchare i olika
+        // körvägar får inte tävla om samma butikssida). Hoppa hela posten så inte
+        // heller pris-/lagerdata bokförs på fel produkt.
+        const existingOwner = urlOwner.get(normalized.url);
+        if (existingOwner && existingOwner !== productId) {
+          logs.push(`URL ägs redan av annan produkt — hoppar: "${rawProduct.title}" (${normalized.url})`);
+          continue;
+        }
 
         // Erbjudandepriset (det vi VISAR) kan skilja sig från observationspriset:
         // för Cardmarket är offerPrice lägsta annonspris ("From") medan
@@ -662,6 +700,7 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
               url: urlToStore,
             },
           });
+          urlOwner.set(urlToStore, productId); // vakten ska se även denna körnings nya länkar
           itemsUpdated++;
           // Restock-händelsen avgörs efter körningen (netto), inte här — se
           // offerStartStatus/offerFinalState ovan och emit-loopen efter loopen.

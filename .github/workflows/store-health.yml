@@ -45,3 +45,8 @@ jobs:
         run: npx prisma generate
       - if: steps.guard.outputs.ready == 'true'
         run: npx tsx scripts/check-store-health.ts
+      # Länk-revision: butiks-offers vars URL-slug motsäger produkttiteln (serienummer,
+      # sifferset, språk). Fångar fel-länkar som matcher-vakterna inte kan laga i
+      # efterhand (de vaktar bara NYA matchningar). Röd körning = mejl till ägaren.
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx tsx scripts/audit-links.ts
