@@ -24,6 +24,24 @@ import type {
 const MAX_CATEGORIES = 18;
 const MAX_PAGES_PER_CATEGORY = 4;
 
+// Fallback-parsern plockar upp korsförsäljnings-hrefs → singel-URL:er kan smita in och
+// fel-länkas till en sealed katalogprodukt (t.ex. "Blastoise 1-Pack Blister" bunden till
+// ett Blastoise-singelkort). Singlar prissätts via Cardmarket, aldrig via butik → släng dem.
+const SINGLE_URL = /\/singles(?:-and-graded-cards)?\//i;
+
+// Swepoke/Shinycards platshållar-prissätter vintage-sealed de inte egentligen säljer på
+// absurda nivåer (190 000 kr). Riktig modern sealed i katalogen toppar ~4 500 kr → allt över
+// taket är en platshållare, inte ett äkta pris. ponytail: trubbigt tak; höj QUICKBUTIK_MAX_SEALED_ORE
+// eller byt mot en per-produkt CM-referens om en butik börjar sälja äkta dyr sealed.
+const MAX_SEALED_ORE = Number(process.env.QUICKBUTIK_MAX_SEALED_ORE ?? 800_000);
+
+/** Varför en Quickbutik-annons ska släppas (annars null = behåll). Ren → testbar. */
+export function qbDropReason(url: string, priceOre: number): "single" | "junk-price" | null {
+  if (SINGLE_URL.test(url)) return "single";
+  if (priceOre > MAX_SEALED_ORE) return "junk-price";
+  return null;
+}
+
 function parseSekPrice(text: string): number | null {
   const cleaned = text.replace(/[\s ]/g, "").replace(/kr|sek/gi, "").replace(",", ".");
   const num = parseFloat(cleaned);
@@ -154,6 +172,8 @@ export abstract class QuickbutikAdapter implements SourceAdapter {
           for (const item of found) {
             if (seen.has(item.url)) continue;
             seen.add(item.url);
+            // Singel-URL:er (fel-länkas till sealed) + platshållar-priser filtreras bort.
+            if (qbDropReason(item.url, item.priceOre)) continue;
             added++;
             products.push({
               externalId: `${this.idPrefix}-${Buffer.from(item.url).toString("base64url").slice(0, 40)}`,
