@@ -31,6 +31,7 @@ import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
 import { isPlausibleListingPrice, matchProduct } from "@/scrapers/matching";
 import { netStockEvent, isRestock, isNewInStockArrival } from "@/scrapers/restock";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
+import { isBlockedListingLanguage, listingCardLanguage } from "@/lib/listing-language";
 import type { SourceAdapter } from "@/scrapers/types";
 import { checkPriceAlerts, checkRestockAlerts, checkListingAlerts } from "@/services/alerts";
 import { CARDMARKET_SOURCE_NAMES, HIDDEN_CATEGORIES, NON_RETAIL_SOURCE_NAMES } from "@/services/products";
@@ -152,7 +153,7 @@ export async function ensureListingProduct(
       slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
     }
     const p = await prisma.product.create({
-      data: { title: it.title, normalizedTitle: normalized, slug, category, imageUrl: it.imageUrl, language: "EN" },
+      data: { title: it.title, normalizedTitle: normalized, slug, category, imageUrl: it.imageUrl, language: listingCardLanguage(it.title) },
       select: { id: true },
     });
     productId = p.id;
@@ -346,6 +347,9 @@ export async function runRestockScan(opts?: {
     // ---- Feed-först: URL utan Offer (ny SKU / art-variant / produkt utanför katalogen) ----
     // Bara sealed — singlar/övrigt skulle spamma (se SEALED_FEED_CATEGORIES).
     if (!SEALED_FEED_CATEGORIES.has(it.category ?? "")) continue;
+    // Blockade språk (kinesiska/koreanska) auto-importeras inte "for now" → ingen ny
+    // produkt, inget larm. Japanska släpps igenom (sealed → OK).
+    if (isBlockedListingLanguage(it.title)) continue;
     checked++;
     // Auto-import: skapa/länka katalogprodukt + offer → larmet pekar på VÅR produktsida
     // (in-app), och nästa skanning spårar URL:en via offer-diffen ovan.

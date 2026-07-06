@@ -48,7 +48,7 @@ const SORT_OPTIONS: { value: string; key: string; sort: ProductSort }[] = [
 const LANGUAGE_KEYS: CardLanguage[] = ["SV", "EN", "JP", "DE", "FR", "OTHER"];
 
 /** Språk som visas i katalogfiltret (övriga gömda tills vidare, 2026-06-14). */
-const BROWSE_LANGUAGES: CardLanguage[] = ["EN"];
+const BROWSE_LANGUAGES: CardLanguage[] = ["EN", "JP"];
 
 interface CatalogSearchParams {
   q?: string;

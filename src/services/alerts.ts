@@ -1,6 +1,7 @@
 /** Alerttjänster: skapande, listning, läsmarkering samt pris-/restock-kontroller. */
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
+import { isBlockedListingLanguage } from "@/lib/listing-language";
 import type { AlertChannel, AlertType, Prisma } from "@prisma/client";
 
 function formatSek(ore: number): string {
@@ -119,6 +120,8 @@ export async function checkRestockAlerts(productId: string, retailerId?: string)
     select: { id: true, title: true, slug: true },
   });
   if (!product) return { triggered: 0 };
+  // Blockade språk (kinesiska/koreanska) larmar vi inte på "for now". Japanska = OK.
+  if (isBlockedListingLanguage(product.title)) return { triggered: 0 };
 
   // Restock-cooldown: en del butiksfeeds (t.ex. Quickbutik/Swepoke) roterar vilka
   // produkter de returnerar per hämtning → försvunnen-ur-feeden-försoningen flippar
@@ -196,6 +199,9 @@ export async function checkListingAlerts(
   listing: { id: string; title: string; retailerId: string; productId?: string | null },
   kind: "NEW_LISTING" | "RESTOCK" | "PREORDER"
 ) {
+  // Blockade språk (kinesiska/koreanska) larmar vi inte på "for now". Japanska = OK.
+  if (isBlockedListingLanguage(listing.title)) return { triggered: 0 };
+
   const subs = await prisma.user.findMany({
     where: {
       notificationSettings: { path: ["allRestocks"], equals: true },
