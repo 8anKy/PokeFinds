@@ -123,14 +123,13 @@ export async function checkRestockAlerts(productId: string, retailerId?: string)
   // Blockade språk (kinesiska/koreanska) larmar vi inte på "for now". Japanska = OK.
   if (isBlockedListingLanguage(product.title)) return { triggered: 0 };
 
-  // Restock-cooldown: en del butiksfeeds (t.ex. Quickbutik/Swepoke) roterar vilka
-  // produkter de returnerar per hämtning → försvunnen-ur-feeden-försoningen flippar
-  // dem OUT och nästa skanning IN igen → falska "Åter i lager" var 30:e min. Skicka
-  // därför inte om samma produkt+butik redan larmat inom fönstret. En ÄKTA restock
-  // efter en verklig fleradagars slutförsäljning har inget larm i fönstret → går fram.
-  // ponytail: rent tidsfönster; kan dämpa en genuin flash-restock inom N h — spam-
-  // skyddet väger tyngre. Sänk RESTOCK_ALERT_COOLDOWN_HOURS om det behövs.
-  const cooldownH = Number(process.env.RESTOCK_ALERT_COOLDOWN_HOURS ?? 12);
+  // Restock-cooldown = kort ANTI-BURST, inte huvudskyddet. Rotation-spammet
+  // (falska OUT→IN när en produkt roterar ur/in i feeden) stoppas numera vid källan:
+  // frånvaro-försoningen sätter UNKNOWN (ej OUT_OF_STOCK) och UNKNOWN→IN larmar
+  // aldrig (2026-07-07). Fönstret här dämpar bara snabb explicit flapp (feed som
+  // växlar slut/i-lager på minuter). KORT med flit: billiga heta produkter kan ha
+  // flera ÄKTA restocks samma dag och varje sådan ska larma.
+  const cooldownH = Number(process.env.RESTOCK_ALERT_COOLDOWN_HOURS ?? 2);
   if (cooldownH > 0 && retailerId) {
     const recent = await prisma.alert.findFirst({
       where: {

@@ -113,6 +113,9 @@ export interface RestockSourceInfo {
   name: string;
   type: SourceType;
   baseUrl: string;
+  /** Feeden returnerar en roterande delmängd av sortimentet (Quickbutik/Swepoke) —
+   *  en URL som "dyker upp" kan vara urgammal → inga "ny produkt"-larm för källan. */
+  rotatingFeed?: boolean;
 }
 
 /** Hur många butiker som hämtas parallellt (olika hostar → artigt per värd ändå). */
@@ -218,16 +221,20 @@ export async function ensureListingProduct(
  * som Next buntar). Utan grind körs allt som vanligt.
  */
 /**
- * Vilka offers ska markeras slutsålda? De vars butik hämtades den här körningen
- * (`feedRetailers`, ≥1 produkt) men vars URL saknas i feeden (`freshKeys`) och som
- * inte redan är slutsålda. Ren funktion → testbar utan DB/adaptrar.
+ * Vilka offers ska nollställas för att deras URL FÖRSVUNNIT ur feeden? De vars butik
+ * hämtades den här körningen (`feedRetailers`, ≥1 produkt) men vars URL saknas i
+ * feeden (`freshKeys`). Ren funktion → testbar utan DB/adaptrar.
  *
- * DEBOUNCE (`graceMs`): vissa feeds (Quickbutik/Swepoke) roterar vilka produkter de
- * returnerar per hämtning → en produkt "försvinner" en skanning och är tillbaka nästa,
- * utan att lagret ändrats. Ett enda missat besök får därför INTE slutsälja: kräv att
- * offern varit borta i minst `graceMs` (senast sedd `lastSeenAt` äldre än så). Riktig
- * slutförsäljning via butikens egen "slut"-flagga går ändå direkt (offer-diffen, ej
- * hit). En helt borttagen produkt slutsäljs efter grace-fönstret (ej fryst för evigt).
+ * Frånvaro ≠ slutsåld: dessa sätts till UNKNOWN (inte OUT_OF_STOCK). En produkt som
+ * försvinner ur feeden är oftast avlistad ELLER bara utroterad (Quickbutik/Swepoke
+ * roterar sortimentet) — vi VET inte att den sålde slut. UNKNOWN→IN_STOCK är ingen
+ * äkta lagerövergång (isRealStockTransition) → en utroterad produkt som dyker upp
+ * igen återställs TYST istället för att spamma "Åter i lager" (23 000 kr-boxen som
+ * "restockade" 9 ggr). Äkta slutförsäljning (butikens egen "slut"-flagga i feeden)
+ * går via offer-diffen → OUT_OF_STOCK → nästa IN_STOCK är en riktig restock + larm.
+ *
+ * DEBOUNCE (`graceMs`): ett enda missat besök får inte nollställa — kräv att offern
+ * varit borta i minst `graceMs` (senast sedd `lastSeenAt` äldre än så).
  */
 export function offersToMarkSoldOut<
   T extends { retailerId: string; url: string; stockStatus: StockStatus; lastSeenAt: Date | null }
@@ -236,6 +243,7 @@ export function offersToMarkSoldOut<
     (o) =>
       feedRetailers.has(o.retailerId) &&
       o.stockStatus !== StockStatus.OUT_OF_STOCK &&
+      o.stockStatus !== StockStatus.UNKNOWN &&
       !freshKeys.has(`${o.retailerId}:${o.url}`) &&
       (o.lastSeenAt == null || now.getTime() - o.lastSeenAt.getTime() >= graceMs)
   );
@@ -259,7 +267,12 @@ export async function runRestockScan(opts?: {
     const active = await prisma.scrapeSource.findMany({ where: { isActive: true } });
     sources = active
       .filter((s) => (s.config as { restockWatch?: boolean } | null)?.restockWatch === true)
-      .map((s) => ({ name: s.name, type: s.type, baseUrl: s.baseUrl }));
+      .map((s) => ({
+        name: s.name,
+        type: s.type,
+        baseUrl: s.baseUrl,
+        rotatingFeed: (s.config as { rotatingFeed?: boolean } | null)?.rotatingFeed === true,
+      }));
   }
   if (opts?.onlySources?.length) {
     const only = new Set(opts.onlySources);
@@ -308,9 +321,11 @@ export async function runRestockScan(opts?: {
 
   // Fas 2 (DB-burst): retailer per källa + alla befintliga offers i EN läsning.
   const retailerByName = new Map<string, string>();
+  const rotatingRetailerIds = new Set<string>();
   for (const source of sources) {
     const r = await getRetailerForSource(source.name, source.baseUrl, source.type);
     retailerByName.set(source.name, r.id);
+    if (source.rotatingFeed) rotatingRetailerIds.add(r.id);
   }
   const retailerIds = [...new Set(retailerByName.values())];
   // ALLA offers (även gömda kategorier) så matchade URL:er känns igen som matchade
@@ -410,7 +425,9 @@ export async function runRestockScan(opts?: {
       });
       // Larma bara om butiken redan har historik (ej tyst seed). Ny produkt I LAGER
       // = NEW_LISTING; ny produkt i FÖRHANDSBOKNING = PREORDER (köpbar inför release).
-      if (seededRetailers.has(it.retailerId)) {
+      // Roterande feeds (Swepoke) undantas: en "ny" URL där är oftast en URGAMMAL
+      // annons som roterat in i synfältet (23 000 kr-boxen larmades som "ny produkt").
+      if (seededRetailers.has(it.retailerId) && !rotatingRetailerIds.has(it.retailerId)) {
         if (newStatus === StockStatus.IN_STOCK) {
           await checkListingAlerts({ ...created, productId }, "NEW_LISTING");
           newListings++;
@@ -481,7 +498,9 @@ export async function runRestockScan(opts?: {
   const graceMs = Number(process.env.RESTOCK_SOLDOUT_GRACE_HOURS ?? 24) * 3600_000;
   let soldOutReconciled = 0;
   for (const o of offersToMarkSoldOut(offers, freshKeys, feedRetailers, now, graceMs)) {
-    await prisma.offer.update({ where: { id: o.id }, data: { stockStatus: StockStatus.OUT_OF_STOCK } });
+    // UNKNOWN, inte OUT_OF_STOCK: frånvaro ur feeden ≠ känd slutförsäljning.
+    // Se offersToMarkSoldOut-kommentaren — dödar falska "Åter i lager" vid rotation.
+    await prisma.offer.update({ where: { id: o.id }, data: { stockStatus: StockStatus.UNKNOWN } });
     soldOutReconciled++;
   }
 
@@ -777,7 +796,10 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
         isNewInStockArrival(start, st.newStatus) &&
         scrapedBefore &&
         !NON_RETAIL_SOURCE_NAMES.includes(retailer.name) &&
-        SEALED_FEED_CATEGORIES.has(st.category ?? "")
+        SEALED_FEED_CATEGORIES.has(st.category ?? "") &&
+        // Roterande feeds (Swepoke): en "ny" offer är oftast en urgammal annons som
+        // roterat in i synfältet — larma inte den som ny produkt.
+        (source.config as { rotatingFeed?: boolean } | null)?.rotatingFeed !== true
       ) {
         await prisma.restockEvent.create({
           data: {

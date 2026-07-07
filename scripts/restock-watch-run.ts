@@ -35,7 +35,9 @@ function readCachedSources(): RestockSourceInfo[] | null {
       typeof parsed.at === "number" &&
       Date.now() - parsed.at < SOURCES_TTL_MS &&
       Array.isArray(parsed.sources) &&
-      parsed.sources.length > 0
+      parsed.sources.length > 0 &&
+      // Cache från före rotatingFeed-fältet (2026-07-07) saknar flaggan → hämta om.
+      parsed.sources.every((s) => typeof s === "object" && s !== null && "rotatingFeed" in s)
     ) {
       return parsed.sources;
     }

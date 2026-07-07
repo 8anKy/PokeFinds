@@ -1,7 +1,8 @@
 /**
  * offersToMarkSoldOut: en offer vars butik hämtades men vars URL försvann ur
- * feeden ska bli slutsåld — MEN först efter grace-fönstret (debounce mot
- * rullande/instabila feeds som Swepoke). Annars lämnas den orörd.
+ * feeden ska nollställas (till UNKNOWN — frånvaro ≠ känd slutförsäljning) — MEN
+ * först efter grace-fönstret (debounce mot rullande/instabila feeds som Swepoke).
+ * Annars lämnas den orörd. UNKNOWN→IN larmar aldrig → rotation spammar inte.
  */
 import { describe, expect, it } from "vitest";
 import { StockStatus } from "@prisma/client";
@@ -40,7 +41,27 @@ describe("offersToMarkSoldOut", () => {
     expect(run([offer({ stockStatus: StockStatus.OUT_OF_STOCK })], new Set<string>())).toHaveLength(0);
   });
 
-  it("slutsäljer en aldrig-sedd (lastSeenAt null) försvunnen offer", () => {
+  it("rör INTE en redan UNKNOWN-nollställd offer (annars omskrivs den varje körning)", () => {
+    expect(run([offer({ stockStatus: StockStatus.UNKNOWN })], new Set<string>())).toHaveLength(0);
+  });
+
+  it("nollställer en aldrig-sedd (lastSeenAt null) försvunnen offer", () => {
     expect(run([offer({ lastSeenAt: null })], new Set<string>())).toHaveLength(1);
+  });
+});
+
+describe("rotation → tyst återställning (UNKNOWN→IN larmar aldrig)", () => {
+  it("UNKNOWN→IN_STOCK är ingen äkta övergång (ingen event, inget larm)", async () => {
+    const { netStockEvent } = await import("@/scrapers/restock");
+    const ev = netStockEvent(StockStatus.UNKNOWN, StockStatus.IN_STOCK);
+    expect(ev.emit).toBe(false);
+    expect(ev.isRestock).toBe(false);
+  });
+
+  it("äkta slutförsäljning OUT→IN larmar fortfarande", async () => {
+    const { netStockEvent } = await import("@/scrapers/restock");
+    const ev = netStockEvent(StockStatus.OUT_OF_STOCK, StockStatus.IN_STOCK);
+    expect(ev.emit).toBe(true);
+    expect(ev.isRestock).toBe(true);
   });
 });
