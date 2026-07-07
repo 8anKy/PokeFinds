@@ -269,6 +269,36 @@ describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
     // PRECISION: ett delset-NAMN är inte brus → "Perfect Order" får ändå ej matcha basen.
     expect(matchListingToProduct("Mega Evolution Perfect Order Elite Trainer Box", megaETB)).toBeNull();
   });
+
+  it("set-namn som är superset av kandidatens ('Dragon Majesty' vs vintage-'Dragon') förkastas", () => {
+    // Verklig fejkdeal: Tradera "Pokémon Dragon Majesty Booster Pack" (900 kr, SM7.5)
+    // matchade vintage "Dragon Booster Pack" (EX Dragon, CM 3 816 kr) → falsk −76 %.
+    // Otäckt identitetsord ("majesty") = täckning exakt 0,5 → ska förkastas.
+    const vintageDragon = { normalizedTitle: "dragon booster pack", card: null };
+    const dragonMajesty = { normalizedTitle: "dragon majesty booster pack", card: null };
+    expect(matchListingToProduct("Pokémon Dragon Majesty Booster Pack", vintageDragon)).toBeNull();
+    expect(matchListingToProduct("Pokémon Dragon Majesty Booster Pack", dragonMajesty)).not.toBeNull();
+  });
+
+  it("annat officiellt produktnamn ('Special Collection' vs 'EX Box') förkastas", () => {
+    // Verklig fejkdeal: Tradera "Pokémon TCG: Charizard ex Special Collection" (695 kr)
+    // matchade XY-erans "Charizard EX Box" (CM 1 962 kr) → falsk −65 %.
+    const exBox = { normalizedTitle: "charizard ex box", card: null };
+    const special = { normalizedTitle: "charizard ex special collection", card: null };
+    expect(matchListingToProduct("Pokémon TCG: Charizard ex Special Collection", exBox)).toBeNull();
+    expect(matchListingToProduct("Pokémon TCG: Charizard ex Special Collection", special)).not.toBeNull();
+  });
+
+  it("Pokémon Center-variant ≠ vanlig produkt (åt båda håll)", () => {
+    // Verklig fejkdeal: Tradera "Obsidian Flames Elite trainer box" (vanlig, 4 000 kr)
+    // matchade "Obsidian Flames Pokémon Center Elite Trainer Box" (CM 7 494 kr) → −47 %.
+    const pcEtb = { normalizedTitle: "obsidian flames pokemon center elite trainer box", card: null };
+    const etb = { normalizedTitle: "obsidian flames elite trainer box", card: null };
+    expect(matchListingToProduct("Obsidian Flames Elite trainer box", pcEtb)).toBeNull();
+    expect(matchListingToProduct("Obsidian Flames Pokémon Center Elite Trainer Box", etb)).toBeNull();
+    expect(matchListingToProduct("Obsidian Flames Pokémon Center Elite Trainer Box", pcEtb)).not.toBeNull();
+    expect(matchListingToProduct("Obsidian Flames Elite trainer box oöppnad", etb)).not.toBeNull();
+  });
 });
 
 describe("isPlausibleListingPrice", () => {

@@ -279,9 +279,13 @@ const NOISE_WORDS = new Set([
   // Booster Pack 1999 WOTC Unlimited Shadowless oöppnad"). ASCII (normalizeTitle
   // strippar diakritik). "unlimited"/"shadowless" = tryck-upplagor vi ej katalogför
   // → tryggt brus. Delset-NAMN (Perfect Order, Cyber Judge) är INTE här → precisionen
-  // hålls. OBS: "base"/"set" får ALDRIG in här (äkta vintage-setnamn).
+  // hålls. OBS: "base" får ALDRIG in här (äkta vintage-setnamn). "set" däremot ÄR brus:
+  // ordet står alltid BREDVID den riktiga identiteten ("Base SET", "151 SET") och bar
+  // det ensamt sänkte täckningen för äkta vintage-annonser ("Base Set Booster Pack"
+  // mot katalogens "Base Booster Pack" = 0,5) när tröskeln skärptes till 0,6.
   "wotc", "unlimited", "shadowless", "unopened", "ooppnad", "oanvand", "anvand",
   "nyskick", "fabriksforseglad", "farsk", "ladan", "helt", "aldrig", "mint", "factory",
+  "set",
 ]);
 /**
  * Korta set-markörer som distinctiveWords annars tappar (för korta/numeriska),
@@ -397,6 +401,19 @@ export function setMarkerMismatch(a: string, b: string): boolean {
   return false;
 }
 
+/**
+ * "Pokémon Center"-exklusiva varianter (PC ETB m.fl.) är EGNA, dyrare produkter.
+ * En vanlig "Obsidian Flames Elite Trainer Box"-annons delar ALLA vanliga
+ * särskiljande ord med "Obsidian Flames Pokémon Center Elite Trainer Box"
+ * ("pokemon" är stoppord, "center" bara 1 av 3 kandidatord) → den slank igenom
+ * och visade en falsk −47%-deal mot PC-boxens CM-pris. Hård vakt: nämner bara
+ * ENA sidan "pokemon center" är det olika produkter.
+ */
+const POKEMON_CENTER_RE = /\bpokemon center\b/;
+export function pokemonCenterMismatch(a: string, b: string): boolean {
+  return POKEMON_CENTER_RE.test(normalizeTitle(a)) !== POKEMON_CENTER_RE.test(normalizeTitle(b));
+}
+
 /** "Series N" / "Vol N" ur en titel — produktidentitet för numrerade utgåvor. */
 function seriesNumber(t: string): string | null {
   const m = /\b(?:series|serie|vol|volume)\s*(\d{1,2})\b/i.exec(t);
@@ -444,6 +461,16 @@ export function cleanListingTitle(title: string): string {
 
 /** Lägsta andel delade särskiljande ord för att en kandidat ska godkännas. */
 const MIN_DISTINCTIVE_OVERLAP = 0.5;
+
+/**
+ * Tröskel för nonEraCoverage — STRIKT över hälften. Vid exakt 0,5 (2 egna ord,
+ * 1 täckt) är det otäckta ordet nästan alltid produktidentitet: "Dragon MAJESTY
+ * Booster Pack" matchade vintage-"Dragon Booster Pack" (−76 %-fejkdeal) och
+ * "Charizard ex SPECIAL Collection" matchade "Charizard EX Box" (−65 %) — båda
+ * passerade på pricken 0,5. Äkta brusord (skick/butiksfraser) rensas redan av
+ * NOISE_WORDS, så en kvarvarande otäckt term ska väga tyngre än så här.
+ */
+const MIN_NONERA_COVERAGE = 0.6;
 
 /**
  * Försöker matcha en normaliserad titel mot en produkt i katalogen.
@@ -572,6 +599,10 @@ export async function matchProduct(
     if (seriesMismatch(normalized, c.normalizedTitle)) {
       continue;
     }
+    // Pokémon Center-exklusiv variant ≠ vanlig produkt → förkasta
+    if (pokemonCenterMismatch(normalized, c.normalizedTitle)) {
+      continue;
+    }
     // Fel set/kort: kandidaten saknar de särskiljande orden → förkasta
     // (hindrar "Ascended Heroes ETB" från att matcha "Destined Rivals ETB")
     const overlap = distinctiveOverlap(normalized, c.normalizedTitle);
@@ -582,7 +613,7 @@ export async function matchProduct(
     // måste täckas av kandidaten — annars är offerten en mer specifik produkt och
     // får inte matcha bas-produkten (bas-"Mega Evolution ETB" fångar då inte en
     // "Mega Evolution Perfect Order ETB"-annons).
-    if (nonEraCoverage(normalized, c.normalizedTitle) < MIN_DISTINCTIVE_OVERLAP) {
+    if (nonEraCoverage(normalized, c.normalizedTitle) < MIN_NONERA_COVERAGE) {
       continue;
     }
     // Liten bonus för högre ordöverlapp — föredrar "Mega Evolution Booster Pack"
@@ -658,10 +689,11 @@ export function matchListingToProduct(
   if (languageMismatch(normalized, product.normalizedTitle)) return null;
   if (setMarkerMismatch(normalized, product.normalizedTitle)) return null;
   if (seriesMismatch(normalized, product.normalizedTitle)) return null;
+  if (pokemonCenterMismatch(normalized, product.normalizedTitle)) return null;
 
   const overlap = distinctiveOverlap(normalized, product.normalizedTitle);
   if (overlap < MIN_DISTINCTIVE_OVERLAP) return null;
-  if (nonEraCoverage(normalized, product.normalizedTitle) < MIN_DISTINCTIVE_OVERLAP) return null;
+  if (nonEraCoverage(normalized, product.normalizedTitle) < MIN_NONERA_COVERAGE) return null;
 
   let score = scoreSimilarity(normalized, product.normalizedTitle);
   score = Math.min(1, score + 0.15 * overlap);
