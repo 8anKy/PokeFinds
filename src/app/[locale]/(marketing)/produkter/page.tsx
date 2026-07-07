@@ -15,6 +15,7 @@ import {
 import type { CardLanguage, ProductCategory } from "@prisma/client";
 import { CATEGORY_LABELS } from "@/components/features/product-card";
 import { ExploreFeed } from "@/components/features/explore-feed";
+import { SearchAutocomplete } from "@/components/features/search-autocomplete";
 import { Input, Select, Label, Checkbox } from "@/components/ui/input";
 import { Button, LinkButton } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -155,13 +156,12 @@ function SearchField({ defaultQuery }: { defaultQuery?: string }) {
     <div>
       <Label htmlFor="q">{t("search")}</Label>
       <div className="flex items-center gap-2">
-        <Input
+        <SearchAutocomplete
           id="q"
-          name="q"
-          type="search"
-          placeholder={t("searchPlaceholder")}
           defaultValue={defaultQuery ?? ""}
-          className="flex-1"
+          placeholder={t("searchPlaceholder")}
+          className="h-10 flex-1 rounded-lg border border-surface-border bg-surface-raised px-3 transition-colors focus-within:border-holo-cyan focus-within:ring-2 focus-within:ring-holo-cyan/30"
+          dropdownClassName="left-0 w-[24rem] max-w-[calc(100vw-2rem)]"
         />
         <Link
           href="/skanna"
@@ -411,23 +411,23 @@ export default async function ProductsPage({
         {/* Sök alltid användbar; filtren fälls ut via filter-ikonen (peer-checkbox, ingen JS) */}
         <form method="GET" action="/produkter" className="space-y-3">
           <input type="checkbox" id="filt-toggle" className="peer sr-only" />
-          <div className="flex items-center gap-1 rounded-xl border border-surface-border bg-surface-raised/40 px-3 transition-colors focus-within:border-holo-cyan/60">
-            <IconSearch size={18} className="shrink-0 text-ink-muted" />
-            <input
-              name="q"
-              type="search"
-              defaultValue={searchParams.q ?? ""}
-              placeholder={t("mobileSearchPlaceholder")}
-              className="w-full bg-transparent py-3 text-sm text-ink placeholder:text-ink-muted focus:outline-none"
-            />
-            <label
-              htmlFor="filt-toggle"
-              aria-label={t("filterAria")}
-              className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-lg text-ink-muted transition-colors hover:text-holo-cyan peer-checked:text-holo-cyan"
-            >
-              <IconFilter size={20} />
-            </label>
-          </div>
+          <SearchAutocomplete
+            name="q"
+            defaultValue={searchParams.q ?? ""}
+            placeholder={t("mobileSearchPlaceholder")}
+            className="gap-1 rounded-xl border border-surface-border bg-surface-raised/40 px-3 transition-colors focus-within:border-holo-cyan/60"
+            inputClassName="py-3 placeholder:text-ink-muted"
+            leading={<IconSearch size={18} className="shrink-0 text-ink-muted" />}
+            trailing={
+              <label
+                htmlFor="filt-toggle"
+                aria-label={t("filterAria")}
+                className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-lg text-ink-muted transition-colors hover:text-holo-cyan"
+              >
+                <IconFilter size={20} />
+              </label>
+            }
+          />
           <div className="card-surface hidden space-y-4 p-5 peer-checked:block">
             <CatalogFilterFields
               searchParams={searchParams}

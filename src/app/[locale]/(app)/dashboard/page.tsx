@@ -12,10 +12,10 @@ import { getFeed } from "@/services/community";
 import { StatCard } from "@/components/features/stat-card";
 import { PriceChartLazy } from "@/components/features/price-chart-lazy";
 import { CATEGORY_LABELS } from "@/components/features/product-card";
+import { SearchAutocomplete } from "@/components/features/search-autocomplete";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PriceChange } from "@/components/ui/price-change";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   IconBell,
@@ -97,11 +97,12 @@ export default async function DashboardPage() {
         </div>
         <div className="flex items-center gap-3">
           <form action="/produkter" method="GET" className="flex w-full max-w-xs gap-2" role="search">
-            <Input
-              type="search"
+            <SearchAutocomplete
               name="q"
               placeholder={t("searchPlaceholder")}
-              aria-label={t("searchAria")}
+              ariaLabel={t("searchAria")}
+              className="h-10 flex-1 rounded-lg border border-surface-border bg-surface-raised px-3 transition-colors focus-within:border-holo-cyan focus-within:ring-2 focus-within:ring-holo-cyan/30"
+              dropdownClassName="right-0 w-[24rem] max-w-[calc(100vw-2rem)]"
             />
             <Button type="submit" variant="secondary" aria-label={t("searchBtn")}>
               <IconSearch size={18} />

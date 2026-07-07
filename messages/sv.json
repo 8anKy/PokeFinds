@@ -841,6 +841,8 @@
     "scanAria": "Identifiera kort med kameran",
     "scanTitle": "Skanna ett kort med kameran",
     "mobileSearchPlaceholder": "Sök Pokémon, set, produkter…",
+    "suggestShowAll": "Visa alla resultat för ”{query}”",
+    "suggestEmpty": "Inga snabbträffar — prova full sökning",
     "filterAria": "Filter och sortering",
     "category": "Kategori",
     "allCategories": "Alla kategorier",

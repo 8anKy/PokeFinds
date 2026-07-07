@@ -841,6 +841,8 @@
     "scanAria": "Identify a card with the camera",
     "scanTitle": "Scan a card with the camera",
     "mobileSearchPlaceholder": "Search Pokémon, sets, products…",
+    "suggestShowAll": "Show all results for “{query}”",
+    "suggestEmpty": "No quick matches — try a full search",
     "filterAria": "Filter and sorting",
     "category": "Category",
     "allCategories": "All categories",
