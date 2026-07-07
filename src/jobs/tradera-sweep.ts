@@ -159,9 +159,13 @@ function parseItemsFromXml(xml: string): { items: TraderaItem[]; totalPages: num
     if (lang && !/^eng/i.test(lang)) continue;
 
     const rawUrl = tagText(block, "ItemLink") ?? tagText(block, "ItemUrl");
-    const url = rawUrl
-      ? rawUrl.replace(/^http:\/\//, "https://")
-      : `https://www.tradera.com/item/0/${itemId}/`;
+    // Vissa API-svar lägger BILD-URL:en (img.tradera.net/...jpg) i länkfältet —
+    // 13 offers i prod pekade på en jpg. Allt som inte är en annons-länk på
+    // tradera.com faller tillbaka på den konstruerade item-URL:en (fungerar alltid).
+    const url =
+      rawUrl && /tradera\.com\/item\//.test(rawUrl)
+        ? rawUrl.replace(/^http:\/\//, "https://")
+        : `https://www.tradera.com/item/0/${itemId}/`;
 
     const catText = tagText(block, "CategoryId");
     const sellerBlock = block.match(/<Seller>([\s\S]*?)<\/Seller>/);
