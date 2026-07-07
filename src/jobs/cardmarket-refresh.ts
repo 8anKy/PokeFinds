@@ -13,10 +13,12 @@ import { prisma } from "../lib/db";
 import { mapPool } from "../lib/concurrency";
 import { getRatesOre } from "../lib/exchange-rate";
 import {
+  cardmarketJapaneseProductUrl,
   cardmarketProductUrl,
   isEnglishCardmarketUrl,
   withNearMint,
 } from "../lib/marketplace-urls";
+import { judgeSameProduct } from "../lib/same-product";
 import { classifyForm, scoreSimilarity } from "../scrapers/matching";
 import { recomputeProductPriceCache, snapshotStorePricedProducts } from "../services/products";
 import { fetchTcgCardById, cardMarketPriceOre } from "../scrapers/adapters/pokemontcg-adapter";
@@ -200,6 +202,206 @@ export async function runVariantRefresh(): Promise<number> {
   return n;
 }
 
+// ── Japanska sealed: officiella Cardmarket-prisguiden ────────────────────────
+// Japanska set har EGNA produktsidor på Cardmarket (JP-bannrade expansioner) och
+// finns INTE i RapidAPI-katalogen. Priskälla = CM:s officiella publika dataexporter
+// (samma som import-cardmarket-priceguide.ts — ingen scraping):
+//   prisguiden ger `low` (lägsta aktuella annons) + `trend`/`avg` per idProduct.
+// Pris vi visar = `low` (lägsta, samma semantik som EN-sealed); ur lager utan
+// aktuell annons → trend/avg + OUT_OF_STOCK. Länk = idProduct + language=7
+// (japanska annonser). Mappningen productId→idProduct bor i CM-offerens URL
+// (DB-driven — funkar i molnjobb utan lokala cachefiler).
+const CM_PRICE_GUIDE_URL =
+  "https://downloads.s3.cardmarket.com/productCatalog/priceGuide/price_guide_6.json";
+const CM_NONSINGLES_URL =
+  "https://downloads.s3.cardmarket.com/productCatalog/productList/products_nonsingles_6.json";
+
+interface CmGuideEntry {
+  idProduct: number;
+  avg: number | null;
+  low: number | null;
+  trend: number | null;
+}
+interface CmNonSingle {
+  idProduct: number;
+  name: string;
+  categoryName: string;
+  idExpansion: number;
+}
+
+/** CM-katalogkategorier som får matchas per vår produktkategori (JP-mappning). */
+const JP_CM_CATEGORIES: Record<string, string[]> = {
+  BOOSTER_PACK: ["Pokémon Booster"],
+  BOOSTER_BOX: ["Pokémon Display"],
+  ETB: ["Pokémon Elite Trainer Boxes"],
+  TIN: ["Pokémon Tins"],
+  COLLECTION_BOX: ["Pokémon Box Set"],
+  BUNDLE: ["Pokémon Box Set", "Pokémon Display"],
+  BLISTER: ["Pokémon Blisters", "Pokémon Booster"],
+};
+
+/** Städar en JP-produkttitel till CM-jämförbar form (era-/språk-/kodbrus bort). */
+export function jpComparableTitle(title: string): string {
+  return norm(
+    title
+      // språkmarkörer + parentes-/bindestrecksvarianter
+      .replace(/\(?\b(japansk\w*|japanese|jpn?)\b\)?/gi, " ")
+      // set-koder: sv2D, s12a, sm10b, m1L, sv4A … (även inom parentes/efter streck)
+      .replace(/[([-]?\s*\b(?:sv|swsh|sm|xy|bw|s|m)\d{1,2}[a-z]{0,2}\b\s*[)\]]?/gi, " ")
+      // era-prefix — CM:s JP-namn bär dem inte ("Clay Burst Booster Box")
+      .replace(/\b(scarlet\s*(&|and|&amp;)?\s*violet|sword\s*(&|and|&amp;)?\s*shield|sun\s*(&|and|&amp;)?\s*moon)\b/gi, " ")
+      // innehålls-/formbrus som CM inte använder i namnet
+      .replace(/\(\d+\s*(cards?|kort|pack|boosters?)\)/gi, " ")
+      .replace(/\bdisplay\s*\/\s*booster box\b/gi, "booster box")
+      .replace(/\bhigh class pack\b/gi, " ")
+      .replace(/&amp;/gi, "and")
+  );
+}
+
+export interface JpRefreshResult {
+  products: number;
+  updated: number;
+  mapped: number;
+  unmatched: string[];
+}
+
+export async function runJapaneseSealedRefresh(): Promise<JpRefreshResult> {
+  const res: JpRefreshResult = { products: 0, updated: 0, mapped: 0, unmatched: [] };
+  const cm = await prisma.retailer.findFirst({ where: { name: "Cardmarket" } });
+  if (!cm) return res;
+  const jpProducts = await prisma.product.findMany({
+    where: { language: "JP", category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY"] } },
+    include: { offers: { select: { id: true, retailerId: true, url: true, price: true, stockStatus: true } } },
+  });
+  res.products = jpProducts.length;
+  if (jpProducts.length === 0) return res;
+
+  const [guideRes, nonSinglesRes] = await Promise.all([
+    fetch(CM_PRICE_GUIDE_URL),
+    fetch(CM_NONSINGLES_URL),
+  ]);
+  if (!guideRes.ok || !nonSinglesRes.ok) {
+    console.error(`[cm-jp] prisguide/katalog HTTP ${guideRes.status}/${nonSinglesRes.status}`);
+    return res;
+  }
+  const guide = (await guideRes.json()) as { priceGuides: CmGuideEntry[] };
+  const catalog = (await nonSinglesRes.json()) as { products: CmNonSingle[] };
+  const guideById = new Map(guide.priceGuides.map((e) => [e.idProduct, e]));
+
+  // idProducts som redan ägs av en produkt (via CM-offer-URL) — en kandidat som
+  // ägs av NÅGON ANNAN produkt är per definition fel match (vår EN-katalog är
+  // komplett → alla internationella produkter är redan ägda → kvarvarande
+  // oägda kandidater är i praktiken japanska/udda).
+  const cmOffers = await prisma.offer.findMany({
+    where: { retailerId: cm.id, url: { contains: "idProduct=" } },
+    select: { productId: true, url: true },
+  });
+  const ownedBy = new Map<number, string>();
+  for (const o of cmOffers) {
+    const m = o.url?.match(/idProduct=(\d+)/);
+    if (m) ownedBy.set(parseInt(m[1], 10), o.productId);
+  }
+
+  const rates = await getRatesOre();
+  const cmSource = await prisma.scrapeSource.findFirst({ where: { name: "Cardmarket" }, select: { id: true } });
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  type JpOp = { productId: string; offerId?: string; idProduct: number; priceOre: number; stock: "IN_STOCK" | "OUT_OF_STOCK" };
+  const ops: JpOp[] = [];
+
+  for (const p of jpProducts) {
+    const cmOffer = p.offers.find((o) => o.retailerId === cm.id);
+    let idProduct: number | null = null;
+    const idm = cmOffer?.url?.match(/idProduct=(\d+)/);
+    if (idm) idProduct = parseInt(idm[1], 10);
+
+    // Auto-mappning för JP-produkter utan CM-offer: namn-match mot CM-katalogen
+    // (rätt CM-kategori, oägt idProduct) + LLM-dom som SISTA vakt. Utan
+    // ANTHROPIC_API_KEY krävs nära-exakt namn (≥0.9) för att mappa.
+    if (idProduct == null) {
+      const ourClean = jpComparableTitle(p.title);
+      const allowedCats = JP_CM_CATEGORIES[p.category] ?? null;
+      const cands = catalog.products
+        .filter(
+          (c) =>
+            (!allowedCats || allowedCats.includes(c.categoryName)) &&
+            !/coin|lot|single/i.test(c.categoryName) &&
+            (ownedBy.get(c.idProduct) === undefined || ownedBy.get(c.idProduct) === p.id)
+        )
+        .map((c) => ({ c, sim: scoreSimilarity(ourClean, norm(c.name)) }))
+        .filter((x) => x.sim >= 0.5)
+        .sort((a, b) => b.sim - a.sim)
+        .slice(0, 3);
+      for (const { c, sim } of cands) {
+        const verdict = await judgeSameProduct(
+          p.title,
+          c.name,
+          "B är Cardmarkets produktnamn. Japanska set har EGNA produktsidor på Cardmarket med setets japanska namn (t.ex. 'Pokémon Card 151' = japanska 151-setet, medan '151' ensamt = internationella utgåvan). A är en JAPANSK produkt — B måste vara SAMMA japanska set och produkttyp."
+        );
+        const accept = verdict ? verdict.same : sim >= 0.9;
+        if (accept) {
+          idProduct = c.idProduct;
+          ownedBy.set(c.idProduct, p.id);
+          res.mapped++;
+          console.log(`[cm-jp] mappade "${p.title}" → ${c.idProduct} "${c.name}" (sim ${sim.toFixed(2)})`);
+          break;
+        }
+      }
+      if (idProduct == null) {
+        res.unmatched.push(p.title);
+        continue;
+      }
+    }
+
+    const g = guideById.get(idProduct);
+    if (!g) continue;
+    // Lägsta pris ("low") = det vi visar/spårar; utan aktuell annons → trend/avg
+    // som ur-lager-referens (samma semantik som EN-sealed). sanePriceEur skyddar
+    // mot glitchade micro-/jättepriser.
+    const eur = sanePriceEur(g.low, g.trend ?? g.avg);
+    if (eur == null) continue;
+    const stock = g.low != null && eur === g.low ? "IN_STOCK" : "OUT_OF_STOCK";
+    ops.push({ productId: p.id, offerId: cmOffer?.id, idProduct, priceOre: Math.round(eur * rates.eurToOre), stock });
+  }
+
+  const clamped = await clampDayMoves(ops);
+  if (clamped) console.log(`[cm-jp] klämde ${clamped} orimliga dagshopp till gårdagens värde.`);
+
+  for (const op of ops) {
+    const url = cardmarketJapaneseProductUrl(op.idProduct);
+    if (op.offerId) {
+      await prisma.offer.update({
+        where: { id: op.offerId },
+        data: { price: op.priceOre, url, stockStatus: op.stock, condition: "SEALED", language: "JP", lastSeenAt: new Date() },
+      });
+    } else {
+      await prisma.offer.upsert({
+        where: { productId_retailerId_condition_language: { productId: op.productId, retailerId: cm.id, condition: "SEALED", language: "JP" } },
+        update: { price: op.priceOre, url, stockStatus: op.stock, lastSeenAt: new Date() },
+        create: { productId: op.productId, retailerId: cm.id, condition: "SEALED", language: "JP", price: op.priceOre, currency: "SEK", stockStatus: op.stock, url },
+      });
+    }
+    if (cmSource) {
+      await prisma.priceObservation.create({
+        data: { productId: op.productId, sourceId: cmSource.id, price: op.priceOre, currency: "SEK" },
+      });
+      await prisma.priceSnapshot.upsert({
+        where: { productId_date: { productId: op.productId, date: today } },
+        update: { minPrice: op.priceOre, maxPrice: op.priceOre, avgPrice: op.priceOre },
+        create: { productId: op.productId, date: today, minPrice: op.priceOre, maxPrice: op.priceOre, avgPrice: op.priceOre, volume: 1 },
+      });
+    }
+    res.updated++;
+  }
+
+  if (res.unmatched.length) {
+    console.log(`[cm-jp] ${res.unmatched.length} JP-produkter utan CM-mappning: ${res.unmatched.slice(0, 10).join(" | ")}${res.unmatched.length > 10 ? " …" : ""}`);
+  }
+  console.log(`[cm-jp] ${res.updated}/${res.products} JP-produkter prisuppdaterade (${res.mapped} nymappade).`);
+  return res;
+}
+
 export async function runCardmarketRefresh(
   opts: { singles?: boolean; sealed?: boolean; throttleMs?: number } = {}
 ): Promise<CmRefreshResult> {
@@ -363,6 +565,12 @@ export async function runCardmarketRefresh(
     type SealedOp = { productId: string; offerId?: string; imageUrl?: string; priceOre: number; url: string; stock: "IN_STOCK" | "OUT_OF_STOCK" };
     const sealedOps: SealedOp[] = [];
     for (const p of ours) {
+      // RapidAPI-katalogen är HELT engelsk (0 japanska set/produkter, verifierat
+      // 2026-07-07) — icke-EN-produkter får ALDRIG matchas här (fyra olika japanska
+      // boxar fuzzy-matchade alla mot EN "Scarlet & Violet Booster Box" och visade
+      // dess pris). Japanska prissätts av runJapaneseSealedRefresh (officiella
+      // prisguiden) istället.
+      if (p.language !== "EN") continue;
       const cmOffer = p.offers.find((o) => o.retailerId === cm.id);
       // 1) Exakt via cardmarket_id (idProduct i offer-URL:en) — täcker även
       //    set-lösa produkter (tins m.m. som inte kan fuzzy-matchas på set).
@@ -372,6 +580,9 @@ export async function runCardmarketRefresh(
       if (idm) { best = apiByCmId.get(parseInt(idm[1], 10)) ?? null; exact = best != null; }
       // 2) Annars fuzzy (produkter utan CM-offer): set-scopat, ELLER globalt för
       //    set-lösa auto-importerade stubs så även de får CM-pris/trend.
+      //    Kombo-/lot-produkter ("Booster + Mini Pärm", "ETB + Acrylic case") får
+      //    ALDRIG fuzzy-länkas till basproduktens CM-sida — fel prisreferens.
+      if (!best && ["combo", "multipack", "case", "event"].includes(classifyForm(p.title) ?? "")) continue;
       if (!best) {
         const m = bestSealedMatch(
           { title: p.title, category: p.category, setName: p.set?.name ?? null },
@@ -447,6 +658,17 @@ export async function runCardmarketRefresh(
       res.historyPoints += sealedOps.length;
     }
     console.log(`[cm-refresh] Sealed: ${res.sealedUpdated} uppdaterade, ${sealedOps.length} historikpunkter.`);
+  }
+
+  // Japanska sealed-produkter: officiella CM-prisguiden (gratis nedladdning,
+  // ingen RapidAPI-kvot). Egna JP-produktsidor på CM + language=7-länkar.
+  if (opts.sealed !== false) {
+    try {
+      const jp = await runJapaneseSealedRefresh();
+      res.historyPoints += jp.updated;
+    } catch (err) {
+      console.error("[cm-refresh] JP-refresh misslyckades:", err instanceof Error ? err.message : err);
+    }
   }
 
   // Specialvariant-priser (GameStop-promo, reverse m.m.) via pokemontcg.io-trend.

@@ -24,6 +24,9 @@ jobs:
       CARDMARKET_RAPIDAPI_HOST: ${{ secrets.CARDMARKET_RAPIDAPI_HOST }}
       CARDMARKET_RAPIDAPI_KEY: ${{ secrets.CARDMARKET_RAPIDAPI_KEY }}
       EUR_SEK: ${{ secrets.EUR_SEK }}
+      # JP-sealed-auto-mappningens LLM-dom (Haiku, ören/dygn). Utan nyckel mappas
+      # bara nära-exakta namn (≥0.9) — refresh av redan mappade JP funkar ändå.
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       # Self-healing-vakt: hoppa över grönt tills DATABASE_URL-secret finns
       # (molnhosting konfigurerad). Inga misslyckade-mejl innan dess.

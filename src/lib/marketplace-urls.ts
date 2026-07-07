@@ -87,6 +87,16 @@ export function cardmarketProductUrl(
   return opts?.nearMint ? withNearMint(base) : base;
 }
 
+/**
+ * Exakt CM-produktsida för en JAPANSK produkt, förfiltrerad till japanska
+ * annonser (language=7 = Japanese i Cardmarkets språk-ID:n; japanska set har
+ * EGNA produktsidor på CM, så id:t pekar redan på den japanska utgåvan —
+ * filtret säkrar att listorna/priserna är japanskspråkiga).
+ */
+export function cardmarketJapaneseProductUrl(idProduct: number): string {
+  return `https://www.cardmarket.com/en/Pokemon/Products?idProduct=${idProduct}&language=7`;
+}
+
 export function cardmarketSearchUrl(term: string): string {
   return `https://www.cardmarket.com/en/Pokemon/Products/Search?searchString=${encodeURIComponent(term)}&site=1`;
 }

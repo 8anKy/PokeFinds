@@ -44,6 +44,20 @@ describe("cleanListingTitle", () => {
     );
   });
 
+  it("strippar innehållsbeskrivare i parentes — (5 Cards), (30 Boosters), (20 Pack)", () => {
+    expect(cleanListingTitle("Pokémon Scarlet & Violet: Stellar Miracle Booster Pack (5 Cards)")).toBe(
+      "Pokémon Scarlet & Violet: Stellar Miracle Booster Pack"
+    );
+    expect(cleanListingTitle("Mega Symphonia Booster Japansk Display (30 Boosters)")).toBe(
+      "Mega Symphonia Booster Japansk Display"
+    );
+    expect(cleanListingTitle("White Flare Booster Box (20 Pack) (JP)")).toBe(
+      "White Flare Booster Box (JP)"
+    );
+    // Låga paketantal (lot-annonser) lämnas åt multipack-vakten — strippas EJ.
+    expect(cleanListingTitle("Paldea Evolved (3 boosters)")).toBe("Paldea Evolved (3 boosters)");
+  });
+
   it("kollapsar dubbla mellanslag och trailing-skräp", () => {
     expect(cleanListingTitle("Pokémon TCG - Sword & Shield  Rebel Clash Booster")).toBe(
       "Pokémon TCG - Sword & Shield Rebel Clash Booster"

@@ -28,7 +28,8 @@ import {
   ShinycardsAdapter,
 } from "@/scrapers/adapters/quickbutik-adapter";
 import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
-import { cleanListingTitle, isPlausibleListingPrice, matchProduct } from "@/scrapers/matching";
+import { classifyForm, cleanListingTitle, isPlausibleListingPrice, matchProduct } from "@/scrapers/matching";
+import { judgeSameProduct } from "@/lib/same-product";
 import { netStockEvent, isRestock, isNewInStockArrival } from "@/scrapers/restock";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
 import { isBlockedListingLanguage, listingCardLanguage } from "@/lib/listing-language";
@@ -144,12 +145,12 @@ const SEALED_FEED_CATEGORIES = new Set([
 
 /**
  * Auto-import: säkerställ att en katalogprodukt finns för en sealed butiksannons (feed-
- * först). Länkar till befintlig produkt vid HÖG matchkonfidens (≥0.85), annars skapar en
- * ny — så nya SKU:er dyker upp i appen automatiskt (ingen manuell import). Upsertar
- * butikens offer så URL:en får ett Offer → nästa skanning går via den beprövade offer-
- * diffen. Returnerar productId (null om kategori saknas).
- * ponytail: dedup = matchProduct≥0.85. Kan skapa enstaka dubbletter vid udda titlar; en
- * merge-städning får ta det. Höj tröskeln om fel-länkningar dyker upp.
+ * först). Länkar till befintlig produkt vid HÖG matchkonfidens (≥0.85). Under det men
+ * över matcher-golvet (0.55–0.85) får en billig LLM-dom (Haiku) avgöra "samma SKU?" —
+ * hellre ett öres-anrop än en dubblettprodukt; utan ANTHROPIC_API_KEY skapas som förr
+ * en ny produkt (veckodedupen städar). Upsertar butikens offer så URL:en får ett
+ * Offer → nästa skanning går via den beprövade offer-diffen. Returnerar productId
+ * (null om kategori saknas eller språket är blockat).
  */
 export async function ensureListingProduct(
   it: { title: string; url: string; price: number | null; imageUrl: string | null; retailerId: string; category: string | null },
@@ -157,6 +158,9 @@ export async function ensureListingProduct(
 ): Promise<string | null> {
   const category = (it.category ?? null) as ProductCategory | null;
   if (!category) return null;
+  // Blockade språk (kinesiska/koreanska) får ALDRIG bli katalogprodukter — kolla
+  // även butiks-URL:en (DL:s "…-kinesisk-version"-slug avslöjade en latinsk titel).
+  if (isBlockedListingLanguage(it.title, it.url)) return null;
   // Cross-produkt-vakt: ägs URL:en redan av en produkt (t.ex. länkad av scrape-all-
   // matcharen) → använd DEN länken. Skapa aldrig en andra produkt/offer för samma
   // butikssida — det var så dubblettstubbarna uppstod (34 delade URL:er, städat 07-07).
@@ -169,30 +173,48 @@ export async function ensureListingProduct(
   // matchning/namnsättning — annars blir samma SKU från olika butiker
   // dubblettprodukter med skräpiga katalogtitlar.
   const cleanTitle = cleanListingTitle(it.title);
+  // Lot-/kombo-annonser ("Booster Pack x4", "ETB + bundle") är inte katalogprodukter
+  // — matchProduct vägrar matcha dem, men UTAN denna vakt skapades de som stubbar.
+  const form = classifyForm(normalizeTitle(cleanTitle));
+  if (form === "multipack" || form === "case" || form === "combo" || form === "event") return null;
   const normalized = normalizeTitle(cleanTitle);
   const match = await matchProduct(normalized);
   let productId = match && match.confidence >= 0.85 ? match.productId : null;
+  // Gränsfall 0.55–0.85: matcharen hittade EN kandidat men vågar inte binda den.
+  // LLM-domen (samma som veckodedupen) avgör — attach istället för dubblettstub.
+  if (!productId && match) {
+    const candidate = await prisma.product.findUnique({
+      where: { id: match.productId },
+      select: { title: true },
+    });
+    if (candidate) {
+      const verdict = await judgeSameProduct(cleanTitle, candidate.title);
+      if (verdict?.same) productId = match.productId;
+    }
+  }
   if (!productId) {
     let slug = slugify(cleanTitle) || `produkt-${Date.now().toString(36)}`;
     if (await prisma.product.findUnique({ where: { slug }, select: { id: true } })) {
       slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
     }
     const p = await prisma.product.create({
-      data: { title: cleanTitle, normalizedTitle: normalized, slug, category, imageUrl: it.imageUrl, language: listingCardLanguage(it.title) },
+      data: { title: cleanTitle, normalizedTitle: normalized, slug, category, imageUrl: it.imageUrl, language: listingCardLanguage(it.title, it.url) },
       select: { id: true },
     });
     productId = p.id;
   }
+  // Offer-språket följer annonsen (japansk annons → JP-offer), inte hårdkodat EN.
+  const offerLanguage = listingCardLanguage(it.title, it.url);
   // Butiken kan redan ha en offer för produkten via en ANNAN sida (variant) — kapa
   // inte den offerens URL (varianten spåras i StoreListing-huvudboken). Bara skapa
   // när offer saknas helt; URL:en själv är obelagd (owner-vakten ovan returnerade annars).
   const existing = await prisma.offer.findFirst({
-    where: { productId, retailerId: it.retailerId, condition: "SEALED", language: "EN" },
+    where: { productId, retailerId: it.retailerId, condition: "SEALED", language: offerLanguage },
     select: { id: true },
   });
   if (!existing) {
     await prisma.offer.create({
-      data: { productId, retailerId: it.retailerId, condition: "SEALED", language: "EN", price: it.price, currency: "SEK", stockStatus, url: it.url },
+      data: { productId, retailerId: it.retailerId, condition: "SEALED", language: offerLanguage, price: it.price, currency: "SEK", stockStatus, url: it.url },
     });
   }
   return productId;
@@ -403,8 +425,9 @@ export async function runRestockScan(opts?: {
     // Bara sealed — singlar/övrigt skulle spamma (se SEALED_FEED_CATEGORIES).
     if (!SEALED_FEED_CATEGORIES.has(it.category ?? "")) continue;
     // Blockade språk (kinesiska/koreanska) auto-importeras inte "for now" → ingen ny
-    // produkt, inget larm. Japanska släpps igenom (sealed → OK).
-    if (isBlockedListingLanguage(it.title)) continue;
+    // produkt, inget larm. Japanska släpps igenom (sealed → OK). Kolla även URL:en —
+    // slugs som "…-kinesisk-version" avslöjar språk som titeln döljer.
+    if (isBlockedListingLanguage(it.title, it.url)) continue;
     checked++;
     // Auto-import: skapa/länka katalogprodukt + offer → larmet pekar på VÅR produktsida
     // (in-app), och nästa skanning spårar URL:en via offer-diffen ovan.
@@ -582,6 +605,15 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
         }
 
         const normalized = adapter.normalizeProduct(rawProduct);
+
+        // Blockade språk (kinesiska/koreanska) ska aldrig in i katalogen — gäller
+        // ÄVEN denna matchar-väg (feed-först-vakten täckte bara restock-skanningen;
+        // scrape-all släppte annars in koreanska annonser som offers på JP-produkter).
+        if (isBlockedListingLanguage(rawProduct.title, normalized.url)) {
+          logs.push(`Blockat språk (CN/KR) — hoppar: "${rawProduct.title}"`);
+          continue;
+        }
+
         const match = await matchProduct(normalized.normalizedTitle);
         if (!match) {
           logs.push(`Ingen produktmatchning: "${rawProduct.title}"`);
@@ -644,7 +676,9 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
           matchedProduct?.category === "GRADED_CARD"
             ? "NEAR_MINT"
             : "SEALED");
-        const language = previousOffer?.language ?? "EN";
+        // Offer-språket följer annonsen (japansk annons → JP-offer). Befintlig
+        // offers språk behålls (unik nyckel per språk).
+        const language = previousOffer?.language ?? listingCardLanguage(rawProduct.title, normalized.url);
 
         // pokemontcg.io/TCGdex ger TREND-pris, inte en köpbar annons. För
         // singlar äger CardMarket-RapidAPI (engelska NM-lägsta "From") det

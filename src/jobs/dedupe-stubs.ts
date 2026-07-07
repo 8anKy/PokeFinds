@@ -13,8 +13,8 @@
  * samma/kompatibel kategori, likhet ≥ MIN_SIM och matcherns hårda vakter
  * (serie-/sifferset-/språk-mismatch = aldrig samma produkt).
  */
-import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/db";
+import { judgeSameProduct } from "@/lib/same-product";
 import {
   cleanListingTitle,
   languageMismatch,
@@ -23,65 +23,12 @@ import {
   setMarkerMismatch,
 } from "@/scrapers/matching";
 
-const MODEL = process.env.DEDUPE_MODEL ?? "claude-haiku-4-5-20251001";
 const STUB_WINDOW_DAYS = Number(process.env.DEDUPE_WINDOW_DAYS ?? "14");
 const MIN_SIM = 0.4;
 const MAX_CANDIDATES = 3;
 
 // Kategorier som ofta förväxlas av butiksfeeds (checklane = pack/blister).
 const COMPATIBLE = new Set(["BOOSTER_PACK|BLISTER", "BLISTER|BOOSTER_PACK"]);
-
-const SYSTEM = [
-  "Du avgör om två titlar beskriver SAMMA Pokémon TCG sealed-produkt (samma SKU).",
-  "Titel A är en butiksannons, titel B en katalogprodukt. Svara same=false vid en KONKRET motsägelse:",
-  "olika set/expansion, olika Pokémon/variant, olika produkttyp (pack ≠ box ≠ ETB ≠ tin ≠ blister ≠ bundle ≠ collection),",
-  "olika antal (3-pack ≠ enkelpack, 18 ≠ 36 paket), 'Deluxe'/'Premium'/'Ultra-Premium' ≠ vanlig utgåva,",
-  "Pokémon Center-utgåva ≠ vanlig utgåva, japansk ≠ engelsk, olika serienummer (Series 1 ≠ Series 2).",
-  "Följande är INTE skillnader: era-/serieprefix (Scarlet & Violet, SV10.5, Mega Evolution m.fl. är setets familj),",
-  "'Display' = 'Booster Box' (gäller boosterlådor), ordföljd/stavning/svenska vs engelska beskrivningsord, butiksbrus",
-  "(t.ex. 'max 1 per kund', 'förhandsbokning'). OBS: 'Mini Tin Display' är en LÅDA MED FLERA tins",
-  "≠ en enskild mini tin — det ÄR en konkret motsägelse. Osäker UTAN konkret motsägelse: same=true.",
-  "Anropa alltid report_same.",
-].join(" ");
-
-const SAME_TOOL: Anthropic.Tool = {
-  name: "report_same",
-  description: "Rapportera om titlarna avser samma produkt.",
-  input_schema: {
-    type: "object",
-    properties: {
-      same: { type: "boolean", description: "Samma SKU?" },
-      reason: { type: "string", description: "Kort motivering på svenska." },
-    },
-    required: ["same", "reason"],
-  },
-};
-
-async function sameProduct(
-  client: Anthropic,
-  listingTitle: string,
-  catalogTitle: string
-): Promise<{ same: boolean; reason: string }> {
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 256,
-    system: SYSTEM,
-    tools: [SAME_TOOL],
-    tool_choice: { type: "tool", name: "report_same" },
-    messages: [
-      {
-        role: "user",
-        content: `A (butiksannons): ${listingTitle}\nB (katalogprodukt): ${catalogTitle}\n\nSamma produkt? Anropa report_same.`,
-      },
-    ],
-  });
-  const toolUse = response.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-  const input = (toolUse?.input ?? {}) as Record<string, unknown>;
-  return {
-    same: input.same === true,
-    reason: typeof input.reason === "string" ? input.reason.slice(0, 150) : "",
-  };
-}
 
 /** Flytta stubbens data till den kanoniska produkten och radera stubben. */
 export async function mergeStubInto(
@@ -139,12 +86,10 @@ export interface DedupeResult {
 
 export async function dedupeStubs(log: (msg: string) => void = console.log): Promise<DedupeResult> {
   const res: DedupeResult = { stubs: 0, llmCalls: 0, merged: 0 };
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  if (!process.env.ANTHROPIC_API_KEY) {
     log("[dedupe-stubs] ANTHROPIC_API_KEY saknas — hoppar över.");
     return res;
   }
-  const client = new Anthropic({ apiKey });
   const windowStart = new Date(Date.now() - STUB_WINDOW_DAYS * 24 * 3600 * 1000);
 
   const stubs = await prisma.product.findMany({
@@ -194,8 +139,8 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
 
     for (const { c } of candidates) {
       res.llmCalls++;
-      const v = await sameProduct(client, stubTitle, c.title);
-      if (v.same) {
+      const v = await judgeSameProduct(stubTitle, c.title);
+      if (v?.same) {
         await mergeStubInto(stub.id, c.id, log);
         mergedIds.add(stub.id);
         res.merged++;

@@ -32,6 +32,8 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DB_POOL: "10"
+      # Auto-importens gränsfalls-dom (Haiku, ören/dygn) — attach istället för dubblettstub.
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }} # utan denna mailas inga alerts (console-mode)
       APNS_KEY: ${{ secrets.APNS_KEY }}
       APNS_KEY_ID: SMQBU7MM82

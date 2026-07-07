@@ -5,6 +5,7 @@
  */
 import { prisma } from "../lib/db";
 import { normalizeTitle } from "../lib/utils";
+import { detectListingLanguage } from "../lib/listing-language";
 
 /** Lägsta konfidens för att en matchning ska accepteras. */
 const MIN_CONFIDENCE = 0.55;
@@ -84,6 +85,11 @@ export function classifyForm(title: string): string | null {
   // Tillbehör (inkl. svenska: samlarpärm/pärm/album/4-pocket) — får ALDRIG matcha
   // en sealed-/collection-produkt. "Greninja samlarpärm" ≠ "Greninja ex UPC".
   if (/(portfolio|binder|samlarp(ä|a)rm|\bp(ä|a)rm\b|\balbum\b|sleeves?\b|playmat|spelbordsmatta|spelmatta|toploader|deck\s*box)/.test(t)) return "accessory";
+  // Eventbiljetter (prerelease-/turneringsdeltagande) är inte produkter alls —
+  // DL:s "Deltagarbiljett – Pitch Black Pre-release" matchade annars boostern.
+  // OBS: håll orden biljett-specifika — "tournament" ensamt får INTE hit
+  // ("Iono Premium Tournament Collection" är en riktig produktlinje).
+  if (/(deltagarbiljett|\bbiljett\b|deltagaravgift|pre.?release)/.test(t)) return "event";
   // Case-/kartongannonser (6 displayer i en kartong) är aldrig en enskild produkt
   if (/\bcase\b|kartong/.test(t)) return "case";
   // Kvantitetslistningar ("4x bundles", "5 x boosterpaket", "3 st booster",
@@ -368,25 +374,29 @@ export function deckCharacterMismatch(incoming: string, candidate: string): bool
   return true;
 }
 
-/** Språkmarkörer i titlar — japanska/kinesiska produkter får inte matcha EN-katalogen. */
-const NON_EN_LANGUAGE = /\b(japansk\w*|japanese|jpn?\b|kinesisk\w*|chinese|korean\w*|koreansk\w*)\b/i;
-
 /**
  * De japanska basseten sv1S/sv1V heter "Scarlet ex" / "Violet ex" och kolliderar
  * med engelska "Scarlet & Violet" (delar orden scarlet/violet). En annons som säger
  * "Violet ex Booster Pack" är japansk även utan ordet "japansk" i titeln (säljaren
  * skriver ofta det bara i beskrivningen, som vi inte läser). Engelska produkter heter
- * aldrig "<X> ex" som SET-namn → säker markör. Behandlas som en icke-EN-markör.
+ * aldrig "<X> ex" som SET-namn → säker markör. Behandlas som en JP-markör.
  */
 const JP_SET_MARKERS = /\b(scarlet|violet)\s+ex\b/i;
 
-function hasNonEnMarker(t: string): boolean {
-  return NON_EN_LANGUAGE.test(t) || JP_SET_MARKERS.test(t);
+/** Titelns språk (JP/CN/KR/EU/EN) inkl. JP-set-markören som språksignal. */
+export function titleLanguage(t: string): ReturnType<typeof detectListingLanguage> {
+  const l = detectListingLanguage(t);
+  return l === "EN" && JP_SET_MARKERS.test(t) ? "JP" : l;
 }
 
-/** True om titlarna har olika språkmarkörer (en har japansk/kinesisk/JP-set, andra inte). */
+/**
+ * True om titlarna anger OLIKA språk. Per-språk (inte binärt EN/icke-EN):
+ * en koreansk annons fick tidigare matcha en japansk produkt eftersom båda
+ * räknades som "icke-EN" — så hamnade Shinycards "…Koreansk"-sidor som offers
+ * på "(Japansk)"-produkter.
+ */
 export function languageMismatch(incoming: string, candidate: string): boolean {
-  return hasNonEnMarker(incoming) !== hasNonEnMarker(candidate);
+  return titleLanguage(incoming) !== titleLanguage(candidate);
 }
 
 /**
@@ -445,11 +455,23 @@ const LISTING_TITLE_JUNK: RegExp[] = [
   /\((?:copy|kopia)(?: \d+)?\)/gi,
   /[-–—]\s*(?:copy|kopia)(?: \d+)?\s*$/gi,
   /\(\d+ ?(?:pcs|st)\.?\)/gi,
+  // Innehållsbeskrivare i parentes: "(5 Cards)" = kort per paket, "(30 Boosters)"/
+  // "(20 Pack)" = paket per display. INTE produktidentitet. Paket-varianten kräver
+  // ≥5 så en eventuell lot-annons "(3 boosters)" inte tvättas till enskild produkt
+  // (riktiga displayer har 10+, riktiga lotar 2–4 → multipack-vakten tar dem).
+  /\(\d+ ?(?:cards?|kort)\)/gi,
+  /\((?:[5-9]|\d{2,}) ?(?:boosters?|packs?|paket)\)/gi,
 ];
 
 /** Rensar butiks-skräp ur en annonstitel (identitet + språkmarkörer lämnas orörda). */
 export function cleanListingTitle(title: string): string {
-  let s = title;
+  // HTML-entiteter från feeds (Quickbutik skickar "&amp;") — avkoda innan
+  // matchning/namnsättning, annars blir "&amp;" en del av katalogtiteln.
+  let s = title
+    .replace(/&amp;/gi, "&")
+    .replace(/&#0?39;|&apos;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/&nbsp;/gi, " ");
   for (const re of LISTING_TITLE_JUNK) s = s.replace(re, " ");
   return s
     .replace(/[[(]\s*[\])]/g, " ") // tomma parentes-/hakparentespar efter junk-strip
@@ -538,7 +560,7 @@ export async function matchProduct(
   // Lot-annonser (flera produkter i en annons) får ALDRIG matcha någon
   // katalogprodukt — inte ens singelkort (vars form är null och därför
   // annars slinker förbi formvakten).
-  if (incomingForm === "multipack" || incomingForm === "case" || incomingForm === "combo") {
+  if (incomingForm === "multipack" || incomingForm === "case" || incomingForm === "combo" || incomingForm === "event") {
     return null;
   }
 
@@ -658,7 +680,7 @@ export function matchListingToProduct(
   if (!normalized) return null;
 
   const incomingForm = classifyForm(normalized);
-  if (incomingForm === "multipack" || incomingForm === "case" || incomingForm === "combo") {
+  if (incomingForm === "multipack" || incomingForm === "case" || incomingForm === "combo" || incomingForm === "event") {
     return null;
   }
 

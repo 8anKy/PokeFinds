@@ -12,6 +12,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { isDirectOfferUrl } from "../src/lib/marketplace-urls";
+import { detectListingLanguage } from "../src/lib/listing-language";
 import {
   languageMismatch,
   scoreSimilarity,
@@ -61,6 +62,14 @@ async function main() {
     const title = o.product.title;
 
     if (seriesMismatch(title, slug)) {
+      definite.push(o);
+      continue;
+    }
+    // Blockade språk (kinesiska/koreanska) får inte finnas som butikslänkar ALLS
+    // — oavsett produkt. En "…-koreansk"-slug på en (Japansk)-produkt är dubbelt
+    // fel (fel språk + fel produkt).
+    const slugLang = detectListingLanguage("", o.url);
+    if (slugLang === "CN" || slugLang === "KR") {
       definite.push(o);
       continue;
     }
