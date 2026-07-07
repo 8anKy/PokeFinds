@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
+import { onProductOverlayOpen } from "@/lib/product-overlay-open";
 import { IconCards } from "@/components/ui/icons";
 
 /** Vad /api/search/suggest returnerar per produkt. */
@@ -63,6 +64,7 @@ export function SearchAutocomplete({
   const router = useRouter();
   const listId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const cacheRef = useRef(new Map<string, Suggestion[]>());
 
   const [value, setValue] = useState(defaultValue ?? "");
@@ -119,6 +121,18 @@ export function SearchAutocomplete({
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, []);
 
+  // Touch/app: produkt-overlayn kapar länk-klick i capture-fas (preventDefault+
+  // stopPropagation) → länkens onClick når aldrig fram och dropdownen blev kvar
+  // ovanpå overlayn. Lyssna på overlay-öppning och stäng + släpp tangentbordet.
+  useEffect(
+    () =>
+      onProductOverlayOpen(() => {
+        setFocused(false);
+        inputRef.current?.blur();
+      }),
+    []
+  );
+
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (!open || !results) return;
     if (e.key === "ArrowDown") {
@@ -132,6 +146,7 @@ export function SearchAutocomplete({
       if (chosen) {
         e.preventDefault();
         setFocused(false);
+        inputRef.current?.blur();
         router.push(`/produkter/${chosen.slug}`);
       }
       // annars: vanlig formulär-submit → fulla sökresultat
@@ -144,6 +159,7 @@ export function SearchAutocomplete({
     <div ref={containerRef} className={cn("relative flex items-center", className)}>
       {leading}
       <input
+        ref={inputRef}
         id={id}
         name={name}
         type="search"

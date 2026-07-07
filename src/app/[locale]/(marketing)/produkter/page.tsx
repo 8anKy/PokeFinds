@@ -457,7 +457,10 @@ export default async function ProductsPage({
           <form
             method="GET"
             action="/produkter"
-            className="card-surface sticky top-20 space-y-4 p-5"
+            // z-30: sticky skapar en egen stacking context på z-auto → utan
+            // uttryckligt z målades kortgriden (senare i DOM) över sökförslags-
+            // dropdownen. Under headerns z-40.
+            className="card-surface sticky top-20 z-30 space-y-4 p-5"
           >
             <SearchField defaultQuery={searchParams.q} />
             <CatalogFilterFields

@@ -5,7 +5,7 @@ import { usePathname } from "@/i18n/navigation";
 import type { ProductDetailData } from "@/services/products";
 import { ProductDetailView } from "@/components/features/product-detail-view";
 import { SiteHeader } from "@/components/layout/site-header";
-import { registerOverlayOpen } from "@/lib/product-overlay-open";
+import { registerOverlayOpen, notifyProductOverlayOpen } from "@/lib/product-overlay-open";
 
 /**
  * Produkt-overlay: öppnar produktdetaljer OVANPÅ den fortfarande monterade
@@ -59,6 +59,7 @@ export function ProductOverlayHost() {
       slugRef.current = s;
       setSlug(s);
       setData(null);
+      notifyProductOverlayOpen();
       panelRef.current?.scrollTo(0, 0); // nytt kort → tillbaka till toppen (namn/bild)
       // En history-markör med SAMMA URL → back/svep stänger utan list-omrendering.
       const here = window.location.href;

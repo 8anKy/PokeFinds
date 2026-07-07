@@ -11,6 +11,26 @@ export function registerOverlayOpen(fn: ((slug: string) => void) | null): void {
   handler = fn;
 }
 
+/**
+ * Lyssnare som körs när overlayn öppnas (oavsett väg — klick-delegering eller
+ * imperativt). Behövs för att UI under overlayn ska kunna städa sig själv:
+ * overlayns klick-delegering kör preventDefault+stopPropagation i CAPTURE-fas,
+ * så länkens egen onClick når aldrig fram (t.ex. sökförslags-dropdownen som
+ * annars blev kvar ovanpå overlayn). Returnerar en avregistrerings-funktion.
+ */
+const openListeners = new Set<() => void>();
+
+export function onProductOverlayOpen(fn: () => void): () => void {
+  openListeners.add(fn);
+  return () => {
+    openListeners.delete(fn);
+  };
+}
+
+export function notifyProductOverlayOpen(): void {
+  for (const fn of openListeners) fn();
+}
+
 /** Öppna overlayn; returnerar false om den inte är tillgänglig (ej touch / ej
  *  monterad) så anroparen kan falla tillbaka på vanlig navigering. */
 export function openProductOverlay(slug: string): boolean {
