@@ -499,17 +499,41 @@ const MIN_NONERA_COVERAGE = 0.6;
  * Returnerar bästa kandidat med konfidens, eller null om ingen är
  * tillräckligt lik.
  */
+/** En katalograd som matchningen behöver. Samma fält som DB-vägen väljer. */
+export type MatchCandidate = {
+  id: string;
+  normalizedTitle: string;
+  card: { name: string; number: string } | null;
+};
+/** Hela katalogen i minnet — se matchProduct för VARFÖR. */
+export type MatchIndex = MatchCandidate[];
+
+/**
+ * Läser hela matchnings-indexet EN gång (~22k rader, några MB).
+ *
+ * Varför: matchProduct gjorde per ANNONS en `contains`-fråga PER TOKEN (5–6 st, var
+ * och en en seq-scan över hela Product) plus en rå LIKE-scan till. Med GitHub-runnern
+ * i us-east och Neon i Frankfurt kostade det ~1 SEKUND per annons — 2 879 annonser
+ * per pass = ~48 min av scrape-all:s 59–100 min, och jobbet dunkade i 120-min-taket.
+ * Samma algoritm i minnet är mikrosekunder.
+ */
+export async function loadMatchIndex(): Promise<MatchIndex> {
+  return prisma.product.findMany({
+    select: { id: true, normalizedTitle: true, card: { select: { name: true, number: true } } },
+  });
+}
+
 export async function matchProduct(
-  normalizedTitle: string
+  normalizedTitle: string,
+  index?: MatchIndex
 ): Promise<{ productId: string; confidence: number } | null> {
   const normalized = normalizeTitle(normalizedTitle);
   if (!normalized) return null;
 
   // 1. Exakt träff på normaliserad titel
-  const exact = await prisma.product.findFirst({
-    where: { normalizedTitle: normalized },
-    select: { id: true },
-  });
+  const exact = index
+    ? index.find((p) => p.normalizedTitle === normalized)
+    : await prisma.product.findFirst({ where: { normalizedTitle: normalized }, select: { id: true } });
   if (exact) return { productId: exact.id, confidence: 1 };
 
   // 2. Kandidater: hämta per token (union) så att sällsynta tokens som
@@ -517,13 +541,23 @@ export async function matchProduct(
   const tokens = significantTokens(normalized);
   if (tokens.length === 0) return null;
 
-  const candidateMap = new Map<
-    string,
-    { id: string; normalizedTitle: string; card: { name: string; number: string } | null }
-  >();
+  const candidateMap = new Map<string, MatchCandidate>();
   for (const t of tokens) {
     // take 200 (ej 60): vanliga namn ("charizard") har >100 produkter och rätt
-    // kort måste rymmas i poolen för nummer-passet nedan. Samma seq-scan, fler rader.
+    // kort måste rymmas i poolen för nummer-passet nedan.
+    // normalizedTitle är gemener (normalizeTitle) → `contains` i Postgres och
+    // String.includes ger samma träffmängd; "take utan ordning" är godtycklig i
+    // BÅDA fallen, så minnesvägen ändrar inte semantiken.
+    if (index) {
+      // INGEN take/cap i minnesvägen. take:200 + break vid 400 fanns BARA för att
+      // DB-rader kostade pengar/tid — och de var aktivt skadliga: Postgres "take utan
+      // orderBy" ger en GODTYCKLIG delmängd, så rätt kandidat föll ofta utanför och
+      // matchningen returnerade null (verifierat mot prod: 200 riktiga butikstitlar,
+      // där DB-vägen missade JP-produkter som minnesvägen träffar med konfidens 1.00).
+      // I minnet är hela kandidatmängden gratis → bästa kandidaten kan alltid vinna.
+      for (const r of index) if (r.normalizedTitle.includes(t)) candidateMap.set(r.id, r);
+      continue;
+    }
     const rows = await prisma.product.findMany({
       where: { normalizedTitle: { contains: t } },
       select: { id: true, normalizedTitle: true, card: { select: { name: true, number: true } } },
@@ -539,17 +573,23 @@ export async function matchProduct(
   // (take utan ordning). Lägg därför till produkter vars HELA normaliserade titel
   // finns som delsträng i den inkommande — exakt, billigt, få träffar.
   // normalizedTitle är alnum+mellanslag → inga LIKE-jokrar att escapa.
-  const subsetIds: { id: string }[] = await prisma.$queryRaw`
-    SELECT id FROM "Product"
-    WHERE char_length("normalizedTitle") >= 8
-      AND ${normalized} LIKE '%' || "normalizedTitle" || '%'
-    LIMIT 50`;
-  if (subsetIds.length > 0) {
-    const rows = await prisma.product.findMany({
-      where: { id: { in: subsetIds.map((s) => s.id) } },
-      select: { id: true, normalizedTitle: true, card: { select: { name: true, number: true } } },
-    });
-    for (const r of rows) candidateMap.set(r.id, r);
+  if (index) {
+    for (const p of index) {
+      if (p.normalizedTitle.length >= 8 && normalized.includes(p.normalizedTitle)) candidateMap.set(p.id, p);
+    }
+  } else {
+    const subsetIds: { id: string }[] = await prisma.$queryRaw`
+      SELECT id FROM "Product"
+      WHERE char_length("normalizedTitle") >= 8
+        AND ${normalized} LIKE '%' || "normalizedTitle" || '%'
+      LIMIT 50`;
+    if (subsetIds.length > 0) {
+      const rows = await prisma.product.findMany({
+        where: { id: { in: subsetIds.map((s) => s.id) } },
+        select: { id: true, normalizedTitle: true, card: { select: { name: true, number: true } } },
+      });
+      for (const r of rows) candidateMap.set(r.id, r);
+    }
   }
 
   const candidates = [...candidateMap.values()];
@@ -777,6 +817,37 @@ const PRICE_GUARDED_SEALED_CATEGORIES = new Set([
   "BUNDLE",
 ]);
 
+/**
+ * REN beslutsdel (ingen DB) — anropare som redan har kategori + CM-referenspris i
+ * minnet slipper två DB-rundresor per annons. runScrapeJob förladdar båda per källa;
+ * över Atlanten (GitHub-runner i us-east → Neon i Frankfurt) kostade de per-annons-
+ * frågorna ~100 ms styck och drev jobbet mot 120-minuterstaket.
+ * cmPriceOre = null → inget referenspris → alltid rimligt.
+ */
+export function isPlausiblePriceFor(
+  category: string | null | undefined,
+  cmPriceOre: number | null | undefined,
+  priceOre: number
+): boolean {
+  if (cmPriceOre == null) return true;
+
+  const isSingle = category === "SINGLE_CARD" || category === "GRADED_CARD";
+  if (isSingle) {
+    return (
+      priceOre <= cmPriceOre * SINGLES_MAX_RATIO ||
+      priceOre - cmPriceOre <= SINGLES_MAX_DIFF_ORE
+    );
+  }
+  // Pris-vakt bara för dyra sealed-kategorier (se ovan). Billiga: alltid rimligt
+  // pris-mässigt (form-matchning sköter felmatch där).
+  if (!PRICE_GUARDED_SEALED_CATEGORIES.has(category ?? "")) return true;
+  return (
+    priceOre <= cmPriceOre * MARKETPLACE_MAX_PRICE_RATIO &&
+    priceOre >= cmPriceOre * SEALED_MIN_PRICE_RATIO
+  );
+}
+
+/** DB-hämtande variant (tradera-sweep m.fl. som inte har förladdade kartor). */
 export async function isPlausibleListingPrice(
   productId: string,
   priceOre: number
@@ -788,21 +859,5 @@ export async function isPlausibleListingPrice(
     }),
     prisma.product.findUnique({ where: { id: productId }, select: { category: true } }),
   ]);
-  if (cmOffer?.price == null) return true;
-
-  const isSingle =
-    product?.category === "SINGLE_CARD" || product?.category === "GRADED_CARD";
-  if (isSingle) {
-    return (
-      priceOre <= cmOffer.price * SINGLES_MAX_RATIO ||
-      priceOre - cmOffer.price <= SINGLES_MAX_DIFF_ORE
-    );
-  }
-  // Pris-vakt bara för dyra sealed-kategorier (se ovan). Billiga: alltid rimligt
-  // pris-mässigt (form-matchning sköter felmatch där).
-  if (!PRICE_GUARDED_SEALED_CATEGORIES.has(product?.category ?? "")) return true;
-  return (
-    priceOre <= cmOffer.price * MARKETPLACE_MAX_PRICE_RATIO &&
-    priceOre >= cmOffer.price * SEALED_MIN_PRICE_RATIO
-  );
+  return isPlausiblePriceFor(product?.category, cmOffer?.price, priceOre);
 }

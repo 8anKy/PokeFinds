@@ -543,13 +543,29 @@ export async function runCardmarketRefresh(
   if (opts.sealed !== false) {
     const apiProducts: ApiProduct[] = [];
     let page = 1, total = 1;
+    let failedPage: number | null = null;
     do {
       const d = await api<{ data: ApiProduct[]; paging: { total: number } }>(`https://${HOST}/pokemon/products?page=${page}`);
-      if (!d) break;
+      // FAILA HÖGT. Förut stod här ett bart `break` → föll sida 1 bort (429/5xx efter
+      // alla retries, eller slut på RapidAPI-kvot) blev sealed-katalogen TOM, hela
+      // sealed-fasen gjorde tyst ingenting och jobbet blev ÄNDÅ GRÖNT. Det hände
+      // 2026-07-09: "Sealed: 0 uppdaterade, 0 historikpunkter" — en hel dags sealed-
+      // priser och historikpunkter förlorade, utan ett enda larm. En halv katalog är
+      // lika illa: då hoppas produkterna på de uteblivna sidorna tyst över.
+      if (!d) { failedPage = page; break; }
       total = d.paging.total;
       apiProducts.push(...d.data);
       await sleep(throttle);
     } while (page++ < total);
+
+    if (failedPage !== null) {
+      throw new Error(
+        `[cm-refresh] Sealed-katalogen kunde inte hämtas: sida ${failedPage}/${total} gav null efter retries ` +
+          `(${apiProducts.length} produkter hann hämtas). Avbryter med FEL så körningen blir röd — ` +
+          `en grön körning här betyder tyst förlorade sealed-priser för hela dygnet. ` +
+          `Vanligaste orsaken: RapidAPI-kvoten slut (1597/3000 används normalt) eller 429/5xx.`
+      );
+    }
 
     const byEpisode = new Map<string, ApiProduct[]>();
     const apiByCmId = new Map<number, ApiProduct>();

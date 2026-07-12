@@ -28,7 +28,14 @@ import {
   ShinycardsAdapter,
 } from "@/scrapers/adapters/quickbutik-adapter";
 import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
-import { classifyForm, cleanListingTitle, isPlausibleListingPrice, matchProduct } from "@/scrapers/matching";
+import {
+  classifyForm,
+  cleanListingTitle,
+  isPlausiblePriceFor,
+  loadMatchIndex,
+  matchProduct,
+  type MatchIndex,
+} from "@/scrapers/matching";
 import { judgeSameProduct } from "@/lib/same-product";
 import { netStockEvent, isRestock, isNewInStockArrival } from "@/scrapers/restock";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
@@ -534,9 +541,40 @@ export async function runRestockScan(opts?: {
   return { sources: sources.length, checked, restocks, newListings, alertsSent: sent, sourceList: sources };
 }
 
-export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> {
+/**
+ * Katalogbreda uppslagskartor som är LIKA för alla källor i ett pass. Laddas en gång
+ * i runAllActiveSources och skickas in — annars skulle var och en av de 15 källorna
+ * dra hem hela produkt- och CM-pristabellen igen (~30 MB Neon-egress per pass i
+ * onödan; egress har varit ett kostnadsproblem här förut).
+ */
+export type CatalogMaps = {
+  categoryByProduct: Map<string, string>;
+  cmPriceByProduct: Map<string, number>;
+  matchIndex: MatchIndex;
+};
+
+export async function loadCatalogMaps(): Promise<CatalogMaps> {
+  const [products, cmOffers, matchIndex] = await Promise.all([
+    prisma.product.findMany({ select: { id: true, category: true } }),
+    prisma.offer.findMany({
+      where: { retailer: { name: "Cardmarket" }, price: { not: null } },
+      select: { productId: true, price: true },
+    }),
+    loadMatchIndex(),
+  ]);
+  const categoryByProduct = new Map(products.map((p) => [p.id, p.category as string]));
+  const cmPriceByProduct = new Map<string, number>();
+  for (const o of cmOffers) {
+    if (o.price != null && !cmPriceByProduct.has(o.productId)) cmPriceByProduct.set(o.productId, o.price);
+  }
+  return { categoryByProduct, cmPriceByProduct, matchIndex };
+}
+
+export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promise<ScrapeJobSummary> {
   const source = await prisma.scrapeSource.findUnique({ where: { id: sourceId } });
   if (!source) throw new Error(`Okänd källa: ${sourceId}`);
+  // Fristående anrop (admin/CLI) laddar sina egna kartor; passet skickar in delade.
+  const { categoryByProduct, cmPriceByProduct, matchIndex } = maps ?? (await loadCatalogMaps());
 
   const job = await prisma.scrapeJob.create({
     data: { sourceId, status: JobStatus.RUNNING, startedAt: new Date() },
@@ -563,14 +601,28 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
     // matcharen här och restock-auto-importen länka samma URL till olika produkter —
     // så uppstod både dubblettstubbar och fel-serie-länkar (First Partner S1↔S2).
     // Först skriven vinner; scripts/audit-links.ts flaggar innehållsfel veckovis.
-    const urlOwner = new Map<string, string>(
-      (
-        await prisma.offer.findMany({
-          where: { retailerId: retailer.id },
-          select: { url: true, productId: true },
-        })
-      ).map((o) => [o.url, o.productId])
-    );
+    // FÖRLADDNING (kritiskt för körtiden). GitHub-runnern står i us-east och Neon i
+    // Frankfurt → varje DB-rundresa kostar ~100 ms. Loopen nedan gjorde tidigare 4
+    // frågor PER ANNONS (offer.findFirst, product.findUnique, plus två inuti
+    // isPlausibleListingPrice — varav en hämtade EXAKT samma product.category en gång
+    // till). Med tiotusentals annonser blev det timmar, och jobbet dunkade i
+    // 120-minuterstaket 1,2,3,6,8 juli. Nu: tre frågor per KÄLLA, resten i minnet.
+    // (Samma grepp som runRestockScan redan använder — läs en gång, diffa i minnet.)
+    const retailerOffers = await prisma.offer.findMany({
+      where: { retailerId: retailer.id },
+      select: {
+        id: true, url: true, productId: true, price: true,
+        condition: true, language: true, stockStatus: true,
+      },
+    });
+    const urlOwner = new Map<string, string>(retailerOffers.map((o) => [o.url, o.productId]));
+    // Ersätter prisma.offer.findFirst({ productId, retailerId }) per annons. findFirst
+    // utan orderBy = godtycklig rad; första i listan bevarar den semantiken.
+    const offerByProduct = new Map<string, (typeof retailerOffers)[number]>();
+    for (const o of retailerOffers) if (!offerByProduct.has(o.productId)) offerByProduct.set(o.productId, o);
+
+    // categoryByProduct + cmPriceByProduct är förladdade (delade för hela passet) —
+    // de ersätter product.findUnique och CM-referensprisfrågan som låg per annons.
 
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
@@ -614,7 +666,8 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
           continue;
         }
 
-        const match = await matchProduct(normalized.normalizedTitle);
+        // matchIndex = hela katalogen i minnet → ingen seq-scan per annons (se loadMatchIndex).
+        const match = await matchProduct(normalized.normalizedTitle, matchIndex);
         if (!match) {
           logs.push(`Ingen produktmatchning: "${rawProduct.title}"`);
           continue;
@@ -639,24 +692,20 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
         // ej pris-datakällorna själva): för HÖGT = trolig lot/fel variant (Tradera),
         // för LÅGT = felmatchad produkt (t.ex. en 149 kr butikslänk på en 2 333 kr
         // sealed). Skippa helt — priset hör inte till den här produkten.
+        const matchedCategory = categoryByProduct.get(productId) ?? null;
         if (
           !CARDMARKET_SOURCE_NAMES.includes(source.name) &&
-          !(await isPlausibleListingPrice(productId, normalized.price))
+          !isPlausiblePriceFor(matchedCategory, cmPriceByProduct.get(productId), normalized.price)
         ) {
           logs.push(`Orimligt pris vs marknadspris (trolig lot/felmatch): "${rawProduct.title}" ${normalized.price} öre`);
           continue;
         }
 
-        // Tidigare erbjudande (för pris-/lagerjämförelse)
-        const previousOffer = await prisma.offer.findFirst({
-          where: { productId, retailerId: retailer.id },
-        });
+        // Tidigare erbjudande (för pris-/lagerjämförelse) — ur förladdad karta.
+        const previousOffer = offerByProduct.get(productId) ?? null;
 
         // Skick utifrån produktkategori: singlar är NEAR_MINT, övrigt SEALED
-        const matchedProduct = await prisma.product.findUnique({
-          where: { id: productId },
-          select: { category: true },
-        });
+        const matchedProduct = matchedCategory ? { category: matchedCategory } : null;
 
         // Singelkort får bara matcha skrapade singelkort och vice versa
         if (normalized.category && matchedProduct) {
@@ -914,12 +963,27 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
 export async function runAllActiveSources(): Promise<ScrapeJobSummary[]> {
   const sources = await prisma.scrapeSource.findMany({ where: { isActive: true } });
   const summaries: ScrapeJobSummary[] = [];
+  const t0 = Date.now();
+  // EN gång för hela passet — inte en gång per källa.
+  const maps = await loadCatalogMaps();
+  console.log(
+    `[runner] Katalogkartor laddade: ${maps.categoryByProduct.size} produkter, ${maps.cmPriceByProduct.size} CM-priser.`
+  );
   for (const s of sources) {
+    // TIDTAGNING PER KÄLLA. Hela passet skrev tidigare bara två rader ("Kör…" och
+    // "Klart"), så när körtiden kröp från 60 → 100+ min och började dunka i
+    // 120-min-taket gick det inte att se VILKEN källa som var långsam. Nu syns det.
+    const s0 = Date.now();
     try {
-      summaries.push(await runScrapeJob(s.id));
+      const summary = await runScrapeJob(s.id, maps);
+      summaries.push(summary);
+      console.log(
+        `[runner] ${s.name}: ${Math.round((Date.now() - s0) / 1000)}s — ${summary.itemsFound} annonser, ${summary.itemsUpdated} uppdaterade`
+      );
     } catch (err) {
-      console.error(`[runner] Misslyckades köra källa ${s.name}:`, err);
+      console.error(`[runner] Misslyckades köra källa ${s.name} efter ${Math.round((Date.now() - s0) / 1000)}s:`, err);
     }
   }
+  console.log(`[runner] Alla ${sources.length} källor klara på ${Math.round((Date.now() - t0) / 60000)} min.`);
   return summaries;
 }
