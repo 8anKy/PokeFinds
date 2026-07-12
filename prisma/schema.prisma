@@ -380,6 +380,33 @@ model TraderaMatch {
   @@index([productId])
 }
 
+/// Cache för dedupe-stubs LLM-domar ("är dessa två titlar samma produkt?").
+///
+/// Utan den betalade veckojobbet för SAMMA dom om och om igen: en stub som döms
+/// "inte dubblett" ligger kvar i 14-dagarsfönstret och döms på nytt NÄSTA måndag,
+/// och nästa — samma två titlar, samma svar, ny kostnad. ~505 anrop/vecka blev
+/// merparten omdömen vi redan hade. (Positiva domar cachas ocksÅ men blir sällan
+/// lästa: en träff mergas direkt och stubben försvinner.)
+///
+/// Nyckel = produktparet SORTERAT (aId < bId) så (A,B) och (B,A) är samma rad.
+/// Titlarna sparas med domen: ändras en titel (eller cleanListingTitle:s
+/// utdata) är domen inte längre giltig → vi dömer om i stället för att lita på
+/// ett svar som gällde en annan text. Ingen FK (som TraderaMatch) → städas
+/// manuellt i mergeStubInto.
+model DedupeVerdict {
+  productAId String
+  productBId String
+  /// Titlarna som FAKTISKT dömdes (efter cleanListingTitle) — cache-invalidering.
+  titleA     String
+  titleB     String
+  same       Boolean
+  reason     String?
+  checkedAt  DateTime @default(now())
+
+  @@id([productAId, productBId])
+  @@index([productBId])
+}
+
 // Fynd-verifiering (Pro): LLM-koll att en Tradera-annons VERKLIGEN är samma sealed
 // produkt och är komplett/oöppnad/oskadad. Körs bara på fynd-kandidater (liten mängd)
 // så vi har råd med ett dyrt anrop per annons. 1:1 mot Offer.

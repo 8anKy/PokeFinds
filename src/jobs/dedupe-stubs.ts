@@ -7,11 +7,17 @@
  * produkt?" för stubbens topp-kandidater; bekräftad dubblett merge:as in i den
  * etablerade produkten (offers flyttas, stubben raderas).
  *
- * Körs VECKOVIS (store-health.yml) över stubbar ≤ STUB_WINDOW_DAYS gamla — äldre har
- * redan dömts (ingen verdict-cache behövs när fönstret är kort och anropen är öre).
+ * Körs VECKOVIS (store-health.yml) över stubbar ≤ STUB_WINDOW_DAYS gamla.
  * Kräver ANTHROPIC_API_KEY (annars no-op). Kandidater filtreras hårt innan LLM:
  * samma/kompatibel kategori, likhet ≥ MIN_SIM och matcherns hårda vakter
  * (serie-/sifferset-/språk-mismatch = aldrig samma produkt).
+ *
+ * VERDICT-CACHE (DedupeVerdict): här stod tidigare "ingen verdict-cache behövs när
+ * fönstret är kort och anropen är öre" — det stämde inte. En stub som döms "INTE
+ * dubblett" ligger kvar i 14-dagarsfönstret och döms om NÄSTA måndag, och nästa:
+ * samma två titlar, samma svar, ny nota. Mätt mot prod: 178 stubbar → ~505 anrop,
+ * varav merparten omdömen vi redan hade. Nu läses domen ur cachen; bara PARET som
+ * aldrig dömts (eller vars titel ändrats) kostar ett anrop.
  */
 import { prisma } from "@/lib/db";
 import { judgeSameProduct } from "@/lib/same-product";
@@ -26,6 +32,11 @@ import {
 const STUB_WINDOW_DAYS = Number(process.env.DEDUPE_WINDOW_DAYS ?? "14");
 const MIN_SIM = 0.4;
 const MAX_CANDIDATES = 3;
+
+/** Cache-nyckel: paret SORTERAT, så (A,B) och (B,A) är samma rad. */
+function pairKey(a: string, b: string): [string, string] {
+  return a < b ? [a, b] : [b, a];
+}
 
 // Kategorier som ofta förväxlas av butiksfeeds (checklane = pack/blister).
 const COMPATIBLE = new Set(["BOOSTER_PACK|BLISTER", "BLISTER|BOOSTER_PACK"]);
@@ -74,6 +85,12 @@ export async function mergeStubInto(
     await prisma.product.update({ where: { id: canonicalId }, data: { imageUrl: stub.imageUrl } });
   }
   await prisma.traderaMatch.deleteMany({ where: { productId: stubId } });
+  // Domar som pekar på stubben blir meningslösa när den försvinner (ingen FK → städa
+  // manuellt, precis som TraderaMatch ovan). Annars ligger de kvar som skräprader
+  // och kan i värsta fall matcha ett återanvänt id.
+  await prisma.dedupeVerdict.deleteMany({
+    where: { OR: [{ productAId: stubId }, { productBId: stubId }] },
+  });
   await prisma.product.delete({ where: { id: stubId } });
   log(`   🔀 mergade "${stub.title}" → ${canonicalId}`);
 }
@@ -109,7 +126,17 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
   });
   log(`[dedupe-stubs] ${stubs.length} stubbar (≤${STUB_WINDOW_DAYS} dgr), ${catalog.length} sealed-produkter i katalogen.`);
 
+  // Alla tidigare domar som rör dessa stubbar — EN läsning, sedan i minnet.
+  const stubIds = stubs.map((s) => s.id);
+  const cachedRows = await prisma.dedupeVerdict.findMany({
+    where: { OR: [{ productAId: { in: stubIds } }, { productBId: { in: stubIds } }] },
+  });
+  const cache = new Map<string, (typeof cachedRows)[number]>();
+  for (const v of cachedRows) cache.set(`${v.productAId}|${v.productBId}`, v);
+  log(`[dedupe-stubs] ${cache.size} tidigare domar i cachen.`);
+
   const mergedIds = new Set<string>();
+  let cacheHits = 0;
   for (const stub of stubs) {
     if (mergedIds.has(stub.id)) continue;
     const stubTitle = cleanListingTitle(stub.title);
@@ -138,9 +165,32 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
       .slice(0, MAX_CANDIDATES);
 
     for (const { c } of candidates) {
-      res.llmCalls++;
-      const v = await judgeSameProduct(stubTitle, c.title);
-      if (v?.same) {
+      const [aId, bId] = pairKey(stub.id, c.id);
+      const [aTitle, bTitle] = aId === stub.id ? [stubTitle, c.title] : [c.title, stubTitle];
+
+      // Cachad dom gäller BARA om båda titlarna är exakt de som dömdes. Ändrad titel
+      // (eller ändrad cleanListingTitle) → texten LLM:en såg finns inte längre → döm om.
+      const hit = cache.get(`${aId}|${bId}`);
+      const fresh = hit && hit.titleA === aTitle && hit.titleB === bTitle;
+
+      let same: boolean;
+      if (fresh) {
+        cacheHits++;
+        same = hit.same;
+      } else {
+        res.llmCalls++;
+        const v = await judgeSameProduct(stubTitle, c.title);
+        if (!v) continue; // LLM-fel (t.ex. slut på krediter) → dra ingen slutsats, cacha inget
+        same = v.same;
+        // Spara domen — det är NEGATIVA domar som annars betalas om varje vecka.
+        await prisma.dedupeVerdict.upsert({
+          where: { productAId_productBId: { productAId: aId, productBId: bId } },
+          update: { titleA: aTitle, titleB: bTitle, same, reason: v.reason, checkedAt: new Date() },
+          create: { productAId: aId, productBId: bId, titleA: aTitle, titleB: bTitle, same, reason: v.reason },
+        });
+      }
+
+      if (same) {
         await mergeStubInto(stub.id, c.id, log);
         mergedIds.add(stub.id);
         res.merged++;
@@ -149,6 +199,9 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
     }
   }
 
-  log(`[dedupe-stubs] klart: ${res.merged} mergade av ${res.stubs} stubbar (${res.llmCalls} LLM-anrop).`);
+  log(
+    `[dedupe-stubs] klart: ${res.merged} mergade av ${res.stubs} stubbar ` +
+      `(${res.llmCalls} LLM-anrop, ${cacheHits} lästa ur cachen).`
+  );
   return res;
 }
