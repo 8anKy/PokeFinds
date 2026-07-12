@@ -12,9 +12,23 @@
  * överlevarens titelform entydigt säger annan kategori (display/booster/etb/tin)
  * rättas den.
  *
- * DRY-RUN som default — APPLY=1 skriver. Kör:
- *   DATABASE_URL=<neon> APPLY=1 npx tsx scripts/dedupe-catalog.ts
+ * KOSTNADSVAKTER (2026-07-07: en DRY-RUN dömde 29 842 par med Haiku och TÖMDE
+ * API-kontot — $7,43, ~8 250 anrop innan saldot tog slut mitt i körningen):
+ *   1. DRY-RUN rör ALDRIG LLM:en. Den listar bara kandidatparen. Att "bara titta"
+ *      får inte kunna kosta pengar.
+ *   2. MAX_PAIRS (default 500) — fler par än så = avbryt, inte "kör ändå". Sänkt
+ *      MIN_SIM får inte kunna återladda vapnet.
+ *   3. Uppskattad kostnad skrivs ut FÖRE första anropet.
+ *
+ * Kör:
+ *   DUMP=1   → skriv kandidatparen som JSON (gratis, för manuell/Claude-granskning)
+ *   (inget)  → DRY-RUN: lista par, ingen LLM, ingen kostnad
+ *   JUDGE=1  → döm med Haiku men skriv inte (kostar pengar, respekterar MAX_PAIRS)
+ *   VERDICTS=<fil.json> APPLY=1 → applicera FÄRDIGA domar utan ett enda API-anrop
+ *   APPLY=1  → döm med Haiku OCH merga
+ * Alltid: DATABASE_URL=<neon> npx tsx scripts/dedupe-catalog.ts
  */
+import * as fs from "fs";
 import { PrismaClient } from "@prisma/client";
 import { prisma as appPrisma } from "../src/lib/db";
 import { mapPool } from "../src/lib/concurrency";
@@ -34,6 +48,32 @@ import {
 const prisma = new PrismaClient();
 const APPLY = process.env.APPLY === "1";
 const MIN_SIM = Number(process.env.MIN_SIM ?? "0.5");
+/** Tak för hur många par som får skickas till LLM:en i EN körning. Fler = avbryt.
+ *  Detta är skillnaden mellan "en dyr körning" och "ett tömt konto". */
+const MAX_PAIRS = Number(process.env.MAX_PAIRS ?? "500");
+/** Färdiga domar från fil (t.ex. adjudicerade i Claude Code) → noll API-kostnad. */
+const VERDICTS_FILE = process.env.VERDICTS ?? "";
+/** Kostar pengar? Bara när vi faktiskt ringer Anthropic. DRY-RUN gör det ALDRIG. */
+const USE_LLM = !VERDICTS_FILE && (APPLY || process.env.JUDGE === "1");
+/** Haiku 4.5: ~500 in + ~75 ut per dom ≈ $0,0009. Räcker för en grov förhandsvarning. */
+const USD_PER_JUDGEMENT = 0.0009;
+
+type Verdict = { same: boolean; reason: string } | null;
+
+/** Läser domar från VERDICTS-filen. Format: [{ a, b, same, reason }] där a/b = produkt-id. */
+function loadVerdicts(path: string): Map<string, Verdict> {
+  const raw = JSON.parse(fs.readFileSync(path, "utf8")) as {
+    a: string;
+    b: string;
+    same: boolean;
+    reason?: string;
+  }[];
+  const m = new Map<string, Verdict>();
+  for (const v of raw) {
+    m.set([v.a, v.b].sort().join("|"), { same: v.same, reason: v.reason ?? "från VERDICTS-fil" });
+  }
+  return m;
+}
 
 const COMPATIBLE = new Set(["BOOSTER_PACK|BLISTER", "BLISTER|BOOSTER_PACK"]);
 const FORM_CATEGORY: Record<string, string> = {
@@ -122,9 +162,13 @@ function pickSurvivor(a: P, b: P): [P, P] {
 
 async function main() {
   const db = await prisma.$queryRaw<{ db: string }[]>`SELECT current_database() AS db`;
-  console.log(`DB: ${db[0].db} — ${APPLY ? "APPLY" : "DRY-RUN"}`);
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.error("ANTHROPIC_API_KEY saknas — LLM-domen krävs för katalog-dedup.");
+  const mode = APPLY ? "APPLY" : USE_LLM ? "JUDGE (ingen skrivning)" : "DRY-RUN";
+  const cost = VERDICTS_FILE ? "domar från fil — 0 API-anrop" : USE_LLM ? "LLM PÅ — kostar pengar" : "ingen LLM — gratis";
+  console.log(`DB: ${db[0].db} — ${mode} — ${cost}`);
+  // Nyckeln krävs BARA när vi faktiskt ska ringa. Förut dog en gratis DRY-RUN här
+  // utan nyckel, och lyckades ringa 8 250 gånger med den.
+  if (USE_LLM && !process.env.ANTHROPIC_API_KEY) {
+    console.error("ANTHROPIC_API_KEY saknas — krävs för APPLY/JUDGE (kör utan flaggor för gratis DRY-RUN).");
     process.exit(1);
   }
 
@@ -200,21 +244,57 @@ async function main() {
     return;
   }
 
-  // Döm alla par parallellt (Haiku tål det gott), merga sekventiellt efteråt.
   const sorted = [...pairs.values()].sort((x, y) => y.sim - x.sim);
-  const verdicts: { pair: (typeof sorted)[number]; v: Awaited<ReturnType<typeof judgeSameProduct>> }[] =
-    new Array(sorted.length);
-  await mapPool(sorted, 8, async (pair, i) => {
-    verdicts[i] = { pair, v: await judgeSameProduct(pair.a.title, pair.b.title) };
-  });
+
+  // TAK: hellre avbryta än tömma kontot. Ett par-antal i den här storleksordningen
+  // betyder ALLTID att filtren släppt igenom skräp (sänkt MIN_SIM, trasig guard) —
+  // inte att katalogen plötsligt har tusentals dubbletter.
+  if (sorted.length > MAX_PAIRS) {
+    console.error(
+      `\n✋ AVBRYTER: ${sorted.length} kandidatpar > MAX_PAIRS (${MAX_PAIRS}).` +
+        `\n   Att döma dem skulle kosta ~$${(sorted.length * USD_PER_JUDGEMENT).toFixed(2)} i Haiku-anrop.` +
+        `\n   Höj MIN_SIM (nu ${MIN_SIM}), granska med DUMP=1, eller höj MAX_PAIRS medvetet.`
+    );
+    process.exit(1);
+  }
+
+  // DRY-RUN: lista paren, ring INGEN. Att titta ska vara gratis.
+  if (!USE_LLM && !VERDICTS_FILE) {
+    for (const { a, b, why, sim } of sorted) {
+      console.log(`  ? "${a.title}" (${a.id})\n    vs "${b.title}" (${b.id})  [${why}, sim ${sim.toFixed(2)}]`);
+    }
+    console.log(
+      `\n${sorted.length} kandidatpar. INGEN LLM anropad (DRY-RUN = gratis).` +
+        `\n  JUDGE=1 → döm med Haiku (~$${(sorted.length * USD_PER_JUDGEMENT).toFixed(2)})` +
+        `\n  DUMP=1  → JSON för granskning, applicera sedan med VERDICTS=<fil> APPLY=1 (gratis)`
+    );
+    return;
+  }
+
+  const verdicts: { pair: (typeof sorted)[number]; v: Verdict }[] = new Array(sorted.length);
+  if (VERDICTS_FILE) {
+    const preset = loadVerdicts(VERDICTS_FILE);
+    let missing = 0;
+    sorted.forEach((pair, i) => {
+      const v = preset.get([pair.a.id, pair.b.id].sort().join("|")) ?? null;
+      if (!v) missing++;
+      verdicts[i] = { pair, v };
+    });
+    console.log(`${preset.size} domar lästa från ${VERDICTS_FILE} — ${missing} par utan dom (hoppas över). 0 API-anrop.`);
+  } else {
+    console.log(`Dömer ${sorted.length} par med Haiku — uppskattad kostnad ~$${(sorted.length * USD_PER_JUDGEMENT).toFixed(2)}.`);
+    await mapPool(sorted, 8, async (pair, i) => {
+      verdicts[i] = { pair, v: await judgeSameProduct(pair.a.title, pair.b.title) };
+    });
+  }
 
   const merged = new Set<string>();
   let confirmed = 0, rejected = 0;
-  const llmCalls = sorted.length;
+  const llmCalls = VERDICTS_FILE ? 0 : sorted.length;
   for (const { pair, v } of verdicts) {
     const { a, b, why, sim } = pair;
     if (merged.has(a.id) || merged.has(b.id)) continue;
-    if (!v) { console.log(`  ⚠ LLM-fel, hoppar: "${a.title}" vs "${b.title}"`); continue; }
+    if (!v) { console.log(`  ⚠ ingen dom (LLM-fel/saknas i fil), hoppar: "${a.title}" vs "${b.title}"`); continue; }
     if (!v.same) { rejected++; continue; }
     const [survivor, loser] = pickSurvivor(a, b);
     confirmed++;

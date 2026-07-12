@@ -11,6 +11,14 @@ runScheduledScrapesOnce()
   .then((r) => console.log(`Klart: ${r.scrapes.length} källor, ${r.alerts.sent} alerts skickade.`))
   .catch((e) => {
     console.error("Misslyckades:", e);
-    process.exit(1);
+    process.exitCode = 1;
   })
-  .finally(() => prisma.$disconnect());
+  .finally(async () => {
+    await prisma.$disconnect();
+    // Avsluta EXPLICIT. Någon kvarlämnad handle (HTTP-socket/timer från en skrapa)
+    // håller event-loopen vid liv efter att arbetet är klart: 1–8 juli 2026 skrev
+    // jobbet sin sista rad efter ~99 min och satt sedan sysslolöst tills GitHub
+    // dödade det på 120-minuterstaket. "cancelled" skickar inget felmejl → det
+    // brann Actions-minuter i en vecka utan att någon märkte det.
+    process.exit(process.exitCode ?? 0);
+  });
