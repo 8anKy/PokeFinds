@@ -63,7 +63,7 @@ export async function markRead(userId: string, alertId: string) {
 
 /**
  * Kontrollerar prislarm för en produkt vid nytt pris (öre).
- * Skapar Alert + Notification för bevakningar med targetPrice >= newPrice.
+ * Skapar Alert (EMAIL) för bevakningar med targetPrice >= newPrice.
  */
 export async function checkPriceAlerts(productId: string, newPrice: number) {
   const product = await prisma.product.findUnique({
@@ -109,7 +109,7 @@ export async function checkPriceAlerts(productId: string, newPrice: number) {
  * Restock-larm är en Pro-förmån: mottagare = PRO-bevakare av produkten
  * (restockAlert) UNION Pro-användare som valt att få ALLA restocks
  * (notificationSettings.allRestocks=true). Gratisanvändare får inga restock-larm.
- * Skapar Alert (EMAIL) + Notification per unik användare.
+ * Skapar Alert (EMAIL) per unik användare.
  *
  * ponytail: ett mejl per restock per mottagare. Vid stora drop-vågor kan en
  * "alla restocks"-prenumerant få många mejl — lägg en daglig digest om det blir
