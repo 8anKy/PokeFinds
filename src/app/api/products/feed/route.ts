@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     // Fynd-feeden är Pro-only — gratis/utloggade får tom lista (infinite scroll stannar).
     if (params.sort === "deals") {
       const session = await auth();
-      if (session?.user?.planTier !== "PREMIUM") {
+      if (!session?.user?.isPro) {
         return Response.json({ items: [], total: 0, hasMore: false });
       }
     }

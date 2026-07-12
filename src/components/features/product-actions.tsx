@@ -37,7 +37,7 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
   // fo_auth-cookien finns, så utloggade aldrig träffar /api/auth/session.
   useEffect(() => {
     if (!hasAuthHint()) return;
-    void getSession().then((s) => setIsPro(s?.user?.planTier === "PREMIUM"));
+    void getSession().then((s) => setIsPro(!!s?.user?.isPro));
   }, []);
 
   // Är produkten redan i bevakningarna? Rå fetch (inte apiFetch) så en utloggad

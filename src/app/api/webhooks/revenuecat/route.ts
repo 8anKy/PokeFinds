@@ -17,10 +17,35 @@ export async function POST(req: Request) {
     return new Response("ok", { status: 200 });
   }
 
-  const plan = planForEvent(String(event?.type));
+  const eventType = String(event?.type);
+  const plan = planForEvent(eventType);
   if (plan) {
-    // updateMany = ingen krasch om id:t inte finns (raderat konto etc).
+    // Läs föregående plan FÖRE skrivningen — annars går en nedgradering inte att
+    // spåra i efterhand. 2026-07-08 satte en EXPIRATION ägarkontot till FREE utan
+    // ett enda spår, och ALLA restock-larm dog tyst i fyra dygn. Nu loggas varje
+    // plan-ändring som webhooken gör (även no-op) så det syns i AuditLog.
+    const before = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { planTier: true },
+    });
+    if (!before) return new Response("ok", { status: 200 }); // raderat konto
+
+    // updateMany = ingen krasch om id:t inte finns (race mot kontoradering).
     await prisma.user.updateMany({ where: { id: userId }, data: { planTier: plan } });
+    await prisma.auditLog.create({
+      data: {
+        userId,
+        action: "user.plan.revenuecat",
+        entityType: "User",
+        entityId: userId,
+        metadata: {
+          event: eventType,
+          from: before.planTier,
+          to: plan,
+          eventId: typeof event?.id === "string" ? event.id : null,
+        },
+      },
+    });
   }
   return new Response("ok", { status: 200 });
 }

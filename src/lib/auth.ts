@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { rateLimit, peekRateLimit, clearRateLimit } from "@/lib/rate-limit";
+import { isPro } from "@/lib/plan";
 import type { Role, PlanTier } from "@prisma/client";
 
 declare module "next-auth" {
@@ -13,6 +14,9 @@ declare module "next-auth" {
       name: string;
       role: Role;
       planTier: PlanTier;
+      /** Pro-förmåner? = planTier PREMIUM ELLER admin-roll. Grinda features på DENNA,
+       *  aldrig på planTier (som en utgången prenumeration nollar). Se lib/plan.ts. */
+      isPro: boolean;
       onboardingCompleted: boolean;
     };
   }
@@ -107,6 +111,7 @@ export const authOptions: NextAuthOptions = {
       session.user.id = token.id;
       session.user.role = token.role;
       session.user.planTier = token.planTier;
+      session.user.isPro = isPro({ planTier: token.planTier, role: token.role });
       session.user.onboardingCompleted = token.onboardingCompleted;
       return session;
     },

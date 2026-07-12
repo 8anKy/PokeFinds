@@ -27,6 +27,9 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { checkPriceAlerts, checkRestockAlerts, checkListingAlerts } from "@/services/alerts";
+// Pro-mottagare = planTier PREMIUM ELLER admin-roll (lib/plan). Assertar mot samma
+// konstant som koden använder — ett bart planTier-filter missar admins (2026-07-08).
+import { PRO_USER_WHERE } from "@/lib/plan";
 
 const PRODUCT = { id: "prod-1", title: "Surging Sparks Booster Box", slug: "surging-sparks-booster-box" };
 
@@ -72,7 +75,7 @@ describe("checkPriceAlerts", () => {
           priceAlert: true,
           isPaused: false,
           targetPrice: { not: null, gte: 99900 },
-          user: { planTier: "PREMIUM" },
+          user: PRO_USER_WHERE,
         }),
       })
     );
@@ -142,7 +145,7 @@ describe("checkRestockAlerts", () => {
           productId: "prod-1",
           restockAlert: true,
           isPaused: false,
-          user: { planTier: "PREMIUM" },
+          user: PRO_USER_WHERE,
         }),
       })
     );
@@ -224,7 +227,7 @@ describe("checkListingAlerts (feed-först: rå butiksannonser utanför katalogen
       expect.objectContaining({
         where: expect.objectContaining({
           notificationSettings: { path: ["allRestocks"], equals: true },
-          planTier: "PREMIUM",
+          ...PRO_USER_WHERE,
         }),
       })
     );

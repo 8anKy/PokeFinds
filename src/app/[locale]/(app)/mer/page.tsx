@@ -38,7 +38,7 @@ export default async function MerPage() {
   if (!session?.user) redirect("/logga-in");
   const t = await getTranslations("More");
   const isAdmin = hasRole(session.user.role, "MODERATOR");
-  const isPremium = session.user.planTier === "PREMIUM";
+  const isPremium = session.user.isPro;
 
   const watchCount = await prisma.watchlistItem.count({
     where: { userId: session.user.id },

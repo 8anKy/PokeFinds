@@ -8,6 +8,7 @@
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
+import { effectivePlanTier, isPro } from "@/lib/plan";
 import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
 import { getScannerQuota, identifyCard, isIntroScan, recordScanUsage } from "@/services/scanner";
@@ -47,11 +48,11 @@ export async function POST(req: Request) {
     }
 
     // Månadskvot (binder vision-kostnaden mot Pro-priset). No-match räknas inte.
-    const quota = await getScannerQuota(user.id, user.planTier);
+    const quota = await getScannerQuota(user.id, effectivePlanTier(user));
     if (quota.remaining <= 0) {
       throw new ServiceError(
         429,
-        user.planTier === "PREMIUM"
+        isPro(user)
           ? `Du har nått månadens gräns på ${quota.limit} skanningar. Tillbaka nästa månad.`
           : `Du har använt dina ${quota.limit} gratis skanningar denna månad. Uppgradera till Pro för fler.`
       );
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
     // (b) klienten uttryckligen ber om det ("försök igen, skarpare") OCH är Pro.
     const intro = await isIntroScan(user.id);
     const result = await identifyCard(image, {
-      precise: intro || (precise && user.planTier === "PREMIUM"),
+      precise: intro || (precise && isPro(user)),
     });
 
     // Bokför mot kvoten: varje genomförd skanning räknas (träff eller no-match),

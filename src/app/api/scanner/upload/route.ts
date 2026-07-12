@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
+import { effectivePlanTier } from "@/lib/plan";
 import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
 import { runScannerJob } from "@/services/scanner";
@@ -39,7 +40,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { job, candidates } = await runScannerJob(user.id, user.planTier, image);
+    const { job, candidates } = await runScannerJob(user.id, effectivePlanTier(user), image);
 
     return jsonOk(
       {

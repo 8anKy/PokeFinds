@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
+import { effectivePlanTier } from "@/lib/plan";
 import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
 import { getGradingQuota, runGradingJob } from "@/services/grading";
@@ -46,10 +47,10 @@ export async function POST(req: Request) {
       );
     }
 
-    const { job } = await runGradingJob(user.id, user.planTier, front, back, {
+    const { job } = await runGradingJob(user.id, effectivePlanTier(user), front, back, {
       cardName,
     });
-    const quota = await getGradingQuota(user.id, user.planTier);
+    const quota = await getGradingQuota(user.id, effectivePlanTier(user));
 
     return jsonOk(
       {

@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { isBlockedListingLanguage } from "@/lib/listing-language";
+import { PRO_USER_WHERE } from "@/lib/plan";
 import type { AlertChannel, AlertType, Prisma } from "@prisma/client";
 
 function formatSek(ore: number): string {
@@ -77,8 +78,8 @@ export async function checkPriceAlerts(productId: string, newPrice: number) {
       priceAlert: true,
       isPaused: false,
       targetPrice: { not: null, gte: newPrice },
-      // Prislarm är en Pro-förmån (jfr restock-larm).
-      user: { planTier: "PREMIUM" },
+      // Prislarm är en Pro-förmån (jfr restock-larm). Admins räknas som Pro — se isPro().
+      user: PRO_USER_WHERE,
     },
     select: { userId: true, targetPrice: true },
   });
@@ -146,14 +147,14 @@ export async function checkRestockAlerts(productId: string, retailerId?: string)
   const [watchers, allSubs] = await Promise.all([
     prisma.watchlistItem.findMany({
       // Restock-larm är Pro-only — även bevakade produkter larmar bara för Pro.
-      where: { productId, restockAlert: true, isPaused: false, user: { planTier: "PREMIUM" } },
+      where: { productId, restockAlert: true, isPaused: false, user: PRO_USER_WHERE },
       select: { userId: true },
     }),
     prisma.user.findMany({
       // "Alla restocks" är också en Pro-förmån.
       where: {
         notificationSettings: { path: ["allRestocks"], equals: true },
-        planTier: "PREMIUM",
+        ...PRO_USER_WHERE,
       },
       select: { id: true },
     }),
@@ -204,7 +205,7 @@ export async function checkListingAlerts(
   const subs = await prisma.user.findMany({
     where: {
       notificationSettings: { path: ["allRestocks"], equals: true },
-      planTier: "PREMIUM",
+      ...PRO_USER_WHERE,
     },
     select: { id: true },
   });

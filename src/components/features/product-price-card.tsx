@@ -54,7 +54,7 @@ export function ProductPriceCard({
   const [isPro, setIsPro] = useState(false);
   useEffect(() => {
     if (!hasAuthHint()) return;
-    void getSession().then((s) => setIsPro(s?.user?.planTier === "PREMIUM"));
+    void getSession().then((s) => setIsPro(!!s?.user?.isPro));
   }, []);
 
   const filtered = withinDays(series, period.days);

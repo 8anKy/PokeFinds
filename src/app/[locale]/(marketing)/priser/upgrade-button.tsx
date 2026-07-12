@@ -30,7 +30,7 @@ export function UpgradeButton() {
     if (logged) {
       fetch("/api/users/me")
         .then((r) => r.json())
-        .then((me) => setIsPro(me?.planTier === "PREMIUM"))
+        .then((me) => setIsPro(!!me?.isPro))
         .catch(() => undefined);
     }
   }, []);
@@ -85,7 +85,7 @@ export function UpgradeButton() {
         for (let i = 0; i < 6; i++) {
           await new Promise((r) => setTimeout(r, 1500));
           const s = await update();
-          if (s?.user?.planTier === "PREMIUM") {
+          if (s?.user?.isPro) {
             activated = true;
             break;
           }

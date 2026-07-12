@@ -28,6 +28,8 @@ export interface SettingsUser {
   email: string;
   bio: string | null;
   planTier: "FREE" | "PREMIUM";
+  /** Pro-förmåner (planTier ELLER admin-roll) — grinda features på denna, ej planTier. */
+  isPro: boolean;
   notificationSettings: NotificationSettings;
   traderaUserId: string | null;
 }
@@ -238,7 +240,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
           <div className="space-y-4">
             {notificationOptions.map((opt) => {
               // "Alla restocks" är en Pro-förmån.
-              const locked = opt.key === "allRestocks" && user.planTier !== "PREMIUM";
+              const locked = opt.key === "allRestocks" && !user.isPro;
               return (
                 <div key={opt.key} className="flex items-start gap-3">
                   <Checkbox
@@ -265,7 +267,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
       <Card>
         <CardHeader className="flex-row items-center justify-between">
           <CardTitle>{tSettings("planTitle")}</CardTitle>
-          {user.planTier === "PREMIUM" ? (
+          {user.isPro ? (
             <Badge variant="holo">{tSettings("proBadge")}</Badge>
           ) : (
             <Badge>{tSettings("freeBadge")}</Badge>
@@ -273,11 +275,9 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-ink-muted">
-            {user.planTier === "PREMIUM"
-              ? tSettings("planProDesc")
-              : tSettings("planFreeDesc")}
+            {user.isPro ? tSettings("planProDesc") : tSettings("planFreeDesc")}
           </p>
-          {user.planTier === "FREE" && (
+          {!user.isPro && (
             <LinkButton href="/priser" className="mt-4">
               {tSettings("upgradeCta")}
             </LinkButton>

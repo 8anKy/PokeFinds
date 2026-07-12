@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { apiError, jsonOk } from "@/lib/api";
 import { requireUser, AuthError } from "@/lib/auth";
+import { isPro } from "@/lib/plan";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,8 @@ export async function GET() {
       select: profileSelect,
     });
     if (!user) throw new AuthError(404, "Användaren hittades inte.");
-    return jsonOk(user);
+    // isPro = planTier ELLER admin-roll. Klienter ska grinda på detta, inte planTier.
+    return jsonOk({ ...user, isPro: isPro(user) });
   } catch (e) {
     return apiError(e);
   }
@@ -57,15 +59,12 @@ export async function PATCH(req: Request) {
 
     const current = await prisma.user.findUnique({
       where: { id: sessionUser.id },
-      select: { notificationSettings: true, preferences: true, planTier: true },
+      select: { notificationSettings: true, preferences: true, planTier: true, role: true },
     });
     if (!current) throw new AuthError(404, "Användaren hittades inte.");
 
     // "Alla restocks" är Pro-only — tysta ner försök från gratisanvändare.
-    if (
-      input.notificationSettings?.allRestocks === true &&
-      current.planTier !== "PREMIUM"
-    ) {
+    if (input.notificationSettings?.allRestocks === true && !isPro(current)) {
       input.notificationSettings.allRestocks = false;
     }
 

@@ -42,7 +42,7 @@ export default async function CollectionPage() {
     console.error("[samling] sålt-synk misslyckades:", e)
   );
 
-  const isPremium = session.user.planTier === "PREMIUM";
+  const isPremium = session.user.isPro;
   const [items, value, user, sales] = await Promise.all([
     listCollection(userId),
     // Gratis: max 6 mån historik. Premium: full (range-väljaren styr visningen).

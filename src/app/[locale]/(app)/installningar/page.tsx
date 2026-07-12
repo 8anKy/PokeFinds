@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { isPro } from "@/lib/plan";
 import { prisma } from "@/lib/db";
 import { SettingsClient, type NotificationSettings, type SettingsUser } from "./settings-client";
 
@@ -40,6 +41,7 @@ export default async function SettingsPage() {
       email: true,
       bio: true,
       planTier: true,
+      role: true,
       notificationSettings: true,
       traderaUserId: true,
     },
@@ -51,6 +53,7 @@ export default async function SettingsPage() {
     email: user.email,
     bio: user.bio,
     planTier: user.planTier,
+    isPro: isPro(user),
     notificationSettings: parseNotificationSettings(user.notificationSettings),
     traderaUserId: user.traderaUserId,
   };

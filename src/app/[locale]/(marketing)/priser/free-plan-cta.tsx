@@ -22,7 +22,7 @@ export function FreePlanCta() {
     if (logged) {
       fetch("/api/users/me")
         .then((r) => r.json())
-        .then((me) => setIsPro(me?.planTier === "PREMIUM"))
+        .then((me) => setIsPro(!!me?.isPro))
         .catch(() => undefined);
     }
   }, []);

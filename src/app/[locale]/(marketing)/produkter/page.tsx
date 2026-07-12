@@ -308,7 +308,7 @@ export default async function ProductsPage({
   const session = await auth();
   // Fynd är en Pro-funktion: gratis/utloggade får en uppgraderingsprompt istället för
   // resultat (och kör inte den tyngre fynd-frågan).
-  const dealsLocked = params.sort === "deals" && session?.user?.planTier !== "PREMIUM";
+  const dealsLocked = params.sort === "deals" && !session?.user?.isPro;
   const [result, sets, retailers, recentSets] = await Promise.all([
     dealsLocked
       ? Promise.resolve({ items: [], total: 0, hasMore: false })

@@ -74,7 +74,7 @@ export default async function WatchlistPage() {
           action={<LinkButton href="/produkter">{t("exploreProducts")}</LinkButton>}
         />
       ) : (
-        <WatchlistTable initialItems={rows} isPro={session.user.planTier === "PREMIUM"} />
+        <WatchlistTable initialItems={rows} isPro={session.user.isPro} />
       )}
 
       {/* Alerthistorik */}
