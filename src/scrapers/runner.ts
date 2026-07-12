@@ -7,7 +7,7 @@
  * Säkerhetsregler: jobbet avbryts automatiskt om felräknaren passerar 20.
  */
 import { JobStatus, SourceType, StockStatus, type Prisma, type ProductCategory } from "@prisma/client";
-import { prisma } from "@/lib/db";
+import { prisma, withDbRetry } from "@/lib/db";
 import { normalizeTitle, slugify } from "@/lib/utils";
 import { MockAdapter } from "@/scrapers/adapters/mock-adapter";
 import { PokemonTcgAdapter } from "@/scrapers/adapters/pokemontcg-adapter";
@@ -347,6 +347,15 @@ export async function runRestockScan(opts?: {
       skipped: true, sourceList: sources,
     };
   }
+
+  // NEON-UPPVAKNING. Fas 1 ovan rör INTE databasen (med flit — endpointen ska få sova,
+  // det är hela poängen med ändringsgrinden). Nästa fråga är därför den första på ~36 s
+  // och träffar en SUSPENDERAD Neon-compute. Prisma får då ibland P1017 "Server has
+  // closed the connection" i stället för att vänta ut uppvaknandet → HELA skanningen dog
+  // och mejlade ett falskt fellarm (2026-07-12 22:40). En trivial fråga med retry väcker
+  // endpointen först. Den körs BARA här, efter ändringsgrinden — en oförändrad feed rör
+  // fortfarande aldrig DB:n, så scale-to-zero är intakt.
+  await withDbRetry(() => prisma.$queryRaw`SELECT 1`);
 
   // Fas 2 (DB-burst): retailer per källa + alla befintliga offers i EN läsning.
   const retailerByName = new Map<string, string>();
