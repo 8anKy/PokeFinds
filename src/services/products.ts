@@ -190,6 +190,10 @@ function toListItem(p: ProductWithRelations): ProductListItem {
  */
 export const HIDDEN_CATEGORIES: ProductCategory[] = ["ACCESSORY", "GRADED_CARD", "OTHER"];
 
+/** Språk katalogen visar. EN + JP är policyn; CN/KR/EU importeras inte och ska inte
+ *  synas ens om något halkat in (isBlockedListingLanguage vaktar ingången). */
+export const CATALOG_LANGUAGES: CardLanguage[] = ["EN", "JP"];
+
 /**
  * Räknar om `Product.lowestPriceOre` = lägsta prissatta offer-pris (öre), null
  * om produkten saknar prissatt offer (→ gömd ur katalogen tills den får ett
@@ -308,7 +312,12 @@ export async function buildProductWhere(
   const where: Prisma.ProductWhereInput = andClauses.length > 0 ? { AND: andClauses } : {};
   if (category && !HIDDEN_CATEGORIES.includes(category)) where.category = category;
   else where.category = { notIn: HIDDEN_CATEGORIES };
+  // Katalogen är EN + JP only. Utan detta var språk BARA ett användarfilter, så
+  // default-vyn ("Alla språk") visade även OTHER-taggade produkter — de 6 spanska/
+  // tyska Samlarhobby-boostrarna låg synliga i katalogen i fem dygn. Ett uttryckligt
+  // filter respekteras, men "inget filter" betyder EN+JP, aldrig "allt".
   if (language) where.language = language;
+  else where.language = { in: CATALOG_LANGUAGES };
   if (retailerId) {
     where.offers = {
       some: { retailerId, stockStatus: "IN_STOCK", price: { not: null }, NOT: { url: { contains: "search", mode: "insensitive" } } },

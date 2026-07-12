@@ -81,7 +81,9 @@ const SORT_OPTIONS: { value: string; key: string; sort: ProductSort }[] = [
 ];
 
 // Giltiga språknycklar (för validering av ?sprak); visning via Language-namespace.
-const LANGUAGE_KEYS: CardLanguage[] = ["SV", "EN", "JP", "DE", "FR", "OTHER"];
+// BARA katalogens språk (EN+JP). Förut gick ?sprak=OTHER att skicka in → man kunde
+// bläddra fram just de blockade produkter som inte ska finnas i katalogen alls.
+const LANGUAGE_KEYS: CardLanguage[] = ["EN", "JP"];
 
 /** Språk som visas i katalogfiltret (övriga gömda tills vidare, 2026-06-14). */
 const BROWSE_LANGUAGES: CardLanguage[] = ["EN", "JP"];

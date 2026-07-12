@@ -23,6 +23,7 @@ import { StockStatus } from "@prisma/client";
 import { prisma } from "../lib/db";
 import { mapPool } from "../lib/concurrency";
 import { normalizeTitle } from "../lib/utils";
+import { isBlockedListingLanguage, listingCardLanguage } from "../lib/listing-language";
 import { matchProduct, matchListingToProduct, isPlausibleListingPrice } from "../scrapers/matching";
 import { traderaSearchUrlSpecific, TRADERA_CATEGORY } from "../lib/marketplace-urls";
 
@@ -166,6 +167,12 @@ function parseItemsFromXml(xml: string): { items: TraderaItem[]; totalPages: num
       rawUrl && /tradera\.com\/item\//.test(rawUrl)
         ? rawUrl.replace(/^http:\/\//, "https://")
         : `https://www.tradera.com/item/0/${itemId}/`;
+
+    // SPRÅKVAKT. pokemon_language-attributet ovan är TOMT hos de flesta privat-
+    // säljare, så det ensamt släppte igenom spanska/tyska/kinesiska annonser rakt
+    // in i katalogen — Tradera hade i praktiken ingen språkkontroll alls. Kör samma
+    // detektor som butiks-importen (titel + URL-slug): katalogen är EN + JP only.
+    if (isBlockedListingLanguage(title, url)) continue;
 
     const catText = tagText(block, "CategoryId");
     const sellerBlock = block.match(/<Seller>([\s\S]*?)<\/Seller>/);
@@ -583,6 +590,10 @@ export async function runTraderaSweep(
       const condition =
         product?.category === "SINGLE_CARD" || product?.category === "GRADED_CARD"
           ? "NEAR_MINT" : "SEALED";
+      // Språket hårdkodades tidigare till "EN" på VARJE Tradera-offer — en japansk
+      // annons låg alltså som engelsk. Blockade språk är redan bortsållade vid
+      // ingest, så detta är EN eller JP.
+      const offerLanguage = listingCardLanguage(item.title, item.url);
 
       const existingOffer = await prisma.offer.findUnique({
         where: {
@@ -590,7 +601,7 @@ export async function runTraderaSweep(
             productId,
             retailerId: tradera.id,
             condition,
-            language: "EN",
+            language: offerLanguage,
           },
         },
         select: { id: true, price: true, url: true },
@@ -611,7 +622,7 @@ export async function runTraderaSweep(
             productId,
             retailerId: tradera.id,
             condition,
-            language: "EN",
+            language: offerLanguage,
           },
         },
         update: {
@@ -629,7 +640,7 @@ export async function runTraderaSweep(
           stockStatus: StockStatus.IN_STOCK,
           url: item.url,
           condition,
-          language: "EN",
+          language: offerLanguage,
           lastSeenAt: new Date(),
         },
       });

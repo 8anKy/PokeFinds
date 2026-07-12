@@ -65,11 +65,12 @@ async function main() {
       definite.push(o);
       continue;
     }
-    // Blockade språk (kinesiska/koreanska) får inte finnas som butikslänkar ALLS
+    // Blockade språk (kinesiska/koreanska/EU) får inte finnas som butikslänkar ALLS
     // — oavsett produkt. En "…-koreansk"-slug på en (Japansk)-produkt är dubbelt
-    // fel (fel språk + fel produkt).
+    // fel (fel språk + fel produkt). EU saknades här, så de spanska/tyska
+    // Samlarhobby-länkarna flaggades aldrig av veckorevisionen.
     const slugLang = detectListingLanguage("", o.url);
-    if (slugLang === "CN" || slugLang === "KR") {
+    if (slugLang === "CN" || slugLang === "KR" || slugLang === "EU") {
       definite.push(o);
       continue;
     }
