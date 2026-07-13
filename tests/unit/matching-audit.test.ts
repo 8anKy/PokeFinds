@@ -17,10 +17,15 @@
 import { describe, expect, it } from "vitest";
 import fixture from "../fixtures/link-audit-2026-07-13.json";
 import { normalizeTitle } from "@/lib/utils";
+import { POKEMON_NAMES } from "@/scrapers/pokemon-names";
 import {
   blisterMismatch,
+  cardSuffixMismatch,
+  characterMismatch,
+  characterNames,
   isAccessoryListing,
   isSingleCardListing,
+  setCodeMismatch,
   unitCountMismatch,
   yearMismatch,
 } from "@/scrapers/matching";
@@ -32,6 +37,10 @@ function auditGuards(feed: string, ours: string): string | null {
   if (isAccessoryListing(feed) && !isAccessoryListing(ours)) return "tillbehor";
   if (blisterMismatch(feed, ours)) return "blister-form";
   if (unitCountMismatch(feed, ours)) return "antal-enheter";
+  // Uppföljningen 2026-07-14 (se nedan).
+  if (setCodeMismatch(feed, ours)) return "set-kod";
+  if (cardSuffixMismatch(feed, ours)) return "kortsuffix";
+  if (characterMismatch(feed, ours)) return "karaktar";
   return null;
 }
 
@@ -54,9 +63,77 @@ describe("katalogrevisionen 2026-07-13 — de felaktiga länkarna fångas", () =
   // Vakterna fångar inte alla 68 på egen hand (resten stoppas av form-/språk-/
   // setnummer-vakterna och av att kandidatpoolen inte längre trunkeras). Golvet
   // låser fast det vi bevisat: sjunker det har någon tagit bort en vakt.
-  it("fångar minst 15 av de 68 felaktiga länkarna", () => {
+  it("fångar minst 24 av de 68 felaktiga länkarna", () => {
     const caught = fixture.wrong.filter((p) => auditGuards(p.feed, p.ours));
-    expect(caught.length).toBeGreaterThanOrEqual(15);
+    expect(caught.length).toBeGreaterThanOrEqual(24);
+  });
+});
+
+/**
+ * UPPFÖLJNING 2026-07-14 — de tre vakter som stängde resten av revisionens luckor.
+ *
+ * Bakgrund: planen var att sluta matcha på titlar och i stället matcha på tillverkarens
+ * artikelnummer (POK…). Den planen är UTREDD OCH DÖD — mätt live mot alla fem Shopify-
+ * feedar (1 431 produkter): POK-koden finns i ≥2 butiker för bara 13 produkter, ~20 % av
+ * dem är feltypade av butikerna, EAN-koderna överlappar inte alls mellan butiker, och
+ * Dragon's Lair — vår största felkälla (19 av 68) — saknar koden både i feeden OCH på
+ * produktsidan. Återuppliva den inte utan att mäta om täckningen först.
+ *
+ * De 26 kvarvarande felen visade sig i stället alla vara avgörbara ur TITELN. Alla tre
+ * vakter är TVÅSIDIGA: de fäller bara när BÅDA titlarna anger något och det KROCKAR.
+ * En ENSIDIG variant ("kandidaten har ett ord annonsen saknar") är precis den
+ * reverse-coverage-vakt som blockerade 178 KORREKTA länkar — bygg den aldrig.
+ *
+ * Resultat end-to-end genom riktiga matchProduct, mätt mot facit:
+ *   felaktiga förhindrade  46/68 → 51/68
+ *   korrekta bevarade     199/217 → 199/217  (oförändrat — noll skada)
+ */
+describe("uppföljning 2026-07-14 — set-kod, kortsuffix, karaktär", () => {
+  it("set-kod: sv1S ≠ sv2P, ME02 ≠ ME04 (japanska displayer har nästan identisk Dice)", () => {
+    expect(setCodeMismatch(
+      "Pokémon, Scarlet & Violet: Scarlet ex - sv1S, Display / Booster Box (Japansk)",
+      "Pokémon, Scarlet & Violet: Snow Hazard - sv2P, Display / Booster Box (Japansk)"
+    )).toBe(true);
+    expect(setCodeMismatch("Pokémon ME02 Phantasmal Flames ETB", "Pokemon ME04 Chaos Rising ETB")).toBe(true);
+    // Ledande nollor är inte identitet: ME02 === ME2.
+    expect(setCodeMismatch("Pokémon ME02 Phantasmal Flames", "Pokemon ME2 Phantasmal Flames")).toBe(false);
+    // ENSIDIGT (bara ena titeln har kod) → vet vi ingenting → får ALDRIG fälla.
+    // "Pokemon ME4 Chaos Rising ETB" -> "Chaos Rising Elite Trainer Box" är en KORREKT länk.
+    expect(setCodeMismatch("Pokemon ME4 Chaos Rising Elite Trainer Box", "Pokémon TCG: Chaos Rising Elite Trainer Box")).toBe(false);
+  });
+
+  it("kortsuffix: ex ≠ V ≠ VMAX — samma karaktär, olika produkt", () => {
+    expect(cardSuffixMismatch("The Pokémon TCG: Melmetal ex Battle Deck", "Pokemon TCG Pokemon GO Battle Deck Melmetal V")).toBe(true);
+    expect(cardSuffixMismatch("Pokémon Rapid Strike Urshifu V Box", "Rapid Strike Urshifu VMAX Premium Collection")).toBe(true);
+    // Delat suffix → ingen krock (de skiljs åt av andra vakter).
+    expect(cardSuffixMismatch("Lucario ex Battle Deck", "Mega Lucario ex League Battle Deck")).toBe(false);
+    // Ensidigt → får inte fälla (butiker utelämnar ofta suffixet).
+    expect(cardSuffixMismatch("Charizard Premium Collection", "Charizard ex Premium Collection")).toBe(false);
+  });
+
+  it("karaktär: Checklane Porygon2 ≠ Checklane Koraidon", () => {
+    expect(characterMismatch("Pokémon TCG: Stellar Crown Checklane Porygon2", "Stellar Crown: Koraidon Premium Checklane Blister")).toBe(true);
+    expect(characterMismatch("Pokémon, Generations, 1 Booster (Venusaur Artwork)", "Pokémon, Generations, 1 Booster (Charizard Artwork)")).toBe(true);
+    // SNITT, inte likhet: delad karaktär räcker.
+    expect(characterMismatch("Pikachu & Zekrom GX Box", "Zekrom GX Box")).toBe(false);
+    // Ensidigt → får inte fälla. Butikstiteln utelämnar ofta karaktären.
+    expect(characterMismatch("Pokémon TCG - Phantasmal Flames Checklane", "Phantasmal Flames: Blaziken Premium Checklane Blister")).toBe(false);
+  });
+
+  // Vokabulären är den enda vakt vars falskpositiver är OSYNLIGA (en blockerad korrekt
+  // länk syns aldrig). Dessa ord är SETNAMN/produkttyper/färger i riktiga titlar — de får
+  // ALDRIG räknas som karaktärer, hur mycket de än liknar tränarnamn.
+  it("vokabulären innehåller inga ord som kolliderar med setnamn eller vanliga ord", () => {
+    for (const trap of ["lance", "blue", "red", "penny", "n", "will", "karen", "chuck", "hop", "arena"]) {
+      expect(POKEMON_NAMES.has(trap), `"${trap}" i vokabulären → falsk karaktärskrock`).toBe(false);
+    }
+    // Bevisen från riktiga titlar: dessa får inte ge NÅGON karaktär alls.
+    expect([...characterNames("Pokemon Silver Lance Booster (s6h)(Japansk)")]).toEqual([]);
+    expect([...characterNames("Ultra Pro Standard Sleeves - Regular Soft Card (Penny Sleeves)")]).toEqual([]);
+    expect([...characterNames("Zinnia's Resolve (s7r 079) Blue Sky Stream - PSA 10")]).toEqual([]);
+    // ...men de äkta karaktärerna hittas, inkl. tränare och flerordsnamn.
+    expect([...characterNames("Pokemon Cynthia's Garchomp ex Premium Collection")].sort()).toEqual(["cynthia", "garchomp"]);
+    expect([...characterNames("Pokemon The Glory of Team Rocket Booster Box (Japansk)")]).toEqual(["team rocket"]);
   });
 });
 

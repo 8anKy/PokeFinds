@@ -6,6 +6,7 @@
 import { prisma } from "../lib/db";
 import { decodeTitle, normalizeTitle } from "../lib/utils";
 import { detectListingLanguage } from "../lib/listing-language";
+import { MAX_NAME_WORDS, POKEMON_NAMES } from "./pokemon-names";
 
 /** Lägsta konfidens för att en matchning ska accepteras. */
 const MIN_CONFIDENCE = 0.55;
@@ -371,6 +372,102 @@ export function deckCharacterMismatch(incoming: string, candidate: string): bool
   const b = deckIdentity(candidate);
   if (a.size === 0 || b.size === 0) return false; // för lite info → låt övriga vakter avgöra
   for (const w of a) if (b.has(w)) return false;
+  return true;
+}
+
+// ── VAKTER FRÅN UPPFÖLJNINGEN 2026-07-14 ──────────────────────────────────────
+// De 26 felaktiga länkar som 07-13-vakterna INTE fångade delade tre mönster, alla
+// avgörbara ur TITELN (artikelnummer-spåret är utrett och dött — se
+// scripts/generate-pokemon-names.ts + minnesanteckningen: POK-koder finns i ≥2
+// butiker för bara 13 produkter, och Dragon's Lair, vår största felkälla, saknar
+// dem helt). Alla tre är TVÅSIDIGA: de fäller bara när BÅDA titlarna anger något
+// och det som anges KROCKAR. En ensidig variant ("kandidaten har ett ord annonsen
+// saknar") är exakt den reverse-coverage-vakt som blockerade 178 korrekta länkar.
+
+/**
+ * Set-koder ur en titel: JP-baserade (sv1S, sv2P, sv4K, sv9a, s6h, sm12a) och
+ * Mega Evolution-numreringen (ME02, ME4). Normaliseras till prefix + heltal +
+ * ev. bokstavssuffix så att "ME02" och "ME2" är samma kod men "ME2" ≠ "ME4".
+ *
+ * Detta är setets IDENTITET. Två japanska displayer har nästan identisk Dice-likhet
+ * ("Scarlet & Violet: Scarlet ex - sv1S, Display / Booster Box (Japansk)" mot
+ * "… Snow Hazard - sv2P, …") — koden är det enda som skiljer dem åt.
+ */
+const SET_CODE_TOKEN = /^(sv|swsh|sm|xy|bw|me|s)(\d{1,2})([a-z])?$/;
+export function setCodes(title: string): Set<string> {
+  const codes = new Set<string>();
+  for (const tok of normalizeTitle(title).split(" ")) {
+    const m = SET_CODE_TOKEN.exec(tok);
+    if (m) codes.add(`${m[1]}${parseInt(m[2], 10)}${m[3] ?? ""}`);
+  }
+  return codes;
+}
+/** True när båda titlarna anger set-kod(er) och INGEN delas → olika set. */
+export function setCodeMismatch(a: string, b: string): boolean {
+  const ca = setCodes(a);
+  const cb = setCodes(b);
+  if (ca.size === 0 || cb.size === 0) return false; // ensidigt → vet vi inget
+  for (const c of ca) if (cb.has(c)) return false;
+  return true;
+}
+
+/**
+ * Kortsuffixet (ex/GX/V/VMAX/VSTAR) är produktidentitet, inte dekoration:
+ * "Melmetal ex Battle Deck" och "Pokémon GO Battle Deck Melmetal V" är olika
+ * produkter med samma karaktär — bara suffixet skiljer dem åt (och Dice ser dem
+ * som nästan identiska).
+ */
+const CARD_SUFFIXES = new Set(["ex", "gx", "v", "vmax", "vstar", "vunion"]);
+function cardSuffixes(title: string): Set<string> {
+  const found = new Set<string>();
+  for (const tok of normalizeTitle(title).split(" ")) {
+    if (CARD_SUFFIXES.has(tok)) found.add(tok);
+  }
+  return found;
+}
+/** True när båda titlarna anger kortsuffix och INGET delas (ex ≠ V ≠ VMAX). */
+export function cardSuffixMismatch(a: string, b: string): boolean {
+  const sa = cardSuffixes(a);
+  const sb = cardSuffixes(b);
+  if (sa.size === 0 || sb.size === 0) return false;
+  for (const s of sa) if (sb.has(s)) return false;
+  return true;
+}
+
+/**
+ * Karaktären (Pokémon eller tränare) är SKU:n i produktlinjer som annars delar
+ * varenda ord: "Stellar Crown Checklane – Porygon2" ≠ "Stellar Crown: Koraidon
+ * Premium Checklane Blister", "Generations 1 Booster (Venusaur Artwork)" ≠
+ * "(Charizard Artwork)". deckCharacterMismatch gjorde detta för DECKS genom att
+ * stryka linje-ord; den metoden går inte att generalisera (för sealed är de
+ * kvarvarande orden setnamn, inte karaktärer). Här används i stället en riktig
+ * karaktärsvokabulär — se src/scrapers/pokemon-names.ts (genererad).
+ */
+export function characterNames(title: string): Set<string> {
+  const toks = normalizeTitle(title).split(" ");
+  const found = new Set<string>();
+  for (let i = 0; i < toks.length; i++) {
+    // Längsta n-gram först ("team rocket" före "rocket").
+    for (let n = MAX_NAME_WORDS; n >= 1; n--) {
+      if (i + n > toks.length) continue;
+      const gram = toks.slice(i, i + n).join(" ");
+      if (POKEMON_NAMES.has(gram)) {
+        found.add(gram);
+        break;
+      }
+    }
+  }
+  return found;
+}
+/**
+ * True när båda titlarna namnger karaktärer och INGEN delas. Snittbaserad (inte
+ * likhet): "Pikachu & Zekrom" mot "Zekrom" delar zekrom → ingen krock.
+ */
+export function characterMismatch(a: string, b: string): boolean {
+  const na = characterNames(a);
+  const nb = characterNames(b);
+  if (na.size === 0 || nb.size === 0) return false; // ensidigt → låt övriga vakter avgöra
+  for (const n of na) if (nb.has(n)) return false;
   return true;
 }
 
@@ -870,6 +967,20 @@ export async function matchProduct(
     if (unitCountMismatch(raw, c.normalizedTitle)) {
       continue;
     }
+
+    // ── VAKTER FRÅN UPPFÖLJNINGEN 2026-07-14 (tvåsidiga — se definitionerna) ──
+    // Olika set-kod (sv1S ≠ sv2P, ME02 ≠ ME04) → olika set.
+    if (setCodeMismatch(raw, c.normalizedTitle)) {
+      continue;
+    }
+    // Olika kortsuffix (Melmetal ex ≠ Melmetal V) → olika produkt.
+    if (cardSuffixMismatch(raw, c.normalizedTitle)) {
+      continue;
+    }
+    // Olika karaktär (Checklane Porygon2 ≠ Checklane Koraidon) → olika SKU.
+    if (characterMismatch(raw, c.normalizedTitle)) {
+      continue;
+    }
     // Fel set/kort: kandidaten saknar de särskiljande orden → förkasta
     // (hindrar "Ascended Heroes ETB" från att matcha "Destined Rivals ETB")
     const overlap = distinctiveOverlap(normalized, c.normalizedTitle);
@@ -957,6 +1068,10 @@ export function matchListingToProduct(
   if (setMarkerMismatch(normalized, product.normalizedTitle)) return null;
   if (seriesMismatch(normalized, product.normalizedTitle)) return null;
   if (pokemonCenterMismatch(normalized, product.normalizedTitle)) return null;
+  // Uppföljningen 2026-07-14 — samma tvåsidiga vakter som matchProduct.
+  if (setCodeMismatch(listingTitle, product.normalizedTitle)) return null;
+  if (cardSuffixMismatch(listingTitle, product.normalizedTitle)) return null;
+  if (characterMismatch(listingTitle, product.normalizedTitle)) return null;
 
   const overlap = distinctiveOverlap(normalized, product.normalizedTitle);
   if (overlap < MIN_DISTINCTIVE_OVERLAP) return null;
