@@ -411,28 +411,35 @@ export async function runRestockScan(opts?: {
     // ---- Matchad produkt: beprövad offer-diff (oförändrad logik) ----
     if (offer) {
       checked++;
+      // ORDNINGEN ÄR KRITISK: larma FÖRST, flippa lagerstatus SIST. Statusflippen är det
+      // som KONSUMERAR övergången — nästa körning diffar mot den. Flippade vi först och
+      // dog innan larmet (workflow-cancel, timeout, evict) såg nästa körning ingen
+      // övergång alls → restocken förlorades TYST för alltid. Med den här ordningen är
+      // värsta utfallet att övergången upptäcks igen nästa körning, och cooldownen i
+      // checkRestockAlerts äter dubbletten. Dubbelt larm >> missat larm.
+      const ev = netStockEvent(offer.stockStatus, newStatus);
+      // Gömda kategorier (pärmar/sleeves/graderat) uppdaterar lager men larmar aldrig.
+      const hidden = HIDDEN_CATEGORIES.includes(offer.product.category);
+      if (!hidden && ev.emit) {
+        await prisma.restockEvent.create({
+          data: {
+            productId: offer.productId,
+            retailerId: offer.retailerId,
+            oldStatus: ev.oldStatus,
+            newStatus,
+            price: null,
+          },
+        });
+        if (ev.isRestock) {
+          await checkRestockAlerts(offer.productId, offer.retailerId);
+          restocks++;
+        }
+      }
       if (offer.stockStatus !== newStatus) {
         await prisma.offer.update({
           where: { id: offer.id },
           data: { stockStatus: newStatus, lastSeenAt: new Date() },
         });
-      }
-      // Gömda kategorier (pärmar/sleeves/graderat) uppdaterar lager men larmar aldrig.
-      if (HIDDEN_CATEGORIES.includes(offer.product.category)) continue;
-      const ev = netStockEvent(offer.stockStatus, newStatus);
-      if (!ev.emit) continue;
-      await prisma.restockEvent.create({
-        data: {
-          productId: offer.productId,
-          retailerId: offer.retailerId,
-          oldStatus: ev.oldStatus,
-          newStatus,
-          price: null,
-        },
-      });
-      if (ev.isRestock) {
-        await checkRestockAlerts(offer.productId, offer.retailerId);
-        restocks++;
       }
       continue;
     }
@@ -477,7 +484,28 @@ export async function runRestockScan(opts?: {
       }
       continue;
     }
-    // Sedd förut → diffa lagerstatus (skriv bara vid faktisk ändring, spara Neon-writes).
+    // Sedd förut → diffa lagerstatus. Samma kritiska ordning som offer-grenen ovan:
+    // larma FÖRST, skriv den nya lagerstatusen SIST (den konsumerar övergången).
+    if (isRestock(listing.stockStatus, newStatus)) {
+      await checkListingAlerts(
+        { id: listing.id, title: it.title, retailerId: it.retailerId, productId },
+        "RESTOCK"
+      );
+      restocks++;
+    } else if (
+      // Öppnad för förhandsbokning (t.ex. var slut/okänd, nu köpbar inför release).
+      newStatus === StockStatus.PREORDER &&
+      listing.stockStatus !== StockStatus.PREORDER
+    ) {
+      await checkListingAlerts(
+        { id: listing.id, title: it.title, retailerId: it.retailerId, productId },
+        "PREORDER"
+      );
+      newListings++;
+    }
+    // Skriv bara vid faktisk ändring (spara Neon-writes). Larmet ovan skapar bara en
+    // PENDING Alert-rad — mejlet byggs först i dispatchPendingAlerts() EFTER hela loopen,
+    // så raden här hinner bli PREORDER innan buildAlertEmail läser den (preorder-copy).
     if (listing.stockStatus !== newStatus) {
       await prisma.storeListing.update({
         where: { id: listing.id },
@@ -489,24 +517,6 @@ export async function runRestockScan(opts?: {
           imageUrl: it.imageUrl,
         },
       });
-    }
-    if (isRestock(listing.stockStatus, newStatus)) {
-      await checkListingAlerts(
-        { id: listing.id, title: it.title, retailerId: it.retailerId, productId },
-        "RESTOCK"
-      );
-      restocks++;
-    } else if (
-      // Öppnad för förhandsbokning (t.ex. var slut/okänd, nu köpbar inför release).
-      // stockStatus är redan uppdaterad i DB ovan → buildAlertEmail väljer preorder-copy.
-      newStatus === StockStatus.PREORDER &&
-      listing.stockStatus !== StockStatus.PREORDER
-    ) {
-      await checkListingAlerts(
-        { id: listing.id, title: it.title, retailerId: it.retailerId, productId },
-        "PREORDER"
-      );
-      newListings++;
     }
   }
 

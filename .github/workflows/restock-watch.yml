@@ -24,9 +24,16 @@ on:
     - cron: "0 * * * *" # RESERV — opålitlig (~1-2 h fördröjning). Riktig takt = pinger via workflow_dispatch.
   workflow_dispatch: {}
 
+# DÖDA ALDRIG EN PÅGÅENDE SKANNING (cancel-in-progress: false). Med `true` kunde nästa
+# ping avbryta en skanning MITT i lager-diffen. Skanningen larmar först och skriver den
+# nya lagerstatusen sist, men ett avbrott mellan två annonser lämnar ändå halvfärdigt
+# arbete — och en dödad körning sparar aldrig sitt feed-avtryck (actions/cache post-steg
+# hoppas vid cancel), så nästa körning väcker Neon i onödan. Med `false` får den
+# pågående köra klart; en ny ping ställer sig i kö och en ÄNNU nyare ping avbryter bara
+# den KÖANDE (som aldrig hunnit röra DB:n) → ofarligt. Max 1 väntande, ingen pile-up.
 concurrency:
   group: restock-watch
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   watch:

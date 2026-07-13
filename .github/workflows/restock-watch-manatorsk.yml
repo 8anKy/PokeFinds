@@ -21,9 +21,12 @@ on:
     - cron: "*/15 * * * *" # RESERV — opålitlig. Riktig takt = pinger var 2:a min via workflow_dispatch.
   workflow_dispatch: {}
 
+# DÖDA ALDRIG EN PÅGÅENDE SKANNING — se restock-watch.yml. Extra akut här: körningen tar
+# ~2 min väggtid (kö + ~47 s jobb) och pingern fyrar var 2:a minut, så med `true` sköt
+# varje ping ihjäl föregående skanning (5 avbrutna körningar på 5,5 h, 2026-07-13).
 concurrency:
   group: restock-watch-manatorsk
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   watch:
