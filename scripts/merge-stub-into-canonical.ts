@@ -46,6 +46,7 @@ async function main() {
     },
     select: {
       id: true, title: true, createdAt: true,
+      _count: { select: { priceSnapshots: true } },
       offers: { select: { retailer: { select: { name: true } } } },
     },
     orderBy: { createdAt: "desc" },
@@ -77,6 +78,7 @@ async function main() {
       select: {
         id: true, title: true, setId: true, gtin: true,
         offers: { select: { retailer: { select: { name: true } } } },
+        _count: { select: { priceObservations: true, priceSnapshots: true } },
       },
     });
     // Merga BARA in i en RIKARE produkt. Annars kunde vi råka radera den kompletta
@@ -84,6 +86,26 @@ async function main() {
     if (!canonical || canonical.id === stub.id) { skipped++; continue; }
     const richer = canonical.setId !== null || canonical.offers.length > stub.offers.length;
     if (!richer) { skipped++; continue; }
+
+    // ── DEN SOM HAR MERITLISTAN ÖVERLEVER ───────────────────────────────────────
+    // Cardmarket-offern + prishistoriken ÄR produktens meritlista: den har följts över tid
+    // och dess kurva är verifierad. En butiksstub har varken graf eller CM-koppling. Att
+    // merga ÅT FEL HÅLL skulle radera historiken och behålla en namnlös stub — datan är då
+    // borta för gott (prisgrafen byggs bara FRAMÅT, den kan inte återskapas retroaktivt).
+    // Därför: målet MÅSTE ha minst lika mycket meritlista som stubben.
+    const canonCM = canonical.offers.some((o) => o.retailer.name === "Cardmarket");
+    const stubCM = stub.offers.some((o) => o.retailer.name === "Cardmarket");
+    const canonHistory = canonical._count.priceSnapshots;
+    const stubHistory = stub._count.priceSnapshots;
+    if ((stubCM && !canonCM) || stubHistory > canonHistory) {
+      console.log(
+        `⚠ HOPPAR ÖVER "${stub.title.slice(0, 52)}" — stubben har MER meritlista än målet ` +
+          `(CM: ${stubCM ? "ja" : "nej"}/${canonCM ? "ja" : "nej"}, snapshots: ${stubHistory}/${canonHistory}). ` +
+          `Merge åt det hållet hade raderat historik.`
+      );
+      skipped++;
+      continue;
+    }
 
     // ── DEN STRIKTA MERGE-REGELN ────────────────────────────────────────────────
     // matchProduct räcker INTE som grund för att RADERA en produkt. Dess tröskel är

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mergeEquivalent } from "@/scrapers/matching";
+import { mergeEquivalent, mutualIdentityConflict } from "@/scrapers/matching";
 
 /**
  * MERGE-REGELN — den enda som får RADERA en katalogprodukt.
@@ -71,5 +71,34 @@ describe("mergeEquivalent — nakna tal är IDENTITET, inte set-koder", () => {
   });
   it("men set-koder MED bokstavsprefix är fortfarande brus", () => {
     expect(mergeEquivalent("Chaos Rising ME04 Booster Box", "Chaos Rising Booster Box")).toBe(true);
+  });
+});
+
+describe("mutualIdentityConflict — takar, vetar aldrig", () => {
+  it("fångar de aktiva 0.9+-fellänkarna (båda sidor har ett eget identitetsord)", () => {
+    expect(mutualIdentityConflict("Kanto Friends Mini Tins: Pikachu Tin", "Paldea Friends Mini Tins: Pikachu Tin")).toBe(true);
+    expect(mutualIdentityConflict("Generic Love Ball Tin", "Generic Lure Ball Tin")).toBe(true);
+    expect(mutualIdentityConflict("Galar Pals Mini Tin Display", "Galar Power Mini Tin Display")).toBe(true);
+  });
+
+  it("är TYST för äkta dubbletter — butiken LÄGGER TILL ord, byter inte ut namnet", () => {
+    expect(
+      mutualIdentityConflict("Pokémon, Mega Evolutions, ME04: Chaos Rising, Display / Booster Box", "Pokémon TCG: Chaos Rising Booster Box")
+    ).toBe(false);
+    expect(
+      mutualIdentityConflict("Pokémon ME02 Phantasmal Flames Checklane", "Phantasmal Flames: Blaziken Premium Checklane Blister")
+    ).toBe(false);
+  });
+
+  it("KRITISKT: den takar konfidensen, den BLOCKERAR inte — Love Ball hamnar under 0.85 men länken finns kvar", async () => {
+    const { matchProduct } = await import("@/scrapers/matching");
+    const { normalizeTitle } = await import("@/lib/utils");
+    const m = await matchProduct(
+      normalizeTitle("Generic Love Ball Tin"),
+      [{ id: "X", normalizedTitle: normalizeTitle("Generic Lure Ball Tin"), card: null }],
+      "Generic Love Ball Tin"
+    );
+    expect(m).not.toBeNull(); // länken finns KVAR — ett veto hade gjort den osynlig
+    expect(m!.confidence).toBeLessThan(0.85); // men den får inte auto-länkas
   });
 });

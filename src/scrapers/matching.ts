@@ -393,6 +393,12 @@ const MERGE_SYNONYMS: Record<string, string> = {
   packs: "pack",
   japanese: "japansk",
   english: "engelsk",
+  // En CHECKLANE-blister ÄR en 1-pack-blister — samma vara, olika namn. Det är inte en
+  // gissning: blisterMismatch() i den här filen bygger redan på exakt den ekvivalensen
+  // ("checklane ≡ 1-pack, men 1 ≠ 3"). Butikerna (Dragon's Lair, Spelexperten) säger
+  // "Checklane Blister" där katalogen säger "1-Pack Blister".
+  // OBS: 1 ≠ 3 gäller fortfarande — "3-pack" är ett eget token och krockar som det ska.
+  checklane: "1-pack",
 };
 /**
  * Set-koder FÖR MERGE — kräver BOKSTAVSPREFIX (ME04, sv1S, swsh12, m1s).
@@ -426,6 +432,46 @@ export function mergeEquivalent(a: string, b: string): boolean {
   for (const w of ta) if (!tb.has(w)) return false;
   return true;
 }
+
+/**
+ * BÅDA titlarna har ett EGET identitetsord som den andra saknar.
+ *
+ * En äkta dubblett har det ALDRIG: butiken LÄGGER TILL ord (serienamn, set-kod, formord) —
+ * den byter inte ut produktens namn. Men två OLIKA produkter gör precis det:
+ *   "KANTO Friends Pikachu Tin"   vs "PALDEA Friends Pikachu Tin"
+ *   "Generic LOVE Ball Tin"       vs "Generic LURE Ball Tin"
+ *   "Galar PALS Mini Tin"         vs "Galar POWER Mini Tin"
+ *   "Battle REGION Booster (JP)"  vs "Battle PARTNERS Booster (JP)"
+ * Alla fyra länkades i prod med Dice 0,91–0,97 — alltså ÖVER auto-link-gränsen 0,85, helt
+ * utan LLM-dom. Vakterna missade dem: "kanto"/"love"/"pals" är inte Pokémon-namn, och
+ * täckningsgrinden släpper igenom på 0,667 mot tröskeln 0,60.
+ *
+ * DEN HÄR ANVÄNDS INTE SOM VETO. Mätt mot facit blockerar den 6 av 217 VERIFIERAT KORREKTA
+ * länkar (butiken skriver "Suddgummi" där katalogen skriver "Eraser", "Summer 2026" där
+ * katalogen skriver "Moonlit"). En falskt blockerad korrekt länk är värre än en felmatch —
+ * den syns aldrig. I stället TAKAS konfidensen (se CONFLICT_CONFIDENCE_CAP): paret får inte
+ * auto-länkas, utan måste förtjäna länken via identitetskontroll eller LLM-dom. Ingen länk
+ * går förlorad; den tvivelaktiga slutar bara smyga in sig gratis.
+ */
+export function mutualIdentityConflict(incoming: string, candidate: string): boolean {
+  const a = nonEraDistinctiveWords(incoming);
+  const b = nonEraDistinctiveWords(candidate);
+  if (a.size === 0 || b.size === 0) return false; // för lite info → låt övriga vakter avgöra
+  const stem = (w: string) => (w.length > 3 && w.endsWith("s") ? w.slice(0, -1) : w);
+  const A = new Set([...a].map(stem));
+  const B = new Set([...b].map(stem));
+  const onlyA = [...A].some((w) => !B.has(w));
+  const onlyB = [...B].some((w) => !A.has(w));
+  return onlyA && onlyB;
+}
+
+/**
+ * Taket när båda sidor bär ett eget identitetsord. Precis UNDER auto-link-gränsen 0,85 →
+ * paret hamnar i bandet som kräver bekräftelse (identisk ordmängd eller LLM-dom) i stället
+ * för att bindas gratis. Aldrig under matcher-golvet 0,55: då hade länken FÖRSVUNNIT, och
+ * en osynlig länk är precis det vi inte får orsaka.
+ */
+const CONFLICT_CONFIDENCE_CAP = 0.84;
 
 /**
  * Andel av INKOMMANDE titelns icke-era särskiljande ord som täcks av kandidaten.
@@ -1195,6 +1241,16 @@ export async function matchProduct(
       } else {
         continue;
       }
+    }
+    // ── TAK, INTE VETO ──────────────────────────────────────────────────────
+    // Bär BÅDA titlarna ett eget identitetsord (Kanto↔Paldea, Love↔Lure, Pals↔Power)
+    // är det nästan alltid olika produkter — men inte alltid (butiken kan skriva
+    // "Suddgummi" där katalogen skriver "Eraser"). Ett veto hade dödat 6 av 217
+    // verifierat korrekta länkar. Vi SÄNKER därför bara taket under auto-link-gränsen:
+    // paret får inte bindas gratis, det måste bekräftas av identitetskontrollen eller
+    // LLM-domen. Ingen länk går förlorad — den tveksamma måste bara förtjäna sig.
+    if (mutualIdentityConflict(normalized, c.normalizedTitle)) {
+      score = Math.min(score, CONFLICT_CONFIDENCE_CAP);
     }
     if (!best || score > best.confidence) {
       best = { productId: c.id, confidence: score };
