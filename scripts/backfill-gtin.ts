@@ -14,7 +14,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { fetchListingGtin, STORE_GTIN_STRATEGY } from "../src/scrapers/gtin-source";
-import { formatGtin } from "../src/lib/gtin";
+import { isDirectOfferUrl } from "../src/lib/marketplace-urls";
 import { mapPool } from "../src/lib/concurrency";
 
 const prisma = new PrismaClient();
@@ -60,7 +60,7 @@ async function main() {
 
   for (const retailer of targets) {
     // Bara offers som SAKNAR kod → skriptet är resumerbart och billigt att köra om.
-    const offers = await prisma.offer.findMany({
+    const candidates = await prisma.offer.findMany({
       where: {
         retailerId: retailer.id,
         gtin: null,
@@ -70,8 +70,18 @@ async function main() {
       orderBy: { lastSeenAt: "desc" },
       take: LIMIT,
     });
+    // SÖKLÄNKAR ÄR INTE PRODUKTSIDOR. En del offers pekar på "…/search/?query=…" —
+    // de bryter mot projektets egen regel (offers = bara direkta länkar; isDirectOfferUrl
+    // döljer dem i UI:t men raderna finns kvar i DB). De har varken streckkod eller
+    // produktdata. Att hämta dem vore bortkastade requests OCH skulle få täckningssiffran
+    // att ljuga om vad som ens är nåbart. Hoppa över dem och RAPPORTERA hur många de är.
+    const junk = candidates.filter((o) => !isDirectOfferUrl(o.url));
+    const offers = candidates.filter((o) => isDirectOfferUrl(o.url));
+    if (junk.length > 0) {
+      console.log(`${retailer.name.padEnd(15)} ⚠ ${junk.length} offers är SÖKLÄNKAR (ej produktsidor) — hoppas över.`);
+    }
     if (offers.length === 0) {
-      console.log(`${retailer.name.padEnd(15)} — inga offers utan gtin. Klar.`);
+      console.log(`${retailer.name.padEnd(15)} — inga direktlänkade offers utan gtin. Klar.`);
       continue;
     }
 
