@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { normalizeGtin, isValidGtinChecksum, sameGtin, gtinConflict, formatGtin } from "@/lib/gtin";
-import { gtinFromJsonLd } from "@/scrapers/gtin-source";
+import { gtinFromJsonLd, productNameFromHtml } from "@/scrapers/gtin-source";
 
 /**
  * Alla värden nedan är RIKTIGA, avlästa ur butikernas feeds 2026-07-13.
@@ -160,5 +160,30 @@ describe("gtinFromJsonLd — tvetydighet ger INGEN kod", () => {
 
   it("ingen JSON-LD alls → null", () => {
     expect(gtinFromJsonLd("<html><body>inget här</body></html>")).toBeNull();
+  });
+});
+
+describe("productNameFromHtml — rent butiksnamn vid källan", () => {
+  const ld = (obj: unknown) => `<script type="application/ld+json">${JSON.stringify(obj)}</script>`;
+
+  it("tar schema.org name — skräpet ligger i description, inte i name", () => {
+    // MaxGaming: name är rent, description börjar "Observera: Max 2 boxar per kund."
+    const html = ld({
+      "@type": "Product",
+      name: "Pokémon Mega Evolution Elite Trainer Box",
+      description: "Observera: Max 2 boxar per kund. Elite Trainer Box med 9 boosters…",
+    });
+    expect(productNameFromHtml(html)).toBe("Pokémon Mega Evolution Elite Trainer Box");
+  });
+
+  it("flera OLIKA namn på sidan → null (gissa aldrig vilken variant som avses)", () => {
+    const html =
+      ld({ "@type": "Product", name: "Mega Gengar ex Tin" }) +
+      ld({ "@type": "Product", name: "Mega Clefable ex Tin" });
+    expect(productNameFromHtml(html)).toBeNull();
+  });
+
+  it("ingen JSON-LD → null (auto-importen faller tillbaka på feedens titel)", () => {
+    expect(productNameFromHtml("<html><body>inget</body></html>")).toBeNull();
   });
 });

@@ -37,7 +37,7 @@ import {
   type MatchIndex,
 } from "@/scrapers/matching";
 import { judgeSameProduct } from "@/lib/same-product";
-import { fetchListingGtin } from "@/scrapers/gtin-source";
+import { fetchListingFacts, fetchListingGtin } from "@/scrapers/gtin-source";
 import { gtinConflict } from "@/lib/gtin";
 import { netStockEvent, isRestock, isNewInStockArrival } from "@/scrapers/restock";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
@@ -178,10 +178,24 @@ export async function ensureListingProduct(
     select: { productId: true },
   });
   if (owner) return owner.productId;
+  // ---- EN hämtning av butikens produktsida ger BÅDA nycklarna ----
+  // Aldrig i restock-lanens feed-hämtning (den kör var 2:a minut) — bara här, för NYA
+  // butiks-URL:er. Se gtin-source.ts för varför.
+  const facts = it.sourceName
+    ? await fetchListingFacts(it.sourceName, it.url)
+    : { gtin: null, name: null };
+  const gtin = facts.gtin;
+
   // Butiks-skräp ("MAX 1 per kund", "förhandsbokning", "(kopia)") bort INNAN
   // matchning/namnsättning — annars blir samma SKU från olika butiker
   // dubblettprodukter med skräpiga katalogtitlar.
-  const cleanTitle = cleanListingTitle(it.title);
+  //
+  // Butikens schema.org-`name` går FÖRE feedens titel när den finns: skräpet ligger i
+  // `description`, inte i `name` (MaxGaming: name = "Pokémon Mega Evolution Elite Trainer
+  // Box", description börjar "Observera: Max 2 boxar per kund."). Det tar bort
+  // dubblett-orsakande brus vid KÄLLAN. cleanListingTitle() körs ändå ovanpå — andra
+  // försvarslinjen, och enda linjen för butiker utan strukturerad data.
+  const cleanTitle = cleanListingTitle(facts.name ?? it.title);
   // Lot-/kombo-annonser ("Booster Pack x4", "ETB + bundle") är inte katalogprodukter
   // — matchProduct vägrar matcha dem, men UTAN denna vakt skapades de som stubbar.
   const form = classifyForm(normalizeTitle(cleanTitle));
@@ -189,10 +203,8 @@ export async function ensureListingProduct(
   const normalized = normalizeTitle(cleanTitle);
 
   // ---- GTIN-först: tillverkarens streckkod är en EXAKT nyckel, inte en gissning ----
-  // En request per NY butiks-URL (aldrig i restock-lanens feed-hämtning — se gtin-source.ts).
   // 73% av butikernas sealed-utbud publicerar den (mätt). Saknas den faller vi tillbaka på
   // titelmatchningen precis som förut — frånvaro är normalt, inte ett fel.
-  const gtin = it.sourceName ? await fetchListingGtin(it.sourceName, it.url) : null;
   if (gtin) {
     const byGtin = await prisma.product.findFirst({ where: { gtin }, select: { id: true } });
     if (byGtin) {

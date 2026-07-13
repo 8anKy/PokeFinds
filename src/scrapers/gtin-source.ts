@@ -120,6 +120,36 @@ export function gtinFromJsonLd(html: string): string | null {
   return codes.size === 1 ? [...codes][0] : null;
 }
 
+/**
+ * schema.org `Product.name` — butikens RENA produktnamn.
+ *
+ * Butiksskräpet ligger i `description`, inte i `name`: MaxGamings name är
+ * "Pokémon Mega Evolution Elite Trainer Box" medan description börjar "Observera: Max 2
+ * boxar per kund." Feedens titel (kategorisidan) bär däremot skräpet. Att mata matchningen
+ * med `name` tar bort dubblett-orsakande brus vid KÄLLAN i stället för att regex-städa
+ * bort det efteråt — cleanListingTitle() finns kvar som fallback för butiker utan
+ * strukturerad data (Quickbutik, Samlarhobby) och som andra försvarslinje.
+ *
+ * GRATIS: sidan är redan hämtad för streckkoden. Inga extra requests.
+ *
+ * (Vi läser med flit INTE schema.org `offers.availability` här. Det vore strikt bättre än
+ * att tolka svensk lagertext — MEN adaptrarna läser KATEGORISIDOR, inte produktsidor, och
+ * restock-lanen kör var 2:a minut. Att hämta en produktsida per vara där vore hundratals
+ * extra requests varannan minut mot varje butik. Lagerstatus ändras hela tiden; en streckkod
+ * gör det aldrig — därför lönar sig ETT uppslag för koden men inte för lagret.)
+ */
+export function productNameFromHtml(html: string): string | null {
+  const names = new Set<string>();
+  for (const block of parseJsonLdBlocks(html)) {
+    for (const product of collectProductNodes(block)) {
+      const n = product.name;
+      if (typeof n === "string" && n.trim()) names.add(n.trim());
+    }
+  }
+  // Flera olika namn på sidan (varianter/relaterade produkter) → gissa inte.
+  return names.size === 1 ? [...names][0] : null;
+}
+
 /** Shopify-handle ur en produkt-URL: …/products/{handle}[?…] (även med /en/-prefix). */
 export function shopifyHandleFromUrl(url: string): string | null {
   const m = url.match(/\/products\/([^/?#]+)/);
@@ -137,34 +167,48 @@ export function webhallenIdFromUrl(url: string): string | null {
  * huvudboksraden). Utan cachen hade vi betalat en HTTP-request per uppslag.
  * Rensas när processen dör — jobben är kortlivade, så ingen invalidering behövs.
  */
-const memo = new Map<string, string | null>();
+const memo = new Map<string, ListingFacts>();
 
-/**
- * Hämtar GTIN för en enskild butiks-URL. Returnerar null när butiken inte publicerar
- * någon kod, produkten saknar den, eller hämtningen misslyckas — ALDRIG ett kast.
- * Saknad kod är ett normaltillstånd, inte ett fel: matchningen faller då tillbaka på
- * titelvägen precis som förut.
- */
-export async function fetchListingGtin(sourceName: string, url: string): Promise<string | null> {
-  const strategy = STORE_GTIN_STRATEGY[sourceName] ?? "none";
-  if (strategy === "none") return null;
-
-  const cacheKey = `${sourceName}:${url}`;
-  if (memo.has(cacheKey)) return memo.get(cacheKey)!;
-  const found = await resolveGtin(strategy, url, sourceName);
-  memo.set(cacheKey, found);
-  return found;
+/** Vad EN hämtning av butikens produktsida ger oss. Båda kan vara null. */
+export interface ListingFacts {
+  gtin: string | null;
+  /** Butikens rena schema.org-namn (utan "MAX 1 per kund"-skräp). Bara JSON-LD-butiker. */
+  name: string | null;
 }
 
-async function resolveGtin(
+/**
+ * Hämtar streckkod + rent produktnamn för en butiks-URL i EN request.
+ * Returnerar nullvärden när butiken inte publicerar dem, eller hämtningen misslyckas —
+ * ALDRIG ett kast. Saknad kod är ett normaltillstånd: matchningen faller då tillbaka
+ * på titelvägen precis som förut.
+ */
+export async function fetchListingFacts(sourceName: string, url: string): Promise<ListingFacts> {
+  const strategy = STORE_GTIN_STRATEGY[sourceName] ?? "none";
+  if (strategy === "none") return { gtin: null, name: null };
+
+  const cacheKey = `${sourceName}:${url}`;
+  const cached = memo.get(cacheKey);
+  if (cached) return cached;
+  const facts = await resolveFacts(strategy, url, sourceName);
+  memo.set(cacheKey, facts);
+  return facts;
+}
+
+/** Bekvämlighet för anropare som bara bryr sig om koden (backfill, probe). */
+export async function fetchListingGtin(sourceName: string, url: string): Promise<string | null> {
+  return (await fetchListingFacts(sourceName, url)).gtin;
+}
+
+async function resolveFacts(
   strategy: GtinStrategy,
   url: string,
   sourceName: string
-): Promise<string | null> {
+): Promise<ListingFacts> {
+  const NONE: ListingFacts = { gtin: null, name: null };
   try {
     if (strategy === "shopify-js") {
       const handle = shopifyHandleFromUrl(url);
-      if (!handle) return null;
+      if (!handle) return NONE;
       const origin = new URL(url).origin;
       // Svenska marknaden pinnad (samma skäl som ShopifyAdapter: annars ex-moms-pris —
       // spelar ingen roll för barcode, men håll requesten identisk med adapterns).
@@ -172,7 +216,7 @@ async function resolveGtin(
         delayMs: 800,
         headers: { cookie: "localization=SE", "accept-language": "sv-SE" },
       });
-      if (!res.ok) return null;
+      if (!res.ok) return NONE;
       const data = (await res.json()) as { variants?: { barcode?: string | null }[] };
       // TA ALDRIG variants[0] RAKT AV. En Shopify-sida kan sälja flera varianter (olika
       // Pokémon i samma tin-serie, olika färger) med VAR SIN streckkod — då är "första
@@ -181,26 +225,28 @@ async function resolveGtin(
       const codes = new Set(
         (data.variants ?? []).map((v) => normalizeGtin(v.barcode)).filter((g): g is string => !!g)
       );
-      return codes.size === 1 ? [...codes][0] : null;
+      // Shopifys .js-titel bär samma butiksskräp som feeden → inget renare namn att hämta.
+      return { gtin: codes.size === 1 ? [...codes][0] : null, name: null };
     }
 
     if (strategy === "webhallen-api") {
       const id = webhallenIdFromUrl(url);
-      if (!id) return null;
+      if (!id) return NONE;
       const res = await politeFetch(`https://www.webhallen.com/api/product/${id}`, { delayMs: 800 });
-      if (!res.ok) return null;
+      if (!res.ok) return NONE;
       const data = (await res.json()) as { product?: { eans?: string[] }; eans?: string[] };
-      return normalizeGtin(data.product?.eans ?? data.eans ?? null);
+      return { gtin: normalizeGtin(data.product?.eans ?? data.eans ?? null), name: null };
     }
 
-    // json-ld
+    // json-ld — EN hämtning ger både streckkod och butikens rena schema.org-namn.
     const res = await politeFetch(url, { delayMs: 800 });
-    if (!res.ok) return null;
-    return gtinFromJsonLd(await res.text());
+    if (!res.ok) return NONE;
+    const html = await res.text();
+    return { gtin: gtinFromJsonLd(html), name: productNameFromHtml(html) };
   } catch (err) {
     console.warn(
-      `[gtin] Kunde inte hämta streckkod för ${sourceName} ${url}: ${err instanceof Error ? err.message : err}`
+      `[gtin] Kunde inte hämta produktfakta för ${sourceName} ${url}: ${err instanceof Error ? err.message : err}`
     );
-    return null;
+    return NONE;
   }
 }
