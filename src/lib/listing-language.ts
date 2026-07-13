@@ -28,8 +28,12 @@ const EU_LANGS =
 // MEDVETET UTELÄMNADE (kolliderar med engelska/svenska titlar): "collection",
 // "edition", "box", "display", "carta"/"sobre" (för korta/tvetydiga).
 // "coleccion"≠"collection" och "edicion"≠"edition" — inga delade stavningar.
+// "klappblister" (tyskt) hittades av den semantiska granskningen 2026-07-13 — regexen
+// hade sammelkarten/kartenspiel men inte det ordet, så "Lost Origin: 2-Pack Klappblister"
+// låg kvar i katalogen. Just den sortens ord är skälet till att en ordlista aldrig blir
+// komplett: lägg till nya när de dyker upp.
 const EU_NOUNS =
-  /\b(sobres?|cartas|coleccion|edicion|caja|mazo|bustine|scatola|espansione|coffret|cartes|sammelkarten\w*|kartenspiel)\b/i;
+  /\b(sobres?|cartas|coleccion|edicion|caja|mazo|bustine|scatola|espansione|coffret|cartes|sammelkarten\w*|kartenspiel|klappblister)\b/i;
 
 // --- Lager 3: lokaliserade set-namn. HÖGSTA volymen i verkligheten: butiken skriver
 // engelsk säljtext men sätter det spanska/tyska setnamnet.

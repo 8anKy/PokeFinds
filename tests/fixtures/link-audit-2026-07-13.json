@@ -1,0 +1,1432 @@
+{
+ "_comment": "Facit fran katalogrevisionen 2026-07-13. wrong = butikslankar som pekade pa FEL produkt (verifierade genom att hamta sidan + adversariell granskning). correct = urval av verifierat korrekta lankar. Anvands av tests/unit/matching-audit.test.ts.",
+ "wrong": [
+  {
+   "feed": "Pokémon TCG My first battle - Charmander & Squirtle",
+   "ours": "Battle Styles: Charmander 1-Pack Blister",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon Mega Symphonia Pokémon Center Set (Japansk)",
+   "ours": "Pokémon, Mega Brave Pokémon Center Collection Box (Japansk)",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokemon Mini Album w/ booster",
+   "ours": "Goodra Mini Album 2-Pack Blister",
+   "store": "Webhallen"
+  },
+  {
+   "feed": "Pokémon Charmander Mini Pärm - 3 Pocket",
+   "ours": "Pokémon TCG - Phantasmal Flames Booster + Mini Pärm",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon ME03 Perfect Order - Blister (1-pack)",
+   "ours": "Pokemon TCG Perfect Order 3-pack Blister",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon TCG: Kanto Power Mini Tin",
+   "ours": "Kanto Power Mini Tin 5-Pack Box",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon Mega Evolution Booster",
+   "ours": "Pokemon TCG Mega Evolution Chaos Rising Booster Pack",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon Rapid Strike Urshifu V Box",
+   "ours": "Rapid Strike Urshifu VMAX Premium Collection",
+   "store": "Swepoke"
+  },
+  {
+   "feed": "Pokémon Mega Charizard X/Y Spelmatta - M",
+   "ours": "Mega Charizard X ex Tin",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "First Partner Series 2",
+   "ours": "First Partner Illustration Booster Series 2",
+   "store": "Swepoke"
+  },
+  {
+   "feed": "Pokémon - Booster Pack - Mega Evolution 5.0: Pitch Black",
+   "ours": "Black Bolt Booster Pack",
+   "store": "Manatörsk"
+  },
+  {
+   "feed": "Pokémon Mega Evolution Base Set: Booster Pack (10 Cards)",
+   "ours": "Pokemon TCG Mega Evolution Chaos Rising Booster Pack",
+   "store": "Swepoke"
+  },
+  {
+   "feed": "Pokémon TCG: Mega Evolution Booster Pack",
+   "ours": "Pokemon TCG Mega Evolution Chaos Rising Booster Pack",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Blooming Water&#039;s",
+   "ours": "2022 Water Stacking Tin",
+   "store": "Swepoke"
+  },
+  {
+   "feed": "Pokémon Mega Evolution Checklane Booster",
+   "ours": "Pokémon TCG: Mega Evolution - Chaos Rising Checklane Blister",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon TCG: Stellar Crown Checklane Porygon2",
+   "ours": "Stellar Crown: Koraidon Premium Checklane Blister",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon Mini Album med Booster Q1 26",
+   "ours": "Goodra Mini Album 2-Pack Blister",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon Ex Battle Deck - Melmetal ex",
+   "ours": "Pokemon TCG Pokemon GO Battle Deck Melmetal V",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokemon Trick or Trade BOOster 2023",
+   "ours": "Pokémon TCG: Trick or Trade BOOster Pack 2024",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Noctowl #141 Pokémon Scarlet & Violet: Stellar Crown (Förseglad)",
+   "ours": "Pokémon TCG - Scarlet & Violet Stellar Crown Mini Portfolio plus 1 Booster",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Skeledirge ex - SVP081 Black Star Promo - Pokémon Scarlet & Violet: Paldean Fates",
+   "ours": "Paldean Fates: Skeledirge ex Premium Collection",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Quaquaval ex - SVP084 Black Star Promo - Pokémon Scarlet & Violet: Paldean Fates",
+   "ours": "Paldean Fates: Quaquaval ex Premium Collection",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Meowscarada ex - SVP078 Black Star Promo - Pokémon Scarlet & Violet: Paldean Fates",
+   "ours": "Paldean Fates: Meowscarada ex Premium Collection",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokémon - 3P Blister Pack - Mega Evolution 5.0 - Pitch Black (Max 1st per hushåll)",
+   "ours": "Pitch Black: Slowpoke 1-Pack Blister",
+   "store": "Manatörsk"
+  },
+  {
+   "feed": "Pokémon TCG: Fall 2024 Mini Portfolio + Booster",
+   "ours": "Pokémon TCG: Fall 2026 Mini Portfolio + Booster",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: Back to School Pennfodral 2024",
+   "ours": "Pokémon TCG: Back to School - 2 Booster Packs & Eraser",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: Trainer’s Toolkit (Fall 2024)",
+   "ours": "Pokemon TCG Trainers Toolkit 2025",
+   "store": "Goblinen"
+  },
+  {
+   "feed": "Pokémon TCG: Surging Sparks Booster Small Display",
+   "ours": "Pokémon TCG: Surging Sparks Booster Box",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokemon TCG: Poké Ball Tin Fall 2024",
+   "ours": "Pokemon TCG: Poké Ball Tin 2025",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: Perfect Order - Checklane Makuhita",
+   "ours": "Pokemon TCG Perfect Order 3-pack Blister",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: Trainer's Toolkit 2024",
+   "ours": "Pokemon TCG Trainers Toolkit 2025",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon - Premium Checklane - Mega Evolution 4.0 - Chaos Rising: Flygon",
+   "ours": "Pokémon TCG: Mega Evolution - Chaos Rising Checklane Blister",
+   "store": "Manatörsk"
+  },
+  {
+   "feed": "Pokémon, Sword & Shield: Lost Origin, Display / Booster Box + Acrylic box",
+   "ours": "Pokémon TCG: Lost Origin Booster Box",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Mega Gengar ex (m2a 230) MEGA Dream ex - PSA 9",
+   "ours": "Mega Moonlit Tins: Mega Gengar ex Tin",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokemon Battle Figure Lotad & Charmander",
+   "ours": "Battle Styles: Charmander 1-Pack Blister",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "Pokémon TCG: Pokémon Center Hiroshima Special Box (Japansk)",
+   "ours": "Pokémon, Mega Brave Pokémon Center Collection Box (Japansk)",
+   "store": "Goblinen"
+  },
+  {
+   "feed": "Pokemon - Celebrations Elite Trainer Box",
+   "ours": "Celebrations Pokémon Center Elite Trainer Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Reshiram & Charizard GX (sm12a 220) Tag Team GX: Tag All Stars - PSA 10",
+   "ours": "Tag Team Reshiram & Charizard GX Premium Collection",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon, Mega Evolutions, ME04: Chaos Rising, Display / Booster Box (Max 1 per hushåll)",
+   "ours": "Pokémon TCG: Mega Evolution Booster Box",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon, Sun & Moon: Guardians Rising, 1 Blister pack",
+   "ours": "Guardians Rising Booster Pack",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Charizard EX (FLF 11) Flashfire",
+   "ours": "Pokémon, XY: Flashfire, 1 Booster (Charizard X Artwork)",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon TCG - Scarlet & Violet Journey Together Checklane Blister",
+   "ours": "Journey Together: Scrafty 3-Pack Blister",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Scarlet & Violet 7 Stellar Crown Checklane Blister - Porygon 2",
+   "ours": "Stellar Crown: Koraidon Premium Checklane Blister",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Shrouded Fable - Elite Trainer Box",
+   "ours": "Shrouded Fable Pokémon Center Elite Trainer Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon, Generations, 1 Booster (Venusaur Artwork)",
+   "ours": "Pokémon, Generations, 1 Booster (Charizard Artwork)",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon, Scarlet & Violet 4,5: Paldean Fates, Booster Bundle (Display)",
+   "ours": "Paldean Fates Booster Bundle",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokemon Fall Tin - Paradox Destinies Tin",
+   "ours": "Paradox Destinies Tins: Iron Crown ex Tin (EU Version)",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "Charizard (CEL BS 4) Celebrations - PSA 10",
+   "ours": "Celebrations: Lance's Charizard V Tin",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokemon TCG: EX Battle Deck - Houndoom / Melmetal",
+   "ours": "Pokemon TCG Pokemon GO Battle Deck Melmetal V",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "Pokémon TCG: Scarlet & Violet - Ruler of the Black Flame Japansk",
+   "ours": "Pokémon, Scarlet & Violet: Ruler of The Black Flame – sv3, Display / Booster Box (Japansk)",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon, Mega Symphonia Pokémon Center Collection Box (Japansk)",
+   "ours": "Pokémon, Mega Brave Pokémon Center Collection Box (Japansk)",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon, Scarlet & Violet: Scarlet ex - sv1S, Display / Booster Box (Japansk)",
+   "ours": "Pokémon, Scarlet & Violet: Snow Hazard - sv2P, Display / Booster Box (Japansk)",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon, Scarlet & Violet: Violet ex - sv1v, Display / Booster Box (Japansk)",
+   "ours": "Pokémon, Scarlet & Violet: Ancient Roar - sv4K, Display / Booster Box (Japansk)",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon TCG: Poké Ball Tin 2023",
+   "ours": "Pokémon GO: Poké Ball Tin",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pikachu & Zekrom GX (sm9 112) Tag Bolt - PSA 10",
+   "ours": "Tag Team Tins: Pikachu & Zekrom GX Tin",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon TCG - Phantasmal Flames Checklane",
+   "ours": "Phantasmal Flames: Blaziken Premium Checklane Blister",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Stellar Crown - Elite Trainer Box",
+   "ours": "Stellar Crown Pokémon Center Elite Trainer Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokemon Heat Wave Arena Booster Box Display (Japansk)",
+   "ours": "Pokémon, Scarlet & Violet: Heat Wave Arena – sv9a, Display / Booster Box (Japansk)",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG: Mega Evolution - Perfect Order Checklane Blister",
+   "ours": "Pokemon TCG Perfect Order 3-pack Blister",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokemon SV10.5 - Black Bolt & White Flare - White Flare Tech Sticker Collection",
+   "ours": "Pokemon SV10.5 - Black Bolt & White Flare - White Flare Bundle",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG Sword & Shield - Chilling Reign: Booster",
+   "ours": "Chilling Reign Booster (6 Cards)",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Violet EX Booster Display (30 Boosters) Japansk",
+   "ours": "Pokémon Mega Inferno X Booster Box (Japansk)",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Acrylic Booster Box Display for Pokémon",
+   "ours": "Pokémon, Sun & Moon, Display / Booster Box + Acrylic case",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokemon TCG - SWSH 12.5 Crown Zenith: Mini Tin",
+   "ours": "Crown Zenith: Mini Tin Display",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG: My First Battle Charmander / Squirtle",
+   "ours": "Battle Styles: Charmander 1-Pack Blister",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "The Pokémon TCG: Lucario ex Battle Deck",
+   "ours": "Pokemon Mega Lucario ex League Battle Deck",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "The Pokémon TCG: Trainer’s Toolkit 2023",
+   "ours": "Pokemon TCG Trainers Toolkit 2025",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "The Pokémon TCG: Melmetal ex Battle Deck",
+   "ours": "Pokemon TCG Pokemon GO Battle Deck Melmetal V",
+   "store": "Dragon's Lair"
+  }
+ ],
+ "correct": [
+  {
+   "feed": "Pokemon ME4 Chaos Rising Elite Trainer Box",
+   "ours": "Pokémon TCG: Chaos Rising Elite Trainer Box",
+   "store": "Webhallen"
+  },
+  {
+   "feed": "Pokemon Sword & Shield 12: Silver Tempest Booster Pack",
+   "ours": "Pokémon TCG: Silver Tempest Booster Pack",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokémon Mega Inferno X Booster Box (Japansk)",
+   "ours": "Pokémon Mega Inferno X Booster Box (Japansk)",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokemon ME4 Chaos Rising Premium Checklane",
+   "ours": "Pokemon ME4 Chaos Rising Premium Checklane Blister",
+   "store": "Webhallen"
+  },
+  {
+   "feed": "Evolving Skies Booster Pack",
+   "ours": "Pokémon TCG: Evolving Skies Booster Pack",
+   "store": "Swepoke"
+  },
+  {
+   "feed": "Perfect Order Booster Box 36 Packs",
+   "ours": "Pokémon TCG: Perfect Order Booster Box",
+   "store": "Swepoke"
+  },
+  {
+   "feed": "Pokémon Scarlet & Violet: Super Electric Breaker SV8 Booster Box (Japanese)",
+   "ours": "Pokémon, Scarlet & Violet: Super Electric Breaker – sv8, Display / Booster Box (Japansk)",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon TCG: Phantasmal Flames Elite Trainer Box",
+   "ours": "Pokémon TCG: Phantasmal Flames Elite Trainer Box",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon ME2.5 Ascended Heroes - Deluxe Pin Collection",
+   "ours": "Pokemon TCG Ascended Heroes First Partners Deluxe Pin Collection",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokemon TCG: Scarlet & Violet - Destined Rivals Booster Pack",
+   "ours": "Pokemon TCG Scarlet Violet Destined Rivals Booster Pack",
+   "store": "Alphaspel"
+  },
+  {
+   "feed": "Terapagos ex Ultra-Premium Collection",
+   "ours": "Terapagos ex Ultra-Premium Collection",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokemon Mega Evolution 4: Chaos Rising Booster Pack",
+   "ours": "Pokemon TCG Mega Evolution Chaos Rising Booster Pack",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokémon Charizard Ex Special Collection",
+   "ours": "Charizard ex Special Collection",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokemon Scarlet & Violet 9: Journey Together Booster Pack",
+   "ours": "Pokemon TCG Journey Together Booster Pack",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokémon Scarlet & Violet: Glory of Team Rocket SV10 Booster Box (Japanese)",
+   "ours": "Pokémon Scarlet & Violet: Glory of Team Rocket SV10 Booster Box (Japanese)",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon Slashing Legends Ex Tin",
+   "ours": "Slashing Legends Tins: Koraidon ex Tin",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon TCG: Cynthia's Garchomp ex Premium Collection",
+   "ours": "Cynthia's Garchomp ex Premium Collection",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokemon Lumiose City Mini Tin Emboar/Inkay",
+   "ours": "Lumiose City: Emboar Mini Tin",
+   "store": "Webhallen"
+  },
+  {
+   "feed": "Pokémon Scarlet & Violet 10: Destined Rivals Booster Pack (10 Cards)",
+   "ours": "Pokemon TCG Scarlet Violet Destined Rivals Booster Pack",
+   "store": "Swepoke"
+  },
+  {
+   "feed": "Pokémon Trainer Toolkit 25",
+   "ours": "Pokemon TCG Trainers Toolkit 2025",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon TCG: Chaos Rising - Elite Trainer Box",
+   "ours": "Pokémon TCG: Chaos Rising Elite Trainer Box",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: Destined Rivals Checklane Zarude",
+   "ours": "Destined Rivals: Zarude 1-Pack Blister",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: Pitch Black - Booster Pack",
+   "ours": "Pitch Black Booster",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon SV9 Battle Partners Booster Box (Japansk)",
+   "ours": "Pokemon Scarlet & Violet Battle Partners Booster Box (sv9)(Japansk)",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon TCG: Azure Legends Tin - Xerneas ex",
+   "ours": "Azure Legends Tins: Xerneas ex Tin",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokemon Tin Summer EX Mega Gengar",
+   "ours": "Mega Moonlit Tins: Mega Gengar ex Tin",
+   "store": "Webhallen"
+  },
+  {
+   "feed": "Pokémon Tin Pokeball 25",
+   "ours": "Pokemon TCG: Poké Ball Tin 2025",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon, Mega Evolutions, ME03: Perfect Order, 1 blister pack",
+   "ours": "Pokemon TCG Perfect Order 3-pack Blister",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon Enhanced 2-Pack Blister 2026",
+   "ours": "Pawmot Enhanced 2-Pack Blister",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon VSTAR Universe Booster Box (Japansk)",
+   "ours": "Pokémon, Sword & Shield: VSTAR Universe - s12a, Display / Booster Box (Japansk)",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon TCG: Paradox Destinies Tin - Gouging Fire ex",
+   "ours": "Paradox Destinies Tins: Gouging Fire ex Tin (EU Version)",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon ME02 Phantasmal Flames Checklane",
+   "ours": "Phantasmal Flames: Blaziken Premium Checklane Blister",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon Scarlet & Violet 10.5: Black Bolt Zekrom Elite Trainer Box",
+   "ours": "Pokemon TCG Black Bolt Elite Trainer Box",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon TCG: Prismatic Evolutions Tech Sticker Collection - Sylveon",
+   "ours": "Prismatic Evolutions: Sylveon Tech Sticker Collection",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokemon Mega Charizard X ex Tin Spring 2026",
+   "ours": "Mega Charizard X ex Tin",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Roaring Skies Booster Pack",
+   "ours": "Roaring Skies Booster Pack",
+   "store": "Swepoke"
+  },
+  {
+   "feed": "Pokémon Scarlet & Violet: Shiny Treasure ex SV4a Booster Box (Japanese)",
+   "ours": "Pokémon Scarlet & Violet: Shiny Treasure ex SV4a Booster Box (Japanese)",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon TCG: Ascended Heroes - Tech Sticker Collection Charmander",
+   "ours": "Ascended Heroes: Charmander Tech Sticker Collection",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokemon 151 Booster Bundle (Max 1 Per Hushåll)",
+   "ours": "151 Booster Bundle",
+   "store": "Swepoke"
+  },
+  {
+   "feed": "Pokémon Scarlet & Violet: Black Bolt Tech Sticker Collection - Reuniclus (3 Packs)",
+   "ours": "Black Bolt: Reuniclus Tech Sticker Collection",
+   "store": "Swepoke"
+  },
+  {
+   "feed": "Pokémon Scarlet & Violet 10.5: Black Bolt Elite Trainer Box",
+   "ours": "Pokemon TCG Black Bolt Elite Trainer Box",
+   "store": "Swepoke"
+  },
+  {
+   "feed": "Pokémon ME05: Pitch Black - Elite Trainer Box",
+   "ours": "Pitch Black Elite Trainer Box",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon Lumiose City Mini Tin",
+   "ours": "Lumiose City: Emboar Mini Tin",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon TCG: Charizard ex Super Premium Collection",
+   "ours": "Charizard ex Super-Premium Collection",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon Scarlet & Violet 9: Journey Together Enhanced Booster Display Box (36 Packs + Promo Card)",
+   "ours": "Journey Together Enhanced Booster Display Box",
+   "store": "Swepoke"
+  },
+  {
+   "feed": "Pokémon TCG: Bloodmoon Ursaluna ex Box",
+   "ours": "Bloodmoon Ursaluna ex Box",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon Scarlet & Violet 10.5: White Flare Booster Bundle (6-pack)",
+   "ours": "White Flare Booster Bundle",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon Abyss Eye Booster Box (Japansk)",
+   "ours": "Pokémon Abyss Eye Booster Box (Japansk)",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon TCG: Stacking Tin - Psychic",
+   "ours": "2024 Psychic Stacking Tin",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: 2 Booster Packs & Smoliv or Lechonk Eraser",
+   "ours": "Pokémon TCG: 2 Booster Packs & Smoliv or Lechonk Eraser",
+   "store": "Swepoke"
+  },
+  {
+   "feed": "Pokémon ME02 Phantasmal Flames Blister (1-pack)",
+   "ours": "Phantasmal Flames: Cottonee 1-Pack Blister",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon Scarlet & Violet 10: Destined Rivals Booster",
+   "ours": "Pokemon TCG Scarlet Violet Destined Rivals Booster Pack",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon Scarlet & Violet 10.5: Unova Mini Tin",
+   "ours": "Pokémon Scarlet & Violet 10.5: Unova Mini Tin",
+   "store": "Swepoke"
+  },
+  {
+   "feed": "Pokémon - Booster Display Box - Mega Evolution 5.0: Pitch Black (Max 1st per hushåll)",
+   "ours": "Pitch Black Booster Box",
+   "store": "Manatörsk"
+  },
+  {
+   "feed": "Pokémon TCG: Pokemon Day 2026",
+   "ours": "Pokemon Day Collection Blister 30 år",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon Mega Evolution Premium Checklane",
+   "ours": "Mega Evolution: Meowscarada Premium Checklane Blister",
+   "store": "MaxGaming"
+  },
+  {
+   "feed": "Pokémon TCG: Back to School Bellibolt Suddgummi",
+   "ours": "Back to School 2024 Bellibolt Eraser 2-Pack Blister",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokemon Scarlet & Violet: 151 Booster Pack (Japansk)",
+   "ours": "Pokemon Scarlet & Violet: 151 Booster Pack (Japansk)",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokémon TCG: Surging Sparks Checklane Wooper",
+   "ours": "Surging Sparks: Wooper 1-Pack Blister",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Destined Rivals Booster Display Box (36 Packs) ( Max 1 Per Hushåll)",
+   "ours": "Destined Rivals Booster Display Box (36 Packs) (",
+   "store": "Swepoke"
+  },
+  {
+   "feed": "Pokemon Scarlet & Violet 10: Destined Rivals Booster Pack",
+   "ours": "Pokemon TCG Scarlet Violet Destined Rivals Booster Pack",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "[MAX 2 PER KUND] Pokémon Mega Evolution 2: Phantasmal Flames Elite Trainer Box",
+   "ours": "Pokémon TCG: Phantasmal Flames Elite Trainer Box",
+   "store": "Swepoke"
+  },
+  {
+   "feed": "Pokemon Sword & Shield: Battle Region Booster Pack (Japansk)",
+   "ours": "Pokemon Sword & Shield: Battle Region Booster Pack (Japansk)",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokémon TCG: Journey Together Checklane Scraggy",
+   "ours": "Journey Together: Scraggy 1-Pack Blister",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon Trading Card Game Classic",
+   "ours": "Pokemon Trading Card Game Classic",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokemon Mega Brave Booster Box (Japansk)",
+   "ours": "Pokémon Mega Brave M1L Booster Box (Japanese)",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokémon TCG: Prismatic Evolutions Super-Premium Collection - Eevee",
+   "ours": "Prismatic Evolutions Super-Premium Collection",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokemon Mega Symphonia Booster Pack (Japansk)",
+   "ours": "Pokémon TCG: Mega Symphonia Booster Pack (Japansk) - M1S",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokémon TCG: Twilight Masquerade Premium Checklane Porygon-Z",
+   "ours": "Twilight Masquerade: Porygon-Z Premium Checklane Blister",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon, Mega Evolutions, ME04: Chaos Rising, Checklane, Toxel",
+   "ours": "Pokemon ME4 Chaos Rising Checklane Booster",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokemon Scarlet & Violet: Clay Burst Booster Box (Japansk)",
+   "ours": "Pokemon Scarlet & Violet: Clay Burst Booster Box (Japansk)",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokémon TCG: Destined Rivals Booster Pack",
+   "ours": "Pokemon TCG Scarlet Violet Destined Rivals Booster Pack",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: Shrouded Fable Booster 3-Pack Pecharunt",
+   "ours": "Shrouded Fable: Pecharunt 3-Pack Blister",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon Scarlet & Violet 8: Surging Sparks Booster Pack (10 Cards)",
+   "ours": "Pokémon TCG: Surging Sparks Booster Pack",
+   "store": "Swepoke"
+  },
+  {
+   "feed": "Pokemon Sword & Shield 10: Astral Radiance Booster Pack",
+   "ours": "Pokémon TCG: Astral Radiance Booster Pack",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokemon Scarlet & Violet: Ancient Roar Booster Box (Japansk)",
+   "ours": "Pokémon, Scarlet & Violet: Ancient Roar - sv4K, Display / Booster Box (Japansk)",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokémon TCG: First Partner Illustration Collection - Series 2",
+   "ours": "First Partner Illustration Collection Series 2",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: Ascended Heroes - Elite Trainer Box",
+   "ours": "Ascended Heroes Elite Trainer Box",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: Twilight Masquerade Checklane Toxel",
+   "ours": "Pokémon TCG - Scarlet & Violet Twilight Masquerade Checklane Blister - Toxel",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: Twilight Masquerade Checklane Pupitar",
+   "ours": "Pokémon TCG - Scarlet & Violet Twilight Masquerade Checklane Blister - Pupitar",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: Ascended Heroes - Booster Bundle",
+   "ours": "Pokemon TCG Ascended Heroes Booster Bundle",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokemon Scarlet & Violet: The Glory of Team Rocket Booster Box (Japansk)",
+   "ours": "Pokémon Scarlet & Violet: Glory of Team Rocket SV10 Booster Box (Japanese)",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokemon Scarlet & Violet 5: Temporal Forces Booster Box",
+   "ours": "Pokémon TCG: Temporal Forces Booster Box",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokémon TCG: Mega Clefable ex Tin - Summer 2026",
+   "ours": "Mega Moonlit Tins: Mega Clefable ex Tin",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokemon Scarlet & Violet: Battle Partners Booster Box (Japansk)",
+   "ours": "Pokemon Scarlet & Violet Battle Partners Booster Box (sv9)(Japansk)",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokémon TCG: Surging Sparks Booster Display",
+   "ours": "Pokémon TCG: Surging Sparks Booster Box",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: Shrouded Fable Elite Trainer Box",
+   "ours": "Pokémon TCG: Shrouded Fable Elite Trainer Box",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokemon Sword & Shield 4.5: Shining Fates Booster Pack",
+   "ours": "Shining Fates Booster Pack",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokémon TCG: Greninja ex Ultra-Premium Collection",
+   "ours": "Greninja ex Ultra-Premium Collection",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: Phantasmal Flames Premium Checklane Blaziken",
+   "ours": "Phantasmal Flames: Blaziken Premium Checklane Blister",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokemon Scarlet & Violet Booster Box",
+   "ours": "Scarlet & Violet Booster Box",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokémon TCG: Mega Evolution Elite Trainer Box Mega Lucario",
+   "ours": "Pokémon TCG: Mega Evolution Elite Trainer Box",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokemon Scarlet & Violet: Paradise Dragona Booster Box (Japansk)",
+   "ours": "Pokémon, Scarlet & Violet: Paradise Dragona - sv7a, Display / Booster Box (Japansk)",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokémon TCG: Pitch Black - Premium Checklane Gengar",
+   "ours": "Pitch Black: Gengar Premium Checklane Blister",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon - Premium Checklane - Mega Evolution 4.0 - Chaos Rising: Pawmot",
+   "ours": "Pokemon ME4 Chaos Rising Premium Checklane Blister",
+   "store": "Manatörsk"
+  },
+  {
+   "feed": "Pokemon Scarlet & Violet: Night Wanderer Booster Box (Japansk)",
+   "ours": "Pokémon, Scarlet & Violet: Night Wanderer - sv6a, Display / Booster Box (Japansk)",
+   "store": "Shinycards"
+  },
+  {
+   "feed": "Pokémon TCG: Azure Legends Tin - Kyogre ex",
+   "ours": "Azure Legends Tins: Kyogre ex Tin",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: Mega Evolution Checklane Drifblim",
+   "ours": "Mega Evolution: Drifblim 1-Pack Blister",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: Mega Greninja ex - Premium Collection",
+   "ours": "Mega Greninja ex Premium Collection",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: First Partner Illustration Collection - Series 1",
+   "ours": "First Partner Illustration Collection Series 1",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: Ascended Heroes - Premium Poster Collection Gardevoir",
+   "ours": "Ascended Heroes: Mega Gardevoir Premium Poster Collection",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokémon TCG: Black Bolt Booster Bundle",
+   "ours": "Black Bolt Booster Bundle",
+   "store": "Spelexperten"
+  },
+  {
+   "feed": "Pokemon Scarlet & Violet: Clay Burst Booster (Japansk - sv2D)",
+   "ours": "Pokémon TCG: Clay Burst Booster Pack (Japansk) - sv2D",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "Pokemon Scarlet & Violet: Wild Force Booster (Japansk)",
+   "ours": "Pokémon TCG: Wild Force Booster Pack (Japansk) - sv5K",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "The Pokémon TCG: Shining Fates Booster",
+   "ours": "Shining Fates Booster Pack",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG: Mega Charizard Spring Tin 2026",
+   "ours": "Mega Charizard X ex Tin",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon, Ascended Heroes - First Partners Deluxe Pin Collection",
+   "ours": "Pokemon TCG Ascended Heroes First Partners Deluxe Pin Collection",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon, Mega Evolutions, ME03: Perfect Order, Premium Checklane, Meganium",
+   "ours": "Perfect Order: Meganium Premium Checklane Blister",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokemon Mega Charizard X ex Ultra Premium Collection",
+   "ours": "Pokemon TCG Mega Charizard X ex Ultra Premium Collection",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "Pokemon Iono's Bellibolt ex Premium Collection",
+   "ours": "Iono's Bellibolt ex Premium Collection",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "Pokemon Mega Evolution: Perfect Order Premium Checklane",
+   "ours": "Perfect Order: Meganium Premium Checklane Blister",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "Pokémon TCG: Raging Surf Booster Pack (Japansk) - sv3a",
+   "ours": "Pokémon TCG: Raging Surf Booster Pack (Japansk) - sv3a",
+   "store": "Goblinen"
+  },
+  {
+   "feed": "Pokémon TCG: Mega Evolution - Chaos Rising Booster Display (36 Booster) Max 1st per kund",
+   "ours": "Pokémon TCG: Chaos Rising Booster Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon, Scarlet & Violet 8: Surging Sparks, Elite Trainer Box",
+   "ours": "Pokemon TCG Surging Sparks Elite Trainer Box",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon, Mega Latias ex Box",
+   "ours": "Mega Latias ex Box",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon TCG - Phantasmal Flames 3-Pack Blister",
+   "ours": "Phantasmal Flames: Sneasel 3-Pack Blister",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon - Premium Checklane - Mega Evolution 5.0 - Pitch Black: Luxray (Max 1st per hushåll)",
+   "ours": "Pitch Black: Luxray Premium Checklane Blister",
+   "store": "Manatörsk"
+  },
+  {
+   "feed": "Pokémon TCG: Shiny Treasure Booster Pack (Japansk) - sv4a",
+   "ours": "Pokémon TCG: Scarlet & Violet High Class Pack \"Shiny Treasure ex\" [sv4A] Japansk Booster",
+   "store": "Goblinen"
+  },
+  {
+   "feed": "Pokemon Mega Venusaur ex Premium Collection",
+   "ours": "Mega Venusaur ex Premium Collection",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "Pokémon Sun & Moon: Shining Legends Marshadow Pin Collection Box",
+   "ours": "Pokémon Sun & Moon: Shining Legends Marshadow Pin Collection Box",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon TCG - Scarlet & Violet 10 Destined Rivals Elite Trainer Box",
+   "ours": "Pokémon TCG: Destined Rivals Elite Trainer Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon, Scarlet & Violet 10: Destined Rivals, Display / Booster Box",
+   "ours": "Pokémon TCG: Destined Rivals Booster Box",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokemon Towering Perfection Booster Box (s7D)(Japansk)",
+   "ours": "Pokemon Towering Perfection Booster Box (s7D)(Japansk)",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "Pokémon TCG: Stellar Miracle Booster Pack (Japansk) - sv7",
+   "ours": "Pokémon TCG - Stellar Miracle Booster Japansk",
+   "store": "Goblinen"
+  },
+  {
+   "feed": "Pokémon, Scarlet & Violet 8: Surging Sparks, Display / Booster Box",
+   "ours": "Pokémon TCG: Surging Sparks Booster Box",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon, Scarlet & Violet: 151 Booster Bundle (6 packs)",
+   "ours": "151 Booster Bundle",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon TCG: Ninja Spinner Booster Pack (Japansk) - M4",
+   "ours": "Pokémon TCG: Ninja Spinner Booster Pack (Japansk) - M4",
+   "store": "Goblinen"
+  },
+  {
+   "feed": "Pokémon TCG: Scarlet & Violet - Prismatic Evolutions Poster Collection",
+   "ours": "Prismatic Evolutions Poster Collection",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon, Enhanced 2-Pack Blister, Vileplume",
+   "ours": "Pokemon TCG Mega Evolution Enhanced 2-Pack Blister Vileplume",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokemon Paradigm Trigger Booster Box (s12) (Japansk)",
+   "ours": "Pokemon Paradigm Trigger Booster Box (s12) (Japansk)",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "Pokémon TCG - Scarlet & Violet 7 Stellar Crown Booster",
+   "ours": "Pokémon TCG: Stellar Crown Booster Pack",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokemon Mega Symphonia Booster (Japansk)",
+   "ours": "Pokémon TCG: Mega Symphonia Booster Pack (Japansk) - M1S",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "The Pokémon TCG: Scarlet & Violet - Elite Trainer Box",
+   "ours": "Scarlet & Violet Elite Trainer Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon, Scarlet & Violet: Paradise Dragona - sv7a, Display / Booster Box (Japansk)",
+   "ours": "Pokémon, Scarlet & Violet: Paradise Dragona - sv7a, Display / Booster Box (Japansk)",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon, Scarlet & Violet: Mega Symphonia - m1S, Display / Booster Box (Japansk)",
+   "ours": "Pokémon Mega Symphonia M1S Booster Box (Japanese)",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon, Scarlet & Violet: Mega Inferno X - m2, Display / Booster Box (Japansk)",
+   "ours": "Pokémon Mega Inferno X Booster Box (Japansk)",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon, Sword & Shield: Time Gazer – s10D, Display / Booster Box (Japansk)",
+   "ours": "Pokémon, Sword & Shield: Time Gazer – s10D, Display / Booster Box (Japansk)",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon, Scarlet & Violet: Super Electric Breaker – sv8, Display / Booster Box (Japansk)",
+   "ours": "Pokémon, Scarlet & Violet: Super Electric Breaker – sv8, Display / Booster Box (Japansk)",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon TCG Sword & Shield - Evolving Skies: Elite Trainer Box",
+   "ours": "Pokémon TCG: Evolving Skies Elite Trainer Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon, Sun & Moon: Remix Bout – sm11a, Display / Booster Box (Japansk)",
+   "ours": "Pokémon, Sun & Moon: Remix Bout – sm11a, Display / Booster Box (Japansk)",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon, Mega Evolution ME01, 1 Blister pack",
+   "ours": "Mega Evolution: Drifloon 1-Pack Blister",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokemon SV10.5 - Black Bolt & White Flare - Black Bolt Elite Trainer Box (MAX 1 per kund)",
+   "ours": "Pokemon TCG Black Bolt Elite Trainer Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon, Scarlet & Violet: Black Bolt - sv11B, 1 booster pack (Japansk)",
+   "ours": "Pokémon, Scarlet & Violet: Black Bolt - sv11B, 1 booster pack (Japansk)",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokemon Mega: Nihil Zero Booster Box (m3)(Japansk)",
+   "ours": "Pokémon, Mega: Nihil Zero - m3, Display / Booster Box (Japansk)",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "Pokémon, Mega Evolutions, ME03: Perfect Order, 3-Pack Blister: Chikorita",
+   "ours": "Pokémon, Mega Evolutions, ME03: Perfect Order, 3-Pack Blister: Chikorita",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokemon Mega Symphonia Booster Box Display (Japansk)",
+   "ours": "Pokémon Mega Symphonia M1S Booster Box (Japanese)",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "Pokémon, 2026 Spring Mini Album with Booster",
+   "ours": "Pokémon, 2026 Spring Mini Album with Booster",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon: Paldea Partners EX Tin Fall 23 - Skeledirge",
+   "ours": "Paldea Partners Tins: Skeledirge ex Tin",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Evoretro Premium Acrylic Display Case for Pokemon Booster Box Display with Sliding Lid",
+   "ours": "Evoretro Premium Acrylic Display Case for Pokemon Booster Box Display with Sliding Lid",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "Pokemon TCG: Palafin EX Box",
+   "ours": "Palafin ex Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon, Mega Evolutions, ME02: Phantasmal Flames, Elite Trainer Box",
+   "ours": "Pokémon TCG: Phantasmal Flames Elite Trainer Box",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokemon TCG: SWSH12.5 Crown Zenith: Regidrago V",
+   "ours": "Crown Zenith: Regidrago V Collection",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon, Scarlet & Violet: Crimson Haze - sv5a, Display / Booster Box (Japansk)",
+   "ours": "Pokémon, Scarlet & Violet: Crimson Haze - sv5a, Display / Booster Box (Japansk)",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon, Scarlet & Violet: Stellar Miracle - sv7, Display / Booster Box (Japansk)",
+   "ours": "Pokémon, Scarlet & Violet: Stellar Miracle - sv7, Display / Booster Box (Japansk)",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokemon - Morpeko V-Union Box Special Collection",
+   "ours": "Morpeko V-UNION Special Collection",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokemon High Class Pack - Shiny Treasure Booster Box (SV4a) (Japansk)",
+   "ours": "Pokémon Scarlet & Violet: Shiny Treasure ex SV4a Booster Box (Japanese)",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "Pokemon Crimson Haze Booster Box (sv5a)(Japansk)",
+   "ours": "Pokémon, Scarlet & Violet: Crimson Haze - sv5a, Display / Booster Box (Japansk)",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "Pokemon - Celebrations V Box - Dark Sylveon V (Max 1 per kund)",
+   "ours": "Celebrations Collection: Dark Sylveon V",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokemon Abyss Eye Booster (M5)(Japansk)",
+   "ours": "Pokemon Mega: Abyss Eye Booster Pack (Japansk)",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "Pokemon Triplet Beat Booster Box Display (sv1a) (Japansk)",
+   "ours": "Pokemon Triplet Beat Booster Box Display (sv1a) (Japansk)",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "Pokemon Scarlet & Violet: Incandescent Arcana Booster Box Display (Japansk)",
+   "ours": "Pokémon, Sword & Shield: Incandescent Arcana - Display / Booster Box (Japansk)",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "Pokémon TCG - Sword & Shield Astral Radiance Booster",
+   "ours": "Pokémon TCG: Astral Radiance Booster Pack",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Evoretro PET Protectors for Pokemon Booster Display Boxes (5-Pack)",
+   "ours": "Evoretro PET Protectors for Pokemon Booster Display Boxes (5-Pack)",
+   "store": "Speltrollet"
+  },
+  {
+   "feed": "The Pokémon TCG: Scarlet & Violet 5 Temporal Forces Elite Trainer Box",
+   "ours": "Pokémon TCG: Temporal Forces Elite Trainer Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG: Scarlet & Violet - Cyber Judge Booster Japansk",
+   "ours": "Pokémon TCG: Cyber Judge Booster Pack (Japansk) - sv5M",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon Premium Tournament Collection - Cyrus",
+   "ours": "Cyrus Premium Tournament Collection",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon, Summer Tin 2025 - Zacian ex",
+   "ours": "Pokémon, Summer Tin 2025 - Zacian ex",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon, Scarlet & Violet: Stellar Miracle - sv7, 1 booster pack (Japansk)",
+   "ours": "Pokémon TCG - Stellar Miracle Booster Japansk",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Scarlet & Violet 7 Stellar Crown Premium Checklane Blister - Ancient",
+   "ours": "Stellar Crown: Ancient Premium Checklane Blister",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Sword & Shield  Astral Radiance Booster Display (36 Boosters)",
+   "ours": "Pokémon TCG: Astral Radiance Booster Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon, Black & White: Dark Explorers, 1 Booster (Venusaur Artwork)",
+   "ours": "Dark Explorers Booster Pack",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon, Scarlet & Violet 3: Obsidian Flames, Display / Booster Box + Acrylic case",
+   "ours": "Pokémon, Scarlet & Violet 3: Obsidian Flames, Display / Booster Box + Acrylic case",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon, Platinum: Supreme Victors, 1 Booster (Charizard Artwork)",
+   "ours": "Supreme Victors Booster Pack",
+   "store": "Samlarhobby"
+  },
+  {
+   "feed": "Pokémon TCG - Ascended Heroes Mega Meganium ex Box",
+   "ours": "Ascended Heroes: Mega Meganium ex Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Sword & Shield 11 Lost Origin Booster",
+   "ours": "Pokémon TCG: Lost Origin Booster Pack",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Ascended Heroes Mega Emboar ex Box",
+   "ours": "Ascended Heroes: Mega Emboar ex Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Scarlet & Violet 1 Booster Display (36 Booster)",
+   "ours": "Scarlet & Violet Booster Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon: Summer Tin 2021 V Strikers Tin - Tyranitar V",
+   "ours": "V Strikers Tins: Tyranitar V Tin",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokemon - Cynthia’s Garchomp ex Premium Collection",
+   "ours": "Cynthia's Garchomp ex Premium Collection",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokemon - Mabosstiff Ex Box",
+   "ours": "Mabosstiff ex Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG: Scarlet & Violet High Class Pack \"Shiny Treasure ex\" [sv4A]  Japansk Booster",
+   "ours": "Pokémon TCG: Scarlet & Violet High Class Pack \"Shiny Treasure ex\" [sv4A] Japansk Booster",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Sword & Shield  Brilliant Stars Booster Display (36 Boosters)",
+   "ours": "Pokémon TCG: Brilliant Stars Booster Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG: Team Rocket Tin Persian",
+   "ours": "Pokémon TCG: Team Rocket Tin Persian",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokemon - Celebrations Special Collection Pikachu V-Union",
+   "ours": "Celebrations Special Collection: Pikachu V-UNION",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG: Scarlet & Violet - 151 Booster Bundle",
+   "ours": "151 Booster Bundle",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Mega Dream ex Booster box (10 boosters) (Japansk)",
+   "ours": "Pokémon Mega Dream ex Booster Box (Japansk)",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Ninja Spinner Booster Japansk Display (30 Boosters)",
+   "ours": "Pokémon Ninja Spinner Booster Box (Japansk)",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Scarlet & Violet 10 Destined Rivals 3-pack Blister",
+   "ours": "Pokémon TCG - Scarlet & Violet 10 Destined Rivals 3-pack Blister",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Sword & Shield Astral Radiance 3-pack Blister - Eevee",
+   "ours": "Astral Radiance: Eevee 3-Pack Blister",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon: Paldea Legends Tin - Miraidon",
+   "ours": "Paldea Legends Tins: Miraidon ex Tin",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG: Sword & Shield - High Class Pack VSTAR Universe Booster Japansk",
+   "ours": "Pokémon TCG: Sword & Shield - High Class Pack VSTAR Universe Booster Japansk",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG: Scarlet & Violet - Paldean Fates Tin Shiny Great Tusk ex",
+   "ours": "Pokémon TCG: Scarlet & Violet - Paldean Fates Tin Shiny Great Tusk ex",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Scarlet & Violet Obsidian Flames 3-pack Blister - Eevee",
+   "ours": "Obsidian Flames: Eevee 3-Pack Blister",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Scarlet & Violet Temporal Forces  Checklane Blister - Carvanha",
+   "ours": "Pokémon TCG - Scarlet & Violet Temporal Forces Checklane Blister - Carvanha",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Scarlet & Violet 4 Paradox Rift 3-pack Blister - Cetitan",
+   "ours": "Paradox Rift: Cetitan 3-Pack Blister",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG: Scarlet & Violet: Expansion Pack: Wild Force Japansk",
+   "ours": "Pokémon TCG: Wild Force Booster Pack (Japansk) - sv5K",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Mega Evolution Checklane Blister Drifblim",
+   "ours": "Mega Evolution: Drifblim 1-Pack Blister",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokemon - Celebrations Booster",
+   "ours": "Celebrations Booster Pack",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Mega Dream ex Booster Japansk",
+   "ours": "Pokémon TCG: Mega Dream ex Booster Pack (Japansk) - M2a",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Scarlet & Violet  Surging Sparks 3-pack Blister - Quagsire",
+   "ours": "Surging Sparks: Quagsire 3-Pack Blister",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG: Scarlet & Violet - 151 Ultra Premium Collection",
+   "ours": "151 Ultra-Premium Collection",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokemon TCG: Scarlet & Violet - Prismatic Evolutions Mini Tin",
+   "ours": "Prismatic Evolutions: Vaporeon Mini Tin",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokemon TCG: SWSH12.5 Crown Zenith: Morpeko V-Union",
+   "ours": "Crown Zenith: Morpeko V-UNION Premium Treasures Collection",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Scarlet & Violet Booster",
+   "ours": "Pokémon TCG: Scarlet & Violet Booster Pack",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Scarlet & Violet Paldea Evolved 3-pack Blister - Varoom",
+   "ours": "Paldea Evolved: Varoom 3-Pack Blister",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Terastal Festival ex High Class Prismatic Evolution Booster Pack Japansk",
+   "ours": "Pokémon TCG: Terastal Festival Ex Booster Pack (Japansk) - sv8a",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokemon TCG - Poké Ball Tin 2025",
+   "ours": "Pokemon TCG: Poké Ball Tin 2025",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG Sword & Shield - Battle Styles: Booster Display (36 Boosters)",
+   "ours": "Battle Styles Booster Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Scarlet & Violet 10 Destined Rivals Checklane Blister",
+   "ours": "Pokémon TCG - Scarlet & Violet 10 Destined Rivals Checklane Blister",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "The Pokémon TCG: Pokemon GO - Elite Trainer Box",
+   "ours": "Pokémon GO Elite Trainer Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Scarlet & Violet Twilight Masquerade 3-pack Blister - Snorlax",
+   "ours": "Twilight Masquerade: Snorlax 3-Pack Blister",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Scarlet & Violet 5 Temporal Forces Booster Display (36 Booster)",
+   "ours": "Pokémon TCG: Temporal Forces Booster Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Raging Surf Booster Japansk",
+   "ours": "Pokémon TCG: Raging Surf Booster Pack (Japansk) - sv3a",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Sword & Shield Lost Origin 3-pack Blister - Weavile",
+   "ours": "Lost Origin: Weavile 3-Pack Blister",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokemon - Iron Valiant ex Box",
+   "ours": "Iron Valiant ex Box",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Scarlet & Violet Temporal Forces Premium Checklane Blister - Togekiss",
+   "ours": "Temporal Forces: Togekiss Premium Checklane Blister",
+   "store": "Dragon's Lair"
+  },
+  {
+   "feed": "Pokémon TCG - Ascended Heroes Premium Poster Collection Mega Gardevoir (Max 1 per kund)",
+   "ours": "Ascended Heroes: Mega Gardevoir Premium Poster Collection",
+   "store": "Dragon's Lair"
+  }
+ ]
+}

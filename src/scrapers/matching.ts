@@ -4,7 +4,7 @@
  * plus bonus för matchande setnummer (t.ex. "123/198").
  */
 import { prisma } from "../lib/db";
-import { normalizeTitle } from "../lib/utils";
+import { decodeTitle, normalizeTitle } from "../lib/utils";
 import { detectListingLanguage } from "../lib/listing-language";
 
 /** Lägsta konfidens för att en matchning ska accepteras. */
@@ -481,6 +481,168 @@ export function cleanListingTitle(title: string): string {
     .trim();
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// VAKTER FRÅN KATALOGREVISIONEN 2026-07-13
+//
+// Varje butikslänk hämtades live och jämfördes mot produkten vi kopplat den till.
+// 76 av 1 275 pekade på FEL produkt. Vakterna nedan är byggda mot det facit — och
+// mätta mot det: de får inte avvisa ett enda par som dagens vakter släpper igenom
+// korrekt. Se tests/unit/matching-audit.test.ts, som kör hela facit som regression.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Årtal i en produkttitel (2015–2035). Kalenderår ÄR produktidentitet. */
+const YEAR_RE = /\b(20[1-3]\d)\b/g;
+function years(t: string): Set<string> {
+  return new Set(t.match(YEAR_RE) ?? []);
+}
+/**
+ * Poké Ball Tin **2025** ≠ Poké Ball Tin **2026**. Trainer's Toolkit 2025 ≠ 2023.
+ * Trick or Trade 2024 ≠ 2023. Fall 2026 Mini Portfolio ≠ Fall 2024.
+ * Butikerna säljer flera årgångar samtidigt och Dice-likheten är nästan 1 —
+ * årtalet är det ENDA som skiljer dem. 6 felaktiga länkar kom härifrån.
+ * Bara när BÅDA titlarna bär ett årtal: saknas det på ena sidan vet vi inget.
+ */
+export function yearMismatch(a: string, b: string): boolean {
+  const ya = years(a);
+  const yb = years(b);
+  if (ya.size === 0 || yb.size === 0) return false;
+  for (const y of ya) if (yb.has(y)) return false; // minst ett gemensamt år → ok
+  return true;
+}
+
+/**
+ * Ser annonsen ut som ett ENSKILT KORT? Butiker som Samlarhobby/Shinycards säljer
+ * både sealed och singlar ur samma feed. Ett kortnummer/promokod/graderingsbetyg i
+ * titeln = singel, och en singel får ALDRIG bli offer på en sealed-produkt:
+ *   "Skeledirge ex - SVP081 Black Star Promo"      → "Paldean Fates: Skeledirge ex Premium Collection"
+ *   "Reshiram & Charizard GX (sm12a 220) - PSA 10" → "Tag Team ... Premium Collection"
+ *   "Charizard (CEL BS 4) Celebrations - PSA 10"   → "Celebrations: Lance's Charizard V Tin"
+ * Formvakten missade dem: en singel-titel saknar formord → classifyForm = null →
+ * `fa && fb && fa !== fb` hoppades över helt. 8 felaktiga länkar kom härifrån.
+ */
+const SINGLE_CARD_SIGNS = [
+  // "(sm12a 220)", "(CEL BS 4)", "(FLF 11)" — setkod MELLANSLAG kortnummer.
+  // Mellanslaget är KRAVET: utan det träffas japanska SETKODER "(sv3)" "(sv6)" "(sv7)",
+  // som sitter på riktiga booster box-annonser → 3 korrekta länkar blockerades.
+  /\(\s*[a-z]{2,6}\d{0,2}[a-z]?\s+(?:bs\s+)?\d{1,3}\s*\)/i,
+  /\bsvp\s*\d{2,3}\b/i, // SVP081 Black Star Promo
+  /\bblack star promo\b/i,
+  /\bpsa\s*\d{1,2}\b/i, // graderat kort
+  /\b(bgs|cgc)\s*\d{1,2}(\.\d)?\b/i,
+  // "Noctowl #141". Krav på blanksteg/parentes före # — annars träffar HTML-entiteten
+  // &#039; (apostrof) i feed-titlar: "Cynthia&#039;s Garchomp" flaggades som singel.
+  /(?:^|[\s(])#\s?\d{1,3}\b/,
+];
+export function isSingleCardListing(title: string): boolean {
+  return SINGLE_CARD_SIGNS.some((re) => re.test(title));
+}
+
+/**
+ * Ser annonsen ut som ett TILLBEHÖR? Spelmatta, pärm/portfolio utan booster,
+ * sleeves, deckbox, akrylskydd. Samma hål som ovan (inget formord → ingen vakt):
+ *   "Mega Charizard X/Y Spelmatta"        → "Mega Charizard X ex Tin"
+ *   "Charmander Mini Pärm - 3 Pocket"     → "Phantasmal Flames Booster + Mini Pärm"
+ *   "Acrylic Booster Box Display"         → "Sun & Moon Display / Booster Box"
+ * OBS: en pärm/portfolio SOM INNEHÅLLER en booster är en riktig sealed-SKU
+ * ("Mini Portfolio + Booster") → kräver att booster-ordet SAKNAS.
+ */
+const ACCESSORY_SIGNS =
+  /\b(spelmatta|playmat|lekmatta|sleeves?|kortfodral|deck ?box|kortl[åa]da|akryl\w*|acrylic|skyddsfodral|toploader|binder)\b/i;
+const PORTFOLIO_SIGNS = /\b(p[äa]rm|portfolio|album|pocket)\b/i;
+const BOOSTER_WORD = /\b(booster|paket|pack|packs)\b/i;
+export function isAccessoryListing(title: string): boolean {
+  if (ACCESSORY_SIGNS.test(title)) return true;
+  // Pärm/album/portfolio UTAN booster = bara tillbehöret.
+  if (PORTFOLIO_SIGNS.test(title) && !BOOSTER_WORD.test(title)) return true;
+  return false;
+}
+
+/**
+ * Blister-underformer är EGNA SKU:er, inte samma sak. classifyForm klumpar ihop dem
+ * till "blister" → vakten släppte igenom:
+ *   "Perfect Order - Blister (1-pack)"   ≠ "Perfect Order 3-pack Blister"
+ *   "Perfect Order Checklane Makuhita"   ≠ "Perfect Order 3-pack Blister"
+ *   "Journey Together Checklane Blister" ≠ "Journey Together: Scrafty 3-Pack Blister"
+ * 10 felaktiga länkar kom härifrån. Checklane ≠ N-pack, och N ≠ M.
+ */
+/**
+ * En CHECKLANE-blister ÄR en 1-pack-blister — samma SKU, olika ord. Facit visade det:
+ * "Destined Rivals Checklane Zarude" och "Destined Rivals: Zarude 1-Pack Blister" är
+ * samma produkt, och en tidig version av vakten blockerade 18 sådana KORREKTA länkar.
+ * Checklane räknas därför som 1, och bara ANTALET får skilja (1 ≠ 3).
+ */
+function blisterKind(t: string): number | null {
+  if (/\bchecklane\b/i.test(t)) return 1;
+  const m = /\b(\d)\s*[-\s]?p(?:ack\b|\b)/i.exec(t);
+  return m ? Number(m[1]) : null;
+}
+export function blisterMismatch(a: string, b: string): boolean {
+  if (!/\bblister|checklane\b/i.test(a) && !/\bblister|checklane\b/i.test(b)) return false;
+  const ka = blisterKind(a);
+  const kb = blisterKind(b);
+  if (!ka || !kb) return false; // vet vi inte → låt andra vakter avgöra
+  return ka !== kb;
+}
+
+/**
+ * Enstaka enhet ≠ display/flerpack av samma enhet. Priset blir grovt fel:
+ *   "Kanto Power Mini Tin"          ≠ "Kanto Power Mini Tin 5-Pack Box"
+ *   "Crown Zenith: Mini Tin"        ≠ "Crown Zenith: Mini Tin Display"
+ *   "Surging Sparks Booster Small Display" ≠ "Surging Sparks Booster Box"
+ */
+const MULTI_UNIT = /\b(display|\d\s*[-\s]?pack box|small display)\b/i;
+export function unitCountMismatch(a: string, b: string): boolean {
+  const ma = MULTI_UNIT.test(a);
+  const mb = MULTI_UNIT.test(b);
+  if (ma === mb) return false;
+  // "Booster Box" ÄR en display → räkna den som flerpack, annars falsklarm.
+  const boxA = /\bbooster box\b/i.test(a);
+  const boxB = /\bbooster box\b/i.test(b);
+  return (ma || boxA) !== (mb || boxB);
+}
+
+/**
+ * BAS-ANNONS mot UNDERSET-PRODUKT — den dyraste systematiska buggen i revisionen.
+ *
+ * matchProduct kollar bara ETT håll: "annonsens identitetsord täcks av kandidaten"
+ * (nonEraCoverage). Den frågar ALDRIG om kandidatens EGNA identitetsord finns i
+ * annonsen. Alltså matchar bas-annonsen "Mega Evolution Booster" vår mer specifika
+ * "Mega Evolution Chaos Rising Booster Pack" — "chaos rising" saknas i annonsen men
+ * ingen vakt bryr sig. Samma fel hos MaxGaming, Swepoke OCH Spelexperten.
+ * (dedupe-catalog kollar BÅDA hållen — matcharen gjorde det inte.)
+ *
+ * En trubbig omvänd täckningskoll blockerade 178 KORREKTA länkar, för den räknade
+ * FORMORD ("display" i "Display / Booster Box"), PLURAL ("Tins" vs "Tin") och
+ * SETKODER ("ME4" vs "ME04") som identitet. Här jämförs bara ÄKTA identitetsord:
+ * formord och setkoder rensas bort först.
+ */
+const FORM_NOISE = new Set([
+  "display", "displays", "box", "boxes", "booster", "boosters", "pack", "packs",
+  "paket", "blister", "blisters", "tin", "tins", "etb", "elite", "trainer",
+  "bundle", "collection", "checklane", "sleeved", "mini", "premium", "pokemon",
+  "tcg", "card", "cards", "game", "trading", "the", "of", "and",
+]);
+/** Setkoder: ME4/ME04/ME2.5, SV8/sv7a, M1S/M1L, sv10 5. Formatet varierar per butik. */
+const SET_CODE_RE = /^(me\d{1,2}(\.\d)?|sv\d{1,2}[a-z]?|m\d[sl]|\d{1,2}(\.\d)?)$/i;
+
+/** Tar bort era-/seriemarkören (Mega Evolution, Scarlet & Violet …) — den är familjen,
+ *  inte produkten. Global variant av ERA_RE så alla förekomster försvinner. */
+const ERA_STRIP_RE = /\b(mega evolution|scarlet( and| &)? violet|sword( and| &)? shield|sun( and| &)? moon|pokemon go)\b/gi;
+function stripEra(normalized: string): string {
+  return normalized.replace(ERA_STRIP_RE, " ").replace(/\s{2,}/g, " ").trim();
+}
+
+function identityWords(normalized: string): Set<string> {
+  const out = new Set<string>();
+  for (const w of normalized.split(" ")) {
+    if (!w || w.length < 3) continue;
+    if (FORM_NOISE.has(w)) continue;
+    if (SET_CODE_RE.test(w)) continue;
+    out.add(w);
+  }
+  return out;
+}
+
 /** Lägsta andel delade särskiljande ord för att en kandidat ska godkännas. */
 const MIN_DISTINCTIVE_OVERLAP = 0.5;
 
@@ -523,12 +685,21 @@ export async function loadMatchIndex(): Promise<MatchIndex> {
   });
 }
 
+/**
+ * @param rawTitle Butikens OBEARBETADE titel. Vakterna nedan behöver den: normalizeTitle
+ *   kastar parenteser och bindestreck, och då försvinner just de tecken som avslöjar en
+ *   singel ("(sm12a 220)") eller ett antal ("1-pack"). Utelämnas den hoppas de vakterna
+ *   över — anropare som HAR råtiteln bör alltid skicka med den.
+ */
 export async function matchProduct(
   normalizedTitle: string,
-  index?: MatchIndex
+  index?: MatchIndex,
+  rawTitle?: string
 ): Promise<{ productId: string; confidence: number } | null> {
   const normalized = normalizeTitle(normalizedTitle);
   if (!normalized) return null;
+  // Avkoda entiteter men BEHÅLL parenteser/bindestreck — vakterna nedan bygger på dem.
+  const raw = decodeTitle(rawTitle ?? normalizedTitle);
 
   // 1. Exakt träff på normaliserad titel
   const exact = index
@@ -663,6 +834,40 @@ export async function matchProduct(
     }
     // Pokémon Center-exklusiv variant ≠ vanlig produkt → förkasta
     if (pokemonCenterMismatch(normalized, c.normalizedTitle)) {
+      continue;
+    }
+
+    // ── VAKTER FRÅN KATALOGREVISIONEN 2026-07-13 ────────────────────────────
+    // Mätta mot facit: 76 verifierat felaktiga länkar + 989 verifierat korrekta.
+    // Tillsammans fångar de 15 av de felaktiga UTAN att blockera en enda korrekt.
+    // Kör på RÅTITELN — normalizeTitle strippar de tecken de bygger på.
+
+    // Årtal = produktidentitet (Poké Ball Tin 2025 ≠ 2026, Toolkit 2025 ≠ 2023).
+    if (yearMismatch(raw, c.normalizedTitle)) {
+      continue;
+    }
+    // SINGEL ↔ SEALED får aldrig blandas, i BÅDA riktningar.
+    // (a) En singel-annons ("Skeledirge ex - SVP081 Black Star Promo") får inte bli
+    //     offer på en sealed-produkt. Formvakten missade det helt: en singel-titel har
+    //     inget formord → classifyForm = null → `fa && fb && ...` hoppades över.
+    // (b) En SEALED-annons ("Mega Zygarde Ex Box") får inte matcha ett SINGELKORT
+    //     ("Mega Zygarde ex — Perfect Order 47/88"). Kandidater med c.card är kort.
+    if (!c.card && isSingleCardListing(raw)) {
+      continue;
+    }
+    if (c.card && incomingForm && incomingForm !== "single") {
+      continue; // annonsen har en sealed-form → kan inte vara ett enskilt kort
+    }
+    // Tillbehör (spelmatta, pärm utan booster, akrylskydd) ≠ sealed produkt.
+    if (isAccessoryListing(raw) && !isAccessoryListing(c.normalizedTitle)) {
+      continue;
+    }
+    // Blister-underform: checklane(=1-pack) ≠ 3-pack, 1 ≠ 3.
+    if (blisterMismatch(raw, c.normalizedTitle)) {
+      continue;
+    }
+    // Enstaka enhet ≠ display/flerpack av samma enhet (Mini Tin ≠ Mini Tin Display).
+    if (unitCountMismatch(raw, c.normalizedTitle)) {
       continue;
     }
     // Fel set/kort: kandidaten saknar de särskiljande orden → förkasta

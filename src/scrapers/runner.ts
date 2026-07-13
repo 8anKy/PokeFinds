@@ -676,7 +676,7 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
         }
 
         // matchIndex = hela katalogen i minnet → ingen seq-scan per annons (se loadMatchIndex).
-        const match = await matchProduct(normalized.normalizedTitle, matchIndex);
+        const match = await matchProduct(normalized.normalizedTitle, matchIndex, rawProduct.title);
         if (!match) {
           logs.push(`Ingen produktmatchning: "${rawProduct.title}"`);
           continue;
