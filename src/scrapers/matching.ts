@@ -358,6 +358,76 @@ export function identicalIdentity(incoming: string, candidate: string): boolean 
 }
 
 /**
+ * ATT LÄNKA OCH ATT MERGA ÄR INTE SAMMA BESLUT — och får inte dela tröskel.
+ *
+ *   LÄNKA  (fästa en offer på en produkt): en falsk BLOCKERING är dyr, för den är osynlig.
+ *          Var därför generös. Fel? Offern hamnar på en stub som syns och kan städas.
+ *   MERGA  (radera en katalogprodukt): en falsk SAMMANSLAGNING är KATASTROFAL — produkten
+ *          är borta, dess pris och bevakningar med den. Var därför strikt. En utebliven
+ *          merge kostar bara en dubblett som ligger kvar och syns i rapporten.
+ *
+ * Regeln: efter att era-namn ("Mega Evolutions"), set-koder ("ME04", "sv1S") och rent
+ * fyllnadsord ("Pokémon", "TCG") tagits bort, och kända SYNONYMER normaliserats
+ * (booster DISPLAY = booster BOX), måste ordmängderna vara EXAKT LIKA.
+ *
+ * Varje falsk merge som dry-runen ville göra faller på precis detta — de skiljer sig åt i
+ * ett ord som poängsättningen räknar som brus men som ÄR produktidentitet:
+ *   "Charizard ex BOX"              vs "Charizard ex PREMIUM COLLECTION"
+ *   "GALLADE XY Premium Checklane"  vs "SILVER TEMPEST: Gallade Premium Checklane"
+ *   "EX Deoxys Booster (5 CARDS)"   vs "Deoxys Booster PACK"
+ *   "Journey Together Checklane"    vs "Journey Together PREMIUM Checklane"
+ *   "Black Bolt DELUXE Booster Pack" vs "Black Bolt 1 booster pack"
+ * medan de äkta dubbletterna går igenom:
+ *   "Mega Evolutions, ME04: Chaos Rising, Display / Booster Box" == "Chaos Rising Booster Box"
+ *   "Surging Sparks Booster Display"                             == "Surging Sparks Booster Box"
+ */
+const MERGE_FILLER = new Set([
+  "pokemon", "tcg", "trading", "card", "game", "the", "of", "and", "för", "for",
+]);
+/** Butikernas synonymer för EXAKT samma form. Håll listan SNÅL — varje rad är en risk. */
+const MERGE_SYNONYMS: Record<string, string> = {
+  display: "box", // "Booster Display" = "Booster Box"
+  displays: "box",
+  boxes: "box",
+  boosters: "booster",
+  packs: "pack",
+  japanese: "japansk",
+  english: "engelsk",
+};
+/**
+ * Set-koder FÖR MERGE — kräver BOKSTAVSPREFIX (ME04, sv1S, swsh12, m1s).
+ *
+ * Använd ALDRIG SET_CODE_RE här: den har en gren för BARA SIFFROR (`\d{1,2}`), och ett naket
+ * tal är IDENTITET, inte en kod. Den grenen strök "2" ur "Base SET 2 Booster Pack", varpå
+ * ordmängden blev identisk med "Mega Evolution BASE SET: Booster Pack" och dry-runen ville
+ * merga Base Set 2 med Base Set (2026-07-13). Samma fälla gäller "151" och "Series 2".
+ */
+const MERGE_SET_CODE_RE = /^(me|sv|swsh|sm|xy|bw|dp|hgss)\d{1,3}(\.\d)?[a-z]?$|^m\d[sl]$/i;
+
+function mergeTokens(title: string): Set<string> {
+  const stripped = stripEra(normalizeTitle(title));
+  const out = new Set<string>();
+  for (let w of stripped.split(/[\s/]+/)) {
+    // Skiljetecken som blivit egna tokens ("Scarlet ex - sv1S" → "-") är inte identitet.
+    // Utan detta skilde sig ordmängderna åt på ett bindestreck och en äkta dubblett missades.
+    if (!w || !/[a-z0-9]/.test(w)) continue;
+    if (MERGE_FILLER.has(w)) continue;
+    if (MERGE_SET_CODE_RE.test(w)) continue; // ME04, sv1S, sv11B — men ALDRIG ett naket tal
+    w = MERGE_SYNONYMS[w] ?? w;
+    out.add(w);
+  }
+  return out;
+}
+/** Exakt samma vara, bara olika formulerad? Enda regeln som får radera en produkt. */
+export function mergeEquivalent(a: string, b: string): boolean {
+  const ta = mergeTokens(a);
+  const tb = mergeTokens(b);
+  if (ta.size !== tb.size || ta.size === 0) return false;
+  for (const w of ta) if (!tb.has(w)) return false;
+  return true;
+}
+
+/**
  * Andel av INKOMMANDE titelns icke-era särskiljande ord som täcks av kandidaten.
  * Låg täckning ⇒ inkommande beskriver en mer specifik/annan produkt (t.ex.
  * "Mega Evolution Perfect Order ETB" mot bas-"Mega Evolution ETB" — "perfect
@@ -824,7 +894,9 @@ const SET_CODE_RE = /^(me\d{1,2}(\.\d)?|sv\d{1,2}[a-z]?|m\d[sl]|\d{1,2}(\.\d)?)$
 
 /** Tar bort era-/seriemarkören (Mega Evolution, Scarlet & Violet …) — den är familjen,
  *  inte produkten. Global variant av ERA_RE så alla förekomster försvinner. */
-const ERA_STRIP_RE = /\b(mega evolution|scarlet( and| &)? violet|sword( and| &)? shield|sun( and| &)? moon|pokemon go)\b/gi;
+// PLURAL-s: samma fälla som i ERA_PHRASES. De två era-reglerna MÅSTE hållas i synk —
+// "Mega EvolutionS" (Samlarhobby) slank igenom här också och räknades som produktidentitet.
+const ERA_STRIP_RE = /\b(mega evolutions?|scarlet( and| &)? violet|sword( and| &)? shield|sun( and| &)? moon|pokemon go)\b/gi;
 function stripEra(normalized: string): string {
   return normalized.replace(ERA_STRIP_RE, " ").replace(/\s{2,}/g, " ").trim();
 }

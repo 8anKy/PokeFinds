@@ -20,9 +20,8 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { mergeStubInto } from "../src/jobs/dedupe-stubs";
-import { matchProduct, cleanListingTitle, loadMatchIndex, identicalIdentity } from "../src/scrapers/matching";
+import { matchProduct, cleanListingTitle, loadMatchIndex, mergeEquivalent } from "../src/scrapers/matching";
 import { normalizeTitle } from "../src/lib/utils";
-import { judgeSameProduct } from "../src/lib/same-product";
 import { recomputeProductPriceCache } from "../src/services/products";
 
 const prisma = new PrismaClient();
@@ -86,21 +85,21 @@ async function main() {
     const richer = canonical.setId !== null || canonical.offers.length > stub.offers.length;
     if (!richer) { skipped++; continue; }
 
-    // 0.55–0.85: samma logik som auto-importen. Deterministiskt först (gratis, och det
-    // ENDA som fungerar när Anthropic-kvoten är slut), LLM-dom först därefter.
-    let how = match.confidence >= 0.85 ? "Dice ≥ 0.85" : "";
-    if (!how) {
-      const canon = await prisma.product.findUnique({
-        where: { id: canonical.id }, select: { normalizedTitle: true },
-      });
-      if (canon && identicalIdentity(normalizeTitle(clean), canon.normalizedTitle)) {
-        how = "identiska identitetsord";
-      } else {
-        const verdict = await judgeSameProduct(clean, canonical.title);
-        if (!verdict?.same) { skipped++; continue; }
-        how = "LLM-bekräftad";
-      }
+    // ── DEN STRIKTA MERGE-REGELN ────────────────────────────────────────────────
+    // matchProduct räcker INTE som grund för att RADERA en produkt. Dess tröskel är
+    // avsiktligt generös eftersom en falskt blockerad LÄNK är osynlig — men en falsk
+    // MERGE raderar en riktig produkt med pris och bevakningar. Därför krävs dessutom
+    // mergeEquivalent: samma ordmängd efter att era-namn, set-koder och fyllnadsord
+    // rensats och synonymer (display=box) normaliserats.
+    //
+    // Den här raden är skillnaden mellan att merga användarens Chaos Rising-dubblett och
+    // att radera "Charizard ex Premium Collection" för att "Charizard EX Box" liknade den.
+    if (!mergeEquivalent(clean, canonical.title)) {
+      skipped++;
+      continue;
     }
+    const how =
+      match.confidence >= 0.85 ? "Dice ≥ 0.85 + ordmängd" : "identisk ordmängd";
 
     const stubStores = stub.offers.map((o) => o.retailer.name);
     const canonStores = new Set(canonical.offers.map((o) => o.retailer.name));
