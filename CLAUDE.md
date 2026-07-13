@@ -99,7 +99,19 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
 - **Offers = endast direkta länkar**: visa aldrig sök-/bläddringslänkar som offers. `isDirectOfferUrl()` vaktar både UI och prisstatistik. Butiksfilter kräver IN_STOCK + direkt länk. Direkta länkar UTAN pris visas ändå (pris "–")
 - **TCG-import paginering**: använd ALDRIG `orderBy=number` i `fetchTcgCardsForSet` — pokemontcg.io:s string-sort tappar kort mellan sidor. Set kan ha >250 kort (totalCount), paginera stabilt utan orderBy
 - **Auth**: NextAuth v4 med Credentials provider + JWT-sessioner. RBAC via `role` på User (USER/MODERATOR/ADMIN/SUPERADMIN)
-- **DB**: PROD = Neon serverless Postgres (Frankfurt), connection-string i `.env` som `NEON_DATABASE_URL`. DEV = lokal PostgreSQL 18 (tjänst `postgresql-x64-18`), databas `pokefinds`, user `postgres`, lösen `pokefinds-local`. Docker behövs INTE. Engångsskript mot prod: `DATABASE_URL='<neon-pooled>' npx tsx scripts/x.ts` (verifiera via `current_database()` = `neondb`). `DB_POOL`-env sätter `connection_limit` för batch-jobb
+- **DB**: PROD = Neon serverless Postgres (Frankfurt), connection-string i `.env` som `NEON_DATABASE_URL`. DEV = lokal PostgreSQL 18 (tjänst `postgresql-x64-18`), databas `pokefinds`, user `postgres`, lösen `pokefinds-local`. Docker behövs INTE. `DB_POOL`-env sätter `connection_limit` för batch-jobb
+- **Prod-DB från CLI — ANVÄND ALLTID `scripts/with-prod-db.mjs`**:
+  ```bash
+  node scripts/with-prod-db.mjs npx tsx scripts/x.ts     # läser .env internt, skriver ut måldatabasen
+  ```
+  Gräv ALDRIG fram hemligheten i skalet (`DATABASE_URL="$(grep NEON_DATABASE_URL .env …)" npx tsx …`).
+  Det mönstret materialiserar lösenordet i kommandoraden → terminalhistorik, loggar och
+  agent-transkript. 2026-07-13 grep:ade en subagent fram connection-stringen och skrev ut delar
+  av den i sitt verktygsutdata (lösenordet nådde aldrig disk — men det var tur, inte design).
+  Wrappern skickar värdet som miljövariabel till barnprocessen; det passerar aldrig ett skal.
+  `.claude/settings.json` NEKAR dessutom läsning av `.env` (Read + vanliga cat/grep) — en spärr
+  i djupet, inte ett fullgott skydd: ett skal kan alltid läsa en fil på något sätt. Det riktiga
+  skyddet är att ingen BEHÖVER hemligheten.
 - **Cache/queue**: Redis valfri — koden degraderar graciöst utan Redis (in-memory fallback i `src/lib/queue.ts`)
 - **Charts**: recharts (lazy-laddad via `PriceChartLazy`)
 - **E-post**: nodemailer, console/JSON-transport i dev (`EMAIL_MODE=console`), SMTP i prod
