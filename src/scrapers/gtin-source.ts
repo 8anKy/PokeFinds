@@ -37,13 +37,26 @@ export const STORE_GTIN_STRATEGY: Record<string, GtinStrategy> = {
   Speltrollet: "shopify-js",
   Goblinen: "shopify-js",
   Manatörsk: "shopify-js",
-  // Samlarhobby är Shopify och HAR fältet — men det är null på varje sealed-produkt vi
-  // mätt. Vi frågar ändå (billigt, en request per ny SKU): fyller de i det senare får vi
-  // koden gratis. Skulle det visa sig vara evigt tomt: sätt "none" och spara requesten.
-  Samlarhobby: "shopify-js",
+  // Samlarhobby: Shopify HAR fältet men det är NULL på hela sortimentet (backfill 2026-07-13:
+  // 0 av 141 offers, och butiken 429:ade oss för besväret). Fråga inte igen.
+  Samlarhobby: "none",
   Alphaspel: "json-ld",
   MaxGaming: "json-ld",
-  Spelexperten: "json-ld",
+  // SPELEXPERTEN ÄR AVSTÄNGD — de HITTAR PÅ STRECKKODER.
+  // Mätt 2026-07-13: bara 61% (106/175) av deras koder bär ett känt Pokémon-GS1-prefix.
+  // De övriga 69 är påhittade internnummer MED GILTIG CHECKSIFFRA, så de tar sig förbi
+  // checksummevalideringen. Bevis: "Ascended Heroes Tech Sticker" — Dragon's Lair,
+  // Speltrollet och MaxGaming är alla eniga om 196214132290, Spelexperten säger
+  // 7824204152470. Alla andra butiker ligger på 96–100% äkta prefix.
+  //
+  // En butik som hittar på koder är VÄRRE än en butik utan koder: en falsk kod skapar en
+  // falsk KONFLIKT, som blockerar en korrekt merge → dubbletter. Utan kod faller
+  // Spelexperten tillbaka på titelmatchning precis som förut = ingen regression.
+  //
+  // Frestas inte att "rädda" de 61% med en prefix-allowlist: den skulle samtidigt kasta
+  // äkta koder för icke-TPCi-varor (Ultra Pro-pärmar m.m., 0074427…) och vi kan ändå inte
+  // skilja en påhittad kod från en äkta okänd. Hellre ingen kod än en påhittad.
+  Spelexperten: "none",
   Webhallen: "webhallen-api",
   // Quickbutik: uttömmande sökning i rå HTML hittade ingen gtin/ean/streckkod alls.
   Swepoke: "none",
@@ -90,15 +103,21 @@ function collectProductNodes(node: unknown, out: Record<string, unknown>[] = [])
  * MaxGaming skriver `gtin8` med 12–13-siffriga värden.
  */
 export function gtinFromJsonLd(html: string): string | null {
+  const codes = new Set<string>();
   for (const block of parseJsonLdBlocks(html)) {
     for (const product of collectProductNodes(block)) {
       for (const key of ["gtin", "gtin14", "gtin13", "gtin12", "gtin8", "ean", "isbn"]) {
         const hit = normalizeGtin(product[key] as string | undefined);
-        if (hit) return hit;
+        if (hit) {
+          codes.add(hit);
+          break; // en kod per Product-nod — inte flera stavningar av samma fält
+        }
       }
     }
   }
-  return null;
+  // Flera OLIKA koder på samma sida (varianter, relaterade produkter i markupen) = tvetydigt.
+  // Gissa inte: ingen kod → titelmatchningen tar över, precis som förut.
+  return codes.size === 1 ? [...codes][0] : null;
 }
 
 /** Shopify-handle ur en produkt-URL: …/products/{handle}[?…] (även med /en/-prefix). */
@@ -155,11 +174,14 @@ async function resolveGtin(
       });
       if (!res.ok) return null;
       const data = (await res.json()) as { variants?: { barcode?: string | null }[] };
-      for (const v of data.variants ?? []) {
-        const hit = normalizeGtin(v.barcode);
-        if (hit) return hit;
-      }
-      return null;
+      // TA ALDRIG variants[0] RAKT AV. En Shopify-sida kan sälja flera varianter (olika
+      // Pokémon i samma tin-serie, olika färger) med VAR SIN streckkod — då är "första
+      // varianten" ett myntkast, och vi skulle sätta fel kod på produkten. Är varianterna
+      // oense: returnera INGEN kod och låt titelmatchningen ta över. Hellre ingen kod än fel.
+      const codes = new Set(
+        (data.variants ?? []).map((v) => normalizeGtin(v.barcode)).filter((g): g is string => !!g)
+      );
+      return codes.size === 1 ? [...codes][0] : null;
     }
 
     if (strategy === "webhallen-api") {

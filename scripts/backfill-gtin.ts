@@ -39,6 +39,21 @@ async function main() {
 
   console.log(`${DRY ? "[DRY-RUN] " : ""}Backfill GTIN för: ${targets.map((t) => t.name).join(", ")}\n`);
 
+  // ---- SJÄLVLÄKNING: rensa koder från butiker som stängts av ----
+  // Sätts en butik till "none" (t.ex. Spelexperten, som visade sig HITTA PÅ streckkoder
+  // med giltig checksiffra) måste dess redan sparade koder bort — annars lever de kvar
+  // och skapar falska konflikter som blockerar korrekta merges. Körs varje gång, gratis.
+  const banned = retailers.filter((r) => (STORE_GTIN_STRATEGY[r.name] ?? "none") === "none");
+  if (banned.length > 0 && !DRY) {
+    const purged = await prisma.offer.updateMany({
+      where: { retailerId: { in: banned.map((b) => b.id) }, gtin: { not: null } },
+      data: { gtin: null },
+    });
+    if (purged.count > 0) {
+      console.log(`Rensade ${purged.count} streckkoder från avstängda butiker (${banned.map((b) => b.name).join(", ")}).\n`);
+    }
+  }
+
   let fetched = 0;
   let written = 0;
   let missing = 0;
@@ -86,19 +101,21 @@ async function main() {
   // Är de oeniga har produkten en felaktig butikslänk — den ska REVIEWAS, inte tystas
   // genom att vi väljer en kod på måfå. gtin-report.ts listar dem.
   if (!DRY) {
-    console.log(`\nSätter Product.gtin där offers är eniga…`);
-    const rows = await prisma.$queryRaw<{ productId: string; gtin: string; n: bigint }[]>`
-      SELECT o."productId", MIN(o.gtin) AS gtin, COUNT(DISTINCT o.gtin) AS n
+    console.log(`\nRäknar om Product.gtin från offer-konsensus…`);
+    // Nollställ FÖRST: en produkt kan ha fått sin kod från en butik som sedan stängts av
+    // (påhittade koder). Att bara fylla i tomma rader hade låtit den gamla lögnen leva kvar.
+    await prisma.product.updateMany({ where: { gtin: { not: null } }, data: { gtin: null } });
+    const rows = await prisma.$queryRaw<{ productId: string; gtin: string }[]>`
+      SELECT o."productId", MIN(o.gtin) AS gtin
       FROM "Offer" o
-      JOIN "Product" p ON p.id = o."productId"
-      WHERE o.gtin IS NOT NULL AND p.gtin IS NULL
+      WHERE o.gtin IS NOT NULL
       GROUP BY o."productId"
       HAVING COUNT(DISTINCT o.gtin) = 1
     `;
     for (const r of rows) {
       await prisma.product.update({ where: { id: r.productId }, data: { gtin: r.gtin } });
     }
-    console.log(`  ${rows.length} produkter fick en kanonisk GTIN.`);
+    console.log(`  ${rows.length} produkter har en kanonisk GTIN.`);
 
     const conflicted = await prisma.$queryRaw<{ n: bigint }[]>`
       SELECT COUNT(*)::bigint AS n FROM (

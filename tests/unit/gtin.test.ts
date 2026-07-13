@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { normalizeGtin, isValidGtinChecksum, sameGtin, gtinConflict, formatGtin } from "@/lib/gtin";
+import { gtinFromJsonLd } from "@/scrapers/gtin-source";
 
 /**
  * Alla värden nedan är RIKTIGA, avlästa ur butikernas feeds 2026-07-13.
@@ -119,5 +120,45 @@ describe("formatGtin", () => {
   it("visar utan ledande nollor", () => {
     expect(formatGtin("00196214142671")).toBe("196214142671");
     expect(formatGtin(null)).toBeNull();
+  });
+});
+
+/**
+ * Tvetydighetsvakterna. Båda kommer från RIKTIGA fel som backfillen avslöjade
+ * 2026-07-13 — inte hypotetiska.
+ */
+describe("gtinFromJsonLd — tvetydighet ger INGEN kod", () => {
+  const ld = (obj: unknown) => `<script type="application/ld+json">${JSON.stringify(obj)}</script>`;
+
+  it("läser gtin ur ett schema.org Product-block", () => {
+    expect(gtinFromJsonLd(ld({ "@type": "Product", gtin: "196214105133" }))).toBe("00196214105133");
+  });
+
+  it("läser MaxGamings felnamngivna gtin8 (12–13 siffror)", () => {
+    expect(gtinFromJsonLd(ld({ "@type": "Product", gtin8: "4521329462127" }))).toBe("04521329462127");
+  });
+
+  it("hittar Product inuti @graph", () => {
+    expect(gtinFromJsonLd(ld({ "@graph": [{ "@type": "WebPage" }, { "@type": "Product", gtin12: "196214141049" }] }))).toBe(
+      "00196214141049"
+    );
+  });
+
+  it("KRITISKT: två OLIKA koder på samma sida → ingen kod (gissa aldrig)", () => {
+    const html = ld({ "@type": "Product", gtin: "196214139114" }) + ld({ "@type": "Product", gtin: "196214139176" });
+    expect(gtinFromJsonLd(html)).toBeNull();
+  });
+
+  it("samma kod upprepad i flera block är INTE tvetydigt", () => {
+    const html = ld({ "@type": "Product", gtin: "196214139114" }) + ld({ "@type": "Product", gtin13: "196214139114" });
+    expect(gtinFromJsonLd(html)).toBe("00196214139114");
+  });
+
+  it("trasig JSON-LD dödar inte hämtningen", () => {
+    expect(gtinFromJsonLd(`<script type="application/ld+json">{ trasig`)).toBeNull();
+  });
+
+  it("ingen JSON-LD alls → null", () => {
+    expect(gtinFromJsonLd("<html><body>inget här</body></html>")).toBeNull();
   });
 });
