@@ -85,32 +85,57 @@ async function main() {
   // KAN skriva in fel kod. Den här listan är därför alltid människo-granskad, aldrig
   // automatisk. (Exempel funnet i mätningen: DL:s "Stellar Crown Pokémon Center ETB"
   // delade kod med allas vanliga "Stellar Crown ETB" — någon av dem har fel.)
-  const { pokemonCenterMismatch, seriesMismatch, setMarkerMismatch, languageMismatch } = await import(
-    "../src/scrapers/matching"
-  );
+  const {
+    pokemonCenterMismatch, seriesMismatch, setMarkerMismatch, languageMismatch,
+    characterMismatch, cardSuffixMismatch, blisterMismatch, unitCountMismatch, yearMismatch,
+  } = await import("../src/scrapers/matching");
+
+  // characterMismatch är den VIKTIGASTE här: en butik som säljer ett SORTIMENT
+  // ("ascended-heroes-ex-box", slumpad karaktär) publicerar EN kod som då landar på
+  // flera karaktärsspecifika produkter. Streckkoden säger "samma", men Meganium är
+  // inte Emboar. Utan den här vakten hade en automatisk merge slagit ihop dem.
+  const GUARDS: [string, (a: string, b: string) => boolean][] = [
+    ["Karaktär (sortiments-kod?)", characterMismatch],
+    ["Pokémon Center", pokemonCenterMismatch],
+    ["Series-nummer", seriesMismatch],
+    ["Set-markör (t.ex. 151)", setMarkerMismatch],
+    ["Kort-suffix (ex/GX/V)", cardSuffixMismatch],
+    ["Blister-underform", blisterMismatch],
+    ["Antal enheter", unitCountMismatch],
+    ["Årtal", yearMismatch],
+    ["Språk", languageMismatch],
+  ];
+
   const clash: string[] = [];
+  const safe: typeof dupes = [];
   for (const d of dupes) {
-    for (let i = 1; i < d.titles.length; i++) {
-      const a = d.titles[0];
-      const b = d.titles[i];
-      const reason =
-        pokemonCenterMismatch(a, b) ? "Pokémon Center" :
-        seriesMismatch(a, b) ? "Series-nummer" :
-        setMarkerMismatch(a, b) ? "Set-markör (t.ex. 151)" :
-        languageMismatch(a, b) ? "Språk" :
-        null;
-      if (reason) clash.push(`  ⚠ ${formatGtin(d.gtin)}  [${reason}]\n      A: ${a.slice(0, 66)}\n      B: ${b.slice(0, 66)}`);
+    let flagged: string | null = null;
+    for (let i = 1; i < d.titles.length && !flagged; i++) {
+      const [a, b] = [d.titles[0], d.titles[i]];
+      const hit = GUARDS.find(([, fn]) => fn(a, b));
+      if (hit) {
+        flagged = hit[0];
+        clash.push(`  ⚠ ${formatGtin(d.gtin)}  [${hit[0]}]\n      A: ${a.slice(0, 66)}\n      B: ${b.slice(0, 66)}`);
+      }
     }
-  }
-  console.log(`\n\n=== (C) VAKT-KROCK — ${clash.length} fall där streckkod och titelvakt är oense ===`);
-  if (clash.length === 0) console.log("  Inga. Streckkoderna och titelvakterna är eniga.");
-  else {
-    console.log("  Streckkoden ELLER butikens titel har fel. GRANSKA MANUELLT — merga inte automatiskt.\n");
-    clash.slice(0, 20).forEach((c) => console.log(c));
+    if (!flagged) safe.push(d);
   }
 
+  console.log(`\n\n=== (C) VAKT-KROCK — ${clash.length} dubbletter där en titelvakt säger EMOT streckkoden ===`);
+  if (clash.length === 0) console.log("  Inga. Streckkoderna och titelvakterna är eniga.");
+  else {
+    console.log(
+      "  MERGA INTE DESSA AUTOMATISKT. Vanligaste orsaken: butiken säljer ett SORTIMENT\n" +
+        "  (en kod, slumpad karaktär) → koden landar på flera karaktärsspecifika produkter.\n" +
+        "  Då är butikens LÄNK fel, inte katalogen. Granska manuellt.\n"
+    );
+    clash.slice(0, 25).forEach((c) => console.log(c));
+  }
+  console.log(`\n  → ${safe.length} av ${dupes.length} dubblettgrupper är SÄKRA att merga (ingen vakt protesterar).`);
+
   console.log(
-    `\n\nSUMMERING: ${conflicts.length} felaktiga butikslänkar · ${dupes.length} dubblett-grupper · ${clash.length} vakt-krockar`
+    `\n\nSUMMERING: ${conflicts.length} felaktiga butikslänkar · ${dupes.length} dubblett-grupper ` +
+      `(${safe.length} säkra, ${clash.length} kräver granskning)`
   );
 
   if (STRICT && conflicts.length > 0) {
