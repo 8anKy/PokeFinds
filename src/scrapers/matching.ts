@@ -424,6 +424,44 @@ function mergeTokens(title: string): Set<string> {
   }
   return out;
 }
+/**
+ * HELA den tvåsidiga vaktbatteriet i ETT anrop. Sann = titlarna motsäger varandra konkret.
+ *
+ * VARFÖR DEN FINNS: matchProduct körde alla dessa vakter, men veckodedupen (dedupe-stubs)
+ * körde bara FYRA av dem (series, set-markör, språk, tin-display). Den skillnaden var inte
+ * medveten — den hade bara glidit isär. Dry-runen 2026-07-14 visade vad det kostade: LLM:en
+ * fick döma par som matchProduct aldrig ens hade övervägt, och sa "samma SKU" om
+ *   "Umbreon V Tin (US VERSION)"    vs "Umbreon V Tin"
+ *   "General Mills 2019 Booster"    vs "General Mills 25TH ANNIVERSARY Booster"
+ *   "ACRYLIC Booster Box Display"   vs "Sun & Moon Booster Box + Acrylic case"   (tillbehör!)
+ * och GTIN-förfiltret mergade "Pitch Black: GENGAR Premium Checklane" med "…LUXRAY…" (samma
+ * sortiments-streckkod, olika karaktär) helt utan vakter.
+ *
+ * ALLA nya merge-vägar ska gå genom den här. En vakt som bara körs i EN kodväg är ingen vakt.
+ */
+export function productsConflict(a: string, b: string): boolean {
+  const na = normalizeTitle(a);
+  const nb = normalizeTitle(b);
+  // Tillbehör (akrylfodral, pärm, spelmatta) är aldrig samma vara som produkten det rymmer.
+  if (isAccessoryListing(a) !== isAccessoryListing(b)) return true;
+  if (isSingleCardListing(a) !== isSingleCardListing(b)) return true;
+  return (
+    languageMismatch(na, nb) ||
+    setMarkerMismatch(na, nb) ||
+    setCodeMismatch(a, nb) ||
+    seriesMismatch(na, nb) ||
+    characterMismatch(a, nb) ||
+    cardSuffixMismatch(a, nb) ||
+    pokemonCenterMismatch(na, nb) ||
+    ultraPremiumMismatch(na, nb) ||
+    regionVersionMismatch(na, nb) ||
+    cardCountMismatch(na, nb) ||
+    yearMismatch(a, nb) ||
+    blisterMismatch(a, nb) ||
+    unitCountMismatch(a, nb)
+  );
+}
+
 /** Exakt samma vara, bara olika formulerad? Enda regeln som får radera en produkt. */
 export function mergeEquivalent(a: string, b: string): boolean {
   const ta = mergeTokens(a);

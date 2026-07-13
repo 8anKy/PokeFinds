@@ -102,3 +102,35 @@ describe("mutualIdentityConflict — takar, vetar aldrig", () => {
     expect(m!.confidence).toBeLessThan(0.85); // men den får inte auto-länkas
   });
 });
+
+/**
+ * REGRESSION: LLM:en får FÖRESLÅ, aldrig RADERA.
+ * Alla par nedan godkände Haiku som "samma SKU" i torrkörningen 2026-07-14 — flera av dem
+ * i strid med sin EGEN systemprompt. mergeEquivalent är den enda instans som får merga.
+ */
+describe("LLM-godkända par som mergeEquivalent MÅSTE stoppa", () => {
+  const LLM_SAID_SAME: [string, string][] = [
+    ["V Heroes Tins: Umbreon V Tin (US Version)", "V Heroes Tins: Umbreon V Tin"],
+    ["General Mills 2019 Booster", "General Mills 25th Anniversary Booster"],
+    ["Acrylic Booster Box Display for Pokémon", "Pokémon, Sun & Moon, Display / Booster Box + Acrylic case"],
+    ["Pitch Black Booster", "Pitch Black Sleeved Booster"],
+    ["Pokemon Fall Tin - Paradox Destinies Tin", "Paradox Destinies Tins: Gouging Fire ex Tin (EU Version)"],
+    ["Pokémon TCG: Black Bolt & White Flare Mini Tin", "Black Bolt & White Flare: Unova Volcarona Mini Tin"],
+    ["Pokémon TCG: Scarlet & Violet - Paldean Fates Tin Shiny Charizard ex", "Paldean Fates: Tera Charizard ex Tin (US Version)"],
+  ];
+  for (const [a, b] of LLM_SAID_SAME) {
+    it(`"${a.slice(0, 40)}" ≠ "${b.slice(0, 40)}"`, () => {
+      expect(mergeEquivalent(a, b)).toBe(false);
+    });
+  }
+});
+
+/** Sortiments-streckkoden får ALDRIG merga två karaktärer (det som raderade Gengar). */
+describe("productsConflict — sortiments-koden fångas", () => {
+  it("Gengar ≠ Luxray, även med identisk streckkod", async () => {
+    const { productsConflict } = await import("@/scrapers/matching");
+    expect(
+      productsConflict("Pitch Black: Gengar Premium Checklane Blister", "Pitch Black: Luxray Premium Checklane Blister")
+    ).toBe(true);
+  });
+});

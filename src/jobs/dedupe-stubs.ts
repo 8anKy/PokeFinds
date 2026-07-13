@@ -24,6 +24,8 @@ import { judgeSameProduct } from "@/lib/same-product";
 import { gtinConflict } from "@/lib/gtin";
 import {
   cleanListingTitle,
+  mergeEquivalent,
+  productsConflict,
   languageMismatch,
   scoreSimilarity,
   seriesMismatch,
@@ -31,6 +33,12 @@ import {
 } from "@/scrapers/matching";
 
 const STUB_WINDOW_DAYS = Number(process.env.DEDUPE_WINDOW_DAYS ?? "14");
+/**
+ * DEDUPE_DRY=1 → döm och rapportera, men RÖR INTE databasen. LLM-domarna cachas ändå
+ * (DedupeVerdict), så en efterföljande skarp körning är i princip gratis. Använd alltid
+ * detta först på en backlogg: mergen är oåterkallelig.
+ */
+const DRY_RUN = process.env.DEDUPE_DRY === "1";
 const MIN_SIM = 0.4;
 const MAX_CANDIDATES = 3;
 
@@ -43,6 +51,27 @@ function pairKey(a: string, b: string): [string, string] {
 const COMPATIBLE = new Set(["BOOSTER_PACK|BLISTER", "BLISTER|BOOSTER_PACK"]);
 
 /** Flytta stubbens data till den kanoniska produkten och radera stubben. */
+/**
+ * Har STUBBEN mer meritlista än målet? Då pekar mergen ÅT FEL HÅLL.
+ *
+ * Cardmarket-offern + prishistoriken ÄR meritlistan: produkten har följts över tid och dess
+ * kurva är verifierad. Prisgrafen byggs bara FRAMÅT — den kan inte återskapas retroaktivt
+ * (se docs: ingen legitim källa ger äkta historik i efterhand). En merge åt fel håll raderar
+ * alltså historik FÖR GOTT och behåller en namnlös butiksstub. Det får aldrig hända, oavsett
+ * hur säker LLM:en är på att det är samma SKU.
+ */
+export async function mergeWouldLoseTrackRecord(stubId: string, canonicalId: string): Promise<boolean> {
+  const pick = { offers: { select: { retailer: { select: { name: true } } } }, _count: { select: { priceSnapshots: true } } };
+  const [stub, canon] = await Promise.all([
+    prisma.product.findUnique({ where: { id: stubId }, select: pick }),
+    prisma.product.findUnique({ where: { id: canonicalId }, select: pick }),
+  ]);
+  if (!stub || !canon) return true; // saknas något → rör inget
+  const cm = (p: typeof stub) => p.offers.some((o) => o.retailer.name === "Cardmarket");
+  if (cm(stub) && !cm(canon)) return true;
+  return stub._count.priceSnapshots > canon._count.priceSnapshots;
+}
+
 export async function mergeStubInto(
   stubId: string,
   canonicalId: string,
@@ -100,12 +129,14 @@ export interface DedupeResult {
   stubs: number;
   llmCalls: number;
   merged: number;
+  /** LLM sa "samma SKU" men ordmängden skilde sig → föreslagen, INTE mergad. */
+  proposals: number;
   /** Mergade på exakt streckkod — dvs UTAN att kosta ett enda LLM-anrop. */
   gtinMerges: number;
 }
 
 export async function dedupeStubs(log: (msg: string) => void = console.log): Promise<DedupeResult> {
-  const res: DedupeResult = { stubs: 0, llmCalls: 0, merged: 0, gtinMerges: 0 };
+  const res: DedupeResult = { stubs: 0, llmCalls: 0, merged: 0, gtinMerges: 0, proposals: 0 };
   // GTIN-mergarna kräver ingen LLM — men resten av jobbet gör det, så utan nyckel
   // hoppar vi fortfarande över hela körningen (som förr). Vill vi köra ENBART
   // streckkods-mergen görs det via scripts/gtin-report.ts (B) som är helt LLM-fri.
@@ -152,10 +183,32 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
     // över både poängsättning och Haiku-anropet. Det här är den största par-klassen —
     // att ta bort den före LLM:en är hela poängen med billig blockering + dyr verifiering.
     if (stub.gtin) {
-      const twin = catalog.find((c) => c.id !== stub.id && !mergedIds.has(c.id) && c.gtin === stub.gtin);
+      const twin = catalog.find(
+        (c) =>
+          c.id !== stub.id &&
+          !mergedIds.has(c.id) &&
+          c.gtin === stub.gtin &&
+          // SAMMA STRECKKOD RÄCKER INTE. En butik som säljer ett SORTIMENT (slumpad karaktär)
+          // publicerar EN kod som landar på flera karaktärsspecifika produkter. Utan den här
+          // raden mergade förfiltret "Pitch Black: GENGAR Premium Checklane" med
+          // "…LUXRAY…" (2026-07-14, dry-run) — samma kod, olika Pokémon. Vakterna först.
+          !productsConflict(stub.title, c.title)
+      );
       if (twin) {
-        log(`[dedupe-stubs] GTIN-träff ${stub.gtin}: "${stubTitle}" → "${twin.title}" (0 tokens)`);
-        await mergeStubInto(stub.id, twin.id, log);
+        // DRY_RUN MÅSTE KOLLAS I *VARJE* MERGE-VÄG. Den här grenen saknade kontrollen, så en
+        // körning med DEDUPE_DRY=1 — som utlovade "rör inte databasen" — RADERADE ändå
+        // "Pitch Black: Gengar Premium Checklane Blister" (2026-07-14). Produktens
+        // prishistorik kaskaderade med (PriceSnapshot/PriceObservation onDelete: Cascade) och
+        // gick inte att återskapa. En torrkörning som skriver är värre än ingen torrkörning:
+        // den inbjuder till att köra den på en backlogg man inte granskat.
+        if (await mergeWouldLoseTrackRecord(stub.id, twin.id)) {
+          log(`[dedupe-stubs] HOPPAR ÖVER (GTIN) "${stubTitle}" → "${twin.title}": stubben har mer meritlista.`);
+          continue;
+        }
+        log(
+          `${DRY_RUN ? "[DRY] " : ""}[dedupe-stubs] GTIN-träff ${stub.gtin}: "${stubTitle}" → "${twin.title}" (0 tokens)`
+        );
+        if (!DRY_RUN) await mergeStubInto(stub.id, twin.id, log);
         mergedIds.add(stub.id);
         res.merged++;
         res.gtinMerges++;
@@ -173,6 +226,11 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
           // (påse ≠ display). Skicka ALDRIG paret till LLM:en — den har inget att
           // tillföra, och det är precis den sortens par den historiskt mergat fel.
           !gtinConflict(stub.gtin, c.gtin) &&
+          // HELA vaktbatteriet — samma som matchProduct kör. Tidigare kördes bara fyra
+          // vakter här, så LLM:en fick döma par matchProduct aldrig hade övervägt och
+          // sa "samma SKU" om US Version vs vanlig, 2019 vs 25th Anniversary, och ett
+          // akrylfodral vs boosterlådan det rymmer (dry-run 2026-07-14).
+          !productsConflict(stub.title, c.title) &&
           // Merge bara in i en mer etablerad produkt (set-märkt eller äldre) —
           // annars kan två färska stubbar sluka varandra åt fel håll.
           (c.setId != null || c.createdAt < stub.createdAt) &&
@@ -218,7 +276,33 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
       }
 
       if (same) {
-        await mergeStubInto(stub.id, c.id, log);
+        // ── LLM:EN FÅR FÖRESLÅ. DEN FÅR INTE RADERA. ─────────────────────────────────
+        // Torrkörningen 2026-07-14 lät Haiku döma hela backloggen (475 stubbar). Den sa
+        // "samma SKU" om bl.a.:
+        //   "Umbreon V Tin (US VERSION)"      vs "Umbreon V Tin"        (egna CM-SKU:er!)
+        //   "General Mills 2019 Booster"      vs "…25TH ANNIVERSARY…"   (olika utgåvor)
+        //   "ACRYLIC Booster Box Display"     vs "Booster Box + Acrylic case" (tillbehör!)
+        //   "Pitch Black Booster"             vs "Pitch Black SLEEVED Booster"
+        // Systemprompten FÖRBJUDER uttryckligen flera av dem. Modellen är utmärkt på att
+        // hitta KANDIDATER och usel som sista instans — precis som minnesanteckningen från
+        // 07-07 redan sagt ("LLM verify blessed the errors"). Vi lärde oss det igen.
+        //
+        // Därför: en merge kräver ALLTID mergeEquivalent (identisk ordmängd efter att era-
+        // namn, set-koder och fyllnadsord rensats). LLM-domen är ett EXTRA villkor ovanpå
+        // den, aldrig ett substitut. Allt annat rapporteras för mänsklig granskning.
+        if (!mergeEquivalent(stubTitle, c.title)) {
+          log(`[dedupe-stubs] FÖRSLAG (ej mergad — kräver granskning): "${stubTitle}" → "${c.title}"`);
+          res.proposals++;
+          break;
+        }
+        // Meritlistan vinner även över en godkänd merge: pekar den åt fel håll (stubben har
+        // Cardmarket-länken/prishistoriken) hade den raderat en graf som bara byggs framåt.
+        if (await mergeWouldLoseTrackRecord(stub.id, c.id)) {
+          log(`[dedupe-stubs] HOPPAR ÖVER "${stubTitle}" → "${c.title}": stubben har mer meritlista (CM/prishistorik) än målet.`);
+          continue;
+        }
+        log(`${DRY_RUN ? "[DRY] " : ""}[dedupe-stubs] mergar "${stubTitle}" → "${c.title}" (${fresh ? "cachad dom" : "LLM"} + identisk ordmängd)`);
+        if (!DRY_RUN) await mergeStubInto(stub.id, c.id, log);
         mergedIds.add(stub.id);
         res.merged++;
         break;
@@ -228,7 +312,7 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
 
   log(
     `[dedupe-stubs] klart: ${res.merged} mergade av ${res.stubs} stubbar ` +
-      `(${res.gtinMerges} via streckkod = 0 tokens, ${res.llmCalls} LLM-anrop, ${cacheHits} lästa ur cachen).`
+      `(${res.gtinMerges} via streckkod, ${res.proposals} FÖRSLAG för granskning, ${res.llmCalls} LLM-anrop, ${cacheHits} ur cachen).`
   );
   return res;
 }
