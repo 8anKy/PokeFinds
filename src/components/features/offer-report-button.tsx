@@ -18,7 +18,9 @@ const REASONS = ["WRONG_PRODUCT", "WRONG_PRICE", "DEAD_LINK", "OUT_OF_STOCK"] as
 type Reason = (typeof REASONS)[number];
 
 export function OfferReportButton({ offerId }: { offerId: string }) {
-  const t = useTranslations("product");
+  // "Detail" — samma namnrymd som resten av produktsidans offer-rader (live-product-pricing).
+  // Fel namnrymd renderar next-intl som RÅ NYCKELTEXT i UI:t ("product.reportOffer").
+  const t = useTranslations("Detail");
   const [open, setOpen] = useState(false);
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);

@@ -272,7 +272,13 @@ export function distinctiveOverlap(incoming: string, candidate: string): number 
  * när vi kollar att offertens EGNA särskiljande ord täcks av kandidaten.
  */
 const ERA_PHRASES = [
-  /\bmega evolution\b/g,
+  // PLURAL-s ÄR INTE VALFRITT. Samlarhobby skriver "Mega EvolutionS" — utan `s?` matchar
+  // \b inte, era-frasen blir kvar, och "mega"+"evolutions" räknas som produktIDENTITET.
+  // Följd: nonEraCoverage föll till 0,40 för "Pokémon, Mega Evolutions, ME04: Chaos Rising,
+  // Display / Booster Box" mot katalogens "Pokémon TCG: Chaos Rising Booster Box" → vetot
+  // slog till trots att distinctiveOverlap var 1,00 → auto-importen skapade en DUBBLETTSTUB
+  // (2026-07-13). Samma fälla väntar varje butik som pluraliserar serienamnet.
+  /\bmega evolutions?\b/g,
   /\bscarlet( and| &)? violet\b/g,
   /\bsword( and| &)? shield\b/g,
   /\bsun( and| &)? moon\b/g,
@@ -310,7 +316,13 @@ const SET_QUALIFIER_WORDS = new Set(["go"]);
  * ändå av sitt DELSET-NAMN (Cyber Judge, Paradise Dragona) som är kvar. JP-basseten
  * sv1S/sv1V fångas av JP_SET_MARKERS. Behåll listan snäv (kända serie-prefix).
  */
-const SET_CODE = /^(sv|swsh|sm|xy|bw|dp|hgss)\d{1,3}[a-z]?$/i;
+/*
+ * OBS: `me` (Mega Evolution: ME01–ME05) SAKNADES här, trots att den bredare SET_CODE_RE
+ * längre ner i filen redan kände igen `me\d`. De två reglerna hade glidit isär, och det
+ * kostade en dubblettstub: "ME04" räknades som produktidentitet i nonEraCoverage, inte som
+ * den set-KOD den är. Håll dem i synk — en ny serie måste in i BÅDA.
+ */
+const SET_CODE = /^(sv|swsh|sm|xy|bw|dp|hgss|me)\d{1,3}[a-z]?$/i;
 /** Inkommande titelns särskiljande ord MINUS era-varumärken, set-koder och butiksbrus. */
 function nonEraDistinctiveWords(title: string): Set<string> {
   let t = normalizeTitle(title);
@@ -325,6 +337,27 @@ function nonEraDistinctiveWords(title: string): Set<string> {
 }
 
 /**
+ * BÅDA riktningarna är fullständiga: kandidatens alla särskiljande ord finns i annonsen
+ * OCH annonsens alla icke-era-ord täcks av kandidaten. Då är identitets-ORDMÄNGDERNA
+ * identiska — bara era-namn ("Mega Evolutions"), set-koder ("ME04") och formord
+ * ("Display / Booster Box") skiljer formuleringarna åt.
+ *
+ * VARFÖR DEN BEHÖVS: intervallet 0,55–0,85 avgjordes ENBART av en LLM-dom (Haiku). När
+ * Anthropic-kvoten tog slut (2026-07-13: "You have reached your specified API usage limits")
+ * returnerade judgeSameProduct null → varje gränsfall blev en DUBBLETTSTUB. Det var så
+ * "Pokémon, Mega Evolutions, ME04: Chaos Rising, Display / Booster Box" (0,789) hamnade
+ * bredvid katalogens "Pokémon TCG: Chaos Rising Booster Box" i stället för på den.
+ *
+ * SÄKERHETEN ligger i att detta körs EFTER alla tvåsidiga vakter (form, set-kod, karaktär,
+ * kortsuffix, språk, Pokémon Center, Ultra-Premium, blister, antal, årtal). Skiljer
+ * produkterna sig i något av det är kandidaten redan förkastad. Kvar är bara olika sätt att
+ * SKRIVA samma vara — vilket är exakt det här ska fånga, utan att fråga en LLM om lov.
+ */
+export function identicalIdentity(incoming: string, candidate: string): boolean {
+  return distinctiveOverlap(incoming, candidate) === 1 && nonEraCoverage(incoming, candidate) === 1;
+}
+
+/**
  * Andel av INKOMMANDE titelns icke-era särskiljande ord som täcks av kandidaten.
  * Låg täckning ⇒ inkommande beskriver en mer specifik/annan produkt (t.ex.
  * "Mega Evolution Perfect Order ETB" mot bas-"Mega Evolution ETB" — "perfect
@@ -336,7 +369,15 @@ export function nonEraCoverage(incoming: string, candidate: string): number {
   const stem = (w: string) => (w.length > 3 && w.endsWith("s") ? w.slice(0, -1) : w);
   const inc = new Set([...nonEraDistinctiveWords(incoming)].map(stem));
   if (inc.size === 0) return 1;
-  const cand = new Set([...distinctiveWords(normalizeTitle(candidate))].map(stem));
+  // KANDIDATEN MÅSTE OCKSÅ ERA-RENSAS. Annars kan kandidatens ERA-ord "täcka" annonsens
+  // PRODUKTNAMN, och era-ordet maskerar sig som identitet:
+  //   annons   "Scarlet & Violet: SCARLET ex Booster Box"  → identitet {scarlet}
+  //   kandidat "Scarlet & Violet: VIOLET ex Booster Box"   → orensad {scarlet, violet}
+  // Kandidatens era-"scarlet" täckte då annonsens produkt-"scarlet" → coverage 1,00 i
+  // stället för 0,50, vetot uteblev, och Dice 0,913 länkade Scarlet ex → VIOLET ex med
+  // konfidens 1,000 (hittat 2026-07-13). Efter rensning: {violet} täcker inte {scarlet}
+  // → coverage 0,50 → vetot slår till, som det ska.
+  const cand = new Set([...nonEraDistinctiveWords(candidate)].map(stem));
   let covered = 0;
   for (const w of inc) if (cand.has(w)) covered++;
   return covered / inc.size;
@@ -520,6 +561,65 @@ const POKEMON_CENTER_RE = /\bpokemon center\b/;
 export function pokemonCenterMismatch(a: string, b: string): boolean {
   return POKEMON_CENTER_RE.test(normalizeTitle(a)) !== POKEMON_CENTER_RE.test(normalizeTitle(b));
 }
+
+/**
+ * "Ultra-Premium" är en EGEN, dyrare produkt än "Premium" — inte en formulering av samma
+ * vara. Utan den här vakten slank "Arceus VSTAR ULTRA-Premium Collection" igenom mot
+ * katalogens "Arceus VSTAR Premium Collection" med Dice 0,879 — alltså ÖVER auto-link-
+ * gränsen 0,85, så den hade länkats HELT utan LLM-dom (hittad 2026-07-13 när stub-mergen
+ * kördes i dry-run). "premium" är dessutom FORM_NOISE, så "ultra" var det enda som skilde
+ * dem — och nonEraCoverage landade på 0,667, precis över 0,6-tröskeln.
+ *
+ * Tvåsidig som alla andra vakter: den slår bara när ENA sidan säger "ultra premium".
+ * Nämner ingen av dem det är den tyst.
+ */
+const ULTRA_PREMIUM_RE = /\bultra[\s-]?premium\b/;
+export function ultraPremiumMismatch(a: string, b: string): boolean {
+  return ULTRA_PREMIUM_RE.test(normalizeTitle(a)) !== ULTRA_PREMIUM_RE.test(normalizeTitle(b));
+}
+
+/**
+ * REGION-VARIANTER ("US Version" / "EU Version") är EGNA CM-SKU:er och får ALDRIG slås ihop
+ * — det är ett uttryckligt katalogbeslut. Ändå gav Dice 0,927 för
+ * "Flareon VMAX Premium Collection US Version" mot "… EU Version" (bara ETT tecken skiljer
+ * ordet åt) → långt över auto-link-gränsen 0,85, alltså länkning UTAN LLM-dom.
+ * Tvåsidig: slår bara när båda deklarerar en region OCH de skiljer sig.
+ */
+const REGION_RE = /\b(us|eu|uk|asia|asian|jp|japanese)[\s-]?version\b/;
+export function regionVersionMismatch(a: string, b: string): boolean {
+  const ra = REGION_RE.exec(normalizeTitle(a))?.[1];
+  const rb = REGION_RE.exec(normalizeTitle(b))?.[1];
+  return !!ra && !!rb && ra !== rb;
+}
+
+/**
+ * "(N Cards)" — antalsvarianter är EGNA katalogprodukter (variant-price-split-beslutet:
+ * common → RapidAPI, variant → pokemontcg.io, som SKILDA kort). "EX Deoxys Booster (5 Cards)"
+ * är alltså inte "Deoxys Booster Pack". Tvåsidig: bara när båda anger ett antal OCH de skiljer.
+ * Anger bara ENA sidan ett antal är den tyst — annars hade vi blockerat massor av korrekta
+ * butikslänkar som helt enkelt utelämnar antalet, och en falskt blockerad länk är värre.
+ */
+/*
+ * OBS: normalizeTitle STRIPPAR parenteser — "(6 Cards)" blir "6 cards". Regexet får därför
+ * INTE kräva parenteser (första versionen gjorde det och matchade aldrig något).
+ */
+const CARD_COUNT_RE = /\b(\d{1,3})\s*(?:cards?|kort)\b/;
+export function cardCountMismatch(a: string, b: string): boolean {
+  const ca = CARD_COUNT_RE.exec(normalizeTitle(a))?.[1];
+  const cb = CARD_COUNT_RE.exec(normalizeTitle(b))?.[1];
+  return !!ca && !!cb && ca !== cb;
+}
+
+/*
+ * INGEN premiumTierMismatch-VAKT. Frestande — "Premium Checklane" och "Checklane" ÄR skilda
+ * SKU:er med skilda streckkoder (196214140615 vs 196214140547), och Dice gav 0,939 mellan dem.
+ * MEN regressionsfixturen underkände den direkt: den blockerade en VERIFIERAT KORREKT länk,
+ *     feed "Pokémon ME02 Phantasmal Flames Checklane"
+ *     ours "Phantasmal Flames: Blaziken Premium Checklane Blister"
+ * — butiken utelämnar helt enkelt ordet "Premium". En falskt blockerad KORREKT länk är värre
+ * än en felmatch (den syns aldrig), så vakten får inte finnas. Vill man skilja dem åt är
+ * STRECKKODEN rätt verktyg, inte titeln. Återinför den inte utan att köra facit först.
+ */
 
 /** "Series N" / "Vol N" ur en titel — produktidentitet för numrerade utgåvor. */
 function seriesNumber(t: string): string | null {
@@ -933,6 +1033,19 @@ export async function matchProduct(
     if (pokemonCenterMismatch(normalized, c.normalizedTitle)) {
       continue;
     }
+    // Ultra-Premium ≠ Premium — dyrare, egen SKU. Dice 0,879 (ÖVER auto-link-gränsen)
+    // hade annars länkat "Arceus VSTAR Ultra-Premium" till "Arceus VSTAR Premium".
+    if (ultraPremiumMismatch(normalized, c.normalizedTitle)) {
+      continue;
+    }
+    // US Version ≠ EU Version (0,927), Premium Checklane ≠ Checklane (0,939),
+    // "(5 Cards)" ≠ "(6 Cards)". Alla tre låg ÖVER 0,85 → länkades utan LLM-dom.
+    if (regionVersionMismatch(normalized, c.normalizedTitle)) {
+      continue;
+    }
+    if (cardCountMismatch(normalized, c.normalizedTitle)) {
+      continue;
+    }
 
     // ── VAKTER FRÅN KATALOGREVISIONEN 2026-07-13 ────────────────────────────
     // Mätta mot facit: 76 verifierat felaktiga länkar + 989 verifierat korrekta.
@@ -1068,6 +1181,9 @@ export function matchListingToProduct(
   if (setMarkerMismatch(normalized, product.normalizedTitle)) return null;
   if (seriesMismatch(normalized, product.normalizedTitle)) return null;
   if (pokemonCenterMismatch(normalized, product.normalizedTitle)) return null;
+  if (ultraPremiumMismatch(normalized, product.normalizedTitle)) return null;
+  if (regionVersionMismatch(normalized, product.normalizedTitle)) return null;
+  if (cardCountMismatch(normalized, product.normalizedTitle)) return null;
   // Uppföljningen 2026-07-14 — samma tvåsidiga vakter som matchProduct.
   if (setCodeMismatch(listingTitle, product.normalizedTitle)) return null;
   if (cardSuffixMismatch(listingTitle, product.normalizedTitle)) return null;

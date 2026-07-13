@@ -31,6 +31,7 @@ import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
 import {
   classifyForm,
   cleanListingTitle,
+  identicalIdentity,
   isPlausiblePriceFor,
   loadMatchIndex,
   matchProduct,
@@ -235,17 +236,28 @@ export async function ensureListingProduct(
   }
 
   let productId = !blockedByGtin && match && match.confidence >= 0.85 ? match.productId : null;
-  // Gränsfall 0.55–0.85: matcharen hittade EN kandidat men vågar inte binda den.
-  // LLM-domen (samma som veckodedupen) avgör — attach istället för dubblettstub.
-  // Vid GTIN-konflikt frågar vi inte ens: streckkoden har redan svarat, gratis.
+  // Gränsfall 0.55–0.85: matcharen hittade EN kandidat men vågar inte binda den enbart
+  // på Dice-poängen. Vid GTIN-konflikt frågar vi inte ens — streckkoden har redan svarat.
   if (!productId && match && !blockedByGtin) {
     const candidate = await prisma.product.findUnique({
       where: { id: match.productId },
-      select: { title: true },
+      select: { title: true, normalizedTitle: true },
     });
     if (candidate) {
-      const verdict = await judgeSameProduct(cleanTitle, candidate.title);
-      if (verdict?.same) productId = match.productId;
+      // 1) DETERMINISTISKT FÖRST, GRATIS: är identitets-ordmängderna identiska i BÅDA
+      //    riktningarna (era-namn/set-koder/formord borträknade) och alla tvåsidiga vakter
+      //    redan passerade — då är det samma vara, och ingen LLM behöver tillfrågas.
+      //    Detta är också det ENDA som fungerar när Anthropic-kvoten är slut: då returnerar
+      //    judgeSameProduct null och HELA 0.55–0.85-bandet blev tidigare dubblettstubbar.
+      //    ("Pokémon, Mega Evolutions, ME04: Chaos Rising, Display / Booster Box" = 0.789.)
+      if (identicalIdentity(normalized, candidate.normalizedTitle)) {
+        productId = match.productId;
+      } else {
+        // 2) Annars: låt LLM-domen avgöra (samma som veckodedupen). Utan nyckel/kvot
+        //    returnerar den null → vi skapar en stub som veckodedupen får städa.
+        const verdict = await judgeSameProduct(cleanTitle, candidate.title);
+        if (verdict?.same) productId = match.productId;
+      }
     }
   }
   if (!productId) {
