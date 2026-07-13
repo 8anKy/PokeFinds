@@ -952,6 +952,15 @@
     "removingOffer": "Tar bort…",
     "confirmRemoveOffer": "Ta bort detta erbjudande permanent?",
     "removeOfferFailed": "Kunde inte ta bort erbjudandet.",
+    "reportOffer": "Fel länk?",
+    "reportThanks": "Tack! Vi kollar.",
+    "reportCancel": "Avbryt",
+    "reportReason": {
+      "WRONG_PRODUCT": "Fel produkt",
+      "WRONG_PRICE": "Fel pris",
+      "DEAD_LINK": "Död länk",
+      "OUT_OF_STOCK": "Slutsåld"
+    },
     "products": "Produkter",
     "otherVersions": "Andra versioner:",
     "historyRawTitle": "Ograderad prishistorik",

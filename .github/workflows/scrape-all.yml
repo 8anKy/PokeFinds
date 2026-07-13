@@ -60,3 +60,10 @@ jobs:
         run: npx prisma generate
       - if: steps.guard.outputs.ready == 'true'
         run: npx tsx scripts/scrape-all-run.ts
+      # GTIN: hämta tillverkarens streckkod för offers som ännu saknar den (5 av 7
+      # butiker publicerar den — mätt 73% täckning). En extra HTTP-request per NY
+      # offer, aldrig i restock-lanen. Streckkoden gör matchningen exakt i stället för
+      # ungefärlig och gör felaktiga butikslänkar upptäckbara med ren SQL.
+      # --limit håller körtiden i schack; resten tas nästa dygn (skriptet är resumerbart).
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx tsx scripts/backfill-gtin.ts --limit 400

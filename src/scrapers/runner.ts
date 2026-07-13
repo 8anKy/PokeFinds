@@ -37,6 +37,8 @@ import {
   type MatchIndex,
 } from "@/scrapers/matching";
 import { judgeSameProduct } from "@/lib/same-product";
+import { fetchListingGtin } from "@/scrapers/gtin-source";
+import { gtinConflict } from "@/lib/gtin";
 import { netStockEvent, isRestock, isNewInStockArrival } from "@/scrapers/restock";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
 import { isBlockedListingLanguage, listingCardLanguage } from "@/lib/listing-language";
@@ -160,7 +162,7 @@ const SEALED_FEED_CATEGORIES = new Set([
  * (null om kategori saknas eller språket är blockat).
  */
 export async function ensureListingProduct(
-  it: { title: string; url: string; price: number | null; imageUrl: string | null; retailerId: string; category: string | null },
+  it: { title: string; url: string; price: number | null; imageUrl: string | null; retailerId: string; category: string | null; sourceName?: string },
   stockStatus: StockStatus
 ): Promise<string | null> {
   const category = (it.category ?? null) as ProductCategory | null;
@@ -185,11 +187,46 @@ export async function ensureListingProduct(
   const form = classifyForm(normalizeTitle(cleanTitle));
   if (form === "multipack" || form === "case" || form === "combo" || form === "event") return null;
   const normalized = normalizeTitle(cleanTitle);
+
+  // ---- GTIN-först: tillverkarens streckkod är en EXAKT nyckel, inte en gissning ----
+  // En request per NY butiks-URL (aldrig i restock-lanens feed-hämtning — se gtin-source.ts).
+  // 73% av butikernas sealed-utbud publicerar den (mätt). Saknas den faller vi tillbaka på
+  // titelmatchningen precis som förut — frånvaro är normalt, inte ett fel.
+  const gtin = it.sourceName ? await fetchListingGtin(it.sourceName, it.url) : null;
+  if (gtin) {
+    const byGtin = await prisma.product.findFirst({ where: { gtin }, select: { id: true } });
+    if (byGtin) {
+      // Exakt träff: hoppa över BÅDE fuzzy-poängen och LLM-domen. Samma streckkod =
+      // samma tillverkar-SKU, oavsett hur olika butikerna formulerar titeln
+      // ("Ascended Heroes Bundle" == "Mega Evolution - Ascended Heroes Booster Bundle").
+      await upsertListingOffer(it, byGtin.id, stockStatus, gtin);
+      return byGtin.id;
+    }
+  }
+
   const match = await matchProduct(normalized);
-  let productId = match && match.confidence >= 0.85 ? match.productId : null;
+  // GTIN-KONFLIKT = MERGE-VAKT. Har både annonsen och kandidaten en kod och de skiljer sig
+  // åt är det bevisat OLIKA tillverkar-SKU:er (påse 4521329432267 ≠ display 4521329432274).
+  // Vi BLOCKERAR DÅ SAMMANSLAGNINGEN — aldrig länken: annonsen blir en egen produkt med
+  // egen sida. En falskt blockerad länk är värre än en felmatch, för den syns aldrig.
+  let candidateGtin: string | null = null;
+  if (match && gtin) {
+    const candidate = await prisma.product.findUnique({
+      where: { id: match.productId },
+      select: { gtin: true },
+    });
+    candidateGtin = candidate?.gtin ?? null;
+  }
+  const blockedByGtin = gtinConflict(gtin, candidateGtin);
+  if (blockedByGtin) {
+    console.log(`[gtin] Blockerar merge: "${cleanTitle}" (${gtin}) ≠ kandidat (${candidateGtin}) — skapar egen produkt.`);
+  }
+
+  let productId = !blockedByGtin && match && match.confidence >= 0.85 ? match.productId : null;
   // Gränsfall 0.55–0.85: matcharen hittade EN kandidat men vågar inte binda den.
   // LLM-domen (samma som veckodedupen) avgör — attach istället för dubblettstub.
-  if (!productId && match) {
+  // Vid GTIN-konflikt frågar vi inte ens: streckkoden har redan svarat, gratis.
+  if (!productId && match && !blockedByGtin) {
     const candidate = await prisma.product.findUnique({
       where: { id: match.productId },
       select: { title: true },
@@ -205,11 +242,37 @@ export async function ensureListingProduct(
       slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
     }
     const p = await prisma.product.create({
-      data: { title: cleanTitle, normalizedTitle: normalized, slug, category, imageUrl: it.imageUrl, language: listingCardLanguage(it.title, it.url) },
+      data: { title: cleanTitle, normalizedTitle: normalized, slug, category, imageUrl: it.imageUrl, language: listingCardLanguage(it.title, it.url), gtin },
       select: { id: true },
     });
     productId = p.id;
+  } else if (gtin) {
+    // Titelmatchningen band annonsen till en produkt som saknar kod → adoptera koden, men
+    // BARA från en stark match. En svag (LLM-räddad) match får inte sätta katalogens nyckel:
+    // en felmatch där hade förgiftat produkten för all framtid.
+    if (match && match.confidence >= 0.85) {
+      await prisma.product.updateMany({
+        where: { id: productId, gtin: null },
+        data: { gtin },
+      });
+    }
   }
+  await upsertListingOffer(it, productId, stockStatus, gtin);
+  return productId;
+}
+
+/**
+ * Skapar butikens offer för en auto-importerad annons (om den saknas) och sparar
+ * annonsens streckkod på offern. Offer.gtin driver konflikt-/dubblettrapporterna
+ * (scripts/gtin-report.ts) — två offers på samma produkt med OLIKA gtin är en
+ * bevisad felaktig butikslänk, hittad med ren SQL utan en enda LLM-token.
+ */
+async function upsertListingOffer(
+  it: { title: string; url: string; price: number | null; retailerId: string },
+  productId: string,
+  stockStatus: StockStatus,
+  gtin: string | null
+): Promise<void> {
   // Offer-språket följer annonsen (japansk annons → JP-offer), inte hårdkodat EN.
   const offerLanguage = listingCardLanguage(it.title, it.url);
   // Butiken kan redan ha en offer för produkten via en ANNAN sida (variant) — kapa
@@ -217,14 +280,17 @@ export async function ensureListingProduct(
   // när offer saknas helt; URL:en själv är obelagd (owner-vakten ovan returnerade annars).
   const existing = await prisma.offer.findFirst({
     where: { productId, retailerId: it.retailerId, condition: "SEALED", language: offerLanguage },
-    select: { id: true },
+    select: { id: true, gtin: true },
   });
   if (!existing) {
     await prisma.offer.create({
-      data: { productId, retailerId: it.retailerId, condition: "SEALED", language: offerLanguage, price: it.price, currency: "SEK", stockStatus, url: it.url },
+      data: { productId, retailerId: it.retailerId, condition: "SEALED", language: offerLanguage, price: it.price, currency: "SEK", stockStatus, url: it.url, gtin },
     });
+    return;
   }
-  return productId;
+  if (gtin && !existing.gtin) {
+    await prisma.offer.update({ where: { id: existing.id }, data: { gtin } });
+  }
 }
 
 /**
@@ -390,14 +456,16 @@ export async function runRestockScan(opts?: {
   const seededRetailers = new Set(listings.map((l) => l.retailerId));
 
   // Färsk annons per (retailer, url). IN_STOCK vinner om en URL dyker upp flera ggr.
-  const fresh = new Map<string, FeedItem & { retailerId: string }>();
+  // sourceName följer med: auto-importen behöver veta VILKEN butik annonsen kom från
+  // för att välja rätt väg till streckkoden (Shopify-.js / JSON-LD / Webhallen-API).
+  const fresh = new Map<string, FeedItem & { retailerId: string; sourceName: string }>();
   for (const { sourceName, items } of fetched) {
     const retailerId = retailerByName.get(sourceName);
     if (!retailerId) continue;
     for (const it of items) {
       const key = `${retailerId}:${it.url}`;
       if (fresh.get(key)?.stockStatus === StockStatus.IN_STOCK) continue;
-      fresh.set(key, { ...it, retailerId });
+      fresh.set(key, { ...it, retailerId, sourceName });
     }
   }
 
@@ -467,6 +535,9 @@ export async function runRestockScan(opts?: {
           price: it.price,
           imageUrl: it.imageUrl,
           stockStatus: newStatus,
+          // Gratis: ensureListingProduct slog redan upp koden för samma URL och
+          // fetchListingGtin memoiserar per körning → ingen extra HTTP-request.
+          gtin: await fetchListingGtin(it.sourceName, it.url),
         },
       });
       // Larma bara om butiken redan har historik (ej tyst seed). Ny produkt I LAGER

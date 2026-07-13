@@ -950,6 +950,15 @@
     "traderaSearchLink": "Search for this product on Tradera →",
     "removeOffer": "Remove",
     "removingOffer": "Removing…",
+    "reportOffer": "Wrong link?",
+    "reportThanks": "Thanks! We'll check.",
+    "reportCancel": "Cancel",
+    "reportReason": {
+      "WRONG_PRODUCT": "Wrong product",
+      "WRONG_PRICE": "Wrong price",
+      "DEAD_LINK": "Dead link",
+      "OUT_OF_STOCK": "Sold out"
+    },
     "confirmRemoveOffer": "Remove this offer permanently?",
     "removeOfferFailed": "Couldn't remove the offer.",
     "products": "Products",

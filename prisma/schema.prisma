@@ -115,6 +115,16 @@ enum ReportStatus {
   DISMISSED
 }
 
+// Varför en användare anmäler ett butikserbjudande. En felaktig butikslänk är
+// OSYNLIG för våra vakter (en länk som saknas syns aldrig) men HELT synlig för
+// den enda person som klickat på den — användaren. Ge dem knappen.
+enum OfferReportReason {
+  WRONG_PRODUCT // länken går till en annan produkt än den vi visar
+  WRONG_PRICE // priset stämmer inte med butikens sida
+  DEAD_LINK // 404 / produkten finns inte längre
+  OUT_OF_STOCK // vi visar "i lager" men butiken är slutsåld
+}
+
 enum PlanTier {
   FREE
   PREMIUM
@@ -160,6 +170,7 @@ model User {
   auditLogs       AuditLog[]
   notifications   Notification[]
   reports         Report[]
+  offerReports    OfferReport[]
   savedPosts      SavedPost[]
   pushTokens      PushToken[]
   sales           Sale[]
@@ -265,6 +276,14 @@ model Product {
   // prissätts via pokemontcg.io-trend (RapidAPI saknar den); null = bas-common
   // som prissätts via RapidAPI From. Se cardmarket-refresh.ts.
   variantLabel    String?
+  // Tillverkarens streckkod, normaliserad till GTIN-14 (se src/lib/gtin.ts). Den EXAKTA
+  // cross-store-nyckeln: samma nummer står på asken i varje butik i världen. Sätts av
+  // auto-importen/backfillen från butikernas feeds (5 av 7 butiker publicerar den).
+  //
+  // MEDVETET INTE @unique: befintliga katalogdubbletter KROCKAR direkt vid backfill — och
+  // krocken ÄR dubbletten vi vill hitta, inte ett fel att krascha på. Unikhet drivs i
+  // stället av matchningen (GTIN-träff → länka i stället för att skapa) + konfliktrapporten.
+  gtin            String?
   cardId          String?
   setId           String?
   imageUrl        String?
@@ -331,6 +350,9 @@ model StoreListing {
   price       Int? // öre — från feeden (kan saknas)
   imageUrl    String?
   stockStatus StockStatus @default(UNKNOWN)
+  // Streckkod för den råa annonsen (GTIN-14). Cachas här så auto-importen slipper
+  // hämta om den för en URL vi redan slagit upp.
+  gtin        String?
   firstSeenAt DateTime    @default(now())
   lastSeenAt  DateTime    @default(now())
 
@@ -349,6 +371,10 @@ model Offer {
   price         Int? // öre — null = länk-offer utan känt pris (t.ex. auktioner)
   currency      String        @default("SEK")
   stockStatus   StockStatus   @default(UNKNOWN)
+  // Streckkoden butiken publicerar för DENNA sida (GTIN-14, se src/lib/gtin.ts).
+  // Två offers på samma produkt med OLIKA gtin = bevisad felaktig butikslänk
+  // (ren SQL-detektor, noll LLM). null = butiken publicerar ingen kod (normalt).
+  gtin          String?
   shippingPrice Int?
   condition     CardCondition @default(SEALED)
   language      CardLanguage  @default(EN)
@@ -359,10 +385,12 @@ model Offer {
   product   Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
   retailer  Retailer   @relation(fields: [retailerId], references: [id])
   dealCheck DealCheck?
+  reports   OfferReport[]
 
   @@unique([productId, retailerId, condition, language])
   @@index([productId])
   @@index([stockStatus])
+  @@index([gtin])
 }
 
 // Global Tradera-matchningsdom: har en LLM bekräftat att Tradera-annonsen (itemId)
@@ -636,6 +664,31 @@ model Report {
   reporter User          @relation(fields: [reporterId], references: [id], onDelete: Cascade)
 
   @@index([status])
+}
+
+// Användaranmälan av ett felaktigt butikserbjudande — den enda rättningsloop som
+// skalar bortom vakter, fixturer och revisionsskript. Vår katalogrevision hittade 6%
+// felaktiga länkar, men bara för att någon KÖRDE ett svep; en felmatch upptäcks annars
+// först när en användare klickar och landar på fel vara.
+//
+// Rättas ALLTID mot RÅDATA (radera/omdirigera Offer via ID) — aldrig genom att lappa
+// det visade aggregatet. Det är också vad den enda verifierade konkurrentpraxisen gör.
+model OfferReport {
+  id         String            @id @default(cuid())
+  offerId    String
+  // null = anonym anmälan (utloggad besökare). Vi vill hellre ha signalen än ett konto.
+  reporterId String?
+  reason     OfferReportReason
+  note       String?
+  status     ReportStatus      @default(OPEN)
+  createdAt  DateTime          @default(now())
+  resolvedAt DateTime?
+
+  offer    Offer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  reporter User? @relation(fields: [reporterId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([offerId])
 }
 
 // ---------- Datainsamling ----------

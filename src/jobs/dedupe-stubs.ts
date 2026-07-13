@@ -21,6 +21,7 @@
  */
 import { prisma } from "@/lib/db";
 import { judgeSameProduct } from "@/lib/same-product";
+import { gtinConflict } from "@/lib/gtin";
 import {
   cleanListingTitle,
   languageMismatch,
@@ -99,10 +100,15 @@ export interface DedupeResult {
   stubs: number;
   llmCalls: number;
   merged: number;
+  /** Mergade på exakt streckkod — dvs UTAN att kosta ett enda LLM-anrop. */
+  gtinMerges: number;
 }
 
 export async function dedupeStubs(log: (msg: string) => void = console.log): Promise<DedupeResult> {
-  const res: DedupeResult = { stubs: 0, llmCalls: 0, merged: 0 };
+  const res: DedupeResult = { stubs: 0, llmCalls: 0, merged: 0, gtinMerges: 0 };
+  // GTIN-mergarna kräver ingen LLM — men resten av jobbet gör det, så utan nyckel
+  // hoppar vi fortfarande över hela körningen (som förr). Vill vi köra ENBART
+  // streckkods-mergen görs det via scripts/gtin-report.ts (B) som är helt LLM-fri.
   if (!process.env.ANTHROPIC_API_KEY) {
     log("[dedupe-stubs] ANTHROPIC_API_KEY saknas — hoppar över.");
     return res;
@@ -117,12 +123,12 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
       createdAt: { gte: windowStart },
     },
     orderBy: { createdAt: "asc" },
-    select: { id: true, title: true, category: true, createdAt: true },
+    select: { id: true, title: true, category: true, createdAt: true, gtin: true },
   });
   res.stubs = stubs.length;
   const catalog = await prisma.product.findMany({
     where: { category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY"] } },
-    select: { id: true, title: true, category: true, setId: true, createdAt: true },
+    select: { id: true, title: true, category: true, setId: true, createdAt: true, gtin: true },
   });
   log(`[dedupe-stubs] ${stubs.length} stubbar (≤${STUB_WINDOW_DAYS} dgr), ${catalog.length} sealed-produkter i katalogen.`);
 
@@ -140,12 +146,33 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
   for (const stub of stubs) {
     if (mergedIds.has(stub.id)) continue;
     const stubTitle = cleanListingTitle(stub.title);
+
+    // ---- GTIN-FÖRFILTER: streckkoden svarar gratis, LLM:en behöver aldrig gissa ----
+    // Samma tillverkar-streckkod = definitionsmässigt samma SKU. Merga direkt, hoppa
+    // över både poängsättning och Haiku-anropet. Det här är den största par-klassen —
+    // att ta bort den före LLM:en är hela poängen med billig blockering + dyr verifiering.
+    if (stub.gtin) {
+      const twin = catalog.find((c) => c.id !== stub.id && !mergedIds.has(c.id) && c.gtin === stub.gtin);
+      if (twin) {
+        log(`[dedupe-stubs] GTIN-träff ${stub.gtin}: "${stubTitle}" → "${twin.title}" (0 tokens)`);
+        await mergeStubInto(stub.id, twin.id, log);
+        mergedIds.add(stub.id);
+        res.merged++;
+        res.gtinMerges++;
+        continue;
+      }
+    }
+
     const candidates = catalog
       .filter(
         (c) =>
           c.id !== stub.id &&
           !mergedIds.has(c.id) &&
           (c.category === stub.category || COMPATIBLE.has(`${stub.category}|${c.category}`)) &&
+          // GTIN-KONFLIKT: båda har kod och de skiljer sig → bevisat OLIKA SKU:er
+          // (påse ≠ display). Skicka ALDRIG paret till LLM:en — den har inget att
+          // tillföra, och det är precis den sortens par den historiskt mergat fel.
+          !gtinConflict(stub.gtin, c.gtin) &&
           // Merge bara in i en mer etablerad produkt (set-märkt eller äldre) —
           // annars kan två färska stubbar sluka varandra åt fel håll.
           (c.setId != null || c.createdAt < stub.createdAt) &&
@@ -201,7 +228,7 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
 
   log(
     `[dedupe-stubs] klart: ${res.merged} mergade av ${res.stubs} stubbar ` +
-      `(${res.llmCalls} LLM-anrop, ${cacheHits} lästa ur cachen).`
+      `(${res.gtinMerges} via streckkod = 0 tokens, ${res.llmCalls} LLM-anrop, ${cacheHits} lästa ur cachen).`
   );
   return res;
 }

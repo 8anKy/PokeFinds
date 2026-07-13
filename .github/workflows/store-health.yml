@@ -51,7 +51,14 @@ jobs:
       # efterhand (de vaktar bara NYA matchningar). Röd körning = mejl till ägaren.
       - if: steps.guard.outputs.ready == 'true'
         run: npx tsx scripts/audit-links.ts
+      # GTIN-rapport: felaktiga butikslänkar (samma produkt, motstridiga streckkoder)
+      # och katalogdubbletter (olika produkter, samma streckkod) — REN SQL, noll tokens.
+      # Körs FÖRE stub-dedupen: streckkoden svarar gratis på den största par-klassen,
+      # så LLM:en bara ser de par som faktiskt saknar kod. Läs-only, blir aldrig röd.
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx tsx scripts/gtin-report.ts
       # Stub-dedup: auto-importens dubblettprodukter (olika butiksnamn på samma SKU)
       # merge:as LLM-verifierat (Haiku, två titlar/anrop). Se src/jobs/dedupe-stubs.ts.
+      # Streckkods-identiska stubbar merge:as redan gratis inuti jobbet (gtinMerges).
       - if: steps.guard.outputs.ready == 'true'
         run: npx tsx scripts/dedupe-stubs-run.ts
