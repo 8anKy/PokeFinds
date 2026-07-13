@@ -580,6 +580,15 @@ export async function runCardmarketRefresh(
     });
     type SealedOp = { productId: string; offerId?: string; imageUrl?: string; priceOre: number; url: string; stock: "IN_STOCK" | "OUT_OF_STOCK" };
     const sealedOps: SealedOp[] = [];
+    // Vilka CM-produkter ÄGS redan? Seedas från befintliga CM-offers, så en fuzzy-match
+    // aldrig kan kapa en idProduct som en annan katalogprodukt redan har. Se vakten nedan.
+    const ownedCmIds = new Set<number>();
+    for (const p of ours) {
+      const existing = p.offers.find((o) => o.retailerId === cm.id);
+      const m = existing?.url?.match(/idProduct=(\d+)/);
+      if (m) ownedCmIds.add(parseInt(m[1], 10));
+    }
+    let skippedOwned = 0;
     for (const p of ours) {
       // RapidAPI-katalogen är HELT engelsk (0 japanska set/produkter, verifierat
       // 2026-07-07) — icke-EN-produkter får ALDRIG matchas här (fyra olika japanska
@@ -606,8 +615,23 @@ export async function runCardmarketRefresh(
         );
         if (!m) continue;
         best = m.match;
+        // ── EN CM-PRODUKT = EN KATALOGPRODUKT ────────────────────────────────────
+        // Den globala namn-matchningen (GLOBAL_MIN_SCORE 0.72) hade INGEN unikhetsvakt:
+        // flera av våra titlar kunde vinna SAMMA CM-produkt, och alla utom en visade då
+        // en FRÄMMANDE prisgraf. Mätt 2026-07-14: 16 kolliderande idProduct, 19 produkt-
+        // sidor med fel kurva — bl.a. en enskild "Kanto Power Mini Tin" som visade
+        // 5-pack-boxens 1 222 kr. Bryter mot regeln "inga fabricerade priser".
+        //
+        // Samma princip som cross-produkt-URL-vakten i runner.ts: ägs identiteten redan,
+        // rör den inte. En produkt UTAN graf är alltid bättre än en med FEL graf.
+        // (Exakt idProduct-träff ovan (`exact`) är undantagen — den ÄR ägarskapet.)
+        if (best.cardmarket_id != null && ownedCmIds.has(best.cardmarket_id)) {
+          skippedOwned++;
+          continue;
+        }
       }
       if (best.cardmarket_id == null) continue;
+      if (best.cardmarket_id != null) ownedCmIds.add(best.cardmarket_id);
       const cmp = best.prices?.cardmarket ?? {};
       // I lager = aktuell `lowest`/From → From-priset. Ur lager = ingen aktuell
       // annons → OUT_OF_STOCK + 30d-snitt. Flippar dynamiskt mellan körningar.
@@ -674,6 +698,12 @@ export async function runCardmarketRefresh(
       res.historyPoints += sealedOps.length;
     }
     console.log(`[cm-refresh] Sealed: ${res.sealedUpdated} uppdaterade, ${sealedOps.length} historikpunkter.`);
+    if (skippedOwned > 0) {
+      console.log(
+        `[cm-refresh] Sealed: hoppade över ${skippedOwned} fuzzy-matchningar mot en CM-produkt som redan ` +
+          `ägs av en annan katalogprodukt (unikhetsvakt — en produkt utan graf är bättre än en med FEL graf).`
+      );
+    }
   }
 
   // Japanska sealed-produkter: officiella CM-prisguiden (gratis nedladdning,
