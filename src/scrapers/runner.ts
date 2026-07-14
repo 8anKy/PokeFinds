@@ -32,6 +32,7 @@ import {
   classifyForm,
   cleanListingTitle,
   identicalIdentity,
+  isAccessoryListing,
   isPlausiblePriceFor,
   loadMatchIndex,
   matchProduct,
@@ -201,6 +202,17 @@ export async function ensureListingProduct(
   // — matchProduct vägrar matcha dem, men UTAN denna vakt skapades de som stubbar.
   const form = classifyForm(normalizeTitle(cleanTitle));
   if (form === "multipack" || form === "case" || form === "combo" || form === "event") return null;
+  // TILLBEHÖR (akrylfodral, spelmatta, sleeves, pärm UTAN booster) är inte katalogprodukter.
+  // Vakten fanns redan i productsConflict() — men INTE här, i den enda kodväg som SKAPAR
+  // produkter. Katalogrevisionen 2026-07-14 hittade 15 sådana: "Acrylic Booster Box Display",
+  // fyra Evoretro-fodral, en tärningspåse, en playmat-bundle. Raderade vi dem utan den här
+  // raden skapade nästa restock-skanning om dem inom minuter.
+  //
+  // isAccessoryListing (INTE form === "accessory"): den har undantaget för pärm/portfolio
+  // SOM INNEHÅLLER en booster. classifyForm saknar det undantaget och returnerar "accessory"
+  // även för äkta "Mini Portfolio + Booster" — att grinda på formen hade blockerat en riktig
+  // sealed-SKU, vilket är värre än att släppa in ett fodral.
+  if (isAccessoryListing(cleanTitle)) return null;
   const normalized = normalizeTitle(cleanTitle);
 
   // ---- GTIN-först: tillverkarens streckkod är en EXAKT nyckel, inte en gissning ----

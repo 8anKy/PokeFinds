@@ -14,9 +14,8 @@ import { PrismaClient } from "@prisma/client";
 import { isDirectOfferUrl } from "../src/lib/marketplace-urls";
 import { detectListingLanguage } from "../src/lib/listing-language";
 import {
-  languageMismatch,
+  productsConflict,
   scoreSimilarity,
-  seriesMismatch,
   setMarkerMismatch,
 } from "../src/scrapers/matching";
 
@@ -61,14 +60,27 @@ async function main() {
     if (!slug || !/[a-z]{3}/i.test(slug)) continue;
     const title = o.product.title;
 
-    if (seriesMismatch(title, slug)) {
+    // HELA vaktbatteriet — inte ett handplockat urval.
+    //
+    // Den här raden är hela poängen med revisionen 2026-07-14. Skriptet körde TRE vakter
+    // (serie, språk, set-markör) medan matchProduct körde tretton. Skillnaden var inte ett
+    // beslut — den hade bara glidit isär. Priset: pokemonCenterMismatch() FANNS, var korrekt,
+    // och kördes i matchningen — men aldrig här. Sju Pokémon Center-exklusiva ETB:er låg
+    // därför länkade till den vanliga butiks-ETB:n, vecka efter vecka, utan att revisionen
+    // sa ett ord. Samma sak för tillbehörsvakten: en "portfolio 4-pocket"-slug på en
+    // "Booster + Mini Pärm"-produkt gick igenom.
+    //
+    // productsConflict() ÄR batteriet (karaktär, kortsuffix, PC, ultra-premium, region,
+    // kortantal, blister-underform, antal enheter, årtal, serie, set-markör, set-kod, språk
+    // + tillbehör/singel). En vakt som bara körs i EN kodväg är ingen vakt — lägg till nya
+    // vakter DÄR, aldrig här.
+    if (productsConflict(title, slug)) {
       definite.push(o);
       continue;
     }
     // Blockade språk (kinesiska/koreanska/EU) får inte finnas som butikslänkar ALLS
     // — oavsett produkt. En "…-koreansk"-slug på en (Japansk)-produkt är dubbelt
-    // fel (fel språk + fel produkt). EU saknades här, så de spanska/tyska
-    // Samlarhobby-länkarna flaggades aldrig av veckorevisionen.
+    // fel (fel språk + fel produkt).
     const slugLang = detectListingLanguage("", o.url);
     if (slugLang === "CN" || slugLang === "KR" || slugLang === "EU") {
       definite.push(o);
@@ -78,17 +90,11 @@ async function main() {
       review.push({ o, why: "sifferset-markör skiljer", score: scoreSimilarity(title, slug) });
       continue;
     }
-    // Kända JP-produkter (language=JP) triggar falskt när butiksslugen uttrycker
-    // japanskheten men titeln inte gör det (eller tvärtom) — hoppa språkkollen då.
-    if (o.product.language !== "JP" && languageMismatch(title, slug)) {
-      review.push({ o, why: "språkmarkör skiljer", score: scoreSimilarity(title, slug) });
-      continue;
-    }
     const score = scoreSimilarity(title, slug);
     if (score < 0.18) review.push({ o, why: "lågt titel-slug-avstånd", score });
   }
 
-  console.log(`\n=== SÄKRA fel (serienummer-mismatch): ${definite.length} ===`);
+  console.log(`\n=== SÄKRA fel (en tvåsidig vakt motsäger länken): ${definite.length} ===`);
   for (const o of definite) {
     console.log(`  offer ${o.id} | ${o.retailer.name} | "${o.product.title}"`);
     console.log(`    → ${o.url}`);
