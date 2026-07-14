@@ -20,13 +20,32 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
+    # RIKTIG POSTGRES, inte en dummy-URL. `next build` PRERENDRAR de ISR-cachade sidorna
+    # (/marknad, /sets, startsidan) och de LÄSER DB:n under bygget — precis som på Railway,
+    # som har en nåbar DATABASE_URL. Första CI-försöket pekade på en tom localhost och föll
+    # på "Can't reach database server": bygget kom ända till prerendering och dog där.
+    # En TOM men MIGRERAD databas räcker: sidorna renderar noll rader, men koden körs.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     env:
-      # Bygget kör `prisma generate` + Next-kompilering — ingen riktig DB rörs, men
-      # Prisma vill ha en syntaktiskt giltig URL. Dummy, aldrig prod.
       DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
-      # next build prerendrar sidor; utan detta försöker NextAuth läsa en riktig hemlighet.
+      # NextAuth läses vid prerendering — dummy-värden, aldrig prod.
       NEXTAUTH_SECRET: "ci-dummy-secret-not-used-for-anything"
       NEXTAUTH_URL: "http://localhost:3000"
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,7 +55,12 @@ jobs:
       - run: npm ci --legacy-peer-deps
       - run: npx prisma generate
 
-      # Tester först: de är snabbast och säger mest när något är fel.
+      # Tabellerna måste finnas — annars faller prerenderingen på "relation does not exist"
+      # i stället för på ett riktigt fel.
+      - name: Migrera CI-databasen
+        run: npx prisma migrate deploy
+
+      # Tester först: snabbast, och säger mest när något är fel.
       - name: Enhetstester
         run: npx vitest run
 
