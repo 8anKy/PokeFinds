@@ -53,3 +53,39 @@ describe("saneDayMove", () => {
     expect(saneDayMove(9999, 0)).toBe(9999);
   });
 });
+
+// Regression: dagvakten var en SPÄRRHAKE (2026-07-14). Utan facit avvisade den ÄVEN
+// rättelsen av ett redan korrupt pris — skräpet kunde aldrig lämna katalogen.
+// Verkliga, uppmätta fall (DB-värde vs live RapidAPI + CM:s egen prisguide).
+describe("saneDayMove — självläkning mot CM-trend (refOre)", () => {
+  it("släpper igenom ett stort hopp som går MOT facit (rättelse)", () => {
+    // Paldean Fates: Skeledirge ex Premium Collection.
+    // Frusen på 79 kr; RapidAPI låg = 149,90 € (= CM:s sida "From 149,90 €") → 1 733 kr.
+    // CM-trend 142,93 € → 1 652 kr. 21,9x hopp, men rakt mot facit.
+    expect(saneDayMove(1733_00, 79_00, 1652_00)).toBe(1733_00);
+    // Great Encounters Booster Box: 325 385 kr → 6 712 kr, CM-trend 1 497 € ≈ 17 306 kr.
+    expect(saneDayMove(6712_00, 325385_00, 17306_00)).toBe(6712_00);
+    // Mega Charizard X ex Tin: 100 kr → 363 kr, CM-trend 30,95 € ≈ 358 kr.
+    expect(saneDayMove(363_00, 100_00, 358_00)).toBe(363_00);
+  });
+
+  it("klämmer fortfarande ett stort hopp som går BORT från facit (äkta glitch)", () => {
+    // RapidAPI-glitchen 2026-07-03: €0.03 på en €300-box. Facit säger 300 € → avvisa.
+    expect(saneDayMove(35, 3468_00, 3468_00)).toBe(3468_00);
+    // Uppblåst common: 0,05 kr → 2 309 kr medan facit ligger kvar vid 0,05 kr.
+    expect(saneDayMove(2309_00, 5, 5)).toBe(5);
+  });
+
+  it("beter sig som förr när facit saknas (bakåtkompatibelt)", () => {
+    expect(saneDayMove(1733_00, 79_00, null)).toBe(79_00);
+    expect(saneDayMove(1733_00, 79_00)).toBe(79_00);
+    expect(saneDayMove(1733_00, 79_00, 0)).toBe(79_00);
+  });
+
+  it("oavgjort lopp läker INTE — vakten får aldrig hänga på flyttalsbrus", () => {
+    // prior 100, ny 900, facit 300: båda ligger exakt 3x från facit. Skillnaden i
+    // log-avstånd är 2e-16 (ren flyttalsnoise) → utan marginal blev domen en
+    // slantsingling. Konservativt: behåll gårdagens.
+    expect(saneDayMove(900, 100, 300)).toBe(100);
+  });
+});

@@ -74,16 +74,93 @@ export function sanePriceEur(low: number | null | undefined, avg: number | null 
   return a;
 }
 
+// ── CM:s EGEN TREND SOM FACIT (mätt 2026-07-14) ──────────────────────────────
+// sanePriceEur behöver en referens (`avg`) för att kunna döma `low`. Saknas den
+// släpps `low` igenom OGRANSKAT — se `a == null ||` ovan. RapidAPI saknar
+// 30d_average på ~1% av sealed (20 av 1954), så hålet är litet men verkligt.
+//
+// Referensen hämtas därför från CM:s EGEN officiella prisguide (samma publika
+// export som JP-pris redan läser — ingen skrapning). Den är bättre än RapidAPI:s
+// snitt på TVÅ sätt: den finns alltid, och den är rätt på tunn vintage där snittet
+// är kraftigt underskattat (se kommentaren vid `const ref` i sealed-fasen).
+// `trend` är verifierad mot CM:s produktsida och stämde EXAKT (142,93 och 184,90).
+//
+// VARFÖR trend och inte guidens `low`: CM:s egen "From" är ibland ren skräp.
+// Stormfront Booster visar "From 9,95 €" — den annonsen säger ordagrant
+// "EMPTY PACKS". Att spegla CM:s lägsta rakt av skulle prissätta en vintage-
+// booster till ett tomt omslag. Lägsta är rätt HEADLINE, men trend är rätt
+// SANITETSREFERENS.
+// Golv: CM:s guide innehåller nollställda/mikroskopiska trend-värden (0,02 € på
+// "Emerald Booster Box", "Team Rocket Returns Booster Box", "151: Costco 5-Pack Mini
+// Tin Bundle"). En sealed-produkt kostar aldrig under ~0,5 € — ett sådant "facit" är
+// korrupt, inte billigt. Utan det här golvet blir facitet en BAKDÖRR: dagvaktens
+// nödutgång ser att en glitchad lowest (0,02 €) "stämmer med trenden" och släpper in
+// den. Mätt: 151-bundlen skulle läkas 3 309 kr → 0,23 kr.
+const MIN_SEALED_EUR = 0.5;
+const usable = (v: number | null | undefined): number | null =>
+  v != null && v >= MIN_SEALED_EUR ? v : null;
+export function cmGuideRefEur(g: CmGuideEntry | undefined): number | null {
+  return usable(g?.trend) ?? usable(g?.avg) ?? null;
+}
+
+/** CM:s officiella prisguide (idProduct → low/trend/avg). Publik export, ingen scraping. */
+let cmGuideCache: Map<number, CmGuideEntry> | null = null;
+export async function fetchCmGuide(): Promise<Map<number, CmGuideEntry>> {
+  if (cmGuideCache) return cmGuideCache;
+  const r = await fetch(CM_PRICE_GUIDE_URL);
+  if (!r.ok) {
+    console.error(`[cm-refresh] prisguide HTTP ${r.status} — sanitetsreferens saknas denna körning`);
+    return new Map();
+  }
+  const guide = (await r.json()) as { priceGuides: CmGuideEntry[] };
+  cmGuideCache = new Map(guide.priceGuides.map((e) => [e.idProduct, e]));
+  return cmGuideCache;
+}
+
 // Dag-över-dag-vakt: en äkta CM-From/lowest rör sig aldrig ≥3x på ett dygn. Ett sådant
 // hopp = glitchad RapidAPI-data (2026-07-05 korrumperade 2104 priser, både uppåt på
 // commons och krascher på boxar). Behåll då gårdagens snapshot-värde tills nästa körning.
 // sanePriceEur fångar bara micro-krascher (<20% av snittet), inte inflation → denna vakt
 // täcker BÅDA riktningarna. `priorOre` = produktens senaste snapshot-avgPrice före idag.
 export const DAY_MOVE_MAX = Number(process.env.CM_DAY_MOVE_MAX) || 3;
-export function saneDayMove(newOre: number, priorOre: number | null | undefined): number {
+
+// Under så här få aktuella CM-annonser är marknaden för tunn för att ett reservvärde
+// (trend/30d-snitt) ska betyda något — se tunndata-vakten i sealed-fasen.
+export const THIN_ITEMS = Number(process.env.CM_THIN_ITEMS) || 5;
+
+// ── DAGVAKTEN VAR EN SPÄRRHAKE (rotorsak, mätt 2026-07-14) ───────────────────
+// Utan `refOre` avvisar den ALLA ≥3x-rörelser — även den som RÄTTAR ett redan
+// korrupt pris. Ett skräpvärde som en gång tagit sig in kunde därför aldrig
+// lämna katalogen: rättelsen såg själv ut som en glitch och klämdes tillbaka.
+// Frusna i veckor (allt detta mätt mot LIVE RapidAPI + CM:s prisguide):
+//   Paldean Fates: Skeledirge ex Prem.Coll  DB 79 kr    ← RapidAPI låg 149,90 €
+//     (= EXAKT vad Cardmarkets sida visar: "From 149,90 €"). Rätt värde 1 733 kr.
+//   Great Encounters Booster Box            DB 325 385 kr, CM-trend 1 497 €
+//   Mega Charizard X ex Tin                 DB 100 kr,     CM-trend 30,95 €
+// RapidAPI var alltså KORREKT hela tiden — vi vägrade skriva svaret.
+//
+// Fix: ett stort hopp är en glitch bara om det går BORT från ett oberoende
+// facit. Går det MOT CM:s egen trend är det en rättelse → släpp igenom.
+// Log-avstånd så att jämförelsen är kvot-symmetrisk (2x upp == 2x ner).
+export function saneDayMove(
+  newOre: number,
+  priorOre: number | null | undefined,
+  refOre?: number | null,
+): number {
   if (priorOre == null || priorOre <= 0) return newOre;
   const r = newOre / priorOre;
-  return r >= DAY_MOVE_MAX || r <= 1 / DAY_MOVE_MAX ? priorOre : newOre;
+  if (r < DAY_MOVE_MAX && r > 1 / DAY_MOVE_MAX) return newOre; // normal dagsrörelse
+  // Stort hopp: glitch eller självläkning? Facit avgör.
+  // MARGINAL, inte strikt <: vid ett jämnt lopp skiljer flyttalsbruset (2e-16) och
+  // vakten skulle "läka" på en slantsingling. Kräv att det nya värdet ligger KLART
+  // närmare facit — annars behåll gårdagens (konservativt: en glitch släpps hellre
+  // inte in än att en rättelse dröjer ett dygn).
+  if (refOre != null && refOre > 0 && newOre > 0) {
+    const distNew = Math.abs(Math.log(newOre / refOre));
+    const distPrior = Math.abs(Math.log(priorOre / refOre));
+    if (distNew < distPrior * 0.9) return newOre; // klart närmare CM:s trend → rättelse
+  }
+  return priorOre;
 }
 
 /** Senaste snapshot-avgPrice FÖRE idag per produkt (last-known-good för dag-vakten). */
@@ -98,18 +175,28 @@ async function priorSnapshotMap(productIds: string[]): Promise<Map<string, numbe
   return new Map(rows.map((r) => [r.productId, r.prev]));
 }
 
-/** Klämmer orimliga dagshopp i en Ops-lista mot gårdagens snapshot. Returnerar antal klämda. */
-async function clampDayMoves(ops: { productId: string; priceOre: number }[]): Promise<number> {
+/**
+ * Klämmer orimliga dagshopp mot gårdagens snapshot. `refOre` (CM:s egen trend) är
+ * spärrhakens nödutgång — utan den kan ett korrupt pris aldrig rättas (se saneDayMove).
+ * Returnerar {clamped, healed}.
+ */
+async function clampDayMoves(
+  ops: { productId: string; priceOre: number | null; refOre?: number | null }[],
+): Promise<{ clamped: number; healed: number }> {
   const prior = await priorSnapshotMap(ops.map((o) => o.productId));
-  let clamped = 0;
+  let clamped = 0, healed = 0;
   for (const op of ops) {
-    const safe = saneDayMove(op.priceOre, prior.get(op.productId));
+    if (op.priceOre == null) continue; // tunndata-op: inget pris att klämma
+    const prev = prior.get(op.productId);
+    const safe = saneDayMove(op.priceOre, prev, op.refOre);
     if (safe !== op.priceOre) {
       op.priceOre = safe;
       clamped++;
+    } else if (prev && (op.priceOre / prev >= DAY_MOVE_MAX || op.priceOre / prev <= 1 / DAY_MOVE_MAX)) {
+      healed++; // stort hopp som SLÄPPTES igenom = rättelse mot CM-trend
     }
   }
-  return clamped;
+  return { clamped, healed };
 }
 const EXPECTED_FORM: Record<string, string> = {
   BOOSTER_BOX: "display", BOOSTER_PACK: "booster", ETB: "etb",
@@ -307,7 +394,7 @@ export async function runJapaneseSealedRefresh(): Promise<JpRefreshResult> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  type JpOp = { productId: string; offerId?: string; idProduct: number; priceOre: number; stock: "IN_STOCK" | "OUT_OF_STOCK" };
+  type JpOp = { productId: string; offerId?: string; idProduct: number; priceOre: number; refOre?: number | null; stock: "IN_STOCK" | "OUT_OF_STOCK" };
   const ops: JpOp[] = [];
 
   for (const p of jpProducts) {
@@ -362,11 +449,18 @@ export async function runJapaneseSealedRefresh(): Promise<JpRefreshResult> {
     const eur = sanePriceEur(g.low, g.trend ?? g.avg);
     if (eur == null) continue;
     const stock = g.low != null && eur === g.low ? "IN_STOCK" : "OUT_OF_STOCK";
-    ops.push({ productId: p.id, offerId: cmOffer?.id, idProduct, priceOre: Math.round(eur * rates.eurToOre), stock });
+    const refEur = cmGuideRefEur(g);
+    ops.push({
+      productId: p.id, offerId: cmOffer?.id, idProduct,
+      priceOre: Math.round(eur * rates.eurToOre),
+      refOre: refEur != null ? Math.round(refEur * rates.eurToOre) : null,
+      stock,
+    });
   }
 
-  const clamped = await clampDayMoves(ops);
-  if (clamped) console.log(`[cm-jp] klämde ${clamped} orimliga dagshopp till gårdagens värde.`);
+  const jp = await clampDayMoves(ops);
+  if (jp.clamped) console.log(`[cm-jp] klämde ${jp.clamped} orimliga dagshopp till gårdagens värde.`);
+  if (jp.healed) console.log(`[cm-jp] LÄKTE ${jp.healed} tidigare korrupta priser (stort hopp mot CM-trend).`);
 
   for (const op of ops) {
     const url = cardmarketJapaneseProductUrl(op.idProduct);
@@ -504,8 +598,8 @@ export async function runCardmarketRefresh(
         singleOps.push({ productId: entry.productId, offerId: entry.offerId, priceOre, url });
       }
     });
-    const singleClamped = await clampDayMoves(singleOps);
-    if (singleClamped) console.log(`[cm-refresh] Singlar: klämde ${singleClamped} orimliga dagshopp (≥${DAY_MOVE_MAX}x) till gårdagens värde.`);
+    const single = await clampDayMoves(singleOps);
+    if (single.clamped) console.log(`[cm-refresh] Singlar: klämde ${single.clamped} orimliga dagshopp (≥${DAY_MOVE_MAX}x) till gårdagens värde.`);
     await mapPool(singleOps, DB_CONCURRENCY, async (op) => {
       if (op.offerId) {
         await prisma.offer.update({ where: { id: op.offerId }, data: { price: op.priceOre, url: op.url, stockStatus: "IN_STOCK", condition: "NEAR_MINT", lastSeenAt: new Date() } });
@@ -578,7 +672,13 @@ export async function runCardmarketRefresh(
       where: { category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY"] } },
       include: { set: { select: { name: true } }, offers: { select: { id: true, retailerId: true, price: true, stockStatus: true, url: true } } },
     });
-    type SealedOp = { productId: string; offerId?: string; imageUrl?: string; priceOre: number; url: string; stock: "IN_STOCK" | "OUT_OF_STOCK" };
+    // priceOre: null = tunn marknad, vi VET inte priset → offern nollas ("–"), ingen
+    // historikpunkt. stock UNKNOWN (inte OUT_OF_STOCK: vi vet inte det heller).
+    type SealedOp = {
+      productId: string; offerId?: string; imageUrl?: string;
+      priceOre: number | null; refOre?: number | null;
+      url: string; stock: "IN_STOCK" | "OUT_OF_STOCK" | "UNKNOWN";
+    };
     const sealedOps: SealedOp[] = [];
     // Vilka CM-produkter ÄGS redan? Seedas från befintliga CM-offers, så en fuzzy-match
     // aldrig kan kapa en idProduct som en annan katalogprodukt redan har. Se vakten nedan.
@@ -589,6 +689,9 @@ export async function runCardmarketRefresh(
       if (m) ownedCmIds.add(parseInt(m[1], 10));
     }
     let skippedOwned = 0;
+    // Sanitetsreferens + facit från CM:s egen prisguide (publik export, ingen scraping).
+    const cmGuide = await fetchCmGuide();
+    let guarded = 0, thinSkipped = 0;
     for (const p of ours) {
       // RapidAPI-katalogen är HELT engelsk (0 japanska set/produkter, verifierat
       // 2026-07-07) — icke-EN-produkter får ALDRIG matchas här (fyra olika japanska
@@ -648,7 +751,50 @@ export async function runCardmarketRefresh(
       if (low == null && avg != null && langLows.length > 0 && Math.min(...langLows) > avg * 3) {
         continue;
       }
-      const eur = sanePriceEur(low, avg);
+      // Referens till sanitetsvakten — OCH det värde vi faller tillbaka på när `lowest`
+      // förkastas. CM:s EGEN trend går FÖRE RapidAPI:s 30d_average, av två skäl:
+      //   1. 30d_average är null där RapidAPI saknar historik; trenden finns ändå.
+      //   2. På tunt handlad vintage är 30d_average kraftigt UNDERSKATTAD. Mätt mot
+      //      eBay/PriceCharting-sålt (2026-07-14): Arceus Booster Box → snittet gav
+      //      13 498 kr, CM-trenden 32 856 kr, faktisk marknad 33-55k. Flashfire Booster
+      //      Box → snittet 24 326 kr, trenden 54 829 kr, marknad 55-105k. Trenden träffar,
+      //      snittet missar med 3-4x. Att byta ut ett för HÖGT skräpvärde mot ett för
+      //      LÅGT vore ingen rättning — bara ett annat fel.
+      const ref = cmGuideRefEur(cmGuide.get(best.cardmarket_id)) ?? avg;
+      const eur = sanePriceEur(low, ref);
+      if (eur !== low && low != null) guarded++;
+
+      // ── TUNN MARKNAD → INGET PRIS ALLS ────────────────────────────────────
+      // Vi accepterade INTE `lowest` (den var skräp/saknades) och måste falla
+      // tillbaka på trend/snitt. Det duger bara om marknaden faktiskt handlas.
+      // På vintage med en handfull annonser är BÅDA siffrorna fiktion — mätt mot
+      // eBay/PriceCharting-sålt 2026-07-14:
+      //   Gym Challenge Booster Box  2 annonser, lowest 29 500 € (en placeholder-
+      //     annons), 30d-snitt 4 302 € → CM-trenden ger 49 734 kr, verklig marknad
+      //     130-250k. Plasma Storm ETB: 1 annons. Supreme Victors: 2. Neo Destiny:
+      //     CM-"trend" 99,99 € på en box som gått för 150-450k kr.
+      // Ett för lågt påhittat pris är inte bättre än ett för högt — båda bryter mot
+      // "inga fabricerade priser". Hellre "–" än en siffra vi vet är fel.
+      //
+      // Grinden är SMAL med flit, tre villkor:
+      //   1. En ACCEPTERAD `lowest` är en riktig, köpbar annons → publiceras alltid,
+      //      hur tunn marknaden än är. Bara RESERVVÄRDET misstros.
+      //   2. Det måste FINNAS en lowest som vi förkastat (low != null). Det är
+      //      placeholder-signaturen: "45 000 € begärt, trend 3 820 €, 4 annonser".
+      //      En produkt HELT utan annonser är bara slutsåld på CM — den behåller
+      //      sitt gamla beteende (OUT_OF_STOCK + trend som uppskattning).
+      //   3. Marknaden är tunn (≤THIN_ITEMS annonser).
+      const accepted = low != null && eur === low;
+      const items = cmp.available_items ?? 0;
+      if (low != null && !accepted && items <= THIN_ITEMS) {
+        thinSkipped++;
+        sealedOps.push({
+          productId: p.id, offerId: cmOffer?.id, priceOre: null, refOre: null,
+          url: cardmarketProductUrl(best.cardmarket_id), stock: "UNKNOWN",
+        });
+        continue;
+      }
+
       const priceOre = eur != null ? Math.round(eur * rates.eurToOre) : null;
       if (priceOre == null) continue; // ingen prisdata alls
       // Glitchad micro-lowest → sanePriceEur gav 30d-snittet; behandla som ur lager
@@ -663,10 +809,16 @@ export async function runCardmarketRefresh(
       // Self-heal: håll sealed-bilden i synk med CM-katalogens per-produkt-bild
       // (tcggo). Endast på EXAKT cmid-match (fuzzy kan välja fel produkt).
       const imageUrl = exact && best.image && best.image !== p.imageUrl ? best.image : undefined;
-      sealedOps.push({ productId: p.id, offerId: cmOffer?.id, imageUrl, priceOre, url: cardmarketProductUrl(best.cardmarket_id), stock });
+      // refOre = CM:s egen trend → dagvaktens nödutgång: ett stort hopp MOT trenden
+      // är en rättelse av ett korrupt värde, inte en glitch. Utan den fastnar
+      // skräpvärden för alltid (se saneDayMove).
+      const refEur = cmGuideRefEur(cmGuide.get(best.cardmarket_id));
+      const refOre = refEur != null ? Math.round(refEur * rates.eurToOre) : null;
+      sealedOps.push({ productId: p.id, offerId: cmOffer?.id, imageUrl, priceOre, refOre, url: cardmarketProductUrl(best.cardmarket_id), stock });
     }
-    const sealedClamped = await clampDayMoves(sealedOps as { productId: string; priceOre: number }[]);
-    if (sealedClamped) console.log(`[cm-refresh] Sealed: klämde ${sealedClamped} orimliga dagshopp (≥${DAY_MOVE_MAX}x) till gårdagens värde.`);
+    const sealed = await clampDayMoves(sealedOps);
+    if (sealed.clamped) console.log(`[cm-refresh] Sealed: klämde ${sealed.clamped} orimliga dagshopp (≥${DAY_MOVE_MAX}x) till gårdagens värde.`);
+    if (sealed.healed) console.log(`[cm-refresh] Sealed: LÄKTE ${sealed.healed} tidigare korrupta priser (stort hopp mot CM-trend).`);
     await mapPool(sealedOps, DB_CONCURRENCY, async (op) => {
       if (op.imageUrl) await prisma.product.update({ where: { id: op.productId }, data: { imageUrl: op.imageUrl } });
       // Sätt ALLTID price (även null) så ett gammalt uppblåst pris nollas när lowest försvinner.
@@ -686,18 +838,26 @@ export async function runCardmarketRefresh(
     // Utan detta uppdateras bara Offer.price → sealed-grafen fryser på prod och
     // hänger bara med via manuell synk. Värdet = priset vi visar (lowest/30d).
     const cmSourceSealed = await prisma.scrapeSource.findFirst({ where: { name: "Cardmarket" }, select: { id: true } });
-    if (cmSourceSealed && sealedOps.length > 0) {
+    // Bara PRISSATTA ops blir historik. En tunndata-op bär priceOre=null (vi vet inte
+    // priset) — den nollar offerens pris men får ALDRIG bli en snapshot-punkt:
+    // minPrice/avgPrice är NOT NULL, och en påhittad punkt vore precis det vi undviker.
+    const pricedOps = sealedOps.filter(
+      (op): op is typeof op & { priceOre: number } => op.priceOre != null,
+    );
+    if (cmSourceSealed && pricedOps.length > 0) {
       const today = new Date(); today.setHours(0, 0, 0, 0);
       await prisma.priceObservation.createMany({
-        data: sealedOps.map((op) => ({ productId: op.productId, sourceId: cmSourceSealed.id, price: op.priceOre, currency: "SEK" })),
+        data: pricedOps.map((op) => ({ productId: op.productId, sourceId: cmSourceSealed.id, price: op.priceOre, currency: "SEK" })),
       });
       await prisma.priceSnapshot.createMany({
-        data: sealedOps.map((op) => ({ productId: op.productId, date: today, minPrice: op.priceOre, maxPrice: op.priceOre, avgPrice: op.priceOre, volume: 1 })),
+        data: pricedOps.map((op) => ({ productId: op.productId, date: today, minPrice: op.priceOre, maxPrice: op.priceOre, avgPrice: op.priceOre, volume: 1 })),
         skipDuplicates: true,
       });
-      res.historyPoints += sealedOps.length;
+      res.historyPoints += pricedOps.length;
     }
-    console.log(`[cm-refresh] Sealed: ${res.sealedUpdated} uppdaterade, ${sealedOps.length} historikpunkter.`);
+    if (guarded) console.log(`[cm-refresh] Prisvakt: ${guarded} glitchade lowest ersatta av CM-referens (trend/30d).`);
+    if (thinSkipped) console.log(`[cm-refresh] Tunn marknad: ${thinSkipped} sealed utan tillförlitligt pris → "–" (≤${THIN_ITEMS} CM-annonser, reservvärdet går ej att lita på).`);
+    console.log(`[cm-refresh] Sealed: ${res.sealedUpdated} uppdaterade, ${pricedOps.length} historikpunkter.`);
     if (skippedOwned > 0) {
       console.log(
         `[cm-refresh] Sealed: hoppade över ${skippedOwned} fuzzy-matchningar mot en CM-produkt som redan ` +
