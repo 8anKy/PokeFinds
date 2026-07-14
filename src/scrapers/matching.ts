@@ -901,8 +901,28 @@ const ACCESSORY_SIGNS =
   /\b(spelmatta|playmat|lekmatta|sleeves?|kortfodral|deck ?box|kortl[åa]da|akryl\w*|acrylic|skyddsfodral|toploader|binder)\b/i;
 const PORTFOLIO_SIGNS = /\b(p[äa]rm|portfolio|album|pocket)\b/i;
 const BOOSTER_WORD = /\b(booster|paket|pack|packs)\b/i;
+
+// Tredjeparts-TILLVERKARE av tillbehör. Ingen av dem tillverkar Pokémon-kort, så
+// namnet ensamt räcker som dom. Exakta fraser — "ultra" ensamt är FÖRBJUDET, det
+// finns riktiga SKU:er som heter "Ultra Premium Collection".
+const ACCESSORY_BRANDS =
+  /\b(ultra[- ]?pro|ultimate guard|evoretro|dragon shield|gamegenic|arkero|palms off|zenaq)\b/i;
+
+// Skydds-/förvaringsord. Måste slå ÄVEN när titeln innehåller "booster", för det är
+// just då de smiter förbi: "Ultra Pro Booster Pack UV ONETOUCH Magnetic Holder" och
+// "Evoretro PET Protectors for Pokemon Booster Display Boxes (5-Pack)" lästes båda
+// som sealed av classifyForm ("Booster Pack" / "Booster Display") och importerades
+// som produkter (2026-07-14). Butikssidorna säger uttryckligen "Booster pack and
+// cards not included".
+// Bart "case" är FÖRBJUDET här — "Booster Case" är en RIKTIG sealed-SKU (en kartong
+// displayer), t.ex. "Paldea Evolved 24 Sleeved Booster Case".
+const PROTECTOR_SIGNS =
+  /\b(one[- ]?touch|magnetic holder|protectors?|skyddsplast|display[- ]?skydd)\b/i;
+
 export function isAccessoryListing(title: string): boolean {
   if (ACCESSORY_SIGNS.test(title)) return true;
+  if (ACCESSORY_BRANDS.test(title)) return true;
+  if (PROTECTOR_SIGNS.test(title)) return true;
   // Pärm/album/portfolio UTAN booster = bara tillbehöret.
   if (PORTFOLIO_SIGNS.test(title) && !BOOSTER_WORD.test(title)) return true;
   return false;

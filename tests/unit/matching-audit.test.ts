@@ -199,3 +199,29 @@ describe("HTML-entiteter i butiksfeeds", () => {
     expect(normalizeTitle("Scarlet &amp; Violet")).toContain("scarlet violet");
   });
 });
+
+// Tillbehörsvakten missade tredjepartsmärken och skyddsplast (2026-07-14): fyra
+// tillbehör låg i sealed-katalogen. classifyForm läste "Booster Pack"/"Booster
+// Display" i titeln och kallade dem sealed — butikssidorna säger uttryckligen
+// "Booster pack and cards not included".
+describe("isAccessoryListing — tredjepartsmärken och skyddsplast", () => {
+  it("fångar de fyra som faktiskt tog sig in i katalogen", () => {
+    expect(isAccessoryListing("Ultra Pro Booster Pack UV ONETOUCH Magnetic Holder")).toBe(true);
+    expect(isAccessoryListing("Evoretro PET Protectors for Pokemon Booster Display Boxes (5-Pack)")).toBe(true);
+    expect(isAccessoryListing("Evoretro PET Protectors for Pokemon Elite Trainer Boxes (5-Pack)")).toBe(true);
+    expect(isAccessoryListing("Ultimate Guard Tokens Booster")).toBe(true);
+  });
+
+  // DEN FARLIGA RIKTNINGEN. En vakt som råkar svälja riktiga sealed-SKU:er tar bort
+  // produkter ur katalogen — värre än att släppa igenom ett tillbehör.
+  it("rör INTE riktiga sealed-produkter med snarlika ord", () => {
+    // "Booster Case" = en kartong displayer, en äkta SKU. Bart "case" får aldrig matcha.
+    expect(isAccessoryListing("Paldea Evolved 24 Sleeved Booster Case")).toBe(false);
+    // "Ultra" ensamt är förbjudet i märkesvakten — annars dör hela UPC-serien.
+    expect(isAccessoryListing("Hidden Fates: Ultra-Premium Collection")).toBe(false);
+    expect(isAccessoryListing("Mega Charizard X ex Ultra Premium Collection")).toBe(false);
+    // Pärm MED booster är en riktig kombo-SKU (befintlig regel, får inte regrera).
+    expect(isAccessoryListing("Pokémon TCG: Fall 2024 Mini Portfolio + Booster")).toBe(false);
+    expect(isAccessoryListing("Pokémon TCG: Surging Sparks Booster Box")).toBe(false);
+  });
+});
