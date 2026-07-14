@@ -812,6 +812,14 @@ const LISTING_TITLE_JUNK: RegExp[] = [
   // (riktiga displayer har 10+, riktiga lotar 2–4 → multipack-vakten tar dem).
   /\(\d+ ?(?:cards?|kort)\)/gi,
   /\((?:[5-9]|\d{2,}) ?(?:boosters?|packs?|paket)\)/gi,
+  // OMSLAGSKONST: "(Charizard X Artwork)", "(Venusaur Artwork)". Samma SKU, annan
+  // packbild — Cardmarket modellerar det inte separat och ägaren räknar det som dubblett.
+  // Att strippa den HÄR är självläkande: alla omslagsvarianter normaliseras till SAMMA
+  // titel, så variant nr 2 auto-länkar till variant nr 1 (poäng 1,00) i stället för att
+  // bli en ny katalograd. Utan det blev varje omslag en egen produkt — och att merga dem
+  // hjälpte inte: butiks-URL:en blev herrelös och restock-skanningen skapade om stubben
+  // inom minuter (mätt 2026-07-14: tre stubbar återuppstod 19:52, sju minuter efter merge).
+  /\([^)]*\b(?:artwork|art)\b[^)]*\)/gi,
 ];
 
 /** Rensar butiks-skräp ur en annonstitel (identitet + språkmarkörer lämnas orörda). */
@@ -918,6 +926,70 @@ const ACCESSORY_BRANDS =
 // displayer), t.ex. "Paldea Evolved 24 Sleeved Booster Case".
 const PROTECTOR_SIGNS =
   /\b(one[- ]?touch|magnetic holder|protectors?|skyddsplast|display[- ]?skydd)\b/i;
+
+// ── OMSLAGSKONST ÄR INTE EN EGEN PRODUKT (2026-07-14) ────────────────────────
+// Samlarhobby säljer vintage-boosters på PACKETS BILD:
+//   "Pokémon, XY: Flashfire, 1 Booster (Charizard X Artwork)"
+//   "Pokémon, XY: Flashfire, 1 Booster (Charizard Y Artwork)"   ← samma vara, annan bild
+// Det är EN SKU. Cardmarket modellerar inte omslagskonst separat, och ägaren har sagt
+// rakt ut: samma vara med olika omslag = dubblett.
+//
+// Utan den här regeln blev VARJE omslag en egen katalogprodukt — och att MERGA dem
+// hjälpte inte: merge:n raderar stubbens offer (unik nyckel: en offer per butik och
+// produkt), butiks-URL:en blir HERRELÖS, och nästa restock-skanning ser en sealed-URL
+// utan offer och SKAPAR OM stubben inom minuter. Mätt: tre stubbar återuppstod 19:52,
+// sju minuter efter att de mergats bort. Whack-a-mole tills matchningen känner igen dem.
+const WRAPPER_ART = /\(([^)]*\b(?:artwork|art)\b[^)]*)\)/i;
+export function isWrapperArtListing(title: string): boolean {
+  return WRAPPER_ART.test(title);
+}
+export function stripWrapperArt(title: string): string {
+  return title.replace(WRAPPER_ART, " ").replace(/\s{2,}/g, " ").replace(/\s+,/g, ",").trim();
+}
+
+/** En ENSKILD booster-påse (inte display/box, inte blister, inte bundle). */
+function isSingleBoosterPack(t: string): boolean {
+  const s = t.toLowerCase();
+  if (/\b(box|display|case|bundle|blister|tin|etb|elite trainer)\b/.test(s)) return false;
+  return /\bbooster\b|\bpack\b/.test(s);
+}
+/** "(5 Cards)", "(3 Cards)" = EGNA CM-SKU:er (Dollar Tree m.fl.) — aldrig samma som baspacken. */
+const CARD_COUNT_PAREN = /\(\s*\d+\s*cards?\s*\)/i;
+
+/**
+ * Är butikens omslagskonst-annons samma SKU som vår baspack?
+ *
+ * DETERMINISTISK och GRATIS — körs i 0,55–0,85-bandet FÖRE LLM-domen, precis som
+ * identicalIdentity. Det är avgörande: Anthropic-kvoten är slut, och utan den här
+ * regeln föll hela bandet tillbaka på "skapa en stub".
+ *
+ * SMAL MED FLIT. Tre krav, alla måste hålla:
+ *   1. Annonsen bär omslagskonst i parentes.
+ *   2. BÅDA är enskilda booster-påsar. En påse är ALDRIG en box — och utan formkravet
+ *      vann faktiskt boxen: "Flashfire Booster Box" fick 0,65 mot baspackens 0,64 när
+ *      artwork-parentesen strippats (färre tokens → högre Dice). Se packVsBoxMismatch.
+ *   3. Kandidaten har INGET kortantal i parentes. "(5 Cards)"/"(3 Cards)" är egna SKU:er.
+ */
+export function wrapperArtSameProduct(feedTitle: string, candidateTitle: string): boolean {
+  if (!isWrapperArtListing(feedTitle)) return false;
+  if (CARD_COUNT_PAREN.test(candidateTitle)) return false;
+  const stripped = stripWrapperArt(feedTitle);
+  if (CARD_COUNT_PAREN.test(stripped)) return false;
+  if (!isSingleBoosterPack(stripped) || !isSingleBoosterPack(candidateTitle)) return false;
+  // Setet måste vara detsamma — "Flashfire" mot "Generations" får aldrig bindas.
+  if (distinctiveOverlap(normalizeTitle(stripped), normalizeTitle(candidateTitle)) < 0.6) return false;
+  return scoreSimilarity(stripped, candidateTitle) >= 0.55;
+}
+
+/**
+ * En PÅSE är aldrig en BOX. Saknades helt som vakt: "Pokémon, XY: Flashfire, 1 Booster"
+ * matchade "Flashfire Booster Box" med 0,65 och INGEN vakt slog. Boxen kostar 100x påsen.
+ */
+export function packVsBoxMismatch(a: string, b: string): boolean {
+  const box = (t: string) => /\b(booster\s*)?(box|display|case)\b/i.test(t);
+  const pack = (t: string) => !box(t) && /\bbooster\b|\bpack\b/i.test(t);
+  return (box(a) && pack(b)) || (pack(a) && box(b));
+}
 
 export function isAccessoryListing(title: string): boolean {
   if (ACCESSORY_SIGNS.test(title)) return true;
@@ -1268,6 +1340,12 @@ export async function matchProduct(
     }
     // Olika karaktär (Checklane Porygon2 ≠ Checklane Koraidon) → olika SKU.
     if (characterMismatch(raw, c.normalizedTitle)) {
+      continue;
+    }
+    // En PÅSE är aldrig en BOX. Saknades: en enskild booster kunde vinna boxen på ren
+    // Dice-poäng (färre tokens i "Flashfire Booster Box" → 0,65 mot baspackens 0,64).
+    // Boxen kostar ~100x påsen — den felmatchen är dyr och alltid fel.
+    if (packVsBoxMismatch(raw, c.normalizedTitle)) {
       continue;
     }
     // Fel set/kort: kandidaten saknar de särskiljande orden → förkasta

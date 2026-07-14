@@ -32,6 +32,7 @@ import {
   classifyForm,
   cleanListingTitle,
   identicalIdentity,
+  wrapperArtSameProduct,
   isAccessoryListing,
   isPlausiblePriceFor,
   loadMatchIndex,
@@ -262,7 +263,13 @@ export async function ensureListingProduct(
       //    Detta är också det ENDA som fungerar när Anthropic-kvoten är slut: då returnerar
       //    judgeSameProduct null och HELA 0.55–0.85-bandet blev tidigare dubblettstubbar.
       //    ("Pokémon, Mega Evolutions, ME04: Chaos Rising, Display / Booster Box" = 0.789.)
-      if (identicalIdentity(normalized, candidate.normalizedTitle)) {
+      if (
+        identicalIdentity(normalized, candidate.normalizedTitle) ||
+        // Omslagskonst: "…, 1 Booster (Charizard Y Artwork)" ÄR setets baspack. Samma SKU,
+        // annan packbild. Deterministisk och gratis — måste ligga FÖRE LLM-domen, för utan
+        // Anthropic-kvot returnerar den null och hela bandet blev dubblettstubbar.
+        wrapperArtSameProduct(facts.name ?? it.title, candidate.title)
+      ) {
         productId = match.productId;
       } else {
         // 2) Annars: låt LLM-domen avgöra (samma som veckodedupen). Utan nyckel/kvot
