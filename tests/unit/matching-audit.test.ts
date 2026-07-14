@@ -24,6 +24,9 @@ import {
   characterMismatch,
   characterNames,
   isAccessoryListing,
+  cleanListingTitle,
+  wrapperArtSameProduct,
+  packVsBoxMismatch,
   isSingleCardListing,
   setCodeMismatch,
   unitCountMismatch,
@@ -223,5 +226,56 @@ describe("isAccessoryListing — tredjepartsmärken och skyddsplast", () => {
     // Pärm MED booster är en riktig kombo-SKU (befintlig regel, får inte regrera).
     expect(isAccessoryListing("Pokémon TCG: Fall 2024 Mini Portfolio + Booster")).toBe(false);
     expect(isAccessoryListing("Pokémon TCG: Surging Sparks Booster Box")).toBe(false);
+  });
+});
+
+// OMSLAGSKONST (2026-07-14). Samlarhobby säljer vintage-boosters på PACKETS BILD:
+// "…, 1 Booster (Charizard X Artwork)" och "(Charizard Y Artwork)" = SAMMA SKU.
+// Varje omslag blev en egen katalogprodukt — och att MERGA dem hjälpte inte: merge:n
+// raderar stubbens offer (en offer per butik+produkt), butiks-URL:en blir herrelös och
+// restock-skanningen SKAPAR OM stubben. Tre stubbar återuppstod 19:52, sju minuter efter
+// merge. Fixen måste sitta i MATCHNINGEN, inte i merge:n.
+describe("omslagskonst — samma SKU, annan packbild", () => {
+  it("strippar omslagskonsten ur annonstiteln (självläkande: alla varianter → samma titel)", () => {
+    expect(cleanListingTitle("Pokémon, XY: Flashfire, 1 Booster (Charizard X Artwork)"))
+      .toBe("Pokémon, XY: Flashfire, 1 Booster");
+    expect(cleanListingTitle("Pokémon, XY: Flashfire, 1 Booster (Charizard Y Artwork)"))
+      .toBe("Pokémon, XY: Flashfire, 1 Booster");
+    // → identiska titlar ⇒ variant nr 2 auto-länkar till nr 1 i stället för att bli ny rad.
+    expect(cleanListingTitle("Pokémon, Generations, 1 Booster (Venusaur Artwork)"))
+      .toBe("Pokémon, Generations, 1 Booster");
+  });
+
+  it("wrapperArtSameProduct binder omslagsannonsen till setets baspack", () => {
+    expect(wrapperArtSameProduct("Pokémon, XY: Flashfire, 1 Booster (Charizard Y Artwork)", "Flashfire Booster Pack")).toBe(true);
+    expect(wrapperArtSameProduct("Pokémon, Generations, 1 Booster (Venusaur Artwork)", "Generations Booster Pack")).toBe(true);
+  });
+
+  it("men ALDRIG till ett annat kortantal eller ett annat set — egna SKU:er", () => {
+    const feed = "Pokémon, XY: Flashfire, 1 Booster (Charizard Y Artwork)";
+    expect(wrapperArtSameProduct(feed, "Flashfire Booster (5 Cards)")).toBe(false);
+    expect(wrapperArtSameProduct(feed, "Flashfire Dollar Tree Booster (3 Cards)")).toBe(false);
+    expect(wrapperArtSameProduct(feed, "Generations Booster Pack")).toBe(false); // fel set
+    expect(wrapperArtSameProduct(feed, "Flashfire Booster Box")).toBe(false); // påse ≠ box
+  });
+
+  it("en titel UTAN omslagskonst rörs inte", () => {
+    expect(wrapperArtSameProduct("Flashfire Booster Pack", "Flashfire Booster Pack")).toBe(false);
+    expect(cleanListingTitle("Pokémon TCG: Surging Sparks Booster Box")).toBe("Pokémon TCG: Surging Sparks Booster Box");
+  });
+});
+
+// En PÅSE är aldrig en BOX. Saknades som vakt: med omslagskonsten strippad fick
+// "Flashfire Booster Box" 0,65 mot baspackens 0,64 (färre tokens → högre Dice) och
+// INGEN vakt slog. Boxen kostar ~100x påsen — den felmatchen är dyr och alltid fel.
+describe("packVsBoxMismatch", () => {
+  it("blockerar påse mot box/display/case", () => {
+    expect(packVsBoxMismatch("Pokémon, XY: Flashfire, 1 Booster", "Flashfire Booster Box")).toBe(true);
+    expect(packVsBoxMismatch("Chaos Rising Booster Pack", "Chaos Rising Booster Display")).toBe(true);
+    expect(packVsBoxMismatch("Paldea Evolved Booster Pack", "Paldea Evolved 24 Sleeved Booster Case")).toBe(true);
+  });
+  it("rör inte påse↔påse eller box↔box", () => {
+    expect(packVsBoxMismatch("Flashfire Booster Pack", "Flashfire Booster (5 Cards)")).toBe(false);
+    expect(packVsBoxMismatch("Flashfire Booster Box", "Flashfire Booster Box")).toBe(false);
   });
 });
