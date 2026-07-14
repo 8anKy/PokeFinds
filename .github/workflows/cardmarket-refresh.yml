@@ -51,4 +51,23 @@ jobs:
       - if: steps.guard.outputs.ready == 'true'
         run: npx prisma generate
       - if: steps.guard.outputs.ready == 'true'
+        name: Priser + historik (RapidAPI)
         run: npx tsx scripts/cardmarket-refresh-run.ts
+
+      # Städar den prishistorik som spärrhake-buggen skrev (se cardmarket-refresh.ts).
+      # MÅSTE ligga EFTER refreshen: skriptets facit är produktens EGET rättade pris, och
+      # det finns inte förrän refreshen skrivit det. Skriptet har en egen vakt och AVBRYTER
+      # om det ser att fixen inte kört (>20 priser kvar >10x från CM:s trend) — så den här
+      # ordningen är inte bara konvention, den är påtvingad.
+      #
+      # Idempotent: när historiken är städad hittar den 0 rader och gör ingenting. Den kan
+      # alltså ligga kvar i den dagliga körningen som ett skyddsnät — skulle ett skräpvärde
+      # någonsin ta sig in igen städas det bort dagen därpå i stället för att ligga kvar i
+      # movers-listan i en vecka.
+      #
+      # continue-on-error: historikstädningen får ALDRIG rödmarkera en körning som redan
+      # skrivit dagens priser. En misslyckad städning är kosmetisk; en förlorad prisdag är inte.
+      - if: steps.guard.outputs.ready == 'true'
+        name: Städa korrupt prishistorik (idempotent skyddsnät)
+        continue-on-error: true
+        run: npx tsx scripts/purge-corrupt-snapshots.ts --apply

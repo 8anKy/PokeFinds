@@ -1,0 +1,46 @@
+name: CI (typecheck, tester, bygge)
+
+# VARFÖR: 2026-07-14 gick en typfel-commit rakt ut i main och Railway-deployen dog.
+# Felet låg i scripts/ — `next build` typecheckar ÄVEN den mappen, men inget här körde
+# bygget före push. Repot hade NOLL CI: ingen workflow körde tester eller bygge.
+#
+# Det här jobbet är grinden. Kör på push till main OCH på pull requests, så ett brutet
+# bygge fångas här i stället för i produktionsdeployen.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  # Ny push till samma gren → avbryt den gamla körningen. Sparar Actions-minuter.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Bygget kör `prisma generate` + Next-kompilering — ingen riktig DB rörs, men
+      # Prisma vill ha en syntaktiskt giltig URL. Dummy, aldrig prod.
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
+      # next build prerendrar sidor; utan detta försöker NextAuth läsa en riktig hemlighet.
+      NEXTAUTH_SECRET: "ci-dummy-secret-not-used-for-anything"
+      NEXTAUTH_URL: "http://localhost:3000"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx prisma generate
+
+      # Tester först: de är snabbast och säger mest när något är fel.
+      - name: Enhetstester
+        run: npx vitest run
+
+      # DET SOM FAKTISKT SMÄLLDE. `next build` typecheckar hela repot inklusive scripts/,
+      # så det här steget är det som hade fångat Railway-kraschen.
+      - name: Bygge (samma kommando som Railway kör)
+        run: npx next build
