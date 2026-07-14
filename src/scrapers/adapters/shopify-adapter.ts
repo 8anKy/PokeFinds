@@ -15,6 +15,7 @@
 import { StockStatus, SourceType } from "@prisma/client";
 import { politeFetch } from "../http";
 import { normalizeTitle } from "../../lib/utils";
+import { characterNames, isAccessoryListing } from "../matching";
 import type {
   AdapterResult,
   NormalizedProduct,
@@ -24,8 +25,10 @@ import type {
 
 interface ShopifyVariant {
   id: number;
+  title?: string; // optionsvärdet, t.ex. "Mega Emboar" — "Default Title" när produkten saknar val
   price: string; // major units, t.ex. "2490.00"
   available: boolean;
+  featured_image?: { src: string } | null;
 }
 interface ShopifyProduct {
   id: number;
@@ -64,11 +67,51 @@ function guessCategory(title: string): string {
 
 interface ShopifyRaw {
   productId: number;
+  variantId?: number;
   available: boolean;
   priceOre: number;
 }
 function isShopifyRaw(raw: unknown): raw is { priceOre: number; available: boolean } {
   return typeof raw === "object" && raw !== null && "priceOre" in raw && "available" in raw;
+}
+
+/**
+ * SORTIMENTSSIDA: en Shopify-produkt kan vara TRE SKU:er.
+ *
+ * Speltrollet säljer Mega Emboar / Mega Meganium / Mega Feraligatr ex Box som tre
+ * VARIANTER av samma sida — var och en med egen streckkod (…1972/…1973/…1974) och egen
+ * `?variant=`-URL. Vi kollapsade dem till EN annons på den nakna handle-URL:en, så bara
+ * EN av de tre boxarna fick en Speltrollet-länk (vilken avgjordes av matcharen = myntkast)
+ * och de andra två stod utan. Länkrevisionen larmade varje vecka, korrekt.
+ *
+ * VARFÖR INTE BARA SPLITTA ALLT (mätt 2026-07-14 mot butikernas RIKTIGA Pokémon-
+ * kollektioner, inte gissat): Speltrollet har ~100 flervariant-produkter i dem, och nästan
+ * alla är sleeve-färger, pärmfärger, tärningar och spelmattor — "Black | Blue | Red".
+ * Splittar vi dem blir varje FÄRG en egen annons: hundratals nya URL:er, en huvudboksrad
+ * var, och restock-lanen larmar "ny produkt" på varenda en. Vi har redan haft en
+ * larm-spam-incident ([[project-absence-unknown-restock]]) — den vill vi inte upprepa.
+ *
+ * Skillnaden mellan ett SORTIMENT och en FÄRGKARTA sitter i variantnamnen: sortimentets
+ * varianter bär KARAKTÄRSNAMN ("Mega Emboar", "Melmetal"), färgkartans bär färger och
+ * storlekar. Vi kräver därför att VARJE variant nämner en Pokémon — samma vokabulär som
+ * characterMismatch() redan använder för att skilja SKU:er åt. Mot de riktiga feedarna
+ * ger regeln: ex-box-sortimenten, EX/Deluxe-battledecks och Spring-tins splittas;
+ * sleeves, pärmar, tärningar, spelmattor, deltagarbiljetter, VM-decks (spelarnamn) och
+ * artikelnummer-varianter rörs inte. Tillbehörsvakten ligger kvar som andra linje: en
+ * pärm med Charizard-tryck ska inte bli tre katalogprodukter.
+ */
+export function splittableVariants(productTitle: string, variants: ShopifyVariant[]): ShopifyVariant[] | null {
+  if (variants.length < 2) return null;
+  const named = variants.filter((v) => v.title && v.title !== "Default Title");
+  if (named.length !== variants.length) return null; // blandning = otydligt, rör inte
+  if (isAccessoryListing(productTitle)) return null;
+  if (!named.every((v) => characterNames(v.title!).size > 0)) return null;
+  return named;
+}
+
+/** Variantens egen URL — Shopify väljer varianten i väljaren och i varukorgen. */
+export function variantUrl(baseUrl: string, handle: string, variantId: number): string {
+  return `${baseUrl}/products/${handle}?variant=${variantId}`;
 }
 
 export abstract class ShopifyAdapter implements SourceAdapter {
@@ -115,8 +158,7 @@ export abstract class ShopifyAdapter implements SourceAdapter {
           for (const p of batch) {
             if (seen.has(p.id)) continue;
             seen.add(p.id);
-            const raw = this.toRaw(p);
-            if (raw) products.push(raw);
+            products.push(...this.toRaws(p));
           }
           if (batch.length < 250) break;
         }
@@ -127,9 +169,41 @@ export abstract class ShopifyAdapter implements SourceAdapter {
     return { products, errors };
   }
 
-  private toRaw(p: ShopifyProduct): RawProductData | null {
+  /**
+   * En Shopify-produkt → EN annons, utom när sidan är ett sortiment (se
+   * splittableVariants) → då EN annons per variant, med egen URL, eget pris och
+   * eget lagerläge. Vanliga produkter behåller sin nakna handle-URL oförändrad:
+   * annars hade varenda befintlig butiks-offer bytt nyckel på en gång.
+   */
+  private toRaws(p: ShopifyProduct): RawProductData[] {
     const variants = p.variants ?? [];
-    if (variants.length === 0) return null;
+    if (variants.length === 0) return [];
+
+    const split = splittableVariants(p.title.trim(), variants);
+    if (split) {
+      const out: RawProductData[] = [];
+      for (const v of split) {
+        const priceOre = Math.round(parseFloat(v.price) * 100);
+        if (!Number.isFinite(priceOre) || priceOre <= 0) continue;
+        const rawData: ShopifyRaw = { productId: p.id, variantId: v.id, available: v.available, priceOre };
+        // Butikens egen namngivning av varianten ("… - Mega Emboar") — samma sträng som
+        // deras JSON-LD, så länkrevisionen jämför äpplen med äpplen.
+        const title = `${p.title.trim()} - ${v.title!.trim()}`;
+        out.push({
+          externalId: `${this.idPrefix}-${p.id}-${v.id}`,
+          title,
+          url: variantUrl(this.baseUrl, p.handle, v.id),
+          price: priceOre,
+          currency: "SEK",
+          stockStatus: v.available ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
+          imageUrl: v.featured_image?.src ?? p.images?.[0]?.src,
+          category: guessCategory(title),
+          raw: rawData,
+        });
+      }
+      return out;
+    }
+
     const anyAvailable = variants.some((v) => v.available);
     // Visa billigaste köpbara variantens pris (annars billigaste variant alls).
     const pool = variants.filter((v) => v.available);
@@ -137,19 +211,21 @@ export abstract class ShopifyAdapter implements SourceAdapter {
       parseFloat(b.price) < parseFloat(a.price) ? b : a
     );
     const priceOre = Math.round(parseFloat(priceVariant.price) * 100);
-    if (!Number.isFinite(priceOre) || priceOre <= 0) return null;
+    if (!Number.isFinite(priceOre) || priceOre <= 0) return [];
     const rawData: ShopifyRaw = { productId: p.id, available: anyAvailable, priceOre };
-    return {
-      externalId: `${this.idPrefix}-${p.id}`,
-      title: p.title.trim(),
-      url: `${this.baseUrl}/products/${p.handle}`,
-      price: priceOre,
-      currency: "SEK",
-      stockStatus: anyAvailable ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
-      imageUrl: p.images?.[0]?.src,
-      category: guessCategory(p.title),
-      raw: rawData,
-    };
+    return [
+      {
+        externalId: `${this.idPrefix}-${p.id}`,
+        title: p.title.trim(),
+        url: `${this.baseUrl}/products/${p.handle}`,
+        price: priceOre,
+        currency: "SEK",
+        stockStatus: anyAvailable ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
+        imageUrl: p.images?.[0]?.src,
+        category: guessCategory(p.title),
+        raw: rawData,
+      },
+    ];
   }
 
   protected get idPrefix(): string {

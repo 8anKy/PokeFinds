@@ -53,8 +53,19 @@ function pick(html: string, re: RegExp): string | null {
   const m = html.match(re);
   return m ? decodeEntities(m[1].trim()) : null;
 }
-/** JSON-LD Product.name — butikens egen, strukturerade produktidentitet. Bäst av alla. */
+/**
+ * JSON-LD Product.name — butikens egen, strukturerade produktidentitet. Bäst av alla.
+ *
+ * MEN: en SORTIMENTSSIDA har ETT Product-block PER VARIANT (Speltrollets ex-box-sida
+ * listar Mega Emboar, Mega Meganium OCH Mega Feraligatr). Den gamla versionen tog det
+ * block som råkade poppas först ur stacken — ett myntkast — och jämförde vår Mega
+ * Emboar-produkt mot ett slumpvalt syskon. Det var hela "sidan säljer Mega Feraligatr"-
+ * larmet: sidan säljer alla tre. Flera OLIKA namn → sidan har ingen entydig identitet
+ * här; returnera inget och låt og:title (produkttiteln utan variant) svara i stället.
+ * Samma regel som productNameFromHtml() i gtin-source.ts.
+ */
 function ldName(html: string): string | null {
+  const names = new Set<string>();
   for (const b of html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)) {
     let data: unknown;
     try { data = JSON.parse(b[1].trim()); } catch { continue; }
@@ -66,11 +77,37 @@ function ldName(html: string): string | null {
       if (node["@graph"]) stack.push(node["@graph"]);
       const type = node["@type"];
       if ((type === "Product" || (Array.isArray(type) && type.includes("Product"))) && typeof node.name === "string")
-        return decodeEntities(node.name);
+        names.add(decodeEntities(node.name));
       for (const v of Object.values(node)) if (v && typeof v === "object") stack.push(v);
     }
   }
-  return null;
+  return names.size === 1 ? [...names][0] : null;
+}
+
+/**
+ * En `?variant=`-länk pekar på EN SKU på en sortimentssida — men sidans HTML ser likadan
+ * ut för alla tre varianterna (og:title bär bara produktnamnet, JSON-LD listar allihop).
+ * Sidhämtningen kan alltså inte avgöra vilken box länken går till. Butikens egen
+ * variant-JSON kan: den ger variantens namn, och det är den identitet vi vill revidera
+ * mot ("Pokemon Ascended Heroes ex Box - Mega Meganium").
+ */
+async function shopifyVariantName(url: string): Promise<string | null> {
+  const id = url.match(/[?&]variant=(\d+)/);
+  const handle = url.match(/\/products\/([^/?#]+)/);
+  if (!id || !handle) return null;
+  try {
+    const res = await fetch(`${new URL(url).origin}/products/${handle[1]}.js`, {
+      headers: { "user-agent": UA, cookie: "localization=SE" },
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { title?: string; variants?: { id: number; title?: string }[] };
+    const v = (data.variants ?? []).find((x) => x.id === Number(id[1]));
+    if (!data.title || !v?.title) return null;
+    return `${data.title.trim()} - ${v.title.trim()}`;
+  } catch {
+    return null; // inte Shopify, eller nere → fall tillbaka på sidhämtningen
+  }
 }
 /** Butikens <title> bär ett säljsuffix ("… | Dragon's Lair") som inte är produktidentitet. */
 const STORE_SUFFIX =
@@ -79,6 +116,10 @@ const STORE_SUFFIX =
 type Fetched = { name: string | null; dead: boolean; why: string };
 
 async function fetchIdentity(url: string): Promise<Fetched> {
+  // Variantlänk: bara butikens variant-JSON vet vilken SKU länken pekar på (se ovan).
+  const variantName = await shopifyVariantName(url);
+  if (variantName) return { name: cleanListingTitle(variantName), dead: false, why: "" };
+
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const res = await fetch(url, { headers: { "user-agent": UA }, signal: AbortSignal.timeout(45_000) });

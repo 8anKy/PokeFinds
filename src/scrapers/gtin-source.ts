@@ -156,6 +156,12 @@ export function shopifyHandleFromUrl(url: string): string | null {
   return m ? m[1] : null;
 }
 
+/** Variant-id ur ?variant=… — sätts av ShopifyAdapter på sortimentssidor. */
+export function variantIdFromUrl(url: string): number | null {
+  const m = url.match(/[?&]variant=(\d+)/);
+  return m ? Number(m[1]) : null;
+}
+
 /** Webhallens produkt-id är den ledande siffergruppen i slugen: /product/389126-Namn. */
 export function webhallenIdFromUrl(url: string): string | null {
   const m = url.match(/\/product\/(\d+)/);
@@ -217,13 +223,22 @@ async function resolveFacts(
         headers: { cookie: "localization=SE", "accept-language": "sv-SE" },
       });
       if (!res.ok) return NONE;
-      const data = (await res.json()) as { variants?: { barcode?: string | null }[] };
-      // TA ALDRIG variants[0] RAKT AV. En Shopify-sida kan sälja flera varianter (olika
-      // Pokémon i samma tin-serie, olika färger) med VAR SIN streckkod — då är "första
-      // varianten" ett myntkast, och vi skulle sätta fel kod på produkten. Är varianterna
-      // oense: returnera INGEN kod och låt titelmatchningen ta över. Hellre ingen kod än fel.
+      const data = (await res.json()) as { variants?: { id?: number; barcode?: string | null }[] };
+      const variants = data.variants ?? [];
+      // Pekar URL:en ut EN variant (?variant=…) är koden entydig: det är DEN variantens
+      // streckkod, inte sidans. Sortimentssidor säljer flera SKU:er med var sin kod
+      // (Mega Emboar …1972, Mega Meganium …1973, Mega Feraligatr …1974) — utan detta
+      // steg såg de tre boxarna ut att sakna kod, och titelmatchningen fick avgöra.
+      const wanted = variantIdFromUrl(url);
+      if (wanted !== null) {
+        const hit = variants.find((v) => v.id === wanted);
+        return { gtin: hit ? normalizeGtin(hit.barcode) : null, name: null };
+      }
+      // Naken produkt-URL. TA ALDRIG variants[0] RAKT AV: är varianterna oense om koden
+      // är "första varianten" ett myntkast och vi sätter fel kod på produkten. Oense →
+      // INGEN kod, låt titelmatchningen ta över. Hellre ingen kod än fel.
       const codes = new Set(
-        (data.variants ?? []).map((v) => normalizeGtin(v.barcode)).filter((g): g is string => !!g)
+        variants.map((v) => normalizeGtin(v.barcode)).filter((g): g is string => !!g)
       );
       // Shopifys .js-titel bär samma butiksskräp som feeden → inget renare namn att hämta.
       return { gtin: codes.size === 1 ? [...codes][0] : null, name: null };
