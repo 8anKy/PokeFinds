@@ -51,4 +51,39 @@ jobs:
       - if: steps.guard.outputs.ready == 'true'
         run: npx prisma generate
       - if: steps.guard.outputs.ready == 'true'
+        name: Priser + historik (RapidAPI)
         run: npx tsx scripts/cardmarket-refresh-run.ts
+
+      # Städar den prishistorik som spärrhake-buggen skrev (se cardmarket-refresh.ts).
+      # MÅSTE ligga EFTER refreshen: skriptets facit är produktens EGET rättade pris, och
+      # det finns inte förrän refreshen skrivit det. Skriptet har en egen vakt och AVBRYTER
+      # om det ser att fixen inte kört (>20 priser kvar >10x från CM:s trend) — så den här
+      # ordningen är inte bara konvention, den är påtvingad.
+      #
+      # Idempotent: när historiken är städad hittar den 0 rader och gör ingenting. Den kan
+      # alltså ligga kvar i den dagliga körningen som ett skyddsnät — skulle ett skräpvärde
+      # någonsin ta sig in igen städas det bort dagen därpå i stället för att ligga kvar i
+      # movers-listan i en vecka.
+      #
+      # continue-on-error: historikstädningen får ALDRIG rödmarkera en körning som redan
+      # skrivit dagens priser. En misslyckad städning är kosmetisk; en förlorad prisdag är inte.
+      #
+      # ── TORRKÖRNING TILLS VIDARE — INGET --apply ─────────────────────────────
+      # Steget RADERAR INGENTING. Det loggar bara vad det SKULLE radera.
+      #
+      # Varför: städningens bärande vakt är PLATÅ-KRAVET (bara stillastående fel raderas,
+      # äkta kurvor skonas). Den vakten har ALDRIG körts mot KORREKT data — RapidAPI-kvoten
+      # tog slut 2026-07-14 innan refreshen hann läka något, så varje torrkörning dittills
+      # jämförde mot FRUSNA priser och gav ett inverterat, meningslöst facit.
+      # Att låta ett oprövat raderingsvillkor köra obevakat mot prod varje dygn är inte värt
+      # den dag det sparar.
+      #
+      # FLIPPA TILL --apply när DENNA checklista är avbockad:
+      #   1. En refresh har kört klart MED spärrhake-fixen (priserna är läkta).
+      #   2. Loggen från det här steget är läst mot den korrekta datan.
+      #   3. "SKONADES av platå-kravet" innehåller de äkta kurvorna, och raderingslistan
+      #      innehåller bara platåer (samma värde dag efter dag).
+      - if: steps.guard.outputs.ready == 'true'
+        name: Korrupt prishistorik — TORRKÖRNING (raderar inget, se checklistan ovan)
+        continue-on-error: true
+        run: npx tsx scripts/purge-corrupt-snapshots.ts

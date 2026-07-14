@@ -43,6 +43,17 @@ const APPLY = process.argv.includes("--apply");
 // korrupt. 4x är MEDVETET trubbigt — hellre lämna kvar en tveksam punkt än radera
 // legitim historik.
 const FACTOR = 4;
+
+// ── PLATÅ-KRAVET: skiljer ett FRUSET pris från en ÄKTA uppgång ───────────────
+// Avstånd från dagens pris räcker INTE som bevis. En produkt som genuint stigit 4x på en
+// månad har en gammal, LÅG historik som ligger >4x bort — och den historiken är SANN.
+// Raderar vi den förstör vi exakt det som "prishistorik byggs framåt" ska skydda.
+//
+// Spärrhaken har däremot ett fingeravtryck: den skrev SAMMA värde varje dygn. Great
+// Encounters stod på 325 385 kr dag efter dag; Skeledirge på 79 kr. En äkta rörelse är en
+// KURVA, ett fruset pris är en PLATÅ. Vi raderar därför bara när de misstänkta punkterna
+// ligger still (max/min <= PLATEAU_SPREAD) — då är de inte en marknad, de är en bugg.
+const PLATEAU_SPREAD = 1.2;
 const SEALED = ["BOOSTER_BOX", "BOOSTER_PACK", "ETB", "COLLECTION_BOX", "TIN", "BLISTER", "BUNDLE", "OTHER"] as const;
 
 async function main() {
@@ -81,19 +92,28 @@ async function main() {
     const refOre = refEur * rates.eurToOre;
     return o.price! > refOre * 10 || o.price! < refOre / 10;
   });
+  const stale = frozen.length > 20;
   console.log(`sealed m. CM-pris: ${cmOffers.length} | fortfarande >10x från CM-trend: ${frozen.length}`);
-  if (frozen.length > 20) {
+  if (stale) {
     for (const o of frozen.slice(0, 5)) console.log(`   frusen? ${(o.price! / 100).toFixed(0)} kr — ${o.product.title.slice(0, 45)}`);
-    throw new Error(
-      `AVBRYTER: ${frozen.length} priser ligger fortfarande >10x från CM:s trend — spärrhake-fixen ` +
-      `har inte kört klart. Facit vore då det FRUSNA priset och vi skulle radera KORREKT historik. ` +
-      `Kör cardmarket-refresh (med fixen, full RapidAPI-kvot) först.`,
+    // Blockera bara SKRIVNINGEN. En torrkörning är ofarlig och användbar — men säg
+    // rakt ut att facit är ruttet, annars läses listan som en sanning.
+    console.warn(
+      `\n⚠ VARNING: ${frozen.length} priser ligger fortfarande >10x från CM:s trend — spärrhake-fixen ` +
+      `har inte kört klart. FACIT ÄR DÅ DET FRUSNA PRISET och listan nedan är opålitlig.\n`,
     );
+    if (APPLY) {
+      throw new Error(
+        "AVBRYTER --apply: vi skulle radera KORREKT historik mot ett fruset facit. " +
+        "Kör cardmarket-refresh (med fixen, full RapidAPI-kvot) först.",
+      );
+    }
   }
 
-  let victims = 0, rows = 0;
+  let victims = 0, rows = 0, spared = 0;
   const toDelete: string[] = [];
   const report: any[] = [];
+  const sparedReport: any[] = [];
 
   for (const p of products) {
     const price = p.offers[0]?.price ?? null;
@@ -104,6 +124,17 @@ async function main() {
     );
     if (bad.length === 0) continue;
 
+    // PLATÅ-KRAVET (se konstanten ovan): bara ett STILLASTÅENDE fel raderas. Sprider sig
+    // punkterna är det en äkta kurva — lämna den i fred, även om den ligger långt bort.
+    const lo = Math.min(...bad.map((s) => s.avgPrice));
+    const hi = Math.max(...bad.map((s) => s.avgPrice));
+    if (lo <= 0 || hi / lo > PLATEAU_SPREAD) {
+      spared++;
+      sparedReport.push({ title: p.title, ref: Math.round(price / 100), n: bad.length,
+        span: `${(lo / 100).toFixed(0)}–${(hi / 100).toFixed(0)} kr` });
+      continue;
+    }
+
     victims++;
     rows += bad.length;
     toDelete.push(...bad.map((s) => s.id));
@@ -112,7 +143,7 @@ async function main() {
       ref: Math.round(price / 100),
       bad: bad.length,
       total: p.priceSnapshots.length,
-      span: `${(Math.min(...bad.map((s) => s.avgPrice)) / 100).toFixed(0)}–${(Math.max(...bad.map((s) => s.avgPrice)) / 100).toFixed(0)} kr`,
+      span: `${(lo / 100).toFixed(0)}–${(hi / 100).toFixed(0)} kr`,
     });
   }
 
@@ -122,6 +153,12 @@ async function main() {
   for (const r of report.slice(0, 30))
     console.log(`  ${String(r.bad).padStart(3)}/${String(r.total).padEnd(3)} ${String(r.ref).padStart(9)} kr  ${r.span.padEnd(24)} ${r.title.slice(0, 42)}`);
   if (report.length > 30) console.log(`  … +${report.length - 30} produkter till`);
+
+  if (spared) {
+    console.log(`\n${spared} produkter SKONADES av platå-kravet (punkterna sprider sig = äkta kurva, inte ett fruset fel):`);
+    for (const s of sparedReport.slice(0, 10))
+      console.log(`   ${String(s.n).padStart(3)} punkter  ${s.span.padEnd(22)} (pris nu ${s.ref} kr)  ${s.title.slice(0, 40)}`);
+  }
 
   if (!APPLY) {
     console.log(`\nDry-run. ${rows} rader skulle raderas. Kör med --apply.`);

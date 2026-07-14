@@ -1,0 +1,70 @@
+name: CI (typecheck, tester, bygge)
+
+# VARFÖR: 2026-07-14 gick en typfel-commit rakt ut i main och Railway-deployen dog.
+# Felet låg i scripts/ — `next build` typecheckar ÄVEN den mappen, men inget här körde
+# bygget före push. Repot hade NOLL CI: ingen workflow körde tester eller bygge.
+#
+# Det här jobbet är grinden. Kör på push till main OCH på pull requests, så ett brutet
+# bygge fångas här i stället för i produktionsdeployen.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  # Ny push till samma gren → avbryt den gamla körningen. Sparar Actions-minuter.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # RIKTIG POSTGRES, inte en dummy-URL. `next build` PRERENDRAR de ISR-cachade sidorna
+    # (/marknad, /sets, startsidan) och de LÄSER DB:n under bygget — precis som på Railway,
+    # som har en nåbar DATABASE_URL. Första CI-försöket pekade på en tom localhost och föll
+    # på "Can't reach database server": bygget kom ända till prerendering och dog där.
+    # En TOM men MIGRERAD databas räcker: sidorna renderar noll rader, men koden körs.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
+      # NextAuth läses vid prerendering — dummy-värden, aldrig prod.
+      NEXTAUTH_SECRET: "ci-dummy-secret-not-used-for-anything"
+      NEXTAUTH_URL: "http://localhost:3000"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx prisma generate
+
+      # Tabellerna måste finnas — annars faller prerenderingen på "relation does not exist"
+      # i stället för på ett riktigt fel.
+      - name: Migrera CI-databasen
+        run: npx prisma migrate deploy
+
+      # Tester först: snabbast, och säger mest när något är fel.
+      - name: Enhetstester
+        run: npx vitest run
+
+      # DET SOM FAKTISKT SMÄLLDE. `next build` typecheckar hela repot inklusive scripts/,
+      # så det här steget är det som hade fångat Railway-kraschen.
+      - name: Bygge (samma kommando som Railway kör)
+        run: npx next build
