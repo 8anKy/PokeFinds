@@ -105,12 +105,18 @@ async function main() {
 
     if (APPLY) {
       await mergeStubInto(s.id, c.id, (m) => console.log(`      ${m}`));
-      await recomputeProductPriceCache([c.id]);
       console.log("   ✔ mergad.");
     }
     console.log("");
   }
 
-  if (!APPLY) console.log(`${PAIRS.length} par redo. Kör med --apply för att skriva.`);
+  if (!APPLY) {
+    console.log(`${PAIRS.length} par redo. Kör med --apply för att skriva.`);
+    return;
+  }
+  // Prischachen räknas om för HELA katalogen (funktionen tar inga argument) — en gång
+  // efter alla merges, inte en gång per par.
+  await recomputeProductPriceCache();
+  console.log("Prischache omräknad.");
 }
 main().finally(() => prisma.$disconnect());
