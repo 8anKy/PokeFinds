@@ -53,9 +53,15 @@ jobs:
       APNS_TEAM_ID: F2XP44FF3B
       APNS_BUNDLE_ID: se.foilio.app
       APNS_PRODUCTION: "true"
-      # Ändringsgrind: feed-avtrycket sparas här och cachas mellan körningar (nedan).
-      # Oförändrad feed → DB-fasen hoppas → Neon sover → tätare takt utan mer compute.
-      RESTOCK_FINGERPRINT_FILE: .restock-cache/fingerprint.txt
+      # Ändringsgrind: LAGERDIFF (src/lib/feed-state-diff.ts). Väcker Neon bara på
+      # riktiga lagerflippar, inte på roterande butikers (Swepoke/Shinycards) URL-churn
+      # — som annars flippade fingeravtrycket varje körning och höll computen vaken.
+      # Statekartan cachas mellan körningar (nedan).
+      RESTOCK_STATE_FILE: .restock-cache/state.json
+      # SKUGGLÄGE tills verifierad: grinden KÖR ändå men loggar sitt beslut + jämför mot
+      # vad DB-fasen fann. Leta [SHADOW-MISMATCH] i loggarna. Noll under ett dygn →
+      # sätt "0" här → grinden hoppar skarpt → compute sjunker (~$13/mån).
+      RESTOCK_GATE_SHADOW: "1"
     steps:
       # Self-healing-vakt: tills molnhostingen (Neon) är konfigurerad saknas
       # DATABASE_URL-secret. Då hoppar vi över körningen och lyckas grönt (ingen
