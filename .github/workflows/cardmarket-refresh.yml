@@ -67,7 +67,23 @@ jobs:
       #
       # continue-on-error: historikstädningen får ALDRIG rödmarkera en körning som redan
       # skrivit dagens priser. En misslyckad städning är kosmetisk; en förlorad prisdag är inte.
+      #
+      # ── TORRKÖRNING TILLS VIDARE — INGET --apply ─────────────────────────────
+      # Steget RADERAR INGENTING. Det loggar bara vad det SKULLE radera.
+      #
+      # Varför: städningens bärande vakt är PLATÅ-KRAVET (bara stillastående fel raderas,
+      # äkta kurvor skonas). Den vakten har ALDRIG körts mot KORREKT data — RapidAPI-kvoten
+      # tog slut 2026-07-14 innan refreshen hann läka något, så varje torrkörning dittills
+      # jämförde mot FRUSNA priser och gav ett inverterat, meningslöst facit.
+      # Att låta ett oprövat raderingsvillkor köra obevakat mot prod varje dygn är inte värt
+      # den dag det sparar.
+      #
+      # FLIPPA TILL --apply när DENNA checklista är avbockad:
+      #   1. En refresh har kört klart MED spärrhake-fixen (priserna är läkta).
+      #   2. Loggen från det här steget är läst mot den korrekta datan.
+      #   3. "SKONADES av platå-kravet" innehåller de äkta kurvorna, och raderingslistan
+      #      innehåller bara platåer (samma värde dag efter dag).
       - if: steps.guard.outputs.ready == 'true'
-        name: Städa korrupt prishistorik (idempotent skyddsnät)
+        name: Korrupt prishistorik — TORRKÖRNING (raderar inget, se checklistan ovan)
         continue-on-error: true
-        run: npx tsx scripts/purge-corrupt-snapshots.ts --apply
+        run: npx tsx scripts/purge-corrupt-snapshots.ts
