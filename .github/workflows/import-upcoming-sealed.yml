@@ -1,0 +1,60 @@
+name: Auto-import kommande sealed (veckovis)
+
+# Lägger automatiskt till NYA/kommande engelska sealed-produkter (t.ex. 30th Celebration,
+# Delta Reign) ur Cardmarket-katalogen INNAN de släpps — med transparent CM-bild + CM-pris.
+# RECENT_DAYS=90 begränsar till det CM lagt till senaste 90 dagarna (nya set), aldrig hela
+# bakåtkatalogen. Dedup + språk/region/skräp-vakt + form-klassning skyddar katalogen.
+# Priser/bilder underhålls därefter av den dagliga cardmarket-refresh.
+on:
+  schedule:
+    - cron: "0 4 * * 0" # söndagar 04:00 UTC — lugn tid, krockar inte med dagliga refreshen (13:00)
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Skriv till DB (annars torrkörning)"
+        type: boolean
+        default: false
+      recent_days:
+        description: "Fönster för 'nyligen tillagd' (dagar)"
+        default: "90"
+
+concurrency:
+  group: import-upcoming-sealed
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      CARDMARKET_RAPIDAPI_HOST: ${{ secrets.CARDMARKET_RAPIDAPI_HOST }}
+      CARDMARKET_RAPIDAPI_KEY: ${{ secrets.CARDMARKET_RAPIDAPI_KEY }}
+      EUR_SEK: ${{ secrets.EUR_SEK }}
+      # Schemalagd körning = skarp (APPLY=1). Manuell dispatch styrs av knappen (default torr).
+      APPLY: ${{ github.event_name == 'schedule' && '1' || (github.event.inputs.apply == 'true' && '1' || '') }}
+      RECENT_DAYS: ${{ github.event.inputs.recent_days || '90' }}
+    steps:
+      - name: Förkrav — DATABASE_URL måste vara satt
+        id: guard
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::notice::DATABASE_URL saknas — hoppar över tills molnhosting är konfigurerad."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/checkout@v4
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - if: steps.guard.outputs.ready == 'true'
+        run: npm ci --legacy-peer-deps
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx prisma generate
+      - if: steps.guard.outputs.ready == 'true'
+        name: Import kommande sealed (RECENT_DAYS-fönster)
+        run: npx tsx scripts/import-sealed-from-cardmarket.ts
