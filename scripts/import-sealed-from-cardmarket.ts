@@ -6,6 +6,10 @@
  * Dry run:  npx tsx scripts/import-sealed-from-cardmarket.ts
  * Skriv:    APPLY=1 npx tsx scripts/import-sealed-from-cardmarket.ts
  * Filtrera: CATEGORIES=TIN,BLISTER APPLY=1 npx tsx scripts/import-sealed-from-cardmarket.ts
+ * NYARE-läge (automationen): RECENT_DAYS=90 begränsar till produkter som CM lagt till
+ *   de senaste N dagarna (nya/kommande set) i stället för HELA bakåtkatalogen. dateAdded
+ *   läses ur CM:s GRATIS publika katalog (S3) — kostar noll RapidAPI. Bilden hämtas ändå
+ *   ur RapidAPI-katalogen (p.image = transparent CM-bild, aldrig butiksfoto).
  */
 import * as fs from "fs";
 import * as path from "path";
@@ -30,6 +34,16 @@ const APPLY = process.env.APPLY === "1";
 const THROTTLE_MS = parseInt(process.env.THROTTLE_MS ?? "220", 10);
 const CACHE = path.join(process.cwd(), ".cache", "rapidapi-sealed.json");
 const ONLY = process.env.CATEGORIES?.split(",").map((s) => s.trim().toUpperCase());
+const RECENT_DAYS = process.env.RECENT_DAYS ? parseInt(process.env.RECENT_DAYS, 10) : null;
+const NONSINGLES_URL =
+  "https://downloads.s3.cardmarket.com/productCatalog/productList/products_nonsingles_6.json";
+// Defensiv språk-/region-/skräpvakt. RapidAPI-katalogen är redan engelsk (verifierat
+// 2026-07-07), men vi grindar ändå: kinesiska version-set börjar med en kod som slutar
+// på "C" ("CSV9C:", "CSVM2cC:", "CSVH5C:"), språknamn kan stå i titeln, Costco/Sam's Club
+// är regionsexklusiva, och "Empty"-tins är tomma tillbehör. Hellre missa en udda titel än
+// fel-skapa en. EN-only tills vidare (JP prissätts separat via runJapaneseSealedRefresh).
+const REJECT_RE =
+  /^cs[a-z0-9]*c:|\b(simplified|traditional)\s+chinese\b|\bchinese\b|\bkorean\b|\bindonesian\b|\bthai\b|\bjapanese\b|\bcostco\b|sam'?s\s+club|\bempty\b/i;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const norm = (s: string) =>
@@ -70,6 +84,22 @@ async function loadCatalog(): Promise<ApiProduct[]> {
   return out;
 }
 
+// idProduct som CM lade till katalogen de senaste `days` dagarna. Läses ur CM:s GRATIS
+// publika katalog (S3) — RapidAPI-produkten saknar dateAdded, gratis-katalogen har den.
+// Så automationen fångar NYA/kommande set och hoppar över hela bakåtkatalogen.
+async function loadRecentIds(days: number): Promise<Set<number>> {
+  const r = await fetch(NONSINGLES_URL);
+  if (!r.ok) throw new Error(`Gratis CM-katalog (dateAdded) HTTP ${r.status}`);
+  const j = (await r.json()) as { products: { idProduct: number; dateAdded: string }[] };
+  const cutoff = Date.now() - days * 86_400_000;
+  const ids = new Set<number>();
+  for (const p of j.products) {
+    const t = Date.parse(p.dateAdded.replace(" ", "T") + "Z");
+    if (!Number.isNaN(t) && t >= cutoff) ids.add(p.idProduct);
+  }
+  return ids;
+}
+
 async function main() {
   const rates = await getRatesOre();
   const cm = await prisma.retailer.findFirst({ where: { name: "Cardmarket" } });
@@ -94,11 +124,18 @@ async function main() {
   const sets = await prisma.cardSet.findMany({ select: { id: true, name: true } });
   const setMap = new Map(sets.map((s) => [norm(s.name), s.id]));
 
+  const recentIds = RECENT_DAYS != null ? await loadRecentIds(RECENT_DAYS) : null;
+
   const catalog = await loadCatalog();
-  console.log(`CM-katalog: ${catalog.length} · APPLY=${APPLY}${ONLY ? ` · endast ${ONLY.join(",")}` : ""}\n`);
+  console.log(
+    `CM-katalog: ${catalog.length} · APPLY=${APPLY}` +
+      (ONLY ? ` · endast ${ONLY.join(",")}` : "") +
+      (recentIds ? ` · RECENT_DAYS=${RECENT_DAYS} (${recentIds.size} nyliga idProduct)` : "") +
+      "\n",
+  );
 
   const stat: Record<string, number> = {};
-  let skippedHave = 0, skippedNoData = 0, skippedForm = 0, created = 0;
+  let skippedHave = 0, skippedNoData = 0, skippedForm = 0, created = 0, skippedOld = 0, skippedReject = 0;
 
   for (const p of catalog) {
     const form = classifyForm(p.name ?? "");
@@ -107,6 +144,10 @@ async function main() {
     if (ONLY && !ONLY.includes(cat)) continue;
     const cmid = p.cardmarket_id;
     const normTitle = norm(p.name);
+    // Nyare-läge: bara det CM lagt till nyligen (nya/kommande set), inte bakåtkatalogen.
+    if (recentIds && (cmid == null || !recentIds.has(cmid))) { skippedOld++; continue; }
+    // Språk-/region-/skräpvakt (se REJECT_RE).
+    if (REJECT_RE.test(p.name)) { skippedReject++; continue; }
     if ((cmid != null && existingCmIds.has(cmid)) || existingTitles.has(`${cat}|${normTitle}`)) { skippedHave++; continue; }
 
     const c = p.prices?.cardmarket ?? {};
@@ -151,7 +192,11 @@ async function main() {
   console.log("Skapas per kategori:");
   for (const [c, n] of Object.entries(stat).sort((a, b) => b[1] - a[1])) console.log(`  ${c}: ${n}`);
   console.log(`\nTotalt nya: ${created}`);
-  console.log(`Skippade — har redan: ${skippedHave} · ingen data: ${skippedNoData} · ej målform: ${skippedForm}`);
+  console.log(
+    `Skippade — har redan: ${skippedHave} · ingen data: ${skippedNoData} · ej målform: ${skippedForm}` +
+      (recentIds ? ` · ej nyliga: ${skippedOld}` : "") +
+      ` · språk/region/skräp: ${skippedReject}`,
+  );
   if (!APPLY) console.log("\n(dry run — kör APPLY=1 för att skapa produkterna)");
 }
 
