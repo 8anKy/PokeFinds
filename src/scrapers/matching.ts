@@ -1582,10 +1582,13 @@ export async function isPlausibleListingPrice(
     refOre = histOre;
   }
 
-  // Undre-gräns-vakt för billiga sealed (nu möjlig tack vare ett pålitligt facit): ett
-  // Tradera-pris < SEALED_MIN_PRICE_RATIO av facitet = öppnat ex / felmatch → avvisa.
-  if (refOre != null && CHEAP_SEALED_LOWER_GUARD.has(product?.category ?? "")
-      && priceOre < refOre * SEALED_MIN_PRICE_RATIO) {
+  // Undre-gräns-vakt för billiga sealed: BARA med ett PÅLITLIGT facit = vår STABILA egen
+  // historik. Utan historik kan CM-ref vara felmappat HÖGT för en billig pack (860 kr på en
+  // 69-kr-pack) → då raderar en CM-baserad undre-vakt det RÄTTA billiga priset och behåller
+  // det felaktiga CM-et. Därför kräver vakten historik, inte bara CM. (Facitet i övrigt =
+  // refOre, som redan är CM korsvaliderad mot historik.)
+  if (histOre != null && CHEAP_SEALED_LOWER_GUARD.has(product?.category ?? "")
+      && priceOre < histOre * SEALED_MIN_PRICE_RATIO) {
     return false;
   }
   return isPlausiblePriceFor(product?.category, refOre, priceOre);
