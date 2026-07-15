@@ -103,6 +103,21 @@ export function cmGuideRefEur(g: CmGuideEntry | undefined): number | null {
   return usable(g?.trend) ?? usable(g?.avg) ?? null;
 }
 
+// ── VÅR STABILA HISTORIK SOM FACIT (ägarens regel-tillägg, 2026-07-15) ────────
+// Ägarens prisregel: FROM > TREND > 30-dagssnitt, aldrig 1-dagsspiken. Men CM-GUIDEN
+// SJÄLV glitchar ibland: Skyridge visade trend/avg ~97k€ (1-dagsspiken) i stället för
+// det stabila ~42k€. Då är guidens 30-dagssnitt-FÄLT också korrupt och sanningen finns
+// bara i VÅR egen historik. Signaturen: en PLATT historik (låg spridning) + ett dagsvärde
+// som avviker → glitchen ligger i dagsvärdet, inte i marknaden. Returnerar historik-
+// medianen (öre) BARA när historiken är stabil nog att lita på (≥5 pkt, spridning <1.5x).
+// Volatil historik = äkta marknad → returnera null (rör inte priset).
+export function stableHistoryOre(snapshotOre: number[]): number | null {
+  const v = snapshotOre.filter((x) => x > 0).sort((a, b) => a - b);
+  if (v.length < 5) return null;
+  if (v[v.length - 1] / v[0] > 1.5) return null;
+  return v[Math.floor(v.length / 2)];
+}
+
 /** CM:s officiella prisguide (idProduct → low/trend/avg). Publik export, ingen scraping. */
 let cmGuideCache: Map<number, CmGuideEntry> | null = null;
 export async function fetchCmGuide(): Promise<Map<number, CmGuideEntry>> {
@@ -670,7 +685,12 @@ export async function runCardmarketRefresh(
     }
     const ours = await prisma.product.findMany({
       where: { category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY"] } },
-      include: { set: { select: { name: true } }, offers: { select: { id: true, retailerId: true, price: true, stockStatus: true, url: true } } },
+      include: {
+        set: { select: { name: true } },
+        offers: { select: { id: true, retailerId: true, price: true, stockStatus: true, url: true } },
+        // Senaste snapshots → stabil historik-median som facit när CM-guiden glitchar.
+        priceSnapshots: { select: { avgPrice: true }, orderBy: { date: "desc" }, take: 10 },
+      },
     });
     // priceOre: null = tunn marknad, vi VET inte priset → offern nollas ("–"), ingen
     // historikpunkt. stock UNKNOWN (inte OUT_OF_STOCK: vi vet inte det heller).
@@ -691,7 +711,7 @@ export async function runCardmarketRefresh(
     let skippedOwned = 0;
     // Sanitetsreferens + facit från CM:s egen prisguide (publik export, ingen scraping).
     const cmGuide = await fetchCmGuide();
-    let guarded = 0, thinSkipped = 0;
+    let guarded = 0, thinSkipped = 0, usedHist = 0;
     for (const p of ours) {
       // RapidAPI-katalogen är HELT engelsk (0 japanska set/produkter, verifierat
       // 2026-07-07) — icke-EN-produkter får ALDRIG matchas här (fyra olika japanska
@@ -736,10 +756,15 @@ export async function runCardmarketRefresh(
       if (best.cardmarket_id == null) continue;
       if (best.cardmarket_id != null) ownedCmIds.add(best.cardmarket_id);
       const cmp = best.prices?.cardmarket ?? {};
-      // I lager = aktuell `lowest`/From → From-priset. Ur lager = ingen aktuell
-      // annons → OUT_OF_STOCK + 30d-snitt. Flippar dynamiskt mellan körningar.
-      const low = cmp.lowest ?? null;
+      const gEntry = cmGuide.get(best.cardmarket_id);
       const avg = cmp["30d_average"] ?? null;
+      const ref = cmGuideRefEur(gEntry) ?? avg; // TREND > 30d — sanitetsreferens OCH fallback
+      // FROM (ägarens regel: from > trend > 30-dagssnitt). RapidAPI:s `lowest` FÖRST; saknas
+      // den (vanligt på vintage/ETB) tar vi guidens `low` — men BARA när en trend/30d-referens
+      // finns att grinda den mot. Utan referens passerar en glitchad guide-From ogranskad
+      // (mätt: pin-blister → 2000€, XY Kanto Starters → 22 080 kr). RapidAPI:s egen lowest
+      // behåller sitt gamla beteende. Skräp-From fångas annars av sanePriceEur nedan.
+      const low = cmp.lowest ?? (ref != null ? usable(gEntry?.low) : null) ?? null;
       // Tunndata-vakt (vintage): ingen engelsk annons alls OCH billigaste annons på
       // NÅGOT språk ligger >3x över 30d-snittet → snittet är internt inkonsistent
       // med marknadens faktiska utbud och går inte att lita på (B&W Booster Box:
@@ -760,9 +785,19 @@ export async function runCardmarketRefresh(
       //      Box → snittet 24 326 kr, trenden 54 829 kr, marknad 55-105k. Trenden träffar,
       //      snittet missar med 3-4x. Att byta ut ett för HÖGT skräpvärde mot ett för
       //      LÅGT vore ingen rättning — bara ett annat fel.
-      const ref = cmGuideRefEur(cmGuide.get(best.cardmarket_id)) ?? avg;
-      const eur = sanePriceEur(low, ref);
+      let eur = sanePriceEur(low, ref);
       if (eur !== low && low != null) guarded++;
+
+      // HISTORIK-GUARD (ägarens regel-tillägg): när CM-guiden SJÄLV glitchar (Skyridge
+      // trend/avg = 1-dagsspiken) är även reservvärdet fel. En PLATT egen historik +
+      // ett dagsvärde som avviker >1.5x = glitchen ligger i dagsvärdet → använd historik-
+      // medianen. Volatil historik lämnas orörd (äkta marknad). Skyddar OCKSÅ mot en
+      // EMPTY-PACKS-From som slank förbi (den ligger långt UNDER den stabila historiken).
+      const histOre = stableHistoryOre(p.priceSnapshots.map((s) => s.avgPrice));
+      if (eur != null && histOre != null) {
+        const eurOre = eur * rates.eurToOre;
+        if (Math.max(eurOre / histOre, histOre / eurOre) > 1.5) { eur = histOre / rates.eurToOre; usedHist++; }
+      }
 
       // ── TUNN MARKNAD → INGET PRIS ALLS ────────────────────────────────────
       // Vi accepterade INTE `lowest` (den var skräp/saknades) och måste falla
@@ -856,6 +891,7 @@ export async function runCardmarketRefresh(
       res.historyPoints += pricedOps.length;
     }
     if (guarded) console.log(`[cm-refresh] Prisvakt: ${guarded} glitchade lowest ersatta av CM-referens (trend/30d).`);
+    if (usedHist) console.log(`[cm-refresh] Historik-guard: ${usedHist} sealed där CM-guiden glitchade → vår stabila historik-median användes.`);
     if (thinSkipped) console.log(`[cm-refresh] Tunn marknad: ${thinSkipped} sealed utan tillförlitligt pris → "–" (≤${THIN_ITEMS} CM-annonser, reservvärdet går ej att lita på).`);
     console.log(`[cm-refresh] Sealed: ${res.sealedUpdated} uppdaterade, ${pricedOps.length} historikpunkter.`);
     if (skippedOwned > 0) {
