@@ -1517,6 +1517,13 @@ const PRICE_GUARDED_SEALED_CATEGORIES = new Set([
   "BUNDLE",
 ]);
 
+// Billiga sealed: BARA en UNDRE gräns (ägarens Tradera-safeguard). Övre gräns är opålitlig
+// (svensk butiks-markup 2,5× är laglig), men ett pris långt UNDER ett PÅLITLIGT facit =
+// öppnat ex / feltajmad auktion (Ascended Heroes-tin: Tradera 19 kr mot verkliga 142 kr).
+// Förutsättning: facitet är pålitligt — därför korsvalideras CM-priset mot vår stabila
+// historik i isPlausibleListingPrice innan den här gränsen tillämpas.
+const CHEAP_SEALED_LOWER_GUARD = new Set(["TIN", "BLISTER", "BOOSTER_PACK"]);
+
 /**
  * REN beslutsdel (ingen DB) — anropare som redan har kategori + CM-referenspris i
  * minnet slipper två DB-rundresor per annons. runScrapeJob förladdar båda per källa;
@@ -1552,12 +1559,34 @@ export async function isPlausibleListingPrice(
   productId: string,
   priceOre: number
 ): Promise<boolean> {
-  const [cmOffer, product] = await Promise.all([
+  const [cmOffer, product, snaps] = await Promise.all([
     prisma.offer.findFirst({
       where: { productId, retailer: { name: "Cardmarket" }, price: { not: null } },
       select: { price: true },
     }),
     prisma.product.findUnique({ where: { id: productId }, select: { category: true } }),
+    prisma.priceSnapshot.findMany({
+      where: { productId }, select: { avgPrice: true }, orderBy: { date: "desc" }, take: 10,
+    }),
   ]);
-  return isPlausiblePriceFor(product?.category, cmOffer?.price, priceOre);
+
+  // ── Ägarens Tradera-safeguard (2026-07-15) ─────────────────────────────────
+  // Facitet vi jämför Tradera-priset mot får INTE självt vara korrupt. CM-offer-priset
+  // kan vara felmappat/fruset (hela prissagan). En STABIL egen historik (platt, ≥5 pkt)
+  // är då ett pålitligare facit: avviker CM-priset >4x från den → använd historik-medianen.
+  const vals = snaps.map((s) => s.avgPrice).filter((v) => v > 0).sort((a, b) => a - b);
+  const histOre = vals.length >= 5 && vals[vals.length - 1] / vals[0] <= 1.5
+    ? vals[Math.floor(vals.length / 2)] : null;
+  let refOre = cmOffer?.price ?? null;
+  if (histOre != null && (refOre == null || refOre > histOre * 4 || refOre < histOre / 4)) {
+    refOre = histOre;
+  }
+
+  // Undre-gräns-vakt för billiga sealed (nu möjlig tack vare ett pålitligt facit): ett
+  // Tradera-pris < SEALED_MIN_PRICE_RATIO av facitet = öppnat ex / felmatch → avvisa.
+  if (refOre != null && CHEAP_SEALED_LOWER_GUARD.has(product?.category ?? "")
+      && priceOre < refOre * SEALED_MIN_PRICE_RATIO) {
+    return false;
+  }
+  return isPlausiblePriceFor(product?.category, refOre, priceOre);
 }
