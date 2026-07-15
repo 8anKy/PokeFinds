@@ -32,12 +32,19 @@
  * Kör:  node scripts/with-prod-db.mjs npx tsx scripts/purge-corrupt-snapshots.ts
  *       node scripts/with-prod-db.mjs npx tsx scripts/purge-corrupt-snapshots.ts --apply
  */
+import { writeFileSync } from "fs";
 import { PrismaClient } from "@prisma/client";
 import { fetchCmGuide, cmGuideRefEur } from "../src/jobs/cardmarket-refresh";
 import { getRatesOre } from "../src/lib/exchange-rate";
 
 const prisma = new PrismaClient();
 const APPLY = process.argv.includes("--apply");
+// CLEAR_ONLY=1: purga bara de SÄKRA ("clear") — håll vintage/dyra "verify"-produkter vars
+// facit ser uppblåst ut och saknar butiks-korsvalidering. Samma tröskel som granskningssidan:
+// facit >8000 kr, eller ETB >2000 kr (ETB:er är billiga → högt facit = fel idProduct).
+const CLEAR_ONLY = process.env.CLEAR_ONLY === "1";
+const isVerify = (title: string, priceOre: number) =>
+  priceOre > 800_000 || (/elite trainer box/i.test(title) && priceOre > 200_000);
 
 // Hur långt från produktens rättade pris en snapshot får ligga innan den räknas som
 // korrupt. 4x är MEDVETET trubbigt — hellre lämna kvar en tveksam punkt än radera
@@ -54,6 +61,15 @@ const FACTOR = 4;
 // KURVA, ett fruset pris är en PLATÅ. Vi raderar därför bara när de misstänkta punkterna
 // ligger still (max/min <= PLATEAU_SPREAD) — då är de inte en marknad, de är en bugg.
 const PLATEAU_SPREAD = 1.2;
+
+// ── STORE-KORSVALIDERING AV FACIT (Misstag 3, 2026-07-15) ────────────────────
+// Facit = produktens CM Offer.price. Men det kan vara FEL om CM-idProduct pekar på
+// PACKEN i stället för boxen: Darkness Ablaze Booster Box visade CM 130 kr medan
+// Tradera hade boxen på 4179 kr. Då är HISTORIKEN (3297–3773 kr) rätt och facit fel —
+// och purge hade raderat den korrekta historiken. >10x-från-trend-vakten missar det
+// (fel facit ≈ fel trend). Extra vakt: skiljer en butik (in ELLER out of stock) sig
+// >STORE_MULT× från CM-facit åt NÅGOT håll → facit opålitligt → SKIPPA produkten helt.
+const STORE_MULT = 4;
 const SEALED = ["BOOSTER_BOX", "BOOSTER_PACK", "ETB", "COLLECTION_BOX", "TIN", "BLISTER", "BUNDLE", "OTHER"] as const;
 
 async function main() {
@@ -64,7 +80,8 @@ async function main() {
     where: { category: { in: [...SEALED] } },
     select: {
       id: true, title: true,
-      offers: { where: { retailerId: cm!.id }, select: { price: true, updatedAt: true } },
+      // ALLA offers (inte bara CM) — butiks-offer behövs för facit-korsvalideringen.
+      offers: { select: { retailerId: true, price: true, stockStatus: true } },
       priceSnapshots: { select: { id: true, date: true, avgPrice: true }, orderBy: { date: "asc" } },
     },
   });
@@ -110,19 +127,44 @@ async function main() {
     }
   }
 
-  let victims = 0, rows = 0, spared = 0;
+  let victims = 0, rows = 0, spared = 0, suspectFacit = 0, heldVerify = 0;
   const toDelete: string[] = [];
   const report: any[] = [];
   const sparedReport: any[] = [];
+  const suspectReport: any[] = [];
 
   for (const p of products) {
-    const price = p.offers[0]?.price ?? null;
+    const price = p.offers.find((o) => o.retailerId === cm!.id)?.price ?? null;
     if (price == null || price <= 0) continue;            // inget rättat pris → inget facit
 
     const bad = p.priceSnapshots.filter(
       (s) => s.avgPrice > price * FACTOR || s.avgPrice < price / FACTOR,
     );
     if (bad.length === 0) continue;
+
+    // CLEAR_ONLY: håll vintage/dyra "verify"-produkter (uppblåst facit, ingen butiks-
+    // korsvalidering) — de granskas separat. Purga bara de säkra "clear".
+    if (CLEAR_ONLY && isVerify(p.title, price)) { heldVerify++; continue; }
+
+    // Facit-korsvalidering: en butik som prissätter produkten långt över/under CM-facit
+    // avslöjar ett opålitligt facit (felmappad idProduct). Rör INTE historiken då.
+    const storePrices = p.offers
+      .filter((o) => o.retailerId !== cm!.id && o.price != null && o.price > 0)
+      .map((o) => o.price as number);
+    if (storePrices.length) {
+      const storeMax = Math.max(...storePrices);
+      if (storeMax > price * STORE_MULT || price > storeMax * STORE_MULT) {
+        suspectFacit++;
+        suspectReport.push({
+          title: p.title,
+          facit: Math.round(price / 100),
+          store: Math.round(storeMax / 100),
+          wouldHaveDeleted: bad.length,
+          span: `${(Math.min(...bad.map((s) => s.avgPrice)) / 100).toFixed(0)}–${(Math.max(...bad.map((s) => s.avgPrice)) / 100).toFixed(0)} kr`,
+        });
+        continue;
+      }
+    }
 
     // PLATÅ-KRAVET (se konstanten ovan): bara ett STILLASTÅENDE fel raderas. Sprider sig
     // punkterna är det en äkta kurva — lämna den i fred, även om den ligger långt bort.
@@ -148,20 +190,33 @@ async function main() {
   }
 
   report.sort((a, b) => b.bad - a.bad);
+  suspectReport.sort((a, b) => b.store - a.store);
+
+  // Facit-skippade FÖRST — det är dessa som räddades från felradering.
+  if (suspectFacit) {
+    console.log(`\n⚠ ${suspectFacit} produkter SKIPPADES — CM-facit motsäger butikspris (>${STORE_MULT}x, trolig felmappad idProduct). Historiken RÖRS EJ:`);
+    console.log("  CM-facit   butik      skulle radera   produkt");
+    for (const s of suspectReport)
+      console.log(`  ${String(s.facit).padStart(7)}kr ${String(s.store).padStart(7)}kr  ${String(s.wouldHaveDeleted).padStart(3)} rader (${s.span.padEnd(14)}) ${s.title.slice(0, 40)}`);
+  }
+
+  if (CLEAR_ONLY) console.log(`\nCLEAR_ONLY=1 → höll ${heldVerify} vintage/dyra "verify"-produkter (granskas separat).`);
   console.log(`\n${victims} produkter har korrupt historik (${rows} snapshot-rader utanför ±${FACTOR}x det rättade priset):\n`);
   console.log("  rader  rättat pris   korrupt spann             produkt");
-  for (const r of report.slice(0, 30))
+  for (const r of report)
     console.log(`  ${String(r.bad).padStart(3)}/${String(r.total).padEnd(3)} ${String(r.ref).padStart(9)} kr  ${r.span.padEnd(24)} ${r.title.slice(0, 42)}`);
-  if (report.length > 30) console.log(`  … +${report.length - 30} produkter till`);
 
   if (spared) {
     console.log(`\n${spared} produkter SKONADES av platå-kravet (punkterna sprider sig = äkta kurva, inte ett fruset fel):`);
-    for (const s of sparedReport.slice(0, 10))
+    for (const s of sparedReport)
       console.log(`   ${String(s.n).padStart(3)} punkter  ${s.span.padEnd(22)} (pris nu ${s.ref} kr)  ${s.title.slice(0, 40)}`);
   }
 
   if (!APPLY) {
-    console.log(`\nDry-run. ${rows} rader skulle raderas. Kör med --apply.`);
+    // Full plan till fil för granskning (ägaren vill granska INNAN --apply).
+    const planPath = (process.env.TEMP ?? "/tmp") + "/purge-plan.json";
+    writeFileSync(planPath, JSON.stringify({ toPurge: report, skippedSuspectFacit: suspectReport, sparedRealCurves: sparedReport, totals: { products: victims, rows, suspectFacit, spared } }, null, 2));
+    console.log(`\nDry-run. ${rows} rader från ${victims} produkter skulle raderas (${suspectFacit} skippade pga opålitligt facit). Full plan → ${planPath}. Kör med --apply.`);
     return;
   }
 
