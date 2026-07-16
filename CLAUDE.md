@@ -66,11 +66,11 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   Tradera-länkar + butikslänkar var redan automatiska (tradera-sweep matchar på titel; butiks-offer skapas vid import). CM-BILDEN
   hämtas bara vid EXAKT `idProduct`-match (fuzzy bild = för riskabelt) → stub visar butiksfoto tills dess. Ceiling: global namn-
   match kan sällan fel-länka udda titlar → höj `GLOBAL_MIN_SCORE`.
-- **KVAR manuellt**: SINGLAR + hela nya SET med CM-data (priser/bilder/setId) fylls fortfarande av import-skripten
-  (`npm run import:tcg` = set+singlar, `scripts/import-sealed-from-cardmarket.ts` = sealed m. CM-pris). Sealed-STUBS får numera
-  CM-pris/trend automatiskt (se ovan) men fortfarande INGET setId/cardId/set-etikett förrän en riktig import körs. Set släpps
-  ~kvartalsvis → manuell körning räcker; vill man ha det hands-off: veckovis Actions-workflow som kör import-skripten (bevaka
-  Neon-transfer + RapidAPI-kvot).
+- **Nya set + singlar = HANDS-OFF (2026-07-16)**: `import-new-sets.yml` (söndagar 03:30 UTC) kör `TCG_NEW_ONLY=1
+  npm run import:tcg` → nya set (CardSet + kort + SINGLE_CARD-produkter + bilder) skapas när pokemontcg.io lägger in dem;
+  0 nya = snabb no-op. Priser/CM-länkar/graf fylls av dagliga cardmarket-refresh (upsertar offers på alla singlar med
+  tcgExternalId). Sealed-importern (04:00, EFTER set-importen) sätter set-etiketter: backfill setId=null → episode-namn
+  via exakt cmid (aldrig titelmatchning). Kvar manuellt: ingenting i katalogflödet — bevaka RapidAPI-kvot vid stora släpp.
 - **Genuint utan CM-marknadsdata**: ~868 singlar + ~24 sealed → ärlig "–"/döljs tills data finns.
 - **Prishistorik byggs FRAMÅT** — ingen legitim källa ger äkta retroaktiv daglig historik (CM-graf får ej skrapas, RapidAPI ger bara 7d/30d-snitt).
 - Stripe avstängd (`STRIPE_ENABLED=false`); web push förberett men kräver VAPID-nycklar.
