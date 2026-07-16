@@ -34,6 +34,7 @@ import {
   identicalIdentity,
   wrapperArtSameProduct,
   isAccessoryListing,
+  isOtherFranchiseListing,
   isPlausiblePriceFor,
   loadMatchIndex,
   matchProduct,
@@ -214,6 +215,10 @@ export async function ensureListingProduct(
   // även för äkta "Mini Portfolio + Booster" — att grinda på formen hade blockerat en riktig
   // sealed-SKU, vilket är värre än att släppa in ett fodral.
   if (isAccessoryListing(cleanTitle)) return null;
+  // ANNAN TCG-FRANCHISE (One Piece/Lorcana/MTG …): butikernas Pokémon-kollektioner
+  // läcker ibland grannspel — de blir aldrig katalogprodukter (och därmed aldrig larm,
+  // se productId-grinden i skanningsloopen).
+  if (isOtherFranchiseListing(cleanTitle)) return null;
   const normalized = normalizeTitle(cleanTitle);
 
   // ---- GTIN-först: tillverkarens streckkod är en EXAKT nyckel, inte en gissning ----
@@ -538,7 +543,7 @@ export async function runRestockScan(opts?: {
             retailerId: offer.retailerId,
             oldStatus: ev.oldStatus,
             newStatus,
-            price: null,
+            price: it.price,
           },
         });
         if (ev.isRestock) {
@@ -549,7 +554,17 @@ export async function runRestockScan(opts?: {
       if (offer.stockStatus !== newStatus) {
         await prisma.offer.update({
           where: { id: offer.id },
-          data: { stockStatus: newStatus, lastSeenAt: new Date() },
+          data: {
+            stockStatus: newStatus,
+            lastSeenAt: new Date(),
+            // Larmmejlets pris läses från offern (dispatch körs EFTER loopen). Utan
+            // färskt pris här visade "Åter i lager" ett veckogammalt pris — Shinycards
+            // roterar sin feed så scrape-all hade inte sett produkten på länge
+            // (Charizard ex SC: 699 kr i mejlet, 799 kr i butiken, 2026-07-16).
+            // Feeden HAR dagspriset; skriv det i SAMMA write som statusflippen
+            // (noll extra Neon-writes — lanen skriver fortfarande bara vid övergångar).
+            ...(it.price != null ? { price: it.price } : {}),
+          },
         });
       }
       continue;
@@ -587,7 +602,11 @@ export async function runRestockScan(opts?: {
       // = NEW_LISTING; ny produkt i FÖRHANDSBOKNING = PREORDER (köpbar inför release).
       // Roterande feeds (Swepoke) undantas: en "ny" URL där är oftast en URGAMMAL
       // annons som roterat in i synfältet (23 000 kr-boxen larmades som "ny produkt").
-      if (seededRetailers.has(it.retailerId) && !rotatingRetailerIds.has(it.retailerId)) {
+      // productId-GRINDEN: ensureListingProduct är portvakten — null = avvisad som
+      // icke-katalogvärdig (tillbehör/lot/annan franchise) och får då ALDRIG larma.
+      // Utan grinden mejlades Speltrollets akrylfodral "for One Piece Booster Box"
+      // som "Ny produkt i lager" (2026-07-16): vakten stoppade PRODUKTEN men inte LARMET.
+      if (productId && seededRetailers.has(it.retailerId) && !rotatingRetailerIds.has(it.retailerId)) {
         if (newStatus === StockStatus.IN_STOCK) {
           await checkListingAlerts({ ...created, productId }, "NEW_LISTING");
           newListings++;
@@ -600,7 +619,9 @@ export async function runRestockScan(opts?: {
     }
     // Sedd förut → diffa lagerstatus. Samma kritiska ordning som offer-grenen ovan:
     // larma FÖRST, skriv den nya lagerstatusen SIST (den konsumerar övergången).
-    if (isRestock(listing.stockStatus, newStatus)) {
+    // Samma productId-grind som ovan: avvisade annonser (tillbehör/annan franchise)
+    // spåras i huvudboken men larmar aldrig.
+    if (productId && isRestock(listing.stockStatus, newStatus)) {
       await checkListingAlerts(
         { id: listing.id, title: it.title, retailerId: it.retailerId, productId },
         "RESTOCK"
@@ -608,6 +629,7 @@ export async function runRestockScan(opts?: {
       restocks++;
     } else if (
       // Öppnad för förhandsbokning (t.ex. var slut/okänd, nu köpbar inför release).
+      productId &&
       newStatus === StockStatus.PREORDER &&
       listing.stockStatus !== StockStatus.PREORDER
     ) {

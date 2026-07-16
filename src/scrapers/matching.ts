@@ -1000,6 +1000,19 @@ export function isAccessoryListing(title: string): boolean {
   return false;
 }
 
+// ANDRA TCG-FRANCHISER: butikernas Pokémon-kollektioner läcker ibland grannspel
+// (Speltrollets akrylfodral "for One Piece Booster Box" mejlades som "ny produkt"
+// 2026-07-16 — och en ÄKTA One Piece-box hade blivit en katalogprodukt). En Pokémon-
+// katalog importerar/larmar aldrig om dem. DENYLIST med flit — "kräv pokemon i titeln"
+// hade fällt äkta SKU:er som "Ascended Heroes Booster Bundle". Bart "magic"/"altered"/
+// "sorcery" är FÖRBJUDET (för generiska ord); MTG känns igen på "MTG"/"Magic: "/"Magic
+// the Gathering".
+const OTHER_FRANCHISE_SIGNS =
+  /\b(one\s?piece|lorcana|yu-?gi-?oh|yugioh|digimon|dragon\s?ball|star\s?wars|flesh\s?and\s?blood|riftbound|union\s?arena|weiss\s?schwarz|grand\s?archive|gundam|mtg|magic\s+the\s+gathering)\b|\bmagic:\s/i;
+export function isOtherFranchiseListing(title: string): boolean {
+  return OTHER_FRANCHISE_SIGNS.test(title);
+}
+
 /**
  * Blister-underformer är EGNA SKU:er, inte samma sak. classifyForm klumpar ihop dem
  * till "blister" → vakten släppte igenom:
