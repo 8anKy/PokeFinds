@@ -1507,7 +1507,9 @@ export function matchListingToProduct(
  *   CM-trend (69 kr för ett 7-korts-kort är ett riktigt pris) — orimligt
  *   först vid > 4× OCH > 400 kr över CM (fångar boxar/collections som
  *   felmatchats mot singelkort, utan att rensa legitima singel-listningar).
- *   Ingen under-pris-vakt på singlar (billiga kort varierar fritt nedåt).
+ *   I den HÄR rena funktionen (butiksannonser, som säljer nytt/NM) finns ingen
+ *   under-pris-vakt på singlar. Tradera-vägen (isPlausibleListingPrice) HAR en
+ *   sedan 2026-07-17: skick-okända marknadsannonser <15% av NM-facit = spelat ex.
  *
  * Returnerar true när priset är rimligt eller CM-referenspris saknas.
  */
@@ -1602,6 +1604,17 @@ export async function isPlausibleListingPrice(
   // refOre, som redan är CM korsvaliderad mot historik.)
   if (histOre != null && CHEAP_SEALED_LOWER_GUARD.has(product?.category ?? "")
       && priceOre < histOre * SEALED_MIN_PRICE_RATIO) {
+    return false;
+  }
+  // Undre gräns även för SINGLAR (ägaren 2026-07-17): vår singel-headline BETYDER
+  // "NM engelska (Cardmarket)" — en Tradera-annons långt under NM-facit är i praktiken
+  // ett SPELAT ex (Charmander Base 9 kr mot CM-NM 62 kr headline:ade som produktens
+  // lägsta pris). Skicket går inte att läsa ur annonsen → <15% av facit = avvisa.
+  // Ersätter den gamla hållningen "billiga kort varierar fritt nedåt" — den lät
+  // skick-okända annonser låtsas vara NM. Facit = refOre (CM korsvaliderad mot stabil
+  // historik ovan), samma tillitskedja som sealed-vakten.
+  const isSingle = product?.category === "SINGLE_CARD" || product?.category === "GRADED_CARD";
+  if (isSingle && refOre != null && priceOre < refOre * SEALED_MIN_PRICE_RATIO) {
     return false;
   }
   return isPlausiblePriceFor(product?.category, refOre, priceOre);
