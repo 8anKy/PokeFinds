@@ -9,6 +9,7 @@ import { signIn } from "next-auth/react";
 import { setAuthHint } from "@/lib/auth-hint";
 import { Button } from "@/components/ui/button";
 import { Input, PasswordInput, Label, FieldError } from "@/components/ui/input";
+import { GoogleSignInButton } from "@/components/features/google-signin-button";
 
 function LoginForm() {
   const t = useTranslations("Auth");
@@ -91,6 +92,8 @@ function LoginForm() {
           {t("login.submit")}
         </Button>
       </form>
+
+      <GoogleSignInButton callbackUrl={callbackUrl} />
 
       <p className="mt-6 text-center text-sm text-ink-muted">
         {t("login.noAccount")}{" "}

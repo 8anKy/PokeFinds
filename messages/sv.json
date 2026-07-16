@@ -112,6 +112,8 @@
     "emailPlaceholder": "din@epost.se",
     "passwordLabel": "Lösenord",
     "genericError": "Något gick fel. Försök igen.",
+    "orDivider": "eller",
+    "continueWithGoogle": "Fortsätt med Google",
     "login": {
       "title": "Logga in",
       "subtitle": "Välkommen tillbaka! Logga in för att se dina bevakningar.",
