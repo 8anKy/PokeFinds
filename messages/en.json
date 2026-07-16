@@ -112,8 +112,6 @@
     "emailPlaceholder": "you@email.com",
     "passwordLabel": "Password",
     "genericError": "Something went wrong. Try again.",
-    "orDivider": "or",
-    "continueWithGoogle": "Continue with Google",
     "login": {
       "title": "Log in",
       "subtitle": "Welcome back! Log in to see your watches.",
