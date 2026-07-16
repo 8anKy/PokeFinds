@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 import { prisma } from "@/lib/db";
 import { rateLimit, peekRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { isPro } from "@/lib/plan";
@@ -45,6 +46,52 @@ declare module "next-auth/jwt" {
 // without a DB hit on every request. Lower it if 5 min feels too slow.
 const TOKEN_REFRESH_MS = 5 * 60 * 1000;
 
+// Webbklient-id:t är publikt (bakas in i appens JS) — hemligheten är GOOGLE_CLIENT_SECRET.
+// Servern accepterar båda namnen så Railway bara behöver NEXT_PUBLIC-varianten + secret.
+const GOOGLE_WEB_CLIENT_ID =
+  process.env.GOOGLE_CLIENT_ID ?? process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+// Googles publika signeringsnycklar (JWKS) — jose cachar och roterar själv.
+const GOOGLE_JWKS = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
+
+/**
+ * Delad Google-kontologik (#12): länka via e-post eller skapa färdigverifierad
+ * användare. Används av BÅDE webbens OAuth-callback och appens id-token-flöde.
+ * - Befintlig e-post → länka + bocka av e-postverifieringen (Google har bevisat adressen).
+ * - Ny e-post → unikt namn (lower(name) är ett unikt index → sifferSuffix vid krock)
+ *   och slumpad lösenordshash ("glömt lösenord" funkar om de vill sätta ett riktigt).
+ */
+async function linkOrCreateGoogleUser(emailRaw: string, displayName?: string | null) {
+  const email = emailRaw.toLowerCase().trim();
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    if (!existing.emailVerifiedAt) {
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: { emailVerifiedAt: new Date(), verificationToken: null },
+      });
+    }
+    return existing;
+  }
+  const base = (displayName ?? email.split("@")[0]).trim().slice(0, 40) || "Tränare";
+  let name = base;
+  for (let i = 0; i < 5; i++) {
+    const taken = await prisma.user.findFirst({
+      where: { name: { equals: name, mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (!taken) break;
+    name = `${base}${Math.floor(1000 + Math.random() * 9000)}`;
+  }
+  return prisma.user.create({
+    data: {
+      name,
+      email,
+      passwordHash: await bcrypt.hash(randomUUID(), 10),
+      emailVerifiedAt: new Date(),
+    },
+  });
+}
+
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt", maxAge: 30 * 24 * 3600 },
   pages: {
@@ -54,11 +101,54 @@ export const authOptions: NextAuthOptions = {
     // Google-login (#12). Visas/registreras bara när OAuth-uppgifterna finns i miljön —
     // utan dem beter sig allt exakt som förut. Ingen adapter behövs med JWT-sessioner:
     // kontot knyts till vår User via e-post i signIn-callbacken nedan.
-    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+    ...(GOOGLE_WEB_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
       ? [
           GoogleProvider({
-            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientId: GOOGLE_WEB_CLIENT_ID,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          }),
+        ]
+      : []),
+    // Nativa appens Google-inloggning (#12): Google blockerar redirect-OAuth i
+    // inbäddade webviews, så Capacitor-pluginen (@capgo/capacitor-social-login) kör
+    // Googles NATIVA dialog och ger en id-token. Den verifieras här KRYPTOGRAFISKT
+    // mot Googles publika nycklar (signatur + issuer + audience = vårt client id) —
+    // samma tillit som webbens redirect-flöde, ingen secret behövs för detta ben.
+    ...(GOOGLE_WEB_CLIENT_ID
+      ? [
+          CredentialsProvider({
+            id: "google-idtoken",
+            name: "Google (app)",
+            credentials: { idToken: { label: "idToken", type: "text" } },
+            async authorize(credentials) {
+              if (!credentials?.idToken) return null;
+              try {
+                const { payload } = await jwtVerify(credentials.idToken, GOOGLE_JWKS, {
+                  issuer: ["https://accounts.google.com", "accounts.google.com"],
+                  audience: GOOGLE_WEB_CLIENT_ID,
+                });
+                const email = typeof payload.email === "string" ? payload.email : null;
+                if (!email || payload.email_verified !== true) return null;
+                const user = await linkOrCreateGoogleUser(
+                  email,
+                  typeof payload.name === "string" ? payload.name : null
+                );
+                return {
+                  id: user.id,
+                  email: user.email,
+                  name: user.name,
+                  role: user.role,
+                  planTier: user.planTier,
+                  onboardingCompleted: user.onboardingCompleted,
+                };
+              } catch (err) {
+                console.warn(
+                  "[google-idtoken] verifiering misslyckades:",
+                  err instanceof Error ? err.message : err
+                );
+                return null;
+              }
+            },
           }),
         ]
       : []),
@@ -97,43 +187,13 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    // Google-inloggning: se till att en User-rad finns INNAN jwt-callbacken läser den.
-    // Befintlig e-post → länka (och bocka av e-postverifieringen: Google har bevisat
-    // adressen). Ny e-post → skapa konto med unikt namn (lower(name) är ett unikt
-    // index) och slumpad lösenordshash (Google-konton loggar in via Google; vill de
-    // ha ett lösenord funkar "glömt lösenord"-flödet).
+    // Webbens Google-OAuth: se till att en User-rad finns INNAN jwt-callbacken läser
+    // den (länkning/skapande delas med appens id-token-flöde — se linkOrCreateGoogleUser).
     async signIn({ user, account, profile }) {
       if (account?.provider !== "google") return true;
       const email = user.email?.toLowerCase().trim();
       if (!email) return false;
-      const existing = await prisma.user.findUnique({ where: { email } });
-      if (existing) {
-        if (!existing.emailVerifiedAt) {
-          await prisma.user.update({
-            where: { id: existing.id },
-            data: { emailVerifiedAt: new Date(), verificationToken: null },
-          });
-        }
-        return true;
-      }
-      const base = (profile?.name ?? email.split("@")[0]).trim().slice(0, 40) || "Tränare";
-      let name = base;
-      for (let i = 0; i < 5; i++) {
-        const taken = await prisma.user.findFirst({
-          where: { name: { equals: name, mode: "insensitive" } },
-          select: { id: true },
-        });
-        if (!taken) break;
-        name = `${base}${Math.floor(1000 + Math.random() * 9000)}`;
-      }
-      await prisma.user.create({
-        data: {
-          name,
-          email,
-          passwordHash: await bcrypt.hash(randomUUID(), 10),
-          emailVerifiedAt: new Date(),
-        },
-      });
+      await linkOrCreateGoogleUser(email, profile?.name ?? null);
       return true;
     },
     async jwt({ token, user, account, trigger }) {

@@ -38,8 +38,9 @@ proguard/
 # Android Studio captures folder
 captures/
 
-# IntelliJ
+# IntelliJ — hela katalogen: den är per-utvecklare-metadata, inget bygge läser den.
 *.iml
+.idea/
 .idea/workspace.xml
 .idea/tasks.xml
 .idea/gradle.xml

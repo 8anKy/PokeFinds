@@ -1,5 +1,5 @@
 ext {
-    minSdkVersion = 22
+    minSdkVersion = 23 // RevenueCat kräver 23 (Android 6.0+, täcker ~99% av enheter)
     compileSdkVersion = 34
     targetSdkVersion = 34
     androidxActivityVersion = '1.8.0'

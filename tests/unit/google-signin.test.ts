@@ -18,8 +18,22 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: vi.fn(), peekRateLimit: vi.fn(), clearRateLimit: vi.fn() }));
 
+// jose mockas så id-token-testerna styr verifieringsutfallet (ingen nätverks-JWKS).
+const jwtVerifyMock = vi.fn();
+vi.mock("jose", () => ({
+  createRemoteJWKSet: vi.fn(() => ({})),
+  jwtVerify: (...a: unknown[]) => jwtVerifyMock(...a),
+}));
+
+// Client id måste finnas INNAN modulen laddas — annars registreras varken
+// GoogleProvider eller google-idtoken-providern.
+process.env.GOOGLE_CLIENT_ID = "test-client-id";
 const { authOptions } = await import("@/lib/auth");
 const signIn = authOptions.callbacks!.signIn!;
+const idTokenProvider = authOptions.providers.find((p) => p.options?.id === "google-idtoken") as {
+  options: { authorize: (c: Record<string, string> | undefined) => Promise<unknown> };
+};
+const authorize = (c: Record<string, string> | undefined) => idTokenProvider.options.authorize(c);
 
 const googleAccount = { provider: "google", type: "oauth", providerAccountId: "g-123" } as Account;
 const asUser = (email: string | null) => ({ id: "google-id", email }) as unknown as User;
@@ -106,5 +120,51 @@ describe("Google signIn-callback", () => {
     } as Parameters<typeof signIn>[0]);
     expect(ok).toBe(false);
     expect(create).not.toHaveBeenCalled();
+  });
+});
+
+describe("google-idtoken-providern (appens nativa flöde)", () => {
+  // OBS måsvingarna: utan dem returnerar arrowen mocken, och vitest kör
+  // beforeEach-RETURVÄRDET som cleanup-hook → mocken anropas efter testet.
+  beforeEach(() => {
+    jwtVerifyMock.mockReset();
+  });
+
+  const dbUser = {
+    id: "u1", email: "app@person.se", name: "AppPerson",
+    role: "USER", planTier: "FREE", onboardingCompleted: true, emailVerifiedAt: new Date(),
+  };
+
+  it("giltig token → verifieras mot vårt client id och ger vår användare", async () => {
+    jwtVerifyMock.mockResolvedValue({
+      payload: { email: "App@Person.se", email_verified: true, name: "AppPerson" },
+    });
+    findUnique.mockResolvedValue(dbUser);
+    const res = (await authorize({ idToken: "tok" })) as { id: string } | null;
+    expect(res?.id).toBe("u1");
+    // Audience MÅSTE vara vårt webbklient-id — annars godtas tokens utfärdade åt andra appar.
+    expect(jwtVerifyMock).toHaveBeenCalledWith(
+      "tok",
+      expect.anything(),
+      expect.objectContaining({ audience: "test-client-id" })
+    );
+  });
+
+  it("overifierad e-post i tokenen → avvisa", async () => {
+    jwtVerifyMock.mockResolvedValue({ payload: { email: "x@y.se", email_verified: false } });
+    expect(await authorize({ idToken: "tok" })).toBeNull();
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  it("ogiltig signatur/audience (jwtVerify kastar) → avvisa, aldrig krascha", async () => {
+    jwtVerifyMock.mockImplementation(() => {
+      throw new Error("bad signature");
+    });
+    expect(await authorize({ idToken: "tok" })).toBeNull();
+  });
+
+  it("utan idToken → avvisa", async () => {
+    expect(await authorize(undefined)).toBeNull();
+    expect(jwtVerifyMock).not.toHaveBeenCalled();
   });
 });

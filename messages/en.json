@@ -114,6 +114,7 @@
     "genericError": "Something went wrong. Try again.",
     "orDivider": "or",
     "continueWithGoogle": "Continue with Google",
+    "googleBusy": "Signing in…",
     "login": {
       "title": "Log in",
       "subtitle": "Welcome back! Log in to see your watches.",
