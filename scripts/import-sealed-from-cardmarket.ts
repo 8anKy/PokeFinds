@@ -149,16 +149,19 @@ async function main() {
   // vitlista sina japanska expansioner).
   const cmOffers = await prisma.offer.findMany({
     where: { retailerId: cm.id, url: { contains: "idProduct=" } },
-    select: { url: true, product: { select: { language: true } } },
+    select: { url: true, product: { select: { id: true, setId: true, language: true } } },
   });
   const existingCmIds = new Set<number>();
   const existingEnCmIds = new Set<number>();
+  // cmid → befintlig produkt: används av set-etikett-backfillen (setId=null → episodens set).
+  const productByCmId = new Map<number, { id: string; setId: string | null; language: string }>();
   for (const o of cmOffers) {
     const m = o.url.match(/idProduct=(\d+)/);
     if (!m) continue;
     const id = parseInt(m[1], 10);
     existingCmIds.add(id);
     if (o.product?.language === "EN") existingEnCmIds.add(id);
+    if (o.product) productByCmId.set(id, o.product);
   }
   const existingTitles = new Set(
     (await prisma.product.findMany({ select: { normalizedTitle: true, category: true } }))
@@ -235,6 +238,28 @@ async function main() {
       });
     }
   }
+
+  // ── Set-etikett-backfill (2026-07-16) ───────────────────────────────────────
+  // Sealed skapade INNAN setet fanns i DB (stubbar, gratis-katalog-fallbacken,
+  // förhandsimporter) har setId=null → syns inte på set-sidan. RapidAPI-katalogens
+  // episode-namn + setMap ger etiketten deterministiskt via exakt cmid — ingen
+  // titelmatchning (slugen ljuger, mätt 2026-07-14). Bara EN + bara null→värde:
+  // en redan satt etikett röres aldrig.
+  let relabeled = 0;
+  for (const p of catalog) {
+    const cmid = p.cardmarket_id;
+    if (cmid == null) continue;
+    const owned = productByCmId.get(cmid);
+    if (!owned || owned.setId != null || owned.language !== "EN") continue;
+    const setId = setMap.get(norm(p.episode?.name ?? ""));
+    if (!setId) continue;
+    relabeled++;
+    console.log(`  [set-etikett] "${p.name}" → ${p.episode?.name}`);
+    if (APPLY) {
+      await prisma.product.update({ where: { id: owned.id }, data: { setId } });
+    }
+  }
+  if (relabeled) console.log(`Set-etiketter satta: ${relabeled}\n`);
 
   // ── Gratis-katalog-fallback (2026-07-16) ────────────────────────────────────
   // RapidAPI:s produktlista SLÄPAR/saknar vissa CM-produkter (mätt: First Partner

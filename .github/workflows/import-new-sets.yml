@@ -1,0 +1,51 @@
+name: Auto-import nya set + singlar (veckovis)
+
+# Importerar NYA set (CardSet + alla kort + SINGLE_CARD-produkter med bilder) från
+# officiella Pokémon TCG API:t så fort de dyker upp där (~vid släpp). TCG_NEW_ONLY=1
+# gör körningen till en snabb no-op när inget nytt finns (1 API-anrop + 1 DB-fråga).
+# Priser/CM-länkar/graf fylls sedan av dagliga cardmarket-refresh (13:00 UTC) som
+# upsertar offers på ALLA singlar med tcgExternalId — ingen manuell fill behövs.
+# Körs 03:30, FÖRE sealed-importen (04:00), så ett nytt sets CardSet finns när
+# sealed-importen sätter set-etiketter (setId) på nya sealed-produkter.
+on:
+  schedule:
+    - cron: "30 3 * * 0" # söndagar 03:30 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group: import-new-sets
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      POKEMONTCG_API_KEY: ${{ secrets.POKEMONTCG_API_KEY }} # valfri — högre rate limit
+      EUR_SEK: ${{ secrets.EUR_SEK }}
+      TCG_NEW_ONLY: "1"
+    steps:
+      - name: Förkrav — DATABASE_URL måste vara satt
+        id: guard
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::notice::DATABASE_URL saknas — hoppar över tills molnhosting är konfigurerad."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/checkout@v4
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - if: steps.guard.outputs.ready == 'true'
+        run: npm ci --legacy-peer-deps
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx prisma generate
+      - if: steps.guard.outputs.ready == 'true'
+        name: Importera nya set (no-op om inget nytt)
+        run: npx tsx scripts/import-tcg-data.ts

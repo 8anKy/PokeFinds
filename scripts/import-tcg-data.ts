@@ -6,6 +6,12 @@
  * Valfritt:  POKEMONTCG_API_KEY i .env   (gratis nyckel → högre rate limit)
  *            TCG_SET_LIMIT=18            (antal senaste set)
  *            TCG_CARDS_PER_SET=250       (max kort per set, API-max 250)
+ *            TCG_NEW_ONLY=1              (bara set som SAKNAS i DB — automationens
+ *                                         läge: nytt set → CardSet + alla kort +
+ *                                         produkter; 0 nya = snabb no-op. Priser/
+ *                                         CM-länkar fylls av dagliga cardmarket-
+ *                                         refresh som upsertar offers på alla
+ *                                         singlar med tcgExternalId.)
  *
  * Vad den gör:
  *  1. Hämtar de senaste seten → upsertar CardSet (namn, serie, datum, logo/symbol)
@@ -44,6 +50,8 @@ const SET_IDS = (process.env.TCG_SET_IDS ?? "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
+// Automationens läge: bara set vars externalId saknas i DB (nya släpp).
+const NEW_ONLY = process.env.TCG_NEW_ONLY === "1";
 
 async function main() {
   // Färsk EUR/USD-kurs (öre) en gång → cardMarketPriceOre() läser den synkront.
@@ -78,6 +86,17 @@ async function main() {
   let sets = await fetchTcgSets(SET_LIMIT);
   if (SET_IDS.length > 0) {
     sets = sets.filter((s) => SET_IDS.includes(s.id));
+  }
+  if (NEW_ONLY) {
+    const have = new Set(
+      (await prisma.cardSet.findMany({ select: { externalId: true } })).map((s) => s.externalId)
+    );
+    sets = sets.filter((s) => !have.has(s.id));
+    console.log(`🆕 TCG_NEW_ONLY: ${sets.length} set saknas i DB${sets.length ? ` — ${sets.map((s) => `${s.id} (${s.name})`).join(", ")}` : ""}`);
+    if (sets.length === 0) {
+      console.log("Inget nytt set — klart.");
+      return;
+    }
   }
   console.log(`✅ Hämtade ${sets.length} set från API:t`);
 
