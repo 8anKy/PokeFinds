@@ -59,13 +59,13 @@ export default async function ContactPage({
         <h2 className="font-display text-lg font-semibold text-ink">{t("commonTitle")}</h2>
         <ul className="list-disc space-y-2 pl-5">
           <li>
-            <strong>{t("c1Lead")}</strong> — {t("c1Text")}
+            <strong>{t("c1Lead")}</strong>: {t("c1Text")}
           </li>
           <li>
-            <strong>{t("c2Lead")}</strong> — {t("c2Text")}
+            <strong>{t("c2Lead")}</strong>: {t("c2Text")}
           </li>
           <li>
-            <strong>{t("c3Lead")}</strong> —{" "}
+            <strong>{t("c3Lead")}</strong>:{" "}
             {t.rich("c3Body", {
               link: (chunks) => (
                 <Link href="/installningar" className="text-holo-cyan hover:underline">

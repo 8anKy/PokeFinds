@@ -36,7 +36,7 @@ export default async function AboutPage({
           <ul className="mt-2 list-disc space-y-2 pl-5">
             {doItems.map((n) => (
               <li key={n}>
-                <strong>{t(`do${n}Lead`)}</strong> — {t(`do${n}Text`)}
+                <strong>{t(`do${n}Lead`)}</strong>: {t(`do${n}Text`)}
               </li>
             ))}
           </ul>

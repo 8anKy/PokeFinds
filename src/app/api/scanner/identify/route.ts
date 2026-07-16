@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     // distribuerad gräns. Se docs/LAUNCH-CHECKLIST.md Section 0.
     const { ok } = await rateLimit(`scanner-identify:${user.id}`, 60, 60 * 1000);
     if (!ok) {
-      throw new ServiceError(429, "För många skanningar på kort tid — vänta en stund.");
+      throw new ServiceError(429, "För många skanningar på kort tid. Vänta en stund.");
     }
 
     const { image, precise } = schema.parse(await req.json());

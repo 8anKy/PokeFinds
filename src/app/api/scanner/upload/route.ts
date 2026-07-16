@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     if (image.length > MAX_IMAGE_BYTES * 1.4) {
       throw new ServiceError(
         413,
-        "Bilden är för stor. Max 4 MB — prova att förminska eller komprimera bilden."
+        "Bilden är för stor. Max 4 MB. Prova att förminska eller komprimera bilden."
       );
     }
 

@@ -46,7 +46,7 @@ function button(url: string, label: string): string {
 }
 
 const textFooter =
-  "\n\n—\nDu kan ändra dina aviseringsinställningar i Foilio-appen.\nFoilio · Sveriges marknadsplats för Pokémon TCG";
+  "\n\nDu kan ändra dina aviseringsinställningar i Foilio-appen.\nFoilio · Sveriges marknadsplats för Pokémon TCG";
 
 export function welcomeEmail(name: string): EmailContent {
   const subject = "Välkommen till Foilio!";
@@ -106,7 +106,7 @@ export function restockAlertEmail(
      <p style="font-size:16px;font-weight:700;color:#ffffff;margin:16px 0 4px;">${productTitle}</p>
      ${priceLine}
      <p style="color:#cbd5e1;margin:0 0 8px;">Hos: <strong style="color:#2dd4bf;">${retailerName}</strong></p>
-     <p style="line-height:1.6;color:#fbbf24;font-size:13px;">Populära produkter säljer ofta slut snabbt — skynda dig!</p>
+     <p style="line-height:1.6;color:#fbbf24;font-size:13px;">Populära produkter säljer ofta slut snabbt. Skynda dig!</p>
      ${button(url, "Köp nu")}`
   );
   const text = `Hej ${name}!\n\nÅter i lager: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nKöp nu: ${url}\n\nPopulära produkter säljer ofta slut snabbt!${textFooter}`;
@@ -130,7 +130,7 @@ export function newListingEmail(
      <p style="font-size:16px;font-weight:700;color:#ffffff;margin:16px 0 4px;">${productTitle}</p>
      ${priceLine}
      <p style="color:#cbd5e1;margin:0 0 8px;">Hos: <strong style="color:#2dd4bf;">${retailerName}</strong></p>
-     <p style="line-height:1.6;color:#fbbf24;font-size:13px;">Nya produkter säljer ofta slut snabbt — skynda dig!</p>
+     <p style="line-height:1.6;color:#fbbf24;font-size:13px;">Nya produkter säljer ofta slut snabbt. Skynda dig!</p>
      ${button(url, "Till produkten")}`
   );
   const text = `Hej ${name}!\n\nNy produkt i lager: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nTill produkten: ${url}${textFooter}`;
@@ -154,7 +154,7 @@ export function preorderEmail(
      <p style="font-size:16px;font-weight:700;color:#ffffff;margin:16px 0 4px;">${productTitle}</p>
      ${priceLine}
      <p style="color:#cbd5e1;margin:0 0 8px;">Hos: <strong style="color:#2dd4bf;">${retailerName}</strong></p>
-     <p style="line-height:1.6;color:#fbbf24;font-size:13px;">Förhandsbokningar tar ofta slut innan release — säkra din nu.</p>
+     <p style="line-height:1.6;color:#fbbf24;font-size:13px;">Förhandsbokningar tar ofta slut innan release. Säkra din nu.</p>
      ${button(url, "Förhandsboka hos " + retailerName)}`
   );
   const text = `Hej ${name}!\n\nÖppen för förhandsbokning: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nFörhandsboka: ${url}\n\nFörhandsbokningar tar ofta slut innan release!${textFooter}`;
@@ -167,7 +167,7 @@ export function passwordResetEmail(name: string, resetUrl: string): EmailContent
     "Återställ ditt lösenord",
     `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Vi fick en begäran om att återställa ditt lösenord. Klicka på knappen nedan för att välja ett nytt. Länken är giltig i 1 timme.</p>
      ${button(resetUrl, "Återställ lösenord")}
-     <p style="line-height:1.6;color:#6b7280;font-size:13px;">Om du inte begärde detta kan du ignorera mejlet — ditt lösenord förblir oförändrat.</p>`
+     <p style="line-height:1.6;color:#6b7280;font-size:13px;">Om du inte begärde detta kan du ignorera mejlet. Ditt lösenord förblir oförändrat.</p>`
   );
   const text = `Hej ${name}!\n\nÅterställ ditt lösenord via länken (giltig i 1 timme):\n${resetUrl}\n\nOm du inte begärde detta kan du ignorera mejlet.${textFooter}`;
   return { subject, html, text };
