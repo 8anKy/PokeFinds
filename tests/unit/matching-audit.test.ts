@@ -24,6 +24,7 @@ import {
   characterMismatch,
   characterNames,
   isAccessoryListing,
+  isOtherFranchiseListing,
   cleanListingTitle,
   wrapperArtSameProduct,
   packVsBoxMismatch,
@@ -169,9 +170,28 @@ describe("vakterna var för sig — verkliga fall ur revisionen", () => {
     expect(isAccessoryListing("Mega Charizard X/Y Spelmatta - M")).toBe(true);
     expect(isAccessoryListing("Charmander Mini Pärm - 3 Pocket")).toBe(true);
     expect(isAccessoryListing("Acrylic Booster Box Display for Pokémon")).toBe(true);
+    // Larmet 2026-07-16: "for One Piece Booster Box" mejlades som ny Pokémon-produkt.
+    expect(isAccessoryListing("The Acrylic Box - Premium Case for One Piece Booster Box – OP-04+")).toBe(true);
     // En pärm SOM INNEHÅLLER en booster är en riktig SKU → får inte flaggas.
     expect(isAccessoryListing("Pokémon TCG: Spring 2025 Mini Portfolio + Journey Together Booster")).toBe(false);
     expect(isAccessoryListing("Surging Sparks Booster Box")).toBe(false);
+  });
+
+  it("annan TCG-franchise: One Piece/Lorcana/MTG m.fl. importeras/larmas aldrig", () => {
+    expect(isOtherFranchiseListing("The Acrylic Box - Premium Case for One Piece Booster Box – OP-04+")).toBe(true);
+    expect(isOtherFranchiseListing("One Piece Card Game OP-09 Booster Box")).toBe(true);
+    expect(isOtherFranchiseListing("Disney Lorcana: Fabled Booster Display")).toBe(true);
+    expect(isOtherFranchiseListing("Magic: The Gathering Bloomburrow Bundle")).toBe(true);
+    expect(isOtherFranchiseListing("MTG Duskmourn Play Booster Box")).toBe(true);
+    expect(isOtherFranchiseListing("Yu-Gi-Oh! 25th Anniversary Rarity Collection")).toBe(true);
+    expect(isOtherFranchiseListing("Star Wars Unlimited: Twilight of the Republic Booster")).toBe(true);
+    expect(isOtherFranchiseListing("Riftbound League of Legends Origins Booster Box")).toBe(true);
+    // Äkta Pokémon-titlar — även utan ordet "Pokémon" — får ALDRIG flaggas.
+    expect(isOtherFranchiseListing("Ascended Heroes Booster Bundle")).toBe(false);
+    expect(isOtherFranchiseListing("Surging Sparks Booster Box")).toBe(false);
+    // "Magikarp" innehåller "magi…" men är inte Magic — ordgränsen skyddar.
+    expect(isOtherFranchiseListing("Magikarp V Box")).toBe(false);
+    expect(isOtherFranchiseListing("Shining Legends Elite Trainer Box")).toBe(false);
   });
 
   it("blister: checklane ÄR en 1-pack, men 1-pack ≠ 3-pack", () => {
