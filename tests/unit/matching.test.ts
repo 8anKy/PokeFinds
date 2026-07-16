@@ -5,14 +5,16 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
-const { offerFindFirst, productFindUnique } = vi.hoisted(() => ({
+const { offerFindFirst, productFindUnique, snapshotFindMany } = vi.hoisted(() => ({
   offerFindFirst: vi.fn(),
   productFindUnique: vi.fn(),
+  snapshotFindMany: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
   prisma: {
     offer: { findFirst: offerFindFirst },
     product: { findUnique: productFindUnique },
+    priceSnapshot: { findMany: snapshotFindMany },
   },
 }));
 
@@ -303,9 +305,11 @@ describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
 
 describe("isPlausibleListingPrice", () => {
   const CM = 233_300; // 2 333 kr i öre (Mega Charizard X UPC)
-  const setCm = (price: number | null, category: string) => {
+  const setCm = (price: number | null, category: string, historyOre: number[] = []) => {
     offerFindFirst.mockResolvedValue(price == null ? null : { price });
     productFindUnique.mockResolvedValue({ category });
+    // Default: ingen stabil historik → undre-vakten på billiga gäller inte (gammalt beteende).
+    snapshotFindMany.mockResolvedValue(historyOre.map((avgPrice) => ({ avgPrice })));
   };
 
   it("dyr kategori (COLLECTION_BOX): grovt under-pris (149 kr på 2 333 kr = 6 %) förkastas", async () => {
@@ -354,5 +358,29 @@ describe("isPlausibleListingPrice", () => {
   it("saknas CM-referens → godkänns (kan inte bedöma)", async () => {
     setCm(null, "COLLECTION_BOX");
     expect(await isPlausibleListingPrice("p1", 100)).toBe(true);
+  });
+
+  // ── Ägarens Tradera-safeguard: pålitligt facit ur stabil historik ──────────
+  it("billig kategori (TIN) MED stabil historik: öppnat ex under 15% avvisas", async () => {
+    // Riolu-tin: stabil historik ~14 200 öre, Tradera 1 900 öre = 13% → öppnat ex → avvisas.
+    setCm(14_200, "TIN", [14_100, 14_200, 14_200, 14_300, 14_200, 14_100]);
+    expect(await isPlausibleListingPrice("p1", 1_900)).toBe(false);
+  });
+
+  it("billig kategori (TIN) MED stabil historik: ärligt pris över 15% behålls", async () => {
+    setCm(14_200, "TIN", [14_100, 14_200, 14_200, 14_300, 14_200, 14_100]);
+    expect(await isPlausibleListingPrice("p1", 9_000)).toBe(true);
+  });
+
+  it("korrupt CM-ref MEN stabil historik: facitet blir historiken", async () => {
+    // CM felmappat lågt (200 öre), historik pålitlig (~14 200). Tradera 1 900 = 13% av
+    // historiken → avvisas mot HISTORIKEN, inte det korrupta CM-priset.
+    setCm(200, "TIN", [14_100, 14_200, 14_200, 14_300, 14_200, 14_100]);
+    expect(await isPlausibleListingPrice("p1", 1_900)).toBe(false);
+  });
+
+  it("billig kategori (TIN) UTAN historik: undre-vakten gäller inte (fel CM-ref får ej radera rätt pris)", async () => {
+    setCm(86_000, "TIN"); // CM felmappat högt, ingen historik → 69 kr behålls
+    expect(await isPlausibleListingPrice("p1", 6_900)).toBe(true);
   });
 });
