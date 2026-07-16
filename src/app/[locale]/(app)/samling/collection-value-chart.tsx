@@ -32,7 +32,6 @@ export function CollectionValueChart({
   isPremium,
   bleed = false,
   totalValue,
-  itemCount,
 }: {
   data: Point[];
   isPremium: boolean;
@@ -40,8 +39,6 @@ export function CollectionValueChart({
   bleed?: boolean;
   /** Mobil-hero (bleed): aktuellt totalvärde i öre. */
   totalValue?: number;
-  /** Mobil-hero (bleed): antal objekt. */
-  itemCount?: number;
 }) {
   const t = useTranslations("Collection");
   const [range, setRange] = useState<string>("max");
@@ -73,7 +70,9 @@ export function CollectionValueChart({
         onClick={() => setShowPct((v) => !v)}
         aria-label={showPct ? t("showInKr") : t("showInPct")}
         className={cn(
-          "font-semibold tabular-nums underline-offset-4 transition-opacity hover:opacity-80 hover:underline",
+          // Ingen underline/focus-ring: på touch fastnar hover/focus efter tryck och
+          // ritade en linje/ram runt värdet (ägaren 2026-07-17). Växlingen ÄR feedbacken.
+          "font-semibold tabular-nums transition-opacity hover:opacity-80 focus:outline-none",
           changeColor
         )}
       >
@@ -147,7 +146,6 @@ export function CollectionValueChart({
         </div>
         <p className="mt-2 text-sm text-ink-muted">
           {heroChange} {t(r.periodKey)}
-          {itemCount != null && <> · {t("itemsCount", { count: itemCount })}</>}
         </p>
         <div className="-mx-4 mt-5 sm:-mx-6">
           <PriceChartLazy data={filtered} minimal />

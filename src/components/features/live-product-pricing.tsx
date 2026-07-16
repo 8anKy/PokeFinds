@@ -19,7 +19,6 @@ import { PriceChange } from "@/components/ui/price-change";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { OfferClickButton } from "@/components/features/offer-click-button";
-import { OfferReportButton } from "@/components/features/offer-report-button";
 import { IconStore } from "@/components/ui/icons";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 
@@ -323,7 +322,6 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-2">
                         <OfferClickButton slug={slug} offerId={offer.id} fallbackUrl={offer.url} />
-                        <OfferReportButton offerId={offer.id} />
                         {isAdmin && (
                           <button
                             type="button"
@@ -373,7 +371,6 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
                                 offerId={offer.id}
                                 fallbackUrl={offer.url}
                               />
-                              <OfferReportButton offerId={offer.id} />
                               {isAdmin && (
                                 <button
                                   type="button"

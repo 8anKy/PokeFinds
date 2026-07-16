@@ -227,7 +227,7 @@ export function CollectionClient({
     }
     const notes = f.cardId
       ? f.notes.trim() || undefined
-      : [f.freeText.trim(), f.notes.trim()].filter(Boolean).join(" — ");
+      : [f.freeText.trim(), f.notes.trim()].filter(Boolean).join(" · ");
     return {
       ...(f.cardId ? { cardId: f.cardId } : {}),
       quantity,

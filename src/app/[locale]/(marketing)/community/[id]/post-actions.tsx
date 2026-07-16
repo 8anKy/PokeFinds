@@ -213,7 +213,7 @@ export function PostActions({
         </h2>
         <div className="mt-4 space-y-4">
           {comments.length === 0 && (
-            <p className="text-sm text-ink-muted">Inga kommentarer ännu — bli först!</p>
+            <p className="text-sm text-ink-muted">Inga kommentarer ännu. Bli först!</p>
           )}
           {comments.map((c) => (
             <div key={c.id} className="rounded-xl border border-surface-border bg-surface-raised p-4">
@@ -240,7 +240,7 @@ export function PostActions({
             <Label htmlFor="newComment">Skriv en kommentar</Label>
             <Textarea
               id="newComment"
-              placeholder="Var schysst — vi är alla här för korten."
+              placeholder="Var schysst, vi är alla här för korten."
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
               maxLength={5000}

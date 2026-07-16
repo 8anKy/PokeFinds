@@ -23,7 +23,7 @@ const offerRow = {
   url: OFFER_URL,
   productId: "p1",
   retailerId: "r1",
-  stockStatus: StockStatus.OUT_OF_STOCK, // var slut...
+  stockStatus: StockStatus.OUT_OF_STOCK as StockStatus, // var slut... (bred typ: happy path-testet skriver om den)
   lastSeenAt: new Date("2026-07-13T12:00:00Z"),
   product: { category: "ETB" }, // sealed → larmar (ej HIDDEN_CATEGORIES)
 };

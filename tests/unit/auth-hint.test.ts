@@ -7,7 +7,7 @@ describe("auth-hint", () => {
   beforeEach(() => {
     (globalThis as { document?: { cookie: string } }).document = { cookie: "" };
     // setAuthHint kallar window.dispatchEvent → stubba window i node-env.
-    (globalThis as { window?: { dispatchEvent: () => boolean } }).window = {
+    (globalThis as unknown as { window?: { dispatchEvent: () => boolean } }).window = {
       dispatchEvent: () => true,
     };
   });

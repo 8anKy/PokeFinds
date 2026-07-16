@@ -26,7 +26,7 @@ function defaultDescription(row: CollectionRow, condition: string, tr: Translato
   const condLabel = condition in CONDITION_LABELS ? tr.tCond(condition) : condition;
   const langLabel = row.language in LANGUAGE_LABELS ? tr.tLang(row.language) : row.language;
   return [
-    `${row.name}${row.setName ? ` — ${row.setName}` : ""}`,
+    `${row.name}${row.setName ? `, ${row.setName}` : ""}`,
     tr.t("sellDescCondition", { condition: condLabel }),
     tr.t("sellDescLanguage", { language: langLabel }),
     "",

@@ -118,7 +118,7 @@ export function ExploreFeed({
             onClick={() => { setHasMore(true); void loadMore(); }}
             className="rounded-lg border border-surface-border px-4 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
           >
-            Något gick fel — försök igen
+            Något gick fel. Försök igen
           </button>
         )}
         {!hasMore && !loading && !error && items.length > 0 && (

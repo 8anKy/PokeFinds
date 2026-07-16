@@ -118,7 +118,6 @@ export default async function CollectionPage() {
           isPremium={isPremium}
           bleed
           totalValue={value.totalValue}
-          itemCount={value.itemCount}
         />
       </section>
 

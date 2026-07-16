@@ -41,7 +41,7 @@ export default async function CookiesPage({
               <p className="mt-1">{t("necessaryBody")}</p>
               <ul className="mt-2 list-disc space-y-1 pl-5">
                 {necessary.map((c) => (
-                  <li key={c.code}><strong>{c.code}</strong> — {c.text}</li>
+                  <li key={c.code}><strong>{c.code}</strong>: {c.text}</li>
                 ))}
               </ul>
             </div>
@@ -50,7 +50,7 @@ export default async function CookiesPage({
               <p className="mt-1">{t("prefBody")}</p>
               <ul className="mt-2 list-disc space-y-1 pl-5">
                 {pref.map((c) => (
-                  <li key={c.code}><strong>{c.code}</strong> — {c.text}</li>
+                  <li key={c.code}><strong>{c.code}</strong>: {c.text}</li>
                 ))}
               </ul>
             </div>

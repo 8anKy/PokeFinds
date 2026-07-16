@@ -46,7 +46,7 @@ export function LinkReportsClient({
   const [busy, setBusy] = useState<string | null>(null);
 
   async function deleteOffer(offerId: string) {
-    if (!confirm("Ta bort denna butikslänk permanent? (rättas mot rådata — offern raderas via ID)")) return;
+    if (!confirm("Ta bort denna butikslänk permanent? (rättas mot rådata, offern raderas via ID)")) return;
     setBusy(offerId);
     try {
       const res = await fetch(`/api/admin/offers/${offerId}`, { method: "DELETE" });
@@ -65,7 +65,7 @@ export function LinkReportsClient({
         <h1 className="text-2xl font-semibold">Felaktiga butikslänkar</h1>
         <p className="mt-1 max-w-3xl text-sm text-ink-muted">
           Streckkoderna visas sida vid sida. Skiljer de sig åt bär butikens sida en{" "}
-          <strong>annan tillverkarkod</strong> än produkten vi visar — då är länken fel och behöver ingen
+          <strong>annan tillverkarkod</strong> än produkten vi visar. Då är länken fel och behöver ingen
           bedömning. Rättas genom att radera offern (rådata), aldrig genom att lappa priset.
         </p>
       </header>
@@ -95,7 +95,7 @@ export function LinkReportsClient({
                   <span className="text-ink-muted">{r.retailer}</span>
                   {r.gtinMismatch && (
                     <span className="rounded-md bg-fall/20 px-2 py-0.5 text-xs font-semibold text-fall">
-                      STRECKKODERNA SKILJER SIG — bevisad felmatch
+                      STRECKKODERNA SKILJER SIG: bevisad felmatch
                     </span>
                   )}
                   <span className="ml-auto text-xs text-ink-muted">
@@ -109,7 +109,7 @@ export function LinkReportsClient({
                     <Link href={`/produkter/${r.productSlug}`} className="text-sm hover:text-holo-cyan">
                       {r.productTitle}
                     </Link>
-                    <div className="mt-1 font-mono text-xs text-ink-muted">{r.productGtin ?? "— ingen kod"}</div>
+                    <div className="mt-1 font-mono text-xs text-ink-muted">{r.productGtin ?? "ingen kod"}</div>
                   </div>
                   <div>
                     <div className="text-xs uppercase tracking-wide text-ink-muted">Butikens sida</div>
@@ -121,7 +121,7 @@ export function LinkReportsClient({
                     >
                       {r.offerUrl}
                     </a>
-                    <div className="mt-1 font-mono text-xs text-ink-muted">{r.offerGtin ?? "— ingen kod"}</div>
+                    <div className="mt-1 font-mono text-xs text-ink-muted">{r.offerGtin ?? "ingen kod"}</div>
                   </div>
                 </div>
 

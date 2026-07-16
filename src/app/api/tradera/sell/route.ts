@@ -45,7 +45,7 @@ export async function POST(req: Request) {
       throw new ServiceError(400, "Anslut ditt Tradera-konto först (Inställningar).");
     }
     if (me.traderaTokenExpiresAt && me.traderaTokenExpiresAt < new Date()) {
-      throw new ServiceError(400, "Tradera-kopplingen har gått ut — anslut kontot igen.");
+      throw new ServiceError(400, "Tradera-kopplingen har gått ut. Anslut kontot igen.");
     }
 
     const input = schema.parse(await req.json());
@@ -67,7 +67,7 @@ export async function POST(req: Request) {
     const title = `${titleParts} · ${conditionLabel}`;
 
     const autoDescription = [
-      `${name}${setName ? ` — ${setName}` : ""}${number ? ` (#${number})` : ""}`,
+      `${name}${setName ? `, ${setName}` : ""}${number ? ` (#${number})` : ""}`,
       `Skick: ${conditionLabel}`,
       isSingle ? "Språk: " + (traderaLanguageTerm(item.language) ?? item.language) : null,
       "",
