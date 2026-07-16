@@ -350,9 +350,22 @@ describe("isPlausibleListingPrice", () => {
     expect(await isPlausibleListingPrice("p1", CM * 3)).toBe(false);
   });
 
-  it("singel: billigt pris har ingen under-vakt → godkänns", async () => {
-    setCm(20_000, "SINGLE_CARD");
-    expect(await isPlausibleListingPrice("p1", 1_000)).toBe(true);
+  // ── Singel-under-vakt (ägaren 2026-07-17): headline betyder "NM engelska" ──
+  it("singel: <15% av NM-facit = spelat ex → avvisas (Charmander 9 kr mot CM 62 kr)", async () => {
+    setCm(6_166, "SINGLE_CARD");
+    expect(await isPlausibleListingPrice("p1", 900)).toBe(false);
+  });
+
+  it("singel: billigt men över 15% av facit behålls (äkta budget-NM)", async () => {
+    setCm(6_166, "SINGLE_CARD");
+    expect(await isPlausibleListingPrice("p1", 2_000)).toBe(true);
+  });
+
+  it("singel: korrupt-högt CM korsvalideras mot stabil historik → billigt pris överlever", async () => {
+    // CM-offer fruset på 62 kr men vår stabila historik säger ~10 kr → facit = historiken,
+    // och 9 kr är 90% av den → behålls. Vakten raderar inte rätt priser pga fel facit.
+    setCm(6_166, "SINGLE_CARD", [1_000, 1_000, 1_050, 980, 1_020, 1_000]);
+    expect(await isPlausibleListingPrice("p1", 900)).toBe(true);
   });
 
   it("saknas CM-referens → godkänns (kan inte bedöma)", async () => {
