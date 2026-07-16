@@ -10,6 +10,9 @@
  *   de senaste N dagarna (nya/kommande set) i stället för HELA bakåtkatalogen. dateAdded
  *   läses ur CM:s GRATIS publika katalog (S3) — kostar noll RapidAPI. Bilden hämtas ändå
  *   ur RapidAPI-katalogen (p.image = transparent CM-bild, aldrig butiksfoto).
+ *   Fallback: nyliga gratis-katalogprodukter som RapidAPI SAKNAR (listan släpar ibland,
+ *   t.ex. First Partner Illustration Collection Series 3) importeras ändå, prissatta ur
+ *   CM:s officiella prisguide. De får ingen CM-bild förrän RapidAPI hinner ikapp.
  */
 import * as fs from "fs";
 import * as path from "path";
@@ -42,8 +45,17 @@ const NONSINGLES_URL =
 // på "C" ("CSV9C:", "CSVM2cC:", "CSVH5C:"), språknamn kan stå i titeln, Costco/Sam's Club
 // är regionsexklusiva, och "Empty"-tins är tomma tillbehör. Hellre missa en udda titel än
 // fel-skapa en. EN-only tills vidare (JP prissätts separat via runJapaneseSealedRefresh).
+// OBS: punkt i klassen — kinesiska mellanset heter "CSV9.5C:" (utan punkten släpptes
+// 22 kinesiska Terastal Gathering-produkter igenom fallbacken, mätt 2026-07-16).
+// \bjpn?\b: CM skriver ibland bara "JP" ("30th Celebration JP Booster Box").
 const REJECT_RE =
-  /^cs[a-z0-9]*c:|\b(simplified|traditional)\s+chinese\b|\bchinese\b|\bkorean\b|\bindonesian\b|\bthai\b|\bjapanese\b|\bcostco\b|sam'?s\s+club|\bempty\b/i;
+  /^cs[a-z0-9.]*c:|\b(simplified|traditional)\s+chinese\b|\bchinese\b|\bkorean\b|\bindonesian\b|\bthai\b|\bjapanese\b|\bjpn?\b|\bcostco\b|sam'?s\s+club|\bempty\b/i;
+// Extra vakt för gratis-katalog-fallbacken: den katalogen är HELA CM (inkl. JP/CN-produkter
+// vars namn inte säger språket) — RapidAPI-listan är redan kuraterat engelsk. Uppenbara
+// region-/butikspromos och turneringspriser avvisas billigt här; resten grindas av
+// syskon-expansionsregeln (se main).
+const FALLBACK_REJECT_RE =
+  /\btaiwan\b|family\s*mart|\bgym\s+promo\b|dragon\s+boat|prize\s+pack/i;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const norm = (s: string) =>
@@ -84,20 +96,46 @@ async function loadCatalog(): Promise<ApiProduct[]> {
   return out;
 }
 
-// idProduct som CM lade till katalogen de senaste `days` dagarna. Läses ur CM:s GRATIS
-// publika katalog (S3) — RapidAPI-produkten saknar dateAdded, gratis-katalogen har den.
-// Så automationen fångar NYA/kommande set och hoppar över hela bakåtkatalogen.
-async function loadRecentIds(days: number): Promise<Set<number>> {
+// Produkter (idProduct → namn) som CM lade till katalogen de senaste `days` dagarna,
+// plus idProduct → idExpansion för HELA gratis-katalogen. Läses ur CM:s GRATIS publika
+// katalog (S3) — RapidAPI-produkten saknar dateAdded, gratis-katalogen har den. Så
+// automationen fångar NYA/kommande set och hoppar över hela bakåtkatalogen. Namn +
+// expansioner behövs för gratis-katalog-fallbacken (se main).
+async function loadRecentProducts(days: number): Promise<{
+  recent: Map<number, string>;
+  expansionOf: Map<number, number>;
+}> {
   const r = await fetch(NONSINGLES_URL);
   if (!r.ok) throw new Error(`Gratis CM-katalog (dateAdded) HTTP ${r.status}`);
-  const j = (await r.json()) as { products: { idProduct: number; dateAdded: string }[] };
+  const j = (await r.json()) as {
+    products: { idProduct: number; name: string; idExpansion: number; dateAdded: string }[];
+  };
   const cutoff = Date.now() - days * 86_400_000;
-  const ids = new Set<number>();
+  const recent = new Map<number, string>();
+  const expansionOf = new Map<number, number>();
   for (const p of j.products) {
+    expansionOf.set(p.idProduct, p.idExpansion);
     const t = Date.parse(p.dateAdded.replace(" ", "T") + "Z");
-    if (!Number.isNaN(t) && t >= cutoff) ids.add(p.idProduct);
+    if (!Number.isNaN(t) && t >= cutoff) recent.set(p.idProduct, p.name);
   }
-  return ids;
+  return { recent, expansionOf };
+}
+
+// CM:s officiella prisguide (idProduct → low/trend/avg) — samma publika export som
+// dagliga cardmarket-refresh använder. Prissätter gratis-katalog-fallbacken.
+const PRICE_GUIDE_URL =
+  "https://downloads.s3.cardmarket.com/productCatalog/priceGuide/price_guide_6.json";
+// En sealed-produkt kostar aldrig under ~0,5 € — golv mot korrupta guide-värden
+// (samma MIN_SEALED_EUR-resonemang som i cardmarket-refresh.ts).
+const MIN_SEALED_EUR = 0.5;
+const usable = (v: number | null | undefined): number | null =>
+  v != null && v >= MIN_SEALED_EUR ? v : null;
+interface GuideEntry { idProduct: number; avg: number | null; low: number | null; trend: number | null }
+async function loadGuide(): Promise<Map<number, GuideEntry>> {
+  const r = await fetch(PRICE_GUIDE_URL);
+  if (!r.ok) throw new Error(`CM-prisguide HTTP ${r.status}`);
+  const j = (await r.json()) as { priceGuides: GuideEntry[] };
+  return new Map(j.priceGuides.map((e) => [e.idProduct, e]));
 }
 
 async function main() {
@@ -105,15 +143,22 @@ async function main() {
   const cm = await prisma.retailer.findFirst({ where: { name: "Cardmarket" } });
   if (!cm) throw new Error("Cardmarket-retailer saknas");
 
-  // Dedup: cardmarket_id ur befintliga CM-offer-URL:er + (normTitle|kategori)
+  // Dedup: cardmarket_id ur befintliga CM-offer-URL:er + (normTitle|kategori).
+  // Produktspråket följer med för syskon-expansionsregeln (bara EN-produkter får
+  // vittna om att en expansion är engelsk — annars skulle våra taggade JP-produkter
+  // vitlista sina japanska expansioner).
   const cmOffers = await prisma.offer.findMany({
     where: { retailerId: cm.id, url: { contains: "idProduct=" } },
-    select: { url: true },
+    select: { url: true, product: { select: { language: true } } },
   });
   const existingCmIds = new Set<number>();
+  const existingEnCmIds = new Set<number>();
   for (const o of cmOffers) {
     const m = o.url.match(/idProduct=(\d+)/);
-    if (m) existingCmIds.add(parseInt(m[1], 10));
+    if (!m) continue;
+    const id = parseInt(m[1], 10);
+    existingCmIds.add(id);
+    if (o.product?.language === "EN") existingEnCmIds.add(id);
   }
   const existingTitles = new Set(
     (await prisma.product.findMany({ select: { normalizedTitle: true, category: true } }))
@@ -124,7 +169,9 @@ async function main() {
   const sets = await prisma.cardSet.findMany({ select: { id: true, name: true } });
   const setMap = new Map(sets.map((s) => [norm(s.name), s.id]));
 
-  const recentIds = RECENT_DAYS != null ? await loadRecentIds(RECENT_DAYS) : null;
+  const freeCatalog = RECENT_DAYS != null ? await loadRecentProducts(RECENT_DAYS) : null;
+  const recent = freeCatalog?.recent ?? null;
+  const recentIds = recent ? new Set(recent.keys()) : null;
 
   const catalog = await loadCatalog();
   console.log(
@@ -189,9 +236,83 @@ async function main() {
     }
   }
 
+  // ── Gratis-katalog-fallback (2026-07-16) ────────────────────────────────────
+  // RapidAPI:s produktlista SLÄPAR/saknar vissa CM-produkter (mätt: First Partner
+  // Illustration Collection Series 2+3 finns i CM:s gratis-katalog + prisguide men
+  // inte i RapidAPI). I RECENT_DAYS-läget tar vi därför även med nyliga gratis-
+  // katalogprodukter som RapidAPI saknar, prissatta ur CM:s officiella prisguide
+  // (samma källa som dagliga refreshen: low > trend > avg).
+  //
+  // SYSKON-EXPANSIONSREGELN: gratis-katalogen är HELA CM inkl. JP/CN/SEA-produkter
+  // vars namn inte säger språket ("Shiny Star V Collection Set" = japansk). CM lägger
+  // dock varje språkutgåva i EGEN expansion (mätt 2026-07-16: 30th EN=6601, JP=6602,
+  // CN=6603, ID/TH=6604). En kandidat godkänns därför BARA om dess idExpansion redan
+  // innehåller en EN-produkt vi äger — deterministiskt, gratis, och "hellre missa än
+  // fel-skapa": helt nya expansioner kommer in via RapidAPI-huvudloopen i stället.
+  // Ingen CM-bild — gratis-katalogen saknar bildfält; refresh/butiksfoto fyller senare.
+  let createdGuide = 0;
+  if (recent && freeCatalog) {
+    const { expansionOf } = freeCatalog;
+    const enExpansions = new Set<number>();
+    for (const id of existingEnCmIds) {
+      const exp = expansionOf.get(id);
+      if (exp != null) enExpansions.add(exp);
+    }
+    const rapidIds = new Set(catalog.map((p) => p.cardmarket_id).filter((id): id is number => id != null));
+    const guide = await loadGuide();
+    let skippedNoSibling = 0;
+    for (const [cmid, name] of recent) {
+      if (rapidIds.has(cmid)) continue; // täcks av huvudloopen ovan
+      const form = classifyForm(name);
+      const cat = form ? FORM_TO_CAT[form] : undefined;
+      if (!cat) { skippedForm++; continue; }
+      if (ONLY && !ONLY.includes(cat)) continue;
+      if (REJECT_RE.test(name) || FALLBACK_REJECT_RE.test(name)) { skippedReject++; continue; }
+      const normTitle = norm(name);
+      if (existingCmIds.has(cmid) || existingTitles.has(`${cat}|${normTitle}`)) { skippedHave++; continue; }
+      const exp = expansionOf.get(cmid);
+      if (exp == null || !enExpansions.has(exp)) { skippedNoSibling++; continue; }
+
+      const e = guide.get(cmid);
+      const low = usable(e?.low);
+      const eur = low ?? usable(e?.trend) ?? usable(e?.avg);
+      if (eur == null) { skippedNoData++; continue; }
+      const priceOre = Math.round(eur * rates.eurToOre);
+      const stockStatus = low != null ? "IN_STOCK" : "OUT_OF_STOCK";
+
+      let slug = slugify(name) || `cm-${cmid}`;
+      if (usedSlugs.has(slug)) slug = `${slug}-${cmid}`;
+      usedSlugs.add(slug);
+      existingTitles.add(`${cat}|${normTitle}`);
+      existingCmIds.add(cmid);
+
+      stat[cat] = (stat[cat] ?? 0) + 1;
+      created++;
+      createdGuide++;
+      console.log(`  [gratis-katalog] ${cat} · ${name} (idProduct=${cmid}, ${eur} €)`);
+
+      if (APPLY) {
+        await prisma.product.create({
+          data: {
+            title: name, normalizedTitle: normTitle, slug, category: cat, setId: null,
+            imageUrl: null, language: "EN",
+            offers: {
+              create: {
+                retailerId: cm.id, condition: "SEALED", language: "EN",
+                price: priceOre, currency: "SEK", stockStatus,
+                url: cardmarketProductUrl(cmid),
+              },
+            },
+          },
+        });
+      }
+    }
+    if (skippedNoSibling) console.log(`  [gratis-katalog] utan EN-syskon-expansion (avvaktar RapidAPI): ${skippedNoSibling}`);
+  }
+
   console.log("Skapas per kategori:");
   for (const [c, n] of Object.entries(stat).sort((a, b) => b[1] - a[1])) console.log(`  ${c}: ${n}`);
-  console.log(`\nTotalt nya: ${created}`);
+  console.log(`\nTotalt nya: ${created}` + (createdGuide ? ` (varav ${createdGuide} via gratis-katalogen)` : ""));
   console.log(
     `Skippade — har redan: ${skippedHave} · ingen data: ${skippedNoData} · ej målform: ${skippedForm}` +
       (recentIds ? ` · ej nyliga: ${skippedOld}` : "") +
