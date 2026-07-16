@@ -8,7 +8,6 @@ import { signIn } from "next-auth/react";
 import { setAuthHint } from "@/lib/auth-hint";
 import { Button } from "@/components/ui/button";
 import { Input, PasswordInput, Label, FieldError } from "@/components/ui/input";
-import { GoogleSignInButton } from "@/components/features/google-signin-button";
 
 interface FieldErrors {
   name?: string;
@@ -140,9 +139,6 @@ export default function RegisterPage() {
           {t("register.submit")}
         </Button>
       </form>
-
-      {/* Google-konton är färdigverifierade → hoppa direkt till onboarding. */}
-      <GoogleSignInButton callbackUrl="/onboarding" />
 
       <p className="mt-6 text-center text-sm text-ink-muted">
         {t("register.haveAccount")}{" "}

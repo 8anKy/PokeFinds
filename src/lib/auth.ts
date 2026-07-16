@@ -1,8 +1,6 @@
 import { type NextAuthOptions, getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import GoogleProvider from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
-import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
 import { rateLimit, peekRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { isPro } from "@/lib/plan";
@@ -51,17 +49,6 @@ export const authOptions: NextAuthOptions = {
     signIn: "/logga-in",
   },
   providers: [
-    // Google-login (#12). Visas/registreras bara när OAuth-uppgifterna finns i miljön —
-    // utan dem beter sig allt exakt som förut. Ingen adapter behövs med JWT-sessioner:
-    // kontot knyts till vår User via e-post i signIn-callbacken nedan.
-    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
-      ? [
-          GoogleProvider({
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-          }),
-        ]
-      : []),
     CredentialsProvider({
       name: "E-post och lösenord",
       credentials: {
@@ -97,60 +84,8 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    // Google-inloggning: se till att en User-rad finns INNAN jwt-callbacken läser den.
-    // Befintlig e-post → länka (och bocka av e-postverifieringen: Google har bevisat
-    // adressen). Ny e-post → skapa konto med unikt namn (lower(name) är ett unikt
-    // index) och slumpad lösenordshash (Google-konton loggar in via Google; vill de
-    // ha ett lösenord funkar "glömt lösenord"-flödet).
-    async signIn({ user, account, profile }) {
-      if (account?.provider !== "google") return true;
-      const email = user.email?.toLowerCase().trim();
-      if (!email) return false;
-      const existing = await prisma.user.findUnique({ where: { email } });
-      if (existing) {
-        if (!existing.emailVerifiedAt) {
-          await prisma.user.update({
-            where: { id: existing.id },
-            data: { emailVerifiedAt: new Date(), verificationToken: null },
-          });
-        }
-        return true;
-      }
-      const base = (profile?.name ?? email.split("@")[0]).trim().slice(0, 40) || "Tränare";
-      let name = base;
-      for (let i = 0; i < 5; i++) {
-        const taken = await prisma.user.findFirst({
-          where: { name: { equals: name, mode: "insensitive" } },
-          select: { id: true },
-        });
-        if (!taken) break;
-        name = `${base}${Math.floor(1000 + Math.random() * 9000)}`;
-      }
-      await prisma.user.create({
-        data: {
-          name,
-          email,
-          passwordHash: await bcrypt.hash(randomUUID(), 10),
-          emailVerifiedAt: new Date(),
-        },
-      });
-      return true;
-    },
-    async jwt({ token, user, account, trigger }) {
-      if (account?.provider === "google" && token.email) {
-        // OAuth-`user.id` är GOOGLES id, inte vårt — slå upp vår User via e-posten
-        // (signIn-callbacken ovan har just garanterat att raden finns).
-        const dbUser = await prisma.user.findUnique({
-          where: { email: token.email.toLowerCase() },
-        });
-        if (dbUser) {
-          token.id = dbUser.id;
-          token.role = dbUser.role;
-          token.planTier = dbUser.planTier;
-          token.onboardingCompleted = dbUser.onboardingCompleted;
-          token.refreshedAt = Date.now();
-        }
-      } else if (user) {
+    async jwt({ token, user, trigger }) {
+      if (user) {
         token.id = user.id;
         token.role = user.role;
         token.planTier = user.planTier;
