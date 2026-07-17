@@ -62,6 +62,11 @@ jobs:
       # Se scripts/cm-single-link-report.ts (2026-07-17: 16 hittade+lagade, bl.a. Venusaur→Surfing Pikachu).
       - if: steps.guard.outputs.ready == 'true'
         run: npx tsx scripts/cm-single-link-report.ts
+      # CM-länk-missmatch: sealed vars CM-idProduct FINNS men är FEL vara (spårar fel pris).
+      # Titel↔CM-katalognamn-likhet. Informativ (kan ha falska positiva) — granska loggen.
+      # Fångar det fuzzy-re-mismatch skapar (Water Stacking Tin→Tapu Lele, Meowth→Tyrantrum).
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx tsx scripts/cm-link-mismatch-report.ts
       # Åtgärdar det rapporten hittar, men BARA det som är bevisbart: merga dubbletter där
       # ingen titelvakt protesterar, och omdirigera offers vars streckkod ägs av en annan
       # katalogprodukt. RADERAR ALDRIG något — majoritetsröstning bland butiker är INTE
