@@ -43,6 +43,7 @@ import {
 import { judgeSameProduct } from "@/lib/same-product";
 import { fetchListingFacts, fetchListingGtin } from "@/scrapers/gtin-source";
 import { gtinConflict } from "@/lib/gtin";
+import { isDeniedListingUrl } from "@/scrapers/import-denylist";
 import { netStockEvent, isRestock, isNewInStockArrival } from "@/scrapers/restock";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
 import { isBlockedListingLanguage, listingCardLanguage } from "@/lib/listing-language";
@@ -174,6 +175,9 @@ export async function ensureListingProduct(
   // Blockade språk (kinesiska/koreanska) får ALDRIG bli katalogprodukter — kolla
   // även butiks-URL:en (DL:s "…-kinesisk-version"-slug avslöjade en latinsk titel).
   if (isBlockedListingLanguage(it.title, it.url)) return null;
+  // Ägar-denylist: URL:er som ALDRIG ska bli produkter (tillbehör/generiska sortiment
+  // ägaren tagit bort). Utan detta återskapar nästa import den raderade produkten.
+  if (isDeniedListingUrl(it.url)) return null;
   // Cross-produkt-vakt: ägs URL:en redan av en produkt (t.ex. länkad av scrape-all-
   // matcharen) → använd DEN länken. Skapa aldrig en andra produkt/offer för samma
   // butikssida — det var så dubblettstubbarna uppstod (34 delade URL:er, städat 07-07).
