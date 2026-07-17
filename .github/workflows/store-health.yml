@@ -57,6 +57,11 @@ jobs:
       # så LLM:en bara ser de par som faktiskt saknar kod. Läs-only, blir aldrig röd.
       - if: steps.guard.outputs.ready == 'true'
         run: npx tsx scripts/gtin-report.ts
+      # CM-enkel-länk-rapport: sealed-produkter vars CM-offer pekar på en SINGEL (fel prisspår).
+      # Fångar legacy-fellänkar som refreshens exakt-väg redan avvisar för NYA (men inte städar).
+      # Se scripts/cm-single-link-report.ts (2026-07-17: 16 hittade+lagade, bl.a. Venusaur→Surfing Pikachu).
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx tsx scripts/cm-single-link-report.ts
       # Åtgärdar det rapporten hittar, men BARA det som är bevisbart: merga dubbletter där
       # ingen titelvakt protesterar, och omdirigera offers vars streckkod ägs av en annan
       # katalogprodukt. RADERAR ALDRIG något — majoritetsröstning bland butiker är INTE
