@@ -40,6 +40,8 @@ const DENIED = new Set<string>(
     "https://samlarhobby.se/products/pokemon-mega-evolution-2-5-ascended-heroes-1st-random-tin",
     // "Sun & Moon: Guardians Rising, 1 Blister pack" (generisk blister, ingen match)
     "https://samlarhobby.se/products/pokemon-sun-moon-guardians-rising-1-blister-pack",
+    // "Fall Tin - Paradox Destinies Tin" (generisk "random tin", mappar ej till en karaktär)
+    "https://speltrollet.se/products/pok85844",
   ].map(normUrl)
 );
 
