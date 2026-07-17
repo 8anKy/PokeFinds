@@ -98,6 +98,27 @@ export function gtinConflict(a: string | null | undefined, b: string | null | un
   return !!a && !!b && a !== b;
 }
 
+/**
+ * Kända GS1-prefix för Pokémon-TILLVERKARE: TPCi (196214, äldre 820650) och
+ * Pokémon Japan (4521329). Detta är NUMRET tryckt på asken av tillverkaren.
+ */
+const POKEMON_GS1_PREFIXES = ["196214", "4521329", "820650"];
+
+/**
+ * SANT om koden bär ett Pokémon-TILLVERKARprefix — dvs den är produktidentitet.
+ * Svenska distributör-EAN (73xxxxx, t.ex. Amo Toys 7340136 / 7300003) och andra
+ * ompaketeringskoder är INTE tillverkarens identitet och ska aldrig ensamt driva
+ * en länk-KONFLIKT (två butiker kan bära olika distributör-EAN för samma vara).
+ * Koden måste vara normaliserad (GTIN-14). Används av konfliktdetektorn, INTE av
+ * lagringen — vi kastar aldrig en giltig kod, vi räknar bara inte distributörskoder
+ * som bevis på fel länk. Se src/services/gtin-conflicts.ts.
+ */
+export function isPokemonManufacturerGtin(gtin: string | null | undefined): boolean {
+  if (!gtin) return false;
+  const trimmed = gtin.replace(/^0+/, "");
+  return POKEMON_GS1_PREFIXES.some((p) => trimmed.startsWith(p));
+}
+
 /** Visningsform (utan ledande nollor) för admin/loggar. Aldrig för jämförelse. */
 export function formatGtin(gtin: string | null | undefined): string | null {
   if (!gtin) return null;

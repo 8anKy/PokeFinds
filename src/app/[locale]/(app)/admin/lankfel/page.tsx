@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { formatGtin } from "@/lib/gtin";
+import { getGtinConflicts } from "@/services/gtin-conflicts";
 import { LinkReportsClient, type OfferReportRow } from "./link-reports-client";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
  * Rättningen görs mot RÅDATA: radera offern via ID (aldrig lappa det visade priset).
  */
 export default async function AdminLinkReportsPage() {
-  const [reports, conflicts] = await Promise.all([
+  const [reports, conflictRows] = await Promise.all([
     prisma.offerReport.findMany({
       where: { status: "OPEN" },
       orderBy: { createdAt: "desc" },
@@ -33,37 +34,10 @@ export default async function AdminLinkReportsPage() {
         },
       },
     }),
-    // Maskinellt hittade felaktiga länkar: en produkt vars offers bär OLIKA streckkoder.
-    // Ingen användare behövde anmäla dem — ren SQL, noll tokens.
-    prisma.$queryRaw<{ productId: string; title: string; slug: string }[]>`
-      SELECT p.id AS "productId", p.title, p.slug
-      FROM "Offer" o JOIN "Product" p ON p.id = o."productId"
-      WHERE o.gtin IS NOT NULL
-      GROUP BY p.id, p.title, p.slug
-      HAVING COUNT(DISTINCT o.gtin) > 1
-      ORDER BY p.title
-    `,
+    // Maskinellt hittade felaktiga länkar — med smarta filter (distributör-EAN + delade
+    // sortimentskoder räknas inte) och admin-kvittering. Se src/services/gtin-conflicts.ts.
+    getGtinConflicts(),
   ]);
-
-  const conflictRows = await Promise.all(
-    conflicts.map(async (c) => ({
-      productId: c.productId,
-      productTitle: c.title,
-      productSlug: c.slug,
-      offers: (
-        await prisma.offer.findMany({
-          where: { productId: c.productId, gtin: { not: null } },
-          select: { id: true, url: true, gtin: true, price: true, retailer: { select: { name: true } } },
-        })
-      ).map((o) => ({
-        id: o.id,
-        url: o.url,
-        gtin: formatGtin(o.gtin),
-        price: o.price,
-        retailer: o.retailer.name,
-      })),
-    }))
-  );
 
   const rows: OfferReportRow[] = reports.map((r) => ({
     id: r.id,

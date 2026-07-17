@@ -284,6 +284,11 @@ model Product {
   // krocken ÄR dubbletten vi vill hitta, inte ett fel att krascha på. Unikhet drivs i
   // stället av matchningen (GTIN-träff → länka i stället för att skapa) + konfliktrapporten.
   gtin            String?
+  // Admin-kvittering av GRANSKADE streckkods-konflikter (länkfel-vyn). Lagrar de
+  // konfliktdrivande koderna (sorterade, komma-separerade) som en admin markerat OK.
+  // Vyn döljer konflikten så länge nyckeln matchar; dyker en NY avvikande kod upp
+  // ändras nyckeln → konflikten återuppstår automatiskt. Se src/services/gtin-conflicts.ts.
+  gtinConflictAckKey String?
   cardId          String?
   setId           String?
   imageUrl        String?

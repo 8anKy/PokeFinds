@@ -25,7 +25,8 @@ export interface ConflictRow {
   productId: string;
   productTitle: string;
   productSlug: string;
-  offers: { id: string; url: string; gtin: string | null; price: number | null; retailer: string }[];
+  conflictKey: string;
+  offers: { id: string; url: string; gtin: string | null; price: number | null; retailer: string; counts: boolean }[];
 }
 
 const REASON_LABEL: Record<string, string> = {
@@ -43,6 +44,7 @@ export function LinkReportsClient({
   conflicts: ConflictRow[];
 }) {
   const [gone, setGone] = useState<Set<string>>(new Set());
+  const [ackedProducts, setAckedProducts] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
 
   async function deleteOffer(offerId: string) {
@@ -54,6 +56,23 @@ export function LinkReportsClient({
       setGone((g) => new Set(g).add(offerId));
     } catch {
       alert("Kunde inte ta bort erbjudandet.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function ackConflict(productId: string) {
+    setBusy(productId);
+    try {
+      const res = await fetch(`/api/admin/gtin-conflicts/ack`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setAckedProducts((s) => new Set(s).add(productId));
+    } catch {
+      alert("Kunde inte kvittera konflikten.");
     } finally {
       setBusy(null);
     }
@@ -152,20 +171,34 @@ export function LinkReportsClient({
           Hittade av streckkoden <span className="text-ink-muted">({conflicts.length})</span>
         </h2>
         <p className="mb-3 text-sm text-ink-muted">
-          Produkter vars butikslänkar bär <strong>motstridiga</strong> tillverkarkoder. Minst en av länkarna
-          pekar på fel produkt. Ingen användare behövde anmäla dem.
+          Produkter vars butikslänkar bär <strong>motstridiga</strong> tillverkarkoder. Distributör-EAN och
+          koder som delas mellan flera produkter räknas <strong>inte</strong> (visas gråade). Är alla länkar rätt
+          (t.ex. reprint/v2 med egen kod) — <strong>Markera OK</strong>; konflikten döljs tills en ny avvikande kod dyker upp.
         </p>
-        {conflicts.length === 0 ? (
+        {conflicts.filter((c) => !ackedProducts.has(c.productId)).length === 0 ? (
           <p className="rounded-lg border border-surface-border p-4 text-sm text-ink-muted">
             Inga konflikter. 🎉
           </p>
         ) : (
           <ul className="space-y-3">
             {conflicts.map((c) => (
-              <li key={c.productId} className="rounded-xl border border-surface-border p-4">
-                <Link href={`/produkter/${c.productSlug}`} className="text-sm font-medium hover:text-holo-cyan">
-                  {c.productTitle}
-                </Link>
+              <li
+                key={c.productId}
+                className={`rounded-xl border border-surface-border p-4 ${ackedProducts.has(c.productId) ? "opacity-40" : ""}`}
+              >
+                <div className="flex flex-wrap items-center gap-3">
+                  <Link href={`/produkter/${c.productSlug}`} className="text-sm font-medium hover:text-holo-cyan">
+                    {c.productTitle}
+                  </Link>
+                  <button
+                    type="button"
+                    disabled={busy === c.productId || ackedProducts.has(c.productId)}
+                    onClick={() => ackConflict(c.productId)}
+                    className="ml-auto rounded-md border border-holo-cyan/40 px-2.5 py-0.5 text-xs font-medium text-holo-cyan transition-colors hover:bg-holo-cyan/10 disabled:opacity-50"
+                  >
+                    {ackedProducts.has(c.productId) ? "Kvitterad ✓" : busy === c.productId ? "…" : "Markera OK"}
+                  </button>
+                </div>
                 <ul className="mt-2 space-y-1.5">
                   {c.offers.map((o) => (
                     <li
@@ -174,7 +207,12 @@ export function LinkReportsClient({
                         gone.has(o.id) ? "opacity-40" : ""
                       }`}
                     >
-                      <span className="w-32 shrink-0 font-mono text-ink-muted">{o.gtin}</span>
+                      <span
+                        className={`w-32 shrink-0 font-mono ${o.counts ? "text-ink-muted" : "text-ink-muted/40 line-through"}`}
+                        title={o.counts ? undefined : "Räknas inte (distributör-EAN eller delad sortimentskod)"}
+                      >
+                        {o.gtin}
+                      </span>
                       <span className="w-28 shrink-0">{o.retailer}</span>
                       <a
                         href={o.url}
