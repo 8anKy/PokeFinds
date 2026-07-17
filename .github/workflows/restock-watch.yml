@@ -58,10 +58,12 @@ jobs:
       # — som annars flippade fingeravtrycket varje körning och höll computen vaken.
       # Statekartan cachas mellan körningar (nedan).
       RESTOCK_STATE_FILE: .restock-cache/state.json
-      # SKUGGLÄGE tills verifierad: grinden KÖR ändå men loggar sitt beslut + jämför mot
-      # vad DB-fasen fann. Leta [SHADOW-MISMATCH] i loggarna. Noll under ett dygn →
-      # sätt "0" här → grinden hoppar skarpt → compute sjunker (~$13/mån).
-      RESTOCK_GATE_SHADOW: "1"
+      # SKARP grind sedan 2026-07-17: verifierad i skuggläge 2026-07-15..17 —
+      # 0 [SHADOW-MISMATCH] över 445 körningar (grinden ville aldrig hoppa när en
+      # restock faktiskt fanns). Nu hoppar den DB-fasen skarpt på oförändrad feed →
+      # Neon somnar → compute sjunker (~$18→~$5/mån). Återgå till "1" om lagerdiff-
+      # logiken (src/lib/feed-state-diff.ts) ändras och behöver ny skugg-verifiering.
+      RESTOCK_GATE_SHADOW: "0"
     steps:
       # Self-healing-vakt: tills molnhostingen (Neon) är konfigurerad saknas
       # DATABASE_URL-secret. Då hoppar vi över körningen och lyckas grönt (ingen
