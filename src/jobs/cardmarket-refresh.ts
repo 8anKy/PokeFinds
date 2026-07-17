@@ -103,6 +103,23 @@ export function cmGuideRefEur(g: CmGuideEntry | undefined): number | null {
   return usable(g?.trend) ?? usable(g?.avg) ?? null;
 }
 
+/**
+ * Prissätter en sealed-produkt DIREKT från CM:s officiella prisguide — samma From→trend→
+ * 30d-regel som RapidAPI-vägen, men utan RapidAPI. Används för EN-produkter vars idProduct
+ * INTE finns i RapidAPI-katalogen (Trick or Trade, vintage) och som annars aldrig prissätts
+ * dagligen (fryser). Exakt samma väg som JP-refreshen redan använder.
+ *
+ * `accepted` = TRUE när priset är CM:s faktiska From (köpbar annons) → IN_STOCK; FALSE när
+ * From förkastades/saknades och vi föll tillbaka på trend/30d → OUT_OF_STOCK (uppskattning).
+ * Returnerar null när guiden saknar användbar data (< MIN_SEALED_EUR överallt).
+ */
+export function priceFromGuide(g: CmGuideEntry | undefined): { eur: number; accepted: boolean } | null {
+  const low = usable(g?.low);
+  const eur = sanePriceEur(low, cmGuideRefEur(g));
+  if (eur == null || eur <= 0) return null;
+  return { eur, accepted: low != null && eur === low };
+}
+
 // ── VÅR STABILA HISTORIK SOM FACIT (ägarens regel-tillägg, 2026-07-15) ────────
 // Ägarens prisregel: FROM > TREND > 30-dagssnitt, aldrig 1-dagsspiken. Men CM-GUIDEN
 // SJÄLV glitchar ibland: Skyridge visade trend/avg ~97k€ (1-dagsspiken) i stället för
@@ -130,6 +147,26 @@ export async function fetchCmGuide(): Promise<Map<number, CmGuideEntry>> {
   const guide = (await r.json()) as { priceGuides: CmGuideEntry[] };
   cmGuideCache = new Map(guide.priceGuides.map((e) => [e.idProduct, e]));
   return cmGuideCache;
+}
+
+/**
+ * idProducts som finns i CM:s SEALED-katalog (products_nonsingles_6.json). Används av
+ * EN-guide-fallbacken för att GARANTERA att vi bara guide-prissätter mot en riktig sealed-
+ * produkt — ALDRIG mot en singel (annars återuppstår Venusaur→Surfing Pikachu-buggen: en
+ * sealed-offer som pekar på ett singel-idProduct skulle spåra kortets pris). Tom mängd vid
+ * hämtningsfel → fallbacken avstår helt (ingen regression). Samma export som JP-refreshen läser.
+ */
+let cmSealedIdsCache: Set<number> | null = null;
+export async function fetchCmSealedIds(): Promise<Set<number>> {
+  if (cmSealedIdsCache) return cmSealedIdsCache;
+  const r = await fetch(CM_NONSINGLES_URL);
+  if (!r.ok) {
+    console.error(`[cm-refresh] nonsingles-katalog HTTP ${r.status} — EN-guide-fallback avstår denna körning`);
+    return new Set();
+  }
+  const cat = (await r.json()) as { products: { idProduct: number }[] };
+  cmSealedIdsCache = new Set(cat.products.map((p) => p.idProduct));
+  return cmSealedIdsCache;
 }
 
 // Dag-över-dag-vakt: en äkta CM-From/lowest rör sig aldrig ≥3x på ett dygn. Ett sådant
@@ -711,7 +748,9 @@ export async function runCardmarketRefresh(
     let skippedOwned = 0;
     // Sanitetsreferens + facit från CM:s egen prisguide (publik export, ingen scraping).
     const cmGuide = await fetchCmGuide();
-    let guarded = 0, thinSkipped = 0, usedHist = 0;
+    // Sealed-katalogens idProducts → EN-guide-fallbacken (nedan) prissätter BARA mot dessa.
+    const sealedCmIds = await fetchCmSealedIds();
+    let guarded = 0, thinSkipped = 0, usedHist = 0, guideFallback = 0;
     for (const p of ours) {
       // RapidAPI-katalogen är HELT engelsk (0 japanska set/produkter, verifierat
       // 2026-07-07) — icke-EN-produkter får ALDRIG matchas här (fyra olika japanska
@@ -726,6 +765,38 @@ export async function runCardmarketRefresh(
       let exact = false;
       const idm = cmOffer?.url?.match(/idProduct=(\d+)/);
       if (idm) { best = apiByCmId.get(parseInt(idm[1], 10)) ?? null; exact = best != null; }
+      // 1b) EN-GUIDE-FALLBACK: känt idProduct som INTE finns i RapidAPI men i CM-guiden.
+      //     RapidAPI-katalogen missar Trick or Trade, vintage m.m. → utan detta prissätts de
+      //     ALDRIG dagligen och fryser (ägaren hittade T&T 2023/2024 stilla sedan 15 juli).
+      //     Prissätt då direkt från guiden (From→trend→30d, samma väg som JP-refreshen).
+      //     HÅRD VAKT: bara mot idProducts i SEALED-katalogen — aldrig en singel (annars
+      //     återuppstår Venusaur→Surfing Pikachu). Exakt idProduct från offern = betrodd länk;
+      //     vi fuzzy-matchar ALDRIG mot guiden. Känt sealed-id → hoppa över fuzzy oavsett.
+      if (!best && idm && cmOffer) {
+        const gid = parseInt(idm[1], 10);
+        if (sealedCmIds.has(gid)) {
+          const priced = priceFromGuide(cmGuide.get(gid));
+          if (priced) {
+            let eur = priced.eur;
+            // Samma historik-vakt som RapidAPI-vägen: glitchad guide + platt egen historik → median.
+            const histOre = stableHistoryOre(p.priceSnapshots.map((s) => s.avgPrice));
+            if (histOre != null) {
+              const eurOre = eur * rates.eurToOre;
+              if (Math.max(eurOre / histOre, histOre / eurOre) > 1.5) eur = histOre / rates.eurToOre;
+            }
+            const refEur = cmGuideRefEur(cmGuide.get(gid));
+            sealedOps.push({
+              productId: p.id, offerId: cmOffer.id,
+              priceOre: Math.round(eur * rates.eurToOre),
+              refOre: refEur != null ? Math.round(refEur * rates.eurToOre) : null,
+              url: cardmarketProductUrl(gid), stock: priced.accepted ? "IN_STOCK" : "OUT_OF_STOCK",
+            });
+            ownedCmIds.add(gid);
+            guideFallback++;
+          }
+          continue; // känt sealed-id: prissatt via guide (eller ingen guide-data) → ingen fuzzy
+        }
+      }
       // 2) Annars fuzzy (produkter utan CM-offer): set-scopat, ELLER globalt för
       //    set-lösa auto-importerade stubs så även de får CM-pris/trend.
       //    Kombo-/lot-produkter ("Booster + Mini Pärm", "ETB + Acrylic case") får
@@ -893,6 +964,7 @@ export async function runCardmarketRefresh(
     if (guarded) console.log(`[cm-refresh] Prisvakt: ${guarded} glitchade lowest ersatta av CM-referens (trend/30d).`);
     if (usedHist) console.log(`[cm-refresh] Historik-guard: ${usedHist} sealed där CM-guiden glitchade → vår stabila historik-median användes.`);
     if (thinSkipped) console.log(`[cm-refresh] Tunn marknad: ${thinSkipped} sealed utan tillförlitligt pris → "–" (≤${THIN_ITEMS} CM-annonser, reservvärdet går ej att lita på).`);
+    if (guideFallback) console.log(`[cm-refresh] EN-guide-fallback: ${guideFallback} sealed vars idProduct saknas i RapidAPI prissatta direkt från CM-guiden (annars frusna).`);
     console.log(`[cm-refresh] Sealed: ${res.sealedUpdated} uppdaterade, ${pricedOps.length} historikpunkter.`);
     if (skippedOwned > 0) {
       console.log(

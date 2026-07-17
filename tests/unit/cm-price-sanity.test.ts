@@ -1,5 +1,32 @@
 import { describe, it, expect } from "vitest";
-import { sanePriceEur, saneDayMove } from "../../src/jobs/cardmarket-refresh";
+import { sanePriceEur, saneDayMove, priceFromGuide } from "../../src/jobs/cardmarket-refresh";
+
+// EN-guide-fallback (2026-07-17): EN-sealed vars idProduct saknas i RapidAPI (Trick or Trade,
+// vintage) prissätts direkt från CM:s prisguide. priceFromGuide bär From→trend→30d + sanePriceEur.
+describe("priceFromGuide", () => {
+  const g = (low: number | null, trend: number | null, avg: number | null = null) =>
+    ({ idProduct: 1, low, trend, avg }) as any;
+
+  it("använder From (low) när den är rimlig → accepted (IN_STOCK)", () => {
+    expect(priceFromGuide(g(39.9, 44.2))).toEqual({ eur: 39.9, accepted: true });
+  });
+  it("förkastar glitchad hög From (>1.8x trend) → trend, accepted=false (OUT_OF_STOCK)", () => {
+    // Rayquaza LV.X-tin: From €1599 vs trend €130 → trend.
+    expect(priceFromGuide(g(1599, 130.14))).toEqual({ eur: 130.14, accepted: false });
+  });
+  it("faller tillbaka på trend när From saknas → accepted=false", () => {
+    expect(priceFromGuide(g(null, 25.6))).toEqual({ eur: 25.6, accepted: false });
+  });
+  it("behandlar mikro-From (< 0,5 €) som saknad → trend", () => {
+    // "151: Costco 5-Pack Mini Tin Bundle" trend 0,02 € = korrupt golv → usable filtrerar bort.
+    expect(priceFromGuide(g(0.3, 44))).toEqual({ eur: 44, accepted: false });
+  });
+  it("null när guiden saknar användbar data helt", () => {
+    expect(priceFromGuide(g(null, null, null))).toBeNull();
+    expect(priceFromGuide(undefined)).toBeNull();
+    expect(priceFromGuide(g(0.02, 0.02))).toBeNull(); // allt under golvet
+  });
+});
 
 // Regression: 2026-07-03 gav RapidAPI glitchad micro-lowest (~€0.03) på ~30 sealed
 // → 0,33 kr korrumperade offer + prishistorik. Vakten faller tillbaka på 30d-snittet.
