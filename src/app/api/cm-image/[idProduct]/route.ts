@@ -45,7 +45,7 @@ export async function GET(_req: Request, { params }: { params: { idProduct: stri
     const url = resolved.get(id);
     if (!url) return new NextResponse("no image", { status: 404 });
     const hit = await fetchCmImage(url);
-    if (hit) return stream(hit);
+    if (hit) return stream(hit, url);
     resolved.delete(id); // CDN-hicka → prova om nedan
   }
 
@@ -53,15 +53,19 @@ export async function GET(_req: Request, { params }: { params: { idProduct: stri
     const hit = await fetchCmImage(url);
     if (hit) {
       resolved.set(id, url);
-      return stream(hit);
+      return stream(hit, url);
     }
   }
   resolved.set(id, null);
   return new NextResponse("no image", { status: 404 });
 }
 
-function stream(res: Response): NextResponse {
-  const contentType = res.headers.get("content-type") ?? "image/jpeg";
+/**
+ * Content-type härleds ur filändelsen, INTE ur CM:s S3-svar: en del av deras objekt
+ * har en trasig upladdnings-MIME ("multerS3.AUTO_CONTENT_TYPE") som inte renderar i <img>.
+ */
+function stream(res: Response, url: string): NextResponse {
+  const contentType = url.endsWith(".png") ? "image/png" : "image/jpeg";
   return new NextResponse(res.body, {
     status: 200,
     headers: {
