@@ -264,7 +264,10 @@ export function ProductOverlayHost() {
         className="overlay-in absolute inset-x-0 bottom-0 top-[env(safe-area-inset-top)] overflow-y-auto overscroll-none bg-surface-gradient pb-[calc(4rem+env(safe-area-inset-bottom))] outline-none"
       >
         <SiteHeader />
-        {data ? <ProductDetailView data={data} /> : <DetailSkeleton />}
+        {/* showBack: synlig bakåtknapp även i overlayn (utöver svep-tillbaka) —
+            router.back() stänger overlayn via history-markören → listan avtäcks.
+            Bra för upptäckbarhet; svep-gesten är orörd. */}
+        {data ? <ProductDetailView data={data} showBack /> : <DetailSkeleton />}
       </div>
     </div>
   );
