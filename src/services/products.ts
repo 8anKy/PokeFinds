@@ -672,6 +672,11 @@ async function getPriceHistoryRaw(productId: string, days: number) {
 /** Källor vars observationer utgör marknadspriset (Cardmarket-data). */
 export const CARDMARKET_SOURCE_NAMES = ["Cardmarket", "Pokémon TCG API", "TCGdex API"];
 
+/** Så många dagar får CM-trenden släpa efter butikernas färskaste punkt innan den
+ *  räknas som död och grafen faller tillbaka på butikstrenden (CM-refresh kör dagligen
+ *  → några dagars nåd tål ett hoppat jobb utan att friska produkter flippar källa). */
+const TREND_STALE_DAYS = 3;
+
 /** Marknadsplatser/priskällor — INTE butiker. Restock-larm ska aldrig avse dessa. */
 export const NON_RETAIL_SOURCE_NAMES = [...CARDMARKET_SOURCE_NAMES, "Tradera"];
 
@@ -869,17 +874,28 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
       ? lowestPool.reduce((a, b) => (b.price < a.price ? b : a))
       : null;
 
-  // Prishistorik: Cardmarket-trend i första hand. Butiksprissatta produkter (utan
-  // CM-trend, t.ex. league/GO-battle-decks) faller tillbaka på butikernas dagliga
-  // snittpris, annars Tradera. trendSource → korrekt graf-rubrik.
-  const trendSource: "cardmarket" | "butiker" | "tradera" =
-    historyBySource.cardmarket.length > 0
-      ? "cardmarket"
-      : historyBySource.butiker.length > 0
-        ? "butiker"
-        : historyBySource.tradera.length > 0
-          ? "tradera"
-          : "cardmarket";
+  // Prishistorik: Cardmarket-trend i första hand — MEN bara så länge den fortfarande
+  // uppdateras. En produkt som tappat sin CM-länk (t.ex. generisk butiks-stub utan
+  // CM-motsvarighet) behåller sina gamla CM-punkter → utan recens-koll vann den frusna
+  // CM-serien för alltid ("Cardmarket, senast 13 jul") medan butikerna postar färska
+  // punkter dagligen. Välj därför CM bara om dess senaste punkt inte släpar mer än
+  // TREND_STALE_DAYS efter butikernas färskaste; annars visa den levande butikstrenden.
+  const latestDate = (s: SourceHistoryPoint[]): string | null =>
+    s.length > 0 ? s[s.length - 1].date : null;
+  const daysBetween = (a: string, b: string): number =>
+    Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86_400_000);
+  const cmLatest = latestDate(historyBySource.cardmarket);
+  const storeLatest = latestDate(historyBySource.butiker);
+  const cmIsLive =
+    cmLatest != null &&
+    (storeLatest == null || daysBetween(cmLatest, storeLatest) <= TREND_STALE_DAYS);
+  const trendSource: "cardmarket" | "butiker" | "tradera" = cmIsLive
+    ? "cardmarket"
+    : historyBySource.butiker.length > 0
+      ? "butiker"
+      : historyBySource.tradera.length > 0
+        ? "tradera"
+        : "cardmarket";
   const chartData = historyBySource[trendSource];
   const monthAgo = Date.now() - 30 * 86_400_000;
   const cm30 = chartData.filter((p) => new Date(p.date).getTime() >= monthAgo);
