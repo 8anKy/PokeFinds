@@ -905,6 +905,7 @@
     "emptyProductsDesc": "Vi har inte hittat några produkter från det här setet hos bevakade butiker."
   },
   "Detail": {
+    "back": "Tillbaka",
     "breadcrumbAria": "Brödsmulor",
     "period1w": "1V",
     "period1m": "1M",

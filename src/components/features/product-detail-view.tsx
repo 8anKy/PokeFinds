@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { useEffect } from "react";
 import { useTranslations } from "next-intl";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { track } from "@/lib/track";
 import { formatPrice, formatRelative } from "@/lib/format";
 import type { ProductDetailData } from "@/services/products";
@@ -18,7 +18,7 @@ import {
   LivePricePanel,
   LiveOffersTable,
 } from "@/components/features/live-product-pricing";
-import { IconCards } from "@/components/ui/icons";
+import { IconCards, IconChevronLeft } from "@/components/ui/icons";
 
 /** Sealed-kategorier (ej singel/gradat) — får alltid en Tradera-länk. */
 const SEALED_CATEGORIES: string[] = [
@@ -37,8 +37,18 @@ const LANGUAGE_KEYS = ["SV", "EN", "JP", "DE", "FR", "OTHER"];
  * Hela produktsidans innehåll, delat av SSR-sidan (`/produkter/[slug]`) och
  * produkt-overlayn. Ren presentation — all data kommer serialiserad via
  * `loadProductDetail`. JSON-LD ligger kvar på SSR-sidan (SEO), inte här.
+ *
+ * `showBack`: bakåtknapp överst. Sätts BARA av SSR-sidan — dit landar man via
+ * djuplänk/push-notis, där overlayns svep-tillbaka inte finns (man fastnade).
+ * Overlayn har redan svep + SiteHeader, så den skickar inte proppen.
  */
-export function ProductDetailView({ data }: { data: ProductDetailData }) {
+export function ProductDetailView({
+  data,
+  showBack = false,
+}: {
+  data: ProductDetailData;
+  showBack?: boolean;
+}) {
   const t = useTranslations("Detail");
   const tCat = useTranslations("Category");
   const tLang = useTranslations("Language");
@@ -61,6 +71,7 @@ export function ProductDetailView({ data }: { data: ProductDetailData }) {
       initialUpdatedAt={data.updatedAt}
     >
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+        {showBack && <BackButton label={t("back")} />}
         {/* Breadcrumb */}
         <nav aria-label={t("breadcrumbAria")} className="mb-4 text-sm text-ink-muted">
           <Link href="/produkter" className="hover:text-ink">{t("products")}</Link>
@@ -236,5 +247,32 @@ export function ProductDetailView({ data }: { data: ProductDetailData }) {
         )}
       </div>
     </LivePricingProvider>
+  );
+}
+
+/**
+ * Bakåtknapp för SSR-produktsidan. Landar man här via en push-notis/djuplänk
+ * finns ingen app-historik att svepa tillbaka till → gå då till Utforska
+ * (`/produkter`) istället. Har man däremot navigerat hit inifrån appen backar
+ * vi ett steg som vanligt.
+ */
+function BackButton({ label }: { label: string }) {
+  const router = useRouter();
+  const onBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/produkter");
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={onBack}
+      className="-ml-1 mb-3 inline-flex items-center gap-1 rounded-full py-1 pr-3 pl-1 text-sm text-ink-muted transition hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-holo-cyan/60"
+    >
+      <IconChevronLeft size={18} />
+      {label}
+    </button>
   );
 }

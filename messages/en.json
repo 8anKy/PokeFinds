@@ -905,6 +905,7 @@
     "emptyProductsDesc": "We haven't found any products from this set at tracked stores."
   },
   "Detail": {
+    "back": "Back",
     "breadcrumbAria": "Breadcrumbs",
     "period1w": "1W",
     "period1m": "1M",

@@ -88,7 +88,7 @@ export default async function ProductPage({ params }: PageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <ProductDetailView data={data} />
+      <ProductDetailView data={data} showBack />
     </>
   );
 }
