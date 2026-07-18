@@ -75,6 +75,10 @@ const DENIED = new Set<string>(
     "https://speltrollet.se/products/pokemon-me04-chaos-rising-checklane-booster",
     // #18 MaxGaming-dubblettlistning (store-länkarna flyttas till Makuhita 1-Pack, denna släpps):
     "https://www.maxgaming.se/sv/pokemon/pokemon-mega-evolution-checklane-booster",
+    // DL "Lucario ex Battle Deck" (vanlig 60-korts battle deck, ~239 kr) — fel-matchades
+    // upprepat till "Mega Lucario ex LEAGUE Battle Deck" (annan produkt, ~529 kr). Vi har
+    // ingen vanlig Lucario ex Battle Deck-produkt → neka så länken inte återuppstår.
+    "https://dragonslair.se/products/the-pokemon-tcg-lucario-ex-battle-deck",
   ].map(normUrl)
 );
 
