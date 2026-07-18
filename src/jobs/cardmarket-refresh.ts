@@ -103,6 +103,35 @@ export function cmGuideRefEur(g: CmGuideEntry | undefined): number | null {
   return usable(g?.trend) ?? usable(g?.avg) ?? null;
 }
 
+// ── ÄGARENS PRISREGEL: From → trend → 30d, med trend som FACIT (2026-07-18) ────
+// From (lägsta NM) används BARA om den är rimlig mot CM:s EGEN trend. En From som
+// ligger långt UNDER trenden (RapidAPI-feeden ser andra/billigare annonser än CM-
+// sajtens synliga From — Aggron: From 3,50€ / RapidAPI-30d 2,16€ MOT guidens trend
+// 8,45€ = sajtens From 9€) ELLER långt ÖVER (skräplistning, "EMPTY PACKS") är
+// opålitlig → hoppa till trend, sedan 30d. Utan trend att döma mot: lita på From
+// (oförändrat). Self-heal nästa dag om det var en äkta rörelse (trenden hinner ikapp).
+// Detta är exakt ägarens fallback-kedja — den hoppar nu även en From som FINNS men
+// är trasig, inte bara en From som SAKNAS. [LOW, HIGH] × trend = "rimlig From".
+// 0.45: fångar en klart trasig From (Aggron 3,50€ = 0,41x trend) men skonar en
+// genuint fallande chase-From (Bloodmoon Ursaluna ex 49,9€ = 0,49x, under sitt 30d-
+// snitt = äkta prisfall/fynd, inte skräpdata). Snävare golv skulle dölja äkta fynd
+// för snipern. Justerbart via CM_TREND_LOW_MULT.
+export const TREND_LOW_MULT = Number(process.env.CM_TREND_LOW_MULT) || 0.45;
+export const TREND_HIGH_MULT = Number(process.env.CM_TREND_HIGH_MULT) || 2;
+export function fromElseTrend(
+  fromEur: number | null | undefined,
+  trendEur: number | null | undefined,
+  avg30Eur: number | null | undefined,
+): number | null {
+  const f = fromEur != null && fromEur > 0 ? fromEur : null;
+  const t = trendEur != null && trendEur > 0 ? trendEur : null;
+  const a = avg30Eur != null && avg30Eur > 0 ? avg30Eur : null;
+  // Rimlig From (eller ingen trend att döma mot) → använd From.
+  if (f != null && (t == null || (f >= t * TREND_LOW_MULT && f <= t * TREND_HIGH_MULT))) return f;
+  // From saknas/opålitlig → trend, sedan 30d, sist From (om det var allt vi hade).
+  return t ?? a ?? f;
+}
+
 /**
  * Prissätter en sealed-produkt DIREKT från CM:s officiella prisguide — samma From→trend→
  * 30d-regel som RapidAPI-vägen, men utan RapidAPI. Används för EN-produkter vars idProduct
@@ -360,6 +389,7 @@ interface CmGuideEntry {
   avg: number | null;
   low: number | null;
   trend: number | null;
+  avg30: number | null;
 }
 interface CmNonSingle {
   idProduct: number;
@@ -628,6 +658,9 @@ export async function runCardmarketRefresh(
     // (tcggo-metadata-bugg) men har ~93 kort → force-hämta dess sidor; matchas
     // på cardmarket_id nedan. Tomma sidor returnerar inget (ofarligt).
     if (cmidMap.size > 0) for (let pg = 1; pg <= 6; pg++) pageTasks.push({ epId: 412, pg });
+    // CM:s officiella prisguide = trend-facit för From→trend→30d-regeln (RapidAPI-
+    // singlar saknar trend-fält; deras egna 30d kan vara lika lågt som en glitchad From).
+    const guide = await fetchCmGuide();
     const singleOps: { productId: string; offerId?: string; priceOre: number; url: string }[] = [];
     await mapPool(pageTasks, API_CONCURRENCY, async ({ epId, pg }) => {
       const d = await api<{ data: CmCard[] }>(`https://${HOST}/pokemon/episodes/${epId}/cards?page=${pg}`);
@@ -639,7 +672,9 @@ export async function runCardmarketRefresh(
           (card.cardmarket_id != null ? cmidMap.get(card.cardmarket_id) : undefined);
         if (!entry) continue;
         const cmp = card.prices?.cardmarket ?? {};
-        const eur = sanePriceEur(cmp.lowest_near_mint, cmp["30d_average"]); // exakt From; fallback snitt om From saknas/glitchad
+        // From bara om rimlig mot CM:s EGEN trend (guiden), annars trend→30d.
+        const g = card.cardmarket_id != null ? guide.get(card.cardmarket_id) : undefined;
+        const eur = fromElseTrend(cmp.lowest_near_mint, g?.trend ?? g?.avg, g?.avg30 ?? cmp["30d_average"]);
         if (eur == null) continue;
         const priceOre = Math.round(eur * rates.eurToOre);
         const url =
