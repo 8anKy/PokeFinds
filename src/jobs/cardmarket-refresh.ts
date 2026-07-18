@@ -914,7 +914,13 @@ export async function runCardmarketRefresh(
       }
       // Self-heal: håll sealed-bilden i synk med CM-katalogens per-produkt-bild
       // (tcggo). Endast på EXAKT cmid-match (fuzzy kan välja fel produkt).
-      const imageUrl = exact && best.image && best.image !== p.imageUrl ? best.image : undefined;
+      // MEN skriv ALDRIG över en /api/cm-image/-proxy-URL (den referer-gated CM-
+      // rendern vi satt medvetet): CM-katalogens råa hotlink 403:ar utan referer och
+      // blir en trasig bild. Utan denna vakt klobbrade cm-refresh proxy-bilderna varje
+      // dygn (best.image !== proxy-URL → alltid sant). Proxyn vinner alltid.
+      const proxied = p.imageUrl?.includes("/api/cm-image/");
+      const imageUrl =
+        exact && best.image && !proxied && best.image !== p.imageUrl ? best.image : undefined;
       // refOre = CM:s egen trend → dagvaktens nödutgång: ett stort hopp MOT trenden
       // är en rättelse av ett korrupt värde, inte en glitch. Utan den fastnar
       // skräpvärden för alltid (se saneDayMove).

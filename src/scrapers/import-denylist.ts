@@ -42,6 +42,9 @@ const DENIED = new Set<string>(
     "https://samlarhobby.se/products/pokemon-sun-moon-guardians-rising-1-blister-pack",
     // "Fall Tin - Paradox Destinies Tin" (generisk "random tin", mappar ej till en karaktär)
     "https://speltrollet.se/products/pok85844",
+    // "Pokémon TCG: Kanto Power Mini Tin" (generisk sortiment-tin — de specifika
+    // Kanto Power-tinsen finns som egna produkter; den här generiska ska bort)
+    "https://www.spelexperten.com/sallskapsspel/pokemon/pokemon-tcg-kanto-power-mini-tin.html",
   ].map(normUrl)
 );
 
