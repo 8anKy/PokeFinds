@@ -1,8 +1,10 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
+import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import { track } from "@/lib/track";
 import { formatPrice, formatRelative } from "@/lib/format";
 import type { ProductDetailData } from "@/services/products";
 import { StockBadge } from "@/components/ui/badge";
@@ -40,6 +42,13 @@ export function ProductDetailView({ data }: { data: ProductDetailData }) {
   const t = useTranslations("Detail");
   const tCat = useTranslations("Category");
   const tLang = useTranslations("Language");
+
+  // Engagemang: en produktvy per klientmontering (både SSR-sidan och overlayn
+  // renderar den här komponenten → immunt mot ISR-cachen). Fire-and-forget.
+  useEffect(() => {
+    track("product_view", data.slug);
+  }, [data.slug]);
+
   const lastInStock = data.restockEvents.find((e) => e.newStatus === "IN_STOCK");
   const isSingle = data.category === "SINGLE_CARD";
 

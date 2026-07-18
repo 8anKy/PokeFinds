@@ -140,6 +140,119 @@ async function getMostWatchedRaw(limit = 10) {
 }
 
 /**
+ * ENGAGEMANG ("Trendar") — vad folk faktiskt tittar på, klickar på och söker sig
+ * fram till just nu. Definitionen av "trending" i appen: INTE prisrörelse (det är
+ * "Störst uppgång/prisfall"), utan uppmätt intresse de senaste 7 dagarna.
+ *
+ * Läses ur den befintliga, ANONYMA `AnalyticsEvent`-loggen (ingen userId/IP/e-post
+ * lagras — GDPR-grön aggregatstatistik). Tre händelsetyper, viktade efter avsikt:
+ * en sökning som leder till en produkt väger tyngst, en ren vy lättast.
+ */
+const ENGAGEMENT_WEIGHTS = {
+  product_view: 1,
+  list_click: 2,
+  search_click: 3,
+} as const;
+const ENGAGEMENT_EVENT_TYPES = Object.keys(ENGAGEMENT_WEIGHTS);
+
+export interface EngagementCount {
+  /** Produktens slug — engagemangshändelserna nycklas på slug (det länkarna,
+   *  produktvyn och sökförslagen alla bär), inte på produkt-id. */
+  productSlug: string;
+  views: number;
+  clicks: number;
+  searches: number;
+  score: number;
+}
+
+/** En grupperad (slug, typ)-rad från AnalyticsEvent-aggregeringen. */
+export interface EngagementGroupRow {
+  entityId: string | null;
+  eventType: string;
+  count: number;
+}
+
+/**
+ * REN funktion: viktar och summerar grupperade händelser till en sorterad
+ * topplista (högst poäng först). Utbruten för att kunna enhetstestas utan DB.
+ */
+export function foldEngagement(
+  rows: EngagementGroupRow[],
+  limit?: number
+): EngagementCount[] {
+  const byProduct = new Map<string, EngagementCount>();
+  for (const row of rows) {
+    if (!row.entityId) continue;
+    const slug = row.entityId;
+    const entry =
+      byProduct.get(slug) ??
+      { productSlug: slug, views: 0, clicks: 0, searches: 0, score: 0 };
+    const n = row.count;
+    if (row.eventType === "product_view") entry.views += n;
+    else if (row.eventType === "list_click") entry.clicks += n;
+    else if (row.eventType === "search_click") entry.searches += n;
+    entry.score +=
+      n * (ENGAGEMENT_WEIGHTS[row.eventType as keyof typeof ENGAGEMENT_WEIGHTS] ?? 0);
+    byProduct.set(slug, entry);
+  }
+  const sorted = Array.from(byProduct.values()).sort((a, b) => b.score - a.score);
+  return limit ? sorted.slice(0, limit) : sorted;
+}
+
+/** Summerar engagemangshändelser per produkt de senaste `days` dagarna (viktad poäng).
+ *  En liten groupBy per (slug, typ) — inga per-rad-hämtningar (Neon-billigt). */
+async function aggregateEngagementRaw(
+  days: number,
+  limit?: number
+): Promise<EngagementCount[]> {
+  const since = new Date(Date.now() - days * 24 * 3600 * 1000);
+  const grouped = await prisma.analyticsEvent.groupBy({
+    by: ["entityId", "eventType"],
+    where: {
+      eventType: { in: ENGAGEMENT_EVENT_TYPES },
+      entityId: { not: null },
+      createdAt: { gte: since },
+    },
+    _count: { _all: true },
+  });
+  return foldEngagement(
+    grouped.map((g) => ({
+      entityId: g.entityId,
+      eventType: g.eventType,
+      count: g._count._all,
+    })),
+    limit
+  );
+}
+
+/** Hydrerar engagemangsräkningar med produktinfo (samma två-stegs-mönster som
+ *  getMostWatched: groupBy → findMany), matchat på slug. */
+async function hydrateEngagement(counts: EngagementCount[]) {
+  if (counts.length === 0) return [];
+  const products = await prisma.product.findMany({
+    where: { slug: { in: counts.map((c) => c.productSlug) } },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      imageUrl: true,
+      category: true,
+      lowestPriceOre: true,
+      set: { select: { id: true, name: true } },
+    },
+  });
+  const bySlug = new Map(products.map((p) => [p.slug, p]));
+  return counts
+    .filter((c) => bySlug.has(c.productSlug))
+    .map((c) => ({ ...c, product: bySlug.get(c.productSlug)! }));
+}
+
+/** Mest engagerade produkter senaste 7 dagarna (hydrerad, för publik "Trendar"). */
+async function getEngagementTrendingRaw(limit = 10) {
+  return hydrateEngagement(await aggregateEngagementRaw(7, limit));
+}
+
+/**
  * Senaste påfyllningar — bara de som FORTFARANDE är i lager. En restock-händelse
  * är historik; allokerings-droppar (t.ex. Webhallen "Tillfälligt fullbokad") kan
  * vara slutsålda igen inom minuter. Vi visar därför bara events vars offer just nu
@@ -249,6 +362,24 @@ async function getMarketStatsRaw() {
 // ponytail: marknadssidan + landningen cachas (datan uppdateras ~en gång/dygn av jobben).
 export const getTrending = cachedRead(getTrendingRaw, "getTrending");
 export const getTopDrops = cachedRead(getTopDropsRaw, "getTopDrops");
+
+// Engagemang ("Trendar"): 1h-cache räcker — händelser strömmar in men listan
+// behöver inte vara sekundfärsk, och 1h håller Neon-läsningarna nere (som computeChanges).
+export const getEngagementTrending = cachedRead(
+  getEngagementTrendingRaw,
+  "getEngagementTrending",
+  3600
+);
+/** Rå poänglista (alla engagerade produkter, 7 dgr) för katalogens "Trendar"-sortering. */
+export const getEngagementRanking = cachedRead(
+  () => aggregateEngagementRaw(7),
+  "getEngagementRanking",
+  3600
+);
+/** Admin-topplista med valbart fönster (ocachad — admin-sidan är force-dynamic). */
+export async function getEngagementLeaderboard(days: number, limit: number) {
+  return hydrateEngagement(await aggregateEngagementRaw(days, limit));
+}
 export const getMostWatched = cachedRead(getMostWatchedRaw, "getMostWatched");
 export const getRecentRestocks = cachedRead(getRecentRestocksRaw, "getRecentRestocks");
 export const getSetIndex = cachedRead(getSetIndexRaw, "getSetIndex");

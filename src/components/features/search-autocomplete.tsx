@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { onProductOverlayOpen } from "@/lib/product-overlay-open";
+import { track } from "@/lib/track";
 import { IconCards } from "@/components/ui/icons";
 
 /** Vad /api/search/suggest returnerar per produkt. */
@@ -147,6 +148,7 @@ export function SearchAutocomplete({
         e.preventDefault();
         setFocused(false);
         inputRef.current?.blur();
+        track("search_click", chosen.slug);
         router.push(`/produkter/${chosen.slug}`);
       }
       // annars: vanlig formulär-submit → fulla sökresultat
@@ -189,13 +191,21 @@ export function SearchAutocomplete({
             dropdownClassName ?? "inset-x-0"
           )}
         >
-          <ul id={listId} role="listbox" className="max-h-[min(24rem,60vh)] overflow-y-auto">
+          <ul
+            id={listId}
+            role="listbox"
+            data-no-track
+            className="max-h-[min(24rem,60vh)] overflow-y-auto"
+          >
             {results.map((s, i) => (
               <li key={s.slug} id={`${listId}-${i}`} role="option" aria-selected={i === active}>
                 <Link
                   href={`/produkter/${s.slug}`}
                   prefetch={false}
-                  onClick={() => setFocused(false)}
+                  onClick={() => {
+                    setFocused(false);
+                    track("search_click", s.slug);
+                  }}
                   onMouseEnter={() => setActive(i)}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2 transition-colors",

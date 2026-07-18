@@ -283,6 +283,9 @@ function CatalogFilterFields({
             </option>
           ))}
         </Select>
+        {searchParams.sortera === "trend" && (
+          <p className="mt-1.5 text-xs text-ink-faint">{t("sortHint.trending")}</p>
+        )}
       </div>
       <Button type="submit" className="w-full">
         {t("filter")}

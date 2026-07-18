@@ -7,8 +7,25 @@
 import { prisma } from "../src/lib/db";
 import { runScheduledScrapesOnce } from "../src/jobs/scheduler";
 
-runScheduledScrapesOnce()
-  .then((r) => console.log(`Klart: ${r.scrapes.length} källor, ${r.alerts.sent} alerts skickade.`))
+// Engagemangsloggen (AnalyticsEvent) skrivs per händelse och behövs bara för
+// Trendar-fönstret (7 d) + admin-engagemang (30 d). Rensa allt äldre än detta så
+// tabellen inte sväller obegränsat och fönsterfrågorna hålls snabba.
+const ANALYTICS_RETENTION_DAYS = 90;
+
+async function main() {
+  const r = await runScheduledScrapesOnce();
+  console.log(`Klart: ${r.scrapes.length} källor, ${r.alerts.sent} alerts skickade.`);
+
+  const cutoff = new Date(Date.now() - ANALYTICS_RETENTION_DAYS * 24 * 3600 * 1000);
+  const pruned = await prisma.analyticsEvent.deleteMany({
+    where: { createdAt: { lt: cutoff } },
+  });
+  if (pruned.count > 0) {
+    console.log(`Rensade ${pruned.count} analyshändelser äldre än ${ANALYTICS_RETENTION_DAYS} d.`);
+  }
+}
+
+main()
   .catch((e) => {
     console.error("Misslyckades:", e);
     process.exitCode = 1;

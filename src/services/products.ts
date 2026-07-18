@@ -7,6 +7,7 @@ import { cachedRead } from "@/lib/cache";
 import { normalizeTitle } from "@/lib/utils";
 import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
+import { getEngagementRanking } from "@/services/market";
 import type {
   CardLanguage,
   Prisma,
@@ -332,6 +333,21 @@ export async function buildProductWhere(
 /** Sorteringar som ordnas direkt i DB → infinite scroll över HELA katalogen. */
 const DB_SORTABLE = new Set<ProductSort>(["popular", "price_asc", "price_desc", "most_watched"]);
 
+/**
+ * "Trendar" = engagemang (mest visade/klickade/sökta senaste 7 dagarna), INTE
+ * prisrörelse. Sorterar en redan hämtad kandidatlista efter engagemangspoäng.
+ * Produkter utan händelser får poäng 0 och behåller sin sekundära ordning (stabil
+ * sort → recensrast/populärast först), så listan aldrig blir tom innan data hunnit
+ * byggas upp. Poänglistan är 1h-cachad (getEngagementRanking) → billig.
+ */
+async function sortByEngagement(items: ProductListItem[]): Promise<void> {
+  const ranking = await getEngagementRanking();
+  const scoreBySlug = new Map(ranking.map((r) => [r.productSlug, r.score]));
+  items.sort(
+    (a, b) => (scoreBySlug.get(b.slug) ?? 0) - (scoreBySlug.get(a.slug) ?? 0)
+  );
+}
+
 function feedOrderBy(sort: ProductSort): Prisma.ProductOrderByWithRelationInput {
   switch (sort) {
     case "price_asc": return { lowestPriceOre: "asc" };
@@ -394,7 +410,7 @@ async function getExploreFeedRaw(
   });
   const items = products.map(toListItem);
   if (sort === "biggest_drop") items.sort((a, b) => (a.priceChange7dPercent ?? 0) - (b.priceChange7dPercent ?? 0));
-  else if (sort === "trending") items.sort((a, b) => (b.priceChange7dPercent ?? 0) - (a.priceChange7dPercent ?? 0));
+  else if (sort === "trending") await sortByEngagement(items);
   else if (sort === "recently_restocked") items.sort((a, b) => (b.lastRestockAt?.getTime() ?? 0) - (a.lastRestockAt?.getTime() ?? 0));
   const total = Math.min(items.length, MAX_CANDIDATES);
   return { items: items.slice(offset, offset + limit), total, hasMore: offset + limit < total };
@@ -572,9 +588,7 @@ async function searchProductsRaw(params: SearchProductsParams): Promise<{
       );
       break;
     case "trending":
-      items.sort(
-        (a, b) => (b.priceChange7dPercent ?? 0) - (a.priceChange7dPercent ?? 0)
-      );
+      await sortByEngagement(items);
       break;
     case "most_watched":
       items.sort((a, b) => b.watchCount - a.watchCount);

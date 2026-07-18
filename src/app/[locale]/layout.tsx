@@ -18,6 +18,7 @@ import { BottomTabs } from "@/components/layout/bottom-tabs";
 import { ProductOverlayHost } from "@/components/features/product-overlay";
 import { PushManager } from "@/components/push-manager";
 import { ScrollReset } from "@/components/scroll-reset";
+import { EngagementTracker } from "@/components/engagement-tracker";
 
 export async function generateMetadata({
   params,
@@ -101,6 +102,7 @@ export default async function LocaleLayout({
             <CookieBanner />
             <ServiceWorkerRegister />
             <ScrollReset />
+            <EngagementTracker />
           </Providers>
         </NextIntlClientProvider>
       </body>

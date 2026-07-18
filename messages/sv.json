@@ -882,6 +882,9 @@
       "most_watched": "Mest bevakad",
       "trending": "Trendar",
       "deals": "Fynd"
+    },
+    "sortHint": {
+      "trending": "Trendar = mest visade, klickade och sökta produkterna just nu (7 dagar)."
     }
   },
   "Sets": {
@@ -1039,7 +1042,7 @@
     "snapshot": {
       "title": "Marknaden just nu",
       "window": "Senaste 7 dagarna",
-      "trendingUp": "Trendar uppåt",
+      "trendingUp": "Störst uppgång",
       "topDrops": "Största prisfallen",
       "seeAll": "Se hela marknaden"
     },

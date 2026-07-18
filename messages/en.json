@@ -882,6 +882,9 @@
       "most_watched": "Most watched",
       "trending": "Trending",
       "deals": "Deals"
+    },
+    "sortHint": {
+      "trending": "Trending = the most viewed, clicked and searched products right now (7 days)."
     }
   },
   "Sets": {
@@ -1039,7 +1042,7 @@
     "snapshot": {
       "title": "The market right now",
       "window": "Last 7 days",
-      "trendingUp": "Trending up",
+      "trendingUp": "Biggest gains",
       "topDrops": "Biggest price drops",
       "seeAll": "See the whole market"
     },
