@@ -822,6 +822,18 @@ const LISTING_TITLE_JUNK: RegExp[] = [
   /\([^)]*\b(?:artwork|art)\b[^)]*\)/gi,
 ];
 
+/**
+ * Ledande "Pokémon TCG:" / "Pokemon Trading Card Game" — rent brus i katalognamn
+ * (ägarbeslut 2026-07-19): HELA katalogen är Pokémon TCG, prefixet särskiljer
+ * inget. Bara LEDANDE prefix strippas — "Pokémon GO", "Pokémon 151" osv. mitt i
+ * titeln är set-identitet och lämnas orörda.
+ */
+const TCG_PREFIX_RE = /^pok[eé]mon\s*(?:tcg|trading\s*card\s*game)\b\s*[:\-–—]*\s*/i;
+export function stripTcgPrefix(title: string): string {
+  const stripped = title.replace(TCG_PREFIX_RE, "").trim();
+  return stripped.length >= 4 ? stripped : title;
+}
+
 /** Rensar butiks-skräp ur en annonstitel (identitet + språkmarkörer lämnas orörda). */
 export function cleanListingTitle(title: string): string {
   // HTML-entiteter från feeds (Quickbutik skickar "&amp;") — avkoda innan
@@ -832,12 +844,14 @@ export function cleanListingTitle(title: string): string {
     .replace(/&quot;/gi, '"')
     .replace(/&nbsp;/gi, " ");
   for (const re of LISTING_TITLE_JUNK) s = s.replace(re, " ");
-  return s
+  const cleaned = s
     .replace(/[[(]\s*[\])]/g, " ") // tomma parentes-/hakparentespar efter junk-strip
     .replace(/\s{2,}/g, " ")
     .replace(/\s+([,)!])/g, "$1")
     .replace(/^[\s,–—-]+|[\s,–—-]+$/g, "")
     .trim();
+  // Sist så att prefixet fångas även när butiksjunk låg framför det.
+  return stripTcgPrefix(cleaned);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -6,8 +6,9 @@ describe("cleanListingTitle", () => {
     expect(
       cleanListingTitle("Pokemon SV10.5 - Black Bolt & White Flare - Black Bolt Elite Trainer Box (MAX 1 per kund)")
     ).toBe("Pokemon SV10.5 - Black Bolt & White Flare - Black Bolt Elite Trainer Box");
+    // Ledande "Pokémon TCG:" strippas också (ägarbeslut 2026-07-19).
     expect(cleanListingTitle("Pokémon TCG: Lumiose City Mini Tin (Max 5st/kund!)")).toBe(
-      "Pokémon TCG: Lumiose City Mini Tin"
+      "Lumiose City Mini Tin"
     );
     expect(cleanListingTitle("Pokémon - Booster Pack - Chaos Rising (Max 12st per kund)")).toBe(
       "Pokémon - Booster Pack - Chaos Rising"
@@ -60,10 +61,27 @@ describe("cleanListingTitle", () => {
 
   it("kollapsar dubbla mellanslag och trailing-skräp", () => {
     expect(cleanListingTitle("Pokémon TCG - Sword & Shield  Rebel Clash Booster")).toBe(
-      "Pokémon TCG - Sword & Shield Rebel Clash Booster"
+      "Sword & Shield Rebel Clash Booster"
     );
     expect(cleanListingTitle("Enhanced 2-Pack Blister: Genie Trio ")).toBe(
       "Enhanced 2-Pack Blister: Genie Trio"
+    );
+  });
+
+  it("strippar ledande TCG-prefix men inte set-identitet mitt i titeln", () => {
+    expect(cleanListingTitle("Pokémon TCG: Paldea Evolved Booster Box")).toBe(
+      "Paldea Evolved Booster Box"
+    );
+    expect(cleanListingTitle("Pokemon Trading Card Game: Silver Tempest Booster Pack")).toBe(
+      "Silver Tempest Booster Pack"
+    );
+    // "Pokémon GO" är SET-namn — prefixet strippas, set-namnet lämnas.
+    expect(cleanListingTitle("Pokemon TCG - Pokémon GO Premium Collection")).toBe(
+      "Pokémon GO Premium Collection"
+    );
+    // Bara LEDANDE prefix — "Pokémon" utan TCG rörs inte.
+    expect(cleanListingTitle("Pokemon Ascended Heroes Booster Pack")).toBe(
+      "Pokemon Ascended Heroes Booster Pack"
     );
   });
 });

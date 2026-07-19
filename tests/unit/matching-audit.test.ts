@@ -281,7 +281,8 @@ describe("omslagskonst — samma SKU, annan packbild", () => {
 
   it("en titel UTAN omslagskonst rörs inte", () => {
     expect(wrapperArtSameProduct("Flashfire Booster Pack", "Flashfire Booster Pack")).toBe(false);
-    expect(cleanListingTitle("Pokémon TCG: Surging Sparks Booster Box")).toBe("Pokémon TCG: Surging Sparks Booster Box");
+    // TCG-prefixet strippas numera (ägarbeslut 2026-07-19) — resten rörs inte.
+    expect(cleanListingTitle("Pokémon TCG: Surging Sparks Booster Box")).toBe("Surging Sparks Booster Box");
   });
 });
 
