@@ -48,8 +48,11 @@ const NONSINGLES_URL =
 // OBS: punkt i klassen — kinesiska mellanset heter "CSV9.5C:" (utan punkten släpptes
 // 22 kinesiska Terastal Gathering-produkter igenom fallbacken, mätt 2026-07-16).
 // \bjpn?\b: CM skriver ibland bara "JP" ("30th Celebration JP Booster Box").
+// "Booster (6 Cards)" m.fl. = USA-exklusiva N-korts-minipacks. Ägarbeslut 2026-07-19:
+// hela klassen ut ur katalogen (24 raderade — inga butiksoffers, ingen bevakning,
+// säljs inte i Sverige) och importen grindad så de aldrig återskapas.
 const REJECT_RE =
-  /^cs[a-z0-9.]*c:|\b(simplified|traditional)\s+chinese\b|\bchinese\b|\bkorean\b|\bindonesian\b|\bthai\b|\bjapanese\b|\bjpn?\b|\bcostco\b|sam'?s\s+club|\bempty\b/i;
+  /^cs[a-z0-9.]*c:|\b(simplified|traditional)\s+chinese\b|\bchinese\b|\bkorean\b|\bindonesian\b|\bthai\b|\bjapanese\b|\bjpn?\b|\bcostco\b|sam'?s\s+club|\bempty\b|booster\s*\(\s*\d+\s*cards?\s*\)/i;
 // Extra vakt för gratis-katalog-fallbacken: den katalogen är HELA CM (inkl. JP/CN-produkter
 // vars namn inte säger språket) — RapidAPI-listan är redan kuraterat engelsk. Uppenbara
 // region-/butikspromos och turneringspriser avvisas billigt här; resten grindas av
