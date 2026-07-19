@@ -933,6 +933,9 @@
   "PageNav": {
     "back": "Back"
   },
+  "Offline": {
+    "message": "No internet connection"
+  },
   "Detail": {
     "back": "Back",
     "breadcrumbAria": "Breadcrumbs",

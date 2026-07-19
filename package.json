@@ -41,6 +41,7 @@
     "@capacitor/ios": "^6.2.1",
     "@capacitor/keyboard": "^6.0.4",
     "@capacitor/push-notifications": "^6.0.5",
+    "@capacitor/splash-screen": "^6.0.4",
     "@parse/node-apn": "^7.1.0",
     "@prisma/client": "^5.22.0",
     "@revenuecat/purchases-capacitor": "^13.2.0",

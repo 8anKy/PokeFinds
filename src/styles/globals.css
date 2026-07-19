@@ -8,6 +8,64 @@
   --font-mono: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
 }
 
+/* App-laddningsskärm (#21): ligger i SSR-HTML:en och visas DIREKT vid full
+   sidladdning → täcker nätverks-/hydreringsgapet. Kritiskt i Capacitor-WebView:en
+   där appen laddar den hostade webben över nätet (annars svart skärm vid app-
+   start). Mörk yta + Foilio-märke = identisk med native splash → sömlös övergång.
+   AppBoot sätter <html class="app-ready"> efter hydrering → laddaren fejdar ut.
+   Klassen ligger kvar vid klient-navigering → laddaren visas bara vid kall start. */
+#app-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  background: #0a0a0c;
+  opacity: 1;
+  transition: opacity 0.35s ease;
+}
+#app-loader img {
+  width: 64px;
+  height: 64px;
+  animation: app-loader-pulse 1.6s ease-in-out infinite;
+}
+#app-loader .app-loader-spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  border: 2.5px solid rgba(45, 212, 191, 0.2);
+  border-top-color: #2dd4bf;
+  animation: app-loader-spin 0.8s linear infinite;
+}
+html.app-ready #app-loader {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+@keyframes app-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes app-loader-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #app-loader img,
+  #app-loader .app-loader-spinner {
+    animation: none;
+  }
+}
+
 @layer base {
   html {
     @apply scroll-smooth;

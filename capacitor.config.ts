@@ -50,6 +50,18 @@ const config: CapacitorConfig = {
     // resize: none → WebView:en ändrar INTE storlek när tangentbordet öppnas, så
     // position:fixed (bottom-tabs) hoppar inte. Tangentbordet läggs ovanpå i stället.
     Keyboard: { resize: "none" },
+    // Splash-skärm (#21): appen laddar den HOSTADE webbappen över nätet i WebView:en
+    // → mellan native-start och att webben renderat var det tidigare en SVART skärm
+    // (nätverks-/hydreringsgapet). launchAutoHide:false håller splashen uppe tills
+    // webben är redo och själv anropar SplashScreen.hide() (NativeSplashHider) → inget
+    // svart gap. backgroundColor matchar app-bakgrunden så kanterna inte blinkar.
+    SplashScreen: {
+      launchAutoHide: false,
+      backgroundColor: "#0a0a0c",
+      androidScaleType: "CENTER_CROP",
+      showSpinner: false,
+      launchFadeOutDuration: 250,
+    },
   },
 };
 

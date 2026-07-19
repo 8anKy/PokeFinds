@@ -933,6 +933,9 @@
   "PageNav": {
     "back": "Tillbaka"
   },
+  "Offline": {
+    "message": "Ingen internetanslutning"
+  },
   "Detail": {
     "back": "Tillbaka",
     "breadcrumbAria": "Brödsmulor",

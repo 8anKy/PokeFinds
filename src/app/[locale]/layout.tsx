@@ -19,6 +19,8 @@ import { ProductOverlayHost } from "@/components/features/product-overlay";
 import { PushManager } from "@/components/push-manager";
 import { ScrollReset } from "@/components/scroll-reset";
 import { EngagementTracker } from "@/components/engagement-tracker";
+import { AppBoot } from "@/components/app-boot";
+import { OfflineBanner } from "@/components/offline-banner";
 
 export async function generateMetadata({
   params,
@@ -86,6 +88,17 @@ export default async function LocaleLayout({
   return (
     <html lang={locale} className={`dark ${inter.variable}`}>
       <body>
+        {/* Branded laddningsskärm (#21) — i SSR-HTML:en, syns direkt vid app-/
+            sidstart. AppBoot döljer den (+ native splash) när appen hydrerat.
+            noscript: utan JS döljs den så SSR-innehållet blir synligt. */}
+        <div id="app-loader" aria-hidden="true">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/foilio-mark.png" alt="" width={64} height={64} />
+          <span className="app-loader-spinner" />
+        </div>
+        <noscript>
+          <style>{`#app-loader{display:none}`}</style>
+        </noscript>
         <NextIntlClientProvider messages={messages}>
           <Providers>
             {children}
@@ -103,6 +116,8 @@ export default async function LocaleLayout({
             <ServiceWorkerRegister />
             <ScrollReset />
             <EngagementTracker />
+            <AppBoot />
+            <OfflineBanner />
           </Providers>
         </NextIntlClientProvider>
       </body>
