@@ -245,8 +245,8 @@ export default function GraderaPage() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <PageBackButton />
       <div>
+        <PageBackButton />
         <h1 className="font-display text-2xl font-semibold text-ink">{t("h1")}</h1>
         <p className="mt-1 text-sm text-ink-muted">
           {t("intro")}

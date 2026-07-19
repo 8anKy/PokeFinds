@@ -62,8 +62,8 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-8">
-      <PageBackButton />
       <div>
+        <PageBackButton />
         <h1 className="font-display text-2xl font-bold text-ink">{t("pageTitle")}</h1>
         <p className="mt-1 text-sm text-ink-muted">
           {t("pageSubtitle")}

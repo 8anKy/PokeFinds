@@ -22,23 +22,38 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1.25rem;
+  gap: 2.25rem;
   background: #0a0a0c;
   opacity: 1;
-  transition: opacity 0.35s ease;
+  transition: opacity 0.4s ease;
 }
-#app-loader img {
-  width: 64px;
-  height: 64px;
-  animation: app-loader-pulse 1.6s ease-in-out infinite;
+/* Varumärkeslås: löv-F-märket (grönt) + ordmärket "Foilio" — samma lås som
+   headern (BrandLogo). Ordmärket i neutral vit, spinnern i turkos accent. */
+.app-loader-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
 }
-#app-loader .app-loader-spinner {
-  width: 26px;
-  height: 26px;
+.app-loader-brand img {
+  width: 46px;
+  height: 46px;
+  animation: app-loader-pulse 1.8s ease-in-out infinite;
+}
+.app-loader-word {
+  font-family: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-weight: 700;
+  font-size: 32px;
+  letter-spacing: -0.03em;
+  color: #f4f4f5;
+  line-height: 1;
+}
+.app-loader-spinner {
+  width: 30px;
+  height: 30px;
   border-radius: 9999px;
-  border: 2.5px solid rgba(45, 212, 191, 0.2);
+  border: 3px solid rgba(45, 212, 191, 0.18);
   border-top-color: #2dd4bf;
-  animation: app-loader-spin 0.8s linear infinite;
+  animation: app-loader-spin 0.75s linear infinite;
 }
 html.app-ready #app-loader {
   opacity: 0;
@@ -56,12 +71,12 @@ html.app-ready #app-loader {
     opacity: 1;
   }
   50% {
-    opacity: 0.5;
+    opacity: 0.55;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  #app-loader img,
-  #app-loader .app-loader-spinner {
+  .app-loader-brand img,
+  .app-loader-spinner {
     animation: none;
   }
 }

@@ -92,8 +92,11 @@ export default async function LocaleLayout({
             sidstart. AppBoot döljer den (+ native splash) när appen hydrerat.
             noscript: utan JS döljs den så SSR-innehållet blir synligt. */}
         <div id="app-loader" aria-hidden="true">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/foilio-mark.png" alt="" width={64} height={64} />
+          <div className="app-loader-brand">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/foilio-mark.png" alt="" width={46} height={46} />
+            <span className="app-loader-word">Foilio</span>
+          </div>
           <span className="app-loader-spinner" />
         </div>
         <noscript>

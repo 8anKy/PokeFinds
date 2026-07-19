@@ -54,8 +54,9 @@ export default async function WatchlistPage() {
 
   return (
     <div className="space-y-8">
-      <PageBackButton />
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <PageBackButton />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
           <p className="mt-1 text-sm text-ink-muted">
@@ -66,6 +67,7 @@ export default async function WatchlistPage() {
           <IconPlus size={16} />
           {t("findProducts")}
         </LinkButton>
+        </div>
       </div>
 
       {rows.length === 0 ? (

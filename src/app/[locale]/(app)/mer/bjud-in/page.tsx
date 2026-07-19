@@ -11,7 +11,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { IconCheck, IconGift, IconShare } from "@/components/ui/icons";
 import { PageBackButton } from "@/components/layout/page-back-button";
-import { useLockScrollWhenFits } from "@/lib/use-lock-scroll-when-fits";
+import { LockScroll } from "@/components/lock-scroll";
 
 interface InviteRow {
   id: string;
@@ -54,10 +54,6 @@ export default function InvitePage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  // Ingen studs/svep när hela sidan får plats (gäller båda render-lägena);
-  // mät om när invite-datan ändras (listan kan växa förbi skärmen → scroll då).
-  useLockScrollWhenFits([status]);
 
   async function createAndShare() {
     setCreating(true);
@@ -109,8 +105,9 @@ export default function InvitePage() {
   if (status?.earned) {
     return (
       <div className="mx-auto max-w-md space-y-6">
-        <PageBackButton />
+        <LockScroll />
         <header>
+          <PageBackButton />
           <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
         </header>
         <div className="rounded-2xl border border-holo-cyan/30 bg-holo-cyan/10 p-5 text-center">
@@ -130,8 +127,9 @@ export default function InvitePage() {
 
   return (
     <div className="mx-auto max-w-md space-y-6">
-      <PageBackButton />
+      <LockScroll />
       <header>
+        <PageBackButton />
         <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
         <p className="mt-1 text-sm text-ink-muted">{t("subtitle")}</p>
       </header>
