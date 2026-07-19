@@ -222,6 +222,66 @@ export function ProductDetailView({
           )}
         </section>
 
+        {/* Fler annonser på Tradera (#19) — samma produkt, andra säljare.
+            Horisontell svep-skena; billigast först (svepet lagrar max 20).
+            Klick räknas som list_click i engagemangs-spårningen. */}
+        {data.traderaListings.length > 0 && (
+          <section className="mt-10">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h2 className="font-display text-xl font-semibold text-ink">
+                {t("traderaListings")}
+              </h2>
+              <a
+                href={traderaSearchUrlSpecific(data.title, data.category)}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                onClick={() => track("list_click", data.slug)}
+                className="text-sm text-holo-cyan hover:underline"
+              >
+                {t("traderaSeeAll")}
+              </a>
+            </div>
+            <div className="-mx-4 mt-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
+              {data.traderaListings.map((l) => (
+                <a
+                  key={l.itemId}
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  onClick={() => track("list_click", data.slug)}
+                  className="card-surface w-44 shrink-0 snap-start overflow-hidden hover:border-holo-cyan/40"
+                >
+                  <div className="flex h-36 items-center justify-center overflow-hidden bg-surface-overlay">
+                    {l.imageUrl ? (
+                      <img
+                        src={l.imageUrl}
+                        alt={l.title}
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : data.imageUrl ? (
+                      <img
+                        src={data.imageUrl}
+                        alt={l.title}
+                        loading="lazy"
+                        className="h-full w-full object-contain p-2"
+                      />
+                    ) : (
+                      <IconCards size={40} className="text-ink-faint" />
+                    )}
+                  </div>
+                  <div className="p-3">
+                    <p className="line-clamp-2 text-xs text-ink-muted">{l.title}</p>
+                    <p className="mt-1 text-sm font-semibold text-ink">
+                      {formatPrice(l.price)}
+                    </p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Similar products */}
         {data.similar.length > 0 && (
           <section className="mt-10">

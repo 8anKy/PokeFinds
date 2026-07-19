@@ -1569,11 +1569,15 @@ export function isPlausiblePriceFor(
   );
 }
 
-/** DB-hämtande variant (tradera-sweep m.fl. som inte har förladdade kartor). */
-export async function isPlausibleListingPrice(
-  productId: string,
-  priceOre: number
-): Promise<boolean> {
+/**
+ * DB-hämtande variant som returnerar en ÅTERANVÄNDBAR prisvakt för produkten:
+ * en hämtning av facit-underlaget (CM-offer + kategori + stabil historik),
+ * sedan ren funktion per pris. Tradera-svepets Fas 0 vaktar upp till 20
+ * annonser per produkt — per-annons-DB-frågor hade varit 3 rundresor styck.
+ */
+export async function getListingPriceGuard(
+  productId: string
+): Promise<(priceOre: number) => boolean> {
   const [cmOffer, product, snaps] = await Promise.all([
     prisma.offer.findFirst({
       where: { productId, retailer: { name: "Cardmarket" }, price: { not: null } },
@@ -1597,25 +1601,36 @@ export async function isPlausibleListingPrice(
     refOre = histOre;
   }
 
-  // Undre-gräns-vakt för billiga sealed: BARA med ett PÅLITLIGT facit = vår STABILA egen
-  // historik. Utan historik kan CM-ref vara felmappat HÖGT för en billig pack (860 kr på en
-  // 69-kr-pack) → då raderar en CM-baserad undre-vakt det RÄTTA billiga priset och behåller
-  // det felaktiga CM-et. Därför kräver vakten historik, inte bara CM. (Facitet i övrigt =
-  // refOre, som redan är CM korsvaliderad mot historik.)
-  if (histOre != null && CHEAP_SEALED_LOWER_GUARD.has(product?.category ?? "")
-      && priceOre < histOre * SEALED_MIN_PRICE_RATIO) {
-    return false;
-  }
-  // Undre gräns även för SINGLAR (ägaren 2026-07-17): vår singel-headline BETYDER
-  // "NM engelska (Cardmarket)" — en Tradera-annons långt under NM-facit är i praktiken
-  // ett SPELAT ex (Charmander Base 9 kr mot CM-NM 62 kr headline:ade som produktens
-  // lägsta pris). Skicket går inte att läsa ur annonsen → <15% av facit = avvisa.
-  // Ersätter den gamla hållningen "billiga kort varierar fritt nedåt" — den lät
-  // skick-okända annonser låtsas vara NM. Facit = refOre (CM korsvaliderad mot stabil
-  // historik ovan), samma tillitskedja som sealed-vakten.
-  const isSingle = product?.category === "SINGLE_CARD" || product?.category === "GRADED_CARD";
-  if (isSingle && refOre != null && priceOre < refOre * SEALED_MIN_PRICE_RATIO) {
-    return false;
-  }
-  return isPlausiblePriceFor(product?.category, refOre, priceOre);
+  const category = product?.category;
+  const isSingle = category === "SINGLE_CARD" || category === "GRADED_CARD";
+  return (priceOre: number) => {
+    // Undre-gräns-vakt för billiga sealed: BARA med ett PÅLITLIGT facit = vår STABILA egen
+    // historik. Utan historik kan CM-ref vara felmappat HÖGT för en billig pack (860 kr på en
+    // 69-kr-pack) → då raderar en CM-baserad undre-vakt det RÄTTA billiga priset och behåller
+    // det felaktiga CM-et. Därför kräver vakten historik, inte bara CM. (Facitet i övrigt =
+    // refOre, som redan är CM korsvaliderad mot historik.)
+    if (histOre != null && CHEAP_SEALED_LOWER_GUARD.has(category ?? "")
+        && priceOre < histOre * SEALED_MIN_PRICE_RATIO) {
+      return false;
+    }
+    // Undre gräns även för SINGLAR (ägaren 2026-07-17): vår singel-headline BETYDER
+    // "NM engelska (Cardmarket)" — en Tradera-annons långt under NM-facit är i praktiken
+    // ett SPELAT ex (Charmander Base 9 kr mot CM-NM 62 kr headline:ade som produktens
+    // lägsta pris). Skicket går inte att läsa ur annonsen → <15% av facit = avvisa.
+    // Ersätter den gamla hållningen "billiga kort varierar fritt nedåt" — den lät
+    // skick-okända annonser låtsas vara NM. Facit = refOre (CM korsvaliderad mot stabil
+    // historik ovan), samma tillitskedja som sealed-vakten.
+    if (isSingle && refOre != null && priceOre < refOre * SEALED_MIN_PRICE_RATIO) {
+      return false;
+    }
+    return isPlausiblePriceFor(category, refOre, priceOre);
+  };
+}
+
+/** Engångsvariant (scrape-runner m.fl. som bara vaktar ETT pris per produkt). */
+export async function isPlausibleListingPrice(
+  productId: string,
+  priceOre: number
+): Promise<boolean> {
+  return (await getListingPriceGuard(productId))(priceOre);
 }

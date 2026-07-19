@@ -24,7 +24,12 @@ import { prisma } from "../lib/db";
 import { mapPool } from "../lib/concurrency";
 import { normalizeTitle } from "../lib/utils";
 import { isBlockedListingLanguage, listingCardLanguage } from "../lib/listing-language";
-import { matchProduct, matchListingToProduct, isPlausibleListingPrice } from "../scrapers/matching";
+import {
+  matchProduct,
+  matchListingToProduct,
+  isPlausibleListingPrice,
+  getListingPriceGuard,
+} from "../scrapers/matching";
 import { traderaSearchUrlSpecific, TRADERA_CATEGORY } from "../lib/marketplace-urls";
 
 // Tradera-kategori → produktform-grupp. Säljaren listar varje annons under EN
@@ -127,13 +132,53 @@ function termAttributeValues(block: string, attrName: string): string[] {
 
 // ─── Item type ───────────────────────────────────────────────────────────────
 
-interface TraderaItem {
+export interface TraderaItem {
   itemId: string;
   title: string;
   priceOre: number;
   url: string;
+  imageUrl?: string;
   categoryId?: number;
   sellerId?: number;
+}
+
+/** Max lagrade skena-annonser per produkt (produktsidans "Fler annonser på Tradera"). */
+export const MAX_RAIL_LISTINGS = 20;
+
+/** Skena-rader äldre än så purgas (produkter som roterat ut ur sökbudgeten). */
+const RAIL_PURGE_DAYS = 7;
+
+/**
+ * Fas 0-urval för EN produkt (ren funktion, före pris-vakten): alla annonser som
+ * passerar avvisade LLM-domar, kategori-grupp, språk och titelmatch. Språkvakten
+ * är NY mot gamla billigast-logiken — katalogen håller EN och JP som SEPARATA
+ * produkter, så en JP-annons får inte bli vare sig offer eller skena-rad på en
+ * EN-produkt (och omvänt). Dedup på itemId (samma annons kan dyka upp flera
+ * gånger i ett sök-svar).
+ */
+export function pickRailCandidates(
+  items: TraderaItem[],
+  product: {
+    id: string;
+    category: string;
+    language: string;
+    normalizedTitle: string;
+    card: { name: string; number: string } | null;
+  },
+  rejected: ReadonlySet<string>
+): TraderaItem[] {
+  const seen = new Set<string>();
+  const kept: TraderaItem[] = [];
+  for (const item of items) {
+    if (seen.has(item.itemId)) continue;
+    seen.add(item.itemId);
+    if (rejected.has(`${item.itemId}|${product.id}`)) continue;
+    if (!traderaCategoryCompatible(product.category, item.categoryId)) continue;
+    if (listingCardLanguage(item.title, item.url) !== product.language) continue;
+    if (matchListingToProduct(item.title, product) == null) continue;
+    kept.push(item);
+  }
+  return kept;
 }
 
 function parseItemsFromXml(xml: string): { items: TraderaItem[]; totalPages: number } {
@@ -180,11 +225,15 @@ function parseItemsFromXml(xml: string): { items: TraderaItem[]; totalPages: num
       ? tagText(sellerBlock[1], "Id")
       : tagText(block, "SellerId");
 
+    // Annonsens egen miniatyr (skenan visar säljarens foto, inte katalogbilden).
+    const thumb = tagText(block, "ThumbnailLink");
+
     items.push({
       itemId,
       title,
       priceOre: bin * 100,
       url,
+      imageUrl: thumb && /^https?:\/\//.test(thumb) ? thumb : undefined,
       categoryId: catText ? parseInt(catText, 10) : undefined,
       sellerId: sellerIdText ? parseInt(sellerIdText, 10) : undefined,
     });
@@ -324,6 +373,8 @@ export interface TraderaSweepResult {
   expired: number;
   withPrice: number;
   withoutPrice: number;
+  /** Skena-rader (#19) lagrade denna körning. */
+  listingsStored: number;
 }
 
 /**
@@ -353,6 +404,14 @@ export async function runTraderaSweep(
     select: { id: true },
   });
 
+  // Kända felmatchningar/skräp (LLM-dömda av verifyTraderaMatches) — återskapa
+  // ALDRIG, vare sig som offer eller skena-rad. Laddas FÖRE Fas 0 (som numera
+  // också konsumerar den) och återanvänds i skrivfasen.
+  const rejected = new Set(
+    (await prisma.traderaMatch.findMany({ where: { ok: false }, select: { itemId: true, productId: true } }))
+      .map((m) => `${m.itemId}|${m.productId}`)
+  );
+
   const allItems = new Map<string, TraderaItem>();
   const sellerCounts = new Map<number, number>();
   const callsByMethod: Record<string, number> = {};
@@ -378,12 +437,18 @@ export async function runTraderaSweep(
   const searchedProductIds = new Set<string>();
   // Direkt-matchade Fas 0-träffar (productId → billigaste rimliga annons).
   const directMatches = new Map<string, { price: number; item: TraderaItem }>();
+  // Skena-rader (#19): ALLA vakt-passerade annonser per namn-sökt produkt
+  // (billigast först, max MAX_RAIL_LISTINGS) — inte bara den billigaste.
+  const railRows: {
+    productId: string; itemId: string; title: string;
+    price: number; url: string; imageUrl: string | null;
+  }[] = [];
   if (SEARCH_BUDGET > 0) {
     log("📡 Fas 0: Riktade namn-sökningar (roterande full-katalog, direkt-match)...");
     const hot = await prisma.product.findMany({
       where: { category: { not: "ACCESSORY" } },
       select: {
-        id: true, title: true, normalizedTitle: true, category: true,
+        id: true, title: true, normalizedTitle: true, category: true, language: true,
         card: { select: { name: true, number: true, set: { select: { name: true } } } },
       },
       orderBy: [
@@ -410,17 +475,28 @@ export async function runTraderaSweep(
       hotCalls++;
       searchedProductIds.add(p.id);
 
-      // Billigaste annons som genuint matchar JUST denna produkt.
-      let best: { price: number; item: TraderaItem } | null = null;
       for (const item of result.items) {
         if (item.sellerId) sellerCounts.set(item.sellerId, (sellerCounts.get(item.sellerId) ?? 0) + 1);
-        if (!traderaCategoryCompatible(p.category, item.categoryId)) continue;
-        if (matchListingToProduct(item.title, p) == null) continue;
-        if (!best || item.priceOre < best.price) best = { price: item.priceOre, item };
       }
-      // Pris-rimlighet körs bara på den valda (en DB-koll per produkt, ej per annons).
-      if (best && (await isPlausibleListingPrice(p.id, best.price))) {
-        directMatches.set(p.id, best);
+
+      // Alla annonser som genuint matchar JUST denna produkt — inte bara den
+      // billigaste. Pris-vakten hämtar facit EN gång per produkt (samma DB-last
+      // som gamla en-annons-kollen) och appliceras rent per annons.
+      const candidates = pickRailCandidates(result.items, p, rejected);
+      if (candidates.length === 0) return;
+      const plausible = await getListingPriceGuard(p.id);
+      const kept = candidates
+        .filter((c) => plausible(c.priceOre))
+        .sort((a, b) => a.priceOre - b.priceOre)
+        .slice(0, MAX_RAIL_LISTINGS);
+      if (kept.length === 0) return;
+
+      directMatches.set(p.id, { price: kept[0].priceOre, item: kept[0] });
+      for (const c of kept) {
+        railRows.push({
+          productId: p.id, itemId: c.itemId, title: c.title,
+          price: c.priceOre, url: c.url, imageUrl: c.imageUrl ?? null,
+        });
       }
     });
     // Stämpla rotations-markören så nästa körning tar nästa batch (även vid kvot-stopp).
@@ -566,16 +642,12 @@ export async function runTraderaSweep(
   let priceUpdated = 0;
   let unchanged = 0;
   let expired = 0;
+  let listingsStored = 0;
 
   // ── Skriv till DB ──────────────────────────────────────────────────────
   if (!dryRun) {
     log("\n💾 Uppdaterar databasen...");
 
-    // Kända felmatchningar/skräp (LLM-dömda av verifyTraderaMatches) — återskapa ALDRIG.
-    const rejected = new Set(
-      (await prisma.traderaMatch.findMany({ where: { ok: false }, select: { itemId: true, productId: true } }))
-        .map((m) => `${m.itemId}|${m.productId}`)
-    );
     let skippedRejects = 0;
 
     await mapPool([...bestByProduct.entries()], DB_CONCURRENCY, async ([productId, { price, item }]) => {
@@ -668,6 +740,29 @@ export async function runTraderaSweep(
 
     log(`   ✅ ${written} nya/uppdaterade, ${priceUpdated} billigare pris, ${unchanged} redan billigare${skippedRejects ? `, ${skippedRejects} hoppade (känd felmatch)` : ""}`);
 
+    // ── Skena-annonser (#19): ersätt HELA settet per namn-sökt produkt ──────
+    // Sökta produkter utan träffar får sina gamla rader raderade (annonserna är
+    // borta) och produkter som roterat ut ur budgeten purgas på ålder — sidan
+    // visar dessutom aldrig rader äldre än några dagar (bältet + hängslena).
+    if (searchedProductIds.size > 0) {
+      await prisma.traderaListing.deleteMany({
+        where: { productId: { in: [...searchedProductIds] } },
+      });
+      for (let i = 0; i < railRows.length; i += 1000) {
+        const res = await prisma.traderaListing.createMany({
+          data: railRows.slice(i, i + 1000),
+          skipDuplicates: true,
+        });
+        listingsStored += res.count;
+      }
+      const purgeCutoff = new Date();
+      purgeCutoff.setDate(purgeCutoff.getDate() - RAIL_PURGE_DAYS);
+      const purged = await prisma.traderaListing.deleteMany({
+        where: { lastSeenAt: { lt: purgeCutoff } },
+      });
+      log(`   📋 Skena: ${listingsStored} annonser lagrade (${searchedProductIds.size} sökta produkter, ${purged.count} gamla purgade)`);
+    }
+
     // ── Fas 3: Expiry — nollställ utgångna listings ────────────────────
     // BARA produkter vi NAMN-SÖKTE denna körning (searchedProductIds) får
     // nollställas. Med roterande full-katalog-svep hinner vi inte se varje
@@ -747,5 +842,6 @@ export async function runTraderaSweep(
     expired,
     withPrice,
     withoutPrice,
+    listingsStored,
   };
 }

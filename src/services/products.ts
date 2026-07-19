@@ -797,6 +797,18 @@ export interface ProductDetailData {
     label: string;
     lowestPrice: number | null;
   }[];
+  /**
+   * Levande Tradera-annonser för SAMMA produkt ("Fler annonser på Tradera",
+   * #19) — fylls av tradera-sweep Fas 0, billigast först. Bara rader färska nog
+   * att annonsen sannolikt lever; tom lista → sektionen visas inte.
+   */
+  traderaListings: {
+    itemId: string;
+    title: string;
+    price: number;
+    url: string;
+    imageUrl: string | null;
+  }[];
 }
 
 interface LiveOfferStats {
@@ -825,13 +837,24 @@ interface SerializedOffer {
 
 const DETAIL_MAX_DAYS = 3650; // ~10 år = "hela serien" (klienten filtrerar period)
 
+// Tradera-annonser äldre än så visas inte (annonsen kan ha sålts sedan svepet;
+// populära produkter uppdateras dagligen, långsvansen var ~4:e dag).
+const TRADERA_LISTING_MAX_AGE_DAYS = 4;
+
 async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | null> {
   const product = await getProductBySlug(slug).catch(() => null);
   if (!product) return null;
 
-  const [historyBySource, similar, affiliateRetailers, variantSiblings] = await Promise.all([
+  const listingCutoff = new Date();
+  listingCutoff.setDate(listingCutoff.getDate() - TRADERA_LISTING_MAX_AGE_DAYS);
+  const [historyBySource, similar, traderaListings, affiliateRetailers, variantSiblings] = await Promise.all([
     getPriceHistoryBySource(product.id, DETAIL_MAX_DAYS),
     getSimilarProducts(product.id, 4),
+    prisma.traderaListing.findMany({
+      where: { productId: product.id, lastSeenAt: { gte: listingCutoff } },
+      orderBy: { price: "asc" },
+      select: { itemId: true, title: true, price: true, url: true, imageUrl: true },
+    }),
     prisma.retailer.findMany({
       where: {
         id: { in: product.offers.map((o) => o.retailerId) },
@@ -958,46 +981,178 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
     affiliateRetailerIds: affiliateRetailers.map((r) => r.id),
     similar,
     variants,
+    traderaListings,
   };
 }
 
-/** Liknande produkter: samma set i första hand, annars samma kategori. */
+const SIMILAR_INCLUDE = {
+  set: { select: { id: true, name: true, releaseDate: true } },
+  offers: { select: { price: true, stockStatus: true, url: true } },
+} as const;
+
+type SimilarRow = Prisma.ProductGetPayload<{ include: typeof SIMILAR_INCLUDE }>;
+
+/**
+ * Slår ihop två datum-sorterade listor till en närmast-referensdatum-först-lista.
+ * `after` = referensdatum och framåt (stigande), `before` = äldre (fallande);
+ * två pekare, kortast tidsavstånd vinner. Exporterad för test.
+ */
+export function mergeByDateProximity<T>(
+  after: T[],
+  before: T[],
+  ref: Date,
+  take: number,
+  dateOf: (t: T) => Date | null | undefined
+): T[] {
+  const out: T[] = [];
+  let i = 0;
+  let j = 0;
+  while (out.length < take && (i < after.length || j < before.length)) {
+    const a = i < after.length ? after[i] : null;
+    const b = j < before.length ? before[j] : null;
+    if (a == null) { out.push(b as T); j++; continue; }
+    if (b == null) { out.push(a); i++; continue; }
+    const da = Math.abs((dateOf(a)?.getTime() ?? Infinity) - ref.getTime());
+    const db = Math.abs((dateOf(b)?.getTime() ?? Infinity) - ref.getTime());
+    if (da <= db) { out.push(a); i++; } else { out.push(b); j++; }
+  }
+  return out;
+}
+
+/**
+ * Liknande produkter = "vad skulle DEN HÄR köparen överväga istället?" i tre
+ * nivåer som fylls uppifrån tills limit:
+ *  1. Samma kategori + samma set — närmaste substituten (andra pack-varianter,
+ *     settets andra chase-kort; singlar prövar samma raritet först).
+ *  2. Samma kategori + andra set — sealed: närmast releasedatum först (samma
+ *     sorts produkt i samma prisklass); singlar: samma raritet, populärast först.
+ *  3. Samma set, andra kategorier — "gillar du settet, här är mer av det"
+ *     (gamla nivå 1, medvetet degraderad: den blandade 44 kr-packs med
+ *     1 500 kr-boxar för att de delade set).
+ * Bara prissatta produkter (lowestPriceOre ≠ null) — katalogen döljer ändå
+ * oprissatta, en rekommendation dit är en återvändsgränd. Språk matchas i
+ * nivå 1–2 (EN och JP är separata katalogspår).
+ */
 async function getSimilarProductsRaw(productId: string, limit = 8) {
   const product = await prisma.product.findUnique({
     where: { id: productId },
-    select: { id: true, setId: true, category: true },
+    select: {
+      id: true,
+      setId: true,
+      category: true,
+      language: true,
+      set: { select: { releaseDate: true } },
+      card: { select: { rarity: true } },
+    },
   });
   if (!product) throw new ServiceError(404, "Produkten hittades inte.");
 
-  const include = {
-    set: { select: { id: true, name: true } },
-    offers: { select: { price: true, stockStatus: true, url: true } },
-  } as const;
+  const picked: SimilarRow[] = [];
+  const pickedIds = new Set<string>([product.id]);
+  const add = (rows: SimilarRow[]) => {
+    for (const r of rows) {
+      if (picked.length >= limit) break;
+      if (pickedIds.has(r.id)) continue;
+      pickedIds.add(r.id);
+      picked.push(r);
+    }
+  };
+  const remaining = () => limit - picked.length;
+  const priced = { lowestPriceOre: { not: null } } as const;
+  const isSingle = product.category === "SINGLE_CARD";
+  const rarity = product.card?.rarity ?? null;
 
-  const sameSet = product.setId
-    ? await prisma.product.findMany({
-        where: { setId: product.setId, id: { not: product.id } },
-        include,
-        take: limit,
+  // Nivå 1: samma set + samma kategori.
+  if (product.setId) {
+    if (isSingle && rarity) {
+      add(await prisma.product.findMany({
+        where: {
+          ...priced,
+          setId: product.setId,
+          category: product.category,
+          language: product.language,
+          card: { rarity },
+          id: { notIn: [...pickedIds] },
+        },
+        include: SIMILAR_INCLUDE,
         orderBy: { viewCount: "desc" },
-      })
-    : [];
-
-  let results = sameSet;
-  if (results.length < limit) {
-    const sameCategory = await prisma.product.findMany({
-      where: {
-        category: product.category,
-        id: { notIn: [product.id, ...results.map((r) => r.id)] },
-      },
-      include,
-      take: limit - results.length,
-      orderBy: { viewCount: "desc" },
-    });
-    results = [...results, ...sameCategory];
+        take: remaining(),
+      }));
+    }
+    if (remaining() > 0) {
+      add(await prisma.product.findMany({
+        where: {
+          ...priced,
+          setId: product.setId,
+          category: product.category,
+          language: product.language,
+          id: { notIn: [...pickedIds] },
+        },
+        include: SIMILAR_INCLUDE,
+        orderBy: { viewCount: "desc" },
+        take: remaining(),
+      }));
+    }
   }
 
-  return results.map((p) => {
+  // Nivå 2: samma kategori, andra set.
+  if (remaining() > 0) {
+    const base = {
+      ...priced,
+      category: product.category,
+      language: product.language,
+      id: { notIn: [...pickedIds] },
+      ...(product.setId ? { setId: { not: product.setId } } : {}),
+    };
+    const refDate = product.set?.releaseDate ?? null;
+    if (!isSingle && refDate) {
+      const take = remaining();
+      const [after, before] = await Promise.all([
+        prisma.product.findMany({
+          where: { ...base, set: { releaseDate: { gte: refDate } } },
+          include: SIMILAR_INCLUDE,
+          orderBy: [{ set: { releaseDate: "asc" } }, { viewCount: "desc" }],
+          take,
+        }),
+        prisma.product.findMany({
+          where: { ...base, set: { releaseDate: { lt: refDate } } },
+          include: SIMILAR_INCLUDE,
+          orderBy: [{ set: { releaseDate: "desc" } }, { viewCount: "desc" }],
+          take,
+        }),
+      ]);
+      add(mergeByDateProximity(after, before, refDate, take, (r) => r.set?.releaseDate));
+    } else {
+      add(await prisma.product.findMany({
+        where: { ...base, ...(isSingle && rarity ? { card: { rarity } } : {}) },
+        include: SIMILAR_INCLUDE,
+        orderBy: { viewCount: "desc" },
+        take: remaining(),
+      }));
+    }
+  }
+
+  // Nivå 3: samma set, andra kategorier.
+  if (remaining() > 0 && product.setId) {
+    add(await prisma.product.findMany({
+      where: { ...priced, setId: product.setId, id: { notIn: [...pickedIds] } },
+      include: SIMILAR_INCLUDE,
+      orderBy: { viewCount: "desc" },
+      take: remaining(),
+    }));
+  }
+
+  // Sista utväg (gamla beteendet): samma kategori oavsett språk/prissättning.
+  if (remaining() > 0) {
+    add(await prisma.product.findMany({
+      where: { category: product.category, id: { notIn: [...pickedIds] } },
+      include: SIMILAR_INCLUDE,
+      orderBy: { viewCount: "desc" },
+      take: remaining(),
+    }));
+  }
+
+  return picked.map((p) => {
     const lowest = computeLowestPrice(p.offers.filter((o) => isDirectOfferUrl(o.url)));
     return {
       id: p.id,

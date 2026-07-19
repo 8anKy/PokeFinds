@@ -971,6 +971,8 @@
     "lastInStock": "Last in stock: <when>{whenText}</when> at {store}",
     "noRestocks": "No recorded stock changes yet.",
     "similar": "Similar products",
+    "traderaListings": "More listings on Tradera",
+    "traderaSeeAll": "See all on Tradera",
     "metaNotFound": "Product not found",
     "fallbackCategory": "Product",
     "metaDescription": "Compare prices on {title} ({category}) at Swedish stores. Lowest price right now: {price}. Track price and restock on Foilio."

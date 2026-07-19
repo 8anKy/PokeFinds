@@ -317,6 +317,7 @@ model Product {
   alerts            Alert[]
   collectionItems   CollectionItem[]
   priceSnapshots    PriceSnapshot[]
+  traderaListings   TraderaListing[]
 
   @@index([normalizedTitle])
   @@index([category])
@@ -402,6 +403,29 @@ model Offer {
 // VERKLIGEN är samma produkt OCH komplett/oöppnad/oskadad/aktiv? Överlever offer-
 // nollställning → sweepen slår upp ok=false och återskapar ALDRIG en känd felmatch.
 // Bara sealed (singlar matchas på setnummer). Keyad på annons+produkt (stabilt).
+/// Levande Tradera-annonser per produkt — produktsidans "Fler annonser på
+/// Tradera"-skena (#19). Fylls av tradera-sweep Fas 0 (samma sökning som redan
+/// görs för billigast-offerten; vi slänger bara inte längre resten). Ersätts som
+/// HELT SET varje gång produkten namn-söks; rader äldre än några dagar visas
+/// aldrig (annonsen kan ha sålts) och purgas av svepet. Billigaste annonsen är
+/// FORTFARANDE Offer:en — den här tabellen är enbart skenan.
+model TraderaListing {
+  id         String   @id @default(cuid())
+  productId  String
+  itemId     String
+  title      String
+  price      Int // öre (Buy It Now)
+  url        String
+  imageUrl   String?
+  lastSeenAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, itemId])
+  @@index([productId, lastSeenAt])
+  @@index([lastSeenAt])
+}
+
 model TraderaMatch {
   itemId    String
   productId String

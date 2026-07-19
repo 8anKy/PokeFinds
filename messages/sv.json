@@ -971,6 +971,8 @@
     "lastInStock": "Senast i lager: <when>{whenText}</when> hos {store}",
     "noRestocks": "Inga registrerade lagerförändringar ännu.",
     "similar": "Liknande produkter",
+    "traderaListings": "Fler annonser på Tradera",
+    "traderaSeeAll": "Se alla på Tradera",
     "metaNotFound": "Produkten hittades inte",
     "fallbackCategory": "Produkt",
     "metaDescription": "Jämför priser på {title} ({category}) hos svenska butiker. Lägsta pris just nu: {price}. Bevaka pris och restock på Foilio."
