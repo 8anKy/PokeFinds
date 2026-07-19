@@ -241,7 +241,13 @@ export function ProductDetailView({
                 {t("traderaSeeAll")}
               </a>
             </div>
-            <div className="-mx-4 mt-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
+            {/* data-swipe-ignore: skenan äger sitt horisontella drag — utan den
+                tolkar overlayn ett höger-svep i skenan som "stäng" och man
+                kastas tillbaka till Utforska mitt i bläddrandet. */}
+            <div
+              data-swipe-ignore
+              className="-mx-4 mt-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0"
+            >
               {data.traderaListings.map((l) => (
                 <a
                   key={l.itemId}

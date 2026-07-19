@@ -854,7 +854,15 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
       where: { productId: product.id, lastSeenAt: { gte: listingCutoff } },
       orderBy: { price: "asc" },
       select: { itemId: true, title: true, price: true, url: true, imageUrl: true },
-    }),
+    }).then((rows) =>
+      rows.map((r) => ({
+        ...r,
+        // Äldre rader lagrade API:ts /thumbs/ (64x64, suddig uppskalad) — samma
+        // CDN-path serverar /medium-fit/ (600x460). Ingest lagrar numera
+        // medium-fit direkt; det här är no-op för nya rader.
+        imageUrl: r.imageUrl?.replace("/thumbs/", "/medium-fit/") ?? null,
+      }))
+    ),
     prisma.retailer.findMany({
       where: {
         id: { in: product.offers.map((o) => o.retailerId) },

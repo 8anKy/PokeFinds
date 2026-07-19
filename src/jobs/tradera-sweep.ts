@@ -226,7 +226,10 @@ function parseItemsFromXml(xml: string): { items: TraderaItem[]; totalPages: num
       : tagText(block, "SellerId");
 
     // Annonsens egen miniatyr (skenan visar säljarens foto, inte katalogbilden).
-    const thumb = tagText(block, "ThumbnailLink");
+    // API:t ger /thumbs/ = 64x64 — oanvändbart suddigt uppskalat i skenan.
+    // Samma CDN-path serverar större varianter; /medium-fit/ = 600x460 (~60 KB),
+    // lagom för ett ~176 px-kort på 3x-skärm.
+    const thumb = tagText(block, "ThumbnailLink")?.replace("/thumbs/", "/medium-fit/");
 
     items.push({
       itemId,
