@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { IconCheck, IconGift, IconShare } from "@/components/ui/icons";
+import { PageBackButton } from "@/components/layout/page-back-button";
 
 interface InviteRow {
   id: string;
@@ -103,6 +104,7 @@ export default function InvitePage() {
   if (status?.earned) {
     return (
       <div className="mx-auto max-w-md space-y-6">
+        <PageBackButton />
         <header>
           <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
         </header>
@@ -123,6 +125,7 @@ export default function InvitePage() {
 
   return (
     <div className="mx-auto max-w-md space-y-6">
+      <PageBackButton />
       <header>
         <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
         <p className="mt-1 text-sm text-ink-muted">{t("subtitle")}</p>

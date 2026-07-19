@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { isPro } from "@/lib/plan";
 import { prisma } from "@/lib/db";
 import { SettingsClient, type NotificationSettings, type SettingsUser } from "./settings-client";
+import { PageBackButton } from "@/components/layout/page-back-button";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-8">
+      <PageBackButton />
       <div>
         <h1 className="font-display text-2xl font-bold text-ink">{t("pageTitle")}</h1>
         <p className="mt-1 text-sm text-ink-muted">

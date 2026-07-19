@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { IconMail, IconShield } from "@/components/ui/icons";
+import { PageBackButton } from "@/components/layout/page-back-button";
 
 export async function generateMetadata({
   params,
@@ -22,6 +23,7 @@ export default async function ContactPage({
 
   return (
     <article className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
+      <PageBackButton fallback="/" />
       <h1 className="font-display text-3xl font-bold text-ink">{t("h1")}</h1>
       <p className="mt-2 text-ink-muted">{t("subtitle")}</p>
 

@@ -930,6 +930,9 @@
     "emptyProductsTitle": "No products in this set yet",
     "emptyProductsDesc": "We haven't found any products from this set at tracked stores."
   },
+  "PageNav": {
+    "back": "Back"
+  },
   "Detail": {
     "back": "Back",
     "breadcrumbAria": "Breadcrumbs",

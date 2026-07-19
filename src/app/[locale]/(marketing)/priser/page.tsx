@@ -3,6 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { IconCheck, IconPlus, IconX } from "@/components/ui/icons";
 import { UpgradeButton } from "./upgrade-button";
 import { FreePlanCta } from "./free-plan-cta";
+import { PageBackButton } from "@/components/layout/page-back-button";
 
 export async function generateMetadata({
   params,
@@ -46,6 +47,7 @@ export default async function PricingPage({
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
+      <PageBackButton fallback="/" />
       <div className="text-center">
         <h1 className="font-display text-3xl font-bold text-ink sm:text-4xl">
           {t("h1")}

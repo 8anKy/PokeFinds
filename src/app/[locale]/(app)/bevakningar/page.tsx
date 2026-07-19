@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LinkButton } from "@/components/ui/button";
 import { IconBell, IconPlus } from "@/components/ui/icons";
 import { WatchlistTable, type WatchlistRow } from "./watchlist-table";
+import { PageBackButton } from "@/components/layout/page-back-button";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,7 @@ export default async function WatchlistPage() {
 
   return (
     <div className="space-y-8">
+      <PageBackButton />
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>

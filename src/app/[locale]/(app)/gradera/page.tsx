@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
+import { PageBackButton } from "@/components/layout/page-back-button";
 import { cn } from "@/lib/utils";
 import {
   IconAlertTriangle,
@@ -244,6 +245,7 @@ export default function GraderaPage() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
+      <PageBackButton />
       <div>
         <h1 className="font-display text-2xl font-semibold text-ink">{t("h1")}</h1>
         <p className="mt-1 text-sm text-ink-muted">

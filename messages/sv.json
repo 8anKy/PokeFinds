@@ -930,6 +930,9 @@
     "emptyProductsTitle": "Inga produkter i setet ännu",
     "emptyProductsDesc": "Vi har inte hittat några produkter från det här setet hos bevakade butiker."
   },
+  "PageNav": {
+    "back": "Tillbaka"
+  },
   "Detail": {
     "back": "Tillbaka",
     "breadcrumbAria": "Brödsmulor",

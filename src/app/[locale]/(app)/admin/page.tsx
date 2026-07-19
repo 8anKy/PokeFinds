@@ -5,6 +5,7 @@ import { getAdminStats } from "@/services/analytics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import type { JobStatus } from "@prisma/client";
+import { PageBackButton } from "@/components/layout/page-back-button";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +61,7 @@ export default async function AdminOverviewPage() {
 
   return (
     <div className="space-y-6">
+      <PageBackButton />
       <section aria-label="Nyckeltal">
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
           <StatCard
