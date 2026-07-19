@@ -27,9 +27,18 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { checkPriceAlerts, checkRestockAlerts, checkListingAlerts } from "@/services/alerts";
-// Pro-mottagare = planTier PREMIUM ELLER admin-roll (lib/plan). Assertar mot samma
-// konstant som koden använder — ett bart planTier-filter missar admins (2026-07-08).
-import { proUserWhere } from "@/lib/plan";
+
+// Pro-mottagare = planTier PREMIUM ELLER admin-roll ELLER aktiv referral-bonus
+// (lib/plan.proUserWhere). Assertar mot samma struktur som koden bygger — ett bart
+// planTier-filter missar admins (2026-07-08). proUserWhere() bakar in new Date() i
+// bonus-grenen (#10) → koden och testet anropar den millisekunder isär, så en EXAKT
+// Date-jämförelse flakar. Matcha strukturen med expect.any(Date) för bonus-t.o.m.
+const proWhereOr: unknown[] = [
+  { planTier: "PREMIUM" },
+  { role: { in: ["ADMIN", "SUPERADMIN"] } },
+  { bonusProUntil: { gt: expect.any(Date) } },
+];
+const proUserWhereMatch = { OR: proWhereOr };
 
 const PRODUCT = { id: "prod-1", title: "Surging Sparks Booster Box", slug: "surging-sparks-booster-box" };
 
@@ -75,7 +84,7 @@ describe("checkPriceAlerts", () => {
           priceAlert: true,
           isPaused: false,
           targetPrice: { not: null, gte: 99900 },
-          user: proUserWhere(),
+          user: proUserWhereMatch,
         }),
       })
     );
@@ -145,7 +154,7 @@ describe("checkRestockAlerts", () => {
           productId: "prod-1",
           restockAlert: true,
           isPaused: false,
-          user: proUserWhere(),
+          user: proUserWhereMatch,
         }),
       })
     );
@@ -227,7 +236,7 @@ describe("checkListingAlerts (feed-först: rå butiksannonser utanför katalogen
       expect.objectContaining({
         where: expect.objectContaining({
           notificationSettings: { path: ["allRestocks"], equals: true },
-          ...proUserWhere(),
+          OR: proWhereOr,
         }),
       })
     );

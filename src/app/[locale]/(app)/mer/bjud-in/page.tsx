@@ -11,6 +11,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { IconCheck, IconGift, IconShare } from "@/components/ui/icons";
 import { PageBackButton } from "@/components/layout/page-back-button";
+import { useLockScrollWhenFits } from "@/lib/use-lock-scroll-when-fits";
 
 interface InviteRow {
   id: string;
@@ -53,6 +54,10 @@ export default function InvitePage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Ingen studs/svep när hela sidan får plats (gäller båda render-lägena);
+  // mät om när invite-datan ändras (listan kan växa förbi skärmen → scroll då).
+  useLockScrollWhenFits([status]);
 
   async function createAndShare() {
     setCreating(true);
