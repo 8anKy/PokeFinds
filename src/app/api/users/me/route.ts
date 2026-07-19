@@ -13,6 +13,7 @@ const profileSelect = {
   name: true,
   role: true,
   planTier: true,
+  bonusProUntil: true,
   avatarUrl: true,
   bio: true,
   emailVerifiedAt: true,
@@ -59,7 +60,7 @@ export async function PATCH(req: Request) {
 
     const current = await prisma.user.findUnique({
       where: { id: sessionUser.id },
-      select: { notificationSettings: true, preferences: true, planTier: true, role: true },
+      select: { notificationSettings: true, preferences: true, planTier: true, role: true, bonusProUntil: true },
     });
     if (!current) throw new AuthError(404, "Användaren hittades inte.");
 

@@ -135,7 +135,8 @@
       "errName": "Namnet måste vara minst 2 tecken.",
       "errEmail": "Ogiltig e-postadress.",
       "errPassword": "Lösenordet måste vara minst 8 tecken.",
-      "errConfirm": "Lösenorden matchar inte."
+      "errConfirm": "Lösenorden matchar inte.",
+      "inviteNote": "Du registrerar dig via en väns inbjudan. Bekräfta din e-post efter registreringen så räknas den."
     },
     "forgot": {
       "title": "Glömt lösenordet?",
@@ -715,7 +716,29 @@
     "bugSubject": "Buggrapport – Foilio-appen",
     "bugBody": "Beskriv buggen så detaljerat du kan:\n\n\nVad gjorde du när det hände?\n\n\nSkickat från Foilio-appen",
     "admin": "Adminpanel",
-    "logout": "Logga ut"
+    "logout": "Logga ut",
+    "inviteTitle": "Bjud in vänner, få Pro gratis",
+    "inviteSubtitle": "3 vänner som skapar konto = 1 månad Pro"
+  },
+  "Invite": {
+    "h1": "Bjud in vänner",
+    "subtitle": "Bjud in 3 vänner som skapar konto och bekräftar sin e-post, så får du 1 månad Foilio Pro. Helt gratis.",
+    "progress": "{count} av {required} vänner verifierade",
+    "progressHint": "Varje 3 verifierade vänner ger dig 1 månad Pro.",
+    "bonusActive": "Din Pro-bonus är aktiv till {date}.",
+    "createButton": "Skapa och dela inbjudningslänk",
+    "openTitle": "Oanvända länkar",
+    "usedTitle": "Dina inbjudna",
+    "shareAgain": "Dela",
+    "copied": "Kopierad!",
+    "unknownFriend": "Ny medlem",
+    "statusVerified": "Verifierad",
+    "statusPending": "Väntar på e-postbekräftelse",
+    "shareText": "Häng med mig på Foilio: bevaka priser och restocks på Pokémon TCG. Skapa konto via min länk!",
+    "loadError": "Kunde inte hämta dina inbjudningar. Försök igen.",
+    "createError": "Kunde inte skapa inbjudan. Försök igen.",
+    "copyError": "Kunde inte kopiera länken.",
+    "terms": "Gäller nya konton som bekräftar sin e-postadress. Varje länk kan användas en gång. Pro-bonusen läggs på din befintliga Pro-tid."
   },
   "Watchlist": {
     "metaTitle": "Bevakningar",

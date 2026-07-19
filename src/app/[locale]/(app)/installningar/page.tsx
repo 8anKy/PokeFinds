@@ -42,6 +42,7 @@ export default async function SettingsPage() {
       bio: true,
       planTier: true,
       role: true,
+      bonusProUntil: true,
       notificationSettings: true,
       traderaUserId: true,
     },

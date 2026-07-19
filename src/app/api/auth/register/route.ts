@@ -8,6 +8,7 @@ import { apiError, jsonOk } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { sendMail } from "@/lib/mailer";
 import { welcomeEmail, verifyEmail } from "@/emails/templates";
+import { redeemInviteAtRegistration } from "@/services/invites";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,9 @@ const schema = z.object({
   name: z.string().trim().min(2, "Namnet måste vara minst 2 tecken.").max(80),
   email: z.string().trim().email("Ogiltig e-postadress."),
   password: z.string().min(8, "Lösenordet måste vara minst 8 tecken.").max(128),
+  // Inbjudningskod (#10) — valfri; ogiltig/använd kod ignoreras tyst
+  // (registreringen ska aldrig stoppas av en dålig kod).
+  invite: z.string().trim().max(64).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -28,7 +32,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { name, email, password } = schema.parse(await req.json());
+    const { name, email, password, invite } = schema.parse(await req.json());
     const normalizedEmail = email.toLowerCase();
 
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
@@ -57,6 +61,10 @@ export async function POST(req: NextRequest) {
       data: { name, email: normalizedEmail, passwordHash, verificationToken },
       select: { id: true, name: true, email: true },
     });
+
+    // Inbjudan (#10): förbruka koden mot det NYA kontot (registrering är enda
+    // inlösningsvägen). Engångs + atomär i redeemInviteAtRegistration.
+    if (invite) await redeemInviteAtRegistration(invite, user.id);
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const verifyUrl = `${appUrl}/verifiera?token=${verificationToken}`;

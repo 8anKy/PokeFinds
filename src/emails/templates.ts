@@ -71,6 +71,20 @@ export function verifyEmail(name: string, verifyUrl: string): EmailContent {
   return { subject, html, text };
 }
 
+/** Referral-belöning (#10): 3 vänner verifierade → 1 månad Pro. */
+export function proRewardEmail(name: string, until: Date): EmailContent {
+  const untilStr = until.toLocaleDateString("sv-SE", { year: "numeric", month: "long", day: "numeric" });
+  const subject = "Du har fått 1 månad Pro · Foilio";
+  const html = layout(
+    "Grattis, du har fått Pro!",
+    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Tre av dina inbjudna vänner har nu bekräftat sina konton. Som tack får du en månad Foilio Pro, aktiv till och med <strong style="color:#ffffff;">${untilStr}</strong>.</p>
+     <p style="line-height:1.6;color:#cbd5e1;">Pro ger dig prisbevakning med larm, restock-aviseringar och fler skanningar. Bjud in fler vänner så förlänger du din Pro-tid med en månad per tre verifierade.</p>
+     ${button(`${APP_URL}/mer/bjud-in`, "Bjud in fler vänner")}`
+  );
+  const text = `Hej ${name}!\n\nTre av dina inbjudna vänner har bekräftat sina konton. Som tack får du en månad Foilio Pro, aktiv till och med ${untilStr}.\n\nBjud in fler vänner så förlänger du din Pro-tid: ${APP_URL}/mer/bjud-in${textFooter}`;
+  return { subject, html, text };
+}
+
 export function priceAlertEmail(
   name: string,
   productTitle: string,

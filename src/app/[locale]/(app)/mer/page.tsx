@@ -12,6 +12,7 @@ import {
   IconTrophy,
   IconInfo,
   IconFlag,
+  IconGift,
   IconChevronRight,
   type IconProps,
 } from "@/components/ui/icons";
@@ -74,6 +75,21 @@ export default async function MerPage() {
         <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
         <p className="mt-1 text-sm text-ink-muted">{t("subtitle")}</p>
       </header>
+
+      {/* Bjud in vänner (#10) — framträdande kort: 3 verifierade = 1 månad Pro */}
+      <Link
+        href="/mer/bjud-in"
+        className="flex items-center gap-3 rounded-2xl border border-holo-cyan/30 bg-holo-cyan/10 px-4 py-4 transition-colors hover:bg-holo-cyan/15"
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-holo-cyan/15 text-holo-cyan ring-1 ring-holo-cyan/30">
+          <IconGift size={22} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-ink">{t("inviteTitle")}</span>
+          <span className="block text-xs text-ink-muted">{t("inviteSubtitle")}</span>
+        </span>
+        <IconChevronRight size={18} className="shrink-0 text-holo-cyan" />
+      </Link>
 
       {/* Konto + meny i ett grupperat kort */}
       <div className="overflow-hidden rounded-2xl border border-surface-border bg-surface-raised/40">

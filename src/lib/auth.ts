@@ -14,8 +14,11 @@ declare module "next-auth" {
       name: string;
       role: Role;
       planTier: PlanTier;
-      /** Pro-förmåner? = planTier PREMIUM ELLER admin-roll. Grinda features på DENNA,
-       *  aldrig på planTier (som en utgången prenumeration nollar). Se lib/plan.ts. */
+      /** Referral-Pro t.o.m. (#10) — med i sessionen så isPro(sessionUser) räknar rätt. */
+      bonusProUntil: string | null;
+      /** Pro-förmåner? = planTier PREMIUM, admin-roll ELLER aktiv referral-bonus.
+       *  Grinda features på DENNA, aldrig på planTier (som en utgången
+       *  prenumeration nollar). Se lib/plan.ts. */
       isPro: boolean;
       onboardingCompleted: boolean;
     };
@@ -24,6 +27,8 @@ declare module "next-auth" {
     id: string;
     role: Role;
     planTier: PlanTier;
+    /** Referral-Pro t.o.m. (#10) — ISO-sträng i JWT:n. */
+    bonusProUntil: string | null;
     onboardingCompleted: boolean;
   }
 }
@@ -33,6 +38,7 @@ declare module "next-auth/jwt" {
     id: string;
     role: Role;
     planTier: PlanTier;
+    bonusProUntil: string | null;
     onboardingCompleted: boolean;
     refreshedAt: number;
   }
@@ -78,6 +84,7 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           role: user.role,
           planTier: user.planTier,
+          bonusProUntil: user.bonusProUntil?.toISOString() ?? null,
           onboardingCompleted: user.onboardingCompleted,
         };
       },
@@ -89,6 +96,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.role = user.role;
         token.planTier = user.planTier;
+        token.bonusProUntil = user.bonusProUntil;
         token.onboardingCompleted = user.onboardingCompleted;
         token.refreshedAt = Date.now();
       }
@@ -101,6 +109,7 @@ export const authOptions: NextAuthOptions = {
         if (fresh) {
           token.role = fresh.role;
           token.planTier = fresh.planTier;
+          token.bonusProUntil = fresh.bonusProUntil?.toISOString() ?? null;
           token.onboardingCompleted = fresh.onboardingCompleted;
           token.refreshedAt = Date.now();
         }
@@ -111,7 +120,12 @@ export const authOptions: NextAuthOptions = {
       session.user.id = token.id;
       session.user.role = token.role;
       session.user.planTier = token.planTier;
-      session.user.isPro = isPro({ planTier: token.planTier, role: token.role });
+      session.user.bonusProUntil = token.bonusProUntil ?? null;
+      session.user.isPro = isPro({
+        planTier: token.planTier,
+        role: token.role,
+        bonusProUntil: token.bonusProUntil,
+      });
       session.user.onboardingCompleted = token.onboardingCompleted;
       return session;
     },

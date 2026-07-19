@@ -145,6 +145,11 @@ model User {
   bio                  String?
   emailVerifiedAt      DateTime?
   verificationToken    String?   @unique
+  // Referral-Pro (#10): Pro t.o.m. detta datum, intjänat via 3 verifierade
+  // inbjudningar. SEPARAT kolumn med flit: planTier ägs av RevenueCat-webhooken
+  // (EXPIRATION sätter FREE) och får aldrig kunna nolla en intjänad bonus.
+  // isPro()/proUserWhere() räknar båda. Se src/services/invites.ts.
+  bonusProUntil        DateTime?
   resetToken           String?   @unique
   resetTokenExpiresAt  DateTime?
   onboardingCompleted  Boolean   @default(false)
@@ -173,6 +178,8 @@ model User {
   offerReports    OfferReport[]
   savedPosts      SavedPost[]
   pushTokens      PushToken[]
+  invitesSent     Invite[]         @relation("InviteInviter")
+  inviteUsed      Invite?          @relation("InviteUsedBy")
   sales           Sale[]
 
   @@index([email])
@@ -718,6 +725,27 @@ model OfferReport {
 
   @@index([status])
   @@index([offerId])
+}
+
+/// Inbjudningar (#10): 3 verifierade vänner → 1 månad Pro till inviter.
+/// Koden (id, cuid) är ENGÅNGS: usedById sätts vid REGISTRERING (bara nya
+/// konton kan lösa in — befintliga användare har ingen inlösningsväg) och
+/// länken är därefter förbrukad. verifiedAt = den inbjudna bekräftade sin
+/// mejl; rewardedAt = ingick i en utbetald 3-grupp (dubbelutbetalningsspärr).
+/// Belöningen delas ut i verify-flödet, se src/services/invites.ts.
+model Invite {
+  id         String    @id @default(cuid())
+  inviterId  String
+  createdAt  DateTime  @default(now())
+  usedById   String?   @unique
+  usedAt     DateTime?
+  verifiedAt DateTime?
+  rewardedAt DateTime?
+
+  inviter User  @relation("InviteInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  usedBy  User? @relation("InviteUsedBy", fields: [usedById], references: [id], onDelete: SetNull)
+
+  @@index([inviterId])
 }
 
 // ---------- Datainsamling ----------

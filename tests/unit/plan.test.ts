@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PRO_USER_WHERE, effectivePlanTier, isPro } from "@/lib/plan";
+import { proUserWhere, effectivePlanTier, isPro } from "@/lib/plan";
 
 describe("isPro", () => {
   it("betalande prenumerant är Pro", () => {
@@ -31,14 +31,17 @@ describe("effectivePlanTier", () => {
   });
 });
 
-describe("PRO_USER_WHERE", () => {
+describe("proUserWhere", () => {
   // Prisma-filtret MÅSTE spegla isPro() — annars kan larmfrågorna missa mottagare
-  // som appen i övrigt behandlar som Pro (exakt buggen ovan).
+  // som appen i övrigt behandlar som Pro (exakt buggen ovan). Sedan #10 ingår
+  // referral-bonusen (bonusProUntil > nu) som tredje gren.
   it("matchar samma användare som isPro()", () => {
-    const or = PRO_USER_WHERE.OR;
-    expect(or).toEqual([
+    const or = proUserWhere().OR;
+    expect(or?.slice(0, 2)).toEqual([
       { planTier: "PREMIUM" },
       { role: { in: ["ADMIN", "SUPERADMIN"] } },
     ]);
+    const bonus = or?.[2] as { bonusProUntil: { gt: Date } };
+    expect(bonus.bonusProUntil.gt).toBeInstanceOf(Date);
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
@@ -26,6 +26,13 @@ export default function RegisterPage() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Inbjudningskod (#10) ur ?invite= — läses från location (ej useSearchParams:
+  // slipper Suspense-kravet). Skickas med registreringen och visas som notis.
+  const [invite, setInvite] = useState<string | null>(null);
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("invite");
+    if (code) setInvite(code);
+  }, []);
 
   function validate(): boolean {
     const errors: FieldErrors = {};
@@ -46,7 +53,12 @@ export default function RegisterPage() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), password }),
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          password,
+          ...(invite ? { invite } : {}),
+        }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -79,6 +91,11 @@ export default function RegisterPage() {
       <p className="mt-1 text-sm text-ink-muted">
         {t("register.subtitle")}
       </p>
+      {invite && (
+        <p className="mt-3 rounded-lg border border-holo-cyan/30 bg-holo-cyan/10 px-3 py-2 text-sm text-ink">
+          {t("register.inviteNote")}
+        </p>
+      )}
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
         <div>

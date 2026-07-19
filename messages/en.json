@@ -135,7 +135,8 @@
       "errName": "The name must be at least 2 characters.",
       "errEmail": "Invalid email address.",
       "errPassword": "The password must be at least 8 characters.",
-      "errConfirm": "The passwords don't match."
+      "errConfirm": "The passwords don't match.",
+      "inviteNote": "You are signing up through a friend's invite. Confirm your email after registering to make it count."
     },
     "forgot": {
       "title": "Forgot your password?",
@@ -715,7 +716,29 @@
     "bugSubject": "Bug report – Foilio app",
     "bugBody": "Describe the bug in as much detail as you can:\n\n\nWhat were you doing when it happened?\n\n\nSent from the Foilio app",
     "admin": "Admin panel",
-    "logout": "Log out"
+    "logout": "Log out",
+    "inviteTitle": "Invite friends, get Pro for free",
+    "inviteSubtitle": "3 friends who sign up = 1 month of Pro"
+  },
+  "Invite": {
+    "h1": "Invite friends",
+    "subtitle": "Invite 3 friends who create an account and confirm their email, and you get 1 month of Foilio Pro. Completely free.",
+    "progress": "{count} of {required} friends verified",
+    "progressHint": "Every 3 verified friends gives you 1 month of Pro.",
+    "bonusActive": "Your Pro bonus is active until {date}.",
+    "createButton": "Create and share invite link",
+    "openTitle": "Unused links",
+    "usedTitle": "Your invitees",
+    "shareAgain": "Share",
+    "copied": "Copied!",
+    "unknownFriend": "New member",
+    "statusVerified": "Verified",
+    "statusPending": "Waiting for email confirmation",
+    "shareText": "Join me on Foilio: track prices and restocks for Pokémon TCG. Create an account through my link!",
+    "loadError": "Could not load your invites. Please try again.",
+    "createError": "Could not create the invite. Please try again.",
+    "copyError": "Could not copy the link.",
+    "terms": "Applies to new accounts that confirm their email address. Each link can be used once. The Pro bonus is added on top of your existing Pro time."
   },
   "Watchlist": {
     "metaTitle": "Watches",
