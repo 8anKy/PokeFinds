@@ -19,6 +19,18 @@ export const INVITES_REQUIRED = 3;
 export const MAX_OPEN_INVITES = 10;
 
 /**
+ * ENGÅNGSERBJUDANDE (ägarbeslut 2026-07-19): en användare kan tjäna belöningen
+ * EN gång. Efter utbetalning försvinner invite-sektionen ur kontot och varken
+ * nya koder eller nya belöningar kan skapas.
+ */
+export async function hasEarnedReward(userId: string): Promise<boolean> {
+  const n = await prisma.invite.count({
+    where: { inviterId: userId, rewardedAt: { not: null } },
+  });
+  return n > 0;
+}
+
+/**
  * Ren funktion: nytt bonus-t.o.m.-datum. Förlänger en aktiv bonus från dess
  * slutdatum (staplar), annars en månad från nu. Exporterad för test.
  */
@@ -58,6 +70,10 @@ export async function creditInviteOnVerify(verifiedUserId: string): Promise<void
     where: { id: invite.id },
     data: { verifiedAt: new Date() },
   });
+
+  // Engångs: har invitern redan fått sin månad delas ingen ny belöning ut
+  // (verifieringen ovan är ändå harmlös att markera).
+  if (await hasEarnedReward(invite.inviterId)) return;
 
   const group = await prisma.invite.findMany({
     where: { inviterId: invite.inviterId, verifiedAt: { not: null }, rewardedAt: null },
@@ -128,22 +144,27 @@ export async function getInviteStatus(userId: string) {
       rewardedAt: i.rewardedAt,
       usedByName: i.usedBy?.name ?? null,
     })),
-    /** Framsteg mot nästa belöning (0–2; 3 delas ut direkt). */
+    /** Framsteg mot belöningen (0–2; 3 delas ut direkt). */
     progress: verifiedUnrewarded,
     required: INVITES_REQUIRED,
     bonusProUntil: user?.bonusProUntil ?? null,
+    /** Engångs: belöningen är uttagen → sektionen ska inte visas/användas. */
+    earned: invites.some((i) => i.rewardedAt != null),
   };
 }
 
-/** Skapa en ny engångskod (kapad mot spam). Returnerar koden eller null vid tak. */
-export async function createInvite(userId: string): Promise<string | null> {
+/** Skapa en ny engångskod. Nekas efter uttagen belöning (engångs) och vid spam-tak. */
+export async function createInvite(
+  userId: string
+): Promise<{ code: string } | { error: "earned" | "cap" }> {
+  if (await hasEarnedReward(userId)) return { error: "earned" };
   const open = await prisma.invite.count({
     where: { inviterId: userId, usedById: null },
   });
-  if (open >= MAX_OPEN_INVITES) return null;
+  if (open >= MAX_OPEN_INVITES) return { error: "cap" };
   const invite = await prisma.invite.create({
     data: { inviterId: userId },
     select: { id: true },
   });
-  return invite.id;
+  return { code: invite.id };
 }

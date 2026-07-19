@@ -24,6 +24,8 @@ interface InviteStatus {
   progress: number;
   required: number;
   bonusProUntil: string | null;
+  /** Engångs: belöningen uttagen → visa klart-läge, inga nya koder. */
+  earned: boolean;
 }
 
 function inviteUrl(code: string): string {
@@ -95,6 +97,29 @@ export default function InvitePage() {
     status?.bonusProUntil != null && new Date(status.bonusProUntil).getTime() > Date.now();
   const openInvites = status?.invites.filter((i) => !i.usedAt) ?? [];
   const usedInvites = status?.invites.filter((i) => i.usedAt) ?? [];
+
+  // Engångs: uttagen belöning → bara ett tack-kort (sektionen är borta ur /mer,
+  // men djuplänken ska landa snyggt, inte i ett halvdött formulär).
+  if (status?.earned) {
+    return (
+      <div className="mx-auto max-w-md space-y-6">
+        <header>
+          <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
+        </header>
+        <div className="rounded-2xl border border-holo-cyan/30 bg-holo-cyan/10 p-5 text-center">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-holo-cyan/15 text-holo-cyan ring-1 ring-holo-cyan/30">
+            <IconCheck size={24} />
+          </span>
+          <p className="mt-3 text-sm font-semibold text-ink">{t("doneTitle")}</p>
+          <p className="mt-1 text-xs text-ink-muted">
+            {bonusActive && status.bonusProUntil
+              ? t("doneBodyActive", { date: new Date(status.bonusProUntil).toLocaleDateString() })
+              : t("doneBody")}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-md space-y-6">

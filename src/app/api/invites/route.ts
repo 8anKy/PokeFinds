@@ -21,14 +21,16 @@ export async function GET() {
 export async function POST() {
   try {
     const user = await requireUser();
-    const code = await createInvite(user.id);
-    if (!code) {
+    const res = await createInvite(user.id);
+    if ("error" in res) {
       return NextResponse.json(
-        { error: "Du har för många oanvända inbjudningar. Dela dem du redan skapat först." },
-        { status: 429 }
+        res.error === "earned"
+          ? { error: "Du har redan tagit ut din inbjudningsbelöning." }
+          : { error: "Du har för många oanvända inbjudningar. Dela dem du redan skapat först." },
+        { status: res.error === "earned" ? 403 : 429 }
       );
     }
-    return jsonOk({ code }, { status: 201 });
+    return jsonOk({ code: res.code }, { status: 201 });
   } catch (e) {
     return apiError(e);
   }

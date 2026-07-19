@@ -20,9 +20,11 @@ export function LogoutButton() {
         setAuthHint(false);
         router.replace("/produkter");
       }}
-      className="flex w-full items-center justify-center gap-2 rounded-full border border-surface-border px-4 py-3 text-sm font-semibold text-fall transition-colors hover:bg-surface-overlay"
+      // Menyrad-stil (inte fristående knapp): som sista rad i kortet ryms hela
+      // Mer-sidan utan scroll även med invite-kortet + adminraden på en mobil.
+      className="flex w-full items-center gap-3 border-t border-surface-border px-4 py-3 text-sm font-medium text-fall transition-colors hover:bg-surface-overlay/60"
     >
-      <IconLogout size={18} className="shrink-0" />
+      <IconLogout size={20} className="shrink-0" />
       {t("logout")}
     </button>
   );

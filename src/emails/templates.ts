@@ -78,10 +78,10 @@ export function proRewardEmail(name: string, until: Date): EmailContent {
   const html = layout(
     "Grattis, du har fått Pro!",
     `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Tre av dina inbjudna vänner har nu bekräftat sina konton. Som tack får du en månad Foilio Pro, aktiv till och med <strong style="color:#ffffff;">${untilStr}</strong>.</p>
-     <p style="line-height:1.6;color:#cbd5e1;">Pro ger dig prisbevakning med larm, restock-aviseringar och fler skanningar. Bjud in fler vänner så förlänger du din Pro-tid med en månad per tre verifierade.</p>
-     ${button(`${APP_URL}/mer/bjud-in`, "Bjud in fler vänner")}`
+     <p style="line-height:1.6;color:#cbd5e1;">Pro ger dig prisbevakning med larm, restock-aviseringar och fler skanningar. Mycket nöje!</p>
+     ${button(`${APP_URL}/bevakningar`, "Kom igång med dina larm")}`
   );
-  const text = `Hej ${name}!\n\nTre av dina inbjudna vänner har bekräftat sina konton. Som tack får du en månad Foilio Pro, aktiv till och med ${untilStr}.\n\nBjud in fler vänner så förlänger du din Pro-tid: ${APP_URL}/mer/bjud-in${textFooter}`;
+  const text = `Hej ${name}!\n\nTre av dina inbjudna vänner har bekräftat sina konton. Som tack får du en månad Foilio Pro, aktiv till och med ${untilStr}.\n\nPro ger dig prisbevakning med larm, restock-aviseringar och fler skanningar: ${APP_URL}/bevakningar${textFooter}`;
   return { subject, html, text };
 }
 

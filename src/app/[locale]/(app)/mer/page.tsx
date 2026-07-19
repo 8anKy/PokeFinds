@@ -67,8 +67,15 @@ export default async function MerPage() {
     { href: "/kontakt", label: t("support"), icon: IconInfo, iconClass: "text-ink-muted" },
   ];
 
+  // Engångserbjudande: har användaren redan fått sin belöning (någon invite
+  // rewardedAt) försvinner hela invite-sektionen ur kontot (ägarbeslut).
+  const hasEarnedInviteReward =
+    (await prisma.invite.count({
+      where: { inviterId: session.user.id, rewardedAt: { not: null } },
+    })) > 0;
+
   return (
-    <div className="mx-auto max-w-md space-y-6">
+    <div className="mx-auto max-w-md space-y-4">
       <LockScroll />
       {/* Rubrik */}
       <header>
@@ -76,27 +83,30 @@ export default async function MerPage() {
         <p className="mt-1 text-sm text-ink-muted">{t("subtitle")}</p>
       </header>
 
-      {/* Bjud in vänner (#10) — framträdande kort: 3 verifierade = 1 månad Pro */}
-      <Link
-        href="/mer/bjud-in"
-        className="flex items-center gap-3 rounded-2xl border border-holo-cyan/30 bg-holo-cyan/10 px-4 py-4 transition-colors hover:bg-holo-cyan/15"
-      >
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-holo-cyan/15 text-holo-cyan ring-1 ring-holo-cyan/30">
-          <IconGift size={22} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold text-ink">{t("inviteTitle")}</span>
-          <span className="block text-xs text-ink-muted">{t("inviteSubtitle")}</span>
-        </span>
-        <IconChevronRight size={18} className="shrink-0 text-holo-cyan" />
-      </Link>
+      {/* Bjud in vänner (#10) — 3 verifierade = 1 månad Pro. Döljs för alltid
+          när belöningen är uttagen (engångs). */}
+      {!hasEarnedInviteReward && (
+        <Link
+          href="/mer/bjud-in"
+          className="flex items-center gap-3 rounded-2xl border border-holo-cyan/30 bg-holo-cyan/10 px-4 py-3 transition-colors hover:bg-holo-cyan/15"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-holo-cyan/15 text-holo-cyan ring-1 ring-holo-cyan/30">
+            <IconGift size={20} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-ink">{t("inviteTitle")}</span>
+            <span className="block text-xs text-ink-muted">{t("inviteSubtitle")}</span>
+          </span>
+          <IconChevronRight size={18} className="shrink-0 text-holo-cyan" />
+        </Link>
+      )}
 
       {/* Konto + meny i ett grupperat kort */}
       <div className="overflow-hidden rounded-2xl border border-surface-border bg-surface-raised/40">
         {/* Profilrad */}
         <Link
           href="/installningar"
-          className="flex items-center gap-3 border-b border-surface-border bg-surface-overlay/40 px-4 py-4 transition-colors hover:bg-surface-overlay"
+          className="flex items-center gap-3 border-b border-surface-border bg-surface-overlay/40 px-4 py-3 transition-colors hover:bg-surface-overlay"
         >
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-holo-cyan/15 text-lg font-bold text-holo-cyan ring-1 ring-holo-cyan/30">
             {initial}
@@ -116,7 +126,7 @@ export default async function MerPage() {
             <Link
               key={l.href}
               href={l.href}
-              className="flex items-center gap-3 border-b border-surface-border px-4 py-3.5 transition-colors last:border-b-0 hover:bg-surface-overlay/60"
+              className="flex items-center gap-3 border-b border-surface-border px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-overlay/60"
             >
               <l.icon size={20} className={`shrink-0 ${l.iconClass}`} />
               <span className="flex-1 text-sm font-medium text-ink">{l.label}</span>
@@ -137,7 +147,7 @@ export default async function MerPage() {
               "&body=" +
               encodeURIComponent(t("bugBody"))
             }
-            className="flex items-center gap-3 border-b border-surface-border px-4 py-3.5 transition-colors last:border-b-0 hover:bg-surface-overlay/60"
+            className="flex items-center gap-3 border-b border-surface-border px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-overlay/60"
           >
             <IconFlag size={20} className="shrink-0 text-rise" />
             <span className="flex-1 text-sm font-medium text-ink">{t("reportBug")}</span>
@@ -146,17 +156,18 @@ export default async function MerPage() {
           {isAdmin && (
             <Link
               href="/admin"
-              className="flex items-center gap-3 border-t border-surface-border px-4 py-3.5 transition-colors hover:bg-surface-overlay/60"
+              className="flex items-center gap-3 border-t border-surface-border px-4 py-3 transition-colors hover:bg-surface-overlay/60"
             >
               <IconWrench size={20} className="shrink-0 text-holo-violet" />
               <span className="flex-1 text-sm font-medium text-ink">{t("admin")}</span>
               <IconChevronRight size={18} className="shrink-0 text-ink-muted" />
             </Link>
           )}
+          {/* Logga ut som sista menyrad (inte fristående knapp) → sidan ryms
+              utan scroll på mobil även med invite-kort + adminrad. */}
+          <LogoutButton />
         </nav>
       </div>
-
-      <LogoutButton />
     </div>
   );
 }
