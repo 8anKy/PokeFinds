@@ -21,7 +21,7 @@
  */
 import { prisma } from "@/lib/db";
 import { judgeSameProduct } from "@/lib/same-product";
-import { gtinConflict } from "@/lib/gtin";
+import { gtinConflict, isPokemonManufacturerGtin } from "@/lib/gtin";
 import {
   cleanListingTitle,
   mergeEquivalent,
@@ -182,7 +182,10 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
     // Samma tillverkar-streckkod = definitionsmässigt samma SKU. Merga direkt, hoppa
     // över både poängsättning och Haiku-anropet. Det här är den största par-klassen —
     // att ta bort den före LLM:en är hela poängen med billig blockering + dyr verifiering.
-    if (stub.gtin) {
+    // Bara TILLVERKARENS kod är identitet — en distributör-EAN (73…) kan delas
+    // mellan SKU:er och får varken driva en merge här eller (via gtinConflict
+    // nedan) blockera LLM-paret. Se src/lib/gtin.ts.
+    if (stub.gtin && isPokemonManufacturerGtin(stub.gtin)) {
       const twin = catalog.find(
         (c) =>
           c.id !== stub.id &&

@@ -106,6 +106,20 @@ describe("gtinConflict — merge-vakten", () => {
     expect(gtinConflict(null, null)).toBe(false);
     expect(gtinConflict(pack, undefined)).toBe(false);
   });
+
+  it("KRITISKT: distributör-EAN (73…) är ALDRIG en konflikt — den är inte identitet", () => {
+    // Chaos Rising-blister-fallet 2026-07-19: Alphaspels Amo Toys-EAN mot Flygon-
+    // blisterns äkta TPCi-kod blockerade både auto-importens merge (dubblettstub
+    // skapades) och veckodedupens LLM-par (dubbletten kunde aldrig läka).
+    const distributor = normalizeGtin("7300003493957")!;
+    const tpci = normalizeGtin("196214140615")!;
+    expect(gtinConflict(distributor, tpci)).toBe(false);
+    expect(gtinConflict(tpci, distributor)).toBe(false);
+    // Två OLIKA distributörskoder bevisar inte heller något.
+    expect(gtinConflict(distributor, normalizeGtin("7340136000000")!)).toBe(false);
+    // Två olika TILLVERKARkoder är fortfarande en äkta konflikt.
+    expect(gtinConflict(pack, display)).toBe(true);
+  });
 });
 
 describe("sameGtin", () => {

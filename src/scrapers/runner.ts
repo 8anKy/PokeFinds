@@ -42,7 +42,7 @@ import {
 } from "@/scrapers/matching";
 import { judgeSameProduct } from "@/lib/same-product";
 import { fetchListingFacts, fetchListingGtin } from "@/scrapers/gtin-source";
-import { gtinConflict } from "@/lib/gtin";
+import { gtinConflict, isPokemonManufacturerGtin } from "@/lib/gtin";
 import { isDeniedListingUrl } from "@/scrapers/import-denylist";
 import { netStockEvent, isRestock, isNewInStockArrival } from "@/scrapers/restock";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
@@ -228,7 +228,9 @@ export async function ensureListingProduct(
   // ---- GTIN-först: tillverkarens streckkod är en EXAKT nyckel, inte en gissning ----
   // 73% av butikernas sealed-utbud publicerar den (mätt). Saknas den faller vi tillbaka på
   // titelmatchningen precis som förut — frånvaro är normalt, inte ett fel.
-  if (gtin) {
+  // BARA tillverkarkoder får joina: en distributör-EAN (73…) är butikens/distributörens
+  // egen kod och kan delas mellan SKU:er → exakt join på den vore en gissning i förklädnad.
+  if (gtin && isPokemonManufacturerGtin(gtin)) {
     const byGtin = await prisma.product.findFirst({ where: { gtin }, select: { id: true } });
     if (byGtin) {
       // Exakt träff: hoppa över BÅDE fuzzy-poängen och LLM-domen. Samma streckkod =

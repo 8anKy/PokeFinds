@@ -95,7 +95,16 @@ export function sameGtin(a: string | null | undefined, b: string | null | undefi
  * Ett ord isär i titeln — två skilda streckkoder.
  */
 export function gtinConflict(a: string | null | undefined, b: string | null | undefined): boolean {
-  return !!a && !!b && a !== b;
+  // Bara TILLVERKARENS koder är produktidentitet. En distributör-EAN (7300003… =
+  // Amo Toys osv.) på ena sidan bevisar ingenting — den BLOCKADE tidigare både
+  // auto-importens merge (dubblettstubben skapades) och veckodedupens LLM-par
+  // (dubbletten kunde aldrig läka). Mätt 2026-07-19: "Mega Evolution - Chaos
+  // Rising Premium Checklane Blister" (Alphaspel-EAN 7300003…) mot Flygon-
+  // blisterns äkta 196214… — falsk konflikt, evig dubblett.
+  return (
+    !!a && !!b && a !== b &&
+    isPokemonManufacturerGtin(a) && isPokemonManufacturerGtin(b)
+  );
 }
 
 /**
