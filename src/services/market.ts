@@ -155,6 +155,16 @@ const ENGAGEMENT_WEIGHTS = {
 } as const;
 const ENGAGEMENT_EVENT_TYPES = Object.keys(ENGAGEMENT_WEIGHTS);
 
+const DAY_MS = 24 * 3600 * 1000;
+/** "Mest populär" (katalogens standard) = VOLYM: viktad engagemang senaste 30 dagarna. */
+const POPULAR_WINDOW_DAYS = 30;
+/** "Trendar" = FART: senaste 7 dygnen jämfört med de 7 dygnen dessförinnan. */
+const TRENDING_WINDOW_DAYS = 7;
+/** Utjämning (k): (nu+k)/(förr+k) → 0→3 klick ger ingen falsk rusning mot noll-bas. */
+const TRENDING_SMOOTHING = 8;
+/** Golv: minsta viktade poäng senaste 7 d för att ens kvala som "trendande". */
+const TRENDING_MIN_RECENT = 10;
+
 export interface EngagementCount {
   /** Produktens slug — engagemangshändelserna nycklas på slug (det länkarna,
    *  produktvyn och sökförslagen alla bär), inte på produkt-id. */
@@ -199,19 +209,25 @@ export function foldEngagement(
   return limit ? sorted.slice(0, limit) : sorted;
 }
 
-/** Summerar engagemangshändelser per produkt de senaste `days` dagarna (viktad poäng).
- *  En liten groupBy per (slug, typ) — inga per-rad-hämtningar (Neon-billigt). */
-async function aggregateEngagementRaw(
-  days: number,
+/**
+ * Summerar engagemangshändelser per produkt i ett tidsfönster bakåt från nu:
+ * [startDaysAgo, endDaysAgo) — `start` är den äldre gränsen. `end = 0` ⇒ fram till nu.
+ * En liten groupBy per (slug, typ) — inga per-rad-hämtningar (Neon-billigt).
+ */
+async function aggregateEngagementWindow(
+  startDaysAgo: number,
+  endDaysAgo = 0,
   limit?: number
 ): Promise<EngagementCount[]> {
-  const since = new Date(Date.now() - days * 24 * 3600 * 1000);
+  const now = Date.now();
+  const createdAt: { gte: Date; lt?: Date } = { gte: new Date(now - startDaysAgo * DAY_MS) };
+  if (endDaysAgo > 0) createdAt.lt = new Date(now - endDaysAgo * DAY_MS);
   const grouped = await prisma.analyticsEvent.groupBy({
     by: ["entityId", "eventType"],
     where: {
       eventType: { in: ENGAGEMENT_EVENT_TYPES },
       entityId: { not: null },
-      createdAt: { gte: since },
+      createdAt,
     },
     _count: { _all: true },
   });
@@ -223,6 +239,88 @@ async function aggregateEngagementRaw(
     })),
     limit
   );
+}
+
+/** Viktad engagemangsvolym de senaste `days` dagarna (fram till nu). */
+async function aggregateEngagementRaw(days: number, limit?: number): Promise<EngagementCount[]> {
+  return aggregateEngagementWindow(days, 0, limit);
+}
+
+export interface TrendingLift {
+  productSlug: string;
+  /** (nu+k)/(förr+k): >1 = mer intresse än normalt, <1 = svalnar. */
+  lift: number;
+  recentScore: number;
+}
+
+/**
+ * REN funktion: räknar ut FART (lift) per produkt ur två fönster — engagemanget
+ * senaste perioden mot perioden dessförinnan. Bara produkter som når golvet
+ * (`minRecent`) kvalar; utjämningen (`smoothing`) hindrar att en produkt som går
+ * från noll till en handfull händelser skjuter i taket. Utbruten för enhetstest.
+ */
+export function computeTrendingLift(
+  recent: EngagementCount[],
+  prior: EngagementCount[],
+  opts: { smoothing: number; minRecent: number }
+): TrendingLift[] {
+  const priorBySlug = new Map(prior.map((p) => [p.productSlug, p.score]));
+  return recent
+    .filter((r) => r.score >= opts.minRecent)
+    .map((r) => ({
+      productSlug: r.productSlug,
+      recentScore: r.score,
+      lift: (r.score + opts.smoothing) / ((priorBySlug.get(r.productSlug) ?? 0) + opts.smoothing),
+    }))
+    .sort((a, b) => b.lift - a.lift);
+}
+
+/** "Trendar"-rankning för katalogen: 7 d mot föregående 7 d, störst lift först. */
+async function aggregateTrendingLiftRaw(): Promise<TrendingLift[]> {
+  const [recent, prior] = await Promise.all([
+    aggregateEngagementWindow(TRENDING_WINDOW_DAYS, 0),
+    aggregateEngagementWindow(TRENDING_WINDOW_DAYS * 2, TRENDING_WINDOW_DAYS),
+  ]);
+  return computeTrendingLift(recent, prior, {
+    smoothing: TRENDING_SMOOTHING,
+    minRecent: TRENDING_MIN_RECENT,
+  });
+}
+
+/**
+ * "Mest populär" (katalogens standardsortering) = 30-dagars VOLYM av engagemang,
+ * skriven in i den denormaliserade `Product.viewCount`-kolumnen. Den kolumnen är
+ * sedan tidigare kopplad till orderBy i feed/sitemap/sök/relaterat men fylldes
+ * aldrig av något — här får den mening. Körs en gång per dygn av scrape-all.
+ * Nollställer först förra passets poäng så produkter som fallit ur 30-d-fönstret sjunker.
+ */
+export async function refreshPopularityScores(): Promise<{ updated: number }> {
+  const ranking = await aggregateEngagementWindow(POPULAR_WINDOW_DAYS);
+  // Nollställ förra passets poäng (bara rader som faktiskt är != 0 → billig write).
+  await prisma.product.updateMany({ where: { viewCount: { not: 0 } }, data: { viewCount: 0 } });
+  if (ranking.length === 0) return { updated: 0 };
+
+  const products = await prisma.product.findMany({
+    where: { slug: { in: ranking.map((r) => r.productSlug) } },
+    select: { id: true, slug: true },
+  });
+  const idBySlug = new Map(products.map((p) => [p.slug, p.id]));
+
+  // Gruppera id per (avrundad) poäng → en updateMany per distinkt poäng. Engagerade
+  // produkter är en liten delmängd, och många delar låga poäng → få writes.
+  const idsByScore = new Map<number, string[]>();
+  for (const r of ranking) {
+    const id = idBySlug.get(r.productSlug);
+    const score = Math.round(r.score);
+    if (!id || score <= 0) continue;
+    (idsByScore.get(score) ?? idsByScore.set(score, []).get(score)!).push(id);
+  }
+  let updated = 0;
+  for (const [score, ids] of idsByScore) {
+    const r = await prisma.product.updateMany({ where: { id: { in: ids } }, data: { viewCount: score } });
+    updated += r.count;
+  }
+  return { updated };
 }
 
 /** Hydrerar engagemangsräkningar med produktinfo (samma två-stegs-mönster som
@@ -370,10 +468,10 @@ export const getEngagementTrending = cachedRead(
   "getEngagementTrending",
   3600
 );
-/** Rå poänglista (alla engagerade produkter, 7 dgr) för katalogens "Trendar"-sortering. */
-export const getEngagementRanking = cachedRead(
-  () => aggregateEngagementRaw(7),
-  "getEngagementRanking",
+/** Lift-rankning (7 d mot föregående 7 d) för katalogens "Trendar"-sortering. */
+export const getTrendingLift = cachedRead(
+  aggregateTrendingLiftRaw,
+  "getTrendingLift",
   3600
 );
 /** Admin-topplista med valbart fönster (ocachad — admin-sidan är force-dynamic). */

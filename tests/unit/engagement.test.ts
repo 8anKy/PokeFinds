@@ -1,5 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { foldEngagement, type EngagementGroupRow } from "@/services/market";
+import {
+  foldEngagement,
+  computeTrendingLift,
+  type EngagementGroupRow,
+  type EngagementCount,
+} from "@/services/market";
+
+const count = (slug: string, score: number): EngagementCount => ({
+  productSlug: slug,
+  views: 0,
+  clicks: 0,
+  searches: 0,
+  score,
+});
 
 describe("foldEngagement", () => {
   it("viktar vy×1, klick×2, sök×3 och summerar per produkt", () => {
@@ -49,5 +62,32 @@ describe("foldEngagement", () => {
     const result = foldEngagement(rows);
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ productSlug: "kort", views: 2, score: 2 });
+  });
+});
+
+describe("computeTrendingLift", () => {
+  const opts = { smoothing: 8, minRecent: 10 };
+
+  it("rankar störst FART (nu vs förra veckan) först, inte störst volym", () => {
+    const recent = [count("stadig", 100), count("rusar", 40)];
+    const prior = [count("stadig", 100), count("rusar", 2)];
+    // stadig: (100+8)/(100+8)=1.0 ; rusar: (40+8)/(2+8)=4.8 → rusar vinner trots lägre volym
+    expect(computeTrendingLift(recent, prior, opts).map((r) => r.productSlug)).toEqual([
+      "rusar",
+      "stadig",
+    ]);
+  });
+
+  it("golvet stänger ute produkter med för lite intresse just nu", () => {
+    const recent = [count("brus", 9), count("akta", 20)];
+    const prior: EngagementCount[] = [];
+    const result = computeTrendingLift(recent, prior, opts);
+    expect(result.map((r) => r.productSlug)).toEqual(["akta"]);
+  });
+
+  it("utjämningen hindrar att 0→liten rusar i taket", () => {
+    // utan bas: (12+8)/(0+8)=2.5 — dämpat, inte oändligt
+    const [r] = computeTrendingLift([count("ny", 12)], [], opts);
+    expect(r.lift).toBeCloseTo(2.5, 5);
   });
 });

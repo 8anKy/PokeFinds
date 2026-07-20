@@ -910,7 +910,8 @@
       "deals": "Fynd"
     },
     "sortHint": {
-      "trending": "Trendar = mest visade, klickade och sökta produkterna just nu (7 dagar)."
+      "popular": "Mest populär = mest visade, klickade och sökta produkterna totalt (senaste 30 dagarna).",
+      "trending": "Trendar = produkter med ovanligt mycket intresse just nu jämfört med veckan innan."
     }
   },
   "Sets": {

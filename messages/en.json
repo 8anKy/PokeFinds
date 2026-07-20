@@ -910,7 +910,8 @@
       "deals": "Deals"
     },
     "sortHint": {
-      "trending": "Trending = the most viewed, clicked and searched products right now (7 days)."
+      "popular": "Most popular = the most viewed, clicked and searched products overall (last 30 days).",
+      "trending": "Trending = products getting unusually much interest right now versus the week before."
     }
   },
   "Sets": {

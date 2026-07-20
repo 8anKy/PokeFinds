@@ -7,7 +7,7 @@ import { cachedRead } from "@/lib/cache";
 import { normalizeTitle } from "@/lib/utils";
 import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
-import { getEngagementRanking } from "@/services/market";
+import { getTrendingLift } from "@/services/market";
 import type {
   CardLanguage,
   Prisma,
@@ -334,17 +334,17 @@ export async function buildProductWhere(
 const DB_SORTABLE = new Set<ProductSort>(["popular", "price_asc", "price_desc", "most_watched"]);
 
 /**
- * "Trendar" = engagemang (mest visade/klickade/sökta senaste 7 dagarna), INTE
- * prisrörelse. Sorterar en redan hämtad kandidatlista efter engagemangspoäng.
- * Produkter utan händelser får poäng 0 och behåller sin sekundära ordning (stabil
- * sort → recensrast/populärast först), så listan aldrig blir tom innan data hunnit
- * byggas upp. Poänglistan är 1h-cachad (getEngagementRanking) → billig.
+ * "Trendar" = FART, inte volym: produkter med ovanligt mycket intresse just nu jämfört
+ * med de föregående 7 dagarna (lift), INTE prisrörelse. "Mest populär" täcker ren volym.
+ * Sorterar en redan hämtad kandidatlista efter lift. Produkter under golvet får lift 0 och
+ * behåller sin sekundära ordning (stabil sort → populärast först), så listan aldrig blir
+ * tom innan data hunnit byggas upp. Lift-listan är 1h-cachad (getTrendingLift) → billig.
  */
-async function sortByEngagement(items: ProductListItem[]): Promise<void> {
-  const ranking = await getEngagementRanking();
-  const scoreBySlug = new Map(ranking.map((r) => [r.productSlug, r.score]));
+async function sortByTrending(items: ProductListItem[]): Promise<void> {
+  const ranking = await getTrendingLift();
+  const liftBySlug = new Map(ranking.map((r) => [r.productSlug, r.lift]));
   items.sort(
-    (a, b) => (scoreBySlug.get(b.slug) ?? 0) - (scoreBySlug.get(a.slug) ?? 0)
+    (a, b) => (liftBySlug.get(b.slug) ?? 0) - (liftBySlug.get(a.slug) ?? 0)
   );
 }
 
@@ -410,7 +410,7 @@ async function getExploreFeedRaw(
   });
   const items = products.map(toListItem);
   if (sort === "biggest_drop") items.sort((a, b) => (a.priceChange7dPercent ?? 0) - (b.priceChange7dPercent ?? 0));
-  else if (sort === "trending") await sortByEngagement(items);
+  else if (sort === "trending") await sortByTrending(items);
   else if (sort === "recently_restocked") items.sort((a, b) => (b.lastRestockAt?.getTime() ?? 0) - (a.lastRestockAt?.getTime() ?? 0));
   const total = Math.min(items.length, MAX_CANDIDATES);
   return { items: items.slice(offset, offset + limit), total, hasMore: offset + limit < total };
@@ -588,7 +588,7 @@ async function searchProductsRaw(params: SearchProductsParams): Promise<{
       );
       break;
     case "trending":
-      await sortByEngagement(items);
+      await sortByTrending(items);
       break;
     case "most_watched":
       items.sort((a, b) => b.watchCount - a.watchCount);
