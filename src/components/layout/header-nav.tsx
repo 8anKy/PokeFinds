@@ -25,13 +25,19 @@ export function HeaderNav() {
             href={l.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-150",
-              active
-                ? "text-holo-cyan"
-                : "text-ink-muted hover:text-ink"
+              "relative rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-200",
+              active ? "text-ink" : "text-ink-muted hover:text-ink"
             )}
           >
             {t(l.key)}
+            {/* Aktiv-markör: cyan linje som växer ut från mitten (transform → GPU). */}
+            <span
+              aria-hidden
+              className={cn(
+                "absolute inset-x-3 -bottom-0.5 h-0.5 origin-center rounded-full bg-holo-cyan transition-transform duration-300 ease-out-soft",
+                active ? "scale-x-100" : "scale-x-0"
+              )}
+            />
           </Link>
         );
       })}

@@ -57,7 +57,7 @@ export function BottomTabs() {
       {!hideSpacer && <div aria-hidden className="h-16 lg:hidden" />}
       <nav
         aria-label="Huvudnavigering"
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-surface-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
+        className="hairline-t fixed inset-x-0 bottom-0 z-40 bg-surface/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-16px_rgba(0,0,0,0.7)] backdrop-blur-md lg:hidden"
       >
       <ul className="mx-auto flex max-w-md items-stretch">
         {TABS.map((t) => {
@@ -68,11 +68,26 @@ export function BottomTabs() {
                 href={t.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex flex-col items-center gap-1 py-2 text-[11px] font-medium transition-colors duration-150",
+                  "group flex flex-col items-center gap-0.5 py-1.5 text-[11px] font-medium transition-colors duration-150",
                   active ? "text-holo-cyan" : "text-ink-muted hover:text-ink"
                 )}
               >
-                <t.icon size={22} className="shrink-0" />
+                {/* Pill bakom ikonen: tonas in på aktiv tab, ger tryckyta-känsla
+                    vid tap (group-active). Ikonen gör en liten "pop" vid aktivering. */}
+                <span
+                  className={cn(
+                    "flex h-7 w-12 items-center justify-center rounded-full transition-colors duration-300 ease-out-soft",
+                    active ? "bg-holo-cyan/10" : "bg-transparent group-active:bg-ink/5"
+                  )}
+                >
+                  <t.icon
+                    size={22}
+                    className={cn(
+                      "shrink-0 transition-transform duration-150 group-active:scale-90",
+                      active && "animate-tab-pop"
+                    )}
+                  />
+                </span>
                 {tNav(t.key)}
               </Link>
             </li>

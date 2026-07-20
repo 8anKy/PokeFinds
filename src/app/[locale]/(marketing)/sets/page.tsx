@@ -65,7 +65,7 @@ export default async function SetsPage({
                   <li key={set.id}>
                     <Link
                       href={`/sets/${set.id}`}
-                      className="group flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-surface-overlay/60 sm:px-5"
+                      className="group flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-surface-overlay/60 active:bg-surface-overlay sm:px-5"
                     >
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium text-ink group-hover:text-holo-cyan">
@@ -83,7 +83,7 @@ export default async function SetsPage({
                       </p>
                       <IconChevronRight
                         size={18}
-                        className="shrink-0 text-ink-faint transition-colors group-hover:text-holo-cyan"
+                        className="shrink-0 text-ink-faint transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-holo-cyan"
                       />
                     </Link>
                   </li>

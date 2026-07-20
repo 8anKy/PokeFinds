@@ -47,14 +47,21 @@ const config: Config = {
         "surface-gradient":
           "radial-gradient(120% 80% at 50% 0%, #16161a 0%, #0a0a0c 55%)",
       },
+      transitionTimingFunction: {
+        // Apple-mjuk utgångskurva för entréer/hover, fjädrande overshoot för "pop"
+        "out-soft": "cubic-bezier(0.22, 1, 0.36, 1)",
+        spring: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+      },
       animation: {
-        "fade-in": "fadeIn 0.4s ease-out both",
-        "fade-in-up": "fadeInUp 0.5s ease-out both",
-        "slide-in-right": "slideInRight 0.4s ease-out both",
-        "scale-in": "scaleIn 0.3s ease-out both",
+        "fade-in": "fadeIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "fade-in-up": "fadeInUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "slide-in-right": "slideInRight 0.35s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "scale-in": "scaleIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) both",
         shimmer: "shimmer 1.6s linear infinite",
         "pulse-soft": "pulseSoft 2s ease-in-out infinite",
         "counter": "counter 0.6s ease-out both",
+        "page-in": "pageIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "tab-pop": "tabPop 0.35s cubic-bezier(0.22, 1, 0.36, 1) both",
       },
       keyframes: {
         fadeIn: {
@@ -84,6 +91,15 @@ const config: Config = {
         counter: {
           "0%": { opacity: "0", transform: "translateY(8px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        pageIn: {
+          "0%": { opacity: "0", transform: "translateY(8px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        tabPop: {
+          "0%": { transform: "scale(1)" },
+          "45%": { transform: "scale(1.18)" },
+          "100%": { transform: "scale(1)" },
         },
       },
     },

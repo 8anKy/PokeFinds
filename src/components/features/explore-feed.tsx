@@ -122,7 +122,10 @@ export function ExploreFeed({
           </button>
         )}
         {!hasMore && !loading && !error && items.length > 0 && (
-          <span className="text-sm text-ink-faint">Du har sett alla {items.length} produkter</span>
+          <span className="flex flex-col items-center gap-2.5 text-sm text-ink-faint">
+            <span aria-hidden className="foil-line w-10 opacity-70" />
+            Du har sett alla {items.length} produkter
+          </span>
         )}
       </div>
     </>

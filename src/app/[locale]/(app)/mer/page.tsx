@@ -88,7 +88,7 @@ export default async function MerPage() {
       {!hasEarnedInviteReward && (
         <Link
           href="/mer/bjud-in"
-          className="flex items-center gap-3 rounded-2xl border border-holo-cyan/30 bg-holo-cyan/10 px-4 py-3 transition-colors hover:bg-holo-cyan/15"
+          className="flex items-center gap-3 rounded-2xl border border-holo-cyan/30 bg-holo-cyan/10 px-4 py-3 transition-colors hover:bg-holo-cyan/15 active:bg-holo-cyan/20"
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-holo-cyan/15 text-holo-cyan ring-1 ring-holo-cyan/30">
             <IconGift size={20} />
@@ -106,7 +106,7 @@ export default async function MerPage() {
         {/* Profilrad */}
         <Link
           href="/installningar"
-          className="flex items-center gap-3 border-b border-surface-border bg-surface-overlay/40 px-4 py-3 transition-colors hover:bg-surface-overlay"
+          className="flex items-center gap-3 border-b border-surface-border bg-surface-overlay/40 px-4 py-3 transition-colors hover:bg-surface-overlay active:bg-surface-overlay"
         >
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-holo-cyan/15 text-lg font-bold text-holo-cyan ring-1 ring-holo-cyan/30">
             {initial}
@@ -126,7 +126,7 @@ export default async function MerPage() {
             <Link
               key={l.href}
               href={l.href}
-              className="flex items-center gap-3 border-b border-surface-border px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-overlay/60"
+              className="flex items-center gap-3 border-b border-surface-border px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-overlay/60 active:bg-surface-overlay"
             >
               <l.icon size={20} className={`shrink-0 ${l.iconClass}`} />
               <span className="flex-1 text-sm font-medium text-ink">{l.label}</span>
@@ -147,7 +147,7 @@ export default async function MerPage() {
               "&body=" +
               encodeURIComponent(t("bugBody"))
             }
-            className="flex items-center gap-3 border-b border-surface-border px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-overlay/60"
+            className="flex items-center gap-3 border-b border-surface-border px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-overlay/60 active:bg-surface-overlay"
           >
             <IconFlag size={20} className="shrink-0 text-rise" />
             <span className="flex-1 text-sm font-medium text-ink">{t("reportBug")}</span>
@@ -156,7 +156,7 @@ export default async function MerPage() {
           {isAdmin && (
             <Link
               href="/admin"
-              className="flex items-center gap-3 border-t border-surface-border px-4 py-3 transition-colors hover:bg-surface-overlay/60"
+              className="flex items-center gap-3 border-t border-surface-border px-4 py-3 transition-colors hover:bg-surface-overlay/60 active:bg-surface-overlay"
             >
               <IconWrench size={20} className="shrink-0 text-holo-violet" />
               <span className="flex-1 text-sm font-medium text-ink">{t("admin")}</span>

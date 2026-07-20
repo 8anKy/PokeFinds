@@ -71,7 +71,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
     <Link
       href={`/produkter/${product.slug}`}
       className={cn(
-        "card-surface group block overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:border-holo-cyan/40 hover:shadow-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-holo-cyan",
+        "card-surface group block overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:border-holo-cyan/40 hover:shadow-glow active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-holo-cyan",
         className
       )}
     >

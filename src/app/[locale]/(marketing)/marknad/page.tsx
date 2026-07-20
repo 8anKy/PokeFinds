@@ -65,7 +65,7 @@ function ChangeList({
         <li key={item.productId}>
           <Link
             href={`/produkter/${item.product.slug}`}
-            className="group flex items-center gap-4 px-4 py-3 transition-colors hover:bg-surface-overlay/60"
+            className="group flex items-center gap-4 px-4 py-3 transition-colors hover:bg-surface-overlay/60 active:bg-surface-overlay"
           >
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-ink group-hover:text-holo-cyan">
@@ -205,7 +205,7 @@ export default async function MarketPage({
                 <li key={p.id}>
                   <Link
                     href={`/produkter/${p.slug}`}
-                    className="group flex items-center gap-4 px-4 py-3 transition-colors hover:bg-surface-overlay/60"
+                    className="group flex items-center gap-4 px-4 py-3 transition-colors hover:bg-surface-overlay/60 active:bg-surface-overlay"
                   >
                     <p className="min-w-0 flex-1 truncate text-sm font-medium text-ink group-hover:text-holo-cyan">
                       {p.title}
