@@ -50,16 +50,23 @@ const config: CapacitorConfig = {
     // resize: none → WebView:en ändrar INTE storlek när tangentbordet öppnas, så
     // position:fixed (bottom-tabs) hoppar inte. Tangentbordet läggs ovanpå i stället.
     Keyboard: { resize: "none" },
-    // Splash-skärm (#21): appen laddar den HOSTADE webbappen över nätet i WebView:en
-    // → mellan native-start och att webben renderat var det tidigare en SVART skärm
-    // (nätverks-/hydreringsgapet). launchAutoHide:false håller splashen uppe tills
-    // webben är redo och själv anropar SplashScreen.hide() (NativeSplashHider) → inget
-    // svart gap. backgroundColor matchar app-bakgrunden så kanterna inte blinkar.
+    // Splash-skärm (#21, ägarens Stitch-laddningsdesign): appen laddar den HOSTADE
+    // webbappen över nätet i WebView:en → mellan native-start och att webben renderat
+    // var det tidigare en SVART skärm (nätverks-/hydreringsgapet). launchAutoHide:false
+    // håller splashen uppe tills webben är redo och själv anropar SplashScreen.hide()
+    // (AppBoot) → inget svart gap. Splash-bilden (assets/splash.png) = "Foilio"-ordmärke
+    // ovanför mitten på mörk yta; den animerade native-spinnern (turkos) renderas
+    // centrerad → hamnar UNDER ordmärket = Stitch-laddningsskärmen, native (en statisk
+    // splash-bild kan inte själv animera). backgroundColor matchar appen så kanterna
+    // inte blinkar.
     SplashScreen: {
       launchAutoHide: false,
       backgroundColor: "#0a0a0c",
       androidScaleType: "CENTER_CROP",
-      showSpinner: false,
+      showSpinner: true,
+      spinnerColor: "#2dd4bf",
+      iosSpinnerStyle: "large",
+      androidSpinnerStyle: "large",
       launchFadeOutDuration: 250,
     },
   },

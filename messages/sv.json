@@ -933,9 +933,6 @@
   "PageNav": {
     "back": "Tillbaka"
   },
-  "Loading": {
-    "collection": "Läser in din samling..."
-  },
   "Offline": {
     "message": "Ingen internetanslutning",
     "title": "Ingen anslutning",
