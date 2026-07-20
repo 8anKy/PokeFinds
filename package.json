@@ -19,6 +19,7 @@
     "db:studio": "prisma studio",
     "db:studio:prod": "node scripts/studio-prod.mjs",
     "icons:gen": "node scripts/generate-icons.mjs",
+    "assets:splash": "capacitor-assets generate --splashBackgroundColor '#0a0a0c' --splashBackgroundColorDark '#0a0a0c'",
     "import:tcg": "tsx scripts/import-tcg-data.ts",
     "scrape": "tsx scripts/run-scrapers.ts",
     "cleanup:offers": "tsx scripts/cleanup-fake-offers.ts",
@@ -62,6 +63,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@playwright/test": "^1.48.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.17.6",

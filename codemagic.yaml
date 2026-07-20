@@ -37,6 +37,12 @@ workflows:
           ICON=ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
           test -f "$ICON"
           cp resources/icon-1024.png "$ICON"
+          # Splash (#21): Capacitor genererar en VIT default-splash med sin egen logo.
+          # Branda om till mörk Foilio-splash (assets/splash.png) → matchar appen +
+          # web-laddaren. Bara --ios + splash-källor → app-ikonen ovan rörs inte.
+          # fail-loud om imageset:en inte skapades (mall ändrad).
+          ./node_modules/.bin/capacitor-assets generate --ios --splashBackgroundColor '#0a0a0c' --splashBackgroundColorDark '#0a0a0c'
+          test -f ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732.png
           sed -i '' "s/platform :ios, '13.0'/platform :ios, '15.0'/" ios/App/Podfile
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13.0/IPHONEOS_DEPLOYMENT_TARGET = 15.0/g' ios/App/App.xcodeproj/project.pbxproj
           # Fixa headern som glider NER efter scroll: WKWebView lägger automatiskt
