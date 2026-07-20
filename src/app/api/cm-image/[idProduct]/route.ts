@@ -11,11 +11,16 @@ export const revalidate = 31536000;
  * strömmar tillbaka den, cachad oföränderligt. imageUrl sätts till /api/cm-image/{idProduct}.
  *
  * Sökvägen är /{shard}/{idProduct}/{idProduct}.{ext}. `shard` är en intern lagrings-bucket
- * (INTE härledbar ur idProduct — mätt: nya produkter i 52/53, en andra bucket i 1014/1015,
- * äldre varierar). Vi PROBAR därför de kända bucketarna × {png,jpg} och memoiserar träffen.
- * CDN:t rate-limitar INTE (till skillnad från CM:s HTML-sidor), så probning är billig.
+ * (INTE härledbar ur idProduct — mätt: nya produkter i 52/53, senare bucketar i 1014/1015 och
+ * 1016+, äldre varierar). Vi PROBAR därför de kända bucketarna × {png,jpg} och memoiserar
+ * träffen. CDN:t rate-limitar INTE (till skillnad från CM:s HTML-sidor), så probning är billig.
+ *
+ * NÄR NYA BILDER SLUTAR LADDA: CM har lagt dem i en NY bucket. Mätt 2026-07-20: alla
+ * nyare set-ETB:er (151, Paradox Rift, … idProduct 719691/776336) ligger i 1016 — den
+ * saknades här → 404 → trasiga bilder. Lägg till den nya bucketen (verifiera med curl mot
+ * product-images.s3.cardmarket.com/{shard}/{id}/{id}.png och referer cardmarket.com).
  */
-const SHARDS = [53, 52, 54, 1014, 1015, 51, 55, 50, 56, 57, 58];
+const SHARDS = [53, 52, 54, 1014, 1015, 1016, 1017, 1018, 51, 55, 50, 56, 57, 58];
 const EXTS = ["png", "jpg"];
 const REFERER = "https://www.cardmarket.com/";
 const UA =
