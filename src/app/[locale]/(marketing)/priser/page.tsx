@@ -46,7 +46,9 @@ export default async function PricingPage({
   const faq = t.raw("faqItems") as { q: string; a: string }[];
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
+    // Mobil: pt-6 så bakåtknappen sitter i höjd med Mer-tabbens andra undersidor
+    // (app-sidorna har py-6); desktop behåller luftiga py-16 (knappen är lg:hidden).
+    <div className="mx-auto max-w-5xl px-4 pb-16 pt-6 sm:px-6 lg:pt-16">
       <PageBackButton fallback="/" />
       <div className="text-center">
         <h1 className="font-display text-3xl font-bold text-ink sm:text-4xl">

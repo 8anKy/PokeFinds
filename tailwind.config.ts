@@ -60,7 +60,11 @@ const config: Config = {
         shimmer: "shimmer 1.6s linear infinite",
         "pulse-soft": "pulseSoft 2s ease-in-out infinite",
         "counter": "counter 0.6s ease-out both",
-        "page-in": "pageIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) both",
+        // OBS: fill-mode BACKWARDS, inte both! En fylld opacity-animation håller kvar
+        // en STACKING CONTEXT på template-diven för evigt → sidans fixed-dialoger
+        // (skannerns z-[60]) hamnar UNDER chrome-header/tabs (z-40, utanför diven).
+        // backwards → stacking context bara under 300ms-tonen, sen normal stackning.
+        "page-in": "pageIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards",
         "tab-pop": "tabPop 0.35s cubic-bezier(0.22, 1, 0.36, 1) both",
       },
       keyframes: {

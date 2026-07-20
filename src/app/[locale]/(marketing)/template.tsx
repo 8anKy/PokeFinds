@@ -1,6 +1,9 @@
+import { PageTransition } from "@/components/layout/page-transition";
+
 // Template (ej layout) → remountar per navigering: sidinnehållet tonar in
-// mjukt medan chrome (header/tabs i layouten ovanför) står stilla. Ren CSS,
-// server-komponent — påverkar inte ISR. Reduced motion nollas i globals.css.
+// mjukt medan chrome (header/tabs i layouten ovanför) står stilla.
+// Animationsklassen städas bort efter avslut — se PageTransition för varför
+// det är KRITISKT (stacking context-fällan som bröt skannern).
 export default function MarketingTemplate({ children }: { children: React.ReactNode }) {
-  return <div className="animate-page-in">{children}</div>;
+  return <PageTransition>{children}</PageTransition>;
 }
