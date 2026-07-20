@@ -3,16 +3,21 @@
 import { useEffect } from "react";
 
 /**
- * Döljer den NATIVE splash-skärmen när appen är redo (#21). Native splashen
- * ("Foilio") hålls uppe tills nu (launchAutoHide:false) så att app-starten inte
- * visar en svart skärm medan WebView:en laddar den hostade webben över nätet;
- * här — efter hydrering (useEffect = efter första commit/paint) — lämnar vi
- * över DIREKT till appen (Utforska). Ingen web-laddningsskärm emellan.
+ * "Appen är redo"-signal (#21). Körs efter hydrering (useEffect = efter första
+ * commit/paint) och gör två saker:
+ *
+ *  1. Markerar <html class="app-ready"> → CSS fejdar ut #app-loader (den branded
+ *     Stitch-laddningsskärmen som ligger i SSR-HTML:en och täcker nätverks-/
+ *     hydreringsgapet).
+ *  2. I native-appen (Capacitor): döljer den native splash-skärmen, som hålls
+ *     uppe tills nu (launchAutoHide:false) så att app-starten INTE visar en svart
+ *     skärm medan WebView:en laddar den hostade webben över nätet.
  *
  * Dynamisk import av Capacitor: webben drar aldrig in plugin-koden.
  */
 export function AppBoot() {
   useEffect(() => {
+    document.documentElement.classList.add("app-ready");
     let cancelled = false;
     void (async () => {
       try {

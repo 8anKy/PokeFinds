@@ -8,6 +8,67 @@
   --font-mono: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
 }
 
+/* App-laddningsskärm (#21, ägarens Stitch-design "Foilio - Loading"): ligger i
+   SSR-HTML:en och visas DIREKT vid kall app-/sidstart → täcker nätverks-/
+   hydreringsgapet i Capacitor-WebView:en (annars svart skärm medan den hostade
+   webben laddas över nätet). AppBoot sätter <html class="app-ready"> efter
+   hydrering → laddaren fejdar ut. Minimal per Stitch: "Foilio"-ordmärke, turkos
+   spinner, undertext — bara designens fyra färger (mörk yta / vit / turkos / grå). */
+#app-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #0a0a0c;
+  transition: opacity 0.4s ease;
+}
+.app-loader-word {
+  font-family: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 34px;
+  letter-spacing: -0.02em;
+  color: #fafafa;
+}
+.app-loader-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-top: 48px;
+  opacity: 0.8;
+}
+.app-loader-spinner {
+  width: 32px;
+  height: 32px;
+  color: #2dd4bf;
+  animation: app-loader-spin 1s linear infinite;
+}
+.app-loader-sub {
+  font-family: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 24px;
+  color: #a1a1aa;
+}
+html.app-ready #app-loader {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+@keyframes app-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-loader-spinner {
+    animation: none;
+  }
+}
+
 @layer base {
   html {
     @apply scroll-smooth;

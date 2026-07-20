@@ -84,14 +84,37 @@ export default async function LocaleLayout({
   // Aktiverar statisk rendering (ISR) för locale-segmentet — annars blir sidorna dynamiska.
   setRequestLocale(locale);
   const messages = await getMessages();
+  const tLoad = await getTranslations({ locale, namespace: "Loading" });
 
   return (
     <html lang={locale} className={`dark ${inter.variable}`}>
       <body>
-        {/* Ingen web-laddningsskärm: den NATIVE splashen ("Foilio") täcker
-            app-starten och AppBoot lämnar över DIREKT till Utforska när appen är
-            redo — ingen extra blink-frame ovanpå halvladdat innehåll (ägaren).
-            Webben har ingen laddningsskärm alls. */}
+        {/* Branded laddningsskärm (#21, ägarens Stitch-design "Foilio - Loading").
+            Ligger i SSR-HTML:en → syns direkt vid kall app-/sidstart och täcker
+            nätverks-/hydreringsgapet. AppBoot döljer den (+ native splash) när appen
+            hydrerat. noscript: utan JS döljs den så SSR-innehållet blir synligt. */}
+        <div id="app-loader" aria-hidden="true">
+          <span className="app-loader-word">Foilio</span>
+          <span className="app-loader-status">
+            <svg
+              className="app-loader-spinner"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
+              <path
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                fill="currentColor"
+                opacity="0.75"
+              />
+            </svg>
+            <span className="app-loader-sub">{tLoad("collection")}</span>
+          </span>
+        </div>
+        <noscript>
+          <style>{`#app-loader{display:none}`}</style>
+        </noscript>
         <NextIntlClientProvider messages={messages}>
           <Providers>
             {children}

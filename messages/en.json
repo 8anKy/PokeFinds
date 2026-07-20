@@ -933,6 +933,9 @@
   "PageNav": {
     "back": "Back"
   },
+  "Loading": {
+    "collection": "Loading your collection..."
+  },
   "Offline": {
     "message": "No internet connection",
     "title": "No Connection",

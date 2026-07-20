@@ -42,26 +42,26 @@ export function OfflineBanner() {
     <div
       role="alertdialog"
       aria-label={t("title")}
-      className="fixed inset-0 z-[70] flex flex-col bg-surface"
+      className="fixed inset-0 z-[70] flex flex-col items-center justify-center bg-surface px-8 text-center"
       style={{
         paddingTop: "env(safe-area-inset-top)",
         paddingBottom: "env(safe-area-inset-bottom)",
       }}
     >
-      <div className="flex flex-1 flex-col items-center justify-center px-8 text-center">
+      <div className="flex w-full max-w-sm flex-col items-center">
         <span className="text-holo-cyan">
           <WifiOffIcon />
         </span>
-        <h1 className="mt-8 font-display text-2xl font-bold text-ink">{t("title")}</h1>
-        <p className="mt-3 max-w-xs text-sm leading-relaxed text-ink-muted">
+        <h1 className="mt-8 font-display text-[28px] font-bold leading-[34px] tracking-tight text-ink">
+          {t("title")}
+        </h1>
+        <p className="mt-4 max-w-xs text-base leading-relaxed text-ink-muted">
           {t("description")}
         </p>
-      </div>
-      <div className="px-6 pb-6">
         <button
           type="button"
           onClick={retry}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-holo-cyan py-4 text-sm font-semibold uppercase tracking-wide text-surface transition-colors hover:bg-brand-dark active:scale-[0.98]"
+          className="mt-12 flex w-full items-center justify-center gap-2 rounded-xl bg-holo-cyan py-4 text-sm font-semibold uppercase tracking-wide text-surface transition-colors hover:bg-[#14b8a6] active:scale-[0.98]"
         >
           <RefreshIcon />
           {t("tryAgain")}
@@ -74,8 +74,8 @@ export function OfflineBanner() {
 function WifiOffIcon() {
   return (
     <svg
-      width={72}
-      height={72}
+      width={64}
+      height={64}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
