@@ -26,10 +26,21 @@ export function PushManager() {
         (action: any) => {
           const url = action?.notification?.data?.url;
           if (typeof url !== "string") return;
-          // In-app-sida → Next-router. Extern butikslänk (feed-först-larm) → system-
-          // webbläsaren via window.open (öppnar utanför WebView:en, som mejlet).
-          if (url.startsWith("/")) routerRef.current.push(url);
-          else if (/^https?:\/\//.test(url)) window.open(url, "_blank");
+          // In-app-sida (t.ex. /produkter/<slug> = katalogsidan) → Next-router.
+          // Extern butikslänk (feed-först-larm) → system-webbläsaren via window.open
+          // (öppnar utanför WebView:en, som mejlet).
+          if (url.startsWith("/")) {
+            // Vid KALLSTART (appen öppnas FRÅN notisen) levererar iOS tap-eventet
+            // medan WebView:en fortfarande laddar startsidan → en router.push här
+            // kan tappas eller landa på not-found-gränsen (404). Vänta tills sidan
+            // är färdigladdad innan vi navigerar. Varm app → readyState "complete"
+            // redan → navigera direkt.
+            const go = () => routerRef.current.push(url);
+            if (document.readyState === "complete") go();
+            else window.addEventListener("load", go, { once: true });
+          } else if (/^https?:\/\//.test(url)) {
+            window.open(url, "_blank");
+          }
         }
       );
       cleanup = () => void handle.remove();

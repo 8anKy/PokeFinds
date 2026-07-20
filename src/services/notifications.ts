@@ -8,6 +8,7 @@ import { sendMail } from "@/lib/mailer";
 import { sendPush } from "@/lib/apns";
 import { newListingEmail, preorderEmail, priceAlertEmail, restockAlertEmail } from "@/emails/templates";
 import { NON_RETAIL_SOURCE_NAMES } from "@/services/products";
+import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 
 const MAX_RETRIES = 3;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.foilio.se";
@@ -76,11 +77,19 @@ async function buildAlertEmail(alert: {
       const productUrl = `${APP_URL}/produkter/${product.slug}`;
       const bestOffer = product.offers[0];
       if (alert.type === AlertType.PRICE_DROP || alert.type === AlertType.PRICE_TARGET) {
+        // "Se erbjudandet" ska öppna det faktiska erbjudandet (butik/Cardmarket/
+        // Tradera) där priset matchar bevakningsmålet — INTE vår webbsida (dålig
+        // upplevelse från mejl på mobil, öppnar mobil-webben, inte appen). offers är
+        // sorterade billigast först → billigaste med en DIREKT länk vinner. Fall
+        // tillbaka på vår produktsida bara om ingen direktlänk finns.
+        const dealOffer = product.offers.find((o) => isDirectOfferUrl(o.url)) ?? bestOffer;
+        const dealUrl =
+          dealOffer && isDirectOfferUrl(dealOffer.url) ? dealOffer.url : productUrl;
         return priceAlertEmail(
           alert.user.name,
           product.title,
-          bestOffer?.price ?? 0,
-          productUrl
+          dealOffer?.price ?? bestOffer?.price ?? 0,
+          dealUrl
         );
       }
       if (alert.type === AlertType.RESTOCK) {
