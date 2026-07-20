@@ -84,36 +84,14 @@ export default async function LocaleLayout({
   // Aktiverar statisk rendering (ISR) för locale-segmentet — annars blir sidorna dynamiska.
   setRequestLocale(locale);
   const messages = await getMessages();
-  const tLoad = await getTranslations({ locale, namespace: "Loading" });
 
   return (
     <html lang={locale} className={`dark ${inter.variable}`}>
       <body>
-        {/* Branded laddningsskärm (#21, Stitch-design, ENDAST i appen). "Foilio" +
-            spinner + "Läser in din samling...", centrerat. AppBoot döljer den när
-            appen hydrerat. noscript: utan JS döljs den så SSR-innehållet syns. */}
-        <div id="app-loader" aria-hidden="true">
-          <span className="app-loader-word">Foilio</span>
-          <span className="app-loader-status">
-            <span className="app-loader-spinner" />
-            <span className="app-loader-sub">{tLoad("collection")}</span>
-          </span>
-        </div>
-        <noscript>
-          <style>{`#app-loader{display:none}`}</style>
-        </noscript>
-        {/* App-only + tidig splash-överlämning. Körs synkront under HTML-parse:
-            - Webben (ingen Capacitor): dölj laddaren DIREKT (en sajt har ingen
-              laddningsskärm) → ingen blink.
-            - Appen: dölj den NATIVE splashen så fort DOM:en är klar → den animerade
-              web-laddaren tar över UNDER nedladdningen/hydreringen (annars täcker den
-              statiska native-splashen hela laddningen och spinnern syns aldrig). */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              "(function(){var d=document.documentElement;var c=window.Capacitor;var native=c&&typeof c.isNativePlatform==='function'&&c.isNativePlatform();if(!native){d.classList.add('app-ready');return;}var hide=function(){try{var s=c.Plugins&&c.Plugins.SplashScreen;if(s&&s.hide)s.hide();}catch(e){}};if(document.readyState!=='loading')hide();else document.addEventListener('DOMContentLoaded',hide);})();",
-          }}
-        />
+        {/* Ingen web-laddningsskärm: den NATIVE splashen ("Foilio") täcker
+            app-starten och AppBoot lämnar över DIREKT till Utforska när appen är
+            redo — ingen extra blink-frame ovanpå halvladdat innehåll (ägaren).
+            Webben har ingen laddningsskärm alls. */}
         <NextIntlClientProvider messages={messages}>
           <Providers>
             {children}
