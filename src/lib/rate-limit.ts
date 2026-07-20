@@ -6,6 +6,16 @@ import { getRedis } from "@/lib/queue";
 
 const memory = new Map<string, { count: number; resetAt: number }>();
 
+// Nedgraderingen Redis → in-memory får aldrig ske TYST i prod: per-instans-räknare
+// nollas vid varje deploy och delas inte mellan instanser (brute force-skyddet
+// försvagas). En rad per process räcker — inte en per anrop.
+let warnedDegraded = false;
+function warnDegraded(err: unknown) {
+  if (warnedDegraded) return;
+  warnedDegraded = true;
+  console.error("[rate-limit] Redis onåbar — degraderar till in-memory (per instans):", err);
+}
+
 export async function rateLimit(
   key: string,
   limit: number,
@@ -18,9 +28,10 @@ export async function rateLimit(
       const count = await redis.incr(redisKey);
       if (count === 1) await redis.pexpire(redisKey, windowMs);
       return { ok: count <= limit, remaining: Math.max(0, limit - count) };
-    } catch {
+    } catch (err) {
       // Redis konfigurerad men onåbar (servern nere) → degradera graciöst till
       // in-memory istället för att 500:a. Per-instans, men funktionellt i dev.
+      warnDegraded(err);
     }
   }
   // In-memory fallback

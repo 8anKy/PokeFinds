@@ -84,9 +84,11 @@ export default async function ProductPage({ params }: PageProps) {
 
   return (
     <>
+      {/* <-escapen: JSON.stringify escapar inte "<", så en produkttitel
+          med "</script>" skulle annars bryta sig ut ur script-taggen. */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
       />
       <ProductDetailView data={data} showBack />
     </>

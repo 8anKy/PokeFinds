@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { apiError, jsonOk } from "@/lib/api";
 import { auth } from "@/lib/auth";
 import { ServiceError } from "@/lib/errors";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,13 @@ const schema = z.object({
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
+    // Anmälan är öppen för utloggade (se ovan) → IP-broms så att en enskild klient
+    // inte kan flooda modereringskön över hela katalogen. Generös gräns: en ärlig
+    // användare anmäler en handfull länkar, inte tio i timmen.
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anon";
+    const { ok } = await rateLimit(`offer-report:${ip}`, 10, 60 * 60 * 1000);
+    if (!ok) throw new ServiceError(429, "För många anmälningar. Försök igen senare.");
+
     const body = schema.parse(await req.json());
 
     const offer = await prisma.offer.findUnique({

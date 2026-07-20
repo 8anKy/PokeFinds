@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { TRADERA_CONNECT_COOKIE } from "@/lib/tradera-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,13 @@ export async function GET(req: NextRequest) {
     settingsUrl.searchParams.set("tradera", "fel-ingen-token");
     return NextResponse.redirect(settingsUrl);
   }
+  // CSRF-vakt: kakan sätts bara av /api/tradera/connect. Utan den har användaren
+  // inte själv startat kopplingen (t.ex. en smidd länk med någon annans token) →
+  // avvisa istället för att binda kontot. Se connect/route.ts.
+  if (!req.cookies.get(TRADERA_CONNECT_COOKIE)?.value) {
+    settingsUrl.searchParams.set("tradera", "fel-ej-startad");
+    return NextResponse.redirect(settingsUrl);
+  }
 
   await prisma.user.update({
     where: { id: session.user.id },
@@ -40,5 +48,7 @@ export async function GET(req: NextRequest) {
   });
   settingsUrl.searchParams.set("tradera", "ansluten");
 
-  return NextResponse.redirect(settingsUrl);
+  const res = NextResponse.redirect(settingsUrl);
+  res.cookies.set(TRADERA_CONNECT_COOKIE, "", { path: "/api/tradera", maxAge: 0 });
+  return res;
 }

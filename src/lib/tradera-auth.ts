@@ -12,6 +12,9 @@ const stripQuotes = (v: string) => v.trim().replace(/^["']|["']$/g, "");
 const APP_ID = stripQuotes(process.env.TRADERA_APP_ID ?? "");
 const PUBLIC_KEY = stripQuotes(process.env.TRADERA_PUBLIC_KEY ?? "");
 
+/** Kaka som bevisar att användaren startade kopplingen via /api/tradera/connect (CSRF-vakt). */
+export const TRADERA_CONNECT_COOKIE = "tradera_connect";
+
 export function buildTraderaLoginUrl(): string {
   const params = new URLSearchParams({ appId: APP_ID, pkey: PUBLIC_KEY });
   return `https://api.tradera.com/token-login?${params.toString()}`;
