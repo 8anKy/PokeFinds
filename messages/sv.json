@@ -908,10 +908,6 @@
       "most_watched": "Mest bevakad",
       "trending": "Trendar",
       "deals": "Fynd"
-    },
-    "sortHint": {
-      "popular": "Mest populär = mest visade, klickade och sökta produkterna totalt (senaste 30 dagarna).",
-      "trending": "Trendar = produkter med ovanligt mycket intresse just nu jämfört med veckan innan."
     }
   },
   "Sets": {

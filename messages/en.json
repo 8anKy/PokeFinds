@@ -908,10 +908,6 @@
       "most_watched": "Most watched",
       "trending": "Trending",
       "deals": "Deals"
-    },
-    "sortHint": {
-      "popular": "Most popular = the most viewed, clicked and searched products overall (last 30 days).",
-      "trending": "Trending = products getting unusually much interest right now versus the week before."
     }
   },
   "Sets": {
