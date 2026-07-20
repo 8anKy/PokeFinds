@@ -9,6 +9,7 @@ import { listSales } from "@/services/sales";
 import { syncSoldCollectionItems } from "@/jobs/tradera-sold-sync";
 import { formatPrice, formatPercent } from "@/lib/format";
 import { StatCard } from "@/components/features/stat-card";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import { CollectionValueChart } from "./collection-value-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -122,24 +123,24 @@ export default async function CollectionPage() {
       </section>
 
       {/* Nyckeltal — desktop */}
-      <div className="hidden grid-cols-1 gap-4 sm:grid-cols-2 lg:grid xl:grid-cols-4">
+      <div className="stagger-list hidden grid-cols-1 gap-4 sm:grid-cols-2 lg:grid xl:grid-cols-4">
         <StatCard
           label={t("statTotalValue")}
-          value={formatPrice(value.totalValue)}
+          value={<AnimatedNumber value={value.totalValue} />}
           icon={<IconGem size={20} />}
         />
         <StatCard
           label={t("statTotalCost")}
-          value={formatPrice(value.totalCost)}
+          value={<AnimatedNumber value={value.totalCost} />}
           icon={<IconReceipt size={20} />}
         />
         <StatCard
           label={t("statProfit")}
-          value={formatPrice(value.profit)}
+          value={<AnimatedNumber value={value.profit} />}
           change={value.profitPercent ?? undefined}
           icon={value.profit >= 0 ? <IconTrendingUp size={20} /> : <IconTrendingDown size={20} />}
         />
-        <StatCard label={t("statItemCount")} value={`${value.itemCount}`} icon={<IconPackage size={20} />} />
+        <StatCard label={t("statItemCount")} value={<AnimatedNumber value={value.itemCount} kind="int" />} icon={<IconPackage size={20} />} />
       </div>
 
       <div className="hidden gap-6 lg:grid lg:grid-cols-3">
@@ -223,7 +224,7 @@ export default async function CollectionPage() {
                   </div>
                 </>
               );
-              const cls = "card-surface flex flex-col gap-2 p-3";
+              const cls = "card-surface pressable flex flex-col gap-2 p-3";
               return slug ? (
                 <Link key={m.id} href={`/produkter/${slug}`} className={cls}>
                   {content}

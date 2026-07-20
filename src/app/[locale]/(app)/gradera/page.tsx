@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "reac
 import { useTranslations, useLocale } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -82,13 +83,18 @@ function gradeTone(score: number): string {
 }
 
 function ScoreBar({ label, score }: { label: string; score: number }) {
+  // Fylls från 0 vid mount (transition animerar bara ÄNDRINGAR efter första
+  // renderingen → starta på 0, sätt riktiga bredden i en effekt). Reduced
+  // motion nollas globalt i globals.css.
+  const [filled, setFilled] = useState(false);
+  useEffect(() => setFilled(true), []);
   return (
     <div className="flex items-center gap-3">
       <span className="w-24 shrink-0 text-sm text-ink-muted">{label}</span>
       <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-overlay">
         <div
-          className="h-full rounded-full bg-holo-cyan transition-[width] duration-500"
-          style={{ width: `${Math.round((score / 10) * 100)}%` }}
+          className="h-full rounded-full bg-holo-cyan transition-[width] duration-700 ease-out-soft"
+          style={{ width: filled ? `${Math.round((score / 10) * 100)}%` : "0%" }}
         />
       </div>
       <span className="w-10 shrink-0 text-right text-sm font-semibold tabular-nums text-ink">
@@ -118,7 +124,7 @@ function ImageDropzone({
         type="button"
         onClick={onPick}
         className={cn(
-          "flex aspect-[3/4] w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors",
+          "flex aspect-[3/4] w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed px-4 py-6 text-center transition-all duration-200 active:scale-[0.98]",
           preview
             ? "border-holo-cyan/40"
             : "border-surface-border hover:border-holo-cyan/50 hover:bg-surface-overlay"
@@ -325,21 +331,22 @@ export default function GraderaPage() {
 
       {/* Resultat */}
       {result && (
-        <Card>
+        <Card className="animate-scale-in">
           <CardHeader>
             <CardTitle>{t("step2")}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
             <div className="flex items-center gap-5">
               <div className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-2xl border border-surface-border bg-surface">
-                <span
+                <AnimatedNumber
+                  value={result.result.overall}
+                  kind="decimal"
+                  duration={700}
                   className={cn(
-                    "font-display text-4xl font-bold tabular-nums",
+                    "font-display text-4xl font-bold",
                     gradeTone(result.result.overall)
                   )}
-                >
-                  {result.result.overall.toFixed(1)}
-                </span>
+                />
                 <span className="text-[11px] uppercase tracking-wide text-ink-faint">
                   {t("outOf10")}
                 </span>

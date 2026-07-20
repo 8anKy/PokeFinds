@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { PriceChartLazy } from "@/components/features/price-chart-lazy";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import { IconLock, IconTrendingDown, IconTrendingUp } from "@/components/ui/icons";
 import { formatPrice, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -140,9 +141,10 @@ export function CollectionValueChart({
           {t("totalValueLabel")}
         </p>
         <div className="mt-1.5">
-          <span className="font-display text-5xl font-bold tracking-tight tabular-nums text-ink">
-            {formatPrice(totalValue ?? 0)}
-          </span>
+          <AnimatedNumber
+            value={totalValue ?? 0}
+            className="font-display text-5xl font-bold tracking-tight text-ink"
+          />
         </div>
         <p className="mt-2 text-sm text-ink-muted">
           {heroChange} {t(r.periodKey)}
