@@ -92,9 +92,14 @@ const config: Config = {
           "0%": { opacity: "0", transform: "translateY(8px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
+        // OBS: ENDAST opacity — ingen transform! Template-diven omsluter VARJE sida;
+        // en transform på en förfader gör den till containing block för position:fixed-
+        // barn (skannerns kameradialog, modaler, sheets) → de fastnar i sidflödet
+        // istället för viewporten. animation-fill both håller dessutom kvar transformen
+        // för evigt. Buggen sköt sönder skannern 2026-07-20 — lägg ALDRIG tillbaka den.
         pageIn: {
-          "0%": { opacity: "0", transform: "translateY(8px)" },
-          "100%": { opacity: "1", transform: "translateY(0)" },
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
         },
         tabPop: {
           "0%": { transform: "scale(1)" },
