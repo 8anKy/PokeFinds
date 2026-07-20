@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { Capacitor } from "@capacitor/core";
 
 /**
  * Ingen anslutning-skärm (#21, Stitch-design "No Connection Screen - Foilio
  * Branded"): fullskärms-överlägg när enheten tappar nätet — wifi-off-ikon,
- * rubrik, beskrivning och en "Försök igen"-knapp. Lyssnar på webbläsarens
- * online/offline-events (funkar i både webben och Capacitor-WebView:en).
+ * rubrik, beskrivning och en "Försök igen"-knapp. ENDAST i appen (ägaren): en
+ * webbsajt har ingen sådan skärm. Lyssnar på webbläsarens online/offline-events.
  * Startvärde sätts först i useEffect — navigator.onLine finns inte på servern
  * och får inte skapa hydrerings-mismatch.
  */
@@ -16,6 +17,7 @@ export function OfflineBanner() {
   const [offline, setOffline] = useState(false);
 
   useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return; // app-only
     const sync = () => setOffline(!navigator.onLine);
     sync();
     window.addEventListener("online", sync);

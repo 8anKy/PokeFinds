@@ -89,14 +89,10 @@ export default async function LocaleLayout({
   return (
     <html lang={locale} className={`dark ${inter.variable}`}>
       <body>
-        {/* Branded laddningsskärm (#21, Stitch-design) — i SSR-HTML:en, syns direkt
-            vid app-/sidstart. AppBoot döljer den (+ native splash) när appen
-            hydrerat. noscript: utan JS döljs den så SSR-innehållet blir synligt. */}
+        {/* Branded laddningsskärm (#21, Stitch-design, ENDAST i appen). "Foilio" +
+            spinner + "Läser in din samling...", centrerat. AppBoot döljer den när
+            appen hydrerat. noscript: utan JS döljs den så SSR-innehållet syns. */}
         <div id="app-loader" aria-hidden="true">
-          <span className="app-loader-mark">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/foilio-mark.png" alt="" width={56} height={56} />
-          </span>
           <span className="app-loader-word">Foilio</span>
           <span className="app-loader-status">
             <span className="app-loader-spinner" />
@@ -106,6 +102,18 @@ export default async function LocaleLayout({
         <noscript>
           <style>{`#app-loader{display:none}`}</style>
         </noscript>
+        {/* App-only + tidig splash-överlämning. Körs synkront under HTML-parse:
+            - Webben (ingen Capacitor): dölj laddaren DIREKT (en sajt har ingen
+              laddningsskärm) → ingen blink.
+            - Appen: dölj den NATIVE splashen så fort DOM:en är klar → den animerade
+              web-laddaren tar över UNDER nedladdningen/hydreringen (annars täcker den
+              statiska native-splashen hela laddningen och spinnern syns aldrig). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){var d=document.documentElement;var c=window.Capacitor;var native=c&&typeof c.isNativePlatform==='function'&&c.isNativePlatform();if(!native){d.classList.add('app-ready');return;}var hide=function(){try{var s=c.Plugins&&c.Plugins.SplashScreen;if(s&&s.hide)s.hide();}catch(e){}};if(document.readyState!=='loading')hide();else document.addEventListener('DOMContentLoaded',hide);})();",
+          }}
+        />
         <NextIntlClientProvider messages={messages}>
           <Providers>
             {children}
