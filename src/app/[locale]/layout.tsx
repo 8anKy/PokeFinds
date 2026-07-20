@@ -84,20 +84,24 @@ export default async function LocaleLayout({
   // Aktiverar statisk rendering (ISR) för locale-segmentet — annars blir sidorna dynamiska.
   setRequestLocale(locale);
   const messages = await getMessages();
+  const tLoad = await getTranslations({ locale, namespace: "Loading" });
 
   return (
     <html lang={locale} className={`dark ${inter.variable}`}>
       <body>
-        {/* Branded laddningsskärm (#21) — i SSR-HTML:en, syns direkt vid app-/
-            sidstart. AppBoot döljer den (+ native splash) när appen hydrerat.
-            noscript: utan JS döljs den så SSR-innehållet blir synligt. */}
+        {/* Branded laddningsskärm (#21, Stitch-design) — i SSR-HTML:en, syns direkt
+            vid app-/sidstart. AppBoot döljer den (+ native splash) när appen
+            hydrerat. noscript: utan JS döljs den så SSR-innehållet blir synligt. */}
         <div id="app-loader" aria-hidden="true">
-          <div className="app-loader-brand">
+          <span className="app-loader-mark">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/foilio-mark.png" alt="" width={46} height={46} />
-            <span className="app-loader-word">Foilio</span>
-          </div>
-          <span className="app-loader-spinner" />
+            <img src="/brand/foilio-mark.png" alt="" width={56} height={56} />
+          </span>
+          <span className="app-loader-word">Foilio</span>
+          <span className="app-loader-status">
+            <span className="app-loader-spinner" />
+            <span className="app-loader-sub">{tLoad("collection")}</span>
+          </span>
         </div>
         <noscript>
           <style>{`#app-loader{display:none}`}</style>

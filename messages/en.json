@@ -933,8 +933,14 @@
   "PageNav": {
     "back": "Back"
   },
+  "Loading": {
+    "collection": "Loading your collection..."
+  },
   "Offline": {
-    "message": "No internet connection"
+    "message": "No internet connection",
+    "title": "No Connection",
+    "description": "It looks like you're offline. Please check your internet settings and try again.",
+    "tryAgain": "Try Again"
   },
   "Detail": {
     "back": "Back",
