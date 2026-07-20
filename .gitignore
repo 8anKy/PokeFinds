@@ -26,6 +26,11 @@ codemagic-cert-key.pem
 # Revisionsartefakter (engångskörning, ligger inte i repot)
 .audit/
 
+# Android-signering — nyckeln och lösenorden får ALDRIG in i det publika repot
+android/keystore.properties
+*.keystore
+*.jks
+
 # IDE-lokalt (Android Studio) + Python-bytecode från skills-skript
 .idea/
 __pycache__/

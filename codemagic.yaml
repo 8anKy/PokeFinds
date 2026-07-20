@@ -12,14 +12,14 @@ workflows:
     environment:
       node: 22
       xcode: latest
-      cocoapods: default
       groups:
         - ios_signing        # innehåller CERTIFICATE_PRIVATE_KEY (Codemagic-UI, Secure)
       vars:
         # Appen öppnar direkt på Utforska (ingen blink av marknadsförings-startsidan).
         CAP_SERVER_URL: "https://www.foilio.se/produkter"
         BUNDLE_ID: "se.foilio.app"
-        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        # Capacitor 8 = SPM-mall: inget CocoaPods, ingen .xcworkspace — bygg xcodeproj:t direkt.
+        XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
     scripts:
       - name: Installera deps
@@ -28,10 +28,10 @@ workflows:
         script: |
           exec > >(tee "$CM_BUILD_DIR/gen-ios.log") 2>&1
           set -ex
-          # cap add genererar ios/ men dess pod install fallerar (RevenueCat-podden
-          # kräver iOS 15.0, Capacitor genererar 13.0) → || true, vi fixar target nedan.
-          ./node_modules/.bin/cap add ios || true
-          # App-ikon: Capacitor 6 genererar EN universell 1024-ikon (AppIcon-512@2x.png).
+          # Capacitor 8 genererar ett SPM-baserat projekt (ingen pod install som kan
+          # falla) → strikt körning, fail loud. Deployment target är iOS 15 nativt.
+          ./node_modules/.bin/cap add ios
+          # App-ikon: Capacitor genererar EN universell 1024-ikon (AppIcon-512@2x.png).
           # Skriv över den med vår → ingen icon-generator-dep, ingen per-storlek-resize.
           # test = fail loud om Capacitor byter filnamn (samma mönster som grep nedan).
           ICON=ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
@@ -43,8 +43,6 @@ workflows:
           # fail-loud om imageset:en inte skapades (mall ändrad).
           ./node_modules/.bin/capacitor-assets generate --ios --splashBackgroundColor '#0a0a0c' --splashBackgroundColorDark '#0a0a0c'
           test -f ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732.png
-          sed -i '' "s/platform :ios, '13.0'/platform :ios, '15.0'/" ios/App/Podfile
-          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13.0/IPHONEOS_DEPLOYMENT_TARGET = 15.0/g' ios/App/App.xcodeproj/project.pbxproj
           # Fixa headern som glider NER efter scroll: WKWebView lägger automatiskt
           # på top-contentInset för safe-area (default .automatic) OVANPÅ vår CSS
           # padding-top: env(safe-area-inset-top) → dubbel topp efter första scroll.
@@ -53,8 +51,9 @@ workflows:
           perl -0pi -e 's/func applicationDidBecomeActive\(_ application: UIApplication\) \{/func applicationDidBecomeActive(_ application: UIApplication) {\n        func killBounce(_ v: UIView) {\n            if let sv = v as? UIScrollView { sv.contentInsetAdjustmentBehavior = .never; sv.bounces = false; sv.alwaysBounceVertical = false }\n            v.subviews.forEach(killBounce)\n        }\n        application.windows.forEach(killBounce)\n        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { application.windows.forEach(killBounce) }/' ios/App/App/AppDelegate.swift
           # Misslyckas högt om injektet inte tog (mall ändrad) → slipp falsk patch.
           grep -q killBounce ios/App/App/AppDelegate.swift
-          # Push: Capacitor 6 levererar APNs-token via NotificationCenter, men default-
-          # AppDelegaten postar den INTE → register() ger varken token eller fel (tyst).
+          # Push: Capacitor levererar APNs-token via NotificationCenter, men default-
+          # AppDelegaten postar den INTE (verifierat även i Capacitor 8-mallen) →
+          # register() ger varken token eller fel (tyst).
           # Injicera de två vidarebefordrings-metoderna direkt i klassen.
           perl -0pi -e 's/(class AppDelegate: UIResponder, UIApplicationDelegate \{)/$1\n    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {\n        NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)\n    }\n    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {\n        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)\n    }/' ios/App/App/AppDelegate.swift
           grep -q capacitorDidRegisterForRemoteNotifications ios/App/App/AppDelegate.swift
@@ -85,7 +84,6 @@ workflows:
           PLIST
           ruby -e 'require "xcodeproj"; p=Xcodeproj::Project.open("ios/App/App.xcodeproj"); t=p.targets.find{|x| x.name=="App"}; t.build_configurations.each{|c| c.build_settings["CODE_SIGN_ENTITLEMENTS"]="App/App.entitlements"}; p.save'
           grep -q aps-environment ios/App/App/App.entitlements  # fail-loud om injektet inte tog
-          (cd ios/App && pod install)
       - name: Sätt build-nummer
         script: |
           cd ios/App
@@ -107,7 +105,7 @@ workflows:
         script: |
           exec > >(tee "$CM_BUILD_DIR/build-ipa.log") 2>&1
           xcode-project build-ipa \
-            --workspace "$XCODE_WORKSPACE" \
+            --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME"
     artifacts:
       - build/ios/ipa/*.ipa

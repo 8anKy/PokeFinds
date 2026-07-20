@@ -1,11 +1,20 @@
 apply plugin: 'com.android.application'
 
+// Release-signering: läser android/keystore.properties (INTE incheckad — gitignorad).
+// Saknas filen byggs release osignerad (går inte att ladda upp till Play) men
+// debug-byggen påverkas inte. Skapa keystore + fil enligt docs/RELEASE-ANDROID.md.
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file('keystore.properties')
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+
 android {
     // ponytail: namespace (intern Java-package) lämnas som se.pokefinds.app med flit —
     // applicationId nedan är det enda Play Store/användare ser, och att byta namespace
     // kräver flytt av MainActivity.java utan någon vinst.
-    namespace "se.pokefinds.app"
-    compileSdk rootProject.ext.compileSdkVersion
+    namespace = "se.pokefinds.app"
+    compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "se.foilio.app"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -16,13 +25,26 @@ android {
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
-            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        if (keystorePropsFile.exists()) {
+            release {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
         }
     }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (keystorePropsFile.exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
