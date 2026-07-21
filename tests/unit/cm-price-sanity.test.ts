@@ -13,10 +13,16 @@ import {
 describe("lowIsCredible", () => {
   it("godtar en From som ligger över snittets golv fast trenden sprungit iväg", () => {
     // Prismatic Evolutions Poster Collection: From 35 €, snitt 72,45 €, trend 186 €.
-    // Gammalt golv (0.2 × trend) = 37,2 → underkänd. Nytt golv (0.2 × 72,45) = 14,5 → godkänd.
+    // Referenserna är ense (2,6x). Gammalt golv (0.2 × trend) = 37,2 → underkänd.
+    // Nytt golv (0.2 × 72,45) = 14,5 → godkänd.
     expect(lowIsCredible(35, 72.45, 186.09)).toBe(true);
-    // EX Team Rocket Returns Booster: korrupt trend på tunn vintage.
-    expect(lowIsCredible(15, 9.23, 1171.66)).toBe(true);
+  });
+
+  it("EMPTY PACKS: golvet sänks INTE när referenserna är oense om storleksordningen", () => {
+    // EX Team Rocket Returns Booster: From 15 €, RapidAPI-snitt 9,23 €, men CM:s egen
+    // guide säger trend 1 171,66 € (127x isär) → den låga From:en är ett tomt omslag.
+    // Golvet ska stanna på trendens nivå (234 €) och kasta 15 €.
+    expect(lowIsCredible(15, 9.23, 1171.66)).toBe(false);
   });
 
   it("godtar en hög From som ryms under trendens tak fast snittet är underskattat", () => {

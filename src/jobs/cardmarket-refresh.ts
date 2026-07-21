@@ -76,24 +76,35 @@ export function sanePriceEur(low: number | null | undefined, avg: number | null 
 }
 
 /**
- * Är `low` (CM:s "From") trovärdig? GOLVET vägs mot den LÄGSTA av Cardmarkets två
- * referenser (30-dagssnittet och trenden), TAKET oförändrat mot trenden.
+ * Så långt isär får 30-dagssnittet och trenden ligga och ändå räknas som ENIGA.
+ * Under det är den lägre siffran en rimlig kalibrering; över det är en av dem
+ * korrupt och får inte användas som ursäkt för att släppa igenom en misstänkt låg
+ * From. Mätt: friska produkter ligger inom ~2,5x (Prismatic 186/72 = 2,6x), medan
+ * vintage där den ena källan spårat ur ligger på 100x+ (EX Team Rocket Returns
+ * 1 172/9,2 = 127x).
+ */
+const REF_AGREEMENT = 5;
+
+/**
+ * Är `low` (CM:s "From") trovärdig? TAKET vägs mot trenden (oförändrat). GOLVET får
+ * sänkas till 30-dagssnittets nivå — men BARA när Cardmarkets två referenser är
+ * ense om storleksordningen.
  *
- * Bara golvet flyttas, och det är med flit. 0.2x-golvet är kalibrerat mot
- * 30-DAGSSNITTET ("en äkta From ligger aldrig under 20% av snittet"), men anropades
- * med TRENDEN. På en snabbt stigande marknad springer trenden ifrån snittet, golvet
- * följer med uppåt och kastar en fullt äkta From — varpå vi publicerar trenden som
- * butikspris. Mätt 2026-07-21 mot hela sealed-katalogen (1061 produkter med all tre
- * datapunkter) ändrar golv-relaxeringen exakt två priser, båda uppenbart fel i dag:
- *   Prismatic Evolutions Poster Collection  From 35 €, snitt 72 €, trend 186 €
- *      → 2 166 kr blir ~403 kr (butikerna låg på 299-599 kr)
- *   EX Team Rocket Returns Booster          From 15 €, snitt 9 €, trend 1 172 €
- *      → 22 100 kr blir ~173 kr (trenden är korrupt på tunn vintage)
+ * Bakgrund: 0.2x-golvet är kalibrerat mot 30-DAGSSNITTET ("en äkta From ligger aldrig
+ * under 20% av snittet") men anropades med TRENDEN. På en snabbt stigande marknad
+ * springer trenden ifrån snittet, golvet följer med uppåt och kastar en fullt äkta
+ * From — varpå vi publicerar TRENDEN som butikspris. Mätt 2026-07-21: Prismatic
+ * Evolutions Poster Collection, From 35 €, snitt 72 €, trend 186 € → 2 166 kr i
+ * katalogen mot butikernas 299-599 kr.
  *
- * TAKET lämnas mot trenden för att relaxering ÅT DET HÅLLET mätbart skadar: den
- * skulle godta From 2 200 € på en felLÄNKAD offer (Riolu-tennen pekar på ett ETB-case
- * → 223 kr blir 25 300 kr) och From 15 € på en 3-korts Dollar Tree-repack (42 → 173
- * kr). Där är fel-länken respektive skräp-From:en problemet, inte vakten.
+ * ENIGHETSKRAVET är inte kosmetiskt — utan det återinför relaxeringen den
+ * dokumenterade EMPTY-PACKS-fällan: EX Team Rocket Returns Booster har From 15 € och
+ * RapidAPI-snitt 9 € medan CM:s egen guide säger trend 1 172 € / snitt 2 194 €. Där
+ * är den låga From:en en annons på ett TOMT omslag, inte ett fynd, och 127x-avståndet
+ * mellan referenserna är signalen. Se [[project_daymove_guard_ratchet]].
+ *
+ * TAKET lämnas mot trenden: relaxering åt det hållet ändrar bara priser där problemet
+ * är en skräp-From eller en felaktig länk, inte vakten.
  *
  * Saknas referenser helt släpps `low` igenom (som sanePriceEur alltid gjort).
  */
@@ -105,8 +116,10 @@ export function lowIsCredible(
   if (low == null || low <= 0) return false;
   const refs = [avg, trend].filter((v): v is number => v != null && v > 0);
   if (refs.length === 0) return true;
+  const hi = Math.max(...refs);
+  const lo = Math.min(...refs);
   const ceiling = (trend != null && trend > 0 ? trend : refs[0]) * HIGH_MULT;
-  const floor = Math.min(...refs) * 0.2;
+  const floor = (hi / lo <= REF_AGREEMENT ? lo : ceiling / HIGH_MULT) * 0.2;
   return low >= floor && low <= ceiling;
 }
 
