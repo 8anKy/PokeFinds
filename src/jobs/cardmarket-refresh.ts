@@ -12,6 +12,7 @@
 import { prisma } from "../lib/db";
 import { mapPool } from "../lib/concurrency";
 import { getRatesOre } from "../lib/exchange-rate";
+import { cmImageProxyUrl, cmRenderExists } from "../lib/cm-image";
 import {
   cardmarketJapaneseProductUrl,
   cardmarketProductUrl,
@@ -954,11 +955,22 @@ export async function runCardmarketRefresh(
       // bild och gamla tcgplayer-/butiks-/FEL-tcggo-bilder läker automatiskt
       // (Sprigatito/Kanto Friends/Palkia/Riolu-fallen 2026-07-19 var exakt-
       // länkade men behöll fel bild eftersom self-heal bara jämförde tcggo-URL:er).
-      // best.image-kravet kvarstår som bevis på att CM HAR en bild (annars 404:ar
-      // proxyn till trasig <img>). En redan satt proxy-URL rörs aldrig.
-      const proxyUrl = `/api/cm-image/${best.cardmarket_id}`;
-      const imageUrl =
-        exact && best.image && p.imageUrl !== proxyUrl ? proxyUrl : undefined;
+      // MEN: att katalogen har en bild-URL (best.image) BEVISAR INTE att Cardmarket
+      // har en egen render — 325 sealed-SKU:er (blistrar, checklanes, pin-collections)
+      // saknar render helt. Det kravet ensamt pekade dem på proxyn, som 404:ade →
+      // trasig <img> i hela katalogen (rapporterat 2026-07-21). Proba därför CM:s CDN
+      // innan vi byter: finns ingen render vinner katalogens egen bild (tcggo, inte
+      // referer-gatead). Probningen körs bara när bilden faktiskt skulle ÄNDRAS, så i
+      // stabilt läge kostar den ingenting. En redan satt proxy-URL rörs aldrig.
+      const proxyUrl = cmImageProxyUrl(best.cardmarket_id);
+      let imageUrl: string | undefined;
+      if (exact && best.image && p.imageUrl !== proxyUrl) {
+        imageUrl = (await cmRenderExists(best.cardmarket_id))
+          ? proxyUrl
+          : p.imageUrl === best.image
+            ? undefined // redan rätt katalogbild
+            : best.image;
+      }
       // refOre = CM:s egen trend → dagvaktens nödutgång: ett stort hopp MOT trenden
       // är en rättelse av ett korrupt värde, inte en glitch. Utan den fastnar
       // skräpvärden för alltid (se saneDayMove).

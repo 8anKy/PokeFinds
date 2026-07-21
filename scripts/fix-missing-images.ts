@@ -2,63 +2,72 @@
  * Hittar (och lagar) produkter vars bild inte laddar.
  *
  * Två felkällor, båda ger en trasig <img> i katalogen:
- *  A) `/api/cm-image/{idProduct}` — Cardmarket har INGEN render för id:t (vanligt på
- *     blistrar/checklanes) eller har lagt den i en okänd bucket. Proxyn 404:ar.
- *  B) `images.tcggo.com`-hotlink — svarar 403 eller en ~919 bytes placeholder.
+ *  A) `/api/cm-image/{idProduct}` — Cardmarket har INGEN render för id:t (mycket vanligt
+ *     på blistrar/checklanes/pin-collections) eller har lagt den i en okänd bucket.
+ *  B) `images.tcggo.com`-hotlink som svarar 403 eller en ~919 bytes placeholder.
  *
- * Lagningen är i tur och ordning: butiksfoto (StoreListing på samma URL som en av
- * produktens offers) → Tradera-annonsens foto → null (kategori-ikonen visas i stället).
- * En trasig bild är alltid sämre än ikonen — den ser ut som en bugg för besökaren.
+ * Ersättare i prioritetsordning:
+ *  1. RapidAPI:s sealed-katalog (diskcachen `.cache/rapidapi-sealed.json`, INGA API-anrop)
+ *     → `image` för produktens cardmarket_id. Samma transparenta render som CM, men på
+ *     tcggo:s CDN som INTE referer-gatear → funkar som rå <img src>.
+ *  2. Butiksfoto: StoreListing på samma URL som en av produktens offers.
+ *  3. Tradera-annonsens foto.
+ *  4. null → kategori-ikonen visas. En trasig bild är alltid sämre än ikonen.
  *
- * Torrkörning som default. `--apply` skriver.
+ * Torrkörning som default. `--apply` skriver. `--from-cache` hoppar probningen och
+ * använder listan från förra körningen (probningen tar ~25 min för hela katalogen).
  *
  *   node scripts/with-prod-db.mjs npx tsx scripts/fix-missing-images.ts
  *   node scripts/with-prod-db.mjs npx tsx scripts/fix-missing-images.ts --apply
  */
+import fs from "node:fs";
+import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { mapPool } from "../src/lib/concurrency";
+import { cmRenderExists } from "../src/lib/cm-image";
 
 const prisma = new PrismaClient();
 const APPLY = process.argv.includes("--apply");
+const FROM_CACHE = process.argv.includes("--from-cache");
 
-// Samma lista som proxyn (src/app/api/cm-image/[idProduct]/route.ts). Håll i synk.
-const SHARDS = [53, 52, 54, 1014, 1015, 1016, 1017, 1018, 51, 55, 50, 56, 57, 58];
-const EXTS = ["png", "jpg"];
-const REFERER = "https://www.cardmarket.com/";
+const BROKEN_CACHE = path.join(process.cwd(), ".cache", "broken-images.json");
+const SEALED_CATALOG = path.join(process.cwd(), ".cache", "rapidapi-sealed.json");
+
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 /** tcggo svarar 200 med en pytteliten placeholder när bilden inte finns. */
 const PLACEHOLDER_MAX_BYTES = 2000;
 
-async function ok(url: string, method: "HEAD" | "GET" = "HEAD"): Promise<boolean> {
-  try {
-    const res = await fetch(url, { method, headers: { referer: REFERER, "user-agent": UA } });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-/** Har Cardmarket en render för id:t i någon känd bucket? */
-async function cmRenderExists(id: string): Promise<boolean> {
-  for (const shard of SHARDS)
-    for (const ext of EXTS)
-      if (await ok(`https://product-images.s3.cardmarket.com/${shard}/${id}/${id}.${ext}`))
-        return true;
-  return false;
-}
-
-/** Laddar tcggo-hotlinken riktigt (403 eller placeholder = trasig)? */
-async function tcggoOk(url: string): Promise<boolean> {
+/** Laddar bilden på riktigt (403 eller placeholder = trasig)? */
+async function imageLoads(url: string): Promise<boolean> {
   try {
     const res = await fetch(url, { headers: { "user-agent": UA } });
     if (!res.ok) return false;
-    const buf = await res.arrayBuffer();
-    return buf.byteLength >= PLACEHOLDER_MAX_BYTES;
+    return (await res.arrayBuffer()).byteLength >= PLACEHOLDER_MAX_BYTES;
   } catch {
     return false;
   }
 }
+
+/** cardmarket_id → transparent produktbild, ur RapidAPI-katalogens diskcache. */
+function loadSealedImages(): Map<number, string> {
+  const map = new Map<number, string>();
+  if (!fs.existsSync(SEALED_CATALOG)) {
+    console.warn(`  (${SEALED_CATALOG} saknas — hoppar RapidAPI-bildkällan)`);
+    return map;
+  }
+  const rows = JSON.parse(fs.readFileSync(SEALED_CATALOG, "utf-8")) as {
+    cardmarket_id: number | null;
+    image?: string;
+  }[];
+  for (const r of rows) if (r.cardmarket_id && r.image) map.set(r.cardmarket_id, r.image);
+  return map;
+}
+
+const idFromProxy = (url: string): string | null =>
+  url.includes("/api/cm-image/") ? url.split("/api/cm-image/")[1].split(/[?#]/)[0] : null;
+const idFromCmOffer = (url: string): string | null =>
+  /[?&]idProduct=(\d+)/i.exec(url)?.[1] ?? null;
 
 async function main() {
   const prods = await prisma.product.findMany({
@@ -72,71 +81,103 @@ async function main() {
       `${APPLY ? "" : "  (TORRKÖRNING — inget skrivs)"}`
   );
 
-  const broken: typeof prods = [];
-  let done = 0;
-  const tick = (n: number) => {
-    if (++done % 100 === 0) console.log(`  …${done}/${n} probade, ${broken.length} trasiga`);
-  };
+  let brokenIds: string[];
+  if (FROM_CACHE && fs.existsSync(BROKEN_CACHE)) {
+    brokenIds = JSON.parse(fs.readFileSync(BROKEN_CACHE, "utf-8")) as string[];
+    console.log(`Läser ${brokenIds.length} trasiga från ${BROKEN_CACHE} (ingen probning).`);
+  } else {
+    const broken: string[] = [];
+    let done = 0;
+    const tick = (n: number) => {
+      if (++done % 100 === 0) console.log(`  …${done}/${n} probade, ${broken.length} trasiga`);
+    };
+    await mapPool(cm, 24, async (p) => {
+      const id = idFromProxy(p.imageUrl!)!;
+      if (!(await cmRenderExists(id))) broken.push(p.id);
+      tick(cm.length);
+    });
+    console.log(`[A] cm-proxy utan render: ${broken.length}`);
+    done = 0;
+    await mapPool(tcggo, 24, async (p) => {
+      if (!(await imageLoads(p.imageUrl!))) broken.push(p.id);
+      tick(tcggo.length);
+    });
+    console.log(`[B] totalt trasiga: ${broken.length}`);
+    fs.mkdirSync(path.dirname(BROKEN_CACHE), { recursive: true });
+    fs.writeFileSync(BROKEN_CACHE, JSON.stringify(broken));
+    brokenIds = broken;
+  }
 
-  await mapPool(cm, 24, async (p) => {
-    const id = p.imageUrl!.split("/api/cm-image/")[1].split(/[?#]/)[0];
-    if (!(await cmRenderExists(id))) broken.push(p);
-    tick(cm.length);
-  });
-  console.log(`[A] cm-proxy utan render: ${broken.length}`);
-
-  done = 0;
-  const brokenTcggo: typeof prods = [];
-  await mapPool(tcggo, 24, async (p) => {
-    if (!(await tcggoOk(p.imageUrl!))) brokenTcggo.push(p);
-    tick(tcggo.length);
-  });
-  console.log(`[B] trasiga tcggo-hotlinks: ${brokenTcggo.length}`);
-
-  const all = [...broken, ...brokenTcggo];
-  if (all.length === 0) {
+  if (brokenIds.length === 0) {
     console.log("Inga trasiga bilder. Klart.");
     return;
   }
 
-  // Ersättare: butiksfoto från huvudboken (samma URL som en offer), annars Tradera-foto.
-  let fixedStore = 0;
-  let cleared = 0;
-  for (const p of all) {
+  const byId = new Map(prods.map((p) => [p.id, p]));
+  const sealedImages = loadSealedImages();
+  const stats = { rapidapi: 0, store: 0, tradera: 0, cleared: 0 };
+
+  for (const productId of brokenIds) {
+    const p = byId.get(productId);
+    if (!p) continue; // borttagen sedan probningen
+
     const offers = await prisma.offer.findMany({
       where: { productId: p.id },
       select: { url: true },
     });
-    const urls = offers.map((o) => o.url);
-    const listing = urls.length
-      ? await prisma.storeListing.findFirst({
-          where: { url: { in: urls }, imageUrl: { not: null } },
-          select: { imageUrl: true },
-        })
-      : null;
-    const tradera = listing
-      ? null
-      : await prisma.traderaListing.findFirst({
+    // idProduct kan komma från proxy-URL:en ELLER från produktens Cardmarket-offer.
+    const cmId =
+      idFromProxy(p.imageUrl!) ??
+      offers.map((o) => idFromCmOffer(o.url)).find((v): v is string => v != null) ??
+      null;
+
+    let replacement: string | null = null;
+    let via = "";
+    const fromCatalog = cmId ? sealedImages.get(Number(cmId)) : undefined;
+    if (fromCatalog && (await imageLoads(fromCatalog))) {
+      replacement = fromCatalog;
+      via = "rapidapi";
+      stats.rapidapi++;
+    } else {
+      const listing = offers.length
+        ? await prisma.storeListing.findFirst({
+            where: { url: { in: offers.map((o) => o.url) }, imageUrl: { not: null } },
+            select: { imageUrl: true },
+          })
+        : null;
+      if (listing?.imageUrl) {
+        replacement = listing.imageUrl;
+        via = "butik";
+        stats.store++;
+      } else {
+        const tr = await prisma.traderaListing.findFirst({
           where: { productId: p.id, imageUrl: { not: null } },
           select: { imageUrl: true },
         });
-    const replacement = listing?.imageUrl ?? tradera?.imageUrl ?? null;
+        if (tr?.imageUrl) {
+          replacement = tr.imageUrl;
+          via = "tradera";
+          stats.tradera++;
+        } else {
+          stats.cleared++;
+        }
+      }
+    }
 
     console.log(
-      `  ${replacement ? "→ ERSÄTT " : "→ NOLLA  "} ${p.category.padEnd(14)} ${p.title}` +
+      `  ${replacement ? `→ ${via.padEnd(8)}` : "→ NOLLA   "} ${p.category.padEnd(14)} ${p.title}` +
         `\n      var: ${p.imageUrl}` +
         (replacement ? `\n      ny:  ${replacement}` : "") +
         `\n      /produkter/${p.slug}`
     );
-    if (replacement) fixedStore++;
-    else cleared++;
     if (APPLY)
       await prisma.product.update({ where: { id: p.id }, data: { imageUrl: replacement } });
   }
 
   console.log(
-    `\nSummering: ${all.length} trasiga — ${fixedStore} fick butiks-/Tradera-foto, ` +
-      `${cleared} nollades (kategori-ikon visas).${APPLY ? " SKRIVET." : " Torrkörning."}`
+    `\nSummering: ${brokenIds.length} trasiga — ${stats.rapidapi} RapidAPI-render, ` +
+      `${stats.store} butiksfoto, ${stats.tradera} Tradera-foto, ` +
+      `${stats.cleared} nollade (kategori-ikon).${APPLY ? " SKRIVET." : " Torrkörning."}`
   );
 }
 

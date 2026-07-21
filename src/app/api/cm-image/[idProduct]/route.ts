@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { CM_IMAGE_HEADERS, cmImageCandidates } from "@/lib/cm-image";
 
 export const runtime = "nodejs";
 // Bilden är oföränderlig per idProduct, men Next route-cachen cachar ÄVEN ett
@@ -14,22 +15,10 @@ export const revalidate = 3600;
  * peka <img src> direkt på den. Den här routen hämtar bilden server-sida MED referer och
  * strömmar tillbaka den, cachad oföränderligt. imageUrl sätts till /api/cm-image/{idProduct}.
  *
- * Sökvägen är /{shard}/{idProduct}/{idProduct}.{ext}. `shard` är en intern lagrings-bucket
- * (INTE härledbar ur idProduct — mätt: nya produkter i 52/53, senare bucketar i 1014/1015 och
- * 1016+, äldre varierar). Vi PROBAR därför de kända bucketarna × {png,jpg} och memoiserar
- * träffen. CDN:t rate-limitar INTE (till skillnad från CM:s HTML-sidor), så probning är billig.
- *
- * NÄR NYA BILDER SLUTAR LADDA: CM har lagt dem i en NY bucket. Mätt 2026-07-20: alla
- * nyare set-ETB:er (151, Paradox Rift, … idProduct 719691/776336) ligger i 1016 — den
- * saknades här → 404 → trasiga bilder. Lägg till den nya bucketen (verifiera med curl mot
- * product-images.s3.cardmarket.com/{shard}/{id}/{id}.png och referer cardmarket.com).
+ * Bucket-listan och probningen bor i @/lib/cm-image (delas med cardmarket-refresh, som
+ * måste veta OM en render finns innan den pekar en produkt hit — långt ifrån alla
+ * sealed-SKU:er har en).
  */
-const SHARDS = [53, 52, 54, 1014, 1015, 1016, 1017, 1018, 51, 55, 50, 56, 57, 58];
-const EXTS = ["png", "jpg"];
-const REFERER = "https://www.cardmarket.com/";
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
-
 // Memoiserar löst URL per idProduct för processens livstid (bilden är oföränderlig).
 const resolved = new Map<string, string>();
 // NEGATIVA svar memoiseras bara kort. En CDN-hicka mitt i probningen gav annars
@@ -46,15 +35,8 @@ function noImage(): NextResponse {
   });
 }
 
-function candidateUrls(id: string): string[] {
-  const urls: string[] = [];
-  for (const shard of SHARDS) for (const ext of EXTS)
-    urls.push(`https://product-images.s3.cardmarket.com/${shard}/${id}/${id}.${ext}`);
-  return urls;
-}
-
 async function fetchCmImage(url: string): Promise<Response | null> {
-  const res = await fetch(url, { headers: { referer: REFERER, "user-agent": UA } });
+  const res = await fetch(url, { headers: CM_IMAGE_HEADERS });
   return res.ok ? res : null;
 }
 
@@ -73,7 +55,7 @@ export async function GET(_req: Request, { params }: { params: { idProduct: stri
   const until = missUntil.get(id);
   if (until != null && until > Date.now()) return noImage();
 
-  for (const url of candidateUrls(id)) {
+  for (const url of cmImageCandidates(id)) {
     const hit = await fetchCmImage(url);
     if (hit) {
       resolved.set(id, url);
