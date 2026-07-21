@@ -11,7 +11,7 @@ export class MockGradingAdapter implements GradingAdapter {
   async grade(
     frontDataUrl: string,
     backDataUrl: string,
-    _context?: GradingContext
+    context?: GradingContext
   ): Promise<GradeResult> {
     const seed = (frontDataUrl.length + backDataUrl.length * 7) % 100;
     const base = 6 + (seed % 4); // 6–9
@@ -42,6 +42,7 @@ export class MockGradingAdapter implements GradingAdapter {
         "Demoläge: simulerad gradering. Koppla in en riktig vision-modell " +
         "(GRADING_PROVIDER=claude) för en faktisk bedömning.",
       modelUsed: "mock",
+      cardName: context?.cardName ?? "Demokort 001/100 · Mockset",
     };
   }
 }

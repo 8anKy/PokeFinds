@@ -45,6 +45,9 @@ const SYSTEM = [
   "samt en konfidens 0–1 utifrån bildkvaliteten, och en kort motivering på svenska.",
   "Var sträng och realistisk — de flesta kort hamnar mellan 6 och 9.",
   "Om bilderna är suddiga eller delvis skymda: sänk konfidensen.",
+  "Ange också vilket kort du ser i fältet cardName, kort och utan meningsbyggnad:",
+  "namn, kortnummer och set, t.ex. \"Torchic 65/100 · EX Crystal Guardians\".",
+  "Är du osäker på kortet — utelämna cardName helt hellre än att gissa.",
   "Detta är en UPPSKATTNING, inte en officiell PSA-/BGS-gradering.",
 ].join(" ");
 
@@ -61,6 +64,13 @@ const GRADE_TOOL: Anthropic.Tool = {
       overall: { type: "number", description: "Sammanvägd helhetsgrad 1–10" },
       confidence: { type: "number", description: "0–1" },
       rationale: { type: "string", description: "Kort motivering på svenska." },
+      // MEDVETET inte required: hellre inget kortnamn än ett gissat. Ett fel namn
+      // på en gradering användaren sparar i samlingen är värre än inget namn.
+      cardName: {
+        type: "string",
+        description:
+          'Kortet på bilden: namn, nummer och set, t.ex. "Torchic 65/100 · EX Crystal Guardians". Utelämna om du är osäker.',
+      },
     },
     required: [
       "centering",
@@ -159,6 +169,10 @@ export class ClaudeVisionGradingAdapter implements GradingAdapter {
           ? input.rationale.trim()
           : "Ingen motivering tillgänglig.",
       modelUsed: this.model,
+      cardName:
+        typeof input.cardName === "string" && input.cardName.trim()
+          ? input.cardName.trim().slice(0, 120)
+          : undefined,
     };
   }
 }

@@ -36,6 +36,8 @@ interface GradeResultDto {
   confidence: number;
   rationale: string;
   modelUsed: string;
+  /** Kortet modellen läste av. null/undefined = gick inte att identifiera. */
+  cardName?: string | null;
 }
 
 interface Quota {
@@ -351,7 +353,11 @@ export default function GraderaPage() {
                 </span>
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-ink">{t("overallGrade")}</p>
+                {/* Kortet modellen läste av. Faller tillbaka på rubriken när det
+                    inte gick att identifiera — vi visar hellre inget än en gissning. */}
+                <p className="text-sm font-semibold text-ink">
+                  {result.result.cardName ?? t("overallGrade")}
+                </p>
                 <p className="mt-1 text-sm text-ink-muted">{result.result.rationale}</p>
               </div>
             </div>
@@ -406,14 +412,20 @@ export default function GraderaPage() {
                       {failed ? <IconAlertTriangle size={18} /> : <IconCheck size={18} />}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-ink">
+                      <p className="truncate text-sm font-medium text-ink">
                         {failed
                           ? t("failed")
-                          : job.overallGrade != null
-                            ? t("gradeLine", { grade: job.overallGrade.toFixed(1) })
-                            : t("gradingWord")}
+                          : (job.result?.cardName ??
+                            (job.overallGrade != null
+                              ? t("gradeLine", { grade: job.overallGrade.toFixed(1) })
+                              : t("gradingWord")))}
                       </p>
                       <p className="text-xs text-ink-faint">
+                        {/* Graden står redan stort till höger — upprepa den bara när
+                            raden inte har ett kortnamn att bära. */}
+                        {!failed && job.result?.cardName && job.overallGrade != null
+                          ? `${t("gradeLine", { grade: job.overallGrade.toFixed(1) })} · `
+                          : ""}
                         {new Date(job.createdAt).toLocaleString(locale)}
                       </p>
                     </div>

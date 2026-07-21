@@ -150,7 +150,10 @@ export async function runGradingJob(
           confidence: result.confidence,
           rationale: result.rationale,
           modelUsed: result.modelUsed,
-          cardName: context?.cardName ?? null,
+          // Modellens egen identifiering vinner över anroparens hint: hinten kommer
+          // från en tidigare skanning och kan gälla ett helt annat kort än det som
+          // just fotograferades.
+          cardName: result.cardName ?? context?.cardName ?? null,
         } as unknown as Prisma.InputJsonObject,
       },
     });

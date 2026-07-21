@@ -31,6 +31,13 @@ export interface GradeResult {
   rationale: string;
   /** Vilken modell/leverantör som användes (t.ex. "claude-haiku-4-5", "mock"). */
   modelUsed: string;
+  /**
+   * Kortet modellen anser sig se, t.ex. "Torchic 65/100 · EX Crystal Guardians".
+   * Undefined när kortet inte gick att identifiera — visa aldrig en gissning som
+   * fakta, och koppla ALDRIG ihop den här strängen med katalogen automatiskt
+   * (det är en bildtolkning, inte en matchning).
+   */
+  cardName?: string;
 }
 
 /** Extra kontext som kan förbättra graderingen. */
