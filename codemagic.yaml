@@ -23,7 +23,19 @@ workflows:
         XCODE_SCHEME: "App"
     scripts:
       - name: Installera deps
-        script: npm ci --legacy-peer-deps
+        script: |
+          # npm ci mot registret är nätverksberoende och dör då och då mitt i
+          # nedladdningen (ECONNRESET → hela bygget rött, bygge #34). Höj retries
+          # och gör om steget upp till tre gånger innan vi kallar det ett riktigt fel.
+          npm config set fetch-retries 5
+          npm config set fetch-retry-maxtimeout 120000
+          for i in 1 2 3; do
+            npm ci --legacy-peer-deps && exit 0
+            echo "npm ci föll (försök $i av 3), sannolikt nätverk. Gör om om 15 s."
+            sleep 15
+          done
+          echo "npm ci föll tre gånger i rad. Det är inte flakighet längre, läs loggen ovan."
+          exit 1
       - name: Generera iOS-projektet
         script: |
           exec > >(tee "$CM_BUILD_DIR/gen-ios.log") 2>&1
