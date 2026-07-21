@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/format";
 import { PriceChange } from "@/components/ui/price-change";
 import { StockBadge } from "@/components/ui/badge";
+import { SafeImage } from "@/components/ui/safe-image";
 import {
   IconBookmark,
   IconCards,
@@ -82,22 +83,19 @@ export function ProductCard({ product, className }: ProductCardProps) {
             −{product.dealPercent}%
           </span>
         )}
-        {product.imageUrl ? (
-          <img
-            src={product.imageUrl}
-            alt={product.title}
-            loading="lazy"
-            decoding="async"
-            className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
-          />
-        ) : (
-          <div
-            className="flex h-full w-full items-center justify-center text-ink-faint"
-            aria-hidden="true"
-          >
-            <CategoryIcon size={40} />
-          </div>
-        )}
+        <SafeImage
+          src={product.imageUrl}
+          alt={product.title}
+          className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
+          fallback={
+            <div
+              className="flex h-full w-full items-center justify-center text-ink-faint"
+              aria-hidden="true"
+            >
+              <CategoryIcon size={40} />
+            </div>
+          }
+        />
       </div>
 
       <div className="space-y-2 p-3.5">

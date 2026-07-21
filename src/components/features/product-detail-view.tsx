@@ -8,6 +8,7 @@ import { track } from "@/lib/track";
 import { formatPrice, formatRelative } from "@/lib/format";
 import type { ProductDetailData } from "@/services/products";
 import { StockBadge } from "@/components/ui/badge";
+import { SafeImage } from "@/components/ui/safe-image";
 import { ProductPriceCard } from "@/components/features/product-price-card";
 import { ProductCard, CATEGORY_LABELS } from "@/components/features/product-card";
 import { ProductActions } from "@/components/features/product-actions";
@@ -133,17 +134,16 @@ export function ProductDetailView({
         {/* Bild | Prishistorik */}
         <div className="mt-8 grid gap-6 lg:grid-cols-[320px_1fr]">
           <div className="card-surface flex aspect-[4/3] items-center justify-center overflow-hidden bg-surface-overlay lg:aspect-auto">
-            {data.imageUrl ? (
-              <img
-                src={data.imageUrl}
-                alt={data.title}
-                className="h-full w-full object-contain p-4"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center">
-                <IconCards size={72} className="text-ink-faint" />
-              </div>
-            )}
+            <SafeImage
+              src={data.imageUrl}
+              alt={data.title}
+              className="h-full w-full object-contain p-4"
+              fallback={
+                <div className="flex h-full w-full items-center justify-center">
+                  <IconCards size={72} className="text-ink-faint" />
+                </div>
+              }
+            />
           </div>
 
           <ProductPriceCard
