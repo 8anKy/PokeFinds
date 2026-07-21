@@ -68,6 +68,13 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string \"$PHOTO\"" "$PL" || \
             /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription \"$PHOTO\"" "$PL"
           /usr/libexec/PlistBuddy -c "Print :NSCameraUsageDescription" "$PL"
+          # Export compliance: appen använder BARA standard-HTTPS = undantagen kryptering.
+          # Utan nyckeln laddas bygget upp och bearbetas klart, men TestFlight-inskicket
+          # 422:ar ("The build is missing export compliance") → grönt bygge som ALDRIG når
+          # testarna. Precis så dog bygge #33. Nyckeln = svaret på Apples exportfråga.
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PL" || \
+            /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" "$PL"
+          /usr/libexec/PlistBuddy -c "Print :ITSAppUsesNonExemptEncryption" "$PL"
           # Push Notifications: Capacitor lägger inte till aps-environment-entitlementen.
           # Utan den får appen aldrig en APNs-token (registreringen tyst-failar). Skapa
           # entitlement-filen och koppla den till App-targeten (ingen Xcode behövs).
@@ -82,8 +89,13 @@ workflows:
           </dict>
           </plist>
           PLIST
-          ruby -e 'require "xcodeproj"; p=Xcodeproj::Project.open("ios/App/App.xcodeproj"); t=p.targets.find{|x| x.name=="App"}; t.build_configurations.each{|c| c.build_settings["CODE_SIGN_ENTITLEMENTS"]="App/App.entitlements"}; p.save'
+          # TARGETED_DEVICE_FAMILY=1 = iPhone-only. Capacitor-mallen bygger för iPhone OCH
+          # iPad (1,2) → Apple kräver då iPad-skärmbilder och GRANSKAR appen på iPad, där
+          # layouten aldrig testats. Öppna upp till "1,2" den dag iPad är genomtestad.
+          ruby -e 'require "xcodeproj"; p=Xcodeproj::Project.open("ios/App/App.xcodeproj"); t=p.targets.find{|x| x.name=="App"}; t.build_configurations.each{|c| c.build_settings["CODE_SIGN_ENTITLEMENTS"]="App/App.entitlements"; c.build_settings["TARGETED_DEVICE_FAMILY"]="1"}; p.save'
           grep -q aps-environment ios/App/App/App.entitlements  # fail-loud om injektet inte tog
+          # Fail-loud om iPhone-only-inställningen inte tog (mall/xcodeproj-API ändrat).
+          ruby -e 'require "xcodeproj"; p=Xcodeproj::Project.open("ios/App/App.xcodeproj"); t=p.targets.find{|x| x.name=="App"}; abort("TARGETED_DEVICE_FAMILY not applied") unless t.build_configurations.all?{|c| c.build_settings["TARGETED_DEVICE_FAMILY"]=="1"}'
       - name: Sätt build-nummer
         script: |
           cd ios/App
