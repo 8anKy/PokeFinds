@@ -2,7 +2,7 @@
  * Produkttjänster: sökning, detaljer, prishistorik och liknande produkter.
  * Rena funktioner utan framework-beroenden.
  */
-import { prisma } from "@/lib/db";
+import { prisma, withDbRetry } from "@/lib/db";
 import { cachedRead } from "@/lib/cache";
 import { normalizeTitle } from "@/lib/utils";
 import { ServiceError } from "@/lib/errors";
@@ -841,8 +841,26 @@ const DETAIL_MAX_DAYS = 3650; // ~10 år = "hela serien" (klienten filtrerar per
 // populära produkter uppdateras dagligen, långsvansen var ~4:e dag).
 const TRADERA_LISTING_MAX_AGE_DAYS = 4;
 
+/** Är felet "produkten finns inte" (ServiceError 404) — till skillnad från ett DB-/anslutningsfel? */
+function isNotFoundError(err: unknown): boolean {
+  if (err instanceof ServiceError) return err.status === 404;
+  return (err as { name?: string; status?: number } | null)?.name === "ServiceError" &&
+    (err as { status?: number }).status === 404;
+}
+
 async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | null> {
-  const product = await getProductBySlug(slug).catch(() => null);
+  // BARA ett äkta "produkten finns inte" får bli null. Den gamla blanka
+  // `.catch(() => null)` svalde ÄVEN anslutningsfel (P1017 när Neon vaknar ur
+  // scale-to-zero) → sidan kallade notFound() → ISR CACHADE 404:an i en timme.
+  // Symtomet: en produkt man precis öppnat "försvinner" ur katalogen ett tag och
+  // kommer sedan tillbaka av sig själv. Ett DB-fel måste kastas vidare (fel-sida,
+  // inget cachat 404) och först retry:as mot uppvaknandet.
+  const product = await withDbRetry(() => getProductBySlug(slug)).catch((err: unknown) => {
+    // Duck-typing, inte bara `instanceof`: felet passerar unstable_cache och
+    // prototypkedjan är inte garanterad på andra sidan.
+    if (isNotFoundError(err)) return null;
+    throw err;
+  });
   if (!product) return null;
 
   const listingCutoff = new Date();

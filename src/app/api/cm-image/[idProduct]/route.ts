@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
-// Bilden är oföränderlig per idProduct → låt Next/plattformen cacha svaret hårt.
-export const revalidate = 31536000;
+// Bilden är oföränderlig per idProduct, men Next route-cachen cachar ÄVEN ett
+// 404 "no image" som en transient CDN-hicka råkat producera — med ett års
+// revalidate satt bilden då bildlös resten av deployen. Route-cachen hålls därför
+// kort (en timme = negativa svar självläker) medan den riktiga cachningen ligger i
+// svarets `immutable`-header, som webbläsare/edge håller i ett år.
+export const revalidate = 3600;
 
 /**
  * Cardmarket-produktbild-proxy. Cardmarkets bild-CDN (product-images.s3.cardmarket.com)
@@ -26,8 +30,21 @@ const REFERER = "https://www.cardmarket.com/";
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 
-// Memoiserar löst URL (eller null = ingen bild finns) per idProduct för processens livstid.
-const resolved = new Map<string, string | null>();
+// Memoiserar löst URL per idProduct för processens livstid (bilden är oföränderlig).
+const resolved = new Map<string, string>();
+// NEGATIVA svar memoiseras bara kort. En CDN-hicka mitt i probningen gav annars
+// "ingen bild" för resten av processens liv → produkten stod bildlös tills nästa
+// deploy, trots att bilden fanns. Samma skäl till att 404:an skickas no-store:
+// ett cachat negativt svar överlever den transienta orsaken.
+const MISS_TTL_MS = 10 * 60_000;
+const missUntil = new Map<string, number>();
+
+function noImage(): NextResponse {
+  return new NextResponse("no image", {
+    status: 404,
+    headers: { "cache-control": "no-store" },
+  });
+}
 
 function candidateUrls(id: string): string[] {
   const urls: string[] = [];
@@ -45,24 +62,27 @@ export async function GET(_req: Request, { params }: { params: { idProduct: stri
   const id = params.idProduct;
   if (!/^\d{3,8}$/.test(id)) return new NextResponse("bad id", { status: 400 });
 
-  // Redan löst (URL eller null)?
-  if (resolved.has(id)) {
-    const url = resolved.get(id);
-    if (!url) return new NextResponse("no image", { status: 404 });
-    const hit = await fetchCmImage(url);
-    if (hit) return stream(hit, url);
+  const known = resolved.get(id);
+  if (known) {
+    const hit = await fetchCmImage(known);
+    if (hit) return stream(hit, known);
     resolved.delete(id); // CDN-hicka → prova om nedan
   }
+
+  // Färsk miss → hoppa probningen (28 requests) tills TTL:en gått ut.
+  const until = missUntil.get(id);
+  if (until != null && until > Date.now()) return noImage();
 
   for (const url of candidateUrls(id)) {
     const hit = await fetchCmImage(url);
     if (hit) {
       resolved.set(id, url);
+      missUntil.delete(id);
       return stream(hit, url);
     }
   }
-  resolved.set(id, null);
-  return new NextResponse("no image", { status: 404 });
+  missUntil.set(id, Date.now() + MISS_TTL_MS);
+  return noImage();
 }
 
 /**
