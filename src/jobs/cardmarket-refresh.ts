@@ -75,6 +75,41 @@ export function sanePriceEur(low: number | null | undefined, avg: number | null 
   return a;
 }
 
+/**
+ * Är `low` (CM:s "From") trovärdig? GOLVET vägs mot den LÄGSTA av Cardmarkets två
+ * referenser (30-dagssnittet och trenden), TAKET oförändrat mot trenden.
+ *
+ * Bara golvet flyttas, och det är med flit. 0.2x-golvet är kalibrerat mot
+ * 30-DAGSSNITTET ("en äkta From ligger aldrig under 20% av snittet"), men anropades
+ * med TRENDEN. På en snabbt stigande marknad springer trenden ifrån snittet, golvet
+ * följer med uppåt och kastar en fullt äkta From — varpå vi publicerar trenden som
+ * butikspris. Mätt 2026-07-21 mot hela sealed-katalogen (1061 produkter med all tre
+ * datapunkter) ändrar golv-relaxeringen exakt två priser, båda uppenbart fel i dag:
+ *   Prismatic Evolutions Poster Collection  From 35 €, snitt 72 €, trend 186 €
+ *      → 2 166 kr blir ~403 kr (butikerna låg på 299-599 kr)
+ *   EX Team Rocket Returns Booster          From 15 €, snitt 9 €, trend 1 172 €
+ *      → 22 100 kr blir ~173 kr (trenden är korrupt på tunn vintage)
+ *
+ * TAKET lämnas mot trenden för att relaxering ÅT DET HÅLLET mätbart skadar: den
+ * skulle godta From 2 200 € på en felLÄNKAD offer (Riolu-tennen pekar på ett ETB-case
+ * → 223 kr blir 25 300 kr) och From 15 € på en 3-korts Dollar Tree-repack (42 → 173
+ * kr). Där är fel-länken respektive skräp-From:en problemet, inte vakten.
+ *
+ * Saknas referenser helt släpps `low` igenom (som sanePriceEur alltid gjort).
+ */
+export function lowIsCredible(
+  low: number | null | undefined,
+  avg: number | null | undefined,
+  trend: number | null | undefined
+): boolean {
+  if (low == null || low <= 0) return false;
+  const refs = [avg, trend].filter((v): v is number => v != null && v > 0);
+  if (refs.length === 0) return true;
+  const ceiling = (trend != null && trend > 0 ? trend : refs[0]) * HIGH_MULT;
+  const floor = Math.min(...refs) * 0.2;
+  return low >= floor && low <= ceiling;
+}
+
 // ── CM:s EGEN TREND SOM FACIT (mätt 2026-07-14) ──────────────────────────────
 // sanePriceEur behöver en referens (`avg`) för att kunna döma `low`. Saknas den
 // släpps `low` igenom OGRANSKAT — se `a == null ||` ovan. RapidAPI saknar
@@ -892,8 +927,20 @@ export async function runCardmarketRefresh(
       //      Box → snittet 24 326 kr, trenden 54 829 kr, marknad 55-105k. Trenden träffar,
       //      snittet missar med 3-4x. Att byta ut ett för HÖGT skräpvärde mot ett för
       //      LÅGT vore ingen rättning — bara ett annat fel.
-      let eur = sanePriceEur(low, ref);
-      if (eur !== low && low != null) guarded++;
+      // DOMEN över `low` vägs mot BÅDA CM-referenserna, inte bara mot `ref`.
+      // Varför: 0.2x-golvet är kalibrerat mot 30-DAGSSNITTET ("en äkta From ligger
+      // aldrig under 20% av snittet") men `ref` är TRENDEN. På en snabbt stigande
+      // marknad springer trenden ifrån snittet, golvet följer med uppåt och kastar
+      // en fullt äkta From — varpå vi publicerar trenden som butikspris. Mätt
+      // 2026-07-21 (Prismatic Evolutions Poster Collection): From 35 €, 30d-snitt
+      // 72 €, trend 212 € → 35 < 0.2×212 = 42 → förkastad → 2 436 kr i katalogen
+      // medan butikerna låg på 299-599 kr. Att döma mot snittet ENSAMT vore lika
+      // fel åt andra hållet: på tunn vintage är snittet kraftigt underskattat och
+      // en äkta hög From skulle falla på 1.8x-taket. Förkasta därför bara det som
+      // är orimligt mot BÅDA — då är det en glitch, inte en marknad i rörelse.
+      const credibleLow = lowIsCredible(low, avg, cmGuideRefEur(gEntry));
+      let eur = credibleLow ? low : ref;
+      if (!credibleLow && low != null) guarded++;
 
       // HISTORIK-GUARD (ägarens regel-tillägg): när CM-guiden SJÄLV glitchar (Skyridge
       // trend/avg = 1-dagsspiken) är även reservvärdet fel. En PLATT egen historik +

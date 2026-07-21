@@ -4,10 +4,14 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { usePathname } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
+import { useIsAdmin } from "@/components/admin-only";
 
+// Marknad är ADMIN-ONLY (ägarbeslut 2026-07-21): vanliga besökare ska bara se
+// Utforska, Community och Priser. Sidan finns kvar och nås via URL — det här är
+// bara navigationen.
 const NAV_LINKS = [
   { href: "/produkter", key: "explore" },
-  { href: "/marknad", key: "market" },
+  { href: "/marknad", key: "market", adminOnly: true },
   { href: "/community", key: "community" },
   { href: "/priser", key: "pricing" },
 ] as const;
@@ -15,9 +19,10 @@ const NAV_LINKS = [
 export function HeaderNav() {
   const t = useTranslations("Nav");
   const pathname = usePathname();
+  const isAdmin = useIsAdmin();
   return (
     <nav className="hidden items-center gap-1 md:flex">
-      {NAV_LINKS.map((l) => {
+      {NAV_LINKS.filter((l) => !("adminOnly" in l && l.adminOnly) || isAdmin).map((l) => {
         const active = pathname === l.href || pathname?.startsWith(`${l.href}/`);
         return (
           <Link

@@ -10,8 +10,6 @@ import {
   IconSettings,
   IconWrench,
   IconTrophy,
-  IconInfo,
-  IconFlag,
   IconGift,
   IconChevronRight,
   type IconProps,
@@ -64,7 +62,6 @@ export default async function MerPage() {
       iconClass: "text-holo-gold",
     },
     { href: "/installningar", label: t("settings"), icon: IconSettings, iconClass: "text-ink-muted" },
-    { href: "/kontakt", label: t("support"), icon: IconInfo, iconClass: "text-ink-muted" },
   ];
 
   // Engångserbjudande: har användaren redan fått sin belöning (någon invite
@@ -138,21 +135,8 @@ export default async function MerPage() {
               <IconChevronRight size={18} className="shrink-0 text-ink-muted" />
             </Link>
           ))}
-          {/* Rapportera bugg — mailto öppnar mejlappen (funkar även i Capacitor),
-              ingen backend behövs. ponytail: byt till formulär om volymen kräver det. */}
-          <a
-            href={
-              "mailto:hej@foilio.se?subject=" +
-              encodeURIComponent(t("bugSubject")) +
-              "&body=" +
-              encodeURIComponent(t("bugBody"))
-            }
-            className="flex items-center gap-3 border-b border-surface-border px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-overlay/60 active:bg-surface-overlay"
-          >
-            <IconFlag size={20} className="shrink-0 text-rise" />
-            <span className="flex-1 text-sm font-medium text-ink">{t("reportBug")}</span>
-            <IconChevronRight size={18} className="shrink-0 text-ink-muted" />
-          </a>
+          {/* "Support & FAQ" och "Rapportera bugg" borttagna 2026-07-21 (ägarbeslut).
+              /kontakt-sidan finns kvar och nås via sidfoten. */}
           {isAdmin && (
             <Link
               href="/admin"

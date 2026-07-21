@@ -7,7 +7,6 @@
  */
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { Link } from "@/i18n/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -363,20 +362,14 @@ export default function GraderaPage() {
               ))}
             </div>
 
+            {/* Modellnamnet visas inte (ägarbeslut 2026-07-21) — vilken leverantör
+                och modell som gör bedömningen är en implementationsdetalj, inte
+                något användaren ska förhålla sig till. `modelUsed` loggas fortfarande
+                på jobbet. Samma sak i historiken nedan. "Spara i samlingen"-tipset
+                borttaget samtidigt. */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-faint">
               <span>{t("confidence", { pct: Math.round(result.result.confidence * 100) })}</span>
-              <span>{t("model", { model: result.result.modelUsed })}</span>
             </div>
-
-            <p className="rounded-lg bg-surface-overlay px-3 py-2 text-xs text-ink-muted">
-              {t.rich("saveHint", {
-                link: (chunks) => (
-                  <Link href="/samling" className="font-medium text-holo-cyan hover:underline">
-                    {chunks}
-                  </Link>
-                ),
-              })}
-            </p>
           </CardContent>
         </Card>
       )}
@@ -422,7 +415,6 @@ export default function GraderaPage() {
                       </p>
                       <p className="text-xs text-ink-faint">
                         {new Date(job.createdAt).toLocaleString(locale)}
-                        {job.modelUsed ? ` · ${job.modelUsed}` : ""}
                       </p>
                     </div>
                     {!failed && job.overallGrade != null && (

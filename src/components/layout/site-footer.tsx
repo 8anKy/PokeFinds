@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { BrandLogo } from "@/components/layout/brand-logo";
+import { AdminOnly } from "@/components/admin-only";
 
 export async function SiteFooter() {
   const t = await getTranslations("Footer");
@@ -17,7 +18,10 @@ export async function SiteFooter() {
           <p className="text-sm font-semibold text-ink">{t("serviceHeading")}</p>
           <ul className="mt-3 space-y-2 text-sm text-ink-muted">
             <li><Link href="/produkter" className="transition-colors duration-150 hover:text-ink">{t("exploreProducts")}</Link></li>
-            <li><Link href="/marknad" className="transition-colors duration-150 hover:text-ink">{t("marketTrends")}</Link></li>
+            {/* Marknad = admin-only, se HeaderNav. */}
+            <AdminOnly>
+              <li><Link href="/marknad" className="transition-colors duration-150 hover:text-ink">{t("marketTrends")}</Link></li>
+            </AdminOnly>
             <li><Link href="/skanna" className="transition-colors duration-150 hover:text-ink">{t("scanCards")}</Link></li>
             <li><Link href="/priser" className="transition-colors duration-150 hover:text-ink">{t("pricingPro")}</Link></li>
           </ul>

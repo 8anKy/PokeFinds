@@ -1,5 +1,48 @@
 import { describe, it, expect } from "vitest";
-import { sanePriceEur, saneDayMove, priceFromGuide } from "../../src/jobs/cardmarket-refresh";
+import {
+  sanePriceEur,
+  saneDayMove,
+  priceFromGuide,
+  lowIsCredible,
+} from "../../src/jobs/cardmarket-refresh";
+
+// Regression 2026-07-21: sealed-fasen dömde CM:s From mot TRENDEN, fast 0.2x-golvet
+// är kalibrerat mot 30-dagssnittet. På en stigande marknad kastades en äkta From och
+// vi publicerade trenden som butikspris. GOLVET vägs nu mot lägsta referensen; TAKET
+// är oförändrat mot trenden (att relaxera taket skadade mätbart — se funktionen).
+describe("lowIsCredible", () => {
+  it("godtar en From som ligger över snittets golv fast trenden sprungit iväg", () => {
+    // Prismatic Evolutions Poster Collection: From 35 €, snitt 72,45 €, trend 186 €.
+    // Gammalt golv (0.2 × trend) = 37,2 → underkänd. Nytt golv (0.2 × 72,45) = 14,5 → godkänd.
+    expect(lowIsCredible(35, 72.45, 186.09)).toBe(true);
+    // EX Team Rocket Returns Booster: korrupt trend på tunn vintage.
+    expect(lowIsCredible(15, 9.23, 1171.66)).toBe(true);
+  });
+
+  it("godtar en hög From som ryms under trendens tak fast snittet är underskattat", () => {
+    // Tunn vintage: snittet missar med 3-4x, trenden träffar.
+    expect(lowIsCredible(2800, 1170, 2850)).toBe(true);
+  });
+
+  it("TAKET är oförändrat — en From långt över trenden förkastas fortfarande", () => {
+    // Felmatchad offer: Riolu-tin länkad till ett ETB-case, From 2 200 € mot trend 20 €.
+    expect(lowIsCredible(2200, 1249.16, 20.21)).toBe(false);
+    // Dollar Tree 3-korts repack: From 15 € mot trend 3,78 €.
+    expect(lowIsCredible(15, 31.49, 3.78)).toBe(false);
+    // Paradox Rift Booster 2026-07-03: From 9,9 € mot trend 4,9 € (2,0x).
+    expect(lowIsCredible(9.9, 4.91, 4.9)).toBe(false);
+  });
+
+  it("förkastar en micro-From (under båda golven)", () => {
+    expect(lowIsCredible(0.03, 302.86, 300)).toBe(false);
+    expect(lowIsCredible(0, 50, 50)).toBe(false);
+    expect(lowIsCredible(null, 50, 50)).toBe(false);
+  });
+
+  it("släpper igenom när ingen referens finns alls", () => {
+    expect(lowIsCredible(5, null, null)).toBe(true);
+  });
+});
 
 // EN-guide-fallback (2026-07-17): EN-sealed vars idProduct saknas i RapidAPI (Trick or Trade,
 // vintage) prissätts direkt från CM:s prisguide. priceFromGuide bär From→trend→30d + sanePriceEur.
