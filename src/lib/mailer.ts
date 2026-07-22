@@ -13,6 +13,11 @@ export interface MailInput {
 }
 
 const FROM = process.env.EMAIL_FROM ?? "Foilio <noreply@foilio.se>";
+// Avsändaren är noreply@ (DKIM-signerad via Resend på foilio.se). Men användare
+// svarar ändå på larmmejlen ("priset har sjunkit" → "har ni kvar den?"). Utan
+// reply_to landar svaret på noreply@, som inte finns i Google Workspace → studs
+// med "user unknown" och frågan når oss aldrig. Peka svaren på den bemannade lådan.
+const REPLY_TO = process.env.EMAIL_REPLY_TO ?? "hej@foilio.se";
 
 function isConsoleMode(): boolean {
   return process.env.EMAIL_MODE === "console" || !process.env.RESEND_API_KEY;
@@ -27,6 +32,7 @@ async function sendViaResend(input: MailInput): Promise<void> {
     },
     body: JSON.stringify({
       from: FROM,
+      reply_to: REPLY_TO,
       to: input.to,
       subject: input.subject,
       html: input.html,
