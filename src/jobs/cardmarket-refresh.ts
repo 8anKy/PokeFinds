@@ -152,33 +152,52 @@ export function cmGuideRefEur(g: CmGuideEntry | undefined): number | null {
   return usable(g?.trend) ?? usable(g?.avg) ?? null;
 }
 
-// ── ÄGARENS PRISREGEL: From → trend → 30d, med trend som FACIT (2026-07-18) ────
-// From (lägsta NM) används BARA om den är rimlig mot CM:s EGEN trend. En From som
-// ligger långt UNDER trenden (RapidAPI-feeden ser andra/billigare annonser än CM-
-// sajtens synliga From — Aggron: From 3,50€ / RapidAPI-30d 2,16€ MOT guidens trend
-// 8,45€ = sajtens From 9€) ELLER långt ÖVER (skräplistning, "EMPTY PACKS") är
-// opålitlig → hoppa till trend, sedan 30d. Utan trend att döma mot: lita på From
-// (oförändrat). Self-heal nästa dag om det var en äkta rörelse (trenden hinner ikapp).
-// Detta är exakt ägarens fallback-kedja — den hoppar nu även en From som FINNS men
-// är trasig, inte bara en From som SAKNAS. [LOW, HIGH] × trend = "rimlig From".
-// 0.45: fångar en klart trasig From (Aggron 3,50€ = 0,41x trend) men skonar en
-// genuint fallande chase-From (Bloodmoon Ursaluna ex 49,9€ = 0,49x, under sitt 30d-
-// snitt = äkta prisfall/fynd, inte skräpdata). Snävare golv skulle dölja äkta fynd
-// för snipern. Justerbart via CM_TREND_LOW_MULT.
-export const TREND_LOW_MULT = Number(process.env.CM_TREND_LOW_MULT) || 0.45;
-export const TREND_HIGH_MULT = Number(process.env.CM_TREND_HIGH_MULT) || 2;
-export function fromElseTrend(
+// ── ÄGARENS PRISREGEL FÖR SINGLAR: GOLVET RAKT AV (beslut 2026-07-24) ─────────
+// Singel-headline = CM:s From EXAKT som annonsen står. Rayquaza ★ Deoxys: sajtens
+// From var 37 000 € (en PSA 7-ask) medan vi visade trenden 6 271 € under rubriken
+// "Lägsta pris" — ägaren underkände det uttryckligen: golvet ska visas ofiltrerat.
+// Trend-substitutionen (fromElseTrend, 2026-07-18–2026-07-24) är därför BORTTAGEN:
+// den gjorde headline till ett värde som inte fanns på Cardmarket. Fallback-kedjan
+// gäller BARA när From SAKNAS: trend → 30d, och då är värdet en UPPSKATTNING →
+// offern märks OUT_OF_STOCK (ingen köpbar annons), samma semantik som sealed/JP.
+// Baksidan är accepterad: en skräp-låg From (Aggron-klassen) eller en graderad
+// jätte-ask visas som den är — det är CM:s golv, inte vårt påhitt.
+export function singlesHeadlineEur(
   fromEur: number | null | undefined,
   trendEur: number | null | undefined,
   avg30Eur: number | null | undefined,
-): number | null {
+): { eur: number; from: boolean } | null {
   const f = fromEur != null && fromEur > 0 ? fromEur : null;
+  if (f != null) return { eur: f, from: true };
   const t = trendEur != null && trendEur > 0 ? trendEur : null;
   const a = avg30Eur != null && avg30Eur > 0 ? avg30Eur : null;
-  // Rimlig From (eller ingen trend att döma mot) → använd From.
-  if (f != null && (t == null || (f >= t * TREND_LOW_MULT && f <= t * TREND_HIGH_MULT))) return f;
-  // From saknas/opålitlig → trend, sedan 30d, sist From (om det var allt vi hade).
-  return t ?? a ?? f;
+  const est = t ?? a;
+  return est != null ? { eur: est, from: false } : null;
+}
+
+// ── FEED-HAVERIBRYTARE (ersätter singel-dagklämman, 2026-07-24) ───────────────
+// Med golvet-rakt-av kan en per-kort-dagvakt inte finnas kvar för singlar: dess enda
+// facit var trenden, och ett äkta ask-hopp (6 271 € → 37 000 € när billigaste raw-
+// annonsen säljs och en PSA 7-ask blir golvet) går per definition BORT från trenden
+// → vakten hade blivit en spärrhake mot själva policyn (exakt frysen 9470d2c läkte).
+// Skyddet mot 2026-07-05-klassen — RapidAPI korrumperar HELA feeden på en gång
+// (2 104 priser på en dag) — flyttar till KÖRNINGSNIVÅ: enstaka vilda rörelser är
+// asks-marknad, men när en stor ANDEL av katalogen hoppar extremt samtidigt är det
+// feeden som är trasig → avbryt RÖTT innan något skrivs. Trösklar justerbara via env.
+export const FEED_BREAKER_MULT = Number(process.env.CM_FEED_BREAKER_MULT) || 10;
+export const FEED_BREAKER_SHARE = Number(process.env.CM_FEED_BREAKER_SHARE) || 0.05;
+export function feedMoveShares(
+  pairs: { newOre: number; priorOre: number | null | undefined }[],
+): { n: number; big: number; extreme: number; bigShare: number; extremeShare: number } {
+  let n = 0, big = 0, extreme = 0;
+  for (const p of pairs) {
+    if (p.priorOre == null || p.priorOre <= 0 || p.newOre <= 0) continue;
+    n++;
+    const r = Math.max(p.newOre / p.priorOre, p.priorOre / p.newOre);
+    if (r >= DAY_MOVE_MAX) big++;
+    if (r >= FEED_BREAKER_MULT) extreme++;
+  }
+  return { n, big, extreme, bigShare: n ? big / n : 0, extremeShare: n ? extreme / n : 0 };
 }
 
 /**
@@ -782,15 +801,14 @@ export async function runCardmarketRefresh(
     // (tcggo-metadata-bugg) men har ~93 kort → force-hämta dess sidor; matchas
     // på cardmarket_id nedan. Tomma sidor returnerar inget (ofarligt).
     if (cmidMap.size > 0) for (let pg = 1; pg <= 6; pg++) pageTasks.push({ epId: 412, pg });
-    // CM:s officiella prisguide = trend-facit för From→trend→30d-regeln (RapidAPI-
-    // singlar saknar trend-fält; deras egna 30d kan vara lika lågt som en glitchad From).
+    // CM:s officiella prisguide = trend/30d-fallback när From saknas (RapidAPI-
+    // singlar saknar trend-fält; guiden har alltid trend/avg).
     const guide = await fetchCmGuide();
-    // refOre = CM:s egen trend → dagvaktens NÖDUTGÅNG (samma som sealed/JP redan bär).
-    // UTAN den var singel-vakten en ren SPÄRRHAKE utan heal-väg: ett ≥3x-hopp klämdes
-    // ALLTID till gårdagen, aldrig läkt. När fromElseTrend (2026-07-18) flyttade ~2600
-    // singlar ≥3x (outlier-From → trend) frös de fast och kunde aldrig återhämta sig →
-    // platta/inaktuella grafer i dagar. Med trend-facit läks ett hopp MOT trenden.
-    const singleOps: { productId: string; offerId?: string; priceOre: number; refOre?: number | null; url: string }[] = [];
+    // GOLVET RAKT AV (ägarbeslut 2026-07-24, se singlesHeadlineEur): From publiceras
+    // EXAKT som CM listar den — ingen trend-substitution, ingen per-kort-dagklämma.
+    // `from=false` ⇒ värdet är en trend/30d-UPPSKATTNING (ingen köpbar annons) ⇒
+    // offern märks OUT_OF_STOCK, samma semantik som sealed/JP.
+    const singleOps: { productId: string; offerId?: string; priceOre: number; from: boolean; url: string }[] = [];
     await mapPool(pageTasks, API_CONCURRENCY, async ({ epId, pg }) => {
       const d = await api<{ data: CmCard[] }>(`https://${HOST}/pokemon/episodes/${epId}/cards?page=${pg}`);
       await sleep(throttle * API_CONCURRENCY);
@@ -801,34 +819,45 @@ export async function runCardmarketRefresh(
           (card.cardmarket_id != null ? cmidMap.get(card.cardmarket_id) : undefined);
         if (!entry) continue;
         const cmp = card.prices?.cardmarket ?? {};
-        // From bara om rimlig mot CM:s EGEN trend (guiden), annars trend→30d.
         const g = card.cardmarket_id != null ? guide.get(card.cardmarket_id) : undefined;
-        const refEur = g?.trend ?? g?.avg ?? null; // CM:s trend = fromElseTrend-facit OCH dagvaktens heal-referens
-        const eur = fromElseTrend(cmp.lowest_near_mint, refEur, g?.avg30 ?? cmp["30d_average"]);
-        if (eur == null) continue;
-        const priceOre = Math.round(eur * rates.eurToOre);
-        const refOre = refEur != null && refEur > 0 ? Math.round(refEur * rates.eurToOre) : null;
+        const priced = singlesHeadlineEur(cmp.lowest_near_mint, g?.trend ?? g?.avg, g?.avg30 ?? cmp["30d_average"]);
+        if (priced == null) continue;
+        const priceOre = Math.round(priced.eur * rates.eurToOre);
         const url =
           entry.url && isEnglishCardmarketUrl(entry.url) ? withNearMint(entry.url)
             : card.cardmarket_id != null ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true })
               : entry.url ?? null;
         if (!url) continue;
-        singleOps.push({ productId: entry.productId, offerId: entry.offerId, priceOre, refOre, url });
+        singleOps.push({ productId: entry.productId, offerId: entry.offerId, priceOre, from: priced.from, url });
       }
     });
-    const single = await clampDayMoves(singleOps);
-    if (single.clamped) console.log(`[cm-refresh] Singlar: klämde ${single.clamped} orimliga dagshopp (≥${DAY_MOVE_MAX}x) till gårdagens värde.`);
-    // Logga heal-antalet (som sealed) → en spärrhake som fryser priser i tysthet syns i loggen.
-    if (single.healed) console.log(`[cm-refresh] Singlar: LÄKTE ${single.healed} tidigare korrupta priser (stort hopp mot CM-trend).`);
+    // Haveribrytare FÖRE skrivning: en stor andel EXTREMA dagsrörelser samtidigt =
+    // trasig feed (2026-07-05: 2 104 korrupta priser), inte en marknad. Enstaka
+    // vilda hopp är asks-verklighet och släpps igenom — det är ANDELEN som dömer.
+    const prior = await priorSnapshotMap(singleOps.map((o) => o.productId));
+    const moves = feedMoveShares(singleOps.map((o) => ({ newOre: o.priceOre, priorOre: prior.get(o.productId) })));
+    console.log(
+      `[cm-refresh] Singlar: dagsrörelser ≥${DAY_MOVE_MAX}x: ${(moves.bigShare * 100).toFixed(1)}% (${moves.big}), ` +
+      `≥${FEED_BREAKER_MULT}x: ${(moves.extremeShare * 100).toFixed(1)}% (${moves.extreme}) av ${moves.n} med gårdagsvärde.`
+    );
+    if (moves.extremeShare > FEED_BREAKER_SHARE) {
+      throw new Error(
+        `[cm-refresh] FEED-HAVERIBRYTARE: ${(moves.extremeShare * 100).toFixed(1)}% av singlarna ` +
+        `(${moves.extreme}/${moves.n}) hoppade ≥${FEED_BREAKER_MULT}x på ett dygn (tröskel ` +
+        `${FEED_BREAKER_SHARE * 100}%). Det är signaturen för korrupt RapidAPI-feed (2026-07-05: ` +
+        `2 104 priser) — INGET skrivs. Är rörelserna äkta: höj CM_FEED_BREAKER_SHARE och kör om.`
+      );
+    }
     await mapPool(singleOps, DB_CONCURRENCY, async (op) => {
+      const stock = op.from ? "IN_STOCK" : "OUT_OF_STOCK";
       if (op.offerId) {
-        await prisma.offer.update({ where: { id: op.offerId }, data: { price: op.priceOre, url: op.url, stockStatus: "IN_STOCK", condition: "NEAR_MINT", lastSeenAt: new Date() } });
+        await prisma.offer.update({ where: { id: op.offerId }, data: { price: op.priceOre, url: op.url, stockStatus: stock, condition: "NEAR_MINT", lastSeenAt: new Date() } });
         res.singlesUpdated++;
       } else {
         await prisma.offer.upsert({
           where: { productId_retailerId_condition_language: { productId: op.productId, retailerId: cm.id, condition: "NEAR_MINT", language: "EN" } },
-          update: { price: op.priceOre, url: op.url, stockStatus: "IN_STOCK", lastSeenAt: new Date() },
-          create: { productId: op.productId, retailerId: cm.id, condition: "NEAR_MINT", language: "EN", price: op.priceOre, currency: "SEK", stockStatus: "IN_STOCK", url: op.url },
+          update: { price: op.priceOre, url: op.url, stockStatus: stock, lastSeenAt: new Date() },
+          create: { productId: op.productId, retailerId: cm.id, condition: "NEAR_MINT", language: "EN", price: op.priceOre, currency: "SEK", stockStatus: stock, url: op.url },
         });
         res.singlesCreated++;
       }
