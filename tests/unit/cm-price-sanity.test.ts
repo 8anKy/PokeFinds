@@ -4,6 +4,7 @@ import {
   saneDayMove,
   priceFromGuide,
   lowIsCredible,
+  isJunkLowOnLiquidMarket,
 } from "../../src/jobs/cardmarket-refresh";
 
 // Regression 2026-07-21: sealed-fasen dömde CM:s From mot TRENDEN, fast 0.2x-golvet
@@ -47,6 +48,44 @@ describe("lowIsCredible", () => {
 
   it("släpper igenom när ingen referens finns alls", () => {
     expect(lowIsCredible(5, null, null)).toBe(true);
+  });
+});
+
+// Likvid-marknad-golv (2026-07-23): på en LIKVID marknad där trend≈30d är trenden pålitlig,
+// så en From långt därunder är skräp → trenden vinner. SNÄV: kräver likviditet + stabilitet
+// + påtagligt under golvet. Alla värden nedan uppmätta mot live RapidAPI + CM:s prisguide.
+describe("isJunkLowOnLiquidMarket", () => {
+  it("förkastar en skräp-From på en likvid, stabil marknad", () => {
+    // Destined Rivals Booster: 7960 annonser, trend 6,92 € ≈ 30d 7 €, lägsta 3,50 € (0,51x).
+    expect(isJunkLowOnLiquidMarket(3.5, 7.0, 6.92, 7960)).toBe(true);
+    // Ascended Heroes Mega Feraligatr: 520 annonser, trend 90 € ≈ 30d 89,45 €, lägsta 44,99 €.
+    expect(isJunkLowOnLiquidMarket(44.99, 89.45, 90, 520)).toBe(true);
+  });
+
+  it("rör INTE tunn vintage — där kan en låg From vara det enda äkta fyndet", () => {
+    // 151: Gengar Mini Tin: bara 95 annonser (< 100) → tunn → behåll From.
+    expect(isJunkLowOnLiquidMarket(39, 47.71, 82, 95)).toBe(false);
+    // Unified Minds ETB: 73 annonser, dessutom glitchad 30d (3,48 €) → tunn → behåll.
+    expect(isJunkLowOnLiquidMarket(500, 3.48, 1521, 73)).toBe(false);
+  });
+
+  it("rör INTE en INFLATERAD/mismap-trend — trend som INTE bekräftas av 30d får ej döma", () => {
+    // Battle Styles ETB (Single Strike): trend 371 € men 30d 140 € (2,6x) = fel-variant-trend.
+    expect(isJunkLowOnLiquidMarket(124, 139.98, 371, 174)).toBe(false);
+    // Jungle Booster Pack: trend 568 € vs 30d 337 € (1,68x) = tunn-vintage-inflation.
+    expect(isJunkLowOnLiquidMarket(239.99, 337.3, 568, 151)).toBe(false);
+  });
+
+  it("rör INTE en From som bara ligger strax under golvet (inte skräp)", () => {
+    // 4,50 € på trend 6,92 € = 0,65x ≥ 0,6x-golvet → behåll From (kan vara ett äkta fynd).
+    expect(isJunkLowOnLiquidMarket(4.5, 7.0, 6.92, 7960)).toBe(false);
+  });
+
+  it("konservativt när data saknas (behåll From)", () => {
+    expect(isJunkLowOnLiquidMarket(3.5, null, 6.92, 7960)).toBe(false); // inget 30d att bekräfta med
+    expect(isJunkLowOnLiquidMarket(null, 7, 6.92, 7960)).toBe(false);
+    expect(isJunkLowOnLiquidMarket(3.5, 7, null, 7960)).toBe(false);
+    expect(isJunkLowOnLiquidMarket(3.5, 7, 6.92, 0)).toBe(false); // slutsåld/utan annonser
   });
 });
 

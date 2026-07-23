@@ -258,6 +258,47 @@ export const DAY_MOVE_MAX = Number(process.env.CM_DAY_MOVE_MAX) || 3;
 // (trend/30d-snitt) ska betyda något — se tunndata-vakten i sealed-fasen.
 export const THIN_ITEMS = Number(process.env.CM_THIN_ITEMS) || 5;
 
+// ── LIKVID-MARKNAD-GOLV (mätt 2026-07-23) ────────────────────────────────────
+// Motsatsen till tunndata-vakten. På en LIKVID sealed-marknad (många CM-annonser) DÄR
+// CM:s trend och 30-dagssnitt är ENSE är trenden pålitlig. En "From" (lägsta annons) långt
+// DÄRUNDER är då en enstaka skräp-annons (foreign/felkategoriserad/"EMPTY PACKS"), inte ett
+// äkta fynd → använd trenden i stället. Destined Rivals Booster: 7960 annonser, trend 6,92 €
+// ≈ 30d, men lägsta 3,50 € → visade 38 kr mot butikernas 79-149.
+//
+// SNÄV MED FLIT — tre villkor, alla nödvändiga (mätt mot HELA sealed-katalogen):
+//   1. LIKVID (≥ LIQUID_ITEMS annonser): på tunn vintage kan en låg From vara ett äkta fynd,
+//      och den enda köpbara annonsen — rör den ALDRIG (ägarens regel "Lägsta = HEADLINE").
+//   2. STABIL (trend ≈ 30d inom STABLE_AGREE): när trenden springer ifrån 30d-snittet är
+//      TRENDEN själv opålitlig (inflaterad vintage ELLER en mismap mot fel produkt) — då får
+//      den inte döma From:en. Detta är signalen som skiljer skräp-From från fel-länkad trend.
+//   3. From < STABLE_FLOOR × trend: bara det som ligger PÅTAGLIGT under golvet är skräp.
+// Faller något villkor = oförändrat (From vinner som förr). Justerbart via env.
+export const SEALED_LIQUID_ITEMS = Number(process.env.CM_SEALED_LIQUID_ITEMS) || 100;
+// 1.2 (inte 1.3): trend får ligga max 20% från 30d-referensen. Mätt mot hela katalogen —
+// 1.3 släppte in två gränsfall (Shining Fates Pikachu V, GO Melmetal) där trenden översköt
+// 30d-snittet påtagligt; 1.2 håller ersättningsvärdet (trenden) nära den faktiska marknaden.
+export const SEALED_STABLE_AGREE = Number(process.env.CM_SEALED_STABLE_AGREE) || 1.2;
+export const SEALED_STABLE_FLOOR = Number(process.env.CM_SEALED_STABLE_FLOOR) || 0.6;
+
+/**
+ * Är `low` (CM:s lägsta From) en skräp-annons på en likvid, stabil marknad? Då ska trenden
+ * användas i stället. Kräver ALLA tre: likviditet (`items`), att trenden bekräftas av 30d-
+ * snittet (annars är trenden själv opålitlig), OCH att From ligger under golvet. Utan 30d
+ * kan vi inte bekräfta trenden → false (konservativt: behåll From). Se blocket ovan.
+ */
+export function isJunkLowOnLiquidMarket(
+  low: number | null | undefined,
+  avg30: number | null | undefined,
+  trend: number | null | undefined,
+  items: number | null | undefined,
+): boolean {
+  if (low == null || low <= 0 || trend == null || trend <= 0) return false;
+  if (avg30 == null || avg30 <= 0) return false; // utan 30d går trenden inte att bekräfta
+  if ((items ?? 0) < SEALED_LIQUID_ITEMS) return false; // tunn marknad → From kan vara äkta
+  if (Math.max(trend, avg30) / Math.min(trend, avg30) > SEALED_STABLE_AGREE) return false; // trend opålitlig
+  return low < SEALED_STABLE_FLOOR * trend;
+}
+
 // ── DAGVAKTEN VAR EN SPÄRRHAKE (rotorsak, mätt 2026-07-14) ───────────────────
 // Utan `refOre` avvisar den ALLA ≥3x-rörelser — även den som RÄTTAR ett redan
 // korrupt pris. Ett skräpvärde som en gång tagit sig in kunde därför aldrig
@@ -843,7 +884,8 @@ export async function runCardmarketRefresh(
     const cmGuide = await fetchCmGuide();
     // Sealed-katalogens idProducts → EN-guide-fallbacken (nedan) prissätter BARA mot dessa.
     const sealedCmIds = await fetchCmSealedIds();
-    let guarded = 0, thinSkipped = 0, usedHist = 0, guideFallback = 0;
+    let guarded = 0, thinSkipped = 0, usedHist = 0, guideFallback = 0, liquidFloored = 0;
+    const liquidFlooredTitles: string[] = []; // exakt vilka produkter likvid-golvet rörde (revision)
     for (const p of ours) {
       // RapidAPI-katalogen är HELT engelsk (0 japanska set/produkter, verifierat
       // 2026-07-07) — icke-EN-produkter får ALDRIG matchas här (fyra olika japanska
@@ -960,7 +1002,20 @@ export async function runCardmarketRefresh(
       // fel åt andra hållet: på tunn vintage är snittet kraftigt underskattat och
       // en äkta hög From skulle falla på 1.8x-taket. Förkasta därför bara det som
       // är orimligt mot BÅDA — då är det en glitch, inte en marknad i rörelse.
-      const credibleLow = lowIsCredible(low, avg, cmGuideRefEur(gEntry));
+      // LIKVID-MARKNAD-GOLV: en skräp-From långt under en trend som 30d-snittet bekräftar,
+      // på en likvid marknad, förkastas → trenden vinner (se isJunkLowOnLiquidMarket ovan).
+      // Bekräftelse-snittet: RapidAPI:s 30d → guidens 30d → guidens all-time avg. Fallbacken
+      // behövs eftersom RapidAPI saknar 30d på vissa (Destined Rivals) medan guidens avg
+      // (7,16 €) ändå bekräftar trenden (6,92 €). Utan referens = ingen dom (behåll From).
+      const items = cmp.available_items ?? 0;
+      const confirmAvg = avg ?? gEntry?.avg30 ?? gEntry?.avg ?? null;
+      const junkLowOnLiquid = isJunkLowOnLiquidMarket(low, confirmAvg, cmGuideRefEur(gEntry), items);
+      if (junkLowOnLiquid) {
+        liquidFloored++;
+        if (liquidFlooredTitles.length < 30)
+          liquidFlooredTitles.push(`${p.title} (From ${low?.toFixed(2)}€ → trend ${cmGuideRefEur(gEntry)?.toFixed(2)}€, ${items} annonser)`);
+      }
+      const credibleLow = lowIsCredible(low, avg, cmGuideRefEur(gEntry)) && !junkLowOnLiquid;
       let eur = credibleLow ? low : ref;
       if (!credibleLow && low != null) guarded++;
 
@@ -996,7 +1051,6 @@ export async function runCardmarketRefresh(
       //      sitt gamla beteende (OUT_OF_STOCK + trend som uppskattning).
       //   3. Marknaden är tunn (≤THIN_ITEMS annonser).
       const accepted = low != null && eur === low;
-      const items = cmp.available_items ?? 0;
       if (low != null && !accepted && items <= THIN_ITEMS) {
         thinSkipped++;
         sealedOps.push({
@@ -1090,6 +1144,7 @@ export async function runCardmarketRefresh(
     if (usedHist) console.log(`[cm-refresh] Historik-guard: ${usedHist} sealed där CM-guiden glitchade → vår stabila historik-median användes.`);
     if (thinSkipped) console.log(`[cm-refresh] Tunn marknad: ${thinSkipped} sealed utan tillförlitligt pris → "–" (≤${THIN_ITEMS} CM-annonser, reservvärdet går ej att lita på).`);
     if (guideFallback) console.log(`[cm-refresh] EN-guide-fallback: ${guideFallback} sealed vars idProduct saknas i RapidAPI prissatta direkt från CM-guiden (annars frusna).`);
+    if (liquidFloored) console.log(`[cm-refresh] Likvid-golv: ${liquidFloored} skräp-From på likvid+stabil marknad → CM-trend istället:\n  ${liquidFlooredTitles.join("\n  ")}`);
     console.log(`[cm-refresh] Sealed: ${res.sealedUpdated} uppdaterade, ${pricedOps.length} historikpunkter.`);
     if (skippedOwned > 0) {
       console.log(
