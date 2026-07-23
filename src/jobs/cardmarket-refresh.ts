@@ -710,7 +710,12 @@ export async function runCardmarketRefresh(
     // CM:s officiella prisguide = trend-facit för From→trend→30d-regeln (RapidAPI-
     // singlar saknar trend-fält; deras egna 30d kan vara lika lågt som en glitchad From).
     const guide = await fetchCmGuide();
-    const singleOps: { productId: string; offerId?: string; priceOre: number; url: string }[] = [];
+    // refOre = CM:s egen trend → dagvaktens NÖDUTGÅNG (samma som sealed/JP redan bär).
+    // UTAN den var singel-vakten en ren SPÄRRHAKE utan heal-väg: ett ≥3x-hopp klämdes
+    // ALLTID till gårdagen, aldrig läkt. När fromElseTrend (2026-07-18) flyttade ~2600
+    // singlar ≥3x (outlier-From → trend) frös de fast och kunde aldrig återhämta sig →
+    // platta/inaktuella grafer i dagar. Med trend-facit läks ett hopp MOT trenden.
+    const singleOps: { productId: string; offerId?: string; priceOre: number; refOre?: number | null; url: string }[] = [];
     await mapPool(pageTasks, API_CONCURRENCY, async ({ epId, pg }) => {
       const d = await api<{ data: CmCard[] }>(`https://${HOST}/pokemon/episodes/${epId}/cards?page=${pg}`);
       await sleep(throttle * API_CONCURRENCY);
@@ -723,15 +728,17 @@ export async function runCardmarketRefresh(
         const cmp = card.prices?.cardmarket ?? {};
         // From bara om rimlig mot CM:s EGEN trend (guiden), annars trend→30d.
         const g = card.cardmarket_id != null ? guide.get(card.cardmarket_id) : undefined;
-        const eur = fromElseTrend(cmp.lowest_near_mint, g?.trend ?? g?.avg, g?.avg30 ?? cmp["30d_average"]);
+        const refEur = g?.trend ?? g?.avg ?? null; // CM:s trend = fromElseTrend-facit OCH dagvaktens heal-referens
+        const eur = fromElseTrend(cmp.lowest_near_mint, refEur, g?.avg30 ?? cmp["30d_average"]);
         if (eur == null) continue;
         const priceOre = Math.round(eur * rates.eurToOre);
+        const refOre = refEur != null && refEur > 0 ? Math.round(refEur * rates.eurToOre) : null;
         const url =
           entry.url && isEnglishCardmarketUrl(entry.url) ? withNearMint(entry.url)
             : card.cardmarket_id != null ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true })
               : entry.url ?? null;
         if (!url) continue;
-        singleOps.push({ productId: entry.productId, offerId: entry.offerId, priceOre, url });
+        singleOps.push({ productId: entry.productId, offerId: entry.offerId, priceOre, refOre, url });
       }
     });
     const single = await clampDayMoves(singleOps);
