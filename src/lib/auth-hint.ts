@@ -27,14 +27,20 @@ export function hasAuthHint(): boolean {
   return document.cookie.split("; ").includes(`${NAME}=1`);
 }
 
+/** Prenumerera på hint-ändringar (login/logout i appen). Returnerar avprenumerant. */
+export function onAuthHintChange(cb: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(EVENT, cb);
+  return () => window.removeEventListener(EVENT, cb);
+}
+
 /** Reaktiv variant: uppdateras direkt när setAuthHint körs (login/logout i appen). */
 export function useAuthHint(): boolean | null {
   const [on, setOn] = useState<boolean | null>(null);
   useEffect(() => {
     const read = () => setOn(hasAuthHint());
     read();
-    window.addEventListener(EVENT, read);
-    return () => window.removeEventListener(EVENT, read);
+    return onAuthHintChange(read);
   }, []);
   return on;
 }
