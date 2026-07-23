@@ -334,6 +334,40 @@ export function saneDayMove(
   return priorOre;
 }
 
+/**
+ * Skriver dagens snapshot-punkter med LAST-WRITE-WINS (insert nya + bulk-uppdatera
+ * befintliga — två satser totalt, ingen per-rad-upsert mot Neon).
+ *
+ * createMany(skipDuplicates) ENSAMT lät första skrivningen på dagen vinna för alltid:
+ * 2026-07-23 skrev den avbrutna 15:38-körningen det spärrhake-frusna 281 265 kr som
+ * dagens snapshot för Rayquaza ★ Deoxys, och när 18:05-omkörningen HEALADE priset till
+ * 69 613 kr kastades snapshot-punkten tyst — grafen fortsatte visa skräpvärdet. En
+ * omkörd/rättad körning MÅSTE få ersätta samma dags rad, annars är healingen osynlig
+ * i historiken.
+ */
+async function upsertTodaySnapshots(
+  points: { productId: string; priceOre: number }[],
+  today: Date
+): Promise<void> {
+  if (points.length === 0) return;
+  await prisma.priceSnapshot.createMany({
+    data: points.map((p) => ({
+      productId: p.productId, date: today,
+      minPrice: p.priceOre, maxPrice: p.priceOre, avgPrice: p.priceOre, volume: 1,
+    })),
+    skipDuplicates: true,
+  });
+  await prisma.$executeRawUnsafe(
+    `UPDATE "PriceSnapshot" ps
+     SET "minPrice" = v.price, "maxPrice" = v.price, "avgPrice" = v.price, volume = 1
+     FROM (SELECT unnest($1::text[]) AS pid, unnest($2::int[]) AS price) v
+     WHERE ps."productId" = v.pid AND ps.date = $3::timestamptz::date AND ps."avgPrice" <> v.price`,
+    points.map((p) => p.productId),
+    points.map((p) => p.priceOre),
+    today
+  );
+}
+
 /** Senaste snapshot-avgPrice FÖRE idag per produkt (last-known-good för dag-vakten). */
 async function priorSnapshotMap(productIds: string[]): Promise<Map<string, number>> {
   if (productIds.length === 0) return new Map();
@@ -351,7 +385,7 @@ async function priorSnapshotMap(productIds: string[]): Promise<Map<string, numbe
  * spärrhakens nödutgång — utan den kan ett korrupt pris aldrig rättas (se saneDayMove).
  * Returnerar {clamped, healed}.
  */
-async function clampDayMoves(
+export async function clampDayMoves(
   ops: { productId: string; priceOre: number | null; refOre?: number | null }[],
 ): Promise<{ clamped: number; healed: number }> {
   const prior = await priorSnapshotMap(ops.map((o) => o.productId));
@@ -811,10 +845,8 @@ export async function runCardmarketRefresh(
       await prisma.priceObservation.createMany({
         data: singleOps.map((op) => ({ productId: op.productId, sourceId: cmSource.id, price: op.priceOre, currency: "SEK" })),
       });
-      await prisma.priceSnapshot.createMany({
-        data: singleOps.map((op) => ({ productId: op.productId, date: today, minPrice: op.priceOre, maxPrice: op.priceOre, avgPrice: op.priceOre, volume: 1 })),
-        skipDuplicates: true,
-      });
+      // Last-write-wins: en omkörd/healad körning ersätter dagens befintliga punkt.
+      await upsertTodaySnapshots(singleOps, today);
       res.historyPoints = singleOps.length;
     }
     console.log(`[cm-refresh] Singlar: ${res.singlesUpdated} uppdaterade, ${res.singlesCreated} nya, ${res.historyPoints} historikpunkter.`);
@@ -1134,10 +1166,8 @@ export async function runCardmarketRefresh(
       await prisma.priceObservation.createMany({
         data: pricedOps.map((op) => ({ productId: op.productId, sourceId: cmSourceSealed.id, price: op.priceOre, currency: "SEK" })),
       });
-      await prisma.priceSnapshot.createMany({
-        data: pricedOps.map((op) => ({ productId: op.productId, date: today, minPrice: op.priceOre, maxPrice: op.priceOre, avgPrice: op.priceOre, volume: 1 })),
-        skipDuplicates: true,
-      });
+      // Last-write-wins: en omkörd/healad körning ersätter dagens befintliga punkt.
+      await upsertTodaySnapshots(pricedOps, today);
       res.historyPoints += pricedOps.length;
     }
     if (guarded) console.log(`[cm-refresh] Prisvakt: ${guarded} glitchade lowest ersatta av CM-referens (trend/30d).`);

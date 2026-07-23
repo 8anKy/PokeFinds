@@ -702,37 +702,48 @@ export interface PriceHistoryBySource {
   butiker: SourceHistoryPoint[];
 }
 
-/**
- * Prishistorik per källa (dagliga snitt av riktiga prisobservationer):
- * - cardmarket: Cardmarket-priser (prisguide + pokemontcg.io/TCGdex trend/avg-aggregat)
- * - tradera: skrapade Tradera-listningar
- * - butiker: svenska butiksskrapare (Spelexperten, Webhallen m.fl.)
- */
-async function getPriceHistoryBySourceRaw(
-  productId: string,
-  days: number
-): Promise<PriceHistoryBySource> {
-  const observations = await prisma.priceObservation.findMany({
-    where: { productId, observedAt: { gte: daysAgo(days) } },
-    orderBy: { observedAt: "asc" },
-    select: { price: true, observedAt: true, source: { select: { name: true } } },
-  });
+/** Rå prisobservation för käll-/dagsbucketing (utbruten för testbarhet). */
+export interface RawSourceObservation {
+  price: number;
+  observedAt: Date;
+  source: { name: string | null } | null;
+}
 
+/**
+ * Bucketar observationer till en serie per källa och dag.
+ *
+ * CARDMARKET-serien = SISTA observationen per dag, ALDRIG dagsmedel. Samma dag kan
+ * få flera CM-skrivningar som alla beskriver SAMMA storhet men vid olika tidpunkt/
+ * kvalitet: morgonens trend-obs (scrape-all), en avbruten refresh, en omkörd körning
+ * som HEALAT ett tidigare fruset pris. Ett medel av dem är en siffra som aldrig
+ * funnits på marknaden — mätt 2026-07-23: Rayquaza ★ Deoxys visade 175 439 kr
+ * = medel av det spärrhake-frusna 281 265 och det healade 69 613. Senaste
+ * skrivningen är dagens bästa svar; äldre samma-dag-skrivningar är ersatta.
+ *
+ * TRADERA/BUTIKER behåller dagsmedel: där är flera observationer per dag OLIKA
+ * annonser/butiker, och snittet är just det vi vill visa.
+ */
+export function bucketObservationsBySource(
+  observations: RawSourceObservation[]
+): PriceHistoryBySource {
+  const ordered = [...observations].sort(
+    (a, b) => a.observedAt.getTime() - b.observedAt.getTime()
+  );
+
+  const cardmarket = new Map<string, number>(); // dag → senaste pris
   const buckets = {
-    cardmarket: new Map<string, { sum: number; n: number }>(),
     tradera: new Map<string, { sum: number; n: number }>(),
     butiker: new Map<string, { sum: number; n: number }>(),
   };
 
-  for (const o of observations) {
+  for (const o of ordered) {
     const name = o.source?.name ?? null;
-    const group =
-      name === "Tradera"
-        ? "tradera"
-        : name && CARDMARKET_SOURCE_NAMES.includes(name)
-          ? "cardmarket"
-          : "butiker";
     const day = o.observedAt.toISOString().slice(0, 10);
+    if (name && CARDMARKET_SOURCE_NAMES.includes(name)) {
+      cardmarket.set(day, o.price); // stigande tidsordning → sista vinner
+      continue;
+    }
+    const group = name === "Tradera" ? "tradera" : "butiker";
     const b = buckets[group].get(day) ?? { sum: 0, n: 0 };
     b.sum += o.price;
     b.n += 1;
@@ -745,10 +756,30 @@ async function getPriceHistoryBySourceRaw(
       .map(([date, { sum, n }]) => ({ date, price: Math.round(sum / n) }));
 
   return {
-    cardmarket: toSeries(buckets.cardmarket),
+    cardmarket: [...cardmarket.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([date, price]) => ({ date, price })),
     tradera: toSeries(buckets.tradera),
     butiker: toSeries(buckets.butiker),
   };
+}
+
+/**
+ * Prishistorik per källa (per dag, av riktiga prisobservationer):
+ * - cardmarket: Cardmarket-priser (senaste per dag — se bucketObservationsBySource)
+ * - tradera: skrapade Tradera-listningar (dagligt snitt)
+ * - butiker: svenska butiksskrapare (dagligt snitt)
+ */
+async function getPriceHistoryBySourceRaw(
+  productId: string,
+  days: number
+): Promise<PriceHistoryBySource> {
+  const observations = await prisma.priceObservation.findMany({
+    where: { productId, observedAt: { gte: daysAgo(days) } },
+    orderBy: { observedAt: "asc" },
+    select: { price: true, observedAt: true, source: { select: { name: true } } },
+  });
+  return bucketObservationsBySource(observations);
 }
 
 /**

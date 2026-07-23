@@ -19,6 +19,7 @@ import {
   withNearMint,
 } from "../lib/marketplace-urls";
 import { recomputeProductPriceCache } from "../services/products";
+import { clampDayMoves, fetchCmGuide, fromElseTrend, DAY_MOVE_MAX } from "./cardmarket-refresh";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const API_CONCURRENCY = 4;
@@ -105,7 +106,14 @@ export async function runHotCardRefresh(
   const hot = [...watched, ...viewed];
   console.log(`[hot-refresh] ${hot.length} kort (${watched.length} bevakade + ${viewed.length} visade), tak ${limit}.`);
 
-  const ops: { offerId?: string; productId: string; priceOre: number; url: string }[] = [];
+  // SAMMA prisregel och vakter som dagliga cardmarket-refresh. Innan 2026-07-24
+  // publicerade det här jobbet RÅ lowest_near_mint utan fromElseTrend, utan trend-
+  // facit och utan dagvakt — en oskyddad skrivväg rakt in i de ~400 mest bevakade/
+  // visade korten varje kväll: en skräp-From (eller en From som dagliga jobbet just
+  // ersatt med trend) klobbrade det vaktade priset några timmar senare, och offer
+  // och graf visade två olika världar. Guiden är en gratis nedladdning (0 kvot).
+  const guide = await fetchCmGuide();
+  const ops: { offerId?: string; productId: string; priceOre: number | null; refOre?: number | null; url: string }[] = [];
   await mapPool(hot, API_CONCURRENCY, async (p) => {
     const ext = p.card?.tcgExternalId;
     if (!ext) return;
@@ -114,7 +122,11 @@ export async function runHotCardRefresh(
     const card = d?.data?.[0];
     if (!card) return;
     const cmp = card.prices?.cardmarket ?? {};
-    const eur = cmp.lowest_near_mint ?? cmp["30d_average"] ?? null; // exakt From; snitt-fallback
+    // From bara om rimlig mot CM:s egen trend, annars trend→30d (ägarens prisregel,
+    // identisk med singel-fasen i cardmarket-refresh).
+    const g = card.cardmarket_id != null ? guide.get(card.cardmarket_id) : undefined;
+    const refEur = g?.trend ?? g?.avg ?? null;
+    const eur = fromElseTrend(cmp.lowest_near_mint, refEur, g?.avg30 ?? cmp["30d_average"]);
     if (eur == null) return;
     const offer = p.offers[0];
     const url =
@@ -122,10 +134,22 @@ export async function runHotCardRefresh(
         : card.cardmarket_id != null ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true })
           : offer?.url ?? null;
     if (!url) return;
-    ops.push({ offerId: offer?.id, productId: p.id, priceOre: Math.round(eur * rates.eurToOre), url });
+    ops.push({
+      offerId: offer?.id, productId: p.id,
+      priceOre: Math.round(eur * rates.eurToOre),
+      refOre: refEur != null && refEur > 0 ? Math.round(refEur * rates.eurToOre) : null,
+      url,
+    });
   });
 
+  // Dagvakt med heal-referens (CM-trend) — samma som dagliga jobbet, så kvälls-
+  // skrivningen aldrig kan återinföra ett hopp som 13:00-körningen redan vaktat bort.
+  const guard = await clampDayMoves(ops);
+  if (guard.clamped) console.log(`[hot-refresh] klämde ${guard.clamped} orimliga dagshopp (≥${DAY_MOVE_MAX}x) till gårdagens värde.`);
+  if (guard.healed) console.log(`[hot-refresh] LÄKTE ${guard.healed} tidigare korrupta priser (stort hopp mot CM-trend).`);
+
   await mapPool(ops, DB_CONCURRENCY, async (op) => {
+    if (op.priceOre == null) return; // vaktad bort — rör inte offern
     if (op.offerId) {
       await prisma.offer.update({ where: { id: op.offerId }, data: { price: op.priceOre, url: op.url, stockStatus: "IN_STOCK", condition: "NEAR_MINT", lastSeenAt: new Date() } });
     } else {
