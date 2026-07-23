@@ -743,6 +743,8 @@ export async function runCardmarketRefresh(
     });
     const single = await clampDayMoves(singleOps);
     if (single.clamped) console.log(`[cm-refresh] Singlar: klämde ${single.clamped} orimliga dagshopp (≥${DAY_MOVE_MAX}x) till gårdagens värde.`);
+    // Logga heal-antalet (som sealed) → en spärrhake som fryser priser i tysthet syns i loggen.
+    if (single.healed) console.log(`[cm-refresh] Singlar: LÄKTE ${single.healed} tidigare korrupta priser (stort hopp mot CM-trend).`);
     await mapPool(singleOps, DB_CONCURRENCY, async (op) => {
       if (op.offerId) {
         await prisma.offer.update({ where: { id: op.offerId }, data: { price: op.priceOre, url: op.url, stockStatus: "IN_STOCK", condition: "NEAR_MINT", lastSeenAt: new Date() } });
