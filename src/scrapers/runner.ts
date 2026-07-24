@@ -827,6 +827,16 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
           continue;
         }
 
+        // Ägar-denylist: URL:er som ALDRIG ska bli/vara en offer. Feed-först-vakten
+        // (ensureListingProduct) täckte bara restock-lanen — scrape-all-matcharen
+        // fuzzy-matchade annars om samma denylistade URL till en befintlig produkt
+        // varje körning, så den raderade offern kom tillbaka dygnet därpå. (DL:s
+        // "Lucario ex Battle Deck" ↔ "Mega Lucario ex League Battle Deck".)
+        if (isDeniedListingUrl(normalized.url)) {
+          logs.push(`Denylistad URL — hoppar: "${rawProduct.title}" (${normalized.url})`);
+          continue;
+        }
+
         // matchIndex = hela katalogen i minnet → ingen seq-scan per annons (se loadMatchIndex).
         const match = await matchProduct(normalized.normalizedTitle, matchIndex, rawProduct.title);
         if (!match) {
