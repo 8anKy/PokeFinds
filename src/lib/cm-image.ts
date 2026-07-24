@@ -40,15 +40,23 @@ export function cmImageCandidates(idProduct: string | number): string[] {
 /** Proxy-URL:en vi lagrar i Product.imageUrl (serveras av /api/cm-image/[idProduct]). */
 export const cmImageProxyUrl = (idProduct: string | number) => `/api/cm-image/${idProduct}`;
 
-/** Finns det en render hos Cardmarket? HEAD-probar de kända bucketarna. */
+/**
+ * Finns det en render hos Cardmarket? HEAD-probar de kända bucketarna PARALLELLT.
+ *
+ * Sekventiellt (som förr) 404:ade en render-LÖS produkt på alla 28 kandidater i följd,
+ * och UTAN timeout kunde en hängande S3-anslutning blockera i minuter. Mätt 2026-07-24:
+ * det dagliga cm-refresh-jobbets sealed-fas tog 85 min (och sköt jobbet över 2h-taket)
+ * mest pga just detta × hundratals render-lösa SKU:er. Parallellt + per-anrops-timeout
+ * gör varje produkt till ~1 round-trip (404:er svarar snabbt); värsta fallet kapas av
+ * timeouten i stället för att hänga. `AbortSignal.timeout` finns i Node 18+ (CI = Node 20).
+ */
 export async function cmRenderExists(idProduct: string | number): Promise<boolean> {
-  for (const url of cmImageCandidates(idProduct)) {
-    try {
-      const res = await fetch(url, { method: "HEAD", headers: CM_IMAGE_HEADERS });
-      if (res.ok) return true;
-    } catch {
-      // nätverksfel på en kandidat → prova nästa
-    }
-  }
-  return false;
+  const results = await Promise.all(
+    cmImageCandidates(idProduct).map((url) =>
+      fetch(url, { method: "HEAD", headers: CM_IMAGE_HEADERS, signal: AbortSignal.timeout(8000) })
+        .then((res) => res.ok)
+        .catch(() => false)
+    )
+  );
+  return results.some(Boolean);
 }

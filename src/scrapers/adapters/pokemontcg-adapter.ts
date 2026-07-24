@@ -92,12 +92,16 @@ function apiHeaders(): Record<string, string> {
  * Hämtar JSON från API:t via politeFetch (UA, robots, per-host-delay,
  * exponentiell backoff på 429/5xx).
  */
-async function fetchTcgJson<T>(path: string): Promise<T> {
+async function fetchTcgJson<T>(path: string, opts?: { retries?: number }): Promise<T> {
   const res = await politeFetch(`${POKEMONTCG_API_BASE}${path}`, {
     headers: apiHeaders(),
     // API:t tål tätare anrop än butiks-sajter; 600 ms räcker artigt.
     delayMs: 600,
-    retries: 4,
+    // Standard 4 retries för katalogimporten (får ta tid). Anropare som kör i den
+    // tidsbudgeterade dagliga refreshen (variant-prissättningen) skickar ett lägre
+    // värde: keyless pokemontcg.io 429:ar ofta i CI och 4 retries × backoff = ~18 s
+    // slösad tid PER kort, vilket sköt jobbet över 2h-taket (2026-07-24).
+    retries: opts?.retries ?? 4,
   });
   if (!res.ok) {
     throw new Error(`Pokémon TCG API svarade HTTP ${res.status} för ${path}`);
@@ -168,9 +172,12 @@ export async function fetchTcgCardsForSet(
 }
 
 /** Hämtar ETT kort på tcgExternalId (för variant-prissättning via CM-trend). */
-export async function fetchTcgCardById(id: string): Promise<TcgCard | null> {
+export async function fetchTcgCardById(
+  id: string,
+  opts?: { retries?: number }
+): Promise<TcgCard | null> {
   try {
-    const json = await fetchTcgJson<{ data: TcgCard }>(`/cards/${encodeURIComponent(id)}`);
+    const json = await fetchTcgJson<{ data: TcgCard }>(`/cards/${encodeURIComponent(id)}`, opts);
     return json.data ?? null;
   } catch {
     return null;

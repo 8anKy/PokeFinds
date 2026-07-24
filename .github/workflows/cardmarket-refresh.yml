@@ -27,6 +27,11 @@ jobs:
       # JP-sealed-auto-mappningens LLM-dom (Haiku, ören/dygn). Utan nyckel mappas
       # bara nära-exakta namn (≥0.9) — refresh av redan mappade JP funkar ändå.
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Variant-prissättningen (56 specialvarianter) läser pokemontcg.io. KEYLESS 429:ar
+      # i CI → kretsbrytaren hoppar dem den dagen (se runVariantRefresh). Lägg secreten
+      # POKEMONTCG_API_KEY (gratis på pokemontcg.io/dashboard) → 20k/dygn, inga 429. Tom
+      # secret = keyless som förr (ofarligt).
+      POKEMONTCG_API_KEY: ${{ secrets.POKEMONTCG_API_KEY }}
     steps:
       # Self-healing-vakt: hoppa över grönt tills DATABASE_URL-secret finns
       # (molnhosting konfigurerad). Inga misslyckade-mejl innan dess.

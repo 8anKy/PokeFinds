@@ -513,11 +513,24 @@ export async function runVariantRefresh(): Promise<number> {
   });
   const today = new Date(); today.setHours(0, 0, 0, 0);
   let n = 0;
+  // Kretsbrytare: keyless pokemontcg.io 429:ar/blockar ibland CI-runnern helt. Utan
+  // detta probade loopen ALLA varianter × ~2 s = bortkastad tid i slutet av ett redan
+  // pressat 2h-jobb. Faller de första VARIANT_MAX_FAILS i rad → API:t är nere, hoppa
+  // resten (variantpriserna uppdateras i morgon i stället). retries:1 → billig miss.
+  const VARIANT_MAX_FAILS = 8;
+  let consecutiveFails = 0;
   for (const p of variants) {
     const ext = p.card?.tcgExternalId;
     if (!ext) continue;
-    const card = await fetchTcgCardById(ext);
-    if (!card) continue;
+    const card = await fetchTcgCardById(ext, { retries: 1 });
+    if (!card) {
+      if (++consecutiveFails >= VARIANT_MAX_FAILS) {
+        console.warn(`[cm-refresh] Varianter: pokemontcg.io svarar inte (${consecutiveFails} misslyckanden i rad) — hoppar resten, försöker igen i morgon.`);
+        break;
+      }
+      continue;
+    }
+    consecutiveFails = 0;
     const priceOre = cardMarketPriceOre(card); // CM-trend (EUR) → öre
     if (priceOre == null) continue;
     const offerId = p.offers[0]?.id;
@@ -1181,16 +1194,19 @@ export async function runCardmarketRefresh(
       // saknar render helt. Det kravet ensamt pekade dem på proxyn, som 404:ade →
       // trasig <img> i hela katalogen (rapporterat 2026-07-21). Proba därför CM:s CDN
       // innan vi byter: finns ingen render vinner katalogens egen bild (tcggo, inte
-      // referer-gatead). Probningen körs bara när bilden faktiskt skulle ÄNDRAS, så i
-      // stabilt läge kostar den ingenting. En redan satt proxy-URL rörs aldrig.
+      // referer-gatead). En redan satt proxy-URL rörs aldrig (yttre villkoret).
+      //
+      // KONVERGENS (fix 2026-07-24): render-LÖSA produkter (325 sealed saknar render)
+      // sattes till best.image och probades sedan OM VARJE DYGN — `p.imageUrl !== proxyUrl`
+      // förblev sant, så de 28 CDN-proberna kördes igen dagligen (sealed-fasen tog 85 min
+      // och sköt jobbet över 2h-taket). `!== best.image` gör att en produkt som redan
+      // pekar på katalogbilden aldrig probas igen: render-full → proxy (konvergerar via
+      // yttre villkoret), render-lös → best.image (konvergerar här). Ändras best.image
+      // (CM uppdaterar bilden) skiljer de sig igen → en ny prob, sedan stabilt.
       const proxyUrl = cmImageProxyUrl(best.cardmarket_id);
       let imageUrl: string | undefined;
-      if (exact && best.image && p.imageUrl !== proxyUrl) {
-        imageUrl = (await cmRenderExists(best.cardmarket_id))
-          ? proxyUrl
-          : p.imageUrl === best.image
-            ? undefined // redan rätt katalogbild
-            : best.image;
+      if (exact && best.image && p.imageUrl !== proxyUrl && p.imageUrl !== best.image) {
+        imageUrl = (await cmRenderExists(best.cardmarket_id)) ? proxyUrl : best.image;
       }
       // refOre = CM:s egen trend → dagvaktens nödutgång: ett stort hopp MOT trenden
       // är en rättelse av ett korrupt värde, inte en glitch. Utan den fastnar
