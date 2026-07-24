@@ -27,10 +27,12 @@ jobs:
       # JP-sealed-auto-mappningens LLM-dom (Haiku, ören/dygn). Utan nyckel mappas
       # bara nära-exakta namn (≥0.9) — refresh av redan mappade JP funkar ändå.
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      # Variant-prissättningen (56 specialvarianter) läser pokemontcg.io. KEYLESS 429:ar
-      # i CI → kretsbrytaren hoppar dem den dagen (se runVariantRefresh). Lägg secreten
-      # POKEMONTCG_API_KEY (gratis på pokemontcg.io/dashboard) → 20k/dygn, inga 429. Tom
-      # secret = keyless som förr (ofarligt).
+      # Variant-prissättningen (56 specialvarianter) läser pokemontcg.io. KEYLESS-nivån
+      # (1000/dygn, 30/min) RÄCKER för vår lilla volym; kretsbrytaren hoppar resten om
+      # 429 slår till. En GRATIS 20k-nyckel finns i praktiken inte längre: pokemontcg.io v2
+      # sunsettar in i betalda Scrydex (billigast ~$29/mån ≈ 160 req/dygn — SÄMRE än keyless
+      # för oss). Lägg alltså inte pengar på detta för 56 kort. Passthrough behålls ofarlig
+      # (tom secret = keyless; en ev. gammal nyckel funkar automatiskt).
       POKEMONTCG_API_KEY: ${{ secrets.POKEMONTCG_API_KEY }}
     steps:
       # Self-healing-vakt: hoppa över grönt tills DATABASE_URL-secret finns
