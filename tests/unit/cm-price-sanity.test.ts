@@ -5,6 +5,7 @@ import {
   priceFromGuide,
   lowIsCredible,
   isJunkLowOnLiquidMarket,
+  cmSelfConsistent,
 } from "../../src/jobs/cardmarket-refresh";
 
 // Regression 2026-07-21: sealed-fasen dömde CM:s From mot TRENDEN, fast 0.2x-golvet
@@ -202,5 +203,34 @@ describe("saneDayMove — självläkning mot CM-trend (refOre)", () => {
     // log-avstånd är 2e-16 (ren flyttalsnoise) → utan marginal blev domen en
     // slantsingling. Konservativt: behåll gårdagens.
     expect(saneDayMove(900, 100, 300)).toBe(100);
+  });
+});
+
+// Ratchet-fixen 2026-07-24: historik-vakten fick inte överrösta en accepterad From när
+// CM:s egna tre siffror (From/trend/30d) är ense. cmSelfConsistent avgör "ense".
+describe("cmSelfConsistent — trust-From-över-förgiftad-historik-grinden", () => {
+  it("SANT när From, trend och 30d stämmer (likvid modern produkt)", () => {
+    // Mega Lucario ex League Battle Deck: From 19,9 / trend 25,22 / avg 28,61 → 1,44x.
+    // Låst på 529 kr av butiks-förgiftad historik; ska nu släppa fram CM:s From.
+    expect(cmSelfConsistent(19.9, 25.22, 28.61)).toBe(true);
+    // Incineroar & Torterra Special Collection: 54,99 / 54,47 / 50 → 1,10x.
+    expect(cmSelfConsistent(54.99, 54.47, 50)).toBe(true);
+  });
+
+  it("FALSKT för tunn vintage där avg spretar (historik-skyddet behålls)", () => {
+    // Diamond & Pearl Booster Box: From 990 / trend 682 / avg 1200 → 1,76x. En riktig
+    // box värd tusentals € — historik-vakten ska fortfarande skydda den mot billig-From.
+    expect(cmSelfConsistent(990, 682, 1200)).toBe(false);
+    // Team Rocket Returns Booster Pack: 1000 / 1171 / 2193 → 2,19x.
+    expect(cmSelfConsistent(1000, 1171, 2193)).toBe(false);
+    // FireRed & LeafGreen Booster Pack: 999,98 / 1172,3 / 4000 → 4x.
+    expect(cmSelfConsistent(999.98, 1172.3, 4000)).toBe(false);
+  });
+
+  it("FALSKT när någon av de tre siffrorna saknas (för lite bevis)", () => {
+    expect(cmSelfConsistent(20, 25, null)).toBe(false);
+    expect(cmSelfConsistent(20, null, 28)).toBe(false);
+    expect(cmSelfConsistent(null, 25, 28)).toBe(false);
+    expect(cmSelfConsistent(20, 25, 0)).toBe(false);
   });
 });

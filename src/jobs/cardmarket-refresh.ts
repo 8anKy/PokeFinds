@@ -232,6 +232,31 @@ export function stableHistoryOre(snapshotOre: number[]): number | null {
   return v[Math.floor(v.length / 2)];
 }
 
+// ── HISTORIK-VAKTEN VAR EN RATCHET (rotorsak, mätt 2026-07-24) ────────────────
+// stableHistoryOre litar på VÅR historik som facit. Men historiken kan vara FÖRGIFTAD:
+// en produkt som butiksprissattes (snapshotStorePricedProducts) INNAN den fick en CM-
+// match får en stabil BUTIKS-historik, och när CM-guiden sedan ger den äkta (mycket
+// lägre) From sköt vakten tillbaka priset till butiksnivån — och skrev en ny butiksnivå-
+// snapshot som höll historiken "stabil" → en självförevigande ratchet. Mätt: Mega Lucario
+// ex League Battle Deck låst på 529 kr (butikspris) sedan 2026-07-15 trots CM-From 19,9 €.
+//
+// FIX: hoppa över historik-vakten när CM:s EGNA tre siffror (From, trend, 30d-snitt) ALLA
+// finns och stämmer inom AGREE. Då är CM:s marknad likvid och självkonsistent → den
+// accepterade From:en är facit och en (ev. förgiftad) historik-median får inte överrösta
+// den. Tunn vintage (D&P-box, Team Rocket Returns-pack) faller ut: där spretar avg mot
+// trenden (guidens siffror är opålitliga/undervärderade) → historik-skyddet BEHÅLLS.
+// Skyridge-glitchen (trend/avg spikar) täcks fortfarande: där är low aldrig accepterad.
+export const HISTORY_TRUST_AGREE = Number(process.env.CM_HISTORY_TRUST_AGREE) || 1.5;
+export function cmSelfConsistent(
+  from: number | null | undefined,
+  trend: number | null | undefined,
+  avg: number | null | undefined,
+): boolean {
+  const three = [from, trend, avg].filter((v): v is number => typeof v === "number" && v > 0);
+  if (three.length < 3) return false; // saknas någon siffra → för lite bevis, behåll vakten
+  return Math.max(...three) / Math.min(...three) <= HISTORY_TRUST_AGREE;
+}
+
 /** CM:s officiella prisguide (idProduct → low/trend/avg). Publik export, ingen scraping. */
 let cmGuideCache: Map<number, CmGuideEntry> | null = null;
 export async function fetchCmGuide(): Promise<Map<number, CmGuideEntry>> {
@@ -971,11 +996,17 @@ export async function runCardmarketRefresh(
       if (!best && idm && cmOffer) {
         const gid = parseInt(idm[1], 10);
         if (sealedCmIds.has(gid)) {
-          const priced = priceFromGuide(cmGuide.get(gid));
+          const gEntryGuide = cmGuide.get(gid);
+          const priced = priceFromGuide(gEntryGuide);
           if (priced) {
             let eur = priced.eur;
-            // Samma historik-vakt som RapidAPI-vägen: glitchad guide + platt egen historik → median.
-            const histOre = stableHistoryOre(p.priceSnapshots.map((s) => s.avgPrice));
+            // Historik-vakt hoppas över när CM är självkonsistent (se cmSelfConsistent):
+            // en accepterad From som stämmer med trend OCH 30d = facit, ingen förgiftad
+            // historik-median får överrösta den (ratchet-fixen 2026-07-24, Mega Lucario).
+            const trustFrom = priced.accepted && cmSelfConsistent(priced.eur, gEntryGuide?.trend, gEntryGuide?.avg);
+            const histOre = trustFrom
+              ? null
+              : stableHistoryOre(p.priceSnapshots.map((s) => s.avgPrice));
             if (histOre != null) {
               const eurOre = eur * rates.eurToOre;
               if (Math.max(eurOre / histOre, histOre / eurOre) > 1.5) eur = histOre / rates.eurToOre;
@@ -1085,7 +1116,13 @@ export async function runCardmarketRefresh(
       // ett dagsvärde som avviker >1.5x = glitchen ligger i dagsvärdet → använd historik-
       // medianen. Volatil historik lämnas orörd (äkta marknad). Skyddar OCKSÅ mot en
       // EMPTY-PACKS-From som slank förbi (den ligger långt UNDER den stabila historiken).
-      const histOre = stableHistoryOre(p.priceSnapshots.map((s) => s.avgPrice));
+      // Hoppa över historik-vakten när CM är självkonsistent (From≈trend≈30d, se
+      // cmSelfConsistent): en trovärdig `low` är då CM:s faktiska lägsta annons = facit och
+      // får inte överröstas av en (ev. butiks-förgiftad) historik-median — ratchet-fixen
+      // 2026-07-24. Tunn/volatil vintage (avg spretar) BEHÅLLER historik-skyddet, liksom
+      // Skyridge-glitchen (där är low ej trovärdig → credibleLow=false).
+      const trustFrom = credibleLow && cmSelfConsistent(low, gEntry?.trend, gEntry?.avg);
+      const histOre = trustFrom ? null : stableHistoryOre(p.priceSnapshots.map((s) => s.avgPrice));
       if (eur != null && histOre != null) {
         const eurOre = eur * rates.eurToOre;
         if (Math.max(eurOre / histOre, histOre / eurOre) > 1.5) { eur = histOre / rates.eurToOre; usedHist++; }
