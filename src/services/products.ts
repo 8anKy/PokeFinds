@@ -4,7 +4,7 @@
  */
 import { prisma, withDbRetry } from "@/lib/db";
 import { cachedRead, singleFlight } from "@/lib/cache";
-import { normalizeTitle } from "@/lib/utils";
+import { normalizeTitle, utcDaysAgo, utcToday } from "@/lib/utils";
 import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { getTrendingLift } from "@/services/market";
@@ -110,12 +110,9 @@ const DIRECT_URL_SQL = `
   AND lower(url) NOT LIKE '%prices.pokemontcg.io/cardmarket%'
 `;
 
-function daysAgo(days: number): Date {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
+// UTC, inte lokal midnatt: PriceSnapshot.date är en @db.Date som lagrar UTC-datumet,
+// så ett lokalt fönster i UTC+2 börjar 22:00 dagen innan och drar in en extra dag.
+const daysAgo = utcDaysAgo;
 
 type ProductWithRelations = Prisma.ProductGetPayload<{
   include: {
@@ -232,8 +229,7 @@ export async function recomputeProductPriceCache(): Promise<void> {
  * Returnerar antal skrivna snapshots.
  */
 export async function snapshotStorePricedProducts(): Promise<number> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = utcToday();
   const haveToday = new Set(
     (await prisma.priceSnapshot.findMany({ where: { date: today }, select: { productId: true } }))
       .map((s) => s.productId)

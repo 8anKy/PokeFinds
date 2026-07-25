@@ -1,13 +1,10 @@
 /** Marknadstjänster: trender, prisras, mest bevakade, restocks, set-index, statistik. */
 import { prisma } from "@/lib/db";
 import { cachedRead } from "@/lib/cache";
+import { utcDaysAgo } from "@/lib/utils";
 
-function daysAgo(days: number): Date {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
+// UTC — samma nyckelrymd som PriceSnapshot.date (@db.Date). Se utcDaysAgo.
+const daysAgo = utcDaysAgo;
 
 interface ProductChange {
   productId: string;

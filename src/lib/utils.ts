@@ -36,6 +36,30 @@ function decodeHtmlEntities(s: string): string {
 }
 
 /** Råtitel med entiteter avkodade — för vakter som behöver parenteser/siffror kvar. */
+/**
+ * Dagens datum vid UTC-midnatt — nyckeln varje PriceSnapshot skrivs på.
+ *
+ * ANVÄND ALDRIG `d.setHours(0,0,0,0)` för det: den ger LOKAL midnatt, och
+ * `PriceSnapshot.date` är en `@db.Date` som lagrar UTC-datumet. På en svensk
+ * maskin (UTC+2) blir 2026-07-25 lokal midnatt = 2026-07-24T22:00Z → hela
+ * körningen skriver på GÅRDAGENS rad. GitHub Actions kör i UTC så felet syns
+ * aldrig i drift — bara när jobben körs manuellt från en annan tidszon, och då
+ * skriver de tyst över fel dygn (hände 2026-07-25: en lokal omkörning klobbrade
+ * 07-24 och lämnade 07-25 orörd).
+ */
+export function utcToday(): Date {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
+/** `days` dygn före UTC-midnatt idag — samma nyckelrymd som utcToday(). */
+export function utcDaysAgo(days: number): Date {
+  const d = utcToday();
+  d.setUTCDate(d.getUTCDate() - days);
+  return d;
+}
+
 export function decodeTitle(s: string): string {
   return decodeHtmlEntities(s);
 }

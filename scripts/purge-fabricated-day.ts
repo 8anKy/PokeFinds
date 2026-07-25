@@ -21,6 +21,14 @@ const prisma = new PrismaClient();
 const APPLY = process.argv.includes("--apply");
 const DATE = process.argv.find((a) => a.startsWith("--date="))?.split("=")[1];
 const FACTOR = Number(process.argv.find((a) => a.startsWith("--factor="))?.split("=")[1]) || 3;
+/**
+ * --hela-dygnet: hoppa över grann-testet och radera HELA dagens singel-punkter.
+ * Används när dygnet i sin helhet skrevs av en trasig körning, så att grann-testet
+ * inte går att lita på (dagen före kan vara lika trasig). 2026-07-25: den schemalagda
+ * körningen skrev 0,02 €-priser på 07-25, och en lokal omkörning klobbrade 07-24
+ * genom setHours-buggen (se utcToday i src/lib/utils.ts).
+ */
+const WHOLE_DAY = process.argv.includes("--hela-dygnet");
 
 if (!DATE) {
   console.error("Ange --date=YYYY-MM-DD");
@@ -32,6 +40,32 @@ const kr = (o: number) => `${(o / 100).toFixed(2)} kr`;
 async function main() {
   const db = await prisma.$queryRaw<{ current_database: string }[]>`SELECT current_database()`;
   console.log(`DB: ${db[0].current_database}   dag: ${DATE}   läge: ${APPLY ? "SKRIVER" : "TORRKÖRNING"}\n`);
+
+  if (WHOLE_DAY) {
+    const start = new Date(`${DATE}T00:00:00.000Z`);
+    const end = new Date(start.getTime() + 864e5);
+    const ids = (
+      await prisma.product.findMany({ where: { category: "SINGLE_CARD" }, select: { id: true } })
+    ).map((p) => p.id);
+    const count = await prisma.priceSnapshot.count({
+      where: { productId: { in: ids }, date: { gte: start, lt: end } },
+    });
+    console.log(`HELA DYGNET: ${count} singel-snapshots på ${DATE} raderas (grann-testet hoppas över).`);
+    if (!APPLY) {
+      console.log(`\nTorrkörning — inget raderat. Kör med --apply.`);
+      await prisma.$disconnect();
+      return;
+    }
+    const snaps = await prisma.priceSnapshot.deleteMany({
+      where: { productId: { in: ids }, date: { gte: start, lt: end } },
+    });
+    const obs = await prisma.priceObservation.deleteMany({
+      where: { productId: { in: ids }, observedAt: { gte: start, lt: end } },
+    });
+    console.log(`✅ ${snaps.count} snapshots och ${obs.count} observationer raderade för ${DATE}.`);
+    await prisma.$disconnect();
+    return;
+  }
 
   const rows = await prisma.$queryRawUnsafe<
     { productId: string; title: string; slug: string; before: number; day: number; after: number }[]

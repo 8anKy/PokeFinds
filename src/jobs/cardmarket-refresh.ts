@@ -20,6 +20,7 @@ import {
   withNearMint,
 } from "../lib/marketplace-urls";
 import { judgeSameProduct } from "../lib/same-product";
+import { utcToday } from "../lib/utils";
 import { classifyForm, scoreSimilarity } from "../scrapers/matching";
 import { recomputeProductPriceCache, snapshotStorePricedProducts } from "../services/products";
 import { fetchTcgCardById, cardMarketPriceOre } from "../scrapers/adapters/pokemontcg-adapter";
@@ -635,7 +636,7 @@ export async function runVariantRefresh(): Promise<number> {
     where: { category: "SINGLE_CARD", variantLabel: { not: null }, card: { tcgExternalId: { not: null } } },
     select: { id: true, card: { select: { tcgExternalId: true } }, offers: { where: { retailerId: cm?.id }, select: { id: true }, take: 1 } },
   });
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const today = utcToday();
   let n = 0;
   // Kretsbrytare: keyless pokemontcg.io 429:ar/blockar ibland CI-runnern helt. Utan
   // detta probade loopen ALLA varianter × ~2 s = bortkastad tid i slutet av ett redan
@@ -780,8 +781,7 @@ export async function runJapaneseSealedRefresh(): Promise<JpRefreshResult> {
 
   const rates = await getRatesOre();
   const cmSource = await prisma.scrapeSource.findFirst({ where: { name: "Cardmarket" }, select: { id: true } });
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = utcToday();
 
   type JpOp = { productId: string; offerId?: string; idProduct: number; priceOre: number; refOre?: number | null; stock: "IN_STOCK" | "OUT_OF_STOCK" };
   const ops: JpOp[] = [];
@@ -1042,7 +1042,7 @@ export async function runCardmarketRefresh(
     // Värdet = samma From-pris vi visar (lowest_near_mint).
     const cmSource = await prisma.scrapeSource.findFirst({ where: { name: "Cardmarket" }, select: { id: true } });
     if (cmSource && singleOps.length > 0) {
-      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const today = utcToday();
       await prisma.priceObservation.createMany({
         data: singleOps.map((op) => ({ productId: op.productId, sourceId: cmSource.id, price: op.priceOre, currency: "SEK" })),
       });
@@ -1380,7 +1380,7 @@ export async function runCardmarketRefresh(
       (op): op is typeof op & { priceOre: number } => op.priceOre != null,
     );
     if (cmSourceSealed && pricedOps.length > 0) {
-      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const today = utcToday();
       await prisma.priceObservation.createMany({
         data: pricedOps.map((op) => ({ productId: op.productId, sourceId: cmSourceSealed.id, price: op.priceOre, currency: "SEK" })),
       });
