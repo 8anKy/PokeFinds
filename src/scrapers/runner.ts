@@ -458,6 +458,14 @@ export async function runRestockScan(opts?: {
     }
   });
 
+  // Tom katalog UTAN kastat fel är osynligt annars — och det var precis den tystnaden
+  // som gömde flapp-buggen 2026-07-25 (Alphaspel svarade tomt varannan körning). Logga
+  // den, så nästa avvikelse syns direkt i körningsloggen.
+  const emptySources = fetched.filter((f) => f.items.length === 0).map((f) => f.sourceName);
+  if (emptySources.length) {
+    console.warn(`[restock-scan] Tom katalog (inget fel kastat) från: ${emptySources.join(", ")}`);
+  }
+
   // Ändringsgrind (kvot-kritisk): väck INTE Neon om grinden säger att inget flippat
   // sedan förra körningen. Låter oss köra tätare (snabbare restock-fångst) utan mer
   // compute. Grinden (fingerprint-jämförelse + fs) skickas in av CLI-wrappern.

@@ -50,6 +50,45 @@ export function buildStateMap(groups: FeedGroup[]): FeedStateMap {
   return m;
 }
 
+/**
+ * Nästa körnings state-karta. Ersätter BARA nycklarna för källor som faktiskt
+ * LEVERERADE en katalog (≥1 annons). En källa som kom tillbaka TOM lämnas orörd —
+ * förra lagerläget behålls.
+ *
+ * VARFÖR (mätt 2026-07-25): `buildStateMap` byggde state ur BARA den här körningens
+ * feed, och wrappern skriver state VARJE körning. En butik som svarade tomt (utan att
+ * kasta fel — Alphaspel gör det med jämna mellanrum) raderade därför sina 71 URL:er ur
+ * minnet, och NÄSTA lyckade hämtning såg hela sortimentet som `from: "ABSENT"` →
+ * 71 × "ny-i-lager" → DB-fasen väcktes och gick igenom alla 1192 annonser för att hitta
+ * "0 restocks, 0 nya". Det upprepades varannan körning dygnet runt och var den enskilt
+ * största posten i Neon-räkningen (vaken-tid 23 % → 84 % på tre dygn).
+ *
+ * Tom feed = INGEN INFORMATION, inte "allt försvann". Exakt samma invariant som
+ * DB-fasen redan har (`feedRetailers` kräver `items.length > 0`, runner.ts) — grinden
+ * var enda stället som saknade den.
+ */
+export function mergeStateMap(prev: FeedStateMap, groups: FeedGroup[]): FeedStateMap {
+  const next: FeedStateMap = { ...prev };
+  const delivered = groups.filter((g) => g.items.length > 0);
+
+  // Rensa FÖRST alla levererande källors gamla nycklar, skriv sedan de vi såg nu. Då
+  // blir "IN_STOCK vinner" nedan en jämförelse mot bara den här körningens rader, och
+  // en URL som försvunnit ur en LYCKAD feed glöms (= möjlig ny produkt om den kommer
+  // tillbaka i lager, samma semantik som förut).
+  for (const g of delivered) {
+    const prefix = `${g.sourceName}\t`;
+    for (const k of Object.keys(next)) if (k.startsWith(prefix)) delete next[k];
+  }
+  for (const g of delivered) {
+    for (const it of g.items) {
+      const k = keyOf(g.sourceName, it.url);
+      if (next[k] === IN) continue;
+      next[k] = it.stockStatus;
+    }
+  }
+  return next;
+}
+
 export type StockChange = {
   key: string;
   from: string; // "ABSENT" = fanns inte förra körningen
@@ -60,6 +99,10 @@ export type StockChange = {
 /**
  * Förändringar som MÅSTE väcka DB:n. Tom lista = säkert att hoppa (Neon sover).
  * `rotating` = namnen på roterande butiker (deras URL-tillkomst/-bortfall är brus).
+ *
+ * En källa som svarade TOMT bidrar med noll nycklar till `cur` och kan därför aldrig
+ * generera en förändring — frånvaro är ingen signal. Att dess minne inte heller får
+ * raderas är `mergeStateMap`s jobb (läs varför där).
  */
 export function actionableChanges(
   prev: FeedStateMap,

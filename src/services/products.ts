@@ -3,7 +3,7 @@
  * Rena funktioner utan framework-beroenden.
  */
 import { prisma, withDbRetry } from "@/lib/db";
-import { cachedRead } from "@/lib/cache";
+import { cachedRead, singleFlight } from "@/lib/cache";
 import { normalizeTitle } from "@/lib/utils";
 import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
@@ -1274,7 +1274,14 @@ export async function getCardValues(
 // Sänker Neon network transfer — upprepade sidvisningar/crawls träffar cachen, inte DB:n.
 export const getExploreFeed = cachedRead(getExploreFeedRaw, "getExploreFeed");
 export const searchProducts = cachedRead(searchProductsRaw, "searchProducts");
-export const getProductBySlug = cachedRead(getProductBySlugRaw, "getProductBySlug");
+// `singleFlight` UTANPÅ TTL-cachen: produktsidans `generateMetadata` och sidkroppen körs
+// PARALLELLT i Next, så båda startade sitt uppslag innan den andra hunnit fylla
+// TTL-cachen → getProductBySlugRaw kördes två gånger per kall rendering (mätt i
+// produktion: 316 anrop mot 160 sidrenderingar). Nu delar de ett löfte.
+export const getProductBySlug = singleFlight(
+  cachedRead(getProductBySlugRaw, "getProductBySlug"),
+  (slug) => slug
+);
 export const getPriceHistory = cachedRead(getPriceHistoryRaw, "getPriceHistory");
 export const getPriceHistoryBySource = cachedRead(
   getPriceHistoryBySourceRaw,
@@ -1283,4 +1290,7 @@ export const getPriceHistoryBySource = cachedRead(
 export const getSimilarProducts = cachedRead(getSimilarProductsRaw, "getSimilarProducts");
 // Hela produktsidans data, cachad per slug → upprepade overlay-öppningar/sidvisningar
 // träffar cachen (inte Neon). Datum serialiseras till strängar — ofarligt (se ProductDetailData).
-export const loadProductDetail = cachedRead(loadProductDetailRaw, "loadProductDetail");
+export const loadProductDetail = singleFlight(
+  cachedRead(loadProductDetailRaw, "loadProductDetail"),
+  (slug) => slug
+);

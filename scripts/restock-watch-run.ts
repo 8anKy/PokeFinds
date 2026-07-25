@@ -26,7 +26,7 @@ import { runRestockScan, type RestockSourceInfo } from "../src/scrapers/runner";
 import { feedFingerprint } from "../src/lib/feed-fingerprint";
 import {
   actionableChanges,
-  buildStateMap,
+  mergeStateMap,
   type FeedGroup,
   type FeedStateMap,
 } from "../src/lib/feed-state-diff";
@@ -87,8 +87,18 @@ async function main() {
 
   // ── LAGERDIFF-grinden ──────────────────────────────────────────────────────
   const stateGate = (groups: FeedGroup[]): boolean => {
-    currentState = buildStateMap(groups);
     const prev = readStateMap();
+    // MERGE, inte ersätt: en butik som svarade tomt behåller sitt förra lagerläge.
+    // Ersättning gjorde att ett tomt svar raderade butikens minne → nästa lyckade
+    // hämtning såg hela sortimentet som nytt och väckte Neon i onödan. Se mergeStateMap.
+    currentState = mergeStateMap(prev ?? {}, groups);
+    const empty = groups.filter((g) => g.items.length === 0).map((g) => g.sourceName);
+    if (empty.length) {
+      console.warn(
+        `[restock-watch] Tom katalog från: ${empty.join(", ")} — räknas som "ingen information", ` +
+          `förra lagerläget behålls (ingen falsk "ny-i-lager"-svall).`,
+      );
+    }
     if (!prev) {
       console.log("[restock-watch] Ingen tidigare state — kör DB-fasen och seedar.");
       gateWouldSkip = false;

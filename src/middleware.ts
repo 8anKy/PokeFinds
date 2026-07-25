@@ -12,8 +12,14 @@ const MODERATOR_ROLES = new Set(["MODERATOR", "ADMIN", "SUPERADMIN"]);
 // blockerar dem men hedras först när boten läst om den (~1 dygn) och vissa
 // (Bytespider) struntar i robots helt. 403 här stoppar DB-renders DIREKT, före all
 // rendering. Google/Bing är medvetet INTE med (dem vill vi ha för SEO).
+// Håll listan i takt med verkligheten: varje ny AI-/SEO-crawler som sveper katalogen
+// kostar ~50 Neon-frågor per produktsida och håller computen vaken (Launch kan inte
+// somna snabbare än 5 min, så en träff var 5:e minut = betald compute dygnet runt).
+// Google/Bing/DuckDuckGo är medvetet INTE med — dem vill vi ha för SEO. Länkförhands-
+// visare (facebookexternalhit, Twitterbot, Slackbot, Discordbot, LinkedInBot, WhatsApp)
+// är också utanför: de hämtar EN delad URL, inte hela katalogen.
 const BLOCKED_BOTS =
-  /Applebot|GPTBot|ClaudeBot|CCBot|Bytespider|AhrefsBot|SemrushBot|DataForSeoBot|MJ12bot/i;
+  /Applebot|GPTBot|OAI-SearchBot|ChatGPT-User|ClaudeBot|Claude-Web|anthropic-ai|CCBot|Bytespider|AhrefsBot|SemrushBot|DataForSeoBot|MJ12bot|Amazonbot|Meta-ExternalAgent|PerplexityBot|Perplexity-User|YandexBot|Baiduspider|SeznamBot|DotBot|BLEXBot|Barkrowler|ImagesiftBot|Timpibot|Diffbot|omgili|Screaming Frog|python-requests|Scrapy|node-fetch|Go-http-client|libwww-perl/i;
 
 const PROTECTED_PREFIXES = [
   "/dashboard",
