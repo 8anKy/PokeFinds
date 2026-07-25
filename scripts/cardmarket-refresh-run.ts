@@ -24,7 +24,15 @@ for (const v of ["CARDMARKET_RAPIDAPI_KEY", "DATABASE_URL"]) {
   }
 }
 
-runCardmarketRefresh()
+// --singles / --sealed kör BARA den fasen (kvotsnålt vid omkörning efter en fix).
+// Utan flagga körs båda, precis som förut — CI påverkas inte.
+const only = process.argv.includes("--singles")
+  ? { sealed: false }
+  : process.argv.includes("--sealed")
+    ? { singles: false }
+    : {};
+
+runCardmarketRefresh(only)
   .then((r) =>
     console.log(
       `Klart: ${r.singlesUpdated} singlar, ${r.singlesCreated} nya, ${r.sealedUpdated} sealed, ${r.apiCalls} API-anrop (kvot kvar ${r.remaining}).`

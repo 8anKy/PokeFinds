@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   singlesHeadlineEur,
+  fromContradictsCardmarket,
+  guideMatchesCard,
   feedMoveShares,
   DAY_MOVE_MAX,
   FEED_BREAKER_MULT,
@@ -11,22 +13,88 @@ import {
 // ofiltrerat; trend/30d är BARA fallback när From saknas, och då en uppskattning.
 describe("singlesHeadlineEur (golvet rakt av)", () => {
   it("From publiceras exakt som CM listar den, hur långt från trenden den än ligger", () => {
-    expect(singlesHeadlineEur(37000, 6271.49, 4093.09)).toEqual({ eur: 37000, from: true });
-    // Skräp-låg From accepteras också — det är CM:s golv, inte vårt påhitt.
-    expect(singlesHeadlineEur(3.5, 8.45, 6.2)).toEqual({ eur: 3.5, from: true });
+    expect(
+      singlesHeadlineEur({ from: 37000, avg30: 4093.09 }, { low: 6000, trend: 6271.49, avg30: 4093.09 })
+    ).toEqual({ eur: 37000, from: true });
+    // Låg From accepteras också så länge CM:s egen lägsta bekräftar den.
+    expect(singlesHeadlineEur({ from: 3.5, avg30: 6.2 }, { low: 3.4, trend: 8.45, avg30: 6.2 })).toEqual({
+      eur: 3.5,
+      from: true,
+    });
   });
 
-  it("From saknas → trend som uppskattning (from=false)", () => {
-    expect(singlesHeadlineEur(null, 6271.49, 4093.09)).toEqual({ eur: 6271.49, from: false });
+  it("utan guide-facit står From kvar orörd", () => {
+    expect(singlesHeadlineEur({ from: 0.02, avg30: 2.41 }, null)).toEqual({ eur: 0.02, from: true });
   });
 
-  it("From och trend saknas → 30d-snittet som uppskattning", () => {
-    expect(singlesHeadlineEur(null, null, 4093.09)).toEqual({ eur: 4093.09, from: false });
+  it("From saknas → CM:s egen lägsta (från guiden), inte trenden", () => {
+    // N · Noble Victories, 2026-07-25: LNM saknas, guidens trend är nollställd (0,02 €)
+    // medan CM:s publicerade lägsta är 13,99 €.
+    expect(
+      singlesHeadlineEur({ from: null, avg30: 11.19 }, { low: 13.99, trend: 0.02, avg: 19.6, avg30: 65.6 })
+    ).toEqual({ eur: 13.99, from: true });
+  });
+
+  it("varken From eller lägsta → trend som uppskattning (from=false)", () => {
+    expect(singlesHeadlineEur({ from: null, avg30: 4093.09 }, { low: null, trend: 6271.49, avg30: 5000 })).toEqual({
+      eur: 6271.49,
+      from: false,
+    });
+  });
+
+  it("trend som spretar mot 30d-snittet förkastas som uppskattning → snittet vinner", () => {
+    // Poliwrath · Skyridge: guidens trend 16,44 € mot avg30 180,27 € = 11x isär.
+    expect(singlesHeadlineEur({ from: null, avg30: 230.18 }, { low: null, trend: 16.44, avg30: 180.27 })).toEqual({
+      eur: 180.27,
+      from: false,
+    });
   });
 
   it("ingen data alls (eller bara nollor) → null", () => {
-    expect(singlesHeadlineEur(null, null, null)).toBeNull();
-    expect(singlesHeadlineEur(0, 0, 0)).toBeNull();
+    expect(singlesHeadlineEur({ from: null, avg30: null }, null)).toBeNull();
+    expect(singlesHeadlineEur({ from: 0, avg30: 0 }, { low: 0, trend: 0, avg30: 0 })).toBeNull();
+  });
+});
+
+// Engelska+NM är en DELMÄNGD av alla annonser → en engelsk NM-lägsta kan aldrig
+// ligga under CM:s publicerade lägsta för produkten. Alla siffror uppmätta mot
+// RapidAPI + CM:s officiella prisguide 2026-07-25.
+describe("fromContradictsCardmarket", () => {
+  it("dömer feed-skräp som ligger långt under CM:s egen lägsta", () => {
+    expect(fromContradictsCardmarket(0.02, 1.25, 2.41)).toBe(true); // Brock's Scouting
+    expect(fromContradictsCardmarket(0.02, 0.2, 0.97)).toBe(true); // Houndoom ex
+    expect(fromContradictsCardmarket(0.05, 0.9, 2.75)).toBe(true); // Premium Power Pro
+    expect(fromContradictsCardmarket(0.5, 3.0, 15.71)).toBe(true); // Ampharos UF
+  });
+
+  it("rör inte äkta golv — inte heller äkta bulk på 0,02 €", () => {
+    expect(fromContradictsCardmarket(0.15, 0.02, 0.43)).toBe(false); // Munna, äkta bulk
+    expect(fromContradictsCardmarket(24.15, 1, 16.51)).toBe(false); // Donphan Prime
+    expect(fromContradictsCardmarket(70.99, 3.5, 16.33)).toBe(false); // Leafeon-promo
+  });
+
+  it("kräver TVÅ källor — en ensam guide-rad får inte förkasta ett golv", () => {
+    expect(fromContradictsCardmarket(0.02, 1.25, null)).toBe(false);
+    expect(fromContradictsCardmarket(0.02, null, 2.41)).toBe(false);
+  });
+});
+
+// RapidAPI kan ge fel cardmarket_id: base1-2 (Blastoise, Base) pekade på 291582,
+// som enligt CM:s officiella katalog är "Rayquaza [Dual Claw | Dragon Blast]".
+describe("guideMatchesCard", () => {
+  it("förkastar guide-rader vars snitt spretar orimligt mot kortets eget", () => {
+    expect(guideMatchesCard(17.57, 625.22)).toBe(false); // Blastoise → Rayquazas rad
+  });
+
+  it("släpper igenom äkta rader, även de spretigare", () => {
+    expect(guideMatchesCard(2.31, 2.41)).toBe(true); // Brock's Scouting
+    expect(guideMatchesCard(180.27, 230.18)).toBe(true); // Poliwrath
+    expect(guideMatchesCard(65.6, 11.19)).toBe(true); // N — spretigaste ÄKTA raden (5,9x)
+  });
+
+  it("utan jämförelsetal är raden betrodd (konservativt)", () => {
+    expect(guideMatchesCard(null, 625.22)).toBe(true);
+    expect(guideMatchesCard(17.57, null)).toBe(true);
   });
 });
 

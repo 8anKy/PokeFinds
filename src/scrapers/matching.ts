@@ -25,22 +25,66 @@ export function extractSetNumber(title: string): { num: number; total: number } 
 
 /**
  * Normaliserad kortnummer-nyckel: bokstavsprefix (gemener) + heltal utan
- * inledande nollor. "RC5"→"rc5", "GG01"→"gg1", "006"→"6". Total-delen ignoreras
- * med flit — promo-set anger ofta fel total i annonser ("RC5/RC32" mot katalogens
- * "RC5/83"), men SJÄLVA kortnumret (RC5) är kortets identitet.
+ * inledande nollor + eventuellt bokstavsSUFFIX. "RC5"→"rc5", "GG01"→"gg1",
+ * "006"→"6", "115a"→"115a". Total-delen ignoreras med flit — promo-set anger
+ * ofta fel total i annonser ("RC5/RC32" mot katalogens "RC5/83"), men SJÄLVA
+ * kortnumret (RC5) är kortets identitet.
+ *
+ * SUFFIXET ÄR IDENTITET (fix 2026-07-25): regexen tog förut bara PREFIX-
+ * bokstäver, så "115a" blev "115". Guzma 115a (Burning Shadows league-promo)
+ * och Guzma 115 (vanlig uncommon) är OLIKA kort med olika pris — 45 Tradera-
+ * offers hade parkerat den billiga tryckningens pris på den dyra produkten
+ * (41 av dem hade dessutom syskonkortet i vår egen katalog, dvs bevisat fel).
  */
 export function cardNumberKey(raw: string | null | undefined): string | null {
   if (!raw) return null;
-  const m = /^\s*([a-z]+)?0*(\d{1,4})/i.exec(raw);
+  const m = /^\s*([a-z]+)?0*(\d{1,4})([a-z]?)/i.exec(raw);
   if (!m) return null;
-  return (m[1]?.toLowerCase() ?? "") + parseInt(m[2], 10);
+  return (m[1]?.toLowerCase() ?? "") + parseInt(m[2], 10) + (m[3]?.toLowerCase() ?? "");
 }
 
 /** Tryckt kortnummer (vänstersidan av "X/Y") ur en titel, som cardNumberKey. */
 export function printedNumberKey(title: string): string | null {
-  const m = /\b([a-z]{0,4})(\d{1,3})\s*\/\s*[a-z]{0,4}\d{1,3}\b/i.exec(title);
+  const m = /\b([a-z]{0,4})(\d{1,3})([a-z]?)\s*[/／]\s*[a-z]{0,4}\d{1,3}\b/i.exec(title);
   if (!m) return null;
-  return m[1].toLowerCase() + parseInt(m[2], 10);
+  return m[1].toLowerCase() + parseInt(m[2], 10) + (m[3]?.toLowerCase() ?? "");
+}
+
+/**
+ * Ord som gör ett efterföljande tal till NÅGOT ANNAT än ett kortnummer
+ * ("annons 2", "del 3", "bild 1"). Utan dem skulle t.ex.
+ * "Zamazenta - Destined Rivals - Holo - (Annons 2)" läsas som kort nr 2.
+ */
+const NON_CARD_NUMBER_PREFIX = /\b(annons|bild|del|lot|nr|no|styck|version|sida|vol|serie)$/;
+/** Ord EFTER talet som gör det till mängd/pris ("3 st", "10 kort", "59 kr"). */
+const NON_CARD_NUMBER_SUFFIX = /^(st|styck|kort|kr|sek|pack|packs|paket|mm|cm)\b/;
+
+/**
+ * Kandidat-kortnummer i en annonstitel som SAKNAR "X/Y"-form.
+ *
+ * Svenska Tradera-titlar skriver ofta bara numret: "Brock's Scouting 146 Journey
+ * Together". Både printedNumberKey och extractSetNumber kräver snedstreck, så
+ * numret var helt osynligt för nummer-vakten → den BILLIGA ordinarie tryckningen
+ * prissatte den DYRA secret-raren (mätt 2026-07-25: 677 Tradera-offers, bl.a.
+ * "Milotic ex 42" på produkt 217 och "Jynx ex - MEW 151 - 191" på Mew ex 193).
+ *
+ * Konservativ med flit: 1–3 siffror (årtal faller bort av sig själva), siffror
+ * som ingår i ett "X/Y"-uttryck plockas bort först, och kända icke-nummer-
+ * sammanhang filtreras. Returnerar tom lista när inget kandidat-nummer finns —
+ * då dömer vakten inte alls.
+ */
+export function bareCardNumbers(normalized: string): number[] {
+  const stripped = normalized.replace(/\b[a-z]{0,4}\d{1,3}\s*[/／]\s*[a-z]{0,4}\d{1,3}\b/gi, " ");
+  const out = new Set<number>();
+  for (const m of stripped.matchAll(/(?<![\w])(\d{1,3})(?![\w])/g)) {
+    const n = parseInt(m[1], 10);
+    if (n <= 0) continue;
+    if (NUMERIC_SET_NAMES.has(m[1])) continue; // "151" är ett SETNAMN, inte ett kortnummer
+    if (NON_CARD_NUMBER_PREFIX.test(stripped.slice(0, m.index).trimEnd())) continue;
+    if (NON_CARD_NUMBER_SUFFIX.test(stripped.slice(m.index + m[0].length).trimStart())) continue;
+    out.add(n);
+  }
+  return [...out];
 }
 
 function bigrams(s: string): Map<string, number> {
@@ -1276,12 +1320,21 @@ export async function matchProduct(
 
   let best: { productId: string; confidence: number } | null = null;
 
+  // Bara tal (utan "X/Y") i en singel-annons: samma vakt som matchListingToProduct.
+  // Utan den fastnar "Milotic ex 42 Surging Sparks" på specialarten 217.
+  const bareNums = !incomingForm ? bareCardNumbers(normalized) : [];
+
   for (const c of candidates) {
     let score = scoreSimilarity(normalized, c.normalizedTitle);
     // Olika produktform (t.ex. booster pack vs booster box) → förkasta
     const candidateForm = classifyForm(c.normalizedTitle);
     if (incomingForm && candidateForm && incomingForm !== candidateForm) {
       continue;
+    }
+    if (bareNums.length > 0 && c.card) {
+      const key = cardNumberKey(c.card.number);
+      const num = key ? parseInt(key.replace(/[a-z]/g, ""), 10) : NaN;
+      if (Number.isFinite(num) && !bareNums.includes(num)) continue;
     }
     // Två decks med olika karaktär (Palkia VSTAR ≠ Inteleon VMAX) → förkasta.
     // "League Battle Deck" delar linje-orden men karaktären måste stämma.
@@ -1449,9 +1502,10 @@ export function matchListingToProduct(
 
   // Singel-identitet: tryckt nummer + kortnamn (samma som matchProduct).
   if (!incomingForm && product.card) {
+    const ourKey = cardNumberKey(product.card.number);
     const listingKey = printedNumberKey(normalized);
     if (listingKey) {
-      if (cardNumberKey(product.card.number) !== listingKey) return null;
+      if (ourKey !== listingKey) return null;
       if (!cardNameInTitle(product.card.name, normalized)) return null;
       return 0.9;
     }
@@ -1459,6 +1513,15 @@ export function matchListingToProduct(
     // kort som helst ur samma set på delade set-ord ("Forretress ex Paldean Fates"
     // fastnade på Xatu/Ralts/Flittle m.fl. via överlapp på just "paldean fates").
     if (!cardNameInTitle(product.card.name, normalized)) return null;
+    // Annonsen saknar "X/Y" men nämner ETT ELLER FLERA bara tal — är inget av dem
+    // vårt kortnummer är det en ANNAN tryckning av samma kort (den ordinarie i
+    // stället för alt-arten). Se bareCardNumbers för varför det här är den enda
+    // vakten som fångar dem.
+    const ourNum = ourKey ? parseInt(ourKey.replace(/[a-z]/g, ""), 10) : NaN;
+    if (Number.isFinite(ourNum)) {
+      const bare = bareCardNumbers(normalized);
+      if (bare.length > 0 && !bare.includes(ourNum)) return null;
+    }
   }
 
   if (

@@ -123,7 +123,7 @@ export async function runHotCardRefresh(
     if (!card) return;
     const cmp = card.prices?.cardmarket ?? {};
     const g = card.cardmarket_id != null ? guide.get(card.cardmarket_id) : undefined;
-    const priced = singlesHeadlineEur(cmp.lowest_near_mint, g?.trend ?? g?.avg, g?.avg30 ?? cmp["30d_average"]);
+    const priced = singlesHeadlineEur({ from: cmp.lowest_near_mint, avg30: cmp["30d_average"] }, g);
     if (priced == null) return;
     const offer = p.offers[0];
     const url =

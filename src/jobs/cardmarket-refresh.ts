@@ -157,21 +157,101 @@ export function cmGuideRefEur(g: CmGuideEntry | undefined): number | null {
 // From var 37 000 € (en PSA 7-ask) medan vi visade trenden 6 271 € under rubriken
 // "Lägsta pris" — ägaren underkände det uttryckligen: golvet ska visas ofiltrerat.
 // Trend-substitutionen (fromElseTrend, 2026-07-18–2026-07-24) är därför BORTTAGEN:
-// den gjorde headline till ett värde som inte fanns på Cardmarket. Fallback-kedjan
-// gäller BARA när From SAKNAS: trend → 30d, och då är värdet en UPPSKATTNING →
-// offern märks OUT_OF_STOCK (ingen köpbar annons), samma semantik som sealed/JP.
-// Baksidan är accepterad: en skräp-låg From (Aggron-klassen) eller en graderad
-// jätte-ask visas som den är — det är CM:s golv, inte vårt påhitt.
-export function singlesHeadlineEur(
+// den gjorde headline till ett värde som inte fanns på Cardmarket.
+//
+// ── MEN `lowest_near_mint` ÄR INTE ALLTID CM:s From (rotorsak mätt 2026-07-25) ──
+// Ägaren hittade prisfalls-listan full av golv som INTE stämmer med Cardmarket.
+// RapidAPI:s `lowest_near_mint` innehåller 0,02–0,50 €-värden som CM SJÄLV inte
+// räknar som produktens lägsta. Mätt mot CM:s OFFICIELLA prisguide samma dag:
+//   Brock's Scouting (JTG 179)   LNM 0,02 €  men guidens low = 1,25 €  (DE/FR/ES/IT ≥ 1,49)
+//   Houndoom ex (OBF 134)        LNM 0,02 €  men guidens low = 0,20 €
+//   Premium Power Pro (ME1 174)  LNM 0,05 €  men guidens low = 0,90 €
+//   Lightning Energy (Base 100)  LNM 0,05 €  men guidens low = 0,25 €  (30d-snitt 6,19 €)
+//   Ampharos (UF 1)              LNM 0,50 €  men guidens low = 3,00 €  (30d-snitt 15,71 €)
+// Guidens `low` är lägsta priset över ALLA språk OCH skick. Engelska+NM är en
+// DELMÄNGD av det → en engelsk NM-lägsta kan matematiskt aldrig ligga UNDER
+// guidens low. Ett LNM därunder är alltså BEVISAT inget golv, inte ett fynd.
+//
+// Detta river INTE ägarbeslutet: vi filtrerar inte CM:s golv, vi förkastar ett
+// feed-värde som motsäger CM:s eget publicerade golv — och publicerar CM:s golv
+// i stället. Fortfarande "golvet rakt av", bara hämtat ur rätt källa.
+const pos = (v: number | null | undefined): number | null =>
+  typeof v === "number" && v > 0 ? v : null;
+
+/** Hur långt UNDER en referens ett värde får ligga innan det döms som skräp. */
+export const FROM_FLOOR_TOL = Number(process.env.CM_FROM_FLOOR_TOL) || 0.5;
+/**
+ * Guide-raden tillhör ett ANNAT kort om dess snitt spretar orimligt mot kortets
+ * eget 30d-snitt hos RapidAPI. Mätt: `base1-2` (Blastoise, Base) fick
+ * cardmarket_id 291582 av RapidAPI — CM:s officiella katalog säger att 291582 är
+ * "Rayquaza [Dual Claw | Dragon Blast]". Guidens avg30 17,57 € mot kortets egna
+ * 625,22 € = 36x isär. Äkta rader ligger inom ~1,3x (Poliwrath 1,28; N 5,9 är den
+ * spretigaste ÄKTA raden vi mätt) → 8x släpper igenom alla äkta och fångar mismap.
+ */
+export const GUIDE_TRUST_AGREE = Number(process.env.CM_GUIDE_TRUST_AGREE) || 8;
+/** Trend som spretar mer än så mot 30d-snittet är opålitlig som uppskattning. */
+export const ESTIMATE_AGREE = Number(process.env.CM_ESTIMATE_AGREE) || 3;
+
+/**
+ * Är guide-raden samma kort som RapidAPI-kortet? Utan kortets eget 30d-snitt går
+ * det inte att avgöra → betrodd (konservativt, samma beteende som förr).
+ */
+export function guideMatchesCard(
+  guideAvg30: number | null | undefined,
+  cardAvg30: number | null | undefined,
+): boolean {
+  const g = pos(guideAvg30), c = pos(cardAvg30);
+  if (g == null || c == null) return true;
+  return Math.max(g, c) / Math.min(g, c) <= GUIDE_TRUST_AGREE;
+}
+
+/**
+ * Motsäger `from` Cardmarkets EGET publicerade lägsta? Kräver TVÅ oberoende
+ * källor — guidens `low` OCH kortets eget 30d-snitt — så att en enstaka felmappad
+ * guide-rad aldrig ensam kan förkasta ett äkta golv. Saknas facit: behåll From.
+ */
+export function fromContradictsCardmarket(
   fromEur: number | null | undefined,
-  trendEur: number | null | undefined,
-  avg30Eur: number | null | undefined,
+  guideLowEur: number | null | undefined,
+  cardAvg30Eur: number | null | undefined,
+): boolean {
+  const f = pos(fromEur), low = pos(guideLowEur), avg = pos(cardAvg30Eur);
+  if (f == null || low == null) return false;      // inget facit → From står kvar
+  if (f >= low * FROM_FLOOR_TOL) return false;     // inom rimlig marginal
+  if (avg == null) return false;                   // bara en källa → ingen dom
+  return f < avg * FROM_FLOOR_TOL;
+}
+
+/**
+ * Headline-pris för en singel, ur RapidAPI-kortets priser + CM:s guide-rad.
+ * `from: false` ⇒ värdet är en UPPSKATTNING (ingen känd köpbar annons) och
+ * offern märks OUT_OF_STOCK, samma semantik som sealed/JP.
+ */
+export function singlesHeadlineEur(
+  cm: { from?: number | null; avg30?: number | null },
+  guide?: { low?: number | null; trend?: number | null; avg?: number | null; avg30?: number | null } | null,
 ): { eur: number; from: boolean } | null {
-  const f = fromEur != null && fromEur > 0 ? fromEur : null;
-  if (f != null) return { eur: f, from: true };
-  const t = trendEur != null && trendEur > 0 ? trendEur : null;
-  const a = avg30Eur != null && avg30Eur > 0 ? avg30Eur : null;
-  const est = t ?? a;
+  // Felmappad guide-rad får varken döma From:en eller prissätta kortet.
+  const g = guideMatchesCard(guide?.avg30, cm.avg30) ? guide : null;
+  const from = pos(cm.from);
+  const guideLow = pos(g?.low);
+  if (from != null && !fromContradictsCardmarket(from, guideLow, cm.avg30)) {
+    return { eur: from, from: true }; // GOLVET RAKT AV
+  }
+  // From saknas eller motsägs av CM:s egen lägsta → publicera CM:s lägsta.
+  // Fortfarande en riktig, köpbar annons enligt CM:s officiella export.
+  if (guideLow != null) return { eur: guideLow, from: true };
+
+  // Sista utväg: uppskattning. Guidens `trend` är på tunt handlad vintage ofta
+  // nollställd (0,02 € på "N · Noble Victories" och "Dark Dragonite · Team Rocket",
+  // mätt 2026-07-25) eller 11x under sitt eget 30d-snitt (Poliwrath · Skyridge) —
+  // spretar den mot snittet är snittet det pålitligare av två gissningar.
+  const trend = pos(g?.trend) ?? pos(g?.avg);
+  const avg = pos(g?.avg30) ?? pos(cm.avg30);
+  if (trend != null && avg != null && Math.max(trend, avg) / Math.min(trend, avg) > ESTIMATE_AGREE) {
+    return { eur: avg, from: false };
+  }
+  const est = trend ?? avg;
   return est != null ? { eur: est, from: false } : null;
 }
 
@@ -858,7 +938,7 @@ export async function runCardmarketRefresh(
         if (!entry) continue;
         const cmp = card.prices?.cardmarket ?? {};
         const g = card.cardmarket_id != null ? guide.get(card.cardmarket_id) : undefined;
-        const priced = singlesHeadlineEur(cmp.lowest_near_mint, g?.trend ?? g?.avg, g?.avg30 ?? cmp["30d_average"]);
+        const priced = singlesHeadlineEur({ from: cmp.lowest_near_mint, avg30: cmp["30d_average"] }, g);
         if (priced == null) continue;
         const priceOre = Math.round(priced.eur * rates.eurToOre);
         const url =

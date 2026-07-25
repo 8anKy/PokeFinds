@@ -26,6 +26,7 @@ import {
   matchListingToProduct,
   nonEraCoverage,
   printedNumberKey,
+  bareCardNumbers,
   scoreSimilarity,
   seriesMismatch,
 } from "@/scrapers/matching";
@@ -139,6 +140,43 @@ describe("cardNumberKey / printedNumberKey", () => {
     );
     // Men RC5-annonsens nyckel == katalogens RC5-kortnummer.
     expect(printedNumberKey("charizard rc5/rc32")).toBe(cardNumberKey("RC5"));
+  });
+
+  // 2026-07-25: suffixet slukades ("115a" → "115"), så 45 Tradera-offers satte den
+  // billiga ordinarie tryckningens pris på league-promo-produkten.
+  it("bokstavsSUFFIX är identitet — 115a är inte 115", () => {
+    expect(cardNumberKey("115a")).toBe("115a");
+    expect(cardNumberKey("182b")).toBe("182b");
+    expect(cardNumberKey("115a")).not.toBe(cardNumberKey("115"));
+    expect(printedNumberKey("guzma 115/147 burning shadows uncommon")).toBe("115");
+    expect(printedNumberKey("guzma 115a/147 league promo")).toBe("115a");
+    expect(printedNumberKey("guzma 115/147 burning shadows")).not.toBe(cardNumberKey("115a"));
+  });
+});
+
+// Svenska annonser skriver ofta bara numret, utan "/total" — helt osynligt för de
+// snedstreck-baserade vakterna. Mätt 2026-07-25: 677 Tradera-offers där den
+// ordinarie tryckningen prissatte alt-arten.
+describe("bareCardNumbers", () => {
+  it("plockar bara tal utan X/Y-form", () => {
+    expect(bareCardNumbers("milotic ex 42 surging sparks")).toEqual([42]);
+    expect(bareCardNumbers("bloodmoon ursaluna ex twilight masquerade 202")).toEqual([202]);
+    expect(bareCardNumbers("salamence v darkness ablaze 143")).toEqual([143]);
+  });
+
+  it("ignorerar tal som redan ingår i ett X/Y-uttryck", () => {
+    expect(bareCardNumbers("yamask 39/86 white flare holo")).toEqual([]);
+  });
+
+  it("ignorerar icke-kortnummer: setnamnet 151, annonsräknare, mängd och pris", () => {
+    expect(bareCardNumbers("mew ex 151 pokemonkort")).toEqual([]);
+    expect(bareCardNumbers("zamazenta destined rivals holo annons 2")).toEqual([]);
+    expect(bareCardNumbers("charizard 3 st")).toEqual([]);
+    expect(bareCardNumbers("pikachu 59 kr")).toEqual([]);
+  });
+
+  it("årtal faller bort av sig själva (fyra siffror)", () => {
+    expect(bareCardNumbers("guardians rising 2019 league promo")).toEqual([]);
   });
 });
 
