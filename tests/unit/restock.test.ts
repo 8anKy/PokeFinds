@@ -12,7 +12,7 @@ import {
 } from "@/scrapers/restock";
 import { feedFingerprint } from "@/lib/feed-fingerprint";
 
-const { IN_STOCK, OUT_OF_STOCK, UNKNOWN } = StockStatus;
+const { IN_STOCK, OUT_OF_STOCK, PREORDER, UNKNOWN } = StockStatus;
 
 describe("isRealStockTransition", () => {
   it("första observationen (ingen tidigare offer) är inte en övergång", () => {
@@ -48,6 +48,20 @@ describe("isRestock", () => {
   it("IN_STOCK → OUT_OF_STOCK är inte en restock", () => {
     expect(isRestock(IN_STOCK, OUT_OF_STOCK)).toBe(false);
   });
+
+  // Släppet: förhandsbokningen blir riktigt lager. Skrev förr en RestockEvent (den
+  // syntes i historiken) men larmade aldrig — hålet ägaren hittade 2026-07-25.
+  it("PREORDER → IN_STOCK = restock (releasen har landat)", () => {
+    expect(isRestock(PREORDER, IN_STOCK)).toBe(true);
+  });
+
+  it("IN_STOCK → PREORDER är inte en restock (åt fel håll)", () => {
+    expect(isRestock(IN_STOCK, PREORDER)).toBe(false);
+  });
+
+  it("PREORDER → OUT_OF_STOCK är inte en restock", () => {
+    expect(isRestock(PREORDER, OUT_OF_STOCK)).toBe(false);
+  });
 });
 
 describe("netStockEvent (netto per körning, dödar spök-flapparna)", () => {
@@ -70,6 +84,15 @@ describe("netStockEvent (netto per körning, dödar spök-flapparna)", () => {
   it("ny offer (start null) → ingen händelse, oavsett status", () => {
     expect(netStockEvent(null, IN_STOCK).emit).toBe(false);
     expect(netStockEvent(null, OUT_OF_STOCK).emit).toBe(false);
+  });
+
+  it("start PREORDER, slutstatus IN → händelse OCH alert", () => {
+    const ev = netStockEvent(PREORDER, IN_STOCK);
+    expect(ev).toMatchObject({ emit: true, oldStatus: PREORDER, isRestock: true });
+  });
+
+  it("UNKNOWN → IN_STOCK ger fortfarande varken händelse eller alert", () => {
+    expect(netStockEvent(UNKNOWN, IN_STOCK)).toMatchObject({ emit: false, isRestock: false });
   });
 });
 

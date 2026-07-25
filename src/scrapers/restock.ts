@@ -19,9 +19,25 @@ export function isRealStockTransition(
   );
 }
 
-/** En faktisk restock (skicka alert): slutsåld → i lager. */
+/**
+ * Lägen som INTE är "köpbar och skickas nu" — en övergång därifrån till IN_STOCK är
+ * det bevakaren väntar på.
+ *
+ * PREORDER ingår sedan 2026-07-25. Tidigare krävdes OUT_OF_STOCK, så när en
+ * förhandsbokning gick till riktigt lager vid release skrevs en RestockEvent (båda
+ * statusarna kända och olika → emit) men INGET larm gick ut: händelsen syntes i
+ * restock-historiken utan att någon fick mejl — exakt det symtom ägaren felsökte
+ * 2026-07-25. Släppet är dessutom det mest värdefulla larmet av alla.
+ *
+ * UNKNOWN ingår ALDRIG: frånvaro ur en feed sätter UNKNOWN (se offersToMarkSoldOut),
+ * och UNKNOWN → IN_STOCK är "vi vet inget → vi ser den", inte en påfyllning. Det var
+ * den övergången som spammade från roterande feeds.
+ */
+const NOT_BUYABLE_NOW: StockStatus[] = [StockStatus.OUT_OF_STOCK, StockStatus.PREORDER];
+
+/** En faktisk restock (skicka alert): slutsåld ELLER förhandsbokning → i lager. */
 export function isRestock(oldStatus: StockStatus, newStatus: StockStatus): boolean {
-  return oldStatus === StockStatus.OUT_OF_STOCK && newStatus === StockStatus.IN_STOCK;
+  return newStatus === StockStatus.IN_STOCK && NOT_BUYABLE_NOW.includes(oldStatus);
 }
 
 /**
