@@ -35,6 +35,7 @@ const API_CONCURRENCY = 4;
 interface CmCard {
   tcgid: string | null;
   cardmarket_id: number | null;
+  name?: string | null; // identitetsvakten: jämförs mot CM:s officiella katalognamn
   prices?: { cardmarket?: { lowest_near_mint?: number | null; "30d_average"?: number | null } | null } | null;
 }
 interface ApiProduct {
@@ -180,29 +181,63 @@ const pos = (v: number | null | undefined): number | null =>
 
 /** Hur långt UNDER en referens ett värde får ligga innan det döms som skräp. */
 export const FROM_FLOOR_TOL = Number(process.env.CM_FROM_FLOOR_TOL) || 0.5;
-/**
- * Guide-raden tillhör ett ANNAT kort om dess snitt spretar orimligt mot kortets
- * eget 30d-snitt hos RapidAPI. Mätt: `base1-2` (Blastoise, Base) fick
- * cardmarket_id 291582 av RapidAPI — CM:s officiella katalog säger att 291582 är
- * "Rayquaza [Dual Claw | Dragon Blast]". Guidens avg30 17,57 € mot kortets egna
- * 625,22 € = 36x isär. Äkta rader ligger inom ~1,3x (Poliwrath 1,28; N 5,9 är den
- * spretigaste ÄKTA raden vi mätt) → 8x släpper igenom alla äkta och fångar mismap.
- */
-export const GUIDE_TRUST_AGREE = Number(process.env.CM_GUIDE_TRUST_AGREE) || 8;
 /** Trend som spretar mer än så mot 30d-snittet är opålitlig som uppskattning. */
 export const ESTIMATE_AGREE = Number(process.env.CM_ESTIMATE_AGREE) || 3;
 
 /**
- * Är guide-raden samma kort som RapidAPI-kortet? Utan kortets eget 30d-snitt går
- * det inte att avgöra → betrodd (konservativt, samma beteende som förr).
+ * Officiellt CM-namn → jämförbar form. Attack-parentesen (den långa) faller bort,
+ * korta klammer-markörer som [C]/[G]/[GL] är NAMNDELAR och behålls:
+ *   "Charizard [Energy Burn | Fire Spin]"        → "charizard"
+ *   "Donphan [Exoskeleton | ... | Prime]"        → "donphan"
+ *   "Rayquaza [C] LV.X [Dragon Spirit | ...]"    → "rayquazaclvx"
+ *   "Professor's Research - Professor Oak"       → "professorsresearchprofessoroak"
  */
-export function guideMatchesCard(
-  guideAvg30: number | null | undefined,
-  cardAvg30: number | null | undefined,
+export function cmNameKey(name: string): string {
+  return name
+    .replace(/\[([^\]]{4,})\]/g, " ")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * Är guide-/katalograden för `idProduct` verkligen VÅRT kort?
+ *
+ * RapidAPI:s `cardmarket_id` kan peka fel: `base1-2` (Blastoise, Base) fick
+ * 291582, som enligt CM:s officiella singel-katalog är "Rayquaza [Dual Claw |
+ * Dragon Blast]" — guidens rad prissatte alltså Blastoise som en Rayquaza.
+ *
+ * Domaren är CM:s EGEN katalog, inte prisernas rimlighet. Ett rent pris-
+ * avståndstest gick INTE att lita på: för `base1-4` (Charizard, Base) ligger
+ * guiden (avg30 2 506 €) och RapidAPI (30d 10,46 €) 240x isär, och där är det
+ * RAPIDAPI som är trasig — ett avståndstest kastade den RÄTTA guide-raden och
+ * publicerade 116 kr för en Base-Charizard.
+ *
+ * Prefixmatch åt båda håll: CM skriver ofta ut mer än vi ("Turtwig Lv.10",
+ * "Boss's Orders - Ghetsis"). Saknas katalognamn eller kortnamn → betrodd.
+ */
+export function guideNameMatches(
+  officialName: string | null | undefined,
+  cardName: string | null | undefined,
 ): boolean {
-  const g = pos(guideAvg30), c = pos(cardAvg30);
-  if (g == null || c == null) return true;
-  return Math.max(g, c) / Math.min(g, c) <= GUIDE_TRUST_AGREE;
+  if (!officialName || !cardName) return true;
+  const a = cmNameKey(officialName), b = cmNameKey(cardName);
+  if (!a || !b) return true;
+  return a.startsWith(b) || b.startsWith(a);
+}
+
+/** CM:s officiella SINGEL-katalog (idProduct → namn). Publik export, ingen scraping. */
+let cmSingleNamesCache: Map<number, string> | null = null;
+export async function fetchCmSingleNames(): Promise<Map<number, string>> {
+  if (cmSingleNamesCache) return cmSingleNamesCache;
+  const r = await fetch(CM_SINGLES_URL);
+  if (!r.ok) {
+    console.error(`[cm-refresh] singel-katalog HTTP ${r.status} — identitetsvakten står över denna körning`);
+    return new Map();
+  }
+  const cat = (await r.json()) as { products: { idProduct: number; name: string }[] };
+  cmSingleNamesCache = new Map(cat.products.map((p) => [p.idProduct, p.name]));
+  return cmSingleNamesCache;
 }
 
 /**
@@ -231,8 +266,10 @@ export function singlesHeadlineEur(
   cm: { from?: number | null; avg30?: number | null },
   guide?: { low?: number | null; trend?: number | null; avg?: number | null; avg30?: number | null } | null,
 ): { eur: number; from: boolean } | null {
-  // Felmappad guide-rad får varken döma From:en eller prissätta kortet.
-  const g = guideMatchesCard(guide?.avg30, cm.avg30) ? guide : null;
+  // Anroparen har redan identitetsprövat guide-raden (guideNameMatches) och skickar
+  // null när den tillhör ett annat kort — en felmappad rad får varken döma From:en
+  // eller prissätta kortet.
+  const g = guide;
   const from = pos(cm.from);
   const guideLow = pos(g?.low);
   if (from != null && !fromContradictsCardmarket(from, guideLow, cm.avg30)) {
@@ -644,6 +681,8 @@ const CM_PRICE_GUIDE_URL =
   "https://downloads.s3.cardmarket.com/productCatalog/priceGuide/price_guide_6.json";
 const CM_NONSINGLES_URL =
   "https://downloads.s3.cardmarket.com/productCatalog/productList/products_nonsingles_6.json";
+const CM_SINGLES_URL =
+  "https://downloads.s3.cardmarket.com/productCatalog/productList/products_singles_6.json";
 
 interface CmGuideEntry {
   idProduct: number;
@@ -921,7 +960,8 @@ export async function runCardmarketRefresh(
     if (cmidMap.size > 0) for (let pg = 1; pg <= 6; pg++) pageTasks.push({ epId: 412, pg });
     // CM:s officiella prisguide = trend/30d-fallback när From saknas (RapidAPI-
     // singlar saknar trend-fält; guiden har alltid trend/avg).
-    const guide = await fetchCmGuide();
+    const [guide, cmNames] = await Promise.all([fetchCmGuide(), fetchCmSingleNames()]);
+    let misIdentified = 0;
     // GOLVET RAKT AV (ägarbeslut 2026-07-24, se singlesHeadlineEur): From publiceras
     // EXAKT som CM listar den — ingen trend-substitution, ingen per-kort-dagklämma.
     // `from=false` ⇒ värdet är en trend/30d-UPPSKATTNING (ingen köpbar annons) ⇒
@@ -937,7 +977,14 @@ export async function runCardmarketRefresh(
           (card.cardmarket_id != null ? cmidMap.get(card.cardmarket_id) : undefined);
         if (!entry) continue;
         const cmp = card.prices?.cardmarket ?? {};
-        const g = card.cardmarket_id != null ? guide.get(card.cardmarket_id) : undefined;
+        // Identitetsvakt: guide-raden används BARA om CM:s officiella singel-katalog
+        // säger att idProduct är samma kort (se guideNameMatches).
+        let g = card.cardmarket_id != null ? guide.get(card.cardmarket_id) : undefined;
+        if (g && card.cardmarket_id != null &&
+            !guideNameMatches(cmNames.get(card.cardmarket_id), card.name)) {
+          g = undefined;
+          misIdentified++;
+        }
         const priced = singlesHeadlineEur({ from: cmp.lowest_near_mint, avg30: cmp["30d_average"] }, g);
         if (priced == null) continue;
         const priceOre = Math.round(priced.eur * rates.eurToOre);
@@ -996,6 +1043,8 @@ export async function runCardmarketRefresh(
       await upsertTodaySnapshots(singleOps, today);
       res.historyPoints = singleOps.length;
     }
+    if (misIdentified)
+      console.log(`[cm-refresh] Identitetsvakt: ${misIdentified} kort där RapidAPI:s cardmarket_id pekar på ett ANNAT kort i CM:s katalog → guide-raden ignorerad.`);
     console.log(`[cm-refresh] Singlar: ${res.singlesUpdated} uppdaterade, ${res.singlesCreated} nya, ${res.historyPoints} historikpunkter.`);
   }
 

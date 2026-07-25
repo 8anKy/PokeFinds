@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   singlesHeadlineEur,
   fromContradictsCardmarket,
-  guideMatchesCard,
+  guideNameMatches,
   feedMoveShares,
   DAY_MOVE_MAX,
   FEED_BREAKER_MULT,
@@ -81,20 +81,35 @@ describe("fromContradictsCardmarket", () => {
 
 // RapidAPI kan ge fel cardmarket_id: base1-2 (Blastoise, Base) pekade på 291582,
 // som enligt CM:s officiella katalog är "Rayquaza [Dual Claw | Dragon Blast]".
-describe("guideMatchesCard", () => {
-  it("förkastar guide-rader vars snitt spretar orimligt mot kortets eget", () => {
-    expect(guideMatchesCard(17.57, 625.22)).toBe(false); // Blastoise → Rayquazas rad
+// Domaren är katalogNAMNET — ett pris-avståndstest gick inte att lita på: för
+// base1-4 (Charizard, Base) ligger guiden och RapidAPI 240x isär och där är det
+// RAPIDAPI som är trasig (30d 10,46 € på en 800 €-Charizard).
+describe("guideNameMatches", () => {
+  it("förkastar rader som tillhör ett annat kort", () => {
+    expect(guideNameMatches("Rayquaza [Dual Claw | Dragon Blast]", "Blastoise")).toBe(false);
+    expect(guideNameMatches("Stufful [Light Punch | Flop]", "Empoleon ex")).toBe(false);
+    expect(guideNameMatches("Energy Switch", "Makuhita")).toBe(false);
   });
 
-  it("släpper igenom äkta rader, även de spretigare", () => {
-    expect(guideMatchesCard(2.31, 2.41)).toBe(true); // Brock's Scouting
-    expect(guideMatchesCard(180.27, 230.18)).toBe(true); // Poliwrath
-    expect(guideMatchesCard(65.6, 11.19)).toBe(true); // N — spretigaste ÄKTA raden (5,9x)
+  it("släpper igenom CM:s utförligare skrivsätt", () => {
+    expect(guideNameMatches("Charizard [Energy Burn | Fire Spin]", "Charizard")).toBe(true);
+    expect(guideNameMatches("Donphan [Exoskeleton | Earthquake | Prime]", "Donphan")).toBe(true);
+    expect(guideNameMatches("Turtwig Lv.10 [Tackle | Razor Leaf]", "Turtwig")).toBe(true);
+    expect(guideNameMatches("Boss's Orders - Ghetsis", "Boss's Orders")).toBe(true);
+    expect(guideNameMatches("Rayquaza [C] LV.X [Dragon Spirit | Final Blowup]", "Rayquaza C LV.X")).toBe(true);
+    expect(guideNameMatches("N", "N")).toBe(true);
   });
 
-  it("utan jämförelsetal är raden betrodd (konservativt)", () => {
-    expect(guideMatchesCard(null, 625.22)).toBe(true);
-    expect(guideMatchesCard(17.57, null)).toBe(true);
+  it("saknat namn → betrodd (konservativt)", () => {
+    expect(guideNameMatches(undefined, "Blastoise")).toBe(true);
+    expect(guideNameMatches("Rayquaza", null)).toBe(true);
+  });
+
+  it("Charizard-fallet: rätt guide-rad överlever trots vilda prisavstånd", () => {
+    // Guiden low 799 €, RapidAPI 30d 10,46 € — namnet avgör, inte priset.
+    expect(
+      singlesHeadlineEur({ from: null, avg30: 10.46 }, { low: 799, trend: 4050.96, avg30: 2506.69 })
+    ).toEqual({ eur: 799, from: true });
   });
 });
 

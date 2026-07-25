@@ -19,7 +19,7 @@ import {
   withNearMint,
 } from "../lib/marketplace-urls";
 import { recomputeProductPriceCache } from "../services/products";
-import { fetchCmGuide, singlesHeadlineEur } from "./cardmarket-refresh";
+import { fetchCmGuide, fetchCmSingleNames, guideNameMatches, singlesHeadlineEur } from "./cardmarket-refresh";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const API_CONCURRENCY = 4;
@@ -27,6 +27,7 @@ const DB_CONCURRENCY = 8;
 
 interface CmCard {
   cardmarket_id: number | null;
+  name?: string | null;
   prices?: { cardmarket?: { lowest_near_mint?: number | null; "30d_average"?: number | null } | null } | null;
 }
 
@@ -112,7 +113,9 @@ export async function runHotCardRefresh(
   // kan inte skilja ett äkta ask-hopp från glitch utan att bli en spärrhake) och
   // ingen haveribrytare här: jobbet rör ≤400 offers, skriver ingen historik, och
   // nästa dagliga körning omvärderar allt. Guiden är en gratis nedladdning (0 kvot).
-  const guide = await fetchCmGuide();
+  // Identitetsvakten måste finnas HÄR också: annars skulle det här jobbet återinföra
+  // en felmappad guide-rads pris några timmar efter att dagliga körningen rensat den.
+  const [guide, cmNames] = await Promise.all([fetchCmGuide(), fetchCmSingleNames()]);
   const ops: { offerId?: string; productId: string; priceOre: number; from: boolean; url: string }[] = [];
   await mapPool(hot, API_CONCURRENCY, async (p) => {
     const ext = p.card?.tcgExternalId;
@@ -122,7 +125,10 @@ export async function runHotCardRefresh(
     const card = d?.data?.[0];
     if (!card) return;
     const cmp = card.prices?.cardmarket ?? {};
-    const g = card.cardmarket_id != null ? guide.get(card.cardmarket_id) : undefined;
+    const g =
+      card.cardmarket_id != null && guideNameMatches(cmNames.get(card.cardmarket_id), card.name)
+        ? guide.get(card.cardmarket_id)
+        : undefined;
     const priced = singlesHeadlineEur({ from: cmp.lowest_near_mint, avg30: cmp["30d_average"] }, g);
     if (priced == null) return;
     const offer = p.offers[0];
