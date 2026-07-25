@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { StockStatus } from "@prisma/client";
 import {
   isNewInStockArrival,
+  isPreorderOpen,
   isRealStockTransition,
   isRestock,
   netStockEvent,
@@ -64,6 +65,24 @@ describe("isRestock", () => {
   });
 });
 
+describe("isPreorderOpen", () => {
+  it("OUT_OF_STOCK → PREORDER = förhandsbokningen öppnade", () => {
+    expect(isPreorderOpen(OUT_OF_STOCK, PREORDER)).toBe(true);
+  });
+
+  it("IN_STOCK → PREORDER larmar inte (du kunde redan köpa den)", () => {
+    expect(isPreorderOpen(IN_STOCK, PREORDER)).toBe(false);
+  });
+
+  it("UNKNOWN → PREORDER larmar inte (annonsen dök bara upp i feeden igen)", () => {
+    expect(isPreorderOpen(UNKNOWN, PREORDER)).toBe(false);
+  });
+
+  it("OUT_OF_STOCK → IN_STOCK är en restock, inte en förhandsbokning", () => {
+    expect(isPreorderOpen(OUT_OF_STOCK, IN_STOCK)).toBe(false);
+  });
+});
+
 describe("netStockEvent (netto per körning, dödar spök-flapparna)", () => {
   it("start OUT, slutstatus OUT (en kolliderande IN-annons mitt i) → ingen händelse", () => {
     // Detta var buggen: två annonser på samma offer gav IN→OUT→IN varje körning.
@@ -93,6 +112,15 @@ describe("netStockEvent (netto per körning, dödar spök-flapparna)", () => {
 
   it("UNKNOWN → IN_STOCK ger fortfarande varken händelse eller alert", () => {
     expect(netStockEvent(UNKNOWN, IN_STOCK)).toMatchObject({ emit: false, isRestock: false });
+  });
+
+  it("start OUT, slutstatus PREORDER → händelse + förhandsbokningslarm (ej restock)", () => {
+    const ev = netStockEvent(OUT_OF_STOCK, PREORDER);
+    expect(ev).toMatchObject({ emit: true, isRestock: false, isPreorderOpen: true });
+  });
+
+  it("ny offer (start null) i PREORDER → varken händelse eller larm", () => {
+    expect(netStockEvent(null, PREORDER)).toMatchObject({ emit: false, isPreorderOpen: false });
   });
 });
 

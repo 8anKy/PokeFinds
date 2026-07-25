@@ -6,7 +6,7 @@ import { AlertStatus, AlertType, StockStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { sendMail } from "@/lib/mailer";
 import { sendPush } from "@/lib/apns";
-import { newListingEmail, preorderEmail, priceAlertEmail, restockAlertEmail } from "@/emails/templates";
+import { newListingEmail, preorderEmail, priceAlertEmail, releasedEmail, restockAlertEmail } from "@/emails/templates";
 import { NON_RETAIL_SOURCE_NAMES } from "@/services/products";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 
@@ -35,6 +35,8 @@ async function buildAlertEmail(alert: {
   productId: string | null;
   retailerId: string | null;
   storeListingId: string | null;
+  fromStatus: StockStatus | null;
+  toStatus: StockStatus | null;
   user: { name: string };
 }): Promise<{ subject: string; html: string; text: string }> {
   // Feed-först-larm (ny produkt/restock utanför katalogen) — bygg mejlet från den
@@ -55,6 +57,10 @@ async function buildAlertEmail(alert: {
       // lagras som NEW_LISTING). Köpbar nu, levereras vid release → egen copy.
       if (listing.stockStatus === "PREORDER") {
         return preorderEmail(...args, listing.price ?? undefined);
+      }
+      // Släpp: annonsen STOD på förhandsbokning när larmet skapades och är nu i lager.
+      if (alert.fromStatus === StockStatus.PREORDER) {
+        return releasedEmail(...args, listing.price ?? undefined);
       }
       return alert.type === AlertType.NEW_LISTING
         ? newListingEmail(...args, listing.price ?? undefined)
@@ -105,13 +111,19 @@ async function buildAlertEmail(alert: {
               !NON_RETAIL_SOURCE_NAMES.includes(o.retailer.name)
           ) ||
           bestOffer;
-        return restockAlertEmail(
+        // RESTOCK täcker tre olika besked — mallen väljs på lagerövergången, inte på
+        // offerns status HÄR (den hann redan bli det nya läget under skanningen).
+        // Saknas övergången (larm från före kolumnerna) → påfyllning, som förut.
+        const args = [
           alert.user.name,
           product.title,
           retailOffer?.retailer.name ?? "en återförsäljare",
           retailOffer?.url ?? productUrl,
-          retailOffer?.price ?? undefined
-        );
+          retailOffer?.price ?? undefined,
+        ] as const;
+        if (alert.toStatus === StockStatus.PREORDER) return preorderEmail(...args);
+        if (alert.fromStatus === StockStatus.PREORDER) return releasedEmail(...args);
+        return restockAlertEmail(...args);
       }
       if (alert.type === AlertType.NEW_LISTING) {
         // Ny produkt i lager = butiks-händelse. Mejlet länkar DIREKT till butikens
@@ -142,6 +154,8 @@ async function sendAlertPush(alert: {
   userId: string;
   type: AlertType;
   message: string;
+  fromStatus: StockStatus | null;
+  toStatus: StockStatus | null;
   product: { slug: string } | null;
   storeListing: { url: string } | null;
 }): Promise<void> {
@@ -150,9 +164,15 @@ async function sendAlertPush(alert: {
     select: { token: true },
   });
   if (tokens.length === 0) return;
+  // Samma tre lager-besked som mejlet (buildAlertEmail) — pushen får inte säga
+  // "Åter i lager" om mejlet säger "Nu släppt".
   const title =
     alert.type === AlertType.RESTOCK
-      ? "Åter i lager!"
+      ? alert.toStatus === StockStatus.PREORDER
+        ? "Öppen för förhandsbokning!"
+        : alert.fromStatus === StockStatus.PREORDER
+          ? "Nu släppt!"
+          : "Åter i lager!"
       : alert.type === AlertType.NEW_LISTING
         ? "Ny produkt i lager!"
         : "Prislarm";

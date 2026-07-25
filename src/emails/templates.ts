@@ -127,6 +127,35 @@ export function restockAlertEmail(
   return { subject, html, text };
 }
 
+/**
+ * SLÄPPET: en produkt som gått från förhandsbokning till riktigt lager. Skild från
+ * restockAlertEmail med flit — "Åter i lager … finns nu i lager igen" är falskt för
+ * något som aldrig varit i lager, och släppet är det larm bevakaren väntat längst på.
+ */
+export function releasedEmail(
+  name: string,
+  productTitle: string,
+  retailerName: string,
+  url: string,
+  price?: number
+): EmailContent {
+  const subject = `Nu släppt: ${productTitle} hos ${retailerName}`;
+  const priceLine = price
+    ? `<p style="font-size:22px;font-weight:800;color:#34d399;margin:0 0 8px;">${formatSek(price)}</p>`
+    : "";
+  const html = layout(
+    "Förhandsbokningen är släppt! 🎉",
+    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! En produkt du bevakar har gått från förhandsbokning till riktigt lager — den skickas nu:</p>
+     <p style="font-size:16px;font-weight:700;color:#ffffff;margin:16px 0 4px;">${productTitle}</p>
+     ${priceLine}
+     <p style="color:#cbd5e1;margin:0 0 8px;">Hos: <strong style="color:#2dd4bf;">${retailerName}</strong></p>
+     <p style="line-height:1.6;color:#fbbf24;font-size:13px;">Releasedagar tar slut snabbast av alla. Skynda dig!</p>
+     ${button(url, "Köp nu")}`
+  );
+  const text = `Hej ${name}!\n\nNu släppt: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nProdukten har gått från förhandsbokning till riktigt lager och skickas nu.\n\nKöp nu: ${url}\n\nReleasedagar tar slut snabbast av alla!${textFooter}`;
+  return { subject, html, text };
+}
+
 export function newListingEmail(
   name: string,
   productTitle: string,

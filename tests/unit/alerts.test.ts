@@ -145,6 +145,53 @@ describe("checkRestockAlerts", () => {
     );
   });
 
+  // Tre olika besked delar AlertType RESTOCK. Övergången lagras på larmet så att
+  // utskicket (som kör EFTER skanningen) kan välja rätt mall och rätt push-titel.
+  it("släpp (PREORDER → IN_STOCK): egen copy och lagrad övergång", async () => {
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+
+    await checkRestockAlerts("prod-1", "ret-1", { from: "PREORDER", to: "IN_STOCK" });
+
+    const data = (alertCreate.mock.calls[0][0] as { data: Record<string, unknown> }).data;
+    expect(data.message).toBe("Surging Sparks Booster Box har släppts och finns nu i lager!");
+    expect(data.message).not.toContain("igen");
+    expect(data.fromStatus).toBe("PREORDER");
+    expect(data.toStatus).toBe("IN_STOCK");
+  });
+
+  it("öppnad förhandsbokning (OUT → PREORDER): egen copy, inte 'i lager'", async () => {
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+
+    await checkRestockAlerts("prod-1", "ret-1", { from: "OUT_OF_STOCK", to: "PREORDER" });
+
+    const data = (alertCreate.mock.calls[0][0] as { data: Record<string, unknown> }).data;
+    expect(data.message).toBe("Surging Sparks Booster Box går nu att förhandsboka!");
+    expect(data.toStatus).toBe("PREORDER");
+  });
+
+  it("utan angiven övergång = klassisk påfyllning (bakåtkompatibelt)", async () => {
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+
+    await checkRestockAlerts("prod-1", "ret-1");
+
+    const data = (alertCreate.mock.calls[0][0] as { data: Record<string, unknown> }).data;
+    expect(data.message).toBe("Surging Sparks Booster Box finns i lager igen!");
+    expect(data.fromStatus).toBeNull();
+    expect(data.toStatus).toBeNull();
+  });
+
+  it("cooldownen scopas på slutstatus — släppet äts inte av förhandsbokningslarmet", async () => {
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+
+    await checkRestockAlerts("prod-1", "ret-1", { from: "PREORDER", to: "IN_STOCK" });
+
+    expect(alertFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ toStatus: "IN_STOCK" }),
+      })
+    );
+  });
+
   it("filtrerar på restockAlert, ej pausad, och endast Pro-bevakare", async () => {
     await checkRestockAlerts("prod-1");
 

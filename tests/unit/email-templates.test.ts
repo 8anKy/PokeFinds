@@ -4,6 +4,7 @@ import {
   newListingEmail,
   passwordResetEmail,
   priceAlertEmail,
+  releasedEmail,
   restockAlertEmail,
   verifyEmail,
   welcomeEmail,
@@ -71,6 +72,27 @@ describe("restockAlertEmail", () => {
     const email = restockAlertEmail("Milos", "Sword & Shield Booster Pack", "Shinycards", storeUrl);
     expect(email.html).toContain(`href="${storeUrl}"`);
     expect(email.text).toContain(storeUrl);
+  });
+});
+
+describe("releasedEmail (förhandsbokning → riktigt lager)", () => {
+  it("säger släpp, inte 'åter i lager' — produkten har aldrig varit i lager förut", () => {
+    const storeUrl = "https://dragonslair.se/products/pitch-black-etb";
+    const email = releasedEmail("Milos", "Pitch Black Elite Trainer Box", "Dragon's Lair", storeUrl, 54900);
+    expectValidEmail(email);
+    expect(email.subject).toContain("Nu släppt");
+    expect(email.subject).toContain("Pitch Black Elite Trainer Box");
+    // Ordet "igen" är själva felet mallen finns för att undvika.
+    expect(email.subject).not.toContain("igen");
+    expect(email.text).not.toContain("igen");
+    expect(email.html).toContain(`href="${storeUrl}"`);
+    expect(email.html).toMatch(/549,00\s?kr/u);
+  });
+
+  it("fungerar utan pris", () => {
+    const email = releasedEmail("Anna", "Booster Box", "Demobutiken", "https://example.test/p");
+    expectValidEmail(email);
+    expect(email.text).toContain("Demobutiken");
   });
 });
 

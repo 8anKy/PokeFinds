@@ -3,10 +3,26 @@ import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { isBlockedListingLanguage } from "@/lib/listing-language";
 import { proUserWhere } from "@/lib/plan";
-import type { AlertChannel, AlertType, Prisma } from "@prisma/client";
+import type { AlertChannel, AlertType, Prisma, StockStatus } from "@prisma/client";
 
 function formatSek(ore: number): string {
   return `${(ore / 100).toLocaleString("sv-SE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kr`;
+}
+
+/**
+ * Beskedet för en lagerövergång — samma tre fall som mejlmallarna (buildAlertEmail):
+ * öppnad förhandsbokning, släpp (förhandsbokning → riktigt lager) och påfyllning.
+ * Okänd övergång (larm skapade före kolumnerna fanns) faller tillbaka på påfyllning,
+ * som är den överlägset vanligaste.
+ */
+export function stockAlertMessage(
+  title: string,
+  fromStatus: StockStatus | null,
+  toStatus: StockStatus | null
+): string {
+  if (toStatus === "PREORDER") return `${title} går nu att förhandsboka!`;
+  if (fromStatus === "PREORDER") return `${title} har släppts och finns nu i lager!`;
+  return `${title} finns i lager igen!`;
 }
 
 export interface CreateAlertInput {
@@ -115,7 +131,13 @@ export async function checkPriceAlerts(productId: string, newPrice: number) {
  * "alla restocks"-prenumerant få många mejl — lägg en daglig digest om det blir
  * ett problem (samla restocks under körningen och skicka en sammanfattning).
  */
-export async function checkRestockAlerts(productId: string, retailerId?: string) {
+export async function checkRestockAlerts(
+  productId: string,
+  retailerId?: string,
+  // Lagerövergången bakom larmet. Utelämnad = klassisk påfyllning (OUT→IN); det är
+  // vad alla anropare gjorde före 2026-07-25 och vad copyn defaultar till.
+  transition?: { from?: StockStatus | null; to?: StockStatus | null }
+) {
   const product = await prisma.product.findUnique({
     where: { id: productId },
     select: { id: true, title: true, slug: true },
@@ -123,6 +145,9 @@ export async function checkRestockAlerts(productId: string, retailerId?: string)
   if (!product) return { triggered: 0 };
   // Blockade språk (kinesiska/koreanska) larmar vi inte på "for now". Japanska = OK.
   if (isBlockedListingLanguage(product.title)) return { triggered: 0 };
+
+  const fromStatus = transition?.from ?? null;
+  const toStatus = transition?.to ?? null;
 
   // Restock-cooldown = kort ANTI-BURST, inte huvudskyddet. Rotation-spammet
   // (falska OUT→IN när en produkt roterar ur/in i feeden) stoppas numera vid källan:
@@ -137,6 +162,10 @@ export async function checkRestockAlerts(productId: string, retailerId?: string)
         type: "RESTOCK",
         productId,
         retailerId,
+        // Scopad till SAMMA slutstatus: en butik som öppnar förhandsbokning och
+        // sedan släpper varan inom fönstret ska larma TVÅ gånger — det är två olika
+        // besked. Utan detta åt förhandsbokningslarmet släpp-larmet.
+        toStatus,
         triggeredAt: { gte: new Date(Date.now() - cooldownH * 3600_000) },
       },
       select: { id: true },
@@ -165,7 +194,11 @@ export async function checkRestockAlerts(productId: string, retailerId?: string)
   for (const u of allSubs) userIds.add(u.id);
   if (userIds.size === 0) return { triggered: 0 };
 
-  const message = `${product.title} finns i lager igen!`;
+  // Tre olika besked under samma AlertType. "igen" gäller BARA påfyllningen: ett
+  // släpp har aldrig varit i lager förut, och en öppnad förhandsbokning går inte att
+  // få hem än. In-app-listan visar det här meddelandet, mejlet väljer mall på samma
+  // övergång (buildAlertEmail).
+  const message = stockAlertMessage(product.title, fromStatus, toStatus);
   const writes: Prisma.PrismaPromise<unknown>[] = [];
   for (const userId of userIds) {
     writes.push(
@@ -178,6 +211,8 @@ export async function checkRestockAlerts(productId: string, retailerId?: string)
           productId,
           retailerId,
           type: "RESTOCK",
+          fromStatus,
+          toStatus,
           message,
           channel: "EMAIL",
         },
@@ -206,7 +241,12 @@ export async function checkRestockAlerts(productId: string, retailerId?: string)
  */
 export async function checkListingAlerts(
   listing: { id: string; title: string; retailerId: string; productId?: string | null },
-  kind: "NEW_LISTING" | "RESTOCK" | "PREORDER"
+  kind: "NEW_LISTING" | "RESTOCK" | "PREORDER",
+  // Lagerövergången bakom RESTOCK-varianten. En auto-importerad annons länkas till
+  // VÅR produkt (storeListingId blir null) → mejlet byggs då på produkten och kan
+  // inte längre läsa annonsens status. Utan detta blev ett släpp (PREORDER → i lager)
+  // ett "Åter i lager"-mejl för något som aldrig varit i lager.
+  transition?: { from?: StockStatus | null; to?: StockStatus | null }
 ) {
   // Blockade språk (kinesiska/koreanska) larmar vi inte på "for now". Japanska = OK.
   if (isBlockedListingLanguage(listing.title)) return { triggered: 0 };
@@ -239,12 +279,14 @@ export async function checkListingAlerts(
   if (recipients.size === 0) return { triggered: 0 };
   const subs = [...recipients].map((id) => ({ id }));
 
+  const fromStatus = transition?.from ?? null;
+  const toStatus = transition?.to ?? null;
   const message =
     kind === "NEW_LISTING"
       ? `${listing.title} — ny produkt i lager!`
       : kind === "PREORDER"
         ? `${listing.title} — öppen för förhandsbokning!`
-        : `${listing.title} finns i lager igen!`;
+        : stockAlertMessage(listing.title, fromStatus, toStatus);
   // Förhandsbokning saknar egen AlertType — lagras som NEW_LISTING (det ÄR en ny
   // produkt). Mejlet väljs ändå på annonsens PREORDER-lagerstatus i buildAlertEmail.
   const type = kind === "PREORDER" ? "NEW_LISTING" : kind;
@@ -257,6 +299,8 @@ export async function checkListingAlerts(
         productId: listing.productId ?? null,
         storeListingId: listing.productId ? null : listing.id,
         type,
+        fromStatus,
+        toStatus,
         message,
         channel: "EMAIL",
       },

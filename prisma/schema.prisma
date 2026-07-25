@@ -562,6 +562,14 @@ model Alert {
   retailerId     String?      // butiken som utlöste larmet (restock) → mejl länkar direkt dit
   storeListingId String?      // feed-först-larm (ny produkt/restock utanför katalogen) → mejl bygger på annonsen
   type           AlertType
+  // Lagerövergången som utlöste larmet. Behövs för att mejlet ska kunna säga rätt sak:
+  // RESTOCK täcker tre olika händelser som alla slutar "köpbar" — påfyllning
+  // (OUT→IN), släpp (PREORDER→IN) och öppnad förhandsbokning (OUT→PREORDER).
+  // Utan dem vid utskickstillfället (dispatchPendingAlerts kör EFTER skanningen, när
+  // offern redan står på sin nya status) går skillnaden inte att återskapa.
+  // null = larm skapade före 2026-07-25, eller icke-lager-larm (pris/system).
+  fromStatus     StockStatus?
+  toStatus       StockStatus?
   message        String
   channel        AlertChannel @default(IN_APP)
   status         AlertStatus  @default(PENDING)

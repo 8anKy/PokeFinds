@@ -561,8 +561,21 @@ export async function runRestockScan(opts?: {
           },
         });
         if (ev.isRestock) {
-          await checkRestockAlerts(offer.productId, offer.retailerId);
+          await checkRestockAlerts(offer.productId, offer.retailerId, {
+            from: ev.oldStatus,
+            to: newStatus,
+          });
           restocks++;
+        } else if (ev.isPreorderOpen) {
+          // Slutsåld → går att förhandsboka. Samma mottagare och cooldown som en
+          // restock (checkRestockAlerts), egen copy via övergången. Fanns förr bara
+          // för HELT nya butiks-URL:er (feed-först) — en butik som redan hade en
+          // offer öppnade förhandsbokning helt tyst.
+          await checkRestockAlerts(offer.productId, offer.retailerId, {
+            from: ev.oldStatus,
+            to: newStatus,
+          });
+          newListings++;
         }
       }
       if (offer.stockStatus !== newStatus) {
@@ -638,7 +651,8 @@ export async function runRestockScan(opts?: {
     if (productId && isRestock(listing.stockStatus, newStatus)) {
       await checkListingAlerts(
         { id: listing.id, title: it.title, retailerId: it.retailerId, productId },
-        "RESTOCK"
+        "RESTOCK",
+        { from: listing.stockStatus, to: newStatus }
       );
       restocks++;
     } else if (
@@ -1072,7 +1086,13 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
             price: st.price,
           },
         });
-        await checkRestockAlerts(st.productId, retailer.id);
+        // Samma övergång som RestockEvent-raden ovan påstår (OUT → IN): en helt ny
+        // offer i lager behandlas som en påfyllning. Explicit så cooldownen (som
+        // scopar på toStatus) ser den och nästa körnings restock inte dubblerar.
+        await checkRestockAlerts(st.productId, retailer.id, {
+          from: StockStatus.OUT_OF_STOCK,
+          to: StockStatus.IN_STOCK,
+        });
         logs.push(`Ny produkt i lager: ${st.productId} hos ${retailer.name}`);
         continue;
       }
@@ -1087,9 +1107,16 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
           price: st.price,
         },
       });
-      // Restock-larm BARA för riktiga butiker — aldrig Cardmarket/Tradera.
-      if (ev.isRestock && !NON_RETAIL_SOURCE_NAMES.includes(retailer.name)) {
-        await checkRestockAlerts(st.productId, retailer.id);
+      // Restock-/förhandsbokningslarm BARA för riktiga butiker — aldrig Cardmarket/
+      // Tradera. Samma två övergångar som restock-lanen håller isär (se den).
+      if (
+        (ev.isRestock || ev.isPreorderOpen) &&
+        !NON_RETAIL_SOURCE_NAMES.includes(retailer.name)
+      ) {
+        await checkRestockAlerts(st.productId, retailer.id, {
+          from: ev.oldStatus,
+          to: st.newStatus,
+        });
       }
       logs.push(
         `Lagerstatus ändrad för produkt ${st.productId}: ${ev.oldStatus} → ${st.newStatus}`

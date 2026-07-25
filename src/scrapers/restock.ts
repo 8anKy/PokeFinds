@@ -54,10 +54,23 @@ export function isNewInStockArrival(
   return start === null && finalStatus === StockStatus.IN_STOCK;
 }
 
+/**
+ * Förhandsbokningen ÖPPNAR: slutsåld → går att förhandsboka. Bevakaren vill veta —
+ * populära släpp tar slut på förhandsbokningarna innan release.
+ *
+ * Bara FRÅN OUT_OF_STOCK: IN_STOCK → PREORDER är en försämring (du kunde redan köpa
+ * den), och UNKNOWN → PREORDER är en produkt som dykt upp i feeden igen, inte en
+ * nyhet — samma anti-spam-regel som för restocks.
+ */
+export function isPreorderOpen(oldStatus: StockStatus, newStatus: StockStatus): boolean {
+  return newStatus === StockStatus.PREORDER && oldStatus === StockStatus.OUT_OF_STOCK;
+}
+
 export interface NetStockEvent {
   emit: boolean; // skapa en RestockEvent?
   oldStatus: StockStatus;
   isRestock: boolean; // skicka restock-alert?
+  isPreorderOpen: boolean; // skicka "öppen för förhandsbokning"-alert?
 }
 
 /**
@@ -74,5 +87,10 @@ export function netStockEvent(
 ): NetStockEvent {
   const oldStatus = start ?? StockStatus.UNKNOWN;
   const emit = isRealStockTransition(start !== null, oldStatus, finalStatus);
-  return { emit, oldStatus, isRestock: emit && isRestock(oldStatus, finalStatus) };
+  return {
+    emit,
+    oldStatus,
+    isRestock: emit && isRestock(oldStatus, finalStatus),
+    isPreorderOpen: emit && isPreorderOpen(oldStatus, finalStatus),
+  };
 }
