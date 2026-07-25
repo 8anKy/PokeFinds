@@ -189,11 +189,20 @@ export async function checkRestockAlerts(productId: string, retailerId?: string)
 }
 
 /**
- * Feed-först-larm för en RÅ butiksannons (StoreListing) som INTE finns i katalogen
+ * Feed-först-larm för en RÅ butiksannons (StoreListing) som INTE fanns som Offer
  * — antingen en helt ny produkt (NEW_LISTING) eller en restock av något vi inte har
  * som Offer (RESTOCK). Mottagare = Pro-användare med "Alla restocks/nya produkter"
- * påslaget (notificationSettings.allRestocks=true). Watchlist-bevakare kan inte gälla
- * (ingen katalog-produkt att bevaka). Mejlet byggs från annonsen (storeListingId).
+ * påslaget (notificationSettings.allRestocks=true) UNION Pro-bevakare av produkten
+ * (WatchlistItem.restockAlert) när annonsen auto-importerats till en katalogprodukt.
+ *
+ * BEVAKARNA: kommentaren här sa förr att watchlist-bevakare "inte kan gälla" (ingen
+ * katalogprodukt att bevaka). Det slutade gälla när auto-importen (ensureListingProduct)
+ * började LÄNKA annonsen till en BEFINTLIG produkt: en butik som börjar sälja något
+ * någon redan bevakar kommer in här, inte via offer-diffen (URL:en har ingen Offer
+ * ännu). Utan bevakarna blev den händelsen tyst för alla som stängt av "Alla restocks"
+ * — mätt 2026-07-25: Pitch Black Booster Bundle + Mega Greninja ex dök upp i lager hos
+ * Samlarhobby 07-19 utan att bevakaren fick något (och utan RestockEvent-rad, så det
+ * syntes inte ens i restock-historiken).
  */
 export async function checkListingAlerts(
   listing: { id: string; title: string; retailerId: string; productId?: string | null },
@@ -202,14 +211,33 @@ export async function checkListingAlerts(
   // Blockade språk (kinesiska/koreanska) larmar vi inte på "for now". Japanska = OK.
   if (isBlockedListingLanguage(listing.title)) return { triggered: 0 };
 
-  const subs = await prisma.user.findMany({
-    where: {
-      notificationSettings: { path: ["allRestocks"], equals: true },
-      ...proUserWhere(),
-    },
-    select: { id: true },
-  });
-  if (subs.length === 0) return { triggered: 0 };
+  const [allSubs, watchers] = await Promise.all([
+    prisma.user.findMany({
+      where: {
+        notificationSettings: { path: ["allRestocks"], equals: true },
+        ...proUserWhere(),
+      },
+      select: { id: true },
+    }),
+    listing.productId
+      ? prisma.watchlistItem.findMany({
+          // Samma mottagarregler som checkRestockAlerts: Pro, ej pausad, restockAlert på.
+          where: {
+            productId: listing.productId,
+            restockAlert: true,
+            isPaused: false,
+            user: proUserWhere(),
+          },
+          select: { userId: true },
+        })
+      : Promise.resolve([] as { userId: string }[]),
+  ]);
+
+  const recipients = new Set<string>();
+  for (const u of allSubs) recipients.add(u.id);
+  for (const w of watchers) recipients.add(w.userId);
+  if (recipients.size === 0) return { triggered: 0 };
+  const subs = [...recipients].map((id) => ({ id }));
 
   const message =
     kind === "NEW_LISTING"

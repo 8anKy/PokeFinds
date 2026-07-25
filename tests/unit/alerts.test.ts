@@ -227,6 +227,45 @@ describe("checkListingAlerts (feed-först: rå butiksannonser utanför katalogen
     expect((alertCreate.mock.calls[0][0] as { data: { type: string } }).data.type).toBe("RESTOCK");
   });
 
+  // Auto-importen länkar annonsen till en BEFINTLIG katalogprodukt → bevakaren måste
+  // med, annars är "en butik började sälja det du bevakar" tyst för alla som stängt
+  // av "Alla restocks" (mätt hål 2026-07-25: Samlarhobby 07-19).
+  it("larmar Pro-bevakare av den auto-importerade produkten utan allRestocks", async () => {
+    userFindMany.mockResolvedValue([]); // ingen prenumererar på alla restocks
+    watchlistFindMany.mockResolvedValue([{ userId: "watcher-1" }]);
+
+    const result = await checkListingAlerts({ ...LISTING, productId: "prod-9" }, "RESTOCK");
+
+    expect(result.triggered).toBe(1);
+    expect((alertCreate.mock.calls[0][0] as { data: { userId: string } }).data.userId).toBe("watcher-1");
+    expect(watchlistFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          productId: "prod-9",
+          restockAlert: true,
+          isPaused: false,
+          user: proUserWhereMatch,
+        }),
+      })
+    );
+  });
+
+  it("dedupar: bevakare som OCKSÅ har allRestocks får ett larm", async () => {
+    userFindMany.mockResolvedValue([{ id: "user-1" }, { id: "sub-2" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+
+    const result = await checkListingAlerts({ ...LISTING, productId: "prod-9" }, "NEW_LISTING");
+
+    expect(result.triggered).toBe(2); // user-1 (en gång) + sub-2
+    expect(alertCreate).toHaveBeenCalledTimes(2);
+  });
+
+  it("utan produkt-koppling frågas bevakningarna inte alls", async () => {
+    userFindMany.mockResolvedValue([{ id: "sub-1" }]);
+    await checkListingAlerts(LISTING, "NEW_LISTING");
+    expect(watchlistFindMany).not.toHaveBeenCalled();
+  });
+
   it("filtrerar på Pro + allRestocks=true, och larmar inget utan prenumeranter", async () => {
     userFindMany.mockResolvedValue([]);
     const result = await checkListingAlerts(LISTING, "NEW_LISTING");
