@@ -27,27 +27,33 @@ describe("singlesHeadlineEur (golvet rakt av)", () => {
     expect(singlesHeadlineEur({ from: 0.02, avg30: 2.41 }, null)).toEqual({ eur: 0.02, from: true });
   });
 
-  it("From saknas → CM:s egen lägsta (från guiden), inte trenden", () => {
-    // N · Noble Victories, 2026-07-25: LNM saknas, guidens trend är nollställd (0,02 €)
-    // medan CM:s publicerade lägsta är 13,99 €.
+  it("skräp-From ersätts av CM:s EGEN lägsta, inte av trenden", () => {
+    // Brock's Scouting JTG179: LNM 0,02 € mot guidens low 1,25 €.
+    expect(
+      singlesHeadlineEur({ from: 0.02, avg30: 2.41 }, { low: 1.25, trend: 2.37, avg: 2.41, avg30: 2.31 })
+    ).toEqual({ eur: 1.25, from: true });
+  });
+
+  it("From SAKNAS → median av referenserna som uppskattning, ALDRIG guidens low", () => {
+    // Gyarados · Base 6/102: guidens low 2 € är ett trasigt exemplar. Referenserna
+    // (trend 19,35 / avg 18,12 / avg30 17,36 / RapidAPI 30d 156,36) har median 18,74.
+    expect(
+      singlesHeadlineEur({ from: null, avg30: 156.36 }, { low: 2, trend: 19.35, avg: 18.12, avg30: 17.36 })
+    ).toEqual({ eur: 18.735, from: false });
+  });
+
+  it("medianen låter inte ETT nollställt fält kapa uppskattningen", () => {
+    // N · Noble Victories: guidens trend är 0,02 €. Median av [0,02 / 19,6 / 65,6 / 11,19] = 15,395.
     expect(
       singlesHeadlineEur({ from: null, avg30: 11.19 }, { low: 13.99, trend: 0.02, avg: 19.6, avg30: 65.6 })
-    ).toEqual({ eur: 13.99, from: true });
+    ).toEqual({ eur: 15.395, from: false });
   });
 
-  it("varken From eller lägsta → trend som uppskattning (from=false)", () => {
-    expect(singlesHeadlineEur({ from: null, avg30: 4093.09 }, { low: null, trend: 6271.49, avg30: 5000 })).toEqual({
-      eur: 6271.49,
-      from: false,
-    });
-  });
-
-  it("trend som spretar mot 30d-snittet förkastas som uppskattning → snittet vinner", () => {
-    // Poliwrath · Skyridge: guidens trend 16,44 € mot avg30 180,27 € = 11x isär.
-    expect(singlesHeadlineEur({ from: null, avg30: 230.18 }, { low: null, trend: 16.44, avg30: 180.27 })).toEqual({
-      eur: 180.27,
-      from: false,
-    });
+  it("medianen låter inte heller RapidAPI:s utstickare kapa den", () => {
+    // Charizard · Base 4/102: RapidAPI 30d 10,46 € mot guidens 2 506 €.
+    expect(
+      singlesHeadlineEur({ from: null, avg30: 10.46 }, { low: 799, trend: 4050.96, avg: 3903.4, avg30: 2506.69 })
+    ).toEqual({ eur: 3205.045, from: false });
   });
 
   it("ingen data alls (eller bara nollor) → null", () => {
@@ -105,12 +111,6 @@ describe("guideNameMatches", () => {
     expect(guideNameMatches("Rayquaza", null)).toBe(true);
   });
 
-  it("Charizard-fallet: rätt guide-rad överlever trots vilda prisavstånd", () => {
-    // Guiden low 799 €, RapidAPI 30d 10,46 € — namnet avgör, inte priset.
-    expect(
-      singlesHeadlineEur({ from: null, avg30: 10.46 }, { low: 799, trend: 4050.96, avg30: 2506.69 })
-    ).toEqual({ eur: 799, from: true });
-  });
 });
 
 // Haveribrytaren skyddar mot 2026-07-05-klassen: RapidAPI korrumperar en stor ANDEL

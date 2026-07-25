@@ -181,8 +181,6 @@ const pos = (v: number | null | undefined): number | null =>
 
 /** Hur långt UNDER en referens ett värde får ligga innan det döms som skräp. */
 export const FROM_FLOOR_TOL = Number(process.env.CM_FROM_FLOOR_TOL) || 0.5;
-/** Trend som spretar mer än så mot 30d-snittet är opålitlig som uppskattning. */
-export const ESTIMATE_AGREE = Number(process.env.CM_ESTIMATE_AGREE) || 3;
 
 /**
  * Officiellt CM-namn → jämförbar form. Attack-parentesen (den långa) faller bort,
@@ -272,24 +270,33 @@ export function singlesHeadlineEur(
   const g = guide;
   const from = pos(cm.from);
   const guideLow = pos(g?.low);
-  if (from != null && !fromContradictsCardmarket(from, guideLow, cm.avg30)) {
-    return { eur: from, from: true }; // GOLVET RAKT AV
+  if (from != null) {
+    // GOLVET RAKT AV — såvida det inte motsäger CM:s eget publicerade lägsta.
+    if (!fromContradictsCardmarket(from, guideLow, cm.avg30)) return { eur: from, from: true };
+    // Motsagt: publicera CM:s EGEN lägsta i stället. Fortfarande ett riktigt,
+    // köpbart pris ur CM:s officiella export — bara inte feedens skräpvärde.
+    if (guideLow != null) return { eur: guideLow, from: true };
   }
-  // From saknas eller motsägs av CM:s egen lägsta → publicera CM:s lägsta.
-  // Fortfarande en riktig, köpbar annons enligt CM:s officiella export.
-  if (guideLow != null) return { eur: guideLow, from: true };
 
-  // Sista utväg: uppskattning. Guidens `trend` är på tunt handlad vintage ofta
-  // nollställd (0,02 € på "N · Noble Victories" och "Dark Dragonite · Team Rocket",
-  // mätt 2026-07-25) eller 11x under sitt eget 30d-snitt (Poliwrath · Skyridge) —
-  // spretar den mot snittet är snittet det pålitligare av två gissningar.
-  const trend = pos(g?.trend) ?? pos(g?.avg);
-  const avg = pos(g?.avg30) ?? pos(cm.avg30);
-  if (trend != null && avg != null && Math.max(trend, avg) / Math.min(trend, avg) > ESTIMATE_AGREE) {
-    return { eur: avg, from: false };
-  }
-  const est = trend ?? avg;
-  return est != null ? { eur: est, from: false } : null;
+  // From SAKNAS helt → uppskattning (ingen känd köpbar NM-engelsk annons) →
+  // OUT_OF_STOCK. Här duger INTE guidens `low`: den är lägsta över alla skick och
+  // språk, så den skulle sätta ett trasigt exemplars pris under rubriken "NM
+  // engelska" (Gyarados · Base 6/102: low 2 € = 22 kr mot en marknad kring 19 €).
+  //
+  // MEDIAN, inte prioritetsordning: varje enskild referens kan vara korrupt, och
+  // vilken som är det varierar. Guidens `trend` är nollställd (0,02 €) på "N ·
+  // Noble Victories" och "Dark Dragonite · Team Rocket"; RapidAPI:s 30d-snitt är
+  // 10,46 € på en Base-Charizard som guiden prissätter till 2 506 €. Medianen av
+  // de fyra låter inte ETT trasigt fält bestämma — mätt på Gyarados ger den 18,7 €
+  // (mot RapidAPI-utstickarens 156 €) och på N 15,4 € (mot trendens 0,02 €).
+  const refs = [pos(g?.trend), pos(g?.avg), pos(g?.avg30), pos(cm.avg30)].filter(
+    (v): v is number => v != null
+  );
+  if (refs.length === 0) return null;
+  refs.sort((a, b) => a - b);
+  const mid = refs.length >> 1;
+  const est = refs.length % 2 ? refs[mid] : (refs[mid - 1] + refs[mid]) / 2;
+  return { eur: est, from: false };
 }
 
 // ── FEED-HAVERIBRYTARE (ersätter singel-dagklämman, 2026-07-24) ───────────────
