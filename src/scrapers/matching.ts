@@ -965,6 +965,14 @@ export function isSingleCardListing(title: string): boolean {
  */
 const ACCESSORY_SIGNS =
   /\b(spelmatta|playmat|lekmatta|sleeves?|kortfodral|deck ?box|kortl[åa]da|akryl\w*|acrylic|skyddsfodral|toploader|binder)\b/i;
+
+// RAM = en tom bildram, inte kortet i den (2026-07-26). "Mega Darkrai ex 116/084
+// Extended Artwork-ram för Pokémonkort" (179 kr) matchade kortet med samma nummer
+// och blev produktens lägsta pris — mot CM:s 3 207 kr. Annonsen bär kortets NAMN och
+// NUMMER, så varken nummervakten eller namnlikheten kan skilja dem; bara ordet "ram"
+// gör det. `\bram\b` är säkert i just det här ordförrådet: ordgränsen skyddar
+// Rampardos/Rampage/Ramos, och ett kort SÅLT i ram är ändå ett paket, inte kortet.
+const FRAME_SIGNS = /\b(kortram|ram|ramar|ramen|inramad|inramning|card\s?frame)\b/i;
 const PORTFOLIO_SIGNS = /\b(p[äa]rm|portfolio|album|pocket)\b/i;
 const BOOSTER_WORD = /\b(booster|paket|pack|packs)\b/i;
 
@@ -1053,6 +1061,7 @@ export function isAccessoryListing(title: string): boolean {
   if (ACCESSORY_SIGNS.test(title)) return true;
   if (ACCESSORY_BRANDS.test(title)) return true;
   if (PROTECTOR_SIGNS.test(title)) return true;
+  if (FRAME_SIGNS.test(title)) return true;
   // Pärm/album/portfolio UTAN booster = bara tillbehöret.
   if (PORTFOLIO_SIGNS.test(title) && !BOOSTER_WORD.test(title)) return true;
   return false;

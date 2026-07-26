@@ -249,6 +249,25 @@ describe("isAccessoryListing — tredjepartsmärken och skyddsplast", () => {
   });
 });
 
+// RAM (2026-07-26). "Mega Darkrai ex 116/084 Extended Artwork-ram för Pokémonkort"
+// blev produktens LÄGSTA PRIS (179 kr) på ett kort vars CM-golv är 3 207 kr. Annonsen
+// bär kortets namn OCH nummer, så varken nummervakten eller namnlikheten kunde skilja
+// dem — bara ordet "ram".
+describe("isAccessoryListing — bildramar", () => {
+  it("fångar ramen som satte priset på Mega Darkrai ex", () => {
+    expect(isAccessoryListing("Mega Darkrai ex 116/084 Extended Artwork-ram för Pokémonkort")).toBe(true);
+    expect(isAccessoryListing("Kortram för Pokémonkort, svart")).toBe(true);
+    expect(isAccessoryListing("Charizard Base Set - inramad")).toBe(true);
+    expect(isAccessoryListing("Card frame for graded slabs")).toBe(true);
+  });
+
+  it("rör inte kort vars namn bara BÖRJAR på ram", () => {
+    expect(isAccessoryListing("Rampardos 13/127 Platinum")).toBe(false);
+    expect(isAccessoryListing("Ramos 133/145 Guardians Rising")).toBe(false);
+    expect(isAccessoryListing("Rampage Charizard promo")).toBe(false);
+  });
+});
+
 // OMSLAGSKONST (2026-07-14). Samlarhobby säljer vintage-boosters på PACKETS BILD:
 // "…, 1 Booster (Charizard X Artwork)" och "(Charizard Y Artwork)" = SAMMA SKU.
 // Varje omslag blev en egen katalogprodukt — och att MERGA dem hjälpte inte: merge:n
