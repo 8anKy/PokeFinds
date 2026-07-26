@@ -716,6 +716,20 @@ export interface RawSourceObservation {
  *
  * TRADERA/BUTIKER behåller dagsmedel: där är flera observationer per dag OLIKA
  * annonser/butiker, och snittet är just det vi vill visa.
+ *
+ * ── EN SERIE = EN STORHET (2026-07-27) ──────────────────────────────────────
+ * Serien blandade två OLIKA mätvärden och ritade dem som en kurva. Fram till
+ * 2026-06-13 skrev scrape-jobbet pokemontcg.io:s CM-TREND (källa "Pokémon TCG API");
+ * från 2026-06-19 skriver cardmarket-refresh CM:s NM-ENGELSKA GOLV (källa
+ * "Cardmarket"). Det är inte samma storhet, och skarven blev ett fritt fall eller ett
+ * skyhopp som aldrig hänt på marknaden — mätt: 19 679 av 20 514 singlar har båda
+ * källorna i sin "Cardmarket"-serie, och de värsta skarvarna är 1 531 kr → 0,33 kr.
+ * Det var en STOR del av "priset ändras från ingenstans".
+ *
+ * Regeln: finns ÄKTA Cardmarket-observationer för produkten är de enda som får bilda
+ * serien; trend-källorna hoppas över (de ligger kvar i DB, men de hör inte i samma
+ * kurva). Saknas de helt är trend-serien allt vi har och används som förut — det
+ * gäller 14 singlar och noll sealed, så inga grafer töms av det här.
  */
 export function bucketObservationsBySource(
   observations: RawSourceObservation[]
@@ -729,11 +743,14 @@ export function bucketObservationsBySource(
     tradera: new Map<string, { sum: number; n: number }>(),
     butiker: new Map<string, { sum: number; n: number }>(),
   };
+  const hasTrueCardmarket = ordered.some((o) => o.source?.name === "Cardmarket");
 
   for (const o of ordered) {
     const name = o.source?.name ?? null;
     const day = o.observedAt.toISOString().slice(0, 10);
     if (name && CARDMARKET_SOURCE_NAMES.includes(name)) {
+      // Legacy trend-punkt bredvid äkta CM-golv → annan storhet, hör inte i kurvan.
+      if (hasTrueCardmarket && name !== "Cardmarket") continue;
       cardmarket.set(day, o.price); // stigande tidsordning → sista vinner
       continue;
     }

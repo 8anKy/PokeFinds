@@ -56,4 +56,40 @@ describe("bucketObservationsBySource", () => {
       { date: "2026-07-23", price: 200 },
     ]);
   });
+  // EN SERIE = EN STORHET (2026-07-27). Fram till 2026-06-13 skrevs pokemontcg.io:s
+  // CM-TREND; från 06-19 CM:s NM-engelska GOLV. Att rita dem som en kurva gav skarvar
+  // som 1 531 kr → 0,33 kr, på 19 679 av 20 514 singlar.
+  it("legacy trend-punkter utesluts när äkta CM-observationer finns", () => {
+    const res = bucketObservationsBySource([
+      { price: 1531_07, observedAt: new Date("2026-06-01T13:00:00Z"), source: { name: "Pokémon TCG API" } },
+      { price: 180_09, observedAt: new Date("2026-06-13T13:00:00Z"), source: { name: "TCGdex API" } },
+      cm("2026-06-19T18:00:00Z", 33),
+      cm("2026-06-20T18:00:00Z", 35),
+    ]);
+    expect(res.cardmarket).toEqual([
+      { date: "2026-06-19", price: 33 },
+      { date: "2026-06-20", price: 35 },
+    ]);
+  });
+
+  it("men trend-serien behålls när det är allt som finns (14 singlar)", () => {
+    const res = bucketObservationsBySource([
+      { price: 500, observedAt: new Date("2026-06-01T13:00:00Z"), source: { name: "Pokémon TCG API" } },
+      { price: 600, observedAt: new Date("2026-06-13T13:00:00Z"), source: { name: "Pokémon TCG API" } },
+    ]);
+    expect(res.cardmarket).toEqual([
+      { date: "2026-06-01", price: 500 },
+      { date: "2026-06-13", price: 600 },
+    ]);
+  });
+
+  it("uteslutningen gäller bara CM-bucketen — Tradera/butiker rörs inte", () => {
+    const res = bucketObservationsBySource([
+      { price: 900, observedAt: new Date("2026-06-01T13:00:00Z"), source: { name: "Pokémon TCG API" } },
+      cm("2026-06-19T18:00:00Z", 33),
+      { price: 700, observedAt: new Date("2026-06-01T10:00:00Z"), source: { name: "Tradera" } },
+    ]);
+    expect(res.cardmarket).toEqual([{ date: "2026-06-19", price: 33 }]);
+    expect(res.tradera).toEqual([{ date: "2026-06-01", price: 700 }]);
+  });
 });
