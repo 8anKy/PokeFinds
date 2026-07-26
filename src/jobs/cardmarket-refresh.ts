@@ -230,6 +230,33 @@ export function guideNameMatches(
   return a.startsWith(b) || b.startsWith(a);
 }
 
+/**
+ * Är guide-raden ens en SINGEL? Namnvakten ovan kan inte svara på det, för dess
+ * "saknas katalognamn → betrodd" är sant PRECIS när idProduct inte finns i
+ * singel-katalogen — alltså i det värsta fallet.
+ *
+ * Mätt 2026-07-26: RapidAPI ger Pidgey · Flashfire 75/106 `cardmarket_id` 271938,
+ * som enligt CM:s EGNA kataloger är en SEALED-produkt (finns i sealed-listan, saknas
+ * bland de 71 586 singlarna). Dess guide-rad (`low` 295 €) passerade namnvakten
+ * obemärkt, fick `fromContradictsCardmarket` att förkasta kortets riktiga From
+ * (0,02 €) som "för låg" — och publicerade boosterlådans golvpris som kortets pris:
+ * 3 262,70 kr för en common. Samma väg drabbade 97 singlar ≥10x (26 av dem ≥100x)
+ * och 295 till i spannet 3–10x; körningsbrytaren såg 0,5 % och teg med rätta.
+ *
+ * Domaren är CM:s egen katalog (samma princip som guideNameMatches): finns idProduct
+ * inte bland singlarna är raden inte det här kortet, och får varken prissätta eller
+ * döma. Kunde katalogen inte hämtas (tom map) står vakten över körningen i stället
+ * för att kasta ALLA guide-rader — samma stand-down som fetchCmSingleNames redan har.
+ */
+export function guideRowIsSingle(
+  idProduct: number | null | undefined,
+  cmSingleNames: Map<number, string>,
+): boolean {
+  if (idProduct == null) return false;
+  if (cmSingleNames.size === 0) return true; // katalogen otillgänglig → vakten avstår
+  return cmSingleNames.has(idProduct);
+}
+
 // ── SET+NUMMER-RESERVEN (2026-07-26) ─────────────────────────────────────────
 // `tcgid` var enda singel-nyckeln, och den räcker INTE: RapidAPI publicerar tre
 // olika lägen för samma fält, och två av dem gör hela set osynliga för prisjobbet.
@@ -1087,7 +1114,7 @@ export async function runCardmarketRefresh(
     // CM:s officiella prisguide = trend/30d-fallback när From saknas (RapidAPI-
     // singlar saknar trend-fält; guiden har alltid trend/avg).
     const [guide, cmNames] = await Promise.all([fetchCmGuide(), fetchCmSingleNames()]);
-    let misIdentified = 0;
+    let misIdentified = 0, notASingle = 0;
     // GOLVET RAKT AV (ägarbeslut 2026-07-24, se singlesHeadlineEur): From publiceras
     // EXAKT som CM listar den — ingen trend-substitution, ingen per-kort-dagklämma.
     // `from=false` ⇒ värdet är en trend/30d-UPPSKATTNING (ingen köpbar annons) ⇒
@@ -1123,10 +1150,15 @@ export async function runCardmarketRefresh(
         }
         if (!entry) continue;
         const cmp = card.prices?.cardmarket ?? {};
-        // Identitetsvakt: guide-raden används BARA om CM:s officiella singel-katalog
-        // säger att idProduct är samma kort (se guideNameMatches).
+        // Identitetsvakt, TVÅ frågor: är raden ens en singel (guideRowIsSingle — ett
+        // cardmarket_id som pekar på en SEALED-produkt smög förbi namnvakten och
+        // publicerade boosterlådans golv som kortets pris), och är det i så fall VÅRT
+        // kort (guideNameMatches)?
         let g = card.cardmarket_id != null ? guide.get(card.cardmarket_id) : undefined;
-        if (g && card.cardmarket_id != null &&
+        if (g && !guideRowIsSingle(card.cardmarket_id, cmNames)) {
+          g = undefined;
+          notASingle++;
+        } else if (g && card.cardmarket_id != null &&
             !guideNameMatches(cmNames.get(card.cardmarket_id), card.name)) {
           g = undefined;
           misIdentified++;
@@ -1196,6 +1228,8 @@ export async function runCardmarketRefresh(
       );
     if (misIdentified)
       console.log(`[cm-refresh] Identitetsvakt: ${misIdentified} kort där RapidAPI:s cardmarket_id pekar på ett ANNAT kort i CM:s katalog → guide-raden ignorerad.`);
+    if (notASingle)
+      console.log(`[cm-refresh] Identitetsvakt: ${notASingle} kort där cardmarket_id inte är en SINGEL alls (sealed/okänd idProduct) → guide-raden ignorerad, From publiceras rått.`);
     console.log(`[cm-refresh] Singlar: ${res.singlesUpdated} uppdaterade, ${res.singlesCreated} nya, ${res.historyPoints} historikpunkter.`);
   }
 

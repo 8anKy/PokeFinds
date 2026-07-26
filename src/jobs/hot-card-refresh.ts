@@ -19,7 +19,7 @@ import {
   withNearMint,
 } from "../lib/marketplace-urls";
 import { recomputeProductPriceCache } from "../services/products";
-import { fetchCmGuide, fetchCmSingleNames, guideNameMatches, singlesHeadlineEur } from "./cardmarket-refresh";
+import { fetchCmGuide, fetchCmSingleNames, guideNameMatches, guideRowIsSingle, singlesHeadlineEur } from "./cardmarket-refresh";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const API_CONCURRENCY = 4;
@@ -125,8 +125,14 @@ export async function runHotCardRefresh(
     const card = d?.data?.[0];
     if (!card) return;
     const cmp = card.prices?.cardmarket ?? {};
+    // Båda identitetsfrågorna, samma som dagliga körningen: är raden en SINGEL, och
+    // är den i så fall VÅRT kort? Utan guideRowIsSingle hade det här jobbet återinfört
+    // en sealed-produkts golvpris (Pidgey · Flashfire: 3 262 kr) några timmar efter
+    // att dagliga körningen rensat det.
     const g =
-      card.cardmarket_id != null && guideNameMatches(cmNames.get(card.cardmarket_id), card.name)
+      card.cardmarket_id != null &&
+      guideRowIsSingle(card.cardmarket_id, cmNames) &&
+      guideNameMatches(cmNames.get(card.cardmarket_id), card.name)
         ? guide.get(card.cardmarket_id)
         : undefined;
     const priced = singlesHeadlineEur({ from: cmp.lowest_near_mint, avg30: cmp["30d_average"] }, g);
