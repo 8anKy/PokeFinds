@@ -623,11 +623,9 @@ async function getProductBySlugRaw(slug: string) {
         include: { retailer: { select: { id: true, name: true, logoUrl: true, websiteUrl: true } } },
         orderBy: { price: { sort: "asc", nulls: "last" } },
       },
-      restockEvents: {
-        orderBy: { detectedAt: "desc" },
-        take: 20,
-        include: { retailer: { select: { id: true, name: true } } },
-      },
+      // Restock-historiken hämtas INTE här: den är admin-only (se restock-history.tsx)
+      // och sidan är ISR-cachad — datat skulle ligga i payloaden för alla besökare
+      // och kosta en Neon-fråga per rendering av 20k produktsidor.
       priceSnapshots: {
         where: { date: { gte: daysAgo(7) } },
         select: { date: true, avgPrice: true },
@@ -794,12 +792,6 @@ export interface ProductDetailData {
   watchCount: number;
   updatedAt: string;
   set: { id: string; name: string } | null;
-  restockEvents: {
-    id: string;
-    retailerName: string;
-    newStatus: StockStatus;
-    detectedAt: string;
-  }[];
   /** Cardmarket-trendserie (hela perioden; klienten filtrerar). */
   chartData: SourceHistoryPoint[];
   /** Källa för historik-grafen → graf-rubrik (CM-trend vs butiks-snitt vs Tradera). */
@@ -1012,12 +1004,6 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
     watchCount: product.watchCount,
     updatedAt: new Date(product.updatedAt).toISOString(),
     set: product.set ? { id: product.set.id, name: product.set.name } : null,
-    restockEvents: product.restockEvents.map((e) => ({
-      id: e.id,
-      retailerName: e.retailer.name,
-      newStatus: e.newStatus,
-      detectedAt: new Date(e.detectedAt).toISOString(),
-    })),
     chartData,
     trendSource,
     change7,

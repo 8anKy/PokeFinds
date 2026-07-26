@@ -12,6 +12,7 @@ import { SafeImage } from "@/components/ui/safe-image";
 import { ProductPriceCard } from "@/components/features/product-price-card";
 import { ProductCard, CATEGORY_LABELS } from "@/components/features/product-card";
 import { ProductActions } from "@/components/features/product-actions";
+import { ProductRestockHistory } from "@/components/features/restock-history";
 import { CopyOnHoldTitle } from "@/components/features/copy-on-hold-title";
 import { traderaSearchUrlSpecific } from "@/lib/marketplace-urls";
 import {
@@ -60,7 +61,6 @@ export function ProductDetailView({
     track("product_view", data.slug);
   }, [data.slug]);
 
-  const lastInStock = data.restockEvents.find((e) => e.newStatus === "IN_STOCK");
   const isSingle = data.category === "SINGLE_CARD";
 
   return (
@@ -186,41 +186,8 @@ export function ProductDetailView({
           }
         />
 
-        {/* Restock history */}
-        <section className="mt-10">
-          <h2 className="font-display text-xl font-semibold text-ink">
-            {t("restockHistory")}
-          </h2>
-          {lastInStock && (
-            <p className="mt-2 text-sm text-ink-muted">
-              {t.rich("lastInStock", {
-                whenText: formatRelative(lastInStock.detectedAt),
-                store: lastInStock.retailerName,
-                when: (chunks) => <span className="text-rise">{chunks}</span>,
-              })}
-            </p>
-          )}
-          {data.restockEvents.length === 0 ? (
-            <p className="mt-3 text-sm text-ink-muted">
-              {t("noRestocks")}
-            </p>
-          ) : (
-            <ul className="mt-4 space-y-2">
-              {data.restockEvents.slice(0, 10).map((event) => (
-                <li
-                  key={event.id}
-                  className="card-surface flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm"
-                >
-                  <span className="text-ink">
-                    {event.retailerName}
-                    <StockBadge stockStatus={event.newStatus} className="ml-2" />
-                  </span>
-                  <span className="text-ink-muted">{formatRelative(event.detectedAt)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        {/* Restock-historik — admin-only, hämtas on-demand (se restock-history.tsx) */}
+        <ProductRestockHistory productId={data.id} />
 
         {/* Fler annonser på Tradera (#19) — samma produkt, andra säljare.
             Horisontell svep-skena; billigast först (svepet lagrar max 20).

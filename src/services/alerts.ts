@@ -25,6 +25,77 @@ export function stockAlertMessage(
   return `${title} finns i lager igen!`;
 }
 
+/**
+ * FLAPP-DÄMPNING (2026-07-26). En butik som pytsar ut en het vara växlar
+ * "i lager"/"slut" om vartannat: Dragon's Lair togglade Pitch Black ETB och
+ * Booster Box 28 respektive 45 gånger på tre dygn (uppmätt i feeden — både
+ * kollektions-JSON och produktens egen `.js` sa samma sak, så det är butikens
+ * riktiga lager som studsar, inte vår sampling). Enda skyddet var 2h-cooldownen
+ * → ett mejl varannan timme, dygnet runt, för samma produkt.
+ *
+ * Två regler, båda mätta mot HELA restock-historiken (21 dgr, 470 händelser)
+ * innan de skeppades — inte gissade:
+ *
+ *   A. BLINK: är produkten tillbaka i det tillstånd den nyss lämnade, inom
+ *      `minAwayMinutes`, har den aldrig varit borta på riktigt. Inget larm.
+ *   B. FLAPP: har paret (produkt, butik) fler än `flapMaxTransitions`
+ *      lagerövergångar det senaste dygnet är butiken i droppläge → cooldownen
+ *      förlängs till `flapCooldownHours` (ett besked per dygn i stället för
+ *      ett varannan timme). Tystar INTE helt: att en het vara trillar in med
+ *      jämna mellanrum är i sig information värd ett larm om dagen.
+ *
+ * Utfall på facit: 177 → 147 larmtillfällen totalt, och de värsta paren faller
+ * från 12/6 till 7/3. Två par tappar sitt enda larm helt — båda var 30-minuters
+ * blinkar (produkten lämnade aldrig hyllan). Ingen produkt med en ÄKTA
+ * påfyllning (borta > 1 h) blir tyst.
+ */
+export const FLAP_WINDOW_HOURS = 24;
+
+export interface FlapPolicy {
+  minAwayMinutes: number;
+  flapMaxTransitions: number;
+  flapCooldownHours: number;
+}
+
+export function flapPolicy(): FlapPolicy {
+  return {
+    minAwayMinutes: Number(process.env.RESTOCK_MIN_AWAY_MINUTES ?? 60),
+    flapMaxTransitions: Number(process.env.RESTOCK_FLAP_MAX_TRANSITIONS ?? 6),
+    flapCooldownHours: Number(process.env.RESTOCK_FLAP_COOLDOWN_HOURS ?? 24),
+  };
+}
+
+/**
+ * Ren dom över `recent` = lagerövergångarna (RestockEvent) för EN produkt hos EN
+ * butik, nyast först. Filtrerar själv till dygnsfönstret så den inte är beroende
+ * av att anroparens fråga råkar ha rätt `gte`.
+ *
+ * Övergången som just larmar ingår i `recent` (runner skriver händelsen FÖRE
+ * larmet, med flit — se ordningskommentaren i runRestockScan). Den kan aldrig
+ * matcha blink-regeln själv: dess `oldStatus` är det tillstånd vi lämnade, inte
+ * det vi återvänder till.
+ */
+export function evaluateStockFlap(
+  recent: { oldStatus: StockStatus; detectedAt: Date }[],
+  toStatus: StockStatus | null,
+  now: Date,
+  policy: FlapPolicy
+): { blip: boolean; cooldownHours: number } {
+  const windowStart = now.getTime() - FLAP_WINDOW_HOURS * 3600_000;
+  const inWindow = recent.filter((e) => e.detectedAt.getTime() >= windowStart);
+
+  // A: senaste gången produkten LÄMNADE tillståndet den nu återvänder till.
+  const left = toStatus == null ? undefined : inWindow.find((e) => e.oldStatus === toStatus);
+  const blip =
+    policy.minAwayMinutes > 0 &&
+    left != null &&
+    now.getTime() - left.detectedAt.getTime() < policy.minAwayMinutes * 60_000;
+
+  const flapping =
+    policy.flapMaxTransitions > 0 && inWindow.length > policy.flapMaxTransitions;
+  return { blip, cooldownHours: flapping ? policy.flapCooldownHours : 0 };
+}
+
 export interface CreateAlertInput {
   userId: string;
   productId?: string;
@@ -155,7 +226,26 @@ export async function checkRestockAlerts(
   // aldrig (2026-07-07). Fönstret här dämpar bara snabb explicit flapp (feed som
   // växlar slut/i-lager på minuter). KORT med flit: billiga heta produkter kan ha
   // flera ÄKTA restocks samma dag och varje sådan ska larma.
-  const cooldownH = Number(process.env.RESTOCK_ALERT_COOLDOWN_HOURS ?? 2);
+  let cooldownH = Number(process.env.RESTOCK_ALERT_COOLDOWN_HOURS ?? 2);
+
+  // Flapp-dämpning: blinkar tystas helt, droppande butiker får dygnscooldown.
+  // Läser butikens egen övergångshistorik för produkten — se evaluateStockFlap.
+  if (retailerId) {
+    const now = new Date();
+    const recent = await prisma.restockEvent.findMany({
+      where: {
+        productId,
+        retailerId,
+        detectedAt: { gte: new Date(now.getTime() - FLAP_WINDOW_HOURS * 3600_000) },
+      },
+      select: { oldStatus: true, detectedAt: true },
+      orderBy: { detectedAt: "desc" },
+    });
+    const flap = evaluateStockFlap(recent, toStatus, now, flapPolicy());
+    if (flap.blip) return { triggered: 0 };
+    cooldownH = Math.max(cooldownH, flap.cooldownHours);
+  }
+
   if (cooldownH > 0 && retailerId) {
     const recent = await prisma.alert.findFirst({
       where: {

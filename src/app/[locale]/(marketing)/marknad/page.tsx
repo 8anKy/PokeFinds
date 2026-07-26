@@ -1,18 +1,17 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import { formatPrice, formatRelative } from "@/lib/format";
+import { formatPrice } from "@/lib/format";
 import {
   getMarketStats,
   getMostWatched,
-  getRecentRestocks,
   getSetIndex,
   getTopDrops,
   getTrending,
 } from "@/services/market";
+import { MarketRestocks } from "@/components/features/restock-history";
 import { LinkButton } from "@/components/ui/button";
 import { PriceChange } from "@/components/ui/price-change";
-import { StockBadge } from "@/components/ui/badge";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CATEGORY_LABELS } from "@/components/features/product-card";
@@ -20,7 +19,6 @@ import {
   IconBell,
   IconChart,
   IconEye,
-  IconPackage,
   IconTrendingDown,
   IconTrendingUp,
 } from "@/components/ui/icons";
@@ -107,15 +105,13 @@ export default async function MarketPage({
     category in CATEGORY_LABELS ? tCat(category) : tCat("OTHER");
   const nf = new Intl.NumberFormat(params.locale);
 
-  const [stats, trending, drops, mostWatched, restocks, setIndex] =
-    await Promise.all([
-      getMarketStats(),
-      getTrending(6),
-      getTopDrops(6),
-      getMostWatched(6),
-      getRecentRestocks(12),
-      getSetIndex(),
-    ]);
+  const [stats, trending, drops, mostWatched, setIndex] = await Promise.all([
+    getMarketStats(),
+    getTrending(6),
+    getTopDrops(6),
+    getMostWatched(6),
+    getSetIndex(),
+  ]);
 
   const statItems = [
     { label: t("statWatchedLabel"), value: nf.format(stats.productCount) },
@@ -225,54 +221,8 @@ export default async function MarketPage({
         </div>
       </section>
 
-      {/* Restocks */}
-      <section className="mt-12">
-        <h2 className="flex items-center gap-2 font-display text-xl font-semibold text-ink">
-          <IconPackage size={20} className="text-holo-cyan" />
-          {t("restocksTitle")}
-        </h2>
-        <div className="mt-4">
-          {restocks.length === 0 ? (
-            <EmptyState
-              icon={<IconPackage size={32} />}
-              title={t("noRestocksTitle")}
-              description={t("noRestocksDesc")}
-            />
-          ) : (
-            <Table>
-              <THead>
-                <TR>
-                  <TH>{t("colProduct")}</TH>
-                  <TH>{t("colStore")}</TH>
-                  <TH>{t("colStatus")}</TH>
-                  <TH>{t("colWhen")}</TH>
-                </TR>
-              </THead>
-              <TBody>
-                {restocks.map((r) => (
-                  <TR key={r.id}>
-                    <TD>
-                      <Link
-                        href={`/produkter/${r.product.slug}`}
-                        className="font-medium hover:text-holo-cyan"
-                      >
-                        {r.product.title}
-                      </Link>
-                    </TD>
-                    <TD className="text-ink-muted">{r.retailer.name}</TD>
-                    <TD>
-                      <StockBadge stockStatus={r.newStatus} />
-                    </TD>
-                    <TD className="whitespace-nowrap text-ink-muted">
-                      {formatRelative(r.detectedAt)}
-                    </TD>
-                  </TR>
-                ))}
-              </TBody>
-            </Table>
-          )}
-        </div>
-      </section>
+      {/* Restocks — admin-only, hämtas klient-sida (se restock-history.tsx) */}
+      <MarketRestocks />
 
       {/* Set index */}
       <section className="mt-12">

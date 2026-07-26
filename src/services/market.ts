@@ -348,6 +348,23 @@ async function getEngagementTrendingRaw(limit = 10) {
 }
 
 /**
+ * EN produkts lagerövergångar — rå huvudbok, utan "fortfarande i lager"-gallringen
+ * nedan. Admin-vy (produktsidans restock-historik), så ingen cache: den läses
+ * sällan och ska visa exakt vad skanningen skrev, inklusive slutsålt-övergångar.
+ */
+export async function getProductRestocks(productId: string, limit = 20) {
+  return prisma.restockEvent.findMany({
+    where: { productId },
+    include: {
+      product: { select: { id: true, title: true, slug: true, imageUrl: true } },
+      retailer: { select: { id: true, name: true, logoUrl: true } },
+    },
+    orderBy: { detectedAt: "desc" },
+    take: limit,
+  });
+}
+
+/**
  * Senaste påfyllningar — bara de som FORTFARANDE är i lager. En restock-händelse
  * är historik; allokerings-droppar (t.ex. Webhallen "Tillfälligt fullbokad") kan
  * vara slutsålda igen inom minuter. Vi visar därför bara events vars offer just nu

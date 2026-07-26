@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { auth, hasRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatPrice, formatPercent, formatRelative } from "@/lib/format";
 import { computeCollectionValue } from "@/services/collection";
@@ -49,11 +49,15 @@ export default async function DashboardPage() {
   const tCat = await getTranslations("Category");
   const tPost = await getTranslations("PostCategory");
 
+  // Restock-huvudboken är admin-only (2026-07-26) — se restock-history.tsx. Här har vi
+  // redan sessionen server-sida, så grinden är en vanlig rollkoll (ingen klient-hämtning).
+  const isAdmin = hasRole(session.user.role, "ADMIN");
+
   const [collection, watchlistCount, restocks, drops, alerts, feed, watchedCategories] =
     await Promise.all([
       computeCollectionValue(userId),
       prisma.watchlistItem.count({ where: { userId } }),
-      getRecentRestocks(5),
+      isAdmin ? getRecentRestocks(5) : [],
       getTopDrops(12),
       listAlerts(userId, { page: 1, pageSize: 5 }),
       getFeed({ page: 1, pageSize: 3 }),
@@ -142,8 +146,11 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Senaste restocks */}
+      {/* Utan restock-kortet (icke-admin) får alerts-kortet hela bredden — annars
+          står det som en halv, avhuggen kolumn. */}
+      <div className={`grid grid-cols-1 gap-6 ${isAdmin ? "lg:grid-cols-2" : ""}`}>
+        {/* Senaste restocks — admin-only */}
+        {isAdmin && (
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>{t("recentRestocks")}</CardTitle>
@@ -185,6 +192,7 @@ export default async function DashboardPage() {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Dina senaste alerts */}
         <Card>

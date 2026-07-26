@@ -54,7 +54,8 @@ Alla endpoints ligger under `/api`. Autentisering via NextAuth-session (cookie).
 | POST | /api/community/posts/[id]/report | ✅ | Rapportera `{reason}` |
 
 ## Marknad
-| GET | /api/market/trending · /drops · /most-watched · /restocks · /stats | – | Marknadsdata |
+| GET | /api/market/trending · /drops · /most-watched · /stats | – | Marknadsdata |
+| GET | /api/market/restocks | ADMIN | Restock-huvudbok (`limit`, `productId?`). Admin-only sedan 2026-07-26 — driftlogg, inte produktfunktion |
 
 ## Admin (kräver roll)
 | GET | /api/admin/stats | ADMIN | Systemstatistik |

@@ -11,6 +11,7 @@ const watchlistFindMany = vi.fn();
 const userFindMany = vi.fn();
 const alertCreate = vi.fn();
 const alertFindFirst = vi.fn();
+const restockEventFindMany = vi.fn();
 const transaction = vi.fn();
 
 vi.mock("@/lib/db", () => ({
@@ -22,11 +23,18 @@ vi.mock("@/lib/db", () => ({
       create: (...args: unknown[]) => alertCreate(...args),
       findFirst: (...args: unknown[]) => alertFindFirst(...args),
     },
+    restockEvent: { findMany: (...args: unknown[]) => restockEventFindMany(...args) },
     $transaction: (...args: unknown[]) => transaction(...args),
   },
 }));
 
-import { checkPriceAlerts, checkRestockAlerts, checkListingAlerts } from "@/services/alerts";
+import {
+  checkPriceAlerts,
+  checkRestockAlerts,
+  checkListingAlerts,
+  evaluateStockFlap,
+  flapPolicy,
+} from "@/services/alerts";
 
 // Pro-mottagare = planTier PREMIUM ELLER admin-roll ELLER aktiv referral-bonus
 // (lib/plan.proUserWhere). Assertar mot samma struktur som koden bygger — ett bart
@@ -48,6 +56,7 @@ beforeEach(() => {
   userFindMany.mockReset().mockResolvedValue([]);
   alertCreate.mockReset().mockImplementation((args: unknown) => args);
   alertFindFirst.mockReset().mockResolvedValue(null); // inget nyligt restock-larm → cooldown öppen
+  restockEventFindMany.mockReset().mockResolvedValue([]); // ingen flapp-historik
   transaction.mockReset().mockResolvedValue([]);
 });
 
@@ -237,6 +246,134 @@ describe("checkRestockAlerts", () => {
     productFindUnique.mockResolvedValue(null);
     const result = await checkRestockAlerts("saknas");
     expect(result.triggered).toBe(0);
+  });
+});
+
+/**
+ * Flapp-dämpning (2026-07-26): Dragon's Lair togglade Pitch Black ETB/Booster Box
+ * 28 resp. 45 gånger på tre dygn. Ren dom först, sedan integrationen i
+ * checkRestockAlerts.
+ */
+describe("evaluateStockFlap", () => {
+  const NOW = new Date("2026-07-26T16:00:00Z");
+  const ago = (min: number) => new Date(NOW.getTime() - min * 60_000);
+  const P = { minAwayMinutes: 60, flapMaxTransitions: 6, flapCooldownHours: 24 };
+
+  it("blink: tillbaka i lager 10 min efter att den tog slut = ingen påfyllning", () => {
+    const recent = [
+      { oldStatus: "OUT_OF_STOCK" as const, detectedAt: ago(0) }, // övergången som larmar
+      { oldStatus: "IN_STOCK" as const, detectedAt: ago(10) }, // lämnade IN_STOCK nyss
+    ];
+    expect(evaluateStockFlap(recent, "IN_STOCK", NOW, P).blip).toBe(true);
+  });
+
+  it("äkta påfyllning: borta i två timmar = larm", () => {
+    const recent = [
+      { oldStatus: "OUT_OF_STOCK" as const, detectedAt: ago(0) },
+      { oldStatus: "IN_STOCK" as const, detectedAt: ago(120) },
+    ];
+    expect(evaluateStockFlap(recent, "IN_STOCK", NOW, P).blip).toBe(false);
+  });
+
+  it("första gången produkten ses hos butiken (ingen historik) = larm", () => {
+    expect(evaluateStockFlap([], "IN_STOCK", NOW, P)).toEqual({ blip: false, cooldownHours: 0 });
+  });
+
+  it("förhandsbokning bedöms mot NÄR förhandsbokningen stängde, inte mot lagret", () => {
+    const recent = [
+      { oldStatus: "OUT_OF_STOCK" as const, detectedAt: ago(0) },
+      { oldStatus: "IN_STOCK" as const, detectedAt: ago(5) }, // annan status → irrelevant
+      { oldStatus: "PREORDER" as const, detectedAt: ago(300) },
+    ];
+    expect(evaluateStockFlap(recent, "PREORDER", NOW, P).blip).toBe(false);
+  });
+
+  it("droppande butik (fler övergångar än taket senaste dygnet) → dygnscooldown", () => {
+    const recent = Array.from({ length: 9 }, (_, i) => ({
+      oldStatus: (i % 2 === 0 ? "OUT_OF_STOCK" : "IN_STOCK") as "OUT_OF_STOCK" | "IN_STOCK",
+      detectedAt: ago(i * 90), // var 90:e min → inga blinkar, bara ihärdig flapp
+    }));
+    expect(evaluateStockFlap(recent, "IN_STOCK", NOW, P).cooldownHours).toBe(24);
+  });
+
+  it("räknar bara dygnets övergångar — gammal historik förlänger ingen cooldown", () => {
+    const recent = Array.from({ length: 9 }, (_, i) => ({
+      oldStatus: "IN_STOCK" as const,
+      detectedAt: ago(60 * 25 + i), // äldre än 24h
+    }));
+    expect(evaluateStockFlap(recent, "IN_STOCK", NOW, P).cooldownHours).toBe(0);
+  });
+
+  it("okänd slutstatus (äldre anrop utan övergång) kan aldrig vara en blink", () => {
+    const recent = [{ oldStatus: "IN_STOCK" as const, detectedAt: ago(1) }];
+    expect(evaluateStockFlap(recent, null, NOW, P).blip).toBe(false);
+  });
+
+  it("standardpolicyn är 60 min / 6 övergångar / 24h", () => {
+    expect(flapPolicy()).toEqual({
+      minAwayMinutes: 60,
+      flapMaxTransitions: 6,
+      flapCooldownHours: 24,
+    });
+  });
+});
+
+describe("checkRestockAlerts — flapp-dämpning", () => {
+  it("tystar blinken: produkten var slut i 10 minuter", async () => {
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+    restockEventFindMany.mockResolvedValue([
+      { oldStatus: "OUT_OF_STOCK", detectedAt: new Date() },
+      { oldStatus: "IN_STOCK", detectedAt: new Date(Date.now() - 10 * 60_000) },
+    ]);
+
+    const result = await checkRestockAlerts("prod-1", "ret-1", {
+      from: "OUT_OF_STOCK",
+      to: "IN_STOCK",
+    });
+
+    expect(result.triggered).toBe(0);
+    expect(alertCreate).not.toHaveBeenCalled();
+    expect(alertFindFirst).not.toHaveBeenCalled(); // hann aldrig till cooldownen
+  });
+
+  it("flappande par: cooldownen vidgas till ett dygn", async () => {
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+    restockEventFindMany.mockResolvedValue(
+      Array.from({ length: 9 }, (_, i) => ({
+        oldStatus: i % 2 === 0 ? "OUT_OF_STOCK" : "IN_STOCK",
+        detectedAt: new Date(Date.now() - i * 90 * 60_000),
+      }))
+    );
+
+    await checkRestockAlerts("prod-1", "ret-1", { from: "OUT_OF_STOCK", to: "IN_STOCK" });
+
+    const where = (alertFindFirst.mock.calls[0][0] as { where: { triggeredAt: { gte: Date } } }).where;
+    const windowH = (Date.now() - where.triggeredAt.gte.getTime()) / 3600_000;
+    expect(windowH).toBeGreaterThan(23);
+  });
+
+  it("lugn produkt: 2h-cooldownen står kvar", async () => {
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+    restockEventFindMany.mockResolvedValue([
+      { oldStatus: "OUT_OF_STOCK", detectedAt: new Date() },
+      { oldStatus: "IN_STOCK", detectedAt: new Date(Date.now() - 30 * 3600_000) },
+    ]);
+
+    const result = await checkRestockAlerts("prod-1", "ret-1", {
+      from: "OUT_OF_STOCK",
+      to: "IN_STOCK",
+    });
+
+    expect(result.triggered).toBe(1);
+    const where = (alertFindFirst.mock.calls[0][0] as { where: { triggeredAt: { gte: Date } } }).where;
+    const windowH = (Date.now() - where.triggeredAt.gte.getTime()) / 3600_000;
+    expect(windowH).toBeLessThan(3);
+  });
+
+  it("utan butik (retailerId saknas) frågas ingen flapp-historik", async () => {
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+    await checkRestockAlerts("prod-1");
+    expect(restockEventFindMany).not.toHaveBeenCalled();
   });
 });
 
