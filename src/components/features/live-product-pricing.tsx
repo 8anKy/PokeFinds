@@ -21,6 +21,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { OfferClickButton } from "@/components/features/offer-click-button";
 import { IconStore } from "@/components/ui/icons";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
+import { lowestOfferSource } from "@/lib/offer-source";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -160,19 +161,31 @@ export interface LivePricePanelProps {
   priceChange7dPercent: number | null;
   change30: number | null;
   /**
-   * Rubrik för huvudpriset. Singlar visar Cardmarket-trend →
-   * "Marknadstrend (Cardmarket)"; sealed har riktiga butikspriser → "Lägsta pris".
+   * Singel → rubriken NAMNGER källan till det visade priset. Den stod tidigare
+   * hårdkodad som "Lägsta pris · NM engelska (Cardmarket)" på varje singel, även
+   * de tusentals där siffran kom från en Tradera-annons och ingen CM-länk fanns.
    */
-  priceLabel?: string;
+  isSingle?: boolean;
 }
 
 export function LivePricePanel({
   priceChange7dPercent,
   change30,
-  priceLabel = "Lägsta pris just nu",
+  isSingle = false,
 }: LivePricePanelProps) {
   const t = useTranslations("Detail");
-  const { stats, flash } = useLivePricing();
+  const { stats, offers, flash } = useLivePricing();
+
+  // NM-engelska-kvalificeringen hör till Cardmarkets From-pris och får bara stå
+  // där priset faktiskt kommer därifrån. Okänd källa → neutral rubrik.
+  const source = lowestOfferSource(offers, stats.lowestPrice);
+  const priceLabel = !isSingle
+    ? t("priceLabelDefault")
+    : source === "Cardmarket"
+      ? t("priceLabelSingle")
+      : source
+        ? t("priceLabelSingleSource", { source })
+        : t("priceLabelDefault");
 
   return (
     <div className="card-surface mt-6 max-w-2xl">

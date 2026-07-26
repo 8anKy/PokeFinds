@@ -3,7 +3,8 @@
  * Körs EN gång/dygn (Pro = 3000 anrop/dygn; en full körning ~1100 anrop).
  *
  * - Singlar: engelska NM-lägsta "From" (`lowest_near_mint`) EXAKT (matchar CM 1:1,
- *   ingen utjämning) × live-kurs. Matchas mot vår DB via tcgid = Card.tcgExternalId.
+ *   ingen utjämning) × live-kurs. Matchas mot vår DB via tcgid = Card.tcgExternalId,
+ *   annars cardmarket_id, annars set+samlarnummer+kortnamn (se SET+NUMMER-RESERVEN).
  * - Sealed: CM lägsta (`lowest`) för rätt-matchad produkt (set+form+namnlikhet).
  *
  * Delas av jobb-schemaläggaren (worker.ts/instrumentation) och CLI-wrappers.
@@ -37,6 +38,10 @@ interface CmCard {
   tcgid: string | null;
   cardmarket_id: number | null;
   name?: string | null; // identitetsvakten: jämförs mot CM:s officiella katalognamn
+  // Samlarnummer + set — reservnyckeln när `tcgid` inte är pokemontcg.io:s (se
+  // SET+NUMMER-RESERVEN nedan). `card_number` är ibland Int, ibland sträng.
+  card_number?: string | number | null;
+  episode?: { id?: number | null; name?: string | null } | null;
   prices?: { cardmarket?: { lowest_near_mint?: number | null; "30d_average"?: number | null } | null } | null;
 }
 interface ApiProduct {
@@ -223,6 +228,81 @@ export function guideNameMatches(
   const a = cmNameKey(officialName), b = cmNameKey(cardName);
   if (!a || !b) return true;
   return a.startsWith(b) || b.startsWith(a);
+}
+
+// ── SET+NUMMER-RESERVEN (2026-07-26) ─────────────────────────────────────────
+// `tcgid` var enda singel-nyckeln, och den räcker INTE: RapidAPI publicerar tre
+// olika lägen för samma fält, och två av dem gör hela set osynliga för prisjobbet.
+//   Pitch Black (me5):    tcgid = null           på ALLA 120 korten
+//   Perfect Order (me3):  tcgid = "POR-1"        (CM:s setkod, inte "me3-1")
+//   Chaos Rising (me4):   tcgid = "CRI-1"        (dito)
+// Utfallet: 366 singlar i tre av de nyaste seten hade ingen CM-offer, inget pris
+// och ingen CM-historikpunkt — medan produktsidan ÄNDÅ skrev "Cardmarket" över en
+// graf byggd på Tradera-annonser. Kortens riktiga identitet fanns hela tiden i
+// svaret: set + samlarnummer. Reserven är EXAKT, inte fuzzy — samma set OCH samma
+// nummer OCH samma kortnamn, annars ingen match.
+//
+// Namnet är vakten som gör nummer-nyckeln säker att lita på. Utan den skulle ett
+// felmappat nummer prissätta ett annat kort i samma set.
+
+/** Samlarnummer → jämförbar nyckel: "001" = 1 = "1", men "115a" ≠ "115". */
+export function cmNumberKey(v: string | number | null | undefined): string {
+  const raw = String(v ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  // Nollutfyllnad bort ur FÖRSTA siffergruppen ("mep001" → "mep1", "084" → "84").
+  // Bokstavssuffix behålls: 115a är ett ANNAT kort än 115 (samma fälla som i
+  // Tradera-matchningen, se scrapers/matching.ts).
+  return raw.replace(/\d+/, (d) => String(parseInt(d, 10)));
+}
+
+/** Energityperna, som CM skriver som symbol i klammer och kortet stavar ut. */
+const ENERGY_TYPE_WORDS = new Set([
+  "grass", "fire", "water", "lightning", "psychic", "fighting",
+  "darkness", "metal", "colorless", "dragon", "fairy",
+]);
+
+/**
+ * Nyckel för ENERGIKORT där typen skrivs olika: CM sätter symbolen i klammer
+ * ("Shadowy [D] Energy", ibland backslash-escapad som "Bubbly \[W\] Energy")
+ * medan kortet stavar ut den ("Shadowy Darkness Energy"). Typordet faller bort
+ * på båda sidor — det SÄRSKILJANDE ordet (Shadowy/Bubbly/Voltaic) står kvar, så
+ * två olika specialenergier kan aldrig matcha varandra. null = inte ett energikort.
+ */
+function energyNameKey(name: string): string | null {
+  const noBrackets = name.replace(/\[[^\]]*\]/g, " ");
+  if (!/energy\s*\\?\s*$/i.test(noBrackets.trim())) return null;
+  return noBrackets
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter((w) => w && !ENERGY_TYPE_WORDS.has(w))
+    .join("");
+}
+
+/**
+ * Är RapidAPI-kortets namn samma kort som vårt? Prefixmatch åt båda håll (CM
+ * skriver ofta ut mer än vi: "Mega Darkrai ex" vs "Mega Darkrai ex [Dusk Raid |
+ * Abyss Eye]"). Saknas något namn → INGEN match: reserven får bara användas när
+ * identiteten är bevisad, till skillnad från guideNameMatches som bara avgör om
+ * en redan matchad rad är trovärdig.
+ *
+ * Vakten är hela poängen med reserven, och den fångar äkta fel: CM listar Chaos
+ * Rising 77 som "Great Haul Net" där vår katalog har "Emma" (och 78 omvänt) —
+ * numret ensamt hade prissatt fel kort. Vid oenighet prissätts INGET.
+ */
+export function cmCardNameAgrees(
+  ourName: string | null | undefined,
+  cmName: string | null | undefined,
+): boolean {
+  if (!ourName || !cmName) return false;
+  const a = cmNameKey(ourName), b = cmNameKey(cmName);
+  if (!a || !b) return false;
+  if (a.startsWith(b) || b.startsWith(a)) return true;
+  const ea = energyNameKey(ourName), eb = energyNameKey(cmName);
+  return ea != null && eb != null && ea === eb;
+}
+
+/** Set-/episodnamn → jämförbar nyckel (RapidAPI-episod ↔ vår CardSet). */
+export function cmSetNameKey(name: string | null | undefined): string {
+  return String(name ?? "").toLowerCase().normalize("NFD").replace(/[^a-z0-9]/g, "");
 }
 
 /** CM:s officiella SINGEL-katalog (idProduct → namn). Publik export, ingen scraping. */
@@ -920,12 +1000,33 @@ export async function runCardmarketRefresh(
       // variantLabel:null = bas-common. Specialvariter (GameStop-promo, reverse
       // m.m.) prissätts INTE av RapidAPI (saknar dem) utan av runVariantRefresh.
       where: { category: "SINGLE_CARD", variantLabel: null, card: { tcgExternalId: { not: null } } },
-      select: { id: true, card: { select: { tcgExternalId: true } }, offers: { where: { retailerId: cm.id }, select: { id: true, url: true }, take: 1 } },
+      select: {
+        id: true,
+        setId: true,
+        card: { select: { tcgExternalId: true, number: true, name: true } },
+        offers: { where: { retailerId: cm.id }, select: { id: true, url: true }, take: 1 },
+      },
     });
     const map = new Map<string, { productId: string; offerId?: string; url?: string }>();
+    // SET+NUMMER-RESERVEN: (setId|nummernyckel) → produkt + vårt kortnamn. `null` =
+    // TVETYDIG nyckel (samma nummer på flera kort i setet — Celebrations Classic
+    // Collection har fyra kort med nummer 15) → reserven avstår hellre än gissar.
+    const byNumber = new Map<string, { entry: { productId: string; offerId?: string; url?: string }; cardName: string } | null>();
     for (const p of products) {
+      const entry = { productId: p.id, offerId: p.offers[0]?.id, url: p.offers[0]?.url };
       const ext = p.card?.tcgExternalId;
-      if (ext) map.set(ext, { productId: p.id, offerId: p.offers[0]?.id, url: p.offers[0]?.url });
+      if (ext) map.set(ext, entry);
+      const numKey = cmNumberKey(p.card?.number);
+      if (p.setId && numKey && p.card?.name) {
+        const key = `${p.setId}|${numKey}`;
+        byNumber.set(key, byNumber.has(key) ? null : { entry, cardName: p.card.name });
+      }
+    }
+    // Episodnamn → vårt setId. Bara ENTYDIGA namn åt båda håll får användas.
+    const setsByName = new Map<string, string | null>();
+    for (const s of await prisma.cardSet.findMany({ select: { id: true, name: true } })) {
+      const key = cmSetNameKey(s.name);
+      if (key) setsByName.set(key, setsByName.has(key) ? null : s.id);
     }
 
     // Promo-/specialset utan pokemontcg.io-tcgid (t.ex. MEP Black Star Promos) →
@@ -940,10 +1041,10 @@ export async function runCardmarketRefresh(
       if (id != null) cmidMap.set(id, { productId: p.id, offerId: p.offers[0]?.id, url: p.offers[0]?.url });
     }
 
-    const eps: { id: number; cards_total: number }[] = [];
+    const eps: { id: number; name?: string | null; cards_total: number }[] = [];
     let page = 1, total = 1;
     do {
-      const d = await api<{ data: { id: number; cards_total: number }[]; paging: { total: number } }>(`https://${HOST}/pokemon/episodes?page=${page}`);
+      const d = await api<{ data: typeof eps; paging: { total: number } }>(`https://${HOST}/pokemon/episodes?page=${page}`);
       if (!d) break;
       total = d.paging.total;
       eps.push(...d.data);
@@ -957,14 +1058,32 @@ export async function runCardmarketRefresh(
     const pageTasks: { epId: number; pg: number }[] = [];
     // CM_LIMIT_EPISODES > 0 → bara N första set (för lokal testning, sparar kvot).
     const limitEps = parseInt(process.env.CM_LIMIT_EPISODES ?? "0", 10);
-    const withCards = eps.filter((e) => e.cards_total > 0);
+    // CM_ONLY_EPISODES=415,399 → bara dessa episod-id (kvotsnål riktad omkörning
+    // efter en fix; CI sätter den aldrig).
+    const onlyEps = new Set(
+      (process.env.CM_ONLY_EPISODES ?? "").split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => n > 0)
+    );
+    const wanted = onlyEps.size > 0 ? eps.filter((e) => onlyEps.has(e.id)) : eps;
+    const withCards = wanted.filter((e) => e.cards_total > 0);
     for (const ep of (limitEps > 0 ? withCards.slice(0, limitEps) : withCards)) {
       for (let pg = 1; pg <= Math.ceil(ep.cards_total / 20); pg++) pageTasks.push({ epId: ep.id, pg });
     }
-    // MEP Black Star Promos (412) rapporterar cards_total=0 i episode-listan
-    // (tcggo-metadata-bugg) men har ~93 kort → force-hämta dess sidor; matchas
-    // på cardmarket_id nedan. Tomma sidor returnerar inget (ofarligt).
-    if (cmidMap.size > 0) for (let pg = 1; pg <= 6; pg++) pageTasks.push({ epId: 412, pg });
+    // `cards_total` I EPISODLISTAN LJUGER. Både MEP Black Star Promos (412, ~130
+    // kort) och Pitch Black (415, 120 kort) rapporterar 0 → de föll HELT ur
+    // hämtningen. Det var tidigare lappat med en hårdkodad "hämta 412 sida 1–6",
+    // vilket dels missade sidan 7, dels inte hjälpte nästa set som drabbas.
+    // Fråga i stället svaret självt: sida 1 bär `paging.total`. Fem episoder har
+    // cards_total=0, varav tre är genuint tomma → max 5 extra anrop per körning.
+    for (const ep of wanted.filter((e) => e.cards_total === 0)) {
+      const probe = await api<{ data: CmCard[]; paging?: { total?: number } }>(
+        `https://${HOST}/pokemon/episodes/${ep.id}/cards?page=1`
+      );
+      await sleep(throttle);
+      if (!probe?.data?.length) continue;
+      const pages = Math.max(1, probe.paging?.total ?? 1);
+      console.log(`[cm-refresh] episode ${ep.id} "${ep.name ?? "?"}" påstår 0 kort men har ${pages} sidor → hämtas.`);
+      for (let pg = 1; pg <= pages; pg++) pageTasks.push({ epId: ep.id, pg });
+    }
     // CM:s officiella prisguide = trend/30d-fallback när From saknas (RapidAPI-
     // singlar saknar trend-fält; guiden har alltid trend/avg).
     const [guide, cmNames] = await Promise.all([fetchCmGuide(), fetchCmSingleNames()]);
@@ -974,14 +1093,34 @@ export async function runCardmarketRefresh(
     // `from=false` ⇒ värdet är en trend/30d-UPPSKATTNING (ingen köpbar annons) ⇒
     // offern märks OUT_OF_STOCK, samma semantik som sealed/JP.
     const singleOps: { productId: string; offerId?: string; priceOre: number; from: boolean; url: string }[] = [];
+    let byNumberHits = 0, byNumberNameRejects = 0;
     await mapPool(pageTasks, API_CONCURRENCY, async ({ epId, pg }) => {
       const d = await api<{ data: CmCard[] }>(`https://${HOST}/pokemon/episodes/${epId}/cards?page=${pg}`);
       await sleep(throttle * API_CONCURRENCY);
       if (!d) return;
       for (const card of d.data) {
-        const entry =
+        let entry =
           (card.tcgid ? map.get(card.tcgid) : undefined) ??
           (card.cardmarket_id != null ? cmidMap.get(card.cardmarket_id) : undefined);
+        // SET+NUMMER-RESERVEN — bara för rader ingen nyckel hittade. Kräver
+        // entydigt setnamn, entydigt nummer i setet OCH att kortnamnen är samma;
+        // vid minsta tvekan tas ingen match (ett felmatchat nummer prissätter
+        // annars ett annat kort i samma set).
+        if (!entry) {
+          const setId = setsByName.get(cmSetNameKey(card.episode?.name));
+          const numKey = cmNumberKey(card.card_number);
+          const cand = setId && numKey ? byNumber.get(`${setId}|${numKey}`) : undefined;
+          if (cand) {
+            if (cmCardNameAgrees(cand.cardName, card.name)) {
+              entry = cand.entry;
+              // Konsumera nyckeln: två CM-rader får aldrig prissätta samma produkt.
+              byNumber.set(`${setId}|${numKey}`, null);
+              byNumberHits++;
+            } else {
+              byNumberNameRejects++;
+            }
+          }
+        }
         if (!entry) continue;
         const cmp = card.prices?.cardmarket ?? {};
         // Identitetsvakt: guide-raden används BARA om CM:s officiella singel-katalog
@@ -1050,6 +1189,11 @@ export async function runCardmarketRefresh(
       await upsertTodaySnapshots(singleOps, today);
       res.historyPoints = singleOps.length;
     }
+    if (byNumberHits || byNumberNameRejects)
+      console.log(
+        `[cm-refresh] Set+nummer-reserven: ${byNumberHits} kort matchade utan användbar tcgid ` +
+        `(${byNumberNameRejects} avvisade på kortnamn).`
+      );
     if (misIdentified)
       console.log(`[cm-refresh] Identitetsvakt: ${misIdentified} kort där RapidAPI:s cardmarket_id pekar på ett ANNAT kort i CM:s katalog → guide-raden ignorerad.`);
     console.log(`[cm-refresh] Singlar: ${res.singlesUpdated} uppdaterade, ${res.singlesCreated} nya, ${res.historyPoints} historikpunkter.`);

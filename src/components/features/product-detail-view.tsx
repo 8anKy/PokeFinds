@@ -148,14 +148,24 @@ export function ProductDetailView({
 
           <ProductPriceCard
             title={isSingle ? t("historyRawTitle") : t("historyTitle")}
+            /* Underrubriken NAMNGER seriens källa och måste följa `trendSource`.
+               Singlar hade den hårdkodad till "· Cardmarket" — så en graf ritad av
+               Tradera-annonser (enda källan på nya set utan CM-data) presenterades
+               som Cardmarket-historik. */
             subtitle={
-              isSingle
-                ? t("rawSubtitle")
+              data.chartData.length === 0
+                ? t("historyNone")
                 : data.trendSource === "butiker"
-                  ? t("trendStores")
+                  ? isSingle
+                    ? t("rawSubtitleStores")
+                    : t("trendStores")
                   : data.trendSource === "tradera"
-                    ? t("trendTradera")
-                    : t("trendCardmarket")
+                    ? isSingle
+                      ? t("rawSubtitleTradera")
+                      : t("trendTradera")
+                    : isSingle
+                      ? t("rawSubtitle")
+                      : t("trendCardmarket")
             }
             series={data.chartData}
           />
@@ -165,7 +175,7 @@ export function ProductDetailView({
         <LivePricePanel
           priceChange7dPercent={data.change7}
           change30={data.change30}
-          priceLabel={isSingle ? t("priceLabelSingle") : t("priceLabelDefault")}
+          isSingle={isSingle}
         />
         <div className="mt-6 flex flex-wrap items-center gap-4">
           <ProductActions productId={data.id} title={data.title} />
