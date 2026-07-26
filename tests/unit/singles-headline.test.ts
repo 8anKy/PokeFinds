@@ -15,23 +15,24 @@ describe("singlesHeadlineEur (golvet rakt av)", () => {
   it("From publiceras exakt som CM listar den, hur långt från trenden den än ligger", () => {
     expect(
       singlesHeadlineEur({ from: 37000, avg30: 4093.09 }, { low: 6000, trend: 6271.49, avg30: 4093.09 })
-    ).toEqual({ eur: 37000, from: true });
+    ).toEqual({ eur: 37000, from: true, via: "from" });
     // Låg From accepteras också så länge CM:s egen lägsta bekräftar den.
     expect(singlesHeadlineEur({ from: 3.5, avg30: 6.2 }, { low: 3.4, trend: 8.45, avg30: 6.2 })).toEqual({
       eur: 3.5,
       from: true,
+      via: "from",
     });
   });
 
   it("utan guide-facit står From kvar orörd", () => {
-    expect(singlesHeadlineEur({ from: 0.02, avg30: 2.41 }, null)).toEqual({ eur: 0.02, from: true });
+    expect(singlesHeadlineEur({ from: 0.02, avg30: 2.41 }, null)).toEqual({ eur: 0.02, from: true, via: "from" });
   });
 
   it("skräp-From ersätts av CM:s EGEN lägsta, inte av trenden", () => {
     // Brock's Scouting JTG179: LNM 0,02 € mot guidens low 1,25 €.
     expect(
       singlesHeadlineEur({ from: 0.02, avg30: 2.41 }, { low: 1.25, trend: 2.37, avg: 2.41, avg30: 2.31 })
-    ).toEqual({ eur: 1.25, from: true });
+    ).toEqual({ eur: 1.25, from: true, via: "cmLow" });
   });
 
   it("From SAKNAS → median av referenserna som uppskattning, ALDRIG guidens low", () => {
@@ -39,21 +40,21 @@ describe("singlesHeadlineEur (golvet rakt av)", () => {
     // (trend 19,35 / avg 18,12 / avg30 17,36 / RapidAPI 30d 156,36) har median 18,74.
     expect(
       singlesHeadlineEur({ from: null, avg30: 156.36 }, { low: 2, trend: 19.35, avg: 18.12, avg30: 17.36 })
-    ).toEqual({ eur: 18.735, from: false });
+    ).toEqual({ eur: 18.735, from: false, via: "estimate" });
   });
 
   it("medianen låter inte ETT nollställt fält kapa uppskattningen", () => {
     // N · Noble Victories: guidens trend är 0,02 €. Median av [0,02 / 19,6 / 65,6 / 11,19] = 15,395.
     expect(
       singlesHeadlineEur({ from: null, avg30: 11.19 }, { low: 13.99, trend: 0.02, avg: 19.6, avg30: 65.6 })
-    ).toEqual({ eur: 15.395, from: false });
+    ).toEqual({ eur: 15.395, from: false, via: "estimate" });
   });
 
   it("medianen låter inte heller RapidAPI:s utstickare kapa den", () => {
     // Charizard · Base 4/102: RapidAPI 30d 10,46 € mot guidens 2 506 €.
     expect(
       singlesHeadlineEur({ from: null, avg30: 10.46 }, { low: 799, trend: 4050.96, avg: 3903.4, avg30: 2506.69 })
-    ).toEqual({ eur: 3205.045, from: false });
+    ).toEqual({ eur: 3205.045, from: false, via: "estimate" });
   });
 
   it("ingen data alls (eller bara nollor) → null", () => {

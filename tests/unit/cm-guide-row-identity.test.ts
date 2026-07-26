@@ -44,17 +44,17 @@ describe("Pidgey-fallet end-to-end", () => {
 
   it("med sealed-raden publicerades boosterlådans golv", () => {
     const bad = singlesHeadlineEur(PIDGEY, SEALED_ROW);
-    expect(bad).toEqual({ eur: 295, from: true }); // ≈3 262 kr — felet
+    expect(bad).toEqual({ eur: 295, from: true, via: "cmLow" }); // ≈3 262 kr — felet
   });
 
   it("utan raden (vakten slår) publiceras kortets riktiga From", () => {
     const good = singlesHeadlineEur(PIDGEY, undefined);
-    expect(good).toEqual({ eur: 0.02, from: true }); // 0,22 kr — det korrekta
+    expect(good).toEqual({ eur: 0.02, from: true, via: "from" }); // 0,22 kr — det korrekta
   });
 
   it("en ÄKTA singel-guide-rad får fortfarande döma en orimligt låg From", () => {
     // Vakten får inte avväpna 07-25-fixen: här ÄR raden kortets egen.
     const judged = singlesHeadlineEur({ from: 0.02, avg30: 3.2 }, { low: 1.25, trend: 1.4, avg: 1.5, avg30: 1.45 });
-    expect(judged).toEqual({ eur: 1.25, from: true });
+    expect(judged).toEqual({ eur: 1.25, from: true, via: "cmLow" });
   });
 });

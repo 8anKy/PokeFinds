@@ -137,7 +137,24 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   återinför 21:00-jobbet priset några timmar senare). Mätt före ship: rättar 10 kort, ändrar 0 av 60 i kontrollgruppen.
   ⚠️ De ANDRA 87 korten som steg ≥10x efter 07-23 är INTE buggen utan golvet-rakt-av: deras `lowest_near_mint` ÄR hög
   (Switch · Base 95/102 = 38 €) och före 07-24 visades trenden i stället. Rör dem inte. (2) `guideNameMatches` — är raden
-  VÅRT kort? RapidAPI:s `cardmarket_id` kan peka på ett annat kort (`base1-2` Blastoise → 291582 = "Rayquaza [Dual Claw | Dragon Blast]"); guide-raden används bara om CM:s OFFICIELLA singel-katalog (`products_singles_6.json`, `guideNameMatches`) säger att det är samma kort. Döm ALDRIG identitet på prisavstånd — det kastar den rätta raden när det är RapidAPI som är trasig. **Ingen per-kort-dagklämma för singlar** (kan inte skilja äkta ask-hopp från glitch utan att bli spärrhake); skyddet mot feed-korruption à la 2026-07-05 = **haveribrytare på körningsnivå** (`feedMoveShares`: >5% av singlarna ≥10x på ett dygn → körningen avbryts RÖD utan skrivningar, `CM_FEED_BREAKER_*`-env). **RUBRIKEN NAMNGER KÄLLAN, DEN PÅSTÅR INGET (2026-07-26)**: "Lägsta pris · NM engelska (Cardmarket)" gäller BARA när
+  VÅRT kort? RapidAPI:s `cardmarket_id` kan peka på ett annat kort (`base1-2` Blastoise → 291582 = "Rayquaza [Dual Claw | Dragon Blast]"); guide-raden används bara om CM:s OFFICIELLA singel-katalog (`products_singles_6.json`, `guideNameMatches`) säger att det är samma kort. Döm ALDRIG identitet på prisavstånd — det kastar den rätta raden när det är RapidAPI som är trasig. **Ingen per-kort-dagklämma för singlar** (kan inte skilja äkta ask-hopp från glitch utan att bli spärrhake); skyddet mot feed-korruption à la 2026-07-05 = **haveribrytare på körningsnivå** (`feedMoveShares`: >5% av singlarna ≥10x på ett dygn → körningen avbryts RÖD utan skrivningar, `CM_FEED_BREAKER_*`-env). **TAK MOT FEEDEN (2026-07-27, ägarbeslut)**: `lowest_near_mint` ÄR INTE det NM-engelska From-priset. Bevis: CM:s egen
+  produktsida för Ponyta (BS 60) — samma produkt vi länkar, vilket dess Price Trend 3,41 € och 30-dagarssnitt 8,01 €
+  bekräftar mot guide-raden — visar med filtren NM+engelska **From 4,29 €** (105 annonser). Vi publicerade **25,66 €**.
+  Och feeden är strukturellt bullrig: över 19 114 singlar och 30 dygn är **12,2 % av alla dag-till-dag-ändringar ≥2x och
+  5,0 % ≥5x**; värdet står still 64 % av dagarna och hoppar sedan i platåsteg. Ligger From över ALLT CM självt publicerar
+  ×`CM_FROM_CEILING_MULT` (2,5) publiceras i stället **CM:s egen mittpunkt** (medianen av low/trend/avg/avg1/avg7/avg30,
+  `cmGuideMedianEur`) — lagerstatus förblir IN_STOCK, CM HAR annonser, det är siffran som är fel. ⚠️ Det här mildrar
+  "golvet rakt av" för de ~2 % där CM:s egna siffror motsäger feeden, inklusive Rayquaza ★ · Deoxys (37 000 € → ~19 €).
+  **KRAVET PÅ FACIT**: guide-raden måste vara RIK (`cmGuideIsRich`: ≥4 av 6 fält, ≥3 OLIKA värden, spridning ≤50x).
+  Utan distinkt-kravet blev vakten värre än buggen — Professor Sycamore · Steam Siege har fyra fält som ALLA är 0,05 €
+  (CM:s platshållare) och taket skrev 5 öre på ett 10 €-kort. Tunn eller degenererad rad ⇒ ingen dom, From står kvar.
+  **REVISION + REPARATION**: `scripts/cm-range-audit.ts` (gratis, CM:s guide, ingen RapidAPI-kvot) jämför varje
+  publicerat pris mot CM:s hela spann; `--apply` rättar de för höga till mittpunkten. Spärrar: bara singlar (sealed
+  ligger 99,5 % rätt), bara för höga, rik rad, set äldre än 60 dygn, och ALDRIG när CM:s tryckvarianter av kortet
+  skiljer >2x (då avgör variantvalet svaret → flaggas i stället). Utfall 2026-07-27: 159 priser rättade, 97,9 % inom
+  spannet. ⛔ Cardmarket delar INTE längre ut API-nycklar, så exakt From går inte att hämta — mittpunkten är den bästa
+  fria approximationen (verifierad mot ETT kort med känt facit: 4,895 € mot sanna 4,29 €, +14 %).
+- **RUBRIKEN NAMNGER KÄLLAN, DEN PÅSTÅR INGET (2026-07-26)**: "Lägsta pris · NM engelska (Cardmarket)" gäller BARA när
   den vinnande offern faktiskt är Cardmarkets; vinner en marknadsplats/butik står "Lägsta pris · {källa}" (`lowestOfferSource`,
   `src/lib/offer-source.ts` — samma urvalsregel som servern, och namnger källan bara om den bevisligen gav den visade siffran).
   Rubriken stod förut hårdkodad på varje singel: 2 751 singlar visade en Tradera-annons under rubriken "Cardmarket", och tre
