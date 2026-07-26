@@ -332,6 +332,119 @@ export function cmSetNameKey(name: string | null | undefined): string {
   return String(name ?? "").toLowerCase().normalize("NFD").replace(/[^a-z0-9]/g, "");
 }
 
+// ── TÄCKNINGSVAKT (2026-07-26) ────────────────────────────────────────────────
+// Det som gjorde 366 saknade singlar möjliga var inte matchningsregeln — det var att
+// INGENTING larmade. Tre hela set låg utan Cardmarket-data i veckor och varje körning
+// var grön: en körning som täcker allt och en som missar ett helt set ser identiska ut
+// i loggen. Vakten gör skillnaden synlig och RÖD.
+//
+// Två frågor, båda billiga DB-läsningar:
+//   (a) finns ett set med singlar men NOLL CM-offers? (nytt set som föll ur matchningen)
+//   (b) prissatte dagens körning FÄRRE kort än gårdagens? (tystnande täckning)
+// (b) mäts på PriceObservation — den enda historiken som finns per källa och dygn.
+
+/**
+ * Set där CM bevisligen inte har korten. Sätt BARA in ett set här när du verifierat att
+ * CM saknar produkterna — annars döljs nästa riktiga bugg bakom en tystad rad.
+ *
+ * Verifierat 2026-07-26 med `scripts/probe-cm-from.ts`: RapidAPI ger dessa kort
+ * `cardmarket_id: null` och tom `prices.cardmarket` (tk1a-1 Bagon, mcd15-1 Treecko).
+ * Ingen CM-produkt = inget pris OCH ingen länk att visa — den ärliga "–" är rätt svar,
+ * och det är därför de inte kan få ens en länk-offer.
+ */
+export const COVERAGE_ALLOWED_EMPTY_SETS: string[] = [
+  "sve",   // Scarlet & Violet Energies (16 kort)
+  "mcd15", // McDonald's Collection 2015 (12)
+  "tk1a",  // EX Trainer Kit Latias (10)
+  "tk1b",  // EX Trainer Kit Latios (10)
+  "tk2a",  // EX Trainer Kit 2 Plusle (12)
+  "tk2b",  // EX Trainer Kit 2 Minun (12)
+];
+
+/**
+ * Hur stor andel av de PRISSÄTTBARA korten en full körning måste prissätta.
+ *
+ * Referensen är kataloghens tillstånd (kort med CM-offer minus den kända skulden), INTE
+ * "i går". Ett dygnsjämförande mått lät sig luras: 2026-07-25 skrev ett historik-backfill
+ * en CM-observation för 20 153 singlar med deras BEFINTLIGA offer-pris (base4-21 Beedrill
+ * fick en punkt 07-25 fast dess offer inte rörts sedan 06-13) → dagen efter såg en helt
+ * normal körning ut som ett 3 %-tapp. En engångskörning får inte kunna göra nästa dags
+ * jobb rött.
+ */
+export const COVERAGE_MIN_PRICED_SHARE = Number(process.env.CM_COVERAGE_MIN_PRICED_SHARE) || 0.98;
+
+/**
+ * En CM-offer som inte rörts på så här många dygn räknas som övergiven.
+ *
+ * SJU dygn, inte tre, och det är TIDEN som skiljer de två felen från varandra:
+ * RapidAPI tappar tillfälligt `cardmarket_id` och priser för enstaka kort (mätt
+ * 2026-07-26: base4-21 Beedrill och dp1-44 Cascoon var prissatta i går, i dag är
+ * `prices.cardmarket` tomt) — då är rätt beteende att BEHÅLLA det gamla priset och
+ * inte skriva någon historikpunkt, och kortet är tillbaka inom ett par dygn. En
+ * STRUKTURELL förlust (sidor utanför räckvidd, set som faller ur matchningen) går
+ * aldrig över av sig själv. Ett kort som varit orört en hel vecka är därför det
+ * andra, inte det första. Dagsfallsregeln fångar händelsen direkt; den här fångar
+ * det som ligger kvar.
+ */
+export const COVERAGE_STALE_DAYS = Number(process.env.CM_COVERAGE_STALE_DAYS) || 7;
+/**
+ * Antal övergivna CM-offers som redan fanns när vakten byggdes — en RATCHET, inte en
+ * tolerans. Mätt 2026-07-26: 777 singlar (ex-serien, Base Set 2, D&P, promos,
+ * Trainer Galleries) har inte fått ett nytt CM-pris sedan 2026-06-13, för att RapidAPI
+ * ger dem `cardmarket_id: null` och tom `prices.cardmarket` (verifierat på base4-21
+ * Beedrill och dp1-44 Cascoon). De visar alltså ett sex veckor gammalt pris.
+ *
+ * Vakten får inte skickas ut RÖD av en känd, obeslutad skuld — då stängs den av och
+ * skyddar ingenting. Den mäter därför REGRESSION: en NY strukturell förlust (de 662
+ * korten som föll bort 2026-07-26 hade tagit den här siffran till ~1 440) blir röd.
+ * ⛔ SÄNK talet när skulden betas av. Höj det ALDRIG för att tysta ett larm.
+ */
+export const COVERAGE_STALE_BASELINE = Number(process.env.CM_COVERAGE_STALE_BASELINE) || 800;
+
+export interface CoverageInput {
+  /** Set med ≥1 singel men 0 CM-offers: [externalId ?? namn, antal singlar]. */
+  emptySets: { set: string; singles: number }[];
+  totalSingles: number;
+  coveredSingles: number;
+  /** CM-offers på singlar som inte rörts på COVERAGE_STALE_DAYS dygn (= känd skuld). */
+  staleOffers: number;
+  /** Hur många singlar DEN HÄR körningen prissatte (res.singlesUpdated + singlesCreated). */
+  pricedThisRun: number;
+}
+
+/** Ren dom (testbar utan DB): duger täckningen, och varför inte? */
+export function coverageVerdict(inp: CoverageInput): { ok: boolean; problems: string[] } {
+  const problems: string[] = [];
+  for (const e of inp.emptySets) {
+    if (COVERAGE_ALLOWED_EMPTY_SETS.includes(e.set)) continue;
+    problems.push(`set "${e.set}" har ${e.singles} singlar och 0 CM-offers`);
+  }
+  // Prissatte körningen det som ÄR prissättbart? Prissättbart = kort med CM-offer minus
+  // den kända skulden (kort feeden inte längre ger något för). Fångar en strukturell
+  // förlust SAMMA dygn den inträffar: de 662 korten som föll bort 2026-07-26 hade tagit
+  // körningen till ~19 088 av 19 737 prissättbara = 96,7 % → rött direkt.
+  const priceable = Math.max(0, inp.coveredSingles - inp.staleOffers);
+  if (inp.pricedThisRun > 0 && priceable > 0 && inp.pricedThisRun < priceable * COVERAGE_MIN_PRICED_SHARE) {
+    problems.push(
+      `körningen prissatte ${inp.pricedThisRun} av ${priceable} prissättbara singlar ` +
+      `(${((inp.pricedThisRun / priceable) * 100).toFixed(1)} %, kräver ` +
+      `${Math.round(COVERAGE_MIN_PRICED_SHARE * 100)} %)`
+    );
+  }
+  // Ovanstående fångar HÄNDELSEN. Den här fångar TILLSTÅNDET: kort som slutat
+  // uppdateras och inte kommer tillbaka. Ett tapp som sker några kort per dygn passerar
+  // händelseregeln obemärkt men syns här när det samlats. Mäts efter körningen, så allt
+  // körningen rörde har färsk lastSeenAt — det som är kvar är det den INTE hittade.
+  if (inp.staleOffers > COVERAGE_STALE_BASELINE) {
+    problems.push(
+      `${inp.staleOffers} CM-offers har inte uppdaterats på ${COVERAGE_STALE_DAYS} dygn ` +
+      `(känd skuld: ${COVERAGE_STALE_BASELINE}) — körningen har tappat ` +
+      `${inp.staleOffers - COVERAGE_STALE_BASELINE} kort UTÖVER den`
+    );
+  }
+  return { ok: problems.length === 0, problems };
+}
+
 /** CM:s officiella SINGEL-katalog (idProduct → namn). Publik export, ingen scraping. */
 let cmSingleNamesCache: Map<number, string> | null = null;
 export async function fetchCmSingleNames(): Promise<Map<number, string>> {
@@ -1078,11 +1191,6 @@ export async function runCardmarketRefresh(
       await sleep(throttle);
     } while (page++ < total);
 
-    // Fas 1: hämta priser. Hämtningen är latensbunden (US-runner → RapidAPI, en
-    // sida i taget tar ~38 min). Kör API_CONCURRENCY sidor parallellt men låt
-    // varje task sova throttle×API_CONCURRENCY → aggregerad takt ≤ 1/throttle
-    // (~273/min, under 300/min-kvoten) oavsett latens. Fas 2: skriv samtidigt.
-    const pageTasks: { epId: number; pg: number }[] = [];
     // CM_LIMIT_EPISODES > 0 → bara N första set (för lokal testning, sparar kvot).
     const limitEps = parseInt(process.env.CM_LIMIT_EPISODES ?? "0", 10);
     // CM_ONLY_EPISODES=415,399 → bara dessa episod-id (kvotsnål riktad omkörning
@@ -1090,27 +1198,8 @@ export async function runCardmarketRefresh(
     const onlyEps = new Set(
       (process.env.CM_ONLY_EPISODES ?? "").split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => n > 0)
     );
-    const wanted = onlyEps.size > 0 ? eps.filter((e) => onlyEps.has(e.id)) : eps;
-    const withCards = wanted.filter((e) => e.cards_total > 0);
-    for (const ep of (limitEps > 0 ? withCards.slice(0, limitEps) : withCards)) {
-      for (let pg = 1; pg <= Math.ceil(ep.cards_total / 20); pg++) pageTasks.push({ epId: ep.id, pg });
-    }
-    // `cards_total` I EPISODLISTAN LJUGER. Både MEP Black Star Promos (412, ~130
-    // kort) och Pitch Black (415, 120 kort) rapporterar 0 → de föll HELT ur
-    // hämtningen. Det var tidigare lappat med en hårdkodad "hämta 412 sida 1–6",
-    // vilket dels missade sidan 7, dels inte hjälpte nästa set som drabbas.
-    // Fråga i stället svaret självt: sida 1 bär `paging.total`. Fem episoder har
-    // cards_total=0, varav tre är genuint tomma → max 5 extra anrop per körning.
-    for (const ep of wanted.filter((e) => e.cards_total === 0)) {
-      const probe = await api<{ data: CmCard[]; paging?: { total?: number } }>(
-        `https://${HOST}/pokemon/episodes/${ep.id}/cards?page=1`
-      );
-      await sleep(throttle);
-      if (!probe?.data?.length) continue;
-      const pages = Math.max(1, probe.paging?.total ?? 1);
-      console.log(`[cm-refresh] episode ${ep.id} "${ep.name ?? "?"}" påstår 0 kort men har ${pages} sidor → hämtas.`);
-      for (let pg = 1; pg <= pages; pg++) pageTasks.push({ epId: ep.id, pg });
-    }
+    const chosen = onlyEps.size > 0 ? eps.filter((e) => onlyEps.has(e.id)) : eps;
+    const wanted = limitEps > 0 ? chosen.slice(0, limitEps) : chosen;
     // CM:s officiella prisguide = trend/30d-fallback när From saknas (RapidAPI-
     // singlar saknar trend-fält; guiden har alltid trend/avg).
     const [guide, cmNames] = await Promise.all([fetchCmGuide(), fetchCmSingleNames()]);
@@ -1120,12 +1209,12 @@ export async function runCardmarketRefresh(
     // `from=false` ⇒ värdet är en trend/30d-UPPSKATTNING (ingen köpbar annons) ⇒
     // offern märks OUT_OF_STOCK, samma semantik som sealed/JP.
     const singleOps: { productId: string; offerId?: string; priceOre: number; from: boolean; url: string }[] = [];
+    // Kort CM har men inte prissätter → länk utan pris (se nedan). Hålls UTANFÖR
+    // singleOps: de ska inte räknas av haveribrytaren och inte skriva historikpunkter.
+    const linkOnlyOps: { productId: string; url: string }[] = [];
     let byNumberHits = 0, byNumberNameRejects = 0;
-    await mapPool(pageTasks, API_CONCURRENCY, async ({ epId, pg }) => {
-      const d = await api<{ data: CmCard[] }>(`https://${HOST}/pokemon/episodes/${epId}/cards?page=${pg}`);
-      await sleep(throttle * API_CONCURRENCY);
-      if (!d) return;
-      for (const card of d.data) {
+    const processCards = (cards: CmCard[]) => {
+      for (const card of cards) {
         let entry =
           (card.tcgid ? map.get(card.tcgid) : undefined) ??
           (card.cardmarket_id != null ? cmidMap.get(card.cardmarket_id) : undefined);
@@ -1164,16 +1253,72 @@ export async function runCardmarketRefresh(
           misIdentified++;
         }
         const priced = singlesHeadlineEur({ from: cmp.lowest_near_mint, avg30: cmp["30d_average"] }, g);
-        if (priced == null) continue;
-        const priceOre = Math.round(priced.eur * rates.eurToOre);
         const url =
           entry.url && isEnglishCardmarketUrl(entry.url) ? withNearMint(entry.url)
             : card.cardmarket_id != null ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true })
               : entry.url ?? null;
         if (!url) continue;
+        if (priced == null) {
+          // CM HAR kortet men INGET pris (varken From, guide-rad eller 30d-snitt) —
+          // EX Trainer Kits, McDonald's-promos, S&V Energies: 105 singlar där matchningen
+          // är perfekt och marknaden bara är tom. De fick tidigare ingen offer alls och
+          // därmed ingen LÄNK till Cardmarket, vilket läste som "vi hittade inte kortet".
+          // Länk-offer utan pris är en befintlig, stödd form (isDirectOfferUrl godkänner
+          // den, produktsidan visar "–", recomputeProductPriceCache räknar bara price > 0).
+          //
+          // BARA när ingen CM-offer finns. Att nolla ett BEFINTLIGT pris för att dagens
+          // feed är tom vore precis den sortens tysta skada som ett hicka i feeden inte
+          // ska kunna göra permanent — och den kunde träffa hela katalogen på en gång.
+          if (!entry.offerId) linkOnlyOps.push({ productId: entry.productId, url });
+          continue;
+        }
+        const priceOre = Math.round(priced.eur * rates.eurToOre);
         singleOps.push({ productId: entry.productId, offerId: entry.offerId, priceOre, from: priced.from, url });
       }
+    };
+
+    // ── SIDANTALET KOMMER UR SVARET, ALDRIG UR METADATAN ──────────────────────
+    // `cards_total` i episodlistan ljuger i BÅDA riktningar, och båda gör kort
+    // osynliga utan ett ljud:
+    //   Pitch Black (415) / MEP (412):  säger 0    → hela setet hämtades aldrig
+    //   Crown Zenith:  säger 160 (8 sidor), har 12 → Galarian Gallery (70 kort) utanför
+    //   Shining Fates: säger  73 (4 sidor), har 10 → Shiny Vault (~120 kort) utanför
+    //   Lost Origin:   säger 217 (11 sidor), har 13 → Trainer Gallery utanför
+    // Mätt 2026-07-26: 662 singlar tappade dagens prisuppdatering på exakt det sättet,
+    // och de sitter i de mest efterfrågade underserierna. Den gamla lappen ("hämta 412
+    // sida 1–6") kunde bara täcka noll-fallet, och missade dessutom sidan 7.
+    //
+    // `paging.total` på sida 1 är auktoritativ. Sida 1 måste hämtas ändå, så det här
+    // kostar ingen extra kvot — det byter bara källa för sidantalet. Fas 1a hämtar
+    // sida 1 av varje episod (och bearbetar den), 1b hämtar resten.
+    const restPages: { epId: number; pg: number }[] = [];
+    let metaMismatch = 0;
+    await mapPool(wanted, API_CONCURRENCY, async (ep) => {
+      const d = await api<{ data: CmCard[]; paging?: { total?: number } }>(
+        `https://${HOST}/pokemon/episodes/${ep.id}/cards?page=1`
+      );
+      await sleep(throttle * API_CONCURRENCY);
+      if (!d?.data?.length) return;
+      processCards(d.data);
+      const pages = Math.max(1, d.paging?.total ?? 1);
+      const claimed = Math.max(1, Math.ceil((ep.cards_total ?? 0) / 20));
+      if (pages !== claimed) {
+        metaMismatch++;
+        console.log(
+          `[cm-refresh] episode ${ep.id} "${ep.name ?? "?"}": cards_total=${ep.cards_total} ` +
+          `⇒ ${claimed} sidor, men paging.total=${pages}. Följer svaret.`
+        );
+      }
+      for (let pg = 2; pg <= pages; pg++) restPages.push({ epId: ep.id, pg });
     });
+    await mapPool(restPages, API_CONCURRENCY, async ({ epId, pg }) => {
+      const d = await api<{ data: CmCard[] }>(`https://${HOST}/pokemon/episodes/${epId}/cards?page=${pg}`);
+      await sleep(throttle * API_CONCURRENCY);
+      if (d?.data?.length) processCards(d.data);
+    });
+    if (metaMismatch)
+      console.log(`[cm-refresh] ${metaMismatch} episoder där cards_total inte stämde med paging.total.`);
+
     // Haveribrytare FÖRE skrivning: en stor andel EXTREMA dagsrörelser samtidigt =
     // trasig feed (2026-07-05: 2 104 korrupta priser), inte en marknad. Enstaka
     // vilda hopp är asks-verklighet och släpps igenom — det är ANDELEN som dömer.
@@ -1205,6 +1350,21 @@ export async function runCardmarketRefresh(
         res.singlesCreated++;
       }
     });
+
+    // Länk-offers (pris null) för kort CM har men inte prissätter. Skapas bara där
+    // ingen CM-offer finns; skriver ingen historik (det finns inget pris att skriva).
+    if (linkOnlyOps.length > 0) {
+      await mapPool(linkOnlyOps, DB_CONCURRENCY, async (op) => {
+        await prisma.offer.upsert({
+          where: { productId_retailerId_condition_language: { productId: op.productId, retailerId: cm.id, condition: "NEAR_MINT", language: "EN" } },
+          // update: BARA länken/tidsstämpeln — aldrig priset (kan finnas en annan rad
+          // med pris om unique-nyckeln matchar en befintlig offer).
+          update: { url: op.url, lastSeenAt: new Date() },
+          create: { productId: op.productId, retailerId: cm.id, condition: "NEAR_MINT", language: "EN", price: null, currency: "SEK", stockStatus: "OUT_OF_STOCK", url: op.url },
+        });
+      });
+      console.log(`[cm-refresh] ${linkOnlyOps.length} kort som CM har men inte prissätter fick en LÄNK-offer (pris "–").`);
+    }
 
     // Daglig CM-historikpunkt per uppdaterat kort → matar produktgrafen
     // (getPriceHistoryBySource grupperar PriceObservation per dag/källa) + de
@@ -1601,5 +1761,66 @@ export async function runCardmarketRefresh(
   const storeSnaps = await snapshotStorePricedProducts();
   if (storeSnaps > 0) console.log(`[cm-refresh] Butikshistorik: ${storeSnaps} snapshots (sealed utan CM-trend).`);
   console.log(`[cm-refresh] Klart: ${res.apiCalls} API-anrop, kvot kvar ${res.remaining}.`);
+
+  // TÄCKNINGSVAKTEN SIST — efter BÅDA faserna och alla skrivningar. Kastar den tidigare
+  // hoppas sealed-fasen över, och ett täckningsproblem hade tystat dagens sealed-priser.
+  // Hoppas över för DELKÖRNINGAR (CM_ONLY_EPISODES/CM_LIMIT_EPISODES eller --sealed):
+  // de rör med flit bara en del av katalogen och säger inget om täckningen.
+  const partialRun =
+    opts.singles === false ||
+    (process.env.CM_ONLY_EPISODES ?? "").trim() !== "" ||
+    parseInt(process.env.CM_LIMIT_EPISODES ?? "0", 10) > 0;
+  if (!partialRun) {
+    const cov = await readSinglesCoverage(res.singlesUpdated + res.singlesCreated);
+    const pct = cov.totalSingles > 0 ? (cov.coveredSingles / cov.totalSingles) * 100 : 100;
+    console.log(
+      `[cm-refresh] TÄCKNING: ${cov.coveredSingles} / ${cov.totalSingles} singlar har CM-offer ` +
+      `(${pct.toFixed(1)} %). Prissatta denna körning: ${cov.pricedThisRun}. ` +
+      `Ej uppdaterade på ${COVERAGE_STALE_DAYS} dygn: ${cov.staleOffers}.`
+    );
+    const verdict = coverageVerdict(cov);
+    if (!verdict.ok) {
+      throw new Error(
+        `[cm-refresh] TÄCKNINGSVAKT: ${verdict.problems.join("; ")}. Skrivningarna är gjorda — ` +
+        `körningen blir RÖD för att täckningen inte går att lita på. Så här såg 2026-07-26 ut: ` +
+        `tre hela set (366 singlar) utan CM-data i veckor, varje körning grön. Är luckan ` +
+        `VERIFIERAT tom hos Cardmarket: lägg setet i COVERAGE_ALLOWED_EMPTY_SETS.`
+      );
+    }
+  }
   return res;
+}
+
+/** Täckningssiffrorna ur DB (billiga aggregat, inga API-anrop). */
+export async function readSinglesCoverage(pricedThisRun = 0): Promise<CoverageInput> {
+  const [totals] = await prisma.$queryRaw<{ total: bigint; covered: bigint }[]>`
+    SELECT COUNT(*)::bigint AS total,
+           COUNT(*) FILTER (WHERE EXISTS (
+             SELECT 1 FROM "Offer" o JOIN "Retailer" r ON r.id = o."retailerId"
+             WHERE o."productId" = p.id AND r.name = 'Cardmarket'))::bigint AS covered
+    FROM "Product" p WHERE p.category = 'SINGLE_CARD'`;
+  const emptySets = await prisma.$queryRaw<{ set: string; singles: bigint }[]>`
+    SELECT COALESCE(cs."externalId", cs.name) AS set, COUNT(*)::bigint AS singles
+    FROM "Product" p JOIN "CardSet" cs ON cs.id = p."setId"
+    WHERE p.category = 'SINGLE_CARD'
+    GROUP BY COALESCE(cs."externalId", cs.name)
+    HAVING COUNT(*) FILTER (WHERE EXISTS (
+             SELECT 1 FROM "Offer" o JOIN "Retailer" r ON r.id = o."retailerId"
+             WHERE o."productId" = p.id AND r.name = 'Cardmarket')) = 0
+    ORDER BY singles DESC`;
+  const [stale] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+    `SELECT COUNT(*)::bigint AS n
+     FROM "Offer" o
+     JOIN "Retailer" r ON r.id = o."retailerId" AND r.name = 'Cardmarket'
+     JOIN "Product" p ON p.id = o."productId" AND p.category = 'SINGLE_CARD'
+     WHERE o."lastSeenAt" < NOW() - ($1 || ' days')::interval`,
+    String(COVERAGE_STALE_DAYS)
+  );
+  return {
+    emptySets: emptySets.map((e) => ({ set: e.set, singles: Number(e.singles) })),
+    totalSingles: Number(totals?.total ?? 0),
+    coveredSingles: Number(totals?.covered ?? 0),
+    staleOffers: Number(stale?.n ?? 0),
+    pricedThisRun,
+  };
 }
