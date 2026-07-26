@@ -1001,6 +1001,7 @@
     "trendCardmarket": "Marknadstrend · Cardmarket",
     "priceLabelSingle": "Lägsta pris · NM engelska (Cardmarket)",
     "priceLabelSingleSource": "Lägsta pris · {source}",
+    "priceLabelEstimate": "Uppskattat värde · ingen aktiv annons ({source})",
     "priceLabelDefault": "Lägsta pris just nu",
     "watchers": "{count, plural, =1 {1 samlare bevakar denna produkt} other {# samlare bevakar denna produkt}}",
     "restockHistory": "Restock-historik",

@@ -18,16 +18,16 @@ const TRADERA = "https://www.tradera.com/item/1001337/741542750/mega-darkrai-ex"
 describe("lowestOfferSource", () => {
   it("namnger Cardmarket när CM-offern är billigast", () => {
     const offers = [offer("Cardmarket", 29000), offer("Tradera", 39000, "IN_STOCK", TRADERA)];
-    expect(lowestOfferSource(offers, 29000)).toBe("Cardmarket");
+    expect(lowestOfferSource(offers, 29000)).toEqual({ name: "Cardmarket", live: true });
   });
 
   it("namnger Tradera när Tradera är billigast", () => {
     const offers = [offer("Cardmarket", 29000), offer("Tradera", 17900, "IN_STOCK", TRADERA)];
-    expect(lowestOfferSource(offers, 17900)).toBe("Tradera");
+    expect(lowestOfferSource(offers, 17900)).toEqual({ name: "Tradera", live: true });
   });
 
   it("Tradera-only (nytt set utan CM-data) → Tradera, aldrig Cardmarket", () => {
-    expect(lowestOfferSource([offer("Tradera", 17900, "IN_STOCK", TRADERA)], 17900)).toBe("Tradera");
+    expect(lowestOfferSource([offer("Tradera", 17900, "IN_STOCK", TRADERA)], 17900)).toEqual({ name: "Tradera", live: true });
   });
 
   it("i lager slår slutsålt även när slutsålt är billigare", () => {
@@ -35,7 +35,7 @@ describe("lowestOfferSource", () => {
       offer("Cardmarket", 5000, "OUT_OF_STOCK"),
       offer("Tradera", 9000, "IN_STOCK", TRADERA),
     ];
-    expect(lowestOfferSource(offers, 9000)).toBe("Tradera");
+    expect(lowestOfferSource(offers, 9000)).toEqual({ name: "Tradera", live: true });
   });
 
   it("allt slutsålt → lägsta slutsålda", () => {
@@ -43,7 +43,7 @@ describe("lowestOfferSource", () => {
       offer("Cardmarket", 5000, "OUT_OF_STOCK"),
       offer("Tradera", 9000, "OUT_OF_STOCK", TRADERA),
     ];
-    expect(lowestOfferSource(offers, 5000)).toBe("Cardmarket");
+    expect(lowestOfferSource(offers, 5000)).toEqual({ name: "Cardmarket", live: false });
   });
 
   it("inget pris visas → ingen källa", () => {
@@ -52,17 +52,35 @@ describe("lowestOfferSource", () => {
   });
 
   it("prislösa länk-offers räknas inte", () => {
-    expect(lowestOfferSource([offer("Cardmarket", null), offer("Tradera", 100, "IN_STOCK", TRADERA)], 100)).toBe("Tradera");
+    expect(lowestOfferSource([offer("Cardmarket", null), offer("Tradera", 100, "IN_STOCK", TRADERA)], 100)).toEqual({ name: "Tradera", live: true });
   });
 
   it("söklänkar räknas inte (samma regel som servern)", () => {
     const search = offer("Tradera", 100, "IN_STOCK", "https://www.tradera.com/search?q=pokemon");
-    expect(lowestOfferSource([search, offer("Cardmarket", 29000)], 29000)).toBe("Cardmarket");
+    expect(lowestOfferSource([search, offer("Cardmarket", 29000)], 29000)).toEqual({ name: "Cardmarket", live: true });
   });
 
   it("avstår när urvalet inte förklarar den visade siffran", () => {
     // Skyddar mot att rubriken självsäkert namnger fel källa om server- och
     // klienturvalet någon gång glider ifrån varandra.
     expect(lowestOfferSource([offer("Cardmarket", 29000)], 12345)).toBeNull();
+  });
+
+  // 2026-07-27: prisjobben märker en CM-offer OUT_OF_STOCK precis när siffran är en
+  // UPPSKATTNING (`lowest_near_mint` saknades). "Lägsta pris · NM engelska" över ett
+  // sådant värde påstår att det finns en annons att vara lägst bland. `live` låter
+  // rubriken skilja de två fallen åt.
+  it("live=false när den vinnande offern inte är i lager (uppskattning)", () => {
+    expect(lowestOfferSource([offer("Cardmarket", 5000, "OUT_OF_STOCK")], 5000)).toEqual({
+      name: "Cardmarket",
+      live: false,
+    });
+  });
+
+  it("live=true så snart det finns en offer i lager som förklarar siffran", () => {
+    expect(lowestOfferSource([offer("Cardmarket", 5000, "IN_STOCK")], 5000)).toEqual({
+      name: "Cardmarket",
+      live: true,
+    });
   });
 });

@@ -1001,6 +1001,7 @@
     "trendCardmarket": "Market trend · Cardmarket",
     "priceLabelSingle": "Lowest price · NM English (Cardmarket)",
     "priceLabelSingleSource": "Lowest price · {source}",
+    "priceLabelEstimate": "Estimated value · no active listing ({source})",
     "priceLabelDefault": "Lowest price right now",
     "watchers": "{count, plural, =1 {1 collector is watching this product} other {# collectors are watching this product}}",
     "restockHistory": "Restock history",

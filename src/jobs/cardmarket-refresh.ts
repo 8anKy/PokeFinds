@@ -159,34 +159,43 @@ export function cmGuideRefEur(g: CmGuideEntry | undefined): number | null {
   return usable(g?.trend) ?? usable(g?.avg) ?? null;
 }
 
-// ── ÄGARENS PRISREGEL FÖR SINGLAR: GOLVET RAKT AV (beslut 2026-07-24) ─────────
-// Singel-headline = CM:s From EXAKT som annonsen står. Rayquaza ★ Deoxys: sajtens
-// From var 37 000 € (en PSA 7-ask) medan vi visade trenden 6 271 € under rubriken
-// "Lägsta pris" — ägaren underkände det uttryckligen: golvet ska visas ofiltrerat.
-// Trend-substitutionen (fromElseTrend, 2026-07-18–2026-07-24) är därför BORTTAGEN:
-// den gjorde headline till ett värde som inte fanns på Cardmarket.
+// ── ÄGARENS PRISREGEL FÖR SINGLAR: `lowest_near_mint` RAKT AV ────────────────
+// (beslut 2026-07-24, OMBEKRÄFTAT 2026-07-27 efter att guide-substitutionerna rivits)
 //
-// ── MEN `lowest_near_mint` ÄR INTE ALLTID CM:s From (rotorsak mätt 2026-07-25) ──
-// Ägaren hittade prisfalls-listan full av golv som INTE stämmer med Cardmarket.
-// RapidAPI:s `lowest_near_mint` innehåller 0,02–0,50 €-värden som CM SJÄLV inte
-// räknar som produktens lägsta. Mätt mot CM:s OFFICIELLA prisguide samma dag:
-//   Brock's Scouting (JTG 179)   LNM 0,02 €  men guidens low = 1,25 €  (DE/FR/ES/IT ≥ 1,49)
-//   Houndoom ex (OBF 134)        LNM 0,02 €  men guidens low = 0,20 €
-//   Premium Power Pro (ME1 174)  LNM 0,05 €  men guidens low = 0,90 €
-//   Lightning Energy (Base 100)  LNM 0,05 €  men guidens low = 0,25 €  (30d-snitt 6,19 €)
-//   Ampharos (UF 1)              LNM 0,50 €  men guidens low = 3,00 €  (30d-snitt 15,71 €)
-// Guidens `low` är lägsta priset över ALLA språk OCH skick. Engelska+NM är en
-// DELMÄNGD av det → en engelsk NM-lägsta kan matematiskt aldrig ligga UNDER
-// guidens low. Ett LNM därunder är alltså BEVISAT inget golv, inte ett fynd.
+// Singel-headline = RapidAPI:s `lowest_near_mint` EXAKT som fältet står. Det ÄR
+// Cardmarkets lägsta NM-annons på ENGELSKA: syskonfälten heter `_DE`/`_FR`/`_ES`/`_IT`
+// och basfältet ligger ÖVER dem i API:ts eget exempel (bas 1,00 mot `_DE` 0,90) — hade
+// basen varit "alla språk" vore den per definition ≤ det minsta språkfältet.
 //
-// Detta river INTE ägarbeslutet: vi filtrerar inte CM:s golv, vi förkastar ett
-// feed-värde som motsäger CM:s eget publicerade golv — och publicerar CM:s golv
-// i stället. Fortfarande "golvet rakt av", bara hämtat ur rätt källa.
+// Ingenting får längre BYTA UT det värdet. Två vakter försökte, båda ur CM:s egen
+// prisguide (price_guide_6.json), och båda publicerade priser som inte fanns någonstans
+// på Cardmarket:
+//
+//   GOLVET (fromContradictsCardmarket → guidens `low`, 07-25 … 07-27)
+//     Premiss: "engelska+NM är en delmängd av alla annonser, så en engelsk NM-lägsta kan
+//     aldrig ligga under guidens low." Premissen kräver att guidens `low` faktiskt ÄR
+//     produktens lägsta annons. Det är den inte: för Rayquaza Gold Star (idProduct
+//     276510) säger guiden low = 2 900 € medan CM:s EGEN produktsida samma dag visar
+//     From 37 000 € — och feeden sa också 37 000 €. Guidens `low` var 12x fel om det
+//     enda fall vi kunde kontrollera. En vakt vars facit är osant dömer ut sanningen.
+//     Den skrev dessutom en SEALED-produkts golv som Pidgeys pris (3 262 kr).
+//
+//   TAKET (fromExceedsCardmarket → medianen av guidens sex fält, 07-27)
+//     Samma facit, andra riktningen. Rayquaza ★ · Deoxys 107/107: From 37 000 € (exakt
+//     vad CM:s produktsida visar för NM+engelska) låg över guidens högsta fält ×2,5 →
+//     ersattes av mittpunkten. Ägaren såg 215,61 kr på ett kort vars billigaste
+//     NM-engelska annons kostar 37 000 € och underkände hela konstruktionen.
+//
+// REGELN HÄREFTER: finns `lowest_near_mint` publiceras den. Punkt. Guiden får fortfarande
+// FYLLA ETT TOMRUM (uppskattning när From saknas helt, märkt OUT_OF_STOCK) men aldrig
+// överpröva ett värde feeden har. Skyddet mot en korrupt feed ligger kvar där det hör
+// hemma — på KÖRNINGSNIVÅ (feedMoveShares), som mäter hela katalogen mot sig själv i
+// stället för att döma enskilda kort mot en referens som inte är facit.
+//
+// ⛔ Föreslå ALDRIG en ny per-kort-vakt byggd på price_guide_6.json. Den filen är inte
+//    CM:s From, och tre försök i rad (fromElseTrend, cmLow, cmMedian) har bevisat det.
 const pos = (v: number | null | undefined): number | null =>
   typeof v === "number" && v > 0 ? v : null;
-
-/** Hur långt UNDER en referens ett värde får ligga innan det döms som skräp. */
-export const FROM_FLOOR_TOL = Number(process.env.CM_FROM_FLOOR_TOL) || 0.5;
 
 /**
  * Officiellt CM-namn → jämförbar form. Attack-parentesen (den långa) faller bort,
@@ -238,14 +247,14 @@ export function guideNameMatches(
  * Mätt 2026-07-26: RapidAPI ger Pidgey · Flashfire 75/106 `cardmarket_id` 271938,
  * som enligt CM:s EGNA kataloger är en SEALED-produkt (finns i sealed-listan, saknas
  * bland de 71 586 singlarna). Dess guide-rad (`low` 295 €) passerade namnvakten
- * obemärkt, fick `fromContradictsCardmarket` att förkasta kortets riktiga From
- * (0,02 €) som "för låg" — och publicerade boosterlådans golvpris som kortets pris:
- * 3 262,70 kr för en common. Samma väg drabbade 97 singlar ≥10x (26 av dem ≥100x)
- * och 295 till i spannet 3–10x; körningsbrytaren såg 0,5 % och teg med rätta.
+ * obemärkt och publicerade boosterlådans golvpris som kortets pris: 3 262,70 kr för
+ * en common. Den vägen är stängd sedan guiden inte längre får överpröva feedens From
+ * (2026-07-27) — men raden får fortfarande FYLLA ett tomrum när `lowest_near_mint`
+ * saknas, och då gäller samma krav: fel produkt ⇒ ingen uppskattning.
  *
  * Domaren är CM:s egen katalog (samma princip som guideNameMatches): finns idProduct
- * inte bland singlarna är raden inte det här kortet, och får varken prissätta eller
- * döma. Kunde katalogen inte hämtas (tom map) står vakten över körningen i stället
+ * inte bland singlarna är raden inte det här kortet, och får inte prissätta det.
+ * Kunde katalogen inte hämtas (tom map) står vakten över körningen i stället
  * för att kasta ALLA guide-rader — samma stand-down som fetchCmSingleNames redan har.
  */
 export function guideRowIsSingle(
@@ -459,129 +468,29 @@ export async function fetchCmSingleNames(): Promise<Map<number, string>> {
   return cmSingleNamesCache;
 }
 
-/**
- * Motsäger `from` Cardmarkets EGET publicerade lägsta? Kräver TVÅ oberoende
- * källor — guidens `low` OCH kortets eget 30d-snitt — så att en enstaka felmappad
- * guide-rad aldrig ensam kan förkasta ett äkta golv. Saknas facit: behåll From.
- */
-export function fromContradictsCardmarket(
-  fromEur: number | null | undefined,
-  guideLowEur: number | null | undefined,
-  cardAvg30Eur: number | null | undefined,
-): boolean {
-  const f = pos(fromEur), low = pos(guideLowEur), avg = pos(cardAvg30Eur);
-  if (f == null || low == null) return false;      // inget facit → From står kvar
-  if (f >= low * FROM_FLOOR_TOL) return false;     // inom rimlig marginal
-  if (avg == null) return false;                   // bara en källa → ingen dom
-  return f < avg * FROM_FLOOR_TOL;
-}
-
-// ── TAKET (2026-07-27) ───────────────────────────────────────────────────────
-// `lowest_near_mint` ÄR INTE det NM-engelska From-priset. Bevis från Cardmarkets egen
-// produktsida för Ponyta (BS 60) — samma produkt vi länkar till, vilket dess Price Trend
-// 3,41 € och 30-dagarssnitt 8,01 € bekräftar mot guide-raden: med filtren NM + engelska
-// står From på **4,29 €** (105 annonser, billigaste NM/EN 4,29 och 4,93 €). Vi publicerade
-// **25,66 €** — sex gånger fel.
-//
-// Och det är inte ett enstaka utfall: mätt över 19 114 singlar och 30 dygn är 12,2 % av
-// alla dag-till-dag-ändringar ≥2x och 5,0 % ≥5x. Ett verkligt billigaste-pris på ett kort
-// med 100+ annonser rör sig inte så. Feeden levererar platåer som hoppar i steg.
-//
-// Ingen befintlig vakt kunde se det: `fromContradictsCardmarket` dömer bara NEDÅT, per-
-// kort-dagklämman togs bort 2026-07-24 (den slogs mot golvet-rakt-av-policyn) och
-// körningsbrytaren kräver att >5 % av katalogen rör sig samtidigt. Taket är den vakt
-// ägaren trodde fanns.
-//
-// FACIT ÄR CM:S EGNA PUBLICERADE SIFFROR, inte en egen modell — samma princip som
-// guideNameMatches: låt Cardmarket döma Cardmarket. Kräver MINST TVÅ referenser, så en
-// ensam trasig guide-rad (trend=0,02 förekommer) aldrig kan döma ett äkta pris.
-export const FROM_CEILING_MULT = Number(process.env.CM_FROM_CEILING_MULT) || 2.5;
-
-/** De sex fält CM publicerar per produkt. */
+/** De sex fält CM publicerar per produkt i sin öppna prisguide. */
 export interface CmGuideFields {
   low?: number | null; trend?: number | null; avg?: number | null;
   avg1?: number | null; avg7?: number | null; avg30?: number | null;
 }
-const guideRefs = (g?: CmGuideFields | null): number[] =>
-  g ? [pos(g.low), pos(g.trend), pos(g.avg), pos(g.avg1), pos(g.avg7), pos(g.avg30)].filter((v): v is number => v != null) : [];
 
 /**
- * Är guide-raden RIK nog att döma med? Tre krav, och alla tre behövdes:
- *   1. minst fyra av sex fält satta
- *   2. minst TRE OLIKA värden bland dem
- *   3. spridningen ≤50x
+ * Headline-pris för en singel = RapidAPI:s `lowest_near_mint` (CM:s lägsta NM-annons
+ * på engelska) RAKT AV. Guiden används BARA när fältet saknas helt.
  *
- * (2) är det icke-uppenbara. Utan det blir vakten värre än buggen: Professor Sycamore ·
- * Steam Siege 114/114 har fyra fält satta men ALLA är 0,05 € — CM:s platshållare för
- * "vi vet inte", inte ett marknadsvärde. Ett tak byggt på den raden dömde ut kortets
- * riktiga 10 €-pris och skrev 5 öre. En riktig marknad SPRETAR: Ponytas rad har sex
- * olika värden (1,25 / 2,45 / 3,41 / 6,38 / 7,64 / 8,01) och där är domen pålitlig.
- * Tunn eller degenererad rad ⇒ ingen dom, feedens From står kvar som förut.
- */
-export function cmGuideIsRich(guide?: CmGuideFields | null): boolean {
-  const refs = guideRefs(guide);
-  if (refs.length < 4) return false;
-  if (new Set(refs).size < 3) return false;
-  return Math.max(...refs) / Math.min(...refs) <= 50;
-}
-
-/** Ligger From orimligt över ALLT Cardmarket självt publicerar för produkten? */
-export function fromExceedsCardmarket(
-  fromEur: number | null | undefined,
-  guide?: CmGuideFields | null,
-): boolean {
-  const f = pos(fromEur);
-  if (f == null || !cmGuideIsRich(guide)) return false; // tunt/spretigt facit → From står kvar
-  return f > Math.max(...guideRefs(guide)) * FROM_CEILING_MULT;
-}
-
-/**
- * CM:s egen mittpunkt: medianen av de sex fält Cardmarket publicerar för produkten
- * (low, trend, avg, avg1, avg7, avg30). Används när feedens From är motbevisad.
- *
- * ⚠️ Träffsäkerheten är verifierad mot ETT kort med känt facit (Ponyta BS 60: medianen
- * ger 4,89 € mot sanna 4,29 €, +14 %). Bredare kalibrering är INTE möjlig — den enda
- * storskaliga referensen är feedens egna From-värden, och de är just det som är trasigt.
- * Kontrollera därför utfallet med `scripts/cm-range-audit.ts` och stickprov på CM.
- */
-export function cmGuideMedianEur(guide?: CmGuideFields | null): number | null {
-  const v = guideRefs(guide).sort((a, b) => a - b);
-  if (v.length === 0) return null;
-  const mid = v.length >> 1;
-  return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
-}
-
-/**
- * Headline-pris för en singel, ur RapidAPI-kortets priser + CM:s guide-rad.
- * `from: false` ⇒ värdet är en UPPSKATTNING (ingen känd köpbar annons) och
- * offern märks OUT_OF_STOCK, samma semantik som sealed/JP.
+ * `from: false` ⇒ värdet är en UPPSKATTNING (ingen känd köpbar annons) och offern
+ * märks OUT_OF_STOCK, samma semantik som sealed/JP.
  */
 export function singlesHeadlineEur(
   cm: { from?: number | null; avg30?: number | null },
-  guide?: { low?: number | null; trend?: number | null; avg?: number | null; avg1?: number | null; avg7?: number | null; avg30?: number | null } | null,
-): { eur: number; from: boolean; via?: "from" | "cmLow" | "cmMedian" | "estimate" } | null {
-  // Anroparen har redan identitetsprövat guide-raden (guideNameMatches + guideRowIsSingle)
-  // och skickar null när den tillhör ett annat kort eller inte är en singel — en felmappad
-  // rad får varken döma From:en eller prissätta kortet.
+  guide?: CmGuideFields | null,
+): { eur: number; from: boolean; via?: "from" | "estimate" } | null {
   const g = guide;
   const from = pos(cm.from);
-  const guideLow = pos(g?.low);
-  if (from != null) {
-    if (fromContradictsCardmarket(from, guideLow, cm.avg30)) {
-      // För LÅG mot CM:s eget lägsta → publicera CM:s `low`. Fortfarande ett riktigt,
-      // köpbart pris ur CM:s officiella export — bara inte feedens skräpvärde.
-      if (guideLow != null) return { eur: guideLow, from: true, via: "cmLow" };
-    } else if (fromExceedsCardmarket(from, g)) {
-      // För HÖG mot ALLT CM publicerar → feedens värde är inte kortets From (mätt:
-      // 25,66 € mot Cardmarkets 4,29 € på Ponyta BS 60). Publicera CM:s egen mittpunkt.
-      // Lagerstatus förblir IN_STOCK: Cardmarket HAR annonser, det är siffran som är fel.
-      const mid = cmGuideMedianEur(g);
-      if (mid != null) return { eur: mid, from: true, via: "cmMedian" };
-    } else {
-      // GOLVET RAKT AV (ägarbeslut 2026-07-24) — feedens From står oemotsagt.
-      return { eur: from, from: true, via: "from" };
-    }
-  }
+  // ÄGARENS REGEL: har feeden ett NM-engelskt lägstapris ÄR det priset. Ingen guide-rad,
+  // ingen referens och ingen median får byta ut det — se blocket vid `pos` ovan för de
+  // två vakter som försökte och vad de publicerade (215,61 kr på ett 37 000 €-kort).
+  if (from != null) return { eur: from, from: true, via: "from" };
 
   // From SAKNAS helt → uppskattning (ingen känd köpbar NM-engelsk annons) →
   // OUT_OF_STOCK. Här duger INTE guidens `low`: den är lägsta över alla skick och
@@ -1297,8 +1206,8 @@ export async function runCardmarketRefresh(
     // singleOps: de ska inte räknas av haveribrytaren och inte skriva historikpunkter.
     const linkOnlyOps: { productId: string; url: string }[] = [];
     let byNumberHits = 0, byNumberNameRejects = 0;
-    // Varifrån headline-priset kom (from / cmLow / cmMedian / estimate). Ska loggas varje
-    // körning: växer `cmMedian` plötsligt är det feeden som glidit, inte marknaden.
+    // Varifrån headline-priset kom (from / estimate). Ska loggas varje körning: växer
+    // `estimate` plötsligt är det feeden som tappat `lowest_near_mint`, inte marknaden.
     const viaCounts: Record<string, number> = {};
     const processCards = (cards: CmCard[]) => {
       for (const card of cards) {
@@ -1471,7 +1380,7 @@ export async function runCardmarketRefresh(
     }
     console.log(
       `[cm-refresh] Prisets källa: ${Object.entries(viaCounts).map(([k, v]) => `${k}=${v}`).join(" ") || "–"}` +
-      ` (cmMedian = feedens From låg över ALLT CM publicerar ×${FROM_CEILING_MULT} → CM:s egen mittpunkt)`
+      ` (from = CM:s NM-engelska lägsta rakt av; estimate = fältet saknades → OUT_OF_STOCK)`
     );
     if (byNumberHits || byNumberNameRejects)
       console.log(

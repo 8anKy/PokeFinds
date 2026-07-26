@@ -1,22 +1,20 @@
 import { describe, it, expect } from "vitest";
 import {
   singlesHeadlineEur,
-  fromContradictsCardmarket,
   guideNameMatches,
   feedMoveShares,
   DAY_MOVE_MAX,
   FEED_BREAKER_MULT,
 } from "@/jobs/cardmarket-refresh";
 
-// Ägarbeslut 2026-07-24: GOLVET RAKT AV. Rayquaza ★ Deoxys — CM:s From var 37 000 €
-// (PSA 7-ask) men vi visade trenden 6 271 € som "Lägsta pris". Golvet ska visas
-// ofiltrerat; trend/30d är BARA fallback när From saknas, och då en uppskattning.
+// Ägarbeslut 2026-07-24, ombekräftat 2026-07-27: `lowest_near_mint` RAKT AV. Fältet ÄR
+// Cardmarkets lägsta NM-annons på engelska; ingen guide-rad får byta ut det. Trend/30d
+// är BARA fallback när fältet saknas, och då en uppskattning märkt OUT_OF_STOCK.
 describe("singlesHeadlineEur (golvet rakt av)", () => {
   it("From publiceras exakt som CM listar den, hur långt från trenden den än ligger", () => {
     expect(
       singlesHeadlineEur({ from: 37000, avg30: 4093.09 }, { low: 6000, trend: 6271.49, avg30: 4093.09 })
     ).toEqual({ eur: 37000, from: true, via: "from" });
-    // Låg From accepteras också så länge CM:s egen lägsta bekräftar den.
     expect(singlesHeadlineEur({ from: 3.5, avg30: 6.2 }, { low: 3.4, trend: 8.45, avg30: 6.2 })).toEqual({
       eur: 3.5,
       from: true,
@@ -28,11 +26,13 @@ describe("singlesHeadlineEur (golvet rakt av)", () => {
     expect(singlesHeadlineEur({ from: 0.02, avg30: 2.41 }, null)).toEqual({ eur: 0.02, from: true, via: "from" });
   });
 
-  it("skräp-From ersätts av CM:s EGEN lägsta, inte av trenden", () => {
-    // Brock's Scouting JTG179: LNM 0,02 € mot guidens low 1,25 €.
+  it("MED guide-facit står den också kvar — guiden är inte CM:s From", () => {
+    // Brock's Scouting JTG179: LNM 0,02 € mot guidens low 1,25 €. Att publicera guidens
+    // low här var 07-25-fixen; den revs 07-27 (guidens low för Rayquaza Gold Star säger
+    // 2 900 € där CM:s produktsida visar 37 000 €).
     expect(
       singlesHeadlineEur({ from: 0.02, avg30: 2.41 }, { low: 1.25, trend: 2.37, avg: 2.41, avg30: 2.31 })
-    ).toEqual({ eur: 1.25, from: true, via: "cmLow" });
+    ).toEqual({ eur: 0.02, from: true, via: "from" });
   });
 
   it("From SAKNAS → median av referenserna som uppskattning, ALDRIG guidens low", () => {
@@ -60,29 +60,6 @@ describe("singlesHeadlineEur (golvet rakt av)", () => {
   it("ingen data alls (eller bara nollor) → null", () => {
     expect(singlesHeadlineEur({ from: null, avg30: null }, null)).toBeNull();
     expect(singlesHeadlineEur({ from: 0, avg30: 0 }, { low: 0, trend: 0, avg30: 0 })).toBeNull();
-  });
-});
-
-// Engelska+NM är en DELMÄNGD av alla annonser → en engelsk NM-lägsta kan aldrig
-// ligga under CM:s publicerade lägsta för produkten. Alla siffror uppmätta mot
-// RapidAPI + CM:s officiella prisguide 2026-07-25.
-describe("fromContradictsCardmarket", () => {
-  it("dömer feed-skräp som ligger långt under CM:s egen lägsta", () => {
-    expect(fromContradictsCardmarket(0.02, 1.25, 2.41)).toBe(true); // Brock's Scouting
-    expect(fromContradictsCardmarket(0.02, 0.2, 0.97)).toBe(true); // Houndoom ex
-    expect(fromContradictsCardmarket(0.05, 0.9, 2.75)).toBe(true); // Premium Power Pro
-    expect(fromContradictsCardmarket(0.5, 3.0, 15.71)).toBe(true); // Ampharos UF
-  });
-
-  it("rör inte äkta golv — inte heller äkta bulk på 0,02 €", () => {
-    expect(fromContradictsCardmarket(0.15, 0.02, 0.43)).toBe(false); // Munna, äkta bulk
-    expect(fromContradictsCardmarket(24.15, 1, 16.51)).toBe(false); // Donphan Prime
-    expect(fromContradictsCardmarket(70.99, 3.5, 16.33)).toBe(false); // Leafeon-promo
-  });
-
-  it("kräver TVÅ källor — en ensam guide-rad får inte förkasta ett golv", () => {
-    expect(fromContradictsCardmarket(0.02, 1.25, null)).toBe(false);
-    expect(fromContradictsCardmarket(0.02, null, 2.41)).toBe(false);
   });
 });
 

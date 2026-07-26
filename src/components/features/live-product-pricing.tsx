@@ -178,14 +178,21 @@ export function LivePricePanel({
 
   // NM-engelska-kvalificeringen hör till Cardmarkets From-pris och får bara stå
   // där priset faktiskt kommer därifrån. Okänd källa → neutral rubrik.
+  //
+  // Och den vinnande offern måste vara I LAGER: en slutsåld CM-offer bär en
+  // UPPSKATTNING (prisjobben märker den så när `lowest_near_mint` saknas), och över
+  // den siffran vore "Lägsta pris · NM engelska" ett påstående om en annons som inte
+  // finns — samma sorts fel som taket 2026-07-27 gjorde med själva talet.
   const source = lowestOfferSource(offers, stats.lowestPrice);
   const priceLabel = !isSingle
     ? t("priceLabelDefault")
-    : source === "Cardmarket"
+    : source?.name === "Cardmarket" && source.live
       ? t("priceLabelSingle")
-      : source
-        ? t("priceLabelSingleSource", { source })
-        : t("priceLabelDefault");
+      : source && !source.live
+        ? t("priceLabelEstimate", { source: source.name })
+        : source
+          ? t("priceLabelSingleSource", { source: source.name })
+          : t("priceLabelDefault");
 
   return (
     <div className="card-surface mt-6 max-w-2xl">

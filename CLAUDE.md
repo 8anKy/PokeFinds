@@ -128,35 +128,47 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
 - **Stack**: Next.js 14 App Router, React 18, TypeScript strict, Tailwind CSS, Prisma, PostgreSQL
 - **Växelkurs**: live via `src/lib/exchange-rate.ts` (`getRatesOre()` → Frankfurter, dygnscache, fallback 1150/1050 öre). Anropa i början av en ingest-körning; synkrona pris-funktioner läser `getCachedRatesOre()`. `EUR_SEK`-env pinnar kursen. Hårdkoda ALDRIG 11.50 igen — använd modulen
-- **Singelpris**: `Offer.price` på singlar = Cardmarkets engelska **NM-lägsta ("From")** × live-kurs, hämtat från **CardMarket API TCG (RapidAPI Pro)** — `CARDMARKET_RAPIDAPI_*` i .env, fältet `prices.cardmarket.lowest_near_mint` (DECIMAL EUR; bas-fältet är engelska, `_DE`/`_FR`/`_ES`/`_IT` = språk-överstyrningar). Detta ÄR det engelska From-pris som löste det gamla lowPrice-problemet (pokemontcg.io `lowPrice` = all-språk/all-skick-golv som grovt underskattade — använd ALDRIG). Fyll via `scripts/rapidapi-fill-singles.ts` (set-paginering `/pokemon/episodes/{id}/cards`, matcha på `tcgid`=`tcgExternalId`, ~1000 anrop för hela katalogen). Exakt uppslag = `?tcgid={id}` (1 träff). **GOLVET RAKT AV (ägarbeslut BEKRÄFTAT 2026-07-24)**: priset = `lowest_near_mint` exakt som annonsen står, även när CM:s billigaste annons är en enstaka feldyr/graderad (Rayquaza ★: 37 000 € PSA 7-ask visas som 37 000 €). Trend-substitutionen (`fromElseTrend`, 2026-07-18–07-24) är BORTTAGEN — den visade trenden under rubriken "Lägsta pris", underkänt av ägaren. **MEN `lowest_near_mint` är inte alltid CM:s From (2026-07-25)**: feeden ger 0,02–0,50 € som CM SJÄLV inte räknar som produktens lägsta (Brock's Scouting JTG179: LNM 0,02 € mot guidens `low` 1,25 € och DE/FR/ES/IT ≥1,49). Engelska+NM är en DELMÄNGD av alla annonser → en engelsk NM-lägsta kan aldrig ligga UNDER guidens `low`. `fromContradictsCardmarket` avvisar därför ett From under `low × CM_FROM_FLOOR_TOL` (0,5) NÄR kortets eget 30d-snitt bekräftar det (TVÅ källor, så en felmappad guide-rad inte ensam kan döma) — och publicerar då **CM:s egen `low`** i stället. Det är fortfarande golvet rakt av, bara ur rätt källa; ingen trend-substitution. Är BÅDA låga finns inget facit → värdet står kvar (ägarbeslut 2026-07-25: "lämna dem"). Fallback BARA när From SAKNAS: **medianen** av (guide.trend, guide.avg, guide.avg30, RapidAPI 30d) — ALDRIG guidens `low` (den är lägsta över alla skick/språk = ett trasigt exemplar under rubriken "NM engelska") och aldrig en prioritetsordning (vilket fält som är korrupt varierar: guide.trend = 0,02 € på N · Noble Victories, RapidAPI 30d = 10,46 € på en Base-Charizard som guiden sätter till 2 506 €). Uppskattningen märks **OUT_OF_STOCK** (ingen köpbar annons — samma semantik som sealed/JP). **IDENTITETSVAKT, TVÅ FRÅGOR (andra tillagd 2026-07-26)**: (1) `guideRowIsSingle` — är guide-radens `idProduct` ens en
-  SINGEL enligt CM:s egen singel-katalog? RapidAPI gav Pidgey · Flashfire 75/106 `cardmarket_id` 271938, som är en SEALED-produkt
-  (finns i sealed-listan, saknas bland de 71 586 singlarna). Namnvakten släppte igenom den — dess "saknas katalognamn → betrodd"
-  är sant PRECIS när id:t inte är en singel — och radens `low` (295 €) fick `fromContradictsCardmarket` att förkasta kortets
-  riktiga From (0,02 €) och publicera BOOSTERLÅDANS golv: 3 262,70 kr för en common. Tom katalog (CDN-fel) = vakten står över
-  körningen, aldrig "kasta alla rader". Vakten finns i BÅDA singel-jobben (cardmarket-refresh + hot-card-refresh — annars
-  återinför 21:00-jobbet priset några timmar senare). Mätt före ship: rättar 10 kort, ändrar 0 av 60 i kontrollgruppen.
-  ⚠️ De ANDRA 87 korten som steg ≥10x efter 07-23 är INTE buggen utan golvet-rakt-av: deras `lowest_near_mint` ÄR hög
-  (Switch · Base 95/102 = 38 €) och före 07-24 visades trenden i stället. Rör dem inte. (2) `guideNameMatches` — är raden
-  VÅRT kort? RapidAPI:s `cardmarket_id` kan peka på ett annat kort (`base1-2` Blastoise → 291582 = "Rayquaza [Dual Claw | Dragon Blast]"); guide-raden används bara om CM:s OFFICIELLA singel-katalog (`products_singles_6.json`, `guideNameMatches`) säger att det är samma kort. Döm ALDRIG identitet på prisavstånd — det kastar den rätta raden när det är RapidAPI som är trasig. **Ingen per-kort-dagklämma för singlar** (kan inte skilja äkta ask-hopp från glitch utan att bli spärrhake); skyddet mot feed-korruption à la 2026-07-05 = **haveribrytare på körningsnivå** (`feedMoveShares`: >5% av singlarna ≥10x på ett dygn → körningen avbryts RÖD utan skrivningar, `CM_FEED_BREAKER_*`-env). **TAK MOT FEEDEN (2026-07-27, ägarbeslut)**: `lowest_near_mint` ÄR INTE det NM-engelska From-priset. Bevis: CM:s egen
-  produktsida för Ponyta (BS 60) — samma produkt vi länkar, vilket dess Price Trend 3,41 € och 30-dagarssnitt 8,01 €
-  bekräftar mot guide-raden — visar med filtren NM+engelska **From 4,29 €** (105 annonser). Vi publicerade **25,66 €**.
-  Och feeden är strukturellt bullrig: över 19 114 singlar och 30 dygn är **12,2 % av alla dag-till-dag-ändringar ≥2x och
-  5,0 % ≥5x**; värdet står still 64 % av dagarna och hoppar sedan i platåsteg. Ligger From över ALLT CM självt publicerar
-  ×`CM_FROM_CEILING_MULT` (2,5) publiceras i stället **CM:s egen mittpunkt** (medianen av low/trend/avg/avg1/avg7/avg30,
-  `cmGuideMedianEur`) — lagerstatus förblir IN_STOCK, CM HAR annonser, det är siffran som är fel. ⚠️ Det här mildrar
-  "golvet rakt av" för de ~2 % där CM:s egna siffror motsäger feeden, inklusive Rayquaza ★ · Deoxys (37 000 € → ~19 €).
-  **KRAVET PÅ FACIT**: guide-raden måste vara RIK (`cmGuideIsRich`: ≥4 av 6 fält, ≥3 OLIKA värden, spridning ≤50x).
-  Utan distinkt-kravet blev vakten värre än buggen — Professor Sycamore · Steam Siege har fyra fält som ALLA är 0,05 €
-  (CM:s platshållare) och taket skrev 5 öre på ett 10 €-kort. Tunn eller degenererad rad ⇒ ingen dom, From står kvar.
-  **REVISION + REPARATION**: `scripts/cm-range-audit.ts` (gratis, CM:s guide, ingen RapidAPI-kvot) jämför varje
-  publicerat pris mot CM:s hela spann; `--apply` rättar de för höga till mittpunkten. Spärrar: bara singlar (sealed
-  ligger 99,5 % rätt), bara för höga, rik rad, set äldre än 60 dygn, och ALDRIG när CM:s tryckvarianter av kortet
-  skiljer >2x (då avgör variantvalet svaret → flaggas i stället). Utfall 2026-07-27: 159 priser rättade, 97,9 % inom
-  spannet. ⛔ Cardmarket delar INTE längre ut API-nycklar, så exakt From går inte att hämta — mittpunkten är den bästa
-  fria approximationen (verifierad mot ETT kort med känt facit: 4,895 € mot sanna 4,29 €, +14 %).
-- **RUBRIKEN NAMNGER KÄLLAN, DEN PÅSTÅR INGET (2026-07-26)**: "Lägsta pris · NM engelska (Cardmarket)" gäller BARA när
-  den vinnande offern faktiskt är Cardmarkets; vinner en marknadsplats/butik står "Lägsta pris · {källa}" (`lowestOfferSource`,
-  `src/lib/offer-source.ts` — samma urvalsregel som servern, och namnger källan bara om den bevisligen gav den visade siffran).
+- **Singelpris**: `Offer.price` på singlar = Cardmarkets engelska **NM-lägsta ("From")** × live-kurs, hämtat från **CardMarket API TCG (RapidAPI Pro)** — `CARDMARKET_RAPIDAPI_*` i .env, fältet `prices.cardmarket.lowest_near_mint` (DECIMAL EUR; bas-fältet är engelska, `_DE`/`_FR`/`_ES`/`_IT` = språk-överstyrningar). Detta ÄR det engelska From-pris som löste det gamla lowPrice-problemet (pokemontcg.io `lowPrice` = all-språk/all-skick-golv som grovt underskattade — använd ALDRIG). Fyll via `scripts/rapidapi-fill-singles.ts` (set-paginering `/pokemon/episodes/{id}/cards`, matcha på `tcgid`=`tcgExternalId`, ~1000 anrop för hela katalogen). Exakt uppslag = `?tcgid={id}` (1 träff). **GOLVET RAKT AV — HELA REGELN (ägarbeslut 2026-07-24, OMBEKRÄFTAT 2026-07-27)**:
+  priset = `lowest_near_mint` EXAKT som fältet står, även när CM:s billigaste NM-engelska annons är en enstaka feldyr/graderad
+  (Rayquaza ★ · Deoxys: 37 000 € PSA 7-ask visas som 37 000 €). **INGENTING får byta ut det värdet.** `singlesHeadlineEur`
+  är därför en enda rad: finns From publiceras From. Fallback BARA när From SAKNAS HELT: **medianen** av (guide.trend,
+  guide.avg, guide.avg30, RapidAPI 30d) — ALDRIG guidens `low`, och aldrig en prioritetsordning (vilket fält som är korrupt
+  varierar: guide.trend = 0,02 € på N · Noble Victories, RapidAPI 30d = 10,46 € på en Base-Charizard som guiden sätter till
+  2 506 €). Uppskattningen märks **OUT_OF_STOCK** och rubriken byter till "Uppskattat värde · ingen aktiv annons" (469 singlar,
+  258 sealed 2026-07-27).
+  ⛔ **BYGG ALDRIG EN PER-KORT-VAKT PÅ `price_guide_6.json` IGEN.** Tre försök i rad har rivits, alla för att guiden inte är
+  CM:s From: `fromElseTrend` (07-18→07-24, visade trenden under rubriken "Lägsta pris"), `fromContradictsCardmarket`→guidens
+  `low` (07-25→07-27) och `fromExceedsCardmarket`→`cmGuideMedianEur` (07-27, levde ett dygn). **Beviset**: för Rayquaza Gold
+  Star (idProduct 276510) säger guiden `low` = 2 900 € medan CM:s EGEN produktsida samma dag visar **From 37 000 €** för
+  NM+engelska — precis vad feeden sa. Guidens `low` var 12x fel om det enda fall vi kunde kontrollera, och HELA golv-vaktens
+  premiss ("engelska+NM ⊆ alla annonser ⇒ From ≥ guidens low") vilar på att `low` är produktens lägsta annons. Taket, byggt på
+  samma fil, sänkte Rayquaza ★ till ~5 600 € och audit-skriptet vidare till **215,61 kr**. Att `lowest_near_mint` ÄR det
+  engelska fältet syns i API:ts eget dokexempel: basen (1,00) ligger ÖVER `lowest_near_mint_DE` (0,90), vilket vore omöjligt
+  om basen var "alla språk". **Skyddet mot korrupt feed ligger på KÖRNINGSNIVÅ**, inte per kort: `feedMoveShares` (>5 % av
+  singlarna ≥10x på ett dygn → körningen avbryts RÖD utan skrivningar, `CM_FEED_BREAKER_*`-env). Ingen per-kort-dagklämma
+  (kan inte skilja äkta ask-hopp från glitch utan att bli spärrhake).
+  **IDENTITETSVAKT, TVÅ FRÅGOR (2026-07-26)** — gäller nu bara UPPSKATTNINGEN, men behövs precis lika mycket där:
+  (1) `guideRowIsSingle` — är guide-radens `idProduct` ens en SINGEL enligt CM:s egen singel-katalog? RapidAPI gav Pidgey ·
+  Flashfire 75/106 `cardmarket_id` 271938, som är en SEALED-produkt (finns i sealed-listan, saknas bland de 71 586 singlarna);
+  radens `low` 295 € publicerades som kortets pris (3 262,70 kr för en common). Tom katalog (CDN-fel) = vakten står över
+  körningen, aldrig "kasta alla rader". Vakten finns i BÅDA singel-jobben (cardmarket-refresh + hot-card-refresh).
+  (2) `guideNameMatches` — är raden VÅRT kort? RapidAPI:s `cardmarket_id` kan peka på ett annat kort (`base1-2` Blastoise →
+  291582 = "Rayquaza [Dual Claw | Dragon Blast]"). Döm ALDRIG identitet på prisavstånd — det kastar den rätta raden när det
+  är RapidAPI som är trasig.
+  **REVISION (rapport, aldrig reparation)**: `scripts/cm-range-audit.ts` (gratis, CM:s guide, ingen RapidAPI-kvot) listar
+  priser långt utanför CM:s spann. `--apply` ÄR BORTTAGET: det skrev guide-medianer (fel policy) OCH band identiteten på ett
+  normaliserat namn som fäller ihop olika CM-produkter — vårt "Rayquaza ★" blev "rayquaza" och matchade CM:s vanliga Rayquaza
+  i EX Deoxys, varpå 160 rader skrevs om 2026-07-26 22:11 UTC. Rapporten hoppar nu över namn som är PREFIX till ett annat
+  namn i expansionen (Rayquaza ⊂ Rayquaza Gold Star). Ett fynd betyder "kontrollera länken på Cardmarket", aldrig "skriv om
+  priset" — golvet-rakt-av ligger med flit ibland utanför guidens spann. Ångra en sådan skrivning med
+  `scripts/revert-guide-median-prices.ts` (återställer ur VÅR egen historik, ingen RapidAPI-kvot).
+  ⛔ Cardmarket delar INTE längre ut API-nycklar; RapidAPI är enda vägen till `lowest_near_mint`.
+- **RUBRIKEN NAMNGER KÄLLAN, DEN PÅSTÅR INGET (2026-07-26, utökad 07-27)**: "Lägsta pris · NM engelska (Cardmarket)" gäller BARA när
+  den vinnande offern faktiskt är Cardmarkets OCH är I LAGER; vinner en marknadsplats/butik står "Lägsta pris · {källa}",
+  och är den vinnande offern slutsåld står "Uppskattat värde · ingen aktiv annons ({källa})" (`lowestOfferSource` returnerar
+  `{name, live}`, `src/lib/offer-source.ts` — samma urvalsregel som servern, och namnger källan bara om den bevisligen gav den
+  visade siffran). En OUT_OF_STOCK CM-offer bär per definition en uppskattning, och "lägst bland NM-engelska annonser" är då ett
+  påstående om annonser som inte finns — samma sorts fel som taket 07-27 gjorde med själva talet.
   Rubriken stod förut hårdkodad på varje singel: 2 751 singlar visade en Tradera-annons under rubriken "Cardmarket", och tre
   hela set hade ingen CM-offer alls. Samma sak i grafens underrubrik — den följer nu `trendSource` även för singlar
   (`rawSubtitleTradera`/`rawSubtitleStores`), tom serie = "Ingen prishistorik ännu". **MATCHNINGEN FÅR INTE HÄNGA PÅ `tcgid`**:

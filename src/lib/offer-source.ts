@@ -9,7 +9,7 @@ export interface OfferSourceLike {
 }
 
 /**
- * Vilken källa gav det visade lägsta priset?
+ * Vilken offer gav det visade lägsta priset?
  *
  * Rubriken på produktsidan påstod tidigare ALLTID "Cardmarket" på singlar, oavsett
  * var siffran kom ifrån. På 2 751 singlar var vinnaren i själva verket en Tradera-
@@ -23,11 +23,17 @@ export interface OfferSourceLike {
  * Källan namnges BARA om den bevisligen producerade `shownLowestOre`. Skulle
  * urvalen någon gång glida ifrån varandra blir svaret null (neutral rubrik) i
  * stället för ett självsäkert fel namn.
+ *
+ * `live` = vann en offer som faktiskt är I LAGER. Prisjobben märker en offer
+ * OUT_OF_STOCK precis när siffran är en UPPSKATTNING och inte en känd köpbar annons
+ * (`lowest_near_mint` saknades → median av CM:s referenser). Rubriken "Lägsta pris ·
+ * NM engelska" får inte stå över ett sådant värde — det finns per definition ingen
+ * NM-engelsk annons att vara lägst bland. Gäller 469 singlar och 258 sealed (2026-07-27).
  */
 export function lowestOfferSource(
   offers: OfferSourceLike[],
   shownLowestOre: number | null
-): string | null {
+): { name: string; live: boolean } | null {
   if (shownLowestOre == null) return null;
   const priced = offers.filter(
     (o): o is OfferSourceLike & { price: number } =>
@@ -37,5 +43,6 @@ export function lowestOfferSource(
   const pool = inStock.length > 0 ? inStock : priced;
   if (pool.length === 0) return null;
   const best = pool.reduce((a, b) => (b.price < a.price ? b : a));
-  return best.price === shownLowestOre ? best.retailer.name : null;
+  if (best.price !== shownLowestOre) return null;
+  return { name: best.retailer.name, live: best.stockStatus === "IN_STOCK" };
 }
