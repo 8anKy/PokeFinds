@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import createMiddleware from "next-intl/middleware";
 import { routing } from "@/i18n/routing";
+import { BLOCKED_BOTS } from "@/lib/blocked-bots";
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -18,8 +19,15 @@ const MODERATOR_ROLES = new Set(["MODERATOR", "ADMIN", "SUPERADMIN"]);
 // Google/Bing/DuckDuckGo är medvetet INTE med — dem vill vi ha för SEO. Länkförhands-
 // visare (facebookexternalhit, Twitterbot, Slackbot, Discordbot, LinkedInBot, WhatsApp)
 // är också utanför: de hämtar EN delad URL, inte hela katalogen.
-const BLOCKED_BOTS =
-  /Applebot|GPTBot|OAI-SearchBot|ChatGPT-User|ClaudeBot|Claude-Web|anthropic-ai|CCBot|Bytespider|AhrefsBot|SemrushBot|DataForSeoBot|MJ12bot|Amazonbot|Meta-ExternalAgent|PerplexityBot|Perplexity-User|YandexBot|Baiduspider|SeznamBot|DotBot|BLEXBot|Barkrowler|ImagesiftBot|Timpibot|Diffbot|omgili|Screaming Frog|python-requests|Scrapy|node-fetch|Go-http-client|libwww-perl/i;
+// META HAR FLERA UA:er — att blocka en räcker inte (mätt 2026-07-26 i Railways
+// httpLogs): `meta-externalagent` 403:ades korrekt efter 1e33f63, men systern
+// `meta-webindexer` saknades i listan och svepte vidare med 200 — 12,6 MB av
+// 16,2 MB total egress (78 %) på 12,6 h, mot /en/-katalogen. Bulk-indexerare
+// blockas; användarinitierade hämtare (facebookexternalhit, meta-externalfetcher
+// = EN delad URL) lämnas kvar med flit. Truncera ALDRIG en UA vid analys: Metas
+// crawlers döljer namnet i ett "(compatible; …)"-suffix EFTER en helt vanlig
+// Chrome-sträng, så en avhuggen UA ser ut som en riktig besökare.
+// Själva listan ligger i @/lib/blocked-bots så den kan regressionstestas.
 
 const PROTECTED_PREFIXES = [
   "/dashboard",

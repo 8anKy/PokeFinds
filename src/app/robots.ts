@@ -43,6 +43,10 @@ export default function robots(): MetadataRoute.Robots {
           "MJ12bot",
           "Amazonbot",
           "Meta-ExternalAgent",
+          // Metas ANDRA bulk-crawler. Saknades här och i middleware och stod för
+          // 78 % av all egress 2026-07-26. facebookexternalhit/meta-externalfetcher
+          // (länkförhandsvisning, EN URL) lämnas kvar med flit.
+          "Meta-WebIndexer",
           "PerplexityBot",
           "Perplexity-User",
           "YandexBot",
