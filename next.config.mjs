@@ -5,6 +5,13 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Next håller renderade ISR-sidor + `unstable_cache`-poster i en minnes-LRU som
+  // som standard får ta 50 MB. Det är resident minne dygnet runt, och minne är
+  // ~92 % av Railway-notan (se Dockerfile). Sidorna ligger ÄVEN på disk i
+  // containern, så en miss här kostar en filläsning (~1 ms) — inte en Neon-fråga.
+  // Med p50-latens på 4 ms är det osynligt; med $10/GB-månad är 18 MB inte det.
+  // Sänk INTE till 0: de hetaste sidorna ska fortfarande serveras ur minnet.
+  cacheMaxMemorySize: 32 * 1024 * 1024,
   experimental: {
     instrumentationHook: true,
     serverComponentsExternalPackages: ["bullmq", "ioredis", "redis-parser"],
