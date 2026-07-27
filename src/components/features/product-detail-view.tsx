@@ -280,6 +280,12 @@ export function ProductDetailView({
                     title: p.title,
                     imageUrl: p.imageUrl,
                     category: p.category,
+                    setId: p.setId,
+                    setName: p.setName,
+                    setTotalCards: p.setTotalCards,
+                    cardName: p.cardName,
+                    cardNumber: p.cardNumber,
+                    variantLabel: p.variantLabel,
                     lowestPrice: p.lowestPrice,
                     stockStatus: p.lowestPriceStockStatus,
                   }}

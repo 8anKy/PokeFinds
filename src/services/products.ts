@@ -49,6 +49,12 @@ export interface ProductListItem {
   language: CardLanguage;
   setId: string | null;
   setName: string | null;
+  // Katalogkortet visar namn, set och kortnummer som EGNA rader i stället för den
+  // hopbakade titeln — se src/lib/product-display.ts.
+  setTotalCards: number | null;
+  cardName: string | null;
+  cardNumber: string | null;
+  variantLabel: string | null;
   lowestPrice: number | null; // öre, IN_STOCK prioriteras
   lowestPriceStockStatus: StockStatus | null;
   offerCount: number;
@@ -117,7 +123,8 @@ const daysAgo = utcDaysAgo;
 
 type ProductWithRelations = Prisma.ProductGetPayload<{
   include: {
-    set: { select: { id: true; name: true } };
+    set: { select: { id: true; name: true; totalCards: true } };
+    card: { select: { name: true; number: true } };
     offers: { select: { price: true; stockStatus: true; url: true } };
     priceSnapshots: { select: { date: true; avgPrice: true } };
     restockEvents: { select: { detectedAt: true } };
@@ -171,6 +178,10 @@ function toListItem(p: ProductWithRelations): ProductListItem {
     language: p.language,
     setId: p.setId,
     setName: p.set?.name ?? null,
+    setTotalCards: p.set?.totalCards ?? null,
+    cardName: p.card?.name ?? null,
+    cardNumber: p.card?.number ?? null,
+    variantLabel: p.variantLabel,
     lowestPrice: lowest.price,
     lowestPriceStockStatus: lowest.stockStatus,
     offerCount: visible.length,
@@ -355,7 +366,8 @@ function feedOrderBy(sort: ProductSort): Prisma.ProductOrderByWithRelationInput 
 }
 
 const FEED_INCLUDE = {
-  set: { select: { id: true, name: true } },
+  set: { select: { id: true, name: true, totalCards: true } },
+  card: { select: { name: true, number: true } },
   offers: { select: { price: true, stockStatus: true, url: true } },
   priceSnapshots: { where: { date: { gte: daysAgo(7) } }, select: { date: true, avgPrice: true } },
   restockEvents: { orderBy: { detectedAt: "desc" }, take: 1, select: { detectedAt: true } },
@@ -538,7 +550,8 @@ async function searchProductsRaw(params: SearchProductsParams): Promise<{
   const products = await prisma.product.findMany({
     where,
     include: {
-      set: { select: { id: true, name: true } },
+      set: { select: { id: true, name: true, totalCards: true } },
+      card: { select: { name: true, number: true } },
       offers: { select: { price: true, stockStatus: true, url: true } },
       priceSnapshots: {
         where: { date: { gte: daysAgo(7) } },
@@ -825,6 +838,12 @@ export interface ProductDetailData {
     title: string;
     imageUrl: string | null;
     category: ProductCategory;
+    setId: string | null;
+    setName: string | null;
+    setTotalCards: number | null;
+    cardName: string | null;
+    cardNumber: string | null;
+    variantLabel: string | null;
     lowestPrice: number | null;
     lowestPriceStockStatus: StockStatus | null;
   }[];
@@ -1066,7 +1085,8 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
 }
 
 const SIMILAR_INCLUDE = {
-  set: { select: { id: true, name: true, releaseDate: true } },
+  set: { select: { id: true, name: true, releaseDate: true, totalCards: true } },
+  card: { select: { name: true, number: true } },
   offers: { select: { price: true, stockStatus: true, url: true } },
 } as const;
 
@@ -1241,7 +1261,12 @@ async function getSimilarProductsRaw(productId: string, limit = 8) {
       category: p.category,
       imageUrl: p.imageUrl,
       language: p.language,
+      setId: p.setId,
       setName: p.set?.name ?? null,
+      setTotalCards: p.set?.totalCards ?? null,
+      cardName: p.card?.name ?? null,
+      cardNumber: p.card?.number ?? null,
+      variantLabel: p.variantLabel,
       lowestPrice: lowest.price,
       lowestPriceStockStatus: lowest.stockStatus,
     };

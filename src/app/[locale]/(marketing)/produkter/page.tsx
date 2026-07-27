@@ -136,6 +136,20 @@ function buildParams(sp: CatalogSearchParams): SearchProductsParams {
   };
 }
 
+/**
+ * Nyckel som ändras så fort ett filter i URL:en ändras. Sätts på formulären så att
+ * React MONTERAR OM dem vid klient-navigering — annars behåller de okontrollerade
+ * <select>/<input>-noderna sina gamla DOM-värden (defaultValue skriver bara vid
+ * montering). Utan detta visade sidofältet fel filter efter ett klick på ett sets
+ * namn i katalogkortet, och nästa "Filtrera" skickade in de gamla värdena igen.
+ * Vanlig formulär-submit är en full sidladdning → nyckeln är no-op där.
+ */
+function filterStateKey(sp: CatalogSearchParams): string {
+  return [sp.q, sp.kategori, sp.set, sp.butik, sp.minPris, sp.maxPris, sp.lager, sp.sprak, sp.sortera]
+    .map((v) => v ?? "")
+    .join("|");
+}
+
 /** Serialiserar filtren till feed-API:ts query (engelska parametrar). */
 function buildFeedQuery(p: SearchProductsParams): string {
   const s = new URLSearchParams();
@@ -315,6 +329,7 @@ export default async function ProductsPage({
     getRecentSets(),
   ]);
   const feedQuery = buildFeedQuery(params);
+  const filterKey = filterStateKey(searchParams);
 
   const resultCount = t("resultCount", { count: result.total });
 
@@ -394,7 +409,7 @@ export default async function ProductsPage({
       {/* ───────── Mobil: app-känsla ───────── */}
       <div className="space-y-8 lg:hidden">
         {/* Sök alltid användbar; filtren fälls ut via filter-ikonen (peer-checkbox, ingen JS) */}
-        <form method="GET" action="/produkter" className="space-y-3">
+        <form key={filterKey} method="GET" action="/produkter" className="space-y-3">
           <input type="checkbox" id="filt-toggle" className="peer sr-only" />
           <SearchAutocomplete
             name="q"
@@ -440,6 +455,7 @@ export default async function ProductsPage({
       <div className="mt-8 hidden gap-8 lg:grid lg:grid-cols-[260px_1fr]">
         <aside>
           <form
+            key={filterKey}
             method="GET"
             action="/produkter"
             // z-30: sticky skapar en egen stacking context på z-auto → utan

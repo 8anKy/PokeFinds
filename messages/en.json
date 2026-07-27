@@ -811,7 +811,8 @@
     "OTHER": "Other"
   },
   "Product": {
-    "atStores": "{count, plural, =1 {At 1 store} other {At # stores}}"
+    "atStores": "{count, plural, =1 {At 1 store} other {At # stores}}",
+    "filterBySet": "Show everything from {set}"
   },
   "Market": {
     "metaTitle": "Market",

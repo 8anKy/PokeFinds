@@ -29,6 +29,7 @@ async function getSet(id: string) {
     include: {
       products: {
         include: {
+          card: { select: { name: true, number: true } },
           offers: { select: { price: true, stockStatus: true } },
         },
         orderBy: { viewCount: "desc" },
@@ -108,6 +109,12 @@ export default async function SetPage({ params }: PageProps) {
                 title: p.title,
                 imageUrl: p.imageUrl,
                 category: p.category,
+                setId: set.id,
+                setName: set.name,
+                setTotalCards: set.totalCards,
+                cardName: p.card?.name ?? null,
+                cardNumber: p.card?.number ?? null,
+                variantLabel: p.variantLabel,
                 lowestPrice: p.lowestPrice,
                 stockStatus: p.lowestPriceStockStatus,
                 retailerCount: p.inStockCount,

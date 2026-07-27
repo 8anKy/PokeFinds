@@ -811,7 +811,8 @@
     "OTHER": "Övrigt"
   },
   "Product": {
-    "atStores": "{count, plural, =1 {Hos 1 butik} other {Hos # butiker}}"
+    "atStores": "{count, plural, =1 {Hos 1 butik} other {Hos # butiker}}",
+    "filterBySet": "Visa allt från {set}"
   },
   "Market": {
     "metaTitle": "Marknad",

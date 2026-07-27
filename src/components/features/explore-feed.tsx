@@ -12,6 +12,12 @@ export interface FeedItem {
   category: ProductCategory;
   imageUrl: string | null;
   language: CardLanguage;
+  setId: string | null;
+  setName: string | null;
+  setTotalCards: number | null;
+  cardName: string | null;
+  cardNumber: string | null;
+  variantLabel: string | null;
   lowestPrice: number | null;
   lowestPriceStockStatus: StockStatus | null;
   inStockCount: number;
@@ -92,6 +98,12 @@ export function ExploreFeed({
               title: p.title,
               imageUrl: p.imageUrl,
               category: p.category,
+              setId: p.setId,
+              setName: p.setName,
+              setTotalCards: p.setTotalCards,
+              cardName: p.cardName,
+              cardNumber: p.cardNumber,
+              variantLabel: p.variantLabel,
               lowestPrice: p.lowestPrice,
               priceChange7d: p.priceChange7dPercent,
               stockStatus: p.lowestPriceStockStatus,
