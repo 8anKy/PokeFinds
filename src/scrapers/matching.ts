@@ -6,6 +6,7 @@
 import { prisma } from "../lib/db";
 import { decodeTitle, normalizeTitle } from "../lib/utils";
 import { detectListingLanguage } from "../lib/listing-language";
+import { MARKETPLACE_MIN_PRICE_RATIO } from "../lib/listing-plausibility";
 import { MAX_NAME_WORDS, POKEMON_NAMES } from "./pokemon-names";
 
 /** Lägsta konfidens för att en matchning ska accepteras. */
@@ -1600,7 +1601,10 @@ export function matchListingToProduct(
  * Returnerar true när priset är rimligt eller CM-referenspris saknas.
  */
 export const MARKETPLACE_MAX_PRICE_RATIO = 2.5;
-const SEALED_MIN_PRICE_RATIO = 0.15;
+// Delad med produktsidans läs-filter (src/lib/listing-plausibility.ts) — en vakt som
+// bara körs i EN kodväg är ingen vakt, och skena-raderna läses tillbaka dagar senare
+// när facit hunnit ändras.
+const SEALED_MIN_PRICE_RATIO = MARKETPLACE_MIN_PRICE_RATIO;
 const SINGLES_MAX_RATIO = 4;
 const SINGLES_MAX_DIFF_ORE = 40_000;
 /**

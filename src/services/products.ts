@@ -7,6 +7,7 @@ import { cachedRead, singleFlight } from "@/lib/cache";
 import { normalizeTitle, utcDaysAgo, utcToday } from "@/lib/utils";
 import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
+import { listingPriceIsPlausible } from "@/lib/listing-plausibility";
 import { getTrendingLift } from "@/services/market";
 import type {
   CardLanguage,
@@ -901,7 +902,7 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
 
   const listingCutoff = new Date();
   listingCutoff.setDate(listingCutoff.getDate() - TRADERA_LISTING_MAX_AGE_DAYS);
-  const [historyBySource, similar, traderaListings, affiliateRetailers, variantSiblings] = await Promise.all([
+  const [historyBySource, similar, railRows, rejectedItems, affiliateRetailers, variantSiblings] = await Promise.all([
     getPriceHistoryBySource(product.id, DETAIL_MAX_DAYS),
     getSimilarProducts(product.id, 4),
     prisma.traderaListing.findMany({
@@ -917,6 +918,13 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
         imageUrl: r.imageUrl?.replace("/thumbs/", "/medium-fit/") ?? null,
       }))
     ),
+    // Annonser som bevisligen INTE är produkten (LLM-dom eller manuell purge).
+    // Svepet återskapar dem aldrig, men en skena-rad som skrevs INNAN domen
+    // ligger kvar tills produkten namn-söks igen — och rotationen tar ~100 dygn.
+    prisma.traderaMatch.findMany({
+      where: { productId: product.id, ok: false },
+      select: { itemId: true },
+    }),
     prisma.retailer.findMany({
       where: {
         id: { in: product.offers.map((o) => o.retailerId) },
@@ -958,6 +966,21 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
     lowestPool.length > 0
       ? lowestPool.reduce((a, b) => (b.price < a.price ? b : a))
       : null;
+
+  // ── SKENAN FÅR SAMMA FRÅGA SOM OFFERTEN, FAST NU (2026-07-27) ──────────────
+  // Skena-raderna vaktades när de SKREVS, mot det facit som fanns då. "Mega Darkrai
+  // ex 116/084 Extended Artwork-ram" (179 kr) skrevs medan Pitch Black saknade
+  // CM-data helt → ingen referens, ingen undre gräns, ramen passerade. Dagen efter
+  // hade kortet ett CM-golv på 3 207 kr och offern städades bort manuellt — men
+  // karusellen visade ramen vidare, eftersom raderna bara skrivs om när produkten
+  // namn-söks igen (rotationen tar ~100 dygn för hela katalogen).
+  // Facit = Cardmarket-priset, samma referens som skrivvakten använder.
+  const cmReferenceOre =
+    product.offers.find((o) => o.retailer.name === "Cardmarket" && o.price != null)?.price ?? null;
+  const rejectedItemIds = new Set(rejectedItems.map((r) => r.itemId));
+  const traderaListings = railRows.filter(
+    (r) => !rejectedItemIds.has(r.itemId) && listingPriceIsPlausible(r.price, cmReferenceOre)
+  );
 
   // Prishistorik: Cardmarket-trend i första hand — MEN bara så länge den fortfarande
   // uppdateras. En produkt som tappat sin CM-länk (t.ex. generisk butiks-stub utan
