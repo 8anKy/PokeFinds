@@ -285,6 +285,7 @@ export function ProductDetailView({
                     setTotalCards: p.setTotalCards,
                     cardName: p.cardName,
                     cardNumber: p.cardNumber,
+                    cardRarity: p.cardRarity,
                     variantLabel: p.variantLabel,
                     lowestPrice: p.lowestPrice,
                     stockStatus: p.lowestPriceStockStatus,

@@ -12,6 +12,7 @@ export interface ProductDisplayParts {
   title: string;
   cardName?: string | null;
   cardNumber?: string | null;
+  cardRarity?: string | null;
   setTotalCards?: number | null;
   variantLabel?: string | null;
 }
@@ -28,8 +29,12 @@ export function cardNumberLabel(p: ProductDisplayParts): string | null {
   return p.setTotalCards && p.setTotalCards > 0 ? `${number}/${p.setTotalCards}` : number;
 }
 
-/** Metaraden under setet: "130/197 · Specialversion". null = inget att visa. */
+/**
+ * Metaraden under setet: "Rare · 130/197 · Specialversion". null = inget att visa
+ * (sealed har varken kort, nummer eller sällsynthet). Sällsyntheten först — det är
+ * den grövsta sorteringen ögat gör; numret är identiteten och står näst intill.
+ */
 export function productMetaLabel(p: ProductDisplayParts): string | null {
-  const parts = [cardNumberLabel(p), p.variantLabel?.trim() || null].filter(Boolean);
+  const parts = [p.cardRarity?.trim() || null, cardNumberLabel(p), p.variantLabel?.trim() || null].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : null;
 }

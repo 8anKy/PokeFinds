@@ -60,6 +60,7 @@ export interface ProductCardProps {
     setTotalCards?: number | null;
     cardName?: string | null;
     cardNumber?: string | null;
+    cardRarity?: string | null;
     variantLabel?: string | null;
     lowestPrice?: number | null;
     priceChange7d?: number | null;
@@ -140,7 +141,14 @@ export function ProductCard({ product, className }: ProductCardProps) {
               ) : (
                 <p className="truncate text-xs font-medium text-ink-muted">{product.setName}</p>
               ))}
-            {meta && <p className="mt-0.5 truncate text-[11px] text-ink-faint">{meta}</p>}
+            {/* Två rader: "Special Illustration Rare · 199/165" ryms inte på en i ett
+                171 px-kort. Prisblocket bottenankras ändå, så en extra rad flyttar
+                inget. Full text i title för de fall även två rader kapar. */}
+            {meta && (
+              <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-ink-faint" title={meta}>
+                {meta}
+              </p>
+            )}
           </div>
         )}
 

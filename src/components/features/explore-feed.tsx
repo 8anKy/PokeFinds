@@ -17,6 +17,7 @@ export interface FeedItem {
   setTotalCards: number | null;
   cardName: string | null;
   cardNumber: string | null;
+  cardRarity: string | null;
   variantLabel: string | null;
   lowestPrice: number | null;
   lowestPriceStockStatus: StockStatus | null;
@@ -103,6 +104,7 @@ export function ExploreFeed({
               setTotalCards: p.setTotalCards,
               cardName: p.cardName,
               cardNumber: p.cardNumber,
+              cardRarity: p.cardRarity,
               variantLabel: p.variantLabel,
               lowestPrice: p.lowestPrice,
               priceChange7d: p.priceChange7dPercent,

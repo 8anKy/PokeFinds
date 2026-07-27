@@ -36,15 +36,23 @@ describe("product-display", () => {
     expect(cardNumberLabel({ title: "x", cardNumber: "038", setTotalCards: null })).toBe("038");
   });
 
-  it("metaraden lägger variantetiketten efter numret", () => {
+  it("metaraden är sällsynthet · nummer · variant", () => {
     expect(
       productMetaLabel({
         title: "x",
+        cardRarity: "Special Illustration Rare",
         cardNumber: "130",
         setTotalCards: 197,
         variantLabel: "Specialversion",
       })
-    ).toBe("130/197 · Specialversion");
+    ).toBe("Special Illustration Rare · 130/197 · Specialversion");
+  });
+
+  it("metaraden hoppar över delar som saknas", () => {
+    expect(productMetaLabel({ title: "x", cardRarity: "Rare", cardNumber: "50", setTotalCards: 88 })).toBe(
+      "Rare · 50/88"
+    );
+    expect(productMetaLabel({ title: "x", cardNumber: "50", setTotalCards: 88 })).toBe("50/88");
   });
 
   it("metaraden är null när det inte finns något att visa (sealed)", () => {

@@ -257,6 +257,7 @@ export default async function LandingPage({
                         setTotalCards: p.setTotalCards,
                         cardName: p.cardName,
                         cardNumber: p.cardNumber,
+                        cardRarity: p.cardRarity,
                         variantLabel: p.variantLabel,
                         lowestPrice: p.lowestPrice,
                         priceChange7d: p.priceChange7dPercent,

@@ -54,6 +54,7 @@ export interface ProductListItem {
   setTotalCards: number | null;
   cardName: string | null;
   cardNumber: string | null;
+  cardRarity: string | null;
   variantLabel: string | null;
   lowestPrice: number | null; // öre, IN_STOCK prioriteras
   lowestPriceStockStatus: StockStatus | null;
@@ -124,7 +125,7 @@ const daysAgo = utcDaysAgo;
 type ProductWithRelations = Prisma.ProductGetPayload<{
   include: {
     set: { select: { id: true; name: true; totalCards: true } };
-    card: { select: { name: true; number: true } };
+    card: { select: { name: true; number: true; rarity: true } };
     offers: { select: { price: true; stockStatus: true; url: true } };
     priceSnapshots: { select: { date: true; avgPrice: true } };
     restockEvents: { select: { detectedAt: true } };
@@ -181,6 +182,7 @@ function toListItem(p: ProductWithRelations): ProductListItem {
     setTotalCards: p.set?.totalCards ?? null,
     cardName: p.card?.name ?? null,
     cardNumber: p.card?.number ?? null,
+    cardRarity: p.card?.rarity ?? null,
     variantLabel: p.variantLabel,
     lowestPrice: lowest.price,
     lowestPriceStockStatus: lowest.stockStatus,
@@ -304,19 +306,16 @@ export async function buildProductWhere(
     }
   }
 
-  if (setId) {
-    const setRecord = await prisma.cardSet.findUnique({ where: { id: setId }, select: { name: true } });
-    const normalizedSetName = setRecord ? normalizeTitle(setRecord.name) : null;
-    andClauses.push({
-      OR: [
-        { setId },
-        { card: { setId } },
-        ...(normalizedSetName
-          ? [{ normalizedTitle: { contains: normalizedSetName, mode: "insensitive" as const } }]
-          : []),
-      ],
-    });
-  }
+  // Setfiltret är EXAKT: produktens eget set, eller singelns korts set. Det fanns
+  // förut en tredje reserv — "titeln innehåller setnamnet" — och den var ren
+  // felträff. MÄTT mot hela prod-katalogen 2026-07-27: 2382 produkter drogs in i
+  // fel set, och NOLL produkter utan eget set bidrog den med (dvs det den skulle
+  // finnas till för hände aldrig). Setnamn är delsträngar av varandra och av
+  // vanliga kortnamn: "Scarlet & Violet" fångade Destined Rivals-boostern och
+  // hela Black Star Promos, "Dragon" varenda Dragonair, "Base" alla Secret Base-
+  // kort, "151" varje kort med nummer 151 i vilket set som helst.
+  // Återinför den ALDRIG utan ett facit som visar att den tillför något.
+  if (setId) andClauses.push({ OR: [{ setId }, { card: { setId } }] });
 
   const where: Prisma.ProductWhereInput = andClauses.length > 0 ? { AND: andClauses } : {};
   if (category && !HIDDEN_CATEGORIES.includes(category)) where.category = category;
@@ -367,7 +366,7 @@ function feedOrderBy(sort: ProductSort): Prisma.ProductOrderByWithRelationInput 
 
 const FEED_INCLUDE = {
   set: { select: { id: true, name: true, totalCards: true } },
-  card: { select: { name: true, number: true } },
+  card: { select: { name: true, number: true, rarity: true } },
   offers: { select: { price: true, stockStatus: true, url: true } },
   priceSnapshots: { where: { date: { gte: daysAgo(7) } }, select: { date: true, avgPrice: true } },
   restockEvents: { orderBy: { detectedAt: "desc" }, take: 1, select: { detectedAt: true } },
@@ -551,7 +550,7 @@ async function searchProductsRaw(params: SearchProductsParams): Promise<{
     where,
     include: {
       set: { select: { id: true, name: true, totalCards: true } },
-      card: { select: { name: true, number: true } },
+      card: { select: { name: true, number: true, rarity: true } },
       offers: { select: { price: true, stockStatus: true, url: true } },
       priceSnapshots: {
         where: { date: { gte: daysAgo(7) } },
@@ -843,6 +842,7 @@ export interface ProductDetailData {
     setTotalCards: number | null;
     cardName: string | null;
     cardNumber: string | null;
+    cardRarity: string | null;
     variantLabel: string | null;
     lowestPrice: number | null;
     lowestPriceStockStatus: StockStatus | null;
@@ -1086,7 +1086,7 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
 
 const SIMILAR_INCLUDE = {
   set: { select: { id: true, name: true, releaseDate: true, totalCards: true } },
-  card: { select: { name: true, number: true } },
+  card: { select: { name: true, number: true, rarity: true } },
   offers: { select: { price: true, stockStatus: true, url: true } },
 } as const;
 
@@ -1266,6 +1266,7 @@ async function getSimilarProductsRaw(productId: string, limit = 8) {
       setTotalCards: p.set?.totalCards ?? null,
       cardName: p.card?.name ?? null,
       cardNumber: p.card?.number ?? null,
+      cardRarity: p.card?.rarity ?? null,
       variantLabel: p.variantLabel,
       lowestPrice: lowest.price,
       lowestPriceStockStatus: lowest.stockStatus,
