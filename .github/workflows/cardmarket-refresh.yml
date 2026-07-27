@@ -61,6 +61,30 @@ jobs:
         name: Priser + historik (RapidAPI)
         run: npx tsx scripts/cardmarket-refresh-run.ts
 
+      # ── SLÄNG DEN CACHADE BILDEN AV PRISERNA ─────────────────────────────────
+      # Publika sidor är ISR-cachade 1h OCH läser genom cachedRead. Utan det här
+      # steget visar första besökaren efter varje jobb gårdagens graf (Next serverar
+      # den gamla sidan medan den nya renderas i bakgrunden) — symtomet "bara några
+      # kort har dagens datum". Att sänka TTL:en i stället var precis det som höll
+      # Neon vaken; invalidering kostar bara en extra rendering per BESÖKT sida.
+      # Saknas hemligheten: tyst no-op. En missad invalidering är kosmetisk (sidan
+      # läker inom en timme), en röd körning på ett skrivet dygn är det inte.
+      - if: steps.guard.outputs.ready == 'true'
+        name: Invalidera sid-cachen (priserna är skrivna)
+        continue-on-error: true
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::notice::CRON_SECRET saknas i repo-secrets — hoppar över cache-invalidering (sidorna läker via TTL inom 1h)."
+            exit 0
+          fi
+          url="${SITE_URL:-https://www.foilio.se}/api/revalidate"
+          code=$(curl -sS -o reval.json -w '%{http_code}' -X POST -H "x-cron-secret: ${CRON_SECRET}" "$url")
+          echo "revalidate → HTTP $code $(cat reval.json)"
+          test "$code" = "200"
+
       # Städar den prishistorik som spärrhake-buggen skrev (se cardmarket-refresh.ts).
       # MÅSTE ligga EFTER refreshen: skriptets facit är produktens EGET rättade pris, och
       # det finns inte förrän refreshen skrivit det. Skriptet har en egen vakt och AVBRYTER

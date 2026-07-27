@@ -20,14 +20,25 @@ import { unstable_cache } from "next/cache";
  * cache-träff. Anropare som gör datummatematik på cachad data MÅSTE wrappa i
  * `new Date(x)` (tål både Date och sträng). Annars kraschar sidan (TypeError).
  *
- * ponytail: bara TTL, ingen tagg-invalidering.
+ * TAGGEN (2026-07-27): TTL:en ensam gjorde prisdatan otillförlitligt FÄRSK i andra
+ * änden. Prisjobben skriver ~16:00 UTC; en produktsida som cachats 15:30 visar
+ * gårdagens sista punkt, och eftersom stale-while-revalidate serverar den GAMLA
+ * sidan medan den nya renderas i bakgrunden ser FÖRSTA besökaren efter varje jobb
+ * alltid gårdagens graf. Med tunn trafik betyder det i praktiken att de flesta
+ * produktsidor visar gårdagens kurva ("varför har bara några kort dagens punkt?").
+ * Sidorna kan inte bara få kortare TTL — det var precis det som höll Neon vaken
+ * (se ovan). I stället invaliderar jobben taggen när de FAKTISKT skrivit något:
+ * `POST /api/revalidate`. Ingen extra rendering för sidor ingen besöker.
  */
+export const PRICE_CACHE_TAG = "priser";
+
 export function cachedRead<A extends unknown[], R>(
   fn: (...args: A) => Promise<R>,
   key: string,
-  revalidateSeconds = 3600
+  revalidateSeconds = 3600,
+  tags: string[] = [PRICE_CACHE_TAG]
 ): (...args: A) => Promise<R> {
-  return unstable_cache(fn, [key], { revalidate: revalidateSeconds });
+  return unstable_cache(fn, [key], { revalidate: revalidateSeconds, tags });
 }
 
 /**

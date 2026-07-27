@@ -54,3 +54,20 @@ jobs:
         run: npx prisma generate
       - if: steps.guard.outputs.ready == 'true'
         run: npx tsx scripts/tradera-full-sweep.ts
+
+      # Släng den cachade bilden av priserna — se cardmarket-refresh.yml för varför.
+      - if: steps.guard.outputs.ready == 'true'
+        name: Invalidera sid-cachen (annonserna är skrivna)
+        continue-on-error: true
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::notice::CRON_SECRET saknas i repo-secrets — hoppar över cache-invalidering."
+            exit 0
+          fi
+          url="${SITE_URL:-https://www.foilio.se}/api/revalidate"
+          code=$(curl -sS -o reval.json -w '%{http_code}' -X POST -H "x-cron-secret: ${CRON_SECRET}" "$url")
+          echo "revalidate → HTTP $code $(cat reval.json)"
+          test "$code" = "200"
