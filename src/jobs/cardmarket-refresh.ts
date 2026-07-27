@@ -513,6 +513,35 @@ export function singlesHeadlineEur(
   return { eur: est, from: false, via: "estimate" };
 }
 
+// ── EN PRODUKT, EN RAD (2026-07-27) ──────────────────────────────────────────
+/**
+ * Hur bevisad kopplingen mellan en feed-rad och vår produkt är. Samma ordning som
+ * identitetskedjan i CLAUDE.md: `tcgid` är pokemontcg.io-identiteten vi själva
+ * lagrar på kortet, `cardmarket_id` är CM:s produkt-id, och set+nummer är
+ * RESERVEN — den vet bara att numret stämmer, inte VILKEN tryckning raden är.
+ */
+export const MATCH_RANK = { tcgid: 3, cmid: 2, number: 1 } as const;
+
+/**
+ * Vinner den nya feed-raden över den vi redan har för produkten?
+ *
+ * VARFÖR: en episod kan innehålla flera rader för samma kort (tryckningar i
+ * vintage-set, dubbla CM-produkter bland promos). Utan det här valet skrev båda,
+ * och priset som publicerades avgjordes av vilket svar som råkade komma sist.
+ * Starkast nyckel vinner; vid LIKA nyckel (två rader med samma tcgid) väljs lägsta
+ * cardmarket_id — godtyckligt men DETERMINISTISKT, vilket är hela poängen. Ett
+ * pris som byter värde mellan två körningar utan att marknaden rört sig är värre
+ * än "fel" tryckning: det syns som prisrörelse i grafen och i movers-listan.
+ */
+export function feedRowWins(
+  current: { rank: number; cmid: number | null } | undefined,
+  next: { rank: number; cmid: number | null },
+): boolean {
+  if (!current) return true;
+  if (next.rank !== current.rank) return next.rank > current.rank;
+  return (next.cmid ?? Number.MAX_SAFE_INTEGER) < (current.cmid ?? Number.MAX_SAFE_INTEGER);
+}
+
 // ── FEED-HAVERIBRYTARE (ersätter singel-dagklämman, 2026-07-24) ───────────────
 // Med golvet-rakt-av kan en per-kort-dagvakt inte finnas kvar för singlar: dess enda
 // facit var trenden, och ett äkta ask-hopp (6 271 € → 37 000 € när billigaste raw-
@@ -1201,19 +1230,44 @@ export async function runCardmarketRefresh(
     // EXAKT som CM listar den — ingen trend-substitution, ingen per-kort-dagklämma.
     // `from=false` ⇒ värdet är en trend/30d-UPPSKATTNING (ingen köpbar annons) ⇒
     // offern märks OUT_OF_STOCK, samma semantik som sealed/JP.
-    const singleOps: { productId: string; offerId?: string; priceOre: number; from: boolean; url: string }[] = [];
+    // ── EN PRODUKT FÅR PRISSÄTTAS AV EXAKT EN FEED-RAD (2026-07-27) ───────────
+    // Vintage-episoder innehåller FLERA TRYCKNINGAR av samma kortnummer, och
+    // promo-episoder flera CM-produkter av samma kort. Mätt i Base (episod 171):
+    // Ponyta 60 har tre rader — "1st Edition Shadowless" (tcgid=base1-60,
+    // From 26,50 €), "Shadowless" (tcgid=null, SAMMA cardmarket_id, From 4,29 €)
+    // och "Unlimited" (utan pris). Den första matchade på tcgid, den andra på
+    // SET+NUMMER-reserven → BÅDA skrev pris och historikpunkt på samma produkt
+    // samma dygn. Vilken som vann avgjordes av vilken DB-skrivning som råkade
+    // landa sist (mapPool), och grafens "sista punkt per dygn" av vilken rad som
+    // råkade komma sist i svaret: 305 singlar hade i praktiken TÄRNINGSKASTAT
+    // pris 2026-07-27 (Ponyta 292,56 kr ELLER 47,36 kr).
+    // Det här är inte ett nytt fel i reserven utan ett fel som blev SYNLIGT när
+    // sidantalet började läsas ur `paging.total` (a292708) — dessförinnan låg de
+    // extra tryckningarna utanför de hämtade sidorna.
+    // Regeln: samla kandidater per produkt och prissätt med den STARKASTE nyckeln
+    // (tcgid > cardmarket_id > set+nummer). Ordningen är densamma som identitets-
+    // kedjan i CLAUDE.md, och den ger tillbaka exakt det pris katalogen hade före
+    // paginerings-fixen. VILKEN tryckning katalogen BÖR visa är en egen, känd
+    // fråga (pinna tryckvariant) — den här vakten avgör den inte, den ser bara
+    // till att svaret inte är slumpmässigt.
+    type SingleCandidate = {
+      rank: number;
+      cmid: number | null;
+      op: { productId: string; offerId?: string; priceOre: number; from: boolean; url: string };
+      via?: string;
+    };
+    const claimed = new Map<string, SingleCandidate>();
+    let rowsRejectedAsDuplicate = 0;
     // Kort CM har men inte prissätter → länk utan pris (se nedan). Hålls UTANFÖR
     // singleOps: de ska inte räknas av haveribrytaren och inte skriva historikpunkter.
-    const linkOnlyOps: { productId: string; url: string }[] = [];
+    const linkOnlyByProduct = new Map<string, string>();
     let byNumberHits = 0, byNumberNameRejects = 0;
-    // Varifrån headline-priset kom (from / estimate). Ska loggas varje körning: växer
-    // `estimate` plötsligt är det feeden som tappat `lowest_near_mint`, inte marknaden.
-    const viaCounts: Record<string, number> = {};
     const processCards = (cards: CmCard[]) => {
       for (const card of cards) {
         let entry =
           (card.tcgid ? map.get(card.tcgid) : undefined) ??
           (card.cardmarket_id != null ? cmidMap.get(card.cardmarket_id) : undefined);
+        let rank = entry ? (card.tcgid && map.get(card.tcgid) ? MATCH_RANK.tcgid : MATCH_RANK.cmid) : 0;
         // SET+NUMMER-RESERVEN — bara för rader ingen nyckel hittade. Kräver
         // entydigt setnamn, entydigt nummer i setet OCH att kortnamnen är samma;
         // vid minsta tvekan tas ingen match (ett felmatchat nummer prissätter
@@ -1225,6 +1279,7 @@ export async function runCardmarketRefresh(
           if (cand) {
             if (cmCardNameAgrees(cand.cardName, card.name)) {
               entry = cand.entry;
+              rank = MATCH_RANK.number;
               // Konsumera nyckeln: två CM-rader får aldrig prissätta samma produkt.
               byNumber.set(`${setId}|${numKey}`, null);
               byNumberHits++;
@@ -1249,7 +1304,6 @@ export async function runCardmarketRefresh(
           misIdentified++;
         }
         const priced = singlesHeadlineEur({ from: cmp.lowest_near_mint, avg30: cmp["30d_average"] }, g);
-        if (priced?.via) viaCounts[priced.via] = (viaCounts[priced.via] ?? 0) + 1;
         const url =
           entry.url && isEnglishCardmarketUrl(entry.url) ? withNearMint(entry.url)
             : card.cardmarket_id != null ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true })
@@ -1266,11 +1320,23 @@ export async function runCardmarketRefresh(
           // BARA när ingen CM-offer finns. Att nolla ett BEFINTLIGT pris för att dagens
           // feed är tom vore precis den sortens tysta skada som ett hicka i feeden inte
           // ska kunna göra permanent — och den kunde träffa hela katalogen på en gång.
-          if (!entry.offerId) linkOnlyOps.push({ productId: entry.productId, url });
+          if (!entry.offerId) linkOnlyByProduct.set(entry.productId, url);
           continue;
         }
         const priceOre = Math.round(priced.eur * rates.eurToOre);
-        singleOps.push({ productId: entry.productId, offerId: entry.offerId, priceOre, from: priced.from, url });
+        const cmid = card.cardmarket_id ?? null;
+        const current = claimed.get(entry.productId);
+        if (!feedRowWins(current, { rank, cmid })) {
+          rowsRejectedAsDuplicate++;
+          continue;
+        }
+        if (current) rowsRejectedAsDuplicate++;
+        claimed.set(entry.productId, {
+          rank,
+          cmid,
+          via: priced.via,
+          op: { productId: entry.productId, offerId: entry.offerId, priceOre, from: priced.from, url },
+        });
       }
     };
 
@@ -1315,6 +1381,26 @@ export async function runCardmarketRefresh(
     });
     if (metaMismatch)
       console.log(`[cm-refresh] ${metaMismatch} episoder där cards_total inte stämde med paging.total.`);
+
+    // Kandidaterna är valda — nu först finns listan över vad som ska skrivas. En
+    // produkt förekommer exakt en gång (se `claimed`), så haveribrytaren mäter
+    // dagsrörelser mot ETT nytt pris per kort och historiken får en punkt per kort.
+    const singleOps = [...claimed.values()].map((c) => c.op);
+    // Varifrån headline-priset kom (from / estimate). Ska loggas varje körning: växer
+    // `estimate` plötsligt är det feeden som tappat `lowest_near_mint`, inte marknaden.
+    // Räknas på de VALDA raderna — annars räknades även rader som aldrig skrevs.
+    const viaCounts: Record<string, number> = {};
+    for (const c of claimed.values()) if (c.via) viaCounts[c.via] = (viaCounts[c.via] ?? 0) + 1;
+    // Länk-offer bara för kort som inte fick något pris alls av någon rad.
+    const linkOnlyOps = [...linkOnlyByProduct.entries()]
+      .filter(([productId]) => !claimed.has(productId))
+      .map(([productId, url]) => ({ productId, url }));
+    if (rowsRejectedAsDuplicate > 0)
+      console.log(
+        `[cm-refresh] Tryckningsvakt: ${rowsRejectedAsDuplicate} feed-rader pekade på en produkt ` +
+        `som en starkare nyckel redan prissatt (flera tryckningar/CM-produkter av samma kort) ` +
+        `→ ignorerade. Utan den avgjorde svarsordningen priset.`
+      );
 
     // Haveribrytare FÖRE skrivning: en stor andel EXTREMA dagsrörelser samtidigt =
     // trasig feed (2026-07-05: 2 104 korrupta priser), inte en marknad. Enstaka
