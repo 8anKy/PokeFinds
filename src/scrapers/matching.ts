@@ -1510,6 +1510,14 @@ export function matchListingToProduct(
   const candidateForm = classifyForm(product.normalizedTitle);
   if (incomingForm && candidateForm && incomingForm !== candidateForm) return null;
 
+  // TILLBEHÖR ≠ VARAN (2026-07-27). Butiksvägen (matchProduct) har ställt den här
+  // frågan sedan länge; Tradera-vägen gjorde det aldrig. Följden: "Mega Darkrai ex
+  // 116/084 Extended Artwork-ram för Pokémonkort" (179 kr) bar kortets namn OCH
+  // nummer, passerade nummervakten och namnlikheten, och blev både offer och
+  // skena-rad på ett kort vars CM-golv är 3 207 kr. Att ordet "ram" var det enda
+  // som skilde dem var känt sedan 2026-07-26 — vakten satt bara i fel kodväg.
+  if (isAccessoryListing(listingTitle) && !isAccessoryListing(product.normalizedTitle)) return null;
+
   // Singel-identitet: tryckt nummer + kortnamn (samma som matchProduct).
   if (!incomingForm && product.card) {
     const ourKey = cardNumberKey(product.card.number);

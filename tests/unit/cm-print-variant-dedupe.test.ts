@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { MATCH_RANK, feedRowWins } from "../../src/jobs/cardmarket-refresh";
+import { matchListingToProduct } from "../../src/scrapers/matching";
 import {
   listingPriceIsPlausible,
   visibleListings,
@@ -82,6 +83,23 @@ describe("listingPriceIsPlausible — läsvägens filter", () => {
 // samtliga vintage-commons där VÅR referens är fel tryckning (Gust of Wind · Base
 // 93/102: CM-golv 494 kr = 1st Edition Shadowless, tjugo Tradera-annonser på det
 // ordinarie kortet 5–9 kr). Att döma bort tjugo av tjugo är inget outlier-filter.
+describe("matchListingToProduct — tillbehör är inte varan", () => {
+  const megaDarkrai = {
+    normalizedTitle: "mega darkrai ex pitch black 116 84",
+    card: { name: "Mega Darkrai ex", number: "116" },
+  };
+
+  it("ramen matchar inte kortet den rymmer", () => {
+    expect(
+      matchListingToProduct("Mega Darkrai ex 116/084 Extended Artwork-ram för Pokémonkort", megaDarkrai)
+    ).toBeNull();
+  });
+
+  it("den äkta annonsen matchar fortfarande", () => {
+    expect(matchListingToProduct("Mega Darkrai ex 116/084 - Pitch Black - Pokemonkort", megaDarkrai)).not.toBeNull();
+  });
+});
+
 describe("visibleListings — dölj utstickare, aldrig hela marknaden", () => {
   it("ramen döljs när de äkta annonserna finns kvar", () => {
     const rows = [{ price: 17_900 }, { price: 405_000 }, { price: 449_500 }, { price: 500_000 }];

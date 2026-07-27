@@ -22,6 +22,7 @@
 import { prisma } from "@/lib/db";
 import { listingCardLanguage } from "@/lib/listing-language";
 import { listingPriceIsPlausible } from "@/lib/listing-plausibility";
+import { matchListingToProduct } from "@/scrapers/matching";
 
 /** Annons vald som ersättare (null = ingen kvalificerad kandidat). */
 export interface PromotedListing {
@@ -33,8 +34,17 @@ export interface PromotedListing {
 
 /**
  * Billigaste kvarvarande skena-annons för produkten som (a) inte är dömd som
- * felmatch och (b) håller mot produktens Cardmarket-pris. `excludeItemId` =
- * annonsen som just städats bort.
+ * felmatch, (b) fortfarande matchar produkten enligt DAGENS matchare och
+ * (c) håller mot produktens Cardmarket-pris. `excludeItemId` = annonsen som just
+ * städats bort.
+ *
+ * (b) ÄR INTE ÖVERFLÖDIG, den är hela skillnaden mellan reparation och återfall.
+ * En skena-rad vaktades av den matchare som fanns när den SKREVS. Ekans · Team
+ * Rocket 56/82 hade "Team Rocket's Ekans #112 - Destined Rivals" liggande sedan
+ * 2026-07-25 06:36 — skriven timmar innan nummervakten deployades, och det var
+ * just den annonsen städningen samma dag tog bort som offer. Att bara välja
+ * "billigaste kvarvarande" lyfte alltså tillbaka precis det som nyss städats
+ * bort (verifierat: repareringen skrev den till offer innan vakten fanns här).
  *
  * Prisvakten är med FLIT hårdare här än i karusellen: den här annonsen sätter
  * produktens rubrikpris, och ett pris vi inte kan försvara får inte bli rubrik
@@ -44,7 +54,11 @@ export async function findReplacementListing(
   productId: string,
   excludeItemId?: string | null
 ): Promise<PromotedListing | null> {
-  const [rails, rejected, cmOffer] = await Promise.all([
+  const [product, rails, rejected, cmOffer] = await Promise.all([
+    prisma.product.findUnique({
+      where: { id: productId },
+      select: { normalizedTitle: true, language: true, card: { select: { name: true, number: true } } },
+    }),
     prisma.traderaListing.findMany({
       where: { productId },
       orderBy: { price: "asc" },
@@ -56,12 +70,15 @@ export async function findReplacementListing(
       select: { price: true },
     }),
   ]);
+  if (!product) return null;
   const blocked = new Set(rejected.map((r) => r.itemId));
   return (
     rails.find(
       (r) =>
         r.itemId !== excludeItemId &&
         !blocked.has(r.itemId) &&
+        listingCardLanguage(r.title, r.url) === product.language &&
+        matchListingToProduct(r.title, product) != null &&
         listingPriceIsPlausible(r.price, cmOffer?.price ?? null)
     ) ?? null
   );
