@@ -42,6 +42,7 @@ import {
 } from "@/scrapers/matching";
 import { judgeSameProduct } from "@/lib/same-product";
 import { fetchListingFacts, fetchListingGtin } from "@/scrapers/gtin-source";
+import { statusAfterVerify, verifyStockForUrl } from "@/scrapers/stock-verify";
 import { gtinConflict, isPokemonManufacturerGtin } from "@/lib/gtin";
 import { isDeniedListingUrl } from "@/scrapers/import-denylist";
 import { netStockEvent, isRestock, isNewInStockArrival } from "@/scrapers/restock";
@@ -370,32 +371,39 @@ async function upsertListingOffer(
  * som Next buntar). Utan grind körs allt som vanligt.
  */
 /**
- * Vilka offers ska nollställas för att deras URL FÖRSVUNNIT ur feeden? De vars butik
- * hämtades den här körningen (`feedRetailers`, ≥1 produkt) men vars URL saknas i
- * feeden (`freshKeys`). Ren funktion → testbar utan DB/adaptrar.
+ * Vilka offers ska SLÅS UPP mot butikens produktsida för att deras URL försvunnit ur
+ * feeden? De vars butik hämtades den här körningen (`feedRetailers`, ≥1 produkt) men
+ * vars URL saknas i feeden (`freshKeys`). Ren funktion → testbar utan DB/adaptrar.
  *
- * Frånvaro ≠ slutsåld: dessa sätts till UNKNOWN (inte OUT_OF_STOCK). En produkt som
- * försvinner ur feeden är oftast avlistad ELLER bara utroterad (Quickbutik/Swepoke
- * roterar sortimentet) — vi VET inte att den sålde slut. UNKNOWN→IN_STOCK är ingen
- * äkta lagerövergång (isRealStockTransition) → en utroterad produkt som dyker upp
- * igen återställs TYST istället för att spamma "Åter i lager" (23 000 kr-boxen som
- * "restockade" 9 ggr). Äkta slutförsäljning (butikens egen "slut"-flagga i feeden)
- * går via offer-diffen → OUT_OF_STOCK → nästa IN_STOCK är en riktig restock + larm.
+ * Frånvaro ≠ slutsåld, och den är inte heller ett mysterium: den GÅR att kolla. Förr
+ * nollades de här till UNKNOWN, vilket var ärligt men blint — i pristabellen blev det
+ * "Okänd" bredvid ett dagsgammalt pris, och eftersom UNKNOWN→IN_STOCK inte räknas som
+ * en äkta övergång larmade en efterföljande restock ALDRIG. Nu frågar vi butikens egen
+ * produktsida (verifyStockForUrl) och skriver det riktiga svaret; UNKNOWN står kvar bara
+ * när butiken inte kan svara.
  *
- * DEBOUNCE (`graceMs`): ett enda missat besök får inte nollställa — kräv att offern
- * varit borta i minst `graceMs` (senast sedd `lastSeenAt` äldre än så).
+ * INGET STATUSFILTER (till skillnad från förr): också redan slutsålda och redan
+ * UNKNOWN-nollade offers hör hit. Det är hela poängen — en Speltrollet-vara som är
+ * slutsåld ligger inte i deras Pokémon-kollektioner alls, så feeden kan aldrig visa
+ * att den kommit tillbaka. Utan uppslaget vore de varorna permanent osynliga för
+ * restock-larmen.
+ *
+ * DEBOUNCE (`graceMs`): ett enda missat besök får inte utlösa uppslag — kräv att offern
+ * varit borta i minst `graceMs` (senast sedd `lastSeenAt` äldre än så). Anroparen bumpar
+ * `lastSeenAt` efter uppslaget, så varje offer frågas högst en gång per karensfönster
+ * hur ofta lanen än kör. Äldst först: taket (RESTOCK_VERIFY_MAX) roterar då rättvist.
  */
-export function offersToMarkSoldOut<
+export function offersToVerify<
   T extends { retailerId: string; url: string; stockStatus: StockStatus; lastSeenAt: Date | null }
 >(offers: T[], freshKeys: Set<string>, feedRetailers: Set<string>, now: Date, graceMs: number): T[] {
-  return offers.filter(
-    (o) =>
-      feedRetailers.has(o.retailerId) &&
-      o.stockStatus !== StockStatus.OUT_OF_STOCK &&
-      o.stockStatus !== StockStatus.UNKNOWN &&
-      !freshKeys.has(`${o.retailerId}:${o.url}`) &&
-      (o.lastSeenAt == null || now.getTime() - o.lastSeenAt.getTime() >= graceMs)
-  );
+  return offers
+    .filter(
+      (o) =>
+        feedRetailers.has(o.retailerId) &&
+        !freshKeys.has(`${o.retailerId}:${o.url}`) &&
+        (o.lastSeenAt == null || now.getTime() - o.lastSeenAt.getTime() >= graceMs)
+    )
+    .sort((a, b) => (a.lastSeenAt?.getTime() ?? 0) - (b.lastSeenAt?.getTime() ?? 0));
 }
 
 export async function runRestockScan(opts?: {
@@ -687,11 +695,9 @@ export async function runRestockScan(opts?: {
   // Försvunnen-ur-feeden-försoning: en butik som droppar en slutsåld produkt ur
   // sin katalog slutar skicka dess URL → offer-diffen ovan rör den aldrig och den
   // fryser på senast kända IN_STOCK för evigt (buggen: Speltrollet-box låg kvar
-  // "i lager" i 2 v). Fixa: offers vars URL INTE fanns i feeden denna körning →
-  // OUT_OF_STOCK. Bara för butiker vars feed faktiskt hämtades (≥1 produkt) så ett
-  // nätverksfel/tom feed inte nollar hela butiken.
-  // ponytail: sällsynt falskt slutsålt om en butik omkategoriserar en produkt UR
-  // alla Pokémon-kollektioner men fortfarande säljer den; bättre än falskt i-lager.
+  // "i lager" i 2 v). Fixa: offers vars URL INTE fanns i feeden denna körning slås
+  // upp mot butikens produktsida. Bara för butiker vars feed faktiskt hämtades
+  // (≥1 produkt) så ett nätverksfel/tom feed inte rör hela butiken.
   const feedRetailers = new Set<string>();
   for (const { sourceName, items } of fetched) {
     if (items.length > 0) {
@@ -709,17 +715,59 @@ export async function runRestockScan(opts?: {
     await prisma.offer.updateMany({ where: { id: { in: seenOfferIds } }, data: { lastSeenAt: now } });
   }
   const graceMs = Number(process.env.RESTOCK_SOLDOUT_GRACE_HOURS ?? 24) * 3600_000;
+  const verifyMax = Number(process.env.RESTOCK_VERIFY_MAX ?? 20);
+  const retailerNameById = new Map<string, string>();
+  for (const [name, id] of retailerByName) retailerNameById.set(id, name);
   let soldOutReconciled = 0;
-  for (const o of offersToMarkSoldOut(offers, freshKeys, feedRetailers, now, graceMs)) {
-    // UNKNOWN, inte OUT_OF_STOCK: frånvaro ur feeden ≠ känd slutförsäljning.
-    // Se offersToMarkSoldOut-kommentaren — dödar falska "Åter i lager" vid rotation.
-    await prisma.offer.update({ where: { id: o.id }, data: { stockStatus: StockStatus.UNKNOWN } });
-    soldOutReconciled++;
+  let verified = 0;
+  for (const o of offersToVerify(offers, freshKeys, feedRetailers, now, graceMs).slice(0, verifyMax)) {
+    // FRÅGA BUTIKEN i stället för att tolka tystnaden. Frånvaro ur feeden betyder
+    // olika saker i olika butiker (Speltrollet listar inte slutsålt i sina Pokémon-
+    // kollektioner, Swepoke roterar sortimentet) — men produktsidan vet alltid.
+    const sourceName = retailerNameById.get(o.retailerId);
+    const truth = sourceName ? await verifyStockForUrl(sourceName, o.url) : null;
+    // Inget svar → statusAfterVerify behåller det vi redan visste (ett 429 är ingen
+    // upplysning); bara ett obackat "i lager" faller till UNKNOWN, precis som förut.
+    const newStatus = statusAfterVerify(o.stockStatus, truth);
+    if (newStatus === o.stockStatus && truth === null) {
+      // Ingen ny kunskap och ingen ändring — bumpa bara ankaret så vi inte frågar
+      // samma tysta butik igen inom karensfönstret.
+      await prisma.offer.update({ where: { id: o.id }, data: { lastSeenAt: now } });
+      soldOutReconciled++;
+      continue;
+    }
+
+    // Samma larmväg som feed-diffen ovan, med samma KRITISKA ordning (larma först,
+    // flippa sist). Riktningen sköter netStockEvent: UNKNOWN→IN_STOCK är ingen äkta
+    // övergång och larmar därför inte — så en offer som stått "Okänd" i dagar helas
+    // TYST i stället för att mejla ut en restock som aldrig hänt.
+    const ev = netStockEvent(o.stockStatus, newStatus);
+    const hidden = HIDDEN_CATEGORIES.includes(o.product.category);
+    if (!hidden && ev.emit) {
+      await prisma.restockEvent.create({
+        data: { productId: o.productId, retailerId: o.retailerId, oldStatus: ev.oldStatus, newStatus, price: null },
+      });
+      if (ev.isRestock || ev.isPreorderOpen) {
+        await checkRestockAlerts(o.productId, o.retailerId, { from: ev.oldStatus, to: newStatus });
+        if (ev.isRestock) restocks++;
+        else newListings++;
+      }
+    }
+    // lastSeenAt bumpas ÄVEN när uppslaget gav null: vi HAR kollat annonsen nu, och utan
+    // det ankaret blir samma tysta butik en kandidat varje körning (2-min-lanen → samma
+    // URL hundratals gånger per dygn). Med bumpen frågar vi om varje offer högst en gång
+    // per karensfönster, oavsett hur ofta lanen kör.
+    await prisma.offer.update({
+      where: { id: o.id },
+      data: { stockStatus: newStatus, lastSeenAt: now },
+    });
+    if (truth) verified++;
+    else soldOutReconciled++;
   }
 
   const { sent } = await dispatchPendingAlerts();
   console.log(
-    `[restock-scan] ${sources.length} butiker, ${checked} kollade, ${restocks} restocks, ${newListings} nya, ${soldOutReconciled} slutsåld-försoning, ${sent} alerts.`
+    `[restock-scan] ${sources.length} butiker, ${checked} kollade, ${restocks} restocks, ${newListings} nya, ${verified} verifierade mot produktsidan, ${soldOutReconciled} utan svar (UNKNOWN), ${sent} alerts.`
   );
   return { sources: sources.length, checked, restocks, newListings, alertsSent: sent, sourceList: sources };
 }

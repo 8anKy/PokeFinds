@@ -34,6 +34,53 @@ export function qbShouldDrop(url: string): boolean {
   return SINGLE_URL.test(url);
 }
 
+/**
+ * Sidvägar som ALDRIG är en produkt. Allt annat med formen /{segment}/{slug} är det —
+ * butiken bestämmer själv toppsegmentet.
+ */
+const NON_PRODUCT_PATH = /^\/(cart|checkout|sidor|pages|contact|kontakt|account|konto|blogg?|search|sok)\//i;
+
+/** Butikens "går inte att köpa"-text. Delas av båda parsrarna så de aldrig glider isär. */
+const SOLD_OUT_MARKERS = /Ej tillgänglig|Slutsåld|Sold out|Bevaka|Meddela mig|area-label="Ej/i;
+
+/**
+ * Produktlänken i ETT data-pid-block.
+ *
+ * VARFÖR INTE BARA /pokemon/…: Quickbutik låter samma produkt bo under flera toppsegment,
+ * och blocket bär den kanoniska. Swepoke länkar sitt NYA sortiment som
+ * `/alla-produkter/{slug}` medan äldre varor ligger kvar på `/pokemon/{kategori}/{slug}` —
+ * mönstret som bara godtog det senare kastade tyst 9 av 18 produkter på ETB-kategorisidan
+ * (73 av 161 över hela butiken, mätt 2026-07-28). De produkterna föll ur feeden, och en
+ * offer som saknas i feeden nollas till UNKNOWN efter 24h → "Okänd" i pristabellen på
+ * varor butiken hade hela tiden (Pitch Black ETB, 2026-07-25).
+ *
+ * DJUPET GÅR INTE ATT LÅSA. Butikerna lägger produkten olika djupt — och samma butik är
+ * inte konsekvent: Swepoke `/alla-produkter/{slug}` (2), Shinycards `/pokemon/tins/{slug}`
+ * (3) OCH `/pokemon/mega-evolution/chaos-rising/{slug}` (4). Varje gissad djupgräns kastar
+ * en butiks halva sortiment tyst: `/pokemon/{kat}/{slug}` missade 9 av 18 på Swepokes
+ * ETB-sida och 7 av 15 på Shinycards.
+ *
+ * Vad som DÄREMOT håller (mätt i båda butikernas riktiga markup): produktlänken står
+ * FLERA gånger i blocket (bildlänk + titellänk), medan ankare (`#retail-bag-1`) och
+ * systemsidor står en gång. Vi väljer därför den vanligaste vägen i blocket i stället för
+ * att räkna segment — självvaliderande, och tål att butiken byter URL-struktur igen.
+ */
+export function productHrefInBlock(block: string): string | null {
+  const counts = new Map<string, number>();
+  for (const m of block.matchAll(/href="(\/[^"#?]+)"/g)) {
+    const href = m[1].replace(/\/$/, "");
+    // Minst två segment = en produktväg. "/pokemon" är kategorin, aldrig varan.
+    if (href.split("/").length < 3) continue;
+    if (NON_PRODUCT_PATH.test(href)) continue;
+    counts.set(href, (counts.get(href) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  for (const [href, n] of counts) {
+    if (best === null || n > (counts.get(best) ?? 0)) best = href;
+  }
+  return best;
+}
+
 function parseSekPrice(text: string): number | null {
   const cleaned = text.replace(/[\s ]/g, "").replace(/kr|sek/gi, "").replace(",", ".");
   const num = parseFloat(cleaned);
@@ -112,10 +159,10 @@ export abstract class QuickbutikAdapter implements SourceAdapter {
       if (!priceM || !titleM) continue;
       const priceOre = Math.round(parseFloat(priceM[1]) * 100);
       if (!priceOre || priceOre <= 0) continue;
-      const href = block.match(/href="(\/pokemon\/[a-z0-9-]+\/[a-z0-9-]+)"/i)?.[1];
+      const href = productHrefInBlock(block);
       if (!href) continue;
       const title = titleM[1].replace(/&amp;/g, "&").replace(/&[a-z]+;/g, " ").replace(/\s+/g, " ").trim();
-      const soldOut = /Ej tillgänglig|Slutsåld|Sold out|Bevaka|Meddela mig/i.test(block);
+      const soldOut = SOLD_OUT_MARKERS.test(block);
       const inStock = !soldOut && /Lägg i|>\s*I lager|text-success/i.test(block);
       byData.push({ title, priceOre, url: `${this.baseUrl}${href}`, inStock });
     }
@@ -137,7 +184,10 @@ export abstract class QuickbutikAdapter implements SourceAdapter {
       if (!priceM) continue;
       const priceOre = parseSekPrice(priceM[1]);
       if (!priceOre) continue;
-      const soldOut = /Ej tillgänglig|area-label="Ej/i.test(seg);
+      // Samma slutsåld-markörer som primärparsern. Fallbacken kollade förr BARA
+      // "Ej tillgänglig" och antog i lager annars → en produkt vars knapp säger
+      // "Slutsåld" rapporterades som I LAGER (Pitch Black ETB, 2026-07-28).
+      const soldOut = SOLD_OUT_MARKERS.test(seg);
       out.push({ title, priceOre, url: `${this.baseUrl}${href}`, inStock: !soldOut });
     }
     return out;

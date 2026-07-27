@@ -1,12 +1,16 @@
 /**
- * offersToMarkSoldOut: en offer vars butik hämtades men vars URL försvann ur
- * feeden ska nollställas (till UNKNOWN — frånvaro ≠ känd slutförsäljning) — MEN
- * först efter grace-fönstret (debounce mot rullande/instabila feeds som Swepoke).
- * Annars lämnas den orörd. UNKNOWN→IN larmar aldrig → rotation spammar inte.
+ * offersToVerify: en offer vars butik hämtades men vars URL försvann ur feeden ska
+ * slås upp mot butikens EGEN produktsida — men först efter grace-fönstret (debounce
+ * mot rullande/instabila feeds som Swepoke).
+ *
+ * Till skillnad från gamla offersToMarkSoldOut filtreras INGA statusar bort: en
+ * slutsåld Speltrollet-vara ligger inte i deras Pokémon-kollektioner alls, så feeden
+ * kan aldrig visa att den kommit tillbaka. Utan uppslaget vore den permanent osynlig
+ * för restock-larmen. UNKNOWN→IN larmar ändå aldrig → tyst healing, ingen spam.
  */
 import { describe, expect, it } from "vitest";
 import { StockStatus } from "@prisma/client";
-import { offersToMarkSoldOut } from "@/scrapers/runner";
+import { offersToVerify } from "@/scrapers/runner";
 
 const feedRetailers = new Set(["r1"]);
 const NOW = new Date("2026-07-06T12:00:00Z");
@@ -18,10 +22,10 @@ const offer = (o: Partial<{ retailerId: string; url: string; stockStatus: StockS
   retailerId: "r1", url: "https://s/a", stockStatus: StockStatus.IN_STOCK, lastSeenAt: long, ...o,
 });
 const run = (offers: ReturnType<typeof offer>[], freshKeys: Set<string>, retailers = feedRetailers) =>
-  offersToMarkSoldOut(offers, freshKeys, retailers, NOW, GRACE);
+  offersToVerify(offers, freshKeys, retailers, NOW, GRACE);
 
-describe("offersToMarkSoldOut", () => {
-  it("markerar en försvunnen in-stock offer som varit borta längre än grace", () => {
+describe("offersToVerify", () => {
+  it("tar upp en försvunnen in-stock offer som varit borta längre än grace", () => {
     expect(run([offer({})], new Set<string>())).toHaveLength(1);
   });
 
@@ -37,16 +41,25 @@ describe("offersToMarkSoldOut", () => {
     expect(run([offer({})], new Set<string>(), new Set<string>())).toHaveLength(0);
   });
 
-  it("rör INTE en redan slutsåld offer", () => {
-    expect(run([offer({ stockStatus: StockStatus.OUT_OF_STOCK })], new Set<string>())).toHaveLength(0);
+  it("tar upp en redan slutsåld offer — feeden kan inte visa att den kommit tillbaka", () => {
+    expect(run([offer({ stockStatus: StockStatus.OUT_OF_STOCK })], new Set<string>())).toHaveLength(1);
   });
 
-  it("rör INTE en redan UNKNOWN-nollställd offer (annars omskrivs den varje körning)", () => {
-    expect(run([offer({ stockStatus: StockStatus.UNKNOWN })], new Set<string>())).toHaveLength(0);
+  it("tar upp en redan UNKNOWN-nollad offer så den kan helas", () => {
+    expect(run([offer({ stockStatus: StockStatus.UNKNOWN })], new Set<string>())).toHaveLength(1);
   });
 
-  it("nollställer en aldrig-sedd (lastSeenAt null) försvunnen offer", () => {
+  it("tar upp en aldrig-sedd (lastSeenAt null) försvunnen offer", () => {
     expect(run([offer({ lastSeenAt: null })], new Set<string>())).toHaveLength(1);
+  });
+
+  it("äldst först — taket (RESTOCK_VERIFY_MAX) roterar rättvist", () => {
+    const older = new Date(NOW.getTime() - 90 * 3600_000);
+    const result = run(
+      [offer({ url: "https://s/ny", lastSeenAt: long }), offer({ url: "https://s/gammal", lastSeenAt: older })],
+      new Set<string>()
+    );
+    expect(result.map((o) => o.url)).toEqual(["https://s/gammal", "https://s/ny"]);
   });
 });
 

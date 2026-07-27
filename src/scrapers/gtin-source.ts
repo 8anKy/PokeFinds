@@ -67,7 +67,7 @@ export const STORE_GTIN_STRATEGY: Record<string, GtinStrategy> = {
 };
 
 /** Alla ld+json-block i rå HTML. WebFetch/markdown-konvertering STRIPPAR <script> — använd rå text. */
-function parseJsonLdBlocks(html: string): unknown[] {
+export function parseJsonLdBlocks(html: string): unknown[] {
   const blocks: unknown[] = [];
   const re = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
   let m: RegExpExecArray | null;
@@ -82,7 +82,7 @@ function parseJsonLdBlocks(html: string): unknown[] {
 }
 
 /** Plattar ut @graph/arrayer och plockar Product-noderna. */
-function collectProductNodes(node: unknown, out: Record<string, unknown>[] = []): Record<string, unknown>[] {
+export function collectProductNodes(node: unknown, out: Record<string, unknown>[] = []): Record<string, unknown>[] {
   if (!node) return out;
   if (Array.isArray(node)) {
     for (const n of node) collectProductNodes(n, out);
