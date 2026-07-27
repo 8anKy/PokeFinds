@@ -10,8 +10,18 @@ describe("qbShouldDrop", () => {
     expect(qbShouldDrop("https://www.swepoke.se/pokemon/singles/foo")).toBe(true);
   });
 
+  it("släpper Shinycards egen stavning (/singles-loskort/) och rena löskort-vägar", () => {
+    expect(
+      qbShouldDrop("https://www.shinycards.se/pokemon/singles-loskort/yvetal-holo-088132-me01-stamped-promo")
+    ).toBe(true);
+    expect(qbShouldDrop("https://www.shinycards.se/pokemon/loskort/pikachu-25")).toBe(true);
+    expect(qbShouldDrop("https://www.shinycards.se/pokemon/löskort/pikachu-25")).toBe(true);
+  });
+
   it("behåller sealed-URL:er", () => {
     expect(qbShouldDrop("https://www.swepoke.se/pokemon/booster-box/surging-sparks-booster-box")).toBe(false);
     expect(qbShouldDrop("https://www.swepoke.se/alla-produkter/chaos-rising-elite-trainer-box")).toBe(false);
+    // "single" i produktnamnet är inte en singel-KATALOG (jfr "Single Strike Urshifu")
+    expect(qbShouldDrop("https://www.swepoke.se/pokemon/etb/single-strike-urshifu-etb")).toBe(false);
   });
 });

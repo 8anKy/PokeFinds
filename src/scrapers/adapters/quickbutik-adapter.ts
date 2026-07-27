@@ -27,7 +27,10 @@ const MAX_PAGES_PER_CATEGORY = 4;
 // Fallback-parsern plockar upp korsförsäljnings-hrefs → singel-URL:er kan smita in och
 // fel-länkas till en sealed katalogprodukt (t.ex. "Blastoise 1-Pack Blister" bunden till
 // ett Blastoise-singelkort). Singlar prissätts via Cardmarket, aldrig via butik → släng dem.
-const SINGLE_URL = /\/singles(?:-and-graded-cards)?\//i;
+// Butikerna stavar singel-katalogen olika: /singles/, /singles-and-graded-cards/ OCH
+// /singles-loskort/ (Shinycards). En hårdkodad lista över stavningar missar nästa —
+// matcha på segmentet som BÖRJAR med "singles", plus svenskans "löskort".
+const SINGLE_URL = /\/(singles[a-z-]*|l[oö]skort[a-z-]*)\//i;
 
 /** Ska en Quickbutik-annons släppas? (singel-URL fel-länkas till sealed). Ren → testbar. */
 export function qbShouldDrop(url: string): boolean {
