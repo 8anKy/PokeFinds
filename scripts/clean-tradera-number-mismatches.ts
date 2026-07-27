@@ -17,6 +17,7 @@ import { PrismaClient } from "@prisma/client";
 import { normalizeTitle } from "../src/lib/utils";
 import { bareCardNumbers, cardNumberKey, printedNumberKey } from "../src/scrapers/matching";
 import { recomputeProductPriceCache } from "../src/services/products";
+import { findReplacementListing, writeMarketplaceOffer } from "../src/services/marketplace-offers";
 
 const prisma = new PrismaClient();
 const APPLY = process.argv.includes("--apply");
@@ -112,8 +113,22 @@ async function main() {
     });
     await prisma.traderaListing.deleteMany({ where: { itemId: d.itemId, productId: d.productId } });
   }
+  // LYFT FRAM NÄSTA ANNONS. Utan det här steget lämnade städningen 2026-07-25 274
+  // produkter med en KARUSELL FULL AV TRADERA-ANNONSER och ingen Tradera-rad i
+  // pristabellen — det ser ut som en bugg, och är det: annonserna finns kvar, vi
+  // hade bara raderat den vi råkat välja. Kandidaten är redan vaktad av svepet.
+  const tradera = await prisma.retailer.findFirstOrThrow({ where: { name: "Tradera" } });
+  let promoted = 0;
+  for (const productId of new Set(doomed.map((d) => d.productId))) {
+    const replacement = await findReplacementListing(productId);
+    if (!replacement) continue;
+    const p = await prisma.product.findUnique({ where: { id: productId }, select: { category: true } });
+    if (!p) continue;
+    await writeMarketplaceOffer(productId, tradera.id, p.category, replacement);
+    promoted++;
+  }
   await recomputeProductPriceCache();
-  console.log(`\n✅ ${doomed.length} offers raderade, spärrade och priscachen omräknad.`);
+  console.log(`\n✅ ${doomed.length} offers raderade, spärrade, ${promoted} ersatta av nästa annons och priscachen omräknad.`);
   await prisma.$disconnect();
 }
 

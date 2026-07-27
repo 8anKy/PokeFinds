@@ -7,7 +7,7 @@ import { cachedRead, singleFlight } from "@/lib/cache";
 import { normalizeTitle, utcDaysAgo, utcToday } from "@/lib/utils";
 import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
-import { listingPriceIsPlausible } from "@/lib/listing-plausibility";
+import { visibleListings } from "@/lib/listing-plausibility";
 import { getTrendingLift } from "@/services/market";
 import type {
   CardLanguage,
@@ -978,8 +978,9 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
   const cmReferenceOre =
     product.offers.find((o) => o.retailer.name === "Cardmarket" && o.price != null)?.price ?? null;
   const rejectedItemIds = new Set(rejectedItems.map((r) => r.itemId));
-  const traderaListings = railRows.filter(
-    (r) => !rejectedItemIds.has(r.itemId) && listingPriceIsPlausible(r.price, cmReferenceOre)
+  const traderaListings = visibleListings(
+    railRows.filter((r) => !rejectedItemIds.has(r.itemId)),
+    cmReferenceOre
   );
 
   // Prishistorik: Cardmarket-trend i första hand — MEN bara så länge den fortfarande

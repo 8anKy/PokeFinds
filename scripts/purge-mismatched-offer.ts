@@ -28,8 +28,7 @@
  */
 import { prisma } from "../src/lib/db";
 import { recomputeProductPriceCache } from "../src/services/products";
-import { listingCardLanguage } from "../src/lib/listing-language";
-import { listingPriceIsPlausible } from "../src/lib/listing-plausibility";
+import { findReplacementListing, writeMarketplaceOffer } from "../src/services/marketplace-offers";
 
 const APPLY = process.env.APPLY === "1";
 const OFFER_IDS = process.argv.slice(2).filter((a) => !a.startsWith("--"));
@@ -76,24 +75,14 @@ async function main() {
     console.log(`• ${offer.product.title}  (/produkter/${offer.product.slug})`);
     console.log(`    ${offer.retailer.name} ${offer.price != null ? (offer.price / 100).toFixed(2) + " kr" : "utan pris"}  item=${itemId ?? "–"}`);
     console.log(`    ${offer.url}`);
-    // Karusellen (samma annons, egen tabell) och ersättaren: alla ANDRA skena-rader
-    // för produkten som fortfarande håller mot facit. Billigast först = samma urval
-    // som svepet gör när det sätter offerten.
+    // Karusellen (samma annons, egen tabell) och ersättaren: nästa vettiga annons
+    // ur samma kandidatlista svepet redan vaktat.
     const cmRefOre = offer.product.offers[0]?.price ?? null;
     const rails = await prisma.traderaListing.findMany({
-      where: { productId: offer.productId },
-      orderBy: { price: "asc" },
-      select: { itemId: true, title: true, price: true, url: true },
+      where: { productId: offer.productId }, select: { itemId: true },
     });
     const railHit = itemId ? rails.find((r) => r.itemId === itemId) : undefined;
-    const rejected = new Set(
-      (await prisma.traderaMatch.findMany({
-        where: { productId: offer.productId, ok: false }, select: { itemId: true },
-      })).map((m) => m.itemId)
-    );
-    const replacement = rails.find(
-      (r) => r.itemId !== itemId && !rejected.has(r.itemId) && listingPriceIsPlausible(r.price, cmRefOre)
-    );
+    const replacement = await findReplacementListing(offer.productId, itemId);
 
     console.log(`    → raderar offer, ${itemId ? "sätter TraderaMatch ok=false" : "INGET itemId → ingen match-spärr"}, ${poisoned} förgiftade observationer`);
     console.log(`    → karusell: ${railHit ? "raderar skena-raden" : "ingen skena-rad"}, ${rails.length - (railHit ? 1 : 0)} kvar`);
@@ -120,22 +109,7 @@ async function main() {
       });
     }
     if (replacement) {
-      const condition =
-        offer.product.category === "SINGLE_CARD" || offer.product.category === "GRADED_CARD"
-          ? "NEAR_MINT" : "SEALED";
-      const language = listingCardLanguage(replacement.title, replacement.url);
-      await prisma.offer.upsert({
-        where: {
-          productId_retailerId_condition_language: {
-            productId: offer.productId, retailerId: offer.retailerId, condition, language,
-          },
-        },
-        update: { price: replacement.price, currency: "SEK", stockStatus: "IN_STOCK", url: replacement.url, lastSeenAt: new Date() },
-        create: {
-          productId: offer.productId, retailerId: offer.retailerId, condition, language,
-          price: replacement.price, currency: "SEK", stockStatus: "IN_STOCK", url: replacement.url, lastSeenAt: new Date(),
-        },
-      });
+      await writeMarketplaceOffer(offer.productId, offer.retailerId, offer.product.category, replacement);
     }
     removed++;
   }

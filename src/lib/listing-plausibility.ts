@@ -36,3 +36,27 @@ export function listingPriceIsPlausible(
   if (referenceOre == null || referenceOre <= 0) return true;
   return priceOre >= referenceOre * MARKETPLACE_MIN_PRICE_RATIO;
 }
+
+/**
+ * Karusellens urval: dölj UTSTICKARE, aldrig hela marknaden.
+ *
+ * Mätt på prod 2026-07-27: en rå tillämpning av gränsen ovan hade dolt 263 av
+ * 92 586 skena-rader — men på 17 produkter försvann ALLA annonser, och de var
+ * samtliga vintage-commons där VÅR referens är fel tryckning: Gust of Wind ·
+ * Base 93/102 har CM-golv 494 kr (1st Edition Shadowless) medan tjugo Tradera-
+ * annonser på det ordinarie kortet ligger på 5–9 kr. Att döma bort tjugo av
+ * tjugo annonser är inte en outlier-vakt — det är ett påstående om att hela
+ * marknaden har fel, och det påståendet har vi inget stöd för.
+ *
+ * Regeln: fäller gränsen NÅGON annons men inte alla, är de fällda utstickare
+ * (ramen på 179 kr bredvid 4 050/4 495/5 000). Fäller den ALLA är det referensen
+ * som är misstänkt — visa dem då, för karusellen länkar ut till en verklig
+ * marknad även när vår rubrik pekar på fel tryckning.
+ */
+export function visibleListings<T extends { price: number }>(
+  rows: T[],
+  referenceOre: number | null | undefined
+): T[] {
+  const kept = rows.filter((r) => listingPriceIsPlausible(r.price, referenceOre));
+  return kept.length > 0 ? kept : rows;
+}

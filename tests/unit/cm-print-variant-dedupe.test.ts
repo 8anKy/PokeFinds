@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { MATCH_RANK, feedRowWins } from "../../src/jobs/cardmarket-refresh";
-import { listingPriceIsPlausible, MARKETPLACE_MIN_PRICE_RATIO } from "../../src/lib/listing-plausibility";
+import {
+  listingPriceIsPlausible,
+  visibleListings,
+  MARKETPLACE_MIN_PRICE_RATIO,
+} from "../../src/lib/listing-plausibility";
 
 // Regression 2026-07-27: en produkt prissattes av FLERA feed-rader samma körning.
 // Vintage-episoder innehåller alla tryckningar av samma kortnummer, och promo-
@@ -71,5 +75,30 @@ describe("listingPriceIsPlausible — läsvägens filter", () => {
     const ref = 100_000;
     expect(listingPriceIsPlausible(ref * MARKETPLACE_MIN_PRICE_RATIO, ref)).toBe(true);
     expect(listingPriceIsPlausible(ref * MARKETPLACE_MIN_PRICE_RATIO - 1, ref)).toBe(false);
+  });
+});
+
+// Mätt på prod 2026-07-27: den råa gränsen hade tömt karusellen HELT på 17 produkter,
+// samtliga vintage-commons där VÅR referens är fel tryckning (Gust of Wind · Base
+// 93/102: CM-golv 494 kr = 1st Edition Shadowless, tjugo Tradera-annonser på det
+// ordinarie kortet 5–9 kr). Att döma bort tjugo av tjugo är inget outlier-filter.
+describe("visibleListings — dölj utstickare, aldrig hela marknaden", () => {
+  it("ramen döljs när de äkta annonserna finns kvar", () => {
+    const rows = [{ price: 17_900 }, { price: 405_000 }, { price: 449_500 }, { price: 500_000 }];
+    expect(visibleListings(rows, 320_740).map((r) => r.price)).toEqual([405_000, 449_500, 500_000]);
+  });
+
+  it("faller ALLA annonser är det referensen som är misstänkt — visa dem", () => {
+    const rows = [{ price: 500 }, { price: 700 }, { price: 900 }];
+    expect(visibleListings(rows, 49_400)).toHaveLength(3);
+  });
+
+  it("utan facit visas allt", () => {
+    const rows = [{ price: 500 }, { price: 700 }];
+    expect(visibleListings(rows, null)).toHaveLength(2);
+  });
+
+  it("tom lista förblir tom", () => {
+    expect(visibleListings([], 1000)).toEqual([]);
   });
 });
