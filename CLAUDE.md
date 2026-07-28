@@ -294,10 +294,18 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   (det var exakt buggen). Saknas From på den ordinarie tryckningen behåller vi hellre dagens pris än gissar.
   Reserv-nyckeln (set+nummer) KONSUMERAS INTE längre: i Base svarar tryckningarna i block, så Shadowless-raden åt upp
   nyckeln och Unlimited-raden föll bort innan den fick tävla. Flera rader mot samma produkt är ofarligt när exakt en
-  kan vinna. **ÖPPEN POST**: ~730 vintage-kort har 1st Edition som ENDA tryckning med ett From (Unlimited 18 % täckning
-  mot 1st Editions 95 %) → de prissätts fortfarande av fel tryckning; 60 av dem ligger ≥3x över pokemontcg.io:s
-  CM-trend för den ordinarie produkten (Unown [A] · Neo Discovery 14 = 550x). Revision: `scripts/print-variant-audit.ts`
-  (`--sweep` → `--fetch=…` → `--report`; pokemontcg.io-referensen är gratis och cachas på disk).
+  kan vinna.
+- **DE NIO ANDRA WOTC-SETEN GÅR INTE ATT DELA (mätt 2026-07-28)**: `version`-raderna är printningsspecifika BARA när
+  CM har en egen produkt per tryckning. I Jungle/Fossil/Team Rocket/Gym/Neo har CM **en produkt per kort** (111 av 115
+  kort delar `cardmarket_id` mellan tryckningarna), och feedens From gäller PRODUKTEN: av 123 kort med From på båda
+  tryckningarna är **88 exakt identiska** och de övriga 35 skiljer 0,6–1,1x (8 mot 8,50 €). I Base — där CM la till en
+  ANDRA produkt 2022-05-24 — är 0 av 23 identiska och skillnaden 6–66x (Hitmonchan 18,10 mot 1 200 €). En uppdelning
+  av de nio seten skulle alltså ge två katalogposter med SAMMA pris, dvs en påhittad precision. Vill man ha äkta
+  1st Edition-priser där krävs en källa som prissätter per tryckning; CM:s filtrerade sida (`isFirstEd=Y`) visar
+  annonserna men API:t ger inte talet. ⚠️ Den gamla öppna posten ("~730 vintage-kort prissätts av fel tryckning,
+  60 st ≥3x över pokemontcg.io:s trend") byggde på att version-raderna ÄR printningsspecifika — det stämmer inte i de
+  här seten. Deras pris är den delade produktens NM-engelska golv, samma policy som resten av katalogen. Mät om innan
+  någon agerar på den. Revision: `scripts/print-variant-audit.ts` (`--sweep` → `--fetch=…` → `--report`).
 - **Samlingsvärde**: live via `computeCollectionValue`/`valueCollectionItems` (`src/services/collection.ts`) → `getCardValues`/`getProductValues` (`src/services/products.ts`) = produktens lägsta pris (singel = CM-trend, sealed = butik) × live-kurs. Faller tillbaka på lagrat `estimatedValue` (ögonblicksbild vid tillägg) när live saknas. Skannade kandidater visar samma värde via `estimateCardValue`
 - **AI-gradering**: adaptermönster i `src/services/grading/` (`GradingAdapter` + mock + Claude vision). Plan→modell: FREE = `GRADING_MODEL_FREE` (Haiku 4.5, max `GRADING_FREE_MONTHLY_LIMIT`=3/månad), PREMIUM = `GRADING_MODEL_PREMIUM` (Sonnet 4.6, max `GRADING_PREMIUM_MONTHLY_LIMIT`=15/månad). `GRADING_PROVIDER=mock` i dev. Strukturerat svar via tvingat verktyg (`report_grade`). Det är en UPPSKATTNING, aldrig en officiell PSA/BGS-grad — UI:t är tydligt med det
 - **PWA/app**: installerbar via `public/manifest.json` + `public/sw.js` (registreras i prod av `src/components/pwa-register.tsx`). Vägen till app-butiker senare = Capacitor-wrapper runt samma Next-app (ingen UI-omskrivning)
