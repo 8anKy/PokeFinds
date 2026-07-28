@@ -1518,7 +1518,15 @@ export function matchListingToProduct(
   product: {
     normalizedTitle: string;
     card: { name: string; number: string } | null;
-    variantLabel?: string | null;
+    // OBLIGATORISKT, inte valfritt (2026-07-28). Fältet var `variantLabel?:` och
+    // INGEN av anroparna valde ut det ur databasen → `undefined` föll rakt igenom
+    // `isPrintVariantLabel` och tryckningsvakten nedan var i praktiken bortkopplad
+    // i BÅDA Tradera-vägarna. Följden: 84 Shadowless- och 39 1st Edition-produkter
+    // fick en offer från en annons som bara sålde det ordinarie kortet (Blastoise
+    // 1st Edition visade 119 kr). Ett obligatoriskt fält gör samma miss till ett
+    // typfel i stället för en tyst felmatchning — vakten ska aldrig kunna faila
+    // öppet bara för att ett select saknar en kolumn.
+    variantLabel: string | null;
   }
 ): number | null {
   const normalized = normalizeTitle(listingTitle);

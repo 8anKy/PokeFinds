@@ -17,6 +17,7 @@ const swshPack = {
   language: "EN",
   normalizedTitle: "sword shield booster pack",
   card: null,
+  variantLabel: null,
 };
 
 function item(overrides: Partial<TraderaItem>): TraderaItem {
@@ -84,5 +85,48 @@ describe("pickRailCandidates", () => {
     );
     expect(kept).toHaveLength(1);
     expect(kept[0].priceOre).toBe(5900);
+  });
+});
+
+// TRYCKNINGSVAKTEN FAILADE ÖPPET (2026-07-28). Vakten fanns i matchListingToProduct,
+// men `variantLabel` var ett VALFRITT fält som ingen anropare valde ut ur databasen →
+// `undefined` föll rakt igenom `isPrintVariantLabel` och varje Base-annons matchade
+// alla tre tryckningarna. Uppmätt i produktion morgonen efter uppdelningen: 84
+// Shadowless- och 39 1st Edition-produkter fick en offer från en annons som bara sålde
+// det ordinarie kortet — Blastoise 1st Edition visade 119 kr, och två av annonserna
+// sa uttryckligen "base set unlimited" i titeln. Fältet är nu OBLIGATORISKT, så samma
+// miss blir ett typfel i stället för en tyst felmatchning.
+describe("pickRailCandidates — tryckningar (Base)", () => {
+  const base = { id: "prod-2", category: "SINGLE_CARD", language: "EN", card: { name: "Blastoise", number: "2" } };
+  const unlimited = { ...base, normalizedTitle: "blastoise base 2 102 unlimited", variantLabel: "Unlimited" };
+  const shadowless = { ...base, normalizedTitle: "blastoise base 2 102 shadowless", variantLabel: "Shadowless" };
+  const firstEd = { ...base, normalizedTitle: "blastoise base 2 102 1st edition", variantLabel: "1st Edition" };
+  const single = (title: string) =>
+    item({ itemId: "10", title, categoryId: 1001337, priceOre: 11900 });
+
+  const plainAd = "Blastoise 2/102 Base Set Pokemonkort";
+
+  it("annons som inte nämner tryckningen är den ORDINARIE — inte Shadowless", () => {
+    expect(pickRailCandidates([single(plainAd)], shadowless, new Set())).toEqual([]);
+  });
+
+  it("och inte heller 1st Edition (119 kr-annonsen som visades där)", () => {
+    expect(pickRailCandidates([single(plainAd)], firstEd, new Set())).toEqual([]);
+  });
+
+  it("den landar på Unlimited", () => {
+    expect(pickRailCandidates([single(plainAd)], unlimited, new Set())).toHaveLength(1);
+  });
+
+  it("en annons som SÄGER tryckningen landar rätt", () => {
+    expect(pickRailCandidates([single("Blastoise 2/102 Base Set Shadowless")], shadowless, new Set())).toHaveLength(1);
+    expect(pickRailCandidates([single("Blastoise 2/102 Base Set 1st Edition")], firstEd, new Set())).toHaveLength(1);
+    // ...och INTE på de andra två.
+    expect(pickRailCandidates([single("Blastoise 2/102 Base Set 1st Edition")], unlimited, new Set())).toEqual([]);
+    expect(pickRailCandidates([single("Blastoise 2/102 Base Set Shadowless")], firstEd, new Set())).toEqual([]);
+  });
+
+  it("annons som säger 'unlimited' hamnar inte på 1st Edition (Dragonair-fallet)", () => {
+    expect(pickRailCandidates([single("Blastoise 2/102 Base Set Unlimited vintage")], firstEd, new Set())).toEqual([]);
   });
 });

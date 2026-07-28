@@ -155,6 +155,7 @@ describe("matchListingToProduct — tillbehör är inte varan", () => {
   const megaDarkrai = {
     normalizedTitle: "mega darkrai ex pitch black 116 84",
     card: { name: "Mega Darkrai ex", number: "116" },
+    variantLabel: null,
   };
 
   it("ramen matchar inte kortet den rymmer", () => {

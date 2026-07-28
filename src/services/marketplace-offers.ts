@@ -57,7 +57,9 @@ export async function findReplacementListing(
   const [product, rails, rejected, cmOffer] = await Promise.all([
     prisma.product.findUnique({
       where: { id: productId },
-      select: { normalizedTitle: true, language: true, card: { select: { name: true, number: true } } },
+      // variantLabel: utan den kan matchListingToProduct inte hålla isär tryckningarna,
+      // och ersättaren kunde bli en ordinarie annons på 1st Edition-produkten.
+      select: { normalizedTitle: true, language: true, variantLabel: true, card: { select: { name: true, number: true } } },
     }),
     prisma.traderaListing.findMany({
       where: { productId },

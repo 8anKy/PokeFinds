@@ -41,9 +41,9 @@ describe("seriesMismatch (Series 1 vs Series 2)", () => {
     expect(seriesMismatch("Surging Sparks Booster Box", "surging sparks booster box")).toBe(false);
   });
   it("matchListingToProduct förkastar fel serie men behåller rätt", () => {
-    const s1 = { normalizedTitle: "first partner illustration collection series 1", card: null };
+    const s1 = { normalizedTitle: "first partner illustration collection series 1", card: null, variantLabel: null };
     expect(matchListingToProduct("Pokémon First Partner Illustration Collection Series 2", s1)).toBeNull();
-    const s2 = { normalizedTitle: "first partner illustration collection series 2", card: null };
+    const s2 = { normalizedTitle: "first partner illustration collection series 2", card: null, variantLabel: null };
     expect(matchListingToProduct("Pokémon First Partner Illustration Collection Series 2", s2)).not.toBeNull();
   });
 });
@@ -204,6 +204,7 @@ describe("classifyForm", () => {
       matchListingToProduct("Pokemon TCG Battle Academy 2024", {
         normalizedTitle: "pokemon go battle deck melmetal v",
         card: null,
+        variantLabel: null,
       })
     ).toBeNull();
   });
@@ -224,10 +225,11 @@ describe("nonEraCoverage — set-markör 'go' (Pokémon GO 10.5)", () => {
 });
 
 describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
-  const swshPack = { normalizedTitle: "sword shield booster pack", card: null };
+  const swshPack = { normalizedTitle: "sword shield booster pack", card: null, variantLabel: null };
   const umbreon = {
     normalizedTitle: "umbreon vmax evolving skies 95 203",
     card: { name: "Umbreon VMAX", number: "95" },
+    variantLabel: null,
   };
 
   it("ren bas-pack-annons matchar bas-produkten", () => {
@@ -249,16 +251,16 @@ describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
   });
 
   it("singel utan tryckt nummer kräver kortnamnet (fel kort ur samma set förkastas)", () => {
-    const xatu = { normalizedTitle: "xatu paldean fates 152", card: { name: "Xatu", number: "152" } };
+    const xatu = { normalizedTitle: "xatu paldean fates 152", card: { name: "Xatu", number: "152" }, variantLabel: null };
     // Annons utan slash-nummer, delar bara set-orden "paldean fates" → förkastas.
     expect(matchListingToProduct("Forretress ex Paldean Fates", xatu)).toBeNull();
     // Rätt kort (namnet finns) matchar fortfarande utan slash-nummer.
-    const forretress = { normalizedTitle: "forretress ex paldean fates 130", card: { name: "Forretress ex", number: "130" } };
+    const forretress = { normalizedTitle: "forretress ex paldean fates 130", card: { name: "Forretress ex", number: "130" }, variantLabel: null };
     expect(matchListingToProduct("Forretress ex Paldean Fates", forretress)).not.toBeNull();
   });
 
   it("japansk 'Violet ex'-pack matchar INTE engelska 'Scarlet & Violet Booster Pack'", () => {
-    const svPack = { normalizedTitle: "scarlet violet booster pack", card: null };
+    const svPack = { normalizedTitle: "scarlet violet booster pack", card: null, variantLabel: null };
     // Japansk sv1V-annons, "japansk" står bara i beskrivningen (ej titeln).
     expect(
       matchListingToProduct("Scarlet & Violet: Violet ex Booster Pack - Pokemon Trading Card Game", svPack)
@@ -268,8 +270,8 @@ describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
   });
 
   it("151-pack (S&V 3.5) matchar INTE bas-'Scarlet & Violet Booster Pack' och tvärtom", () => {
-    const svPack = { normalizedTitle: "scarlet violet booster pack", card: null };
-    const p151 = { normalizedTitle: "151 booster pack", card: null };
+    const svPack = { normalizedTitle: "scarlet violet booster pack", card: null, variantLabel: null };
+    const p151 = { normalizedTitle: "151 booster pack", card: null, variantLabel: null };
     // Verklig Samlarhobby-titel: "151" delar era-ord (scarlet/violet) med bas-S&V.
     const listing = "Pokemon Scarlet & Violet 3.5 Pokemon 151 1 booster pack";
     expect(matchListingToProduct(listing, svPack)).toBeNull();
@@ -279,7 +281,7 @@ describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
   });
 
   it("äkta engelsk bas-pack med set-kod (SV01) + hopskrivet formord matchar bas-produkten", () => {
-    const svPack = { normalizedTitle: "scarlet violet booster pack", card: null };
+    const svPack = { normalizedTitle: "scarlet violet booster pack", card: null, variantLabel: null };
     // Verklig Tradera-titel med set-kod SV01 resp. hopskrivet "Boosterpack".
     expect(matchListingToProduct("Pokémon SV01: Scarlet & Violet Booster Pack", svPack)).not.toBeNull();
     expect(matchListingToProduct("Scarlet & Violet Booster Pack SV01", svPack)).not.toBeNull();
@@ -289,8 +291,8 @@ describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
   });
 
   it("'base' = identitet utan era, kvalificerare med era (vintage vs S&V-kollision)", () => {
-    const svPack = { normalizedTitle: "scarlet violet booster pack", card: null };
-    const vintageBase = { normalizedTitle: "base booster pack", card: null };
+    const svPack = { normalizedTitle: "scarlet violet booster pack", card: null, variantLabel: null };
+    const vintageBase = { normalizedTitle: "base booster pack", card: null, variantLabel: null };
     // Äkta vintage bas-pack matchar sin egen produkt (base = identitet utan era).
     expect(matchListingToProduct("Pokemon Base Set Booster Pack", vintageBase)).not.toBeNull();
     expect(matchListingToProduct("Pokemon Base Set Booster Pack", svPack)).toBeNull();
@@ -300,8 +302,8 @@ describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
   });
 
   it("brusiga men äkta vintage-titlar matchar (skick/upplaga/förlag = brus, ej identitet)", () => {
-    const vintageBase = { normalizedTitle: "base booster pack", card: null };
-    const megaETB = { normalizedTitle: "mega evolution elite trainer box", card: null };
+    const vintageBase = { normalizedTitle: "base booster pack", card: null, variantLabel: null };
+    const megaETB = { normalizedTitle: "mega evolution elite trainer box", card: null, variantLabel: null };
     // RECALL: brus (1999/WOTC/Unlimited/Shadowless/oöppnad) får inte sänka täckningen.
     expect(matchListingToProduct("Pokemon Base Set Booster Pack 1999 WOTC", vintageBase)).not.toBeNull();
     expect(matchListingToProduct("Pokémon Base Set Unlimited Booster Pack", vintageBase)).not.toBeNull();
@@ -314,8 +316,8 @@ describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
     // Verklig fejkdeal: Tradera "Pokémon Dragon Majesty Booster Pack" (900 kr, SM7.5)
     // matchade vintage "Dragon Booster Pack" (EX Dragon, CM 3 816 kr) → falsk −76 %.
     // Otäckt identitetsord ("majesty") = täckning exakt 0,5 → ska förkastas.
-    const vintageDragon = { normalizedTitle: "dragon booster pack", card: null };
-    const dragonMajesty = { normalizedTitle: "dragon majesty booster pack", card: null };
+    const vintageDragon = { normalizedTitle: "dragon booster pack", card: null, variantLabel: null };
+    const dragonMajesty = { normalizedTitle: "dragon majesty booster pack", card: null, variantLabel: null };
     expect(matchListingToProduct("Pokémon Dragon Majesty Booster Pack", vintageDragon)).toBeNull();
     expect(matchListingToProduct("Pokémon Dragon Majesty Booster Pack", dragonMajesty)).not.toBeNull();
   });
@@ -323,8 +325,8 @@ describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
   it("annat officiellt produktnamn ('Special Collection' vs 'EX Box') förkastas", () => {
     // Verklig fejkdeal: Tradera "Pokémon TCG: Charizard ex Special Collection" (695 kr)
     // matchade XY-erans "Charizard EX Box" (CM 1 962 kr) → falsk −65 %.
-    const exBox = { normalizedTitle: "charizard ex box", card: null };
-    const special = { normalizedTitle: "charizard ex special collection", card: null };
+    const exBox = { normalizedTitle: "charizard ex box", card: null, variantLabel: null };
+    const special = { normalizedTitle: "charizard ex special collection", card: null, variantLabel: null };
     expect(matchListingToProduct("Pokémon TCG: Charizard ex Special Collection", exBox)).toBeNull();
     expect(matchListingToProduct("Pokémon TCG: Charizard ex Special Collection", special)).not.toBeNull();
   });
@@ -332,8 +334,8 @@ describe("matchListingToProduct — riktad match (Tradera Fas 0)", () => {
   it("Pokémon Center-variant ≠ vanlig produkt (åt båda håll)", () => {
     // Verklig fejkdeal: Tradera "Obsidian Flames Elite trainer box" (vanlig, 4 000 kr)
     // matchade "Obsidian Flames Pokémon Center Elite Trainer Box" (CM 7 494 kr) → −47 %.
-    const pcEtb = { normalizedTitle: "obsidian flames pokemon center elite trainer box", card: null };
-    const etb = { normalizedTitle: "obsidian flames elite trainer box", card: null };
+    const pcEtb = { normalizedTitle: "obsidian flames pokemon center elite trainer box", card: null, variantLabel: null };
+    const etb = { normalizedTitle: "obsidian flames elite trainer box", card: null, variantLabel: null };
     expect(matchListingToProduct("Obsidian Flames Elite trainer box", pcEtb)).toBeNull();
     expect(matchListingToProduct("Obsidian Flames Pokémon Center Elite Trainer Box", etb)).toBeNull();
     expect(matchListingToProduct("Obsidian Flames Pokémon Center Elite Trainer Box", pcEtb)).not.toBeNull();

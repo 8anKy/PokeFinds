@@ -164,6 +164,9 @@ export function pickRailCandidates(
     language: string;
     normalizedTitle: string;
     card: { name: string; number: string } | null;
+    // Tryckningen MÅSTE följa med hit — matchListingToProduct kan inte hålla isär
+    // Unlimited/Shadowless/1st Edition utan den (se kommentaren där).
+    variantLabel: string | null;
   },
   rejected: ReadonlySet<string>
 ): TraderaItem[] {
@@ -452,6 +455,7 @@ export async function runTraderaSweep(
       where: { category: { not: "ACCESSORY" } },
       select: {
         id: true, title: true, normalizedTitle: true, category: true, language: true,
+        variantLabel: true,
         card: { select: { name: true, number: true, set: { select: { name: true } } } },
       },
       orderBy: [

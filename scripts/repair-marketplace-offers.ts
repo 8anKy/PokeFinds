@@ -15,12 +15,15 @@
  * "billigaste kvarvarande" hade återskapat den. Därför städas skenan FÖRST, med
  * dagens matchare, och först därefter väljs ersättare.
  *
- * Tre faser, i den här ordningen:
+ * Fyra faser, i den här ordningen:
  *   1. VETA SKENAN   — radera skena-rader som dagens matchare/språkvakt avvisar.
  *   2. LAGA OFFERS   — offers som pekar på en sådan rad tas bort (de är samma
  *                      felmatch, bara i den andra tabellen).
  *   3. ERSÄTT        — produkter med kvarvarande annonser men ingen prissatt
  *                      Tradera-rad får billigaste kandidat som håller.
+ *   4. VETA GRAFEN   — Tradera-historikpunkter från en avvisad annons raderas.
+ *                      Utan den ligger felmatchens pris kvar som en Tradera-KURVA
+ *                      på produktsidan, fast raden är borta ur pristabellen.
  *
  * Dry-run som standard. APPLY=1 skriver.
  *   node scripts/with-prod-db.mjs npx tsx scripts/repair-marketplace-offers.ts
@@ -38,6 +41,8 @@ import { mapPool } from "../src/lib/concurrency";
 const APPLY = process.env.APPLY === "1";
 /** Skena-rader äldre än så visas inte på produktsidan — då finns inget att laga. */
 const MAX_AGE_DAYS = 4;
+/** Fas 4:s historikfönster. 7 dygn ≈ 24k rader; hela historiken är ~170k. */
+const OBS_DAYS = Number(process.env.OBS_DAYS ?? 7);
 
 function itemIdFromUrl(url: string): string | null {
   return url.match(/\/item\/\d+\/(\d+)/)?.[1] ?? null;
@@ -52,6 +57,7 @@ async function main() {
     where: { traderaListings: { some: {} } },
     select: {
       id: true, slug: true, title: true, category: true, normalizedTitle: true, language: true,
+      variantLabel: true,
       card: { select: { name: true, number: true } },
       traderaListings: { select: { id: true, itemId: true, title: true, price: true, url: true } },
     },
@@ -62,7 +68,9 @@ async function main() {
     for (const l of p.traderaListings) {
       rows++;
       const sameLanguage = listingCardLanguage(l.title, l.url) === p.language;
-      const matches = matchListingToProduct(l.title, { normalizedTitle: p.normalizedTitle, card: p.card }) != null;
+      const matches = matchListingToProduct(l.title, {
+        normalizedTitle: p.normalizedTitle, card: p.card, variantLabel: p.variantLabel,
+      }) != null;
       if (sameLanguage && matches) continue;
       doomed.push({ id: l.id, productId: p.id, itemId: l.itemId, title: l.title, productTitle: p.title });
     }
@@ -136,6 +144,59 @@ async function main() {
     `\n${fixed} produkter ${APPLY ? "fick" : "skulle få"} en Tradera-rad. ` +
     `${noCandidate} hade ingen kandidat som håller (lämnas — hellre ingen rad än ett pris vi inte kan försvara).`
   );
+
+  // ── Fas 4: prishistoriken efter en felmatchad annons ──────────────────────
+  // Att ta bort offern räcker inte: svepet skriver en PriceObservation per skriven
+  // offer, och produktsidans graf ritar en serie PER KÄLLA ur dem. En felmatchad
+  // annons lämnar därför en Tradera-kurva kvar på kortet — med precis det pris vi
+  // nyss tog bort ur pristabellen. Uppmätt 2026-07-28: 128 sådana punkter på Base
+  // tryckningsprodukter, alltså en Tradera-graf på kort där bara Cardmarket har
+  // ett pris. Samma dom som Fas 1 (annonstiteln ligger i rawData), och BARA för
+  // produkter reparationen redan rört — ingen katalogbred historikläsning.
+  //
+  // Fönstret är TIDSBASERAT, inte "produkterna vi nyss rörde": Fas 1–2 raderar
+  // ju raderna, så en omkörning hade haft noll att gå på och punkterna legat kvar
+  // för alltid. OBS_DAYS=7 som standard (~24k rader) — höj vid behov, men skriv
+  // aldrig om det till "hela historiken" utan att mäta först (170k rader totalt).
+  const obsCutoff = new Date();
+  obsCutoff.setDate(obsCutoff.getDate() - OBS_DAYS);
+  const observations = await prisma.priceObservation.findMany({
+    where: { source: { name: "Tradera" }, observedAt: { gte: obsCutoff } },
+    select: { id: true, productId: true, price: true, rawData: true },
+  });
+  const productById = new Map(products.map((p) => [p.id, p]));
+  // Produkter vars ENDA skena-rader nyss raderades finns inte kvar i `products`.
+  const missing = [...new Set(observations.map((o) => o.productId))].filter((id) => !productById.has(id));
+  for (const p of missing.length
+    ? await prisma.product.findMany({
+        where: { id: { in: missing } },
+        select: {
+          id: true, slug: true, title: true, category: true, normalizedTitle: true, language: true,
+          variantLabel: true, card: { select: { name: true, number: true } }, traderaListings: { select: { id: true, itemId: true, title: true, price: true, url: true } },
+        },
+      })
+    : []) productById.set(p.id, p);
+  const doomedObs = observations.filter((o) => {
+    const raw = o.rawData as { title?: string; url?: string } | null;
+    const p = productById.get(o.productId);
+    if (!raw?.title || !p) return false; // okänd härkomst → rör den inte
+    const sameLanguage = listingCardLanguage(raw.title, raw.url ?? "") === p.language;
+    const matches = matchListingToProduct(raw.title, {
+      normalizedTitle: p.normalizedTitle, card: p.card, variantLabel: p.variantLabel,
+    }) != null;
+    return !(sameLanguage && matches);
+  });
+  console.log(`\nFas 4: ${observations.length} Tradera-historikpunkter senaste ${OBS_DAYS} dygnen, ${doomedObs.length} från en avvisad annons (äldre punkter granskas INTE — höj OBS_DAYS).`);
+  for (const o of doomedObs.slice(0, 8)) {
+    const raw = o.rawData as { title?: string } | null;
+    console.log(`   ${productById.get(o.productId)!.title.padEnd(46)} ${(o.price / 100).toFixed(2).padStart(9)} kr  ←  "${raw?.title}"`);
+  }
+  if (doomedObs.length > 8) console.log(`   … och ${doomedObs.length - 8} till`);
+  if (APPLY && doomedObs.length > 0) {
+    for (let i = 0; i < doomedObs.length; i += 500) {
+      await prisma.priceObservation.deleteMany({ where: { id: { in: doomedObs.slice(i, i + 500).map((o) => o.id) } } });
+    }
+  }
   if (APPLY && (fixed > 0 || badOffers.length > 0)) {
     await recomputeProductPriceCache();
     console.log("Prischachen omräknad.");
