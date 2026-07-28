@@ -95,28 +95,53 @@ export function withNearMint(url: string | null | undefined): string {
 export const CARDMARKET_FIRST_ED_PARAM = "isFirstEd=Y";
 
 /**
- * Lägg till 1st Edition-filtret på en Cardmarket-länk (idempotent). No-op om
- * länken inte pekar på cardmarket.com eller redan har ett isFirstEd.
+ * `only` = bara 1st Edition-annonser (isFirstEd=Y), `exclude` = allt UTOM dem
+ * (isFirstEd=N). Det finns inget "lämna åt slumpen" — se nedan.
  */
-export function withFirstEd(url: string | null | undefined): string {
+export type FirstEdFilter = "only" | "exclude";
+
+/**
+ * Sätt 1st Edition-filtret på en Cardmarket-länk. Idempotent OCH korrigerande:
+ * ett befintligt isFirstEd skrivs över, så en länk aldrig blir kvar i fel läge.
+ *
+ * ⛔ ATT UTELÄMNA PARAMETERN ÄR INTE "INGET FILTER" (mätt 2026-07-28).
+ * Cardmarket lägger filtret i SESSIONEN och stämplar tillbaka det på nästa
+ * produktsida man öppnar. Verifierat: en förfrågan till `?idProduct=273696&
+ * language=1&minCondition=2` — helt utan isFirstEd — landade på
+ * `.../Alakazam-V1-BS1?language=1&minCondition=2&isFirstEd=N`, och tidigare
+ * samma dag fick `?idProduct=273753&language=1` tillbaka `&isFirstEd=Y`.
+ * Klickar man alltså EN 1st Edition-länk hos oss följer filtret med till varje
+ * annat kort man öppnar sen — Unlimited-kortet visar 1st Edition-annonser.
+ * Därför säger VARJE singel-länk uttryckligen vilket läge den vill ha; det är
+ * det enda sättet att äga vad besökaren faktiskt får se.
+ *
+ * (Sealed lämnas utanför: CM stämplar in parametern där också, men sealed-sidan
+ * har varken skick- eller 1st Edition-filter i sin panel och listan påverkas
+ * inte — verifierat på Scarlet & Violet Booster, 3 204 annonser med isFirstEd=N.)
+ */
+export function withFirstEd(url: string | null | undefined, state: FirstEdFilter): string {
   if (!url) return url ?? "";
-  const u = url.toLowerCase();
-  if (!u.includes("cardmarket.com") || u.includes("isfirsted=")) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}${CARDMARKET_FIRST_ED_PARAM}`;
+  if (!url.toLowerCase().includes("cardmarket.com")) return url;
+  const want = state === "only" ? "Y" : "N";
+  if (/[?&]isFirstEd=/i.test(url)) return url.replace(/([?&]isFirstEd=)[^&]*/i, `$1${want}`);
+  return `${url}${url.includes("?") ? "&" : "?"}isFirstEd=${want}`;
 }
 
 /**
  * Exakt CM-produktsida via officiellt idProduct, förfiltrerad till engelska.
  * Redirecten bevarar extra query-params, så &minCondition=2 (Near Mint) och
- * &isFirstEd=Y (1st Edition) läggs på via `opts`.
+ * &isFirstEd=Y/N (tryckning) läggs på via `opts`.
+ *
+ * `firstEd` bör alltid sättas för SINGLAR — utelämnad parameter betyder inte
+ * "ofiltrerat" utan "vad besökarens CM-session råkar minnas" (se withFirstEd).
  */
 export function cardmarketProductUrl(
   idProduct: number,
-  opts?: { nearMint?: boolean; firstEd?: boolean }
+  opts?: { nearMint?: boolean; firstEd?: FirstEdFilter }
 ): string {
   const base = `https://www.cardmarket.com/en/Pokemon/Products?idProduct=${idProduct}&language=1`;
   const nm = opts?.nearMint ? withNearMint(base) : base;
-  return opts?.firstEd ? withFirstEd(nm) : nm;
+  return opts?.firstEd ? withFirstEd(nm, opts.firstEd) : nm;
 }
 
 /**

@@ -34,7 +34,7 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   INGA restock-larm. Union+dedup i `checkRestockAlerts` (`src/services/alerts.ts`). Master e-post-toggle respekteras ändå i `dispatchPendingAlerts`.
 - **Funktioner live**: watchlist/prisbevakning, restock-alerts (8 butikskällor), samlingsvärde (live),
   AI-gradering (`/gradera`, Claude vision), live kort-skanner (`/skanna`, capture-baserad), community, admin, PWA.
-- **Status**: 644/644 unit-tester gröna, `npm run build` grön.
+- **Status**: 645/645 unit-tester gröna, `npm run build` grön.
 
 ## Öppna ärenden / Nästa steg
 - **Neon-CU + Vercel Active CPU sänkta (2026-06-20)**: publika katalogsidor cachas nu (ISR) och chrome läser session
@@ -226,12 +226,23 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   **PIKACHU 58 DELAS INTE**: CM har SEX produkter (V1–V6) där röda/gula kinder korsar tryckningarna — tre i
   ordinarie batchen, två i 2022-batchen. Det finns inget entydigt par att peka på, och hellre ett odelat kort än
   tre produkter med fel länkar. Kräver CM:s versionsetiketter (bara synliga på webben) för att lösas.
-  **1st EDITION-LÄNKEN BÄR `isFirstEd=Y`** (`withFirstEd`, `src/lib/marketplace-urls.ts`): Shadowless och 1st Edition
-  delar CM-produkt, så utan filtret pekar båda på samma osorterade sida där de billigaste annonserna är Shadowless —
-  fast 1st Edition-priset vi publicerar kommer ur de 1st Edition-märkta annonserna. Verifierat mot CM: 302:n från
-  `?idProduct=` BEVARAR parametern in i slug-URL:en, och 660184+isFirstEd=Y visar exakt den 600 €-annons feedens
-  1st Edition-rad rapporterar som From. Filtret sätts idempotent i BÅDE uppdelningsskriptet och det dagliga jobbet
-  (självläkning), och stör inte `idProduct`-uppslaget som hämtar guide-raden ur offerns URL.
+  **VARJE SINGEL-LÄNK SÄGER SITT TRYCKNINGSLÄGE UTTRYCKLIGEN** (`withFirstEd`, `src/lib/marketplace-urls.ts`):
+  1st Edition-produkter → `isFirstEd=Y`, ALLA andra singlar → `isFirstEd=N`. ⛔ Att utelämna parametern är INTE
+  "inget filter": CM lägger filtret i besökarens SESSION och stämplar tillbaka det på nästa produktsida hen öppnar.
+  MÄTT 2026-07-28: en förfrågan till `?idProduct=273696&language=1&minCondition=2` — helt utan isFirstEd — landade
+  på `.../Alakazam-V1-BS1?…&isFirstEd=N`, och samma dag fick ett annat kort tillbaka `&isFirstEd=Y`. Följden var att
+  den som klickat på EN 1st Edition-länk sedan såg 1st Edition-annonser även på Unlimited-kortet (ägaren rapporterade
+  det på Alakazam). För Shadowless är N dessutom rätt i sak: den delar CM-produkt med 1st Edition, och N är precis
+  "allt utom 1st Edition-annonserna". `withFirstEd` är idempotent OCH korrigerande (skriver över fel läge).
+  Sealed lämnas orört — CM stämplar in parametern där också, men sealed-sidan har varken skick- eller 1st
+  Edition-filter i panelen och listan påverkas inte (verifierat: S&V Booster, 3 204 annonser med isFirstEd=N).
+  ⛔ FILTRET STYRS AV PRODUKTEN, ALDRIG AV FEED-RADEN: villkoret stod först på radens `version`, så en 1st
+  Edition-rad som prissatte en icke-tryckningsprodukt satte Y på DESS länk (Pikachu 58 fick det direkt).
+  Engångsstädning = `scripts/fix-cm-firsted-links.ts`; de dagliga jobben håller nya länkar rätt.
+  ⛔ **`runHotCardRefresh` PRISSÄTTER INTE TRYCKNINGAR**: jobbet slår upp `?tcgid=` och tar `data[0]`, men alla tre
+  tryckningarna DELAR tcgid (och i WOTC-seten bär 1st Edition-raden det). Utan undantaget hade kvällskörningen
+  skrivit 1st Edition-priset på Unlimited och Shadowless och återinfört felet några timmar efter att dagliga
+  körningen rättat det.
   **CM:s EGEN STAVNING** (`CM_SPELLING` i cardmarket-refresh.ts): CM skriver "Imposter Professor Oak" där katalogen
   har "Impostor" (Base 73) → namnvakten avvisade CM:s Unlimited-rad och produkten blev kvar på 1st Edition-radens
   pris (1 382 kr i stället för ~105 kr) efter uppdelningen. Tabellen är EXPLICIT: en generell stavningstolerans hade

@@ -20,6 +20,7 @@ import {
   isEnglishCardmarketUrl,
   withFirstEd,
   withNearMint,
+  type FirstEdFilter,
 } from "../lib/marketplace-urls";
 import { judgeSameProduct } from "../lib/same-product";
 import { utcToday } from "../lib/utils";
@@ -1498,12 +1499,24 @@ export async function runCardmarketRefresh(
         const baseUrl = printEntry
           ? (entry.url && isEnglishCardmarketUrl(entry.url) ? withNearMint(entry.url) : entry.url ?? null)
           : entry.url && isEnglishCardmarketUrl(entry.url) ? withNearMint(entry.url)
-            : card.cardmarket_id != null ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true })
+            : card.cardmarket_id != null ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true, firstEd: "exclude" })
               : entry.url ?? null;
-        // 1st Edition delar CM-produkt med Shadowless (flagga på annonsen, inte egen
-        // produkt) → länken MÅSTE bära filtret, annars visar den Shadowless-annonser
-        // under vårt 1st Edition-pris. Idempotent, så den självläker gamla länkar.
-        const url = baseUrl && printLabel === PRINT_FIRST_EDITION ? withFirstEd(baseUrl) : baseUrl;
+        // TRYCKNINGSFILTRET STYRS AV PRODUKTEN, ALDRIG AV FEED-RADEN. Villkoret
+        // stod först på `printLabel` ensam — alltså på radens `version` — och då
+        // räckte det att en 1st Edition-rad prissatte en produkt som INTE är en
+        // 1st Edition-produkt för att länken skulle få filtret. Det hände direkt:
+        // Pikachu 58 (odelad, ingen etikett) fick isFirstEd=Y, och samma sak hade
+        // väntat de ~730 vintage-kort som fortfarande prissätts av 1st Edition-
+        // raden. `printEntry` är satt bara när raden matchade produkten för PRECIS
+        // sin tryckning, så den frågan är den rätta.
+        //
+        // Alla andra singlar får isFirstEd=N — uttryckligen, aldrig utelämnat:
+        // CM minns filtret i sessionen och stämplar tillbaka det på nästa kort man
+        // öppnar (se withFirstEd). Utan det visade Alakazam Unlimited 1st Edition-
+        // annonser för den som nyss klickat på en 1st Edition-länk.
+        const wantFirstEd: FirstEdFilter =
+          printEntry && printLabel === PRINT_FIRST_EDITION ? "only" : "exclude";
+        const url = baseUrl ? withFirstEd(baseUrl, wantFirstEd) : baseUrl;
         if (!url) continue;
         if (priced == null) {
           // CM HAR kortet men INGET pris (varken From, guide-rad eller 30d-snitt) —

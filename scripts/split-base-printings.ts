@@ -70,9 +70,19 @@ const NEW_PRINTS: PrintVariantLabel[] = [PRINT_SHADOWLESS, PRINT_FIRST_EDITION];
  * BARA filtret som skiljer sidorna åt — utan det visar 1st Edition-produkten en
  * lista där de billigaste annonserna är Shadowless, alltså inte det pris vi
  * publicerar för den.
+ *
+ * De andra tryckningarna får isFirstEd=N UTTRYCKLIGEN, inte "ingen parameter":
+ * CM minns filtret i besökarens session (se withFirstEd), så en utelämnad
+ * parameter betyder "vad hen råkade titta på sist" — och den som nyss klickat på
+ * en 1st Edition-länk fick 1st Edition-annonser även på Unlimited-kortet.
+ * För Shadowless är N dessutom rätt i sak: den delar CM-produkt med 1st Edition,
+ * och N är precis "allt utom 1st Edition-annonserna".
  */
 const printUrl = (idProduct: number, label: PrintVariantLabel) =>
-  cardmarketProductUrl(idProduct, { nearMint: true, firstEd: label === PRINT_FIRST_EDITION });
+  cardmarketProductUrl(idProduct, {
+    nearMint: true,
+    firstEd: label === PRINT_FIRST_EDITION ? "only" : "exclude",
+  });
 
 const slugify = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
@@ -235,18 +245,22 @@ async function main() {
   }
   console.log("");
 
-  // ── Länkfilter på REDAN uppdelade 1st Edition-produkter ─────────────────────
-  // Idempotent självläkning: de första 92 korten delades innan isFirstEd=Y fanns,
-  // och deras länk pekar därför på samma osorterade sida som Shadowless.
-  const firstEdOffers = await prisma.offer.findMany({
-    where: {
-      retailerId: cm.id,
-      product: { setId: set.id, category: "SINGLE_CARD", variantLabel: PRINT_FIRST_EDITION },
-    },
-    select: { id: true, url: true, product: { select: { title: true } } },
+  // ── Länkfiltret på setets BEFINTLIGA singel-offers ──────────────────────────
+  // Idempotent självläkning, och den gäller ALLA tryckningar — inte bara 1st
+  // Edition. Ett utelämnat isFirstEd är inte "ofiltrerat" utan "vad besökarens
+  // CM-session minns" (se withFirstEd), så Unlimited och Shadowless måste säga
+  // isFirstEd=N lika uttryckligen som 1st Edition säger Y.
+  const setOffers = await prisma.offer.findMany({
+    where: { retailerId: cm.id, product: { setId: set.id, category: "SINGLE_CARD" } },
+    select: { id: true, url: true, product: { select: { title: true, variantLabel: true } } },
   });
-  const needsFilter = firstEdOffers.filter((o) => o.url && !/[?&]isFirstEd=/i.test(o.url));
-  console.log(`1st Edition-offers: ${firstEdOffers.length}, varav ${needsFilter.length} saknar isFirstEd=Y\n`);
+  const needsFilter = setOffers
+    .map((o) => ({
+      ...o,
+      want: withFirstEd(o.url, o.product.variantLabel === PRINT_FIRST_EDITION ? "only" : "exclude"),
+    }))
+    .filter((o) => o.url && o.want !== o.url);
+  console.log(`Singel-offers i setet: ${setOffers.length}, varav ${needsFilter.length} med fel/saknat isFirstEd\n`);
 
   if (!APPLY) {
     console.log("Torrkörning klar — inget skrevs. Kör om med --apply.");
@@ -322,11 +336,11 @@ async function main() {
 
   let relinked = 0;
   for (const o of needsFilter) {
-    await prisma.offer.update({ where: { id: o.id }, data: { url: withFirstEd(o.url) } });
+    await prisma.offer.update({ where: { id: o.id }, data: { url: o.want } });
     relinked++;
   }
 
-  console.log(`KLART: ${updated} produkter märkta ${PRINT_UNLIMITED}, ${created} nya tryckningsprodukter, ${relinked} 1st Edition-länkar fick isFirstEd=Y.`);
+  console.log(`KLART: ${updated} produkter märkta ${PRINT_UNLIMITED}, ${created} nya tryckningsprodukter, ${relinked} länkar fick rätt isFirstEd.`);
   console.log(`Kör nu: CM_ONLY_EPISODES=171 … cardmarket-refresh-run.ts --singles  (sätter priserna)`);
   await prisma.$disconnect();
 }

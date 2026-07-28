@@ -16,8 +16,10 @@ import { getRatesOre } from "../lib/exchange-rate";
 import {
   cardmarketProductUrl,
   isEnglishCardmarketUrl,
+  withFirstEd,
   withNearMint,
 } from "../lib/marketplace-urls";
+import { PRINT_VARIANT_LABELS } from "../lib/print-variant";
 import { recomputeProductPriceCache } from "../services/products";
 import { fetchCmGuide, fetchCmSingleNames, guideNameMatches, guideRowIsSingle, singlesHeadlineEur } from "./cardmarket-refresh";
 
@@ -84,6 +86,14 @@ export async function runHotCardRefresh(
     category: "SINGLE_CARD" as const,
     card: { tcgExternalId: { not: null } },
     offers: { some: { retailerId: cm.id } },
+    // ⛔ TRYCKNINGAR HÖR INTE HEMMA HÄR (2026-07-28). Det här jobbet slår upp
+    // `?tcgid=` och tar `data[0]` — men alla tre Base-tryckningarna DELAR tcgid,
+    // och i WOTC-seten är det 1st Edition-raden som bär det. Utan undantaget hade
+    // kvällskörningen skrivit 1st Edition-priset på Unlimited och Shadowless och
+    // därmed återinfört precis det fel uppdelningen tog bort — några timmar efter
+    // att dagliga körningen rättat det. Tryckningar prissätts BARA av
+    // runCardmarketRefresh, som routar per `version`.
+    OR: [{ variantLabel: null }, { variantLabel: { notIn: [...PRINT_VARIANT_LABELS] } }],
   };
 
   // Mest bevakade först (de korten driver pris-/restock-alerts), fyll sedan på
@@ -139,8 +149,8 @@ export async function runHotCardRefresh(
     if (priced == null) return;
     const offer = p.offers[0];
     const url =
-      offer?.url && isEnglishCardmarketUrl(offer.url) ? withNearMint(offer.url)
-        : card.cardmarket_id != null ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true })
+      offer?.url && isEnglishCardmarketUrl(offer.url) ? withFirstEd(withNearMint(offer.url), "exclude")
+        : card.cardmarket_id != null ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true, firstEd: "exclude" })
           : offer?.url ?? null;
     if (!url) return;
     ops.push({
