@@ -7,6 +7,7 @@ import { prisma } from "../lib/db";
 import { decodeTitle, normalizeTitle } from "../lib/utils";
 import { detectListingLanguage } from "../lib/listing-language";
 import { MARKETPLACE_MIN_PRICE_RATIO } from "../lib/listing-plausibility";
+import { PRINT_UNLIMITED, isPrintVariantLabel, printLabelInTitle } from "../lib/print-variant";
 import { MAX_NAME_WORDS, POKEMON_NAMES } from "./pokemon-names";
 
 /** Lägsta konfidens för att en matchning ska accepteras. */
@@ -1192,6 +1193,8 @@ export type MatchCandidate = {
   id: string;
   normalizedTitle: string;
   card: { name: string; number: string } | null;
+  /** Tryckning (Base): se tryckningsvakten i matchProduct. */
+  variantLabel?: string | null;
 };
 /** Hela katalogen i minnet — se matchProduct för VARFÖR. */
 export type MatchIndex = MatchCandidate[];
@@ -1207,7 +1210,12 @@ export type MatchIndex = MatchCandidate[];
  */
 export async function loadMatchIndex(): Promise<MatchIndex> {
   return prisma.product.findMany({
-    select: { id: true, normalizedTitle: true, card: { select: { name: true, number: true } } },
+    select: {
+      id: true,
+      normalizedTitle: true,
+      variantLabel: true,
+      card: { select: { name: true, number: true } },
+    },
   });
 }
 
@@ -1289,7 +1297,17 @@ export async function matchProduct(
     }
   }
 
-  const candidates = [...candidateMap.values()];
+  // ── TRYCKNINGSVAKT (2026-07-28) ─────────────────────────────────────────────
+  // Base finns som tre katalogposter per kort (Unlimited/Shadowless/1st Edition).
+  // De delar kortnamn OCH kortnummer, så singel-identiteten nedan ger TRE lika
+  // starka träffar och fuzzy-poängen hade fått avgöra — dvs slumpen bestämmer om
+  // en 40-kronorsannons landar på 1st Edition-produkten. En annons som inte SÄGER
+  // något om tryckning är per konvention den ordinarie; bara en annons som nämner
+  // tryckningen får matcha de andra två.
+  const wantedPrint = printLabelInTitle(raw) ?? PRINT_UNLIMITED;
+  const candidates = [...candidateMap.values()].filter(
+    (c) => !isPrintVariantLabel(c.variantLabel) || c.variantLabel === wantedPrint
+  );
   if (candidates.length === 0) return null;
 
   const incomingSetNum = extractSetNumber(normalized);
@@ -1497,10 +1515,24 @@ export async function matchProduct(
  */
 export function matchListingToProduct(
   listingTitle: string,
-  product: { normalizedTitle: string; card: { name: string; number: string } | null }
+  product: {
+    normalizedTitle: string;
+    card: { name: string; number: string } | null;
+    variantLabel?: string | null;
+  }
 ): number | null {
   const normalized = normalizeTitle(listingTitle);
   if (!normalized) return null;
+
+  // Samma tryckningsvakt som matchProduct: en annons som inte nämner tryckningen
+  // är den ordinarie. Utan den blev varje Base-annons en träff på ALLA TRE
+  // produkterna (samma namn, samma nummer) och skena-raderna tredubblades.
+  if (
+    isPrintVariantLabel(product.variantLabel) &&
+    product.variantLabel !== (printLabelInTitle(listingTitle) ?? PRINT_UNLIMITED)
+  ) {
+    return null;
+  }
 
   const incomingForm = classifyForm(normalized);
   if (incomingForm === "multipack" || incomingForm === "case" || incomingForm === "combo" || incomingForm === "event") {

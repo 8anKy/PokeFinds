@@ -25,6 +25,13 @@ import { utcToday } from "../lib/utils";
 import { classifyForm, scoreSimilarity } from "../scrapers/matching";
 import { recomputeProductPriceCache, snapshotStorePricedProducts } from "../services/products";
 import { fetchTcgCardById, cardMarketPriceOre } from "../scrapers/adapters/pokemontcg-adapter";
+import {
+  PRINT_UNLIMITED,
+  PRINT_VARIANT_LABELS,
+  isPrintVariantLabel,
+  printLabelFromVersion,
+  printRank,
+} from "../lib/print-variant";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Samtidiga DB-skrivningar (≤ DB_POOL i db.ts). Kortar 18k sekventiella
@@ -530,27 +537,23 @@ export const MATCH_RANK = { tcgid: 3, cmid: 2, number: 1 } as const;
 /**
  * Hur nära raden ligger den tryckning vår katalog faktiskt håller.
  *
- * Katalogen kommer från pokemontcg.io, som har EN post per kort — den ordinarie
- * (Unlimited) tryckningen. Vi har inga 1st Edition-produkter alls. RapidAPI
- * publicerar däremot en rad per tryckning i de tio WOTC-episoderna, och hänger
- * `tcgid` på **1st Edition**-raden. Vår starkaste nyckel valde därför systematiskt
- * den dyraste tryckningen: Ponyta · Base 60/102 publicerades som 26,50 € (1st
- * Edition Shadowless) i stället för 4,29 € (Shadowless) — 292,56 kr mot 47,36 kr.
+ * Gäller kort som INTE är uppdelade i en produkt per tryckning (allt utom Base):
+ * pokemontcg.io har EN post per kort — den ordinarie (Unlimited) tryckningen —
+ * medan RapidAPI publicerar en rad per tryckning i de tio WOTC-episoderna och
+ * hänger `tcgid` på **1st Edition**-raden. Vår starkaste nyckel valde därför
+ * systematiskt den dyraste tryckningen: Ponyta · Base 60/102 publicerades som
+ * 26,50 € (1st Edition Shadowless) i stället för 4,29 € (Shadowless).
  *
  * Mätt 2026-07-28 över alla tio episoderna (1 983 feed-rader, 940 av våra kort):
  * 1st Edition-rader har `lowest_near_mint` i 95 % av fallen mot Unlimiteds 18 %,
- * så den dyra raden vann nästan alltid. 66 kort byter pris av det här; de värsta
- * var Bill · Base 91 (220,80 → 0,22 kr), Super Potion · Base 90 (662 → 0,77 kr)
- * och Ninetales · Base 12 (11 040 → 221 kr).
+ * så den dyra raden vann nästan alltid.
  *
  * Det här är samma sorts fråga som `guideNameMatches` ("är raden VÅRT kort?") —
- * inte en prisvakt. Ingen siffra jämförs; bara etiketten.
+ * inte en prisvakt. Ingen siffra jämförs; bara etiketten. Definitionen bor i
+ * src/lib/print-variant.ts och delas med Tradera-matchningen; re-exporteras här
+ * eftersom vakten hör ihop med feedRowWins.
  */
-export function printRank(version: string | null | undefined): number {
-  if (/1st\s*edition/i.test(version ?? "")) return 0; // täcker "1st Edition Shadowless"
-  if (/shadowless/i.test(version ?? "")) return 1;
-  return 2; // Unlimited, omärkt, och alla icke-tryckningsetiketter i moderna set
-}
+export { printRank };
 
 /**
  * Vinner den nya feed-raden över den vi redan har för produkten?
@@ -927,7 +930,14 @@ export async function runVariantRefresh(): Promise<number> {
   const cm = await prisma.retailer.findFirst({ where: { name: "Cardmarket" }, select: { id: true } });
   const cmSource = await prisma.scrapeSource.findFirst({ where: { name: "Cardmarket" }, select: { id: true } });
   const variants = await prisma.product.findMany({
-    where: { category: "SINGLE_CARD", variantLabel: { not: null }, card: { tcgExternalId: { not: null } } },
+    // TRYCKNINGAR UNDANTAS: pokemontcg.io har EN cardmarket-serie per tcgExternalId,
+    // så alla tre tryckningarna hade fått samma trendpris — och det hade skrivit över
+    // de tryckningsspecifika From-priser runCardmarketRefresh just satt.
+    where: {
+      category: "SINGLE_CARD",
+      variantLabel: { not: null, notIn: [...PRINT_VARIANT_LABELS] },
+      card: { tcgExternalId: { not: null } },
+    },
     select: { id: true, card: { select: { tcgExternalId: true } }, offers: { where: { retailerId: cm?.id }, select: { id: true }, take: 1 } },
   });
   const today = utcToday();
@@ -1211,17 +1221,40 @@ export async function runCardmarketRefresh(
 
   if (opts.singles !== false) {
     const products = await prisma.product.findMany({
-      // variantLabel:null = bas-common. Specialvariter (GameStop-promo, reverse
+      // variantLabel:null = bas-common. Specialvarianter (GameStop-promo, reverse
       // m.m.) prissätts INTE av RapidAPI (saknar dem) utan av runVariantRefresh.
-      where: { category: "SINGLE_CARD", variantLabel: null, card: { tcgExternalId: { not: null } } },
+      // TRYCKNINGAR är undantaget: de kommer just UR RapidAPI:s `version`-fält och
+      // prissätts här, en produkt per tryckning (se src/lib/print-variant.ts).
+      where: {
+        category: "SINGLE_CARD",
+        OR: [{ variantLabel: null }, { variantLabel: { in: [...PRINT_VARIANT_LABELS] } }],
+        card: { tcgExternalId: { not: null } },
+      },
       select: {
         id: true,
         setId: true,
+        variantLabel: true,
         card: { select: { tcgExternalId: true, number: true, name: true } },
         offers: { where: { retailerId: cm.id }, select: { id: true, url: true }, take: 1 },
       },
     });
     const map = new Map<string, { productId: string; offerId?: string; url?: string }>();
+    // TRYCKNINGSKARTA: `tcgid|etikett` → produkten för PRECIS den tryckningen.
+    // För uppdelade kort (Base) finns ingen omärkt basprodukt kvar, så `map` och
+    // set+nummer-reserven är tomma för dem — varje feed-rad går i stället exakt
+    // dit dess `version` säger. Ingen arbitrering behövs: raderna konkurrerar
+    // inte längre om samma produkt.
+    const printMap = new Map<string, { productId: string; offerId?: string; url?: string }>();
+    // TRYCKNINGSRESERV: `setId|nummer|etikett`. KRÄVS — i Base bär bara
+    // 1st Edition-raderna `tcgid`; Shadowless och Unlimited har `tcgid: null`
+    // (och oftast `cardmarket_id: null`), så utan den här nyckeln nådde två av tre
+    // tryckningar aldrig sin produkt. `null` = tvetydigt nummer, precis som byNumber.
+    const byNumberPrint = new Map<
+      string,
+      { entry: { productId: string; offerId?: string; url?: string }; cardName: string } | null
+    >();
+    /** `idProduct|etikett` → produkt. Exakt: både id:t och tryckningen måste stämma. */
+    const printByCmId = new Map<string, { productId: string; offerId?: string; url?: string }>();
     // SET+NUMMER-RESERVEN: (setId|nummernyckel) → produkt + vårt kortnamn. `null` =
     // TVETYDIG nyckel (samma nummer på flera kort i setet — Celebrations Classic
     // Collection har fyra kort med nummer 15) → reserven avstår hellre än gissar.
@@ -1229,6 +1262,27 @@ export async function runCardmarketRefresh(
     for (const p of products) {
       const entry = { productId: p.id, offerId: p.offers[0]?.id, url: p.offers[0]?.url };
       const ext = p.card?.tcgExternalId;
+      if (isPrintVariantLabel(p.variantLabel)) {
+        // Tryckningsprodukter hålls UTANFÖR `map` och den vanliga reserven: de får
+        // bara den rad vars `version` pekar ut dem, annars skulle en omärkt rad
+        // kunna prissätta 1st Edition-produkten.
+        if (ext) printMap.set(`${ext}|${p.variantLabel}`, entry);
+        // STARKASTE TRYCKNINGSNYCKELN: (CM-produkt, tryckning). idProduct kommer
+        // ur offerns URL, som vi satte ur CM:s EGEN katalog vid uppdelningen — och
+        // feed-raden bär samma id. Behövs för Base-holorna: deras Unlimited-rader
+        // heter `card_number: "BS 4"` (inte "4") och saknar tcgid, så både
+        // tcgid-kartan och nummerreserven missade dem. Charizards riktiga
+        // Unlimited-From (340 €) nådde därför aldrig produkten, som blev kvar på
+        // ett gammalt 1st Edition-pris (3 205 €).
+        const linkedId = Number(entry.url?.match(/idProduct=(\d+)/)?.[1] ?? NaN);
+        if (Number.isFinite(linkedId)) printByCmId.set(`${linkedId}|${p.variantLabel}`, entry);
+        const pNumKey = cmNumberKey(p.card?.number);
+        if (p.setId && pNumKey && p.card?.name) {
+          const k = `${p.setId}|${pNumKey}|${p.variantLabel}`;
+          byNumberPrint.set(k, byNumberPrint.has(k) ? null : { entry, cardName: p.card.name });
+        }
+        continue;
+      }
       if (ext) map.set(ext, entry);
       const numKey = cmNumberKey(p.card?.number);
       if (p.setId && numKey && p.card?.name) {
@@ -1316,21 +1370,47 @@ export async function runCardmarketRefresh(
       via?: string;
     };
     const claimed = new Map<string, SingleCandidate>();
-    let rowsRejectedAsDuplicate = 0, printVariantSwaps = 0;
+    let rowsRejectedAsDuplicate = 0, printVariantSwaps = 0, printVariantRouted = 0;
     // Kort CM har men inte prissätter → länk utan pris (se nedan). Hålls UTANFÖR
     // singleOps: de ska inte räknas av haveribrytaren och inte skriva historikpunkter.
     const linkOnlyByProduct = new Map<string, string>();
     let byNumberHits = 0, byNumberNameRejects = 0;
     const processCards = (cards: CmCard[]) => {
       for (const card of cards) {
+        // TRYCKNINGEN FÖRST: säger raden vilken tryckning den gäller, och har vi
+        // en produkt för exakt den tryckningen, är det den produkten — punkt.
+        // Ingen annan nyckel får peka om den (`tcgid` är ju gemensam för alla tre).
+        const printLabel = printLabelFromVersion(card.version);
+        let printEntry =
+          printLabel && card.tcgid ? printMap.get(`${card.tcgid}|${printLabel}`) : undefined;
+        // (CM-produkt, tryckning) — starkast av tryckningsnycklarna: båda sidor
+        // pekar på samma idProduct ur CM:s katalog.
+        if (!printEntry && printLabel && card.cardmarket_id != null)
+          printEntry = printByCmId.get(`${card.cardmarket_id}|${printLabel}`);
+        // I Base bär BARA 1st Edition-raden `tcgid` — Shadowless och Unlimited har
+        // null. Deras väg till rätt produkt går via set+nummer+etikett.
+        if (!printEntry && printLabel) {
+          const setId = setsByName.get(cmSetNameKey(card.episode?.name));
+          const numKey = cmNumberKey(card.card_number);
+          const cand = setId && numKey ? byNumberPrint.get(`${setId}|${numKey}|${printLabel}`) : undefined;
+          if (cand && cmCardNameAgrees(cand.cardName, card.name)) printEntry = cand.entry;
+        }
         let entry =
+          printEntry ??
           (card.tcgid ? map.get(card.tcgid) : undefined) ??
           (card.cardmarket_id != null ? cmidMap.get(card.cardmarket_id) : undefined);
-        let rank = entry ? (card.tcgid && map.get(card.tcgid) ? MATCH_RANK.tcgid : MATCH_RANK.cmid) : 0;
+        let rank = printEntry
+          ? MATCH_RANK.tcgid
+          : entry ? (card.tcgid && map.get(card.tcgid) ? MATCH_RANK.tcgid : MATCH_RANK.cmid) : 0;
+        if (printEntry) printVariantRouted++;
         // SET+NUMMER-RESERVEN — bara för rader ingen nyckel hittade. Kräver
         // entydigt setnamn, entydigt nummer i setet OCH att kortnamnen är samma;
         // vid minsta tvekan tas ingen match (ett felmatchat nummer prissätter
         // annars ett annat kort i samma set).
+        // Reserven körs även för tryckningsrader: de ICKE-uppdelade WOTC-seten
+        // (Jungle/Fossil/Gym/Neo) har en enda produkt per kort, och deras
+        // Unlimited-rader hittar den BARA via set+nummer. Uppdelade kort har
+        // ingen omärkt produkt alls, så de kan inte fångas här av misstag.
         if (!entry) {
           const setId = setsByName.get(cmSetNameKey(card.episode?.name));
           const numKey = cmNumberKey(card.card_number);
@@ -1359,16 +1439,39 @@ export async function runCardmarketRefresh(
         // cardmarket_id som pekar på en SEALED-produkt smög förbi namnvakten och
         // publicerade boosterlådans golv som kortets pris), och är det i så fall VÅRT
         // kort (guideNameMatches)?
-        let g = card.cardmarket_id != null ? guide.get(card.cardmarket_id) : undefined;
-        if (g && !guideRowIsSingle(card.cardmarket_id, cmNames)) {
+        // ── VILKEN CM-PRODUKT SKA GUIDE-RADEN KOMMA IFRÅN? ────────────────────
+        // För en TRYCKNINGSPRODUKT är feed-radens `cardmarket_id` fel källa: det är
+        // SAMMA id för Shadowless och 1st Edition, och saknas helt på de flesta
+        // Unlimited-rader. Offerns URL bär däremot det id vi själva satte ur CM:s
+        // egen katalog vid uppdelningen (split-base-printings.ts) — det är det
+        // enda stället som vet vilken CM-produkt just den här tryckningen är.
+        const linkedCmId = printEntry
+          ? Number(entry.url?.match(/idProduct=(\d+)/)?.[1] ?? NaN)
+          : NaN;
+        const guideId = Number.isFinite(linkedCmId) ? linkedCmId : card.cardmarket_id;
+        // Identitetsvakt, TVÅ frågor: är raden ens en singel (guideRowIsSingle — ett
+        // cardmarket_id som pekar på en SEALED-produkt smög förbi namnvakten och
+        // publicerade boosterlådans golv som kortets pris), och är det i så fall VÅRT
+        // kort (guideNameMatches)?
+        let g = guideId != null ? guide.get(guideId) : undefined;
+        if (g && !guideRowIsSingle(guideId, cmNames)) {
           g = undefined;
           notASingle++;
-        } else if (g && card.cardmarket_id != null &&
-            !guideNameMatches(cmNames.get(card.cardmarket_id), card.name)) {
+        } else if (g && guideId != null && !guideNameMatches(cmNames.get(guideId), card.name)) {
           g = undefined;
           misIdentified++;
         }
         const priced = singlesHeadlineEur({ from: cmp.lowest_near_mint, avg30: cmp["30d_average"] }, g);
+        // ── BARA UNLIMITED FÅR UPPSKATTAS ─────────────────────────────────────
+        // Shadowless och 1st Edition DELAR CM-produkt (1st Edition är en flagga på
+        // annonsen där, inte en egen produkt), så deras guide-rad är densamma. En
+        // uppskattning hade alltså gett båda SAMMA värde — fel för åtminstone den
+        // ena, och skillnaden är stor (Ponyta 4,29 € mot 26,50 €). Saknar de ett
+        // äkta From får de inget pris: produkten göms ur katalogen tills CM har en
+        // annons. Unlimited har en EGEN CM-produkt och får därför uppskattas som
+        // vanligt — annars hade ~2/3 av Base försvunnit ur katalogen vid
+        // uppdelningen (lowestPriceOre = null göms av buildProductWhere).
+        if (printEntry && printLabel !== PRINT_UNLIMITED && priced && !priced.from) continue;
         const url =
           entry.url && isEnglishCardmarketUrl(entry.url) ? withNearMint(entry.url)
             : card.cardmarket_id != null ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true })
@@ -1471,6 +1574,11 @@ export async function runCardmarketRefresh(
         `[cm-refresh] Tryckningsvakt: ${rowsRejectedAsDuplicate} feed-rader pekade på en produkt ` +
         `som en starkare nyckel redan prissatt (flera tryckningar/CM-produkter av samma kort) ` +
         `→ ignorerade. Utan den avgjorde svarsordningen priset.`
+      );
+    if (printVariantRouted > 0)
+      console.log(
+        `[cm-refresh] Tryckningar: ${printVariantRouted} feed-rader gick till en produkt för PRECIS ` +
+        `sin tryckning (Unlimited/Shadowless/1st Edition som egna katalogposter).`
       );
     if (printVariantSwaps > 0)
       console.log(

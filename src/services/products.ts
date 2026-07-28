@@ -8,6 +8,7 @@ import { normalizeTitle, utcDaysAgo, utcToday } from "@/lib/utils";
 import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { visibleListings } from "@/lib/listing-plausibility";
+import { PRINT_VARIANT_LABELS } from "@/lib/print-variant";
 import { getTrendingLift } from "@/services/market";
 import type {
   CardLanguage,
@@ -333,7 +334,19 @@ export async function buildProductWhere(
   } else if (stockStatus) {
     where.offers = { some: { stockStatus } };
   }
-  where.lowestPriceOre = { not: null }; // göm prislösa produkter
+  // Göm prislösa produkter — MED UNDANTAG FÖR TRYCKNINGAR (2026-07-28).
+  //
+  // Regeln finns för att hålla oprissatt skräp ute. En tryckning är inte skräp: den
+  // är en kurerad katalogpost med en verifierad Cardmarket-länk, och att den saknar
+  // pris betyder bara att CM just nu inte har en NM-engelsk annons för PRECIS den
+  // tryckningen. Shadowless och 1st Edition delar CM-produkt, så de får medvetet
+  // ingen uppskattning (den hade blivit identisk för båda) — utan undantaget nedan
+  // vore de därför osynliga, och en sökning på "charizard base" hade visat en av tre
+  // tryckningar i stället för alla tre. Priset visas som "–".
+  andClauses.push({
+    OR: [{ lowestPriceOre: { not: null } }, { variantLabel: { in: [...PRINT_VARIANT_LABELS] } }],
+  });
+  if (andClauses.length > 0) where.AND = andClauses;
   return where;
 }
 
