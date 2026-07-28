@@ -18,8 +18,14 @@ import {
   isEnglishCardmarketUrl,
   withFirstEd,
   withNearMint,
+  type FirstEdFilter,
 } from "../lib/marketplace-urls";
-import { PRINT_VARIANT_LABELS } from "../lib/print-variant";
+import {
+  PRINT_FIRST_EDITION,
+  PRINT_UNLIMITED,
+  isPrintVariantLabel,
+  printLabelFromVersion,
+} from "../lib/print-variant";
 import { recomputeProductPriceCache } from "../services/products";
 import { fetchCmGuide, fetchCmSingleNames, guideNameMatches, guideRowIsSingle, singlesHeadlineEur } from "./cardmarket-refresh";
 
@@ -30,6 +36,10 @@ const DB_CONCURRENCY = 8;
 interface CmCard {
   cardmarket_id: number | null;
   name?: string | null;
+  // TRYCKNINGEN raden gäller. `?tcgid=` svarar med EN RAD PER TRYCKNING i WOTC-
+  // seten, och det är 1st Edition-raden som bär tcgid:t — därför räcker det inte
+  // att ta data[0], se pickRowForProduct.
+  version?: string | null;
   prices?: { cardmarket?: { lowest_near_mint?: number | null; "30d_average"?: number | null } | null } | null;
 }
 
@@ -42,9 +52,56 @@ export interface HotRefreshResult {
 
 type HotProduct = {
   id: string;
+  // OBLIGATORISKT: utan tryckningen kan rätt feed-rad inte väljas, och ett fält
+  // som glöms i ett select gör vakten tyst verkningslös (samma fälla som
+  // matchListingToProduct 2026-07-28).
+  variantLabel: string | null;
   card: { tcgExternalId: string | null } | null;
   offers: { id: string; url: string }[];
 };
+
+/**
+ * Vilken av `?tcgid=`-svarets rader gäller PRECIS den här produkten?
+ *
+ * ⛔ `data[0]` DUGER INTE, och det här jobbet kan INTE välja tryckning som den
+ * dagliga körningen gör. MÄTT 2026-07-28: `?tcgid=base1-1` svarar med EXAKT EN
+ * rad — "1st Edition Shadowless" — och `?tcgid=neo1-1` med en "1st Edition"-rad.
+ * I WOTC-seten hänger tcgid:t på 1st Edition-tryckningen, så uppslaget ser bara
+ * DEN. Dagliga körningen läser hela episoden och kan jämföra tryckningarna;
+ * härifrån finns inget att jämföra med.
+ *
+ * Därför är regeln konservativ: raden måste VARA produktens tryckning.
+ *  - Tryckningsprodukt → exakt sin egen etikett (en Unlimited-produkt tar bara en
+ *    Unlimited-rad, aldrig 1st Edition-raden som råkar bära tcgid:t).
+ *  - Vanlig produkt (katalogens ordinarie kort) → omärkt rad eller "Unlimited".
+ *    En 1st Edition- eller Shadowless-rad är ett ANNAT kort och publiceras inte;
+ *    då står dagens pris från dagliga körningen kvar, vilket är hela poängen.
+ *    Utan det skrev kvällskörningen 1st Edition-priset på det ordinarie kortet
+ *    några timmar efter att dagliga körningen valt rätt tryckning.
+ *
+ * `null` = ingen rad hör hit → produkten hoppas över (ingen skrivning).
+ */
+export function pickRowForProduct(
+  rows: CmCard[],
+  variantLabel: string | null,
+  hasFrom: (row: CmCard) => boolean,
+): CmCard | null {
+  const productLabel = isPrintVariantLabel(variantLabel) ? variantLabel : null;
+  const mine = rows.filter((r) => {
+    const rowLabel = printLabelFromVersion(r.version);
+    if (productLabel) return rowLabel === productLabel;
+    // Ordinarie katalogkort: omärkt (moderna set) eller uttryckligen Unlimited.
+    return rowLabel === null || rowLabel === PRINT_UNLIMITED;
+  });
+  if (mine.length === 0) return null;
+  // Ett äkta From går före en uppskattning; `undefined` är inte bevis för att
+  // From saknas, så vi letar bevis för att det FINNS.
+  const real = mine.find(hasFrom);
+  if (real) return real;
+  // BARA UNLIMITED/ordinarie får uppskattas: Shadowless och 1st Edition delar
+  // CM-produkt, så en uppskattning hade gett båda exakt samma värde.
+  return productLabel === null || productLabel === PRINT_UNLIMITED ? mine[0] : null;
+}
 
 export async function runHotCardRefresh(
   opts: { limit?: number; throttleMs?: number } = {}
@@ -79,6 +136,7 @@ export async function runHotCardRefresh(
 
   const select = {
     id: true,
+    variantLabel: true,
     card: { select: { tcgExternalId: true } },
     offers: { where: { retailerId: cm.id }, select: { id: true, url: true }, take: 1 },
   } as const;
@@ -86,14 +144,10 @@ export async function runHotCardRefresh(
     category: "SINGLE_CARD" as const,
     card: { tcgExternalId: { not: null } },
     offers: { some: { retailerId: cm.id } },
-    // ⛔ TRYCKNINGAR HÖR INTE HEMMA HÄR (2026-07-28). Det här jobbet slår upp
-    // `?tcgid=` och tar `data[0]` — men alla tre Base-tryckningarna DELAR tcgid,
-    // och i WOTC-seten är det 1st Edition-raden som bär det. Utan undantaget hade
-    // kvällskörningen skrivit 1st Edition-priset på Unlimited och Shadowless och
-    // därmed återinfört precis det fel uppdelningen tog bort — några timmar efter
-    // att dagliga körningen rättat det. Tryckningar prissätts BARA av
-    // runCardmarketRefresh, som routar per `version`.
-    OR: [{ variantLabel: null }, { variantLabel: { notIn: [...PRINT_VARIANT_LABELS] } }],
+    // Tryckningar ÄR med: pickRowForProduct väljer raden för precis produktens
+    // tryckning, precis som dagliga körningen. (De var undantagna en kort stund
+    // 2026-07-28, innan raden valdes rätt — då hade jobbet skrivit 1st
+    // Edition-priset på Unlimited och Shadowless samma kväll.)
   };
 
   // Mest bevakade först (de korten driver pris-/restock-alerts), fyll sedan på
@@ -132,26 +186,44 @@ export async function runHotCardRefresh(
     if (!ext) return;
     const d = await api<{ data: CmCard[] }>(`https://${HOST}/pokemon/cards?tcgid=${encodeURIComponent(ext)}`);
     await sleep(throttle * API_CONCURRENCY);
-    const card = d?.data?.[0];
+    const rows = d?.data ?? [];
+    const offer = p.offers[0];
+    // GUIDE-RADEN FÖR EN TRYCKNING KOMMER UR OFFERNS LÄNK, inte ur feedens
+    // cardmarket_id: det är samma id för Shadowless och 1st Edition och pekar
+    // mätbart fel på var fjärde Base-rad. Länken satte vi själva ur CM:s katalog.
+    const linkedCmId = isPrintVariantLabel(p.variantLabel)
+      ? Number(offer?.url?.match(/idProduct=(\d+)/)?.[1] ?? NaN)
+      : NaN;
+    /** Har raden ett BEVISAT äkta From? `undefined` är inte bevis för motsatsen. */
+    const rowHasFrom = (r: CmCard) => typeof r.prices?.cardmarket?.lowest_near_mint === "number";
+    const card = pickRowForProduct(rows, p.variantLabel, rowHasFrom);
     if (!card) return;
     const cmp = card.prices?.cardmarket ?? {};
     // Båda identitetsfrågorna, samma som dagliga körningen: är raden en SINGEL, och
     // är den i så fall VÅRT kort? Utan guideRowIsSingle hade det här jobbet återinfört
     // en sealed-produkts golvpris (Pidgey · Flashfire: 3 262 kr) några timmar efter
     // att dagliga körningen rensat det.
+    const guideId = Number.isFinite(linkedCmId) ? linkedCmId : card.cardmarket_id;
     const g =
-      card.cardmarket_id != null &&
-      guideRowIsSingle(card.cardmarket_id, cmNames) &&
-      guideNameMatches(cmNames.get(card.cardmarket_id), card.name)
-        ? guide.get(card.cardmarket_id)
+      guideId != null &&
+      guideRowIsSingle(guideId, cmNames) &&
+      guideNameMatches(cmNames.get(guideId), card.name)
+        ? guide.get(guideId)
         : undefined;
     const priced = singlesHeadlineEur({ from: cmp.lowest_near_mint, avg30: cmp["30d_average"] }, g);
     if (priced == null) return;
-    const offer = p.offers[0];
+    // BARA UNLIMITED FÅR UPPSKATTAS — Shadowless och 1st Edition delar CM-produkt,
+    // så en uppskattning hade gett båda samma värde. Samma regel som dagliga körningen.
+    if (isPrintVariantLabel(p.variantLabel) && p.variantLabel !== PRINT_UNLIMITED && !priced.from) return;
+    const wantFirstEd: FirstEdFilter = p.variantLabel === PRINT_FIRST_EDITION ? "only" : "exclude";
     const url =
-      offer?.url && isEnglishCardmarketUrl(offer.url) ? withFirstEd(withNearMint(offer.url), "exclude")
-        : card.cardmarket_id != null ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true, firstEd: "exclude" })
-          : offer?.url ?? null;
+      offer?.url && isEnglishCardmarketUrl(offer.url) ? withFirstEd(withNearMint(offer.url), wantFirstEd)
+        // Tryckningsprodukter länkas ALDRIG av feeden: dess cardmarket_id pekar
+        // mätbart fel (38 av 147 Base-rader). Saknas vår egen länk får produkten
+        // hellre ingen uppdatering.
+        : isPrintVariantLabel(p.variantLabel) ? offer?.url ?? null
+          : card.cardmarket_id != null ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true, firstEd: "exclude" })
+            : offer?.url ?? null;
     if (!url) return;
     ops.push({
       offerId: offer?.id, productId: p.id,

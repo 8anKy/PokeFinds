@@ -34,7 +34,7 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   INGA restock-larm. Union+dedup i `checkRestockAlerts` (`src/services/alerts.ts`). Master e-post-toggle respekteras ändå i `dispatchPendingAlerts`.
 - **Funktioner live**: watchlist/prisbevakning, restock-alerts (8 butikskällor), samlingsvärde (live),
   AI-gradering (`/gradera`, Claude vision), live kort-skanner (`/skanna`, capture-baserad), community, admin, PWA.
-- **Status**: 645/645 unit-tester gröna, `npm run build` grön.
+- **Status**: 654/654 unit-tester gröna, `npm run build` grön.
 
 ## Öppna ärenden / Nästa steg
 - **Neon-CU + Vercel Active CPU sänkta (2026-06-20)**: publika katalogsidor cachas nu (ISR) och chrome läser session
@@ -239,10 +239,16 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   ⛔ FILTRET STYRS AV PRODUKTEN, ALDRIG AV FEED-RADEN: villkoret stod först på radens `version`, så en 1st
   Edition-rad som prissatte en icke-tryckningsprodukt satte Y på DESS länk (Pikachu 58 fick det direkt).
   Engångsstädning = `scripts/fix-cm-firsted-links.ts`; de dagliga jobben håller nya länkar rätt.
-  ⛔ **`runHotCardRefresh` PRISSÄTTER INTE TRYCKNINGAR**: jobbet slår upp `?tcgid=` och tar `data[0]`, men alla tre
-  tryckningarna DELAR tcgid (och i WOTC-seten bär 1st Edition-raden det). Utan undantaget hade kvällskörningen
-  skrivit 1st Edition-priset på Unlimited och Shadowless och återinfört felet några timmar efter att dagliga
-  körningen rättat det.
+  ⛔ **`?tcgid=` SVARAR BARA MED 1st EDITION-RADEN i vintage-seten** (mätt 2026-07-28: `?tcgid=base1-1` → EN rad,
+  "1st Edition Shadowless"; `?tcgid=neo1-1` → "1st Edition"; ett modernt kort → omärkt rad). `runHotCardRefresh`
+  tog `data[0]` och publicerade därför 1st Edition-priset på det ORDINARIE kortet varje kväll — några timmar efter
+  att dagliga körningen valt rätt tryckning — och efter uppdelningen hade alla tre Base-tryckningarna fått samma
+  rad. Jobbet kan INTE välja tryckning som dagliga körningen (den läser hela episoden och kan jämföra; här finns
+  bara en rad), så regeln är konservativ: **raden måste VARA produktens tryckning**, annars skrivs ingenting och
+  dagliga körningens värde står kvar (`pickRowForProduct`, testad utan DB). Följd: vintage-kort får ingen
+  intradagsuppdatering — hellre det än ett pris från fel tryckning. Samma urval används av
+  `scripts/repair-single-prices.ts`. Guide-raden för en tryckning hämtas ur OFFERNS `idProduct`, aldrig ur feedens
+  `cardmarket_id`.
   **CM:s EGEN STAVNING** (`CM_SPELLING` i cardmarket-refresh.ts): CM skriver "Imposter Professor Oak" där katalogen
   har "Impostor" (Base 73) → namnvakten avvisade CM:s Unlimited-rad och produkten blev kvar på 1st Edition-radens
   pris (1 382 kr i stället för ~105 kr) efter uppdelningen. Tabellen är EXPLICIT: en generell stavningstolerans hade

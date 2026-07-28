@@ -16,7 +16,8 @@
 import { PrismaClient } from "@prisma/client";
 import { mapPool } from "../src/lib/concurrency";
 import { getRatesOre } from "../src/lib/exchange-rate";
-import { cardmarketProductUrl, isEnglishCardmarketUrl, withNearMint } from "../src/lib/marketplace-urls";
+import { cardmarketProductUrl, isEnglishCardmarketUrl, withFirstEd, withNearMint } from "../src/lib/marketplace-urls";
+import { pickRowForProduct } from "../src/jobs/hot-card-refresh";
 import { fetchCmGuide, fetchCmSingleNames, guideNameMatches, singlesHeadlineEur } from "../src/jobs/cardmarket-refresh";
 
 const prisma = new PrismaClient();
@@ -31,6 +32,11 @@ const kr = (o: number | null) => (o == null ? "–" : `${(o / 100).toFixed(2)} k
 interface CmCard {
   cardmarket_id: number | null;
   name?: string | null;
+  // TRYCKNINGEN raden gäller — MÅSTE stå i typen, inte bara i svaret. Utelämnad
+  // blir `r.version` `undefined`, och då läser pickRowForProduct raden som omärkt
+  // (= ordinarie) och släpper igenom 1st Edition-priset. Ett fält som saknas på
+  // objektet gör vakten tyst verkningslös; det har hänt två gånger den här veckan.
+  version?: string | null;
   prices?: { cardmarket?: { lowest_near_mint?: number | null; "30d_average"?: number | null } | null } | null;
 }
 
@@ -80,7 +86,16 @@ async function main() {
     });
     await sleep(880);
     if (!r.ok) return;
-    const card = ((await r.json()) as { data: CmCard[] }).data?.[0];
+    // INTE data[0]: `?tcgid=` svarar med 1st Edition-raden i WOTC-seten (den bär
+    // tcgid:t), och det här skriptet rör bara ORDINARIE kort (variantLabel IS NULL).
+    // Utan urvalet hade en omkörning skrivit 1st Edition-priset på dem — samma fel
+    // som kvällskörningen gjorde till 2026-07-28.
+    const rows = ((await r.json()) as { data: CmCard[] }).data ?? [];
+    const card = pickRowForProduct(
+      rows,
+      null,
+      (x) => typeof x.prices?.cardmarket?.lowest_near_mint === "number",
+    );
     if (!card) { noData++; return; }
     const cmp = card.prices?.cardmarket ?? {};
     let g = card.cardmarket_id != null ? guide.get(card.cardmarket_id) : undefined;
@@ -92,9 +107,9 @@ async function main() {
     if (priced == null) { noData++; return; }
     const priceOre = Math.round(priced.eur * rates.eurToOre);
     const url = isEnglishCardmarketUrl(t.url)
-      ? withNearMint(t.url)
+      ? withFirstEd(withNearMint(t.url), "exclude")
       : card.cardmarket_id != null
-        ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true })
+        ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true, firstEd: "exclude" })
         : t.url;
     if (priceOre === t.price) { unchanged++; return; }
     changed++;
