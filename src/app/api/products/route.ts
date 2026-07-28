@@ -24,6 +24,8 @@ const searchSchema = z.object({
       "recently_restocked",
       "most_watched",
       "trending",
+      "card_number_asc",
+      "card_number_desc",
     ])
     .optional(),
   page: z.coerce.number().int().min(1).default(1),

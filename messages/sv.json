@@ -908,7 +908,9 @@
       "recently_restocked": "Senast restockad",
       "most_watched": "Mest bevakad",
       "trending": "Trendar",
-      "deals": "Fynd"
+      "deals": "Fynd",
+      "card_number_asc": "Kortnummer (lägst först)",
+      "card_number_desc": "Kortnummer (högst först)"
     }
   },
   "Sets": {

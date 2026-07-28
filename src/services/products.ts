@@ -8,6 +8,7 @@ import { normalizeTitle, utcDaysAgo, utcToday } from "@/lib/utils";
 import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { visibleListings } from "@/lib/listing-plausibility";
+import { compareCardNumbers } from "@/lib/card-number-order";
 import { PRINT_VARIANT_LABELS } from "@/lib/print-variant";
 import { getTrendingLift } from "@/services/market";
 import type {
@@ -25,7 +26,9 @@ export type ProductSort =
   | "recently_restocked"
   | "most_watched"
   | "trending"
-  | "deals";
+  | "deals"
+  | "card_number_asc"
+  | "card_number_desc";
 
 export interface SearchProductsParams {
   query?: string;
@@ -351,7 +354,14 @@ export async function buildProductWhere(
 }
 
 /** Sorteringar som ordnas direkt i DB → infinite scroll över HELA katalogen. */
-const DB_SORTABLE = new Set<ProductSort>(["popular", "price_asc", "price_desc", "most_watched"]);
+const DB_SORTABLE = new Set<ProductSort>([
+  "popular", "price_asc", "price_desc", "most_watched",
+  // Kortnummer MÅSTE vara DB-sorterat: den beräknade vägen sorterar bara de
+  // MAX_CANDIDATES (500) senast uppdaterade produkterna, alltså ett godtyckligt
+  // fönster — "sortera efter kortnummer" hade då hoppat över nummer beroende på
+  // när raden råkade skrivas sist. Ordningen kommer ur Card.numberSortKey.
+  "card_number_asc", "card_number_desc",
+]);
 
 /**
  * "Trendar" = FART, inte volym: produkter med ovanligt mycket intresse just nu jämfört
@@ -373,6 +383,11 @@ function feedOrderBy(sort: ProductSort): Prisma.ProductOrderByWithRelationInput 
     case "price_asc": return { lowestPriceOre: "asc" };
     case "price_desc": return { lowestPriceOre: "desc" };
     case "most_watched": return { watchlistItems: { _count: "desc" } };
+    // Sealed-produkter saknar kort → NULL. Postgres sorterar NULL sist i ASC och
+    // först i DESC; vi vill ha dem SIST i båda (en låda har inget kortnummer och
+    // ska inte inleda listan), därför explicit `nulls: "last"`.
+    case "card_number_asc": return { card: { numberSortKey: { sort: "asc", nulls: "last" } } };
+    case "card_number_desc": return { card: { numberSortKey: { sort: "desc", nulls: "last" } } };
     default: return { viewCount: "desc" };
   }
 }
@@ -590,6 +605,14 @@ async function searchProductsRaw(params: SearchProductsParams): Promise<{
     items = items.filter((i) => i.lowestPrice !== null && i.lowestPrice <= maxPrice);
   }
 
+  /** Sealed saknar kortnummer → alltid sist, oavsett riktning. */
+  const byCardNumber = (a: ProductListItem, b: ProductListItem, dir: 1 | -1) => {
+    if (!a.cardNumber && !b.cardNumber) return 0;
+    if (!a.cardNumber) return 1;
+    if (!b.cardNumber) return -1;
+    return compareCardNumbers(a.cardNumber, b.cardNumber) * dir;
+  };
+
   const byPrice = (a: ProductListItem, b: ProductListItem, dir: 1 | -1) => {
     if (a.lowestPrice === null && b.lowestPrice === null) return 0;
     if (a.lowestPrice === null) return 1;
@@ -620,6 +643,12 @@ async function searchProductsRaw(params: SearchProductsParams): Promise<{
         (a, b) =>
           (b.lastRestockAt?.getTime() ?? 0) - (a.lastRestockAt?.getTime() ?? 0)
       );
+      break;
+    // Samma ordning som DB-vägen (Card.numberSortKey) — här på det redan hämtade
+    // urvalet. Produkter utan kortnummer (sealed) hamnar sist i BÅDA riktningarna.
+    case "card_number_asc":
+    case "card_number_desc":
+      items.sort((a, b) => byCardNumber(a, b, sort === "card_number_asc" ? 1 : -1));
       break;
     case "popular":
     default:

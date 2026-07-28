@@ -908,7 +908,9 @@
       "recently_restocked": "Recently restocked",
       "most_watched": "Most watched",
       "trending": "Trending",
-      "deals": "Deals"
+      "deals": "Deals",
+      "card_number_asc": "Card number (low to high)",
+      "card_number_desc": "Card number (high to low)"
     }
   },
   "Sets": {

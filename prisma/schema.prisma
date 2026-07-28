@@ -254,6 +254,13 @@ model Card {
   supertype     String?
   subtype       String?
   artist        String?
+  // SAMLARORDNING: sorterbar nyckel för `number` ("1, 2, 3 … 102", inte "1, 10,
+  // 100, 11"). Räknas av POSTGRES (GENERATED ALWAYS ... STORED, se migrationen
+  // 20260728210000) — skriv den ALDRIG från appen: fältet skickas aldrig i
+  // `data`, och en generated-kolumn vägrar INSERT. Att låta databasen äga den är
+  // hela poängen: en kolumn importerna måste minnas att fylla i hade sorterat
+  // nya kort fel, tyst. Motsvarande JS-komparator: src/lib/card-number-order.ts.
+  numberSortKey String?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 

@@ -16,7 +16,7 @@ const feedSchema = z.object({
   stockStatus: z.nativeEnum(StockStatus).optional(),
   language: z.nativeEnum(CardLanguage).optional(),
   sort: z
-    .enum(["price_asc", "price_desc", "biggest_drop", "popular", "recently_restocked", "most_watched", "trending", "deals"])
+    .enum(["price_asc", "price_desc", "biggest_drop", "popular", "recently_restocked", "most_watched", "trending", "deals", "card_number_asc", "card_number_desc"])
     .optional(),
   offset: z.coerce.number().int().min(0).default(0),
   limit: z.coerce.number().int().min(1).max(48).default(24),

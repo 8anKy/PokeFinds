@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ProductCard } from "@/components/features/product-card";
+import { SetProductGrid } from "@/components/features/set-product-grid";
 import { IconPackage } from "@/components/ui/icons";
 
 // Set-data ändras ~en gång/dygn → cacha per set (ISR). Sparar Vercel CPU + Neon.
@@ -100,29 +100,25 @@ export default async function SetPage({ params }: PageProps) {
           description={t("emptyProductsDesc")}
         />
       ) : (
-        <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
-          {products.map((p) => (
-            <ProductCard
-              key={p.id}
-              product={{
-                slug: p.slug,
-                title: p.title,
-                imageUrl: p.imageUrl,
-                category: p.category,
-                setId: set.id,
-                setName: set.name,
-                setTotalCards: set.totalCards,
-                cardName: p.card?.name ?? null,
-                cardNumber: p.card?.number ?? null,
-                cardRarity: p.card?.rarity ?? null,
-                variantLabel: p.variantLabel,
-                lowestPrice: p.lowestPrice,
-                stockStatus: p.lowestPriceStockStatus,
-                retailerCount: p.inStockCount,
-              }}
-            />
-          ))}
-        </div>
+        <SetProductGrid
+          products={products.map((p) => ({
+            id: p.id,
+            slug: p.slug,
+            title: p.title,
+            imageUrl: p.imageUrl,
+            category: p.category,
+            setId: set.id,
+            setName: set.name,
+            setTotalCards: set.totalCards,
+            cardName: p.card?.name ?? null,
+            cardNumber: p.card?.number ?? null,
+            cardRarity: p.card?.rarity ?? null,
+            variantLabel: p.variantLabel,
+            lowestPrice: p.lowestPrice,
+            stockStatus: p.lowestPriceStockStatus,
+            retailerCount: p.inStockCount,
+          }))}
+        />
       )}
     </div>
   );

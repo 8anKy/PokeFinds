@@ -76,6 +76,8 @@ const SORT_OPTIONS: { value: string; key: string; sort: ProductSort }[] = [
   { value: "restock", key: "recently_restocked", sort: "recently_restocked" },
   { value: "bevakad", key: "most_watched", sort: "most_watched" },
   { value: "trend", key: "trending", sort: "trending" },
+  { value: "kortnummer", key: "card_number_asc", sort: "card_number_asc" },
+  { value: "kortnummer-fallande", key: "card_number_desc", sort: "card_number_desc" },
   // "Fynd" borttaget ur filtret 2026-07-21 (ägarbeslut). Sorteringen finns kvar i
   // feed-API:t och services/products, så filtret kan tas tillbaka med en rad här.
 ];
