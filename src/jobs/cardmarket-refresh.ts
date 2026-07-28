@@ -38,6 +38,10 @@ interface CmCard {
   tcgid: string | null;
   cardmarket_id: number | null;
   name?: string | null; // identitetsvakten: jämförs mot CM:s officiella katalognamn
+  // TRYCKNINGEN raden gäller ("1st Edition", "1st Edition Shadowless", "Shadowless",
+  // "Unlimited"). Se printRank — WOTC-episoderna har en rad per tryckning och
+  // `tcgid` hänger på 1st Edition-raden, som inte är kortet vår katalog håller.
+  version?: string | null;
   // Samlarnummer + set — reservnyckeln när `tcgid` inte är pokemontcg.io:s (se
   // SET+NUMMER-RESERVEN nedan). `card_number` är ibland Int, ibland sträng.
   card_number?: string | number | null;
@@ -522,22 +526,70 @@ export function singlesHeadlineEur(
  */
 export const MATCH_RANK = { tcgid: 3, cmid: 2, number: 1 } as const;
 
+// ── TRYCKNINGEN ÄR IDENTITET, INTE EN PRISNIVÅ (2026-07-28) ──────────────────
+/**
+ * Hur nära raden ligger den tryckning vår katalog faktiskt håller.
+ *
+ * Katalogen kommer från pokemontcg.io, som har EN post per kort — den ordinarie
+ * (Unlimited) tryckningen. Vi har inga 1st Edition-produkter alls. RapidAPI
+ * publicerar däremot en rad per tryckning i de tio WOTC-episoderna, och hänger
+ * `tcgid` på **1st Edition**-raden. Vår starkaste nyckel valde därför systematiskt
+ * den dyraste tryckningen: Ponyta · Base 60/102 publicerades som 26,50 € (1st
+ * Edition Shadowless) i stället för 4,29 € (Shadowless) — 292,56 kr mot 47,36 kr.
+ *
+ * Mätt 2026-07-28 över alla tio episoderna (1 983 feed-rader, 940 av våra kort):
+ * 1st Edition-rader har `lowest_near_mint` i 95 % av fallen mot Unlimiteds 18 %,
+ * så den dyra raden vann nästan alltid. 66 kort byter pris av det här; de värsta
+ * var Bill · Base 91 (220,80 → 0,22 kr), Super Potion · Base 90 (662 → 0,77 kr)
+ * och Ninetales · Base 12 (11 040 → 221 kr).
+ *
+ * Det här är samma sorts fråga som `guideNameMatches` ("är raden VÅRT kort?") —
+ * inte en prisvakt. Ingen siffra jämförs; bara etiketten.
+ */
+export function printRank(version: string | null | undefined): number {
+  if (/1st\s*edition/i.test(version ?? "")) return 0; // täcker "1st Edition Shadowless"
+  if (/shadowless/i.test(version ?? "")) return 1;
+  return 2; // Unlimited, omärkt, och alla icke-tryckningsetiketter i moderna set
+}
+
 /**
  * Vinner den nya feed-raden över den vi redan har för produkten?
  *
  * VARFÖR: en episod kan innehålla flera rader för samma kort (tryckningar i
  * vintage-set, dubbla CM-produkter bland promos). Utan det här valet skrev båda,
  * och priset som publicerades avgjordes av vilket svar som råkade komma sist.
- * Starkast nyckel vinner; vid LIKA nyckel (två rader med samma tcgid) väljs lägsta
- * cardmarket_id — godtyckligt men DETERMINISTISKT, vilket är hela poängen. Ett
- * pris som byter värde mellan två körningar utan att marknaden rört sig är värre
- * än "fel" tryckning: det syns som prisrörelse i grafen och i movers-listan.
+ *
+ * Ordningen:
+ *  1. TRYCKNINGEN (printRank) — en 1st Edition-rad är inte kortet vi säljer.
+ *  2. Starkast nyckel (tcgid > cardmarket_id > set+nummer).
+ *  3. Lägsta cardmarket_id — godtyckligt men DETERMINISTISKT, vilket är hela
+ *     poängen. Ett pris som byter värde mellan två körningar utan att marknaden
+ *     rört sig syns som prisrörelse i grafen och i movers-listan.
+ *
+ * ⛔ RÄTT TRYCKNING FÅR INTE AKTIVERA UPPSKATTNINGEN. En rad tar bara över på
+ * tryckning om den har ett ÄKTA `lowest_near_mint`. Utan det villkoret vinner en
+ * Unlimited-rad utan From, och `singlesHeadlineEur` faller till guide-medianen på
+ * radens `cardmarket_id` — som ofta är fel produkt. Mätt i torrkörning:
+ * Sabrina's Gaze · Gym Heroes 125 gick 0,55 € → 434,04 € och Electrode · Base 21
+ * 110 € → 1,56 €. Saknar den ordinarie tryckningen From behåller vi hellre dagens
+ * pris och redovisar det som en öppen post (60 kort ligger kvar ≥3x över
+ * pokemontcg.io:s trend för den ordinarie produkten) än gissar.
  */
 export function feedRowWins(
-  current: { rank: number; cmid: number | null } | undefined,
-  next: { rank: number; cmid: number | null },
+  current: { rank: number; cmid: number | null; print?: number; from?: boolean } | undefined,
+  next: { rank: number; cmid: number | null; print?: number; from?: boolean },
 ): boolean {
   if (!current) return true;
+  const cp = current.print ?? 2, np = next.print ?? 2;
+  if (np !== cp) {
+    const nextIsRightPrint = np > cp;
+    // BARA en rad med bevisat äkta From får vinna på tryckning. `undefined` är inte
+    // bevis för att From saknas — läste vi det som "saknas" kunde en 30d-uppskattning
+    // knuffa ut ett riktigt pris (Sabrina's Gaze · Gym Heroes 125: 0,55 € → 434,04 €).
+    if ((nextIsRightPrint ? next.from : current.from) === true) return nextIsRightPrint;
+    // Annars faller vi igenom till den vanliga nyckelkedjan: hellre dagens pris från
+    // fel tryckning än en gissning. De korten redovisas som en öppen post.
+  }
   if (next.rank !== current.rank) return next.rank > current.rank;
   return (next.cmid ?? Number.MAX_SAFE_INTEGER) < (current.cmid ?? Number.MAX_SAFE_INTEGER);
 }
@@ -1253,11 +1305,18 @@ export async function runCardmarketRefresh(
     type SingleCandidate = {
       rank: number;
       cmid: number | null;
+      print: number;
+      // MÅSTE ligga på kandidaten, inte bara i `op`. Låg den bara i `op` läste
+      // feedRowWins `current.from` som undefined ⇒ "saknar äkta From" ⇒ en
+      // Unlimited-rad med bara ett 30d-snitt vann över 1st Edition-radens riktiga
+      // From. Sabrina's Gaze · Gym Heroes 125 skrevs 0,55 € → 434,04 € på exakt
+      // det sättet innan fältet fanns här.
+      from: boolean;
       op: { productId: string; offerId?: string; priceOre: number; from: boolean; url: string };
       via?: string;
     };
     const claimed = new Map<string, SingleCandidate>();
-    let rowsRejectedAsDuplicate = 0;
+    let rowsRejectedAsDuplicate = 0, printVariantSwaps = 0;
     // Kort CM har men inte prissätter → länk utan pris (se nedan). Hålls UTANFÖR
     // singleOps: de ska inte räknas av haveribrytaren och inte skriva historikpunkter.
     const linkOnlyByProduct = new Map<string, string>();
@@ -1280,8 +1339,14 @@ export async function runCardmarketRefresh(
             if (cmCardNameAgrees(cand.cardName, card.name)) {
               entry = cand.entry;
               rank = MATCH_RANK.number;
-              // Konsumera nyckeln: två CM-rader får aldrig prissätta samma produkt.
-              byNumber.set(`${setId}|${numKey}`, null);
+              // Nyckeln konsumeras INTE längre (den gjorde det 2026-07-27→07-28).
+              // Den regeln skulle hindra två rader från att prissätta samma produkt,
+              // men det jobbet gör `feedRowWins` numera — och konsumtionen hade en
+              // baksida: i Base svarar tryckningarna i block (1st Edition →
+              // Shadowless → Unlimited), så Shadowless-raden åt upp nyckeln och
+              // UNLIMITED-raden — den tryckning katalogen faktiskt håller — föll bort
+              // innan den fick tävla. Flera rader mot samma produkt är ofarligt när
+              // exakt en av dem kan vinna.
               byNumberHits++;
             } else {
               byNumberNameRejects++;
@@ -1325,15 +1390,21 @@ export async function runCardmarketRefresh(
         }
         const priceOre = Math.round(priced.eur * rates.eurToOre);
         const cmid = card.cardmarket_id ?? null;
+        const print = printRank(card.version);
         const current = claimed.get(entry.productId);
-        if (!feedRowWins(current, { rank, cmid })) {
+        if (!feedRowWins(current, { rank, cmid, print, from: priced.from })) {
           rowsRejectedAsDuplicate++;
           continue;
         }
-        if (current) rowsRejectedAsDuplicate++;
+        if (current) {
+          rowsRejectedAsDuplicate++;
+          if (print > current.print) printVariantSwaps++;
+        }
         claimed.set(entry.productId, {
           rank,
           cmid,
+          print,
+          from: priced.from,
           via: priced.via,
           op: { productId: entry.productId, offerId: entry.offerId, priceOre, from: priced.from, url },
         });
@@ -1400,6 +1471,11 @@ export async function runCardmarketRefresh(
         `[cm-refresh] Tryckningsvakt: ${rowsRejectedAsDuplicate} feed-rader pekade på en produkt ` +
         `som en starkare nyckel redan prissatt (flera tryckningar/CM-produkter av samma kort) ` +
         `→ ignorerade. Utan den avgjorde svarsordningen priset.`
+      );
+    if (printVariantSwaps > 0)
+      console.log(
+        `[cm-refresh] Tryckningsval: ${printVariantSwaps} kort prissattes av den ORDINARIE ` +
+        `tryckningen i stället för 1st Edition-raden (som bär tcgid i WOTC-episoderna).`
       );
 
     // Haveribrytare FÖRE skrivning: en stor andel EXTREMA dagsrörelser samtidigt =
@@ -1470,7 +1546,9 @@ export async function runCardmarketRefresh(
     );
     if (byNumberHits || byNumberNameRejects)
       console.log(
-        `[cm-refresh] Set+nummer-reserven: ${byNumberHits} kort matchade utan användbar tcgid ` +
+        // RADER, inte kort: sedan nyckeln slutade konsumeras kan flera tryckningar av
+        // samma kort matcha reserven (exakt en av dem vinner, se feedRowWins).
+        `[cm-refresh] Set+nummer-reserven: ${byNumberHits} feed-rader matchade utan användbar tcgid ` +
         `(${byNumberNameRejects} avvisade på kortnamn).`
       );
     if (misIdentified)

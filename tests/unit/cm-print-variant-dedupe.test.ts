@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { MATCH_RANK, feedRowWins } from "../../src/jobs/cardmarket-refresh";
+import { MATCH_RANK, feedRowWins, printRank } from "../../src/jobs/cardmarket-refresh";
 import { matchListingToProduct } from "../../src/scrapers/matching";
 import {
   listingPriceIsPlausible,
@@ -48,6 +48,74 @@ describe("feedRowWins — en produkt, en rad", () => {
 
   it("första raden vinner alltid över ingenting", () => {
     expect(feedRowWins(undefined, { rank: MATCH_RANK.number, cmid: null })).toBe(true);
+  });
+});
+
+// Regression 2026-07-28: valet ovan gjorde svaret DETERMINISTISKT men avgjorde med
+// flit inte VILKEN tryckning katalogen ska visa — och tcgid-raden är i alla tio
+// WOTC-episoderna 1st Edition. Ponyta publicerades därför som 292,56 kr (1st Edition
+// Shadowless, 26,50 €) fast vår katalogpost är det ordinarie kortet. Uppmätt över
+// episoderna: 1st Edition-rader har lowest_near_mint i 95 % av fallen, Unlimited i
+// 18 % → den dyra raden vann nästan alltid.
+describe("printRank + feedRowWins — tryckningen är identitet", () => {
+  it("1st Edition rankas under Shadowless, som rankas under Unlimited/omärkt", () => {
+    expect(printRank("1st Edition")).toBe(0);
+    expect(printRank("1st Edition Shadowless")).toBe(0); // får ALDRIG läsas som Shadowless
+    expect(printRank("Shadowless")).toBe(1);
+    expect(printRank("Unlimited")).toBe(2);
+    expect(printRank(null)).toBe(2);
+    expect(printRank("Reverse Holo")).toBe(2); // moderna etiketter påverkas inte
+  });
+
+  it("Ponyta · Base 60: Shadowless-raden tar över från 1st Edition Shadowless", () => {
+    const firstEd = { rank: MATCH_RANK.tcgid, cmid: 660167, print: printRank("1st Edition Shadowless"), from: true };
+    const shadowless = { rank: MATCH_RANK.number, cmid: 660167, print: printRank("Shadowless"), from: true };
+    // Tryckningen slår nyckelstyrkan, och svaret är detsamma oavsett svarsordning.
+    expect(feedRowWins(firstEd, shadowless)).toBe(true);
+    expect(feedRowWins(shadowless, firstEd)).toBe(false);
+  });
+
+  it("Unlimited slår Shadowless när båda har ett äkta From", () => {
+    const shadowless = { rank: MATCH_RANK.number, cmid: 660167, print: 1, from: true };
+    const unlimited = { rank: MATCH_RANK.number, cmid: null, print: 2, from: true };
+    expect(feedRowWins(shadowless, unlimited)).toBe(true);
+    expect(feedRowWins(unlimited, shadowless)).toBe(false);
+  });
+
+  it("⛔ rätt tryckning UTAN äkta From får inte ta över — det aktiverar uppskattningen", () => {
+    // Sabrina's Gaze · Gym Heroes 125 gick 0,55 € → 434,04 € i torrkörning när en
+    // Unlimited-rad utan From vann och guide-medianen på fel cardmarket_id tog vid.
+    const firstEdWithFrom = { rank: MATCH_RANK.tcgid, cmid: 1, print: 0, from: true };
+    const unlimitedEstimate = { rank: MATCH_RANK.number, cmid: 2, print: 2, from: false };
+    expect(feedRowWins(firstEdWithFrom, unlimitedEstimate)).toBe(false);
+    expect(feedRowWins(unlimitedEstimate, firstEdWithFrom)).toBe(true);
+  });
+
+  it("okänt from-fält får inte läsas som 'saknar From' (regression: fältet låg i op)", () => {
+    // Kandidaten i `claimed` bar `from` inne i `op`, så feedRowWins läste
+    // `current.from` som undefined. Då blev `!wrongHasFrom` sant och Unlimited-radens
+    // 30d-uppskattning vann över 1st Edition-radens riktiga From: Sabrina's Gaze ·
+    // Gym Heroes 125 skrevs 0,55 € → 434,04 € i produktion 2026-07-27.
+    const claimedWithoutFrom = { rank: MATCH_RANK.tcgid, cmid: 274261, print: 0 };
+    const unlimitedEstimate = { rank: MATCH_RANK.number, cmid: null, print: 2, from: false };
+    // Utan bevis för att den sittande raden saknar From får en uppskattning inte ta över.
+    expect(feedRowWins(claimedWithoutFrom, unlimitedEstimate)).toBe(false);
+  });
+
+  it("saknar BÅDA äkta From → faller igenom till nyckelkedjan, tryckningen avgör inte", () => {
+    // Två uppskattningar: ingen av dem är ett bevisat marknadspris, så vi låter
+    // starkaste nyckeln bestämma precis som före tryckningsregeln.
+    const firstEd = { rank: MATCH_RANK.tcgid, cmid: 1, print: 0, from: false };
+    const unlimited = { rank: MATCH_RANK.number, cmid: 2, print: 2, from: false };
+    expect(feedRowWins(firstEd, unlimited)).toBe(false);
+    expect(feedRowWins(unlimited, firstEd)).toBe(true);
+  });
+
+  it("samma tryckning → oförändrad kedja (nyckel, sedan lägsta cardmarket_id)", () => {
+    const a = { rank: MATCH_RANK.number, cmid: 500, print: 2, from: true };
+    const b = { rank: MATCH_RANK.tcgid, cmid: 900, print: 2, from: true };
+    expect(feedRowWins(a, b)).toBe(true);
+    expect(feedRowWins(b, a)).toBe(false);
   });
 });
 
