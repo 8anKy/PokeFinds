@@ -19,16 +19,30 @@
  *    ursprungliga (ordinarie) och en som lades till 2022-05-24 (shadowless/1st Ed,
  *    där 1st Edition är en flagga på annonsen, inte en egen produkt). Paret bestäms
  *    av TVÅ oberoende signaler som måste vara ense: datumbatchen OCH att
- *    2022-produkten är dyrare i CM:s egen prisguide. Kort där de inte är ense —
- *    eller som har fler än två CM-produkter — DELAS INTE. Hellre ett odelat kort än
- *    tre produkter med fel länkar.
+ *    2022-produkten är dyrare i CM:s egen prisguide. Kort där de inte är ense
+ *    DELAS INTE. Hellre ett odelat kort än tre produkter med fel länkar.
+ *  - 1st Edition-länken bär `isFirstEd=Y`. Utan filtret pekar Shadowless och 1st
+ *    Edition på exakt samma osorterade CM-sida, fast bara den ena tryckningens
+ *    annonser gav priset vi publicerar (se withFirstEd i lib/marketplace-urls).
+ *
+ * DATUMBATCHEN ÄR HELA EXPANSIONEN, INTE ETT ANTAL PRODUKTER (2026-07-28):
+ * regeln var först "exakt två CM-produkter med det namnet", vilket hoppade över
+ * kort som har en TREDJE produkt av helt andra skäl. CM-expansionen (1523) har
+ * 104 produkter daterade "0000-00-00" (ordinarie), 103 daterade 2022-05-24
+ * (shadowless/1st Ed) och fyra udda: tre starters som fick en extra produkt
+ * 2021-03-04 (prissatta som Unlimited i guiden — alltså varken Shadowless eller
+ * 1st Edition) och en Pikachu från 2018. Paret är därför den ENDA produkten i
+ * 0000-batchen och den ENDA i 2022-batchen; produkter i andra batchar är något
+ * tredje som vi inte modellerar. Kort med flera produkter i SAMMA batch delas
+ * fortfarande inte — Base-Pikachu har sex CM-produkter (V1–V6) där röda/gula
+ * kinder korsar tryckningarna, och där finns inget entydigt par att peka på.
  *
  * Priserna sätts INTE här: `runCardmarketRefresh` routar varje feed-rad till
  * produkten för precis dess `version` (src/lib/print-variant.ts). Kör den efteråt.
  */
 import { prisma } from "../src/lib/db";
 import { normalizeTitle } from "../src/lib/utils";
-import { cardmarketProductUrl } from "../src/lib/marketplace-urls";
+import { cardmarketProductUrl, withFirstEd } from "../src/lib/marketplace-urls";
 import {
   PRINT_FIRST_EDITION,
   PRINT_SHADOWLESS,
@@ -40,6 +54,10 @@ const APPLY = process.argv.includes("--apply");
 const SET_NAME = process.env.SPLIT_SET_NAME ?? "Base";
 /** CM-expansionen för Base Set. Andra set har egna id:n → skriptet vägrar gissa. */
 const CM_EXPANSION = parseInt(process.env.SPLIT_CM_EXPANSION ?? "1523", 10);
+/** Datumbatchen där CM la shadowless/1st Edition-produkterna (se filhuvudet). */
+const SHADOW_BATCH = process.env.SPLIT_CM_SHADOW_BATCH ?? "2022-05-24";
+/** Ordinarie produkter saknar datum i CM:s katalog ("0000-00-00 00:00:00"). */
+const ORDINARY_BATCH = "0000";
 
 const CM_SINGLES = "https://downloads.s3.cardmarket.com/productCatalog/productList/products_singles_6.json";
 const CM_GUIDE = "https://downloads.s3.cardmarket.com/productCatalog/priceGuide/price_guide_6.json";
@@ -47,9 +65,77 @@ const CM_GUIDE = "https://downloads.s3.cardmarket.com/productCatalog/priceGuide/
 /** Tryckningar som ska FINNAS som egna produkter, i visningsordning. */
 const NEW_PRINTS: PrintVariantLabel[] = [PRINT_SHADOWLESS, PRINT_FIRST_EDITION];
 
+/**
+ * Länken för en tryckning. Shadowless och 1st Edition delar CM-produkt, så det är
+ * BARA filtret som skiljer sidorna åt — utan det visar 1st Edition-produkten en
+ * lista där de billigaste annonserna är Shadowless, alltså inte det pris vi
+ * publicerar för den.
+ */
+const printUrl = (idProduct: number, label: PrintVariantLabel) =>
+  cardmarketProductUrl(idProduct, { nearMint: true, firstEd: label === PRINT_FIRST_EDITION });
+
 const slugify = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+/**
+ * CM stavar några kortnamn annorlunda än pokemontcg.io. Tabellen är EXPLICIT med
+ * flit: en fuzzy namnmatchning hade fällt ihop "Professor Oak" (#88) med
+ * "Imposter Professor Oak" (#73) — två olika kort i samma set.
+ */
+const CM_NAME_ALIASES: Record<string, string> = {
+  "impostor professor oak": "imposter professor oak", // CM: "Imposter"
+};
+
+/**
+ * Jämförnyckel ur ett CM-namn: "Bulbasaur [Leech Seed]" → "bulbasaur",
+ * "Nidoran [M] [Horn Hazard]" → "nidoran m".
+ *
+ * Attacknamnen i hakparenteser är brus, men KÖNSMARKÖREN är identitet — släpper
+ * man alla parenteser faller Nidoran ♂ och ♀ ihop till samma nyckel (i Base
+ * finns bara hanen, men skriptet körs set för set).
+ */
+function cmNameKey(name: string): string {
+  const groups = [...name.matchAll(/\[([^\]]+)\]/g)].map((m) => m[1].trim().toLowerCase());
+  const gender = groups.find((g) => g === "m" || g === "f");
+  const base = name.split("[")[0].trim().toLowerCase();
+  return gender ? `${base} ${gender}` : base;
+}
+
+/** Samma nyckel ur VÅRT kortnamn: "Nidoran ♂" → "nidoran m". */
+function ourNameKey(name: string): string {
+  const gender = /♂/.test(name) ? "m" : /♀/.test(name) ? "f" : "";
+  const base = name.replace(/[♂♀]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+  const aliased = CM_NAME_ALIASES[base] ?? base;
+  return gender ? `${aliased} ${gender}` : aliased;
+}
+
+type GuideRow = { trend: number | null; low?: number | null; avg?: number | null };
+
+/**
+ * Är den nyare CM-produkten dyrare — mätt så att ETT korrupt guide-fält inte
+ * avgör ensamt?
+ *
+ * VARFÖR MAJORITET: guiden har mätbart trasiga enstaka fält. Drowzee och Machop
+ * har `trend` = 0,02 € på 2022-produkten (dvs "inget data"-golvet) medan `avg`
+ * (3,48 / 15,35 €) och `low` (1 / 0,30 €) säger tvärtom — och Jynx ordinarie har
+ * en trend på 12,09 € mot sitt eget avg på 1,37 €. Ett enfältstest läste därför
+ * fyra kort som "signalerna är oense" och hoppade över dem.
+ * Marginalen finns för att basenergier har en ärligt LITEN premie (Psychic
+ * Energy 0,37 → 0,46 €): kravet är riktning med marginal, inte en faktor 1,5.
+ */
+const DEARER_MARGIN = 1.15;
+function newerIsDearer(older: GuideRow | undefined, newer: GuideRow | undefined) {
+  let up = 0, down = 0, compared = 0;
+  for (const f of ["trend", "avg", "low"] as const) {
+    const a = older?.[f] ?? 0, b = newer?.[f] ?? 0;
+    if (!(a > 0) || !(b > 0)) continue;
+    compared++;
+    if (b > a * DEARER_MARGIN) up++;
+    else if (a > b * DEARER_MARGIN) down++;
+  }
+  return { ok: compared >= 2 && up >= 2 && up > down, up, down, compared };
+}
 
 async function main() {
   console.log(`${APPLY ? "SKARP KÖRNING" : "TORRKÖRNING (lägg till --apply för att skriva)"} — set "${SET_NAME}"\n`);
@@ -57,26 +143,45 @@ async function main() {
   // ── CM:s katalog: para ihop de två produkterna per kortnamn ─────────────────
   const [cat, guide] = await Promise.all([
     fetch(CM_SINGLES).then((r) => r.json() as Promise<{ products: { idProduct: number; name: string; idExpansion: number; dateAdded: string }[] }>),
-    fetch(CM_GUIDE).then((r) => r.json() as Promise<{ priceGuides: { idProduct: number; trend: number | null }[] }>),
+    fetch(CM_GUIDE).then((r) => r.json() as Promise<{ priceGuides: ({ idProduct: number } & GuideRow)[] }>),
   ]);
-  const trend = new Map(guide.priceGuides.map((e) => [e.idProduct, e.trend]));
+  const guideById = new Map(guide.priceGuides.map((e) => [e.idProduct, e]));
+  // Nyckeln är kortets IDENTITET (namn + ev. könsmarkör), inte CM:s hela sträng:
+  // attacknamnen inom hakparenteser skiljer sig ibland mellan de två produkterna.
   const byCmName = new Map<string, { idProduct: number; dateAdded: string }[]>();
   for (const p of cat.products) {
     if (p.idExpansion !== CM_EXPANSION) continue;
-    if (!byCmName.has(p.name)) byCmName.set(p.name, []);
-    byCmName.get(p.name)!.push({ idProduct: p.idProduct, dateAdded: p.dateAdded });
+    const key = cmNameKey(p.name);
+    if (!byCmName.has(key)) byCmName.set(key, []);
+    byCmName.get(key)!.push({ idProduct: p.idProduct, dateAdded: p.dateAdded });
   }
-  /** kortnamn (CM) → { ordinarie, shadowless } eller null när signalerna inte är ense. */
+  /** kortnamn (CM) → { ordinarie, shadowless }. Saknas nyckeln var signalerna oense. */
   const pairs = new Map<string, { ordinary: number; shadow: number }>();
+  const pairRejects: string[] = [];
   for (const [name, ps] of byCmName) {
-    if (ps.length !== 2) continue;
-    const [older, newer] = [...ps].sort((a, b) => a.idProduct - b.idProduct);
-    const dateOk = newer.dateAdded.startsWith("2022-05-24") && older.dateAdded.startsWith("0000");
-    const tOld = trend.get(older.idProduct) ?? 0, tNew = trend.get(newer.idProduct) ?? 0;
-    const priceOk = tOld > 0 && tNew > 0 && tNew > tOld * 1.5;
-    if (dateOk && priceOk) pairs.set(name, { ordinary: older.idProduct, shadow: newer.idProduct });
+    // Paret = den ENDA produkten i vardera tryckningsbatchen. Produkter i andra
+    // batchar är något tredje (se filhuvudet) och ignoreras; flera i samma batch
+    // betyder att vi inte vet vilken som är vilken → inget par.
+    const ordinaries = ps.filter((p) => p.dateAdded.startsWith(ORDINARY_BATCH));
+    const shadows = ps.filter((p) => p.dateAdded.startsWith(SHADOW_BATCH));
+    if (ordinaries.length !== 1 || shadows.length !== 1) {
+      pairRejects.push(`${name} — ${ordinaries.length} i ordinarie batch, ${shadows.length} i ${SHADOW_BATCH} (av ${ps.length} produkter)`);
+      continue;
+    }
+    const older = ordinaries[0], newer = shadows[0];
+    const price = newerIsDearer(guideById.get(older.idProduct), guideById.get(newer.idProduct));
+    if (!price.ok) {
+      pairRejects.push(`${name} — prissignalen oense (${price.up} upp / ${price.down} ner av ${price.compared} fält)`);
+      continue;
+    }
+    pairs.set(name, { ordinary: older.idProduct, shadow: newer.idProduct });
   }
-  console.log(`CM-expansion ${CM_EXPANSION}: ${byCmName.size} kortnamn, ${pairs.size} med entydigt tryckningspar\n`);
+  console.log(`CM-expansion ${CM_EXPANSION}: ${byCmName.size} kortnamn, ${pairs.size} med entydigt tryckningspar`);
+  if (pairRejects.length) {
+    console.log(`${pairRejects.length} utan par:`);
+    for (const r of pairRejects) console.log(`  ${r}`);
+  }
+  console.log("");
 
   // ── Vår katalog ─────────────────────────────────────────────────────────────
   const set = await prisma.cardSet.findFirst({ where: { name: SET_NAME }, select: { id: true, name: true, totalCards: true } });
@@ -95,35 +200,23 @@ async function main() {
   const cm = await prisma.retailer.findFirst({ where: { name: "Cardmarket" }, select: { id: true } });
   if (!cm) throw new Error("Cardmarket-retailer saknas");
 
-  // CM-namnet är "Ponyta [Smash Kick | Flame Tail]" — vi matchar på delen FÖRE "[",
-  // och bara när den delen är ENTYDIG i expansionen (annars vet vi inte vilket par).
-  const cmNameByBase = new Map<string, string[]>();
-  for (const name of pairs.keys()) {
-    const base = name.split("[")[0].trim().toLowerCase();
-    if (!cmNameByBase.has(base)) cmNameByBase.set(base, []);
-    cmNameByBase.get(base)!.push(name);
-  }
-
-  let willSplit = 0, skippedNoPair = 0, skippedAmbiguous = 0, alreadySplit = 0;
+  let willSplit = 0, skippedNoPair = 0, alreadySplit = 0;
   const plan: { product: (typeof products)[number]; ordinary: number; shadow: number }[] = [];
   const skipped: string[] = [];
 
   for (const p of products) {
     if (p.variantLabel) { alreadySplit++; continue; }
-    const cardName = p.card?.name?.trim().toLowerCase();
+    const cardName = p.card?.name?.trim();
     if (!cardName) { skipped.push(`${p.title} — ingen Card-relation`); skippedNoPair++; continue; }
-    const hits = cmNameByBase.get(cardName) ?? [];
-    if (hits.length === 0) { skipped.push(`${p.card?.name} ${p.card?.number} — inget entydigt CM-par`); skippedNoPair++; continue; }
-    if (hits.length > 1) { skipped.push(`${p.card?.name} ${p.card?.number} — ${hits.length} CM-namn matchar`); skippedAmbiguous++; continue; }
-    const pair = pairs.get(hits[0])!;
+    const pair = pairs.get(ourNameKey(cardName));
+    if (!pair) { skipped.push(`${p.card?.name} ${p.card?.number} — inget entydigt CM-par`); skippedNoPair++; continue; }
     plan.push({ product: p, ...pair });
     willSplit++;
   }
 
   console.log(`Delas: ${willSplit} kort → ${willSplit * 3} produkter`);
   console.log(`Redan uppdelade (hoppas över): ${alreadySplit}`);
-  console.log(`Hoppas över, inget entydigt par: ${skippedNoPair}`);
-  console.log(`Hoppas över, tvetydigt namn: ${skippedAmbiguous}\n`);
+  console.log(`Hoppas över, inget entydigt par: ${skippedNoPair}\n`);
   if (skipped.length) {
     console.log("Överhoppade kort (behåller EN produkt):");
     for (const s of skipped) console.log(`  ${s}`);
@@ -138,9 +231,22 @@ async function main() {
     console.log(`             titel "${p.title}" → "${p.title} · ${PRINT_UNLIMITED}"`);
     console.log(`             CM-länk → idProduct=${ordinary}`);
     for (const label of NEW_PRINTS)
-      console.log(`    NY       ${p.slug}-${slugify(label)}  "${p.title} · ${label}"  CM idProduct=${shadow}`);
+      console.log(`    NY       ${p.slug}-${slugify(label)}  "${p.title} · ${label}"  CM-länk → ${printUrl(shadow, label)}`);
   }
   console.log("");
+
+  // ── Länkfilter på REDAN uppdelade 1st Edition-produkter ─────────────────────
+  // Idempotent självläkning: de första 92 korten delades innan isFirstEd=Y fanns,
+  // och deras länk pekar därför på samma osorterade sida som Shadowless.
+  const firstEdOffers = await prisma.offer.findMany({
+    where: {
+      retailerId: cm.id,
+      product: { setId: set.id, category: "SINGLE_CARD", variantLabel: PRINT_FIRST_EDITION },
+    },
+    select: { id: true, url: true, product: { select: { title: true } } },
+  });
+  const needsFilter = firstEdOffers.filter((o) => o.url && !/[?&]isFirstEd=/i.test(o.url));
+  console.log(`1st Edition-offers: ${firstEdOffers.length}, varav ${needsFilter.length} saknar isFirstEd=Y\n`);
 
   if (!APPLY) {
     console.log("Torrkörning klar — inget skrevs. Kör om med --apply.");
@@ -201,18 +307,26 @@ async function main() {
         select: { id: true },
       });
       // Shadowless OCH 1st Edition bor på SAMMA CM-produkt (1st Edition är en
-      // flagga på annonsen där, inte en egen produkt) → samma länk, olika pris.
+      // flagga på annonsen där, inte en egen produkt) → samma produkt, men 1st
+      // Edition-länken bär isFirstEd=Y så sidan visar de annonser priset kom ur.
       await prisma.offer.create({
         data: {
           productId: np.id, retailerId: cm.id, condition: "NEAR_MINT", language: "EN",
           price: null, currency: "SEK", stockStatus: "OUT_OF_STOCK",
-          url: cardmarketProductUrl(shadow, { nearMint: true }),
+          url: printUrl(shadow, label),
         },
       });
       created++;
     }
   }
-  console.log(`KLART: ${updated} produkter märkta ${PRINT_UNLIMITED}, ${created} nya tryckningsprodukter.`);
+
+  let relinked = 0;
+  for (const o of needsFilter) {
+    await prisma.offer.update({ where: { id: o.id }, data: { url: withFirstEd(o.url) } });
+    relinked++;
+  }
+
+  console.log(`KLART: ${updated} produkter märkta ${PRINT_UNLIMITED}, ${created} nya tryckningsprodukter, ${relinked} 1st Edition-länkar fick isFirstEd=Y.`);
   console.log(`Kör nu: CM_ONLY_EPISODES=171 … cardmarket-refresh-run.ts --singles  (sätter priserna)`);
   await prisma.$disconnect();
 }

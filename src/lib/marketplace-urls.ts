@@ -75,16 +75,48 @@ export function withNearMint(url: string | null | undefined): string {
 }
 
 /**
+ * Cardmarkets 1st Edition-filter: isFirstEd=Y visar BARA annonser som säljaren
+ * märkt 1st Edition.
+ *
+ * VARFÖR DET INTE ÄR VALFRITT för en 1st Edition-produkt: CM har bara TVÅ
+ * produkter per Base-kort, och Shadowless + 1st Edition delar den ena — 1st
+ * Edition är en FLAGGA på annonsen, inte en egen produkt. Utan filtret landar
+ * båda våra tryckningsprodukter på exakt samma osorterade sida, där den
+ * billigaste annonsen nästan alltid är en Shadowless. Priset vi publicerar för
+ * 1st Edition kommer däremot från de 1st Edition-märkta annonserna (feedens
+ * `version`-rad), så länken hade visat något annat än siffran bredvid den.
+ *
+ * Verifierat 2026-07-28: filtret finns i CM:s egen filterpanel ("First Edition?
+ * Any/Yes/No"), och 302:n från ?idProduct= BEVARAR parametern in i slug-URL:en
+ * (Bulbasaur 660184 → .../Base-Set/Bulbasaur-V2-BS44?isFirstEd=Y&language=1&
+ * minCondition=2, som visar exakt den 600 €-annons feedens 1st Edition-rad
+ * rapporterar som From).
+ */
+export const CARDMARKET_FIRST_ED_PARAM = "isFirstEd=Y";
+
+/**
+ * Lägg till 1st Edition-filtret på en Cardmarket-länk (idempotent). No-op om
+ * länken inte pekar på cardmarket.com eller redan har ett isFirstEd.
+ */
+export function withFirstEd(url: string | null | undefined): string {
+  if (!url) return url ?? "";
+  const u = url.toLowerCase();
+  if (!u.includes("cardmarket.com") || u.includes("isfirsted=")) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}${CARDMARKET_FIRST_ED_PARAM}`;
+}
+
+/**
  * Exakt CM-produktsida via officiellt idProduct, förfiltrerad till engelska.
- * Redirecten bevarar extra query-params, så &minCondition=2 (Near Mint)
- * läggs på för singlar via `opts.nearMint`.
+ * Redirecten bevarar extra query-params, så &minCondition=2 (Near Mint) och
+ * &isFirstEd=Y (1st Edition) läggs på via `opts`.
  */
 export function cardmarketProductUrl(
   idProduct: number,
-  opts?: { nearMint?: boolean }
+  opts?: { nearMint?: boolean; firstEd?: boolean }
 ): string {
   const base = `https://www.cardmarket.com/en/Pokemon/Products?idProduct=${idProduct}&language=1`;
-  return opts?.nearMint ? withNearMint(base) : base;
+  const nm = opts?.nearMint ? withNearMint(base) : base;
+  return opts?.firstEd ? withFirstEd(nm) : nm;
 }
 
 /**

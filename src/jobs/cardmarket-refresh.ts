@@ -18,6 +18,7 @@ import {
   cardmarketJapaneseProductUrl,
   cardmarketProductUrl,
   isEnglishCardmarketUrl,
+  withFirstEd,
   withNearMint,
 } from "../lib/marketplace-urls";
 import { judgeSameProduct } from "../lib/same-product";
@@ -26,6 +27,7 @@ import { classifyForm, scoreSimilarity } from "../scrapers/matching";
 import { recomputeProductPriceCache, snapshotStorePricedProducts } from "../services/products";
 import { fetchTcgCardById, cardMarketPriceOre } from "../scrapers/adapters/pokemontcg-adapter";
 import {
+  PRINT_FIRST_EDITION,
   PRINT_UNLIMITED,
   PRINT_VARIANT_LABELS,
   isPrintVariantLabel,
@@ -217,12 +219,28 @@ const pos = (v: number | null | undefined): number | null =>
  *   "Professor's Research - Professor Oak"       → "professorsresearchprofessoroak"
  */
 export function cmNameKey(name: string): string {
-  return name
+  const key = name
     .replace(/\[([^\]]{4,})\]/g, " ")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[^a-z0-9]/g, "");
+  return CM_SPELLING[key] ?? key;
 }
+
+/**
+ * CM:s EGNA STAVNINGAR av kort som pokemontcg.io stavar annorlunda. EXPLICIT
+ * tabell, aldrig en generell stavningstolerans: en sådan hade fällt ihop kort
+ * som verkligen är olika, och namnvakten är sista ledet i identitetskedjan.
+ *
+ * "Imposter Professor Oak" (CM) = "Impostor Professor Oak" (Base 73). Utan
+ * raden avvisade vakten CM:s Unlimited- och Shadowless-rader för kortet, och
+ * Unlimited-produkten blev därför kvar på 1st Edition-radens pris (125 € =
+ * 1 382 kr) efter uppdelningen — precis det fel uppdelningen ska ta bort.
+ * Vakten hade rätt: den bara saknade ordboken.
+ */
+const CM_SPELLING: Record<string, string> = {
+  imposterprofessoroak: "impostorprofessoroak",
+};
 
 /**
  * Är guide-/katalograden för `idProduct` verkligen VÅRT kort?
@@ -1472,10 +1490,20 @@ export async function runCardmarketRefresh(
         // vanligt — annars hade ~2/3 av Base försvunnit ur katalogen vid
         // uppdelningen (lowestPriceOre = null göms av buildProductWhere).
         if (printEntry && printLabel !== PRINT_UNLIMITED && priced && !priced.from) continue;
-        const url =
-          entry.url && isEnglishCardmarketUrl(entry.url) ? withNearMint(entry.url)
+        // TRYCKNINGSPRODUKTER LÄNKAS ALDRIG AV FEEDEN: `card.cardmarket_id` är MÄTT
+        // opålitligt som länk (38 av 147 Base-rader pekar på fel CM-produkt — 1st
+        // Edition-raderna bär oftast den ORDINARIE produktens id, och Blastoise
+        // bär en Rayquaza). Länken vi satte ur CM:s egen katalog vid uppdelningen
+        // är enda källan; saknas den får produkten hellre ingen uppdatering.
+        const baseUrl = printEntry
+          ? (entry.url && isEnglishCardmarketUrl(entry.url) ? withNearMint(entry.url) : entry.url ?? null)
+          : entry.url && isEnglishCardmarketUrl(entry.url) ? withNearMint(entry.url)
             : card.cardmarket_id != null ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true })
               : entry.url ?? null;
+        // 1st Edition delar CM-produkt med Shadowless (flagga på annonsen, inte egen
+        // produkt) → länken MÅSTE bära filtret, annars visar den Shadowless-annonser
+        // under vårt 1st Edition-pris. Idempotent, så den självläker gamla länkar.
+        const url = baseUrl && printLabel === PRINT_FIRST_EDITION ? withFirstEd(baseUrl) : baseUrl;
         if (!url) continue;
         if (priced == null) {
           // CM HAR kortet men INGET pris (varken From, guide-rad eller 30d-snitt) —
