@@ -51,3 +51,41 @@ inte hjälper, inte att den gör resultatet sämre.
 
 Skillnaden mellan 96,0 % och 97,0 % (en tidigare variant) är INTE signifikant:
 vid n=300 och p≈0,96 är standardfelet ±1,1 %.
+
+## Marginal runt kortet — den dominerande felkällan
+
+`eval.ts` mätte länge BARA fallet där kortet fyller bilden exakt. En riktig
+fångst har bakgrund runt om, och ytterringen av ett 8×11-rutnät är 34 av 88
+celler. Topp-15 mot marginal, ETT avtryck:
+
+| marginal | 0 % | 1 % | 2 % | 4 % | 6 % |
+|---|---|---|---|---|---|
+| topp-15 | 96 % | 94 % | 84 % | 49 % | **15 %** |
+
+Därför skickar klienten ett **inset-svep** (`FINGERPRINT_INSETS`) och servern tar
+varje korts bästa likhet. Mätt med `inset-sweep.ts`:
+
+| marginal | ett avtryck | svep (4 avtryck) |
+|---|---|---|
+| 2 % | 86,7 % | **93,3 %** |
+| 4 % | 50,8 % | **93,3 %** |
+| 6 % | 18,3 % | **93,3 %** |
+
+Profilen `padded` och `PAD=`-övrestyrningen finns just för att den här klassen av
+miss inte ska kunna passera tyst igen.
+
+## Går det att LITA på en bildträff? (`margin-audit.ts`)
+
+Modellens namn är opålitligt på skärmfotograferingar, så bilden behöver ibland
+överrösta det. Fördelningen för träff 1 (250 kort, hård försämring + 3 %
+marginal):
+
+| | RÄTT (210) | FEL (40) |
+|---|---|---|
+| poäng | median 0,873 · min 0,570 | median 0,758 · **max 0,922** |
+| marginal till tvåan | median 0,111 · p90 0,297 | median 0,012 · **max 0,066** |
+
+⛔ **Poängen skiljer inte rätt från fel** — fördelningarna överlappar.
+**Marginalen** gör det: `poäng ≥ 0,70 OCH marginal ≥ 0,10` gav 100 % precision
+(0 av 40 felträffar) och täckte 117 av 210 rätta. Det är tröskeln i
+`ART_TRUST_SCORE` / `ART_TRUST_MARGIN`.

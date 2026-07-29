@@ -232,6 +232,33 @@ const ART_WEIGHT = 0.3;
  */
 const ART_STRONG = 0.75;
 
+/**
+ * NÄR FÅR BILDEN ÖVERRÖSTA MODELLENS NAMN?
+ *
+ * MÄTT över 250 kort (hård försämring + 3 % marginal, hela katalogen som
+ * referens), fördelningen för träff 1:
+ *
+ *              RÄTT (210 st)                    FEL (40 st)
+ *   poäng      median 0,873 · min 0,570         median 0,758 · MAX 0,922
+ *   marginal   median 0,111 · p90 0,297         median 0,012 · MAX 0,066
+ *
+ * ⛔ POÄNGEN SKILJER INTE RÄTT FRÅN FEL — en felträff kan ha 0,92 och en rätt
+ * träff 0,57; fördelningarna överlappar. MARGINALEN till tvåan gör det: ingen
+ * felträff kom över 0,066, medan rätt träff ligger på 0,111 i median. Regeln
+ * "poäng ≥ 0,70 OCH marginal ≥ 0,10" gav 100 % precision (0 av 40 felträffar
+ * slapp igenom) och täckte 117 av 210 rätta. Tröskeln är satt med ~1,5× marginal
+ * till sämsta observerade felträff, inte på det enskilda produktionsfall som
+ * väckte frågan (Falinks TG07: 0,857 med marginal 0,379).
+ *
+ * Bonusen ligger ÖVER en ren namnträff (max 1,0) men UNDER namn+nummer
+ * (1,4–1,5). Följden är precis den avsedda: ett hallucinerat namn utan
+ * nummerstöd förlorar mot en säker bildträff, medan namn OCH nummer som pekar på
+ * samma kort fortfarande vinner — där är texten bevisad, inte gissad.
+ */
+const ART_TRUST_SCORE = 0.7;
+const ART_TRUST_MARGIN = 0.1;
+const ART_TRUST_BONUS = 1.15;
+
 /** Kortnamn-tokens ur OCR-texten. Tomt resultat → hela frågan som en token. */
 function nameTokens(query: string): string[] {
   const tokens = query
@@ -279,7 +306,13 @@ export async function matchCards(
    * ur samma filer som referenserna, dvs ett tak. Byggt så här är värsta fallet
    * att bilden inte hjälper, inte att den gör resultatet sämre.
    */
-  artScores?: Map<string, number>
+  artScores?: Map<string, number>,
+  /**
+   * Kortet vars bildträff är SÄKER (poäng + marginal över tröskeln, se
+   * ART_TRUST_*). Det får en bonus som slår en ren namnträff, så ett hallucinerat
+   * kortnamn inte kan överrösta en bevisat säker bildidentifiering.
+   */
+  artConfidentCardId?: string | null
 ): Promise<ScanCandidate[]> {
   const query = ocr.guessedName?.trim() || ocr.rawText.trim();
   const tokens = query ? nameTokens(query) : [];
@@ -350,6 +383,10 @@ export async function matchCards(
     // Bildlikhet: en gradering, inte ett bevis. Se ART_WEIGHT.
     const art = artScores?.get(card.id);
     if (art !== undefined && art > 0) score += art * ART_WEIGHT;
+    // …men en SÄKER bildträff (hög poäng OCH stor marginal till tvåan) ÄR ett
+    // bevis: 100 % precision över 250 mätta fall. Då ska den slå ett kortnamn
+    // modellen kan ha hittat på.
+    if (artConfidentCardId && card.id === artConfidentCardId) score += ART_TRUST_BONUS;
     // Numret är identiteten när namnet delas — och det gör det i 92 % av fallen.
     // Nyckeln jämförs som STRÄNG mot samma normalisering som databasen använder,
     // så "TG10", "SWSH034" och "130a" räknas, inte bara rena tal.
@@ -728,9 +765,19 @@ export async function identifyCard(
   ]);
 
   const artScores = new Map(artMatches.map((m) => [m.cardId, m.score]));
+  // MARGINALEN till tvåan är det som avgör om bildträffen går att lita på —
+  // poängen ensam skiljer inte rätt från fel (se ART_TRUST_*). Finns ingen tvåa
+  // är marginalen odefinierad och träffen får inte räknas som säker.
+  const artConfidentCardId =
+    artMatches.length >= 2 &&
+    artMatches[0].score >= ART_TRUST_SCORE &&
+    artMatches[0].score - artMatches[1].score >= ART_TRUST_MARGIN
+      ? artMatches[0].cardId
+      : null;
+
   // Bilden ensam räcker som signal — texten kan vara helt oläslig.
   const [candidates, artTopLabel] = await Promise.all([
-    matchCards(ocr, artScores),
+    matchCards(ocr, artScores, artConfidentCardId),
     describeArtMatches(artMatches.slice(0, 3)),
   ]);
 

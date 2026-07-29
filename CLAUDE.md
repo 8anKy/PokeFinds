@@ -360,6 +360,22 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   mellansteg med `resize()` hade smugit in bibliotekets omsamplingsfilter i nyckeln, och sharps lanczos är inte
   canvasens utjämning. Testet `art-fingerprint.test.ts` jämför 3- och 4-kanalsvägarna byte för byte — samma sorts vakt
   som `Card.numberSortKey` mot `cardNumberSortKey()`.
+  **EN SÄKER BILDTRÄFF SLÅR MODELLENS NAMN — OCH MARGINALEN, INTE POÄNGEN, AVGÖR VAD "SÄKER" ÄR (2026-07-30)**:
+  modellens NAMN är opålitligt på skärmfotograferingar. Samma kort, samma ram, fyra skanningar: "Pelipper", "Pawmot",
+  "Falinks", "Palafin ex" — det sista med konfidens 0,85. Ett hallucinerat namn får full namnlikhet (1,0) mot SINA kort
+  medan rätt kort får ~0 på namn, så texten vann alltid. MÄTT över 250 kort (hård försämring + 3 % marginal) för träff 1:
+  RÄTT (210 st) poäng median 0,873 / min 0,570 · marginal median 0,111 / p90 0,297 — FEL (40 st) poäng median 0,758 /
+  **MAX 0,922** · marginal median 0,012 / **MAX 0,066**.
+  ⛔ **POÄNGEN SKILJER INTE RÄTT FRÅN FEL** (fördelningarna överlappar: en felträff kan ha 0,92, en rätt träff 0,57).
+  MARGINALEN till tvåan gör det. Regeln `poäng ≥ 0,70 OCH marginal ≥ 0,10` (`ART_TRUST_*`) gav **100 % precision** — 0 av
+  40 felträffar slapp igenom — och täckte 117 av 210 rätta. Tröskeln har ~1,5× marginal till sämsta observerade felträff
+  och är satt på FÖRDELNINGEN, inte på det produktionsfall som väckte frågan (Falinks TG07: 0,857, marginal 0,379).
+  Bonusen (1,15) ligger ÖVER en ren namnträff (max 1,0) men UNDER namn+nummer (1,4–1,5): ett hallucinerat namn utan
+  nummerstöd förlorar, men namn OCH nummer som pekar på samma kort vinner — där är texten bevisad, inte gissad.
+  Verifierat i tre riktningar: hallucinerat namn + säker bild → bilden vinner; hallucinerat namn + OSÄKER bild → namnet
+  står kvar; namn+nummer på ett annat kort → texten vinner.
+  ⛔ **BILDTRÄFFARNA MÅSTE LIGGA ÖVER NAMN-SYSKONEN i kandidatlistan** (skikt 2 mot 3): med ett hallucinerat namn är dess
+  syskon en lista över FEL kort, och låg bildträffarna i "övrigt" försvann rätt kort ur listan helt.
   **BILDEN FÖRESLÅR, NUMRET AVGÖR**: `ART_WEIGHT` (0,3) är medvetet LÄGRE än nummerbonusen (0,4–0,5). Ett läst
   samlarnummer är ett exakt bevis, bildlikhet en gradering — väger bilden tyngre börjar den välja fel TRYCKNING (Base
   Unlimited/Shadowless/1st Edition har identisk konst och skiljs BARA av numret). Kandidaterna läggs dessutom TILL
