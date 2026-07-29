@@ -26,6 +26,9 @@ const searchSchema = z.object({
       "trending",
       "card_number_asc",
       "card_number_desc",
+      "best_match",
+      "title_asc",
+      "title_desc",
     ])
     .optional(),
   page: z.coerce.number().int().min(1).default(1),

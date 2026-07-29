@@ -7,6 +7,7 @@
 import { prisma } from "../src/lib/db";
 import { runScheduledScrapesOnce } from "../src/jobs/scheduler";
 import { refreshPopularityScores } from "../src/services/market";
+import { refreshRankScores } from "../src/jobs/rank-refresh";
 
 // Engagemangsloggen (AnalyticsEvent) skrivs per händelse och behövs bara för
 // Trendar-fönstret (7 d) + admin-engagemang (30 d). Rensa allt äldre än detta så
@@ -25,9 +26,14 @@ async function main() {
     console.log(`Rensade ${pruned.count} analyshändelser äldre än ${ANALYTICS_RETENTION_DAYS} d.`);
   }
 
-  // "Mest populär" = 30-dagars engagemangsvolym, skriven till Product.viewCount.
+  // Engagemangsvolymen (30 d) skrivs till Product.viewCount …
   const pop = await refreshPopularityScores();
   console.log(`Populärpoäng uppdaterade: ${pop.updated} produkter.`);
+
+  // … och är en av ingredienserna i kvalitetspoängen (Product.rankScore = katalogens
+  // "bäst matchning"-ordning). MÅSTE därför köras EFTER raden ovan.
+  const rank = await refreshRankScores();
+  console.log(`Rankningspoäng: ${rank.updated} ändrade av ${rank.scanned} produkter.`);
 }
 
 main()

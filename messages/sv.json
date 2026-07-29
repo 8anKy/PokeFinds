@@ -921,6 +921,9 @@
     "dealsProDesc": "Hitta kort och produkter som säljs långt under sitt marknadsvärde. Uppgradera till Pro för att jaga fynden.",
     "dealsProCta": "Se vad Pro ger dig",
     "sort": {
+      "best_match": "Bäst matchning",
+      "title_asc": "Namn (A–Ö)",
+      "title_desc": "Namn (Ö–A)",
       "popular": "Mest populär",
       "price_asc": "Lägsta pris",
       "price_desc": "Högsta pris",

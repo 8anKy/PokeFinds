@@ -3,6 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { cachedRead } from "@/lib/cache";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
   getExploreFeed,
@@ -75,7 +76,12 @@ const getRecentSets = cachedRead(
 
 // value = URL-parameter (stabil), key = översättningsnyckel (Products.sort.*).
 const SORT_OPTIONS: { value: string; key: string; sort: ProductSort }[] = [
-  { value: "popular", key: "popular", sort: "popular" },
+  // "Mest populär" (ren engagemangsvolym) är ersatt av "Bäst matchning" 2026-07-29:
+  // relevans × kvalitet, plus dina egna bevakningar/samling. Volymen finns kvar som
+  // en INGREDIENS i poängen. Gamla länkar med ?sortera=popular funkar (normalizeSort).
+  { value: "basta-traff", key: "best_match", sort: "best_match" },
+  { value: "a-o", key: "title_asc", sort: "title_asc" },
+  { value: "o-a", key: "title_desc", sort: "title_desc" },
   { value: "lagsta-pris", key: "price_asc", sort: "price_asc" },
   { value: "hogsta-pris", key: "price_desc", sort: "price_desc" },
   { value: "prisfall", key: "biggest_drop", sort: "biggest_drop" },
@@ -133,8 +139,9 @@ function buildParams(sp: CatalogSearchParams): SearchProductsParams {
   const language = csv(sp.sprak)?.filter((v): v is CardLanguage =>
     LANGUAGE_KEYS.includes(v as CardLanguage)
   );
+  // Okänt/borttaget värde (t.ex. den gamla ?sortera=popular) → katalogens standard.
   const sort =
-    SORT_OPTIONS.find((o) => o.value === sp.sortera)?.sort ?? "popular";
+    SORT_OPTIONS.find((o) => o.value === sp.sortera)?.sort ?? "best_match";
   const page = Math.max(1, Number(sp.sida) || 1);
 
   return {
@@ -183,7 +190,8 @@ function buildFeedQuery(p: SearchProductsParams): string {
   if (p.stockStatus) s.set("stockStatus", p.stockStatus);
   const language = join(p.language);
   if (language) s.set("language", language);
-  s.set("sort", p.sort ?? "popular");
+  // userId skickas ALDRIG med i URL:en — feed-routen läser sessionen själv.
+  s.set("sort", p.sort ?? "best_match");
   return s.toString();
 }
 
@@ -348,7 +356,11 @@ export default async function ProductsPage({
   const t = await getTranslations("Products");
   const tCat = await getTranslations("Category");
   const tLang = await getTranslations("Language");
-  const params = buildParams(searchParams);
+  // Sessionen läses HÄR (sidan är force-dynamic) — inte i marketing-layouten, som
+  // måste förbli auth-fri för att resten av katalogen ska kunna ISR-cachas.
+  // JWT-sessioner → ingen DB-fråga. Bara "bäst matchning" bryr sig om vem du är.
+  const session = await auth();
+  const params = { ...buildParams(searchParams), userId: session?.user?.id };
   const [result, sets, retailers, recentSets] = await Promise.all([
     getExploreFeed(params, 0, PAGE_SIZE),
     getFilterSets(),

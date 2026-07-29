@@ -311,6 +311,13 @@ model Product {
   language        CardLanguage    @default(EN)
   viewCount       Int             @default(0)
   clickCount      Int             @default(0)
+  // "Bäst matchning": produktens KVALITETSpoäng × 1000 (heltal → DB-sorterbart utan
+  // flyttal), räknad av qualityScore() i src/services/ranking.ts och skriven en gång
+  // per dygn av scrape-all. Utan sökord ÄR den katalogens ordning; med sökord är den
+  // ena halvan av relevans × kvalitet. Egen kolumn (inte beräknad vid läsning) därför
+  // att feeden pagineras i SQL — en ordning som bara finns i minnet hade bara sorterat
+  // den sida vi råkat hämta. Samma skäl som Card.numberSortKey.
+  rankScore       Int             @default(0)
   // Denormaliserat lägsta prissatta offer-pris (öre) — null = inget pris (gömd ur
   // katalogen tills den får ett pris). Möjliggör DB-nivå prissortering +
   // paginering (infinite scroll) utan att läsa in alla offers. Räknas om av
@@ -337,6 +344,7 @@ model Product {
   @@index([category])
   @@index([setId])
   @@index([lowestPriceOre])
+  @@index([rankScore])
 }
 
 model Retailer {

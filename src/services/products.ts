@@ -11,6 +11,12 @@ import { visibleListings } from "@/lib/listing-plausibility";
 import { compareCardNumbers } from "@/lib/card-number-order";
 import { PRINT_VARIANT_LABELS } from "@/lib/print-variant";
 import { getTrendingLift } from "@/services/market";
+import {
+  bestMatchScore,
+  EMPTY_PERSONAL,
+  type PersonalContext,
+  type QualityInput,
+} from "@/services/ranking";
 import type {
   CardLanguage,
   Prisma,
@@ -19,16 +25,30 @@ import type {
 } from "@prisma/client";
 
 export type ProductSort =
+  // Katalogens standard. Utan sökord = produktens kvalitetspoäng (Product.rankScore);
+  // med sökord = relevans × kvalitet, plus ett lyft för dina egna bevakningar/samling.
+  // Se src/services/ranking.ts.
+  | "best_match"
   | "price_asc"
   | "price_desc"
   | "biggest_drop"
+  // "popular" (ren 30-dagars engagemangsvolym) är BORTA ur filtret 2026-07-29 och
+  // ersatt av best_match. Värdet accepteras fortfarande av API/URL:er — gamla länkar
+  // och bokmärken ska inte gå sönder — men mappas till best_match av normalizeSort().
   | "popular"
   | "recently_restocked"
   | "most_watched"
   | "trending"
   | "deals"
   | "card_number_asc"
-  | "card_number_desc";
+  | "card_number_desc"
+  | "title_asc"
+  | "title_desc";
+
+/** Gamla `popular` = dagens `best_match` (kvalitetspoängen innehåller engagemanget). */
+export function normalizeSort(sort: ProductSort | undefined): ProductSort {
+  return !sort || sort === "popular" ? "best_match" : sort;
+}
 
 export interface SearchProductsParams {
   query?: string;
@@ -43,6 +63,13 @@ export interface SearchProductsParams {
   stockStatus?: StockStatus;
   language?: CardLanguage | CardLanguage[];
   sort?: ProductSort;
+  /**
+   * Inloggad användare → "bäst matchning" lyfter det du själv bevakar/samlar på.
+   * BARA dina egna data (bevakningar + samling); ingen beteendespårning per användare
+   * finns eller ska finnas — analytics.ts strippar userId med flit.
+   * Sätts INTE av publika/cachade anropare: personaliserade resultat går förbi cachen.
+   */
+  userId?: string;
   page: number;
   pageSize: number;
 }
@@ -121,7 +148,7 @@ const MAX_CANDIDATES = 500;
  * SQL-villkor som speglar isDirectOfferUrl() (src/lib/marketplace-urls.ts):
  * sök-/bläddringslänkar + CM-redirecten exkluderas. Delas av pris-cachen och Fynd-feeden.
  */
-const DIRECT_URL_SQL = `
+export const DIRECT_URL_SQL = `
   lower(url) NOT LIKE '%/search%'
   AND lower(url) NOT LIKE '%searchstring=%'
   AND lower(url) NOT LIKE '%sokstr=%'
@@ -374,7 +401,12 @@ export async function buildProductWhere(
 
 /** Sorteringar som ordnas direkt i DB → infinite scroll över HELA katalogen. */
 const DB_SORTABLE = new Set<ProductSort>([
-  "popular", "price_asc", "price_desc", "most_watched",
+  "popular", "best_match", "price_asc", "price_desc", "most_watched",
+  // A–Ö/Ö–A sorteras på normalizedTitle: den är gemener utan diakriter (a–z, 0–9)
+  // och redan indexerad, så ordningen är densamma i C-collation som i en_US och
+  // paginerar över HELA katalogen. Databasens collation är C.UTF-8 (mätt) → hade vi
+  // sorterat på råa `title` hade versaler och "é" hamnat på egna platser.
+  "title_asc", "title_desc",
   // Kortnummer MÅSTE vara DB-sorterat: den beräknade vägen sorterar bara de
   // MAX_CANDIDATES (500) senast uppdaterade produkterna, alltså ett godtyckligt
   // fönster — "sortera efter kortnummer" hade då hoppat över nummer beroende på
@@ -399,6 +431,9 @@ async function sortByTrending(items: ProductListItem[]): Promise<void> {
 
 function feedOrderBy(sort: ProductSort): Prisma.ProductOrderByWithRelationInput {
   switch (sort) {
+    case "best_match": return { rankScore: "desc" };
+    case "title_asc": return { normalizedTitle: "asc" };
+    case "title_desc": return { normalizedTitle: "desc" };
     case "price_asc": return { lowestPriceOre: "asc" };
     case "price_desc": return { lowestPriceOre: "desc" };
     case "most_watched": return { watchlistItems: { _count: "desc" } };
@@ -412,63 +447,224 @@ function feedOrderBy(sort: ProductSort): Prisma.ProductOrderByWithRelationInput 
 }
 
 const FEED_INCLUDE = {
-  set: { select: { id: true, name: true, totalCards: true } },
-  card: { select: { name: true, number: true, rarity: true } },
+  // releaseDate används BARA av rankningen (färskhetsdelen i qualityScore) — den
+  // mappas inte av toListItem och når alltså aldrig klientens payload.
+  set: { select: { id: true, name: true, totalCards: true, releaseDate: true } },
+  // card.setId: singelns set bor på KORTET, inte på produkten — utan det hade
+  // set-släktskapet i personaliseringen missat varje singel.
+  card: { select: { name: true, number: true, rarity: true, setId: true } },
   offers: { select: { price: true, stockStatus: true, url: true } },
   priceSnapshots: { where: { date: { gte: daysAgo(7) } }, select: { date: true, avgPrice: true } },
   restockEvents: { orderBy: { detectedAt: "desc" }, take: 1, select: { detectedAt: true } },
   _count: { select: { watchlistItems: true } },
 } as const;
 
+/** Rad ur feed-frågan — allt rankningen behöver finns här, inget extra anrop. */
+type FeedRow = Prisma.ProductGetPayload<{ include: typeof FEED_INCLUDE }>;
+
+/** Produktens egna kvalitetssignaler, som `qualityScore` väger ihop. */
+function qualityInputOf(p: FeedRow): QualityInput {
+  const offers = p.offers ?? [];
+  return {
+    engagement30d: p.viewCount,
+    watchers: p._count.watchlistItems,
+    // Samma vakt som resten av katalogen: en sök-/bläddringslänk är ingen vara i lager.
+    inStockCount: offers.filter((o) => o.stockStatus === "IN_STOCK" && isDirectOfferUrl(o.url)).length,
+    offerCount: offers.length,
+    hasImage: !!p.imageUrl,
+    hasPrice: p.lowestPriceOre != null,
+    setReleaseDate: p.releaseDate ?? p.set?.releaseDate ?? null,
+  };
+}
+
+/**
+ * Sorterar en hämtad kandidatlista efter "bäst matchning". Poängen räknas på RÅ-raderna
+ * (de bär kortnamn, kortnummer, setnamn och kvalitetssignalerna) och appliceras sedan på
+ * de mappade objekten, så inget extra fält behöver skickas till klienten.
+ */
+function sortByBestMatch(
+  items: ProductListItem[],
+  rows: FeedRow[],
+  opts: { query?: string; personal: PersonalContext }
+): void {
+  const score = new Map<string, number>();
+  for (const p of rows) {
+    score.set(
+      p.id,
+      bestMatchScore(
+        {
+          id: p.id,
+          setId: p.setId ?? p.card?.setId ?? null,
+          title: p.title,
+          cardName: p.card?.name ?? null,
+          cardNumber: p.card?.number ?? null,
+          setName: p.set?.name ?? null,
+          quality: qualityInputOf(p),
+        },
+        { query: opts.query, personal: opts.personal }
+      )
+    );
+  }
+  items.sort((a, b) => (score.get(b.id) ?? 0) - (score.get(a.id) ?? 0));
+}
+
+/**
+ * FUZZY-RESERV: bara när den exakta ordsökningen ger NOLL träffar. Trigram-likhet är
+ * med flit INTE påslaget för lyckade sökningar — "charizard" hade då dragit in
+ * "charmander" (likhet ~0,35) och grumlat en sökning som redan var rätt. Så här är den
+ * ren räddning för felstavningar, och kostar en extra fråga bara när svaret ändå var tomt.
+ */
+async function fuzzyIds(query: string): Promise<string[]> {
+  const q = normalizeTitle(query);
+  if (q.length < 4) return [];
+  try {
+    // TVÅ MÅTT, för de missar OLIKA saker (mätt mot prod-katalogen 2026-07-29):
+    //   similarity()      jämför HELA titeln → "prismatik" drunknar i en lång titel
+    //                     ("Prismatic Evolutions Poster Collection") och gav 0 träffar.
+    //   word_similarity() jämför frågan mot titelns bästa ORDFÖLJD → hittar den, men
+    //                     missade "pikatchu" (0 träffar) som similarity klarade.
+    // Unionen täcker båda. Precisionen får kosta här: den enda vägen hit är att den
+    // exakta sökningen redan gav NOLL, och poängsättningen ordnar unionen efteråt.
+    const rows = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "Product"
+      WHERE similarity("normalizedTitle", ${q}) > 0.28
+         OR word_similarity(${q}, "normalizedTitle") > 0.6
+      ORDER BY GREATEST(
+        similarity("normalizedTitle", ${q}),
+        word_similarity(${q}, "normalizedTitle")
+      ) DESC
+      LIMIT ${MAX_CANDIDATES}`;
+    return rows.map((r) => r.id);
+  } catch {
+    // pg_trgm saknas (dev-DB utan migrationen) → ingen reserv. Inte ett fel.
+    return [];
+  }
+}
+
+/**
+ * Dina egna signaler. BARA bevakningar och samling — det du själv lagt in. Ingen
+ * beteendelogg per användare finns (analytics.ts strippar userId med flit) och ska
+ * inte byggas för det här. Två indexerade frågor på userId.
+ */
+async function loadPersonalContext(userId?: string): Promise<PersonalContext | null> {
+  if (!userId) return null;
+  const [watched, owned] = await Promise.all([
+    prisma.watchlistItem.findMany({
+      where: { userId },
+      select: { productId: true, product: { select: { setId: true, card: { select: { setId: true } } } } },
+    }),
+    prisma.collectionItem.findMany({
+      where: { userId },
+      select: {
+        productId: true,
+        product: { select: { setId: true, card: { select: { setId: true } } } },
+        card: { select: { setId: true } },
+      },
+    }),
+  ]);
+  const affinitySetIds = new Set<string>();
+  const add = (id?: string | null) => { if (id) affinitySetIds.add(id); };
+  for (const w of watched) { add(w.product?.setId); add(w.product?.card?.setId); }
+  for (const c of owned) { add(c.product?.setId); add(c.product?.card?.setId); add(c.card?.setId); }
+  return {
+    watchedProductIds: new Set(watched.map((w) => w.productId)),
+    ownedProductIds: new Set(owned.map((c) => c.productId).filter((id): id is string => !!id)),
+    affinitySetIds,
+  };
+}
+
 /**
  * Utforska-feed med offset-paginering (infinite scroll). DB-sorterbara
  * sorteringar paginerar över HELA katalogen; beräknade sorteringar (prisfall/
- * trend/restock) körs över topp-MAX_CANDIDATES (scrollen stannar där).
+ * trend/restock/sökt "bäst matchning") körs över topp-MAX_CANDIDATES (scrollen
+ * stannar där).
  */
 async function getExploreFeedRaw(
   params: SearchProductsParams,
   offset: number,
   limit: number
 ): Promise<{ items: ProductListItem[]; total: number; hasMore: boolean }> {
-  const { sort = "popular", minPrice, maxPrice } = params;
+  const sort = normalizeSort(params.sort);
+  const { minPrice, maxPrice } = params;
   if (sort === "deals") return getDealsRaw(offset, limit);
-  const where = await buildProductWhere(params);
-  if (minPrice !== undefined || maxPrice !== undefined) {
-    where.lowestPriceOre = {
-      not: null,
-      ...(minPrice !== undefined ? { gte: minPrice } : {}),
-      ...(maxPrice !== undefined ? { lte: maxPrice } : {}),
-    };
+
+  const buildWhere = async (query?: string) => {
+    const w = await buildProductWhere({ ...params, query });
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      w.lowestPriceOre = {
+        not: null,
+        ...(minPrice !== undefined ? { gte: minPrice } : {}),
+        ...(maxPrice !== undefined ? { lte: maxPrice } : {}),
+      };
+    }
+    return w;
+  };
+
+  let where = await buildWhere(params.query);
+  // Räknas här bara om vi ändå måste veta om sökningen gav noll (fuzzy-reserven);
+  // värdet återanvänds nedan så samma count aldrig körs två gånger.
+  let known: number | null = null;
+  if (params.query) {
+    known = await prisma.product.count({ where });
+    if (known === 0) {
+      const ids = await fuzzyIds(params.query);
+      if (ids.length > 0) {
+        where = { AND: [await buildWhere(undefined), { id: { in: ids } }] };
+        known = null; // nytt villkor → gamla antalet gäller inte
+      }
+    }
   }
 
-  if (DB_SORTABLE.has(sort)) {
-    const [total, products] = await Promise.all([
-      prisma.product.count({ where }),
-      prisma.product.findMany({
-        where,
-        include: FEED_INCLUDE,
-        orderBy: [feedOrderBy(sort), { id: "asc" }],
-        skip: offset,
-        take: limit,
-      }),
-    ]);
+  const personal = await loadPersonalContext(params.userId);
+  // "Bäst matchning" är ren SQL (rankScore) så länge ordningen är densamma för alla —
+  // då paginerar den över HELA katalogen. Poängsättning i minnet krävs så fort
+  // RELEVANS (sökord) eller ett PERSONLIGT lyft ska väga in, och den vägen ser bara
+  // de MAX_CANDIDATES främsta.
+  //
+  // ⛔ DÄRFÖR PERSONALISERAS INTE EN OFILTRERAD KATALOG: gjorde den det stannade
+  // "22 233 produkter" på 500 för varje inloggad besökare, och den oändliga scrollen
+  // med den. Ett litet lyft är inte värt en katalog som tar slut. Ryms hela
+  // träffmängden i fönstret (ett valt set, en kategori, en sökning) är det ofarligt.
+  const needsCount = sort === "best_match" || DB_SORTABLE.has(sort);
+  const total = known ?? (needsCount ? await prisma.product.count({ where }) : 0);
+  const scored =
+    sort === "best_match" &&
+    (!!params.query || (personal !== null && total <= MAX_CANDIDATES));
+
+  if (DB_SORTABLE.has(sort) && !scored) {
+    const products = await prisma.product.findMany({
+      where,
+      include: FEED_INCLUDE,
+      orderBy: [feedOrderBy(sort), { id: "asc" }],
+      skip: offset,
+      take: limit,
+    });
     const items = products.map(toListItem);
     return { items, total, hasMore: offset + items.length < total };
   }
 
   // Beräknade sorteringar: topp-N-kandidater, sortera i minnet, skiva.
+  // Kandidaturvalet för "bäst matchning" tas i KVALITETSordning, inte "senast ändrad":
+  // blir träffmängden större än fönstret ska det som klipps bort vara det svagaste,
+  // inte det som råkade skrivas längst tillbaka.
   const products = await prisma.product.findMany({
     where,
     include: FEED_INCLUDE,
     take: MAX_CANDIDATES,
-    orderBy: { updatedAt: "desc" },
+    orderBy: sort === "best_match" ? { rankScore: "desc" } : { updatedAt: "desc" },
   });
   const items = products.map(toListItem);
-  if (sort === "biggest_drop") items.sort((a, b) => (a.priceChange7dPercent ?? 0) - (b.priceChange7dPercent ?? 0));
+  if (sort === "best_match") sortByBestMatch(items, products, { query: params.query, personal: personal ?? EMPTY_PERSONAL });
+  else if (sort === "biggest_drop") items.sort((a, b) => (a.priceChange7dPercent ?? 0) - (b.priceChange7dPercent ?? 0));
   else if (sort === "trending") await sortByTrending(items);
   else if (sort === "recently_restocked") items.sort((a, b) => (b.lastRestockAt?.getTime() ?? 0) - (a.lastRestockAt?.getTime() ?? 0));
-  const total = Math.min(items.length, MAX_CANDIDATES);
-  return { items: items.slice(offset, offset + limit), total, hasMore: offset + limit < total };
+  // Fönstret ÄR listan här: scrollen stannar vid MAX_CANDIDATES.
+  const windowTotal = Math.min(items.length, MAX_CANDIDATES);
+  return {
+    items: items.slice(offset, offset + limit),
+    total: windowTotal,
+    hasMore: offset + limit < windowTotal,
+  };
 }
 
 // Gemensamt villkor: en Tradera-offer (alias o, produkt p, cm-CTE) i fynd-bandet mot
@@ -587,31 +783,25 @@ async function searchProductsRaw(params: SearchProductsParams): Promise<{
   pageSize: number;
   totalPages: number;
 }> {
-  const { minPrice, maxPrice, sort = "popular", page, pageSize } = params;
+  const { minPrice, maxPrice, page, pageSize } = params;
+  const sort = normalizeSort(params.sort);
 
   // Filter (inkl. gömning av prislösa produkter) byggs av den delade
   // buildProductWhere — samma logik som utforska-feeden.
-  const where = await buildProductWhere(params);
+  let where = await buildProductWhere(params);
+  if (params.query && (await prisma.product.count({ where })) === 0) {
+    const ids = await fuzzyIds(params.query);
+    if (ids.length > 0) {
+      where = { AND: [await buildProductWhere({ ...params, query: undefined }), { id: { in: ids } }] };
+    }
+  }
+  const personal = await loadPersonalContext(params.userId);
 
   const products = await prisma.product.findMany({
     where,
-    include: {
-      set: { select: { id: true, name: true, totalCards: true } },
-      card: { select: { name: true, number: true, rarity: true } },
-      offers: { select: { price: true, stockStatus: true, url: true } },
-      priceSnapshots: {
-        where: { date: { gte: daysAgo(7) } },
-        select: { date: true, avgPrice: true },
-      },
-      restockEvents: {
-        orderBy: { detectedAt: "desc" },
-        take: 1,
-        select: { detectedAt: true },
-      },
-      _count: { select: { watchlistItems: true } },
-    },
+    include: FEED_INCLUDE,
     take: MAX_CANDIDATES,
-    orderBy: { updatedAt: "desc" },
+    orderBy: sort === "best_match" ? { rankScore: "desc" } : { updatedAt: "desc" },
   });
 
   let items = products.map(toListItem);
@@ -630,6 +820,13 @@ async function searchProductsRaw(params: SearchProductsParams): Promise<{
     if (!a.cardNumber) return 1;
     if (!b.cardNumber) return -1;
     return compareCardNumbers(a.cardNumber, b.cardNumber) * dir;
+  };
+
+  /** A–Ö/Ö–A på samma nyckel som DB-vägen (normalizedTitle, kodpunktsordning). */
+  const byTitle = (a: ProductListItem, b: ProductListItem, dir: 1 | -1) => {
+    const x = normalizeTitle(a.title);
+    const y = normalizeTitle(b.title);
+    return (x < y ? -1 : x > y ? 1 : 0) * dir;
   };
 
   const byPrice = (a: ProductListItem, b: ProductListItem, dir: 1 | -1) => {
@@ -669,9 +866,19 @@ async function searchProductsRaw(params: SearchProductsParams): Promise<{
     case "card_number_desc":
       items.sort((a, b) => byCardNumber(a, b, sort === "card_number_asc" ? 1 : -1));
       break;
-    case "popular":
+    // Samma ordning som DB-vägen: jämförelsen görs på normalizedTitle (gemener,
+    // utan diakriter) och med rak kodpunktsjämförelse — localeCompare hade gett en
+    // ANNAN ordning än databasens C-collation.
+    case "title_asc":
+    case "title_desc":
+      items.sort((a, b) => byTitle(a, b, sort === "title_asc" ? 1 : -1));
+      break;
+    case "best_match":
     default:
-      items.sort((a, b) => b.viewCount - a.viewCount);
+      sortByBestMatch(items, products, {
+        query: params.query,
+        personal: personal ?? EMPTY_PERSONAL,
+      });
       break;
   }
 
@@ -1383,8 +1590,22 @@ export async function getCardValues(
 
 // ponytail: publika läsfrågor cachas (datan uppdateras ~en gång/dygn av jobben).
 // Sänker Neon network transfer — upprepade sidvisningar/crawls träffar cachen, inte DB:n.
-export const getExploreFeed = cachedRead(getExploreFeedRaw, "getExploreFeed");
-export const searchProducts = cachedRead(searchProductsRaw, "searchProducts");
+const cachedExploreFeed = cachedRead(getExploreFeedRaw, "getExploreFeed");
+const cachedSearchProducts = cachedRead(searchProductsRaw, "searchProducts");
+
+/**
+ * PERSONALISERADE SVAR GÅR FÖRBI CACHEN. `unstable_cache` nycklar visserligen på
+ * argumenten, så ett userId hade gett en egen post — men då ligger en användares
+ * ordning kvar i en delad cache i en timme, och en ny bevakning syns inte förrän den
+ * går ut. Utloggat (= identiskt för alla) cachas som förut.
+ */
+export const getExploreFeed: typeof getExploreFeedRaw = (params, offset, limit) =>
+  params.userId
+    ? getExploreFeedRaw(params, offset, limit)
+    : cachedExploreFeed(params, offset, limit);
+
+export const searchProducts: typeof searchProductsRaw = (params) =>
+  params.userId ? searchProductsRaw(params) : cachedSearchProducts(params);
 // `singleFlight` UTANPÅ TTL-cachen: produktsidans `generateMetadata` och sidkroppen körs
 // PARALLELLT i Next, så båda startade sitt uppslag innan den andra hunnit fylla
 // TTL-cachen → getProductBySlugRaw kördes två gånger per kall rendering (mätt i
