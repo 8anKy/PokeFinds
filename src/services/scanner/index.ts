@@ -11,7 +11,7 @@ import { ServiceError } from "@/lib/errors";
 import { FINGERPRINT_BYTES } from "@/lib/art-fingerprint";
 import { cardNumberSortKey } from "@/lib/card-number-order";
 import { scoreSimilarity } from "@/scrapers/matching";
-import { searchByFingerprint } from "@/services/scanner/art-index";
+import { searchByFingerprints } from "@/services/scanner/art-index";
 import { getCardValues, getProductValues } from "@/services/products";
 import { ClaudeVisionOcrAdapter } from "@/services/scanner/claude-vision";
 import { MockOcrAdapter } from "@/services/scanner/ocr-mock";
@@ -665,6 +665,16 @@ function decodeFingerprint(b64: string | undefined): Int8Array | null {
   }
 }
 
+/** Avkodar inset-svepet och slänger tysta felaktigheter. Tom lista = ingen bildsignal. */
+function decodeFingerprints(list: string[] | undefined): Int8Array[] {
+  if (!list?.length) return [];
+  // Taket speglar API-schemat: en klient ska inte kunna beställa hundra sökningar.
+  return list.slice(0, 8).flatMap((b64) => {
+    const fp = decodeFingerprint(b64);
+    return fp ? [fp] : [];
+  });
+}
+
 /**
  * Live-identifiering: kör OCR-/vision-adaptern + matchar mot katalogen UTAN att
  * skapa ett ScannerJob (billigt nog att polla med nedskalade videorutor).
@@ -673,17 +683,22 @@ function decodeFingerprint(b64: string | undefined): Int8Array | null {
  */
 export async function identifyCard(
   imageDataUrl: string,
-  opts: { precise?: boolean; detailDataUrl?: string; fingerprint?: string } = {}
+  opts: {
+    precise?: boolean;
+    detailDataUrl?: string;
+    /** Inset-svepet från klienten (base64). Se FINGERPRINT_INSETS. */
+    fingerprints?: string[];
+  } = {}
 ): Promise<IdentifyResult> {
   const adapter = getOcrAdapter(opts.precise);
   // Bildsökningen och vision-anropet är oberoende → kör dem parallellt. Sökningen
   // är några millisekunder CPU mot ett index i minnet; vision-anropet är ett
   // nätverksanrop på hundratals ms. Serialiserade hade bilden lagt sig ovanpå
   // svarstiden i onödan.
-  const fp = decodeFingerprint(opts.fingerprint);
+  const fps = decodeFingerprints(opts.fingerprints);
   const [ocr, artMatches] = await Promise.all([
     adapter.extractCardInfo(imageDataUrl, opts.detailDataUrl),
-    fp ? searchByFingerprint(fp, ART_CANDIDATES) : Promise.resolve([]),
+    fps.length ? searchByFingerprints(fps, ART_CANDIDATES) : Promise.resolve([]),
   ]);
 
   const artScores = new Map(artMatches.map((m) => [m.cardId, m.score]));

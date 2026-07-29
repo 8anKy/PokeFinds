@@ -32,7 +32,13 @@ const CACHE = process.env.CACHE ?? ".spike/img-cache";
 const QUERIES = Number(process.env.QUERIES ?? "300");
 /** ONLY=grid8x11 kör bara en deskriptor (snabbt); PROFILE=harsh hårdare försämring. */
 const ONLY = process.env.ONLY ?? "";
-const PROFILE = PROFILES[process.env.PROFILE ?? "mild"] ?? PROFILES.mild;
+const BASE_PROFILE = PROFILES[process.env.PROFILE ?? "mild"] ?? PROFILES.mild;
+/** PAD=0.02 överstyr profilens marginal — för att mäta hur mycket felinriktning
+ *  avtrycket tål när användaren inte lägger kortet exakt i ramen. */
+const PROFILE =
+  process.env.PAD !== undefined
+    ? { ...BASE_PROFILE, label: `${BASE_PROFILE.label}+pad${process.env.PAD}`, pad: Number(process.env.PAD) }
+    : BASE_PROFILE;
 
 interface Ref {
   card: Card;

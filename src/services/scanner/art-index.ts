@@ -145,6 +145,37 @@ export async function searchByFingerprint(
   return top;
 }
 
+/**
+ * Söker FLERA avtryck av samma kort (inset-svepet) och behåller varje korts
+ * BÄSTA likhet.
+ *
+ * Varför max och inte medelvärde: avtrycken är samma kort beskuret olika, och
+ * bara ETT av dem har rätt beskärning. De övriga är per definition sämre, så ett
+ * medelvärde hade dragit ner rätt kort med brus från de felbeskurna varianterna
+ * — vilket är precis det svepet finns för att undvika.
+ */
+export async function searchByFingerprints(
+  fingerprints: Int8Array[],
+  k = 15
+): Promise<ArtMatch[]> {
+  if (fingerprints.length === 0) return [];
+  if (fingerprints.length === 1) return searchByFingerprint(fingerprints[0], k);
+
+  const best = new Map<string, number>();
+  for (const fp of fingerprints) {
+    // Hämta djupare än k per variant: rätt kort kan ligga strax utanför k i en
+    // felbeskuren variant men överst i den rätta, och då ska det ändå med.
+    for (const m of await searchByFingerprint(fp, k * 2)) {
+      const prev = best.get(m.cardId);
+      if (prev === undefined || m.score > prev) best.set(m.cardId, m.score);
+    }
+  }
+  return [...best.entries()]
+    .map(([cardId, score]) => ({ cardId, score }))
+    .sort((a, b) => b.score - a.score || a.cardId.localeCompare(b.cardId))
+    .slice(0, k);
+}
+
 /** Antal kort i indexet — för diagnostikraden i skannern. */
 export async function artIndexSize(): Promise<number> {
   const index = await getArtIndex();

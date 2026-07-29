@@ -37,6 +37,26 @@ const CLAMP_SIGMA = 3;
 const SCALE = 127 / CLAMP_SIGMA;
 
 /**
+ * INSET-SVEP — klientens svar på att ramen aldrig sitter tätt.
+ *
+ * Avtrycket är mycket känsligt för hur mycket bakgrund som omger kortet, eftersom
+ * ytterringen av ett 8×11-rutnät är 34 av 88 celler. MÄTT (hård försämring, hela
+ * katalogen som referens), topp-15 med ETT avtryck mot marginalen runt kortet:
+ *   0 % → 96 %   1 % → 94 %   2 % → 84 %   4 % → 49 %   6 % → 15 %
+ * En handhållen fångst sitter inte inom 1–2 %, så ett enda avtryck räcker inte.
+ *
+ * Klienten skickar därför avtrycket beskuret med flera inset och servern tar det
+ * BÄSTA. Då spelar det nästan ingen roll hur kortet ligger i ramen — MÄTT med
+ * dessa fyra inset:
+ *   marginal 2 % → topp-15 96 %   4 % → 96 %   6 % → 97 %
+ * (mot 94 / 47 / 9 % med ett enda avtryck).
+ *
+ * Kostnaden är försumbar: 4 × 264 byte upp och fyra sökningar à ~10 ms mot
+ * indexet i minnet. Fler inset ger marginell vinst; färre tappar 4–6 %-fallet.
+ */
+export const FINGERPRINT_INSETS = [0, 0.03, 0.06, 0.09] as const;
+
+/**
  * Råa RGB(A)-pixlar → konstavtryck.
  *
  * `channels` är 3 (sharp `.raw()` efter removeAlpha) eller 4 (canvas
@@ -52,22 +72,37 @@ export function fingerprintFromRgb(
   pixels: Uint8Array | Uint8ClampedArray,
   width: number,
   height: number,
-  channels: 3 | 4 = 3
+  channels: 3 | 4 = 3,
+  /** Andel av varje kant som hoppas över. Se FINGERPRINT_INSETS. */
+  inset = 0
 ): Int8Array | null {
   if (width < 1 || height < 1) return null;
   if (pixels.length < width * height * channels) return null;
+
+  // Insetet räknas HÄR och inte genom att beskära bilden i förväg, så att
+  // referens- och frågesidan delar exakt samma aritmetik.
+  const dx = inset > 0 ? Math.round(width * inset) : 0;
+  const dy = inset > 0 ? Math.round(height * inset) : 0;
+  const x0 = dx;
+  const y0 = dy;
+  const iw = width - dx * 2;
+  const ih = height - dy * 2;
+  // Ett inset som äter upp bilden ger ingen information — avvisa i stället för
+  // att räkna på en tom yta.
+  if (iw < GRID_W || ih < GRID_H) return null;
 
   const cells = GRID_W * GRID_H;
   const sums = new Float64Array(cells * 3);
   const counts = new Uint32Array(cells);
 
-  for (let y = 0; y < height; y++) {
+  for (let y = 0; y < ih; y++) {
     // Heltalsdivision ger exakt samma cellgränser i båda implementationerna.
-    const gy = Math.min(GRID_H - 1, Math.floor((y * GRID_H) / height));
-    for (let x = 0; x < width; x++) {
-      const gx = Math.min(GRID_W - 1, Math.floor((x * GRID_W) / width));
+    const gy = Math.min(GRID_H - 1, Math.floor((y * GRID_H) / ih));
+    const rowBase = (y0 + y) * width;
+    for (let x = 0; x < iw; x++) {
+      const gx = Math.min(GRID_W - 1, Math.floor((x * GRID_W) / iw));
       const cell = gy * GRID_W + gx;
-      const p = (y * width + x) * channels;
+      const p = (rowBase + x0 + x) * channels;
       sums[cell * 3] += pixels[p];
       sums[cell * 3 + 1] += pixels[p + 1];
       sums[cell * 3 + 2] += pixels[p + 2];

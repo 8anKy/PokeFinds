@@ -139,6 +139,17 @@ export interface DegradeProfile {
   /** Extra beskärningsglapp och färgdrift. */
   jitter: number;
   finalQuality: number;
+  /**
+   * BAKGRUND RUNT KORTET, som andel av kortets storlek.
+   *
+   * ⛔ DEN HÄR FÖRSÄMRINGEN SAKNADES, OCH DET KOSTADE OSS EN HEL PRODUKTIONSBUGG.
+   * `jitter` skär IN i kortet; en riktig fångst har i stället bakgrund RUNT om
+   * (kameravyns `CROP_PAD`). Vid ett 8×11-rutnät smittar den ytterringen 34 av 88
+   * celler, och effekten är inte marginell: Falinks TG07 gick från plats 1
+   * (likhet 0,989) till UTANFÖR topp-15 med 6 % marginal. Revisionen rapporterade
+   * ändå 96 % topp-15, eftersom den aldrig modellerade fallet.
+   */
+  pad: number;
 }
 
 /**
@@ -149,8 +160,10 @@ export interface DegradeProfile {
  * en optimistisk siffra som ser ut som ett godkännande är värre än ingen siffra.
  */
 export const PROFILES: Record<string, DegradeProfile> = {
-  mild: { label: "mild", screenW: 300, screenQuality: 55, blur: 1.1, jitter: 0.04, finalQuality: 80 },
-  harsh: { label: "harsh", screenW: 200, screenQuality: 35, blur: 2.4, jitter: 0.07, finalQuality: 62 },
+  mild: { label: "mild", screenW: 300, screenQuality: 55, blur: 1.1, jitter: 0.04, finalQuality: 80, pad: 0 },
+  harsh: { label: "harsh", screenW: 200, screenQuality: 35, blur: 2.4, jitter: 0.07, finalQuality: 62, pad: 0 },
+  /** Bakgrund runt kortet — modellerar en fångst där ramen inte sitter tätt. */
+  padded: { label: "padded", screenW: 200, screenQuality: 35, blur: 2.4, jitter: 0.03, finalQuality: 62, pad: 0.06 },
 };
 
 export async function degradeAsScreenPhoto(
@@ -191,9 +204,20 @@ export async function degradeAsScreenPhoto(
     const width = Math.max(8, Math.min(Math.round(W * (1 - inset * 1.5)), W - left));
     const height = Math.max(8, Math.min(Math.round(H * (1 - inset * 1.5)), H - top));
 
-    // 4. Monitorns färgtemperatur + kamerans exponering.
-    return await sharp(rotated)
-      .extract({ left, top, width, height })
+    // 4. Monitorns färgtemperatur + kamerans exponering, och ev. bakgrund runt om.
+    const cropped = sharp(rotated).extract({ left, top, width, height });
+    if (profile.pad > 0) {
+      const px = Math.round(width * profile.pad);
+      const py = Math.round(height * profile.pad);
+      cropped.extend({
+        top: py,
+        bottom: py,
+        left: px,
+        right: px,
+        background: { r: 24, g: 20, b: 18 }, // mörkt skrivbord, som i kameravyn
+      });
+    }
+    return await cropped
       .modulate({
         brightness: 1 - profile.jitter * 3 + rnd(6) * profile.jitter * 6,
         saturation: 1 - profile.jitter * 4 + rnd(7) * profile.jitter * 8,

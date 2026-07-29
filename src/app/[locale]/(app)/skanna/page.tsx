@@ -21,7 +21,7 @@ import {
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
-import { fingerprintFromRgb } from "@/lib/art-fingerprint";
+import { FINGERPRINT_INSETS, fingerprintFromRgb } from "@/lib/art-fingerprint";
 import { useIsAdmin } from "@/components/admin-only";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Label, Select } from "@/components/ui/input";
@@ -143,6 +143,12 @@ const CROP_PAD = 0.06;
 /** Andel av kortets höjd som skickas som närbild på nederkanten (numret bor där). */
 const STRIP_FRACTION = 0.22;
 
+/** Längsta sida på den yta konstavtrycket räknas ur. Boxmedelvärdet är i praktiken
+ *  upplösningsokänsligt (testat: 0,99+ mellan 245×342 och 914×1280), så det här
+ *  behöver bara vara rikligt över rutnätet — inte fullt fångstformat, eftersom
+ *  `getImageData` på 4,7 MP kostar tid på telefonen utan att ändra svaret. */
+const FINGERPRINT_SOURCE_MAX = 640;
+
 /**
  * Fångar en nedskalad JPEG-ruta ur videoflödet (i minnet, ej i kamerarullen),
  * BESKUREN till kortramen användaren siktat med.
@@ -168,7 +174,7 @@ function captureFrame(
   video: HTMLVideoElement,
   canvas: HTMLCanvasElement,
   frameEl?: HTMLElement | null
-): { dataUrl: string; fingerprint?: string; stripDataUrl?: string; crop: string } | null {
+): { dataUrl: string; fingerprints: string[]; stripDataUrl?: string; crop: string } | null {
   if (video.readyState < 2 || !video.videoWidth) return null;
   const vW = video.videoWidth;
   const vH = video.videoHeight;
@@ -178,6 +184,11 @@ function captureFrame(
   let sy = 0;
   let sw = vW;
   let sh = vH;
+  // Kortramen UTAN marginal — bara för konstavtrycket.
+  let fx = 0;
+  let fy = 0;
+  let fw = vW;
+  let fh = vH;
 
   const box = video.getBoundingClientRect();
   const frame = frameEl?.getBoundingClientRect();
@@ -198,35 +209,61 @@ function captureFrame(
     sy = Math.max(0, Math.min(top, vH - 1));
     sw = Math.max(1, Math.min(width, vW - sx));
     sh = Math.max(1, Math.min(height, vH - sy));
+    // Ramen UTAN marginal = kortet självt. Konstavtrycket måste räknas på DEN
+    // ytan, inte på den marginalförsedda — se kommentaren vid fingerprint nedan.
+    fx = Math.max(0, Math.min((frame.left - box.left + offX) / cover, vW - 1));
+    fy = Math.max(0, Math.min((frame.top - box.top + offY) / cover, vH - 1));
+    fw = Math.max(1, Math.min(frame.width / cover, vW - fx));
+    fh = Math.max(1, Math.min(frame.height / cover, vH - fy));
   }
 
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  // KONSTAVTRYCK: 264 byte som identifierar kortet på utseende. Servern söker det
+  // mot hela katalogen i minnet — klienten laddar aldrig ner något index, den
+  // skickar 264 byte uppåt.
+  //
+  // ⛔ RÄKNAS PÅ RAMEN UTAN MARGINAL (fx/fy/fw/fh), ALDRIG på det marginal-
+  // försedda utsnittet. Indexet är byggt på katalogbilder som är EXAKT kortet;
+  // fångsten har `CROP_PAD` bakgrund runt om, och vid ett 8×11-rutnät smittar den
+  // ytterringen 34 av 88 celler. MÄTT på Falinks TG07 (hård försämring):
+  //   utan marginal   plats 1, likhet 0,989
+  //   + 6 % marginal  UTANFÖR topp-15, bästa träff 0,547
+  //   inre 88 %       plats 1, likhet 0,989
+  // Marginalen ensam gjorde alltså kortet omöjligt att hitta. Revisionen missade
+  // det för att dess simulerade felbeskärning skär IN i kortet i stället för att
+  // lägga till bakgrund runt om — den försämringen finns nu med i profilerna.
+  // INSET-SVEP: samma yta beskuren flera gånger, så träffsäkerheten inte hänger
+  // på att kortet ligger exakt i ramen. Ett enda avtryck ger topp-15 9 % vid 6 %
+  // marginal; svepet ger 97 %. Se FINGERPRINT_INSETS.
+  const fpScale = Math.min(1, FINGERPRINT_SOURCE_MAX / Math.max(fw, fh));
+  const fpW = Math.max(1, Math.round(fw * fpScale));
+  const fpH = Math.max(1, Math.round(fh * fpScale));
+  canvas.width = fpW;
+  canvas.height = fpH;
+  ctx.drawImage(video, fx, fy, fw, fh, 0, 0, fpW, fpH);
+  // EN läsning av pixlarna, sedan billiga loopar per inset — getImageData är det
+  // dyra steget, inte boxmedelvärdet.
+  const fpPixels = ctx.getImageData(0, 0, fpW, fpH).data;
+  const fingerprints = FINGERPRINT_INSETS.flatMap((inset) => {
+    const fp = fingerprintFromRgb(fpPixels, fpW, fpH, 4, inset);
+    if (!fp) return [];
+    // base64 av 264 byte ≈ 352 tecken. Samma funktion och samma aritmetik som
+    // servern använde på katalogbilden.
+    let bin = "";
+    for (let i = 0; i < fp.length; i++) bin += String.fromCharCode(fp[i] & 0xff);
+    return [btoa(bin)];
+  });
+
+  // Bilden till modellen: MED marginal, så ett snett kort inte tappar numret.
   const scale = Math.min(1, CAPTURE_MAX / Math.max(sw, sh));
   const w = Math.max(1, Math.round(sw * scale));
   const h = Math.max(1, Math.round(sh * scale));
   canvas.width = w;
   canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
   ctx.drawImage(video, sx, sy, sw, sh, 0, 0, w, h);
   const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-
-  // KONSTAVTRYCK: 264 byte som identifierar kortet på utseende. Räknas HÄR, ur
-  // canvasens råa pixlar, och skickas med skanningen. Servern söker det mot hela
-  // katalogen i minnet (src/services/scanner/art-index.ts) — klienten laddar
-  // alltså inte ner något index, den skickar 264 byte uppåt.
-  //
-  // Tas ur den OBESKURNA kortbilden, inte ur nederkant-remsan: avtrycket är hela
-  // kortets färglayout, och indexet är byggt på hela katalogbilder.
-  let fingerprint: string | undefined;
-  const rgba = ctx.getImageData(0, 0, w, h);
-  const fp = fingerprintFromRgb(rgba.data, w, h, 4);
-  if (fp) {
-    // base64 av 264 byte ≈ 352 tecken. Byte-för-byte samma tal som servern
-    // räknade ur katalogbilden — samma funktion, samma aritmetik.
-    let bin = "";
-    for (let i = 0; i < fp.length; i++) bin += String.fromCharCode(fp[i] & 0xff);
-    fingerprint = btoa(bin);
-  }
 
   // NÄRBILD PÅ NEDERKANTEN. Mätt 2026-07-29 på en Trainer Gallery-Falinks med
   // gott om upplösning (ström 2160×3840, utsnitt 1349×1889): modellen svarade
@@ -252,7 +289,7 @@ function captureFrame(
 
   return {
     dataUrl,
-    fingerprint,
+    fingerprints,
     stripDataUrl,
     // Utsnitt i KÄLLpixlar → skickad storlek. Står källan under den skickade
     // storleken skalar vi UPP, dvs modellen får interpolerade pixlar och ingen
@@ -356,7 +393,7 @@ function Scanner() {
     async (
       dataUrl: string,
       strip?: string,
-      fingerprint?: string
+      fingerprints?: string[]
     ): Promise<IdentifyResponse | { error: string }> => {
       try {
         // Standard = billiga Haiku-modellen (ingen `precise`) — håller scan-kostnaden
@@ -366,7 +403,7 @@ function Scanner() {
           headers: { "Content-Type": "application/json" },
           // `detail` = närbild på kortets nederkant. Saknas den (galleriuppladdning,
           // där vi inte vet var kortet sitter i bilden) körs det som förut.
-          body: JSON.stringify({ image: dataUrl, detail: strip, fingerprint }),
+          body: JSON.stringify({ image: dataUrl, detail: strip, fingerprints }),
         });
         const data = (await res.json()) as IdentifyResponse & { error?: string };
         if (!res.ok) {
@@ -391,8 +428,8 @@ function Scanner() {
   );
 
   const identifyInto = useCallback(
-    async (id: string, dataUrl: string, strip?: string, fingerprint?: string) => {
-      const data = await runIdentify(dataUrl, strip, fingerprint);
+    async (id: string, dataUrl: string, strip?: string, fingerprints?: string[]) => {
+      const data = await runIdentify(dataUrl, strip, fingerprints);
       if (!("error" in data) && typeof data.remaining === "number") {
         const r = data.remaining;
         setQuota((q) => (q ? { ...q, remaining: r } : q));
@@ -610,7 +647,7 @@ function Scanner() {
     // `strip` följer med den fångade rutan. Skickas den INTE med som argument
     // utan läses ur en ref vid anropstillfället, ärver en galleriuppladdning
     // närbilden från förra kamerarutan — dvs nederkanten på ett HELT ANNAT kort.
-    (dataUrl: string, strip?: string, fingerprint?: string) => {
+    (dataUrl: string, strip?: string, fingerprints?: string[]) => {
       const id = nextId();
       setScans((prev) => [
         ...prev,
@@ -626,7 +663,7 @@ function Scanner() {
           language: defaultLanguage,
         },
       ]);
-      void identifyInto(id, dataUrl, strip, fingerprint);
+      void identifyInto(id, dataUrl, strip, fingerprints);
     },
     [defaultCondition, defaultLanguage, identifyInto]
   );
@@ -637,13 +674,13 @@ function Scanner() {
     if (!video || !canvas || cameraState !== "live" || shutterCooling) return;
     const shot = captureFrame(video, canvas, frameRef.current);
     if (!shot) return;
-    const { dataUrl, stripDataUrl, fingerprint, crop } = shot;
+    const { dataUrl, stripDataUrl, fingerprints, crop } = shot;
     setCropInfo(crop);
     setFlash(true);
     window.setTimeout(() => setFlash(false), 180);
     setShutterCooling(true);
     window.setTimeout(() => setShutterCooling(false), 450);
-    addScan(dataUrl, stripDataUrl, fingerprint);
+    addScan(dataUrl, stripDataUrl, fingerprints);
   }, [cameraState, shutterCooling, addScan]);
 
   function handleFile(file: File): boolean {

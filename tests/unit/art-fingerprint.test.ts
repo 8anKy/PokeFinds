@@ -11,6 +11,7 @@
 import { describe, expect, it } from "vitest";
 import {
   FINGERPRINT_BYTES,
+  FINGERPRINT_INSETS,
   GRID_H,
   GRID_W,
   cosineSimilarity,
@@ -132,6 +133,65 @@ describe("art-fingerprint", () => {
     for (let i = 0; i < other.length; i++) other[i] = 255 - other[i];
     const b = toUnitVector(fingerprintFromRgb(other, w, h, 3)!);
     expect(cosineSimilarity(a, b)).toBeLessThan(0.5);
+  });
+
+  describe("inset (svepet som gör ramen oviktig)", () => {
+    /** Lägger mörk bakgrund runt bilden — som en fångst där ramen inte sitter tätt. */
+    function pad(px: Uint8Array, w: number, h: number, frac: number) {
+      const dx = Math.round(w * frac);
+      const dy = Math.round(h * frac);
+      const W = w + dx * 2;
+      const H = h + dy * 2;
+      const out = new Uint8Array(W * H * 3).fill(20);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const s = (y * w + x) * 3;
+          const d = ((y + dy) * W + x + dx) * 3;
+          out[d] = px[s];
+          out[d + 1] = px[s + 1];
+          out[d + 2] = px[s + 2];
+        }
+      }
+      return { px: out, w: W, h: H };
+    }
+
+    it("ett inset som matchar marginalen återställer avtrycket", () => {
+      // KÄRNAN I FIXEN. Marginal runt kortet smittar ytterringen av rutnätet (34
+      // av 88 celler) och gjorde kortet omöjligt att hitta i produktion. Beskärs
+      // frågan med motsvarande inset ska avtrycket bli nästan identiskt igen.
+      const w = 200;
+      const h = 279;
+      const base = makeImage(w, h, 3);
+      const clean = toUnitVector(fingerprintFromRgb(base, w, h, 3)!);
+
+      const padded = pad(base, w, h, 0.06);
+      const naive = toUnitVector(
+        fingerprintFromRgb(padded.px, padded.w, padded.h, 3)!
+      );
+      // Marginalen ska GÖRA SKILLNAD — annars mäter testet ingenting.
+      expect(cosineSimilarity(clean, naive)).toBeLessThan(0.95);
+
+      // 6 % marginal på en bild som vuxit 12 % ⇒ inset 0,06/1,12 ≈ 0,0536.
+      const corrected = toUnitVector(
+        fingerprintFromRgb(padded.px, padded.w, padded.h, 3, 0.06 / 1.12)!
+      );
+      expect(cosineSimilarity(clean, corrected)).toBeGreaterThan(0.99);
+    });
+
+    it("svepet innehåller 0 först, så en tätt sittande ram inte straffas", () => {
+      expect(FINGERPRINT_INSETS[0]).toBe(0);
+      expect(FINGERPRINT_INSETS.length).toBeGreaterThan(1);
+      // Alla inset måste vara meningsfulla andelar.
+      for (const i of FINGERPRINT_INSETS) {
+        expect(i).toBeGreaterThanOrEqual(0);
+        expect(i).toBeLessThan(0.25);
+      }
+    });
+
+    it("avvisar ett inset som äter upp bilden", () => {
+      // 0,49 × 2 = 98 % bortskuret → för få pixlar kvar för rutnätet.
+      expect(fingerprintFromRgb(makeImage(20, 28, 3), 20, 28, 3, 0.49)).toBeNull();
+    });
   });
 
   it("avvisar orimliga indata i stället för att räkna på skräp", () => {
