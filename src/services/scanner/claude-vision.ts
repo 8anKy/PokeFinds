@@ -58,8 +58,10 @@ const SYSTEM = [
   "'SWSH034' skrivs 'SWSH034', 'SV075' skrivs 'SV075'.",
   "En efterföljande bokstav hör också till numret: '130a' är INTE '130'.",
   "Behåll inledande nollor och mellanslag som de står ('MEP 074').",
-  "Är numret oläsligt: lämna number tomt och sänk konfidensen — hellre tomt än fel",
-  "nummer, eftersom ett påhittat nummer pekar ut ett annat riktigt kort.",
+  "SÄTT numberLegible=false om du inte kunde läsa varje tecken tydligt — om du",
+  "gissade, härledde numret ur kortets utseende, eller inte såg det. Ett påhittat",
+  "nummer är VÄRRE än inget: det pekar ut ett annat riktigt kort. Att svara",
+  "numberLegible=false är alltid ett godtagbart svar.",
   "Returnera en konfidens 0–1 utifrån hur tydligt kortet syns och hur säker du är.",
   "Om inget tydligt Pokémon-kort syns: sätt cardVisible=false och låg konfidens.",
 ].join(" ");
@@ -85,9 +87,24 @@ const CARD_TOOL: Anthropic.Tool = {
           "Bokstäver före OCH efter siffrorna hör till numret och ska med. " +
           "Tom sträng om oläsligt.",
       },
+      // EGEN FRÅGA I STÄLLET FÖR ETT TOMT FÄLT. Prompten har hela tiden sagt
+      // "hellre tomt än fel nummer" — och modellen struntar i det: MÄTT över 26
+      // riktiga skanningar var 16 nummer syntaktiskt giltiga och praktiskt taget
+      // inget korrekt. Trainer Gallery-korten (TG01/TG30, TG04/TG30, TG07/TG30,
+      // TG08/TG30) rapporterades som "43/102", "37/102", "40/202", "89/136", och
+      // "41/108" kom tillbaka för BÅDE en Crawdaunt och en Rayquaza. Ett
+      // uppdiktat nummer är värre än inget: det kan träffa ett riktigt kort.
+      // En modell svarar mer tillförlitligt på en rak ja/nej-fråga än den
+      // avstår från att fylla i ett fält.
+      numberLegible: {
+        type: "boolean",
+        description:
+          "Kunde du läsa VARJE TECKEN i samlarnumret tydligt i bilden? " +
+          "false om du gissade, härledde det ur kortets utseende, eller inte kunde se det.",
+      },
       confidence: { type: "number", description: "0–1" },
     },
-    required: ["cardVisible", "name", "number", "confidence"],
+    required: ["cardVisible", "name", "number", "numberLegible", "confidence"],
     additionalProperties: false,
   },
 };
@@ -185,7 +202,14 @@ export class ClaudeVisionOcrAdapter implements OcrAdapter {
     const input = toolUse.input as Record<string, unknown>;
     const cardVisible = input.cardVisible === true;
     const name = sanitizeName(typeof input.name === "string" ? input.name : "");
-    const number = sanitizeNumber(typeof input.number === "string" ? input.number : "");
+    // Numret används BARA när modellen själv säger att det var läsbart. Ett
+    // uppdiktat nummer är aktivt skadligt — det kan matcha ett riktigt kort och
+    // vinna över rätt kort. Saknas fältet (äldre svar) faller vi tillbaka på att
+    // lita på numret, dvs beteendet som fanns förut.
+    const legible = input.numberLegible !== false;
+    const number = legible
+      ? sanitizeNumber(typeof input.number === "string" ? input.number : "")
+      : "";
     const confidence =
       typeof input.confidence === "number" && Number.isFinite(input.confidence)
         ? Math.min(1, Math.max(0, input.confidence))

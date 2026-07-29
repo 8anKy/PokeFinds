@@ -87,12 +87,14 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   som att seten låg i fel serie. Grupperingen är nu en `Map` (samma som /sets-sidan): serieordning = där seriens nyaste
   set ligger, nyast först inuti serien. Och `orderBy` är `{ releaseDate: { sort: "desc", nulls: "last" } }` — Postgres
   lägger NULL FÖRST vid DESC, så ett datumlöst set (MEP Black Star Promos) låg överst som om det vore nyast.
-- **Skannern: MÄT BILDMATCHNINGEN PÅ RIKTIGA FÅNGSTER (2026-07-29)**: konstavtrycket är live men dess verkliga
-  träffsäkerhet är OMÄTT — alla siffror kommer från frågor härledda ur samma filer som referenserna (ett tak).
-  Diagnostikraden i skannern visar `bild <likhet>` för admin; nästa steg är att samla riktiga fångster och jämföra
-  bildens förslag mot vad text-matchningen valde. Ligger `bild` konsekvent högt för rätt kort kan `ART_WEIGHT` höjas
-  och vision-anropet göras VALFRITT (Haiku behövs bara för att skilja tryckningar), vilket tar bort merparten av
-  scan-kostnaden. Ligger den lågt: höj inte vikten, felsök avtrycket.
+- **SKANNERN: LÄS `docs/SCANNER-STATUS.md` FÖRE NÄSTA ÄNDRING (2026-07-30)**: lägesbilden med alla mätvärden,
+  vad som är BEVISAT och vad som är MOTBEVISAT (finare rutnät = sämre, viktat konstfönster = sämre, neuralt nät =
+  onödigt), plus de 26 riktiga skanningarnas utfall. Kortversion: helbildskort fungerar (4/4), klassiskt ramade kort
+  fungerar INTE på skärmfoto (0/6) eftersom samlarnumret är ~3 px i en produktbild på skärm och färglayouten mättas
+  inom en färgfamilj. **Modellen HITTAR PÅ nummer** — 16 av 26 var syntaktiskt giltiga och nästan inget korrekt, så
+  `numberLegible` (ja/nej-fråga i verktyget) infördes 07-30 och är ÄNNU OMÄTT: mät med `scripts/scanner-telemetry.ts`.
+  ⛔ Nästa riktiga mätning kräver FYSISKA kort — `scripts/art-audit/` kan inte modellera "en annan rendering av samma
+  kort", vilket är precis det som fäller färgbaserad matchning.
 - **Skanner-modellen: MINDRE BRÅDSKANDE efter bildmatchningen (2026-07-29)**: Haiku 4.5 behövs nu bara för att läsa
   samlarnumret när det ÄR läsbart (för att välja tryckning), inte för att identifiera kortet. Kostnad/scan om det ändå
   ska bytas: Haiku 4.5 $0,0023 (+närbild ≈ $0,0029) · Sonnet 5 @1280px $0,0069 (intro $0,0046 t.o.m. 2026-08-31) ·
