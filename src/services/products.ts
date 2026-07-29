@@ -32,16 +32,25 @@ export type ProductSort =
 
 export interface SearchProductsParams {
   query?: string;
-  category?: ProductCategory;
+  // Kategori, butik och språk tar EN eller FLERA värden (katalogens "Fler filter"
+  // är flerval). Ett ensamt värde behålls som giltig form så äldre anropare —
+  // /api/products, desktop-sidofältets <select> — kan skicka en sträng som förut.
+  category?: ProductCategory | ProductCategory[];
   setId?: string;
-  retailerId?: string;
+  retailerId?: string | string[];
   minPrice?: number; // öre
   maxPrice?: number; // öre
   stockStatus?: StockStatus;
-  language?: CardLanguage;
+  language?: CardLanguage | CardLanguage[];
   sort?: ProductSort;
   page: number;
   pageSize: number;
+}
+
+/** Normaliserar "ett värde | flera värden | inget" till en lista. */
+function toList<T>(value: T | T[] | undefined | null): T[] {
+  if (value == null) return [];
+  return Array.isArray(value) ? value.filter((v) => v != null) : [value];
 }
 
 export interface ProductListItem {
@@ -322,17 +331,27 @@ export async function buildProductWhere(
   if (setId) andClauses.push({ OR: [{ setId }, { card: { setId } }] });
 
   const where: Prisma.ProductWhereInput = andClauses.length > 0 ? { AND: andClauses } : {};
-  if (category && !HIDDEN_CATEGORIES.includes(category)) where.category = category;
+  // Flera valda kategorier = OR mellan dem. Gömda kategorier filtreras bort ur
+  // valet först; blir listan tom faller vi tillbaka på "allt utom de gömda".
+  const categories = toList(category).filter((c) => !HIDDEN_CATEGORIES.includes(c));
+  if (categories.length > 0) where.category = { in: categories };
   else where.category = { notIn: HIDDEN_CATEGORIES };
   // Katalogen är EN + JP only. Utan detta var språk BARA ett användarfilter, så
   // default-vyn ("Alla språk") visade även OTHER-taggade produkter — de 6 spanska/
   // tyska Samlarhobby-boostrarna låg synliga i katalogen i fem dygn. Ett uttryckligt
   // filter respekteras, men "inget filter" betyder EN+JP, aldrig "allt".
-  if (language) where.language = language;
+  const languages = toList(language);
+  if (languages.length > 0) where.language = { in: languages };
   else where.language = { in: CATALOG_LANGUAGES };
-  if (retailerId) {
+  const retailerIds = toList(retailerId);
+  if (retailerIds.length > 0) {
     where.offers = {
-      some: { retailerId, stockStatus: "IN_STOCK", price: { not: null }, NOT: { url: { contains: "search", mode: "insensitive" } } },
+      some: {
+        retailerId: { in: retailerIds },
+        stockStatus: "IN_STOCK",
+        price: { not: null },
+        NOT: { url: { contains: "search", mode: "insensitive" } },
+      },
     };
   } else if (stockStatus) {
     where.offers = { some: { stockStatus } };

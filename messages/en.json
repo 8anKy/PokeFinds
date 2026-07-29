@@ -890,6 +890,7 @@
     "priceFrom": "From",
     "priceTo": "To",
     "priceAll": "All",
+    "priceNoMax": "No max",
     "category": "Category",
     "allCategories": "All categories",
     "set": "Set",

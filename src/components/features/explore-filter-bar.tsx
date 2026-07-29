@@ -47,19 +47,23 @@ interface ExploreFilterBarProps {
 }
 
 /**
- * Övre gränsen på prisreglaget. Ligger reglaget i topp skickas INGEN maxPris —
- * "5 000 kr+" betyder obegränsat, annars hade skjutreglaget tyst kapat katalogens
- * dyra singlar (Base-Charizard m.fl. ligger långt över taket).
+ * Reglagets topp. Taket är BARA reglagets räckvidd, inte katalogens: `max = null`
+ * betyder inget tak alls (dyra singlar ligger långt över 5 000 kr), och skriver
+ * man in ett eget värde i Till-fältet får det gärna vara högre än taket — då
+ * ligger handtaget i topp medan siffran gäller.
  */
 const PRICE_MAX = 5000;
 const PRICE_STEP = 50;
 
-const PRICE_SHORTCUTS: [number, number][] = [
-  [0, PRICE_MAX],
+/** null = inget tak. */
+type MaxKr = number | null;
+
+const PRICE_SHORTCUTS: [number, MaxKr][] = [
+  [0, null],
   [0, 200],
   [200, 500],
   [500, 1000],
-  [1000, PRICE_MAX],
+  [1000, null],
 ];
 
 type SheetKind = "sort" | "set" | "price" | "more";
@@ -99,12 +103,15 @@ export function ExploreFilterBar({
   const activeSet = sets.find((s) => s.id === searchParams.set) ?? null;
   const inStock = searchParams.lager === "1";
 
-  const minKr = clampKr(searchParams.minPris, 0);
-  const maxKr = clampKr(searchParams.maxPris, PRICE_MAX);
-  const priceActive = minKr > 0 || maxKr < PRICE_MAX;
+  const minKr = parseKr(searchParams.minPris) ?? 0;
+  const maxKr: MaxKr = parseKr(searchParams.maxPris);
+  const priceActive = minKr > 0 || maxKr !== null;
 
+  // Flerval → chipet räknar VALDA VÄRDEN, inte hur många grupper som är i bruk.
   const moreCount =
-    (searchParams.kategori ? 1 : 0) + (searchParams.butik ? 1 : 0) + (searchParams.sprak ? 1 : 0);
+    csvList(searchParams.kategori).length +
+    csvList(searchParams.butik).length +
+    csvList(searchParams.sprak).length;
 
   /** Bygger nästa URL. `sida` nollställs alltid — sida 3 av ett annat filter är inte sida 3. */
   function pushParams(patch: Partial<Record<keyof ExploreSearchParams, string | undefined>>) {
@@ -117,11 +124,13 @@ export function ExploreFilterBar({
     router.push(qs ? `/produkter?${qs}` : "/produkter");
   }
 
-  const priceLabel = priceActive
-    ? minKr > 0
-      ? `${minKr.toLocaleString("sv-SE")}–${maxKr >= PRICE_MAX ? `${PRICE_MAX.toLocaleString("sv-SE")}+` : maxKr.toLocaleString("sv-SE")} kr`
-      : `≤ ${krLabel(maxKr)}`
-    : t("priceShort");
+  const priceLabel = !priceActive
+    ? t("priceShort")
+    : maxKr === null
+      ? `${minKr.toLocaleString("sv-SE")}+ kr`
+      : minKr > 0
+        ? `${minKr.toLocaleString("sv-SE")}–${maxKr.toLocaleString("sv-SE")} kr`
+        : `≤ ${krLabel(maxKr)}`;
 
   return (
     <div className="space-y-3">
@@ -155,17 +164,18 @@ export function ExploreFilterBar({
         }
       />
 
-      <div className="flex items-center gap-2.5">
-        {/* Chip-raden svepas i SIDLED och bara i sidled. `touch-action: pan-x` ger
-            gesten till raden när fingret går vågrätt och till SIDAN när det går
-            lodrätt — utan den slogs de två om varje svep och raden kändes trög.
-            `overflow-y-hidden` tar bort den lodräta rullning som rensa-knapparnas
-            träffytor annars skapade (de är högre än chipet). Masken tonar
-            högerkanten så en halvt synlig chip läses som "det finns fler" i
-            stället för som avklippt text — träffantalet ("21 650 produkter") äter
-            en tredjedel av en 390px-rad. */}
+      {/* Chip-raden svepas i SIDLED och bara i sidled. `touch-action: pan-x` ger
+          gesten till raden när fingret går vågrätt och till SIDAN när det går
+          lodrätt — utan den slogs de två om varje svep. `overflow-y-hidden` tar
+          bort den lodräta rullning som rensa-knapparnas träffytor annars skapade.
+          Raden går KANT TILL KANT (-mx-4 mot sidans px-4): förut delade den
+          bredden med träffantalet och det gick bara att greppa ~250px mitt på
+          skärmen, vilket är precis varför svepen inte kändes igen. Antalet ligger
+          nu ovanpå högerkanten med en uttonad svart platta, så chipen glider in
+          under det i stället för att trängas med det. */}
+      <div className="relative -mx-4">
         <div
-          className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain py-1.5 [mask-image:linear-gradient(to_right,#000_calc(100%-20px),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex items-center gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain py-1.5 pl-4 pr-[7.5rem] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           style={{ touchAction: "pan-x" }}
         >
           <Chip
@@ -196,13 +206,15 @@ export function ExploreFilterBar({
             }
             clearAriaLabel={t("clearPrice")}
           />
+          {/* Lagerfiltret är PÅ eller AV — inget val att plocka bort ur. Därför
+              inget kryss: ett tryck slår om det, precis som det tändes. */}
           <Chip
             active={inStock}
             label={t("inStockShort")}
             onOpen={() => pushParams({ lager: inStock ? undefined : "1" })}
-            onClear={inStock ? () => pushParams({ lager: undefined }) : undefined}
             clearAriaLabel={t("clearInStock")}
             caret={false}
+            pressed={inStock}
           />
           {/* Kategori/butik/språk finns kvar — de ryms bara inte som egna chips. */}
           <Chip
@@ -217,11 +229,17 @@ export function ExploreFilterBar({
             clearAriaLabel={t("clearMoreFilters")}
           />
         </div>
-        <span
-          aria-live="polite"
-          className="shrink-0 whitespace-nowrap text-[11.5px] font-medium tabular-nums text-ink-faint"
-        >
-          {t("resultCount", { count: total })}
+        {/* Uttoning + solid platta som två egna ytor i stället för en gradient med
+            färgstopp: siffran måste ligga på HELT svart, annars läste chipet under
+            rakt igenom den och de två texterna gick i varandra. */}
+        <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center">
+          <span aria-hidden className="h-full w-8 bg-gradient-to-r from-transparent to-surface" />
+          <span
+            aria-live="polite"
+            className="flex h-full items-center bg-surface pl-1 pr-4 text-[11.5px] font-medium tabular-nums text-ink-faint"
+          >
+            {t("resultCount", { count: total })}
+          </span>
         </span>
       </div>
 
@@ -274,10 +292,14 @@ export function ExploreFilterBar({
         maxKr={maxKr}
         total={total}
         onClose={() => setSheet(null)}
-        onApply={(nextMin, nextMax) => {
+        onApply={(rawMin, rawMax) => {
+          // Reglagen får passera varandra (att låta handtaget tvärstanna kändes
+          // trasigt) — här rättas ordningen i stället.
+          const lo = rawMax !== null && rawMax < rawMin ? rawMax : rawMin;
+          const hi = rawMax !== null && rawMax < rawMin ? rawMin : rawMax;
           pushParams({
-            minPris: nextMin > 0 ? String(nextMin) : undefined,
-            maxPris: nextMax < PRICE_MAX ? String(nextMax) : undefined,
+            minPris: lo > 0 ? String(lo) : undefined,
+            maxPris: hi !== null ? String(hi) : undefined,
           });
           setSheet(null);
         }}
@@ -310,6 +332,7 @@ function Chip({
   clearAriaLabel,
   leading,
   caret = true,
+  pressed,
 }: {
   active: boolean;
   label: string;
@@ -318,6 +341,8 @@ function Chip({
   clearAriaLabel: string;
   leading?: ReactNode;
   caret?: boolean;
+  /** Sätt för av/på-chips — då exponeras chipet som en toggle för skärmläsare. */
+  pressed?: boolean;
 }) {
   return (
     <span
@@ -332,6 +357,7 @@ function Chip({
       <button
         type="button"
         onClick={onOpen}
+        aria-pressed={pressed}
         className="inline-flex max-w-[11rem] items-center gap-1.5 px-3 py-2 text-[12.5px] font-semibold leading-none"
       >
         {leading}
@@ -552,14 +578,14 @@ function PriceSheet({
 }: {
   open: boolean;
   minKr: number;
-  maxKr: number;
+  maxKr: MaxKr;
   total: number;
   onClose: () => void;
-  onApply: (min: number, max: number) => void;
+  onApply: (min: number, max: MaxKr) => void;
 }) {
   const t = useTranslations("Products");
   const [min, setMin] = useState(minKr);
-  const [max, setMax] = useState(maxKr);
+  const [max, setMax] = useState<MaxKr>(maxKr);
 
   // Sheeten monteras/avmonteras med `open` → synka in URL-värdet varje gång den öppnas.
   useEffect(() => {
@@ -574,32 +600,60 @@ function PriceSheet({
       open={open}
       title={t("priceRange")}
       onClose={onClose}
-      onClear={min > 0 || max < PRICE_MAX ? () => onApply(0, PRICE_MAX) : undefined}
+      onClear={min > 0 || max !== null ? () => onApply(0, null) : undefined}
       cta={t("resultCount", { count: total })}
       onCta={() => onApply(min, max)}
     >
       <div className="pb-2">
-        <div className="mb-3 flex items-center justify-center gap-2.5">
-          <span className="flex-1 rounded-[9px] border border-surface-border px-3 py-2.5">
+        {/* Fälten är REDIGERBARA — reglaget är grovt (50 kr/steg, 0–5 000) och
+            duger inte för "visa mig allt över 12 000". Tomt Till-fält = inget tak. */}
+        <div className="mb-4 flex items-end justify-center gap-2.5">
+          <label className="flex-1 rounded-[9px] border border-surface-border px-3 py-2 focus-within:border-holo-cyan/60">
             <span className="block text-[9.5px] font-medium uppercase tracking-[0.08em] text-ink-faint">
               {t("priceFrom")}
             </span>
-            <span className="mt-1 block text-[15px] font-bold tabular-nums text-ink">
-              {krLabel(min)}
+            <span className="flex items-baseline gap-1">
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={PRICE_MAX}
+                value={min === 0 ? "" : min}
+                placeholder="0"
+                onChange={(e) => setMin(parseKrInput(e.target.value) ?? 0)}
+                aria-label={t("minAria")}
+                className="w-full min-w-0 border-0 bg-transparent p-0 text-[15px] font-bold tabular-nums text-ink outline-none placeholder:text-ink-faint [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              />
+              <span className="shrink-0 text-[11px] text-ink-faint">kr</span>
             </span>
-          </span>
-          <span className="shrink-0 text-ink-faint">–</span>
-          <span className="flex-1 rounded-[9px] border border-surface-border px-3 py-2.5">
+          </label>
+          <span className="shrink-0 pb-2 text-ink-faint">–</span>
+          <label className="flex-1 rounded-[9px] border border-surface-border px-3 py-2 focus-within:border-holo-cyan/60">
             <span className="block text-[9.5px] font-medium uppercase tracking-[0.08em] text-ink-faint">
               {t("priceTo")}
             </span>
-            <span className="mt-1 block text-[15px] font-bold tabular-nums text-holo-cyan">
-              {max >= PRICE_MAX ? `${krLabel(PRICE_MAX)}+` : krLabel(max)}
+            <span className="flex items-baseline gap-1">
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={max ?? ""}
+                placeholder={t("priceNoMax")}
+                onChange={(e) => setMax(parseKrInput(e.target.value))}
+                aria-label={t("maxAria")}
+                className="w-full min-w-0 border-0 bg-transparent p-0 text-[15px] font-bold tabular-nums text-holo-cyan outline-none placeholder:font-semibold placeholder:text-ink-faint [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              />
+              <span className="shrink-0 text-[11px] text-ink-faint">kr</span>
             </span>
-          </span>
+          </label>
         </div>
 
-        <div className="flex flex-col gap-2.5">
+        {/* `touch-action: none` — utan den tolkade sheetens scroll-container varje
+            drag som en ansats till lodrät scroll och reglaget "hakade upp sig"
+            mitt i rörelsen. Reglagen klampar INTE mot varandra längre: de får
+            passera, och värdena byter plats vid tillämpning (`onApply`). Att låta
+            handtaget tvärstanna mot det andra var precis det som kändes trasigt. */}
+        <div className="flex flex-col gap-1">
           <label className="flex items-center gap-2.5">
             <span className="w-7 shrink-0 text-[10.5px] font-medium text-ink-faint">
               {t("min")}
@@ -609,9 +663,10 @@ function PriceSheet({
               min={0}
               max={PRICE_MAX}
               step={PRICE_STEP}
-              value={min}
-              onChange={(e) => setMin(Math.min(Number(e.target.value), max - PRICE_STEP))}
-              className="flex-1 bg-transparent accent-holo-cyan"
+              value={Math.min(min, PRICE_MAX)}
+              onChange={(e) => setMin(Number(e.target.value))}
+              style={{ touchAction: "none" }}
+              className="h-6 flex-1 bg-transparent accent-holo-cyan"
               aria-label={t("minAria")}
             />
           </label>
@@ -624,9 +679,14 @@ function PriceSheet({
               min={0}
               max={PRICE_MAX}
               step={PRICE_STEP}
-              value={max}
-              onChange={(e) => setMax(Math.max(Number(e.target.value), min + PRICE_STEP))}
-              className="flex-1 bg-transparent accent-holo-cyan"
+              // Reglaget i topp = INGET tak (null), inte "exakt 5 000 kr".
+              value={max === null ? PRICE_MAX : Math.min(max, PRICE_MAX)}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setMax(v >= PRICE_MAX ? null : v);
+              }}
+              style={{ touchAction: "none" }}
+              className="h-6 flex-1 bg-transparent accent-holo-cyan"
               aria-label={t("maxAria")}
             />
           </label>
@@ -636,9 +696,9 @@ function PriceSheet({
           {PRICE_SHORTCUTS.map(([lo, hi]) => {
             const active = min === lo && max === hi;
             const label =
-              lo === 0 && hi === PRICE_MAX
+              lo === 0 && hi === null
                 ? t("priceAll")
-                : hi >= PRICE_MAX
+                : hi === null
                   ? `${lo.toLocaleString("sv-SE")}+`
                   : `${lo.toLocaleString("sv-SE")}–${hi.toLocaleString("sv-SE")}`;
             return (
@@ -688,24 +748,33 @@ function MoreSheet({
   onApply: (patch: Partial<Record<keyof ExploreSearchParams, string | undefined>>) => void;
 }) {
   const t = useTranslations("Products");
-  const [kategori, setKategori] = useState(searchParams.kategori ?? "");
-  const [butik, setButik] = useState(searchParams.butik ?? "");
-  const [sprak, setSprak] = useState(searchParams.sprak ?? "");
+  const [kategori, setKategori] = useState<string[]>([]);
+  const [butik, setButik] = useState<string[]>([]);
+  const [sprak, setSprak] = useState<string[]>([]);
 
   useEffect(() => {
     if (open) {
-      setKategori(searchParams.kategori ?? "");
-      setButik(searchParams.butik ?? "");
-      setSprak(searchParams.sprak ?? "");
+      setKategori(csvList(searchParams.kategori));
+      setButik(csvList(searchParams.butik));
+      setSprak(csvList(searchParams.sprak));
     }
   }, [open, searchParams.kategori, searchParams.butik, searchParams.sprak]);
 
-  const groups: { label: string; value: string; set: (v: string) => void; all: string; options: FilterOption[] }[] =
-    [
-      { label: t("category"), value: kategori, set: setKategori, all: t("allCategories"), options: categories },
-      { label: t("store"), value: butik, set: setButik, all: t("allStores"), options: retailers },
-      { label: t("language"), value: sprak, set: setSprak, all: t("allLanguages"), options: languages },
-    ];
+  const groups: {
+    label: string;
+    values: string[];
+    set: (updater: (prev: string[]) => string[]) => void;
+    all: string;
+    options: FilterOption[];
+  }[] = [
+    { label: t("category"), values: kategori, set: setKategori, all: t("allCategories"), options: categories },
+    { label: t("store"), values: butik, set: setButik, all: t("allStores"), options: retailers },
+    { label: t("language"), values: sprak, set: setSprak, all: t("allLanguages"), options: languages },
+  ];
+
+  const anySelected = kategori.length + butik.length + sprak.length > 0;
+  /** Tom lista = "alla" → parametern utelämnas helt ur URL:en. */
+  const join = (list: string[]) => (list.length > 0 ? list.join(",") : undefined);
 
   return (
     <Sheet
@@ -713,17 +782,13 @@ function MoreSheet({
       title={t("moreFilters")}
       onClose={onClose}
       onClear={
-        kategori || butik || sprak
+        anySelected
           ? () => onApply({ kategori: undefined, butik: undefined, sprak: undefined })
           : undefined
       }
       cta={t("resultCount", { count: total })}
       onCta={() =>
-        onApply({
-          kategori: kategori || undefined,
-          butik: butik || undefined,
-          sprak: sprak || undefined,
-        })
+        onApply({ kategori: join(kategori), butik: join(butik), sprak: join(sprak) })
       }
     >
       <div className="space-y-5 pb-2">
@@ -732,21 +797,44 @@ function MoreSheet({
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-faint">
               {g.label}
             </p>
+            {/* FLERVAL: varje värde slås av och på för sig, och "Alla …" är inte ett
+                värde utan nollställningen av gruppen (aktiv när inget är valt). */}
             <div className="flex flex-wrap gap-1.5">
-              {[{ value: "", label: g.all }, ...g.options].map((o) => {
-                const active = g.value === o.value;
+              <button
+                type="button"
+                aria-pressed={g.values.length === 0}
+                onClick={() => g.set(() => [])}
+                className={cn(
+                  "rounded-full border px-3 py-2 text-[12.5px] font-semibold leading-none transition-colors",
+                  g.values.length === 0
+                    ? "border-holo-cyan/45 bg-holo-cyan/[0.14] text-holo-cyan"
+                    : "border-surface-border text-ink-muted"
+                )}
+              >
+                {g.all}
+              </button>
+              {g.options.map((o) => {
+                const active = g.values.includes(o.value);
                 return (
                   <button
-                    key={o.value || "__all"}
+                    key={o.value}
                     type="button"
-                    onClick={() => g.set(o.value)}
+                    aria-pressed={active}
+                    onClick={() =>
+                      g.set((prev) =>
+                        prev.includes(o.value)
+                          ? prev.filter((v) => v !== o.value)
+                          : [...prev, o.value]
+                      )
+                    }
                     className={cn(
-                      "rounded-full border px-3 py-2 text-[12.5px] font-semibold leading-none transition-colors",
+                      "inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-[12.5px] font-semibold leading-none transition-colors",
                       active
                         ? "border-holo-cyan/45 bg-holo-cyan/[0.14] text-holo-cyan"
                         : "border-surface-border text-ink-muted"
                     )}
                   >
+                    {active && <IconCheck size={12} strokeWidth={3} className="shrink-0" />}
                     {o.label}
                   </button>
                 );
@@ -782,9 +870,30 @@ function HiddenFilters({ searchParams }: { searchParams: ExploreSearchParams }) 
   );
 }
 
-function clampKr(raw: string | undefined, fallback: number): number {
-  if (!raw) return fallback;
+/** "a,b" → ["a","b"]. Tom/saknad → []. */
+function csvList(value: string | undefined): string[] {
+  if (!value) return [];
+  return value.split(",").map((v) => v.trim()).filter(Boolean);
+}
+
+/** URL-värde → kronor. Saknat/ogiltigt → null (= inget filter / inget tak). */
+function parseKr(raw: string | undefined): number | null {
+  if (!raw) return null;
   const n = Number(raw.replace(",", "."));
-  if (!Number.isFinite(n) || n < 0) return fallback;
-  return Math.min(PRICE_MAX, Math.round(n / PRICE_STEP) * PRICE_STEP);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n);
+}
+
+/**
+ * Inmatat fältvärde → kronor. Tomt fält = null (inget värde), aldrig 0 — annars
+ * hade en raderad siffra blivit ett "från 0 kr"-filter mitt i inmatningen.
+ * Taket är BARA en sanity-gräns; man får skriva in större belopp än reglagets.
+ */
+const PRICE_INPUT_MAX = 10_000_000;
+function parseKrInput(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const n = Number(trimmed.replace(",", "."));
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.min(PRICE_INPUT_MAX, Math.round(n));
 }

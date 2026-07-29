@@ -5,16 +5,43 @@ import { auth } from "@/lib/auth";
 import { getExploreFeed } from "@/services/products";
 import { CardLanguage, ProductCategory, StockStatus } from "@prisma/client";
 
+/**
+ * Kommaseparerad lista → array. "Fler filter" är flerval, så kategori/butik/språk
+ * kan komma som `category=ETB,BOOSTER_BOX`. Okända värden KASTAS (inte fel): en
+ * gammal bokmärkt URL med en borttagen butik ska ge en katalog utan det filtret,
+ * inte ett 400.
+ */
+function csvEnum<T extends Record<string, string>>(e: T) {
+  const valid = new Set(Object.values(e));
+  return z
+    .string()
+    .optional()
+    .transform((s) =>
+      s
+        ? (s.split(",").map((v) => v.trim()).filter((v) => valid.has(v)) as T[keyof T][])
+        : undefined
+    )
+    .transform((list) => (list && list.length > 0 ? list : undefined));
+}
+
+const csvString = z
+  .string()
+  .optional()
+  .transform((s) => {
+    const list = s ? s.split(",").map((v) => v.trim()).filter(Boolean) : [];
+    return list.length > 0 ? list : undefined;
+  });
+
 /** Utforska-feed: offset-paginerad (infinite scroll). */
 const feedSchema = z.object({
   query: z.string().trim().max(200).optional(),
-  category: z.nativeEnum(ProductCategory).optional(),
+  category: csvEnum(ProductCategory),
   setId: z.string().optional(),
-  retailerId: z.string().optional(),
+  retailerId: csvString,
   minPrice: z.coerce.number().int().min(0).optional(),
   maxPrice: z.coerce.number().int().min(0).optional(),
   stockStatus: z.nativeEnum(StockStatus).optional(),
-  language: z.nativeEnum(CardLanguage).optional(),
+  language: csvEnum(CardLanguage),
   sort: z
     .enum(["price_asc", "price_desc", "biggest_drop", "popular", "recently_restocked", "most_watched", "trending", "deals", "card_number_asc", "card_number_desc"])
     .optional(),

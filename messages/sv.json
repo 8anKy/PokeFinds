@@ -890,6 +890,7 @@
     "priceFrom": "Från",
     "priceTo": "Till",
     "priceAll": "Alla",
+    "priceNoMax": "Inget tak",
     "category": "Kategori",
     "allCategories": "Alla kategorier",
     "set": "Set",

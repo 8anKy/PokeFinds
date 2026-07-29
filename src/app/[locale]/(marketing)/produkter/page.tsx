@@ -113,28 +113,36 @@ function parseKr(value: string | undefined): number | undefined {
   return Math.round(kr * 100); // kr → öre
 }
 
+/** "a,b,c" → ["a","b","c"]. Tom lista → undefined (= inget filter). */
+function csv(value: string | undefined): string[] | undefined {
+  if (!value) return undefined;
+  const list = value.split(",").map((v) => v.trim()).filter(Boolean);
+  return list.length > 0 ? list : undefined;
+}
+
 function buildParams(sp: CatalogSearchParams): SearchProductsParams {
-  const category =
-    sp.kategori && sp.kategori in CATEGORY_LABELS
-      ? (sp.kategori as ProductCategory)
-      : undefined;
-  const language =
-    sp.sprak && LANGUAGE_KEYS.includes(sp.sprak as CardLanguage)
-      ? (sp.sprak as CardLanguage)
-      : undefined;
+  // Kategori/butik/språk är FLERVAL (kommaseparerat i URL:en). Okända värden
+  // kastas tyst — en gammal länk med en borttagen butik ska visa katalogen, inte
+  // ett tomt resultat.
+  const category = csv(sp.kategori)?.filter(
+    (v): v is ProductCategory => v in CATEGORY_LABELS
+  );
+  const language = csv(sp.sprak)?.filter((v): v is CardLanguage =>
+    LANGUAGE_KEYS.includes(v as CardLanguage)
+  );
   const sort =
     SORT_OPTIONS.find((o) => o.value === sp.sortera)?.sort ?? "popular";
   const page = Math.max(1, Number(sp.sida) || 1);
 
   return {
     query: sp.q?.trim() || undefined,
-    category,
+    category: category?.length ? category : undefined,
     setId: sp.set || undefined,
-    retailerId: sp.butik || undefined,
+    retailerId: csv(sp.butik),
     minPrice: parseKr(sp.minPris),
     maxPrice: parseKr(sp.maxPris),
     stockStatus: sp.lager === "1" ? "IN_STOCK" : undefined,
-    language,
+    language: language?.length ? language : undefined,
     sort,
     page,
     pageSize: PAGE_SIZE,
@@ -158,14 +166,20 @@ function filterStateKey(sp: CatalogSearchParams): string {
 /** Serialiserar filtren till feed-API:ts query (engelska parametrar). */
 function buildFeedQuery(p: SearchProductsParams): string {
   const s = new URLSearchParams();
+  // Flervalsfälten skickas kommaseparerat — feed-routens schema delar upp dem igen.
+  const join = (v: string | string[] | undefined) =>
+    Array.isArray(v) ? (v.length > 0 ? v.join(",") : undefined) : v;
   if (p.query) s.set("query", p.query);
-  if (p.category) s.set("category", p.category);
+  const category = join(p.category);
+  if (category) s.set("category", category);
   if (p.setId) s.set("setId", p.setId);
-  if (p.retailerId) s.set("retailerId", p.retailerId);
+  const retailerId = join(p.retailerId);
+  if (retailerId) s.set("retailerId", retailerId);
   if (p.minPrice !== undefined) s.set("minPrice", String(p.minPrice));
   if (p.maxPrice !== undefined) s.set("maxPrice", String(p.maxPrice));
   if (p.stockStatus) s.set("stockStatus", p.stockStatus);
-  if (p.language) s.set("language", p.language);
+  const language = join(p.language);
+  if (language) s.set("language", language);
   s.set("sort", p.sort ?? "popular");
   return s.toString();
 }
@@ -216,11 +230,15 @@ function CatalogFilterFields({
   const t = useTranslations("Products");
   const tCat = useTranslations("Category");
   const tLang = useTranslations("Language");
+  // Mobilens "Fler filter" är FLERVAL och skriver kommalistor i URL:en. Desktop-
+  // sidofältet är enval — visa första värdet i stället för att stå tomt (ett tomt
+  // <select> hade sett ut som "inget filter" fast katalogen var filtrerad).
+  const first = (v: string | undefined) => (v ? v.split(",")[0] : "");
   return (
     <>
       <div>
         <Label htmlFor={`${idPrefix}kategori`}>{t("category")}</Label>
-        <Select id={`${idPrefix}kategori`} name="kategori" defaultValue={searchParams.kategori ?? ""}>
+        <Select id={`${idPrefix}kategori`} name="kategori" defaultValue={first(searchParams.kategori)}>
           <option value="">{t("allCategories")}</option>
           {Object.keys(CATEGORY_LABELS)
             .filter((value) => !HIDDEN_CATEGORIES.includes(value as ProductCategory))
@@ -244,7 +262,7 @@ function CatalogFilterFields({
       </div>
       <div>
         <Label htmlFor={`${idPrefix}butik`}>{t("store")}</Label>
-        <Select id={`${idPrefix}butik`} name="butik" defaultValue={searchParams.butik ?? ""}>
+        <Select id={`${idPrefix}butik`} name="butik" defaultValue={first(searchParams.butik)}>
           <option value="">{t("allStores")}</option>
           {retailers.map((r) => (
             <option key={r.id} value={r.id}>
@@ -277,7 +295,7 @@ function CatalogFilterFields({
       </div>
       <div>
         <Label htmlFor={`${idPrefix}sprak`}>{t("language")}</Label>
-        <Select id={`${idPrefix}sprak`} name="sprak" defaultValue={searchParams.sprak ?? ""}>
+        <Select id={`${idPrefix}sprak`} name="sprak" defaultValue={first(searchParams.sprak)}>
           <option value="">{t("allLanguages")}</option>
           {BROWSE_LANGUAGES.map((value) => (
             <option key={value} value={value}>
