@@ -37,6 +37,14 @@ const schema = z.object({
   // klienten skickar ~1 kB UPP i stället för att ladda ner ett 5,4 MB-index.
   // Taket på 8 hindrar en klient från att beställa obegränsat med sökningar.
   fingerprints: z.array(z.string().min(1).max(1024)).max(8).optional(),
+  // FLERA VIDEORUTOR, var och en ett inset-svep. Moiré och oskärpa varierar per
+  // ruta, och avtrycket är gratis att räkna — så servern får välja den mest
+  // avgörande rutan i stället för att döma på en enda. Taken (4 rutor × 8 avtryck)
+  // binder serverns CPU: varje avtryck är en genomgång av indexet à ~8 ms.
+  fingerprintFrames: z
+    .array(z.array(z.string().min(1).max(1024)).max(8))
+    .max(4)
+    .optional(),
   // Starkare (dyrare) vision-modell — körs bara vid bekräftelse/uppladdning,
   // inte för varje live-ruta.
   precise: z.boolean().optional(),
@@ -56,7 +64,9 @@ export async function POST(req: Request) {
       throw new ServiceError(429, "För många skanningar på kort tid. Vänta en stund.");
     }
 
-    const { image, detail, fingerprints, precise } = schema.parse(await req.json());
+    const { image, detail, fingerprints, fingerprintFrames, precise } = schema.parse(
+      await req.json()
+    );
     if (image.length + (detail?.length ?? 0) > MAX_IMAGE_BYTES * 1.4) {
       throw new ServiceError(413, "Bilden är för stor. Skala ner videorutan innan den skickas.");
     }
@@ -80,11 +90,42 @@ export async function POST(req: Request) {
       precise: intro || (precise && isPro(user)),
       detailDataUrl: detail,
       fingerprints,
+      fingerprintFrames,
     });
 
     // Bokför mot kvoten: varje genomförd skanning räknas (träff eller no-match),
     // annars kan no-match-scans dränera API-budgeten gratis.
-    await recordScanUsage(user.id);
+    //
+    // För ADMIN sparas dessutom vad modellen och bilden faktiskt svarade, så den
+    // verkliga träffsäkerheten kan mätas. Allt vi har i dag är TAK-siffror: varje
+    // mätning bygger på frågor härledda ur samma filer som referenserna, aldrig
+    // på en riktig fångst. Avtrycket (264 byte) sparas, aldrig bilden.
+    const isAdmin = user.role === "ADMIN" || user.role === "SUPERADMIN";
+    await recordScanUsage(
+      user.id,
+      isAdmin
+        ? {
+            v: 1,
+            provider: result.provider,
+            guessedName: result.guessedName,
+            guessedNumber: result.guessedNumber,
+            confidence: result.confidence,
+            artTop: result.artTop,
+            artTopLabel: result.artTopLabel,
+            chosen: result.candidates[0]
+              ? {
+                  cardId: result.candidates[0].cardId,
+                  name: result.candidates[0].name,
+                  number: result.candidates[0].number,
+                  setName: result.candidates[0].setName,
+                  score: result.candidates[0].score,
+                }
+              : null,
+            // Första rutans svep räcker för att kunna spela upp sökningen igen.
+            fingerprints: (fingerprintFrames?.[0] ?? fingerprints ?? []).slice(0, 4),
+          }
+        : undefined
+    );
 
     return jsonOk({ ...result, remaining: Math.max(0, quota.remaining - 1) });
   } catch (e) {

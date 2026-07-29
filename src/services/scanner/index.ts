@@ -11,7 +11,11 @@ import { ServiceError } from "@/lib/errors";
 import { FINGERPRINT_BYTES } from "@/lib/art-fingerprint";
 import { cardNumberSortKey } from "@/lib/card-number-order";
 import { scoreSimilarity } from "@/scrapers/matching";
-import { type ArtMatch, searchByFingerprints } from "@/services/scanner/art-index";
+import {
+  type ArtMatch,
+  searchByFingerprints,
+  searchByFrames,
+} from "@/services/scanner/art-index";
 import { getCardValues, getProductValues } from "@/services/products";
 import { ClaudeVisionOcrAdapter } from "@/services/scanner/claude-vision";
 import { MockOcrAdapter } from "@/services/scanner/ocr-mock";
@@ -70,9 +74,30 @@ export async function getScannerQuota(
  *  (träff ELLER no-match) — annars kan no-match-scans dränera API-budgeten gratis
  *  (bara 60/min skyddar). Live-skannern (/api/scanner/identify) skapar inget jobb
  *  själv, så detta är dess kvot-liggare. Endast äkta fel (API kastar) räknas inte. */
-export async function recordScanUsage(userId: string): Promise<void> {
+export async function recordScanUsage(
+  userId: string,
+  /**
+   * DIAGNOSTIK, bara för admin. Gör det möjligt att mäta VERKLIG träffsäkerhet:
+   * varje siffra vi har kommer från frågor härledda ur samma filer som
+   * referenserna, dvs ett tak, aldrig en riktig fångst.
+   *
+   * Lagrar konstavtrycket (264 byte base64), INTE bilden — replaybart offline
+   * utan att någon kortbild sparas. Skrivs i den `result`-kolumn som redan finns,
+   * så ingen migration och inga extra rader: Neon-kostnaden är oförändrad.
+   *
+   * BARA ADMIN med flit (dataminimering, GDPR): vanliga användares rader ser
+   * exakt ut som förut. Urvalet blir ägarens egna skanningar, vilket är precis
+   * det underlag mätningen behöver.
+   */
+  diagnostics?: Prisma.JsonObject
+): Promise<void> {
   await prisma.scannerJob.create({
-    data: { userId, imageUrl: INLINE_UPLOAD, status: "COMPLETED" },
+    data: {
+      userId,
+      imageUrl: INLINE_UPLOAD,
+      status: "COMPLETED",
+      ...(diagnostics ? { result: diagnostics } : {}),
+    },
   });
 }
 
@@ -209,6 +234,10 @@ const CANDIDATE_LIMIT = 400;
  *  i 96 % av fallen även vid hård försämring (se src/lib/art-fingerprint.ts). */
 const ART_CANDIDATES = 15;
 
+/** Tak på antal videorutor per skanning. Varje ruta är ett inset-svep (4 sökningar
+ *  à ~8 ms), så taket är det som binder serverns CPU: 4 rutor ≈ 130 ms. */
+const MAX_FRAMES = 4;
+
 /**
  * Vikt för bildlikheten i den samlade poängen.
  *
@@ -258,6 +287,37 @@ const ART_STRONG = 0.75;
 const ART_TRUST_SCORE = 0.7;
 const ART_TRUST_MARGIN = 0.1;
 const ART_TRUST_BONUS = 1.15;
+
+/**
+ * KORSVALIDERING: håller modellens namn med om vad bilden ser?
+ *
+ * Marginalregeln ovan räddar bara de fall där bildträffen är BEVISAT säker — mätt
+ * 56 % av de rätta träffarna. Resterande 44 % har en äkta men smalare marginal och
+ * kan fortfarande förlora mot ett hallucinerat namn, eftersom ett påhittat namn
+ * får full namnlikhet (1,0) mot sina kort.
+ *
+ * Två OBEROENDE signaler som pekar isär betyder att en av dem är fel. Bilden är
+ * mätt (topp-15 93 %); namnet var 2 av 5 på skärmfotograferingar. Håller namnet
+ * inte med om NÅGOT av bildens 15 bästa kort är namnet den troliga lögnaren, och
+ * dess vikt skruvas ner.
+ *
+ * KONSERVATIVT I BÅDA LEDEN: invändningen gäller bara när bilden själv är stark
+ * (≥ ART_STRONG) — är bilden svag litar vi inte på den heller. Och namnet
+ * NOLLAS inte, det dämpas: kort som matchar namnet ligger kvar över orelaterade,
+ * så om det är BILDEN som har fel (~7 % av fallen ligger rätt kort utanför
+ * topp-15) finns namnträffarna kvar i listan.
+ *
+ * "Palafin ex" mot "Falinks" ger Dice-likhet 0,27 — långt under tröskeln.
+ *
+ * ⛔ DÄMPNINGEN MÅSTE GÄLLA NUMRET OCKSÅ. Namn och nummer kommer ur SAMMA
+ * modellsvar — är det ena påhittat är det andra lika misstänkt. Mätt när bara
+ * namnet dämpades: det hallucinerade numret "041/193" matchade Paldean Tauros 41
+ * i Paldea Evolved EXAKT (setet har 193 kort), fick full nummerbonus (0,5) och
+ * vann med 0,568 mot rätt korts 0,313. Ett påhittat tal träffar en riktig rad
+ * förr eller senare — katalogen har 20 563 kort.
+ */
+const NAME_AGREE_MIN = 0.5;
+const NAME_DISTRUST = 0.25;
 
 /** Kortnamn-tokens ur OCR-texten. Tomt resultat → hela frågan som en token. */
 function nameTokens(query: string): string[] {
@@ -376,10 +436,28 @@ export async function matchCards(
   for (const rows of sources) for (const r of rows) byId.set(r.id, r);
   if (byId.size === 0) return [];
 
+  // KORSVALIDERING av namnet mot bilden. Se NAME_AGREE_MIN.
+  let nameWeight = 1;
+  if (query && artScores?.size) {
+    let topArt = 0;
+    let bestNameAgreement = 0;
+    for (const [id, art] of artScores) {
+      if (art > topArt) topArt = art;
+      const card = byId.get(id);
+      if (card) {
+        const agree = scoreSimilarity(query, card.name);
+        if (agree > bestNameAgreement) bestNameAgreement = agree;
+      }
+    }
+    if (topArt >= ART_STRONG && bestNameAgreement < NAME_AGREE_MIN) {
+      nameWeight = NAME_DISTRUST;
+    }
+  }
+
   const scored = [...byId.values()].map((card) => {
     // Namnlikheten är 0 när modellen inte läste något namn — då bär bilden och
     // numret hela bedömningen, vilket är precis avsikten.
-    let score = query ? scoreSimilarity(query, card.name) : 0;
+    let score = query ? scoreSimilarity(query, card.name) * nameWeight : 0;
     // Bildlikhet: en gradering, inte ett bevis. Se ART_WEIGHT.
     const art = artScores?.get(card.id);
     if (art !== undefined && art > 0) score += art * ART_WEIGHT;
@@ -390,11 +468,13 @@ export async function matchCards(
     // Numret är identiteten när namnet delas — och det gör det i 92 % av fallen.
     // Nyckeln jämförs som STRÄNG mot samma normalisering som databasen använder,
     // så "TG10", "SWSH034" och "130a" räknas, inte bara rena tal.
+    // Nummerbonusen dämpas med SAMMA vikt som namnet: samma modellsvar, samma
+    // misstro. Se NAME_DISTRUST.
     if (guessedNum && card.numberSortKey === guessedNum.sortKey) {
       if (guessedNum.total == null) {
-        score += 0.4; // nummer matchar, total oläst
+        score += 0.4 * nameWeight; // nummer matchar, total oläst
       } else if (card.set.totalCards === 0 || card.set.totalCards === guessedNum.total) {
-        score += 0.5; // nummer + total matchar → starkast
+        score += 0.5 * nameWeight; // nummer + total matchar → starkast
       } else {
         // Total skiljer, men numret stämmer. Förut gav det NOLL bonus, vilket
         // straffade secret rares systematiskt: de trycks "199/165", så totalen
@@ -738,6 +818,15 @@ function decodeFingerprints(list: string[] | undefined): Int8Array[] {
   });
 }
 
+/** Rutor × inset-svep. Taken binder serverns CPU per skanning. */
+function decodeFrames(frames: string[][] | undefined): Int8Array[][] {
+  if (!frames?.length) return [];
+  return frames
+    .slice(0, MAX_FRAMES)
+    .map((f) => decodeFingerprints(f))
+    .filter((f) => f.length > 0);
+}
+
 /**
  * Live-identifiering: kör OCR-/vision-adaptern + matchar mot katalogen UTAN att
  * skapa ett ScannerJob (billigt nog att polla med nedskalade videorutor).
@@ -751,6 +840,8 @@ export async function identifyCard(
     detailDataUrl?: string;
     /** Inset-svepet från klienten (base64). Se FINGERPRINT_INSETS. */
     fingerprints?: string[];
+    /** Flera videorutor, var och en ett inset-svep. Föredras framför `fingerprints`. */
+    fingerprintFrames?: string[][];
   } = {}
 ): Promise<IdentifyResult> {
   const adapter = getOcrAdapter(opts.precise);
@@ -758,10 +849,17 @@ export async function identifyCard(
   // är några millisekunder CPU mot ett index i minnet; vision-anropet är ett
   // nätverksanrop på hundratals ms. Serialiserade hade bilden lagt sig ovanpå
   // svarstiden i onödan.
-  const fps = decodeFingerprints(opts.fingerprints);
+  // Flera rutor när klienten skickar dem; annars den enkla listan (bakåtkompatibelt
+  // med en cachad klient som ännu inte skickar rutor).
+  const frames = decodeFrames(opts.fingerprintFrames);
+  const single = frames.length === 0 ? decodeFingerprints(opts.fingerprints) : [];
   const [ocr, artMatches] = await Promise.all([
     adapter.extractCardInfo(imageDataUrl, opts.detailDataUrl),
-    fps.length ? searchByFingerprints(fps, ART_CANDIDATES) : Promise.resolve([]),
+    frames.length
+      ? searchByFrames(frames, ART_CANDIDATES)
+      : single.length
+        ? searchByFingerprints(single, ART_CANDIDATES)
+        : Promise.resolve([]),
   ]);
 
   const artScores = new Map(artMatches.map((m) => [m.cardId, m.score]));

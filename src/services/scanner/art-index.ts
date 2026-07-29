@@ -176,6 +176,41 @@ export async function searchByFingerprints(
     .slice(0, k);
 }
 
+/**
+ * Söker FLERA RUTOR av samma kort och behåller den MEST AVGÖRANDE rutan.
+ *
+ * Varje ruta är ett inset-svep (`searchByFingerprints`). Mellan rutor väljer vi
+ * inte högsta poäng utan största MARGINAL till tvåan, för det är marginalen som
+ * mätbart skiljer rätt från fel: över 250 kort nådde ingen felträff en marginal
+ * över 0,066, medan rätta träffar ligger på 0,111 i median — och POÄNGEN
+ * överlappar (felträff upp till 0,92, rätt träff ner till 0,57).
+ *
+ * ⛔ Slå INTE ihop rutor genom att ta max-poäng per kort över alla rutor. Det
+ * plockar den lyckligaste observationen per kort och trycker ihop fältet, så
+ * marginalen — hela vårt mått på tillförlitlighet — går förlorad. En dålig ruta
+ * ska INTE kunna bidra med en enstaka hög poäng till ett fel kort.
+ */
+export async function searchByFrames(frames: Int8Array[][], k = 15): Promise<ArtMatch[]> {
+  const usable = frames.filter((f) => f.length > 0);
+  if (usable.length === 0) return [];
+  if (usable.length === 1) return searchByFingerprints(usable[0], k);
+
+  let best: ArtMatch[] = [];
+  let bestMargin = -Infinity;
+  for (const frame of usable) {
+    const res = await searchByFingerprints(frame, k);
+    if (res.length === 0) continue;
+    // Ensam träff = odefinierad marginal. Behandla som minst avgörande, men
+    // behåll den som reserv om ingen annan ruta gav något.
+    const margin = res.length >= 2 ? res[0].score - res[1].score : 0;
+    if (margin > bestMargin) {
+      bestMargin = margin;
+      best = res;
+    }
+  }
+  return best;
+}
+
 /** Antal kort i indexet — för diagnostikraden i skannern. */
 export async function artIndexSize(): Promise<number> {
   const index = await getArtIndex();

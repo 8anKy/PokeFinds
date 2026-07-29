@@ -151,6 +151,11 @@ const STRIP_FRACTION = 0.22;
  *  `getImageData` på 4,7 MP kostar tid på telefonen utan att ändra svaret. */
 const FINGERPRINT_SOURCE_MAX = 640;
 
+/** Antal videorutor per slutartryck som konstavtrycket räknas på. Tre räcker för
+ *  att en dålig ruta (moiré, oskärpa mitt i autofokus) inte ska avgöra ensam;
+ *  fler kostar uppladdning och serverCPU utan att tillföra mycket. */
+const CAPTURE_FRAMES = 3;
+
 /**
  * Fångar en nedskalad JPEG-ruta ur videoflödet (i minnet, ej i kamerarullen),
  * BESKUREN till kortramen användaren siktat med.
@@ -395,7 +400,7 @@ function Scanner() {
     async (
       dataUrl: string,
       strip?: string,
-      fingerprints?: string[]
+      fingerprintFrames?: string[][]
     ): Promise<IdentifyResponse | { error: string }> => {
       try {
         // Standard = billiga Haiku-modellen (ingen `precise`) — håller scan-kostnaden
@@ -405,7 +410,7 @@ function Scanner() {
           headers: { "Content-Type": "application/json" },
           // `detail` = närbild på kortets nederkant. Saknas den (galleriuppladdning,
           // där vi inte vet var kortet sitter i bilden) körs det som förut.
-          body: JSON.stringify({ image: dataUrl, detail: strip, fingerprints }),
+          body: JSON.stringify({ image: dataUrl, detail: strip, fingerprintFrames }),
         });
         const data = (await res.json()) as IdentifyResponse & { error?: string };
         if (!res.ok) {
@@ -433,8 +438,8 @@ function Scanner() {
   );
 
   const identifyInto = useCallback(
-    async (id: string, dataUrl: string, strip?: string, fingerprints?: string[]) => {
-      const data = await runIdentify(dataUrl, strip, fingerprints);
+    async (id: string, dataUrl: string, strip?: string, fingerprintFrames?: string[][]) => {
+      const data = await runIdentify(dataUrl, strip, fingerprintFrames);
       if (!("error" in data) && typeof data.remaining === "number") {
         const r = data.remaining;
         setQuota((q) => (q ? { ...q, remaining: r } : q));
@@ -652,7 +657,7 @@ function Scanner() {
     // `strip` följer med den fångade rutan. Skickas den INTE med som argument
     // utan läses ur en ref vid anropstillfället, ärver en galleriuppladdning
     // närbilden från förra kamerarutan — dvs nederkanten på ett HELT ANNAT kort.
-    (dataUrl: string, strip?: string, fingerprints?: string[]) => {
+    (dataUrl: string, strip?: string, fingerprintFrames?: string[][]) => {
       const id = nextId();
       setScans((prev) => [
         ...prev,
@@ -668,7 +673,7 @@ function Scanner() {
           language: defaultLanguage,
         },
       ]);
-      void identifyInto(id, dataUrl, strip, fingerprints);
+      void identifyInto(id, dataUrl, strip, fingerprintFrames);
     },
     [defaultCondition, defaultLanguage, identifyInto]
   );
@@ -679,13 +684,38 @@ function Scanner() {
     if (!video || !canvas || cameraState !== "live" || shutterCooling) return;
     const shot = captureFrame(video, canvas, frameRef.current);
     if (!shot) return;
-    const { dataUrl, stripDataUrl, fingerprints, crop } = shot;
-    setCropInfo(crop);
+    setCropInfo(shot.crop);
     setFlash(true);
     window.setTimeout(() => setFlash(false), 180);
     setShutterCooling(true);
     window.setTimeout(() => setShutterCooling(false), 450);
-    addScan(dataUrl, stripDataUrl, fingerprints);
+
+    // FLERA RUTOR, ett vision-anrop. Moiré, rörelseoskärpa och autofokus-sökning
+    // är fel som varierar PER RUTA — och avtrycket är gratis (ingen API-kostnad,
+    // bara några ms lokalt), så det finns ingen anledning att döma på en enda
+    // ruta. Servern väljer sedan den ruta som var mest AVGÖRANDE (störst marginal
+    // till tvåan), vilket är samma mått som visat sig skilja rätt från fel.
+    //
+    // Bilden och närbilden tas från FÖRSTA rutan: det är den användaren såg när
+    // hen tryckte av, och extra rutor skulle bara kosta uppladdning utan att
+    // hjälpa modellen (den läser text, inte färglayout).
+    const frames: string[][] = shot.fingerprints.length ? [shot.fingerprints] : [];
+    let taken = 1;
+    const grabNext = () => {
+      if (taken >= CAPTURE_FRAMES) {
+        addScan(shot.dataUrl, shot.stripDataUrl, frames);
+        return;
+      }
+      taken++;
+      // requestAnimationFrame: nästa videoruta, inte en kopia av samma. Två
+      // avtryck av EXAKT samma pixlar tillför ingenting.
+      requestAnimationFrame(() => {
+        const extra = captureFrame(video, canvas, frameRef.current);
+        if (extra?.fingerprints.length) frames.push(extra.fingerprints);
+        grabNext();
+      });
+    };
+    grabNext();
   }, [cameraState, shutterCooling, addScan]);
 
   function handleFile(file: File): boolean {
