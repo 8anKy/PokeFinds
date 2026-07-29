@@ -234,6 +234,18 @@ const CANDIDATE_LIMIT = 400;
  *  i 96 % av fallen även vid hård försämring (se src/lib/art-fingerprint.ts). */
 const ART_CANDIDATES = 15;
 
+/**
+ * Minsta avstånd till nästa KORT för att träffen ska få kallas en träff.
+ *
+ * Jämförelsen hoppar över andra TRYCKNINGAR av samma kort: de ligger med flit
+ * 0,001 från varandra (Base Unlimited/Shadowless/1st Edition) och är ett val av
+ * tryckning, inte en osäkerhet om vilket kort det är.
+ *
+ * 0,05 flaggar bara nära-exakta oavgjorda lägen. Ett äkta övertag är mycket
+ * större: en nummerträff ger +0,4–0,5 och en säker bildträff +1,15.
+ */
+const MATCH_MARGIN_MIN = 0.05;
+
 /** Tak på antal videorutor per skanning. Varje ruta är ett inset-svep (4 sökningar
  *  à ~8 ms), så taket är det som binder serverns CPU: 4 rutor ≈ 130 ms. */
 const MAX_FRAMES = 4;
@@ -785,6 +797,20 @@ export interface IdentifyResult {
   /** Bildmatchningens bästa likhet 0..1, eller null när inget avtryck skickades. */
   artTop: number | null;
   /**
+   * Träffen går INTE att motivera — flera olika kort ligger praktiskt taget lika.
+   *
+   * MÄTT fall: användaren skannade en Gyarados. Modellen läste namnet HELT RÄTT,
+   * men numret blev skräp och bilden var oanvändbar (klassiskt ramat kort), så
+   * ALLA nio Gyarados i katalogen fick exakt 1,000 och koden valde en av dem på
+   * ett tiebreak (nyast set). Tre skanningar, tre självsäkra FEL svar — när det
+   * ärliga svaret var "det är en Gyarados, men jag vet inte vilken".
+   *
+   * Samma marginalprincip som gäller bildträffar gäller alltså slutrankningen:
+   * utan avstånd till nästa KORT finns ingen träff att påstå. Klienten visar då
+   * kandidatlistan i stället för ett svar.
+   */
+  ambiguous: boolean;
+  /**
    * Bildmatchningens tre bästa kort som text, för admin-diagnostiken.
    *
    * Utan detta går det INTE att skilja "bilden hittade rätt kort men namnet
@@ -890,9 +916,24 @@ export async function identifyCard(
     guessedNumber: ocr.guessedNumber ?? null,
     confidence: ocr.confidence,
     candidates,
+    ambiguous: isAmbiguous(candidates),
     artTop: artMatches.length > 0 ? artMatches[0].score : null,
     artTopLabel,
   };
+}
+
+/**
+ * Ligger flera OLIKA kort praktiskt taget lika? Se MATCH_MARGIN_MIN.
+ *
+ * Andra tryckningar av samma kort räknas INTE som konkurrenter — de ligger med
+ * flit tätt ihop och representerar ett val av tryckning, inte tvivel om kortet.
+ */
+export function isAmbiguous(candidates: ScanCandidate[]): boolean {
+  const top = candidates[0];
+  if (!top) return false;
+  const rival = candidates.find((c) => c.cardId !== top.cardId);
+  if (!rival) return false; // bara tryckningar av ett och samma kort
+  return top.score - rival.score < MATCH_MARGIN_MIN;
 }
 
 /** Bildträffarna som kort text. Uppslag på primärnyckel — tre rader. */

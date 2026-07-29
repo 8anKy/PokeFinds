@@ -17,7 +17,7 @@ vi.mock("@/lib/db", () => ({
 
 import { cardNumberSortKey } from "@/lib/card-number-order";
 import { sanitizeName, sanitizeNumber } from "@/services/scanner/claude-vision";
-import { getScannerQuota, isIntroScan, parseGuessedNumber, recordScanUsage, runScannerJob } from "@/services/scanner";
+import { getScannerQuota, isAmbiguous, isIntroScan, parseGuessedNumber, recordScanUsage, runScannerJob } from "@/services/scanner";
 
 beforeEach(() => {
   count.mockReset();
@@ -91,6 +91,60 @@ describe("runScannerJob", () => {
   it("blockerar vid månadsgränsen (429) innan jobbet skapas", async () => {
     count.mockResolvedValue(30);
     await expect(runScannerJob("u1", "FREE", PNG)).rejects.toMatchObject({ status: 429 });
+  });
+});
+
+describe("isAmbiguous (utan avstånd till nästa KORT finns ingen träff att påstå)", () => {
+  const c = (
+    cardId: string,
+    score: number,
+    variantLabel: string | null = null,
+    productId: string | null = null
+  ) => ({
+    cardId,
+    name: "Gyarados",
+    setName: "151",
+    number: "130",
+    rarity: "Rare",
+    imageUrl: null,
+    slug: null,
+    productId,
+    variantLabel,
+    score,
+    estimatedValue: null,
+  });
+
+  it("flaggar oavgjort mellan olika kort", () => {
+    // MÄTT: användaren skannade en Gyarados, numret blev skräp och bilden var
+    // oanvändbar (klassiskt ramat kort) → alla nio Gyarados fick 1,000 och koden
+    // valde en på tiebreak. Tre skanningar, tre självsäkra FEL svar.
+    expect(isAmbiguous([c("a", 1.0), c("b", 1.0), c("d", 1.0)])).toBe(true);
+    expect(isAmbiguous([c("a", 1.0), c("b", 0.98)])).toBe(true);
+  });
+
+  it("flaggar INTE en träff med tydligt övertag", () => {
+    // Ett äkta övertag är stort: nummerträff +0,4–0,5, säker bildträff +1,15.
+    expect(isAmbiguous([c("a", 1.5), c("b", 1.0)])).toBe(false);
+    expect(isAmbiguous([c("a", 2.4), c("b", 1.0)])).toBe(false);
+  });
+
+  it("räknar INTE andra TRYCKNINGAR av samma kort som konkurrenter", () => {
+    // Base Unlimited/Shadowless/1st Edition ligger med flit 0,001 från varandra.
+    // Det är ett val av tryckning, inte tvivel om vilket kort det är — hade de
+    // räknats som oavgjort vore VARJE Base-skanning "ingen träff".
+    const printings = [
+      c("base-charizard", 1.5, "Unlimited", "p1"),
+      c("base-charizard", 1.499, "1st Edition", "p2"),
+      c("base-charizard", 1.499, "Shadowless", "p3"),
+    ];
+    expect(isAmbiguous(printings)).toBe(false);
+    // …men ett ANNAT kort tätt efter är fortfarande oavgjort.
+    expect(isAmbiguous([...printings, c("other", 1.48)])).toBe(true);
+  });
+
+  it("tål tom lista och en enda kandidat", () => {
+    expect(isAmbiguous([])).toBe(false);
+    expect(isAmbiguous([c("a", 1.0)])).toBe(false);
   });
 });
 

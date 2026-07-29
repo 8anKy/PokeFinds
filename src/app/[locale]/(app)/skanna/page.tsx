@@ -69,6 +69,8 @@ interface IdentifyResponse {
   artTop: number | null;
   /** Bildmatchningens tre bästa kort som text (admin-diagnostik). */
   artTopLabel: string | null;
+  /** Flera OLIKA kort ligger praktiskt taget lika — ingen träff går att påstå. */
+  ambiguous: boolean;
   remaining?: number;
 }
 
@@ -449,7 +451,10 @@ function Scanner() {
           if (s.id !== id) return s;
           if ("error" in data) return { ...s, status: "error", errorMessage: data.error };
           const top = data.candidates[0];
-          if (top && data.confidence >= MIN_MATCH_CONF) {
+          // Oavgjort mellan olika KORT = ingen träff att påstå. Visa listan i
+          // stället för att självsäkert välja ett av flera likvärdiga kort
+          // (mätt: tre Gyarados-skanningar gav tre självsäkra fel svar).
+          if (top && data.confidence >= MIN_MATCH_CONF && !data.ambiguous) {
             return {
               ...s,
               status: "matched",

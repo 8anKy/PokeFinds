@@ -14,6 +14,7 @@ async function main() {
       id: true,
       name: true,
       number: true,
+      rarity: true,
       imageUrl: true,
       set: { select: { name: true } },
     },
@@ -44,6 +45,9 @@ async function main() {
         id: c.id,
         name: c.name,
         number: c.number,
+        // Rariteten används för att skilja HELBILDSKORT från klassiskt ramade —
+        // de två har helt olika träffsäkerhet och snittet döljer skillnaden.
+        rarity: c.rarity,
         set: c.set.name,
         url: c.imageUrl,
       })),
