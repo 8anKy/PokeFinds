@@ -150,7 +150,7 @@ export function CollectionValueChart({
         <p className="mt-2 text-sm text-ink-muted">
           {heroChange} {t(r.periodKey)}
         </p>
-        <div className="-mx-4 mt-5 sm:-mx-6">
+        <div className="-mx-2.5 mt-5 sm:-mx-6">
           <PriceChartLazy data={filtered} minimal />
         </div>
         {selector}

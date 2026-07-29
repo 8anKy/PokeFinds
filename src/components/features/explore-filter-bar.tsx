@@ -173,9 +173,9 @@ export function ExploreFilterBar({
           (Den egentliga orsaken till att svepen inte kändes igen låg utanför den
           här komponenten: studsvakten i pwa-register.tsx avbröt varje gest som
           drev nedåt högst upp på sidan. Se kommentaren där.) */}
-      <div className="relative -mx-4">
+      <div className="relative -mx-2.5">
         <div
-          className="flex items-center gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain py-1.5 pl-4 pr-[7.5rem] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex items-center gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain py-1.5 pl-2.5 pr-[7.5rem] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           style={{ touchAction: "pan-x pan-y" }}
         >
           <Chip
@@ -236,7 +236,7 @@ export function ExploreFilterBar({
           <span aria-hidden className="h-full w-8 bg-gradient-to-r from-transparent to-surface" />
           <span
             aria-live="polite"
-            className="flex h-full items-center bg-surface pl-1 pr-4 text-[11.5px] font-medium tabular-nums text-ink-faint"
+            className="flex h-full items-center bg-surface pl-1 pr-2.5 text-[11.5px] font-medium tabular-nums text-ink-faint"
           >
             {t("resultCount", { count: total })}
           </span>

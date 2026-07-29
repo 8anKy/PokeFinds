@@ -21,7 +21,7 @@ export function HeaderNav() {
   const pathname = usePathname();
   const isAdmin = useIsAdmin();
   return (
-    <nav className="hidden items-center gap-1 md:flex">
+    <nav className="hidden items-center gap-1 md-tall:flex">
       {NAV_LINKS.filter((l) => !("adminOnly" in l && l.adminOnly) || isAdmin).map((l) => {
         const active = pathname === l.href || pathname?.startsWith(`${l.href}/`);
         return (

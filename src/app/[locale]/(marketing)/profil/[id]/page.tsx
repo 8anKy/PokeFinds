@@ -78,7 +78,7 @@ export default async function ProfilePage({ params }: { params: { locale: string
     .toUpperCase();
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-10">
+    <div className="mx-auto w-full max-w-3xl px-2.5 py-10">
       {/* Profilhuvud */}
       <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
         {user.avatarUrl ? (

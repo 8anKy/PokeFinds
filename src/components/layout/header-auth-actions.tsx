@@ -24,7 +24,7 @@ export function HeaderAuthActions() {
   if (loggedIn) {
     return (
       <>
-        <LinkButton href="/dashboard" variant="primary" size="sm" className="hidden sm:inline-flex">
+        <LinkButton href="/dashboard" variant="primary" size="sm" className="hidden sm-tall:inline-flex">
           {t("overview")}
         </LinkButton>
         <Link

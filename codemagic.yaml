@@ -87,6 +87,16 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PL" || \
             /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" "$PL"
           /usr/libexec/PlistBuddy -c "Print :ITSAppUsesNonExemptEncryption" "$PL"
+          # PORTRÄTT-LÅS (iPhone): appen är en WebView över den hostade webbappen, och
+          # den layouten byter till DESKTOP-läge vid 768px bredd — en iPhone i liggande
+          # läge är 844–932px bred, så rotationen visade webbens toppnavigering mitt i
+          # appen. ios/ genereras av `cap add ios` ovan → låset MÅSTE sättas HÄR; en
+          # ändring i repots Info.plist finns inte ens kvar (ios/ är gitignorerad).
+          # ~ipad-nyckeln lämnas orörd: på surfplatta ÄR desktop-layouten rätt.
+          /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" "$PL" || true
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" "$PL"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait" "$PL"
+          /usr/libexec/PlistBuddy -c "Print :UISupportedInterfaceOrientations" "$PL"
           # Push Notifications: Capacitor lägger inte till aps-environment-entitlementen.
           # Utan den får appen aldrig en APNs-token (registreringen tyst-failar). Skapa
           # entitlement-filen och koppla den till App-targeten (ingen Xcode behövs).

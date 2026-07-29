@@ -5,6 +5,17 @@ const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      // BREDD ENSAM RÄCKER INTE för att avgöra "desktop": en telefon i LIGGANDE läge
+      // är 844–932px bred men bara ~390–430px hög, så allt som bara frågade efter
+      // `sm:`/`md:` slog till mitt i appen och webbens toppnavigering dök upp ovanför
+      // bottentabbarna. De här skärmarna kräver att ytan också är HÖG nog att vara en
+      // riktig desktop/surfplatta (iPad liggande = 768px hög → kvar som förr).
+      // Native-appen är dessutom LÅST till porträtt (AndroidManifest + Info.plist);
+      // det här är webbens/PWA:ns motsvarighet, och skyddet om OS:et överstyr låset.
+      screens: {
+        "sm-tall": { raw: "(min-width: 640px) and (min-height: 600px)" },
+        "md-tall": { raw: "(min-width: 768px) and (min-height: 600px)" },
+      },
       colors: {
         // Foilio design tokens — svart yta, teal signatur.
         // 2026-07-29: ytan gick från charcoal (#0a0a0c/#141417) till RENT SVART.

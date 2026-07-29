@@ -24,7 +24,7 @@ export default async function ContactPage({
   return (
     // Mobil: pt-6 så bakåtknappen sitter i höjd med Mer-tabbens andra undersidor
     // (app-sidorna har py-6); desktop behåller luftiga py-16 (knappen är lg:hidden).
-    <article className="mx-auto max-w-3xl px-4 pb-16 pt-6 sm:px-6 lg:pt-16">
+    <article className="mx-auto max-w-3xl px-2.5 pb-16 pt-6 sm:px-6 lg:pt-16">
       <PageBackButton fallback="/" />
       <h1 className="font-display text-3xl font-bold text-ink">{t("h1")}</h1>
       <p className="mt-2 text-ink-muted">{t("subtitle")}</p>

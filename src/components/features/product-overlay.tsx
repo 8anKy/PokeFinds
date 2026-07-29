@@ -275,7 +275,7 @@ export function ProductOverlayHost() {
 
 function DetailSkeleton() {
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-7xl px-2.5 py-10 sm:px-6">
       <div className="skeleton h-4 w-40" />
       <div className="skeleton mt-4 h-9 w-3/4" />
       <div className="skeleton mt-2 h-4 w-1/2" />

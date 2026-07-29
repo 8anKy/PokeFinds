@@ -400,7 +400,7 @@ export default async function ProductsPage({
           {t("showAll")}
         </Link>
       </div>
-      <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="-mx-2.5 flex gap-3 overflow-x-auto px-2.5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {recentSets.map((s) => (
           <Link
             key={s.id}
@@ -435,7 +435,7 @@ export default async function ProductsPage({
   );
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:py-10">
+    <div className="mx-auto max-w-7xl px-2.5 py-6 sm:px-6 lg:py-10">
       {/* Rubrik — endast desktop (mobilen leder med sökfältet) */}
       <div className="hidden lg:block">
         <h1 className="font-display text-3xl font-bold text-ink">{t("h1")}</h1>

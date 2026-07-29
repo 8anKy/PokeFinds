@@ -22,7 +22,7 @@ export default async function CommunityPage({
   setRequestLocale(params.locale);
   const t = await getTranslations("Community");
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col items-center px-4 py-20 text-center">
+    <div className="mx-auto flex w-full max-w-2xl flex-col items-center px-2.5 py-20 text-center">
       <LockScroll />
       <span className="relative grid h-16 w-16 place-items-center rounded-2xl bg-holo-cyan/10 text-holo-cyan ring-1 ring-holo-cyan/30">
         <IconMessage size={30} />

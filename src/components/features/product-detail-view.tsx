@@ -71,7 +71,7 @@ export function ProductDetailView({
       affiliateRetailerIds={data.affiliateRetailerIds}
       initialUpdatedAt={data.updatedAt}
     >
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+      <div className="mx-auto max-w-7xl px-2.5 py-10 sm:px-6">
         {showBack && <BackButton label={t("back")} />}
         {/* Breadcrumb */}
         <nav aria-label={t("breadcrumbAria")} className="mb-4 text-sm text-ink-muted">
@@ -225,7 +225,7 @@ export function ProductDetailView({
                 kastas tillbaka till Utforska mitt i bläddrandet. */}
             <div
               data-swipe-ignore
-              className="-mx-4 mt-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0"
+              className="-mx-2.5 mt-4 flex snap-x gap-3 overflow-x-auto px-2.5 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0"
             >
               {data.traderaListings.map((l) => (
                 <a

@@ -115,7 +115,7 @@ export default async function LandingPage({
           aria-hidden="true"
           className="pointer-events-none absolute -top-32 left-1/3 h-80 w-[36rem] -translate-x-1/2 rounded-full bg-holo-cyan/8 blur-3xl"
         />
-        <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-24 lg:grid-cols-[1.1fr_1fr]">
+        <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-2.5 py-16 sm:px-6 sm:py-24 lg:grid-cols-[1.1fr_1fr]">
           <div className="animate-fade-in-up">
             <h1 className="max-w-xl font-display text-4xl font-bold tracking-tight text-ink sm:text-5xl lg:text-[3.5rem] lg:leading-[1.1]">
               {t("hero.titleLead")}{" "}
@@ -182,7 +182,7 @@ export default async function LandingPage({
 
       {/* ── Features grid ── */}
       <section className="border-y border-surface-border bg-surface-raised/30">
-        <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
+        <div className="mx-auto max-w-7xl px-2.5 py-20 sm:px-6">
           <h2 className="font-display text-3xl font-bold text-ink">
             {t("features.heading")}
           </h2>
@@ -213,7 +213,7 @@ export default async function LandingPage({
 
       {/* ── Price history showcase + popular products ── */}
       {(showcase || popular.items.length > 0) && (
-        <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
+        <section className="mx-auto max-w-7xl px-2.5 py-20 sm:px-6">
           <div className="grid items-start gap-12 lg:grid-cols-2">
             {showcase && (
               <div>
@@ -276,7 +276,7 @@ export default async function LandingPage({
 
       {/* ── FAQ ── */}
       <section className="border-t border-surface-border">
-        <div className="mx-auto max-w-3xl px-4 py-20 sm:px-6">
+        <div className="mx-auto max-w-3xl px-2.5 py-20 sm:px-6">
           <h2 className="text-center font-display text-2xl font-bold text-ink">
             {t("faq.heading")}
           </h2>
@@ -300,7 +300,7 @@ export default async function LandingPage({
       </section>
 
       {/* ── CTA ── */}
-      <section className="mx-auto max-w-7xl px-4 pb-20 sm:px-6">
+      <section className="mx-auto max-w-7xl px-2.5 pb-20 sm:px-6">
         <div className="relative overflow-hidden rounded-2xl border border-surface-border bg-surface-raised p-10 text-center sm:p-14">
           <div
             aria-hidden="true"

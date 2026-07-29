@@ -75,7 +75,7 @@ export default async function SetPage({ params }: PageProps) {
   });
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-7xl px-2.5 py-10 sm:px-6">
       <nav aria-label={t("breadcrumb")} className="mb-6 text-sm text-ink-muted">
         <Link href="/sets" className="hover:text-ink">{t("breadcrumb")}</Link>
         <span className="mx-2 text-ink-faint" aria-hidden="true">/</span>

@@ -7,7 +7,7 @@ export async function SiteFooter() {
   const t = await getTranslations("Footer");
   return (
     <footer className="hidden border-t border-surface-border bg-surface-raised/50 lg:block">
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
+      <div className="mx-auto grid max-w-7xl gap-8 px-2.5 py-12 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
         <div>
           <BrandLogo markSize={26} textClass="text-lg" />
           <p className="mt-2 text-sm text-ink-muted">
@@ -45,7 +45,7 @@ export async function SiteFooter() {
           </ul>
         </div>
       </div>
-      <div className="border-t border-surface-border px-4 py-4 text-center text-xs text-ink-faint">
+      <div className="border-t border-surface-border px-2.5 py-4 text-center text-xs text-ink-faint">
         {t("copyright", { year: String(new Date().getFullYear()) })}
       </div>
     </footer>

@@ -21,7 +21,7 @@ export default async function AboutPage({
   const doItems = [1, 2, 3, 4] as const;
 
   return (
-    <article className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
+    <article className="mx-auto max-w-3xl px-2.5 py-16 sm:px-6">
       <h1 className="font-display text-3xl font-bold text-ink">{t("h1")}</h1>
       <p className="mt-2 text-sm text-ink-faint">{t("subtitle")}</p>
 
