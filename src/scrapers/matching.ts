@@ -169,6 +169,18 @@ export function classifyForm(title: string): string | null {
   // Sparks Build & Battle" (~599 kr) hamnade annars som offer på "Surging Sparks
   // Booster Box" (~2 000 kr). Egen form före box/display/collection-reglerna.
   if (/build\s*&?\s*battle/.test(t)) return "buildbattle";
+  // "Surprise Box" = egen produktfamilj, av exakt samma skäl som Build & Battle.
+  // Utan den föll Shinycards "Prismatic Evolutions Suprise Box Collection" (999 kr)
+  // ihop med varje annan "… Collection" i samma set: den blev först offer på
+  // "Super-Premium Collection" (0,7195) och — när gradvakten stoppat det — på
+  // "Poster Collection" (0,7038), medan den RÄTTA produkten "Prismatic Evolutions
+  // Surprise Box" bara nådde 0,6941. Orsaken är att katalogtiteln saknar ordet
+  // "Collection" som butiken skriver ut, så det generiska formordet drog poängen
+  // till fel produkt. En egen form gör frågan binär i stället för att lita på
+  // decimaler. MÅSTE ligga före box/collection-reglerna nedan.
+  // "suprise" med flit: butikens stavfel är vanligare än det rätta ordet i feedar,
+  // och en form som inte tål det hade lämnat exakt det här fallet olöst.
+  if (/\bsu[r]?prise\s*box\b/.test(t)) return "surprisebox";
   // "Mini Tin Display" = display av MÅNGA tins (dyrt) ≠ en enskild "Mini Tin"
   // (billig). Bara enskild mini tin → "tin"; med "display" faller den vidare
   // till display-regeln nedan så att en singeltin inte matchar ett tin-display.

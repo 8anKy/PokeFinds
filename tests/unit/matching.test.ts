@@ -25,11 +25,13 @@ import {
   isPlausibleListingPrice,
   matchListingToProduct,
   nonEraCoverage,
+  premiumGradeMismatch,
   printedNumberKey,
   bareCardNumbers,
   scoreSimilarity,
   seriesMismatch,
 } from "@/scrapers/matching";
+import { normalizeTitle } from "@/lib/utils";
 
 describe("seriesMismatch (Series 1 vs Series 2)", () => {
   it("olika serienummer = mismatch", () => {
@@ -206,6 +208,48 @@ describe("classifyForm", () => {
         card: null,
         variantLabel: null,
       })
+    ).toBeNull();
+  });
+
+  /**
+   * 2026-07-29: Shinycards "Prismatic Evolutions Suprise Box Collection" (999 kr) blev
+   * offer på "Prismatic Evolutions Super-Premium Collection" — headline visade 999 kr
+   * för en produkt vars golv är ~2 600 kr. Katalogtiteln saknar ordet "Collection" som
+   * butiken skriver ut, så det generiska formordet drog Dice-poängen till fel produkt:
+   *   Super-Premium Collection  0,7195   Poster Collection  0,7038   RÄTT (Surprise Box)  0,6941
+   * Två oberoende fixar behövdes — gradvakten ensam flyttade bara felet till Poster.
+   */
+  it("'Surprise Box' är en egen form — och butikens stavfel 'Suprise' räknas", () => {
+    const feed = "Pokemon Scarlet & Violet 8.5: Prismatic Evolutions Suprise Box Collection";
+    expect(classifyForm(normalizeTitle(feed))).toBe("surprisebox");
+    expect(classifyForm(normalizeTitle("Prismatic Evolutions Surprise Box"))).toBe("surprisebox");
+    // De två fel produkterna är vanliga "collection" → formvakten skiljer dem åt.
+    expect(classifyForm(normalizeTitle("Prismatic Evolutions Super-Premium Collection"))).toBe("collection");
+    expect(classifyForm(normalizeTitle("Prismatic Evolutions Poster Collection"))).toBe("collection");
+
+    const asProduct = (normalizedTitle: string) => ({ normalizedTitle, card: null, variantLabel: null });
+    expect(matchListingToProduct(feed, asProduct("prismatic evolutions super-premium collection"))).toBeNull();
+    expect(matchListingToProduct(feed, asProduct("prismatic evolutions poster collection"))).toBeNull();
+    // Den RÄTTA produkten måste fortfarande matcha — annars har vi bara flyttat felet.
+    expect(matchListingToProduct(feed, asProduct("prismatic evolutions surprise box"))).toBeGreaterThan(0.55);
+  });
+
+  /**
+   * Gradvakten (premiumGradeMismatch): Ultra-/Super-Premium är egna, dyrare linjer.
+   * Mätt mot facit före ship: 0 av 217 verifierat korrekta länkar blockeras.
+   */
+  it("Ultra-/Super-Premium är egna grader, inte formuleringar av Premium", () => {
+    const asProduct = (normalizedTitle: string) => ({ normalizedTitle, card: null, variantLabel: null });
+    expect(premiumGradeMismatch("Arceus VSTAR Ultra-Premium Collection", "Arceus VSTAR Premium Collection")).toBe(true);
+    expect(premiumGradeMismatch("Charizard ex Super-Premium Collection", "Charizard ex Premium Collection")).toBe(true);
+    // Grad mot ANNAN grad — inte bara "en sida saknar grad".
+    expect(premiumGradeMismatch("Mega Charizard X ex Ultra Premium Collection", "Mega Charizard X ex Super-Premium Collection")).toBe(true);
+    // Samma grad, olika skiljetecken/prefix → tyst.
+    expect(premiumGradeMismatch("Charizard ex Super-Premium Collection", "Pokémon TCG: Charizard ex Super Premium Collection")).toBe(false);
+    // Ingen sida namnger en grad → tyst (annars hade vanliga Premium-länkar dött).
+    expect(premiumGradeMismatch("Arceus VSTAR Premium Collection", "Arceus VSTAR Premium Collection")).toBe(false);
+    expect(
+      matchListingToProduct("Charizard ex Super-Premium Collection", asProduct("charizard ex premium collection"))
     ).toBeNull();
   });
 });
