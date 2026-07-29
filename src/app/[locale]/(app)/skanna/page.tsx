@@ -21,6 +21,7 @@ import {
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
+import { fingerprintFromRgb } from "@/lib/art-fingerprint";
 import { useIsAdmin } from "@/components/admin-only";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Label, Select } from "@/components/ui/input";
@@ -60,6 +61,8 @@ interface IdentifyResponse {
   guessedNumber: string | null;
   confidence: number;
   candidates: Candidate[];
+  /** Bildmatchningens bästa likhet 0..1, null när inget avtryck kunde användas. */
+  artTop: number | null;
   remaining?: number;
 }
 
@@ -161,7 +164,7 @@ function captureFrame(
   video: HTMLVideoElement,
   canvas: HTMLCanvasElement,
   frameEl?: HTMLElement | null
-): { dataUrl: string; stripDataUrl?: string; crop: string } | null {
+): { dataUrl: string; fingerprint?: string; stripDataUrl?: string; crop: string } | null {
   if (video.readyState < 2 || !video.videoWidth) return null;
   const vW = video.videoWidth;
   const vH = video.videoHeight;
@@ -203,6 +206,24 @@ function captureFrame(
   ctx.drawImage(video, sx, sy, sw, sh, 0, 0, w, h);
   const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
 
+  // KONSTAVTRYCK: 264 byte som identifierar kortet på utseende. Räknas HÄR, ur
+  // canvasens råa pixlar, och skickas med skanningen. Servern söker det mot hela
+  // katalogen i minnet (src/services/scanner/art-index.ts) — klienten laddar
+  // alltså inte ner något index, den skickar 264 byte uppåt.
+  //
+  // Tas ur den OBESKURNA kortbilden, inte ur nederkant-remsan: avtrycket är hela
+  // kortets färglayout, och indexet är byggt på hela katalogbilder.
+  let fingerprint: string | undefined;
+  const rgba = ctx.getImageData(0, 0, w, h);
+  const fp = fingerprintFromRgb(rgba.data, w, h, 4);
+  if (fp) {
+    // base64 av 264 byte ≈ 352 tecken. Byte-för-byte samma tal som servern
+    // räknade ur katalogbilden — samma funktion, samma aritmetik.
+    let bin = "";
+    for (let i = 0; i < fp.length; i++) bin += String.fromCharCode(fp[i] & 0xff);
+    fingerprint = btoa(bin);
+  }
+
   // NÄRBILD PÅ NEDERKANTEN. Mätt 2026-07-29 på en Trainer Gallery-Falinks med
   // gott om upplösning (ström 2160×3840, utsnitt 1349×1889): modellen svarade
   // "110" — kortets HP, tryckt STORT uppe till höger — i stället för TG05/TG30
@@ -227,6 +248,7 @@ function captureFrame(
 
   return {
     dataUrl,
+    fingerprint,
     stripDataUrl,
     // Utsnitt i KÄLLpixlar → skickad storlek. Står källan under den skickade
     // storleken skalar vi UPP, dvs modellen får interpolerade pixlar och ingen
@@ -327,7 +349,11 @@ function Scanner() {
   // ---- Identifiering -------------------------------------------------------
 
   const runIdentify = useCallback(
-    async (dataUrl: string, strip?: string): Promise<IdentifyResponse | { error: string }> => {
+    async (
+      dataUrl: string,
+      strip?: string,
+      fingerprint?: string
+    ): Promise<IdentifyResponse | { error: string }> => {
       try {
         // Standard = billiga Haiku-modellen (ingen `precise`) — håller scan-kostnaden
         // mot Pro-priset. Sonnet körs bara på uttryckligt "försök igen, skarpare".
@@ -336,7 +362,7 @@ function Scanner() {
           headers: { "Content-Type": "application/json" },
           // `detail` = närbild på kortets nederkant. Saknas den (galleriuppladdning,
           // där vi inte vet var kortet sitter i bilden) körs det som förut.
-          body: JSON.stringify({ image: dataUrl, detail: strip }),
+          body: JSON.stringify({ image: dataUrl, detail: strip, fingerprint }),
         });
         const data = (await res.json()) as IdentifyResponse & { error?: string };
         if (!res.ok) {
@@ -347,7 +373,10 @@ function Scanner() {
         // mellan "modellen läste fel" och "modellen läste rätt men slagningen
         // valde fel kort", och de två har helt olika åtgärder.
         setOcrInfo(
-          `${data.provider} · "${data.guessedName ?? ""}" / "${data.guessedNumber ?? ""}" · konf ${data.confidence.toFixed(2)}`
+          `${data.provider} · "${data.guessedName ?? ""}" / "${data.guessedNumber ?? ""}" · konf ${data.confidence.toFixed(2)}` +
+            // `bild` skiljer "avtrycket skickades inte / indexet är tomt" (—) från
+            // "det matchade svagt" (lågt tal). Utan det går de två inte att skilja.
+            ` · bild ${data.artTop == null ? "—" : data.artTop.toFixed(3)}`
         );
         return data;
       } catch {
@@ -358,8 +387,8 @@ function Scanner() {
   );
 
   const identifyInto = useCallback(
-    async (id: string, dataUrl: string, strip?: string) => {
-      const data = await runIdentify(dataUrl, strip);
+    async (id: string, dataUrl: string, strip?: string, fingerprint?: string) => {
+      const data = await runIdentify(dataUrl, strip, fingerprint);
       if (!("error" in data) && typeof data.remaining === "number") {
         const r = data.remaining;
         setQuota((q) => (q ? { ...q, remaining: r } : q));
@@ -577,7 +606,7 @@ function Scanner() {
     // `strip` följer med den fångade rutan. Skickas den INTE med som argument
     // utan läses ur en ref vid anropstillfället, ärver en galleriuppladdning
     // närbilden från förra kamerarutan — dvs nederkanten på ett HELT ANNAT kort.
-    (dataUrl: string, strip?: string) => {
+    (dataUrl: string, strip?: string, fingerprint?: string) => {
       const id = nextId();
       setScans((prev) => [
         ...prev,
@@ -593,7 +622,7 @@ function Scanner() {
           language: defaultLanguage,
         },
       ]);
-      void identifyInto(id, dataUrl, strip);
+      void identifyInto(id, dataUrl, strip, fingerprint);
     },
     [defaultCondition, defaultLanguage, identifyInto]
   );
@@ -604,13 +633,13 @@ function Scanner() {
     if (!video || !canvas || cameraState !== "live" || shutterCooling) return;
     const shot = captureFrame(video, canvas, frameRef.current);
     if (!shot) return;
-    const { dataUrl, stripDataUrl, crop } = shot;
+    const { dataUrl, stripDataUrl, fingerprint, crop } = shot;
     setCropInfo(crop);
     setFlash(true);
     window.setTimeout(() => setFlash(false), 180);
     setShutterCooling(true);
     window.setTimeout(() => setShutterCooling(false), 450);
-    addScan(dataUrl, stripDataUrl);
+    addScan(dataUrl, stripDataUrl, fingerprint);
   }, [cameraState, shutterCooling, addScan]);
 
   function handleFile(file: File): boolean {

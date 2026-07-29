@@ -261,6 +261,13 @@ model Card {
   // hela poängen: en kolumn importerna måste minnas att fylla i hade sorterat
   // nya kort fel, tyst. Motsvarande JS-komparator: src/lib/card-number-order.ts.
   numberSortKey String?
+  // KONSTAVTRYCK: 264 byte (8×11 celler × RGB, int8) som identifierar kortet på
+  // UTSEENDE i stället för på text. Samlarnumret trycks ~2 mm högt och finns
+  // helt enkelt inte i en suddig fångst — se src/lib/art-fingerprint.ts för
+  // mätningen. Räknas av `scripts/build-art-fingerprints.ts`, INTE av appen.
+  // Avsiktligt OINDEXERAT: sökningen är en linjär genomgång i minnet (hela
+  // indexet är ~5,4 MB), så ett B-tree-index vore ren skrivkostnad.
+  artFingerprint Bytes?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 

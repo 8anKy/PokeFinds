@@ -8,8 +8,10 @@
 import type { PlanTier, Prisma, ScannerJob } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
+import { FINGERPRINT_BYTES } from "@/lib/art-fingerprint";
 import { cardNumberSortKey } from "@/lib/card-number-order";
 import { scoreSimilarity } from "@/scrapers/matching";
+import { searchByFingerprint } from "@/services/scanner/art-index";
 import { getCardValues } from "@/services/products";
 import { ClaudeVisionOcrAdapter } from "@/services/scanner/claude-vision";
 import { MockOcrAdapter } from "@/services/scanner/ocr-mock";
@@ -197,6 +199,21 @@ export function parseGuessedNumber(raw: string | null | undefined): GuessedNumbe
 /** Tak per kandidatkälla. Generöst — "charizard" ger 111 rader, "pikachu" 178. */
 const CANDIDATE_LIMIT = 400;
 
+/** Hur många kort bildmatchningen får föreslå. Mätt: rätt kort ligger i topp-15
+ *  i 96 % av fallen även vid hård försämring (se src/lib/art-fingerprint.ts). */
+const ART_CANDIDATES = 15;
+
+/**
+ * Vikt för bildlikheten i den samlade poängen.
+ *
+ * MEDVETET LÄGRE ÄN NUMMERBONUSEN (0,4–0,5): ett läst samlarnummer är ett EXAKT
+ * bevis, bildlikhet är en gradering. Får bilden väga tyngre än numret börjar den
+ * välja fel TRYCKNING — Base Unlimited, Shadowless och 1st Edition har identisk
+ * konst och skiljs bara av numret. Bilden ska föreslå kandidater; numret ska
+ * avgöra vilken av dem det är.
+ */
+const ART_WEIGHT = 0.3;
+
 /** Kortnamn-tokens ur OCR-texten. Tomt resultat → hela frågan som en token. */
 function nameTokens(query: string): string[] {
   const tokens = query
@@ -233,14 +250,25 @@ function nameTokens(query: string): string[] {
  * gör matchningen robust mot att ETT av de två fälten är fel — vilket är det
  * normala felet, inte att båda är fel samtidigt.
  */
-export async function matchCards(ocr: OcrResult): Promise<ScanCandidate[]> {
+export async function matchCards(
+  ocr: OcrResult,
+  /**
+   * Bildmatchningens förslag (kort-id → likhet 0..1), från konstavtrycket.
+   *
+   * ADDITIVT med flit: förslagen LÄGGS TILL kandidaterna och höjer poängen, de
+   * ERSÄTTER aldrig text-matchningen. Skälet är att bildmatchningens verkliga
+   * träffsäkerhet är omätt — alla siffror vi har kommer från frågor som härletts
+   * ur samma filer som referenserna, dvs ett tak. Byggt så här är värsta fallet
+   * att bilden inte hjälper, inte att den gör resultatet sämre.
+   */
+  artScores?: Map<string, number>
+): Promise<ScanCandidate[]> {
   const query = ocr.guessedName?.trim() || ocr.rawText.trim();
-  if (!query) return [];
-
-  const tokens = nameTokens(query);
-  if (tokens.length === 0) return [];
-
+  const tokens = query ? nameTokens(query) : [];
   const guessedNum = parseGuessedNumber(ocr.guessedNumber);
+  // Utan NÅGON signal finns inget att matcha på. Bildmatchningen räcker som enda
+  // signal — det är hela poängen med den: den fungerar när texten är oläslig.
+  if (tokens.length === 0 && !guessedNum && !artScores?.size) return [];
 
   const select = {
     id: true,
@@ -267,18 +295,30 @@ export async function matchCards(ocr: OcrResult): Promise<ScanCandidate[]> {
       : Promise.resolve([]),
     // 3: namnkällan. AND över alla tokens först (precist), OR som reserv —
     // "Iron Valiant ex" som OR drar in varenda Iron Hands/Iron Moth i katalogen.
-    prisma.card
-      .findMany({ where: { AND: nameAll }, select, orderBy, take: CANDIDATE_LIMIT })
-      .then((rows) =>
-        rows.length > 0
-          ? rows
-          : prisma.card.findMany({
-              where: { OR: nameAll },
-              select,
-              orderBy,
-              take: CANDIDATE_LIMIT,
-            })
-      ),
+    nameAll.length === 0
+      ? Promise.resolve([])
+      : prisma.card
+          .findMany({ where: { AND: nameAll }, select, orderBy, take: CANDIDATE_LIMIT })
+          .then((rows) =>
+            rows.length > 0
+              ? rows
+              : prisma.card.findMany({
+                  where: { OR: nameAll },
+                  select,
+                  orderBy,
+                  take: CANDIDATE_LIMIT,
+                })
+          ),
+    // 4: bildkällan. Uppslag på PRIMÄRNYCKEL — billigaste möjliga fråga, och
+    // därför går Neon-arbetet per skanning NER när bilden bidrar: 15 rader på id
+    // i stället för ytterligare en genomsökning.
+    artScores?.size
+      ? prisma.card.findMany({
+          where: { id: { in: [...artScores.keys()] } },
+          select,
+          orderBy,
+        })
+      : Promise.resolve([]),
   ]);
 
   const byId = new Map<string, (typeof sources)[0][number]>();
@@ -286,7 +326,12 @@ export async function matchCards(ocr: OcrResult): Promise<ScanCandidate[]> {
   if (byId.size === 0) return [];
 
   const scored = [...byId.values()].map((card) => {
-    let score = scoreSimilarity(query, card.name);
+    // Namnlikheten är 0 när modellen inte läste något namn — då bär bilden och
+    // numret hela bedömningen, vilket är precis avsikten.
+    let score = query ? scoreSimilarity(query, card.name) : 0;
+    // Bildlikhet: en gradering, inte ett bevis. Se ART_WEIGHT.
+    const art = artScores?.get(card.id);
+    if (art !== undefined && art > 0) score += art * ART_WEIGHT;
     // Numret är identiteten när namnet delas — och det gör det i 92 % av fallen.
     // Nyckeln jämförs som STRÄNG mot samma normalisering som databasen använder,
     // så "TG10", "SWSH034" och "130a" räknas, inte bara rena tal.
@@ -456,6 +501,26 @@ export interface IdentifyResult {
   guessedNumber: string | null;
   confidence: number;
   candidates: ScanCandidate[];
+  /** Bildmatchningens bästa likhet 0..1, eller null när inget avtryck skickades. */
+  artTop: number | null;
+}
+
+/**
+ * Base64-avtryck från klienten → Int8Array, eller null om det inte håller måtten.
+ *
+ * Längdkontrollen är inte formalia: ett avtryck med fel längd kommer från en annan
+ * rutnätsversion, och att jämföra vektorer av olika längd "fungerar" (man får ett
+ * tal) men betyder ingenting. Hellre ingen bildsignal än en påhittad.
+ */
+function decodeFingerprint(b64: string | undefined): Int8Array | null {
+  if (!b64) return null;
+  try {
+    const buf = Buffer.from(b64, "base64");
+    if (buf.length !== FINGERPRINT_BYTES) return null;
+    return new Int8Array(buf.buffer, buf.byteOffset, buf.length);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -466,17 +531,29 @@ export interface IdentifyResult {
  */
 export async function identifyCard(
   imageDataUrl: string,
-  opts: { precise?: boolean; detailDataUrl?: string } = {}
+  opts: { precise?: boolean; detailDataUrl?: string; fingerprint?: string } = {}
 ): Promise<IdentifyResult> {
   const adapter = getOcrAdapter(opts.precise);
-  const ocr = await adapter.extractCardInfo(imageDataUrl, opts.detailDataUrl);
-  const candidates =
-    ocr.guessedName || ocr.rawText.trim() ? await matchCards(ocr) : [];
+  // Bildsökningen och vision-anropet är oberoende → kör dem parallellt. Sökningen
+  // är några millisekunder CPU mot ett index i minnet; vision-anropet är ett
+  // nätverksanrop på hundratals ms. Serialiserade hade bilden lagt sig ovanpå
+  // svarstiden i onödan.
+  const fp = decodeFingerprint(opts.fingerprint);
+  const [ocr, artMatches] = await Promise.all([
+    adapter.extractCardInfo(imageDataUrl, opts.detailDataUrl),
+    fp ? searchByFingerprint(fp, ART_CANDIDATES) : Promise.resolve([]),
+  ]);
+
+  const artScores = new Map(artMatches.map((m) => [m.cardId, m.score]));
+  // Bilden ensam räcker som signal — texten kan vara helt oläslig.
+  const candidates = await matchCards(ocr, artScores);
+
   return {
     provider: adapter.name,
     guessedName: ocr.guessedName ?? null,
     guessedNumber: ocr.guessedNumber ?? null,
     confidence: ocr.confidence,
     candidates,
+    artTop: artMatches.length > 0 ? artMatches[0].score : null,
   };
 }

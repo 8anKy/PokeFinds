@@ -1,0 +1,16 @@
+-- KONSTAVTRYCK per kort: 264 byte (8×11 celler × RGB, int8).
+--
+-- Varför kolumnen finns: samlarnumret trycks ~2 mm högt och saknas helt i en
+-- skärmfotografering eller ett suddigt foto, så textläsning kan aldrig bli
+-- tillförlitlig där. Avtrycket identifierar kortet på utseende i stället.
+-- Mätt över hela katalogen (20 431 referenser, 300 försämrade frågor):
+-- topp-15 100 % / 97,0 % vid mild / hård försämring.
+--
+-- INGET INDEX med flit. Sökningen är en linjär genomgång i processminnet — hela
+-- indexet är ~5,4 MB och läses EN gång per process (lazy, vid första skanningen,
+-- så Neons scale-to-zero bevaras). Ett B-tree på en 264-byte-blob hade bara
+-- kostat skrivtid och diskplats utan att någon fråga kan använda det.
+--
+-- NULL = kort utan avtryck (bl.a. de 132 kort vars bild-URL 404:ar uppströms).
+-- De faller ur bildmatchningen men fungerar som förut via namn/nummer.
+ALTER TABLE "Card" ADD COLUMN "artFingerprint" BYTEA;

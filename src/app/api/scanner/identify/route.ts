@@ -30,6 +30,11 @@ const schema = z.object({
     .string()
     .regex(/^data:image\/[a-z+.-]+;base64,/i, "Närbilden måste vara en data-URL (image/*).")
     .optional(),
+  // KONSTAVTRYCK: 264 byte base64 (≈352 tecken) räknat på klienten. Det är det
+  // som gör bildmatchningen billig — klienten skickar 264 byte UPP i stället för
+  // att ladda ner ett 5,4 MB-index. Längden valideras hårt: fel längd betyder ett
+  // avtryck från en annan rutnätsversion, och det ska avvisas, inte jämföras.
+  fingerprint: z.string().min(1).max(1024).optional(),
   // Starkare (dyrare) vision-modell — körs bara vid bekräftelse/uppladdning,
   // inte för varje live-ruta.
   precise: z.boolean().optional(),
@@ -49,7 +54,7 @@ export async function POST(req: Request) {
       throw new ServiceError(429, "För många skanningar på kort tid. Vänta en stund.");
     }
 
-    const { image, detail, precise } = schema.parse(await req.json());
+    const { image, detail, fingerprint, precise } = schema.parse(await req.json());
     if (image.length + (detail?.length ?? 0) > MAX_IMAGE_BYTES * 1.4) {
       throw new ServiceError(413, "Bilden är för stor. Skala ner videorutan innan den skickas.");
     }
@@ -72,6 +77,7 @@ export async function POST(req: Request) {
     const result = await identifyCard(image, {
       precise: intro || (precise && isPro(user)),
       detailDataUrl: detail,
+      fingerprint,
     });
 
     // Bokför mot kvoten: varje genomförd skanning räknas (träff eller no-match),

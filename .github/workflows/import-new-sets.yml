@@ -49,3 +49,13 @@ jobs:
       - if: steps.guard.outputs.ready == 'true'
         name: Importera nya set (no-op om inget nytt)
         run: npx tsx scripts/import-tcg-data.ts
+
+      # KONSTAVTRYCK för de nya korten — annars är de OSYNLIGA för skannerns
+      # bildmatchning, tyst. `Card.numberSortKey` räknas av Postgres (GENERATED)
+      # just för att ingen import ska kunna glömma den; ett avtryck kräver
+      # bildavkodning och kan därför inte genereras i databasen, så det MÅSTE
+      # köras här. Steget rör bara kort som saknar avtryck → billig no-op när
+      # inga nya set kom. Se src/lib/art-fingerprint.ts.
+      - if: steps.guard.outputs.ready == 'true'
+        name: Bygg konstavtryck för nya kort (no-op om inga saknas)
+        run: npx tsx scripts/build-art-fingerprints.ts
