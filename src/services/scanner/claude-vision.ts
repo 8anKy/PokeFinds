@@ -28,31 +28,59 @@ function parseDataUrl(dataUrl: string): {
   return { mediaType, data: m[2] };
 }
 
+// SAMLARNUMRET ÄR HELA IDENTITETEN. Mätt mot prod: 18 938 av 20 563 kort (92 %)
+// delar namn med minst ett annat kort, så utan nummer finns ingenting kvar att
+// matcha på — katalogslagningen träffar rätt i 100 % av fallen med ett korrekt
+// läst nummer, mot ~23 % utan. Därför är prompten nästan helt ägnad åt numret.
+//
+// BOKSTÄVERNA I NUMRET ÄR EN DEL AV DET: "TG10" är inte kort 10, "SWSH034" är
+// inte kort 34, "130a" är inte 130 — de är olika kort med olika värde. Det är
+// dessutom precis de tryckningarna någon bryr sig om att skanna (Trainer Gallery,
+// Shiny Vault, promos, alternativa tryck); vanliga commons skannar man inte.
 const SYSTEM = [
   "Du identifierar Pokémon-samlarkort från EN bild eller videoruta.",
   "Läs kortets namn (t.ex. 'Charizard ex').",
   "SAMLARNUMRET ÄR AVGÖRANDE: många kort delar namn (t.ex. flera 'Wailord'),",
   "och numret är det enda som skiljer dem åt. Det står i regel i ett NEDRE HÖRN,",
   "ofta litet, som 'nummer/total' (t.ex. '41/159', '199/091') eller med set-kod",
-  "(t.ex. 'SVP 041'). Returnera HELA strängen inklusive total efter snedstrecket —",
-  "läs siffrorna tecken för tecken, gissa inte. Är numret oläsligt: lämna number tomt",
-  "och sänk konfidensen (hellre tomt än fel nummer).",
+  "(t.ex. 'SVP 041').",
+  "SKRIV AV NUMRET EXAKT SOM DET STÅR, tecken för tecken — gissa aldrig.",
+  "BOKSTÄVER I NUMRET ÄR EN DEL AV NUMRET och får ALDRIG utelämnas:",
+  "'TG10/TG30' skrivs 'TG10/TG30' (inte '10'), 'GG08' skrivs 'GG08',",
+  "'SWSH034' skrivs 'SWSH034', 'SV075' skrivs 'SV075'.",
+  "En efterföljande bokstav hör också till numret: '130a' är INTE '130'.",
+  "Behåll inledande nollor och mellanslag som de står ('MEP 074').",
+  "Är numret oläsligt: lämna number tomt och sänk konfidensen — hellre tomt än fel",
+  "nummer, eftersom ett påhittat nummer pekar ut ett annat riktigt kort.",
   "Returnera en konfidens 0–1 utifrån hur tydligt kortet syns och hur säker du är.",
   "Om inget tydligt Pokémon-kort syns: sätt cardVisible=false och låg konfidens.",
 ].join(" ");
 
+// `strict: true` garanterar att svaret validerar mot schemat (kräver
+// additionalProperties:false + required). Kostar ingenting och tar bort en
+// felkälla: ett saknat fält föll förut tillbaka på konfidens 0,5 och kunde låsa
+// UI:t på en gissning.
 const CARD_TOOL: Anthropic.Tool = {
   name: "report_card",
   description: "Rapportera det identifierade kortet.",
+  strict: true,
   input_schema: {
     type: "object",
     properties: {
       cardVisible: { type: "boolean", description: "Syns ett Pokémon-kort tydligt i bilden?" },
       name: { type: "string", description: "Kortets namn, t.ex. 'Charizard ex'. Tom sträng om okänt." },
-      number: { type: "string", description: "Samlarnummer MED total, t.ex. '41/159' eller '4/102' (läs nedre hörnet, hela strängen). Tom sträng om oläsligt." },
+      number: {
+        type: "string",
+        description:
+          "Samlarnumret EXAKT som det står i nedre hörnet, med eventuell total: " +
+          "'41/159', '4/102', 'TG10/TG30', 'GG08', 'SWSH034', 'SV075', '130a', 'MEP 074'. " +
+          "Bokstäver före OCH efter siffrorna hör till numret och ska med. " +
+          "Tom sträng om oläsligt.",
+      },
       confidence: { type: "number", description: "0–1" },
     },
     required: ["cardVisible", "name", "number", "confidence"],
+    additionalProperties: false,
   },
 };
 

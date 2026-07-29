@@ -15,6 +15,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+import { cardNumberSortKey } from "@/lib/card-number-order";
 import { getScannerQuota, isIntroScan, parseGuessedNumber, recordScanUsage, runScannerJob } from "@/services/scanner";
 
 beforeEach(() => {
@@ -94,16 +95,81 @@ describe("runScannerJob", () => {
 
 describe("parseGuessedNumber (nummer-tolkning för matchning)", () => {
   it("läser full N/T", () => {
-    expect(parseGuessedNumber("143/195")).toEqual({ num: 143, total: 195 });
+    expect(parseGuessedNumber("143/195")).toMatchObject({ num: 143, total: 195, printed: "143" });
   });
   it("läser naket nummer utan total (buggen som gömde rätt Altaria)", () => {
-    expect(parseGuessedNumber("143")).toEqual({ num: 143, total: null });
+    expect(parseGuessedNumber("143")).toMatchObject({ num: 143, total: null, printed: "143" });
   });
   it("plockar numret ur brus", () => {
-    expect(parseGuessedNumber("no. 25")).toEqual({ num: 25, total: null });
+    expect(parseGuessedNumber("no. 25")).toMatchObject({ num: 25, total: null });
   });
   it("null när inget nummer finns", () => {
     expect(parseGuessedNumber("Altaria")).toBeNull();
     expect(parseGuessedNumber(null)).toBeNull();
+  });
+
+  // BOKSTÄVERNA ÄR EN DEL AV NUMRET. Mot prod-facit med felfri simulerad OCR
+  // stod de här formaten för praktiskt taget varenda miss innan fixen — det
+  // gamla `parseInt(card.number, 10)` gav NaN och slängde hela nummer-signalen.
+  describe("bokstavsnumrerade kort (Trainer Gallery, Shiny Vault, promos)", () => {
+    const key = (raw: string) => parseGuessedNumber(raw)?.sortKey;
+
+    it("behåller PREFIXET så nyckeln blir setets, inte huvudnumreringens", () => {
+      expect(parseGuessedNumber("TG10/TG30")).toMatchObject({ printed: "TG10", total: 30 });
+      expect(key("TG10/TG30")).toBe(cardNumberSortKey("TG10"));
+      expect(key("GG08")).toBe(cardNumberSortKey("GG08"));
+      expect(key("SV075")).toBe(cardNumberSortKey("SV075"));
+      // TG10 och 10 är OLIKA kort — nycklarna får aldrig falla ihop.
+      expect(key("TG10")).not.toBe(key("10"));
+    });
+
+    it("behåller SUFFIXET — 130a är inte 130", () => {
+      expect(parseGuessedNumber("130a")).toMatchObject({ printed: "130a", num: 130 });
+      expect(key("130a")).toBe(cardNumberSortKey("130a"));
+      expect(key("130a")).not.toBe(key("130"));
+    });
+
+    it("tål inledande nollor och mellanslag (SWSH034, MEP 074)", () => {
+      expect(key("SWSH034")).toBe(cardNumberSortKey("SWSH034"));
+      expect(key("SWSH034")).toBe(key("SWSH34")); // samma kort, olika skrivsätt
+      expect(key("MEP 074")).toBe(cardNumberSortKey("MEP 074"));
+    });
+
+    it("nyckeln är EXAKT databasens numberSortKey", () => {
+      // Speglar Card.numberSortKey (GENERATED). Går de isär slutar uppslaget
+      // att träffa och matchningen tappar nummer-signalen tyst.
+      for (const n of ["4", "143", "TG10", "GG08", "SWSH034", "SV075", "130a", "MEP 074"]) {
+        expect(parseGuessedNumber(n)?.sortKey).toBe(cardNumberSortKey(n));
+      }
+    });
+
+    it("secret rare: numret läses även när totalen är mindre än numret", () => {
+      expect(parseGuessedNumber("199/165")).toMatchObject({ num: 199, total: 165 });
+    });
+  });
+
+  // 31 kort i katalogen numreras med BARA bokstäver — Unowns alfabet i Unseen
+  // Forces ("A"…"Z", "!", "?") och fyra Alph Lithograph ("ONE"…"FOUR").
+  describe("bokstavsnumrerade utan siffror (Unown)", () => {
+    it("bokstaven ÄR numret", () => {
+      expect(parseGuessedNumber("H")).toMatchObject({ printed: "H", num: null, total: null });
+      expect(parseGuessedNumber("H")?.sortKey).toBe(cardNumberSortKey("H"));
+      expect(parseGuessedNumber("ONE")?.sortKey).toBe(cardNumberSortKey("ONE"));
+      expect(parseGuessedNumber("!")?.sortKey).toBe(cardNumberSortKey("!"));
+    });
+
+    it("läser INTE totalen som kortnummer när vänstersidan är en bokstav", () => {
+      // "O/115" gav förut kort 115 — den nakna regexen hittade inga siffror till
+      // vänster och tog de första den såg, dvs totalen.
+      const g = parseGuessedNumber("O/115");
+      expect(g).toMatchObject({ printed: "O", total: 115 });
+      expect(g?.sortKey).toBe(cardNumberSortKey("O"));
+      expect(g?.sortKey).not.toBe(cardNumberSortKey("115"));
+    });
+
+    it("rör inte de vanliga formaten", () => {
+      expect(parseGuessedNumber("TG10/TG30")?.sortKey).toBe(cardNumberSortKey("TG10"));
+      expect(parseGuessedNumber("143/195")?.sortKey).toBe(cardNumberSortKey("143"));
+    });
   });
 });

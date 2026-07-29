@@ -8,7 +8,8 @@
 import type { PlanTier, Prisma, ScannerJob } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
-import { extractSetNumber, scoreSimilarity } from "@/scrapers/matching";
+import { cardNumberSortKey } from "@/lib/card-number-order";
+import { scoreSimilarity } from "@/scrapers/matching";
 import { getCardValues } from "@/services/products";
 import { ClaudeVisionOcrAdapter } from "@/services/scanner/claude-vision";
 import { MockOcrAdapter } from "@/services/scanner/ocr-mock";
@@ -111,71 +112,200 @@ export function getOcrAdapter(precise = false): OcrAdapter {
   }
 }
 
-/**
- * Tolkar OCR:ens gissade kortnummer. `extractSetNumber` kräver formatet "N/T"
- * (t.ex. "143/195"); modellen läser ofta BARA numret ("143") och tappar totalen
- * → utan detta blev numret null och IGNORERADES helt, så namntvillingar (t.ex.
- * flera "Altaria") rankades på DB-ordning. Fall tillbaka på ett naket nummer.
- */
-export function parseGuessedNumber(
-  raw: string | null | undefined
-): { num: number; total: number | null } | null {
-  if (!raw) return null;
-  const withTotal = extractSetNumber(raw);
-  if (withTotal) return withTotal;
-  const m = /(\d{1,3})/.exec(raw); // naket nummer utan total
-  return m ? { num: parseInt(m[1], 10), total: null } : null;
+/** Tolkat kortnummer ur OCR:ens läsning. */
+export interface GuessedNumber {
+  /** Tryckt nummer som det står på kortet: "143", "TG10", "SWSH034", "130a". */
+  printed: string;
+  /** Katalognyckel — SAMMA sträng som `Card.numberSortKey` (indexerad kolumn). */
+  sortKey: string;
+  /** Talet i numret, eller null när numret saknar siffror ("A", "ONE"). */
+  num: number | null;
+  /** Totalen efter snedstrecket ("/195"), när modellen läst hela strängen. */
+  total: number | null;
 }
 
 /**
- * Matchar ett OCR-resultat mot kortkatalogen.
- * Strategi: kandidatfiltrering via namn (contains, skiftlägesokänslig) →
- * Dice-bigram-likhet (scoreSimilarity) → bonus för matchande setnummer.
+ * Tolkar OCR:ens gissade kortnummer.
+ *
+ * BOKSTÄVERNA ÄR EN DEL AV NUMRET (fix 2026-07-29). Funktionen returnerade förut
+ * bara ett heltal, och matchningen jämförde det mot `parseInt(card.number, 10)`.
+ * Den jämförelsen ger `NaN` för VARJE bokstavsnumrerat kort — "TG10", "GG08",
+ * "SWSH034", "SV075" — och tappar suffixet på "130a". Mätt mot prod-facit med en
+ * FELFRI simulerad OCR missade matchningen 13,5 % av korten, och praktiskt taget
+ * varenda miss var ett sådant nummer: Trainer Gallery, Shiny Vault, Black Star
+ * Promos och alternativa tryckningar. Alltså exakt de kort någon bryr sig om att
+ * skanna — de vanliga commons scannar man inte.
+ *
+ * `sortKey` speglar den GENERADE kolumnen `Card.numberSortKey`, så numret blir en
+ * INDEXERAD exakt uppslagning i stället för en efterhandsbonus. Totalen behålls
+ * separat: den är svagare (secret rares trycks "199/165") och används bara för
+ * att gradera hur säker nummerträffen är, aldrig för att kasta en kandidat.
  */
-export async function matchCards(ocr: OcrResult): Promise<ScanCandidate[]> {
-  const query = ocr.guessedName?.trim() || ocr.rawText.trim();
-  if (!query) return [];
+export function parseGuessedNumber(raw: string | null | undefined): GuessedNumber | null {
+  if (!raw) return null;
+  // "TG10/TG30", "143/195", "199/091" — vänstersidan är kortets identitet.
+  const withTotal =
+    /([A-Za-z]{0,5})\s*0*(\d{1,4})\s*([A-Za-z]?)\s*[/／]\s*[A-Za-z]{0,5}\s*0*(\d{1,4})/.exec(raw);
+  if (withTotal) {
+    const printed = `${withTotal[1]}${withTotal[2]}${withTotal[3]}`;
+    return {
+      printed,
+      sortKey: cardNumberSortKey(printed),
+      num: parseInt(withTotal[2], 10),
+      total: parseInt(withTotal[4], 10),
+    };
+  }
+  // "H/115" — bokstavsnumret med setets total. MÅSTE prövas före den nakna
+  // regexen nedan: den hittar inga siffror till vänster om snedstrecket och
+  // skulle glatt läsa TOTALEN som kortnummer ("O/115" → kort 115).
+  const alphaTotal = /^\s*([A-Za-z]{1,4}|[!?])\s*[/／]\s*[A-Za-z]{0,5}\s*0*(\d{1,4})/.exec(raw);
+  if (alphaTotal) {
+    return {
+      printed: alphaTotal[1],
+      sortKey: cardNumberSortKey(alphaTotal[1]),
+      num: null,
+      total: parseInt(alphaTotal[2], 10),
+    };
+  }
+  // Naket nummer utan total: "143", "SWSH034", "MEP 074", "no. 25".
+  const bare = /([A-Za-z]{0,5})\s*0*(\d{1,4})\s*([A-Za-z]?)/.exec(raw);
+  if (bare) {
+    const printed = `${bare[1]}${bare[2]}${bare[3]}`;
+    return {
+      printed,
+      sortKey: cardNumberSortKey(printed),
+      num: parseInt(bare[2], 10),
+      total: null,
+    };
+  }
+  // NUMRET BEHÖVER INTE VARA ETT TAL. 31 kort i katalogen är numrerade med bara
+  // bokstäver: Unowns eget alfabet i Unseen Forces ("A"…"Z", "!", "?") plus fyra
+  // Alph Lithograph ("ONE"…"FOUR"). Där ÄR bokstaven samlarordningen. Utan det
+  // här föll de tillbaka på ren namnmatchning, och "Unown H" landade på en
+  // Unown ur ett helt annat set. Ett skräpvärde ger bara en nyckel som inte
+  // finns i katalogen — namnkällan står kvar som skydd.
+  const alpha = /^\s*([A-Za-z]{1,4}|[!?])\s*$/.exec(raw);
+  if (!alpha) return null;
+  return {
+    printed: alpha[1],
+    sortKey: cardNumberSortKey(alpha[1]),
+    num: null,
+    total: null,
+  };
+}
 
-  // Kandidater: kort vars namn innehåller någon betydelsebärande token.
+/** Tak per kandidatkälla. Generöst — "charizard" ger 111 rader, "pikachu" 178. */
+const CANDIDATE_LIMIT = 400;
+
+/** Kortnamn-tokens ur OCR-texten. Tomt resultat → hela frågan som en token. */
+function nameTokens(query: string): string[] {
   const tokens = query
     .toLowerCase()
     .split(/\s+/)
     .filter((t) => t.length >= 3)
     .slice(0, 5);
-  if (tokens.length === 0) return [];
+  // Kort HETER ibland kortare än tre tecken — "N", "Bea", "Guzma & Hala".
+  // Med ett hårt ≥3-filter blev tokenlistan tom och matchningen returnerade
+  // INGENTING för dem, oavsett hur bra modellen läst kortet.
+  if (tokens.length > 0) return tokens;
+  const whole = query.toLowerCase().trim();
+  return whole ? [whole] : [];
+}
 
-  const candidates = await prisma.card.findMany({
-    where: {
-      OR: tokens.map((t) => ({ name: { contains: t, mode: "insensitive" as const } })),
-    },
-    include: { set: { select: { name: true, totalCards: true } } },
-    take: 50,
-  });
-  if (candidates.length === 0) return [];
+/**
+ * Matchar ett OCR-resultat mot kortkatalogen.
+ *
+ * KANDIDATURVALET VAR ETT SLUMPURVAL (fix 2026-07-29). Frågan var ett `OR` över
+ * namn-tokens med `take: 50` och UTAN `orderBy` — Postgres returnerar då de 50
+ * rader planen råkar producera. Mätt mot prod delar 18 938 av 20 563 kort (92 %)
+ * namn med minst ett annat kort, och "charizard" ger 111 kandidatrader: rätt kort
+ * låg utanför urvalet ungefär varannan gång, och VILKA 50 man fick kunde variera
+ * mellan körningar. Ingen modelluppgradering i världen lagar det — kortet var
+ * borta innan poängsättningen började.
+ *
+ * Nu hämtas kandidater ur TRE källor som unionsammanfogas (dubbletter faller bort
+ * på id):
+ *   1. nummer + namn   exakt `numberSortKey` OCH alla namn-tokens → oftast 1–3 rader
+ *   2. bara nummer     räddar kortet när modellen stavat NAMNET fel
+ *   3. bara namn       räddar kortet när modellen läst NUMRET fel (eller inte alls)
+ *
+ * Att köra alla tre kostar inget märkbart (indexerade uppslag, tak per källa) och
+ * gör matchningen robust mot att ETT av de två fälten är fel — vilket är det
+ * normala felet, inte att båda är fel samtidigt.
+ */
+export async function matchCards(ocr: OcrResult): Promise<ScanCandidate[]> {
+  const query = ocr.guessedName?.trim() || ocr.rawText.trim();
+  if (!query) return [];
+
+  const tokens = nameTokens(query);
+  if (tokens.length === 0) return [];
 
   const guessedNum = parseGuessedNumber(ocr.guessedNumber);
 
-  const scored = candidates.map((card): ScanCandidate => {
+  const select = {
+    id: true,
+    name: true,
+    number: true,
+    numberSortKey: true,
+    rarity: true,
+    imageUrl: true,
+    set: { select: { name: true, totalCards: true, releaseDate: true } },
+  } as const;
+  const nameAll = tokens.map((t) => ({ name: { contains: t, mode: "insensitive" as const } }));
+  // Deterministisk ordning: ett tak utan orderBy är samma slumpurval igen.
+  const orderBy = { id: "asc" as const };
+
+  const sources = await Promise.all([
+    // 1+2: nummerkällorna. Exakt uppslag på den indexerade generade kolumnen.
+    guessedNum
+      ? prisma.card.findMany({
+          where: { numberSortKey: guessedNum.sortKey },
+          select,
+          orderBy,
+          take: CANDIDATE_LIMIT,
+        })
+      : Promise.resolve([]),
+    // 3: namnkällan. AND över alla tokens först (precist), OR som reserv —
+    // "Iron Valiant ex" som OR drar in varenda Iron Hands/Iron Moth i katalogen.
+    prisma.card
+      .findMany({ where: { AND: nameAll }, select, orderBy, take: CANDIDATE_LIMIT })
+      .then((rows) =>
+        rows.length > 0
+          ? rows
+          : prisma.card.findMany({
+              where: { OR: nameAll },
+              select,
+              orderBy,
+              take: CANDIDATE_LIMIT,
+            })
+      ),
+  ]);
+
+  const byId = new Map<string, (typeof sources)[0][number]>();
+  for (const rows of sources) for (const r of rows) byId.set(r.id, r);
+  if (byId.size === 0) return [];
+
+  const scored = [...byId.values()].map((card) => {
     let score = scoreSimilarity(query, card.name);
-    // Setnummer (t.ex. "25/102") är AVGÖRANDE när flera kort delar namn
-    // (Wailord/Altaria-reprints scorar identiskt på namn → utan en stark
-    // nummer-vikt vinner bara den DB-rad som råkar komma först). Boosten är
-    // därför stor och OCAPPAD så att rätt-numrerade kortet sorteras överst.
-    if (guessedNum) {
-      const cardNum = parseInt(card.number, 10);
-      const matchesNumber = !Number.isNaN(cardNum) && cardNum === guessedNum.num;
-      if (matchesNumber) {
-        if (guessedNum.total == null) {
-          // Nummer matchar men total okänd → fortfarande avgörande över namn-
-          // tvillingar (som scorar identiskt), men svagare än en full N/T-träff.
-          score += 0.35;
-        } else if (card.set.totalCards === 0 || card.set.totalCards === guessedNum.total) {
-          score += 0.5; // nummer + total matchar → starkast
-        }
-        // nummer matchar men känd total skiljer → ingen boost (troligen annat set)
+    // Numret är identiteten när namnet delas — och det gör det i 92 % av fallen.
+    // Nyckeln jämförs som STRÄNG mot samma normalisering som databasen använder,
+    // så "TG10", "SWSH034" och "130a" räknas, inte bara rena tal.
+    if (guessedNum && card.numberSortKey === guessedNum.sortKey) {
+      if (guessedNum.total == null) {
+        score += 0.4; // nummer matchar, total oläst
+      } else if (card.set.totalCards === 0 || card.set.totalCards === guessedNum.total) {
+        score += 0.5; // nummer + total matchar → starkast
+      } else {
+        // Total skiljer, men numret stämmer. Förut gav det NOLL bonus, vilket
+        // straffade secret rares systematiskt: de trycks "199/165", så totalen
+        // säger med flit inte samma sak som setets storlek. En nummerträff är
+        // alltid bevis — bara svagare när totalen motsäger den.
+        score += 0.25;
       }
     }
-    return {
+    // Explicit typad — `satisfies` hade smalnat slug/estimatedValue till `null`,
+    // och de fylls i längre ner när topplistan är vald.
+    const candidate: ScanCandidate = {
       cardId: card.id,
       name: card.name,
       setName: card.set.name,
@@ -186,12 +316,22 @@ export async function matchCards(ocr: OcrResult): Promise<ScanCandidate[]> {
       slug: null,
       estimatedValue: null,
     };
+    return { candidate, released: card.set.releaseDate?.getTime() ?? 0 };
   });
 
   const top = scored
-    .filter((c) => c.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, MAX_CANDIDATES);
+    .filter((c) => c.candidate.score > 0)
+    .sort(
+      (a, b) =>
+        b.candidate.score - a.candidate.score ||
+        // Lika poäng (namntvillingar utan läsbart nummer): nyast set först. Ett
+        // svagt men ÄRLIGT antagande — man skannar oftast det man nyss öppnat —
+        // och framför allt stabilt, till skillnad från DB-ordningen det var förut.
+        b.released - a.released ||
+        a.candidate.cardId.localeCompare(b.candidate.cardId)
+    )
+    .slice(0, MAX_CANDIDATES)
+    .map((c) => c.candidate);
 
   // Bifoga aktuellt marknadsvärde (Cardmarket-trend) + produkt-slug (djuplänk)
   // för de visade kandidaterna.

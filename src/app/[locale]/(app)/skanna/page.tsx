@@ -129,20 +129,74 @@ function downscaleDataUrl(dataUrl: string): Promise<string> {
   });
 }
 
-/** Fångar en nedskalad JPEG-ruta ur videoflödet (i minnet, ej i kamerarullen). */
+/** Marginal runt kortramen vid beskärning — hellre lite bakgrund än ett kapat hörn. */
+const CROP_PAD = 0.06;
+
+/**
+ * Fångar en nedskalad JPEG-ruta ur videoflödet (i minnet, ej i kamerarullen),
+ * BESKUREN till kortramen användaren siktat med.
+ *
+ * VARFÖR BESKÄRNINGEN FINNS (2026-07-29): funktionen skickade hela videorutan,
+ * trots att overlayen ber användaren lägga kortet i en ram som täcker ungefär en
+ * tredjedel av ytan. Två tredjedelar av de vision-tokens vi betalade för var
+ * alltså skrivbord, hand och bakgrund — och kortet självt fick bara ~0,4 MP av
+ * bildbudgeten. Det spelar roll för att det ENDA som avgör vilket kort det är
+ * (samlarnumret) trycks i ~10 px hög text: 92 % av katalogens kort delar namn med
+ * ett annat kort, så läses inte numret finns ingen identitet kvar att matcha på.
+ *
+ * Beskärningen ger kortet i stort sett hela bildbudgeten — ca 2,7× fler pixlar på
+ * kortet till EXAKT samma token-kostnad, eftersom utsnittet skalas till samma
+ * längsta sida som förut.
+ *
+ * Geometrin MÄTS (`getBoundingClientRect`) i stället för att räkna på overlayens
+ * `w-[68%]`/`mb-[14vh]`: hårdkodade tal här hade tyst börjat beskära fel dagen
+ * någon rör ramens storlek, och ett fel utsnitt kapar numret — värre än ingen
+ * beskärning alls. Saknas ramen faller vi tillbaka på hela rutan.
+ */
 function captureFrame(
   video: HTMLVideoElement,
-  canvas: HTMLCanvasElement
+  canvas: HTMLCanvasElement,
+  frameEl?: HTMLElement | null
 ): string | null {
   if (video.readyState < 2 || !video.videoWidth) return null;
-  const scale = Math.min(1, CAPTURE_MAX / video.videoWidth);
-  const w = Math.round(video.videoWidth * scale);
-  const h = Math.round(video.videoHeight * scale);
+  const vW = video.videoWidth;
+  const vH = video.videoHeight;
+
+  // Utsnitt i KÄLLPIXLAR. Utgångsläge = hela rutan.
+  let sx = 0;
+  let sy = 0;
+  let sw = vW;
+  let sh = vH;
+
+  const box = video.getBoundingClientRect();
+  const frame = frameEl?.getBoundingClientRect();
+  if (frame && frame.width > 0 && frame.height > 0 && box.width > 0 && box.height > 0) {
+    // `object-cover`: videon skalas så den TÄCKER elementet och centrumbeskärs.
+    // Samma matte måste göras baklänges för att hitta ramen i källpixlar.
+    const cover = Math.max(box.width / vW, box.height / vH);
+    const offX = (vW * cover - box.width) / 2;
+    const offY = (vH * cover - box.height) / 2;
+    const padX = frame.width * CROP_PAD;
+    const padY = frame.height * CROP_PAD;
+    const left = (frame.left - box.left - padX + offX) / cover;
+    const top = (frame.top - box.top - padY + offY) / cover;
+    const width = (frame.width + padX * 2) / cover;
+    const height = (frame.height + padY * 2) / cover;
+    // Klamra innanför källbilden — ramen kan sticka utanför på extrema format.
+    sx = Math.max(0, Math.min(left, vW - 1));
+    sy = Math.max(0, Math.min(top, vH - 1));
+    sw = Math.max(1, Math.min(width, vW - sx));
+    sh = Math.max(1, Math.min(height, vH - sy));
+  }
+
+  const scale = Math.min(1, CAPTURE_MAX / Math.max(sw, sh));
+  const w = Math.max(1, Math.round(sw * scale));
+  const h = Math.max(1, Math.round(sh * scale));
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
-  ctx.drawImage(video, 0, 0, w, h);
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, w, h);
   return canvas.toDataURL("image/jpeg", 0.85);
 }
 
@@ -171,6 +225,8 @@ function Scanner() {
   const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // Kortramen i kameravyn — captureFrame mäter den för att beskära utsnittet.
+  const frameRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
@@ -475,7 +531,7 @@ function Scanner() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || cameraState !== "live" || shutterCooling) return;
-    const dataUrl = captureFrame(video, canvas);
+    const dataUrl = captureFrame(video, canvas, frameRef.current);
     if (!dataUrl) return;
     setFlash(true);
     window.setTimeout(() => setFlash(false), 180);
@@ -606,6 +662,7 @@ function Scanner() {
         <CaptureView
           videoRef={videoRef}
           canvasRef={canvasRef}
+          frameRef={frameRef}
           cameraState={cameraState}
           cameraError={cameraError}
           flash={flash}
@@ -733,6 +790,8 @@ function QuotaBadge({ quota, onUpgrade }: { quota: ScanQuota; onUpgrade: () => v
 function CaptureView(props: {
   videoRef: RefObject<HTMLVideoElement>;
   canvasRef: RefObject<HTMLCanvasElement>;
+  /** Kortramen — captureFrame mäter den för att beskära utsnittet till kortet. */
+  frameRef: RefObject<HTMLDivElement>;
   cameraState: CameraState;
   cameraError: string;
   flash: boolean;
@@ -754,6 +813,7 @@ function CaptureView(props: {
   const {
     videoRef,
     canvasRef,
+    frameRef,
     cameraState,
     cameraError,
     flash,
@@ -827,7 +887,7 @@ function CaptureView(props: {
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
         >
-          <div className="relative mb-[14vh] aspect-[5/7] w-[68%] max-w-[20rem]">
+          <div ref={frameRef} className="relative mb-[14vh] aspect-[5/7] w-[68%] max-w-[20rem]">
             <CornerFrame />
           </div>
         </div>
