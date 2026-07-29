@@ -699,7 +699,8 @@ export function CollectionClient({
                   <li key={hit.id}>
                     <button
                       type="button"
-                      className="w-full px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-surface-raised"
+                      // Listan ÄR surface-overlay → hovern måste vara ljusare (se dropdown.tsx).
+                      className="w-full px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-surface-border/50"
                       onClick={() => {
                         const label = `${hit.name} · ${hit.set?.name ?? t("unknownSet")} #${hit.number}`;
                         setForm((prev) => ({ ...prev, cardId: hit.id, cardLabel: label, freeText: "" }));

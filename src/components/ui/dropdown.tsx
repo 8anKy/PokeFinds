@@ -73,7 +73,9 @@ export function DropdownMenu({ trigger, items, align = "right", className }: Dro
                 "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors disabled:pointer-events-none disabled:opacity-50",
                 item.danger
                   ? "text-fall hover:bg-fall/10"
-                  : "text-ink hover:bg-surface-raised"
+                  // Panelen ÄR surface-overlay → hovern måste vara ljusare än den.
+                  // (Var `surface-raised`, som numera är svart = mörkare = bakvänt.)
+                  : "text-ink hover:bg-surface-border/50"
               )}
             >
               {item.icon && <span aria-hidden="true">{item.icon}</span>}

@@ -87,7 +87,8 @@ export function CollectionValueChart({
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
-        flat ? "bg-surface-raised text-ink-muted" : up ? "bg-rise/15 text-rise" : "bg-fall/15 text-fall"
+        // `surface-raised` är numera svart = osynlig pill på svart kort → overlay.
+        flat ? "bg-surface-overlay text-ink-muted" : up ? "bg-rise/15 text-rise" : "bg-fall/15 text-fall"
       )}
     >
       {!flat && (up ? <IconTrendingUp size={14} /> : <IconTrendingDown size={14} />)}

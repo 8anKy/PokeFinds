@@ -57,11 +57,14 @@
   .holo-text {
     color: theme("colors.holo.cyan");
   }
+  /* Kortet ligger på SAMMA svarta yta som sidan — hela separationen bärs av
+     hårlinjen och inset-highlighten. Highlighten höjdes 0.02 → 0.03 när ytan
+     blev svart: på charcoal räckte 0.02, på #000 syntes överkanten inte alls. */
   .card-surface {
     @apply rounded-xl border border-surface-border bg-surface-raised transition-all duration-200;
     box-shadow:
-      0 1px 0 0 rgba(255, 255, 255, 0.02) inset,
-      0 1px 2px rgba(0, 0, 0, 0.4);
+      0 1px 0 0 rgba(255, 255, 255, 0.03) inset,
+      0 1px 2px rgba(0, 0, 0, 0.5);
   }
   .card-surface:hover {
     box-shadow:
@@ -201,7 +204,7 @@ table td,
   height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #0a0a0c;
+  background: #000000;
 }
 ::-webkit-scrollbar-thumb {
   background: #2a2a30;

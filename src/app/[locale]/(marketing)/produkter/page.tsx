@@ -14,11 +14,12 @@ import {
 import type { CardLanguage, ProductCategory } from "@prisma/client";
 import { CATEGORY_LABELS } from "@/components/features/product-card";
 import { ExploreFeed } from "@/components/features/explore-feed";
+import { ExploreFilterBar } from "@/components/features/explore-filter-bar";
 import { SearchAutocomplete } from "@/components/features/search-autocomplete";
 import { Input, Select, Label, Checkbox } from "@/components/ui/input";
 import { Button, LinkButton } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { IconSearch, IconScan, IconCards, IconFilter } from "@/components/ui/icons";
+import { IconSearch, IconScan, IconCards } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -36,10 +37,12 @@ const PAGE_SIZE = 24;
 // Filterfacetterna (set-/butikslistor) ändras ~aldrig men sidan är force-dynamic
 // (searchParams) → utan cache kördes de tre frågorna på VARJE sidvisning/crawl-träff
 // (~900k CardSet-skanningar på Neon). 1h TTL är osynlig för användare.
+// logoUrl + series driver mobilens set-sheet (logotypbrickor grupperade på serie).
+// Samma cachade fråga som desktop-sidofältets <select> — inga extra Neon-läsningar.
 const getFilterSets = cachedRead(
   () =>
     prisma.cardSet.findMany({
-      select: { id: true, name: true },
+      select: { id: true, name: true, logoUrl: true, series: true },
       orderBy: { releaseDate: "desc" },
     }),
   "produkterFilterSets",
@@ -322,6 +325,8 @@ export default async function ProductsPage({
 }) {
   setRequestLocale(routeParams.locale);
   const t = await getTranslations("Products");
+  const tCat = await getTranslations("Category");
+  const tLang = await getTranslations("Language");
   const params = buildParams(searchParams);
   const [result, sets, retailers, recentSets] = await Promise.all([
     getExploreFeed(params, 0, PAGE_SIZE),
@@ -333,7 +338,19 @@ export default async function ProductsPage({
   const feedQuery = buildFeedQuery(params);
   const filterKey = filterStateKey(searchParams);
 
-  const resultCount = t("resultCount", { count: result.total });
+  // Färdigöversatta alternativ till mobilens chip-sheets (klientkomponenten ska
+  // inte behöva känna till Category-/Language-namespacen).
+  const categoryOptions = Object.keys(CATEGORY_LABELS)
+    .filter((value) => !HIDDEN_CATEGORIES.includes(value as ProductCategory))
+    .map((value) => ({ value, label: tCat(value) }));
+  const languageOptions = BROWSE_LANGUAGES.map((value) => ({
+    value,
+    label: tLang(value),
+  }));
+  const sortOptionList = SORT_OPTIONS.map((o) => ({
+    value: o.value,
+    label: t(`sort.${o.key}`),
+  }));
 
   const feed = result.items.length === 0 ? (
       <EmptyState
@@ -409,46 +426,23 @@ export default async function ProductsPage({
       </div>
 
       {/* ───────── Mobil: app-känsla ───────── */}
+      {/* Sökfältet ligger kvar i ett GET-<form> (Enter = full sökning utan JS);
+          chip-raden inuti navigerar klient-sida och speglar filtren som dolda fält.
+          Träffantalet bor i chip-raden — därav ingen egen rubrikrad här. */}
       <div className="space-y-8 lg:hidden">
-        {/* Sök alltid användbar; filtren fälls ut via filter-ikonen (peer-checkbox, ingen JS) */}
-        <form key={filterKey} method="GET" action="/produkter" className="space-y-3">
-          <input type="checkbox" id="filt-toggle" className="peer sr-only" />
-          <SearchAutocomplete
-            name="q"
-            defaultValue={searchParams.q ?? ""}
-            placeholder={t("mobileSearchPlaceholder")}
-            className="gap-1 rounded-xl border border-surface-border bg-surface-raised/40 px-3 transition-colors focus-within:border-holo-cyan/60"
-            inputClassName="py-3 placeholder:text-ink-muted"
-            leading={<IconSearch size={18} className="shrink-0 text-ink-muted" />}
-            trailing={
-              <label
-                htmlFor="filt-toggle"
-                aria-label={t("filterAria")}
-                className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-lg text-ink-muted transition-colors hover:text-holo-cyan"
-              >
-                <IconFilter size={20} />
-              </label>
-            }
+        <form key={filterKey} method="GET" action="/produkter">
+          <ExploreFilterBar
+            searchParams={searchParams}
+            sets={sets}
+            retailers={retailers.map((r) => ({ value: r.id, label: r.name }))}
+            categories={categoryOptions}
+            languages={languageOptions}
+            sortOptions={sortOptionList}
+            total={result.total}
           />
-          <div className="card-surface hidden space-y-4 p-5 peer-checked:block">
-            <CatalogFilterFields
-              searchParams={searchParams}
-              sets={sets}
-              retailers={retailers}
-              idPrefix="m-"
-            />
-          </div>
         </form>
 
-        <section>
-          <div className="mb-3 flex items-end justify-between">
-            <h2 className="font-display text-xl font-bold text-ink">{t("catalogTitle")}</h2>
-            <span className="text-xs font-medium text-ink-muted" aria-live="polite">
-              {resultCount}
-            </span>
-          </div>
-          {feed}
-        </section>
+        <section>{feed}</section>
 
         {justDropped}
       </div>

@@ -6,10 +6,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Foilio design tokens — neutral charcoal dark theme, teal signature
+        // Foilio design tokens — svart yta, teal signatur.
+        // 2026-07-29: ytan gick från charcoal (#0a0a0c/#141417) till RENT SVART.
+        // Djupet bärs nu av hårlinjen (border) + inset-highlighten i .card-surface,
+        // inte av ett ljusare kort. `overlay` är MED FLIT kvar på #1d1d21: den är
+        // ingen bakgrund utan en interaktiv fyllning (hover-rader, aktiva flikar,
+        // progress-spår, skeletons) — sänks den till svart försvinner de spåren helt.
         surface: {
-          DEFAULT: "#0a0a0c",
-          raised: "#141417",
+          DEFAULT: "#000000",
+          raised: "#000000",
           overlay: "#1d1d21",
           border: "#2a2a30",
         },
@@ -45,7 +50,7 @@ const config: Config = {
         "holo-gradient":
           "linear-gradient(135deg, #2dd4bf 0%, #14b8a6 55%, #0f766e 100%)",
         "surface-gradient":
-          "radial-gradient(120% 80% at 50% 0%, #16161a 0%, #0a0a0c 55%)",
+          "radial-gradient(120% 80% at 50% 0%, #101014 0%, #000000 55%)",
       },
       transitionTimingFunction: {
         // Apple-mjuk utgångskurva för entréer/hover, fjädrande overshoot för "pop"
@@ -57,6 +62,8 @@ const config: Config = {
         "fade-in-up": "fadeInUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both",
         "slide-in-right": "slideInRight 0.35s cubic-bezier(0.22, 1, 0.36, 1) both",
         "scale-in": "scaleIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) both",
+        // Bottensheets (filter/sortering) — glider upp underifrån.
+        "slide-up": "slideUp 0.28s cubic-bezier(0.22, 1, 0.36, 1) both",
         shimmer: "shimmer 1.6s linear infinite",
         "pulse-soft": "pulseSoft 2s ease-in-out infinite",
         "counter": "counter 0.6s ease-out both",
@@ -71,6 +78,10 @@ const config: Config = {
         fadeIn: {
           "0%": { opacity: "0" },
           "100%": { opacity: "1" },
+        },
+        slideUp: {
+          "0%": { transform: "translateY(100%)" },
+          "100%": { transform: "translateY(0)" },
         },
         fadeInUp: {
           "0%": { opacity: "0", transform: "translateY(12px)" },
