@@ -30,8 +30,8 @@ export function SkeletonText({ lines = 3, className }: SkeletonTextProps) {
 export function SkeletonCard({ className }: SkeletonProps) {
   return (
     <div className={cn("card-surface overflow-hidden", className)}>
-      <Skeleton className="aspect-[4/3] w-full rounded-none" />
-      <div className="space-y-3 p-4">
+      <Skeleton className="aspect-square w-full rounded-none" />
+      <div className="space-y-3 p-3">
         <Skeleton className="h-3 w-16" />
         <Skeleton className="h-5 w-3/4" />
         <div className="flex items-center justify-between">

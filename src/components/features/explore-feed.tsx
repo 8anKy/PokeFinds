@@ -90,7 +90,7 @@ export function ExploreFeed({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-3.5 xl:grid-cols-4">
         {items.map((p) => (
           <ProductCard
             key={p.id}

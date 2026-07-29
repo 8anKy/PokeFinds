@@ -243,7 +243,7 @@ export default async function LandingPage({
                 <h3 className="font-display text-2xl font-bold text-ink">
                   {t("popular.heading")}
                 </h3>
-                <div className="stagger-list mt-6 grid gap-4 sm:grid-cols-2">
+                <div className="stagger-list mt-6 grid gap-2.5 sm:grid-cols-2 sm:gap-3.5">
                   {popular.items.map((p) => (
                     <ProductCard
                       key={p.id}

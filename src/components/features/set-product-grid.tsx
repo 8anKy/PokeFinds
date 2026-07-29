@@ -65,7 +65,7 @@ export function SetProductGrid({ products }: { products: Product[] }) {
         </Select>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-3.5 xl:grid-cols-4">
         {sorted.map((p) => (
           <ProductCard key={p.id} product={p} />
         ))}

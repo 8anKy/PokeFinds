@@ -273,7 +273,7 @@ export function ProductDetailView({
             <h2 className="font-display text-xl font-semibold text-ink">
               {t("similar")}
             </h2>
-            <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+            <div className="mt-4 grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3.5">
               {data.similar.map((p) => (
                 <ProductCard
                   key={p.slug}

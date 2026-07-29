@@ -92,8 +92,12 @@ export function ProductCard({ product, className }: ProductCardProps) {
       )}
     >
       {/* Bild eller kategoriikon som placeholder. Bildbrunnen är SVART som resten
-          av kortet — `surface-overlay` lyste som en grå ruta på den svarta ytan. */}
-      <div className="relative aspect-[4/3] w-full shrink-0 overflow-hidden bg-surface">
+          av kortet — `surface-overlay` lyste som en grå ruta på den svarta ytan.
+          KVADRATISK, inte 4:3 (2026-07-29): produkterna är stående (boostrar, boxar,
+          kort) så den liggande brunnen kapade dem på höjden och lämnade tomma
+          sidokanter. Kvadrat + mindre luft (p-3 → p-2) ger ~50 % större motiv utan
+          att kortet växer i bredd. Föregående mått finns i taggen `kortlayout-v1`. */}
+      <div className="relative aspect-square w-full shrink-0 overflow-hidden bg-surface">
         {product.dealPercent != null && product.dealPercent > 0 && (
           <span className="absolute left-2 top-2 z-10 rounded-md bg-holo-cyan px-1.5 py-0.5 text-[11px] font-bold text-surface shadow">
             −{product.dealPercent}%
@@ -102,7 +106,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
         <SafeImage
           src={product.imageUrl}
           alt={product.title}
-          className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
+          className="h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-105"
           fallback={
             <div
               className="flex h-full w-full items-center justify-center text-ink-faint"
@@ -114,9 +118,9 @@ export function ProductCard({ product, className }: ProductCardProps) {
         />
       </div>
 
-      <div className="flex flex-1 flex-col p-3.5">
+      <div className="flex flex-1 flex-col p-3">
         {/* Bara det officiella namnet — set och nummer får egna rader nedan. */}
-        <h3 className="line-clamp-2 min-h-[2.25rem] text-[13px] font-semibold leading-snug tracking-[-0.01em] text-ink transition-colors group-hover:text-holo-cyan">
+        <h3 className="line-clamp-2 min-h-[2.1rem] text-[12px] font-semibold leading-snug tracking-[-0.01em] text-ink transition-colors group-hover:text-holo-cyan">
           <Link
             href={`/produkter/${product.slug}`}
             className="outline-none after:absolute after:inset-0 after:content-['']"
@@ -134,18 +138,18 @@ export function ProductCard({ product, className }: ProductCardProps) {
                 <Link
                   href={`/produkter?set=${encodeURIComponent(product.setId)}`}
                   title={tProduct("filterBySet", { set: product.setName })}
-                  className="relative z-10 block truncate text-[11px] text-ink-faint underline-offset-2 transition-colors hover:text-holo-cyan hover:underline focus-visible:text-holo-cyan focus-visible:underline focus-visible:outline-none"
+                  className="relative z-10 block truncate text-[10.5px] text-ink-faint underline-offset-2 transition-colors hover:text-holo-cyan hover:underline focus-visible:text-holo-cyan focus-visible:underline focus-visible:outline-none"
                 >
                   {product.setName}
                 </Link>
               ) : (
-                <p className="truncate text-[11px] text-ink-faint">{product.setName}</p>
+                <p className="truncate text-[10.5px] text-ink-faint">{product.setName}</p>
               ))}
             {/* Två rader: "Special Illustration Rare · 199/165" ryms inte på en i ett
                 171 px-kort. Prisblocket bottenankras ändå, så en extra rad flyttar
                 inget. Full text i title för de fall även två rader kapar. */}
             {meta && (
-              <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-ink-faint" title={meta}>
+              <p className="mt-0.5 line-clamp-2 text-[10.5px] leading-snug text-ink-faint" title={meta}>
                 {meta}
               </p>
             )}
