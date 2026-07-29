@@ -11,8 +11,10 @@ export type ButtonSize = "sm" | "md" | "lg";
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
     "bg-holo-cyan text-surface font-semibold hover:shadow-glow hover:bg-holo-cyan/90 active:bg-holo-cyan/80",
+  // Svart yta + hårlinje, som korten. Var `surface-overlay` (#1d1d21) och lyste
+  // som en grå platta bredvid den turkosa primärknappen efter att temat blev svart.
   secondary:
-    "bg-surface-overlay text-ink hover:bg-surface-border active:bg-surface-overlay/80 border border-surface-border",
+    "bg-surface text-ink hover:bg-surface-overlay active:bg-surface-overlay/70 border border-surface-border",
   ghost: "bg-transparent text-ink-muted hover:bg-surface-overlay hover:text-ink",
   danger: "bg-fall/90 text-surface font-semibold hover:bg-fall active:bg-fall/80",
   outline:

@@ -133,7 +133,9 @@ export function ProductDetailView({
 
         {/* Bild | Prishistorik */}
         <div className="mt-8 grid gap-6 lg:grid-cols-[320px_1fr]">
-          <div className="card-surface flex aspect-[4/3] items-center justify-center overflow-hidden bg-surface-overlay lg:aspect-auto">
+          {/* Bildbrunnen är SVART som kortet — `surface-overlay` lyste som en grå
+              ruta mitt på den svarta produktsidan. Samma fix som i produktkortet. */}
+          <div className="card-surface flex aspect-[4/3] items-center justify-center overflow-hidden bg-surface lg:aspect-auto">
             <SafeImage
               src={data.imageUrl}
               alt={data.title}
@@ -234,7 +236,7 @@ export function ProductDetailView({
                   onClick={() => track("list_click", data.slug)}
                   className="card-surface w-44 shrink-0 snap-start overflow-hidden hover:border-holo-cyan/40"
                 >
-                  <div className="flex h-36 items-center justify-center overflow-hidden bg-surface-overlay">
+                  <div className="flex h-36 items-center justify-center overflow-hidden bg-surface">
                     {l.imageUrl ? (
                       <img
                         src={l.imageUrl}

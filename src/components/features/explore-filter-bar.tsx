@@ -164,19 +164,19 @@ export function ExploreFilterBar({
         }
       />
 
-      {/* Chip-raden svepas i SIDLED och bara i sidled. `touch-action: pan-x` ger
-          gesten till raden när fingret går vågrätt och till SIDAN när det går
-          lodrätt — utan den slogs de två om varje svep. `overflow-y-hidden` tar
-          bort den lodräta rullning som rensa-knapparnas träffytor annars skapade.
-          Raden går KANT TILL KANT (-mx-4 mot sidans px-4): förut delade den
-          bredden med träffantalet och det gick bara att greppa ~250px mitt på
-          skärmen, vilket är precis varför svepen inte kändes igen. Antalet ligger
-          nu ovanpå högerkanten med en uttonad svart platta, så chipen glider in
-          under det i stället för att trängas med det. */}
+      {/* Raden går KANT TILL KANT (-mx-4 mot sidans px-4): förut delade den bredden
+          med träffantalet och det gick bara att greppa ~250px mitt på skärmen.
+          Antalet ligger nu ovanpå högerkanten på en uttonad svart platta, så chipen
+          glider in under det i stället för att trängas med det.
+          `touch-action: pan-x pan-y` — raden tar det VÅGRÄTA draget, sidan får det
+          LODRÄTA. Enbart `pan-x` gjorde raden till en död zon för sidscroll.
+          (Den egentliga orsaken till att svepen inte kändes igen låg utanför den
+          här komponenten: studsvakten i pwa-register.tsx avbröt varje gest som
+          drev nedåt högst upp på sidan. Se kommentaren där.) */}
       <div className="relative -mx-4">
         <div
           className="flex items-center gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain py-1.5 pl-4 pr-[7.5rem] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          style={{ touchAction: "pan-x" }}
+          style={{ touchAction: "pan-x pan-y" }}
         >
           <Chip
             active={!!activeSet}
@@ -424,11 +424,51 @@ function Sheet({
     };
   }, [open]);
 
+  // Tangentbordshöjd → sheeten lyfts ovanför tangentbordet i stället för att
+  // hamna bakom det (prisfältens sifferknappsats täckte hela panelen). Samma
+  // mätning som ui/modal.tsx: native-appen kör Keyboard resize:none, så varken
+  // WKWebView:en eller visualViewport krymper där — Capacitor-bryggan är enda
+  // pålitliga signalen. På webb/PWA finns ingen brygga → visualViewport.
+  const [kbHeight, setKbHeight] = useState(0);
+  useEffect(() => {
+    if (!open) return;
+    const cleanups: (() => void)[] = [];
+    const kb = (globalThis as { Capacitor?: { Plugins?: { Keyboard?: any } } }).Capacitor
+      ?.Plugins?.Keyboard;
+    if (kb?.addListener) {
+      const add = (ev: string, fn: (i: any) => void) => {
+        const p = kb.addListener(ev, fn);
+        Promise.resolve(p)
+          .then((h: any) => cleanups.push(() => h?.remove?.()))
+          .catch(() => {});
+      };
+      add("keyboardWillShow", (i: { keyboardHeight?: number }) => setKbHeight(i?.keyboardHeight ?? 0));
+      add("keyboardWillHide", () => setKbHeight(0));
+    } else if (typeof window !== "undefined" && window.visualViewport) {
+      const vp = window.visualViewport;
+      const update = () => setKbHeight(Math.max(0, window.innerHeight - vp.height - vp.offsetTop));
+      update();
+      vp.addEventListener("resize", update);
+      vp.addEventListener("scroll", update);
+      cleanups.push(() => {
+        vp.removeEventListener("resize", update);
+        vp.removeEventListener("scroll", update);
+      });
+    }
+    return () => {
+      cleanups.forEach((c) => c());
+      setKbHeight(0);
+    };
+  }, [open]);
+
   if (!open) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col justify-end bg-black/55 backdrop-blur-[3px]"
+      // Overlayn slutar där tangentbordet börjar → panelen (justify-end) landar
+      // ovanpå det, och max-h räknas mot den mindre ytan så innehållet scrollar.
+      className="fixed inset-x-0 top-0 z-50 flex flex-col justify-end bg-black/55 backdrop-blur-[3px]"
+      style={{ bottom: kbHeight }}
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -457,7 +497,14 @@ function Sheet({
           )}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-[18px]">{children}</div>
-        <div className="px-[18px] pb-[max(1.875rem,env(safe-area-inset-bottom))] pt-3.5">
+        <div
+          className={cn(
+            "px-[18px] pt-3.5",
+            // Tangentbord uppe: overlayn slutar redan ovanför det → ingen extra
+            // säkerhetsmarginal (den hade lyft knappen 30px för högt).
+            kbHeight > 0 ? "pb-3.5" : "pb-[max(1.875rem,env(safe-area-inset-bottom))]"
+          )}
+        >
           <button
             type="button"
             onClick={onCta ?? onClose}
@@ -666,7 +713,7 @@ function PriceSheet({
               value={Math.min(min, PRICE_MAX)}
               onChange={(e) => setMin(Number(e.target.value))}
               style={{ touchAction: "none" }}
-              className="h-6 flex-1 bg-transparent accent-holo-cyan"
+              className="h-8 flex-1 cursor-pointer bg-transparent accent-holo-cyan"
               aria-label={t("minAria")}
             />
           </label>
@@ -686,7 +733,7 @@ function PriceSheet({
                 setMax(v >= PRICE_MAX ? null : v);
               }}
               style={{ touchAction: "none" }}
-              className="h-6 flex-1 bg-transparent accent-holo-cyan"
+              className="h-8 flex-1 cursor-pointer bg-transparent accent-holo-cyan"
               aria-label={t("maxAria")}
             />
           </label>

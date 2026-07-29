@@ -407,7 +407,8 @@ export default async function ProductsPage({
             href={`/sets/${s.id}`}
             className="card-surface group w-44 shrink-0 overflow-hidden transition-colors hover:border-holo-cyan/40"
           >
-            <div className="flex h-24 w-full items-center justify-center bg-surface-overlay p-4">
+            {/* Svart bildbrunn, som produktkorten — grå plattor lyser på svart yta. */}
+            <div className="flex h-24 w-full items-center justify-center bg-surface p-4">
               {s.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
