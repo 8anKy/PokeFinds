@@ -92,6 +92,44 @@ const CARD_TOOL: Anthropic.Tool = {
   },
 };
 
+/**
+ * MODELLENS SVAR ÄR INTE ALLTID ETT KORTNUMMER.
+ *
+ * MÄTT i produktion (4 av 12 skanningar): fältet innehöll fragment av
+ * verktygsanropets EGET serialiseringsformat, t.ex.
+ *   `</antml parameters><parameter name="confidence">0.6`
+ * `strict: true` fångar det inte — fältet är typat `string`, så vilken sträng som
+ * helst validerar. Och `parseGuessedNumber` plockar villigt ut en siffra ur
+ * skräpet, vilket ger ett PÅHITTAT nummer som kan matcha ett riktigt kort exakt
+ * (mätt separat: "041/193" träffade Paldean Tauros 41 i ett set med 193 kort).
+ *
+ * Ett riktigt kortnummer är kort och består av siffror, bokstäver och på sin höjd
+ * ett snedstreck, bindestreck eller mellanslag: "4/102", "TG07/TG30", "SWSH034",
+ * "MEP 074", "130a". Allt annat är inte ett nummer — och tomt är ärligare än
+ * gissat, eftersom matchningen då faller tillbaka på namn och bild.
+ */
+export function sanitizeNumber(raw: string): string {
+  const s = raw.trim();
+  if (s.length === 0 || s.length > 16) return "";
+  // Tillåtna tecken och form: alfanumeriska grupper åtskilda av ETT mellanslag,
+  // snedstreck eller bindestreck. Täcker "4/102", "TG07/TG30", "SWSH034",
+  // "MEP 074", "130a", "SVP 041". Ett `<`, `"` eller `=` diskvalificerar direkt.
+  if (!/^[A-Za-z0-9]+(?:[ /-][A-Za-z0-9]+)*$/.test(s)) return "";
+  if ((s.match(/\//g) ?? []).length > 1) return "";
+  if ((s.match(/ /g) ?? []).length > 1) return "";
+  // Utan siffra är det bara ett kortnummer om det är kort — Unowns alfabet ("A",
+  // "ONE"). Annars är det en MENING modellen skrivit i fältet ("inget nummer").
+  if (!/\d/.test(s) && s.replace(/[^A-Za-z]/g, "").length > 4) return "";
+  return s;
+}
+
+/** Samma skydd för namnet: markup eller radbrytningar är inte ett kortnamn. */
+export function sanitizeName(raw: string): string {
+  const s = raw.trim();
+  if (s.length === 0 || s.length > 60) return "";
+  return /[<>{}\n\r]/.test(s) ? "" : s;
+}
+
 export class ClaudeVisionOcrAdapter implements OcrAdapter {
   readonly name = "claude";
 
@@ -146,8 +184,8 @@ export class ClaudeVisionOcrAdapter implements OcrAdapter {
     }
     const input = toolUse.input as Record<string, unknown>;
     const cardVisible = input.cardVisible === true;
-    const name = typeof input.name === "string" ? input.name.trim() : "";
-    const number = typeof input.number === "string" ? input.number.trim() : "";
+    const name = sanitizeName(typeof input.name === "string" ? input.name : "");
+    const number = sanitizeNumber(typeof input.number === "string" ? input.number : "");
     const confidence =
       typeof input.confidence === "number" && Number.isFinite(input.confidence)
         ? Math.min(1, Math.max(0, input.confidence))

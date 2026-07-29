@@ -16,6 +16,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { cardNumberSortKey } from "@/lib/card-number-order";
+import { sanitizeName, sanitizeNumber } from "@/services/scanner/claude-vision";
 import { getScannerQuota, isIntroScan, parseGuessedNumber, recordScanUsage, runScannerJob } from "@/services/scanner";
 
 beforeEach(() => {
@@ -90,6 +91,44 @@ describe("runScannerJob", () => {
   it("blockerar vid månadsgränsen (429) innan jobbet skapas", async () => {
     count.mockResolvedValue(30);
     await expect(runScannerJob("u1", "FREE", PNG)).rejects.toMatchObject({ status: 429 });
+  });
+});
+
+describe("sanitizeNumber / sanitizeName (modellsvaret är inte alltid ett kortnummer)", () => {
+  it("släpper igenom riktiga kortnummer", () => {
+    for (const n of ["4/102", "TG07/TG30", "SWSH034", "MEP 074", "130a", "41/159", "SVP 041"]) {
+      expect(sanitizeNumber(n)).toBe(n);
+    }
+  });
+
+  it("kastar verktygsanropets eget serialiseringsformat", () => {
+    // MÄTT i produktion, 4 av 12 skanningar. `strict: true` fångar det inte —
+    // fältet är typat `string`, så vilken sträng som helst validerar.
+    expect(sanitizeNumber('</antml parameters><parameter name="confidence">0.6')).toBe("");
+    expect(sanitizeNumber('</antml>\n<parameter name="confidence">0.4')).toBe("");
+  });
+
+  it("kastar annat skräp men behåller tomt som tomt", () => {
+    expect(sanitizeNumber("")).toBe("");
+    expect(sanitizeNumber("   ")).toBe("");
+    expect(sanitizeNumber("jag ser inget kortnummer i bilden")).toBe("");
+    expect(sanitizeNumber("x".repeat(40))).toBe("");
+  });
+
+  it("ett kastat nummer är ÄRLIGARE än ett gissat", () => {
+    // Skräpet innehåller siffror, och parseGuessedNumber plockar villigt ut en:
+    // ett påhittat nummer kan matcha ett riktigt kort exakt. Tomt gör att
+    // matchningen faller tillbaka på namn och bild i stället.
+    const junk = '</antml :parameter><parameter name="confidence">0.6';
+    expect(parseGuessedNumber(junk)).not.toBeNull(); // skulle ha gissat …
+    expect(parseGuessedNumber(sanitizeNumber(junk))).toBeNull(); // … men gör det inte
+  });
+
+  it("namnet skyddas likadant mot markup", () => {
+    expect(sanitizeName("Charizard ex")).toBe("Charizard ex");
+    expect(sanitizeName("<parameter name=\"name\">")).toBe("");
+    expect(sanitizeName("Falinks\nrad två")).toBe("");
+    expect(sanitizeName("x".repeat(80))).toBe("");
   });
 });
 

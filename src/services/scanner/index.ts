@@ -301,11 +301,11 @@ const ART_TRUST_BONUS = 1.15;
  * inte med om NÅGOT av bildens 15 bästa kort är namnet den troliga lögnaren, och
  * dess vikt skruvas ner.
  *
- * KONSERVATIVT I BÅDA LEDEN: invändningen gäller bara när bilden själv är stark
- * (≥ ART_STRONG) — är bilden svag litar vi inte på den heller. Och namnet
- * NOLLAS inte, det dämpas: kort som matchar namnet ligger kvar över orelaterade,
- * så om det är BILDEN som har fel (~7 % av fallen ligger rätt kort utanför
- * topp-15) finns namnträffarna kvar i listan.
+ * KONSERVATIVT I BÅDA LEDEN: invändningen gäller bara när bildträffen klarar
+ * förtroendekravet (`ART_TRUST_*` — BÅDE poäng och marginal), inte när den bara
+ * har hög poäng. Och namnet NOLLAS inte, det dämpas: kort som matchar namnet
+ * ligger kvar över orelaterade, så om det är BILDEN som har fel (~7 % av fallen
+ * ligger rätt kort utanför topp-15) finns namnträffarna kvar i listan.
  *
  * "Palafin ex" mot "Falinks" ger Dice-likhet 0,27 — långt under tröskeln.
  *
@@ -437,21 +437,26 @@ export async function matchCards(
   if (byId.size === 0) return [];
 
   // KORSVALIDERING av namnet mot bilden. Se NAME_AGREE_MIN.
+  //
+  // ⛔ VILLKORET ÄR `artConfidentCardId`, INTE bildens poäng. Första versionen
+  // dämpade namnet så snart bildens topp-poäng nådde ART_STRONG — men poängen är
+  // mätt att INTE indikera tillförlitlighet (felträffar når 0,92). Följden i
+  // produktion: modellen läste "Rayquaza" HELT RÄTT, bilden hade fel med poäng
+  // 0,792 och marginal 0,011, namnet dämpades ändå — och Dratini 52 vann med
+  // 0,271. Ett korrekt namn kastades bort på en bildträff som enligt vår egen
+  // mätning inte gick att lita på. Bara en bildträff som klarar BÅDE poäng och
+  // marginal får ifrågasätta namnet.
   let nameWeight = 1;
-  if (query && artScores?.size) {
-    let topArt = 0;
+  if (query && artConfidentCardId && artScores?.size) {
     let bestNameAgreement = 0;
-    for (const [id, art] of artScores) {
-      if (art > topArt) topArt = art;
+    for (const id of artScores.keys()) {
       const card = byId.get(id);
       if (card) {
         const agree = scoreSimilarity(query, card.name);
         if (agree > bestNameAgreement) bestNameAgreement = agree;
       }
     }
-    if (topArt >= ART_STRONG && bestNameAgreement < NAME_AGREE_MIN) {
-      nameWeight = NAME_DISTRUST;
-    }
+    if (bestNameAgreement < NAME_AGREE_MIN) nameWeight = NAME_DISTRUST;
   }
 
   const scored = [...byId.values()].map((card) => {
