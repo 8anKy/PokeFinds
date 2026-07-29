@@ -20,7 +20,7 @@ import { SearchAutocomplete } from "@/components/features/search-autocomplete";
 import { Input, Select, Label, Checkbox } from "@/components/ui/input";
 import { Button, LinkButton } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { IconSearch, IconScan, IconCards } from "@/components/ui/icons";
+import { IconSearch, IconScan } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -60,17 +60,6 @@ const getFilterRetailers = cachedRead(
       orderBy: { name: "asc" },
     }),
   "produkterFilterRetailers",
-  3600
-);
-const getRecentSets = cachedRead(
-  () =>
-    prisma.cardSet.findMany({
-      where: { releaseDate: { not: null } },
-      select: { id: true, name: true, logoUrl: true, totalCards: true },
-      orderBy: { releaseDate: "desc" },
-      take: 12,
-    }),
-  "produkterRecentSets",
   3600
 );
 
@@ -361,12 +350,10 @@ export default async function ProductsPage({
   // JWT-sessioner → ingen DB-fråga. Bara "bäst matchning" bryr sig om vem du är.
   const session = await auth();
   const params = { ...buildParams(searchParams), userId: session?.user?.id };
-  const [result, sets, retailers, recentSets] = await Promise.all([
+  const [result, sets, retailers] = await Promise.all([
     getExploreFeed(params, 0, PAGE_SIZE),
     getFilterSets(),
     getFilterRetailers(),
-    // "Just Dropped" — senast släppta set.
-    getRecentSets(),
   ]);
   const feedQuery = buildFeedQuery(params);
   const filterKey = filterStateKey(searchParams);
@@ -407,47 +394,10 @@ export default async function ProductsPage({
       />
     );
 
-  const justDropped = recentSets.length > 0 && (
-    <section>
-      {/* "Visa alla" borttagen 2026-07-29 (ägarbeslut): raden ligger längst ned i
-          utforska-feeden, och en länk vidare till /sets därifrån bara delade
-          uppmärksamheten. Rälsen i sig går fortfarande till respektive set. */}
-      <div className="mb-3">
-        <h2 className="font-display text-xl font-bold text-ink">{t("justDropped")}</h2>
-      </div>
-      <div className="-mx-2.5 flex gap-3 overflow-x-auto px-2.5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {recentSets.map((s) => (
-          <Link
-            key={s.id}
-            href={`/sets/${s.id}`}
-            className="card-surface group w-44 shrink-0 overflow-hidden transition-colors hover:border-holo-cyan/40"
-          >
-            {/* Svart bildbrunn, som produktkorten — grå plattor lyser på svart yta. */}
-            <div className="flex h-24 w-full items-center justify-center bg-surface p-4">
-              {s.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={s.logoUrl}
-                  alt={s.name}
-                  loading="lazy"
-                  decoding="async"
-                  className="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105"
-                />
-              ) : (
-                <IconCards size={32} className="text-ink-faint" />
-              )}
-            </div>
-            <div className="p-3">
-              <h3 className="truncate text-sm font-semibold text-ink">{s.name}</h3>
-              <p className="mt-1 text-xs text-ink-muted">
-                {s.totalCards > 0 ? t("setCards", { count: s.totalCards }) : t("setFallback")}
-              </p>
-            </div>
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
+  // "Nyss släppt"-rälsen (set-logotyper under feeden) är BORTTAGEN 2026-07-29
+  // (ägarbeslut): utforska-fliken ska visa produkter, inte set. Setgalleriet finns
+  // kvar på /sets. Frågan efter de senaste seten är borttagen med den — inte bara
+  // gömd — så den inte fortsätter kosta en Neon-läsning per sidvisning.
 
   return (
     <div className="mx-auto max-w-7xl px-2.5 py-6 sm:px-6 lg:py-10">
@@ -477,8 +427,6 @@ export default async function ProductsPage({
         </form>
 
         <section>{feed}</section>
-
-        {justDropped}
       </div>
 
       {/* ───────── Desktop: sidofält + resultat ───────── */}
