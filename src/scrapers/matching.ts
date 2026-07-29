@@ -499,7 +499,7 @@ export function productsConflict(a: string, b: string): boolean {
     characterMismatch(a, nb) ||
     cardSuffixMismatch(a, nb) ||
     pokemonCenterMismatch(na, nb) ||
-    ultraPremiumMismatch(na, nb) ||
+    premiumGradeMismatch(na, nb) ||
     regionVersionMismatch(na, nb) ||
     cardCountMismatch(na, nb) ||
     yearMismatch(a, nb) ||
@@ -763,19 +763,31 @@ export function pokemonCenterMismatch(a: string, b: string): boolean {
 }
 
 /**
- * "Ultra-Premium" är en EGEN, dyrare produkt än "Premium" — inte en formulering av samma
- * vara. Utan den här vakten slank "Arceus VSTAR ULTRA-Premium Collection" igenom mot
- * katalogens "Arceus VSTAR Premium Collection" med Dice 0,879 — alltså ÖVER auto-link-
- * gränsen 0,85, så den hade länkats HELT utan LLM-dom (hittad 2026-07-13 när stub-mergen
- * kördes i dry-run). "premium" är dessutom FORM_NOISE, så "ultra" var det enda som skilde
- * dem — och nonEraCoverage landade på 0,667, precis över 0,6-tröskeln.
+ * "Ultra-Premium" och "Super-Premium" är EGNA, dyrare produktlinjer — inte formuleringar
+ * av "Premium". Graden är namngiven av tillverkaren och står alltid utskriven i både
+ * butikens och katalogens titel; den som utelämnar den säljer en annan vara.
  *
- * Tvåsidig som alla andra vakter: den slår bara när ENA sidan säger "ultra premium".
- * Nämner ingen av dem det är den tyst.
+ * ULTRA (2026-07-13): "Arceus VSTAR ULTRA-Premium Collection" slank igenom mot katalogens
+ * "Arceus VSTAR Premium Collection" med Dice 0,879 — ÖVER auto-link-gränsen 0,85, alltså
+ * länkning HELT utan LLM-dom. "premium" är dessutom FORM_NOISE, så "ultra" var det enda
+ * som skilde dem — och nonEraCoverage landade på 0,667, precis över 0,6-tröskeln.
+ *
+ * SUPER (2026-07-29): Shinycards "Prismatic Evolutions Suprise Box Collection" (999 kr)
+ * blev offer på "Prismatic Evolutions Super-Premium Collection" med 0,7195 — HÖGRE än
+ * den rätta produkten "Prismatic Evolutions Surprise Box" (0,6941), så fel produkt vann
+ * på ren poäng. Samma signatur som ultra-fallet: de delar set-namnet, "premium"/"box"/
+ * "collection" är formord, och nonEraCoverage blev exakt 0,667 igen. Följden blev
+ * synlig direkt på produktsidan — headline-priset visade Surprise Box-priset 999 kr
+ * som "lägsta pris" för en produkt vars verkliga golv är ~2 600 kr.
+ *
+ * Tvåsidig som alla andra vakter, och graderna jämförs mot VARANDRA: den slår när bara
+ * ena sidan namnger en grad, ELLER när båda gör det och graderna skiljer sig
+ * (Ultra-Premium ≠ Super-Premium). Nämner ingen av dem en grad är den tyst — en ren
+ * "Premium Collection"-annons mot en "Premium Collection"-produkt rör vi inte.
  */
-const ULTRA_PREMIUM_RE = /\bultra[\s-]?premium\b/;
-export function ultraPremiumMismatch(a: string, b: string): boolean {
-  return ULTRA_PREMIUM_RE.test(normalizeTitle(a)) !== ULTRA_PREMIUM_RE.test(normalizeTitle(b));
+const PREMIUM_GRADE_RE = /\b(ultra|super)[\s-]?premium\b/;
+export function premiumGradeMismatch(a: string, b: string): boolean {
+  return PREMIUM_GRADE_RE.exec(normalizeTitle(a))?.[1] !== PREMIUM_GRADE_RE.exec(normalizeTitle(b))?.[1];
 }
 
 /**
@@ -1389,9 +1401,11 @@ export async function matchProduct(
     if (pokemonCenterMismatch(normalized, c.normalizedTitle)) {
       continue;
     }
-    // Ultra-Premium ≠ Premium — dyrare, egen SKU. Dice 0,879 (ÖVER auto-link-gränsen)
-    // hade annars länkat "Arceus VSTAR Ultra-Premium" till "Arceus VSTAR Premium".
-    if (ultraPremiumMismatch(normalized, c.normalizedTitle)) {
+    // Ultra-/Super-Premium ≠ Premium — dyrare, egna SKU:er. Dice 0,879 (ÖVER auto-link-
+    // gränsen) hade annars länkat "Arceus VSTAR Ultra-Premium" till "Arceus VSTAR
+    // Premium", och "Prismatic Evolutions Suprise Box Collection" vann "…Super-Premium
+    // Collection" på 0,7195 mot rätt produkts 0,6941.
+    if (premiumGradeMismatch(normalized, c.normalizedTitle)) {
       continue;
     }
     // US Version ≠ EU Version (0,927), Premium Checklane ≠ Checklane (0,939),
@@ -1593,7 +1607,7 @@ export function matchListingToProduct(
   if (setMarkerMismatch(normalized, product.normalizedTitle)) return null;
   if (seriesMismatch(normalized, product.normalizedTitle)) return null;
   if (pokemonCenterMismatch(normalized, product.normalizedTitle)) return null;
-  if (ultraPremiumMismatch(normalized, product.normalizedTitle)) return null;
+  if (premiumGradeMismatch(normalized, product.normalizedTitle)) return null;
   if (regionVersionMismatch(normalized, product.normalizedTitle)) return null;
   if (cardCountMismatch(normalized, product.normalizedTitle)) return null;
   // Uppföljningen 2026-07-14 — samma tvåsidiga vakter som matchProduct.

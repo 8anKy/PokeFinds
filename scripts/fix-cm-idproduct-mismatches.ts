@@ -31,7 +31,7 @@ import {
   scoreSimilarity, classifyForm, productsConflict, mutualIdentityConflict,
   seriesMismatch, characterMismatch, setCodeMismatch, cardCountMismatch,
   regionVersionMismatch, blisterMismatch, unitCountMismatch, yearMismatch,
-  pokemonCenterMismatch, ultraPremiumMismatch, setMarkerMismatch,
+  pokemonCenterMismatch, premiumGradeMismatch, setMarkerMismatch,
 } from "../src/scrapers/matching";
 import { cardmarketProductUrl } from "../src/lib/marketplace-urls";
 
@@ -77,7 +77,7 @@ const GUARDS: [string, (a: string, b: string) => boolean][] = [
   ["setCodeMismatch", setCodeMismatch], ["cardCountMismatch", cardCountMismatch],
   ["regionVersionMismatch", regionVersionMismatch], ["blisterMismatch", blisterMismatch],
   ["unitCountMismatch", unitCountMismatch], ["yearMismatch", yearMismatch],
-  ["pokemonCenterMismatch", pokemonCenterMismatch], ["ultraPremiumMismatch", ultraPremiumMismatch],
+  ["pokemonCenterMismatch", pokemonCenterMismatch], ["premiumGradeMismatch", premiumGradeMismatch],
   ["setMarkerMismatch", setMarkerMismatch],
 ];
 const blockers = (a: string, b: string) =>
