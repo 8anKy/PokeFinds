@@ -7,6 +7,7 @@ import { productDisplayName, productMetaLabel } from "@/lib/product-display";
 import { PriceChange } from "@/components/ui/price-change";
 import { StockBadge } from "@/components/ui/badge";
 import { SafeImage } from "@/components/ui/safe-image";
+import { CollectionQuickAdd } from "@/components/features/collection-quick-add";
 import {
   IconBookmark,
   IconCards,
@@ -49,6 +50,8 @@ const CATEGORY_ICONS: Record<string, (p: IconProps) => JSX.Element> = {
 
 export interface ProductCardProps {
   product: {
+    /** Utan id renderas ingen "+"-knapp (t.ex. liknande-produkter som saknar id). */
+    id?: string;
     slug: string;
     title: string;
     imageUrl?: string | null;
@@ -73,9 +76,7 @@ export interface ProductCardProps {
 }
 
 export function ProductCard({ product, className }: ProductCardProps) {
-  const tCat = useTranslations("Category");
   const tProduct = useTranslations("Product");
-  const categoryLabel = product.category in CATEGORY_LABELS ? tCat(product.category) : tCat("OTHER");
   const CategoryIcon = CATEGORY_ICONS[product.category] ?? CATEGORY_ICONS.OTHER;
   const name = productDisplayName(product);
   const meta = productMetaLabel(product);
@@ -90,8 +91,9 @@ export function ProductCard({ product, className }: ProductCardProps) {
         className
       )}
     >
-      {/* Bild eller kategoriikon som placeholder */}
-      <div className="relative aspect-[4/3] w-full shrink-0 overflow-hidden bg-surface-overlay">
+      {/* Bild eller kategoriikon som placeholder. Bildbrunnen är SVART som resten
+          av kortet — `surface-overlay` lyste som en grå ruta på den svarta ytan. */}
+      <div className="relative aspect-[4/3] w-full shrink-0 overflow-hidden bg-surface">
         {product.dealPercent != null && product.dealPercent > 0 && (
           <span className="absolute left-2 top-2 z-10 rounded-md bg-holo-cyan px-1.5 py-0.5 text-[11px] font-bold text-surface shadow">
             −{product.dealPercent}%
@@ -113,11 +115,8 @@ export function ProductCard({ product, className }: ProductCardProps) {
       </div>
 
       <div className="flex flex-1 flex-col p-3.5">
-        <p className="truncate text-[11px] font-medium uppercase tracking-wide text-ink-faint">
-          {categoryLabel}
-        </p>
         {/* Bara det officiella namnet — set och nummer får egna rader nedan. */}
-        <h3 className="mt-2 line-clamp-2 min-h-[2.25rem] text-sm font-medium leading-snug text-ink transition-colors group-hover:text-holo-cyan">
+        <h3 className="line-clamp-2 min-h-[2.25rem] text-[13px] font-semibold leading-snug tracking-[-0.01em] text-ink transition-colors group-hover:text-holo-cyan">
           <Link
             href={`/produkter/${product.slug}`}
             className="outline-none after:absolute after:inset-0 after:content-['']"
@@ -126,7 +125,8 @@ export function ProductCard({ product, className }: ProductCardProps) {
           </Link>
         </h3>
 
-        {/* Set (klickbart → slår på katalogfiltret) + kortnummer/variant. */}
+        {/* Set (klickbart → slår på katalogfiltret) + kortnummer/variant. Dämpad,
+            inte turkos: i ett rutnät drog sju turkosa setnamn blicken från priset. */}
         {(product.setName || meta) && (
           <div className="mt-1 min-w-0">
             {product.setName &&
@@ -134,12 +134,12 @@ export function ProductCard({ product, className }: ProductCardProps) {
                 <Link
                   href={`/produkter?set=${encodeURIComponent(product.setId)}`}
                   title={tProduct("filterBySet", { set: product.setName })}
-                  className="relative z-10 block truncate text-xs font-medium text-holo-cyan/90 underline-offset-2 transition-colors hover:text-holo-cyan hover:underline focus-visible:text-holo-cyan focus-visible:underline focus-visible:outline-none"
+                  className="relative z-10 block truncate text-[11px] text-ink-faint underline-offset-2 transition-colors hover:text-holo-cyan hover:underline focus-visible:text-holo-cyan focus-visible:underline focus-visible:outline-none"
                 >
                   {product.setName}
                 </Link>
               ) : (
-                <p className="truncate text-xs font-medium text-ink-muted">{product.setName}</p>
+                <p className="truncate text-[11px] text-ink-faint">{product.setName}</p>
               ))}
             {/* Två rader: "Special Illustration Rare · 199/165" ryms inte på en i ett
                 171 px-kort. Prisblocket bottenankras ändå, så en extra rad flyttar
@@ -155,32 +155,43 @@ export function ProductCard({ product, className }: ProductCardProps) {
         {/* Prisblocket bottenankras (mt-auto) och håller SAMMA höjd på alla kort:
             raderna reserveras även när de är tomma. Annars hamnade prisraden på
             olika höjd i samma rutnätsrad beroende på om kortet hade butiksantal. */}
-        <div className="mt-auto pt-2.5">
-          <p data-price className="font-display text-lg font-bold tracking-tight text-ink">
-            {formatPrice(product.lowestPrice)}
-          </p>
-          {/* Konsekvent rad: prisförändring vänster, lagerstatus alltid höger. */}
-          <div className="mt-1.5 flex min-h-[1.5rem] items-center justify-between gap-2">
-            {product.priceChange7d != null ? (
-              <PriceChange percent={product.priceChange7d} className="text-xs" hideIcon />
+        <div className="mt-auto flex flex-col gap-1.5 pt-2.5">
+          {/* Pris och trend på SAMMA rad, lagerstatus och "+" på nästa.
+              `whitespace-nowrap`: utan den bröts ett femsiffrigt pris över TRE
+              rader i ett 171px-kort ("13 / 712,50 / kr"). `flex-wrap` låter i
+              stället trenden falla ner på egen rad i just de fallen — hellre en
+              extra rad än ett sönderbrutet pris. Blocket är bottenankrat, så
+              lager-/"+"-raden ligger kvar i linje med grannkorten. */}
+          <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+            <p
+              data-price
+              className="whitespace-nowrap font-display text-[17px] font-bold leading-tight tracking-tight text-ink"
+            >
+              {formatPrice(product.lowestPrice)}
+            </p>
+            {product.priceChange7d != null && (
+              <PriceChange
+                percent={product.priceChange7d}
+                className="shrink-0 text-[11px]"
+                hideIcon
+              />
+            )}
+          </div>
+          <div className="flex min-h-[1.875rem] items-center justify-between gap-2">
+            {product.stockStatus ? (
+              <StockBadge stockStatus={product.stockStatus} />
             ) : (
               <span />
             )}
-            {product.stockStatus && (
-              <StockBadge stockStatus={product.stockStatus} className="min-w-[4.75rem] justify-center" />
+            {product.id && (
+              <CollectionQuickAdd productId={product.id} estimatedValue={product.lowestPrice} />
             )}
           </div>
-
-          <p
-            className="mt-1.5 min-h-4 truncate text-[11px] leading-4 text-ink-faint"
-            title={product.dealListingTitle ?? undefined}
-          >
-            {product.dealListingTitle
-              ? `Tradera: ${product.dealListingTitle}`
-              : product.retailerCount != null && product.retailerCount > 0
-                ? tProduct("atStores", { count: product.retailerCount })
-                : ""}
-          </p>
+          {product.dealListingTitle && (
+            <p className="truncate text-[11px] leading-4 text-ink-faint" title={product.dealListingTitle}>
+              Tradera: {product.dealListingTitle}
+            </p>
+          )}
         </div>
       </div>
     </div>

@@ -875,6 +875,7 @@ export interface ProductDetailData {
   serializedOffers: SerializedOffer[];
   affiliateRetailerIds: string[];
   similar: {
+    id: string;
     slug: string;
     title: string;
     imageUrl: string | null;

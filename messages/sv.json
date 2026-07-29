@@ -811,6 +811,10 @@
     "OTHER": "Övrigt"
   },
   "Product": {
+    "addToCollection": "Lägg till i samlingen",
+    "inCollection": "Tillagd i samlingen",
+    "addedToCollection": "Tillagd i samlingen",
+    "addFailed": "Kunde inte lägga till",
     "atStores": "{count, plural, =1 {Hos 1 butik} other {Hos # butiker}}",
     "filterBySet": "Visa allt från {set}"
   },

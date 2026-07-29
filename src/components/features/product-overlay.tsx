@@ -261,7 +261,7 @@ export function ProductOverlayHost() {
         ref={panelRef}
         tabIndex={-1}
         style={{ touchAction: "pan-y" }}
-        className="overlay-in absolute inset-x-0 bottom-0 top-[env(safe-area-inset-top)] overflow-y-auto overscroll-none bg-surface-gradient pb-[calc(4rem+env(safe-area-inset-bottom))] outline-none"
+        className="overlay-in absolute inset-x-0 bottom-0 top-[env(safe-area-inset-top)] overflow-y-auto overscroll-none bg-surface pb-[calc(4rem+env(safe-area-inset-bottom))] outline-none"
       >
         <SiteHeader />
         {/* showBack: synlig bakåtknapp även i overlayn (utöver svep-tillbaka) —

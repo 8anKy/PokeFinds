@@ -95,6 +95,7 @@ export function ExploreFeed({
           <ProductCard
             key={p.id}
             product={{
+              id: p.id,
               slug: p.slug,
               title: p.title,
               imageUrl: p.imageUrl,

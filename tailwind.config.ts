@@ -49,8 +49,9 @@ const config: Config = {
       backgroundImage: {
         "holo-gradient":
           "linear-gradient(135deg, #2dd4bf 0%, #14b8a6 55%, #0f766e 100%)",
-        "surface-gradient":
-          "radial-gradient(120% 80% at 50% 0%, #101014 0%, #000000 55%)",
+        // `surface-gradient` (radial charcoal-tvätt uppifrån) är BORTTAGEN 2026-07-29:
+        // på den svarta ytan lyste den som ett grått fält i toppen av varje sida.
+        // Sidbakgrunden är `bg-surface` = #000, rakt igenom. Lägg inte tillbaka den.
       },
       transitionTimingFunction: {
         // Apple-mjuk utgångskurva för entréer/hover, fjädrande overshoot för "pop"

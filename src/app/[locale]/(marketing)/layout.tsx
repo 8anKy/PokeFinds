@@ -14,7 +14,7 @@ export default function MarketingLayout({
   // Ingen server-`auth()` här — det tvingade hela katalogen dynamisk. Den mobila
   // tab-baren (BottomTabs) renderar sin egen klarerings-spacer när man är inloggad.
   return (
-    <div className="flex min-h-screen flex-col bg-surface-gradient">
+    <div className="flex min-h-screen flex-col bg-surface">
       <SiteHeader />
       <main className="flex-1">{children}</main>
       <SiteFooter />

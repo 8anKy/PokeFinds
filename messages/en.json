@@ -811,6 +811,10 @@
     "OTHER": "Other"
   },
   "Product": {
+    "addToCollection": "Add to collection",
+    "inCollection": "Added to collection",
+    "addedToCollection": "Added to collection",
+    "addFailed": "Couldn't add",
     "atStores": "{count, plural, =1 {At 1 store} other {At # stores}}",
     "filterBySet": "Show everything from {set}"
   },

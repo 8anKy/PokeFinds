@@ -156,10 +156,18 @@ export function ExploreFilterBar({
       />
 
       <div className="flex items-center gap-2.5">
-        {/* Chip-raden svepas. Masken tonar högerkanten så en halvt synlig chip läses
-            som "det finns fler" i stället för som avklippt text — katalogens
-            träffantal ("21 650 produkter") äter en tredjedel av en 390px-rad. */}
-        <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto py-0.5 [mask-image:linear-gradient(to_right,#000_calc(100%-20px),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* Chip-raden svepas i SIDLED och bara i sidled. `touch-action: pan-x` ger
+            gesten till raden när fingret går vågrätt och till SIDAN när det går
+            lodrätt — utan den slogs de två om varje svep och raden kändes trög.
+            `overflow-y-hidden` tar bort den lodräta rullning som rensa-knapparnas
+            träffytor annars skapade (de är högre än chipet). Masken tonar
+            högerkanten så en halvt synlig chip läses som "det finns fler" i
+            stället för som avklippt text — träffantalet ("21 650 produkter") äter
+            en tredjedel av en 390px-rad. */}
+        <div
+          className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain py-1.5 [mask-image:linear-gradient(to_right,#000_calc(100%-20px),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          style={{ touchAction: "pan-x" }}
+        >
           <Chip
             active={!!activeSet}
             label={activeSet?.name ?? t("set")}
@@ -335,8 +343,10 @@ function Chip({
           type="button"
           onClick={onClear}
           aria-label={clearAriaLabel}
-          // 44px träffyta med negativ marginal — chipet växer inte av den.
-          className="-my-1.5 -ml-3.5 -mr-1.5 box-border flex h-11 w-11 shrink-0 items-center justify-center p-3.5"
+          // Träffytan får INTE vara högre än radens padding tål: en 44px-knapp i ett
+          // ~30px chip gjorde scrollern lodrätt överfylld, och då gick chip-raden att
+          // dra upp och ner. 36px ryms innanför py-1.5 → ingen lodrät overflow alls.
+          className="-ml-3 -mr-1 box-border flex h-9 w-9 shrink-0 items-center justify-center p-2.5"
         >
           <span className="grid h-4 w-4 place-items-center rounded-full bg-holo-cyan/20 text-holo-cyan">
             <IconX size={10} strokeWidth={3} />

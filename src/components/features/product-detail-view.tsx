@@ -276,6 +276,7 @@ export function ProductDetailView({
                 <ProductCard
                   key={p.slug}
                   product={{
+                    id: p.id,
                     slug: p.slug,
                     title: p.title,
                     imageUrl: p.imageUrl,

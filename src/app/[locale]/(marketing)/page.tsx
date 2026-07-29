@@ -248,6 +248,7 @@ export default async function LandingPage({
                     <ProductCard
                       key={p.id}
                       product={{
+                        id: p.id,
                         slug: p.slug,
                         title: p.title,
                         imageUrl: p.imageUrl,

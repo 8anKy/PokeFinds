@@ -45,7 +45,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
   return (
     <div
       className={cn(
-        "flex min-h-[100dvh] flex-col items-center justify-start bg-surface-gradient px-4 mt-[calc(env(safe-area-inset-top)*-1)] pt-[calc(env(safe-area-inset-top)+1.5rem)]",
+        "flex min-h-[100dvh] flex-col items-center justify-start bg-surface px-4 mt-[calc(env(safe-area-inset-top)*-1)] pt-[calc(env(safe-area-inset-top)+1.5rem)]",
         typing ? "pb-[40vh]" : "pb-6"
       )}
     >

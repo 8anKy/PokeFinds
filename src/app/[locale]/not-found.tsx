@@ -3,7 +3,7 @@ import { LinkButton } from "@/components/ui/button";
 
 export default function NotFound() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-surface-gradient px-4 text-center">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-surface px-4 text-center">
       <p className="holo-text font-display text-7xl font-bold">404</p>
       <h1 className="mt-4 font-display text-2xl font-bold text-ink">
         Sidan kunde inte hittas
