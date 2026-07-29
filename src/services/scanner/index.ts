@@ -11,7 +11,7 @@ import { ServiceError } from "@/lib/errors";
 import { FINGERPRINT_BYTES } from "@/lib/art-fingerprint";
 import { cardNumberSortKey } from "@/lib/card-number-order";
 import { scoreSimilarity } from "@/scrapers/matching";
-import { searchByFingerprints } from "@/services/scanner/art-index";
+import { type ArtMatch, searchByFingerprints } from "@/services/scanner/art-index";
 import { getCardValues, getProductValues } from "@/services/products";
 import { ClaudeVisionOcrAdapter } from "@/services/scanner/claude-vision";
 import { MockOcrAdapter } from "@/services/scanner/ocr-mock";
@@ -219,6 +219,18 @@ const ART_CANDIDATES = 15;
  * avgöra vilken av dem det är.
  */
 const ART_WEIGHT = 0.3;
+
+/**
+ * Bildlikhet över detta räknas som en RIKTIG signal, inte som en gissning.
+ *
+ * Behövs för att modellens NAMN kan vara hallucinerat och ändå få full poäng.
+ * Mätt på samma kort fyra gånger (samma monitor, samma ram) svarade Haiku
+ * "Pelipper", "Pawmot", "Falinks" och "Palafin ex" — det sista med konfidens
+ * 0,85. Ett påhittat namn ger namnlikhet 1,0 mot SINA kort, medan rätt kort får
+ * ~0 på namn och bara `art × ART_WEIGHT`. Utan ett eget skikt för bildträffarna
+ * fyllde det hallucinerade namnets syskon hela listan och rätt kort föll ur helt.
+ */
+const ART_STRONG = 0.75;
 
 /** Kortnamn-tokens ur OCR-texten. Tomt resultat → hela frågan som en token. */
 function nameTokens(query: string): string[] {
@@ -448,11 +460,16 @@ export async function matchCards(
 
   // Skikt: vinnaren, sedan andra TRYCKNINGAR av samma kort, sedan samma NAMN i
   // andra set, sist övrigt. Inom varje skikt gäller poäng och sedan setets ålder.
+  // ⛔ BILDTRÄFFARNA MÅSTE LIGGA ÖVER NAMN-SYSKONEN. Namnet kan vara påhittat
+  // (se ART_STRONG), och då är dess syskon en lista över fel kort medan
+  // bildträffarna pekar på rätt. Låg bildträffarna i "övrigt" fyllde det
+  // hallucinerade namnets syskon hela listan och rätt kort syntes inte alls.
   const tierOf = (c: ScanCandidate): number => {
     if (c.cardId === winner.cardId && c.productId === winner.productId) return 0;
     if (c.cardId === winner.cardId) return 1;
-    if (c.name.toLowerCase() === winnerName) return 2;
-    return 3;
+    if ((artScores?.get(c.cardId) ?? 0) >= ART_STRONG) return 2;
+    if (c.name.toLowerCase() === winnerName) return 3;
+    return 4;
   };
   const releasedOf = new Map(merged.map((m) => [m.candidate.cardId, m.released]));
 
@@ -645,6 +662,15 @@ export interface IdentifyResult {
   candidates: ScanCandidate[];
   /** Bildmatchningens bästa likhet 0..1, eller null när inget avtryck skickades. */
   artTop: number | null;
+  /**
+   * Bildmatchningens tre bästa kort som text, för admin-diagnostiken.
+   *
+   * Utan detta går det INTE att skilja "bilden hittade rätt kort men namnet
+   * överröstade det" från "bilden hittade också fel" — och de två har helt olika
+   * åtgärder (vikta om mot namnet, respektive felsöka avtrycket). Att gissa
+   * mellan dem är precis den blinda justering som kostade oss flera varv.
+   */
+  artTopLabel: string | null;
 }
 
 /**
@@ -703,7 +729,10 @@ export async function identifyCard(
 
   const artScores = new Map(artMatches.map((m) => [m.cardId, m.score]));
   // Bilden ensam räcker som signal — texten kan vara helt oläslig.
-  const candidates = await matchCards(ocr, artScores);
+  const [candidates, artTopLabel] = await Promise.all([
+    matchCards(ocr, artScores),
+    describeArtMatches(artMatches.slice(0, 3)),
+  ]);
 
   return {
     provider: adapter.name,
@@ -712,5 +741,22 @@ export async function identifyCard(
     confidence: ocr.confidence,
     candidates,
     artTop: artMatches.length > 0 ? artMatches[0].score : null,
+    artTopLabel,
   };
+}
+
+/** Bildträffarna som kort text. Uppslag på primärnyckel — tre rader. */
+async function describeArtMatches(matches: ArtMatch[]): Promise<string | null> {
+  if (matches.length === 0) return null;
+  const cards = await prisma.card.findMany({
+    where: { id: { in: matches.map((m) => m.cardId) } },
+    select: { id: true, name: true, number: true },
+  });
+  const byId = new Map(cards.map((c) => [c.id, c]));
+  return matches
+    .map((m) => {
+      const c = byId.get(m.cardId);
+      return `${c ? `${c.name} ${c.number}` : m.cardId} ${m.score.toFixed(3)}`;
+    })
+    .join(" | ");
 }

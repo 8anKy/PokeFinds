@@ -67,6 +67,8 @@ interface IdentifyResponse {
   candidates: Candidate[];
   /** Bildmatchningens bästa likhet 0..1, null när inget avtryck kunde användas. */
   artTop: number | null;
+  /** Bildmatchningens tre bästa kort som text (admin-diagnostik). */
+  artTopLabel: string | null;
   remaining?: number;
 }
 
@@ -417,7 +419,10 @@ function Scanner() {
           `${data.provider} · "${data.guessedName ?? ""}" / "${data.guessedNumber ?? ""}" · konf ${data.confidence.toFixed(2)}` +
             // `bild` skiljer "avtrycket skickades inte / indexet är tomt" (—) från
             // "det matchade svagt" (lågt tal). Utan det går de två inte att skilja.
-            ` · bild ${data.artTop == null ? "—" : data.artTop.toFixed(3)}`
+            // Bildens EGNA toppträffar, inte bara poängen: annars går det inte
+            // att skilja "bilden hittade rätt kort men namnet överröstade det"
+            // från "bilden hittade också fel".
+            ` · bild ${data.artTop == null ? "—" : data.artTopLabel ?? data.artTop.toFixed(3)}`
         );
         return data;
       } catch {
