@@ -198,10 +198,14 @@ export function ExploreFilterBar({
             aria-label={t("sortBy")}
             className="-mr-1.5 flex h-11 shrink-0 items-center justify-center px-1.5"
           >
+            {/* Bara ikonen — ingen platta bakom. Den grå fyllningen läste som en
+                egen knapp inuti sökfältet och konkurrerade med förstoringsglaset
+                till vänster, som också står naket. Aktivt läge (en annan sortering
+                än standard) syns på FÄRGEN, som chipen i raden under. */}
             <span
               className={cn(
-                "grid h-[30px] w-[30px] place-items-center rounded-[9px] transition-colors",
-                sortActive ? "bg-holo-cyan/15 text-holo-cyan" : "bg-white/[0.06] text-ink-muted"
+                "grid h-[30px] w-[30px] place-items-center transition-colors",
+                sortActive ? "text-holo-cyan" : "text-ink"
               )}
             >
               <IconFilter size={18} />

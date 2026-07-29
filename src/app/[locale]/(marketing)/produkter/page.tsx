@@ -64,21 +64,36 @@ const getFilterRetailers = cachedRead(
 );
 
 // value = URL-parameter (stabil), key = översättningsnyckel (Products.sort.*).
+/**
+ * ORDNINGEN ÄR GRUPPERAD EFTER AVSIKT, inte historisk (listan hade vuxit fram i den
+ * ordning sorteringarna byggts): först relevans, sedan PRIS (de tre som handlar om
+ * vad varan kostar, inklusive prisfallet), sedan ORDNING (kortnummer och bokstav —
+ * "bläddra som i en pärm"), sist MARKNAD (signaler om vad andra gör). Motsatspar
+ * står alltid intill varandra, stigande före fallande.
+ *
+ * Index 0 är dessutom katalogens standard (`defaultSort` i ExploreFilterBar) → "Bäst
+ * matchning" måste ligga först även tekniskt, inte bara visuellt.
+ *
+ * "Mest populär" (ren engagemangsvolym) är ersatt av "Bäst matchning" 2026-07-29:
+ * relevans × kvalitet, plus dina egna bevakningar/samling. Volymen finns kvar som en
+ * INGREDIENS i poängen. Gamla länkar med ?sortera=popular funkar (normalizeSort).
+ */
 const SORT_OPTIONS: { value: string; key: string; sort: ProductSort }[] = [
-  // "Mest populär" (ren engagemangsvolym) är ersatt av "Bäst matchning" 2026-07-29:
-  // relevans × kvalitet, plus dina egna bevakningar/samling. Volymen finns kvar som
-  // en INGREDIENS i poängen. Gamla länkar med ?sortera=popular funkar (normalizeSort).
+  // Relevans
   { value: "basta-traff", key: "best_match", sort: "best_match" },
-  { value: "a-o", key: "title_asc", sort: "title_asc" },
-  { value: "o-a", key: "title_desc", sort: "title_desc" },
+  // Pris
   { value: "lagsta-pris", key: "price_asc", sort: "price_asc" },
   { value: "hogsta-pris", key: "price_desc", sort: "price_desc" },
   { value: "prisfall", key: "biggest_drop", sort: "biggest_drop" },
-  { value: "restock", key: "recently_restocked", sort: "recently_restocked" },
-  { value: "bevakad", key: "most_watched", sort: "most_watched" },
-  { value: "trend", key: "trending", sort: "trending" },
+  // Ordning
   { value: "kortnummer", key: "card_number_asc", sort: "card_number_asc" },
   { value: "kortnummer-fallande", key: "card_number_desc", sort: "card_number_desc" },
+  { value: "a-o", key: "title_asc", sort: "title_asc" },
+  { value: "o-a", key: "title_desc", sort: "title_desc" },
+  // Marknad
+  { value: "trend", key: "trending", sort: "trending" },
+  { value: "bevakad", key: "most_watched", sort: "most_watched" },
+  { value: "restock", key: "recently_restocked", sort: "recently_restocked" },
   // "Fynd" borttaget ur filtret 2026-07-21 (ägarbeslut). Sorteringen finns kvar i
   // feed-API:t och services/products, så filtret kan tas tillbaka med en rad här.
 ];
