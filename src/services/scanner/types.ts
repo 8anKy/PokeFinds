@@ -21,8 +21,16 @@ export interface OcrResult {
 export interface OcrAdapter {
   /** Leverantörens namn, t.ex. "mock", "google-vision". */
   name: string;
-  /** Extraherar kortinformation ur en bild (data-URL, base64). */
-  extractCardInfo(imageDataUrl: string): Promise<OcrResult>;
+  /**
+   * Extraherar kortinformation ur en bild (data-URL, base64).
+   *
+   * `detailDataUrl` är en valfri NÄRBILD på kortets nederkant, där samlarnumret
+   * trycks. Den finns för att felet inte var läsbarhet utan LOKALISERING: med
+   * gott om upplösning svarade modellen ändå med kortets HP (stort, uppe till
+   * höger) i stället för samlarnumret (litet, nere till vänster). En bild som
+   * bara innehåller nederkanten tar bort förväxlingen.
+   */
+  extractCardInfo(imageDataUrl: string, detailDataUrl?: string): Promise<OcrResult>;
 }
 
 /** En matchningskandidat som returneras till klienten. */

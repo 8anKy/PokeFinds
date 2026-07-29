@@ -23,6 +23,13 @@ const schema = z.object({
     .string()
     .min(1, "Bild saknas.")
     .regex(/^data:image\/[a-z+.-]+;base64,/i, "Bilden måste vara en data-URL (image/*)."),
+  // Närbild på kortets NEDERKANT, där samlarnumret trycks. Valfri: kameravyn vet
+  // var kortet sitter (kortramen) och kan skära ut den, en galleriuppladdning vet
+  // det inte. Modellen läste annars HP:t uppe till höger som samlarnummer.
+  detail: z
+    .string()
+    .regex(/^data:image\/[a-z+.-]+;base64,/i, "Närbilden måste vara en data-URL (image/*).")
+    .optional(),
   // Starkare (dyrare) vision-modell — körs bara vid bekräftelse/uppladdning,
   // inte för varje live-ruta.
   precise: z.boolean().optional(),
@@ -42,8 +49,8 @@ export async function POST(req: Request) {
       throw new ServiceError(429, "För många skanningar på kort tid. Vänta en stund.");
     }
 
-    const { image, precise } = schema.parse(await req.json());
-    if (image.length > MAX_IMAGE_BYTES * 1.4) {
+    const { image, detail, precise } = schema.parse(await req.json());
+    if (image.length + (detail?.length ?? 0) > MAX_IMAGE_BYTES * 1.4) {
       throw new ServiceError(413, "Bilden är för stor. Skala ner videorutan innan den skickas.");
     }
 
@@ -64,6 +71,7 @@ export async function POST(req: Request) {
     const intro = await isIntroScan(user.id);
     const result = await identifyCard(image, {
       precise: intro || (precise && isPro(user)),
+      detailDataUrl: detail,
     });
 
     // Bokför mot kvoten: varje genomförd skanning räknas (träff eller no-match),

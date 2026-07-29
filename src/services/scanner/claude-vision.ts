@@ -44,6 +44,14 @@ const SYSTEM = [
   "och numret är det enda som skiljer dem åt. Det står i regel i ett NEDRE HÖRN,",
   "ofta litet, som 'nummer/total' (t.ex. '41/159', '199/091') eller med set-kod",
   "(t.ex. 'SVP 041').",
+  "Får du TVÅ bilder är den andra en närbild på kortets NEDERKANT: läs numret",
+  "DÄR, inte i helbilden. Namnet läser du ur helbilden.",
+  "FLERA TAL KONKURRERAR PÅ ETT KORT — bara ETT av dem är samlarnumret:",
+  "talet uppe till HÖGER intill 'HP' är kortets livpoäng (t.ex. 110) och är",
+  "ALDRIG samlarnumret; skadetalen vid attackerna är det inte heller; och",
+  "årtalet i copyrightraden ('2022') är det inte heller.",
+  "Samlarnumret står längst ned, i regel till VÄNSTER (äldre kort: till höger),",
+  "med den minsta texten på hela kortet.",
   "SKRIV AV NUMRET EXAKT SOM DET STÅR, tecken för tecken — gissa aldrig.",
   "BOKSTÄVER I NUMRET ÄR EN DEL AV NUMRET och får ALDRIG utelämnas:",
   "'TG10/TG30' skrivs 'TG10/TG30' (inte '10'), 'GG08' skrivs 'GG08',",
@@ -89,7 +97,7 @@ export class ClaudeVisionOcrAdapter implements OcrAdapter {
 
   constructor(private readonly model: string) {}
 
-  async extractCardInfo(imageDataUrl: string): Promise<OcrResult> {
+  async extractCardInfo(imageDataUrl: string, detailDataUrl?: string): Promise<OcrResult> {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       throw new ServiceError(
@@ -99,6 +107,27 @@ export class ClaudeVisionOcrAdapter implements OcrAdapter {
     }
     const client = new Anthropic({ apiKey });
     const img = parseDataUrl(imageDataUrl);
+    const detail = detailDataUrl ? parseDataUrl(detailDataUrl) : null;
+
+    // Bilderna MÄRKS med text emellan. Två omärkta bilder gör det oklart vilken
+    // som är vilken, och hela poängen är att numret ska läsas ur den andra.
+    const content: Anthropic.ContentBlockParam[] = [
+      { type: "text", text: "Bild 1 — hela kortet (läs NAMNET här):" },
+      {
+        type: "image",
+        source: { type: "base64", media_type: img.mediaType, data: img.data },
+      },
+    ];
+    if (detail) {
+      content.push(
+        { type: "text", text: "Bild 2 — närbild på kortets NEDERKANT (läs SAMLARNUMRET här):" },
+        {
+          type: "image",
+          source: { type: "base64", media_type: detail.mediaType, data: detail.data },
+        }
+      );
+    }
+    content.push({ type: "text", text: "Identifiera kortet och anropa report_card." });
 
     const response = await client.messages.create({
       model: this.model,
@@ -106,18 +135,7 @@ export class ClaudeVisionOcrAdapter implements OcrAdapter {
       system: SYSTEM,
       tools: [CARD_TOOL],
       tool_choice: { type: "tool", name: "report_card" },
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: { type: "base64", media_type: img.mediaType, data: img.data },
-            },
-            { type: "text", text: "Identifiera kortet och anropa report_card." },
-          ],
-        },
-      ],
+      messages: [{ role: "user", content }],
     });
 
     const toolUse = response.content.find(

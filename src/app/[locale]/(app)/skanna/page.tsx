@@ -133,6 +133,9 @@ function downscaleDataUrl(dataUrl: string): Promise<string> {
 /** Marginal runt kortramen vid beskärning — hellre lite bakgrund än ett kapat hörn. */
 const CROP_PAD = 0.06;
 
+/** Andel av kortets höjd som skickas som närbild på nederkanten (numret bor där). */
+const STRIP_FRACTION = 0.22;
+
 /**
  * Fångar en nedskalad JPEG-ruta ur videoflödet (i minnet, ej i kamerarullen),
  * BESKUREN till kortramen användaren siktat med.
@@ -158,7 +161,7 @@ function captureFrame(
   video: HTMLVideoElement,
   canvas: HTMLCanvasElement,
   frameEl?: HTMLElement | null
-): { dataUrl: string; crop: string } | null {
+): { dataUrl: string; stripDataUrl?: string; crop: string } | null {
   if (video.readyState < 2 || !video.videoWidth) return null;
   const vW = video.videoWidth;
   const vH = video.videoHeight;
@@ -198,12 +201,37 @@ function captureFrame(
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
   ctx.drawImage(video, sx, sy, sw, sh, 0, 0, w, h);
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+
+  // NÄRBILD PÅ NEDERKANTEN. Mätt 2026-07-29 på en Trainer Gallery-Falinks med
+  // gott om upplösning (ström 2160×3840, utsnitt 1349×1889): modellen svarade
+  // "110" — kortets HP, tryckt STORT uppe till höger — i stället för TG05/TG30
+  // nere till vänster. Felet var alltså inte att texten var oläslig utan att
+  // modellen letade på fel ställe: på ett full-art-kort är samlarnumret det
+  // minsta och minst kontrastrika talet av flera konkurrerande tal (HP,
+  // attackskada, årtal). En egen bild av bara nederkanten tar bort valet —
+  // HP finns inte i den, så det går inte att förväxla.
+  // Hela bredden med flit: moderna kort har numret nere till VÄNSTER, äldre
+  // nere till HÖGER. Utsnittet tas ur videon i NATIV upplösning, inte ur den
+  // redan nedskalade canvasen, annars vore närbilden bara en uppförstoring.
+  const stripSh = sh * STRIP_FRACTION;
+  const stripSy = sy + sh - stripSh;
+  const stripScale = Math.min(1, CAPTURE_MAX / sw);
+  const stripW = Math.max(1, Math.round(sw * stripScale));
+  const stripH = Math.max(1, Math.round(stripSh * stripScale));
+  canvas.width = stripW;
+  canvas.height = stripH;
+  const stripCtx = canvas.getContext("2d");
+  stripCtx?.drawImage(video, sx, stripSy, sw, stripSh, 0, 0, stripW, stripH);
+  const stripDataUrl = stripCtx ? canvas.toDataURL("image/jpeg", 0.85) : undefined;
+
   return {
-    dataUrl: canvas.toDataURL("image/jpeg", 0.85),
+    dataUrl,
+    stripDataUrl,
     // Utsnitt i KÄLLpixlar → skickad storlek. Står källan under den skickade
     // storleken skalar vi UPP, dvs modellen får interpolerade pixlar och ingen
     // ny information — då är kameran flaskhalsen, inte modellen.
-    crop: `${Math.round(sw)}×${Math.round(sh)}→${w}×${h}`,
+    crop: `${Math.round(sw)}×${Math.round(sh)}→${w}×${h}+${stripW}×${stripH}`,
   };
 }
 
@@ -299,14 +327,16 @@ function Scanner() {
   // ---- Identifiering -------------------------------------------------------
 
   const runIdentify = useCallback(
-    async (dataUrl: string): Promise<IdentifyResponse | { error: string }> => {
+    async (dataUrl: string, strip?: string): Promise<IdentifyResponse | { error: string }> => {
       try {
         // Standard = billiga Haiku-modellen (ingen `precise`) — håller scan-kostnaden
         // mot Pro-priset. Sonnet körs bara på uttryckligt "försök igen, skarpare".
         const res = await fetch("/api/scanner/identify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: dataUrl }),
+          // `detail` = närbild på kortets nederkant. Saknas den (galleriuppladdning,
+          // där vi inte vet var kortet sitter i bilden) körs det som förut.
+          body: JSON.stringify({ image: dataUrl, detail: strip }),
         });
         const data = (await res.json()) as IdentifyResponse & { error?: string };
         if (!res.ok) {
@@ -328,8 +358,8 @@ function Scanner() {
   );
 
   const identifyInto = useCallback(
-    async (id: string, dataUrl: string) => {
-      const data = await runIdentify(dataUrl);
+    async (id: string, dataUrl: string, strip?: string) => {
+      const data = await runIdentify(dataUrl, strip);
       if (!("error" in data) && typeof data.remaining === "number") {
         const r = data.remaining;
         setQuota((q) => (q ? { ...q, remaining: r } : q));
@@ -544,7 +574,10 @@ function Scanner() {
   // ---- Fånga / ladda upp ---------------------------------------------------
 
   const addScan = useCallback(
-    (dataUrl: string) => {
+    // `strip` följer med den fångade rutan. Skickas den INTE med som argument
+    // utan läses ur en ref vid anropstillfället, ärver en galleriuppladdning
+    // närbilden från förra kamerarutan — dvs nederkanten på ett HELT ANNAT kort.
+    (dataUrl: string, strip?: string) => {
       const id = nextId();
       setScans((prev) => [
         ...prev,
@@ -560,7 +593,7 @@ function Scanner() {
           language: defaultLanguage,
         },
       ]);
-      void identifyInto(id, dataUrl);
+      void identifyInto(id, dataUrl, strip);
     },
     [defaultCondition, defaultLanguage, identifyInto]
   );
@@ -571,13 +604,13 @@ function Scanner() {
     if (!video || !canvas || cameraState !== "live" || shutterCooling) return;
     const shot = captureFrame(video, canvas, frameRef.current);
     if (!shot) return;
-    const { dataUrl, crop } = shot;
+    const { dataUrl, stripDataUrl, crop } = shot;
     setCropInfo(crop);
     setFlash(true);
     window.setTimeout(() => setFlash(false), 180);
     setShutterCooling(true);
     window.setTimeout(() => setShutterCooling(false), 450);
-    addScan(dataUrl);
+    addScan(dataUrl, stripDataUrl);
   }, [cameraState, shutterCooling, addScan]);
 
   function handleFile(file: File): boolean {

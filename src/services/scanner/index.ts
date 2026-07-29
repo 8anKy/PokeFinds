@@ -466,10 +466,10 @@ export interface IdentifyResult {
  */
 export async function identifyCard(
   imageDataUrl: string,
-  opts: { precise?: boolean } = {}
+  opts: { precise?: boolean; detailDataUrl?: string } = {}
 ): Promise<IdentifyResult> {
   const adapter = getOcrAdapter(opts.precise);
-  const ocr = await adapter.extractCardInfo(imageDataUrl);
+  const ocr = await adapter.extractCardInfo(imageDataUrl, opts.detailDataUrl);
   const candidates =
     ocr.guessedName || ocr.rawText.trim() ? await matchCards(ocr) : [];
   return {
