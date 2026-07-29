@@ -27,7 +27,9 @@ export default async function SetsPage({
   const t = await getTranslations("Sets");
   const sets = await prisma.cardSet.findMany({
     include: { _count: { select: { cards: true, products: true } } },
-    orderBy: { releaseDate: "desc" },
+    // nulls: "last" — annars lägger Postgres datumlösa set FÖRST vid DESC, alltså
+    // som om de vore nyast (samma regel som filtrets set-lista).
+    orderBy: { releaseDate: { sort: "desc", nulls: "last" } },
   });
 
   // Gruppera per serie för en tydligare överblick än ett platt kort-grid

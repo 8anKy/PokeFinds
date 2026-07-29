@@ -110,6 +110,24 @@ async function main() {
     const tcgSet = sets[si];
     let set;
     try {
+      // ADOPTION FÖRE CREATE: ett set kan finnas hos oss INNAN pokemontcg.io har det.
+      // Cardmarket listar kommande expansioner månader i förväg (butikerna säljer
+      // förhandsboxar), och `scripts/set-from-cm-episode.ts` skapar då setet utan
+      // externalId. Ett blint create på externalId hade gett ETT ANDRA set med samma
+      // namn — två identiska rader i set-filtret, och produkterna/etiketterna kvar på
+      // den gamla. Adoptera den befintliga raden i stället: den behåller id, produkter
+      // och set-etiketter, och får bara pokemontcg.io-identiteten påklistrad.
+      const orphan = await prisma.cardSet.findFirst({
+        where: { externalId: null, name: { equals: tcgSet.name, mode: "insensitive" } },
+        select: { id: true, name: true },
+      });
+      if (orphan) {
+        await prisma.cardSet.update({
+          where: { id: orphan.id },
+          data: { externalId: tcgSet.id },
+        });
+        console.log(`   🔗 Adopterade befintligt set "${orphan.name}" → externalId ${tcgSet.id}`);
+      }
       set = await prisma.cardSet.upsert({
         where: { externalId: tcgSet.id },
         update: {

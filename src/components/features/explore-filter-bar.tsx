@@ -536,15 +536,22 @@ function SetSheet({
   onPick: (id: string | undefined) => void;
 }) {
   const t = useTranslations("Products");
-  // Serier i katalogordning (sets kommer redan sorterade på releaseDate desc).
+  // EN rubrik per SERIE — inte en per löpande grupp. Listan kommer sorterad på
+  // releaseDate (nyast först), och promo-/POP-set ligger inklämda mitt bland
+  // huvudserierna (SWSH Black Star Promos 2022-08-03 hamnar mellan två Sword &
+  // Shield-set). Den gamla logiken bröt en ny rubrik vid varje sådant hopp:
+  // 65 rubriker för 17 serier, och "Sword & Shield" dök upp nio gånger — det såg
+  // ut som om seten låg i fel serie. Map:en slår ihop dem i stället.
+  // Serieordningen = där seriens NYASTE set ligger (först sedd), och inuti varje
+  // serie står nyast först — samma ordning som /sets-sidan bygger.
   const grouped = useMemo(() => {
-    const out: { series: string; items: FilterSet[] }[] = [];
+    const bySeries = new Map<string, FilterSet[]>();
     for (const s of sets) {
-      const last = out[out.length - 1];
-      if (last && last.series === s.series) last.items.push(s);
-      else out.push({ series: s.series, items: [s] });
+      const list = bySeries.get(s.series);
+      if (list) list.push(s);
+      else bySeries.set(s.series, [s]);
     }
-    return out;
+    return [...bySeries].map(([series, items]) => ({ series, items }));
   }, [sets]);
 
   return (

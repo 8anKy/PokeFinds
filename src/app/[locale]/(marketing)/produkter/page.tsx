@@ -43,7 +43,10 @@ const getFilterSets = cachedRead(
   () =>
     prisma.cardSet.findMany({
       select: { id: true, name: true, logoUrl: true, series: true },
-      orderBy: { releaseDate: "desc" },
+      // nulls: "last" — Postgres lägger NULL FÖRST vid DESC, så ett set utan
+      // releaseDate (t.ex. ett promo-set vi skapat innan pokemontcg.io har det)
+      // hamnade överst i filtret som om det vore det allra nyaste.
+      orderBy: { releaseDate: { sort: "desc", nulls: "last" } },
     }),
   "produkterFilterSets",
   3600
