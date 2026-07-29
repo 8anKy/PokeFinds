@@ -43,6 +43,18 @@ export interface ScanCandidate {
   imageUrl: string | null;
   /** Produktens slug för djuplänk till produktsidan, om kortet har en produkt. */
   slug: string | null;
+  /**
+   * Produkten kandidaten gäller, när den pekar på en SPECIFIK TRYCKNING.
+   *
+   * Base-korten har ETT Card men TRE produkter (Unlimited / Shadowless /
+   * 1st Edition, 157 kort i katalogen) — och de kan inte skiljas på utseende,
+   * bara på tryckningsetiketten. Utan produkt-id kunde skannern inte ens
+   * ERBJUDA valet: den matchade på Card och tog den billigaste produkten, så en
+   * 1st Edition landade tyst i samlingen som Unlimited.
+   */
+  productId: string | null;
+  /** Tryckningens namn ("Unlimited", "Shadowless", "1st Edition"), om någon. */
+  variantLabel: string | null;
   /** Matchningspoäng 0..1. */
   score: number;
   /** Aktuellt marknadsvärde i öre (Cardmarket-trend via kortets produkt), om känt. */

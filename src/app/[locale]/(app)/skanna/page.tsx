@@ -51,6 +51,10 @@ interface Candidate {
   rarity: string;
   imageUrl: string | null;
   slug: string | null;
+  /** Vald tryckning, när kandidaten pekar på en specifik produkt. */
+  productId: string | null;
+  /** "Unlimited" / "Shadowless" / "1st Edition" — null när kortet bara har en. */
+  variantLabel: string | null;
   score: number;
   estimatedValue: number | null;
 }
@@ -699,6 +703,10 @@ function Scanner() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             cardId: s.match!.cardId,
+            // Den VALDA tryckningen följer med — annars sparas ett Base-kort
+            // utan produkt och värderas på den billigaste tryckningen, dvs en
+            // 1st Edition hamnar tyst i samlingen som Unlimited.
+            ...(s.match!.productId ? { productId: s.match!.productId } : {}),
             quantity: s.quantity,
             condition: s.condition,
             language: s.language,
@@ -1518,8 +1526,11 @@ function ScanDetailsSheet(props: {
   const t = useTranslations("Scanner");
   const tCond = useTranslations("Condition");
   const { item } = props;
-  const alternatives = item.candidates.filter(
-    (c) => c.cardId !== item.match?.cardId
+  // Jämför på TRYCKNINGEN, inte bara kortet: de tre Base-produkterna delar
+  // cardId, så ett `cardId !==`-filter hade slängt ut precis de alternativ
+  // användaren behöver ("min är 1st Edition, inte Unlimited").
+  const alternatives = item.candidates.filter((c) =>
+    item.match ? c.productId !== item.match.productId || c.cardId !== item.match.cardId : true
   );
 
   return (
@@ -1563,6 +1574,9 @@ function ScanDetailsSheet(props: {
                 <p className="truncate text-lg font-semibold text-ink">{item.match.name}</p>
                 <p className="truncate text-sm text-ink-muted">
                   {item.match.setName} · #{item.match.number}
+                  {/* Tryckningen är en del av identiteten, inte en detalj: en
+                      1st Edition Base Charizard är värd tiofalt en Unlimited. */}
+                  {item.match.variantLabel ? ` · ${item.match.variantLabel}` : ""}
                 </p>
               </div>
               <p className="shrink-0 text-lg font-semibold tabular-nums text-holo-cyan">
@@ -1584,9 +1598,12 @@ function ScanDetailsSheet(props: {
               {item.match ? t("notRight") : t("possibleMatches")}
             </p>
             <div className="flex flex-col gap-1.5">
-              {alternatives.slice(0, 5).map((c) => (
+              {alternatives.map((c) => (
                 <button
-                  key={c.cardId}
+                  // Nyckeln måste bära TRYCKNINGEN: tre Base-produkter delar
+                  // cardId, så cardId ensamt gav dubblettnycklar och React
+                  // återanvände fel rad.
+                  key={c.productId ?? c.cardId}
                   type="button"
                   onClick={() => props.onChoose(c)}
                   className="flex items-center gap-3 rounded-xl border border-surface-border p-2 text-left transition-colors hover:border-holo-cyan/50 hover:bg-surface-overlay focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
@@ -1600,7 +1617,16 @@ function ScanDetailsSheet(props: {
                     </span>
                   )}
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-ink">{c.name}</span>
+                    <span className="flex items-baseline gap-1.5">
+                      <span className="truncate text-sm font-medium text-ink">{c.name}</span>
+                      {/* Utan etiketten ser de tre Base-tryckningarna identiska ut
+                          i listan — samma namn, samma set, samma nummer. */}
+                      {c.variantLabel && (
+                        <span className="shrink-0 rounded bg-surface-overlay px-1.5 py-px text-[10px] font-medium text-holo-cyan ring-1 ring-holo-cyan/25">
+                          {c.variantLabel}
+                        </span>
+                      )}
+                    </span>
                     <span className="block truncate text-xs text-ink-faint">
                       {c.setName} · #{c.number}
                     </span>

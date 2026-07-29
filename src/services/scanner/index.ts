@@ -12,7 +12,7 @@ import { FINGERPRINT_BYTES } from "@/lib/art-fingerprint";
 import { cardNumberSortKey } from "@/lib/card-number-order";
 import { scoreSimilarity } from "@/scrapers/matching";
 import { searchByFingerprint } from "@/services/scanner/art-index";
-import { getCardValues } from "@/services/products";
+import { getCardValues, getProductValues } from "@/services/products";
 import { ClaudeVisionOcrAdapter } from "@/services/scanner/claude-vision";
 import { MockOcrAdapter } from "@/services/scanner/ocr-mock";
 import type { OcrAdapter, OcrResult, ScanCandidate } from "@/services/scanner/types";
@@ -20,8 +20,14 @@ import type { OcrAdapter, OcrResult, ScanCandidate } from "@/services/scanner/ty
 /** Markör för bilder som laddats upp inline (MVP, ingen objektlagring). */
 const INLINE_UPLOAD = "inline-upload";
 
-/** Max antal kandidater som returneras. */
-const MAX_CANDIDATES = 5;
+/** Max antal kandidater som returneras.
+ *  Höjt från 5 (2026-07-29): listan bär nu både TRYCKNINGAR (ett Base-kort ger
+ *  tre rader) och namn-syskon (nio Falinks i katalogen). Med 5 platser trängdes
+ *  just de alternativ användaren behöver ut av orelaterade kort. */
+const MAX_CANDIDATES = 12;
+
+/** Hur många namn-syskon som hämtas in utöver de poängsatta kandidaterna. */
+const SIBLING_LIMIT = 12;
 
 /** Månadsgräns för sparade skanningar per plan (skyddar mot AI-missbruk + kostnad).
  *  Per-scan vision-anrop är enda rörliga kostnaden; månadstak (inte dygnstak) är det
@@ -358,13 +364,15 @@ export async function matchCards(
       rarity: card.rarity,
       imageUrl: card.imageUrl,
       score: Math.round(score * 1000) / 1000,
+      productId: null,
+      variantLabel: null,
       slug: null,
       estimatedValue: null,
     };
     return { candidate, released: card.set.releaseDate?.getTime() ?? 0 };
   });
 
-  const top = scored
+  const ranked = scored
     .filter((c) => c.candidate.score > 0)
     .sort(
       (a, b) =>
@@ -374,29 +382,163 @@ export async function matchCards(
         // och framför allt stabilt, till skillnad från DB-ordningen det var förut.
         b.released - a.released ||
         a.candidate.cardId.localeCompare(b.candidate.cardId)
-    )
-    .slice(0, MAX_CANDIDATES)
-    .map((c) => c.candidate);
+    );
+  if (ranked.length === 0) return [];
 
-  // Bifoga aktuellt marknadsvärde (Cardmarket-trend) + produkt-slug (djuplänk)
-  // för de visade kandidaterna.
-  const cardIds = top.map((c) => c.cardId);
-  const [values, products] = await Promise.all([
-    getCardValues(cardIds),
-    prisma.product.findMany({
-      where: { cardId: { in: cardIds } },
-      select: { cardId: true, slug: true },
-    }),
+  // VINNAREN avgörs av poängen ENSAM, före all syskonsortering nedan. Annars
+  // skulle "lyft syskon" kunna byta ut själva träffen, och då rankar man om
+  // svaret i stället för alternativen.
+  const winner = ranked[0].candidate;
+  const winnerName = winner.name.toLowerCase();
+
+  // SYSKON FÖRST I "VÄLJ ETT ANNAT" (2026-07-29). Bildmatchningen kan per
+  // definition inte skilja tryckningar med identisk konst, och 92 % av korten
+  // delar namn med ett annat kort — så när träffen är fel är det RÄTT KORT som
+  // nästan alltid är ett syskon: en annan tryckning av samma kort, eller samma
+  // Pokémon i ett annat set. Mätt fall: en Falinks ur Astral Radiance Trainer
+  // Gallery (TG07) matchades som Falinks #88 ur Stellar Crown, medan katalogens
+  // åtta andra Falinks trängdes ut av en Pawmot. Listan sorteras därför i skikt,
+  // inte på poäng: rätt kort ska ligga ett tryck bort, inte sjunka under brus
+  // som råkar poängsätta högre.
+  const sameNameCards = await prisma.card.findMany({
+    where: {
+      name: { equals: winner.name, mode: "insensitive" },
+      id: { notIn: ranked.slice(0, MAX_CANDIDATES).map((r) => r.candidate.cardId) },
+    },
+    select: {
+      id: true,
+      name: true,
+      number: true,
+      rarity: true,
+      imageUrl: true,
+      set: { select: { name: true, releaseDate: true } },
+    },
+    orderBy: { id: "asc" },
+    take: SIBLING_LIMIT,
+  });
+
+  const merged = [
+    ...ranked.slice(0, MAX_CANDIDATES),
+    ...sameNameCards.map((card) => ({
+      candidate: {
+        cardId: card.id,
+        name: card.name,
+        setName: card.set.name,
+        number: card.number,
+        rarity: card.rarity,
+        imageUrl: card.imageUrl,
+        // Poäng 0 = "kom hit som syskon, inte för att den matchade". Skikt-
+        // sorteringen nedan bär ordningen, så en påhittad poäng skulle bara
+        // se ut som bevis den inte har.
+        score: 0,
+        productId: null,
+        variantLabel: null,
+        slug: null,
+        estimatedValue: null,
+      } satisfies ScanCandidate as ScanCandidate,
+      released: card.set.releaseDate?.getTime() ?? 0,
+    })),
+  ];
+
+  // TRYCKNINGARNA som egna kandidater. Ett Base-kort är ETT Card med TRE
+  // produkter, så utan detta kan skannern inte ens erbjuda valet — den tar
+  // billigaste produkten och en 1st Edition hamnar tyst i samlingen som
+  // Unlimited.
+  const withPrintings = await expandPrintings(merged.map((m) => m.candidate));
+
+  // Skikt: vinnaren, sedan andra TRYCKNINGAR av samma kort, sedan samma NAMN i
+  // andra set, sist övrigt. Inom varje skikt gäller poäng och sedan setets ålder.
+  const tierOf = (c: ScanCandidate): number => {
+    if (c.cardId === winner.cardId && c.productId === winner.productId) return 0;
+    if (c.cardId === winner.cardId) return 1;
+    if (c.name.toLowerCase() === winnerName) return 2;
+    return 3;
+  };
+  const releasedOf = new Map(merged.map((m) => [m.candidate.cardId, m.released]));
+
+  const top = withPrintings
+    .sort(
+      (a, b) =>
+        tierOf(a) - tierOf(b) ||
+        b.score - a.score ||
+        (releasedOf.get(b.cardId) ?? 0) - (releasedOf.get(a.cardId) ?? 0) ||
+        (a.variantLabel ?? "").localeCompare(b.variantLabel ?? "") ||
+        a.cardId.localeCompare(b.cardId)
+    )
+    .slice(0, MAX_CANDIDATES);
+
+  // Värde + djuplänk. Kandidater som pekar på en SPECIFIK tryckning värderas på
+  // sin egen produkt — annars hade alla tre Base-tryckningarna visat samma pris
+  // (den billigaste), vilket är hela felet valet finns för att rätta.
+  const productIds = top.flatMap((c) => (c.productId ? [c.productId] : []));
+  const cardOnlyIds = top.filter((c) => !c.productId).map((c) => c.cardId);
+  const [productValues, cardValues, fallbackProducts] = await Promise.all([
+    getProductValues(productIds),
+    getCardValues(cardOnlyIds),
+    cardOnlyIds.length
+      ? prisma.product.findMany({
+          where: { cardId: { in: cardOnlyIds } },
+          select: { cardId: true, slug: true },
+        })
+      : Promise.resolve([]),
   ]);
   const slugByCard = new Map(
-    products.flatMap((p) => (p.cardId ? [[p.cardId, p.slug] as const] : []))
+    fallbackProducts.flatMap((p) => (p.cardId ? [[p.cardId, p.slug] as const] : []))
   );
   for (const c of top) {
-    c.estimatedValue = values.get(c.cardId) ?? null;
-    c.slug = slugByCard.get(c.cardId) ?? null;
+    if (c.productId) {
+      c.estimatedValue = productValues.get(c.productId) ?? null;
+    } else {
+      c.estimatedValue = cardValues.get(c.cardId) ?? null;
+      c.slug = slugByCard.get(c.cardId) ?? null;
+    }
   }
 
   return top;
+}
+
+/**
+ * Delar upp kandidater som har flera TRYCKNINGAR i en kandidat per tryckning.
+ *
+ * Kort utan variantmärkta produkter lämnas orörda (en kandidat, som förut). För
+ * de 157 kort som HAR dem blir det en rad per tryckning, med produktens egen
+ * slug och etikett — det är den enda vägen för användaren att säga "min är
+ * 1st Edition", eftersom ingen bild och ingen text på kortet skiljer dem åt i
+ * katalogen.
+ */
+async function expandPrintings(candidates: ScanCandidate[]): Promise<ScanCandidate[]> {
+  const cardIds = candidates.map((c) => c.cardId);
+  if (cardIds.length === 0) return candidates;
+  const variants = await prisma.product.findMany({
+    where: { cardId: { in: cardIds }, variantLabel: { not: null } },
+    select: { id: true, cardId: true, slug: true, variantLabel: true },
+    orderBy: { id: "asc" },
+  });
+  if (variants.length === 0) return candidates;
+
+  const byCard = new Map<string, typeof variants>();
+  for (const v of variants) {
+    if (!v.cardId) continue;
+    const list = byCard.get(v.cardId);
+    if (list) list.push(v);
+    else byCard.set(v.cardId, [v]);
+  }
+
+  return candidates.flatMap((c) => {
+    const printings = byCard.get(c.cardId);
+    if (!printings || printings.length === 0) return [c];
+    return printings.map((p) => ({
+      ...c,
+      productId: p.id,
+      variantLabel: p.variantLabel,
+      slug: p.slug,
+      // Unlimited är standardvalet: den vanligaste tryckningen och den
+      // billigaste, alltså det minst överraskande svaret när ingenting i bilden
+      // säger vilken det är. Samma konvention som Tradera-matchningen
+      // ("en annons som inte SÄGER 1st edition/shadowless är Unlimited").
+      score: /unlimited/i.test(p.variantLabel ?? "") ? c.score : Math.max(0, c.score - 0.001),
+    }));
+  });
 }
 
 export interface ScanResult {
