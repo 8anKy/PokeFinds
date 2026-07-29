@@ -601,6 +601,7 @@
     "yourImage": "Your image",
     "yourMatch": "Your match",
     "conditionMeta": "Condition {condition} · raw (ungraded) · Market trend (Cardmarket)",
+    "uncertainMatch": "Several cards look almost identical to the scanner — check that this is your card, or pick another below.",
     "notRight": "Not right? Choose another",
     "possibleMatches": "Possible matches",
     "showProduct": "View product & price history",

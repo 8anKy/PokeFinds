@@ -89,6 +89,9 @@ interface ScanItem {
   match: Candidate | null;
   candidates: Candidate[];
   confidence: number;
+  /** Flera OLIKA kort låg praktiskt taget lika — träffen är en GISSNING.
+   *  Visas ändå (en gissning är mer användbar än "ingen träff"), men märkt. */
+  uncertain: boolean;
   quantity: number;
   condition: string;
   language: string;
@@ -451,16 +454,19 @@ function Scanner() {
           if (s.id !== id) return s;
           if ("error" in data) return { ...s, status: "error", errorMessage: data.error };
           const top = data.candidates[0];
-          // Oavgjort mellan olika KORT = ingen träff att påstå. Visa listan i
-          // stället för att självsäkert välja ett av flera likvärdiga kort
-          // (mätt: tre Gyarados-skanningar gav tre självsäkra fel svar).
-          if (top && data.confidence >= MIN_MATCH_CONF && !data.ambiguous) {
+          // Oavgjort mellan olika KORT betyder INTE "ingen träff" — förslaget är
+          // fortfarande det bästa vi har och mer användbart än ingenting. Det
+          // MÄRKS i stället (uncertain), så användaren vet att den ska kollas.
+          // (Första versionen gjorde tvärtom och de flesta kort blev "ingen
+          // träff", vilket är sämre än en märkt gissning.)
+          if (top && data.confidence >= MIN_MATCH_CONF) {
             return {
               ...s,
               status: "matched",
               match: top,
               candidates: data.candidates,
               confidence: data.confidence,
+              uncertain: data.ambiguous,
             };
           }
           return { ...s, status: "nomatch", candidates: data.candidates };
@@ -673,6 +679,7 @@ function Scanner() {
           match: null,
           candidates: [],
           confidence: 0,
+          uncertain: false,
           quantity: 1,
           condition: defaultCondition,
           language: defaultLanguage,
@@ -763,7 +770,8 @@ function Scanner() {
   const chooseCandidate = useCallback((id: string, cand: Candidate) => {
     setScans((prev) =>
       prev.map((s) =>
-        s.id === id ? { ...s, status: "matched", match: cand } : s
+        // Användaren valde själv ur listan → inte längre en gissning.
+        s.id === id ? { ...s, status: "matched", match: cand, uncertain: false } : s
       )
     );
     setDetailsId(null);
@@ -1280,8 +1288,20 @@ function ScanStrip({
                 <span className="block text-xs text-ink-muted">{t("identifying")}</span>
               ) : s.status === "matched" && s.match ? (
                 <>
-                  <span className="block truncate text-xs font-medium text-ink">
-                    {s.match.name}
+                  <span className="flex items-center gap-1">
+                    <span className="min-w-0 truncate text-xs font-medium text-ink">
+                      {s.match.name}
+                    </span>
+                    {/* En gissning ska SE ut som en gissning. Utan märket lades
+                        ett likvärdigt-men-fel kort till som om det var säkert. */}
+                    {s.uncertain && (
+                      <span
+                        aria-hidden="true"
+                        className="shrink-0 rounded bg-holo-gold/15 px-1 text-[10px] font-bold leading-tight text-holo-gold ring-1 ring-holo-gold/40"
+                      >
+                        ?
+                      </span>
+                    )}
                   </span>
                   <span className="block truncate text-[11px] text-ink-faint">
                     #{s.match.number}
@@ -1669,6 +1689,15 @@ function ScanDetailsSheet(props: {
         )}
 
         {/* Alternativ */}
+        {/* Varför gissningen är en gissning — sagt rakt ut, inte antytt. Flera
+            OLIKA kort låg praktiskt taget lika, så listan nedan är inte
+            "alternativ om jag har fel" utan "kort som var precis lika troliga". */}
+        {item.uncertain && item.match && (
+          <p className="rounded-xl bg-holo-gold/10 px-3 py-2 text-xs leading-relaxed text-holo-gold ring-1 ring-holo-gold/25">
+            {t("uncertainMatch")}
+          </p>
+        )}
+
         {alternatives.length > 0 && (
           <div>
             <p className="mb-2 text-xs font-medium text-ink-muted">
