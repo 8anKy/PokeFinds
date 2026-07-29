@@ -409,11 +409,11 @@ export default async function ProductsPage({
 
   const justDropped = recentSets.length > 0 && (
     <section>
-      <div className="mb-3 flex items-end justify-between">
+      {/* "Visa alla" borttagen 2026-07-29 (ägarbeslut): raden ligger längst ned i
+          utforska-feeden, och en länk vidare till /sets därifrån bara delade
+          uppmärksamheten. Rälsen i sig går fortfarande till respektive set. */}
+      <div className="mb-3">
         <h2 className="font-display text-xl font-bold text-ink">{t("justDropped")}</h2>
-        <Link href="/sets" className="text-xs font-semibold text-holo-cyan hover:underline">
-          {t("showAll")}
-        </Link>
       </div>
       <div className="-mx-2.5 flex gap-3 overflow-x-auto px-2.5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {recentSets.map((s) => (

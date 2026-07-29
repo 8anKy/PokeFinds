@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
+import { countQuery, type CountSelection } from "@/lib/explore-count-query";
 import { SearchAutocomplete } from "@/components/features/search-autocomplete";
 import { SafeImage } from "@/components/ui/safe-image";
 import { IconCards, IconCheck, IconFilter, IconSearch, IconX } from "@/components/ui/icons";
@@ -67,6 +68,51 @@ const PRICE_SHORTCUTS: [number, MaxKr][] = [
 ];
 
 type SheetKind = "sort" | "set" | "price" | "more";
+
+/** Urval som ska räknas — URL-statet med de val man håller på att göra inbakade. */
+type PendingSelection = ExploreSearchParams & CountSelection;
+
+/**
+ * Antalet träffar för det man håller på att välja, INNAN man tryckt på knappen.
+ * Knappen visade förut antalet för de redan applicerade filtren, så man kryssade i
+ * "Elite Trainer Box" och fick ändå läsa "22 233 produkter" — man valde i blindo.
+ *
+ * FÖRDRÖJT MED FLIT (`DEBOUNCE_MS`): ett drag i prisreglaget ändrar värdet dussintals
+ * gånger, och en COUNT per pixel mot Neon är precis den kostnaden vi undvek när
+ * filtret byggdes. Nu blir ett drag ETT anrop när handen stannar. Föregående anrop
+ * avbryts (AbortController) så ett långsamt svar aldrig skriver över ett nyare.
+ * Faller tillbaka på serverns applicerade `total` tills första svaret kommit.
+ */
+const COUNT_DEBOUNCE_MS = 280;
+
+function usePendingCount(open: boolean, selection: PendingSelection, fallback: number): number {
+  const [count, setCount] = useState<number | null>(null);
+  const query = countQuery(selection);
+
+  useEffect(() => {
+    if (!open) {
+      setCount(null);
+      return;
+    }
+    const ctrl = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/products/count?${query}`, { signal: ctrl.signal });
+        if (!res.ok) return;
+        const data = (await res.json()) as { count?: number };
+        if (typeof data.count === "number") setCount(data.count);
+      } catch {
+        // Avbrutet eller nätverksfel → behåll siffran vi redan visar.
+      }
+    }, COUNT_DEBOUNCE_MS);
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
+  }, [open, query]);
+
+  return count ?? fallback;
+}
 
 function krLabel(kr: number): string {
   return `${kr.toLocaleString("sv-SE")} kr`;
@@ -288,6 +334,7 @@ export function ExploreFilterBar({
 
       <PriceSheet
         open={sheet === "price"}
+        searchParams={searchParams}
         minKr={minKr}
         maxKr={maxKr}
         total={total}
@@ -624,6 +671,7 @@ function SetSheet({
 
 function PriceSheet({
   open,
+  searchParams,
   minKr,
   maxKr,
   total,
@@ -631,6 +679,7 @@ function PriceSheet({
   onApply,
 }: {
   open: boolean;
+  searchParams: ExploreSearchParams;
   minKr: number;
   maxKr: MaxKr;
   total: number;
@@ -649,13 +698,17 @@ function PriceSheet({
     }
   }, [open, minKr, maxKr]);
 
+  // Antalet för intervallet man håller på att ställa in — uppdateras när handen
+  // stannar, inte per pixel (se usePendingCount).
+  const pendingCount = usePendingCount(open, { ...searchParams, minKr: min, maxKr: max }, total);
+
   return (
     <Sheet
       open={open}
       title={t("priceRange")}
       onClose={onClose}
       onClear={min > 0 || max !== null ? () => onApply(0, null) : undefined}
-      cta={t("resultCount", { count: total })}
+      cta={t("resultCount", { count: pendingCount })}
       onCta={() => onApply(min, max)}
     >
       <div className="pb-2">
@@ -830,6 +883,13 @@ function MoreSheet({
   /** Tom lista = "alla" → parametern utelämnas helt ur URL:en. */
   const join = (list: string[]) => (list.length > 0 ? list.join(",") : undefined);
 
+  // Knappen räknar det man PRECIS kryssat i, inte det som redan är applicerat.
+  const pendingCount = usePendingCount(
+    open,
+    { ...searchParams, kategori: join(kategori), butik: join(butik), sprak: join(sprak) },
+    total
+  );
+
   return (
     <Sheet
       open={open}
@@ -840,7 +900,7 @@ function MoreSheet({
           ? () => onApply({ kategori: undefined, butik: undefined, sprak: undefined })
           : undefined
       }
-      cta={t("resultCount", { count: total })}
+      cta={t("resultCount", { count: pendingCount })}
       onCta={() =>
         onApply({ kategori: join(kategori), butik: join(butik), sprak: join(sprak) })
       }

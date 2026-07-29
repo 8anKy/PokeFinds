@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { CardLanguage, ProductCategory, StockStatus } from "@prisma/client";
 import { ProductCard } from "@/components/features/product-card";
 
@@ -49,6 +50,7 @@ export function ExploreFeed({
   feedQuery: string;
   pageSize: number;
 }) {
+  const t = useTranslations("Products");
   const [items, setItems] = useState<FeedItem[]>(initialItems);
   const [offset, setOffset] = useState(initialItems.length);
   const [hasMore, setHasMore] = useState(initialHasMore);
@@ -124,7 +126,7 @@ export function ExploreFeed({
         {loading && (
           <span className="inline-flex items-center gap-2 text-sm text-ink-muted">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-surface-border border-t-holo-cyan" />
-            Laddar fler produkter…
+            {t("loadingMore")}
           </span>
         )}
         {error && (
@@ -133,13 +135,13 @@ export function ExploreFeed({
             onClick={() => { setHasMore(true); void loadMore(); }}
             className="rounded-lg border border-surface-border px-4 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
           >
-            Något gick fel. Försök igen
+            {t("loadFailed")}
           </button>
         )}
         {!hasMore && !loading && !error && items.length > 0 && (
           <span className="flex flex-col items-center gap-2.5 text-sm text-ink-faint">
             <span aria-hidden className="foil-line w-10 opacity-70" />
-            Du har sett alla {items.length} produkter
+            {t("seenAll", { count: items.length })}
           </span>
         )}
       </div>

@@ -459,6 +459,27 @@ const FEED_INCLUDE = {
   _count: { select: { watchlistItems: true } },
 } as const;
 
+/**
+ * buildProductWhere + prisfiltret (som ligger på den denormaliserade `lowestPriceOre`).
+ * Delas av feeden och av antalsräkningen bakom filterknappen — visar de två olika
+ * villkor säger knappen ett annat antal än feeden sedan levererar.
+ */
+async function whereForParams(
+  params: SearchProductsParams,
+  query = params.query
+): Promise<Prisma.ProductWhereInput> {
+  const w = await buildProductWhere({ ...params, query });
+  const { minPrice, maxPrice } = params;
+  if (minPrice !== undefined || maxPrice !== undefined) {
+    w.lowestPriceOre = {
+      not: null,
+      ...(minPrice !== undefined ? { gte: minPrice } : {}),
+      ...(maxPrice !== undefined ? { lte: maxPrice } : {}),
+    };
+  }
+  return w;
+}
+
 /** Rad ur feed-frågan — allt rankningen behöver finns här, inget extra anrop. */
 type FeedRow = Prisma.ProductGetPayload<{ include: typeof FEED_INCLUDE }>;
 
@@ -588,17 +609,7 @@ async function getExploreFeedRaw(
   const { minPrice, maxPrice } = params;
   if (sort === "deals") return getDealsRaw(offset, limit);
 
-  const buildWhere = async (query?: string) => {
-    const w = await buildProductWhere({ ...params, query });
-    if (minPrice !== undefined || maxPrice !== undefined) {
-      w.lowestPriceOre = {
-        not: null,
-        ...(minPrice !== undefined ? { gte: minPrice } : {}),
-        ...(maxPrice !== undefined ? { lte: maxPrice } : {}),
-      };
-    }
-    return w;
-  };
+  const buildWhere = (query?: string) => whereForParams(params, query);
 
   let where = await buildWhere(params.query);
   // Räknas här bara om vi ändå måste veta om sökningen gav noll (fuzzy-reserven);
@@ -1590,6 +1601,31 @@ export async function getCardValues(
 
 // ponytail: publika läsfrågor cachas (datan uppdateras ~en gång/dygn av jobben).
 // Sänker Neon network transfer — upprepade sidvisningar/crawls träffar cachen, inte DB:n.
+/**
+ * Antal träffar för ETT filterurval — driver "Visa N produkter"-knappen i mobilens
+ * filter-sheets INNAN man tryckt på den (förut stod det kvar antalet för de redan
+ * APPLICERADE filtren, så man fick välja i blindo).
+ *
+ * Samma villkor som feeden, inklusive fuzzy-reserven: hade knappen sagt "0 produkter"
+ * och feeden sedan visat felstavningsträffarna vore siffran en lögn.
+ *
+ * KOSTNAD: en COUNT per urval. Klienten fördröjer anropet (så ett reglagedrag ger ETT
+ * anrop, inte ett per pixel) och cachen nedan gör upprepade urval gratis — annars vore
+ * det här precis den Neon-post vi medvetet undvek när filtret byggdes.
+ */
+async function countProductsRaw(params: SearchProductsParams): Promise<number> {
+  const where = await whereForParams(params);
+  const exact = await prisma.product.count({ where });
+  if (exact > 0 || !params.query) return exact;
+  const ids = await fuzzyIds(params.query);
+  if (ids.length === 0) return 0;
+  return prisma.product.count({
+    where: { AND: [await whereForParams(params, undefined), { id: { in: ids } }] },
+  });
+}
+
+export const countProducts = cachedRead(countProductsRaw, "countProducts", 300);
+
 const cachedExploreFeed = cachedRead(getExploreFeedRaw, "getExploreFeed");
 const cachedSearchProducts = cachedRead(searchProductsRaw, "searchProducts");
 
