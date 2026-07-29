@@ -21,6 +21,7 @@ import {
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
+import { useIsAdmin } from "@/components/admin-only";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Label, Select } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
@@ -157,7 +158,7 @@ function captureFrame(
   video: HTMLVideoElement,
   canvas: HTMLCanvasElement,
   frameEl?: HTMLElement | null
-): string | null {
+): { dataUrl: string; crop: string } | null {
   if (video.readyState < 2 || !video.videoWidth) return null;
   const vW = video.videoWidth;
   const vH = video.videoHeight;
@@ -197,7 +198,13 @@ function captureFrame(
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
   ctx.drawImage(video, sx, sy, sw, sh, 0, 0, w, h);
-  return canvas.toDataURL("image/jpeg", 0.85);
+  return {
+    dataUrl: canvas.toDataURL("image/jpeg", 0.85),
+    // Utsnitt i KÄLLpixlar → skickad storlek. Står källan under den skickade
+    // storleken skalar vi UPP, dvs modellen får interpolerade pixlar och ingen
+    // ny information — då är kameran flaskhalsen, inte modellen.
+    crop: `${Math.round(sw)}×${Math.round(sh)}→${w}×${h}`,
+  };
 }
 
 // Klient-gate: utloggad → redirecta till login I APPEN (router.replace = SPA-nav,
@@ -227,6 +234,13 @@ function Scanner() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Kortramen i kameravyn — captureFrame mäter den för att beskära utsnittet.
   const frameRef = useRef<HTMLDivElement>(null);
+  // DIAGNOSTIK (bara admin, se ScanDebug): kamerans verkliga upplösning, senaste
+  // utsnitt och vad modellen faktiskt svarade. Utan det här är "skannern gissar
+  // fel" ett påstående ingen kan felsöka — vi ser varken vad kameran gav oss
+  // eller vad modellen läste, så varje åtgärd blir en gissning.
+  const [streamInfo, setStreamInfo] = useState<string | null>(null);
+  const [cropInfo, setCropInfo] = useState<string | null>(null);
+  const [ocrInfo, setOcrInfo] = useState<string | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
@@ -299,6 +313,12 @@ function Scanner() {
           return { error: data.error ?? t("genericError") };
         }
         setProvider(data.provider);
+        // Rådata från modellen, INTE den matchade kandidaten: det är skillnaden
+        // mellan "modellen läste fel" och "modellen läste rätt men slagningen
+        // valde fel kort", och de två har helt olika åtgärder.
+        setOcrInfo(
+          `${data.provider} · "${data.guessedName ?? ""}" / "${data.guessedNumber ?? ""}" · konf ${data.confidence.toFixed(2)}`
+        );
         return data;
       } catch {
         return { error: t("genericError") };
@@ -351,8 +371,21 @@ function Scanner() {
     setCameraState("starting");
     setCameraError("");
     try {
+      // UPPLÖSNINGEN MÅSTE BEGÄRAS. Utan width/height väljer webbläsaren själv,
+      // och standarden är typiskt 640×480. Räkna på vad det betyder: videon
+      // visas `object-cover` i en portrait-vy, kortramen tar ~44 % av höjden →
+      // kortet får ~0,44 × 480 = 211 källpixlar på höjden, och samlarnumret
+      // (~2 mm på ett 88 mm kort) blir ~5 px högt. Ingen modell läser det, och
+      // beskärningen kan inte rädda det — den skalar UPP en bild som aldrig
+      // innehöll detaljen. Vid 2160p blir samma siffra ~22 px.
+      // `ideal` (inte `exact`) → enheter som inte klarar 4K faller tillbaka
+      // själva i stället för att kastas ut med OverconstrainedError.
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 3840 },
+          height: { ideal: 2160 },
+        },
         audio: false,
       });
       streamRef.current = stream;
@@ -361,6 +394,11 @@ function Scanner() {
         video.srcObject = stream;
         await video.play().catch(() => undefined);
       }
+      // Vad vi FAKTISKT fick — begäran är ett önskemål, inte ett löfte.
+      const settings = stream.getVideoTracks()[0]?.getSettings();
+      setStreamInfo(
+        settings?.width && settings?.height ? `${settings.width}×${settings.height}` : "okänd"
+      );
       setCameraState("live");
     } catch (err) {
       const name = err instanceof DOMException ? err.name : "";
@@ -531,8 +569,10 @@ function Scanner() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || cameraState !== "live" || shutterCooling) return;
-    const dataUrl = captureFrame(video, canvas, frameRef.current);
-    if (!dataUrl) return;
+    const shot = captureFrame(video, canvas, frameRef.current);
+    if (!shot) return;
+    const { dataUrl, crop } = shot;
+    setCropInfo(crop);
     setFlash(true);
     window.setTimeout(() => setFlash(false), 180);
     setShutterCooling(true);
@@ -663,6 +703,9 @@ function Scanner() {
           videoRef={videoRef}
           canvasRef={canvasRef}
           frameRef={frameRef}
+          streamInfo={streamInfo}
+          cropInfo={cropInfo}
+          ocrInfo={ocrInfo}
           cameraState={cameraState}
           cameraError={cameraError}
           flash={flash}
@@ -792,6 +835,10 @@ function CaptureView(props: {
   canvasRef: RefObject<HTMLCanvasElement>;
   /** Kortramen — captureFrame mäter den för att beskära utsnittet till kortet. */
   frameRef: RefObject<HTMLDivElement>;
+  /** Diagnostik, visas bara för admin. Se ScanDebug. */
+  streamInfo: string | null;
+  cropInfo: string | null;
+  ocrInfo: string | null;
   cameraState: CameraState;
   cameraError: string;
   flash: boolean;
@@ -913,6 +960,8 @@ function CaptureView(props: {
           </p>
         )}
 
+        <ScanDebug stream={props.streamInfo} crop={props.cropInfo} ocr={props.ocrInfo} />
+
         {scans.length > 0 && <ScanStrip scans={scans} total={total} onOpen={props.onOpenDetails} />}
 
         {scans.length === 0 && cameraState === "live" && (
@@ -991,6 +1040,47 @@ function CaptureView(props: {
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * ADMIN-ONLY diagnostikrad i kameravyn.
+ *
+ * Skannern var en svart låda: `/api/scanner/identify` sparar ingen OCR-utdata
+ * (bara en kvot-rad), bilden persisteras aldrig, och kamerans upplästa
+ * upplösning kollades aldrig. "Den gissar fel kort" gick alltså inte att
+ * felsöka — tre helt olika orsaker (mock-adaptern, en 640×480-ström, modellen
+ * som faktiskt läser fel) ger exakt samma symtom, och var och en har en egen
+ * åtgärd. Raden visar de tre måtten som skiljer dem åt:
+ *
+ *   ström 640×480 · utsnitt 151×211→914×1280 · claude · "Gardevoir" / "" · konf 0,35
+ *           │                │                    │          │        │
+ *           │                │                    │          │        └ modellens säkerhet
+ *           │                │                    │          └ tomt nummer = kunde inte läsa det
+ *           │                │                    └ "mock" här = vi anropar inte modellen alls
+ *           │                └ källa < skickad storlek = uppskalning, kameran är flaskhalsen
+ *           └ det kameran FAKTISKT gav oss, inte det vi bad om
+ *
+ * Text på svenska men avsiktligt teknisk och kompakt — det här är driftdata,
+ * inte produktcopy, och den ska aldrig nå en vanlig användare.
+ */
+function ScanDebug({
+  stream,
+  crop,
+  ocr,
+}: {
+  stream: string | null;
+  crop: string | null;
+  ocr: string | null;
+}) {
+  const isAdmin = useIsAdmin();
+  if (!isAdmin || (!stream && !crop && !ocr)) return null;
+  return (
+    <p className="mx-auto max-w-full rounded-lg bg-black/80 px-2.5 py-1 text-center font-mono text-[10px] leading-relaxed text-holo-cyan ring-1 ring-holo-cyan/25 backdrop-blur">
+      {[stream && `ström ${stream}`, crop && `utsnitt ${crop}`, ocr]
+        .filter(Boolean)
+        .join(" · ")}
+    </p>
   );
 }
 
