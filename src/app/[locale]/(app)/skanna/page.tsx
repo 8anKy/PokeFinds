@@ -291,6 +291,31 @@ function captureFrame(
     fingerprints.push(toB64(fp));
     structFingerprints.push(toB64(sfp));
   }
+  // OUTSET-SVEP — spegelbilden av inset-svepet (mätt fall 2026-07-30): när
+  // kortet är STÖRRE än ramen är utsnittet en DEL av kortet, och referenserna
+  // är hela kort — då kan ingen deskriptor matcha, och inseten beskär bara
+  // ännu längre IN. Två UTVIDGADE regioner (ram × 1,2 / 1,45, klamrade mot
+  // videokanten) täcker överflödesfallet; servern tar ändå bästa varianten
+  // per kort. 4 inset + 2 outset = 6 ≤ API-taket 8 per ruta.
+  for (const grow of [0.2, 0.45]) {
+    const ox = Math.max(0, fx - (fw * grow) / 2);
+    const oy = Math.max(0, fy - (fh * grow) / 2);
+    const ow = Math.min(vW - ox, fw * (1 + grow));
+    const oh = Math.min(vH - oy, fh * (1 + grow));
+    if (ow <= fw || oh <= fh) continue; // ramen täcker redan videon — inget att utvidga
+    const oScale = Math.min(1, FINGERPRINT_SOURCE_MAX / Math.max(ow, oh));
+    const oW = Math.max(1, Math.round(ow * oScale));
+    const oH = Math.max(1, Math.round(oh * oScale));
+    canvas.width = oW;
+    canvas.height = oH;
+    ctx.drawImage(video, ox, oy, ow, oh, 0, 0, oW, oH);
+    const oPixels = ctx.getImageData(0, 0, oW, oH).data;
+    const fp = fingerprintFromRgb(oPixels, oW, oH, 4);
+    const sfp = structFingerprintFromRgb(oPixels, oW, oH, 4);
+    if (!fp || !sfp) continue;
+    fingerprints.push(toB64(fp));
+    structFingerprints.push(toB64(sfp));
+  }
 
   // Bilden till modellen: MED marginal, så ett snett kort inte tappar numret.
   const scale = Math.min(1, CAPTURE_MAX / Math.max(sw, sh));

@@ -148,12 +148,14 @@ export async function POST(req: Request) {
               fingerprintFrames ?? (fingerprints?.length ? [fingerprints] : [])
             )
               .slice(0, 4)
-              .map((f) => f.slice(0, 4)),
+              // 6 = inset-svepet (4) + outset-svepet (2) — replayen ska kunna
+              // återge även överflödesfallet (kort större än ramen).
+              .map((f) => f.slice(0, 6)),
             structFrames: (
               structFrames ?? (structFingerprints?.length ? [structFingerprints] : [])
             )
               .slice(0, 4)
-              .map((f) => f.slice(0, 4)),
+              .map((f) => f.slice(0, 6)),
           }
         : undefined
     );
