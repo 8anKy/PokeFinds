@@ -193,7 +193,10 @@ const CAPTURE_FRAMES = 3;
 function captureFrame(
   video: HTMLVideoElement,
   canvas: HTMLCanvasElement,
-  frameEl?: HTMLElement | null
+  frameEl?: HTMLElement | null,
+  /** Live-pollen behöver BARA avtrycken — JPEG-kodningen (toDataURL ×2, det
+   *  dyra steget, ~30–60 ms) hoppas över helt. dataUrl blir då "". */
+  fpOnly = false
 ): {
   dataUrl: string;
   fingerprints: string[];
@@ -317,6 +320,10 @@ function captureFrame(
     structFingerprints.push(toB64(sfp));
   }
 
+  if (fpOnly) {
+    return { dataUrl: "", fingerprints, structFingerprints, crop: "" };
+  }
+
   // Bilden till modellen: MED marginal, så ett snett kort inte tappar numret.
   const scale = Math.min(1, CAPTURE_MAX / Math.max(sw, sh));
   const w = Math.max(1, Math.round(sw * scale));
@@ -404,6 +411,17 @@ function Scanner() {
   const [provider, setProvider] = useState<string | null>(null);
 
   const [scans, setScans] = useState<ScanItem[]>([]);
+  // LIVE-LÅSET: bildmatchningens bästa gissning medan användaren siktar,
+  // uppdaterad ~2×/s via /identify-art (inga vision-anrop, ingen kvot).
+  // "locked" = tre på varandra följande rutor pekar på SAMMA kort och den
+  // senaste klarade trust-regeln — det är konkurrenternas "millisekundkänsla".
+  const [liveHint, setLiveHint] = useState<{
+    name: string;
+    number: string;
+    locked: boolean;
+  } | null>(null);
+  const liveStreak = useRef<{ id: string; n: number }>({ id: "", n: 0 });
+  const livePollBusy = useRef(false);
   const [flash, setFlash] = useState(false);
   const [shutterCooling, setShutterCooling] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -635,6 +653,56 @@ function Scanner() {
       void startCamera();
     }
   }, [view, startCamera]);
+
+  // LIVE-POLLEN: fingeravtryck ur aktuell videoruta ~var 600:e ms medan
+  // kameravyn är aktiv. Varje poll är ~1 kB upp och ~40 ms server-CPU mot
+  // indexet i minnet — ingen bild, ingen modell, ingen kvot. En poll i taget
+  // (busy-ref) så en seg lina inte staplar förfrågningar.
+  useEffect(() => {
+    if (cameraState !== "live" || view !== "capture") {
+      setLiveHint(null);
+      liveStreak.current = { id: "", n: 0 };
+      return;
+    }
+    const iv = window.setInterval(() => {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas || livePollBusy.current || document.hidden) return;
+      const shot = captureFrame(video, canvas, frameRef.current, true);
+      if (!shot || shot.fingerprints.length === 0) return;
+      livePollBusy.current = true;
+      fetch("/api/scanner/identify-art", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fingerprints: shot.fingerprints,
+          structFingerprints: shot.structFingerprints,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: { candidates?: Array<{ cardId: string; name: string; number: string }>; confident?: boolean } | null) => {
+          const top = d?.candidates?.[0];
+          if (!top) {
+            liveStreak.current = { id: "", n: 0 };
+            setLiveHint(null);
+            return;
+          }
+          const s = liveStreak.current;
+          liveStreak.current =
+            s.id === top.cardId ? { id: s.id, n: s.n + 1 } : { id: top.cardId, n: 1 };
+          setLiveHint({
+            name: top.name,
+            number: top.number,
+            locked: liveStreak.current.n >= 3 && d?.confident === true,
+          });
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          livePollBusy.current = false;
+        });
+    }, 600);
+    return () => window.clearInterval(iv);
+  }, [cameraState, view]);
 
   // Lås body-scroll + Escape-stäng medan skannern är öppen.
   useEffect(() => {
@@ -941,6 +1009,7 @@ function Scanner() {
           videoRef={videoRef}
           canvasRef={canvasRef}
           frameRef={frameRef}
+          liveHint={liveHint}
           streamInfo={streamInfo}
           cropInfo={cropInfo}
           ocrInfo={ocrInfo}
@@ -1073,6 +1142,9 @@ function CaptureView(props: {
   canvasRef: RefObject<HTMLCanvasElement>;
   /** Kortramen — captureFrame mäter den för att beskära utsnittet till kortet. */
   frameRef: RefObject<HTMLDivElement>;
+  /** Live-bildmatchningens bästa gissning (chippen under ramen). Ren data —
+   *  kortnamn + nummer — så ingen ny copy/översättning behövs. */
+  liveHint: { name: string; number: string; locked: boolean } | null;
   /** Diagnostik, visas bara för admin. Se ScanDebug. */
   streamInfo: string | null;
   cropInfo: string | null;
@@ -1174,6 +1246,22 @@ function CaptureView(props: {
         >
           <div ref={frameRef} className="relative mb-[14vh] aspect-[5/7] w-[68%] max-w-[20rem]">
             <CornerFrame />
+            {/* LIVE-LÅSET: grönt chip = bildmatchningen är säker INNAN slutaren
+                trycks (trust-regeln + tre rutor i rad). Neutralt = bästa
+                gissning. Ren data (namn + nummer) — ingen ny copy behövs. */}
+            {props.liveHint && (
+              <div
+                className={cn(
+                  "absolute -bottom-9 left-1/2 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold backdrop-blur transition-colors",
+                  props.liveHint.locked
+                    ? "bg-holo-cyan text-black"
+                    : "bg-black/60 text-ink ring-1 ring-white/15"
+                )}
+              >
+                {props.liveHint.locked && <IconCheck size={13} />}
+                {props.liveHint.name} #{props.liveHint.number}
+              </div>
+            )}
           </div>
         </div>
       )}

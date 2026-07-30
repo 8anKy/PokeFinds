@@ -995,25 +995,23 @@ export async function identifyCard(
   } = {}
 ): Promise<IdentifyResult> {
   const adapter = getOcrAdapter(opts.precise);
-  // Bildsökningen och vision-anropet är oberoende → kör dem parallellt. Sökningen
-  // är några millisekunder CPU mot ett index i minnet; vision-anropet är ett
-  // nätverksanrop på hundratals ms. Serialiserade hade bilden lagt sig ovanpå
-  // svarstiden i onödan.
-  // Flera rutor när klienten skickar dem; annars den enkla listan (bakåtkompatibelt
-  // med en cachad klient som ännu inte skickar rutor).
+  // BILDEN FÖRST, MODELLEN VID BEHOV (2026-07-31): sökningen är ~40 ms CPU mot
+  // ett index i minnet; vision-anropet är 1–2 s och kostar per anrop. Är
+  // bildträffen BEVISAT säker (poäng + marginal, regeln med 100 % uppmätt
+  // precision över 660 frågor) hoppas Haiku över helt: snabbare OCH billigare.
+  // Tvetydiga fall — inklusive alla tryckningar med identisk konst, som per
+  // konstruktion ger pytteliten marginal — går fortfarande till modellen.
+  // Kostnaden för sekvensen i det osäkra fallet är bara sökningens ~40 ms.
   const frames = decodeFrames(opts.fingerprintFrames, opts.structFrames);
   const single =
     frames.length === 0
       ? decodeFingerprints(opts.fingerprints, opts.structFingerprints)
       : [];
-  const [ocr, artMatches] = await Promise.all([
-    adapter.extractCardInfo(imageDataUrl, opts.detailDataUrl),
-    frames.length
-      ? searchByFrames(frames, ART_CANDIDATES)
-      : single.length
-        ? searchByFingerprints(single, ART_CANDIDATES)
-        : Promise.resolve([]),
-  ]);
+  const artMatches = frames.length
+    ? await searchByFrames(frames, ART_CANDIDATES)
+    : single.length
+      ? await searchByFingerprints(single, ART_CANDIDATES)
+      : [];
 
   const artScores = new Map(artMatches.map((m) => [m.cardId, m.score]));
   // MARGINALEN till tvåan är det som avgör om bildträffen går att lita på —
@@ -1026,23 +1024,108 @@ export async function identifyCard(
       ? artMatches[0].cardId
       : null;
 
+  // `precise` = användaren bad uttryckligen om modellen — hoppa aldrig då.
+  const skipVision = artConfidentCardId !== null && !opts.precise;
+  const ocr: OcrResult = skipVision
+    ? { rawText: "", confidence: 0.95 }
+    : await adapter.extractCardInfo(imageDataUrl, opts.detailDataUrl);
+
   // Bilden ensam räcker som signal — texten kan vara helt oläslig.
   const [candidates, artTopLabel] = await Promise.all([
     matchCards(ocr, artScores, artConfidentCardId),
     describeArtMatches(artMatches.slice(0, 3)),
   ]);
 
+  // FABRICERADE NUMMER SER UT SOM BEVIS (mätt 2026-07-30): modellen läste
+  // "Dragonite 4/102" ur en suddig fångst → exakt träff på Fossil Dragonite,
+  // visad UTAN frågetecken. Ett nummer-drivet val som bildens FULLA topplista
+  // inte känns vid märks därför som osäkert — valet står kvar (numret är
+  // fortfarande den starkaste signalen på fysiska kort), men det ser inte
+  // längre ut som ett bevis när den andra signalen säger emot.
+  const top = candidates[0];
+  const guessedNum = parseGuessedNumber(ocr.guessedNumber);
+  const numberContradictedByArt =
+    top !== undefined &&
+    guessedNum !== null &&
+    cardNumberSortKey(top.number) === guessedNum.sortKey &&
+    artScores.size >= ART_CANDIDATES &&
+    !artScores.has(top.cardId);
+
   return {
-    provider: adapter.name,
+    provider: skipVision ? "bild" : adapter.name,
     guessedName: ocr.guessedName ?? null,
     guessedNumber: ocr.guessedNumber ?? null,
     guessedEra: ocr.guessedEra ?? null,
     guessedHp: ocr.guessedHp ?? null,
     confidence: ocr.confidence,
     candidates,
-    ambiguous: isAmbiguous(candidates),
+    ambiguous: isAmbiguous(candidates) || numberContradictedByArt,
     artTop: artMatches.length > 0 ? artMatches[0].score : null,
     artTopLabel,
+  };
+}
+
+/** Kortmetadata för live-träffchippen — id:na är stabila, cachea i processen
+ *  så pollandet inte väcker Neon per ruta. Taket skyddar mot obegränsad växt. */
+const artMetaCache = new Map<
+  string,
+  { name: string; number: string; setName: string }
+>();
+const ART_META_CACHE_MAX = 4000;
+
+export interface ArtLiveResult {
+  candidates: Array<{
+    cardId: string;
+    name: string;
+    number: string;
+    setName: string;
+    score: number;
+  }>;
+  /** Avstånd topp-1 → topp-2 (olika kort). Null när tvåa saknas. */
+  margin: number | null;
+  /** Trust-regeln (poäng + marginal) — 100 % uppmätt precision. */
+  confident: boolean;
+}
+
+/**
+ * LIVE-IDENTIFIERING PÅ ENBART BILDEN — ingen vision-modell, ingen bild upp.
+ *
+ * Det här är det som gör skannern "millisekundsnabb" som konkurrenternas:
+ * klienten pollar med ~1 kB avtryck medan användaren siktar, sökningen är
+ * ~40 ms CPU mot indexet i minnet, och när på varandra följande rutor pekar på
+ * samma kort låser chippen INNAN slutaren trycks. Noll AI-kostnad per poll —
+ * därför räknas pollen inte mot skanningskvoten (kvoten binder vision-kostnad).
+ */
+export async function identifyCardArt(opts: {
+  fingerprints?: string[];
+  structFingerprints?: string[];
+}): Promise<ArtLiveResult> {
+  const queries = decodeFingerprints(opts.fingerprints, opts.structFingerprints);
+  if (queries.length === 0) return { candidates: [], margin: null, confident: false };
+  const matches = await searchByFingerprints(queries, 5);
+  if (matches.length === 0) return { candidates: [], margin: null, confident: false };
+
+  const missing = matches.filter((m) => !artMetaCache.has(m.cardId));
+  if (missing.length > 0) {
+    const rows = await prisma.card.findMany({
+      where: { id: { in: missing.map((m) => m.cardId) } },
+      select: { id: true, name: true, number: true, set: { select: { name: true } } },
+    });
+    if (artMetaCache.size + rows.length > ART_META_CACHE_MAX) artMetaCache.clear();
+    for (const r of rows) {
+      artMetaCache.set(r.id, { name: r.name, number: r.number, setName: r.set.name });
+    }
+  }
+
+  const margin = matches.length >= 2 ? matches[0].score - matches[1].score : null;
+  return {
+    candidates: matches.flatMap((m) => {
+      const meta = artMetaCache.get(m.cardId);
+      return meta ? [{ cardId: m.cardId, ...meta, score: m.score }] : [];
+    }),
+    margin,
+    confident:
+      margin !== null && matches[0].score >= ART_TRUST_SCORE && margin >= ART_TRUST_MARGIN,
   };
 }
 

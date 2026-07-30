@@ -214,6 +214,32 @@ stark). numberLegible stoppar det inte alltid. OMÄTT hur ofta; era-klassningen
 fortsatt opålitlig (bwxy på ett EX-kort igen) men bara tie-break. Fysiska
 kort: fortfarande otestat.
 
+## LIVE-LÅS + VILLKORAD HAIKU (2026-07-31)
+
+Fältverifierat 9/9 (3 Gyarados + 6 blandade) → nästa steg blev konkurrenternas
+"millisekundkänsla", som är ARKITEKTUR, inte modell:
+
+1. **Live-pollen** (`/api/scanner/identify-art`): kameravyn skickar avtryck ur
+   aktuell ruta ~var 600:e ms (fpOnly-läget i captureFrame hoppar över den dyra
+   JPEG-kodningen). Ingen bild, ingen vision, INGEN KVOT (kvoten binder
+   vision-kostnad; pollen kostar ~40 ms CPU). Chip under ramen: grönt lås när
+   TRE rutor i rad pekar på samma kort och trust-regeln höll i den senaste.
+   Kortmetadata cachas i processen (artMetaCache) så pollandet inte väcker Neon.
+2. **Villkorad Haiku**: /identify kör bilden FÖRST (~40 ms); är träffen
+   trust-säker (100 % uppmätt precision, 660 frågor) hoppas vision-anropet
+   över helt (provider "bild", konf 0,95) → instant + $0. Tvetydiga fall —
+   inklusive tryckningar med identisk konst (pytteliten marginal per
+   konstruktion) — går fortfarande till modellen. `precise` hoppar aldrig.
+   ⛔ Haiku kan INTE elimineras helt: namnet avgör fortfarande nära-oavgjorda
+   lägen (mätt: bild rank 2–3 på de lyckade Gyarados-skanningarna), numret är
+   enda tryckning-/exakthetssignalen på fysiska kort, HP är syskonskiljaren,
+   och cardVisible är "finns ens ett kort"-grinden.
+3. **Fabricerade nummer märks**: nummer-drivet val som bildens FULLA topp-15
+   inte innehåller → "?" (Dragonite 4/102-fallet). Valet står kvar, men ser
+   inte längre ut som bevis.
+4. Kvot-UX: 429 visade sig som "Ingen träff" i remsan → nu serverns besked +
+   toast; admin har i praktiken obegränsad kvot; månads-copy rättad.
+
 ## Öppet — nästa steg
 
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
