@@ -252,3 +252,90 @@ export async function addScreenArtifacts(buf: Buffer, seed: number): Promise<Buf
     return null;
   }
 }
+
+/**
+ * FINGER-OCKLUSION — användaren håller kortet och ett finger täcker en kant.
+ * Mätt i produktion 2026-07-31: ett finger över nederkanten fick globala
+ * deskriptorer att välja fel kort eller inget alls (fingret korrumperar både
+ * sina celler OCH hela vektorns normalisering). Läggs SIST i kedjan (fingret
+ * är framför skärmen — skarpt, opåverkat av moiré).
+ */
+export async function addFingerOcclusion(buf: Buffer, seed: number): Promise<Buffer | null> {
+  const rnd = (i: number) => {
+    const x = Math.sin(seed * 31337 + i * 271829) * 43758.5453;
+    return x - Math.floor(x);
+  };
+  try {
+    const raw = await sharp(buf).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const { width, height } = raw.info;
+    const d = raw.data;
+    // Från en KANT (man håller kortet): nederkant vanligast, annars sidorna.
+    const edge = rnd(1) < 0.6 ? "bottom" : rnd(2) < 0.5 ? "left" : "right";
+    const cx = edge === "bottom" ? rnd(3) * width : edge === "left" ? 0 : width - 1;
+    const cy = edge === "bottom" ? height - 1 : (0.4 + rnd(4) * 0.6) * height;
+    const rx = (0.12 + rnd(5) * 0.1) * width;
+    const ry = (0.1 + rnd(6) * 0.1) * height;
+    const skin = [190 + rnd(7) * 40, 130 + rnd(8) * 40, 100 + rnd(9) * 35];
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const dx = (x - cx) / rx;
+        const dy = (y - cy) / ry;
+        if (dx * dx + dy * dy <= 1) {
+          const p = (y * width + x) * 3;
+          d[p] = skin[0];
+          d[p + 1] = skin[1];
+          d[p + 2] = skin[2];
+        }
+      }
+    }
+    return await sharp(Buffer.from(d), { raw: { width, height, channels: 3 } })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * REGIONALT GRAD-SCORE — ocklusionsrobust aggregering av den BEFINTLIGA
+ * grad-vektorn (8×11 celler är rumsliga → dimensionsskivor ÄR regioner, ingen
+ * ny lagring behövs). 6 regioner (3 radband × 2 kolumnband); poängen är
+ * medlet av de 4 BÄSTA region-cosinusarna — fingrets region kastas som
+ * outlier i stället för att förgifta helheten. Samma princip som
+ * lokala-särdrags-röstning, i vår billiga arkitektur.
+ */
+export const GRAD_REGIONS = 6;
+const G_REGION_OF = (() => {
+  // Per dimension (704) → region 0..5. Cellordning: (cellY*8+cellX)*8+bin.
+  const map = new Uint8Array(704);
+  for (let cy = 0; cy < 11; cy++) {
+    for (let cx = 0; cx < 8; cx++) {
+      const rb = cy < 4 ? 0 : cy < 8 ? 1 : 2;
+      const cb = cx < 4 ? 0 : 1;
+      for (let b = 0; b < 8; b++) map[(cy * 8 + cx) * 8 + b] = rb * 2 + cb;
+    }
+  }
+  return map;
+})();
+
+/** Medel av de `keep` bästa region-cosinusarna mellan två grad-vektorer (704 dim). */
+export function gradRegionalScore(a: Float32Array, b: Float32Array, keep = 4): number {
+  const dots = new Float64Array(GRAD_REGIONS);
+  const na = new Float64Array(GRAD_REGIONS);
+  const nb = new Float64Array(GRAD_REGIONS);
+  for (let i = 0; i < 704; i++) {
+    const r = G_REGION_OF[i];
+    dots[r] += a[i] * b[i];
+    na[r] += a[i] * a[i];
+    nb[r] += b[i] * b[i];
+  }
+  const scores: number[] = [];
+  for (let r = 0; r < GRAD_REGIONS; r++) {
+    const denom = Math.sqrt(na[r]) * Math.sqrt(nb[r]);
+    scores.push(denom > 0 ? dots[r] / denom : 0);
+  }
+  scores.sort((x, y) => y - x);
+  let s = 0;
+  for (let i = 0; i < keep; i++) s += scores[i];
+  return s / keep;
+}

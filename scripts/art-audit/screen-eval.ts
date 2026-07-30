@@ -24,10 +24,12 @@ import { fingerprintFromRgb, toUnitVector } from "../../src/lib/art-fingerprint"
 import { cachePath } from "./cache";
 import { PROFILES, degradeAsScreenPhoto } from "./descriptor";
 import {
+  addFingerOcclusion,
   addScreenArtifacts,
   dctDescriptor,
   dctSignDescriptor,
   gradDescriptor,
+  gradRegionalScore,
 } from "./screen-descriptors";
 
 interface Card {
@@ -194,6 +196,7 @@ async function main() {
     "comax",
     "triw",
     "rrf",
+    "triwr",
   ].filter((k) => !ONLY || k === ONLY);
   const stats = Object.fromEntries(
     kindNames.map((k) => [
@@ -221,11 +224,16 @@ async function main() {
       PROFILES[process.env.PROFILE ?? "mild"] ?? PROFILES.mild
     );
     if (!degraded) continue;
-    const withArtifacts =
+    let withArtifacts =
       process.env.SKIP_ARTIFACTS === "1"
         ? degraded
         : await addScreenArtifacts(degraded, qi + 1);
     if (!withArtifacts) continue;
+    // OCCLUDE=1 → ett finger täcker en kant (mätt produktionsfall 2026-07-31).
+    if (process.env.OCCLUDE === "1") {
+      withArtifacts = await addFingerOcclusion(withArtifacts, qi + 1);
+      if (!withArtifacts) continue;
+    }
     const raw = await decodeRaw(withArtifacts);
     if (!raw) continue;
 
@@ -282,7 +290,26 @@ async function main() {
       let scores: Float64Array;
       let bestI: number;
       let secondScore: number;
-      if (k === "triw" || k === "rrf") {
+      if (k === "triwr") {
+        // triw med REGIONAL grad: fingrets region kastas som outlier.
+        if (!qvecs.colorgrid || !qvecs.dctb || !qvecs.grad) continue;
+        const pa = rankAgainst(refs.mats.colorgrid, KINDS.colorgrid.dim, refs.ids.length, qvecs.colorgrid);
+        const pb = rankAgainst(refs.mats.dctb, KINDS.dctb.dim, refs.ids.length, qvecs.dctb);
+        scores = new Float64Array(refs.ids.length);
+        const gm = refs.mats.grad;
+        const qg = qvecs.grad;
+        for (let i = 0; i < refs.ids.length; i++) {
+          const row = gm.subarray(i * 704, (i + 1) * 704);
+          scores[i] =
+            0.25 * pa.scores[i] + 0.25 * pb.scores[i] + 0.5 * gradRegionalScore(qg, row);
+        }
+        bestI = 0;
+        for (let i = 0; i < refs.ids.length; i++) if (scores[i] > scores[bestI]) bestI = i;
+        secondScore = -Infinity;
+        for (let i = 0; i < refs.ids.length; i++) {
+          if (i !== bestI && scores[i] > secondScore) secondScore = scores[i];
+        }
+      } else if (k === "triw" || k === "rrf") {
         // triw: viktat MEDEL av del-cosinus (grad är ryggraden → halva vikten).
         // rrf: reciprocal rank fusion av de två experterna — rangordning i
         // stället för poäng, så experternas ojämförbara skalor inte spelar roll
