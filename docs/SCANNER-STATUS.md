@@ -240,6 +240,22 @@ Fältverifierat 9/9 (3 Gyarados + 6 blandade) → nästa steg blev konkurrentern
 4. Kvot-UX: 429 visade sig som "Ingen träff" i remsan → nu serverns besked +
    toast; admin har i praktiken obegränsad kvot; månads-copy rättad.
 
+## OCKLUSION (2026-07-31, natt): mätningen stoppade en felship
+
+Ägarens fingertest: finger MELLAN kamera och skärm → fel/inget svar. Byggde
+finger-ocklusion i harnesset + regional grad-poäng (bästa 4 av 6 regioner).
+MÄTT: (1) simulerad ocklusion PÅ kortet (skarp fläck 12–22 % från kant)
+klaras REDAN av blandningen — topp-15 97,6 % ≈ rent; (2) regional poäng
+tillför INGET (96,8 %) → EJ shippad (ligger kvar i harnesset); (3) replay av
+de verkliga fingerskanningarna: konsten kollapsar till brus (rätt kort borta
+ur topp-5) — mekanismen är en DEFOKUSERAD jätteblob + autofokus-/exponerings-
+skift som degraderar HELA rutan, inte en region. Utanför simulatorns modell.
+NÄSTA: (a) be ägaren göra äpple-mot-äpple-testet (täck nederkanten PÅ
+skärmen, platt/skarpt — det klarar vi enligt mätningen); (b) vill man klara
+finger-framför-linsen krävs en kalibrerad defokusblob-modell först — de
+verkliga avtrycken finns lagrade som facit. Exakt-namn-fixen (41a08f5) höll:
+rena skanningar väljer nu Deoxys #8 konsekvent.
+
 ## Öppet — nästa steg
 
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
