@@ -401,6 +401,18 @@ const ERA_WEIGHT = 0.02;
 const ERA_ADJACENT_WEIGHT = 0.01;
 const TIEBREAK_CAP = 0.045;
 
+/**
+ * EXAKT NAMN SLÅR NAMN-PLUS-SUFFIX (mätt 2026-07-31): namnlikheten räknas på
+ * normaliserad text som strippar specialtecken, så "Gyarados" och "Gyarados δ"
+ * får BÅDA 1,0 — och δ-tvillingen (Holon Phantoms 2006, också HP 90, också
+ * EX-era) vann då på "nyast set" varje gång bilden inte såg någon av dem.
+ * Läste modellen exakt "Gyarados" är det starkare bevis än ett namn med
+ * suffix; jämförelsen görs på RÅ lowercase (inte normaliserad — det hade
+ * strippat bort just skillnaden). Under MATCH_MARGIN_MIN: bryter oavgjort,
+ * fabricerar aldrig säkerhet.
+ */
+const EXACT_NAME_WEIGHT = 0.03;
+
 /** Kortnamn-tokens ur OCR-texten. Tomt resultat → hela frågan som en token. */
 function nameTokens(query: string): string[] {
   const tokens = query
@@ -555,6 +567,10 @@ export async function matchCards(
     // Namnlikheten är 0 när modellen inte läste något namn — då bär bilden och
     // numret hela bedömningen, vilket är precis avsikten.
     let score = query ? scoreSimilarity(query, card.name) * nameWeight : 0;
+    // Exakt namn (rå lowercase) — se EXACT_NAME_WEIGHT.
+    if (query && query.trim().toLowerCase() === card.name.trim().toLowerCase()) {
+      score += EXACT_NAME_WEIGHT * nameWeight;
+    }
     // TIE-BREAK mellan namnsyskon: HP (läsning) + era (klassning), med
     // gemensamt tak under osäkerhetströskeln. Se HP_WEIGHT/TIEBREAK_CAP.
     let tiebreak = 0;

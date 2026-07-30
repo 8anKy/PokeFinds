@@ -164,10 +164,11 @@ const STRIP_FRACTION = 0.22;
  *  `getImageData` på 4,7 MP kostar tid på telefonen utan att ändra svaret. */
 const FINGERPRINT_SOURCE_MAX = 640;
 
-/** Antal videorutor per slutartryck som konstavtrycket räknas på. Tre räcker för
- *  att en dålig ruta (moiré, oskärpa mitt i autofokus) inte ska avgöra ensam;
- *  fler kostar uppladdning och serverCPU utan att tillföra mycket. */
-const CAPTURE_FRAMES = 3;
+/** Antal videorutor per slutartryck som konstavtrycket räknas på. Fyra (höjt
+ *  från tre 2026-07-31, servern tar max fyra): per-ruta-brus (moiré, oskärpa)
+ *  flippade valet mellan namntvillingar när bilden bara ibland såg rätt kort —
+ *  en ruta till ger den mest AVGÖRANDE rutan (störst marginal) fler chanser. */
+const CAPTURE_FRAMES = 4;
 
 /**
  * Fångar en nedskalad JPEG-ruta ur videoflödet (i minnet, ej i kamerarullen),
