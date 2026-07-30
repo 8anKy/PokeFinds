@@ -201,6 +201,19 @@ harnesset är för första gången KALIBRERAT mot verkliga haverier. Verklig
 träffsäkerhet mäts som vanligt via telemetrin + replayen (nya skanningar bär
 även strukturrutor, så replayen återger blandningen exakt).
 
+**FÄLTVERIFIERAT (22:56 samma kväll): 3/3 på det förut omöjliga kortet.**
+Gyarados · Deoxys 8/107 på monitor: bildens topp-3 innehåller nu Gyarados 8
+(0,606 — igår enbart brus), hp läses (90), och slutvalet blir rätt kort med
+rätt pris tre skanningar i rad. Två efterföljande fixar samma kväll:
+(1) OUTSET-SVEPET (ram × 1,2/1,45) — kort STÖRRE än ramen gav en partiell
+fångst som inga referenser kan matcha; inset-svepet beskär bara inåt. Mätt:
+första skanningen (kort i ram) rätt, tre med överflöde = brus → fix 5672213.
+(2) Kvarstående kända hål: modellen fabricerade "Dragonite 4/102" på en suddig
+zoomad fångst → exakt träff på Fossil Dragonite (nummer+total-bonusen är
+stark). numberLegible stoppar det inte alltid. OMÄTT hur ofta; era-klassningen
+fortsatt opålitlig (bwxy på ett EX-kort igen) men bara tie-break. Fysiska
+kort: fortfarande otestat.
+
 ## Öppet — nästa steg
 
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
