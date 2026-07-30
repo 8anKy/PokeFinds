@@ -331,6 +331,40 @@ const ART_TRUST_BONUS = 1.15;
 const NAME_AGREE_MIN = 0.5;
 const NAME_DISTRUST = 0.25;
 
+/**
+ * RAMGENERATION → årsintervall. Modellen klassar kortets ram-DESIGN (gul ram,
+ * EX-layout, SWSH-layout …) — en grov visuell signal som överlever suddiga
+ * skärmfoton där samlarnumret (~3 px) inte gör det.
+ *
+ * VARFÖR (mätt fall 2026-07-30): en Gyarados ur Deoxys (2005) skannades fyra
+ * gånger. Namnet lästes rätt, numret var oläsligt, bildens toppträffar var brus
+ * — och då stod alla 28 kort som heter exakt "Gyarados" på samma poäng.
+ * Tie-breaken "nyast set först" valde 151/Paldea Evolved varje gång, och
+ * 2005-kortet låg på plats 22 av 28 i åldersordning: det fick inte ens plats i
+ * kandidatlistans 12 platser. Rätt kort var alltså OMÖJLIGT att välja.
+ *
+ * Intervallen matchas med ±1 års marginal — set blöder över årsskiften.
+ */
+const ERA_YEARS: Record<string, [number, number]> = {
+  wotc: [1999, 2003],
+  ex: [2003, 2007],
+  dp: [2007, 2011],
+  bwxy: [2011, 2016],
+  sm: [2017, 2019],
+  swsh: [2020, 2022],
+  sv: [2023, 2099],
+};
+
+/**
+ * Era-bonusen är MEDVETET UNDER `MATCH_MARGIN_MIN` (0,05): den får ordna
+ * annars-oavgjorda namnsyskon (vinnaren OCH kandidatlistan sorteras på poäng),
+ * men ALDRIG få en gissning att se säker ut — träffen förblir märkt "?" — och
+ * aldrig utmana ett läst nummer (0,25–0,5) eller en säker bildträff (1,15).
+ * Eran kommer ur samma modellsvar som namnet och dämpas därför med samma
+ * misstro (nameWeight) när bilden motsäger texten.
+ */
+const ERA_WEIGHT = 0.04;
+
 /** Kortnamn-tokens ur OCR-texten. Tomt resultat → hela frågan som en token. */
 function nameTokens(query: string): string[] {
   const tokens = query
@@ -471,10 +505,19 @@ export async function matchCards(
     if (bestNameAgreement < NAME_AGREE_MIN) nameWeight = NAME_DISTRUST;
   }
 
+  const eraRange = ocr.guessedEra ? ERA_YEARS[ocr.guessedEra] : undefined;
+
   const scored = [...byId.values()].map((card) => {
     // Namnlikheten är 0 när modellen inte läste något namn — då bär bilden och
     // numret hela bedömningen, vilket är precis avsikten.
     let score = query ? scoreSimilarity(query, card.name) * nameWeight : 0;
+    // Ramgenerationen: liten tie-breaker mellan namnsyskon. Se ERA_WEIGHT.
+    if (eraRange && card.set.releaseDate) {
+      const year = card.set.releaseDate.getUTCFullYear();
+      if (year >= eraRange[0] - 1 && year <= eraRange[1] + 1) {
+        score += ERA_WEIGHT * nameWeight;
+      }
+    }
     // Bildlikhet: en gradering, inte ett bevis. Se ART_WEIGHT.
     const art = artScores?.get(card.id);
     if (art !== undefined && art > 0) score += art * ART_WEIGHT;
@@ -792,6 +835,8 @@ export interface IdentifyResult {
   provider: string;
   guessedName: string | null;
   guessedNumber: string | null;
+  /** Modellens ramgenerations-klassning ("wotc" … "sv"), null när osäker. */
+  guessedEra: string | null;
   confidence: number;
   candidates: ScanCandidate[];
   /** Bildmatchningens bästa likhet 0..1, eller null när inget avtryck skickades. */
@@ -914,6 +959,7 @@ export async function identifyCard(
     provider: adapter.name,
     guessedName: ocr.guessedName ?? null,
     guessedNumber: ocr.guessedNumber ?? null,
+    guessedEra: ocr.guessedEra ?? null,
     confidence: ocr.confidence,
     candidates,
     ambiguous: isAmbiguous(candidates),

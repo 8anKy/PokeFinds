@@ -62,6 +62,12 @@ const SYSTEM = [
   "gissade, härledde numret ur kortets utseende, eller inte såg det. Ett påhittat",
   "nummer är VÄRRE än inget: det pekar ut ett annat riktigt kort. Att svara",
   "numberLegible=false är alltid ett godtagbart svar.",
+  "ANGE OCKSÅ KORTRAMENS GENERATION (era): ramdesignen syns även när texten är",
+  "oläslig, och den skiljer kort som delar namn. Gul ram = wotc (1999–2003).",
+  "Silverram med EX-seriens layout = ex (2003–2007). Diamond & Pearl/Platinum/",
+  "HeartGold SoulSilver = dp (2007–2011). Black & White/XY = bwxy (2011–2016).",
+  "Sun & Moon = sm (2017–2019). Sword & Shield = swsh (2020–2022).",
+  "Scarlet & Violet och senare = sv (2023–). Kan du inte avgöra: okand.",
   "Returnera en konfidens 0–1 utifrån hur tydligt kortet syns och hur säker du är.",
   "Om inget tydligt Pokémon-kort syns: sätt cardVisible=false och låg konfidens.",
 ].join(" ");
@@ -102,9 +108,22 @@ const CARD_TOOL: Anthropic.Tool = {
           "Kunde du läsa VARJE TECKEN i samlarnumret tydligt i bilden? " +
           "false om du gissade, härledde det ur kortets utseende, eller inte kunde se det.",
       },
+      // RAMGENERATIONEN — läsbar när numret inte är det. 28 kort heter exakt
+      // "Gyarados"; utan nummer stod alla på samma poäng och tie-breaken
+      // "nyast set" valde alltid fel epok för ett vintage-kort. Ramdesignen är
+      // en GROV visuell signal som modellen klarar även på suddiga skärmfoton,
+      // och den används bara som liten tie-breaker (se ERA_YEARS/ERA_WEIGHT).
+      era: {
+        type: "string",
+        enum: ["wotc", "ex", "dp", "bwxy", "sm", "swsh", "sv", "okand"],
+        description:
+          "Kortramens generation utifrån DESIGNEN (gul ram = wotc, EX-serien = ex, " +
+          "Diamond & Pearl/HGSS = dp, Black & White/XY = bwxy, Sun & Moon = sm, " +
+          "Sword & Shield = swsh, Scarlet & Violet eller senare = sv). Osäker = okand.",
+      },
       confidence: { type: "number", description: "0–1" },
     },
-    required: ["cardVisible", "name", "number", "numberLegible", "confidence"],
+    required: ["cardVisible", "name", "number", "numberLegible", "era", "confidence"],
     additionalProperties: false,
   },
 };
@@ -223,11 +242,14 @@ export class ClaudeVisionOcrAdapter implements OcrAdapter {
       typeof input.confidence === "number" && Number.isFinite(input.confidence)
         ? Math.min(1, Math.max(0, input.confidence))
         : 0.5;
+    // strict:true garanterar enum-värdet; "okand" = ingen signal.
+    const era = typeof input.era === "string" && input.era !== "okand" ? input.era : undefined;
 
     return {
       rawText: [name, number].filter(Boolean).join(" "),
       guessedName: cardVisible && name ? name : undefined,
       guessedNumber: cardVisible && number ? number : undefined,
+      guessedEra: cardVisible ? era : undefined,
       // Inget kort i bild → 0 så att UI:t inte låser på en slumpträff.
       confidence: cardVisible ? confidence : 0,
     };

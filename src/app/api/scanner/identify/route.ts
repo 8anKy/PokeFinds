@@ -109,6 +109,7 @@ export async function POST(req: Request) {
             provider: result.provider,
             guessedName: result.guessedName,
             guessedNumber: result.guessedNumber,
+            guessedEra: result.guessedEra,
             confidence: result.confidence,
             artTop: result.artTop,
             artTopLabel: result.artTopLabel,

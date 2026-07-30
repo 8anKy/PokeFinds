@@ -96,6 +96,28 @@ skärmfoton. Följder:
   är ~3 px — finns inte i källan). Helbildskort + kort där bilden särskiljer
   fungerar; syskonval inom samma namn avgörs av bildmarginaler på ~0,01–0,08.
 
+## Mätt testrunda 2026-07-30 (skärmfoton, Haiku): 9/10 rätt
+
+Ägaren skannade 10 kort mot facit. Pitch Black-korten (moderna) satt alla —
+tre bildträffar var SÄKRA och överröstade två hallucinerade namn ("Miraidon ex"
+→ Morpeko ex 117 med 0,937/0,476). Den enda missen var **Gyarados · Deoxys
+8/107 (2005)**: namnet lästes rätt, numret oläsligt (ärligt), bildens toppar
+var brus — och då stod alla **28 kort som heter exakt "Gyarados"** på samma
+poäng. Tie-breaken "nyast set först" valde 151/Paldea varje gång, och
+2005-kortet (plats 22 av 28 i åldersordning) fick inte ens plats i
+kandidatlistans 12 rader: **rätt kort gick inte att välja alls**.
+
+**Fix: ramgenerationen som tie-breaker (`era` i report_card).** Ramdesignen
+(gul WotC-ram, EX-layout, SWSH-layout …) är läsbar även när numret inte är
+det. Modellen klassar eran (wotc/ex/dp/bwxy/sm/swsh/sv/okand); kort vars set
+ligger i eran (±1 år) får `ERA_WEIGHT` = **0,04** — medvetet UNDER
+`MATCH_MARGIN_MIN` (0,05) så att en era-vinst aldrig ser säker ut (märks
+fortfarande "?"), och långt under nummer (0,25–0,5) och säker bildträff
+(1,15). Effekten är att rätt EPOK vinner oavgjorda lägen och att rätt-era-
+syskonen sorteras överst i "välj ett annat". Eran dämpas med samma nameWeight
+som namn/nummer (samma modellsvar, samma misstro). Era-klassningens verkliga
+träffsäkerhet är ÄNNU OMÄTT — telemetrin loggar `era:` per skanning.
+
 ## Öppet — nästa steg
 
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om

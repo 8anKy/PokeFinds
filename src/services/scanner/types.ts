@@ -13,6 +13,17 @@ export interface OcrResult {
   guessedName?: string;
   /** Bästa gissning på setnummer (t.ex. "25/102"), om något. */
   guessedNumber?: string;
+  /**
+   * Kortramens GENERATION ("wotc", "ex", "dp", "bwxy", "sm", "swsh", "sv").
+   *
+   * Finns för att ramdesignen är läsbar när samlarnumret inte är det (numret är
+   * ~3 px på ett skärmfoto; ramen är hela kortet). Ett namn-oavgjort läge —
+   * 28 kort heter exakt "Gyarados" — avgjordes förut av "nyast set först", så
+   * ett 2005-kort kunde aldrig vinna och fick inte ens plats i kandidatlistan.
+   * Eran är en GROV signal för ett GROVT beslut: vilken tidsepok, aldrig vilket
+   * exakt kort. Se ERA_YEARS i src/services/scanner/index.ts.
+   */
+  guessedEra?: string;
   /** Leverantörens konfidens 0..1. */
   confidence: number;
 }
