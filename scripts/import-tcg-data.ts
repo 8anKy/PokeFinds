@@ -32,6 +32,7 @@ import { PrismaClient, type Prisma } from "@prisma/client";
 import {
   fetchTcgSets,
   fetchTcgCardsForSet,
+  parseTcgHp,
   cardMarketPriceOre,
   parseTcgDate,
   TCG_PAGE_SIZE,
@@ -179,6 +180,7 @@ async function main() {
           supertype: tcgCard.supertype ?? null,
           subtype: tcgCard.subtypes?.[0] ?? null,
           artist: tcgCard.artist ?? null,
+          hp: parseTcgHp(tcgCard.hp),
         },
         create: {
           setId: set.id,
@@ -191,6 +193,7 @@ async function main() {
           supertype: tcgCard.supertype ?? null,
           subtype: tcgCard.subtypes?.[0] ?? null,
           artist: tcgCard.artist ?? null,
+          hp: parseTcgHp(tcgCard.hp),
         },
       });
       cardCount++;

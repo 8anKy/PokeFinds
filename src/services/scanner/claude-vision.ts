@@ -71,6 +71,9 @@ const SYSTEM = [
   "konsten. dp (2007–2011, Diamond & Pearl/Platinum/HGSS). bwxy (2011–2016,",
   "Black & White/XY). sm (2017–2019, Sun & Moon). swsh (2020–2022, Sword &",
   "Shield). sv (2023–, Scarlet & Violet: SILVER/GRÅ ram). Osäker: okand.",
+  "LÄS OCKSÅ KORTETS HP — det stora talet uppe till höger intill 'HP' (t.ex.",
+  "90, 150). HP:t skiljer kort som delar namn. Sätt hp=0 om det inte går att",
+  "läsa säkert — gissa aldrig.",
   "Returnera en konfidens 0–1 utifrån hur tydligt kortet syns och hur säker du är.",
   "Om inget tydligt Pokémon-kort syns: sätt cardVisible=false och låg konfidens.",
 ].join(" ");
@@ -130,9 +133,19 @@ const CARD_TOOL: Anthropic.Tool = {
           "dp (2007–2011), bwxy (2011–2016), sm (2017–2019), swsh (2020–2022), " +
           "sv = silver/grå ram (2023–). Osäker = okand.",
       },
+      // HP — kortets STÖRSTA tal och därmed den mest läsbara särskiljaren
+      // mellan namntvillingar. Modellen har BEVISAT att den läser det: den
+      // svarade med HP:t när vi bad om samlarnumret (fix 14f4a52). Nu används
+      // den läsningen i stället för att bekämpas.
+      hp: {
+        type: "integer",
+        description:
+          "Kortets HP — det stora talet uppe till höger intill 'HP' (t.ex. 90, " +
+          "150, 220). 0 om det inte syns eller inte går att läsa säkert.",
+      },
       confidence: { type: "number", description: "0–1" },
     },
-    required: ["cardVisible", "name", "number", "numberLegible", "era", "confidence"],
+    required: ["cardVisible", "name", "number", "numberLegible", "era", "hp", "confidence"],
     additionalProperties: false,
   },
 };
@@ -253,12 +266,18 @@ export class ClaudeVisionOcrAdapter implements OcrAdapter {
         : 0.5;
     // strict:true garanterar enum-värdet; "okand" = ingen signal.
     const era = typeof input.era === "string" && input.era !== "okand" ? input.era : undefined;
+    // Tryckta HP är 30–340 i jämna 10-tal; allt annat är en felläsning och
+    // kastas hellre än att den matchar fel kort exakt (samma princip som
+    // sanitizeNumber: ett påhittat tal träffar en riktig rad förr eller senare).
+    const hpRaw = typeof input.hp === "number" ? Math.round(input.hp) : 0;
+    const hp = hpRaw >= 30 && hpRaw <= 500 && hpRaw % 10 === 0 ? hpRaw : undefined;
 
     return {
       rawText: [name, number].filter(Boolean).join(" "),
       guessedName: cardVisible && name ? name : undefined,
       guessedNumber: cardVisible && number ? number : undefined,
       guessedEra: cardVisible ? era : undefined,
+      guessedHp: cardVisible ? hp : undefined,
       // Inget kort i bild → 0 så att UI:t inte låser på en slumpträff.
       confidence: cardVisible ? confidence : 0,
     };

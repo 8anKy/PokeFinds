@@ -118,6 +118,22 @@ syskonen sorteras överst i "välj ett annat". Eran dämpas med samma nameWeight
 som namn/nummer (samma modellsvar, samma misstro). Era-klassningens verkliga
 träffsäkerhet är ÄNNU OMÄTT — telemetrin loggar `era:` per skanning.
 
+**ANDRA MÄTNINGEN + HP-BESLUTET (senare samma kväll)**: med de rättade
+layout-ledtrådarna svarade Haiku `era:swsh` på SAMMA kort som nyss fått
+`wotc` × 3 — era-klassningen är alltså MÄTT OPÅLITLIG på skärmfoton (den
+studsar mellan epoker). Mekaniken behålls (skadar inte, hjälper när den
+träffar) men kan inte bära beslutet. Ägaren godkände i stället **HP-kolumnen**:
+`Card.hp` (migration 20260730200000) + backfill från pokemontcg.io
+(`scripts/backfill-card-hp.ts`; import-tcg-data fyller framtida set).
+HP är kortets STÖRSTA tal — modellen läste det spontant redan när vi bad om
+samlarnumret (fix 14f4a52) — och mätt på fallet: HP 90 bär 3 av 28 Gyarados,
+och "nyast först" bland de tre är EXAKT rätt kort (Deoxys #8). Vikter:
+`HP_WEIGHT` 0,04 (läsning) > `ERA_WEIGHT` 0,02 / `ERA_ADJACENT_WEIGHT` 0,01
+(klassning), summan klippt av `TIEBREAK_CAP` 0,045 < `MATCH_MARGIN_MIN` —
+två gissningar ur samma modellsvar får aldrig tillsammans se ut som bevis.
+HP saniteras hårt (30–500, jämna 10-tal) — ett felläst tal ska hellre kastas
+än matcha fel kort exakt.
+
 **FÖRSTA MÄTNINGEN AV ERA-KLASSNINGEN (samma dag, 3 skanningar)**: mekaniken
 höll (tre skanningar → SAMMA svar, rätt tidsepok ±2 år; förut tre olika svar
 från 2023) men Haiku klassade EX-era-Gyaradosen (2005) som `wotc` alla tre

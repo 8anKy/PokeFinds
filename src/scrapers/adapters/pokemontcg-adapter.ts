@@ -53,6 +53,8 @@ export interface TcgCard {
   supertype?: string;
   subtypes?: string[];
   artist?: string;
+  /** HP som STRÄNG i API:t ("90"); saknas för trainers/energi. */
+  hp?: string;
   set: { id: string; name: string };
   images?: { small?: string; large?: string };
   cardmarket?: {
@@ -79,6 +81,13 @@ interface TcgListResponse<T> {
   pageSize: number;
   count: number;
   totalCount: number;
+}
+
+/** "90" → 90; saknat/orimligt → null. Delas av importen och HP-backfillen. */
+export function parseTcgHp(hp: string | undefined): number | null {
+  if (!hp) return null;
+  const n = parseInt(hp, 10);
+  return Number.isFinite(n) && n >= 10 && n <= 500 ? n : null;
 }
 
 function apiHeaders(): Record<string, string> {
@@ -150,7 +159,7 @@ export async function fetchTcgCardsForSet(
   maxCards = TCG_PAGE_SIZE
 ): Promise<TcgCard[]> {
   const select =
-    "id,name,number,rarity,supertype,subtypes,artist,set,images,cardmarket,tcgplayer";
+    "id,name,number,rarity,supertype,subtypes,artist,hp,set,images,cardmarket,tcgplayer";
   const byId = new Map<string, TcgCard>();
   let page = 1;
   while (byId.size < maxCards) {

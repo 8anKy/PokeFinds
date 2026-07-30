@@ -359,23 +359,32 @@ const ERA_YEARS: Record<string, [number, number]> = {
 const ERA_ORDER = ["wotc", "ex", "dp", "bwxy", "sm", "swsh", "sv"] as const;
 
 /**
- * Era-bonusen är MEDVETET UNDER `MATCH_MARGIN_MIN` (0,05): den får ordna
- * annars-oavgjorda namnsyskon (vinnaren OCH kandidatlistan sorteras på poäng),
- * men ALDRIG få en gissning att se säker ut — träffen förblir märkt "?" — och
- * aldrig utmana ett läst nummer (0,25–0,5) eller en säker bildträff (1,15).
- * Eran kommer ur samma modellsvar som namnet och dämpas därför med samma
- * misstro (nameWeight) när bilden motsäger texten.
+ * TIE-BREAK-SIGNALERNA (HP + era) är MEDVETET UNDER `MATCH_MARGIN_MIN` (0,05):
+ * de får ordna annars-oavgjorda namnsyskon (vinnaren OCH kandidatlistan
+ * sorteras på poäng), men ALDRIG få en gissning att se säker ut — träffen
+ * förblir märkt "?" — och aldrig utmana ett läst nummer (0,25–0,5) eller en
+ * säker bildträff (1,15). Båda kommer ur samma modellsvar som namnet och
+ * dämpas med samma misstro (nameWeight) när bilden motsäger texten, och
+ * summan klipps av TIEBREAK_CAP så två gissningar som råkar samverka inte
+ * kliver över osäkerhetströskeln.
  *
- * GRANNEPOKEN FÅR HALV BONUS (mätt 2026-07-30): epokgränserna delar
- * designdrag, och Haiku klassade en EX-era-Gyarados (2005) som wotc tre
- * skanningar i rad — varpå rätt kort föll UR kandidatlistan igen (utanför
- * wotc-fönstret, under de moderna syskonen i sorteringen). En epok fel är
- * det FÖRVÄNTADE felet, inte ett undantagsfall; halva bonusen lägger
- * grannepokens kort mellan träffepoken och de orelaterade, så rätt kort
- * förblir valbart även när klassningen är ett steg fel.
+ * HP VÄGER DUBBELT MOT ERAN, för det ena är en LÄSNING och det andra en
+ * KLASSNING: HP är kortets största tryckta tal (mätt: modellen läste det
+ * spontant när vi bad om samlarnumret), medan era-klassningen är mätt
+ * OPÅLITLIG på skärmfoton — samma EX-era-Gyarados fick "wotc" tre skanningar
+ * i rad och "swsh" i nästa runda. Mätt särskiljning: 28 kort heter exakt
+ * "Gyarados"; HP 90 bär 3 av dem, och "nyast först" bland de tre är exakt
+ * rätt kort (Deoxys #8, 2005).
+ *
+ * GRANNEPOKEN FÅR HALV ERA-BONUS: epokgränserna delar designdrag, så en epok
+ * fel är det FÖRVÄNTADE felet — halva bonusen lägger grannepokens kort mellan
+ * träffepoken och de orelaterade, så rätt kort förblir valbart i listan även
+ * när klassningen är ett steg fel.
  */
-const ERA_WEIGHT = 0.04;
-const ERA_ADJACENT_WEIGHT = 0.02;
+const HP_WEIGHT = 0.04;
+const ERA_WEIGHT = 0.02;
+const ERA_ADJACENT_WEIGHT = 0.01;
+const TIEBREAK_CAP = 0.045;
 
 /** Kortnamn-tokens ur OCR-texten. Tomt resultat → hela frågan som en token. */
 function nameTokens(query: string): string[] {
@@ -446,6 +455,7 @@ export async function matchCards(
     numberSortKey: true,
     rarity: true,
     imageUrl: true,
+    hp: true,
     set: { select: { name: true, totalCards: true, releaseDate: true } },
   } as const;
   const nameAll = tokens.map((t) => ({ name: { contains: t, mode: "insensitive" as const } }));
@@ -530,19 +540,24 @@ export async function matchCards(
     // Namnlikheten är 0 när modellen inte läste något namn — då bär bilden och
     // numret hela bedömningen, vilket är precis avsikten.
     let score = query ? scoreSimilarity(query, card.name) * nameWeight : 0;
-    // Ramgenerationen: liten tie-breaker mellan namnsyskon. Grannepoken får
-    // halva bonusen — en epok fel är det förväntade felet. Se ERA_WEIGHT.
+    // TIE-BREAK mellan namnsyskon: HP (läsning) + era (klassning), med
+    // gemensamt tak under osäkerhetströskeln. Se HP_WEIGHT/TIEBREAK_CAP.
+    let tiebreak = 0;
+    if (ocr.guessedHp != null && card.hp != null && card.hp === ocr.guessedHp) {
+      tiebreak += HP_WEIGHT;
+    }
     if (eraIdx >= 0 && card.set.releaseDate) {
       const year = card.set.releaseDate.getUTCFullYear();
       if (inEra(eraIdx, year)) {
-        score += ERA_WEIGHT * nameWeight;
+        tiebreak += ERA_WEIGHT;
       } else if (
         (eraIdx > 0 && inEra(eraIdx - 1, year)) ||
         (eraIdx < ERA_ORDER.length - 1 && inEra(eraIdx + 1, year))
       ) {
-        score += ERA_ADJACENT_WEIGHT * nameWeight;
+        tiebreak += ERA_ADJACENT_WEIGHT;
       }
     }
+    if (tiebreak > 0) score += Math.min(tiebreak, TIEBREAK_CAP) * nameWeight;
     // Bildlikhet: en gradering, inte ett bevis. Se ART_WEIGHT.
     const art = artScores?.get(card.id);
     if (art !== undefined && art > 0) score += art * ART_WEIGHT;
@@ -862,6 +877,8 @@ export interface IdentifyResult {
   guessedNumber: string | null;
   /** Modellens ramgenerations-klassning ("wotc" … "sv"), null när osäker. */
   guessedEra: string | null;
+  /** Modellens HP-läsning (kortets största tal), null när oläst. */
+  guessedHp: number | null;
   confidence: number;
   candidates: ScanCandidate[];
   /** Bildmatchningens bästa likhet 0..1, eller null när inget avtryck skickades. */
@@ -985,6 +1002,7 @@ export async function identifyCard(
     guessedName: ocr.guessedName ?? null,
     guessedNumber: ocr.guessedNumber ?? null,
     guessedEra: ocr.guessedEra ?? null,
+    guessedHp: ocr.guessedHp ?? null,
     confidence: ocr.confidence,
     candidates,
     ambiguous: isAmbiguous(candidates),

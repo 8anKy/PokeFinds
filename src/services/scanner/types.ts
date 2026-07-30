@@ -24,6 +24,13 @@ export interface OcrResult {
    * exakt kort. Se ERA_YEARS i src/services/scanner/index.ts.
    */
   guessedEra?: string;
+  /**
+   * Kortets HP — det STÖRSTA tryckta talet på kortet, läsbart även när
+   * samlarnumret (~3 px på skärmfoto) inte är det. Mätt särskiljare: 28 kort
+   * heter exakt "Gyarados", bara 3 har HP 90. Bevisat att modellen läser det:
+   * den svarade med HP:t när vi bad om samlarnumret (fix 14f4a52).
+   */
+  guessedHp?: number;
   /** Leverantörens konfidens 0..1. */
   confidence: number;
 }

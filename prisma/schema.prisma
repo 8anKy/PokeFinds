@@ -254,6 +254,12 @@ model Card {
   supertype     String?
   subtype       String?
   artist        String?
+  // HP — kortets största tryckta tal. Skannerns särskiljare när samlarnumret
+  // (~3 px på skärmfoto) inte går att läsa: 28 kort heter exakt "Gyarados",
+  // men HP 90 bär bara 3 av dem. Fylls av import-tcg-data + backfill-card-hp
+  // från pokemontcg.io. Null för trainers/energi (har inget HP) och kort som
+  // saknas uppströms.
+  hp            Int?
   // SAMLARORDNING: sorterbar nyckel för `number` ("1, 2, 3 … 102", inte "1, 10,
   // 100, 11"). Räknas av POSTGRES (GENERATED ALWAYS ... STORED, se migrationen
   // 20260728210000) — skriv den ALDRIG från appen: fältet skickas aldrig i

@@ -110,6 +110,7 @@ export async function POST(req: Request) {
             guessedName: result.guessedName,
             guessedNumber: result.guessedNumber,
             guessedEra: result.guessedEra,
+            guessedHp: result.guessedHp,
             confidence: result.confidence,
             artTop: result.artTop,
             artTopLabel: result.artTopLabel,

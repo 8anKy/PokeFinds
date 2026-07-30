@@ -22,6 +22,7 @@ interface Diag {
   guessedName?: string | null;
   guessedNumber?: string | null;
   guessedEra?: string | null;
+  guessedHp?: number | null;
   confidence?: number;
   artTop?: number | null;
   artTopLabel?: string | null;
@@ -82,7 +83,7 @@ async function main() {
 
     console.log(
       `${at.toISOString().slice(11, 19)}  "${d.guessedName ?? ""}" / "${num}"` +
-        `${d.guessedEra ? ` era:${d.guessedEra}` : ""}` +
+        `${d.guessedEra ? ` era:${d.guessedEra}` : ""}${d.guessedHp ? ` hp:${d.guessedHp}` : ""}` +
         `  → ${d.chosen ? `${d.chosen.name} ${d.chosen.number} (${d.chosen.setName})` : "—"}` +
         `  bild ${sc[0]?.toFixed(3) ?? "–"} marg ${margin?.toFixed(3) ?? "–"}` +
         `${trusted ? " SÄKER" : ""}${usable ? "" : " · nr oläst"}`
