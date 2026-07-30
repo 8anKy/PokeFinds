@@ -63,11 +63,14 @@ const SYSTEM = [
   "nummer är VÄRRE än inget: det pekar ut ett annat riktigt kort. Att svara",
   "numberLegible=false är alltid ett godtagbart svar.",
   "ANGE OCKSÅ KORTRAMENS GENERATION (era): ramdesignen syns även när texten är",
-  "oläslig, och den skiljer kort som delar namn. Gul ram = wotc (1999–2003).",
-  "Silverram med EX-seriens layout = ex (2003–2007). Diamond & Pearl/Platinum/",
-  "HeartGold SoulSilver = dp (2007–2011). Black & White/XY = bwxy (2011–2016).",
-  "Sun & Moon = sm (2017–2019). Sword & Shield = swsh (2020–2022).",
-  "Scarlet & Violet och senare = sv (2023–). Kan du inte avgöra: okand.",
+  "oläslig, och den skiljer kort som delar namn. OBS: ramen är GUL på ALLA kort",
+  "före 2023 — ramfärgen skiljer bara sv från resten. Skilj epokerna på LAYOUTEN:",
+  "wotc (1999–2003, Base till Skyridge): evolutionsruta med miniatyrbild UPPE",
+  "till vänster, OVANFÖR konsten. ex (2003–2007, Ruby & Sapphire till Power",
+  "Keepers): STAGE-flik med miniatyrbild NERE till vänster som ÖVERLAPPAR",
+  "konsten. dp (2007–2011, Diamond & Pearl/Platinum/HGSS). bwxy (2011–2016,",
+  "Black & White/XY). sm (2017–2019, Sun & Moon). swsh (2020–2022, Sword &",
+  "Shield). sv (2023–, Scarlet & Violet: SILVER/GRÅ ram). Osäker: okand.",
   "Returnera en konfidens 0–1 utifrån hur tydligt kortet syns och hur säker du är.",
   "Om inget tydligt Pokémon-kort syns: sätt cardVisible=false och låg konfidens.",
 ].join(" ");
@@ -113,13 +116,19 @@ const CARD_TOOL: Anthropic.Tool = {
       // "nyast set" valde alltid fel epok för ett vintage-kort. Ramdesignen är
       // en GROV visuell signal som modellen klarar även på suddiga skärmfoton,
       // och den används bara som liten tie-breaker (se ERA_YEARS/ERA_WEIGHT).
+      // ⛔ SÄG ALDRIG "gul ram = wotc" — ALLA kort före 2023 har gul ram, så
+      // den ledtråden klassade en EX-era-Gyarados (2005) som wotc (mätt
+      // 2026-07-30, tre skanningar i rad). wotc/ex skiljs på var evolutions-
+      // rutan sitter: ovanför konsten (wotc) mot överlappande fliken (ex).
       era: {
         type: "string",
         enum: ["wotc", "ex", "dp", "bwxy", "sm", "swsh", "sv", "okand"],
         description:
-          "Kortramens generation utifrån DESIGNEN (gul ram = wotc, EX-serien = ex, " +
-          "Diamond & Pearl/HGSS = dp, Black & White/XY = bwxy, Sun & Moon = sm, " +
-          "Sword & Shield = swsh, Scarlet & Violet eller senare = sv). Osäker = okand.",
+          "Kortramens generation utifrån LAYOUTEN, inte ramfärgen (gul ram t.o.m. " +
+          "2022): wotc = evolutionsruta uppe till vänster (1999–2003), ex = " +
+          "STAGE-flik som överlappar konsten nere till vänster (2003–2007), " +
+          "dp (2007–2011), bwxy (2011–2016), sm (2017–2019), swsh (2020–2022), " +
+          "sv = silver/grå ram (2023–). Osäker = okand.",
       },
       confidence: { type: "number", description: "0–1" },
     },

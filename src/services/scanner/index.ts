@@ -355,6 +355,9 @@ const ERA_YEARS: Record<string, [number, number]> = {
   sv: [2023, 2099],
 };
 
+/** Epokernas ordning — grannskap används för halva bonusen nedan. */
+const ERA_ORDER = ["wotc", "ex", "dp", "bwxy", "sm", "swsh", "sv"] as const;
+
 /**
  * Era-bonusen är MEDVETET UNDER `MATCH_MARGIN_MIN` (0,05): den får ordna
  * annars-oavgjorda namnsyskon (vinnaren OCH kandidatlistan sorteras på poäng),
@@ -362,8 +365,17 @@ const ERA_YEARS: Record<string, [number, number]> = {
  * aldrig utmana ett läst nummer (0,25–0,5) eller en säker bildträff (1,15).
  * Eran kommer ur samma modellsvar som namnet och dämpas därför med samma
  * misstro (nameWeight) när bilden motsäger texten.
+ *
+ * GRANNEPOKEN FÅR HALV BONUS (mätt 2026-07-30): epokgränserna delar
+ * designdrag, och Haiku klassade en EX-era-Gyarados (2005) som wotc tre
+ * skanningar i rad — varpå rätt kort föll UR kandidatlistan igen (utanför
+ * wotc-fönstret, under de moderna syskonen i sorteringen). En epok fel är
+ * det FÖRVÄNTADE felet, inte ett undantagsfall; halva bonusen lägger
+ * grannepokens kort mellan träffepoken och de orelaterade, så rätt kort
+ * förblir valbart även när klassningen är ett steg fel.
  */
 const ERA_WEIGHT = 0.04;
+const ERA_ADJACENT_WEIGHT = 0.02;
 
 /** Kortnamn-tokens ur OCR-texten. Tomt resultat → hela frågan som en token. */
 function nameTokens(query: string): string[] {
@@ -505,17 +517,30 @@ export async function matchCards(
     if (bestNameAgreement < NAME_AGREE_MIN) nameWeight = NAME_DISTRUST;
   }
 
-  const eraRange = ocr.guessedEra ? ERA_YEARS[ocr.guessedEra] : undefined;
+  const eraIdx = ocr.guessedEra
+    ? ERA_ORDER.indexOf(ocr.guessedEra as (typeof ERA_ORDER)[number])
+    : -1;
+  const inEra = (idx: number, year: number): boolean => {
+    const range = ERA_YEARS[ERA_ORDER[idx]];
+    // ±1 år: set blöder över årsskiften.
+    return year >= range[0] - 1 && year <= range[1] + 1;
+  };
 
   const scored = [...byId.values()].map((card) => {
     // Namnlikheten är 0 när modellen inte läste något namn — då bär bilden och
     // numret hela bedömningen, vilket är precis avsikten.
     let score = query ? scoreSimilarity(query, card.name) * nameWeight : 0;
-    // Ramgenerationen: liten tie-breaker mellan namnsyskon. Se ERA_WEIGHT.
-    if (eraRange && card.set.releaseDate) {
+    // Ramgenerationen: liten tie-breaker mellan namnsyskon. Grannepoken får
+    // halva bonusen — en epok fel är det förväntade felet. Se ERA_WEIGHT.
+    if (eraIdx >= 0 && card.set.releaseDate) {
       const year = card.set.releaseDate.getUTCFullYear();
-      if (year >= eraRange[0] - 1 && year <= eraRange[1] + 1) {
+      if (inEra(eraIdx, year)) {
         score += ERA_WEIGHT * nameWeight;
+      } else if (
+        (eraIdx > 0 && inEra(eraIdx - 1, year)) ||
+        (eraIdx < ERA_ORDER.length - 1 && inEra(eraIdx + 1, year))
+      ) {
+        score += ERA_ADJACENT_WEIGHT * nameWeight;
       }
     }
     // Bildlikhet: en gradering, inte ett bevis. Se ART_WEIGHT.

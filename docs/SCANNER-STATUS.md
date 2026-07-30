@@ -118,6 +118,20 @@ syskonen sorteras överst i "välj ett annat". Eran dämpas med samma nameWeight
 som namn/nummer (samma modellsvar, samma misstro). Era-klassningens verkliga
 träffsäkerhet är ÄNNU OMÄTT — telemetrin loggar `era:` per skanning.
 
+**FÖRSTA MÄTNINGEN AV ERA-KLASSNINGEN (samma dag, 3 skanningar)**: mekaniken
+höll (tre skanningar → SAMMA svar, rätt tidsepok ±2 år; förut tre olika svar
+från 2023) men Haiku klassade EX-era-Gyaradosen (2005) som `wotc` alla tre
+gångerna → vinnaren blev Dragon #32 (nyast i wotc-fönstret, nov 2003) och
+Deoxys #8 föll UR listan igen. ⛔ ROTORSAKEN VAR PROMPTEN: "gul ram = wotc"
+är faktafel — ALLA engelska kort t.o.m. 2022 har gul ram; bara Scarlet &
+Violet (2023–) är silver/grå. Ledtrådarna är omskrivna till LAYOUT (wotc =
+evolutionsruta OVANFÖR konsten uppe till vänster; ex = STAGE-flik som
+ÖVERLAPPAR konsten nere till vänster), och GRANNEPOKEN får halv bonus
+(`ERA_ADJACENT_WEIGHT` 0,02) — en epok fel är det FÖRVÄNTADE felet, och
+halva bonusen håller rätt kort kvar i kandidatlistan även då. Kvarstående
+ärlig gräns: inom rätt epok avgör fortfarande "nyast set" — exakt kort på
+skärmfoto kräver läsbart nummer (eller HP-kolumn i katalogen, som inte finns).
+
 ## Öppet — nästa steg
 
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om

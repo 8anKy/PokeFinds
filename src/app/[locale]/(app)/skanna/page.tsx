@@ -63,6 +63,8 @@ interface IdentifyResponse {
   provider: string;
   guessedName: string | null;
   guessedNumber: string | null;
+  /** Modellens ramgenerations-klassning ("wotc" … "sv"), null när osäker. */
+  guessedEra: string | null;
   confidence: number;
   candidates: Candidate[];
   /** Bildmatchningens bästa likhet 0..1, null när inget avtryck kunde användas. */
@@ -426,7 +428,9 @@ function Scanner() {
         // mellan "modellen läste fel" och "modellen läste rätt men slagningen
         // valde fel kort", och de två har helt olika åtgärder.
         setOcrInfo(
-          `${data.provider} · "${data.guessedName ?? ""}" / "${data.guessedNumber ?? ""}" · konf ${data.confidence.toFixed(2)}` +
+          // `era` = modellens ramgenerations-klassning — utan den i raden går
+          // det inte att se om ett epokfel kom från modellen eller poängen.
+          `${data.provider} · "${data.guessedName ?? ""}" / "${data.guessedNumber ?? ""}" · era ${data.guessedEra ?? "—"} · konf ${data.confidence.toFixed(2)}` +
             // `bild` skiljer "avtrycket skickades inte / indexet är tomt" (—) från
             // "det matchade svagt" (lågt tal). Utan det går de två inte att skilja.
             // Bildens EGNA toppträffar, inte bara poängen: annars går det inte
