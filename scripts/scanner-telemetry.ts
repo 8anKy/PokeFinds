@@ -85,6 +85,9 @@ async function main() {
         `  bild ${sc[0]?.toFixed(3) ?? "–"} marg ${margin?.toFixed(3) ?? "–"}` +
         `${trusted ? " SÄKER" : ""}${usable ? "" : " · nr oläst"}`
     );
+    // Bildens EGNA toppträffar på egen rad: skiljer "bilden valde fel kort"
+    // från "bilden valde rätt men texten överröstade den" — olika åtgärder.
+    if (d.artTopLabel) console.log(`          bild-topp: ${d.artTopLabel}`);
   }
 
   console.log(`\n--- ${rows.length} skanningar ---`);

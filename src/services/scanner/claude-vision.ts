@@ -187,6 +187,15 @@ export class ClaudeVisionOcrAdapter implements OcrAdapter {
     const response = await client.messages.create({
       model: this.model,
       max_tokens: 256,
+      // ⛔ UTAN DETTA TRUNKERAR ETT MODELLBYTE TYST. På Sonnet 5 (och Opus
+      // 4.6+/5) är adaptivt tänkande PÅ när `thinking` utelämnas, och
+      // `max_tokens` är taket för tänkande + svar — 256 klipper då FÖRE
+      // verktygsanropet. Tänkande är fel verktyg för ren textavläsning med
+      // tvingat verktyg, så det stängs av i stället för att höja taket (som
+      // hade betalat tänk-tokens per skanning). Haiku 4.5 tar inte "disabled"
+      // (äldre thinking-API) och tänker inte som standard → utelämna där.
+      // OBS: claude-fable-5 avvisar "disabled" helt — använd inte den här.
+      ...(this.model.includes("haiku") ? {} : { thinking: { type: "disabled" as const } }),
       system: SYSTEM,
       tools: [CARD_TOOL],
       tool_choice: { type: "tool", name: "report_card" },

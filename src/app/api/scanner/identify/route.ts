@@ -121,8 +121,15 @@ export async function POST(req: Request) {
                   score: result.candidates[0].score,
                 }
               : null,
-            // Första rutans svep räcker för att kunna spela upp sökningen igen.
-            fingerprints: (fingerprintFrames?.[0] ?? fingerprints ?? []).slice(0, 4),
+            // ALLA rutors svep, inte bara den första: servern dömer på den ruta
+            // som var mest AVGÖRANDE (searchByFrames), så en replay med bara
+            // ruta 1 återger inte det verkliga beslutet. ~16 × 352 tecken ≈
+            // 5,6 kB per admin-rad — bara ägarens egna skanningar bär detta.
+            frames: (
+              fingerprintFrames ?? (fingerprints?.length ? [fingerprints] : [])
+            )
+              .slice(0, 4)
+              .map((f) => f.slice(0, 4)),
           }
         : undefined
     );

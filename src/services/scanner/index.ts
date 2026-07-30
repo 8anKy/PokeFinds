@@ -134,7 +134,7 @@ export function getOcrAdapter(precise = false): OcrAdapter {
     case "claude":
       return new ClaudeVisionOcrAdapter(
         precise
-          ? process.env.SCANNER_MODEL_PRECISE ?? "claude-sonnet-4-6"
+          ? process.env.SCANNER_MODEL_PRECISE ?? "claude-sonnet-5"
           : process.env.SCANNER_MODEL ?? "claude-haiku-4-5"
       );
     default:

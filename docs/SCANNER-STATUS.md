@@ -78,6 +78,24 @@ alltså hur bra skannern är på riktiga kort, och det är otestat.
 | `e9b3e11` | Oavgjort mellan olika kort = ingen träff … |
 | `8c7529c` | … vilket var FEL avvägning: de flesta kort blev "ingen träff". Nu en MÄRKT gissning (`?`) i stället |
 
+## Beslut 2026-07-30 (ägarens): Haiku behålls, test sker på skärmfoton
+
+Kostnadsbriefing gavs (Sonnet 5 $0,0069/scan, +högupplöst närbild ~$0,011, mot
+Haikus $0,0029) — ägaren valde att BEHÅLLA Haiku 4.5 och testa vidare på
+skärmfoton. Följder:
+
+- **Modellbytet är nu en ren env-ändring** (`SCANNER_MODEL=claude-sonnet-5` i
+  Railway): vision-anropet sätter `thinking: disabled` för icke-Haiku-modeller,
+  så `max_tokens: 256`-fällan (adaptivt tänkande äter taket på Sonnet 5) är
+  desarmerad. Ingen Railway-var är satt i dag → koddefaulten (Haiku) gäller.
+- **Diagnostiken sparar nu ALLA rutors avtryck** (inte bara ruta 1), så
+  `scripts/scanner-replay.ts` kan återge exakt det `searchByFrames`-beslut
+  produktionen tog. Replayen är vägen att mäta viktändringar mot RIKTIGA
+  fångster i stället för syntetiska — kör den före/efter varje justering.
+- På skärmfoton av klassiskt ramade kort är 90 % strukturellt onåbart (numret
+  är ~3 px — finns inte i källan). Helbildskort + kort där bilden särskiljer
+  fungerar; syskonval inom samma namn avgörs av bildmarginaler på ~0,01–0,08.
+
 ## Öppet — nästa steg
 
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
@@ -107,6 +125,9 @@ alltså hur bra skannern är på riktiga kort, och det är otestat.
 ```bash
 # Verklig träffsäkerhet från riktiga skanningar (admin-telemetri)
 node scripts/with-prod-db.mjs npx tsx scripts/scanner-telemetry.ts
+
+# Replaya riktiga skanningars avtryck genom searchByFrames (mät viktändringar)
+node scripts/with-prod-db.mjs npx tsx scripts/scanner-replay.ts
 
 # Katalogslagningen mot facit (simulerad felfri OCR)
 node scripts/with-prod-db.mjs npx tsx scripts/scanner-match-audit.ts
