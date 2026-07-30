@@ -23,18 +23,38 @@
  *    kort inom ett dygn.
  */
 import { prisma } from "@/lib/db";
-import { FINGERPRINT_BYTES, cosineSimilarity, toUnitVector } from "@/lib/art-fingerprint";
+import {
+  BLEND_COLOR,
+  BLEND_DCT,
+  BLEND_GRAD,
+  FINGERPRINT_BYTES,
+  STRUCT_BYTES,
+  STRUCT_DCT_DIMS,
+  cosineSimilarity,
+  toUnitVector,
+} from "@/lib/art-fingerprint";
 
 /** Hur länge ett laddat index återanvänds. Katalogen växer ~1×/vecka. */
 const TTL_MS = Number(process.env.ART_INDEX_TTL_MS ?? String(24 * 60 * 60 * 1000));
 
 interface ArtIndex {
   ids: string[];
-  /** Alla avtryck packade efter varandra: rad i börjar på i × FINGERPRINT_BYTES. */
+  /** Alla färgavtryck packade efter varandra: rad i börjar på i × FINGERPRINT_BYTES. */
   data: Int8Array;
   /** 1/‖rad‖ per kort, förberäknad så sökningen slipper en rot per jämförelse. */
   invNorm: Float32Array;
+  /** Strukturavtrycken (dctb+grad), nollfyllda där kortet saknar dem. */
+  struct: Int8Array;
+  /** 1/‖dctb-del‖ resp 1/‖grad-del‖ per kort; 0 = saknas → delcosinus 0. */
+  invDct: Float32Array;
+  invGrad: Float32Array;
   loadedAt: number;
+}
+
+/** Fråga: färgavtryck + ev. strukturavtryck (äldre klienter skickar bara färg). */
+export interface ArtQuery {
+  color: Int8Array;
+  struct: Int8Array | null;
 }
 
 let cache: ArtIndex | null = null;
@@ -43,14 +63,18 @@ let loading: Promise<ArtIndex | null> | null = null;
 async function load(): Promise<ArtIndex | null> {
   const rows = await prisma.card.findMany({
     where: { artFingerprint: { not: null } },
-    select: { id: true, artFingerprint: true },
+    select: { id: true, artFingerprint: true, structFingerprint: true },
   });
   if (rows.length === 0) return null;
 
   const ids: string[] = [];
   const data = new Int8Array(rows.length * FINGERPRINT_BYTES);
   const invNorm = new Float32Array(rows.length);
+  const struct = new Int8Array(rows.length * STRUCT_BYTES);
+  const invDct = new Float32Array(rows.length);
+  const invGrad = new Float32Array(rows.length);
   let n = 0;
+  let missingStruct = 0;
   for (const row of rows) {
     const buf = row.artFingerprint;
     // Fel längd = avtryck från en annan rutnätsversion. Hoppa över det tyst
@@ -65,10 +89,32 @@ async function load(): Promise<ArtIndex | null> {
       norm += v * v;
     }
     invNorm[n] = norm > 0 ? 1 / Math.sqrt(norm) : 0;
+    // Strukturavtrycket: saknas/fel längd → norm 0 → delcosinus 0, kortet
+    // bär då bara färgdelen. Efter backfillen ska missingStruct vara ~0.
+    const sb = row.structFingerprint;
+    if (sb && sb.length === STRUCT_BYTES) {
+      let nd = 0;
+      let ng = 0;
+      for (let i = 0; i < STRUCT_BYTES; i++) {
+        const v = (sb[i] << 24) >> 24;
+        struct[n * STRUCT_BYTES + i] = v;
+        if (i < STRUCT_DCT_DIMS) nd += v * v;
+        else ng += v * v;
+      }
+      invDct[n] = nd > 0 ? 1 / Math.sqrt(nd) : 0;
+      invGrad[n] = ng > 0 ? 1 / Math.sqrt(ng) : 0;
+    } else {
+      missingStruct++;
+    }
     ids.push(row.id);
     n++;
   }
-  return { ids: ids.slice(0, n), data, invNorm, loadedAt: Date.now() };
+  if (missingStruct > 0) {
+    console.warn(
+      `[art-index] ${missingStruct} kort saknar strukturavtryck — kör build-art-fingerprints.ts`
+    );
+  }
+  return { ids: ids.slice(0, n), data, invNorm, struct, invDct, invGrad, loadedAt: Date.now() };
 }
 
 /** Laddat index, eller null när inga avtryck finns (t.ex. före backfillen). */
@@ -103,17 +149,31 @@ export interface ArtMatch {
  * saknar och kosta minne vi betalar för — det är fel avvägning här.
  */
 export async function searchByFingerprint(
-  fingerprint: Int8Array,
+  query: ArtQuery,
   k = 15
 ): Promise<ArtMatch[]> {
-  if (fingerprint.length !== FINGERPRINT_BYTES) return [];
+  if (query.color.length !== FINGERPRINT_BYTES) return [];
   const index = await getArtIndex();
   if (!index) return [];
 
+  const color = query.color;
   let qNorm = 0;
-  for (let i = 0; i < FINGERPRINT_BYTES; i++) qNorm += fingerprint[i] * fingerprint[i];
+  for (let i = 0; i < FINGERPRINT_BYTES; i++) qNorm += color[i] * color[i];
   if (qNorm === 0) return []; // jämn yta — ingen information att matcha på
   const qInv = 1 / Math.sqrt(qNorm);
+
+  // Frågans strukturdelar + deras normer (skalinvariant cosinus per del).
+  const struct = query.struct && query.struct.length === STRUCT_BYTES ? query.struct : null;
+  let qInvDct = 0;
+  let qInvGrad = 0;
+  if (struct) {
+    let nd = 0;
+    let ng = 0;
+    for (let i = 0; i < STRUCT_DCT_DIMS; i++) nd += struct[i] * struct[i];
+    for (let i = STRUCT_DCT_DIMS; i < STRUCT_BYTES; i++) ng += struct[i] * struct[i];
+    qInvDct = nd > 0 ? 1 / Math.sqrt(nd) : 0;
+    qInvGrad = ng > 0 ? 1 / Math.sqrt(ng) : 0;
+  }
 
   const { ids, data, invNorm } = index;
   // Liten topplista via insertion — k är ~15, så en heap vore överarbetat.
@@ -122,8 +182,31 @@ export async function searchByFingerprint(
   for (let r = 0; r < ids.length; r++) {
     const base = r * FINGERPRINT_BYTES;
     let dot = 0;
-    for (let i = 0; i < FINGERPRINT_BYTES; i++) dot += fingerprint[i] * data[base + i];
-    const score = dot * qInv * invNorm[r];
+    for (let i = 0; i < FINGERPRINT_BYTES; i++) dot += color[i] * data[base + i];
+    const cosColor = dot * qInv * invNorm[r];
+    let score: number;
+    if (struct) {
+      // BLANDNINGEN ("triw", mätt 2026-07-30): 0,25·färg + 0,25·dctb + 0,5·grad.
+      // Skärmfoto topp-15 38,5 % → 97,1 %, fysisk 93,2 % → 95,6 %. Kort utan
+      // strukturavtryck får delcosinus 0 (invDct/invGrad = 0) — mindre bevis,
+      // lägre poäng, vilket är ärligt.
+      const sBase = r * STRUCT_BYTES;
+      let dDct = 0;
+      for (let i = 0; i < STRUCT_DCT_DIMS; i++) {
+        dDct += struct[i] * index.struct[sBase + i];
+      }
+      let dGrad = 0;
+      for (let i = STRUCT_DCT_DIMS; i < STRUCT_BYTES; i++) {
+        dGrad += struct[i] * index.struct[sBase + i];
+      }
+      score =
+        BLEND_COLOR * cosColor +
+        BLEND_DCT * dDct * qInvDct * index.invDct[r] +
+        BLEND_GRAD * dGrad * qInvGrad * index.invGrad[r];
+    } else {
+      // Äldre klient utan strukturavtryck → ren färgcosinus, som förut.
+      score = cosColor;
+    }
     if (top.length < k) {
       top.push({ cardId: ids[r], score });
       if (top.length === k) {
@@ -155,7 +238,7 @@ export async function searchByFingerprint(
  * — vilket är precis det svepet finns för att undvika.
  */
 export async function searchByFingerprints(
-  fingerprints: Int8Array[],
+  fingerprints: ArtQuery[],
   k = 15
 ): Promise<ArtMatch[]> {
   if (fingerprints.length === 0) return [];
@@ -190,7 +273,7 @@ export async function searchByFingerprints(
  * marginalen — hela vårt mått på tillförlitlighet — går förlorad. En dålig ruta
  * ska INTE kunna bidra med en enstaka hög poäng till ett fel kort.
  */
-export async function searchByFrames(frames: Int8Array[][], k = 15): Promise<ArtMatch[]> {
+export async function searchByFrames(frames: ArtQuery[][], k = 15): Promise<ArtMatch[]> {
   const usable = frames.filter((f) => f.length > 0);
   if (usable.length === 0) return [];
   if (usable.length === 1) return searchByFingerprints(usable[0], k);

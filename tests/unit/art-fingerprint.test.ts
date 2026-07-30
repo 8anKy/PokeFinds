@@ -200,3 +200,54 @@ describe("art-fingerprint", () => {
     expect(fingerprintFromRgb(new Uint8Array(10), 100, 100, 3)).toBeNull();
   });
 });
+
+/**
+ * STRUKTURAVTRYCKET (dctb + grad) har samma enda-implementation-krav: klienten
+ * (canvas, RGBA) och servern (sharp, RGB) måste räkna IDENTISKT, annars går
+ * nyckeln tyst isär. Samma parvisa test som för färgavtrycket.
+ */
+import {
+  STRUCT_BYTES,
+  STRUCT_DCT_DIMS,
+  structFingerprintFromRgb,
+} from "@/lib/art-fingerprint";
+
+describe("struct-fingerprint", () => {
+  it("ger 959 byte (255 DCT-tecken + 704 gradientfack)", () => {
+    const fp = structFingerprintFromRgb(makeImage(88, 121, 3), 88, 121, 3);
+    expect(fp).not.toBeNull();
+    expect(fp!.length).toBe(STRUCT_BYTES);
+    // DCT-delen är strikt ±1 — ett annat värde betyder trasig binärisering.
+    for (let i = 0; i < STRUCT_DCT_DIMS; i++) {
+      expect(Math.abs(fp![i])).toBe(1);
+    }
+  });
+
+  it("räknar 3-kanals (server) och 4-kanals (klient) IDENTISKT, alla inset", () => {
+    const w = 176;
+    const h = 242;
+    const rgb = makeImage(w, h, 3);
+    const rgba = makeImage(w, h, 4);
+    for (const inset of FINGERPRINT_INSETS) {
+      const a = structFingerprintFromRgb(rgb, w, h, 3, inset);
+      const b = structFingerprintFromRgb(rgba, w, h, 4, inset);
+      expect(a).not.toBeNull();
+      expect(b).not.toBeNull();
+      expect(Array.from(a!)).toEqual(Array.from(b!));
+    }
+  });
+
+  it("är stabilt över upplösning (samma motiv, två storlekar)", () => {
+    const a = structFingerprintFromRgb(makeImage(192, 264, 3), 192, 264, 3);
+    const b = structFingerprintFromRgb(makeImage(384, 528, 3), 384, 528, 3);
+    const sim = cosineSimilarity(toUnitVector(a!), toUnitVector(b!));
+    expect(sim).toBeGreaterThan(0.9);
+  });
+
+  it("tål ett ljusstyrketillägg (belysningsimmunitet är hela poängen)", () => {
+    const a = structFingerprintFromRgb(makeImage(192, 264, 3), 192, 264, 3);
+    const shifted = structFingerprintFromRgb(makeImage(192, 264, 3, 20), 192, 264, 3);
+    const sim = cosineSimilarity(toUnitVector(a!), toUnitVector(shifted!));
+    expect(sim).toBeGreaterThan(0.95);
+  });
+});

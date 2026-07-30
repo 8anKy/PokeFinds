@@ -134,6 +134,174 @@ export function fingerprintFromRgb(
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// STRUKTURAVTRYCK — särdrag som överlever OMRENDERING (skärmfoto av en bild).
+//
+// VARFÖR (mätt 2026-07-30, scripts/art-audit/screen-eval.ts): färgavtrycket
+// ovan fälls av RUMSLIGT varierande ljus — LCD:ns off-axis-avfall, vinjettering
+// och blänk — som per-kanal-standardiseringen inte kan kancellera (den tar bara
+// affina transformer). På en kalibrerad skärmfoto-benchmark som reproducerar
+// produktionens verkliga haverier föll färgavtryckets topp-15 till 38,5 %.
+// Konkurrenternas kortscanners (TinEye CardSearchEngine-klassen) bygger på
+// belysningsimmun STRUKTUR, och det gör de två delarna här också:
+//
+//   DCTB — tecknet på lågfrekventa DCT-koefficienter (pHash-familjen). Ett
+//          mjukt ljusfält stör koefficienternas VÄRDEN men sällan deras
+//          TECKEN. 255 dim (16×16 minus DC) från en 64×64-gråskalegrid.
+//   GRAD — orienterade gradienthistogram (HOG-lätt). Kanter i konst och ram
+//          ligger kvar när färgtemperatur och moiré flyttar absolutvärdena.
+//          8×11 celler × 8 riktningsfack = 704 dim från en 96×132-grid.
+//
+// MÄTT (205 frågor × 2 benchmarks, hela katalogen som distraktorer), topp-15
+// med blandningen 0,25·färg + 0,25·dctb + 0,5·grad ("triw"):
+//   skärmfoto  38,5 % → 97,1 %      fysisk (harsh)  93,2 % → 95,6 %
+// Marginaler: fel-max 0,028 (410 frågor), rätt-median ~0,10–0,12 — samma
+// marginalregel som förut fungerar, med större säkerhetsavstånd.
+//
+// ⛔ Samma enda-implementation-regel som färgavtrycket: klient (canvas, 4 kan)
+// och server (sharp, 3 kan) anropar DEN HÄR koden med råa pixlar; all
+// nedskalning är boxmedelvärde härifrån. Testet jämför vägarna byte för byte.
+// ---------------------------------------------------------------------------
+
+/** 16×16 lågfrekvens-DCT minus DC. */
+export const STRUCT_DCT_DIMS = 255;
+/** 8×11 celler × 8 riktningsfack. */
+export const STRUCT_GRAD_DIMS = 704;
+/** dctb (±1) följt av grad (int8) i EN buffert. */
+export const STRUCT_BYTES = STRUCT_DCT_DIMS + STRUCT_GRAD_DIMS;
+
+/** Blandningsvikter — mätt bäst balans (screen-eval "triw"). Summan = 1. */
+export const BLEND_COLOR = 0.25;
+export const BLEND_DCT = 0.25;
+export const BLEND_GRAD = 0.5;
+
+const DCT_N = 64;
+const DCT_KEEP = 16;
+const GRAD_W = 96;
+const GRAD_H = 132;
+const GRAD_CELLS_X = 8;
+const GRAD_CELLS_Y = 11;
+const GRAD_BINS = 8;
+
+/** Förberäknad DCT-II-matris. Ren aritmetik → identisk i alla JS-miljöer. */
+let dctMatrix: Float64Array | null = null;
+function getDctMatrix(): Float64Array {
+  if (dctMatrix) return dctMatrix;
+  const m = new Float64Array(DCT_N * DCT_N);
+  for (let k = 0; k < DCT_N; k++) {
+    const a = k === 0 ? Math.sqrt(1 / DCT_N) : Math.sqrt(2 / DCT_N);
+    for (let n = 0; n < DCT_N; n++) {
+      m[k * DCT_N + n] = a * Math.cos(((2 * n + 1) * k * Math.PI) / (2 * DCT_N));
+    }
+  }
+  dctMatrix = m;
+  return m;
+}
+
+/**
+ * Råa RGB(A)-pixlar → strukturavtryck (dctb ±1 + grad int8), eller null när
+ * insetet äter upp bilden. Samma inset-semantik som färgavtrycket — svepet
+ * (FINGERPRINT_INSETS) gäller båda.
+ */
+export function structFingerprintFromRgb(
+  pixels: Uint8Array | Uint8ClampedArray,
+  width: number,
+  height: number,
+  channels: 3 | 4 = 3,
+  inset = 0
+): Int8Array | null {
+  if (width < 1 || height < 1) return null;
+  if (pixels.length < width * height * channels) return null;
+  const dx = inset > 0 ? Math.round(width * inset) : 0;
+  const dy = inset > 0 ? Math.round(height * inset) : 0;
+  const iw = width - dx * 2;
+  const ih = height - dy * 2;
+  if (iw < GRAD_W / 2 || ih < GRAD_H / 2) return null;
+
+  // EN pixelpassage fyller båda gråskalegriderna (64×64 + 96×132).
+  const dctSums = new Float64Array(DCT_N * DCT_N);
+  const dctCounts = new Uint32Array(DCT_N * DCT_N);
+  const gradSums = new Float64Array(GRAD_W * GRAD_H);
+  const gradCounts = new Uint32Array(GRAD_W * GRAD_H);
+  for (let y = 0; y < ih; y++) {
+    const dctGy = Math.min(DCT_N - 1, Math.floor((y * DCT_N) / ih));
+    const gradGy = Math.min(GRAD_H - 1, Math.floor((y * GRAD_H) / ih));
+    const rowBase = (dy + y) * width;
+    for (let x = 0; x < iw; x++) {
+      const p = (rowBase + dx + x) * channels;
+      const lum = 0.299 * pixels[p] + 0.587 * pixels[p + 1] + 0.114 * pixels[p + 2];
+      const dctGx = Math.min(DCT_N - 1, Math.floor((x * DCT_N) / iw));
+      const dctCell = dctGy * DCT_N + dctGx;
+      dctSums[dctCell] += lum;
+      dctCounts[dctCell]++;
+      const gradGx = Math.min(GRAD_W - 1, Math.floor((x * GRAD_W) / iw));
+      const gradCell = gradGy * GRAD_W + gradGx;
+      gradSums[gradCell] += lum;
+      gradCounts[gradCell]++;
+    }
+  }
+  const dctGray = new Float64Array(DCT_N * DCT_N);
+  for (let i = 0; i < dctGray.length; i++) {
+    dctGray[i] = dctCounts[i] ? dctSums[i] / dctCounts[i] : 0;
+  }
+  const gradGray = new Float64Array(GRAD_W * GRAD_H);
+  for (let i = 0; i < gradGray.length; i++) {
+    gradGray[i] = gradCounts[i] ? gradSums[i] / gradCounts[i] : 0;
+  }
+
+  const out = new Int8Array(STRUCT_BYTES);
+
+  // DCTB: separabel 2D-DCT, bara de DCT_KEEP lägsta frekvenserna behövs.
+  const M = getDctMatrix();
+  const rows = new Float64Array(DCT_N * DCT_KEEP);
+  for (let y = 0; y < DCT_N; y++) {
+    for (let u = 0; u < DCT_KEEP; u++) {
+      let s = 0;
+      for (let x = 0; x < DCT_N; x++) s += dctGray[y * DCT_N + x] * M[u * DCT_N + x];
+      rows[y * DCT_KEEP + u] = s;
+    }
+  }
+  let di = 0;
+  for (let v = 0; v < DCT_KEEP; v++) {
+    for (let u = 0; u < DCT_KEEP; u++) {
+      if (u === 0 && v === 0) continue; // DC bär bara medelljus
+      let s = 0;
+      for (let y = 0; y < DCT_N; y++) s += rows[y * DCT_KEEP + u] * M[v * DCT_N + y];
+      out[di++] = s >= 0 ? 1 : -1;
+    }
+  }
+
+  // GRAD: centrala differenser på griden, magnitudviktade riktningsfack.
+  const hist = new Float64Array(STRUCT_GRAD_DIMS);
+  const cw = GRAD_W / GRAD_CELLS_X;
+  const chh = GRAD_H / GRAD_CELLS_Y;
+  for (let y = 1; y < GRAD_H - 1; y++) {
+    for (let x = 1; x < GRAD_W - 1; x++) {
+      const gx = gradGray[y * GRAD_W + x + 1] - gradGray[y * GRAD_W + x - 1];
+      const gy = gradGray[(y + 1) * GRAD_W + x] - gradGray[(y - 1) * GRAD_W + x];
+      const mag = Math.sqrt(gx * gx + gy * gy);
+      if (mag === 0) continue;
+      let ang = Math.atan2(gy, gx);
+      if (ang < 0) ang += Math.PI;
+      const bin = Math.min(GRAD_BINS - 1, Math.floor((ang / Math.PI) * GRAD_BINS));
+      const cellX = Math.min(GRAD_CELLS_X - 1, Math.floor(x / cw));
+      const cellY = Math.min(GRAD_CELLS_Y - 1, Math.floor(y / chh));
+      // Roten ur magnituden (Hellinger) dämpar enstaka hårda kanter.
+      hist[(cellY * GRAD_CELLS_X + cellX) * GRAD_BINS + bin] += Math.sqrt(mag);
+    }
+  }
+  // Kvantisering per vektor: cosinus är skalinvariant, så max-skalning till
+  // ±127 behåller mest int8-upplösning. Determinism: samma flyttalsoperationer
+  // i samma ordning på båda sidor.
+  let maxAbs = 0;
+  for (let i = 0; i < hist.length; i++) if (Math.abs(hist[i]) > maxAbs) maxAbs = Math.abs(hist[i]);
+  const scale = maxAbs > 0 ? 127 / maxAbs : 0;
+  for (let i = 0; i < hist.length; i++) {
+    out[STRUCT_DCT_DIMS + i] = Math.round(hist[i] * scale);
+  }
+  return out;
+}
+
 /**
  * Avtryck → L2-normaliserad float-vektor för jämförelse.
  *

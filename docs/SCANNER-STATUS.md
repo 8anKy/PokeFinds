@@ -159,6 +159,48 @@ kortbilden, så HP-mekanismen är FORTFARANDE OMÄTT i fält. Den är byggd för
 exakt de fångster där ingen sidtext finns; mät via telemetrin när fler
 skanningar droppat in.
 
+## BILDMATCH 2.0 (2026-07-30, kväll): strukturavtryck löser skärmfoto-fallet
+
+Ägarens mätning: konkurrenternas scanners (TinEye CardSearchEngine-klassen,
+$500/mån) identifierar kort på skärmfoton till ~100 %, även med nederkanten
+dold — alltså på ren konst. Vår färg-grid var alltså inte "taket för vad som
+går" utan taket för FÄRGBASERAD matchning. I stället för att köpa tjänsten
+byggdes samma komponenter själva:
+
+1. **Kalibrerat skärmfoto-harness** (`scripts/art-audit/screen-eval.ts` +
+   `screen-descriptors.ts`): degradering + moiré + färgstick + RUMSLIGT
+   varierande ljus. Kalibrering = baslinjen måste reproducera produktionens
+   verkliga haverier — och gör det (Gyarados·Deoxys faller till brus ~0,67
+   mot verklighetens ~0,69; Charizard Base håller ~0,84 mot verkliga 0,83).
+   ⛔ NYCKELINSIKT: färg-gridens per-kanal-standardisering KANCELLERAR alla
+   affina ljusförändringar — det som fäller den är RUMSLIGT ljus (LCD:ns
+   off-axis-avfall, vinjettering, blänk), och det var exakt det som saknades
+   i alla tidigare profiler.
+2. **Deskriptorracet** (205 frågor × 2 benchmarks, hela katalogen som
+   distraktorer), topp-15:
+   | | skärm | fysisk (harsh) |
+   |---|---|---|
+   | färg-grid (gamla) | 38,5 % | 93,2 % |
+   | dctb (tecken-DCT, pHash-klass) | 89,8 % | 68,3 % |
+   | grad (HOG-lätt 704 dim) | 94,1 % | 93,7 % |
+   | **triw = 0,25·färg + 0,25·dctb + 0,5·grad** | **97,1 %** | **95,6 %** |
+   Fel-marginal max 0,028 över 410 frågor → marginalregeln håller med ~3,6×
+   säkerhet. ⛔ MAX-AV-EXPERTER FUNKAR INTE (85,9 % skärm): den trasiga
+   experten är SJÄLVSÄKERT fel — skalor mellan experter är ojämförbara.
+3. **Produktion**: `Card.structFingerprint` (959 byte: 255 DCT-tecken + 704
+   gradientfack; migration 20260730230000, backfyllt 20 431 kort ur lokala
+   bildcachen). Delad implementation i `src/lib/art-fingerprint.ts` (parvisa
+   tester 3-kan/4-kan), klienten skickar båda avtrycken per inset ur SAMMA
+   getImageData, servern blandar tre delcosinus. Äldre klienter utan
+   strukturavtryck får exakt gamla färgbeteendet. `ART_TRUST_SCORE` sänkt
+   0,70 → 0,55 (blandad skala); marginalen 0,10 kvar som bärande villkor.
+   Indexkostnad: +~19 MB residentminne, noll per-scan-kostnad, inga tjänster.
+
+⚠️ Siffrorna är fortfarande TAK (frågor härledda ur referensfilerna) — men
+harnesset är för första gången KALIBRERAT mot verkliga haverier. Verklig
+träffsäkerhet mäts som vanligt via telemetrin + replayen (nya skanningar bär
+även strukturrutor, så replayen återger blandningen exakt).
+
 ## Öppet — nästa steg
 
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om

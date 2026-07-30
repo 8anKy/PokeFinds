@@ -17,8 +17,8 @@
  *   TAKE=60 …    # fler skanningar
  */
 import { Prisma, PrismaClient } from "@prisma/client";
-import { FINGERPRINT_BYTES } from "../src/lib/art-fingerprint";
-import { searchByFrames } from "../src/services/scanner/art-index";
+import { FINGERPRINT_BYTES, STRUCT_BYTES } from "../src/lib/art-fingerprint";
+import { type ArtQuery, searchByFrames } from "../src/services/scanner/art-index";
 
 const prisma = new PrismaClient();
 const TAKE = Number(process.env.TAKE ?? "40");
@@ -29,26 +29,34 @@ interface Diag {
   guessedName?: string | null;
   guessedNumber?: string | null;
   chosen?: { name: string; number: string; setName: string } | null;
-  /** Nya rader: alla rutors inset-svep. */
+  /** Nya rader: alla rutors inset-svep (+ ev. strukturrutor, positionsparade). */
   frames?: string[][];
+  structFrames?: string[][];
   /** Äldre rader: bara första rutans svep. */
   fingerprints?: string[];
 }
 
-function decode(b64: string): Int8Array | null {
+function decode(b64: string | undefined, expected: number): Int8Array | null {
+  if (!b64) return null;
   try {
     const buf = Buffer.from(b64, "base64");
-    if (buf.length !== FINGERPRINT_BYTES) return null;
+    if (buf.length !== expected) return null;
     return new Int8Array(buf.buffer, buf.byteOffset, buf.length);
   } catch {
     return null;
   }
 }
 
-function decodeFrames(d: Diag): Int8Array[][] {
+function decodeFrames(d: Diag): ArtQuery[][] {
   const frames = d.frames ?? (d.fingerprints?.length ? [d.fingerprints] : []);
   return frames
-    .map((f) => f.flatMap((b64) => (decode(b64) ? [decode(b64)!] : [])))
+    .map((f, fi) =>
+      f.flatMap((b64, i) => {
+        const color = decode(b64, FINGERPRINT_BYTES);
+        if (!color) return [];
+        return [{ color, struct: decode(d.structFrames?.[fi]?.[i], STRUCT_BYTES) }];
+      })
+    )
     .filter((f) => f.length > 0);
 }
 

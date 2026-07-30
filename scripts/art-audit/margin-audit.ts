@@ -80,7 +80,8 @@ async function main() {
       return fp ? [fp] : [];
     });
     if (fps.length === 0) continue;
-    const res = await searchByFingerprints(fps, 5);
+    // Färg-only-läget (struct: null) — mäter samma sak som före 2026-07-30.
+    const res = await searchByFingerprints(fps.map((fp) => ({ color: fp, struct: null })), 5);
     if (res.length < 2) continue;
     obs.push({
       correct: res[0].cardId === card.id,

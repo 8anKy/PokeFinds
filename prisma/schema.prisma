@@ -274,6 +274,11 @@ model Card {
   // Avsiktligt OINDEXERAT: sökningen är en linjär genomgång i minnet (hela
   // indexet är ~5,4 MB), så ett B-tree-index vore ren skrivkostnad.
   artFingerprint Bytes?
+  // STRUKTURAVTRYCK: 959 byte (255 DCT-tecken + 704 gradienthistogram, int8).
+  // Belysningsimmuna särdrag som överlever SKÄRMFOTO/omrendering där färg-
+  // avtrycket mätt fallerar (topp-15 38,5 % → 97,1 % med blandningen, se
+  // src/lib/art-fingerprint.ts). Byggs av samma build-art-fingerprints.ts.
+  structFingerprint Bytes?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 

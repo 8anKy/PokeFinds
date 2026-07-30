@@ -45,6 +45,15 @@ const schema = z.object({
     .array(z.array(z.string().min(1).max(1024)).max(8))
     .max(4)
     .optional(),
+  // STRUKTURAVTRYCK (959 byte ≈ 1280 tecken base64), parade positionsvis med
+  // färgavtrycken ovan. Belysningsimmuna särdrag som räddar SKÄRMFOTO-fallet
+  // (topp-15 38,5 % → 97,1 %, se src/lib/art-fingerprint.ts). Valfria: äldre
+  // cachade klienter skickar bara färg och får då exakt gamla beteendet.
+  structFingerprints: z.array(z.string().min(1).max(2048)).max(8).optional(),
+  structFrames: z
+    .array(z.array(z.string().min(1).max(2048)).max(8))
+    .max(4)
+    .optional(),
   // Starkare (dyrare) vision-modell — körs bara vid bekräftelse/uppladdning,
   // inte för varje live-ruta.
   precise: z.boolean().optional(),
@@ -64,9 +73,15 @@ export async function POST(req: Request) {
       throw new ServiceError(429, "För många skanningar på kort tid. Vänta en stund.");
     }
 
-    const { image, detail, fingerprints, fingerprintFrames, precise } = schema.parse(
-      await req.json()
-    );
+    const {
+      image,
+      detail,
+      fingerprints,
+      fingerprintFrames,
+      structFingerprints,
+      structFrames,
+      precise,
+    } = schema.parse(await req.json());
     if (image.length + (detail?.length ?? 0) > MAX_IMAGE_BYTES * 1.4) {
       throw new ServiceError(413, "Bilden är för stor. Skala ner videorutan innan den skickas.");
     }
@@ -91,6 +106,8 @@ export async function POST(req: Request) {
       detailDataUrl: detail,
       fingerprints,
       fingerprintFrames,
+      structFingerprints,
+      structFrames,
     });
 
     // Bokför mot kvoten: varje genomförd skanning räknas (träff eller no-match),
@@ -129,6 +146,11 @@ export async function POST(req: Request) {
             // 5,6 kB per admin-rad — bara ägarens egna skanningar bär detta.
             frames: (
               fingerprintFrames ?? (fingerprints?.length ? [fingerprints] : [])
+            )
+              .slice(0, 4)
+              .map((f) => f.slice(0, 4)),
+            structFrames: (
+              structFrames ?? (structFingerprints?.length ? [structFingerprints] : [])
             )
               .slice(0, 4)
               .map((f) => f.slice(0, 4)),

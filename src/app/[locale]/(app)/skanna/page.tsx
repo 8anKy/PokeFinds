@@ -21,7 +21,11 @@ import {
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
-import { FINGERPRINT_INSETS, fingerprintFromRgb } from "@/lib/art-fingerprint";
+import {
+  FINGERPRINT_INSETS,
+  fingerprintFromRgb,
+  structFingerprintFromRgb,
+} from "@/lib/art-fingerprint";
 import { useIsAdmin } from "@/components/admin-only";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Label, Select } from "@/components/ui/input";
@@ -190,7 +194,14 @@ function captureFrame(
   video: HTMLVideoElement,
   canvas: HTMLCanvasElement,
   frameEl?: HTMLElement | null
-): { dataUrl: string; fingerprints: string[]; stripDataUrl?: string; crop: string } | null {
+): {
+  dataUrl: string;
+  fingerprints: string[];
+  /** Strukturavtryck, positionsparade med fingerprints (samma inset-ordning). */
+  structFingerprints: string[];
+  stripDataUrl?: string;
+  crop: string;
+} | null {
   if (video.readyState < 2 || !video.videoWidth) return null;
   const vW = video.videoWidth;
   const vH = video.videoHeight;
@@ -262,15 +273,24 @@ function captureFrame(
   // EN läsning av pixlarna, sedan billiga loopar per inset — getImageData är det
   // dyra steget, inte boxmedelvärdet.
   const fpPixels = ctx.getImageData(0, 0, fpW, fpH).data;
-  const fingerprints = FINGERPRINT_INSETS.flatMap((inset) => {
-    const fp = fingerprintFromRgb(fpPixels, fpW, fpH, 4, inset);
-    if (!fp) return [];
-    // base64 av 264 byte ≈ 352 tecken. Samma funktion och samma aritmetik som
-    // servern använde på katalogbilden.
+  const toB64 = (fp: Int8Array) => {
     let bin = "";
     for (let i = 0; i < fp.length; i++) bin += String.fromCharCode(fp[i] & 0xff);
-    return [btoa(bin)];
-  });
+    return btoa(bin);
+  };
+  // FÄRG + STRUKTUR ur samma pixelläsning, positionsparade per inset — servern
+  // parar dem på index, så ett inset tas bara med när BÅDA gick att räkna.
+  // Strukturavtrycket är det som räddar SKÄRMFOTO-fallet (belysningsimmuna
+  // särdrag; topp-15 38,5 % → 97,1 %, se src/lib/art-fingerprint.ts).
+  const fingerprints: string[] = [];
+  const structFingerprints: string[] = [];
+  for (const inset of FINGERPRINT_INSETS) {
+    const fp = fingerprintFromRgb(fpPixels, fpW, fpH, 4, inset);
+    const sfp = structFingerprintFromRgb(fpPixels, fpW, fpH, 4, inset);
+    if (!fp || !sfp) continue;
+    fingerprints.push(toB64(fp));
+    structFingerprints.push(toB64(sfp));
+  }
 
   // Bilden till modellen: MED marginal, så ett snett kort inte tappar numret.
   const scale = Math.min(1, CAPTURE_MAX / Math.max(sw, sh));
@@ -306,6 +326,7 @@ function captureFrame(
   return {
     dataUrl,
     fingerprints,
+    structFingerprints,
     stripDataUrl,
     // Utsnitt i KÄLLpixlar → skickad storlek. Står källan under den skickade
     // storleken skalar vi UPP, dvs modellen får interpolerade pixlar och ingen
@@ -409,7 +430,8 @@ function Scanner() {
     async (
       dataUrl: string,
       strip?: string,
-      fingerprintFrames?: string[][]
+      fingerprintFrames?: string[][],
+      structFrames?: string[][]
     ): Promise<IdentifyResponse | { error: string }> => {
       try {
         // Standard = billiga Haiku-modellen (ingen `precise`) — håller scan-kostnaden
@@ -419,7 +441,12 @@ function Scanner() {
           headers: { "Content-Type": "application/json" },
           // `detail` = närbild på kortets nederkant. Saknas den (galleriuppladdning,
           // där vi inte vet var kortet sitter i bilden) körs det som förut.
-          body: JSON.stringify({ image: dataUrl, detail: strip, fingerprintFrames }),
+          body: JSON.stringify({
+            image: dataUrl,
+            detail: strip,
+            fingerprintFrames,
+            structFrames,
+          }),
         });
         const data = (await res.json()) as IdentifyResponse & { error?: string };
         if (!res.ok) {
@@ -449,8 +476,14 @@ function Scanner() {
   );
 
   const identifyInto = useCallback(
-    async (id: string, dataUrl: string, strip?: string, fingerprintFrames?: string[][]) => {
-      const data = await runIdentify(dataUrl, strip, fingerprintFrames);
+    async (
+      id: string,
+      dataUrl: string,
+      strip?: string,
+      fingerprintFrames?: string[][],
+      structFrames?: string[][]
+    ) => {
+      const data = await runIdentify(dataUrl, strip, fingerprintFrames, structFrames);
       if (!("error" in data) && typeof data.remaining === "number") {
         const r = data.remaining;
         setQuota((q) => (q ? { ...q, remaining: r } : q));
@@ -674,7 +707,12 @@ function Scanner() {
     // `strip` följer med den fångade rutan. Skickas den INTE med som argument
     // utan läses ur en ref vid anropstillfället, ärver en galleriuppladdning
     // närbilden från förra kamerarutan — dvs nederkanten på ett HELT ANNAT kort.
-    (dataUrl: string, strip?: string, fingerprintFrames?: string[][]) => {
+    (
+      dataUrl: string,
+      strip?: string,
+      fingerprintFrames?: string[][],
+      structFrames?: string[][]
+    ) => {
       const id = nextId();
       setScans((prev) => [
         ...prev,
@@ -691,7 +729,7 @@ function Scanner() {
           language: defaultLanguage,
         },
       ]);
-      void identifyInto(id, dataUrl, strip, fingerprintFrames);
+      void identifyInto(id, dataUrl, strip, fingerprintFrames, structFrames);
     },
     [defaultCondition, defaultLanguage, identifyInto]
   );
@@ -718,10 +756,13 @@ function Scanner() {
     // hen tryckte av, och extra rutor skulle bara kosta uppladdning utan att
     // hjälpa modellen (den läser text, inte färglayout).
     const frames: string[][] = shot.fingerprints.length ? [shot.fingerprints] : [];
+    const structFrames: string[][] = shot.fingerprints.length
+      ? [shot.structFingerprints]
+      : [];
     let taken = 1;
     const grabNext = () => {
       if (taken >= CAPTURE_FRAMES) {
-        addScan(shot.dataUrl, shot.stripDataUrl, frames);
+        addScan(shot.dataUrl, shot.stripDataUrl, frames, structFrames);
         return;
       }
       taken++;
@@ -729,7 +770,11 @@ function Scanner() {
       // avtryck av EXAKT samma pixlar tillför ingenting.
       requestAnimationFrame(() => {
         const extra = captureFrame(video, canvas, frameRef.current);
-        if (extra?.fingerprints.length) frames.push(extra.fingerprints);
+        // Ruta-listorna hålls parallella: färg- och strukturrutor med samma index.
+        if (extra?.fingerprints.length) {
+          frames.push(extra.fingerprints);
+          structFrames.push(extra.structFingerprints);
+        }
         grabNext();
       });
     };

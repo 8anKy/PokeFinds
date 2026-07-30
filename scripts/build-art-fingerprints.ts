@@ -23,7 +23,12 @@ import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import sharp from "sharp";
-import { FINGERPRINT_BYTES, fingerprintFromRgb } from "../src/lib/art-fingerprint";
+import {
+  FINGERPRINT_BYTES,
+  STRUCT_BYTES,
+  fingerprintFromRgb,
+  structFingerprintFromRgb,
+} from "../src/lib/art-fingerprint";
 
 const prisma = new PrismaClient();
 
@@ -81,23 +86,35 @@ async function imageFor(id: string, url: string): Promise<Buffer | null> {
  * nyckeln, och klienten (canvas) har ett annat — då skulle index och fråga
  * räknas olika utan att något felar.
  */
-async function fingerprintOf(buf: Buffer): Promise<Buffer | null> {
+async function fingerprintsOf(
+  buf: Buffer
+): Promise<{ color: Buffer; struct: Buffer } | null> {
   try {
     const { data, info } = await sharp(buf)
       .removeAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true });
-    const fp = fingerprintFromRgb(data, info.width, info.height, 3);
-    if (!fp) return null;
-    return Buffer.from(fp.buffer, fp.byteOffset, fp.length);
+    // BÅDA avtrycken ur samma avkodning: färg (layout) + struktur (belysnings-
+    // immun — skärmfoto-fallet). Se src/lib/art-fingerprint.ts för mätningen.
+    const color = fingerprintFromRgb(data, info.width, info.height, 3);
+    const struct = structFingerprintFromRgb(data, info.width, info.height, 3);
+    if (!color || !struct) return null;
+    return {
+      color: Buffer.from(color.buffer, color.byteOffset, color.length),
+      struct: Buffer.from(struct.buffer, struct.byteOffset, struct.length),
+    };
   } catch {
     return null;
   }
 }
 
 async function main() {
+  // Default = rader som saknar NÅGOT av avtrycken (strukturavtrycket kom
+  // 2026-07-30, så första körningen efter deploy backfyller det för alla).
   const cards = await prisma.card.findMany({
-    where: FORCE ? {} : { artFingerprint: null },
+    where: FORCE
+      ? {}
+      : { OR: [{ artFingerprint: null }, { structFingerprint: null }] },
     orderBy: { id: "asc" },
     select: { id: true, name: true, imageUrl: true },
     ...(LIMIT > 0 ? { take: LIMIT } : {}),
@@ -127,13 +144,17 @@ async function main() {
       if (!img) {
         noImage++;
       } else {
-        const fp = await fingerprintOf(img);
-        if (!fp || fp.length !== FINGERPRINT_BYTES) {
+        const fps = await fingerprintsOf(img);
+        if (
+          !fps ||
+          fps.color.length !== FINGERPRINT_BYTES ||
+          fps.struct.length !== STRUCT_BYTES
+        ) {
           noFingerprint++;
         } else {
           await prisma.card.update({
             where: { id: card.id },
-            data: { artFingerprint: fp },
+            data: { artFingerprint: fps.color, structFingerprint: fps.struct },
           });
           written++;
         }

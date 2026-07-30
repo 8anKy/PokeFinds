@@ -79,7 +79,8 @@ async function main() {
       for (const [k, inset] of INSETS.entries()) {
         const fp = await fpAtInset(degraded, inset);
         if (!fp) continue;
-        const res = await searchByFingerprint(fp, 15);
+        // Färg-only-läget (struct: null) — mäter samma sak som före 2026-07-30.
+        const res = await searchByFingerprint({ color: fp, struct: null }, 15);
         const rank = res.findIndex((r) => r.cardId === card.id);
         const r = rank < 0 ? Number.POSITIVE_INFINITY : rank;
         if (k === 0) {

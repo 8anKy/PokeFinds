@@ -8,11 +8,12 @@
 import type { PlanTier, Prisma, ScannerJob } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
-import { FINGERPRINT_BYTES } from "@/lib/art-fingerprint";
+import { FINGERPRINT_BYTES, STRUCT_BYTES } from "@/lib/art-fingerprint";
 import { cardNumberSortKey } from "@/lib/card-number-order";
 import { scoreSimilarity } from "@/scrapers/matching";
 import {
   type ArtMatch,
+  type ArtQuery,
   searchByFingerprints,
   searchByFrames,
 } from "@/services/scanner/art-index";
@@ -296,7 +297,16 @@ const ART_STRONG = 0.75;
  * nummerstöd förlorar mot en säker bildträff, medan namn OCH nummer som pekar på
  * samma kort fortfarande vinner — där är texten bevisad, inte gissad.
  */
-const ART_TRUST_SCORE = 0.7;
+/**
+ * SKALJUSTERING 2026-07-30 (strukturavtrycket): den blandade poängen
+ * (0,25·färg + 0,25·dctb + 0,5·grad) ligger lägre än ren färgcosinus — rätta
+ * träffar mätte toppar 0,56–0,95 på den kalibrerade benchmarken. Score-tröskeln
+ * sänks därför till 0,55. MARGINALEN förblir 0,10 och är fortsatt det bärande
+ * villkoret: fel-marginal max var 0,028 över 410 blandade frågor (≈3,6×
+ * säkerhet) och 0,066 i den gamla färgmätningen (1,5×) — regeln är säker i
+ * BÅDA lägena (äldre klienter utan strukturavtryck får ren färgpoäng).
+ */
+const ART_TRUST_SCORE = 0.55;
 const ART_TRUST_MARGIN = 0.1;
 const ART_TRUST_BONUS = 1.15;
 
@@ -915,33 +925,44 @@ export interface IdentifyResult {
  * rutnätsversion, och att jämföra vektorer av olika längd "fungerar" (man får ett
  * tal) men betyder ingenting. Hellre ingen bildsignal än en påhittad.
  */
-function decodeFingerprint(b64: string | undefined): Int8Array | null {
+function decodeFingerprint(b64: string | undefined, expected: number): Int8Array | null {
   if (!b64) return null;
   try {
     const buf = Buffer.from(b64, "base64");
-    if (buf.length !== FINGERPRINT_BYTES) return null;
+    if (buf.length !== expected) return null;
     return new Int8Array(buf.buffer, buf.byteOffset, buf.length);
   } catch {
     return null;
   }
 }
 
-/** Avkodar inset-svepet och slänger tysta felaktigheter. Tom lista = ingen bildsignal. */
-function decodeFingerprints(list: string[] | undefined): Int8Array[] {
+/**
+ * Avkodar inset-svepet till frågor (färg + ev. struktur, parade per position)
+ * och slänger tysta felaktigheter. Tom lista = ingen bildsignal.
+ * Struktur utan giltig färg i samma position kastas — färgen är bäraren.
+ */
+function decodeFingerprints(
+  list: string[] | undefined,
+  structs?: string[] | undefined
+): ArtQuery[] {
   if (!list?.length) return [];
   // Taket speglar API-schemat: en klient ska inte kunna beställa hundra sökningar.
-  return list.slice(0, 8).flatMap((b64) => {
-    const fp = decodeFingerprint(b64);
-    return fp ? [fp] : [];
+  return list.slice(0, 8).flatMap((b64, i) => {
+    const color = decodeFingerprint(b64, FINGERPRINT_BYTES);
+    if (!color) return [];
+    return [{ color, struct: decodeFingerprint(structs?.[i], STRUCT_BYTES) }];
   });
 }
 
 /** Rutor × inset-svep. Taken binder serverns CPU per skanning. */
-function decodeFrames(frames: string[][] | undefined): Int8Array[][] {
+function decodeFrames(
+  frames: string[][] | undefined,
+  structFrames?: string[][] | undefined
+): ArtQuery[][] {
   if (!frames?.length) return [];
   return frames
     .slice(0, MAX_FRAMES)
-    .map((f) => decodeFingerprints(f))
+    .map((f, i) => decodeFingerprints(f, structFrames?.[i]))
     .filter((f) => f.length > 0);
 }
 
@@ -960,6 +981,9 @@ export async function identifyCard(
     fingerprints?: string[];
     /** Flera videorutor, var och en ett inset-svep. Föredras framför `fingerprints`. */
     fingerprintFrames?: string[][];
+    /** Strukturavtryck, parade positionsvis med färgavtrycken ovan. */
+    structFingerprints?: string[];
+    structFrames?: string[][];
   } = {}
 ): Promise<IdentifyResult> {
   const adapter = getOcrAdapter(opts.precise);
@@ -969,8 +993,11 @@ export async function identifyCard(
   // svarstiden i onödan.
   // Flera rutor när klienten skickar dem; annars den enkla listan (bakåtkompatibelt
   // med en cachad klient som ännu inte skickar rutor).
-  const frames = decodeFrames(opts.fingerprintFrames);
-  const single = frames.length === 0 ? decodeFingerprints(opts.fingerprints) : [];
+  const frames = decodeFrames(opts.fingerprintFrames, opts.structFrames);
+  const single =
+    frames.length === 0
+      ? decodeFingerprints(opts.fingerprints, opts.structFingerprints)
+      : [];
   const [ocr, artMatches] = await Promise.all([
     adapter.extractCardInfo(imageDataUrl, opts.detailDataUrl),
     frames.length
