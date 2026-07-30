@@ -256,6 +256,19 @@ finger-framför-linsen krävs en kalibrerad defokusblob-modell först — de
 verkliga avtrycken finns lagrade som facit. Exakt-namn-fixen (41a08f5) höll:
 rena skanningar väljer nu Deoxys #8 konsekvent.
 
+## AUTO-FÅNGST + ÄGARBESLUT (2026-07-31)
+
+Fingertestet äpple-mot-äpple (täckning PÅ skärmen) klarades 2/2 — som mätt.
+**Auto-fångst shippad (ff5c8f1)**: grönt lås som hållit ≥2 extra pollar
+(~1,2 s) trycker av själv (vibration, samma fångstväg, EN fångst per kort —
+spärren släpper när ett annat kort ses). Auto-fångster är per konstruktion
+trust-säkra → Haiku hoppas över → $0 AI. **Ägarbeslut efter briefing**:
+Haiku BEHÅLLS som fallback (kostar ~$0,10–0,15/mån per tung Pro-användare,
+köper nummer/tryckning på fysiska kort, namnräddning, HP, cardVisible);
+kvoten KVAR på 100/mån — unlimited-Pro med dolt fair-use-tak på vision-
+skanningar (~1000/mån) är designad och skjuten till efter fältdata.
+KVAR: fysiska kort — sista omätta domänen.
+
 ## Öppet — nästa steg
 
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
