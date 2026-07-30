@@ -148,6 +148,17 @@ halva bonusen håller rätt kort kvar i kandidatlistan även då. Kvarstående
 ärlig gräns: inom rätt epok avgör fortfarande "nyast set" — exakt kort på
 skärmfoto kräver läsbart nummer (eller HP-kolumn i katalogen, som inte finns).
 
+**SLUTMÄTNING GYARADOS-FALLET (21:18, 4 skanningar)**: rätt kort till slut —
+men via en TREDJE väg: modellen läste "8/107" ur PRODUKTSIDANS RUBRIK som kom
+med i utsnittet (konf 0,85; kortets eget nummer är ~3 px och oläsbart).
+Nummer+total → +0,5 → exakt träff utan "?". Lärdomar: (1) ett läsbart nummer
+VAR SOM HELST i bilden är den starkaste signalen — det generaliserar dock
+inte till fysiska kort eller rena foton; (2) `era ex` var RÄTT efter
+layout-ledtrådarna (n=1); (3) `hp —` — modellen avstod ärligt på den suddiga
+kortbilden, så HP-mekanismen är FORTFARANDE OMÄTT i fält. Den är byggd för
+exakt de fångster där ingen sidtext finns; mät via telemetrin när fler
+skanningar droppat in.
+
 ## Öppet — nästa steg
 
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
