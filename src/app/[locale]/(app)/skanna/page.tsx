@@ -457,7 +457,7 @@ function Scanner() {
       strip?: string,
       fingerprintFrames?: string[][],
       structFrames?: string[][]
-    ): Promise<IdentifyResponse | { error: string }> => {
+    ): Promise<IdentifyResponse | { error: string; httpStatus?: number }> => {
       try {
         // Standard = billiga Haiku-modellen (ingen `precise`) — håller scan-kostnaden
         // mot Pro-priset. Sonnet körs bara på uttryckligt "försök igen, skarpare".
@@ -475,7 +475,9 @@ function Scanner() {
         });
         const data = (await res.json()) as IdentifyResponse & { error?: string };
         if (!res.ok) {
-          return { error: data.error ?? t("genericError") };
+          // Statuskoden följer med: 429 (slut på kvoten) ska INTE se ut som
+          // "ingen träff" — det var mätbart förvirrande när gränsen slog till.
+          return { error: data.error ?? t("genericError"), httpStatus: res.status };
         }
         setProvider(data.provider);
         // Rådata från modellen, INTE den matchade kandidaten: det är skillnaden
@@ -513,6 +515,11 @@ function Scanner() {
         const r = data.remaining;
         setQuota((q) => (q ? { ...q, remaining: r } : q));
       }
+      // Slut på kvoten = ett tydligt besked, inte ett tyst "ingen träff" per
+      // skanning. Toasten syns i kameravyn där användaren faktiskt står.
+      if ("error" in data && data.httpStatus === 429) {
+        toast({ title: data.error, variant: "error" });
+      }
       setScans((prev) =>
         prev.map((s) => {
           if (s.id !== id) return s;
@@ -537,7 +544,7 @@ function Scanner() {
         })
       );
     },
-    [runIdentify]
+    [runIdentify, toast]
   );
 
   // ---- Kamera --------------------------------------------------------------
@@ -1387,7 +1394,11 @@ function ScanStrip({
                   </span>
                 </>
               ) : (
-                <span className="block text-xs font-medium text-fall">{t("noMatch")}</span>
+                <span className="block text-[11px] font-medium leading-tight text-fall">
+                  {/* Ett FEL (t.ex. slut på kvoten) är inte en "ingen träff" —
+                      visa serverns besked så orsaken syns direkt i remsan. */}
+                  {s.status === "error" && s.errorMessage ? s.errorMessage : t("noMatch")}
+                </span>
               )}
             </span>
           </button>

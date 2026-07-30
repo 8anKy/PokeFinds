@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const user = await requireUser();
-    const { remaining, limit } = await getScannerQuota(user.id, effectivePlanTier(user));
+    const { remaining, limit } = await getScannerQuota(user.id, effectivePlanTier(user), user.role);
     return jsonOk({ remaining, limit, isPremium: isPro(user) });
   } catch (e) {
     return apiError(e);

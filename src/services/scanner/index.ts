@@ -62,9 +62,14 @@ export interface ScannerQuota {
 /** Månadens skanningskvot (misslyckade/no-match-jobb räknas inte). */
 export async function getScannerQuota(
   userId: string,
-  planTier: PlanTier
+  planTier: PlanTier,
+  /** ADMIN/SUPERADMIN = i praktiken obegränsat: kvoten finns för att binda
+   *  vision-kostnaden mot intäkten, och ägaren som testar sin egen produkt
+   *  är inte den kostnaden. Vanliga användare påverkas inte. */
+  role?: string
 ): Promise<ScannerQuota> {
-  const limit = scannerLimitForTier(planTier);
+  const limit =
+    role === "ADMIN" || role === "SUPERADMIN" ? 100000 : scannerLimitForTier(planTier);
   const used = await prisma.scannerJob.count({
     where: { userId, createdAt: { gte: startOfMonthUtc() }, status: { not: "FAILED" } },
   });
@@ -798,15 +803,18 @@ export interface ScanResult {
 export async function runScannerJob(
   userId: string,
   planTier: PlanTier,
-  imageDataUrl: string
+  imageDataUrl: string,
+  role?: string
 ): Promise<ScanResult> {
-  const quota = await getScannerQuota(userId, planTier);
+  const quota = await getScannerQuota(userId, planTier, role);
   if (quota.remaining <= 0) {
+    // Kvoten är per KALENDERMÅNAD (startOfMonthUtc) — copyn sa förut "i dag/
+    // i morgon", vilket var fel och förvirrande när gränsen slog till.
     throw new ServiceError(
       429,
       planTier === "PREMIUM"
-        ? `Du har nått dagens gräns på ${quota.limit} skanningar. Försök igen i morgon.`
-        : `Du har använt dina ${quota.limit} gratis skanningar i dag. Uppgradera till Pro för fler.`
+        ? `Du har nått månadens gräns på ${quota.limit} skanningar. Kvoten nollställs den 1:a.`
+        : `Du har använt dina ${quota.limit} gratis skanningar denna månad. Uppgradera till Pro för fler.`
     );
   }
 

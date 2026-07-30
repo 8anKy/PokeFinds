@@ -86,8 +86,8 @@ export async function POST(req: Request) {
       throw new ServiceError(413, "Bilden är för stor. Skala ner videorutan innan den skickas.");
     }
 
-    // Månadskvot (binder vision-kostnaden mot Pro-priset). No-match räknas inte.
-    const quota = await getScannerQuota(user.id, effectivePlanTier(user));
+    // Månadskvot (binder vision-kostnaden mot Pro-priset). Admin = obegränsat.
+    const quota = await getScannerQuota(user.id, effectivePlanTier(user), user.role);
     if (quota.remaining <= 0) {
       throw new ServiceError(
         429,
