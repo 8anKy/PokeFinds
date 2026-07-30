@@ -423,6 +423,16 @@ function Scanner() {
   } | null>(null);
   const liveStreak = useRef<{ id: string; n: number }>({ id: "", n: 0 });
   const livePollBusy = useRef(false);
+  // AUTO-FÅNGST: låset (100 % uppmätt precision) som hållit i ≥2 extra pollar
+  // (~1,2 s stadigt sikte) trycker av åt användaren — pärmflödet blir
+  // "håll kort → grönt → klick av sig självt → nästa". EN fångst per kort:
+  // autoFired spärrar tills ett ANNAT kort ses i ramen. Manuell slutare orörd.
+  const lockedPolls = useRef(0);
+  const autoFired = useRef<string | null>(null);
+  // Färska referenser — poll-effekten ska inte binda om sig varje gång
+  // capture-callbacken eller kvot-staten byter identitet.
+  const captureRef = useRef<(() => void) | null>(null);
+  const quotaRef = useRef<ScanQuota | null>(null);
   const [flash, setFlash] = useState(false);
   const [shutterCooling, setShutterCooling] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -685,17 +695,32 @@ function Scanner() {
           const top = d?.candidates?.[0];
           if (!top) {
             liveStreak.current = { id: "", n: 0 };
+            lockedPolls.current = 0;
+            autoFired.current = null;
             setLiveHint(null);
             return;
           }
           const s = liveStreak.current;
+          // Nytt kort i ramen → auto-fångsten laddas om.
+          if (s.id !== top.cardId) autoFired.current = null;
           liveStreak.current =
             s.id === top.cardId ? { id: s.id, n: s.n + 1 } : { id: top.cardId, n: 1 };
-          setLiveHint({
-            name: top.name,
-            number: top.number,
-            locked: liveStreak.current.n >= 3 && d?.confident === true,
-          });
+          const locked = liveStreak.current.n >= 3 && d?.confident === true;
+          lockedPolls.current = locked ? lockedPolls.current + 1 : 0;
+          setLiveHint({ name: top.name, number: top.number, locked });
+          // AUTO-FÅNGST: låset har hållit ≥2 pollar efter att det tändes, och
+          // det här kortet har inte redan auto-fångats. Kvot-slut auto-trycker
+          // inte (bara toast-spam annars); manuellt tryck funkar som vanligt.
+          if (
+            locked &&
+            lockedPolls.current >= 3 &&
+            autoFired.current !== top.cardId &&
+            (quotaRef.current == null || quotaRef.current.remaining > 0)
+          ) {
+            autoFired.current = top.cardId;
+            navigator.vibrate?.(60);
+            captureRef.current?.();
+          }
         })
         .catch(() => undefined)
         .finally(() => {
@@ -881,6 +906,9 @@ function Scanner() {
     };
     grabNext();
   }, [cameraState, shutterCooling, addScan]);
+  // Auto-fångsten läser via refs (se lockedPolls/autoFired) — färska varje render.
+  captureRef.current = capture;
+  quotaRef.current = quota;
 
   function handleFile(file: File): boolean {
     if (!file.type.startsWith("image/")) {
