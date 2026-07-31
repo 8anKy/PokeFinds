@@ -679,8 +679,9 @@
     "showProduct": "View product & price history",
     "removeScan": "Remove scan",
     "close": "Close",
-    "bulkMode": "Bulk mode · multiple cards in one shot",
-    "bulkHint": "Place the binder page or cards in the grid · one card per cell"
+    "bulkMode": "Bulk mode · multiple cards",
+    "bulkHint": "Spread the cards out with a little space and press the shutter — they are detected automatically",
+    "bulkNoCards": "No cards found — spread them out with a little space on a plain surface"
   },
   "Grading": {
     "h1": "Grade card",

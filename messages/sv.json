@@ -679,8 +679,9 @@
     "showProduct": "Visa produkt & prishistorik",
     "removeScan": "Ta bort skanning",
     "close": "Stäng",
-    "bulkMode": "Bulk-läge · flera kort i en bild",
-    "bulkHint": "Lägg pärmsidan eller korten i rutnätet · ett kort per ruta"
+    "bulkMode": "Bulk-läge · flera kort",
+    "bulkHint": "Sprid ut korten med lite mellanrum och tryck av — de hittas automatiskt",
+    "bulkNoCards": "Inga kort hittades — sprid ut dem med lite mellanrum mot en enfärgad yta"
   },
   "Grading": {
     "h1": "Gradera kort",

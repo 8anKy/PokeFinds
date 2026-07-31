@@ -26,7 +26,13 @@ import {
   fingerprintFromRgb,
   structFingerprintFromRgb,
 } from "@/lib/art-fingerprint";
-import { detectCardQuad, warpPerspective, RECTIFIED_H, RECTIFIED_W } from "@/lib/card-quad";
+import {
+  detectCardQuad,
+  detectCardRegions,
+  warpPerspective,
+  RECTIFIED_H,
+  RECTIFIED_W,
+} from "@/lib/card-quad";
 import { useIsAdmin } from "@/components/admin-only";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Label, Select } from "@/components/ui/input";
@@ -419,24 +425,26 @@ function captureFrame(
   };
 }
 
-// ---- BULK-FÅNGST (2026-08-01): en bild, många kort --------------------------
+// ---- BULK-FÅNGST (2026-08-01, FRILAGD v2 samma dag): en bild, många kort ----
 //
-// Rutnätsoverlayen är en PLACERINGSGUIDE, inte en pärmfunktion: den funkar lika
-// bra för en 9-pocket-pärmsida som för lösa kort utlagda på ett bord — "ett
-// kort per ruta". Detektionen slipper därmed frilagd multi-kvadrat (fas 2);
-// per cell återanvänds exakt samma maskineri som enkelskanningen: kvad-rätning,
-// inset-svep, färg+struktur-avtryck.
+// v1 använde en 3×3-rutnätsguide; ägarens bordstest visade att fasta celler
+// beskär fel när korten inte ligger exakt i rutorna. v2 DETEKTERAR korten i
+// stället (detectCardRegions: bakgrundssegmentering + sammanhängande
+// komponenter — bordet skattas ur bildens kantring) och kör varje funnen
+// region genom exakt samma maskineri som enkelskanningen: kvad-rätning,
+// inset-svep, färg+struktur-avtryck. Ingen guide, inga fasta celler — bara
+// "sprid ut korten med lite mellanrum".
 //
-// ⛔ INGA OUTSETS i bulk: utvidgas en cell blöder GRANNKORTET in i utsnittet
-// och avtrycket matchar en blandning av två kort. Kvad-rätningen per cell tar
-// överflödesfallet i stället (padding 4 % räcker för en snedlagd kant utan att
-// nå grannens konst).
-const BULK_COLS = 3;
-const BULK_ROWS = 3;
-/** Kvad-källans marginal runt cellen — liten med flit (grannkort!). */
-const BULK_CELL_PAD = 0.04;
-/** Färre inset än enkelskanningen: cellerna är trånga och outsets är förbjudna. */
+// ⛔ INGA OUTSETS i bulk: utvidgas en region kan GRANNKORTET blöda in i
+// utsnittet och avtrycket matchar en blandning av två kort. Kvad-rätningen
+// per region tar snedlagda kanter i stället (padding 5 %).
+/** Kvad-källans marginal runt regionen — liten med flit (grannkort!). */
+const BULK_CELL_PAD = 0.05;
+/** Färre inset än enkelskanningen: regionerna är tajta och outsets förbjudna. */
 const BULK_INSETS = [0, 0.04, 0.08] as const;
+/** Detekteringsbildens långsida — regionerna behöver bara vara ungefärliga. */
+const BULK_DETECT_MAX = 480;
+const BULK_MAX_CARDS = 12;
 
 interface BulkCell {
   /** Cellens utsnitt (med liten marginal) — vision-bild + miniatyr. */
@@ -449,28 +457,26 @@ interface BulkCell {
 
 function captureBulkCells(
   video: HTMLVideoElement,
-  canvas: HTMLCanvasElement,
-  gridEl: HTMLElement | null
+  canvas: HTMLCanvasElement
 ): BulkCell[] | null {
-  if (video.readyState < 2 || !video.videoWidth || !gridEl) return null;
+  if (video.readyState < 2 || !video.videoWidth) return null;
   const vW = video.videoWidth;
   const vH = video.videoHeight;
-  const box = video.getBoundingClientRect();
-  const grid = gridEl.getBoundingClientRect();
-  if (!(grid.width > 0 && grid.height > 0 && box.width > 0 && box.height > 0)) return null;
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
 
-  // Samma object-cover-matte som captureFrame — geometrin MÄTS, aldrig hårdkodas.
-  const cover = Math.max(box.width / vW, box.height / vH);
-  const offX = (vW * cover - box.width) / 2;
-  const offY = (vH * cover - box.height) / 2;
-  const gx = (grid.left - box.left + offX) / cover;
-  const gy = (grid.top - box.top + offY) / cover;
-  const gw = grid.width / cover;
-  const gh = grid.height / cover;
-  const cellW = gw / BULK_COLS;
-  const cellH = gh / BULK_ROWS;
+  // 1. DETEKTERA korten i hela rutan (nedskalad analysbild — regionerna
+  //    behöver bara vara ungefärliga; precisionen kommer ur kvad-rätningen).
+  const dScale = Math.min(1, BULK_DETECT_MAX / Math.max(vW, vH));
+  const dW = Math.max(64, Math.round(vW * dScale));
+  const dH = Math.max(64, Math.round(vH * dScale));
+  canvas.width = dW;
+  canvas.height = dH;
+  ctx.drawImage(video, 0, 0, vW, vH, 0, 0, dW, dH);
+  const detectPixels = ctx.getImageData(0, 0, dW, dH).data;
+  const regions = detectCardRegions(detectPixels, dW, dH, 4, BULK_MAX_CARDS);
+  if (regions.length === 0) return null;
+  const rInv = 1 / dScale;
 
   const toB64 = (fp: Int8Array) => {
     let bin = "";
@@ -478,14 +484,15 @@ function captureBulkCells(
     return btoa(bin);
   };
 
+  // 2. Varje region genom SAMMA per-kort-maskineri som enkelskanningen.
   const cells: BulkCell[] = [];
-  for (let row = 0; row < BULK_ROWS; row++) {
-    for (let col = 0; col < BULK_COLS; col++) {
-      // Cellen UTAN marginal — avtryckets yta (samma regel som enkelramen).
-      const fx = Math.max(0, Math.min(gx + col * cellW, vW - 1));
-      const fy = Math.max(0, Math.min(gy + row * cellH, vH - 1));
-      const fw = Math.max(1, Math.min(cellW, vW - fx));
-      const fh = Math.max(1, Math.min(cellH, vH - fy));
+  for (const region of regions) {
+    {
+      // Regionen UTAN marginal — avtryckets yta (samma regel som enkelramen).
+      const fx = Math.max(0, Math.min(region.x * rInv, vW - 1));
+      const fy = Math.max(0, Math.min(region.y * rInv, vH - 1));
+      const fw = Math.max(1, Math.min(region.w * rInv, vW - fx));
+      const fh = Math.max(1, Math.min(region.h * rInv, vH - fy));
 
       const fpScale = Math.min(1, FINGERPRINT_SOURCE_MAX / Math.max(fw, fh));
       const fpW = Math.max(1, Math.round(fw * fpScale));
@@ -581,10 +588,9 @@ function Scanner() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Kortramen i kameravyn — captureFrame mäter den för att beskära utsnittet.
   const frameRef = useRef<HTMLDivElement>(null);
-  // BULK-LÄGE: rutnätsoverlay (pärmsida/bordsyta) i stället för enkelram.
+  // BULK-LÄGE: frilagd flerkortsdetektering (bordsyta) i stället för enkelram.
   // Live-pollen/låset stängs av i bulk (de är enkortsbegrepp).
   const [bulkMode, setBulkMode] = useState(false);
-  const gridRef = useRef<HTMLDivElement>(null);
   // DIAGNOSTIK (bara admin, se ScanDebug): kamerans verkliga upplösning, senaste
   // utsnitt och vad modellen faktiskt svarade. Utan det här är "skannern gissar
   // fel" ett påstående ingen kan felsöka — vi ser varken vad kameran gav oss
@@ -1112,8 +1118,13 @@ function Scanner() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || cameraState !== "live" || shutterCooling) return;
-    const cells = captureBulkCells(video, canvas, gridRef.current);
-    if (!cells) return;
+    const cells = captureBulkCells(video, canvas);
+    if (!cells) {
+      // Detekteringen hittade inga kort — säg VARFÖR i stället för att tyst
+      // göra ingenting (kort kant-i-kant smälter ihop och förkastas).
+      toast({ title: t("bulkNoCards"), variant: "error" });
+      return;
+    }
     setFlash(true);
     window.setTimeout(() => setFlash(false), 180);
     setShutterCooling(true);
@@ -1216,7 +1227,7 @@ function Scanner() {
         }
       }
     })();
-  }, [cameraState, shutterCooling, defaultCondition, defaultLanguage, identifyInto, t]);
+  }, [cameraState, shutterCooling, defaultCondition, defaultLanguage, identifyInto, t, toast]);
   // Auto-fångsten läser via refs (se lockedPolls/autoFired) — färska varje render.
   captureRef.current = capture;
   quotaRef.current = quota;
@@ -1378,7 +1389,6 @@ function Scanner() {
           shutterCooling={shutterCooling}
           quota={quota}
           bulkMode={bulkMode}
-          gridRef={gridRef}
           onToggleBulk={() => setBulkMode((v) => !v)}
           onUpgrade={() => router.push("/priser")}
           onRetryCamera={() => void startCamera()}
@@ -1500,9 +1510,8 @@ function CaptureView(props: {
   canvasRef: RefObject<HTMLCanvasElement>;
   /** Kortramen — captureFrame mäter den för att beskära utsnittet till kortet. */
   frameRef: RefObject<HTMLDivElement>;
-  /** Bulk-läge: rutnätsoverlay (pärmsida/bordsyta) i stället för enkelram. */
+  /** Bulk-läge: frilagd flerkortsdetektering — ingen ram, korten hittas själva. */
   bulkMode: boolean;
-  gridRef: RefObject<HTMLDivElement>;
   onToggleBulk: () => void;
   /** Live-bildmatchningens bästa gissning (chippen under ramen). Ren data —
    *  kortnamn + nummer — så ingen ny copy/översättning behövs. */
@@ -1627,24 +1636,8 @@ function CaptureView(props: {
           </div>
         </div>
       )}
-      {cameraState === "live" && props.bulkMode && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
-        >
-          {/* 3×3 celler i kortproportion → hela rutnätet får också 5:7. Rutnätet
-              är en PLACERINGSGUIDE (pärmsida eller lösa kort på ett bord) —
-              geometrin MÄTS av captureBulkCells, precis som enkelramen. */}
-          <div
-            ref={props.gridRef}
-            className="grid aspect-[5/7] w-[88%] max-w-[26rem] mb-[10vh] grid-cols-3 grid-rows-3 gap-1"
-          >
-            {Array.from({ length: 9 }, (_, i) => (
-              <div key={i} className="rounded-md border border-white/30" />
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Bulk-läget har INGEN ram: detectCardRegions hittar korten själv —
+          hela rutan är fångstytan, hinten säger "lite mellanrum". */}
 
       {/* Capture-flash */}
       {flash && (
@@ -1675,12 +1668,21 @@ function CaptureView(props: {
             <p className="text-center text-sm text-ink-muted">
               {props.bulkMode ? t("bulkHint") : t("holdCard")}
             </p>
-            <Link
-              href="/produkter"
-              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-5 py-2 text-sm font-medium text-ink backdrop-blur transition-colors hover:bg-white/15"
+            {/* Bulk-växlaren ersatte "Manuell inmatning" (ägarbeslut 2026-08-01)
+                — sökningen finns ändå i produktkatalogen, bulk hör hemma här. */}
+            <button
+              type="button"
+              onClick={props.onToggleBulk}
+              aria-pressed={props.bulkMode}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-full border px-5 py-2 text-sm font-medium backdrop-blur transition-colors",
+                props.bulkMode
+                  ? "border-holo-cyan/60 bg-holo-cyan/15 text-holo-cyan"
+                  : "border-white/15 bg-white/10 text-ink hover:bg-white/15"
+              )}
             >
-              <IconSearch size={16} /> {t("manualEntry")}
-            </Link>
+              <IconCards size={16} /> {t("bulkMode")}
+            </button>
           </div>
         )}
 

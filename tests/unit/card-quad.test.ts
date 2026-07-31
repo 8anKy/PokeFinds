@@ -10,6 +10,7 @@ import {
   RECTIFIED_H,
   RECTIFIED_W,
   detectCardQuad,
+  detectCardRegions,
   warpPerspective,
 } from "@/lib/card-quad";
 
@@ -154,6 +155,83 @@ describe("detectCardQuad", () => {
       expect(q3!.corners[i][0]).toBeCloseTo(q4!.corners[i][0], 6);
       expect(q3!.corners[i][1]).toBeCloseTo(q4!.corners[i][1], 6);
     }
+  });
+});
+
+describe("detectCardRegions", () => {
+  /** Bordsbild: mörkt bord med N ljusa "kort" på givna positioner. */
+  function renderTable(
+    w: number,
+    h: number,
+    cards: Array<{ x: number; y: number; cw: number; ch: number }>
+  ): Uint8Array {
+    const img = new Uint8Array(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const p = (y * w + x) * 4;
+        // Träbordet: mörkt med svag ådring (deterministisk variation).
+        const grain = 8 * Math.sin(x * 0.15) * Math.cos(y * 0.05);
+        img[p] = 55 + grain;
+        img[p + 1] = 40 + grain;
+        img[p + 2] = 28;
+        img[p + 3] = 255;
+      }
+    }
+    for (const c of cards) {
+      for (let y = c.y; y < c.y + c.ch; y++) {
+        for (let x = c.x; x < c.x + c.cw; x++) {
+          if (x < 0 || y < 0 || x >= w || y >= h) continue;
+          const p = (y * w + x) * 4;
+          const u = (x - c.x) / c.cw;
+          const v = (y - c.y) / c.ch;
+          const edge = u < 0.06 || u > 0.94 || v < 0.05 || v > 0.95;
+          img[p] = edge ? 200 : 160 + 50 * Math.sin(u * 7);
+          img[p + 1] = edge ? 190 : 150 + 40 * Math.cos(v * 5);
+          img[p + 2] = edge ? 120 : 90;
+        }
+      }
+    }
+    return img;
+  }
+
+  it("hittar fyra utspridda kort och inget mer", () => {
+    const cards = [
+      { x: 40, y: 50, cw: 130, ch: 180 },
+      { x: 260, y: 40, cw: 130, ch: 180 },
+      { x: 50, y: 300, cw: 130, ch: 180 },
+      { x: 270, y: 310, cw: 130, ch: 180 },
+    ];
+    const img = renderTable(480, 560, cards);
+    const regions = detectCardRegions(img, 480, 560, 4);
+    expect(regions.length).toBe(4);
+    // Varje sant kort ska ha EN region vars centrum ligger inne i kortet.
+    for (const c of cards) {
+      const hit = regions.find((r) => {
+        const cx = r.x + r.w / 2;
+        const cy = r.y + r.h / 2;
+        return cx > c.x && cx < c.x + c.cw && cy > c.y && cy < c.y + c.ch;
+      });
+      expect(hit).toBeDefined();
+    }
+  });
+
+  it("hittar ett roterat kort (bbox-form är generös)", () => {
+    // Grovt "roterat" kort: parallellogram-aktig placering via två överlappande
+    // rektanglar — bbox blir bredare än 63:88 men inom spannet.
+    const img = renderTable(480, 560, [{ x: 120, y: 150, cw: 200, ch: 160 }]);
+    const regions = detectCardRegions(img, 480, 560, 4);
+    expect(regions.length).toBe(1);
+  });
+
+  it("tomt bord → inga regioner", () => {
+    const img = renderTable(480, 560, []);
+    expect(detectCardRegions(img, 480, 560, 4).length).toBe(0);
+  });
+
+  it("bordet självt (jätteblob) förkastas via areataket", () => {
+    // Ett "kort" som täcker nästan hela bilden = pärmsidefallet/felsegmentering.
+    const img = renderTable(480, 560, [{ x: 10, y: 10, cw: 460, ch: 540 }]);
+    expect(detectCardRegions(img, 480, 560, 4).length).toBe(0);
   });
 });
 

@@ -492,6 +492,21 @@ via scoreboardet som vanligt. Känd v1-lucka: korrigeringar på art-säkra
 bulk-celler ger ingen feedback-rad (inget ScannerJob-id utan vision) — bara
 vision-cellerna bär auto-facit.
 
+**v2 SAMMA DAG — FRILAGD DETEKTERING, RUTNÄTET BORTA (ägarens bordstest)**:
+fasta 3×3-celler beskar fel när korten inte låg exakt i rutorna ("some right
+and some not"), och ägaren ville inte ha rutnätet. `detectCardRegions`
+(card-quad.ts, testad): bakgrundssegmentering — bordet skattas som median-RGB
+ur bildens KANTRING, adaptiv tröskel ur kantringens egen spridning (mönstrat
+bord kräver större avstånd än slät duk) — + sammanhängande komponenter +
+formvalidering (area 0,4–30 %, bbox-form, fyllnadsgrad). Varje funnen region
+körs sedan genom exakt samma per-kort-maskineri (kvad-rätning för precisa
+hörn, inset-svep, avtryck). Ingen guide: "sprid ut korten med lite mellanrum".
+⛔ Kort kant-i-kant smälter ihop till EN blob och förkastas av areataket —
+hellre "inga kort hittades"-toast än en blandfångst; en pärmsida (nio kort
+kant i kant) är därmed FORTFARANDE osupportad i frilagt läge. "Manuell
+inmatning"-knappen i kameravyn ersattes med bulk-växlaren (ägarbeslut —
+sökningen finns i katalogen).
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.

@@ -413,6 +413,179 @@ export function detectCardQuad(
   };
 }
 
+/**
+ * FRILAGD FLERKORTSDETEKTERING (bulk v2, 2026-08-01): hitta VARJE korts region
+ * i en bordsbild — ingen rutnätsguide, korten får ligga hur som helst (med
+ * lite mellanrum).
+ *
+ * Metod: bakgrundssegmentering + sammanhängande komponenter. Bordet är i regel
+ * en någorlunda enhetlig yta; bakgrundsfärgen skattas ur bildens KANTRING
+ * (median), och pixlar långt från den är förgrund. Blobbar med rimlig area och
+ * form blir kortregioner. Precisionen behövs inte här — varje region körs
+ * sedan genom detectCardQuad + varp för exakta hörn, precis som en rutnätscell.
+ *
+ * ⛔ KORT SOM RÖR VID VARANDRA smälter ihop till EN blob och blir EN region —
+ * det är den kända begränsningen, och UI-hinten ("lite mellanrum") är
+ * motmedlet. En pärmsida (nio kort kant i kant) blir därför EN jätteblob;
+ * formvalideringen förkastar den hellre än gissar.
+ */
+const REGION_MASK_MAX = 240;
+/** Blob-arean måste vara 0,4–30 % av bilden — under = skräp, över = bordet. */
+const REGION_MIN_AREA_FRAC = 0.004;
+const REGION_MAX_AREA_FRAC = 0.3;
+/** Bbox-form: ett roterat kort ger bredare bbox än 63:88 — generöst spann. */
+const REGION_ASPECT_MIN = 0.33;
+const REGION_ASPECT_MAX = 3.0;
+/** Blobben ska FYLLA sin bbox någorlunda — glesa spretiga blobbar är skuggor. */
+const REGION_FILL_MIN = 0.35;
+
+export interface CardRegion {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export function detectCardRegions(
+  pixels: Uint8Array | Uint8ClampedArray,
+  width: number,
+  height: number,
+  channels: 3 | 4,
+  maxRegions = 12
+): CardRegion[] {
+  if (width < 64 || height < 64) return [];
+  if (pixels.length < width * height * channels) return [];
+  const scale = Math.min(1, REGION_MASK_MAX / Math.max(width, height));
+  const mw = Math.max(32, Math.round(width * scale));
+  const mh = Math.max(32, Math.round(height * scale));
+
+  // Nedskalad RGB via boxmedelvärde (samma portabla aritmetik som avtrycket).
+  const sums = new Float64Array(mw * mh * 3);
+  const counts = new Uint32Array(mw * mh);
+  for (let y = 0; y < height; y++) {
+    const gy = Math.min(mh - 1, Math.floor((y * mh) / height));
+    for (let x = 0; x < width; x++) {
+      const gx = Math.min(mw - 1, Math.floor((x * mw) / width));
+      const p = (y * width + x) * channels;
+      const cell = gy * mw + gx;
+      sums[cell * 3] += pixels[p];
+      sums[cell * 3 + 1] += pixels[p + 1];
+      sums[cell * 3 + 2] += pixels[p + 2];
+      counts[cell]++;
+    }
+  }
+  const rgb = new Float32Array(mw * mh * 3);
+  for (let i = 0; i < mw * mh; i++) {
+    const n = counts[i] || 1;
+    rgb[i * 3] = sums[i * 3] / n;
+    rgb[i * 3 + 1] = sums[i * 3 + 1] / n;
+    rgb[i * 3 + 2] = sums[i * 3 + 2] / n;
+  }
+
+  // Bakgrund = median-RGB av kantringen (bordet når bildens kanter; korten
+  // ligger i mitten). Median, inte medel — ett kort som nuddar kanten ska inte
+  // dra iväg skattningen.
+  const border: number[][] = [[], [], []];
+  const pushPx = (i: number) => {
+    border[0].push(rgb[i * 3]);
+    border[1].push(rgb[i * 3 + 1]);
+    border[2].push(rgb[i * 3 + 2]);
+  };
+  for (let x = 0; x < mw; x++) {
+    pushPx(x);
+    pushPx((mh - 1) * mw + x);
+  }
+  for (let y = 1; y < mh - 1; y++) {
+    pushPx(y * mw);
+    pushPx(y * mw + mw - 1);
+  }
+  const median = (a: number[]) => {
+    const s = [...a].sort((x, y) => x - y);
+    return s[Math.floor(s.length / 2)];
+  };
+  const bg = [median(border[0]), median(border[1]), median(border[2])];
+
+  // Adaptiv tröskel: kantringens egen spridning sätter brusgolvet — ett
+  // mönstrat bord kräver större avstånd än en slät duk för att räknas som kort.
+  const borderDist: number[] = [];
+  for (let k = 0; k < border[0].length; k++) {
+    const d0 = border[0][k] - bg[0];
+    const d1 = border[1][k] - bg[1];
+    const d2 = border[2][k] - bg[2];
+    borderDist.push(d0 * d0 + d1 * d1 + d2 * d2);
+  }
+  borderDist.sort((a, b) => a - b);
+  const noise = borderDist[Math.floor(borderDist.length * 0.9)];
+  const threshold = Math.max(noise * 2.5, 1400);
+
+  const mask = new Uint8Array(mw * mh);
+  for (let i = 0; i < mw * mh; i++) {
+    const d0 = rgb[i * 3] - bg[0];
+    const d1 = rgb[i * 3 + 1] - bg[1];
+    const d2 = rgb[i * 3 + 2] - bg[2];
+    if (d0 * d0 + d1 * d1 + d2 * d2 > threshold) mask[i] = 1;
+  }
+
+  // Sammanhängande komponenter (4-grannskap, iterativ stack — ingen rekursion).
+  const label = new Int32Array(mw * mh).fill(-1);
+  const blobs: Array<{ minX: number; maxX: number; minY: number; maxY: number; area: number }> =
+    [];
+  const stack: number[] = [];
+  for (let start = 0; start < mw * mh; start++) {
+    if (!mask[start] || label[start] >= 0) continue;
+    const id = blobs.length;
+    const blob = { minX: mw, maxX: 0, minY: mh, maxY: 0, area: 0 };
+    stack.length = 0;
+    stack.push(start);
+    label[start] = id;
+    while (stack.length > 0) {
+      const i = stack.pop()!;
+      const x = i % mw;
+      const y = (i / mw) | 0;
+      blob.area++;
+      if (x < blob.minX) blob.minX = x;
+      if (x > blob.maxX) blob.maxX = x;
+      if (y < blob.minY) blob.minY = y;
+      if (y > blob.maxY) blob.maxY = y;
+      const tryPush = (j: number) => {
+        if (mask[j] && label[j] < 0) {
+          label[j] = id;
+          stack.push(j);
+        }
+      };
+      if (x > 0) tryPush(i - 1);
+      if (x < mw - 1) tryPush(i + 1);
+      if (y > 0) tryPush(i - mw);
+      if (y < mh - 1) tryPush(i + mw);
+    }
+    blobs.push(blob);
+  }
+
+  const total = mw * mh;
+  const inv = 1 / scale;
+  return blobs
+    .filter((b) => {
+      const bw = b.maxX - b.minX + 1;
+      const bh = b.maxY - b.minY + 1;
+      const aspect = bw / bh;
+      return (
+        b.area >= total * REGION_MIN_AREA_FRAC &&
+        b.area <= total * REGION_MAX_AREA_FRAC &&
+        aspect >= REGION_ASPECT_MIN &&
+        aspect <= REGION_ASPECT_MAX &&
+        b.area / (bw * bh) >= REGION_FILL_MIN
+      );
+    })
+    .sort((a, b) => b.area - a.area)
+    .slice(0, maxRegions)
+    .map((b) => ({
+      x: b.minX * inv,
+      y: b.minY * inv,
+      w: (b.maxX - b.minX + 1) * inv,
+      h: (b.maxY - b.minY + 1) * inv,
+    }));
+}
+
 /** Varpmålets storlek: kortets 63:88 i tillräcklig upplösning för avtrycken
  *  (grad-griden kräver 96×132; DCT 64×64). 240×335 ≈ 0,716. */
 export const RECTIFIED_W = 240;
