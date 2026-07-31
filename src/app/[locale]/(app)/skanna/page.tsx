@@ -26,6 +26,7 @@ import {
   fingerprintFromRgb,
   structFingerprintFromRgb,
 } from "@/lib/art-fingerprint";
+import { detectCardQuad, warpPerspective, RECTIFIED_H, RECTIFIED_W } from "@/lib/card-quad";
 import { useIsAdmin } from "@/components/admin-only";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Label, Select } from "@/components/ui/input";
@@ -301,6 +302,9 @@ function captureFrame(
   // ännu längre IN. Två UTVIDGADE regioner (ram × 1,2 / 1,45, klamrade mot
   // videokanten) täcker överflödesfallet; servern tar ändå bästa varianten
   // per kort. 4 inset + 2 outset = 6 ≤ API-taket 8 per ruta.
+  // Bredaste utsnittet sparas som källa för quad-rätningen nedan: kortet kan
+  // ligga snett ÖVER ramkanten, och då måste detekteringen se utanför ramen.
+  let rectSource: { px: Uint8ClampedArray; w: number; h: number } | null = null;
   for (const grow of [0.2, 0.45]) {
     const ox = Math.max(0, fx - (fw * grow) / 2);
     const oy = Math.max(0, fy - (fh * grow) / 2);
@@ -314,11 +318,32 @@ function captureFrame(
     canvas.height = oH;
     ctx.drawImage(video, ox, oy, ow, oh, 0, 0, oW, oH);
     const oPixels = ctx.getImageData(0, 0, oW, oH).data;
+    rectSource = { px: oPixels, w: oW, h: oH };
     const fp = fingerprintFromRgb(oPixels, oW, oH, 4);
     const sfp = structFingerprintFromRgb(oPixels, oW, oH, 4);
     if (!fp || !sfp) continue;
     fingerprints.push(toB64(fp));
     structFingerprints.push(toB64(sfp));
+  }
+
+  // QUAD-RÄTNING (Fas 1, 2026-07-31): hitta kortets fyra hörn och perspektiv-
+  // räta till kortets kanoniska 63:88 — samma geometri som referensbilderna.
+  // MÄTT i harnesset (rectify-eval.ts) innan ship; varianten LÄGGS TILL svepet
+  // (7:e avtrycket, ≤ API-taket 8), ersätter det inte: servern tar ändå bästa
+  // varianten per kort, så en felaktig varp kan aldrig göra resultatet sämre —
+  // och misslyckad detektering (null) lämnar fångsten exakt som förut.
+  const rs = rectSource ?? { px: fpPixels, w: fpW, h: fpH };
+  const quad = detectCardQuad(rs.px, rs.w, rs.h, 4);
+  if (quad) {
+    const warped = warpPerspective(rs.px, rs.w, rs.h, 4, quad.corners);
+    if (warped) {
+      const fp = fingerprintFromRgb(warped, RECTIFIED_W, RECTIFIED_H, 4);
+      const sfp = structFingerprintFromRgb(warped, RECTIFIED_W, RECTIFIED_H, 4);
+      if (fp && sfp) {
+        fingerprints.push(toB64(fp));
+        structFingerprints.push(toB64(sfp));
+      }
+    }
   }
 
   if (fpOnly) {

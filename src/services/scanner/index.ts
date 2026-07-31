@@ -311,8 +311,10 @@ const ART_STRONG = 0.75;
  * säkerhet) och 0,066 i den gamla färgmätningen (1,5×) — regeln är säker i
  * BÅDA lägena (äldre klienter utan strukturavtryck får ren färgpoäng).
  */
-const ART_TRUST_SCORE = 0.55;
-const ART_TRUST_MARGIN = 0.1;
+// Exporterade så mätskripten (scanner-scoreboard.ts, scanner-replay.ts) dömer
+// med PRODUKTIONENS värden — en lokal kopia i ett skript driver isär tyst.
+export const ART_TRUST_SCORE = 0.55;
+export const ART_TRUST_MARGIN = 0.1;
 const ART_TRUST_BONUS = 1.15;
 
 /**

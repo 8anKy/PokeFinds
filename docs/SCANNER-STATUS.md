@@ -269,6 +269,73 @@ kvoten KVAR på 100/mån — unlimited-Pro med dolt fair-use-tak på vision-
 skanningar (~1000/mån) är designad och skjuten till efter fältdata.
 KVAR: fysiska kort — sista omätta domänen.
 
+## FAS 0 + FAS 1 (2026-07-31, kväll): scoreboard med facit + quad-rätning
+
+Djupresearchen (TinEye CardSearchEngine m.m.) landade i en fasplan; kortversion
+av vad den etablerade: CardSearchEngine är deskriptor + index + närmaste granne
+— samma arkitektur som vår — utan påvisbar vallgrav. Deras 99,9 %/pris/
+tryckningsval överlevde INTE källgranskning (unaudited marknadsföring; deras
+egen MatchEngine-sida visar 45 % på alternate-artwork-par i svårt ljus). Vår
+nummerbaserade tryckningsdisambiguering är en förmåga deras publika material
+inte ens demonstrerar.
+
+**FAS 0 — `scripts/scanner-scoreboard.ts`** (facit slår takmätningar):
+
+- `TEMPLATE=1` skriver olabellade skanningar till `scripts/scanner-labels.json`
+  med LEDTRÅDAR (modellsvar, valt kort, bildens topp-5 MED kort-id) — märkning
+  är minuter. **87 riktiga skanningar väntar på ägarens facit.** Svaga
+  etiketter (samlings-tillägg ≤15 min efter skanning) redovisas separat; i
+  dagens data fanns inga.
+- Rapporterar per population (physical/screen): bild topp-1/5/15, slutval,
+  svep-räddade, trust-regelns VERKLIGA precision (importerar produktionens
+  exporterade `ART_TRUST_*`), tröskel-tabellen (rätt/fel × poäng/marginal) och
+  TRE HINKAR per miss: VIKTNING (bilden hade facit i topp-15, valet föll fel),
+  DESKRIPTOR (självsäkert fel bild), INFO/RAM (allt brus — ramfel eller
+  information som inte finns i källan; utan bilden går de inte att skilja,
+  ägarens `note` avgör).
+- ⛔ Trösklarna härleds OM härifrån när deskriptor/beskärning ändras — aldrig
+  ur takmätningar.
+
+**FAS 1 — quad-rätning (`src/lib/card-quad.ts`, shippad)**: Sobel →
+riktnings-grindad Hough → yttersta starka linjeparet → sub-bin-förfining mot
+råa kantpixlar → validering (konvexitet, sidoförhållande 63:88, area) →
+Heckbert-homografi + bilinjär varp till 240×335. Ren TS, 0 beroenden (OpenCV.js
+= 8+ MB WASM egress — avvisat), ~10–30 ms, EN implementation för klient (4 kan)
+och harness (3 kan) med parvisa tester (`tests/unit/card-quad.test.ts`).
+Klienten lägger varpen som **7:e svepvariant** (≤ API-taket 8; diagnostiken
+sparar nu 7): servern tar bästa varianten per kort, så misslyckad detektering
+eller felvarp lämnar allt som förut — failar öppet åt rätt håll.
+
+**MÄTT före ship** (`scripts/art-audit/rectify-eval.ts`, triw-blandningen,
+hela katalogen som distraktorer, n=40/rad):
+
+| fall | single | sweep | quad | **both (= det som shippas)** |
+|---|---|---|---|---|
+| pad 6 % symmetrisk | 60,0 % | 97,5 % | 85,7 % | **97,5 %** topp-15 |
+| pad 6 % ASYM + ±6° | 5,0 % | 50,0 % | 86,8 % | **90,0 %** topp-15 |
+| pad 10 % ASYM + ±6° | 0,0 % | 20,0 % | 86,5 % | **85,0 %** topp-15 |
+
+Läsning: symmetrisk pad löser svepet redan (quad tillför noll, kostar noll) —
+men det ASYMMETRISKA fallet (kort ur centrum + rotation, dvs en verklig
+handhållen/sned fångst) kan svepet per konstruktion inte nå: **+40 till +65
+procentenheter topp-15**. Detekteringsgrad 37–38/40. ⛔ Svepet BEHÅLLS tills
+Fas 0-facit visar att varpen ensam räcker (4 sökningar → 1 är en senare
+optimering, inte dagens).
+
+**Kostnadsform**: +~350 B upp per ruta (7:e varianten), +1 sökning à ~10 ms
+server-CPU, 0 nytt residentminne, 0 API-kostnad, Neon-vägen orörd.
+
+**FAS 2/3 (mätverktyg klara, INTE byggda i produktion)**:
+`scripts/art-audit/augment-eval.ts` mäter augmenterade multi-referenser
+(recall-per-MB; +25 MB resident per variant — ägarbeslut, och syntetiska tal är
+en ÖVRE gräns), `quant-check.ts` mäter int8-kvantiseringens cosinus-störning —
+**MÄTT (996 par): |Δcosinus| p99 7,9e-4, max 1,6e-3 — 60× under sämsta
+fel-marginal (0,028), 125× under trust-marginalen. int8 kan inte ändra ett
+utfall; antagandet är nu en mätning.** Fas 3 (ORB/RANSAC-omrankning av
+topp-15) och Fas 4 (inlärd embedding, 25–90 MB resident ELLER 25–90 MB
+klientnedladdning) är DEFERRED: byggs bara om Fas 0-facit visar att hinken
+DESKRIPTOR dominerar missarna — INFO/RAM-hinken kan ingen deskriptor laga.
+
 ## Öppet — nästa steg
 
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
