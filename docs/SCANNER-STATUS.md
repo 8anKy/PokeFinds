@@ -474,7 +474,16 @@ precis de fall där Haiku faktiskt tillför (nummer/tryckning/syskonval).
    dem).
 4. **132 kort saknar avtryck** — döda bild-URL:er uppströms (mcd17/mcd18 + en promo,
    404 på både hires och liten variant). De matchas som förut på namn/nummer.
-5. **Kostnadsläge**: ~$0,0029/scan (Haiku + närbild). Indexet ligger i 5,1 MB
+5. **Kostnadsläge (MÄTT 2026-08-01, API:ts egna tokental)**: **$0,0054 per
+   Haiku-anrop** (medel 4 613 in / 149 ut tokens — de gamla $0,0029 var en
+   underskattning, ägaren fångade det mot konsolen), och ~79 % av skanningarna
+   hoppar numera anropet helt (trust + ruta-samstämmighet) → blandat
+   ~$0,001/scan, ~$0,18/mån för en Pro-användare vid kvottaket. Konsolens
+   dagssumma blandar skannern med batch-jobbens Haiku (Tradera-domen) på samma
+   nyckel — `scanner-telemetry.ts` visar skannerns egen, mätta kostnad.
+   ⛔ Prompt-cache hjälper inte här: Haiku 4.5:s minsta cachebara prefix är
+   4096 tokens, vår prompt+schema ~2000 → cachear tyst aldrig.
+   Indexet ligger i 5,1 MB
    processminne, laddas latt vid första skanningen, och Neon-arbetet per skanning
    GICK NER (bilden ger kort-id → uppslag på primärnyckel). Ingen pgvector.
    Vill man höja modellen står kostnadstabellen i `CLAUDE.md`.

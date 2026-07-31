@@ -2104,5 +2104,90 @@
       ]
     },
     "population": "screen"
+  },
+  "cms9hjmga000eib6bssgb07wm": {
+    "truth": "cmq9hignj00ff7z4t60ng3c09",
+    "note": "ägaren intygade rätt (08-01): DOLT nummer-test — rätt kort via omtrycks-tie-break, korrekt ?-märkt",
+    "hint": {
+      "at": "2026-07-31T21:59:40.138Z",
+      "modell": "Scorbunny / ",
+      "valdes": "cmq9hignj00ff7z4t60ng3c09 = Scorbunny 36 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9hnwoa06ty4r9p8fiqk861 = Scorbunny 26 (Stellar Crown) (0.780)",
+        "cmq9hignj00ff7z4t60ng3c09 = Scorbunny 36 (Ascended Heroes) (0.763)",
+        "cmq9hhj2q00637z4tz03jc4p8 = Baltoy 46 (Chaos Rising) (0.663)",
+        "cmq9hoks30a9e4r9pi1cdusxt = Phanpy 48 (Paldean Fates) (0.647)",
+        "cmq9hoesk095d4r9pa0dhd4sp = Ponyta 26 (Temporal Forces) (0.643)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9hi4mt000cib6bqi9dxxvy": {
+    "truth": "cmq9higph00i17z4t26boe1lz",
+    "note": "ägaren intygade rätt (08-01): tidigare-missade kort, nu läst nummer",
+    "hint": {
+      "at": "2026-07-31T21:58:30.389Z",
+      "modell": "Eelektrik / 060/217",
+      "valdes": "cmq9higph00i17z4t26boe1lz = Eelektrik 60 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9hj9ye036n7z4tnaeuzbxv = Eelektrik 31 (Black Bolt) (0.770)",
+        "cmq9higph00i17z4t26boe1lz = Eelektrik 60 (Ascended Heroes) (0.755)",
+        "cmq9hp7vp0dct4r9pyheh5myt = Dartrix 14 (Obsidian Flames) (0.655)",
+        "cmq9hqprg0epo4r9p54tz6np6 = Tadbulb 77 (Paldea Evolved) (0.654)",
+        "cmq9hnrus05tx4r9p16giio6u = Magnezone 60 (Surging Sparks) (0.653)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9hhyq3000aib6bzlxxrzgr": {
+    "truth": "cmqa383bm00l3124skqv61mhm",
+    "note": "ägaren intygade rätt (08-01): tidigare-missade kort, nu läst nummer",
+    "hint": {
+      "at": "2026-07-31T21:58:22.731Z",
+      "modell": "Team Rocket's Murkrow / 127/182",
+      "valdes": "cmqa383bm00l3124skqv61mhm = Team Rocket's Murkrow 127 (Destined Rivals)",
+      "bildTopp5": [
+        "cmqa383bm00l3124skqv61mhm = Team Rocket's Murkrow 127 (Destined Rivals) (0.854)",
+        "cmq9higt900lx7z4tc1xvyhp9 = Team Rocket's Murkrow 126 (Ascended Heroes) (0.842)",
+        "cmq9hol870aww4r9pftwiirpp = Shroodle 189 (Paldean Fates) (0.701)",
+        "cmq9hor0u0bp94r9paznykdng = Purrloin 114 (Paradox Rift) (0.689)",
+        "cmq9ho9bu08ii4r9pylx7sz6h = Venipede 115 (Twilight Masquerade) (0.686)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9hhrbv0008ib6b6sgguv3s": {
+    "truth": "cmq9higpu00if7z4tvlyx7p3t",
+    "note": "ägaren intygade rätt (08-01): tidigare-missade kort, nu läst nummer",
+    "hint": {
+      "at": "2026-07-31T21:58:13.148Z",
+      "modell": "Raboot / 037/217",
+      "valdes": "cmq9higpu00if7z4tvlyx7p3t = Raboot 37 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9hnwof06u44r9plht7o62f = Raboot 27 (Stellar Crown) (0.774)",
+        "cmq9higpu00if7z4tvlyx7p3t = Raboot 37 (Ascended Heroes) (0.755)",
+        "cmq9hoksc0a9q4r9py85bija0 = Barboach 50 (Paldean Fates) (0.666)",
+        "cmqa3837h00i3124s3xvwjck3 = Arven's Toedscool 109 (Destined Rivals) (0.649)",
+        "cmq97mnp0000pxurqr1ior6nx = Bulbasaur 1 (151) (0.647)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9hh9ux0006ib6by67xykpx": {
+    "truth": "cmq9hignj00ff7z4t60ng3c09",
+    "note": "ägaren intygade rätt (08-01): tidigare-missade kort, nu läst nummer",
+    "hint": {
+      "at": "2026-07-31T21:57:50.505Z",
+      "modell": "Scorbunny / 036/217",
+      "valdes": "cmq9hignj00ff7z4t60ng3c09 = Scorbunny 36 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9hnwoa06ty4r9p8fiqk861 = Scorbunny 26 (Stellar Crown) (0.886)",
+        "cmq9hignj00ff7z4t60ng3c09 = Scorbunny 36 (Ascended Heroes) (0.856)",
+        "cmq9hqpxi0exi4r9py8aymy5j = Glimmet 124 (Paldea Evolved) (0.677)",
+        "cmq9higrv00kj7z4tee6zzmx1 = N's Reshiram 154 (Ascended Heroes) (0.659)",
+        "cmq97mo99008txurqceftt8i2 = Dratini 147 (151) (0.655)"
+      ]
+    },
+    "population": "physical"
   }
 }
