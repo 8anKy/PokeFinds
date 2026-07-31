@@ -681,7 +681,8 @@
     "close": "Stäng",
     "bulkMode": "Bulk-läge · flera kort",
     "bulkHint": "Sprid ut korten med lite mellanrum och tryck av — de hittas automatiskt",
-    "bulkNoCards": "Inga kort hittades — sprid ut dem med lite mellanrum mot en enfärgad yta"
+    "bulkNoCards": "Inga kort hittades — sprid ut dem med lite mellanrum mot en enfärgad yta",
+    "bulkFound": "Hittade {count} kort"
   },
   "Grading": {
     "h1": "Gradera kort",

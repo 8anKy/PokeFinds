@@ -681,7 +681,8 @@
     "close": "Close",
     "bulkMode": "Bulk mode · multiple cards",
     "bulkHint": "Spread the cards out with a little space and press the shutter — they are detected automatically",
-    "bulkNoCards": "No cards found — spread them out with a little space on a plain surface"
+    "bulkNoCards": "No cards found — spread them out with a little space on a plain surface",
+    "bulkFound": "Found {count} cards"
   },
   "Grading": {
     "h1": "Grade card",

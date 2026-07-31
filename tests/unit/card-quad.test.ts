@@ -251,6 +251,46 @@ describe("detectCardRegions", () => {
     }
   });
 
+  it("OJÄMNT LJUS: fönsterljus-ramp över bordet fäller inte korten i skuggdelen", () => {
+    // Bordet går 45 → 150 i ljusstyrka vänster→höger (fönsterljus). Kort i den
+    // MÖRKA delen ligger nära bildens GLOBALA medianfärg — en global bakgrund
+    // missar dem; per-tile-bakgrunden ska hitta alla fyra.
+    const w = 480;
+    const h = 560;
+    const img = new Uint8Array(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const p = (y * w + x) * 4;
+        const base = 45 + (x / w) * 105;
+        img[p] = base;
+        img[p + 1] = base * 0.8;
+        img[p + 2] = base * 0.6;
+        img[p + 3] = 255;
+      }
+    }
+    const cards = [
+      { x: 30, y: 60, cw: 110, ch: 154 },
+      { x: 30, y: 330, cw: 110, ch: 154 },
+      { x: 320, y: 60, cw: 110, ch: 154 },
+      { x: 320, y: 330, cw: 110, ch: 154 },
+    ];
+    for (const c of cards) {
+      for (let y = c.y; y < c.y + c.ch; y++) {
+        for (let x = c.x; x < c.x + c.cw; x++) {
+          const p = (y * w + x) * 4;
+          // Kortet är ljust men LOKALT: i mörka delen ~95, dvs nära den globala
+          // bordsmedianen (~97) — bara en lokal bakgrund skiljer dem åt.
+          const local = 45 + (x / w) * 105;
+          img[p] = local + 50;
+          img[p + 1] = local + 45;
+          img[p + 2] = local + 55;
+        }
+      }
+    }
+    const regions = detectCardRegions(img, w, h, 4, 8);
+    expect(regions.length).toBe(4);
+  });
+
   it("LÅG KONTRAST: kort nära bordets färg hittas ändå (Otsu, inte fast golv)", () => {
     // Kort bara ~35 RGB-enheter från bordet — under gamla fasta golvet (~37).
     const w = 480;

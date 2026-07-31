@@ -516,12 +516,85 @@ export function detectCardRegions(
   // Otsu-split på AVSTÅNDSFÖRDELNINGEN separerar bakgrundsklustret från
   // förgrunden var gränsen än ligger i just den här bilden; kantringens
   // spridning behålls bara som GOLV så en tom bordsyta inte klyvs i brus.
+  //
+  // LOKAL BAKGRUND (fix 2026-08-01, andra fältrundan): EN global bordfärg
+  // faller på ojämnt ljus — fönsterljus gör ena sidan av bordet mycket
+  // ljusare, och kort i den mörka delen hamnar nära den GLOBALA medianen.
+  //
+  // ⛔ Bakgrundsfältet byggs ENBART ur KANTRINGEN, aldrig ur inre pixlar. Ett
+  // första försök lät "grovt bakgrundslika" inre pixlar rösta per tile — och
+  // när korten dominerar en yta (eller hela bilden) inverterar rösten:
+  // detektorn börjar tro att KORTET är bordet och flaggar bordskanten som
+  // förgrund. Ringen är det enda vi VET är bakgrund; ojämnt ljus fångas ändå,
+  // för ringen bär själv rampen (mörk kant på ena sidan, ljus på den andra).
+  // Varje pixels bakgrund = avståndsviktad blandning av närmaste
+  // ringsegmentens medianer (topp/botten per kolumnband, vänster/höger per
+  // radband) — ett mjukt "bordsfärgfält" över bilden.
+  const SEG = 5;
+  const segMedian = (
+    pick: (t: number) => { r: number; g: number; b: number }[]
+  ): number[][] =>
+    Array.from({ length: SEG }, (_, t) => {
+      const px = pick(t);
+      const rs = px.map((p) => p.r);
+      const gs = px.map((p) => p.g);
+      const bs = px.map((p) => p.b);
+      return px.length > 0 ? [median(rs), median(gs), median(bs)] : bg;
+    });
+  const ringPx = (i: number) => ({ r: rgb[i * 3], g: rgb[i * 3 + 1], b: rgb[i * 3 + 2] });
+  const topSeg = segMedian((t) => {
+    const out = [];
+    for (let x = Math.floor((t * mw) / SEG); x < Math.floor(((t + 1) * mw) / SEG); x++) {
+      out.push(ringPx(x));
+    }
+    return out;
+  });
+  const bottomSeg = segMedian((t) => {
+    const out = [];
+    for (let x = Math.floor((t * mw) / SEG); x < Math.floor(((t + 1) * mw) / SEG); x++) {
+      out.push(ringPx((mh - 1) * mw + x));
+    }
+    return out;
+  });
+  const leftSeg = segMedian((t) => {
+    const out = [];
+    for (let y = Math.floor((t * mh) / SEG); y < Math.floor(((t + 1) * mh) / SEG); y++) {
+      out.push(ringPx(y * mw));
+    }
+    return out;
+  });
+  const rightSeg = segMedian((t) => {
+    const out = [];
+    for (let y = Math.floor((t * mh) / SEG); y < Math.floor(((t + 1) * mh) / SEG); y++) {
+      out.push(ringPx(y * mw + mw - 1));
+    }
+    return out;
+  });
+
   const dist = new Float32Array(mw * mh);
-  for (let i = 0; i < mw * mh; i++) {
-    const d0 = rgb[i * 3] - bg[0];
-    const d1 = rgb[i * 3 + 1] - bg[1];
-    const d2 = rgb[i * 3 + 2] - bg[2];
-    dist[i] = Math.sqrt(d0 * d0 + d1 * d1 + d2 * d2);
+  for (let y = 0; y < mh; y++) {
+    const ySeg = Math.min(SEG - 1, Math.floor((y * SEG) / mh));
+    // Avståndsvikt mot respektive kant (+1 mot division med noll).
+    const wT = 1 / (y + 1);
+    const wB = 1 / (mh - y);
+    for (let x = 0; x < mw; x++) {
+      const xSeg = Math.min(SEG - 1, Math.floor((x * SEG) / mw));
+      const wL = 1 / (x + 1);
+      const wR = 1 / (mw - x);
+      const wSum = wT + wB + wL + wR;
+      const t = topSeg[xSeg];
+      const b2 = bottomSeg[xSeg];
+      const l = leftSeg[ySeg];
+      const r2 = rightSeg[ySeg];
+      const i = y * mw + x;
+      let acc = 0;
+      for (let c = 0; c < 3; c++) {
+        const bgC = (t[c] * wT + b2[c] * wB + l[c] * wL + r2[c] * wR) / wSum;
+        const d = rgb[i * 3 + c] - bgC;
+        acc += d * d;
+      }
+      dist[i] = Math.sqrt(acc);
+    }
   }
   const borderDist: number[] = [];
   for (let k = 0; k < border[0].length; k++) {

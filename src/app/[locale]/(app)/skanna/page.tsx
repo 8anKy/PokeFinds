@@ -458,7 +458,7 @@ interface BulkCell {
 function captureBulkCells(
   video: HTMLVideoElement,
   canvas: HTMLCanvasElement
-): BulkCell[] | null {
+): { cells: BulkCell[]; debugImage: string } | null {
   if (video.readyState < 2 || !video.videoWidth) return null;
   const vW = video.videoWidth;
   const vH = video.videoHeight;
@@ -475,7 +475,11 @@ function captureBulkCells(
   ctx.drawImage(video, 0, 0, vW, vH, 0, 0, dW, dH);
   const detectPixels = ctx.getImageData(0, 0, dW, dH).data;
   const regions = detectCardRegions(detectPixels, dW, dH, 4, BULK_MAX_CARDS);
-  if (regions.length === 0) return null;
+  // Detekteringsbilden följer med även när INGET hittas — det är just
+  // misslyckandena som ska gå att felsöka mot verkligheten (admin-only,
+  // se /api/scanner/identify-bulk).
+  const debugImage = canvas.toDataURL("image/jpeg", 0.7);
+  if (regions.length === 0) return { cells: [], debugImage };
   const rInv = 1 / dScale;
 
   const toB64 = (fp: Int8Array) => {
@@ -558,7 +562,7 @@ function captureBulkCells(
       cells.push({ dataUrl, stripDataUrl, fingerprints, structFingerprints });
     }
   }
-  return cells;
+  return { cells, debugImage };
 }
 
 // Klient-gate: utloggad → redirecta till login I APPEN (router.replace = SPA-nav,
@@ -591,6 +595,8 @@ function Scanner() {
   // BULK-LÄGE: frilagd flerkortsdetektering (bordsyta) i stället för enkelram.
   // Live-pollen/låset stängs av i bulk (de är enkortsbegrepp).
   const [bulkMode, setBulkMode] = useState(false);
+  // Admin: bulk-fångstens detekteringsbild sparas för felsökning mot verkliga foton.
+  const isAdmin = useIsAdmin();
   // DIAGNOSTIK (bara admin, se ScanDebug): kamerans verkliga upplösning, senaste
   // utsnitt och vad modellen faktiskt svarade. Utan det här är "skannern gissar
   // fel" ett påstående ingen kan felsöka — vi ser varken vad kameran gav oss
@@ -1118,13 +1124,30 @@ function Scanner() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || cameraState !== "live" || shutterCooling) return;
-    const cells = captureBulkCells(video, canvas);
-    if (!cells) {
+    const shot = captureBulkCells(video, canvas);
+    if (!shot) return;
+    const { cells, debugImage } = shot;
+    // Admin: detekteringsbilden + funna regioner sparas server-sida så en
+    // dålig bordsfångst går att felsöka mot VERKLIGHETEN (scripts/bulk-debug.ts)
+    // i stället för mot syntetiska gissningar. Bara ägarens egna skanningar.
+    const debug = isAdmin ? { image: debugImage, found: cells.length } : undefined;
+    if (cells.length === 0) {
       // Detekteringen hittade inga kort — säg VARFÖR i stället för att tyst
-      // göra ingenting (kort kant-i-kant smälter ihop och förkastas).
+      // göra ingenting (kort kant-i-kant smälter ihop och förkastas), och
+      // skicka ändå debugbilden så haveriet går att analysera.
       toast({ title: t("bulkNoCards"), variant: "error" });
+      if (debug) {
+        void fetch("/api/scanner/identify-bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cells: [], debug }),
+        }).catch(() => undefined);
+      }
       return;
     }
+    // Direkt återkoppling: "hittade N kort" — skiljer detekteringsfel (fel N)
+    // från identifieringsfel (rätt N, fel kort) redan i kameravyn.
+    toast({ title: t("bulkFound", { count: cells.length }) });
     setFlash(true);
     window.setTimeout(() => setFlash(false), 180);
     setShutterCooling(true);
@@ -1174,6 +1197,7 @@ function Scanner() {
               fingerprints: cell.fingerprints,
               structFingerprints: cell.structFingerprints,
             })),
+            debug,
           }),
         });
         const data = (await res.json()) as {
@@ -1227,7 +1251,7 @@ function Scanner() {
         }
       }
     })();
-  }, [cameraState, shutterCooling, defaultCondition, defaultLanguage, identifyInto, t, toast]);
+  }, [cameraState, shutterCooling, defaultCondition, defaultLanguage, identifyInto, isAdmin, t, toast]);
   // Auto-fångsten läser via refs (se lockedPolls/autoFired) — färska varje render.
   captureRef.current = capture;
   quotaRef.current = quota;

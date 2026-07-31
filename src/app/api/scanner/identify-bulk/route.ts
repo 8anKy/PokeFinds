@@ -16,6 +16,7 @@ import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { ServiceError } from "@/lib/errors";
+import { prisma } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
 import { identifyCellsArt } from "@/services/scanner";
 
@@ -29,8 +30,20 @@ const schema = z.object({
         structFingerprints: z.array(z.string().min(1).max(2048)).max(8).optional(),
       })
     )
-    .min(1)
     .max(12),
+  /**
+   * ADMIN-FELSÖKNING: detekteringsbilden (~480 px JPEG) + antal funna
+   * regioner. Bordsfångster går inte att felsöka mot syntetiska modeller —
+   * ägarens andra fältrunda bevisade det (6 kort → 2 funna, syntetiken grön).
+   * Lagras BARA för admin, i en FAILED-rad (räknas inte mot kvoten) som
+   * telemetrin ignorerar (v:2). Läses av scripts/bulk-debug.ts.
+   */
+  debug: z
+    .object({
+      image: z.string().regex(/^data:image\/jpeg;base64,/).max(300_000),
+      found: z.number().int().min(0).max(20),
+    })
+    .optional(),
 });
 
 export async function POST(req: Request) {
@@ -40,7 +53,22 @@ export async function POST(req: Request) {
     // binder samtidigt CPU:n (varje anrop är upp till ~100 indexsökningar).
     const { ok } = await rateLimit(`scanner-bulk:${user.id}`, 20, 60 * 1000);
     if (!ok) throw new ServiceError(429, "För många förfrågningar — vänta en stund.");
-    const { cells } = schema.parse(await req.json());
+    const { cells, debug } = schema.parse(await req.json());
+
+    const isAdmin = user.role === "ADMIN" || user.role === "SUPERADMIN";
+    if (debug && isAdmin) {
+      // status FAILED med flit: kvoten räknar icke-FAILED rader, och en
+      // debugbild är ingen skanning. v:2 → telemetri/scoreboard hoppar över den.
+      await prisma.scannerJob.create({
+        data: {
+          userId: user.id,
+          imageUrl: "bulk-debug",
+          status: "FAILED",
+          result: { v: 2, bulk: true, found: debug.found, image: debug.image },
+        },
+      });
+    }
+    if (cells.length === 0) return jsonOk({ cells: [] });
     return jsonOk({ cells: await identifyCellsArt(cells) });
   } catch (e) {
     return apiError(e);
