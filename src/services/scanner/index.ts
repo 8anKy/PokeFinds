@@ -16,7 +16,7 @@ import {
   type ArtQuery,
   artPairSimilarity,
   searchByFingerprints,
-  searchByFrames,
+  searchByFramesDetailed,
 } from "@/services/scanner/art-index";
 import { getCardValues, getProductValues } from "@/services/products";
 import { ClaudeVisionOcrAdapter } from "@/services/scanner/claude-vision";
@@ -317,6 +317,42 @@ const ART_STRONG = 0.75;
 export const ART_TRUST_SCORE = 0.55;
 export const ART_TRUST_MARGIN = 0.1;
 const ART_TRUST_BONUS = 1.15;
+
+/**
+ * UTVIDGAD TRUST MED RUTA-SAMSTÄMMIGHET (2026-07-31, mätt mot facit): en
+ * fångst bär flera videorutor, och varje rutas topp-1 är en OBEROENDE
+ * observation (egen moiré, egen skakning). Pekar ALLA rutor på samma kort som
+ * bästa rutans topp-1 sänks marginalkravet 0,10 → 0,05 — samma slags temporala
+ * bevis som live-låsets "tre pollar i rad", fast räknat server-sida ur det
+ * som redan skickas.
+ *
+ * MÄTT (scanner-skip-audit.ts, 42 facitmärkta skanningar): basregeln hoppar
+ * 24/42 med 100 % precision; + samstämmighet vid marginal ≥ 0,05 → 28/42,
+ * fortfarande 100 %. 0,05 valdes över 0,04 (29 hopp) med flit: det är
+ * MATCH_MARGIN_MIN (osäkerhetströskeln) och ger 2,8× marginal till den värsta
+ * uppmätta fel-marginalen i fält (0,018 — omtryckssyskonen). Syskonfallen
+ * ligger därmed KVAR under tröskeln och går till modellen/"?" som de ska:
+ * samstämmighet ensam räcker aldrig (rutorna kan vara ense om fel syskon —
+ * marginalen förblir det bärande villkoret).
+ */
+export const ART_AGREE_MARGIN = 0.05;
+
+/**
+ * Trust-domen — EN implementation för produktion OCH mätskript (en lokal
+ * kopia i ett skript driver isär tyst, samma läxa som ART_TRUST_*).
+ */
+export function artConfidentFrom(
+  best: ArtMatch[],
+  frameTops: ArtMatch[]
+): string | null {
+  if (best.length < 2 || best[0].score < ART_TRUST_SCORE) return null;
+  const margin = best[0].score - best[1].score;
+  if (margin >= ART_TRUST_MARGIN) return best[0].cardId;
+  const allAgree =
+    frameTops.length >= 2 && frameTops.every((t) => t.cardId === best[0].cardId);
+  if (allAgree && margin >= ART_AGREE_MARGIN) return best[0].cardId;
+  return null;
+}
 
 /**
  * KORSVALIDERING: håller modellens namn med om vad bilden ser?
@@ -1170,22 +1206,18 @@ export async function identifyCard(
     frames.length === 0
       ? decodeFingerprints(opts.fingerprints, opts.structFingerprints)
       : [];
-  const artMatches = frames.length
-    ? await searchByFrames(frames, ART_CANDIDATES)
+  const detailed = frames.length
+    ? await searchByFramesDetailed(frames, ART_CANDIDATES)
     : single.length
-      ? await searchByFingerprints(single, ART_CANDIDATES)
-      : [];
+      ? { best: await searchByFingerprints(single, ART_CANDIDATES), frameTops: [] }
+      : { best: [], frameTops: [] };
+  const artMatches = detailed.best;
 
   const artScores = new Map(artMatches.map((m) => [m.cardId, m.score]));
   // MARGINALEN till tvåan är det som avgör om bildträffen går att lita på —
-  // poängen ensam skiljer inte rätt från fel (se ART_TRUST_*). Finns ingen tvåa
-  // är marginalen odefinierad och träffen får inte räknas som säker.
-  const artConfidentCardId =
-    artMatches.length >= 2 &&
-    artMatches[0].score >= ART_TRUST_SCORE &&
-    artMatches[0].score - artMatches[1].score >= ART_TRUST_MARGIN
-      ? artMatches[0].cardId
-      : null;
+  // poängen ensam skiljer inte rätt från fel. Med full ruta-samstämmighet
+  // sänks marginalkravet (temporalt bevis) — se artConfidentFrom/ART_AGREE_MARGIN.
+  const artConfidentCardId = artConfidentFrom(artMatches, detailed.frameTops);
 
   // `precise` = användaren bad uttryckligen om modellen — hoppa aldrig då.
   const skipVision = artConfidentCardId !== null && !opts.precise;

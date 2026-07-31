@@ -274,15 +274,34 @@ export async function searchByFingerprints(
  * ska INTE kunna bidra med en enstaka hög poäng till ett fel kort.
  */
 export async function searchByFrames(frames: ArtQuery[][], k = 15): Promise<ArtMatch[]> {
+  return (await searchByFramesDetailed(frames, k)).best;
+}
+
+/**
+ * Som `searchByFrames`, men returnerar också VARJE rutas topp-1. Rutorna är
+ * oberoende observationer (egen moiré, egen skakning, egen fokus) — att alla
+ * pekar på SAMMA kort är temporalt bevis av samma slag som live-låsets "tre
+ * pollar i rad", och används av den utvidgade trust-regeln (se
+ * ART_AGREE_MARGIN i scanner/index.ts).
+ */
+export async function searchByFramesDetailed(
+  frames: ArtQuery[][],
+  k = 15
+): Promise<{ best: ArtMatch[]; frameTops: ArtMatch[] }> {
   const usable = frames.filter((f) => f.length > 0);
-  if (usable.length === 0) return [];
-  if (usable.length === 1) return searchByFingerprints(usable[0], k);
+  if (usable.length === 0) return { best: [], frameTops: [] };
+  if (usable.length === 1) {
+    const res = await searchByFingerprints(usable[0], k);
+    return { best: res, frameTops: res.length > 0 ? [res[0]] : [] };
+  }
 
   let best: ArtMatch[] = [];
   let bestMargin = -Infinity;
+  const frameTops: ArtMatch[] = [];
   for (const frame of usable) {
     const res = await searchByFingerprints(frame, k);
     if (res.length === 0) continue;
+    frameTops.push(res[0]);
     // Ensam träff = odefinierad marginal. Behandla som minst avgörande, men
     // behåll den som reserv om ingen annan ruta gav något.
     const margin = res.length >= 2 ? res[0].score - res[1].score : 0;
@@ -291,7 +310,7 @@ export async function searchByFrames(frames: ArtQuery[][], k = 15): Promise<ArtM
       best = res;
     }
   }
-  return best;
+  return { best, frameTops };
 }
 
 /**

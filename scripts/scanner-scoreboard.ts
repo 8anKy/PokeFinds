@@ -63,8 +63,16 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { FINGERPRINT_BYTES, STRUCT_BYTES } from "../src/lib/art-fingerprint";
-import { type ArtQuery, searchByFrames } from "../src/services/scanner/art-index";
-import { ART_TRUST_MARGIN, ART_TRUST_SCORE } from "../src/services/scanner/index";
+import {
+  type ArtQuery,
+  searchByFrames,
+  searchByFramesDetailed,
+} from "../src/services/scanner/art-index";
+import {
+  ART_TRUST_MARGIN,
+  ART_TRUST_SCORE,
+  artConfidentFrom,
+} from "../src/services/scanner/index";
 
 const prisma = new PrismaClient();
 const TAKE = Number(process.env.TAKE ?? "200");
@@ -277,7 +285,7 @@ async function score(
   // OBS: rang mäts i en RANK_DEPTH-lista. Valet av "bästa ruta" (marginal på
   // topp-2) är identiskt med produktionens k=15-anrop; per-variant-djupet är
   // 2×k, så listans SVANS kan avvika marginellt från produktionens topp-15.
-  const matches = await searchByFrames(frames, RANK_DEPTH);
+  const { best: matches, frameTops } = await searchByFramesDetailed(frames, RANK_DEPTH);
   const plain = await searchByFrames(
     frames.map((f) => [f[0]]),
     RANK_DEPTH
@@ -288,7 +296,8 @@ async function score(
   const rank0 = idx0 >= 0 ? idx0 + 1 : null;
   const top1Score = matches[0]?.score ?? 0;
   const margin = matches.length >= 2 ? matches[0].score - matches[1].score : null;
-  const trusted = top1Score >= ART_TRUST_SCORE && (margin ?? 0) >= ART_TRUST_MARGIN;
+  // PRODUKTIONENS trust-dom (delad implementation, inkl. samstämmighet).
+  const trusted = artConfidentFrom(matches, frameTops) !== null;
   const trustedRight = trusted ? matches[0].cardId === truth : null;
   const chosenRight = d.chosen?.cardId ? d.chosen.cardId === truth : false;
 

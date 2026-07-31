@@ -18,12 +18,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { FINGERPRINT_BYTES, STRUCT_BYTES } from "../src/lib/art-fingerprint";
-import { type ArtQuery, searchByFrames } from "../src/services/scanner/art-index";
-import {
-  ART_TRUST_MARGIN,
-  ART_TRUST_SCORE,
-  matchCards,
-} from "../src/services/scanner/index";
+import { type ArtQuery, searchByFramesDetailed } from "../src/services/scanner/art-index";
+import { artConfidentFrom, matchCards } from "../src/services/scanner/index";
 
 const prisma = new PrismaClient();
 const LABELS_PATH = path.join(__dirname, "scanner-labels.json");
@@ -95,16 +91,12 @@ async function main() {
     if (frames.length === 0) continue;
     n++;
 
-    // Samma väg som identifyCard: bildsökning → trust-regel → matchCards med
-    // (vid hoppad vision) TOM text, annars det lagrade modellsvaret.
-    const artMatches = await searchByFrames(frames, 15);
+    // Samma väg som identifyCard: bildsökning → trust-regel (DELAD dom,
+    // artConfidentFrom) → matchCards med (vid hoppad vision) TOM text, annars
+    // det lagrade modellsvaret.
+    const { best: artMatches, frameTops } = await searchByFramesDetailed(frames, 15);
     const artScores = new Map(artMatches.map((m) => [m.cardId, m.score]));
-    const artConfidentCardId =
-      artMatches.length >= 2 &&
-      artMatches[0].score >= ART_TRUST_SCORE &&
-      artMatches[0].score - artMatches[1].score >= ART_TRUST_MARGIN
-        ? artMatches[0].cardId
-        : null;
+    const artConfidentCardId = artConfidentFrom(artMatches, frameTops);
     const skipVision = artConfidentCardId !== null;
     const ocr = skipVision
       ? { rawText: "", confidence: 0.95 }

@@ -435,6 +435,27 @@ båda syskonen i listan), men priorn med bäst odds vinner netto +2.
 Eelektrik-missen (olika konst 0,391 — namn-blandningsfällan "Electrik") ligger
 KVAR öppen: n=1, ingen regel byggs på ett fall.
 
+## UTVIDGAD TRUST: RUTA-SAMSTÄMMIGHET (2026-07-31, natt): 24 → 28 av 42 gratis
+
+Ägarens fråga "varför är bara auto-fångsten gratis?" hade ett halvt felaktigt
+antagande (även manuella fångster hoppar Haiku när trust-regeln håller — 24/42
+i fält) och en HELT RIKTIG kärna: fångsten bär redan 4 oberoende videorutor,
+och att ALLA rutors topp-1 pekar på samma kort är temporalt bevis av samma
+slag som live-låsets "tre pollar i rad" — men det räknades aldrig.
+
+`artConfidentFrom` (delad dom — produktion, replay, scoreboard och skip-audit
+importerar SAMMA funktion): basregeln som förut, PLUS full ruta-samstämmighet
+→ marginalkravet sänks 0,10 → `ART_AGREE_MARGIN` 0,05. MÄTT mot facit
+(`scanner-skip-audit.ts`): 24/42 → **28/42 hopp, fortfarande 100 % precision**.
+0,05 valdes över 0,04 (29 hopp) med flit: 2,8× marginal till fältets värsta
+fel-marginal (0,018), och syskonfallen (0,005–0,018) ligger KVAR under
+tröskeln — samstämmighet ensam räcker aldrig (rutorna kan vara ense om fel
+syskon), marginalen förblir det bärande villkoret. Verifierat: choice-replay
+oförändrad 40/42 med utvidgningen aktiv.
+
+Effekt: ~67 % av skanningarna är nu $0 och instant (var 57 %); resten är
+precis de fall där Haiku faktiskt tillför (nummer/tryckning/syskonval).
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.
