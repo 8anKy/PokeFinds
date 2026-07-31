@@ -14,6 +14,7 @@ import { scoreSimilarity } from "@/scrapers/matching";
 import {
   type ArtMatch,
   type ArtQuery,
+  artPairSimilarity,
   searchByFingerprints,
   searchByFrames,
 } from "@/services/scanner/art-index";
@@ -415,6 +416,109 @@ const TIEBREAK_CAP = 0.045;
  */
 const EXACT_NAME_WEIGHT = 0.03;
 
+/**
+ * OMTRYCKSSYSKON-TIE-BREAK (2026-07-31). Första facitmätningen (42 riktiga
+ * skanningar) gav 4 missar — och ALLA hade samma mekanism: samma kort omtryckt
+ * i ett annat set med IDENTISK konst (Raboot SC 27 ↔ AH 37, Scorbunny SC 26 ↔
+ * AH 36, Regirock ex DR 101 ↔ AH 107), samlarnumret oläst, och vinnaren avgjord
+ * av bildpoängens BRUS (fel-marginaler 0,007–0,018 — långt under allt som
+ * betyder något). Identisk konst kan ingen bilddeskriptor skilja, så inom en
+ * sådan grupp är skillnaden i bildpoäng per definition brus — och brus ska inte
+ * få välja kort.
+ *
+ * Regeln: kandidater med SAMMA namn vars referensavtryck är nästan identiska
+ * (parvis blandad likhet ≥ SAME_ART_MIN — kalibrerat mot verkliga fall: äkta
+ * omtryck 0,954–0,976, olika konst ≤ 0,638) får sin bildandel UTJÄMNAD till
+ * gruppens bästa. Det som återstår att skilja dem åt är då äkta bevis, i
+ * fallande styrka: läst nummer (befintliga bonusen, orörd — utjämningens
+ * maxflytt är ~0,015 och kan aldrig utmana 0,25–0,5), tryckt TOTAL om modellen
+ * läste en ("034/217" → setet med 217 kort — mätt: rätt i Scorbunny-fallet),
+ * och sist "nyast set först" (befintliga sorteringen, nu nåbar eftersom
+ * poängen blir exakt lika i stället för brus-skilda).
+ *
+ * TOTAL-bonusen ligger UNDER MATCH_MARGIN_MIN och dämpas med nameWeight (samma
+ * modellsvar, samma misstro) — den ordnar syskon, fabricerar aldrig säkerhet.
+ * ⛔ Utjämningen gäller BARA inom bekräftade samma-konst-grupper: globalt hade
+ * den raserat bildens hela uppgift (att föreslå rätt kort framför 20 000 andra).
+ */
+const SAME_ART_MIN = 0.9;
+const TOTAL_TIEBREAK = 0.02;
+
+export interface SameArtEntry {
+  cardId: string;
+  name: string;
+  /** Bildlikhet 0..1, undefined när kortet inte låg i bildens topplista. */
+  art: number | undefined;
+  /** Setets tryckta total (0 = okänd). */
+  totalCards: number;
+  /** Orundad poäng UTAN tie-break-delen (namn + nummer + bild). */
+  scoreSansTiebreak: number;
+  /** Ovägd HP-bonus (0 eller HP_WEIGHT) — se hpKnown. */
+  hpBonus: number;
+  /** Ovägd era-bonus (0 / ERA_ADJACENT_WEIGHT / ERA_WEIGHT). */
+  eraBonus: number;
+  /** Har KATALOGEN ett HP för kortet? NULL = hål, inte bevis — se nedan. */
+  hpKnown: boolean;
+}
+
+/**
+ * Ren dom (testad utan DB): returnerar NYA poäng för kandidater i bekräftade
+ * samma-konst-grupper. `pairSim` är referens-likheten (artPairSimilarity i
+ * produktion, stubbas i test).
+ *
+ * ⛔ HP FÅR BARA SKILJA SYSKON NÄR ALLA I GRUPPEN HAR HP I KATALOGEN (mätt
+ * 2026-07-31, alla tre omtrycksmissarna): Ascended Heroes är skapat ur CM:s
+ * episodlista innan pokemontcg.io har setet, så dess kort har `hp = NULL` —
+ * HP-backfillen har ingen källa. Modellen läste HP HELT RÄTT från det fysiska
+ * kortet (90/70/230), det matchade den GAMLA tvillingens katalograd, och den
+ * nya fick noll: en katalog-lucka som systematiskt röstar på fel syskon.
+ * Samma klass av fel som tcgid-incidenten — ett saknat fält som failar öppet.
+ */
+export async function applySameArtTiebreak(
+  entries: SameArtEntry[],
+  pairSim: (a: string, b: string) => Promise<number | null>,
+  guessedTotal: number | null,
+  nameWeight: number
+): Promise<Map<string, number>> {
+  const adjusted = new Map<string, number>();
+  const byName = new Map<string, SameArtEntry[]>();
+  for (const e of entries) {
+    const key = e.name.trim().toLowerCase();
+    byName.set(key, [...(byName.get(key) ?? []), e]);
+  }
+  for (const group of byName.values()) {
+    // Minst två medlemmar som bilden faktiskt såg — utan bildpoäng finns inget
+    // brus att utjämna (och ingen grund att kalla dem samma konst i frågan).
+    const seen = group.filter((e) => e.art !== undefined);
+    if (seen.length < 2) continue;
+    const anchor = seen.reduce((a, b) => ((b.art ?? 0) > (a.art ?? 0) ? b : a));
+    const confirmed: SameArtEntry[] = [anchor];
+    for (const e of seen) {
+      if (e === anchor) continue;
+      const sim = await pairSim(anchor.cardId, e.cardId);
+      if (sim !== null && sim >= SAME_ART_MIN) confirmed.push(e);
+    }
+    if (confirmed.length < 2) continue;
+    const maxArt = Math.max(...confirmed.map((e) => e.art ?? 0));
+    const hpMayArbitrate = confirmed.every((e) => e.hpKnown);
+    for (const e of confirmed) {
+      const tiebreak = Math.min(
+        (hpMayArbitrate ? e.hpBonus : 0) + e.eraBonus,
+        TIEBREAK_CAP
+      );
+      let score =
+        e.scoreSansTiebreak +
+        tiebreak * nameWeight +
+        (maxArt - (e.art ?? 0)) * ART_WEIGHT;
+      if (guessedTotal != null && e.totalCards > 0 && e.totalCards === guessedTotal) {
+        score += TOTAL_TIEBREAK * nameWeight;
+      }
+      adjusted.set(e.cardId, Math.round(score * 1000) / 1000);
+    }
+  }
+  return adjusted;
+}
+
 /** Kortnamn-tokens ur OCR-texten. Tomt resultat → hela frågan som en token. */
 function nameTokens(query: string): string[] {
   const tokens = query
@@ -575,22 +679,27 @@ export async function matchCards(
     }
     // TIE-BREAK mellan namnsyskon: HP (läsning) + era (klassning), med
     // gemensamt tak under osäkerhetströskeln. Se HP_WEIGHT/TIEBREAK_CAP.
-    let tiebreak = 0;
+    // Delarna hålls isär för omtryckssyskon-utjämningen nedan (som kan behöva
+    // räkna om taket utan HP när katalogen saknar HP för en gruppmedlem).
+    let hpBonus = 0;
+    let eraBonus = 0;
     if (ocr.guessedHp != null && card.hp != null && card.hp === ocr.guessedHp) {
-      tiebreak += HP_WEIGHT;
+      hpBonus = HP_WEIGHT;
     }
     if (eraIdx >= 0 && card.set.releaseDate) {
       const year = card.set.releaseDate.getUTCFullYear();
       if (inEra(eraIdx, year)) {
-        tiebreak += ERA_WEIGHT;
+        eraBonus = ERA_WEIGHT;
       } else if (
         (eraIdx > 0 && inEra(eraIdx - 1, year)) ||
         (eraIdx < ERA_ORDER.length - 1 && inEra(eraIdx + 1, year))
       ) {
-        tiebreak += ERA_ADJACENT_WEIGHT;
+        eraBonus = ERA_ADJACENT_WEIGHT;
       }
     }
-    if (tiebreak > 0) score += Math.min(tiebreak, TIEBREAK_CAP) * nameWeight;
+    const tiebreakApplied =
+      hpBonus + eraBonus > 0 ? Math.min(hpBonus + eraBonus, TIEBREAK_CAP) * nameWeight : 0;
+    score += tiebreakApplied;
     // Bildlikhet: en gradering, inte ett bevis. Se ART_WEIGHT.
     const art = artScores?.get(card.id);
     if (art !== undefined && art > 0) score += art * ART_WEIGHT;
@@ -631,8 +740,44 @@ export async function matchCards(
       slug: null,
       estimatedValue: null,
     };
-    return { candidate, released: card.set.releaseDate?.getTime() ?? 0 };
+    return {
+      candidate,
+      released: card.set.releaseDate?.getTime() ?? 0,
+      totalCards: card.set.totalCards ?? 0,
+      // ORUNDADE komponenter till syskon-utjämningen: utjämningen ska ge EXAKT
+      // lika poäng inom en grupp (så "nyast set" får avgöra), och dubbelrundning
+      // (runda → justera → runda) lämnar 0,001-skillnader som är exakt det brus
+      // regeln finns för att ta bort.
+      rawSansTiebreak: score - tiebreakApplied,
+      hpBonus,
+      eraBonus,
+      hpKnown: card.hp != null,
+    };
   });
+
+  // OMTRYCKSSYSKON: utjämna bildbruset inom bekräftade samma-konst-grupper så
+  // att äkta bevis (nummer, total, nyast set) får avgöra. Se applySameArtTiebreak.
+  if (artScores?.size) {
+    const adjusted = await applySameArtTiebreak(
+      scored.map((s) => ({
+        cardId: s.candidate.cardId,
+        name: s.candidate.name,
+        art: artScores.get(s.candidate.cardId),
+        totalCards: s.totalCards,
+        scoreSansTiebreak: s.rawSansTiebreak,
+        hpBonus: s.hpBonus,
+        eraBonus: s.eraBonus,
+        hpKnown: s.hpKnown,
+      })),
+      artPairSimilarity,
+      guessedNum?.total ?? null,
+      nameWeight
+    );
+    for (const s of scored) {
+      const ns = adjusted.get(s.candidate.cardId);
+      if (ns !== undefined) s.candidate.score = ns;
+    }
+  }
 
   const ranked = scored
     .filter((c) => c.candidate.score > 0)

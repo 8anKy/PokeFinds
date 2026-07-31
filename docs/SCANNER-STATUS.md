@@ -400,13 +400,42 @@ i syskonlistan) — märkt korrekt med not.
 
 De gamla 87 skanningarna ligger kvar omärkta i labels-filen (valfri bonusdata).
 
-## Öppet — nästa steg
+## OMTRYCKSSYSKON-TIE-BREAKEN (2026-07-31, sen kväll): 38/42 → 40/42
 
-0. **Omtryckssyskon-tie-breaken** — nu n=4, alla missar samma mekanism
-   (samma-konst-omtryck/nummer-tvilling + oläst nummer). Gratis-fix att
-   designa mot verkliga fall; margin 0,007–0,018 visar att bilden VET att den
-   inte kan skilja dem — frågan är vilken signal som ska få avgöra (set-symbol
-   läses inte i dag; "?"-märkning + syskonlistan är dagens beteende).
+`applySameArtTiebreak` (ren dom, testad utan DB) + `artPairSimilarity`
+(triw-likhet mellan två REFERENS-avtryck ur indexet, indexOf i stället för en
+id-Map med flit — RAM är notan). Regeln: kandidater med samma namn vars
+referensavtryck är nästan identiska (≥ `SAME_ART_MIN` 0,9 — KALIBRERAT: äkta
+omtryck 0,954–0,976, olika konst ≤ 0,638) får bild-delen UTJÄMNAD till
+gruppens bästa (identisk konst ⇒ skillnaden är brus), varpå äkta bevis avgör:
+läst nummer (orörd, kan inte utmanas), läst TOTAL ("034/217" → 217-setet,
+`TOTAL_TIEBREAK` 0,02 under osäkerhetströskeln), sist "nyast set först".
+
+**TVÅ ROTORSAKER, inte en** (felsökt via `scanner-choice-replay.ts` som
+replayar HELA matchvägen — bild + lagrat modellsvar → matchCards — över de
+facitmärkta skanningarna):
+1. **Dubbelrundning**: poängen rundades FÖRE utjämningen → 0,001-skillnader
+   kvar = exakt bruset regeln skulle ta bort. Utjämningen räknar nu på ORUNDADE
+   komponenter.
+2. **⛔ HP-HÅLET**: Ascended Heroes är skapat ur CM:s episodlista innan
+   pokemontcg.io har setet → korten har `hp = NULL` (backfillen saknar källa).
+   Modellen läste HP HELT RÄTT från kortet (90/70/230), det matchade den GAMLA
+   tvillingens katalograd (+0,04), nya setets NULL fick noll — en katalog-lucka
+   som systematiskt röstade på fel syskon i ALLA tre omtrycksmissarna. Samma
+   felklass som tcgid-incidenten (saknat fält failar öppet). Regel: HP får bara
+   skilja syskon när ALLA i gruppen har HP i katalogen.
+
+**Replay-verifierat mot facit (42 skanningar)**: 38/42 → **40/42**. Fixade:
+Raboot, Scorbunny, Regirock ex (alla tre omtrycksmissarna). Kostnad: Murkrow
+DR 127 ↔ AH 126 — prod hade RÄTT av tur (brus + HP-hålet råkade peka på gamla
+setet, som var sanningen där); nyast-först väljer nu AH. Ärlig bokföring: inom
+samma-konst-grupper valde bruset rätt 1/4, nyast-först 3/4 — ingen av dem är
+kunskap (identisk konst + oläst nummer ÄR ett myntkast, valet förblir "?" med
+båda syskonen i listan), men priorn med bäst odds vinner netto +2.
+Eelektrik-missen (olika konst 0,391 — namn-blandningsfällan "Electrik") ligger
+KVAR öppen: n=1, ingen regel byggs på ett fall.
+
+## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.
    Hypotesen är att en rak ja/nej-fråga fungerar bättre än att förvänta sig ett tomt

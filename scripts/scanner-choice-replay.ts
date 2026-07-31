@@ -1,0 +1,147 @@
+/**
+ * VAL-REPLAY — kör de facitmärkta skanningarna genom HELA matchningsvägen
+ * (bildsökning + lagrat modellsvar → matchCards) med DAGENS kod, och jämför
+ * mot det val produktionen faktiskt gjorde OCH mot facit.
+ *
+ * Det är verifieringen för varje ändring i matchningslogiken (t.ex.
+ * omtryckssyskon-tie-breaken): en ändring ska FIXA kända missar utan att
+ * bryta kända träffar — och det syns här, per skanning, innan ship.
+ *
+ * Skillnad mot scanner-replay.ts: den replayar bara BILDsökningen; det här
+ * skriptet replayar även poängsättningen och slutvalet (matchCards), med det
+ * lagrade modellsvaret som text-signal — precis som produktionen gjorde.
+ * Vision-anropet görs ALDRIG om (svaret är lagrat), så replayen är gratis.
+ *
+ *   node scripts/with-prod-db.mjs npx tsx scripts/scanner-choice-replay.ts
+ */
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { Prisma, PrismaClient } from "@prisma/client";
+import { FINGERPRINT_BYTES, STRUCT_BYTES } from "../src/lib/art-fingerprint";
+import { type ArtQuery, searchByFrames } from "../src/services/scanner/art-index";
+import {
+  ART_TRUST_MARGIN,
+  ART_TRUST_SCORE,
+  matchCards,
+} from "../src/services/scanner/index";
+
+const prisma = new PrismaClient();
+const LABELS_PATH = path.join(__dirname, "scanner-labels.json");
+
+interface Diag {
+  v?: number;
+  provider?: string;
+  guessedName?: string | null;
+  guessedNumber?: string | null;
+  guessedEra?: string | null;
+  guessedHp?: number | null;
+  confidence?: number;
+  chosen?: { cardId?: string; name: string; number: string; setName: string } | null;
+  frames?: string[][];
+  structFrames?: string[][];
+  fingerprints?: string[];
+}
+
+interface Label {
+  truth?: string | null;
+  population?: string;
+}
+
+function decode(b64: string | undefined, expected: number): Int8Array | null {
+  if (!b64) return null;
+  try {
+    const buf = Buffer.from(b64, "base64");
+    if (buf.length !== expected) return null;
+    return new Int8Array(buf.buffer, buf.byteOffset, buf.length);
+  } catch {
+    return null;
+  }
+}
+
+function decodeFrames(d: Diag): ArtQuery[][] {
+  const frames = d.frames ?? (d.fingerprints?.length ? [d.fingerprints] : []);
+  return frames
+    .map((f, fi) =>
+      f.flatMap((b64, i) => {
+        const color = decode(b64, FINGERPRINT_BYTES);
+        if (!color) return [];
+        return [{ color, struct: decode(d.structFrames?.[fi]?.[i], STRUCT_BYTES) }];
+      })
+    )
+    .filter((f) => f.length > 0);
+}
+
+async function main() {
+  const labels: Record<string, Label> = JSON.parse(readFileSync(LABELS_PATH, "utf8"));
+  const ids = Object.entries(labels)
+    .filter(([, v]) => v.truth && typeof v.truth === "string" && /^c[a-z0-9]{20,}$/i.test(v.truth))
+    .map(([id]) => id);
+  const jobs = await prisma.scannerJob.findMany({
+    where: { id: { in: ids }, NOT: { result: { equals: Prisma.DbNull } } },
+    select: { id: true, result: true },
+  });
+
+  let n = 0;
+  let prodRight = 0;
+  let nowRight = 0;
+  const fixed: string[] = [];
+  const broken: string[] = [];
+
+  for (const job of jobs) {
+    const d = job.result as Diag;
+    if (d?.v !== 1) continue;
+    const truth = labels[job.id].truth as string;
+    const frames = decodeFrames(d);
+    if (frames.length === 0) continue;
+    n++;
+
+    // Samma väg som identifyCard: bildsökning → trust-regel → matchCards med
+    // (vid hoppad vision) TOM text, annars det lagrade modellsvaret.
+    const artMatches = await searchByFrames(frames, 15);
+    const artScores = new Map(artMatches.map((m) => [m.cardId, m.score]));
+    const artConfidentCardId =
+      artMatches.length >= 2 &&
+      artMatches[0].score >= ART_TRUST_SCORE &&
+      artMatches[0].score - artMatches[1].score >= ART_TRUST_MARGIN
+        ? artMatches[0].cardId
+        : null;
+    const skipVision = artConfidentCardId !== null;
+    const ocr = skipVision
+      ? { rawText: "", confidence: 0.95 }
+      : {
+          rawText: d.guessedName ?? "",
+          guessedName: d.guessedName ?? undefined,
+          guessedNumber: d.guessedNumber ?? undefined,
+          guessedEra: d.guessedEra ?? undefined,
+          guessedHp: d.guessedHp ?? undefined,
+          confidence: d.confidence ?? 0,
+        };
+    const candidates = await matchCards(ocr, artScores, artConfidentCardId);
+    const top = candidates[0];
+
+    const wasRight = d.chosen?.cardId === truth;
+    const isRight = top?.cardId === truth;
+    if (wasRight) prodRight++;
+    if (isRight) nowRight++;
+    if (!wasRight && isRight) fixed.push(job.id.slice(-6));
+    if (wasRight && !isRight) broken.push(job.id.slice(-6));
+    if (wasRight !== isRight) {
+      const t = await prisma.card.findUnique({
+        where: { id: truth },
+        select: { name: true, number: true, set: { select: { name: true } } },
+      });
+      console.log(
+        `${job.id.slice(-6)}  ${isRight ? "FIXAD ✔" : "BRUTEN ✘"}  facit: ${t?.name} ${t?.number} (${t?.set.name})` +
+          `  prod valde: ${d.chosen?.name} ${d.chosen?.number}  nu: ${top ? `${top.name} ${top.number} (${top.setName})` : "—"}`
+      );
+    }
+  }
+
+  console.log(`\n--- ${n} facitmärkta skanningar replayade genom matchCards ---`);
+  console.log(`prod-valet rätt:  ${prodRight}/${n}`);
+  console.log(`dagens kod rätt:  ${nowRight}/${n}`);
+  console.log(`fixade: ${fixed.length ? fixed.join(", ") : "—"}`);
+  console.log(`brutna: ${broken.length ? broken.join(", ") : "—"}`);
+}
+
+main().finally(() => prisma.$disconnect());

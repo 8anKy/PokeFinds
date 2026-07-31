@@ -294,6 +294,45 @@ export async function searchByFrames(frames: ArtQuery[][], k = 15): Promise<ArtM
   return best;
 }
 
+/**
+ * Blandad likhet mellan TVÅ korts REFERENSAVTRYCK (samma triw-blandning som
+ * sökningen). Används av omtryckssyskon-tie-breaken för att avgöra om två
+ * namnsyskon har SAMMA konst — kalibrerat 2026-07-31 mot verkliga fall:
+ * äkta samma-konst-omtryck 0,954–0,976 · olika konst 0,361–0,638.
+ *
+ * `indexOf` i stället för en id→rad-Map med flit: anropas för ett fåtal
+ * kandidatpar per skanning, och en Map hade kostat ~2 MB residentminne för
+ * att spara mikrosekunder — fel byte på en minnesfakturerad host.
+ */
+export async function artPairSimilarity(a: string, b: string): Promise<number | null> {
+  const index = await getArtIndex();
+  if (!index) return null;
+  const ra = index.ids.indexOf(a);
+  const rb = index.ids.indexOf(b);
+  if (ra < 0 || rb < 0) return null;
+  const { data, invNorm, struct, invDct, invGrad } = index;
+  let dot = 0;
+  for (let i = 0; i < FINGERPRINT_BYTES; i++) {
+    dot += data[ra * FINGERPRINT_BYTES + i] * data[rb * FINGERPRINT_BYTES + i];
+  }
+  let s = BLEND_COLOR * dot * invNorm[ra] * invNorm[rb];
+  if (invDct[ra] > 0 && invDct[rb] > 0) {
+    let d = 0;
+    for (let i = 0; i < STRUCT_DCT_DIMS; i++) {
+      d += struct[ra * STRUCT_BYTES + i] * struct[rb * STRUCT_BYTES + i];
+    }
+    s += BLEND_DCT * d * invDct[ra] * invDct[rb];
+  }
+  if (invGrad[ra] > 0 && invGrad[rb] > 0) {
+    let g = 0;
+    for (let i = STRUCT_DCT_DIMS; i < STRUCT_BYTES; i++) {
+      g += struct[ra * STRUCT_BYTES + i] * struct[rb * STRUCT_BYTES + i];
+    }
+    s += BLEND_GRAD * g * invGrad[ra] * invGrad[rb];
+  }
+  return s;
+}
+
 /** Antal kort i indexet — för diagnostikraden i skannern. */
 export async function artIndexSize(): Promise<number> {
   const index = await getArtIndex();
