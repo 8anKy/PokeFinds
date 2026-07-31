@@ -357,13 +357,44 @@ topp-15) och Fas 4 (inlärd embedding, 25–90 MB resident ELLER 25–90 MB
 klientnedladdning) är DEFERRED: byggs bara om Fas 0-facit visar att hinken
 DESKRIPTOR dominerar missarna — INFO/RAM-hinken kan ingen deskriptor laga.
 
+## FÖRSTA RIKTIGA MÄTNINGEN — FYSISKA KORT (2026-07-31, kväll, n=25)
+
+Ägaren skannade 25 fysiska kort (Ascended Heroes/Destined Rivals-tunga) EFTER
+quad-deployen och intygade facit direkt (rättade 3 fel). Första talen någonsin
+som inte är ett tak:
+
+| mått | verkligt | syntetiskt tak |
+|---|---|---|
+| bild topp-15 | **96,0 %** | 96–97 % |
+| bild topp-5 / topp-1 | 92,0 % / 64,0 % | — |
+| slutval rätt | **88,0 %** (22/25) | — |
+| trust-regeln | utlöst 12/25, **precision 100 %** | 100 % |
+| svep/quad-räddade | 32,0 % | — |
+
+- **Fältet matchar taket**: topp-15 96,0 % på riktiga handhållna fångster.
+- **Auto-fångst-grinden felade aldrig**: 12/12 rätt (= 12 scans utan Haiku,
+  $0 AI). Marginalerna separerar BÄTTRE i fält än syntetiskt: sämsta
+  fel-marginal 0,018 mot tröskeln 0,10 (5,5× säkerhet) — rätt-median 0,130.
+- **Alla 3 missar = VIKTNING-hinken, samma mekanism**: samma-konst-omtryck
+  över set (Raboot SC 27 ↔ AH 37, Scorbunny SC 26 ↔ AH 36) + nummer-tvilling
+  (Electrike 60 Deoxys ↔ Eelektrik 60; modellen läste "Electrik / 060/111" —
+  en fabricerad blandning). Identisk konst kan INGEN bilddeskriptor skilja;
+  numret är enda separatorn och det var oläst/felläst i alla tre. Fixriktning:
+  text/tie-break för omtryckssyskon (gratis) — INTE deskriptorer, vilket
+  oberoende bekräftar att Fas 2/3/4 ska förbli deferred. DESKRIPTOR-hinken: 0.
+  ⚠️ n=3 — bygg inget förrän mönstret står sig över fler skanningar.
+- 7:e varianten (quad) verifierad live i diagnostiken: nya skanningar bär
+  7+7+7+7 varianter/ruta (6 där detekteringen avböjde = failar öppet).
+
+Skärmfoto-populationen är ÄNNU OMÄTT med facit (ägaren tar den senare); de
+gamla 87 skanningarna ligger kvar omärkta i labels-filen (valfri bonusdata).
+
 ## Öppet — nästa steg
 
-0. **MÄRK DE 87 SKANNINGARNA** (`scripts/scanner-labels.json` — ledtrådarna gör
-   det till minuter) och kör `scanner-scoreboard.ts`. Det är grinden för ALLA
-   kvarvarande deskriptorbeslut: hinkfördelningen avgör om något av de
-   deferred-spåren (Fas 2/3/4) ens ska övervägas — och INFO/RAM-hinken kan
-   ingen deskriptor i världen laga (åtgärden är UX).
+0. **Skärmfoto-facit** (ägaren skannar från monitor + märker) — fysisk-
+   populationen är mätt, skärm är kvar. Och **omtryckssyskon-tie-breaken**
+   (de 3 verkliga missarna) är nästa gratis-fix att utforska när fler
+   skanningar bekräftat mönstret.
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.
    Hypotesen är att en rak ja/nej-fråga fungerar bättre än att förvänta sig ett tomt

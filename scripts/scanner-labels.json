@@ -1390,5 +1390,430 @@
         "cmq9hum8f0t5l4r9po8udvp1t = Slugma 27 (Vivid Voltage) (0.460)"
       ]
     }
+  },
+  "cms9e12tu001iuqv9x4fcp2et": {
+    "truth": "cmq9higxc00r37z4thgnulfrb",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:21:16.050Z",
+      "modell": " / ",
+      "valdes": "cmq9higxc00r37z4thgnulfrb = Camerupt 28 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9higxc00r37z4thgnulfrb = Camerupt 28 (Ascended Heroes) (0.771)",
+        "cmq9hrk3m0hvj4r9prs8l2u9e = Growlithe 24 (Scarlet & Violet Black Star Promos) (0.660)",
+        "cmq9hnzi407qh4r9pzww36z9b = Haxorus 46 (Shrouded Fable) (0.658)",
+        "cmq9hiwxr01gf7z4t50s4um96 = Vulpix 19 (Mega Evolution) (0.656)",
+        "cmq9ho8xx083o4r9pas3na88l = Vulpix 26 (Twilight Masquerade) (0.655)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9e0u6l001guqv9tdfdh8p1": {
+    "truth": "cmqa382yw008l124sjb3snnn9",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:21:04.845Z",
+      "modell": " / ",
+      "valdes": "cmqa382yw008l124sjb3snnn9 = Cynthia's Feebas 52 (Destined Rivals)",
+      "bildTopp5": [
+        "cmqa382yw008l124sjb3snnn9 = Cynthia's Feebas 52 (Destined Rivals) (0.814)",
+        "cmq9hr3tk0fqg4r9p0ivn6db1 = Slowpoke 42 (Scarlet & Violet) (0.684)",
+        "cmq9hnwpj06vg4r9pcgp1hu1g = Finneon 35 (Stellar Crown) (0.669)",
+        "cmq9hoqpi0bbf4r9p3rb75hte = Seadra 31 (Paradox Rift) (0.661)",
+        "cmq9hoqsc0bex4r9pcfzm5ljq = Wiglett 52 (Paradox Rift) (0.653)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9e0oi9001euqv9xuw5f9dq": {
+    "truth": "cmqa3839o00jl124s0ac1yv0l",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:20:57.490Z",
+      "modell": " / ",
+      "valdes": "cmqa3839o00jl124s0ac1yv0l = Team Rocket's Nidorino 118 (Destined Rivals)",
+      "bildTopp5": [
+        "cmqa3839o00jl124s0ac1yv0l = Team Rocket's Nidorino 118 (Destined Rivals) (0.768)",
+        "cmq9hix7401rf7z4t2nk3h0ao = Crawdaunt 85 (Mega Evolution) (0.667)",
+        "cmq9hor170bpr4r9pt7pgl1wf = Garbodor 117 (Paradox Rift) (0.665)",
+        "cmq9hnwx4075g4r9p7bty2svx = Morgrem 95 (Stellar Crown) (0.662)",
+        "cmqa383bh00kx124sew3kk5r3 = Team Rocket's Weezing 126 (Destined Rivals) (0.659)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9e0i5q001cuqv94q566nqt": {
+    "truth": "cmqa383fx00p3124s9huy1t1b",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:20:49.262Z",
+      "modell": " / ",
+      "valdes": "cmqa383fx00p3124s9huy1t1b = Kangaskhan 151 (Destined Rivals)",
+      "bildTopp5": [
+        "cmqa383fx00p3124s9huy1t1b = Kangaskhan 151 (Destined Rivals) (0.801)",
+        "cmq9hignq00fp7z4te6x2s5p7 = Drampa 176 (Ascended Heroes) (0.658)",
+        "cmq9hid3k00c87z4to9jn2iku = Rattata 60 (Perfect Order) (0.657)",
+        "cmq9hqq1w0f364r9pysb4u7ag = Wingull 158 (Paldea Evolved) (0.653)",
+        "cmq9hijjk015e7z4tf9ellhzt = Buneary 83 (Phantasmal Flames) (0.651)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9e01ng001auqv9l9kb2tvj": {
+    "truth": "cmqa383dr00nr124stut8yb53",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:20:27.868Z",
+      "modell": " / ",
+      "valdes": "cmqa383dr00nr124stut8yb53 = Steven's Beldum 143 (Destined Rivals)",
+      "bildTopp5": [
+        "cmqa383dr00nr124stut8yb53 = Steven's Beldum 143 (Destined Rivals) (0.815)",
+        "cmq9hhj1d005b7z4tgqnmrkvp = Metang 60 (Chaos Rising) (0.698)",
+        "cmq9hhj1e005d7z4t2cg6le13 = Beldum 59 (Chaos Rising) (0.696)",
+        "cmq9hp8gh0e3n4r9ppvxpxsdd = Bunnelby 175 (Obsidian Flames) (0.682)",
+        "cmq9hnwzd078a4r9ptpgudfo7 = Tauros 112 (Stellar Crown) (0.681)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dzvgp0018uqv9wkey0wdb": {
+    "truth": "cmqa383bm00l3124skqv61mhm",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:20:19.849Z",
+      "modell": "Team Rocket's Murkrow / 129/102",
+      "valdes": "cmqa383bm00l3124skqv61mhm = Team Rocket's Murkrow 127 (Destined Rivals)",
+      "bildTopp5": [
+        "cmqa383bm00l3124skqv61mhm = Team Rocket's Murkrow 127 (Destined Rivals) (0.712)",
+        "cmq9higt900lx7z4tc1xvyhp9 = Team Rocket's Murkrow 126 (Ascended Heroes) (0.694)",
+        "cmq9ic1gq1x134r9p9ptxna3z = Mightyena 66 (Legends Awakened) (0.620)",
+        "cmq9hn4do04ap4r9ps7l7sliv = Pangoro 99 (Journey Together) (0.607)",
+        "cmqa3agfa058k124sbqsf7mkf = Weavile 74 (Ultra Prism) (0.607)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dzn7p0016uqv9sxo9lak6": {
+    "truth": "cmqa3834300dx124s6eenrwqg",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:20:09.157Z",
+      "modell": " / ",
+      "valdes": "cmqa3834300dx124s6eenrwqg = Steven's Claydol 84 (Destined Rivals)",
+      "bildTopp5": [
+        "cmqa3834300dx124s6eenrwqg = Steven's Claydol 84 (Destined Rivals) (0.842)",
+        "cmq9hrk3m0hvj4r9prs8l2u9e = Growlithe 24 (Scarlet & Violet Black Star Promos) (0.660)",
+        "cmq9hhj32006l7z4tidp6qz2u = Meowstic 37 (Chaos Rising) (0.660)",
+        "cmq9hnwst06zs4r9pfz6a9nav = Drifblim 61 (Stellar Crown) (0.659)",
+        "cmq9hqpuu0eu04r9p591wghy4 = Tinkatuff 103 (Paldea Evolved) (0.657)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dzgnu0014uqv93gx1vaqd": {
+    "truth": "cmqa3836000g9124s85c7pk9p",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:20:00.666Z",
+      "modell": " / ",
+      "valdes": "cmqa3836000g9124s85c7pk9p = Probopass 98 (Destined Rivals)",
+      "bildTopp5": [
+        "cmqa3836000g9124s85c7pk9p = Probopass 98 (Destined Rivals) (0.857)",
+        "cmq9hoksc0a9q4r9py85bija0 = Barboach 50 (Paldean Fates) (0.692)",
+        "cmq9hoks30a9e4r9pi1cdusxt = Phanpy 48 (Paldean Fates) (0.688)",
+        "cmq9hoqyi0bm94r9pp2zjj3i2 = Mienfoo 96 (Paradox Rift) (0.688)",
+        "cmq9hnww307444r9pkdw9s6g6 = Crabrawler 87 (Stellar Crown) (0.687)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dz6rc0012uqv9qout5c9a": {
+    "truth": "cmqa3837700hr124szg1punqa",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:19:47.833Z",
+      "modell": " / ",
+      "valdes": "cmqa3837700hr124szg1punqa = Mudbray 107 (Destined Rivals)",
+      "bildTopp5": [
+        "cmqa3837700hr124szg1punqa = Mudbray 107 (Destined Rivals) (0.764)",
+        "cmq9hix5u01pr7z4t7iy6glm5 = Solrock 75 (Mega Evolution) (0.658)",
+        "cmq9higv000o57z4txn6gjlo6 = Solrock 106 (Ascended Heroes) (0.656)",
+        "cmq9hoqyi0bm94r9pp2zjj3i2 = Mienfoo 96 (Paradox Rift) (0.654)",
+        "cmq9hof0209f74r9podzmsmfw = Drilbur 85 (Temporal Forces) (0.650)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dyyqh0010uqv959erxx11": {
+    "truth": "cmqa382q3001x124sqzziwd3d",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:19:37.434Z",
+      "modell": "Crustle / 012/182",
+      "valdes": "cmqa382q3001x124sqzziwd3d = Crustle 12 (Destined Rivals)",
+      "bildTopp5": [
+        "cmqa382q3001x124sqzziwd3d = Crustle 12 (Destined Rivals) (0.632)",
+        "cmq9hn4c4048p4r9p2oplp51o = Hop's Sandaconda 87 (Journey Together) (0.623)",
+        "cmq9huew40s764r9pmw1cksxx = Toxel SV041 (Shining Fates Shiny Vault) (0.614)",
+        "cmq9hol6w0auw4r9pbpyssawm = Naclstack 177 (Paldean Fates) (0.607)",
+        "cmq9higq800ix7z4ttxm1hzk1 = Cynthia's Gabite 110 (Ascended Heroes) (0.607)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dybkg000yuqv9ssea6oo7": {
+    "truth": "cmq9hignj00ff7z4t60ng3c09",
+    "note": "ägarrättelse: Scorbunny 36 (Ascended Heroes); katalogen har ingen Scorbunny 34 — modellens 034/217 var felläst",
+    "hint": {
+      "at": "2026-07-31T20:19:07.409Z",
+      "modell": "Scorbunny / 034/217",
+      "valdes": "cmq9hnwoa06ty4r9p8fiqk861 = Scorbunny 26 (Stellar Crown)",
+      "bildTopp5": [
+        "cmq9hnwoa06ty4r9p8fiqk861 = Scorbunny 26 (Stellar Crown) (0.664)",
+        "cmq9hignj00ff7z4t60ng3c09 = Scorbunny 36 (Ascended Heroes) (0.646)",
+        "cmq9hoks30a9e4r9pi1cdusxt = Phanpy 48 (Paldean Fates) (0.619)",
+        "cmq9higrv00kj7z4tee6zzmx1 = N's Reshiram 154 (Ascended Heroes) (0.618)",
+        "cmq9hol5z0atk4r9psho89eqm = Mankey 169 (Paldean Fates) (0.611)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dy435000wuqv9vrzan9z8": {
+    "truth": "cmq9higul00nl7z4ty9sb24i7",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:18:57.713Z",
+      "modell": "Snom / 052/277",
+      "valdes": "cmq9higul00nl7z4ty9sb24i7 = Snom 52 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9higul00nl7z4ty9sb24i7 = Snom 52 (Ascended Heroes) (0.697)",
+        "cmq9hol000akq4r9p49nf3vv4 = Slowpoke 116 (Paldean Fates) (0.640)",
+        "cmq9hrvvm0k7g4r9prrrnqh6c = Enamorus V 82 (Lost Origin) (0.635)",
+        "cmq9hrajk0h764r9pna66ij5d = Glaceon V 38 (Crown Zenith) (0.627)",
+        "cmq9hrkav0i574r9ppb7jdytf = Quaxly 82 (Scarlet & Violet Black Star Promos) (0.626)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dxx76000uuqv9nm8q7h88": {
+    "truth": "cmq9higvr00p37z4t3clai7ke",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:18:48.786Z",
+      "modell": "Carkol / 119/217",
+      "valdes": "cmq9higvr00p37z4t3clai7ke = Carkol 119 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9hns09060r4r9pan04hg03 = Paldean Tauros 101 (Surging Sparks) (0.647)",
+        "cmq9hqpw60evu4r9p088faf6p = Croagunk 114 (Paldea Evolved) (0.632)",
+        "cmq9ho99n08g64r9p4arhp5sx = Nosepass 101 (Twilight Masquerade) (0.632)",
+        "cmq9hix5a01p37z4t6ntxec54 = Tyrogue 71 (Mega Evolution) (0.629)",
+        "cmq9hqpxq0exu4r9pwh7onhir = Glimmora 126 (Paldea Evolved) (0.629)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dxprj000suqv9qgpefoh9": {
+    "truth": "cmq9hignr00fr7z4tu69mgnmy",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:18:39.151Z",
+      "modell": "Snorunt / 045/217",
+      "valdes": "cmq9hignr00fr7z4tu69mgnmy = Snorunt 46 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9hignr00fr7z4tu69mgnmy = Snorunt 46 (Ascended Heroes) (0.673)",
+        "cmq9holai0b084r9pimdeym8s = Tandemaus 209 (Paldean Fates) (0.598)",
+        "cmq9hrqsq0jf94r9pfunzrbyq = Magearna V 128 (Silver Tempest) (0.589)",
+        "cmq9holan0b0e4r9p5jhxf4cu = Maushold 210 (Paldean Fates) (0.589)",
+        "cmq9hrx9j0kwn4r9pvn7e9k8t = Pikachu V TG16 (Lost Origin Trainer Gallery) (0.588)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dxi9e000quqv9jaixg4rg": {
+    "truth": "cmq9hignp00fn7z4t577m6qw5",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:18:29.426Z",
+      "modell": "Budew / 016/217",
+      "valdes": "cmq9hignp00fn7z4t577m6qw5 = Budew 16 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9i8kw81r064r9pmfgzzwbt = Genesect BW86 (BW Black Star Promos) (0.571)",
+        "cmq9hr3qi0fma4r9p6jbn8fcc = Tarountula 17 (Scarlet & Violet) (0.565)",
+        "cmq9hqpgw0ef04r9pwartf7g8 = Sprigatito 13 (Paldea Evolved) (0.562)",
+        "cmq9hnwma06rg4r9p1za805q9 = Eldegoss 11 (Stellar Crown) (0.558)",
+        "cmq9hnwwe074g4r9pf9zhonbr = Garganacl ex 89 (Stellar Crown) (0.556)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dx5dy000ouqv9m6vtab0g": {
+    "truth": "cmq9higui00nh7z4th8z9zl9h",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:18:12.742Z",
+      "modell": "Weavile / 045/167",
+      "valdes": "cmq9higui00nh7z4th8z9zl9h = Weavile 45 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9hnze107l54r9phgrnztmj = Weavile 14 (Shrouded Fable) (0.721)",
+        "cmq9higui00nh7z4th8z9zl9h = Weavile 45 (Ascended Heroes) (0.712)",
+        "cmq9hola60azq4r9p3xqkguwf = Greedent 206 (Paldean Fates) (0.651)",
+        "cmq9holai0b084r9pimdeym8s = Tandemaus 209 (Paldean Fates) (0.641)",
+        "cmq9holan0b0e4r9p5jhxf4cu = Maushold 210 (Paldean Fates) (0.629)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dwmz7000muqv9u94nellr": {
+    "truth": "cmq9higph00i17z4t26boe1lz",
+    "note": "ägarrättelse: Eelektrik 60, inte Electrike. Set ANTAGET Ascended Heroes (alternativ: Lost Origin 60) — rätta truth om fel",
+    "hint": {
+      "at": "2026-07-31T20:17:48.883Z",
+      "modell": "Electrik / 060/111",
+      "valdes": "cmq9idsn4259k4r9pm5b4m2p9 = Electrike 60 (Deoxys)",
+      "bildTopp5": [
+        "cmq9hj9ye036n7z4tnaeuzbxv = Eelektrik 31 (Black Bolt) (0.717)",
+        "cmq9higph00i17z4t26boe1lz = Eelektrik 60 (Ascended Heroes) (0.708)",
+        "cmq9hoknz0a4q4r9pltb7r3o8 = Chinchou 20 (Paldean Fates) (0.669)",
+        "cmq9hp7vp0dct4r9pyheh5myt = Dartrix 14 (Obsidian Flames) (0.664)",
+        "cmq9hp89o0dun4r9ptvqoel6u = Glimmet 121 (Obsidian Flames) (0.659)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dwdtp000kuqv9k9v5ln86": {
+    "truth": "cmq9higvn00ox7z4tpa595rl1",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:17:37.021Z",
+      "modell": " / ",
+      "valdes": "cmq9higvn00ox7z4tpa595rl1 = Larry's Komala 175 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9higvn00ox7z4tpa595rl1 = Larry's Komala 175 (Ascended Heroes) (0.834)",
+        "cmq9hr4630g7m4r9pwb5yrg4z = Blissey 145 (Scarlet & Violet) (0.669)",
+        "cmq9hr46v0g8m4r9p7p3a659x = Skwovet 151 (Scarlet & Violet) (0.669)",
+        "cmq9hn81305384r9p2ok6i8o7 = Dudunsparce 80 (Prismatic Evolutions) (0.666)",
+        "cmq9hof5w09mj4r9pl318kv25 = Dudunsparce 129 (Temporal Forces) (0.665)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dw5fb000iuqv9z26vyri8": {
+    "truth": "cmq9higq200ip7z4tahhuepac",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:17:26.135Z",
+      "modell": "Grubbin / 017/217",
+      "valdes": "cmq9higq200ip7z4tahhuepac = Grubbin 17 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9hnwm106r44r9pp27un95h = Grubbin 9 (Stellar Crown) (0.724)",
+        "cmq9higq200ip7z4tahhuepac = Grubbin 17 (Ascended Heroes) (0.715)",
+        "cmq9higt400lr7z4tvs9gnxbm = Cascoon 14 (Ascended Heroes) (0.681)",
+        "cmq9hnzcp07jh4r9p5zjxmp3d = Dartrix 4 (Shrouded Fable) (0.666)",
+        "cmq9ho8w3081o4r9pdu88g78c = Grookey 14 (Twilight Masquerade) (0.665)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dt13e000guqv9il2esjyf": {
+    "truth": "cmq9higpu00if7z4tvlyx7p3t",
+    "note": "ägarrättelse: Raboot 37 (Ascended Heroes), inte Stellar Crown 27",
+    "hint": {
+      "at": "2026-07-31T20:15:00.554Z",
+      "modell": "Raboot / ",
+      "valdes": "cmq9hnwof06u44r9plht7o62f = Raboot 27 (Stellar Crown)",
+      "bildTopp5": [
+        "cmq9hnwof06u44r9plht7o62f = Raboot 27 (Stellar Crown) (0.645)",
+        "cmq9higpu00if7z4tvlyx7p3t = Raboot 37 (Ascended Heroes) (0.640)",
+        "cmq9higqb00j17z4tgteyn4ar = Meditite 103 (Ascended Heroes) (0.605)",
+        "cmq97mnp0000pxurqr1ior6nx = Bulbasaur 1 (151) (0.603)",
+        "cmq9hid4e00d87z4tv41vx7w1 = Binacle 42 (Perfect Order) (0.602)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dss22000euqv9nuc0hp0x": {
+    "truth": "cmq9higv100o77z4tku53zee0",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:14:48.843Z",
+      "modell": "Cynthia's Gible / 109/217",
+      "valdes": "cmq9higv100o77z4tku53zee0 = Cynthia's Gible 109 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmqa3836i00gx124sgm2i31o7 = Cynthia's Gible 102 (Destined Rivals) (0.883)",
+        "cmq9higv100o77z4tku53zee0 = Cynthia's Gible 109 (Ascended Heroes) (0.875)",
+        "cmq9hqpvt0evc4r9psslci5ni = Pupitar 111 (Paldea Evolved) (0.714)",
+        "cmq9hr42q0g3a4r9py0byuzt7 = Silicobra 119 (Scarlet & Violet) (0.706)",
+        "cmq9hnwu8071m4r9pdq0maxg6 = Cubone 72 (Stellar Crown) (0.700)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9ds84a000cuqv984shoh3l": {
+    "truth": "cmq9higv000o57z4txn6gjlo6",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:14:23.002Z",
+      "modell": "Solrock / 106/217",
+      "valdes": "cmq9higv000o57z4txn6gjlo6 = Solrock 106 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9hix5u01pr7z4t7iy6glm5 = Solrock 75 (Mega Evolution) (0.866)",
+        "cmq9higv000o57z4txn6gjlo6 = Solrock 106 (Ascended Heroes) (0.856)",
+        "cmq9hnwu8071m4r9pdq0maxg6 = Cubone 72 (Stellar Crown) (0.706)",
+        "cmq9hnwvl073g4r9peyxcifz0 = Mienfoo 83 (Stellar Crown) (0.695)",
+        "cmq9hoqyl0bmf4r9pom9giny6 = Mienshao 97 (Paradox Rift) (0.689)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dr2ft000auqv993qzd1kr": {
+    "truth": "cmq9higxj00rb7z4twxlcjcio",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:13:28.986Z",
+      "modell": " / ",
+      "valdes": "cmq9higxj00rb7z4twxlcjcio = Erika's Gloom 2 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9higxj00rb7z4twxlcjcio = Erika's Gloom 2 (Ascended Heroes) (0.901)",
+        "cmq9hr3rc0fng4r9p7alehx6y = Toedscool 24 (Scarlet & Violet) (0.697)",
+        "cmq9hnrnq05kr4r9pyxgcu8uo = Scatterbug 5 (Surging Sparks) (0.697)",
+        "cmq9hoklm0a224r9pl8nhtq2q = Toedscool 4 (Paldean Fates) (0.697)",
+        "cmq9hnro505l94r9povc9jrx3 = Morelull 8 (Surging Sparks) (0.695)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dqsk30008uqv9eb0xe4n7": {
+    "truth": "cmq9higw000pf7z4t1kr6nq9j",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:13:16.180Z",
+      "modell": " / ",
+      "valdes": "cmq9higw000pf7z4t1kr6nq9j = Mawile 144 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9higw000pf7z4t1kr6nq9j = Mawile 144 (Ascended Heroes) (0.786)",
+        "cmq9hiji6013w7z4twb4xnwx2 = Duraludon 74 (Phantasmal Flames) (0.656)",
+        "cmq9hijj6014w7z4tn051eumf = Smeargle 80 (Phantasmal Flames) (0.655)",
+        "cmq9higvj00ot7z4t6t63r9hy = Larry's Starly 168 (Ascended Heroes) (0.653)",
+        "cmq9hnzin07r54r9pchp7vcyf = Eevee 50 (Shrouded Fable) (0.651)"
+      ]
+    },
+    "population": "physical"
+  },
+  "cms9dpydt0006uqv9vgs5ibj8": {
+    "truth": "cmq9higo600g97z4tv6xhas0i",
+    "note": "ägaren intygade valet rätt (session 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:12:37.074Z",
+      "modell": " / ",
+      "valdes": "cmq9higo600g97z4tv6xhas0i = Dragonair 151 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9higo600g97z4tv6xhas0i = Dragonair 151 (Ascended Heroes) (0.848)",
+        "cmq9hol2i0aoe4r9p80j8b2tb = Pachirisu 138 (Paldean Fates) (0.645)",
+        "cmq9hqpfj0edc4r9p51qqaadv = Jumpluff 3 (Paldea Evolved) (0.641)",
+        "cmq9hn7s604r84r9p3wnynllr = Whimsicott 8 (Prismatic Evolutions) (0.639)",
+        "cmq9hokz80ajk4r9pqgw40kq7 = Charmander 109 (Paldean Fates) (0.639)"
+      ]
+    },
+    "population": "physical"
   }
 }
