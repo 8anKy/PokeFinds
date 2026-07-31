@@ -97,15 +97,19 @@ export async function recordScanUsage(
    * det underlag mätningen behöver.
    */
   diagnostics?: Prisma.JsonObject
-): Promise<void> {
-  await prisma.scannerJob.create({
+): Promise<string> {
+  const job = await prisma.scannerJob.create({
     data: {
       userId,
       imageUrl: INLINE_UPLOAD,
       status: "COMPLETED",
       ...(diagnostics ? { result: diagnostics } : {}),
     },
+    select: { id: true },
   });
+  // Id:t går tillbaka till klienten (admin) så att ett manuellt KORRIGERAT val
+  // i kandidatlistan kan rapporteras in som facit — se /api/scanner/feedback.
+  return job.id;
 }
 
 /** Användarens N FÖRSTA skanningar (livstid) kan köras med den dyra, träffsäkra

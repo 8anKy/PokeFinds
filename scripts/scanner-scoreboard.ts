@@ -87,6 +87,15 @@ interface Diag {
   guessedName?: string | null;
   guessedNumber?: string | null;
   chosen?: { cardId?: string; name: string; number: string; setName: string } | null;
+  /**
+   * Användarens eget val i klienten (/api/scanner/feedback): "corrected" =
+   * hen valde ett ANNAT kort ur listan (starkt facit — hen tittade på det
+   * fysiska kortet och pekade ut rätt rad), "confirmed" = la den föreslagna
+   * träffen i samlingen oförändrad (svagt facit — kan vara ouppmärksamhet).
+   * ⚠️ Urvalsbias i feedback-kohorten: bekräftelser kan bara BEKRÄFTA och
+   * korrigeringar bara FÄLLA — skanningar utan någon åtgärd förblir omärkta.
+   */
+  userChosen?: { cardId: string; kind: "corrected" | "confirmed"; at: string } | null;
   frames?: string[][];
   structFrames?: string[][];
   fingerprints?: string[];
@@ -408,7 +417,24 @@ async function main() {
       );
       continue;
     }
-    // Ingen ägaretikett — prova svag etikett ur samlings-tillägget.
+    // Ingen ägaretikett — AUTO-FACIT ur användarens eget val i klienten.
+    // En KORRIGERING är starkt facit (hen tittade på kortet och pekade ut rätt
+    // rad i listan); en BEKRÄFTELSE är svag (kan vara ouppmärksamhet).
+    if (d.userChosen?.cardId) {
+      const isCorrection = d.userChosen.kind === "corrected";
+      scored.push(
+        await score(
+          id,
+          d,
+          d.userChosen.cardId,
+          label?.population ?? "okänd",
+          !isCorrection,
+          isCorrection ? "auto: korrigering i klienten" : "auto: bekräftad i samlingen"
+        )
+      );
+      continue;
+    }
+    // Sista utvägen — svag etikett ur samlings-tillägget (tidsfönster).
     const weak = await weakLabelFor(userId, at);
     if (weak) scored.push(await score(id, d, weak, label?.population ?? "okänd", true, ""));
     else unlabeled++;
@@ -417,13 +443,23 @@ async function main() {
   const strong = scored.filter((r) => !r.weak);
   const weak = scored.filter((r) => r.weak);
 
-  report(strong, "ÄGARENS FACIT — huvudtal");
+  report(strong, "STARKT FACIT (ägaretiketter + korrigeringar i klienten) — huvudtal");
   for (const pop of [...new Set(strong.map((r) => r.population))]) {
     if (strong.length > 0 && pop !== "okänd") {
       report(strong.filter((r) => r.population === pop), `population: ${pop}`);
     }
   }
-  report(weak, "SVAGA ETIKETTER (samlings-tillägg, redovisas separat)");
+  report(weak, "SVAGA ETIKETTER (bekräftelser + samlings-tillägg, redovisas separat)");
+  // Feedback-kohortens ärliga mått: bekräftelser kan bara bekräfta och
+  // korrigeringar bara fälla — kvoten är den meningsfulla siffran.
+  const corrections = strong.filter((r) => r.note.startsWith("auto: korrigering")).length;
+  const confirms = weak.filter((r) => r.note.startsWith("auto: bekräftad")).length;
+  if (corrections + confirms > 0) {
+    console.log(
+      `\nfeedback-kohorten: ${confirms} bekräftade + ${corrections} korrigerade → ` +
+        `${((100 * confirms) / (confirms + corrections)).toFixed(1)} % rätt bland skanningar med åtgärd`
+    );
+  }
 
   console.log(
     `\n${unlabeled} skanningar utan facit (kör TEMPLATE=1 och fyll i), ${unresolvable} markerade ofastställbara.`

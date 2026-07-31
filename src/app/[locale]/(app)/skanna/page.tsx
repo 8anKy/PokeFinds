@@ -81,6 +81,8 @@ interface IdentifyResponse {
   /** Flera OLIKA kort ligger praktiskt taget lika — ingen träff går att påstå. */
   ambiguous: boolean;
   remaining?: number;
+  /** Admin: skanningens jobb-id — gör användarens korrigering till facit. */
+  jobId?: string | null;
 }
 
 interface ScanQuota {
@@ -105,6 +107,30 @@ interface ScanItem {
   condition: string;
   language: string;
   errorMessage?: string;
+  /** Admin: skanningens jobb-id — användarens korrigering rapporteras som facit. */
+  jobId?: string | null;
+}
+
+/**
+ * Användarens eget val ÄR facit — rapportera det (eld-och-glöm, admin-only).
+ * En korrigering i kandidatlistan betyder att användaren tittat på det fysiska
+ * kortet och pekat ut rätt rad; en oförändrad tillägg-till-samlingen är en
+ * bekräftelse. Bägge landar i admin-diagnostiken och läses av scoreboardet —
+ * utan detta försvann rättelsen i klienten och facit fick skrivas för hand.
+ */
+function reportScanFeedback(
+  jobId: string | null | undefined,
+  cardId: string,
+  kind: "corrected" | "confirmed"
+) {
+  if (!jobId) return;
+  fetch("/api/scanner/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jobId, cardId, kind }),
+  }).catch(() => {
+    // Facit är trevligt att ha, aldrig värt ett felmeddelande i skannerflödet.
+  });
 }
 
 const CONDITIONS = [
@@ -592,9 +618,10 @@ function Scanner() {
               candidates: data.candidates,
               confidence: data.confidence,
               uncertain: data.ambiguous,
+              jobId: data.jobId ?? null,
             };
           }
-          return { ...s, status: "nomatch", candidates: data.candidates };
+          return { ...s, status: "nomatch", candidates: data.candidates, jobId: data.jobId ?? null };
         })
       );
     },
@@ -974,10 +1001,20 @@ function Scanner() {
 
   const chooseCandidate = useCallback((id: string, cand: Candidate) => {
     setScans((prev) =>
-      prev.map((s) =>
+      prev.map((s) => {
+        if (s.id !== id) return s;
+        // ANVÄNDARENS VAL ÄR FACIT: valde hen ett ANNAT kort än skannerns är
+        // det en korrigering (hen tittar på det fysiska kortet); samma kort =
+        // bekräftelse. (Sidoeffekt i updatern: kan dubbelköras i dev-StrictMode
+        // — servern skriver samma värde idempotent, så det är ofarligt.)
+        reportScanFeedback(
+          s.jobId,
+          cand.cardId,
+          cand.cardId === s.match?.cardId ? "confirmed" : "corrected"
+        );
         // Användaren valde själv ur listan → inte längre en gissning.
-        s.id === id ? { ...s, status: "matched", match: cand, uncertain: false } : s
-      )
+        return { ...s, status: "matched", match: cand, uncertain: false };
+      })
     );
     setDetailsId(null);
   }, []);
@@ -1005,7 +1042,12 @@ function Scanner() {
               : {}),
           }),
         });
-        if (res.ok) ok += 1;
+        if (res.ok) {
+          ok += 1;
+          // Oförändrad i samlingen = bekräftat facit (servern vaktar så att en
+          // tidigare KORRIGERING aldrig degraderas till bekräftelse).
+          reportScanFeedback(s.jobId, s.match!.cardId, "confirmed");
+        }
       } catch {
         /* fortsätt med nästa */
       }

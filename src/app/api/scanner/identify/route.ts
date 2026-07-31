@@ -118,7 +118,7 @@ export async function POST(req: Request) {
     // mätning bygger på frågor härledda ur samma filer som referenserna, aldrig
     // på en riktig fångst. Avtrycket (264 byte) sparas, aldrig bilden.
     const isAdmin = user.role === "ADMIN" || user.role === "SUPERADMIN";
-    await recordScanUsage(
+    const jobId = await recordScanUsage(
       user.id,
       isAdmin
         ? {
@@ -162,7 +162,14 @@ export async function POST(req: Request) {
         : undefined
     );
 
-    return jsonOk({ ...result, remaining: Math.max(0, quota.remaining - 1) });
+    return jsonOk({
+      ...result,
+      remaining: Math.max(0, quota.remaining - 1),
+      // Bara admin: gör att klienten kan rapportera in ett manuellt korrigerat
+      // val som facit (/api/scanner/feedback). Vanliga rader saknar diagnostik
+      // (dataminimering) och har inget att koppla facit till.
+      jobId: isAdmin ? jobId : null,
+    });
   } catch (e) {
     return apiError(e);
   }
