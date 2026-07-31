@@ -280,6 +280,11 @@ export class ClaudeVisionOcrAdapter implements OcrAdapter {
       guessedHp: cardVisible ? hp : undefined,
       // Inget kort i bild → 0 så att UI:t inte låser på en slumpträff.
       confidence: cardVisible ? confidence : 0,
+      // API:ts egna tokental → verklig kostnad per anrop, aldrig en gissning.
+      usage: {
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      },
     };
   }
 }

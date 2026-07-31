@@ -1098,6 +1098,8 @@ export interface IdentifyResult {
   guessedHp: number | null;
   confidence: number;
   candidates: ScanCandidate[];
+  /** Vision-anropets tokental (API:ts usage), null när anropet hoppades över. */
+  usage: { inputTokens: number; outputTokens: number } | null;
   /** Bildmatchningens bästa likhet 0..1, eller null när inget avtryck skickades. */
   artTop: number | null;
   /**
@@ -1253,6 +1255,7 @@ export async function identifyCard(
     guessedEra: ocr.guessedEra ?? null,
     guessedHp: ocr.guessedHp ?? null,
     confidence: ocr.confidence,
+    usage: ocr.usage ?? null,
     candidates,
     ambiguous: isAmbiguous(candidates) || numberContradictedByArt,
     artTop: artMatches.length > 0 ? artMatches[0].score : null,

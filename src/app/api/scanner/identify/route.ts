@@ -124,6 +124,8 @@ export async function POST(req: Request) {
         ? {
             v: 1,
             provider: result.provider,
+            // API:ts egna tokental — verklig vision-kostnad per skanning.
+            usage: result.usage,
             guessedName: result.guessedName,
             guessedNumber: result.guessedNumber,
             guessedEra: result.guessedEra,

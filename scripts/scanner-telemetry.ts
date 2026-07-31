@@ -19,6 +19,7 @@ const TAKE = Number(process.env.TAKE ?? "30");
 interface Diag {
   v?: number;
   provider?: string;
+  usage?: { inputTokens: number; outputTokens: number } | null;
   guessedName?: string | null;
   guessedNumber?: string | null;
   guessedEra?: string | null;
@@ -27,6 +28,14 @@ interface Diag {
   artTop?: number | null;
   artTopLabel?: string | null;
   chosen?: { name: string; number: string; setName: string; score: number } | null;
+}
+
+/** Haiku 4.5-prislista ($/MTok) — byt vid modellbyte. */
+const USD_PER_MTOK_IN = 1;
+const USD_PER_MTOK_OUT = 5;
+
+function usdForCall(u: { inputTokens: number; outputTokens: number }): number {
+  return (u.inputTokens * USD_PER_MTOK_IN + u.outputTokens * USD_PER_MTOK_OUT) / 1e6;
 }
 
 /** Poängen ur "Namn Nr 0.857 | Namn Nr 0.478 | …". */
@@ -99,6 +108,23 @@ async function main() {
   console.log(`bildträff SÄKER:          ${artTrusted}/${rows.length}`);
   console.log(`bildens topp-poäng:  ${stats(artTops)}`);
   console.log(`bildens marginal:    ${stats(artMargins)}`);
+
+  // VERKLIG vision-kostnad ur API:ts egna tokental (nya rader bär usage).
+  const withUsage = rows.filter((r) => r.d.usage && r.d.provider !== "bild");
+  const skipped = rows.filter((r) => r.d.provider === "bild").length;
+  if (withUsage.length > 0) {
+    const costs = withUsage.map((r) => usdForCall(r.d.usage!));
+    const total = costs.reduce((a, b) => a + b, 0);
+    const tokIn = withUsage.reduce((a, r) => a + r.d.usage!.inputTokens, 0);
+    const tokOut = withUsage.reduce((a, r) => a + r.d.usage!.outputTokens, 0);
+    console.log(
+      `vision-kostnad (MÄTT): ${withUsage.length} anrop à $${(total / withUsage.length).toFixed(4)} ` +
+        `(medel ${Math.round(tokIn / withUsage.length)} in / ${Math.round(tokOut / withUsage.length)} ut tok) · ` +
+        `summa $${total.toFixed(3)} · ${skipped} hoppade ($0)`
+    );
+  } else {
+    console.log(`vision-kostnad: inga rader med usage ännu (skanna efter deployen)`);
+  }
 }
 
 main().finally(() => prisma.$disconnect());

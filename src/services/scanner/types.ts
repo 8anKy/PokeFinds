@@ -33,6 +33,13 @@ export interface OcrResult {
   guessedHp?: number;
   /** Leverantörens konfidens 0..1. */
   confidence: number;
+  /**
+   * API:ts EGNA tokental för anropet (response.usage). Sparas i admin-
+   * diagnostiken så per-scan-kostnaden är en MÄTNING, inte en uppskattning —
+   * konsolens dagssumma blandar skannern med batch-jobbens Haiku-anrop
+   * (Tradera-matchningen m.fl.) och kan inte särskilja dem.
+   */
+  usage?: { inputTokens: number; outputTokens: number };
 }
 
 /** Adapter mot en OCR-/vision-leverantör. */
