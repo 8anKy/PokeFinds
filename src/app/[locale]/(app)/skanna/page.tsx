@@ -1697,22 +1697,6 @@ function CaptureView(props: {
             <IconUpload size={20} />
           </button>
 
-          {/* Bulk-läge (pärmsida/bordsyta) */}
-          <button
-            type="button"
-            onClick={props.onToggleBulk}
-            aria-label={t("bulkMode")}
-            aria-pressed={props.bulkMode}
-            className={cn(
-              "flex h-11 w-11 items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan",
-              props.bulkMode
-                ? "bg-holo-cyan/20 text-holo-cyan ring-1 ring-holo-cyan/50"
-                : "text-ink-muted hover:text-ink"
-            )}
-          >
-            <IconCards size={20} />
-          </button>
-
           {/* Inställningar */}
           <button
             type="button"
