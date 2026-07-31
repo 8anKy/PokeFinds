@@ -338,10 +338,18 @@ findeskriptorer) är dessutom fel riktning när minne är notan. **Återöppnas
 BARA om Fas 0-facit visar att DESKRIPTOR-hinken dominerar OCH idén överlever
 degradering (mellanskala-struktur, inte findetalj).**
 
-**FAS 2/3 (mätverktyg klara, INTE byggda i produktion)**:
-`scripts/art-audit/augment-eval.ts` mäter augmenterade multi-referenser
-(recall-per-MB; +25 MB resident per variant — ägarbeslut, och syntetiska tal är
-en ÖVRE gräns), `quant-check.ts` mäter int8-kvantiseringens cosinus-störning —
+**FAS 2 MÄTT SAMMA KVÄLL — OCKSÅ NEGATIVT, EJ BYGGD**: `augment-eval.ts`
+(2 augmenterade referensvarianter × hela katalogen, MAX per kort, 100 frågor):
+original 92,0/98,0/98,0 % → +1 variant **85,0/90,0/94,0 %** (+25 MB resident)
+→ +2 varianter 89,0/92,0/95,0 % (+50 MB). Augmenterade referenser SÄNKER
+träffsäkerheten: varje extra variant ger 20k distraktorer en lott till på en
+lycklig max-träff, och fältet trycks ihop — samma mekanism som fällde
+max-av-experter (85,9 %). Recall-per-MB-kurvan är alltså NEGATIV; det finns
+inget ägarbeslut att fatta. Återöppnas bara om Fas 0-facit visar en felklass
+som bevisligen är referens-domänglappet (och då med få, hårt validerade
+varianter — aldrig 8 för att 8 stod i en plan).
+
+`quant-check.ts` mäter int8-kvantiseringens cosinus-störning —
 **MÄTT (996 par): |Δcosinus| p99 7,9e-4, max 1,6e-3 — 60× under sämsta
 fel-marginal (0,028), 125× under trust-marginalen. int8 kan inte ändra ett
 utfall; antagandet är nu en mätning.** Fas 3 (ORB/RANSAC-omrankning av
@@ -351,6 +359,11 @@ DESKRIPTOR dominerar missarna — INFO/RAM-hinken kan ingen deskriptor laga.
 
 ## Öppet — nästa steg
 
+0. **MÄRK DE 87 SKANNINGARNA** (`scripts/scanner-labels.json` — ledtrådarna gör
+   det till minuter) och kör `scanner-scoreboard.ts`. Det är grinden för ALLA
+   kvarvarande deskriptorbeslut: hinkfördelningen avgör om något av de
+   deferred-spåren (Fas 2/3/4) ens ska övervägas — och INFO/RAM-hinken kan
+   ingen deskriptor i världen laga (åtgärden är UX).
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.
    Hypotesen är att en rak ja/nej-fråga fungerar bättre än att förvänta sig ett tomt
