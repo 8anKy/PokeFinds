@@ -390,14 +390,26 @@
     "necessaryTitle": "Nödvändiga cookies",
     "necessaryBody": "Dessa krävs för att tjänsten ska fungera, t.ex. inloggningssessioner och CSRF-skydd. De kan inte stängas av.",
     "necessaryItems": [
-      { "code": "next-auth.session-token", "text": "håller dig inloggad" },
-      { "code": "next-auth.csrf-token", "text": "skyddar mot CSRF-attacker" },
-      { "code": "next-auth.callback-url", "text": "kommer ihåg vart du ska efter inloggning" }
+      {
+        "code": "next-auth.session-token",
+        "text": "håller dig inloggad"
+      },
+      {
+        "code": "next-auth.csrf-token",
+        "text": "skyddar mot CSRF-attacker"
+      },
+      {
+        "code": "next-auth.callback-url",
+        "text": "kommer ihåg vart du ska efter inloggning"
+      }
     ],
     "prefTitle": "Preferenscookies",
     "prefBody": "Sparar dina val, som tema och cookie-samtycke.",
     "prefItems": [
-      { "code": "foilio-cookie-consent", "text": "ditt val i cookie-bannern" }
+      {
+        "code": "foilio-cookie-consent",
+        "text": "ditt val i cookie-bannern"
+      }
     ],
     "s3Title": "3. Tredjepartscookies",
     "s3Body": "Foilio använder inga tredjepartscookies för spårning eller reklam. Vi säljer aldrig data till tredje part.",
@@ -450,19 +462,49 @@
     "s1Body": "Foilio är personuppgiftsansvarig för behandlingen av dina personuppgifter i tjänsten. Kontakta oss på <email>hej@foilio.se</email> vid frågor om denna policy.",
     "s2Title": "2. Vilka uppgifter vi behandlar",
     "s2Items": [
-      { "lead": "Kontouppgifter:", "text": "e-postadress, namn och krypterat lösenord." },
-      { "lead": "Samlingsdata:", "text": "kort och produkter du registrerat, inköpspriser, skick och anteckningar." },
-      { "lead": "Bevakningar och notiser:", "text": "vilka produkter du bevakar och dina notisinställningar." },
-      { "lead": "Community-innehåll:", "text": "inlägg, kommentarer och reaktioner du publicerar." },
-      { "lead": "Kortbilder vid skanning:", "text": "när du skannar eller laddar upp ett kort skickas bilden till vår AI-leverantör för identifiering. Bilden behandlas tillfälligt och sparas inte i din kamerarulle eller långsiktigt hos oss." },
-      { "lead": "Teknisk data:", "text": "nödvändiga sessionsuppgifter för inloggning." }
+      {
+        "lead": "Kontouppgifter:",
+        "text": "e-postadress, namn och krypterat lösenord."
+      },
+      {
+        "lead": "Samlingsdata:",
+        "text": "kort och produkter du registrerat, inköpspriser, skick och anteckningar."
+      },
+      {
+        "lead": "Bevakningar och notiser:",
+        "text": "vilka produkter du bevakar och dina notisinställningar."
+      },
+      {
+        "lead": "Community-innehåll:",
+        "text": "inlägg, kommentarer och reaktioner du publicerar."
+      },
+      {
+        "lead": "Kortbilder vid skanning:",
+        "text": "när du skannar eller laddar upp ett kort skickas bilden till vår AI-leverantör för identifiering. Bilden behandlas tillfälligt och sparas inte i din kamerarulle eller långsiktigt hos oss."
+      },
+      {
+        "lead": "Teknisk data:",
+        "text": "nödvändiga sessionsuppgifter för inloggning."
+      }
     ],
     "s3Title": "3. Ändamål och rättslig grund",
     "s3Items": [
-      { "lead": "Tillhandahålla tjänsten", "text": "(konto, bevakningar, samling, notiser). Rättslig grund: fullgörande av avtal (art. 6.1 b GDPR)." },
-      { "lead": "Skicka alerts och veckorapporter", "text": "du själv valt. Rättslig grund: fullgörande av avtal; du kan stänga av dem i Inställningar." },
-      { "lead": "Drift, säkerhet och felsökning", "text": ": berättigat intresse (art. 6.1 f GDPR)." },
-      { "lead": "Rättsliga skyldigheter", "text": ", t.ex. bokföring vid betalningar: rättslig förpliktelse (art. 6.1 c GDPR)." }
+      {
+        "lead": "Tillhandahålla tjänsten",
+        "text": "(konto, bevakningar, samling, notiser). Rättslig grund: fullgörande av avtal (art. 6.1 b GDPR)."
+      },
+      {
+        "lead": "Skicka alerts och veckorapporter",
+        "text": "du själv valt. Rättslig grund: fullgörande av avtal; du kan stänga av dem i Inställningar."
+      },
+      {
+        "lead": "Drift, säkerhet och felsökning",
+        "text": ": berättigat intresse (art. 6.1 f GDPR)."
+      },
+      {
+        "lead": "Rättsliga skyldigheter",
+        "text": ", t.ex. bokföring vid betalningar: rättslig förpliktelse (art. 6.1 c GDPR)."
+      }
     ],
     "s3Outro": "Vi säljer aldrig dina uppgifter och använder dem inte för tredjeparts marknadsföring.",
     "s4Title": "4. Lagringstid",
@@ -470,12 +512,30 @@
     "s5Title": "5. Dina rättigheter",
     "s5Intro": "Enligt GDPR har du rätt att:",
     "s5Items": [
-      { "lead": "Få tillgång", "text": "till de uppgifter vi har om dig," },
-      { "lead": "rätta", "text": "felaktiga uppgifter," },
-      { "lead": "radera", "text": "ditt konto och dina uppgifter," },
-      { "lead": "exportera", "text": "din data i maskinläsbart format (dataportabilitet)," },
-      { "lead": "", "text": "invända mot eller begära begränsning av viss behandling," },
-      { "lead": "", "text": "lämna klagomål till Integritetsskyddsmyndigheten (IMY)." }
+      {
+        "lead": "Få tillgång",
+        "text": "till de uppgifter vi har om dig,"
+      },
+      {
+        "lead": "rätta",
+        "text": "felaktiga uppgifter,"
+      },
+      {
+        "lead": "radera",
+        "text": "ditt konto och dina uppgifter,"
+      },
+      {
+        "lead": "exportera",
+        "text": "din data i maskinläsbart format (dataportabilitet),"
+      },
+      {
+        "lead": "",
+        "text": "invända mot eller begära begränsning av viss behandling,"
+      },
+      {
+        "lead": "",
+        "text": "lämna klagomål till Integritetsskyddsmyndigheten (IMY)."
+      }
     ],
     "s5Outro": "Export och radering finns direkt i <b>Inställningar</b> i tjänsten. Du behöver inte kontakta oss för att använda dina rättigheter, men du är alltid välkommen att göra det.",
     "s6Title": "6. Cookies",
@@ -483,10 +543,22 @@
     "s7Title": "7. Delning och underleverantörer",
     "s7Intro": "Vi anlitar följande personuppgiftsbiträden för att driva tjänsten, alla bundna av personuppgiftsbiträdesavtal:",
     "s7Items": [
-      { "lead": "Databas:", "text": "Neon (serverlös PostgreSQL, datalagring inom EU/EES, Frankfurt)." },
-      { "lead": "Drift/hosting:", "text": "vår molnvärd som kör applikationen." },
-      { "lead": "E-postutskick:", "text": "Resend, för alerts och kontomejl (USA)." },
-      { "lead": "AI-identifiering av kort:", "text": "Anthropic (Claude), som bearbetar skannade kortbilder (USA). Bilderna sparas inte hos leverantören efter bearbetning." }
+      {
+        "lead": "Databas:",
+        "text": "Neon (serverlös PostgreSQL, datalagring inom EU/EES, Frankfurt)."
+      },
+      {
+        "lead": "Drift/hosting:",
+        "text": "vår molnvärd som kör applikationen."
+      },
+      {
+        "lead": "E-postutskick:",
+        "text": "Resend, för alerts och kontomejl (USA)."
+      },
+      {
+        "lead": "AI-identifiering av kort:",
+        "text": "Anthropic (Claude), som bearbetar skannade kortbilder (USA). Bilderna sparas inte hos leverantören efter bearbetning."
+      }
     ],
     "s7Outro": "Lagring av din kontodata sker inom EU/EES. Vid överföring till tredjeland (t.ex. USA för e-post och AI-identifiering) används godkända skyddsmekanismer enligt GDPR, såsom EU:s standardavtalsklausuler. Vi säljer aldrig dina uppgifter.",
     "s8Title": "8. Ändringar",
@@ -606,7 +678,9 @@
     "possibleMatches": "Möjliga träffar",
     "showProduct": "Visa produkt & prishistorik",
     "removeScan": "Ta bort skanning",
-    "close": "Stäng"
+    "close": "Stäng",
+    "bulkMode": "Bulk-läge · flera kort i en bild",
+    "bulkHint": "Lägg pärmsidan eller korten i rutnätet · ett kort per ruta"
   },
   "Grading": {
     "h1": "Gradera kort",
@@ -1097,9 +1171,18 @@
     ],
     "faqTitle": "Frågor om planerna",
     "faqItems": [
-      { "q": "Kan jag byta plan när som helst?", "a": "Ja. Du kan uppgradera eller säga upp Pro när du vill, utan bindningstid. Köpet hanteras av App Store / Google Play." },
-      { "q": "Vad händer med mina bevakningar om jag nedgraderar?", "a": "Dina bevakningar finns kvar, men bara de 10 senaste är aktiva på gratisnivån. Du väljer själv vilka som ska vara aktiva." },
-      { "q": "Hur betalar jag för Pro?", "a": "I appen sker köpet säkert via App Store eller Google Play. På webben lanseras betalning inom kort. Tills dess är gratisnivån öppen för alla." }
+      {
+        "q": "Kan jag byta plan när som helst?",
+        "a": "Ja. Du kan uppgradera eller säga upp Pro när du vill, utan bindningstid. Köpet hanteras av App Store / Google Play."
+      },
+      {
+        "q": "Vad händer med mina bevakningar om jag nedgraderar?",
+        "a": "Dina bevakningar finns kvar, men bara de 10 senaste är aktiva på gratisnivån. Du väljer själv vilka som ska vara aktiva."
+      },
+      {
+        "q": "Hur betalar jag för Pro?",
+        "a": "I appen sker köpet säkert via App Store eller Google Play. På webben lanseras betalning inom kort. Tills dess är gratisnivån öppen för alla."
+      }
     ]
   },
   "Home": {
@@ -1120,11 +1203,26 @@
       "heading": "Allt du behöver som samlare",
       "sub": "Från prisbevakning till kortskanning: verktyg byggda för den svenska marknaden.",
       "items": [
-        { "title": "Prisbevakning & restock-alerts", "text": "Sätt ett målpris eller bevaka lagerstatus. Vi meddelar dig direkt när något händer." },
-        { "title": "Samlingsvärde", "text": "Registrera din samling och se vad den är värd, uppdaterat med aktuell marknadsdata." },
-        { "title": "Marknadstrender", "text": "Prisindex, trendkurvor och de största prisfallen, allt i ett svep." },
-        { "title": "Kortskanning", "text": "Skanna korten med kameran och lägg till dem i samlingen på sekunder." },
-        { "title": "Transparent prisdata", "text": "Varje produktsida visar källa och senaste uppdatering. Inga dolda justeringar." }
+        {
+          "title": "Prisbevakning & restock-alerts",
+          "text": "Sätt ett målpris eller bevaka lagerstatus. Vi meddelar dig direkt när något händer."
+        },
+        {
+          "title": "Samlingsvärde",
+          "text": "Registrera din samling och se vad den är värd, uppdaterat med aktuell marknadsdata."
+        },
+        {
+          "title": "Marknadstrender",
+          "text": "Prisindex, trendkurvor och de största prisfallen, allt i ett svep."
+        },
+        {
+          "title": "Kortskanning",
+          "text": "Skanna korten med kameran och lägg till dem i samlingen på sekunder."
+        },
+        {
+          "title": "Transparent prisdata",
+          "text": "Varje produktsida visar källa och senaste uppdatering. Inga dolda justeringar."
+        }
       ]
     },
     "showcase": {
@@ -1137,10 +1235,22 @@
     "faq": {
       "heading": "Vanliga frågor",
       "items": [
-        { "q": "Är Foilio gratis?", "a": "Ja. Med ett gratiskonto kan du bevaka upp till 10 produkter, hantera en grundläggande samling och ta del av marknadsdata. Pro låser upp obegränsade bevakningar, alla restock-larm, AI-gradering och avancerad analys." },
-        { "q": "Vilka butiker bevakar ni?", "a": "Vi följer ett växande antal svenska återförsäljare av Pokémon TCG. Listan utökas löpande. Saknar du en butik får du gärna höra av dig." },
-        { "q": "Hur ofta uppdateras priserna?", "a": "Priser och lagerstatus hämtas in löpande, flera gånger per dygn. Varje produktsida visar när datan senast uppdaterades." },
-        { "q": "Hur funkar restock-alerts?", "a": "Du bevakar en produkt och väljer restock-alert. Så fort vi upptäcker att produkten finns i lager igen hos någon butik skickar vi en notis, i appen och via e-post om du vill." }
+        {
+          "q": "Är Foilio gratis?",
+          "a": "Ja. Med ett gratiskonto kan du bevaka upp till 10 produkter, hantera en grundläggande samling och ta del av marknadsdata. Pro låser upp obegränsade bevakningar, alla restock-larm, AI-gradering och avancerad analys."
+        },
+        {
+          "q": "Vilka butiker bevakar ni?",
+          "a": "Vi följer ett växande antal svenska återförsäljare av Pokémon TCG. Listan utökas löpande. Saknar du en butik får du gärna höra av dig."
+        },
+        {
+          "q": "Hur ofta uppdateras priserna?",
+          "a": "Priser och lagerstatus hämtas in löpande, flera gånger per dygn. Varje produktsida visar när datan senast uppdaterades."
+        },
+        {
+          "q": "Hur funkar restock-alerts?",
+          "a": "Du bevakar en produkt och väljer restock-alert. Så fort vi upptäcker att produkten finns i lager igen hos någon butik skickar vi en notis, i appen och via e-post om du vill."
+        }
       ]
     },
     "cta": {

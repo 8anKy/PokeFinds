@@ -1179,6 +1179,60 @@ function decodeFrames(
     .filter((f) => f.length > 0);
 }
 
+export interface BulkCellResult {
+  /** Cellens index i klientens rutnät (position bevaras även när celler är tomma). */
+  cell: number;
+  candidates: ScanCandidate[];
+  /** Trust-regeln höll — cellen behöver ingen vision, träffen är bevisad. */
+  confident: boolean;
+  artTop: number | null;
+}
+
+/**
+ * BULK-SKANNING (Fas 1, 2026-08-01): en pärmsida/bordsyta fångas i EN bild,
+ * klienten delar upp den i celler (rutnätsoverlay = placeringsguide, funkar
+ * för pärmficka OCH lösa kort på ett bord) och skickar VARJE cells
+ * avtryckssvep hit. Ren bildmatchning — ingen vision, ingen kvot, inga
+ * ScannerJob-rader (12 rader per sida vore diagnostikbrus; de osäkra cellerna
+ * går vidare till /identify som bokför precis som vanligt).
+ *
+ * Återanvänder HELA kandidatkedjan genom matchCards med tom OCR — exakt samma
+ * väg som en vision-hoppad skanning: tryckningar expanderas, värden hämtas,
+ * syskonlistan byggs. En cell = en frame → trust-regeln döms på basvillkoret
+ * (marginal ≥ 0,10), aldrig samstämmighetssänkningen.
+ *
+ * Kostnadsform: ≤12 celler × ≤8 avtryck ≈ ~1 s CPU mot indexet i minnet +
+ * PK-uppslag för kandidaterna. Neon-vänligt, $0 per sida.
+ */
+export async function identifyCellsArt(
+  cells: Array<{ fingerprints: string[]; structFingerprints?: string[] }>
+): Promise<BulkCellResult[]> {
+  const out: BulkCellResult[] = [];
+  for (const [i, cell] of cells.entries()) {
+    const sweep = decodeFingerprints(cell.fingerprints, cell.structFingerprints);
+    if (sweep.length === 0) {
+      out.push({ cell: i, candidates: [], confident: false, artTop: null });
+      continue;
+    }
+    const artMatches = await searchByFingerprints(sweep, ART_CANDIDATES);
+    const artScores = new Map(artMatches.map((m) => [m.cardId, m.score]));
+    const confidentId = artConfidentFrom(artMatches, []);
+    const candidates = await matchCards(
+      // Samma tomma OCR som när vision hoppas över: bilden bär hela bedömningen.
+      { rawText: "", confidence: confidentId ? 0.95 : 0 },
+      artScores,
+      confidentId
+    );
+    out.push({
+      cell: i,
+      candidates,
+      confident: confidentId !== null,
+      artTop: artMatches[0]?.score ?? null,
+    });
+  }
+  return out;
+}
+
 /**
  * Live-identifiering: kör OCR-/vision-adaptern + matchar mot katalogen UTAN att
  * skapa ett ScannerJob (billigt nog att polla med nedskalade videorutor).

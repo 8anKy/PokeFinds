@@ -419,6 +419,141 @@ function captureFrame(
   };
 }
 
+// ---- BULK-FÅNGST (2026-08-01): en bild, många kort --------------------------
+//
+// Rutnätsoverlayen är en PLACERINGSGUIDE, inte en pärmfunktion: den funkar lika
+// bra för en 9-pocket-pärmsida som för lösa kort utlagda på ett bord — "ett
+// kort per ruta". Detektionen slipper därmed frilagd multi-kvadrat (fas 2);
+// per cell återanvänds exakt samma maskineri som enkelskanningen: kvad-rätning,
+// inset-svep, färg+struktur-avtryck.
+//
+// ⛔ INGA OUTSETS i bulk: utvidgas en cell blöder GRANNKORTET in i utsnittet
+// och avtrycket matchar en blandning av två kort. Kvad-rätningen per cell tar
+// överflödesfallet i stället (padding 4 % räcker för en snedlagd kant utan att
+// nå grannens konst).
+const BULK_COLS = 3;
+const BULK_ROWS = 3;
+/** Kvad-källans marginal runt cellen — liten med flit (grannkort!). */
+const BULK_CELL_PAD = 0.04;
+/** Färre inset än enkelskanningen: cellerna är trånga och outsets är förbjudna. */
+const BULK_INSETS = [0, 0.04, 0.08] as const;
+
+interface BulkCell {
+  /** Cellens utsnitt (med liten marginal) — vision-bild + miniatyr. */
+  dataUrl: string;
+  /** Nederkanten av cellen — samlarnumret, samma idé som enkelskanningens strip. */
+  stripDataUrl?: string;
+  fingerprints: string[];
+  structFingerprints: string[];
+}
+
+function captureBulkCells(
+  video: HTMLVideoElement,
+  canvas: HTMLCanvasElement,
+  gridEl: HTMLElement | null
+): BulkCell[] | null {
+  if (video.readyState < 2 || !video.videoWidth || !gridEl) return null;
+  const vW = video.videoWidth;
+  const vH = video.videoHeight;
+  const box = video.getBoundingClientRect();
+  const grid = gridEl.getBoundingClientRect();
+  if (!(grid.width > 0 && grid.height > 0 && box.width > 0 && box.height > 0)) return null;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  // Samma object-cover-matte som captureFrame — geometrin MÄTS, aldrig hårdkodas.
+  const cover = Math.max(box.width / vW, box.height / vH);
+  const offX = (vW * cover - box.width) / 2;
+  const offY = (vH * cover - box.height) / 2;
+  const gx = (grid.left - box.left + offX) / cover;
+  const gy = (grid.top - box.top + offY) / cover;
+  const gw = grid.width / cover;
+  const gh = grid.height / cover;
+  const cellW = gw / BULK_COLS;
+  const cellH = gh / BULK_ROWS;
+
+  const toB64 = (fp: Int8Array) => {
+    let bin = "";
+    for (let i = 0; i < fp.length; i++) bin += String.fromCharCode(fp[i] & 0xff);
+    return btoa(bin);
+  };
+
+  const cells: BulkCell[] = [];
+  for (let row = 0; row < BULK_ROWS; row++) {
+    for (let col = 0; col < BULK_COLS; col++) {
+      // Cellen UTAN marginal — avtryckets yta (samma regel som enkelramen).
+      const fx = Math.max(0, Math.min(gx + col * cellW, vW - 1));
+      const fy = Math.max(0, Math.min(gy + row * cellH, vH - 1));
+      const fw = Math.max(1, Math.min(cellW, vW - fx));
+      const fh = Math.max(1, Math.min(cellH, vH - fy));
+
+      const fpScale = Math.min(1, FINGERPRINT_SOURCE_MAX / Math.max(fw, fh));
+      const fpW = Math.max(1, Math.round(fw * fpScale));
+      const fpH = Math.max(1, Math.round(fh * fpScale));
+      canvas.width = fpW;
+      canvas.height = fpH;
+      ctx.drawImage(video, fx, fy, fw, fh, 0, 0, fpW, fpH);
+      const fpPixels = ctx.getImageData(0, 0, fpW, fpH).data;
+
+      const fingerprints: string[] = [];
+      const structFingerprints: string[] = [];
+      for (const inset of BULK_INSETS) {
+        const fp = fingerprintFromRgb(fpPixels, fpW, fpH, 4, inset);
+        const sfp = structFingerprintFromRgb(fpPixels, fpW, fpH, 4, inset);
+        if (!fp || !sfp) continue;
+        fingerprints.push(toB64(fp));
+        structFingerprints.push(toB64(sfp));
+      }
+
+      // Cellen MED liten marginal: kvad-källa + vision-bild + miniatyr.
+      const px = Math.max(0, fx - fw * BULK_CELL_PAD);
+      const py = Math.max(0, fy - fh * BULK_CELL_PAD);
+      const pw = Math.min(vW - px, fw * (1 + BULK_CELL_PAD * 2));
+      const ph = Math.min(vH - py, fh * (1 + BULK_CELL_PAD * 2));
+      const pScale = Math.min(1, FINGERPRINT_SOURCE_MAX / Math.max(pw, ph));
+      const pW = Math.max(1, Math.round(pw * pScale));
+      const pH = Math.max(1, Math.round(ph * pScale));
+      canvas.width = pW;
+      canvas.height = pH;
+      ctx.drawImage(video, px, py, pw, ph, 0, 0, pW, pH);
+      const padPixels = ctx.getImageData(0, 0, pW, pH).data;
+      const quad = detectCardQuad(padPixels, pW, pH, 4);
+      if (quad) {
+        const warped = warpPerspective(padPixels, pW, pH, 4, quad.corners);
+        if (warped) {
+          const fp = fingerprintFromRgb(warped, RECTIFIED_W, RECTIFIED_H, 4);
+          const sfp = structFingerprintFromRgb(warped, RECTIFIED_W, RECTIFIED_H, 4);
+          if (fp && sfp) {
+            fingerprints.push(toB64(fp));
+            structFingerprints.push(toB64(sfp));
+          }
+        }
+      }
+
+      // Vision-bilden i cellens NATIVA upplösning (≤ CAPTURE_MAX) — vid 4K-ström
+      // är en cell ~1200 px bred, gott om pixlar för namnet. Strip = nederkanten.
+      const vScale = Math.min(1, CAPTURE_MAX / Math.max(pw, ph));
+      const cW = Math.max(1, Math.round(pw * vScale));
+      const cH = Math.max(1, Math.round(ph * vScale));
+      canvas.width = cW;
+      canvas.height = cH;
+      ctx.drawImage(video, px, py, pw, ph, 0, 0, cW, cH);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+      const stripSh = ph * STRIP_FRACTION;
+      const stripSy = py + ph - stripSh;
+      const stripW = cW;
+      const stripH = Math.max(1, Math.round(stripSh * vScale));
+      canvas.width = stripW;
+      canvas.height = stripH;
+      ctx.drawImage(video, px, stripSy, pw, stripSh, 0, 0, stripW, stripH);
+      const stripDataUrl = canvas.toDataURL("image/jpeg", 0.85);
+
+      cells.push({ dataUrl, stripDataUrl, fingerprints, structFingerprints });
+    }
+  }
+  return cells;
+}
+
 // Klient-gate: utloggad → redirecta till login I APPEN (router.replace = SPA-nav,
 // ingen hård navigering som Capacitor kastar till Safari). Scanner monteras (och
 // kameran startar) först när inloggning bekräftats, så ingen kamera-flash.
@@ -446,6 +581,10 @@ function Scanner() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Kortramen i kameravyn — captureFrame mäter den för att beskära utsnittet.
   const frameRef = useRef<HTMLDivElement>(null);
+  // BULK-LÄGE: rutnätsoverlay (pärmsida/bordsyta) i stället för enkelram.
+  // Live-pollen/låset stängs av i bulk (de är enkortsbegrepp).
+  const [bulkMode, setBulkMode] = useState(false);
+  const gridRef = useRef<HTMLDivElement>(null);
   // DIAGNOSTIK (bara admin, se ScanDebug): kamerans verkliga upplösning, senaste
   // utsnitt och vad modellen faktiskt svarade. Utan det här är "skannern gissar
   // fel" ett påstående ingen kan felsöka — vi ser varken vad kameran gav oss
@@ -722,7 +861,9 @@ function Scanner() {
   // indexet i minnet — ingen bild, ingen modell, ingen kvot. En poll i taget
   // (busy-ref) så en seg lina inte staplar förfrågningar.
   useEffect(() => {
-    if (cameraState !== "live" || view !== "capture") {
+    // Bulk-läget pollar inte: låset/chippen är enkortsbegrepp, och 9 celler
+    // × 2 poll/s hade varit CPU utan mottagare.
+    if (cameraState !== "live" || view !== "capture" || bulkMode) {
       setLiveHint(null);
       liveStreak.current = { id: "", n: 0 };
       return;
@@ -780,7 +921,7 @@ function Scanner() {
         });
     }, 600);
     return () => window.clearInterval(iv);
-  }, [cameraState, view]);
+  }, [cameraState, view, bulkMode]);
 
   // Lås body-scroll + Escape-stäng medan skannern är öppen.
   useEffect(() => {
@@ -958,6 +1099,124 @@ function Scanner() {
     };
     grabNext();
   }, [cameraState, shutterCooling, addScan]);
+
+  /**
+   * BULK-FÅNGST: en bild → upp till 9 celler → EN art-only-förfrågan ($0,
+   * ingen kvot). Säkra celler blir träffar direkt; osäkra körs vidare genom
+   * VANLIGA /identify (en i taget, med cellens utsnitt + nederkantsremsa) och
+   * får därmed vision, kvotbokföring, diagnostik och feedback-loopen — exakt
+   * som en enkelskanning. Kvoten dras alltså PER VISION-ANROP (ägarbeslut
+   * 2026-08-01): en sida med bara säkra bildträffar kostar 0.
+   */
+  const captureBulk = useCallback(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || cameraState !== "live" || shutterCooling) return;
+    const cells = captureBulkCells(video, canvas, gridRef.current);
+    if (!cells) return;
+    setFlash(true);
+    window.setTimeout(() => setFlash(false), 180);
+    setShutterCooling(true);
+    window.setTimeout(() => setShutterCooling(false), 800);
+
+    // Tomma fickor/rutor ger inga avtryck (jämn yta → null) och hoppas över —
+    // cellindex → scan-id-mappningen bevaras för svaret.
+    const sendable = cells
+      .map((cell, index) => ({ cell, index }))
+      .filter(({ cell }) => cell.fingerprints.length > 0);
+    if (sendable.length === 0) return;
+
+    const idByCell = new Map<number, string>();
+    setScans((prev) => {
+      const next = [...prev];
+      for (const { cell, index } of sendable) {
+        const id = nextId();
+        idByCell.set(index, id);
+        next.push({
+          id,
+          status: "identifying",
+          captured: cell.dataUrl,
+          match: null,
+          candidates: [],
+          confidence: 0,
+          uncertain: false,
+          quantity: 1,
+          condition: defaultCondition,
+          language: defaultLanguage,
+        });
+      }
+      return next;
+    });
+
+    // Lokal patch-hjälpare (setScans är stabil) — undviker beroende på
+    // patchScan som deklareras senare i komponenten.
+    const patch = (id: string, p: Partial<ScanItem>) =>
+      setScans((prev) => prev.map((s) => (s.id === id ? { ...s, ...p } : s)));
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/scanner/identify-bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cells: sendable.map(({ cell }) => ({
+              fingerprints: cell.fingerprints,
+              structFingerprints: cell.structFingerprints,
+            })),
+          }),
+        });
+        const data = (await res.json()) as {
+          cells?: Array<{ cell: number; candidates: Candidate[]; confident: boolean }>;
+          error?: string;
+        };
+        if (!res.ok || !data.cells) {
+          const msg = data.error ?? t("genericError");
+          for (const id of idByCell.values()) {
+            patch(id, { status: "error", errorMessage: msg });
+          }
+          return;
+        }
+        // Osäkra celler samlas och körs SEKVENTIELLT genom /identify — en burst
+        // på upp till 9 vision-anrop hade slagit i rate-limiten och kostat i
+        // onödan när användaren ändå granskar resultaten ett i taget.
+        const uncertain: Array<{ id: string; cell: BulkCell }> = [];
+        for (const result of data.cells) {
+          const sent = sendable[result.cell];
+          const id = sent ? idByCell.get(sent.index) : undefined;
+          if (!id || !sent) continue;
+          const top = result.candidates[0];
+          if (result.confident && top) {
+            // Bevisad bildträff — samma villkor som auto-fångstens $0-väg.
+            patch(id, {
+              status: "matched",
+              match: top,
+              candidates: result.candidates,
+              confidence: 0.95,
+              uncertain: false,
+            });
+          } else if (top) {
+            uncertain.push({ id, cell: sent.cell });
+          } else {
+            patch(id, { status: "nomatch", candidates: [] });
+          }
+        }
+        for (const u of uncertain) {
+          // eslint-disable-next-line no-await-in-loop -- sekventiellt med flit, se ovan
+          await identifyInto(
+            u.id,
+            u.cell.dataUrl,
+            u.cell.stripDataUrl,
+            [u.cell.fingerprints],
+            [u.cell.structFingerprints]
+          );
+        }
+      } catch {
+        for (const id of idByCell.values()) {
+          patch(id, { status: "error", errorMessage: t("genericError") });
+        }
+      }
+    })();
+  }, [cameraState, shutterCooling, defaultCondition, defaultLanguage, identifyInto, t]);
   // Auto-fångsten läser via refs (se lockedPolls/autoFired) — färska varje render.
   captureRef.current = capture;
   quotaRef.current = quota;
@@ -1118,9 +1377,12 @@ function Scanner() {
           isMock={isMock}
           shutterCooling={shutterCooling}
           quota={quota}
+          bulkMode={bulkMode}
+          gridRef={gridRef}
+          onToggleBulk={() => setBulkMode((v) => !v)}
           onUpgrade={() => router.push("/priser")}
           onRetryCamera={() => void startCamera()}
-          onCapture={capture}
+          onCapture={bulkMode ? captureBulk : capture}
           onGallery={() => fileInputRef.current?.click()}
           onSettings={() => setSettingsOpen(true)}
           onReview={() => setView("review")}
@@ -1238,6 +1500,10 @@ function CaptureView(props: {
   canvasRef: RefObject<HTMLCanvasElement>;
   /** Kortramen — captureFrame mäter den för att beskära utsnittet till kortet. */
   frameRef: RefObject<HTMLDivElement>;
+  /** Bulk-läge: rutnätsoverlay (pärmsida/bordsyta) i stället för enkelram. */
+  bulkMode: boolean;
+  gridRef: RefObject<HTMLDivElement>;
+  onToggleBulk: () => void;
   /** Live-bildmatchningens bästa gissning (chippen under ramen). Ren data —
    *  kortnamn + nummer — så ingen ny copy/översättning behövs. */
   liveHint: { name: string; number: string; locked: boolean } | null;
@@ -1334,8 +1600,8 @@ function CaptureView(props: {
         )}
       </div>
 
-      {/* Kortram-overlay */}
-      {cameraState === "live" && (
+      {/* Kortram-overlay (enkel) ELLER rutnätsoverlay (bulk) */}
+      {cameraState === "live" && !props.bulkMode && (
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
@@ -1358,6 +1624,24 @@ function CaptureView(props: {
                 {props.liveHint.name} #{props.liveHint.number}
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {cameraState === "live" && props.bulkMode && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
+        >
+          {/* 3×3 celler i kortproportion → hela rutnätet får också 5:7. Rutnätet
+              är en PLACERINGSGUIDE (pärmsida eller lösa kort på ett bord) —
+              geometrin MÄTS av captureBulkCells, precis som enkelramen. */}
+          <div
+            ref={props.gridRef}
+            className="grid aspect-[5/7] w-[88%] max-w-[26rem] mb-[10vh] grid-cols-3 grid-rows-3 gap-1"
+          >
+            {Array.from({ length: 9 }, (_, i) => (
+              <div key={i} className="rounded-md border border-white/30" />
+            ))}
           </div>
         </div>
       )}
@@ -1389,7 +1673,7 @@ function CaptureView(props: {
         {scans.length === 0 && cameraState === "live" && (
           <div className="flex flex-col items-center gap-3">
             <p className="text-center text-sm text-ink-muted">
-              {t("holdCard")}
+              {props.bulkMode ? t("bulkHint") : t("holdCard")}
             </p>
             <Link
               href="/produkter"
@@ -1409,6 +1693,22 @@ function CaptureView(props: {
             className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-ink backdrop-blur transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
           >
             <IconUpload size={20} />
+          </button>
+
+          {/* Bulk-läge (pärmsida/bordsyta) */}
+          <button
+            type="button"
+            onClick={props.onToggleBulk}
+            aria-label={t("bulkMode")}
+            aria-pressed={props.bulkMode}
+            className={cn(
+              "flex h-11 w-11 items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan",
+              props.bulkMode
+                ? "bg-holo-cyan/20 text-holo-cyan ring-1 ring-holo-cyan/50"
+                : "text-ink-muted hover:text-ink"
+            )}
+          >
+            <IconCards size={20} />
           </button>
 
           {/* Inställningar */}

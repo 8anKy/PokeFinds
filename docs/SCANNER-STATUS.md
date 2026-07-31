@@ -456,6 +456,42 @@ oförändrad 40/42 med utvidgningen aktiv.
 Effekt: ~67 % av skanningarna är nu $0 och instant (var 57 %); resten är
 precis de fall där Haiku faktiskt tillför (nummer/tryckning/syskonval).
 
+## BULK-SKANNERN v1 (2026-08-01): en bild, upp till nio kort
+
+Ägarens idé: fota en HEL pärmsida (eller kort utlagda på ett bord) och få alla
+identifierade + prissatta i ett svep — en funktion konsumentappar i praktiken
+saknar. **Rutnätsoverlayen är en PLACERINGSGUIDE, inte en pärmfunktion**: 3×3
+celler i kortproportion fungerar för pärmficka och lösa kort lika ("ett kort
+per ruta"), och detektionen slipper frilagd multi-kvadrat (= fas 2, byggs när
+v1 är mätt).
+
+**Arkitektur = maximal återanvändning.** Per cell: samma kvad-rätning,
+inset-svep och färg+struktur-avtryck som enkelskanningen; alla celler i EN
+förfrågan till nya `/api/scanner/identify-bulk` (art-only, `identifyCellsArt`
+→ matchCards med tom OCR = exakt vision-hoppade vägen, tryckningar + priser
+inkl.). Säkra celler (trust-regeln, basvillkoret — en cell är EN ruta, ingen
+samstämmighetssänkning) blir träffar direkt: **$0, ingen kvot**. Osäkra celler
+körs SEKVENTIELLT genom vanliga `/identify` med cellens utsnitt + nederkants-
+remsa → vision, kvot (PER VISION-ANROP, ägarbeslut 2026-08-01), diagnostik och
+feedback-loopen precis som enkelskanningar. Resultaten blir vanliga ScanItems
+— remsan, granskningen, syskonlistan och lägg-till-alla fungerar orört.
+
+⛔ **INGA OUTSETS i bulk** (`captureBulkCells`): utvidgas en cell blöder
+GRANNKORTET in och avtrycket matchar en blandning av två kort. Kvad-rätningen
+per cell (padding 4 %) tar snedlagda kanter i stället. Live-pollen/låset är
+avstängda i bulk-läget (enkortsbegrepp; 9 celler × 2 poll/s vore CPU utan
+mottagare).
+
+**Kostnadsform**: ~10 kB upp per sida (9 celler × 4 avtryck), ~1 s server-CPU
+mot indexet i minnet, 0 nytt residentminne, Neon = PK-uppslag. Vision bara för
+osäkra celler à $0,0054.
+
+**OMÄTT (nästa mätning)**: pärmficke-BLÄNK är den förväntade felkällan — plast
+över korten är en fångstkvalitet vi aldrig mätt. Ägaren fotar pärmsidor, facit
+via scoreboardet som vanligt. Känd v1-lucka: korrigeringar på art-säkra
+bulk-celler ger ingen feedback-rad (inget ScannerJob-id utan vision) — bara
+vision-cellerna bär auto-facit.
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.
