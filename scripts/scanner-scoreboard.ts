@@ -18,11 +18,15 @@
  *   TEMPLATE=1 node scripts/with-prod-db.mjs npx tsx scripts/scanner-scoreboard.ts # fyll på mall
  *
  * Mallen skriver in olabellade skanningar med LEDTRÅDAR (modellens svar, valt
- * kort, bildens topp-5 MED kort-id) så att märkningen är minuter, inte timmar:
- * oftast är facit ett av de listade id:na — kopiera in det i `truth`, sätt
- * `population` ("physical" = fysiskt kort framför kameran, "screen" = foto av
- * en skärm/produktbild) och kör rapporten. `truth: null` = kortet går inte att
- * fastställa ens manuellt (räknas bort, redovisas).
+ * kort, bildens topp-5 MED kort-id) så att märkningen är minuter, inte timmar.
+ * `truth` = vilket kort som FAKTISKT låg framför kameran, som antingen
+ *   (a) ett kort-id kopierat ur ledtrådarna (när något av dem är rätt), eller
+ *   (b) KLARTEXT "Namn Nummer" eller "Namn Nummer / Set-fragment"
+ *       ("Gyarados 8 / Deoxys") — för missarna, där rätt kort inte står i
+ *       listan. Tvetydig klartext rapporteras med kandidater, aldrig gissas.
+ * `population`: "physical" = fysiskt kort framför kameran, "screen" = foto av
+ * en skärm/produktbild. `truth: null` = kortet går inte att fastställa ens
+ * manuellt (räknas bort, redovisas).
  *
  * SVAGA ETIKETTER: skanningar där SAMMA användare lade ett kort i samlingen
  * inom WEAK_WINDOW_MIN minuter efteråt får det kortet som svagt facit.
@@ -163,6 +167,41 @@ async function cardLabel(cardId: string): Promise<string> {
     select: { name: true, number: true, set: { select: { name: true } } },
   });
   return c ? `${c.name} ${c.number} (${c.set.name})` : cardId;
+}
+
+/**
+ * `truth` får vara ett kort-id ELLER klartext: "Namn Nummer" eller
+ * "Namn Nummer / Set-fragment" ("Gyarados 8 / Deoxys"). Kort-id är jobbiga att
+ * hitta för kort som INTE står i ledtrådarna — och det är precis missarna,
+ * de mest värdefulla etiketterna. Klartexten slås upp mot katalogen och måste
+ * vara ENTYDIG: 0 eller >1 träffar rapporteras med kandidatlista i stället för
+ * att gissas (fel facit är värre än inget facit).
+ */
+async function resolveTruth(raw: string): Promise<{ id: string } | { error: string }> {
+  const s = raw.trim();
+  // cuid — används som det är (verifieras vid kortuppslaget i score()).
+  if (/^c[a-z0-9]{20,}$/i.test(s) && !s.includes(" ")) return { id: s };
+  const [namePart, setPart] = s.split("/").map((p) => p.trim());
+  const m = namePart.match(/^(.+?)\s+([A-Za-z]*\d+[A-Za-z]*|[A-Z]|ONE|!|\?)$/i);
+  if (!m) return { error: `kan inte tolka "${raw}" — skriv "Namn Nummer" eller "Namn Nummer / Set"` };
+  const name = m[1].trim();
+  const number = m[2].trim();
+  const hits = await prisma.card.findMany({
+    where: {
+      name: { equals: name, mode: "insensitive" },
+      number: { equals: number, mode: "insensitive" },
+      ...(setPart ? { set: { name: { contains: setPart, mode: "insensitive" } } } : {}),
+    },
+    select: { id: true, name: true, number: true, set: { select: { name: true } } },
+    take: 6,
+  });
+  if (hits.length === 1) return { id: hits[0].id };
+  if (hits.length === 0) return { error: `ingen träff för "${raw}"` };
+  return {
+    error:
+      `"${raw}" är tvetydigt (${hits.length} träffar) — lägg till set: ` +
+      hits.map((h) => `"${h.name} ${h.number} / ${h.set.name}"`).join(" · "),
+  };
 }
 
 async function writeTemplate() {
@@ -349,8 +388,14 @@ async function main() {
       continue;
     }
     if (label?.truth) {
+      const resolved = await resolveTruth(label.truth);
+      if ("error" in resolved) {
+        console.log(`⚠ ${id.slice(-6)}: ${resolved.error}`);
+        unresolvable++;
+        continue;
+      }
       scored.push(
-        await score(id, d, label.truth, label.population ?? "okänd", false, label.note ?? "")
+        await score(id, d, resolved.id, label.population ?? "okänd", false, label.note ?? "")
       );
       continue;
     }
