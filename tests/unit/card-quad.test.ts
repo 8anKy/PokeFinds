@@ -228,6 +228,59 @@ describe("detectCardRegions", () => {
     expect(detectCardRegions(img, 480, 560, 4).length).toBe(0);
   });
 
+  it("FRÅN HÅLL: sex små kort hittas allihop (ägarens buggfall 2026-08-01)", () => {
+    // Varje kort ~1,6 % av bilden — under det gamla areagolvet (0,4 % gick,
+    // men verkliga foton hade ännu mindre kort + lägre kontrast). Sex kort i
+    // 3×2 med mellanrum ska ge exakt sex regioner.
+    const cards = [];
+    for (let r = 0; r < 2; r++) {
+      for (let c = 0; c < 3; c++) {
+        cards.push({ x: 40 + c * 150, y: 80 + r * 220, cw: 62, ch: 87 });
+      }
+    }
+    const img = renderTable(480, 560, cards);
+    const regions = detectCardRegions(img, 480, 560, 4, 12);
+    expect(regions.length).toBe(6);
+    for (const c of cards) {
+      const hit = regions.find((r) => {
+        const cx = r.x + r.w / 2;
+        const cy = r.y + r.h / 2;
+        return cx > c.x && cx < c.x + c.cw && cy > c.y && cy < c.y + c.ch;
+      });
+      expect(hit).toBeDefined();
+    }
+  });
+
+  it("LÅG KONTRAST: kort nära bordets färg hittas ändå (Otsu, inte fast golv)", () => {
+    // Kort bara ~35 RGB-enheter från bordet — under gamla fasta golvet (~37).
+    const w = 480;
+    const h = 560;
+    const img = new Uint8Array(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const p = (y * w + x) * 4;
+        img[p] = 120;
+        img[p + 1] = 110;
+        img[p + 2] = 100;
+        img[p + 3] = 255;
+      }
+    }
+    for (const c of [
+      { x: 60, y: 80, cw: 120, ch: 168 },
+      { x: 280, y: 300, cw: 120, ch: 168 },
+    ]) {
+      for (let y = c.y; y < c.y + c.ch; y++) {
+        for (let x = c.x; x < c.x + c.cw; x++) {
+          const p = (y * w + x) * 4;
+          img[p] = 140;
+          img[p + 1] = 130;
+          img[p + 2] = 125;
+        }
+      }
+    }
+    expect(detectCardRegions(img, w, h, 4, 4).length).toBe(2);
+  });
+
   it("bordet självt (jätteblob) förkastas via areataket", () => {
     // Ett "kort" som täcker nästan hela bilden = pärmsidefallet/felsegmentering.
     const img = renderTable(480, 560, [{ x: 10, y: 10, cw: 460, ch: 540 }]);

@@ -430,8 +430,13 @@ export function detectCardQuad(
  * formvalideringen förkastar den hellre än gissar.
  */
 const REGION_MASK_MAX = 240;
-/** Blob-arean måste vara 0,4–30 % av bilden — under = skräp, över = bordet. */
-const REGION_MIN_AREA_FRAC = 0.004;
+/**
+ * Blob-arean måste vara 0,15–30 % av bilden. Golvet var 0,4 % och det åt upp
+ * fotograferingar FRÅN HÅLL (mätt av ägaren 2026-08-01: sex kort på bordet →
+ * bara 1–2 hittades, resten var för små för golvet). 0,15 % ≈ ett kort som är
+ * ~1/26 av bildbredden — mindre än så bär ändå inte nog pixlar för avtrycket.
+ */
+const REGION_MIN_AREA_FRAC = 0.0015;
 const REGION_MAX_AREA_FRAC = 0.3;
 /** Bbox-form: ett roterat kort ger bredare bbox än 63:88 — generöst spann. */
 const REGION_ASPECT_MIN = 0.33;
@@ -505,25 +510,80 @@ export function detectCardRegions(
   };
   const bg = [median(border[0]), median(border[1]), median(border[2])];
 
-  // Adaptiv tröskel: kantringens egen spridning sätter brusgolvet — ett
-  // mönstrat bord kräver större avstånd än en slät duk för att räknas som kort.
+  // TRÖSKELN LÄRS UR BILDEN (fix 2026-08-01): den gamla regeln (kantringens
+  // brusgolv × 2,5, golv 1400 ≈ 37 i RGB-avstånd) missade LÅGKONTRAST-kort och
+  // hela fotograferingar från håll — ägaren la ut sex kort och fick 1–2.
+  // Otsu-split på AVSTÅNDSFÖRDELNINGEN separerar bakgrundsklustret från
+  // förgrunden var gränsen än ligger i just den här bilden; kantringens
+  // spridning behålls bara som GOLV så en tom bordsyta inte klyvs i brus.
+  const dist = new Float32Array(mw * mh);
+  for (let i = 0; i < mw * mh; i++) {
+    const d0 = rgb[i * 3] - bg[0];
+    const d1 = rgb[i * 3 + 1] - bg[1];
+    const d2 = rgb[i * 3 + 2] - bg[2];
+    dist[i] = Math.sqrt(d0 * d0 + d1 * d1 + d2 * d2);
+  }
   const borderDist: number[] = [];
   for (let k = 0; k < border[0].length; k++) {
     const d0 = border[0][k] - bg[0];
     const d1 = border[1][k] - bg[1];
     const d2 = border[2][k] - bg[2];
-    borderDist.push(d0 * d0 + d1 * d1 + d2 * d2);
+    borderDist.push(Math.sqrt(d0 * d0 + d1 * d1 + d2 * d2));
   }
   borderDist.sort((a, b) => a - b);
-  const noise = borderDist[Math.floor(borderDist.length * 0.9)];
-  const threshold = Math.max(noise * 2.5, 1400);
+  const noiseFloor = borderDist[Math.floor(borderDist.length * 0.95)];
 
+  // Otsu över 128 fack (avstånd 0..~442).
+  const BINS = 128;
+  let maxD = 0;
+  for (let i = 0; i < dist.length; i++) if (dist[i] > maxD) maxD = dist[i];
+  const binW = Math.max(1e-6, maxD / BINS);
+  const hist = new Float64Array(BINS);
+  for (let i = 0; i < dist.length; i++) {
+    hist[Math.min(BINS - 1, Math.floor(dist[i] / binW))]++;
+  }
+  let totalSum = 0;
+  for (let b = 0; b < BINS; b++) totalSum += b * hist[b];
+  let wB = 0;
+  let sumB = 0;
+  let bestVar = 0;
+  let otsuBin = BINS - 1;
+  const n = dist.length;
+  for (let b = 0; b < BINS; b++) {
+    wB += hist[b];
+    if (wB === 0) continue;
+    const wF = n - wB;
+    if (wF === 0) break;
+    sumB += b * hist[b];
+    const mB = sumB / wB;
+    const mF = (totalSum - sumB) / wF;
+    const between = wB * wF * (mB - mF) * (mB - mF);
+    if (between > bestVar) {
+      bestVar = between;
+      otsuBin = b;
+    }
+  }
+  const threshold = Math.max((otsuBin + 1) * binW, noiseFloor * 1.4, 20);
+
+  const rawMask = new Uint8Array(mw * mh);
+  for (let i = 0; i < mw * mh; i++) if (dist[i] > threshold) rawMask[i] = 1;
+
+  // EROSION (1 pass): skuggbryggor mellan närliggande kort är 1–2 pixlar
+  // tunna i maskskalan och limmade förr ihop två kort till EN förkastad blob.
+  // En pixel med färre än 3 av 4 grannar i masken stryks; bboxen expanderas
+  // med en pixel efteråt så kortets verkliga kant inte tappas.
   const mask = new Uint8Array(mw * mh);
-  for (let i = 0; i < mw * mh; i++) {
-    const d0 = rgb[i * 3] - bg[0];
-    const d1 = rgb[i * 3 + 1] - bg[1];
-    const d2 = rgb[i * 3 + 2] - bg[2];
-    if (d0 * d0 + d1 * d1 + d2 * d2 > threshold) mask[i] = 1;
+  for (let y = 0; y < mh; y++) {
+    for (let x = 0; x < mw; x++) {
+      const i = y * mw + x;
+      if (!rawMask[i]) continue;
+      let neighbors = 0;
+      if (x > 0 && rawMask[i - 1]) neighbors++;
+      if (x < mw - 1 && rawMask[i + 1]) neighbors++;
+      if (y > 0 && rawMask[i - mw]) neighbors++;
+      if (y < mh - 1 && rawMask[i + mw]) neighbors++;
+      if (neighbors >= 3) mask[i] = 1;
+    }
   }
 
   // Sammanhängande komponenter (4-grannskap, iterativ stack — ingen rekursion).
@@ -579,10 +639,11 @@ export function detectCardRegions(
     .sort((a, b) => b.area - a.area)
     .slice(0, maxRegions)
     .map((b) => ({
-      x: b.minX * inv,
-      y: b.minY * inv,
-      w: (b.maxX - b.minX + 1) * inv,
-      h: (b.maxY - b.minY + 1) * inv,
+      // ±1 maskpixel: kompenserar erosionen så kortets verkliga kant kommer med.
+      x: Math.max(0, (b.minX - 1) * inv),
+      y: Math.max(0, (b.minY - 1) * inv),
+      w: Math.min(width, (b.maxX - b.minX + 3) * inv),
+      h: Math.min(height, (b.maxY - b.minY + 3) * inv),
     }));
 }
 
