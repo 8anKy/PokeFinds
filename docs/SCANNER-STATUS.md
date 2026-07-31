@@ -325,6 +325,19 @@ optimering, inte dagens).
 **Kostnadsform**: +~350 B upp per ruta (7:e varianten), +1 sökning à ~10 ms
 server-CPU, 0 nytt residentminne, 0 API-kostnad, Neon-vägen orörd.
 
+**FAS 3 MÄTT SAMMA KVÄLL — NEGATIVT, DEFERRED**: `rerank-eval.ts` (100 frågor,
+kalibrerad skärmbenchmark): triw topp-1 är redan 92,0 % och topp-15 98,0 % →
+takhöjden för EN PERFEKT omrankning är 6,0 procentenheter. Den finkorniga
+proxyn (2816-dim gradient, 4× produktionens) FÖRLORAR i stället: ren fin 85,0 %,
+triw+0,5·fin 91,0 % — båda UNDER baslinjen. Samma fysik som "finare rutnät är
+sämre": degraderingen förstör findetaljerna själva, så en robust kortlista
+räddar dem inte — och ORB/RANSAC på ~250 px katalogbilder mot moiré-frågor
+möter samma vägg. Produktionskostnaden (kandidatbilder finns inte på servern:
+CDN-hämtning ~15 bilder/scan, ELLER ~58 MB int8 resident för förberäknade
+findeskriptorer) är dessutom fel riktning när minne är notan. **Återöppnas
+BARA om Fas 0-facit visar att DESKRIPTOR-hinken dominerar OCH idén överlever
+degradering (mellanskala-struktur, inte findetalj).**
+
 **FAS 2/3 (mätverktyg klara, INTE byggda i produktion)**:
 `scripts/art-audit/augment-eval.ts` mäter augmenterade multi-referenser
 (recall-per-MB; +25 MB resident per variant — ägarbeslut, och syntetiska tal är

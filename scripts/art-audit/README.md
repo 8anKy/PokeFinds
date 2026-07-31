@@ -74,6 +74,22 @@ varje korts bästa likhet. Mätt med `inset-sweep.ts`:
 Profilen `padded` och `PAD=`-övrestyrningen finns just för att den här klassen av
 miss inte ska kunna passera tyst igen.
 
+## Fas-planens mätverktyg (2026-07-31)
+
+Efter djupresearchen (TinEye-planen) tillkom fyra verktyg. Alla kräver
+screen-eval:s referenscache (`.spike/screen-refs`, byggs av `screen-eval.ts`):
+
+```bash
+QUERIES=40 PADS=0.06 npx tsx scripts/art-audit/rectify-eval.ts       # Fas 1: quad-rätning
+ASYM=1 ROT=6 QUERIES=40 PADS=0.06,0.10 npx tsx …/rectify-eval.ts     # rätningens målfall
+AUG=2 QUERIES=100 npx tsx scripts/art-audit/augment-eval.ts          # Fas 2: multi-referens (recall-per-MB)
+QUERIES=100 npx tsx scripts/art-audit/rerank-eval.ts                 # Fas 3: omranknings-takhöjd
+PAIRS=1000 npx tsx scripts/art-audit/quant-check.ts                  # int8-störningen (mätt: ofarlig)
+```
+
+Facit-mätningen på RIKTIGA skanningar (det enda som inte är ett tak) bor inte
+här utan i `scripts/scanner-scoreboard.ts` (Fas 0) — se docs/SCANNER-STATUS.md.
+
 ## Går det att LITA på en bildträff? (`margin-audit.ts`)
 
 Modellens namn är opålitligt på skärmfotograferingar, så bilden behöver ibland
