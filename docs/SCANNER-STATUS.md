@@ -386,15 +386,27 @@ som inte är ett tak:
 - 7:e varianten (quad) verifierad live i diagnostiken: nya skanningar bär
   7+7+7+7 varianter/ruta (6 där detekteringen avböjde = failar öppet).
 
-Skärmfoto-populationen är ÄNNU OMÄTT med facit (ägaren tar den senare); de
-gamla 87 skanningarna ligger kvar omärkta i labels-filen (valfri bonusdata).
+**SKÄRMSESSIONEN SAMMA KVÄLL (n=17, ägarintygad)**: populationen som var
+0/6 för två dagar sedan är nu **16/17 rätt** — topp-1 94,1 %, topp-5 100 %,
+topp-15 100 %, trust-regeln 12/17 utlöst med 100 % precision. Gyarados·Deoxys,
+TG-korten och Base-Charizard — de förut omöjliga fallen — satt alla. Enda
+missen: Regirock ex DR 101 ↔ AH 107, ÄNNU ett samma-konst-omtryck (marginal
+0,007). Alla 4 missar över båda populationerna delar alltså EN mekanism.
+⚠️ Ärlig brasklapp: skärmfrågorna var produktbilder — i praktiken samma
+renders som referenserna, dvs ett gynnsamt fall; godtyckliga marknadsfoton
+ligger sannolikt mellan populationerna. Ninetales Base 12 var 1st
+EDITION-tryckningen: kortidentiteten var RÄTT (tryckning = produktnivå, väljs
+i syskonlistan) — märkt korrekt med not.
+
+De gamla 87 skanningarna ligger kvar omärkta i labels-filen (valfri bonusdata).
 
 ## Öppet — nästa steg
 
-0. **Skärmfoto-facit** (ägaren skannar från monitor + märker) — fysisk-
-   populationen är mätt, skärm är kvar. Och **omtryckssyskon-tie-breaken**
-   (de 3 verkliga missarna) är nästa gratis-fix att utforska när fler
-   skanningar bekräftat mönstret.
+0. **Omtryckssyskon-tie-breaken** — nu n=4, alla missar samma mekanism
+   (samma-konst-omtryck/nummer-tvilling + oläst nummer). Gratis-fix att
+   designa mot verkliga fall; margin 0,007–0,018 visar att bilden VET att den
+   inte kan skilja dem — frågan är vilken signal som ska få avgöra (set-symbol
+   läses inte i dag; "?"-märkning + syskonlistan är dagens beteende).
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.
    Hypotesen är att en rak ja/nej-fråga fungerar bättre än att förvänta sig ett tomt

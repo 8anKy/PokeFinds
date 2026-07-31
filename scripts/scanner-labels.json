@@ -1815,5 +1815,294 @@
       ]
     },
     "population": "physical"
+  },
+  "cms9es1us00211pcavvk5jrj2": {
+    "truth": "cmq9higu700n37z4tdghjs1gj",
+    "note": "ägaren intygade valet rätt (skärmsession 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:42:14.500Z",
+      "modell": " / ",
+      "valdes": "cmq9higu700n37z4tdghjs1gj = Mega Meganium ex 10 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9higu700n37z4tdghjs1gj = Mega Meganium ex 10 (Ascended Heroes) (0.835)",
+        "cmq9hixjp026x7z4tcm1lyqma = Mega Gardevoir ex 178 (Mega Evolution) (0.571)",
+        "cmq9hqpi60ego4r9p2xw3khlw = Bramblin 23 (Paldea Evolved) (0.571)",
+        "cmq9hubm70rjz4r9p2x6fvwtf = Single Strike Urshifu V 85 (Battle Styles) (0.571)",
+        "cmq9hrlmf0ir24r9pue8wcfua = Serperior V TG13 (Silver Tempest Trainer Gallery) (0.567)"
+      ]
+    },
+    "population": "screen"
+  },
+  "cms9erggm001u1pca7m68tq2o": {
+    "truth": "cmq9higt100lp7z4t5r27om03",
+    "note": "ägarrättelse: Regirock ex 107 (Ascended Heroes), inte Destined Rivals 101 — omtryckssyskon igen",
+    "hint": {
+      "at": "2026-07-31T20:41:46.775Z",
+      "modell": "Regirock ex / ",
+      "valdes": "cmqa3836d00gr124sjoejokkd = Regirock ex 101 (Destined Rivals)",
+      "bildTopp5": [
+        "cmqa3836d00gr124sjoejokkd = Regirock ex 101 (Destined Rivals) (0.852)",
+        "cmq9higt100lp7z4t5r27om03 = Regirock ex 107 (Ascended Heroes) (0.845)",
+        "cmq9hoeww09b14r9ppjhnuyed = Wugtrio ex 60 (Temporal Forces) (0.598)",
+        "cmq9hqpfu0edo4r9p4bn6ud8d = Forretress ex 5 (Paldea Evolved) (0.597)",
+        "cmq9hp8a40dv54r9pnmykyd9f = Koraidon ex 124 (Obsidian Flames) (0.597)"
+      ]
+    },
+    "population": "screen"
+  },
+  "cms9eqmnq001q1pcac77bu062": {
+    "truth": "cmq9higu000mv7z4t3n088sqc",
+    "note": "ägaren intygade valet rätt (skärmsession 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:41:08.150Z",
+      "modell": " / ",
+      "valdes": "cmq9higu000mv7z4t3n088sqc = Mega Eelektross ex 61 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9higu000mv7z4t3n088sqc = Mega Eelektross ex 61 (Ascended Heroes) (0.830)",
+        "cmq9hrxa20kxb4r9pldau25ga = Crobat V TG20 (Lost Origin Trainer Gallery) (0.589)",
+        "cmq9huwt30uui4r9pc6781n6u = Crobat V 104 (Darkness Ablaze) (0.588)",
+        "cmq9hrlmb0iqw4r9pp488n2gt = Kricketune V TG12 (Silver Tempest Trainer Gallery) (0.588)",
+        "cmq9hugyo0ss14r9pytmymk07 = Crobat V 44 (Shining Fates) (0.585)"
+      ]
+    },
+    "population": "screen"
+  },
+  "cms9eqalv001m1pcagrz5sc69": {
+    "truth": "cmq9higum00nn7z4t6uk3tphk",
+    "note": "ägaren intygade valet rätt (skärmsession 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:40:52.531Z",
+      "modell": " / ",
+      "valdes": "cmq9higum00nn7z4t6uk3tphk = Azumarill ex 84 (Ascended Heroes)",
+      "bildTopp5": [
+        "cmq9higum00nn7z4t6uk3tphk = Azumarill ex 84 (Ascended Heroes) (0.859)",
+        "cmq9hyua314bo4r9powmu881e = Xerneas ◇ 144 (Lost Thunder) (0.619)",
+        "cmq9hn49b04574r9pwil81wp3 = Lillie's Cutiefly 66 (Journey Together) (0.610)",
+        "cmq9hvecj0xir4r9p378x9dnr = Hatterene V SWSH055 (SWSH Black Star Promos) (0.609)",
+        "cmq9hnrwl05w94r9pheogzhyq = Azumarill 74 (Surging Sparks) (0.609)"
+      ]
+    },
+    "population": "screen"
+  },
+  "cms9epgvp001i1pcap4xmld5e": {
+    "truth": "cmq9ihiia2h2j4r9pq608zcvj",
+    "note": "ägaren: fysiska/skannade kortet var 1st EDITION-tryckningen — samma Card-rad (tryckning = produktnivå, väljs i syskonlistan); kortidentiteten var rätt",
+    "hint": {
+      "at": "2026-07-31T20:40:14.005Z",
+      "modell": "Ninetales / 12/102",
+      "valdes": "cmq9ihiia2h2j4r9pq608zcvj = Ninetales 12 (Base)",
+      "bildTopp5": [
+        "cmq9ihiia2h2j4r9pq608zcvj = Ninetales 12 (Base) (0.827)",
+        "cmq9ih9xl2fn34r9pliajgcdq = Ninetales 13 (Base Set 2) (0.765)",
+        "cmq9igdwk2bri4r9pgz3ue5nm = Ninetales 17 (Legendary Collection) (0.745)",
+        "cmq9i1b5i1bcv4r9pgge4ys2y = Ninetales 15 (Evolutions) (0.737)",
+        "cmq9igdxs2bsu4r9pfajn6vb2 = Hypno 25 (Legendary Collection) (0.660)"
+      ]
+    },
+    "population": "screen"
+  },
+  "cms9eoxh0001e1pcaf7z0gzdy": {
+    "truth": "cmq9ihihb2h174r9pyz13y6x1",
+    "note": "ägaren intygade valet rätt (skärmsession 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:39:48.852Z",
+      "modell": "Charizard / ",
+      "valdes": "cmq9ihihb2h174r9pyz13y6x1 = Charizard 4 (Base)",
+      "bildTopp5": [
+        "cmq9ihihb2h174r9pyz13y6x1 = Charizard 4 (Base) (0.856)",
+        "cmq9ih9we2fll4r9p6fw5pn8j = Charizard 4 (Base Set 2) (0.807)",
+        "cmq9igdug2bp64r9p395r6h24 = Charizard 3 (Legendary Collection) (0.806)",
+        "cmq9ih72u2f784r9pup8jpgco = Dark Alakazam 1 (Team Rocket) (0.722)",
+        "cmq9ih4kj2end4r9pgvwthyfv = Sabrina's Gengar 14 (Gym Heroes) (0.722)"
+      ]
+    },
+    "population": "screen"
+  },
+  "cms9env9i00191pcasuluzoa3": {
+    "truth": "cmq9hrx7k0ku54r9p846vg51l",
+    "note": "ägaren intygade valet rätt (skärmsession 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:38:59.334Z",
+      "modell": " / ",
+      "valdes": "cmq9hrx7k0ku54r9p846vg51l = Parasect TG01 (Lost Origin Trainer Gallery)",
+      "bildTopp5": [
+        "cmq9hrx7k0ku54r9p846vg51l = Parasect TG01 (Lost Origin Trainer Gallery) (0.853)",
+        "cmq9hr6v00gqt4r9p2xh2116g = Mew GG10 (Crown Zenith Galarian Gallery) (0.589)",
+        "cmq9id740228b4r9phe8euo4a = Absol 18 (Holon Phantoms) (0.584)",
+        "cmqcdluop00hfww28gyj7ap3y = Mega Diancie ex 282 (Ascended Heroes) (0.569)",
+        "cmq9hvedq0xk94r9pnfh69jnh = Eternatus V SWSH064 (SWSH Black Star Promos) (0.568)"
+      ]
+    },
+    "population": "screen"
+  },
+  "cms9enk3z00151pca8y2a4zfq": {
+    "truth": "cmq9hrx8h0kv54r9pr82r9r54",
+    "note": "ägaren intygade valet rätt (skärmsession 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:38:44.880Z",
+      "modell": " / ",
+      "valdes": "cmq9hrx8h0kv54r9pr82r9r54 = Banette TG07 (Lost Origin Trainer Gallery)",
+      "bildTopp5": [
+        "cmq9hrx8h0kv54r9pr82r9r54 = Banette TG07 (Lost Origin Trainer Gallery) (0.873)",
+        "cmq9igag12azt4r9ptfd40064 = Machamp 16 (Expedition Base Set) (0.598)",
+        "cmq9igauh2bin4r9pj6e8idqc = Shellder 129 (Expedition Base Set) (0.588)",
+        "cmq9ifoek2aul4r9p2ibta1aq = Tentacruel H26 (Aquapolis) (0.588)",
+        "cmq9ifodk2at34r9pewgx0dqg = Muk H17 (Aquapolis) (0.586)"
+      ]
+    },
+    "population": "screen"
+  },
+  "cms9enaa100111pcaos39ctlz": {
+    "truth": "cmq9hrx7z0kuh4r9p64r2q5nn",
+    "note": "ägaren intygade valet rätt (skärmsession 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:38:32.137Z",
+      "modell": " / ",
+      "valdes": "cmq9hrx7z0kuh4r9p64r2q5nn = Charizard TG03 (Lost Origin Trainer Gallery)",
+      "bildTopp5": [
+        "cmq9hrx7z0kuh4r9p64r2q5nn = Charizard TG03 (Lost Origin Trainer Gallery) (0.808)",
+        "cmq9hugwa0sp14r9pa15byza7 = Chewtle 26 (Shining Fates) (0.577)",
+        "cmq9hrlml0ir84r9plwq2sl44 = Blaziken V TG14 (Silver Tempest Trainer Gallery) (0.576)",
+        "cmq9hthp90lrl4r9pdsi87s9h = Glaceon 38 (Astral Radiance) (0.571)",
+        "cmq9hthpf0lrr4r9p55tv8430 = Origin Forme Palkia V 39 (Astral Radiance) (0.567)"
+      ]
+    },
+    "population": "screen"
+  },
+  "cms9emy2z000x1pcanhktvk6w": {
+    "truth": "cmrrefif900cn173zi8qz1ei2",
+    "note": "ägaren intygade valet rätt (skärmsession 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:38:16.331Z",
+      "modell": " / ",
+      "valdes": "cmrrefif900cn173zi8qz1ei2 = Mega Zeraora ex 114 (Pitch Black)",
+      "bildTopp5": [
+        "cmrrefif900cn173zi8qz1ei2 = Mega Zeraora ex 114 (Pitch Black) (0.853)",
+        "cmq9idlya248c4r9pll5o9273 = Professor Elm's Training Method 89 (Unseen Forces) (0.558)",
+        "cmqa3agfn0592124s0rb44u1x = Darkrai ◇ 77 (Ultra Prism) (0.551)",
+        "cmq9hn89t05eq4r9puyllibjh = Vaporeon ex 149 (Prismatic Evolutions) (0.548)",
+        "cmq9icwev21i24r9py0vduqga = Professor Elm's Training Method 79 (Dragon Frontiers) (0.546)"
+      ]
+    },
+    "population": "screen"
+  },
+  "cms9emlvh000t1pcang0x5ex4": {
+    "truth": "cmrrefjm300d3173z73mcbk1o",
+    "note": "ägaren intygade valet rätt (skärmsession 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:38:00.509Z",
+      "modell": " / ",
+      "valdes": "cmrrefjm300d3173z73mcbk1o = Gladion's Final Battle 118 (Pitch Black)",
+      "bildTopp5": [
+        "cmrrefjm300d3173z73mcbk1o = Gladion's Final Battle 118 (Pitch Black) (0.697)",
+        "cmq9hu6om0qfa4r9p78h51wse = Shadow Rider Calyrex V 74 (Chilling Reign) (0.576)",
+        "cmqa3aagu04od124s06ggcy79 = Rotom V SWSH257 (SWSH Black Star Promos) (0.574)",
+        "cmq9htj880mng4r9p4l3e7ix5 = Boltund V TG13 (Brilliant Stars Trainer Gallery) (0.570)",
+        "cmq9htckk0liw4r9prria3d8n = Galarian Articuno V TG16 (Astral Radiance Trainer Gallery) (0.569)"
+      ]
+    },
+    "population": "screen"
+  },
+  "cms9emblw000p1pcadlnbu542": {
+    "truth": "cmrrefjwr00d7173znj6wp4u2",
+    "note": "ägaren intygade valet rätt (skärmsession 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:37:47.204Z",
+      "modell": " / ",
+      "valdes": "cmrrefjwr00d7173znj6wp4u2 = Gwynn 119 (Pitch Black)",
+      "bildTopp5": [
+        "cmrrefjwr00d7173znj6wp4u2 = Gwynn 119 (Pitch Black) (0.739)",
+        "cmq9hrvvm0k7g4r9prrrnqh6c = Enamorus V 82 (Lost Origin) (0.588)",
+        "cmq9hvew70y794r9p2wxk0b5t = Sylveon V SWSH202 (SWSH Black Star Promos) (0.584)",
+        "cmqcdluop00hfww28gyj7ap3y = Mega Diancie ex 282 (Ascended Heroes) (0.580)",
+        "cmq9hthmi0lo34r9po6i07u42 = Hisuian Lilligant V 17 (Astral Radiance) (0.580)"
+      ]
+    },
+    "population": "screen"
+  },
+  "cms9em3v6000l1pca1yi731rv": {
+    "truth": "cmrrefj0l00cv173zzzsvminq",
+    "note": "ägaren intygade valet rätt (skärmsession 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:37:37.171Z",
+      "modell": " / ",
+      "valdes": "cmrrefj0l00cv173zzzsvminq = Mega Darkrai ex 116 (Pitch Black)",
+      "bildTopp5": [
+        "cmrrefj0l00cv173zzzsvminq = Mega Darkrai ex 116 (Pitch Black) (0.842)",
+        "cmq9i14bg1ahh4r9pt583oy8e = Umbreon & Darkrai-GX SM241 (SM Black Star Promos) (0.595)",
+        "cmq9ho9qr08zu4r9pyxbly21j = Lana's Aid 219 (Twilight Masquerade) (0.577)",
+        "cmq9idlya248c4r9pll5o9273 = Professor Elm's Training Method 89 (Unseen Forces) (0.577)",
+        "cmq9hvybj10q24r9pxxl0w9si = Mewtwo & Mew-GX 71 (Unified Minds) (0.576)"
+      ]
+    },
+    "population": "screen"
+  },
+  "cms9eluzw000h1pca6hjj2y9h": {
+    "truth": "cmrrefjbb00cz173zs0bqwwac",
+    "note": "ägaren intygade valet rätt (skärmsession 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:37:25.676Z",
+      "modell": " / ",
+      "valdes": "cmrrefjbb00cz173zs0bqwwac = Morpeko ex 117 (Pitch Black)",
+      "bildTopp5": [
+        "cmrrefjbb00cz173zs0bqwwac = Morpeko ex 117 (Pitch Black) (0.871)",
+        "cmrrefbiq00a3173z0wtbozti = Dhelmise 91 (Pitch Black) (0.590)",
+        "cmq9hjad303pb7z4tss0e2zfa = Bisharp 143 (Black Bolt) (0.575)",
+        "cmq97moaq00a3xurqqadwlxk7 = Umbreon ex 161 (Prismatic Evolutions) (0.574)",
+        "cmq9hr71b0gyh4r9p3f6upquh = Hisuian Zoroark VSTAR GG56 (Crown Zenith Galarian Gallery) (0.565)"
+      ]
+    },
+    "population": "screen"
+  },
+  "cms9elnnp000d1pcajstvfxil": {
+    "truth": "cmrrefipx00cr173zcfxea4he",
+    "note": "ägaren intygade valet rätt (skärmsession 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:37:16.165Z",
+      "modell": " / ",
+      "valdes": "cmrrefipx00cr173zcfxea4he = Mega Chandelure ex 115 (Pitch Black)",
+      "bildTopp5": [
+        "cmrrefipx00cr173zcfxea4he = Mega Chandelure ex 115 (Pitch Black) (0.843)",
+        "cmq9htckk0liw4r9prria3d8n = Galarian Articuno V TG16 (Astral Radiance Trainer Gallery) (0.571)",
+        "cmq9htni90mwz4r9pfafqftso = Lumineon V 40 (Brilliant Stars) (0.569)",
+        "cmq9ho9px08yu4r9pprfhx9p1 = Wellspring Mask Ogerpon ex 213 (Twilight Masquerade) (0.568)",
+        "cmq9ih7472f924r9pubncswcg = Dark Slowbro 12 (Team Rocket) (0.567)"
+      ]
+    },
+    "population": "screen"
+  },
+  "cms9el9jy00091pcattzwqhcv": {
+    "truth": "cmq9idsgk25124r9p8uvm8bj7",
+    "note": "ägaren intygade valet rätt (skärmsession 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:36:57.886Z",
+      "modell": "Mirachi / ",
+      "valdes": "cmq9idsgk25124r9p8uvm8bj7 = Jirachi 9 (Deoxys)",
+      "bildTopp5": [
+        "cmq9idsgk25124r9p8uvm8bj7 = Jirachi 9 (Deoxys) (0.747)",
+        "cmq9idm4324fo4r9pi4elwh5p = Unown P (Unseen Forces) (0.663)",
+        "cmq9iewjk27ed4r9py6k1db6y = Team Magma's Aron 59 (Team Magma vs Team Aqua) (0.662)",
+        "cmq9id73p227z4r9pfprn5jiw = Rayquaza δ 16 (Holon Phantoms) (0.659)",
+        "cmq9iekm426vu4r9pnysc4sva = Swalot 50 (Hidden Legends) (0.658)"
+      ]
+    },
+    "population": "screen"
+  },
+  "cms9eki4900051pcafnv1nh5r": {
+    "truth": "cmq9idsgf250w4r9p8cq6nt3g",
+    "note": "ägaren intygade valet rätt (skärmsession 07-31)",
+    "hint": {
+      "at": "2026-07-31T20:36:22.329Z",
+      "modell": "Gyarados / ",
+      "valdes": "cmq9idsgf250w4r9p8cq6nt3g = Gyarados 8 (Deoxys)",
+      "bildTopp5": [
+        "cmq9idsgf250w4r9p8cq6nt3g = Gyarados 8 (Deoxys) (0.649)",
+        "cmq9icawc1y504r9p14ii72do = Huntail 42 (Great Encounters) (0.632)",
+        "cmq9ic18f1wql4r9pn2kq1h5v = Froslass 3 (Legends Awakened) (0.630)",
+        "cmq9i57751jhz4r9plfrrqeot = Seismitoad 42 (Legendary Treasures) (0.626)",
+        "cmq9i8wkk1shy4r9p9nswhomg = Politoed 7 (HS—Unleashed) (0.621)"
+      ]
+    },
+    "population": "screen"
   }
 }
