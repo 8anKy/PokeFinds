@@ -386,8 +386,22 @@ export function artConfidentFrom(
  * vann med 0,568 mot rätt korts 0,313. Ett påhittat tal träffar en riktig rad
  * förr eller senare — katalogen har 20 563 kort.
  */
+/** Bilden har en ÅSIKT (inte ett bevis): tillräckligt för att dämpa ett namn
+ *  som inte känns igen bland dess kandidater, men INTE för att vinna själv —
+ *  det kräver fortfarande ART_TRUST_*. Marginalgolvet skiljer "bilden pekar
+ *  någonstans" från "bilden singlar slant" (Rayquaza-regressionen: 0,011). */
+const ART_OPINION_SCORE = 0.6;
+const ART_OPINION_MARGIN = 0.04;
 const NAME_AGREE_MIN = 0.5;
-const NAME_DISTRUST = 0.25;
+/** Vikten ett MISSTROTT modellsvar (namn OCH nummer) behåller.
+ *  0,25 → 0,20 (2026-08-01): vid 0,25 vann ett hallucinerat men EXAKT kortnamn
+ *  (1,0 + EXACT_NAME_WEIGHT = 1,05 × 0,25 = 0,263) fortfarande över bildens
+ *  starkaste kandidat (0,722 × ART_WEIGHT = 0,217) — dvs misstron var utmätt så
+ *  att den inte kunde ändra ett enda utfall. MÄTT på facitsetet: 46/52 → 48/52,
+ *  noll nya fel, och utfallet är IDENTISKT hela vägen ner till 0,10 (en hylla,
+ *  ingen knivsegg). ⛔ Nollas fortfarande aldrig: i ~7 % av fallen är det
+ *  BILDEN som har fel, och då ska namnet finnas kvar. */
+const NAME_DISTRUST = 0.2;
 
 /**
  * RAMGENERATION → årsintervall. Modellen klassar kortets ram-DESIGN (gul ram,
@@ -687,8 +701,24 @@ export async function matchCards(
   // 0,271. Ett korrekt namn kastades bort på en bildträff som enligt vår egen
   // mätning inte gick att lita på. Bara en bildträff som klarar BÅDE poäng och
   // marginal får ifrågasätta namnet.
+  // …MEN "bara en SÄKER bildträff får ifrågasätta namnet" lämnade ett hål som
+  // bulk-läget föll rakt igenom (2026-08-01): en cell som INTE är säker går
+  // till vision, och där väger modellens namn FULLT utan någon korsvalidering
+  // alls. Namnet är alltså antingen irrelevant (säker bild ⇒ vision hoppas) or
+  // oemotsagt — aldrig vägt. MÄTT på ägarens bordsfångst: bilden hade rätt i
+  // 6 av 6 celler, modellens namn i 1 av 5, och de hallucinerade namnen
+  // ("Moobury", "Nidorina", "Cyndaquil", "Groudon") vann varje gång.
+  // Mellanläget är därför: bilden behöver inte vara BEVISAD för att få
+  // ifrågasätta ett namn den inte känner igen — den behöver bara ha en ÅSIKT.
+  // Rayquaza-fallet som motiverade det strikta villkoret hade marginal 0,011,
+  // dvs ingen åsikt alls; bulk-cellerna låg på 0,047–0,096.
+  const artOpinion = (() => {
+    if (!artScores?.size) return false;
+    const s = [...artScores.values()].sort((a, b) => b - a);
+    return s[0] >= ART_OPINION_SCORE && s[0] - (s[1] ?? 0) >= ART_OPINION_MARGIN;
+  })();
   let nameWeight = 1;
-  if (query && artConfidentCardId && artScores?.size) {
+  if (query && (artConfidentCardId || artOpinion) && artScores?.size) {
     let bestNameAgreement = 0;
     for (const id of artScores.keys()) {
       const card = byId.get(id);
@@ -762,7 +792,13 @@ export async function matchCards(
         // straffade secret rares systematiskt: de trycks "199/165", så totalen
         // säger med flit inte samma sak som setets storlek. En nummerträff är
         // alltid bevis — bara svagare när totalen motsäger den.
-        score += 0.25;
+        // ⛔ MÅSTE dämpas som de två grenarna ovan (2026-08-01): den här glömde
+        // `nameWeight` och blev därmed den ENDA vägen för ett misstrott
+        // modellsvar att vinna ändå. MÄTT i produktion: modellen hittade på
+        // "Groudon 35/95" på en Probopass, namnet dämpades korrekt till 0,25 —
+        // och Rhydon 35 vann på den odämpade nummerbonusen (0,346 mot bildens
+        // 0,217). Samma modellsvar, samma misstro, alla grenar.
+        score += 0.25 * nameWeight;
       }
     }
     // Explicit typad — `satisfies` hade smalnat slug/estimatedValue till `null`,
@@ -902,7 +938,14 @@ export async function matchCards(
   const tierOf = (c: ScanCandidate): number => {
     if (c.cardId === winner.cardId && c.productId === winner.productId) return 0;
     if (c.cardId === winner.cardId) return 1;
+    // ⛔ Och när namnet är MISSTROTT är dess syskon per definition en lista över
+    // fel kort — då räcker det att kortet är en bildkandidat alls. ART_STRONG
+    // (0,75) är ett absolut golv som bulk-cellerna missar med marginal: en
+    // Probopass med bildpoäng 0,722 hamnade i "övrigt" och trängdes ut ur
+    // listan av tolv Groudon-syskon, så användaren kunde inte ens VÄLJA rätt
+    // kort (2026-08-01).
     if ((artScores?.get(c.cardId) ?? 0) >= ART_STRONG) return 2;
+    if (nameWeight !== 1 && artScores?.has(c.cardId)) return 2;
     if (c.name.toLowerCase() === winnerName) return 3;
     return 4;
   };

@@ -631,6 +631,57 @@ medelvärdesbildad) — det här är ett mätbarhetsfix, inte en detektorändrin
 Nästa runda kan `REGION_MASK_MAX` = 480 testas mot riktig data och shippas om
 den vinner. **Tills dess: lägg några millimeter mellan korten.**
 
+## FÄLTRUNDA 6 (2026-08-01): detekteringen är löst — MODELLEN var felet
+
+Alla sex korten hittades, men **fyra av sex identifierades fel**. Diagnostiken
+(fem vision-anrop, ett art-säkert) visar att felet INTE satt i bilden:
+
+| kort (facit) | modellen sa | valdes | bilden sa |
+|---|---|---|---|
+| Mudbray | "Moobury" 40/102 | Machoke 40 | Mudbray 107 · 0,766 |
+| TR's Nidorino | "Nidorina" | Nidorina 56 | Nidorino 118 · 0,818 |
+| Crustle | "Crustle" | Crustle 12 ✔ | Crustle 12 · 0,676 |
+| Camerupt | "Cyndaquil" | Cyndaquil 23 | Camerupt 28 · 0,676 |
+| Probopass | "Groudon" 35/95 | Groudon 29 | Probopass 98 · 0,722 |
+
+**Bilden hade rätt i 6 av 6 celler, modellens namn i 1 av 5.** Orsaken är att
+en bulk-cell ger Haiku ett kort på ~240 px (mot ~1568 px när ett kort fyller
+rutan) — den läser HP rätt men hittar på NAMNET. Tre buggar lät det vinna:
+
+1. **Korsvalideringen av namnet kunde inte ens fira.** Den var grindad på
+   `artConfidentCardId`, dvs bara när bilden är BEVISAD — men är bilden bevisad
+   hoppas vision över helt. Namnet var alltså antingen irrelevant eller
+   oemotsagt, aldrig VÄGT. Nu räcker det att bilden har en ÅSIKT
+   (`ART_OPINION_*`: poäng ≥ 0,6 och marginal ≥ 0,04) för att få ifrågasätta ett
+   namn den inte känner igen. Marginalgolvet skiljer det från Rayquaza-fallet
+   som motiverade det strikta villkoret (marginal 0,011 = ingen åsikt).
+2. **Nummerbonusen glömde dämpningen i EN av tre grenar.** Grenen "numret
+   stämmer men totalen skiljer" la till 0,25 UTAN `nameWeight`, och blev därmed
+   den enda vägen för ett misstrott modellsvar att vinna ändå: "Groudon 35/95"
+   på en Probopass gav Rhydon 35 poängen 0,346 mot bildens 0,217. Samma
+   modellsvar, samma misstro, alla grenar.
+3. **Misstron var utmätt.** Ett hallucinerat men EXAKT kortnamn gav
+   1,05 × 0,25 = 0,263 och slog bildens bästa kandidat (0,722 × 0,3 = 0,217) —
+   dvs `NAME_DISTRUST` kunde aldrig ändra ett utfall. 0,25 → **0,20**. MÄTT:
+   utfallet är IDENTISKT hela vägen ner till 0,10 (en hylla, ingen knivsegg).
+4. **Rätt kort föll ur listan.** Skiktregeln lyfter bildkandidater över
+   namn-syskonen först vid `ART_STRONG` = 0,75; Probopass låg på 0,722 och
+   hamnade i "övrigt", utträngd av tolv Groudon-syskon — användaren kunde inte
+   ens VÄLJA rätt kort. När namnet är misstrott räcker det nu att kortet är en
+   bildkandidat alls.
+
+**MÄTT på facitsetet** (`scripts/scanner-choice-replay.ts`, nu 52 märkta
+skanningar — ägarens fem bulk-celler tillagda): **46/52 → 48/52, noll nya fel.**
+Bulk-cellerna gick från 1/5 till 3/5 rätt.
+
+⚠️ **KVAR (2 av 5)**: "Nidorina" på Team Rocket's Nidorino landar på
+namnlikhet exakt 0,50 = `NAME_AGREE_MIN`, så misstron firar inte (modellen
+namngav ett ANNAT verkligt kort vars namn matchar bättre än det rätta kortets).
+"Cyndaquil" på Camerupt är en praktiskt taget jämn poäng (0,239 mot 0,238)
+mellan två BILDkandidater. Båda kräver fler facitmärkta fall innan man rör
+trösklarna — att tuna dem på ett fall vardera är precis det fältrunda 2 gjorde
+fel.
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.

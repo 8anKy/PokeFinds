@@ -2189,5 +2189,65 @@
       ]
     },
     "population": "physical"
+  },
+  "cmsavyoco00057fnywtqtig50": {
+    "truth": "cmqa3837700hr124szg1punqa",
+    "note": "bulk-cell; facit från ägaren 2026-08-01, verifierad mot cellutsnittet",
+    "hint": {
+      "at": "2026-08-01T21:31:03.240Z",
+      "modell": "Moobury / 40/102",
+      "valdes": "cmq9i8rx71rr24r9peetjmeb0 = Machoke 40",
+      "bildTopp5": [
+        "Mudbray 107 0.766 | Mienfoo 83 0.670 | Croagunk 78 0.646"
+      ]
+    }
+  },
+  "cmsavyq3w00077fny54xxgses": {
+    "truth": "cmqa3839o00jl124s0ac1yv0l",
+    "note": "bulk-cell; facit från ägaren 2026-08-01, verifierad mot cellutsnittet",
+    "hint": {
+      "at": "2026-08-01T21:31:05.516Z",
+      "modell": "Nidorina / ",
+      "valdes": "cmq9iciu51zdx4r9pgixomdbj = Nidorina 56",
+      "bildTopp5": [
+        "Team Rocket's Nidorino 118 0.818 | Team Rocket's Weezing 126 0.738 | Morgrem 95 0.725"
+      ]
+    }
+  },
+  "cmsavyrqx00097fny2sbev012": {
+    "truth": "cmqa382q3001x124sqzziwd3d",
+    "note": "bulk-cell; facit från ägaren 2026-08-01, verifierad mot cellutsnittet",
+    "hint": {
+      "at": "2026-08-01T21:31:07.633Z",
+      "modell": "Crustle / ",
+      "valdes": "cmqa382q3001x124sqzziwd3d = Crustle 12",
+      "bildTopp5": [
+        "Crustle 12 0.676 | Karrablast 9 0.648 | Cornerstone Mask Ogerpon 111 0.643"
+      ]
+    }
+  },
+  "cmsavyvea000b7fnybspyz0v0": {
+    "truth": "cmq9higxc00r37z4thgnulfrb",
+    "note": "bulk-cell; facit från ägaren 2026-08-01, verifierad mot cellutsnittet",
+    "hint": {
+      "at": "2026-08-01T21:31:12.370Z",
+      "modell": "Cyndaquil / ",
+      "valdes": "cmq9hthn90lp34r9pgatkq5l3 = Cyndaquil 23",
+      "bildTopp5": [
+        "Camerupt 28 0.676 | Pansear 21 0.604 | Salandit 23 0.602"
+      ]
+    }
+  },
+  "cmsavyxmj000d7fny3dz7u9vb": {
+    "truth": "cmqa3836000g9124s85c7pk9p",
+    "note": "bulk-cell; facit från ägaren 2026-08-01, verifierad mot cellutsnittet",
+    "hint": {
+      "at": "2026-08-01T21:31:15.259Z",
+      "modell": "Groudon / 35/95",
+      "valdes": "cmq9ic1bu1wux4r9pfe67kcy0 = Groudon 29",
+      "bildTopp5": [
+        "Probopass 98 0.722 | Toxicroak 24 0.675 | Barboach 50 0.649"
+      ]
+    }
   }
 }
