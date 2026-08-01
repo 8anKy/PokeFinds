@@ -680,8 +680,8 @@
     "removeScan": "Ta bort skanning",
     "close": "Stäng",
     "bulkMode": "Bulk-läge · flera kort",
-    "bulkHint": "Sprid ut korten med lite mellanrum och tryck av — de hittas automatiskt",
-    "bulkNoCards": "Inga kort hittades — sprid ut dem med lite mellanrum mot en enfärgad yta",
+    "bulkHint": "Håll kameran rakt ovanför korten, sprid ut dem med lite mellanrum och tryck av",
+    "bulkNoCards": "Inga kort hittades — fota rakt uppifrån, med lite mellanrum, mot en enfärgad yta",
     "bulkFound": "Hittade {count} kort"
   },
   "Grading": {
