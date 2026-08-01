@@ -494,6 +494,14 @@ const REGION_SIZE_MAX_RATIO = 2.5;
  *  Spannet har därmed ~1,3x marginal åt båda håll till närmaste äkta kort. */
 const REGION_ASPECT_REL_MIN = 0.65;
 const REGION_ASPECT_REL_MAX = 1.55;
+/** UNDERLAGET GÅR INTE ATT SKILJA FRÅN KORTEN: största FÖRKASTADE blobben som
+ *  andel av bilden. På ett mönstrat underlag stoppas bakgrundsfyllningen av
+ *  mönstret, underlaget blir självt förgrund och korten hamnar INUTI den massan
+ *  — osynliga. MÄTT: fungerande fångster 3,3–11,2 %, mönstrade underlag
+ *  17,4–54,7 %. 14 % ligger med ~25 % marginal åt båda håll.
+ *  ⛔ Bara FÖRKASTADE blobbar räknas: ett enda kort fotat nära är också en stor
+ *  blob, men den godkänns och ska inte larma. */
+const REGION_BUSY_MAX_BLOB = 0.14;
 /** Fyllnadsgrad relativt kortklustrets median. MÄTT: äkta kort ligger på
  *  0,92–1,01 av fältets median, skräp (byxveck, skuggor, skärmpaneler) på
  *  högst 0,72. 0,85 ger ~8 % marginal ner till sämsta äkta kort och ~18 % upp
@@ -516,6 +524,11 @@ export interface RegionDiag {
   rgb?: Float32Array;
   dist?: Float32Array;
   tol?: number;
+  /** Största FÖRKASTADE blobben som andel av bilden. Över
+   *  REGION_BUSY_MAX_BLOB betyder det att underlaget smält ihop med korten. */
+  largestRejectedFrac?: number;
+  /** Underlaget går inte att skilja från korten (se ovan). */
+  busySurface?: boolean;
   /** Hur stor del av bilden fyllningen tog. Nära 1,0 = fyllningen har LÄCKT
    *  in i korten; nära 0 = den kom inte loss från kanten. Båda syns direkt. */
   backgroundFrac?: number;
@@ -636,7 +649,7 @@ export function detectCardRegions(
     for (let i = 0; i < bg.length; i++) if (bg[i]) n++;
     diag.backgroundFrac = n / bg.length;
   }
-  return regionsFromDistance(dist, mw, mh, 128, scale, width, height, maxRegions);
+  return regionsFromDistance(dist, mw, mh, 128, scale, width, height, maxRegions, diag);
 }
 
 /** Avståndsfältet → validerade regioner: tröskling, erosion, sammanhängande
@@ -651,7 +664,8 @@ export function regionsFromDistance(
   scale: number,
   width: number,
   height: number,
-  maxRegions: number
+  maxRegions: number,
+  diag?: RegionDiag
 ): CardRegion[] {
   const rawMask = new Uint8Array(mw * mh);
   for (let i = 0; i < mw * mh; i++) if (dist[i] > threshold) rawMask[i] = 1;
@@ -806,7 +820,7 @@ export function regionsFromDistance(
     .map((b) => b.area / ((b.maxX - b.minX + 1) * (b.maxY - b.minY + 1)))
     .sort((a, b) => a - b);
   const refFill = sortedFills[Math.floor(sortedFills.length / 2)] ?? 1;
-  return valid
+  const accepted = valid
     .filter((b) => {
       const a = bboxArea(b);
       if (a < refArea * REGION_SIZE_MIN_RATIO || a > refArea * REGION_SIZE_MAX_RATIO) return false;
@@ -816,7 +830,17 @@ export function regionsFromDistance(
       return fill >= refFill * REGION_FILL_REL_MIN;
     })
     .sort((a, b) => b.area - a.area)
-    .slice(0, maxRegions)
+    .slice(0, maxRegions);
+
+  if (diag) {
+    const keep = new Set(accepted);
+    let biggest = 0;
+    for (const b of blobs) if (!keep.has(b) && b.area > biggest) biggest = b.area;
+    diag.largestRejectedFrac = biggest / (mw * mh);
+    diag.busySurface = diag.largestRejectedFrac >= REGION_BUSY_MAX_BLOB;
+  }
+
+  return accepted
     .map((b) => ({
       // Kompenserar erosionen så kortets verkliga kant kommer med.
       x: Math.max(0, (b.minX - REGION_EROSION_PASSES) * inv),

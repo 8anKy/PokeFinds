@@ -29,6 +29,7 @@ import {
 import {
   detectCardQuad,
   detectCardRegions,
+  type RegionDiag,
   warpPerspective,
   RECTIFIED_H,
   RECTIFIED_W,
@@ -469,7 +470,7 @@ interface BulkCell {
 function captureBulkCells(
   video: HTMLVideoElement,
   canvas: HTMLCanvasElement
-): { cells: BulkCell[]; debugImage: string; video: string } | null {
+): { cells: BulkCell[]; debugImage: string; video: string; busySurface: boolean } | null {
   if (video.readyState < 2 || !video.videoWidth) return null;
   const vW = video.videoWidth;
   const vH = video.videoHeight;
@@ -485,7 +486,13 @@ function captureBulkCells(
   canvas.height = dH;
   ctx.drawImage(video, 0, 0, vW, vH, 0, 0, dW, dH);
   const detectPixels = ctx.getImageData(0, 0, dW, dH).data;
-  const regions = detectCardRegions(detectPixels, dW, dH, 4, BULK_MAX_CARDS);
+  // Diagnostiken bär domen om UNDERLAGET: på ett mönstrat underlag stoppas
+  // bakgrundsfyllningen av mönstret, underlaget blir självt förgrund och korten
+  // hamnar inuti den massan. Då är varje "region" en bit av underlaget, och att
+  // skicka dem vidare kostar vision-anrop och kvot på rena gissningar.
+  const regionDiag: RegionDiag = {};
+  const regions = detectCardRegions(detectPixels, dW, dH, 4, BULK_MAX_CARDS, regionDiag);
+  const busySurface = regionDiag.busySurface === true;
   // Detekteringsbilden följer med även när INGET hittas — det är just
   // misslyckandena som ska gå att felsöka mot verkligheten (admin-only,
   // se /api/scanner/identify-bulk).
@@ -495,7 +502,7 @@ function captureBulkCells(
   // kort avgörs. Utan den här raden går det inte att veta om en dålig cell är
   // pixelsvält eller något annat (getUserMedia BEGÄR 4K men får vad den får).
   const videoSize = `${vW}x${vH}`;
-  if (regions.length === 0) return { cells: [], debugImage, video: videoSize };
+  if (regions.length === 0) return { cells: [], debugImage, video: videoSize, busySurface };
   const rInv = 1 / dScale;
 
   const toB64 = (fp: Int8Array) => {
@@ -578,7 +585,7 @@ function captureBulkCells(
       cells.push({ dataUrl, stripDataUrl, fingerprints, structFingerprints });
     }
   }
-  return { cells, debugImage, video: videoSize };
+  return { cells, debugImage, video: videoSize, busySurface };
 }
 
 // Klient-gate: utloggad → redirecta till login I APPEN (router.replace = SPA-nav,
@@ -1142,18 +1149,22 @@ function Scanner() {
     if (!video || !canvas || cameraState !== "live" || shutterCooling) return;
     const shot = captureBulkCells(video, canvas);
     if (!shot) return;
-    const { cells, debugImage, video: videoSize } = shot;
+    const { cells, debugImage, video: videoSize, busySurface } = shot;
     // Admin: detekteringsbilden + funna regioner sparas server-sida så en
     // dålig bordsfångst går att felsöka mot VERKLIGHETEN (scripts/bulk-debug.ts)
     // i stället för mot syntetiska gissningar. Bara ägarens egna skanningar.
     const debug = isAdmin
       ? { image: debugImage, found: cells.length, video: videoSize }
       : undefined;
-    if (cells.length === 0) {
+    if (busySurface || cells.length === 0) {
       // Detekteringen hittade inga kort — säg VARFÖR i stället för att tyst
       // göra ingenting (kort kant-i-kant smälter ihop och förkastas), och
       // skicka ändå debugbilden så haveriet går att analysera.
-      toast({ title: t("bulkNoCards"), variant: "error" });
+      // MÄTT skillnad: på ett mönstrat underlag är största FÖRKASTADE blobben
+      // 17–55 % av bilden (fungerande fångster: 3–11 %), dvs underlaget har
+      // smält ihop med korten. Då är "sprid ut korten" fel råd — underlaget är
+      // problemet, och regionerna som hittas är bitar av det.
+      toast({ title: t(busySurface ? "bulkBusySurface" : "bulkNoCards"), variant: "error" });
       if (debug) {
         void fetch("/api/scanner/identify-bulk", {
           method: "POST",

@@ -87,7 +87,7 @@ async function main() {
 
     console.log(
       `${stamp} ${row.id.slice(-6)}: fångsten fann ${d.found ?? "?"} · DAGENS kod finner ${regions.length}` +
-        ` · kamera ${d.video ?? "?"} · tolerans ${diag.tol} · bakgrunden tog ${((diag.backgroundFrac ?? 0) * 100).toFixed(0)} % av bilden` +
+        ` ${diag.busySurface ? "[UNDERLAG!]" : ""} · kamera ${d.video ?? "?"} · tolerans ${diag.tol} · bakgrunden tog ${((diag.backgroundFrac ?? 0) * 100).toFixed(0)} % av bilden` +
         `  → ${path.relative(process.cwd(), base)}-regions.png`
     );
 

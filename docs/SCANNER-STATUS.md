@@ -805,6 +805,45 @@ Ett byxveck kom med som kort. Två fel bakom det:
 Utfall: 6/5/5 → **5/5/5**, och alla tidigare fångster oförändrade (den enda som
 inte ger kortantalet är den med två kort kant i kant, som förkastas med flit).
 
+## FÄLTRUNDA 11 (2026-08-02): MÖNSTRAT UNDERLAG ÄR STRUKTURELLT OMÖJLIGT
+
+Fem kort på två olika mönstrade underlag (rutig handduk på ett geometriskt
+mönstrat överkast): **noll kort identifierade** i båda. Detta är inte en bugg
+att tröskla bort — det är modellens gräns.
+
+**Varför**: bakgrunden definieras som "det sammanhängande som når bildkanten"
+med LOKAL färgtolerans. Ett mönstrat underlag har STÖRRE inbördes kontrast än
+gränsen kort↔underlag: fyllningen stoppas av mönstret, underlaget blir självt
+förgrund, och korten hamnar INUTI den massan — osynliga.
+⛔ **Toleransen kan inte rädda det** (svept): vid 12 tar bakgrunden bara 42–50 %
+av bilden (normalt 66–78 %); höjs den tillräckligt för att korsa mönstret
+(30–40) läcker den samtidigt genom KORTEN → 92–100 % bakgrund, noll regioner.
+Det finns inget fönster däremellan, för ett vitt kort mot en vit ruta i mönstret
+är en mindre färgskillnad än mönstrets egna rutor.
+
+**Detekteras nu i stället för att gissa.** Signaturen är entydig — största
+FÖRKASTADE blobben som andel av bilden:
+
+| fångster | största förkastade blob |
+|---|---|
+| fungerande (8 st) | **3,3–11,2 %** |
+| mönstrat underlag (4 st) | **17,4–54,7 %** |
+
+`REGION_BUSY_MAX_BLOB` = 14 % (~25 % marginal åt båda håll). Slår den till
+skickas INGA celler vidare (varje "region" är en bit av underlaget — det hade
+kostat vision-anrop och kvot på rena gissningar) och användaren får en EGEN
+text: "Underlaget går inte att skilja från korten — lägg dem på en enfärgad yta
+som når bildens kanter." ⛔ Bara FÖRKASTADE blobbar räknas: ett enda kort fotat
+nära är också en stor blob, men den godkänns och ska inte larma.
+
+**Samma signatur väntas för kort på en MATTA/pärmsida som inte når bildkanten**
+(underlaget blir en ö som korten sitter fast i). Skillnaden är att DEN gången
+finns en riktig fix — kör om fyllningen INUTI den förkastade jätteblobben med
+dess egen kant som utgångspunkt. Det hjälper INTE mot mönster (fyllningen
+stoppas av samma mönster igen), så bygg det först när en fångst visar en ENFÄRGAD
+ö. Vill man stödja mönstrade underlag på riktigt krävs en annan detektor:
+kant-/rektangelsökning (Hough) i stället för bakgrundssegmentering.
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.
