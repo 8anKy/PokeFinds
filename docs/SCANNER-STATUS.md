@@ -507,6 +507,58 @@ kant i kant) är därmed FORTFARANDE osupportad i frilagt läge. "Manuell
 inmatning"-knappen i kameravyn ersattes med bulk-växlaren (ägarbeslut —
 sökningen finns i katalogen).
 
+**FÄLTRUNDA 3 (2026-08-01) — FELET LÅG I TRÖSKELN, INTE I SÄRDRAGET**: ägarens
+två riktiga fångster (samma sex kort på ett skrivbord, tio sekunder isär) gav
+**0 respektive 5 av 6** kort. `scripts/bulk-debug.ts` + tröskelsvepet (`SWEEP=1`)
+visade att bandet där ALLA sex korten hittas är t≈40–80 i båda bilderna — medan
+den live valda tröskeln låg på **178 respektive 293**. Tre oberoende fel, alla
+med samma orsak: ramen bär en TREDJE klass (tangentbord upptill, fotografens
+kropp nedtill) som är både STÖRRE och längre från bordsfärgen än korten.
+
+1. **Brusgolvet mättes mot fel referens.** Varje pixel mäts mot det LOKALA
+   bakgrundsfältet, men golvet räknades mot den GLOBALA medianen — så en
+   kantring som innehåller tangentbord och vit tröja läste 209 som "brus"
+   (×1,4 = 293). Golvet mäts nu i samma fält, och ROBUST: ringens p95 ÄR
+   skräpet när skräpet ligger i ringen (ringens p50 var 9 och p95 90 i samma
+   bild). Median + 3 robusta σ (MAD) ger 51 resp. 46 i stället för 127/135.
+2. **Ett enda Otsu-snitt lade sig mellan BORDET och skräpet**, inte mellan
+   bordet och korten (103–104, långt över bandet). Snittet körs nu i TVÅ nivåer
+   — andra snittet på fördelningen under det första → 43,2 resp. 45,0, mitt i
+   bandet.
+3. **Formvillkoren släppte igenom kroppen**: 28 % av bilden, bbox-form 1,55,
+   hög fyllnadsgrad — den passerade varenda villkor (spannen är med flit
+   generösa för snedlagda kort). Nytt villkor: **storlekssamstämmighet**. Alla
+   Pokémon-kort är FYSISKT lika stora, så deras areor i ETT foto måste ligga
+   nära varandra; blobbar utanför 0,4–2,5× fältets UNDRE median förkastas.
+   ⛔ Det är ett FÖRHÅLLANDE, inte ett tak — hårdkoda aldrig en maxarea i
+   stället: två kort fotade nära fyller mer av bilden än sex på håll.
+
+Utfall: **6 av 6 kort i BÅDA fångsterna, noll falska regioner** (var 0 resp.
+5 äkta + 2 falska). Detektorn är dessutom inte längre knivseggsberoende av
+tröskeln — den ger 6 regioner över hela bandet 40–80 i stället för i en punkt.
+
+⚠️ **KÄND, OFIXAD SVAGHET — LJUST FÖREMÅL SOM RÖR BILDKANTEN**: bakgrundsfältet
+blandar in kantringen även långt in i bilden (en centrumpixel hämtar ~36 % av
+sin bakgrund från topp+botten). Når ett STORT, LJUST föremål fram till kanten —
+en vit ärm eller tröja nederst — dras fältet mot ljust och masken kan INVERTERA:
+bordet blir förgrund och korten bakgrund. MÄTT i en syntetisk tvilling: bordet
+hamnade 60 RGB-enheter från sin EGEN bakgrundsskattning och detektorn fann 1 av
+6 kort. Ägarens två fångster klarar sig för att bildkantens nedersta rader är
+mörka byxor; flyttas tröjan ner i kanten faller det. ⛔ Detta går INTE att fixa
+genom att kasta "avvikande" ringsegment: en äkta ljusramp (fönsterljus) ger
+precis lika stora segmentavvikelser som skräp gör — det testet finns redan och
+skulle gå sönder. Riktningen som skulle lösa det är en annan
+bakgrundsmodell: översvämning inifrån bildkanten med LOKAL färgtolerans (bordet
+= den sammanhängande yta som når kanten), där en skarp kant stoppar fyllningen.
+Det är en omskrivning av detektorns kärna och ska INTE byggas på två foton —
+nästa fältrunda bör medvetet innehålla en fångst med ljus ärm/tröja i bildkanten
+så beslutet vilar på mätning.
+⛔ Och den syntetiska tvillingen ströks som enhetstest med flit: den fick fyra
+olika svar medan de riktiga fotona var stabila, och att tuna en syntetik tills
+den matchar verkligheten är precis det fältrunda 2 gjorde fel. Enhetstestet
+täcker nu det som går att påstå deterministiskt (storleksfiltret); resten mäts
+med `bulk-debug.ts` mot riktiga fångster.
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.

@@ -251,6 +251,34 @@ describe("detectCardRegions", () => {
     }
   });
 
+  it("STORLEKSSAMSTÄMMIGHET: ett kortformat FÖREMÅL som är för stort förkastas", () => {
+    // Formvillkoren är med flit generösa (snedlagt kort ⇒ bred bbox) och
+    // släppte därför igenom fotografens kropp i ägarens riktiga fångst
+    // 2026-07-31: 28 % av bilden, bbox-form 1,55, fyllnadsgrad hög — den
+    // passerade varenda villkor. Men alla Pokémon-kort är FYSISKT lika stora,
+    // så en blob 3x kortarean är per definition inte ett kort bland korten.
+    const cards = [
+      { x: 30, y: 40, cw: 90, ch: 126 },
+      { x: 150, y: 40, cw: 90, ch: 126 },
+      { x: 30, y: 200, cw: 90, ch: 126 },
+      { x: 150, y: 200, cw: 90, ch: 126 },
+    ];
+    // Kortformad (0,8) och innanför areataket (26 %), men 3,2x kortarean.
+    const bulk = { x: 280, y: 130, cw: 180, ch: 225 };
+    const img = renderTable(480, 560, [...cards, bulk]);
+    const regions = detectCardRegions(img, 480, 560, 4, 12);
+
+    expect(regions.length).toBe(4);
+    for (const c of cards) {
+      const hit = regions.find((r) => {
+        const cx = r.x + r.w / 2;
+        const cy = r.y + r.h / 2;
+        return cx > c.x && cx < c.x + c.cw && cy > c.y && cy < c.y + c.ch;
+      });
+      expect(hit).toBeDefined();
+    }
+  });
+
   it("OJÄMNT LJUS: fönsterljus-ramp över bordet fäller inte korten i skuggdelen", () => {
     // Bordet går 45 → 150 i ljusstyrka vänster→höger (fönsterljus). Kort i den
     // MÖRKA delen ligger nära bildens GLOBALA medianfärg — en global bakgrund

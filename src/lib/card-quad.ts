@@ -443,6 +443,10 @@ const REGION_ASPECT_MIN = 0.33;
 const REGION_ASPECT_MAX = 3.0;
 /** Blobben ska FYLLA sin bbox någorlunda — glesa spretiga blobbar är skuggor. */
 const REGION_FILL_MIN = 0.35;
+/** Storlekssamstämmighet mot fältets undre median (kort är fysiskt lika stora).
+ *  2,5x area ≈ 1,6x i sidled — rymligt för perspektiv över ett bord. */
+const REGION_SIZE_MIN_RATIO = 0.4;
+const REGION_SIZE_MAX_RATIO = 2.5;
 
 export interface CardRegion {
   x: number;
@@ -451,12 +455,25 @@ export interface CardRegion {
   h: number;
 }
 
+/** Utdata-fack för fältfelsökningen (scripts/bulk-debug.ts): avståndsfältet och
+ *  de tal tröskeln byggs av, så ett svep kan köras mot VERKLIGA foton utan att
+ *  detektorlogiken kopieras. Fylls bara när facket skickas med. */
+export interface RegionDiag {
+  mw?: number;
+  mh?: number;
+  dist?: Float32Array;
+  threshold?: number;
+  noiseFloor?: number;
+  otsu?: number;
+}
+
 export function detectCardRegions(
   pixels: Uint8Array | Uint8ClampedArray,
   width: number,
   height: number,
   channels: 3 | 4,
-  maxRegions = 12
+  maxRegions = 12,
+  diag?: RegionDiag
 ): CardRegion[] {
   if (width < 64 || height < 64) return [];
   if (pixels.length < width * height * channels) return [];
@@ -596,48 +613,97 @@ export function detectCardRegions(
       dist[i] = Math.sqrt(acc);
     }
   }
-  const borderDist: number[] = [];
-  for (let k = 0; k < border[0].length; k++) {
-    const d0 = border[0][k] - bg[0];
-    const d1 = border[1][k] - bg[1];
-    const d2 = border[2][k] - bg[2];
-    borderDist.push(Math.sqrt(d0 * d0 + d1 * d1 + d2 * d2));
-  }
-  borderDist.sort((a, b) => a - b);
-  const noiseFloor = borderDist[Math.floor(borderDist.length * 0.95)];
+  // BRUSGOLVET MÄTS I SAMMA FÄLT SOM ALLT ANNAT (fix 2026-08-01, tredje
+  // fältrundan): golvet räknades mot den GLOBALA medianen medan varje pixel
+  // mäts mot det LOKALA fältet. En ring som innehåller tangentbord och vit
+  // tröja läste därför 209 som "brus" → tröskel 293, och ägarens sex utlagda
+  // kort gav NOLL träffar (den andra fångsten samma minut: 5 av 6).
+  // ⛔ Och statistiken måste vara ROBUST: p95 av ringen ÄR skräpet när skräpet
+  // ligger i ringen (ringens p50 var 9 och p95 90 i samma bild). Median +
+  // 3 robusta σ (MAD) rör sig knappt av inträngande förgrund (126,6 → 51,1
+  // resp. 134,5 → 46,2) men mäter fortfarande en tom bordsytas ådring, vilket
+  // är golvets hela syfte.
+  const ringDist: number[] = [];
+  for (let x = 0; x < mw; x++) ringDist.push(dist[x], dist[(mh - 1) * mw + x]);
+  for (let y = 1; y < mh - 1; y++) ringDist.push(dist[y * mw], dist[y * mw + mw - 1]);
+  ringDist.sort((a, b) => a - b);
+  const ringMedian = ringDist[Math.floor(ringDist.length / 2)];
+  const ringDev = ringDist.map((v) => Math.abs(v - ringMedian)).sort((a, b) => a - b);
+  const noiseFloor = ringMedian + 3 * 1.4826 * ringDev[Math.floor(ringDev.length / 2)];
 
-  // Otsu över 128 fack (avstånd 0..~442).
+  // Otsu över 128 fack, begränsat till spannet [lo, hi].
   const BINS = 128;
+  const otsuSplit = (lo: number, hi: number): number => {
+    const binW = Math.max(1e-6, (hi - lo) / BINS);
+    const hist = new Float64Array(BINS);
+    let n = 0;
+    for (let i = 0; i < dist.length; i++) {
+      const v = dist[i];
+      if (v < lo || v > hi) continue;
+      hist[Math.min(BINS - 1, Math.floor((v - lo) / binW))]++;
+      n++;
+    }
+    if (n === 0) return hi;
+    let totalSum = 0;
+    for (let b = 0; b < BINS; b++) totalSum += b * hist[b];
+    let wB = 0;
+    let sumB = 0;
+    let bestVar = 0;
+    let otsuBin = BINS - 1;
+    for (let b = 0; b < BINS; b++) {
+      wB += hist[b];
+      if (wB === 0) continue;
+      const wF = n - wB;
+      if (wF === 0) break;
+      sumB += b * hist[b];
+      const mB = sumB / wB;
+      const mF = (totalSum - sumB) / wF;
+      const between = wB * wF * (mB - mF) * (mB - mF);
+      if (between > bestVar) {
+        bestVar = between;
+        otsuBin = b;
+      }
+    }
+    return lo + (otsuBin + 1) * binW;
+  };
   let maxD = 0;
   for (let i = 0; i < dist.length; i++) if (dist[i] > maxD) maxD = dist[i];
-  const binW = Math.max(1e-6, maxD / BINS);
-  const hist = new Float64Array(BINS);
-  for (let i = 0; i < dist.length; i++) {
-    hist[Math.min(BINS - 1, Math.floor(dist[i] / binW))]++;
-  }
-  let totalSum = 0;
-  for (let b = 0; b < BINS; b++) totalSum += b * hist[b];
-  let wB = 0;
-  let sumB = 0;
-  let bestVar = 0;
-  let otsuBin = BINS - 1;
-  const n = dist.length;
-  for (let b = 0; b < BINS; b++) {
-    wB += hist[b];
-    if (wB === 0) continue;
-    const wF = n - wB;
-    if (wF === 0) break;
-    sumB += b * hist[b];
-    const mB = sumB / wB;
-    const mF = (totalSum - sumB) / wF;
-    const between = wB * wF * (mB - mF) * (mB - mF);
-    if (between > bestVar) {
-      bestVar = between;
-      otsuBin = b;
-    }
-  }
-  const threshold = Math.max((otsuBin + 1) * binW, noiseFloor * 1.4, 20);
 
+  // TVÅ NIVÅER (fix 2026-08-01, tredje fältrundan): ett bordsfoto innehåller
+  // nästan alltid en TREDJE klass — rummet, fotografens kropp, tangentbordet —
+  // som är BÅDE större och mycket längre från bordsfärgen än korten. Ett enda
+  // snitt lägger sig då mellan BORDET och den klassen och lämnar korten på
+  // bakgrundssidan. MÄTT på ägarens två fångster: snittet hamnade på 103–104
+  // medan bandet där alla sex korten hittas är 40–80. Andra snittet körs på
+  // fördelningen UNDER det första och delar det som återstår: bord vs kort
+  // (43,2 resp. 45,0 — mitt i bandet).
+  const otsuTwoLevel = otsuSplit(0, otsuSplit(0, maxD));
+  const threshold = Math.max(otsuTwoLevel, noiseFloor, 20);
+  if (diag) {
+    diag.mw = mw;
+    diag.mh = mh;
+    diag.dist = dist;
+    diag.threshold = threshold;
+    diag.noiseFloor = noiseFloor;
+    diag.otsu = otsuTwoLevel;
+  }
+  return regionsFromDistance(dist, mw, mh, threshold, scale, width, height, maxRegions);
+}
+
+/** Avståndsfältet → validerade regioner: tröskling, erosion, sammanhängande
+ *  komponenter, formvalidering. BRUTEN UR detectCardRegions med flit — verktyg
+ *  som sveper tröskeln (scripts/bulk-debug.ts) måste köra EXAKT samma kod som
+ *  produktionen, annars mäter svepet något annat än det som shippar. */
+export function regionsFromDistance(
+  dist: Float32Array,
+  mw: number,
+  mh: number,
+  threshold: number,
+  scale: number,
+  width: number,
+  height: number,
+  maxRegions: number
+): CardRegion[] {
   const rawMask = new Uint8Array(mw * mh);
   for (let i = 0; i < mw * mh; i++) if (dist[i] > threshold) rawMask[i] = 1;
 
@@ -696,18 +762,37 @@ export function detectCardRegions(
 
   const total = mw * mh;
   const inv = 1 / scale;
-  return blobs
+  const valid = blobs.filter((b) => {
+    const bw = b.maxX - b.minX + 1;
+    const bh = b.maxY - b.minY + 1;
+    const aspect = bw / bh;
+    return (
+      b.area >= total * REGION_MIN_AREA_FRAC &&
+      b.area <= total * REGION_MAX_AREA_FRAC &&
+      aspect >= REGION_ASPECT_MIN &&
+      aspect <= REGION_ASPECT_MAX &&
+      b.area / (bw * bh) >= REGION_FILL_MIN
+    );
+  });
+
+  // STORLEKSSAMSTÄMMIGHET (fix 2026-08-01): formvillkoren ovan är med flit
+  // generösa (ett snedlagt kort ger bred bbox), och de släpper därför igenom
+  // fotografens kropp (28 % av bilden, bbox-form 1,55) och tangentbordsflisor.
+  // Men ALLA Pokémon-kort är FYSISKT lika stora: i ETT foto måste deras areor
+  // ligga nära varandra. Referensen är den UNDRE medianen — skräpet är nästan
+  // alltid STÖRRE än ett kort, och undre medianen håller sig då i kortklassen
+  // även när skräpet är i minoritet. MÄTT: tog ägarens två fångster från
+  // 9 resp. 10 regioner till exakt 6 kort, noll falska.
+  // ⛔ Detta är ett förhållande, inte ett tak — hårdkoda ALDRIG en maxarea i
+  // stället: två kort fotade nära fyller mer av bilden än sex på håll.
+  const bboxArea = (b: (typeof valid)[number]) =>
+    (b.maxX - b.minX + 1) * (b.maxY - b.minY + 1);
+  const sortedAreas = valid.map(bboxArea).sort((a, b) => a - b);
+  const refArea = sortedAreas[Math.floor((sortedAreas.length - 1) / 2)] ?? 0;
+  return valid
     .filter((b) => {
-      const bw = b.maxX - b.minX + 1;
-      const bh = b.maxY - b.minY + 1;
-      const aspect = bw / bh;
-      return (
-        b.area >= total * REGION_MIN_AREA_FRAC &&
-        b.area <= total * REGION_MAX_AREA_FRAC &&
-        aspect >= REGION_ASPECT_MIN &&
-        aspect <= REGION_ASPECT_MAX &&
-        b.area / (bw * bh) >= REGION_FILL_MIN
-      );
+      const a = bboxArea(b);
+      return a >= refArea * REGION_SIZE_MIN_RATIO && a <= refArea * REGION_SIZE_MAX_RATIO;
     })
     .sort((a, b) => b.area - a.area)
     .slice(0, maxRegions)

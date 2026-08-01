@@ -11,12 +11,16 @@
  *
  *   node scripts/with-prod-db.mjs npx tsx scripts/bulk-debug.ts
  *   TAKE=10 …
+ *   SWEEP=1 …   # visar dessutom tröskelstegen: hur många formvaliderade
+ *               # regioner varje tröskel ger. Det var svepet som visade att
+ *               # bandet 40–80 hittar alla sex korten medan den LIVE valda
+ *               # tröskeln låg på 178 resp. 293 (2026-08-01).
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { Prisma, PrismaClient } from "@prisma/client";
 import sharp from "sharp";
-import { detectCardRegions } from "../src/lib/card-quad";
+import { detectCardRegions, regionsFromDistance, type RegionDiag } from "../src/lib/card-quad";
 
 const prisma = new PrismaClient();
 const TAKE = Number(process.env.TAKE ?? "6");
@@ -46,7 +50,8 @@ async function main() {
 
     const raw = await sharp(jpeg).removeAlpha().raw().toBuffer({ resolveWithObject: true });
     const { width: w, height: h } = raw.info;
-    const regions = detectCardRegions(raw.data, w, h, 3, 12);
+    const diag: RegionDiag = {};
+    const regions = detectCardRegions(raw.data, w, h, 3, 12, diag);
 
     // Overlay: gröna ramar där DAGENS kod hittar kort (kan skilja sig från
     // `found` om detektorn ändrats sedan fångsten — det är hela poängen).
@@ -82,8 +87,20 @@ async function main() {
 
     console.log(
       `${stamp} ${row.id.slice(-6)}: fångsten fann ${d.found ?? "?"} · DAGENS kod finner ${regions.length}` +
+        ` · tröskel ${diag.threshold?.toFixed(1)} (tvånivå-otsu ${diag.otsu?.toFixed(1)}, brusgolv ${diag.noiseFloor?.toFixed(1)})` +
         `  → ${path.relative(process.cwd(), base)}-regions.png`
     );
+
+    // SVEPET: samma produktionskod vid en stege av trösklar. Skiljer "tröskeln
+    // är fel" från "färgavstånd är fel särdrag" — finns det INGEN tröskel som
+    // ger korten är det inte trösklingen som ska tunas.
+    if (process.env.SWEEP === "1" && diag.dist) {
+      const scale = Math.min(1, 240 / Math.max(w, h));
+      for (const t of [20, 30, 40, 50, 60, 80, 100, 130, 170, 220]) {
+        const r = regionsFromDistance(diag.dist, diag.mw!, diag.mh!, t, scale, w, h, 20);
+        console.log(`    t=${String(t).padStart(3)} → ${r.length} regioner`);
+      }
+    }
   }
 }
 
