@@ -40,7 +40,7 @@ async function main() {
   mkdirSync(OUT, { recursive: true });
 
   for (const row of rows) {
-    const d = row.result as { v?: number; found?: number; image?: string };
+    const d = row.result as { v?: number; found?: number; image?: string; video?: string };
     if (d?.v !== 2 || !d.image) continue;
     const b64 = d.image.replace(/^data:image\/jpeg;base64,/, "");
     const jpeg = Buffer.from(b64, "base64");
@@ -87,7 +87,7 @@ async function main() {
 
     console.log(
       `${stamp} ${row.id.slice(-6)}: fångsten fann ${d.found ?? "?"} · DAGENS kod finner ${regions.length}` +
-        ` · tolerans ${diag.tol} · bakgrunden tog ${((diag.backgroundFrac ?? 0) * 100).toFixed(0)} % av bilden` +
+        ` · kamera ${d.video ?? "?"} · tolerans ${diag.tol} · bakgrunden tog ${((diag.backgroundFrac ?? 0) * 100).toFixed(0)} % av bilden` +
         `  → ${path.relative(process.cwd(), base)}-regions.png`
     );
 

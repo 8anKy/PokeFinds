@@ -41,7 +41,18 @@ const GRAD_ALIGN_DEG = 24;
 const RHO_STEP = 2;
 /** Kortets sidoförhållande är 63/88 ≈ 0,716; perspektiv ger slack åt båda håll. */
 const ASPECT_MIN = 0.52;
-const ASPECT_MAX = 0.98;
+/** ⛔ 0,98 → 1,4 (2026-08-02, fältrunda 10). Grinden var satt för en ENKEL-
+ *  skanning där kortet ligger platt i ramen, men i bulk ses korten snett: MÄTT
+ *  på ägarens bordsfångst hade korten bbox-form 0,98–1,33, och kvad-rätningen
+ *  lyckades då bara på 3 av 8 celler — dvs den vägrade just de kort som behöver
+ *  rätningen MEST, varpå avtrycket räknades på en perspektivförvrängd beskärning
+ *  (bildpoäng 0,53–0,67 mot 0,74–0,87 i en platt fångst). Vid 1,4: 8 av 8, och
+ *  en cell gick från skräp (0,570) till rätt kort (Cynthia's Feebas 0,678);
+ *  ingen cell blev sämre. Den platta fångsten är oförändrad (6 av 6 båda).
+ *  Övriga vakter (konvexitet, motstående sidor, area, kantstyrka) är orörda, och
+ *  den rätade varianten LÄGGS TILL svepet — sökningen tar max per kort, så en
+ *  dålig varp kan aldrig sänka rätt korts poäng. */
+const ASPECT_MAX = 1.4;
 /** Kvadraten måste täcka en meningsfull del av analysytan. */
 const MIN_AREA_FRACTION = 0.12;
 /** Motstående sidor får inte skilja mer än så här (perspektivslack). */

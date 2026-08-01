@@ -469,7 +469,7 @@ interface BulkCell {
 function captureBulkCells(
   video: HTMLVideoElement,
   canvas: HTMLCanvasElement
-): { cells: BulkCell[]; debugImage: string } | null {
+): { cells: BulkCell[]; debugImage: string; video: string } | null {
   if (video.readyState < 2 || !video.videoWidth) return null;
   const vW = video.videoWidth;
   const vH = video.videoHeight;
@@ -490,7 +490,12 @@ function captureBulkCells(
   // misslyckandena som ska gå att felsöka mot verkligheten (admin-only,
   // se /api/scanner/identify-bulk).
   const debugImage = canvas.toDataURL("image/jpeg", 0.7);
-  if (regions.length === 0) return { cells: [], debugImage };
+  // Kamerans FAKTISKA upplösning: cellernas bild till vision och avtrycken tas
+  // ur videorutan, inte ur felsökningsbilden, så det är HÄR pixelbudgeten per
+  // kort avgörs. Utan den här raden går det inte att veta om en dålig cell är
+  // pixelsvält eller något annat (getUserMedia BEGÄR 4K men får vad den får).
+  const videoSize = `${vW}x${vH}`;
+  if (regions.length === 0) return { cells: [], debugImage, video: videoSize };
   const rInv = 1 / dScale;
 
   const toB64 = (fp: Int8Array) => {
@@ -573,7 +578,7 @@ function captureBulkCells(
       cells.push({ dataUrl, stripDataUrl, fingerprints, structFingerprints });
     }
   }
-  return { cells, debugImage };
+  return { cells, debugImage, video: videoSize };
 }
 
 // Klient-gate: utloggad → redirecta till login I APPEN (router.replace = SPA-nav,
@@ -1137,11 +1142,13 @@ function Scanner() {
     if (!video || !canvas || cameraState !== "live" || shutterCooling) return;
     const shot = captureBulkCells(video, canvas);
     if (!shot) return;
-    const { cells, debugImage } = shot;
+    const { cells, debugImage, video: videoSize } = shot;
     // Admin: detekteringsbilden + funna regioner sparas server-sida så en
     // dålig bordsfångst går att felsöka mot VERKLIGHETEN (scripts/bulk-debug.ts)
     // i stället för mot syntetiska gissningar. Bara ägarens egna skanningar.
-    const debug = isAdmin ? { image: debugImage, found: cells.length } : undefined;
+    const debug = isAdmin
+      ? { image: debugImage, found: cells.length, video: videoSize }
+      : undefined;
     if (cells.length === 0) {
       // Detekteringen hittade inga kort — säg VARFÖR i stället för att tyst
       // göra ingenting (kort kant-i-kant smälter ihop och förkastas), och

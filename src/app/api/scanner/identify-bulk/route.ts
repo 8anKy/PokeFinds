@@ -42,6 +42,11 @@ const schema = z.object({
     .object({
       image: z.string().regex(/^data:image\/jpeg;base64,/).max(300_000),
       found: z.number().int().min(0).max(20),
+      /** Kamerans FAKTISKA rutstorlek ("3840x2160"). Cellernas vision-bild och
+       *  avtryck tas ur videorutan, inte ur felsökningsbilden — det är alltså
+       *  här pixelbudgeten per kort avgörs, och utan den går det inte att skilja
+       *  pixelsvält från andra fel. */
+      video: z.string().max(20).optional(),
     })
     .optional(),
 });
@@ -64,7 +69,7 @@ export async function POST(req: Request) {
           userId: user.id,
           imageUrl: "bulk-debug",
           status: "FAILED",
-          result: { v: 2, bulk: true, found: debug.found, image: debug.image },
+          result: { v: 2, bulk: true, found: debug.found, image: debug.image, video: debug.video },
         },
       });
     }
