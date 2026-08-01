@@ -537,27 +537,61 @@ Utfall: **6 av 6 kort i BÅDA fångsterna, noll falska regioner** (var 0 resp.
 5 äkta + 2 falska). Detektorn är dessutom inte längre knivseggsberoende av
 tröskeln — den ger 6 regioner över hela bandet 40–80 i stället för i en punkt.
 
-⚠️ **KÄND, OFIXAD SVAGHET — LJUST FÖREMÅL SOM RÖR BILDKANTEN**: bakgrundsfältet
-blandar in kantringen även långt in i bilden (en centrumpixel hämtar ~36 % av
-sin bakgrund från topp+botten). Når ett STORT, LJUST föremål fram till kanten —
-en vit ärm eller tröja nederst — dras fältet mot ljust och masken kan INVERTERA:
-bordet blir förgrund och korten bakgrund. MÄTT i en syntetisk tvilling: bordet
-hamnade 60 RGB-enheter från sin EGEN bakgrundsskattning och detektorn fann 1 av
-6 kort. Ägarens två fångster klarar sig för att bildkantens nedersta rader är
-mörka byxor; flyttas tröjan ner i kanten faller det. ⛔ Detta går INTE att fixa
-genom att kasta "avvikande" ringsegment: en äkta ljusramp (fönsterljus) ger
-precis lika stora segmentavvikelser som skräp gör — det testet finns redan och
-skulle gå sönder. Riktningen som skulle lösa det är en annan
-bakgrundsmodell: översvämning inifrån bildkanten med LOKAL färgtolerans (bordet
-= den sammanhängande yta som når kanten), där en skarp kant stoppar fyllningen.
-Det är en omskrivning av detektorns kärna och ska INTE byggas på två foton —
-nästa fältrunda bör medvetet innehålla en fångst med ljus ärm/tröja i bildkanten
-så beslutet vilar på mätning.
-⛔ Och den syntetiska tvillingen ströks som enhetstest med flit: den fick fyra
-olika svar medan de riktiga fotona var stabila, och att tuna en syntetik tills
-den matchar verkligheten är precis det fältrunda 2 gjorde fel. Enhetstestet
-täcker nu det som går att påstå deterministiskt (storleksfiltret); resten mäts
-med `bulk-debug.ts` mot riktiga fångster.
+⛔ Den syntetiska tvillingen ströks som enhetstest med flit: den fick fyra olika
+svar medan de riktiga fotona var stabila, och att tuna en syntetik tills den
+matchar verkligheten är precis det fältrunda 2 gjorde fel. Enhetstestet täcker
+det som går att påstå deterministiskt (storleksfiltret); resten mäts med
+`bulk-debug.ts` mot riktiga fångster.
+
+⚠️ Fältrunda 3 förutsåg sin egen efterföljare: "ett stort LJUST föremål som når
+BILDKANTEN kan invertera masken". Ägaren fotade nästa runda med t-shirt i
+nederkanten — och det inträffade. Se nedan.
+
+## FÄLTRUNDA 4 (2026-08-01): MODELLBYTE — BAKGRUND = DET SOM NÅR BILDKANTEN
+
+Ägarens tredje fångst (sex kort, t-shirt i nederkanten) gav **fyra kort + ett
+tygveck som "kort"**. Tröskelsvepet visade att **INGEN tröskel i hela stegen
+30–170 gav alla sex korten** — vid t=50 saknades nedre mitten, vid t=60–80 nedre
+vänster, och tröjvecket följde med på alla. Felet satt alltså i MODELLEN, inte
+i talet, och tuning hade inte kunnat rädda det.
+
+**Varför den gamla modellen föll**: den skattade en bords-FÄRG ur kantringen och
+mätte färgavstånd mot den. Ett stort ljust föremål som når kanten drar fältet mot
+ljust → korten närmast tröjan sjunker under tröskeln, och vecket blir självt en
+region. MÄTT i en syntetisk tvilling: bordet hamnade 60 RGB-enheter från sin EGEN
+bakgrundsskattning.
+
+⛔ **En MSER-lik stabilitetsregel PRÖVADES och MOTBEVISADES.** Hypotesen var att
+kort har skarpa kanter och behåller sin area över ett brett tröskelband medan
+tygveck växer/krymper. MÄTT över stegen: kortens areakvot var **1,62 och 1,69**
+(de växer ihop med grannar vid låg tröskel) medan tröjvecket låg på **1,43** —
+korten var alltså MINDRE stabila än den falska regionen. Bygg inte om den.
+
+**Modellen är nu**: översvämning inifrån BILDKANTEN med LOKAL färgtolerans —
+"bordet är det sammanhängande som når kanten" i stället för "bordet har den här
+färgen". En ljusramp är slät → fyllningen går rakt igenom (det som krävde
+segmentknep förut). En kortkant är skarp → fyllningen stannar. Tröjan når kanten
+→ den blir bakgrund, precis som bordet. Nedströms är allt oförändrat: erosion,
+komponenter, formvillkor, storlekssamstämmighet.
+
+**MÄTT på alla tre riktiga fångsterna: 18 av 18 kort, NOLL falska** (var 6 + 6 +
+4 kort och 1 falsk). Toleransen är okänslig — 12, 16, 22 och 30 ger alla sex
+korten i alla tre bilderna, så talet är inte finjusterat mot fotona.
+
+⛔ **TOLERANSEN ÄR EN KEDJA, INTE ETT AVSTÅND.** `REGION_FLOOD_TOL` = 12 sattes
+inte av de riktiga fotona utan av lågkontrast-testet: ett kort 37,7 RGB-enheter
+från bordet får sin kant UTJÄMNAD av nedskalningen till två steg om ~19, och vid
+tolerans 22 vandrade fyllningen rakt igenom och åt upp HELA kortet. Det är det
+nya felläget: den gamla modellen degraderade gradvis, den här tappar ett helt
+kort på en enda mjuk kant. `diag.backgroundFrac` skiljer fallen åt — nära 100 %
+= läckage, låg andel = ådringen stoppade fyllningen.
+⛔ Ett kort som NUDDAR bildkanten fylls som bakgrund och tappas (med flit: ett
+kort i kanten är ändå beskuret).
+⚠️ **Kort som ligger PÅ en matta/musmatta är omätt**: mattan är då förgrund och
+korten sitter ihop med den till en enda blob som förkastas av areataket. Samma
+begränsning fanns i den gamla modellen. Fixen om det visar sig i fält: kör om
+fyllningen INUTI en förkastad jätteblob med dess egen kant som utgångspunkt.
+Bygg inte förrän ett foto visar det.
 
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om

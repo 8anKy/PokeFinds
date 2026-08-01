@@ -443,6 +443,13 @@ const REGION_ASPECT_MIN = 0.33;
 const REGION_ASPECT_MAX = 3.0;
 /** Blobben ska FYLLA sin bbox någorlunda — glesa spretiga blobbar är skuggor. */
 const REGION_FILL_MIN = 0.35;
+/** Lokal färgtolerans för bakgrundsöversvämningen, i RGB-avstånd mellan
+ *  GRANNPIXLAR i maskskalan (inte mot en global färg). Okänslig: 12, 22 och 30
+ *  ger alla 6/6/6 kort på de tre riktiga fångsterna — talet är alltså inte
+ *  finjusterat mot dem. För högt ⇒ fyllningen läcker in i korten (hela kortet
+ *  försvinner); för lågt ⇒ bordets ådring stoppar fyllningen och bordet blir
+ *  förgrund. `diag.backgroundFrac` visar vilket som händer. */
+const REGION_FLOOD_TOL = 12;
 /** Storlekssamstämmighet mot fältets undre median (kort är fysiskt lika stora).
  *  2,5x area ≈ 1,6x i sidled — rymligt för perspektiv över ett bord. */
 const REGION_SIZE_MIN_RATIO = 0.4;
@@ -461,10 +468,12 @@ export interface CardRegion {
 export interface RegionDiag {
   mw?: number;
   mh?: number;
+  rgb?: Float32Array;
   dist?: Float32Array;
-  threshold?: number;
-  noiseFloor?: number;
-  otsu?: number;
+  tol?: number;
+  /** Hur stor del av bilden fyllningen tog. Nära 1,0 = fyllningen har LÄCKT
+   *  in i korten; nära 0 = den kom inte loss från kanten. Båda syns direkt. */
+  backgroundFrac?: number;
 }
 
 export function detectCardRegions(
@@ -473,7 +482,8 @@ export function detectCardRegions(
   height: number,
   channels: 3 | 4,
   maxRegions = 12,
-  diag?: RegionDiag
+  diag?: RegionDiag,
+  tol = REGION_FLOOD_TOL
 ): CardRegion[] {
   if (width < 64 || height < 64) return [];
   if (pixels.length < width * height * channels) return [];
@@ -504,190 +514,84 @@ export function detectCardRegions(
     rgb[i * 3 + 2] = sums[i * 3 + 2] / n;
   }
 
-  // Bakgrund = median-RGB av kantringen (bordet når bildens kanter; korten
-  // ligger i mitten). Median, inte medel — ett kort som nuddar kanten ska inte
-  // dra iväg skattningen.
-  const border: number[][] = [[], [], []];
-  const pushPx = (i: number) => {
-    border[0].push(rgb[i * 3]);
-    border[1].push(rgb[i * 3 + 1]);
-    border[2].push(rgb[i * 3 + 2]);
+  // BAKGRUND = DET SOM HÄNGER IHOP MED BILDKANTEN (modellbyte 2026-08-01,
+  // fältrunda 4). Den gamla modellen skattade en bordsFÄRG ur kantringen och
+  // mätte färgavstånd mot den. Den föll så fort ett stort LJUST föremål nådde
+  // bildkanten: ägaren la ut sex kort med en t-shirt i nederkanten och fick
+  // fyra kort plus ett tygveck som "kort". Fältet dras mot ljust, korten
+  // närmast tröjan sjunker under tröskeln, och vecket blir en egen region.
+  // MÄTT: INGEN tröskel i hela stegen 30–170 gav alla sex korten — felet satt
+  // alltså i modellen, inte i talet.
+  //
+  // Nu översvämmas bilden inifrån BILDKANTEN med LOKAL färgtolerans: en pixel
+  // blir bakgrund om den liknar sin redan-bakgrundsgranne. Påståendet är
+  // "bordet är det sammanhängande som når kanten" i stället för "bordet har
+  // den här färgen", och det är det rätta påståendet:
+  //   · en ljusramp (fönsterljus) är SLÄT → fyllningen går rakt igenom;
+  //   · en kortkant är SKARP → fyllningen stannar;
+  //   · tröjan NÅR kanten → den blir bakgrund precis som bordet, i stället för
+  //     en falsk kortregion.
+  // MÄTT på alla tre riktiga fångsterna: 18 av 18 kort, NOLL falska (var
+  // 6 + 6 + 4 kort och 1 falsk). Toleransen är okänslig: 12, 22 och 30 ger
+  // samma 6/6/6, så talet är inte finjusterat mot fotona.
+  //
+  // ⛔ FYLLNINGEN ÄR EN KEDJA: läcker den in i ett kort genom en enda mjuk
+  // kant försvinner HELA kortet, inte en flisa. Det är ett ANNAT felläge än
+  // den gamla modellens gradvisa degradering och det syns bara på riktiga
+  // foton — sveps med `TOL=… scripts/bulk-debug.ts`.
+  // ⛔ Ett kort som NUDDAR bildkanten fylls som bakgrund och tappas. Det är
+  // med flit: ett kort i kanten är ändå beskuret. Overlayen visar det.
+  const bg = new Uint8Array(mw * mh);
+  const stack: number[] = [];
+  const seed = (i: number) => {
+    if (!bg[i]) {
+      bg[i] = 1;
+      stack.push(i);
+    }
   };
   for (let x = 0; x < mw; x++) {
-    pushPx(x);
-    pushPx((mh - 1) * mw + x);
+    seed(x);
+    seed((mh - 1) * mw + x);
   }
-  for (let y = 1; y < mh - 1; y++) {
-    pushPx(y * mw);
-    pushPx(y * mw + mw - 1);
-  }
-  const median = (a: number[]) => {
-    const s = [...a].sort((x, y) => x - y);
-    return s[Math.floor(s.length / 2)];
-  };
-  const bg = [median(border[0]), median(border[1]), median(border[2])];
-
-  // TRÖSKELN LÄRS UR BILDEN (fix 2026-08-01): den gamla regeln (kantringens
-  // brusgolv × 2,5, golv 1400 ≈ 37 i RGB-avstånd) missade LÅGKONTRAST-kort och
-  // hela fotograferingar från håll — ägaren la ut sex kort och fick 1–2.
-  // Otsu-split på AVSTÅNDSFÖRDELNINGEN separerar bakgrundsklustret från
-  // förgrunden var gränsen än ligger i just den här bilden; kantringens
-  // spridning behålls bara som GOLV så en tom bordsyta inte klyvs i brus.
-  //
-  // LOKAL BAKGRUND (fix 2026-08-01, andra fältrundan): EN global bordfärg
-  // faller på ojämnt ljus — fönsterljus gör ena sidan av bordet mycket
-  // ljusare, och kort i den mörka delen hamnar nära den GLOBALA medianen.
-  //
-  // ⛔ Bakgrundsfältet byggs ENBART ur KANTRINGEN, aldrig ur inre pixlar. Ett
-  // första försök lät "grovt bakgrundslika" inre pixlar rösta per tile — och
-  // när korten dominerar en yta (eller hela bilden) inverterar rösten:
-  // detektorn börjar tro att KORTET är bordet och flaggar bordskanten som
-  // förgrund. Ringen är det enda vi VET är bakgrund; ojämnt ljus fångas ändå,
-  // för ringen bär själv rampen (mörk kant på ena sidan, ljus på den andra).
-  // Varje pixels bakgrund = avståndsviktad blandning av närmaste
-  // ringsegmentens medianer (topp/botten per kolumnband, vänster/höger per
-  // radband) — ett mjukt "bordsfärgfält" över bilden.
-  const SEG = 5;
-  const segMedian = (
-    pick: (t: number) => { r: number; g: number; b: number }[]
-  ): number[][] =>
-    Array.from({ length: SEG }, (_, t) => {
-      const px = pick(t);
-      const rs = px.map((p) => p.r);
-      const gs = px.map((p) => p.g);
-      const bs = px.map((p) => p.b);
-      return px.length > 0 ? [median(rs), median(gs), median(bs)] : bg;
-    });
-  const ringPx = (i: number) => ({ r: rgb[i * 3], g: rgb[i * 3 + 1], b: rgb[i * 3 + 2] });
-  const topSeg = segMedian((t) => {
-    const out = [];
-    for (let x = Math.floor((t * mw) / SEG); x < Math.floor(((t + 1) * mw) / SEG); x++) {
-      out.push(ringPx(x));
-    }
-    return out;
-  });
-  const bottomSeg = segMedian((t) => {
-    const out = [];
-    for (let x = Math.floor((t * mw) / SEG); x < Math.floor(((t + 1) * mw) / SEG); x++) {
-      out.push(ringPx((mh - 1) * mw + x));
-    }
-    return out;
-  });
-  const leftSeg = segMedian((t) => {
-    const out = [];
-    for (let y = Math.floor((t * mh) / SEG); y < Math.floor(((t + 1) * mh) / SEG); y++) {
-      out.push(ringPx(y * mw));
-    }
-    return out;
-  });
-  const rightSeg = segMedian((t) => {
-    const out = [];
-    for (let y = Math.floor((t * mh) / SEG); y < Math.floor(((t + 1) * mh) / SEG); y++) {
-      out.push(ringPx(y * mw + mw - 1));
-    }
-    return out;
-  });
-
-  const dist = new Float32Array(mw * mh);
   for (let y = 0; y < mh; y++) {
-    const ySeg = Math.min(SEG - 1, Math.floor((y * SEG) / mh));
-    // Avståndsvikt mot respektive kant (+1 mot division med noll).
-    const wT = 1 / (y + 1);
-    const wB = 1 / (mh - y);
-    for (let x = 0; x < mw; x++) {
-      const xSeg = Math.min(SEG - 1, Math.floor((x * SEG) / mw));
-      const wL = 1 / (x + 1);
-      const wR = 1 / (mw - x);
-      const wSum = wT + wB + wL + wR;
-      const t = topSeg[xSeg];
-      const b2 = bottomSeg[xSeg];
-      const l = leftSeg[ySeg];
-      const r2 = rightSeg[ySeg];
-      const i = y * mw + x;
+    seed(y * mw);
+    seed(y * mw + mw - 1);
+  }
+  const tol2 = tol * tol;
+  while (stack.length > 0) {
+    const i = stack.pop()!;
+    const x = i % mw;
+    const y = (i / mw) | 0;
+    const grow = (j: number) => {
+      if (bg[j]) return;
       let acc = 0;
       for (let c = 0; c < 3; c++) {
-        const bgC = (t[c] * wT + b2[c] * wB + l[c] * wL + r2[c] * wR) / wSum;
-        const d = rgb[i * 3 + c] - bgC;
+        const d = rgb[j * 3 + c] - rgb[i * 3 + c];
         acc += d * d;
       }
-      dist[i] = Math.sqrt(acc);
-    }
+      if (acc <= tol2) seed(j);
+    };
+    if (x > 0) grow(i - 1);
+    if (x < mw - 1) grow(i + 1);
+    if (y > 0) grow(i - mw);
+    if (y < mh - 1) grow(i + mw);
   }
-  // BRUSGOLVET MÄTS I SAMMA FÄLT SOM ALLT ANNAT (fix 2026-08-01, tredje
-  // fältrundan): golvet räknades mot den GLOBALA medianen medan varje pixel
-  // mäts mot det LOKALA fältet. En ring som innehåller tangentbord och vit
-  // tröja läste därför 209 som "brus" → tröskel 293, och ägarens sex utlagda
-  // kort gav NOLL träffar (den andra fångsten samma minut: 5 av 6).
-  // ⛔ Och statistiken måste vara ROBUST: p95 av ringen ÄR skräpet när skräpet
-  // ligger i ringen (ringens p50 var 9 och p95 90 i samma bild). Median +
-  // 3 robusta σ (MAD) rör sig knappt av inträngande förgrund (126,6 → 51,1
-  // resp. 134,5 → 46,2) men mäter fortfarande en tom bordsytas ådring, vilket
-  // är golvets hela syfte.
-  const ringDist: number[] = [];
-  for (let x = 0; x < mw; x++) ringDist.push(dist[x], dist[(mh - 1) * mw + x]);
-  for (let y = 1; y < mh - 1; y++) ringDist.push(dist[y * mw], dist[y * mw + mw - 1]);
-  ringDist.sort((a, b) => a - b);
-  const ringMedian = ringDist[Math.floor(ringDist.length / 2)];
-  const ringDev = ringDist.map((v) => Math.abs(v - ringMedian)).sort((a, b) => a - b);
-  const noiseFloor = ringMedian + 3 * 1.4826 * ringDev[Math.floor(ringDev.length / 2)];
 
-  // Otsu över 128 fack, begränsat till spannet [lo, hi].
-  const BINS = 128;
-  const otsuSplit = (lo: number, hi: number): number => {
-    const binW = Math.max(1e-6, (hi - lo) / BINS);
-    const hist = new Float64Array(BINS);
-    let n = 0;
-    for (let i = 0; i < dist.length; i++) {
-      const v = dist[i];
-      if (v < lo || v > hi) continue;
-      hist[Math.min(BINS - 1, Math.floor((v - lo) / binW))]++;
-      n++;
-    }
-    if (n === 0) return hi;
-    let totalSum = 0;
-    for (let b = 0; b < BINS; b++) totalSum += b * hist[b];
-    let wB = 0;
-    let sumB = 0;
-    let bestVar = 0;
-    let otsuBin = BINS - 1;
-    for (let b = 0; b < BINS; b++) {
-      wB += hist[b];
-      if (wB === 0) continue;
-      const wF = n - wB;
-      if (wF === 0) break;
-      sumB += b * hist[b];
-      const mB = sumB / wB;
-      const mF = (totalSum - sumB) / wF;
-      const between = wB * wF * (mB - mF) * (mB - mF);
-      if (between > bestVar) {
-        bestVar = between;
-        otsuBin = b;
-      }
-    }
-    return lo + (otsuBin + 1) * binW;
-  };
-  let maxD = 0;
-  for (let i = 0; i < dist.length; i++) if (dist[i] > maxD) maxD = dist[i];
-
-  // TVÅ NIVÅER (fix 2026-08-01, tredje fältrundan): ett bordsfoto innehåller
-  // nästan alltid en TREDJE klass — rummet, fotografens kropp, tangentbordet —
-  // som är BÅDE större och mycket längre från bordsfärgen än korten. Ett enda
-  // snitt lägger sig då mellan BORDET och den klassen och lämnar korten på
-  // bakgrundssidan. MÄTT på ägarens två fångster: snittet hamnade på 103–104
-  // medan bandet där alla sex korten hittas är 40–80. Andra snittet körs på
-  // fördelningen UNDER det första och delar det som återstår: bord vs kort
-  // (43,2 resp. 45,0 — mitt i bandet).
-  const otsuTwoLevel = otsuSplit(0, otsuSplit(0, maxD));
-  const threshold = Math.max(otsuTwoLevel, noiseFloor, 20);
+  // Binärt fält in i den OFÖRÄNDRADE nedströmskedjan: erosion (skuggbryggor),
+  // sammanhängande komponenter, formvillkor och storlekssamstämmighet.
+  const dist = new Float32Array(mw * mh);
+  for (let i = 0; i < dist.length; i++) dist[i] = bg[i] ? 0 : 255;
   if (diag) {
     diag.mw = mw;
     diag.mh = mh;
+    diag.rgb = rgb;
     diag.dist = dist;
-    diag.threshold = threshold;
-    diag.noiseFloor = noiseFloor;
-    diag.otsu = otsuTwoLevel;
+    diag.tol = tol;
+    let n = 0;
+    for (let i = 0; i < bg.length; i++) if (bg[i]) n++;
+    diag.backgroundFrac = n / bg.length;
   }
-  return regionsFromDistance(dist, mw, mh, threshold, scale, width, height, maxRegions);
+  return regionsFromDistance(dist, mw, mh, 128, scale, width, height, maxRegions);
 }
 
 /** Avståndsfältet → validerade regioner: tröskling, erosion, sammanhängande
