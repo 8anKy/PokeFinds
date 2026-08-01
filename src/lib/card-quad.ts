@@ -478,6 +478,11 @@ const REGION_EROSION_PASSES = 1;
  *  2,5x area ≈ 1,6x i sidled — rymligt för perspektiv över ett bord. */
 const REGION_SIZE_MIN_RATIO = 0.4;
 const REGION_SIZE_MAX_RATIO = 2.5;
+/** Formsamstämmighet mot fotots medianform. Äkta kort mätta över fem riktiga
+ *  fångster: 0,83–1,14 av medianen. Skräp: 0,48 (skärmpanel) och 2,13 (tygveck).
+ *  Spannet har därmed ~1,3x marginal åt båda håll till närmaste äkta kort. */
+const REGION_ASPECT_REL_MIN = 0.65;
+const REGION_ASPECT_REL_MAX = 1.55;
 
 export interface CardRegion {
   x: number;
@@ -719,12 +724,31 @@ export function regionsFromDistance(
   // stället: två kort fotade nära fyller mer av bilden än sex på håll.
   const bboxArea = (b: (typeof valid)[number]) =>
     (b.maxX - b.minX + 1) * (b.maxY - b.minY + 1);
+  const bboxAspect = (b: (typeof valid)[number]) =>
+    (b.maxX - b.minX + 1) / (b.maxY - b.minY + 1);
   const sortedAreas = valid.map(bboxArea).sort((a, b) => a - b);
   const refArea = sortedAreas[Math.floor((sortedAreas.length - 1) / 2)] ?? 0;
+
+  // FORMSAMSTÄMMIGHET (2026-08-02), samma princip som storleken ovan: korten är
+  // fysiskt lika stora OCH lika formade, och i ETT foto ses de från EN vinkel —
+  // alltså måste deras bbox-former klustra. Det ABSOLUTA spannet
+  // (REGION_ASPECT_*) måste vara vidöppet för perspektiv och vridning, och
+  // släpper därför igenom skräp: ägarens fångst gav ett tygveck på knäet (form
+  // 2,50) och datorskärmens filträdspanel (0,56) medan de åtta korten låg mellan
+  // 0,98 och 1,33. MÄTT över fem riktiga fångster: äkta kort håller sig inom
+  // 0,83–1,14 av fotots MEDIANform, skräpet låg på 0,48 och 2,13.
+  // Bonus: en hopslagen kortPAR-region (två kort sida vid sida) landar på
+  // 1,78–1,93 av medianen och förkastas — samma linje som redan gäller för kort
+  // kant-i-kant: hellre färre funna kort än en blandfångst som identifieras
+  // självsäkert till fel kort.
+  const sortedAspects = valid.map(bboxAspect).sort((a, b) => a - b);
+  const refAspect = sortedAspects[Math.floor(sortedAspects.length / 2)] ?? 1;
   return valid
     .filter((b) => {
       const a = bboxArea(b);
-      return a >= refArea * REGION_SIZE_MIN_RATIO && a <= refArea * REGION_SIZE_MAX_RATIO;
+      if (a < refArea * REGION_SIZE_MIN_RATIO || a > refArea * REGION_SIZE_MAX_RATIO) return false;
+      const r = bboxAspect(b) / (refAspect || 1);
+      return r >= REGION_ASPECT_REL_MIN && r <= REGION_ASPECT_REL_MAX;
     })
     .sort((a, b) => b.area - a.area)
     .slice(0, maxRegions)

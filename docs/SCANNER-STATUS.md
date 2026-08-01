@@ -733,6 +733,38 @@ MÄTT: 53 facitmärkta skanningar, 48/53 — oförändrat mot före ändringen
 (Murkrow-cellen räknas fortfarande som fel eftersom tryckningen blir fel), noll
 regressioner.
 
+## FÄLTRUNDA 9 (2026-08-02): formsamstämmighet + VINKELN ÄR EN HUVUDFAKTOR
+
+Åtta kort, alla åtta hittade — plus två skräpregioner: ett tygveck på knäet
+(form 2,50) och datorskärmens filträdspanel (form 0,56). Skärmpanelen NÅR
+bildkanten men fyllningen stannar vid panelens skarpa kant, så en ö blir kvar
+inuti bakgrunden. Korten låg mellan 0,98 och 1,33.
+
+**FORMSAMSTÄMMIGHET** (samma princip som storleksfiltret): korten är fysiskt
+lika formade och ses från EN vinkel, så bbox-formerna måste klustra. MÄTT över
+fem riktiga fångster ligger äkta kort inom **0,83–1,14 av fotots MEDIANform**;
+skräpet låg på 0,48 och 2,13. Spannet är satt till 0,65–1,55 (~1,3x marginal).
+Utfall på ägarens fångst: 10 regioner → **exakt de 8 korten**.
+Bonus: en hopslagen kortPAR-region landar på 1,78–1,93 av medianen och
+förkastas nu — samma linje som redan gäller kort kant-i-kant (hellre färre
+funna kort än en blandfångst som identifieras självsäkert till FEL kort).
+
+⚠️ **VINKELN ÄR EN HUVUDFAKTOR FÖR BILDMATCHNINGEN — mätt, inte gissat.**
+Samma Murkrow gav bildpoäng **0,892** kl. 22:30 och **ingen träff alls** (topp
+var Arceus V 0,546) kl. 22:46. Skillnaden är hur platt kortet sågs:
+
+| fångst | kortens bbox-form | bildens topp-poäng |
+|---|---|---|
+| 21:30, 22:20 | 0,73–0,87 (nära platt) | 0,64–0,82 |
+| 22:30 | 0,84–1,04 | upp till 0,89 |
+| 22:46 | **0,98–1,33** (brant vinkel) | **0,53–0,67** |
+
+Ett platt kort är 0,716. Form ≈ 1,0–1,33 betyder kraftig perspektivförkortning,
+och då matchar avtrycket inte katalogens raka bild. Kvad-rätningen ska
+kompensera men uppenbarligen inte tillräckligt på små, snedsedda regioner.
+**Praktisk följd: fotografera RAKT UPPIFRÅN.** Öppet: mät varför
+`detectCardQuad` inte räddar de här cellerna (regionerna är bara ~86x72 px).
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.
