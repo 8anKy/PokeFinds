@@ -765,6 +765,18 @@ kompensera men uppenbarligen inte tillräckligt på små, snedsedda regioner.
 **Praktisk följd: fotografera RAKT UPPIFRÅN.** Öppet: mät varför
 `detectCardQuad` inte räddar de här cellerna (regionerna är bara ~86x72 px).
 
+**BEKRÄFTAT SAMMA KVÄLL (22:57, rakt uppifrån, sex kort): 6 av 6 RÄTT.**
+Kortens bbox-former låg på **0,74–0,81** (platt kort = 0,716) och bildens
+topp-poäng på 0,736–0,867 — precis det sambandet tabellen ovan förutsade.
+Två följder utöver träffsäkerheten:
+- **Bara 3 av 6 celler behövde vision alls.** De andra tre klarade trust-regeln
+  på bilden → $0 och instant. Rak vinkel halverar alltså kostnaden.
+- **Team Rocket's Murkrow 127** — kortet som två gånger tidigare blev Noctowl
+  respektive fel Murkrow — träffades nu av BÅDA signalerna: modellen läste
+  "Team Rocket's Murkrow 127/182" korrekt OCH bilden hade 127 överst (0,867)
+  före 126 (0,865). Tryckningsvalet löstes alltså av numret, precis som
+  arkitekturen säger att det ska ("bilden föreslår, numret avgör").
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.
