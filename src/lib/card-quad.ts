@@ -450,6 +450,15 @@ const REGION_FILL_MIN = 0.35;
  *  försvinner); för lågt ⇒ bordets ådring stoppar fyllningen och bordet blir
  *  förgrund. `diag.backgroundFrac` visar vilket som händer. */
 const REGION_FLOOD_TOL = 12;
+/** Erosionspass innan komponenterna räknas; bboxen expanderas lika mycket efteråt.
+ *  ⛔ MÄTT 2026-08-01 (fältrunda 5): STARKARE erosion löser INTE hopslagna kort.
+ *  Två kort med ~4,5 px springa i en 480 px-fångst hamnar på 1–2 MASKpixlar, och
+ *  boxmedelvärdet blandar då springan med kortens ljusa kanter — dess mörkaste
+ *  värde blev 134,126,103 mot bordets ~40, alltså FÖRGRUND. Bryggan är inte en
+ *  tunn brygga att erodera bort utan en utsmetad kant. Både 2 pass och strikt
+ *  erosion (alla 4 grannar) provades: oförändrat 5 av 6 kort. Det som saknas är
+ *  UPPLÖSNING i masken, inte morfologi. */
+const REGION_EROSION_PASSES = 1;
 /** Storlekssamstämmighet mot fältets undre median (kort är fysiskt lika stora).
  *  2,5x area ≈ 1,6x i sidled — rymligt för perspektiv över ett bord. */
 const REGION_SIZE_MIN_RATIO = 0.4;
@@ -611,22 +620,26 @@ export function regionsFromDistance(
   const rawMask = new Uint8Array(mw * mh);
   for (let i = 0; i < mw * mh; i++) if (dist[i] > threshold) rawMask[i] = 1;
 
-  // EROSION (1 pass): skuggbryggor mellan närliggande kort är 1–2 pixlar
-  // tunna i maskskalan och limmade förr ihop två kort till EN förkastad blob.
-  // En pixel med färre än 3 av 4 grannar i masken stryks; bboxen expanderas
-  // med en pixel efteråt så kortets verkliga kant inte tappas.
-  const mask = new Uint8Array(mw * mh);
-  for (let y = 0; y < mh; y++) {
-    for (let x = 0; x < mw; x++) {
-      const i = y * mw + x;
-      if (!rawMask[i]) continue;
-      let neighbors = 0;
-      if (x > 0 && rawMask[i - 1]) neighbors++;
-      if (x < mw - 1 && rawMask[i + 1]) neighbors++;
-      if (y > 0 && rawMask[i - mw]) neighbors++;
-      if (y < mh - 1 && rawMask[i + mw]) neighbors++;
-      if (neighbors >= 3) mask[i] = 1;
+  // EROSION: skuggbryggor mellan närliggande kort limmar ihop två kort till EN
+  // blob. En pixel med färre än 3 av 4 grannar stryks; bboxen expanderas med
+  // lika många pixlar efteråt så kortens verkliga kanter inte tappas.
+  let mask = rawMask;
+  for (let pass = 0; pass < REGION_EROSION_PASSES; pass++) {
+    const src = mask;
+    const out = new Uint8Array(mw * mh);
+    for (let y = 0; y < mh; y++) {
+      for (let x = 0; x < mw; x++) {
+        const i = y * mw + x;
+        if (!src[i]) continue;
+        let neighbors = 0;
+        if (x > 0 && src[i - 1]) neighbors++;
+        if (x < mw - 1 && src[i + 1]) neighbors++;
+        if (y > 0 && src[i - mw]) neighbors++;
+        if (y < mh - 1 && src[i + mw]) neighbors++;
+        if (neighbors >= 3) out[i] = 1;
+      }
     }
+    mask = out;
   }
 
   // Sammanhängande komponenter (4-grannskap, iterativ stack — ingen rekursion).
@@ -701,11 +714,11 @@ export function regionsFromDistance(
     .sort((a, b) => b.area - a.area)
     .slice(0, maxRegions)
     .map((b) => ({
-      // ±1 maskpixel: kompenserar erosionen så kortets verkliga kant kommer med.
-      x: Math.max(0, (b.minX - 1) * inv),
-      y: Math.max(0, (b.minY - 1) * inv),
-      w: Math.min(width, (b.maxX - b.minX + 3) * inv),
-      h: Math.min(height, (b.maxY - b.minY + 3) * inv),
+      // Kompenserar erosionen så kortets verkliga kant kommer med.
+      x: Math.max(0, (b.minX - REGION_EROSION_PASSES) * inv),
+      y: Math.max(0, (b.minY - REGION_EROSION_PASSES) * inv),
+      w: Math.min(width, (b.maxX - b.minX + 1 + 2 * REGION_EROSION_PASSES) * inv),
+      h: Math.min(height, (b.maxY - b.minY + 1 + 2 * REGION_EROSION_PASSES) * inv),
     }));
 }
 

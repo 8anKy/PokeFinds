@@ -91,6 +91,13 @@ async function main() {
         `  → ${path.relative(process.cwd(), base)}-regions.png`
     );
 
+    for (const r of regions) {
+      console.log(
+        `      ${String(Math.round(r.x)).padStart(3)},${String(Math.round(r.y)).padStart(3)}` +
+          `  ${Math.round(r.w)}x${Math.round(r.h)}  (form ${(r.w / r.h).toFixed(2)})`
+      );
+    }
+
     // SVEPET: samma produktionskod vid en stege av toleranser. Nära 100 %
     // bakgrund = fyllningen har LÄCKT in i korten (då försvinner HELA kort);
     // låg andel = ådringen stoppade fyllningen och bordet blev förgrund.

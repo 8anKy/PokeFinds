@@ -593,6 +593,44 @@ begränsning fanns i den gamla modellen. Fixen om det visar sig i fält: kör om
 fyllningen INUTI en förkastad jätteblob med dess egen kant som utgångspunkt.
 Bygg inte förrän ett foto visar det.
 
+## FÄLTRUNDA 5 (2026-08-01): 5 av 6 — UPPLÖSNING, INTE MORFOLOGI
+
+Första fångsten på den nya modellen: **fem regioner, alla korrekta, noll falska**
+(tröjan och tangentbordet borta som avsett). Det saknade kortet var inte missat
+utan **hopslaget**: en region 110×78 med formen 1,41 täckte topp-mitten OCH
+topp-höger, medan de fyra andra var rena kort (form 0,70–0,84).
+
+⛔ **Formen kan INTE avslöja det**: två stående kort sida vid sida ger 1,41 och
+ett LIGGANDE kort ger 88/63 = 1,40. Samma tal.
+
+**Mätt i masken** (ASCII-karta över springan): korten ligger ~4,5 px isär i
+480 px-fångsten → **1–2 maskpixlar** vid maskbredd 240, och boxmedelvärdet
+blandar springan med kortens ljusa kanter. Springans MÖRKASTE nedskalade värde
+blev `134,126,103` mot bordets ~40 — den ser alltså ut som FÖRGRUND, oavsett
+tolerans. (Tolerans 16 råkar separera dem, men ger falska regioner på tre av de
+andra fångsterna: 12 ger 6/6/6/6/5 och noll falska, 16 ger 30/30 kort men fyra
+falska. Noll falska väger tyngre — en falsk cell kostar ett vision-anrop, kvot
+och kan ge ett felaktigt kort.)
+
+⛔ **STARKARE EROSION PRÖVAD OCH MOTBEVISAD**: både 2 pass och STRIKT erosion
+(kräv alla 4 grannar i stället för 3) gav oförändrat 5 av 6. Skälet är att
+bryggan inte är en tunn brygga utan en UTSMETAD kant — det finns ingen smal
+midja att erodera bort. Regeln ">= 3 av 4 grannar" tar dessutom aldrig bort en
+3 px bred brygga alls: dess inre pixlar har 4 grannar.
+
+⛔ **HÖGRE MASKUPPLÖSNING GICK INTE ATT MÄTA** — och försöket var vilseledande:
+maskbredd 480 mot de sparade felsökningsbilderna gav SÄMRE utfall (7 regioner,
+falska) därför att bilderna själva redan är nedskalade till 480 av klienten. Att
+höja masken förstorar då bara bruset i stället för att återfå detalj som redan
+är kastad. **Informationen finns i videorutan (~1080 px) men slängs innan något
+sparas.**
+
+Åtgärd nu: `BULK_DETECT_MAX` 480 → **960**, så nästa fångst BÄR springan.
+Detekteringen är oförändrad (masken är fortfarande 240, bara bättre
+medelvärdesbildad) — det här är ett mätbarhetsfix, inte en detektorändring.
+Nästa runda kan `REGION_MASK_MAX` = 480 testas mot riktig data och shippas om
+den vinner. **Tills dess: lägg några millimeter mellan korten.**
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.

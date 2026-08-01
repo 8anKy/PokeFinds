@@ -442,8 +442,19 @@ function captureFrame(
 const BULK_CELL_PAD = 0.05;
 /** Färre inset än enkelskanningen: regionerna är tajta och outsets förbjudna. */
 const BULK_INSETS = [0, 0.04, 0.08] as const;
-/** Detekteringsbildens långsida — regionerna behöver bara vara ungefärliga. */
-const BULK_DETECT_MAX = 480;
+/** Detekteringsbildens långsida. Regionerna behöver bara vara ungefärliga —
+ *  detectCardRegions skalar ändå ner till sin egen maskbredd — MEN det är den
+ *  här bilden som sparas som felsökningsbild för admin, och den är det ENDA vi
+ *  kan mäta på i efterhand.
+ *  ⛔ 480 var för lågt för att ens KUNNA mäta: två kort med ~4,5 px springa här
+ *  hamnar på 1–2 maskpixlar, springan smetas ihop med kortens kanter och de två
+ *  korten blir EN region (fältrunda 5, 2026-08-01: 5 av 6 kort). Om den fixen
+ *  är att höja maskupplösningen måste den valideras mot en fångst som fortfarande
+ *  BÄR detaljen — vid 480 är informationen redan kastad, och ett offline-försök
+ *  med högre mask mätte bara brus (7 regioner, falska).
+ *  Höjningen ändrar INTE detekteringen i sig (masken är fortfarande 240, bara
+ *  bättre medelvärdesbildad); den gör nästa fältrunda mätbar. */
+const BULK_DETECT_MAX = 960;
 const BULK_MAX_CARDS = 12;
 
 interface BulkCell {
