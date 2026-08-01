@@ -712,13 +712,13 @@ brus, inte modellen.
 och vann, trots att bilden hade kvällens STARKASTE träff: Murkrow 126 på 0,892
 och Murkrow 127 på 0,884.
 
-Orsaken: -marginalen mättes mot NÄSTA RAD, och nästa rad var samma
+Orsaken: `artOpinion`-marginalen mättes mot NÄSTA RAD, och nästa rad var samma
 Pokémon i en annan tryckning. Marginalen blev 0,008 och lästes som "bilden har
 ingen åsikt" — varpå namnet inte dämpades alls. Bilden var i själva verket helt
 säker på VILKEN Pokémon det var; den kunde bara inte välja tryckning.
 Marginalen mäts nu mot bästa kandidat med ett ANNAT KORTNAMN (0,892 → 0,703 =
 0,189). ⛔ För att välja TRYCKNING är den lilla marginalen fortfarande rätt
-signal ( orört) — det är bara frågan "ska modellens NAMN tros"
+signal (`ART_TRUST_*` orört) — det är bara frågan "ska modellens NAMN tros"
 som den var fel svar på.
 
 Utfall: cellen ger nu Team Rocket's Murkrow i stället för Noctowl. **KVAR**:
