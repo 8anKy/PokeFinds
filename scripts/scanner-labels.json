@@ -2249,5 +2249,17 @@
         "Probopass 98 0.722 | Toxicroak 24 0.675 | Barboach 50 0.649"
       ]
     }
+  },
+  "cmsay2tqd000bbltgfv6jj9m2": {
+    "truth": "cmqa383bm00l3124skqv61mhm",
+    "note": "bulk-cell; facit från ägaren 2026-08-01 (modellen sa Noctowl 088/102)",
+    "hint": {
+      "at": "2026-08-01T22:30:16.070Z",
+      "modell": "Noctowl / 088/102",
+      "valdes": "Noctowl 34",
+      "bildTopp5": [
+        "Team Rocket's Murkrow 126 0.892 | Team Rocket's Murkrow 127 0.884 | Hydreigon 62 0.703"
+      ]
+    }
   }
 }

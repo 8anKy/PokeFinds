@@ -712,10 +712,25 @@ export async function matchCards(
   // ifrågasätta ett namn den inte känner igen — den behöver bara ha en ÅSIKT.
   // Rayquaza-fallet som motiverade det strikta villkoret hade marginal 0,011,
   // dvs ingen åsikt alls; bulk-cellerna låg på 0,047–0,096.
+  // ⛔ MARGINALEN MÄTS MOT ETT ANNAT KORT, INTE MOT NÄSTA RAD. Bildens tvåa är
+  // ofta SAMMA Pokémon i en annan tryckning/set, och då är marginalen pytteliten
+  // av en anledning som inte har med osäkerhet att göra: konsten är identisk.
+  // MÄTT i produktion 2026-08-01: Team Rocket's Murkrow 126 (0,892) och 127
+  // (0,884) — bildens starkaste träff hela kvällen, marginal 0,008 — lästes som
+  // "ingen åsikt", varpå modellens hallucinerade "Noctowl" vann oemotsagt.
+  // För att välja TRYCKNING är den lilla marginalen rätt signal (se
+  // ART_TRUST_*); för att avgöra om modellens NAMN ska tros är den fel fråga.
   const artOpinion = (() => {
     if (!artScores?.size) return false;
-    const s = [...artScores.values()].sort((a, b) => b - a);
-    return s[0] >= ART_OPINION_SCORE && s[0] - (s[1] ?? 0) >= ART_OPINION_MARGIN;
+    const entries = [...artScores.entries()].sort((a, b) => b[1] - a[1]);
+    const [topId, topScore] = entries[0];
+    if (topScore < ART_OPINION_SCORE) return false;
+    const topName = byId.get(topId)?.name.toLowerCase();
+    const rival = entries.slice(1).find(([id]) => {
+      const n = byId.get(id)?.name.toLowerCase();
+      return n === undefined || topName === undefined || n !== topName;
+    });
+    return topScore - (rival?.[1] ?? 0) >= ART_OPINION_MARGIN;
   })();
   let nameWeight = 1;
   if (query && (artConfidentCardId || artOpinion) && artScores?.size) {

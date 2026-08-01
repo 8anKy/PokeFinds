@@ -706,6 +706,33 @@ hopslagen vid ALLA masker — informationen är kastad i själva bilden. Det är
 också beviset för att runda 5:s offline-försök ("högre mask gav sämre") mätte
 brus, inte modellen.
 
+## FÄLTRUNDA 8 (2026-08-02): marginalen mättes mot ett SYSKON
+
+Åtta kort. Modellen hittade på "Noctowl 088/102" på en Team Rocket's Murkrow —
+och vann, trots att bilden hade kvällens STARKASTE träff: Murkrow 126 på 0,892
+och Murkrow 127 på 0,884.
+
+Orsaken: -marginalen mättes mot NÄSTA RAD, och nästa rad var samma
+Pokémon i en annan tryckning. Marginalen blev 0,008 och lästes som "bilden har
+ingen åsikt" — varpå namnet inte dämpades alls. Bilden var i själva verket helt
+säker på VILKEN Pokémon det var; den kunde bara inte välja tryckning.
+Marginalen mäts nu mot bästa kandidat med ett ANNAT KORTNAMN (0,892 → 0,703 =
+0,189). ⛔ För att välja TRYCKNING är den lilla marginalen fortfarande rätt
+signal ( orört) — det är bara frågan "ska modellens NAMN tros"
+som den var fel svar på.
+
+Utfall: cellen ger nu Team Rocket's Murkrow i stället för Noctowl. **KVAR**:
+126 (Ascended Heroes) och 127 (Destined Rivals) hamnar på IDENTISK slutpoäng
+och avgörs av tie-breaken "nyast set först" — som väljer 126, medan ägarens
+kort var 127. De två tryckningarna är visuellt oskiljbara (0,9 % isär) och
+numret som hade avgjort läste modellen fel. Två facitfall pekar nu åt samma
+håll (ey0wdb + 6jj9m2, samma kortpar) — men n=2 på ETT kortpar räcker inte för
+att vända en global heuristik.
+
+MÄTT: 53 facitmärkta skanningar, 48/53 — oförändrat mot före ändringen
+(Murkrow-cellen räknas fortfarande som fel eftersom tryckningen blir fel), noll
+regressioner.
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.
