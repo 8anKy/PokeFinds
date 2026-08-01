@@ -494,6 +494,11 @@ const REGION_SIZE_MAX_RATIO = 2.5;
  *  Spannet har därmed ~1,3x marginal åt båda håll till närmaste äkta kort. */
 const REGION_ASPECT_REL_MIN = 0.65;
 const REGION_ASPECT_REL_MAX = 1.55;
+/** Fyllnadsgrad relativt kortklustrets median. MÄTT: äkta kort ligger på
+ *  0,92–1,01 av fältets median, skräp (byxveck, skuggor, skärmpaneler) på
+ *  högst 0,72. 0,85 ger ~8 % marginal ner till sämsta äkta kort och ~18 % upp
+ *  till värsta skräpet. */
+const REGION_FILL_REL_MIN = 0.85;
 
 export interface CardRegion {
   x: number;
@@ -737,8 +742,37 @@ export function regionsFromDistance(
     (b.maxX - b.minX + 1) * (b.maxY - b.minY + 1);
   const bboxAspect = (b: (typeof valid)[number]) =>
     (b.maxX - b.minX + 1) / (b.maxY - b.minY + 1);
-  const sortedAreas = valid.map(bboxArea).sort((a, b) => a - b);
-  const refArea = sortedAreas[Math.floor((sortedAreas.length - 1) / 2)] ?? 0;
+  // REFERENSEN ÄR KORTKLUSTRET, INTE MITTEN AV ALLT (fix 2026-08-02).
+  // Undre medianen antog att skräpet är STÖRRE än ett kort. MÄTT på ägarens
+  // femkortsfångst är det tvärtom: 5 kort (area 4408–5312) och 5 småskräp
+  // (391–2178) gav undre median 2178 — ett SKRÄPvärde — och bandet runt det
+  // släppte in ett byxveck (1595). Kortens verkliga signatur är att de är den
+  // STÖRSTA GRUPPEN av likstora regioner: varje kandidat får rösta på hur många
+  // andra som ligger inom samma storleksband, och den vinnande gruppens median
+  // blir referens. Här: kortklustret får 5 röster, varje skräpkluster 2–3.
+  const areas = valid.map(bboxArea);
+  let bestIdx = 0;
+  let bestVotes = -1;
+  for (let i = 0; i < areas.length; i++) {
+    const lo = areas[i] * REGION_SIZE_MIN_RATIO;
+    const hi = areas[i] * REGION_SIZE_MAX_RATIO;
+    let votes = 0;
+    for (let j = 0; j < areas.length; j++) if (areas[j] >= lo && areas[j] <= hi) votes++;
+    // Lika många röster → större area vinner: ett kort är aldrig det minsta
+    // skräpet i bilden, men skräp kan vara lika talrikt.
+    if (votes > bestVotes || (votes === bestVotes && areas[i] > areas[bestIdx])) {
+      bestVotes = votes;
+      bestIdx = i;
+    }
+  }
+  const clusterLo = areas[bestIdx] * REGION_SIZE_MIN_RATIO;
+  const clusterHi = areas[bestIdx] * REGION_SIZE_MAX_RATIO;
+  const cluster = valid.filter((b) => {
+    const a = bboxArea(b);
+    return a >= clusterLo && a <= clusterHi;
+  });
+  const clusterAreas = cluster.map(bboxArea).sort((a, b) => a - b);
+  const refArea = clusterAreas[Math.floor(clusterAreas.length / 2)] ?? 0;
 
   // FORMSAMSTÄMMIGHET (2026-08-02), samma princip som storleken ovan: korten är
   // fysiskt lika stora OCH lika formade, och i ETT foto ses de från EN vinkel —
@@ -752,14 +786,34 @@ export function regionsFromDistance(
   // 1,78–1,93 av medianen och förkastas — samma linje som redan gäller för kort
   // kant-i-kant: hellre färre funna kort än en blandfångst som identifieras
   // självsäkert till fel kort.
-  const sortedAspects = valid.map(bboxAspect).sort((a, b) => a - b);
+  // Formreferensen tas ur SAMMA kluster — annars räknas skräpets former in.
+  const sortedAspects = cluster.map(bboxAspect).sort((a, b) => a - b);
   const refAspect = sortedAspects[Math.floor(sortedAspects.length / 2)] ?? 1;
+
+  // FYLLNADSGRAD — den starkaste skiljelinjen mot tyg och skuggor, och den enda
+  // med fysisk grund: ett kort är en STYV rektangel och fyller sin bbox, medan
+  // ett byxveck, en skuggslinga eller en skärmpanel är oregelbunden. MÄTT över
+  // ägarens tre femkortsfångster: korten 0,86–0,98, skräp med meningsfull area
+  // 0,37–0,66. Storleks- och formbanden separerade samma skräp med bara ~5 %
+  // marginal; det här gör det med ~20 %.
+  // ⛔ Absolut tröskel går INTE att använda: ett kort som ligger vridet 15° har
+  // fyllnadsgrad 0,65 rent geometriskt (bboxen växer åt båda håll) — samma som
+  // skräpet. Därför RELATIVT klustrets median, precis som storlek och form:
+  // ligger ALLA kort vridna följer medianen med, och bara det som avviker från
+  // fältet faller bort. Det absoluta golvet REGION_FILL_MIN står kvar som
+  // grovsåll för enstaka regioner.
+  const sortedFills = cluster
+    .map((b) => b.area / ((b.maxX - b.minX + 1) * (b.maxY - b.minY + 1)))
+    .sort((a, b) => a - b);
+  const refFill = sortedFills[Math.floor(sortedFills.length / 2)] ?? 1;
   return valid
     .filter((b) => {
       const a = bboxArea(b);
       if (a < refArea * REGION_SIZE_MIN_RATIO || a > refArea * REGION_SIZE_MAX_RATIO) return false;
       const r = bboxAspect(b) / (refAspect || 1);
-      return r >= REGION_ASPECT_REL_MIN && r <= REGION_ASPECT_REL_MAX;
+      if (r < REGION_ASPECT_REL_MIN || r > REGION_ASPECT_REL_MAX) return false;
+      const fill = b.area / ((b.maxX - b.minX + 1) * (b.maxY - b.minY + 1));
+      return fill >= refFill * REGION_FILL_REL_MIN;
     })
     .sort((a, b) => b.area - a.area)
     .slice(0, maxRegions)

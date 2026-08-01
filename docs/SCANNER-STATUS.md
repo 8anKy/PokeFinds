@@ -777,6 +777,34 @@ Två följder utöver träffsäkerheten:
   före 126 (0,865). Tryckningsvalet löstes alltså av numret, precis som
   arkitekturen säger att det ska ("bilden föreslår, numret avgör").
 
+## FÄLTRUNDA 10 (2026-08-02): byxvecket, och KAMERAN ÄR INTE FLASKHALSEN
+
+Tre fångster med fem kort. Kameran loggas nu: **2160x3840 (äkta 4K)** — med fem
+kort blir varje kort ~500x680 px i källan, alltså INGEN pixelsvält. Frågan
+"kan vi förbättra pixlarna" är därmed besvarad för 5–9 kort: nej, det är inte
+där felet sitter.
+
+Ett byxveck kom med som kort. Två fel bakom det:
+
+1. **Referensen var mitten av ALLT, inte av korten.** Storleksfiltret tog undre
+   medianen av alla formvaliderade blobbar och antog att skräpet är STÖRRE än
+   ett kort. MÄTT här var det tvärtom: fem kort (area 4408–5312) och fem
+   SMÅskräp (391–2178) gav undre median **2178 — ett skräpvärde** — och bandet
+   runt det släppte in vecket. Referensen är nu **kortKLUSTRET**: varje kandidat
+   röstar på hur många andra som ligger i dess storleksband, och den största
+   gruppens median vinner (korten fick 5 röster, skräpklustren 2–3).
+2. **Fyllnadsgraden användes inte.** Den är den starkaste skiljelinjen mot tyg
+   och skuggor och den enda med FYSISK grund: ett kort är en STYV rektangel och
+   fyller sin bbox. MÄTT över de tre fångsterna: **korten 0,86–0,98, skräp med
+   meningsfull area 0,37–0,66.** Storleks- och formbanden skilde samma skräp med
+   ~5 % marginal; fyllnadsgraden gör det med ~20 %.
+   ⛔ **Absolut tröskel går inte**: ett kort vridet 15° har fyllnadsgrad 0,65 rent
+   geometriskt — samma som skräpet. Därför RELATIVT klustrets median (0,85), som
+   storlek och form: ligger alla kort vridna följer medianen med.
+
+Utfall: 6/5/5 → **5/5/5**, och alla tidigare fångster oförändrade (den enda som
+inte ger kortantalet är den med två kort kant i kant, som förkastas med flit).
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.
