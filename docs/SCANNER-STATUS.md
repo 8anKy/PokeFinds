@@ -682,6 +682,30 @@ mellan två BILDkandidater. Båda kräver fler facitmärkta fall innan man rör
 trösklarna — att tuna dem på ett fall vardera är precis det fältrunda 2 gjorde
 fel.
 
+## FÄLTRUNDA 7 (2026-08-02): hopslagningen LÖST — maskupplösningen var gränsen
+
+Mätbarhetsfixen från runda 5 (`BULK_DETECT_MAX` 960) betalade sig direkt: två
+fångster som BÄR springan mellan korten fanns nu att mäta på.
+
+| mask | 22:20-fångsten (hopslagen) | 21:30-fångsten |
+|---|---|---|
+| 240 (dåvarande) | 5 — **två kort hopslagna** | 7 (6 kort + skräp) |
+| 360 | 8 — två kort saknas + skräp | 6 ✔ |
+| **480** | **7 — paret SPLITTAT, 6 kort + 1 skräp** | **6 ✔** |
+| 640 | 6 ✔ | 6 ✔ |
+
+`REGION_MASK_MAX` 240 → **480**. Alla sex korten skiljs vid varje mask ≥ 480;
+det som varierar ovanför är EN ensam skräpregion.
+⛔ **640 valdes INTE fast det gav snyggast siffra** (6 och 6): 560 → 7, 640 → 6,
+800 → 7, 960 → 8 på samma foto. Skräpregionen kommer och går, dvs brus — att
+välja 640 vore att överanpassa mot två foton. 480 är gränsen där själva
+problemet (springan under en maskpixel) faktiskt löses, och den billigaste:
+masken går från 32k till ~130k pixlar, och flödesfyllningen är O(n) på telefonen.
+⛔ Den äldsta fångsten (tagen före `BULK_DETECT_MAX` = 960) är fortfarande
+hopslagen vid ALLA masker — informationen är kastad i själva bilden. Det är
+också beviset för att runda 5:s offline-försök ("högre mask gav sämre") mätte
+brus, inte modellen.
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.

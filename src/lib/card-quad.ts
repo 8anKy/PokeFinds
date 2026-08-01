@@ -429,7 +429,22 @@ export function detectCardQuad(
  * motmedlet. En pärmsida (nio kort kant i kant) blir därför EN jätteblob;
  * formvalideringen förkastar den hellre än gissar.
  */
-const REGION_MASK_MAX = 240;
+/** Maskens långsida. 240 → 480 (2026-08-02, fältrunda 7).
+ *  ⛔ Talet är en UPPLÖSNINGSGRÄNS, inte en tuning: två kort som ligger några
+ *  millimeter isär skiljs av en springa som vid 240 blir 1–2 maskpixlar, smetas
+ *  ihop med kortens ljusa kanter av boxmedelvärdet och läses som FÖRGRUND — de
+ *  två korten blir EN region. MÄTT på ägarens 960 px-fångster: 240 och 360
+ *  slår ihop paret, 480 och uppåt skiljer det. Under 480 hjälper varken
+ *  starkare erosion eller annan tolerans (båda motbevisade, fältrunda 5).
+ *  ⛔ Välj INTE ett högre värde på antalet regioner: 560→7, 640→6, 800→7,
+ *  960→8 på samma foto. Alla hittar de SEX korten; skillnaden är en ensam
+ *  skräpregion som kommer och går, dvs brus. 640 såg bäst ut och vore därför
+ *  precis det överanpassade valet. 480 är gränsen där själva problemet löses,
+ *  och den billigaste (masken är ~130k pixlar mot 32k — flödesfyllningen är
+ *  O(n) och kör på telefonen).
+ *  ⛔ En fångst tagen FÖRE BULK_DETECT_MAX=960 bär inte springan alls: där
+ *  hjälper ingen maskupplösning, informationen är redan kastad. */
+const REGION_MASK_MAX = 480;
 /**
  * Blob-arean måste vara 0,15–30 % av bilden. Golvet var 0,4 % och det åt upp
  * fotograferingar FRÅN HÅLL (mätt av ägaren 2026-08-01: sex kort på bordet →
