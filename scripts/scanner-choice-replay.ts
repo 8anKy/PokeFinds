@@ -88,6 +88,7 @@ async function main() {
   let nowRight = 0;
   const fixed: string[] = [];
   const broken: string[] = [];
+  const stillWrong: string[] = [];
 
   for (const job of jobs) {
     const d = job.result as Diag;
@@ -130,6 +131,20 @@ async function main() {
     perProvider.set(provider, agg);
     if (!wasRight && isRight) fixed.push(job.id.slice(-6));
     if (wasRight && !isRight) broken.push(job.id.slice(-6));
+    // KVARSTÅENDE missar listas alltid: "vad är fortfarande fel" är hela frågan
+    // verktyget finns för, och utan listan syns bara de fall som RÖRDE SIG av
+    // den senaste ändringen.
+    if (!isRight) {
+      const t = await prisma.card.findUnique({
+        where: { id: truth },
+        select: { name: true, number: true, set: { select: { name: true } } },
+      });
+      stillWrong.push(
+        `${job.id.slice(-6)}  ${provider.padEnd(7)} facit: ${t?.name} ${t?.number} (${t?.set.name})` +
+          `  →  ${top ? `${top.name} ${top.number} (${top.setName})` : "—"}` +
+          `  modell läste: "${d.guessedName ?? ""}"/"${d.guessedNumber ?? ""}"`
+      );
+    }
     if (wasRight !== isRight) {
       const t = await prisma.card.findUnique({
         where: { id: truth },
@@ -150,6 +165,11 @@ async function main() {
   }
   console.log(`fixade: ${fixed.length ? fixed.join(", ") : "—"}`);
   console.log(`brutna: ${broken.length ? broken.join(", ") : "—"}`);
+  if (stillWrong.length) {
+    console.log(`
+--- ${stillWrong.length} KVARSTÅENDE missar ---`);
+    for (const line of stillWrong) console.log(line);
+  }
 }
 
 main().finally(() => prisma.$disconnect());
