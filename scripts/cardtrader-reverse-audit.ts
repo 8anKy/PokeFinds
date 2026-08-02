@@ -25,6 +25,7 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import {
   cheapestReverseNmEn,
+  judgeReversePrice,
   ctBlueprints,
   ctExpansions,
   ctMarketplace,
@@ -109,6 +110,10 @@ async function main() {
   const allDepths: number[] = [];
   /** Golv över 1 000 kr — kandidater för "inte egentligen till salu"-annonser. */
   const suspicious: Array<{ set: string; card: string; ore: number; depth: number }> = [];
+  let rejThin = 0;
+  let rejImplausible = 0;
+  /** Vaktens farligaste utfall: avvisade priser som INTE ser absurda ut. */
+  const rejLowValue: Array<{ set: string; card: string; ore: number; ratio: number }> = [];
   let totalCards = 0;
   let totalPriced = 0;
   let totalNumberMiss = 0;
@@ -154,16 +159,38 @@ async function main() {
         numberMiss++;
         continue;
       }
-      const rev = cheapestReverseNmEn(market[String(bp.id)], MIN_DEPTH);
-      if (!rev) continue;
+      const listings = market[String(bp.id)];
+      // OVAKTAT tal först — vakten kan bara mätas mot det den skulle ha släppt igenom.
+      const raw = cheapestReverseNmEn(listings, 1);
+      if (!raw) continue;
+      const rawOre = Math.round((raw.cents / 100) * eurToOre);
+      if (rawOre >= 100_000) {
+        suspicious.push({ set: set.name, card: `${c.number} ${c.name}`, ore: rawOre, depth: raw.depth });
+      }
+
+      const verdict = judgeReversePrice(listings);
+      if (!verdict.price) {
+        if (verdict.reason === "thin") rejThin++;
+        else if (verdict.reason === "implausible") {
+          rejImplausible++;
+          if (rawOre < 2000) {
+            // En AVVISNING PÅ ETT LÅGT TAL är vaktens farligaste utfall: den
+            // betyder att vi kastat ett pris som mycket väl kan vara äkta.
+            rejLowValue.push({
+              set: set.name,
+              card: `${c.number} ${c.name}`,
+              ore: rawOre,
+              ratio: verdict.ratio ?? 0,
+            });
+          }
+        }
+        continue;
+      }
       priced++;
-      const ore = Math.round((rev.cents / 100) * eurToOre);
+      const ore = Math.round((verdict.price.cents / 100) * eurToOre);
       prices.push(ore);
       allPrices.push(ore);
-      allDepths.push(rev.depth);
-      if (ore >= 100_000) {
-        suspicious.push({ set: set.name, card: `${c.number} ${c.name}`, ore, depth: rev.depth });
-      }
+      allDepths.push(verdict.price.depth);
     }
     totalPriced += priced;
     totalNumberMiss += numberMiss;
@@ -202,8 +229,27 @@ async function main() {
   const over20 = allPrices.filter((p) => p >= 2000).length;
   console.log(`\nKort med golv ≥ 20 kr: ${over20} (${((over20 / Math.max(1, allPrices.length)) * 100).toFixed(1)} %)`);
 
+  console.log("\n" + "-".repeat(72));
+  console.log("VAKTEN (judgeReversePrice) MOT FACIT");
+  console.log("-".repeat(72));
+  const rejected = rejThin + rejImplausible;
+  console.log(`  Avvisade totalt:            ${rejected}`);
+  console.log(`    för tunt (djup < 2):      ${rejThin}`);
+  console.log(`    orimlig kvot mot ordinarie: ${rejImplausible}`);
+  console.log(`  Kvar efter vakten:          ${totalPriced}`);
+  const survivingMax = allPrices.length ? allPrices[allPrices.length - 1] : 0;
+  console.log(`  DYRASTE ÖVERLEVANDE GOLV:   ${(survivingMax / 100).toFixed(2)} kr`);
   console.log(
-    `\nMISSTÄNKTA GOLV (≥ 1 000 kr) — ${suspicious.length} st. Djupet avgör om minDepth räcker som skydd:`
+    `\n  ⚠ Avvisade LÅGA priser (< 20 kr) — de skulle kunna vara äkta: ${rejLowValue.length}`
+  );
+  for (const r of rejLowValue.sort((a, b) => b.ratio - a.ratio).slice(0, 15)) {
+    console.log(
+      `     ${(r.ore / 100).toFixed(2).padStart(8)} kr · ${r.ratio.toFixed(0).padStart(6)}× ordinarie · ${r.set} ${r.card}`
+    );
+  }
+
+  console.log(
+    `\nMISSTÄNKTA GOLV (≥ 1 000 kr) FÖRE VAKTEN — ${suspicious.length} st:`
   );
   for (const s of suspicious.sort((a, b) => b.ore - a.ore).slice(0, 20)) {
     console.log(

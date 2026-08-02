@@ -35,6 +35,7 @@ import {
   printLabelFromVersion,
   printRank,
 } from "../lib/print-variant";
+import { CT_REVERSE_LABEL } from "../lib/cardtrader";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Samtidiga DB-skrivningar (≤ DB_POOL i db.ts). Kortar 18k sekventiella
@@ -952,9 +953,17 @@ export async function runVariantRefresh(): Promise<number> {
     // TRYCKNINGAR UNDANTAS: pokemontcg.io har EN cardmarket-serie per tcgExternalId,
     // så alla tre tryckningarna hade fått samma trendpris — och det hade skrivit över
     // de tryckningsspecifika From-priser runCardmarketRefresh just satt.
+    //
+    // ⛔ REVERSE HOLO UNDANTAS AV SAMMA SKÄL, FAST VÄRRE: `cardMarketPriceOre`
+    // läser `trendPrice`, dvs BASKORTETS trend — pokemontcg.io har ingen separat
+    // serie för reverse-varianten. Utan undantaget hade det här jobbet skrivit
+    // över CardTraders reverse-golv med det ORDINARIE kortets pris varje dygn,
+    // och de ~8 000 reverse-produkterna hade dessutom lagt ~4,5 h sekventiella
+    // pokemontcg.io-anrop (~2 s styck) i ett jobb som redan har 2 h budget.
+    // Reverse-priset ägs av src/jobs/cardtrader-reverse.ts.
     where: {
       category: "SINGLE_CARD",
-      variantLabel: { not: null, notIn: [...PRINT_VARIANT_LABELS] },
+      variantLabel: { not: null, notIn: [...PRINT_VARIANT_LABELS, CT_REVERSE_LABEL] },
       card: { tcgExternalId: { not: null } },
     },
     select: { id: true, card: { select: { tcgExternalId: true } }, offers: { where: { retailerId: cm?.id }, select: { id: true }, take: 1 } },

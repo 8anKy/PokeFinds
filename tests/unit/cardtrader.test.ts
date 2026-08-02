@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   blueprintAllowsReverse,
+  cheapestNonReverseNmEn,
   cheapestReverseNmEn,
   ctNumberKey,
+  judgeReversePrice,
   ctSetNameKey,
   isPublishableReverseListing,
   isSingleBlueprint,
   matchExpansion,
+  shouldDistrustDexTaxonomy,
   type CtBlueprint,
   type CtExpansion,
   type CtListing,
@@ -105,6 +108,105 @@ describe("cheapestReverseNmEn", () => {
   it("tom eller saknad lista ger null", () => {
     expect(cheapestReverseNmEn([])).toBeNull();
     expect(cheapestReverseNmEn(undefined)).toBeNull();
+  });
+});
+
+describe("judgeReversePrice", () => {
+  const rev = (cents: number, id = 1) =>
+    listing({ id, price: { cents, currency: "EUR" } });
+  const normal = (cents: number, id = 90) =>
+    listing({ id, price: { cents, currency: "EUR" }, props: { pokemon_reverse: false } });
+
+  it("publicerar ett rimligt golv med tillräckligt djup", () => {
+    const v = judgeReversePrice([rev(27, 1), rev(40, 2), normal(11)]);
+    expect(v.price?.cents).toBe(27);
+    expect(v.reason).toBe("none");
+    expect(v.ratio).toBeCloseTo(27 / 11);
+  });
+
+  it("avvisar ett golv som vilar på EN annons", () => {
+    const v = judgeReversePrice([rev(27), normal(11)]);
+    expect(v.price).toBeNull();
+    expect(v.reason).toBe("thin");
+  });
+
+  it("Awakening Drum: två annonser, båda skräp — djupet räcker INTE", () => {
+    // Temporal Forces 141, mätt i prod: golv 9,9 M€ på djup 2, baskort ~0,1 €.
+    const v = judgeReversePrice([rev(991_041_239, 1), rev(999_999_999, 2), normal(11)]);
+    expect(v.price).toBeNull();
+    expect(v.reason).toBe("implausible");
+  });
+
+  it("Panpour: 21 988 € på djup 2 avvisas också", () => {
+    const v = judgeReversePrice([rev(2_198_760, 1), rev(2_500_000, 2), normal(30)]);
+    expect(v.price).toBeNull();
+    expect(v.reason).toBe("implausible");
+  });
+
+  it("10 000 €-placeholdern avvisas — talet återkom identiskt i hela katalogen", () => {
+    const v = judgeReversePrice([rev(1_000_000, 1), rev(1_000_000, 2), normal(20)]);
+    expect(v.price).toBeNull();
+    expect(v.reason).toBe("implausible");
+  });
+
+  it("ETT äkta prishopp fälls inte — reverse får kosta mångdubbelt", () => {
+    // 20x det ordinarie kortet är högt men fullt verkligt; vakten går vid 50x.
+    const v = judgeReversePrice([rev(2000, 1), rev(2500, 2), normal(100)]);
+    expect(v.price?.cents).toBe(2000);
+    expect(v.reason).toBe("none");
+  });
+
+  it("CardTraders EGET ordinarie golv går före den inskickade referensen", () => {
+    const v = judgeReversePrice([rev(500, 1), rev(600, 2), normal(100)], {
+      fallbackReferenceCents: 1,
+    });
+    expect(v.referenceCents).toBe(100);
+    expect(v.price?.cents).toBe(500);
+  });
+
+  it("saknas ordinarie annonser används vårt eget baspris", () => {
+    const v = judgeReversePrice([rev(1_000_000, 1), rev(1_000_000, 2)], {
+      fallbackReferenceCents: 100,
+    });
+    expect(v.referenceCents).toBe(100);
+    expect(v.reason).toBe("implausible");
+  });
+
+  it("utan NÅGON referens faller vi tillbaka på enbart djupkravet", () => {
+    const v = judgeReversePrice([rev(27, 1), rev(40, 2)]);
+    expect(v.price?.cents).toBe(27);
+    expect(v.referenceCents).toBeNull();
+    // ...men djupet gäller fortfarande.
+    expect(judgeReversePrice([rev(27, 1)]).reason).toBe("thin");
+  });
+
+  it("inga reverse-annonser alls ger 'none' utan pris", () => {
+    const v = judgeReversePrice([normal(11)]);
+    expect(v.price).toBeNull();
+    expect(v.reason).toBe("none");
+  });
+
+  it("en referens på 0 får inte ge division med noll", () => {
+    const v = judgeReversePrice([rev(27, 1), rev(40, 2)], { fallbackReferenceCents: 0 });
+    expect(v.price?.cents).toBe(27);
+    expect(v.ratio).toBeNull();
+  });
+});
+
+describe("cheapestNonReverseNmEn", () => {
+  it("plockar lägsta ORDINARIE annonsen och ignorerar reverse", () => {
+    expect(
+      cheapestNonReverseNmEn([
+        listing({ id: 1, price: { cents: 5, currency: "EUR" } }), // reverse
+        listing({ id: 2, price: { cents: 30, currency: "EUR" }, props: { pokemon_reverse: false } }),
+        listing({ id: 3, price: { cents: 50, currency: "EUR" }, props: { pokemon_reverse: undefined } }),
+      ])
+    ).toBe(30);
+  });
+
+  it("null när inga ordinarie annonser finns", () => {
+    expect(cheapestNonReverseNmEn([listing()])).toBeNull();
+    expect(cheapestNonReverseNmEn([])).toBeNull();
   });
 });
 
@@ -207,6 +309,27 @@ describe("matchExpansion", () => {
       { id: 2, game_id: 5, code: "b", name: "Promos" },
     ];
     expect(matchExpansion("Promos", "Other", dupes)).toBeNull();
+  });
+});
+
+describe("shouldDistrustDexTaxonomy", () => {
+  it("ETT enda ja bevisar att setet är ifyllt — då gäller nejen", () => {
+    expect(shouldDistrustDexTaxonomy(1, 100)).toBe(false);
+    expect(shouldDistrustDexTaxonomy(9, 7)).toBe(false); // Pitch Black-formen
+  });
+
+  it("noll ja och många nej = ofyllt set (Chaos Rising, 76 nej)", () => {
+    expect(shouldDistrustDexTaxonomy(0, 76)).toBe(true);
+  });
+
+  it("ett litet set utan reverse holos utlöser inte misstanken", () => {
+    expect(shouldDistrustDexTaxonomy(0, 5)).toBe(false);
+    expect(shouldDistrustDexTaxonomy(0, 19)).toBe(false);
+    expect(shouldDistrustDexTaxonomy(0, 20)).toBe(true);
+  });
+
+  it("inga kandidater alls är inte misstänkt", () => {
+    expect(shouldDistrustDexTaxonomy(0, 0)).toBe(false);
   });
 });
 

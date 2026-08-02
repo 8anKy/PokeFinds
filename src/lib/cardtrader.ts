@@ -33,6 +33,16 @@
 /** Pokémon i CardTraders speltabell (`/games`). */
 export const CT_GAME_POKEMON = 5;
 
+/**
+ * Etiketten reverse holo-produkterna bär (`Product.variantLabel`).
+ *
+ * Bor HÄR och inte i jobbet därför att `cardmarket-refresh` måste kunna UNDANTA
+ * den utan att dra in en andra PrismaClient — och därför att en etikett som
+ * stavas på två ställen förr eller senare stavas olika. Värdet fanns redan i
+ * katalogen (en produkt) innan importen byggdes; det återanvänds med flit.
+ */
+export const CT_REVERSE_LABEL = "Reverse Holo";
+
 export interface CtExpansion {
   id: number;
   game_id: number;
@@ -103,10 +113,9 @@ export const CT_NM_CONDITIONS = new Set(["Mint", "Near Mint"]);
  * går inte att köpa, och ett golv byggt på en okköpbar annons är exakt den sorts
  * påstående rubriken inte får göra.
  */
-export function isPublishableReverseListing(l: CtListing): boolean {
+export function isBuyableNmEnListing(l: CtListing): boolean {
   const p = l.properties_hash ?? {};
   return (
-    p.pokemon_reverse === true &&
     p.pokemon_language === "en" &&
     typeof p.condition === "string" &&
     CT_NM_CONDITIONS.has(p.condition) &&
@@ -122,6 +131,19 @@ export function isPublishableReverseListing(l: CtListing): boolean {
   );
 }
 
+export function isPublishableReverseListing(l: CtListing): boolean {
+  return isBuyableNmEnListing(l) && l.properties_hash?.pokemon_reverse === true;
+}
+
+/**
+ * Samma annons fast för den ORDINARIE tryckningen. Används BARA som referens åt
+ * rimlighetsvakten, aldrig som publicerat pris (det talet äger Cardmarket).
+ * `undefined` och `false` betyder båda "inte reverse".
+ */
+export function isNonReverseNmEnListing(l: CtListing): boolean {
+  return isBuyableNmEnListing(l) && l.properties_hash?.pokemon_reverse !== true;
+}
+
 export interface ReversePrice {
   /** Lägsta publicerbara annonsen, i eurocent. */
   cents: number;
@@ -133,12 +155,10 @@ export interface ReversePrice {
 /**
  * Lägsta NM-engelska reverse holo-annonsen, eller null.
  *
- * ⛔ INGEN UTLIGGARVAKT PÅ TALET. En absurt HÖG annons (Alakazam Shadowless låg
- * på 10 000,64 € — ett återkommande "inte egentligen till salu"-tal) kan per
- * definition inte förorena ett MINIMUM; den kan bara göra det när den är den
- * ENDA annonsen. Skyddet är därför `minDepth`, inte en klämma på priset — samma
- * lärdom som de tre rivna guide-vakterna i CLAUDE.md: en vakt som gissar vilket
- * tal som är "rimligt" utan facit blir en spärrhake.
+ * RÅ, OVAKTAD. Den här funktionen svarar bara på "vad är billigast?" —
+ * rimlighetsbedömningen ligger i `judgeReversePrice`, som är den enda vägen
+ * till ett PUBLICERAT pris. Uppdelningen är med flit: revisionsskriptet vill se
+ * det ovaktade talet för att kunna mäta vad vakten faktiskt stoppar.
  */
 export function cheapestReverseNmEn(
   listings: CtListing[] | undefined,
@@ -148,6 +168,92 @@ export function cheapestReverseNmEn(
   if (ok.length < minDepth || ok.length === 0) return null;
   const best = ok.reduce((a, b) => (b.price.cents < a.price.cents ? b : a));
   return { cents: best.price.cents, depth: ok.length, listingId: best.id };
+}
+
+/** Lägsta NM-engelska ORDINARIE annonsen — vaktens referens, aldrig ett pris. */
+export function cheapestNonReverseNmEn(listings: CtListing[] | undefined): number | null {
+  const ok = (listings ?? []).filter(isNonReverseNmEnListing);
+  if (!ok.length) return null;
+  return ok.reduce((a, b) => (b.price.cents < a.price.cents ? b : a)).price.cents;
+}
+
+/**
+ * Minsta antal annonser bakom ett publicerat golv. MÄTT: av 223 orimliga golv
+ * (≥1 000 kr) hade 194 exakt EN annons bakom sig.
+ */
+export const CT_MIN_DEPTH = 2;
+
+/**
+ * Hur många gånger kortets ORDINARIE pris en reverse holo som mest får kosta.
+ *
+ * Äkta reverse holos ligger typiskt på 0,5–5× det ordinarie kortet (mätt i
+ * Paldea Evolved: Primeape normal 0,11 € mot reverse 0,27 €). 50 är alltså
+ * ~10× utanför normal variation — vakten kan inte fälla ett äkta prishopp,
+ * bara absurditeter.
+ */
+export const CT_MAX_REVERSE_RATIO = 50;
+
+export type ReverseReject = "thin" | "implausible" | "none";
+
+export interface ReverseVerdict {
+  /** Publicerbart pris, eller null om vakten sa nej. */
+  price: ReversePrice | null;
+  reason: ReverseReject;
+  /** Referenspriset vakten dömde mot (eurocent), om något fanns. */
+  referenceCents: number | null;
+  ratio: number | null;
+}
+
+/**
+ * DEN ENDA VÄGEN TILL ETT PUBLICERAT REVERSE-PRIS.
+ *
+ * Två spärrar, båda mätta mot facit innan de skeppades:
+ *
+ * 1. **DJUP** (`CT_MIN_DEPTH`). Ett golv som vilar på en enda annons är inte ett
+ *    marknadspris, det är en åsikt. 194 av 223 orimliga golv hade djup 1.
+ *
+ * 2. **KVOT MOT KORTETS ORDINARIE PRIS**. Djupet ensamt RÄCKER INTE — mätt:
+ *    Temporal Forces 141 Awakening Drum (9,9 M€) och Black & White 33 Panpour
+ *    (21 988 €) har BÅDA två annonser, och båda är skräp. Säljare parkerar kort
+ *    på exakt 10 000,00 € när de inte vill sälja; talet återkom identiskt över
+ *    hela katalogen.
+ *
+ * ⚠️ VARFÖR DET HÄR INTE ÄR EN FJÄRDE GUIDE-VAKT (CLAUDE.md river tre stycken):
+ * de rivna vakterna dömde Cardmarkets From mot Cardmarkets GUIDE — ett tal av
+ * ANNAN kvalitet som påstods binda samma sak, och som visade sig vara 12× fel.
+ * Här jämförs CardTraders reverse-golv mot CardTraders EGET ordinarie golv:
+ * samma marknadsplats, samma säljare, samma valuta, samma NM/engelska-filter.
+ * Referensen är dessutom ENSIDIG (bara tak, aldrig golv) och satt så högt att
+ * den inte kan bli en spärrhake — den avvisar, den ERSÄTTER aldrig ett tal.
+ *
+ * `referenceCents` får skickas in när CardTrader saknar ordinarie annonser
+ * (då duger vårt eget publicerade baspris). Finns INGEN referens alls faller vi
+ * tillbaka på enbart djupkravet: hellre ett vaktat-så-långt-det-går pris än
+ * inget pris för hela svansen.
+ */
+export function judgeReversePrice(
+  listings: CtListing[] | undefined,
+  opts: { fallbackReferenceCents?: number | null; minDepth?: number; maxRatio?: number } = {}
+): ReverseVerdict {
+  const minDepth = opts.minDepth ?? CT_MIN_DEPTH;
+  const maxRatio = opts.maxRatio ?? CT_MAX_REVERSE_RATIO;
+
+  const raw = cheapestReverseNmEn(listings, 1);
+  if (!raw) return { price: null, reason: "none", referenceCents: null, ratio: null };
+  if (raw.depth < minDepth) {
+    return { price: null, reason: "thin", referenceCents: null, ratio: null };
+  }
+
+  // CardTraders eget ordinarie golv först — samma källa är den bästa referensen.
+  const reference = cheapestNonReverseNmEn(listings) ?? opts.fallbackReferenceCents ?? null;
+  if (reference == null || reference <= 0) {
+    return { price: raw, reason: "none", referenceCents: null, ratio: null };
+  }
+  const ratio = raw.cents / reference;
+  if (ratio > maxRatio) {
+    return { price: null, reason: "implausible", referenceCents: reference, ratio };
+  }
+  return { price: raw, reason: "none", referenceCents: reference, ratio };
 }
 
 /**
@@ -193,6 +299,34 @@ export function isSingleBlueprint(b: CtBlueprint): boolean {
  */
 export function blueprintAllowsReverse(b: CtBlueprint): boolean {
   return (b.editable_properties ?? []).some((p) => p.name === "pokemon_reverse");
+}
+
+/**
+ * Så många kandidater måste TCGdex ha sagt nej till — UTAN ett enda ja — innan
+ * setets taxonomi bedöms OFYLLD i stället för reverse-lös.
+ */
+export const DEX_DISTRUST_MIN = 20;
+
+/**
+ * Är TCGdex reverse-data för det HÄR setet obrukbart?
+ *
+ * ⛔ "SÄGER NEJ" OCH "HAR INTE FYLLT I" SER LIKADANA UT PÅ KORTNIVÅ. MÄTT
+ * 2026-08-03: Chaos Rising (me04) har `reverse: false` på VARENDA kort, medan
+ * grannseten Perfect Order (me03) och Pitch Black (me05) har `true` på de flesta.
+ * Chaos Rising är ett modernt huvudset och CardTrader har 76 kort med riktiga
+ * NM-engelska reverse-annonser — datat är alltså ofyllt, inte negativt. Utan den
+ * här regeln tappade grinden ett helt set TYST.
+ *
+ * Diskriminatorn ligger på SETNIVÅ av just det skälet: ett enda ja bevisar att
+ * setet är ifyllt, och då betyder ett nej verkligen nej. Bara ett set där INGET
+ * kort säger ja — och där kandidaterna är fler än en handfull — är misstänkt.
+ */
+export function shouldDistrustDexTaxonomy(
+  dexYes: number,
+  dexNo: number,
+  min = DEX_DISTRUST_MIN
+): boolean {
+  return dexYes === 0 && dexNo >= min;
 }
 
 /** Produktsidan hos CardTrader för en blueprint. */
