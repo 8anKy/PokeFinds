@@ -1077,6 +1077,39 @@ osäker (1,309 mot 1,289). Rätt beteende i båda leden.
 tolvkortsuppsättningen, högst ett per runda = korsvalidering). **92/99**
 (bild 42/42, claude 24/29, gemini 26/28), noll nya fel.
 
+## UPPSKJUTET (ägarbeslut 2026-08-02): HOPSLAGNA KORT — VARNING + DELNING
+
+**Läget**: kort som ligger KANT I KANT smälter till en blob och FÖRKASTAS (med
+flit — en blandad cell identifieras självsäkert till fel kort). Användaren ser
+bara "Hittade 10 kort" utan att få veta varför eller vilka.
+MÄTT 2026-08-02 på två fångster: den förkastade blobben var 168×110 resp.
+168×104 px — **~2× klustrets kortbredd, ~1× dess höjd, fyllnad 0,93–0,94**,
+förkastad på `form 2,00x` resp. `2,10x klustret`. Ägaren sköt om med några mm
+mellanrum och fick **12 av 12 rätt**, dvs arbetsflödet fungerar — det som
+saknas är BESKEDET.
+
+**Två steg, i den här ordningen:**
+1. **VARNINGEN (bygg först)**: känn igen signaturen ovan bland de förkastade
+   blobbarna och säg "två kort ligger ihop — dra isär dem". Kan inte skapa en
+   falsk cell: den ändrar ingenting om vad som skickas. Samma princip som
+   `bulkBusySurface` — upptäck tillståndet och berätta, gissa aldrig.
+   💡 **Visa den FÖRE fångsten, inte efter.** Live-pollen (`setInterval` 600 ms
+   i skanna/page.tsx) finns redan men är AVSTÄNGD i bulk. Skälet i koden är
+   specifikt — enkortspollen fingeravtrycker och ANROPAR SERVERN per cell
+   ("CPU utan mottagare") — och det gäller INTE en layout-hint: den är helt
+   LOKAL (`detectCardRegions` på en nedskalad ruta, ingen fetch, ingen kvot,
+   ~10–30 ms). ⛔ Kräv en STRECK-räknare som `liveStreak` innan hinten visas —
+   rörelseoskärpa när telefonen flyttas ändrar segmenteringen och hinten
+   blinkar annars.
+2. **DELNINGEN (först om varningen inte räcker)**: dela blobben på mitten i
+   stället för att förkasta den. ⛔ Mät signaturen mot ALLA sparade fångster
+   först — den får aldrig matcha ett ENSKILT föremål. Växer snabbt förbi det
+   enkla fallet (tre hopslagna, lodrät hopslagning, partiell överlappning), och
+   en felaktig delning kostar två vision-anrop + ett fel kort att rätta.
+
+⛔ Höj INTE `REGION_ASPECT_REL_MAX` för att "släppa igenom" paret — hela poängen
+med den gränsen är att en blandad cell aldrig ska skickas.
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.
