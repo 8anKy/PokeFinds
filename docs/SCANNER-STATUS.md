@@ -844,6 +844,37 @@ stoppas av samma mönster igen), så bygg det först när en fångst visar en EN
 ö. Vill man stödja mönstrade underlag på riktigt krävs en annan detektor:
 kant-/rektangelsökning (Hough) i stället för bakgrundssegmentering.
 
+### Mönstrat underlag: FYRA angreppssätt provade och MOTBEVISADE (2026-08-02)
+
+Ägaren bedömde mönstrade underlag som viktigt. Signalen FINNS — kortens konturer
+syns som slutna rektanglar i kantbilden vid analysupplösning 300 — men fyra
+billiga vägar dit är nu uteslutna. Bygg dem inte igen:
+
+1. **Befintliga `detectCardQuad` på hela rutan.** Hittade NOLL kvadrater på alla
+   fyra mönstrade fångster (och på en fungerande fångst en enda kvadrat runt
+   HELA kortblocket). Den är byggd för ETT kort som fyller rutan och behåller
+   bara 8 linjetoppar per riktning — fem kort ger tio lodräta kortkanter plus
+   allt mönstret bidrar med.
+2. **Slutna ytor i kantbilden** (fyll det som kanterna omsluter). NOLL kort:
+   kortets INRE är bildens mest detaljrika yta (konst + text), så det faller
+   sönder i småbitar, medan slät handduk bildar rena komponenter. Metoden hittar
+   FLATA ytor — och kort är det minst flata som finns i bilden.
+3. **Kanttäthet** (kort = tätt av detalj, underlag = glesare). Svept över
+   fönster 7–13 och tröskel 0,12–0,40: bästa utfallet gav 5 regioner på
+   handduksfångsten, men ingen av dem var ett kort.
+4. **Täta kantblobbar** (morfologisk slutning så kortet blir en fylld klump).
+   Kortens kanttäthet smälter ihop med handdukens våffeltextur → korten hamnar i
+   en enda förkastad jätteblobb. Noll kort vid dilation 2, 3 och 4.
+
+**Kvar som seriöst alternativ**: en riktig FLERKVADRATSSÖKNING — behåll ~40
+linjetoppar per riktning, generera kandidatrektanglar ur linjepar, poängsätt var
+och en på kortproportion + kantstöd på alla fyra sidor + inre detalj, och välj
+en icke-överlappande, storlekskonsistent uppsättning. Det är ~200+ rader och
+riktig trimning, och mönstrets egna räta linjer ger gott om kortformade
+kandidater — utfallet är genuint osäkert. Den ska köras BARA när
+`busySurface` slår till, så den kan inte skada den fungerande vägen.
+Pass/fail före ship: 5 av 5 kort på alla fyra mönstrade fångster.
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.
