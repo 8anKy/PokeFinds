@@ -686,6 +686,22 @@ function Scanner() {
   // annan kamera (0,5× = ultravidvinkeln, en egen enhet på de flesta telefoner)
   // svarar den `needs-stream-restart` och VI öppnar om strömmen, se onZoom.
   const camera = useCameraControls();
+  /**
+   * ⛔ KAMERANS LIVSCYKEL FÅR ALDRIG BERO PÅ `camera`-OBJEKTETS IDENTITET.
+   *
+   * `stopCamera` anropas av en avmonterings-effekt (`useEffect(() => () =>
+   * stopCamera(), [stopCamera])`). Hamnar `camera` i dess beroenden körs den
+   * effekten om varje gång objektet byter identitet — och dess CLEANUP river
+   * då strömmen. `startCamera` startar om, anropar `attach()`, som sätter state,
+   * som renderar om, som byter identitet igen: kameran fastnade i en
+   * starta/stoppa-loop och gick aldrig live (2026-08-02).
+   *
+   * Därför går `attach` via en ref. Då kan varken en glömd `useMemo` i hooken
+   * eller ett framtida instabilt fält i den nå livscykeln — `stopCamera` har
+   * tomma beroenden och `startCamera` bara `[t]`, precis som före kontrollerna.
+   */
+  const attachRef = useRef(camera.attach);
+  attachRef.current = camera.attach;
 
   // Streckkodsläget döljs helt där plattformen inte kan läsa koder (iOS/WebKit
   // har ingen BarcodeDetector). En knapp som bevisligen inte fungerar är sämre
@@ -881,9 +897,9 @@ function Scanner() {
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
-    camera.attach(null);
+    attachRef.current(null);
     if (videoRef.current) videoRef.current.srcObject = null;
-  }, [camera]);
+  }, []);
 
   /**
    * @param deviceId Öppna en SPECIFIK kamera i stället för den bakre standarden.
@@ -923,7 +939,7 @@ function Scanner() {
       // spåret byts vid varje omstart — attach är därför obligatorisk här, inte
       // en engångsuppkoppling. Hooken applicerar också ett väntande zoom-förval
       // när den nya strömmen kommer in (0,5×-omstarten).
-      camera.attach(stream);
+      attachRef.current(stream);
       const video = videoRef.current;
       if (video) {
         video.srcObject = stream;
@@ -946,7 +962,7 @@ function Scanner() {
       );
       setCameraState("error");
     }
-  }, [t, camera]);
+  }, [t]);
 
   /**
    * Zoom-förval. De flesta byten är ett rent `applyConstraints` på spåret, men

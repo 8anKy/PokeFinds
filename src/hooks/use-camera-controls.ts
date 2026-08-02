@@ -246,15 +246,30 @@ export function useCameraControls(externalStream?: MediaStream | null): CameraCo
     [track, ultraWideDeviceId, zoomPresets]
   );
 
-  return {
-    attach,
-    refresh: sync,
-    torchSupported,
-    torchOn,
-    setTorch,
-    toggleTorch,
-    zoomPresets,
-    zoom,
-    applyZoom,
-  };
+  /**
+   * ⛔ MEMOISERAT MED FLIT. Ett bart objektliteral hade gett en NY identitet vid
+   * varje rendering, och anropare lägger rimligen `camera` i sina
+   * beroende-listor. Skanner-sidan gjorde det: `stopCamera` fick nya
+   * beroenden varje rendering, avmonterings-effekten kördes om, dess cleanup
+   * rev strömmen, `startCamera` startade om och anropade `attach()` → ny state →
+   * ny rendering. Kameran gick aldrig live (2026-08-02).
+   *
+   * Identiteten byts nu bara när något FAKTISKT ändrats. Notera att den ändå
+   * byts när `zoomPresets` fylls i efter första spåret — anropare som styr
+   * kamerans livscykel ska därför ändå gå via en ref, inte via det här objektet.
+   */
+  return useMemo(
+    () => ({
+      attach,
+      refresh: sync,
+      torchSupported,
+      torchOn,
+      setTorch,
+      toggleTorch,
+      zoomPresets,
+      zoom,
+      applyZoom,
+    }),
+    [attach, sync, torchSupported, torchOn, setTorch, toggleTorch, zoomPresets, zoom, applyZoom]
+  );
 }
