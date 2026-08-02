@@ -242,7 +242,21 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   namn i expansionen (Rayquaza ⊂ Rayquaza Gold Star). Ett fynd betyder "kontrollera länken på Cardmarket", aldrig "skriv om
   priset" — golvet-rakt-av ligger med flit ibland utanför guidens spann. Ångra en sådan skrivning med
   `scripts/revert-guide-median-prices.ts` (återställer ur VÅR egen historik, ingen RapidAPI-kvot).
-  ⛔ Cardmarket delar INTE längre ut API-nycklar; RapidAPI är enda vägen till `lowest_near_mint`.
+  ⛔ **RÄTTAT 2026-08-02**: den gamla raden här sa att Cardmarket "inte längre delar ut API-nycklar". Halvfel.
+  API:t LEVER och underhålls — det bytte domän 2026-01-30 (`api.cardmarket.com` → **410 Gone** med texten "Please
+  switch to https://apiv2.cardmarket.com"; `apiv2.cardmarket.com/ws/documentation` svarar 200, och
+  `/ws/v2.0/output.json/games` svarar 403, dvs den fungerar men kräver OAuth). Spärren är alltså POLICY, inte
+  teknik, och den är trefaldig: (1) "we are not accepting applications for access"; (2) åtkomst är begränsad till
+  PROFESSIONELLA SÄLJARE med manuell godkännandeprocess; (3) — den avgörande — vårt exakta användningsmönster är
+  uttryckligen förbjudet: *"We explicitly do not allow that Dedicated App users constantly only request the public
+  Marketplace resources (products, articles, prices, etc.) on consecutive days"*, med automatisk avstängning som
+  påföljd. Det ÄR vår dagliga 20k-uppdatering.
+  ⚠️ Värt att veta för framtiden: Cardmarkets API skulle lösa BÅDA våra luckor perfekt. `Article.isReverseHolo`
+  och `Article.isFirstEd` är dokumenterade FÖR POKÉMON-SINGLAR, och de sitter på ANNONSEN, inte på produkten — så
+  Shadowless kontra 1st Edition GÅR att skilja genom att partitionera den delade produktens annonser på
+  `isFirstEd`. Det är precis det ingen återförsäljare av `price_guide_6.json` någonsin kan göra (guiden är keyad
+  på `idProduct`). Kapaciteten finns alltså och är stängd — bygg inte mot den, men gissa inte heller att den inte
+  existerar.
 - **RUBRIKEN NAMNGER KÄLLAN, DEN PÅSTÅR INGET (2026-07-26, utökad 07-27)**: "Lägsta pris · NM engelska (Cardmarket)" gäller BARA när
   den vinnande offern faktiskt är Cardmarkets OCH är I LAGER; vinner en marknadsplats/butik står "Lägsta pris · {källa}",
   och är den vinnande offern slutsåld står "Uppskattat värde · ingen aktiv annons ({källa})" (`lowestOfferSource` returnerar
