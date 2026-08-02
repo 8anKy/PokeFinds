@@ -984,6 +984,53 @@ består nästan bara av fall där något gick fel, och då mäter choice-replay 
 väl en ändring fixar kända missar men inte om den RASERAR det som redan
 fungerar. Aktuell status: **59/64** (bild 24/24, claude 24/29, gemini 11/11).
 
+## FÄLTRUNDA 2026-08-02 (12 kort, bord + musmatta): TOTALEN FÅR UNDERKÄNNA NUMRET
+
+Ägarens fångst: 12 kort utspridda över TVÅ underlag (mörkt skrivbord och
+musmatta), med tangentbord i överkanten och fotografens ben i nederkanten.
+
+**DETEKTERINGEN: 12 av 12, noll falska.** Bakgrunden tog 65 % av bilden (mot
+73–79 % på ett enfärgat bord — två underlag sänker andelen utan att bryta
+modellen, båda når bildkanten). Former 0,73–0,93. Både tangentbordet och
+kroppen — de två klasser som fällde fältrunda 3, 4 och 10 — förkastades.
+⇒ **Flera enfärgade underlag i samma bild är INGET problem.** Det otestade
+fallet är fortfarande en matta som INTE når bildkanten (kort på en ö).
+
+**IDENTIFIERINGEN: 11 av 12 rätt.** 7 celler klarade sig helt utan AI-anrop
+(trust-regeln, $0); 5 gick till Gemini, som läste 5/5 nummer.
+
+**Den enda missen var ett FABRICERAT BEVIS.** Scorbunny 36 (Ascended Heroes,
+217 kort) lästes som **"026/217"**. Numret 26 finns som en riktig Scorbunny i
+tre andra set (Stellar Crown 142, Mega Evolution 132, Chilling Reign 198) — alla
+uteslutna av den lästa totalen — men nummerträffen gav ändå 0,25 och vann över
+rätt kort. Totalen 217 pekade RÄTT hela tiden och vägde bara 0,02
+(`TOTAL_TIEBREAK`, och bara inom samma-konst-grupper).
+
+⛔ **Därför fick träffen inget "?".** Osäkerhetsmåttet är en MARGINAL
+(`MATCH_MARGIN_MIN`), och en nummerträff är stark med flit — ett falskt nummer
+producerar alltså en stor, självsäker marginal. Marginalen kan per konstruktion
+inte se igenom ett fabricerat bevis; den kan bara mäta hur långt isär
+kandidaterna hamnade. Enda vägen är att inte fabricera beviset.
+
+**REGELN** (`numberMatchBonus` + `namesConfirmingTotal`, testade utan DB):
+numret och totalen kommer ur SAMMA läsning. Bekräftar katalogen totalen för en
+tryckning med **samma namn**, medan numret pekar på ett set totalen utesluter,
+är numret den felläsa halvan → **noll bonus** i stället för 0,25.
+- ⛔ Kravet på samma NAMN är avsiktligt smalt: kandidatpoolen är upp till
+  `CANDIDATE_LIMIT` rader per källa, så vilket tal som helst kolliderar förr
+  eller senare med NÅGOT sets storlek.
+- ⛔ Totalen får bara tala när den pekar ut ett alternativ. Cynthia's Gible
+  lästes "109/111" i samma runda — inget set har 111 kort, alltså är totalen
+  bara felläst och nummerträffen står kvar (0,25). En rak "totalen måste
+  stämma"-grind hade fällt det kortet.
+- ⛔ Secret rares rörs inte: de trycks "199/165" och setet bär den TRYCKTA
+  totalen (Ascended Heroes = 217 med kort 225 i sig) → grenen "nummer + total
+  matchar", aldrig kontradiktionsgrenen.
+
+**MÄTT** (`scanner-choice-replay.ts`, facitsetet 65 → **77** sedan rundans alla
+tolv lagts in — elva bekräftat rätta som regressionsvakt, en rättad):
+**70/77 → 71/77, noll nya fel** (bild 31/31, claude 24/29, gemini 15/17 → 16/17).
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.

@@ -307,6 +307,68 @@ export function parseGuessedNumber(raw: string | null | undefined): GuessedNumbe
   };
 }
 
+/**
+ * Namnen som den LÄSTA totalen pekar ut i kandidatpoolen.
+ *
+ * NUMRET OCH TOTALEN KOMMER UR SAMMA LÄSNING ("026/217"). Bekräftar katalogen
+ * totalen för en tryckning med SAMMA namn, medan numret pekar på ett set som
+ * totalen utesluter, då är numret den felläsa halvan — inte bevis. Se
+ * `numberMatchBonus`.
+ *
+ * ⛔ Kravet på SAMMA NAMN är avsiktligt smalt: kandidatpoolen är upp till
+ * CANDIDATE_LIMIT rader PER källa, så vilket tal som helst kolliderar förr
+ * eller senare med NÅGOT sets storlek. Bara en annan tryckning av samma kort är
+ * ett trovärdigt alternativ till den kandidat numret pekade ut.
+ */
+export function namesConfirmingTotal(
+  cards: Iterable<{ name: string; set: { totalCards: number } }>,
+  guessedTotal: number | null
+): Set<string> {
+  const names = new Set<string>();
+  if (guessedTotal == null) return names;
+  for (const c of cards) {
+    if (c.set.totalCards > 0 && c.set.totalCards === guessedTotal) {
+      names.add(c.name.trim().toLowerCase());
+    }
+  }
+  return names;
+}
+
+/**
+ * OVÄGD nummerbonus för en kandidat vars nummernyckel matchar modellens läsning.
+ * Anroparen dämpar med `nameWeight` (samma modellsvar, samma misstro).
+ *
+ * MÄTT i fält 2026-08-02: Scorbunny 36 (Ascended Heroes, 217 kort) lästes som
+ * "026/217". Det finns en Scorbunny 26 i tre ANDRA set (Stellar Crown 142, Mega
+ * Evolution 132, Chilling Reign 198) — alla uteslutna av den lästa totalen — men
+ * nummerträffen gav ändå 0,25 och vann över rätt kort. Ägaren fick rätta det,
+ * och eftersom en nummerträff är stark blev marginalen STOR: träffen såg SÄKER
+ * ut och märktes aldrig "?". Ett fabricerat bevis är värre än inget bevis, för
+ * osäkerhetsmåttet är en marginal och kan per konstruktion inte se igenom det.
+ *
+ * ⛔ Secret rares rörs inte: de trycks "199/165" och deras set bär den TRYCKTA
+ * totalen (Ascended Heroes = 217 med kort 225 i sig), så de landar i grenen
+ * "nummer + total matchar" och når aldrig kontradiktionsgrenen.
+ */
+export function numberMatchBonus(
+  card: { name: string; set: { totalCards: number } },
+  guessedTotal: number | null,
+  namesWithConfirmedTotal: ReadonlySet<string>
+): number {
+  if (guessedTotal == null) return 0.4; // nummer matchar, total oläst
+  if (card.set.totalCards === 0 || card.set.totalCards === guessedTotal) {
+    return 0.5; // nummer + total matchar → starkast
+  }
+  // Totalen pekar ut ett ANNAT set för samma kort → numret är den felläsa halvan.
+  if (namesWithConfirmedTotal.has(card.name.trim().toLowerCase())) return 0;
+  // Total skiljer, men numret stämmer och totalen pekar inte ut något alternativ.
+  // Förut gav det NOLL bonus, vilket straffade secret rares systematiskt: de
+  // trycks "199/165", så totalen säger med flit inte samma sak som setets
+  // storlek. En nummerträff är alltid bevis — bara svagare när totalen motsäger
+  // den utan att peka någon annanstans.
+  return 0.25;
+}
+
 /** Tak per kandidatkälla. Generöst — "charizard" ger 111 rader, "pikachu" 178. */
 const CANDIDATE_LIMIT = 400;
 
@@ -814,6 +876,10 @@ export async function matchCards(
     if (bestNameAgreement < NAME_AGREE_MIN) nameWeight = NAME_DISTRUST;
   }
 
+  // Se namesConfirmingTotal — totalen får underkänna en nummerträff som pekar på
+  // ett set totalen utesluter, när samma kort finns i ett set totalen bekräftar.
+  const namesWithConfirmedTotal = namesConfirmingTotal(byId.values(), guessedNum?.total ?? null);
+
   const eraIdx = ocr.guessedEra
     ? ERA_ORDER.indexOf(ocr.guessedEra as (typeof ERA_ORDER)[number])
     : -1;
@@ -866,24 +932,14 @@ export async function matchCards(
     // så "TG10", "SWSH034" och "130a" räknas, inte bara rena tal.
     // Nummerbonusen dämpas med SAMMA vikt som namnet: samma modellsvar, samma
     // misstro. Se NAME_DISTRUST.
+    // ⛔ Bonusen MÅSTE dämpas med nameWeight i ALLA grenar (2026-08-01): en gren
+    // glömde det och blev därmed den ENDA vägen för ett misstrott modellsvar att
+    // vinna ändå. MÄTT i produktion: modellen hittade på "Groudon 35/95" på en
+    // Probopass, namnet dämpades korrekt till 0,25 — och Rhydon 35 vann på den
+    // odämpade nummerbonusen (0,346 mot bildens 0,217). Samma modellsvar, samma
+    // misstro. Därför ligger grenvalet i numberMatchBonus och vikten HÄR.
     if (guessedNum && card.numberSortKey === guessedNum.sortKey) {
-      if (guessedNum.total == null) {
-        score += 0.4 * nameWeight; // nummer matchar, total oläst
-      } else if (card.set.totalCards === 0 || card.set.totalCards === guessedNum.total) {
-        score += 0.5 * nameWeight; // nummer + total matchar → starkast
-      } else {
-        // Total skiljer, men numret stämmer. Förut gav det NOLL bonus, vilket
-        // straffade secret rares systematiskt: de trycks "199/165", så totalen
-        // säger med flit inte samma sak som setets storlek. En nummerträff är
-        // alltid bevis — bara svagare när totalen motsäger den.
-        // ⛔ MÅSTE dämpas som de två grenarna ovan (2026-08-01): den här glömde
-        // `nameWeight` och blev därmed den ENDA vägen för ett misstrott
-        // modellsvar att vinna ändå. MÄTT i produktion: modellen hittade på
-        // "Groudon 35/95" på en Probopass, namnet dämpades korrekt till 0,25 —
-        // och Rhydon 35 vann på den odämpade nummerbonusen (0,346 mot bildens
-        // 0,217). Samma modellsvar, samma misstro, alla grenar.
-        score += 0.25 * nameWeight;
-      }
+      score += numberMatchBonus(card, guessedNum.total, namesWithConfirmedTotal) * nameWeight;
     }
     // Explicit typad — `satisfies` hade smalnat slug/estimatedValue till `null`,
     // och de fylls i längre ner när topplistan är vald.
