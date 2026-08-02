@@ -13,6 +13,8 @@ export interface AlternativeLike {
   score: number;
   /** Samma KONST som träffen (referensavtrycken nästan identiska). */
   sameArt?: boolean;
+  /** Plats i BILDENS egen topplista (1 = bildens bästa gissning). */
+  artRank?: number;
 }
 
 /**
@@ -52,17 +54,32 @@ export function pickAlternatives<T extends AlternativeLike>(
   // kortet?", och det avgörs av avståndet till träffen.
   const reference = match?.score ?? others[0]?.score ?? 0;
 
-  return others
-    .filter((c) =>
-      // SAMMA KONST VISAS ALLTID. Omtryck med identisk konst är precis de kort
-      // bildmatchningen inte KAN skilja åt — bara samlarnumret skiljer dem, och
-      // det är det svåraste att läsa på en skärmfotografering. Känner sig bilden
-      // säker får vinnaren dessutom en förtroendebonus (ART_TRUST 1,15), som
-      // sköt omtrycket långt utanför poängfönstret: rätt kort försvann ur listan
-      // och felmatchningen gick inte att rätta (Raboot #27/#37, fält 2026-08-02).
-      c.sameArt ? true : reference - c.score <= ALT_SCORE_WINDOW
-    )
-    // Omtrycken först: de är de troliga rättelserna, och listan kapas.
-    .sort((a, b) => Number(b.sameArt ?? false) - Number(a.sameArt ?? false) || b.score - a.score)
-    .slice(0, MAX_ALTERNATIVES);
+  return (
+    others
+      .filter((c) => {
+        // SAMMA KONST VISAS ALLTID. Omtryck med identisk konst är precis de kort
+        // bildmatchningen inte KAN skilja åt — bara samlarnumret skiljer dem, och
+        // det är det svåraste att läsa på en skärmfotografering. Känner sig bilden
+        // säker får vinnaren dessutom en förtroendebonus (ART_TRUST 1,15), som
+        // sköt omtrycket långt utanför poängfönstret: rätt kort försvann ur listan
+        // och felmatchningen gick inte att rätta (Raboot #27/#37, fält 2026-08-02).
+        if (c.sameArt) return true;
+        // BILDENS TOPP VISAS OCKSÅ ALLTID. När modellen läser ett TRUNKERAT namn
+        // ("Komala" på ett kort som heter "Larry's Komala") matchar texten ett
+        // HELT ANNAT kort exakt och slår bilden. Vinnaren delar då varken namn
+        // eller konst med rätt kort, så inget av villkoren ovan räddar det.
+        // MÄTT 2026-08-02: bilden hade rätt i alla tre observerade fallen.
+        if (c.artRank != null) return true;
+        return reference - c.score <= ALT_SCORE_WINDOW;
+      })
+      // Ordning: omtryck först (troligaste rättelsen), sedan bildens egen
+      // rangordning, sist övriga på poäng.
+      .sort(
+        (a, b) =>
+          Number(b.sameArt ?? false) - Number(a.sameArt ?? false) ||
+          (a.artRank ?? Number.POSITIVE_INFINITY) - (b.artRank ?? Number.POSITIVE_INFINITY) ||
+          b.score - a.score
+      )
+      .slice(0, MAX_ALTERNATIVES)
+  );
 }

@@ -51,6 +51,11 @@ const SIBLING_LIMIT = 12;
  */
 const SIBLING_RESERVED = 4;
 
+/** Hur många av BILDENS bästa gissningar som alltid ska gå att välja i
+ *  detaljvyn. Se märkningen av `artRank` i matchCards — texten kan slå bilden
+ *  på ett trunkerat namn, och då är bildens lista den enda vägen till rätt kort. */
+const ART_ALWAYS_SHOWN = 3;
+
 /** Månadsgräns för sparade skanningar per plan (skyddar mot AI-missbruk + kostnad).
  *  Per-scan vision-anrop är enda rörliga kostnaden; månadstak (inte dygnstak) är det
  *  som faktiskt binder kostnaden mot Pro-priset ($4,99/mån). Haiku ≈ $0,0025/scan. */
@@ -1209,6 +1214,31 @@ export async function matchCards(
     );
     top.forEach((c, i) => {
       c.sameArt = (sims[i] ?? 0) >= SAME_ART_MIN;
+    });
+
+    /**
+     * BILDENS EGEN TOPPLISTA — märkt så detaljvyn alltid kan visa den.
+     *
+     * MÄTT 2026-08-02 (ScannerJob-telemetrin, ägarens 18-kortsfångst): när
+     * modellen läser ett TRUNKERAT namn matchar texten ett helt annat kort
+     * EXAKT och slår bilden. De nya seten är fulla av ägarprefix, och modellen
+     * läser bara Pokémon-namnet:
+     *   "Komala" → Komala 185 (Unified Minds), bilden sa Larry's Komala 175
+     *   "Beldum" → Beldum 59 (Chaos Rising),   bilden sa Steven's Beldum 143
+     *   "Gloom"  → Gloom 44 (151),             bilden sa Erika's Gloom 2
+     * Bilden hade RÄTT i alla tre. Och eftersom vinnaren varken delar namn
+     * eller konst med rätt kort föll rätt kort ur alternativlistan — de gick
+     * alltså inte att rätta alls.
+     *
+     * Märkningen fabricerar ingen säkerhet: den ändrar varken poäng eller
+     * ordning, den ser bara till att bildens bästa gissningar ALLTID går att
+     * välja. Rankas efter bildpoäng, inte efter slutpoängen.
+     */
+    const byArt = top
+      .filter((c) => artScores.has(c.cardId))
+      .sort((a, b) => (artScores.get(b.cardId) ?? 0) - (artScores.get(a.cardId) ?? 0));
+    byArt.slice(0, ART_ALWAYS_SHOWN).forEach((c, i) => {
+      c.artRank = i + 1;
     });
   }
 

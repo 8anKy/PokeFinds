@@ -26,6 +26,32 @@ describe("pickAlternatives", () => {
     expect(out.map((c) => c.cardId)).toEqual(["raboot-37"]);
   });
 
+  it("visar BILDENS topplista även när texten vann på ett trunkerat namn", () => {
+    // Fältfallet: modellen läste "Komala" på ett kort som heter "Larry's
+    // Komala". Texten matchade Komala 185 EXAKT och slog bilden. Vinnaren delar
+    // varken namn eller konst med rätt kort, så bara artRank räddar det.
+    const out = pickAlternatives(
+      [
+        card({ cardId: "komala-185", name: "Komala", score: 1.2 }),
+        card({ cardId: "larrys-komala-175", name: "Larry's Komala", score: 0.3, artRank: 1 }),
+      ],
+      { cardId: "komala-185", productId: null, score: 1.2 }
+    );
+    expect(out.map((c) => c.cardId)).toEqual(["larrys-komala-175"]);
+  });
+
+  it("sorterar bildens topp efter dess EGEN rangordning, inte efter slutpoäng", () => {
+    const out = pickAlternatives(
+      [
+        card({ cardId: "m", score: 1.2 }),
+        card({ cardId: "art2", score: 0.9, artRank: 2 }),
+        card({ cardId: "art1", score: 0.3, artRank: 1 }),
+      ],
+      { cardId: "m", productId: null, score: 1.2 }
+    );
+    expect(out.map((c) => c.cardId)).toEqual(["art1", "art2"]);
+  });
+
   it("gallrar bort kort med ANNAN konst som ligger utanför poängfönstret", () => {
     const out = pickAlternatives(
       [

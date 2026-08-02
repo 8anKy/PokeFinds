@@ -476,14 +476,26 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   skäl: koden körs också på webben där paketet inte har någon native-sida, och en statisk import hade dragit in
   modulen i webbuntet i onödan. ⚠️ **iOS är tyst tills `npx cap sync` körts och appen byggts om (Codemagic) —
   en `git push` räcker INTE.**
-- **BULK-TAKET ÄR VÅRT EGET TAL OCH BOR PÅ TRE STÄLLEN (2026-08-02)**: `BULK_MAX_CARDS` i skanna/page.tsx (vad
-  klienten skickar), `cells.max(N)` i `/api/scanner/identify-bulk` (vad servern accepterar) och
-  `BULK_DETECTOR_MAX_CARDS` i lib/camera-controls.ts (vad zoom-rekommendationen klampas mot). Höjt 12 → **20**
-  sedan ägaren la ut 15 kort två gånger och fick 12 varje gång — det LÄSTE som en detekteringsmiss men var
-  raden. ⛔ Glider de tre isär blir felet TYST: ett för lågt Zod-tak avvisar HELA fångsten med 400 (inte bara
-  överskottet), ett för lågt klient-tak kapar korten utan förklaring. `tests/unit/bulk-cap-sync.test.ts` vaktar
-  att de är samma tal. ⚠️ Höjningen ÖPPNAR för 20 — den bevisar inte att 20 fungerar lika bra som 12 (färre
-  pixlar per kort, smalare springor att detektera). Kostnaden är linjär: ~4 avtryckssökningar per cell.
+- **BULK-TAKET = 15, SATT PÅ MÄTNING (2026-08-02)**: bor på TRE ställen — `BULK_MAX_CARDS` i skanna/page.tsx
+  (vad klienten skickar), `cells.max(N)` i `/api/scanner/identify-bulk` (vad servern accepterar) och
+  `BULK_DETECTOR_MAX_CARDS` i lib/camera-controls.ts (vad zoom-rekommendationen klampas mot).
+  12 → 20 → **15**. Måttet är andelen celler som BILDEN avgjorde utan att kosta ett vision-anrop, ur
+  `ScannerJob`-telemetrin: **12 kort → 42/42/50 % · 15 kort → 47 % · 18 kort → 28 %** (och notan dubblas,
+  $0,008 → $0,013). 15 ligger i samma band som 12; vid 18 kollapsar det. ⛔ Glider de tre talen isär blir felet
+  TYST: ett för lågt Zod-tak avvisar HELA fångsten med 400 (inte bara överskottet), ett för lågt klient-tak kapar
+  korten utan förklaring. `tests/unit/bulk-cap-sync.test.ts` vaktar att de är samma tal.
+- **⛔ MODELLEN LÄSER ÄGARPREFIX FEL — OCH TEXTEN SLÅR DÅ BILDEN (MÄTT 2026-08-02)**: de nya seten (Ascended
+  Heroes, Destined Rivals) är fulla av kort som heter "Larry's Komala", "Steven's Beldum", "Erika's Gloom",
+  "Team Rocket's Murkrow". Modellen läser bara Pokémon-namnet, och det TRUNKERADE namnet matchar ett HELT ANNAT
+  kort EXAKT — som då vinner över bildens träff:
+  `"Komala" → Komala 185 (Unified Minds)` medan bilden sa Larry's Komala 175 · `"Beldum" → Beldum 59` mot
+  Steven's Beldum 143 · `"Gloom" → Gloom 44` mot Erika's Gloom 2. **Bilden hade rätt i alla tre.** Värre: vinnaren
+  delar då varken namn eller konst med rätt kort, så det föll ur alternativlistan och gick INTE att rätta.
+  Lindring: `ScanCandidate.artRank` märker bildens `ART_ALWAYS_SHOWN`(3) bästa, och detaljvyn visar dem ALLTID.
+  Det fabricerar ingen säkerhet — poäng och ordning är orörda, kortet går bara alltid att välja.
+  ⏭️ KVAR (den egentliga fixen): låt namnmatchningen förstå ägarprefix, så "Komala" också krediterar
+  "Larry's Komala". Det ändrar poängsättningen för HELA katalogen och måste mätas med
+  `scripts/scanner-match-audit.ts` före ship — inte gissas.
 - **NAMNSYSKON HAR GARANTERADE PLATSER I KANDIDATLISTAN (2026-08-02)**: `SIBLING_RESERVED`=4 i
   `matchCards`. Syskonen ligger i skikt 3, UNDER bildkandidaterna (skikt 2), och en bulk-cell kan ha upp till
   `ART_CANDIDATES` kort över `ART_STRONG` — då fyller skikt 2 hela taket och syskonen faller ur listan. Det är

@@ -34,7 +34,7 @@ const schema = z.object({
     // ⛔ MÅSTE följa BULK_MAX_CARDS i skanna/page.tsx. Zod avvisar HELA anropet
     // när taket överskrids, inte bara överskottet — ligger det lägre än
     // klientens tak misslyckas varje stor fångst med 400 i stället för att kapas.
-    .max(20),
+    .max(15),
   /**
    * ADMIN-FELSÖKNING: detekteringsbilden (~480 px JPEG) + antal funna
    * regioner. Bordsfångster går inte att felsöka mot syntetiska modeller —

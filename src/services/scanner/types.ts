@@ -93,6 +93,18 @@ export interface ScanCandidate {
    * avtryck; då gäller poängfönstret som vanligt.
    */
   sameArt?: boolean;
+  /**
+   * Kandidatens plats i BILDENS egen topplista (1 = bildens bästa gissning).
+   * Odefinierad när kortet inte låg i bildens topp alls.
+   *
+   * ⛔ Detaljvyn visar ALLTID bildens tre bästa, oavsett slutpoäng. MÄTT
+   * 2026-08-02: när modellen läser ett TRUNKERAT namn ("Komala" på ett kort som
+   * heter "Larry's Komala") matchar texten ett HELT ANNAT kort exakt och slår
+   * bilden — och eftersom vinnaren då varken delar namn eller konst med rätt
+   * kort föll rätt kort ur alternativlistan. Bilden hade rätt i alla tre
+   * observerade fallen; den måste alltid gå att välja.
+   */
+  artRank?: number;
   /** Aktuellt marknadsvärde i öre (Cardmarket-trend via kortets produkt), om känt. */
   estimatedValue: number | null;
 }

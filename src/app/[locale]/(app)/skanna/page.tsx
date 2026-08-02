@@ -89,6 +89,8 @@ interface Candidate {
   score: number;
   /** Samma KONST som träffen (omtryck) — visas alltid, se alternatives-filtret. */
   sameArt?: boolean;
+  /** Plats i BILDENS topplista (1 = bildens bästa gissning) — visas alltid. */
+  artRank?: number;
   estimatedValue: number | null;
 }
 
@@ -483,11 +485,16 @@ const BULK_DETECT_MAX = 960;
  * Taket för hur många kort EN bulk-fångst tar. **Vårt eget tal, ingen fysisk
  * gräns** — `detectCardRegions` kapar helt enkelt listan här.
  *
- * 12 → 20 (2026-08-02): ägaren la ut 15 kort två gånger och fick 12 varje gång,
- * vilket LÄSTE som en detekteringsmiss men var den här raden. 12 var satt när
- * fältrundorna handlade om 5-6 kort; 12 kort är sedan dess verifierat i fält
- * (alla tolv rätt identifierade), så taket var det som stod ivägen, inte
- * igenkänningen.
+ * 12 → 20 → **15** (2026-08-02). 12 var satt när fältrundorna handlade om 5-6
+ * kort och kapade tyst ägarens 15-kortsfångster. 20 höll inte: MÄTT ur
+ * ScannerJob-telemetrin, andel celler som avgjordes av BILDEN utan att kosta ett
+ * vision-anrop —
+ *     12 kort → 42 % · 42 % · 50 % (tre fångster)
+ *     15 kort → 47 %
+ *     18 kort → 28 %   ← kollapsen
+ * 15 ligger alltså i samma band som 12, medan 18 nästan halverar auto-andelen
+ * (och dubblar notan: $0,013 mot $0,008). Taket sattes på DEN mätningen, inte på
+ * en känsla — och 15 är ägarens egen övre gräns.
  *
  * ⛔ ÄNDRAS DEN HÄR MÅSTE TVÅ ANDRA STÄLLEN FÖLJA MED, annars kapas fångsten
  * ändå — tyst: `cells`-schemats `.max()` i /api/scanner/identify-bulk (Zod
@@ -502,7 +509,7 @@ const BULK_DETECT_MAX = 960;
  * detekteringen måste hitta smalare springor mellan dem. Höjningen ÖPPNAR för
  * 20, den lovar inte att 20 fungerar lika bra som 12.
  */
-const BULK_MAX_CARDS = 20;
+const BULK_MAX_CARDS = 15;
 
 interface BulkCell {
   /** Cellens utsnitt (med liten marginal) — vision-bild + miniatyr. */
