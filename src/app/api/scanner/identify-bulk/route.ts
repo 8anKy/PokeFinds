@@ -74,7 +74,9 @@ export async function POST(req: Request) {
       });
     }
     if (cells.length === 0) return jsonOk({ cells: [] });
-    return jsonOk({ cells: await identifyCellsArt(cells) });
+    // Bokför säkra celler på användaren: de identifierar ett kort (= kvot) och
+    // en korrigering behöver ett jobb-id att fästa vid. Se identifyCellsArt.
+    return jsonOk({ cells: await identifyCellsArt(cells, { userId: user.id, isAdmin }) });
   } catch (e) {
     return apiError(e);
   }

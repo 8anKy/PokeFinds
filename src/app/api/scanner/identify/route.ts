@@ -159,7 +159,10 @@ export async function POST(req: Request) {
               .slice(0, 4)
               .map((f) => f.slice(0, 7)),
           }
-        : undefined
+        : undefined,
+      // KVOTEN RÄKNAR TRÄFFAR: en skanning utan kandidat har inte gett kunden
+      // något och ska vara gratis.
+      result.candidates.length > 0
     );
 
     return jsonOk({

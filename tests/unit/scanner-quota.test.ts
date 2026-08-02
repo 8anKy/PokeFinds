@@ -38,28 +38,29 @@ describe("getScannerQuota", () => {
     expect(await getScannerQuota("u1", "FREE")).toEqual({ used: 3, limit: 30, remaining: 27 });
   });
 
-  it("PREMIUM = skäligt tak (1500) i stället för en produktgräns", async () => {
+  it("PREMIUM = skäligt tak (1000) i stället för en produktgräns", async () => {
     count.mockResolvedValueOnce(10).mockResolvedValueOnce(0);
     expect(await getScannerQuota("u1", "PREMIUM")).toEqual({
       used: 10,
-      limit: 1500,
-      remaining: 1490,
+      limit: 1000,
+      remaining: 990,
     });
   });
 
-  it("SKANNINGAR SOM BILDEN AVGJORDE ÄTER INGEN KVOT", async () => {
-    // Kvoten binder VISION-kostnaden. En skanning som bildmatchningen avgjorde
-    // själv (provider "bild") kostade ingenting, och att räkna den vore en tyst
-    // avgift för den billiga vägen — mätt 2026-08-02 avgörs ~hälften av korten
-    // i en bulk-fångst så.
+  it("SKANNINGAR UTAN TRÄFF ÄTER INGEN KVOT", async () => {
+    // Kvoten mäter VÄRDET kunden fick, inte vår kostnad: en skanning som inte
+    // hittade något kort har inte gett något. En träff räknas däremot även när
+    // BILDEN avgjorde den utan att kosta ett API-anrop (samma modell som Shiny
+    // och Collectr) — annars kostar två identiska skanningar olika mycket kvot
+    // beroende på om bildmatchningen råkade vara säker.
     count.mockResolvedValueOnce(10).mockResolvedValueOnce(6);
     const q = await getScannerQuota("u1", "FREE");
     expect(q.used).toBe(4);
     expect(q.remaining).toBe(26);
-    // Andra frågan filtrerar uttryckligen på provider "bild".
+    // Andra frågan räknar uttryckligen de skanningar som INTE gav en träff.
     expect(count.mock.calls[1][0].where.result).toEqual({
-      path: ["provider"],
-      equals: "bild",
+      path: ["matched"],
+      equals: false,
     });
   });
 

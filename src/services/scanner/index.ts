@@ -68,18 +68,16 @@ export interface ScannerQuota {
 /**
  * PRO = "obegränsat" i marknadsföringen, med ett SKÄLIGT TAK i koden.
  *
- * Talet är satt på MÄTT kostnad, inte på känsla: ett vision-anrop kostar
- * $0,00102 (Gemini 3.1 Flash-Lite, uppmätt 2026-08-02 mot vår egen last), så
- * 1500 anrop är ~$1,53 mot Pro-intäkten 49 kr (~$4,60) — en tredjedel i värsta
- * fall, och taket nås av ingen normal användare: ungefär hälften av korten i en
- * bulk-fångst avgörs av BILDEN (gratis, räknas inte), så 1500 anrop motsvarar
- * ~3000 skannade kort i månaden.
+ * Taket räknar IDENTIFIERADE KORT (se getScannerQuota), och 1000 i månaden är
+ * ~33 om dagen — långt bortom vad en samlare gör, men lågt nog att en skenande
+ * loop eller ett kapat konto fångas. Kostnadstaket är känt: ungefär hälften av
+ * korten avgörs av bilden utan API-anrop, så 1000 träffar är i värsta fall
+ * ~1000 vision-anrop à $0,00102 = ~$1,02 mot Pro-intäkten 49 kr (~$4,60).
  *
- * ⛔ Taket är inte en produktgräns utan ett SKYDD mot en skenande loop eller ett
- * kapat konto. Träffas det ska det synas i loggen, inte tolkas som att en
- * kund skannar för mycket.
+ * ⛔ Taket är inte en produktgräns utan ett SKYDD. Träffas det ska det synas i
+ * loggen, inte tolkas som att en kund skannar för mycket.
  */
-const PREMIUM_FAIR_USE = 1500;
+const PREMIUM_FAIR_USE = 1000;
 
 /** Månadens skanningskvot (misslyckade/no-match-jobb räknas inte). */
 export async function getScannerQuota(
@@ -92,13 +90,20 @@ export async function getScannerQuota(
 ): Promise<ScannerQuota> {
   const limit =
     role === "ADMIN" || role === "SUPERADMIN" ? 100000 : scannerLimitForTier(planTier);
-  // ⛔ KVOTEN RÄKNAR VISION-ANROP, INTE RADER. Kvoten finns för att binda
-  // vision-KOSTNADEN mot intäkten, och en skanning som bildmatchningen avgjorde
-  // själv (provider "bild") kostade ingenting — den ska inte äta kvot. MÄTT
-  // 2026-08-02: ungefär hälften av korten i en bulk-fångst avgörs så, och 24 av
-  // 24 sådana var rätt. Att räkna dem var en tyst avgift för den BILLIGA vägen.
+  // ⛔ KVOTEN RÄKNAR IDENTIFIERADE KORT — inte rader och inte vision-anrop.
+  //
+  // Det är VÄRDET kunden får, inte vår kostnad, som ska mätas: en skanning som
+  // inte hittade något kort har inte gett något och ska vara gratis, medan en
+  // träff räknas även när BILDEN avgjorde den utan att kosta oss ett API-anrop.
+  // (Samma modell som Shiny och Collectr.) En kostnadsbaserad kvot var dessutom
+  // svårförklarad för kunden: två identiska skanningar kunde kosta olika mycket
+  // kvot beroende på om bildmatchningen råkade vara säker.
+  //
+  // ⛔ `matched` skrivs för ALLA användare (se recordScanUsage). Äldre rader
+  // saknar fältet och räknas som träffar — de skapades bara vid genomförda
+  // skanningar, så det är rätt tolkning bakåt.
   const since = startOfMonthUtc();
-  const [rows, freeRows] = await Promise.all([
+  const [rows, missed] = await Promise.all([
     prisma.scannerJob.count({
       where: { userId, createdAt: { gte: since }, status: { not: "FAILED" } },
     }),
@@ -107,11 +112,11 @@ export async function getScannerQuota(
         userId,
         createdAt: { gte: since },
         status: { not: "FAILED" },
-        result: { path: ["provider"], equals: "bild" },
+        result: { path: ["matched"], equals: false },
       },
     }),
   ]);
-  const used = Math.max(0, rows - freeRows);
+  const used = Math.max(0, rows - missed);
   return { used, limit, remaining: Math.max(0, limit - used) };
 }
 
@@ -134,14 +139,22 @@ export async function recordScanUsage(
    * exakt ut som förut. Urvalet blir ägarens egna skanningar, vilket är precis
    * det underlag mätningen behöver.
    */
-  diagnostics?: Prisma.JsonObject
+  diagnostics?: Prisma.JsonObject,
+  /**
+   * Identifierade skanningen ett kort? ⛔ Måste sparas för ALLA användare, inte
+   * bara admin: kvoten räknar TRÄFFAR, och diagnostiken (som bär `chosen`)
+   * skrivs bara för admin. Utan ett eget fält vore kvoten omätbar för en vanlig
+   * kund. Fältet är ett booleskt värde — ingen kortdata, ingen bild.
+   */
+  matched = true
 ): Promise<string> {
   const job = await prisma.scannerJob.create({
     data: {
       userId,
       imageUrl: INLINE_UPLOAD,
       status: "COMPLETED",
-      ...(diagnostics ? { result: diagnostics } : {}),
+      // `matched` slås ihop med diagnostiken så en admin-rad bär båda.
+      result: { ...(diagnostics ?? {}), matched },
     },
     select: { id: true },
   });
@@ -1300,6 +1313,9 @@ export interface BulkCellResult {
   /** Trust-regeln höll — cellen behöver ingen vision, träffen är bevisad. */
   confident: boolean;
   artTop: number | null;
+  /** ScannerJob-id för en bokförd träff — bär klientens korrigering vidare
+   *  (feedback-vägen). Saknas för osäkra celler: de bokförs av /identify. */
+  scanId?: string;
 }
 
 /**
@@ -1319,7 +1335,18 @@ export interface BulkCellResult {
  * PK-uppslag för kandidaterna. Neon-vänligt, $0 per sida.
  */
 export async function identifyCellsArt(
-  cells: Array<{ fingerprints: string[]; structFingerprints?: string[] }>
+  cells: Array<{ fingerprints: string[]; structFingerprints?: string[] }>,
+  /**
+   * Bokför träffar och gör dem RÄTTNINGSBARA.
+   *
+   * ⛔ Utan det här är en bildavgjord bulk-cell osynlig: den skapade inget
+   * ScannerJob, så (a) den räknades inte mot kvoten trots att den identifierade
+   * ett kort, och (b) en korrigering i kandidatlistan hade inget jobb-id att
+   * fästa vid och FÖRSVANN. Mätt 2026-08-02: ägaren rättade ett kort i en
+   * niokortsfångst och rättelsen gick förlorad — och det är just rättelser som
+   * bygger facitsetet, dvs hela förbättringsslingan.
+   */
+  owner?: { userId: string; isAdmin: boolean }
 ): Promise<BulkCellResult[]> {
   const out: BulkCellResult[] = [];
   for (const [i, cell] of cells.entries()) {
@@ -1337,11 +1364,42 @@ export async function identifyCellsArt(
       artScores,
       confidentId
     );
+    // Bara SÄKRA celler bokförs: en osäker cell skickas vidare av klienten till
+    // /identify och bokförs DÄR — annars skulle samma kort räknas två gånger.
+    let scanId: string | undefined;
+    if (owner && confidentId !== null && candidates.length > 0) {
+      scanId = await recordScanUsage(
+        owner.userId,
+        owner.isAdmin
+          ? {
+              v: 1,
+              provider: "bild",
+              artTop: artMatches[0]?.score ?? null,
+              artTopLabel: await describeArtMatches(artMatches.slice(0, 3)),
+              chosen: {
+                cardId: candidates[0].cardId,
+                name: candidates[0].name,
+                number: candidates[0].number,
+                setName: candidates[0].setName,
+                score: candidates[0].score,
+              },
+              // Avtrycken (264 byte styck) så replayen kan återge beslutet —
+              // aldrig bilden. Samma form som enkelskanningens diagnostik.
+              frames: [cell.fingerprints.slice(0, 7)],
+              structFrames: cell.structFingerprints
+                ? [cell.structFingerprints.slice(0, 7)]
+                : [],
+            }
+          : undefined,
+        true
+      );
+    }
     out.push({
       cell: i,
       candidates,
       confident: confidentId !== null,
       artTop: artMatches[0]?.score ?? null,
+      scanId,
     });
   }
   return out;
