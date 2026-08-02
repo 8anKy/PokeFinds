@@ -2261,5 +2261,137 @@
         "Team Rocket's Murkrow 126 0.892 | Team Rocket's Murkrow 127 0.884 | Hydreigon 62 0.703"
       ]
     }
+  },
+  "cmsb3xn7b000510at00z5ly73": {
+    "truth": "cmq9higpu00if7z4tvlyx7p3t",
+    "note": "bekräftat RÄTT av ägaren 2026-08-02 (Gemini-runda) — regressionsvakt",
+    "hint": {
+      "at": "2026-08-02T01:14:12.024Z",
+      "modell": "Raboot / 037/217",
+      "valdes": "Raboot 37 (Ascended Heroes)",
+      "bildTopp5": [
+        "Raboot 27 0.839 | Raboot 37 0.830 | Barboach 50 0.692"
+      ]
+    }
+  },
+  "cmsb3xog6000710at992b52lu": {
+    "truth": "cmq9hignj00ff7z4t60ng3c09",
+    "note": "bekräftat RÄTT av ägaren 2026-08-02 (Gemini-runda) — regressionsvakt",
+    "hint": {
+      "at": "2026-08-02T01:14:13.639Z",
+      "modell": "Scorbunny / 036/217",
+      "valdes": "Scorbunny 36 (Ascended Heroes)",
+      "bildTopp5": [
+        "Scorbunny 26 0.756 | Scorbunny 36 0.750 | Baltoy 46 0.641"
+      ]
+    }
+  },
+  "cmsb3xpo8000910at9swxsvhm": {
+    "truth": "cmqa383bm00l3124skqv61mhm",
+    "note": "bekräftat RÄTT av ägaren 2026-08-02 (Gemini-runda) — regressionsvakt",
+    "hint": {
+      "at": "2026-08-02T01:14:15.225Z",
+      "modell": "Team Rocket's Murkrow / 127/182",
+      "valdes": "Team Rocket's Murkrow 127 (Destined Rivals)",
+      "bildTopp5": [
+        "Team Rocket's Murkrow 127 0.814 | Team Rocket's Murkrow 126 0.798 | Pangoro 99 0.675"
+      ]
+    }
+  },
+  "cmsb3xqss000b10atxvouz6le": {
+    "truth": "cmqa3836000g9124s85c7pk9p",
+    "note": "bekräftat RÄTT av ägaren 2026-08-02 (Gemini-runda) — regressionsvakt",
+    "hint": {
+      "at": "2026-08-02T01:14:16.685Z",
+      "modell": "Probopass / 098/182",
+      "valdes": "Probopass 98 (Destined Rivals)",
+      "bildTopp5": [
+        "Probopass 98 0.769 | Toxicroak 24 0.676 | Barboach 50 0.674"
+      ]
+    }
+  },
+  "cmsb45agf0005xukczaj1nbsa": {
+    "truth": "cmq9higq200ip7z4tahhuepac",
+    "note": "bekräftat RÄTT av ägaren 2026-08-02 (Gemini-runda) — regressionsvakt",
+    "hint": {
+      "at": "2026-08-02T01:20:08.752Z",
+      "modell": "Grubbin / 017/217",
+      "valdes": "Grubbin 17 (Ascended Heroes)",
+      "bildTopp5": [
+        "Grubbin 9 0.807 | Grubbin 17 0.799 | Dartrix 4 0.686"
+      ]
+    }
+  },
+  "cmsb46t6q0009xukcg68aq4d3": {
+    "truth": "cmq9higxj00rb7z4twxlcjcio",
+    "note": "bekräftat RÄTT av ägaren 2026-08-02 (Gemini-runda) — regressionsvakt",
+    "hint": {
+      "at": "2026-08-02T01:21:19.683Z",
+      "modell": "Erika's Gloom / 002/217",
+      "valdes": "Erika's Gloom 2 (Ascended Heroes)",
+      "bildTopp5": [
+        "Erika's Gloom 2 0.719 | Ledyba 2 0.648 | Hop's Silicobra 86 0.639"
+      ]
+    }
+  },
+  "cmsb46uco000bxukcqfojiuv1": {
+    "truth": "cmqa383fx00p3124s9huy1t1b",
+    "note": "bekräftat RÄTT av ägaren 2026-08-02 (Gemini-runda) — regressionsvakt",
+    "hint": {
+      "at": "2026-08-02T01:21:21.193Z",
+      "modell": "Kangaskhan / 151/182",
+      "valdes": "Kangaskhan 151 (Destined Rivals)",
+      "bildTopp5": [
+        "Kangaskhan 151 0.746 | Drampa 176 0.651 | Zigzagoon 81 0.635"
+      ]
+    }
+  },
+  "cmsb486r0000fxukc2jcmihtq": {
+    "truth": "cmq9higph00i17z4t26boe1lz",
+    "note": "bekräftat RÄTT av ägaren 2026-08-02 (Gemini-runda) — regressionsvakt",
+    "hint": {
+      "at": "2026-08-02T01:22:23.917Z",
+      "modell": "Eelektrik / 060/217",
+      "valdes": "Eelektrik 60 (Ascended Heroes)",
+      "bildTopp5": [
+        "Eelektrik 31 0.752 | Eelektrik 60 0.739 | Magnezone 60 0.656"
+      ]
+    }
+  },
+  "cmsb4883x000hxukcm6q4nqyd": {
+    "truth": "cmqa383dr00nr124stut8yb53",
+    "note": "bekräftat RÄTT av ägaren 2026-08-02 (Gemini-runda) — regressionsvakt",
+    "hint": {
+      "at": "2026-08-02T01:22:25.677Z",
+      "modell": "Steven's Beldum / 149/182",
+      "valdes": "Steven's Beldum 143 (Destined Rivals)",
+      "bildTopp5": [
+        "Steven's Beldum 143 0.796 | Beldum 59 0.708 | Bunnelby 175 0.690"
+      ]
+    }
+  },
+  "cmsb489ch000jxukcwv4hp9et": {
+    "truth": "cmq9higv100o77z4tku53zee0",
+    "note": "bekräftat RÄTT av ägaren 2026-08-02 (Gemini-runda) — regressionsvakt",
+    "hint": {
+      "at": "2026-08-02T01:22:27.282Z",
+      "modell": "Cynthia's Gible / 109/214",
+      "valdes": "Cynthia's Gible 109 (Ascended Heroes)",
+      "bildTopp5": [
+        "Cynthia's Gible 109 0.745 | Cynthia's Gible 102 0.741 | Pupitar 111 0.644"
+      ]
+    }
+  },
+  "cmsb48ajs000lxukccmwn8ykn": {
+    "truth": "cmq9higv000o57z4txn6gjlo6",
+    "note": "bekräftat RÄTT av ägaren 2026-08-02 (Gemini-runda) — regressionsvakt",
+    "hint": {
+      "at": "2026-08-02T01:22:28.840Z",
+      "modell": "Solrock / 106/217",
+      "valdes": "Solrock 106 (Ascended Heroes)",
+      "bildTopp5": [
+        "Solrock 75 0.692 | Solrock 106 0.690 | Croagunk 78 0.606"
+      ]
+    }
   }
 }

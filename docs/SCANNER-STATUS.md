@@ -915,6 +915,51 @@ kandidater — utfallet är genuint osäkert. Den ska köras BARA när
 `busySurface` slår till, så den kan inte skada den fungerande vägen.
 Pass/fail före ship: 5 av 5 kort på alla fyra mönstrade fångster.
 
+## GEMINI MOT HAIKU — MÄTT I FÄLT 2026-08-02
+
+Samma prompt, samma fältspec, samma svarstolkning (`vision-contract.ts`), samma
+bilder. Enda skillnaden är modellen.
+
+| | anrop | nummer läst | in/ut tokens | $/anrop |
+|---|---|---|---|---|
+| Haiku 4.5 | 3 | 2/3 | 2995 / 148 | $0,00373 |
+| **Gemini 3.1 Flash-Lite** | 11 | **11/11** | 3728 / 58 | **$0,00102** |
+
+**20 kort skannade, alla 20 rätt** (ägarens facit). Kostnaden är **3,7x lägre**,
+inte 2,6x som beräknat — Gemini svarar med en tredjedel så många ut-tokens
+(58 mot 148). In-tokens blev 3728 mot mitt estimat 4850, dvs rutindelningen
+straffar vår nummerremsa mindre än beräknat.
+
+**Det avgörande är inte kostnaden utan NUMMERLÄSNINGEN.** Hela katalogslagningen
+hänger på samlarnumret (92 % av korten delar namn), och i tre av sju fall i den
+sista rundan hade BILDEN fel medan numret räddade valet:
+
+| kort | bildens topp | numret | valt |
+|---|---|---|---|
+| Grubbin | Grubbin 9 (0,807) | 017/217 | Grubbin **17** |
+| Eelektrik | Eelektrik 31 (0,752) | 060/217 | Eelektrik **60** |
+| Solrock | Solrock 75 (0,692) | 106/217 | Solrock **106** |
+
+Det är omtryckstvillingar med nästan identisk konst och marginal 0,002–0,013 —
+exakt den klass som gav FEL Murkrow två gånger med Haiku samma kväll. Med
+numret läst avgörs de rätt. Murkrow 126/127 löstes också: Gemini läste
+"127/182" och numret avgjorde tryckningen.
+
+**Och vakten mot påhittade nummer bevisades i fält**: på Steven's Beldum läste
+modellen "149/182" — kortet var 143. Numret matchade INGEN kandidat, gav därför
+ingen bonus, och den starka bildträffen (0,796, marginal 0,088) vann ändå. Ett
+hallucinerat nummer drog alltså inte iväg svaret.
+
+⛔ **2.5-serien går inte att välja med en ny API-nyckel** (fältfel:
+"not available for new users"). Se docs/SCANNER.md för vilka modeller som
+faktiskt går att nå och vad de kostar mot VÅR last.
+
+**Facitsetet växte 53 → 64** genom att de elva bekräftat RÄTTA skanningarna
+lades in. ⛔ Det är med flit: setet växer annars bara av KORRIGERINGAR, dvs det
+består nästan bara av fall där något gick fel, och då mäter choice-replay hur
+väl en ändring fixar kända missar men inte om den RASERAR det som redan
+fungerar. Aktuell status: **59/64** (bild 24/24, claude 24/29, gemini 11/11).
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.
