@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { countQuery, type CountSelection } from "@/lib/explore-count-query";
 import { SearchAutocomplete } from "@/components/features/search-autocomplete";
 import { SafeImage } from "@/components/ui/safe-image";
+import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
 import { IconCards, IconCheck, IconFilter, IconSearch, IconX } from "@/components/ui/icons";
 
 export interface FilterSet {
@@ -496,117 +497,25 @@ function Sheet({
   children: ReactNode;
 }) {
   const t = useTranslations("Products");
-  const panelRef = useRef<HTMLDivElement>(null);
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-
-  useEffect(() => {
-    if (!open) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onCloseRef.current();
-      }
-    }
-    document.addEventListener("keydown", onKeyDown);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = "";
-    };
-  }, [open]);
-
-  // Tangentbordshöjd → sheeten lyfts ovanför tangentbordet i stället för att
-  // hamna bakom det (prisfältens sifferknappsats täckte hela panelen). Samma
-  // mätning som ui/modal.tsx: native-appen kör Keyboard resize:none, så varken
-  // WKWebView:en eller visualViewport krymper där — Capacitor-bryggan är enda
-  // pålitliga signalen. På webb/PWA finns ingen brygga → visualViewport.
-  const [kbHeight, setKbHeight] = useState(0);
-  useEffect(() => {
-    if (!open) return;
-    const cleanups: (() => void)[] = [];
-    const kb = (globalThis as { Capacitor?: { Plugins?: { Keyboard?: any } } }).Capacitor
-      ?.Plugins?.Keyboard;
-    if (kb?.addListener) {
-      const add = (ev: string, fn: (i: any) => void) => {
-        const p = kb.addListener(ev, fn);
-        Promise.resolve(p)
-          .then((h: any) => cleanups.push(() => h?.remove?.()))
-          .catch(() => {});
-      };
-      add("keyboardWillShow", (i: { keyboardHeight?: number }) => setKbHeight(i?.keyboardHeight ?? 0));
-      add("keyboardWillHide", () => setKbHeight(0));
-    } else if (typeof window !== "undefined" && window.visualViewport) {
-      const vp = window.visualViewport;
-      const update = () => setKbHeight(Math.max(0, window.innerHeight - vp.height - vp.offsetTop));
-      update();
-      vp.addEventListener("resize", update);
-      vp.addEventListener("scroll", update);
-      cleanups.push(() => {
-        vp.removeEventListener("resize", update);
-        vp.removeEventListener("scroll", update);
-      });
-    }
-    return () => {
-      cleanups.forEach((c) => c());
-      setKbHeight(0);
-    };
-  }, [open]);
-
-  if (!open) return null;
-
+  // Skalet (overlay, tangentbordslyft, panel, handtag, fot) bor i
+  // ui/bottom-sheet.tsx sedan 2026-08-02 — snabbtillägget i samlingen skulle
+  // kännas som filtren, och tangentbordsmätningen med sin Capacitor-fälla får
+  // inte finnas i två exemplar. Här återstår bara filtrens EGNA copy.
   return (
-    <div
-      // Overlayn slutar där tangentbordet börjar → panelen (justify-end) landar
-      // ovanpå det, och max-h räknas mot den mindre ytan så innehållet scrollar.
-      className="fixed inset-x-0 top-0 z-50 flex flex-col justify-end bg-black/55 backdrop-blur-[3px]"
-      style={{ bottom: kbHeight }}
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
+    <BottomSheet
+      open={open}
+      title={title}
+      onClose={onClose}
+      closeLabel={t("closeSheet")}
+      headerAction={onClear ? { label: t("clear"), onClick: onClear } : undefined}
+      footer={
+        <BottomSheetCta onClick={onCta ?? onClose}>
+          {t("showResults", { results: cta })}
+        </BottomSheetCta>
+      }
     >
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label={t("closeSheet")}
-        className="absolute inset-0 cursor-default"
-      />
-      <div
-        ref={panelRef}
-        className="relative flex max-h-[84%] flex-col rounded-t-[20px] bg-surface pt-2 shadow-[0_-1px_0_0_rgba(255,255,255,0.06)] animate-slide-up"
-      >
-        <span aria-hidden="true" className="mx-auto mb-3 mt-1.5 h-1 w-9 rounded-full bg-surface-border" />
-        <div className="flex items-center justify-between px-[18px] pb-3">
-          <p className="text-base font-bold tracking-[-0.01em] text-ink">{title}</p>
-          {onClear && (
-            <button
-              type="button"
-              onClick={onClear}
-              className="text-xs font-medium text-ink-faint transition-colors hover:text-ink"
-            >
-              {t("clear")}
-            </button>
-          )}
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-[18px]">{children}</div>
-        <div
-          className={cn(
-            "px-[18px] pt-3.5",
-            // Tangentbord uppe: overlayn slutar redan ovanför det → ingen extra
-            // säkerhetsmarginal (den hade lyft knappen 30px för högt).
-            kbHeight > 0 ? "pb-3.5" : "pb-[max(1.875rem,env(safe-area-inset-bottom))]"
-          )}
-        >
-          <button
-            type="button"
-            onClick={onCta ?? onClose}
-            className="w-full rounded-[10px] bg-holo-cyan px-4 py-3.5 text-sm font-bold tabular-nums text-surface transition-opacity active:opacity-90"
-          >
-            {t("showResults", { results: cta })}
-          </button>
-        </div>
-      </div>
-    </div>
+      {children}
+    </BottomSheet>
   );
 }
 

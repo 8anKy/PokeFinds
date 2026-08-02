@@ -229,16 +229,17 @@ export function CollectionQuickAdd({ productId, estimatedValue }: CollectionQuic
           )}
         </span>
       </button>
-      {open && (
-        <CollectionQuickAddPopover
-          anchor={buttonRef.current}
-          onClose={() => setOpen(false)}
-          onConfirm={(draft: QuickAddDraft) => {
-            setOpen(false);
-            void addToCollection(draft);
-          }}
-        />
-      )}
+      {/* Arket äger sin egen `open`-grind (BottomSheet returnerar null när den är
+          stängd) — det behöver inte längre monteras av och på för att positionera
+          sig mot knappen, som popovern gjorde. */}
+      <CollectionQuickAddPopover
+        open={open}
+        onClose={() => setOpen(false)}
+        onConfirm={(draft: QuickAddDraft) => {
+          setOpen(false);
+          void addToCollection(draft);
+        }}
+      />
     </>
   );
 }

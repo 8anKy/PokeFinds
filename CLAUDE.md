@@ -461,6 +461,25 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   (utsnittet skalas till samma längsta sida, `CAPTURE_MAX`). ⛔ Haiku 4.5 tar emot max 1568 px längsta sida (~1,15 MP)
   och skalar ner allt däröver SERVER-SIDE — att höja `CAPTURE_MAX` ger alltså ingenting på Haiku. Vägen till fler pixlar
   på numret är beskärning eller en modell med högupplöst vision (Sonnet 5 / Opus 5: 2576 px, ~4784 bildtokens).
+- **BOTTENARKET ÄR APPENS "VÄLJ OCH BEKRÄFTA"-FORM (ägarbeslut 2026-08-02)**: `src/components/ui/bottom-sheet.tsx`
+  — mörk överlagring, rundad panel som glider upp, draghandtag, rubrikrad med valfri åtgärd, scrollande kropp,
+  fast fot med huvudknappen. Katalogens filter-/sorteringsark var förlagan; snabbtillägget i samlingen (håll in
+  "+") byggdes först som en popover ankrad vid knappen och gjordes om till samma ark. ⛔ **EN implementation.**
+  Tangentbordslyftet är den kluriga delen och bär en dokumenterad Capacitor-fälla (native kör `Keyboard
+  resize:none` → varken WKWebView eller `visualViewport` krymper, bryggan är enda pålitliga signalen) — den får
+  inte kopieras. `explore-filter-bar.tsx`s `Sheet` är sedan dess ett tunt skal som bara fyller i filtrens egen copy.
+  Vinsten med formbytet var att ankarmätning, portal förbi kortets `overflow-hidden`, flip över/under, klampning
+  mot visualViewport, omräkning när felraden ändrar höjden och följ-ankaret-vid-scroll ALLA försvann: ett ark är
+  fäst vid skärmen, inte vid ett kort.
+- **⛔ KAMERANS LIVSCYKEL FÅR ALDRIG BERO PÅ ETT HOOK-OBJEKTS IDENTITET (2026-08-02)**: `useCameraControls`
+  returnerade ett bart objektliteral → ny identitet varje rendering. `stopCamera` fick `[camera]` som beroende,
+  och eftersom den anropas av `useEffect(() => () => stopCamera(), [stopCamera])` kördes den effekten om vid varje
+  rendering — och dess CLEANUP river strömmen. `startCamera` startade om, anropade `attach()` → setState → ny
+  rendering → loop. Kameran revs ner i samma andetag som den startades och gick aldrig live. Fixat i TVÅ lager:
+  hooken memoiserar sitt returvärde, OCH skanner-sidan når `attach` via en REF så livscykeln inte kan bero på
+  objektet alls. Memoiseringen ensam räcker INTE — identiteten byts ändå när `zoomPresets` fylls i efter första
+  spåret, vilket hade rivit strömmen en gång till. Regeln generellt: en callback som en avmonterings-effekt
+  beror på måste ha stabila beroenden, annars är dess cleanup en tyst rivning vid varje rendering.
 - **SKANNING = OBEGRÄNSAD FÖR PRO, MED 1 000/MÅNAD SOM PUBLICERAT SKÄLIGT BRUK (ägarbeslut 2026-08-02)**:
   fyra ytor måste säga SAMMA sak och de gör det nu: prissidan ("Obegränsad kortskanning (skäligt bruk)"),
   skannerns Pro-badge (`∞`), villkoren `Terms.s6FairUse` ("upp till 1 000 skanningar per kalendermånad, nollställs
