@@ -10,8 +10,10 @@ const updateSchema = z.object({
   quantity: z.number().int().min(1).max(10000).optional(),
   condition: z.nativeEnum(CardCondition).optional(),
   language: z.nativeEnum(CardLanguage).optional(),
-  purchasePrice: z.number().int().min(0).optional(), // öre
-  purchaseDate: z.coerce.date().optional(),
+  // nullable: ett felinmatat köppris måste gå att nolla igen — annars ligger det kvar
+  // och snedvrider portföljens vinst för alltid. Negativt pris avvisas (min 0).
+  purchasePrice: z.number().int().min(0).nullable().optional(), // öre
+  purchaseDate: z.coerce.date().nullable().optional(),
   estimatedValue: z.number().int().min(0).optional(), // öre
   gradingCompany: z.string().max(50).optional(),
   grade: z.string().max(20).optional(),

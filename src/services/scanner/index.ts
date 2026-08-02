@@ -95,9 +95,10 @@ export async function getScannerQuota(
   // Det är VÄRDET kunden får, inte vår kostnad, som ska mätas: en skanning som
   // inte hittade något kort har inte gett något och ska vara gratis, medan en
   // träff räknas även när BILDEN avgjorde den utan att kosta oss ett API-anrop.
-  // (Samma modell som Shiny och Collectr.) En kostnadsbaserad kvot var dessutom
+  // En kostnadsbaserad kvot var dessutom
   // svårförklarad för kunden: två identiska skanningar kunde kosta olika mycket
-  // kvot beroende på om bildmatchningen råkade vara säker.
+  // kvot beroende på om bildmatchningen råkade vara säker. (Samma modell som
+  // jämförbara appar i kategorin använder.)
   //
   // ⛔ `matched` skrivs för ALLA användare (se recordScanUsage). Äldre rader
   // saknar fältet och räknas som träffar — de skapades bara vid genomförda

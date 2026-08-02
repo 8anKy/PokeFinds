@@ -67,6 +67,16 @@ const PRICE_SHORTCUTS: [number, MaxKr][] = [
   [1000, null],
 ];
 
+/**
+ * Typografin för träffantalet — delad mellan den synliga plattan och den osynliga
+ * spacern sist i chip-raden. DE MÅSTE VARA IDENTISKA: spacern är det enda som ger
+ * raden räckvidd nog att dra fram sista chipet under plattan, och mäter den fel
+ * (annan fontstorlek, annan padding) är felet exakt lika osynligt som spacern.
+ */
+const COUNT_TEXT_CLASS = "shrink-0 whitespace-nowrap pl-1 pr-2.5 text-[11.5px] font-medium tabular-nums";
+/** Uttoningens bredd — chipet ska vara HELT fritt, inte halvt under gradienten. */
+const COUNT_FADE_CLASS = "w-8 shrink-0";
+
 type SheetKind = "sort" | "set" | "price" | "more";
 
 /** Urval som ska räknas — URL-statet med de val man håller på att göra inbakade. */
@@ -170,6 +180,15 @@ export function ExploreFilterBar({
     router.push(qs ? `/produkter?${qs}` : "/produkter");
   }
 
+  /**
+   * Träffantalet skrivs på TVÅ ställen med SAMMA text och SAMMA typografi: en
+   * synlig platta ovanpå högerkanten, och en osynlig kopia sist i scroll-flödet.
+   * Kopian är hela poängen — se kommentaren vid raden nedan — och därför bor
+   * strängen och klasserna i var sin konstant: går de isär mäter spacern fel och
+   * buggen är tillbaka utan att något syns i koden.
+   */
+  const countLabel = t("resultCount", { count: total });
+
   const priceLabel = !priceActive
     ? t("priceShort")
     : maxKr === null
@@ -214,18 +233,32 @@ export function ExploreFilterBar({
         }
       />
 
-      {/* Raden går KANT TILL KANT (-mx-4 mot sidans px-4): förut delade den bredden
-          med träffantalet och det gick bara att greppa ~250px mitt på skärmen.
-          Antalet ligger nu ovanpå högerkanten på en uttonad svart platta, så chipen
-          glider in under det i stället för att trängas med det.
+      {/* Raden går KANT TILL KANT (-mx-2.5 mot sidans px-2.5): förut delade den
+          bredden med träffantalet och det gick bara att greppa ~250px mitt på
+          skärmen. Antalet ligger nu ovanpå högerkanten på en uttonad svart platta,
+          så chipen glider in under det i stället för att trängas med det.
           `touch-action: pan-x pan-y` — raden tar det VÅGRÄTA draget, sidan får det
           LODRÄTA. Enbart `pan-x` gjorde raden till en död zon för sidscroll.
           (Den egentliga orsaken till att svepen inte kändes igen låg utanför den
           här komponenten: studsvakten i pwa-register.tsx avbröt varje gest som
-          drev nedåt högst upp på sidan. Se kommentaren där.) */}
+          drev nedåt högst upp på sidan. Se kommentaren där.)
+
+          PLATSEN UNDER PLATTAN MÅSTE FINNAS I FLÖDET, INTE SOM PADDING: raden
+          går bara att dra så långt som innehållet sticker ut, och med ett kort
+          setnamn ("Pitch Black") är hela chip-raden nätt och jämnt bredare än
+          skärmen. Räckvidden blev då mindre än plattan är bred → sista chipet
+          ("Fler") gick ALDRIG att dra fram under siffran, men gick att trycka på
+          eftersom plattan är pointer-events-none. Ett gissat `pr-[7.5rem]`
+          räckte inte, och WebKit räknar dessutom inte alltid med slut-padding i
+          en scroll-containers bredd. Spacern nedan är i stället en OSYNLIG KOPIA
+          av plattan (`invisible` = tar plats, syns inte): den mäter alltid exakt
+          lika mycket som det som täcker, oavsett om det står "8 produkter" eller
+          "22 457 products". Räckvidden räcker då per konstruktion — och ryms allt
+          utan scroll hamnar sista chipet till vänster om spacern, alltså heller
+          aldrig under siffran. */}
       <div className="relative -mx-2.5">
         <div
-          className="flex items-center gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain py-1.5 pl-2.5 pr-[7.5rem] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex items-center gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain py-1.5 pl-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           style={{ touchAction: "pan-x pan-y" }}
         >
           <Chip
@@ -278,17 +311,25 @@ export function ExploreFilterBar({
             }
             clearAriaLabel={t("clearMoreFilters")}
           />
+          {/* Spacern (aria-hidden: skärmläsare hör siffran en gång, från plattan). */}
+          <span aria-hidden className="invisible flex shrink-0 items-center">
+            <span className={COUNT_FADE_CLASS} />
+            <span className={COUNT_TEXT_CLASS}>{countLabel}</span>
+          </span>
         </div>
         {/* Uttoning + solid platta som två egna ytor i stället för en gradient med
             färgstopp: siffran måste ligga på HELT svart, annars läste chipet under
             rakt igenom den och de två texterna gick i varandra. */}
         <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center">
-          <span aria-hidden className="h-full w-8 bg-gradient-to-r from-transparent to-surface" />
+          <span
+            aria-hidden
+            className={cn(COUNT_FADE_CLASS, "h-full bg-gradient-to-r from-transparent to-surface")}
+          />
           <span
             aria-live="polite"
-            className="flex h-full items-center bg-surface pl-1 pr-2.5 text-[11.5px] font-medium tabular-nums text-ink-faint"
+            className={cn(COUNT_TEXT_CLASS, "flex h-full items-center bg-surface text-ink-faint")}
           >
-            {t("resultCount", { count: total })}
+            {countLabel}
           </span>
         </span>
       </div>

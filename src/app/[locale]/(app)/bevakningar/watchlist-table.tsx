@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { Input, Label, Checkbox } from "@/components/ui/input";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
+import { SafeImage } from "@/components/ui/safe-image";
+import { IconCards, IconPackage } from "@/components/ui/icons";
 
 export interface WatchlistRow {
   id: string;
@@ -24,9 +26,57 @@ export interface WatchlistRow {
     id: string;
     title: string;
     slug: string;
+    imageUrl: string | null;
+    category: string;
     lowestPrice: number | null; // öre
     setName: string | null;
   };
+}
+
+/**
+ * Radminiatyr, delad av mobil- och desktopvyn.
+ *
+ * FAST 5/7-ruta (kortformatet) för ALLA produkter, inte per kategori: sealed-
+ * bilder är liggande, och en egen proportion per rad hade gett olika höga rutor
+ * → texten började på olika höjd och listan fick en ojämn kant. `object-contain`
+ * lägger i stället en box i brevlådeformat i rutan.
+ *
+ * Ingen grå platta bakom bilden: ytan är svart och `surface-overlay` lyser som
+ * ett hål på den (samma skäl som bildbrunnen i product-card.tsx) — hårlinjen
+ * räcker som avgränsning. `SafeImage` är golvet mot döda CDN-URL:er.
+ */
+function RowThumb({
+  product,
+  className,
+}: {
+  product: WatchlistRow["product"];
+  className?: string;
+}) {
+  const Icon = product.category === "SINGLE_CARD" ? IconCards : IconPackage;
+  return (
+    <span
+      className={cn(
+        "block aspect-[5/7] shrink-0 overflow-hidden rounded-md bg-surface ring-1 ring-surface-border",
+        className
+      )}
+    >
+      <SafeImage
+        src={product.imageUrl}
+        // Tom alt: produktnamnet står som text direkt bredvid, så en alt-text
+        // hade lästs upp två gånger av skärmläsaren.
+        alt=""
+        className="h-full w-full object-contain"
+        fallback={
+          <span
+            className="flex h-full w-full items-center justify-center text-ink-faint"
+            aria-hidden="true"
+          >
+            <Icon size={16} />
+          </span>
+        }
+      />
+    </span>
+  );
 }
 
 function oreToKrInput(ore: number | null): string {
@@ -179,11 +229,15 @@ export function WatchlistTable({
               item.isPaused && "opacity-60"
             )}
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
+            {/* `min-w-0 flex-1` på textkolumnen + `shrink-0` på miniatyr och
+                badge: utan dem trycker en lång titel ut raden och kortet skjuter
+                utanför viewporten vid 360px. */}
+            <div className="flex items-start gap-3">
+              <RowThumb product={item.product} className="w-12" />
+              <div className="min-w-0 flex-1">
                 <Link
                   href={`/produkter/${item.product.slug}`}
-                  className="font-medium text-ink transition-colors hover:text-holo-cyan"
+                  className="break-words font-medium text-ink transition-colors hover:text-holo-cyan"
                 >
                   {item.product.title}
                 </Link>
@@ -192,9 +246,13 @@ export function WatchlistTable({
                 )}
               </div>
               {item.isPaused ? (
-                <Badge variant="warning">{t("paused")}</Badge>
+                <Badge variant="warning" className="shrink-0">
+                  {t("paused")}
+                </Badge>
               ) : (
-                <Badge variant="success">{t("active")}</Badge>
+                <Badge variant="success" className="shrink-0">
+                  {t("active")}
+                </Badge>
               )}
             </div>
 
@@ -267,15 +325,20 @@ export function WatchlistTable({
           {items.map((item) => (
             <TR key={item.id} className={item.isPaused ? "opacity-60" : undefined}>
               <TD>
-                <Link
-                  href={`/produkter/${item.product.slug}`}
-                  className="font-medium text-ink transition-colors hover:text-holo-cyan"
-                >
-                  {item.product.title}
-                </Link>
-                {item.product.setName && (
-                  <p className="text-xs text-ink-muted">{item.product.setName}</p>
-                )}
+                <div className="flex items-center gap-3">
+                  <RowThumb product={item.product} className="w-9" />
+                  <div className="min-w-0">
+                    <Link
+                      href={`/produkter/${item.product.slug}`}
+                      className="font-medium text-ink transition-colors hover:text-holo-cyan"
+                    >
+                      {item.product.title}
+                    </Link>
+                    {item.product.setName && (
+                      <p className="text-xs text-ink-muted">{item.product.setName}</p>
+                    )}
+                  </div>
+                </div>
               </TD>
               <TD data-price className="font-semibold">
                 {formatPrice(item.product.lowestPrice)}

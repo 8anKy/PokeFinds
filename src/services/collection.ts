@@ -29,8 +29,10 @@ export interface CollectionItemInput {
   quantity?: number;
   condition?: CardCondition;
   language?: CardLanguage;
-  purchasePrice?: number; // öre
-  purchaseDate?: Date;
+  // null = nolla köppriset igen (fel inmatat pris får inte vara permanent — det
+  // skulle förgifta portföljens vinstsiffra för all framtid). undefined = rör inte.
+  purchasePrice?: number | null; // öre
+  purchaseDate?: Date | null;
   estimatedValue?: number; // öre
   gradingCompany?: string;
   grade?: string;
@@ -182,14 +184,30 @@ export async function computeCollectionValue(
   const itemValues = await valueCollectionItems(items);
   const valueOf = (id: string): number | null => itemValues.get(id) ?? null;
 
+  // Vinst/förlust räknas BARA på objekt som har BÅDE ett köppris och ett känt värde.
+  // Tidigare var vinsten `totalValue - totalCost`, dvs marknadsvärdet av HELA samlingen
+  // minus kostnaden för den lilla del som hade köppris — ett objekt utan kostnadsbas
+  // bidrog alltså med hela sitt värde som "vinst". Vi backfyller ALDRIG köppris ur
+  // estimatedValue (det är en marknadsuppskattning, inte vad någon betalat); i stället
+  // utesluts objektet och UI:t säger HUR MÅNGA som uteslöts, så siffran är ärlig.
   let totalValue = 0;
   let totalCost = 0;
+  let costedValue = 0; // aktuellt värde för just de objekt som har köppris
+  let itemsWithoutPurchasePrice = 0;
+  let profitExcludedCount = 0;
   for (const item of items) {
     const v = valueOf(item.id);
     if (v != null) totalValue += v * item.quantity;
-    if (item.purchasePrice != null) totalCost += item.purchasePrice * item.quantity;
+    if (item.purchasePrice == null) itemsWithoutPurchasePrice += 1;
+    if (item.purchasePrice != null && v != null) {
+      totalCost += item.purchasePrice * item.quantity;
+      costedValue += v * item.quantity;
+    } else {
+      profitExcludedCount += 1;
+    }
   }
-  const profit = totalValue - totalCost;
+  const profit = costedValue - totalCost;
+  // Köppris 0 (present/byte) ger ingen procentuell bas → null, aldrig division med noll.
   const profitPercent =
     totalCost > 0 ? Math.round((profit / totalCost) * 10000) / 100 : null;
 
@@ -336,8 +354,16 @@ export async function computeCollectionValue(
     uniqueItems: items.length,
     totalValue,
     totalCost,
+    /** Aktuellt värde för de objekt som ingår i vinsten (jämförbart med totalCost). */
+    costedValue,
     profit,
     profitPercent,
+    /** Antal poster som ingår i vinsten. 0 → visa ingen vinstsiffra alls. */
+    profitItemCount: items.length - profitExcludedCount,
+    /** Antal poster som INTE ingår (saknar köppris eller aktuellt värde). */
+    profitExcludedCount,
+    /** Delmängd av ovan: saknar enbart köppris (det användaren själv kan åtgärda). */
+    itemsWithoutPurchasePrice,
     topItems,
     movers,
     valueOverTime,

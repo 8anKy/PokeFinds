@@ -48,6 +48,15 @@ export const IconScan = (p: IconProps) => (
   </svg>
 );
 
+/** Ficklampa — kamerans torch-växlare i skannern. */
+export const IconFlashlight = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M6 2h12v4l-4 4v12h-4V10L6 6z" />
+    <path d="M6 6h12" />
+    <path d="M12 13v2" />
+  </svg>
+);
+
 /** Papperskorg — radera. */
 export const IconTrash = (p: IconProps) => (
   <svg {...base(p)}>

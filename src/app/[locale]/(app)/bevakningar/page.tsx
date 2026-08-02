@@ -47,6 +47,11 @@ export default async function WatchlistPage() {
       id: item.product.id,
       title: item.product.title,
       slug: item.product.slug,
+      // Bild + kategori kommer GRATIS med i listWatchlist-frågan (den include:ar
+      // hela produkten) — de plockades bara aldrig ut hit. Ingen extra rundtur
+      // per rad; lägg ALDRIG en egen bilduppslagning i den här mappningen.
+      imageUrl: item.product.imageUrl,
+      category: item.product.category,
       lowestPrice: item.product.lowestPrice,
       setName: item.product.set?.name ?? null,
     },

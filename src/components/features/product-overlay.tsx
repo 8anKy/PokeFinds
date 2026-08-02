@@ -5,7 +5,12 @@ import { usePathname } from "@/i18n/navigation";
 import type { ProductDetailData } from "@/services/products";
 import { ProductDetailView } from "@/components/features/product-detail-view";
 import { SiteHeader } from "@/components/layout/site-header";
-import { registerOverlayOpen, notifyProductOverlayOpen } from "@/lib/product-overlay-open";
+import {
+  registerOverlayOpen,
+  notifyProductOverlayOpen,
+  onOverlayElevationChange,
+  overlayIsElevated,
+} from "@/lib/product-overlay-open";
 
 /**
  * Produkt-overlay: öppnar produktdetaljer OVANPÅ den fortfarande monterade
@@ -41,6 +46,11 @@ export function ProductOverlayHost() {
   const cache = useRef(new Map<string, Promise<ProductDetailData | null>>());
   const panelRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  // Läses vid montering OCH via prenumeration: skannern kan ha anmält sig före
+  // oss, och då räcker inte enbart en framtida händelse.
+  const [elevated, setElevated] = useState(overlayIsElevated);
+
+  useEffect(() => onOverlayElevationChange(setElevated), []);
 
   const fetchDetail = useCallback((s: string) => {
     let p = cache.current.get(s);
@@ -250,7 +260,13 @@ export function ProductOverlayHost() {
   return (
     // z-40 = täcker sidans egen header (annars dubbel header). Bottom-flikarna
     // (också z-40 men SENARE i DOM, se layout.tsx) målas ovanpå → syns/klickbara.
-    <div className="fixed inset-0 z-40" role="dialog" aria-label="Produktdetaljer">
+    // UNDANTAG: en anmäld helskärmsvärd (skannern, z-[60]) skulle annars måla
+    // över oss — se registerFullscreenHost i lib/product-overlay-open.ts.
+    <div
+      className={elevated ? "fixed inset-0 z-[70]" : "fixed inset-0 z-40"}
+      role="dialog"
+      aria-label="Produktdetaljer"
+    >
       {/* Solid safe-area-remsa (bg-surface, som headern) → täcker sidan bakom så
           inget skiner igenom under klockan. Panelen börjar under remsan. */}
       <div

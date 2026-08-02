@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { qualifiesAsDeal } from "../../src/services/products";
 import { extractTraderaItemId, dealVerdict } from "../../src/jobs/verify-deals";
+import { buildUserPrompt, buildVerdict } from "../../src/services/deal-verify/contract";
 
 // Fynd = Tradera-annons minst `minDiscount` under Cardmarket-referenspriset (allt i öre).
 describe("qualifiesAsDeal", () => {
@@ -33,6 +34,57 @@ describe("extractTraderaItemId", () => {
   });
   it("null för sök-/okänd URL", () => {
     expect(extractTraderaItemId("https://www.tradera.com/search?q=pokemon")).toBeNull();
+  });
+});
+
+// ⛔ FAILAR STÄNGT. Den här domen blir ett FYND i en betald feed, och vi har en
+// incident där LLM-verifieringen välsignade felmatchningar. Ett svar som inte är
+// en komplett dom ska bli null ("kunde inte verifiera"), aldrig ett halvt ja —
+// och aldrig heller ett tyst nej, för nej är destruktivt i verifyTraderaMatches.
+describe("buildVerdict", () => {
+  it("tolkar ett komplett svar", () => {
+    expect(buildVerdict({ sameProduct: true, sealedComplete: true, reason: "Samma ETB." })).toEqual({
+      sameProduct: true,
+      sealedComplete: true,
+      reason: "Samma ETB.",
+    });
+    expect(buildVerdict({ sameProduct: false, sealedComplete: true, reason: "" })?.sameProduct).toBe(false);
+  });
+
+  it("null när ett fält saknas eller inte är boolean", () => {
+    expect(buildVerdict({ sealedComplete: true, reason: "x" })).toBeNull();
+    expect(buildVerdict({ sameProduct: true, reason: "x" })).toBeNull();
+    // Strängar tolkas INTE — "true" är inte ett schemaenligt svar, och att gissa
+    // vad modellen menade är precis det som skapar ett falskt fynd.
+    expect(buildVerdict({ sameProduct: "true", sealedComplete: "true", reason: "x" })).toBeNull();
+    expect(buildVerdict({ sameProduct: 1, sealedComplete: 1, reason: "x" })).toBeNull();
+    expect(buildVerdict({})).toBeNull();
+    expect(buildVerdict(null)).toBeNull();
+  });
+
+  it("motiveringen är kosmetisk: får saknas, kapas till 200 tecken", () => {
+    const v = buildVerdict({ sameProduct: true, sealedComplete: true });
+    expect(v).not.toBeNull();
+    expect(v?.reason).toBe("");
+    expect(buildVerdict({ sameProduct: true, sealedComplete: true, reason: "x".repeat(500) })?.reason)
+      .toHaveLength(200);
+  });
+});
+
+// Prompten är DELAD mellan leverantörerna — därför bor den i kontraktet och
+// testas här, inte per adapter.
+describe("buildUserPrompt", () => {
+  it("tar med prisraden bara när referenspris finns", () => {
+    const listing = { title: "Prismatic ETB", description: "Oöppnad" };
+    expect(buildUserPrompt({ title: "P", category: "SEALED", refKr: 1234 }, listing))
+      .toContain("Ungefärligt marknadspris: 1234 kr");
+    expect(buildUserPrompt({ title: "P", category: "SEALED" }, listing))
+      .not.toContain("marknadspris");
+  });
+
+  it("markerar tom beskrivning i stället för att skicka en tom rad", () => {
+    expect(buildUserPrompt({ title: "P", category: "SEALED" }, { title: "T", description: "" }))
+      .toContain("(ingen beskrivning)");
   });
 });
 

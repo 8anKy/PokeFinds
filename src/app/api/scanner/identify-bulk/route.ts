@@ -18,6 +18,7 @@ import { requireUser } from "@/lib/auth";
 import { ServiceError } from "@/lib/errors";
 import { prisma } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
+import { isPro } from "@/lib/plan";
 import { identifyCellsArt } from "@/services/scanner";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +55,14 @@ const schema = z.object({
 export async function POST(req: Request) {
   try {
     const user = await requireUser();
+    // BULK ÄR PRO (ägarbeslut 2026-08-02). Grinden sitter HÄR, inte bara i UI:t:
+    // klienten visar knappen för alla med flit (den ska sälja Pro), så utan en
+    // servergrind räckte det att posta hit direkt för att få funktionen gratis.
+    // isPro, aldrig planTier — planTier ägs av RevenueCat-webhooken och nollas
+    // vid EXPIRATION, vilket har tystat ägarens egna funktioner förr.
+    if (!isPro(user)) {
+      throw new ServiceError(403, "Bulkskanning är en Pro-funktion.");
+    }
     // En sida ≈ ett anrop; 20/min räcker för att bläddra en hel pärm och
     // binder samtidigt CPU:n (varje anrop är upp till ~100 indexsökningar).
     const { ok } = await rateLimit(`scanner-bulk:${user.id}`, 20, 60 * 1000);

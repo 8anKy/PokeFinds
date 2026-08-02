@@ -7,21 +7,47 @@
  * mall-namngivna sealed-produkter åt ("Palkia VSTAR Premium" vs "Arceus VSTAR Premium").
  *
  * Kandidatmängden är LITEN (tiotal) → vi har råd med ett dyrt, exakt anrop per annons:
- * hämta Tradera-annonsens fulla beskrivning (GetItem) och låt Claude Haiku avgöra om det
+ * hämta Tradera-annonsens fulla beskrivning (GetItem) och låt en LLM avgöra om det
  * VERKLIGEN är samma sealed produkt OCH att den är komplett/oöppnad/oskadad. Resultatet
  * cachas i DealCheck (per offer + pris) så vi bara omverifierar när priset ändras.
  *
- * Kräver TRADERA_APP_ID/TRADERA_APP_KEY + ANTHROPIC_API_KEY. Körs sist i tradera-sweepen.
+ * LEVERANTÖREN ÄR UTBYTBAR (`DEALS_VERIFY_PROVIDER=claude|gemini`, se
+ * `src/services/deal-verify/`). Prompt, fältspec och svarstolkning är DELADE, så
+ * ett byte mäter modellen och inget annat. Standard är claude — se index.ts.
+ *
+ * KOSTNAD PER ANROP — ANTAGANDEN, INTE MÄTNING. Systemprompten är 2 469 tecken
+ * (räknat), svensk text ≈ 3 tecken/token → ~820 tokens; + verktygsschema ~90 och
+ * annonsen (titel + LongDescription ~600 tecken) ~270 ⇒ ~1 200 in-tokens. Ut är
+ * domen, ~50 tokens.
+ *   Haiku 4.5 ($1 / $5 per MTok)             → ~$0,0015
+ *   Gemini 3.1 Flash-Lite (~$0,30/MTok in¹)  → ~$0,0005   (~3x billigare)
+ *   Gemini 2.5 Flash-Lite ($0,10 / $0,40)    → ~$0,00014  (~10x) — MEN 2.5 är
+ *     spärrad för nya API-nycklar, se gemini.ts.
+ * ¹ härlett ur skannerns EGEN mätning (4 850 in-tokens → $0,00144), inte ur en
+ * prislista. ⚠️ Gemini 3 kan inte stänga av tänkandet och TÄNK-TOKENS FAKTURERAS
+ * SOM UTDATA — några hundra sådana per anrop äter större delen av marginalen.
+ *
+ * Volymen är tiotal anrop/dygn (verifyTraderaMatches cachar per par), så hela
+ * skillnaden är ~$1–2/MÅNAD. ⛔ Byt alltså inte leverantör för pengarnas skull;
+ * skälet måste vara kvalitet — och den ska mätas, inte antas.
+ *
+ * Kräver TRADERA_APP_ID/TRADERA_APP_KEY + leverantörens nyckel (ANTHROPIC_API_KEY
+ * eller GEMINI_API_KEY). Körs sist i tradera-sweepen.
  */
-import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/db";
 import { mapPool } from "@/lib/concurrency";
 import { dealCandidateOffers, DEAL_MIN_DISCOUNT, DEAL_MAX_DISCOUNT } from "@/services/products";
 import { traderaResetSearchUrl } from "@/jobs/tradera-sweep";
+import { getDealVerifyAdapter } from "@/services/deal-verify";
+import type {
+  DealVerification,
+  DealVerifyAdapter,
+  DealVerifyListing,
+  DealVerifyProduct,
+} from "@/services/deal-verify/contract";
 import { StockStatus } from "@prisma/client";
 
 const PUBLIC_API = "https://api.tradera.com/v3/publicservice.asmx";
-const VERIFY_MODEL = process.env.DEALS_VERIFY_MODEL ?? "claude-haiku-4-5-20251001";
 
 /** Tradera-itemId ur en annons-URL (`/item/{cat}/{itemId}/slug`). Null om okänd form. */
 export function extractTraderaItemId(url: string): string | null {
@@ -92,81 +118,35 @@ export async function fetchTraderaItem(
   };
 }
 
-const SYSTEM = [
-  "Du verifierar om en svensk Tradera-annons är SAMMA Pokémon TCG sealed-produkt som en katalogpost.",
-  "Avgör TVÅ saker:",
-  "1. sameProduct — samma set + samma produkttyp + samma variant? Avvisa (false) BARA vid en KONKRET motsägelse:",
-  "   - olika set/expansion (Prismatic Evolutions ≠ Evolutions, Stellar Crown ≠ Stellar Miracle),",
-  "     ÄVEN när ena setnamnet innehåller det andra: Dragon Majesty (2018) ≠ Dragon (EX Dragon, 2003),",
-  "     151 ≠ Scarlet & Violet bas — extraordet ÄR setidentiteten,",
-  "   - olika Pokémon/variant (Palkia ≠ Arceus, Zapdos 3-pack ≠ Pikachu 3-pack, Vaporeon ≠ Meowth),",
-  "   - olika produkttyp (booster pack ≠ box ≠ ETB ≠ tin ≠ blister ≠ collection; sampling pack ≠ booster pack),",
-  "   - olika OFFICIELLA produktnamn för samma Pokémon: 'Special Collection' ≠ 'EX Box' ≠ 'Premium Collection'",
-  "     ≠ 'ex Box' — olika namngivna produkter är olika produkter även med samma Pokémon på asken,",
-  "   - 'Pokémon Center'-exklusiv variant (t.ex. Pokémon Center ETB) ≠ vanlig variant utan 'Pokémon Center',",
-  "   - olika antal (half booster box/18 paket ≠ hel box/36; enkelpack ≠ 3-pack),",
-  "   - japansk produkt ≠ engelsk produkt, samt 'Ultra-Premium' ≠ 'Premium',",
-  "   - UTGÅVANS språk skiljer: en spansk/tysk/fransk/italiensk utgåva (t.ex. 'Sobres', 'Caja',",
-  "     'Destinos Paldeanos', 'Karmesin und Purpur', '*SPANSK*', '(ES)') är INTE den engelska produkten.",
-  "   Följande är INTE skillnader (= samma produkt): serie-/era-namn som prefix (Scarlet & Violet, Sword & Shield,",
-  "   Sun & Moon, Mega Evolution, XY m.fl. — det är setets familj, ingen variant); 'Display'/'Display Box' =",
-  "   'Booster Box' (båda = 36 paket = hel box); annan ordföljd/stavning.",
-  "   OBS skillnaden: att ANNONSTEXTEN är skriven på svenska säger inget om produkten (svensk butik,",
-  "   engelsk vara) → ingen skillnad. Att SJÄLVA UTGÅVAN är på ett annat språk → olika produkt.",
-  "   Osäker UTAN konkret motsägelse: sätt sameProduct = true (dölj inte en trolig äkta annons).",
-  "2. sealedComplete — är det fortfarande den KOMPLETTA, fabriksförseglade (oöppnade) produkten?",
-  "   false BARA om den är öppnad, tom ('tom ask'), endast asken, av-/omförseglad, saknar innehåll,",
-  "   är en kopia/proxy, eller på annat sätt inte längre den förseglade produkten.",
-  "   Mindre KOSMETISKA skavanker på en fortfarande FÖRSEGLAD vara (buckla, veck, repa, solblekning,",
-  "   litet tryckmärke, 'skick som på bilderna'-friskrivning) gör den INTE ofullständig → sealedComplete = true.",
-  "Ge en KORT motivering på svenska. Anropa alltid report_verification.",
-].join(" ");
-
-const VERIFY_TOOL: Anthropic.Tool = {
-  name: "report_verification",
-  description: "Rapportera verifieringen av Tradera-annonsen mot katalogprodukten.",
-  input_schema: {
-    type: "object",
-    properties: {
-      sameProduct: { type: "boolean", description: "Exakt samma produkt/variant?" },
-      sealedComplete: { type: "boolean", description: "Komplett, oöppnad, oskadad?" },
-      reason: { type: "string", description: "Kort motivering på svenska." },
-    },
-    required: ["sameProduct", "sealedComplete", "reason"],
-  },
-};
-
+/**
+ * Ett verifieringsanrop. Prompten och tolkningen bor i deal-verify-kontraktet;
+ * här ligger BARA felhanteringen.
+ *
+ * ⛔ FAILAR STÄNGT, OCH "STÄNGT" BETYDER INGEN SKRIVNING ALLS. Ett nätverksfel,
+ * en spärrad modell eller ett svar som inte går att tolka är INGEN KUNSKAP — inte
+ * ett "nej". Den gamla koden gjorde ett saknat fält till `false`, vilket i
+ * verifyTraderaMatches är DESTRUKTIVT (offern nollas och döljs överallt) och i
+ * Fynd-feeden cachas som en dom i ett dygn. Nu returneras null och anroparen rör
+ * ingenting: annonsen syns inte i Fynd (feeden kräver DealCheck.ok = true),
+ * befintliga domar står kvar, och nästa körning prövar igen.
+ *
+ * ⛔ Undantaget FÅR inte bubbla: mapPool kör N workers med Promise.all, så EN
+ * misslyckad annons hade annars fällt hela verifieringen mitt i svepet.
+ */
 export async function verifyMatch(
-  client: Anthropic,
-  product: { title: string; category: string; refKr?: number },
-  listing: { title: string; description: string }
-): Promise<{ sameProduct: boolean; sealedComplete: boolean; reason: string }> {
-  const priceLine = product.refKr ? `Ungefärligt marknadspris: ${product.refKr} kr\n` : "";
-  const response = await client.messages.create({
-    model: VERIFY_MODEL,
-    max_tokens: 512,
-    system: SYSTEM,
-    tools: [VERIFY_TOOL],
-    tool_choice: { type: "tool", name: "report_verification" },
-    messages: [
-      {
-        role: "user",
-        content:
-          `KATALOGPRODUKT:\nTitel: ${product.title}\nKategori: ${product.category}\n${priceLine}\n` +
-          `TRADERA-ANNONS:\nTitel: ${listing.title}\nBeskrivning: ${listing.description || "(ingen beskrivning)"}\n\n` +
-          `Är annonsen exakt samma produkt, och är den komplett/oöppnad/oskadad? Anropa report_verification.`,
-      },
-    ],
-  });
-  const toolUse = response.content.find(
-    (b): b is Anthropic.ToolUseBlock => b.type === "tool_use"
-  );
-  const input = (toolUse?.input ?? {}) as Record<string, unknown>;
-  return {
-    sameProduct: input.sameProduct === true,
-    sealedComplete: input.sealedComplete === true,
-    reason: typeof input.reason === "string" ? input.reason.slice(0, 200) : "",
-  };
+  adapter: DealVerifyAdapter,
+  product: DealVerifyProduct,
+  listing: DealVerifyListing
+): Promise<DealVerification | null> {
+  try {
+    return await adapter.verify(product, listing);
+  } catch (err) {
+    console.warn(
+      `[deal-verify/${adapter.name}] anropet misslyckades:`,
+      err instanceof Error ? err.message : err
+    );
+    return null;
+  }
 }
 
 export interface VerifyDealsResult {
@@ -175,6 +155,8 @@ export interface VerifyDealsResult {
   ok: number;
   rejected: number;
   skipped: number;
+  /** Annonser där LLM:en inte gav en tolkbar dom → INGEN DealCheck skrevs. */
+  unverified: number;
 }
 
 /**
@@ -184,15 +166,18 @@ export interface VerifyDealsResult {
 export async function verifyDeals(
   log: (msg: string) => void = console.log
 ): Promise<VerifyDealsResult> {
-  const res: VerifyDealsResult = { candidates: 0, verified: 0, ok: 0, rejected: 0, skipped: 0 };
+  const res: VerifyDealsResult = {
+    candidates: 0, verified: 0, ok: 0, rejected: 0, skipped: 0, unverified: 0,
+  };
   const appId = process.env.TRADERA_APP_ID;
   const appKey = process.env.TRADERA_APP_KEY;
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (!appId || !appKey || !anthropicKey) {
-    log("[verify-deals] saknar TRADERA_APP_ID/KEY eller ANTHROPIC_API_KEY — hoppar över.");
+  if (!appId || !appKey) {
+    log("[verify-deals] saknar TRADERA_APP_ID/KEY — hoppar över.");
     return res;
   }
-  const client = new Anthropic({ apiKey: anthropicKey });
+  const adapter = getDealVerifyAdapter(log);
+  if (!adapter) return res;
+  log(`[verify-deals] leverantör: ${adapter.name} (${adapter.model}).`);
 
   const candidates = await dealCandidateOffers();
   res.candidates = candidates.length;
@@ -232,10 +217,17 @@ export async function verifyDeals(
     // Utgången/tom vara: hoppa över LLM-anropet helt.
     if (!item.ended && item.remaining > 0) {
       const v = await verifyMatch(
-        client,
+        adapter,
         { title: c.title, category: c.category, refKr: Math.round(c.cmPrice / 100) },
         { title: item.title, description: item.description }
       );
+      // Ingen tolkbar dom → skriv INGEN DealCheck. Utan rad är annonsen osynlig
+      // i Fynd (feeden joinar på ok = true), så tystnad är det säkra utfallet —
+      // och en gammal, giltig dom skrivs inte över av ett misslyckat anrop.
+      if (!v) {
+        res.unverified++;
+        return;
+      }
       sameProduct = v.sameProduct;
       sealedComplete = v.sealedComplete;
       reason = v.reason;
@@ -269,6 +261,11 @@ export async function verifyDeals(
   });
 
   log(`[verify-deals] verifierade ${res.verified} (ok ${res.ok}, avvisade ${res.rejected}), hoppade ${res.skipped}.`);
+  // Egen rad: en modell som slutat svara ser annars ut som en lugn dag med få
+  // fynd. Här syns skillnaden mellan "inga fynd" och "ingen dom".
+  if (res.unverified > 0) {
+    log(`[verify-deals] ⚠️  ${res.unverified} annonser fick INGEN dom (LLM-fel/otolkbart svar) — inget skrivet.`);
+  }
   return res;
 }
 
@@ -280,6 +277,8 @@ export interface VerifyMatchesResult {
   hidden: number;
   restored: number;
   skipped: number;
+  /** Annonser där LLM:en inte gav en tolkbar dom → INGEN TraderaMatch skrevs. */
+  unverified: number;
 }
 
 /** Tradera-itemId för en offer: ur URL:en, annars ur senaste sweep-observationens rawData. */
@@ -309,17 +308,20 @@ async function resolveItemId(offer: { url: string; productId: string }): Promise
 export async function verifyTraderaMatches(
   log: (msg: string) => void = console.log
 ): Promise<VerifyMatchesResult> {
-  const res: VerifyMatchesResult = { offers: 0, checked: 0, ok: 0, wrong: 0, hidden: 0, restored: 0, skipped: 0 };
+  const res: VerifyMatchesResult = {
+    offers: 0, checked: 0, ok: 0, wrong: 0, hidden: 0, restored: 0, skipped: 0, unverified: 0,
+  };
   const appId = process.env.TRADERA_APP_ID;
   const appKey = process.env.TRADERA_APP_KEY;
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (!appId || !appKey || !anthropicKey) {
-    log("[verify-matches] saknar TRADERA_APP_ID/KEY eller ANTHROPIC_API_KEY — hoppar över.");
+  if (!appId || !appKey) {
+    log("[verify-matches] saknar TRADERA_APP_ID/KEY — hoppar över.");
     return res;
   }
+  const adapter = getDealVerifyAdapter(log);
+  if (!adapter) return res;
   const tradera = await prisma.retailer.findFirst({ where: { name: "Tradera" }, select: { id: true } });
   if (!tradera) return res;
-  const client = new Anthropic({ apiKey: anthropicKey });
+  log(`[verify-matches] leverantör: ${adapter.name} (${adapter.model}).`);
 
   // ALLA sealed Tradera-offers (inkl. nollställda/dolda, så en för hård dom kan läkas).
   const offers = await prisma.offer.findMany({
@@ -358,8 +360,6 @@ export async function verifyTraderaMatches(
       res.skipped++;
       return;
     }
-    res.checked++;
-
     let ok: boolean;
     let reason: string;
     if (item.ended || item.remaining < 1) {
@@ -367,13 +367,22 @@ export async function verifyTraderaMatches(
       reason = "Annonsen avslutad";
     } else {
       const v = await verifyMatch(
-        client,
+        adapter,
         { title: offer.product.title, category: offer.product.category },
         { title: item.title, description: item.description }
       );
+      // ⛔ Ingen tolkbar dom → RÖR INGENTING. Här är "fel" destruktivt (offern
+      // nollas + döljs överallt), så ett misslyckat anrop får absolut inte
+      // räknas som en fällande dom. Paret hamnar inte i TraderaMatch och prövas
+      // igen nästa körning.
+      if (!v) {
+        res.unverified++;
+        return;
+      }
       ok = dealVerdict({ sameProduct: v.sameProduct, sealedComplete: v.sealedComplete, ended: item.ended, remaining: item.remaining });
       reason = v.reason;
     }
+    res.checked++;
 
     await prisma.traderaMatch.upsert({
       where: { itemId_productId: { itemId, productId: offer.productId } },
@@ -405,5 +414,8 @@ export async function verifyTraderaMatches(
   });
 
   log(`[verify-matches] kollade ${res.checked} (ok ${res.ok}, fel ${res.wrong} → dolda ${res.hidden}, återställda ${res.restored}), hoppade ${res.skipped}.`);
+  if (res.unverified > 0) {
+    log(`[verify-matches] ⚠️  ${res.unverified} annonser fick INGEN dom (LLM-fel/otolkbart svar) — inget skrivet.`);
+  }
   return res;
 }

@@ -108,6 +108,71 @@ sätts som default — prislistan visar modeller som API:t inte lämnar ut.
 ett befintligt kort ur databasen. Okända värden ger felet
 "OCR-leverantör ej konfigurerad — se docs/SCANNER.md".
 
+## Sealed via STRECKKOD (`/api/scanner/identify-gtin`)
+
+Sealed-produkter identifieras **inte** på utseende. Konstavtrycket
+(`src/lib/art-fingerprint.ts`) är byggt för ett plant motiv — katalogbilden mot
+kamerabilden — och en booster box är ett 3D-objekt där perspektiv, glans och
+vilken sida som vänds mot linsen ändrar färglayouten mer än skillnaden mellan
+två olika lådor. Streckkoden på asken har inget av det problemet: den är en
+**exakt nyckel**, samma nummer i varje butik i världen (se "GTIN = exakt
+cross-store-nyckel" i `CLAUDE.md`).
+
+```
+Klient (/skanna)
+  └─ src/services/scanner/barcode.ts     (webbläsarens BarcodeDetector)
+       ├─ createBarcodeScanner()  → null om plattformen saknar API:t
+       ├─ detect(video|canvas|ImageData) → BarcodeHit[]
+       └─ gtinFromBarcode(raw, format)   → GTIN-14 via @/lib/gtin, eller null
+  └─ POST /api/scanner/identify-gtin     (auth + 60/min + månadskvot)
+       └─ exakt uppslag på Product.gtin → { found, match, remaining }
+```
+
+**Kostnaden är noll per skanning.** Avkodningen sker i klienten och det som
+skickas upp är ~14 siffror — ingen bilduppladdning, inget vision-anrop, ingen
+poängsättning. Samma kostnadsform som konstavtrycket: räkna hos klienten, skicka
+nyckeln.
+
+⛔ **Normaliseringen ägs av `src/lib/gtin.ts` och får inte kopieras.** Den är
+också grinden: en kod som inte klarar GS1-checksiffran ger **ingenting**, aldrig
+"närmaste produkt". En felläst kod som lägger fel booster box i någons samling är
+värre än en kod som inte lästes — den första märks inte.
+
+### Täckning och gränser
+
+| Gräns | Följd |
+|---|---|
+| GTIN-täckning på riktiga offers ~73 % (mätt 2026-07-13) | ungefär var fjärde ask saknar motsvarighet i katalogen → `found: false` är ett **normalt** utfall, inte ett fel (svaret är 200, inte 404) |
+| Swepoke/Shinycards (Quickbutik) publicerar ingen kod alls | deras sortiment nås bara via titelmatchning — streckkodsvägen kan aldrig hitta det |
+| `Product.gtin` är medvetet inte `@unique` | flera rader kan dela kod (= katalogdubbletten vi vill hitta). Svaret väljer deterministiskt (pris före rankScore före id) och rapporterar `duplicates` |
+| Singlar har ingen streckkod | vägen är i praktiken sealed-only, men uppslaget filtrerar **inte** på kategori: en GTIN-träff är exakt oavsett vad raden är |
+
+### ⛔ iOS saknar `BarcodeDetector`
+
+`BarcodeDetector` finns i Android Chrome och Chromium-WebViews (= vår
+Capacitor-app på Android) men **inte i Safari eller WKWebView** (per 2026-08).
+På iOS returnerar `createBarcodeScanner()` `null` och `barcodeSupported()`
+`false` — läget ska döljas där, inte fela.
+
+Ingen JS-fallback är inlagd med flit: ett streckkodsbibliotek är flera hundra kB
+som skulle laddas ner av **alla** besökare, även de som aldrig skannar sealed.
+Det är ett ägarbeslut om kostnad, inte ett implementationsval. Alternativ om
+iOS-stöd behövs: (a) `@zxing/browser` bakom en dynamisk import som bara körs när
+`barcodeSupported()` är falskt, (b) Capacitor-plugin med native
+`AVCaptureMetadataOutput` (gratis, men bara i appen — inte i webben/PWA:n).
+
+### Kvot
+
+En **träff** räknas mot månadskvoten; en miss gör det inte, och skapar heller
+ingen `ScannerJob`-rad. Kvoten mäter värdet kunden får, inte vår kostnad (se
+`getScannerQuota`) — precedensen finns redan i bulk-läget, där en cell som
+avgörs av bilden utan API-anrop också bokförs.
+
+Admin-diagnostiken skrivs med `v: 3` (inte `1`): telemetri- och
+scoreboard-skripten filtrerar på `v === 1` och mäter bild-/modellträffsäkerhet,
+och en streckkodsrad har varken avtryck eller modellsvar — den hade räknats som
+en miss i varje sådan mätning. Samma skäl som bulk-felsökningens `v: 2`.
+
 ## Bildlagring
 
 MVP persisterar **inte** den uppladdade bilden — `ScannerJob.imageUrl` sätts

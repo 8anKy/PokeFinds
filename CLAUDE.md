@@ -34,9 +34,26 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   INGA restock-larm. Union+dedup i `checkRestockAlerts` (`src/services/alerts.ts`). Master e-post-toggle respekteras ändå i `dispatchPendingAlerts`.
 - **Funktioner live**: watchlist/prisbevakning, restock-alerts (8 butikskällor), samlingsvärde (live),
   AI-gradering (`/gradera`, Claude vision), live kort-skanner (`/skanna`, capture-baserad), community, admin, PWA.
-- **Status**: 689/689 unit-tester gröna, `npm run build` grön.
 
 ## Öppna ärenden / Nästa steg
+- **⛔ SKANNINGSKVOTEN SÄGER TRE OLIKA SAKER (upptäckt 2026-08-02, ÄGARBESLUT KRÄVS)**: prissidan säger
+  "100 skanningar per månad", skannerns Pro-badge visar `∞` (`Scanner.scansUnlimited`, ägarbeslut 08-02) och koden
+  har `PREMIUM_FAIR_USE = 1000` (`SCANNER_PREMIUM_MONTHLY_LIMIT` kan överstyra). Två av tre är fel oavsett vilken
+  som är sann. Marknadsför man "obegränsat" mot ett dolt tak krävs dessutom ett skäligt-bruk-villkor i användar-
+  villkoren (se docs/TERMS-GAP.md gap D). Bestäm det VERKLIGA taket, rätta prissidan och skriv villkoret.
+  Sidofynd: `Grading.limitPremium` säger "Tillbaka i morgon" fast graderingsgränsen är MÅNADSVIS.
+- **Användarvillkoren: 20 luckor kartlagda (2026-08-02)**: `docs/TERMS-GAP.md` (analys + 12 ägarbeslut) och
+  `docs/TERMS-DRAFT-CLAUSES.md` (utkast på svenska). ⚠️ Inget av det är juridisk rådgivning — en svensk jurist
+  måste läsa det före publicering. Blockerande: **ingen juridisk person angiven någonstans i appen** (org.nr,
+  adress) — e-handelslagen 8 § och GDPR kräver det, och varje annan klausul beror på om det är enskild firma
+  eller AB. Snabbaste fixen: ARN-hänvisning (lag 2015:671 § 4, en mening, noll beslut). Saknas helt: ångerrätt,
+  AI-utfall som uppskattningar (bara UI-copy idag), prisdatans ansvarsfriskrivning, Tradera-integrationen.
+- **Deal-verifieraren kan bytas till Gemini med EN env-variabel (2026-08-02)**: `DEALS_VERIFY_PROVIDER=gemini` +
+  `GEMINI_API_KEY`. Standard är fortsatt **claude** med flit — Geminis omdöme på just den här bedömningen är
+  OMÄTT, och falska positiva blir fejkade "fynd" i en betalfunktion (2026-07-07 välsignade LLM-verifieringen tre
+  felmatchningar). Besparingen är ~$1–2/mån, alltså inget skäl i sig. Vill man byta: mät först genom att döma om
+  samma annonspar under båda leverantörerna. Prompt/schema/parsning delas (`src/services/deal-verify/contract.ts`)
+  just för att en sådan jämförelse ska jämföra MODELLER och inte prompter.
 - **Neon-CU + Vercel Active CPU sänkta (2026-06-20)**: publika katalogsidor cachas nu (ISR) och chrome läser session
   klient-sida → drastiskt färre dynamiska renders + Neon-läsningar. Se "Caching/ISR" under Tekniska beslut. Kvar att bevaka:
   Neon free-tier transfer-tak (5 GB/mån) — om det fortsatt slår i taket: minska egress mer eller byt plan. Se docs/HOSTING.md.
@@ -184,7 +201,6 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   + `SiteHeader` får INTE kalla `auth()` (då blir HELA appen dynamisk igen). `/produkter` är dynamisk med flit (läser searchParams).
   Produktsidans prishistorik: servern hämtar HELA serien en gång (`MAX_DAYS`), `product-price-card.tsx` filtrerar perioden i klienten
   (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
-- **Stack**: Next.js 14 App Router, React 18, TypeScript strict, Tailwind CSS, Prisma, PostgreSQL
 - **Växelkurs**: live via `src/lib/exchange-rate.ts` (`getRatesOre()` → Frankfurter, dygnscache, fallback 1150/1050 öre). Anropa i början av en ingest-körning; synkrona pris-funktioner läser `getCachedRatesOre()`. `EUR_SEK`-env pinnar kursen. Hårdkoda ALDRIG 11.50 igen — använd modulen
 - **Singelpris**: `Offer.price` på singlar = Cardmarkets engelska **NM-lägsta ("From")** × live-kurs, hämtat från **CardMarket API TCG (RapidAPI Pro)** — `CARDMARKET_RAPIDAPI_*` i .env, fältet `prices.cardmarket.lowest_near_mint` (DECIMAL EUR; bas-fältet är engelska, `_DE`/`_FR`/`_ES`/`_IT` = språk-överstyrningar). Detta ÄR det engelska From-pris som löste det gamla lowPrice-problemet (pokemontcg.io `lowPrice` = all-språk/all-skick-golv som grovt underskattade — använd ALDRIG). Fyll via `scripts/rapidapi-fill-singles.ts` (set-paginering `/pokemon/episodes/{id}/cards`, matcha på `tcgid`=`tcgExternalId`, ~1000 anrop för hela katalogen). Exakt uppslag = `?tcgid={id}` (1 träff). **GOLVET RAKT AV — HELA REGELN (ägarbeslut 2026-07-24, OMBEKRÄFTAT 2026-07-27)**:
   priset = `lowest_near_mint` EXAKT som fältet står, även när CM:s billigaste NM-engelska annons är en enstaka feldyr/graderad
@@ -451,6 +467,60 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   (utsnittet skalas till samma längsta sida, `CAPTURE_MAX`). ⛔ Haiku 4.5 tar emot max 1568 px längsta sida (~1,15 MP)
   och skalar ner allt däröver SERVER-SIDE — att höja `CAPTURE_MAX` ger alltså ingenting på Haiku. Vägen till fler pixlar
   på numret är beskärning eller en modell med högupplöst vision (Sonnet 5 / Opus 5: 2576 px, ~4784 bildtokens).
+- **SKANNERN HAR TRE LÄGEN, OCH DE ÄR ETT `mode`-FÄLT (2026-08-02)**: `"single" | "bulk" | "barcode"` i
+  `skanna/page.tsx`. ⛔ Inte tre booleaner: två flaggor har fyra tillstånd varav ett ("båda på") är meningslöst men
+  fullt möjligt, och lägena tävlar om SAMMA videoruta, slutare och poll-loop. Live-pollen/låset körs BARA i
+  `single` (låset är ett enkortsbegrepp), bulk pollar inte alls, och streckkodsläget kör sin egen detektor.
+  **BULK ÄR PRO**: grinden sitter i `/api/scanner/identify-bulk` (`isPro`, aldrig `planTier` — RevenueCat nollar
+  planTier vid EXPIRATION och har tystat ägarens egna funktioner förr). Knappen VISAS ändå för gratisanvändare, med
+  hänglås + PRO-märke → `/priser`; en funktion man inte kan se säljer ingenting. Låset sätts först när kvoten
+  laddats (`quota != null && !isPremium`) — att gissa låst medan den är okänd blinkade ett Pro-lås för betalande
+  kunder vid varje öppning. Ett 403 städar cellerna och skickar till prissidan i stället för att visa nio fel.
+  Kvoten var redan rätt: `identifyCellsArt` bokför en scan per SÄKER cell och osäkra celler bokförs av `/identify`,
+  dvs 9 identifierade kort = 9 kvot.
+- **SEALED SKANNAS PÅ STRECKKOD, INTE PÅ UTSEENDE (2026-08-02)**: en ask har ingen konstbild att matcha mot, men
+  den bär tillverkarens GTIN — och vi har redan hela GTIN-infrastrukturen (~73 % täckning på riktiga offers,
+  `src/lib/gtin.ts`). Koden ÄR identiteten: `/api/scanner/identify-gtin` slår upp på normaliserad GTIN-14, så en
+  träff är exakt och kostar noll vision-anrop. `src/services/scanner/barcode.ts` avkodar via webbläsarens
+  `BarcodeDetector` och normaliserar ALLTID genom `gtin.ts` (fel checksiffra → INGEN träff, aldrig en gissning).
+  ⛔ **iOS/WebKit har ingen `BarcodeDetector`** → `barcodeSupported()` är false och läget döljs HELT. Skillnaden mot
+  bulk är avsiktlig: bulk är låst av OSS och går att låsa upp, streckkod är omöjlig på enheten. Detektorn skapas EN
+  gång per lägesbyte (Android initierar Play Services-modellen i konstruktorn), och en `seen`-mängd hindrar att
+  samma ask läses om 2,5 ggr/s medan den ligger kvar framför linsen. Skicket sätts till SEALED — NEAR_MINT hade
+  varit ett påstående om något vi inte kan se.
+- **FICKLAMPA + ZOOM: RENDERA BARA DET ENHETEN FAKTISKT KAN (2026-08-02)**: `src/lib/camera-controls.ts` (ren
+  logik, testbar) + `src/hooks/use-camera-controls.ts` (livscykel). Torch saknas på desktop, framkameror och HELA
+  iOS; zoom-kapabilitetens intervall är enhetsspecifikt och står INTE i "x" (både faktor- och procentskala
+  förekommer), och **0,5× är oftast ett ANNAT OBJEKTIV** — en egen enhet i `enumerateDevices()`, inte ett
+  zoom-värde. Hooken returnerar därför bara NÅBARA förval; en 0,5×-knapp som inte gör något är sämre än ingen knapp.
+  ⛔ Modulen rör ALDRIG strömmens livscykel: kräver ett förval en annan kamera svarar den `needs-stream-restart`
+  med enhetens id och skanner-sidan öppnar om strömmen själv (`withDeviceId` släpper `facingMode` — exakt
+  deviceId + facingMode kan motsäga varandra och ge OverconstrainedError). ⚠️ Korttalen per zoomnivå
+  (`ZOOM_PRESET_MAX_CARDS`: 0,5× = 12, 1× = 6, 2× = 1) är HÄRLEDDA UR GEOMETRIN, inte mätta — copyn säger därför
+  "ca". De är ett tak för vad som FÅR PLATS, inte ett löfte om vad som går att LÄSA.
+- **SKANNERNS ALTERNATIVLISTA GALLRAS FÖR VISNING, ALDRIG FÖR MATCHNING (2026-08-02)**: `MAX_ALTERNATIVES`=3 och
+  `ALT_SCORE_WINDOW`=0,2 mot TRÄFFENS poäng (inte listans topp — frågan är "kan skannern ha tagit fel på DET HÄR
+  kortet?"). Listan var oavkortad, och eftersom 92 % av katalogen delar namn med minst ett annat kort radade en
+  vanlig skanning upp tio kort och sköt ner prisutvecklingen under vikningen. Ett kort långt under träffen delade
+  oftast bara ett namn-token och är ingen förväxlingsrisk — att visa det får användaren att tvivla på en träff som
+  var rätt. Kandidaterna räknas fram precis som förut och `onChoose` kan fortfarande välja vilken som helst.
+  Under alternativen ligger `ScanPriceHistory`: hämtar `/api/products/{slug}/detail` (samma CDN-cachade endpoint
+  som produkt-overlayn) NÄR DETALJVYN ÖPPNAS, aldrig vid skanningen — en bulk-fångst hade annars dragit nio
+  detaljhämtningar ingen tittar på. Grafen ritas bara med ≥2 punkter.
+- **PRODUKT-OVERLAYNS z-index ÄR INTE EN KONSTANT (2026-08-02)**: overlayn ligger på z-40 (över sidans header,
+  UNDER bottenflikarna som målas senare i DOM). Skannern är `fixed inset-0 z-[60]` → "Visa produkt" därifrån
+  öppnade overlayn UNDER kameravyn: den monterades och hämtade sitt data, men användaren såg ingenting hända.
+  Buggen var aldrig länken, den var målningsordningen. En helskärmsvärd anmäler sig med `registerFullscreenHost()`
+  (`src/lib/product-overlay-open.ts`, RÄKNARE inte boolean) och BARA då lyfts overlayn till z-[70]. ⛔ Höj den
+  aldrig permanent — då försvinner bottenflikarna bakom den i vanlig bläddring, vilket är hela skälet till z-40.
+- **INKÖPSPRIS + VINST/FÖRLUST (2026-08-02)**: `CollectionItem.purchasePrice` (öre) fanns redan — ingen migration.
+  Ägarbeslut: priset är PER OBJEKT, och befintliga poster lämnas TOMMA (ingen backfill från `estimatedValue` — en
+  påhittad anskaffningskostnad gör hela siffran till en lögn). ⛔ **Vinsten var fel**: `profit = totalValue −
+  totalCost` drog de fåtal prissatta objektens kostnad från ALLA objekts marknadsvärde, så ett objekt utan
+  kostnadsbas bidrog med hela sitt värde som "vinst". Nu `profit = costedValue − totalCost` över objekt som har
+  BÅDE inköpspris och känt värde, och `profitExcludedCount` visas i UI:t så talet är ärligt. Har inget objekt en
+  bas visas "–", aldrig "0 kr" (en nolla läser som "du går jämnt ut"). EN penningparser för hela appen:
+  `src/lib/purchase-price.ts` (`parseKronorToOre`, tar både "," och ".", taket är int4).
 - **Samlingsvärde**: live via `computeCollectionValue`/`valueCollectionItems` (`src/services/collection.ts`) → `getCardValues`/`getProductValues` (`src/services/products.ts`) = produktens lägsta pris (singel = CM-trend, sealed = butik) × live-kurs. Faller tillbaka på lagrat `estimatedValue` (ögonblicksbild vid tillägg) när live saknas. Skannade kandidater visar samma värde via `estimateCardValue`
 - **AI-gradering**: adaptermönster i `src/services/grading/` (`GradingAdapter` + mock + Claude vision). Plan→modell: FREE = `GRADING_MODEL_FREE` (Haiku 4.5, max `GRADING_FREE_MONTHLY_LIMIT`=3/månad), PREMIUM = `GRADING_MODEL_PREMIUM` (Sonnet 4.6, max `GRADING_PREMIUM_MONTHLY_LIMIT`=15/månad). `GRADING_PROVIDER=mock` i dev. Strukturerat svar via tvingat verktyg (`report_grade`). Det är en UPPSKATTNING, aldrig en officiell PSA/BGS-grad — UI:t är tydligt med det
 - **PWA/app**: installerbar via `public/manifest.json` + `public/sw.js` (registreras i prod av `src/components/pwa-register.tsx`). Vägen till app-butiker senare = Capacitor-wrapper runt samma Next-app (ingen UI-omskrivning)
@@ -561,37 +631,12 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
 ```bash
 # Postgres körs redan som Windows-tjänst (postgresql-x64-18) — ingen Docker behövs
 npm install                     # (--legacy-peer-deps vid peer-konflikt)
-npx prisma migrate dev          # migrera
-npx prisma db seed              # seeda
-npm run dev                     # dev-server på :3000
-npm test                        # vitest (83 tester, gröna)
-npm run test:e2e                # playwright (kräver seedad DB)
-npm run import:tcg              # hämta färsk kortdata från pokemontcg.io
-npm run scrape                  # kör skrapare manuellt
 ```
 
 ## Demo-konton (lokal seed)
 - admin@pokefinds.se / admin1234 (SUPERADMIN)
 - demo@pokefinds.se / demo1234 (USER)
 - OBS: dessa lösenord är ROTERADE på prod (repot publikt) — gäller bara lokal seed.
-
-## Mappstruktur
-```
-src/
-  app/           # Next.js App Router (sidor + api routes)
-  components/    # UI-komponenter (ui/ = design system, features/ = sammansatta)
-  lib/           # db, auth, format, queue, validation, concurrency, exchange-rate, marketplace-urls
-  services/      # affärslogik (products, watchlist, alerts, collection, scanner, grading, community)
-  scrapers/      # adapter-system + adapters/ (riktiga butiker)
-  jobs/          # bakgrundsjobb (scheduler, worker, cardmarket-refresh, tradera-sweep, restock-watch)
-  emails/        # e-postmallar
-  types/         # delade typer
-prisma/          # schema + seed
-scripts/         # durabla CLI-verktyg (import, fill, refresh, runners) — engångsskript ligger i git-historiken
-tests/           # unit + e2e
-docs/            # all dokumentation
-.github/workflows/  # schemalagda auto-uppdateringsjobb
-```
 
 ## Regler
 - All copy på svenska, premium men lekfull ton

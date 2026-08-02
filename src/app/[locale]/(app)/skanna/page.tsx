@@ -36,11 +36,25 @@ import {
 } from "@/lib/card-quad";
 import { useIsAdmin } from "@/components/admin-only";
 import { Button, LinkButton } from "@/components/ui/button";
+import { PriceChange } from "@/components/ui/price-change";
+import { PriceChartLazy } from "@/components/features/price-chart-lazy";
 import { Label, Select } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/format";
 import { hasAuthHint } from "@/lib/auth-hint";
+import { registerFullscreenHost } from "@/lib/product-overlay-open";
+import { useCameraControls } from "@/hooks/use-camera-controls";
+import {
+  withDeviceId,
+  type ZoomPreset,
+  type ZoomPresetOption,
+} from "@/lib/camera-controls";
+import {
+  barcodeSupported,
+  createBarcodeScanner,
+  type BarcodeScanner,
+} from "@/services/scanner/barcode";
 import {
   IconAlertTriangle,
   IconArrowRight,
@@ -48,12 +62,36 @@ import {
   IconCards,
   IconCheck,
   IconChevronLeft,
+  IconFlashlight,
+  IconLock,
+  IconScan,
   IconSearch,
   IconSettings,
   IconTrash,
   IconUpload,
   IconX,
 } from "@/components/ui/icons";
+
+/**
+ * Hur många "kan det vara det här i stället?"-rader detaljvyn visar.
+ *
+ * Listan var OAVKORTAD. 92 % av katalogens kort delar namn med minst ett annat
+ * (18 938 av 20 563), så en vanlig skanning radade upp tio kort och sköt ner
+ * prisutvecklingen långt under vikningen — den syntes aldrig. Tre rader räcker
+ * för det alternativen faktiskt är till för: att rätta en förväxling.
+ */
+const MAX_ALTERNATIVES = 3;
+/**
+ * Ett alternativ är bara värt att visa om det ligger NÄRA träffen.
+ *
+ * Poängen är en proxy för "såg likadant ut": ett kort som ligger långt under
+ * träffen delade oftast bara ett namn-token ("Iron Valiant ex" drog in varje
+ * Iron Hands) och är ingen förväxlingsrisk. Att visa det ändå är värre än att
+ * utelämna det — det får en användare att tvivla på en träff som var rätt.
+ * ⛔ Fönstret gallrar VISNINGEN, aldrig matchningen: kandidaterna räknas fram
+ * precis som förut, och `onChoose` kan fortfarande välja vilken som helst.
+ */
+const ALT_SCORE_WINDOW = 0.2;
 
 interface Candidate {
   cardId: string;
@@ -159,6 +197,8 @@ const MIN_MATCH_CONF = 0.2;
 
 type CameraState = "starting" | "live" | "error" | "unsupported";
 type View = "capture" | "review";
+/** Skanningslägen. Se `mode`-state i Scanner för varför det är ETT fält. */
+type ScanMode = "single" | "bulk" | "barcode";
 
 let scanCounter = 0;
 const nextId = () => `scan-${Date.now()}-${scanCounter++}`;
@@ -610,14 +650,48 @@ function Scanner() {
   const { toast } = useToast();
   const router = useRouter();
 
+  // Skannern är `fixed inset-0 z-[60]` och lägger sig över HELA appen. Produkt-
+  // overlayn ligger på z-40, så "Visa produkt" härifrån öppnade den UNDER
+  // kameravyn — den monterades och hämtade sitt data, men användaren såg
+  // ingenting hända. Anmälan lyfter overlayn över oss så länge skannern lever;
+  // scan-listan ligger kvar i state bakom den och svep-tillbaka avtäcker den.
+  useEffect(() => registerFullscreenHost(), []);
+
   const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Kortramen i kameravyn — captureFrame mäter den för att beskära utsnittet.
   const frameRef = useRef<HTMLDivElement>(null);
-  // BULK-LÄGE: frilagd flerkortsdetektering (bordsyta) i stället för enkelram.
-  // Live-pollen/låset stängs av i bulk (de är enkortsbegrepp).
-  const [bulkMode, setBulkMode] = useState(false);
+  /**
+   * SKANNINGSLÄGE — ETT state, inte tre flaggor.
+   *
+   * "single"  = enkelram + live-lås + auto-fångst (kort).
+   * "bulk"    = frilagd flerkortsdetektering på bordsyta (kort, PRO).
+   * "barcode" = streckkodsläsning för FÖRSEGLADE produkter (askar har ingen
+   *             konstbild att matcha mot, men de bär tillverkarens GTIN).
+   *
+   * ⛔ Ett enda `mode` i stället för `bulkMode`/`barcodeMode` som separata
+   * booleaner: två booleaner har fyra tillstånd varav ett ("båda på") är
+   * meningslöst men fullt möjligt att hamna i. Lägena UTESLUTER varandra —
+   * de tävlar om samma videoruta, samma slutare och samma poll-loop.
+   */
+  const [mode, setMode] = useState<ScanMode>("single");
+  // Härledda alias: läsbarheten i JSX:en nedan bygger på dem, och de gör att
+  // varje läges avstängningsvillkor står i klartext i sina effekter.
+  const bulkMode = mode === "bulk";
+  const barcodeMode = mode === "barcode";
+
+  // FICKLAMPA + ZOOM-FÖRVAL. Hooken rör ALDRIG strömmens livscykel — den läser
+  // kapabiliteter ur spåret och applicerar constraints. Kräver ett förval en
+  // annan kamera (0,5× = ultravidvinkeln, en egen enhet på de flesta telefoner)
+  // svarar den `needs-stream-restart` och VI öppnar om strömmen, se onZoom.
+  const camera = useCameraControls();
+
+  // Streckkodsläget döljs helt där plattformen inte kan läsa koder (iOS/WebKit
+  // har ingen BarcodeDetector). En knapp som bevisligen inte fungerar är sämre
+  // än ingen knapp — samma regel som zoom-förvalen följer.
+  const [canScanBarcodes, setCanScanBarcodes] = useState(false);
+  useEffect(() => setCanScanBarcodes(barcodeSupported()), []);
   // Admin: bulk-fångstens detekteringsbild sparas för felsökning mot verkliga foton.
   const isAdmin = useIsAdmin();
   // DIAGNOSTIK (bara admin, se ScanDebug): kamerans verkliga upplösning, senaste
@@ -807,10 +881,18 @@ function Scanner() {
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    camera.attach(null);
     if (videoRef.current) videoRef.current.srcObject = null;
-  }, []);
+  }, [camera]);
 
-  const startCamera = useCallback(async () => {
+  /**
+   * @param deviceId Öppna en SPECIFIK kamera i stället för den bakre standarden.
+   *   Används av 0,5×-förvalet: ultravidvinkeln är på de flesta telefoner en EGEN
+   *   enhet, inte ett zoom-värde, så förvalet kräver att strömmen öppnas om.
+   *   `withDeviceId` släpper `facingMode` när ett exakt id sätts — de två kan
+   *   motsäga varandra och ge OverconstrainedError.
+   */
+  const startCamera = useCallback(async (deviceId?: string) => {
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       setCameraState("unsupported");
       return;
@@ -827,15 +909,21 @@ function Scanner() {
       // innehöll detaljen. Vid 2160p blir samma siffra ~22 px.
       // `ideal` (inte `exact`) → enheter som inte klarar 4K faller tillbaka
       // själva i stället för att kastas ut med OverconstrainedError.
+      const baseVideo: MediaTrackConstraints = {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 3840 },
+        height: { ideal: 2160 },
+      };
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 3840 },
-          height: { ideal: 2160 },
-        },
+        video: deviceId ? withDeviceId(baseVideo, deviceId) : baseVideo,
         audio: false,
       });
       streamRef.current = stream;
+      // Kamerakontrollerna (ficklampa/zoom) läser kapabiliteter ur SPÅRET, och
+      // spåret byts vid varje omstart — attach är därför obligatorisk här, inte
+      // en engångsuppkoppling. Hooken applicerar också ett väntande zoom-förval
+      // när den nya strömmen kommer in (0,5×-omstarten).
+      camera.attach(stream);
       const video = videoRef.current;
       if (video) {
         video.srcObject = stream;
@@ -858,7 +946,28 @@ function Scanner() {
       );
       setCameraState("error");
     }
-  }, [t]);
+  }, [t, camera]);
+
+  /**
+   * Zoom-förval. De flesta byten är ett rent `applyConstraints` på spåret, men
+   * 0,5× är oftast ETT ANNAT OBJEKTIV — en egen enhet i `enumerateDevices()`,
+   * inte ett zoom-värde. Då svarar hooken `needs-stream-restart` med enhetens
+   * id och strömmen öppnas om här. Hooken applicerar sitt väntande förval själv
+   * när den nya strömmen attachas.
+   *
+   * ⛔ Omstarten görs BARA på den signalen. Att öppna om kameran vid varje
+   * zoom-byte hade svartat bilden i en halv sekund på telefoner som klarar
+   * bytet med en constraint — och det är de flesta.
+   */
+  const onZoom = useCallback(
+    async (preset: ZoomPreset) => {
+      const res = await camera.applyZoom(preset);
+      if (res.ok || res.reason !== "needs-stream-restart") return;
+      stopCamera();
+      await startCamera(res.deviceId);
+    },
+    [camera, stopCamera, startCamera]
+  );
 
   // Returnerar false om stängningen avbröts (osparade träffar) → svep-gesten
   // fjädrar tillbaka i stället för att lämna skannern osynlig utanför skärmen.
@@ -897,8 +1006,9 @@ function Scanner() {
   // (busy-ref) så en seg lina inte staplar förfrågningar.
   useEffect(() => {
     // Bulk-läget pollar inte: låset/chippen är enkortsbegrepp, och 9 celler
-    // × 2 poll/s hade varit CPU utan mottagare.
-    if (cameraState !== "live" || view !== "capture" || bulkMode) {
+    // × 2 poll/s hade varit CPU utan mottagare. Streckkodsläget pollar sin egen
+    // detektor (se nedan) och har ingen konstbild att matcha mot.
+    if (cameraState !== "live" || view !== "capture" || mode !== "single") {
       setLiveHint(null);
       liveStreak.current = { id: "", n: 0 };
       return;
@@ -956,7 +1066,8 @@ function Scanner() {
         });
     }, 600);
     return () => window.clearInterval(iv);
-  }, [cameraState, view, bulkMode]);
+  }, [cameraState, view, mode]);
+
 
   // Lås body-scroll + Escape-stäng medan skannern är öppen.
   useEffect(() => {
@@ -1087,6 +1198,130 @@ function Scanner() {
     },
     [defaultCondition, defaultLanguage, identifyInto]
   );
+
+  /**
+   * STRECKKODSTRÄFF → katalogprodukt. Ingen vision, ingen bildmatchning: koden
+   * ÄR identiteten. En träff är därför exakt, inte en gissning — `uncertain` är
+   * alltid false och `candidates` bär bara den enda produkten.
+   *
+   * Skicket sätts till SEALED: en förseglad ask har inget kortskick att bedöma,
+   * och NEAR_MINT (kortens standard) hade varit ett påstående om något vi inte
+   * kan se.
+   */
+  const addBarcodeScan = useCallback(
+    (gtin: string, dataUrl: string) => {
+      const id = nextId();
+      setScans((prev) => [
+        ...prev,
+        {
+          id,
+          status: "identifying",
+          captured: dataUrl,
+          match: null,
+          candidates: [],
+          confidence: 0,
+          uncertain: false,
+          quantity: 1,
+          condition: "SEALED",
+          language: defaultLanguage,
+        },
+      ]);
+      void fetch("/api/scanner/identify-gtin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gtin }),
+      })
+        .then((r) => r.json())
+        .then((d: { found?: boolean; match?: Candidate | null; remaining?: number }) => {
+          if (typeof d.remaining === "number") {
+            const r = d.remaining;
+            setQuota((q) => (q ? { ...q, remaining: r } : q));
+          }
+          setScans((prev) =>
+            prev.map((s) =>
+              s.id !== id
+                ? s
+                : d.found && d.match
+                  ? {
+                      ...s,
+                      status: "matched",
+                      match: d.match,
+                      candidates: [d.match],
+                      confidence: 1,
+                    }
+                  : // Koden lästes RÄTT men finns inte i katalogen — det är inte
+                    // ett fel i skanningen, och felmeddelandet ska säga just det.
+                    { ...s, status: "nomatch", errorMessage: t("barcodeNotFound") }
+            )
+          );
+        })
+        .catch(() => {
+          setScans((prev) =>
+            prev.map((s) =>
+              s.id === id ? { ...s, status: "error", errorMessage: t("genericError") } : s
+            )
+          );
+        });
+    },
+    [defaultLanguage, t]
+  );
+
+  /**
+   * STRECKKODSPOLLEN — kontinuerlig avläsning utan slutare.
+   *
+   * En streckkod är antingen läsbar eller inte; det finns inget "nästan rätt"
+   * att lägga fram för användaren, så läget behöver ingen slutarknapp och inget
+   * lås. Detektorn skapas EN gång per lägesbyte: på Android initierar
+   * konstruktorn Play Services-modellen, och en ny per ruta hade betalat den
+   * kostnaden två gånger i sekunden.
+   *
+   * ⛔ `lastGtin` hindrar att SAMMA ask läses om och om igen medan den ligger
+   * kvar framför linsen (2,5 avläsningar/s = en rad per ruta, och varje rad
+   * drar kvot). Den nollställs när läget lämnas, så att skanna samma ask igen
+   * med flit fungerar.
+   */
+  useEffect(() => {
+    if (mode !== "barcode" || cameraState !== "live" || view !== "capture") return;
+    let cancelled = false;
+    let detector: BarcodeScanner | null = null;
+    let iv = 0;
+    let busy = false;
+    const seen = new Set<string>();
+
+    void createBarcodeScanner().then((s) => {
+      if (cancelled || !s) return;
+      detector = s;
+      iv = window.setInterval(() => {
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        if (!video || !canvas || !detector || busy || document.hidden) return;
+        busy = true;
+        detector
+          .detect(video)
+          .then((hits) => {
+            const hit = hits.find((h) => !seen.has(h.gtin));
+            if (!hit) return;
+            seen.add(hit.gtin);
+            navigator.vibrate?.(60);
+            setFlash(true);
+            window.setTimeout(() => setFlash(false), 180);
+            // Bilden användaren såg sparas som fångst — samma ruta som koden
+            // lästes ur, så granskningslistan visar rätt ask.
+            const shot = captureFrame(video, canvas, frameRef.current);
+            addBarcodeScan(hit.gtin, shot?.dataUrl ?? "");
+          })
+          .catch(() => undefined)
+          .finally(() => {
+            busy = false;
+          });
+      }, 400);
+    });
+
+    return () => {
+      cancelled = true;
+      if (iv) window.clearInterval(iv);
+    };
+  }, [mode, cameraState, view, addBarcodeScan]);
 
   const capture = useCallback(() => {
     const video = videoRef.current;
@@ -1239,6 +1474,17 @@ function Scanner() {
           }>;
           error?: string;
         };
+        // 403 = bulk kräver Pro. Kvoten kan ha varit oladdad när knappen
+        // trycktes (då står låset öppet med flit), så det här är inte ett fel
+        // att rapportera nio gånger — det är ett säljtillfälle. Cellerna städas
+        // bort och användaren landar på prissidan.
+        if (res.status === 403) {
+          const dropped = new Set(idByCell.values());
+          setScans((prev) => prev.filter((s) => !dropped.has(s.id)));
+          setMode("single");
+          router.push("/priser");
+          return;
+        }
         if (!res.ok || !data.cells) {
           const msg = data.error ?? t("genericError");
           for (const id of idByCell.values()) {
@@ -1453,8 +1699,20 @@ function Scanner() {
           isMock={isMock}
           shutterCooling={shutterCooling}
           quota={quota}
-          bulkMode={bulkMode}
-          onToggleBulk={() => setBulkMode((v) => !v)}
+          mode={mode}
+          onSetMode={setMode}
+          // Låset sätts först när kvoten LADDATS: `quota === null` betyder
+          // "vet inte än", och att gissa låst där hade blinkat ett Pro-lås för
+          // en betalande kund varje gång skannern öppnas. Gissar vi fel åt
+          // andra hållet stoppar servergrinden ändå anropet (403 → prissidan).
+          bulkLocked={quota != null && !quota.isPremium}
+          barcodeAvailable={canScanBarcodes}
+          torchSupported={camera.torchSupported}
+          torchOn={camera.torchOn}
+          onToggleTorch={() => void camera.toggleTorch()}
+          zoomPresets={camera.zoomPresets}
+          zoom={camera.zoom}
+          onZoom={(p) => void onZoom(p)}
           onUpgrade={() => router.push("/priser")}
           onRetryCamera={() => void startCamera()}
           onCapture={bulkMode ? captureBulk : capture}
@@ -1535,7 +1793,16 @@ function QuotaBadge({ quota, onUpgrade }: { quota: ScanQuota; onUpgrade: () => v
   );
   const body = (
     <span className="min-w-0 text-left">
-      <span className="block text-sm font-semibold text-ink">
+      <span
+        className={cn(
+          "block font-semibold text-ink",
+          // Pro-raden är BARA oändlighetstecknet (ägarbeslut 2026-08-02). Ett
+          // ensamt "∞" i brödtextstorlek läser som ett renderingsfel — det ska
+          // bära raden, alltså sätts det i display-grad med samma optiska tyngd
+          // som "3 skanningar kvar" har på gratisraden.
+          isPremium ? "text-2xl leading-none" : "text-sm"
+        )}
+      >
         {/* Pro säljs som OBEGRÄNSAT — då ska ingen nedräkning visas. Taket i
             koden är ett skydd mot skenande loopar, inte en produktgräns, och en
             siffra här hade läst som "du har X kvar" av en kund som betalat för
@@ -1574,14 +1841,126 @@ function QuotaBadge({ quota, onUpgrade }: { quota: ScanQuota; onUpgrade: () => v
   );
 }
 
+/** Lägesväxlare i kameravyn. Låst variant bär hänglås + PRO-märke i stället för
+ *  att döljas — se kommentaren vid anropsstället. */
+function ModeChip(props: {
+  active: boolean;
+  locked: boolean;
+  icon: ReactNode;
+  label: string;
+  proLabel: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={props.onClick}
+      aria-pressed={props.locked ? undefined : props.active}
+      className={cn(
+        "inline-flex items-center gap-2 rounded-full border px-5 py-2 text-sm font-medium backdrop-blur transition-colors",
+        props.active
+          ? "border-holo-cyan/60 bg-holo-cyan/15 text-holo-cyan"
+          : "border-white/15 bg-white/10 text-ink hover:bg-white/15"
+      )}
+    >
+      {props.locked ? <IconLock size={15} /> : props.icon}
+      {props.label}
+      {props.locked && (
+        <span className="rounded bg-holo-cyan/20 px-1.5 py-px text-[10px] font-bold tracking-wide text-holo-cyan">
+          {props.proLabel}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/**
+ * Ficklampa + zoom-förval, staplade längs kamerans högerkant.
+ *
+ * ⛔ BÅDA renderas villkorat på vad enheten FAKTISKT kan: torch saknas på hela
+ * iOS, på desktop och på framkameror, och zoom-förvalen filtreras av
+ * `use-camera-controls` till dem som går att nå. En kontroll som inte gör något
+ * är sämre än ingen kontroll — samma regel som gäller resten av appen.
+ *
+ * Korttalen (`maxCards`) är UPPSKATTNINGAR från geometrin, inte mätningar —
+ * därför "ca" i copyn. Se ZOOM_PRESET_MAX_CARDS i lib/camera-controls.ts.
+ */
+function CameraControls(props: {
+  torchSupported: boolean;
+  torchOn: boolean;
+  onToggleTorch: () => void;
+  zoomPresets: ZoomPresetOption[];
+  zoom: ZoomPreset;
+  onZoom: (p: ZoomPreset) => void;
+  /** Korttalet är bara meningsfullt i bulk — ett kort i taget är ett kort. */
+  showCardHint: boolean;
+}) {
+  const t = useTranslations("Scanner");
+  const zoomLabel = (p: ZoomPreset) =>
+    p === 0.5 ? t("zoomHalf") : p === 2 ? t("zoomTwo") : t("zoomOne");
+  if (!props.torchSupported && props.zoomPresets.length <= 1) return null;
+  return (
+    <div className="pointer-events-none absolute inset-y-0 right-3 z-20 flex flex-col items-end justify-center gap-2">
+      {props.torchSupported && (
+        <button
+          type="button"
+          onClick={props.onToggleTorch}
+          aria-pressed={props.torchOn}
+          aria-label={props.torchOn ? t("torchTurnOff") : t("torchTurnOn")}
+          className={cn(
+            "pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full backdrop-blur transition-colors",
+            props.torchOn ? "bg-holo-cyan text-black" : "bg-black/50 text-ink hover:bg-black/70"
+          )}
+        >
+          <IconFlashlight size={18} />
+        </button>
+      )}
+      {props.zoomPresets.length > 1 && (
+        <div className="pointer-events-auto flex flex-col items-center gap-1 rounded-full bg-black/50 p-1 backdrop-blur">
+          {props.zoomPresets.map((o) => (
+            <button
+              key={o.preset}
+              type="button"
+              onClick={() => props.onZoom(o.preset)}
+              aria-label={t("zoomAria", { label: zoomLabel(o.preset) })}
+              aria-pressed={props.zoom === o.preset}
+              title={props.showCardHint ? t("zoomCardHint", { count: o.maxCards }) : undefined}
+              className={cn(
+                "flex h-9 min-w-9 items-center justify-center rounded-full px-2 text-xs font-semibold tabular-nums transition-colors",
+                props.zoom === o.preset
+                  ? "bg-holo-cyan text-black"
+                  : "text-ink hover:bg-white/10"
+              )}
+            >
+              {zoomLabel(o.preset)}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CaptureView(props: {
   videoRef: RefObject<HTMLVideoElement>;
   canvasRef: RefObject<HTMLCanvasElement>;
   /** Kortramen — captureFrame mäter den för att beskära utsnittet till kortet. */
   frameRef: RefObject<HTMLDivElement>;
-  /** Bulk-läge: frilagd flerkortsdetektering — ingen ram, korten hittas själva. */
-  bulkMode: boolean;
-  onToggleBulk: () => void;
+  /** Aktivt läge: enkelram, frilagd bulk-detektering eller streckkodsläsning. */
+  mode: ScanMode;
+  onSetMode: (m: ScanMode) => void;
+  /** Bulk är Pro. Låst = knappen visas ändå, men leder till prissidan. */
+  bulkLocked: boolean;
+  /** Streckkodsläget döljs helt där plattformen inte kan läsa koder (iOS). */
+  barcodeAvailable: boolean;
+  /** Ficklampa — saknas på desktop, framkameror och hela iOS. Dölj då knappen. */
+  torchSupported: boolean;
+  torchOn: boolean;
+  onToggleTorch: () => void;
+  /** Bara de zoom-förval enheten FAKTISKT når. Tom/ensam lista → ingen rad. */
+  zoomPresets: ZoomPresetOption[];
+  zoom: ZoomPreset;
+  onZoom: (p: ZoomPreset) => void;
   /** Live-bildmatchningens bästa gissning (chippen under ramen). Ren data —
    *  kortnamn + nummer — så ingen ny copy/översättning behövs. */
   liveHint: { name: string; number: string; locked: boolean } | null;
@@ -1678,8 +2057,11 @@ function CaptureView(props: {
         )}
       </div>
 
-      {/* Kortram-overlay (enkel) ELLER rutnätsoverlay (bulk) */}
-      {cameraState === "live" && !props.bulkMode && (
+      {/* Kortram-overlay (enkel) ELLER rutnätsoverlay (bulk) ELLER
+          streckkodsgejd (sealed). Kortramen är 5/7 med flit — den mäts av
+          captureFrame och styr beskärningen, så den får inte visas i ett läge
+          där utsnittet inte är ett kort. */}
+      {cameraState === "live" && props.mode === "single" && (
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
@@ -1708,6 +2090,34 @@ function CaptureView(props: {
       {/* Bulk-läget har INGEN ram: detectCardRegions hittar korten själv —
           hela rutan är fångstytan, hinten säger "lite mellanrum". */}
 
+      {/* Streckkodsgejd: en LIGGANDE remsa, inte en kortram. Koden sitter på
+          askens kant och är bred och låg — en 5/7-ram hade fått användaren att
+          rikta mot mitten av asken, där ingen kod finns. Ren guide: detektorn
+          läser hela videorutan, så en kod utanför remsan hittas ändå. */}
+      {cameraState === "live" && props.mode === "barcode" && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
+        >
+          <div className="mb-[14vh] h-[22vh] w-[78%] max-w-[24rem] rounded-2xl ring-2 ring-holo-cyan/70">
+            <div className="h-full w-full rounded-2xl ring-1 ring-inset ring-black/40" />
+          </div>
+        </div>
+      )}
+
+      {/* Ficklampa + zoom — bara medan kameran faktiskt visar bild. */}
+      {cameraState === "live" && (
+        <CameraControls
+          torchSupported={props.torchSupported}
+          torchOn={props.torchOn}
+          onToggleTorch={props.onToggleTorch}
+          zoomPresets={props.zoomPresets}
+          zoom={props.zoom}
+          onZoom={props.onZoom}
+          showCardHint={props.mode === "bulk"}
+        />
+      )}
+
       {/* Capture-flash */}
       {flash && (
         <div
@@ -1735,23 +2145,47 @@ function CaptureView(props: {
         {scans.length === 0 && cameraState === "live" && (
           <div className="flex flex-col items-center gap-3">
             <p className="text-center text-sm text-ink-muted">
-              {props.bulkMode ? t("bulkHint") : t("holdCard")}
+              {props.mode === "bulk"
+                ? t("bulkHint")
+                : props.mode === "barcode"
+                  ? t("barcodeHint")
+                  : t("holdCard")}
             </p>
-            {/* Bulk-växlaren ersatte "Manuell inmatning" (ägarbeslut 2026-08-01)
-                — sökningen finns ändå i produktkatalogen, bulk hör hemma här. */}
-            <button
-              type="button"
-              onClick={props.onToggleBulk}
-              aria-pressed={props.bulkMode}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-full border px-5 py-2 text-sm font-medium backdrop-blur transition-colors",
-                props.bulkMode
-                  ? "border-holo-cyan/60 bg-holo-cyan/15 text-holo-cyan"
-                  : "border-white/15 bg-white/10 text-ink hover:bg-white/15"
+            {/* LÄGESVÄXLARNA. Bulk ersatte "Manuell inmatning" (ägarbeslut
+                2026-08-01) — sökningen finns ändå i produktkatalogen.
+                BULK ÄR PRO (2026-08-02): knappen visas för ALLA med flit och
+                bär ett lås i stället för att döljas — en funktion man inte kan
+                se säljer ingenting. Tryck utan Pro → prissidan, aldrig ett
+                felmeddelande. Den riktiga grinden sitter i API:t.
+                STRECKKOD döljs däremot HELT där den inte fungerar (iOS saknar
+                BarcodeDetector): skillnaden är att bulk är låst av OSS och går
+                att låsa upp, medan streckkod är omöjlig på enheten. */}
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <ModeChip
+                active={props.mode === "bulk"}
+                locked={props.bulkLocked}
+                icon={<IconCards size={16} />}
+                label={t("bulkMode")}
+                proLabel={t("pro")}
+                onClick={
+                  props.bulkLocked
+                    ? props.onUpgrade
+                    : () => props.onSetMode(props.mode === "bulk" ? "single" : "bulk")
+                }
+              />
+              {props.barcodeAvailable && (
+                <ModeChip
+                  active={props.mode === "barcode"}
+                  locked={false}
+                  icon={<IconScan size={16} />}
+                  label={t("barcodeMode")}
+                  proLabel={t("pro")}
+                  onClick={() =>
+                    props.onSetMode(props.mode === "barcode" ? "single" : "barcode")
+                  }
+                />
               )}
-            >
-              <IconCards size={16} /> {t("bulkMode")}
-            </button>
+            </div>
           </div>
         )}
 
@@ -2249,12 +2683,21 @@ function ScanDetailsSheet(props: {
   const t = useTranslations("Scanner");
   const tCond = useTranslations("Condition");
   const { item } = props;
-  // Jämför på TRYCKNINGEN, inte bara kortet: de tre Base-produkterna delar
-  // cardId, så ett `cardId !==`-filter hade slängt ut precis de alternativ
-  // användaren behöver ("min är 1st Edition, inte Unlimited").
-  const alternatives = item.candidates.filter((c) =>
-    item.match ? c.productId !== item.match.productId || c.cardId !== item.match.cardId : true
-  );
+  const alternatives = useMemo(() => {
+    // Jämför på TRYCKNINGEN, inte bara kortet: de tre Base-produkterna delar
+    // cardId, så ett `cardId !==`-filter hade slängt ut precis de alternativ
+    // användaren behöver ("min är 1st Edition, inte Unlimited").
+    const others = item.candidates.filter((c) =>
+      item.match ? c.productId !== item.match.productId || c.cardId !== item.match.cardId : true
+    );
+    // Referensen är TRÄFFENS poäng när det finns en träff — inte listans topp.
+    // Frågan alternativen svarar på är "kan skannern ha tagit fel på just DET
+    // här kortet?", och det avgörs av avståndet till träffen.
+    const reference = item.match?.score ?? others[0]?.score ?? 0;
+    return others
+      .filter((c) => reference - c.score <= ALT_SCORE_WINDOW)
+      .slice(0, MAX_ALTERNATIVES);
+  }, [item.candidates, item.match]);
 
   return (
     <Sheet title={t("scanDetails")} onClose={props.onClose}>
@@ -2372,6 +2815,11 @@ function ScanDetailsSheet(props: {
           </div>
         )}
 
+        {/* Prisutveckling för träffen — "hur har det här kortet gått?" utan att
+            lämna kameran. Ligger EFTER alternativen med flit: rättar man träffen
+            byts kortet, och då vore en graf över fel kort det första man såg. */}
+        {item.match?.slug && <ScanPriceHistory slug={item.match.slug} />}
+
         {/* Åtgärder */}
         <div className="flex flex-wrap gap-2">
           {item.match?.slug ? (
@@ -2392,6 +2840,100 @@ function ScanDetailsSheet(props: {
         </div>
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * Prisutveckling för det skannade kortet — "har det här gått upp eller ner?"
+ * utan att lämna kameravyn.
+ *
+ * Datat kommer från /api/products/{slug}/detail, SAMMA endpoint som produkt-
+ * overlayn: CDN-cachad och backad av `loadProductDetail`s cache, så den kostar i
+ * praktiken ingen ny Neon-fråga. Hämtningen sker när DETALJVYN ÖPPNAS, aldrig
+ * vid skanningen — en bulk-fångst med nio kort hade annars dragit nio
+ * detaljhämtningar som ingen tittar på.
+ *
+ * ⛔ Grafen ritas bara med minst två punkter. En ensam punkt är ingen utveckling,
+ * och en linje mellan ett värde och sig självt påstår en stabilitet vi inte mätt.
+ */
+function ScanPriceHistory({ slug }: { slug: string }) {
+  const t = useTranslations("Scanner");
+  const [series, setSeries] = useState<{ date: string; price: number }[] | null>(null);
+  const [changes, setChanges] = useState<{ d7: number | null; d30: number | null }>({
+    d7: null,
+    d30: null,
+  });
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setSeries(null);
+    setFailed(false);
+    fetch(`/api/products/${encodeURIComponent(slug)}/detail`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("detail"))))
+      .then((d: unknown) => {
+        if (!alive) return;
+        const data = d as {
+          chartData?: { date: string; price: number }[];
+          change7?: number | null;
+          change30?: number | null;
+        };
+        setSeries(Array.isArray(data.chartData) ? data.chartData : []);
+        setChanges({
+          d7: typeof data.change7 === "number" ? data.change7 : null,
+          d30: typeof data.change30 === "number" ? data.change30 : null,
+        });
+      })
+      .catch(() => {
+        if (alive) setFailed(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [slug]);
+
+  // Ett tyst fel är rätt här: prisutvecklingen är en bonus i skanningsvyn, och
+  // en röd ruta över en misslyckad extrahämtning hade läst som att SKANNINGEN
+  // gick fel. Kortet och priset ovanför står kvar oavsett.
+  if (failed) return null;
+
+  return (
+    <div>
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <p className="text-xs font-medium text-ink-muted">{t("priceHistory")}</p>
+        {series !== null && (changes.d7 !== null || changes.d30 !== null) && (
+          <span className="flex shrink-0 items-center gap-2.5">
+            {changes.d7 !== null && (
+              <span className="flex items-baseline gap-1 text-[11px] text-ink-faint">
+                {t("change7d")}
+                <PriceChange percent={changes.d7} className="text-xs" hideIcon />
+              </span>
+            )}
+            {changes.d30 !== null && (
+              <span className="flex items-baseline gap-1 text-[11px] text-ink-faint">
+                {t("change30d")}
+                <PriceChange percent={changes.d30} className="text-xs" hideIcon />
+              </span>
+            )}
+          </span>
+        )}
+      </div>
+      {series === null ? (
+        // Samma 300px som PriceChart ritar på — annars hoppar arket när datat
+        // landar och användaren tappar sin plats mitt i en scroll.
+        <div className="h-[300px] w-full animate-pulse rounded-xl bg-surface-overlay" aria-hidden />
+      ) : series.length < 2 ? (
+        <p className="rounded-xl border border-surface-border px-3 py-6 text-center text-xs text-ink-faint">
+          {t("priceHistoryEmpty")}
+        </p>
+      ) : (
+        // data-swipe-ignore: vågrätt drag på grafen är tooltip-scrubbing, inte
+        // svep-tillbaka — samma undantag som produktsidans graf har.
+        <div data-swipe-ignore className="-mx-1">
+          <PriceChartLazy data={series} minimal />
+        </div>
+      )}
+    </div>
   );
 }
 

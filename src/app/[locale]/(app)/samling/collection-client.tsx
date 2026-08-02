@@ -16,6 +16,8 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { IconPackage, IconPlus, IconTrendingDown, IconTrendingUp } from "@/components/ui/icons";
 import { SellButton } from "./sell-on-tradera";
+import { parseKronorToOre } from "@/lib/purchase-price";
+import { oreToKr, profitToneClass, rowProfit } from "./profit";
 
 export const CONDITION_LABELS: Record<string, string> = {
   MINT: "Mint",
@@ -58,25 +60,6 @@ interface CardHit {
   name: string;
   number: string;
   set: { id: string; name: string } | null;
-}
-
-function krToOre(value: string): number | undefined {
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-  const kr = Number(trimmed.replace(",", "."));
-  if (!Number.isFinite(kr) || kr < 0) return undefined;
-  return Math.round(kr * 100);
-}
-
-function oreToKr(ore: number | null): string {
-  return ore == null ? "" : String(ore / 100).replace(".", ",");
-}
-
-function profitPercent(item: CollectionRow): number | null {
-  if (item.purchasePrice == null || item.purchasePrice === 0 || item.estimatedValue == null) {
-    return null;
-  }
-  return ((item.estimatedValue - item.purchasePrice) / item.purchasePrice) * 100;
 }
 
 /** Enkel CSV-parser med stöd för citattecken. */
@@ -225,6 +208,12 @@ export function CollectionClient({
     if (!f.cardId && !f.freeText.trim()) {
       return { error: t("chooseOrNameError") };
     }
+    // Ogiltigt/negativt pris avvisas i stället för att tyst falla bort ur payloaden.
+    const purchasePrice = parseKronorToOre(f.purchasePrice);
+    const estimatedValue = parseKronorToOre(f.estimatedValue);
+    if (purchasePrice.kind === "invalid" || estimatedValue.kind === "invalid") {
+      return { error: t("priceInvalidError") };
+    }
     const notes = f.cardId
       ? f.notes.trim() || undefined
       : [f.freeText.trim(), f.notes.trim()].filter(Boolean).join(" · ");
@@ -233,8 +222,10 @@ export function CollectionClient({
       quantity,
       condition: f.condition,
       language: f.language,
-      purchasePrice: krToOre(f.purchasePrice),
-      estimatedValue: krToOre(f.estimatedValue),
+      // Nya poster: BLANKT fält = utelämna nyckeln (POST tar inte emot null). 0 kr är
+      // däremot ett äkta köppris och skickas med.
+      ...(purchasePrice.kind === "ok" ? { purchasePrice: purchasePrice.ore } : {}),
+      ...(estimatedValue.kind === "ok" ? { estimatedValue: estimatedValue.ore } : {}),
       ...(f.purchaseDate ? { purchaseDate: f.purchaseDate } : {}),
       gradingCompany: f.gradingCompany.trim() || undefined,
       grade: f.grade.trim() || undefined,
@@ -288,6 +279,12 @@ export function CollectionClient({
       setFormError(t("qtyMinError"));
       return;
     }
+    const purchasePrice = parseKronorToOre(form.purchasePrice);
+    const estimatedValue = parseKronorToOre(form.estimatedValue);
+    if (purchasePrice.kind === "invalid" || estimatedValue.kind === "invalid") {
+      setFormError(t("priceInvalidError"));
+      return;
+    }
     setSaving(true);
     setFormError(null);
     try {
@@ -297,8 +294,11 @@ export function CollectionClient({
           quantity,
           condition: form.condition,
           language: form.language,
-          purchasePrice: krToOre(form.purchasePrice),
-          estimatedValue: krToOre(form.estimatedValue),
+          // Köppris får NOLLAS (blankt fält → null) — ett felinmatat pris ska inte ligga
+          // kvar och snedvrida vinsten. estimatedValue lämnas däremot orört när fältet är
+          // tomt: det är en lagrad värde-ögonblicksbild som valueringen faller tillbaka på.
+          purchasePrice: purchasePrice.kind === "ok" ? purchasePrice.ore : null,
+          ...(estimatedValue.kind === "ok" ? { estimatedValue: estimatedValue.ore } : {}),
           ...(form.purchaseDate ? { purchaseDate: form.purchaseDate } : {}),
           ...(form.gradingCompany.trim() ? { gradingCompany: form.gradingCompany.trim() } : {}),
           ...(form.grade.trim() ? { grade: form.grade.trim() } : {}),
@@ -586,21 +586,24 @@ export function CollectionClient({
           </THead>
           <TBody>
             {items.map((item) => {
-              const profit = profitPercent(item);
+              const profit = rowProfit(item);
               return (
                 <TR key={item.id}>
                   <TD className="font-medium">
                     <div className="flex items-center gap-3">
+                      {/* Svart bildbrunn, samma behandling som Utforska-kortet
+                          (product-card.tsx). `surface-overlay` är en interaktiv fyllning,
+                          inte en bakgrund — som brunn blev varje rad grå. */}
                       {item.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={item.imageUrl}
                           alt=""
-                          className="h-12 w-9 shrink-0 rounded object-contain bg-surface-overlay"
+                          className="h-12 w-9 shrink-0 rounded object-contain bg-surface"
                           loading="lazy"
                         />
                       ) : (
-                        <span className="flex h-12 w-9 shrink-0 items-center justify-center rounded bg-surface-overlay text-ink-faint">
+                        <span className="flex h-12 w-9 shrink-0 items-center justify-center rounded bg-surface text-ink-faint">
                           <IconPackage size={16} aria-hidden="true" />
                         </span>
                       )}
@@ -615,19 +618,32 @@ export function CollectionClient({
                   <TD data-price className="font-semibold">
                     {formatPrice(item.estimatedValue)}
                   </TD>
+                  {/* Vinst/förlust: BELOPP först (det man faktiskt tjänat/förlorat på
+                      posten, alla ex. inräknade) och procenten som stöd. Utan köppris
+                      finns ingen kostnadsbas — då står "–" och posten räknas heller inte
+                      in i portföljtotalen ovan. */}
                   <TD>
                     {profit != null ? (
                       <span
-                        className={`inline-flex items-center gap-1 text-sm font-medium tabular-nums ${
-                          profit > 0 ? "text-rise" : profit < 0 ? "text-fall" : "text-ink-muted"
-                        }`}
+                        className={`inline-flex items-center gap-1 text-sm font-medium tabular-nums ${profitToneClass(
+                          profit.amount
+                        )}`}
+                        title={item.quantity > 1 ? t("profitRowHint", { count: item.quantity }) : undefined}
                       >
-                        {profit > 0 && <IconTrendingUp size={14} aria-hidden="true" />}
-                        {profit < 0 && <IconTrendingDown size={14} aria-hidden="true" />}
-                        {formatPercent(profit)}
+                        {profit.amount > 0 && <IconTrendingUp size={14} aria-hidden="true" />}
+                        {profit.amount < 0 && <IconTrendingDown size={14} aria-hidden="true" />}
+                        <span data-price>
+                          {profit.amount > 0 ? "+" : ""}
+                          {formatPrice(profit.amount)}
+                        </span>
+                        {profit.percent != null && (
+                          <span className="text-xs opacity-80">({formatPercent(profit.percent)})</span>
+                        )}
                       </span>
                     ) : (
-                      "–"
+                      <span className="text-ink-faint" title={t("profitNoBasisHint")}>
+                        –
+                      </span>
                     )}
                   </TD>
                   <TD>

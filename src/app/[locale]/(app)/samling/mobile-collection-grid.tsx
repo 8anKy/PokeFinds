@@ -5,25 +5,31 @@
  *  - Tryck på ett objekt → öppna produktsidan (inspektera, precis som i Utforska).
  *  - Håll inne (long-press) ELLER tryck "Välj" → väljläge: bocka i flera objekt och
  *    radera dem på en gång. Radering går mot DELETE /api/collection/{id}.
+ *  - Tryck på vinstraden (eller "Lägg till köppris") → sätt/ändra köppris. Mobilen är
+ *    appens huvudyta men saknade helt redigering, så köppriset gick bara att sätta från
+ *    desktop-tabellen — och utan köppris kan ingen vinst räknas.
  */
 import { useCallback, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { apiFetch } from "@/lib/client-api";
 import { useToast } from "@/components/ui/toast";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, formatPercent } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { Input, Label } from "@/components/ui/input";
+import { Input, Label, FieldError } from "@/components/ui/input";
 import { IconCheck, IconPackage, IconTrash, IconX } from "@/components/ui/icons";
 import { openProductOverlay } from "@/lib/product-overlay-open";
 import type { CollectionRow } from "./collection-client";
+import { parseKronorToOre } from "@/lib/purchase-price";
+import { oreToKr, profitToneClass, rowProfit } from "./profit";
 import { SellButton } from "./sell-on-tradera";
 
 const LONG_PRESS_MS = 450;
 
 export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
   const t = useTranslations("Collection");
+  const tc = useTranslations("Common");
   const router = useRouter();
   const { toast } = useToast();
 
@@ -33,6 +39,11 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
   // Stackad post (quantity>1) som ska delvis tas bort → fråga hur många.
   const [removeTarget, setRemoveTarget] = useState<CollectionRow | null>(null);
   const [removeQty, setRemoveQty] = useState("1");
+  // Köppris-redigering (per post, i kronor — lagras i öre).
+  const [priceTarget, setPriceTarget] = useState<CollectionRow | null>(null);
+  const [priceInput, setPriceInput] = useState("");
+  const [priceError, setPriceError] = useState<string | null>(null);
+  const [savingPrice, setSavingPrice] = useState(false);
 
   const pressTimer = useRef<number | null>(null);
   const longPressed = useRef(false);
@@ -157,6 +168,38 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
     }
   }
 
+  function openPriceEditor(row: CollectionRow) {
+    setPriceTarget(row);
+    // Förifyll med befintligt köppris i kronor (komma som decimaltecken, som svenskar skriver).
+    setPriceInput(oreToKr(row.purchasePrice));
+    setPriceError(null);
+  }
+
+  // Sparar köppris i ÖRE. Tomt fält = nolla priset igen (posten faller då ur vinsten
+  // i stället för att ligga kvar med ett felinmatat värde).
+  async function savePurchasePrice() {
+    if (!priceTarget) return;
+    const parsed = parseKronorToOre(priceInput);
+    if (parsed.kind === "invalid") {
+      setPriceError(t("priceInvalidError"));
+      return;
+    }
+    setSavingPrice(true);
+    try {
+      await apiFetch(`/api/collection/${priceTarget.id}`, {
+        method: "PATCH",
+        body: { purchasePrice: parsed.kind === "ok" ? parsed.ore : null },
+      });
+      toast({ title: t("updatedToast"), variant: "success" });
+      setPriceTarget(null);
+      router.refresh();
+    } catch (e) {
+      setPriceError(e instanceof Error ? e.message : t("genericFail"));
+    } finally {
+      setSavingPrice(false);
+    }
+  }
+
   return (
     <section className="lg:hidden">
       {/* Sektionshuvud / väljlägets verktygsrad */}
@@ -198,6 +241,7 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
       <div className="grid grid-cols-2 gap-3">
         {rows.map((r) => {
           const isSelected = selected.has(r.id);
+          const profit = rowProfit(r);
           return (
             <div
               key={r.id}
@@ -224,7 +268,12 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
                   <IconCheck size={14} />
                 </span>
               )}
-              <div className="h-28 w-full overflow-hidden rounded-lg bg-surface-overlay">
+              {/* Bildbrunnen är SVART som resten av kortet — exakt samma behandling som
+                  Utforska-kortet (product-card.tsx). `surface-overlay` är en INTERAKTIV
+                  fyllning (hover, flikar, skeletons), inte en bakgrund: som brunn lyste
+                  den som en grå ruta bakom varje bild och fick hela portföljen att läsa
+                  som en annan yta än katalogen. Saknad bild → ikonen bär platshållaren. */}
+              <div className="h-28 w-full overflow-hidden rounded-lg bg-surface">
                 {r.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -251,6 +300,36 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
                 </span>
                 {r.quantity > 1 && <span className="text-xs text-ink-muted">{t("pieces", { count: r.quantity })}</span>}
               </div>
+              {/* Vinst/förlust — belopp först, procent som stöd. Saknas köppris visas en
+                  uppmaning i stället: det är enda sättet posten kan komma med i totalen.
+                  Knappen stoppar bubblingen så kortets "öppna produkt"-tryck inte utlöses. */}
+              {!selectMode && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openPriceEditor(r);
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className={`-mx-1 rounded px-1 py-0.5 text-left text-xs font-semibold tabular-nums transition-colors hover:bg-surface-overlay/50 ${
+                    profit ? profitToneClass(profit.amount) : "text-holo-cyan"
+                  }`}
+                >
+                  {profit ? (
+                    <>
+                      {profit.amount > 0 ? "+" : ""}
+                      {formatPrice(profit.amount)}
+                      {profit.percent != null && (
+                        <span className="ml-1 font-normal opacity-80">
+                          ({formatPercent(profit.percent)})
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    t("gridAddPurchasePrice")
+                  )}
+                </button>
+              )}
               {!selectMode && (
                 <span
                   onClick={(e) => e.stopPropagation()}
@@ -298,6 +377,43 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
             onChange={(e) => setRemoveQty(e.target.value)}
             autoFocus
           />
+        </form>
+      </Modal>
+
+      {/* Köppris — samma Modal+Input-mönster som borttagningsdialogen ovan. */}
+      <Modal
+        open={priceTarget != null}
+        onClose={() => setPriceTarget(null)}
+        title={t("gridPurchasePriceTitle")}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setPriceTarget(null)}>
+              {t("gridSelectCancel")}
+            </Button>
+            <Button onClick={() => void savePurchasePrice()} loading={savingPrice}>
+              {tc("save")}
+            </Button>
+          </>
+        }
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void savePurchasePrice();
+          }}
+        >
+          <p className="mb-3 truncate text-sm font-medium text-ink">{priceTarget?.name}</p>
+          <Label htmlFor="purchasePriceKr">{t("purchasePrice")}</Label>
+          <Input
+            id="purchasePriceKr"
+            inputMode="decimal"
+            placeholder={t("purchasePricePlaceholder")}
+            value={priceInput}
+            onChange={(e) => setPriceInput(e.target.value)}
+            autoFocus
+          />
+          <p className="mt-2 text-xs text-ink-muted">{t("gridPurchasePriceHint")}</p>
+          <FieldError message={priceError} />
         </form>
       </Modal>
     </section>

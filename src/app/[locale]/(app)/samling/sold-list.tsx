@@ -71,16 +71,18 @@ export async function SoldList({ sales }: { sales: SaleRow[] }) {
       <div className="space-y-3 lg:hidden">
         {sales.map((s) => (
           <div key={s.id} className="card-surface flex items-center gap-3 p-3">
+            {/* Svart bildbrunn som i Utforska-kortet — `surface-overlay` är en interaktiv
+                fyllning, inte en bakgrund, och lyste grått bakom varje rad. */}
             {s.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={s.imageUrl}
                 alt=""
-                className="h-16 w-12 shrink-0 rounded object-contain bg-surface-overlay"
+                className="h-16 w-12 shrink-0 rounded object-contain bg-surface"
                 loading="lazy"
               />
             ) : (
-              <span className="flex h-16 w-12 shrink-0 items-center justify-center rounded bg-surface-overlay text-ink-faint">
+              <span className="flex h-16 w-12 shrink-0 items-center justify-center rounded bg-surface text-ink-faint">
                 <IconPackage size={18} />
               </span>
             )}
@@ -121,11 +123,11 @@ export async function SoldList({ sales }: { sales: SaleRow[] }) {
                       <img
                         src={s.imageUrl}
                         alt=""
-                        className="h-12 w-9 shrink-0 rounded object-contain bg-surface-overlay"
+                        className="h-12 w-9 shrink-0 rounded object-contain bg-surface"
                         loading="lazy"
                       />
                     ) : (
-                      <span className="flex h-12 w-9 shrink-0 items-center justify-center rounded bg-surface-overlay text-ink-faint">
+                      <span className="flex h-12 w-9 shrink-0 items-center justify-center rounded bg-surface text-ink-faint">
                         <IconPackage size={16} />
                       </span>
                     )}

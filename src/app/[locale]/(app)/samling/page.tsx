@@ -98,6 +98,25 @@ export default async function CollectionPage() {
     price: p.value,
   }));
 
+  // ÄRLIGHETSNOT: vinsten räknas bara på poster som HAR ett köppris (vi backfyller aldrig
+  // ett påhittat inköpspris ur marknadsvärdet). Då måste siffran säga hur många poster den
+  // INTE omfattar — annars läser man den som "hela samlingens vinst".
+  const hasProfitBasis = value.profitItemCount > 0;
+  const profitNote =
+    value.uniqueItems === 0 // tom samling: tomläget säger redan allt
+      ? null
+      : !hasProfitBasis
+        ? t("profitNoBasisNote")
+        : value.profitExcludedCount > 0
+          ? t("profitExcludedNote", {
+              count: value.profitExcludedCount,
+              total: value.uniqueItems,
+            })
+          : null;
+  // Utan en enda kostnadsbas är kostnad och vinst inte "0 kr" — de är OKÄNDA. En nolla
+  // hade lästs som "du ligger på plus minus noll", vilket är ett påstående vi inte kan göra.
+  const unknownStat = <span className="text-ink-faint">–</span>;
+
   const topMovers = value.movers.slice(0, 2);
   // movers bär ingen slug — men dess id = samlings-objektets id, samma som rows
   // (som redan löst produkt-sluggen) → slå upp där så korten blir klickbara.
@@ -120,27 +139,58 @@ export default async function CollectionPage() {
           bleed
           totalValue={value.totalValue}
         />
+        {/* Vinst/förlust på mobil — desktopens nyckeltalskort är dolda här, och utan den
+            här raden skulle telefonen (appens huvudyta) sakna totalen helt. Visas bara
+            när MINST en post har köppris: en vinst räknad på noll poster är ingen vinst. */}
+        {hasProfitBasis && (
+          <div className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="text-sm text-ink-muted">{t("statProfit")}</span>
+            <span
+              className={`font-display text-lg font-bold tabular-nums ${
+                value.profit > 0 ? "text-rise" : value.profit < 0 ? "text-fall" : "text-ink-muted"
+              }`}
+            >
+              {value.profit > 0 ? "+" : ""}
+              {formatPrice(value.profit)}
+            </span>
+            {value.profitPercent != null && (
+              <span
+                className={`text-sm font-medium tabular-nums ${
+                  value.profit > 0 ? "text-rise" : value.profit < 0 ? "text-fall" : "text-ink-muted"
+                }`}
+              >
+                ({formatPercent(value.profitPercent)})
+              </span>
+            )}
+          </div>
+        )}
+        {profitNote && <p className="mt-1 text-xs text-ink-faint">{profitNote}</p>}
       </section>
 
       {/* Nyckeltal — desktop */}
-      <div className="stagger-list hidden grid-cols-1 gap-4 sm:grid-cols-2 lg:grid xl:grid-cols-4">
-        <StatCard
-          label={t("statTotalValue")}
-          value={<AnimatedNumber value={value.totalValue} />}
-          icon={<IconGem size={20} />}
-        />
-        <StatCard
-          label={t("statTotalCost")}
-          value={<AnimatedNumber value={value.totalCost} />}
-          icon={<IconReceipt size={20} />}
-        />
-        <StatCard
-          label={t("statProfit")}
-          value={<AnimatedNumber value={value.profit} />}
-          change={value.profitPercent ?? undefined}
-          icon={value.profit >= 0 ? <IconTrendingUp size={20} /> : <IconTrendingDown size={20} />}
-        />
-        <StatCard label={t("statItemCount")} value={<AnimatedNumber value={value.itemCount} kind="int" />} icon={<IconPackage size={20} />} />
+      <div className="hidden lg:block">
+        <div className="stagger-list grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label={t("statTotalValue")}
+            value={<AnimatedNumber value={value.totalValue} />}
+            icon={<IconGem size={20} />}
+          />
+          <StatCard
+            label={t("statTotalCost")}
+            value={hasProfitBasis ? <AnimatedNumber value={value.totalCost} /> : unknownStat}
+            icon={<IconReceipt size={20} />}
+          />
+          <StatCard
+            label={t("statProfit")}
+            value={hasProfitBasis ? <AnimatedNumber value={value.profit} /> : unknownStat}
+            change={value.profitPercent ?? undefined}
+            icon={value.profit >= 0 ? <IconTrendingUp size={20} /> : <IconTrendingDown size={20} />}
+          />
+          <StatCard label={t("statItemCount")} value={<AnimatedNumber value={value.itemCount} kind="int" />} icon={<IconPackage size={20} />} />
+        </div>
+        {/* Kostnad och vinst gäller BARA poster med köppris — säg hur många som utelämnats,
+            annars läses vinsten som hela samlingens. */}
+        {profitNote && <p className="mt-2 text-xs text-ink-faint">{profitNote}</p>}
       </div>
 
       <div className="hidden gap-6 lg:grid lg:grid-cols-3">
@@ -197,7 +247,8 @@ export default async function CollectionPage() {
               const slug = slugByItem.get(m.id);
               const content = (
                 <>
-                  <div className="h-28 w-full overflow-hidden rounded-lg bg-surface-overlay">
+                  {/* Svart brunn, samma som Utforska-kortet — se mobile-collection-grid.tsx. */}
+                  <div className="h-28 w-full overflow-hidden rounded-lg bg-surface">
                     {m.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img

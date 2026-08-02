@@ -62,17 +62,27 @@ describe("computeCollectionValue", () => {
     expect(result.uniqueItems).toBe(2);
   });
 
-  it("profitPercent är null när kostnad saknas (ingen division med noll)", async () => {
+  it("ett objekt UTAN köppris ger ingen vinst alls (ingen påhittad kostnadsbas)", async () => {
+    // Förut blev vinsten hela marknadsvärdet (50 000) för ett objekt som aldrig haft
+    // ett köppris — dvs ett påstående om avkastning på en okänd kostnad. Utan
+    // kostnadsbas finns ingen vinst att visa, och objektet räknas som uteslutet.
     findMany.mockResolvedValue([item({ estimatedValue: 50000 })]);
 
     const result = await computeCollectionValue("user-1");
 
+    expect(result.totalValue).toBe(50000);
     expect(result.totalCost).toBe(0);
-    expect(result.profit).toBe(50000);
+    expect(result.profit).toBe(0);
     expect(result.profitPercent).toBeNull();
+    expect(result.profitItemCount).toBe(0);
+    expect(result.profitExcludedCount).toBe(1);
+    expect(result.itemsWithoutPurchasePrice).toBe(1);
   });
 
-  it("ignorerar objekt utan estimatedValue i totalValue men räknar deras kostnad", async () => {
+  it("vinsten jämför aldrig ett objekts kostnad med ett ANNAT objekts värde", async () => {
+    // A har köppris men inget känt värde, B har värde men inget köppris. Förut drogs
+    // A:s kostnad från B:s värde (15 000 "vinst", +50 %) — två olika objekt. Nu ingår
+    // bara objekt som har BÅDA delarna, dvs inget av dem.
     findMany.mockResolvedValue([
       item({ estimatedValue: null, purchasePrice: 30000 }),
       item({ estimatedValue: 45000, purchasePrice: null }),
@@ -81,9 +91,30 @@ describe("computeCollectionValue", () => {
     const result = await computeCollectionValue("user-1");
 
     expect(result.totalValue).toBe(45000);
-    expect(result.totalCost).toBe(30000);
-    expect(result.profit).toBe(15000);
-    expect(result.profitPercent).toBe(50);
+    expect(result.totalCost).toBe(0);
+    expect(result.profit).toBe(0);
+    expect(result.profitPercent).toBeNull();
+    expect(result.profitItemCount).toBe(0);
+    expect(result.profitExcludedCount).toBe(2);
+    // Bara B saknar köppris — A saknar värde, vilket användaren inte kan åtgärda.
+    expect(result.itemsWithoutPurchasePrice).toBe(1);
+  });
+
+  it("blandad samling: vinsten räknas på delmängden med köppris och räknar de uteslutna", async () => {
+    findMany.mockResolvedValue([
+      item({ quantity: 2, estimatedValue: 50000, purchasePrice: 40000 }), // ingår
+      item({ estimatedValue: 90000 }), // uteslutet: inget köppris
+    ]);
+
+    const result = await computeCollectionValue("user-1");
+
+    expect(result.totalValue).toBe(2 * 50000 + 90000);
+    expect(result.totalCost).toBe(2 * 40000);
+    expect(result.costedValue).toBe(2 * 50000);
+    expect(result.profit).toBe(20000);
+    expect(result.profitPercent).toBe(25);
+    expect(result.profitItemCount).toBe(1);
+    expect(result.profitExcludedCount).toBe(1);
   });
 
   it("avrundar profitPercent till två decimaler", async () => {
