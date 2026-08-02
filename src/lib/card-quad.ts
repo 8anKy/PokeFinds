@@ -502,11 +502,31 @@ const REGION_ASPECT_REL_MAX = 1.55;
  *  ⛔ Bara FÖRKASTADE blobbar räknas: ett enda kort fotat nära är också en stor
  *  blob, men den godkänns och ska inte larma. */
 const REGION_BUSY_MAX_BLOB = 0.14;
-/** Fyllnadsgrad relativt kortklustrets median. MÄTT: äkta kort ligger på
- *  0,92–1,01 av fältets median, skräp (byxveck, skuggor, skärmpaneler) på
- *  högst 0,72. 0,85 ger ~8 % marginal ner till sämsta äkta kort och ~18 % upp
- *  till värsta skräpet. */
-const REGION_FILL_REL_MIN = 0.85;
+/** Fyllnadsgrad relativt kortklustrets median.
+ *
+ *  0,85 → 0,75 (fältrunda 13, 2026-08-02). Talet var satt när äkta kort mätts
+ *  till 0,92–1,01 av fältets median. Ägaren fotade samma tolv kort två gånger
+ *  och fick 11 BÅDA gångerna: ett kort i den bortre raden föll på just det här
+ *  villkoret med kvot **0,85 respektive 0,83** — segmenterat korrekt, storlek
+ *  och form mitt i klustret, men ~20 % av bboxen uppäten av bakgrundsfyllningen.
+ *  Utklippen är otvetydiga kort (Dragonair och Solrock). Spannet för ÄKTA kort
+ *  är alltså 0,83–1,01, inte 0,92–1,01.
+ *
+ *  SVEPT över alla 27 sparade fältfångster: varje värde i [0,71 · 0,80] ger
+ *  IDENTISKT utfall på samtliga — de två fångsterna går 11 → 12 och ingen
+ *  annan rör sig. 0,75 är mitten: ~10 % ner till sämsta äkta kort (0,83) och
+ *  ~7 % upp till värsta skräpet i en fångst som faktiskt levererar celler
+ *  (0,70). Under 0,71 slinker det skräpet in.
+ *
+ *  ⛔ FYLLNADEN SKILJER INTE TYG FRÅN KORT I ALLMÄNHET. De mönstrade
+ *  handduksfångsterna bär tygblobbar på 0,80 och **0,83** — samma värde som ett
+ *  äkta kort. Det som skyddar där är INTE den här tröskeln utan
+ *  REGION_BUSY_MAX_BLOB: alla fyra handduksfångsterna larmar (förkastad blob
+ *  17–55 % av bilden) och skickar INGA celler alls. Höj inte tröskeln tillbaka
+ *  i tron att den bär det ansvaret — den kostar bara riktiga kort.
+ *  ⛔ Och sänk den inte vidare "för säkerhets skull": under 0,71 börjar den
+ *  släppa in skräp i fångster som INTE larmar, och där når det användaren. */
+const REGION_FILL_REL_MIN = 0.75;
 
 export interface CardRegion {
   x: number;
@@ -529,6 +549,19 @@ export interface RegionDiag {
   largestRejectedFrac?: number;
   /** Underlaget går inte att skilja från korten (se ovan). */
   busySurface?: boolean;
+  /** Varje FÖRKASTAD blob med skälet, i BILDENS koordinater. Se `note()`:
+   *  utan det går "hittade 11 av 12" inte att felsöka, för en kortkant som
+   *  fyllningen åt upp och en blob som föll på ett filter ser identiska ut. */
+  rejections?: Array<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    areaFrac: number;
+    aspect: number;
+    fill: number;
+    reason: string;
+  }>;
   /** Hur stor del av bilden fyllningen tog. Nära 1,0 = fyllningen har LÄCKT
    *  in i korten; nära 0 = den kom inte loss från kanten. Båda syns direkt. */
   backgroundFrac?: number;
@@ -729,17 +762,38 @@ export function regionsFromDistance(
 
   const total = mw * mh;
   const inv = 1 / scale;
+  // Skälet till att en blob förkastas bokförs (bara när diag-facket skickas
+  // med). "Hittade 11 av 12" går annars inte att felsöka: en kortkant som
+  // fyllningen åt upp (ingen blob alls) och en blob som föll på ett filter ser
+  // IDENTISKA ut i utdatan, men kräver motsatta åtgärder.
+  const note = (b: (typeof blobs)[number], reason: string) => {
+    if (!diag) return;
+    const bw = b.maxX - b.minX + 1;
+    const bh = b.maxY - b.minY + 1;
+    (diag.rejections ??= []).push({
+      x: Math.round(b.minX * inv),
+      y: Math.round(b.minY * inv),
+      w: Math.round(bw * inv),
+      h: Math.round(bh * inv),
+      areaFrac: b.area / total,
+      aspect: bw / bh,
+      fill: b.area / (bw * bh),
+      reason,
+    });
+  };
   const valid = blobs.filter((b) => {
     const bw = b.maxX - b.minX + 1;
     const bh = b.maxY - b.minY + 1;
     const aspect = bw / bh;
-    return (
-      b.area >= total * REGION_MIN_AREA_FRAC &&
-      b.area <= total * REGION_MAX_AREA_FRAC &&
-      aspect >= REGION_ASPECT_MIN &&
-      aspect <= REGION_ASPECT_MAX &&
-      b.area / (bw * bh) >= REGION_FILL_MIN
-    );
+    if (b.area < total * REGION_MIN_AREA_FRAC) return note(b, "för liten"), false;
+    if (b.area > total * REGION_MAX_AREA_FRAC) return note(b, "för stor"), false;
+    if (aspect < REGION_ASPECT_MIN || aspect > REGION_ASPECT_MAX) {
+      return note(b, `form ${aspect.toFixed(2)} utanför absolut spann`), false;
+    }
+    if (b.area / (bw * bh) < REGION_FILL_MIN) {
+      return note(b, `fyllnad ${(b.area / (bw * bh)).toFixed(2)} under golvet`), false;
+    }
+    return true;
   });
 
   // STORLEKSSAMSTÄMMIGHET (fix 2026-08-01): formvillkoren ovan är med flit
@@ -823,11 +877,18 @@ export function regionsFromDistance(
   const accepted = valid
     .filter((b) => {
       const a = bboxArea(b);
-      if (a < refArea * REGION_SIZE_MIN_RATIO || a > refArea * REGION_SIZE_MAX_RATIO) return false;
+      if (a < refArea * REGION_SIZE_MIN_RATIO || a > refArea * REGION_SIZE_MAX_RATIO) {
+        return note(b, `storlek ${(a / refArea).toFixed(2)}x klustret`), false;
+      }
       const r = bboxAspect(b) / (refAspect || 1);
-      if (r < REGION_ASPECT_REL_MIN || r > REGION_ASPECT_REL_MAX) return false;
+      if (r < REGION_ASPECT_REL_MIN || r > REGION_ASPECT_REL_MAX) {
+        return note(b, `form ${r.toFixed(2)}x klustret`), false;
+      }
       const fill = b.area / ((b.maxX - b.minX + 1) * (b.maxY - b.minY + 1));
-      return fill >= refFill * REGION_FILL_REL_MIN;
+      if (fill < refFill * REGION_FILL_REL_MIN) {
+        return note(b, `fyllnad ${(fill / refFill).toFixed(2)}x klustret`), false;
+      }
+      return true;
     })
     .sort((a, b) => b.area - a.area)
     .slice(0, maxRegions);

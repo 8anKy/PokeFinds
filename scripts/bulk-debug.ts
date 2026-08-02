@@ -98,6 +98,22 @@ async function main() {
       );
     }
 
+    // FÖRKASTADE blobbar med skäl. Ett saknat kort syns antingen HÄR (en blob
+    // föll på ett filter → justera filtret) eller inte alls (fyllningen åt upp
+    // kortkanten → toleransen/masken, kör SWEEP=1). De två kräver motsatta
+    // åtgärder och gick inte att skilja åt innan skälen bokfördes.
+    const rej = (diag.rejections ?? []).filter((r) => r.areaFrac >= 0.005);
+    if (rej.length) {
+      console.log(`      — förkastade (≥0,5 % av bilden):`);
+      for (const r of rej.sort((a, b) => b.areaFrac - a.areaFrac)) {
+        console.log(
+          `      ${String(r.x).padStart(3)},${String(r.y).padStart(3)}` +
+            `  ${r.w}x${r.h}  ${(r.areaFrac * 100).toFixed(1)} %  form ${r.aspect.toFixed(2)}` +
+            `  fyllnad ${r.fill.toFixed(2)}  → ${r.reason}`
+        );
+      }
+    }
+
     // SVEPET: samma produktionskod vid en stege av toleranser. Nära 100 %
     // bakgrund = fyllningen har LÄCKT in i korten (då försvinner HELA kort);
     // låg andel = ådringen stoppade fyllningen och bordet blev förgrund.

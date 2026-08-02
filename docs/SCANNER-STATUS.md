@@ -1031,6 +1031,52 @@ tryckning med **samma namn**, medan numret pekar på ett set totalen utesluter,
 tolv lagts in — elva bekräftat rätta som regressionsvakt, en rättad):
 **70/77 → 71/77, noll nya fel** (bild 31/31, claude 24/29, gemini 15/17 → 16/17).
 
+## FÄLTRUNDA 13 (2026-08-02): 11 AV 12 TVÅ GÅNGER — FYLLNADSTRÖSKELN ÅT KORT
+
+Ägaren fotade samma tolv kort två gånger och fick **11 båda gångerna** — olika
+kort saknades (bortre radens högra respektive vänstra). Detekteringen var alltså
+inte slumpmässig utan systematisk.
+
+**Skälet gick inte att läsa ur utdatan.** En kortkant som fyllningen ätit upp
+(ingen blob alls) och en blob som föll på ett filter ser IDENTISKA ut när bara
+godkända regioner skrivs ut, men kräver motsatta åtgärder. `RegionDiag.rejections`
+bokför nu varje förkastad blob med skäl, och svaret blev entydigt: BÅDA korten
+segmenterades korrekt — storlek och form mitt i klustret — och föll på den
+RELATIVA fyllnadsgraden med kvot **0,85** och **0,83**. Utklippen är otvetydiga
+kort (Dragonair, Solrock).
+
+**REGION_FILL_REL_MIN 0,85 → 0,75.** Talet sattes när äkta kort mätts till
+0,92–1,01 av fältets median; det verkliga spannet är **0,83–1,01**. Svept över
+alla 27 sparade fältfångster ger varje värde i **[0,71 · 0,80]** identiskt utfall
+— de två fångsterna går 11 → 12, ingen annan rör sig. 0,75 är mitten.
+
+⛔ **FYLLNADEN SKILJER INTE TYG FRÅN KORT.** De mönstrade handduksfångsterna bär
+tygblobbar på 0,80 och **0,83** — samma värde som ett äkta kort. Det som skyddar
+där är `REGION_BUSY_MAX_BLOB`: alla fyra handduksfångsterna larmar (förkastad
+blob 17–55 % av bilden) och skickar INGA celler. Höj inte tröskeln tillbaka i tron
+att den bär det ansvaret; den kostar bara riktiga kort.
+
+**IDENTIFIERINGEN: 10/11 + 11/11.** Och totalregeln från samma dag bevisades i
+fält: Scorbunny lästes "**030/217**" (nummer 30 finns som Scorbunny i Sword &
+Shield, 202 kort) — totalen 217 bekräftas av Ascended Heroes, nummerträffen
+underkändes, och **rätt kort vann**. I andra rundan lästes "036/197": totalen
+pekar ingenstans, nummerträffen behölls, rätt kort vann. Båda grenarna verifierade
+på riktig data.
+
+**Den kvarstående missen är en ny klass: en SJÄLVKONSISTENT felläsning.**
+Eelektrik 60 lästes "**048/214**" — och Eelektrik 48 finns på riktigt, i ett set
+vars storlek stämmer med 214. Numret OCH totalen pekar alltså samstämmigt på fel
+kort, och ingen regel som bara läser modellsvaret kan avslöja det. Bilden hade
+ingen åsikt om 48 (den rankade 31 och 60).
+✅ Men marginalen blev 0,037 < `MATCH_MARGIN_MIN` → träffen **märktes "?"** och
+ägaren rättade den. Jämför morgonens Scorbunny, där ett falskt nummer gav en STOR
+marginal och ingen flagga: efter fixen är samma scan både rätt vald OCH märkt
+osäker (1,309 mot 1,289). Rätt beteende i båda leden.
+
+**Facitsetet 77 → 99** (rundans 22 celler; varje val ligger i den kända
+tolvkortsuppsättningen, högst ett per runda = korsvalidering). **92/99**
+(bild 42/42, claude 24/29, gemini 26/28), noll nya fel.
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.
