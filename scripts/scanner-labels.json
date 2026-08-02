@@ -2393,5 +2393,17 @@
         "Solrock 75 0.692 | Solrock 106 0.690 | Croagunk 78 0.606"
       ]
     }
+  },
+  "cmsb54vt1000d129myx40xjax": {
+    "truth": "cmq9hignj00ff7z4t60ng3c09",
+    "note": "ägaren RÄTTADE i appen 2026-08-02; rättelsen gick förlorad (bulk-cell utan jobb-id) och märks manuellt. Modellen läste 026/177, bilden rankade 26 först.",
+    "hint": {
+      "at": "2026-08-02T01:47:49.382Z",
+      "modell": "Scorbunny / 026/177",
+      "valdes": "Scorbunny 26 (Stellar Crown)",
+      "bildTopp5": [
+        "Scorbunny 26 0.811 | Scorbunny 36 0.803 | Riolu 112 0.670"
+      ]
+    }
   }
 }
