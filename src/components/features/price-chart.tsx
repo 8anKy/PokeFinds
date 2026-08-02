@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { hapticGlide } from "@/lib/haptics";
 import {
@@ -51,6 +51,34 @@ function ChartTooltip({
   monthly = false,
   dateLocale = "sv-SE",
 }: TooltipProps<number, string> & { monthly?: boolean; dateLocale?: string }) {
+  /**
+   * HAPTIKEN BOR HÄR, INTE I `onMouseMove`.
+   *
+   * Recharts syntetiserar INTE mus-events från touch (och typar inga
+   * touch-props på diagrammet), så en `onMouseMove`-baserad tick fungerade bara
+   * med mus — mätt i fält 2026-08-02: långtrycken vibrerade på iPhone, grafen
+   * gjorde det inte, varken i portföljen eller på produktsidan. Tooltipen
+   * däremot renderas av recharts för BÅDA inmatningssätten, så dess egen
+   * rendering är den enda signal som är sann på touch. Gäller båda graferna:
+   * portföljvärdet och produktens prishistorik delar den här komponenten.
+   *
+   * ⛔ Per DATAPUNKT, aldrig per pixel: `label` byts först när markören flyttat
+   * till en ny dag. En vibration per renderrunda hade surrat konstant.
+   */
+  const lastLabel = useRef<string | null>(null);
+  useEffect(() => {
+    if (!active) {
+      // Nollställ när fingret lyfts, annars är nästa beröring på SAMMA dag tyst.
+      lastLabel.current = null;
+      return;
+    }
+    const key = label == null ? null : String(label);
+    if (key !== null && key !== lastLabel.current) {
+      lastLabel.current = key;
+      hapticGlide();
+    }
+  }, [active, label]);
+
   if (!active || !payload || payload.length === 0) return null;
   const value = payload[0]?.value;
   return (
@@ -108,31 +136,13 @@ export function PriceChart({ data, className, monthly = false, minimal = false }
   const areaFillId = `af-${uid}`;
   const cursorId = `cu-${uid}`;
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  /**
-   * Senaste index vi vibrerade på.
-   *
-   * ⛔ HAPTIK PER DATAPUNKT, ALDRIG PER PIXEL. `onMouseMove`/`onTouchMove` eldar
-   * hundratals gånger i sekunden under ett drag; en vibration per event ger ett
-   * konstant surr där motorn inte hinner återgå, och batteriet betalar. Fingret
-   * täcker dessutom sin egen träffpunkt — det är just därför skrubbningen
-   * behöver en fysisk kvittens, och den ska komma när VÄRDET byts.
-   */
-  const lastHaptic = useRef<number | null>(null);
+  // Bara linjens uttoning. HAPTIKEN ligger i ChartTooltip — den är den enda
+  // signalen recharts ger på BÅDE mus och touch. Se kommentaren där.
   const scrubTo = useCallback((state: { activeTooltipIndex?: number } | undefined) => {
     const i = state?.activeTooltipIndex;
-    const next = typeof i === "number" ? i : null;
-    setActiveIndex(next);
-    if (next !== null && next !== lastHaptic.current) {
-      lastHaptic.current = next;
-      hapticGlide();
-    }
+    setActiveIndex(typeof i === "number" ? i : null);
   }, []);
-  const endScrub = useCallback(() => {
-    setActiveIndex(null);
-    // Nollställ så att nästa beröring på SAMMA punkt också vibrerar — annars
-    // känns ett nytt drag dött tills fingret råkar passera en annan dag.
-    lastHaptic.current = null;
-  }, []);
+  const endScrub = useCallback(() => setActiveIndex(null), []);
 
   if (data.length === 0) {
     return (

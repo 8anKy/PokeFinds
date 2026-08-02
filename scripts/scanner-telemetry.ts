@@ -36,9 +36,23 @@ interface Diag {
  * priser och gav en kostnad som var ~4x för hög (2026-08-02).
  * Haiku 4.5: 1 / 5. Gemini 3.1 Flash-Lite: 0,25 / 1,50.
  */
+/**
+ * $ per miljon tokens.
+ *
+ * ⚠️ GEMINI-RADEN ÄR KALIBRERAD MOT VERKLIG FAKTURA, inte mot en prislista.
+ * 2026-08-02 hade 97 anrop förbrukat 362 353 in- och 5 565 ut-tokens, och
+ * Googles konsol visade **0,82 kr**. Den gamla raden (0,25/1,50) gav 1,05 kr —
+ * ~28 % för högt. 0,20/0,80 reproducerar 0,82 kr vid ~10,6 SEK/USD, och det är
+ * också ett rimligt prislistepar.
+ *
+ * ⛔ Talen här är en UPPSKATTNING för att kunna följa kostnaden per skanning
+ * mellan fakturor. **Fakturan är facit.** Stämmer de inte överens: rätta HÄR,
+ * skriv nya siffror i kommentaren, och lita aldrig på tabellen framför
+ * konsolen. (Växelkursen är dessutom antagen — konsolen kan visa SEK direkt.)
+ */
 const PRICES: Record<string, { in: number; out: number }> = {
   claude: { in: 1, out: 5 },
-  gemini: { in: 0.25, out: 1.5 },
+  gemini: { in: 0.2, out: 0.8 },
 };
 const DEFAULT_PRICE = PRICES.claude;
 
