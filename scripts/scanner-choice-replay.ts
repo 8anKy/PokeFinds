@@ -77,6 +77,12 @@ async function main() {
     select: { id: true, result: true },
   });
 
+  // PER LEVERANTÖR. Facitsetet lagrar modellens SVAR, inte bilden — så när
+  // OCR_PROVIDER byts blandas två modellers svar i samma set och en enda
+  // totalsiffra döljer vilken som presterade vad. `provider` finns på varje
+  // rad; filtrera med PROVIDER=claude|gemini för att jämföra rent.
+  const only = process.env.PROVIDER;
+  const perProvider = new Map<string, { n: number; prod: number; now: number }>();
   let n = 0;
   let prodRight = 0;
   let nowRight = 0;
@@ -87,6 +93,8 @@ async function main() {
     const d = job.result as Diag;
     if (d?.v !== 1) continue;
     const truth = labels[job.id].truth as string;
+    const provider = d.provider ?? "okand";
+    if (only && provider !== only) continue;
     const frames = decodeFrames(d);
     if (frames.length === 0) continue;
     n++;
@@ -115,6 +123,11 @@ async function main() {
     const isRight = top?.cardId === truth;
     if (wasRight) prodRight++;
     if (isRight) nowRight++;
+    const agg = perProvider.get(provider) ?? { n: 0, prod: 0, now: 0 };
+    agg.n++;
+    if (wasRight) agg.prod++;
+    if (isRight) agg.now++;
+    perProvider.set(provider, agg);
     if (!wasRight && isRight) fixed.push(job.id.slice(-6));
     if (wasRight && !isRight) broken.push(job.id.slice(-6));
     if (wasRight !== isRight) {
@@ -132,6 +145,9 @@ async function main() {
   console.log(`\n--- ${n} facitmärkta skanningar replayade genom matchCards ---`);
   console.log(`prod-valet rätt:  ${prodRight}/${n}`);
   console.log(`dagens kod rätt:  ${nowRight}/${n}`);
+  for (const [prov, a] of [...perProvider.entries()].sort()) {
+    console.log(`  ${prov.padEnd(8)} ${a.now}/${a.n} rätt (produktionen valde ${a.prod}/${a.n})`);
+  }
   console.log(`fixade: ${fixed.length ? fixed.join(", ") : "—"}`);
   console.log(`brutna: ${broken.length ? broken.join(", ") : "—"}`);
 }

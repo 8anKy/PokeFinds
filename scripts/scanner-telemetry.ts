@@ -110,6 +110,28 @@ async function main() {
   console.log(`bildens marginal:    ${stats(artMargins)}`);
 
   // VERKLIG vision-kostnad ur API:ts egna tokental (nya rader bär usage).
+  // PER LEVERANTÖR: hela poängen med ett modellbyte är om NUMRET läses bättre
+  // och vad det kostar. En blandad totalsiffra svarar på ingetdera.
+  const byProvider = new Map<string, { n: number; num: number; cost: number; inTok: number }>();
+  for (const r of rows) {
+    const prov = r.d.provider ?? "okand";
+    if (prov === "bild") continue;
+    const a = byProvider.get(prov) ?? { n: 0, num: 0, cost: 0, inTok: 0 };
+    a.n++;
+    if (r.d.guessedNumber) a.num++;
+    a.inTok += r.d.usage?.inputTokens ?? 0;
+    byProvider.set(prov, a);
+  }
+  if (byProvider.size > 1) {
+    console.log("\n--- per leverantör ---");
+    for (const [prov, a] of [...byProvider.entries()].sort()) {
+      console.log(
+        `${prov.padEnd(8)} ${a.n} anrop · nummer läst ${a.num}/${a.n}` +
+          ` · medel ${Math.round(a.inTok / Math.max(1, a.n))} in-tokens`
+      );
+    }
+  }
+
   const withUsage = rows.filter((r) => r.d.usage && r.d.provider !== "bild");
   const skipped = rows.filter((r) => r.d.provider === "bild").length;
   if (withUsage.length > 0) {
