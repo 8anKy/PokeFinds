@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
 /**
@@ -98,9 +99,23 @@ export function BottomSheet({
     };
   }, [open]);
 
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
 
-  return (
+  /**
+   * ⛔ PORTAL TILL <body> — ARKET FÅR INTE RENDERAS DÄR DET ÅBEROPAS.
+   *
+   * `position: fixed` räknas mot närmaste förfader med `transform`, `filter`,
+   * `perspective`, `contain` eller `will-change` — en sådan förfader blir
+   * containing block även för fixed. Produktkortet har `hover:-translate-y-0.5
+   * active:scale-[0.98]` OCH `overflow-hidden`, så snabbtilläggets ark ritades
+   * INUTI kortet och klipptes mot dess kant i stället för att täcka skärmen
+   * (rapporterat 2026-08-02, syntes som ett ark inklämt i ett kort i rutnätet).
+   *
+   * Portalen tar arket ur komponentträdets DOM-position men BEHÅLLER det i
+   * React-trädet — context och event-bubbling fungerar som vanligt, vilket är
+   * skälet att anropare inte behöver ändras.
+   */
+  return createPortal(
     <div
       // Överlagringen slutar där tangentbordet börjar → panelen (justify-end)
       // landar ovanpå det, och max-h räknas mot den mindre ytan så innehållet
@@ -110,6 +125,11 @@ export function BottomSheet({
       role="dialog"
       aria-modal="true"
       aria-label={title}
+      // Klick i arket får aldrig nå kortets "stretched link". Portalen ligger på
+      // <body>, men React låter events bubbla i KOMPONENTTRÄDET — alltså
+      // tillbaka in i kortet som öppnade arket.
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
     >
       <button
         type="button"
@@ -148,7 +168,8 @@ export function BottomSheet({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

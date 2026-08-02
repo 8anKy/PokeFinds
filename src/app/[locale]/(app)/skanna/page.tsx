@@ -710,13 +710,13 @@ function Scanner() {
   useEffect(() => setCanScanBarcodes(barcodeSupported()), []);
   // Admin: bulk-fångstens detekteringsbild sparas för felsökning mot verkliga foton.
   const isAdmin = useIsAdmin();
-  // DIAGNOSTIK (bara admin, se ScanDebug): kamerans verkliga upplösning, senaste
-  // utsnitt och vad modellen faktiskt svarade. Utan det här är "skannern gissar
-  // fel" ett påstående ingen kan felsöka — vi ser varken vad kameran gav oss
-  // eller vad modellen läste, så varje åtgärd blir en gissning.
-  const [streamInfo, setStreamInfo] = useState<string | null>(null);
-  const [cropInfo, setCropInfo] = useState<string | null>(null);
-  const [ocrInfo, setOcrInfo] = useState<string | null>(null);
+  // DIAGNOSTIKREMSAN ÄR BORTTAGEN (ägarbeslut 2026-08-02) — den låg mitt i
+  // kameravyn och visade ström/utsnitt/modellsvar för admin.
+  // ⛔ Diagnostiken som BETYDER något är kvar och är oförändrad: modellens svar,
+  // bildens topp-3 och det valda kortet skrivs till `ScannerJob.result`
+  // (recordScanUsage) och läses av scripts/scanner-telemetry.ts,
+  // scanner-scoreboard.ts och scanner-replay.ts. Det är DEN datan som gör
+  // träffsäkerhet mätbar; skärmremsan var bara en live-titt på samma sak.
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
@@ -824,20 +824,6 @@ function Scanner() {
           return { error: data.error ?? t("genericError"), httpStatus: res.status };
         }
         setProvider(data.provider);
-        // Rådata från modellen, INTE den matchade kandidaten: det är skillnaden
-        // mellan "modellen läste fel" och "modellen läste rätt men slagningen
-        // valde fel kort", och de två har helt olika åtgärder.
-        setOcrInfo(
-          // `era` = modellens ramgenerations-klassning — utan den i raden går
-          // det inte att se om ett epokfel kom från modellen eller poängen.
-          `${data.provider} · "${data.guessedName ?? ""}" / "${data.guessedNumber ?? ""}" · era ${data.guessedEra ?? "—"} · hp ${data.guessedHp ?? "—"} · konf ${data.confidence.toFixed(2)}` +
-            // `bild` skiljer "avtrycket skickades inte / indexet är tomt" (—) från
-            // "det matchade svagt" (lågt tal). Utan det går de två inte att skilja.
-            // Bildens EGNA toppträffar, inte bara poängen: annars går det inte
-            // att skilja "bilden hittade rätt kort men namnet överröstade det"
-            // från "bilden hittade också fel".
-            ` · bild ${data.artTop == null ? "—" : data.artTopLabel ?? data.artTop.toFixed(3)}`
-        );
         return data;
       } catch {
         return { error: t("genericError") };
@@ -945,11 +931,6 @@ function Scanner() {
         video.srcObject = stream;
         await video.play().catch(() => undefined);
       }
-      // Vad vi FAKTISKT fick — begäran är ett önskemål, inte ett löfte.
-      const settings = stream.getVideoTracks()[0]?.getSettings();
-      setStreamInfo(
-        settings?.width && settings?.height ? `${settings.width}×${settings.height}` : "okänd"
-      );
       setCameraState("live");
     } catch (err) {
       const name = err instanceof DOMException ? err.name : "";
@@ -1345,7 +1326,6 @@ function Scanner() {
     if (!video || !canvas || cameraState !== "live" || shutterCooling) return;
     const shot = captureFrame(video, canvas, frameRef.current);
     if (!shot) return;
-    setCropInfo(shot.crop);
     setFlash(true);
     window.setTimeout(() => setFlash(false), 180);
     setShutterCooling(true);
@@ -1703,9 +1683,6 @@ function Scanner() {
           canvasRef={canvasRef}
           frameRef={frameRef}
           liveHint={liveHint}
-          streamInfo={streamInfo}
-          cropInfo={cropInfo}
-          ocrInfo={ocrInfo}
           cameraState={cameraState}
           cameraError={cameraError}
           flash={flash}
@@ -1891,20 +1868,18 @@ function ModeChip(props: {
 }
 
 /**
- * Ficklampa + zoom-förval, staplade längs kamerans högerkant.
+ * Zoom-förvalen längs kamerans högerkant.
  *
- * ⛔ BÅDA renderas villkorat på vad enheten FAKTISKT kan: torch saknas på hela
- * iOS, på desktop och på framkameror, och zoom-förvalen filtreras av
- * `use-camera-controls` till dem som går att nå. En kontroll som inte gör något
- * är sämre än ingen kontroll — samma regel som gäller resten av appen.
+ * ⛔ Bara de förval enheten FAKTISKT når renderas — `use-camera-controls`
+ * filtrerar listan, och en 0,5×-knapp som inte gör något är sämre än ingen
+ * knapp. Är 1× det enda nåbara förvalet ritas ingen rad alls (en ensam pill är
+ * brus). Ficklampan bor INTE här utan i bottenraden, bredvid bekräfta-knappen:
+ * den ska nås med tummen, inte ligga i vägen för motivet.
  *
  * Korttalen (`maxCards`) är UPPSKATTNINGAR från geometrin, inte mätningar —
  * därför "ca" i copyn. Se ZOOM_PRESET_MAX_CARDS i lib/camera-controls.ts.
  */
 function CameraControls(props: {
-  torchSupported: boolean;
-  torchOn: boolean;
-  onToggleTorch: () => void;
   zoomPresets: ZoomPresetOption[];
   zoom: ZoomPreset;
   onZoom: (p: ZoomPreset) => void;
@@ -1914,45 +1889,27 @@ function CameraControls(props: {
   const t = useTranslations("Scanner");
   const zoomLabel = (p: ZoomPreset) =>
     p === 0.5 ? t("zoomHalf") : p === 2 ? t("zoomTwo") : t("zoomOne");
-  if (!props.torchSupported && props.zoomPresets.length <= 1) return null;
+  if (props.zoomPresets.length <= 1) return null;
   return (
-    <div className="pointer-events-none absolute inset-y-0 right-3 z-20 flex flex-col items-end justify-center gap-2">
-      {props.torchSupported && (
-        <button
-          type="button"
-          onClick={props.onToggleTorch}
-          aria-pressed={props.torchOn}
-          aria-label={props.torchOn ? t("torchTurnOff") : t("torchTurnOn")}
-          className={cn(
-            "pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full backdrop-blur transition-colors",
-            props.torchOn ? "bg-holo-cyan text-black" : "bg-black/50 text-ink hover:bg-black/70"
-          )}
-        >
-          <IconFlashlight size={18} />
-        </button>
-      )}
-      {props.zoomPresets.length > 1 && (
-        <div className="pointer-events-auto flex flex-col items-center gap-1 rounded-full bg-black/50 p-1 backdrop-blur">
-          {props.zoomPresets.map((o) => (
-            <button
-              key={o.preset}
-              type="button"
-              onClick={() => props.onZoom(o.preset)}
-              aria-label={t("zoomAria", { label: zoomLabel(o.preset) })}
-              aria-pressed={props.zoom === o.preset}
-              title={props.showCardHint ? t("zoomCardHint", { count: o.maxCards }) : undefined}
-              className={cn(
-                "flex h-9 min-w-9 items-center justify-center rounded-full px-2 text-xs font-semibold tabular-nums transition-colors",
-                props.zoom === o.preset
-                  ? "bg-holo-cyan text-black"
-                  : "text-ink hover:bg-white/10"
-              )}
-            >
-              {zoomLabel(o.preset)}
-            </button>
-          ))}
-        </div>
-      )}
+    <div className="absolute inset-y-0 right-3 z-20 flex flex-col items-end justify-center">
+      <div className="flex flex-col items-center gap-1 rounded-full bg-black/50 p-1 backdrop-blur">
+        {props.zoomPresets.map((o) => (
+          <button
+            key={o.preset}
+            type="button"
+            onClick={() => props.onZoom(o.preset)}
+            aria-label={t("zoomAria", { label: zoomLabel(o.preset) })}
+            aria-pressed={props.zoom === o.preset}
+            title={props.showCardHint ? t("zoomCardHint", { count: o.maxCards }) : undefined}
+            className={cn(
+              "flex h-9 min-w-9 items-center justify-center rounded-full px-2 text-xs font-semibold tabular-nums transition-colors",
+              props.zoom === o.preset ? "bg-holo-cyan text-black" : "text-ink hover:bg-white/10"
+            )}
+          >
+            {zoomLabel(o.preset)}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1980,10 +1937,6 @@ function CaptureView(props: {
   /** Live-bildmatchningens bästa gissning (chippen under ramen). Ren data —
    *  kortnamn + nummer — så ingen ny copy/översättning behövs. */
   liveHint: { name: string; number: string; locked: boolean } | null;
-  /** Diagnostik, visas bara för admin. Se ScanDebug. */
-  streamInfo: string | null;
-  cropInfo: string | null;
-  ocrInfo: string | null;
   cameraState: CameraState;
   cameraError: string;
   flash: boolean;
@@ -2121,12 +2074,9 @@ function CaptureView(props: {
         </div>
       )}
 
-      {/* Ficklampa + zoom — bara medan kameran faktiskt visar bild. */}
+      {/* Zoom-förvalen — bara medan kameran faktiskt visar bild. */}
       {cameraState === "live" && (
         <CameraControls
-          torchSupported={props.torchSupported}
-          torchOn={props.torchOn}
-          onToggleTorch={props.onToggleTorch}
           zoomPresets={props.zoomPresets}
           zoom={props.zoom}
           onZoom={props.onZoom}
@@ -2153,8 +2103,6 @@ function CaptureView(props: {
             {t("demoMode")}
           </p>
         )}
-
-        <ScanDebug stream={props.streamInfo} crop={props.cropInfo} ocr={props.ocrInfo} />
 
         {scans.length > 0 && <ScanStrip scans={scans} total={total} onOpen={props.onOpenDetails} />}
 
@@ -2262,8 +2210,31 @@ function CaptureView(props: {
             )}
           </button>
 
-          {/* Symmetri-spacer mot galleriknappen */}
-          <span className="h-12 w-12" aria-hidden="true" />
+          {/* FICKLAMPAN sitter längst till höger, bredvid bekräfta-knappen
+              (ägarbeslut 2026-08-02). Platsen var en ren symmetri-spacer mot
+              galleriknappen, så lampan får den utan att rubba raden — och den
+              hamnar i tumzonen i stället för uppe vid kameraramen, där den låg
+              ivägen för själva motivet. Saknas torch på enheten (desktop,
+              framkamera, hela iOS) står spacern kvar, annars tappar raden sin
+              balans och slutaren glider ur mitten. */}
+          {props.torchSupported ? (
+            <button
+              type="button"
+              onClick={props.onToggleTorch}
+              aria-pressed={props.torchOn}
+              aria-label={props.torchOn ? t("torchTurnOff") : t("torchTurnOn")}
+              className={cn(
+                "flex h-12 w-12 items-center justify-center rounded-full backdrop-blur transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan",
+                props.torchOn
+                  ? "bg-holo-cyan text-black hover:bg-holo-cyan/90"
+                  : "bg-white/10 text-ink hover:bg-white/15"
+              )}
+            >
+              <IconFlashlight size={20} />
+            </button>
+          ) : (
+            <span className="h-12 w-12" aria-hidden="true" />
+          )}
         </div>
       </div>
     </>
@@ -2291,26 +2262,6 @@ function CaptureView(props: {
  * Text på svenska men avsiktligt teknisk och kompakt — det här är driftdata,
  * inte produktcopy, och den ska aldrig nå en vanlig användare.
  */
-function ScanDebug({
-  stream,
-  crop,
-  ocr,
-}: {
-  stream: string | null;
-  crop: string | null;
-  ocr: string | null;
-}) {
-  const isAdmin = useIsAdmin();
-  if (!isAdmin || (!stream && !crop && !ocr)) return null;
-  return (
-    <p className="mx-auto max-w-full rounded-lg bg-black/80 px-2.5 py-1 text-center font-mono text-[10px] leading-relaxed text-holo-cyan ring-1 ring-holo-cyan/25 backdrop-blur">
-      {[stream && `ström ${stream}`, crop && `utsnitt ${crop}`, ocr]
-        .filter(Boolean)
-        .join(" · ")}
-    </p>
-  );
-}
-
 function CornerFrame() {
   return (
     <div className="absolute inset-0">
