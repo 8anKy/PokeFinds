@@ -54,9 +54,20 @@ function stats(xs: number[]): string {
 }
 
 async function main() {
+  // SINCE=2026-08-02 (eller full ISO-tid) begränsar till EN mätrunda.
+  // Utan det blandas rundorna: en A/B mot ett äldre pass drar in dess
+  // misslyckade fångster (ett mönstrat underlag gav 14 tomma namn i rad) och
+  // jämförelsen mäter då UNDERLAGET i stället för modellen.
+  const since = process.env.SINCE ? new Date(process.env.SINCE) : null;
+  if (since && Number.isNaN(since.getTime())) {
+    throw new Error(`SINCE går inte att tolka som datum: ${process.env.SINCE}`);
+  }
   const jobs = await prisma.scannerJob.findMany({
     // Prisma vill ha JsonNull-sentinelen, inte `null`, för Json-kolumner.
-    where: { NOT: { result: { equals: Prisma.DbNull } } },
+    where: {
+      NOT: { result: { equals: Prisma.DbNull } },
+      ...(since ? { createdAt: { gte: since } } : {}),
+    },
     orderBy: { createdAt: "desc" },
     take: TAKE,
     select: { createdAt: true, result: true },
