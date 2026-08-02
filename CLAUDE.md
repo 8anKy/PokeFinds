@@ -36,12 +36,6 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   AI-gradering (`/gradera`, Claude vision), live kort-skanner (`/skanna`, capture-baserad), community, admin, PWA.
 
 ## Öppna ärenden / Nästa steg
-- **⛔ SKANNINGSKVOTEN SÄGER TRE OLIKA SAKER (upptäckt 2026-08-02, ÄGARBESLUT KRÄVS)**: prissidan säger
-  "100 skanningar per månad", skannerns Pro-badge visar `∞` (`Scanner.scansUnlimited`, ägarbeslut 08-02) och koden
-  har `PREMIUM_FAIR_USE = 1000` (`SCANNER_PREMIUM_MONTHLY_LIMIT` kan överstyra). Två av tre är fel oavsett vilken
-  som är sann. Marknadsför man "obegränsat" mot ett dolt tak krävs dessutom ett skäligt-bruk-villkor i användar-
-  villkoren (se docs/TERMS-GAP.md gap D). Bestäm det VERKLIGA taket, rätta prissidan och skriv villkoret.
-  Sidofynd: `Grading.limitPremium` säger "Tillbaka i morgon" fast graderingsgränsen är MÅNADSVIS.
 - **Användarvillkoren: 20 luckor kartlagda (2026-08-02)**: `docs/TERMS-GAP.md` (analys + 12 ägarbeslut) och
   `docs/TERMS-DRAFT-CLAUSES.md` (utkast på svenska). ⚠️ Inget av det är juridisk rådgivning — en svensk jurist
   måste läsa det före publicering. Blockerande: **ingen juridisk person angiven någonstans i appen** (org.nr,
@@ -467,6 +461,18 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   (utsnittet skalas till samma längsta sida, `CAPTURE_MAX`). ⛔ Haiku 4.5 tar emot max 1568 px längsta sida (~1,15 MP)
   och skalar ner allt däröver SERVER-SIDE — att höja `CAPTURE_MAX` ger alltså ingenting på Haiku. Vägen till fler pixlar
   på numret är beskärning eller en modell med högupplöst vision (Sonnet 5 / Opus 5: 2576 px, ~4784 bildtokens).
+- **SKANNING = OBEGRÄNSAD FÖR PRO, MED 1 000/MÅNAD SOM PUBLICERAT SKÄLIGT BRUK (ägarbeslut 2026-08-02)**:
+  fyra ytor måste säga SAMMA sak och de gör det nu: prissidan ("Obegränsad kortskanning (skäligt bruk)"),
+  skannerns Pro-badge (`∞`), villkoren `Terms.s6FairUse` ("upp till 1 000 skanningar per kalendermånad, nollställs
+  den 1:a") och koden `PREMIUM_FAIR_USE = 1000` i `src/services/scanner/index.ts`. Gratis = 30/månad, oförändrat.
+  Kvoten räknar IDENTIFIERADE KORT och nollställs på UTC-månadsskiftet (`startOfMonthUtc`), inte på
+  prenumerationens årsdag. ⛔ **Taket är nu ett AVTALSVILLKOR, inte bara en skyddsspärr.** Sänks det — i koden
+  eller via `SCANNER_PREMIUM_MONTHLY_LIMIT` — blir villkorstexten falsk, och ett dolt tak under det publicerade är
+  ett villkor kunden aldrig fått se. Ändra konstanten och villkorstexten tillsammans, eller ingen av dem.
+  Env-variabeln finns kvar för nödlägen, inte för produktbeslut.
+  Sidofix samma dag: `Grading.limitPremium` sa "Tillbaka i morgon" fast graderingskvoten är MÅNADSVIS
+  (`startOfMonthUtc` i `src/services/grading/index.ts`) — en Pro-kund som slog i taket fick veta att det löste sig
+  i morgon, och blockerades igen dagen därpå.
 - **SKANNERN HAR TRE LÄGEN, OCH DE ÄR ETT `mode`-FÄLT (2026-08-02)**: `"single" | "bulk" | "barcode"` i
   `skanna/page.tsx`. ⛔ Inte tre booleaner: två flaggor har fyra tillstånd varav ett ("båda på") är meningslöst men
   fullt möjligt, och lägena tävlar om SAMMA videoruta, slutare och poll-loop. Live-pollen/låset körs BARA i

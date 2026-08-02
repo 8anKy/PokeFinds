@@ -76,6 +76,15 @@ export interface ScannerQuota {
  *
  * ⛔ Taket är inte en produktgräns utan ett SKYDD. Träffas det ska det synas i
  * loggen, inte tolkas som att en kund skannar för mycket.
+ *
+ * ⛔⛔ SIFFRAN 1000 ÄR PUBLICERAD I ANVÄNDARVILLKOREN (ägarbeslut 2026-08-02).
+ * `Terms.s6FairUse` i messages/{sv,en}.json säger uttryckligen "upp till 1 000
+ * skanningar per kalendermånad". Prissidan säger "obegränsad kortskanning
+ * (skäligt bruk)" och skannerns Pro-badge visar `∞` — allt tre hänger ihop och
+ * vilar på DEN HÄR konstanten. Ändras taket (här ELLER via
+ * SCANNER_PREMIUM_MONTHLY_LIMIT) blir villkorstexten FELAKTIG, och ett dolt tak
+ * under det publicerade är ett avtalsvillkor kunden aldrig fått se. Ändra båda,
+ * eller ingen. Env-variabeln finns kvar för nödlägen — inte för produktbeslut.
  */
 const PREMIUM_FAIR_USE = 1000;
 

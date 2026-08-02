@@ -61,6 +61,12 @@ export default async function TermsPage({
         <section>
           <h2>{t("s6Title")}</h2>
           <p className="mt-2">{t("s6Body")}</p>
+          {/* SKÄLIGT BRUK. Pro säljs som obegränsad skanning, och koden har ett
+              tak (PREMIUM_FAIR_USE, se services/scanner) som skyddar mot
+              skenande loopar och kapade konton. Marknadsför man "obegränsat"
+              mot ett dolt tak MÅSTE taket stå i villkoren — annars är siffran
+              ett villkor kunden aldrig fått se. */}
+          <p className="mt-2">{t("s6FairUse")}</p>
         </section>
 
         <section>
