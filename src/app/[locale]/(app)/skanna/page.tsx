@@ -1230,7 +1230,13 @@ function Scanner() {
           }),
         });
         const data = (await res.json()) as {
-          cells?: Array<{ cell: number; candidates: Candidate[]; confident: boolean }>;
+          cells?: Array<{
+            cell: number;
+            candidates: Candidate[];
+            confident: boolean;
+            /** ScannerJob-id för den bokförda träffen — bär korrigeringen vidare. */
+            scanId?: string;
+          }>;
           error?: string;
         };
         if (!res.ok || !data.cells) {
@@ -1257,6 +1263,12 @@ function Scanner() {
               candidates: result.candidates,
               confidence: 0.95,
               uncertain: false,
+              // ⛔ UTAN jobId FÖRSVINNER RÄTTELSEN. En bildavgjord bulk-cell
+              // bokförs server-sida (identifyCellsArt) och får ett jobb-id —
+              // läses det inte här har reportScanFeedback inget att fästa
+              // korrigeringen vid, och den tystnar. Mätt 2026-08-02: ägarens
+              // rättelse i en niokortsfångst gick förlorad precis så.
+              jobId: result.scanId ?? null,
             });
           } else if (top) {
             uncertain.push({ id, cell: sent.cell });
