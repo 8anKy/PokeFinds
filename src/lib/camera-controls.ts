@@ -127,25 +127,27 @@ export const BULK_DETECTOR_MAX_CARDS = 12;
 export const BULK_ANCHOR_CARDS_AT_1X = 6;
 
 /**
- * ⚠️⚠️ OMÄTTA UPPSKATTNINGAR — INGA FÄLTMÄTNINGAR LIGGER BAKOM DE HÄR TALEN. ⚠️⚠️
+ * ✅ 0,5× ÄR FÄLTVERIFIERAT PÅ 12 KORT (ägaren, 2026-08-02): tolv kort i en
+ * fångst, ALLA TOLV rätt identifierade. Farhågan att pixelbudgeten skulle fälla
+ * det (12 kort ⇒ ~1/12 av bilden per kort) besannades alltså INTE — vilket är
+ * väntat efter bildmatchningen, för avtrycket läser FÄRGLAYOUT och inte det
+ * ~2 mm höga samlarnumret. Det är numret som behöver pixlar, och bulkvägen
+ * avgörs av bilden.
+ * ⚠️ 1× och 2× är fortfarande OMÄTTA — de kommer ur geometrin nedan.
  *
  * Härledningen är ren geometri: synfältets LINJÄRA bredd skalar ~1/zoom, alltså
  * skalar YTAN ~1/zoom², och antal kort som får plats skalar med ytan. Från
  * ankaret 6 kort vid 1×:
- *   0,5× → 6 / 0,5² = 24  → KLAMPAT till detektorns tak (12)
+ *   0,5× → 6 / 0,5² = 24  → KLAMPAT till detektorns tak (12) — nu bekräftat
  *   1×   → 6
  *   2×   → 6 × 0,5² = 1,5 → 1 (2× är i praktiken ett enkortsläge)
  *
- * Det som INTE är modellerat, och som är precis det fältmätningen ska avgöra:
- * pixelbudgeten per kort (12 kort i rutan ⇒ varje kort får ~1/12 av bildens
- * yta, och samlarnumret är ~2 mm på ett 88 mm kort — det är samma vägg som
- * skannern redan slagit i), ultravidvinkelns tunnförvrängning i kanterna, och
- * att många telefoners ultravidvinkel har LÄGRE sensorupplösning än huvud-
- * kameran. Talen är alltså ett TAK för vad som får plats, inte ett löfte om
- * vad som går att LÄSA.
+ * Kvar att mäta: om 12 är ett TAK eller bara det högsta någon råkat prova
+ * (detektorns eget tak är 12, så fler kort går inte att testa utan att höja
+ * BULK_MAX_CARDS först), ultravidvinkelns tunnförvrängning i kanterna, och att
+ * många telefoners ultravidvinkel har LÄGRE sensorupplösning än huvudkameran.
  *
- * ⛔ Presentera dem aldrig som uppmätta. Byt dem mot riktiga siffror så fort
- * en fältrunda har kört bulk-detektorn vid varje förval.
+ * ⛔ Presentera 1× och 2× aldrig som uppmätta. Copyn säger "ca" av det skälet.
  */
 export const ZOOM_PRESET_MAX_CARDS: Readonly<Record<ZoomPreset, number>> = {
   0.5: 12,

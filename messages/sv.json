@@ -629,7 +629,7 @@
     "pro": "PRO",
     "free": "GRATIS",
     "scansLeft": "{count, plural, =1 {1 skanning kvar} other {# skanningar kvar}}",
-    "scansUnlimited": "∞",
+    "scansUnlimited": "Obegränsat antal skanningar",
     "renewsNextMonth": "Förnyas nästa månad",
     "tapForMore": "Tryck här för fler med Pro",
     "startingCamera": "Startar kameran…",

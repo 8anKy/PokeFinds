@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/toast";
+import { hapticTick } from "@/lib/haptics";
 
 const HOLD_MS = 450;
 
@@ -41,10 +42,24 @@ function copyText(text: string): boolean {
 export function CopyOnHoldTitle({ text, className }: { text: string; className?: string }) {
   const { toast } = useToast();
   const downAt = useRef<number | null>(null);
+  /** Timern som "beväpnar" gesten — se kommentaren vid onPointerDown. */
+  const armTimer = useRef<number | null>(null);
+
+  function disarm() {
+    if (armTimer.current != null) {
+      window.clearTimeout(armTimer.current);
+      armTimer.current = null;
+    }
+    downAt.current = null;
+  }
+
+  // Städa om komponenten lämnas mitt i ett tryck (produktsidan kan stängas med
+  // svep) — annars vibrerar en avmonterad komponent 450 ms senare.
+  useEffect(() => disarm, []);
 
   function onUp() {
     const start = downAt.current;
-    downAt.current = null;
+    disarm();
     if (start == null || Date.now() - start < HOLD_MS) return;
     // Tyst vid miss (t.ex. liten svep → iOS nekar in-page-kopian) — bara kvitto
     // när det faktiskt lyckas, ingen störande "Kunde inte kopiera".
@@ -62,11 +77,17 @@ export function CopyOnHoldTitle({ text, className }: { text: string; className?:
       onPointerDown={(e) => {
         downAt.current = Date.now();
         e.currentTarget.setPointerCapture(e.pointerId);
+        // Kvittensen kommer NÄR gesten löser ut, inte när fingret släpps.
+        // Kopian sker fortfarande på pointerup (den gesten är oförändrad), men
+        // utan det här ticket får man ingen aning om att man hållit länge nog
+        // förrän man lyfter — och lyfter man för tidigt händer bara ingenting.
+        armTimer.current = window.setTimeout(() => {
+          armTimer.current = null;
+          hapticTick();
+        }, HOLD_MS);
       }}
       onPointerUp={onUp}
-      onPointerCancel={() => {
-        downAt.current = null;
-      }}
+      onPointerCancel={disarm}
     >
       {text}
     </h1>

@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/format";
 import { hasAuthHint } from "@/lib/auth-hint";
 import { registerFullscreenHost } from "@/lib/product-overlay-open";
+import { hapticImpact } from "@/lib/haptics";
 import { useCameraControls } from "@/hooks/use-camera-controls";
 import {
   withDeviceId,
@@ -1053,7 +1054,7 @@ function Scanner() {
             (quotaRef.current == null || quotaRef.current.remaining > 0)
           ) {
             autoFired.current = top.cardId;
-            navigator.vibrate?.(60);
+            hapticImpact();
             captureRef.current?.();
           }
         })
@@ -1299,7 +1300,7 @@ function Scanner() {
             const hit = hits.find((h) => !seen.has(h.gtin));
             if (!hit) return;
             seen.add(hit.gtin);
-            navigator.vibrate?.(60);
+            hapticImpact();
             setFlash(true);
             window.setTimeout(() => setFlash(false), 180);
             // Bilden användaren såg sparas som fångst — samma ruta som koden
@@ -1786,16 +1787,10 @@ function QuotaBadge({ quota, onUpgrade }: { quota: ScanQuota; onUpgrade: () => v
   );
   const body = (
     <span className="min-w-0 text-left">
-      <span
-        className={cn(
-          "block font-semibold text-ink",
-          // Pro-raden är BARA oändlighetstecknet (ägarbeslut 2026-08-02). Ett
-          // ensamt "∞" i brödtextstorlek läser som ett renderingsfel — det ska
-          // bära raden, alltså sätts det i display-grad med samma optiska tyngd
-          // som "3 skanningar kvar" har på gratisraden.
-          isPremium ? "text-2xl leading-none" : "text-sm"
-        )}
-      >
+      {/* Pro-raden var ett ensamt "∞" ett kort tag (2026-08-02) — det såg ut som
+          ett renderingsfel bredvid "Förnyas nästa månad" och rullades tillbaka
+          till text samma dag. */}
+      <span className="block text-sm font-semibold text-ink">
         {/* Pro säljs som OBEGRÄNSAT — då ska ingen nedräkning visas. Taket i
             koden är ett skydd mot skenande loopar, inte en produktgräns, och en
             siffra här hade läst som "du har X kvar" av en kund som betalat för

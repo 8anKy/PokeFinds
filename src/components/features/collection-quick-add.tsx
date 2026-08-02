@@ -6,6 +6,7 @@ import { useRouter } from "@/i18n/navigation";
 import { useAuthHint } from "@/lib/auth-hint";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { hapticTick } from "@/lib/haptics";
 import { IconCheck, IconPlus } from "@/components/ui/icons";
 import {
   CollectionQuickAddPopover,
@@ -154,8 +155,9 @@ export function CollectionQuickAdd({ productId, estimatedValue }: CollectionQuic
     e.currentTarget.setPointerCapture?.(e.pointerId);
     holdTimer.current = window.setTimeout(() => {
       holdTimer.current = null;
-      // Liten taktil kvittens att gesten löste ut (saknas på iOS — ofarligt).
-      navigator.vibrate?.(12);
+      // Taktil kvittens att långtrycket löste ut — arket hinner inte upp förrän
+      // efter animationen, så utan den känns gesten som att inget hände.
+      hapticTick();
       openPopover();
     }, HOLD_MS);
   }

@@ -1,7 +1,8 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { hapticGlide } from "@/lib/haptics";
 import {
   Area,
   AreaChart,
@@ -107,6 +108,31 @@ export function PriceChart({ data, className, monthly = false, minimal = false }
   const areaFillId = `af-${uid}`;
   const cursorId = `cu-${uid}`;
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  /**
+   * Senaste index vi vibrerade på.
+   *
+   * ⛔ HAPTIK PER DATAPUNKT, ALDRIG PER PIXEL. `onMouseMove`/`onTouchMove` eldar
+   * hundratals gånger i sekunden under ett drag; en vibration per event ger ett
+   * konstant surr där motorn inte hinner återgå, och batteriet betalar. Fingret
+   * täcker dessutom sin egen träffpunkt — det är just därför skrubbningen
+   * behöver en fysisk kvittens, och den ska komma när VÄRDET byts.
+   */
+  const lastHaptic = useRef<number | null>(null);
+  const scrubTo = useCallback((state: { activeTooltipIndex?: number } | undefined) => {
+    const i = state?.activeTooltipIndex;
+    const next = typeof i === "number" ? i : null;
+    setActiveIndex(next);
+    if (next !== null && next !== lastHaptic.current) {
+      lastHaptic.current = next;
+      hapticGlide();
+    }
+  }, []);
+  const endScrub = useCallback(() => {
+    setActiveIndex(null);
+    // Nollställ så att nästa beröring på SAMMA punkt också vibrerar — annars
+    // känns ett nytt drag dött tills fingret råkar passera en annan dag.
+    lastHaptic.current = null;
+  }, []);
 
   if (data.length === 0) {
     return (
@@ -181,16 +207,20 @@ export function PriceChart({ data, className, monthly = false, minimal = false }
   };
 
   return (
-    <div className={className}>
+    // Touchslut fångas HÄR, inte på diagrammet: recharts typar inga
+    // touch-props, men wrappern är en vanlig DOM-nod. `onMouseLeave` fyras inte
+    // av ett lyft finger, så utan den här skulle markören bli kvar efter draget.
+    <div className={className} onTouchEnd={endScrub} onTouchCancel={endScrub}>
       <ResponsiveContainer width="100%" height={300}>
         <AreaChart
           data={data}
           margin={{ top: 12, right: 30, bottom: 0, left: 0 }}
-          onMouseMove={(state) => {
-            const i = state?.activeTooltipIndex;
-            setActiveIndex(typeof i === "number" ? i : null);
-          }}
-          onMouseLeave={() => setActiveIndex(null)}
+          // Recharts routar touch-dragningar genom sina EGNA mus-callbacks
+          // (`onTouchMove` finns inte i dess typer) — därför räcker den här för
+          // både mus och finger. Nollställningen vid touchslut ligger på
+          // wrapper-diven nedan, som är en riktig DOM-nod.
+          onMouseMove={scrubTo}
+          onMouseLeave={endScrub}
         >
           <defs>
             {/* Horisontell stroke-gradient: skarp turkos fram till markören,
