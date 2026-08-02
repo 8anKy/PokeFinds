@@ -30,12 +30,24 @@ interface Diag {
   chosen?: { name: string; number: string; setName: string; score: number } | null;
 }
 
-/** Haiku 4.5-prislista ($/MTok) — byt vid modellbyte. */
-const USD_PER_MTOK_IN = 1;
-const USD_PER_MTOK_OUT = 5;
+/**
+ * Prislista per LEVERANTÖR ($/MTok). ⛔ En enda prislista räcker inte längre:
+ * med två leverantörer i samma tabell räknades Geminis tokental med Claudes
+ * priser och gav en kostnad som var ~4x för hög (2026-08-02).
+ * Haiku 4.5: 1 / 5. Gemini 3.1 Flash-Lite: 0,25 / 1,50.
+ */
+const PRICES: Record<string, { in: number; out: number }> = {
+  claude: { in: 1, out: 5 },
+  gemini: { in: 0.25, out: 1.5 },
+};
+const DEFAULT_PRICE = PRICES.claude;
 
-function usdForCall(u: { inputTokens: number; outputTokens: number }): number {
-  return (u.inputTokens * USD_PER_MTOK_IN + u.outputTokens * USD_PER_MTOK_OUT) / 1e6;
+function usdForCall(
+  u: { inputTokens: number; outputTokens: number },
+  provider?: string
+): number {
+  const p = (provider && PRICES[provider]) || DEFAULT_PRICE;
+  return (u.inputTokens * p.in + u.outputTokens * p.out) / 1e6;
 }
 
 /** Poängen ur "Namn Nr 0.857 | Namn Nr 0.478 | …". */
@@ -123,14 +135,19 @@ async function main() {
   // VERKLIG vision-kostnad ur API:ts egna tokental (nya rader bär usage).
   // PER LEVERANTÖR: hela poängen med ett modellbyte är om NUMRET läses bättre
   // och vad det kostar. En blandad totalsiffra svarar på ingetdera.
-  const byProvider = new Map<string, { n: number; num: number; cost: number; inTok: number }>();
+  const byProvider = new Map<
+    string,
+    { n: number; num: number; cost: number; inTok: number; outTok: number }
+  >();
   for (const r of rows) {
     const prov = r.d.provider ?? "okand";
     if (prov === "bild") continue;
-    const a = byProvider.get(prov) ?? { n: 0, num: 0, cost: 0, inTok: 0 };
+    const a = byProvider.get(prov) ?? { n: 0, num: 0, cost: 0, inTok: 0, outTok: 0 };
     a.n++;
     if (r.d.guessedNumber) a.num++;
     a.inTok += r.d.usage?.inputTokens ?? 0;
+    a.outTok += r.d.usage?.outputTokens ?? 0;
+    if (r.d.usage) a.cost += usdForCall(r.d.usage, prov);
     byProvider.set(prov, a);
   }
   if (byProvider.size > 1) {
@@ -138,7 +155,8 @@ async function main() {
     for (const [prov, a] of [...byProvider.entries()].sort()) {
       console.log(
         `${prov.padEnd(8)} ${a.n} anrop · nummer läst ${a.num}/${a.n}` +
-          ` · medel ${Math.round(a.inTok / Math.max(1, a.n))} in-tokens`
+          ` · medel ${Math.round(a.inTok / Math.max(1, a.n))} in / ${Math.round(a.outTok / Math.max(1, a.n))} ut tokens` +
+          ` · $${(a.cost / Math.max(1, a.n)).toFixed(5)}/anrop`
       );
     }
   }
@@ -146,7 +164,7 @@ async function main() {
   const withUsage = rows.filter((r) => r.d.usage && r.d.provider !== "bild");
   const skipped = rows.filter((r) => r.d.provider === "bild").length;
   if (withUsage.length > 0) {
-    const costs = withUsage.map((r) => usdForCall(r.d.usage!));
+    const costs = withUsage.map((r) => usdForCall(r.d.usage!, r.d.provider));
     const total = costs.reduce((a, b) => a + b, 0);
     const tokIn = withUsage.reduce((a, r) => a + r.d.usage!.inputTokens, 0);
     const tokOut = withUsage.reduce((a, r) => a + r.d.usage!.outputTokens, 0);
