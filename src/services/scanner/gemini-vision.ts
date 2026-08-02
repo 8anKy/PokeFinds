@@ -119,13 +119,28 @@ export class GeminiVisionOcrAdapter implements OcrAdapter {
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      // 429 = kvot (gratisnivån är hårt rate-limitad) — säg det rakt ut i
-      // stället för ett generiskt fel, annars läses det som en modellmiss.
-      const hint = res.status === 429 ? " (kvot/rate limit)" : "";
-      throw new ServiceError(
-        502,
-        `Kortet kunde inte tolkas${hint}. Gemini svarade ${res.status}: ${body.slice(0, 200)}`
-      );
+      // RÅTEXTEN HÖR HEMMA I LOGGEN, INTE I ANVÄNDARENS ANSIKTE. Ett 404 från
+      // Google ("This model … is no longer available to new users") visades
+      // som en vägg av JSON mitt i kameravyn 2026-08-02. Den texten var det som
+      // gjorde felet diagnosbart på sekunder — så den ska sparas, bara inte
+      // skickas vidare till den som skannar.
+      console.error(`[gemini] ${this.model} → ${res.status}: ${body.slice(0, 500)}`);
+      // KONFIGURATIONSFEL ÄR INTE ÖVERGÅENDE: 401/403/404 betyder fel nyckel
+      // eller en modell som kontot inte får använda, och varje ny skanning
+      // faller likadant. "Försök igen" vore en lögn.
+      if (res.status === 401 || res.status === 403 || res.status === 404) {
+        throw new ServiceError(
+          503,
+          "Kortidentifieringen är felkonfigurerad (modell eller API-nyckel) — försök igen senare."
+        );
+      }
+      if (res.status === 429) {
+        throw new ServiceError(
+          429,
+          "Kortidentifieringen är tillfälligt överbelastad. Vänta en stund och försök igen."
+        );
+      }
+      throw new ServiceError(502, "Kortet kunde inte tolkas. Försök igen.");
     }
     const json = (await res.json()) as {
       candidates?: Array<{ content?: { parts?: GeminiPart[] } }>;
