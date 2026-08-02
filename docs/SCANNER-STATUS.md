@@ -866,7 +866,29 @@ billiga vägar dit är nu uteslutna. Bygg dem inte igen:
    Kortens kanttäthet smälter ihop med handdukens våffeltextur → korten hamnar i
    en enda förkastad jätteblobb. Noll kort vid dilation 2, 3 och 4.
 
-**Kvar som seriöst alternativ**: en riktig FLERKVADRATSSÖKNING — behåll ~40
+5. **FLERKVADRATSSÖKNING — BYGGD OCH MOTBEVISAD (2026-08-02).** Full
+   implementation: ~40 linjetoppar per riktning, kandidatrektanglar ur alla
+   linjepar, hårda villkor (kortproportion 0,45–1,55, area 0,4–25 %, kantstöd
+   ≥ 50 % på ALLA FYRA sidor, inre kanttäthet ≥ 0,08), girigt icke-överlappande
+   urval, storlekskluster. **Noll kort på de mönstrade fångsterna** i två
+   varianter: (a) ren stödpoäng valde kortens INRE ramar (konstfönster,
+   textrutor) — de har krispigare tryckta kanter och tätare innehåll än
+   kortets ytterkant mot underlaget; (b) med areavikt + inneslutningsspärr
+   ("ytterst vinner", samma regel som `pickPair`) hamnade valen i stället på
+   handduken och överkastet. Kostnad ~600 ms per fångst.
+   **Grundorsaken**: kortets kant mot handduken är LÅGKONTRAST medan mönstrets
+   linjer är HÖGKONTRAST. Varje GLOBAL kanttröskel lyfter därför fram mönstret
+   och trycker ner kortkanten — samma asymmetri som fäller bakgrundsfyllningen,
+   bara i kantdomänen. Koden är ÅTERSTÄLLD (inget dött spekulativt i repot).
+
+**Enda idén kvar**: lokalt normaliserad kantstyrka (dela gradienten med ett
+lokalt medel) så att kortkanten bedöms mot SIN omgivning i stället för mot
+bildens starkaste mönsterlinjer. Det angriper den uppmätta grundorsaken direkt,
+men förstärker också handdukens egen textur — utfallet är osäkert och det är
+sjätte försöket. Före ytterligare arbete: väg det mot att underlagsvarningen nu
+är tydlig och att en enfärgad yta alltid finns tillgänglig.
+
+**Historik (den tidigare planen)**: en riktig FLERKVADRATSSÖKNING — behåll ~40
 linjetoppar per riktning, generera kandidatrektanglar ur linjepar, poängsätt var
 och en på kortproportion + kantstöd på alla fyra sidor + inre detalj, och välj
 en icke-överlappande, storlekskonsistent uppsättning. Det är ~200+ rader och
