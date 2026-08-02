@@ -899,7 +899,31 @@ billiga vägar dit är nu uteslutna. Bygg dem inte igen:
    riktningsgrindad Hough per delområde i stället för globala profiler.
    Koden är INTE inlagd (provet låg i .spike/).
 
-**Idén som gav mest hittills**: lokalt normaliserad kantstyrka (dela gradienten med ett
+7. **LOKALA KANTSEGMENT i stället för globala profiler — PROVAD 2026-08-02,
+   SÄMRE ÄN 6.** Rättade det som var fel i försök 6: i stället för kolumn-/rad-
+   profiler (globala, så ett korts vänsterkant konkurrerar med allt i samma
+   kolumn) söktes SEGMENT — sammanhängande körningar av riktningsseparerade
+   kantpixlar, lokala per konstruktion, med hålöverbryggning och sammanslagning
+   av tjocka kanter. Fyra segment som möts i hörn = kandidatrektangel.
+   Utfall: **0 av 5 kort på BÅDA de mönstrade fångsterna**, vid varje testad
+   kombination av täckningskrav (0,30–0,55) och proportionsband (1,10–1,60).
+   Kontrollen på ENFÄRGAT underlag gav 4–5 rektanglar, så maskineriet fungerar —
+   det är på mönster det inte går. Segmenten FINNS (34–41 lodräta, 57–76 vågräta
+   per fångst), men fyra av dem bildar aldrig en kortformad rektangel: mönstrets
+   egna linjer bryter kortkanten i korta bitar och fyller mellanrummen med
+   segment som råkar ligga på fel ställe. Koden är inte inlagd.
+
+**Sammanfattning efter sju försök**: bästa resultatet är fortfarande försök 6:s
+**2 av 5** (lokalt normaliserad kantstyrka + globala profiler). Ingen väg har
+klarat kravet 5 av 5. ⛔ Sluta leta efter en klassisk bildbehandlingsvariant —
+sex av sju försök gav NOLL, och det sjunde 2 av 5. Det som återstår är en
+LÄRD detektor (liten objektdetektor tränad på kortfoton), vilket är ett annat
+slags projekt: träningsdata, modellhosting, latens och beroenden — och
+`CLAUDE.md` avvisar redan tunga bildberoenden (OpenCV.js = 8 MB WASM per
+besökare). Väg det mot att `bulkBusySurface` nu ger ett tydligt besked och att
+ett enfärgat underlag (papper, bok, bordsskiva) alltid finns till hands.
+
+**Idén som gav mest**: lokalt normaliserad kantstyrka (dela gradienten med ett
 lokalt medel) så att kortkanten bedöms mot SIN omgivning i stället för mot
 bildens starkaste mönsterlinjer. Det angriper den uppmätta grundorsaken direkt,
 men förstärker också handdukens egen textur — utfallet är osäkert och det är
