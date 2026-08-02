@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
+import { hapticTick } from "@/lib/haptics";
 
 /** Flikväxlare i portföljen: aktiv samling vs sålda objekt. Båda hålls monterade
  *  (döljs med CSS) så samlingens klient-state inte tappas vid flikbyte. */
@@ -16,6 +17,13 @@ export function PortfolioTabs({
 }) {
   const t = useTranslations("Collection");
   const [tab, setTab] = useState<"collection" | "sold">("collection");
+  // Samma taktila kvittens som bottenflikarna — ett flikbyte ska kännas likadant
+  // var i appen det än sker. ⛔ Bara vid ett FAKTISKT byte: att trycka på fliken
+  // man redan står på ändrar ingenting, och en vibration då ljuger.
+  const pick = (next: "collection" | "sold") => {
+    if (next !== tab) hapticTick();
+    setTab(next);
+  };
 
   const tabClass = (active: boolean) =>
     `-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
@@ -32,7 +40,7 @@ export function PortfolioTabs({
           role="tab"
           aria-selected={tab === "collection"}
           className={tabClass(tab === "collection")}
-          onClick={() => setTab("collection")}
+          onClick={() => pick("collection")}
         >
           {t("tabCollection")}
         </button>
@@ -41,7 +49,7 @@ export function PortfolioTabs({
           role="tab"
           aria-selected={tab === "sold"}
           className={tabClass(tab === "sold")}
-          onClick={() => setTab("sold")}
+          onClick={() => pick("sold")}
         >
           {t("tabSold")}{soldCount > 0 ? ` (${soldCount})` : ""}
         </button>

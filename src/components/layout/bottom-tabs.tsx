@@ -5,6 +5,7 @@ import { Link } from "@/i18n/navigation";
 import { useEffect, useState } from "react";
 import { usePathname } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
+import { hapticTick } from "@/lib/haptics";
 import { isEmailLandingRoute } from "@/lib/auth-routes";
 import {
   IconSearch,
@@ -67,6 +68,12 @@ export function BottomTabs() {
               <Link
                 href={t.href}
                 aria-current={active ? "page" : undefined}
+                // Taktil kvittens på flikbytet. ⛔ BARA när fliken FAKTISKT
+                // byts: ett tryck på den flik man redan står på navigerar
+                // ingenstans, och en vibration då läser som att något hände.
+                // Ligger på onClick (inte pointerdown) så en avbruten gest —
+                // finger som glider bort från fliken — inte vibrerar.
+                onClick={active ? undefined : hapticTick}
                 className={cn(
                   "group flex flex-col items-center gap-0.5 py-1.5 text-[11px] font-medium transition-colors duration-150",
                   active ? "text-holo-cyan" : "text-ink-muted hover:text-ink"
