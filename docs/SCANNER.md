@@ -48,6 +48,37 @@ Klient (/skanna)
    OCR_API_KEY=...
    ```
 
+### Leverantörer
+
+| `OCR_PROVIDER` | Nyckel | Standardmodell (`SCANNER_MODEL`) | Kostnad/anrop |
+|---|---|---|---|
+| `claude` | `ANTHROPIC_API_KEY` | `claude-haiku-4-5` | **$0,0037** (mätt) |
+| `gemini` | `GEMINI_API_KEY` | `gemini-2.5-flash-lite` | **$0,00055** (beräknad) |
+| `mock` | — | — | 0 |
+
+`gemini` finns för att KOSTNADEN skiljer kraftigt, men träffsäkerheten (läser
+modellen samlarnumret?) är det som avgör — och den går bara att mäta i fält.
+
+⛔ **Facitsetet kan INTE utvärdera ett leverantörsbyte.** Vi sparar aldrig
+skanningsbilderna (dataminimering), bara avtrycken och modellens text — så
+`scanner-choice-replay.ts` replayar det GAMLA modellsvaret oavsett vilken
+adapter som är aktiv. Ett byte måste mätas med NYA fältskanningar:
+`scanner-telemetry.ts` före och efter, och byt bara EN sak i taget.
+
+⛔ **Prompt, fältspec och svarstolkning bor i `vision-contract.ts`** och delas av
+adaptrarna. Bygger en adapter sin egen prompt jämför en A/B-körning prompter i
+stället för modeller.
+
+**Gemini debiterar per bildRUTA (258 tokens), och rutstorleken räknas på bildens
+KORTSIDA.** Vår nummerremsa (~1280×393) blir därför 10 rutor (2580 tokens) medan
+hela kortet (~916×1280) blir 6 (1548) — remsan kostar mer än kortet. Totalt
+~4850 in-tokens mot Claudes uppmätta 2955 för SAMMA bilder. En omformad närbild
+(kortsidan ≥ ~2/3 av långsidan) sänker notan mer än ett modellbyte, men ändra
+inte bilderna och modellen samtidigt.
+
+Gratisnivå finns för Gemini-modellerna (hårt rate-limitad) — 429 rapporteras
+uttryckligen som kvot/rate limit så det inte läses som en modellmiss.
+
 `OCR_PROVIDER=mock` (standard) använder `MockOcrAdapter`
 (`src/services/scanner/ocr-mock.ts`) — en utvecklingsmock som slumpar fram
 ett befintligt kort ur databasen. Okända värden ger felet

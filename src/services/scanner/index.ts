@@ -20,6 +20,7 @@ import {
 } from "@/services/scanner/art-index";
 import { getCardValues, getProductValues } from "@/services/products";
 import { ClaudeVisionOcrAdapter } from "@/services/scanner/claude-vision";
+import { GeminiVisionOcrAdapter } from "@/services/scanner/gemini-vision";
 import { MockOcrAdapter } from "@/services/scanner/ocr-mock";
 import type { OcrAdapter, OcrResult, ScanCandidate } from "@/services/scanner/types";
 
@@ -147,6 +148,19 @@ export function getOcrAdapter(precise = false): OcrAdapter {
         precise
           ? process.env.SCANNER_MODEL_PRECISE ?? "claude-sonnet-5"
           : process.env.SCANNER_MODEL ?? "claude-haiku-4-5"
+      );
+    // GEMINI — andra leverantören, för kostnadsjämförelse i FÄLT. Prompt,
+    // fältspec och svarstolkning delas med Claude-adaptern (vision-contract.ts),
+    // så en A/B-körning mäter modellen och inget annat.
+    // ⛔ Facitsetet kan INTE avgöra det här: vi sparar aldrig skanningsbilderna
+    // (dataminimering), bara avtryck + modellens text. Ett modellbyte måste
+    // alltså mätas med NYA fältskanningar — kör scanner-telemetry/-scoreboard
+    // före och efter, och byt bara EN sak i taget.
+    case "gemini":
+      return new GeminiVisionOcrAdapter(
+        precise
+          ? process.env.SCANNER_MODEL_PRECISE ?? "gemini-2.5-flash"
+          : process.env.SCANNER_MODEL ?? "gemini-2.5-flash-lite"
       );
     default:
       throw new ServiceError(

@@ -16,7 +16,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { cardNumberSortKey } from "@/lib/card-number-order";
-import { sanitizeName, sanitizeNumber } from "@/services/scanner/claude-vision";
+import { sanitizeName, sanitizeNumber } from "@/services/scanner/vision-contract";
 import { getScannerQuota, isAmbiguous, isIntroScan, parseGuessedNumber, recordScanUsage, runScannerJob } from "@/services/scanner";
 
 beforeEach(() => {
