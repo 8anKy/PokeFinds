@@ -881,7 +881,25 @@ billiga vägar dit är nu uteslutna. Bygg dem inte igen:
    och trycker ner kortkanten — samma asymmetri som fäller bakgrundsfyllningen,
    bara i kantdomänen. Koden är ÅTERSTÄLLD (inget dött spekulativt i repot).
 
-**Enda idén kvar**: lokalt normaliserad kantstyrka (dela gradienten med ett
+6. **LOKALT NORMALISERAD KANTSTYRKA — PROVAD 2026-08-02. FÖRSTA SIGNALEN, men
+   klarar inte kravet.** Gradienten delas med ett lokalt medel (fönster 21 px i
+   analysskala 300), så kortkanten bedöms mot SIN omgivning i stället för mot
+   bildens starkaste mönsterlinjer. **Kortkonturerna framträder då tydligt** —
+   mätbart bättre än den globala tröskeln, där de var nedtryckta. Hela kedjan
+   (normaliserad kantbild → riktningsseparerade kant­pixlar → lod-/vågräta
+   linjetoppar → kandidatrektanglar → kantstöd ≥ 0,55 på alla fyra sidor →
+   girigt urval) gav på den mönstrade blankettfångsten **2 av 5 kort rätt**
+   (Probopass och Murkrow), plus en ruta som svalde hela översta raden och två
+   på överkastet. **Alla fem tidigare försök gav NOLL kort** — det här är alltså
+   första gången något alls hittas på ett mönstrat underlag.
+   ⛔ **Men kravet var 5 av 5 på alla fyra fångster, och 2 av 5 är fail.**
+   Svagheten är linjesökningen, inte normaliseringen: kolumn-/radprofiler är
+   GLOBALA, så ett korts vänsterkant konkurrerar med allt annat i samma kolumn —
+   därför blev tre kort på rad EN rektangel. Nästa steg vore riktig
+   riktningsgrindad Hough per delområde i stället för globala profiler.
+   Koden är INTE inlagd (provet låg i .spike/).
+
+**Idén som gav mest hittills**: lokalt normaliserad kantstyrka (dela gradienten med ett
 lokalt medel) så att kortkanten bedöms mot SIN omgivning i stället för mot
 bildens starkaste mönsterlinjer. Det angriper den uppmätta grundorsaken direkt,
 men förstärker också handdukens egen textur — utfallet är osäkert och det är
