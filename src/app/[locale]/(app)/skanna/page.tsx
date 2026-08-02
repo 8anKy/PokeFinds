@@ -45,6 +45,7 @@ import { formatPrice } from "@/lib/format";
 import { hasAuthHint } from "@/lib/auth-hint";
 import { registerFullscreenHost } from "@/lib/product-overlay-open";
 import { hapticImpact } from "@/lib/haptics";
+import { pickAlternatives } from "@/lib/scan-alternatives";
 import { useCameraControls } from "@/hooks/use-camera-controls";
 import {
   withDeviceId,
@@ -73,25 +74,6 @@ import {
   IconX,
 } from "@/components/ui/icons";
 
-/**
- * Hur många "kan det vara det här i stället?"-rader detaljvyn visar.
- *
- * Listan var OAVKORTAD. 92 % av katalogens kort delar namn med minst ett annat
- * (18 938 av 20 563), så en vanlig skanning radade upp tio kort och sköt ner
- * prisutvecklingen långt under vikningen — den syntes aldrig. Tre rader räcker
- * för det alternativen faktiskt är till för: att rätta en förväxling.
- */
-const MAX_ALTERNATIVES = 6;
-/**
- * Ett alternativ med ETT ANNAT NAMN är bara värt att visa om det ligger NÄRA
- * träffen. Poängen är en proxy för "såg likadant ut": ett kort långt under
- * träffen delade oftast bara ett namn-token ("Iron Valiant ex" drog in varje
- * Iron Hands) och är ingen förväxlingsrisk.
- * ⛔ Fönstret gallrar VISNINGEN, aldrig matchningen: kandidaterna räknas fram
- * precis som förut, och `onChoose` kan fortfarande välja vilken som helst.
- */
-const ALT_SCORE_WINDOW = 0.2;
-
 interface Candidate {
   cardId: string;
   name: string;
@@ -105,6 +87,8 @@ interface Candidate {
   /** "Unlimited" / "Shadowless" / "1st Edition" — null när kortet bara har en. */
   variantLabel: string | null;
   score: number;
+  /** Samma KONST som träffen (omtryck) — visas alltid, se alternatives-filtret. */
+  sameArt?: boolean;
   estimatedValue: number | null;
 }
 
@@ -2666,44 +2650,12 @@ function ScanDetailsSheet(props: {
   const t = useTranslations("Scanner");
   const tCond = useTranslations("Condition");
   const { item } = props;
-  const alternatives = useMemo(() => {
-    // Jämför på TRYCKNINGEN, inte bara kortet: de tre Base-produkterna delar
-    // cardId, så ett `cardId !==`-filter hade slängt ut precis de alternativ
-    // användaren behöver ("min är 1st Edition, inte Unlimited").
-    const others = item.candidates.filter((c) =>
-      item.match ? c.productId !== item.match.productId || c.cardId !== item.match.cardId : true
-    );
-    // Referensen är TRÄFFENS poäng när det finns en träff — inte listans topp.
-    // Frågan alternativen svarar på är "kan skannern ha tagit fel på just DET
-    // här kortet?", och det avgörs av avståndet till träffen.
-    const reference = item.match?.score ?? others[0]?.score ?? 0;
-    const matchName = item.match?.name.trim().toLowerCase();
-    return (
-      others
-        .filter((c) => {
-          // ⛔ SAMMA KORTNAMN VISAS ALLTID, oavsett poäng.
-          //
-          // Det är precis de korten som har SAMMA KONST i olika set/nummer, och
-          // det enda som skiljer dem är samlarnumret — alltså det svåraste att
-          // läsa på en skärmfotografering. När bildmatchningen känner sig säker
-          // får den vinnaren dessutom en förtroendebonus (ART_TRUST), vilket
-          // sköt syskonet långt utanför poängfönstret: rätt kort försvann ur
-          // listan och en felaktig träff gick INTE att rätta.
-          // MÄTT I FÄLT 2026-08-02: en bulk-fångst gav Raboot #27 där kortet var
-          // #37, omärkt som osäker och utan #37 bland alternativen.
-          // Fönstret gäller därför bara kort med ETT ANNAT namn.
-          if (matchName && c.name.trim().toLowerCase() === matchName) return true;
-          return reference - c.score <= ALT_SCORE_WINDOW;
-        })
-        // Namnsyskonen först: de är de troliga rättelserna, och listan kapas.
-        .sort((a, b) => {
-          const aSame = matchName ? Number(a.name.trim().toLowerCase() === matchName) : 0;
-          const bSame = matchName ? Number(b.name.trim().toLowerCase() === matchName) : 0;
-          return bSame - aSame || b.score - a.score;
-        })
-        .slice(0, MAX_ALTERNATIVES)
-    );
-  }, [item.candidates, item.match]);
+  // Regeln bor i lib/scan-alternatives.ts — ren och testad, för den avgör om
+  // en felmatchning går att RÄTTA och har felat i fält en gång.
+  const alternatives = useMemo(
+    () => pickAlternatives(item.candidates, item.match),
+    [item.candidates, item.match]
+  );
 
   return (
     <Sheet title={t("scanDetails")} onClose={props.onClose}>

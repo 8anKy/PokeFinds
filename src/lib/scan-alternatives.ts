@@ -1,0 +1,68 @@
+/**
+ * Vilka "kan det vara det här i stället?"-rader skanningens detaljvy visar.
+ *
+ * Egen ren modul för att regeln har FELAT I FÄLT en gång och är svår att se
+ * konsekvenserna av: den avgör om en felmatchning går att rätta eller inte.
+ * Utan test blir nästa justering av trösklarna en gissning.
+ */
+
+export interface AlternativeLike {
+  cardId: string;
+  productId: string | null;
+  name: string;
+  score: number;
+  /** Samma KONST som träffen (referensavtrycken nästan identiska). */
+  sameArt?: boolean;
+}
+
+/**
+ * Hur många rader som visas. Listan var OAVKORTAD, och eftersom 92 % av
+ * katalogens kort delar namn med minst ett annat radade en vanlig skanning upp
+ * tio kort och sköt ner prisutvecklingen under vikningen.
+ */
+export const MAX_ALTERNATIVES = 6;
+
+/**
+ * Ett alternativ med ANNAN konst visas bara om det ligger nära träffen i poäng.
+ * Ett kort långt under träffen delade oftast bara ett namn-token ("Iron Valiant
+ * ex" drog in varje Iron Hands) och är ingen förväxlingsrisk — att visa det får
+ * användaren att tvivla på en träff som var rätt.
+ */
+export const ALT_SCORE_WINDOW = 0.2;
+
+/**
+ * @param candidates Hela kandidatlistan från servern (inklusive träffen).
+ * @param match      Den valda träffen, eller null vid "ingen träff".
+ *
+ * ⛔ Gallrar VISNINGEN, aldrig matchningen: kandidaterna räknas fram precis som
+ * förut och anroparen kan fortfarande välja vilken som helst av dem.
+ */
+export function pickAlternatives<T extends AlternativeLike>(
+  candidates: readonly T[],
+  match: { cardId: string; productId: string | null; score: number } | null
+): T[] {
+  // Jämför på TRYCKNINGEN, inte bara kortet: de tre Base-produkterna delar
+  // cardId, så ett `cardId !==`-filter hade slängt ut precis de alternativ
+  // användaren behöver ("min är 1st Edition, inte Unlimited").
+  const others = candidates.filter((c) =>
+    match ? c.productId !== match.productId || c.cardId !== match.cardId : true
+  );
+  // Referensen är TRÄFFENS poäng när det finns en träff — inte listans topp.
+  // Frågan alternativen svarar på är "kan skannern ha tagit fel på just DET här
+  // kortet?", och det avgörs av avståndet till träffen.
+  const reference = match?.score ?? others[0]?.score ?? 0;
+
+  return others
+    .filter((c) =>
+      // SAMMA KONST VISAS ALLTID. Omtryck med identisk konst är precis de kort
+      // bildmatchningen inte KAN skilja åt — bara samlarnumret skiljer dem, och
+      // det är det svåraste att läsa på en skärmfotografering. Känner sig bilden
+      // säker får vinnaren dessutom en förtroendebonus (ART_TRUST 1,15), som
+      // sköt omtrycket långt utanför poängfönstret: rätt kort försvann ur listan
+      // och felmatchningen gick inte att rätta (Raboot #27/#37, fält 2026-08-02).
+      c.sameArt ? true : reference - c.score <= ALT_SCORE_WINDOW
+    )
+    // Omtrycken först: de är de troliga rättelserna, och listan kapas.
+    .sort((a, b) => Number(b.sameArt ?? false) - Number(a.sameArt ?? false) || b.score - a.score)
+    .slice(0, MAX_ALTERNATIVES);
+}

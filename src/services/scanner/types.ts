@@ -82,6 +82,17 @@ export interface ScanCandidate {
   variantLabel: string | null;
   /** Matchningspoäng 0..1. */
   score: number;
+  /**
+   * Har kandidaten SAMMA KONST som träffen? (Referensavtrycken är nästan
+   * identiska — se SAME_ART_MIN.)
+   *
+   * Omtryck med identisk konst är exakt de kort bildmatchningen inte KAN skilja
+   * åt: bara samlarnumret skiljer dem, och det är det svåraste att läsa. Därför
+   * visar detaljvyn dem ALLTID, oavsett poängfönster — annars går en felmatchning
+   * inte att rätta. `false` när bildmatchningen inte kördes eller kortet saknar
+   * avtryck; då gäller poängfönstret som vanligt.
+   */
+  sameArt?: boolean;
   /** Aktuellt marknadsvärde i öre (Cardmarket-trend via kortets produkt), om känt. */
   estimatedValue: number | null;
 }

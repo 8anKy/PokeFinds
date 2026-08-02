@@ -36,9 +36,19 @@ const MAX_CANDIDATES = 12;
 /** Hur många namn-syskon som hämtas in utöver de poängsatta kandidaterna. */
 const SIBLING_LIMIT = 12;
 
-/** Hur många av kandidatplatserna som GARANTERAS åt namn-syskon. Se
- *  reservationen i matchCards — utan den kan bildkandidaterna fylla hela taket
- *  och göra en felmatchning omöjlig att rätta. */
+/**
+ * Hur många av kandidatplatserna som GARANTERAS åt namn-syskon. Se
+ * reservationen i matchCards — utan den kan bildkandidaterna fylla hela taket
+ * och göra en felmatchning omöjlig att rätta.
+ *
+ * ⛔ Reservationen går på NAMN medan detaljvyns lista går på KONST (`sameArt`).
+ * Asymmetrin är avsiktlig: **var generös med vad som HÄMTAS, strikt med vad som
+ * VISAS.** Ett namnsyskon med annan konst är fortfarande en trolig rättelse
+ * (mätt fall: en Falinks ur Astral Radiance Trainer Gallery matchades som
+ * Falinks ur Stellar Crown — olika konst, samma namn), och att ha det i listan
+ * kostar ingenting när UI:t ändå filtrerar. Att INTE ha det gör kortet omöjligt
+ * att välja.
+ */
 const SIBLING_RESERVED = 4;
 
 /** Månadsgräns för sparade skanningar per plan (skyddar mot AI-missbruk + kostnad).
@@ -1167,6 +1177,39 @@ export async function matchCards(
       c.estimatedValue = cardValues.get(c.cardId) ?? null;
       c.slug = slugByCard.get(c.cardId) ?? null;
     }
+  }
+
+  /**
+   * SAMMA KONST SOM TRÄFFEN? — flaggan som styr vad detaljvyn alltid visar.
+   *
+   * Det är omtrycken med IDENTISK konst som bildmatchningen per definition inte
+   * kan skilja åt; det enda som skiljer dem är samlarnumret, dvs det svåraste
+   * att läsa på en skärmfotografering. De måste därför alltid gå att välja, och
+   * det är EN mycket smalare grupp än "samma namn" (ägarbeslut 2026-08-02:
+   * namnregeln gjorde listan onödigt lång).
+   *
+   * Tröskeln är `SAME_ART_MIN` — SAMMA konstant som omtryckssyskonens
+   * tie-break, kalibrerad mot verkliga fall: äkta omtryck 0,954–0,976, olika
+   * konst ≤ 0,638. Två tal på var sin sida om det gapet är samma beslut, och de
+   * ska inte kunna glida isär.
+   *
+   * ⛔ Bara när bildmatchningen FAKTISKT kördes (`artScores?.size`). Utan den
+   * guarden hade en ren textskanning tvingat fram en lat inläsning av hela
+   * 5,4 MB-indexet — precis den kostnaden lazy-laddningen finns för att undvika.
+   * Kort utan avtryck (132 med döda bild-URL:er uppströms) ger null → false, och
+   * faller tillbaka på detaljvyns poängfönster som förut.
+   */
+  if (artScores?.size) {
+    const sims = await Promise.all(
+      top.map((c) =>
+        c.cardId === winner.cardId
+          ? Promise.resolve(1)
+          : artPairSimilarity(winner.cardId, c.cardId)
+      )
+    );
+    top.forEach((c, i) => {
+      c.sameArt = (sims[i] ?? 0) >= SAME_ART_MIN;
+    });
   }
 
   return top;
