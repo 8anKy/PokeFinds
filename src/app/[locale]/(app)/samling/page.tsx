@@ -77,6 +77,10 @@ export default async function CollectionPage() {
 
   const rows: CollectionRow[] = items.map((item) => ({
     id: item.id,
+    // Bär med identiteten — gränssnittet grupperar POSTER (flera köp av samma
+    // vara) på den, aldrig på namnet.
+    cardId: item.cardId,
+    productId: item.productId,
     name: item.card?.name ?? item.product?.title ?? item.notes ?? t("unknownItem"),
     slug: item.product?.slug ?? (item.cardId ? slugByCard.get(item.cardId) ?? null : null),
     imageUrl: item.imageUrl ?? item.card?.imageUrl ?? item.product?.imageUrl ?? null,

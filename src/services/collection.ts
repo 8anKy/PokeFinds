@@ -55,7 +55,14 @@ export async function addCollectionItem(userId: string, input: CollectionItemInp
   const addQty = input.quantity ?? 1;
   // Stacka på befintlig identisk post istället för att skapa en ny (samma kort/produkt,
   // skick, språk och gradering = samma stack). ponytail: matchar på identitet, inte köppris.
-  const existing = await prisma.collectionItem.findFirst({
+  //
+  // ⛔ MEN BARA NÄR PRISET ÄR DETSAMMA (2026-08-02). Förut stacka­des ALLTID, och
+  // uppdateringen skrev bara `quantity` — ett nytt köp till ett ANNAT pris fick
+  // sitt inköpspris TYST KASTAT. Två köp till olika pris är två POSTER (lots);
+  // gränssnittet slår ihop dem till en rad med snittpris. Se lib/collection-lots.ts
+  // för varför snittet inte får bo i databasen (försäljningen behöver veta VILKET
+  // exemplar som såldes, och delvis prissatt data går inte att uttrycka i ett fält).
+  const stackable = await prisma.collectionItem.findFirst({
     where: {
       userId,
       cardId: input.cardId ?? null,
@@ -64,12 +71,15 @@ export async function addCollectionItem(userId: string, input: CollectionItemInp
       language: input.language ?? "EN",
       gradingCompany: input.gradingCompany ?? null,
       grade: input.grade ?? null,
+      // Samma pris — `null` matchar `null`, dvs två prislösa tillägg stackar
+      // som förut. Prisma jämför här exakt, precis som canStackOnto gör i JS.
+      purchasePrice: input.purchasePrice ?? null,
     },
   });
-  if (existing) {
+  if (stackable) {
     return prisma.collectionItem.update({
-      where: { id: existing.id },
-      data: { quantity: existing.quantity + addQty },
+      where: { id: stackable.id },
+      data: { quantity: stackable.quantity + addQty },
       include: COLLECTION_INCLUDE,
     });
   }

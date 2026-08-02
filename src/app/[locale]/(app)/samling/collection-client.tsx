@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { formatPrice, formatPercent, formatDate } from "@/lib/format";
@@ -14,10 +14,23 @@ import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { IconPackage, IconPlus, IconTrendingDown, IconTrendingUp } from "@/components/ui/icons";
+import {
+  IconChevronDown,
+  IconPackage,
+  IconPlus,
+  IconTrendingDown,
+  IconTrendingUp,
+} from "@/components/ui/icons";
 import { SellButton } from "./sell-on-tradera";
 import { parseKronorToOre } from "@/lib/purchase-price";
-import { oreToKr, profitToneClass, rowProfit } from "./profit";
+import {
+  groupCollectionLots,
+  groupProfit,
+  groupUnitValue,
+  oreToKr,
+  profitToneClass,
+  rowProfit,
+} from "./profit";
 
 export const CONDITION_LABELS: Record<string, string> = {
   MINT: "Mint",
@@ -40,6 +53,11 @@ export const LANGUAGE_LABELS: Record<string, string> = {
 
 export interface CollectionRow {
   id: string;
+  // Identiteten som avgör vilka POSTER som är samma vara (se lotKey i
+  // @/lib/collection-lots). Utan dem kan gränssnittet inte gruppera köp — och de
+  // får inte härledas ur namn/bild: två kort kan heta likadant.
+  cardId: string | null;
+  productId: string | null;
   name: string;
   slug: string | null; // produktsida att inspektera (singel → kortets billigaste produkt)
   imageUrl: string | null;
@@ -160,6 +178,21 @@ export function CollectionClient({
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [isPublic, setIsPublic] = useState(isPublicCollection);
+  // Utfällda grupper. Lokalt state, INGA URL-parametrar (se Caching/ISR i CLAUDE.md).
+  const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
+  const rowIdBase = useId();
+
+  // En tabellrad per VARA; flera köp av samma vara fälls ut som underrader.
+  const groups = useMemo(() => groupCollectionLots(items), [items]);
+
+  function toggleGroup(key: string) {
+    setOpenKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   // Kortsökning
   const [search, setSearch] = useState("");
@@ -585,7 +618,198 @@ export function CollectionClient({
             </TR>
           </THead>
           <TBody>
-            {items.map((item) => {
+            {groups.map((g, index) => {
+              const item = g.lots[0];
+              const multi = g.lots.length > 1;
+              const open = openKeys.has(g.key);
+              const lotRowId = (i: number) => `${rowIdBase}-lot-${index}-${i}`;
+
+              // Flera köp av samma vara → en grupprad med totaler + utfällbara köp.
+              if (multi) {
+                const groupPl = groupProfit(g.lots);
+                const unitValue = groupUnitValue(g.lots);
+                const partial = g.costedQuantity < g.quantity;
+                // Snittet får ALDRIG läsas som att det gäller alla exemplar — täcker det
+                // bara en del säger etiketten det rakt ut, och saknas pris helt står "–".
+                const avgLabel =
+                  g.averagePaid == null
+                    ? null
+                    : partial
+                      ? t("lotAvgPartial", {
+                          price: formatPrice(g.averagePaid),
+                          costed: g.costedQuantity,
+                          total: g.quantity,
+                        })
+                      : t("lotAvgPaid", { price: formatPrice(g.averagePaid) });
+                return (
+                  <Fragment key={g.key}>
+                    <TR>
+                      <TD className="font-medium">
+                        <div className="flex items-center gap-3">
+                          {item.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={item.imageUrl}
+                              alt=""
+                              className="h-12 w-9 shrink-0 rounded object-contain bg-surface"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span className="flex h-12 w-9 shrink-0 items-center justify-center rounded bg-surface text-ink-faint">
+                              <IconPackage size={16} aria-hidden="true" />
+                            </span>
+                          )}
+                          <span>{item.name}</span>
+                        </div>
+                      </TD>
+                      <TD className="text-ink-muted">{item.setName ?? "–"}</TD>
+                      <TD className="tabular-nums">{g.quantity}</TD>
+                      <TD>{item.condition in CONDITION_LABELS ? tCond(item.condition) : item.condition}</TD>
+                      <TD>{item.language in LANGUAGE_LABELS ? tLang(item.language) : item.language}</TD>
+                      {/* Snittet, med sitt underlag utskrivet. Ett snitt som tyst gäller
+                          1 av 4 exemplar är samma sorts lögn som ett saknat pris läst som 0. */}
+                      <TD data-price>
+                        {avgLabel == null ? (
+                          <span className="text-ink-faint" title={t("lotAvgUnknown")}>
+                            –
+                          </span>
+                        ) : (
+                          <span
+                            className={partial ? "text-ink-muted" : undefined}
+                            title={
+                              partial
+                                ? t("lotProfitPartialHint", {
+                                    costed: g.costedQuantity,
+                                    total: g.quantity,
+                                  })
+                                : undefined
+                            }
+                          >
+                            {avgLabel}
+                          </span>
+                        )}
+                      </TD>
+                      <TD data-price className="font-semibold">
+                        {formatPrice(unitValue)}
+                      </TD>
+                      <TD>
+                        {groupPl != null ? (
+                          <span
+                            className={`inline-flex items-center gap-1 text-sm font-medium tabular-nums ${profitToneClass(
+                              groupPl.amount
+                            )}`}
+                            title={
+                              partial
+                                ? t("lotProfitPartialHint", {
+                                    costed: g.costedQuantity,
+                                    total: g.quantity,
+                                  })
+                                : t("profitRowHint", { count: g.quantity })
+                            }
+                          >
+                            {groupPl.amount > 0 && <IconTrendingUp size={14} aria-hidden="true" />}
+                            {groupPl.amount < 0 && <IconTrendingDown size={14} aria-hidden="true" />}
+                            <span data-price>
+                              {groupPl.amount > 0 ? "+" : ""}
+                              {formatPrice(groupPl.amount)}
+                            </span>
+                            {groupPl.percent != null && (
+                              <span className="text-xs opacity-80">({formatPercent(groupPl.percent)})</span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-ink-faint" title={t("profitNoBasisHint")}>
+                            –
+                          </span>
+                        )}
+                      </TD>
+                      <TD>
+                        {item.gradingCompany && item.grade ? (
+                          <Badge variant="holo">
+                            {item.gradingCompany} {item.grade}
+                          </Badge>
+                        ) : (
+                          "–"
+                        )}
+                      </TD>
+                      {/* Gruppen är en VISNING — redigera/sälj/radera hör till en enskild
+                          post och bor därför i underraderna. Här finns bara utfällaren. */}
+                      <TD>
+                        <div className="flex justify-end">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-expanded={open}
+                            aria-controls={g.lots.map((_, i) => lotRowId(i)).join(" ")}
+                            onClick={() => toggleGroup(g.key)}
+                          >
+                            {t("lotCount", { count: g.lots.length })}
+                            <IconChevronDown
+                              size={16}
+                              className={`transition-transform ${open ? "rotate-180" : ""}`}
+                            />
+                          </Button>
+                        </div>
+                      </TD>
+                    </TR>
+                    {/* Underraderna ligger kvar i DOM:en även hopfällda — annars pekar
+                        utfällarens aria-controls på id:n som inte finns. */}
+                    {g.lots.map((lot, i) => {
+                        const lotPl = rowProfit(lot);
+                        return (
+                          <TR key={lot.id} id={lotRowId(i)} className={open ? "text-sm" : "hidden"}>
+                            {/* Underraden identifieras av sitt KÖPDATUM — det är det enda
+                                som skiljer två köp av samma vara åt för ögat. */}
+                            <TD className="pl-16 text-ink-muted">{formatDate(lot.purchaseDate)}</TD>
+                            <TD />
+                            <TD className="tabular-nums text-ink-muted">{lot.quantity}</TD>
+                            <TD />
+                            <TD />
+                            {/* formatPrice ger "–" för null: ett saknat pris är inte 0 kr. */}
+                            <TD data-price>{formatPrice(lot.purchasePrice)}</TD>
+                            <TD data-price>{formatPrice(lot.estimatedValue)}</TD>
+                            <TD>
+                              {lotPl != null ? (
+                                <span
+                                  className={`inline-flex items-center gap-1 text-sm tabular-nums ${profitToneClass(
+                                    lotPl.amount
+                                  )}`}
+                                >
+                                  <span data-price>
+                                    {lotPl.amount > 0 ? "+" : ""}
+                                    {formatPrice(lotPl.amount)}
+                                  </span>
+                                  {lotPl.percent != null && (
+                                    <span className="text-xs opacity-80">
+                                      ({formatPercent(lotPl.percent)})
+                                    </span>
+                                  )}
+                                </span>
+                              ) : (
+                                <span className="text-ink-faint" title={t("profitNoBasisHint")}>
+                                  –
+                                </span>
+                              )}
+                            </TD>
+                            <TD />
+                            <TD>
+                              <div className="flex justify-end gap-2">
+                                <SellButton row={lot} />
+                                <Button size="sm" variant="ghost" onClick={() => openEdit(lot)}>
+                                  {tc("edit")}
+                                </Button>
+                                <Button size="sm" variant="danger" onClick={() => setDeleting(lot)}>
+                                  {tc("delete")}
+                                </Button>
+                              </div>
+                            </TD>
+                          </TR>
+                        );
+                      })}
+                  </Fragment>
+                );
+              }
+
               const profit = rowProfit(item);
               return (
                 <TR key={item.id}>
