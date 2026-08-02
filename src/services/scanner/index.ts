@@ -36,6 +36,11 @@ const MAX_CANDIDATES = 12;
 /** Hur många namn-syskon som hämtas in utöver de poängsatta kandidaterna. */
 const SIBLING_LIMIT = 12;
 
+/** Hur många av kandidatplatserna som GARANTERAS åt namn-syskon. Se
+ *  reservationen i matchCards — utan den kan bildkandidaterna fylla hela taket
+ *  och göra en felmatchning omöjlig att rätta. */
+const SIBLING_RESERVED = 4;
+
 /** Månadsgräns för sparade skanningar per plan (skyddar mot AI-missbruk + kostnad).
  *  Per-scan vision-anrop är enda rörliga kostnaden; månadstak (inte dygnstak) är det
  *  som faktiskt binder kostnaden mot Pro-priset ($4,99/mån). Haiku ≈ $0,0025/scan. */
@@ -1101,16 +1106,41 @@ export async function matchCards(
   };
   const releasedOf = new Map(merged.map((m) => [m.candidate.cardId, m.released]));
 
-  const top = withPrintings
-    .sort(
-      (a, b) =>
-        tierOf(a) - tierOf(b) ||
-        b.score - a.score ||
-        (releasedOf.get(b.cardId) ?? 0) - (releasedOf.get(a.cardId) ?? 0) ||
-        (a.variantLabel ?? "").localeCompare(b.variantLabel ?? "") ||
-        a.cardId.localeCompare(b.cardId)
-    )
-    .slice(0, MAX_CANDIDATES);
+  const sorted = withPrintings.sort(
+    (a, b) =>
+      tierOf(a) - tierOf(b) ||
+      b.score - a.score ||
+      (releasedOf.get(b.cardId) ?? 0) - (releasedOf.get(a.cardId) ?? 0) ||
+      (a.variantLabel ?? "").localeCompare(b.variantLabel ?? "") ||
+      a.cardId.localeCompare(b.cardId)
+  );
+
+  /**
+   * RESERVERADE PLATSER ÅT NAMNSYSKONEN.
+   *
+   * Syskonen ligger i skikt 3, under bildkandidaterna (skikt 2) — och en
+   * bulk-cell kan ha upp till ART_CANDIDATES kort över ART_STRONG. Då fyller
+   * skikt 2 hela taket och syskonen faller ur listan, vilket är exakt det fall
+   * användaren MÅSTE kunna rätta: samma konst, olika samlarnummer.
+   * MÄTT I FÄLT 2026-08-02: en bulk-fångst gav Raboot #27 där kortet var #37 —
+   * omärkt som osäker, och #37 gick inte att välja.
+   *
+   * ⛔ Reservationen ändrar inte ORDNINGEN, bara vilka som får plats: listan
+   * lämnas sorterad, syskonen garanteras sina platser och de sämsta ÖVRIGA
+   * trängs ut i stället. Vinnaren (skikt 1) är per definition inte ett syskon
+   * och rör sig aldrig.
+   */
+  const siblingSet = new Set(
+    sorted.filter((c) => c.cardId !== winner.cardId && c.name.toLowerCase() === winnerName)
+      .slice(0, SIBLING_RESERVED)
+  );
+  const otherRank = new Map(
+    sorted.filter((c) => !siblingSet.has(c)).map((c, i) => [c, i] as const)
+  );
+  const otherBudget = MAX_CANDIDATES - siblingSet.size;
+  const top = sorted.filter(
+    (c) => siblingSet.has(c) || (otherRank.get(c) ?? Number.POSITIVE_INFINITY) < otherBudget
+  );
 
   // Värde + djuplänk. Kandidater som pekar på en SPECIFIK tryckning värderas på
   // sin egen produkt — annars hade alla tre Base-tryckningarna visat samma pris

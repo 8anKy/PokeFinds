@@ -31,7 +31,10 @@ const schema = z.object({
         structFingerprints: z.array(z.string().min(1).max(2048)).max(8).optional(),
       })
     )
-    .max(12),
+    // ⛔ MÅSTE följa BULK_MAX_CARDS i skanna/page.tsx. Zod avvisar HELA anropet
+    // när taket överskrids, inte bara överskottet — ligger det lägre än
+    // klientens tak misslyckas varje stor fångst med 400 i stället för att kapas.
+    .max(20),
   /**
    * ADMIN-FELSÖKNING: detekteringsbilden (~480 px JPEG) + antal funna
    * regioner. Bordsfångster går inte att felsöka mot syntetiska modeller —

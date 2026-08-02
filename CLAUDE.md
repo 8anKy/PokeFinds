@@ -470,8 +470,29 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   inte upp förrän efter animationen), långtryck för att kopiera namnet (ticket kommer NÄR gesten löser ut, medan
   fingret ligger kvar — kopian sker fortfarande på pointerup) och grafens skrubb (fingret täcker sin egen
   träffpunkt). ⚠️ **`navigator.vibrate` finns INTE i iOS Safari/WKWebView** — på iPhone händer ingenting, tyst och
-  utan fel. iOS-haptik kräver `@capacitor/haptics`, alltså ett NYTT NATIVE-BYGGE, inte bara en deploy; byggs det
-  ska det implementeras bakom samma tre funktioner så inget anropsställe rörs.
+  utan fel. **Därför finns `@capacitor/haptics` sedan 2026-08-02**: modulen försöker plugin:et FÖRST (Taptic
+  Engine på iOS, bättre känsla även på Android) och faller till `navigator.vibrate`. ⛔ Plugin:et nås via
+  BRYGGAN (`Capacitor.Plugins.Haptics`), aldrig via `import` — samma mönster som Keyboard-plugin:et, av samma
+  skäl: koden körs också på webben där paketet inte har någon native-sida, och en statisk import hade dragit in
+  modulen i webbuntet i onödan. ⚠️ **iOS är tyst tills `npx cap sync` körts och appen byggts om (Codemagic) —
+  en `git push` räcker INTE.**
+- **BULK-TAKET ÄR VÅRT EGET TAL OCH BOR PÅ TRE STÄLLEN (2026-08-02)**: `BULK_MAX_CARDS` i skanna/page.tsx (vad
+  klienten skickar), `cells.max(N)` i `/api/scanner/identify-bulk` (vad servern accepterar) och
+  `BULK_DETECTOR_MAX_CARDS` i lib/camera-controls.ts (vad zoom-rekommendationen klampas mot). Höjt 12 → **20**
+  sedan ägaren la ut 15 kort två gånger och fick 12 varje gång — det LÄSTE som en detekteringsmiss men var
+  raden. ⛔ Glider de tre isär blir felet TYST: ett för lågt Zod-tak avvisar HELA fångsten med 400 (inte bara
+  överskottet), ett för lågt klient-tak kapar korten utan förklaring. `tests/unit/bulk-cap-sync.test.ts` vaktar
+  att de är samma tal. ⚠️ Höjningen ÖPPNAR för 20 — den bevisar inte att 20 fungerar lika bra som 12 (färre
+  pixlar per kort, smalare springor att detektera). Kostnaden är linjär: ~4 avtryckssökningar per cell.
+- **NAMNSYSKON HAR GARANTERADE PLATSER I KANDIDATLISTAN (2026-08-02)**: `SIBLING_RESERVED`=4 i
+  `matchCards`. Syskonen ligger i skikt 3, UNDER bildkandidaterna (skikt 2), och en bulk-cell kan ha upp till
+  `ART_CANDIDATES` kort över `ART_STRONG` — då fyller skikt 2 hela taket och syskonen faller ur listan. Det är
+  exakt det fall användaren måste kunna rätta: **samma konst, olika samlarnummer**. MÄTT I FÄLT: en bulk-fångst
+  gav Raboot #27 där kortet var #37, omärkt som osäker och utan #37 bland alternativen. Reservationen ändrar inte
+  ORDNINGEN, bara vilka som får plats. I UI:t (`skanna/page.tsx`) visas dessutom **kort med SAMMA NAMN alltid**,
+  oavsett poängfönstret — förtroendebonusen (ART_TRUST 1,15) skjuter annars syskonet långt utanför
+  `ALT_SCORE_WINDOW`, vilket var precis vad som gjorde felmatchningen omöjlig att rätta. Fönstret gäller bara
+  kort med ETT ANNAT namn. `MAX_ALTERNATIVES` 3 → 6 så flera tryckningar ryms.
 - **BULK VID 0,5× ÄR FÄLTVERIFIERAT PÅ 12 KORT (ägaren 2026-08-02)**: tolv kort i EN fångst, alla tolv rätt
   identifierade. Farhågan i `ZOOM_PRESET_MAX_CARDS` — att pixelbudgeten (~1/12 av bilden per kort) skulle fälla
   det — besannades INTE, och det är väntat efter bildmatchningen: avtrycket läser FÄRGLAYOUT, inte det ~2 mm höga

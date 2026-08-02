@@ -81,14 +81,12 @@ import {
  * prisutvecklingen långt under vikningen — den syntes aldrig. Tre rader räcker
  * för det alternativen faktiskt är till för: att rätta en förväxling.
  */
-const MAX_ALTERNATIVES = 3;
+const MAX_ALTERNATIVES = 6;
 /**
- * Ett alternativ är bara värt att visa om det ligger NÄRA träffen.
- *
- * Poängen är en proxy för "såg likadant ut": ett kort som ligger långt under
+ * Ett alternativ med ETT ANNAT NAMN är bara värt att visa om det ligger NÄRA
+ * träffen. Poängen är en proxy för "såg likadant ut": ett kort långt under
  * träffen delade oftast bara ett namn-token ("Iron Valiant ex" drog in varje
- * Iron Hands) och är ingen förväxlingsrisk. Att visa det ändå är värre än att
- * utelämna det — det får en användare att tvivla på en träff som var rätt.
+ * Iron Hands) och är ingen förväxlingsrisk.
  * ⛔ Fönstret gallrar VISNINGEN, aldrig matchningen: kandidaterna räknas fram
  * precis som förut, och `onChoose` kan fortfarande välja vilken som helst.
  */
@@ -497,7 +495,30 @@ const BULK_INSETS = [0, 0.04, 0.08] as const;
  *  Höjningen ändrar INTE detekteringen i sig (masken är fortfarande 240, bara
  *  bättre medelvärdesbildad); den gör nästa fältrunda mätbar. */
 const BULK_DETECT_MAX = 960;
-const BULK_MAX_CARDS = 12;
+/**
+ * Taket för hur många kort EN bulk-fångst tar. **Vårt eget tal, ingen fysisk
+ * gräns** — `detectCardRegions` kapar helt enkelt listan här.
+ *
+ * 12 → 20 (2026-08-02): ägaren la ut 15 kort två gånger och fick 12 varje gång,
+ * vilket LÄSTE som en detekteringsmiss men var den här raden. 12 var satt när
+ * fältrundorna handlade om 5-6 kort; 12 kort är sedan dess verifierat i fält
+ * (alla tolv rätt identifierade), så taket var det som stod ivägen, inte
+ * igenkänningen.
+ *
+ * ⛔ ÄNDRAS DEN HÄR MÅSTE TVÅ ANDRA STÄLLEN FÖLJA MED, annars kapas fångsten
+ * ändå — tyst: `cells`-schemats `.max()` i /api/scanner/identify-bulk (Zod
+ * avvisar HELA anropet, inte bara överskottet) och `BULK_DETECTOR_MAX_CARDS` i
+ * lib/camera-controls.ts (som klampar zoom-förvalens rekommendation; ett test
+ * vaktar att de inte glider isär).
+ *
+ * ⚠️ Kostnaden är linjär i antalet celler: varje cell gör ~4 avtryckssökningar
+ * mot indexet i minnet, så 20 celler ≈ 80 sökningar per anrop mot 12 cellers
+ * ~48. Ingen ny Neon-läsning (bilden ger kort-id), men CPU per anrop stiger.
+ * ⚠️ OMÄTT över 12: fler kort i samma ruta ger färre pixlar per kort, och
+ * detekteringen måste hitta smalare springor mellan dem. Höjningen ÖPPNAR för
+ * 20, den lovar inte att 20 fungerar lika bra som 12.
+ */
+const BULK_MAX_CARDS = 20;
 
 interface BulkCell {
   /** Cellens utsnitt (med liten marginal) — vision-bild + miniatyr. */
@@ -2656,9 +2677,32 @@ function ScanDetailsSheet(props: {
     // Frågan alternativen svarar på är "kan skannern ha tagit fel på just DET
     // här kortet?", och det avgörs av avståndet till träffen.
     const reference = item.match?.score ?? others[0]?.score ?? 0;
-    return others
-      .filter((c) => reference - c.score <= ALT_SCORE_WINDOW)
-      .slice(0, MAX_ALTERNATIVES);
+    const matchName = item.match?.name.trim().toLowerCase();
+    return (
+      others
+        .filter((c) => {
+          // ⛔ SAMMA KORTNAMN VISAS ALLTID, oavsett poäng.
+          //
+          // Det är precis de korten som har SAMMA KONST i olika set/nummer, och
+          // det enda som skiljer dem är samlarnumret — alltså det svåraste att
+          // läsa på en skärmfotografering. När bildmatchningen känner sig säker
+          // får den vinnaren dessutom en förtroendebonus (ART_TRUST), vilket
+          // sköt syskonet långt utanför poängfönstret: rätt kort försvann ur
+          // listan och en felaktig träff gick INTE att rätta.
+          // MÄTT I FÄLT 2026-08-02: en bulk-fångst gav Raboot #27 där kortet var
+          // #37, omärkt som osäker och utan #37 bland alternativen.
+          // Fönstret gäller därför bara kort med ETT ANNAT namn.
+          if (matchName && c.name.trim().toLowerCase() === matchName) return true;
+          return reference - c.score <= ALT_SCORE_WINDOW;
+        })
+        // Namnsyskonen först: de är de troliga rättelserna, och listan kapas.
+        .sort((a, b) => {
+          const aSame = matchName ? Number(a.name.trim().toLowerCase() === matchName) : 0;
+          const bSame = matchName ? Number(b.name.trim().toLowerCase() === matchName) : 0;
+          return bSame - aSame || b.score - a.score;
+        })
+        .slice(0, MAX_ALTERNATIVES)
+    );
   }, [item.candidates, item.match]);
 
   return (

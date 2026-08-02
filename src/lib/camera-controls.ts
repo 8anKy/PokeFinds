@@ -116,7 +116,7 @@ export interface ZoomPresetOption {
  * därifrån — det är en sid-modul). Ändras den där måste den ändras här;
  * `camera-controls.test.ts` vaktar åtminstone att tabellen aldrig går ÖVER taket.
  */
-export const BULK_DETECTOR_MAX_CARDS = 12;
+export const BULK_DETECTOR_MAX_CARDS = 20;
 
 /**
  * Antal kort som ryms i rutan vid 1× på ett normalt handhållet avstånd.
@@ -138,9 +138,12 @@ export const BULK_ANCHOR_CARDS_AT_1X = 6;
  * Härledningen är ren geometri: synfältets LINJÄRA bredd skalar ~1/zoom, alltså
  * skalar YTAN ~1/zoom², och antal kort som får plats skalar med ytan. Från
  * ankaret 6 kort vid 1×:
- *   0,5× → 6 / 0,5² = 24  → KLAMPAT till detektorns tak (12) — nu bekräftat
+ *   0,5× → 6 / 0,5² = 24  → KLAMPAT till detektorns tak (20)
  *   1×   → 6
  *   2×   → 6 × 0,5² = 1,5 → 1 (2× är i praktiken ett enkortsläge)
+ * ⚠️ 0,5×-rekommendationen steg 12 → 20 när detektorns tak höjdes, men BEVISET
+ * gäller fortfarande bara 12. Geometrin säger 24, så 20 ligger under den — men
+ * ingen har lagt ut 20 kort och räknat träffarna.
  *
  * Kvar att mäta: om 12 är ett TAK eller bara det högsta någon råkat prova
  * (detektorns eget tak är 12, så fler kort går inte att testa utan att höja
