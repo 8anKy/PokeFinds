@@ -19,6 +19,12 @@
  * uppmätta $0,0037. En OMFORMAD närbild (kortsidan ≥ ~2/3 av långsidan) sänker
  * notan mer än ett modellbyte — men ändra INTE bilderna samtidigt som modellen,
  * då går utfallet inte att tillskriva någondera.
+ *
+ * ⛔ 2.5-SERIEN ÄR SPÄRRAD FÖR NYA API-NYCKLAR (mätt i fält 2026-08-02: "not
+ * available for new users", tre celler i rad). Google hänvisar nya nycklar till
+ * 3.x. Standard är därför `gemini-3.1-flash-lite` ($0,00144/anrop = 2,6x
+ * billigare än Haiku), inte 2.5 Flash-Lite ($0,00055 = 6,7x) som inte går att
+ * nå. Kontrollera tillgängligheten INNAN en modell sätts som default.
  */
 import { ServiceError } from "@/lib/errors";
 import type { OcrAdapter, OcrResult } from "@/services/scanner/types";

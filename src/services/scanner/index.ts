@@ -156,11 +156,16 @@ export function getOcrAdapter(precise = false): OcrAdapter {
     // (dataminimering), bara avtryck + modellens text. Ett modellbyte måste
     // alltså mätas med NYA fältskanningar — kör scanner-telemetry/-scoreboard
     // före och efter, och byt bara EN sak i taget.
+    // ⛔ 2.5-SERIEN GÅR INTE ATT ANVÄNDA MED EN NY API-NYCKEL (mätt 2026-08-02):
+    // Google spärrar 2.5 för nyskapade nycklar och hänvisar till 3.x. Vår
+    // första default (gemini-2.5-flash-lite) föll därför på "not available for
+    // new users" i fält — tre celler i rad. Kostnadstabellen i docs/SCANNER.md
+    // är uppdaterad: 3.1 Flash-Lite är 2,6x billigare än Haiku, inte 6,7x.
     case "gemini":
       return new GeminiVisionOcrAdapter(
         precise
-          ? process.env.SCANNER_MODEL_PRECISE ?? "gemini-2.5-flash"
-          : process.env.SCANNER_MODEL ?? "gemini-2.5-flash-lite"
+          ? process.env.SCANNER_MODEL_PRECISE ?? "gemini-3.5-flash"
+          : process.env.SCANNER_MODEL ?? "gemini-3.1-flash-lite"
       );
     default:
       throw new ServiceError(

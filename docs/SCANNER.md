@@ -61,7 +61,7 @@ av någon kod; den kan tas bort.
 | `OCR_PROVIDER` | Nyckel | Standardmodell (`SCANNER_MODEL`) | Kostnad/anrop |
 |---|---|---|---|
 | `claude` | `ANTHROPIC_API_KEY` | `claude-haiku-4-5` | **$0,0037** (mätt) |
-| `gemini` | `GEMINI_API_KEY` | `gemini-2.5-flash-lite` | **$0,00055** (beräknad) |
+| `gemini` | `GEMINI_API_KEY` | `gemini-3.1-flash-lite` | **$0,00144** (beräknad) |
 | `mock` | — | — | 0 |
 
 `gemini` finns för att KOSTNADEN skiljer kraftigt, men träffsäkerheten (läser
@@ -86,6 +86,22 @@ inte bilderna och modellen samtidigt.
 
 Gratisnivå finns för Gemini-modellerna (hårt rate-limitad) — 429 rapporteras
 uttryckligen som kvot/rate limit så det inte läses som en modellmiss.
+
+⛔ **2.5-serien går INTE att använda med en NY API-nyckel.** Google spärrar den
+för nyskapade nycklar ("not available for new users") och hänvisar till 3.x.
+Mätt i fält 2026-08-02: tre celler i rad föll på det med
+`gemini-2.5-flash-lite`. Kostnad per anrop mot vår egen last (~4850 in-tokens,
+152 ut) för de modeller som FAKTISKT går att välja:
+
+| modell | in/ut $ per 1M | per anrop | mot Haiku ($0,0037) |
+|---|---|---|---|
+| `gemini-3.1-flash-lite` | 0,25 / 1,50 | **$0,00144** | 2,6x billigare |
+| `gemini-3.5-flash-lite` | 0,30 / 2,50 | $0,00184 | 2,0x billigare |
+| `gemini-3.6-flash` | 1,50 / 7,50 | $0,0084 | 2,3x DYRARE |
+| `gemini-3.5-flash` | 1,50 / 9,00 | $0,0087 | 2,4x DYRARE |
+
+⛔ Kontrollera ALLTID att modellen går att nå med en färsk nyckel innan den
+sätts som default — prislistan visar modeller som API:t inte lämnar ut.
 
 `OCR_PROVIDER=mock` (standard) använder `MockOcrAdapter`
 (`src/services/scanner/ocr-mock.ts`) — en utvecklingsmock som slumpar fram
