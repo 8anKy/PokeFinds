@@ -27,9 +27,10 @@ Klient (/skanna)
    ```ts
    export class GoogleVisionAdapter implements OcrAdapter {
      readonly name = "google-vision";
-     async extractCardInfo(imageDataUrl: string): Promise<OcrResult> {
-       // Anropa leverantörens API med process.env.OCR_API_KEY
-       // och mappa svaret till { rawText, guessedName, guessedNumber, confidence }.
+     async extractCardInfo(imageDataUrl: string, detailDataUrl?: string): Promise<OcrResult> {
+       // Anropa leverantörens API med en EGEN nyckel-variabel
+       // (t.ex. process.env.MIN_LEVERANTOR_API_KEY) och lämna de råa
+       // verktygsfälten till buildOcrResult() i vision-contract.ts.
      }
    }
    ```
@@ -37,16 +38,23 @@ Klient (/skanna)
 2. Registrera adaptern i `getOcrAdapter()` (`src/services/scanner/index.ts`):
 
    ```ts
-   case "google-vision":
-     return new GoogleVisionAdapter();
+   case "min-leverantor":
+     return new MinLeverantorAdapter(process.env.SCANNER_MODEL ?? "…");
    ```
 
 3. Sätt miljövariabler:
 
    ```env
-   OCR_PROVIDER=google-vision
-   OCR_API_KEY=...
+   OCR_PROVIDER=min-leverantor
+   MIN_LEVERANTOR_API_KEY=...
    ```
+
+⛔ **Det finns INGEN generisk `OCR_API_KEY`.** Varje adapter läser sin EGEN
+nyckel — `ANTHROPIC_API_KEY` för `claude`, `GEMINI_API_KEY` för `gemini` — så
+att två leverantörer kan vara konfigurerade samtidigt och bytet är EN variabel
+(`OCR_PROVIDER`) utan att någon nyckel behöver klistras om. En tom
+`OCR_API_KEY` i miljön är ett arv från ett gammalt exempel här och läses inte
+av någon kod; den kan tas bort.
 
 ### Leverantörer
 
