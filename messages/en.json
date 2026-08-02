@@ -620,6 +620,7 @@
     "pro": "PRO",
     "free": "FREE",
     "scansLeft": "{count, plural, =1 {1 scan left} other {# scans left}}",
+    "scansUnlimited": "Unlimited scans",
     "renewsNextMonth": "Renews next month",
     "tapForMore": "Tap here for more with Pro",
     "startingCamera": "Starting the camera…",

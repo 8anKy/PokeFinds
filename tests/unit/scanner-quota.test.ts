@@ -33,17 +33,38 @@ const PNG =
 
 describe("getScannerQuota", () => {
   it("FREE = 30/månad default", async () => {
-    count.mockResolvedValue(3);
+    // Två count-anrop: alla jobb, sedan de bildlöst avgjorda som ska DRAS BORT.
+    count.mockResolvedValueOnce(3).mockResolvedValueOnce(0);
     expect(await getScannerQuota("u1", "FREE")).toEqual({ used: 3, limit: 30, remaining: 27 });
   });
 
-  it("PREMIUM = 100/månad default", async () => {
-    count.mockResolvedValue(10);
-    expect(await getScannerQuota("u1", "PREMIUM")).toEqual({ used: 10, limit: 100, remaining: 90 });
+  it("PREMIUM = skäligt tak (1500) i stället för en produktgräns", async () => {
+    count.mockResolvedValueOnce(10).mockResolvedValueOnce(0);
+    expect(await getScannerQuota("u1", "PREMIUM")).toEqual({
+      used: 10,
+      limit: 1500,
+      remaining: 1490,
+    });
+  });
+
+  it("SKANNINGAR SOM BILDEN AVGJORDE ÄTER INGEN KVOT", async () => {
+    // Kvoten binder VISION-kostnaden. En skanning som bildmatchningen avgjorde
+    // själv (provider "bild") kostade ingenting, och att räkna den vore en tyst
+    // avgift för den billiga vägen — mätt 2026-08-02 avgörs ~hälften av korten
+    // i en bulk-fångst så.
+    count.mockResolvedValueOnce(10).mockResolvedValueOnce(6);
+    const q = await getScannerQuota("u1", "FREE");
+    expect(q.used).toBe(4);
+    expect(q.remaining).toBe(26);
+    // Andra frågan filtrerar uttryckligen på provider "bild".
+    expect(count.mock.calls[1][0].where.result).toEqual({
+      path: ["provider"],
+      equals: "bild",
+    });
   });
 
   it("räknar bara denna månads icke-misslyckade jobb", async () => {
-    count.mockResolvedValue(0);
+    count.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
     await getScannerQuota("u1", "FREE");
     const where = count.mock.calls[0][0].where;
     expect(where.status).toEqual({ not: "FAILED" });
@@ -89,7 +110,8 @@ describe("isIntroScan", () => {
 
 describe("runScannerJob", () => {
   it("blockerar vid månadsgränsen (429) innan jobbet skapas", async () => {
-    count.mockResolvedValue(30);
+    // 30 jobb varav 0 bildlöst avgjorda → 30 vision-anrop = FREE-taket.
+    count.mockResolvedValueOnce(30).mockResolvedValueOnce(0);
     await expect(runScannerJob("u1", "FREE", PNG)).rejects.toMatchObject({ status: 429 });
   });
 });

@@ -42,10 +42,14 @@ const SIBLING_LIMIT = 12;
 function scannerLimitForTier(planTier: PlanTier): number {
   const env =
     planTier === "PREMIUM"
-      ? process.env.SCANNER_PREMIUM_MONTHLY_LIMIT ?? "100"
+      ? process.env.SCANNER_PREMIUM_MONTHLY_LIMIT ?? String(PREMIUM_FAIR_USE)
       : process.env.SCANNER_FREE_MONTHLY_LIMIT ?? "30";
   const n = Number(env);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : planTier === "PREMIUM" ? 100 : 30;
+  return Number.isFinite(n) && n > 0
+    ? Math.floor(n)
+    : planTier === "PREMIUM"
+      ? PREMIUM_FAIR_USE
+      : 30;
 }
 
 function startOfMonthUtc(): Date {
@@ -61,6 +65,22 @@ export interface ScannerQuota {
   remaining: number;
 }
 
+/**
+ * PRO = "obegränsat" i marknadsföringen, med ett SKÄLIGT TAK i koden.
+ *
+ * Talet är satt på MÄTT kostnad, inte på känsla: ett vision-anrop kostar
+ * $0,00102 (Gemini 3.1 Flash-Lite, uppmätt 2026-08-02 mot vår egen last), så
+ * 1500 anrop är ~$1,53 mot Pro-intäkten 49 kr (~$4,60) — en tredjedel i värsta
+ * fall, och taket nås av ingen normal användare: ungefär hälften av korten i en
+ * bulk-fångst avgörs av BILDEN (gratis, räknas inte), så 1500 anrop motsvarar
+ * ~3000 skannade kort i månaden.
+ *
+ * ⛔ Taket är inte en produktgräns utan ett SKYDD mot en skenande loop eller ett
+ * kapat konto. Träffas det ska det synas i loggen, inte tolkas som att en
+ * kund skannar för mycket.
+ */
+const PREMIUM_FAIR_USE = 1500;
+
 /** Månadens skanningskvot (misslyckade/no-match-jobb räknas inte). */
 export async function getScannerQuota(
   userId: string,
@@ -72,9 +92,26 @@ export async function getScannerQuota(
 ): Promise<ScannerQuota> {
   const limit =
     role === "ADMIN" || role === "SUPERADMIN" ? 100000 : scannerLimitForTier(planTier);
-  const used = await prisma.scannerJob.count({
-    where: { userId, createdAt: { gte: startOfMonthUtc() }, status: { not: "FAILED" } },
-  });
+  // ⛔ KVOTEN RÄKNAR VISION-ANROP, INTE RADER. Kvoten finns för att binda
+  // vision-KOSTNADEN mot intäkten, och en skanning som bildmatchningen avgjorde
+  // själv (provider "bild") kostade ingenting — den ska inte äta kvot. MÄTT
+  // 2026-08-02: ungefär hälften av korten i en bulk-fångst avgörs så, och 24 av
+  // 24 sådana var rätt. Att räkna dem var en tyst avgift för den BILLIGA vägen.
+  const since = startOfMonthUtc();
+  const [rows, freeRows] = await Promise.all([
+    prisma.scannerJob.count({
+      where: { userId, createdAt: { gte: since }, status: { not: "FAILED" } },
+    }),
+    prisma.scannerJob.count({
+      where: {
+        userId,
+        createdAt: { gte: since },
+        status: { not: "FAILED" },
+        result: { path: ["provider"], equals: "bild" },
+      },
+    }),
+  ]);
+  const used = Math.max(0, rows - freeRows);
   return { used, limit, remaining: Math.max(0, limit - used) };
 }
 

@@ -1524,7 +1524,11 @@ function QuotaBadge({ quota, onUpgrade }: { quota: ScanQuota; onUpgrade: () => v
   const body = (
     <span className="min-w-0 text-left">
       <span className="block text-sm font-semibold text-ink">
-        {t("scansLeft", { count: remaining })}
+        {/* Pro säljs som OBEGRÄNSAT — då ska ingen nedräkning visas. Taket i
+            koden är ett skydd mot skenande loopar, inte en produktgräns, och en
+            siffra här hade läst som "du har X kvar" av en kund som betalat för
+            obegränsat. Träffas taket säger felmeddelandet det då det händer. */}
+        {isPremium ? t("scansUnlimited") : t("scansLeft", { count: remaining })}
       </span>
       <span className="block text-xs text-ink-muted">
         {isPremium ? t("renewsNextMonth") : t("tapForMore")}
