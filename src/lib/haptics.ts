@@ -36,8 +36,19 @@ type ImpactStyle = "LIGHT" | "MEDIUM" | "HEAVY";
 
 interface HapticsBridge {
   impact?: (opts: { style: ImpactStyle }) => Promise<void>;
-  selectionChanged?: () => Promise<void>;
 }
+
+/**
+ * Minsta avstånd mellan två glide-tick.
+ *
+ * Taptic Engine hinner inte återgå mellan pulser som ligger tätare än så, och
+ * iOS SLÄPPER då de överflödiga — resultatet blir färre kännbara vibrationer,
+ * inte fler. Ett snabbt finger över grafen passerar lätt flera datapunkter på
+ * en tiondels sekund, så utan spärren tävlar tick:en med varandra i stället för
+ * att kännas. Gäller bara glide; tick/impact utlöses av enstaka gester.
+ */
+const GLIDE_MIN_GAP_MS = 45;
+let lastGlideAt = 0;
 
 function bridge(): HapticsBridge | null {
   const plugins = (globalThis as { Capacitor?: { Plugins?: Record<string, unknown> } }).Capacitor
@@ -86,10 +97,22 @@ export function hapticTick(): void {
  * och batteriet betalar för det. Anroparen ska jämföra mot förra värdet först.
  */
 export function hapticGlide(): void {
-  // `selectionChanged` är precis den här gesten i plattformarnas egen vokabulär
-  // (iOS selection feedback) — den är svagare och tätare tillåten än en impact,
-  // vilket är vad ett finger som glider längs en graf ska kännas som.
-  buzz(GLIDE, (h) => h.selectionChanged?.() ?? h.impact?.({ style: "LIGHT" }));
+  // ⛔ ANVÄND INTE `selectionChanged()` HÄR.
+  //
+  // Den ÄR plattformarnas egen vokabulär för precis den här gesten, men på iOS
+  // skapas `UISelectionFeedbackGenerator` först i `selectionStart()` — anropas
+  // `selectionChanged()` utan den är den en TYST NO-OP. Inget fel, ingen
+  // vibration. Mätt i fält 2026-08-02: långtrycken (som använder `impact`)
+  // kändes på iPhone, graferna kändes inte alls, och det var enda skillnaden.
+  //
+  // Att införa start/ändrad/slut-livscykeln vore "rättare", men den kräver att
+  // varje anropsställe säger till när en gest BÖRJAR och SLUTAR — mer API-yta
+  // och fler sätt att glömma ett anrop, för en nyansskillnad i känsla. LIGHT
+  // impact fungerar bevisligen på enheten och behöver ingen förberedelse.
+  const now = Date.now();
+  if (now - lastGlideAt < GLIDE_MIN_GAP_MS) return;
+  lastGlideAt = now;
+  buzz(GLIDE, (h) => h.impact?.({ style: "LIGHT" }));
 }
 
 /** Något slutfördes (skanningen låste ett kort). */
