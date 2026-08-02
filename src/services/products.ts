@@ -10,6 +10,7 @@ import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { visibleListings } from "@/lib/listing-plausibility";
 import { compareCardNumbers } from "@/lib/card-number-order";
 import { PRINT_VARIANT_LABELS } from "@/lib/print-variant";
+import { CT_REVERSE_LABEL } from "@/lib/cardtrader";
 import { getTrendingLift } from "@/services/market";
 import {
   bestMatchScore,
@@ -1579,6 +1580,21 @@ export async function getProductValues(
  * Aktuellt marknadsvärde (öre) per kort-id via kortets produkt(er). Om flera
  * produkter pekar på samma kort väljs det lägsta priset. Kort utan prissatt
  * produkt utelämnas.
+ *
+ * ⛔ REVERSE HOLO UNDANTAS. Funktionen driver skannerns värdeuppskattning och
+ * samlingsvärdet, och båda utgår från ett KORT — inte från en tryckning.
+ * Skannern kan bevisligen inte skilja en reverse holo från det ordinarie kortet
+ * (den matchar på konst och samlarnummer, som är identiska), så konventionen är
+ * det ORDINARIE kortet — samma konvention som gör att Base-korten värderas som
+ * Unlimited. Utan undantaget hade "lägsta produkten" tyst börjat rapportera
+ * CardTraders reverse-golv för varje kort där det råkar underskrida Cardmarkets
+ * baspris, dvs ett värde för en vara användaren inte skannade. Priserna kommer
+ * dessutom från OLIKA marknadsplatser, så vilket som är lägst avgörs delvis av
+ * vilken marknadsplats som är billigast — inte av vad kortet är värt.
+ *
+ * Tryckningar (Unlimited/Shadowless/1st Edition) undantas INTE: för Base finns
+ * ingen etikettlös produkt alls, så ett generellt `variantLabel: null`-filter
+ * hade gjort hela Base-setet värdelöst.
  */
 export async function getCardValues(
   cardIds: string[]
@@ -1586,7 +1602,7 @@ export async function getCardValues(
   const map = new Map<string, number>();
   if (cardIds.length === 0) return map;
   const products = await prisma.product.findMany({
-    where: { cardId: { in: cardIds } },
+    where: { cardId: { in: cardIds }, NOT: { variantLabel: CT_REVERSE_LABEL } },
     select: { cardId: true, offers: { select: { price: true, stockStatus: true, url: true } } },
   });
   for (const p of products) {
