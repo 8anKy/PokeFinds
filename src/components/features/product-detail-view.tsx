@@ -151,23 +151,15 @@ export function ProductDetailView({
           <ProductPriceCard
             bySource={data.historyBySource}
             title={isSingle ? t("historyRawTitle") : t("historyTitle")}
-            /* Underrubriken NAMNGER seriens källa och måste följa `trendSource`.
-               Singlar hade den hårdkodad till "· Cardmarket" — så en graf ritad av
-               Tradera-annonser (enda källan på nya set utan CM-data) presenterades
-               som Cardmarket-historik. */
-            subtitle={
-              data.chartData.length === 0
-                ? t("historyNone")
-                : data.trendSource === "cardtrader"
-                  ? t("rawSubtitleCardTrader")
-                  : data.trendSource === "tradera"
-                    ? isSingle
-                      ? t("rawSubtitleTradera")
-                      : t("trendTradera")
-                    : isSingle
-                      ? t("rawSubtitle")
-                      : t("trendCardmarket")
-            }
+            /* ⛔ UNDERRUBRIKEN FÅR INTE NAMNGE EN KÄLLA LÄNGRE. Den stod på
+               `trendSource` och sa "· Cardmarket" — men sedan källfiltret finns
+               kan besökaren rita CardTrader och Tradera i samma diagram, och då
+               påstod raden att kurvorna var Cardmarkets. Källorna namnger sig
+               själva i chipsen ovanför grafen (som ÄR diagrammets legend), så
+               det som återstår här är kvaliteten på datat — och den måste gälla
+               ALLA serier: Tradera-annonser har inget känt skick, så "Near Mint"
+               kan inte stå kvar heller. */
+            subtitle={data.chartData.length === 0 ? t("historyNone") : t("historyQuality")}
             series={data.chartData}
           />
         </div>

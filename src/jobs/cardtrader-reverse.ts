@@ -47,6 +47,7 @@ import {
   isSingleBlueprint,
   judgeReversePrice,
   cheapestNonReverseNmEn,
+  isPlausibleBaseFloor,
   matchExpansion,
   shouldDistrustDexTaxonomy,
   type CtBlueprint,
@@ -83,6 +84,10 @@ export interface ReverseImportResult {
   dexDistrustedSets: number;
   /** Grafpunkter skrivna för ORDINARIE kort (ingen offer, bara historik). */
   baseObservations: number;
+  /** CardTrader-offers på ordinarie kort (raden + länken i pristabellen). */
+  baseOffers: number;
+  /** Golv som låg orimligt långt under vårt publicerade pris — ej publicerade. */
+  baseImplausible: number;
 }
 
 interface DexCard {
@@ -206,6 +211,8 @@ export async function runCardTraderReverseImport(opts: {
     offersUpserted: 0,
     dexDistrustedSets: 0,
     baseObservations: 0,
+    baseOffers: 0,
+    baseImplausible: 0,
   };
 
   const retailer = apply
@@ -342,10 +349,50 @@ export async function runCardTraderReverseImport(opts: {
       // ≥2 (mätt över 11 set, 1 961 av 2 019). Det skapar INGEN offer: rubriken
       // och det publicerade priset ägs fortfarande av Cardmarket
       // ([[project_singles_raw_floor_policy]]), det här är bara historik.
+      // Vakten jämför mot vårt PUBLICERADE pris: CardTrader är den dyrare
+      // marknadsplatsen (median 3,67× över), så ett golv långt UNDER är en
+      // felmatchning, inte ett fynd. Se `isPlausibleBaseFloor`.
       const ordinary = cheapestNonReverseNmEn(market[String(bp.id)]);
       if (ordinary != null) {
-        await obs.record(base.id, Math.round((ordinary / 100) * eurToOre));
-        res.baseObservations++;
+        if (isPlausibleBaseFloor(ordinary, base.lowestPriceOre ? oreToEurCents(base.lowestPriceOre) : null)) {
+          const basePriceOre = Math.round((ordinary / 100) * eurToOre);
+          await obs.record(base.id, basePriceOre);
+          res.baseObservations++;
+          // EGEN offer med EGEN länk, precis som Tradera och butikerna — det är
+          // den som ger raden i pristabellen och knappen till CardTrader.
+          if (apply && retailer) {
+            await prisma.offer.upsert({
+              where: {
+                productId_retailerId_condition_language: {
+                  productId: base.id,
+                  retailerId: retailer.id,
+                  condition: "NEAR_MINT",
+                  language: "EN",
+                },
+              },
+              update: {
+                price: basePriceOre,
+                currency: "SEK",
+                stockStatus: "IN_STOCK",
+                url: ctBlueprintUrl(bp.id),
+                lastSeenAt: new Date(),
+              },
+              create: {
+                productId: base.id,
+                retailerId: retailer.id,
+                condition: "NEAR_MINT",
+                language: "EN",
+                price: basePriceOre,
+                currency: "SEK",
+                stockStatus: "IN_STOCK",
+                url: ctBlueprintUrl(bp.id),
+              },
+            });
+            res.baseOffers++;
+          }
+        } else {
+          res.baseImplausible++;
+        }
       }
 
       const verdict = judgeReversePrice(market[String(bp.id)], {

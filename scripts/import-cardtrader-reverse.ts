@@ -31,7 +31,9 @@ async function main() {
   console.log(`  TCGdex kunde inte svara:  ${r.gateUnknown}`);
   console.log(`PRODUKTER ${APPLY ? "SKAPADE" : "SOM SKULLE SKAPAS"}:  ${r.productsCreated}`);
   console.log(`OFFERS ${APPLY ? "SKRIVNA" : "SOM SKULLE SKRIVAS"}:    ${r.offersUpserted}`);
-  console.log(`Grafpunkter för ORDINARIE kort:  ${r.baseObservations} bedömda`);
+  console.log(`ORDINARIE kort — grafpunkter:    ${r.baseObservations} bedömda`);
+  console.log(`ORDINARIE kort — CardTrader-offers: ${r.baseOffers}`);
+  console.log(`ORDINARIE kort — orimligt låga:  ${r.baseImplausible} (ej publicerade)`);
   console.log(`Tid: ${((Date.now() - t0) / 1000 / 60).toFixed(1)} min`);
 
   if (APPLY) {

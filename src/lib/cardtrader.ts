@@ -347,6 +347,35 @@ export function shouldDistrustDexTaxonomy(
   return setReverseCount === 0 && setCardCount >= min;
 }
 
+/**
+ * Hur långt UNDER vårt publicerade pris ett CardTrader-golv får ligga innan det
+ * behandlas som en felmatchning i stället för ett fynd.
+ *
+ * ⛔ RIKTNINGEN ÄR MÄTT, INTE GISSAD. CardTrader är den DYRARE marknadsplatsen:
+ * över 17 710 ordinarie kort är medianen `ct / vårt pris` = **3,67**, p75 = 5,5 och
+ * p95 = 13. Att ligga högt är alltså normaltillståndet. Att ligga långt UNDER är
+ * det inte — bara 0,5 % (83 kort) hamnar under en femtedel, och de bär
+ * felmatchningens signatur: Raikou · Secret Wonders 16/132 publicerat till
+ * 13 775 kr mot ett CardTrader-golv på 199 kr (69×), Giratina-EX · Dragons Exalted
+ * 3 656 kr mot 334 kr.
+ *
+ * ⚠️ Det här är INTE "döm identitet på prisavstånd" (den regel som fällde fel kort
+ * i cardmarket-refresh). Vi kastar ingen rad och ändrar inget pris — vi avstår
+ * bara från att PUBLICERA en andra källas tal som motsäger den första med en
+ * faktor som marknaden inte förklarar.
+ */
+export const CT_MIN_BASE_RATIO = 0.2;
+
+/** Är CardTraders ordinarie golv publicerbart bredvid vårt nuvarande pris? */
+export function isPlausibleBaseFloor(
+  cents: number,
+  referenceCents: number | null,
+  minRatio = CT_MIN_BASE_RATIO
+): boolean {
+  if (referenceCents == null || referenceCents <= 0) return true;
+  return cents >= referenceCents * minRatio;
+}
+
 /** Produktsidan hos CardTrader för en blueprint. */
 export function ctBlueprintUrl(blueprintId: number): string {
   return `https://www.cardtrader.com/cards/${blueprintId}`;
