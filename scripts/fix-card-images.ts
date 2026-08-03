@@ -81,6 +81,13 @@ const prisma = new PrismaClient();
 const APPLY = process.env.APPLY === "1";
 const ONLY_SET = process.env.SET || null;
 const DEBUG = process.env.DEBUG === "1";
+/**
+ * Fil med kort-id att granska (JSON-lista med `{id}`), t.ex. utfallet från en
+ * full bildskanning. Utan den avgör frågan nedan vilka kort som är misstänkta —
+ * men en bild kan vara för LITEN utan att synas i SQL, och då är listan enda
+ * vägen in.
+ */
+const IDS_FILE = process.env.IDS_FILE || null;
 
 /** TCGdex-set där namnmatchningen inte räcker. Vår externalId → deras set-id. */
 const SET_OVERRIDES: Record<string, string> = {
@@ -353,18 +360,30 @@ async function main() {
   //  · artFingerprint = null → bilden gick inte att läsa när avtrycken byggdes
   //  · imageUrl = null      → ingen bild alls
   //  · tcggo-värd           → rotationsbenägen, verifieras varje körning
+  const onlyIds: string[] | null = IDS_FILE
+    ? (JSON.parse(fs.readFileSync(IDS_FILE, "utf8")) as { id: string }[]).map((x) => x.id)
+    : null;
+
   const targets = await prisma.card.findMany({
     where: {
       ...(ONLY_SET ? { set: { externalId: ONLY_SET } } : {}),
-      OR: [
-        { artFingerprint: null },
-        { imageUrl: null },
-        { imageUrl: { contains: "tcggo" } },
-        { imageUrl: { contains: "cardtrader" } },
+      // ⛔ EN ID-LISTA ERSÄTTER HEURISTIKEN, den filtrerar den inte. Listan kommer
+      // från en MÄTNING (full bildskanning) och vet därför saker SQL inte kan se —
+      // t.ex. att en bild är 400 px. AND:ade man ihop dem föll varje kort som har
+      // avtryck och en pokemontcg.io-URL bort, dvs precis de 301 som skulle lagas.
+      ...(onlyIds
+        ? { id: { in: onlyIds } }
+        : {
+            OR: [
+              { artFingerprint: null },
+              { imageUrl: null },
+              { imageUrl: { contains: "tcggo" } },
+              { imageUrl: { contains: "cardtrader" } },
         // TCGplayer-URL:er är misstänkta tills de mätts: `_in_1000x1000` svarar
         // ofta med 200–351 px. Kvalitetskontrollen avgör, inte värdnamnet.
-        { imageUrl: { contains: "tcgplayer" } },
-      ],
+              { imageUrl: { contains: "tcgplayer" } },
+            ],
+          }),
     },
     select: {
       id: true,
@@ -479,7 +498,21 @@ async function main() {
       if (ownPid) candidates.push(...tcgplayerCandidates(ownPid));
 
       // --- Källa 3 + 4: TCGdex och TCGplayers CDN ---
+      // ⛔ PROVA KORTETS EGET tcgid FÖRST. I EX-eran ÄR vårt `tcgExternalId`
+      // TCGdex-id (ex4-53 svarar direkt), och där ligger vinsten: pokemontcg.io:s
+      // "_hires" är bara 400x550 för ex1/ex2/ex4 medan TCGdex har 600x825.
+      // Namnvägen nedan behövs ändå för set där id-scheman skiljer sig.
+      const dexIds = [c.tcgExternalId, null].filter(Boolean) as string[];
       const dexSet = SET_OVERRIDES[c.set.externalId ?? ""] ?? dexByName.get(norm(c.set.name));
+      if (dexSet) dexIds.push(`${dexSet}-${c.number}`);
+      for (const dexId of dexIds) {
+        const rr = await fetch(`https://api.tcgdex.net/v2/en/cards/${dexId}`).catch(() => null);
+        if (!rr?.ok) continue;
+        const card = (await rr.json()) as { image?: string };
+        if (!card.image) continue;
+        for (const suf of IMAGE_SUFFIXES) candidates.push({ url: `${card.image}${suf}`, src: "TCGdex" });
+        break;
+      }
       if (dexSet) {
         const r = await fetch(`https://api.tcgdex.net/v2/en/cards/${dexSet}-${c.number}`).catch(
           () => null
