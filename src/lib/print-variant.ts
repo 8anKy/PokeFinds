@@ -86,24 +86,56 @@ export function printLabelInTitle(title: string | null | undefined): PrintVarian
  * ställe, annars stavas den förr eller senare olika på två.
  */
 export const VARIANT_REVERSE_HOLO = "Reverse Holo";
+/** Specialmönstrade reverse holos — egna expansioner hos CardTrader. */
+export const VARIANT_MASTER_BALL = "Master Ball Reverse Holo";
+export const VARIANT_POKE_BALL = "Poké Ball Reverse Holo";
 
 /**
- * Säger annonstiteln att varan är en REVERSE HOLO?
+ * Alla reverse-artade etiketter, dvs de varianter CardTrader prissätter.
+ *
+ * ⛔ EN LISTA, ANVÄND AV ALLA VAKTER. Reverse holo blev egna produkter 2026-08-03
+ * och föll rakt igenom Tradera-vakten, `getCardValues` och `runVariantRefresh`,
+ * eftersom var och en av dem hade sin EGEN uppfattning om vilka etiketter som
+ * fanns. Lägg till en ny variant HÄR, så följer vakterna med.
+ */
+export const REVERSE_VARIANT_LABELS = [
+  VARIANT_MASTER_BALL,
+  VARIANT_POKE_BALL,
+  VARIANT_REVERSE_HOLO,
+] as const;
+
+/**
+ * Vilken variant utpekar annonstiteln? `null` = ingen ⇒ den ordinarie.
  *
  * ⛔ KORTNAMNET STRIPPAS FÖRST, OCH DET ÄR INTE KOSMETIKA. Det finns riktiga
- * kort som HETER "Reverse" något: "Reverse Valley" (Team Up), "Reverse Energy
- * Removal 2" (EX Ruby & Sapphire). Utan strippningen läser vakten kortnamnet som
- * en tryckningsuppgift och kastar annonsen från sin EGEN produkt — precis den
- * sortens tysta bortfall den finns för att förhindra.
+ * kort som HETER varianten: "Reverse Valley" (Team Up), "Reverse Energy
+ * Removal 2" (EX Ruby & Sapphire), och "Poké Ball" är ett eget trainerkort.
+ * Utan strippningen läser vakten kortnamnet som en tryckningsuppgift och kastar
+ * annonsen från sin EGEN produkt — precis det tysta bortfall den ska förhindra.
+ *
+ * ⛔ ORDNINGEN ÄR INTE VALFRI: en Master Ball-annons heter nästan alltid "Master
+ * Ball Reverse Holo" och innehåller alltså ordet "reverse". Bolltesterna måste
+ * gå först, annars landar hela specialtryckningen på den vanliga reverse-produkten.
  */
+export function variantInTitle(
+  title: string | null | undefined,
+  cardName?: string | null
+): (typeof REVERSE_VARIANT_LABELS)[number] | null {
+  let t = (title ?? "").toLowerCase();
+  const name = (cardName ?? "").trim().toLowerCase();
+  if (name && /\b(reverse|ball)\b/.test(name)) t = t.split(name).join(" ");
+  if (/\bmaster\s*ball\b/.test(t)) return VARIANT_MASTER_BALL;
+  if (/\bpok[eé]\s*ball\b/.test(t)) return VARIANT_POKE_BALL;
+  if (/\breverse\b/.test(t) || /\brev\.?\s*holo\b/.test(t)) return VARIANT_REVERSE_HOLO;
+  return null;
+}
+
+/** Bakåtkompatibelt alias — säger titeln att varan är NÅGON sorts reverse holo? */
 export function titleSaysReverseHolo(
   title: string | null | undefined,
   cardName?: string | null
 ): boolean {
-  let t = (title ?? "").toLowerCase();
-  const name = (cardName ?? "").trim().toLowerCase();
-  if (name && /\breverse\b/.test(name)) t = t.split(name).join(" ");
-  return /\breverse\b/.test(t) || /\brev\.?\s*holo\b/.test(t);
+  return variantInTitle(title, cardName) != null;
 }
 
 /**
@@ -130,8 +162,8 @@ export function listingFitsVariant(
   if (isPrintVariantLabel(variantLabel)) {
     return variantLabel === (printLabelInTitle(listingTitle) ?? PRINT_UNLIMITED);
   }
-  const saysReverse = titleSaysReverseHolo(listingTitle, cardName);
-  if (variantLabel === VARIANT_REVERSE_HOLO) return saysReverse;
-  if (variantLabel == null) return !saysReverse;
+  const inTitle = variantInTitle(listingTitle, cardName);
+  if (REVERSE_VARIANT_LABELS.includes(variantLabel as never)) return inTitle === variantLabel;
+  if (variantLabel == null) return inTitle == null;
   return true;
 }

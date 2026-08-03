@@ -9,8 +9,7 @@ import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { visibleListings } from "@/lib/listing-plausibility";
 import { compareCardNumbers } from "@/lib/card-number-order";
-import { PRINT_VARIANT_LABELS } from "@/lib/print-variant";
-import { CT_REVERSE_LABEL } from "@/lib/cardtrader";
+import { PRINT_VARIANT_LABELS, REVERSE_VARIANT_LABELS } from "@/lib/print-variant";
 import { getTrendingLift } from "@/services/market";
 import {
   bestMatchScore,
@@ -1608,7 +1607,7 @@ export async function getCardValues(
   const map = new Map<string, number>();
   if (cardIds.length === 0) return map;
   const products = await prisma.product.findMany({
-    where: { cardId: { in: cardIds }, NOT: { variantLabel: CT_REVERSE_LABEL } },
+    where: { cardId: { in: cardIds }, NOT: { variantLabel: { in: [...REVERSE_VARIANT_LABELS] } } },
     select: { cardId: true, offers: { select: { price: true, stockStatus: true, url: true } } },
   });
   for (const p of products) {

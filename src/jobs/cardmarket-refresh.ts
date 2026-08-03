@@ -31,11 +31,11 @@ import {
   PRINT_FIRST_EDITION,
   PRINT_UNLIMITED,
   PRINT_VARIANT_LABELS,
+  REVERSE_VARIANT_LABELS,
   isPrintVariantLabel,
   printLabelFromVersion,
   printRank,
 } from "../lib/print-variant";
-import { CT_REVERSE_LABEL } from "../lib/cardtrader";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Samtidiga DB-skrivningar (≤ DB_POOL i db.ts). Kortar 18k sekventiella
@@ -963,7 +963,7 @@ export async function runVariantRefresh(): Promise<number> {
     // Reverse-priset ägs av src/jobs/cardtrader-reverse.ts.
     where: {
       category: "SINGLE_CARD",
-      variantLabel: { not: null, notIn: [...PRINT_VARIANT_LABELS, CT_REVERSE_LABEL] },
+      variantLabel: { not: null, notIn: [...PRINT_VARIANT_LABELS, ...REVERSE_VARIANT_LABELS] },
       card: { tcgExternalId: { not: null } },
     },
     select: { id: true, card: { select: { tcgExternalId: true } }, offers: { where: { retailerId: cm?.id }, select: { id: true }, take: 1 } },

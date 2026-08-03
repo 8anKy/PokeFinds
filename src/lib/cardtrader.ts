@@ -30,7 +30,7 @@
  *    `idProduct` när vi vill korsvalidera.
  */
 
-import { VARIANT_REVERSE_HOLO } from "./print-variant";
+import { VARIANT_MASTER_BALL, VARIANT_POKE_BALL, VARIANT_REVERSE_HOLO } from "./print-variant";
 
 /** Pokémon i CardTraders speltabell (`/games`). */
 export const CT_GAME_POKEMON = 5;
@@ -404,6 +404,50 @@ export function ctExpansionCandidates(setName: string, series: string | null): s
   const promo = setName.replace(/\bBlack Star Promos\b/, "Promos");
   if (promo !== setName) out.push(promo);
 
+  return out;
+}
+
+/**
+ * SPECIALMÖNSTRADE REVERSE HOLOS — Master Ball och Poké Ball.
+ *
+ * ⛔ CardTrader modellerar dem som EGNA EXPANSIONER, inte som en egenskap på
+ * annonsen: "Prismatic Evolutions - Master Ball Reverse Holo" är en expansion
+ * vid sidan av "Prismatic Evolutions". Därför ser den vanliga importen dem inte
+ * alls — den mappar vårt set till EN expansion och slutar där. MÄTT 2026-08-03:
+ * 418 kort med djup ≥2 i NM-engelska annonser ligger bakom de här expansionerna,
+ * med Umbreon · Prismatic Evolutions Master Ball på 80,64 € (~930 kr).
+ *
+ * Matchningen är EXAKT på formen `<vårt setnamn> - <bollnamn> Reverse Holo`, av
+ * samma skäl som `matchExpansion` är exakt: "151" och "Collect 151" liknar
+ * varandra, och de japanska motsvarigheterna (sv2a, sv8a, sv11W/B) bär nästan
+ * identiska namn. En kandidat kan bara träffa rätt eller inte alls.
+ */
+export const BALL_EXPANSION_SUFFIXES: { label: string; pattern: RegExp }[] = [
+  { label: VARIANT_MASTER_BALL, pattern: /^master ball reverse holo$/ },
+  { label: VARIANT_POKE_BALL, pattern: /^pok[eé]? ?ball reverse holo$/ },
+];
+
+export interface BallExpansion {
+  label: string;
+  expansion: CtExpansion;
+}
+
+/** Setets boll-expansioner hos CardTrader (0–2 st). */
+export function matchBallExpansions(
+  setName: string,
+  expansions: CtExpansion[]
+): BallExpansion[] {
+  const setKey = ctSetNameKey(setName);
+  const out: BallExpansion[] = [];
+  for (const { label, pattern } of BALL_EXPANSION_SUFFIXES) {
+    const hits = expansions.filter((e) => {
+      const idx = e.name.lastIndexOf(" - ");
+      if (idx < 0) return false;
+      if (ctSetNameKey(e.name.slice(0, idx)) !== setKey) return false;
+      return pattern.test(ctSetNameKey(e.name.slice(idx + 3)));
+    });
+    if (hits.length === 1) out.push({ label, expansion: hits[0] });
+  }
   return out;
 }
 

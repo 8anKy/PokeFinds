@@ -10,10 +10,12 @@ import {
   isSingleBlueprint,
   matchExpansion,
   shouldDistrustDexTaxonomy,
+  matchBallExpansions,
   type CtBlueprint,
   type CtExpansion,
   type CtListing,
 } from "@/lib/cardtrader";
+import { VARIANT_MASTER_BALL, VARIANT_POKE_BALL } from "@/lib/print-variant";
 
 function listing(over: Partial<CtListing> & { props?: Partial<CtListing["properties_hash"]> } = {}): CtListing {
   const { props, ...rest } = over;
@@ -370,5 +372,44 @@ describe("blueprint-hjälpare", () => {
   it("reverse-förmåga läses ur editable_properties", () => {
     expect(blueprintAllowsReverse(bp())).toBe(true);
     expect(blueprintAllowsReverse(bp({ editable_properties: [{ name: "condition" }] }))).toBe(false);
+  });
+});
+
+describe("matchBallExpansions", () => {
+  const exps = (names: string[]) =>
+    names.map((name, i) => ({ id: 4000 + i, game_id: 5, code: `c${i}`, name }));
+
+  it("hittar setets Master Ball- och Poké Ball-expansioner", () => {
+    const list = exps([
+      "Prismatic Evolutions",
+      "Prismatic Evolutions - Master Ball Reverse Holo",
+      "Prismatic Evolutions - Poké Ball Reverse Holo",
+      "Black Bolt - Master Ball Reverse Holo",
+    ]);
+    const hits = matchBallExpansions("Prismatic Evolutions", list);
+    expect(hits.map((h) => h.label)).toEqual([VARIANT_MASTER_BALL, VARIANT_POKE_BALL]);
+    expect(hits[0].expansion.name).toBe("Prismatic Evolutions - Master Ball Reverse Holo");
+  });
+
+  it("⛔ tar INTE ett annat sets bollexpansion", () => {
+    // "151" och "Collect 151" är olika set, och de japanska motsvarigheterna
+    // (sv2a, sv8a, sv11W/B) bär nästan identiska namn.
+    const list = exps([
+      "Collect 151 - Master ball Reverse Holo",
+      "Pokémon Card 151 - Master Ball Reverse Holo",
+    ]);
+    expect(matchBallExpansions("151", list)).toEqual([]);
+  });
+
+  it("grundsetet självt är ingen bollexpansion", () => {
+    expect(matchBallExpansions("Black Bolt", exps(["Black Bolt"]))).toEqual([]);
+  });
+
+  it("tvetydigt (två med samma namn) ger ingen träff — aldrig ett myntkast", () => {
+    const list = exps([
+      "White Flare - Master Ball Reverse Holo",
+      "White Flare - Master Ball Reverse Holo",
+    ]);
+    expect(matchBallExpansions("White Flare", list)).toEqual([]);
   });
 });
