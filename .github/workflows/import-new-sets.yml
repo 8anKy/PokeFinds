@@ -25,6 +25,11 @@ jobs:
       POKEMONTCG_API_KEY: ${{ secrets.POKEMONTCG_API_KEY }} # valfri — högre rate limit
       EUR_SEK: ${{ secrets.EUR_SEK }}
       TCG_NEW_ONLY: "1"
+      # Bildlagningen nedan behöver dem. CardTrader är gratis; RapidAPI-kostnaden
+      # är ~10 anrop av 3000/dygn (episodlista + de set som faktiskt har en lucka).
+      CARDMARKET_RAPIDAPI_HOST: ${{ secrets.CARDMARKET_RAPIDAPI_HOST }}
+      CARDMARKET_RAPIDAPI_KEY: ${{ secrets.CARDMARKET_RAPIDAPI_KEY }}
+      CARDTRADER_TOKEN: ${{ secrets.CARDTRADER_TOKEN }}
     steps:
       - name: Förkrav — DATABASE_URL måste vara satt
         id: guard
@@ -49,6 +54,19 @@ jobs:
       - if: steps.guard.outputs.ready == 'true'
         name: Importera nya set (no-op om inget nytt)
         run: npx tsx scripts/import-tcg-data.ts
+
+      # DÖDA BILDLÄNKAR — hotlinkar vi inte äger ruttnar, och en död bild är inte
+      # ett skönhetsfel: `Card.artFingerprint` byggs UR bilden, så kortet blir
+      # osynligt för skannerns bildmatchning. MÄTT 2026-08-03: TCGGO roterade sina
+      # storage-id:n och slog ut alla 82 MEP-kort på en gång (34134 → 36834), utan
+      # att något felade. Steget måste ligga FÖRE avtryckssteget så nya kort som
+      # kom in med en trasig bild ändå får ett avtryck samma körning.
+      # Verifierar varje URL innan den skrivs → fungerande bilder rörs aldrig.
+      - if: steps.guard.outputs.ready == 'true'
+        name: Laga döda kortbilder (verifierar, rör aldrig en fungerande bild)
+        env:
+          APPLY: "1"
+        run: npx tsx scripts/fix-card-images.ts
 
       # KONSTAVTRYCK för de nya korten — annars är de OSYNLIGA för skannerns
       # bildmatchning, tyst. `Card.numberSortKey` räknas av Postgres (GENERATED)
