@@ -7,6 +7,7 @@ import {
   printLabelFromVersion,
   printLabelInTitle,
   printRank,
+  variantDisplayRank,
   VARIANT_REVERSE_HOLO,
   listingFitsVariant,
   titleSaysReverseHolo,
@@ -45,6 +46,36 @@ describe("printRank — för kort som INTE är uppdelade", () => {
     expect(printRank("Unlimited")).toBe(2);
     expect(printRank(null)).toBe(2);
     expect(printRank("Reverse Holo")).toBe(2);
+  });
+});
+
+describe("variantDisplayRank — skannerns versionsväljare", () => {
+  const sorted = (labels: (string | null)[]) =>
+    [...labels].sort((a, b) => variantDisplayRank(a) - variantDisplayRank(b));
+
+  it("ordinarie är ALLTID förvalet, aldrig den dyraste varianten", () => {
+    // Regressionen 2026-08-03: reverse holo blev egna produkter, och eftersom
+    // den ORDINARIE produkten saknar etikett föll den ur skannerns urval —
+    // 8 349 kort svarade "Reverse Holo" med reverse-produktens pris och länk.
+    expect(sorted(["Reverse Holo", null])[0]).toBe(null);
+    expect(sorted(["Master Ball Reverse Holo", "Reverse Holo", null])[0]).toBe(null);
+  });
+
+  it("Base-trion: Unlimited först, 1st Edition sist", () => {
+    expect(sorted([PRINT_FIRST_EDITION, PRINT_SHADOWLESS, PRINT_UNLIMITED])).toEqual([
+      PRINT_UNLIMITED,
+      PRINT_SHADOWLESS,
+      PRINT_FIRST_EDITION,
+    ]);
+  });
+
+  it("okända etiketter hamnar sist, inte först", () => {
+    expect(sorted(["Specialversion", VARIANT_REVERSE_HOLO, null])).toEqual([
+      null,
+      VARIANT_REVERSE_HOLO,
+      "Specialversion",
+    ]);
+    expect(variantDisplayRank("Staff")).toBeGreaterThan(variantDisplayRank(VARIANT_REVERSE_HOLO));
   });
 });
 

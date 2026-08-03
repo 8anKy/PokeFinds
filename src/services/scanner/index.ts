@@ -22,7 +22,13 @@ import { getCardValues, getProductValues } from "@/services/products";
 import { ClaudeVisionOcrAdapter } from "@/services/scanner/claude-vision";
 import { GeminiVisionOcrAdapter } from "@/services/scanner/gemini-vision";
 import { MockOcrAdapter } from "@/services/scanner/ocr-mock";
-import type { OcrAdapter, OcrResult, ScanCandidate } from "@/services/scanner/types";
+import type {
+  OcrAdapter,
+  OcrResult,
+  ScanCandidate,
+  ScanVariant,
+} from "@/services/scanner/types";
+import { variantDisplayRank } from "@/lib/print-variant";
 
 /** Markör för bilder som laddats upp inline (MVP, ingen objektlagring). */
 const INLINE_UPLOAD = "inline-upload";
@@ -1093,21 +1099,22 @@ export async function matchCards(
     })),
   ];
 
-  // TRYCKNINGARNA som egna kandidater. Ett Base-kort är ETT Card med TRE
-  // produkter, så utan detta kan skannern inte ens erbjuda valet — den tar
-  // billigaste produkten och en 1st Edition hamnar tyst i samlingen som
-  // Unlimited.
-  const withPrintings = await expandPrintings(merged.map((m) => m.candidate));
+  // VARIANTERNA på kandidaten. Ett kort kan vara flera produkter (reverse holo,
+  // Base-tryckningarna) och skillnaden syns inte i bilden — utan det här kan
+  // skannern inte ens erbjuda valet, och en 1st Edition hamnar tyst i samlingen
+  // som Unlimited.
+  const withPrintings = await attachVariants(merged.map((m) => m.candidate));
 
-  // Skikt: vinnaren, sedan andra TRYCKNINGAR av samma kort, sedan samma NAMN i
-  // andra set, sist övrigt. Inom varje skikt gäller poäng och sedan setets ålder.
+  // Skikt: vinnaren, sedan bildkandidaterna, sedan samma NAMN i andra set, sist
+  // övrigt. Inom varje skikt gäller poäng och sedan setets ålder. (Varianterna
+  // av samma kort hade ett eget skikt när de var egna kandidater — nu är de en
+  // egenskap hos träffen, se attachVariants.)
   // ⛔ BILDTRÄFFARNA MÅSTE LIGGA ÖVER NAMN-SYSKONEN. Namnet kan vara påhittat
   // (se ART_STRONG), och då är dess syskon en lista över fel kort medan
   // bildträffarna pekar på rätt. Låg bildträffarna i "övrigt" fyllde det
   // hallucinerade namnets syskon hela listan och rätt kort syntes inte alls.
   const tierOf = (c: ScanCandidate): number => {
-    if (c.cardId === winner.cardId && c.productId === winner.productId) return 0;
-    if (c.cardId === winner.cardId) return 1;
+    if (c.cardId === winner.cardId) return 0;
     // ⛔ Och när namnet är MISSTROTT är dess syskon per definition en lista över
     // fel kort — då räcker det att kortet är en bildkandidat alls. ART_STRONG
     // (0,75) är ett absolut golv som bulk-cellerna missar med marginal: en
@@ -1126,7 +1133,6 @@ export async function matchCards(
       tierOf(a) - tierOf(b) ||
       b.score - a.score ||
       (releasedOf.get(b.cardId) ?? 0) - (releasedOf.get(a.cardId) ?? 0) ||
-      (a.variantLabel ?? "").localeCompare(b.variantLabel ?? "") ||
       a.cardId.localeCompare(b.cardId)
   );
 
@@ -1157,10 +1163,18 @@ export async function matchCards(
     (c) => siblingSet.has(c) || (otherRank.get(c) ?? Number.POSITIVE_INFINITY) < otherBudget
   );
 
-  // Värde + djuplänk. Kandidater som pekar på en SPECIFIK tryckning värderas på
-  // sin egen produkt — annars hade alla tre Base-tryckningarna visat samma pris
-  // (den billigaste), vilket är hela felet valet finns för att rätta.
-  const productIds = top.flatMap((c) => (c.productId ? [c.productId] : []));
+  // Värde + djuplänk. Varje VARIANT värderas på sin egen produkt — annars hade
+  // alla tre Base-tryckningarna visat samma pris (den billigaste), vilket är
+  // hela felet valet finns för att rätta, och en reverse holo hade visat det
+  // ordinarie kortets pris trots att den ofta är värd mer.
+  const productIds = [
+    ...new Set(
+      top.flatMap((c) => [
+        ...(c.productId ? [c.productId] : []),
+        ...(c.variants?.map((v) => v.productId) ?? []),
+      ])
+    ),
+  ];
   const cardOnlyIds = top.filter((c) => !c.productId).map((c) => c.cardId);
   const [productValues, cardValues, fallbackProducts] = await Promise.all([
     getProductValues(productIds),
@@ -1176,6 +1190,7 @@ export async function matchCards(
     fallbackProducts.flatMap((p) => (p.cardId ? [[p.cardId, p.slug] as const] : []))
   );
   for (const c of top) {
+    for (const v of c.variants ?? []) v.estimatedValue = productValues.get(v.productId) ?? null;
     if (c.productId) {
       c.estimatedValue = productValues.get(c.productId) ?? null;
     } else {
@@ -1246,47 +1261,64 @@ export async function matchCards(
 }
 
 /**
- * Delar upp kandidater som har flera TRYCKNINGAR i en kandidat per tryckning.
+ * Hänger kortets VARIANTER på kandidaten och väljer den ordinarie som förval.
  *
- * Kort utan variantmärkta produkter lämnas orörda (en kandidat, som förut). För
- * de 157 kort som HAR dem blir det en rad per tryckning, med produktens egen
- * slug och etikett — det är den enda vägen för användaren att säga "min är
- * 1st Edition", eftersom ingen bild och ingen text på kortet skiljer dem åt i
- * katalogen.
+ * Ett kort är ETT Card men kan vara flera Product: Base-korten har tre
+ * tryckningar (Unlimited / Shadowless / 1st Edition) och 8 349 kort har sedan
+ * 2026-08-03 en reverse holo-produkt vid sidan av den ordinarie. Ingen av dem går
+ * att se på bilden — konsten och samlarnumret är identiska, och foliemönstret
+ * finns varken i konstavtrycket eller i modellens svar. Varianten är därför ett
+ * VAL användaren gör, inte något matchningen ska gissa.
+ *
+ * ⛔ KANDIDATEN FÅR INTE DELAS UPP I EN RAD PER VARIANT. Så såg den här
+ * funktionen ut när bara Base-trion fanns, och det var oskadligt då: alla tre
+ * produkterna var etikettmärkta, så alla tre kom med. När reverse holo blev egna
+ * produkter (2026-08-03) föll den ORDINARIE produkten ur listan för 8 349 kort —
+ * den har `variantLabel = null` och filtret krävde `not: null` — och skannern
+ * svarade alltså "Reverse Holo" på varje sådant kort, med reverse-produktens pris
+ * och länk, utan att det ordinarie kortet ens gick att välja. En variant är en
+ * egenskap hos träffen (som skicket), inte en egen träff.
  */
-async function expandPrintings(candidates: ScanCandidate[]): Promise<ScanCandidate[]> {
-  const cardIds = candidates.map((c) => c.cardId);
+async function attachVariants(candidates: ScanCandidate[]): Promise<ScanCandidate[]> {
+  const cardIds = [...new Set(candidates.map((c) => c.cardId))];
   if (cardIds.length === 0) return candidates;
-  const variants = await prisma.product.findMany({
-    where: { cardId: { in: cardIds }, variantLabel: { not: null } },
+  const products = await prisma.product.findMany({
+    where: { cardId: { in: cardIds } },
     select: { id: true, cardId: true, slug: true, variantLabel: true },
     orderBy: { id: "asc" },
   });
-  if (variants.length === 0) return candidates;
+  if (products.length === 0) return candidates;
 
-  const byCard = new Map<string, typeof variants>();
-  for (const v of variants) {
-    if (!v.cardId) continue;
-    const list = byCard.get(v.cardId);
-    if (list) list.push(v);
-    else byCard.set(v.cardId, [v]);
+  const byCard = new Map<string, ScanVariant[]>();
+  for (const p of products) {
+    if (!p.cardId) continue;
+    const list = byCard.get(p.cardId) ?? [];
+    // Två produkter med SAMMA etikett (samma vara importerad två gånger) skulle
+    // bli två likadana val — behåll den första (lägsta id), som förut.
+    if (list.some((v) => v.label === p.variantLabel)) continue;
+    list.push({ productId: p.id, label: p.variantLabel, slug: p.slug, estimatedValue: null });
+    byCard.set(p.cardId, list);
+  }
+  for (const list of byCard.values()) {
+    list.sort(
+      (a, b) =>
+        variantDisplayRank(a.label) - variantDisplayRank(b.label) ||
+        (a.label ?? "").localeCompare(b.label ?? "")
+    );
   }
 
-  return candidates.flatMap((c) => {
-    const printings = byCard.get(c.cardId);
-    if (!printings || printings.length === 0) return [c];
-    return printings.map((p) => ({
-      ...c,
-      productId: p.id,
-      variantLabel: p.variantLabel,
-      slug: p.slug,
-      // Unlimited är standardvalet: den vanligaste tryckningen och den
-      // billigaste, alltså det minst överraskande svaret när ingenting i bilden
-      // säger vilken det är. Samma konvention som Tradera-matchningen
-      // ("en annons som inte SÄGER 1st edition/shadowless är Unlimited").
-      score: /unlimited/i.test(p.variantLabel ?? "") ? c.score : Math.max(0, c.score - 0.001),
-    }));
-  });
+  // MUTERAR med flit: `winner` är ett av de här objekten, och skiktsorteringen
+  // nedan jämför identitet mot det. En kopia hade tyst brutit den kopplingen.
+  for (const c of candidates) {
+    const variants = byCard.get(c.cardId);
+    if (!variants?.length) continue;
+    const def = variants[0];
+    c.productId = def.productId;
+    c.variantLabel = def.label;
+    c.slug = def.slug;
+    if (variants.length > 1) c.variants = variants;
+  }
+  return candidates;
 }
 
 export interface ScanResult {
@@ -1341,7 +1373,9 @@ export async function runScannerJob(
         confidence: ocr.confidence,
       },
       imageNote: "uploaded-inline",
-      candidates: candidates.map((c) => ({ ...c })),
+      // Casten är serialiseringsgränsen: ScanCandidate är en NAMNGIVEN typ utan
+      // index-signatur, vilket Prismas JsonObject kräver. Innehållet är ren JSON.
+      candidates: candidates.map((c) => ({ ...c })) as unknown as Prisma.JsonArray,
     };
 
     // Varje genomförd skanning räknas (träff eller no-match) — bara äkta fel

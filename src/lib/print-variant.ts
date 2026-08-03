@@ -105,6 +105,35 @@ export const REVERSE_VARIANT_LABELS = [
 ] as const;
 
 /**
+ * Ordningen varianterna VISAS i: ordinarie först, sedan Base-tryckningarna
+ * (vanligast → sällsyntast) och sist reverse-familjen.
+ *
+ * ⛔ ORDINARIE ÄR FÖRVALET, ALDRIG DEN DYRASTE VARIANTEN. Skannern kan bevisligen
+ * inte se skillnad på en reverse holo och det ordinarie kortet — konsten och
+ * samlarnumret är identiska, och foliemönstret finns inte i konstavtrycket. Det
+ * minst överraskande svaret är därför det vanligaste kortet, samma konvention som
+ * `getCardValues` och Tradera-vakten redan följer: tystnad betyder ordinarie.
+ *
+ * Okända etiketter ("Specialversion", "Staff", "League Promo") hamnar sist —
+ * de är udda undantag, inte något användaren letar efter först.
+ */
+const VARIANT_DISPLAY_ORDER: readonly (string | null)[] = [
+  null,
+  PRINT_UNLIMITED,
+  PRINT_SHADOWLESS,
+  PRINT_FIRST_EDITION,
+  VARIANT_REVERSE_HOLO,
+  VARIANT_POKE_BALL,
+  VARIANT_MASTER_BALL,
+];
+
+/** Etikettens plats i visningsordningen — lägre = visas tidigare. */
+export function variantDisplayRank(label: string | null | undefined): number {
+  const i = VARIANT_DISPLAY_ORDER.indexOf(label ?? null);
+  return i === -1 ? VARIANT_DISPLAY_ORDER.length : i;
+}
+
+/**
  * Vilken variant utpekar annonstiteln? `null` = ingen ⇒ den ordinarie.
  *
  * ⛔ KORTNAMNET STRIPPAS FÖRST, OCH DET ÄR INTE KOSMETIKA. Det finns riktiga

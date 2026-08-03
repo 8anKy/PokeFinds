@@ -58,6 +58,25 @@ export interface OcrAdapter {
   extractCardInfo(imageDataUrl: string, detailDataUrl?: string): Promise<OcrResult>;
 }
 
+/**
+ * En VARIANT av samma kort — ordinarie, reverse holo, Master/Poké Ball, eller en
+ * av Base-tryckningarna. Samma Card, olika Product.
+ *
+ * ⛔ VARIANTEN ÄR ETT VAL, INTE EN GISSNING. Skannern identifierar ett KORT: konst
+ * och samlarnummer är identiska mellan en reverse holo och det ordinarie kortet,
+ * och foliemönstret finns varken i konstavtrycket eller i modellens svar. Att låta
+ * matchningen "välja" variant vore alltså att hitta på ett svar. Den ordinarie
+ * varianten är förvalet och användaren byter själv — precis som med skicket.
+ */
+export interface ScanVariant {
+  productId: string;
+  /** "Reverse Holo", "1st Edition", … — `null` = den ordinarie varianten. */
+  label: string | null;
+  slug: string;
+  /** Variantens EGET marknadsvärde i öre — en reverse holo är ofta dyrare. */
+  estimatedValue: number | null;
+}
+
 /** En matchningskandidat som returneras till klienten. */
 export interface ScanCandidate {
   cardId: string;
@@ -78,8 +97,13 @@ export interface ScanCandidate {
    * 1st Edition landade tyst i samlingen som Unlimited.
    */
   productId: string | null;
-  /** Tryckningens namn ("Unlimited", "Shadowless", "1st Edition"), om någon. */
+  /** Den VALDA variantens namn ("Reverse Holo", "1st Edition"), `null` = ordinarie. */
   variantLabel: string | null;
+  /**
+   * Alla varianter kortet finns i, ordinarie först (`variantDisplayRank`).
+   * Utelämnad när kortet bara finns i en — då finns inget att välja mellan.
+   */
+  variants?: ScanVariant[];
   /** Matchningspoäng 0..1. */
   score: number;
   /**

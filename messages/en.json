@@ -682,6 +682,8 @@
     "decreaseQty": "Decrease quantity",
     "increaseQty": "Increase quantity",
     "settingsTitle": "Defaults for new scans",
+    "variant": "Version",
+    "variantStandard": "Standard",
     "settingsHint": "Applies to cards you scan next. You can change condition per card during review.",
     "done": "Done",
     "scanDetails": "Scan details",

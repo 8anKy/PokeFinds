@@ -74,6 +74,15 @@ import {
   IconX,
 } from "@/components/ui/icons";
 
+/** En variant av samma kort — se ScanVariant i services/scanner/types.ts. */
+interface Variant {
+  productId: string;
+  /** `null` = den ordinarie varianten. */
+  label: string | null;
+  slug: string;
+  estimatedValue: number | null;
+}
+
 interface Candidate {
   cardId: string;
   name: string;
@@ -82,10 +91,12 @@ interface Candidate {
   rarity: string;
   imageUrl: string | null;
   slug: string | null;
-  /** Vald tryckning, när kandidaten pekar på en specifik produkt. */
+  /** Vald variant, när kandidaten pekar på en specifik produkt. */
   productId: string | null;
-  /** "Unlimited" / "Shadowless" / "1st Edition" — null när kortet bara har en. */
+  /** "Reverse Holo" / "1st Edition" … — null = ordinarie. */
   variantLabel: string | null;
+  /** Alla varianter kortet finns i, ordinarie först. Saknas när det bara finns en. */
+  variants?: Variant[];
   score: number;
   /** Samma KONST som träffen (omtryck) — visas alltid, se alternatives-filtret. */
   sameArt?: boolean;
@@ -2457,6 +2468,10 @@ function ReviewView(props: {
                         <p className="truncate font-semibold text-ink">{s.match.name}</p>
                         <p className="truncate text-xs text-ink-muted">
                           {s.match.setName} · #{s.match.number}
+                          {/* Versionen står i raden, inte bara i väljaren nedanför:
+                              den avgör priset till höger och vilken produkt som
+                              hamnar i samlingen. */}
+                          {s.match.variantLabel ? ` · ${s.match.variantLabel}` : ""}
                         </p>
                       </div>
                       <p className="shrink-0 text-right text-sm font-semibold tabular-nums text-holo-cyan">
@@ -2464,7 +2479,7 @@ function ReviewView(props: {
                       </p>
                     </div>
 
-                    <div className="mt-3">
+                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <label className="flex flex-col gap-1">
                         <span className="text-[11px] text-ink-faint">{t("condition")}</span>
                         <Select
@@ -2477,6 +2492,43 @@ function ReviewView(props: {
                           ))}
                         </Select>
                       </label>
+                      {/* VERSIONEN ÄR ETT VAL, INTE EN GISSNING: en reverse holo har
+                          samma konst och samma nummer som det ordinarie kortet, och
+                          foliemönstret finns varken i konstavtrycket eller i modellens
+                          svar. Skannern kan alltså inte veta — men användaren håller
+                          kortet i handen. Ligger bredvid skicket av samma skäl: det är
+                          samma sorts uppgift, och den ska sättas INNAN kortet läggs i
+                          samlingen (produkten avgör pris, länk och samlingsvärde). */}
+                      {s.match.variants && s.match.variants.length > 1 && (
+                        <label className="flex flex-col gap-1">
+                          <span className="text-[11px] text-ink-faint">{t("variant")}</span>
+                          <Select
+                            value={s.match.productId ?? ""}
+                            onChange={(e) => {
+                              const v = s.match?.variants?.find(
+                                (x) => x.productId === e.target.value
+                              );
+                              if (!v || !s.match) return;
+                              onPatch(s.id, {
+                                match: {
+                                  ...s.match,
+                                  productId: v.productId,
+                                  variantLabel: v.label,
+                                  slug: v.slug,
+                                  estimatedValue: v.estimatedValue,
+                                },
+                              });
+                            }}
+                            className="h-9 text-sm"
+                          >
+                            {s.match.variants.map((v) => (
+                              <option key={v.productId} value={v.productId}>
+                                {v.label ?? t("variantStandard")}
+                              </option>
+                            ))}
+                          </Select>
+                        </label>
+                      )}
                     </div>
 
                     <div className="mt-2 flex items-center justify-between">

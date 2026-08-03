@@ -682,6 +682,8 @@
     "decreaseQty": "Minska antal",
     "increaseQty": "Öka antal",
     "settingsTitle": "Standardval för nya skanningar",
+    "variant": "Version",
+    "variantStandard": "Standard",
     "settingsHint": "Gäller kort du skannar härnäst. Du kan ändra skick per kort i granskningen.",
     "done": "Klar",
     "scanDetails": "Skanningsdetaljer",
