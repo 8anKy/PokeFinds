@@ -1047,8 +1047,18 @@ export interface PriceHistoryBySource {
   butiker: SourceHistoryPoint[];
 }
 
-/** Alla serier grafen kan rita, i den ordning färgerna tilldelas. */
-export const HISTORY_SOURCE_KEYS = ["cardmarket", "cardtrader", "tradera", "butiker"] as const;
+/**
+ * Serier grafen ritar, i den ordning färgerna tilldelas.
+ *
+ * ⛔ BUTIKER ÄR INTE EN MARKNAD (ägarbeslut 2026-08-03). Butikerna är LÄNKAR — vi
+ * skickar besökaren dit för att köpa, och deras pris hör hemma i pristabellen där
+ * varje butik står namngiven med sitt eget pris. Som KURVA blev det däremot en
+ * anonym linje som blandade ihop åtta olika butikers sortiment. Observationerna
+ * skrivs fortfarande (de driver pristabellen och `computeChanges`); det är bara
+ * grafen de inte hör hemma i. MÄTT före borttagningen: exakt **18 av 31 053**
+ * produkter med prishistorik hade butiker som ENDA källa och tappar sin kurva.
+ */
+export const HISTORY_SOURCE_KEYS = ["cardmarket", "cardtrader", "tradera"] as const;
 export type HistorySourceKey = (typeof HISTORY_SOURCE_KEYS)[number];
 
 /** Rå prisobservation för käll-/dagsbucketing (utbruten för testbarhet). */
@@ -1186,12 +1196,11 @@ export interface ProductDetailData {
   set: { id: string; name: string } | null;
   /** Cardmarket-trendserie (hela perioden; klienten filtrerar). */
   chartData: SourceHistoryPoint[];
-  /** ALLA serier — klienten låter användaren tona in/ur dem och lägga dem ovanpå
-   *  varandra. Ingen extra DB-kostnad: `getPriceHistoryBySource` räknade redan ut
-   *  allihop och kastade bort de som inte var `trendSource`. */
-  historyBySource: PriceHistoryBySource;
+  /** Serierna grafen får rita (utan butiker — se HISTORY_SOURCE_KEYS). Ingen extra
+   *  DB-kostnad: `getPriceHistoryBySource` räknade redan ut allihop. */
+  historyBySource: Pick<PriceHistoryBySource, (typeof HISTORY_SOURCE_KEYS)[number]>;
   /** Källa för historik-grafen → graf-rubrik (CM-trend vs butiks-snitt vs Tradera). */
-  trendSource: "cardmarket" | "butiker" | "tradera";
+  trendSource: "cardmarket" | "cardtrader" | "tradera";
   change7: number | null;
   change30: number | null;
   offerCount: number;
@@ -1390,10 +1399,14 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
   const cmIsLive =
     cmLatest != null &&
     (storeLatest == null || daysBetween(cmLatest, storeLatest) <= TREND_STALE_DAYS);
-  const trendSource: "cardmarket" | "butiker" | "tradera" = cmIsLive
+  // Butiker kan inte längre VARA seriens källa (se HISTORY_SOURCE_KEYS) — men de
+  // används fortfarande som FÄRSKHETSREFERENS ovan: släpar Cardmarket långt efter
+  // butikernas senaste observation är CM-datat dött, oavsett om vi ritar butikerna.
+  // CardTrader kommer före Tradera: för tryckningsvarianterna ÄR CardTrader priset.
+  const trendSource: "cardmarket" | "cardtrader" | "tradera" = cmIsLive
     ? "cardmarket"
-    : historyBySource.butiker.length > 0
-      ? "butiker"
+    : historyBySource.cardtrader.length > 0
+      ? "cardtrader"
       : historyBySource.tradera.length > 0
         ? "tradera"
         : "cardmarket";
@@ -1438,7 +1451,11 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
     updatedAt: new Date(product.updatedAt).toISOString(),
     set: product.set ? { id: product.set.id, name: product.set.name } : null,
     chartData,
-    historyBySource,
+    historyBySource: {
+      cardmarket: historyBySource.cardmarket,
+      cardtrader: historyBySource.cardtrader,
+      tradera: historyBySource.tradera,
+    },
     trendSource,
     change7,
     change30,

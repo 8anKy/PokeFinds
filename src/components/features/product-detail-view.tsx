@@ -158,10 +158,8 @@ export function ProductDetailView({
             subtitle={
               data.chartData.length === 0
                 ? t("historyNone")
-                : data.trendSource === "butiker"
-                  ? isSingle
-                    ? t("rawSubtitleStores")
-                    : t("trendStores")
+                : data.trendSource === "cardtrader"
+                  ? t("rawSubtitleCardTrader")
                   : data.trendSource === "tradera"
                     ? isSingle
                       ? t("rawSubtitleTradera")

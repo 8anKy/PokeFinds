@@ -34,11 +34,13 @@ export const SOURCE_COLORS: Record<string, string> = {
   cardmarket: "#2dd4bf", // varumärkets turkos
   cardtrader: "#a78bfa",
   tradera: "#f5a524",
-  butiker: "#fb7185",
 };
 
-/** Ordningen källorna visas i — mest täckande först. */
-const SOURCE_ORDER = ["cardmarket", "cardtrader", "tradera", "butiker"] as const;
+/**
+ * Ordningen källorna visas i — mest täckande först.
+ * ⛔ Butiker ingår INTE: de är länkar, inte en marknad. Se HISTORY_SOURCE_KEYS.
+ */
+const SOURCE_ORDER = ["cardmarket", "cardtrader", "tradera"] as const;
 export type SourceKey = (typeof SOURCE_ORDER)[number];
 
 const PERIODS = [
