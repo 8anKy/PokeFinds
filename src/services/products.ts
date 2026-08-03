@@ -958,6 +958,14 @@ async function getPriceHistoryRaw(productId: string, days: number) {
 /** Källor vars observationer utgör marknadspriset (Cardmarket-data). */
 export const CARDMARKET_SOURCE_NAMES = ["Cardmarket", "Pokémon TCG API", "TCGdex API"];
 
+/**
+ * CardTraders marknadsplats — EGEN serie, aldrig hopblandad med Cardmarket.
+ * Namnet är samma sträng som `ScrapeSource.name` och som retailern, av samma skäl
+ * som `CT_REVERSE_LABEL` bor på ett ställe: en källa som stavas på två ställen
+ * stavas förr eller senare olika, och då försvinner serien tyst.
+ */
+export const CARDTRADER_SOURCE_NAME = "CardTrader";
+
 /** Så många dagar får CM-trenden släpa efter butikernas färskaste punkt innan den
  *  räknas som död och grafen faller tillbaka på butikstrenden (CM-refresh kör dagligen
  *  → några dagars nåd tål ett hoppat jobb utan att friska produkter flippar källa). */
@@ -984,9 +992,14 @@ export interface SourceHistoryPoint {
 
 export interface PriceHistoryBySource {
   cardmarket: SourceHistoryPoint[];
+  cardtrader: SourceHistoryPoint[];
   tradera: SourceHistoryPoint[];
   butiker: SourceHistoryPoint[];
 }
+
+/** Alla serier grafen kan rita, i den ordning färgerna tilldelas. */
+export const HISTORY_SOURCE_KEYS = ["cardmarket", "cardtrader", "tradera", "butiker"] as const;
+export type HistorySourceKey = (typeof HISTORY_SOURCE_KEYS)[number];
 
 /** Rå prisobservation för käll-/dagsbucketing (utbruten för testbarhet). */
 export interface RawSourceObservation {
@@ -1006,8 +1019,22 @@ export interface RawSourceObservation {
  * = medel av det spärrhake-frusna 281 265 och det healade 69 613. Senaste
  * skrivningen är dagens bästa svar; äldre samma-dag-skrivningar är ersatta.
  *
- * TRADERA/BUTIKER behåller dagsmedel: där är flera observationer per dag OLIKA
- * annonser/butiker, och snittet är just det vi vill visa.
+ * ── ALLA SERIER MÄTER SAMMA STORHET: DAGENS LÄGSTA (2026-08-03) ─────────────
+ * Tradera och butiker bucketades förut som DAGSMEDEL, med motiveringen att flera
+ * observationer samma dag är olika annonser och att snittet "är just det vi vill
+ * visa". Det höll så länge grafen ritade EN serie i taget. Nu kan användaren lägga
+ * serierna ovanpå varandra, och då blir medelvärdet direkt vilseledande: Cardmarket
+ * ritar sitt NM-engelska GOLV och CardTrader sitt billigaste NM-engelska annonspris,
+ * så en Tradera-linje som är ett SNITT hade legat systematiskt högre utan att
+ * marknaden var dyrare. Det är samma fel som skarven mellan trend och golv (se
+ * ovan), fast mellan två kurvor i stället för i en.
+ *
+ * Dagens lägsta är dessutom det tal pristabellen redan visar ("Lägsta pris ·
+ * Tradera"), så linjen och rubriken beskriver äntligen samma sak.
+ *
+ * ⛔ HISTORIKEN SKRIVS INTE OM — den RÄKNAS OM. Varje enskild observation ligger
+ * kvar i `PriceObservation`; det är bara aggregeringen som ändras, så hela den
+ * gamla serien får sin nya form retroaktivt och konsekvent.
  *
  * ── EN SERIE = EN STORHET (2026-07-27) ──────────────────────────────────────
  * Serien blandade två OLIKA mätvärden och ritade dem som en kurva. Fram till
@@ -1030,40 +1057,45 @@ export function bucketObservationsBySource(
     (a, b) => a.observedAt.getTime() - b.observedAt.getTime()
   );
 
-  const cardmarket = new Map<string, number>(); // dag → senaste pris
-  const buckets = {
-    tradera: new Map<string, { sum: number; n: number }>(),
-    butiker: new Map<string, { sum: number; n: number }>(),
+  // Cardmarket och CardTrader publicerar ETT tal per körning (ett golv), så där är
+  // dagens sista skrivning dagens bästa svar. Tradera/butiker har flera OLIKA
+  // annonser per dag och bucketas till dagens LÄGSTA — se resonemanget ovan.
+  const cardmarket = new Map<string, number>();
+  const cardtrader = new Map<string, number>();
+  const lowest = {
+    tradera: new Map<string, number>(),
+    butiker: new Map<string, number>(),
   };
   const hasTrueCardmarket = ordered.some((o) => o.source?.name === "Cardmarket");
 
   for (const o of ordered) {
     const name = o.source?.name ?? null;
     const day = o.observedAt.toISOString().slice(0, 10);
+    if (name === CARDTRADER_SOURCE_NAME) {
+      cardtrader.set(day, o.price); // stigande tidsordning → sista vinner
+      continue;
+    }
     if (name && CARDMARKET_SOURCE_NAMES.includes(name)) {
       // Legacy trend-punkt bredvid äkta CM-golv → annan storhet, hör inte i kurvan.
       if (hasTrueCardmarket && name !== "Cardmarket") continue;
-      cardmarket.set(day, o.price); // stigande tidsordning → sista vinner
+      cardmarket.set(day, o.price);
       continue;
     }
     const group = name === "Tradera" ? "tradera" : "butiker";
-    const b = buckets[group].get(day) ?? { sum: 0, n: 0 };
-    b.sum += o.price;
-    b.n += 1;
-    buckets[group].set(day, b);
+    const prev = lowest[group].get(day);
+    if (prev == null || o.price < prev) lowest[group].set(day, o.price);
   }
 
-  const toSeries = (m: Map<string, { sum: number; n: number }>): SourceHistoryPoint[] =>
+  const toSeries = (m: Map<string, number>): SourceHistoryPoint[] =>
     [...m.entries()]
       .sort(([a], [b]) => (a < b ? -1 : 1))
-      .map(([date, { sum, n }]) => ({ date, price: Math.round(sum / n) }));
+      .map(([date, price]) => ({ date, price }));
 
   return {
-    cardmarket: [...cardmarket.entries()]
-      .sort(([a], [b]) => (a < b ? -1 : 1))
-      .map(([date, price]) => ({ date, price })),
-    tradera: toSeries(buckets.tradera),
-    butiker: toSeries(buckets.butiker),
+    cardmarket: toSeries(cardmarket),
+    cardtrader: toSeries(cardtrader),
+    tradera: toSeries(lowest.tradera),
+    butiker: toSeries(lowest.butiker),
   };
 }
 
@@ -1103,6 +1135,10 @@ export interface ProductDetailData {
   set: { id: string; name: string } | null;
   /** Cardmarket-trendserie (hela perioden; klienten filtrerar). */
   chartData: SourceHistoryPoint[];
+  /** ALLA serier — klienten låter användaren tona in/ur dem och lägga dem ovanpå
+   *  varandra. Ingen extra DB-kostnad: `getPriceHistoryBySource` räknade redan ut
+   *  allihop och kastade bort de som inte var `trendSource`. */
+  historyBySource: PriceHistoryBySource;
   /** Källa för historik-grafen → graf-rubrik (CM-trend vs butiks-snitt vs Tradera). */
   trendSource: "cardmarket" | "butiker" | "tradera";
   change7: number | null;
@@ -1351,6 +1387,7 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
     updatedAt: new Date(product.updatedAt).toISOString(),
     set: product.set ? { id: product.set.id, name: product.set.name } : null,
     chartData,
+    historyBySource,
     trendSource,
     change7,
     change30,

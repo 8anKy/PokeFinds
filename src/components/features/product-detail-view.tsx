@@ -149,6 +149,7 @@ export function ProductDetailView({
           </div>
 
           <ProductPriceCard
+            bySource={data.historyBySource}
             title={isSingle ? t("historyRawTitle") : t("historyTitle")}
             /* Underrubriken NAMNGER seriens källa och måste följa `trendSource`.
                Singlar hade den hårdkodad till "· Cardmarket" — så en graf ritad av

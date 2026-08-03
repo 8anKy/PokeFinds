@@ -34,6 +34,7 @@
  */
 import { prisma } from "../lib/db";
 import { getRatesOre } from "../lib/exchange-rate";
+import { cardTraderSourceId, recordCardTraderObservation } from "./cardtrader-observation";
 import { normalizeTitle } from "@/lib/utils";
 import { PRINT_FIRST_EDITION } from "../lib/print-variant";
 import {
@@ -337,6 +338,8 @@ export async function runCardTraderFirstEditionImport(opts: {
           url: c.url,
         },
       });
+      // Dagens punkt till prisgrafen. Utan den är produkten historiklös för alltid.
+      await recordCardTraderObservation(product.id, priceOre, await cardTraderSourceId());
     }
 
     console.log(

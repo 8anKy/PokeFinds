@@ -51,6 +51,7 @@ import {
   type CtBlueprint,
 } from "@/lib/cardtrader";
 import { getRatesOre } from "@/lib/exchange-rate";
+import { cardTraderSourceId, recordCardTraderObservation } from "./cardtrader-observation";
 import { normalizeTitle } from "@/lib/utils";
 
 const prisma = new PrismaClient();
@@ -463,6 +464,8 @@ export async function runCardTraderReverseImport(opts: {
           url,
         },
       });
+      // Dagens punkt till prisgrafen. Utan den är produkten historiklös för alltid.
+      await recordCardTraderObservation(product.id, priceOre, await cardTraderSourceId());
     }
 
     logSet();

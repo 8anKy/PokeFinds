@@ -21,8 +21,20 @@ export interface PriceChartPoint {
   price: number; // i öre
 }
 
+/** En namngiven, färgsatt serie. Färgen följer KÄLLAN, aldrig ordningen — en
+ *  avbockad källa får aldrig måla om de kvarvarande. */
+export interface PriceChartSeries {
+  key: string;
+  label: string;
+  color: string;
+  points: PriceChartPoint[];
+}
+
 export interface PriceChartProps {
   data: PriceChartPoint[];
+  /** Fler än en serie → överlagrat läge med en linje per källa. En enda serie
+   *  ritas som förut (yta, uttoning, endpoint-prick), fast i källans färg. */
+  series?: PriceChartSeries[];
   className?: string;
   /** Månadsaggregerad serie → visa "mån åååå" på axeln (utan vilseledande dag). */
   monthly?: boolean;
@@ -31,7 +43,8 @@ export interface PriceChartProps {
   minimal?: boolean;
 }
 
-const LINE = "#2dd4bf"; // turquoise — brand signature line
+const BRAND_LINE = "#2dd4bf"; // turquoise — brand signature line
+const LINE = BRAND_LINE; // används av tooltip/legend utanför komponenten
 const GRID = "#26262b"; // subtle neutral guide line
 const TICK = "#8a8a93"; // muted neutral axis label
 const SURFACE = "#0a0a0c"; // page background (endpoint halo cutout)
@@ -125,7 +138,159 @@ function ChartCursor({
   );
 }
 
-export function PriceChart({ data, className, monthly = false, minimal = false }: PriceChartProps) {
+/**
+ * ÖVERLAGRAT LÄGE — flera källor i samma diagram.
+ *
+ * ⛔ EN AXEL, ALDRIG TVÅ. Alla serier är samma storhet i samma valuta (dagens
+ * lägsta i öre), så de delar y-axel. Det är också hela skälet till att
+ * `bucketObservationsBySource` bytte Tradera/butiker från dagsmedel till dagens
+ * lägsta: ett snitt och ett golv på samma axel hade fått marknaden att se dyrare
+ * ut än den är.
+ *
+ * Ingen yta här — fyra tonade ytor ovanpå varandra blir gyttja. Bara linjer.
+ * `connectNulls` eftersom källorna har olika täta punkter: Cardmarket skriver
+ * varje dag, Tradera bara de dagar en matchande annons fanns, och ett hål i en
+ * serie ska inte klippa av den.
+ */
+function MultiSeriesChart({
+  series,
+  dateLocale,
+  monthly,
+  spansYears,
+}: {
+  series: PriceChartSeries[];
+  dateLocale: string;
+  monthly: boolean;
+  spansYears: boolean;
+}) {
+  const byKey = new Map(series.map((s) => [s.key, new Map(s.points.map((p) => [p.date, p.price]))]));
+  const dates = [...new Set(series.flatMap((s) => s.points.map((p) => p.date)))].sort();
+  const rows = dates.map((date) => {
+    const row: Record<string, string | number | null> = { date };
+    for (const s of series) row[s.key] = byKey.get(s.key)?.get(date) ?? null;
+    return row;
+  });
+  const prices = series.flatMap((s) => s.points.map((p) => p.price));
+  const range = Math.max(...prices) - Math.min(...prices);
+  const decimals = range < 200 ? 2 : range < 1000 ? 1 : 0;
+
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <AreaChart data={rows} margin={{ top: 12, right: 30, bottom: 0, left: 0 }}>
+        <CartesianGrid stroke={GRID} strokeDasharray="2 6" vertical={false} />
+        <XAxis
+          dataKey="date"
+          tickFormatter={(d: string) => shortDate(d, spansYears, monthly, dateLocale)}
+          tick={{ fill: TICK, fontSize: 11 }}
+          angle={-40}
+          textAnchor="end"
+          height={48}
+          axisLine={false}
+          tickLine={false}
+          minTickGap={28}
+        />
+        <YAxis
+          tickFormatter={(v: number) =>
+            (v / 100).toLocaleString("sv-SE", {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: decimals,
+            })
+          }
+          tick={{ fill: TICK, fontSize: 11 }}
+          axisLine={false}
+          tickLine={false}
+          width={48}
+          domain={["auto", "auto"]}
+        />
+        <Tooltip
+          content={<MultiTooltip series={series} monthly={monthly} dateLocale={dateLocale} />}
+          cursor={{ stroke: GRID, strokeWidth: 1.25 }}
+          position={{ y: 0 }}
+        />
+        {series.map((s) => (
+          <Area
+            key={s.key}
+            type="monotone"
+            dataKey={s.key}
+            name={s.label}
+            stroke={s.color}
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+            dot={false}
+            activeDot={{ r: 4, fill: s.color, stroke: SURFACE, strokeWidth: 2 }}
+            connectNulls
+            isAnimationActive={false}
+          />
+        ))}
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+/** Tooltip för överlagrat läge: färgen sitter på PRICKEN, texten bär ink-tokens. */
+function MultiTooltip({
+  active,
+  payload,
+  label,
+  series,
+  monthly = false,
+  dateLocale = "sv-SE",
+}: TooltipProps<number, string> & {
+  series: PriceChartSeries[];
+  monthly?: boolean;
+  dateLocale?: string;
+}) {
+  const lastLabel = useRef<string | null>(null);
+  useEffect(() => {
+    if (!active) {
+      lastLabel.current = null;
+      return;
+    }
+    const key = label == null ? null : String(label);
+    if (key !== null && key !== lastLabel.current) {
+      lastLabel.current = key;
+      hapticGlide();
+    }
+  }, [active, label]);
+
+  if (!active || !payload || payload.length === 0) return null;
+  const shown = payload.filter((p) => typeof p.value === "number");
+  if (shown.length === 0) return null;
+  return (
+    <div className="rounded-lg bg-surface-raised px-3.5 py-2 shadow-xl ring-1 ring-white/10">
+      <p className="text-[11px] font-medium text-ink-muted">
+        {shortDate(String(label), true, monthly, dateLocale)}
+      </p>
+      <div className="mt-1 space-y-0.5">
+        {shown.map((p) => {
+          const s = series.find((x) => x.key === p.dataKey);
+          return (
+            <div key={String(p.dataKey)} className="flex items-center gap-1.5">
+              <span
+                className="inline-block h-2.5 w-1 shrink-0 rounded-full"
+                style={{ backgroundColor: s?.color ?? LINE }}
+              />
+              <span className="text-[11px] text-ink-muted">{s?.label}</span>
+              <span className="ml-auto pl-3 text-sm font-semibold text-white" data-price>
+                {formatPrice(p.value as number)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function PriceChart({
+  data,
+  series,
+  className,
+  monthly = false,
+  minimal = false,
+}: PriceChartProps) {
   const t = useTranslations("Detail");
   const locale = useLocale();
   // Datumaxel följer språket (en-GB behåller dag-månad-ordningen "18 Jun");
@@ -136,6 +301,9 @@ export function PriceChart({ data, className, monthly = false, minimal = false }
   const areaFillId = `af-${uid}`;
   const cursorId = `cu-${uid}`;
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  // FÄRGEN FÖLJER KÄLLAN, inte ordningen: väljer man bara Tradera ska linjen vara
+  // Traderas färg — annars läser den som Cardmarket.
+  const LINE = series?.length === 1 ? series[0].color : BRAND_LINE;
   // Bara linjens uttoning. HAPTIKEN ligger i ChartTooltip — den är den enda
   // signalen recharts ger på BÅDE mus och touch. Se kommentaren där.
   const scrubTo = useCallback((state: { activeTooltipIndex?: number } | undefined) => {
@@ -143,6 +311,21 @@ export function PriceChart({ data, className, monthly = false, minimal = false }
     setActiveIndex(typeof i === "number" ? i : null);
   }, []);
   const endScrub = useCallback(() => setActiveIndex(null), []);
+
+  const multi = series && series.length > 1 ? series.filter((s) => s.points.length > 0) : null;
+  if (multi && multi.length > 1) {
+    const all = multi.flatMap((s) => s.points.map((p) => p.date)).sort();
+    return (
+      <div className={className} onTouchEnd={endScrub} onTouchCancel={endScrub}>
+        <MultiSeriesChart
+          series={multi}
+          dateLocale={dateLocale}
+          monthly={monthly}
+          spansYears={all.length > 0 && all[0].slice(0, 4) !== all[all.length - 1].slice(0, 4)}
+        />
+      </div>
+    );
+  }
 
   if (data.length === 0) {
     return (

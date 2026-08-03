@@ -25,6 +25,7 @@
  */
 import { prisma } from "../lib/db";
 import { getRatesOre } from "../lib/exchange-rate";
+import { cardTraderSourceId, recordCardTraderObservation } from "./cardtrader-observation";
 import { normalizeTitle } from "@/lib/utils";
 import {
   CT_MIN_DEPTH,
@@ -288,6 +289,8 @@ export async function runCardTraderBallImport(opts: {
           url: c.url,
         },
       });
+      // Dagens punkt till prisgrafen. Utan den är produkten historiklös för alltid.
+      await recordCardTraderObservation(product.id, priceOre, await cardTraderSourceId());
     }
 
     console.log(

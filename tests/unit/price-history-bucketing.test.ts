@@ -35,15 +35,33 @@ describe("bucketObservationsBySource", () => {
     expect(res.cardmarket).toEqual([{ date: "2026-07-23", price: 80_00 }]);
   });
 
-  it("Tradera och butiker behåller dagsmedel (flera obs = olika annonser)", () => {
+  // ⛔ BYTT FRÅN DAGSMEDEL TILL DAGENS LÄGSTA 2026-08-03. Serierna kan nu ritas
+  // OVANPÅ varandra, och Cardmarket/CardTrader ritar båda ett GOLV. En Tradera-linje
+  // som var ett snitt hade legat systematiskt högre utan att marknaden var dyrare —
+  // och pristabellen har hela tiden sagt "Lägsta pris · Tradera". Linjen och
+  // rubriken beskriver äntligen samma tal.
+  it("Tradera och butiker bucketas till DAGENS LÄGSTA, inte dagsmedel", () => {
     const res = bucketObservationsBySource([
       { price: 100_00, observedAt: new Date("2026-07-23T10:00:00Z"), source: { name: "Tradera" } },
       { price: 200_00, observedAt: new Date("2026-07-23T12:00:00Z"), source: { name: "Tradera" } },
       { price: 300_00, observedAt: new Date("2026-07-23T10:00:00Z"), source: { name: "Spelexperten" } },
       { price: 500_00, observedAt: new Date("2026-07-23T12:00:00Z"), source: { name: "Webhallen" } },
     ]);
-    expect(res.tradera).toEqual([{ date: "2026-07-23", price: 150_00 }]);
-    expect(res.butiker).toEqual([{ date: "2026-07-23", price: 400_00 }]);
+    expect(res.tradera).toEqual([{ date: "2026-07-23", price: 100_00 }]);
+    expect(res.butiker).toEqual([{ date: "2026-07-23", price: 300_00 }]);
+  });
+
+  it("CardTrader är en EGEN serie — aldrig hopblandad med Cardmarket eller butiker", () => {
+    // Föll annars i "butiker"-hinken (allt som inte är CM eller Tradera hamnar där),
+    // dvs CardTraders golv hade presenterats som ett svenskt butikspris.
+    const res = bucketObservationsBySource([
+      cm("2026-07-23T15:00:00Z", 80_00),
+      { price: 120_00, observedAt: new Date("2026-07-23T05:00:00Z"), source: { name: "CardTrader" } },
+      { price: 110_00, observedAt: new Date("2026-07-23T06:00:00Z"), source: { name: "CardTrader" } },
+    ]);
+    expect(res.cardtrader).toEqual([{ date: "2026-07-23", price: 110_00 }]); // dagens sista
+    expect(res.cardmarket).toEqual([{ date: "2026-07-23", price: 80_00 }]);
+    expect(res.butiker).toEqual([]);
   });
 
   it("serier sorteras stigande på datum och dagar hålls isär", () => {
