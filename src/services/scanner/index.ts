@@ -54,8 +54,16 @@ const SIBLING_LIMIT = 12;
  * Falinks ur Stellar Crown — olika konst, samma namn), och att ha det i listan
  * kostar ingenting när UI:t ändå filtrerar. Att INTE ha det gör kortet omöjligt
  * att välja.
+ *
+ * Höjt 4 → 6 (2026-08-04): detaljvyn VISAR numera namnsyskonen (de kastades förr
+ * av poängfönstret, se pickAlternatives), så reservationen är inte längre bara en
+ * beredskap utan det som avgör hur många man får se. Mätt fall: Mudbray #107 har
+ * fem syskon och det femte trängdes ut av taket. Platserna tas från de lägst
+ * rankade ÖVRIGA — i samma mätning bildkandidater på 0,26 mot träffens 1,45, som
+ * ändå aldrig visas. Bildens egen topp (ART_ALWAYS_SHOWN) ligger i ett HÖGRE
+ * skikt än syskonen och rörs inte.
  */
-const SIBLING_RESERVED = 4;
+const SIBLING_RESERVED = 6;
 
 /** Hur många av BILDENS bästa gissningar som alltid ska gå att välja i
  *  detaljvyn. Se märkningen av `artRank` i matchCards — texten kan slå bilden

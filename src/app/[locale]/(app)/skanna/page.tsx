@@ -36,8 +36,6 @@ import {
 } from "@/lib/card-quad";
 import { useIsAdmin } from "@/components/admin-only";
 import { Button, LinkButton } from "@/components/ui/button";
-import { PriceChange } from "@/components/ui/price-change";
-import { PriceChartLazy } from "@/components/features/price-chart-lazy";
 import { Label, Select } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
@@ -2715,6 +2713,12 @@ function ScanDetailsSheet(props: {
     () => pickAlternatives(item.candidates, item.match),
     [item.candidates, item.match]
   );
+  // Träffen först i raden, sedan alternativen. Ett svep ska kunna gå från "det
+  // vi valde" till "kanske det här i stället" utan att man tappar referensen.
+  const rail = useMemo(
+    () => (item.match ? [item.match, ...alternatives] : alternatives),
+    [item.match, alternatives]
+  );
 
   return (
     <Sheet title={t("scanDetails")} onClose={props.onClose}>
@@ -2784,58 +2788,75 @@ function ScanDetailsSheet(props: {
           </p>
         )}
 
-        {alternatives.length > 0 && (
+        {/* KORTEN SOM EN VÅGRÄT RAD MAN SVEPER I (2026-08-04).
+            Konsten är det man känner igen ett kort på — inte en textrad — och en
+            lodrät lista visade tre bilder i frimärksformat och sköt resten under
+            vikningen. Raden bär TRÄFFEN FÖRST, markerad: utan ett ankare vet man
+            inte vad man jämför MOT när man sveper. Bleeder ut till panelens kant
+            (-mx-5/px-5) så att ett halvt kort tittar fram i högerkanten — det är
+            den affordansen som säger att raden går att svepa. */}
+        {rail.length > 0 && (
           <div>
             <p className="mb-2 text-xs font-medium text-ink-muted">
               {item.match ? t("notRight") : t("possibleMatches")}
             </p>
-            <div className="flex flex-col gap-1.5">
-              {alternatives.map((c) => (
-                <button
-                  // Nyckeln måste bära TRYCKNINGEN: tre Base-produkter delar
-                  // cardId, så cardId ensamt gav dubblettnycklar och React
-                  // återanvände fel rad.
-                  key={c.productId ?? c.cardId}
-                  type="button"
-                  onClick={() => props.onChoose(c)}
-                  className="flex items-center gap-3 rounded-xl border border-surface-border p-2 text-left transition-colors hover:border-holo-cyan/50 hover:bg-surface-overlay focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
-                >
-                  {c.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={c.imageUrl} alt="" className="h-12 w-9 shrink-0 rounded object-cover" />
-                  ) : (
-                    <span className="flex h-12 w-9 shrink-0 items-center justify-center rounded bg-surface-overlay text-ink-faint">
-                      <IconCards size={14} />
+            <div className="-mx-5 flex snap-x gap-2.5 overflow-x-auto px-5 pb-1">
+              {rail.map((c) => {
+                const selected =
+                  item.match != null &&
+                  c.cardId === item.match.cardId &&
+                  c.productId === item.match.productId;
+                return (
+                  <button
+                    // Nyckeln måste bära VARIANTEN: flera produkter delar cardId,
+                    // så cardId ensamt gav dubblettnycklar och React återanvände
+                    // fel kort.
+                    key={c.productId ?? c.cardId}
+                    type="button"
+                    onClick={() => props.onChoose(c)}
+                    aria-current={selected}
+                    className={`w-[104px] shrink-0 snap-start rounded-xl border p-1.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan ${
+                      selected
+                        ? "border-holo-cyan/60 bg-holo-cyan/5"
+                        : "border-surface-border hover:border-holo-cyan/50 hover:bg-surface-overlay"
+                    }`}
+                  >
+                    {c.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={c.imageUrl}
+                        alt=""
+                        className="aspect-[5/7] w-full rounded-lg object-cover"
+                      />
+                    ) : (
+                      <span className="flex aspect-[5/7] w-full items-center justify-center rounded-lg bg-surface-overlay text-ink-faint">
+                        <IconCards size={18} />
+                      </span>
+                    )}
+                    <span className="mt-1.5 block truncate text-xs font-medium text-ink">
+                      {c.name}
                     </span>
-                  )}
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline gap-1.5">
-                      <span className="truncate text-sm font-medium text-ink">{c.name}</span>
-                      {/* Utan etiketten ser de tre Base-tryckningarna identiska ut
-                          i listan — samma namn, samma set, samma nummer. */}
+                    <span className="block truncate text-[11px] text-ink-faint">
+                      #{c.number} · {c.setName}
+                    </span>
+                    <span className="mt-0.5 flex items-baseline justify-between gap-1">
+                      <span className="truncate text-[11px] tabular-nums text-ink-muted">
+                        {c.estimatedValue != null ? formatPrice(c.estimatedValue) : "–"}
+                      </span>
+                      {/* Utan etiketten ser Base-tryckningarna identiska ut —
+                          samma namn, samma set, samma nummer. */}
                       {c.variantLabel && (
-                        <span className="shrink-0 rounded bg-surface-overlay px-1.5 py-px text-[10px] font-medium text-holo-cyan ring-1 ring-holo-cyan/25">
+                        <span className="shrink-0 rounded bg-surface-overlay px-1 text-[9px] font-medium text-holo-cyan ring-1 ring-holo-cyan/25">
                           {c.variantLabel}
                         </span>
                       )}
                     </span>
-                    <span className="block truncate text-xs text-ink-faint">
-                      {c.setName} · #{c.number}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-sm tabular-nums text-ink-muted">
-                    {c.estimatedValue != null ? formatPrice(c.estimatedValue) : "–"}
-                  </span>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
-
-        {/* Prisutveckling för träffen — "hur har det här kortet gått?" utan att
-            lämna kameran. Ligger EFTER alternativen med flit: rättar man träffen
-            byts kortet, och då vore en graf över fel kort det första man såg. */}
-        {item.match?.slug && <ScanPriceHistory slug={item.match.slug} />}
 
         {/* Åtgärder */}
         <div className="flex flex-wrap gap-2">
@@ -2857,100 +2878,6 @@ function ScanDetailsSheet(props: {
         </div>
       </div>
     </Sheet>
-  );
-}
-
-/**
- * Prisutveckling för det skannade kortet — "har det här gått upp eller ner?"
- * utan att lämna kameravyn.
- *
- * Datat kommer från /api/products/{slug}/detail, SAMMA endpoint som produkt-
- * overlayn: CDN-cachad och backad av `loadProductDetail`s cache, så den kostar i
- * praktiken ingen ny Neon-fråga. Hämtningen sker när DETALJVYN ÖPPNAS, aldrig
- * vid skanningen — en bulk-fångst med nio kort hade annars dragit nio
- * detaljhämtningar som ingen tittar på.
- *
- * ⛔ Grafen ritas bara med minst två punkter. En ensam punkt är ingen utveckling,
- * och en linje mellan ett värde och sig självt påstår en stabilitet vi inte mätt.
- */
-function ScanPriceHistory({ slug }: { slug: string }) {
-  const t = useTranslations("Scanner");
-  const [series, setSeries] = useState<{ date: string; price: number }[] | null>(null);
-  const [changes, setChanges] = useState<{ d7: number | null; d30: number | null }>({
-    d7: null,
-    d30: null,
-  });
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    setSeries(null);
-    setFailed(false);
-    fetch(`/api/products/${encodeURIComponent(slug)}/detail`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("detail"))))
-      .then((d: unknown) => {
-        if (!alive) return;
-        const data = d as {
-          chartData?: { date: string; price: number }[];
-          change7?: number | null;
-          change30?: number | null;
-        };
-        setSeries(Array.isArray(data.chartData) ? data.chartData : []);
-        setChanges({
-          d7: typeof data.change7 === "number" ? data.change7 : null,
-          d30: typeof data.change30 === "number" ? data.change30 : null,
-        });
-      })
-      .catch(() => {
-        if (alive) setFailed(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [slug]);
-
-  // Ett tyst fel är rätt här: prisutvecklingen är en bonus i skanningsvyn, och
-  // en röd ruta över en misslyckad extrahämtning hade läst som att SKANNINGEN
-  // gick fel. Kortet och priset ovanför står kvar oavsett.
-  if (failed) return null;
-
-  return (
-    <div>
-      <div className="mb-2 flex items-baseline justify-between gap-3">
-        <p className="text-xs font-medium text-ink-muted">{t("priceHistory")}</p>
-        {series !== null && (changes.d7 !== null || changes.d30 !== null) && (
-          <span className="flex shrink-0 items-center gap-2.5">
-            {changes.d7 !== null && (
-              <span className="flex items-baseline gap-1 text-[11px] text-ink-faint">
-                {t("change7d")}
-                <PriceChange percent={changes.d7} className="text-xs" hideIcon />
-              </span>
-            )}
-            {changes.d30 !== null && (
-              <span className="flex items-baseline gap-1 text-[11px] text-ink-faint">
-                {t("change30d")}
-                <PriceChange percent={changes.d30} className="text-xs" hideIcon />
-              </span>
-            )}
-          </span>
-        )}
-      </div>
-      {series === null ? (
-        // Samma 300px som PriceChart ritar på — annars hoppar arket när datat
-        // landar och användaren tappar sin plats mitt i en scroll.
-        <div className="h-[300px] w-full animate-pulse rounded-xl bg-surface-overlay" aria-hidden />
-      ) : series.length < 2 ? (
-        <p className="rounded-xl border border-surface-border px-3 py-6 text-center text-xs text-ink-faint">
-          {t("priceHistoryEmpty")}
-        </p>
-      ) : (
-        // data-swipe-ignore: vågrätt drag på grafen är tooltip-scrubbing, inte
-        // svep-tillbaka — samma undantag som produktsidans graf har.
-        <div data-swipe-ignore className="-mx-1">
-          <PriceChartLazy data={series} minimal />
-        </div>
-      )}
-    </div>
   );
 }
 

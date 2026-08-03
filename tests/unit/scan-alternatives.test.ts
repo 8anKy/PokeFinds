@@ -52,17 +52,48 @@ describe("pickAlternatives", () => {
     expect(out.map((c) => c.cardId)).toEqual(["art1", "art2"]);
   });
 
-  it("gallrar bort kort med ANNAN konst som ligger utanför poängfönstret", () => {
+  it("gallrar bort ORELATERADE kort som ligger utanför poängfönstret", () => {
     const out = pickAlternatives(
       [
         card({ cardId: "raboot-27", score: 1.15 }),
-        // Samma NAMN men annan konst, långt under → ska INTE visas. Det var
-        // hela poängen med att byta namnregeln mot konstregeln.
-        card({ cardId: "raboot-other-art", score: 0.4, sameArt: false }),
+        // Annat namn, annan konst, långt under → ingen förväxlingsrisk.
+        card({ cardId: "scorbunny", name: "Scorbunny", score: 0.4, sameArt: false }),
       ],
-      match
+      { ...match, name: "Raboot" }
     );
     expect(out).toHaveLength(0);
+  });
+
+  it("visar SAMMA NAMN i andra set — de har poäng 0 och föll ur varje fönster", () => {
+    // MÄTT mot prod 2026-08-04: en bildavgjord skanning av Mudbray #107 gav
+    // Terrakion #54 och Tyrunt #44 (bildens tvåa och trea, 0,26 mot träffens
+    // 1,45) medan alla fyra andra Mudbray kastades — servern skickade dem, med
+    // poäng 0 just för att poängen inte kom ur en matchning, och fönstret mäter
+    // avstånd till träffen. 0 ligger per definition utanför.
+    const out = pickAlternatives(
+      [
+        card({ cardId: "mudbray-107", name: "Mudbray", score: 1.45 }),
+        card({ cardId: "terrakion-54", name: "Terrakion", score: 0.267, artRank: 2 }),
+        card({ cardId: "mudbray-91", name: "Mudbray", score: 0 }),
+        card({ cardId: "mudbray-96", name: "Mudbray", score: 0 }),
+      ],
+      { cardId: "mudbray-107", productId: null, score: 1.45, name: "Mudbray" }
+    );
+    expect(out.map((c) => c.cardId)).toEqual(["terrakion-54", "mudbray-91", "mudbray-96"]);
+  });
+
+  it("bildens topp ligger FÖRE namnsyskonen — den ordningen är fältbevisad", () => {
+    // Komala-fallet: med ett trunkerat namn är syskonen en lista över FEL kort
+    // medan bilden pekar rätt. Namnregeln får inte tränga undan den.
+    const out = pickAlternatives(
+      [
+        card({ cardId: "komala-185", name: "Komala", score: 1.2 }),
+        card({ cardId: "komala-annat-set", name: "Komala", score: 0 }),
+        card({ cardId: "larrys-komala", name: "Larry's Komala", score: 0.3, artRank: 1 }),
+      ],
+      { cardId: "komala-185", productId: null, score: 1.2, name: "Komala" }
+    );
+    expect(out[0].cardId).toBe("larrys-komala");
   });
 
   it("behåller kort med annan konst som ligger INOM fönstret", () => {
