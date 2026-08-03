@@ -80,6 +80,7 @@ if (!process.env.DATABASE_URL) {
 const prisma = new PrismaClient();
 const APPLY = process.env.APPLY === "1";
 const ONLY_SET = process.env.SET || null;
+const DEBUG = process.env.DEBUG === "1";
 
 /** TCGdex-set där namnmatchningen inte räcker. Vår externalId → deras set-id. */
 const SET_OVERRIDES: Record<string, string> = {
@@ -99,9 +100,22 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** TCGGO svarar 429 långt före kvottaket — seriellt med paus, aldrig parallellt. */
 const TCGGO_GAP_MS = 350;
 
-/** "MEP 023" → "23" · "023/93" → "23" · "HGSS18" → "hgss18". */
+/**
+ * "MEP 023" → "23" · "023/93" → "23" · "HGSS18" → "hgss18".
+ *
+ * ⛔ SETKODEN MÅSTE BORT NÄR DEN STÅR SOM EGET ORD. Vår katalog skriver Litten
+ * som "044" medan TCGGO skriver "MEP 044" — utan strippningen blev nycklarna "44"
+ * och "mep044", reservmatchningen (nummer + namn) föll, och kortet fastnade på en
+ * 420 px CardTrader-bild fast TCGGO hade 736 px. Bara ren bokstavsprefix + MELLANSLAG
+ * + rent tal strippas, så "HGSS18" och "TG07" (utan mellanslag) rörs inte — de är
+ * äkta delserienummer, inte setkoder.
+ */
+function stripSetCode(s: string): string {
+  return s.trim().match(/^[A-Za-z]+\s+(\d+)$/)?.[1] ?? s;
+}
+
 function numKey(s: string): string {
-  const t = s.toLowerCase().replace(/\s+/g, "").split("/")[0];
+  const t = stripSetCode(s).toLowerCase().replace(/\s+/g, "").split("/")[0];
   const stripped = t.replace(/^0+/, "");
   return /^\d+$/.test(stripped || "0") ? String(Number(t || "0")) : stripped;
 }
@@ -176,6 +190,51 @@ const RATIO_MAX = 0.76;
  */
 const seenHashes = new Map<string, string>(); // md5 → första kort-id
 
+/**
+ * Bildens IDENTITET, oberoende av storleksvariant.
+ *
+ * ⛔ HASH RÄCKER INTE. CardTraders `…/image/388969/x.png` och
+ * `…/image/388969/show_x.png` är samma BILD i två storlekar — olika bytes, alltså
+ * olika md5. Byte-vakten släppte därför igenom den andra Mega Greninja-raden med
+ * en nedskalad kopia av den första kortets bild. Två katalograder såg fortfarande
+ * identiska ut. Identiteten är källans egen post-id, inte filen.
+ */
+function imageIdentity(url: string): string {
+  return (
+    url.match(/cardtrader\.com\/uploads\/blueprints\/image\/(\d+)\//)?.[1
+    ] ? `ct:${url.match(/image\/(\d+)\//)![1]}` :
+    url.match(/tcggo\.com\/tcggo\/storage\/(\d+)\//) ? `tcggo:${url.match(/storage\/(\d+)\//)![1]}` :
+    url.match(/tcgplayer\.com\/(?:.*\/)?(\d+)[_.]/) ? `tcgp:${url.match(/(\d+)[_.]/)![1]}` :
+    url.match(/scrydex\.com\/pokemon\/([^/]+)\//) ? `scry:${url.match(/pokemon\/([^/]+)\//)![1]}` :
+    url
+  );
+}
+
+/** Identitet → första kort som tog den. */
+const seenIdentities = new Map<string, string>();
+
+/**
+ * Hämtar bilden och gör anspråk på dess hash för kortet. `false` = hashen ägs
+ * redan av ett ANNAT kort, dvs bilden skulle bli delad.
+ */
+async function claimHash(url: string, cardId: string): Promise<boolean> {
+  const ident = imageIdentity(url);
+  const identOwner = seenIdentities.get(ident);
+  if (identOwner && identOwner !== cardId) return false;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    if (!r.ok) return false;
+    const md5 = createHash("md5").update(Buffer.from(await r.arrayBuffer())).digest("hex");
+    const owner = seenHashes.get(md5);
+    if (owner && owner !== cardId) return false;
+    seenHashes.set(md5, cardId);
+    seenIdentities.set(ident, cardId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 interface ImageCheck {
   ok: boolean;
   width?: number;
@@ -187,6 +246,8 @@ async function checkImage(
   cardId: string
 ): Promise<ImageCheck> {
   if (!url || !/^https?:\/\//.test(url)) return { ok: false, why: "ingen url" };
+  const identOwner = seenIdentities.get(imageIdentity(url));
+  if (identOwner && identOwner !== cardId) return { ok: false, why: `bilden tillhör ${identOwner}` };
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(20_000) });
     if (!r.ok) return { ok: false, why: `HTTP ${r.status}` };
@@ -203,6 +264,7 @@ async function checkImage(
     if (ratio < RATIO_MIN || ratio > RATIO_MAX)
       return { ok: false, width: m.width, why: `proportion ${ratio.toFixed(3)} (utfyllnad?)` };
     seenHashes.set(md5, cardId);
+    seenIdentities.set(imageIdentity(url), cardId);
     return { ok: true, width: m.width };
   } catch (e) {
     return { ok: false, why: (e as Error).message.slice(0, 40) };
@@ -384,7 +446,8 @@ async function main() {
               ctBlueprintCache.set(exp.id, bps);
               await sleep(400);
             }
-            const want = ctNumberKey(c.number);
+            // Samma setkods-fälla som numKey: vår "MEP 081" mot CardTraders "081".
+            const want = ctNumberKey(stripSetCode(c.number));
             const hit = bps.find(
               (b) =>
                 ctNumberKey(b.fixed_properties?.collector_number) === want &&
@@ -398,6 +461,17 @@ async function main() {
           console.log(`    (CardTrader: ${(e as Error).message.slice(0, 80)})`);
         }
       }
+
+      // --- Källa: Scrydex (äger numera pokemontcg.io) ---
+      // ⛔ MÅSTE gå genom hash-vakten: Scrydex svarar 200 med KORTETS BAKSIDA för
+      // set de saknar (identisk md5 för mcd18-1 och mcd15-6). För set de HAR är
+      // bilden äkta och bra — svp-102 Oddish: 598x836, unik hash. Den enda källan
+      // som räddar de pokemontcg.io-kort som 404:at.
+      if (c.tcgExternalId)
+        candidates.push({
+          url: `https://images.scrydex.com/pokemon/${c.tcgExternalId}/large`,
+          src: "Scrydex",
+        });
 
       // Har kortet redan en TCGplayer-bild kan productId:t återanvändas direkt —
       // ingen TCGdex-slagning behövs för att hitta en BÄTTRE variant av samma bild.
@@ -423,6 +497,15 @@ async function main() {
         }
       }
 
+      /**
+       * ⛔ TRÖSKELN ÄR ETT MÅL, INTE ETT ULTIMATUM. Mega Greninja ex · MEP 081
+       * finns hos TCGGO i 255 px och hos CardTrader i 476 px — ingen når 560, men
+       * 476 är nästan dubbelt så bra som det vi har. Att avstå hade bevarat den
+       * SÄMSTA bilden av principskäl. Reserven tar därför den BREDASTE kandidat
+       * som bara föll på bredden (aldrig på proportion eller platshållar-vakten)
+       * och som dessutom är bredare än den vi redan har.
+       */
+      const tooNarrow: { url: string; src: string; width: number }[] = [];
       for (const cand of candidates) {
         const chk = await checkImage(cand.url, c.id);
         if (chk.ok) {
@@ -430,7 +513,26 @@ async function main() {
           src = cand.src;
           break;
         }
+        if (chk.width && /px bred$/.test(chk.why ?? ""))
+          tooNarrow.push({ url: cand.url, src: cand.src, width: chk.width });
+        if (DEBUG) console.log(`      · [${cand.src}] ${chk.why} — ${cand.url.slice(0, 80)}`);
       }
+      if (!url && tooNarrow.length) {
+        const best = tooNarrow.reduce((a, b) => (b.width > a.width ? b : a));
+        // ⛔ RESERVEN FÅR INTE SLÅ IHOP TVÅ KATALOGRADER. MEP 081 Mega Greninja ex
+        // finns som TVÅ kort (cmid 885516/885517) med var sin EGEN 255 px-bild hos
+        // TCGGO, men CardTrader har bara EN blueprint. Utan den här vakten hade
+        // båda fått samma bild — visuellt omöjliga att skilja åt, och två identiska
+        // avtryck som konkurrerar i skannern. Hellre en smal men EGEN bild.
+        const claimed = await claimHash(best.url, c.id);
+        if (claimed && best.width > (storedCheck.width ?? 0)) {
+          url = best.url;
+          src = `${best.src} (${best.width} px — bäst tillgängliga)`;
+        } else if (DEBUG && !claimed) {
+          console.log("      · reserven hoppades över: bilden tillhör redan ett annat kort");
+        }
+      }
+      if (DEBUG && candidates.length === 0) console.log("      · inga kandidater alls");
     }
 
     if (!url) {
