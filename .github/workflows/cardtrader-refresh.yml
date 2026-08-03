@@ -1,0 +1,68 @@
+name: CardTrader-varianter (dagligen)
+
+# Reverse holo, Master Ball / Poké Ball och 1st Edition prissätts av CardTraders
+# marknadsplats — den enda källa vi har som prissätter PER TRYCKNING (flaggan
+# sitter på annonsen, inte på produkten). Utan det här jobbet står de priserna
+# still: importerna kördes manuellt när de byggdes, och prishistoriken byggs
+# FRAMÅT, så en produkt utan daglig punkt får aldrig någon graf.
+#
+# Körs 05:00 UTC, långt från cardmarket-refresh (13:00) och hot-card (21:00) —
+# de delar databas och skulle annars slåss om samma anslutningar.
+#
+# Kostar INGEN RapidAPI-kvot: CardTrader har en egen token och egna endpoints.
+# Skripten är idempotenta (upsert per produkt+retailer) och skapar bara nya
+# produkter när marknaden fått djup nog — en körning utan nyheter är en ren
+# prisuppdatering.
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: cardtrader-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      CARDTRADER_TOKEN: ${{ secrets.CARDTRADER_TOKEN }}
+      EUR_SEK: ${{ secrets.EUR_SEK }}
+      APPLY: "1"
+    steps:
+      - name: Förkrav — DATABASE_URL och CARDTRADER_TOKEN måste vara satta
+        id: guard
+        run: |
+          if [ -z "${DATABASE_URL}" ] || [ -z "${CARDTRADER_TOKEN}" ]; then
+            echo "::notice::DATABASE_URL eller CARDTRADER_TOKEN saknas — hoppar över."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/checkout@v4
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - if: steps.guard.outputs.ready == 'true'
+        run: npm ci --legacy-peer-deps
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx prisma generate
+
+      # Ordningen är den billigaste först: bollarna och 1st Edition rör ett
+      # tiotal expansioner var, reverse-passet går igenom hela katalogen (~10 min).
+      - if: steps.guard.outputs.ready == 'true'
+        name: Master Ball / Poké Ball reverse holo
+        run: npx tsx scripts/import-cardtrader-ball-reverse.ts
+
+      - if: steps.guard.outputs.ready == 'true'
+        name: 1st Edition (WOTC-seten)
+        run: npx tsx scripts/import-cardtrader-first-edition.ts
+
+      - if: steps.guard.outputs.ready == 'true'
+        name: Reverse holo (hela katalogen)
+        run: npx tsx scripts/import-cardtrader-reverse.ts

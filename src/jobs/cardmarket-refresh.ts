@@ -1291,9 +1291,21 @@ export async function runCardmarketRefresh(
       const entry = { productId: p.id, offerId: p.offers[0]?.id, url: p.offers[0]?.url };
       const ext = p.card?.tcgExternalId;
       if (isPrintVariantLabel(p.variantLabel)) {
-        // Tryckningsprodukter hålls UTANFÖR `map` och den vanliga reserven: de får
-        // bara den rad vars `version` pekar ut dem, annars skulle en omärkt rad
-        // kunna prissätta 1st Edition-produkten.
+        // ⛔ EN TRYCKNINGSPRODUKT UTAN EGEN CM-PRODUKT FÅR INTE PRISSÄTTAS AV CM.
+        // Cardmarket har bara TVÅ produkter per kort i Base; i de nio andra
+        // WOTC-seten har de EN, delad mellan tryckningarna (mätt: av 123 kort med
+        // From på båda tryckningarna är 88 EXAKT identiska). Feeden publicerar
+        // ändå en `version`-rad per tryckning där, så utan den här grinden hade
+        // 1st Edition-produkterna vi skapar ur CardTrader fått ett CM-pris som i
+        // praktiken är det ORDINARIE kortets golv — och det golvet är oftast
+        // LÄGRE, så det hade vunnit rubriken. Samma sorts falska påstående som
+        // reverse holo-buggen 2026-08-03, en tabell längre bort.
+        //
+        // Länken bevisar att vi vet VILKEN CM-produkt tryckningen är. Base sattes
+        // vid uppdelningen och har den på alla 303 produkter (verifierat), så
+        // grinden kostar ingenting där.
+        const linkedIdProduct = entry.url?.match(/idProduct=(\d+)/)?.[1];
+        if (!linkedIdProduct) continue;
         if (ext) printMap.set(`${ext}|${p.variantLabel}`, entry);
         // STARKASTE TRYCKNINGSNYCKELN: (CM-produkt, tryckning). idProduct kommer
         // ur offerns URL, som vi satte ur CM:s EGEN katalog vid uppdelningen — och
@@ -1302,8 +1314,7 @@ export async function runCardmarketRefresh(
         // tcgid-kartan och nummerreserven missade dem. Charizards riktiga
         // Unlimited-From (340 €) nådde därför aldrig produkten, som blev kvar på
         // ett gammalt 1st Edition-pris (3 205 €).
-        const linkedId = Number(entry.url?.match(/idProduct=(\d+)/)?.[1] ?? NaN);
-        if (Number.isFinite(linkedId)) printByCmId.set(`${linkedId}|${p.variantLabel}`, entry);
+        printByCmId.set(`${Number(linkedIdProduct)}|${p.variantLabel}`, entry);
         const pNumKey = cmNumberKey(p.card?.number);
         if (p.setId && pNumKey && p.card?.name) {
           const k = `${p.setId}|${pNumKey}|${p.variantLabel}`;
