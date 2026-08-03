@@ -25,7 +25,7 @@
  */
 import { prisma } from "../lib/db";
 import { getRatesOre } from "../lib/exchange-rate";
-import { cardTraderSourceId, recordCardTraderObservation } from "./cardtrader-observation";
+import { createObservationWriter } from "./cardtrader-observation";
 import { normalizeTitle } from "@/lib/utils";
 import {
   CT_MIN_DEPTH,
@@ -110,6 +110,10 @@ export async function runCardTraderBallImport(opts: {
         select: { id: true },
       })
     : null;
+
+  // EN skrivare per körning: den förladdar senaste punkten per produkt i EN
+  // fråga, i stället för en SELECT per produkt.
+  const obs = await createObservationWriter(apply);
 
   const [sets, expansions] = await Promise.all([
     prisma.cardSet.findMany({
@@ -289,8 +293,8 @@ export async function runCardTraderBallImport(opts: {
           url: c.url,
         },
       });
-      // Dagens punkt till prisgrafen. Utan den är produkten historiklös för alltid.
-      await recordCardTraderObservation(product.id, priceOre, await cardTraderSourceId());
+      // Grafpunkt — skrivs bara när priset ändrats eller hjärtslaget löpt ut.
+      await obs.record(product.id, priceOre);
     }
 
     console.log(

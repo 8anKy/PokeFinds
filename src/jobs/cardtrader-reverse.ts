@@ -46,12 +46,13 @@ import {
   ctNumberKey,
   isSingleBlueprint,
   judgeReversePrice,
+  cheapestNonReverseNmEn,
   matchExpansion,
   shouldDistrustDexTaxonomy,
   type CtBlueprint,
 } from "@/lib/cardtrader";
 import { getRatesOre } from "@/lib/exchange-rate";
-import { cardTraderSourceId, recordCardTraderObservation } from "./cardtrader-observation";
+import { createObservationWriter } from "./cardtrader-observation";
 import { normalizeTitle } from "@/lib/utils";
 
 const prisma = new PrismaClient();
@@ -80,6 +81,8 @@ export interface ReverseImportResult {
   offersUpserted: number;
   /** Set där TCGdex-datat bedömdes ofyllt och CardTraders taxonomi fick gälla. */
   dexDistrustedSets: number;
+  /** Grafpunkter skrivna för ORDINARIE kort (ingen offer, bara historik). */
+  baseObservations: number;
 }
 
 interface DexCard {
@@ -202,6 +205,7 @@ export async function runCardTraderReverseImport(opts: {
     productsCreated: 0,
     offersUpserted: 0,
     dexDistrustedSets: 0,
+    baseObservations: 0,
   };
 
   const retailer = apply
@@ -217,6 +221,10 @@ export async function runCardTraderReverseImport(opts: {
         select: { id: true },
       })
     : await prisma.retailer.findUnique({ where: { name: RETAILER_NAME }, select: { id: true } });
+
+  // EN skrivare per körning: den förladdar senaste punkten per produkt i EN
+  // fråga, i stället för en SELECT per produkt.
+  const obs = await createObservationWriter(apply);
 
   const [sets, expansions] = await Promise.all([
     prisma.cardSet.findMany({
@@ -327,6 +335,19 @@ export async function runCardTraderReverseImport(opts: {
         res.noBlueprint++;
         continue;
       }
+      // ── GRAFPUNKT FÖR DET ORDINARIE KORTET ────────────────────────────────
+      // CardTraders golv för den ICKE-reverse tryckningen räknades redan ut här
+      // (det är `judgeReversePrice`:s referens) och kastades bort. Samma tal ger
+      // en CardTrader-linje i prisgrafen för vanliga kort — 97 % av dem har djup
+      // ≥2 (mätt över 11 set, 1 961 av 2 019). Det skapar INGEN offer: rubriken
+      // och det publicerade priset ägs fortfarande av Cardmarket
+      // ([[project_singles_raw_floor_policy]]), det här är bara historik.
+      const ordinary = cheapestNonReverseNmEn(market[String(bp.id)]);
+      if (ordinary != null) {
+        await obs.record(base.id, Math.round((ordinary / 100) * eurToOre));
+        res.baseObservations++;
+      }
+
       const verdict = judgeReversePrice(market[String(bp.id)], {
         fallbackReferenceCents: base.lowestPriceOre ? oreToEurCents(base.lowestPriceOre) : null,
       });
@@ -464,8 +485,8 @@ export async function runCardTraderReverseImport(opts: {
           url,
         },
       });
-      // Dagens punkt till prisgrafen. Utan den är produkten historiklös för alltid.
-      await recordCardTraderObservation(product.id, priceOre, await cardTraderSourceId());
+      // Grafpunkt — skrivs bara när priset ändrats eller hjärtslaget löpt ut.
+      await obs.record(product.id, priceOre);
     }
 
     logSet();

@@ -966,6 +966,56 @@ export const CARDMARKET_SOURCE_NAMES = ["Cardmarket", "Pokémon TCG API", "TCGde
  */
 export const CARDTRADER_SOURCE_NAME = "CardTrader";
 
+/**
+ * Så många dygn får `fillForward` överbrygga. SAMMA tal som hjärtslaget i
+ * `cardtrader-observation.ts` (`CT_MAX_GAP_DAYS`) — se motiveringen där. Glider de
+ * isär börjar grafen dikta över driftstopp.
+ */
+export const CT_MAX_GAP_DAYS = 7;
+
+const DAY_MS = 86_400_000;
+const dayKey = (t: number) => new Date(t).toISOString().slice(0, 10);
+
+/**
+ * Fyller i dagar mellan punkter med senast KÄNDA pris — men bara korta luckor.
+ *
+ * ⛔ BARA FÖR KÄLLOR SOM SKRIVS VID ÄNDRING. CardTrader hoppar över ett skriv när
+ * priset stått stilla, så en lucka där betyder "vi kollade, inget hände" och det
+ * är rimligt att rita den platt. För Cardmarket betyder en lucka något helt annat:
+ * MÄTT 2026-08-03 har bara 4,1 % av produkterna en HÅLFRI CM-serie (dygnstäckning
+ * 95,1 %), och den 2026-07-24 skrevs bara 2 893 rader mot normala ~20 500 — ett
+ * avbrutet jobb. Att fylla den luckan hade påstått ett pris för ~17 600 produkter
+ * en dag vi aldrig tittade. Tradera/butiker är samma sak av en tredje anledning:
+ * en dag utan annons betyder att ingen SÅLDE kortet, inte att priset låg kvar.
+ *
+ * ⛔ LÅNGA LUCKOR LÄMNAS ÖPPNA. Hjärtslaget garanterar en punkt var
+ * `CT_MAX_GAP_DAYS` dygn, så en lucka som är längre ÄR ett avbrott — och då är
+ * ärligast att inte rita något alls.
+ */
+export function fillForward(
+  series: SourceHistoryPoint[],
+  now: Date = new Date(),
+  maxGapDays = CT_MAX_GAP_DAYS
+): SourceHistoryPoint[] {
+  if (series.length === 0) return series;
+  const out: SourceHistoryPoint[] = [];
+  for (let i = 0; i < series.length; i++) {
+    const point = series[i];
+    out.push(point);
+    // Slutet på serien räknas mot IDAG: priset gäller tills något annat sagts,
+    // men inte längre än hjärtslaget kan ha varit tyst.
+    const nextTime = i + 1 < series.length
+      ? Date.parse(`${series[i + 1].date}T00:00:00Z`)
+      : Date.parse(`${dayKey(now.getTime())}T00:00:00Z`) + DAY_MS;
+    const from = Date.parse(`${point.date}T00:00:00Z`);
+    if (!Number.isFinite(nextTime) || !Number.isFinite(from)) continue;
+    const gapDays = Math.round((nextTime - from) / DAY_MS);
+    if (gapDays <= 1 || gapDays > maxGapDays) continue;
+    for (let d = 1; d < gapDays; d++) out.push({ date: dayKey(from + d * DAY_MS), price: point.price });
+  }
+  return out;
+}
+
 /** Så många dagar får CM-trenden släpa efter butikernas färskaste punkt innan den
  *  räknas som död och grafen faller tillbaka på butikstrenden (CM-refresh kör dagligen
  *  → några dagars nåd tål ett hoppat jobb utan att friska produkter flippar källa). */
@@ -1093,7 +1143,8 @@ export function bucketObservationsBySource(
 
   return {
     cardmarket: toSeries(cardmarket),
-    cardtrader: toSeries(cardtrader),
+    // Enda serien som fylls i — den är också den enda som skrivs VID ÄNDRING.
+    cardtrader: fillForward(toSeries(cardtrader)),
     tradera: toSeries(lowest.tradera),
     butiker: toSeries(lowest.butiker),
   };
