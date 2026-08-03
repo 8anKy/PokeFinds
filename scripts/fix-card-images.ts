@@ -46,7 +46,9 @@
  */
 import "dotenv/config";
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
+import sharp from "sharp";
 import {
   ctBlueprints,
   ctExpansions,
@@ -123,6 +125,24 @@ function absolute(url: string): string {
  * produktsida — och inte till strukturavtrycket, som lever på finstruktur.
  * Varianterna provas i fallande storlek; alla verifieras som vanligt.
  */
+/**
+ * TCGplayers bild-URL:er, i fallande kvalitet.
+ *
+ * ⛔ `tcgplayer-cdn/product/{id}_in_1000x1000.jpg` LJUGER I NAMNET. Trots "1000x1000"
+ * svarar den med vad den råkar ha — MÄTT över våra 48 kort: 200–721 px, median 215.
+ * `product-images.tcgplayer.com/fit-in/874x874/{id}.jpg` skalar i stället in till
+ * en garanterad låda och gav **611–638 px, rätt proportion, 48 av 48 godkända**.
+ * Den bara `{id}.jpg` är ibland ännu större (1106 px) men ojämn (samma mätning gav
+ * 351 px för Growlithe), så den ligger sist.
+ */
+function tcgplayerCandidates(pid: number | string): { url: string; src: string }[] {
+  return [
+    { url: `https://product-images.tcgplayer.com/fit-in/874x874/${pid}.jpg`, src: "TCGplayer" },
+    { url: `https://product-images.tcgplayer.com/${pid}.jpg`, src: "TCGplayer" },
+    { url: `https://tcgplayer-cdn.tcgplayer.com/product/${pid}_in_1000x1000.jpg`, src: "TCGplayer" },
+  ];
+}
+
 function isCtMiniature(url: string | null | undefined): boolean {
   return /cardtrader\.com\/uploads\/.*\/(preview|show)_/.test(url ?? "");
 }
@@ -134,14 +154,58 @@ function ctImageVariants(url: string): string[] {
   return [`${m[1]}${m[3]}`, `${m[1]}show_${m[3]}`, abs];
 }
 
-async function imageWorks(url: string | null | undefined): Promise<boolean> {
-  if (!url || !/^https?:\/\//.test(url)) return false;
+/**
+ * ⛔ "LADDAR" ÄR INTE "DUGER". Den gamla kontrollen var 200 + `image/`-content-type,
+ * och den godkände 48 McDonald's-kort vars bilder är **200–351 px breda** (median
+ * 215). De syns som suddiga frimärken i katalogen och bär knappt någon finstruktur
+ * åt skannerns strukturavtryck. Kortbilder i katalogen är 600–734 px; allt långt
+ * under det är en trasig bild som råkar svara 200.
+ */
+const MIN_IMAGE_WIDTH = 560;
+/** Kortproportion (bredd/höjd) är ~0,717. Utanför bandet = ram, utfyllnad, fel vara. */
+const RATIO_MIN = 0.68;
+const RATIO_MAX = 0.76;
+
+/**
+ * ⛔ EN GILTIG BILD KAN VARA FEL BILD. Scrydex CDN svarar **200 med en riktig PNG**
+ * för McDonald's-korten — men det är KORTETS BAKSIDA, samma fil för varje kort
+ * (identisk md5 för mcd18-1 och mcd15-6, mätt 2026-08-04). En källa som failar så
+ * här hade fyllt katalogen med baksidor utan att en enda kontroll klagat.
+ * Vi minns därför varje sedd bild-hash: dyker samma byte-för-byte-identiska bild
+ * upp för ett ANNAT kort är det en platshållare, inte en bild.
+ */
+const seenHashes = new Map<string, string>(); // md5 → första kort-id
+
+interface ImageCheck {
+  ok: boolean;
+  width?: number;
+  why?: string;
+}
+
+async function checkImage(
+  url: string | null | undefined,
+  cardId: string
+): Promise<ImageCheck> {
+  if (!url || !/^https?:\/\//.test(url)) return { ok: false, why: "ingen url" };
   try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-    if (!r.ok) return false;
-    return (r.headers.get("content-type") ?? "").startsWith("image/");
-  } catch {
-    return false;
+    const r = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    if (!r.ok) return { ok: false, why: `HTTP ${r.status}` };
+    if (!(r.headers.get("content-type") ?? "").startsWith("image/"))
+      return { ok: false, why: "inte en bild" };
+    const buf = Buffer.from(await r.arrayBuffer());
+    const md5 = createHash("md5").update(buf).digest("hex");
+    const owner = seenHashes.get(md5);
+    if (owner && owner !== cardId) return { ok: false, why: `platshållare (samma bild som ${owner})` };
+    const m = await sharp(buf).metadata();
+    if (!m.width || !m.height) return { ok: false, why: "gick inte att avkoda" };
+    const ratio = m.width / m.height;
+    if (m.width < MIN_IMAGE_WIDTH) return { ok: false, width: m.width, why: `bara ${m.width} px bred` };
+    if (ratio < RATIO_MIN || ratio > RATIO_MAX)
+      return { ok: false, width: m.width, why: `proportion ${ratio.toFixed(3)} (utfyllnad?)` };
+    seenHashes.set(md5, cardId);
+    return { ok: true, width: m.width };
+  } catch (e) {
+    return { ok: false, why: (e as Error).message.slice(0, 40) };
   }
 }
 
@@ -235,6 +299,9 @@ async function main() {
         { imageUrl: null },
         { imageUrl: { contains: "tcggo" } },
         { imageUrl: { contains: "cardtrader" } },
+        // TCGplayer-URL:er är misstänkta tills de mätts: `_in_1000x1000` svarar
+        // ofta med 200–351 px. Kvalitetskontrollen avgör, inte värdnamnet.
+        { imageUrl: { contains: "tcgplayer" } },
       ],
     },
     select: {
@@ -268,7 +335,10 @@ async function main() {
 
     // 0. Fungerar den lagrade bilden redan? Rör den då inte. Undantag: en
     // CardTrader-MINIATYR fungerar men duger inte — den ska uppgraderas.
-    const stored = !isCtMiniature(c.imageUrl) && (await imageWorks(c.imageUrl));
+    const storedCheck = isCtMiniature(c.imageUrl)
+      ? { ok: false, why: "miniatyr" }
+      : await checkImage(c.imageUrl, c.id);
+    const stored = storedCheck.ok;
     let url: string | null = stored ? c.imageUrl! : null;
     let src = "(oförändrad)";
 
@@ -329,6 +399,11 @@ async function main() {
         }
       }
 
+      // Har kortet redan en TCGplayer-bild kan productId:t återanvändas direkt —
+      // ingen TCGdex-slagning behövs för att hitta en BÄTTRE variant av samma bild.
+      const ownPid = c.imageUrl?.match(/(?:product\/|tcgplayer\.com\/)(\d+)[_.]/)?.[1];
+      if (ownPid) candidates.push(...tcgplayerCandidates(ownPid));
+
       // --- Källa 3 + 4: TCGdex och TCGplayers CDN ---
       const dexSet = SET_OVERRIDES[c.set.externalId ?? ""] ?? dexByName.get(norm(c.set.name));
       if (dexSet) {
@@ -344,16 +419,13 @@ async function main() {
             for (const s of IMAGE_SUFFIXES) candidates.push({ url: `${card.image}${s}`, src: "TCGdex" });
           const pid = Object.values(card.pricing?.tcgplayer ?? {}).find((v) => v?.productId)
             ?.productId;
-          if (pid)
-            candidates.push({
-              url: `https://tcgplayer-cdn.tcgplayer.com/product/${pid}_in_1000x1000.jpg`,
-              src: "TCGplayer",
-            });
+          if (pid) candidates.push(...tcgplayerCandidates(pid));
         }
       }
 
       for (const cand of candidates) {
-        if (await imageWorks(cand.url)) {
+        const chk = await checkImage(cand.url, c.id);
+        if (chk.ok) {
           url = cand.url;
           src = cand.src;
           break;
@@ -381,7 +453,7 @@ async function main() {
       if (p.imageUrl === url) continue;
       // En produkt med EGEN fungerande bild rörs inte — den kan vara ett
       // butiksfoto som medvetet valts framför katalogbilden.
-      if (p.imageUrl && !isCtMiniature(p.imageUrl) && (await imageWorks(p.imageUrl))) continue;
+      if (p.imageUrl && !isCtMiniature(p.imageUrl) && (await checkImage(p.imageUrl, c.id)).ok) continue;
       console.log(`      → produkt ${p.slug}`);
       if (APPLY) await prisma.product.update({ where: { id: p.id }, data: { imageUrl: url } });
       productsFixed++;
