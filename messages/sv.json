@@ -1141,6 +1141,7 @@
     "removeOfferFailed": "Kunde inte ta bort erbjudandet.",
     "products": "Produkter",
     "otherVersions": "Andra versioner:",
+    "baseVersion": "Vanlig version",
     "historyRawTitle": "Ograderad prishistorik",
     "historyTitle": "Prishistorik",
     "rawSubtitle": "Raw (Near Mint), ej graderad · Cardmarket",

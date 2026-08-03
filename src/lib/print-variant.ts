@@ -79,3 +79,59 @@ export function printLabelInTitle(title: string | null | undefined): PrintVarian
   if (/\bunlimited\b/.test(t)) return PRINT_UNLIMITED;
   return null;
 }
+
+/**
+ * Reverse holo som katalogetikett. Samma sträng som `CT_REVERSE_LABEL` i
+ * lib/cardtrader.ts, som importerar HÄRIFRÅN — vokabulären får finnas på ett
+ * ställe, annars stavas den förr eller senare olika på två.
+ */
+export const VARIANT_REVERSE_HOLO = "Reverse Holo";
+
+/**
+ * Säger annonstiteln att varan är en REVERSE HOLO?
+ *
+ * ⛔ KORTNAMNET STRIPPAS FÖRST, OCH DET ÄR INTE KOSMETIKA. Det finns riktiga
+ * kort som HETER "Reverse" något: "Reverse Valley" (Team Up), "Reverse Energy
+ * Removal 2" (EX Ruby & Sapphire). Utan strippningen läser vakten kortnamnet som
+ * en tryckningsuppgift och kastar annonsen från sin EGEN produkt — precis den
+ * sortens tysta bortfall den finns för att förhindra.
+ */
+export function titleSaysReverseHolo(
+  title: string | null | undefined,
+  cardName?: string | null
+): boolean {
+  let t = (title ?? "").toLowerCase();
+  const name = (cardName ?? "").trim().toLowerCase();
+  if (name && /\breverse\b/.test(name)) t = t.split(name).join(" ");
+  return /\breverse\b/.test(t) || /\brev\.?\s*holo\b/.test(t);
+}
+
+/**
+ * Får annonsen prissätta en produkt med den här etiketten?
+ *
+ * EN regel för ALLA varianter, av ett mätt skäl. Vakten fanns bara för Base-trion
+ * (`isPrintVariantLabel`), så när reverse holo blev egna produkter 2026-08-03 föll
+ * de rakt igenom: **4 688 av 4 898 Tradera-offers på reverse-produkter kom från
+ * annonser som aldrig nämner reverse** — dvs det ORDINARIE kortet prissatte
+ * reverse-varianten (Koraidon · Pitch Black 47/84 · Reverse Holo visade 3 kr från
+ * en annons för vanliga kortet, medan basversionen kostar 0,22 kr).
+ *
+ * Symmetrin är själva poängen: en reverse-annons får inte heller prissätta det
+ * etikettlösa kortet. Tystnad betyder "ordinarie" i BÅDA riktningarna.
+ *
+ * Andra etiketter (Staff, Specialversion) lämnas orörda — de har ingen ordlista
+ * och en gissning där vore sämre än dagens beteende.
+ */
+export function listingFitsVariant(
+  variantLabel: string | null | undefined,
+  listingTitle: string,
+  cardName?: string | null
+): boolean {
+  if (isPrintVariantLabel(variantLabel)) {
+    return variantLabel === (printLabelInTitle(listingTitle) ?? PRINT_UNLIMITED);
+  }
+  const saysReverse = titleSaysReverseHolo(listingTitle, cardName);
+  if (variantLabel === VARIANT_REVERSE_HOLO) return saysReverse;
+  if (variantLabel == null) return !saysReverse;
+  return true;
+}

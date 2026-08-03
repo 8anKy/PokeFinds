@@ -133,6 +133,35 @@ async function dexCardIndex(dexSetId: string): Promise<Map<string, string>> {
 }
 
 /**
+ * Setets TCGdex-taxonomi i ETT anrop: hur många kort finns, och hur många bär
+ * `variants.reverse`?
+ *
+ * Endpointen tar id-wildcard (`?id=ex7-*`) och svarar med korta poster — det är
+ * skillnaden mot att fråga per kort, som hade kostat ett anrop per rad bara för
+ * att avgöra OM taxonomin går att lita på. Verifierat att filtret verkligen
+ * filtrerar (sv02: 279 kort, 176 reverse) så en nolla betyder nolla och inte
+ * "frågan förstods inte".
+ *
+ * Fel/okänt set → `null`, som anroparen tolkar konservativt.
+ */
+async function dexSetTaxonomy(
+  dexSetId: string
+): Promise<{ cards: number; reverse: number } | null> {
+  try {
+    const [all, rev] = await Promise.all([
+      fetch(`https://api.tcgdex.net/v2/en/cards?id=${dexSetId}-*`),
+      fetch(`https://api.tcgdex.net/v2/en/cards?variants.reverse=true&id=${dexSetId}-*`),
+    ]);
+    if (!all.ok || !rev.ok) return null;
+    const [a, r] = (await Promise.all([all.json(), rev.json()])) as [unknown[], unknown[]];
+    if (!Array.isArray(a) || !Array.isArray(r)) return null;
+    return { cards: a.length, reverse: r.length };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Säger TCGdex att kortet har en reverse holo?
  * `null` = vet inte (nätfel/okänt kort) — och OKÄNT ÄR INTE JA. Ett kort vi inte
  * kan bekräfta får ingen produkt; hellre en lucka än en fantomvara.
@@ -334,22 +363,35 @@ export async function runCardTraderReverseImport(opts: {
     // faller vi tillbaka på CardTraders EGEN taxonomi, som är en mätt säker
     // superset (TCGdex sa aldrig reverse där CardTrader inte gjorde det).
     const dexSetId = await dexSetIdByName(set.name);
-    dexIndex = dexSetId ? await dexCardIndex(dexSetId) : new Map();
-
-    const gateVerdicts = new Map<string, boolean | null>();
-    for (const c of candidates) {
-      if (reverseByCard.has(c.cardId)) continue; // produkten finns → ingen grind
-      const dexCardId = dexIndex.get(c.numKey);
-      gateVerdicts.set(c.cardId, dexCardId ? await tcgdexHasReverse(dexCardId) : null);
-    }
-    const dexYes = [...gateVerdicts.values()].filter((v) => v === true).length;
-    const dexNo = [...gateVerdicts.values()].filter((v) => v === false).length;
-    const dexUnfilled = shouldDistrustDexTaxonomy(dexYes, dexNo);
+    // Setets taxonomi FÖRST, och på hela setet: den avgör om det ens är
+    // meningsfullt att fråga per kort. Ett set utan TCGdex-motsvarighet
+    // (HS—Unleashed heter "Unleashed" hos dem) har ingen taxonomi alls, vilket
+    // är samma sorts icke-svar som ett ofyllt set — och ska behandlas likadant,
+    // inte tystare.
+    const taxonomy = dexSetId ? await dexSetTaxonomy(dexSetId) : null;
+    const dexUnfilled = taxonomy
+      ? shouldDistrustDexTaxonomy(taxonomy.reverse, taxonomy.cards)
+      : true;
     if (dexUnfilled) {
       console.warn(
-        `[ct-reverse] ${set.name}: TCGdex säger reverse=false på ALLA ${dexNo} kandidater — behandlas som OFYLLT, faller tillbaka på CardTraders taxonomi.`
+        `[ct-reverse] ${set.name}: TCGdex ${
+          taxonomy
+            ? `har 0 av ${taxonomy.cards} kort med reverse=true`
+            : "har ingen motsvarighet till setet"
+        } — taxonomin behandlas som OANVÄNDBAR, CardTraders egen får gälla.`
       );
       res.dexDistrustedSets++;
+    }
+
+    dexIndex = dexSetId && !dexUnfilled ? await dexCardIndex(dexSetId) : new Map();
+
+    const gateVerdicts = new Map<string, boolean | null>();
+    if (!dexUnfilled) {
+      for (const c of candidates) {
+        if (reverseByCard.has(c.cardId)) continue; // produkten finns → ingen grind
+        const dexCardId = dexIndex.get(c.numKey);
+        gateVerdicts.set(c.cardId, dexCardId ? await tcgdexHasReverse(dexCardId) : null);
+      }
     }
 
     for (const c of candidates) {

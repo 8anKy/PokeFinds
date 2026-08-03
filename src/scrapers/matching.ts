@@ -7,7 +7,7 @@ import { prisma } from "../lib/db";
 import { decodeTitle, normalizeTitle } from "../lib/utils";
 import { detectListingLanguage } from "../lib/listing-language";
 import { MARKETPLACE_MIN_PRICE_RATIO } from "../lib/listing-plausibility";
-import { PRINT_UNLIMITED, isPrintVariantLabel, printLabelInTitle } from "../lib/print-variant";
+import { listingFitsVariant } from "../lib/print-variant";
 import { MAX_NAME_WORDS, POKEMON_NAMES } from "./pokemon-names";
 
 /** Lägsta konfidens för att en matchning ska accepteras. */
@@ -1328,9 +1328,11 @@ export async function matchProduct(
   // en 40-kronorsannons landar på 1st Edition-produkten. En annons som inte SÄGER
   // något om tryckning är per konvention den ordinarie; bara en annons som nämner
   // tryckningen får matcha de andra två.
-  const wantedPrint = printLabelInTitle(raw) ?? PRINT_UNLIMITED;
-  const candidates = [...candidateMap.values()].filter(
-    (c) => !isPrintVariantLabel(c.variantLabel) || c.variantLabel === wantedPrint
+  // Sedan 2026-08-03 gäller samma fråga ALLA varianter, inte bara Base-trion:
+  // reverse holo blev egna produkter och föll rakt igenom den gamla
+  // `isPrintVariantLabel`-grinden. Se `listingFitsVariant`.
+  const candidates = [...candidateMap.values()].filter((c) =>
+    listingFitsVariant(c.variantLabel, raw, c.card?.name)
   );
   if (candidates.length === 0) return null;
 
@@ -1558,15 +1560,10 @@ export function matchListingToProduct(
   const normalized = normalizeTitle(listingTitle);
   if (!normalized) return null;
 
-  // Samma tryckningsvakt som matchProduct: en annons som inte nämner tryckningen
-  // är den ordinarie. Utan den blev varje Base-annons en träff på ALLA TRE
+  // Samma variantvakt som matchProduct: en annons som inte nämner varianten är
+  // den ordinarie. Utan den blev varje Base-annons en träff på ALLA TRE
   // produkterna (samma namn, samma nummer) och skena-raderna tredubblades.
-  if (
-    isPrintVariantLabel(product.variantLabel) &&
-    product.variantLabel !== (printLabelInTitle(listingTitle) ?? PRINT_UNLIMITED)
-  ) {
-    return null;
-  }
+  if (!listingFitsVariant(product.variantLabel, listingTitle, product.card?.name)) return null;
 
   const incomingForm = classifyForm(normalized);
   if (incomingForm === "multipack" || incomingForm === "case" || incomingForm === "combo" || incomingForm === "event") {

@@ -1141,6 +1141,7 @@
     "removeOfferFailed": "Couldn't remove the offer.",
     "products": "Products",
     "otherVersions": "Other versions:",
+    "baseVersion": "Regular version",
     "historyRawTitle": "Ungraded price history",
     "historyTitle": "Price history",
     "rawSubtitle": "Raw (Near Mint), ungraded · Cardmarket",

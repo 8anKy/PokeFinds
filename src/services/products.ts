@@ -1131,7 +1131,8 @@ export interface ProductDetailData {
   /** Andra Cardmarket-versioner av samma kort (common ↔ special-variant). */
   variants: {
     slug: string;
-    label: string;
+    /** `null` = den etikettlösa (vanliga) versionen; klienten översätter ordet. */
+    label: string | null;
     lowestPrice: number | null;
   }[];
   /**
@@ -1242,7 +1243,12 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
   ]);
   const variants = variantSiblings.map((v) => ({
     slug: v.slug,
-    label: v.variantLabel ?? "Vanlig version",
+    // RÅ etikett, ALDRIG en färdig mening. `variantLabel` är produktdata
+    // ("Reverse Holo", "1st Edition") och är samma i båda språken, men den
+    // ETIKETTLÖSA versionen behöver ett ord — och det ordet är ÖVERSATT och hör
+    // därför hemma i klienten. Stod som "Vanlig version" här, vilket gav svensk
+    // text mitt i det engelska gränssnittet (rapporterat 2026-08-03).
+    label: v.variantLabel,
     lowestPrice: computeLowestPrice(v.offers.filter((o) => isDirectOfferUrl(o.url))).price,
   }));
   const affiliateIds = new Set(affiliateRetailers.map((r) => r.id));

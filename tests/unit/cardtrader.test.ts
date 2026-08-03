@@ -313,13 +313,18 @@ describe("matchExpansion", () => {
 });
 
 describe("shouldDistrustDexTaxonomy", () => {
-  it("ETT enda ja bevisar att setet är ifyllt — då gäller nejen", () => {
-    expect(shouldDistrustDexTaxonomy(1, 100)).toBe(false);
-    expect(shouldDistrustDexTaxonomy(9, 7)).toBe(false); // Pitch Black-formen
+  // Argumenten är SETETS reverse-antal och SETETS kortantal — inte hur många
+  // kandidater marknaden råkade ge. Se regeln i cardtrader.ts.
+  it("ETT enda reverse=true bevisar att setet är ifyllt — då gäller nejen", () => {
+    expect(shouldDistrustDexTaxonomy(176, 279)).toBe(false); // Paldea Evolved
+    expect(shouldDistrustDexTaxonomy(67, 120)).toBe(false); // Pitch Black
+    expect(shouldDistrustDexTaxonomy(1, 300)).toBe(false);
   });
 
-  it("noll ja och många nej = ofyllt set (Chaos Rising, 76 nej)", () => {
-    expect(shouldDistrustDexTaxonomy(0, 76)).toBe(true);
+  it("noll reverse i ett helt set = oanvändbar taxonomi", () => {
+    expect(shouldDistrustDexTaxonomy(0, 120)).toBe(true); // Chaos Rising, ofyllt
+    expect(shouldDistrustDexTaxonomy(0, 111)).toBe(true); // EX Team Rocket Returns, felmärkt som holo
+    expect(shouldDistrustDexTaxonomy(0, 140)).toBe(true); // Legendary Treasures
   });
 
   it("ett litet set utan reverse holos utlöser inte misstanken", () => {
@@ -328,8 +333,16 @@ describe("shouldDistrustDexTaxonomy", () => {
     expect(shouldDistrustDexTaxonomy(0, 20)).toBe(true);
   });
 
-  it("inga kandidater alls är inte misstänkt", () => {
+  it("tomt set är inte misstänkt", () => {
     expect(shouldDistrustDexTaxonomy(0, 0)).toBe(false);
+  });
+
+  it("⛔ MARKNADSDJUPET FÅR INTE PÅVERKA DOMEN — regressionen som tömde ex7/8/9", () => {
+    // Samma set (111 kort, 0 reverse hos TCGdex) ska dömas likadant vare sig
+    // CardTrader råkade ha 9 eller 27 kandidater. Den gamla signaturen tog
+    // kandidatantalet och gav därför olika svar för grannset ur samma era.
+    expect(shouldDistrustDexTaxonomy(0, 111)).toBe(true);
+    expect(shouldDistrustDexTaxonomy(0, 116)).toBe(true);
   });
 });
 

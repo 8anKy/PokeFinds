@@ -122,7 +122,7 @@ export function ProductDetailView({
                 href={`/produkter/${v.slug}`}
                 className="card-surface rounded-full px-3 py-1 text-ink transition hover:text-holo-cyan"
               >
-                {v.label}
+                {v.label ?? t("baseVersion")}
                 {v.lowestPrice != null && (
                   <span className="text-ink-muted"> · {formatPrice(v.lowestPrice)}</span>
                 )}

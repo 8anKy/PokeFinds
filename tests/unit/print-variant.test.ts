@@ -7,6 +7,9 @@ import {
   printLabelFromVersion,
   printLabelInTitle,
   printRank,
+  VARIANT_REVERSE_HOLO,
+  listingFitsVariant,
+  titleSaysReverseHolo,
 } from "../../src/lib/print-variant";
 import { matchListingToProduct } from "../../src/scrapers/matching";
 
@@ -107,5 +110,48 @@ describe("tryckningsvakt i matchListingToProduct", () => {
     // Även en annons som nämner en tryckning får matcha det odelade kortet: de nio
     // andra WOTC-seten har bara EN katalogpost per kort.
     expect(matchListingToProduct("Ponyta 60/102 Base Set 1st Edition", plain)).toBeGreaterThan(0);
+  });
+});
+
+describe("reverse holo som variant (2026-08-03)", () => {
+  const card = { name: "Koraidon", number: "47" };
+  const title = "koraidon pitch black 47 84";
+  const reverse = { normalizedTitle: title, card, variantLabel: VARIANT_REVERSE_HOLO };
+  const plain = { normalizedTitle: title, card, variantLabel: null };
+
+  it("⛔ en annons som INTE säger reverse får inte prissätta reverse-produkten", () => {
+    // Fältfallet: produktsidan visade "Lägsta pris · Tradera 3 kr" på reverse-
+    // varianten från en annons för det vanliga kortet (basversionen: 0,22 kr).
+    const listing = "Koraidon 047/084 - Pitch Black - Pokémonkort";
+    expect(matchListingToProduct(listing, reverse)).toBeNull();
+    expect(matchListingToProduct(listing, plain)).toBeGreaterThan(0);
+  });
+
+  it("en annons som säger reverse holo landar på reverse-produkten, inte på baskortet", () => {
+    const listing = "Koraidon 047/084 Pitch Black Reverse Holo Pokemonkort";
+    expect(matchListingToProduct(listing, reverse)).toBeGreaterThan(0);
+    expect(matchListingToProduct(listing, plain)).toBeNull();
+  });
+
+  it("⛔ KORT SOM HETER 'Reverse …' får inte läsas som en tryckningsuppgift", () => {
+    // "Reverse Valley" (Team Up) och "Reverse Energy Removal 2" (EX Ruby &
+    // Sapphire) är kortNAMN. Utan namnstrippningen kastas annonsen från sin egen
+    // produkt.
+    expect(titleSaysReverseHolo("Reverse Valley 118/181 Team Up", "Reverse Valley")).toBe(false);
+    expect(
+      titleSaysReverseHolo("Reverse Energy Removal 2 80/109 EX Ruby & Sapphire", "Reverse Energy Removal 2")
+    ).toBe(false);
+    // Men samma kort SOM reverse holo säger det fortfarande.
+    expect(titleSaysReverseHolo("Reverse Valley 118/181 Team Up Reverse Holo", "Reverse Valley")).toBe(true);
+  });
+
+  it("stavningsvarianter räknas", () => {
+    expect(titleSaysReverseHolo("Pikachu 5/100 rev holo")).toBe(true);
+    expect(titleSaysReverseHolo("Pikachu 5/100 REVERSE")).toBe(true);
+    expect(titleSaysReverseHolo("Pikachu 5/100 holo rare")).toBe(false);
+  });
+
+  it("okända etiketter (Staff, Specialversion) beter sig som förut", () => {
+    expect(listingFitsVariant("Staff", "Pikachu 5/100", "Pikachu")).toBe(true);
   });
 });

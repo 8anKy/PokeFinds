@@ -30,6 +30,8 @@
  *    `idProduct` när vi vill korsvalidera.
  */
 
+import { VARIANT_REVERSE_HOLO } from "./print-variant";
+
 /** Pokémon i CardTraders speltabell (`/games`). */
 export const CT_GAME_POKEMON = 5;
 
@@ -41,7 +43,7 @@ export const CT_GAME_POKEMON = 5;
  * stavas på två ställen förr eller senare stavas olika. Värdet fanns redan i
  * katalogen (en produkt) innan importen byggdes; det återanvänds med flit.
  */
-export const CT_REVERSE_LABEL = "Reverse Holo";
+export const CT_REVERSE_LABEL = VARIANT_REVERSE_HOLO;
 
 export interface CtExpansion {
   id: number;
@@ -302,8 +304,9 @@ export function blueprintAllowsReverse(b: CtBlueprint): boolean {
 }
 
 /**
- * Så många kandidater måste TCGdex ha sagt nej till — UTAN ett enda ja — innan
- * setets taxonomi bedöms OFYLLD i stället för reverse-lös.
+ * Så många KORT måste setet ha — utan ett enda `reverse: true` — innan dess
+ * taxonomi bedöms OANVÄNDBAR i stället för reverse-lös. Ett litet promoset som
+ * säger nej säger förmodligen sanningen.
  */
 export const DEX_DISTRUST_MIN = 20;
 
@@ -317,16 +320,31 @@ export const DEX_DISTRUST_MIN = 20;
  * NM-engelska reverse-annonser — datat är alltså ofyllt, inte negativt. Utan den
  * här regeln tappade grinden ett helt set TYST.
  *
- * Diskriminatorn ligger på SETNIVÅ av just det skälet: ett enda ja bevisar att
- * setet är ifyllt, och då betyder ett nej verkligen nej. Bara ett set där INGET
- * kort säger ja — och där kandidaterna är fler än en handfull — är misstänkt.
+ * ⛔ BEVISET ÄR SETETS STORLEK, INTE HUR MÅNGA KANDIDATER MARKNADEN RÅKADE GE.
+ * Första versionen räknade `dexYes`/`dexNo` över de kort som ÖVERLEVT
+ * djupvakten — alltså ett urval styrt av CardTraders lagerdjup, som inte har
+ * någonting med TCGdex datakvalitet att göra. MÄTT i produktion 2026-08-03:
+ * EX Team Rocket Returns hade 9 kandidater, EX Deoxys 13, EX Emerald 18, alla
+ * under tröskeln 20 ⇒ misstron fyrade aldrig, TCGdex nej togs för sanning och
+ * **hela set fick NOLL reverse-produkter** — medan EX FireRed & LeafGreen (27
+ * kandidater) råkade komma över och fick 23. Två grannset ur samma era, olika
+ * utfall, av ett skäl som inte har med korten att göra.
+ *
+ * Två oberoende fel hos TCGdex ger samma symtom, och båda täcks av regeln nedan:
+ *  · **Felmärkning** — hela EX-eran bär reverse holon under flaggan `holo`
+ *    (ex7: 0 `reverse`, 111 `holo` av 111 kort). Facit: pokemontcg.io prissätter
+ *    exakt `normal` + `reverseHolofoil` för dem, ingen `holofoil`.
+ *  · **Ofyllt** — Legendary Treasures och Call of Legends har VARKEN `reverse`
+ *    eller `holo` på ett enda kort, fast båda seten självklart har reverse holos.
+ *
+ * `setReverseCount > 0` bevisar att setet är ifyllt, och då betyder ett nej nej.
  */
 export function shouldDistrustDexTaxonomy(
-  dexYes: number,
-  dexNo: number,
+  setReverseCount: number,
+  setCardCount: number,
   min = DEX_DISTRUST_MIN
 ): boolean {
-  return dexYes === 0 && dexNo >= min;
+  return setReverseCount === 0 && setCardCount >= min;
 }
 
 /** Produktsidan hos CardTrader för en blueprint. */
