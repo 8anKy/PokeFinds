@@ -91,7 +91,23 @@ export function ProductPriceCard({
   // Bara källor som FAKTISKT har punkter får en knapp — en avbockningsbar källa
   // utan data är en död kontroll, och på 5 095 produkter finns bara en källa alls.
   const available = SOURCE_ORDER.filter((k) => (bySource?.[k]?.length ?? 0) > 0);
-  const [off, setOff] = useState<Set<string>>(new Set());
+  /**
+   * START: EN källa, inte alla.
+   *
+   * Cardmarket är förvalet — det är den källa rubriken och det publicerade priset
+   * bygger på ("golvet rakt av"), så grafen öppnar på samma tal som står ovanför
+   * den. Alla serier påslagna från början gav dessutom ett överlagrat diagram
+   * innan besökaren bett om en jämförelse; att lägga TILL en kurva är ett aktivt
+   * val, att behöva plocka BORT tre är städning.
+   *
+   * ⛔ FALLER TILLBAKA PÅ FÖRSTA TILLGÄNGLIGA. Tryckningsvarianterna (reverse
+   * holo, boll, 1st Edition) har INGEN Cardmarket-serie alls — CardTrader är hela
+   * deras historik. Ett hårdkodat "cardmarket" hade öppnat dem på en tom ruta.
+   */
+  const [off, setOff] = useState<Set<string>>(() => {
+    const primary = available.includes("cardmarket") ? "cardmarket" : available[0];
+    return new Set(available.filter((k) => k !== primary));
+  });
   const selected = available.filter((k) => !off.has(k));
 
   const filtered = withinDays(series, period.days);
