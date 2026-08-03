@@ -43,7 +43,7 @@ import { formatPrice } from "@/lib/format";
 import { hasAuthHint } from "@/lib/auth-hint";
 import { registerFullscreenHost } from "@/lib/product-overlay-open";
 import { hapticImpact } from "@/lib/haptics";
-import { pickAlternatives } from "@/lib/scan-alternatives";
+import { pickAlternatives, pickSameArtRail } from "@/lib/scan-alternatives";
 import { useCameraControls } from "@/hooks/use-camera-controls";
 import {
   withDeviceId,
@@ -2705,20 +2705,19 @@ function ScanDetailsSheet(props: {
   onRemove: () => void;
 }) {
   const t = useTranslations("Scanner");
-  const tCond = useTranslations("Condition");
   const { item } = props;
   // Regeln bor i lib/scan-alternatives.ts — ren och testad, för den avgör om
   // en felmatchning går att RÄTTA och har felat i fält en gång.
-  const alternatives = useMemo(
-    () => pickAlternatives(item.candidates, item.match),
-    [item.candidates, item.match]
-  );
-  // Träffen först i raden, sedan alternativen. Ett svep ska kunna gå från "det
-  // vi valde" till "kanske det här i stället" utan att man tappar referensen.
-  const rail = useMemo(
-    () => (item.match ? [item.match, ...alternatives] : alternatives),
-    [item.match, alternatives]
-  );
+  // Raden bär korten med IDENTISK KONST, en post per variant — den enda frågan
+  // bilden inte kan svara på själv. Kördes ingen bildmatchning finns ingen
+  // konst att gruppera på; då faller vi tillbaka på poäng-/namnregeln, annars
+  // vore en textskanning helt utan rättningsväg.
+  const rail = useMemo(() => {
+    const sameArt = pickSameArtRail(item.candidates, item.match);
+    if (sameArt.length > 0) return sameArt;
+    const alts = pickAlternatives(item.candidates, item.match);
+    return item.match ? [item.match, ...alts] : alts;
+  }, [item.candidates, item.match]);
 
   return (
     <Sheet title={t("scanDetails")} onClose={props.onClose}>
@@ -2770,11 +2769,6 @@ function ScanDetailsSheet(props: {
                 {item.match.estimatedValue != null ? formatPrice(item.match.estimatedValue) : "–"}
               </p>
             </div>
-            <p className="mt-1 text-xs text-ink-faint">
-              {t("conditionMeta", {
-                condition: item.condition in CONDITION_LABEL ? tCond(item.condition) : item.condition,
-              })}
-            </p>
           </div>
         )}
 
@@ -2800,7 +2794,13 @@ function ScanDetailsSheet(props: {
             <p className="mb-2 text-xs font-medium text-ink-muted">
               {item.match ? t("notRight") : t("possibleMatches")}
             </p>
-            <div className="-mx-5 flex snap-x gap-2.5 overflow-x-auto px-5 pb-1">
+            {/* data-no-swipe: raden äger sitt vågräta drag. Utan den läste
+                skannerns stäng-gest (högersvep på roten) varje svep i raden som
+                "stäng skannern" och kortet gled ut under fingret. */}
+            <div
+              data-no-swipe
+              className="-mx-5 flex snap-x gap-2.5 overflow-x-auto px-5 pb-1"
+            >
               {rail.map((c) => {
                 const selected =
                   item.match != null &&

@@ -3,7 +3,9 @@ import {
   ALT_SCORE_WINDOW,
   MAX_ALTERNATIVES,
   pickAlternatives,
+  pickSameArtRail,
   type AlternativeLike,
+  type RailLike,
 } from "@/lib/scan-alternatives";
 
 function card(over: Partial<AlternativeLike> & { cardId: string; score: number }): AlternativeLike {
@@ -159,5 +161,62 @@ describe("pickAlternatives", () => {
       { cardId: "m", productId: null, score: 1.0 }
     );
     expect(out).toHaveLength(0);
+  });
+});
+
+describe("pickSameArtRail — svep-radens innehåll", () => {
+  const std = { productId: "p-std", label: null, slug: "mudbray-107", estimatedValue: 22 };
+  const rev = {
+    productId: "p-rev",
+    label: "Reverse Holo",
+    slug: "mudbray-107-reverse-holo",
+    estimatedValue: 198,
+  };
+  const rail = (over: Partial<RailLike> & { cardId: string; score: number }): RailLike => ({
+    productId: "p-std",
+    name: "Mudbray",
+    ...over,
+  });
+
+  it("REVERSE HOLON ÄR ETT EGET KORT I RADEN — den delar Card med det ordinarie", () => {
+    // Fältrapport 2026-08-04: reverse holon fanns bara i en rullgardin och gick
+    // inte att välja där användaren letade efter den.
+    const out = pickSameArtRail(
+      [rail({ cardId: "mudbray-107", score: 1.45, sameArt: true, variants: [std, rev] })],
+      { cardId: "mudbray-107", productId: "p-std" }
+    );
+    expect(out.map((c) => c.productId)).toEqual(["p-std", "p-rev"]);
+    expect(out[1].estimatedValue).toBe(198);
+  });
+
+  it("kort med ANNAN konst hör inte hemma i raden", () => {
+    // Skärmdumpen 2026-08-04: Mienfoo och Bulbasaur låg i raden för att de var
+    // bildens tvåa och trea (0,26 mot träffens 1,45) — rent brus.
+    const out = pickSameArtRail(
+      [
+        rail({ cardId: "mudbray-107", score: 1.45, sameArt: true }),
+        rail({ cardId: "mienfoo-83", name: "Mienfoo", score: 0.26, artRank: 2 }),
+        rail({ cardId: "mudbray-91", score: 0 }),
+      ],
+      { cardId: "mudbray-107", productId: "p-std" }
+    );
+    expect(out.map((c) => c.cardId)).toEqual(["mudbray-107"]);
+  });
+
+  it("omtryck med identisk konst är kvar, träffens eget kort först", () => {
+    const out = pickSameArtRail(
+      [
+        rail({ cardId: "omtryck", score: 0.3, sameArt: true }),
+        rail({ cardId: "mudbray-107", score: 1.45, sameArt: true }),
+      ],
+      { cardId: "mudbray-107", productId: "p-std" }
+    );
+    expect(out.map((c) => c.cardId)).toEqual(["mudbray-107", "omtryck"]);
+  });
+
+  it("tom när bildmatchningen inte kördes — anroparen faller tillbaka", () => {
+    // Utan konstpoäng finns ingen konst att gruppera på. En tom rad här är
+    // signalen att visa poäng-/namnregeln i stället, inte att visa ingenting.
+    expect(pickSameArtRail([rail({ cardId: "a", score: 1 })], null)).toEqual([]);
   });
 });

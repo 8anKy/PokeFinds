@@ -33,6 +33,69 @@ export const MAX_ALTERNATIVES = 12;
  */
 export const ALT_SCORE_WINDOW = 0.2;
 
+/** En variant av samma kort — se ScanVariant i services/scanner/types.ts. */
+export interface RailVariant {
+  productId: string;
+  label: string | null;
+  slug: string;
+  estimatedValue: number | null;
+}
+
+export interface RailLike extends AlternativeLike {
+  variants?: RailVariant[];
+  slug?: string | null;
+  variantLabel?: string | null;
+  estimatedValue?: number | null;
+}
+
+/**
+ * KORTEN MED IDENTISK KONST — svep-radens innehåll (ägarbeslut 2026-08-04).
+ *
+ * Raden svarar på EN fråga: "vilken version av det här kortet håller jag i?"
+ * Det är precis den fråga skannern inte kan besvara själv — identisk konst är
+ * definitionen av vad bildmatchningen inte KAN skilja åt — och därför den enda
+ * som är värd användarens uppmärksamhet där. Kort som ser annorlunda ut hör inte
+ * hemma i raden: syns det på bilden att det är ett annat kort behövs ingen rad
+ * för att upptäcka det.
+ *
+ * ⛔ VARIANTERNA ÄR EGNA KORT I RADEN. En reverse holo delar `Card` med det
+ * ordinarie kortet — den är en annan `Product` — så utan uppdelningen fanns den
+ * bara i en rullgardin och användaren kunde inte VÄLJA den där hen letade
+ * (fältrapport 2026-08-04: reverse holon gick inte att välja alls).
+ *
+ * ⚠️ Följden av att smalna av: en felmatchning till ett kort med ANNAN konst går
+ * inte att rätta härifrån. Det är avsiktligt — men det är också skälet att en tom
+ * rad (bildmatchningen kördes aldrig) faller tillbaka på `pickAlternatives`,
+ * annars vore textskanningar helt utan rättningsväg.
+ */
+export function pickSameArtRail<T extends RailLike>(
+  candidates: readonly T[],
+  match: { cardId: string; productId: string | null } | null
+): T[] {
+  const sameArt = candidates.filter((c) => c.sameArt || (match != null && c.cardId === match.cardId));
+  if (sameArt.length === 0) return [];
+
+  // Träffens EGET kort först — raden ska börja där blicken redan är.
+  const ordered = [...sameArt].sort(
+    (a, b) =>
+      Number(b.cardId === match?.cardId) - Number(a.cardId === match?.cardId) || b.score - a.score
+  );
+
+  return ordered
+    .flatMap((c) =>
+      c.variants && c.variants.length > 1
+        ? c.variants.map((v) => ({
+            ...c,
+            productId: v.productId,
+            variantLabel: v.label,
+            slug: v.slug,
+            estimatedValue: v.estimatedValue,
+          }))
+        : [c]
+    )
+    .slice(0, MAX_ALTERNATIVES);
+}
+
 /**
  * @param candidates Hela kandidatlistan från servern (inklusive träffen).
  * @param match      Den valda träffen, eller null vid "ingen träff".
