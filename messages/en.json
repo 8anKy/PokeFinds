@@ -692,6 +692,7 @@
     "uncertainMatch": "Several cards look almost identical to the scanner — check that this is your card, or pick another below.",
     "notRight": "Not right? Choose another",
     "possibleMatches": "Possible matches",
+    "ordinaryPrinting": "Standard",
     "showProduct": "View product & price history",
     "removeScan": "Remove scan",
     "close": "Close",

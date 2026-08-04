@@ -2834,7 +2834,7 @@ function ScanDetailsSheet(props: {
         {rail.length > 0 && (
           <div>
             <p className="mb-2 text-xs font-medium text-ink-muted">
-              {item.match ? t("notRight") : t("possibleMatches")}
+              {item.match ? t("notRight") : t("possibleMatches")} · {rail.length}
             </p>
             {/* data-no-swipe: raden äger sitt vågräta drag. Utan den läste
                 skannerns stäng-gest (högersvep på roten) varje svep i raden som
@@ -2857,7 +2857,7 @@ function ScanDetailsSheet(props: {
                     type="button"
                     onClick={() => props.onChoose(c)}
                     aria-current={selected}
-                    className={`w-[104px] shrink-0 snap-start rounded-xl border p-1.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan ${
+                    className={`w-[172px] shrink-0 snap-start rounded-2xl border p-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan ${
                       selected
                         ? "border-holo-cyan/60 bg-holo-cyan/5"
                         : "border-surface-border hover:border-holo-cyan/50 hover:bg-surface-overlay"
@@ -2868,30 +2868,45 @@ function ScanDetailsSheet(props: {
                       <img
                         src={c.imageUrl}
                         alt=""
-                        className="aspect-[5/7] w-full rounded-lg object-cover"
+                        className="aspect-[5/7] w-full rounded-xl object-cover"
                       />
                     ) : (
-                      <span className="flex aspect-[5/7] w-full items-center justify-center rounded-lg bg-surface-overlay text-ink-faint">
-                        <IconCards size={18} />
+                      <span className="flex aspect-[5/7] w-full items-center justify-center rounded-xl bg-surface-overlay text-ink-faint">
+                        <IconCards size={24} />
                       </span>
                     )}
-                    <span className="mt-1.5 block truncate text-xs font-medium text-ink">
+                    <span className="mt-2 block truncate text-sm font-semibold text-ink">
                       {c.name}
                     </span>
-                    <span className="block truncate text-[11px] text-ink-faint">
-                      #{c.number} · {c.setName}
+                    {/* Numret på egen rad: det är DEN uppgiften som skiljer två kort
+                        med identisk konst åt, och som delsträng i en setrad drunknade
+                        den. */}
+                    <span className="block truncate text-xs tabular-nums text-ink-muted">
+                      #{c.number}
                     </span>
-                    <span className="mt-0.5 flex items-baseline justify-between gap-1">
-                      <span className="truncate text-[11px] tabular-nums text-ink-muted">
+                    <span className="block truncate text-xs text-ink-faint">{c.setName}</span>
+                    {/* Utan etiketten ser tryckningarna identiska ut — samma namn,
+                        samma set, samma nummer. Egen rad i accentfärg: det är precis
+                        den skillnaden man är här för att välja mellan. */}
+                    <span className="block truncate text-xs font-medium text-holo-cyan">
+                      {c.variantLabel ?? t("ordinaryPrinting")}
+                    </span>
+                    <span className="mt-1.5 flex items-center justify-between gap-2">
+                      <span className="truncate text-sm font-semibold tabular-nums text-ink">
                         {c.estimatedValue != null ? formatPrice(c.estimatedValue) : "–"}
                       </span>
-                      {/* Utan etiketten ser Base-tryckningarna identiska ut —
-                          samma namn, samma set, samma nummer. */}
-                      {c.variantLabel && (
-                        <span className="shrink-0 rounded bg-surface-overlay px-1 text-[9px] font-medium text-holo-cyan ring-1 ring-holo-cyan/25">
-                          {c.variantLabel}
-                        </span>
-                      )}
+                      {/* Rund markör, inte ett "+": raden VÄLJER vilket kort
+                          skanningen är, den lägger inget i samlingen. */}
+                      <span
+                        aria-hidden="true"
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                          selected
+                            ? "border-holo-cyan bg-holo-cyan text-surface"
+                            : "border-surface-border text-ink-faint"
+                        }`}
+                      >
+                        {selected ? <IconCheck size={16} /> : null}
+                      </span>
                     </span>
                   </button>
                 );
@@ -3042,40 +3057,101 @@ function Sheet({
   const panelRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<HTMLDivElement>(null);
 
-  // Svep nedåt på handtaget/rubriken för att stänga. Pointer-capture gör att
-  // ALLA move-events går hit när fingret väl tagit i handtaget — webbläsarens
-  // egen scroll/bounce kan inte stjäla gesten. touch-action:none på handtaget
-  // stoppar native scroll från att ens starta där. Transformen skrivs direkt
-  // på panelen (mjukare än React-state per ruta). Panelens kropp scrollar som
-  // vanligt — draget och scrollen krockar inte eftersom de bor på olika ytor.
+  /**
+   * SVEP NEDÅT FÖR ATT STÄNGA.
+   *
+   * ⛔ TOUCH-EVENTS, INTE POINTER-EVENTS (omskrivet 2026-08-04). Den gamla
+   * versionen fångade pointern på handtaget, och `pointercancel` behandlades som
+   * "fingret släppte". Men i WebKit avbryter ETT `preventDefault()` på touchmove
+   * hela pointer-strömmen — och studsvakten i `pwa-register.tsx` gjorde precis
+   * det på varje nedåtdrag när `scrollY === 0`, vilket skannern ALLTID har
+   * (`fixed inset-0`). Följden: gesten avbröts mitt i, arket gled tillbaka och
+   * frös. Ett snabbt svep hann förbi 100 px innan avbrottet och stängde; ett
+   * långsamt — eller ett som bromsade i mitten — gjorde det aldrig. Exakt det
+   * ägaren rapporterade. Touch-events överlever ett `preventDefault`; pointer
+   * gör det inte. Vakten opt-outar dessutom via `data-drag-surface` nedan.
+   *
+   * TRE SAKER SOM MÅSTE HÅLLAS ISÄR PÅ SAMMA YTA:
+   *  - vågrätt drag  → kandidatraden äger det (axellås, 8 px)
+   *  - drag uppåt / kroppen redan nedscrollad → vanlig scroll
+   *  - drag nedåt i topp → vi äger gesten och stänger
+   * Draget får därför starta på handtaget ALLTID, men i kroppen bara när den
+   * står i topp — annars hade en scroll uppåt läst som en stängning.
+   *
+   * STÄNGER PÅ STRÄCKA **ELLER** FART: ett kort, snabbt kast är lika tydligt
+   * som ett långt lugnt drag, och att bara mäta sträcka gör den snabba gesten
+   * omöjlig.
+   */
   useEffect(() => {
     const panel = panelRef.current;
-    const handle = handleRef.current;
-    if (!panel || !handle) return;
+    if (!panel) return;
+    /** Sträcka som ensam stänger. */
+    const CLOSE_PX = 100;
+    /** Kast: px/ms nedåt … */
+    const FLICK_V = 0.45;
+    /** … men aldrig från stillastående — någon sträcka krävs alltid. */
+    const FLICK_PX = 32;
+    const AXIS_PX = 8;
+
+    let startX = 0;
     let startY = 0;
+    let lastY = 0;
+    let lastT = 0;
+    let vy = 0;
     let dy = 0;
     let dragging = false;
+    let axis: "x" | "y" | null = null;
 
-    const onDown = (e: PointerEvent) => {
-      dragging = true;
-      startY = e.clientY;
+    const begin = (x: number, y: number, t: number) => {
+      startX = x;
+      startY = y;
+      lastY = y;
+      lastT = t;
       dy = 0;
+      vy = 0;
+      axis = null;
+      dragging = true;
       // animate-fade-in-up (fill-mode: both) pinnar transform och överröstar
       // vår inline-transform → måste rensas, annars syns ingen följning/glid.
       panel.style.animation = "none";
       panel.style.transition = "none";
-      handle.setPointerCapture(e.pointerId);
     };
-    const onMove = (e: PointerEvent) => {
-      if (!dragging) return;
-      dy = Math.max(0, e.clientY - startY);
+
+    const abort = () => {
+      dragging = false;
+      panel.style.transition = "";
+      panel.style.transform = "";
+    };
+
+    /** true = vi äger gesten och anroparen ska blockera native scroll. */
+    const move = (x: number, y: number, t: number, fromHandle: boolean): boolean => {
+      if (!dragging) return false;
+      const ddx = x - startX;
+      const ddy = y - startY;
+      if (axis === null) {
+        if (Math.abs(ddx) < AXIS_PX && Math.abs(ddy) < AXIS_PX) return false;
+        axis = Math.abs(ddx) > Math.abs(ddy) ? "x" : "y";
+        // Vågrätt = svep-raden med kandidatkorten. Uppåt i kroppen = scroll.
+        if (axis === "x" || (!fromHandle && ddy < 0)) {
+          abort();
+          return false;
+        }
+      }
+      dy = Math.max(0, ddy);
+      if (t > lastT) {
+        vy = (y - lastY) / (t - lastT);
+        lastY = y;
+        lastT = t;
+      }
       panel.style.transform = `translateY(${dy}px)`;
+      return true;
     };
-    const onUp = () => {
+
+    const finish = () => {
       if (!dragging) return;
       dragging = false;
       panel.style.transition = "transform 0.25s ease";
-      if (dy > 100) {
+      if (dy > CLOSE_PX || (vy > FLICK_V && dy > FLICK_PX)) {
         panel.style.transform = "translateY(110%)";
         window.setTimeout(onClose, 230);
       } else {
@@ -3083,15 +3159,65 @@ function Sheet({
       }
     };
 
-    handle.addEventListener("pointerdown", onDown);
-    handle.addEventListener("pointermove", onMove);
-    handle.addEventListener("pointerup", onUp);
-    handle.addEventListener("pointercancel", onUp);
+    const isHandle = (target: EventTarget | null) =>
+      !!(target as HTMLElement | null)?.closest?.("[data-sheet-handle]");
+
+    let fromHandle = false;
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      fromHandle = isHandle(e.target);
+      // Kroppen får bara starta ett drag när den redan står i topp — annars
+      // vore varje scroll uppåt en stängning.
+      if (!fromHandle && panel.scrollTop > 0) {
+        dragging = false;
+        return;
+      }
+      begin(e.touches[0].clientX, e.touches[0].clientY, e.timeStamp);
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!dragging || e.touches.length !== 1) return;
+      const own = move(e.touches[0].clientX, e.touches[0].clientY, e.timeStamp, fromHandle);
+      // Vi äger gesten: utan detta scrollar/studsar WebView:n samtidigt som
+      // arket följer fingret. Sker BARA efter axellåset, så vågräta svep i
+      // kandidatraden aldrig blockeras (den lärdomen kostade tre felsökningar
+      // — se project_overscroll_guard_killed_horizontal_gestures).
+      if (own && e.cancelable) e.preventDefault();
+    };
+
+    // MUS: pointer-events duger på desktop (ingen touchmove-vakt, ingen
+    // WebView som avbryter). Touch går uteslutande via touch-events ovan.
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse") return;
+      fromHandle = isHandle(e.target);
+      if (!fromHandle && panel.scrollTop > 0) return;
+      begin(e.clientX, e.clientY, e.timeStamp);
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse") return;
+      move(e.clientX, e.clientY, e.timeStamp, fromHandle);
+    };
+    const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse") return;
+      finish();
+    };
+
+    panel.addEventListener("touchstart", onTouchStart, { passive: true });
+    panel.addEventListener("touchmove", onTouchMove, { passive: false });
+    panel.addEventListener("touchend", finish);
+    // Ett avbrott (systemgest, inkommande samtal) ska dömas som ett släpp och
+    // ALDRIG lämna gesten hängande — det var hela den gamla buggen.
+    panel.addEventListener("touchcancel", finish);
+    panel.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
     return () => {
-      handle.removeEventListener("pointerdown", onDown);
-      handle.removeEventListener("pointermove", onMove);
-      handle.removeEventListener("pointerup", onUp);
-      handle.removeEventListener("pointercancel", onUp);
+      panel.removeEventListener("touchstart", onTouchStart);
+      panel.removeEventListener("touchmove", onTouchMove);
+      panel.removeEventListener("touchend", finish);
+      panel.removeEventListener("touchcancel", finish);
+      panel.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
     };
   }, [onClose]);
 
@@ -3105,11 +3231,16 @@ function Sheet({
       />
       <div
         ref={panelRef}
+        // data-drag-surface: studsvakten i pwa-register.tsx måste hålla fingrarna
+        // borta här — dess preventDefault avbröt gesten mitt i (se effekten ovan).
+        data-drag-surface
         className="relative max-h-[85%] overflow-y-auto rounded-t-3xl border-t border-surface-border bg-surface-raised p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-card animate-fade-in-up"
       >
-        {/* Dragyta: handtag + rubrik. touch-action:none → ingen native scroll här. */}
+        {/* Dragyta: handtag + rubrik. touch-action:none → ingen native scroll här.
+            Kroppen går också att dra i, men bara när den står i topp. */}
         <div
           ref={handleRef}
+          data-sheet-handle
           style={{ touchAction: "none" }}
           className="-mx-5 -mt-5 cursor-grab px-5 pb-4 pt-5 active:cursor-grabbing"
         >

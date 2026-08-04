@@ -58,6 +58,15 @@ export function ServiceWorkerRegister() {
       if (dy <= 0) return;            // drar uppåt → normal scroll
       let el = e.target as HTMLElement | null;
       while (el && el !== document.body) {
+        // ⛔ YTOR SOM ÄGER SITT EGET LODRÄTA DRAG MÅSTE OPT-OUTA (2026-08-04).
+        // Skannerns bottenark stängs med ett nedåtdrag — alltså exakt den gest
+        // vakten blockerar, och skannern ligger `fixed inset-0` så scrollY är
+        // ALLTID 0. `preventDefault()` här avbryter dessutom pointer-strömmen i
+        // WebKit (pointercancel), vilket arkets drag läste som "fingret släppte":
+        // under tröskeln → glid tillbaka + gesten död. Ett snabbt svep hann förbi
+        // tröskeln före avbrottet, ett långsamt frös. Ytan preventDefault:ar
+        // själv medan den äger gesten, så studsen blockeras fortfarande.
+        if (el.dataset.dragSurface !== undefined) return;
         // Kontroller som äger sitt eget drag (reglage) rörs inte.
         if (el instanceof HTMLInputElement && el.type === "range") return;
         if (el.scrollWidth > el.clientWidth) return;                       // sidledsscroller
