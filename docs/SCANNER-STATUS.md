@@ -1110,6 +1110,52 @@ saknas är BESKEDET.
 ⛔ Höj INTE `REGION_ASPECT_REL_MAX` för att "släppa igenom" paret — hela poängen
 med den gränsen är att en blandad cell aldrig ska skickas.
 
+## FOLIESOND (2026-08-04): INSTRUMENTERING BYGGD, MÄTNINGEN ÅTERSTÅR
+
+Frågan från ägaren: kan skannern välja rätt VARIANT (standard / reverse holo)
+själv, utan AI-kostnad? Signalen finns rimligen — men den är **OMÄTT**, så
+ingenting väljer något. Det som byggdes är BARA mätapparaten.
+
+**Varför oddsen är hyfsade:** vi vet vilket KORT det är innan foliefrågan ställs,
+så problemet är inte "klassificera folie" utan "jämför mot det här kortets kända
+platta katalogrendering" — och den referensen är `Card.artFingerprint`. Reverse
+holo lägger folie överallt UTOM i konstfönstret; en holo rare gör tvärtom. De två
+ska alltså avvika i MOTSATTA regioner mot samma referens.
+
+**Sonden** (`src/lib/foil-probe.ts`): samma 8×11-rutnät, samma cellgränser och
+samma inset-semantik som konstavtrycket — annars pekar cell 37 på olika ställen i
+de två och varje jämförelse blir nonsens, tyst. Fyra tal per cell (luminans,
+luminansspridning, andel utbrända pixlar, kroma) = 352 byte. Räknas ur pixlar
+klienten ändå läst; ingen bild lagras.
+
+**Tre mått**, alla per region (24 konstceller / 56 kroppsceller, rad 5 = gränsrad
+och räknas till ingendera):
+1. `dev` — avvikelse mot kortets EGEN referens, kropp mot konst. Starkast, för den
+   är per kort och inte en blind klassificerare. Kvoten normaliserar bort
+   exponeringen.
+2. `temporal` — luminansens rörelse över LIVE-POLLENS rutor (600 ms isär, ~5 st).
+   ⛔ Slutarens extra rutor duger inte: de ligger ~16 ms isär, kortet hinner inte
+   röra sig. Spekulära reflexer rör sig, tryckfärg gör det inte.
+3. `spec` — klippning, textur och kroma per region i själva fångsten.
+
+**Var det hamnar:** `ScannerJob.result.foil`, ADMIN-ONLY, tillsammans med de RÅA
+sonderna så måtten kan räknas om utan att skanna om. Påverkar inte kandidater,
+poäng, pris eller kvot. Noll AI-anrop, ingen ny tjänst, ~2 kB per admin-rad.
+
+**KVAR — steg 2, kräver ägaren:** skanna ~10 kort du äger i BÅDE standard och
+reverse, standard-omgången först. Kör sedan
+`SPLIT=<ISO-tid> … scripts/foil-probe-audit.ts` som visar om molnen separerar.
+
+⛔ **Skeppa ingen foliedetektor på rimlighet.** Ett fel variantval är TYST (fel
+produkt, fel pris i samlingen) och användaren slutar dubbelkolla just för att det
+oftast stämmer. Kravet är detsamma som för bildmatchningen: **inget överlapp
+mellan klasserna** — inte "medianerna skiljer sig". Reverse holo är dessutom
+minoritetsklass, så "gissa alltid standard" ger ~90 % och är värdelöst. Separerar
+inget är svaret att väljaren förblir manuell, och då har vi bara kostat mätningen.
+⚠️ Känd svaghet i masken: **full art-kort har ingen "kropp"** i den meningen —
+konsten går ut i kanten. Därför rapporteras regionerna var för sig, aldrig bara
+kvoten.
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.
@@ -1150,6 +1196,10 @@ node scripts/with-prod-db.mjs npx tsx scripts/scanner-telemetry.ts
 
 # Replaya riktiga skanningars avtryck genom searchByFrames (mät viktändringar)
 node scripts/with-prod-db.mjs npx tsx scripts/scanner-replay.ts
+
+# Foliesonden: separerar standard och reverse holo? (SPLIT = ISO-tid för facit)
+node scripts/with-prod-db.mjs npx tsx scripts/foil-probe-audit.ts
+SPLIT=2026-08-04T18:30:00Z node scripts/with-prod-db.mjs npx tsx scripts/foil-probe-audit.ts
 
 # Katalogslagningen mot facit (simulerad felfri OCR)
 node scripts/with-prod-db.mjs npx tsx scripts/scanner-match-audit.ts

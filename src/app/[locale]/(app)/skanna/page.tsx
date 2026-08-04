@@ -26,6 +26,7 @@ import {
   fingerprintFromRgb,
   structFingerprintFromRgb,
 } from "@/lib/art-fingerprint";
+import { foilProbeFromRgb, type FoilSample } from "@/lib/foil-probe";
 import {
   detectCardQuad,
   detectCardRegions,
@@ -271,6 +272,9 @@ function captureFrame(
   fingerprints: string[];
   /** Strukturavtryck, positionsparade med fingerprints (samma inset-ordning). */
   structFingerprints: string[];
+  /** FOLIESOND (base64) ur samma pixelläsning — instrumentering, påverkar inget
+   *  i matchningen. Se src/lib/foil-probe.ts. */
+  probe: string | null;
   stripDataUrl?: string;
   crop: string;
 } | null {
@@ -345,7 +349,7 @@ function captureFrame(
   // EN läsning av pixlarna, sedan billiga loopar per inset — getImageData är det
   // dyra steget, inte boxmedelvärdet.
   const fpPixels = ctx.getImageData(0, 0, fpW, fpH).data;
-  const toB64 = (fp: Int8Array) => {
+  const toB64 = (fp: Int8Array | Uint8Array) => {
     let bin = "";
     for (let i = 0; i < fp.length; i++) bin += String.fromCharCode(fp[i] & 0xff);
     return btoa(bin);
@@ -356,6 +360,12 @@ function captureFrame(
   // särdrag; topp-15 38,5 % → 97,1 %, se src/lib/art-fingerprint.ts).
   const fingerprints: string[] = [];
   const structFingerprints: string[] = [];
+  // FOLIESOND ur SAMMA pixelläsning, utan inset — alltså exakt den yta det
+  // första avtrycket räknas på, vilket är vad serversidan jämför mot kortets
+  // referens. Ren instrumentering: den påverkar varken kandidater eller pris,
+  // och den kostar en linjär genomgång till av pixlar vi ändå läst.
+  const probeBytes = foilProbeFromRgb(fpPixels, fpW, fpH, 4);
+  const probe = probeBytes ? toB64(probeBytes) : null;
   for (const inset of FINGERPRINT_INSETS) {
     const fp = fingerprintFromRgb(fpPixels, fpW, fpH, 4, inset);
     const sfp = structFingerprintFromRgb(fpPixels, fpW, fpH, 4, inset);
@@ -414,7 +424,7 @@ function captureFrame(
   }
 
   if (fpOnly) {
-    return { dataUrl: "", fingerprints, structFingerprints, crop: "" };
+    return { dataUrl: "", fingerprints, structFingerprints, probe, crop: "" };
   }
 
   // Bilden till modellen: MED marginal, så ett snett kort inte tappar numret.
@@ -452,6 +462,7 @@ function captureFrame(
     dataUrl,
     fingerprints,
     structFingerprints,
+    probe,
     stripDataUrl,
     // Utsnitt i KÄLLpixlar → skickad storlek. Står källan under den skickade
     // storleken skalar vi UPP, dvs modellen får interpolerade pixlar och ingen
@@ -760,6 +771,8 @@ function Scanner() {
   } | null>(null);
   const liveStreak = useRef<{ id: string; n: number }>({ id: "", n: 0 });
   const livePollBusy = useRef(false);
+  /** De senaste live-pollarnas foliesonder (äldst först, max 5 ≈ 3 s). */
+  const probeHistory = useRef<string[]>([]);
   // AUTO-FÅNGST: låset (100 % uppmätt precision) som hållit i ≥2 extra pollar
   // (~1,2 s stadigt sikte) trycker av åt användaren — pärmflödet blir
   // "håll kort → grönt → klick av sig självt → nästa". EN fångst per kort:
@@ -822,7 +835,8 @@ function Scanner() {
       dataUrl: string,
       strip?: string,
       fingerprintFrames?: string[][],
-      structFrames?: string[][]
+      structFrames?: string[][],
+      foil?: FoilSample
     ): Promise<IdentifyResponse | { error: string; httpStatus?: number }> => {
       try {
         // Standard = billiga Haiku-modellen (ingen `precise`) — håller scan-kostnaden
@@ -837,6 +851,9 @@ function Scanner() {
             detail: strip,
             fingerprintFrames,
             structFrames,
+            // Instrumentering (foliefrågan). Servern lagrar den bara för admin
+            // och den påverkar ingenting i svaret — se src/lib/foil-probe.ts.
+            foil,
           }),
         });
         const data = (await res.json()) as IdentifyResponse & { error?: string };
@@ -860,9 +877,10 @@ function Scanner() {
       dataUrl: string,
       strip?: string,
       fingerprintFrames?: string[][],
-      structFrames?: string[][]
+      structFrames?: string[][],
+      foil?: FoilSample
     ) => {
-      const data = await runIdentify(dataUrl, strip, fingerprintFrames, structFrames);
+      const data = await runIdentify(dataUrl, strip, fingerprintFrames, structFrames, foil);
       if (!("error" in data) && typeof data.remaining === "number") {
         const r = data.remaining;
         setQuota((q) => (q ? { ...q, remaining: r } : q));
@@ -1030,6 +1048,7 @@ function Scanner() {
     if (cameraState !== "live" || view !== "capture" || mode !== "single") {
       setLiveHint(null);
       liveStreak.current = { id: "", n: 0 };
+      probeHistory.current = [];
       return;
     }
     const iv = window.setInterval(() => {
@@ -1038,6 +1057,15 @@ function Scanner() {
       if (!video || !canvas || livePollBusy.current || document.hidden) return;
       const shot = captureFrame(video, canvas, frameRef.current, true);
       if (!shot || shot.fingerprints.length === 0) return;
+      // TEMPORAL FOLIESIGNAL: pollarna ligger 600 ms isär, alltså ~2 s
+      // handhållen rörelse innan slutaren går — spekulära reflexer flyttar sig
+      // över den tiden, tryckfärg gör det inte. Sonderna räknades redan här
+      // och kastades; nu behålls de fem senaste och följer med fångsten upp.
+      if (shot.probe) {
+        const h = probeHistory.current;
+        h.push(shot.probe);
+        if (h.length > 5) h.shift();
+      }
       livePollBusy.current = true;
       fetch("/api/scanner/identify-art", {
         method: "POST",
@@ -1195,7 +1223,8 @@ function Scanner() {
       dataUrl: string,
       strip?: string,
       fingerprintFrames?: string[][],
-      structFrames?: string[][]
+      structFrames?: string[][],
+      foil?: FoilSample
     ) => {
       const id = nextId();
       setScans((prev) => [
@@ -1213,7 +1242,7 @@ function Scanner() {
           language: defaultLanguage,
         },
       ]);
-      void identifyInto(id, dataUrl, strip, fingerprintFrames, structFrames);
+      void identifyInto(id, dataUrl, strip, fingerprintFrames, structFrames, foil);
     },
     [defaultCondition, defaultLanguage, identifyInto]
   );
@@ -1369,7 +1398,20 @@ function Scanner() {
     let taken = 1;
     const grabNext = () => {
       if (taken >= CAPTURE_FRAMES) {
-        addScan(shot.dataUrl, shot.stripDataUrl, frames, structFrames);
+        addScan(
+          shot.dataUrl,
+          shot.stripDataUrl,
+          frames,
+          structFrames,
+          // Sonden för DEN fångade rutan + live-pollens sonder (600 ms isär).
+          // Historiken tas som den är: den beskriver de sista sekunderna av
+          // samma scen, vilket ÄR den temporala signalen.
+          shot.probe ? { probe: shot.probe, history: [...probeHistory.current] } : undefined
+        );
+        // Nollställ efter användning: nästa korts första skanning får INTE bära
+        // sonder från det förra kortets scen — då mäter den temporala signalen
+        // ett kortbyte i stället för folieglans.
+        probeHistory.current = [];
         return;
       }
       taken++;

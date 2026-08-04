@@ -352,6 +352,21 @@ export async function artPairSimilarity(a: string, b: string): Promise<number | 
   return s;
 }
 
+/**
+ * Ett korts REFERENS-färgavtryck (katalogrenderingen), eller null när kortet
+ * saknas i indexet. Läses ur det redan laddade indexet — ingen Neon-läsning.
+ *
+ * Används av folie-instrumenteringen: hela poängen där är att jämföra fångsten
+ * mot DET HÄR kortets kända platta rendering, inte mot en generell modell.
+ */
+export async function getCardColorFingerprint(cardId: string): Promise<Int8Array | null> {
+  const index = await getArtIndex();
+  if (!index) return null;
+  const row = index.ids.indexOf(cardId);
+  if (row < 0) return null;
+  return index.data.slice(row * FINGERPRINT_BYTES, (row + 1) * FINGERPRINT_BYTES);
+}
+
 /** Antal kort i indexet — för diagnostikraden i skannern. */
 export async function artIndexSize(): Promise<number> {
   const index = await getArtIndex();

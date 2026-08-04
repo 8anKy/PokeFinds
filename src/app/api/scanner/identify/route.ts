@@ -12,6 +12,7 @@ import { effectivePlanTier, isPro } from "@/lib/plan";
 import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
 import { getScannerQuota, identifyCard, isIntroScan, recordScanUsage } from "@/services/scanner";
+import { buildFoilDiagnostics } from "@/services/scanner/foil";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,17 @@ const schema = z.object({
     .array(z.array(z.string().min(1).max(2048)).max(8))
     .max(4)
     .optional(),
+  // FOLIESOND — instrumentering för frågan "kan skannern välja variant själv?".
+  // Påverkar INGET i svaret: sonderna räknas gratis av klienten ur pixlar den
+  // redan läst, och lagras bara i ADMIN-diagnostiken. Se src/lib/foil-probe.ts.
+  foil: z
+    .object({
+      probe: z.string().min(1).max(1024),
+      // Live-pollens sonder (~600 ms isär) — den temporala signalen. Slutarens
+      // egna rutor ligger ~16 ms isär och duger inte till det.
+      history: z.array(z.string().min(1).max(1024)).max(5).optional(),
+    })
+    .optional(),
   // Starkare (dyrare) vision-modell — körs bara vid bekräftelse/uppladdning,
   // inte för varje live-ruta.
   precise: z.boolean().optional(),
@@ -80,6 +92,7 @@ export async function POST(req: Request) {
       fingerprintFrames,
       structFingerprints,
       structFrames,
+      foil,
       precise,
     } = schema.parse(await req.json());
     if (image.length + (detail?.length ?? 0) > MAX_IMAGE_BYTES * 1.4) {
@@ -118,6 +131,19 @@ export async function POST(req: Request) {
     // mätning bygger på frågor härledda ur samma filer som referenserna, aldrig
     // på en riktig fångst. Avtrycket (264 byte) sparas, aldrig bilden.
     const isAdmin = user.role === "ADMIN" || user.role === "SUPERADMIN";
+    // FOLIEMÅTTEN räknas bara för admin — de är instrumentering, inte en
+    // produktfunktion, och en vanlig rad ska inte bära diagnostik alls
+    // (dataminimering). Referensavtrycket jämförs mot FÖRSTA rutans FÖRSTA
+    // avtryck (inset 0), samma yta som sonden räknades på.
+    const foilDiagnostics =
+      isAdmin && foil
+        ? await buildFoilDiagnostics({
+            probe: foil.probe,
+            history: foil.history,
+            queryFingerprint: (fingerprintFrames?.[0] ?? fingerprints)?.[0],
+            cardId: result.candidates[0]?.cardId ?? null,
+          })
+        : null;
     const jobId = await recordScanUsage(
       user.id,
       isAdmin
@@ -158,6 +184,9 @@ export async function POST(req: Request) {
             )
               .slice(0, 4)
               .map((f) => f.slice(0, 7)),
+            // FOLIEMÅTT + råa sonder (~2 kB). Bara ägarens egna skanningar bär
+            // dem, och de påverkar ingenting i svaret — se services/scanner/foil.ts.
+            foil: foilDiagnostics,
           }
         : undefined,
       // KVOTEN RÄKNAR TRÄFFAR: en skanning utan kandidat har inte gett kunden
