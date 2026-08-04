@@ -44,10 +44,23 @@ declare module "next-auth/jwt" {
   }
 }
 
-// ponytail: re-read role/plan/onboarding from DB at most this often per session.
-// Bounds the staleness window for out-of-band changes (RC webhook, admin edit)
-// without a DB hit on every request. Lower it if 5 min feels too slow.
-const TOKEN_REFRESH_MS = 5 * 60 * 1000;
+// Hur ofta en session får läsa om roll/plan/onboarding ur DB. Bounds bara
+// OUT-OF-BAND-ändringar (RC-webhook, admin-redigering) — `trigger === "update"`
+// nedan läser om DIREKT, så onboarding och allt annat vi själva styr är opåverkat.
+//
+// ⛔ VAR 5 MINUTER, VILKET ÄR EXAKT NEONS MINSTA DEBITERADE FÖNSTER (300 s).
+// Sämsta möjliga värde: jwt-callbacken kör vid varje getServerSession, så en
+// aktiv inloggad session beväpnade ett nytt 300-sekundersfönster precis när det
+// förra löpte ut → computen hann aldrig somna. Mätt 2026-08-05: ~37 väckningar/
+// dygn totalt, och compute är ~95 % av Neon-notan (egress ryms i fribeloppet).
+// 30 min = 2 omläsningar/timme i stället för 12, utan att någon funktion väntar.
+//
+// ⛔ NÄR KÖPFLÖDET WIRE:AS UPP måste det kalla `session.update()` efter ett
+// lyckat köp/restore. `src/lib/purchases.ts` har idag INGA anropare, så inget
+// köp sker i appen och TTL:n är enda vägen in för webhookens planTier. Den dag
+// någon kopplar in `purchasePremium()` utan ett update()-anrop får en betalande
+// kund vänta upp till 30 minuter på sitt Pro — utan att något felar.
+const TOKEN_REFRESH_MS = 30 * 60 * 1000;
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt", maxAge: 30 * 24 * 3600 },

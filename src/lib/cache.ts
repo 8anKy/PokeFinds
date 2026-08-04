@@ -32,6 +32,22 @@ import { unstable_cache } from "next/cache";
  */
 export const PRICE_CACHE_TAG = "priser";
 
+/**
+ * TAGG FÖR PRIS-OBEROENDE DATA (2026-08-05). `PRICE_CACHE_TAG` är default, och
+ * `/api/revalidate` tömmer den 3-4 ggr/dygn när prisjobben skrivit. Det är rätt för
+ * priser — men flera av de DYRASTE cacherna innehåller ingen prisinformation alls
+ * och kastades ändå bort varje gång:
+ *   · startsidans showcase (24h TTL, en groupBy över ~420k PriceSnapshot-rader)
+ *   · /produkter-facetterna (set- och butikslistan)
+ *   · sitemapen (40 000 produkter + 1 000 set)
+ * En sådan cache med 24h TTL levde i praktiken ~6h. Den här taggen invalideras
+ * ALDRIG av prisjobben — bara av TTL:en — så arbetet görs en gång per TTL-fönster.
+ *
+ * ⛔ Sätt den bara på läsningar som INTE visar ett pris. Blir en prisberoende cache
+ * märkt "statisk" blir priset gammalt tills TTL:en löper ut, tyst.
+ */
+export const STATIC_CACHE_TAG = "statisk";
+
 export function cachedRead<A extends unknown[], R>(
   fn: (...args: A) => Promise<R>,
   key: string,

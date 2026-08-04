@@ -43,6 +43,10 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
   // Är produkten redan i bevakningarna? Rå fetch (inte apiFetch) så en utloggad
   // besökare inte slängs till login av 401 på denna passiva koll.
   useEffect(() => {
+    // Samma grind som plan-läsningen ovan: utan den blev det en garanterad
+    // Neon-väckning per produktvisning för varje inloggad besökare (401:an är
+    // gratis för utloggade, men den inloggade vägen träffar databasen).
+    if (!hasAuthHint()) return;
     let cancelled = false;
     fetch("/api/watchlist", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))

@@ -10,8 +10,21 @@ export async function GET(
     const set = await prisma.cardSet.findUnique({
       where: { id: params.id },
       include: {
+        // ⛔ `select` på `products`, inte `include` (2026-08-05): ett set kan ha
+        // hundratals produkter och `include` skickade med HELA raden per produkt
+        // (`description`-fritext, `normalizedTitle`, `gtin*`, räknare, tidsstämplar).
+        // Fälten nedan speglar det setsidan faktiskt renderar — se
+        // app/[locale]/(marketing)/sets/[id]/page.tsx, som är samma vy i HTML-form.
         products: {
-          include: {
+          select: {
+            id: true,
+            slug: true,
+            title: true,
+            imageUrl: true,
+            category: true,
+            variantLabel: true,
+            setId: true,
+            cardId: true,
             offers: { select: { price: true, stockStatus: true } },
           },
           orderBy: { viewCount: "desc" },

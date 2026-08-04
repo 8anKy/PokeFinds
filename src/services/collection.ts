@@ -10,8 +10,31 @@ import {
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import type { CardCondition, CardLanguage } from "@prisma/client";
 
+/**
+ * ⛔ `select`, ALDRIG `include` PÅ `card` (2026-08-05). Ett bart `include` hämtar
+ * HELA Card-raden — inklusive skannerns två binärkolumner `artFingerprint` (264 B)
+ * och `structFingerprint` (959 B), ~1,2 kB oanvänd binärdata per samlingsobjekt som
+ * ingen kodväg någonsin läser. De kom till för bildmatchningen och smög in i varje
+ * fråga som råkade göra `include: { card: true }`.
+ *
+ * Fälten nedan är de som faktiskt läses (samling/page.tsx, exportCollectionCsv,
+ * topItems/movers här i filen) plus de billiga identitets-/etikettfälten som det
+ * PUBLIKA API:t (docs/API.md, `GET /api/collection`) har serialiserat sedan tidigare
+ * — de behålls så att en native-klient inte tappar en nyckel den kanske läser.
+ * Lägg till fält här när en anropare behöver dem; lägg ALDRIG tillbaka `include`.
+ */
 const COLLECTION_INCLUDE = {
-  card: { include: { set: { select: { id: true, name: true } } } },
+  card: {
+    select: {
+      id: true,
+      name: true,
+      number: true,
+      rarity: true,
+      imageUrl: true,
+      language: true,
+      set: { select: { id: true, name: true } },
+    },
+  },
   product: { select: { id: true, title: true, slug: true, imageUrl: true } },
 } as const;
 

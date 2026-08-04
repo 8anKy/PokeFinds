@@ -14,6 +14,14 @@ export const dynamic = "force-dynamic";
  * userId/IP lagras). Nyckeln är produktens slug (det klientens länkar/vyer bär).
  * Ingen produkt-uppslagning här — en påhittad slug faller bort i hydreringssteget
  * vid aggregering, så vi slipper en Neon-läsning per vy.
+ *
+ * ⚡ RÖR INTE NEON PER FÖRFRÅGAN (2026-08-05): `trackEvent` KÖLÄGGER numera i minnet
+ * och skriver en batch per minut (se services/analytics.ts). Rutten är därmed helt
+ * databaslös — rate-limitern går mot Redis/minne, aldrig Postgres. Det var poängen:
+ * sidorna som skickar hit är ISR-cachade, så spårningen var det enda som väckte
+ * databasen vid en vanlig produktvisning, och varje uppvaknande debiteras med ett
+ * minsta fönster på 300 s.
+ * ⛔ Lägg alltså ALDRIG tillbaka en produkt-/användaruppslagning här.
  */
 const bodySchema = z.object({
   type: z.enum(["product_view", "list_click", "search_click"]),

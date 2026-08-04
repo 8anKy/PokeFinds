@@ -23,12 +23,23 @@ interface PageProps {
   params: { locale: string; id: string };
 }
 
+// ⛔ `select` på `products`, inte `include` (2026-08-05): ett set kan ha hundratals
+// produkter, och `include` hämtade HELA produktraden — `description` (fritext),
+// `normalizedTitle`, `gtin*`, alla räknare och tidsstämplar. Rutnätet nedan använder
+// exakt sex fält. Lägg till fält här när mappningen behöver dem (tsc fångar det,
+// eftersom hela konsumtionen sker i den här filen).
 async function getSet(id: string) {
   return prisma.cardSet.findUnique({
     where: { id },
     include: {
       products: {
-        include: {
+        select: {
+          id: true,
+          slug: true,
+          title: true,
+          imageUrl: true,
+          category: true,
+          variantLabel: true,
           card: { select: { name: true, number: true, rarity: true } },
           offers: { select: { price: true, stockStatus: true } },
         },

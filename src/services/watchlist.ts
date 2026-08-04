@@ -5,9 +5,26 @@ import type { PlanTier } from "@prisma/client";
 
 export const FREE_PLAN_WATCHLIST_LIMIT = 10;
 
+/**
+ * ⛔ `select`, ALDRIG `include` PÅ `product` (2026-08-05). `withLowestPrice` nedan
+ * sprider HELA produktraden vidare till svaret, så ett bart `include` skickade med
+ * `description` (fritext, kan vara flera kB), `normalizedTitle`, `gtin*`, samtliga
+ * räknare och tidsstämplar — inget av det läses av vare sig bevakningssidan eller
+ * någon klient. Fälten nedan är precis de som används:
+ *   id (product-actions.tsx "bevakas redan"-kollen — RAW fetch, hand-typad, så ett
+ *      borttaget id blir en TYST `false` utan kompileringsfel), title, slug,
+ *   imageUrl, category (ikonvalet), set.name (undertexten) samt offers, som
+ *   `withLowestPrice` förbrukar och sedan strippar.
+ * Lägg till fält här när en anropare behöver dem; lägg ALDRIG tillbaka `include`.
+ */
 const WATCHLIST_INCLUDE = {
   product: {
-    include: {
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      imageUrl: true,
+      category: true,
       set: { select: { id: true, name: true } },
       offers: { select: { price: true, stockStatus: true } },
     },
