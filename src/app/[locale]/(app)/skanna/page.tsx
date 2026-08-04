@@ -1009,18 +1009,49 @@ function Scanner() {
     [camera, stopCamera, startCamera]
   );
 
+  /**
+   * ÅTERUPPTA EN AVBRUTEN KAMERA.
+   *
+   * ⛔ `window.confirm` är en NATIV dialog, och WebView:n pausar `<video>` när
+   * den tar över — men återupptar den ALDRIG när den stängs. Den som svarade
+   * "Avbryt" på osparade-träffar-frågan stod därför kvar i skannern med en
+   * frusen bild. Kameran var aldrig trasig; elementet var pausat.
+   *
+   * Har OS:et dessutom avslutat spåret (inkommande samtal, en annan app tog
+   * kameran) hjälper ingen `play()` — då MÅSTE strömmen öppnas om.
+   */
+  const resumeCamera = useCallback(() => {
+    const stream = streamRef.current;
+    const track = stream?.getVideoTracks()[0];
+    if (!stream || !track || track.readyState === "ended") {
+      stopCamera();
+      void startCamera();
+      return;
+    }
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.srcObject !== stream) video.srcObject = stream;
+    void video.play().catch(() => undefined);
+  }, [startCamera, stopCamera]);
+
   // Returnerar false om stängningen avbröts (osparade träffar) → svep-gesten
   // fjädrar tillbaka i stället för att lämna skannern osynlig utanför skärmen.
   const closeScanner = useCallback((): boolean => {
     if (scans.length > 0 && addedCount === null) {
       const ok = window.confirm(t("unsavedConfirm", { count: scans.length }));
-      if (!ok) return false;
+      // Återupptagningen ligger HÄR och inte hos den som sveper: dialogen kan
+      // avbrytas från krysset, Escape och svep-gesten, och alla tre lämnade
+      // annars en frusen bild efter sig.
+      if (!ok) {
+        resumeCamera();
+        return false;
+      }
     }
     stopCamera();
     // Skannern ÄR fliken nu → stäng = lämna fliken (router, ej hård nav i Capacitor).
     router.back();
     return true;
-  }, [scans.length, addedCount, stopCamera, router, t]);
+  }, [scans.length, addedCount, stopCamera, resumeCamera, router, t]);
 
   // Stoppa kameran när komponenten lämnas helt.
   useEffect(() => () => stopCamera(), [stopCamera]);
@@ -1039,6 +1070,24 @@ function Scanner() {
       void startCamera();
     }
   }, [view, startCamera]);
+
+  // ⛔ EN ENGÅNGS-play() KAN TÄVLA MED PAUSEN OCH FÖRLORA. WebView:n pausar
+  // videon när en nativ dialog tar över, och ibland sker det EFTER att dialogen
+  // redan stängts — då hinner vår återupptagning först och blir överkörd.
+  // Lyssna därför på elementets egen pause-händelse så länge kameravyn är uppe:
+  // finns strömmen kvar är en paus alltid ett avbrott, aldrig en avsikt (vi
+  // pausar aldrig själva). Saknas strömmen håller vi på att stänga ner, och då
+  // SKA den vara pausad.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || view !== "capture") return;
+    const onPause = () => {
+      if (!streamRef.current) return;
+      void video.play().catch(() => undefined);
+    };
+    video.addEventListener("pause", onPause);
+    return () => video.removeEventListener("pause", onPause);
+  }, [view, cameraState]);
 
   // LIVE-POLLEN: fingeravtryck ur aktuell videoruta ~var 600:e ms medan
   // kameravyn är aktiv. Varje poll är ~1 kB upp och ~40 ms server-CPU mot
@@ -1157,6 +1206,7 @@ function Scanner() {
   // teknik som produkt-overlayn (WKWebView kapar annars gesten). BARA högersvep
   // engagerar → vänster-svep (kort-radering i granskningsvyn) + vertikal scroll
   // släpps igenom orörda.
+  const closeSwipe = useEventCallback(closeScanner);
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return;
@@ -1207,8 +1257,10 @@ function Scanner() {
       if (dx > el.offsetWidth / 3) {
         el.style.transform = "translateX(110%)";
         window.setTimeout(() => {
-          // Avbrutet (osparade träffar) → fjädra tillbaka in.
-          if (!closeScanner()) el.style.transform = "";
+          // Avbrutet (osparade träffar) → fjädra tillbaka in. Kameran
+          // återupptas av closeScanner självt — dialogen kan avbrytas från
+          // flera håll och alla ska sluta likadant.
+          if (!closeSwipe()) el.style.transform = "";
         }, 230);
       } else {
         el.style.transform = "";
@@ -1225,7 +1277,11 @@ function Scanner() {
       el.removeEventListener("touchend", onEnd);
       el.removeEventListener("touchcancel", onEnd);
     };
-  }, [closeScanner]);
+    // ⛔ `closeSwipe` MÅSTE ha stabil identitet: `closeScanner` byter identitet
+    // varje gång `scans` ändras, och en skanning blir klar ASYNKRONT — mitt i
+    // ett svep hade lyssnarna rivits och gesten dött halvvägs ut. Exakt samma
+    // fälla som arkets svep-ner (se use-event-callback.ts).
+  }, [closeSwipe]);
 
   // ---- Fånga / ladda upp ---------------------------------------------------
 
