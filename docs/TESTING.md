@@ -10,11 +10,16 @@ npm run test:watch  # watch-läge
 ## E2E-tester (Playwright)
 Kräver: databas igång + seedad (`npx prisma db seed`).
 ```bash
-npx playwright install chromium   # första gången
-npm run test:e2e
+npx playwright install chromium              # första gången
+SEED_DEMO_PASSWORD='...' npx prisma db seed  # samma värde som nedan
+SEED_DEMO_PASSWORD='...' npm run test:e2e
 ```
 - `tests/e2e/smoke.spec.ts` — landningssida, katalog, inloggningssida, priser
 - `tests/e2e/auth.spec.ts` — inloggning med demo@pokefinds.se → dashboard
+
+⛔ Demolösenorden är INTE hårdkodade (repot är publikt). Inloggningstestet läser
+`SEED_DEMO_PASSWORD` och **hoppas över** om variabeln saknas — sätt samma värde vid
+seedningen som vid testkörningen, annars testas inloggningen inte alls.
 
 Playwright startar dev-servern automatiskt (`playwright.config.ts`).
 

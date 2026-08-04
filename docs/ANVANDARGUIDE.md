@@ -23,8 +23,11 @@ npm run dev                # startar dev-servern
 
 | Konto | E-post | Lösenord | Roll |
 |---|---|---|---|
-| Admin | admin@pokefinds.se | admin1234 | SUPERADMIN |
-| Demo | demo@pokefinds.se | demo1234 | USER |
+| Admin | admin@pokefinds.se | miljövariabeln `SEED_ADMIN_PASSWORD` | SUPERADMIN |
+| Demo | demo@pokefinds.se | miljövariabeln `SEED_DEMO_PASSWORD` | USER |
+
+Sätt variablerna när du seedar (`SEED_DEMO_PASSWORD='...' npx prisma db seed`). Utelämnas de
+slumpar seeden fram lösenord och skriver ut dem i terminalen när den är klar.
 
 ---
 

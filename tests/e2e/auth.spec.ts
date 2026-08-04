@@ -4,14 +4,18 @@
  * FÖRUTSÄTTNINGAR — seed-datan MÅSTE vara laddad innan dessa körs:
  *   docker compose up -d db redis
  *   npx prisma migrate dev
- *   npx prisma db seed     ← skapar demo@pokefinds.se / demo1234 m.fl.
+ *   SEED_DEMO_PASSWORD=<valfritt> npx prisma db seed   ← skapar demo@pokefinds.se m.fl.
  *
- * Kör: npm run test:e2e
+ * Lösenordet är INTE hårdkodat någonstans (repot är publikt). Sätt SAMMA
+ * SEED_DEMO_PASSWORD här som vid seedningen — annars vet testet inte vad
+ * seeden slumpade fram och inloggningstestet hoppas över.
+ *
+ * Kör: SEED_DEMO_PASSWORD=<samma> npm run test:e2e
  */
 import { expect, test } from "@playwright/test";
 
-const DEMO_EMAIL = "demo@pokefinds.se";
-const DEMO_PASSWORD = "demo1234";
+const DEMO_EMAIL = process.env.SEED_DEMO_EMAIL ?? "demo@pokefinds.se";
+const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD;
 
 test.describe("Registrering", () => {
   // OBS: skapar en ny användare per körning (unik e-post via timestamp).
@@ -45,11 +49,15 @@ test.describe("Registrering", () => {
 });
 
 test.describe("Inloggning", () => {
-  // Kräver seedat demokonto: demo@pokefinds.se / demo1234
+  // Kräver seedat demokonto (demo@pokefinds.se) OCH att SEED_DEMO_PASSWORD är
+  // satt till samma värde som vid seedningen. Utan det kan testet inte veta
+  // lösenordet — då HOPPAS det över i stället för att falla på ett gissat värde.
   test("demo-användare loggar in och hamnar på /dashboard", async ({ page }) => {
+    test.skip(!DEMO_PASSWORD, "SEED_DEMO_PASSWORD är inte satt — sätt samma värde som vid `prisma db seed`.");
+
     await page.goto("/logga-in");
     await page.locator("#email").fill(DEMO_EMAIL);
-    await page.locator("#password").fill(DEMO_PASSWORD);
+    await page.locator("#password").fill(DEMO_PASSWORD as string);
     await page.getByRole("button", { name: "Logga in" }).click();
 
     await page.waitForURL(/\/dashboard/, { timeout: 15_000 });

@@ -16,10 +16,30 @@
  */
 import { PrismaClient, ProductCategory, StockStatus, CardLanguage, CardCondition, PostCategory, Role, SourceType, AlertType, AlertChannel, AlertStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 
 const prisma = new PrismaClient();
+
+/**
+ * Seed-lösenord kommer från miljön, ALDRIG från källkoden.
+ *
+ * VARFÖR: repot är PUBLIKT. Ett hårdkodat lösenord i seed.ts är ett publicerat
+ * lösenord, och den som kör seeden mot något annat än en slängbar lokal databas
+ * har då ett känt SUPERADMIN-konto. Saknas variabeln slumpas ett lösenord fram
+ * och SKRIVS UT — en färsk seed fungerar alltså fortfarande utan konfiguration,
+ * utvecklaren får bara veta lösenordet i stället för att gissa det.
+ */
+const generatedPasswords: string[] = [];
+function seedPassword(envVar: string, label: string): string {
+  const fromEnv = process.env[envVar];
+  if (fromEnv && fromEnv.length > 0) return fromEnv;
+  // 12 byte base64url ≈ 16 tecken — tillräckligt för ett engångskonto i dev.
+  const generated = crypto.randomBytes(12).toString("base64url");
+  generatedPasswords.push(`   ${label}: ${generated}   (slumpat — sätt ${envVar} för att välja själv)`);
+  return generated;
+}
 
 // Deterministisk pseudo-random för reproducerbar seed
 let seedState = 42;
@@ -422,8 +442,8 @@ async function main() {
   console.log(`✅ ${restockCount} restock events`);
 
   // --- Användare ---
-  const adminHash = await bcrypt.hash("admin1234", 10);
-  const demoHash = await bcrypt.hash("demo1234", 10);
+  const adminHash = await bcrypt.hash(seedPassword("SEED_ADMIN_PASSWORD", "Admin"), 10);
+  const demoHash = await bcrypt.hash(seedPassword("SEED_DEMO_PASSWORD", "Demo "), 10);
 
   const admin = await prisma.user.create({
     data: {
@@ -595,8 +615,14 @@ async function main() {
   }
 
   console.log("🎉 Seed klar!");
-  console.log("   Admin: admin@pokefinds.se / admin1234");
-  console.log("   Demo:  demo@pokefinds.se / demo1234");
+  console.log("   Admin: admin@pokefinds.se  (lösenord = SEED_ADMIN_PASSWORD)");
+  console.log("   Demo:  demo@pokefinds.se   (lösenord = SEED_DEMO_PASSWORD)");
+  if (generatedPasswords.length > 0) {
+    console.log("");
+    console.log("🔑 Slumpade lösenord — SKRIVS BARA UT HÄR, spara dem nu:");
+    for (const line of generatedPasswords) console.log(line);
+    console.log("");
+  }
   console.log("   Tips:  kör `npm run import:tcg` för full, färsk kortdata från Pokémon TCG API.");
 }
 

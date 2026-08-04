@@ -24,6 +24,14 @@ on:
     - cron: "0 * * * *" # RESERV — opålitlig (~1-2 h fördröjning). Riktig takt = pinger via workflow_dispatch.
   workflow_dispatch: {}
 
+# Minsta möjliga rättighet. INGET jobb i det här repot skriver till GitHub — de läser
+# koden och skriver till Neon. Utan blocket får GITHUB_TOKEN repots STANDARD-rättigheter,
+# vilket kan vara skrivande, och en komprometterad beroendekedja hade då kunnat pusha.
+# ⛔ Inkommande workflow_dispatch (restock-pingern) påverkas INTE: den auktoriseras av
+# ANROPARENS token, inte av det här blocket.
+permissions:
+  contents: read
+
 # DÖDA ALDRIG EN PÅGÅENDE SKANNING (cancel-in-progress: false). Med `true` kunde nästa
 # ping avbryta en skanning MITT i lager-diffen. Skanningen larmar först och skriver den
 # nya lagerstatusen sist, men ett avbrott mellan två annonser lämnar ändå halvfärdigt
@@ -78,18 +86,18 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
       - if: steps.guard.outputs.ready == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       # Feed-avtrycket från förra körningen (ändringsgrind). Rullande nyckel: sparas
       # under run_id (unik → kan alltid skrivas), restore-keys hämtar senaste tidigare.
       - if: steps.guard.outputs.ready == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .restock-cache
           key: restock-fp-${{ github.run_id }}
           restore-keys: |
             restock-fp-
       - if: steps.guard.outputs.ready == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
           cache: npm

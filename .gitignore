@@ -12,7 +12,9 @@ prisma/migrations/dev/
 .scratch/
 *.tsbuildinfo
 next-env.d.ts
-.claude/settings.local.json
+# Glob, inte exakt namn: verktyg lämnar sidofiler (t.ex. .doctor-bak) som annars
+# slank förbi regeln och hamnade i det PUBLIKA repot.
+.claude/settings.local.json*
 .vercel
 
 .vercel
@@ -44,3 +46,9 @@ ios/
 
 # Katalog-säkerhetskopior (stora, prod-data — hör inte hemma i git)
 backup-catalog-*.json
+
+# Juridiskt arbetsmaterial — får ALDRIG in i det publika repot. Dokumenten räknar
+# upp OÅTGÄRDADE luckor i villkoren för en LIVE kommersiell tjänst, dvs en färdig
+# lista till den som vill bestrida något. De bor i ../PokeFinds-private/docs/.
+docs/TERMS-GAP.md
+docs/TERMS-DRAFT-CLAUSES.md

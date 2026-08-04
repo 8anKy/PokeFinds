@@ -24,13 +24,16 @@ cp .env.example .env
 npx prisma migrate dev
 
 # 5. Seeda demodata (sets, kort, produkter, priser, demokonton)
-npx prisma db seed
+#    Lösenorden kommer från miljön — repot är publikt, så inget står i koden.
+#    Utelämnar du variablerna slumpas de fram och skrivs ut när seeden är klar.
+SEED_ADMIN_PASSWORD='valfritt' SEED_DEMO_PASSWORD='valfritt' npx prisma db seed
 
 # 6. Starta dev-servern
 npm run dev
 ```
 
-Öppna `http://localhost:3000` och logga in med `demo@pokefinds.se` / `demo1234`.
+Öppna `http://localhost:3000` och logga in med `demo@pokefinds.se` och det lösenord du satte i
+`SEED_DEMO_PASSWORD` (eller det slumpade som seeden skrev ut).
 
 ### Allt i Docker
 

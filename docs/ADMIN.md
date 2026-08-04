@@ -21,4 +21,4 @@ Adminpanelen finns på `/admin` (synlig i sidomenyn för MODERATOR och uppåt).
 Alla adminmutationer skrivs till `AuditLog`.
 
 ## Demo
-Logga in som `admin@pokefinds.se / admin1234` och kör mock-källan via /admin/kallor → "Kör nu" för att se prisdrift + restock-alerts i realtid.
+Logga in som `admin@pokefinds.se` (lösenordet är det du satte i `SEED_ADMIN_PASSWORD` vid seedningen — eller det slumpade som seeden skrev ut) och kör mock-källan via /admin/kallor → "Kör nu" för att se prisdrift + restock-alerts i realtid.

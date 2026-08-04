@@ -50,8 +50,17 @@ Bygger och kör appen tillsammans med Postgres och Redis på `http://localhost:3
 
 | Konto | Lösenord | Roll |
 | --- | --- | --- |
-| `admin@pokefinds.se` | `admin1234` | SUPERADMIN |
-| `demo@pokefinds.se` | `demo1234` | USER |
+| `admin@pokefinds.se` | `SEED_ADMIN_PASSWORD` | SUPERADMIN |
+| `demo@pokefinds.se` | `SEED_DEMO_PASSWORD` | USER |
+
+Lösenorden är **inte** hårdkodade — repot är publikt. Sätt dem själv när du seedar:
+
+```bash
+SEED_ADMIN_PASSWORD='...' SEED_DEMO_PASSWORD='...' npx prisma db seed
+```
+
+Utelämnar du dem slumpar seeden fram lösenord och **skriver ut dem** när den är klar.
+Kontona finns bara i lokal seed; på prod är lösenorden andra.
 
 ## Kommandon
 

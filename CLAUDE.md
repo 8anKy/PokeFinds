@@ -68,8 +68,11 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   några kända kort innan något byggs på det.
   ⚠️ Vår NUVARANDE leverantör är TCGGO (`tcggopro`, host `cardmarket-api-tcg.p.rapidapi.com`) och de har en egen
   sajt, tcggo.com. "Direkt i stället för via RapidAPI" är en OUTREDD fråga (403 mot automatiserad hämtning).
-- **Användarvillkoren: 20 luckor kartlagda (2026-08-02)**: `docs/TERMS-GAP.md` (analys + 12 ägarbeslut) och
-  `docs/TERMS-DRAFT-CLAUSES.md` (utkast på svenska). ⚠️ Inget av det är juridisk rådgivning — en svensk jurist
+- **Användarvillkoren: 20 luckor kartlagda (2026-08-02)**: `TERMS-GAP.md` (analys + 12 ägarbeslut) och
+  `TERMS-DRAFT-CLAUSES.md` (utkast på svenska). ⛔ De ligger INTE i repot: de räknade upp OFIXADE
+  juridiska luckor i en LEVANDE kommersiell tjänst, och repot är publikt. De bor i det privata
+  systerrepot `../PokeFinds-private/docs/` (2026-08-05). Lägg aldrig tillbaka dem här.
+  ⚠️ Inget av det är juridisk rådgivning — en svensk jurist
   måste läsa det före publicering. Blockerande: **ingen juridisk person angiven någonstans i appen** (org.nr,
   adress) — e-handelslagen 8 § och GDPR kräver det, och varje annan klausul beror på om det är enskild firma
   eller AB. Snabbaste fixen: ARN-hänvisning (lag 2015:671 § 4, en mening, noll beslut). Saknas helt: ångerrätt,
@@ -807,8 +810,11 @@ npm install                     # (--legacy-peer-deps vid peer-konflikt)
 ```
 
 ## Demo-konton (lokal seed)
-- admin@pokefinds.se / admin1234 (SUPERADMIN)
-- demo@pokefinds.se / demo1234 (USER)
+- admin@pokefinds.se (SUPERADMIN) — lösenord från `SEED_ADMIN_PASSWORD`
+- demo@pokefinds.se (USER) — lösenord från `SEED_DEMO_PASSWORD`
+- Lösenorden står INTE i koden (repot är publikt). Utelämnas variablerna slumpar
+  seeden fram dem och SKRIVER UT dem när den är klar. E2E:s inloggningstest läser
+  samma `SEED_DEMO_PASSWORD` och hoppas över om den saknas.
 - OBS: dessa lösenord är ROTERADE på prod (repot publikt) — gäller bara lokal seed.
 
 ## Regler
