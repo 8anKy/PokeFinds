@@ -167,7 +167,19 @@
       "fallbackSuccess": "Your email address is now confirmed.",
       "successOpenApp": "Done! Open the Foilio app and log in with your account.",
       "errorRetry": "Verification failed. Try again.",
-      "errorOpenApp": "Open the Foilio app and try again from there."
+      "errorOpenApp": "Open the Foilio app and try again from there.",
+      "resendSubmit": "Send a new link",
+      "resendHint": "Enter the email address you created the account with.",
+      "resendDone": "If the address needs confirming, a new link is on its way. Check your spam folder if it takes a while."
+    },
+    "verifyBanner": {
+      "title": "Confirm your email address",
+      "body": "We sent a confirmation link to {email}. Without it we can't reach you with price alerts and restocks.",
+      "resend": "Send again",
+      "sending": "Sending…",
+      "sent": "New link sent. Check your spam folder if it doesn't show up in your inbox.",
+      "error": "That didn't work just now. Try again in a moment.",
+      "dismiss": "Hide the reminder"
     },
     "onboarding": {
       "step": "Step {step} of 3",

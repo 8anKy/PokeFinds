@@ -4,7 +4,7 @@
  */
 import { AlertStatus, AlertType, StockStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { sendMail } from "@/lib/mailer";
+import { sendMail, isPermanentMailError } from "@/lib/mailer";
 import { sendPush } from "@/lib/apns";
 import { newListingEmail, preorderEmail, priceAlertEmail, releasedEmail, restockAlertEmail } from "@/emails/templates";
 import { NON_RETAIL_SOURCE_NAMES } from "@/services/products";
@@ -222,7 +222,15 @@ export async function dispatchPendingAlerts(): Promise<{ sent: number; failed: n
       });
       sent++;
     } catch (err) {
-      const newRetryCount = alert.retryCount + 1;
+      // ⛔ FÖRSÖK ALDRIG OM ETT PERMANENT FEL. Ogiltig mottagare, avvisad domän
+      // eller trasig payload (4xx från Resend) blir inte rätt av tre försök —
+      // varje försök är ännu en hård studs som skadar foilio.se:s avsändarrykte,
+      // och ett bränt rykte tar med sig ALLA larmmejl, inte bara det här.
+      // Övergående fel (5xx, timeout, nät) behåller trappan på tre försök.
+      const permanent = isPermanentMailError(err);
+      // Sätts till taket så att urvalsfrågan (retryCount < MAX_RETRIES) aldrig
+      // plockar upp posten igen — statusen ensam är inte det som filtrerar.
+      const newRetryCount = permanent ? MAX_RETRIES : alert.retryCount + 1;
       await prisma.alert.update({
         where: { id: alert.id },
         data: {
@@ -232,7 +240,10 @@ export async function dispatchPendingAlerts(): Promise<{ sent: number; failed: n
         },
       });
       failed++;
-      console.error(`[notifications] Kunde inte skicka alert ${alert.id}:`, err);
+      console.error(
+        `[notifications] Kunde inte skicka alert ${alert.id}${permanent ? " (permanent fel — inga omförsök)" : ""}:`,
+        err
+      );
     }
   }
 

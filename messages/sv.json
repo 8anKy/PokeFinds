@@ -167,7 +167,19 @@
       "fallbackSuccess": "Din e-postadress är nu bekräftad.",
       "successOpenApp": "Klart! Öppna Foilio-appen och logga in med ditt konto.",
       "errorRetry": "Verifieringen misslyckades. Försök igen.",
-      "errorOpenApp": "Öppna Foilio-appen och försök igen därifrån."
+      "errorOpenApp": "Öppna Foilio-appen och försök igen därifrån.",
+      "resendSubmit": "Skicka en ny länk",
+      "resendHint": "Ange e-postadressen du skapade kontot med.",
+      "resendDone": "Behöver adressen bekräftas är en ny länk på väg. Kika i skräpposten om den dröjer."
+    },
+    "verifyBanner": {
+      "title": "Bekräfta din e-postadress",
+      "body": "Vi skickade en bekräftelselänk till {email}. Utan den kan vi inte nå dig med prislarm och restocks.",
+      "resend": "Skicka igen",
+      "sending": "Skickar…",
+      "sent": "Ny länk skickad. Kika i skräpposten om den inte dyker upp i inkorgen.",
+      "error": "Det gick inte just nu. Försök igen om en stund.",
+      "dismiss": "Dölj påminnelsen"
     },
     "onboarding": {
       "step": "Steg {step} av 3",

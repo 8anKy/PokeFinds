@@ -1,9 +1,11 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { Spinner } from "@/components/ui/spinner";
+import { Button } from "@/components/ui/button";
+import { Input, Label } from "@/components/ui/input";
 
 type Status = "loading" | "success" | "error";
 
@@ -81,9 +83,69 @@ function VerifyContent() {
           <p className="text-sm text-ink-muted">
             {t("verify.errorOpenApp")}
           </p>
+          {/* En död länk är exakt det läge där man behöver en ny — och den som
+              klickar i mejlet är sällan inloggad, så app-påminnelsen når hen inte. */}
+          <ResendForm />
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Begär en ny bekräftelselänk. Svaret är AVSIKTLIGT likadant oavsett om adressen
+ * finns — endpointen får inte gå att använda för att kartlägga konton, och då får
+ * den här vyn inte heller avslöja mer än den vet.
+ */
+function ResendForm() {
+  const t = useTranslations("Auth");
+  const [email, setEmail] = useState("");
+  const [sending, setSending] = useState(false);
+  const [done, setDone] = useState(false);
+
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSending(true);
+    try {
+      await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+    } catch {
+      // Samma besked ändå — se doc-kommentaren ovan.
+    }
+    setDone(true);
+    setSending(false);
+  }
+
+  if (done) {
+    return (
+      <p className="rounded-lg border border-holo-cyan/30 bg-holo-cyan/10 px-4 py-3 text-sm text-ink">
+        {t("verify.resendDone")}
+      </p>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-3 text-left">
+      <div>
+        <Label htmlFor="resend-email">{t("emailLabel")}</Label>
+        <Input
+          id="resend-email"
+          type="email"
+          autoComplete="email"
+          required
+          placeholder={t("emailPlaceholder")}
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+      </div>
+      <Button type="submit" loading={sending} variant="secondary" className="w-full">
+        {t("verify.resendSubmit")}
+      </Button>
+      <p className="text-center text-xs text-ink-muted">{t("verify.resendHint")}</p>
+    </form>
   );
 }
 
