@@ -50,12 +50,22 @@ type Row = {
 };
 
 /** Måtten som utvärderas. `higherIsReverse` = hypotesen om riktningen. */
+// ⛔ KVOTER RÄCKER INTE: `clip.ratio` är null så fort konstfönstret saknar
+// utbrända pixlar (nämnaren ~0), vilket den GÖR på oflorierade kort — mätt på
+// de tio första skanningarna 2026-08-04: samtliga "–". Blänker en reverse holo
+// bara i KROPPEN förblir kvoten odefinierad och det starkaste spekulära beviset
+// hade varit osynligt. Absoluttalen rapporteras därför vid sidan av kvoten.
 const METRICS: Array<{ key: string; of: (f: Foil) => number | null; note: string }> = [
   { key: "dev.ratio", of: (f) => f.dev?.ratio ?? null, note: "kropp/konst mot referens" },
   { key: "dev.body", of: (f) => f.dev?.body ?? null, note: "kroppens avvikelse" },
+  { key: "dev.art", of: (f) => f.dev?.art ?? null, note: "konstfönstrets avvikelse" },
   { key: "temporal.ratio", of: (f) => f.temporal?.ratio ?? null, note: "rörelse kropp/konst" },
-  { key: "clip.ratio", of: (f) => f.spec?.clip.ratio ?? null, note: "utbränt kropp/konst" },
+  { key: "temporal.body", of: (f) => f.temporal?.body ?? null, note: "kroppens rörelse" },
+  { key: "clip.body", of: (f) => f.spec?.clip.body ?? null, note: "utbränt i kroppen" },
+  { key: "clip.art", of: (f) => f.spec?.clip.art ?? null, note: "utbränt i konsten" },
+  { key: "texture.body", of: (f) => f.spec?.texture.body ?? null, note: "sparkle i kroppen" },
   { key: "texture.ratio", of: (f) => f.spec?.texture.ratio ?? null, note: "sparkle kropp/konst" },
+  { key: "chroma.body", of: (f) => f.spec?.chroma.body ?? null, note: "färgsplittring i kroppen" },
 ];
 
 function median(values: number[]): number {
@@ -104,7 +114,7 @@ async function main() {
 
   console.log(`FOLIESOND — ${rows.length} skanningar sedan ${since.toISOString()}\n`);
   console.log(
-    "tid       kort                            dev.b/a   dev.b  temp.b/a  clip.b/a   tex.b/a  rutor"
+    "tid       kort                            dev.b/a   dev.b  temp.b/a  temp.b  clip.b  clip.a   tex.b  rutor"
   );
   for (const row of rows) {
     const f = row.foil;
@@ -115,8 +125,10 @@ async function main() {
         fmt(f.dev?.ratio),
         fmt(f.dev?.body),
         fmt(f.temporal?.ratio),
-        fmt(f.spec?.clip.ratio),
-        fmt(f.spec?.texture.ratio),
+        fmt(f.temporal?.body),
+        fmt(f.spec?.clip.body),
+        fmt(f.spec?.clip.art),
+        fmt(f.spec?.texture.body),
         String(f.temporal?.frames ?? 0).padStart(4),
       ].join(" ")
     );
