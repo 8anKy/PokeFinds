@@ -1,21 +1,36 @@
 /**
  * FOLIESONDENS FACIT — läser ADMIN-diagnostiken och visar om molnen separerar.
  *
- * Steg 2 i planen (project_foil_detection_plan): ägaren skannar ~10 kort hen
- * äger i BÅDE standard och reverse holo, och det här skriptet svarar på om
- * måtten faktiskt skiljer dem åt. Det SKRIVER INGENTING och räknar ingenting om
- * — sonderna sparas råa i `ScannerJob.result.foil`, så samma skanningar kan
- * användas om måtten ändras.
+ * Steg 2 i planen (project_foil_detection_plan): det här skriptet svarar på om
+ * måtten faktiskt skiljer folierade kort från oflorierade. Det SKRIVER INGENTING
+ * och räknar ingenting om — sonderna sparas råa i `ScannerJob.result.foil`, så
+ * samma skanningar kan användas om måtten ändras.
+ *
+ * ⛔ PARADE KORT BEHÖVS INTE (rättat 2026-08-04, ägaren äger bara reverse-sidan
+ * av sina kort). Signal 1 jämför varje skanning mot KORTETS EGEN katalogreferens,
+ * och referensen ÄR den platta standardrenderingen — en reverse holo mäts alltså
+ * redan mot sin egen standardversion. Det mätningen behöver är NEGATIVA EXEMPEL,
+ * inte par: några skanningar av kort som bevisligen INTE är folierade. Vilka kort
+ * som helst duger (bulk-commons, energier).
  *
  * ANVÄNDNING
  *   node scripts/with-prod-db.mjs npx tsx scripts/foil-probe-audit.ts
  *   SINCE=2026-08-04 node scripts/with-prod-db.mjs npx tsx scripts/foil-probe-audit.ts
- *   # Skanna ALLA kort i standard först, sedan ALLA i reverse. Ange brytpunkten:
- *   SPLIT=2026-08-04T18:30:00Z node scripts/with-prod-db.mjs npx tsx scripts/foil-probe-audit.ts
+ *   # EN brytpunkt: oflorierade först, sedan foliekorten.
+ *   SPLIT=2026-08-04T18:30:00Z node … scripts/foil-probe-audit.ts
+ *   # A/B/A: oflorierade → folie → oflorierade igen (rekommenderat, se nedan).
+ *   SPLITS=2026-08-04T18:10:00Z,2026-08-04T18:20:00Z node … scripts/foil-probe-audit.ts
  *
- * ⛔ UTAN `SPLIT` finns inget facit — då listas bara mätvärdena. Gissa ALDRIG
- * vilken skanning som var reverse utifrån talen själva; det är cirkulärt och ger
- * exakt den falska säkerhet planen varnar för.
+ * ⚠️ LJUSET ÄR DEN FARLIGA FÖRVÄXLINGEN med oparade klasser: skannas alla
+ * oflorierade vid fönstret på eftermiddagen och alla foliekort under lampan på
+ * kvällen, korrelerar brytpunkten perfekt med BELYSNINGEN och måtten kan
+ * "separera" utan att ha sett en enda folie. Därför A/B/A: håller de två
+ * A-omgångarna ihop med varandra och skiljer sig från B, är det folien som mäts
+ * och inte ljuset. Skriptet rapporterar A-omgångarna både var för sig och ihop.
+ *
+ * ⛔ UTAN facit (`SPLIT`/`SPLITS`) listas bara mätvärdena. Gissa ALDRIG vilken
+ * skanning som var folierad utifrån talen själva; det är cirkulärt och ger exakt
+ * den falska säkerhet planen varnar för.
  */
 import { PrismaClient } from "@prisma/client";
 
@@ -55,7 +70,14 @@ function fmt(v: number | null | undefined, w = 7): string {
 
 async function main() {
   const since = new Date(process.env.SINCE ?? Date.now() - 24 * 60 * 60 * 1000);
-  const split = process.env.SPLIT ? new Date(process.env.SPLIT) : null;
+  // Brytpunkterna delar tidslinjen i omgångar som VÄXLAR klass, med start på
+  // "oflorierad". En brytpunkt = A/B, två = A/B/A, och så vidare.
+  const splits = (process.env.SPLITS ?? process.env.SPLIT ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => new Date(s))
+    .sort((a, b) => a.getTime() - b.getTime());
 
   const jobs = await prisma.scannerJob.findMany({
     where: { createdAt: { gte: since } },
@@ -100,29 +122,67 @@ async function main() {
     );
   }
 
-  if (!split) {
+  if (splits.length === 0) {
     console.log(
-      "\nInget facit angivet (SPLIT saknas) — bara mätvärden ovan.\n" +
-        "⛔ Läs INTE ut vilken skanning som var reverse ur talen själva. Kör om med\n" +
-        "   SPLIT=<ISO-tid> där standard-omgången slutade och reverse-omgången började."
+      "\nInget facit angivet (SPLIT/SPLITS saknas) — bara mätvärden ovan.\n" +
+        "⛔ Läs INTE ut vilken skanning som var folierad ur talen själva. Kör om med\n" +
+        "   SPLIT=<ISO-tid>, eller SPLITS=<t1>,<t2> för A/B/A (rekommenderat: det\n" +
+        "   skiljer folien från belysningen)."
     );
     return;
   }
 
-  const standard = rows.filter((r) => r.at < split);
-  const reverse = rows.filter((r) => r.at >= split);
+  // Omgång = tidsintervall mellan brytpunkterna; klassen växlar per omgång.
+  const roundOf = (at: Date) => splits.filter((s) => at >= s).length;
+  const rounds = new Map<number, Row[]>();
+  for (const row of rows) {
+    const r = roundOf(row.at);
+    (rounds.get(r) ?? rounds.set(r, []).get(r)!).push(row);
+  }
+  const plain = rows.filter((r) => roundOf(r.at) % 2 === 0);
+  const foiled = rows.filter((r) => roundOf(r.at) % 2 === 1);
   console.log(
-    `\nFACIT: ${standard.length} standard före ${split.toISOString()}, ${reverse.length} reverse efter.\n`
+    `\nFACIT: ${rounds.size} omgång(ar) — ${plain.length} oflorierade, ${foiled.length} folierade.`
   );
-  if (standard.length < 3 || reverse.length < 3) {
+  for (const [r, list] of [...rounds.entries()].sort((a, b) => a[0] - b[0])) {
+    console.log(
+      `  omgång ${r + 1}: ${r % 2 === 0 ? "OFLORIERAD" : "FOLIE     "} ${String(list.length).padStart(3)} skanningar` +
+        ` (${list[0].at.toISOString().slice(11, 19)}–${list[list.length - 1].at.toISOString().slice(11, 19)})`
+    );
+  }
+  if (rounds.size < 3) {
+    console.log(
+      "⚠️ Bara två omgångar: en skillnad kan lika gärna vara BELYSNING som folie.\n" +
+        "   Kör en tredje omgång oflorierade och ange två brytpunkter (SPLITS=t1,t2)."
+    );
+  }
+  console.log("");
+  if (plain.length < 3 || foiled.length < 3) {
     console.log("För få skanningar per klass för att säga något. Skanna fler.");
     return;
   }
 
-  console.log("mått            standard (min/median/max)      reverse (min/median/max)     dom");
+  // A-omgångarna var för sig: håller de ihop är det folien som mäts, inte ljuset.
+  const plainRounds = [...rounds.entries()].filter(([r]) => r % 2 === 0);
+  if (plainRounds.length >= 2) {
+    console.log("DRIFTKONTROLL — de oflorierade omgångarnas medianer var för sig:");
+    for (const m of METRICS) {
+      const medians = plainRounds.map(([r, list]) => {
+        const vals = list.map((x) => m.of(x.foil)).filter((v): v is number => v !== null);
+        return vals.length ? `${r + 1}: ${median(vals).toFixed(3)}` : `${r + 1}: –`;
+      });
+      console.log(`  ${m.key.padEnd(15)} ${medians.join("   ")}`);
+    }
+    console.log(
+      "  ⚠️ Skiljer sig A-omgångarna lika mycket från VARANDRA som från folien,\n" +
+        "     mäter måttet förhållandena i rummet — inte kortet.\n"
+    );
+  }
+
+  console.log("mått            oflorierad (min/median/max)     folie (min/median/max)       dom");
   for (const m of METRICS) {
-    const s = standard.map((r) => m.of(r.foil)).filter((v): v is number => v !== null);
-    const v = reverse.map((r) => m.of(r.foil)).filter((v): v is number => v !== null);
+    const s = plain.map((r) => m.of(r.foil)).filter((v): v is number => v !== null);
+    const v = foiled.map((r) => m.of(r.foil)).filter((v): v is number => v !== null);
     if (s.length < 3 || v.length < 3) {
       console.log(`${m.key.padEnd(15)} för få värden (${s.length}/${v.length})`);
       continue;
@@ -134,12 +194,12 @@ async function main() {
     // SEPARATION = molnen överlappar INTE. Det är kravet för en marginalregel;
     // "medianerna skiljer sig" räcker inte — överlappande fördelningar var precis
     // vad som gjorde POÄNGEN oanvändbar i bildmatchningen, medan MARGINALEN dög.
-    const gapUp = vMin - sMax; // reverse ligger över standard
-    const gapDown = sMin - vMax; // reverse ligger under standard
+    const gapUp = vMin - sMax; // folien ligger över de oflorierade
+    const gapDown = sMin - vMax; // folien ligger under
     const gap = Math.max(gapUp, gapDown);
     const verdict =
       gap > 0
-        ? `SEPARERAR (gap ${gap.toFixed(3)}, ${gapUp > 0 ? "reverse högre" : "reverse lägre"})`
+        ? `SEPARERAR (gap ${gap.toFixed(3)}, ${gapUp > 0 ? "folie högre" : "folie lägre"})`
         : "överlappar";
     console.log(
       `${m.key.padEnd(15)} ${fmt(sMin)}/${fmt(median(s))}/${fmt(sMax)}   ` +

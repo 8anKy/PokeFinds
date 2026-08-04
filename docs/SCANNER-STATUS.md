@@ -1142,9 +1142,23 @@ och räknas till ingendera):
 sonderna så måtten kan räknas om utan att skanna om. Påverkar inte kandidater,
 poäng, pris eller kvot. Noll AI-anrop, ingen ny tjänst, ~2 kB per admin-rad.
 
-**KVAR — steg 2, kräver ägaren:** skanna ~10 kort du äger i BÅDE standard och
-reverse, standard-omgången först. Kör sedan
-`SPLIT=<ISO-tid> … scripts/foil-probe-audit.ts` som visar om molnen separerar.
+**KVAR — steg 2, kräver ägaren.** ⛔ **PARADE KORT BEHÖVS INTE** (rättat samma
+dag: ägaren äger bara reverse-sidan av sina kort). Signal 1 jämför varje skanning
+mot KORTETS EGEN katalogreferens, och referensen ÄR den platta
+standardrenderingen — en reverse holo mäts alltså redan mot sin egen
+standardversion. Det som behövs är **negativa exempel**, inte par: några
+skanningar av kort som bevisligen INTE är folierade. Vilka kort som helst duger.
+
+Upplägget är **A/B/A**: ~10 oflorierade → ~10 folierade → ~10 oflorierade igen,
+i en följd. Kör sedan `SPLITS=<t1>,<t2> … scripts/foil-probe-audit.ts`.
+⚠️ **Belysningen är den farliga förväxlingen med oparade klasser**: skannas alla
+oflorierade vid fönstret och alla foliekort under lampan korrelerar brytpunkten
+perfekt med LJUSET, och måtten kan "separera" utan att ha sett en folie. Håller de
+två A-omgångarna ihop med varandra och skiljer sig från B, är det folien som mäts.
+Skriptet skriver ut den driftkontrollen separat. Blanda dessutom eror och
+sällsyntheter i BÅDA klasserna — annars kan kortlayouten driva skillnaden.
+Har du holo rares: ta med några. De ska avvika i MOTSATT region (konstfönstret),
+vilket är den starkaste interna kontrollen på att det verkligen är folie vi mäter.
 
 ⛔ **Skeppa ingen foliedetektor på rimlighet.** Ett fel variantval är TYST (fel
 produkt, fel pris i samlingen) och användaren slutar dubbelkolla just för att det
@@ -1197,9 +1211,10 @@ node scripts/with-prod-db.mjs npx tsx scripts/scanner-telemetry.ts
 # Replaya riktiga skanningars avtryck genom searchByFrames (mät viktändringar)
 node scripts/with-prod-db.mjs npx tsx scripts/scanner-replay.ts
 
-# Foliesonden: separerar standard och reverse holo? (SPLIT = ISO-tid för facit)
+# Foliesonden: separerar folierade kort från oflorierade? (inga PARADE kort behövs)
 node scripts/with-prod-db.mjs npx tsx scripts/foil-probe-audit.ts
-SPLIT=2026-08-04T18:30:00Z node scripts/with-prod-db.mjs npx tsx scripts/foil-probe-audit.ts
+# A/B/A — oflorierade, folie, oflorierade igen. Två brytpunkter = driftkontroll.
+SPLITS=2026-08-04T18:10:00Z,2026-08-04T18:20:00Z node scripts/with-prod-db.mjs npx tsx scripts/foil-probe-audit.ts
 
 # Katalogslagningen mot facit (simulerad felfri OCR)
 node scripts/with-prod-db.mjs npx tsx scripts/scanner-match-audit.ts
