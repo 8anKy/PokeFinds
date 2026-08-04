@@ -3,90 +3,51 @@
  * baksidesbild i full upplösning och tvingar ett strukturerat svar genom ett
  * obligatoriskt verktyg (`report_grade`) — robustare än fritextparsning.
  *
- * Modellen väljs av anroparen (Haiku för FREE, Sonnet för PREMIUM). Bilder
- * skickas i hög upplösning eftersom yt-/kant-/hörndefekter annars är osynliga.
+ * Modellen väljs av anroparen (billig modell för FREE, starkare för PREMIUM).
+ * Bilder skickas i hög upplösning eftersom yt-/kant-/hörndefekter annars är
+ * osynliga.
+ *
+ * ⛔ Prompt, fältspec, bildetiketter och svarstolkning kommer ur `contract.ts` —
+ * samma som Gemini-adaptern. Utan det jämför en A/B-körning prompter i stället
+ * för modeller.
  *
  * Kräver ANTHROPIC_API_KEY. Detta är en AI-uppskattning, inte en officiell
  * PSA-/BGS-gradering — vilket system-prompten är tydlig med.
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { ServiceError } from "@/lib/errors";
+import {
+  GRADE_FIELDS,
+  GRADE_REQUIRED,
+  GRADE_TOOL_DESCRIPTION,
+  GRADE_TOOL_NAME,
+  IMAGE_LABEL_BACK,
+  IMAGE_LABEL_FRONT,
+  SYSTEM,
+  buildClosingInstruction,
+  buildGradeResult,
+  parseGradingImage,
+} from "@/services/grading/contract";
 import type { GradeResult, GradingAdapter, GradingContext } from "./types";
 
-function parseDataUrl(dataUrl: string): {
-  mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-  data: string;
-} {
-  const m = /^data:(image\/(?:jpeg|jpg|png|gif|webp));base64,(.+)$/i.exec(dataUrl);
-  if (!m) {
-    throw new ServiceError(
-      400,
-      "Bildformatet stöds inte för gradering. Använd JPG, PNG, WEBP eller GIF."
-    );
-  }
-  const raw = m[1].toLowerCase();
-  const mediaType = (raw === "image/jpg" ? "image/jpeg" : raw) as
-    | "image/jpeg"
-    | "image/png"
-    | "image/gif"
-    | "image/webp";
-  return { mediaType, data: m[2] };
-}
-
-const SYSTEM = [
-  "Du är en expert på att bedöma skicket (condition) på Pokémon-samlarkort.",
-  "Du får en framsidesbild och en baksidesbild av samma kort.",
-  "Bedöm fyra kriterier på en skala 1–10 (10 = perfekt):",
-  "- centering: hur centrerat trycket/ramen är (fram + bak).",
-  "- corners: hörnens skick (vassa vs trubbiga/vita).",
-  "- edges: kanternas skick (whitening, nötning, flisor).",
-  "- surface: ytans skick (repor, fingeravtryck, print lines, scratches, dents).",
-  "Sätt sedan en sammanvägd PSA-LIKNANDE helhetsgrad 1–10 (en decimal tillåten),",
-  "samt en konfidens 0–1 utifrån bildkvaliteten, och en kort motivering på svenska.",
-  "Var sträng och realistisk — de flesta kort hamnar mellan 6 och 9.",
-  "Om bilderna är suddiga eller delvis skymda: sänk konfidensen.",
-  "Ange också vilket kort du ser i fältet cardName, kort och utan meningsbyggnad:",
-  "namn, kortnummer och set, t.ex. \"Torchic 65/100 · EX Crystal Guardians\".",
-  "Är du osäker på kortet — utelämna cardName helt hellre än att gissa.",
-  "Detta är en UPPSKATTNING, inte en officiell PSA-/BGS-gradering.",
-].join(" ");
-
 const GRADE_TOOL: Anthropic.Tool = {
-  name: "report_grade",
-  description: "Rapportera den bedömda graderingen av kortet.",
+  name: GRADE_TOOL_NAME,
+  description: GRADE_TOOL_DESCRIPTION,
   input_schema: {
     type: "object",
-    properties: {
-      centering: { type: "number", description: "1–10" },
-      corners: { type: "number", description: "1–10" },
-      edges: { type: "number", description: "1–10" },
-      surface: { type: "number", description: "1–10" },
-      overall: { type: "number", description: "Sammanvägd helhetsgrad 1–10" },
-      confidence: { type: "number", description: "0–1" },
-      rationale: { type: "string", description: "Kort motivering på svenska." },
-      // MEDVETET inte required: hellre inget kortnamn än ett gissat. Ett fel namn
-      // på en gradering användaren sparar i samlingen är värre än inget namn.
-      cardName: {
-        type: "string",
-        description:
-          'Kortet på bilden: namn, nummer och set, t.ex. "Torchic 65/100 · EX Crystal Guardians". Utelämna om du är osäker.',
-      },
-    },
-    required: [
-      "centering",
-      "corners",
-      "edges",
-      "surface",
-      "overall",
-      "confidence",
-      "rationale",
-    ],
+    // ⛔ Fälten byggs ur den DELADE specen (contract.ts) — aldrig en egen kopia
+    // här. Två leverantörer med var sin fältbeskrivning gör en A/B-mätning
+    // meningslös: då jämför man prompter, inte modeller.
+    properties: Object.fromEntries(
+      GRADE_FIELDS.map((f) => [
+        f.name,
+        f.enum
+          ? { type: f.type, enum: f.enum, description: f.description }
+          : { type: f.type, description: f.description },
+      ])
+    ),
+    required: GRADE_REQUIRED,
   },
-};
-
-const clamp = (n: unknown, lo: number, hi: number, fallback: number): number => {
-  const v = typeof n === "number" && Number.isFinite(n) ? n : fallback;
-  return Math.min(hi, Math.max(lo, v));
 };
 
 export class ClaudeVisionGradingAdapter implements GradingAdapter {
@@ -107,38 +68,30 @@ export class ClaudeVisionGradingAdapter implements GradingAdapter {
       );
     }
     const client = new Anthropic({ apiKey });
-    const front = parseDataUrl(frontDataUrl);
-    const back = parseDataUrl(backDataUrl);
-
-    const hint = context?.cardName
-      ? ` Kortet är troligen: ${context.cardName}.`
-      : "";
+    const front = parseGradingImage(frontDataUrl);
+    const back = parseGradingImage(backDataUrl);
 
     const response = await client.messages.create({
       model: this.model,
       max_tokens: 1024,
       system: SYSTEM,
       tools: [GRADE_TOOL],
-      tool_choice: { type: "tool", name: "report_grade" },
+      tool_choice: { type: "tool", name: GRADE_TOOL_NAME },
       messages: [
         {
           role: "user",
           content: [
-            { type: "text", text: "Framsida:" },
+            { type: "text", text: IMAGE_LABEL_FRONT },
             {
               type: "image",
               source: { type: "base64", media_type: front.mediaType, data: front.data },
             },
-            { type: "text", text: "Baksida:" },
+            { type: "text", text: IMAGE_LABEL_BACK },
             {
               type: "image",
               source: { type: "base64", media_type: back.mediaType, data: back.data },
             },
-            {
-              type: "text",
-              text:
-                "Bedöm kortets skick och anropa report_grade med dina poäng." + hint,
-            },
+            { type: "text", text: buildClosingInstruction(context?.cardName) },
           ],
         },
       ],
@@ -150,29 +103,7 @@ export class ClaudeVisionGradingAdapter implements GradingAdapter {
     if (!toolUse) {
       throw new ServiceError(502, "Graderingen kunde inte tolkas. Försök igen.");
     }
-    const input = toolUse.input as Record<string, unknown>;
-
-    const subScores = {
-      centering: clamp(input.centering, 1, 10, 5),
-      corners: clamp(input.corners, 1, 10, 5),
-      edges: clamp(input.edges, 1, 10, 5),
-      surface: clamp(input.surface, 1, 10, 5),
-    };
-    const overall = Math.round(clamp(input.overall, 1, 10, 5) * 10) / 10;
-
-    return {
-      overall,
-      subScores,
-      confidence: clamp(input.confidence, 0, 1, 0.5),
-      rationale:
-        typeof input.rationale === "string" && input.rationale.trim()
-          ? input.rationale.trim()
-          : "Ingen motivering tillgänglig.",
-      modelUsed: this.model,
-      cardName:
-        typeof input.cardName === "string" && input.cardName.trim()
-          ? input.cardName.trim().slice(0, 120)
-          : undefined,
-    };
+    // ⛔ ALL tolkning i den DELADE buildGradeResult — se contract.ts.
+    return buildGradeResult(toolUse.input as Record<string, unknown>, this.model);
   }
 }

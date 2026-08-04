@@ -40,7 +40,7 @@ export class MockGradingAdapter implements GradingAdapter {
       confidence: 0.5,
       rationale:
         "Demoläge: simulerad gradering. Koppla in en riktig vision-modell " +
-        "(GRADING_PROVIDER=claude) för en faktisk bedömning.",
+        "(GRADING_PROVIDER=gemini eller claude) för en faktisk bedömning.",
       modelUsed: "mock",
       cardName: context?.cardName ?? "Demokort 001/100 · Mockset",
     };

@@ -2,9 +2,12 @@
  * Kortgradering: väljer adapter/modell utifrån användarens plan, kvotbegränsar
  * gratisnivån och kör graderingen som ett GradingJob.
  *
- * Plan → modell:
- *   FREE    → GRADING_MODEL_FREE    (default claude-haiku-4-5), max N/månad
- *   PREMIUM → GRADING_MODEL_PREMIUM (default claude-sonnet-4-6), max N/månad
+ * Plan → modell, PER LEVERANTÖR (GRADING_PROVIDER):
+ *   claude: FREE → GRADING_MODEL_FREE        (default claude-haiku-4-5)
+ *           PRO  → GRADING_MODEL_PREMIUM     (default claude-sonnet-4-6)
+ *   gemini: FREE → GRADING_MODEL_FREE_GEMINI (default gemini-3.1-flash-lite)
+ *           PRO  → GRADING_MODEL_PREMIUM_GEMINI (default gemini-3.6-flash)
+ * Månadskvoten är oförändrad och leverantörsoberoende (FREE N, PREMIUM N).
  *
  * Bildlagring (MVP): base64-datan persisteras inte; frontImageUrl/backImageUrl
  * sätts till "inline-upload" (jfr skannern). I produktion → objektlagring.
@@ -13,6 +16,7 @@ import type { GradingJob, PlanTier, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { ClaudeVisionGradingAdapter } from "@/services/grading/claude-vision";
+import { GeminiVisionGradingAdapter } from "@/services/grading/gemini-vision";
 import { MockGradingAdapter } from "@/services/grading/mock";
 import type { GradingAdapter, GradingContext } from "@/services/grading/types";
 
@@ -24,7 +28,7 @@ export function freeMonthlyLimit(): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 3;
 }
 
-/** Månadsgräns för Pro (Sonnet — binder marginalen mot Pro-priset). */
+/** Månadsgräns för Pro — binder den dyrare Pro-modellens kostnad mot Pro-priset. */
 export function premiumMonthlyLimit(): number {
   const n = Number(process.env.GRADING_PREMIUM_MONTHLY_LIMIT ?? "15");
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 15;
@@ -34,15 +38,44 @@ function limitForTier(planTier: PlanTier): number {
   return planTier === "PREMIUM" ? premiumMonthlyLimit() : freeMonthlyLimit();
 }
 
-function modelForTier(planTier: PlanTier): string {
-  return planTier === "PREMIUM"
+/** 3.x, inte 2.5: 2.5-serien är spärrad för nya API-nycklar (mätt i fält
+ *  2026-08-02, se src/services/scanner/gemini-vision.ts) och stängs ned
+ *  2026-10-16. Flash-Lite för gratisnivån, Flash för Pro — Pro betalar för en
+ *  noggrannare bedömning, inte för en annan leverantör. */
+const DEFAULT_GEMINI_FREE = "gemini-3.1-flash-lite";
+const DEFAULT_GEMINI_PREMIUM = "gemini-3.6-flash";
+
+/**
+ * ⛔ MODELLNAMNEN HAR EGNA VARIABLER PER LEVERANTÖR (samma beslut som
+ * `DEALS_VERIFY_MODEL_GEMINI` i src/services/deal-verify/index.ts). Delade
+ * GRADING_MODEL_*-variabler hade betytt att ett leverantörsbyte tyst skickar ett
+ * Claude-modellnamn till Google → 404 på varje gradering, dvs en funktion som är
+ * död för alla utom den som läser serverloggen. Skannerns SCANNER_MODEL har
+ * fortfarande exakt den svagheten.
+ */
+function modelForTier(provider: string, planTier: PlanTier): string {
+  const premium = planTier === "PREMIUM";
+  if (provider === "gemini") {
+    // `||` och inte `??`: GitHub Actions/Railway sätter en oangiven variabel till
+    // TOM STRÄNG, inte undefined — och en tom modellsträng ger 404 på varje
+    // anrop. Claude-grenen nedan behåller `??` med flit: den är befintligt
+    // beteende och ett leverantörsbyte ska inte smyga in en andra ändring.
+    return premium
+      ? process.env.GRADING_MODEL_PREMIUM_GEMINI || DEFAULT_GEMINI_PREMIUM
+      : process.env.GRADING_MODEL_FREE_GEMINI || DEFAULT_GEMINI_FREE;
+  }
+  return premium
     ? process.env.GRADING_MODEL_PREMIUM ?? "claude-sonnet-4-6"
     : process.env.GRADING_MODEL_FREE ?? "claude-haiku-4-5";
 }
 
 /**
  * Väljer graderingsadapter. GRADING_PROVIDER=mock (standard) använder mocken;
- * "claude" använder vision-modellen som matchar planen.
+ * "claude" och "gemini" använder vision-modellen som matchar planen.
+ *
+ * ⛔ INGEN TYST FALLBACK vid okänd leverantör: en felstavad variabel ska ge ett
+ * synligt 503, inte en oväntad modell som skriver en gradering användaren sparar
+ * i sin samling.
  */
 export function getGradingAdapter(planTier: PlanTier): GradingAdapter {
   const provider = process.env.GRADING_PROVIDER ?? "mock";
@@ -50,7 +83,9 @@ export function getGradingAdapter(planTier: PlanTier): GradingAdapter {
     case "mock":
       return new MockGradingAdapter();
     case "claude":
-      return new ClaudeVisionGradingAdapter(modelForTier(planTier));
+      return new ClaudeVisionGradingAdapter(modelForTier(provider, planTier));
+    case "gemini":
+      return new GeminiVisionGradingAdapter(modelForTier(provider, planTier));
     default:
       throw new ServiceError(503, "Graderingsleverantör ej konfigurerad.");
   }
@@ -111,7 +146,7 @@ export async function runGradingJob(
   backDataUrl: string,
   context?: GradingContext
 ): Promise<GradingJobResult> {
-  // Månadskvot (FREE = gratisgräns, PREMIUM = Pro-gräns mot Sonnet-kostnad).
+  // Månadskvot (FREE = gratisgräns, PREMIUM = Pro-gräns mot Pro-modellens kostnad).
   const quota = await getGradingQuota(userId, planTier);
   if (quota.remaining !== null && quota.remaining <= 0) {
     throw new ServiceError(
