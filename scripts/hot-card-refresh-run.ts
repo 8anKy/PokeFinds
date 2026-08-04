@@ -5,10 +5,13 @@
  *   npx tsx scripts/hot-card-refresh-run.ts
  * Env (DATABASE_URL, CARDMARKET_RAPIDAPI_*, HOT_CARD_LIMIT) läses från process.env.
  */
-import { prisma } from "../src/lib/db";
+import { prisma, ensureDbAwake } from "../src/lib/db";
 import { runHotCardRefresh } from "../src/jobs/hot-card-refresh";
 
-runHotCardRefresh()
+// Väck Neon före första riktiga frågan — se ensureDbAwake (en sovande endpoint
+// kostade hela Cardmarket-dygnet 2026-08-04).
+ensureDbAwake()
+  .then(() => runHotCardRefresh())
   .then((r) =>
     console.log(`Klart: ${r.updated} kort uppdaterade, ${r.apiCalls} API-anrop (kvot kvar ${r.remaining}).`)
   )

@@ -7,7 +7,7 @@
  * Säkerhetsregler: jobbet avbryts automatiskt om felräknaren passerar 20.
  */
 import { JobStatus, SourceType, StockStatus, type Prisma, type ProductCategory } from "@prisma/client";
-import { prisma, withDbRetry } from "@/lib/db";
+import { prisma, ensureDbAwake } from "@/lib/db";
 import { normalizeTitle, slugify } from "@/lib/utils";
 import { MockAdapter } from "@/scrapers/adapters/mock-adapter";
 import { PokemonTcgAdapter } from "@/scrapers/adapters/pokemontcg-adapter";
@@ -491,7 +491,7 @@ export async function runRestockScan(opts?: {
   // och mejlade ett falskt fellarm (2026-07-12 22:40). En trivial fråga med retry väcker
   // endpointen först. Den körs BARA här, efter ändringsgrinden — en oförändrad feed rör
   // fortfarande aldrig DB:n, så scale-to-zero är intakt.
-  await withDbRetry(() => prisma.$queryRaw`SELECT 1`);
+  await ensureDbAwake();
 
   // Fas 2 (DB-burst): retailer per källa + alla befintliga offers i EN läsning.
   const retailerByName = new Map<string, string>();

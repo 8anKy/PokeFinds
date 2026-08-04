@@ -5,7 +5,7 @@
  *   npx tsx scripts/cardmarket-refresh-run.ts
  * Env (DATABASE_URL, CARDMARKET_RAPIDAPI_*) läses från process.env.
  */
-import { prisma } from "../src/lib/db";
+import { prisma, ensureDbAwake } from "../src/lib/db";
 import { runCardmarketRefresh } from "../src/jobs/cardmarket-refresh";
 
 // FAILA HÖGT PÅ SAKNAD NYCKEL. runCardmarketRefresh() bara WARNAR och returnerar när
@@ -32,7 +32,12 @@ const only = process.argv.includes("--singles")
     ? { singles: false }
     : {};
 
-runCardmarketRefresh(only)
+// VÄCK NEON FÖRST. Restock-snabbfilen är byggd för att INTE väcka computen, så när
+// det här jobbet startar 13:00 UTC sover endpointen ofta. 2026-08-04 dog körningen
+// efter 6 sekunder på sin allra första fråga ("Can't reach database server") och hela
+// dygnets priser uteblev — kallstarten bar ett helt dygns data. Nu är den en väntan.
+ensureDbAwake()
+  .then(() => runCardmarketRefresh(only))
   .then((r) =>
     console.log(
       `Klart: ${r.singlesUpdated} singlar, ${r.singlesCreated} nya, ${r.sealedUpdated} sealed, ${r.apiCalls} API-anrop (kvot kvar ${r.remaining}).`

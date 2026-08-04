@@ -4,7 +4,7 @@
  * Samma kärna som instrumentation/8h-ticken (src/jobs/scheduler.ts). Körs i CI:
  *   npx tsx scripts/scrape-all-run.ts
  */
-import { prisma } from "../src/lib/db";
+import { prisma, ensureDbAwake } from "../src/lib/db";
 import { runScheduledScrapesOnce } from "../src/jobs/scheduler";
 import { refreshPopularityScores } from "../src/services/market";
 import { refreshRankScores } from "../src/jobs/rank-refresh";
@@ -15,6 +15,8 @@ import { refreshRankScores } from "../src/jobs/rank-refresh";
 const ANALYTICS_RETENTION_DAYS = 90;
 
 async function main() {
+  // Väck Neon före första riktiga frågan — se ensureDbAwake.
+  await ensureDbAwake();
   const r = await runScheduledScrapesOnce();
   console.log(`Klart: ${r.scrapes.length} källor, ${r.alerts.sent} alerts skickade.`);
 
