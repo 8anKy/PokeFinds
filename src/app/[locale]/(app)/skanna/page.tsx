@@ -44,7 +44,7 @@ import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/format";
 import { hasAuthHint } from "@/lib/auth-hint";
-import { registerFullscreenHost } from "@/lib/product-overlay-open";
+import { openProductOverlay, registerFullscreenHost } from "@/lib/product-overlay-open";
 import { hapticImpact } from "@/lib/haptics";
 import { pickAlternatives, pickSameArtRail } from "@/lib/scan-alternatives";
 import { useCameraControls } from "@/hooks/use-camera-controls";
@@ -63,6 +63,7 @@ import {
   IconArrowRight,
   IconCamera,
   IconCards,
+  IconChart,
   IconCheck,
   IconChevronLeft,
   IconFlashlight,
@@ -1670,7 +1671,11 @@ function Scanner() {
         return { ...s, status: "matched", match: cand, uncertain: false };
       })
     );
-    setDetailsId(null);
+    // ⛔ ARKET STÄNGS INTE AV ETT VAL (ägarbeslut 2026-08-04). Att välja
+    // variant är inte att vara klar: man vill se att rätt rad blev markerad,
+    // jämföra priset och ofta öppna prishistoriken direkt efteråt. Att kastas
+    // tillbaka till kameran mitt i det gjorde valet till en enkelbiljett.
+    // Arket stängs BARA av användaren — svep ner eller krysset.
   }, []);
 
   async function addAll() {
@@ -2760,7 +2765,27 @@ function ScanDetailsSheet(props: {
   onRemove: () => void;
 }) {
   const t = useTranslations("Scanner");
+  const router = useRouter();
   const { item } = props;
+
+  /**
+   * ETT ANDRA TRYCK PÅ DET VALDA KORTET = produkt & prishistorik.
+   *
+   * Ersätter en egen knapp längst ner: kortet man just valt ÄR produkten man
+   * vill läsa om, så åtgärden hör hemma på kortet — inte i en knapprad som
+   * dessutom alltid pekade på TRÄFFEN och aldrig på den variant man nyss bytte
+   * till. Första trycket väljer, andra öppnar.
+   *
+   * `openProductOverlay` svarar false på desktop/när värden inte är monterad →
+   * fall tillbaka på vanlig navigering, aldrig ett dött tryck.
+   */
+  const openProduct = useCallback(
+    (slug: string) => {
+      if (!openProductOverlay(slug)) router.push(`/produkter/${slug}`);
+    },
+    [router]
+  );
+
   // Regeln bor i lib/scan-alternatives.ts — ren och testad, för den avgör om
   // en felmatchning går att RÄTTA och har felat i fält en gång.
   // Raden bär korten med IDENTISK KONST, en post per variant — den enda frågan
@@ -2868,26 +2893,48 @@ function ScanDetailsSheet(props: {
                     // fel kort.
                     key={c.productId ?? c.cardId}
                     type="button"
-                    onClick={() => props.onChoose(c)}
+                    onClick={() => {
+                      // Valt kort + andra trycket → produkten. Saknar kortet slug
+                      // finns ingen produktsida att gå till; då är ett omtryck
+                      // bara en bekräftelse, aldrig ett dött tryck.
+                      if (selected && c.slug) openProduct(c.slug);
+                      else props.onChoose(c);
+                    }}
                     aria-current={selected}
+                    aria-label={
+                      selected && c.slug ? `${c.name} — ${t("showProduct")}` : c.name
+                    }
                     className={`w-[172px] shrink-0 snap-start rounded-2xl border p-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan ${
                       selected
                         ? "border-holo-cyan/60 bg-holo-cyan/5"
                         : "border-surface-border hover:border-holo-cyan/50 hover:bg-surface-overlay"
                     }`}
                   >
-                    {c.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={c.imageUrl}
-                        alt=""
-                        className="aspect-[5/7] w-full rounded-xl object-cover"
-                      />
-                    ) : (
-                      <span className="flex aspect-[5/7] w-full items-center justify-center rounded-xl bg-surface-overlay text-ink-faint">
-                        <IconCards size={24} />
-                      </span>
-                    )}
+                    <span className="relative block">
+                      {c.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={c.imageUrl}
+                          alt=""
+                          className="aspect-[5/7] w-full rounded-xl object-cover"
+                        />
+                      ) : (
+                        <span className="flex aspect-[5/7] w-full items-center justify-center rounded-xl bg-surface-overlay text-ink-faint">
+                          <IconCards size={24} />
+                        </span>
+                      )}
+                      {/* Affordansen för andra trycket. Syns BARA på det valda
+                          kortet, för det är bara där gesten finns — en ikon på
+                          alla hade lovat något de andra inte gör. */}
+                      {selected && c.slug && (
+                        <span
+                          aria-hidden="true"
+                          className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-surface/80 text-holo-cyan ring-1 ring-holo-cyan/40 backdrop-blur"
+                        >
+                          <IconChart size={14} />
+                        </span>
+                      )}
+                    </span>
                     <span className="mt-2 block truncate text-sm font-semibold text-ink">
                       {c.name}
                     </span>
@@ -2925,16 +2972,21 @@ function ScanDetailsSheet(props: {
                 );
               })}
             </div>
+            {/* Gesten är osynlig utan en rad text — ikonen ensam säger att något
+                finns, inte hur man når det. */}
+            {item.match?.slug && (
+              <p className="mt-2 text-[11px] text-ink-faint">{t("tapAgainForProduct")}</p>
+            )}
           </div>
         )}
 
-        {/* Åtgärder */}
+        {/* Åtgärder. ⛔ INGEN "Visa produkt"-knapp här längre (2026-08-04):
+            åtgärden bor på det valda kortet (andra trycket). Knappen pekade
+            dessutom alltid på TRÄFFEN, aldrig på den variant man nyss bytte
+            till — så den kunde öppna fel produkt efter ett variantbyte.
+            Sök-fallbacken finns kvar: utan produktsida vore vyn en återvändsgränd. */}
         <div className="flex flex-wrap gap-2">
-          {item.match?.slug ? (
-            <LinkButton href={`/produkter/${item.match.slug}`} variant="outline">
-              {t("showProduct")} <IconArrowRight size={15} />
-            </LinkButton>
-          ) : (
+          {!item.match?.slug && (
             <LinkButton
               href={`/produkter?q=${encodeURIComponent(item.match?.name ?? "")}`}
               variant="outline"
