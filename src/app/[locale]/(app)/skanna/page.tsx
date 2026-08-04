@@ -27,6 +27,7 @@ import {
   structFingerprintFromRgb,
 } from "@/lib/art-fingerprint";
 import { foilProbeFromRgb, type FoilSample } from "@/lib/foil-probe";
+import { classifyDrag, shouldCloseSheet } from "@/lib/sheet-drag";
 import {
   detectCardQuad,
   detectCardRegions,
@@ -3071,8 +3072,20 @@ function Sheet({
    * ägaren rapporterade. Touch-events överlever ett `preventDefault`; pointer
    * gör det inte. Vakten opt-outar dessutom via `data-drag-surface` nedan.
    *
+   * ⛔ RIKTNINGEN MÅSTE AVGÖRAS UNDER WEBBLÄSARENS EGEN TRÖSKEL (2026-08-04,
+   * andra omgången). Första fixen låste axeln vid 8 px, och DET var kvar-buggen:
+   * ett snabbt svep hinner 8 px i den FÖRSTA touchmove-händelsen, så vår
+   * `preventDefault()` hann före WebKits scrollbeslut. Ett långsamt svep levererar
+   * 1–2 px per ruta — då passerar webbläsarens egen tröskel (~5 px) FÖRST, den
+   * tar gesten, skickar `touchcancel`, och arket gled tillbaka och frös. Samma
+   * symtom som pointer-versionen, en nivå ner. Tröskeln är därför 3 px: tillräckligt
+   * för att läsa riktningen, under webbläsarens för att hinna först. Är gesten vår
+   * blockeras VARJE efterföljande move — hinner den bli icke-avbrytbar
+   * (`cancelable === false`) har vi redan förlorat.
+   *
    * TRE SAKER SOM MÅSTE HÅLLAS ISÄR PÅ SAMMA YTA:
-   *  - vågrätt drag  → kandidatraden äger det (axellås, 8 px)
+   *  - vågrätt drag  → kandidatraden äger det (utesluts redan vid touchstart:
+   *    en gest som börjar i en sidledsscroller blir aldrig vår)
    *  - drag uppåt / kroppen redan nedscrollad → vanlig scroll
    *  - drag nedåt i topp → vi äger gesten och stänger
    * Draget får därför starta på handtaget ALLTID, men i kroppen bara när den
@@ -3085,14 +3098,6 @@ function Sheet({
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
-    /** Sträcka som ensam stänger. */
-    const CLOSE_PX = 100;
-    /** Kast: px/ms nedåt … */
-    const FLICK_V = 0.45;
-    /** … men aldrig från stillastående — någon sträcka krävs alltid. */
-    const FLICK_PX = 32;
-    const AXIS_PX = 8;
-
     let startX = 0;
     let startY = 0;
     let lastY = 0;
@@ -3100,7 +3105,10 @@ function Sheet({
     let vy = 0;
     let dy = 0;
     let dragging = false;
-    let axis: "x" | "y" | null = null;
+    /** Gesten får bli vår (rätt startpunkt), men riktningen är ännu oläst. */
+    let eligible = false;
+    /** Riktningen är läst och den var nedåt — vi äger gesten. */
+    let owning = false;
 
     const begin = (x: number, y: number, t: number) => {
       startX = x;
@@ -3109,33 +3117,40 @@ function Sheet({
       lastT = t;
       dy = 0;
       vy = 0;
-      axis = null;
+      eligible = true;
+      owning = false;
       dragging = true;
-      // animate-fade-in-up (fill-mode: both) pinnar transform och överröstar
-      // vår inline-transform → måste rensas, annars syns ingen följning/glid.
-      panel.style.animation = "none";
-      panel.style.transition = "none";
     };
 
     const abort = () => {
       dragging = false;
+      eligible = false;
+      owning = false;
       panel.style.transition = "";
       panel.style.transform = "";
     };
 
     /** true = vi äger gesten och anroparen ska blockera native scroll. */
     const move = (x: number, y: number, t: number, fromHandle: boolean): boolean => {
-      if (!dragging) return false;
+      if (!dragging || !eligible) return false;
       const ddx = x - startX;
       const ddy = y - startY;
-      if (axis === null) {
-        if (Math.abs(ddx) < AXIS_PX && Math.abs(ddy) < AXIS_PX) return false;
-        axis = Math.abs(ddx) > Math.abs(ddy) ? "x" : "y";
-        // Vågrätt = svep-raden med kandidatkorten. Uppåt i kroppen = scroll.
-        if (axis === "x" || (!fromHandle && ddy < 0)) {
+      if (!owning) {
+        // Domen bor i src/lib/sheet-drag.ts — ren och testad, för regeln har
+        // felat i fält två gånger och symtomet var båda gångerna "ibland".
+        const decision = classifyDrag(ddx, ddy, fromHandle);
+        if (decision === "wait") return false;
+        // Släpp den helt: en gest vi lämnat ifrån oss tas ALDRIG tillbaka mitt
+        // i, annars slåss två stycken om samma finger.
+        if (decision === "release") {
           abort();
           return false;
         }
+        owning = true;
+        // animate-fade-in-up (fill-mode: both) pinnar transform och överröstar
+        // vår inline-transform → måste rensas, annars syns ingen följning/glid.
+        panel.style.animation = "none";
+        panel.style.transition = "none";
       }
       dy = Math.max(0, ddy);
       if (t > lastT) {
@@ -3150,8 +3165,13 @@ function Sheet({
     const finish = () => {
       if (!dragging) return;
       dragging = false;
+      eligible = false;
+      // Riktningen hann aldrig läsas (en tapp, eller en gest vi lämnat) — då
+      // finns ingen transform att ångra och ingenting att stänga.
+      if (!owning) return;
+      owning = false;
       panel.style.transition = "transform 0.25s ease";
-      if (dy > CLOSE_PX || (vy > FLICK_V && dy > FLICK_PX)) {
+      if (shouldCloseSheet(dy, vy)) {
         panel.style.transform = "translateY(110%)";
         window.setTimeout(onClose, 230);
       } else {
@@ -3162,14 +3182,34 @@ function Sheet({
     const isHandle = (target: EventTarget | null) =>
       !!(target as HTMLElement | null)?.closest?.("[data-sheet-handle]");
 
+    /**
+     * En gest som börjar i en yta med EGEN scroll (kandidatraden i sidled, en
+     * nästlad lista som inte står i topp) blir aldrig vår — beslutet tas HÄR,
+     * vid touchstart, och aldrig mitt i gesten. Mitt-i-beslut var hela skälet
+     * att raden och arket slogs om samma finger.
+     */
+    const startsInOwnScroller = (target: EventTarget | null) => {
+      let el = target as HTMLElement | null;
+      while (el && el !== panel) {
+        if (el.scrollWidth > el.clientWidth + 1) return true;
+        if (el.scrollHeight > el.clientHeight + 1 && el.scrollTop > 0) return true;
+        el = el.parentElement;
+      }
+      return false;
+    };
+
     let fromHandle = false;
     const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1) return;
+      if (e.touches.length !== 1) {
+        abort();
+        return;
+      }
       fromHandle = isHandle(e.target);
       // Kroppen får bara starta ett drag när den redan står i topp — annars
       // vore varje scroll uppåt en stängning.
-      if (!fromHandle && panel.scrollTop > 0) {
+      if (!fromHandle && (panel.scrollTop > 0 || startsInOwnScroller(e.target))) {
         dragging = false;
+        eligible = false;
         return;
       }
       begin(e.touches[0].clientX, e.touches[0].clientY, e.timeStamp);
@@ -3178,7 +3218,8 @@ function Sheet({
       if (!dragging || e.touches.length !== 1) return;
       const own = move(e.touches[0].clientX, e.touches[0].clientY, e.timeStamp, fromHandle);
       // Vi äger gesten: utan detta scrollar/studsar WebView:n samtidigt som
-      // arket följer fingret. Sker BARA efter axellåset, så vågräta svep i
+      // arket följer fingret — och värre, den TAR gesten och skickar touchcancel.
+      // Sker bara efter riktningsbeslutet (3 px), så vågräta svep i
       // kandidatraden aldrig blockeras (den lärdomen kostade tre felsökningar
       // — se project_overscroll_guard_killed_horizontal_gestures).
       if (own && e.cancelable) e.preventDefault();
@@ -3234,6 +3275,9 @@ function Sheet({
         // data-drag-surface: studsvakten i pwa-register.tsx måste hålla fingrarna
         // borta här — dess preventDefault avbröt gesten mitt i (se effekten ovan).
         data-drag-surface
+        // overscroll-behavior: contain — en studs som kedjas vidare till
+        // dokumentet är ännu en väg till touchcancel mitt i draget.
+        style={{ overscrollBehavior: "contain" }}
         className="relative max-h-[85%] overflow-y-auto rounded-t-3xl border-t border-surface-border bg-surface-raised p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-card animate-fade-in-up"
       >
         {/* Dragyta: handtag + rubrik. touch-action:none → ingen native scroll här.
