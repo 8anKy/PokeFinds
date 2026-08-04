@@ -28,6 +28,7 @@ import {
 } from "@/lib/art-fingerprint";
 import { foilProbeFromRgb, type FoilSample } from "@/lib/foil-probe";
 import { classifyDrag, shouldCloseSheet } from "@/lib/sheet-drag";
+import { useEventCallback } from "@/hooks/use-event-callback";
 import {
   detectCardQuad,
   detectCardRegions,
@@ -1046,7 +1047,18 @@ function Scanner() {
     // Bulk-läget pollar inte: låset/chippen är enkortsbegrepp, och 9 celler
     // × 2 poll/s hade varit CPU utan mottagare. Streckkodsläget pollar sin egen
     // detektor (se nedan) och har ingen konstbild att matcha mot.
-    if (cameraState !== "live" || view !== "capture" || mode !== "single") {
+    // ⛔ PAUSA NÄR ETT ARK LIGGER ÖVER KAMERAN. Pollen sätter state var 600:e ms
+    // och renderade alltså om HELA skannern medan användaren läste detaljvyn —
+    // vilket rev och satte om arkets drag-lyssnare mitt i ett svep (se
+    // use-event-callback.ts). Den är dessutom ren kostnad: ~1,6 anrop i sekunden
+    // mot /api/scanner/identify-art för en kameravy ingen tittar på.
+    if (
+      cameraState !== "live" ||
+      view !== "capture" ||
+      mode !== "single" ||
+      detailsId !== null ||
+      settingsOpen
+    ) {
       setLiveHint(null);
       liveStreak.current = { id: "", n: 0 };
       probeHistory.current = [];
@@ -1114,7 +1126,7 @@ function Scanner() {
         });
     }, 600);
     return () => window.clearInterval(iv);
-  }, [cameraState, view, mode]);
+  }, [cameraState, view, mode, detailsId, settingsOpen]);
 
 
   // Lås body-scroll + Escape-stäng medan skannern är öppen.
@@ -2945,13 +2957,18 @@ function ScanDetailsSheet(props: {
  * pointer-events + pan-y så vertikal listscroll förblir webbläsarens.
  * ======================================================================== */
 function SwipeToDelete({
-  onDelete,
+  onDelete: onDeleteProp,
   children,
 }: {
   onDelete: () => void;
   children: ReactNode;
 }) {
   const fgRef = useRef<HTMLDivElement>(null);
+  // Samma fälla som arkets `onClose`: anroparen skickar en inline-arrow
+  // (`onDelete={() => onRemove(s.id)}`), och effekten nedan registrerar
+  // lyssnare. En rendering mitt i ett svep hade rivit dem och lämnat kortet
+  // fruset halvvägs. Se src/hooks/use-event-callback.ts.
+  const onDelete = useEventCallback(onDeleteProp);
 
   useEffect(() => {
     const fg = fgRef.current;
@@ -3047,7 +3064,7 @@ function SwipeToDelete({
  * ======================================================================== */
 function Sheet({
   title,
-  onClose,
+  onClose: onCloseProp,
   children,
 }: {
   title: string;
@@ -3057,6 +3074,13 @@ function Sheet({
   const t = useTranslations("Scanner");
   const panelRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<HTMLDivElement>(null);
+  // ⛔ STABIL IDENTITET ÄR INTE HYGIEN HÄR, DET ÄR FUNKTIONEN (bugg i fält
+  // 2026-08-04): anroparen skickar en inline-arrow, och drag-effekten nedan
+  // REGISTRERAR lyssnare. Med en ny identitet per rendering revs de och sattes
+  // om ~1,6 ggr/s (live-pollen bakom arket sätter state var 600:e ms) — mitt i
+  // ett svep hade den nya uppsättningen aldrig sett `touchstart`, så arket
+  // slutade följa fingret och frös. Se src/hooks/use-event-callback.ts.
+  const onClose = useEventCallback(onCloseProp);
 
   /**
    * SVEP NEDÅT FÖR ATT STÄNGA.
