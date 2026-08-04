@@ -49,6 +49,10 @@ const checkRestockAlertsMock = vi.fn(async () => {
 
 vi.mock("@/lib/db", () => ({
   withDbRetry: (fn: () => Promise<unknown>) => fn(),
+  // runner.ts väcker Neon innan DB-fasen (scale-to-zero). Mocken MÅSTE exportera
+  // den — saknas exporten failar hela sviten på "No export is defined", inte på
+  // det testet faktiskt påstår.
+  ensureDbAwake: async () => {},
   prisma: {
     $queryRaw: async () => [],
     retailer: { upsert: async () => ({ id: "r1" }) },
