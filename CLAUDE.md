@@ -295,6 +295,28 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   (2) `guideNameMatches` — är raden VÅRT kort? RapidAPI:s `cardmarket_id` kan peka på ett annat kort (`base1-2` Blastoise →
   291582 = "Rayquaza [Dual Claw | Dragon Blast]"). Döm ALDRIG identitet på prisavstånd — det kastar den rätta raden när det
   är RapidAPI som är trasig.
+  **EN NYCKEL SOM VÄLJER PRODUKT MÅSTE VAKTAS LIKA HÅRT SOM EN SOM VÄLJER PRIS (2026-08-05)**: de två vakterna ovan skyddade
+  bara GUIDE-RADEN. Själva MATCHNINGEN på `cardmarket_id` hade ingen namnvakt alls — samma opålitliga fält fick alltså peka
+  ut VILKEN PRODUKT som skulle prissättas, obevakat. MÄTT i MEP Black Star Promos: 13 av 139 rader bär ett trasigt
+  `cardmarket_id` (null, ett id utanför CM:s katalog, eller ett id som tillhör ett annat kort), och raden "Mega Charizard X ex"
+  (MEP 023) bar 873704 — som hos CM är en **N's Zekrom**, och som VI också har, korrekt länkad. Charizard-raden matchade
+  därför vår Zekrom och skrev Charizards From (38,00 € = 416,48 kr) på den, medan Zekroms egen rad (60,07 €) förlorade
+  arbitreringen. ⛔ **EN FELMATCHNING SKADAR ALLTID TVÅ KORT**: ett får fel pris, ett blir hemlöst. Charizard föll ur
+  körningen, frös på 12 juli och plockades till slut upp av guide-reserven, som märker OUT_OF_STOCK ⇒ produktsidan visade
+  "Sold out" + 647,63 kr (guidens avg30) fast feedens egen rad bar rätt From hela tiden. Vakten är nu den vanliga:
+  `cmCardNameAgrees` på cmid-matchen, och vid oenighet får raden söka sig fram via nummerreserven i stället.
+  **NUMMERRESERV FÖR KORT UTAN `tcgExternalId`** (`byNumberNoTcg` + `cmNumberKeyNoSetCode`): promo-korten (84 st, alla i MEP)
+  saknar pokemontcg.io-id, så `cardmarket_id` var deras ENDA nyckel — huvudloopens `byNumber` ser dem inte, den frågar
+  `card: { tcgExternalId: { not: null } }`. De har nu set+nummer+namn som reserv. ⛔ Nyckeln skalar av setkoden ("MEP 023" →
+  "23") och den toleransen är en EGEN karta som ALDRIG får nå huvudkatalogen: där är prefixet ofta självaste numret, och
+  "TG10" → "10" hade krockat med kort 10 i samma set. Villkoret är därför separatorn (`MEP 023`, `SWSH-045`), aldrig
+  bokstäverna i sig. **REPARATION av felaktiga länkar**: `scripts/fix-promo-cm-links.ts` (torrkörning default, `--apply`) —
+  kräver TVÅ bevis: nuvarande länk måste vara bevisat fel enligt CM:s egen singelkatalog OCH ersättaren bevisat rätt enligt
+  både feeden (set+nummer) och samma katalog. Håller namnen ihop rörs raden aldrig — MEP 023 är rätt länkad hos OSS och fel i
+  feeden, och ska absolut inte skrivas om. 1 av 84 var fel (Makuhita · MEP 068 låg på CM:s "Energy Switch" sedan 12 juli).
+  ⚠️ N's Zekrom 031 (idProduct 873704) bär förorenade historikpunkter från ~12 juli till 5 aug (Charizards ~440 kr varvat med
+  sitt eget ~660 kr). De är INTE städade: att skilja dem åt kräver en tvåbands-heuristik, och att skriva om historik på en
+  gissning är precis det `cm-range-audit --apply` togs bort för.
   **REVISION (rapport, aldrig reparation)**: `scripts/cm-range-audit.ts` (gratis, CM:s guide, ingen RapidAPI-kvot) listar
   priser långt utanför CM:s spann. `--apply` ÄR BORTTAGET: det skrev guide-medianer (fel policy) OCH band identiteten på ett
   normaliserat namn som fäller ihop olika CM-produkter — vårt "Rayquaza ★" blev "rayquaza" och matchade CM:s vanliga Rayquaza

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   cmNumberKey,
+  cmNumberKeyNoSetCode,
   cmSetNameKey,
   cmCardNameAgrees,
 } from "../../src/jobs/cardmarket-refresh";
@@ -27,6 +28,39 @@ describe("cmNumberKey", () => {
     expect(cmNumberKey(null)).toBe("");
     expect(cmNumberKey(undefined)).toBe("");
     expect(cmNumberKey("  ")).toBe("");
+  });
+});
+
+// Regression 2026-08-05: MEP 023 "Mega Charizard X ex" bar `cardmarket_id` 873704,
+// som hos Cardmarket heter "N's Zekrom". Korten i promo-seten saknar tcgid, så när
+// det fältet ljuger fanns ingen väg alls fram till produkten: kortet föll ur
+// körningen och guide-reserven publicerade en UPPSKATTNING (59,09 €) märkt
+// "Sold out" — fast feedens egen rad bar rätt From (38,00 €) hela tiden.
+// Reserven matchar därför på set + nummer + namn, med setkoden avskalad.
+describe("cmNumberKeyNoSetCode", () => {
+  it("setkoden faller när den står som EGET ORD — det var hela buggen", () => {
+    expect(cmNumberKeyNoSetCode("MEP 023")).toBe(cmNumberKeyNoSetCode("023"));
+    expect(cmNumberKeyNoSetCode("MEP 023")).toBe("23");
+    expect(cmNumberKeyNoSetCode("SWSH-045")).toBe("45");
+  });
+
+  it("⛔ men ALDRIG när bokstäverna ÄR numret", () => {
+    // "TG10" → "10" hade krockat med kort 10 i samma set.
+    expect(cmNumberKeyNoSetCode("TG10")).toBe(cmNumberKey("TG10"));
+    expect(cmNumberKeyNoSetCode("GG08")).toBe(cmNumberKey("GG08"));
+    expect(cmNumberKeyNoSetCode("SWSH034")).toBe(cmNumberKey("SWSH034"));
+    expect(cmNumberKeyNoSetCode("SV075")).toBe(cmNumberKey("SV075"));
+    expect(cmNumberKeyNoSetCode("TG10")).not.toBe("10");
+  });
+
+  it("bokstavssuffix står kvar — 115a är ett annat kort än 115", () => {
+    expect(cmNumberKeyNoSetCode("MEP 115a")).not.toBe(cmNumberKeyNoSetCode("MEP 115"));
+    expect(cmNumberKeyNoSetCode("MEP 115a")).toBe("115a");
+  });
+
+  it("tomt nummer ger tom nyckel (anroparen ska avstå)", () => {
+    expect(cmNumberKeyNoSetCode(null)).toBe("");
+    expect(cmNumberKeyNoSetCode("  ")).toBe("");
   });
 });
 

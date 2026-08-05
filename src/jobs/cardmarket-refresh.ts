@@ -321,6 +321,28 @@ export function cmNumberKey(v: string | number | null | undefined): string {
   return raw.replace(/\d+/, (d) => String(parseInt(d, 10)));
 }
 
+/**
+ * Samma nyckel, fast med SETKODEN avskalad: "MEP 023" → "23".
+ *
+ * Feeden skriver promo-nummer med setkoden inbakad ("MEP 023") medan vår katalog
+ * håller det bara som "023" — `cmNumberKey` behåller prefixet ("mep23") och de två
+ * möts därför aldrig. Det spelade ingen roll så länge korten nåddes av `tcgid`
+ * eller `cardmarket_id`, men för korten UTAN pokemontcg.io-id är nummerreserven
+ * enda återstående vägen (se byNumberNoTcg nedan).
+ *
+ * ⛔ PREFIXET FÅR BARA FALLA NÄR DET STÅR SOM EGET ORD. "TG10", "GG08", "SWSH034"
+ *    och "SV075" är HELA samlarnumret — skalades bokstäverna av där skulle "TG10"
+ *    bli "10" och krocka med kort 10 i samma set, dvs precis den sortens tysta
+ *    felmatchning nummerreserven finns för att undvika. Separatorn (mellanslag,
+ *    bindestreck, punkt) är alltså villkoret, inte bokstäverna i sig.
+ * ⛔ BokstavsSUFFIX står kvar: "MEP 115a" → "115a", aldrig "115".
+ */
+export function cmNumberKeyNoSetCode(v: string | number | null | undefined): string {
+  const s = String(v ?? "").trim();
+  const m = /^[A-Za-z]{1,5}[\s._-]+(\d+[A-Za-z]?)$/.exec(s);
+  return cmNumberKey(m ? m[1] : s);
+}
+
 /** Energityperna, som CM skriver som symbol i klammer och kortet stavar ut. */
 const ENERGY_TYPE_WORDS = new Set([
   "grass", "fire", "water", "lightning", "psychic", "fighting",
@@ -1402,16 +1424,28 @@ export async function runCardmarketRefresh(
 
     // Promo-/specialset utan pokemontcg.io-tcgid (t.ex. MEP Black Star Promos) →
     // matchas på cardmarket_id istället.
-    const cmidMap = new Map<number, { productId: string; offerId?: string; url?: string }>();
+    // ⛔ VÄRDET BÄR KORTNAMNET — nyckeln ensam duger inte, se namnvakten i processCards.
+    const cmidMap = new Map<
+      number,
+      { productId: string; offerId?: string; url?: string; cardName: string }
+    >();
+    // NUMMERRESERV FÖR JUST DE HÄR KORTEN (2026-08-05). Egen karta, aldrig `byNumber`:
+    // nyckeln skalar av setkoden ("MEP 023" → "23") och den toleransen får INTE nå
+    // huvudkatalogen, där ett prefix ofta ÄR numret ("TG10", "GG08"). Se
+    // cmNumberKeyNoSetCode. `null` = tvetydigt nummer i setet ⇒ reserven avstår.
+    const byNumberNoTcg = new Map<
+      string,
+      { entry: { productId: string; offerId?: string; url?: string }; cardName: string } | null
+    >();
     const cmidProducts = await prisma.product.findMany({
       where: { category: "SINGLE_CARD", card: { cardmarketId: { not: null }, tcgExternalId: null } },
-      select: { id: true, variantLabel: true, card: { select: { cardmarketId: true, name: true } }, offers: { where: { retailerId: cm.id }, select: { id: true, url: true }, take: 1 } },
+      select: { id: true, setId: true, variantLabel: true, card: { select: { cardmarketId: true, name: true, number: true } }, offers: { where: { retailerId: cm.id }, select: { id: true, url: true }, take: 1 } },
     });
     for (const p of cmidProducts) {
       const id = p.card?.cardmarketId;
       if (id == null) continue;
       const entry = { productId: p.id, offerId: p.offers[0]?.id, url: p.offers[0]?.url };
-      cmidMap.set(id, entry);
+      if (p.card?.name) cmidMap.set(id, { ...entry, cardName: p.card.name });
       // ⛔ DE HÄR KORTEN MÅSTE OCKSÅ VARA KANDIDATER FÖR GUIDE-RESERVEN. De ligger i
       // en EGEN fråga (de saknar tcgid), så den stora produktloopen ovan ser dem
       // aldrig — och just de är extra utsatta: hela deras identitet HÄNGER på
@@ -1424,6 +1458,21 @@ export async function runCardmarketRefresh(
       const guideId = Number.isFinite(linkedId) ? linkedId : id;
       if (!isPrintVariantLabel(p.variantLabel) && p.card?.name)
         guideFallbackCandidates.set(p.id, { entry, idProduct: guideId, cardName: p.card.name });
+      // ⛔ OCH DE MÅSTE HA EN VÄG SOM INTE GÅR VIA `cardmarket_id`. Fältet är MÄTT
+      //    trasigt i just den här episoden: 13 av 139 MEP-rader bär null, ett id som
+      //    inte finns i CM:s singelkatalog, eller ett id som pekar på ett HELT annat
+      //    kort — MEP 023 "Mega Charizard X ex" bär 873704, som hos CM heter
+      //    "N's Zekrom". Fyra av våra 84 MEP-kort nåddes därför aldrig av feeden, och
+      //    eftersom de saknar tcgid fanns ingen reserv alls: de föll ur körningen,
+      //    behöll gårdagens tal och plockades till slut upp av guide-reserven, som
+      //    märker dem OUT_OF_STOCK ("Sold out" i pristabellen) med en UPPSKATTNING —
+      //    59,09 € där feedens egna, korrekta From sa 38,00 €.
+      //    Radens PRIS var alltså rätt hela tiden; bara dess `cardmarket_id` var fel.
+      const numKeyNoCode = cmNumberKeyNoSetCode(p.card?.number);
+      if (!isPrintVariantLabel(p.variantLabel) && p.setId && numKeyNoCode && p.card?.name) {
+        const k = `${p.setId}|${numKeyNoCode}`;
+        byNumberNoTcg.set(k, byNumberNoTcg.has(k) ? null : { entry, cardName: p.card.name });
+      }
     }
 
     const eps: { id: number; name?: string | null; cards_total: number }[] = [];
@@ -1492,6 +1541,10 @@ export async function runCardmarketRefresh(
     // singleOps: de ska inte räknas av haveribrytaren och inte skriva historikpunkter.
     const linkOnlyByProduct = new Map<string, string>();
     let byNumberHits = 0, byNumberNameRejects = 0;
+    // Rader vars `cardmarket_id` pekade på en produkt med ett ANNAT kortnamn. Loggas
+    // för att en tyst uppgång ska synas: växer talet har leverantören tappat fler
+    // id:n, och då är det nummerreserven som bär korten.
+    let cmidNameRejects = 0;
     const processCards = (cards: CmCard[]) => {
       for (const card of cards) {
         // TRYCKNINGEN FÖRST: säger raden vilken tryckning den gäller, och har vi
@@ -1512,10 +1565,28 @@ export async function runCardmarketRefresh(
           const cand = setId && numKey ? byNumberPrint.get(`${setId}|${numKey}|${printLabel}`) : undefined;
           if (cand && cmCardNameAgrees(cand.cardName, card.name)) printEntry = cand.entry;
         }
+        // ── `cardmarket_id` FÅR INTE VÄLJA PRODUKT UTAN ATT NAMNEN HÅLLER MED ────
+        // Guide-raden har haft namnvakt sedan 2026-07-26 (guideNameMatches), men
+        // SJÄLVA MATCHNINGEN har aldrig haft en — och det är samma opålitliga fält.
+        // MÄTT 2026-08-05 i MEP: raden "Mega Charizard X ex" (MEP 023) bär
+        // `cardmarket_id` 873704, som hos Cardmarket är en N's Zekrom — och som VI
+        // också har, korrekt länkad. Charizard-raden matchade alltså vår Zekrom och
+        // skrev Charizards From (38,00 € = 416,48 kr) på den, medan Zekroms EGEN rad
+        // (60,07 €) förlorade arbitreringen. Charizard blev samtidigt hemlös, föll
+        // till guide-reserven och visades som "Sold out" med en uppskattning.
+        // EN FELMATCHNING SKADAR ALLTID TVÅ KORT: ett får fel pris, ett får inget.
+        // Vakten är den vanliga: vid oenighet prissätts INGET, och raden får söka
+        // sig fram via nummerreserven nedan i stället.
+        // Blast-radien är exakt de tcgid-lösa korten — cmidMap byggs bara av dem.
+        let cmidEntry = card.cardmarket_id != null ? cmidMap.get(card.cardmarket_id) : undefined;
+        if (cmidEntry && !cmCardNameAgrees(cmidEntry.cardName, card.name)) {
+          cmidNameRejects++;
+          cmidEntry = undefined;
+        }
         let entry =
           printEntry ??
           (card.tcgid ? map.get(card.tcgid) : undefined) ??
-          (card.cardmarket_id != null ? cmidMap.get(card.cardmarket_id) : undefined);
+          cmidEntry;
         let rank = printEntry
           ? MATCH_RANK.tcgid
           : entry ? (card.tcgid && map.get(card.tcgid) ? MATCH_RANK.tcgid : MATCH_RANK.cmid) : 0;
@@ -1550,6 +1621,26 @@ export async function runCardmarketRefresh(
             }
           }
         }
+        // SISTA UTVÄGEN: korten UTAN pokemontcg.io-id (promo-seten). Egen karta med
+        // setkods-tolerant nummernyckel — se byNumberNoTcg. Ligger EFTER `byNumber`
+        // så huvudkatalogen alltid får svara först, och bär samma namnvakt: numret
+        // ensamt är inte identitet.
+        let viaNoTcgNumber = false;
+        if (!entry) {
+          const setId = setsByName.get(cmSetNameKey(card.episode?.name));
+          const numKey = cmNumberKeyNoSetCode(card.card_number);
+          const cand = setId && numKey ? byNumberNoTcg.get(`${setId}|${numKey}`) : undefined;
+          if (cand) {
+            if (cmCardNameAgrees(cand.cardName, card.name)) {
+              entry = cand.entry;
+              rank = MATCH_RANK.number;
+              viaNoTcgNumber = true;
+              byNumberHits++;
+            } else {
+              byNumberNameRejects++;
+            }
+          }
+        }
         if (!entry) continue;
         const cmp = card.prices?.cardmarket ?? {};
         // Identitetsvakt, TVÅ frågor: är raden ens en singel (guideRowIsSingle — ett
@@ -1562,7 +1653,15 @@ export async function runCardmarketRefresh(
         // Unlimited-rader. Offerns URL bär däremot det id vi själva satte ur CM:s
         // egen katalog vid uppdelningen (split-base-printings.ts) — det är det
         // enda stället som vet vilken CM-produkt just den här tryckningen är.
-        const linkedCmId = printEntry
+        //
+        // SAMMA SAK GÄLLER NUMMERRESERVEN FÖR TCGID-LÖSA KORT: den vägen togs just
+        // FÖR ATT radens `cardmarket_id` inte ledde någonstans, så att sedan slå upp
+        // guide-raden på det id:t är att fråga fältet vi nyss underkände. Mätt på
+        // MEP 023: id:t pekar på "N's Zekrom", vars guide-rad namnvakten (rätteligen)
+        // kastar — men då tappas också den FALLBACK som ska bära kortet när From
+        // saknas. Vår egen länk vet vilken CM-produkt kortet är; identitetsvakterna
+        // nedan dömer den ändå.
+        const linkedCmId = printEntry || viaNoTcgNumber
           ? Number(entry.url?.match(/idProduct=(\d+)/)?.[1] ?? NaN)
           : NaN;
         const guideId = Number.isFinite(linkedCmId) ? linkedCmId : card.cardmarket_id;
@@ -1896,6 +1995,11 @@ export async function runCardmarketRefresh(
         // samma kort matcha reserven (exakt en av dem vinner, se feedRowWins).
         `[cm-refresh] Set+nummer-reserven: ${byNumberHits} feed-rader matchade utan användbar tcgid ` +
         `(${byNumberNameRejects} avvisade på kortnamn).`
+      );
+    if (cmidNameRejects)
+      console.log(
+        `[cm-refresh] Namnvakt på cardmarket_id: ${cmidNameRejects} feed-rader pekade ut en produkt ` +
+        `med ett ANNAT kortnamn → matchningen avvisad (raden får söka via nummerreserven).`
       );
     if (misIdentified)
       console.log(`[cm-refresh] Identitetsvakt: ${misIdentified} kort där RapidAPI:s cardmarket_id pekar på ett ANNAT kort i CM:s katalog → guide-raden ignorerad.`);
