@@ -17,7 +17,7 @@ export default function MarketingLayout({
     // Se app-shell.tsx: tab-barens spacer är ett SYSKON i rot-layouten, så
     // min-h-screen gör dokumentet 64px högre än viewporten och varje sida
     // scrollbar fast allt syns. 100dvh av samma skäl som där.
-    <div className="flex min-h-[calc(100dvh-4rem)] flex-col bg-surface lg:min-h-screen">
+    <div className="flex min-h-[calc(100dvh_-_4rem_-_env(safe-area-inset-top))] flex-col bg-surface lg:min-h-screen">
       <SiteHeader />
       <main className="flex-1">{children}</main>
       <SiteFooter />

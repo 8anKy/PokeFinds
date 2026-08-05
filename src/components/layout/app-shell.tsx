@@ -78,13 +78,17 @@ export function AppShell({
   );
 
   return (
-    // ⛔ HÖJDEN MÅSTE DRA AV TAB-BARENS SPACER. `BottomTabs` renderar sin
-    // klarerings-spacer (h-16) som SYSKON till det här skalet i rot-layouten, så
-    // med min-h-screen blir dokumentet ALLTID 100vh + 64px — dvs varje sida gick
-    // att scrolla ~64px fast allt syntes. Och 100dvh, inte 100vh: på mobilwebb är
-    // 100vh den STORA viewporten (adressfältet bortdolt) och alltså högre än den
-    // synliga ytan, vilket ger samma falska scroll. Desktop har ingen tab-bar.
-    <div className="flex min-h-[calc(100dvh-4rem)] lg:min-h-screen">
+    // ⛔ HÖJDEN MÅSTE DRA AV ALLT SOM LIGGER UTANFÖR SKALET. Tre poster, och
+    // MISSAS EN ENDA går sidan att scrolla precis så mycket fast allt syns:
+    //   1. `BottomTabs` klarerings-spacer (h-16) — SYSKON i rot-layouten.
+    //   2. `body { padding-top: env(safe-area-inset-top) }` (globals.css) —
+    //      statusfältets höjd, ~44-59 px på en telefon med urklipp.
+    //   3. 100dvh, inte 100vh: på mobilwebb är 100vh den STORA viewporten
+    //      (adressfältet bortdolt) och alltså högre än den synliga ytan.
+    // ⚠️ Post 2 är NOLL på desktop, så felet syns aldrig i en webbläsare på
+    // datorn — det måste verifieras på en riktig telefon. Desktop har varken
+    // tab-bar eller urklipp och kör därför ren min-h-screen.
+    <div className="flex min-h-[calc(100dvh_-_4rem_-_env(safe-area-inset-top))] lg:min-h-screen">
       {/* Desktop sidebar */}
       <aside className="hidden w-60 shrink-0 border-r border-surface-border bg-surface-raised/40 lg:block">
         <div className="flex h-16 items-center border-b border-surface-border px-5">

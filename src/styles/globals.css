@@ -14,14 +14,26 @@
     /* Klipp horisontellt spill (t.ex. -mx-4-kanter). `clip` (inte `hidden`) →
        gör INTE html till scroll-container → bryter inte position:fixed (bottom-tabs). */
     overflow-x: clip;
+    /* ⛔ MÅSTE STÅ PÅ html, INTE bara på body. `overscroll-behavior` propagerar
+       till viewporten BARA från rot-elementet — till skillnad från `overflow`,
+       som propagerar från body. Regeln låg bara på body, och uppmätt datorvärde
+       för html var därför `auto`: rubber-band-studsen var ALDRIG avstängd.
+       På iOS känns det exakt som att sidan går att scrolla fast den får plats
+       (rapporterat 2026-08-05). */
+    overscroll-behavior: none;
   }
   body {
     @apply bg-surface font-sans text-ink antialiased;
     font-feature-settings: "cv05", "cv11", "tnum";
     /* viewport-fit=cover lägger innehållet edge-to-edge under statusfältet →
        padda ner så headern/logon hamnar UNDER klockan (0 på webben). */
+    /* ⛔ DEN HÄR PADDINGEN ADDERAR DOKUMENTHÖJD. Skalen måste dra av den i sin
+       min-height, annars blir dokumentet 100dvh + statusfältets höjd och sidan
+       går att scrolla precis så mycket, fast allt syns. Osynligt på desktop
+       där env() är 0 — se app-shell.tsx och (marketing)/layout.tsx. */
     padding-top: env(safe-area-inset-top);
-    /* Ingen rubber-band-studs förbi toppen (app-känsla). */
+    /* Ingen rubber-band-studs (app-känsla). Den verksamma regeln står på html
+       ovan; den här är kvar för barn som scrollar i egen container. */
     overscroll-behavior: none;
     /* App-känsla: ingen text-markering / iOS-"Copy"-callout. Formulärfält
        återställs nedan så man fortfarande kan redigera. */
