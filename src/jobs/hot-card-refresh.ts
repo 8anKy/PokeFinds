@@ -12,7 +12,7 @@
  */
 import { prisma } from "../lib/db";
 import { mapPool } from "../lib/concurrency";
-import { getRatesOre } from "../lib/exchange-rate";
+import { getRatesOre, priceOreFromEur } from "../lib/exchange-rate";
 import {
   cardmarketProductUrl,
   isEnglishCardmarketUrl,
@@ -225,9 +225,11 @@ export async function runHotCardRefresh(
           : card.cardmarket_id != null ? cardmarketProductUrl(card.cardmarket_id, { nearMint: true, firstEd: "exclude" })
             : offer?.url ?? null;
     if (!url) return;
+    const priceOre = priceOreFromEur(priced.eur, rates);
+    if (priceOre == null) return; // 0 kr är inget pris — se priceOreFromEur
     ops.push({
       offerId: offer?.id, productId: p.id,
-      priceOre: Math.round(priced.eur * rates.eurToOre),
+      priceOre,
       from: priced.from,
       url,
     });

@@ -13,9 +13,25 @@ name: CardTrader-varianter (dagligen)
 # Skripten är idempotenta (upsert per produkt+retailer) och skapar bara nya
 # produkter när marknaden fått djup nog — en körning utan nyheter är en ren
 # prisuppdatering.
+# ── LÄNKAD TILL FÖREGÅENDE JOBB, INTE TILL KLOCKAN (2026-08-05) ──────────────
+# Neons nota är VAKEN TID, och varje väckning köper minst 300 s debiterad tid. Fyra
+# nattjobb på egen cron (02:00 / 04:00 / 05:00 / 05:30) väckte computen FYRA gånger,
+# spritt över ~3 timmar — och eftersom GitHubs cron dessutom släpar 1,5–3,5 h låg de i
+# praktiken ännu glesare. Kedjade i stället: ett sammanhängande fönster, en väckning.
+# Mellanrummet (runner-kö + checkout + npm ci) är minuter, alltså långt under
+# autosuspendens 300 s, så Neon hinner aldrig somna mitt i kedjan.
+#
+# ⛔ INGEN `conclusion`-grind. Jobben är OBEROENDE av varandra — de delar bara
+#    tidsfönster. Gatade vi på `success` hade ett misslyckat Tradera-svep tyst dödat
+#    de tre efterföljande jobben, dvs bytt en synlig röd körning mot tre osynligt
+#    uteblivna. `types: [completed]` fyrar oavsett utfall.
+# ⛔ `workflows:` MATCHAR PÅ `name:`-FÄLTET i det andra filen, inte på filnamnet.
+#    Byter du namn på uppströmsjobbet bryts kedjan TYST och det här jobbet slutar
+#    köras helt. Byt då namnet på båda ställena i samma commit.
 on:
-  schedule:
-    - cron: "0 5 * * *"
+  workflow_run:
+    workflows: ["Tradera-svep (dagligen)"]
+    types: [completed]
   workflow_dispatch: {}
 
 # Minsta möjliga rättighet. INGET jobb i det här repot skriver till GitHub — de läser

@@ -4,9 +4,14 @@ name: Full insamling (dagligen)
 # priscache-omräkning + alert-utskick. Dagligen (inte var 8:e h som lokalt) för
 # att inte krocka med Tradera-svepets dygnskvot. Ser du Tradera-kvotvarningar:
 # avaktivera detta jobb eller Tradera-källan så bara tradera-sweep.yml når Tradera.
+# ⛔ KEDJANS FÖRSTA LÄNK — `name:` OVAN FÅR INTE ÄNDRAS UTAN FÖLJDÄNDRING.
+# tradera-sweep.yml lyssnar på `workflow_run` mot exakt strängen "Full insamling
+# (dagligen)", och den i sin tur startar cardtrader-refresh → tradera-sold-sync.
+# Byter du namn här slutar TRE jobb köra, tyst och utan felmeddelande. Skälet till
+# kedjan står i tradera-sweep.yml: Neon debiteras per VAKEN TID, inte per fråga.
 on:
   schedule:
-    - cron: "0 2 * * *" # 02:00 UTC dagligen
+    - cron: "0 2 * * *" # 02:00 UTC dagligen — enda klockstyrda starten i nattkedjan
   workflow_dispatch: {}
 
 # Minsta möjliga rättighet. INGET jobb i det här repot skriver till GitHub — de läser

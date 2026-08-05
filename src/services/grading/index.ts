@@ -15,6 +15,7 @@
 import type { GradingJob, PlanTier, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
+import { resolveGradedCard } from "@/services/grading/card-link";
 import { ClaudeVisionGradingAdapter } from "@/services/grading/claude-vision";
 import { GeminiVisionGradingAdapter } from "@/services/grading/gemini-vision";
 import { MockGradingAdapter } from "@/services/grading/mock";
@@ -171,6 +172,15 @@ export async function runGradingJob(
   try {
     const result = await adapter.grade(frontDataUrl, backDataUrl, context);
 
+    // KATALOGKORTET, om det går att styrka. Historiken har ingen bild att visa —
+    // användarens foton sparas aldrig — så katalogbilden är den enda som finns.
+    // Löses EN gång här i stället för vid varje historikvisning: en uppslagning per
+    // gradering i stället för en per sidladdning (Neon debiteras per VAKEN TID).
+    // `null` när numret saknas eller är tvetydigt; se card-link.ts för varför ett
+    // namn ensamt inte duger.
+    const cardName = result.cardName ?? context?.cardName ?? null;
+    const linked = await resolveGradedCard(cardName).catch(() => null);
+
     const updated = await prisma.gradingJob.update({
       where: { id: job.id },
       data: {
@@ -188,7 +198,14 @@ export async function runGradingJob(
           // Modellens egen identifiering vinner över anroparens hint: hinten kommer
           // från en tidigare skanning och kan gälla ett helt annat kort än det som
           // just fotograferades.
-          cardName: result.cardName ?? context?.cardName ?? null,
+          cardName,
+          // Katalogkortet — bara när identiteten är styrkt av samlarnumret.
+          cardId: linked?.cardId ?? null,
+          cardImageUrl: linked?.imageUrl ?? null,
+          cardSlug: linked?.slug ?? null,
+          // Katalogens egen skrivning, så raden kan visa "Camerupt · Ascended Heroes
+          // 28" i stället för modellens gissning ("… · Obsidian Flames", som var fel).
+          cardLabel: linked ? `${linked.name} · ${linked.setName} ${linked.number}` : null,
         } as unknown as Prisma.InputJsonObject,
       },
     });

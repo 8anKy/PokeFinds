@@ -11,6 +11,7 @@ import { Button, LinkButton } from "@/components/ui/button";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
+import { SafeImage } from "@/components/ui/safe-image";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
 import { PageBackButton } from "@/components/layout/page-back-button";
@@ -38,6 +39,15 @@ interface GradeResultDto {
   modelUsed: string;
   /** Kortet modellen läste av. null/undefined = gick inte att identifiera. */
   cardName?: string | null;
+  /**
+   * Katalogkortet, löst ur `cardName` vid graderingen (services/grading/card-link.ts).
+   * Sätts BARA när samlarnumret styrkte identiteten — modellens setgissning är mätt
+   * opålitlig och ett namn ensamt delas av 92 % av katalogen. null = ingen bild.
+   */
+  cardImageUrl?: string | null;
+  cardSlug?: string | null;
+  /** Katalogens egen skrivning ("Camerupt · Ascended Heroes 28"). */
+  cardLabel?: string | null;
 }
 
 interface Quota {
@@ -358,7 +368,7 @@ export default function GraderaPage() {
                 {/* Kortet modellen läste av. Faller tillbaka på rubriken när det
                     inte gick att identifiera — vi visar hellre inget än en gissning. */}
                 <p className="text-sm font-semibold text-ink">
-                  {result.result.cardName ?? t("overallGrade")}
+                  {result.result.cardLabel ?? result.result.cardName ?? t("overallGrade")}
                 </p>
                 <p className="mt-1 text-sm text-ink-muted">{result.result.rationale}</p>
               </div>
@@ -404,20 +414,38 @@ export default function GraderaPage() {
                 const failed = job.status === "FAILED";
                 return (
                   <li key={job.id} className="flex items-center gap-3 py-3">
-                    <span
-                      aria-hidden="true"
-                      className={cn(
-                        "shrink-0",
-                        failed ? "text-fall" : "text-rise"
-                      )}
-                    >
-                      {failed ? <IconAlertTriangle size={18} /> : <IconCheck size={18} />}
-                    </span>
+                    {/* Katalogbilden. Användarens egna foton sparas ALDRIG (dataminimering),
+                        så det här är den enda bilden som finns — och den visas bara när
+                        samlarnumret styrkte vilket kort det var. Saknas den faller raden
+                        tillbaka på status-ikonen, exakt som förut. */}
+                    {!failed && job.result?.cardImageUrl ? (
+                      <SafeImage
+                        src={job.result.cardImageUrl}
+                        alt=""
+                        className="h-14 w-10 shrink-0 rounded-md object-cover"
+                        fallback={
+                          <span aria-hidden="true" className="shrink-0 text-rise">
+                            <IconCheck size={18} />
+                          </span>
+                        }
+                      />
+                    ) : (
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "shrink-0",
+                          failed ? "text-fall" : "text-rise"
+                        )}
+                      >
+                        {failed ? <IconAlertTriangle size={18} /> : <IconCheck size={18} />}
+                      </span>
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-ink">
                         {failed
                           ? t("failed")
-                          : (job.result?.cardName ??
+                          : (job.result?.cardLabel ??
+                            job.result?.cardName ??
                             (job.overallGrade != null
                               ? t("gradeLine", { grade: job.overallGrade.toFixed(1) })
                               : t("gradingWord")))}

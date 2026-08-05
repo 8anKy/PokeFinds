@@ -567,8 +567,42 @@ async function fuzzyIds(query: string): Promise<string[]> {
  * beteendelogg per användare finns (analytics.ts strippar userId med flit) och ska
  * inte byggas för det här. Två indexerade frågor på userId.
  */
+/**
+ * ⛔ RETURNERAR ARRAYER, INTE SET. Den här funktionen ligger bakom `cachedRead`
+ * (`unstable_cache`), och cachen SERIALISERAR returvärdet till JSON. Ett `Set`
+ * överlever inte den resan: `JSON.stringify(new Set([1]))` är `{}`, så vid en
+ * cache-TRÄFF hade `watchedProductIds` blivit ett tomt objekt och `.has(...)`
+ * kastat "is not a function" — men bara efter första anropet, bara i produktion,
+ * och bara för inloggade. Samma familj som Date→sträng-fällan i src/lib/cache.ts.
+ * Set:en byggs därför av anroparen, utanför cachen.
+ */
+async function loadPersonalIdsRaw(
+  userId: string
+): Promise<{ watched: string[]; owned: string[]; affinity: string[] }> {
+  const ctx = await loadPersonalContextUncached(userId);
+  return {
+    watched: [...ctx.watchedProductIds],
+    owned: [...ctx.ownedProductIds],
+    affinity: [...ctx.affinitySetIds],
+  };
+}
+
+/**
+ * Dina egna signaler, cachade `PERSONAL_TTL_SECONDS` per userId. Bevakningar och
+ * samling ändras av användaren själv och läses på VARJE feed-anrop — under en
+ * oändlig scroll blev det två indexerade frågor per sida, alla med samma svar.
+ */
 async function loadPersonalContext(userId?: string): Promise<PersonalContext | null> {
   if (!userId) return null;
+  const ids = await cachedPersonalIds(userId);
+  return {
+    watchedProductIds: new Set(ids.watched),
+    ownedProductIds: new Set(ids.owned),
+    affinitySetIds: new Set(ids.affinity),
+  };
+}
+
+async function loadPersonalContextUncached(userId: string): Promise<PersonalContext> {
   const [watched, owned] = await Promise.all([
     prisma.watchlistItem.findMany({
       where: { userId },
@@ -1756,18 +1790,58 @@ const cachedExploreFeed = cachedRead(getExploreFeedRaw, "getExploreFeed");
 const cachedSearchProducts = cachedRead(searchProductsRaw, "searchProducts");
 
 /**
- * PERSONALISERADE SVAR GÅR FÖRBI CACHEN. `unstable_cache` nycklar visserligen på
- * argumenten, så ett userId hade gett en egen post — men då ligger en användares
- * ordning kvar i en delad cache i en timme, och en ny bevakning syns inte förrän den
- * går ut. Utloggat (= identiskt för alla) cachas som förut.
+ * PERSONALISERADE SVAR: EGEN CACHE, KORT TTL (2026-08-05).
+ *
+ * Förut gick de HELT förbi cachen. Invändningen var riktig men löste fel problem:
+ * `unstable_cache` nycklar på argumenten, så ett userId ger visserligen en egen post,
+ * men med timmes-TTL låg en användares ordning kvar en timme och en ny bevakning syntes
+ * inte förrän den gick ut.
+ *
+ * Kostnadsmodellen gör det till fel avvägning: **Neons nota är VAKEN TID, och varje
+ * väckning köper minst 300 s debiterad tid.** Ett ocachat svar är inte "några frågor
+ * till" — det är en väckning, och en inloggad besökare som bläddrar väcker computen på
+ * varje sidladdning även när sidan i övrigt är ISR-cachad. En utloggad besökare gör det
+ * inte. Vi betalade alltså ett fast pris för att slippa 60 sekunders inaktualitet i en
+ * SORTERINGSORDNING.
+ *
+ * `PERSONAL_TTL_SECONDS` (60) är valt så att invändningen försvinner i stället för att
+ * bytas bort: en ny bevakning slår igenom inom en minut, vilket ingen hinner uppleva som
+ * fel, och en bläddringssession (oändlig scroll = många anrop) ryms i ett fönster.
+ *
+ * ⛔ EGEN CACHE-NYCKEL ("…Personal"), inte samma som den utloggade. Delade de nyckel
+ *    skulle `userId` bara vara ännu ett argument — och en dag någon gör `userId`
+ *    valfritt i nyckeln läcker en användares ordning till alla. Två namn kan inte
+ *    kollidera av misstag.
+ * ⛔ HÖJ INTE TTL:en för att spara mer. Det som gör det här säkert är att fönstret är
+ *    kortare än tålamodet; 600 s vore en synlig lögn om användarens egna data.
  */
+export const PERSONAL_TTL_SECONDS = 60;
+
+/** Se `loadPersonalIdsRaw` för varför den returnerar arrayer och inte Set. */
+const cachedPersonalIds = cachedRead(
+  loadPersonalIdsRaw,
+  "personalIds",
+  PERSONAL_TTL_SECONDS
+);
+
+const cachedPersonalExploreFeed = cachedRead(
+  getExploreFeedRaw,
+  "getExploreFeedPersonal",
+  PERSONAL_TTL_SECONDS
+);
+const cachedPersonalSearchProducts = cachedRead(
+  searchProductsRaw,
+  "searchProductsPersonal",
+  PERSONAL_TTL_SECONDS
+);
+
 export const getExploreFeed: typeof getExploreFeedRaw = (params, offset, limit) =>
   params.userId
-    ? getExploreFeedRaw(params, offset, limit)
+    ? cachedPersonalExploreFeed(params, offset, limit)
     : cachedExploreFeed(params, offset, limit);
 
 export const searchProducts: typeof searchProductsRaw = (params) =>
-  params.userId ? searchProductsRaw(params) : cachedSearchProducts(params);
+  params.userId ? cachedPersonalSearchProducts(params) : cachedSearchProducts(params);
 // `singleFlight` UTANPÅ TTL-cachen: produktsidans `generateMetadata` och sidkroppen körs
 // PARALLELLT i Next, så båda startade sitt uppslag innan den andra hunnit fylla
 // TTL-cachen → getProductBySlugRaw kördes två gånger per kall rendering (mätt i

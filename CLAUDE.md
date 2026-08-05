@@ -222,6 +222,43 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   "i lager för 4 min sedan" oftast leder till en slutsåld sida är driftlogg, inte produktfunktion. Rollen läses
   KLIENT-sida (`useIsAdmin`, `restock-history.tsx`) och datat ligger INTE i ISR-payloaden — produktsidan hämtar
   det on-demand från det admin-grindade API:t. Sätt aldrig `auth()` i de ISR-cachade sidorna för detta.
+- **NEONS NOTA ÄR VAKEN TID — RÄKNA VÄCKNINGAR, ALDRIG RADER (2026-08-05)**: compute är ~95 % av notan, egress
+  är gratis vid vår volym (49 av 500 fria GB), och **varje väckning köper minst 300 s debiterad tid**. Autosuspend
+  ligger redan på golvet (300 s är minimum på Launch — 90/120/150/180/240 s ger alla `412`). Två följder är
+  inbyggda i koden nu: **(1) NATTKEDJAN** — scrape-all (02:00 UTC) → tradera-sweep → cardtrader-refresh →
+  tradera-sold-sync är länkade med `workflow_run` i stället för fyra egna cron. Fyra spridda starter var fyra
+  väckningar; kedjade blir de ett sammanhängande fönster, och glappet (runner-kö + checkout + npm ci) är minuter,
+  alltså under autosuspenden. ⛔ `workflows:` matchar `name:`-FÄLTET i den andra filen — byter du namn på ett
+  uppströmsjobb slutar de efterföljande köra TYST. `tests/unit/cron-chain-sync.test.ts` vaktar kedjan.
+  ⛔ INGEN `conclusion`-grind: jobben är oberoende och delar bara tidsfönster; en success-grind hade bytt en synlig
+  röd körning mot tre osynligt uteblivna. **(2) PERSONALISERADE SVAR CACHAS 60 s** (`PERSONAL_TTL_SECONDS`,
+  `services/products.ts`) i stället för att gå helt förbi cachen. En inloggad besökare väckte förut computen vid
+  varje sidladdning även när sidan i övrigt var ISR-cachad — vi betalade ett fast pris för att slippa 60 sekunders
+  inaktualitet i en SORTERINGSORDNING. Egen cache-nyckel ("…Personal"), aldrig delad med den utloggade.
+  ⛔ `loadPersonalIdsRaw` returnerar ARRAYER, inte Set: `unstable_cache` serialiserar till JSON och ett `Set` blir
+  `{}` — `.has()` hade kastat, men bara vid cache-TRÄFF, bara i produktion, bara för inloggade. Samma familj som
+  Date→sträng-fällan. ⏭️ KVAR från samma pass: migrera Manatörsk-lanen från `fingerprintGate` till `stateGate`
+  (frisk idag, men en cache-buster i deras URL:er gör den till ~288 väckningar/dygn).
+- **0 KR ÄR INGET PRIS (2026-08-05)**: `priceOreFromEur()` i `src/lib/exchange-rate.ts` är enda vägen från EUR till
+  öre, och den returnerar `null` när resultatet inte är positivt. Två verkliga vägar till en nolla: källan säger
+  noll (RapidAPI publicerar `"30d_average": 0` för kort utan engelska annonser — mätt på np-4 Grovyle · Nintendo
+  Black Star Promos, vars guide-rad dessutom är helt tom) och AVRUNDNINGEN (ett äkta belopp < ~0,005 € blir 0 öre,
+  och ingen `pos()`-vakt uppströms ser det — där VAR talet positivt). Följden var 0,00 kr i pristabellen plus 32
+  grafpunkter på noll. ⛔ Konvertera aldrig med en bar `Math.round(eur * rates.eurToOre)` igen — vakten är
+  bortkopplad för just det stället och syns inte förrän ett kort står på 0 kr i produktion. "–" läses som "vi vet
+  inte", "0 kr" läses som "gratis". Städning av gammal data: `scripts/purge-zero-prices.ts`.
+- **GRADERINGSHISTORIKEN VISAR KATALOGBILDEN, OCH BARA NÄR NUMRET STYRKT KORTET (2026-08-05)**: användarens foton
+  sparas ALDRIG (`frontImageUrl = INLINE_UPLOAD`, dataminimering), så katalogbilden är den enda bild som finns.
+  Kopplingen görs EN gång vid graderingen (`resolveGradedCard`, `services/grading/card-link.ts`) och lagras i
+  `result` (cardId/cardImageUrl/cardSlug/cardLabel — ingen migration), aldrig per historikvisning.
+  ⚠️ `result.cardName` är INTE ett bart kortnamn. Mätt i prod: `"Camerupt 028/217 · Scarlet & Violet: Obsidian
+  Flames"`, `"Camerupt 028/217 · Ascending Heroes"`, `"Raboot 037/217 · ASC (Scarlet & Violet Promo / Astral
+  set)"` — namn + nummer + en SETGISSNING som ofta är fel (28/217 är Ascended Heroes) och ibland öppet hedgad.
+  Därför återanvänds skannerns MÄTTA `matchCards` rakt av; den ignorerar redan setnamn som inte stämmer, och
+  `cardLabel` visar katalogens skrivning i stället för modellens gissning.
+  ⛔ **UTAN NUMMER — INGEN BILD.** 92 % av korten delar namn med minst ett annat; på strängarna ovan fick
+  namn+nummer 1,53 och fyra olika Camerupt fick 1,03 var. Träffen måste bära precis det numret OCH vara ensam om
+  det. Fel bild bredvid en gradering är ett påstående om en tryckning vi inte känner — värre än ingen bild.
 - **Caching/ISR (kvot-kritiskt)**: publika läs-sidor är ISR-cachade, INTE `force-dynamic` (`revalidate=3600`): startsidan, `/marknad`,
   `/sets`, `/sets/[id]`, `/produkter/[slug]`. Data ändras ~1×/dygn så cache är osynlig; live-priser/offers uppdateras ändå klient-sida
   via polling. **Sätt ALDRIG tillbaka `force-dynamic` på dessa** utan skäl — det var orsaken till hög Vercel Active CPU + Neon-CU.

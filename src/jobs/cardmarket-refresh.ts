@@ -12,7 +12,7 @@
  */
 import { prisma } from "../lib/db";
 import { mapPool } from "../lib/concurrency";
-import { getRatesOre } from "../lib/exchange-rate";
+import { getRatesOre, priceOreFromEur } from "../lib/exchange-rate";
 import { cmImageProxyUrl, cmRenderExists } from "../lib/cm-image";
 import {
   cardmarketJapaneseProductUrl,
@@ -1037,7 +1037,9 @@ export async function runVariantRefresh(): Promise<number> {
     }
     consecutiveFails = 0;
     const priceOre = cardMarketPriceOre(card); // CM-trend (EUR) → öre
-    if (priceOre == null) continue;
+    // <= 0 lika illa som null: ett kort på 0 kr är ett påstående som aldrig varit
+    // sant, och avrundningen kan producera det ur ett äkta mikrobelopp.
+    if (priceOre == null || priceOre <= 0) continue;
     const offerId = p.offers[0]?.id;
     if (offerId) {
       await prisma.offer.update({ where: { id: offerId }, data: { price: priceOre, stockStatus: "IN_STOCK", condition: "NEAR_MINT", lastSeenAt: new Date() } });
@@ -1219,10 +1221,12 @@ export async function runJapaneseSealedRefresh(): Promise<JpRefreshResult> {
     if (eur == null) continue;
     const stock = g.low != null && eur === g.low ? "IN_STOCK" : "OUT_OF_STOCK";
     const refEur = cmGuideRefEur(g);
+    const priceOre = priceOreFromEur(eur, rates);
+    if (priceOre == null) continue; // 0 kr är inget pris — se priceOreFromEur
     ops.push({
       productId: p.id, offerId: cmOffer?.id, idProduct,
-      priceOre: Math.round(eur * rates.eurToOre),
-      refOre: refEur != null ? Math.round(refEur * rates.eurToOre) : null,
+      priceOre,
+      refOre: priceOreFromEur(refEur, rates),
       stock,
     });
   }
@@ -1626,7 +1630,8 @@ export async function runCardmarketRefresh(
           if (!entry.offerId) linkOnlyByProduct.set(entry.productId, url);
           continue;
         }
-        const priceOre = Math.round(priced.eur * rates.eurToOre);
+        const priceOre = priceOreFromEur(priced.eur, rates);
+        if (priceOre == null) continue; // 0 kr är inget pris — se priceOreFromEur
         const cmid = card.cardmarket_id ?? null;
         const print = printRank(card.version);
         const current = claimed.get(entry.productId);
@@ -1793,10 +1798,12 @@ export async function runCardmarketRefresh(
         }
         const url = cand.entry.url;
         if (!url) continue;
+        const reserveOre = priceOreFromEur(verdict.eur, rates);
+        if (reserveOre == null) continue; // 0 kr är inget pris — se priceOreFromEur
         guideOnlyOps.push({
           productId,
           offerId: cand.entry.offerId,
-          priceOre: Math.round(verdict.eur * rates.eurToOre),
+          priceOre: reserveOre,
           from: false,
           url: isEnglishCardmarketUrl(url) ? withFirstEd(withNearMint(url), "exclude") : url,
         });
@@ -2003,10 +2010,12 @@ export async function runCardmarketRefresh(
               if (Math.max(eurOre / histOre, histOre / eurOre) > 1.5) eur = histOre / rates.eurToOre;
             }
             const refEur = cmGuideRefEur(cmGuide.get(gid));
+            const sealedOre = priceOreFromEur(eur, rates);
+            if (sealedOre == null) continue; // 0 kr är inget pris — se priceOreFromEur
             sealedOps.push({
               productId: p.id, offerId: cmOffer.id,
-              priceOre: Math.round(eur * rates.eurToOre),
-              refOre: refEur != null ? Math.round(refEur * rates.eurToOre) : null,
+              priceOre: sealedOre,
+              refOre: priceOreFromEur(refEur, rates),
               url: cardmarketProductUrl(gid), stock: priced.accepted ? "IN_STOCK" : "OUT_OF_STOCK",
             });
             ownedCmIds.add(gid);
@@ -2149,8 +2158,8 @@ export async function runCardmarketRefresh(
         continue;
       }
 
-      const priceOre = eur != null ? Math.round(eur * rates.eurToOre) : null;
-      if (priceOre == null) continue; // ingen prisdata alls
+      const priceOre = priceOreFromEur(eur, rates);
+      if (priceOre == null) continue; // ingen prisdata alls (eller 0 — se priceOreFromEur)
       // Glitchad micro-lowest → sanePriceEur gav 30d-snittet; behandla som ur lager
       // (ingen tillförlitlig aktuell annons) istället för att låtsas IN_STOCK.
       const stock = low != null && eur === low ? "IN_STOCK" : "OUT_OF_STOCK";
@@ -2190,7 +2199,7 @@ export async function runCardmarketRefresh(
       // är en rättelse av ett korrupt värde, inte en glitch. Utan den fastnar
       // skräpvärden för alltid (se saneDayMove).
       const refEur = cmGuideRefEur(cmGuide.get(best.cardmarket_id));
-      const refOre = refEur != null ? Math.round(refEur * rates.eurToOre) : null;
+      const refOre = priceOreFromEur(refEur, rates);
       sealedOps.push({ productId: p.id, offerId: cmOffer?.id, imageUrl, priceOre, refOre, url: cardmarketProductUrl(best.cardmarket_id), stock });
     }
     const sealed = await clampDayMoves(sealedOps);

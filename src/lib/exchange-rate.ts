@@ -148,3 +148,35 @@ export async function getRatesOre(): Promise<RatesOre> {
 export function getCachedRatesOre(): RatesOre {
   return current;
 }
+
+/**
+ * EUR → öre, där **noll inte är ett pris** (2026-08-05).
+ *
+ * `Math.round(eur * eurToOre)` spreds över sju anropsställen och ingen av dem
+ * frågade vad som händer när resultatet blir 0. Två vägar dit, båda verkliga:
+ *
+ *  1. **Källan säger noll.** RapidAPI publicerar `"30d_average": 0` för kort utan
+ *     engelska annonser (mätt på np-4 Grovyle · Nintendo Black Star Promos:
+ *     `lowest_near_mint: null`, 30d 0, och CM:s guide-rad helt tom). Före
+ *     median-uppskattningen 2026-07-25 gick den nollan rakt igenom och kortet
+ *     visade **0,00 kr** i pristabellen — plus 32 grafpunkter på noll.
+ *  2. **Avrundningen.** Ett äkta men mycket litet belopp (< ~0,005 €) blir 0 öre.
+ *     Ingen `pos()`-vakt uppströms ser det, för där VAR talet positivt.
+ *
+ * Ett pris på 0 kr är ett påstående om marknaden som aldrig varit sant — samma
+ * kategori som ett fabricerat pris, och värre än ett saknat: "–" läses som "vi
+ * vet inte", "0 kr" läses som "gratis". `null` = inget pris, hanteras redan
+ * överallt (länk-offer utan pris är en stödd form).
+ *
+ * ⛔ Konvertera ALDRIG med en bar `Math.round(eur * rates.eurToOre)` igen — då är
+ *    vakten bortkopplad för just det stället, och det syns inte förrän ett kort
+ *    står på 0 kr i produktion.
+ */
+export function priceOreFromEur(
+  eur: number | null | undefined,
+  rates: Pick<RatesOre, "eurToOre">
+): number | null {
+  if (typeof eur !== "number" || !Number.isFinite(eur) || eur <= 0) return null;
+  const ore = Math.round(eur * rates.eurToOre);
+  return ore > 0 ? ore : null;
+}
