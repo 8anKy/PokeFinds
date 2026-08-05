@@ -103,9 +103,14 @@ export const GRADE_FIELDS: GradeField[] = [
   },
   { name: "confidence", type: "number", description: "0–1" },
   {
+    // ⛔ NÄMN INTE SPRÅKET HÄR. Fältbeskrivningen går med i verktygsschemat och
+    // läses av modellen samtidigt som systemprompten. Stod det "på svenska" här
+    // motsade det `buildSystem("en")` och modellen fick två motstridiga order —
+    // vilket är precis varför språkfixen 2026-08-05 nästan blev verkningslös.
+    // SYSTEMPROMPTEN äger språket, ensam.
     name: "rationale",
     type: "string",
-    description: "Kort motivering på svenska.",
+    description: "Kort motivering.",
   },
   {
     // MEDVETET optional: hellre inget kortnamn än ett gissat. Ett fel namn på en

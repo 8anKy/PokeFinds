@@ -192,3 +192,13 @@ describe("graderingens språk", () => {
     expect(resolveGradingLocale("de")).toBe(DEFAULT_GRADING_LOCALE);
   });
 });
+
+describe("språket har EN källa", () => {
+  it("ingen fältbeskrivning nämner ett språk — bara systemprompten gör det", () => {
+    // Två motstridiga order (schema säger svenska, systemprompt säger engelska)
+    // gjorde språkfixen nästan verkningslös. Vakta att det inte kryper tillbaka.
+    for (const f of GRADE_FIELDS) {
+      expect(f.description.toLowerCase()).not.toMatch(/svenska|engelska|swedish|english/);
+    }
+  });
+});
