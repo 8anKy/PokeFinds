@@ -11,7 +11,6 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { IconCheck, IconGift, IconShare } from "@/components/ui/icons";
 import { PageBackButton } from "@/components/layout/page-back-button";
-import { LockScroll } from "@/components/lock-scroll";
 
 interface InviteRow {
   id: string;
@@ -105,7 +104,6 @@ export default function InvitePage() {
   if (status?.earned) {
     return (
       <div className="mx-auto max-w-md space-y-6">
-        <LockScroll />
         <header>
           <PageBackButton />
           <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
@@ -127,7 +125,6 @@ export default function InvitePage() {
 
   return (
     <div className="mx-auto max-w-md space-y-6">
-      <LockScroll />
       <header>
         <PageBackButton />
         <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>

@@ -15,7 +15,6 @@ import {
   type IconProps,
 } from "@/components/ui/icons";
 import { LogoutButton } from "./logout-button";
-import { LockScroll } from "@/components/lock-scroll";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +72,6 @@ export default async function MerPage() {
 
   return (
     <div className="mx-auto max-w-md space-y-4">
-      <LockScroll />
       {/* Rubrik */}
       <header>
         <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>

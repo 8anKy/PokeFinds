@@ -174,10 +174,10 @@
     },
     "verifyBanner": {
       "title": "Confirm your email address",
-      "body": "We sent a confirmation link to {email}. Without it we can't reach you with price alerts and restocks.",
+      "body": "Without it you'll miss price alerts and restocks.",
       "resend": "Send again",
       "sending": "Sending…",
-      "sent": "New link sent. Check your spam folder if it doesn't show up in your inbox.",
+      "sent": "New link sent. Check your spam folder.",
       "error": "That didn't work just now. Try again in a moment.",
       "dismiss": "Hide the reminder"
     },

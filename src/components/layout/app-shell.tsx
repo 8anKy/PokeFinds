@@ -78,7 +78,13 @@ export function AppShell({
   );
 
   return (
-    <div className="flex min-h-screen">
+    // ⛔ HÖJDEN MÅSTE DRA AV TAB-BARENS SPACER. `BottomTabs` renderar sin
+    // klarerings-spacer (h-16) som SYSKON till det här skalet i rot-layouten, så
+    // med min-h-screen blir dokumentet ALLTID 100vh + 64px — dvs varje sida gick
+    // att scrolla ~64px fast allt syntes. Och 100dvh, inte 100vh: på mobilwebb är
+    // 100vh den STORA viewporten (adressfältet bortdolt) och alltså högre än den
+    // synliga ytan, vilket ger samma falska scroll. Desktop har ingen tab-bar.
+    <div className="flex min-h-[calc(100dvh-4rem)] lg:min-h-screen">
       {/* Desktop sidebar */}
       <aside className="hidden w-60 shrink-0 border-r border-surface-border bg-surface-raised/40 lg:block">
         <div className="flex h-16 items-center border-b border-surface-border px-5">

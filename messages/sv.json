@@ -174,10 +174,10 @@
     },
     "verifyBanner": {
       "title": "Bekräfta din e-postadress",
-      "body": "Vi skickade en bekräftelselänk till {email}. Utan den kan vi inte nå dig med prislarm och restocks.",
+      "body": "Utan bekräftelse missar du prislarm och restocks.",
       "resend": "Skicka igen",
       "sending": "Skickar…",
-      "sent": "Ny länk skickad. Kika i skräpposten om den inte dyker upp i inkorgen.",
+      "sent": "Ny länk skickad. Kolla skräpposten.",
       "error": "Det gick inte just nu. Försök igen om en stund.",
       "dismiss": "Dölj påminnelsen"
     },

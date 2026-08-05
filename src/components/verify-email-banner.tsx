@@ -77,41 +77,57 @@ export function VerifyEmailBanner() {
     setHidden(true);
   }
 
+  const message =
+    state === "sent"
+      ? t("verifyBanner.sent")
+      : state === "error"
+        ? t("verifyBanner.error")
+        : t("verifyBanner.body");
+
   return (
     <div
       role="status"
-      className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-holo-cyan/30 bg-holo-cyan/10 px-4 py-3"
+      className="mb-3 rounded-xl border border-holo-cyan/30 bg-holo-cyan/10 px-3 py-2.5 sm:mb-4 sm:px-4 sm:py-3"
     >
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-ink">{t("verifyBanner.title")}</p>
-        <p className="mt-0.5 text-sm text-ink-muted">
-          {state === "sent"
-            ? t("verifyBanner.sent")
-            : state === "error"
-              ? t("verifyBanner.error")
-              : t("verifyBanner.body", { email })}
-        </p>
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-ink">{t("verifyBanner.title")}</p>
+          {/* ⛔ Adressen står på EGEN rad med `truncate`. Låg den inbakad i
+              brödtexten radbröt en lång gmail-adress hela stycket till sex rader
+              på telefon, och bannern sköt ner menyn under viken (2026-08-05).
+              En e-postadress har ingen övre längd — den får aldrig sätta höjden. */}
+          {state !== "sent" && (
+            <p className="mt-0.5 truncate text-xs text-ink-muted" title={email}>
+              {email}
+            </p>
+          )}
+          <p className="mt-0.5 text-xs text-ink-muted">{message}</p>
+        </div>
+
+        <button
+          type="button"
+          onClick={dismiss}
+          aria-label={t("verifyBanner.dismiss")}
+          className="-mr-1 shrink-0 rounded-lg px-2 py-1 text-sm text-ink-muted transition-colors hover:text-ink"
+        >
+          ✕
+        </button>
       </div>
 
       {state !== "sent" && (
-        <button
-          type="button"
-          onClick={resend}
-          disabled={state === "sending"}
-          className="rounded-lg border border-holo-cyan/40 px-3 py-1.5 text-sm font-semibold text-holo-cyan transition-colors hover:bg-holo-cyan/10 disabled:opacity-60"
-        >
-          {state === "sending" ? t("verifyBanner.sending") : t("verifyBanner.resend")}
-        </button>
+        // Egen rad, högerställd och auto-bred: inline bredvid texten klämde
+        // ihop textkolumnen på smal skärm, vilket var halva höjdproblemet.
+        <div className="mt-2 flex justify-end">
+          <button
+            type="button"
+            onClick={resend}
+            disabled={state === "sending"}
+            className="rounded-lg border border-holo-cyan/40 px-3 py-1 text-xs font-semibold text-holo-cyan transition-colors hover:bg-holo-cyan/10 disabled:opacity-60 sm:text-sm"
+          >
+            {state === "sending" ? t("verifyBanner.sending") : t("verifyBanner.resend")}
+          </button>
+        </div>
       )}
-
-      <button
-        type="button"
-        onClick={dismiss}
-        aria-label={t("verifyBanner.dismiss")}
-        className="rounded-lg px-2 py-1.5 text-sm text-ink-muted transition-colors hover:text-ink"
-      >
-        ✕
-      </button>
     </div>
   );
 }
