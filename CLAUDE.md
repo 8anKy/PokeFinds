@@ -736,6 +736,24 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   produkter i `product-detail-view`, samlingsgrafen). Ett kvarglömt `-mx-4` mot en `px-2.5`-behållare skjuter 4px
   utanför viewporten på VARJE sida → hela sidan går att dra i sidled. ÅTERSTÄLLNING: taggen `kortlayout-v2` = exakt
   utseendet före det här passet.
+- **SIDANS LODRÄTA HÖJD: SKALET MÅSTE DRA AV ALLT SOM LIGGER UTANFÖR SKALET (2026-08-05)**: `/mer` och
+  `/community` gick att svepa fast allt syntes. Tre poster adderar dokumenthöjd UTANFÖR sidskalet, och
+  missas EN går sidan att scrolla precis så mycket: (1) `BottomTabs` klarerings-spacer (`h-16`) är ett
+  SYSKON till skalet i rot-layouten, (2) `body { padding-top: env(safe-area-inset-top) }` i globals.css
+  (~44–59 px på telefon med urklipp), (3) `100vh` är den STORA viewporten på mobilwebb — använd `100dvh`.
+  Därav `min-h-[calc(100dvh_-_4rem_-_env(safe-area-inset-top))] lg:min-h-screen` i `app-shell.tsx` och
+  `(marketing)/layout.tsx`. ⚠️ **Post 1 och 2 är NOLL på desktop** (spacern är `lg:hidden`, `env()` = 0) —
+  uppmätt spill i datorwebbläsaren var 0 px medan telefonen scrollade. **Verifiera på telefon.**
+  ⛔ `overscroll-behavior: none` MÅSTE stå på `html`: egenskapen propagerar till viewporten bara från
+  ROT-elementet (till skillnad från `overflow`, som propagerar från body). Den låg på `body` med en
+  kommentar som påstod att studsen var av — uppmätt värde på html var `auto`. På iOS känns rubber-band
+  exakt som scroll och maskerar felsökningen.
+  ⛔ **`LockScroll` är BORTTAGEN — återinför den inte.** Den satte `overflow:hidden` för att dölja den
+  extra höjden: en gardin för en mätbar layoutbugg. Den gömde Adminpanel/Logga ut bakom e-postbannern,
+  och två sidor som båda låser återställer varandras sparade `overflow` (därav "scrollar först efter en
+  tur via /community"). Med rätt höjd sköter webbläsaren det: får innehållet plats scrollar det inte.
+  ⛔ Tailwind arbiträra värden kräver UNDERSTRECK för mellanslag — `calc(100dvh-4rem)` är ogiltig CSS och
+  tappas TYST. Verifiera i den kompilerade CSS:en, inte i källan.
 - **APPEN ÄR LÅST TILL PORTRÄTT, OCH BREDD ENSAM BETYDER INTE DESKTOP (2026-07-29)**: native-appen är en WebView över
   den hostade webbappen, så en telefon i liggande läge (844–932px bred, ~430px hög) tog `md:`-grenen och webbens
   toppnavigering dök upp ovanför bottentabbarna — mitt i appen. Låset sitter på båda plattformarna:
