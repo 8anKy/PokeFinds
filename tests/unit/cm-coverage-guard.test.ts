@@ -11,12 +11,15 @@ import {
 // helt set ser identiska ut i loggen. Regeln som saknades var inte en matchningsregel —
 // det var en LARMREGEL.
 
+// Mätt mot prod 2026-08-05, EFTER att guide-reserven och idProduct-återställningen
+// betat av skulden: 777 stillastående offers i juli → 120. Fixturen ska följa
+// verkligheten, annars testar den ett läge vi inte längre är i.
 const base = {
   emptySets: [],
-  totalSingles: 20622,
-  coveredSingles: 20514,
-  staleOffers: 777,
-  pricedThisRun: 19737,
+  totalSingles: 29558,
+  coveredSingles: 20721,
+  staleOffers: 120,
+  pricedThisRun: 20541,
 };
 
 describe("coverageVerdict", () => {
@@ -55,10 +58,10 @@ describe("coverageVerdict", () => {
   // körning röd.
   it("en strukturell förlust i 2026-07-26:s storlek = rött SAMMA dygn", () => {
     // 662 kort föll bort när cards_total under-rapporterade sidantalet.
-    const v = coverageVerdict({ ...base, pricedThisRun: 19737 - 662 });
+    const v = coverageVerdict({ ...base, pricedThisRun: base.pricedThisRun - 662 });
     expect(v.ok).toBe(false);
-    expect(v.problems[0]).toContain("19075");
-    expect(v.problems[0]).toContain("96.6 %");
+    expect(v.problems[0]).toContain("19879");
+    expect(v.problems[0]).toContain("96.5 %");
   });
 
   it("småskaligt feed-hicka är inte larm", () => {
@@ -70,8 +73,11 @@ describe("coverageVerdict", () => {
     expect(coverageVerdict({ ...base, pricedThisRun: 0 }).ok).toBe(true);
   });
 
-  // TILLSTÅNDSREGELN: ratchet mot en känd skuld. 777 singlar har inte fått nytt
-  // CM-pris sedan 2026-06-13 — feeden ger dem varken cardmarket_id eller priser.
+  // TILLSTÅNDSREGELN: ratchet mot en känd skuld. Den var 777 kort i juli och är 120
+  // nu — ~81 tryckningar som bara får publiceras med ett ÄKTA From, och ~37 nya
+  // SV/SM-promos vars identitet inte går att styrka. Baselinen SÄNKS när skulden
+  // betas av; 800 mot en verklighet på 172 var skälet att ingen såg de frusna
+  // kurvorna 2026-08-05 (se COVERAGE_STALE_BASELINE).
   it("den KÄNDA skulden ensam är inte ett larm", () => {
     expect(coverageVerdict({ ...base, staleOffers: COVERAGE_STALE_BASELINE }).ok).toBe(true);
   });

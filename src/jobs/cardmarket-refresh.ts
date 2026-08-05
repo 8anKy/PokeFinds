@@ -438,8 +438,25 @@ export const COVERAGE_STALE_DAYS = Number(process.env.CM_COVERAGE_STALE_DAYS) ||
  * skyddar ingenting. Den mäter därför REGRESSION: en NY strukturell förlust (de 662
  * korten som föll bort 2026-07-26 hade tagit den här siffran till ~1 440) blir röd.
  * ⛔ SÄNK talet när skulden betas av. Höj det ALDRIG för att tysta ett larm.
+ *
+ * ── 800 → 150 (2026-08-05) ────────────────────────────────────────────────────
+ * Skulden ÄR betald: guide-reserven prissätter numera de kort leverantören tappat
+ * ur CM:s egen prisguide, och `scripts/recover-cm-idproduct.ts` gav 49 av dem
+ * tillbaka sitt idProduct. Uppmätt efter den körningen: **120** kvar, mot 777 i juli.
+ *
+ * Och 800 var inte bara föråldrat — det var SKÄLET till att ingen såg felet. Ägaren
+ * hittade frusna kurvor manuellt medan 172 stillastående offers låg 4,6x under taket
+ * och varje körning var grön. En baseline som ligger långt över verkligheten är en
+ * avstängd vakt som ser påslagen ut.
+ *
+ * De 120 som är kvar är två KÄNDA grupper, ingen av dem en bugg:
+ *   ~81 tryckningar (Shadowless/1st Edition) som bara får publiceras med ett ÄKTA
+ *       From — de delar CM-produkt och får därför aldrig guide-uppskattas;
+ *   ~37 nya SV/SM-promos där CardTrader numrerar korten annorlunda, så identiteten
+ *       inte går att styrka (ägarbeslut 2026-08-05: behåll priset, lista dem).
+ * Listan när som helst: `scripts/frozen-cm-report.ts`.
  */
-export const COVERAGE_STALE_BASELINE = Number(process.env.CM_COVERAGE_STALE_BASELINE) || 800;
+export const COVERAGE_STALE_BASELINE = Number(process.env.CM_COVERAGE_STALE_BASELINE) || 150;
 
 export interface CoverageInput {
   /** Set med ≥1 singel men 0 CM-offers: [externalId ?? namn, antal singlar]. */
@@ -542,6 +559,37 @@ export function singlesHeadlineEur(
   const mid = refs.length >> 1;
   const est = refs.length % 2 ? refs[mid] : (refs[mid - 1] + refs[mid]) / 2;
   return { eur: est, from: false, via: "estimate" };
+}
+
+/**
+ * GUIDE-RESERVENS DOM (2026-08-05) — får det här kortet prissättas ur Cardmarkets
+ * EGEN prisguide när vår prisleverantör slutat leverera det?
+ *
+ * Ren funktion med flit: den avgör om ett pris publiceras på en produkt vars enda
+ * kvarvarande identitetsbevis är vår egen länk, och den sortens dom har felat i den
+ * här filen förr (sealed-golv som korts pris, `cardmarket_id` mot fel kort). Testas
+ * utan DB, utan nät.
+ *
+ * Två frågor, båda om IDENTITET — aldrig om pris:
+ *   1. Är `idProduct` över huvud taget en SINGEL hos Cardmarket? (annars kan en
+ *      boosterlådas golv publiceras som kortets pris — det hände 2026-07-26)
+ *   2. Är det VÅRT kort? CM:s egen katalognamn måste hålla med om namnet.
+ *
+ * Priset självt kommer sedan från `singlesHeadlineEur` — samma väg som allt annat.
+ * Feeden har per definition ingen From här, så resultatet är alltid en UPPSKATTNING
+ * (medianen av guidens trend/avg/avg30) och märks OUT_OF_STOCK av anroparen.
+ */
+export function guideReserveEur(
+  card: { cardName: string; idProduct: number },
+  guideRow: CmGuideFields | undefined,
+  cmNames: Map<number, string>,
+): { eur: number } | { reject: "no-guide-row" | "not-single" | "name" | "no-price" } {
+  if (!guideRow) return { reject: "no-guide-row" };
+  if (!guideRowIsSingle(card.idProduct, cmNames)) return { reject: "not-single" };
+  if (!cmCardNameAgrees(card.cardName, cmNames.get(card.idProduct))) return { reject: "name" };
+  const priced = singlesHeadlineEur({}, guideRow);
+  if (!priced) return { reject: "no-price" };
+  return { eur: priced.eur };
 }
 
 // ── EN PRODUKT, EN RAD (2026-07-27) ──────────────────────────────────────────
@@ -831,7 +879,7 @@ export function saneDayMove(
  * omkörd/rättad körning MÅSTE få ersätta samma dags rad, annars är healingen osynlig
  * i historiken.
  */
-async function upsertTodaySnapshots(
+export async function upsertTodaySnapshots(
   points: { productId: string; priceOre: number }[],
   today: Date
 ): Promise<void> {
@@ -1287,6 +1335,13 @@ export async function runCardmarketRefresh(
     // TVETYDIG nyckel (samma nummer på flera kort i setet — Celebrations Classic
     // Collection har fyra kort med nummer 15) → reserven avstår hellre än gissar.
     const byNumber = new Map<string, { entry: { productId: string; offerId?: string; url?: string }; cardName: string } | null>();
+    // GUIDE-RESERVENS KANDIDATER (se blocket "GUIDE-RESERV FÖR SINGLAR" nedan):
+    // ordinarie singlar där VÅR EGEN länk bär ett idProduct, dvs där vi vet vilken
+    // CM-produkt kortet är även om feeden slutat säga det.
+    const guideFallbackCandidates = new Map<
+      string,
+      { entry: { productId: string; offerId?: string; url?: string }; idProduct: number; cardName: string }
+    >();
     for (const p of products) {
       const entry = { productId: p.id, offerId: p.offers[0]?.id, url: p.offers[0]?.url };
       const ext = p.card?.tcgExternalId;
@@ -1328,6 +1383,11 @@ export async function runCardmarketRefresh(
         const key = `${p.setId}|${numKey}`;
         byNumber.set(key, byNumber.has(key) ? null : { entry, cardName: p.card.name });
       }
+      // Kandidat för guide-reserven: bara ORDINARIE kort (tryckningarna hoppade
+      // av ovan) och bara när vår länk pekar ut CM-produkten.
+      const linkedId = Number(entry.url?.match(/idProduct=(\d+)/)?.[1] ?? NaN);
+      if (Number.isFinite(linkedId) && p.card?.name)
+        guideFallbackCandidates.set(p.id, { entry, idProduct: linkedId, cardName: p.card.name });
     }
     // Episodnamn → vårt setId. Bara ENTYDIGA namn åt båda håll får användas.
     const setsByName = new Map<string, string | null>();
@@ -1341,11 +1401,25 @@ export async function runCardmarketRefresh(
     const cmidMap = new Map<number, { productId: string; offerId?: string; url?: string }>();
     const cmidProducts = await prisma.product.findMany({
       where: { category: "SINGLE_CARD", card: { cardmarketId: { not: null }, tcgExternalId: null } },
-      select: { id: true, card: { select: { cardmarketId: true } }, offers: { where: { retailerId: cm.id }, select: { id: true, url: true }, take: 1 } },
+      select: { id: true, variantLabel: true, card: { select: { cardmarketId: true, name: true } }, offers: { where: { retailerId: cm.id }, select: { id: true, url: true }, take: 1 } },
     });
     for (const p of cmidProducts) {
       const id = p.card?.cardmarketId;
-      if (id != null) cmidMap.set(id, { productId: p.id, offerId: p.offers[0]?.id, url: p.offers[0]?.url });
+      if (id == null) continue;
+      const entry = { productId: p.id, offerId: p.offers[0]?.id, url: p.offers[0]?.url };
+      cmidMap.set(id, entry);
+      // ⛔ DE HÄR KORTEN MÅSTE OCKSÅ VARA KANDIDATER FÖR GUIDE-RESERVEN. De ligger i
+      // en EGEN fråga (de saknar tcgid), så den stora produktloopen ovan ser dem
+      // aldrig — och just de är extra utsatta: hela deras identitet HÄNGER på
+      // `cardmarket_id`, så när feeden tappar fältet finns ingen annan nyckel alls.
+      // Ägarens eget exempel 2026-08-05 var ett sådant kort (Mega Charizard X ex ·
+      // MEP 023): CM-länk och allt på plats, ändå fruset sedan 12 juli.
+      // idProduct tas ur VÅR länk först — det är den vi själva satt — och först
+      // därefter ur kortets lagrade cardmarketId. Namnvakten dömer ändå identiteten.
+      const linkedId = Number(entry.url?.match(/idProduct=(\d+)/)?.[1] ?? NaN);
+      const guideId = Number.isFinite(linkedId) ? linkedId : id;
+      if (!isPrintVariantLabel(p.variantLabel) && p.card?.name)
+        guideFallbackCandidates.set(p.id, { entry, idProduct: guideId, cardName: p.card.name });
     }
 
     const eps: { id: number; name?: string | null; cards_total: number }[] = [];
@@ -1664,6 +1738,102 @@ export async function runCardmarketRefresh(
         `2 104 priser) — INGET skrivs. Är rörelserna äkta: höj CM_FEED_BREAKER_SHARE och kör om.`
       );
     }
+    // ── GUIDE-RESERV FÖR SINGLAR (2026-08-05) ────────────────────────────────
+    // Vår prisleverantör slutar ibland leverera Cardmarket-koppling för enskilda
+    // kort: `cardmarket_id: null` och `prices.cardmarket: {}` i episod-feeden.
+    // Verifierat 2026-08-05 på xy9-10 (Growlithe · BREAKpoint), sm8-88, smp-SM191,
+    // sm11-10 — vanliga kort, inget som saknas hos CM. Koden gjorde då rätt PER RAD
+    // (den vägrar hitta på ett pris) men fel i TILLSTÅNDET: kortet föll ur körningen
+    // helt, offern rördes inte, ingen historikpunkt skrevs — och gårdagens pris stod
+    // kvar under rubriken "Lägsta pris · NM engelska (Cardmarket)" som om det vore
+    // dagens. 108 singlar hade frusit så, de äldsta sedan 2026-06-13.
+    //
+    // Grafen ser ut att sluta 2026-07-25 för de flesta. Det datumet är ett
+    // ENGÅNGS-BACKFILL som skrev en CM-punkt för 20 153 singlar med deras BEFINTLIGA
+    // offer-pris — alltså ett falskt livstecken, inte den sista riktiga mätningen.
+    //
+    // Reserven är en spegling av EN-guide-fallbacken för sealed, med samma hårda
+    // vakt: prissätt BARA mot ett idProduct som VÅR EGEN länk pekar ut, och bara när
+    // CM:s egen singelkatalog bekräftar att raden är det kort vi tror. Det är alltså
+    // ingen ny prispolicy — värdet går genom samma `singlesHeadlineEur` som resten,
+    // och utan From blir det en UPPSKATTNING (`from: false` ⇒ OUT_OF_STOCK ⇒
+    // rubriken byter till "Uppskattat värde · ingen aktiv annons").
+    //
+    // ⛔ TRYCKNINGAR ÄR UNDANTAGNA — de hoppade av redan i produktloopen. Shadowless
+    //    och 1st Edition delar CM-produkt, så en guide-rad hade gett båda SAMMA
+    //    värde. Samma regel som gäller överallt annars i den här filen.
+    // ⛔ LIGGER EFTER HAVERIBRYTAREN med flit: de här priserna kommer inte från
+    //    RapidAPI, så de får varken arma brytaren eller spä ut dess nämnare.
+    // ⛔ TOM KATALOG = INGEN RESERV. Faller CM:s CDN kan identiteten inte styrkas,
+    //    och då är ett fruset dygn rätt svar (samma hållning som guideRowIsSingle).
+    // ⛔ ALDRIG PÅ EN DELKÖRNING. Reserven definieras av "feeden prissatte INTE
+    //    kortet i den här körningen" — och i en riktad omkörning (CM_ONLY_EPISODES)
+    //    är det sant om nästan hela katalogen. Utan den här raden hade en kvotsnål
+    //    omkörning av ETT set bytt ut ~20 000 äkta From-priser mot guide-
+    //    uppskattningar. Samma skäl som täckningsvakten hoppas över, fast farligare:
+    //    vakten hade bara larmat, det här SKRIVER.
+    const partialSinglesRun =
+      (process.env.CM_ONLY_EPISODES ?? "").trim() !== "" ||
+      parseInt(process.env.CM_LIMIT_EPISODES ?? "0", 10) > 0;
+    const guideOnlyOps: typeof singleOps = [];
+    let guideOnlyNameRejects = 0, guideOnlyNotSingle = 0;
+    if (partialSinglesRun) {
+      console.log(
+        `[cm-refresh] Guide-reserven hoppas över: delkörning (CM_ONLY_EPISODES/CM_LIMIT_EPISODES). ` +
+        `"Feeden prissatte inte kortet" betyder inget när bara några set hämtats.`
+      );
+    } else if (cmNames.size > 0) {
+      for (const [productId, cand] of guideFallbackCandidates) {
+        if (claimed.has(productId)) continue; // feeden prissatte kortet — rör det inte
+        const verdict = guideReserveEur(cand, guide.get(cand.idProduct), cmNames);
+        if ("reject" in verdict) {
+          if (verdict.reject === "not-single") guideOnlyNotSingle++;
+          if (verdict.reject === "name") guideOnlyNameRejects++;
+          continue;
+        }
+        const url = cand.entry.url;
+        if (!url) continue;
+        guideOnlyOps.push({
+          productId,
+          offerId: cand.entry.offerId,
+          priceOre: Math.round(verdict.eur * rates.eurToOre),
+          from: false,
+          url: isEnglishCardmarketUrl(url) ? withFirstEd(withNearMint(url), "exclude") : url,
+        });
+      }
+    }
+    // ── RESERVEN ÄR EN LAPP, INTE EN ANDRA PRISKÄLLA ─────────────────────────
+    // Ett par hundra kort som leverantören tappat är precis vad reserven är till för.
+    // TUSENTALS är något annat: då är det feeden som ligger nere, och att tyst byta ut
+    // hela katalogens äkta From-priser mot guide-uppskattningar vore en nedgradering av
+    // allt vi visar — utfört av en reservmekanism, i det tysta. Släpp då hellre igenom
+    // feedens egna resultat oförändrade och låt täckningsvakten gå röd som förut.
+    // Taket ligger med marginal över det uppmätta läget (61 kort 2026-08-05).
+    const guideReserveMax = Number(process.env.CM_GUIDE_RESERVE_MAX) || 500;
+    if (guideOnlyOps.length > guideReserveMax) {
+      console.error(
+        `[cm-refresh] GUIDE-RESERVEN AVSTÅR: ${guideOnlyOps.length} kort saknade feed-pris ` +
+        `(tak ${guideReserveMax}). Så många på en gång är en trasig feed, inte kort ` +
+        `leverantören tappat — reserven är en lapp för enstaka kort, inte en andra ` +
+        `priskälla för hela katalogen. Inget guide-pris skrivs; täckningsvakten dömer.`
+      );
+      guideOnlyOps.length = 0;
+    }
+    if (guideOnlyOps.length > 0) {
+      singleOps.push(...guideOnlyOps);
+      viaCounts["guide-reserv"] = guideOnlyOps.length;
+      console.log(
+        `[cm-refresh] Guide-reserv: ${guideOnlyOps.length} singlar som feeden tappat ` +
+        `(cardmarket_id: null) prissattes ur CM:s EGEN prisguide via vår länkade ` +
+        `idProduct → uppskattning (OUT_OF_STOCK), annars hade de frusit.`
+      );
+    }
+    if (guideOnlyNameRejects || guideOnlyNotSingle)
+      console.log(
+        `[cm-refresh] Guide-reserven avstod: ${guideOnlyNameRejects} där CM:s katalognamn ` +
+        `inte höll med om kortet, ${guideOnlyNotSingle} där idProduct inte är en singel.`
+      );
+
     await mapPool(singleOps, DB_CONCURRENCY, async (op) => {
       const stock = op.from ? "IN_STOCK" : "OUT_OF_STOCK";
       if (op.offerId) {
