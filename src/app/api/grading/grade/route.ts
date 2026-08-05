@@ -24,6 +24,10 @@ const gradeSchema = z.object({
   front: imageData,
   back: imageData,
   cardName: z.string().trim().max(120).optional(),
+  // Motiveringen skrivs AV MODELLEN och kan inte översättas i efterhand — därför
+  // måste klientens språk följa med hit. Utan det svarade graderingen på svenska
+  // för engelska användare (rapporterat 2026-08-05).
+  locale: z.enum(["sv", "en"]).optional(),
 });
 
 export async function POST(req: Request) {
@@ -38,7 +42,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { front, back, cardName } = gradeSchema.parse(await req.json());
+    const { front, back, cardName, locale } = gradeSchema.parse(await req.json());
 
     if (front.length > MAX_IMAGE_BYTES * 1.4 || back.length > MAX_IMAGE_BYTES * 1.4) {
       throw new ServiceError(
@@ -49,6 +53,7 @@ export async function POST(req: Request) {
 
     const { job } = await runGradingJob(user.id, effectivePlanTier(user), front, back, {
       cardName,
+      locale,
     });
     const quota = await getGradingQuota(user.id, effectivePlanTier(user));
 

@@ -23,8 +23,9 @@ import {
   GRADE_TOOL_NAME,
   IMAGE_LABEL_BACK,
   IMAGE_LABEL_FRONT,
-  SYSTEM,
+  buildSystem,
   buildClosingInstruction,
+  resolveGradingLocale,
   buildGradeResult,
   parseGradingImage,
 } from "@/services/grading/contract";
@@ -74,7 +75,7 @@ export class ClaudeVisionGradingAdapter implements GradingAdapter {
     const response = await client.messages.create({
       model: this.model,
       max_tokens: 1024,
-      system: SYSTEM,
+      system: buildSystem(resolveGradingLocale(context?.locale)),
       tools: [GRADE_TOOL],
       tool_choice: { type: "tool", name: GRADE_TOOL_NAME },
       messages: [

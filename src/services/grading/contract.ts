@@ -18,23 +18,46 @@ import { ServiceError } from "@/lib/errors";
 import { parseDataUrl } from "@/services/scanner/vision-contract";
 import type { GradeResult } from "@/services/grading/types";
 
-export const SYSTEM = [
-  "Du är en expert på att bedöma skicket (condition) på Pokémon-samlarkort.",
-  "Du får en framsidesbild och en baksidesbild av samma kort.",
-  "Bedöm fyra kriterier på en skala 1–10 (10 = perfekt):",
-  "- centering: hur centrerat trycket/ramen är (fram + bak).",
-  "- corners: hörnens skick (vassa vs trubbiga/vita).",
-  "- edges: kanternas skick (whitening, nötning, flisor).",
-  "- surface: ytans skick (repor, fingeravtryck, print lines, scratches, dents).",
-  "Sätt sedan en sammanvägd PSA-LIKNANDE helhetsgrad 1–10 (en decimal tillåten),",
-  "samt en konfidens 0–1 utifrån bildkvaliteten, och en kort motivering på svenska.",
-  "Var sträng och realistisk — de flesta kort hamnar mellan 6 och 9.",
-  "Om bilderna är suddiga eller delvis skymda: sänk konfidensen.",
-  "Ange också vilket kort du ser i fältet cardName, kort och utan meningsbyggnad:",
-  "namn, kortnummer och set, t.ex. \"Torchic 65/100 · EX Crystal Guardians\".",
-  "Är du osäker på kortet — utelämna cardName helt hellre än att gissa.",
-  "Detta är en UPPSKATTNING, inte en officiell PSA-/BGS-gradering.",
-].join(" ");
+/** Språken appen kan visa. `rationale` är MODELLGENERERAD prosa, så den kan
+ *  aldrig översättas via messages/*.json — språket måste följa med förfrågan. */
+export type GradingLocale = "sv" | "en";
+
+/** ⛔ Sista utvägen, inte den normala vägen: `/api/grading/grade` SKICKAR alltid
+ *  användarens locale. Fanns den här reserven inte skulle ett direktanrop av en
+ *  adapter krascha; är den för generös blir språkbuggen tyst igen. */
+export const DEFAULT_GRADING_LOCALE: GradingLocale = "sv";
+
+export function resolveGradingLocale(locale?: string | null): GradingLocale {
+  return locale === "en" ? "en" : DEFAULT_GRADING_LOCALE;
+}
+
+/** Instruktionen står kvar på svenska för ALLA språk — det är modell-riktad text,
+ *  och att byta hela promptspråket hade ändrat mer än utdataspråket (dvs gjort en
+ *  leverantörsjämförelse otillförlitlig). Bara motiveringens språk varierar. */
+const RATIONALE_LANGUAGE: Record<GradingLocale, string> = {
+  sv: "på svenska",
+  en: "på engelska",
+};
+
+export function buildSystem(locale: GradingLocale): string {
+  return [
+    "Du är en expert på att bedöma skicket (condition) på Pokémon-samlarkort.",
+    "Du får en framsidesbild och en baksidesbild av samma kort.",
+    "Bedöm fyra kriterier på en skala 1–10 (10 = perfekt):",
+    "- centering: hur centrerat trycket/ramen är (fram + bak).",
+    "- corners: hörnens skick (vassa vs trubbiga/vita).",
+    "- edges: kanternas skick (whitening, nötning, flisor).",
+    "- surface: ytans skick (repor, fingeravtryck, print lines, scratches, dents).",
+    "Sätt sedan en sammanvägd PSA-LIKNANDE helhetsgrad 1–10 (en decimal tillåten),",
+    `samt en konfidens 0–1 utifrån bildkvaliteten, och en kort motivering ${RATIONALE_LANGUAGE[locale]}.`,
+    "Var sträng och realistisk — de flesta kort hamnar mellan 6 och 9.",
+    "Om bilderna är suddiga eller delvis skymda: sänk konfidensen.",
+    "Ange också vilket kort du ser i fältet cardName, kort och utan meningsbyggnad:",
+    "namn, kortnummer och set, t.ex. \"Torchic 65/100 · EX Crystal Guardians\".",
+    "Är du osäker på kortet — utelämna cardName helt hellre än att gissa.",
+    "Detta är en UPPSKATTNING, inte en officiell PSA-/BGS-gradering.",
+  ].join(" ");
+}
 
 export const GRADE_TOOL_NAME = "report_grade";
 export const GRADE_TOOL_DESCRIPTION =

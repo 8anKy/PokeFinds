@@ -17,10 +17,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/db", () => ({ prisma: { gradingJob: {} } }));
 
 import {
+  DEFAULT_GRADING_LOCALE,
   GRADE_FIELDS,
   GRADE_REQUIRED,
   buildClosingInstruction,
   buildGradeResult,
+  buildSystem,
+  resolveGradingLocale,
 } from "@/services/grading/contract";
 import { getGradingAdapter } from "@/services/grading";
 
@@ -155,5 +158,37 @@ describe("buildClosingInstruction", () => {
     expect(buildClosingInstruction("Torchic 65/100")).toBe(
       "Bedöm kortets skick och anropa report_grade med dina poäng. Kortet är troligen: Torchic 65/100."
     );
+  });
+});
+
+/**
+ * MOTIVERINGENS SPRÅK. `rationale` är modellgenererad prosa och kan därför inte
+ * översättas via messages/*.json — språket måste följa med förfrågan. Rapporterat
+ * i fält 2026-08-05: en användare med engelskt gränssnitt fick svensk motivering,
+ * eftersom systemprompten hårdkodade "på svenska".
+ *
+ * Testet vaktar att språket FAKTISKT når prompten. En tyst fallback till svenska
+ * är exakt buggen, så reserven testas också explicit.
+ */
+describe("graderingens språk", () => {
+  it("skriver motiveringen på det begärda språket", () => {
+    expect(buildSystem("sv")).toContain("motivering på svenska");
+    expect(buildSystem("en")).toContain("motivering på engelska");
+  });
+
+  it("byter BARA motiveringens språk — instruktionen står kvar", () => {
+    // Byttes hela promptspråket skulle en leverantörsjämförelse mäta prompt,
+    // inte modell. Allt utom språkfrasen ska vara identiskt.
+    const sv = buildSystem("sv").replace("på svenska", "SPRÅK");
+    const en = buildSystem("en").replace("på engelska", "SPRÅK");
+    expect(sv).toBe(en);
+  });
+
+  it("faller tillbaka på appens standardspråk för okänt/saknat värde", () => {
+    expect(resolveGradingLocale("en")).toBe("en");
+    expect(resolveGradingLocale("sv")).toBe("sv");
+    expect(resolveGradingLocale(undefined)).toBe(DEFAULT_GRADING_LOCALE);
+    expect(resolveGradingLocale(null)).toBe(DEFAULT_GRADING_LOCALE);
+    expect(resolveGradingLocale("de")).toBe(DEFAULT_GRADING_LOCALE);
   });
 });

@@ -33,8 +33,9 @@ import {
   GRADE_TOOL_NAME,
   IMAGE_LABEL_BACK,
   IMAGE_LABEL_FRONT,
-  SYSTEM,
+  buildSystem,
   buildClosingInstruction,
+  resolveGradingLocale,
   buildGradeResult,
   parseGradingImage,
 } from "@/services/grading/contract";
@@ -131,7 +132,9 @@ export class GeminiVisionGradingAdapter implements GradingAdapter {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM }] },
+        systemInstruction: {
+          parts: [{ text: buildSystem(resolveGradingLocale(context?.locale)) }],
+        },
         contents: [{ role: "user", parts }],
         tools: [
           {

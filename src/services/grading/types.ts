@@ -44,6 +44,14 @@ export interface GradeResult {
 export interface GradingContext {
   /** Kortnamn om känt (t.ex. från en tidigare skanning). */
   cardName?: string;
+  /**
+   * Användarens språk. `rationale` skrivs AV MODELLEN och kan därför inte
+   * översättas via messages/*.json — språket måste följa med förfrågan.
+   * Utelämnas det faller vi tillbaka på `DEFAULT_GRADING_LOCALE`.
+   * OBS: en sparad gradering behåller det språk den skrevs på; historiken kan
+   * alltså vara blandad om användaren byter språk. Det är en ögonblicksbild.
+   */
+  locale?: string;
 }
 
 /** Adapter mot en vision-leverantör som graderar fram- och baksidesbild. */

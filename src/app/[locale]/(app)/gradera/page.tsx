@@ -229,7 +229,9 @@ export default function GraderaPage() {
       const res = await fetch("/api/grading/grade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ front, back }),
+        // locale följer med: motiveringen skrivs av modellen och går inte att
+        // översätta i efterhand — utan den kom svaret alltid på svenska.
+        body: JSON.stringify({ front, back, locale }),
       });
       const data = (await res.json()) as GradeResponse & { error?: string };
       if (!res.ok) throw new Error(data.error ?? t("gradeFailMsg"));
