@@ -67,9 +67,12 @@ const getSitemapRows = cachedRead(
 );
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // ⛔ `/` står INTE med: den omdirigerar till /produkter sedan startsidan togs bort
+  // (2026-08-06), och en omdirigerande URL i en sitemap rapporteras av Search Console
+  // som ett fel ("Page with redirect") i stället för att indexeras. Målet listas i
+  // stället som sajtens viktigaste sida.
   const staticRoutes: MetadataRoute.Sitemap = [
-    { url: `${BASE_URL}/`, changeFrequency: "daily", priority: 1 },
-    { url: `${BASE_URL}/produkter`, changeFrequency: "hourly", priority: 0.9 },
+    { url: `${BASE_URL}/produkter`, changeFrequency: "hourly", priority: 1 },
     { url: `${BASE_URL}/marknad`, changeFrequency: "hourly", priority: 0.8 },
     { url: `${BASE_URL}/sets`, changeFrequency: "weekly", priority: 0.7 },
     { url: `${BASE_URL}/priser`, changeFrequency: "monthly", priority: 0.6 },
