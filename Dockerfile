@@ -19,12 +19,31 @@ ARG NEXT_PUBLIC_APP_URL
 # RevenueCat-nycklarna måste bakas in i klientbunten (annars = "Kommer snart" i app:en).
 ARG NEXT_PUBLIC_RC_IOS_KEY
 ARG NEXT_PUBLIC_RC_ANDROID_KEY
+# ⛔ LÄSES VID BYGGET, INTE VID START. /priser och /villkor är STATISKT genererade,
+# så `stripeEnabled()` och `legalEntity()` körs under `next build` och bakas in i
+# HTML:en. Utan de här raderna är de undefined i byggsteget ⇒ köpknappen fastnar
+# på "Kommer snart" och företagsblocket försvinner, hur rätt variablerna än står
+# på Railway. Missen kostade en felsökningsrunda 2026-08-07.
+# ⚠️ Följd: en ändring av dem kräver en OMBYGGNAD (Railway bygger om automatiskt
+# vid variabeländring). Nödstoppet är ändå omedelbart — API-routen läser
+# `stripeEnabled()` i RUNTIME, så checkout slutar sälja direkt; bara knappens
+# utseende släpar tills bygget är klart.
+ARG STRIPE_ENABLED
+ARG LEGAL_ENTITY_NAME
+ARG LEGAL_ENTITY_ADDRESS
+ARG LEGAL_ENTITY_VAT
+ARG LEGAL_ENTITY_EMAIL
 ENV NODE_ENV=production \
     DATABASE_URL=$DATABASE_URL \
     NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME \
     NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
     NEXT_PUBLIC_RC_IOS_KEY=$NEXT_PUBLIC_RC_IOS_KEY \
-    NEXT_PUBLIC_RC_ANDROID_KEY=$NEXT_PUBLIC_RC_ANDROID_KEY
+    NEXT_PUBLIC_RC_ANDROID_KEY=$NEXT_PUBLIC_RC_ANDROID_KEY \
+    STRIPE_ENABLED=$STRIPE_ENABLED \
+    LEGAL_ENTITY_NAME=$LEGAL_ENTITY_NAME \
+    LEGAL_ENTITY_ADDRESS=$LEGAL_ENTITY_ADDRESS \
+    LEGAL_ENTITY_VAT=$LEGAL_ENTITY_VAT \
+    LEGAL_ENTITY_EMAIL=$LEGAL_ENTITY_EMAIL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
