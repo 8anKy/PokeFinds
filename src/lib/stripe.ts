@@ -39,12 +39,24 @@ export function getStripe(): Stripe {
 /**
  * Ska Stripe räkna och ta ut moms åt oss (Stripe Tax)?
  *
- * ⛔ EGEN SPAK, default AV. Stripe Tax är ett PÅSLAG som måste aktiveras på
- * kontot, och `automatic_tax: { enabled: true }` mot ett konto utan det gör att
- * checkout-anropet FELAR — dvs varenda köpknapp dör, inte bara momsen.
- * Slå på den här FÖRST när Tax är aktiverat i dashboarden (Settings → Tax) och
- * företagets momsregistrering är registrerad där. Tills dess är 49 kr ett
- * pris inkl. moms som redovisas manuellt.
+ * ⛔ ÄGARBESLUT 2026-08-06: NEJ. Momsen redovisas manuellt. EN produkt, ETT pris,
+ * ETT land ⇒ talet är konstant (49 kr = 39,20 netto + 9,80 moms, varje gång), och
+ * Stripe Tax kostar 0,5 % per transaktion för att automatisera just den
+ * aritmetiken. Priset är moms-INKLUSIVT, så kunden betalar 49 kr oavsett.
+ *
+ * ⚠️ Att inte använda Stripe Tax betyder INTE att momsen försvinner — bolaget är
+ * momsregistrerat och 25 % på digitala tjänster till svenska konsumenter är
+ * lagkrav. Skillnaden är bara vem som räknar. (Att App Store "inte tar moms" är
+ * en synvilla: Apple är merchant of record och redovisar den åt oss. Stripe är
+ * det INTE — där är vi säljare och momsen är vår.)
+ *
+ * ⏭️ Ompröva vid 10 000 EUR/år i EU-försäljning UTANFÖR Sverige: under tröskeln
+ * får svensk sats tas ut även på EU-kunder, över den krävs kundlandets sats via
+ * OSS — och då tjänar Stripe Tax in sina 0,5 %.
+ *
+ * ⛔ Sätt inte `true` "för säkerhets skull": `automatic_tax` mot ett konto utan
+ * aktiverade skatteregistreringar får HELA checkout-anropet att fela, dvs varenda
+ * köpknapp dör — inte bara momsen.
  */
 export function automaticTaxEnabled(): boolean {
   return process.env.STRIPE_AUTOMATIC_TAX === "true";
