@@ -332,10 +332,25 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   sidladdning och rättar den med `Set-Cookie` från servern (beslutet är en ren funktion i `src/lib/session-cookie.ts`).
   ⛔ JWT:n verifieras INTE där — hinten är en gissning servern ändå överprövar, och en HMAC per publik sidvisning
   vore att betala krypto för ett UI-tips. ⛔ Chunkade namn (`…session-token.0`) måste räknas med: en JWT > 4 kB har
-  inget oindexerat namn alls, och synken hade rensat hinten för en inloggad. ⏭️ KVAR: sessionen är 30 dygn
-  ABSOLUT, inte glidande — `getServerSession` får ingen `res` i App Router och kan inte förnya cookien, och inget i
-  appen läser `/api/auth/session` (hela poängen med hinten). Alla loggas alltså ut 30 dygn efter login oavsett
-  aktivitet. **Generellt: en cookie som JS skriver har inte den livslängd du anger.**
+  inget oindexerat namn alls, och synken hade rensat hinten för en inloggad.
+  **Generellt: en cookie som JS skriver har inte den livslängd du anger.**
+- **SESSIONEN ÄR GLIDANDE — `maxAge` ÄR ETT INAKTIVITETSFÖNSTER (2026-08-06)**: `session.maxAge` var 30 dygn och
+  ingenting förnyade cookien, så ALLA loggades ut exakt 30 dygn efter login oavsett hur aktiva de var. NextAuth v4
+  förnyar när sessionen LÄSES, men `getServerSession` får ingen `res` i App Router och kan inte sätta cookies — och
+  appen anropar aldrig `/api/auth/session` (hela poängen med `fo_auth`). Det var andra halvan av "helt plötsligt
+  utloggad": WebKit-kapen tog iOS var sjunde dygn, det här tog alla var trettionde. `renewSession()` i
+  `src/middleware.ts` skriver nu om cookien med färsk utgång, utan en enda DB-fråga. Talet
+  (`SESSION_MAX_AGE` = 365 dygn) bor i `src/lib/session-cookie.ts` och används av BÅDE `authOptions` och
+  middleware — förnyelsen måste skriva samma livslängd som NextAuth utfärdade. ⛔ Ett år, inte "för alltid": en
+  JWT-session går inte att återkalla (ingen sessionstabell att radera ur), så en stulen cookie lever tills den går
+  ut. ⛔ Förnyas ÄVEN på publika sidor (annars loggas den som mest bläddrar i katalogen ut trots daglig
+  användning), men `getToken` körs BARA när en sessionscookie finns → utloggade besökare och crawlers kostar noll
+  krypto, och skrivningen sker högst var 24:e timme (`SESSION_RENEW_AFTER`). ⛔ Chunkade cookies (`…token.0`) rörs
+  inte: en tillbakaskriven ensam cookie hade lämnat gamla chunkar kvar och två källor hade konkurrerat om samma
+  session. ⛔ Ett fel i förnyelsen SVÄLJS — den gamla cookien är giltig, och att kasta hade gett 500 på varje sida
+  för alla inloggade. Enhetstestet kör riktiga `encode`/`decode` och vaktar att nyttolasten
+  (`id`/`role`/`planTier`/`refreshedAt`) överlever; tappades den hade varje inloggad förlorat sin roll efter ett
+  dygn, tyst och bara i produktion.
 - **ONBOARDINGENS FAVORITSET ÄR EN RANKNINGSSIGNAL, INTE EN ENKÄT (2026-08-06)**: `preferences.favoriteSets` skrevs
   av `/api/users/me/onboarding` och lästes ALDRIG av någon kod — steget bad om något vi kastade. De adderas nu till
   samma `affinitySetIds` som bevakningar och samling bygger (`loadPersonalContextUncached`, `services/products.ts`).
