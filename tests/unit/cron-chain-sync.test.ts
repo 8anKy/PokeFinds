@@ -40,6 +40,7 @@ const CHAIN: [downstream: string, upstream: string][] = [
   ["tradera-sweep", "scrape-all"],
   ["cardtrader-refresh", "tradera-sweep"],
   ["tradera-sold-sync", "cardtrader-refresh"],
+  ["tradera-sold-sweep", "tradera-sold-sync"],
 ];
 
 describe("nattkedjan av GitHub-workflows", () => {

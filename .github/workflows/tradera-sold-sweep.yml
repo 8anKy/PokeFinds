@@ -1,0 +1,70 @@
+name: Tradera sålda auktioner (dagligen)
+
+# Hämtar AVSLUTADE Tradera-auktioner med bud och skriver hammarpriset som
+# prishistorik under källan "Tradera sålt" — en EGEN kurva i prisgrafen.
+#
+# ⛔ Bara auktioner med bud går att verifiera som sålda: en avslutad PureBuyItNow
+#    har HasBids=false och BuyItNowPrice == MaxBid oavsett om någon köpte den
+#    eller om den bara löpte ut. Se src/jobs/tradera-sold-sweep.ts.
+# ⛔ Skriver ALDRIG en Offer — en såld annons går inte att köpa. Länkar och
+#    karusellen kommer fortsatt från det aktiva svepet (tradera-sweep).
+#
+# ── SIST I NATTKEDJAN, INTE PÅ EGEN KLOCKA ──────────────────────────────────
+# Neons nota är VAKEN TID och varje väckning köper minst 300 s debiterad tid, så
+# ett femte nattjobb på egen cron hade blivit en femte väckning. Kedjat efter
+# sålt-synken ligger det i samma sammanhängande fönster.
+#
+# ⛔ INGEN `conclusion`-grind: jobben är oberoende och delar bara tidsfönster.
+# ⛔ `workflows:` MATCHAR `name:`-FÄLTET i den andra filen, inte filnamnet. Byter
+#    du namn uppströms bryts kedjan TYST. `tests/unit/cron-chain-sync.test.ts`
+#    vaktar det.
+on:
+  workflow_run:
+    workflows: ["Tradera sålt-synk (dagligen)"]
+    types: [completed]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tradera-sold-sweep
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DB_POOL: "10"
+      TRADERA_APP_ID: ${{ secrets.TRADERA_APP_ID }}
+      TRADERA_APP_KEY: ${{ secrets.TRADERA_APP_KEY }}
+      # 10 sidor × 4 kategorier = 40 anrop av Traderas 10 000/dygn. Ended-sökningen
+      # sorteras EndDateDescending, så sidorna räcker till ~en veckas affärer och
+      # dedupen (itemId) gör en överlappande körning gratis.
+      TRADERA_SOLD_PAGES: "10"
+    steps:
+      # Self-healing-vakt: hoppa över grönt tills DATABASE_URL-secret finns.
+      - name: Förkrav — DATABASE_URL måste vara satt
+        id: guard
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::notice::DATABASE_URL saknas — hoppar över tills Neon är konfigurerad."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+      - if: steps.guard.outputs.ready == 'true'
+        run: npm ci --legacy-peer-deps
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx prisma generate
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx tsx scripts/tradera-sold-sweep.ts

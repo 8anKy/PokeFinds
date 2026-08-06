@@ -1016,6 +1016,15 @@ export const CARDMARKET_SOURCE_NAMES = ["Cardmarket", "Pokémon TCG API", "TCGde
 export const CARDTRADER_SOURCE_NAME = "CardTrader";
 
 /**
+ * Tradera SÅLT — genomförda auktioner, en EGEN serie.
+ *
+ * ⛔ MÅSTE vara ett annat `ScrapeSource.name` än "Tradera". Delade de namn hamnade
+ * hammarpriser i annonskurvan, och den kurvan skulle då ibland betyda "betalat"
+ * och ibland "begärt" — exakt den skarv som gjorde CM-grafen obegriplig i juli.
+ */
+export const TRADERA_SOLD_SOURCE_NAME = "Tradera sålt";
+
+/**
  * Så många dygn får `fillForward` överbrygga. SAMMA tal som hjärtslaget i
  * `cardtrader-observation.ts` (`CT_MAX_GAP_DAYS`) — se motiveringen där. Glider de
  * isär börjar grafen dikta över driftstopp.
@@ -1093,6 +1102,8 @@ export interface PriceHistoryBySource {
   cardmarket: SourceHistoryPoint[];
   cardtrader: SourceHistoryPoint[];
   tradera: SourceHistoryPoint[];
+  /** Genomförda Tradera-auktioner — BETALT, inte begärt. Se bucketet nedan. */
+  traderaSold: SourceHistoryPoint[];
   butiker: SourceHistoryPoint[];
 }
 
@@ -1107,7 +1118,12 @@ export interface PriceHistoryBySource {
  * grafen de inte hör hemma i. MÄTT före borttagningen: exakt **18 av 31 053**
  * produkter med prishistorik hade butiker som ENDA källa och tappar sin kurva.
  */
-export const HISTORY_SOURCE_KEYS = ["cardmarket", "cardtrader", "tradera"] as const;
+export const HISTORY_SOURCE_KEYS = [
+  "cardmarket",
+  "cardtrader",
+  "tradera",
+  "traderaSold",
+] as const;
 export type HistorySourceKey = (typeof HISTORY_SOURCE_KEYS)[number];
 
 /** Rå prisobservation för käll-/dagsbucketing (utbruten för testbarhet). */
@@ -1175,11 +1191,26 @@ export function bucketObservationsBySource(
     tradera: new Map<string, number>(),
     butiker: new Map<string, number>(),
   };
+  // ⛔ SÅLT BUCKETAS SOM MEDIAN, INTE SOM DAGENS LÄGSTA — och det är ingen glidning
+  // från regeln ovan, det är samma regel tillämpad på en annan storhet. "Dagens
+  // lägsta" är rätt för ANNONSER därför att alla annonser samma dag beskriver samma
+  // sak (vad varan kostar nu) och den billigaste är det svaret. Flera FÖRSÄLJNINGAR
+  // samma dag är däremot olika affärer, alla lika sanna; att plocka den billigaste
+  // hade ritat "vad det gick att fynda för", inte "vad varan såldes för". Medianen
+  // tål dessutom den udda auktionen som gick för en krona utan att kastas bort.
+  // Med 1–2 affärer per dygn (mätt) är medianen i praktiken affären själv.
+  const soldByDay = new Map<string, number[]>();
   const hasTrueCardmarket = ordered.some((o) => o.source?.name === "Cardmarket");
 
   for (const o of ordered) {
     const name = o.source?.name ?? null;
     const day = o.observedAt.toISOString().slice(0, 10);
+    if (name === TRADERA_SOLD_SOURCE_NAME) {
+      const bucket = soldByDay.get(day);
+      if (bucket) bucket.push(o.price);
+      else soldByDay.set(day, [o.price]);
+      continue;
+    }
     if (name === CARDTRADER_SOURCE_NAME) {
       cardtrader.set(day, o.price); // stigande tidsordning → sista vinner
       continue;
@@ -1200,13 +1231,28 @@ export function bucketObservationsBySource(
       .sort(([a], [b]) => (a < b ? -1 : 1))
       .map(([date, price]) => ({ date, price }));
 
+  const soldSeries: SourceHistoryPoint[] = [...soldByDay.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([date, prices]) => ({ date, price: medianOre(prices) }));
+
   return {
     cardmarket: toSeries(cardmarket),
     // Enda serien som fylls i — den är också den enda som skrivs VID ÄNDRING.
     cardtrader: fillForward(toSeries(cardtrader)),
     tradera: toSeries(lowest.tradera),
+    // ⛔ INGEN fillForward här: en försäljning är en HÄNDELSE, inte ett tillstånd.
+    // Att dra ut den till nästa punkt hade påstått att varan såldes för samma
+    // belopp varje dag däremellan. Glesa punkter är det ärliga utseendet.
+    traderaSold: soldSeries,
     butiker: toSeries(lowest.butiker),
   };
+}
+
+/** Median i öre (jämnt antal → medelvärdet av de två mittersta, avrundat). */
+export function medianOre(values: number[]): number {
+  const s = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 === 1 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
 }
 
 /**
@@ -1504,6 +1550,7 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
       cardmarket: historyBySource.cardmarket,
       cardtrader: historyBySource.cardtrader,
       tradera: historyBySource.tradera,
+      traderaSold: historyBySource.traderaSold,
     },
     trendSource,
     change7,

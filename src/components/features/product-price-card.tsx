@@ -34,13 +34,19 @@ export const SOURCE_COLORS: Record<string, string> = {
   cardmarket: "#2dd4bf", // varumärkets turkos
   cardtrader: "#a78bfa",
   tradera: "#f5a524",
+  // Rosa var redan med i den validerade fyrfärgspaletten (den satt på "butiker"
+  // innan de slutade ritas), så den är mätt mot de tre andra på svart yta och
+  // behöver inte valideras om. ⛔ Ge INTE sålt en variant av Traderas gula: två
+  // toner av samma färg läser som "samma sak, lite annorlunda", och sålt är en
+  // ANNAN storhet än annonspriset — inte en nyans av det.
+  traderaSold: "#fb7185",
 };
 
 /**
  * Ordningen källorna visas i — mest täckande först.
  * ⛔ Butiker ingår INTE: de är länkar, inte en marknad. Se HISTORY_SOURCE_KEYS.
  */
-const SOURCE_ORDER = ["cardmarket", "cardtrader", "tradera"] as const;
+const SOURCE_ORDER = ["cardmarket", "cardtrader", "tradera", "traderaSold"] as const;
 export type SourceKey = (typeof SOURCE_ORDER)[number];
 
 const PERIODS = [
