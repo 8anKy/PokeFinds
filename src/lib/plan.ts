@@ -37,6 +37,31 @@ export function isPro(user: ProUserShape): boolean {
   return activeUntil(user.bonusProUntil) || activeUntil(user.stripeProUntil);
 }
 
+/** Varifrån Pro kommer. `null` = användaren har inte Pro. */
+export type ProSource = "stripe" | "store" | "bonus" | "role" | null;
+
+/**
+ * VARFÖR användaren har Pro — avgör vad gränssnittet får lova om uppsägning.
+ *
+ * ⛔ Betalkällan går FÖRE gratisförmånerna. Den som faktiskt debiteras någonstans
+ * måste få veta VAR, annars står det "inget att säga upp" för någon som betalar
+ * varje månad. En superadmin som ockå köpt i appen ska alltså se app-texten, inte
+ * roll-texten.
+ *
+ * ⛔ "store" kan ALDRIG sägas upp av oss: den prenumerationen ägs av Apple/Google
+ * och vi har ingen API-väg till den. Erbjud aldrig en avbryt-knapp för den — ett
+ * löfte som inte går att hålla är sämre än en hänvisning som är sann.
+ */
+export function proSource(
+  user: ProUserShape & { stripeCustomerId?: string | null }
+): ProSource {
+  if (activeUntil(user.stripeProUntil)) return "stripe";
+  if (user.planTier === "PREMIUM") return "store";
+  if (activeUntil(user.bonusProUntil)) return "bonus";
+  if (PRO_ROLES.includes(user.role)) return "role";
+  return null;
+}
+
 /** Planen som kvoter/gränser ska räknas mot (admins får Pro-gränserna). */
 export function effectivePlanTier(user: ProUserShape): PlanTier {
   return isPro(user) ? "PREMIUM" : "FREE";

@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { apiError, jsonOk } from "@/lib/api";
 import { requireUser, AuthError } from "@/lib/auth";
-import { isPro } from "@/lib/plan";
+import { isPro, proSource } from "@/lib/plan";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +39,14 @@ const profileSelect = {
  */
 function publicProfile(user: Prisma.UserGetPayload<{ select: typeof profileSelect }>) {
   const { stripeCustomerId, ...rest } = user;
-  return { ...rest, isPro: isPro(user), hasWebSubscription: !!stripeCustomerId };
+  return {
+    ...rest,
+    isPro: isPro(user),
+    hasWebSubscription: !!stripeCustomerId,
+    // Varför användaren har Pro — gränssnittet får bara lova uppsägning för den
+    // källa som faktiskt går att säga upp hos oss. Se proSource().
+    proSource: proSource(user),
+  };
 }
 
 const notificationSettingsSchema = z.object({

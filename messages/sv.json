@@ -1237,7 +1237,9 @@
   },
   "Upgrade": {
     "currentPlan": "Din nuvarande plan ✓",
-    "manageSub": "Hantera eller säg upp i App Store (Inställningar → ditt namn → Prenumerationer).",
+    "manageSub": "Du köpte Pro i appen, så prenumerationen sköts av App Store eller Google Play. Öppna Prenumerationer i telefonens inställningar för att ändra eller säga upp den — det går inte att göra härifrån.",
+    "manageSubBonus": "Du har Pro tack vare dina inbjudningar. Ingen prenumeration att säga upp — den löper ut av sig själv.",
+    "manageSubRole": "Du har Pro via ditt konto. Ingen prenumeration att säga upp.",
     "manageWebSub": "Hantera prenumeration",
     "manageSubWeb": "Byt kort, hämta kvitton eller säg upp — när du vill.",
     "msgPortalFailed": "Kunde inte öppna prenumerationssidan.",

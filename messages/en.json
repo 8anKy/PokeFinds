@@ -1237,7 +1237,9 @@
   },
   "Upgrade": {
     "currentPlan": "Your current plan ✓",
-    "manageSub": "Manage or cancel in the App Store (Settings → your name → Subscriptions).",
+    "manageSub": "You bought Pro in the app, so the subscription is handled by the App Store or Google Play. Open Subscriptions in your phone settings to change or cancel it — it cannot be done from here.",
+    "manageSubBonus": "You have Pro thanks to your invites. Nothing to cancel — it expires on its own.",
+    "manageSubRole": "You have Pro through your account. There is no subscription to cancel.",
     "manageWebSub": "Manage subscription",
     "manageSubWeb": "Update your card, get receipts or cancel — whenever you like.",
     "msgPortalFailed": "Could not open the subscription page.",

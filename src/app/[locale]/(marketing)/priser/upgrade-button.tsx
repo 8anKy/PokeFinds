@@ -24,7 +24,8 @@ export function UpgradeButton({ webCheckout = false }: { webCheckout?: boolean }
   const [native, setNative] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [isPro, setIsPro] = useState(false);
-  const [hasWebSub, setHasWebSub] = useState(false);
+  /** Varför kontot har Pro — styr vad vi får lova om uppsägning. Se lib/plan. */
+  const [proSource, setProSource] = useState<"stripe" | "store" | "bonus" | "role" | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -54,7 +55,7 @@ export function UpgradeButton({ webCheckout = false }: { webCheckout?: boolean }
         .then((r) => r.json())
         .then((me) => {
           setIsPro(!!me?.isPro);
-          setHasWebSub(!!me?.hasWebSubscription);
+          setProSource(me?.proSource ?? null);
         })
         .catch(() => undefined);
     }
@@ -96,9 +97,11 @@ export function UpgradeButton({ webCheckout = false }: { webCheckout?: boolean }
     return (
       <div className="mt-8 w-full rounded-xl border border-holo-cyan/40 bg-holo-cyan/5 px-4 py-3 text-center">
         <p className="text-sm font-semibold text-holo-cyan">{t("currentPlan")}</p>
-        {/* Uppsägning sker där köpet gjordes. En webbkund som skickas till
-            App Store hittar ingen prenumeration att säga upp, och tvärtom. */}
-        {hasWebSub && !native ? (
+        {/* Uppsägning sker DÄR KÖPET GJORDES, och texten måste säga vilket.
+            ⛔ Erbjud aldrig en avbryt-knapp för ett app-köp: den prenumerationen
+            ägs av Apple/Google och vi har ingen väg att säga upp den. Ett löfte
+            som inte går att hålla är sämre än en hänvisning som är sann. */}
+        {proSource === "stripe" && !native ? (
           <>
             <button
               type="button"
@@ -111,7 +114,13 @@ export function UpgradeButton({ webCheckout = false }: { webCheckout?: boolean }
             <p className="mt-1 text-xs text-ink-muted">{t("manageSubWeb")}</p>
           </>
         ) : (
-          <p className="mt-1 text-xs text-ink-muted">{t("manageSub")}</p>
+          <p className="mt-1 text-xs text-ink-muted">
+            {proSource === "store"
+              ? t("manageSub")
+              : proSource === "bonus"
+                ? t("manageSubBonus")
+                : t("manageSubRole")}
+          </p>
         )}
         {msg && <p className="mt-2 text-xs text-ink-muted">{msg}</p>}
       </div>

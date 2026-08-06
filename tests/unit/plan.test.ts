@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { proUserWhere, effectivePlanTier, isPro } from "@/lib/plan";
+import { proUserWhere, effectivePlanTier, isPro, proSource } from "@/lib/plan";
 
 describe("isPro", () => {
   it("betalande prenumerant är Pro", () => {
@@ -38,6 +38,37 @@ describe("isPro", () => {
     expect(
       isPro({ planTier: "FREE", role: "USER", stripeProUntil: new Date(Date.now() - 60_000) })
     ).toBe(false);
+  });
+});
+
+describe("proSource", () => {
+  const future = new Date(Date.now() + 60_000);
+
+  it("betalkällan går före gratisförmånerna", () => {
+    // Regression 2026-08-07: ägarkontot har BÅDE ett app-köp och SUPERADMIN, och
+    // fick då "ingen prenumeration att säga upp" — fast det dras pengar varje
+    // månad i App Store. Den som debiteras måste få veta VAR.
+    expect(proSource({ planTier: "PREMIUM", role: "SUPERADMIN" })).toBe("store");
+    expect(proSource({ planTier: "PREMIUM", role: "USER", stripeProUntil: future })).toBe(
+      "stripe"
+    );
+  });
+
+  it("känner igen varje källa för sig", () => {
+    expect(proSource({ planTier: "FREE", role: "USER", stripeProUntil: future })).toBe("stripe");
+    expect(proSource({ planTier: "PREMIUM", role: "USER" })).toBe("store");
+    expect(proSource({ planTier: "FREE", role: "USER", bonusProUntil: future })).toBe("bonus");
+    expect(proSource({ planTier: "FREE", role: "ADMIN" })).toBe("role");
+  });
+
+  it("ger null för den som inte har Pro", () => {
+    expect(proSource({ planTier: "FREE", role: "USER" })).toBeNull();
+  });
+
+  it("utgångna datum räknas inte som källa", () => {
+    const past = new Date(Date.now() - 60_000);
+    expect(proSource({ planTier: "FREE", role: "USER", stripeProUntil: past })).toBeNull();
+    expect(proSource({ planTier: "FREE", role: "USER", bonusProUntil: past })).toBeNull();
   });
 });
 
