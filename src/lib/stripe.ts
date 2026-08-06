@@ -18,6 +18,24 @@ export function stripeEnabled(): boolean {
 }
 
 /**
+ * Ska köpknappen VISAS? Skild från `stripeEnabled()` med flit.
+ *
+ * ⛔ Frågar BARA efter flaggan, aldrig efter hemligheten. /priser är statiskt
+ * genererad, så den här körs under `next build` — och att skicka in
+ * `STRIPE_SECRET_KEY` som build-arg hade bakat in nyckeln i ett Docker-lager
+ * (byggcachen lever kvar även om runner-steget inte kopierar den). En knapp är
+ * inte värd en hemlighet i en bildlager-historik.
+ *
+ * Följden är att knappen kan visas medan nyckeln saknas. Det är ett MEDVETET
+ * val: felet blir då ett ärligt 503 från checkout-routen (som kollar hela
+ * `stripeEnabled()`), i stället för att nyckelns existens tyst avgör hur sidan
+ * ser ut. Ett bygge kan ändå inte veta vad runtime kommer ha.
+ */
+export function stripeCheckoutAdvertised(): boolean {
+  return process.env.STRIPE_ENABLED === "true";
+}
+
+/**
  * ⛔ LAT med flit. En `new Stripe(...)` på modulnivå körs redan när Next
  * BYGGER routen, och Railway bygger i en container utan runtime-env → bygget
  * hade kraschat på en saknad nyckel. Ingen nyckel ska betyda "betalning
