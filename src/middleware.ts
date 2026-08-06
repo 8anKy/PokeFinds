@@ -3,6 +3,12 @@ import { getToken } from "next-auth/jwt";
 import createMiddleware from "next-intl/middleware";
 import { routing } from "@/i18n/routing";
 import { BLOCKED_BOTS } from "@/lib/blocked-bots";
+import {
+  AUTH_HINT_COOKIE,
+  AUTH_HINT_MAX_AGE,
+  authHintAction,
+  sessionCookieCandidates,
+} from "@/lib/session-cookie";
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -48,6 +54,30 @@ function splitLocale(pathname: string): [string, string] {
   return [pathname, ""];
 }
 
+/**
+ * Rättar `fo_auth`-hinten mot den riktiga sessionscookien. Se lib/session-cookie.ts
+ * för VARFÖR den måste sättas här och inte från klienten (WebKit kapar
+ * `document.cookie` till 7 dygn → iPhone-användare kastades ut ur appen var sjunde
+ * dygn med en fullt levande session). Skriver bara när de två är oense.
+ */
+function syncAuthHint(req: NextRequest, res: NextResponse): NextResponse {
+  const hasSession = sessionCookieCandidates().some((n) => req.cookies.has(n));
+  const hasHint = req.cookies.get(AUTH_HINT_COOKIE)?.value === "1";
+  const action = authHintAction(hasSession, hasHint);
+  if (action === "set") {
+    // ⛔ INTE httpOnly — hela poängen är att klient-chrome (header, tabbar,
+    // AuthHintGate) kan läsa den utan att anropa /api/auth/session.
+    res.cookies.set(AUTH_HINT_COOKIE, "1", {
+      path: "/",
+      maxAge: AUTH_HINT_MAX_AGE,
+      sameSite: "lax",
+    });
+  } else if (action === "clear") {
+    res.cookies.set(AUTH_HINT_COOKIE, "", { path: "/", maxAge: 0, sameSite: "lax" });
+  }
+  return res;
+}
+
 export async function middleware(req: NextRequest) {
   const ua = req.headers.get("user-agent") ?? "";
   if (BLOCKED_BOTS.test(ua)) {
@@ -60,7 +90,7 @@ export async function middleware(req: NextRequest) {
   // Publika sidor auth-gatas inte — låt next-intl sköta locale-routing direkt.
   const isProtected = PROTECTED_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
   if (!isProtected) {
-    return intlMiddleware(req);
+    return syncAuthHint(req, intlMiddleware(req));
   }
 
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
@@ -84,7 +114,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Autentiserad OK → låt next-intl sätta locale-context/rewrite.
-  return intlMiddleware(req);
+  return syncAuthHint(req, intlMiddleware(req));
 }
 
 export const config = {
