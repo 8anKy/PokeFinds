@@ -150,7 +150,14 @@ export async function getAdminStats() {
     events24h,
   ] = await prisma.$transaction([
     prisma.user.count(),
-    prisma.user.count({ where: { planTier: "PREMIUM" } }),
+    // BETALANDE kunder, båda kanalerna. ⛔ Ett bart `planTier: "PREMIUM"` räknar
+    // bara app-köpen — Stripe rör aldrig det fältet, så varje webbprenumerant
+    // saknades i siffran (2026-08-07). ⛔ Och detta är MEDVETET inte
+    // `proUserWhere()`: admins och referral-Pro HAR Pro men BETALAR inte, och
+    // ska inte blåsa upp ett intäktsmått.
+    prisma.user.count({
+      where: { OR: [{ planTier: "PREMIUM" }, { stripeProUntil: { gt: new Date() } }] },
+    }),
     prisma.user.count({ where: { createdAt: { gte: since7d } } }),
     prisma.product.count(),
     prisma.offer.count(),
