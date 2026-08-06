@@ -24,8 +24,15 @@
 import { prisma } from "@/lib/db";
 import { cmSetNameKey } from "@/jobs/cardmarket-refresh";
 
-const HOST = process.env.CARDMARKET_RAPIDAPI_HOST ?? "cardmarket-api-tcg.p.rapidapi.com";
-const KEY = process.env.CARDMARKET_RAPIDAPI_KEY ?? "";
+// ⛔ LÄS NYCKELN VID ANROPET, inte vid modulinläsningen. En modul-konstant fryser
+// värdet vid första import: jobbet läser sin .env innan det anropar oss, men i ett
+// test (eller vilken anropare som helst som sätter miljön senare) är konstanten
+// redan tom — och `fetchCmEpisodes` returnerar då [] UTAN att felа, så B2 slutar
+// tyst skapa set. Exakt det hände: testerna gröna lokalt (.env fanns) och röda i
+// CI (ingen nyckel). Samma familj som proUserWhere() — en modul-konstant fryser
+// tillstånd som måste läsas när det används.
+const host = () => process.env.CARDMARKET_RAPIDAPI_HOST ?? "cardmarket-api-tcg.p.rapidapi.com";
+const key = () => process.env.CARDMARKET_RAPIDAPI_KEY ?? "";
 
 export interface CmEpisode {
   id: number;
@@ -42,6 +49,8 @@ export interface CmEpisode {
  * inte — se cardmarket-refresh). Några sidor, en gång per körning.
  */
 export async function fetchCmEpisodes(): Promise<CmEpisode[]> {
+  const HOST = host();
+  const KEY = key();
   if (!KEY) return [];
   const out: CmEpisode[] = [];
   for (let page = 1; page <= 50; page++) {
