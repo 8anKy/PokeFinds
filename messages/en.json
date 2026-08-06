@@ -881,6 +881,8 @@
     "scopeSetPro": "Watching a whole set is part of Pro.",
     "proCta": "See what Pro includes",
     "itemWatched": "Watch added",
+    "itemUnwatched": "Watch removed",
+    "confirmRemove": "Stop watching",
     "setWatched": "Watching sealed in {set}",
     "setUnwatched": "Watch removed",
     "alreadyWatching": "You already watch this item",

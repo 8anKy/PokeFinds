@@ -154,6 +154,28 @@ export async function updateWatchlistItem(
   return withLowestPrice(updated);
 }
 
+/** Bara produkt-id:na — det klockan i produktkortet behöver för att rita rätt läge. */
+export async function listWatchedProductIds(userId: string): Promise<string[]> {
+  const rows = await prisma.watchlistItem.findMany({
+    where: { userId },
+    select: { productId: true },
+  });
+  return rows.map((r) => r.productId);
+}
+
+/**
+ * Ta bort nycklad på PRODUKT, inte på bevakningsradens id.
+ *
+ * Klockan i produktkortet känner produkten men aldrig radens id, och att slå upp
+ * id:t först vore en extra rundtur för en rad vi kan peka ut unikt ändå
+ * (`@@unique([userId, productId])`). Samma skäl som `removeSetWatch`.
+ */
+export async function removeWatchlistItemByProduct(userId: string, productId: string) {
+  const { count } = await prisma.watchlistItem.deleteMany({ where: { userId, productId } });
+  if (count === 0) throw new ServiceError(404, "Bevakningen hittades inte.");
+  return { deleted: true };
+}
+
 export async function removeWatchlistItem(userId: string, itemId: string) {
   const item = await prisma.watchlistItem.findUnique({ where: { id: itemId } });
   if (!item || item.userId !== userId) {

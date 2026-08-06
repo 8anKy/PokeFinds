@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
 import { cn } from "@/lib/utils";
-import { IconBell, IconCards, IconCheck, IconLock } from "@/components/ui/icons";
+import { IconBell, IconBellFilled, IconCards, IconCheck, IconLock } from "@/components/ui/icons";
 
 export type WatchScope = "item" | "set";
 
@@ -58,14 +58,21 @@ export function WatchBellSheet({
       title={t("sheetTitle")}
       onClose={onClose}
       closeLabel={t("close")}
-      footer={<BottomSheetCta onClick={() => onConfirm(chosen)}>{t("confirm")}</BottomSheetCta>}
+      // Knappen säger vad bekräftelsen GÖR: är det valda redan på stänger den av
+      // det. "Bevaka" på något som redan bevakas hade läst som att inget händer.
+      footer={
+        <BottomSheetCta onClick={() => onConfirm(chosen)}>
+          {(chosen === "set" ? setWatched : itemWatched) ? t("confirmRemove") : t("confirm")}
+        </BottomSheetCta>
+      }
     >
       <p className="mb-3 line-clamp-2 text-xs text-ink-faint">{productTitle}</p>
 
       <div className="flex flex-col gap-2">
         <ScopeOption
           selected={chosen === "item"}
-          icon={<IconBell size={18} />}
+          watched={itemWatched}
+          icon={itemWatched ? <IconBellFilled size={18} /> : <IconBell size={18} />}
           label={t("scopeItem")}
           hint={itemWatched ? t("scopeItemRemove") : t("scopeItemHint")}
           onSelect={() => setScope("item")}
@@ -74,6 +81,7 @@ export function WatchBellSheet({
         {setName && (
           <ScopeOption
             selected={chosen === "set"}
+            watched={setWatched}
             locked={setLocked}
             icon={<IconCards size={18} />}
             label={t("scopeSet", { set: setName })}
@@ -103,6 +111,7 @@ export function WatchBellSheet({
 
 function ScopeOption({
   selected,
+  watched,
   locked,
   icon,
   label,
@@ -110,6 +119,8 @@ function ScopeOption({
   onSelect,
 }: {
   selected: boolean;
+  /** Redan påslaget → egen markering, så raden inte läser som "lägg till". */
+  watched?: boolean;
   locked?: boolean;
   icon: React.ReactNode;
   label: string;
@@ -131,7 +142,12 @@ function ScopeOption({
         locked && "opacity-60"
       )}
     >
-      <span className={cn("mt-0.5 shrink-0", selected ? "text-holo-cyan" : "text-ink-faint")}>
+      <span
+        className={cn(
+          "mt-0.5 shrink-0",
+          watched || selected ? "text-holo-cyan" : "text-ink-faint"
+        )}
+      >
         {icon}
       </span>
       <span className="min-w-0 flex-1">

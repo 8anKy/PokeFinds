@@ -7,7 +7,7 @@ import { useRouter } from "@/i18n/navigation";
 import { useAuthHint } from "@/lib/auth-hint";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
-import { IconBell, IconCheck, IconLock } from "@/components/ui/icons";
+import { IconBell, IconBellFilled, IconLock } from "@/components/ui/icons";
 import { getWatchedSetIds, setSetWatched } from "@/lib/watched-sets";
 
 interface SetWatchButtonProps {
@@ -107,10 +107,13 @@ export function SetWatchButton({ setId, setName, sealedCount }: SetWatchButtonPr
         onClick={() => void toggle()}
         aria-pressed={watched}
       >
+        {/* Ifylld klocka när setet bevakas — samma tillståndsspråk som klockan i
+            produktkortet. ⛔ Ingen bock: den betyder "tillagd i samlingen" i
+            resten av appen. */}
         {locked ? (
           <IconLock size={16} />
         ) : watched ? (
-          <IconCheck size={16} />
+          <IconBellFilled size={16} />
         ) : (
           <IconBell size={16} />
         )}

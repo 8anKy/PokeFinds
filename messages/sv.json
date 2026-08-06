@@ -881,6 +881,8 @@
     "scopeSetPro": "Att bevaka ett helt set ingår i Pro.",
     "proCta": "Se vad Pro innehåller",
     "itemWatched": "Bevakning tillagd",
+    "itemUnwatched": "Bevakningen borttagen",
+    "confirmRemove": "Sluta bevaka",
     "setWatched": "Bevakar sealed i {set}",
     "setUnwatched": "Bevakningen borttagen",
     "alreadyWatching": "Du bevakar redan den här varan",

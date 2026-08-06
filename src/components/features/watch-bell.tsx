@@ -8,9 +8,10 @@ import { useAuthHint } from "@/lib/auth-hint";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { hapticTick } from "@/lib/haptics";
-import { IconBell } from "@/components/ui/icons";
+import { IconBell, IconBellFilled } from "@/components/ui/icons";
 import { WatchBellSheet, type WatchScope } from "@/components/features/watch-bell-sheet";
 import { getWatchedSetIds, setSetWatched } from "@/lib/watched-sets";
+import { getWatchedProductIds, setProductWatched } from "@/lib/watched-products";
 
 interface WatchBellProps {
   productId: string;
@@ -71,21 +72,29 @@ export function WatchBell({ productId, productTitle, setId, setName }: WatchBell
   }, [loggedIn]);
 
   /**
-   * Bevakade set läses via en DELAD, cachad hämtning (`lib/watched-sets.ts`).
-   * ⛔ Inte en fetch per kort: ett rutnät renderar 20-40 klockor samtidigt och
-   * det hade blivit lika många parallella anrop — och lika många Neon-väckningar
-   * — för samma lilla lista.
+   * Nuvarande läge läses via DELADE, cachade hämtningar (`lib/watched-products.ts`
+   * och `lib/watched-sets.ts`). ⛔ Inte en fetch per kort: ett rutnät renderar
+   * 20-40 klockor samtidigt och det hade blivit lika många parallella anrop —
+   * och lika många Neon-väckningar — för samma två små listor.
+   *
+   * ⛔ Och den här avläsningen är inte kosmetisk: utan den startar varje klocka
+   * som "obevakad" efter en omladdning, och då går bevakningen bara att slå PÅ.
    */
   useEffect(() => {
-    if (loggedIn !== true || !setId) return;
+    if (loggedIn !== true) return;
     let cancelled = false;
-    void getWatchedSetIds().then((ids) => {
-      if (!cancelled) setSetWatchedState(ids.has(setId));
+    void getWatchedProductIds().then((ids) => {
+      if (!cancelled) setItemWatched(ids.has(productId));
     });
+    if (setId) {
+      void getWatchedSetIds().then((ids) => {
+        if (!cancelled) setSetWatchedState(ids.has(setId));
+      });
+    }
     return () => {
       cancelled = true;
     };
-  }, [loggedIn, setId]);
+  }, [loggedIn, productId, setId]);
 
   const requireLogin = useCallback(() => {
     if (loggedIn === false) {
@@ -134,7 +143,36 @@ export function WatchBell({ productId, productTitle, setId, setName }: WatchBell
         return;
       }
       setItemWatched(true);
+      setProductWatched(productId, true);
       toast({ title: t("itemWatched"), variant: "success" });
+    } catch {
+      toast({ title: t("failed"), variant: "error" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /** Slå AV produktbevakningen. Nycklad på produkt — klockan har inget rad-id. */
+  async function unwatchItem() {
+    setSaving(true);
+    try {
+      const res = await fetch(
+        `/api/watchlist?productId=${encodeURIComponent(productId)}`,
+        { method: "DELETE" }
+      );
+      if (res.status === 401) {
+        router.push("/logga-in");
+        return;
+      }
+      // 404 = raden fanns inte (borttagen i en annan flik) → knappen visade fel
+      // läge, inte ett fel att larma om. Rätta läget i stället.
+      if (!res.ok && res.status !== 404) {
+        toast({ title: t("failed"), variant: "error" });
+        return;
+      }
+      setItemWatched(false);
+      setProductWatched(productId, false);
+      toast({ title: t("itemUnwatched"), variant: "success" });
     } catch {
       toast({ title: t("failed"), variant: "error" });
     } finally {
@@ -191,8 +229,16 @@ export function WatchBell({ productId, productTitle, setId, setName }: WatchBell
     }
     if (saving) return;
     if (requireLogin()) return;
+    // Knappen är en VÄXEL: samma tryck som slog på bevakningen slår av den.
     if (itemWatched) {
-      // Redan bevakad: kort tryck ska inte tyst göra ingenting — visa valen.
+      void unwatchItem();
+      return;
+    }
+    // Klockan lyser på grund av SET-bevakningen, inte produkten. Ett tryck är
+    // tvetydigt då ("stäng av vad?") → visa arket i stället för att gissa. Att
+    // lägga till en produktbevakning här hade sett ut som att knappen slog PÅ
+    // något som redan var på.
+    if (setWatched) {
       openSheet();
       return;
     }
@@ -273,20 +319,27 @@ export function WatchBell({ productId, productTitle, setId, setName }: WatchBell
             open && "border-holo-cyan"
           )}
         >
-          {/* Samma glyf i båda lägena — den ifyllda turkosa plattan ÄR
-              tillståndet. En bock hade lästs som "tillagd i samlingen" (det är
-              vad "+"-knappen bredvid gör när den slår om). */}
-          <IconBell size={16} strokeWidth={active ? 2.4 : 1.9} />
+          {/* IFYLLD klocka när den bevakas, kontur när den inte gör det
+              (ägaren 2026-08-06). Plattans färg ensam bar tillståndet förut, och
+              på ett 16 px-glyf i ett rutnät gick det att missa. ⛔ Ingen bock —
+              den hade lästs som "tillagd i samlingen", vilket är vad "+"-knappen
+              i samma kort gör när DEN slår om. */}
+          {active ? (
+            <IconBellFilled size={16} />
+          ) : (
+            <IconBell size={16} strokeWidth={1.9} />
+          )}
         </span>
       </button>
 
       <WatchBellSheet
         open={open}
         onClose={() => setOpen(false)}
+        // Båda valen är VÄXLAR: är det redan på stänger bekräftelsen av det.
         onConfirm={(scope: WatchScope) => {
           setOpen(false);
           if (scope === "set") void toggleSetWatch();
-          else if (itemWatched) void unwatchItemNotice();
+          else if (itemWatched) void unwatchItem();
           else void watchItem();
         }}
         productTitle={productTitle}
@@ -297,13 +350,4 @@ export function WatchBell({ productId, productTitle, setId, setName }: WatchBell
       />
     </>
   );
-
-  /**
-   * Att ta bort en produktbevakning kräver bevakningens id, som klockan inte har
-   * (den känner produkten). Hellre en tydlig hänvisning än ett extra API-anrop
-   * för att slå upp id:t — borttagning hör hemma i listan där man ser allihop.
-   */
-  function unwatchItemNotice() {
-    toast({ title: t("alreadyWatching"), description: t("manageInWatchlist") });
-  }
 }

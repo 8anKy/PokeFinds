@@ -84,6 +84,31 @@ export const IconBell = (p: IconProps) => (
   </svg>
 );
 
+/**
+ * Ifylld klocka = "bevakas". Undantag från stroke-konventionen med flit: den
+ * sitter bredvid den vanliga `IconBell` och skillnaden mellan på och av måste gå
+ * att se på ett 16 px-glyf i ett produktkort — bara en färgändring räckte inte
+ * (ägaren 2026-08-06). Klappen ritas som en egen fylld form; ett bart
+ * `fill="currentColor"` på stroke-varianten fyller inte den öppna banan.
+ */
+export const IconBellFilled = ({ size = 20, ...props }: IconProps) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    stroke="currentColor"
+    strokeWidth={1.75}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+    {...props}
+  >
+    <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+  </svg>
+);
+
 export const IconPackage = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="m7.5 4.3 9 5.2" />
