@@ -2,19 +2,9 @@
  * RIOLU-RECEPTET SOM KOMMANDO: ta bort en marknadsplats-offer som bevisligen inte är
  * produkten, och se till att svepet inte återskapar den.
  *
- * Fem steg, och alla fem behövs:
- *   1. radera Offer:n (på offer-ID — aldrig på pris/URL-mönster)
- *   2. TraderaMatch.ok = false för (itemId, productId) → svepet slår upp domen och
- *      återskapar ALDRIG en känd felmatch (raden överlever offer-nollställning)
- *   3. radera de förgiftade PriceObservation-raderna (samma produkt, samma källa,
- *      exakt det priset) → annonsens pris försvinner även ur grafen
- *   4. radera TraderaListing-raden (produktsidans karusell "Fler annonser på Tradera").
- *      MISSADES 2026-07-26: ramen togs bort ur pristabellen men syntes vidare i
- *      karusellen — 179 kr bredvid ett CM-golv på 3 207 kr. Karusellen skrivs bara om
- *      när produkten namn-söks igen, och rotationen tar ~100 dygn för hela katalogen.
- *   5. lyft fram nästa vettiga annons som offer om produkten har fler kvar. Utan det
- *      står produktsidan med en KARUSELL FULL AV TRADERA-ANNONSER men ingen Tradera-rad
- *      i pristabellen — den ser ut som en bugg, och är det: annonserna finns.
+ * Själva receptet (fem steg, alla behövs) bor i `purgeMismatchedMarketplaceOffer`
+ * (`src/services/marketplace-offers.ts`) — admin-knappen på produktsidan kallar
+ * samma kod. Det här skriptet är batch-varianten med torrkörning och facit-utskrift.
  * Sedan recomputeProductPriceCache() så katalogens lägsta pris följer med.
  *
  * Dry-run som standard. APPLY=1 skriver.
@@ -28,7 +18,11 @@
  */
 import { prisma } from "../src/lib/db";
 import { recomputeProductPriceCache } from "../src/services/products";
-import { findReplacementListing, writeMarketplaceOffer } from "../src/services/marketplace-offers";
+import {
+  findReplacementListing,
+  listingItemIdFromUrl,
+  purgeMismatchedMarketplaceOffer,
+} from "../src/services/marketplace-offers";
 
 const APPLY = process.env.APPLY === "1";
 const OFFER_IDS = process.argv.slice(2).filter((a) => !a.startsWith("--"));
@@ -62,7 +56,7 @@ async function main() {
       console.log(`✗ ${offerId}: finns inte (redan borta?)`);
       continue;
     }
-    const itemId = offer.url.match(/\/item\/\d+\/(\d+)/)?.[1] ?? null;
+    const itemId = listingItemIdFromUrl(offer.url);
     const source = await prisma.scrapeSource.findFirst({
       where: { name: offer.retailer.name }, select: { id: true },
     });
@@ -94,23 +88,20 @@ async function main() {
 
     if (!APPLY) continue;
 
-    await prisma.offer.delete({ where: { id: offer.id } });
-    if (itemId) {
-      await prisma.traderaMatch.upsert({
-        where: { itemId_productId: { itemId, productId: offer.productId } },
-        update: { ok: false, reason: "manuell purge: annonsen är ett annat föremål" },
-        create: { itemId, productId: offer.productId, ok: false, reason: "manuell purge: annonsen är ett annat föremål" },
-      });
-      await prisma.traderaListing.deleteMany({ where: { productId: offer.productId, itemId } });
-    }
-    if (offer.price != null && source) {
-      await prisma.priceObservation.deleteMany({
-        where: { productId: offer.productId, sourceId: source.id, price: offer.price },
-      });
-    }
-    if (replacement) {
-      await writeMarketplaceOffer(offer.productId, offer.retailerId, offer.product.category, replacement);
-    }
+    const purged = await purgeMismatchedMarketplaceOffer(
+      {
+        id: offer.id,
+        productId: offer.productId,
+        price: offer.price,
+        url: offer.url,
+        retailerId: offer.retailerId,
+        retailerName: offer.retailer.name,
+        productCategory: offer.product.category,
+      },
+      "manuell purge: annonsen är ett annat föremål"
+    );
+    // Ingen annons-identitet (butiks-offer) → receptet gäller inte, radera rakt av.
+    if (!purged) await prisma.offer.delete({ where: { id: offer.id } });
     removed++;
   }
 

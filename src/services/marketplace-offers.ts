@@ -86,6 +86,89 @@ export async function findReplacementListing(
   );
 }
 
+/** Tradera-annonsens itemId ur en annons-URL (null = inte en annons-länk). */
+export function listingItemIdFromUrl(url: string): string | null {
+  return url.match(/\/item\/\d+\/(\d+)/)?.[1] ?? null;
+}
+
+/** Vad purgen faktiskt gjorde — för loggning/kvittens. */
+export interface MarketplacePurge {
+  productId: string;
+  itemId: string;
+  poisonedObservations: number;
+  replacement: PromotedListing | null;
+}
+
+/**
+ * RIOLU-RECEPTET: ta bort en marknadsplats-offer som bevisligen är ett ANNAT
+ * föremål, och se till att svepet inte återskapar den. Fem steg, alla behövs:
+ *
+ *   1. radera Offer:n (på offer-ID — aldrig på pris/URL-mönster)
+ *   2. TraderaMatch.ok = false för (itemId, productId) → svepet slår upp domen
+ *      och återskapar ALDRIG en känd felmatch (raden överlever offer-raderingen)
+ *   3. radera de förgiftade PriceObservation-raderna (samma produkt, samma källa,
+ *      exakt det priset) → annonsens pris försvinner även ur grafen
+ *   4. radera TraderaListing-raden (produktsidans karusell "Fler annonser")
+ *   5. lyft fram nästa vettiga annons som offer. Utan det står produktsidan med
+ *      en karusell full av Tradera-annonser men ingen Tradera-rad i pristabellen.
+ *
+ * ⛔ Steg 1 ENSAMT är inte en borttagning, det är en fördröjning: annonsen ligger
+ * kvar i Traderas sökresultat, matchar fortfarande, och nästa svep skriver
+ * tillbaka den. Därför bor receptet HÄR och inte i anropsstället — både
+ * admin-knappen och `scripts/purge-mismatched-offer.ts` kallar samma kod.
+ *
+ * Anroparen ansvarar för `recomputeProductPriceCache()` (en gång, efter batchen).
+ * Returnerar null när offern saknar itemId (= inte en marknadsplats-annons).
+ */
+export async function purgeMismatchedMarketplaceOffer(
+  offer: {
+    id: string;
+    productId: string;
+    price: number | null;
+    url: string;
+    retailerId: string;
+    retailerName: string;
+    productCategory: string;
+  },
+  reason: string
+): Promise<MarketplacePurge | null> {
+  const itemId = listingItemIdFromUrl(offer.url);
+  if (!itemId) return null;
+
+  const source = await prisma.scrapeSource.findFirst({
+    where: { name: offer.retailerName },
+    select: { id: true },
+  });
+  const replacement = await findReplacementListing(offer.productId, itemId);
+
+  await prisma.offer.delete({ where: { id: offer.id } });
+  await prisma.traderaMatch.upsert({
+    where: { itemId_productId: { itemId, productId: offer.productId } },
+    update: { ok: false, reason },
+    create: { itemId, productId: offer.productId, ok: false, reason },
+  });
+  await prisma.traderaListing.deleteMany({ where: { productId: offer.productId, itemId } });
+
+  let poisonedObservations = 0;
+  if (offer.price != null && source) {
+    const res = await prisma.priceObservation.deleteMany({
+      where: { productId: offer.productId, sourceId: source.id, price: offer.price },
+    });
+    poisonedObservations = res.count;
+  }
+
+  if (replacement) {
+    await writeMarketplaceOffer(
+      offer.productId,
+      offer.retailerId,
+      offer.productCategory,
+      replacement
+    );
+  }
+
+  return { productId: offer.productId, itemId, poisonedObservations, replacement };
+}
+
 /**
  * Sätt (eller uppdatera) produktens Tradera-offer till `listing`. Samma
  * unika nyckel och samma skick-/språkhärledning som svepet använder — annars
