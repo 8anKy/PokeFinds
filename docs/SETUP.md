@@ -69,7 +69,8 @@ Alla variabler finns i `.env.example`:
 | `STRIPE_ENABLED` | Ja | `true` slår på webbens Pro-checkout. Egen spak vid sidan av nyckeln så att en felkonfigurerad prod inte börjar ta betalt av misstag. Styr även knappen på `/priser` (servern skickar in `stripeEnabled()`) |
 | `STRIPE_SECRET_KEY` | Vid Stripe | `sk_test_…` (sandbox) / `sk_live_…` (skarpt). Server-side, lämnar aldrig noden |
 | `STRIPE_WEBHOOK_SECRET` | Vid Stripe | `whsec_…` för `/api/webhooks/stripe`. Lokalt: `stripe listen --forward-to localhost:3000/api/webhooks/stripe` skriver ut den. Prod: en egen hemlighet per endpoint i Stripe-dashboarden |
-| `STRIPE_PRICE_ID_PRO_MONTHLY` | Vid Stripe | `price_…` för Pro 49 kr/mån. Skapa den med `tax_behavior=inclusive` — svensk konsumentprissättning är inkl. moms, och Stripe Tax räknar baklänges från 49 kr |
+| `STRIPE_PRICE_ID_PRO_MONTHLY` | Vid Stripe | `price_…` för Pro 49 kr/mån. Live: `price_1U1YYW19wf3NgPKsduSNrekE` (produkt `prod_V1bmQCUjeEhSYF`, lookup key `foilio_pro_monthly`). **Testläget har ett EGET price-id** — skapa samma produkt där för lokal utveckling |
+| `STRIPE_AUTOMATIC_TAX` | Nej | `true` slår på Stripe Tax (moms räknas och tas ut automatiskt, +0,5 %/transaktion). ⛔ Default `false`, och sätt den INTE till `true` innan Tax är aktiverat under Settings → Tax **och** momsregistreringen är inlagd där: `automatic_tax` mot ett konto utan Tax får hela checkout-anropet att fela, dvs köpknappen dör — inte bara momsen |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Nej | `pk_test_…`. Behövs INTE för hostad Checkout (servern skapar sessionen och redirectar). Ligger kvar för ev. framtida Stripe Elements |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Nej | Web push (förberett, kräver VAPID-nyckelpar) |
 | `CRON_SECRET` | Ja (för cron) | Hemlighet för `/api/cron/scrape` — anropet måste skicka headern `x-cron-secret`. Utan satt variabel är cron-routen avstängd (503) |

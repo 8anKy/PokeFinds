@@ -37,6 +37,20 @@ export function getStripe(): Stripe {
 }
 
 /**
+ * Ska Stripe räkna och ta ut moms åt oss (Stripe Tax)?
+ *
+ * ⛔ EGEN SPAK, default AV. Stripe Tax är ett PÅSLAG som måste aktiveras på
+ * kontot, och `automatic_tax: { enabled: true }` mot ett konto utan det gör att
+ * checkout-anropet FELAR — dvs varenda köpknapp dör, inte bara momsen.
+ * Slå på den här FÖRST när Tax är aktiverat i dashboarden (Settings → Tax) och
+ * företagets momsregistrering är registrerad där. Tills dess är 49 kr ett
+ * pris inkl. moms som redovisas manuellt.
+ */
+export function automaticTaxEnabled(): boolean {
+  return process.env.STRIPE_AUTOMATIC_TAX === "true";
+}
+
+/**
  * Prenumerationens periodslut, i sekunder.
  *
  * ⛔ LÄS ALDRIG `subscription.current_period_end` — fältet FINNS INTE på

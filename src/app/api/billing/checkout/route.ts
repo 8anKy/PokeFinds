@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma, withDbRetry } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
-import { getStripe } from "@/lib/stripe";
+import { automaticTaxEnabled, getStripe } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
@@ -86,9 +86,14 @@ export async function POST() {
       // och metadatan följer med prenumerationen genom ALLA senare event.
       client_reference_id: user.id,
       subscription_data: { metadata: { userId: user.id } },
-      // Stripe Tax: räknar och tar ut moms automatiskt. Kräver att kundens
-      // adress går att fastställa, därav de två raderna nedan.
-      automatic_tax: { enabled: true },
+      // Stripe Tax: räknar och tar ut moms automatiskt. ⛔ Måste vara aktiverat
+      // på KONTOT — annars felar hela anropet och köpknappen dör (inte bara
+      // momsen). Se automaticTaxEnabled(); default AV.
+      automatic_tax: { enabled: automaticTaxEnabled() },
+      // Adressen krävs av Stripe Tax för att kunna bestämma momssats, och är
+      // ändå rimlig att ha på ett kvitto. `customer_update` är OBLIGATORISK när
+      // automatic_tax kombineras med en BEFINTLIG kund — utan den vägrar Stripe
+      // skriva adressen till kunden och anropet felar.
       billing_address_collection: "required",
       customer_update: { address: "auto", name: "auto" },
       allow_promotion_codes: true,
