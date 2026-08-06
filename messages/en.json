@@ -477,7 +477,22 @@
     "s8Title": "8. Changes to the terms",
     "s8Body": "We may update these terms, for example for new features or changed legislation. Material changes are announced by email or in the service at least 30 days in advance. Continued use after the changes take effect means you accept the new terms.",
     "s9Title": "9. Governing law and contact",
-    "s9Body": "Swedish law applies to these terms. Disputes are settled by Swedish general courts. Questions about the terms? Contact us at <email>hej@foilio.se</email>."
+    "s9Body": "Swedish law applies to these terms. Disputes are settled by Swedish general courts. Questions about the terms? Contact us at <email>hej@foilio.se</email>.",
+    "s10Title": "Prices and payment",
+    "s10Body": "Foilio Pro costs 49 kr per month including VAT. The price you see is what you pay — no VAT is added at checkout. The subscription renews automatically each month until you cancel, and payment is taken on the same date every month.",
+    "s10Cancel": "You can cancel at any time under Manage subscription on the pricing page. Cancellation takes effect at the end of the period you have already paid for — you keep Pro until then, and it simply does not renew. We never store your card details; payment is handled by Stripe.",
+    "s10Apps": "If you bought Pro in our iOS or Android app, payment is handled by the App Store or Google Play instead. In that case you also cancel there, under Subscriptions in your phone settings.",
+    "s11Title": "Right of withdrawal",
+    "s11Body": "As a consumer you normally have a 14-day right of withdrawal on distance purchases under the Swedish Distance Contracts Act (2005:59).",
+    "s11Waiver": "Foilio Pro is a digital service that begins delivery immediately once the purchase is completed. By accepting the terms at checkout you consent to delivery starting straight away and confirm that you thereby lose your right of withdrawal. If something has gone wrong anyway, get in touch and we will look at it.",
+    "s12Title": "If we cannot agree",
+    "s12Body": "If you are dissatisfied and we cannot find a solution together, you can contact the Swedish National Board for Consumer Disputes (ARN), Box 174, 101 23 Stockholm, arn.se. You can also use the European Commission's online dispute resolution platform at ec.europa.eu/odr.",
+    "s13Title": "Business details",
+    "s13Intro": "Foilio is operated by:",
+    "s13Name": "Name",
+    "s13Address": "Address",
+    "s13Vat": "VAT number",
+    "s13Email": "Email"
   },
   "Privacy": {
     "metaTitle": "Privacy policy",

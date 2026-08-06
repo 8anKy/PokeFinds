@@ -2,6 +2,7 @@ import { apiError, jsonOk } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { prisma, withDbRetry } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
+import { legalEntity } from "@/lib/legal-entity";
 import { rateLimit } from "@/lib/rate-limit";
 import { automaticTaxEnabled, getStripe } from "@/lib/stripe";
 
@@ -28,6 +29,15 @@ export async function POST() {
     const priceId = process.env.STRIPE_PRICE_ID_PRO_MONTHLY;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL;
     if (!priceId || !appUrl) {
+      throw new ServiceError(503, "Betalning är inte färdigkonfigurerad.");
+    }
+
+    // ⛔ SÄLJ INTE UTAN SÄLJARIDENTITET. E-handelslagen 8 § kräver att namn,
+    // adress och momsreg.nr är publicerade — och /villkor renderar det blocket
+    // BARA när uppgifterna är kompletta. Utan den här grinden hade en glömd
+    // miljövariabel gett en fullt fungerande kassa på en sajt som inte säger vem
+    // som säljer. Hellre en trasig köpknapp än ett olagligt avtal.
+    if (!legalEntity()) {
       throw new ServiceError(503, "Betalning är inte färdigkonfigurerad.");
     }
 
@@ -98,6 +108,21 @@ export async function POST() {
       customer_update: { address: "auto", name: "auto" },
       allow_promotion_codes: true,
       locale: "sv",
+      // ⛔ ÅNGERRÄTTEN KRÄVER BÅDE SAMTYCKE OCH INFORMATION. Distansavtalslagen
+      // 2 kap.: ångerrätten för en digital tjänst upphör när leveransen påbörjats
+      // — men bara om kunden UTTRYCKLIGEN samtyckt OCH fått veta att rätten går
+      // förlorad. Kryssrutan här är samtycket, /villkor § 11 är informationen.
+      // Saknas endera håller inte avståendet, och kunden kan ångra köpet efter
+      // att ha använt tjänsten.
+      // ⚠️ `terms_of_service: "required"` kräver att en villkors-URL är satt i
+      // Stripes Checkout-inställningar — utan den felar anropet.
+      consent_collection: { terms_of_service: "required" },
+      custom_text: {
+        terms_of_service_acceptance: {
+          message:
+            "Foilio Pro levereras direkt. Genom att godkänna samtycker du till att leveransen påbörjas omedelbart och att din ångerrätt därmed upphör.",
+        },
+      },
       success_url: `${appUrl}/priser?checkout=klar&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl}/priser?checkout=avbruten`,
     });

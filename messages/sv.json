@@ -477,7 +477,22 @@
     "s8Title": "8. Ändringar av villkoren",
     "s8Body": "Vi kan uppdatera dessa villkor, exempelvis vid nya funktioner eller ändrad lagstiftning. Väsentliga ändringar meddelas via e-post eller i tjänsten minst 30 dagar i förväg. Fortsatt användning efter att ändringarna trätt i kraft innebär att du godkänner de nya villkoren.",
     "s9Title": "9. Tillämplig lag och kontakt",
-    "s9Body": "Svensk lag gäller för dessa villkor. Tvister prövas av svensk allmän domstol. Frågor om villkoren? Kontakta oss på <email>hej@foilio.se</email>."
+    "s9Body": "Svensk lag gäller för dessa villkor. Tvister prövas av svensk allmän domstol. Frågor om villkoren? Kontakta oss på <email>hej@foilio.se</email>.",
+    "s10Title": "Priser och betalning",
+    "s10Body": "Foilio Pro kostar 49 kr per månad inklusive moms. Priset du ser är det du betalar — ingen moms tillkommer i kassan. Prenumerationen förnyas automatiskt varje månad tills du säger upp den, och betalningen dras samma datum varje månad.",
+    "s10Cancel": "Du kan säga upp när som helst under Hantera prenumeration på prissidan. Uppsägningen gäller från slutet av den period du redan betalat för — du behåller alltså Pro perioden ut, och därefter förnyas den inte. Vi sparar aldrig dina kortuppgifter; betalningen hanteras av Stripe.",
+    "s10Apps": "Har du köpt Pro i vår iOS- eller Android-app sköts betalningen i stället av App Store respektive Google Play. Då säger du också upp den där, under Prenumerationer i telefonens inställningar.",
+    "s11Title": "Ångerrätt",
+    "s11Body": "Som konsument har du enligt distansavtalslagen (2005:59) normalt 14 dagars ångerrätt vid köp på distans.",
+    "s11Waiver": "Foilio Pro är en digital tjänst som börjar levereras direkt när köpet är genomfört. När du godkänner villkoren i kassan samtycker du till att leveransen påbörjas omedelbart och bekräftar att du därmed förlorar din ångerrätt. Har något ändå blivit fel — hör av dig till oss, så tittar vi på det.",
+    "s12Title": "Om vi inte kommer överens",
+    "s12Body": "Är du missnöjd och vi inte hittar en lösning tillsammans kan du vända dig till Allmänna reklamationsnämnden (ARN), Box 174, 101 23 Stockholm, arn.se. Du kan också använda EU-kommissionens plattform för tvistlösning online på ec.europa.eu/odr.",
+    "s13Title": "Företagsuppgifter",
+    "s13Intro": "Foilio drivs av:",
+    "s13Name": "Namn",
+    "s13Address": "Adress",
+    "s13Vat": "Momsreg.nr",
+    "s13Email": "E-post"
   },
   "Privacy": {
     "metaTitle": "Integritetspolicy",
