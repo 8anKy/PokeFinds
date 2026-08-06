@@ -32,6 +32,8 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   **Restock-alerts = Pro-only**: PRO-bevakare av produkten (`WatchlistItem.restockAlert` + `user.planTier=PREMIUM`) UNION Pro-användare med
   `notificationSettings.allRestocks=true` (opt-in "Alla restocks", default AV — larm för VILKEN sealed-produkt som helst). Gratisanvändare får
   INGA restock-larm. Union+dedup i `checkRestockAlerts` (`src/services/alerts.ts`). Master e-post-toggle respekteras ändå i `dispatchPendingAlerts`.
+  **TREDJE MOTTAGARKÄLLAN = SET-BEVAKNING (2026-08-06)**: `SetWatch` (userId+setId) larmar på ALLA sealed-produkter i ett set. Se
+  "SET-BEVAKNING" under Tekniska beslut.
 - **Funktioner live**: watchlist/prisbevakning, restock-alerts (8 butikskällor), samlingsvärde (live),
   AI-gradering (`/gradera`, Claude vision), live kort-skanner (`/skanna`, capture-baserad), community, admin, PWA.
 
@@ -158,6 +160,35 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
 - Övrigt: se docs/TODO.md.
 
 ## Tekniska beslut (VIKTIGA — ändra inte utan skäl)
+- **SET-BEVAKNING ÄR EN STÅENDE REGEL, INTE EN ÖGONBLICKSBILD (2026-08-06)**: `SetWatch` (userId+setId, unik) ger
+  restock-larm på ALLA sealed-produkter i ett set. ⛔ Expandera den ALDRIG till en `WatchlistItem` per sealed-produkt
+  vid klick: auto-importen (`ensureListingProduct`) skapar sealed-SKU:er löpande, så en expansion vid klicktillfället
+  hade missat exakt de nya förhandsboxarna som är hela poängen med att bevaka ett set. Regeln utvärderas därför vid
+  LARMTILLFÄLLET, i BÅDA vägarna: `checkRestockAlerts` OCH `checkListingAlerts` — den senare är den VIKTIGASTE, för en
+  helt ny låda har ingen Offer ännu och kommer in just där (samma lärdom som feed-först-larmen 2026-07-25).
+  **Grindar**: bara sealed (`isSealedCategory`, `src/lib/product-category.ts` — EN definition, lagd för att inte bli en
+  femte handskriven negativ lista; de fyra befintliga i products/marketplace-offers/cardmarket-refresh lämnas orörda,
+  de sitter i prissättnings- och synlighetsvägar med egna skäl att skilja sig) och bara produkter som HAR ett `setId`.
+  ⚠️ **KÄNT GLAPP**: en färsk auto-importerad sealed-SKU har `setId=null` tills nattens `import-sealed-from-cardmarket`
+  binder den på exakt cmid → set-bevakningen är tyst för den i upp till ~24h. Accepterat; att gissa set på titel vore värre.
+  ⛔ **Pro-grinden ligger även i MOTTAGARFRÅGAN**, inte bara i `addSetWatch`: planen kan ha gått ut sedan raden skrevs
+  (RevenueCat EXPIRATION nollar planTier — se `proUserWhere()`).
+  **VARFÖR-RADEN I MEJLET**: `Alert.reasonSetName` (nullable) skrivs NÄR beslutet fattas, aldrig härleds vid utskick —
+  bevakningen kan vara borttagen däremellan och då hade mejlet påstått fel anledning. Sätts BARA för den som inte
+  bevakar produkten själv (då är skälet uppenbart). `alert.message` når inte lager-mejlen — de fyra mallarna
+  (restock/released/newListing/preorder) bygger egen copy, så skälet måste skickas in som parameter.
+  **UI**: klocka i produktkortets övre HÖGRA hörn (fyndmärket äger det vänstra), kort tryck = varan, långtryck = samma
+  bottenark som "+" med varan/hela setet. Bara sealed — en klocka på en singel hade lovat larm som aldrig kan komma.
+  Knapp i setsidans rubrikrad + "Bevakade set" på /bevakningar (utan den listan är bevakningen osynlig och går inte att
+  stänga av). ⛔ Setsidan förblir ISR: plan och tillstånd läses KLIENT-sida bakom `fo_auth`-hinten, och bevakade set-id:n
+  hämtas EN gång per sida via `src/lib/watched-sets.ts` — en fetch per kort hade blivit 20-40 Neon-väckningar per vy.
+- **GRATISKONTOTS BEVAKNINGSTAK = 5 (ägarbeslut 2026-08-06, var 10)**: `FREE_PLAN_WATCHLIST_LIMIT`. Sänkningen RADERAR
+  ingenting — befintliga poster ligger kvar, taket bromsar bara nya tillägg. ⛔ **TALET ÄR PUBLICERAT** på sex ställen i
+  två språk (prissidans `freeFeatures`, startsidans FAQ, nedgraderings-FAQ:n, klientens "listan är full") som fri text
+  utan koppling till konstanten. `tests/unit/watchlist-limit-copy-sync.test.ts` failar om de glider isär — lös det ALDRIG
+  genom att interpolera konstanten in i översättningarna: poängen är att någon TVINGAS läsa meningarna när talet ändras.
+  ⚠️ Nedgraderings-FAQ:n lovade tidigare "bara de 10 senaste är aktiva" — en funktion som ALDRIG byggts (varken
+  `watchlist.ts` eller RevenueCat-webhooken rör poster vid nedgradering). Texten säger nu vad koden faktiskt gör.
 - **GTIN = exakt cross-store-nyckel (2026-07-13)**: premissen "vi har ingen universell produkt-identifierare" var FEL.
   5 av 7 butiker publicerar tillverkarens streckkod (GS1-prefix `196214` = The Pokémon Company International, `4521329…`
   = Pokémon Japan). **Uppmätt täckning på riktiga prod-offers: 73%.** Vägar (varje butik sin egen — `src/scrapers/gtin-source.ts`):
