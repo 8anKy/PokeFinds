@@ -1,13 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getToken } from "next-auth/jwt";
+import { encode, getToken, type JWT } from "next-auth/jwt";
 import createMiddleware from "next-intl/middleware";
 import { routing } from "@/i18n/routing";
 import { BLOCKED_BOTS } from "@/lib/blocked-bots";
 import {
   AUTH_HINT_COOKIE,
   AUTH_HINT_MAX_AGE,
+  SESSION_COOKIE_NAMES,
   authHintAction,
   sessionCookieCandidates,
+  sessionCookieOptions,
+  shouldRenewSession,
 } from "@/lib/session-cookie";
 
 const intlMiddleware = createMiddleware(routing);
@@ -78,6 +81,45 @@ function syncAuthHint(req: NextRequest, res: NextResponse): NextResponse {
   return res;
 }
 
+/**
+ * GLIDANDE SESSION. Skriver om sessionscookien med en färsk utgång så att en
+ * användare som faktiskt använder appen aldrig loggas ut av sig själv.
+ *
+ * ⛔ VARFÖR HÄR OCH INTE I NEXTAUTH: v4 förnyar cookien när sessionen LÄSES, men
+ * `getServerSession` får ingen `res` i App Router och kan inte sätta cookies, och
+ * appen anropar aldrig `/api/auth/session` (hela poängen med `fo_auth`-hinten).
+ * Ingenting förnyade alltså sessionen — alla loggades ut exakt 30 dygn efter login
+ * oavsett aktivitet. Middleware är dessutom det billigaste stället: noll DB.
+ *
+ * ⛔ CHUNKADE COOKIES RÖRS INTE. En JWT > 4 kB delas av NextAuth i `…token.0`,
+ * `.1`, … och har då inget oindexerat namn. Skrev vi tillbaka EN cookie skulle de
+ * gamla chunkarna ligga kvar och två källor konkurrera om samma session. Våra
+ * tokens är några hundra byte, så grenen är teoretisk — men tyst fel om den nås.
+ *
+ * ⛔ NYTTOLASTEN ÄR ORÖRD. `iat`/`exp`/`jti` sätts om av `encode`; allt annat
+ * (`id`, `role`, `planTier`, `refreshedAt`) följer med exakt som det var, så
+ * TTL:n för DB-omläsningen i jwt-callbacken påverkas inte.
+ */
+async function renewSession(req: NextRequest, res: NextResponse, token: JWT): Promise<void> {
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (!secret) return;
+
+  const cookieName = SESSION_COOKIE_NAMES.find((n) => req.cookies.has(n));
+  if (!cookieName) return; // saknas eller chunkad → lämna orörd
+
+  const iat = (token as { iat?: number }).iat;
+  if (!shouldRenewSession(iat, Math.floor(Date.now() / 1000))) return;
+
+  try {
+    const value = await encode({ token, secret, maxAge: sessionCookieOptions(cookieName).maxAge });
+    res.cookies.set(cookieName, value, sessionCookieOptions(cookieName));
+  } catch {
+    // ⛔ En misslyckad förnyelse får ALDRIG fälla begäran. Den gamla cookien är
+    // fortfarande giltig — användaren märker ingenting, och nästa sidladdning
+    // försöker igen. Att kasta här hade gett 500 på varje sida för alla inloggade.
+  }
+}
+
 export async function middleware(req: NextRequest) {
   const ua = req.headers.get("user-agent") ?? "";
   if (BLOCKED_BOTS.test(ua)) {
@@ -90,7 +132,16 @@ export async function middleware(req: NextRequest) {
   // Publika sidor auth-gatas inte — låt next-intl sköta locale-routing direkt.
   const isProtected = PROTECTED_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
   if (!isProtected) {
-    return syncAuthHint(req, intlMiddleware(req));
+    const res = syncAuthHint(req, intlMiddleware(req));
+    // Sessionen förnyas ÄVEN på publika sidor — annars hade den som mest bläddrar
+    // i katalogen loggats ut trots daglig användning. `getToken` (en JWE-dekryptering)
+    // körs bara när det FINNS en sessionscookie, så utloggade besökare — merparten
+    // av den publika trafiken, och all crawler-trafik — kostar noll krypto.
+    if (sessionCookieCandidates().some((n) => req.cookies.has(n))) {
+      const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+      if (token) await renewSession(req, res, token);
+    }
+    return res;
   }
 
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
@@ -114,7 +165,9 @@ export async function middleware(req: NextRequest) {
   }
 
   // Autentiserad OK → låt next-intl sätta locale-context/rewrite.
-  return syncAuthHint(req, intlMiddleware(req));
+  const res = syncAuthHint(req, intlMiddleware(req));
+  await renewSession(req, res, token);
+  return res;
 }
 
 export const config = {

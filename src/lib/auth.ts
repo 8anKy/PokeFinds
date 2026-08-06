@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { rateLimit, peekRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { isPro } from "@/lib/plan";
+import { SESSION_MAX_AGE } from "@/lib/session-cookie";
 import type { Role, PlanTier } from "@prisma/client";
 
 declare module "next-auth" {
@@ -63,7 +64,13 @@ declare module "next-auth/jwt" {
 const TOKEN_REFRESH_MS = 30 * 60 * 1000;
 
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt", maxAge: 30 * 24 * 3600 },
+  // ⛔ `maxAge` är ett INAKTIVITETSFÖNSTER, inte en inloggningstid — middleware
+  // skriver om cookien med en färsk utgång vid användning (`renewSession`). Utan
+  // den förnyelsen var talet en hård utloggning för ALLA: `getServerSession` får
+  // ingen `res` i App Router och kan inte sätta cookies, och appen läser aldrig
+  // `/api/auth/session`. Talet bor i lib/session-cookie.ts så de två inte kan glida
+  // isär — middleware måste skriva samma livslängd som NextAuth utfärdade.
+  session: { strategy: "jwt", maxAge: SESSION_MAX_AGE },
   pages: {
     signIn: "/logga-in",
   },

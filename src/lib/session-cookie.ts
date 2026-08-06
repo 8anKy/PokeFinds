@@ -34,8 +34,46 @@ export const SESSION_COOKIE_NAMES = [
 /** Namnet på UI-hinten. Speglar `NAME` i auth-hint.ts (klientsidan). */
 export const AUTH_HINT_COOKIE = "fo_auth";
 
-/** 30 dygn — samma som sessionens maxAge i authOptions. */
-export const AUTH_HINT_MAX_AGE = 60 * 60 * 24 * 30;
+/**
+ * Hur länge en session lever UTAN aktivitet. Fönstret är GLIDANDE (se
+ * `shouldRenewSession`), så det här är inte "hur länge du får vara inloggad" utan
+ * "hur länge en oanvänd enhet får förbli inloggad".
+ *
+ * ⛔ VAR 30 DYGN ABSOLUT, och det var en riktig bugg: `getServerSession` får ingen
+ * `res` i App Router och kan därför inte förnya cookien, och appen läser aldrig
+ * `/api/auth/session` (hela poängen med `fo_auth`-hinten). Ingenting förnyade
+ * alltså sessionen — ALLA loggades ut exakt 30 dygn efter login hur aktiva de än
+ * var. Middleware förnyar nu i stället, utan en enda DB-fråga.
+ *
+ * ⛔ Ett år, inte "för alltid". En JWT-session går inte att återkalla (det finns
+ * ingen sessionstabell att radera ur), så en stulen cookie är giltig tills den går
+ * ut. För en användare som öppnar appen någon gång per år är det här omöjligt att
+ * skilja från "aldrig", och det lämnar ändå en bortre gräns för en tappad telefon.
+ */
+export const SESSION_MAX_AGE = 60 * 60 * 24 * 365;
+
+/**
+ * Hur gammal token får bli innan middleware skriver om den. Ett dygn: tillräckligt
+ * sällan för att kostnaden ska vara noll i praktiken, tillräckligt ofta för att en
+ * användare aldrig ska kunna missa fönstret.
+ */
+export const SESSION_RENEW_AFTER = 60 * 60 * 24;
+
+/** Hinten ska leva exakt lika länge som sessionen — den beskriver ju den. */
+export const AUTH_HINT_MAX_AGE = SESSION_MAX_AGE;
+
+/**
+ * Ska sessionen skrivas om nu? Ren funktion (sekunder, som JWT:ns `iat`).
+ * Saknad/ogiltig `iat` → JA: en token vi inte kan datera ska hellre förnyas en
+ * gång för mycket än tystna och logga ut någon.
+ */
+export function shouldRenewSession(
+  issuedAtSeconds: number | undefined,
+  nowSeconds: number
+): boolean {
+  if (typeof issuedAtSeconds !== "number" || !Number.isFinite(issuedAtSeconds)) return true;
+  return nowSeconds - issuedAtSeconds >= SESSION_RENEW_AFTER;
+}
 
 /**
  * Vad hinten behöver för att komma i takt med sessionen.
@@ -61,4 +99,21 @@ export function sessionCookieCandidates(): string[] {
     out.push(name, `${name}.0`);
   }
   return out;
+}
+
+/**
+ * Cookie-optionerna en förnyad session måste skrivas med. MÅSTE spegla NextAuths
+ * egna defaults exakt — skriver vi t.ex. utan `httpOnly` degraderar vi säkerheten
+ * på sessionen, och med fel `path` får webbläsaren TVÅ cookies med samma namn.
+ * `secure` härleds ur namnet: `__Secure-`-prefixet KRÄVER det (annars avvisar
+ * webbläsaren cookien tyst), och utan prefix körs vi på http i dev.
+ */
+export function sessionCookieOptions(cookieName: string) {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    path: "/",
+    secure: cookieName.startsWith("__Secure-"),
+    maxAge: SESSION_MAX_AGE,
+  };
 }
