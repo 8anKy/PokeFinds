@@ -36,15 +36,17 @@ import {
   flapPolicy,
 } from "@/services/alerts";
 
-// Pro-mottagare = planTier PREMIUM ELLER admin-roll ELLER aktiv referral-bonus
-// (lib/plan.proUserWhere). Assertar mot samma struktur som koden bygger — ett bart
-// planTier-filter missar admins (2026-07-08). proUserWhere() bakar in new Date() i
-// bonus-grenen (#10) → koden och testet anropar den millisekunder isär, så en EXAKT
-// Date-jämförelse flakar. Matcha strukturen med expect.any(Date) för bonus-t.o.m.
+// Pro-mottagare = planTier PREMIUM, admin-roll, aktiv referral-bonus ELLER aktiv
+// Stripe-prenumeration (lib/plan.proUserWhere). Assertar mot samma struktur som
+// koden bygger — ett bart planTier-filter missar admins (2026-07-08) och
+// webbkunder (Stripe rör aldrig planTier). proUserWhere() bakar in new Date() i
+// datum-grenarna → koden och testet anropar den millisekunder isär, så en EXAKT
+// Date-jämförelse flakar. Matcha strukturen med expect.any(Date).
 const proWhereOr: unknown[] = [
   { planTier: "PREMIUM" },
   { role: { in: ["ADMIN", "SUPERADMIN"] } },
   { bonusProUntil: { gt: expect.any(Date) } },
+  { stripeProUntil: { gt: expect.any(Date) } },
 ];
 const proUserWhereMatch = { OR: proWhereOr };
 

@@ -44,6 +44,7 @@ export default async function SettingsPage() {
       planTier: true,
       role: true,
       bonusProUntil: true,
+      stripeProUntil: true, // utan denna säger isPro() FREE för en betalande webbkund
       notificationSettings: true,
       traderaUserId: true,
     },

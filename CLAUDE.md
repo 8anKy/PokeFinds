@@ -153,13 +153,41 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   `thinking: { type: "disabled" }`.
 - **Genuint utan CM-marknadsdata**: ~868 singlar + ~24 sealed → ärlig "–"/döljs tills data finns.
 - **Prishistorik byggs FRAMÅT** — ingen legitim källa ger äkta retroaktiv daglig historik (CM-graf får ej skrapas, RapidAPI ger bara 7d/30d-snitt).
-- Stripe avstängd (`STRIPE_ENABLED=false`); web push förberett men kräver VAPID-nycklar.
+- **Stripe (webbens Pro) BYGGT 2026-08-06, ej live**: kod klar och testad, men `STRIPE_ENABLED=false` tills
+  (a) sandbox-nycklarna verifierats end-to-end och (b) juridisk person + ångerrätt står i appen (se
+  användarvillkoren ovan — att ta kort av konsumenter gör e-handelslagen 8 § och distansavtalslagen bindande).
+  Se "STRIPE" under Tekniska beslut. Web push förberett men kräver VAPID-nycklar.
 - **Launch-readiness + kostnad-vid-skala**: levande checklista i `docs/LAUNCH-CHECKLIST.md` (Section 0 =
   kostnadshetspunkter vid samtidig trafik; bocka av `- [x]` allt eftersom). Öppna kostnadsposter: offers-refetch
   per produktvisning, `force-dynamic` på alla `/api/*`, ingen rate limiting, collection-värde live-compute.
 - Övrigt: se docs/TODO.md.
 
 ## Tekniska beslut (VIKTIGA — ändra inte utan skäl)
+- **STRIPE SKRIVER ALDRIG `planTier` (2026-08-06)**: webbens Pro bor i EGNA kolumner
+  (`stripeCustomerId`/`stripeSubscriptionId`/`stripeProUntil`) och blir en FJÄRDE gren i `isPro()` och
+  `proUserWhere()` — exakt samma mönster som referral-bonusens `bonusProUntil`, av exakt samma skäl:
+  `planTier` ägs av RevenueCat-webhooken, vars `EXPIRATION` sätter FREE OVILLKORLIGT. En utgången
+  Apple-sandbox hade annars sagt upp en kund som betalar oss med kort — och det felet är tyst (2026-07-08
+  tystade just den mekanismen alla restock-larm i fyra dygn). ⛔ **Glöms grenen i `proUserWhere()` får
+  webbkunden Pro i gränssnittet men INGA larm**: mottagarfrågorna går enbart via det filtret. ⛔ Varje
+  DB-`select` som matar `isPro()` måste välja `stripeProUntil` — ett ovalt fält blir `undefined` och vakten
+  failar ÖPPET (samma familj som `variantLabel` 07-28). Rättade vid bygget: `users/me` (BÅDA selecten) och
+  `installningar/page.tsx`. Sessionsvägen bär fältet genom JWT:n (authorize → jwt → session).
+  ⛔ **`subscription.current_period_end` FINNS INTE** i den API-version SDK:n (v22) pinnar — fältet flyttade
+  till `items.data[].current_period_end`. En läsning på toppnivån ger `undefined` ⇒ INGEN får någonsin Pro,
+  tyst och bara i drift. Enda vägen är `subscriptionPeriodEnd()` i `src/lib/stripe.ts` (tar senaste posten,
+  faller tillbaka på toppnivån för äldre versioner). Verifierat mot node_modules, vaktat av test.
+  ⛔ **Webhooken litar aldrig på eventets objekt** — den hämtar prenumerationen FÄRSK. Stripe garanterar inte
+  leveransordning, och ett försenat `updated` med gammal status hade sagt upp en aktiv kund. Ett absolut datum
+  (inte en boolean) gör skrivningen idempotent och självläkande: missas uppsägningen löper Pro ut ändå.
+  Nåd = `GRACE_DAYS` 3 — avvägningen är osymmetrisk (för kort = betalande kund tappar larm, för lång = en
+  avhoppare behåller Pro några dygn). `past_due` behåller Pro: ett nekat kort är inte en uppsägning.
+  ⛔ **Bara webben.** Apple förbjuder egen checkout för digitala varor i app:en; `purchasesAvailable()` i
+  `upgrade-button.tsx` är gränsen, och checkout-routen blockerar dubbeldebitering (`planTier=PREMIUM` = köpt
+  via Apple). Uppsägning sker där köpet gjordes — webbkunder får Stripes kundportal, app-kunder App Store.
+  ⛔ Klienten måste kalla `session.update()` efter återkomsten från Checkout: jwt-callbacken läser annars om
+  planen först efter `TOKEN_REFRESH_MS` (30 min) och en betalande kund väntar en halvtimme utan att något felar.
+  Moms via Stripe Tax (`automatic_tax`), priset sätts inkl. moms. Plan/kvot-namnet `PREMIUM` är oförändrat.
 - **SET-BEVAKNING ÄR EN STÅENDE REGEL, INTE EN ÖGONBLICKSBILD (2026-08-06)**: `SetWatch` (userId+setId, unik) ger
   restock-larm på ALLA sealed-produkter i ett set. ⛔ Expandera den ALDRIG till en `WatchlistItem` per sealed-produkt
   vid klick: auto-importen (`ensureListingProduct`) skapar sealed-SKU:er löpande, så en expansion vid klicktillfället

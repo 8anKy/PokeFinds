@@ -150,6 +150,14 @@ model User {
   // (EXPIRATION sätter FREE) och får aldrig kunna nolla en intjänad bonus.
   // isPro()/proUserWhere() räknar båda. Se src/services/invites.ts.
   bonusProUntil        DateTime?
+  // Stripe (webbens Pro). SEPARAT från planTier av EXAKT samma skäl som
+  // bonusProUntil: planTier ägs av RevenueCat-webhooken, vars EXPIRATION sätter
+  // FREE ovillkorligt — en utgången Apple-sandbox hade annars kunnat säga upp en
+  // betalande webbkund. Datum (inte boolean) → självläkande: missas uppsägningen
+  // löper Pro ut ändå. Skrivs BARA av src/app/api/webhooks/stripe/route.ts.
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?
+  stripeProUntil       DateTime?
   resetToken           String?   @unique
   resetTokenExpiresAt  DateTime?
   onboardingCompleted  Boolean   @default(false)

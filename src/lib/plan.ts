@@ -18,12 +18,23 @@ export interface ProUserShape {
   role: Role;
   /** Date från Prisma, ISO-sträng från JWT/cache — båda tolkas. */
   bonusProUntil?: Date | string | null;
+  /**
+   * Stripe-prenumeration (webben) t.o.m. detta datum. FJÄRDE oberoende källan,
+   * inte en variant av planTier: RevenueCat-webhooken skriver planTier=FREE på
+   * EXPIRATION, så ett Apple-abonnemang som löper ut hade annars stängt av en
+   * kund som betalar oss via kort. Skrivs av stripe-webhooken.
+   */
+  stripeProUntil?: Date | string | null;
+}
+
+/** Datum i framtiden? Tål både Date (Prisma) och ISO-sträng (JWT/cache). */
+function activeUntil(value: Date | string | null | undefined): boolean {
+  return value != null && new Date(value).getTime() > Date.now();
 }
 
 export function isPro(user: ProUserShape): boolean {
   if (user.planTier === "PREMIUM" || PRO_ROLES.includes(user.role)) return true;
-  const b = user.bonusProUntil;
-  return b != null && new Date(b).getTime() > Date.now();
+  return activeUntil(user.bonusProUntil) || activeUntil(user.stripeProUntil);
 }
 
 /** Planen som kvoter/gränser ska räknas mot (admins får Pro-gränserna). */
@@ -44,6 +55,10 @@ export function proUserWhere(): Prisma.UserWhereInput {
       { planTier: "PREMIUM" },
       { role: { in: PRO_ROLES } },
       { bonusProUntil: { gt: new Date() } },
+      // Webbprenumeranter. Glöms den här grenen får en betalande Stripe-kund
+      // Pro i gränssnittet men INGA larm — larmens mottagarfrågor går enbart
+      // via det här filtret, och felet syns först när mejlen uteblir.
+      { stripeProUntil: { gt: new Date() } },
     ],
   };
 }

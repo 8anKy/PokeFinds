@@ -66,8 +66,11 @@ Alla variabler finns i `.env.example`:
 | `EMAIL_FROM` | Ja | Avsändaradress, t.ex. `Foilio <noreply@foilio.se>` |
 | `OCR_PROVIDER` | Ja | `mock` i MVP. Koppla riktig vision-API senare (se docs/SCANNER.md) |
 | `OCR_API_KEY` | Vid riktig OCR | API-nyckel till vald OCR-leverantör |
-| `STRIPE_ENABLED` | Ja | `false` i MVP — betalmodulen är förberedd men avstängd |
-| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Vid Stripe | Stripe-nycklar (används först när `STRIPE_ENABLED=true`) |
+| `STRIPE_ENABLED` | Ja | `true` slår på webbens Pro-checkout. Egen spak vid sidan av nyckeln så att en felkonfigurerad prod inte börjar ta betalt av misstag. Styr även knappen på `/priser` (servern skickar in `stripeEnabled()`) |
+| `STRIPE_SECRET_KEY` | Vid Stripe | `sk_test_…` (sandbox) / `sk_live_…` (skarpt). Server-side, lämnar aldrig noden |
+| `STRIPE_WEBHOOK_SECRET` | Vid Stripe | `whsec_…` för `/api/webhooks/stripe`. Lokalt: `stripe listen --forward-to localhost:3000/api/webhooks/stripe` skriver ut den. Prod: en egen hemlighet per endpoint i Stripe-dashboarden |
+| `STRIPE_PRICE_ID_PRO_MONTHLY` | Vid Stripe | `price_…` för Pro 49 kr/mån. Skapa den med `tax_behavior=inclusive` — svensk konsumentprissättning är inkl. moms, och Stripe Tax räknar baklänges från 49 kr |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Nej | `pk_test_…`. Behövs INTE för hostad Checkout (servern skapar sessionen och redirectar). Ligger kvar för ev. framtida Stripe Elements |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Nej | Web push (förberett, kräver VAPID-nyckelpar) |
 | `CRON_SECRET` | Ja (för cron) | Hemlighet för `/api/cron/scrape` — anropet måste skicka headern `x-cron-secret`. Utan satt variabel är cron-routen avstängd (503) |
 | `NEXT_PUBLIC_APP_URL` | Ja | Publik bas-URL (används bl.a. i e-postlänkar) |

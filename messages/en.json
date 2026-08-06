@@ -1223,6 +1223,10 @@
   "Upgrade": {
     "currentPlan": "Your current plan ✓",
     "manageSub": "Manage or cancel in the App Store (Settings → your name → Subscriptions).",
+    "manageWebSub": "Manage subscription",
+    "manageSubWeb": "Update your card, get receipts or cancel — whenever you like.",
+    "msgPortalFailed": "Could not open the subscription page.",
+    "securePayment": "Secure payment via Stripe. No lock-in.",
     "comingSoon": "Coming soon",
     "paymentSoon": "Payment launches soon. No lock-in.",
     "loginToUpgrade": "Log in to upgrade",

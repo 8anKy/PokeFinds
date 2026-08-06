@@ -89,6 +89,7 @@ describe("glidande session", () => {
       role: "ADMIN" as const,
       planTier: "PREMIUM" as const,
       bonusProUntil: null,
+      stripeProUntil: "2026-09-04T00:00:00.000Z",
       onboardingCompleted: true,
       refreshedAt: 1_700_000_000_000,
       iat: 1_700_000_000,
@@ -103,6 +104,9 @@ describe("glidande session", () => {
     expect(renewed.role).toBe("ADMIN");
     expect(renewed.planTier).toBe("PREMIUM");
     expect(renewed.onboardingCompleted).toBe(true);
+    // Tappas den här överlever förnyelsen, men en betalande webbkund förlorar
+    // sitt Pro efter ett dygn — tyst, och bara i produktion.
+    expect(renewed.stripeProUntil).toBe("2026-09-04T00:00:00.000Z");
     // refreshedAt styr DB-omläsningen i jwt-callbacken — nollställs den börjar varje
     // sidladdning läsa User ur Neon igen.
     expect(renewed.refreshedAt).toBe(1_700_000_000_000);

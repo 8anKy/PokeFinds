@@ -1223,6 +1223,10 @@
   "Upgrade": {
     "currentPlan": "Din nuvarande plan ✓",
     "manageSub": "Hantera eller säg upp i App Store (Inställningar → ditt namn → Prenumerationer).",
+    "manageWebSub": "Hantera prenumeration",
+    "manageSubWeb": "Byt kort, hämta kvitton eller säg upp — när du vill.",
+    "msgPortalFailed": "Kunde inte öppna prenumerationssidan.",
+    "securePayment": "Säker betalning via Stripe. Ingen bindningstid.",
     "comingSoon": "Kommer snart",
     "paymentSoon": "Betalning lanseras inom kort. Ingen bindningstid.",
     "loginToUpgrade": "Logga in för att uppgradera",

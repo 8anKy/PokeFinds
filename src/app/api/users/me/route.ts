@@ -14,6 +14,11 @@ const profileSelect = {
   role: true,
   planTier: true,
   bonusProUntil: true,
+  // ⛔ Måste med: isPro() nedan räknar på den här formen, och ett fält som INTE
+  // är valt blir `undefined` → vakten failar ÖPPET och en betalande webbkund
+  // hade setts som gratisanvändare. Samma familj som variantLabel-missen 07-28.
+  stripeProUntil: true,
+  stripeCustomerId: true,
   avatarUrl: true,
   bio: true,
   emailVerifiedAt: true,
@@ -24,6 +29,18 @@ const profileSelect = {
   isPublicCollection: true,
   createdAt: true,
 } satisfies Prisma.UserSelect;
+
+/**
+ * Svarsformen. `stripeCustomerId` väljs för att kunna avgöra om kontot har ett
+ * WEBBköp (→ visa "Hantera prenumeration", som öppnar Stripes kundportal), men
+ * skickas aldrig ut: klienten behöver svaret på frågan, inte kundens id hos en
+ * tredje part. Den som köpt i app:en har ingen Stripe-kund och hänvisas till
+ * App Store i stället.
+ */
+function publicProfile(user: Prisma.UserGetPayload<{ select: typeof profileSelect }>) {
+  const { stripeCustomerId, ...rest } = user;
+  return { ...rest, isPro: isPro(user), hasWebSubscription: !!stripeCustomerId };
+}
 
 const notificationSettingsSchema = z.object({
   email: z.boolean().optional(),
@@ -46,8 +63,9 @@ export async function GET() {
       select: profileSelect,
     });
     if (!user) throw new AuthError(404, "Användaren hittades inte.");
-    // isPro = planTier ELLER admin-roll. Klienter ska grinda på detta, inte planTier.
-    return jsonOk({ ...user, isPro: isPro(user) });
+    // isPro = planTier, admin-roll, referral-bonus ELLER Stripe. Klienter ska
+    // grinda på detta, inte på planTier.
+    return jsonOk(publicProfile(user));
   } catch (e) {
     return apiError(e);
   }
@@ -60,7 +78,14 @@ export async function PATCH(req: Request) {
 
     const current = await prisma.user.findUnique({
       where: { id: sessionUser.id },
-      select: { notificationSettings: true, preferences: true, planTier: true, role: true, bonusProUntil: true },
+      select: {
+        notificationSettings: true,
+        preferences: true,
+        planTier: true,
+        role: true,
+        bonusProUntil: true,
+        stripeProUntil: true, // "Alla restocks" är Pro-only — webbkunder räknas
+      },
     });
     if (!current) throw new AuthError(404, "Användaren hittades inte.");
 
@@ -97,7 +122,7 @@ export async function PATCH(req: Request) {
       select: profileSelect,
     });
 
-    return jsonOk(user);
+    return jsonOk(publicProfile(user));
   } catch (e) {
     return apiError(e);
   }

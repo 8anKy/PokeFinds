@@ -21,6 +21,24 @@ describe("isPro", () => {
     expect(isPro({ planTier: "FREE", role: "ADMIN" })).toBe(true);
     expect(isPro({ planTier: "FREE", role: "SUPERADMIN" })).toBe(true);
   });
+
+  // Webbkunden betalar via Stripe, som ALDRIG rör planTier (RevenueCat äger det
+  // fältet och sätter FREE på EXPIRATION). Utan den här grenen hade en betalande
+  // Stripe-kund setts som gratisanvändare.
+  it("aktiv Stripe-prenumeration är Pro trots planTier=FREE", () => {
+    const future = new Date(Date.now() + 60_000);
+    expect(isPro({ planTier: "FREE", role: "USER", stripeProUntil: future })).toBe(true);
+    // ISO-sträng (JWT/cache) måste tolkas likadant som ett Date (Prisma).
+    expect(isPro({ planTier: "FREE", role: "USER", stripeProUntil: future.toISOString() })).toBe(
+      true
+    );
+  });
+
+  it("utgången Stripe-prenumeration är inte Pro", () => {
+    expect(
+      isPro({ planTier: "FREE", role: "USER", stripeProUntil: new Date(Date.now() - 60_000) })
+    ).toBe(false);
+  });
 });
 
 describe("effectivePlanTier", () => {
@@ -43,5 +61,13 @@ describe("proUserWhere", () => {
     ]);
     const bonus = or?.[2] as { bonusProUntil: { gt: Date } };
     expect(bonus.bonusProUntil.gt).toBeInstanceOf(Date);
+  });
+
+  // Larmens mottagarfrågor går ENBART via det här filtret. Saknas grenen får en
+  // betalande webbkund Pro i gränssnittet men inga mejl — och felet syns först
+  // när larmen uteblir, precis som 2026-07-08.
+  it("räknar Stripe-prenumeranter som mottagare", () => {
+    const stripe = proUserWhere().OR?.[3] as { stripeProUntil: { gt: Date } };
+    expect(stripe.stripeProUntil.gt).toBeInstanceOf(Date);
   });
 });

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { IconCheck, IconPlus, IconX } from "@/components/ui/icons";
+import { stripeEnabled } from "@/lib/stripe";
 import { UpgradeButton } from "./upgrade-button";
 import { FreePlanCta } from "./free-plan-cta";
 import { PageBackButton } from "@/components/layout/page-back-button";
@@ -95,7 +96,10 @@ export default async function PricingPage({
               <p className="mb-3 text-sm font-medium text-ink">{t("proLead")}</p>
               <FeatureList items={premiumFeatures} />
             </div>
-            <UpgradeButton />
+            {/* Servern äger frågan "går det att betala?" — en egen
+                NEXT_PUBLIC_-flagga hade blivit en andra sanning som glider isär
+                från STRIPE_ENABLED. */}
+            <UpgradeButton webCheckout={stripeEnabled()} />
           </div>
         </div>
       </div>
