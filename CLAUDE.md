@@ -300,6 +300,31 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   ⛔ **UTAN NUMMER — INGEN BILD.** 92 % av korten delar namn med minst ett annat; på strängarna ovan fick
   namn+nummer 1,53 och fyra olika Camerupt fick 1,03 var. Träffen måste bära precis det numret OCH vara ensam om
   det. Fel bild bredvid en gradering är ett påstående om en tryckning vi inte känner — värre än ingen bild.
+- **`fo_auth`-HINTEN MÅSTE SÄTTAS AV SERVERN (2026-08-06)**: inloggningen bärs av TVÅ cookies — NextAuths
+  session (server-satt, HttpOnly, 30 dygn) och `fo_auth`, UI-hinten som klient-chrome läser i stället för att
+  anropa `/api/auth/session`. Hinten skrevs av KLIENTEN med `document.cookie` och samma 30 dygn. ⛔ **WebKit kapar
+  sedan Safari 13.1 ALLA cookies skapade via `document.cookie` till 7 dygn** — iPhone-Safari, Chrome på iOS OCH
+  Capacitor-appen (allt är WKWebView); server-satta first-party-cookies kapas INTE. Och hinten är inte kosmetisk:
+  `AuthHintGate` gör `router.replace("/logga-in")` när den saknas. Följden var att varje iOS-användare kastades ut
+  ur appen senast var sjunde dygn med en fullt giltig session, aldrig på desktop-Chrome — därför läste det som
+  slumpmässigt. `syncAuthHint()` i `src/middleware.ts` jämför nu hinten mot sessionscookiens NÄRVARO vid varje
+  sidladdning och rättar den med `Set-Cookie` från servern (beslutet är en ren funktion i `src/lib/session-cookie.ts`).
+  ⛔ JWT:n verifieras INTE där — hinten är en gissning servern ändå överprövar, och en HMAC per publik sidvisning
+  vore att betala krypto för ett UI-tips. ⛔ Chunkade namn (`…session-token.0`) måste räknas med: en JWT > 4 kB har
+  inget oindexerat namn alls, och synken hade rensat hinten för en inloggad. ⏭️ KVAR: sessionen är 30 dygn
+  ABSOLUT, inte glidande — `getServerSession` får ingen `res` i App Router och kan inte förnya cookien, och inget i
+  appen läser `/api/auth/session` (hela poängen med hinten). Alla loggas alltså ut 30 dygn efter login oavsett
+  aktivitet. **Generellt: en cookie som JS skriver har inte den livslängd du anger.**
+- **ONBOARDINGENS FAVORITSET ÄR EN RANKNINGSSIGNAL, INTE EN ENKÄT (2026-08-06)**: `preferences.favoriteSets` skrevs
+  av `/api/users/me/onboarding` och lästes ALDRIG av någon kod — steget bad om något vi kastade. De adderas nu till
+  samma `affinitySetIds` som bevakningar och samling bygger (`loadPersonalContextUncached`, `services/products.ts`).
+  ⛔ Ingen egen vikt: ett kryss vid registreringen säger inte mer eller mindre än en bevakning, och att kalibrera
+  två vikter mot varandra kräver underlag vi inte har (mätt 2026-07-29: 4 användare, 8 sökklick/30 dygn).
+  ⛔ `preferences` är otypad JSON skriven av flera versioner av onboardingen → `favoriteSetIds()`
+  (`src/lib/user-preferences.ts`) kastar aldrig; en trasig rad hade annars sänkt HELA katalogfeeden för just den
+  användaren, bara för inloggade, bara i produktion. ⚠️ Lyftet syns vid SÖKNING och i FILTRERADE vyer — en
+  ofiltrerad katalog personaliseras inte (`MAX_CANDIDATES`, se "Bäst matchning"). Setvalet visar setlogotyper
+  (samma bricka som setfiltret och "Bevakade set"), och det finns ingen väg att ändra valet efteråt.
 - **Caching/ISR (kvot-kritiskt)**: publika läs-sidor är ISR-cachade, INTE `force-dynamic` (`revalidate=3600`): startsidan, `/marknad`,
   `/sets`, `/sets/[id]`, `/produkter/[slug]`. Data ändras ~1×/dygn så cache är osynlig; live-priser/offers uppdateras ändå klient-sida
   via polling. **Sätt ALDRIG tillbaka `force-dynamic` på dessa** utan skäl — det var orsaken till hög Vercel Active CPU + Neon-CU.
