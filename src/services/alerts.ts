@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { isBlockedListingLanguage } from "@/lib/listing-language";
 import { proUserWhere } from "@/lib/plan";
+import { isSealedCategory } from "@/lib/product-category";
 import type { AlertChannel, AlertType, Prisma, StockStatus } from "@prisma/client";
 
 function formatSek(ore: number): string {
@@ -211,7 +212,16 @@ export async function checkRestockAlerts(
 ) {
   const product = await prisma.product.findUnique({
     where: { id: productId },
-    select: { id: true, title: true, slug: true },
+    // setId + category + setnamn: set-bevakarna nedan avgörs på dem, och namnet
+    // följer med i mejlet som skälet till att larmet kom.
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      setId: true,
+      category: true,
+      set: { select: { name: true } },
+    },
   });
   if (!product) return { triggered: 0 };
   // Blockade språk (kinesiska/koreanska) larmar vi inte på "for now". Japanska = OK.
@@ -263,7 +273,15 @@ export async function checkRestockAlerts(
     if (recent) return { triggered: 0 };
   }
 
-  const [watchers, allSubs] = await Promise.all([
+  // SET-BEVAKARE: "bevaka hela setet" är en STÅENDE regel, så den utvärderas här
+  // och inte som WatchlistItem-rader vid klicktillfället — annars hade den missat
+  // varje sealed-SKU som auto-importen skapat sedan dess, vilket är själva poängen.
+  // Bara sealed: singlar/tillbehör restockar inte i butiksfeeden, och rubriken
+  // lovar sealed-larm. Produkter utan set (färska auto-importer får sitt setId
+  // först av nattens sealed-import) faller igenom tills de fått sin etikett.
+  const setWatchApplies = !!product.setId && isSealedCategory(product.category);
+
+  const [watchers, allSubs, setWatchers] = await Promise.all([
     prisma.watchlistItem.findMany({
       // Restock-larm är Pro-only — även bevakade produkter larmar bara för Pro.
       where: { productId, restockAlert: true, isPaused: false, user: proUserWhere() },
@@ -277,12 +295,31 @@ export async function checkRestockAlerts(
       },
       select: { id: true },
     }),
+    setWatchApplies
+      ? prisma.setWatch.findMany({
+          // Pro-grinden finns redan i addSetWatch, men mottagarfrågan får inte
+          // LITA på det: en användare kan ha varit Pro när raden skapades och
+          // fallit till FREE sedan dess (RevenueCat EXPIRATION).
+          where: { setId: product.setId!, user: proUserWhere() },
+          select: { userId: true },
+        })
+      : Promise.resolve([] as { userId: string }[]),
   ]);
 
   const userIds = new Set<string>();
   for (const w of watchers) userIds.add(w.userId);
   for (const u of allSubs) userIds.add(u.id);
+  for (const s of setWatchers) userIds.add(s.userId);
   if (userIds.size === 0) return { triggered: 0 };
+
+  // Skälsraden i mejlet gäller den som INTE bevakar produkten själv: bevakar man
+  // varan är "du bevakar den här varan" ingen nyhet, men får man plötsligt mejl om
+  // en låda man aldrig rört är setnamnet hela förklaringen.
+  const directWatchers = new Set(watchers.map((w) => w.userId));
+  const setReasonFor = new Set(
+    setWatchers.map((s) => s.userId).filter((id) => !directWatchers.has(id))
+  );
+  const setName = product.set?.name ?? null;
 
   // Tre olika besked under samma AlertType. "igen" gäller BARA påfyllningen: ett
   // släpp har aldrig varit i lager förut, och en öppnad förhandsbokning går inte att
@@ -303,6 +340,10 @@ export async function checkRestockAlerts(
           type: "RESTOCK",
           fromStatus,
           toStatus,
+          // Skälet skrivs NU, när vi vet det. Att räkna ut det vid utskick hade
+          // varit en gissning: användaren kan ha tagit bort set-bevakningen mellan
+          // larm och mejl, och då hade mejlet påstått fel anledning.
+          reasonSetName: setReasonFor.has(userId) ? setName : null,
           message,
           channel: "EMAIL",
         },
@@ -341,7 +382,19 @@ export async function checkListingAlerts(
   // Blockade språk (kinesiska/koreanska) larmar vi inte på "for now". Japanska = OK.
   if (isBlockedListingLanguage(listing.title)) return { triggered: 0 };
 
-  const [allSubs, watchers] = await Promise.all([
+  // SET-BEVAKARE: den här vägen är den VIKTIGASTE för set-bevakningen. En helt ny
+  // sealed-SKU (förhandsbox som dyker upp hos en butik) har ingen Offer ännu och
+  // kommer alltså in HÄR, inte via offer-diffen — precis det man bevakar ett set
+  // för. Utan uppslaget hade set-bevakningen bara larmat om varor vi redan kände.
+  const product = listing.productId
+    ? await prisma.product.findUnique({
+        where: { id: listing.productId },
+        select: { setId: true, category: true, set: { select: { name: true } } },
+      })
+    : null;
+  const setId = product && isSealedCategory(product.category) ? product.setId : null;
+
+  const [allSubs, watchers, setWatchers] = await Promise.all([
     prisma.user.findMany({
       where: {
         notificationSettings: { path: ["allRestocks"], equals: true },
@@ -361,13 +414,26 @@ export async function checkListingAlerts(
           select: { userId: true },
         })
       : Promise.resolve([] as { userId: string }[]),
+    setId
+      ? prisma.setWatch.findMany({
+          where: { setId, user: proUserWhere() },
+          select: { userId: true },
+        })
+      : Promise.resolve([] as { userId: string }[]),
   ]);
 
   const recipients = new Set<string>();
   for (const u of allSubs) recipients.add(u.id);
   for (const w of watchers) recipients.add(w.userId);
+  for (const s of setWatchers) recipients.add(s.userId);
   if (recipients.size === 0) return { triggered: 0 };
   const subs = [...recipients].map((id) => ({ id }));
+
+  const directWatchers = new Set(watchers.map((w) => w.userId));
+  const setReasonFor = new Set(
+    setWatchers.map((s) => s.userId).filter((id) => !directWatchers.has(id))
+  );
+  const setName = product?.set?.name ?? null;
 
   const fromStatus = transition?.from ?? null;
   const toStatus = transition?.to ?? null;
@@ -391,6 +457,7 @@ export async function checkListingAlerts(
         type,
         fromStatus,
         toStatus,
+        reasonSetName: setReasonFor.has(u.id) ? setName : null,
         message,
         channel: "EMAIL",
       },

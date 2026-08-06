@@ -165,6 +165,7 @@ model User {
   updatedAt            DateTime  @updatedAt
 
   watchlistItems  WatchlistItem[]
+  setWatches      SetWatch[]
   alerts          Alert[]
   collectionItems CollectionItem[]
   posts           CommunityPost[]
@@ -235,8 +236,34 @@ model CardSet {
 
   cards    Card[]
   products Product[]
+  watchers SetWatch[]
 
   @@index([name])
+}
+
+/// "Bevaka hela setet" — en STÅENDE regel, inte en ögonblicksbild.
+///
+/// ⛔ Expandera ALDRIG detta till en WatchlistItem per sealed-produkt vid klick.
+/// Sealed-SKU:er skapas löpande av auto-importen (`ensureListingProduct`), och en
+/// expansion vid klicktillfället hade missat exakt de nya förhandsboxarna som är
+/// hela poängen med att bevaka ett set. Regeln utvärderas därför vid larmtillfället
+/// (`checkRestockAlerts` / `checkListingAlerts`).
+///
+/// Ingen `restockAlert`-flagga: ett set-bevak ÄR ett restock-bevak. Prislarm kräver
+/// ett målpris per produkt och finns bara på WatchlistItem.
+model SetWatch {
+  id        String   @id @default(cuid())
+  userId    String
+  setId     String
+  createdAt DateTime @default(now())
+
+  user User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  set  CardSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, setId])
+  @@index([userId])
+  // Larmvägen frågar "vilka bevakar DETTA set?" — setId är den heta nyckeln.
+  @@index([setId])
 }
 
 model Card {
@@ -603,6 +630,14 @@ model Alert {
   // null = larm skapade före 2026-07-25, eller icke-lager-larm (pris/system).
   fromStatus     StockStatus?
   toStatus       StockStatus?
+  // Varför mottagaren fick larmet, när skälet inte är uppenbart: setnamnet för den
+  // som råkade ut för larmet via en SET-bevakning i stället för en produktbevakning.
+  // Ögonblicksbild med FLIT (namnet, inte ett setId): skälet skrivs när beslutet
+  // fattas. Att härleda det vid utskick hade varit en gissning — bevakningen kan
+  // vara borttagen däremellan, och då hade mejlet påstått fel anledning.
+  // null = skälet är uppenbart (egen produktbevakning / "alla restocks") eller
+  // larm skapade före 2026-08-06.
+  reasonSetName  String?
   message        String
   channel        AlertChannel @default(IN_APP)
   status         AlertStatus  @default(PENDING)

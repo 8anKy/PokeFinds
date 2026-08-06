@@ -7,6 +7,8 @@ import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SetProductGrid } from "@/components/features/set-product-grid";
+import { SetWatchButton } from "@/components/features/set-watch-button";
+import { isSealedCategory } from "@/lib/product-category";
 import { IconPackage } from "@/components/ui/icons";
 
 // Set-data ändras ~en gång/dygn → cacha per set (ISR). Sparar Vercel CPU + Neon.
@@ -85,6 +87,10 @@ export default async function SetPage({ params }: PageProps) {
     };
   });
 
+  // Räknas ur produkterna vi redan hämtat — ingen extra fråga för siffran under
+  // bevakningsknappen ("larm på 26 sealed-produkter").
+  const sealedCount = products.filter((p) => isSealedCategory(p.category)).length;
+
   return (
     <div className="mx-auto max-w-7xl px-2.5 py-10 sm:px-6">
       <nav aria-label={t("breadcrumb")} className="mb-6 text-sm text-ink-muted">
@@ -93,15 +99,27 @@ export default async function SetPage({ params }: PageProps) {
         <span className="text-ink">{set.name}</span>
       </nav>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-3xl font-bold text-ink">{set.name}</h1>
-        <Badge variant="holo">{set.series}</Badge>
+      {/* Rubrik vänster, åtgärd höger — samma form som /bevakningar. På mobil
+          faller knappen ner under metaraden i stället för att tränga rubriken. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="font-display text-3xl font-bold text-ink">{set.name}</h1>
+            <Badge variant="holo">{set.series}</Badge>
+          </div>
+          <p className="mt-2 text-sm text-ink-muted">
+            {t("releaseColon", { date: formatDate(set.releaseDate) })} ·{" "}
+            {t("cards", { count: set.totalCards > 0 ? set.totalCards : set._count.cards })} ·{" "}
+            {t("products", { count: products.length })}
+          </p>
+        </div>
+        {/* Knappen finns BARA när setet faktiskt har sealed att bevaka — annars
+            vore den ett löfte om larm som aldrig kan avfyras (singlar restockar
+            inte i butiksfeeden). */}
+        {sealedCount > 0 && (
+          <SetWatchButton setId={set.id} setName={set.name} sealedCount={sealedCount} />
+        )}
       </div>
-      <p className="mt-2 text-sm text-ink-muted">
-        {t("releaseColon", { date: formatDate(set.releaseDate) })} ·{" "}
-        {t("cards", { count: set.totalCards > 0 ? set.totalCards : set._count.cards })} ·{" "}
-        {t("products", { count: products.length })}
-      </p>
 
       {products.length === 0 ? (
         <EmptyState

@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { listWatchlist } from "@/services/watchlist";
+import { listSetWatches } from "@/services/set-watch";
 import { listAlerts } from "@/services/alerts";
 import { formatDateTime, formatRelative } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +12,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LinkButton } from "@/components/ui/button";
 import { IconBell, IconPlus } from "@/components/ui/icons";
 import { WatchlistTable, type WatchlistRow } from "./watchlist-table";
+import { WatchedSets } from "./watched-sets";
 import { PageBackButton } from "@/components/layout/page-back-button";
 
 export const dynamic = "force-dynamic";
@@ -32,9 +34,10 @@ export default async function WatchlistPage() {
   if (!session?.user) redirect("/logga-in");
   const t = await getTranslations("Watchlist");
 
-  const [items, alerts] = await Promise.all([
+  const [items, alerts, setWatches] = await Promise.all([
     listWatchlist(session.user.id),
     listAlerts(session.user.id, { page: 1, pageSize: 15 }),
+    listSetWatches(session.user.id),
   ]);
 
   const rows: WatchlistRow[] = items.map((item) => ({
@@ -75,13 +78,29 @@ export default async function WatchlistPage() {
         </div>
       </div>
 
+      {/* Set-bevakningar ovanför produktlistan: de täcker flest produkter och är
+          det enda stället de går att se och ta bort. Kortet döljer sig självt när
+          listan är tom. */}
+      <WatchedSets
+        initialSets={setWatches.map((s) => ({
+          setId: s.setId,
+          name: s.name,
+          series: s.series,
+          sealedCount: s.sealedCount,
+        }))}
+      />
+
       {rows.length === 0 ? (
-        <EmptyState
-          icon={<IconBell size={32} />}
-          title={t("emptyTitle")}
-          description={t("emptyDesc")}
-          action={<LinkButton href="/produkter">{t("exploreProducts")}</LinkButton>}
-        />
+        // Tomläget gäller bara när INGENTING bevakas — har man ett set bevakat är
+        // listan inte tom, den är bara utan enskilda produkter.
+        setWatches.length === 0 && (
+          <EmptyState
+            icon={<IconBell size={32} />}
+            title={t("emptyTitle")}
+            description={t("emptyDesc")}
+            action={<LinkButton href="/produkter">{t("exploreProducts")}</LinkButton>}
+          />
+        )
       ) : (
         <WatchlistTable initialItems={rows} isPro={session.user.isPro} />
       )}

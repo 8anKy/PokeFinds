@@ -865,6 +865,38 @@
     "copyError": "Could not copy the link.",
     "terms": "Applies to new accounts that confirm their email address. Each link can be used once. The Pro bonus is added on top of your existing Pro time."
   },
+  "Watch": {
+    "watch": "Watch",
+    "watching": "Watching",
+    "holdForOptions": "Hold for more options",
+    "sheetTitle": "Watch",
+    "close": "Close",
+    "confirm": "Watch",
+    "scopeItem": "Just this item",
+    "scopeItemHint": "Alert when it's back in stock.",
+    "scopeItemRemove": "You already watch this item.",
+    "scopeSet": "All of {set}",
+    "scopeSetHint": "Alerts on every sealed product in the set — including new releases.",
+    "scopeSetRemove": "You already watch the whole set. Pick this to stop.",
+    "scopeSetPro": "Watching a whole set is part of Pro.",
+    "proCta": "See what Pro includes",
+    "itemWatched": "Watch added",
+    "setWatched": "Watching sealed in {set}",
+    "setUnwatched": "Watch removed",
+    "alreadyWatching": "You already watch this item",
+    "manageInWatchlist": "Remove it under Watchlist.",
+    "limitReached": "Watchlist is full",
+    "limitReachedDesc": "A free account holds 5 watches. Remove one or upgrade to Pro.",
+    "failed": "Something went wrong. Try again.",
+    "setButton": "Watch sealed",
+    "setButtonActive": "Watching sealed",
+    "setButtonHint": "Restock alerts on {count} sealed products, including new releases.",
+    "setButtonHintActive": "You'll be alerted when sealed products in this set come in stock.",
+    "watchedSetsTitle": "Watched sets",
+    "watchedSetsSub": "You get restock alerts on every sealed product in these sets, including new ones as they appear.",
+    "sealedCount": "{count, plural, =1 {# sealed product} other {# sealed products}}",
+    "removeSetAria": "Stop watching {set}"
+  },
   "Watchlist": {
     "metaTitle": "Watches",
     "freeAlertsBanner": "Price and restock alerts are a Pro feature. <link>Upgrade to activate them</link>. You can still save products here.",
@@ -1216,7 +1248,7 @@
     "proTagline": "Full control of the market, before everyone else.",
     "proPrice": "49 kr",
     "freeFeatures": [
-      "Save up to 10 products to your watchlist",
+      "Save up to 5 products to your watchlist",
       "Collection with value overview",
       "3 AI gradings and 30 scans per month",
       "Market data and price charts"
@@ -1224,6 +1256,7 @@
     "freeExcluded": [
       "Price and restock alerts",
       "Restock alerts on every sealed product",
+      "Watch entire sets at once",
       "Unlimited watches",
       "Unlimited card scanning",
       "Bulk scanning of several cards in one photo",
@@ -1232,6 +1265,7 @@
     "proLead": "Everything in Free, plus:",
     "premiumFeatures": [
       "Unlimited watches with price and restock alerts",
+      "Watch entire sets · alerts on all sealed products, including new releases",
       "All restocks: alerts for every sealed product",
       "15 AI gradings per month (stronger model)",
       "Unlimited card scanning (fair use)",
@@ -1246,7 +1280,7 @@
       },
       {
         "q": "What happens to my watches if I downgrade?",
-        "a": "Your watches are kept, but only the 10 most recent are active on the free tier. You choose which ones stay active."
+        "a": "Your watches are kept — nothing is deleted. On the free tier you can't add new ones until you're down to 5, and alerts are paused until you upgrade again."
       },
       {
         "q": "How do I pay for Pro?",
@@ -1306,7 +1340,7 @@
       "items": [
         {
           "q": "Is Foilio free?",
-          "a": "Yes. With a free account you can track up to 10 products, manage a basic collection and access market data. Pro unlocks unlimited watches, all restock alerts, AI grading and advanced analytics."
+          "a": "Yes. With a free account you can track up to 5 products, manage a basic collection and access market data. Pro unlocks unlimited watches, whole-set watching, all restock alerts, AI grading and advanced analytics."
         },
         {
           "q": "Which stores do you track?",

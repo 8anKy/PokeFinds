@@ -865,6 +865,38 @@
     "copyError": "Kunde inte kopiera länken.",
     "terms": "Gäller nya konton som bekräftar sin e-postadress. Varje länk kan användas en gång. Pro-bonusen läggs på din befintliga Pro-tid."
   },
+  "Watch": {
+    "watch": "Bevaka",
+    "watching": "Bevakas",
+    "holdForOptions": "Håll in för fler val",
+    "sheetTitle": "Bevaka",
+    "close": "Stäng",
+    "confirm": "Bevaka",
+    "scopeItem": "Bara den här varan",
+    "scopeItemHint": "Larm när den kommer tillbaka i lager.",
+    "scopeItemRemove": "Du bevakar redan den här varan.",
+    "scopeSet": "Hela {set}",
+    "scopeSetHint": "Larm på alla sealed-produkter i setet — även nya som släpps.",
+    "scopeSetRemove": "Du bevakar redan hela setet. Välj detta för att sluta.",
+    "scopeSetPro": "Att bevaka ett helt set ingår i Pro.",
+    "proCta": "Se vad Pro innehåller",
+    "itemWatched": "Bevakning tillagd",
+    "setWatched": "Bevakar sealed i {set}",
+    "setUnwatched": "Bevakningen borttagen",
+    "alreadyWatching": "Du bevakar redan den här varan",
+    "manageInWatchlist": "Ta bort den under Bevakningar.",
+    "limitReached": "Bevakningslistan är full",
+    "limitReachedDesc": "Gratiskontot rymmer 5 bevakningar. Ta bort en eller uppgradera till Pro.",
+    "failed": "Något gick fel. Försök igen.",
+    "setButton": "Bevaka sealed",
+    "setButtonActive": "Bevakar sealed",
+    "setButtonHint": "Restock-larm på {count} sealed-produkter, även nya som släpps.",
+    "setButtonHintActive": "Du får larm när sealed-produkter i setet kommer i lager.",
+    "watchedSetsTitle": "Bevakade set",
+    "watchedSetsSub": "Du får restock-larm på alla sealed-produkter i de här seten, inklusive nya som tillkommer.",
+    "sealedCount": "{count, plural, =1 {# sealed-produkt} other {# sealed-produkter}}",
+    "removeSetAria": "Sluta bevaka {set}"
+  },
   "Watchlist": {
     "metaTitle": "Bevakningar",
     "freeAlertsBanner": "Pris- och restock-larm är en Pro-förmån. <link>Uppgradera för att aktivera dem</link>. Du kan fortfarande spara produkter här.",
@@ -1216,7 +1248,7 @@
     "proTagline": "Full koll på marknaden, innan alla andra.",
     "proPrice": "49 kr",
     "freeFeatures": [
-      "Spara upp till 10 produkter i din bevakningslista",
+      "Spara upp till 5 produkter i din bevakningslista",
       "Samling med värdeöversikt",
       "3 AI-graderingar och 30 skanningar per månad",
       "Marknadsdata och prisgrafer"
@@ -1224,6 +1256,7 @@
     "freeExcluded": [
       "Pris- och restock-larm",
       "Restock-larm för varje sealed-produkt",
+      "Bevaka hela set på en gång",
       "Obegränsade bevakningar",
       "Obegränsad kortskanning",
       "Bulkskanning av flera kort i samma bild",
@@ -1232,6 +1265,7 @@
     "proLead": "Allt i Free, plus:",
     "premiumFeatures": [
       "Obegränsade bevakningar med pris- och restock-alerts",
+      "Bevaka hela set · larm på alla sealed-produkter, även nya som släpps",
       "Alla restocks: larm för varje sealed-produkt",
       "15 AI-graderingar per månad (starkare modell)",
       "Obegränsad kortskanning (skäligt bruk)",
@@ -1246,7 +1280,7 @@
       },
       {
         "q": "Vad händer med mina bevakningar om jag nedgraderar?",
-        "a": "Dina bevakningar finns kvar, men bara de 10 senaste är aktiva på gratisnivån. Du väljer själv vilka som ska vara aktiva."
+        "a": "Dina bevakningar finns kvar — inget tas bort. På gratisnivån kan du däremot inte lägga till nya förrän du är nere på 5 stycken, och larmen är pausade tills du uppgraderar igen."
       },
       {
         "q": "Hur betalar jag för Pro?",
@@ -1306,7 +1340,7 @@
       "items": [
         {
           "q": "Är Foilio gratis?",
-          "a": "Ja. Med ett gratiskonto kan du bevaka upp till 10 produkter, hantera en grundläggande samling och ta del av marknadsdata. Pro låser upp obegränsade bevakningar, alla restock-larm, AI-gradering och avancerad analys."
+          "a": "Ja. Med ett gratiskonto kan du bevaka upp till 5 produkter, hantera en grundläggande samling och ta del av marknadsdata. Pro låser upp obegränsade bevakningar, bevakning av hela set, alla restock-larm, AI-gradering och avancerad analys."
         },
         {
           "q": "Vilka butiker bevakar ni?",

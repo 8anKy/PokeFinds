@@ -37,6 +37,8 @@ async function buildAlertEmail(alert: {
   storeListingId: string | null;
   fromStatus: StockStatus | null;
   toStatus: StockStatus | null;
+  /** Setnamn när larmet kom via en set-bevakning → mallen förklarar varför. */
+  reasonSetName: string | null;
   user: { name: string };
 }): Promise<{ subject: string; html: string; text: string }> {
   // Feed-först-larm (ny produkt/restock utanför katalogen) — bygg mejlet från den
@@ -55,16 +57,17 @@ async function buildAlertEmail(alert: {
       ] as const;
       // Förhandsbokning känns igen på annonsens lagerstatus, inte AlertType (den
       // lagras som NEW_LISTING). Köpbar nu, levereras vid release → egen copy.
+      const price = listing.price ?? undefined;
       if (listing.stockStatus === "PREORDER") {
-        return preorderEmail(...args, listing.price ?? undefined);
+        return preorderEmail(...args, price, alert.reasonSetName);
       }
       // Släpp: annonsen STOD på förhandsbokning när larmet skapades och är nu i lager.
       if (alert.fromStatus === StockStatus.PREORDER) {
-        return releasedEmail(...args, listing.price ?? undefined);
+        return releasedEmail(...args, price, alert.reasonSetName);
       }
       return alert.type === AlertType.NEW_LISTING
-        ? newListingEmail(...args, listing.price ?? undefined)
-        : restockAlertEmail(...args, listing.price ?? undefined);
+        ? newListingEmail(...args, price, alert.reasonSetName)
+        : restockAlertEmail(...args, price, alert.reasonSetName);
     }
   }
   if (alert.productId) {
@@ -121,9 +124,11 @@ async function buildAlertEmail(alert: {
           retailOffer?.url ?? productUrl,
           retailOffer?.price ?? undefined,
         ] as const;
-        if (alert.toStatus === StockStatus.PREORDER) return preorderEmail(...args);
-        if (alert.fromStatus === StockStatus.PREORDER) return releasedEmail(...args);
-        return restockAlertEmail(...args);
+        if (alert.toStatus === StockStatus.PREORDER)
+          return preorderEmail(...args, alert.reasonSetName);
+        if (alert.fromStatus === StockStatus.PREORDER)
+          return releasedEmail(...args, alert.reasonSetName);
+        return restockAlertEmail(...args, alert.reasonSetName);
       }
       if (alert.type === AlertType.NEW_LISTING) {
         // Ny produkt i lager = butiks-händelse. Mejlet länkar DIREKT till butikens
@@ -136,8 +141,8 @@ async function buildAlertEmail(alert: {
         const storeName = listingOffer?.retailer.name ?? "en butik";
         const args = [alert.user.name, product.title, storeName, listingOffer?.url ?? productUrl, listingOffer?.price ?? undefined] as const;
         return listingOffer?.stockStatus === StockStatus.PREORDER
-          ? preorderEmail(...args)
-          : newListingEmail(...args);
+          ? preorderEmail(...args, alert.reasonSetName)
+          : newListingEmail(...args, alert.reasonSetName);
       }
     }
   }

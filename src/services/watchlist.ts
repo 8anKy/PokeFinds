@@ -3,7 +3,20 @@ import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import type { PlanTier } from "@prisma/client";
 
-export const FREE_PLAN_WATCHLIST_LIMIT = 10;
+/**
+ * Hur många produkter ett gratiskonto får spara (ägarbeslut 2026-08-06: 10 → 5).
+ *
+ * ⛔ TALET ÄR PUBLICERAT. Det står i prissidans funktionslista och i startsidans
+ * FAQ, på BÅDA språken, som fri text utan koppling hit — ändras konstanten utan
+ * att copyn följer med säljer vi en gräns vi inte håller. `tests/unit/
+ * watchlist-limit-copy-sync.test.ts` läser båda messages-filerna och failar om
+ * de säger något annat än det här talet. Samma vaktmönster som bulk-cap-sync.
+ *
+ * Sänkningen RADERAR ingenting: befintliga poster ligger kvar, gränsen bromsar
+ * bara nya tillägg (`count >= LIMIT` nedan). En användare som redan har 8 kvar
+ * behåller sina 8 och kan lägga till igen när hen tagit bort ner till 4.
+ */
+export const FREE_PLAN_WATCHLIST_LIMIT = 5;
 
 /**
  * ⛔ `select`, ALDRIG `include` PÅ `product` (2026-08-05). `withLowestPrice` nedan
@@ -86,7 +99,9 @@ export async function addWatchlistItem(
     if (count >= FREE_PLAN_WATCHLIST_LIMIT) {
       throw new ServiceError(
         403,
-        "Du har nått maxgränsen för bevakningar på gratiskontot. Uppgradera till Premium för fler."
+        // Talet står i meddelandet: en spärr som inte säger VAR gränsen går
+        // lämnar användaren att gissa hur mycket som måste bort.
+        `Gratiskontot rymmer ${FREE_PLAN_WATCHLIST_LIMIT} bevakningar. Ta bort en eller uppgradera till Pro för obegränsat.`
       );
     }
   }

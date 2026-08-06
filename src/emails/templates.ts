@@ -48,6 +48,21 @@ function button(url: string, label: string): string {
 const textFooter =
   "\n\nDu kan ändra dina aviseringsinställningar i Foilio-appen.\nFoilio · Sveriges marknadsplats för Pokémon TCG";
 
+/**
+ * "Varför får jag det här?" — raden som gör ett set-bevakningslarm begripligt.
+ *
+ * En set-bevakning larmar om varor användaren aldrig rört, och utan skälet läser
+ * mejlet som om vi mejlar slumpvis. Utelämnas när skälet är uppenbart (egen
+ * produktbevakning) → tomma strängar, ingen tom rad i mallen.
+ */
+function setWatchReason(setName?: string | null): { html: string; text: string } {
+  if (!setName) return { html: "", text: "" };
+  return {
+    html: `<p style="line-height:1.6;color:#6b7280;font-size:13px;margin:16px 0 0;">Du får det här mejlet för att du bevakar sealed-produkter i <strong style="color:#cbd5e1;">${setName}</strong>.</p>`,
+    text: `\n\nDu får det här mejlet för att du bevakar sealed-produkter i ${setName}.`,
+  };
+}
+
 export function welcomeEmail(name: string): EmailContent {
   const subject = "Välkommen till Foilio!";
   const html = layout(
@@ -108,12 +123,14 @@ export function restockAlertEmail(
   productTitle: string,
   retailerName: string,
   url: string,
-  price?: number
+  price?: number,
+  reasonSetName?: string | null
 ): EmailContent {
   const subject = `Åter i lager: ${productTitle} hos ${retailerName}`;
   const priceLine = price
     ? `<p style="font-size:22px;font-weight:800;color:#34d399;margin:0 0 8px;">${formatSek(price)}</p>`
     : "";
+  const reason = setWatchReason(reasonSetName);
   const html = layout(
     "Åter i lager!",
     `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! En produkt du bevakar finns nu i lager igen:</p>
@@ -121,9 +138,10 @@ export function restockAlertEmail(
      ${priceLine}
      <p style="color:#cbd5e1;margin:0 0 8px;">Hos: <strong style="color:#2dd4bf;">${retailerName}</strong></p>
      <p style="line-height:1.6;color:#fbbf24;font-size:13px;">Populära produkter säljer ofta slut snabbt. Skynda dig!</p>
-     ${button(url, "Köp nu")}`
+     ${button(url, "Köp nu")}
+     ${reason.html}`
   );
-  const text = `Hej ${name}!\n\nÅter i lager: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nKöp nu: ${url}\n\nPopulära produkter säljer ofta slut snabbt!${textFooter}`;
+  const text = `Hej ${name}!\n\nÅter i lager: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nKöp nu: ${url}\n\nPopulära produkter säljer ofta slut snabbt!${reason.text}${textFooter}`;
   return { subject, html, text };
 }
 
@@ -137,12 +155,14 @@ export function releasedEmail(
   productTitle: string,
   retailerName: string,
   url: string,
-  price?: number
+  price?: number,
+  reasonSetName?: string | null
 ): EmailContent {
   const subject = `Nu släppt: ${productTitle} hos ${retailerName}`;
   const priceLine = price
     ? `<p style="font-size:22px;font-weight:800;color:#34d399;margin:0 0 8px;">${formatSek(price)}</p>`
     : "";
+  const reason = setWatchReason(reasonSetName);
   const html = layout(
     "Förhandsbokningen är släppt! 🎉",
     `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! En produkt du bevakar har gått från förhandsbokning till riktigt lager — den skickas nu:</p>
@@ -150,9 +170,10 @@ export function releasedEmail(
      ${priceLine}
      <p style="color:#cbd5e1;margin:0 0 8px;">Hos: <strong style="color:#2dd4bf;">${retailerName}</strong></p>
      <p style="line-height:1.6;color:#fbbf24;font-size:13px;">Releasedagar tar slut snabbast av alla. Skynda dig!</p>
-     ${button(url, "Köp nu")}`
+     ${button(url, "Köp nu")}
+     ${reason.html}`
   );
-  const text = `Hej ${name}!\n\nNu släppt: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nProdukten har gått från förhandsbokning till riktigt lager och skickas nu.\n\nKöp nu: ${url}\n\nReleasedagar tar slut snabbast av alla!${textFooter}`;
+  const text = `Hej ${name}!\n\nNu släppt: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nProdukten har gått från förhandsbokning till riktigt lager och skickas nu.\n\nKöp nu: ${url}\n\nReleasedagar tar slut snabbast av alla!${reason.text}${textFooter}`;
   return { subject, html, text };
 }
 
@@ -161,12 +182,14 @@ export function newListingEmail(
   productTitle: string,
   retailerName: string,
   url: string,
-  price?: number
+  price?: number,
+  reasonSetName?: string | null
 ): EmailContent {
   const subject = `Ny produkt i lager: ${productTitle} hos ${retailerName}`;
   const priceLine = price
     ? `<p style="font-size:22px;font-weight:800;color:#34d399;margin:0 0 8px;">${formatSek(price)}</p>`
     : "";
+  const reason = setWatchReason(reasonSetName);
   const html = layout(
     "Ny produkt i lager! 🎉",
     `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! En ny produkt har precis dykt upp i lager:</p>
@@ -174,9 +197,10 @@ export function newListingEmail(
      ${priceLine}
      <p style="color:#cbd5e1;margin:0 0 8px;">Hos: <strong style="color:#2dd4bf;">${retailerName}</strong></p>
      <p style="line-height:1.6;color:#fbbf24;font-size:13px;">Nya produkter säljer ofta slut snabbt. Skynda dig!</p>
-     ${button(url, "Till produkten")}`
+     ${button(url, "Till produkten")}
+     ${reason.html}`
   );
-  const text = `Hej ${name}!\n\nNy produkt i lager: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nTill produkten: ${url}${textFooter}`;
+  const text = `Hej ${name}!\n\nNy produkt i lager: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nTill produkten: ${url}${reason.text}${textFooter}`;
   return { subject, html, text };
 }
 
@@ -185,12 +209,14 @@ export function preorderEmail(
   productTitle: string,
   retailerName: string,
   url: string,
-  price?: number
+  price?: number,
+  reasonSetName?: string | null
 ): EmailContent {
   const subject = `Förhandsboka nu: ${productTitle} hos ${retailerName}`;
   const priceLine = price
     ? `<p style="font-size:22px;font-weight:800;color:#34d399;margin:0 0 8px;">${formatSek(price)}</p>`
     : "";
+  const reason = setWatchReason(reasonSetName);
   const html = layout(
     "Öppen för förhandsbokning! 📦",
     `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! En produkt går nu att förhandsboka:</p>
@@ -198,9 +224,10 @@ export function preorderEmail(
      ${priceLine}
      <p style="color:#cbd5e1;margin:0 0 8px;">Hos: <strong style="color:#2dd4bf;">${retailerName}</strong></p>
      <p style="line-height:1.6;color:#fbbf24;font-size:13px;">Förhandsbokningar tar ofta slut innan release. Säkra din nu.</p>
-     ${button(url, "Förhandsboka hos " + retailerName)}`
+     ${button(url, "Förhandsboka hos " + retailerName)}
+     ${reason.html}`
   );
-  const text = `Hej ${name}!\n\nÖppen för förhandsbokning: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nFörhandsboka: ${url}\n\nFörhandsbokningar tar ofta slut innan release!${textFooter}`;
+  const text = `Hej ${name}!\n\nÖppen för förhandsbokning: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nFörhandsboka: ${url}\n\nFörhandsbokningar tar ofta slut innan release!${reason.text}${textFooter}`;
   return { subject, html, text };
 }
 

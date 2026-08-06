@@ -8,6 +8,8 @@ import { PriceChange } from "@/components/ui/price-change";
 import { StockBadge } from "@/components/ui/badge";
 import { SafeImage } from "@/components/ui/safe-image";
 import { CollectionQuickAdd } from "@/components/features/collection-quick-add";
+import { WatchBell } from "@/components/features/watch-bell";
+import { isSealedCategory } from "@/lib/product-category";
 import {
   IconBookmark,
   IconCards,
@@ -116,6 +118,18 @@ export function ProductCard({ product, className }: ProductCardProps) {
             </div>
           }
         />
+        {/* Restock-klocka, övre HÖGRA hörnet (fyndmärket äger det vänstra).
+            BARA sealed: singlar och tillbehör säljs av Cardmarket/Tradera och
+            ingår aldrig i restock-skanningen, så en klocka där hade lovat larm
+            som aldrig kan komma. Utan id finns ingen produkt att bevaka. */}
+        {product.id && isSealedCategory(product.category) && (
+          <WatchBell
+            productId={product.id}
+            productTitle={product.title}
+            setId={product.setId}
+            setName={product.setName}
+          />
+        )}
       </div>
 
       <div className="flex flex-1 flex-col p-3">
