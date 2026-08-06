@@ -27,7 +27,11 @@ export async function GET(req: NextRequest) {
       prisma.cardSet.findMany({
         where,
         include: { _count: { select: { products: true, cards: true } } },
-        orderBy: { releaseDate: "desc" },
+        // nulls: "last" — Postgres lägger NULL FÖRST vid DESC, så ett set utan
+        // releaseDate (ett kommande set vi skapat ur CM:s episodlista innan
+        // pokemontcg.io har det) låg överst som om det vore det allra nyaste.
+        // Samma fälla som setfiltret på /produkter redan gått i.
+        orderBy: { releaseDate: { sort: "desc", nulls: "last" } },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),

@@ -10,6 +10,7 @@ import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { visibleListings } from "@/lib/listing-plausibility";
 import { compareCardNumbers } from "@/lib/card-number-order";
 import { PRINT_VARIANT_LABELS, REVERSE_VARIANT_LABELS } from "@/lib/print-variant";
+import { favoriteSetIds } from "@/lib/user-preferences";
 import { getTrendingLift } from "@/services/market";
 import {
   bestMatchScore,
@@ -563,9 +564,11 @@ async function fuzzyIds(query: string): Promise<string[]> {
 }
 
 /**
- * Dina egna signaler. BARA bevakningar och samling — det du själv lagt in. Ingen
- * beteendelogg per användare finns (analytics.ts strippar userId med flit) och ska
- * inte byggas för det här. Två indexerade frågor på userId.
+ * Dina egna signaler. BARA det du själv lagt in: bevakningar, samling och de
+ * favoritset du kryssade i vid registreringen. Ingen beteendelogg per användare
+ * finns (analytics.ts strippar userId med flit) och ska inte byggas för det här —
+ * söktermen påverkar ordningen via `relevanceScore` i stunden, men vilka ord DU
+ * har sökt på lagras aldrig. Tre indexerade frågor på userId (User på PK).
  */
 /**
  * ⛔ RETURNERAR ARRAYER, INTE SET. Den här funktionen ligger bakom `cachedRead`
@@ -603,7 +606,7 @@ async function loadPersonalContext(userId?: string): Promise<PersonalContext | n
 }
 
 async function loadPersonalContextUncached(userId: string): Promise<PersonalContext> {
-  const [watched, owned] = await Promise.all([
+  const [watched, owned, prefs] = await Promise.all([
     prisma.watchlistItem.findMany({
       where: { userId },
       select: { productId: true, product: { select: { setId: true, card: { select: { setId: true } } } } },
@@ -616,11 +619,23 @@ async function loadPersonalContextUncached(userId: string): Promise<PersonalCont
         card: { select: { setId: true } },
       },
     }),
+    prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } }),
   ]);
   const affinitySetIds = new Set<string>();
   const add = (id?: string | null) => { if (id) affinitySetIds.add(id); };
   for (const w of watched) { add(w.product?.setId); add(w.product?.card?.setId); }
   for (const c of owned) { add(c.product?.setId); add(c.product?.card?.setId); add(c.card?.setId); }
+  // Onboardingens favoritset ADDERAS till samma affinitet som bevakningar och
+  // samling redan bygger — de är samma sorts påstående ("de här seten bryr jag
+  // mig om"), bara insamlat vid ett annat tillfälle. En EGEN vikt hade krävt en
+  // kalibrering vi inte har underlag för (mätt 2026-07-29: 4 användare, 8
+  // sökklick — det räcker inte till att skilja två vikter åt), och ett kryss vid
+  // registreringen säger inte mer eller mindre än en bevakning.
+  //
+  // ⛔ Signalen var HELT OANVÄND fram till 2026-08-06: `favoriteSets` skrevs av
+  // /api/users/me/onboarding och lästes ingenstans. Steget bad om något vi sedan
+  // kastade.
+  for (const id of favoriteSetIds(prefs?.preferences)) add(id);
   return {
     watchedProductIds: new Set(watched.map((w) => w.productId)),
     ownedProductIds: new Set(owned.map((c) => c.productId).filter((id): id is string => !!id)),

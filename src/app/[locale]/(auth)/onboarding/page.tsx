@@ -6,6 +6,8 @@ import { useRouter } from "@/i18n/navigation";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Checkbox, FieldError, Label } from "@/components/ui/input";
+import { SafeImage } from "@/components/ui/safe-image";
+import { IconCards, IconCheck } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
 // value = lagrat/skickat till API (stabilt), key = översättningsnyckel för visning.
@@ -30,7 +32,14 @@ interface SetItem {
   id: string;
   name: string;
   series: string;
+  /** Setets logotyp. Null → neutral kort-ikon (samma reserv som setfiltret). */
+  logoUrl: string | null;
 }
+
+// Hur många set som visas att välja bland. Listan är sorterad nyast först, och
+// det är de nya seten folk har en åsikt om vid registrering — 30 fyller rutnätet
+// utan att göra steget till en katalog man måste bläddra igenom.
+const SET_CHOICES = 30;
 
 export default function OnboardingPage() {
   const t = useTranslations("Auth.onboarding");
@@ -52,7 +61,7 @@ export default function OnboardingPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/sets?pageSize=24");
+        const res = await fetch(`/api/sets?pageSize=${SET_CHOICES}`);
         if (!res.ok) throw new Error();
         const data = (await res.json()) as { items?: SetItem[] };
         if (!cancelled) setSets(data.items ?? []);
@@ -210,7 +219,7 @@ export default function OnboardingPage() {
             {t("favoritesSubtitle")}
           </p>
 
-          <div className="mt-5 max-h-72 overflow-y-auto pr-1">
+          <div className="mt-5 max-h-[22rem] overflow-y-auto pr-1">
             {setsLoading ? (
               <p className="py-8 text-center text-sm text-ink-muted">{t("loadingSets")}</p>
             ) : sets.length === 0 ? (
@@ -218,7 +227,10 @@ export default function OnboardingPage() {
                 {t("noSets")}
               </p>
             ) : (
-              <div className="grid grid-cols-2 gap-2">
+              // Samma logotypbricka som setfiltret på /produkter och "Bevakade
+              // set" — ett set känns igen på sin logotyp, inte på sitt namn, och
+              // två olika utseenden för samma val hade läst som två funktioner.
+              <div className="grid grid-cols-3 gap-2.5">
                 {sets.map((set) => {
                   const active = favoriteSets.includes(set.id);
                   return (
@@ -227,23 +239,38 @@ export default function OnboardingPage() {
                       type="button"
                       aria-pressed={active}
                       onClick={() => toggle(favoriteSets, set.id, setFavoriteSets)}
-                      className={cn(
-                        "rounded-lg border p-3 text-left transition-colors",
-                        active
-                          ? "border-holo-cyan bg-holo-cyan/10"
-                          : "border-surface-border bg-surface-raised hover:border-holo-cyan/50"
-                      )}
+                      className="flex flex-col gap-1.5 text-center"
                     >
                       <span
                         className={cn(
-                          "block truncate text-sm font-medium",
+                          "relative flex h-16 items-center justify-center rounded-[10px] border bg-surface px-2 transition-all",
+                          active ? "border-holo-cyan shadow-glow" : "border-surface-border"
+                        )}
+                      >
+                        <SafeImage
+                          src={set.logoUrl}
+                          alt=""
+                          className="max-h-full max-w-full object-contain"
+                          fallback={
+                            <IconCards
+                              size={22}
+                              className={active ? "text-holo-cyan" : "text-ink-faint"}
+                            />
+                          }
+                        />
+                        {active && (
+                          <span className="absolute right-1 top-1 grid h-[15px] w-[15px] place-items-center rounded-full bg-holo-cyan text-surface">
+                            <IconCheck size={10} strokeWidth={3.4} />
+                          </span>
+                        )}
+                      </span>
+                      <span
+                        className={cn(
+                          "line-clamp-2 text-[11px] font-medium leading-snug",
                           active ? "text-holo-cyan" : "text-ink"
                         )}
                       >
                         {set.name}
-                      </span>
-                      <span className="mt-0.5 block truncate text-xs text-ink-muted">
-                        {set.series}
                       </span>
                     </button>
                   );
