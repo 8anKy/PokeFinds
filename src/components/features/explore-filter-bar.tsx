@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { countQuery, type CountSelection } from "@/lib/explore-count-query";
+import { isSealedCategory } from "@/lib/product-category";
 import { SearchAutocomplete } from "@/components/features/search-autocomplete";
 import { SafeImage } from "@/components/ui/safe-image";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
@@ -821,14 +822,45 @@ function MoreSheet({
     }
   }, [open, searchParams.kategori, searchParams.butik, searchParams.sprak]);
 
+  /**
+   * "Alla sealed" — en genväg, inte en kategori.
+   *
+   * Sealed är åtta separata kategorier (ETB, Booster Box, Tin, Blister …) och den
+   * som vill se "allt utom lösa kort" fick trycka i dem en och en (ägaren
+   * 2026-08-06). Chippet väljer hela knippet på ett tryck.
+   * ⛔ Ingen ny kategori i databasen och ingen ny URL-parameter: det expanderar
+   * till samma `kategori`-lista som om man kryssat i dem för hand, så delade
+   * länkar och bakåtknappen fungerar precis som förut.
+   */
+  const sealedValues = categories.map((c) => c.value).filter(isSealedCategory);
+  const sealedActive =
+    sealedValues.length > 0 &&
+    kategori.length === sealedValues.length &&
+    sealedValues.every((v) => kategori.includes(v));
+
   const groups: {
     label: string;
     values: string[];
     set: (updater: (prev: string[]) => string[]) => void;
     all: string;
     options: FilterOption[];
+    /** Extra chip före de enskilda värdena (bara kategorigruppen har ett). */
+    bulk?: { label: string; active: boolean; onClick: () => void };
   }[] = [
-    { label: t("category"), values: kategori, set: setKategori, all: t("allCategories"), options: categories },
+    {
+      label: t("category"),
+      values: kategori,
+      set: setKategori,
+      all: t("allCategories"),
+      options: categories,
+      bulk: {
+        label: t("allSealed"),
+        active: sealedActive,
+        // Andra trycket nollar gruppen — annars vore chippet en enkelriktad
+        // väg och man fick avmarkera åtta kategorier för hand för att ångra.
+        onClick: () => setKategori(() => (sealedActive ? [] : sealedValues)),
+      },
+    },
     { label: t("store"), values: butik, set: setButik, all: t("allStores"), options: retailers },
     { label: t("language"), values: sprak, set: setSprak, all: t("allLanguages"), options: languages },
   ];
@@ -881,6 +913,21 @@ function MoreSheet({
               >
                 {g.all}
               </button>
+              {g.bulk && (
+                <button
+                  type="button"
+                  aria-pressed={g.bulk.active}
+                  onClick={g.bulk.onClick}
+                  className={cn(
+                    "rounded-full border px-3 py-2 text-[12.5px] font-semibold leading-none transition-colors",
+                    g.bulk.active
+                      ? "border-holo-cyan/45 bg-holo-cyan/[0.14] text-holo-cyan"
+                      : "border-surface-border text-ink-muted"
+                  )}
+                >
+                  {g.bulk.label}
+                </button>
+              )}
               {g.options.map((o) => {
                 const active = g.values.includes(o.value);
                 return (

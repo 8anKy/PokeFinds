@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
+import { SafeImage } from "@/components/ui/safe-image";
 import { IconCards, IconTrash } from "@/components/ui/icons";
 import { setSetWatched } from "@/lib/watched-sets";
 
@@ -12,6 +13,8 @@ export interface WatchedSetRow {
   setId: string;
   name: string;
   series: string;
+  /** Setets logotyp (eller symbol som reserv). Null → ikonen får stå kvar. */
+  logoUrl: string | null;
   sealedCount: number;
 }
 
@@ -70,7 +73,19 @@ export function WatchedSets({ initialSets }: { initialSets: WatchedSetRow[] }) {
                 href={`/sets/${s.setId}`}
                 className="flex min-w-0 items-center gap-3 text-left transition-colors hover:text-holo-cyan"
               >
-                <IconCards size={18} className="shrink-0 text-ink-faint" />
+                {/* Setets logotyp — `object-contain` med FAST ruta: logotyperna
+                    är olika breda (vissa nästan kvadratiska, vissa väldigt
+                    liggande) och utan fast ruta hoppade texten i sidled mellan
+                    raderna. SafeImage faller tillbaka på ikonen när bilden
+                    saknas eller dör (samma skäl som i katalogen). */}
+                <span className="grid h-9 w-12 shrink-0 place-items-center">
+                  <SafeImage
+                    src={s.logoUrl}
+                    alt={s.name}
+                    className="max-h-9 max-w-12 object-contain"
+                    fallback={<IconCards size={18} className="text-ink-faint" />}
+                  />
+                </span>
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium text-ink">{s.name}</span>
                   <span className="mt-0.5 block truncate text-xs text-ink-faint">

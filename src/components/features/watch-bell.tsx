@@ -309,21 +309,20 @@ export function WatchBell({ productId, productTitle, setId, setName }: WatchBell
         <span
           className={cn(
             "grid h-[30px] w-[30px] place-items-center rounded-[9px] border transition-colors",
-            // Halvgenomskinlig botten: klockan ligger PÅ motivet, till skillnad
-            // från "+" som sitter på kortets egen svarta yta. Utan den försvann
-            // ikonen i ljusa produktbilder.
-            active
-              ? "border-holo-cyan bg-holo-cyan text-surface"
-              : "border-surface-border bg-surface/80 text-holo-cyan backdrop-blur-sm",
+            // Halvgenomskinlig MÖRK botten i BÅDA lägena (ägaren 2026-08-06):
+            // klockan ligger PÅ motivet och behöver en botten för att synas i
+            // ljusa produktbilder, men den turkosa plattan gjorde den till en
+            // stor färgklick i rutnätet. ⛔ Fyll aldrig plattan igen — skillnaden
+            // på/av bärs av GLYFEN (ifylld kontra kontur), inte av bakgrunden.
+            "border-surface-border bg-surface/80 text-holo-cyan backdrop-blur-sm",
+            active && "border-holo-cyan/60",
             saving && "opacity-60",
             open && "border-holo-cyan"
           )}
         >
-          {/* IFYLLD klocka när den bevakas, kontur när den inte gör det
-              (ägaren 2026-08-06). Plattans färg ensam bar tillståndet förut, och
-              på ett 16 px-glyf i ett rutnät gick det att missa. ⛔ Ingen bock —
-              den hade lästs som "tillagd i samlingen", vilket är vad "+"-knappen
-              i samma kort gör när DEN slår om. */}
+          {/* Tillståndet bärs HÄR: ifylld turkos klocka när den bevakas, kontur
+              annars. ⛔ Ingen bock — den hade lästs som "tillagd i samlingen",
+              vilket är vad "+"-knappen i samma kort gör när DEN slår om. */}
           {active ? (
             <IconBellFilled size={16} />
           ) : (

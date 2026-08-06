@@ -23,6 +23,7 @@ import {
   type FirstEdFilter,
 } from "../lib/marketplace-urls";
 import { judgeSameProduct } from "../lib/same-product";
+import { createSetLabeler } from "./sealed-set-label";
 import { utcToday } from "../lib/utils";
 import { classifyForm, scoreSimilarity } from "../scrapers/matching";
 import { recomputeProductPriceCache, snapshotStorePricedProducts } from "../services/products";
@@ -2072,6 +2073,15 @@ export async function runCardmarketRefresh(
     const cmGuide = await fetchCmGuide();
     // Sealed-katalogens idProducts → EN-guide-fallbacken (nedan) prissätter BARA mot dessa.
     const sealedCmIds = await fetchCmSealedIds();
+    // Set-etiketteraren. Etiketten sätts alltid (den är additiv och nyckeln är
+    // exakt), men SKAPANDET av saknade CardSet (B2) sker bara i en full körning:
+    // en riktad omkörning ser inte hela katalogen och ska inte lägga till
+    // katalogstruktur som ingen produkt i den körningen behöver. Samma
+    // försiktighetsregel som guide-reserven, fast den här skriver STRUKTUR.
+    const partialSealedRun =
+      (process.env.CM_ONLY_EPISODES ?? "").trim() !== "" ||
+      parseInt(process.env.CM_LIMIT_EPISODES ?? "0", 10) > 0;
+    const setLabeler = await createSetLabeler(!partialSealedRun);
     let guarded = 0, thinSkipped = 0, usedHist = 0, guideFallback = 0, liquidFloored = 0;
     const liquidFlooredTitles: string[] = []; // exakt vilka produkter likvid-golvet rörde (revision)
     for (const p of ours) {
@@ -2157,6 +2167,18 @@ export async function runCardmarketRefresh(
       }
       if (best.cardmarket_id == null) continue;
       if (best.cardmarket_id != null) ownedCmIds.add(best.cardmarket_id);
+
+      // ── SET-ETIKETT (2026-08-06) ──────────────────────────────────────────────
+      // Identiteten är just avgjord: `best` ÄR produktens CM-produkt och bär sin
+      // episod. Etiketten sätts därför HÄR, inte av veckojobbet — en set-lös
+      // förhandsbox var annars osynlig för set-bevakningen i dagar till veckor.
+      // Ligger FÖRE prislogiken med flit: en produkt vars PRIS vi hoppar över
+      // (tunn marknad, butiks-cross-check) har ändå en känd set-tillhörighet.
+      // Skriver bara null → värde; se sealed-set-label.ts för vakterna.
+      if (p.setId == null) {
+        await setLabeler.label(p.id, p.setId, best.episode?.name ?? null);
+      }
+
       const cmp = best.prices?.cardmarket ?? {};
       const gEntry = cmGuide.get(best.cardmarket_id);
       const avg = cmp["30d_average"] ?? null;
@@ -2349,6 +2371,15 @@ export async function runCardmarketRefresh(
     if (guideFallback) console.log(`[cm-refresh] EN-guide-fallback: ${guideFallback} sealed vars idProduct saknas i RapidAPI prissatta direkt från CM-guiden (annars frusna).`);
     if (liquidFloored) console.log(`[cm-refresh] Likvid-golv: ${liquidFloored} skräp-From på likvid+stabil marknad → CM-trend istället:\n  ${liquidFlooredTitles.join("\n  ")}`);
     console.log(`[cm-refresh] Sealed: ${res.sealedUpdated} uppdaterade, ${pricedOps.length} historikpunkter.`);
+    const sl = setLabeler.stats;
+    if (sl.labeled || sl.setsCreated || sl.ambiguous || sl.noSeries || sl.unresolved)
+      console.log(
+        `[cm-refresh] Set-etikett: ${sl.labeled} produkter etiketterade, ${sl.setsCreated} nya set ur CM-episoder` +
+        `${sl.createdNames.length ? ` (${sl.createdNames.join(", ")})` : ""}` +
+        `${sl.ambiguous ? `, ${sl.ambiguous} tvetydiga episodnamn` : ""}` +
+        `${sl.noSeries ? `, ${sl.noSeries} episoder utan serie` : ""}` +
+        `${sl.unresolved ? `, ${sl.unresolved} olösta` : ""}.`
+      );
     if (skippedOwned > 0) {
       console.log(
         `[cm-refresh] Sealed: hoppade över ${skippedOwned} fuzzy-matchningar mot en CM-produkt som redan ` +

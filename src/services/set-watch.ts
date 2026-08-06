@@ -18,7 +18,9 @@ export async function listSetWatches(userId: string) {
       id: true,
       setId: true,
       createdAt: true,
-      set: { select: { name: true, series: true } },
+      // logoUrl = setets egen logotyp (samma bild som katalogens set-ark visar).
+      // symbolUrl som reserv: en del äldre set saknar logotyp men har symbolen.
+      set: { select: { name: true, series: true, logoUrl: true, symbolUrl: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -46,6 +48,7 @@ export async function listSetWatches(userId: string) {
     createdAt: w.createdAt,
     name: w.set.name,
     series: w.set.series,
+    logoUrl: w.set.logoUrl ?? w.set.symbolUrl,
     sealedCount: bySet.get(w.setId) ?? 0,
   }));
 }

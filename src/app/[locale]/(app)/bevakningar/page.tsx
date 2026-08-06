@@ -86,6 +86,7 @@ export default async function WatchlistPage() {
           setId: s.setId,
           name: s.name,
           series: s.series,
+          logoUrl: s.logoUrl,
           sealedCount: s.sealedCount,
         }))}
       />
