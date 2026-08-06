@@ -1243,7 +1243,7 @@
     "manageWebSub": "Manage subscription",
     "manageSubWeb": "Update your card, get receipts or cancel — whenever you like.",
     "msgPortalFailed": "Could not open the subscription page.",
-    "securePayment": "Secure payment via Stripe. No lock-in.",
+    "securePayment": "Secure payment via Stripe. Renews monthly, cancel any time.",
     "comingSoon": "Coming soon",
     "paymentSoon": "Payment launches soon. No lock-in.",
     "loginToUpgrade": "Log in to upgrade",
@@ -1301,7 +1301,7 @@
     "faqItems": [
       {
         "q": "Can I switch plans any time?",
-        "a": "Yes. You can upgrade or cancel Pro whenever you like, with no lock-in. The purchase is handled by the App Store / Google Play."
+        "a": "Yes. The subscription renews monthly and you can cancel whenever you like, with no lock-in — you keep Pro until the end of the period. If you buy on the web, payment is handled by Stripe and you cancel under Manage subscription on the pricing page. If you buy in the app, everything is handled by the App Store or Google Play, and you cancel there."
       },
       {
         "q": "What happens to my watches if I downgrade?",

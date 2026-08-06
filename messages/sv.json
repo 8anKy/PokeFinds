@@ -1243,7 +1243,7 @@
     "manageWebSub": "Hantera prenumeration",
     "manageSubWeb": "Byt kort, hämta kvitton eller säg upp — när du vill.",
     "msgPortalFailed": "Kunde inte öppna prenumerationssidan.",
-    "securePayment": "Säker betalning via Stripe. Ingen bindningstid.",
+    "securePayment": "Säker betalning via Stripe. Förnyas varje månad, säg upp när du vill.",
     "comingSoon": "Kommer snart",
     "paymentSoon": "Betalning lanseras inom kort. Ingen bindningstid.",
     "loginToUpgrade": "Logga in för att uppgradera",
@@ -1301,7 +1301,7 @@
     "faqItems": [
       {
         "q": "Kan jag byta plan när som helst?",
-        "a": "Ja. Du kan uppgradera eller säga upp Pro när du vill, utan bindningstid. Köpet hanteras av App Store / Google Play."
+        "a": "Ja. Abonnemanget förnyas varje månad och du kan säga upp när du vill, utan bindningstid — du behåller Pro perioden ut. Köper du på webben sköts betalningen av Stripe, och du säger upp under Hantera prenumeration på prissidan. Köper du i appen hanteras allt av App Store eller Google Play, och du säger upp där."
       },
       {
         "q": "Vad händer med mina bevakningar om jag nedgraderar?",
