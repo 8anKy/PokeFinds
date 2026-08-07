@@ -47,6 +47,30 @@ function DiscordMark({ className }: { className?: string }) {
   );
 }
 
+/**
+ * Tradera-märket. ⛔ INTE Traderas logotyp: den är en ordbild utan fristående
+ * symbol, och en påhittad "logotyp" vore ett felaktigt påstående om deras
+ * varumärke. En prislapp bär betydelsen ("sälj dina kort") och färgen bär
+ * igenkänningen — samma gula som Tradera-serien i prisgrafen.
+ */
+function TraderaMark({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className={className}
+    >
+      <path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0l-7.2-7.2A2 2 0 0 1 2.8 12V4.8A2 2 0 0 1 4.8 2.8H12a2 2 0 0 1 1.4.6l7.2 7.2a2 2 0 0 1 0 2.8Z" />
+      <circle cx="7.8" cy="7.8" r="1.4" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export function SettingsClient({ user }: { user: SettingsUser }) {
   const { toast } = useToast();
   const tSettings = useTranslations("Settings");
@@ -387,7 +411,10 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
       {/* Tradera */}
       <Card>
         <CardHeader className="flex-row items-center justify-between">
-          <CardTitle>{tSettings("traderaTitle")}</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <TraderaMark className="h-5 w-5 text-tradera" />
+            {tSettings("traderaTitle")}
+          </CardTitle>
           {traderaUserId ? <Badge variant="holo">{tSettings("connected")}</Badge> : <Badge>{tSettings("notConnected")}</Badge>}
         </CardHeader>
         <CardContent>
@@ -404,10 +431,14 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
             ) : (
               // Vanlig <a>, INTE next/link: måste vara en riktig sidnavigering (cookie +
               // 307 till tradera.com) — Next Links klientrouting kan inte hantera det.
+              // Traderas gula (inte appens turkos) av samma skäl som Discord-kortet
+              // ovanför: kortet identifierar en ANNAN tjänst. `text-surface` = svart
+              // text, för gult är en ljus yta där vit text faller under kontrastkravet.
               <a
                 href="/api/tradera/connect"
-                className="inline-flex h-10 items-center justify-center rounded-lg bg-holo-cyan px-4 text-sm font-semibold text-surface transition-all duration-200 ease-out hover:bg-holo-cyan/90 hover:shadow-glow active:scale-[0.97] active:bg-holo-cyan/80"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-tradera px-4 text-sm font-semibold text-surface transition-all duration-200 ease-out hover:bg-tradera-hover active:scale-[0.97]"
               >
+                <TraderaMark className="h-4 w-4" />
                 {tSettings("connectTradera")}
               </a>
             )}

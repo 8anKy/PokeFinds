@@ -50,6 +50,16 @@ const config: Config = {
           DEFAULT: "#5865f2",
           hover: "#4752c4",
         },
+        // Tradera. ⛔ Värdet är IDENTISKT med `SOURCE_COLORS.tradera` i
+        // product-price-card.tsx med flit: prisgrafens Tradera-serie och den här
+        // knappen ska läsa som samma varumärke. Den färgen är dessutom redan
+        // kontrastvaliderad mot den svarta ytan i den fyrfärgspaletten — därför
+        // återanvänds den i stället för att en andra Tradera-gul uppfinns här.
+        // Ändras den ena måste den andra följa med.
+        tradera: {
+          DEFAULT: "#f5a524",
+          hover: "#d08c1f",
+        },
         brand: {
           DEFAULT: "#2dd4bf",
           dark: "#0f766e",
