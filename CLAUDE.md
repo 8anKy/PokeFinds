@@ -77,15 +77,24 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   några kända kort innan något byggs på det.
   ⚠️ Vår NUVARANDE leverantör är TCGGO (`tcggopro`, host `cardmarket-api-tcg.p.rapidapi.com`) och de har en egen
   sajt, tcggo.com. "Direkt i stället för via RapidAPI" är en OUTREDD fråga (403 mot automatiserad hämtning).
-- **Användarvillkoren: 20 luckor kartlagda (2026-08-02)**: `TERMS-GAP.md` (analys + 12 ägarbeslut) och
-  `TERMS-DRAFT-CLAUSES.md` (utkast på svenska). ⛔ De ligger INTE i repot: de räknade upp OFIXADE
-  juridiska luckor i en LEVANDE kommersiell tjänst, och repot är publikt. De bor i det privata
-  systerrepot `../PokeFinds-private/docs/` (2026-08-05). Lägg aldrig tillbaka dem här.
-  ⚠️ Inget av det är juridisk rådgivning — en svensk jurist
-  måste läsa det före publicering. Blockerande: **ingen juridisk person angiven någonstans i appen** (org.nr,
-  adress) — e-handelslagen 8 § och GDPR kräver det, och varje annan klausul beror på om det är enskild firma
-  eller AB. Snabbaste fixen: ARN-hänvisning (lag 2015:671 § 4, en mening, noll beslut). Saknas helt: ångerrätt,
-  AI-utfall som uppskattningar (bara UI-copy idag), prisdatans ansvarsfriskrivning, Tradera-integrationen.
+- **HELA LEGALPAKETET OMSKRIVET OCH PUBLICERAT 2026-08-08 — juristgranskning återstår**: nya villkor
+  (20 avsnitt: AI-utfall, larm-förbehåll, Tradera-sälj, Discord, rankningstransparens, ångerrätt,
+  ansvarstak, inbjudningsvillkor, språkföreträde), omskriven integritetspolicy (alla mottagare
+  deklarerade: Stripe, Google/Gemini, RevenueCat, Railway; sektion 7b för självständigt ansvariga —
+  ⛔ Discord/Tradera/appbutikerna får ALDRIG in i biträdeslistan, den påstår biträdesavtal), rättad
+  cookiepolicy (samtyckesvalet ligger i localStorage, inte i en cookie), "Så rankar vi" på /om
+  (länkad från sorteringsarket per EU:s omnibusregler), företagsblock på /kontakt.
+  Gamla villkoren PÅSTOD att annonslänkar finns och är märkta (falskt — affiliate är inte aktivt,
+  ägarbeslut 2026-08-08: inte planerat heller) och att listan alltid sorteras på lägsta pris (falskt).
+  ⛔ **ODR-hänvisningen är BORTTAGEN med flit** — EU-plattformen lades ner 2025-07-20 (förordning (EU)
+  2024/3228). Lägg aldrig tillbaka den. ⛔ **Ångerrätten är den PROPORTIONELLA modellen** (pro rata vid
+  ånger, digital tjänst-tolkningen) och checkout-samtyckestexten i `billing/checkout` säger SAMMA sak —
+  de är en mekanism, ändra dem tillsammans. ⛔ Skäligt bruk-nyckeln heter nu `Terms.s11FairUse` (f.d.
+  s6FairUse), vaktad mot `PREMIUM_FAIR_USE` av `tests/unit/terms-fair-use-sync.test.ts`.
+  Sponsring (ägarbeslut): märkta placeringar som ALDRIG påverkar rangordningen — löftet står i både
+  villkor §8 och /om. Status + assistentbeslut att pröva med jurist: `../PokeFinds-private/docs/
+  TERMS-GAP.md` (statusblocket överst). Kvar: F2 (datalicenser, egen utredning) och community-klausulen
+  (publiceras först när community lanseras — utkast §13 i TERMS-DRAFT-CLAUSES.md).
 - **Deal-verifieraren kan bytas till Gemini med EN env-variabel (2026-08-02)**: `DEALS_VERIFY_PROVIDER=gemini` +
   `GEMINI_API_KEY`. Standard är fortsatt **claude** med flit — Geminis omdöme på just den här bedömningen är
   OMÄTT, och falska positiva blir fejkade "fynd" i en betalfunktion (2026-07-07 välsignade LLM-verifieringen tre
