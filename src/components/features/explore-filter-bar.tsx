@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { countQuery, type CountSelection } from "@/lib/explore-count-query";
 import { isSealedCategory } from "@/lib/product-category";
@@ -367,6 +367,15 @@ export function ExploreFilterBar({
             );
           })}
         </div>
+        {/* Rankningstransparens (EU:s Omnibus-regler): förklaringen av "Bäst
+            matchning" ska gå att nå därifrån rangordningen visas — inte bara
+            ligga i villkoren. */}
+        <Link
+          href="/om#ranking"
+          className="mt-2 block px-3 py-2 text-xs text-ink-faint underline-offset-2 hover:text-ink-muted hover:underline"
+        >
+          {t("howWeRank")}
+        </Link>
       </Sheet>
 
       <SetSheet

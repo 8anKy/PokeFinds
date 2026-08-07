@@ -8,6 +8,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { IconCheck, IconGift, IconShare } from "@/components/ui/icons";
 import { PageBackButton } from "@/components/layout/page-back-button";
@@ -223,6 +224,14 @@ export default function InvitePage() {
       )}
 
       <p className="text-xs text-ink-faint">{t("terms")}</p>
+      {/* Kampanjvillkoren bor i användarvillkoren (avsnitt 20) — en mening i
+          gränssnittet är inte ett kampanjvillkor. */}
+      <Link
+        href="/villkor#inbjudningar"
+        className="block text-xs text-ink-faint underline-offset-2 hover:text-ink-muted hover:underline"
+      >
+        {t("termsLink")}
+      </Link>
     </div>
   );
 }

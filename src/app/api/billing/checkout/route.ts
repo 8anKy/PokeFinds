@@ -119,8 +119,15 @@ export async function POST() {
       consent_collection: { terms_of_service: "required" },
       custom_text: {
         terms_of_service_acceptance: {
+          // ⛔ Måste säga SAMMA sak som villkorens ångerrättsavsnitt. Modellen är
+          // den proportionella (digital TJÄNST, den försiktigare tolkningen av
+          // distansavtalslagen): ångerrätten försvinner inte helt vid omedelbar
+          // leverans, men den som ångrar sig betalar för nyttjad tid. Den gamla
+          // texten ("ångerrätten upphör") var innehålls-modellen — håller den
+          // inte rättsligt hade kunden BEHÅLLIT full ångerrätt, vilket är sämre
+          // för oss än att lova pro rata. Se villkoren avsnitt 12 + jurist-TODO.
           message:
-            "Foilio Pro levereras direkt. Genom att godkänna samtycker du till att leveransen påbörjas omedelbart och att din ångerrätt därmed upphör.",
+            "Foilio Pro levereras direkt. Genom att godkänna samtycker du till att leveransen påbörjas under ångerfristen; ångrar du dig inom 14 dagar betalar du för den tid du haft tillgång och får resten åter.",
         },
       },
       success_url: `${appUrl}/priser?checkout=klar&session_id={CHECKOUT_SESSION_ID}`,

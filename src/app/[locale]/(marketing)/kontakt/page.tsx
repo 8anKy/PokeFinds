@@ -3,6 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { IconMail, IconShield } from "@/components/ui/icons";
 import { PageBackButton } from "@/components/layout/page-back-button";
+import { legalEntity } from "@/lib/legal-entity";
 
 export async function generateMetadata({
   params,
@@ -20,6 +21,7 @@ export default async function ContactPage({
 }) {
   setRequestLocale(params.locale);
   const t = await getTranslations("Contact");
+  const entity = legalEntity();
 
   return (
     // Mobil: pt-6 så bakåtknappen sitter i höjd med Mer-tabbens andra undersidor
@@ -86,6 +88,36 @@ export default async function ContactPage({
           <strong className="text-ink">{t("responseLead")}</strong> {t("responseText")}
         </p>
       </div>
+
+      {/* E-handelslagen 8 §: företagsuppgifterna ska vara lätta att nå — inte bara
+          begravda i villkoren. Samma allt-eller-inget-vakt som /villkor. */}
+      {entity && (
+        <div className="mt-10 space-y-2 text-sm text-ink-muted">
+          <h2 className="font-display text-lg font-semibold text-ink">{t("companyTitle")}</h2>
+          <dl className="space-y-1">
+            <div>
+              <dt className="inline font-medium text-ink">{t("companyName")}: </dt>
+              <dd className="inline">{entity.name}</dd>
+            </div>
+            <div>
+              <dt className="inline font-medium text-ink">{t("companyAddress")}: </dt>
+              <dd className="inline">{entity.addressLines.join(", ")}</dd>
+            </div>
+            <div>
+              <dt className="inline font-medium text-ink">{t("companyVat")}: </dt>
+              <dd className="inline">{entity.vatNumber}</dd>
+            </div>
+            <div>
+              <dt className="inline font-medium text-ink">{t("companyEmail")}: </dt>
+              <dd className="inline">
+                <a href={`mailto:${entity.email}`} className="text-holo-cyan hover:underline">
+                  {entity.email}
+                </a>
+              </dd>
+            </div>
+          </dl>
+        </div>
+      )}
     </article>
   );
 }

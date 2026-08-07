@@ -18,7 +18,8 @@ export default async function AboutPage({
 }) {
   setRequestLocale(params.locale);
   const t = await getTranslations("About");
-  const doItems = [1, 2, 3, 4] as const;
+  // 5:an är kortskannern + AI-graderingen — sidan beskrev länge bara halva produkten.
+  const doItems = [1, 2, 3, 4, 5] as const;
 
   return (
     <article className="mx-auto max-w-3xl px-2.5 py-16 sm:px-6">
@@ -40,6 +41,20 @@ export default async function AboutPage({
               </li>
             ))}
           </ul>
+        </section>
+
+        {/* Rankningstransparens (EU:s Omnibus-regler): huvudparametrarna för
+            "Bäst matchning" och löftet att ingen kan betala för placering.
+            id:t länkas från sorteringsarket i katalogen. */}
+        <section id="ranking">
+          <h2>{t("rankingTitle")}</h2>
+          {t("rankingBody")
+            .split("\n\n")
+            .map((p, i) => (
+              <p key={i} className="mt-2">
+                {p}
+              </p>
+            ))}
         </section>
 
         <section>

@@ -418,7 +418,7 @@
     "metaTitle": "Cookie policy",
     "metaDescription": "Information on how Foilio uses cookies and similar technologies.",
     "h1": "Cookie policy",
-    "updated": "June 1, 2026",
+    "updated": "8 August 2026",
     "s1Title": "1. What are cookies?",
     "s1Body": "Cookies are small text files stored in your browser when you visit a website. They are used to make the site work correctly, remember your settings and give us anonymous statistics about how the service is used.",
     "s2Title": "2. Which cookies do we use?",
@@ -427,7 +427,7 @@
     "necessaryItems": [
       {
         "code": "next-auth.session-token",
-        "text": "keeps you logged in"
+        "text": "keeps you signed in"
       },
       {
         "code": "next-auth.csrf-token",
@@ -435,15 +435,23 @@
       },
       {
         "code": "next-auth.callback-url",
-        "text": "remembers where you're going after login"
+        "text": "remembers where to send you after signing in"
+      },
+      {
+        "code": "fo_auth",
+        "text": "remembers that you are signed in so menus and buttons render correctly"
+      },
+      {
+        "code": "tradera_connect / discord_oauth_state",
+        "text": "temporary security cookies (15 minutes) that protect account connections against forged links"
       }
     ],
-    "prefTitle": "Preference cookies",
-    "prefBody": "Save your choices, such as theme and cookie consent.",
+    "prefTitle": "Functional cookies",
+    "prefBody": "Store choices you make yourself. They are only set when you use the feature and therefore require no consent.",
     "prefItems": [
       {
-        "code": "foilio-cookie-consent",
-        "text": "your choice in the cookie banner"
+        "code": "NEXT_LOCALE",
+        "text": "your language choice when you switch language"
       }
     ],
     "s3Title": "3. Third-party cookies",
@@ -451,66 +459,89 @@
     "s4Title": "4. Managing cookies",
     "s4Body": "You can delete or block cookies via your browser settings. Note that the service may stop working correctly if you block necessary cookies (e.g. you can't stay logged in).",
     "s5Title": "5. Legal basis",
-    "s5Body": "Necessary cookies are set on the basis of legitimate interest (the service requires them). Preference cookies are set after your consent via the cookie banner. Read more in our <link>privacy policy</link>.",
+    "s5Body": "All cookies we use are necessary for the service to function or are set when you use a feature yourself, such as the language choice. The legal basis is therefore legitimate interest or performance of the feature you requested, and no cookie consent is required. Your choice in the cookie banner is stored locally in your browser (localStorage), not as a cookie. Read more in our <link>privacy policy</link>.",
     "s6Title": "6. Contact",
     "s6Body": "Questions about our cookie handling? Contact us at <email>hej@foilio.se</email>."
   },
   "Terms": {
-    "metaTitle": "Terms of use",
-    "metaDescription": "Terms of use for Foilio, the service that helps you track the Pokémon TCG market.",
-    "h1": "Terms of use",
-    "updated": "June 1, 2026",
+    "metaTitle": "Terms of Service",
+    "metaDescription": "Terms of service for Foilio, the service that helps you track the Pokémon TCG market.",
+    "h1": "Terms of Service",
+    "updated": "8 August 2026",
+    "intro": "Foilio is a Swedish web and app service for Pokémon TCG collectors: price data, stock status, market trends, watchlists, collection management, card scanning and AI grading. By creating an account or using the service you accept these terms. Full company details are at the bottom of this page.",
     "s1Title": "1. About the service",
-    "s1p1": "Foilio is a Swedish web service that collects and presents price data, stock status and market trends for Pokémon TCG products, and offers tools for tracking, collection management and community. By creating an account or using the service, you accept these terms.",
-    "s1p2": "Foilio is an independent service and is not affiliated with, sponsored by or endorsed by The Pokémon Company or any retailer. Pokémon and related names are trademarks of their respective owners.",
-    "s2Title": "2. Account",
-    "s2Body": "You must be at least 16 to create an account. You are responsible for ensuring the information you provide is accurate and for keeping your login details secret. All activity through your account is considered performed by you. If you suspect unauthorized access to your account, change your password immediately and contact us.",
-    "s3Title": "3. Acceptable use",
-    "s3Intro": "You may not:",
+    "s1Body": "Foilio collects and presents prices, stock status and market trends for Pokémon TCG products from external sources, and offers tools for watching, collection management, card scanning, AI grading and selling through connected accounts.\n\nFoilio is an independent service. We are not affiliated with, sponsored by or endorsed by The Pokémon Company, Nintendo, Creatures, GAME FREAK or any retailer or marketplace that appears in the service. Pokémon and related names, logos and images are trademarks and copyrighted works belonging to their respective owners. We show card images and product names for identification purposes, so you can recognise what you are looking for.",
+    "s2Title": "2. Your account",
+    "s2Body": "You must be at least 16 years old to create an account. If you are under 18 you may only use the service with your guardian's consent, and you may not start a paid subscription without that consent.\n\nYou are responsible for the accuracy of the details you provide and for keeping your login credentials to yourself. Everything that happens through your account counts as done by you. If you believe someone has gained unauthorised access, change your password immediately and contact us.\n\nAn account is personal. You may not sell, rent out, lend or transfer it, and you may not create multiple accounts to get around limits or offers in the service.",
+    "s3Title": "3. Using the service",
+    "s3Intro": "Use Foilio as intended: for your own collection, your own watching and your own enjoyment. You may not:",
     "s3Items": [
-      "use the service for illegal purposes or in violation of these terms,",
-      "attempt to circumvent technical restrictions, scrape or bulk-collect data from the service without written permission,",
-      "post content in the community that is offensive, misleading, copyright-infringing or spam,",
-      "sell, rent or share your account with others,",
+      "use the service for unlawful purposes or in breach of these terms,",
+      "scrape, bulk-harvest or systematically copy content from the service, or use bots, scripts or other automated methods against the service or our APIs without our written permission,",
+      "circumvent or attempt to circumvent technical restrictions, quotas, blocks or login requirements, for example through multiple accounts,",
+      "decompile, reverse engineer or otherwise attempt to extract the source code of our apps, except where mandatory law gives you that right,",
+      "upload images you do not have the right to use, or images with unlawful, offensive or objectionable content,",
+      "sell, rent out or share your account with others,",
       "disrupt the operation of the service, for example through overload or intrusion attempts."
     ],
-    "s3Outro": "We reserve the right to remove content and suspend accounts that violate these rules.",
-    "s4Title": "4. Price data without warranty",
-    "s4Body": "Prices, stock status and other market data are fetched automatically from external sources and may be delayed, incomplete or inaccurate. The data is provided as is, without warranties. The price that applies is always the one shown at each store at the time of purchase. Foilio sells no products and is not a party to purchases made at stores linked from the service. Some store links are ad links: Foilio may be compensated if you buy through them. This affects neither the prices we show nor the order stores are listed in — the list is always sorted by lowest price, and ad links are labelled. Collection valuations are estimates and should not be seen as financial advice.",
-    "s5Title": "5. Limitation of liability",
-    "s5Body": "The service is provided as is and subject to availability. To the extent permitted by law, Foilio is not liable for indirect damages, lost profits or losses arising from you relying on data in the service, service disruptions or lost data. Nothing in these terms limits rights you have as a consumer under mandatory Swedish law.",
-    "s6Title": "6. Pro and payment",
-    "s6Body": "Some features require a Pro subscription. Current prices and features are shown on the pricing page. The subscription runs monthly with no lock-in. In the app, purchases and cancellations are handled by the App Store or Google Play; a cancellation applies until the end of the paid period.",
-    "s6FairUse": "Fair use: features described as unlimited are intended for normal personal use. For card scanning that means up to 1,000 scans per calendar month, which is far beyond what a collector does and exists to protect the service against automated or excessive use. The limit resets on the 1st of each month. If you need more for a legitimate purpose, get in touch and we'll sort it out.",
-    "s7Title": "7. Termination",
-    "s7Body": "You can close your account at any time via Settings, whereupon your personal data is deleted in accordance with our privacy policy. We may suspend or terminate accounts that violate these terms, or if the service is discontinued, with reasonable notice where possible.",
-    "s8Title": "8. Changes to the terms",
-    "s8Body": "We may update these terms, for example for new features or changed legislation. Material changes are announced by email or in the service at least 30 days in advance. Continued use after the changes take effect means you accept the new terms.",
-    "s9Title": "9. Governing law and contact",
-    "s9Body": "Swedish law applies to these terms. Disputes are settled by Swedish general courts. Questions about the terms? Contact us at <email>hej@foilio.se</email>.",
-    "s10Title": "Prices and payment",
-    "s10Body": "Foilio Pro costs 49 kr per month including VAT. The price you see is what you pay — no VAT is added at checkout. The subscription renews automatically each month until you cancel, and payment is taken on the same date every month.",
-    "s10Cancel": "You can cancel at any time under Manage subscription on the pricing page. Cancellation takes effect at the end of the period you have already paid for — you keep Pro until then, and it simply does not renew. We never store your card details; payment is handled by Stripe.",
-    "s10Apps": "If you bought Pro in our iOS or Android app, payment is handled by the App Store or Google Play instead. In that case you also cancel there, under Subscriptions in your phone settings.",
-    "s11Title": "Right of withdrawal",
-    "s11Body": "As a consumer you normally have a 14-day right of withdrawal on distance purchases under the Swedish Distance Contracts Act (2005:59).",
-    "s11Waiver": "Foilio Pro is a digital service that begins delivery immediately once the purchase is completed. By accepting the terms at checkout you consent to delivery starting straight away and confirm that you thereby lose your right of withdrawal. If something has gone wrong anyway, get in touch and we will look at it.",
-    "s12Title": "If we cannot agree",
-    "s12Body": "If you are dissatisfied and we cannot find a solution together, you can contact the Swedish National Board for Consumer Disputes (ARN), Box 174, 101 23 Stockholm, arn.se. You can also use the European Commission's online dispute resolution platform at ec.europa.eu/odr.",
-    "s13Title": "Business details",
-    "s13Intro": "Foilio is operated by:",
-    "s13Name": "Name",
-    "s13Address": "Address",
-    "s13Vat": "VAT number",
-    "s13Email": "Email"
+    "s3Outro": "We use technical protections against overload, including limits on how many requests an account can make within a certain time. They exist to keep the service fast for everyone and do not affect normal use.\n\nIf you break the rules we may remove content, restrict features or suspend the account. We will contact you first where possible and reasonable, and we choose the mildest measure that solves the problem. What happens to a paid period is covered in section 16.",
+    "s4Title": "4. Market data and prices",
+    "s4Body": "Prices, stock status, price history and other market data in Foilio are collected automatically from external sources: Swedish stores' public product pages, an international collectible-card marketplace via a data service, and a Swedish marketplace API. The data is normally updated once per day and is therefore not real-time data.\n\nThe data may be delayed, incomplete or incorrect, and it is provided as is without warranties of accuracy, timeliness or availability. The price that applies is always the one shown by the respective store or seller at the time of purchase.\n\nFoilio sells no cards and no products. We are not a party to any purchase, sale or trade that takes place at a store or marketplace you find through the service, and we do not receive payment for such transactions. Questions about an order, a delivery or a complaint should be directed to the seller.\n\nMarket data in Foilio is information, not advice. It is not financial advice or a recommendation to buy or sell, and you should not make investment decisions based on it alone. Collectible cards are not a regulated asset and prices can swing sharply.\n\nAn external source can change, restrict our access or shut down at any time. If that happens, data or features that depend on that source may disappear or change. We will do what we reasonably can to replace the source, but we cannot promise it will be possible.",
+    "s5Title": "5. Your collection value is an estimate",
+    "s5Body": "The value we show for your collection is an automatic estimate, not an appraisal and not an offer. It is calculated from the lowest price we know of for each product, converted to kronor using a current exchange rate. If no current price exists, the last known one is used, or none at all.\n\nThe estimate does not take into account your card's actual condition, its authenticity, whether it is graded, which printing or variant you own, or what someone is actually willing to pay right now. It is not performed by an authorised appraiser and is not suitable as a basis for insurance, estate inventory, credit assessment, disputes or tax returns.\n\nUse it for what it is: a benchmark for following your collection over time.",
+    "s6Title": "6. Card scanner and AI grading",
+    "s6Body": "How they work. When you scan a card, the image is analysed on your device and compared against our catalog. If needed, a cropped image is sent to our AI provider to read the card's collector number. When you grade a card, your photos of the front and back are sent to an AI model that assesses centering, corners, edges and surface.\n\nBoth produce estimates, not facts.\n\nThe scanner can identify the wrong card. It is especially uncertain when the collector number is not visible in the image, which is common when photographing a screen, in poor lighting, or when the card is in a sleeve. Some cards also exist in several printings with identical artwork but very different value, and they can only be told apart by the collector number. Always check that the card the scanner suggests really is yours before adding it to your collection, especially the printing and variant.\n\nThe grading is an indicative assessment of your photos. It is not an official grade from PSA, BGS, CGC or any other grading company, and we do not promise that a grading company would reach the same result. An AI cannot feel the card, hold it against the light or detect a counterfeit. Use the grade as a benchmark, never as a verdict.\n\nWe may replace, update or adjust the models used. The result for the same card can therefore differ over time.\n\nYour responsibility. You are responsible for decisions you make with the help of the scanner or the grading, for example buying, selling, pricing, insuring or submitting a card for real grading. We are not liable for such decisions or their consequences. Only upload images you have taken yourself or have the right to use.\n\nYour images. Images you scan or upload are processed to identify or assess the card and are not stored by our AI provider after processing. We do not use your images to train AI models. Read more in our privacy policy.\n\nQuotas. How many scans and gradings are included per month is shown on the pricing page. See section 11 on fair use.",
+    "s7Title": "7. Alerts and notifications",
+    "s7Body": "Foilio can send price and restock alerts via email and push notifications. Alerts are sent on a best-effort basis. We cannot promise that an alert is sent, that it arrives, that it arrives in time, or that the product is still available when you click.\n\nThere are several reasons for this. We detect a stock change only when the store's data updates with us, and a product can sell out before that. We also deliberately dampen alerts: a product that blinks in and out of stock within minutes does not alert every time, and a product that flips many times per day gets one combined notice instead of one per hour. This is so the alerts can be trusted rather than drowning in noise.\n\nEmail can end up in spam or be blocked by your provider. Push notifications require that you have given the app permission on your device and that the device has a network connection. You control which alerts you receive in Settings and can turn them off whenever you want.\n\nAlerts are a help to keep track, not a guarantee that you get there first.",
+    "s8Title": "8. Links, ranking and compensation",
+    "s8Body": "Foilio links to external stores and marketplaces. We do not operate them and do not control their content, prices, stock, terms or processing of personal data. When you click through, their terms apply, not ours.\n\nHow we rank. The default sorting Best match combines how well a product matches your search with a quality assessment of the product: how much it engages other users, how many are watching it, whether it can be bought right now, how many stores sell it, whether it has an image and a price, and how recently the set was released. If you are signed in, products you already watch or own can get a small boost. The formula is set by us by hand and you can always change the sort order yourself.\n\nWe currently receive no compensation from stores or marketplaces when you click through via us, and no one can pay to influence the ranking. Should we introduce sponsored placements in the future, they will be clearly marked as sponsored, kept separate from the organic ranking and never affect it. If any of this changes we will update these terms and inform you in the service.",
+    "s9Title": "9. Selling through your Tradera connection",
+    "s9Body": "You can connect your Tradera account to Foilio and create listings directly from your collection. The connection is optional and you can break it at any time in Settings.\n\nYou are the seller. When you create a listing through Foilio we act solely on your instruction and in your name. The listing is yours, the transaction is yours, and the contract is formed between you and the buyer on Tradera. Foilio is not a party to the sale, does not receive payment and does not charge a fee for it.\n\nYou are responsible for the content. That includes price, condition, authenticity, images, shipping, delivery and that you actually own what you sell. It also applies to the description and category Foilio suggests automatically: read it before you publish. The suggestion is a shortcut, not a review.\n\nTradera's terms apply between you and Tradera, including their fees, rules for what may be sold and dispute handling. We cannot promise that a listing is published, stays up, ends up in the right category or looks the way you intended. Tradera can end the connection or remove a listing under its own rules.\n\nTax is your responsibility. If you sell regularly or at a profit it can affect your tax return. Marketplaces are in some cases required to report sellers to the Swedish Tax Agency. We do not give tax advice.\n\nFor the connection to work we store your Tradera ID and an access token. Read more in our privacy policy.",
+    "s10Title": "10. Discord connection",
+    "s10Body": "You can link your Discord account to Foilio to join our Discord server and automatically receive roles that reflect your membership, for example the Pro role if you have an active Pro subscription. The connection is optional.\n\nWe store your Discord ID and display name and assign or remove roles when your plan changes. We store no access token for your Discord account. You can disconnect at any time in Settings; the roles are then removed, but you remain in the server until you leave it yourself.\n\nWithin the server, the server's own rules and Discord's terms of service apply.",
+    "s11Title": "11. Pro, payment and renewal",
+    "s11Body": "Some features require a Pro subscription. What is included and what it costs is shown on the pricing page, which is part of these terms. Foilio Pro costs 49 kr per month including VAT; the price you see is the price you pay.\n\nRenewal. Pro runs monthly with no lock-in and renews automatically until you cancel. The fee is charged at the start of each new period. If you cancel, Pro remains active until the end of the period you have already paid for, and you are not charged again.\n\nHow to buy and cancel. If you buy Pro on the web, we are the seller. Payment is handled by Stripe and we never store your card details. You cancel under Manage subscription on the pricing page. If you buy in our iOS or Android app, App Store or Google Play is the seller; purchase, renewal and cancellation are then handled in your device's subscription settings, and a cancellation needs to be made before the period ends for the next fee not to be charged.\n\nPrice changes. We may change the price of Pro. We will notify you at least 30 days in advance via email or in the service, and a new price applies only from the next billing period. You can always cancel before it takes effect. If you bought via App Store or Google Play, approval of a price change is handled under their rules.\n\nIf you downgrade. Your data remains. Features that require Pro stop working when the paid period ends. Watchlist items you already have remain, but if they exceed the free tier's cap you cannot add new ones until you are below the cap.",
+    "s11FairUse": "Fair use: features described as unlimited are intended for normal personal use. For card scanning this means up to 1,000 scans per calendar month, which is far above what a collector does and exists to protect the service against automated or excessive use. The limit resets on the 1st of every month. If you need more for a legitimate purpose, contact us and we will sort it out. Foilio is made for your own collection and may not be used to run a business inside the service.",
+    "s12Title": "12. Right of withdrawal",
+    "s12Body": "Purchases in the app. If you buy Pro via App Store or Google Play, they are the seller towards you. Withdrawal, refunds and complaints are therefore handled in their channels and under their terms. We are happy to point you in the right direction, but we cannot refund a purchase we have not received.\n\nPurchases on the web. If you buy Pro directly from us, as a consumer you have the right under the Swedish Distance Contracts Act (2005:59) to withdraw from your purchase within 14 days of the contract being made, without giving any reason. You exercise the right by notifying us at hej@foilio.se. You can also use the Swedish Consumer Agency's standard withdrawal form.\n\nBecause Pro is a service that starts being delivered immediately, we ask you at checkout to consent to delivery starting during the withdrawal period. If you then withdraw, you pay for the part of the period you had access to the service, and we refund the rest within 14 days of receiving your notice.\n\nThe right of withdrawal applies to new purchases. It does not recur with every automatic renewal, but you can always cancel the subscription under section 11.",
+    "s13Title": "13. When the service changes",
+    "s13Body": "Foilio evolves continuously. We add features, improve them and sometimes remove things that do not work or that we can no longer deliver, for example because a data source disappears.\n\nWe may make changes to the service, and we do so at no cost to you. If a change is to your material disadvantage as a paying customer, we will notify you at least 30 days in advance via email or in the service, and you may then cancel Pro at no cost and get back the part of the fee that covers the time after cancellation.\n\nThe free tier can change or be discontinued. We will announce it in good time when we can.\n\nFeatures marked as beta or preview are under development. They can be unstable, give poorer results and be removed without notice.",
+    "s14Title": "14. What is ours",
+    "s14Body": "Foilio, our name, our logo, our design, our code and our product catalog belong to us. The catalog is a compilation built with substantial investment and is protected as such, including under section 49 of the Swedish Copyright Act.\n\nYou receive a personal, limited, revocable and non-exclusive right to use the service for your own non-commercial use. That right does not include copying, republishing or reselling our content, or building a competing service on it.\n\nYour collection is yours, the catalog is ours. You can export your data at any time from Settings, and you may use your own collection data however you like. The catalog data included in the export (product names, sets, prices, images and the like) is however ours or our sources', and may only be used privately.\n\nCard images, card names and trademarks shown in the service belong to their respective owners and are used for identification purposes, see section 1.",
+    "s15Title": "15. Our liability",
+    "s15Body": "Foilio is provided as is and as available. We do what we can to keep the service running and the data correct, but we cannot promise that it is always available, error-free or up to date.\n\nTo the extent permitted by law, we are not liable for indirect damages, lost profit, missed purchase opportunities, lost data or losses arising because you relied on information in the service, on an alert, on a scan or on an AI grading.\n\nOur total liability towards you is limited to what you have paid us during the twelve months preceding the event that caused the damage. If you have not paid anything, our liability is limited to 500 kronor.\n\nThe limitations do not apply in cases of intent or gross negligence on our part, personal injury, or where mandatory law says otherwise.\n\nNothing in these terms limits the rights you have as a consumer under mandatory Swedish law. If part of this section is invalid, the rest still applies.",
+    "s16Title": "16. Ending things",
+    "s16Body": "You. You can close your account at any time in Settings. Your personal data is then deleted according to our privacy policy. Export your collection first if you want to keep it, because the deletion cannot be undone. If you have an active Pro subscription you need to cancel it separately where you bought it, see section 11.\n\nUs. We can restrict, suspend or close an account that breaches these terms, that is used to harm the service or other users, or where we are required to by law. We will contact you first and give you the chance to put things right where possible and reasonable. If we suspend you without you having done anything wrong, we refund the part of the fee that covers the time after the suspension. If the account is closed due to a serious or intentional breach of the terms, we may refuse a refund of the started period, to the extent mandatory law allows.\n\nIf the service shuts down. We will give at least 60 days' notice, and you will be able to export your data before the service closes. Paid time that could not be used is refunded.\n\nDormant accounts. An account that has not been used for 24 months may be deleted after we have reminded you by email.",
+    "s17Title": "17. Changes to these terms",
+    "s17Body": "We may update these terms, for example for new features or changed legislation. Material changes are announced via email or in the service at least 30 days in advance. Continued use after the changes take effect means you accept the new terms.",
+    "s18Title": "18. If you are unhappy",
+    "s18Body": "Contact us first at <email>hej@foilio.se</email>. We read everything and try to reply within 48 hours on weekdays. Most problems are solved fastest that way.",
+    "s18Arn": "If we cannot agree, as a consumer you can turn to the Swedish National Board for Consumer Disputes (Allmänna reklamationsnämnden, ARN), Box 174, 101 23 Stockholm, arn.se. ARN examines the dispute free of charge and issues a recommendation. We participate in ARN's proceedings. You can also contact your municipality's consumer guidance service or Hallå konsument, hallakonsument.se.",
+    "s18Law": "Swedish law applies to these terms. If you live in another EU country you keep the protection that is mandatory under the law of your home country. Disputes that cannot be resolved otherwise are settled by Swedish general courts.",
+    "s19Title": "19. Miscellaneous",
+    "s19Body": "Force majeure. We are not liable for interruptions or delays caused by circumstances beyond our reasonable control, for example outages at our suppliers, government decisions, strikes, sabotage, war or natural events.\n\nAssignment. We may assign our rights and obligations under these terms to someone else, for example in connection with a sale of the business. We will notify you in advance, and your rights will not be impaired. You may not transfer your account.\n\nIf part is invalid. Should a provision of these terms be invalid or unenforceable, it does not affect the remaining provisions, which continue to apply.\n\nEntire agreement. These terms, together with the pricing page and our privacy policy, constitute the entire agreement between you and us regarding the service.\n\nLanguage. The terms are available in Swedish and English. In case of discrepancy between the versions, the Swedish version prevails.",
+    "s20Title": "20. The invite programme",
+    "s20Intro": "Invite friends to Foilio and get Pro as a bonus. Here is what applies:",
+    "s20Items": [
+      "The bonus is granted when 3 people have created an account via your link and confirmed their email address. The reward is 1 month of Pro, added to your existing Pro time.",
+      "The bonus cannot be exchanged for money, transferred, or saved after the offer has ended.",
+      "You may not invite yourself, create accounts for others, use temporary or made-up email addresses, or otherwise manufacture registrations. In case of abuse we may revoke bonuses, deactivate links and suspend accounts.",
+      "We may change or end the offer at any time. Bonuses already granted are not affected."
+    ],
+    "companyTitle": "Company details",
+    "companyIntro": "Foilio is operated by:",
+    "companyName": "Name",
+    "companyAddress": "Address",
+    "companyVat": "VAT no.",
+    "companyEmail": "Email"
   },
   "Privacy": {
     "metaTitle": "Privacy policy",
     "metaDescription": "How Foilio processes your personal data, in accordance with GDPR.",
     "h1": "Privacy policy",
-    "updated": "June 29, 2026",
+    "updated": "8 August 2026",
     "s1Title": "1. Data controller",
-    "s1Body": "Foilio is the controller for the processing of your personal data in the service. Contact us at <email>hej@foilio.se</email> with questions about this policy.",
+    "s1Body": "The data controller for the processing of your personal data is {entity}, which operates Foilio. Full company details are available in our terms of service. If you have questions about how we handle your data, reach us at <email>hej@foilio.se</email>.",
     "s2Title": "2. What data we process",
     "s2Items": [
       {
@@ -519,47 +550,75 @@
       },
       {
         "lead": "Collection data:",
-        "text": "cards and products you've registered, purchase prices, condition and notes."
+        "text": "cards and products you have registered, purchase prices, condition and notes."
       },
       {
-        "lead": "Watches and notifications:",
-        "text": "which products you watch and your notification settings."
+        "lead": "Watchlists and notifications:",
+        "text": "which products and sets you watch and your notification settings."
+      },
+      {
+        "lead": "Push notifications:",
+        "text": "a technical push token for your device, if you enable push notifications. It is deleted when you turn them off or sign out."
+      },
+      {
+        "lead": "Payment details:",
+        "text": "your subscription status and a customer ID with our payment provider. We never see or store your card details; they are handled by Stripe or by App Store and Google Play."
+      },
+      {
+        "lead": "Connected accounts:",
+        "text": "if you choose to connect an account with another service, we store the identifier there (your Discord ID and display name, your Tradera ID) and when the connection was made. We never store passwords, and for Discord we store no access token at all. If you disconnect, the data is deleted."
       },
       {
         "lead": "Community content:",
         "text": "posts, comments and reactions you publish."
       },
       {
-        "lead": "Card images when scanning:",
-        "text": "when you scan or upload a card, the image is sent to our AI provider for identification. The image is processed temporarily and not saved in your camera roll or long-term with us."
+        "lead": "Card images when scanning and grading:",
+        "text": "when you scan or upload a card, the image is sent to our AI provider for identification or assessment. The image is processed temporarily and is not stored long-term, neither by us nor by the provider. We do not use your images to train AI models."
+      },
+      {
+        "lead": "Scanner diagnostics:",
+        "text": "to measure and improve the scanner's accuracy, we store the model's answer and the top candidates per scan, plus a small numeric colour fingerprint of the image. The image itself is not stored."
+      },
+      {
+        "lead": "Usage statistics:",
+        "text": "de-identified events such as product views and searches, with no link to your account. They are used to work out what is popular."
       },
       {
         "lead": "Technical data:",
-        "text": "necessary session details for login."
+        "text": "session data necessary for signing in."
       }
     ],
     "s3Title": "3. Purposes and legal basis",
     "s3Items": [
       {
         "lead": "Providing the service",
-        "text": "(account, watches, collection, notifications). Legal basis: performance of a contract (Art. 6.1 b GDPR)."
+        "text": "(account, watchlists, collection, notifications, scanning, grading). Legal basis: performance of contract (art. 6.1 b GDPR)."
+      },
+      {
+        "lead": "Handling payments and subscriptions",
+        "text": ": performance of contract (art. 6.1 b) and legal obligation for bookkeeping (art. 6.1 c)."
+      },
+      {
+        "lead": "Connecting accounts you have chosen to connect",
+        "text": "(Discord, Tradera): performance of contract at your request (art. 6.1 b). The connection is always optional and can be removed in Settings."
       },
       {
         "lead": "Sending alerts and weekly reports",
-        "text": "you've chosen. Legal basis: performance of a contract; you can turn them off in Settings."
+        "text": "you have chosen yourself. Legal basis: performance of contract; you can turn them off in Settings."
       },
       {
-        "lead": "Operation, security and troubleshooting",
-        "text": ": legitimate interest (Art. 6.1 f GDPR)."
+        "lead": "Operations, security and troubleshooting",
+        "text": ": legitimate interest (art. 6.1 f GDPR)."
       },
       {
         "lead": "Legal obligations",
-        "text": ", e.g. accounting for payments: legal obligation (Art. 6.1 c GDPR)."
+        "text": ", e.g. bookkeeping for payments: legal obligation (art. 6.1 c GDPR)."
       }
     ],
     "s3Outro": "We never sell your data and don't use it for third-party marketing.",
     "s4Title": "4. Retention",
-    "s4Body": "We keep your data for as long as you have an account. If you delete your account, your personal data is removed within 30 days, except for data we are required to keep by law (e.g. accounting records, kept for 7 years). Backups are purged on a rolling basis.",
+    "s4Body": "We keep your data for as long as you have an account. If you delete the account, your personal data is removed within 30 days, except for data we are legally required to keep (e.g. bookkeeping records, kept for 7 years). Backups are cleared continuously and at the latest within 90 days.",
     "s5Title": "5. Your rights",
     "s5Intro": "Under GDPR you have the right to:",
     "s5Items": [
@@ -590,7 +649,7 @@
     ],
     "s5Outro": "Export and deletion are available directly in <b>Settings</b> in the service. You don't need to contact us to exercise your rights, but you're always welcome to.",
     "s6Title": "6. Cookies",
-    "s6Body": "We use only necessary cookies, for login (session cookie) and basic functionality. We use no third-party tracking or marketing cookies. Since all cookies are necessary, no consent is required, but we inform you about them via our cookie banner.",
+    "s6Body": "We only use necessary and functional cookies: sign-in cookies, a cookie that remembers that you are signed in so menus render correctly, and a cookie that stores your language choice when you switch language yourself. We use no third-party tracking or marketing cookies. Since all cookies are necessary for features you request yourself, no consent is required, but we inform you about them via our cookie banner. Your choice in the banner is stored locally in your browser, not as a cookie. Read more in our <link>cookie policy</link>.",
     "s7Title": "7. Sharing and subprocessors",
     "s7Intro": "We use the following processors to run the service, all bound by data processing agreements:",
     "s7Items": [
@@ -599,21 +658,46 @@
         "text": "Neon (serverless PostgreSQL, data stored within the EU/EEA, Frankfurt)."
       },
       {
-        "lead": "Operation/hosting:",
-        "text": "our cloud host that runs the application."
+        "lead": "Operations/hosting:",
+        "text": "Railway, which runs the application (EU region)."
       },
       {
         "lead": "Email delivery:",
         "text": "Resend, for alerts and account emails (USA)."
       },
       {
-        "lead": "AI card identification:",
-        "text": "Anthropic (Claude), which processes scanned card images (USA). The images are not retained by the provider after processing."
+        "lead": "AI identification and grading of cards:",
+        "text": "Google (Gemini) and Anthropic (Claude), which process scanned card images (USA). Images are not stored by the provider after processing and are not used to train models."
+      },
+      {
+        "lead": "Card payments on the web:",
+        "text": "Stripe, which handles the payment and your card details (Ireland/USA). We never see your card number."
+      },
+      {
+        "lead": "Subscription status in the app:",
+        "text": "RevenueCat, which keeps track of purchases made via App Store and Google Play (USA)."
       }
     ],
     "s7Outro": "Storage of your account data takes place within the EU/EEA. For transfers to third countries (e.g. the USA for email and AI identification), approved safeguards under GDPR are used, such as the EU's standard contractual clauses. We never sell your data.",
     "s8Title": "8. Changes",
-    "s8Body": "For material changes to this policy, we'll inform you by email or in the service. The latest version is always on this page. See also our <link>terms of use</link>."
+    "s8Body": "For material changes to this policy, we'll inform you by email or in the service. The latest version is always on this page. See also our <link>terms of use</link>.",
+    "s7bTitle": "7b. Recipients responsible in their own right",
+    "s7bIntro": "Some services receive data from us but process it as independent data controllers, under their own privacy policies. We do not have processor agreements with them, since they do not process the data on our behalf:",
+    "s7bItems": [
+      {
+        "lead": "App Store and Google Play:",
+        "text": "are the seller when you buy Pro in the app and then handle the payment under their own terms."
+      },
+      {
+        "lead": "Discord:",
+        "text": "if you choose to link your Discord account, we share your Discord ID to add you to our server and assign the right role. We share no email address and no information about what you do in Foilio."
+      },
+      {
+        "lead": "Tradera:",
+        "text": "if you choose to sell through your Tradera connection, we share the data required to create the listing you requested."
+      }
+    ],
+    "s7bOutro": "The connections are always optional and can be removed in Settings."
   },
   "About": {
     "metaTitle": "About Foilio",
@@ -621,7 +705,7 @@
     "h1": "About Foilio",
     "subtitle": "Sweden's Pokémon TCG platform",
     "whatTitle": "What is Foilio?",
-    "whatBody": "Foilio is a Swedish web platform built for Pokémon TCG collectors. We gather prices and stock status from Swedish stores so you don't have to check each site manually. Here you can compare prices, watch products, get restock alerts and keep track of your collection's value, all in one place.",
+    "whatBody": "Foilio is a Swedish web platform built for Pokémon TCG collectors. We gather prices and stock status from Swedish stores so you do not have to check every site manually. Here you can compare prices, watch products, get restock alerts, scan your cards, get an AI assessment of their condition and keep track of your collection's value, all in one place.",
     "doTitle": "What we do",
     "do1Lead": "Price comparison",
     "do1Text": "We fetch prices from several Swedish stores and show the lowest price, price history and trends.",
@@ -631,12 +715,14 @@
     "do3Text": "Log your cards and sealed products, see total value and follow how your collection develops.",
     "do4Lead": "Market data",
     "do4Text": "Trends, price drops, most-watched products and a set index keep you on top of the market.",
-    "do5Lead": "Community",
-    "do5Text": "Share pulls, discuss trades and hang out with other Swedish collectors.",
+    "do5Lead": "Card scanner and AI grading",
+    "do5Text": "scan your cards with the camera to add them to your collection, and get an indicative AI assessment of their condition. Both are estimates, not official verdicts.",
     "independentTitle": "Independent service",
     "independentBody": "Foilio is a completely independent service. We are not affiliated with, sponsored by or endorsed by The Pokémon Company, Nintendo or any retailer. Pokémon and related names are trademarks of their respective owners.",
     "contactTitle": "Contact us",
-    "contactBody": "Have questions, feedback or want to report a problem? Write to <email>hej@foilio.se</email> or visit our <link>contact page</link>."
+    "contactBody": "Have questions, feedback or want to report a problem? Write to <email>hej@foilio.se</email> or visit our <link>contact page</link>.",
+    "rankingTitle": "How we rank",
+    "rankingBody": "The default sorting Best match combines how well a product matches your search with a quality assessment: engagement from other users, how many are watching the product, whether it can be bought right now, how many stores sell it, whether it has an image and a price, and how recently the set was released. If you are signed in, products you already watch or own can get a small boost. The formula is set by us by hand, and you can always change the sort order yourself.\n\nNo one can pay to influence the ranking. We currently receive no compensation from stores when you click through. Should we introduce sponsored placements in the future, they will be clearly marked and kept separate from the organic ranking."
   },
   "Contact": {
     "metaTitle": "Contact",
@@ -655,7 +741,12 @@
     "c3Lead": "GDPR request?",
     "c3Body": "You can export or delete your data directly in <link>settings</link>. If you need more help, email us.",
     "responseLead": "Response time:",
-    "responseText": "We try to reply within 48 hours on weekdays. During peak season (release weeks) it may take a little longer."
+    "responseText": "We try to reply within 48 hours on weekdays. During peak season (release weeks) it may take a little longer.",
+    "companyTitle": "Company details",
+    "companyName": "Name",
+    "companyAddress": "Address",
+    "companyVat": "VAT no.",
+    "companyEmail": "Email"
   },
   "Scanner": {
     "dialogAria": "Card scanner",
@@ -888,7 +979,8 @@
     "loadError": "Could not load your invites. Please try again.",
     "createError": "Could not create the invite. Please try again.",
     "copyError": "Could not copy the link.",
-    "terms": "Applies to new accounts that confirm their email address. Each link can be used once. The Pro bonus is added on top of your existing Pro time."
+    "terms": "Applies to new accounts that confirm their email address. Each link can be used once. The Pro bonus is added on top of your existing Pro time.",
+    "termsLink": "Full terms for the invite programme"
   },
   "Watch": {
     "watch": "Watch",
@@ -1132,7 +1224,8 @@
       "deals": "Deals",
       "card_number_asc": "Card number (low to high)",
       "card_number_desc": "Card number (high to low)"
-    }
+    },
+    "howWeRank": "How Best match works"
   },
   "Sets": {
     "metaTitle": "Sets",

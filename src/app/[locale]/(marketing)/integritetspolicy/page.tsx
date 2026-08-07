@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
+import { legalEntity } from "@/lib/legal-entity";
 
 export async function generateMetadata({
   params,
@@ -25,6 +26,11 @@ export default async function PrivacyPage({
   const purposes = t.raw("s3Items") as LeadItem[];
   const rights = t.raw("s5Items") as LeadItem[];
   const processors = t.raw("s7Items") as LeadItem[];
+  const recipients = t.raw("s7bItems") as LeadItem[];
+  // GDPR art. 13: den personuppgiftsansvarige ska anges som juridisk person, inte
+  // bara ett varumärke. Namnet kommer från miljön (samma källa som /villkor);
+  // saknas det faller texten tillbaka på varumärket hellre än att sidan kraschar.
+  const entityName = legalEntity()?.name ?? "Foilio";
 
   const LeadList = ({ items }: { items: LeadItem[] }) => (
     <ul className="mt-2 list-disc space-y-1 pl-5">
@@ -48,6 +54,7 @@ export default async function PrivacyPage({
           <h2>{t("s1Title")}</h2>
           <p className="mt-2">
             {t.rich("s1Body", {
+              entity: entityName,
               email: (chunks) => (
                 <a href="mailto:hej@foilio.se" className="text-holo-cyan hover:underline">
                   {chunks}
@@ -86,7 +93,15 @@ export default async function PrivacyPage({
 
         <section>
           <h2>{t("s6Title")}</h2>
-          <p className="mt-2">{t("s6Body")}</p>
+          <p className="mt-2">
+            {t.rich("s6Body", {
+              link: (chunks) => (
+                <Link href="/cookies" className="text-holo-cyan hover:underline">
+                  {chunks}
+                </Link>
+              ),
+            })}
+          </p>
         </section>
 
         <section>
@@ -94,6 +109,17 @@ export default async function PrivacyPage({
           <p className="mt-2">{t("s7Intro")}</p>
           <LeadList items={processors} />
           <p className="mt-2">{t("s7Outro")}</p>
+        </section>
+
+        {/* Självständigt ansvariga mottagare (Discord, Tradera, appbutikerna) —
+            SKILDA från biträdeslistan ovan med flit: s7 påstår att varje post är
+            bunden av biträdesavtal, och det är varken sant eller möjligt för de
+            här. Att blanda in dem hade gjort inledningsmeningen falsk. */}
+        <section>
+          <h2>{t("s7bTitle")}</h2>
+          <p className="mt-2">{t("s7bIntro")}</p>
+          <LeadList items={recipients} />
+          <p className="mt-2">{t("s7bOutro")}</p>
         </section>
 
         <section>
