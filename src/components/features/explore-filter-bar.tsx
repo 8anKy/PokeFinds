@@ -560,15 +560,22 @@ function SetSheet({
   // ut som om seten låg i fel serie. Map:en slår ihop dem i stället.
   // Serieordningen = där seriens NYASTE set ligger (först sedd), och inuti varje
   // serie står nyast först — samma ordning som /sets-sidan bygger.
-  const grouped = useMemo(() => {
+  const groupBySeries = (items: FilterSet[]) => {
     const bySeries = new Map<string, FilterSet[]>();
-    for (const s of enSets) {
+    for (const s of items) {
       const list = bySeries.get(s.series);
       if (list) list.push(s);
       else bySeries.set(s.series, [s]);
     }
-    return [...bySeries].map(([series, items]) => ({ series, items }));
-  }, [enSets]);
+    return [...bySeries].map(([series, group]) => ({ series, items: group }));
+  };
+  const grouped = useMemo(() => groupBySeries(enSets), [enSets]);
+  // Japanska set grupperas på SAMMA sätt: serien kommer från TCGdex och skrivs med
+  // den latinska eran ("Scarlet & Violet"), så rubrikerna läser likadant i båda
+  // flikarna. Set vars era vi inte kunnat styrka ligger i "Other" — och eftersom
+  // listan är sorterad på releaseDate (nulls sist) hamnar den gruppen sist av sig
+  // själv, utan specialfall.
+  const groupedJp = useMemo(() => groupBySeries(jpSets), [jpSets]);
 
   const tile = (s: FilterSet) => {
     const selected = s.id === activeSetId;
@@ -633,23 +640,16 @@ function SetSheet({
         </div>
       )}
 
-      {lang === "JP" ? (
-        // Platt lista, nyast först. Japanska set har ingen serie-indelning hos oss:
-        // serien finns bara som en teknisk etikett, och att hitta på rubriker vi
-        // inte har data för hade sagt mer än vi vet. 49 brickor läser fint platt.
-        <div className="grid grid-cols-3 gap-2.5 pb-2">{jpSets.map(tile)}</div>
-      ) : (
-        <div className="space-y-5 pb-2">
-          {grouped.map((group) => (
-            <div key={group.series}>
-              <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-faint">
-                {group.series}
-              </p>
-              <div className="grid grid-cols-3 gap-2.5">{group.items.map(tile)}</div>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="space-y-5 pb-2">
+        {(lang === "JP" ? groupedJp : grouped).map((group) => (
+          <div key={group.series}>
+            <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-faint">
+              {group.series}
+            </p>
+            <div className="grid grid-cols-3 gap-2.5">{group.items.map(tile)}</div>
+          </div>
+        ))}
+      </div>
     </Sheet>
   );
 }

@@ -33,7 +33,8 @@ async function main() {
       `Etiketterade: ${out.labeled}\n` +
       `Nya set: ${out.setsCreated}\n` +
       `Utan CM-koppling (ingen expansion): ${out.noCmLink}\n` +
-      `Expansioner utan härledbart namn: ${out.unnamed}`
+      `Expansioner utan härledbart namn: ${out.unnamed}\n` +
+      `Set som fick serie/bild ifylld: ${out.metadataFilled}`
   );
   if (out.createdNames.length) console.log(`\nSet:\n  ${out.createdNames.join("\n  ")}`);
 }

@@ -136,3 +136,78 @@ export function releaseDateAgrees(cmFirstAdded: Date, tcgdexRelease: Date): bool
 export function jpSetDisplayName(name: string, code: string | null): string {
   return code ? `${name} (${code})` : name;
 }
+
+/**
+ * Koden tillbaka ur ett namn vi själva skrivit ("Black Bolt (SV11B)" → "SV11B").
+ * Formatet är VÅRT eget (jpSetDisplayName), inte en leverantörs — därför är det här
+ * ingen titeltolkning utan ett uppslag i vår egen skrivning. Sets utan kod ger null.
+ */
+export function codeFromJpSetName(name: string): string | null {
+  const m = name.match(/\(([A-Za-z]{1,4}\d{1,2}[A-Za-z]{0,2})\)\s*$/);
+  return m ? m[1] : null;
+}
+
+/**
+ * TCGdex serie-id → seriens LATINSKA namn, samma skrivning som de engelska seten
+ * använder ("Scarlet & Violet", inte "ポケモンカードゲーム スカーレット&バイオレット").
+ * Rubrikerna i set-arket ska läsa likadant i båda flikarna.
+ *
+ * Täcker de serier våra set faktiskt ligger i (mätt 2026-08-07: SV 25 set, S 13,
+ * M 7, SM 3). Äldre serier läggs till när en produkt ur dem dyker upp — en
+ * okänd serie faller tillbaka på `JP_SERIES_UNKNOWN`, den hittar aldrig på ett namn.
+ */
+export const JP_SERIES_BY_TCGDEX_ID: Record<string, string> = {
+  SV: "Scarlet & Violet",
+  S: "Sword & Shield",
+  SM: "Sun & Moon",
+  M: "Mega Evolution",
+  XY: "XY",
+  XYb: "XY BREAK",
+  BW: "Black & White",
+  DP: "Diamond & Pearl",
+  L: "LEGEND",
+  PCG: "Pokémon Card Game",
+};
+
+/**
+ * Serien för ett set vars era vi INTE kunnat styrka. Egen grupp sist i listan —
+ * att stoppa in det i en serie på känsla hade sagt mer än vi vet.
+ */
+export const JP_SERIES_UNKNOWN = "Other";
+
+export function jpSeriesFromTcgdexId(serieId: string | null | undefined): string {
+  if (!serieId) return JP_SERIES_UNKNOWN;
+  return JP_SERIES_BY_TCGDEX_ID[serieId] ?? JP_SERIES_UNKNOWN;
+}
+
+/** Produkt som kan få representera sitt set med sin bild. */
+export interface JpSetImageCandidate {
+  category: string;
+  imageUrl: string | null;
+}
+
+/**
+ * Setets bild. Japanska set har INGEN logotyp någonstans — TCGdex har inte en enda
+ * (mätt: 0 av 177, och `assets.tcgdex.net/.../logo.png` är 404), pokemontcg.io har
+ * inga japanska set alls och Cardmarkets expansionsikoner ligger bakom innehålls-
+ * hashade URL:er som inte går att härleda. Det som FINNS är produktbilderna vi redan
+ * visar i katalogen — och en japansk boosterförpackning bär setets logotyp tryckt på
+ * omslaget, vilket är precis den igenkänningen en logotypbricka ska ge.
+ *
+ * Ordningen: BOOSTER_PACK före BOOSTER_BOX (påsen visar omslagskonsten stort, lådan
+ * visar en låda), och en Cardmarket-render före ett butiksfoto (ren produktbild mot
+ * vit bakgrund; butiksfoton är beskurna olika och ibland fotade på ett bord).
+ */
+const IMAGE_CATEGORY_RANK: Record<string, number> = {
+  BOOSTER_PACK: 0,
+  BOOSTER_BOX: 1,
+  COLLECTION_BOX: 2,
+};
+
+export function pickJpSetImage(products: JpSetImageCandidate[]): string | null {
+  const withImage = products.filter((p) => p.imageUrl);
+  if (withImage.length === 0) return null;
+  const score = (p: JpSetImageCandidate) =>
+    (p.imageUrl!.includes("/api/cm-image/") ? 0 : 10) + (IMAGE_CATEGORY_RANK[p.category] ?? 5);
+  return withImage.slice().sort((a, b) => score(a) - score(b))[0].imageUrl!;
+}

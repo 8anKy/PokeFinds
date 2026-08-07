@@ -210,11 +210,27 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   (`setsByName`), import-sealed-from-cardmarket, set-from-cm-episode.
   ⛔ **`totalCards` är 0 på japanska set.** TCGdex vet att SV11B har 174 kort, men vi har inga japanska
   singlar — setsidan skriver ut talet rakt av och hade lovat kort som inte finns hos oss.
-  **UI**: set-arket har flikarna Engelska/Japanska (JP-fliken är PLATT, nyast först — vi har ingen
-  serieindelning för japanska set och hittar inte på en), desktopens `<select>` har en `optgroup`. Japanska
-  set saknar logotyp överallt (ingen leverantör publicerar dem) → kortikonen. `/sets`-galleriet är
-  ENGELSKT tills vidare (JP-set har varken logotyp eller kortrader). Flikraden visas bara när japanska set
-  finns. Backfill/granskning = `scripts/label-jp-sets.ts` (torrkörning default, `--apply`).
+  **SERIE + BILD (2026-08-07)**: JP-fliken grupperas på SERIE precis som den engelska — serien kommer från
+  TCGdex:s `serie.id` på den STYRKTA koden och skrivs med den latinska eran (`JP_SERIES_BY_TCGDEX_ID`:
+  SV → "Scarlet & Violet" osv), samma skrivning som de engelska seten, så rubrikerna läser likadant i båda
+  flikarna. Utfall: Mega Evolution 7 · Scarlet & Violet 25 · Sword & Shield 13 · Sun & Moon 3 · **Other 1**
+  (25th Anniversary, vars kod aldrig styrktes). ⛔ Ingen era gissas: utan styrkt kod blir det "Other", som
+  sorteras sist av sig själv (releaseDate nulls last).
+  ⛔ **SETBILDEN ÄR EN PRODUKTBILD, INTE EN LOGOTYP** — japanska set har ingen logotyp NÅGONSTANS: TCGdex har
+  0 av 177 (`assets.tcgdex.net/.../logo.png` = 404), pokemontcg.io har inga japanska set alls, och CM:s
+  expansionsikoner ligger bakom innehållshashade URL:er som inte går att härleda. Det som finns är
+  produktbilderna vi redan visar — och en japansk boosterPÅSE bär setets logotyp tryckt på omslaget.
+  `pickJpSetImage` väljer därför BOOSTER_PACK före BOOSTER_BOX och en Cardmarket-render före ett butiksfoto
+  (94 av 96 JP-produkter är CM-renders). 49 av 49 set har en bild som svarar 200.
+  **SJÄLVLÄKNING**: `refreshJpSetMetadata` fyller bara TOMMA fält och kör i varje jobbkörning — ett set skapas
+  i samma andetag som sin första produkt och kan sakna bild då. ⛔ "Serien saknas" är formulerat som en MÄNGD
+  (`series notIn [kända eror, "Other"]`), inte som en jämförelse mot den gamla platshållaren "Japanska set" —
+  annars hade en legacy-sträng behövt leva i koden för alltid. Och utfallet skrivs även när det blir "Other",
+  annars frågas TCGdex om samma set vid varje körning i evighet.
+  **UI**: flikarna Engelska/Japanska i set-arket (visas bara när japanska set finns), desktopens `<select>`
+  har en `optgroup` "Japanska" (platt där, precis som EN-listan i samma kontroll). `/sets`-galleriet är
+  ENGELSKT tills vidare (JP-set har inga kortrader). Backfill/granskning = `scripts/label-jp-sets.ts`
+  (torrkörning default, `--apply`).
   ⚠️ Kvar: 4 produkter utan CM-koppling alls (2 st "Storm Emeralda" som CM ännu inte har) — de etiketteras
   automatiskt så fort JP-prisrefreshens mappning hittar dem.
 - **SET-BEVAKNING ÄR EN STÅENDE REGEL, INTE EN ÖGONBLICKSBILD (2026-08-06)**: `SetWatch` (userId+setId, unik) ger

@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  codeFromJpSetName,
   codesInTitle,
   deriveJpSetName,
+  jpSeriesFromTcgdexId,
   jpSetDisplayName,
+  pickJpSetImage,
   releaseDateAgrees,
   stripFormWords,
   JP_CODE_BY_NAME,
+  JP_SERIES_UNKNOWN,
 } from "@/lib/jp-set-name";
 
 /**
@@ -115,6 +119,72 @@ describe("jpSetDisplayName", () => {
     // set, och utan koden står samma namn två gånger i filtret.
     expect(jpSetDisplayName("Black Bolt", "SV11B")).toBe("Black Bolt (SV11B)");
     expect(jpSetDisplayName("25th Anniversary", null)).toBe("25th Anniversary");
+  });
+});
+
+describe("codeFromJpSetName", () => {
+  it("läser tillbaka koden ur vår egen skrivning", () => {
+    expect(codeFromJpSetName("Black Bolt (SV11B)")).toBe("SV11B");
+    expect(codeFromJpSetName("VSTAR Universe (S12a)")).toBe("S12a");
+    expect(codeFromJpSetName("Mega Brave (M1L)")).toBe("M1L");
+  });
+
+  it("hittar ingen kod där vi inte skrivit någon", () => {
+    expect(codeFromJpSetName("25th Anniversary")).toBeNull();
+    // En parentes som INTE är en setkod får inte tolkas som en.
+    expect(codeFromJpSetName("Shiny Treasure ex (special)")).toBeNull();
+  });
+});
+
+describe("jpSeriesFromTcgdexId", () => {
+  it("översätter serie-id till den latinska eran", () => {
+    // Samma skrivning som de engelska seten använder — rubrikerna i set-arket ska
+    // läsa likadant i båda flikarna.
+    expect(jpSeriesFromTcgdexId("SV")).toBe("Scarlet & Violet");
+    expect(jpSeriesFromTcgdexId("S")).toBe("Sword & Shield");
+    expect(jpSeriesFromTcgdexId("SM")).toBe("Sun & Moon");
+    expect(jpSeriesFromTcgdexId("M")).toBe("Mega Evolution");
+  });
+
+  it("hittar ALDRIG på en era", () => {
+    expect(jpSeriesFromTcgdexId(null)).toBe(JP_SERIES_UNKNOWN);
+    expect(jpSeriesFromTcgdexId(undefined)).toBe(JP_SERIES_UNKNOWN);
+    expect(jpSeriesFromTcgdexId("ZZ")).toBe(JP_SERIES_UNKNOWN);
+  });
+});
+
+describe("pickJpSetImage", () => {
+  it("väljer boosterPÅSEN före lådan", () => {
+    // Den japanska påsens omslag BÄR setets logotyp — lådan visar en låda.
+    expect(
+      pickJpSetImage([
+        { category: "BOOSTER_BOX", imageUrl: "/api/cm-image/883955" },
+        { category: "BOOSTER_PACK", imageUrl: "/api/cm-image/883956" },
+      ])
+    ).toBe("/api/cm-image/883956");
+  });
+
+  it("väljer Cardmarket-rendern före butiksfotot", () => {
+    expect(
+      pickJpSetImage([
+        { category: "BOOSTER_PACK", imageUrl: "https://cdn.shopify.com/s/files/butiksfoto.jpg" },
+        { category: "BOOSTER_BOX", imageUrl: "https://www.foilio.se/api/cm-image/831328" },
+      ])
+    ).toBe("https://www.foilio.se/api/cm-image/831328");
+  });
+
+  it("tar vad som finns hellre än ingenting", () => {
+    expect(
+      pickJpSetImage([
+        { category: "COLLECTION_BOX", imageUrl: null },
+        { category: "COLLECTION_BOX", imageUrl: "https://cdn.shopify.com/s/files/x.jpg" },
+      ])
+    ).toBe("https://cdn.shopify.com/s/files/x.jpg");
+  });
+
+  it("returnerar null när inget set-medlem har en bild", () => {
+    expect(pickJpSetImage([])).toBeNull();
+    expect(pickJpSetImage([{ category: "BOOSTER_PACK", imageUrl: null }])).toBeNull();
   });
 });
 

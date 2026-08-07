@@ -19,11 +19,16 @@
  */
 import { prisma } from "../lib/db";
 import {
+  codeFromJpSetName,
   codesInTitle,
   deriveJpSetName,
+  jpSeriesFromTcgdexId,
   jpSetDisplayName,
+  pickJpSetImage,
   releaseDateAgrees,
   JP_CODE_BY_NAME,
+  JP_SERIES_BY_TCGDEX_ID,
+  JP_SERIES_UNKNOWN,
   type CmCatalogRow,
 } from "../lib/jp-set-name";
 
@@ -46,14 +51,14 @@ export interface JpSetLabelResult {
   unnamed: number;
   /** Produkter utan CM-offer → ingen expansion → ingen etikett. */
   noCmLink: number;
+  /** Set som fick eller uppdaterade serie/bild i efterhandspasset. */
+  metadataFilled: number;
 }
-
-/** Serien japanska set hamnar i. JP-fliken är platt, så den syns inte i filtret. */
-export const JP_SERIES = "Japanska set";
 
 interface TcgdexSet {
   id?: string;
   releaseDate?: string;
+  serie?: { id?: string };
 }
 
 /**
@@ -90,6 +95,7 @@ export async function runJapaneseSetLabels(
     createdNames: [],
     unnamed: 0,
     noCmLink: 0,
+    metadataFilled: 0,
   };
   if (catalog.length === 0) return res; // Tom katalog (CDN-fel) → gör ingenting alls.
 
@@ -105,7 +111,13 @@ export async function runJapaneseSetLabels(
     },
   });
   res.candidates = products.length;
-  if (products.length === 0) return res;
+  if (products.length === 0) {
+    // Inga nya produkter betyder inte att inget är att göra: ett set kan ha fått
+    // sin första produktbild sedan sist, och de set som skapades innan serie/bild
+    // fanns ska läka av sig själva.
+    res.metadataFilled = await refreshJpSetMetadata(apply);
+    return res;
+  }
 
   const rowById = new Map(catalog.map((r) => [r.idProduct, r]));
   const rowsByExpansion = new Map<number, JpCatalogRow[]>();
@@ -166,6 +178,7 @@ export async function runJapaneseSetLabels(
 
       let code: string | null = null;
       let releaseDate: Date | null = null;
+      let series = JP_SERIES_UNKNOWN;
       if (proposed) {
         const tcg = await fetchTcgdexSet(proposed);
         const firstAdded = rows
@@ -182,6 +195,10 @@ export async function runJapaneseSetLabels(
           if (proven) {
             code = tcg.id ?? proposed;
             releaseDate = rel;
+            // Serien kommer från SAMMA styrkta rad som datumet. Utan styrkt kod
+            // får setet ingen serie alls — det hamnar i "Other" sist, i stället
+            // för att gissas in i en era.
+            series = jpSeriesFromTcgdexId(tcg.serie?.id);
           }
         } else if (titleCodes.length === 1) {
           // TCGdex saknar setet: koden är ändå butikens egen och duger till namnet.
@@ -215,7 +232,7 @@ export async function runJapaneseSetLabels(
       const created = await prisma.cardSet.create({
         data: {
           name,
-          series: JP_SERIES,
+          series,
           language: "JP",
           cmExpansionId: expansion,
           releaseDate,
@@ -248,10 +265,76 @@ export async function runJapaneseSetLabels(
     res.labeled += upd.count;
   }
 
+  res.metadataFilled = await refreshJpSetMetadata(apply);
+
   if (res.setsCreated || res.labeled) {
     console.log(
       `[jp-set] ${res.labeled}/${res.candidates} japanska produkter etiketterade, ${res.setsCreated} nya set.`
     );
   }
   return res;
+}
+
+/**
+ * Fyller i serie och bild på japanska set som saknar dem.
+ *
+ * VARFÖR ETT EGET PASS. Bilden kommer från setets produkter, och ett set skapas i
+ * samma andetag som sin FÖRSTA produkt — den kan sakna bild då och få en senare
+ * (auto-importen fyller på). Serien fanns dessutom inte alls när de första seten
+ * skapades. Ett pass som bara rör TOMMA fält är både backfill och självläkning,
+ * och kostar en fråga på ~50 rader.
+ *
+ * ⛔ Skriver aldrig över ett ifyllt fält: en serie som redan står där kan vara
+ *    rättad för hand, och en bild som redan valts ska inte hoppa runt mellan
+ *    körningar bara för att sorteringen av produkter råkar ändras.
+ */
+export async function refreshJpSetMetadata(apply = true): Promise<number> {
+  // "Serien saknas" = värdet är inte en era vi känner igen OCH inte "Other".
+  // ⛔ Formulerat som en mängd, inte som en jämförelse mot en gammal konstant: de
+  //    första japanska seten skapades med platshållaren "Japanska set", och en
+  //    hårdkodad legacy-sträng hade behövt leva kvar i koden för alltid. "Other"
+  //    räknas som FÄRDIGT — ett set utan styrkt kod får aldrig en era, så att
+  //    fråga TCGdex om det igen varje körning vore ren kvotförbrukning utan utfall.
+  const settledSeries = [...Object.values(JP_SERIES_BY_TCGDEX_ID), JP_SERIES_UNKNOWN];
+  const sets = await prisma.cardSet.findMany({
+    where: {
+      language: "JP",
+      OR: [{ logoUrl: null }, { series: { notIn: settledSeries } }],
+    },
+    select: {
+      id: true,
+      name: true,
+      series: true,
+      logoUrl: true,
+      products: { select: { category: true, imageUrl: true } },
+    },
+  });
+  let filled = 0;
+  for (const s of sets) {
+    const data: { logoUrl?: string; series?: string } = {};
+
+    if (!s.logoUrl) {
+      const image = pickJpSetImage(s.products);
+      if (image) data.logoUrl = image;
+    }
+
+    if (!settledSeries.includes(s.series)) {
+      // Koden står i namnet vi själva skrivit. Saknas den vet vi inte eran.
+      // ⛔ Utfallet skrivs ÄVEN när det blir "Other": annars står setet kvar med
+      //    ett oavgjort värde och frågas om vid varje körning i all evighet.
+      const code = codeFromJpSetName(s.name);
+      const tcg = code ? await fetchTcgdexSet(code) : null;
+      data.series = jpSeriesFromTcgdexId(tcg?.serie?.id);
+    }
+
+    if (Object.keys(data).length === 0) continue;
+    filled++;
+    if (!apply) {
+      console.log(`[jp-set] SKULLE fylla "${s.name}": ${JSON.stringify(data)}`);
+      continue;
+    }
+    await prisma.cardSet.update({ where: { id: s.id }, data });
+  }
+  if (filled) console.log(`[jp-set] fyllde serie/bild på ${filled} japanska set.`);
+  return filled;
 }
