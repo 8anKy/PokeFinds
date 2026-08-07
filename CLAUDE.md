@@ -188,6 +188,35 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   ⛔ Klienten måste kalla `session.update()` efter återkomsten från Checkout: jwt-callbacken läser annars om
   planen först efter `TOKEN_REFRESH_MS` (30 min) och en betalande kund väntar en halvtimme utan att något felar.
   Moms via Stripe Tax (`automatic_tax`), priset sätts inkl. moms. Plan/kvot-namnet `PREMIUM` är oförändrat.
+- **JAPANSKA SET KOMMER FRÅN CARDMARKETS EXPANSIONER (2026-08-07)**: katalogens set kommer från
+  pokemontcg.io, som BARA har engelska set — alla 100 japanska produkter hade därför `setId = null` och
+  japanska set gick inte att filtrera på. ⛔ **TCGGO stänger inte hålet**: episodlistan är 175 västerländska
+  expansioner och `?language=japanese` ignoreras TYST (identiskt svar) — mätt 2026-08-07. Källan är i stället
+  CM:s publika sealed-katalog (`products_nonsingles_6.json`), som JP-prisrefreshen redan laddar ner varje dag:
+  varje produkt bär `idExpansion`, och CM namnger dem i LATINSK skrift ("Black Bolt JP Booster Box"). Setnamnet
+  härleds ur det (`deriveJpSetName`, `src/lib/jp-set-name.ts`) och identiteten är `CardSet.cmExpansionId` —
+  ingen titelmatchning i något led. 49 set, 96 av 100 produkter etiketterade. Jobbet (`jp-set-label.ts`) körs
+  sist i `runJapaneseSealedRefresh` där katalogen redan ligger i minnet ⇒ noll extra hämtningar, ny japansk
+  förhandsbox syns inom ett dygn. ⛔ **Namnet får ALDRIG komma från TCGdex**: deras japanska namn är japansk
+  skrift OCH mätbart fel på minst ett set (`SV4a` bär Raging Surfs namn men Shiny Treasures datum). TCGdex ger
+  bara SLÄPPDATUMET, och bara när koden är styrkt: butikstitelns egen setkod ("- sv6", "(s6K)") räknas som
+  bevis (tillverkarens identifierare, samma logik som GTIN), medan tabellförslaget `JP_CODE_BY_NAME` måste
+  klara datumfönstret -6..+71 dygn mot CM:s `dateAdded` (kalibrerat på de 39 set vars kod stod i titeln).
+  25th Anniversary föll utanför (118 d) och står därför utan datum, sist i listan.
+  ⛔ **VARJE NAMNBASERAT SETUPPSLAG MÅSTE FILTRERA PÅ `language`.** JP och EN delar latinska setnamn
+  ("Black Bolt", "White Flare", "151"), och `import-tcg-data.ts` adopterar befintliga set PÅ NAMN när
+  pokemontcg.io publicerar dem. Utan grinden hade den engelska importen svalt det japanska setet och tagit
+  med sig dess produkter. Grindade: import-tcg-data (adoption), sealed-set-label, cardmarket-refresh
+  (`setsByName`), import-sealed-from-cardmarket, set-from-cm-episode.
+  ⛔ **`totalCards` är 0 på japanska set.** TCGdex vet att SV11B har 174 kort, men vi har inga japanska
+  singlar — setsidan skriver ut talet rakt av och hade lovat kort som inte finns hos oss.
+  **UI**: set-arket har flikarna Engelska/Japanska (JP-fliken är PLATT, nyast först — vi har ingen
+  serieindelning för japanska set och hittar inte på en), desktopens `<select>` har en `optgroup`. Japanska
+  set saknar logotyp överallt (ingen leverantör publicerar dem) → kortikonen. `/sets`-galleriet är
+  ENGELSKT tills vidare (JP-set har varken logotyp eller kortrader). Flikraden visas bara när japanska set
+  finns. Backfill/granskning = `scripts/label-jp-sets.ts` (torrkörning default, `--apply`).
+  ⚠️ Kvar: 4 produkter utan CM-koppling alls (2 st "Storm Emeralda" som CM ännu inte har) — de etiketteras
+  automatiskt så fort JP-prisrefreshens mappning hittar dem.
 - **SET-BEVAKNING ÄR EN STÅENDE REGEL, INTE EN ÖGONBLICKSBILD (2026-08-06)**: `SetWatch` (userId+setId, unik) ger
   restock-larm på ALLA sealed-produkter i ett set. ⛔ Expandera den ALDRIG till en `WatchlistItem` per sealed-produkt
   vid klick: auto-importen (`ensureListingProduct`) skapar sealed-SKU:er löpande, så en expansion vid klicktillfället

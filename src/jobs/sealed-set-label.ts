@@ -97,8 +97,12 @@ export async function createSetLabeler(createMissing: boolean): Promise<SetLabel
   // Namnnyckel → vårt setId. `null` = TVETYDIGT (två set normaliserar lika) →
   // etikettera inte. Samma vakt som singel-fasens `setsByName`: hellre ingen
   // etikett än fel set, för en felaktig etikett syns aldrig och sitter kvar.
+  // ⛔ Bara ENGELSKA set. Episoderna kommer ur CM:s västerländska katalog, medan
+  // japanska set (skapade ur CM:s expansioner, se jp-set-label.ts) bär SAMMA
+  // latinska namn — "Black Bolt", "151". Utan språkgrinden hade en engelsk
+  // förhandsbox kunnat få det japanska setets etikett.
   const byName = new Map<string, string | null>();
-  for (const s of await prisma.cardSet.findMany({ select: { id: true, name: true } })) {
+  for (const s of await prisma.cardSet.findMany({ where: { language: "EN" }, select: { id: true, name: true } })) {
     const key = cmSetNameKey(s.name);
     if (!key) continue;
     byName.set(key, byName.has(key) ? null : s.id);

@@ -24,6 +24,7 @@ import {
 } from "../lib/marketplace-urls";
 import { judgeSameProduct } from "../lib/same-product";
 import { createSetLabeler } from "./sealed-set-label";
+import { runJapaneseSetLabels } from "./jp-set-label";
 import { utcToday } from "../lib/utils";
 import { classifyForm, scoreSimilarity } from "../scrapers/matching";
 import { recomputeProductPriceCache, snapshotStorePricedProducts } from "../services/products";
@@ -1109,6 +1110,8 @@ interface CmNonSingle {
   name: string;
   categoryName: string;
   idExpansion: number;
+  /** När CM la in produkten. Prövar en föreslagen setkod mot släppdatumet (jp-set-label). */
+  dateAdded?: string;
 }
 
 /** CM-katalogkategorier som får matchas per vår produktkategori (JP-mappning). */
@@ -1289,6 +1292,17 @@ export async function runJapaneseSealedRefresh(): Promise<JpRefreshResult> {
     console.log(`[cm-jp] ${res.unmatched.length} JP-produkter utan CM-mappning: ${res.unmatched.slice(0, 10).join(" | ")}${res.unmatched.length > 10 ? " …" : ""}`);
   }
   console.log(`[cm-jp] ${res.updated}/${res.products} JP-produkter prisuppdaterade (${res.mapped} nymappade).`);
+
+  // SET-ETIKETTEN SÄTTS HÄR, av samma skäl som för engelsk sealed: katalogen som
+  // avgör identiteten (CM:s expansioner) ligger redan i minnet, så etiketten
+  // kostar inte en enda extra hämtning — och en ny japansk förhandsbox syns i
+  // set-filtret inom ett dygn i stället för aldrig.
+  // ⛔ Ett fel här får inte sänka prisrefreshen: priserna är redan skrivna.
+  try {
+    await runJapaneseSetLabels(catalog.products);
+  } catch (e) {
+    console.error("[cm-jp] set-etikettering misslyckades:", e);
+  }
   return res;
 }
 
@@ -1417,8 +1431,12 @@ export async function runCardmarketRefresh(
         guideFallbackCandidates.set(p.id, { entry, idProduct: linkedId, cardName: p.card.name });
     }
     // Episodnamn → vårt setId. Bara ENTYDIGA namn åt båda håll får användas.
+    // ⛔ Bara ENGELSKA set: episoderna kommer från RapidAPI:s västerländska
+    // katalog, och japanska set delar latinska namn med sina engelska motsvarigheter
+    // ("Black Bolt", "151"). Utan grinden hade ett japanskt set kunnat vinna
+    // uppslaget och prissatt engelska kort.
     const setsByName = new Map<string, string | null>();
-    for (const s of await prisma.cardSet.findMany({ select: { id: true, name: true } })) {
+    for (const s of await prisma.cardSet.findMany({ where: { language: "EN" }, select: { id: true, name: true } })) {
       const key = cmSetNameKey(s.name);
       if (key) setsByName.set(key, setsByName.has(key) ? null : s.id);
     }

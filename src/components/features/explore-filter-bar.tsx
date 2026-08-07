@@ -16,6 +16,8 @@ export interface FilterSet {
   name: string;
   logoUrl: string | null;
   series: string;
+  /** "EN" | "JP" — styr vilken flik setet ligger under i set-arket. */
+  language: string;
 }
 
 export interface FilterOption {
@@ -538,6 +540,18 @@ function SetSheet({
   onPick: (id: string | undefined) => void;
 }) {
   const t = useTranslations("Products");
+  // Japanska set finns bara när vi säljer något ur dem (jp-set-label.ts) — saknas
+  // de helt visas ingen flikrad alls, så EN-katalogen ser ut precis som förut.
+  const jpSets = useMemo(() => sets.filter((s) => s.language === "JP"), [sets]);
+  const enSets = useMemo(() => sets.filter((s) => s.language !== "JP"), [sets]);
+  const [lang, setLang] = useState<"EN" | "JP">("EN");
+  // Öppnar man arket med ett japanskt set valt ska man landa på DESS flik — annars
+  // ser det ut som att valet försvunnit.
+  const activeIsJp = jpSets.some((s) => s.id === activeSetId);
+  useEffect(() => {
+    if (open) setLang(activeIsJp ? "JP" : "EN");
+  }, [open, activeIsJp]);
+
   // EN rubrik per SERIE — inte en per löpande grupp. Listan kommer sorterad på
   // releaseDate (nyast först), och promo-/POP-set ligger inklämda mitt bland
   // huvudserierna (SWSH Black Star Promos 2022-08-03 hamnar mellan två Sword &
@@ -548,13 +562,50 @@ function SetSheet({
   // serie står nyast först — samma ordning som /sets-sidan bygger.
   const grouped = useMemo(() => {
     const bySeries = new Map<string, FilterSet[]>();
-    for (const s of sets) {
+    for (const s of enSets) {
       const list = bySeries.get(s.series);
       if (list) list.push(s);
       else bySeries.set(s.series, [s]);
     }
     return [...bySeries].map(([series, items]) => ({ series, items }));
-  }, [sets]);
+  }, [enSets]);
+
+  const tile = (s: FilterSet) => {
+    const selected = s.id === activeSetId;
+    return (
+      <button
+        key={s.id}
+        type="button"
+        onClick={() => onPick(selected ? undefined : s.id)}
+        className="flex flex-col gap-1.5 text-center"
+      >
+        <span
+          className={cn(
+            "relative flex h-16 items-center justify-center rounded-[10px] border bg-surface px-2 transition-all",
+            selected ? "border-holo-cyan shadow-glow" : "border-surface-border"
+          )}
+        >
+          {/* Saknad logotyp → samma neutrala kort-ikon som "Nyss släppt"
+              använder. Namnet står redan i bildtexten under brickan;
+              att upprepa det inuti rutan sa samma sak två gånger.
+              JAPANSKA set har ALDRIG en logotyp (ingen leverantör publicerar
+              dem) → de ritas alltid med ikonen. */}
+          <SafeImage
+            src={s.logoUrl}
+            alt=""
+            className="max-h-full max-w-full object-contain"
+            fallback={<IconCards size={22} className={selected ? "text-holo-cyan" : "text-ink-faint"} />}
+          />
+          {selected && (
+            <span className="absolute right-1 top-1 grid h-[15px] w-[15px] place-items-center rounded-full bg-holo-cyan text-surface">
+              <IconCheck size={10} strokeWidth={3.4} />
+            </span>
+          )}
+        </span>
+        <span className="line-clamp-2 text-[11px] font-medium leading-snug text-ink">{s.name}</span>
+      </button>
+    );
+  };
 
   return (
     <Sheet
@@ -564,60 +615,41 @@ function SetSheet({
       onClear={activeSetId ? () => onPick(undefined) : undefined}
       cta={t("resultCount", { count: total })}
     >
-      <div className="space-y-5 pb-2">
-        {grouped.map((group) => (
-          <div key={group.series}>
-            <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-faint">
-              {group.series}
-            </p>
-            <div className="grid grid-cols-3 gap-2.5">
-              {group.items.map((s) => {
-                const selected = s.id === activeSetId;
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => onPick(selected ? undefined : s.id)}
-                    className="flex flex-col gap-1.5 text-center"
-                  >
-                    <span
-                      className={cn(
-                        "relative flex h-16 items-center justify-center rounded-[10px] border bg-surface px-2 transition-all",
-                        selected
-                          ? "border-holo-cyan shadow-glow"
-                          : "border-surface-border"
-                      )}
-                    >
-                      {/* Saknad logotyp → samma neutrala kort-ikon som "Nyss släppt"
-                          använder. Namnet står redan i bildtexten under brickan;
-                          att upprepa det inuti rutan sa samma sak två gånger. */}
-                      <SafeImage
-                        src={s.logoUrl}
-                        alt=""
-                        className="max-h-full max-w-full object-contain"
-                        fallback={
-                          <IconCards
-                            size={22}
-                            className={selected ? "text-holo-cyan" : "text-ink-faint"}
-                          />
-                        }
-                      />
-                      {selected && (
-                        <span className="absolute right-1 top-1 grid h-[15px] w-[15px] place-items-center rounded-full bg-holo-cyan text-surface">
-                          <IconCheck size={10} strokeWidth={3.4} />
-                        </span>
-                      )}
-                    </span>
-                    <span className="line-clamp-2 text-[11px] font-medium leading-snug text-ink">
-                      {s.name}
-                    </span>
-                  </button>
-                );
-              })}
+      {jpSets.length > 0 && (
+        <div className="mb-4 flex gap-1.5 rounded-lg bg-surface-overlay/60 p-1">
+          {(["EN", "JP"] as const).map((code) => (
+            <button
+              key={code}
+              type="button"
+              onClick={() => setLang(code)}
+              className={cn(
+                "flex-1 rounded-md px-3 py-2 text-[13px] font-medium transition-colors",
+                lang === code ? "bg-holo-cyan/10 text-holo-cyan" : "text-ink-muted"
+              )}
+            >
+              {code === "EN" ? t("setLanguageEn") : t("setLanguageJp")}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {lang === "JP" ? (
+        // Platt lista, nyast först. Japanska set har ingen serie-indelning hos oss:
+        // serien finns bara som en teknisk etikett, och att hitta på rubriker vi
+        // inte har data för hade sagt mer än vi vet. 49 brickor läser fint platt.
+        <div className="grid grid-cols-3 gap-2.5 pb-2">{jpSets.map(tile)}</div>
+      ) : (
+        <div className="space-y-5 pb-2">
+          {grouped.map((group) => (
+            <div key={group.series}>
+              <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-faint">
+                {group.series}
+              </p>
+              <div className="grid grid-cols-3 gap-2.5">{group.items.map(tile)}</div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </Sheet>
   );
 }

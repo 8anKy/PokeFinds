@@ -117,7 +117,11 @@ async function main() {
 
   // Matcha på normaliserat namn: vår katalog och CM stavar likadant men inte alltid
   // med samma skiljetecken.
+  // ⛔ Bara ENGELSKA set: CM:s episodlista är västerländsk, och japanska set bär
+  // samma latinska namn ("Black Bolt"). Utan grinden hade en engelsk episod
+  // skrivit sin logotyp och sitt släppdatum på det japanska setet.
   const all = await prisma.cardSet.findMany({
+    where: { language: "EN" },
     select: { id: true, name: true, series: true, releaseDate: true, logoUrl: true, externalId: true, totalCards: true },
   });
   const existing = all.find((s) => norm(s.name) === norm(ep.name));

@@ -43,7 +43,12 @@ const PAGE_SIZE = 24;
 const getFilterSets = cachedRead(
   () =>
     prisma.cardSet.findMany({
-      select: { id: true, name: true, logoUrl: true, series: true },
+      // `language` driver flikarna Engelska/Japanska i set-arket. Japanska set
+      // skapas bara när vi FAKTISKT säljer något ur dem (jp-set-label.ts), så
+      // listan behöver ingen produktfiltrering — varje japansk bricka leder till
+      // träffar. De saknar logotyp (ingen leverantör publicerar japanska
+      // setlogotyper) och faller tillbaka på kortikonen, precis som EN-set utan bild.
+      select: { id: true, name: true, logoUrl: true, series: true, language: true },
       // nulls: "last" — Postgres lägger NULL FÖRST vid DESC, så ett set utan
       // releaseDate (t.ex. ett promo-set vi skapat innan pokemontcg.io har det)
       // hamnade överst i filtret som om det vore det allra nyaste.
@@ -238,7 +243,7 @@ function CatalogFilterFields({
   idPrefix,
 }: {
   searchParams: CatalogSearchParams;
-  sets: { id: string; name: string }[];
+  sets: { id: string; name: string; language: string }[];
   retailers: { id: string; name: string }[];
   idPrefix: string;
 }) {
@@ -266,13 +271,29 @@ function CatalogFilterFields({
       </div>
       <div>
         <Label htmlFor={`${idPrefix}set`}>{t("set")}</Label>
+        {/* Samma uppdelning som mobilens set-ark: japanska set ligger under en egen
+            rubrik. En platt lista hade blandat in "Black Bolt (SV11B)" bland de
+            engelska seten utan att säga varför två set nästan heter likadant. */}
         <Select id={`${idPrefix}set`} name="set" defaultValue={searchParams.set ?? ""}>
           <option value="">{t("allSets")}</option>
-          {sets.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
+          {sets
+            .filter((s) => s.language !== "JP")
+            .map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          {sets.some((s) => s.language === "JP") && (
+            <optgroup label={t("setLanguageJp")}>
+              {sets
+                .filter((s) => s.language === "JP")
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+            </optgroup>
+          )}
         </Select>
       </div>
       <div>

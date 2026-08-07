@@ -239,6 +239,19 @@ model CardSet {
   symbolUrl   String?
   externalId  String?   @unique
   totalCards  Int       @default(0)
+  /// Katalogens set kommer från pokemontcg.io, som BARA har engelska set. Japanska
+  /// set finns därför inte där och skapas i stället ur Cardmarkets egen expansions-
+  /// indelning (se jp-set-label.ts). Kolumnen är inte kosmetisk: JP och EN delar
+  /// LATINSKA setnamn ("Black Bolt", "151"), och `import-tcg-data.ts` adopterar
+  /// befintliga set PÅ NAMN när pokemontcg.io publicerar dem. Utan språkgrinden
+  /// hade den engelska importen svalt det japanska setet och tagit med sig dess
+  /// produkter. Varje namnbaserat setuppslag MÅSTE därför filtrera på språk.
+  language    CardLanguage @default(EN)
+  /// Cardmarkets `idExpansion` — identiteten för japanska set (de har inget
+  /// pokemontcg.io-id att lägga i `externalId`, och ett gissat id vore värre än
+  /// inget: se regeln om att aldrig sätta ett gissat externalId). Unik: en
+  /// CM-expansion är exakt ett set hos oss, vilket också gör importen idempotent.
+  cmExpansionId Int?    @unique
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -247,6 +260,7 @@ model CardSet {
   watchers SetWatch[]
 
   @@index([name])
+  @@index([language])
 }
 
 /// "Bevaka hela setet" — en STÅENDE regel, inte en ögonblicksbild.

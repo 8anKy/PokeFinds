@@ -172,7 +172,9 @@ async function main() {
   );
   const usedSlugs = new Set((await prisma.product.findMany({ select: { slug: true } })).map((p) => p.slug));
 
-  const sets = await prisma.cardSet.findMany({ select: { id: true, name: true } });
+  // ⛔ Bara ENGELSKA set: importen är EN-only (se kommentaren om JP ovan) och
+  // japanska set delar latinska namn med sina engelska motsvarigheter.
+  const sets = await prisma.cardSet.findMany({ where: { language: "EN" }, select: { id: true, name: true } });
   const setMap = new Map(sets.map((s) => [norm(s.name), s.id]));
 
   const freeCatalog = RECENT_DAYS != null ? await loadRecentProducts(RECENT_DAYS) : null;

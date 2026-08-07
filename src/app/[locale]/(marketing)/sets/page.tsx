@@ -26,6 +26,10 @@ export default async function SetsPage({
   setRequestLocale(params.locale);
   const t = await getTranslations("Sets");
   const sets = await prisma.cardSet.findMany({
+    // Setgalleriet är ENGELSKT tills vidare. Japanska set finns i katalogfiltret
+    // (flik "Japanska") men har varken logotyp eller kortrader — de hade ritats
+    // som tomma brickor med "0 kort" här. Sidorna /sets/{id} fungerar ändå.
+    where: { language: "EN" },
     include: { _count: { select: { cards: true, products: true } } },
     // nulls: "last" — annars lägger Postgres datumlösa set FÖRST vid DESC, alltså
     // som om de vore nyast (samma regel som filtrets set-lista).

@@ -171,6 +171,10 @@ async function main() {
   await prisma.product.deleteMany();
   await prisma.card.deleteMany();
   await prisma.cardSet.deleteMany();
+  // StoreListing pekar på Retailer utan cascade (RESTRICT) → utan den här raden
+  // kraschar seeden på `retailer.deleteMany()` EFTER att produkter, kort och set
+  // redan raderats, dvs den lämnar den lokala databasen halvtömd.
+  await prisma.storeListing.deleteMany();
   await prisma.retailer.deleteMany();
   await prisma.scrapeSource.deleteMany();
   await prisma.user.deleteMany();

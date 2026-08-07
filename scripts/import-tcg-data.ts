@@ -118,8 +118,15 @@ async function main() {
       // namn — två identiska rader i set-filtret, och produkterna/etiketterna kvar på
       // den gamla. Adoptera den befintliga raden i stället: den behåller id, produkter
       // och set-etiketter, och får bara pokemontcg.io-identiteten påklistrad.
+      // ⛔ `language: "EN"` är inte kosmetik. Japanska set (skapade ur Cardmarkets
+      // expansioner) har ALLTID externalId = null och delar latinska namn med sina
+      // engelska motsvarigheter — "Black Bolt", "White Flare", "151". Utan grinden
+      // hade den engelska importen adopterat det JAPANSKA setet, klistrat på
+      // pokemontcg.io-identiteten och tagit med sig dess produkter in i det
+      // engelska setet. Tyst, och bara synligt som "japanska produkter i ett
+      // engelskt set".
       const orphan = await prisma.cardSet.findFirst({
-        where: { externalId: null, name: { equals: tcgSet.name, mode: "insensitive" } },
+        where: { externalId: null, language: "EN", name: { equals: tcgSet.name, mode: "insensitive" } },
         select: { id: true, name: true },
       });
       if (orphan) {
