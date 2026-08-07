@@ -98,6 +98,27 @@ export function codesInTitle(title: string): string[] {
  * datumprövningen nedan innan den används — den avgör bara sorteringsordningen
  * (releaseDate), aldrig namnet eller vilka produkter som hamnar i setet.
  */
+/**
+ * Koder som är verifierade mot setets EGEN ordbild — inte förslag, utan avgjorda.
+ *
+ * Skillnaden mot `JP_CODE_BY_NAME` nedan är bevisläget. Den tabellen gissar utifrån
+ * ett namn och måste därför klara datumfönstret innan den får användas. Raderna här
+ * är kontrollerade genom att LÄSA setets logotyp och jämföra den med TCGdex japanska
+ * namn för koden, samma metod som logotypgranskningen — och de får därför användas
+ * utan datumprövning. Fältet `verified` säger exakt vad kontrollen bestod i.
+ *
+ * ⛔ Lägg inte till en rad du inte själv kontrollerat. "Det verkar rimligt" hör
+ *    hemma i JP_CODE_BY_NAME, där datumfönstret får säga sitt.
+ */
+export const JP_CODE_VERIFIED: Record<string, { code: string; verified: string }> = {
+  // Logotypen läser "25th ANNIVERSARY COLLECTION / 25th アニバーサリーコレクション",
+  // TCGdex S8a heter "25th アニバーサリーコレクション" (2021-10-22, serie S), och
+  // logotypkällans egen sida märker setet [S8A]. Tre källor, samma svar.
+  // ⚠️ Datumfönstret förkastar den (CM la in produkterna 118 dygn före släppet, mot
+  //    kalibrerade -6..+71) — därför står den HÄR och inte bland förslagen.
+  "25th anniversary": { code: "S8a", verified: "25th アニバーサリーコレクション" },
+};
+
 export const JP_CODE_BY_NAME: Record<string, string> = {
   "silver lance": "s6h",
   "vmax climax": "s8b",

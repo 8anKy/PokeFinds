@@ -27,6 +27,7 @@ import {
   pickJpSetImage,
   releaseDateAgrees,
   JP_CODE_BY_NAME,
+  JP_CODE_VERIFIED,
   JP_SERIES_BY_TCGDEX_ID,
   JP_SERIES_UNKNOWN,
   type CmCatalogRow,
@@ -377,11 +378,17 @@ export async function refreshJpSetMetadata(apply = true): Promise<number> {
       let code = codeFromJpSetName(s.name);
       if (!code) {
         const base = s.name.replace(/\s*\([^)]*\)\s*$/, "");
-        const ct = await cardTraderCode(base);
-        if (ct) {
-          code = ct.toUpperCase();
+        // Egen granskad tabell först (koden är kontrollerad mot setets ordbild),
+        // därefter CardTrader. Båda är källor, inte gissningar.
+        const reviewed = JP_CODE_VERIFIED[base.toLowerCase()];
+        const ct = reviewed ? null : await cardTraderCode(base);
+        const found = reviewed?.code ?? ct;
+        if (found) {
+          code = reviewed ? found : found.toUpperCase();
           data.name = jpSetDisplayName(base, code);
-          console.log(`[jp-set] "${s.name}" fick kod ${code} från CardTrader.`);
+          console.log(
+            `[jp-set] "${s.name}" fick kod ${code} från ${reviewed ? `granskad tabell (${reviewed.verified})` : "CardTrader"}.`
+          );
         }
       }
       const tcg = code ? await fetchTcgdexSet(code) : null;

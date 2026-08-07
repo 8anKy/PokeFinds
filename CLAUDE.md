@@ -268,9 +268,15 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   och "25th Anniversary" matchade en YU-GI-OH!-expansion (torrkörningen visade "25th Anniversary (25THYUG)").
   ⛔ Kräv ETT entydigt namn: CT listar både "Black Bolt | sv11B" (japanska) och "Black Bolt" (`blk`,
   internationella).
-  ⚠️ Läge 2026-08-07: 100 av 100 JP-produkter har set, 50 set, alla med logotyp. Datumlösa (sorteras sist,
-  grupp "Other"): **Storm Emeralda (M6)** — läker av sig själv när TCGdex publicerar M6 — och
-  **25th Anniversary**, som saknar entydig kod hos alla källor.
+  **TVÅ TABELLER MED OLIKA BEVISKRAV** (`jp-set-name.ts`): `JP_CODE_BY_NAME` är FÖRSLAG som måste klara
+  datumfönstret, medan `JP_CODE_VERIFIED` är koder kontrollerade mot setets EGEN ordbild (logotypen läst mot
+  TCGdex japanska namn) och används utan datumprövning. 25th Anniversary hörde hemma i den senare: tre
+  källor sa S8a (TCGdex-namnet 25thアニバーサリーコレクション, logotypens ordbild, logotypkällans `[S8A]`) men
+  datumfönstret förkastade den för att CM la in produkterna 118 dygn före släppet. ⛔ Lägg aldrig en
+  okontrollerad rad i `JP_CODE_VERIFIED` — "verkar rimligt" hör hemma bland förslagen.
+  ⚠️ Läge 2026-08-07: 100 av 100 JP-produkter har set, 50 set, alla med logotyp. Serier: Scarlet & Violet 25,
+  Sword & Shield 14, Mega Evolution 7, Sun & Moon 3, Other 1. Enda datumlösa: **Storm Emeralda (M6)** —
+  TCGdex slutar på M5, så eran och datumet fylls i av sig själva när de publicerar M6.
 - **SET-BEVAKNING ÄR EN STÅENDE REGEL, INTE EN ÖGONBLICKSBILD (2026-08-06)**: `SetWatch` (userId+setId, unik) ger
   restock-larm på ALLA sealed-produkter i ett set. ⛔ Expandera den ALDRIG till en `WatchlistItem` per sealed-produkt
   vid klick: auto-importen (`ensureListingProduct`) skapar sealed-SKU:er löpande, så en expansion vid klicktillfället
