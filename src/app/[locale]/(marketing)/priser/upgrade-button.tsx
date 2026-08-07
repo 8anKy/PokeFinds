@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { useSession } from "next-auth/react";
@@ -46,6 +46,28 @@ export function UpgradeButton({ webCheckout = false }: { webCheckout?: boolean }
     return false;
   }, [update]);
 
+  /**
+   * ⛔ ALLT SOM EFFEKTEN BEHÖVER LIGGER I REFS, OCH DEN KÖR EN GÅNG.
+   *
+   * `update` från `useSession()` är INTE referensstabil, så `waitForPro` fick ny
+   * identitet vid varje rendering. Effekten berodde på den — och pollningen
+   * ANROPAR `update()`, som renderar om — så effekten startade om sig själv i all
+   * oändlighet: sidan blinkade, `/api/users/me` anropades om och om igen, och
+   * knappen fastnade på "Bearbetar…". `router.refresh()` på slutet spann vidare
+   * på samma varv.
+   *
+   * Samma familj som kamerans livscykelbugg (2026-08-02): en effekt får ALDRIG
+   * bero på ett hook-objekts identitet. Refs + tom beroendelista uttrycker det
+   * som faktiskt menas — "kör vid montering".
+   */
+  const tRef = useRef(t);
+  tRef.current = t;
+  const waitForProRef = useRef(waitForPro);
+  waitForProRef.current = waitForPro;
+  const routerRef = useRef(router);
+  routerRef.current = router;
+  const handledReturn = useRef(false);
+
   useEffect(() => {
     setNative(purchasesAvailable());
     const logged = hasAuthHint();
@@ -63,19 +85,33 @@ export function UpgradeButton({ webCheckout = false }: { webCheckout?: boolean }
     // Återkomsten från Stripe. ⛔ Läses ur window.location, INTE useSearchParams:
     // den hooken tvingar sidan ur statisk rendering (eller kräver en Suspense-
     // gräns), och /priser är en cachad marknadsföringssida.
-    if (!logged || new URLSearchParams(window.location.search).get("checkout") !== "klar") {
-      return;
-    }
+    const params = new URLSearchParams(window.location.search);
+    if (!logged || params.get("checkout") !== "klar" || handledReturn.current) return;
+    handledReturn.current = true;
+
+    // ⛔ Städa bort parametern MED EN GÅNG. Annars startar en omladdning, en
+    // bokmärkning eller bakåtknappen samma väntan igen — och för någon som INTE
+    // just köpt (t.ex. efter en uppsägning) betyder det "Bearbetar…" i evighet.
+    // Exakt så upptäcktes buggen 2026-08-07.
+    params.delete("checkout");
+    params.delete("session_id");
+    const rest = params.toString();
+    window.history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : ""));
+
     setBusy(true);
-    setMsg(t("msgThanks"));
-    waitForPro()
+    setMsg(tRef.current("msgThanks"));
+    waitForProRef.current()
       .then((ok) => {
-        setMsg(ok ? t("msgActivated") : t("msgPurchasePending"));
-        if (ok) setIsPro(true);
-        router.refresh();
+        setMsg(ok ? tRef.current("msgActivated") : tRef.current("msgPurchasePending"));
+        // ⛔ Uppdatera BARA vid faktiskt genomslag. En refresh på misslyckande
+        // ändrar ingenting och var halva loopen.
+        if (ok) {
+          setIsPro(true);
+          routerRef.current.refresh();
+        }
       })
       .finally(() => setBusy(false));
-  }, [t, router, waitForPro]);
+  }, []);
 
   async function openBilling(path: string, failMsg: string) {
     setBusy(true);
