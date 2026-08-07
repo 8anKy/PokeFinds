@@ -4,6 +4,7 @@ import { apiError, jsonOk } from "@/lib/api";
 import { hasRole, requireRole } from "@/lib/auth";
 import { ServiceError } from "@/lib/errors";
 import { writeAuditLog } from "@/services/analytics";
+import { syncDiscordRoles } from "@/services/discord-sync";
 import { PlanTier, Role } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -60,6 +61,16 @@ export async function PATCH(
       entityId: params.id,
       metadata: { changes: input },
     });
+
+    // Discord-rollen följer planen. Admin-panelen är den FJÄRDE vägen Pro kan
+    // ändras (utöver länkning, Stripe och RevenueCat) och glömdes när kopplingen
+    // byggdes: en Pro som satts härifrån syntes inte i Discord förrän nattens
+    // avstämning. `role` räknas med — ADMIN/SUPERADMIN ÄR Pro enligt isPro().
+    // ⛔ Skickar id:t, inte `updated`: den selecten saknar bonusProUntil och
+    // stripeProUntil, och isPro() på en ofullständig form failar ÖPPET.
+    if (input.planTier !== undefined || input.role !== undefined) {
+      await syncDiscordRoles(params.id, "Foilio: planen ändrades i adminpanelen");
+    }
 
     return jsonOk(updated);
   } catch (e) {

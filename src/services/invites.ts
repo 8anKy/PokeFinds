@@ -13,6 +13,7 @@
 import { prisma } from "@/lib/db";
 import { sendMail } from "@/lib/mailer";
 import { proRewardEmail } from "@/emails/templates";
+import { syncDiscordRoles } from "@/services/discord-sync";
 
 export const INVITES_REQUIRED = 3;
 /** Max olösta koder per användare — spärr mot länkspam, inte en produktgräns. */
@@ -106,6 +107,11 @@ export async function creditInviteOnVerify(verifiedUserId: string): Promise<void
   });
 
   if (granted) {
+    // Referral-Pro är en av de fyra Pro-källorna i isPro() — utan det här syns
+    // den inte i Discord förrän nattens avstämning. ⛔ UTANFÖR transaktionen:
+    // ett HTTP-anrop mot Discord hör inte hemma i en DB-transaktion (den hålls
+    // öppen medan vi väntar på ett nätverkssvar).
+    await syncDiscordRoles(invite.inviterId, "Foilio: Pro via inbjudningar");
     try {
       await sendMail({ to: granted.email, ...proRewardEmail(granted.name, granted.until) });
     } catch (e) {
