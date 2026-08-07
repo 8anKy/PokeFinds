@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { isPro } from "@/lib/plan";
+import { discordLinkingEnabled } from "@/lib/discord";
 import { prisma } from "@/lib/db";
 import { SettingsClient, type NotificationSettings, type SettingsUser } from "./settings-client";
 import { PageBackButton } from "@/components/layout/page-back-button";
@@ -47,6 +48,7 @@ export default async function SettingsPage() {
       stripeProUntil: true, // utan denna säger isPro() FREE för en betalande webbkund
       notificationSettings: true,
       traderaUserId: true,
+      discordUsername: true,
     },
   });
   if (!user) redirect("/logga-in");
@@ -59,6 +61,13 @@ export default async function SettingsPage() {
     isPro: isPro(user),
     notificationSettings: parseNotificationSettings(user.notificationSettings),
     traderaUserId: user.traderaUserId,
+    discordUsername: user.discordUsername,
+    // Kortet döljs helt när integrationen är avstängd — en knapp som bara kan
+    // svara "inte tillgänglig" är sämre än ingen knapp. Sidan är force-dynamic,
+    // så env läses vid varje besök och spaken slår igenom utan ombyggnad.
+    // LINKING, inte bara bot: kortets knapp startar ett OAuth-flöde, så den ska
+    // döljas även om bara client secret saknas.
+    discordEnabled: discordLinkingEnabled(),
   };
 
   return (

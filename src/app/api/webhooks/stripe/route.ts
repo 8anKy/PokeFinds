@@ -1,6 +1,7 @@
 import type Stripe from "stripe";
 import { prisma, withDbRetry } from "@/lib/db";
 import { getStripe, stripeEnabled, subscriptionPeriodEnd } from "@/lib/stripe";
+import { syncDiscordRoles } from "@/services/discord-sync";
 import { HANDLED_EVENTS, proUntilForSubscription } from "./mapping";
 
 export const dynamic = "force-dynamic";
@@ -103,6 +104,12 @@ async function handleEvent(stripe: Stripe, event: Stripe.Event) {
       },
     });
   });
+
+  // Discord-rollen följer planen direkt. UTANFÖR withDbRetry: ett HTTP-anrop mot
+  // Discord hör inte hemma i en transaktionsretry, och syncDiscordRoles kastar
+  // aldrig — ett Discord-fel får inte ge 500 här, för då gör Stripe om försöket
+  // i tre dygn för något som nattjobbet ändå rättar inom ett dygn.
+  await syncDiscordRoles(userId, "Foilio: Stripe-prenumerationen ändrades");
 }
 
 /**

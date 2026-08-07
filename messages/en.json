@@ -65,7 +65,17 @@
     "deleteWord": "DELETE",
     "deleteConfirmBtn": "Delete my account",
     "deleteSuccess": "Your account has been deleted",
-    "deleteFail": "Couldn't delete the account"
+    "deleteFail": "Couldn't delete the account",
+    "discordTitle": "Discord",
+    "discordDisconnectedDesc": "Link your Discord account to join our server and get a verified role instantly, all in one click. If you have Pro, you get the Pro role automatically.",
+    "discordConnectedDesc": "Linked to {name}. Your role in the server updates automatically when your plan changes.",
+    "connectDiscord": "Link Discord & join",
+    "disconnectDiscord": "Disconnect Discord",
+    "discordConnectedToast": "Discord account linked.",
+    "discordDisconnectedToast": "Discord account disconnected.",
+    "discordCancelledToast": "Linking was cancelled.",
+    "discordAlreadyLinkedToast": "That Discord account is already linked to another Foilio account.",
+    "discordErrorToast": "Could not link your Discord account."
   },
   "Nav": {
     "explore": "Explore",
@@ -1197,6 +1207,9 @@
     "thPrice": "Price",
     "thStock": "Stock status",
     "thLink": "Link",
+    "showAllStores": "Show all stores ({count} more)",
+    "showFewerStores": "Show fewer stores",
+    "affiliateDisclosure": "Note: Foilio may be compensated if you make a purchase through the links above. It never affects the prices we show or the order stores are listed in — cheapest is always first.",
     "traderaSearchLink": "Search for this product on Tradera →",
     "removeOffer": "Remove",
     "removingOffer": "Removing…",

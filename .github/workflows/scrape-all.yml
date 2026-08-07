@@ -83,6 +83,31 @@ jobs:
       - if: steps.guard.outputs.ready == 'true'
         run: npx tsx scripts/backfill-gtin.ts --limit 400
 
+      # Discord-rollavstämning. Ligger HÄR i stället för i en egen cron med flit:
+      # Neon debiteras per vaken tid, och databasen är redan vaken i det här
+      # fönstret — en egen nattlig start hade varit ytterligare en väckning à
+      # minst 300 s för ett jobb som tar sekunder.
+      # ⛔ Varför den behövs alls: `bonusProUntil`/`stripeProUntil` LÖPER UT utan
+      # att någon webhook fyras, så utan den här körningen sitter Pro-rollen kvar
+      # i all evighet hos den som slutat betala. Se src/jobs/discord-reconcile.ts.
+      # continue-on-error: Discord är inte kritiskt för insamlingen, och ett
+      # avbrott här hade stoppat cache-invalideringen nedan.
+      - if: steps.guard.outputs.ready == 'true'
+        name: Stäm av Discord-roller mot vem som har Pro
+        continue-on-error: true
+        env:
+          DISCORD_ENABLED: ${{ vars.DISCORD_ENABLED }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
+          DISCORD_ROLE_VERIFIED: ${{ secrets.DISCORD_ROLE_VERIFIED }}
+          DISCORD_ROLE_PRO: ${{ secrets.DISCORD_ROLE_PRO }}
+          # ⛔ CLIENT_ID/CLIENT_SECRET skickas medvetet INTE hit. Jobbet gör aldrig
+          # ett OAuth-utbyte — bara rollanrop med bot-token — och `discordBotConfig()`
+          # är skild från OAuth-halvan just för att den här filen inte ska behöva
+          # en hemlighet den aldrig använder. Färre kopior = färre ställen att
+          # glömma vid rotation (jfr APNs-nyckeln, som lever i tre filer).
+        run: npx tsx scripts/discord-reconcile-run.ts
+
       # Släng den cachade bilden av priserna — se cardmarket-refresh.yml för varför.
       - if: steps.guard.outputs.ready == 'true'
         name: Invalidera sid-cachen (priserna är skrivna)

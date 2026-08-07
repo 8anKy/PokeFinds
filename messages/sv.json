@@ -65,7 +65,17 @@
     "deleteWord": "RADERA",
     "deleteConfirmBtn": "Radera mitt konto",
     "deleteSuccess": "Ditt konto har raderats",
-    "deleteFail": "Det gick inte att radera kontot"
+    "deleteFail": "Det gick inte att radera kontot",
+    "discordTitle": "Discord",
+    "discordDisconnectedDesc": "Länka ditt Discord-konto så går du med i vår server och får en verifierad-roll direkt, allt i ett klick. Har du Pro får du automatiskt Pro-rollen.",
+    "discordConnectedDesc": "Länkat till {name}. Din roll i servern uppdateras automatiskt när din plan ändras.",
+    "connectDiscord": "Länka Discord & gå med",
+    "disconnectDiscord": "Koppla från Discord",
+    "discordConnectedToast": "Discord-kontot är länkat.",
+    "discordDisconnectedToast": "Discord-kontot är frånkopplat.",
+    "discordCancelledToast": "Länkningen avbröts.",
+    "discordAlreadyLinkedToast": "Det Discord-kontot är redan länkat till ett annat Foilio-konto.",
+    "discordErrorToast": "Kunde inte länka Discord-kontot."
   },
   "Nav": {
     "explore": "Utforska",
@@ -1197,6 +1207,9 @@
     "thPrice": "Pris",
     "thStock": "Lagerstatus",
     "thLink": "Länk",
+    "showAllStores": "Visa alla butiker ({count} till)",
+    "showFewerStores": "Visa färre butiker",
+    "affiliateDisclosure": "Obs: Foilio kan få ersättning om du gör ett köp via länkarna ovan. Det påverkar aldrig priserna vi visar eller i vilken ordning butikerna listas — billigast ligger alltid överst.",
     "traderaSearchLink": "Sök efter den här produkten på Tradera →",
     "removeOffer": "Ta bort",
     "removingOffer": "Tar bort…",

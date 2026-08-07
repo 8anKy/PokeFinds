@@ -42,6 +42,14 @@ const config: Config = {
         },
         rise: "#22c55e",
         fall: "#f43f5e",
+        // Discord-blurple. Ett TOKEN, inte en hex i en komponent: knappen får se ut
+        // som Discord (igenkänning är hela poängen med en "Länka Discord"-knapp),
+        // men undantaget ska stå EN gång och gå att hitta. Används bara av
+        // Discord-kortet i /installningar.
+        discord: {
+          DEFAULT: "#5865f2",
+          hover: "#4752c4",
+        },
         brand: {
           DEFAULT: "#2dd4bf",
           dark: "#0f766e",

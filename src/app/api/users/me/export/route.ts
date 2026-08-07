@@ -26,6 +26,14 @@ export async function GET() {
         preferences: true,
         reputationScore: true,
         isPublicCollection: true,
+        // Kopplade konton. ⛔ Den här routen använder en EXPLICIT select, så en ny
+        // kolumn hamnar aldrig i exporten av sig själv — den måste läggas till här
+        // också, annars är exporten tyst ofullständig (art. 15/20).
+        // traderaUserId saknades här sedan kopplingen byggdes; rättat 2026-08-07.
+        traderaUserId: true,
+        discordUserId: true,
+        discordUsername: true,
+        discordLinkedAt: true,
         createdAt: true,
         updatedAt: true,
         watchlistItems: {
@@ -75,6 +83,19 @@ export async function GET() {
         isPublicCollection: user.isPublicCollection,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
+      },
+      // Kopplade tredjepartskonton. Bara identifierarna — vi lagrar inga
+      // Discord-token alls, och Tradera-token är en hemlighet som inte hör hemma
+      // i en nedladdningsbar fil.
+      connectedAccounts: {
+        tradera: user.traderaUserId ? { userId: user.traderaUserId } : null,
+        discord: user.discordUserId
+          ? {
+              userId: user.discordUserId,
+              username: user.discordUsername,
+              linkedAt: user.discordLinkedAt,
+            }
+          : null,
       },
       watchlist: user.watchlistItems,
       collection: user.collectionItems,

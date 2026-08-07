@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { syncDiscordRoles } from "@/services/discord-sync";
 import { planForEvent } from "./mapping";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +47,11 @@ export async function POST(req: Request) {
         },
       },
     });
+
+    // Discord-rollen följer planen. Särskilt viktigt för EXPIRATION, som sätter
+    // FREE ovillkorligt — utan det här hade en utgången app-prenumeration behållit
+    // Pro-rollen i servern till nästa nattkörning. Kastar aldrig.
+    await syncDiscordRoles(userId, `Foilio: RevenueCat ${eventType}`);
   }
   return new Response("ok", { status: 200 });
 }

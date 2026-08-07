@@ -169,6 +169,16 @@ model User {
   traderaUserId        String? // Traderas userId när kontot är kopplat (för "Sälj på Tradera")
   traderaToken         String? // AuthToken från FetchToken; behandlas som en hemlighet
   traderaTokenExpiresAt DateTime? // HardExpirationTime — koppla om kontot när denna passeras
+  // Discord-koppling (Pro-rollen i vår server).
+  // ⛔ Ingen OAuth-token lagras — MEDVETET, till skillnad från traderaToken ovan.
+  // Användartoken behövs EN gång (guilds.join vid länkningen) och slängs sedan;
+  // all efterföljande rollhantering går via bot-token. Det som inte sparas kan
+  // varken läcka eller behöva deklareras i integritetspolicyn.
+  // UNIKT: ett Discord-konto får bära Pro från exakt ETT Foilio-konto, annars
+  // kan en delad prenumeration ge Pro-rollen till hur många konton som helst.
+  discordUserId        String?   @unique
+  discordUsername      String? // visningsnamn, bara för att UI:t ska kunna säga VILKET konto
+  discordLinkedAt      DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

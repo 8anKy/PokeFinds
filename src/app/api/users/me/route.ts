@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { apiError, jsonOk } from "@/lib/api";
 import { requireUser, AuthError } from "@/lib/auth";
 import { isPro, proSource } from "@/lib/plan";
+import { revokeDiscordRoles } from "@/services/discord-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -138,7 +139,18 @@ export async function PATCH(req: Request) {
 export async function DELETE() {
   try {
     const sessionUser = await requireUser();
-    // GDPR: radera kontot. Relationer hanteras via onDelete: Cascade i schemat.
+    // GDPR: ta bort Discord-rollerna FÖRE raderingen. Efteråt finns ingen rad att
+    // läsa `discordUserId` ur, och personen hade blivit kvar i servern med en
+    // Pro-roll som inte längre hör till något konto — en kvarleva av ett raderat
+    // konto, dvs precis det art. 17 säger att vi ska bli av med. Medlemskapet
+    // rörs inte; vi kickar ingen.
+    const linked = await prisma.user.findUnique({
+      where: { id: sessionUser.id },
+      select: { discordUserId: true },
+    });
+    await revokeDiscordRoles(linked?.discordUserId, "Foilio: kontot raderades");
+
+    // Relationer hanteras via onDelete: Cascade i schemat.
     await prisma.user.delete({ where: { id: sessionUser.id } });
     return jsonOk({ message: "Ditt konto och all din data har raderats." });
   } catch (e) {

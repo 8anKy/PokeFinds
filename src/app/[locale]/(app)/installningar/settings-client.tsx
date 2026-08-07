@@ -32,6 +32,19 @@ export interface SettingsUser {
   isPro: boolean;
   notificationSettings: NotificationSettings;
   traderaUserId: string | null;
+  /** Discord-visningsnamnet när kontot är länkat, annars null. */
+  discordUsername: string | null;
+  /** Är integrationen påslagen i miljön? Falskt → kortet visas inte alls. */
+  discordEnabled: boolean;
+}
+
+/** Discord-loggan, inlinead (ingen extern asset att ladda eller cachebusta). */
+function DiscordMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 127.14 96.36" fill="currentColor" aria-hidden className={className}>
+      <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21H.55A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z" />
+    </svg>
+  );
 }
 
 export function SettingsClient({ user }: { user: SettingsUser }) {
@@ -45,6 +58,46 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   // Tradera-koppling
   const [traderaUserId, setTraderaUserId] = useState(user.traderaUserId);
   const [disconnectingTradera, setDisconnectingTradera] = useState(false);
+
+  // Discord-koppling
+  const [discordUsername, setDiscordUsername] = useState(user.discordUsername);
+  const [disconnectingDiscord, setDisconnectingDiscord] = useState(false);
+
+  // Kvittens efter återkomsten från Discord. Samma form som Tradera-blocket
+  // nedan: statuskoden ligger i URL:en eftersom callbacken är en REDIRECT och
+  // inte kan returnera något till klienten på annat sätt.
+  useEffect(() => {
+    const status = searchParams.get("discord");
+    if (!status) return;
+    if (status === "ansluten") {
+      toast({ title: tSettings("discordConnectedToast"), variant: "success" });
+    } else if (status === "nekad") {
+      toast({ title: tSettings("discordCancelledToast"), variant: "error" });
+    } else if (status === "fel-redan-lankad") {
+      toast({ title: tSettings("discordAlreadyLinkedToast"), variant: "error" });
+    } else if (status.startsWith("fel")) {
+      toast({ title: tSettings("discordErrorToast"), description: status, variant: "error" });
+    }
+    router.replace("/installningar");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function disconnectDiscord() {
+    setDisconnectingDiscord(true);
+    try {
+      await apiFetch("/api/discord", { method: "DELETE" });
+      setDiscordUsername(null);
+      toast({ title: tSettings("discordDisconnectedToast"), variant: "success" });
+    } catch (e) {
+      toast({
+        title: tSettings("disconnectFail"),
+        description: e instanceof Error ? e.message : undefined,
+        variant: "error",
+      });
+    } finally {
+      setDisconnectingDiscord(false);
+    }
+  }
 
   useEffect(() => {
     const status = searchParams.get("tradera");
@@ -284,6 +337,52 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
           )}
         </CardContent>
       </Card>
+
+      {/* Discord */}
+      {user.discordEnabled && (
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <DiscordMark className="h-5 w-5 text-discord" />
+              {tSettings("discordTitle")}
+            </CardTitle>
+            {discordUsername ? (
+              <Badge variant="holo">{tSettings("connected")}</Badge>
+            ) : (
+              <Badge>{tSettings("notConnected")}</Badge>
+            )}
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-ink-muted">
+              {discordUsername
+                ? tSettings("discordConnectedDesc", { name: discordUsername })
+                : tSettings("discordDisconnectedDesc")}
+            </p>
+            <div className="mt-4">
+              {discordUsername ? (
+                <Button
+                  variant="secondary"
+                  loading={disconnectingDiscord}
+                  onClick={() => void disconnectDiscord()}
+                >
+                  {tSettings("disconnectDiscord")}
+                </Button>
+              ) : (
+                // Vanlig <a>, INTE next/link — samma skäl som Tradera nedan: en
+                // OAuth-omdirigering till discord.com måste vara en riktig
+                // sidnavigering, klientroutingen kan inte hantera den.
+                <a
+                  href="/api/discord/connect"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-discord px-4 text-sm font-semibold text-white transition-all duration-200 ease-out hover:bg-discord-hover active:scale-[0.97]"
+                >
+                  <DiscordMark className="h-4 w-4" />
+                  {tSettings("connectDiscord")}
+                </a>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tradera */}
       <Card>
