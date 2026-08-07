@@ -316,6 +316,49 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   genom att interpolera konstanten in i översättningarna: poängen är att någon TVINGAS läsa meningarna när talet ändras.
   ⚠️ Nedgraderings-FAQ:n lovade tidigare "bara de 10 senaste är aktiva" — en funktion som ALDRIG byggts (varken
   `watchlist.ts` eller RevenueCat-webhooken rör poster vid nedgradering). Texten säger nu vad koden faktiskt gör.
+- **SINGEL-LÄNKARNA PEKAR PÅ CARDTRADER-VERIFIERADE idProduct (2026-08-07)**: en singel kunde länka till CM:s
+  OVERSIZED-version av kortet (Rayquaza VMAX · Evolving Skies 111 gick till jumbo-produkten). ⛔ **CM:s egen
+  data kan inte skilja dem åt** — alla "Rayquaza VMAX"-rader har identiskt namn och samma `idMetacard`, och
+  10 060 av 57 964 namn+expansion-par har flera versioner. ⛔ Versionssuffixet i slugen duger inte som signal
+  (4 155 länkar har ett, de flesta korrekta — Eevee V5/V6/V7 ÄR olika promos). ⛔ Och sidan går inte att
+  kontrollera: **Cardmarket blockerar automatiserade sidhämtningar** (33 av 33 stickprov nekades).
+  Lösningen är CardTraders katalog, som har ett blueprint PER samlarnummer med `card_market_ids`
+  (Evolving Skies: 111 → 574159, 217 → 574275, 218 → 574276) — samma kedja som `recover-cm-idproduct.ts`, med
+  samma två oberoende namnvakter. `scripts/verify-cm-single-links.ts` skriver om slug-länkar till
+  `?idProduct=`-formen. **FAS 1 ÄR ETT FACIT, INTE EN REPARATION**: körningen jämför först CardTrader mot de
+  1 499 länkar som redan bär ett uttryckligt idProduct — 1 435 överens (95,7 %), 64 oense, och av dem är bara
+  6 sådana där CM:s EGEN katalog motsäger vårt id. Är oenigheten > 5 % avbryts körningen utan att skriva.
+  ⛔ **Tryckningar (`variantLabel`) rörs aldrig** — Base Unlimited/Shadowless/1st Edition delar CM-produkter på
+  ett sätt CardTrader inte modellerar, och deras länkar är satta för hand.
+  ✅ Durabelt: dagliga `runCardmarketRefresh` återanvänder `entry.url` (skriver inte om den), och
+  `resolve-cm-urls.ts` rör bara redirect-/sök-URL:er.
+- **MATCHNINGEN: KANDIDATURVALET VAR FELET, INTE POÄNGEN (2026-08-07)**: butiksdubbletter uppstod inte för att
+  vakterna var svaga utan för att rätt tvilling ALDRIG kom in i kandidatpoolen. `significantTokens` tog de SEX
+  FÖRSTA orden i titeln, och butiker skriver Pokémon-namnet SIST ("… Temporal Forces 3-Pack Blister **Cleffa**")
+  → kvar blev era- och formord, som hämtas med `take: 200` UTAN `orderBy`, dvs ett godtyckligt urval. Dessutom
+  bröt loopen vid 400 kandidater, så även efter omsortering åt "scarlet"/"violet" upp taket. Tokens väljs nu på
+  SÄRSKILJNING (`ERA_TOKENS` sist), brytningen ligger ovanför 6×200, och en kandidat som passerat hela
+  vaktkedjan OCH är identitetslik vinner över en med högre Dice — men bara när den är ENTYDIG.
+  ⛔ **MARGINALEN AVGÖR, INTE POÄNGEN** (`AMBIGUITY_MARGIN` 0,03): en Tradera-annons "Crown Elite Trainer Box
+  (ETB)" fick 0,800 mot Crown Zenith och 0,786 mot Stellar Crown — 0,014 isär — och sålde i själva verket en
+  Stellar Crown. Följden var inte bara fel länk utan FEL PRIS: 1 150 kr blev Crown Zeniths rubrikpris. Ligger
+  tvåan inom marginalen och identitetsorden skiljer sig ges ingen länk alls. Samma lärdom som skannerns
+  bildmatchning redan bär. ⛔ **FÖRKASTAT**: en vakt som krävde att annonsen nämner produktens identitetsord —
+  mätt mot befintliga länkar avvisade den mängder av KORREKTA ("… Time Gazer – s10D, Display / Booster Box
+  (Japansk)" fick 0,50 för att era-, form- och språkord räknas som identitet).
+  ⛔ **BLISTRAR IDENTIFIERAS AV KARAKTÄREN** (`blisterCharacterMismatch`): CM namnger alla 486 blistrar
+  "Set: KARAKTÄR N-Pack Blister", så även en ENSIDIG karaktär är en motsägelse. Utan den band matcharen
+  "…Checklane Blister Scraggy" till en generisk "Journey Together Premium Checklane Blister" på 0,95.
+  ⚠️ "Checklane" = 1-pack (CM listar exakt en blister per set+karaktär; de fyra undantagen skiljer sig alla på
+  ANTALET, aldrig på checklane mot 1-pack).
+  **Katalogen ska inte innehålla tillbehör eller BUTIKSEGNA BUNDLES** (ägarbeslut): `isAccessoryListing` +
+  `isStoreBundleListing` grindar importen. Den senare är smal med flit — katalogen har riktiga kort som heter
+  Mystery Garden/Plate/Energy. ⛔ Radering räcker inte, URL:en måste in i `import-denylist.ts`.
+  ⛔ **SAMMANSLAGNING KRÄVER MER BEVIS ÄN LÄNKNING**: `dedupe-catalog.ts` första version godkände
+  "Mega Charizard X ex Tin" == "Mega Charizard Y ex Tin" (1,00) och "Base Set 2 Booster Pack" == "Base Booster
+  Pack" (0,99) — `normalizeTitle` kastar korta tokens ("X", "Y", "2"), och en exakt normaliserad träff hoppar
+  dessutom över HELA vaktkedjan. Beviset tas därför på RÅTITELN. Skriptet är en RAPPORT tills svepningen mätts
+  i sin helhet; faktiska merges görs via `merge-verified-duplicates.ts` med granskade par.
 - **GTIN = exakt cross-store-nyckel (2026-07-13)**: premissen "vi har ingen universell produkt-identifierare" var FEL.
   5 av 7 butiker publicerar tillverkarens streckkod (GS1-prefix `196214` = The Pokémon Company International, `4521329…`
   = Pokémon Japan). **Uppmätt täckning på riktiga prod-offers: 73%.** Vägar (varje butik sin egen — `src/scrapers/gtin-source.ts`):
