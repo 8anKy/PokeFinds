@@ -1218,10 +1218,36 @@ export async function runJapaneseSealedRefresh(): Promise<JpRefreshResult> {
         .sort((a, b) => b.sim - a.sim)
         .slice(0, 3);
       for (const { c, sim } of cands) {
+        // ⛔ LEDTRÅDEN MÅSTE SÄGA ATT B ALDRIG BÄR SPRÅKMARKÖR (mätt 2026-08-07).
+        // Systemprompten i same-product.ts säger — helt riktigt i allmänhet — att
+        // "japansk ≠ engelsk utgåva är ALLTID olika produkter". Men Cardmarket
+        // skriver ALDRIG ut språket i namnet på en japansk expansion, medan VÅRA
+        // butikstitlar alltid gör det ("(Japansk)"). Domaren läste därför den
+        // saknade markören i B som en konkret motsägelse och svarade same=false på
+        // VARJE korrekt par: "Storm Emeralda Booster Box" (sim 0.91),
+        // "VMAX Climax Booster" (sim 1.00) och "Jet Black Spirit Booster Box" —
+        // alla avvisade. Följden var att INGEN ny japansk SKU någonsin kunde
+        // auto-mappas: fyra produkter satt utan pris och utan set, och Storm
+        // Emeralda-setet fanns därför inte alls i katalogen.
         const verdict = await judgeSameProduct(
           p.title,
           c.name,
-          "B är Cardmarkets produktnamn. Japanska set har EGNA produktsidor på Cardmarket med setets japanska namn (t.ex. 'Pokémon Card 151' = japanska 151-setet, medan '151' ensamt = internationella utgåvan). A är en JAPANSK produkt — B måste vara SAMMA japanska set och produkttyp."
+          [
+            "B är Cardmarkets produktnamn för en JAPANSK expansion.",
+            "⚠️ Cardmarket skriver ALDRIG ut språket i namnet på japanska set. Att B saknar 'Japanese'/'Japansk'",
+            "är därför INGEN motsägelse och får ALDRIG ensamt ge same=false — A:s '(Japansk)' är butikens egen märkning.",
+            "Identiteten ligger i SETNAMNET och produkttypen: setten det gäller (VMAX Climax, Storm Emeralda,",
+            "Jet Black Spirit, Mega Brave …) gavs bara ut på japanska.",
+            "⚠️ MEN en konkret motsägelse väger ALLTID tyngre än den här ledtråden. Svara same=false när",
+            "produkttypen skiljer (pack ≠ box ≠ case ≠ collection box) ELLER när B är det INTERNATIONELLA",
+            "setet med samma namn: '151' ensamt är den internationella utgåvan medan 'Pokémon Card 151' är den",
+            "japanska, och heter B bara '151' ska svaret vara same=false även om A är japansk.",
+            // ⚠️ Just 151-fallet klarar domaren INTE pålitligt (mätt: 8 av 9 kontrollfall rätt, det här
+            // var missen). Skyddet i drift är strukturellt och sitter ovanför: `ownedBy` filtrerar bort
+            // varje idProduct som redan ägs av en produkt, och vår engelska katalog är komplett — CM:s
+            // internationella "151 Booster"/"151 Elite Trainer Box" ÄR alltså redan ägda av EN-produkter
+            // och når aldrig fram som kandidater. Domaren är andra linjen, inte första.
+          ].join(" ")
         );
         const accept = verdict ? verdict.same : sim >= 0.9;
         if (accept) {

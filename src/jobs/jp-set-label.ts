@@ -81,6 +81,46 @@ async function fetchTcgdexSet(code: string): Promise<TcgdexSet | null> {
 }
 
 /**
+ * Setkoden ur CARDTRADERS expansionslista, för set vars namn saknar kod.
+ *
+ * VARFÖR EN TREDJE KÄLLA. Ett japanskt set dyker upp hos Cardmarket långt innan
+ * TCGdex publicerar det — Storm Emeralda låg i CM:s katalog 2026-07-02 medan
+ * TCGdex fortfarande slutade på M5. Butikstitlarna bar ingen kod heller, så setet
+ * skapades utan kod, utan era och utan släppdatum, och kunde aldrig få det.
+ * CardTrader (som vi redan använder) för en egen expansionslista med koder som
+ * stämmer med TCGdex på varje set vi jämfört, och hade M6 redan.
+ *
+ * ⛔ KRÄV ETT ENTYDIGT NAMN. CardTrader listar BÅDE "Black Bolt | sv11B" (japanska)
+ *    och "Black Bolt" (`blk`, den internationella) — ett namnuppslag som accepterar
+ *    flera träffar hade kunnat ge ett japanskt set den internationella koden.
+ * ⛔ FILTRERA PÅ SPELET. Listan innehåller ALLA spel CardTrader säljer, inte bara
+ *    Pokémon: "25th Anniversary" matchade en Yu-Gi-Oh!-expansion och hade döpt vårt
+ *    set till "25th Anniversary (25THYUG)" om torrkörningen inte visat det.
+ * ⛔ Utan token: null, och allt fortsätter som förut.
+ */
+const CT_POKEMON_GAME_ID = 5;
+let ctExpansions: { code: string; name: string; game_id: number }[] | null = null;
+async function cardTraderCode(setName: string): Promise<string | null> {
+  const token = process.env.CARDTRADER_TOKEN;
+  if (!token) return null;
+  if (!ctExpansions) {
+    try {
+      const r = await fetch("https://api.cardtrader.com/api/v2/expansions", {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!r.ok) return null;
+      ctExpansions = (await r.json()) as { code: string; name: string; game_id: number }[];
+    } catch {
+      return null;
+    }
+  }
+  const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const hits = ctExpansions.filter((e) => e.game_id === CT_POKEMON_GAME_ID && key(e.name) === key(setName));
+  return hits.length === 1 ? hits[0].code : null;
+}
+
+/**
  * @param catalog Cardmarkets sealed-katalog (samma nedladdning som JP-prisrefreshen).
  * @param apply   false = torrkörning, inget skrivs.
  */
@@ -299,19 +339,24 @@ export async function refreshJpSetMetadata(apply = true): Promise<number> {
   const sets = await prisma.cardSet.findMany({
     where: {
       language: "JP",
-      OR: [{ logoUrl: null }, { series: { notIn: settledSeries } }],
+      // `releaseDate: null` står med FÖR ATT KUNNA LÄKA SENARE: ett set som CM har
+      // före TCGdex (Storm Emeralda) får varken era eller datum vid skapandet, och
+      // utan ett återförsök hade det suttit i "Other" för alltid. Sätten är få
+      // (1-2), så återförsöket kostar ett TCGdex-anrop per körning.
+      OR: [{ logoUrl: null }, { series: { notIn: settledSeries } }, { releaseDate: null }],
     },
     select: {
       id: true,
       name: true,
       series: true,
       logoUrl: true,
+      releaseDate: true,
       products: { select: { category: true, imageUrl: true } },
     },
   });
   let filled = 0;
   for (const s of sets) {
-    const data: { logoUrl?: string; series?: string } = {};
+    const data: { logoUrl?: string; series?: string; name?: string; releaseDate?: Date } = {};
 
     if (!s.logoUrl) {
       // Produktbilden är FALLBACKEN. Riktiga setlogotyper ligger i
@@ -324,13 +369,34 @@ export async function refreshJpSetMetadata(apply = true): Promise<number> {
       if (image) data.logoUrl = image;
     }
 
-    if (!settledSeries.includes(s.series)) {
-      // Koden står i namnet vi själva skrivit. Saknas den vet vi inte eran.
-      // ⛔ Utfallet skrivs ÄVEN när det blir "Other": annars står setet kvar med
-      //    ett oavgjort värde och frågas om vid varje körning i all evighet.
-      const code = codeFromJpSetName(s.name);
+    const needsSeries = !settledSeries.includes(s.series);
+    if (needsSeries || !s.releaseDate) {
+      // Koden står normalt i namnet vi själva skrivit. Saknas den (setet fanns hos
+      // CM före TCGdex) frågar vi CardTrader — en KÄLLA, inte en gissning — och
+      // skriver in koden i namnet så den finns kvar till nästa körning.
+      let code = codeFromJpSetName(s.name);
+      if (!code) {
+        const base = s.name.replace(/\s*\([^)]*\)\s*$/, "");
+        const ct = await cardTraderCode(base);
+        if (ct) {
+          code = ct.toUpperCase();
+          data.name = jpSetDisplayName(base, code);
+          console.log(`[jp-set] "${s.name}" fick kod ${code} från CardTrader.`);
+        }
+      }
       const tcg = code ? await fetchTcgdexSet(code) : null;
-      data.series = jpSeriesFromTcgdexId(tcg?.serie?.id);
+      // ⛔ Serien skrivs ÄVEN när den blir "Other": annars står setet kvar med ett
+      //    oavgjort värde och frågas om vid varje körning i all evighet. Datumet
+      //    däremot lämnas orört när TCGdex inte har setet ännu — då är `releaseDate`
+      //    fortsatt null och raden plockas upp igen nästa gång, vilket är precis
+      //    vad som får ett nysläppt set att läka in i rätt era av sig självt.
+      const resolvedSeries = jpSeriesFromTcgdexId(tcg?.serie?.id);
+      if (needsSeries) data.series = resolvedSeries;
+      // UPPGRADERA "Other" när TCGdex hunnit ikapp. Utan den här raden hade ett set
+      // som skapats före TCGdex fått sitt datum men blivit kvar i "Other" för alltid,
+      // eftersom "Other" räknas som ett avgjort värde.
+      else if (resolvedSeries !== JP_SERIES_UNKNOWN && s.series !== resolvedSeries) data.series = resolvedSeries;
+      if (!s.releaseDate && tcg?.releaseDate) data.releaseDate = new Date(tcg.releaseDate);
     }
 
     if (Object.keys(data).length === 0) continue;

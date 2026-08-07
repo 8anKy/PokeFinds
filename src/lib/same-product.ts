@@ -19,7 +19,9 @@ const SYSTEM = [
   "Följande är INTE skillnader: era-/serieprefix (Scarlet & Violet, SV10.5, Mega Evolution m.fl. är setets familj),",
   "'Display' = 'Booster Box' (gäller boosterlådor), ordföljd/stavning/svenska vs engelska beskrivningsord, butiksbrus",
   "(t.ex. 'max 1 per kund', 'förhandsbokning', '(5 cards)', '(30 boosters)'). OBS: 'Mini Tin Display' är en LÅDA MED FLERA tins",
-  "≠ en enskild mini tin — det ÄR en konkret motsägelse. Osäker UTAN konkret motsägelse: same=true.",
+  "≠ en enskild mini tin — det ÄR en konkret motsägelse. Samma sak för 'Booster Box CASE': ett case innehåller FLERA",
+  "boosterlådor och är aldrig samma SKU som en enskild 'Booster Box' (mätt 2026-08-07: domaren sa same=true på just det paret).",
+  "Osäker UTAN konkret motsägelse: same=true.",
   "Anropa alltid report_same.",
 ].join(" ");
 

@@ -246,8 +246,31 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   har en `optgroup` "Japanska" (platt där, precis som EN-listan i samma kontroll). `/sets`-galleriet är
   ENGELSKT tills vidare (JP-set har inga kortrader). Backfill/granskning = `scripts/label-jp-sets.ts`
   (torrkörning default, `--apply`).
-  ⚠️ Kvar: 4 produkter utan CM-koppling alls (2 st "Storm Emeralda" som CM ännu inte har) — de etiketteras
-  automatiskt så fort JP-prisrefreshens mappning hittar dem.
+  ⛔ **LLM-DOMAREN AVVISADE VARJE KORREKT JP-PAR (rättat 2026-08-07)**: `judgeSameProduct`s systemprompt
+  säger — riktigt i allmänhet — att "japansk ≠ engelsk utgåva är ALLTID olika produkter". Men Cardmarket
+  skriver ALDRIG ut språket i namnet på en japansk expansion, medan våra butikstitlar alltid gör det
+  ("(Japansk)"). Domaren läste den saknade markören i B som en konkret motsägelse och svarade same=false på
+  VARJE par: "VMAX Climax Booster" (sim 1,00!), "Storm Emeralda Booster Box" (0,91), "Jet Black Spirit
+  Booster Box" (0,82). Följden: INGEN ny japansk SKU kunde någonsin auto-mappas — fyra produkter satt utan
+  pris och utan set, och Storm Emeralda-setet fanns inte alls. Ledtråden säger nu uttryckligen att frånvaron
+  av språkmarkör i B inte är ett bevis. ⛔ Men den fick inte göra domaren slapp: mätt på 9 kontrollfall
+  (4 rätta par + 5 fällor) blev det först 7/9 — "Booster Box CASE" (en låda MED FLERA lådor) godkändes som
+  "Booster Box". Den regeln ligger nu i SYSTEMprompten (gäller alla anropare) och kontrollen står på 8/9.
+  Kvarvarande miss: internationella "151" mot japanska. Skyddet mot DEN är strukturellt och sitter ovanför
+  domaren — `ownedBy` filtrerar bort varje idProduct som redan ägs, och vår engelska katalog är komplett,
+  så CM:s internationella produkter når aldrig fram som JP-kandidater. **Domaren är andra linjen.**
+  **KODEN KAN KOMMA FRÅN CARDTRADER (2026-08-07)**: ett japanskt set finns hos CM långt före TCGdex — Storm
+  Emeralda låg i CM:s katalog 2026-07-02 medan TCGdex fortfarande slutade på M5, och butikstitlarna bar
+  ingen kod. Setet skapades därför utan kod, era och datum. `cardTraderCode()` slår upp koden i CardTraders
+  expansionslista (M6 ✓) och skriver in den i namnet, så TCGdex-uppslaget kan lyckas SENARE:
+  `refreshJpSetMetadata` plockar upp varje datumlöst set igen, och "Other" uppgraderas till rätt era när
+  TCGdex hunnit ikapp. ⛔ **Filtrera på `game_id === 5`** — listan spänner över alla spel CardTrader säljer,
+  och "25th Anniversary" matchade en YU-GI-OH!-expansion (torrkörningen visade "25th Anniversary (25THYUG)").
+  ⛔ Kräv ETT entydigt namn: CT listar både "Black Bolt | sv11B" (japanska) och "Black Bolt" (`blk`,
+  internationella).
+  ⚠️ Läge 2026-08-07: 100 av 100 JP-produkter har set, 50 set, alla med logotyp. Datumlösa (sorteras sist,
+  grupp "Other"): **Storm Emeralda (M6)** — läker av sig själv när TCGdex publicerar M6 — och
+  **25th Anniversary**, som saknar entydig kod hos alla källor.
 - **SET-BEVAKNING ÄR EN STÅENDE REGEL, INTE EN ÖGONBLICKSBILD (2026-08-06)**: `SetWatch` (userId+setId, unik) ger
   restock-larm på ALLA sealed-produkter i ett set. ⛔ Expandera den ALDRIG till en `WatchlistItem` per sealed-produkt
   vid klick: auto-importen (`ensureListingProduct`) skapar sealed-SKU:er löpande, så en expansion vid klicktillfället
