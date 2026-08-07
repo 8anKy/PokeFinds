@@ -34,6 +34,7 @@ import {
   identicalIdentity,
   wrapperArtSameProduct,
   isAccessoryListing,
+  isStoreBundleListing,
   isOtherFranchiseListing,
   isPlausiblePriceFor,
   loadMatchIndex,
@@ -220,6 +221,10 @@ export async function ensureListingProduct(
   // även för äkta "Mini Portfolio + Booster" — att grinda på formen hade blockerat en riktig
   // sealed-SKU, vilket är värre än att släppa in ett fodral.
   if (isAccessoryListing(cleanTitle)) return null;
+  // BUTIKSEGNA BUNDLES (mystery boxes, "alla fem tins") är butikens egen hopsättning
+  // och saknar både streckkod och motsvarighet hos andra butiker — de går alltså inte
+  // att prisjämföra, vilket är hela kataloges syfte. Ägarbeslut 2026-08-07.
+  if (isStoreBundleListing(cleanTitle)) return null;
   // ANNAN TCG-FRANCHISE (One Piece/Lorcana/MTG …): butikernas Pokémon-kollektioner
   // läcker ibland grannspel — de blir aldrig katalogprodukter (och därmed aldrig larm,
   // se productId-grinden i skanningsloopen).

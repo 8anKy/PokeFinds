@@ -268,15 +268,59 @@ function cardNameInTitle(name: string, normalizedListing: string): boolean {
 }
 
 /** Tokenisering för databasfiltrering: betydelsebärande ord (längd >= 3). */
+/**
+ * De sex tokens vi hämtar kandidater på.
+ *
+ * ⛔ ORDNINGEN ÄR INTE TITELNS (rättat 2026-08-07). Förut togs helt enkelt de sex
+ *    FÖRSTA orden — och butiker skriver Pokémon-namnet SIST:
+ *      "Pokemon Scarlet & Violet 5: Temporal Forces 3-Pack Blister CLEFFA"
+ *       └─── de sex första ──────────────────────────────┘   cleffa föll bort
+ *    Kvar blev bara era- och formord ("scarlet", "violet", "blister"), som var och
+ *    en har hundratals katalogsyskon och hämtas med `take: 200` UTAN `orderBy` —
+ *    alltså ett godtyckligt urval. Rätt tvilling ("Temporal Forces: Cleffa 3-Pack
+ *    Blister") kom därför aldrig ens in i kandidatpoolen, och alla vakter och
+ *    identitetstester nedanför var meningslösa: de fick aldrig se den.
+ *    Mätt: sex av de bildlösa dubblettprodukterna uppstod exakt så.
+ *
+ * FORMORD OCH ERA-ORD SIST. De är per definition de minst särskiljande (de delas av
+ * hela katalogen), medan karaktärs- och setnamn är det som pekar ut EN produkt.
+ * Antalet tokens är oförändrat (6) → lika många frågor som förut, ingen extra
+ * kostnad; det är URVALET som blivit rätt.
+ */
 function significantTokens(normalized: string): string[] {
-  return normalized
-    .split(" ")
-    .filter((t) => t.length >= 3 && !STOPWORDS.has(t))
-    .slice(0, 6);
+  const tokens = normalized.split(" ").filter((t) => t.length >= 3 && !STOPWORDS.has(t));
+  const distinctive = distinctiveWords(normalized);
+  const rank = (t: string): number => {
+    // ⛔ ERA-ORDEN FÖRST BORT. "scarlet"/"violet" räknas som distinctive (de är
+    //    varken stoppord eller formord) men delas av tusentals produkter, och
+    //    eftersom de står FÖRST i butikstiteln åt de upp hela kandidattaket innan
+    //    "cleffa" ens hann frågas. Mätt: tokens blev ["scarlet","violet",…] och
+    //    poolen fylldes med 400 godtyckliga S&V-produkter — noll av dem tvillingen.
+    if (ERA_TOKENS.has(t)) return 2;
+    if (distinctive.has(t)) return 0; // karaktärs-/setnamn
+    if (FORM_WORDS.has(t)) return 3; // "booster", "blister", "box" …
+    return 1; // siffror, övrigt
+  };
+  // Stabil sortering: samma rang → titelns ordning (Array.prototype.sort är stabil
+  // i Node). Deterministiskt urval, ingen slump.
+  return tokens
+    .map((t, i) => ({ t, i, r: rank(t) }))
+    .sort((a, b) => a.r - b.r || a.i - b.i)
+    .slice(0, 6)
+    .map((x) => x.t);
 }
 
 /** Era-/serievarumärke någonstans i titeln? (icke-global → säkra .test-anrop). */
 const ERA_RE = /\b(mega evolution|scarlet( and| &)? violet|sword( and| &)? shield|sun( and| &)? moon)\b/i;
+
+/**
+ * Enskilda ord ur era-namnen. Används BARA för att prioritera ned dem när
+ * kandidat-tokens väljs (se significantTokens) — de är inte stoppord, för i
+ * "Scarlet & Violet Booster Box" ÄR de produktens identitet.
+ * ⚠️ "mega"/"evolution" står MED FLIT inte här: "Mega Evolution" är också ett
+ *    riktigt setnamn, och att ranka ner det hade tömt kandidatpoolen för de seten.
+ */
+const ERA_TOKENS = new Set(["scarlet", "violet", "sword", "shield", "sun", "moon"]);
 
 /**
  * Sifferset-namn som ÄR produktidentitet trots att de börjar på siffra ("151" =
@@ -716,6 +760,33 @@ export function characterNames(title: string): Set<string> {
  * True när båda titlarna namnger karaktärer och INGEN delas. Snittbaserad (inte
  * likhet): "Pikachu & Zekrom" mot "Zekrom" delar zekrom → ingen krock.
  */
+/**
+ * BLISTRAR IDENTIFIERAS AV KARAKTÄREN — och därför är en ENSIDIG karaktär en
+ * motsägelse, inte ett tomrum.
+ *
+ * `characterMismatch` ger med flit upp när bara ena sidan nämner en Pokémon ("låt
+ * övriga vakter avgöra"). Det är rätt för de flesta former, men fel för blistrar:
+ * Cardmarket namnger alla 486 blistrar "Set: KARAKTÄR N-Pack Blister", dvs
+ * karaktären ÄR SKU:n. Mätt 2026-08-07 band matcharen därför ihop
+ *   "…Journey Together Checklane Blister SCRAGGY" → "…Journey Together Premium
+ *    Checklane Blister" (0,95 — över auto-link-gränsen!)
+ * och "…Stellar Crown … ROARING MOON" → "Stellar Crown: ANCIENT …". Båda är olika
+ * varor, och 0,95 hade länkats utan att någon fick frågan.
+ *
+ * ⛔ Bara för form `blister` i BÅDA titlarna. En ETB-titel får gärna nämna en
+ *    Pokémon som katalogen utelämnar (omslagskonst) — där vore vetot fel.
+ */
+export function blisterCharacterMismatch(a: string, b: string): boolean {
+  if (classifyForm(normalizeTitle(a)) !== "blister") return false;
+  if (classifyForm(normalizeTitle(b)) !== "blister") return false;
+  const na = characterNames(a);
+  const nb = characterNames(b);
+  if (na.size === 0 && nb.size === 0) return false; // båda generiska → inget att jämföra
+  if (na.size === 0 || nb.size === 0) return true; // en namnger sin, den andra inte
+  for (const n of na) if (nb.has(n)) return false;
+  return true;
+}
+
 export function characterMismatch(a: string, b: string): boolean {
   const na = characterNames(a);
   const nb = characterNames(b);
@@ -1107,6 +1178,23 @@ export function isOtherFranchiseListing(title: string): boolean {
 }
 
 /**
+ * BUTIKSEGNA BUNDLES — butikens egen hopsättning, inte en tillverkar-SKU.
+ * "Swepoke Mystery Pack 1.0 (4 Booster Packs)", "Mini Tin Luminose City: Alla fem
+ * tins". De har inget pris att jämföra mellan butiker (ingen annan säljer exakt
+ * samma påse), ingen streckkod och inget Cardmarket-motsvarighet — de hör alltså
+ * inte hemma i en PRISKATALOG. Ägarbeslut 2026-08-07.
+ *
+ * ⛔ Smalt med flit. "Mystery" ensamt är förbjudet: katalogen har riktiga kort som
+ *    heter "Mystery Garden", "Mystery Plate" och "Mystery Energy" — en bred regel
+ *    hade raderat dem. Kräver därför mystery + box/pack/påse, eller "alla N tins".
+ */
+const STORE_BUNDLE_SIGNS =
+  /\bmystery\s*(box|pack|påse|bag)\b|\bmysterybox\b|\balla\s+(fem|5|fyra|4|tre|3)\s+(tins?|askar|paket)\b/i;
+export function isStoreBundleListing(title: string): boolean {
+  return STORE_BUNDLE_SIGNS.test(title);
+}
+
+/**
  * Blister-underformer är EGNA SKU:er, inte samma sak. classifyForm klumpar ihop dem
  * till "blister" → vakten släppte igenom:
  *   "Perfect Order - Blister (1-pack)"   ≠ "Perfect Order 3-pack Blister"
@@ -1249,10 +1337,17 @@ export async function loadMatchIndex(): Promise<MatchIndex> {
  *   singel ("(sm12a 220)") eller ett antal ("1-pack"). Utelämnas den hoppas de vakterna
  *   över — anropare som HAR råtiteln bör alltid skicka med den.
  */
+/**
+ * @param excludeProductId Produkt som ALDRIG får returneras. Behövs när frågan är
+ *   "finns det en ANNAN produkt som är samma vara som den här?" — dvs dubblett-
+ *   städningen, som annars bara får tillbaka produkten själv på exakt-träffen.
+ *   Import-vägen skickar den aldrig: där finns produkten ännu inte.
+ */
 export async function matchProduct(
   normalizedTitle: string,
   index?: MatchIndex,
-  rawTitle?: string
+  rawTitle?: string,
+  excludeProductId?: string
 ): Promise<{ productId: string; confidence: number } | null> {
   const normalized = normalizeTitle(normalizedTitle);
   if (!normalized) return null;
@@ -1261,8 +1356,11 @@ export async function matchProduct(
 
   // 1. Exakt träff på normaliserad titel
   const exact = index
-    ? index.find((p) => p.normalizedTitle === normalized)
-    : await prisma.product.findFirst({ where: { normalizedTitle: normalized }, select: { id: true } });
+    ? index.find((p) => p.normalizedTitle === normalized && p.id !== excludeProductId)
+    : await prisma.product.findFirst({
+        where: { normalizedTitle: normalized, ...(excludeProductId ? { id: { not: excludeProductId } } : {}) },
+        select: { id: true },
+      });
   if (exact) return { productId: exact.id, confidence: 1 };
 
   // 2. Kandidater: hämta per token (union) så att sällsynta tokens som
@@ -1293,7 +1391,11 @@ export async function matchProduct(
       take: 200,
     });
     for (const r of rows) candidateMap.set(r.id, r);
-    if (candidateMap.size >= 400) break;
+    // ⛔ BRYT INTE FÖRE SISTA TOKEN. Taket låg på 400 och stoppade loopen efter två
+    //    vanliga ord — de SÄRSKILJANDE orden längre bak frågades aldrig, så rätt
+    //    produkt kunde inte finnas i poolen hur bra vakterna än var. Taket finns
+    //    kvar som skydd mot orimliga pooler, men ligger nu ovanför 6 × 200.
+    if (candidateMap.size >= 1400) break;
   }
 
   // Katalogtiteln kan vara en ren delmängd av en brusig butikstitel ("white flare
@@ -1331,8 +1433,8 @@ export async function matchProduct(
   // Sedan 2026-08-03 gäller samma fråga ALLA varianter, inte bara Base-trion:
   // reverse holo blev egna produkter och föll rakt igenom den gamla
   // `isPrintVariantLabel`-grinden. Se `listingFitsVariant`.
-  const candidates = [...candidateMap.values()].filter((c) =>
-    listingFitsVariant(c.variantLabel, raw, c.card?.name)
+  const candidates = [...candidateMap.values()].filter(
+    (c) => c.id !== excludeProductId && listingFitsVariant(c.variantLabel, raw, c.card?.name)
   );
   if (candidates.length === 0) return null;
 
@@ -1373,6 +1475,8 @@ export async function matchProduct(
   }
 
   let best: { productId: string; confidence: number } | null = null;
+  /** Kandidater som är identitetslika OCH konfliktfria — se blocket längst ned i loopen. */
+  const identicalHits: { productId: string; confidence: number }[] = [];
 
   // Bara tal (utan "X/Y") i en singel-annons: samma vakt som matchListingToProduct.
   // Utan den fastnar "Milotic ex 42 Surging Sparks" på specialarten 217.
@@ -1478,6 +1582,10 @@ export async function matchProduct(
     if (characterMismatch(raw, c.normalizedTitle)) {
       continue;
     }
+    // Blister: även EN ENSIDIG karaktär är en motsägelse — se funktionen.
+    if (blisterCharacterMismatch(raw, c.normalizedTitle)) {
+      continue;
+    }
     // En PÅSE är aldrig en BOX. Saknades: en enskild booster kunde vinna boxen på ren
     // Dice-poäng (färre tokens i "Flashfire Booster Box" → 0,65 mot baspackens 0,64).
     // Boxen kostar ~100x påsen — den felmatchen är dyr och alltid fel.
@@ -1524,9 +1632,37 @@ export async function matchProduct(
     if (mutualIdentityConflict(normalized, c.normalizedTitle)) {
       score = Math.min(score, CONFLICT_CONFIDENCE_CAP);
     }
+    // ── IDENTITET SLÅR POÄNG (2026-08-07) ───────────────────────────────────
+    // Kandidaten har passerat HELA vaktkedjan ovan OCH bär exakt samma
+    // identitets-ordmängd (era-namn, setkoder och formord borträknade). Då är det
+    // samma vara — oavsett att en ANNAN kandidat råkar få högre Dice-poäng.
+    //
+    // VARFÖR (mätt 2026-08-07): butiker skriver samma SKU i en annan ordföljd,
+    // "…Temporal Forces 3-Pack Blister CLEFFA" mot katalogens "Temporal Forces:
+    // CLEFFA 3-Pack Blister" (0,68). Högst poäng fick i stället SYSKONET
+    // "…3-Pack Blister CYCLIZAR" (0,92!) — samma butiks egen ordföljd matchar sig
+    // själv bäst. Syskonet förkastades korrekt av konfliktvakten, men matchProduct
+    // returnerade bara ETT förslag, så anroparens deterministiska identitetstest
+    // fick aldrig se den rätta tvillingen och en dubblett skapades. Sex av de
+    // bildlösa produkterna kom till exakt så.
+    if (identicalIdentity(normalized, c.normalizedTitle) && !productsConflict(normalized, c.normalizedTitle)) {
+      identicalHits.push({ productId: c.id, confidence: score });
+    }
+
     if (!best || score > best.confidence) {
       best = { productId: c.id, confidence: score };
     }
+  }
+
+  // ⛔ BARA när den är ENTYDIG. Två identitetslika kandidater betyder att vi inte
+  //    kan veta vilken som är rätt (t.ex. en 1-pack och en 3-pack vars räkneord
+  //    inte fångats) — då får poängen och anroparens övriga prövning avgöra, precis
+  //    som förut. Samma "hellre ingen länk än fel länk"-regel som resten av filen.
+  if (identicalHits.length === 1) {
+    // Poängen behålls som den är: den är bara en sorteringssignal här, identiteten
+    // är beviset. Den passerar därför MIN_CONFIDENCE-golvet med flit — ett
+    // deterministiskt identitetsbevis ska inte falla på ett Dice-tal.
+    return identicalHits[0];
   }
 
   if (best && best.confidence >= MIN_CONFIDENCE) return best;

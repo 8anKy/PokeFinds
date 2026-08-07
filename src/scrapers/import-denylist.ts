@@ -79,6 +79,18 @@ const DENIED = new Set<string>(
     // upprepat till "Mega Lucario ex LEAGUE Battle Deck" (annan produkt, ~529 kr). Vi har
     // ingen vanlig Lucario ex Battle Deck-produkt → neka så länken inte återuppstår.
     "https://dragonslair.se/products/the-pokemon-tcg-lucario-ex-battle-deck",
+    // ── Ägarbeslut 2026-08-07: inga tillbehör, inga butiksegna bundles ──────────
+    // Tillbehör (plastfodral). `isAccessoryListing` fångar dem numera vid importen,
+    // men URL:erna står här också: den vakten bygger på TITELN, och en butik som
+    // döper om produkten hade smugit in dem igen.
+    "https://speltrollet.se/products/evoretro-pet-protectors-for-elite-trainer-boxes-5-pack",
+    "https://speltrollet.se/products/evoretro-pet-protectors-for-pokemon-booster-display-boxes-5-pack",
+    // Butiksegna bundles: en "mystery box" och fem tins sålda i klump är butikens
+    // egen hopsättning, inte en tillverkar-SKU — de har inget pris att jämföra
+    // mellan butiker och hör därför inte hemma i en priskatalog.
+    "https://www.swepoke.se/pokemon/mystery-box/swepoke-mysterybox",
+    "https://www.tradera.com/item/1001341/742200148/pokemon-tcg-luminous-city-mini-tins",
+    "https://manatorsk.com/products/pokemon-mini-tin-luminose-city-alla-fem-tins-max-1st-per-hushall",
   ].map(normUrl)
 );
 
