@@ -35,7 +35,14 @@ const config: CapacitorConfig = {
         // → accept → tillbaka till foilio.se) måste stanna i WebView:en, annars öppnar
         // det i system-Safari (en HELT separat cookie-jar) → skey-cookien tappas och
         // /installningar visas med Safaris egen (ev. andra) inloggade session.
-        allowNavigation: ["foilio.se", "www.foilio.se", "api.tradera.com"],
+        // discord.com: samma sak för Discord-OAuth:en (connect → authorize → callback).
+        // Utan den öppnade authorize-sidan i Safari, där Foilio-sessionen inte finns →
+        // callbacken svarade "fel-ingen-session" och användaren dumpades på webbens
+        // inloggning. I WebView:en delar hela kedjan cookie-jar, och Discord-inloggningen
+        // görs EN gång (WKWebView:s cookies överlever appomstarter). Det finns ingen
+        // "logga in via Discord-appen"-väg att erbjuda i stället: Discords OAuth är
+        // alltid deras webbsida, per deras egen design.
+        allowNavigation: ["foilio.se", "www.foilio.se", "api.tradera.com", "discord.com"],
       }
     : { androidScheme: "https" },
   ios: {
