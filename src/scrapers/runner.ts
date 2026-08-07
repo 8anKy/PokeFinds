@@ -22,11 +22,36 @@ import {
   GoblinenAdapter,
   DragonsLairAdapter,
   ManatorskAdapter,
+  TcgStoreAdapter,
+  BeamCardshopAdapter,
+  HobbykortAdapter,
+  PoketalkAdapter,
+  KantoVaultAdapter,
+  PokemurreAdapter,
+  AuroraDexAdapter,
+  TinyMistersAdapter,
+  CardlevelsAdapter,
+  KortarkivetAdapter,
+  RahTechAdapter,
+  CardClubAdapter,
+  BlindboxAdapter,
+  RgbKingzAdapter,
+  MiniatureMetropolisAdapter,
+  PokexclusiveAdapter,
+  SpelgalaxenAdapter,
 } from "@/scrapers/adapters/shopify-adapter";
 import {
   SwepokeAdapter,
   ShinycardsAdapter,
+  CardGameAdapter,
+  MysteryShackAdapter,
+  PacksOnPacksAdapter,
 } from "@/scrapers/adapters/quickbutik-adapter";
+import {
+  FantasiaNorthAdapter,
+  TheSwedishFishAdapter,
+  PocketmonstersAdapter,
+} from "@/scrapers/adapters/woocommerce-adapter";
 import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
 import {
   classifyForm,
@@ -36,6 +61,9 @@ import {
   isAccessoryListing,
   isStoreBundleListing,
   isOtherFranchiseListing,
+  isMerchandiseListing,
+  isSingleCardListing,
+  nearestCatalogCandidate,
   isPlausiblePriceFor,
   loadMatchIndex,
   matchProduct,
@@ -74,6 +102,34 @@ const SCRAPER_ADAPTERS: Record<string, new () => SourceAdapter> = {
   Shinycards: ShinycardsAdapter,
   // Custom-plattform (server-renderad PT_-markup)
   MaxGaming: MaxGamingAdapter,
+  // ---- Wave 4 (2026-08-07): 23 nya butiker på tre återanvända plattformar ----
+  // Nyckeln HÄR måste vara exakt samma sträng som ScrapeSource.name och adapterns
+  // `name` — getAdapter slår upp på källans namn, och en glidning ger "Ingen
+  // scraper-adapter för …" mitt i en nattkörning. tests/unit/adapter-registry.test.ts
+  // vaktar att de tre stämmer överens.
+  "TCG Store": TcgStoreAdapter,
+  "Beam Cardshop": BeamCardshopAdapter,
+  Hobbykort: HobbykortAdapter,
+  Pokétalk: PoketalkAdapter,
+  "Kanto Vault": KantoVaultAdapter,
+  Pokemurre: PokemurreAdapter,
+  AuroraDex: AuroraDexAdapter,
+  "Tiny Misters": TinyMistersAdapter,
+  Cardlevels: CardlevelsAdapter,
+  Kortarkivet: KortarkivetAdapter,
+  RahTech: RahTechAdapter,
+  "Card Club": CardClubAdapter,
+  Blindbox: BlindboxAdapter,
+  "RGB Kingz": RgbKingzAdapter,
+  "Miniature Metropolis": MiniatureMetropolisAdapter,
+  Pokexclusive: PokexclusiveAdapter,
+  Spelgalaxen: SpelgalaxenAdapter,
+  CardGame: CardGameAdapter,
+  "Mystery Shack": MysteryShackAdapter,
+  "Packs on Packs": PacksOnPacksAdapter,
+  "Fantasia North": FantasiaNorthAdapter,
+  "The Swedish Fish": TheSwedishFishAdapter,
+  Pocketmonsters: PocketmonstersAdapter,
 };
 
 export function getAdapter(type: SourceType, sourceName?: string): SourceAdapter {
@@ -138,6 +194,18 @@ export interface RestockSourceInfo {
 /** Hur många butiker som hämtas parallellt (olika hostar → artigt per värd ändå). */
 const RESTOCK_SCAN_CONCURRENCY = 4;
 
+/**
+ * Golv för att ens FRÅGA LLM-domaren om en annons matcharen inte ville binda
+ * (se nearestCatalogCandidate). Inte ett bevis — ett filter mot att fråga om
+ * orelaterade varor.
+ *
+ * 0,75 valt på de uppmätta dubbletterna: de tre Wave 4 skapade låg på 0,858, 0,913 och
+ * 0,945, medan det fjärde fallet ("Storm Emerald Booster Box" mot vår japanska post,
+ * 0,565) med flit hamnar UNDER — där är annonsen och katalogposten oense om språket och
+ * en gissning skulle länka en förhandsbokning till fel utgåva.
+ */
+const SECOND_CHANCE_MIN_SCORE = 0.75;
+
 /** En normaliserad annons från en butiksfeed, med det som ett feed-först-larm behöver. */
 type FeedItem = {
   url: string;
@@ -170,7 +238,13 @@ const SEALED_FEED_CATEGORIES = new Set([
  */
 export async function ensureListingProduct(
   it: { title: string; url: string; price: number | null; imageUrl: string | null; retailerId: string; category: string | null; sourceName?: string },
-  stockStatus: StockStatus
+  stockStatus: StockStatus,
+  /**
+   * Katalogen i minnet. Utan den går matchningen via DB-vägen, som filen själv
+   * dokumenterar som opålitlig (`take: 200` utan `orderBy` = godtycklig delmängd →
+   * rätt kandidat föll ofta utanför). Anroparen laddar den EN gång och delar den.
+   */
+  index?: MatchIndex
 ): Promise<string | null> {
   const category = (it.category ?? null) as ProductCategory | null;
   if (!category) return null;
@@ -229,6 +303,16 @@ export async function ensureListingProduct(
   // läcker ibland grannspel — de blir aldrig katalogprodukter (och därmed aldrig larm,
   // se productId-grinden i skanningsloopen).
   if (isOtherFranchiseListing(cleanTitle)) return null;
+  // ENSKILDA KORT (2026-08-07). Vakten fanns sedan länge i productsConflict() — men
+  // aldrig HÄR, i den enda kodväg som SKAPAR produkter. Det gick an så länge butikerna
+  // vi hämtade sålde nästan bara sealed. De nya gör inte det: Pokétalk har 113
+  // Pokémon-kollektioner varav flera är löskort och graderade kort, Pocketmonsters
+  // 1 592 poster under "pokemonkort". En singel bär sällan formord ⇒ guessCategory
+  // landar på OTHER, som med flit räknas som sealed ⇒ varje singel hade blivit en egen
+  // katalogprodukt bredvid den riktiga (som prissätts av Cardmarket, aldrig av butik).
+  if (isSingleCardListing(cleanTitle)) return null;
+  // MERCH (gosedjur, figurer, affischer, kläder) — samma hål, samma väg in.
+  if (isMerchandiseListing(cleanTitle)) return null;
   const normalized = normalizeTitle(cleanTitle);
 
   // ---- GTIN-först: tillverkarens streckkod är en EXAKT nyckel, inte en gissning ----
@@ -247,7 +331,7 @@ export async function ensureListingProduct(
     }
   }
 
-  const match = await matchProduct(normalized);
+  const match = await matchProduct(normalized, index, cleanTitle);
   // GTIN-KONFLIKT = MERGE-VAKT. Har både annonsen och kandidaten en kod och de skiljer sig
   // åt är det bevisat OLIKA tillverkar-SKU:er (påse 4521329432267 ≠ display 4521329432274).
   // Vi BLOCKERAR DÅ SAMMANSLAGNINGEN — aldrig länken: annonsen blir en egen produkt med
@@ -296,6 +380,37 @@ export async function ensureListingProduct(
       }
     }
   }
+
+  // ---- ANDRA CHANSEN: matcharen sa NULL, men finns varan ändå hos oss? ----
+  // `matchProduct` avstår med flit när den inte kan VETA (täckningsgolv, marginalvakt,
+  // tvåsidiga vakter) — rätt regel i prisvägen, där en felaktig länk ger fel pris. Här
+  // är frågan en annan: "har vi den här varan redan?" Ett falskt nej blir en dubblett.
+  // Mätt på Wave 4:s tre första importer skapades 2 dubbletter av 3 nya produkter, alla
+  // med en katalogpost på 0,91–0,95 i Dice. Se nearestCatalogCandidate för varje fall.
+  //
+  // ⛔ Kräver indexet. Utan det (äldre anropare, DB-vägen) hoppas steget över helt —
+  //    en katalogbred Dice-svepning per annons mot databasen vore orimlig.
+  // ⛔ Domaren avgör, inte poängen. Golvet finns bara för att slippa fråga om
+  //    orelaterade varor; att 0,86 är "nästan" betyder ingenting i sig.
+  if (!productId && !match && index) {
+    const near = nearestCatalogCandidate(normalized, cleanTitle, index, SECOND_CHANCE_MIN_SCORE);
+    if (near) {
+      const candidate = await prisma.product.findUnique({
+        where: { id: near.id },
+        select: { title: true, gtin: true },
+      });
+      // Streckkoden svarar före domaren, precis som ovan: två olika tillverkarkoder är
+      // bevisat olika SKU:er och då ska annonsen bli en egen produkt.
+      if (candidate && !gtinConflict(gtin, candidate.gtin ?? null)) {
+        const verdict = await judgeSameProduct(cleanTitle, candidate.title);
+        if (verdict?.same) {
+          console.log(`[dedup] Andra chansen band "${cleanTitle}" → "${candidate.title}" (${near.score.toFixed(3)})`);
+          productId = near.id;
+        }
+      }
+    }
+  }
+
   if (!productId) {
     let slug = slugify(cleanTitle) || `produkt-${Date.now().toString(36)}`;
     if (await prisma.product.findUnique({ where: { slug }, select: { id: true } })) {
@@ -547,6 +662,8 @@ export async function runRestockScan(opts?: {
   let checked = 0;
   let restocks = 0;
   let newListings = 0;
+  /** Lat, delad katalog i minnet — se anropet i feed-först-grenen. */
+  let matchIndexForImport: MatchIndex | null = null;
   for (const [key, it] of fresh) {
     const newStatus = it.stockStatus;
     const offer = offerByKey.get(key);
@@ -620,7 +737,12 @@ export async function runRestockScan(opts?: {
     checked++;
     // Auto-import: skapa/länka katalogprodukt + offer → larmet pekar på VÅR produktsida
     // (in-app), och nästa skanning spårar URL:en via offer-diffen ovan.
-    const productId = await ensureListingProduct(it, newStatus);
+    // Katalogindexet laddas LAT och delas: bara feed-först-grenen behöver det, och en
+    // körning där ingen butik har en okänd URL (det normala) ska inte betala för att
+    // läsa ~22k rader ur Neon. Se loadMatchIndex för varför minnesvägen är den enda
+    // pålitliga — och nearestCatalogCandidate för vad den används till här.
+    matchIndexForImport ??= await loadMatchIndex();
+    const productId = await ensureListingProduct(it, newStatus, matchIndexForImport);
     const listing = listingByKey.get(key);
     if (!listing) {
       // Aldrig sedd → skapa huvudboksrad. Larma BARA om butiken redan har historik

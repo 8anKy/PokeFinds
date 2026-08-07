@@ -748,7 +748,16 @@ export function cardSuffixMismatch(a: string, b: string): boolean {
  * karaktärsvokabulär — se src/scrapers/pokemon-names.ts (genererad).
  */
 export function characterNames(title: string): Set<string> {
-  const toks = normalizeTitle(title).split(" ");
+  // SNEDSTRECKET ÄR EN AVGRÄNSARE, INTE EN BOKSTAV. `normalizeTitle` behåller "/"
+  // (kortnummer som "4/102" behöver det), så "psyduck/golduck" blev EN token som
+  // förstås inte står i namnlistan — och titeln lästes som HELT karaktärslös. För
+  // blistrar är det inte ett tomrum utan en motsägelse (blisterCharacterMismatch), så
+  // "…3 Pack Blister (Psyduck/Golduck)" avvisades mot katalogens "…: Psyduck 3-Pack
+  // Blister" trots att de delar karaktär. MÄTT 2026-08-07 över alla katalogtitlar och
+  // butiksannonser: 20 titlar innehåller "ord/ord" och exakt 5 påverkas — alla fem får
+  // karaktärer de borde ha haft (Sneasel/Weavile, Psyduck/Golduck, Zacian/Koraidon).
+  // Ingen titel FÖRLORAR ett namn: en split kan bara ge fler tokens att slå upp.
+  const toks = normalizeTitle(title).split(/[\s/]+/);
   const found = new Set<string>();
   for (let i = 0; i < toks.length; i++) {
     // Längsta n-gram först ("team rocket" före "rocket").
@@ -1053,6 +1062,22 @@ const SINGLE_CARD_SIGNS = [
   // "Noctowl #141". Krav på blanksteg/parentes före # — annars träffar HTML-entiteten
   // &#039; (apostrof) i feed-titlar: "Cynthia&#039;s Garchomp" flaggades som singel.
   /(?:^|[\s(])#\s?\d{1,3}\b/,
+  // SAMLARNUMMER/TOTAL — "Gapejaw Bog 213/195", "Raihan TG27/TG30", "050/071".
+  // Det vanligaste singel-tecknet av alla, och det saknades: butikerna vi hämtade
+  // förut sålde nästan bara sealed, så hålet syntes aldrig. Pocketmonsters
+  // (leksaksbutik med 1 592 poster under "pokemonkort") fyllde en hel provkörning
+  // med sådana titlar som alla passerade som "sealed".
+  //
+  // ⛔ MÄTT FÖRE PÅSLAG (2026-08-07): 0 av 1 466 sealed-titlar i de fem befintliga
+  //    butikernas riktiga feedar och 0 av 1 633 sealed-produkter i katalogen träffas.
+  //    Måttet är kravet — tecknet sitter i productsConflict och en falsk träff där
+  //    BLOCKERAR en korrekt butikslänk, tyst.
+  // ⛔ Kräver avgränsare runt hela uttrycket: utan dem träffar "1/2" i "1/2 pris" och
+  //    årtal som "2024/2025".
+  // Bokstavsprefixet är valfritt och gäller BÅDA sidor: delserierna numrerar så
+  // ("TG27/TG30", "GG08/GG70", "SWSH034/SWSH299") och det är just de tryckningar
+  // någon bryr sig om att lista — en vanlig common säljs sällan styckvis.
+  /(?:^|[\s(\[])[A-Za-z]{0,3}\d{1,3}\s*\/\s*[A-Za-z]{0,3}\d{2,3}(?:$|[\s)\]])/,
 ];
 export function isSingleCardListing(title: string): boolean {
   return SINGLE_CARD_SIGNS.some((re) => re.test(title));
@@ -1202,6 +1227,42 @@ export function isStoreBundleListing(title: string): boolean {
 }
 
 /**
+ * MERCH ÄR INTE TCG (2026-08-07). Tillbehörsvakten täcker spelmattor, sleeves och
+ * pärmar — allt sådant som ligger BREDVID korten i en kortbutik. Den täcker INTE
+ * leksaksaffärens sortiment, för ingen av de butiker vi hade tidigare sålde det.
+ *
+ * Det gör de nya. Pocketmonsters har 268 gosedjur, 515 figurer, 220 artiklar "till
+ * barnrummet", 149 pärmar, 73 klädesplagg och 26 affischer i sina Pokémon-kategorier
+ * (mätt 2026-08-07 via deras egen Store-API). Ett gosedjur bär inget formord, så
+ * `classifyForm` ger null och `guessCategory` landar på OTHER — som med flit räknas
+ * som sealed (se product-category.ts) — och varje sådan annons hade blivit en egen
+ * katalogprodukt. Det är samma hål som tillbehören föll i 2026-07-14, fast tusenfalt.
+ *
+ * ⛔ SEALED-ORDET VETAR ALLTID. Regeln slår bara när titeln saknar formord — precis
+ *    som pärm-undantaget ovan, och av samma skäl: en riktig SKU kan bära ett merch-ord
+ *    ("Ultra-Premium Collection" innehåller en figur, "Mega Evolution Tin" en Poké
+ *    Ball-replika). Ett gosedjur bär däremot aldrig "Booster"/"ETB"/"Tin". Den
+ *    ordningen gör att ett falskt merch-ord kostar ingenting, medan ett glömt kostar
+ *    en katalogprodukt — den asymmetrin ska vakten luta åt.
+ * ⛔ Bart "kalender" är FÖRBJUDET: Pokémons adventskalender är en äkta sealed-SKU
+ *    (booster packs i luckorna) och säljs av butiker vi redan har.
+ * ⛔ Bart "ball" är FÖRBJUDET: Poké Ball är ett riktigt trainer-kort. Krävs ihop med
+ *    ett föremålsord.
+ */
+const MERCHANDISE_SIGNS =
+  /\b(gosedjur|mjukisdjur|plush(ie)?|plysch|figur(er|in|ine)?s?|funko|nendoroid|amiibo|affisch(er)?|poster|tavla|mugg(ar)?|nyckelring|keychain|t-?shirt|tr[öo]ja|hoodie|keps|m[üu]ss(a|or)|strumpor|kl[äa]der|ryggs[äa]ck|pennfodral|pussel|puzzle|lego|mega\s?construx|s[äa]ngkl[äa]der|handduk|termos|vattenflaska|matl[åa]da|godis|choklad)\b|\bpok[eé]\s?ball\s+(figur|leksak|replika|beh[åa]llare)\b/i;
+
+/** Formord som bevisar att annonsen ÄR en sealed TCG-vara, oavsett merch-ord. */
+const SEALED_FORM_WORD =
+  /\b(booster|boosters|display|etb|elite\s*trainer|blister|bundle|tin|tins|booster\s*box|premium\s*collection|build\s*(&|and)\s*battle|checklane|theme\s*deck|battle\s*deck|starter\s*deck)\b/i;
+
+/** Merch (gosedjur, figurer, kläder, affischer) — aldrig en TCG-katalogprodukt. */
+export function isMerchandiseListing(title: string): boolean {
+  if (SEALED_FORM_WORD.test(title)) return false;
+  return MERCHANDISE_SIGNS.test(title);
+}
+
+/**
  * Blister-underformer är EGNA SKU:er, inte samma sak. classifyForm klumpar ihop dem
  * till "blister" → vakten släppte igenom:
  *   "Perfect Order - Blister (1-pack)"   ≠ "Perfect Order 3-pack Blister"
@@ -1287,6 +1348,34 @@ function identityWords(normalized: string): Set<string> {
     out.add(w);
   }
   return out;
+}
+
+/**
+ * OPT-IN-SPÅRNING AV MATCHNINGEN.
+ *
+ * Tre gånger nu har felsökningen av en felmatchning/dubblett stannat på frågan "kom
+ * kandidaten ens in i poolen?" — och tre gånger har svaret krävt att någon läser 250
+ * rader vaktkedja och gissar (kandidaturvalet 2026-08-07, take-utan-orderBy 2026-07-13,
+ * tokenurvalet samma dag). Den här kroken gör frågan mätbar i stället.
+ *
+ * ⛔ NULL I DRIFT. `tracer?.()` på en null-referens är en null-check per kandidat och
+ *    ingenting annat — inga strängar byggs, ingen loggning sker. Sätts BARA av
+ *    scripts/diagnose-listing-match.ts.
+ */
+export interface MatchTrace {
+  poolSize: number;
+  /** Kandidater som överlevde HELA vaktkedjan, med sin slutpoäng. */
+  survivors: { normalizedTitle: string; score: number }[];
+  best: { normalizedTitle: string; score: number } | null;
+  runnerUp: { normalizedTitle: string; score: number } | null;
+  /** Varför matchningen slutade som den gjorde. */
+  outcome: "exakt" | "singel-identitet" | "identitetslik" | "tvetydig" | "under-golvet" | "ingen-kandidat" | "poäng";
+  inPool?: boolean;
+}
+let matchTracer: ((t: MatchTrace) => void) | null = null;
+/** Sätt (eller nollställ med null) spårningen. Endast för diagnosskript. */
+export function setMatchTracer(fn: ((t: MatchTrace) => void) | null): void {
+  matchTracer = fn;
 }
 
 /** Lägsta andel delade särskiljande ord för att en kandidat ska godkännas. */
@@ -1443,7 +1532,18 @@ export async function matchProduct(
   const candidates = [...candidateMap.values()].filter(
     (c) => c.id !== excludeProductId && listingFitsVariant(c.variantLabel, raw, c.card?.name)
   );
-  if (candidates.length === 0) return null;
+  const trace: MatchTrace | null = matchTracer
+    ? { poolSize: candidates.length, survivors: [], best: null, runnerUp: null, outcome: "ingen-kandidat" }
+    : null;
+  const emit = (outcome: MatchTrace["outcome"]) => {
+    if (!trace || !matchTracer) return;
+    trace.outcome = outcome;
+    matchTracer(trace);
+  };
+  if (candidates.length === 0) {
+    emit("ingen-kandidat");
+    return null;
+  }
 
   const incomingSetNum = extractSetNumber(normalized);
   const incomingForm = classifyForm(normalized);
@@ -1658,12 +1758,18 @@ export async function matchProduct(
       identicalHits.push({ productId: c.id, confidence: score });
     }
 
+    trace?.survivors.push({ normalizedTitle: c.normalizedTitle, score });
+
     if (!best || score > best.confidence) {
       runnerUp = best;
       best = { productId: c.id, confidence: score, normalizedTitle: c.normalizedTitle };
     } else if (!runnerUp || score > runnerUp.confidence) {
       runnerUp = { productId: c.id, confidence: score, normalizedTitle: c.normalizedTitle };
     }
+  }
+  if (trace) {
+    trace.best = best ? { normalizedTitle: best.normalizedTitle, score: best.confidence } : null;
+    trace.runnerUp = runnerUp ? { normalizedTitle: runnerUp.normalizedTitle, score: runnerUp.confidence } : null;
   }
 
   // ⛔ BARA när den är ENTYDIG. Två identitetslika kandidater betyder att vi inte
@@ -1674,6 +1780,7 @@ export async function matchProduct(
     // Poängen behålls som den är: den är bara en sorteringssignal här, identiteten
     // är beviset. Den passerar därför MIN_CONFIDENCE-golvet med flit — ett
     // deterministiskt identitetsbevis ska inte falla på ett Dice-tal.
+    emit("identitetslik");
     return identicalHits[0];
   }
 
@@ -1690,12 +1797,81 @@ export async function matchProduct(
   //    ofarligt — därför krävs att identitetsorden skiljer sig.
   if (best && runnerUp && best.confidence - runnerUp.confidence < AMBIGUITY_MARGIN) {
     if (!identicalIdentity(best.normalizedTitle, runnerUp.normalizedTitle)) {
+      emit("tvetydig");
       return null;
     }
   }
 
-  if (best && best.confidence >= MIN_CONFIDENCE) return best;
+  if (best && best.confidence >= MIN_CONFIDENCE) {
+    emit("poäng");
+    return best;
+  }
+  emit("under-golvet");
   return null;
+}
+
+/**
+ * NÄRMASTE KATALOGKANDIDAT — andra chansen INNAN vi skapar en ny produkt.
+ *
+ * `matchProduct` säger nej av två olika sorters skäl, och auto-importen behandlade dem
+ * likadant: som "produkten finns inte". Det stämmer bara för det ena.
+ *
+ *   (a) Ingen kandidat är i närheten          → ny produkt är RÄTT svar.
+ *   (b) Kandidaten finns men får inte VINNA   → ny produkt är en DUBBLETT.
+ *
+ * (b) är inte ett fel i vaktkedjan. Den är byggd för PRISVÄGEN, där en felaktig länk
+ * ger fel pris på en produkt (dyrare fel än en utebliven länk), och den avstår därför
+ * med flit: täckningsgolvet, marginalvakten och de tvåsidiga vakterna säger alla hellre
+ * "vet inte" än "kanske". Auto-importen ställer en ANNAN fråga — "finns den här varan
+ * redan hos oss?" — där ett falskt nej kostar en dubblett.
+ *
+ * MÄTT på de tre första dubbletterna Wave 4 skapade (2026-08-07):
+ *   "Prismatic Evolutions Super-Premium Collection (SPC)"  0,913 mot vår egen post
+ *       → alla kandidater föll på vaktkedjan, 0 överlevare
+ *   "Scarlet of Violet Booster pack" (butikens STAVFEL)    0,945 mot "Scarlet & Violet
+ *       Booster Pack" → nonEraCoverage 0,000 (kandidaten har inga icke-era-ord ALLS)
+ *   "Destined Rivals Booster Pack"                         0,858 mot rätt post, men
+ *       "Destined Rivals Sleeved Booster" låg 0,014 över → marginalvakten sa null
+ *
+ * Den här funktionen VÄLJER INTE — den lämnar över till LLM-domaren, samma instans som
+ * redan avgör 0,55–0,85-bandet. Därför bara de vakter som handlar om IDENTITET
+ * (`productsConflict`, form, påse≠box) och inga poänggolv: ett tal som 0,858 mot 0,872
+ * är precis vad domaren finns till för.
+ *
+ * ⛔ Kort (`c.card`) är alltid uteslutna: en sealed-annons får aldrig landa på en singel.
+ * ⛔ `minScore` är ett GOLV mot att fråga domaren om orelaterade varor, inte ett bevis.
+ */
+export function nearestCatalogCandidate(
+  normalizedTitle: string,
+  rawTitle: string,
+  index: MatchIndex,
+  minScore: number
+): { id: string; normalizedTitle: string; score: number } | null {
+  const normalized = normalizeTitle(normalizedTitle);
+  const incomingForm = classifyForm(normalized);
+  let best: { id: string; normalizedTitle: string; score: number } | null = null;
+  for (const c of index) {
+    if (c.card) continue;
+    const score = scoreSimilarity(normalized, c.normalizedTitle);
+    if (score < minScore || (best && score <= best.score)) continue;
+    const candidateForm = classifyForm(c.normalizedTitle);
+    if (incomingForm && candidateForm && incomingForm !== candidateForm) continue;
+    if (packVsBoxMismatch(rawTitle, c.normalizedTitle)) continue;
+    // ⛔ BLISTRAR OCH DECKS IDENTIFIERAS AV KARAKTÄREN, OCH EN ENSIDIG KARAKTÄR RÄCKER.
+    //    De två här sitter i matchProducts egen loop men INTE i productsConflict, och
+    //    första versionen av den här funktionen ärvde bara den senare. Följden syntes
+    //    direkt i Wave 4-importen: "Pokémon: Mega Evolution - Perfect Order 3-Pack
+    //    Blister" (utan karaktär) bands till "…Perfect Order, 3-Pack Blister: CHIKORITA"
+    //    på 0,814, och "Enhanced 2-Pack Blister" till "…: Genie Trio" på 0,800. CM
+    //    namnger ALLA 486 blistrar "Set: KARAKTÄR N-Pack Blister", så en generisk
+    //    annons kan vara vilken som helst av dem — att välja en är ett myntkast som
+    //    sätter fel pris på en verklig produkt.
+    if (blisterCharacterMismatch(rawTitle, c.normalizedTitle)) continue;
+    if (deckCharacterMismatch(normalized, c.normalizedTitle)) continue;
+    if (productsConflict(rawTitle, c.normalizedTitle)) continue;
+    best = { id: c.id, normalizedTitle: c.normalizedTitle, score };
+  }
+  return best;
 }
 
 /**

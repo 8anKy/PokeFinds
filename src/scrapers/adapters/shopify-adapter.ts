@@ -44,6 +44,27 @@ const MAX_COLLECTIONS = 30;
 const MAX_PAGES_PER_COLLECTION = 8;
 
 /**
+ * Kollektioner vi aldrig hämtar: löskort/graderat och rena merch-hyllor.
+ *
+ * Butikerna vi hade tidigare sålde nästan bara sealed ur sina Pokémon-kollektioner.
+ * De nya gör inte det — Pokétalk har 113 Pokémon-kollektioner, varav flera heter
+ * "loskort" och "graderade kort", och taket på 30 kollektioner hade då avgjorts av
+ * ordningen i collections.json i stället för av innehållet: singlarna hade ätit upp
+ * platserna och de riktiga sealed-kollektionerna fallit utanför.
+ *
+ * Vakterna i ensureListingProduct fångar annonserna ändå (isSingleCardListing,
+ * isMerchandiseListing) — det här sparar hämtningar och, viktigare, PLATSER i taket.
+ *
+ * ⛔ MÄTT FÖRE PÅSLAG (2026-08-07) mot alla fyra befintliga Shopify-butikers riktiga
+ *    feedar: 0 kollektioner bortfiltrerade, 0 produkt-handles förlorade
+ *    (Speltrollet 379, Samlarhobby 250, Goblinen 21, Manatörsk 38 — oförändrat).
+ *    En feed som tappar en URL nollar offern till "Okänd" efter 24h, så den mätningen
+ *    är kravet för att röra det här filtret igen.
+ */
+const NON_SEALED_COLLECTION =
+  /l[oö]s(a|t)?[\s-]*kort|l[oö]skort|\bsingles?\b|\bsinglar\b|singel|gradera|\bgraded\b|\bslabs?\b|gosedjur|plush|figur|affisch|poster|kl[äa]der/i;
+
+/**
  * Shopify Markets serverar products.json med pris per BESÖKARENS marknad (geo/cookie).
  * Våra jobb kör på GitHub Actions (US-datacenter) → utan detta får vi den utländska
  * marknadens EX-moms-pris (Goblinen: 55,20 = 69/1,25; DE-marknaden gav t.o.m. 6,95).
@@ -121,6 +142,20 @@ export abstract class ShopifyAdapter implements SourceAdapter {
   supportsSearch = false;
   supportsStock = true;
 
+  /**
+   * Läs HELA sortimentet via /products.json i stället för per kollektion.
+   *
+   * ⛔ Bara för butiker som säljer enbart Pokémon OCH vars kollektioner är tomma i
+   *    JSON-API:t. Pokexclusive är båda: `collections.json` listar nio Pokémon-
+   *    kollektioner, men var och en svarar `{"products":[]}` (HTTP 200, mätt
+   *    2026-08-07) medan `/products.json` ger hela sortimentet. Kollektionerna är
+   *    alltså kurerade i temat, inte i data — och utan den här vägen blev feeden TOM,
+   *    vilket i drift bara syns som "butiken har inga varor".
+   * ⛔ Sätt den ALDRIG på en fler-spels-butik: då hämtas Magic och One Piece också,
+   *    och franchise-vakten i runnern får städa varenda annons.
+   */
+  protected wholeCatalog = false;
+
   /** Hämtar Pokémon-kollektionernas handles (cachar inte — körs sällan). */
   protected async pokemonCollections(errors: string[]): Promise<string[]> {
     const res = await politeFetch(`${this.baseUrl}/collections.json?limit=250`, { delayMs: 1200, headers: SE_MARKET_HEADERS });
@@ -132,7 +167,7 @@ export abstract class ShopifyAdapter implements SourceAdapter {
     return (data.collections ?? [])
       .filter((c) => {
         const s = `${c.handle} ${c.title}`.toLowerCase();
-        return /pok[eé]mon/.test(s) && !/lego|plush|gosedjur|figur/.test(s);
+        return /pok[eé]mon/.test(s) && !/lego/.test(s) && !NON_SEALED_COLLECTION.test(s);
       })
       .map((c) => c.handle)
       .slice(0, MAX_COLLECTIONS);
@@ -143,10 +178,14 @@ export abstract class ShopifyAdapter implements SourceAdapter {
     const errors: string[] = [];
     const seen = new Set<number>();
     try {
-      const handles = await this.pokemonCollections(errors);
+      // Butiker vars kollektioner är TOMMA i JSON-API:t (se wholeCatalog) läser hela
+      // sortimentet i stället — `null` som handle betyder "/products.json" utan kollektion.
+      const handles = this.wholeCatalog ? [null] : await this.pokemonCollections(errors);
       for (const handle of handles) {
         for (let page = 1; page <= MAX_PAGES_PER_COLLECTION; page++) {
-          const url = `${this.baseUrl}/collections/${handle}/products.json?limit=250&page=${page}`;
+          const url = handle === null
+            ? `${this.baseUrl}/products.json?limit=250&page=${page}`
+            : `${this.baseUrl}/collections/${handle}/products.json?limit=250&page=${page}`;
           const res = await politeFetch(url, { delayMs: 1200, headers: SE_MARKET_HEADERS });
           if (!res.ok) {
             errors.push(`${this.name}: HTTP ${res.status} ${url}`);
@@ -295,4 +334,84 @@ export class DragonsLairAdapter extends ShopifyAdapter {
   protected async pokemonCollections(): Promise<string[]> {
     return ["pokemon-the-trading-card-game"];
   }
+}
+
+// ---------- Wave 4: Shopify-butiker (2026-08-07) ----------
+// Alla verifierade mot sin egen collections.json före påslag: plattform = Shopify,
+// products.json svarar, robots.txt tillåter, och namnfiltret hittar minst en
+// Pokémon-kollektion med varor i. Ingen av dem behöver en egen kollektionslista —
+// de namnger sina hyllor med "pokemon" precis som basklassen förutsätter.
+export class TcgStoreAdapter extends ShopifyAdapter {
+  name = "TCG Store";
+  baseUrl = "https://tcgstore.se";
+}
+export class BeamCardshopAdapter extends ShopifyAdapter {
+  name = "Beam Cardshop";
+  baseUrl = "https://beamcardshop.com";
+}
+export class HobbykortAdapter extends ShopifyAdapter {
+  name = "Hobbykort";
+  baseUrl = "https://hobbykort.se";
+}
+// 113 Pokémon-kollektioner, merparten löskort/graderat per set. NON_SEALED_COLLECTION
+// rensar dem så taket på 30 går till sealed-hyllorna i stället för till singlarna.
+export class PoketalkAdapter extends ShopifyAdapter {
+  name = "Pokétalk";
+  baseUrl = "https://www.poketalk.se";
+}
+export class KantoVaultAdapter extends ShopifyAdapter {
+  name = "Kanto Vault";
+  baseUrl = "https://kantovault.se";
+}
+export class PokemurreAdapter extends ShopifyAdapter {
+  name = "Pokemurre";
+  baseUrl = "https://pokemurre.se";
+}
+export class AuroraDexAdapter extends ShopifyAdapter {
+  name = "AuroraDex";
+  baseUrl = "https://auroradex.se";
+}
+export class TinyMistersAdapter extends ShopifyAdapter {
+  name = "Tiny Misters";
+  baseUrl = "https://tinymisters.com";
+}
+export class CardlevelsAdapter extends ShopifyAdapter {
+  name = "Cardlevels";
+  baseUrl = "https://cardlevels.se";
+}
+export class KortarkivetAdapter extends ShopifyAdapter {
+  name = "Kortarkivet";
+  baseUrl = "https://www.kortarkivet.se";
+}
+export class RahTechAdapter extends ShopifyAdapter {
+  name = "RahTech";
+  baseUrl = "https://rahtech.se";
+}
+export class CardClubAdapter extends ShopifyAdapter {
+  name = "Card Club";
+  baseUrl = "https://cardclub.se";
+}
+export class BlindboxAdapter extends ShopifyAdapter {
+  name = "Blindbox";
+  baseUrl = "https://blindbox.se";
+}
+export class RgbKingzAdapter extends ShopifyAdapter {
+  name = "RGB Kingz";
+  baseUrl = "https://rgbkingz.com";
+}
+// Fler-spels-butik (Warhammer/brädspel) — ENDA Pokémon-kollektionen är "pokemon-tcg".
+export class MiniatureMetropolisAdapter extends ShopifyAdapter {
+  name = "Miniature Metropolis";
+  baseUrl = "https://miniaturemetropolis.se";
+}
+// Ren Pokémon-butik vars kollektioner är TOMMA i JSON-API:t (alla nio svarar
+// {"products":[]}) medan /products.json ger hela sortimentet — därav wholeCatalog.
+export class PokexclusiveAdapter extends ShopifyAdapter {
+  name = "Pokexclusive";
+  baseUrl = "https://pokexclusive.se";
+  protected wholeCatalog = true;
+}
+export class SpelgalaxenAdapter extends ShopifyAdapter {
+  name = "Spelgalaxen";
+  baseUrl = "https://spelgalaxen.se";
 }

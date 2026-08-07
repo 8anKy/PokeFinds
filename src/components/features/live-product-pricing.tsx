@@ -19,7 +19,8 @@ import { PriceChange } from "@/components/ui/price-change";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { OfferClickButton } from "@/components/features/offer-click-button";
-import { IconStore } from "@/components/ui/icons";
+import { IconStore, IconChevronDown } from "@/components/ui/icons";
+import { hapticTick } from "@/lib/haptics";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { lowestOfferSource } from "@/lib/offer-source";
 
@@ -252,6 +253,38 @@ export function LivePricePanel({
 
 // ─── Offers Table (goes full-width below grid) ──────────────────────────────
 
+/**
+ * Hur många butiker som visas innan "Visa alla".
+ *
+ * Listan var oavkortad, och med Wave 4 säljer 30+ butiker samma låda — en produktsida
+ * blev då en skärmhög tabell där prishistoriken hamnade långt under vikningen. Samma
+ * avvägning som skannerns alternativlista redan gör: gallra för VISNING, aldrig för
+ * urval. Alla erbjudanden finns kvar, de ligger bara ett tryck bort.
+ *
+ * Fem, inte tre: de billigaste är hela poängen med sidan, och tre rader räcker inte
+ * för att se om det finns en prisspridning värd att bläddra i.
+ */
+const VISIBLE_OFFERS = 5;
+
+/**
+ * Radens uppenbarelse-animation. Extra rader monteras först vid utfällning, så varje
+ * rad kan tona in för sig med en liten stegring — det läser som att listan VÄXER, i
+ * stället för att hoppa.
+ *
+ * ⛔ Stegringen kapas vid MAX_STAGGER_STEPS. Med 30 butiker och 40 ms per rad hade
+ *    sista raden dröjt över en sekund, och en "animation" som användaren hinner vänta
+ *    på är en fördröjning.
+ * ⛔ Grid-tricket (0fr→1fr) som resten av appen använder för höjdsvep går INTE här:
+ *    desktop-listan är en riktig <table>, och ett <tr> tål ingen wrapper-div utan att
+ *    kolumnjusteringen faller isär. Radvis intoning fungerar i BÅDA layouterna, alltså
+ *    en implementation i stället för två som kan glida isär.
+ */
+const MAX_STAGGER_STEPS = 6;
+function revealStyle(index: number): React.CSSProperties {
+  return { animationDelay: `${Math.min(index, MAX_STAGGER_STEPS) * 40}ms` };
+}
+const REVEAL_CLASS = "animate-fade-in-up motion-reduce:animate-none";
+
 export interface LiveOffersTableProps {
   slug: string;
   /** Reserv-länk "Sök på Tradera" (sealed utan direkt Tradera-annons). */
@@ -262,6 +295,7 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
   const t = useTranslations("Detail");
   const { offers, affiliateIds, refresh } = useLivePricing();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
   // Admin-status: produktsidan ISR-cachas → ingen server-`auth()`. Hämtar bara
   // sessionen on-demand om fo_auth-cookien finns (= inloggad), så utloggade
   // besökare aldrig anropar /api/auth/session. "Ta bort" visas bara för admins.
@@ -304,6 +338,12 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
   const showTraderaSearch =
     !!traderaSearch && !directOffers.some((o) => o.retailer.name === "Tradera");
 
+  // Utfällningen sitter på LISTAN, inte på varje layout — mobilkorten och
+  // desktoptabellen visar samma butiker, annars hade knappen ljugit på en av dem.
+  const canExpand = directOffers.length > VISIBLE_OFFERS;
+  const shownOffers = canExpand && !expanded ? directOffers.slice(0, VISIBLE_OFFERS) : directOffers;
+  const hiddenCount = directOffers.length - VISIBLE_OFFERS;
+
   return (
     <>
       <section className="mt-10">
@@ -323,10 +363,14 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
               <>
                 {/* Mobil: staplade kort (tabellen ryms inte utan sidoscroll) */}
                 <div className="space-y-3 sm:hidden">
-                  {directOffers.map((offer) => (
+                  {shownOffers.map((offer, i) => (
                     <div
                       key={offer.id}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-surface-border p-4"
+                      style={i >= VISIBLE_OFFERS ? revealStyle(i - VISIBLE_OFFERS) : undefined}
+                      className={cn(
+                        "flex items-center justify-between gap-3 rounded-xl border border-surface-border p-4",
+                        i >= VISIBLE_OFFERS && REVEAL_CLASS
+                      )}
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -370,8 +414,12 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
                       </TR>
                     </THead>
                     <TBody>
-                      {directOffers.map((offer) => (
-                        <TR key={offer.id}>
+                      {shownOffers.map((offer, i) => (
+                        <TR
+                          key={offer.id}
+                          style={i >= VISIBLE_OFFERS ? revealStyle(i - VISIBLE_OFFERS) : undefined}
+                          className={i >= VISIBLE_OFFERS ? REVEAL_CLASS : undefined}
+                        >
                           <TD>
                             <span className="font-medium">{offer.retailer.name}</span>
                             {affiliateIds.has(offer.retailerId) && (
@@ -409,8 +457,39 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
                     </TBody>
                   </Table>
                 </div>
+
+                {canExpand && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Haptik: gesten saknar egen kvittens på mobil — raderna tonar in
+                      // först efter animationens första bildruta.
+                      hapticTick();
+                      setExpanded((v) => !v);
+                    }}
+                    aria-expanded={expanded}
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-surface-border px-4 py-2.5 text-sm font-medium text-ink-muted transition-colors hover:border-holo-cyan/60 hover:text-holo-cyan sm:w-auto"
+                  >
+                    {expanded ? t("showFewerStores") : t("showAllStores", { count: hiddenCount })}
+                    <IconChevronDown
+                      size={16}
+                      className={cn(
+                        "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+                        expanded && "rotate-180"
+                      )}
+                    />
+                  </button>
+                )}
               </>
             )}
+
+            {/* ERSÄTTNINGSUPPLYSNING. Måste stå där länkarna står, inte bara i
+                villkoren: den som klickar vidare ska se den utan att leta. Formulerad
+                som ett MÖJLIGT arvode ("kan få") — alla butiker har inte ett program,
+                och `affiliateEnabled` avgör per butik vilka som faktiskt har det. */}
+            <p className="mt-4 text-xs leading-relaxed text-ink-faint">
+              {t("affiliateDisclosure")}
+            </p>
           </div>
         )}
         {showTraderaSearch && (

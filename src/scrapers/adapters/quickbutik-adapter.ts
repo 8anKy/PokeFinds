@@ -21,8 +21,43 @@ import type {
   SourceAdapter,
 } from "../types";
 
-const MAX_CATEGORIES = 18;
+const MAX_CATEGORIES = 24;
 const MAX_PAGES_PER_CATEGORY = 4;
+
+/**
+ * Den URSPRUNGLIGA uteslutningen, ordagrant. Används BARA av regel 1 nedan, som är den
+ * beprövade vägen för Swepoke och Shinycards.
+ *
+ * ⛔ Vidga den inte "på köpet". Ett bortfiltrerat kategorinamn tar bort URL:er ur
+ *    feeden, och en offer som saknas i feeden nollas till "Okänd" efter 24h — varefter
+ *    nästa restock aldrig larmar (UNKNOWN→IN_STOCK räknas inte som en övergång).
+ *    Vill man utesluta mer: mät mot butikernas riktiga feedar först.
+ */
+const LEGACY_NON_SEALED =
+  /singles|graded|loose|l[oö]sa|tillbeh|accessor|sleeve|binder|playmat|spelmatt|deck-?box/i;
+
+/**
+ * Hyllor den NYA upptäckten (regel 2) aldrig hämtar: singlar/graderat (prissätts av
+ * Cardmarket), tillbehör och merch. Bredare än `LEGACY_NON_SEALED` eftersom de nya
+ * butikerna säljer gosedjur och figurer i egna kategorier — men den gäller alltså bara
+ * kategorier som ingen befintlig butik hämtade förut.
+ */
+const NON_SEALED_CATEGORY =
+  /singles|graded|gradera|loose|l[oö]sa|l[oö]skort|tillbeh|accessor|sleeve|binder|playmat|spelmatt|deck-?box|toploader|merch|gosedjur|plush|figur|kl[äa]der|affisch|poster/i;
+
+/** Sidor som aldrig är en varuhylla (info, kassa, kampanjsidor, andra spel). */
+const NON_PRODUCT_CATEGORY =
+  /^\/(sidor|pages|contact|kontakt|konto|account|customer|cart|checkout|shop\/wishlist|blogg?|nyheter|search|sok)\b|\b(lorcana|one-?piece|magic|mtg|yu-?gi-?oh|yugioh|digimon|riftbound|rift-bound|sorcery|star-?wars|gundam|shadowverse|keyforge|union-?arena|flesh-?and-?blood|sallskapsspel|b2b|grossist|showroom|specialbest|cashback|presentkort|varumarken|turnering|event)\b/i;
+
+/** Vägen nämner Pokémon. `pok[eé]?mon` med flit — CardGame stavar det "pokmon". */
+const POKEMON_MARKER = /pok[eé]?mon/i;
+
+/**
+ * Vägen nämner en SEALED-form. Behövs för butiker som inte skriver "pokemon" i
+ * sökvägen alls (Packs on Packs: /sealed-produkter, /engelska-packs, /japanska-packs).
+ */
+const SEALED_MARKER =
+  /sealed|booster|\bpacks?\b|\betb\b|elite-?trainer|\btins?\b|blister|bundle|display|boxar|\bbox\b|kortpaket|f[oö]rhandsb|pre-?order|f[oö]rbok/i;
 
 // Fallback-parsern plockar upp korsförsäljnings-hrefs → singel-URL:er kan smita in och
 // fel-länkas till en sealed katalogprodukt (t.ex. "Blastoise 1-Pack Blister" bunden till
@@ -121,7 +156,7 @@ export abstract class QuickbutikAdapter implements SourceAdapter {
   supportsSearch = false;
   supportsStock = true;
 
-  /** Pokémon-kategorisidor (2-segments-vägar /pokemon/{kat}) ur sitemap. */
+  /** Pokémon-kategorisidor ur sitemap. */
   protected async pokemonCategories(errors: string[]): Promise<string[]> {
     const res = await politeFetch(`${this.baseUrl}/sitemap.xml`, { delayMs: 1000 });
     if (!res.ok) {
@@ -130,24 +165,57 @@ export abstract class QuickbutikAdapter implements SourceAdapter {
     }
     const xml = await res.text();
     const host = new URL(this.baseUrl).host;
-    const locs = xml.match(/<loc>([^<]+)<\/loc>/g) ?? [];
-    const cats = new Set<string>();
-    for (const loc of locs) {
-      const url = loc.replace(/<\/?loc>/g, "").trim();
-      let path: string;
+    const urls: { url: string; path: string }[] = [];
+    for (const loc of xml.match(/<loc>([^<]+)<\/loc>/g) ?? []) {
+      const url = loc.replace(/<\/?loc>/g, "").trim().split("?")[0];
+      if (!url.includes(host)) continue;
       try {
-        path = new URL(url).pathname;
+        urls.push({ url, path: new URL(url).pathname.replace(/\/$/, "") });
       } catch {
-        continue;
-      }
-      // /pokemon/{kategori} (exakt 2 segment) = kategorisida (ej produkt /{...}/{...}/...).
-      // Hoppa över singel-/graderat-/tillbehörs-kategorier — vi prissätter singlar
-      // via Cardmarket och bryr oss om sealed för restock. Snabbare + politare.
-      if (/^\/pokemon\/[^/]+\/?$/.test(path) && url.includes(host) && !/singles|graded|loose|l[oö]sa|tillbeh|accessor|sleeve|binder|playmat|spelmatt|deck-?box/i.test(path)) {
-        cats.add(url.split("?")[0]);
+        /* trasig loc — hoppa */
       }
     }
-    return Array.from(cats).slice(0, MAX_CATEGORIES);
+    const cats = new Set<string>();
+
+    // ---- 1) DEN BEPRÖVADE REGELN, ORÖRD ----
+    // /pokemon/{kategori} (exakt 2 segment) = kategorisida (ej produkt /{...}/{...}/...).
+    // Hoppa över singel-/graderat-/tillbehörs-kategorier — vi prissätter singlar
+    // via Cardmarket och bryr oss om sealed för restock. Snabbare + politare.
+    for (const { url, path } of urls) {
+      if (/^\/pokemon\/[^/]+$/.test(path) && !LEGACY_NON_SEALED.test(path)) cats.add(url);
+    }
+
+    // ---- 2) GENERALISERAD UPPTÄCKT (2026-08-07), ADDITIV MED FLIT ----
+    // Toppsegmentet "pokemon" är Swepokes och Shinycards vana, inte Quickbutiks regel.
+    // De nya butikerna lägger sitt sortiment någon annanstans: CardGame under
+    // /engelska-pokmon-produkter (ja, felstavat — därav `pok[eé]?mon`), Mystery Shack
+    // under /products/pokemon, Packs on Packs under /sealed-produkter, /engelska-packs
+    // och /japanska-packs (som inte nämner Pokémon alls — butiken säljer nästan bara det).
+    //
+    // ⛔ UNION, ALDRIG ERSÄTTNING. En feed som tappar en URL nollar offern till "Okänd"
+    //    efter 24h och nästa restock larmar aldrig (UNKNOWN→IN_STOCK är ingen övergång).
+    //    Regel 1 får därför stå kvar exakt som den var: det här kan bara LÄGGA TILL.
+    //    Vinsten syns direkt på befintliga butiker — Swepokes /japanska-pokemon-produkter
+    //    och /pre-order-pokemon har aldrig hämtats.
+    //
+    // ⛔ TVÅSEGMENTS-VÄGAR KRÄVER BARN. På Packs on Packs ÄR /sealed-produkter/{slug} en
+    //    produkt, inte en kategori — och den matchar "sealed". Att en väg är prefix till
+    //    en annan väg i sitemap är butikens eget bevis för att den är en kategori.
+    const hasChild = (path: string) => urls.some((u) => u.path.startsWith(`${path}/`));
+    for (const { url, path } of urls) {
+      const segments = path.split("/").filter(Boolean).length;
+      if (segments < 1 || segments > 2) continue;
+      if (NON_SEALED_CATEGORY.test(path) || NON_PRODUCT_CATEGORY.test(path)) continue;
+      if (!POKEMON_MARKER.test(path) && !SEALED_MARKER.test(path)) continue;
+      if (segments === 2 && !hasChild(path)) continue;
+      cats.add(url);
+    }
+
+    // Pokémon-namngivna vägar först: taket ska gå till dem, inte till en generisk
+    // "/sealed-produkter" som råkar stå tidigare i sitemap.
+    return Array.from(cats)
+      .sort((a, b) => Number(POKEMON_MARKER.test(b)) - Number(POKEMON_MARKER.test(a)))
+      .slice(0, MAX_CATEGORIES);
   }
 
   protected parseProducts(html: string): QbRaw[] {
@@ -286,4 +354,23 @@ export class SwepokeAdapter extends QuickbutikAdapter {
 export class ShinycardsAdapter extends QuickbutikAdapter {
   name = "Shinycards";
   baseUrl = "https://www.shinycards.se";
+}
+
+// ---------- Wave 4: Quickbutik-butiker (2026-08-07) ----------
+// Verifierade mot sin egen markup före påslag: data-pid-block finns, robots.txt
+// tillåter, och kategorivägarna ligger under egna toppsegment — vilket är precis
+// varför productHrefInBlock inte får låsa URL-djupet (CardGame lägger produkter fyra
+// segment ner: /engelska-pokmon-produkter/japansktkinesiskt/booster-packs/{slug}).
+export class CardGameAdapter extends QuickbutikAdapter {
+  name = "CardGame";
+  baseUrl = "https://cardgame.se";
+}
+export class MysteryShackAdapter extends QuickbutikAdapter {
+  name = "Mystery Shack";
+  baseUrl = "https://mysteryshack.se";
+}
+// Ren sealed-butik: allt ligger under /sealed-produkter/{slug}.
+export class PacksOnPacksAdapter extends QuickbutikAdapter {
+  name = "Packs on Packs";
+  baseUrl = "https://packsonpacks.se";
 }
