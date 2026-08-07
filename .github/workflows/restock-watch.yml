@@ -56,8 +56,12 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }} # utan denna mailas inga alerts (mailer går i console-mode)
       # APNs (iOS push). Utan APNS_KEY blir sendPush en no-op → bara mejl, ingen pushnotis.
+      # ⛔ VID NYCKELROTATION: uppdatera BÅDE GH-secreten APNS_KEY *och* APNS_KEY_ID i
+      # ALLA tre workflow-filer — Railway är en HELT egen uppsättning variabler. Missas
+      # det svarar Apple 403 InvalidProviderToken, vilket inte är en död token och alltså
+      # inte städar något: mejlen fortsätter gå ut och pushen försvinner tyst (2026-08-07).
       APNS_KEY: ${{ secrets.APNS_KEY }}
-      APNS_KEY_ID: SMQBU7MM82
+      APNS_KEY_ID: 783RWWQFH7
       APNS_TEAM_ID: F2XP44FF3B
       APNS_BUNDLE_ID: se.foilio.app
       APNS_PRODUCTION: "true"

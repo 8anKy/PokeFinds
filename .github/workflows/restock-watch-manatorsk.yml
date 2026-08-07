@@ -46,8 +46,10 @@ jobs:
       # Auto-importens gränsfalls-dom (Haiku, ören/dygn) — attach istället för dubblettstub.
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }} # utan denna mailas inga alerts (console-mode)
+      # ⛔ VID NYCKELROTATION: uppdatera BÅDE GH-secreten APNS_KEY *och* APNS_KEY_ID i
+      # ALLA tre workflow-filer — Railway är en HELT egen uppsättning variabler.
       APNS_KEY: ${{ secrets.APNS_KEY }}
-      APNS_KEY_ID: SMQBU7MM82
+      APNS_KEY_ID: 783RWWQFH7
       APNS_TEAM_ID: F2XP44FF3B
       APNS_BUNDLE_ID: se.foilio.app
       APNS_PRODUCTION: "true"

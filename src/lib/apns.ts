@@ -81,13 +81,28 @@ export async function sendPush(
   if (payload.url) note.payload = { url: payload.url };
 
   const result = await p.send(note, tokens);
-  const invalidTokens = result.failed
-    .filter(
-      (f) =>
-        f.status === 410 ||
-        f.response?.reason === "BadDeviceToken" ||
-        f.response?.reason === "Unregistered"
-    )
-    .map((f) => f.device);
+  const invalidTokens: string[] = [];
+  const otherFailures: string[] = [];
+  for (const f of result.failed) {
+    const reason = f.response?.reason;
+    if (f.status === 410 || reason === "BadDeviceToken" || reason === "Unregistered") {
+      invalidTokens.push(f.device);
+    } else {
+      otherFailures.push(`${f.status ?? "?"}/${reason ?? "?"}`);
+    }
+  }
+  // Ett fel som INTE är en död token är nästan alltid KONFIGURATION (återkallad .p8,
+  // fel APNS_KEY_ID, fel team/bundle) och drabbar då VARENDA push, för alla användare.
+  // Det syntes inte alls förut: mejlet gick iväg, alerten markerades SENT och pushen
+  // försvann tyst. 2026-08-07 tappade alla iOS-larm ett dygn på exakt det sättet —
+  // GH Actions körde vidare på den nyckel som just hade återkallats (403
+  // InvalidProviderToken). Loggas, kastar INTE: alerten och mejlet är redan levererade
+  // och att fälla hela restock-körningen för en push vore ett större fel.
+  if (otherFailures.length > 0) {
+    console.error(
+      `[apns] ${otherFailures.length} av ${tokens.length} push misslyckades: ` +
+        [...new Set(otherFailures)].join(", ")
+    );
+  }
   return { invalidTokens };
 }
