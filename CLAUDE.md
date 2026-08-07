@@ -106,9 +106,21 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   3 WooCommerce (`woocommerce-adapter.ts`, ny, publika Store API v1). Varje butik verifierades mot sin RIKTIGA feed
   före påslag med `scripts/probe-new-adapters.ts` (rapporterar feedstorlek + hur många annonser som passerar
   vaktkedjan, utan att röra DB). Registrering = `scripts/setup-wave4-sources.ts --apply`, engångsimport =
-  `scripts/run-wave4-import.ts`. ⛔ **restockWatch är AVSIKTLIGT AV** för alla 23: den lanen kör var 10:e minut och
-  Neon debiteras per vaken tid — 23 butiker där är ett kostnadsbeslut, inte en teknisk detalj. De dagliga
-  körningarna ger pris och lager ändå.
+  `scripts/run-wave4-import.ts`.
+  **RESTOCK-BEVAKNING PÅ FÖR ALLA 23 (ägarbeslut 2026-08-08)** → 34 bevakade butiker. Beslutet togs PÅ MÄTNING,
+  inte på magkänsla: 14 dygns facit gav 75,2 lagerflippar/dygn över 11 butiker, varav **Dragon's Lair ensam
+  63,1 (84 %)**, samlade i 33,7 distinkta 10-minutersfönster av 144 möjliga. Per offer UTAN DL: 1,27 flippar per
+  100 offers och dygn ⇒ Wave 4:s 1 610 offers ≈ 20 flippar/dygn ≈ 11 extra väckningar (Neon är redan vaken 41 %)
+  ≈ 13 CU-h/mån ≈ **1,50 $/mån** ovanpå ~14 $. Pessimistiskt ~5 $, absolut tak +20 $ (Neon somnar aldrig).
+  Påslag: `scripts/setup-wave4-sources.ts --apply --restock` (flaggan slår bara PÅ, aldrig av).
+  ⛔ **EN BUTIK KAN DOMINERA NOTAN** — DL står för 84 % av all churn med 22 % av offersen. Vilken av de 23 som
+  blir nästa DL går inte att veta i förväg: **mät om efter några dygn** (flippar/dygn per butik + distinkta
+  10-min-fönster) innan "det blev billigt" räknas som bekräftat.
+  ⛔ **KÄLLISTAN ÄR DISKCACHAD I 24 h** — en ändrad restockWatch-flagga slår igenom först inom ett dygn. Det är
+  med flit: ett DB-uppslag per körning var precis det som höll computen vaken dygnet runt (2026-07-07).
+  `RESTOCK_SCAN_CONCURRENCY` höjd 4 → 8; MÄTT över alla 34 feedar: 107 s vid 4, 57 s vid 8 — båda ryms i
+  tiominuterstakten, höjningen är headroom (workflowet har `cancel-in-progress: false`, så en överdragen körning
+  KÖAR i stället för att ersättas).
   ⛔ **KVAR (10 butiker, en egen plattform var)**: playoteket (PrestaShop), coolcard (Starweb), samlargrottan (Wix),
   cardhaven + gimmick + toyspace + spelochsant (custom SPA), evokort (One.com), **cgpremium** (har ett riktigt
   JSON-API, `/api/v1/products`, 57 Pokémon-varor MED tillverkar-EAN — men `stock` är en förvrängd sträng, så

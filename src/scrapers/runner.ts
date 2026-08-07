@@ -191,8 +191,26 @@ export interface RestockSourceInfo {
   rotatingFeed?: boolean;
 }
 
-/** Hur många butiker som hämtas parallellt (olika hostar → artigt per värd ändå). */
-const RESTOCK_SCAN_CONCURRENCY = 4;
+/**
+ * Hur många butiker som hämtas parallellt.
+ *
+ * Höjt 4 → 8 när restock-bevakningen gick från 11 till 34 butiker (2026-08-08). Talet
+ * styr WALL-CLOCK, inte artighet: `politeFetch` håller sin fördröjning PER VÄRD, och
+ * varje butik är en egen värd — åtta parallella hämtningar är alltså åtta olika
+ * servrar med en förfrågan i taget var, precis som förut.
+ *
+ * MÄTT mot alla 34 butikers riktiga feedar (2026-08-08): **107 s vid 4, 57 s vid 8**.
+ * Båda ryms alltså med god marginal i tiominuterstakten — höjningen var HEADROOM, inte
+ * en nödvändighet. Det är värt att veta om någon senare vill sänka den igen: det kostar
+ * ~50 s, inte en trasig lane.
+ *
+ * Marginalen finns för att lanen har `cancel-in-progress: false` i workflowet — en
+ * körning som drar över tiotaget KÖAR i stället för att ersättas, så backlogen växer
+ * i stället för att självläka. Feedarna växer dessutom med sortimentet.
+ * ⛔ Höj inte vidare "för säkerhets skull": fas 1 håller alla butikers feedar i minnet
+ *    samtidigt, och den enda vinsten därutöver är sekunder vi inte saknar.
+ */
+const RESTOCK_SCAN_CONCURRENCY = 8;
 
 /**
  * Golv för att ens FRÅGA LLM-domaren om en annons matcharen inte ville binda

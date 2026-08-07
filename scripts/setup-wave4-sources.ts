@@ -2,14 +2,29 @@
  * Registrerar Wave 4-butikerna (2026-08-07) som ScrapeSources så att den dagliga
  * `scrape-all` hämtar dem. Idempotent — kör om den hur många gånger som helst.
  *
- *   npx tsx scripts/setup-wave4-sources.ts            # torrkörning (visar bara)
- *   npx tsx scripts/setup-wave4-sources.ts --apply    # skriver
+ *   npx tsx scripts/setup-wave4-sources.ts              # torrkörning (visar bara)
+ *   npx tsx scripts/setup-wave4-sources.ts --apply      # skriver källorna
+ *   npx tsx scripts/setup-wave4-sources.ts --apply --restock   # + restock-bevakning
  *
- * ⛔ restockWatch sätts INTE här, med flit. Den snabba lanen kör var 10:e minut (och
- *    Manatörsk-filen var 2:a), och Neon debiteras per VAKEN TID: varje väckning köper
- *    minst 300 s. 23 nya butiker i den lanen är ett KOSTNADSBESLUT, inte en teknisk
- *    detalj — de dagliga körningarna ger pris och lager ändå. Vill man slå på det för
- *    en butik är det en rad: `config.restockWatch = true` (se setup-restock-sources.ts).
+ * RESTOCK-BEVAKNING = ÄGARBESLUT 2026-08-08, taget PÅ MÄTNING. Lanen kör var 10:e minut
+ * och Neon debiteras per VAKEN TID (varje väckning köper minst 300 s), så frågan var hur
+ * många fler VÄCKNINGAR 23 butiker ger — inte hur många rader.
+ *
+ * Underlaget (14 dygn, 11 bevakade butiker): 75,2 lagerflippar/dygn, varav **Dragon's
+ * Lair ensam står för 63,1 (84 %)**. Flipparna faller i 33,7 distinkta 10-minutersfönster
+ * per dygn av 144 möjliga. Per offer, UTAN Dragon's Lair: 1,27 flippar per 100 offers och
+ * dygn. Wave 4 har 1 610 offers ⇒ ~20 extra flippar/dygn ⇒ ~11 extra väckningar/dygn
+ * (Neon är redan vaken 41 % av dygnet) ⇒ ~13 CU-h/mån ⇒ **~1,50 $/mån** ovanpå ~14 $.
+ * Pessimistiskt (alla flappar som DL): ~5 $/mån. Absolut tak (Neon somnar aldrig): +20 $.
+ *
+ * ⛔ **EN ENDA BUTIK KAN DOMINERA NOTAN.** Dragon's Lair är 84 % av all churn med 22 % av
+ *    offersen. Vilken av de 23 som blir nästa DL går inte att veta i förväg — mät om
+ *    efter några dygn (samma fråga: flippar/dygn per butik, och distinkta 10-min-fönster)
+ *    innan slutsatsen "det blev billigt" dras.
+ * ⛔ **KÄLLISTAN ÄR DISKCACHAD I 24 h** (`<grindfil>.sources.json`, SOURCES_TTL_MS i
+ *    scripts/restock-watch-run.ts). En ändring här slår alltså igenom först inom ett
+ *    dygn — det är inte ett fel, och lanen ska INTE göra ett DB-uppslag per körning för
+ *    att slippa väntan (det var precis det som höll computen vaken dygnet runt).
  *
  * ⛔ `name` MÅSTE vara exakt samma sträng som nyckeln i SCRAPER_ADAPTERS och adapterns
  *    egen `name` — getAdapter slår upp på källans namn. Glider de isär kastar körningen
@@ -52,6 +67,7 @@ const WAVE4: { name: string; baseUrl: string }[] = [
 
 async function main() {
   const apply = process.argv.includes("--apply");
+  const restock = process.argv.includes("--restock");
 
   // Vakt FÖRST: en källa utan adapter blir ett rött jobb, inte ett tyst hopp.
   const missing = WAVE4.filter((s) => {
@@ -70,12 +86,16 @@ async function main() {
   for (const s of WAVE4) {
     const existing = await prisma.scrapeSource.findFirst({ where: { name: s.name } });
     if (!apply) {
-      console.log(`${existing ? "uppdateras" : "SKAPAS   "}  ${s.name.padEnd(22)} ${s.baseUrl}`);
+      console.log(
+        `${existing ? "uppdateras" : "SKAPAS   "}  ${s.name.padEnd(22)} ${s.baseUrl}${restock ? "  + restockWatch" : ""}`
+      );
       continue;
     }
     // Befintlig config bevaras — en butik som någon redan flaggat för restockWatch
     // ska inte tappa flaggan för att det här skriptet körs om.
-    const config = { ...((existing?.config as object) ?? {}) };
+    // ⛔ `--restock` SLÅR BARA PÅ, aldrig av: att köra skriptet utan flaggan får inte
+    //    tyst avaktivera bevakningen för butiker någon medvetet slagit på.
+    const config = { ...((existing?.config as object) ?? {}), ...(restock ? { restockWatch: true } : {}) };
     if (existing) {
       await prisma.scrapeSource.update({
         where: { id: existing.id },
@@ -94,8 +114,14 @@ async function main() {
     console.log(`\nTorrkörning — inget skrevs. Kör med --apply.`);
     return;
   }
-  const active = await prisma.scrapeSource.count({ where: { isActive: true, type: SourceType.SCRAPER } });
-  console.log(`\nAktiva SCRAPER-källor totalt: ${active}`);
+  const all = await prisma.scrapeSource.findMany({
+    where: { isActive: true, type: SourceType.SCRAPER },
+    select: { name: true, config: true },
+  });
+  const watched = all.filter((s) => (s.config as { restockWatch?: boolean } | null)?.restockWatch === true);
+  console.log(`\nAktiva SCRAPER-källor totalt: ${all.length}`);
+  console.log(`Restock-bevakade: ${watched.length} — ${watched.map((w) => w.name).join(", ")}`);
+  console.log(`\nOBS: 10-min-lanen läser källistan ur en 24-timmarscache. Full effekt inom ett dygn.`);
 }
 
 main()
