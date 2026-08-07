@@ -614,6 +614,13 @@ export function mutualIdentityConflict(incoming: string, candidate: string): boo
 const CONFLICT_CONFIDENCE_CAP = 0.84;
 
 /**
+ * Minsta avstånd mellan bästa och näst bästa kandidat för att valet ska räknas som
+ * avgjort. Under det är annonsen tvetydig och får ingen länk alls. Se marginal-
+ * blocket i slutet av matchProduct för mätningen bakom talet.
+ */
+const AMBIGUITY_MARGIN = 0.03;
+
+/**
  * Andel av INKOMMANDE titelns icke-era särskiljande ord som täcks av kandidaten.
  * Låg täckning ⇒ inkommande beskriver en mer specifik/annan produkt (t.ex.
  * "Mega Evolution Perfect Order ETB" mot bas-"Mega Evolution ETB" — "perfect
@@ -1474,7 +1481,9 @@ export async function matchProduct(
     }
   }
 
-  let best: { productId: string; confidence: number } | null = null;
+  let best: { productId: string; confidence: number; normalizedTitle: string } | null = null;
+  /** Tvåan — behövs för marginalvakten efter loopen. */
+  let runnerUp: { productId: string; confidence: number; normalizedTitle: string } | null = null;
   /** Kandidater som är identitetslika OCH konfliktfria — se blocket längst ned i loopen. */
   const identicalHits: { productId: string; confidence: number }[] = [];
 
@@ -1650,7 +1659,10 @@ export async function matchProduct(
     }
 
     if (!best || score > best.confidence) {
-      best = { productId: c.id, confidence: score };
+      runnerUp = best;
+      best = { productId: c.id, confidence: score, normalizedTitle: c.normalizedTitle };
+    } else if (!runnerUp || score > runnerUp.confidence) {
+      runnerUp = { productId: c.id, confidence: score, normalizedTitle: c.normalizedTitle };
     }
   }
 
@@ -1663,6 +1675,23 @@ export async function matchProduct(
     // är beviset. Den passerar därför MIN_CONFIDENCE-golvet med flit — ett
     // deterministiskt identitetsbevis ska inte falla på ett Dice-tal.
     return identicalHits[0];
+  }
+
+  // ── MARGINALEN AVGÖR NÄR TVÅ KANDIDATER ÄR OLIKA VAROR (2026-08-07) ─────────
+  // Samma lärdom som skannerns bildmatchning: poängen skiljer inte rätt från fel,
+  // MARGINALEN till tvåan gör det. En Tradera-annons med titeln "Crown Elite
+  // Trainer Box (ETB)" fick 0,800 mot "Crown Zenith Elite Trainer Box" och 0,786
+  // mot "Stellar Crown Elite Trainer Box" — 0,014 isär. Annonsen sålde en Stellar
+  // Crown, men Crown Zenith vann och 1 150 kr blev DEN produktens rubrikpris i
+  // stället för ~3 000 kr. Ett fel pris är värre än en utebliven länk.
+  //
+  // ⛔ Bara när kandidaterna faktiskt är OLIKA varor. Två poster för samma sak
+  //    (en dubblett vi ännu inte slagit ihop) ligger också tätt, och där är valet
+  //    ofarligt — därför krävs att identitetsorden skiljer sig.
+  if (best && runnerUp && best.confidence - runnerUp.confidence < AMBIGUITY_MARGIN) {
+    if (!identicalIdentity(best.normalizedTitle, runnerUp.normalizedTitle)) {
+      return null;
+    }
   }
 
   if (best && best.confidence >= MIN_CONFIDENCE) return best;

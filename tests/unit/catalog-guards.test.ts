@@ -80,3 +80,29 @@ describe("blisterCharacterMismatch", () => {
     ).toBe(false);
   });
 });
+
+describe("AMBIGUITY_MARGIN (matchProduct)", () => {
+  /**
+   * Marginalvakten kan inte testas utan databas — den bor i matchProduct, som slår
+   * upp kandidater. Det HÄR testet vaktar i stället premissen den vilar på: att de
+   * två titlarna verkligen är olika varor, dvs att identitetsorden skiljer sig.
+   * Håller den premissen inte längre är vakten meningslös och måste tänkas om.
+   */
+  it("Crown Zenith och Stellar Crown är olika identiteter", async () => {
+    const { identicalIdentity } = await import("@/scrapers/matching");
+    const { normalizeTitle } = await import("@/lib/utils");
+    expect(
+      identicalIdentity(
+        normalizeTitle("Crown Zenith Elite Trainer Box"),
+        normalizeTitle("Stellar Crown Elite Trainer Box")
+      )
+    ).toBe(false);
+    // …och att annonstiteln som ställde till det är LIKA nära båda: den saknar
+    // ordet som skiljer dem åt.
+    const { scoreSimilarity } = await import("@/scrapers/matching");
+    const listing = normalizeTitle("Crown Elite Trainer Box (ETB)");
+    const a = scoreSimilarity(listing, normalizeTitle("Crown Zenith Elite Trainer Box"));
+    const b = scoreSimilarity(listing, normalizeTitle("Stellar Crown Elite Trainer Box"));
+    expect(Math.abs(a - b)).toBeLessThan(0.03);
+  });
+});
