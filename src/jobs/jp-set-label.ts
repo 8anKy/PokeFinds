@@ -314,6 +314,12 @@ export async function refreshJpSetMetadata(apply = true): Promise<number> {
     const data: { logoUrl?: string; series?: string } = {};
 
     if (!s.logoUrl) {
+      // Produktbilden är FALLBACKEN. Riktiga setlogotyper ligger i
+      // `public/set-logos/jp/` och pekas ut av `scripts/fetch-jp-set-logos.ts`,
+      // som skriver sökvägen till setet direkt — jobbet behöver alltså aldrig
+      // titta på disk (och FÅR inte: modulen dras in i Next-bygget via
+      // instrumentation.ts, där `fs` inte finns). Ett nytt set får
+      // boosterpåsens omslag tills någon kört logotypskriptet igen.
       const image = pickJpSetImage(s.products);
       if (image) data.logoUrl = image;
     }

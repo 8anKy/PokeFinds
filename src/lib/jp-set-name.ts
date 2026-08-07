@@ -148,6 +148,29 @@ export function codeFromJpSetName(name: string): string | null {
 }
 
 /**
+ * Filnamnet för ett japanskt sets logotyp, utan ändelse: setkoden när den finns
+ * ("SV11B"), annars en slug av namnet.
+ *
+ * ⛔ EN definition, delad av nedladdningsskriptet och jobbet. Skrev de två sin
+ *    egen variant skulle en namnändring i det ena ledet göra att filerna slutade
+ *    hittas — tyst, och bara som en saknad bild i filtret.
+ */
+export function jpSetLogoFileKey(setName: string): string {
+  const code = codeFromJpSetName(setName);
+  if (code) return code;
+  return setName
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+/** Publik sökväg till en nedladdad setlogotyp. */
+export function jpSetLogoPath(setName: string): string {
+  return `/set-logos/jp/${jpSetLogoFileKey(setName)}.png`;
+}
+
+/**
  * TCGdex serie-id → seriens LATINSKA namn, samma skrivning som de engelska seten
  * använder ("Scarlet & Violet", inte "ポケモンカードゲーム スカーレット&バイオレット").
  * Rubrikerna i set-arket ska läsa likadant i båda flikarna.

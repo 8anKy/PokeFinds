@@ -216,12 +216,27 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   flikarna. Utfall: Mega Evolution 7 · Scarlet & Violet 25 · Sword & Shield 13 · Sun & Moon 3 · **Other 1**
   (25th Anniversary, vars kod aldrig styrktes). ⛔ Ingen era gissas: utan styrkt kod blir det "Other", som
   sorteras sist av sig själv (releaseDate nulls last).
-  ⛔ **SETBILDEN ÄR EN PRODUKTBILD, INTE EN LOGOTYP** — japanska set har ingen logotyp NÅGONSTANS: TCGdex har
-  0 av 177 (`assets.tcgdex.net/.../logo.png` = 404), pokemontcg.io har inga japanska set alls, och CM:s
-  expansionsikoner ligger bakom innehållshashade URL:er som inte går att härleda. Det som finns är
-  produktbilderna vi redan visar — och en japansk boosterPÅSE bär setets logotyp tryckt på omslaget.
-  `pickJpSetImage` väljer därför BOOSTER_PACK före BOOSTER_BOX och en Cardmarket-render före ett butiksfoto
-  (94 av 96 JP-produkter är CM-renders). 49 av 49 set har en bild som svarar 200.
+  **SETLOGOTYPERNA ÄR HÄMTADE EN GÅNG OCH LIGGER I REPOT (2026-08-07)**: `public/set-logos/jp/{KOD}.png`,
+  49 filer, 2,9 MB. INGEN leverantör publicerar japanska setlogotyper — TCGdex har 0 av 177
+  (`assets.tcgdex.net/.../logo.png` = 404), TCGGO:s japanska endpoint svarar med tom lista, CardTrader har
+  expansionerna men ingen bild, och den OFFICIELLA japanska sajten har bara 21 av våra 49 set, med bespoke
+  hashade filnamn per sida (`hero-img-01-y25ri.png`) som inte går att härleda. Filerna hämtades därför en
+  gång med `scripts/fetch-jp-set-logos.ts` och bor hos oss: ingen annans CDN belastas per sidvisning, och
+  bilderna kan inte försvinna under oss. ⚠️ Artwork tillhör The Pokémon Company (samma sak som kortbilderna
+  och de engelska setlogotyperna vi redan visar). Nya set får produktbilden tills någon kör skriptet igen.
+  ⛔ **MATCHA ALDRIG LOGOTYP MOT SET PÅ NAMN.** Samma japanska set översätts olika av olika källor: ムニキスゼロ
+  är "Nihil Zero" hos Cardmarket (vår skrivning) och "Munikis Zero" hos logotypkällan, 摩天パーフェクト är
+  "Towering Perfection" respektive "Perfect Skyscraper", SM10b är "Sky Legend" respektive "Sky Legends" —
+  7 av 49 föll på det. ⛔ Och KODEN duger inte heller ensam: källan märker "Future Flash" som SV4K, vilket är
+  Ancient Roars kod, och "Lost Abyss" som S12, vilket är Paradigm Trigger. Automatiken kräver därför att
+  BÅDA är ense (39 av 49); resten är granskade för hand genom att LÄSA den japanska ordbilden i logotypen och
+  jämföra med TCGdex japanska namn (tabellen `VERIFIED` i skriptet, med det verifierade namnet per rad).
+  Granskningen fångade en riktig förväxling: SV4K/SV4M var omkastade i källan, så utan den hade ett set fått
+  fel logotyp och det andra ingen alls.
+  **FALLBACK**: `pickJpSetImage` (BOOSTER_PACK före BOOSTER_BOX, CM-render före butiksfoto) används bara när
+  ingen logotypfil finns — en japansk boosterpåse bär ändå setets logotyp på omslaget.
+  ⛔ Filnamnet härleds av `jpSetLogoFileKey` — EN definition delad av skriptet och jobbet, annars slutar
+  filerna hittas tyst den dag den ena sidan ändrar sin namngivning.
   **SJÄLVLÄKNING**: `refreshJpSetMetadata` fyller bara TOMMA fält och kör i varje jobbkörning — ett set skapas
   i samma andetag som sin första produkt och kan sakna bild då. ⛔ "Serien saknas" är formulerat som en MÄNGD
   (`series notIn [kända eror, "Other"]`), inte som en jämförelse mot den gamla platshållaren "Japanska set" —
