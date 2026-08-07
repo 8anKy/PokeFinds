@@ -803,6 +803,39 @@ export function blisterCharacterMismatch(a: string, b: string): boolean {
   return true;
 }
 
+/**
+ * Skiljer sig titlarna på ett KORT ord som bär produktidentitet?
+ *
+ * Dice-poängen är blind för ett ensamt tecken, och det är precis där de dyraste
+ * felmatchningarna bor. Dokumenterat i `dedupe-catalog.ts`: "Mega Charizard **X** ex Tin"
+ * mot "Mega Charizard **Y** ex Tin" väger 1,00, och "Base Set **2** Booster Pack" mot
+ * "Base Set Booster Pack" 0,95. Alla är OLIKA varor. MÄTT i produktion 2026-08-08:
+ * Hobbykorts `/pokemon-scarlet-violet-base-set-booster-pack` (79 kr) satt på vår
+ * "Base Set 2 Booster Pack" (3 275 kr) — och en ren likhetsprövning kallade den KORREKT.
+ *
+ * Jämförelsen görs på RÅTITELN: `normalizeTitle` behåller tokenet, men Dice tappar det.
+ *
+ * ⛔ ETT SIFFERTOKEN ÄR INTE ALLTID IDENTITET. "…long crimp, **1** Booster" mot
+ *    "Base Set 2 Booster Pack" skiljer sig på "1" — ett ANTAL, inte en vara. Anroparen
+ *    säger därför med `sameSet` om posterna redan är bundna till samma set; är de det
+ *    kan en siffra inte gärna vara setnamnets, och den ignoreras. Enstaka BOKSTÄVER
+ *    (X/Y) är alltid identitet — de är varianten, och de bor inom ett och samma set.
+ */
+export function identityTokenDifference(a: string, b: string, sameSet: boolean): string | null {
+  const toks = (t: string) =>
+    decodeTitle(t).toLowerCase().replace(/[^a-z0-9åäö ]+/g, " ").split(/\s+/).filter(Boolean);
+  const ta = toks(a), tb = toks(b);
+  const onlyIn = (x: string[], y: string[]) => x.filter((t) => !y.includes(t));
+  const diff = [...new Set([...onlyIn(ta, tb), ...onlyIn(tb, ta)])];
+  const flagged = diff.filter((t) => {
+    if (t.length > 2) return false;
+    if (/^[a-zåäö]$/.test(t)) return true;
+    if (/^\d{1,2}$/.test(t)) return !sameSet;
+    return false;
+  });
+  return flagged.length ? flagged.join("/") : null;
+}
+
 export function characterMismatch(a: string, b: string): boolean {
   const na = characterNames(a);
   const nb = characterNames(b);
