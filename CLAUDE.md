@@ -38,6 +38,13 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   AI-gradering (`/gradera`, Claude vision), live kort-skanner (`/skanna`, capture-baserad), community, admin, PWA.
 
 ## Öppna ärenden / Nästa steg
+- **DISCORD-KOPPLINGEN ÄR BYGGD OCH DEPLOYAD, MEN AVSTÄNGD (2026-08-07)**: kod live, prod-migrationen körd,
+  `DISCORD_ENABLED=false` i Railway + GitHub. Kvar, i ORDNING: (1) **integritetspolicyn** — jurist måste läsa
+  `../PokeFinds-private/docs/PRIVACY-DISCORD-DRAFT.md`, som utöver Discord listar TRE leverantörer som
+  behandlar personuppgifter i produktion i dag UTAN att stå i policyn (Stripe sedan 08-07, Google/Gemini sedan
+  08-05, Tradera) — de är försenade oavsett Discord; (2) **testa flödet** med ett ANNAT konto än serverägarens;
+  (3) `DISCORD_ENABLED=true`. Ägarbeslut tagna: roller tas bort men ingen kickas, och Pro-rollen följer hela
+  `isPro()` (inkl. admin + referral-bonus). Se "DISCORD-ROLLEN" under Tekniska beslut.
 - **LEVERANTÖRSSURVEY 2026-08-02 — SLUTSATS: byt inte prisfeed, lägg till TCGdex gratis**: `lowest_near_mint`
   (vår rubrik) finns hos INGEN annan än nuvarande leverantör. Men **TCGdex** (tcgdex.dev, MIT, ingen nyckel,
   domän från 2020) ger tre saker vi saknar, gratis: (1) **tryckningstaxonomin som förstklassiga rader** — alla
@@ -95,6 +102,19 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   cache (se Auto-uppdatering) → scale-to-zero funkar igen; (5) robots.txt blockerar /produkter?-facettcrawl
   (oändlig dynamisk URL-rymd), sitemap = hela katalogen med weekly changefreq. Bevaka Neon-grafen efter deploy:
   compute ska nu vara piggar (batch-fönster) istället för 0,25 CU dygnet runt.
+- **BUTIKS-WAVE 4 = 23 NYA BUTIKER (2026-08-07)**: alla på tre ÅTERANVÄNDA plattformar — 17 Shopify, 3 Quickbutik,
+  3 WooCommerce (`woocommerce-adapter.ts`, ny, publika Store API v1). Varje butik verifierades mot sin RIKTIGA feed
+  före påslag med `scripts/probe-new-adapters.ts` (rapporterar feedstorlek + hur många annonser som passerar
+  vaktkedjan, utan att röra DB). Registrering = `scripts/setup-wave4-sources.ts --apply`, engångsimport =
+  `scripts/run-wave4-import.ts`. ⛔ **restockWatch är AVSIKTLIGT AV** för alla 23: den lanen kör var 10:e minut och
+  Neon debiteras per vaken tid — 23 butiker där är ett kostnadsbeslut, inte en teknisk detalj. De dagliga
+  körningarna ger pris och lager ändå.
+  ⛔ **KVAR (10 butiker, en egen plattform var)**: playoteket (PrestaShop), coolcard (Starweb), samlargrottan (Wix),
+  cardhaven + gimmick + toyspace + spelochsant (custom SPA), evokort (One.com), **cgpremium** (har ett riktigt
+  JSON-API, `/api/v1/products`, 57 Pokémon-varor MED tillverkar-EAN — men `stock` är en förvrängd sträng, så
+  lagerstatus blir UNKNOWN; kräver ägarbeslut om vi vill visa pris utan lager) och **arcadedreams, som vi INTE FÅR
+  hämta**: deras robots.txt listar tillåtna bottar och avslutar med `User-agent: * / Disallow: /`. Vår egen
+  robots-parser blockerar den redan korrekt — ta inte bort den grinden.
 - **Restock Wave 3** (kvar): custom/JS-butiker maxgaming, sweetnerds, Spel & Sånt, playoteket, arcadedreams — fragila HTML/SPA,
   byggs en i taget MED verifiering. Spel & Sånt + Spelbutiken saknar adapter. Se [[project-pending-store-adapters]].
 - **Mobilapp via Capacitor** (`android/` finns): kräver Apple/Google-konton; iOS-bygge kräver Mac/cloud-build (användaren på Windows).
@@ -188,6 +208,45 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   ⛔ Klienten måste kalla `session.update()` efter återkomsten från Checkout: jwt-callbacken läser annars om
   planen först efter `TOKEN_REFRESH_MS` (30 min) och en betalande kund väntar en halvtimme utan att något felar.
   Moms via Stripe Tax (`automatic_tax`), priset sätts inkl. moms. Plan/kvot-namnet `PREMIUM` är oförändrat.
+- **DISCORD-ROLLEN FÖLJER `isPro()`, OCH AVSTÄMNINGEN ÄR INTE VALFRI (2026-08-07)**: användaren länkar sitt
+  Discord-konto i /installningar, går med i servern (`guilds.join`) och får rollen `Verifierad`; har hen Pro
+  sätts även `Pro`. EN definition av Pro — `isPro()` — aldrig en egen regel för Discord.
+  ⛔ **SYNKEN SKER PÅ TRE STÄLLEN OCH ALLA TRE BEHÖVS**: (1) vid länkningen, (2) i Stripe- OCH
+  RevenueCat-webhookarna, (3) i en NATTLIG avstämning (`src/jobs/discord-reconcile.ts`, körs sist i
+  scrape-all). Punkt 3 är den som folk tar bort för att den ser redundant ut: `bonusProUntil` och
+  `stripeProUntil` är DATUM som löper ut UTAN att någon webhook fyras — utan avstämningen sitter Pro-rollen
+  kvar i evighet hos den som slutade betala. Den ligger i scrape-alls fönster (inte egen cron) för att Neon
+  debiteras per VAKEN TID.
+  ⛔ **VI RÖR BARA KONTON VI SJÄLVA LÄNKAT** (`User.discordUserId`), aldrig serverns medlemslista. Ägaren hade
+  redan delat ut `Pro` för hand till 3 medlemmar; ett jobb som utgick från Discord-sidan hade strippat dem vid
+  första körningen. Vi tar aldrig bort en roll vi inte satt, och vi KICKAR ALDRIG — frånkoppling och
+  kontoradering tar bort rollerna, medlemskapet är personens eget.
+  ⛔ **INGEN OAuth-TOKEN LAGRAS** (till skillnad från `traderaToken`): användartoken behövs EN gång för
+  `guilds.join` och slängs; all rollhantering går via bot-token. Scopes är exakt `identify guilds.join` —
+  INTE `email`, INTE `guilds` (den läser varje server personen är med i). Vaktat av
+  `tests/unit/discord-link.test.ts`, som är en regressionsvakt mot scope-krypning: allt vi hämtar måste
+  deklareras i integritetspolicyn.
+  ⛔ **BOT- OCH OAuth-KONFIGURATIONEN ÄR SKILDA** (`discordBotConfig()` / `discordOAuthConfig()`): nattjobbet
+  gör aldrig ett OAuth-utbyte och ska därför inte kräva client secret i GitHub Actions. Färre kopior av en
+  hemlighet = färre ställen att glömma vid rotation (jfr APNs-nyckeln, som lever i tre filer).
+  ⛔ **DISCORD-ROLLHIERARKIN**: botens egen roll måste ligga ÖVER `Pro`/`Verifierad` i serverns rollista,
+  annars svarar Discord 403 och rollen sätts tyst aldrig. Och serverns ÄGARE kan sannolikt inte få roller av
+  en bot alls — testa med ett andra konto, annars går det inte att skilja konfigfel från hierarki.
+  ⛔ **`guilds.join` returnerar 204 (inte 201) när personen REDAN är medlem, och applicerar då INTE `roles`
+  i kroppen** — rollerna måste alltid sättas separat efteråt.
+  **GDPR**: `discordUserId`/`discordUsername`/`discordLinkedAt` är personuppgifter; exporten fick
+  `connectedAccounts` (och `traderaUserId`, som SAKNATS i exporten sedan Tradera-kopplingen byggdes).
+  Kontoradering tar bort rollerna FÖRE raderingen — efteråt finns ingen rad att läsa id:t ur, och en Pro-roll
+  utan konto är just en sådan kvarleva art. 17 handlar om.
+  ⚠️ **MÖRKLAGD BAKOM `DISCORD_ENABLED` tills integritetspolicyn är uppdaterad.** Utkast + de tre ANDRA
+  odeklarerade leverantörerna (Stripe, Google/Gemini, Tradera) ligger i `../PokeFinds-private/docs/
+  PRIVACY-DISCORD-DRAFT.md`. ⛔ Discord får INTE bara läggas i `Privacy.s7Items`: den listan påstår att varje
+  post är ett personuppgiftsbiträde bundet av biträdesavtal, och Discord är självständigt personuppgifts-
+  ansvarig som aldrig tecknar ett sådant. Samma sak gäller Tradera.
+  ⛔ **MIGRATIONEN MÅSTE LIGGA FÖRE KODEN**: `/installningar`, GDPR-exporten och kontoraderingen `select`:ar
+  Discord-kolumnerna, så koden mot en omigrerad databas ger 500 för ALLA användare, inte bara Discord-användare.
+  Dockerfilens `migrate deploy || true` är avsiktligt icke-blockerande och kan alltså tiga ihjäl felet — kör
+  `node scripts/with-prod-db.mjs npx prisma migrate deploy` MANUELLT före push vid schemaändringar.
 - **JAPANSKA SET KOMMER FRÅN CARDMARKETS EXPANSIONER (2026-08-07)**: katalogens set kommer från
   pokemontcg.io, som BARA har engelska set — alla 100 japanska produkter hade därför `setId = null` och
   japanska set gick inte att filtrera på. ⛔ **TCGGO stänger inte hålet**: episodlistan är 175 västerländska
@@ -332,6 +391,49 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   ett sätt CardTrader inte modellerar, och deras länkar är satta för hand.
   ✅ Durabelt: dagliga `runCardmarketRefresh` återanvänder `entry.url` (skriver inte om den), och
   `resolve-cm-urls.ts` rör bara redirect-/sök-URL:er.
+- **AUTO-IMPORTEN STÄLLER EN ANNAN FRÅGA ÄN PRISVÄGEN — DÄRAV "ANDRA CHANSEN" (2026-08-07)**: `matchProduct` säger
+  nej av två helt olika skäl, och `ensureListingProduct` behandlade dem likadant: som "varan finns inte". Det stämmer
+  bara för det ena. **(a)** ingen kandidat är i närheten → ny produkt är RÄTT. **(b)** kandidaten finns men får inte
+  VINNA (täckningsgolv, marginalvakt, tvåsidiga vakter) → ny produkt är en DUBBLETT. Vaktkedjan är byggd för
+  PRISVÄGEN, där en felaktig länk ger fel pris, och avstår med flit; auto-importen frågar i stället "har vi den här
+  varan redan?", där ett falskt nej kostar en dubblett. `nearestCatalogCandidate` (matching.ts) plockar därför fram
+  den bästa kandidaten när matcharen sagt null och lämnar över till **samma LLM-domare som redan avgör 0,55–0,85**.
+  MÄTT på Wave 4:s första provimport: 3 nya produkter, varav **2 dubbletter** — "Prismatic Evolutions Super-Premium
+  Collection **(SPC)**" (0,913, alla kandidater föll på vaktkedjan) och "Scarlet **of** Violet Booster pack"
+  (0,945, butikens rena STAVFEL; `nonEraCoverage` blev 0,000 eftersom kandidaten inte har ETT ENDA icke-era-ord).
+  Ett tredje fall, "Destined Rivals Booster Pack", föll på marginalvakten: 0,858 mot rätt post, 0,872 mot
+  "Destined Rivals **Sleeved** Booster". Domaren svarade rätt på alla sju kontrollfall (3 samma, 4 olika).
+  ⛔ **GOLVET (0,75) ÄR INGET BEVIS** — det finns bara för att slippa fråga om orelaterade varor. Domaren avgör.
+  ⛔ **ensureListingProduct MÅSTE FÅ INDEXET.** Den anropade `matchProduct` utan det, dvs DB-vägen med `take: 200`
+  utan `orderBy` — som filen själv dokumenterar som opålitlig. Indexet laddas LAT i `runRestockScan` (bara
+  feed-först-grenen behöver det) så en körning utan nya URL:er inte betalar för 22k rader ur Neon.
+  ⛔ **UTAN `ANTHROPIC_API_KEY` FELAR DET TYST.** `judgeSameProduct` returnerar null utan nyckel — omöjligt att
+  skilja från "olika produkter" — och HELA gränsfallsbandet blir dubbletter. `scripts/with-prod-db.mjs` skickar
+  BARA `DATABASE_URL`, så CLI-körningar måste ladda `.env` själva: `scripts/load-env.ts` + `requireEnv()`.
+  Provimporten kördes med död domare innan det upptäcktes. Städverktyg för gammal data (använder samma nya regel
+  bakåt): `scripts/merge-import-duplicates.ts` — torrkörning default, tre spärrar (målet måste vara rikare,
+  stubben får aldrig bära mer meritlista, domaren måste säga samma).
+  **DIAGNOSTIK**: `setMatchTracer()` i matching.ts + `scripts/diagnose-listing-match.ts "<titel>" --utan-nya=3`.
+  Skriver ut poolstorlek, överlevare efter vaktkedjan, bästa/tvåan och VILKET utfall som gällde. Tre gånger nu har
+  felsökningen fastnat på "kom kandidaten ens in i poolen?"; kroken gör frågan mätbar. Null i drift = noll kostnad.
+- **NYA BUTIKER SÄLJER INTE BARA SEALED — VAKTERNA SATT I FEL KODVÄG (2026-08-07)**: `isSingleCardListing` fanns
+  sedan länge i `productsConflict`, men ALDRIG i `ensureListingProduct`, den enda väg som SKAPAR produkter. Det gick
+  an så länge butikerna vi hämtade sålde nästan bara sealed. De nya gör inte det: TCG Store har 754 singlar i sin
+  feed, Pokétalk 105, Pocketmonsters 1 592 poster under "pokemonkort". En singel bär sällan formord ⇒ `guessCategory`
+  landar på `OTHER` ⇒ som med flit räknas som sealed ⇒ varje singel hade blivit en egen katalogprodukt bredvid den
+  riktiga. Samma hål, samma väg in, för MERCH — därav `isMerchandiseListing` (gosedjur, figurer, affischer, kläder).
+  ⛔ **SEALED-ORDET VETAR MERCH-VAKTEN.** En riktig SKU kan bära ett merch-ord ("Ultra-Premium Collection" innehåller
+  en figur); ett gosedjur bär aldrig "Booster"/"ETB"/"Tin". Asymmetrin är avsiktlig: ett falskt merch-ord kostar
+  ingenting, ett glömt kostar en katalogprodukt. Bart "kalender" är FÖRBJUDET (adventskalendern är en äkta SKU).
+  ⛔ **SAMLARNUMMER/TOTAL var det tecken som saknades**: `123/195`, `TG27/TG30`. MÄTT före påslag: 0 av 1 466
+  sealed-titlar i de fem befintliga butikernas feedar och 0 av 1 633 sealed-produkter i katalogen träffas. Måttet ÄR
+  kravet — tecknet sitter i `productsConflict`, och en falsk träff där blockerar en korrekt butikslänk, tyst.
+  **FEED-NIVÅN**: Shopifys `pokemonCollections` och Woo-adapterns kategorifilter hoppar över singel-/graderat-/
+  merch-hyllor. Mätt: 0 kollektioner och 0 produkt-handles förlorade i de fyra befintliga Shopify-butikerna.
+  ⛔ **QUICKBUTIKS KATEGORIUPPTÄCKT ÄR UNION, ALDRIG ERSÄTTNING**: den gamla regeln (`/pokemon/{kat}`, exakt 2
+  segment) står kvar orörd, och den generaliserade upptäckten LÄGGER TILL. En feed som tappar en URL nollar offern
+  till "Okänd" efter 24h och nästa restock larmar aldrig. Biprodukt: Swepokes `/japanska-pokemon-produkter` och
+  `/pre-order-pokemon` har aldrig hämtats förut och gör det nu.
 - **MATCHNINGEN: KANDIDATURVALET VAR FELET, INTE POÄNGEN (2026-08-07)**: butiksdubbletter uppstod inte för att
   vakterna var svaga utan för att rätt tvilling ALDRIG kom in i kandidatpoolen. `significantTokens` tog de SEX
   FÖRSTA orden i titeln, och butiker skriver Pokémon-namnet SIST ("… Temporal Forces 3-Pack Blister **Cleffa**")
