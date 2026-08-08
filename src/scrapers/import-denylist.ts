@@ -129,6 +129,15 @@ const DENIED = new Set<string>(
     "https://cardgame.se/engelska-pokmon-produkter/engelska-tins/prismatic-evolutions-mini-tin",
     // Shinycards "nyheter"-sida (Collector's Chest 2025 — ägaren: radera):
     "https://www.shinycards.se/nyheter/pokemon-collectors-chest-2025-release-512",
+    // ── Katalogsvepningen 2026-08-08, sektion 3 (apply-sweep-section1-2026-08-08.ts):
+    // generiska random tin-/sortimentslistningar, samma familj som Lumiose "1st random".
+    "https://rahtech.se/products/pokemon-ascended-heroes-elite-trainer-box-engelsk-copy",
+    "https://beamcardshop.com/products/ascended-heroes-mini-tin",
+    "https://beamcardshop.com/products/crown-zenith-mini-tin",
+    "https://blindbox.se/products/pokemon-black-white-mini-tin",
+    "https://blindbox.se/products/pokemon-mega-heroes-mini-tin",
+    "https://beamcardshop.com/products/pokemon-mega-evolutions-mega-heroes-mini-tin",
+    "https://cardgame.se/engelska-pokmon-produkter/engelska-tins/mega-heroes-mini-tin-2-pack",
     // Släppta vid merge (målet hade redan butikens offer via en annan URL) — utan
     // denylist kan de återuppstå som stubbar vid nästa import:
     "https://dragonslair.se/products/pokemon-25th-anniversary-celebrations-pokemon",
