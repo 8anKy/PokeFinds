@@ -132,6 +132,8 @@ const DENIED = new Set<string>(
     // ── Ägarens svar på svepningens sektion 2 (apply-owner-sweep-answers-2026-08-08.ts):
     "https://www.poketalk.se/products/pokemon-scarlet-violet-prismatic-tech-sticker-collection-3-pack-blister",
     "https://dragonslair.se/products/pokemon-tcg-2-pack-blister-2024-pokemon",
+    // "Long crimp"-vintagepåse (samlarobjekt graderat på krympningen, ingen katalog-SKU):
+    "https://samlarhobby.se/products/pokemon-team-rocket-long-crimp-1-booster-gyarados-artwork",
     // Icke-Pokémon: "KPop Demon Hunters" (hittad av ägaren — blocklistan kände inte
     // franchisen; numera stoppar även den positiva vakten hasPokemonTitleSignal den):
     "https://beamcardshop.com/products/kpop-demon-hunters-energy-edition-booster-box",
