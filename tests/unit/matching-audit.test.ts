@@ -172,8 +172,11 @@ describe("vakterna var för sig — verkliga fall ur revisionen", () => {
     expect(isAccessoryListing("Acrylic Booster Box Display for Pokémon")).toBe(true);
     // Larmet 2026-07-16: "for One Piece Booster Box" mejlades som ny Pokémon-produkt.
     expect(isAccessoryListing("The Acrylic Box - Premium Case for One Piece Booster Box – OP-04+")).toBe(true);
-    // En pärm SOM INNEHÅLLER en booster är en riktig SKU → får inte flaggas.
-    expect(isAccessoryListing("Pokémon TCG: Spring 2025 Mini Portfolio + Journey Together Booster")).toBe(false);
+    // POLICYBYTE 2026-08-08 (ägarbeslut, andra gången portfolio+booster rensades):
+    // pärm/portfolio är tillbehör ÄVEN med booster. Album SÅLT I EN BLISTER är
+    // däremot en riktig CM-SKU och undantas.
+    expect(isAccessoryListing("Pokémon TCG: Spring 2025 Mini Portfolio + Journey Together Booster")).toBe(true);
+    expect(isAccessoryListing("Guardians Rising: Collector's Album 2-Pack Blister")).toBe(false);
     expect(isAccessoryListing("Surging Sparks Booster Box")).toBe(false);
   });
 
@@ -243,8 +246,9 @@ describe("isAccessoryListing — tredjepartsmärken och skyddsplast", () => {
     // "Ultra" ensamt är förbjudet i märkesvakten — annars dör hela UPC-serien.
     expect(isAccessoryListing("Hidden Fates: Ultra-Premium Collection")).toBe(false);
     expect(isAccessoryListing("Mega Charizard X ex Ultra Premium Collection")).toBe(false);
-    // Pärm MED booster är en riktig kombo-SKU (befintlig regel, får inte regrera).
-    expect(isAccessoryListing("Pokémon TCG: Fall 2024 Mini Portfolio + Booster")).toBe(false);
+    // POLICYBYTE 2026-08-08: pärm/portfolio + booster är TILLBEHÖR (ägarbeslut —
+    // raderades via denylist 07-18 och igen i kataloggenomgången 08-08).
+    expect(isAccessoryListing("Pokémon TCG: Fall 2024 Mini Portfolio + Booster")).toBe(true);
     expect(isAccessoryListing("Pokémon TCG: Surging Sparks Booster Box")).toBe(false);
   });
 });

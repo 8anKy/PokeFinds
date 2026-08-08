@@ -91,6 +91,49 @@ const DENIED = new Set<string>(
     "https://www.swepoke.se/pokemon/mystery-box/swepoke-mysterybox",
     "https://www.tradera.com/item/1001341/742200148/pokemon-tcg-luminous-city-mini-tins",
     "https://manatorsk.com/products/pokemon-mini-tin-luminose-city-alla-fem-tins-max-1st-per-hushall",
+    // ── Ägarens kataloggenomgång 2026-08-08 (apply-owner-catalog-cleanup-2026-08-08.ts) ──
+    // Black Bolt & White Flare-kombon: ägaren markerade butikslänkarna som FEL —
+    // Samlarhobby-URL:en säljer i själva verket ett Victini File Set.
+    "https://samlarhobby.se/products/pokemon-scarlet-violet-white-flare-black-bolt-victini-file-set",
+    "https://tinymisters.com/products/pokemon-scarlet-violet-black-bolt-och-white-flare-booster-boxes-japansk",
+    // Tillbehör i klump med booster (mini-portfolio/mini-album/jumbo-mynt):
+    "https://cardclub.se/products/pokemon-tcg-journey-together-booster-pack-mini-portfolio",
+    "https://fantasianorth.com/sv/produkt/pokemon-tcg-2026-spring-mini-album-with-booster/",
+    "https://www.shinycards.se/tillbehor/pokemon-scarlet-violet-151-ultra-premium-collection-jumbo-mynt",
+    // Icke-Pokémon (Naruto TCG) — Pokétalk säljer även andra spel. Franchise-vakten
+    // fångar dem numera på titeln, men URL:erna står här också (samma skäl som
+    // tillbehören ovan: en omdöpt produkt hade annars smugit in igen):
+    "https://www.poketalk.se/products/naruto-mythos-tcg-first-set-special-pack-collection-box",
+    "https://www.poketalk.se/products/naruto-mythos-tcg-konoha-shido-2nd-edition-booster-box-kopia",
+    "https://www.poketalk.se/products/naruto-mythos-tcg-konoha-shido-1st-edition-booster-box",
+    "https://www.poketalk.se/products/naruto-mythos-tcg-konoha-shido-2nd-edition-booster-pack",
+    "https://www.poketalk.se/products/naruto-mythos-tcg-konoha-shido-1st-edition-booster-pack",
+    // "SV1 Base Set Sleeved Booster" (ägaren: radera):
+    "https://hobbykort.se/products/pokemon-scarlet-violet-base-set-booster-pack",
+    // Lumiose City "1st random Tin" (generiskt sortiment, en URL per butik):
+    "https://rgbkingz.com/products/pokemon-tcg-lumiose-city-mini-tin",
+    "https://samlarhobby.se/products/pokemon-lumiose-city-mini-tin-1st-random-tin",
+    "https://spelgalaxen.se/products/pokemon-ascended-heroes-mini-tin-2-pack-en-copy",
+    "https://fantasianorth.com/sv/produkt/pokemon-tcg-lumiose-city-mini-tin/",
+    "https://mysteryshack.se/products/pokmon-mini-tin-june",
+    "https://rahtech.se/products/pokemon-lumiose-city-mini-tin",
+    "https://cardclub.se/products/pokemon-tcg-2026-summer-lumiose-city-mini-tin",
+    "https://dragonslair.se/products/pokemon-tcg-lumiose-city-mini-tins",
+    "https://miniaturemetropolis.se/products/pokemon-tcg-mini-tin-june",
+    "https://speltrollet.se/products/pokemon-tcg-lumiose-city-mini-tin-1st",
+    // 151 mini-tin UTAN boosters ("Boosters ingår ej") — normUrl kapar ?variant=,
+    // så basen täcker alla nio karaktärsvarianterna på samma sida:
+    "https://tcgstore.se/products/pokemon-scarlet-violet-151-mini-tin-art-card-coin",
+    // Generiska sortiment-tins (assorted/ospecificerad):
+    "https://tcgstore.se/products/pokemon-scarlet-violet-8-5-prismatic-evolutions-mini-tin",
+    "https://cardgame.se/engelska-pokmon-produkter/engelska-tins/prismatic-evolutions-mini-tin",
+    // Shinycards "nyheter"-sida (Collector's Chest 2025 — ägaren: radera):
+    "https://www.shinycards.se/nyheter/pokemon-collectors-chest-2025-release-512",
+    // Släppta vid merge (målet hade redan butikens offer via en annan URL) — utan
+    // denylist kan de återuppstå som stubbar vid nästa import:
+    "https://dragonslair.se/products/pokemon-25th-anniversary-celebrations-pokemon",
+    "https://cardgame.se/engelska-pokmon-produkter/packbattle/packbattle-mega-evolution-booster-pack",
+    "https://cardgame.se/engelska-pokmon-produkter/packbattle/packbattle-crown-zenith-boosster-pack-2026-05-08-2300",
   ].map(normUrl)
 );
 

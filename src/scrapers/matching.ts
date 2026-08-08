@@ -1117,16 +1117,32 @@ export function isSingleCardListing(title: string): boolean {
 }
 
 /**
- * Ser annonsen ut som ett TILLBEHÖR? Spelmatta, pärm/portfolio utan booster,
- * sleeves, deckbox, akrylskydd. Samma hål som ovan (inget formord → ingen vakt):
+ * Ser annonsen ut som ett TILLBEHÖR? Spelmatta, pärm/portfolio, sleeves, deckbox,
+ * akrylskydd. Samma hål som ovan (inget formord → ingen vakt):
  *   "Mega Charizard X/Y Spelmatta"        → "Mega Charizard X ex Tin"
  *   "Charmander Mini Pärm - 3 Pocket"     → "Phantasmal Flames Booster + Mini Pärm"
  *   "Acrylic Booster Box Display"         → "Sun & Moon Display / Booster Box"
- * OBS: en pärm/portfolio SOM INNEHÅLLER en booster är en riktig sealed-SKU
- * ("Mini Portfolio + Booster") → kräver att booster-ordet SAKNAS.
+ * ⛔ Pärm/portfolio ÄVEN MED booster är tillbehör (ägarbeslut, två gånger:
+ *    denylisten 2026-07-18 och kataloggenomgången 2026-08-08 raderade VARJE
+ *    "Mini Portfolio + Booster"/"Mini Album with Booster"). Det gamla undantaget
+ *    ("portfolio som innehåller en booster är en riktig SKU") är därför BORTTAGET —
+ *    det var exakt hålet som släppte in dem igen via de nya butikerna.
  */
 const ACCESSORY_SIGNS =
   /\b(spelmatta|playmat|lekmatta|sleeves?|kortfodral|deck ?box|kortl[åa]da|akryl\w*|acrylic|skyddsfodral|toploader|binder)\b/i;
+
+// INNEHÅLLET INGÅR INTE = inte varan (2026-08-08). TCG Store sålde tio "Mini Tin +
+// Art Card & Coin (Boosters ingår ej)" — TOMMA tins, alla blev katalogprodukter
+// bredvid de riktiga. En titel som säger att kort/boosters INTE följer med beskriver
+// ett tillbehör oavsett vilka formord den bär, så den här vakten står ÖVER
+// sealed-formordet (till skillnad från merch-vakten).
+const CONTENT_EXCLUDED_SIGNS =
+  /\b(ingår|medföljer)\s+(ej|inte)\b|\bnot\s+included\b|\butan\s+boosters?\b/i;
+
+// Lösa mynt/jumbokort som säljs separat ur en collection ("151 Ultra Premium
+// Collection Jumbo Mynt", 2026-08-08). Bart "mynt"/"coin" är FÖRBJUDET — riktiga
+// blistrar skriver ut att promos + mynt ingår.
+const LOOSE_EXTRAS_SIGNS = /\bjumbo\s?(mynt|coin|kort|card)\b/i;
 
 // RAM = en tom bildram, inte kortet i den (2026-07-26). "Mega Darkrai ex 116/084
 // Extended Artwork-ram för Pokémonkort" (179 kr) matchade kortet med samma nummer
@@ -1136,7 +1152,6 @@ const ACCESSORY_SIGNS =
 // Rampardos/Rampage/Ramos, och ett kort SÅLT i ram är ändå ett paket, inte kortet.
 const FRAME_SIGNS = /\b(kortram|ram|ramar|ramen|inramad|inramning|card\s?frame)\b/i;
 const PORTFOLIO_SIGNS = /\b(p[äa]rm|portfolio|album|pocket)\b/i;
-const BOOSTER_WORD = /\b(booster|paket|pack|packs)\b/i;
 
 // Tredjeparts-TILLVERKARE av tillbehör. Ingen av dem tillverkar Pokémon-kort, så
 // namnet ensamt räcker som dom. Exakta fraser — "ultra" ensamt är FÖRBJUDET, det
@@ -1224,8 +1239,14 @@ export function isAccessoryListing(title: string): boolean {
   if (ACCESSORY_BRANDS.test(title)) return true;
   if (PROTECTOR_SIGNS.test(title)) return true;
   if (FRAME_SIGNS.test(title)) return true;
-  // Pärm/album/portfolio UTAN booster = bara tillbehöret.
-  if (PORTFOLIO_SIGNS.test(title) && !BOOSTER_WORD.test(title)) return true;
+  if (CONTENT_EXCLUDED_SIGNS.test(title)) return true;
+  if (LOOSE_EXTRAS_SIGNS.test(title)) return true;
+  // Pärm/album/portfolio = tillbehör, ÄVEN med booster (ägarbeslut — se ovan).
+  // ⛔ UNDANTAG: "… Album 2-Pack Blister" är en RIKTIG CM-SKU (albumet säljs I en
+  //    blister: Guardians Rising Collector's Album, Goodra Mini Album — mätt mot
+  //    katalogen 2026-08-08, de enda två träffarna). Ägarens raderade bundlar sa
+  //    alla "Portfolio + Booster"/"Album with Booster", aldrig "Blister".
+  if (PORTFOLIO_SIGNS.test(title) && !/\bblister\b/i.test(title)) return true;
   return false;
 }
 
@@ -1236,8 +1257,11 @@ export function isAccessoryListing(title: string): boolean {
 // hade fällt äkta SKU:er som "Ascended Heroes Booster Bundle". Bart "magic"/"altered"/
 // "sorcery" är FÖRBJUDET (för generiska ord); MTG känns igen på "MTG"/"Magic: "/"Magic
 // the Gathering".
+// "naruto" m.fl. anime-TCG:er saknades — "Naruto Mythos TCG: First Set Special Pack
+// Collection Box" blev en katalogprodukt via Pokétalk (ägarens kataloggenomgång
+// 2026-08-08). Orden nedan förekommer aldrig i en Pokémon-titel.
 const OTHER_FRANCHISE_SIGNS =
-  /\b(one\s?piece|lorcana|yu-?gi-?oh|yugioh|digimon|dragon\s?ball|star\s?wars|flesh\s?and\s?blood|riftbound|union\s?arena|weiss\s?schwarz|grand\s?archive|gundam|mtg|magic\s+the\s+gathering)\b|\bmagic:\s/i;
+  /\b(one\s?piece|lorcana|yu-?gi-?oh|yugioh|digimon|dragon\s?ball|star\s?wars|flesh\s?and\s?blood|riftbound|union\s?arena|weiss\s?schwarz|grand\s?archive|gundam|mtg|magic\s+the\s+gathering|naruto|jujutsu\s?kaisen|demon\s?slayer|my\s?hero\s?academia|hunter\s?x\s?hunter|mythos\s?tcg)\b|\bmagic:\s/i;
 export function isOtherFranchiseListing(title: string): boolean {
   return OTHER_FRANCHISE_SIGNS.test(title);
 }
@@ -1255,8 +1279,44 @@ export function isOtherFranchiseListing(title: string): boolean {
  */
 const STORE_BUNDLE_SIGNS =
   /\bmystery\s*(box|pack|påse|bag)\b|\bmysterybox\b|\balla\s+(fem|5|fyra|4|tre|3)\s+(tins?|askar|paket)\b/i;
+
+// SORTIMENT = butiken väljer åt dig ("1st random Tin", "Mini Tin - Assorted",
+// "Slumpad blister"). Vilken tin/blister kunden får är odefinierat, så annonsen
+// motsvarar INGEN tillverkar-SKU — den kan varken prisjämföras eller länkas till en
+// karaktärsprodukt. Ägarens kataloggenomgång 2026-08-08 raderade fyra sådana
+// (Lumiose City "1st random Tin" med 11 butikslänkar, två "Assorted"-tins, en
+// generisk mini tin); tidigare denylist-poster (Kanto Power, Ascended Heroes,
+// Paradox Destinies) var samma sak. "1st" är svenskans "1 st", inte "first".
+const ASSORTMENT_SIGNS =
+  /\b\d+\s?st\s+random\b|\brandom\s+(mini\s*)?(tins?|blisters?|packs?|boosters?)\b|\bassorted\b|\bslumpad\w*\b|\bslumpm[äa]ssig\w*\b|\ben\s+av\s+(fem|fyra|tre|5|4|3)\b/i;
+
 export function isStoreBundleListing(title: string): boolean {
-  return STORE_BUNDLE_SIGNS.test(title);
+  return STORE_BUNDLE_SIGNS.test(title) || ASSORTMENT_SIGNS.test(title);
+}
+
+/**
+ * KARAKTÄRSLÖS BLISTER/MINI TIN — den största dubblettklassen i ägarens
+ * kataloggenomgång 2026-08-08 (30+ av mergarna): butiken skriver "Pokémon SV6:
+ * Twilight Masquerade Premium Checklane Blister" medan katalogens produkter heter
+ * "…: Kingdra Premium Checklane Blister". För blistrar och mini tins ÄR karaktären
+ * identiteten (CM namnger alla 486 blistrar "Set: KARAKTÄR N-Pack Blister"), så en
+ * karaktärslös annons kan aldrig mekaniskt bindas till rätt produkt — och
+ * blisterCharacterMismatch hindrar med rätta matcharen från att gissa.
+ *
+ * ANVÄNDS BARA VID SKAPANDET (ensureListingProduct, efter att all matchning
+ * misslyckats): en karaktärslös annons som ändå matchar (ägd URL, GTIN, LLM-dom)
+ * länkas som vanligt. Vakten avgör bara att en NY produkt aldrig skapas för den —
+ * hellre en osynlig butikslänk än en dubblett som skuggar hela karaktärsfamiljen.
+ *
+ * ⚠️ "Ancient"/"Future"-blistrarna (Stellar Crown) är äkta karaktärslösa SKU:er —
+ *    de finns redan i katalogen via CM-importen och nås via matchningen, så vakten
+ *    kostar dem ingenting. ETB/boxar/bundles hör INTE hit: de är set-nivå-SKU:er
+ *    och karaktärslösa av naturen.
+ */
+const CHARACTER_IDENTITY_FORMS = /\b(blister|checklane|mini[- ]?tins?)\b/i;
+export function isUnspecifiedCharacterListing(title: string): boolean {
+  if (!CHARACTER_IDENTITY_FORMS.test(title)) return false;
+  return characterNames(title).size === 0;
 }
 
 /**

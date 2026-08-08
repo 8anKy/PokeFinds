@@ -63,6 +63,7 @@ import {
   isOtherFranchiseListing,
   isMerchandiseListing,
   isSingleCardListing,
+  isUnspecifiedCharacterListing,
   nearestCatalogCandidate,
   isPlausiblePriceFor,
   loadMatchIndex,
@@ -249,10 +250,13 @@ const SEALED_FEED_CATEGORIES = new Set([
  * Auto-import: säkerställ att en katalogprodukt finns för en sealed butiksannons (feed-
  * först). Länkar till befintlig produkt vid HÖG matchkonfidens (≥0.85). Under det men
  * över matcher-golvet (0.55–0.85) får en billig LLM-dom (Haiku) avgöra "samma SKU?" —
- * hellre ett öres-anrop än en dubblettprodukt; utan ANTHROPIC_API_KEY skapas som förr
- * en ny produkt (veckodedupen städar). Upsertar butikens offer så URL:en får ett
- * Offer → nästa skanning går via den beprövade offer-diffen. Returnerar productId
- * (null om kategori saknas eller språket är blockat).
+ * hellre ett öres-anrop än en dubblettprodukt. ⛔ ÄR DOMAREN OTILLGÄNGLIG (ingen
+ * nyckel/slut på kvot) SKAPAS INGENTING: den gamla policyn ("skapa en stub som
+ * veckodedupen städar") var exakt så Wave 4-importen fyllde katalogen med dubbletter
+ * (ägarens genomgång 2026-08-08 hittade 75). Annonsen väntar i stället till nästa
+ * körning med fungerande domare — en fördröjd länk är billigare än en dubblett.
+ * Upsertar butikens offer så URL:en får ett Offer → nästa skanning går via den
+ * beprövade offer-diffen. Returnerar productId (null om avvisad/uppskjuten).
  */
 export async function ensureListingProduct(
   it: { title: string; url: string; price: number | null; imageUrl: string | null; retailerId: string; category: string | null; sourceName?: string },
@@ -308,10 +312,9 @@ export async function ensureListingProduct(
   // fyra Evoretro-fodral, en tärningspåse, en playmat-bundle. Raderade vi dem utan den här
   // raden skapade nästa restock-skanning om dem inom minuter.
   //
-  // isAccessoryListing (INTE form === "accessory"): den har undantaget för pärm/portfolio
-  // SOM INNEHÅLLER en booster. classifyForm saknar det undantaget och returnerar "accessory"
-  // även för äkta "Mini Portfolio + Booster" — att grinda på formen hade blockerat en riktig
-  // sealed-SKU, vilket är värre än att släppa in ett fodral.
+  // Sedan 2026-08-08 räknas även pärm/portfolio MED booster som tillbehör —
+  // ägarbeslut, andra gången de rensades ur katalogen (07-18 via denylist, 08-08 via
+  // kataloggenomgången). Undantaget som släppte in dem är borttaget ur vakten.
   if (isAccessoryListing(cleanTitle)) return null;
   // BUTIKSEGNA BUNDLES (mystery boxes, "alla fem tins") är butikens egen hopsättning
   // och saknar både streckkod och motsvarighet hos andra butiker — de går alltså inte
@@ -391,10 +394,17 @@ export async function ensureListingProduct(
       ) {
         productId = match.productId;
       } else {
-        // 2) Annars: låt LLM-domen avgöra (samma som veckodedupen). Utan nyckel/kvot
-        //    returnerar den null → vi skapar en stub som veckodedupen får städa.
+        // 2) Annars: låt LLM-domen avgöra (samma som veckodedupen).
+        //    ⛔ null = domaren OTILLGÄNGLIG (nyckel/kvot/fel) — inte "olika produkter".
+        //    Då skapas INGENTING: en kandidat finns men kan inte prövas, och att gissa
+        //    "ny produkt" var exakt så Wave 4 fyllde katalogen med dubbletter (75 st,
+        //    ägarens genomgång 2026-08-08). Annonsen prövas om nästa körning.
         const verdict = await judgeSameProduct(cleanTitle, candidate.title);
-        if (verdict?.same) productId = match.productId;
+        if (!verdict) {
+          console.log(`[dedup] Domare otillgänglig — skjuter upp "${cleanTitle}" (kandidat: "${candidate.title}")`);
+          return null;
+        }
+        if (verdict.same) productId = match.productId;
       }
     }
   }
@@ -421,7 +431,13 @@ export async function ensureListingProduct(
       // bevisat olika SKU:er och då ska annonsen bli en egen produkt.
       if (candidate && !gtinConflict(gtin, candidate.gtin ?? null)) {
         const verdict = await judgeSameProduct(cleanTitle, candidate.title);
-        if (verdict?.same) {
+        // Samma regel som i 0.55–0.85-bandet: otillgänglig domare + närliggande
+        // kandidat = skapa inget, pröva om nästa körning.
+        if (!verdict) {
+          console.log(`[dedup] Domare otillgänglig — skjuter upp "${cleanTitle}" (kandidat: "${candidate.title}")`);
+          return null;
+        }
+        if (verdict.same) {
           console.log(`[dedup] Andra chansen band "${cleanTitle}" → "${candidate.title}" (${near.score.toFixed(3)})`);
           productId = near.id;
         }
@@ -430,6 +446,17 @@ export async function ensureListingProduct(
   }
 
   if (!productId) {
+    // KARAKTÄRSLÖS BLISTER/MINI TIN får ALDRIG bli en ny produkt: karaktären ÄR
+    // identiteten för de formerna, så en annons utan karaktär kan inte veta vilken
+    // katalogprodukt den är — och att gissa "ny" gav 30+ dubbletter i ägarens
+    // genomgång 2026-08-08 ("SV6 Twilight Masquerade Premium Checklane Blister"
+    // bredvid "…: Kingdra Premium Checklane Blister"). Vakten ligger HÄR, efter all
+    // matchning: en karaktärslös annons som ändå matchat (ägd URL, GTIN, LLM-dom)
+    // länkas som vanligt — bara skapandet stoppas.
+    if (isUnspecifiedCharacterListing(cleanTitle)) {
+      console.log(`[import] Karaktärslös blister/mini tin — skapar ingen produkt: "${cleanTitle}"`);
+      return null;
+    }
     let slug = slugify(cleanTitle) || `produkt-${Date.now().toString(36)}`;
     if (await prisma.product.findUnique({ where: { slug }, select: { id: true } })) {
       slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
