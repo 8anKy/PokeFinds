@@ -49,6 +49,23 @@ export function isValidGtinChecksum(digits: string): boolean {
  * `gtin8` men skickar 12–13 siffror. En 8-siffrig kontroll hade kastat 100% av
  * deras data.
  */
+/**
+ * LINJEDELADE KODER = INGEN IDENTITET (2026-08-08). Vissa produktlinjer bär EN
+ * streckkod för ALLA karaktärsvarianter — mätt: sex butikers karaktärsspecifika
+ * sidor (Gengar- OCH Luxray-versionen av Pitch Black Premium Checklane) publicerar
+ * exakt samma kod. En kod som två olika SKU:er delar kan aldrig vara en join-nyckel:
+ * GTIN-först-vägen i ensureListingProduct tar `findFirst` och hade länkat varannan
+ * annons till fel karaktär. De normaliseras därför till null = "ingen kod", vilket
+ * också hindrar daglig backfill från att återförgifta rensade rader.
+ * ⛔ Lägg BARA hit koder som är BEVISAT delade mellan olika produkter — en felaktigt
+ * bannad kod tar bort en giltig nyckel från en riktig produkt.
+ */
+const SHARED_LINE_GTINS = new Set([
+  "00196214142657", // Pitch Black Premium Checklane (Gengar + Luxray, 6 butiker eniga)
+  "00196214111332", // Destined Rivals 3-Pack Blister (Kangaskhan + Zebstrika, samma DL-sida)
+  "00820650851117", // "Charizard Premium Collection" (GX 2019 + ex 2023 — går ej att attribuera)
+]);
+
 export function normalizeGtin(raw: string | string[] | number | null | undefined): string | null {
   if (raw == null) return null;
   // Webhallen skickar en array med samma kod i flera kodningar → ta första giltiga.
@@ -70,7 +87,10 @@ export function normalizeGtin(raw: string | string[] | number | null | undefined
   for (const len of [8, 12, 13, 14]) {
     if (trimmed.length > len) continue;
     const padded = trimmed.padStart(len, "0");
-    if (isValidGtinChecksum(padded)) return padded.padStart(14, "0");
+    if (isValidGtinChecksum(padded)) {
+      const canonical = padded.padStart(14, "0");
+      return SHARED_LINE_GTINS.has(canonical) ? null : canonical;
+    }
   }
   return null;
 }

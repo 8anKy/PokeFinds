@@ -8,6 +8,16 @@ import { gtinFromJsonLd, productNameFromHtml } from "@/scrapers/gtin-source";
  * former butikerna faktiskt skickar.
  */
 describe("normalizeGtin", () => {
+  it("LINJEDELADE koder normaliseras till null — de identifierar ingen SKU (2026-08-08)", () => {
+    // Sex butikers karaktärsspecifika sidor publicerade SAMMA kod för både Gengar-
+    // och Luxray-versionen av Pitch Black Premium Checklane — en kod två SKU:er
+    // delar får aldrig bli en join-nyckel, och backfill får inte återförgifta.
+    expect(normalizeGtin("196214142657")).toBeNull(); // Pitch Black Premium Checklane-linjen
+    expect(normalizeGtin("0196214142657")).toBeNull(); // samma kod, annan kodning
+    expect(normalizeGtin("196214111332")).toBeNull(); // Destined Rivals 3-Pack-linjen
+    expect(normalizeGtin("820650851117")).toBeNull(); // Charizard Premium Collection (GX/ex)
+  });
+
   it("normaliserar Dragon's Lairs Shopify-barcode (12-siffrig UPC-A) till GTIN-14", () => {
     // dragonslair.se /products/{handle}.js → variants[0].barcode
     expect(normalizeGtin("196214142671")).toBe("00196214142671");

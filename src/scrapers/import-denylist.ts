@@ -132,6 +132,13 @@ const DENIED = new Set<string>(
     // ── Ägarens svar på svepningens sektion 2 (apply-owner-sweep-answers-2026-08-08.ts):
     "https://www.poketalk.se/products/pokemon-scarlet-violet-prismatic-tech-sticker-collection-3-pack-blister",
     "https://dragonslair.se/products/pokemon-tcg-2-pack-blister-2024-pokemon",
+    // ── Ägarens andra svarsomgång (apply-owner-sweep-answers-2-2026-08-08.ts):
+    // Xerneas-blistern, butiksbundlar av två boxar/båda ETB:erna, Y & X-tin-listningen.
+    "https://cardgame.se/engelska-pokmon-produkter/engelska-2-3-pack-blizters/xy-3-pack-blister-xerneas-xy-breakthrough",
+    "https://kantovault.se/products/black-bolt-white-flare-booster-box-bundle-japansk",
+    "https://kantovault.se/products/black-bolt-white-flare-deluxe-booster-box-bundle-japansk",
+    "https://beamcardshop.com/products/spring-tin-2026",
+    "https://www.poketalk.se/products/pokemon-scarlet-violet-black-white-elite-trainer-box",
     // ── Katalogsvepningen 2026-08-08, sektion 3 (apply-sweep-section1-2026-08-08.ts):
     // generiska random tin-/sortimentslistningar, samma familj som Lumiose "1st random".
     "https://rahtech.se/products/pokemon-ascended-heroes-elite-trainer-box-engelsk-copy",
