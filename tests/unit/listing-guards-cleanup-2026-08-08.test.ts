@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  hasPokemonTitleSignal,
   isAccessoryListing,
   isMerchandiseListing,
   isOtherFranchiseListing,
   isStoreBundleListing,
   isUnspecifiedCharacterListing,
 } from "@/scrapers/matching";
+import { normalizeTitle } from "@/lib/utils";
 
 /**
  * Vakterna som stärktes efter ägarens kataloggenomgång 2026-08-08 (Duplicates.txt):
@@ -62,6 +64,34 @@ describe("isAccessoryListing — pärm/album ÄVEN med booster (ägarbeslut)", (
       "Goodra Mini Album 2-Pack Blister",
     ]) {
       expect(isAccessoryListing(t), t).toBe(false);
+    }
+  });
+});
+
+describe("hasPokemonTitleSignal — positiv evidens, inte blocklista", () => {
+  const sets = new Set(
+    ["Wild Force (SV5K)", "Prismatic Evolutions", "Destined Rivals"].flatMap((n) => [
+      normalizeTitle(n),
+      normalizeTitle(n.replace(/\(.*?\)/g, " ")),
+    ])
+  );
+
+  it("avvisar okända franchiser som blocklistan aldrig kan känna till", () => {
+    // Ägarens plantering 2026-08-08: tog sig in för att ingen blocklista kände den.
+    expect(hasPokemonTitleSignal("KPop Demon Hunters Energy Edition Booster Box", sets)).toBe(false);
+    expect(hasPokemonTitleSignal("Random New Anime TCG Booster Box", sets)).toBe(false);
+  });
+
+  it("släpper igenom Pokémon-evidens av alla fyra slag", () => {
+    for (const t of [
+      "Pokémon TCG: Something New Booster Box", // ordet
+      "Snorlax Premium Figure Box", // Pokémon-namn
+      "Wild Force Booster Pack (Japansk) - sv5K", // känt setnamn (utan parentes-koden)
+      "Fall 2027 Elite Trainer Box", // Pokémon-exklusiv produktlinje
+      "Trick or Trade BOOster Pack 2027",
+      "Reshiram-EX Tin", // bindestrecksnamn måste också kännas igen
+    ]) {
+      expect(hasPokemonTitleSignal(t, sets), t).toBe(true);
     }
   });
 });

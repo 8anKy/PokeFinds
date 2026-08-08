@@ -25,6 +25,7 @@ import { isPokemonManufacturerGtin } from "../src/lib/gtin";
 import {
   cleanListingTitle,
   characterNames,
+  hasPokemonTitleSignal,
   isAccessoryListing,
   isMerchandiseListing,
   isOtherFranchiseListing,
@@ -228,6 +229,36 @@ async function main() {
     lines.push(`  ${meta(p)}\n  ${URL(p.slug)}`);
   }
   console.log(`E: ${eCount} karaktärslösa setlösa stubbar (utöver A).`);
+
+  // ── G. INGEN POKÉMON-SIGNAL: varan kan vara vad som helst ──────────────────
+  // Inverterade franchise-vakten: i stället för att känna igen FEL spel (blocklistan
+  // missade "KPop Demon Hunters") kräver vi POSITIV evidens — ordet Pokémon, ett
+  // Pokémon-namn, ett känt setnamn eller en Pokémon-exklusiv produktlinje.
+  lines.push("");
+  lines.push("═══════════════════════════════════════════════════════════════");
+  lines.push("G. INGEN POKÉMON-SIGNAL i titeln — främmande vara ELLER udda döpt äkta");
+  lines.push("   produkt. Varje rad kräver mänsklig dom.");
+  lines.push("═══════════════════════════════════════════════════════════════");
+  const knownSets = new Set<string>();
+  for (const s of await prisma.cardSet.findMany({ select: { name: true } })) {
+    // JP-setnamn bär koden ("Wild Force (SV5K)") — lägg in båda formerna.
+    for (const variant of [s.name, s.name.replace(/\(.*?\)/g, " ")]) {
+      const n = normalizeTitle(variant);
+      if (n.length >= 3) knownSets.add(n);
+    }
+  }
+  let gCount = 0;
+  for (const p of products) {
+    if (p.setId) continue; // set-länkad = bevisat Pokémon
+    if (p.cm) continue; // CM-offer = skapad ur Cardmarkets egen Pokémon-katalog
+    if (hasPokemonTitleSignal(p.title, knownSets)) continue;
+    gCount++;
+    lines.push("");
+    lines.push(`Granska (ingen signal)`);
+    lines.push(`  ${meta(p)}\n  ${URL(p.slug)}`);
+    for (const o of p.offers) if (o.url) lines.push(`    ${o.retailer}: ${o.url}`);
+  }
+  console.log(`G: ${gCount} utan Pokémon-signal.`);
 
   // ── F. Övrigt: helt offerlösa sealed-produkter utan set (död vikt) ─────────
   lines.push("");

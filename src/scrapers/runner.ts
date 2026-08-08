@@ -61,6 +61,7 @@ import {
   isAccessoryListing,
   isStoreBundleListing,
   isOtherFranchiseListing,
+  hasPokemonTitleSignal,
   isMerchandiseListing,
   isSingleCardListing,
   isUnspecifiedCharacterListing,
@@ -258,6 +259,28 @@ const SEALED_FEED_CATEGORIES = new Set([
  * Upsertar butikens offer så URL:en får ett Offer → nästa skanning går via den
  * beprövade offer-diffen. Returnerar productId (null om avvisad/uppskjuten).
  */
+/**
+ * Kända setnamn (normaliserade, ≥3 tecken) för den positiva Pokémon-vakten.
+ * Laddas EN gång per process — jobben är kortlivade, och ~220 rader är en
+ * försumbar fråga som bara ställs när en NY produkt är på väg att skapas.
+ */
+let setNamesCache: Promise<Set<string>> | null = null;
+function knownSetNames(): Promise<Set<string>> {
+  setNamesCache ??= prisma.cardSet.findMany({ select: { name: true } }).then((rows) => {
+    const out = new Set<string>();
+    for (const r of rows) {
+      // JP-set bär koden i namnet ("Wild Force (SV5K)") — butikstiteln gör det
+      // sällan, så BÅDA formerna läggs in (med och utan parentes).
+      for (const variant of [r.name, r.name.replace(/\(.*?\)/g, " ")]) {
+        const n = normalizeTitle(variant);
+        if (n.length >= 3) out.add(n);
+      }
+    }
+    return out;
+  });
+  return setNamesCache;
+}
+
 export async function ensureListingProduct(
   it: { title: string; url: string; price: number | null; imageUrl: string | null; retailerId: string; category: string | null; sourceName?: string },
   stockStatus: StockStatus,
@@ -446,6 +469,16 @@ export async function ensureListingProduct(
   }
 
   if (!productId) {
+    // POSITIV POKÉMON-EVIDENS: franchise-blocklistan ovan kan bara stoppa spel den
+    // KÄNNER TILL — "KPop Demon Hunters Energy Edition Booster Box" bar inget känt
+    // franchisenamn och blev en katalogprodukt (2026-08-08). En NY produkt måste
+    // därför bevisa att den är Pokémon: ordet, ett Pokémon-namn, ett känt setnamn
+    // eller en Pokémon-exklusiv produktlinje. Länkning till BEFINTLIGA produkter
+    // påverkas inte — vakten står bara vid skapandet.
+    if (!hasPokemonTitleSignal(cleanTitle, await knownSetNames())) {
+      console.log(`[import] Ingen Pokémon-signal — skapar ingen produkt: "${cleanTitle}"`);
+      return null;
+    }
     // KARAKTÄRSLÖS BLISTER/MINI TIN får ALDRIG bli en ny produkt: karaktären ÄR
     // identiteten för de formerna, så en annons utan karaktär kan inte veta vilken
     // katalogprodukt den är — och att gissa "ny" gav 30+ dubbletter i ägarens

@@ -132,6 +132,13 @@ const DENIED = new Set<string>(
     // ── Ägarens svar på svepningens sektion 2 (apply-owner-sweep-answers-2026-08-08.ts):
     "https://www.poketalk.se/products/pokemon-scarlet-violet-prismatic-tech-sticker-collection-3-pack-blister",
     "https://dragonslair.se/products/pokemon-tcg-2-pack-blister-2024-pokemon",
+    // Icke-Pokémon: "KPop Demon Hunters" (hittad av ägaren — blocklistan kände inte
+    // franchisen; numera stoppar även den positiva vakten hasPokemonTitleSignal den):
+    "https://beamcardshop.com/products/kpop-demon-hunters-energy-edition-booster-box",
+    // Kanto Vault-stubbar som ÅTERUPPSTOD efter merge (offern föll bort som konflikt
+    // → URL:en blev herrelös → nästa skanning skapade om produkten):
+    "https://kantovault.se/products/white-flare-deluxe-booster-box-japansk",
+    "https://kantovault.se/products/black-bolt-deluxe-booster-box-japansk",
     // ── Ägarens andra svarsomgång (apply-owner-sweep-answers-2-2026-08-08.ts):
     // Xerneas-blistern, butiksbundlar av två boxar/båda ETB:erna, Y & X-tin-listningen.
     "https://cardgame.se/engelska-pokmon-produkter/engelska-2-3-pack-blizters/xy-3-pack-blister-xerneas-xy-breakthrough",

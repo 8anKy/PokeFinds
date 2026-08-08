@@ -1260,10 +1260,43 @@ export function isAccessoryListing(title: string): boolean {
 // "naruto" m.fl. anime-TCG:er saknades — "Naruto Mythos TCG: First Set Special Pack
 // Collection Box" blev en katalogprodukt via Pokétalk (ägarens kataloggenomgång
 // 2026-08-08). Orden nedan förekommer aldrig i en Pokémon-titel.
+// ⚠️ EN BLOCKLISTA KAN ALDRIG BLI KOMPLETT: "KPop Demon Hunters Energy Edition
+// Booster Box" (Beam Cardshop) tog sig in för att ingen kände till franchisen.
+// Därför finns numera även den POSITIVA vakten hasPokemonTitleSignal nedan —
+// den här listan är kvar som snabbt förstahandsfilter (den fångar även TILLBEHÖR
+// för andra spel, som den positiva vakten inte ser).
 const OTHER_FRANCHISE_SIGNS =
-  /\b(one\s?piece|lorcana|yu-?gi-?oh|yugioh|digimon|dragon\s?ball|star\s?wars|flesh\s?and\s?blood|riftbound|union\s?arena|weiss\s?schwarz|grand\s?archive|gundam|mtg|magic\s+the\s+gathering|naruto|jujutsu\s?kaisen|demon\s?slayer|my\s?hero\s?academia|hunter\s?x\s?hunter|mythos\s?tcg)\b|\bmagic:\s/i;
+  /\b(one\s?piece|lorcana|yu-?gi-?oh|yugioh|digimon|dragon\s?ball|star\s?wars|flesh\s?and\s?blood|riftbound|union\s?arena|weiss\s?schwarz|grand\s?archive|gundam|mtg|magic\s+the\s+gathering|naruto|jujutsu\s?kaisen|demon\s?slayer|my\s?hero\s?academia|hunter\s?x\s?hunter|mythos\s?tcg|k-?pop|demon\s?hunters)\b|\bmagic:\s/i;
 export function isOtherFranchiseListing(title: string): boolean {
   return OTHER_FRANCHISE_SIGNS.test(title);
+}
+
+/**
+ * POSITIV POKÉMON-EVIDENS (2026-08-08): en NY katalogprodukt måste kunna BEVISA att
+ * den är Pokémon — ordet Pokémon, ett Pokémon-namn i titeln, ett känt setnamn ur vår
+ * egen katalog, eller en produktlinje som bara finns hos Pokémon (Elite Trainer Box,
+ * VMAX/VSTAR, Poké Ball …). Frånvaro av ALLA signaler = varan kan vara vad som helst
+ * ("KPop Demon Hunters Energy Edition Booster Box" bar ingen enda signal).
+ *
+ * ⛔ Används BARA vid SKAPANDET av nya produkter (som karaktärslös-vakten): en
+ *    annons som matchar en befintlig produkt (ägd URL, GTIN, titel, LLM-dom) länkas
+ *    som vanligt oavsett signal. Kostnaden för en falsk avvisning är alltså en
+ *    UPPSKJUTEN produkt, aldrig en förlorad länk.
+ * ⛔ setNames MÅSTE vara normaliserade (normalizeTitle) och ≥ 3 tecken — tvåtecknare
+ *    som "XY" substrängmatchar skräp ("galaxy").
+ */
+const POKEMON_LINE_SIGNS =
+  /\b(pok[eé]mon|pikachu|elite\s*trainer|etb|vmax|vstar|v-?union|pok[eé]\s?ball|premium\s*tournament\s*collection|trainer'?s\s*toolkit|build\s*(&|and)\s*battle|trick\s*or\s*trade)\b/i;
+export function hasPokemonTitleSignal(title: string, normalizedSetNames: ReadonlySet<string>): boolean {
+  if (POKEMON_LINE_SIGNS.test(title)) return true;
+  // Bindestrecksvarianten också: "Reshiram-EX Tin"/"Ho-Oh GX" tokeniseras annars som
+  // "reshiram-ex" och missar namnlistan (mätt: 8 vintage-EX-tins föll på det).
+  if (characterNames(title).size > 0 || characterNames(title.replace(/-/g, " ")).size > 0) return true;
+  const padded = ` ${normalizeTitle(title)} `;
+  for (const name of normalizedSetNames) {
+    if (name.length >= 3 && padded.includes(` ${name} `)) return true;
+  }
+  return false;
 }
 
 /**
