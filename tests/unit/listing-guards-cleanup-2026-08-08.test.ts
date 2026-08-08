@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isAccessoryListing,
+  isMerchandiseListing,
   isOtherFranchiseListing,
   isStoreBundleListing,
   isUnspecifiedCharacterListing,
@@ -62,6 +63,23 @@ describe("isAccessoryListing — pärm/album ÄVEN med booster (ägarbeslut)", (
     ]) {
       expect(isAccessoryListing(t), t).toBe(false);
     }
+  });
+});
+
+describe("isMerchandiseListing — Poster Collection är en riktig TCG-SKU", () => {
+  it("flaggar inte poster collections (hittad av katalogsvepningen 2026-08-08)", () => {
+    for (const t of [
+      "Ascended Heroes: Mega Lucario Premium Poster Collection",
+      "Prismatic Evolutions Poster Collection",
+      "151 Poster Collection",
+    ]) {
+      expect(isMerchandiseListing(t), t).toBe(false);
+    }
+  });
+
+  it("en bar affisch är fortfarande merch", () => {
+    expect(isMerchandiseListing("Pokémon affisch Kanto")).toBe(true);
+    expect(isMerchandiseListing("Pokemon Charizard Poster 50x70")).toBe(true);
   });
 });
 

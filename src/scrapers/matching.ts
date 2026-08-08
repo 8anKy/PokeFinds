@@ -1345,9 +1345,12 @@ export function isUnspecifiedCharacterListing(title: string): boolean {
 const MERCHANDISE_SIGNS =
   /\b(gosedjur|mjukisdjur|plush(ie)?|plysch|figur(er|in|ine)?s?|funko|nendoroid|amiibo|affisch(er)?|poster|tavla|mugg(ar)?|nyckelring|keychain|t-?shirt|tr[öo]ja|hoodie|keps|m[üu]ss(a|or)|strumpor|kl[äa]der|ryggs[äa]ck|pennfodral|pussel|puzzle|lego|mega\s?construx|s[äa]ngkl[äa]der|handduk|termos|vattenflaska|matl[åa]da|godis|choklad)\b|\bpok[eé]\s?ball\s+(figur|leksak|replika|beh[åa]llare)\b/i;
 
-/** Formord som bevisar att annonsen ÄR en sealed TCG-vara, oavsett merch-ord. */
+/** Formord som bevisar att annonsen ÄR en sealed TCG-vara, oavsett merch-ord.
+ *  "poster collection" (2026-08-08): en riktig TCG-produktlinje (boosters + affisch,
+ *  CM-modellerad, säljs av 9 butiker) — utan frasen här åt merch-vaktens "poster"-ord
+ *  upp varje ny butikslänk för dem, tyst. Hittad av katalogsvepningen. */
 const SEALED_FORM_WORD =
-  /\b(booster|boosters|display|etb|elite\s*trainer|blister|bundle|tin|tins|booster\s*box|premium\s*collection|build\s*(&|and)\s*battle|checklane|theme\s*deck|battle\s*deck|starter\s*deck)\b/i;
+  /\b(booster|boosters|display|etb|elite\s*trainer|blister|bundle|tin|tins|booster\s*box|premium\s*collection|poster\s*collection|build\s*(&|and)\s*battle|checklane|theme\s*deck|battle\s*deck|starter\s*deck)\b/i;
 
 /** Merch (gosedjur, figurer, kläder, affischer) — aldrig en TCG-katalogprodukt. */
 export function isMerchandiseListing(title: string): boolean {
