@@ -1128,8 +1128,12 @@ export function isSingleCardListing(title: string): boolean {
  *    ("portfolio som innehåller en booster är en riktig SKU") är därför BORTTAGET —
  *    det var exakt hålet som släppte in dem igen via de nya butikerna.
  */
+// "long crimp"/"short crimp" = vintagepåse SÅLD PÅ KRYMPNINGEN (samlarobjekt värderat
+// på förpackningsdetaljen, inte innehållet) — ingen katalog-SKU (ägarbeslut 2026-08-08).
+// Ordparet förekommer aldrig i en riktig produkttitel, så det bor bland tillbehörstecknen
+// trots att det inte är ett tillbehör: effekten (aldrig en katalogprodukt) är densamma.
 const ACCESSORY_SIGNS =
-  /\b(spelmatta|playmat|lekmatta|sleeves?|kortfodral|deck ?box|kortl[åa]da|akryl\w*|acrylic|skyddsfodral|toploader|binder)\b/i;
+  /\b(spelmatta|playmat|lekmatta|sleeves?|kortfodral|deck ?box|kortl[åa]da|akryl\w*|acrylic|skyddsfodral|toploader|binder|(long|short)[- ]?crimp)\b/i;
 
 // INNEHÅLLET INGÅR INTE = inte varan (2026-08-08). TCG Store sålde tio "Mini Tin +
 // Art Card & Coin (Boosters ingår ej)" — TOMMA tins, alla blev katalogprodukter
