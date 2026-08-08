@@ -71,6 +71,28 @@ const HANGUL = /[가-힯ᄀ-ᇿㄱ-ㆎ]/;
 // (suffixet C = Chinese; \b efter c så "151 Collection" inte träffas).
 const CN_LINES = /\bgem pack\b|\b151\s*c\b/i;
 
+/**
+ * FLER KINESISKA MARKÖRER (2026-08-08) — tre produkter tog sig in i katalogen trots
+ * policyn EN+JP, och de föll på tre olika hål:
+ *
+ *  · `(CN)` i parentes. `EU_CODE_PAREN` täckte es/de/fr/it/pt men INTE cn/kr/tw/hk.
+ *  · Kinesisk SETKOD. CM:s kinesiska expansioner slutar på "C" ("CSV10C", "CSV9C",
+ *    "CSVM2cC") — mönstret står redan i import-sealed-from-cardmarket.ts, men aldrig här.
+ *  · "Slim Booster". MÄTT mot CM:s hela sealed-katalog (5 006 produkter): **noll**
+ *    träffar på "Slim Booster" — formatet finns inte i den västerländska/japanska
+ *    katalogen alls. Alla tre exemplaren hos oss var kinesiska, och Cardmarket listar
+ *    just den linjen som "151C: Collect 151 Surprises …", dvs med C-suffixet.
+ *
+ * ⛔ VARFÖR TITELN INTE RÄCKER: Pokétalks två titlar sa INGENTING om språk — bara
+ *    butikens BESKRIVNING gjorde ("Kinesisk utgåva"). Vår detektor läser titel + URL,
+ *    så de fångas här på formatordet i stället. Att läsa beskrivningen skulle kräva en
+ *    hämtning per annons i alla adaptrar; formatordet ger samma svar gratis.
+ */
+const CN_MARKERS = /\bCSV[A-Z0-9]{1,4}C\b|\bslim booster\b/i;
+/** Språkkod i parentes för asiatiska marknader — motsvarigheten till EU_CODE_PAREN. */
+const ASIA_CODE_PAREN = /[([]\s*(cn|ch|tw|hk)\s*[)\]]/i;
+const KR_CODE_PAREN = /[([]\s*kr\s*[)\]]/i;
+
 /** Fäller ihop accenter: "Púrpura"→"Purpura", "Écarlate"→"Ecarlate", "Español"→"Espanol".
  *  Utan detta missar orden ovan varje korrekt stavad titel. Rör inte kana/han/hangul. */
 function foldAccents(s: string): string {
@@ -89,8 +111,16 @@ export function detectListingLanguage(title: string, url?: string | null): Listi
     }
   }
   // Skript-testerna körs på RÅ text (accent-fällning rör dem inte, men var explicit).
-  if (CN.test(hay) || CN_LINES.test(hay) || (HAN.test(hay) && !KANA.test(hay))) return "CN";
-  if (KR.test(hay) || HANGUL.test(hay)) return "KR";
+  if (
+    CN.test(hay) ||
+    CN_LINES.test(hay) ||
+    CN_MARKERS.test(hay) ||
+    ASIA_CODE_PAREN.test(title) ||
+    (HAN.test(hay) && !KANA.test(hay))
+  ) {
+    return "CN";
+  }
+  if (KR.test(hay) || KR_CODE_PAREN.test(title) || HANGUL.test(hay)) return "KR";
   if (JP.test(hay) || KANA.test(hay)) return "JP";
 
   const folded = foldAccents(hay);

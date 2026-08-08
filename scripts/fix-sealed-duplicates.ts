@@ -46,11 +46,34 @@ const MERGE: { stubSlug: string; canonicalSlug: string; proof: string }[] = [
   },
 ];
 
+/** Andra omgången — se JUDGE_MERGE nedan. */
+
 /**
  * FELAKTIGA BUTIKSLÄNKAR — sidan säljer bevisligen en ANNAN vara.
  * Varje rad verifierad genom att hämta butikens egen sida och läsa dess produktnamn
  * (Shopifys `.js` / JSON-LD / og:title), och priset pekar åt samma håll.
  */
+const JUDGE_MERGE: { stubSlug: string; canonicalSlug: string; cm: string }[] = [
+  // ---- LLM-domarens omgång (2026-08-08), ägargodkänd ----
+  // Alla tio är butiksstubbar UTAN prishistorik (0 snapshots på minst en sida), och
+  // skillnaden är ren formulering: HTML-entiteter, "(Engelsk)", ett era-prefix, eller
+  // två stavningar av samma japanska set. Ingenting oersättligt går förlorat.
+  // ⛔ Domaren fick INTE bestämma ensam. Den kallade också "(US Version)"-paren och
+  //    [GVSE]/[LUJF]-boxkonsten "samma produkt" — båda är dokumenterat OLIKA varor
+  //    (regionVersionMismatch respektive project-evolving-skies-eeveelution-tags), och
+  //    de är med flit UTELÄMNADE här.
+  { stubSlug: "pokemon-mega-evolution-chaos-rising-3-pack-blister", canonicalSlug: "pokemon-mega-evolutions-chaos-rising-3-pack-blister", cm: "domaren: samma; ren stavningsskillnad" },
+  { stubSlug: "pokemon-destined-rivals-booster-pack", canonicalSlug: "pokemon-sv10-destined-rivals-booster-pack", cm: "domaren: samma; SV10 är era-prefix, inte en annan vara" },
+  { stubSlug: "pokemon-mega-nihil-zero-booster-pack-m3-japansk", canonicalSlug: "pokemon-mega-nullifying-zero-nihil-zero-booster-pack-m3-japansk", cm: "domaren: samma; två översättningar av samma japanska set (M3)" },
+  { stubSlug: "pokemon-ascended-heroes-mini-tin-engelsk", canonicalSlug: "pokemon-ascended-heroes-mini-tin", cm: "domaren: samma; '(Engelsk)' är butiksbrus" },
+  { stubSlug: "pokemon-enhanced-2-pack-blister-oddish-gloom-038-vileplume", canonicalSlug: "pokemon-enhanced-2-pack-blister-oddish-gloom-vileplume", cm: "domaren: samma; skillnaden är HTML-entiteten &#038;" },
+  { stubSlug: "pokemon-heat-wave-arena-booster-box-japanese", canonicalSlug: "heat-wave-arena-booster-box-japansk", cm: "domaren: samma; (Japansk) mot (Japanese)" },
+  { stubSlug: "pokemon-prismatic-evolutions-pokemon-center-elite-trainer-box", canonicalSlug: "pokemon-scarlet-violet-pokemon-center-prismatic-evolutions-elite-trainer-box", cm: "domaren: samma; enbart ordföljd" },
+  { stubSlug: "pokemon-chaos-rising-booster-pack-2yv6", canonicalSlug: "pokemon-chaos-rising-booster-pack", cm: "domaren: samma; Pokémon mot Pokemon" },
+  { stubSlug: "pokemon-classic-collection-box-japansk-o5zu", canonicalSlug: "pokemon-classic-collection-box-japansk", cm: "domaren: samma; IDENTISKA titlar, två rader" },
+  { stubSlug: "pokemon-scarlet-violet-151-booster-bundle-mew", canonicalSlug: "pokemon-scarlet-violet-mew-151-booster-bundle", cm: "domaren: samma; enbart ordföljd (MEW)" },
+];
+
 const WRONG_LINKS: { urlContains: string; productSlugContains: string; sells: string; proof: string }[] = [
   { urlContains: "hobbykort.se/products/pokemon-scarlet-violet-base-set-booster-pack", productSlugContains: "base-set-2-base4-booster-pack", sells: "Pokémon SV1: Base Set Booster Pack", proof: "79 kr mot CM 3 275 kr (2,4 %); sidan säljer SV1, inte Base Set 2" },
   { urlContains: "hobbykort.se/products/pokemon-scarlet-violet-booster-display", productSlugContains: "base-set-2", sells: "Pokémon SV1: Base Set Booster Box", proof: "2 599 kr mot CM 118 224 kr (2,2 %); sidan säljer SV1" },
@@ -65,7 +88,7 @@ async function main() {
 
   console.log("── DUBBLETTER ────────────────────────────────────────────────────────────");
   let merged = 0;
-  for (const m of MERGE) {
+  for (const m of [...MERGE, ...JUDGE_MERGE.map((j) => ({ stubSlug: j.stubSlug, canonicalSlug: j.canonicalSlug, proof: j.cm }))]) {
     const stub = await prisma.product.findUnique({ where: { slug: m.stubSlug }, select: { id: true, title: true, _count: { select: { watchlistItems: true, collectionItems: true } } } });
     const canon = await prisma.product.findUnique({ where: { slug: m.canonicalSlug }, select: { id: true, title: true } });
     if (!stub || !canon) { console.log(`  hoppar (saknas): ${m.stubSlug}`); continue; }

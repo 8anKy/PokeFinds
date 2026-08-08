@@ -25,6 +25,8 @@
  *    granskning. Det här skriptet skriver ingenting.
  */
 import "./load-env";
+import { requireEnv } from "./load-env";
+import { judgeSameProduct } from "../src/lib/same-product";
 import { prisma } from "../src/lib/db";
 import { SEALED_CATEGORY_EXCLUSIONS } from "../src/lib/product-category";
 import { scoreSimilarity, productsConflict } from "../src/scrapers/matching";
@@ -62,6 +64,14 @@ export function identityTokenDifference(a: string, b: string, sameSet: boolean):
 
 const ONLY = process.argv.find((a) => a.startsWith("--signal="))?.split("=")[1];
 const CSV = process.argv.includes("--csv");
+/**
+ * --judge: låt LLM-domaren avgöra GRANSKA-klustren (bara titellikhet).
+ * Domaren är samma instans som redan avgör auto-importens 0,55–0,85-band. Den är bra men
+ * inte ofelbar — utfallet är ett FÖRSLAG, och raderna den säger "samma" om hamnar i en
+ * granskningslista, inte i en merge.
+ */
+const JUDGE = process.argv.includes("--judge");
+if (JUDGE) requireEnv("ANTHROPIC_API_KEY");
 
 /** idProduct ur en Cardmarket-URL (`?idProduct=123` eller en löst slug-länk). */
 export function cmIdFromUrl(url: string): number | null {
@@ -293,6 +303,44 @@ async function main() {
     const members = [...m.ids].map((i) => byId.get(i)!).sort((a, b) => completeness(b) - completeness(a));
     return { ...m, members, ...classify(members, m.signals) };
   });
+
+  if (JUDGE) {
+    const review = groups.filter((g) => g.verdict === "GRANSKA");
+    console.log(`
+LLM-domaren prövar ${review.length} titel-kluster …
+`);
+    const same: string[] = [], diff: string[] = [], unsure: string[] = [];
+    for (const g of review) {
+      const [a, b] = g.members;
+      if (!a || !b) continue;
+      const v = await judgeSameProduct(a.title, b.title);
+      const line = `${a.title}
+        vs ${b.title}`;
+      if (v?.same === true) {
+        same.push(`${line}
+        domaren: SAMMA${v.reason ? ` — ${v.reason}` : ""}
+        [${a.slug}] snapshots=${a.snapshots} länkar=${a.offers.length}
+        [${b.slug}] snapshots=${b.snapshots} länkar=${b.offers.length}`);
+      } else if (v?.same === false) diff.push(line);
+      else unsure.push(line);
+    }
+    console.log(`${"█".repeat(80)}
+█  DOMAREN SÄGER SAMMA PRODUKT — ${same.length} (kräver ägargranskning)
+${"█".repeat(80)}`);
+    for (const x of same) console.log(`
+  · ${x}`);
+    console.log(`
+${"█".repeat(80)}
+█  DOMAREN SÄGER OLIKA — ${diff.length} (inget att göra)
+${"█".repeat(80)}`);
+    for (const x of diff) console.log(`  · ${x}`);
+    if (unsure.length) {
+      console.log(`
+█  DOMAREN SVARADE INTE — ${unsure.length}`);
+      for (const x of unsure) console.log(`  · ${x}`);
+    }
+    return;
+  }
 
   const order: Verdict[] = ["DUBBLETT", "BLANDAD", "DELAD LÄNK", "GRANSKA"];
   let n = 0;

@@ -123,3 +123,51 @@ describe("detectListingLanguage", () => {
     expect(listingCardLanguage("Wild Force Booster", jp)).toBe("JP");
   });
 });
+
+/**
+ * KINESISKA MARKÖRER SOM SLAPP IGENOM (2026-08-08).
+ *
+ * Sex kinesiska produkter tog sig in i katalogen via Wave 4-butikerna trots policyn
+ * EN+JP. De föll på tre olika hål, och alla tre är stängda nu. Testet finns för att
+ * hålla dem stängda — varje rad här är en RIKTIG titel ur produktionskatalogen.
+ */
+describe("kinesiska markörer (Wave 4-läckan)", () => {
+  it("flaggar kinesisk setkod, med versaler eller gemener", () => {
+    for (const t of [
+      "Pokémon Scarlet & Violet: Chasing Glory Together (CSV10C) Slim Booster Box (CN)",
+      "Pokémon Scarlet & Violet: Blade Awakened (csv7C) Jumbo Booster Box (CH)",
+      "Pokémon Scarlet & Violet: Dark Crystal Blazing Jumbo Booster Pack (csv5C) (CH)",
+    ]) {
+      expect(detectListingLanguage(t), t).toBe("CN");
+    }
+  });
+
+  it("flaggar 'Slim Booster' — formatet finns inte i CM:s katalog alls", () => {
+    // MÄTT: 0 träffar på "Slim Booster" bland CM:s 5 006 sealed-produkter. Butikernas
+    // egen beskrivning sa "Kinesisk utgåva", men TITELN avslöjade ingenting — därför
+    // fångas de på formatordet.
+    expect(detectListingLanguage("151 Surprise Slim Booster Box")).toBe("CN");
+    expect(detectListingLanguage("151 Surprise Slim Booster Pack")).toBe("CN");
+  });
+
+  it("flaggar asiatiska landskoder i parentes", () => {
+    expect(detectListingLanguage("Pokémon Booster Box (CN)")).toBe("CN");
+    expect(detectListingLanguage("Pokémon Booster Box (CH)")).toBe("CN");
+    expect(detectListingLanguage("Pokémon Booster Box (KR)")).toBe("KR");
+  });
+
+  it("rör INTE engelska eller japanska produkter", () => {
+    // Regressionsvakt: mätt mot hela katalogen träffade de nya mönstren exakt de sex
+    // kinesiska raderna och inget annat av 1 856 sealed-produkter.
+    for (const t of [
+      "Scarlet & Violet: 151 Booster Bundle",
+      "151 Ultra-Premium Collection",
+      "151: Mini Tin Display",
+      "Pokemon Scarlet & Violet: Wild Force Booster Box (Japansk)",
+      "Celebrations Elite Trainer Box",
+      "Chilling Reign Ice Rider Calyrex Elite Trainer Box",
+    ]) {
+      expect(["EN", "JP"], t).toContain(detectListingLanguage(t));
+    }
+  });
+});
