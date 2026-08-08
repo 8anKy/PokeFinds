@@ -129,6 +129,9 @@ const DENIED = new Set<string>(
     "https://cardgame.se/engelska-pokmon-produkter/engelska-tins/prismatic-evolutions-mini-tin",
     // Shinycards "nyheter"-sida (Collector's Chest 2025 — ägaren: radera):
     "https://www.shinycards.se/nyheter/pokemon-collectors-chest-2025-release-512",
+    // ── Ägarens svar på svepningens sektion 2 (apply-owner-sweep-answers-2026-08-08.ts):
+    "https://www.poketalk.se/products/pokemon-scarlet-violet-prismatic-tech-sticker-collection-3-pack-blister",
+    "https://dragonslair.se/products/pokemon-tcg-2-pack-blister-2024-pokemon",
     // ── Katalogsvepningen 2026-08-08, sektion 3 (apply-sweep-section1-2026-08-08.ts):
     // generiska random tin-/sortimentslistningar, samma familj som Lumiose "1st random".
     "https://rahtech.se/products/pokemon-ascended-heroes-elite-trainer-box-engelsk-copy",
