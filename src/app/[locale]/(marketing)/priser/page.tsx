@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { alternatesFor } from "@/lib/canonical";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { IconCheck, IconPlus, IconX } from "@/components/ui/icons";
 import { stripeCheckoutAdvertised } from "@/lib/stripe";
@@ -12,7 +13,11 @@ export async function generateMetadata({
   params: { locale: string };
 }): Promise<Metadata> {
   const t = await getTranslations({ locale: params.locale, namespace: "Pricing" });
-  return { title: t("metaTitle"), description: t("metaDescription") };
+  return {
+    title: t("metaTitle"),
+    description: t("metaDescription"),
+    alternates: alternatesFor(params.locale, "/priser"),
+  };
 }
 
 function FeatureList({ items, excluded = [] }: { items: string[]; excluded?: string[] }) {

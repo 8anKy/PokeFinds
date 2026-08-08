@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { alternatesFor } from "@/lib/canonical";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { notFound } from "next/navigation";
@@ -62,6 +63,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title: set.name,
     description: t("detailDescription", { name: set.name, series: set.series }),
+    alternates: alternatesFor(params.locale, `/sets/${params.id}`),
   };
 }
 

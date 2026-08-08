@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { alternatesFor } from "@/lib/canonical";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { formatPrice } from "@/lib/format";
@@ -48,6 +49,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title: product.title,
     description,
+    alternates: alternatesFor(params.locale, `/produkter/${params.slug}`),
     openGraph: {
       title: product.title,
       description,
