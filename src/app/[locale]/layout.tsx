@@ -50,6 +50,17 @@ export async function generateMetadata({
       apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
     },
     manifest: "/manifest.json",
+    // Ägarverifiering för Google Search Console-egenskapen https://www.foilio.se
+    // (URL-prefix). ⛔ TA INTE BORT den efter att verifieringen gått igenom: Google
+    // kontrollerar taggen om med jämna mellanrum och AVVERIFIERAR egenskapen om den
+    // försvunnit — då slutar sitemap-inlämning, indexeringsrapporter och
+    // "Begär indexering" fungera, tyst och utan att något i appen felar.
+    // ⛔ Hårdkodad med flit, INTE en env-variabel: token är publik per design (den
+    // står i sidkällan på varje sidvisning) och en env-variabel som glöms vid en
+    // miljöflytt hade avverifierat sajten utan ett enda felmeddelande.
+    verification: {
+      google: "-lgTBlCJrAGz6O9Ox4rgpkIQSxNxIhcQUa67BibM4yg",
+    },
   };
 }
 
