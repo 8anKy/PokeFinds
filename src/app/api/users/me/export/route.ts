@@ -18,6 +18,9 @@ export async function GET() {
         name: true,
         role: true,
         planTier: true,
+        // Pro-källor bortom planTier — bådadera personuppgifter om kontots status.
+        bonusProUntil: true,
+        stripeProUntil: true,
         avatarUrl: true,
         bio: true,
         emailVerifiedAt: true,
@@ -26,6 +29,8 @@ export async function GET() {
         preferences: true,
         reputationScore: true,
         isPublicCollection: true,
+        lastPushError: true,
+        traderaTokenExpiresAt: true,
         // Kopplade konton. ⛔ Den här routen använder en EXPLICIT select, så en ny
         // kolumn hamnar aldrig i exporten av sig själv — den måste läggas till här
         // också, annars är exporten tyst ofullständig (art. 15/20).
@@ -48,6 +53,40 @@ export async function GET() {
         posts: true,
         comments: true,
         alerts: true,
+        // ⛔ Art. 15/20: ALL användarkopplad data måste med. Den explicita selecten
+        // gör att en ny relation aldrig hamnar här av sig själv — lägg till den när
+        // en ny personkopplad tabell införs.
+        sales: true,
+        setWatches: { include: { set: { select: { name: true } } } },
+        // Skanningar/graderingar: metadata + graderingsutfallet (som visas i appen).
+        // Skannerns `result` utelämnas med flit — det är intern diagnostik (konst-
+        // avtryck m.m.), inte användarinnehåll; datumen/utfallet är personuppgiften.
+        scannerJobs: {
+          select: { id: true, status: true, confidence: true, createdAt: true },
+        },
+        gradingJobs: {
+          select: {
+            id: true,
+            status: true,
+            overallGrade: true,
+            confidence: true,
+            modelUsed: true,
+            result: true,
+            createdAt: true,
+          },
+        },
+        // Push-enheter: plattform + datum, ALDRIG själva token (device-hemlighet).
+        pushTokens: { select: { platform: true, createdAt: true } },
+        savedPosts: { select: { postId: true, createdAt: true } },
+        likes: { select: { postId: true, createdAt: true } },
+        reports: { select: { postId: true, reason: true, status: true, createdAt: true } },
+        offerReports: {
+          select: { offerId: true, reason: true, note: true, status: true, createdAt: true },
+        },
+        invitesSent: {
+          select: { id: true, createdAt: true, usedAt: true, verifiedAt: true, rewardedAt: true },
+        },
+        inviteUsed: { select: { createdAt: true, usedAt: true, verifiedAt: true } },
       },
     });
     if (!user) throw new AuthError(404, "Användaren hittades inte.");
@@ -73,6 +112,8 @@ export async function GET() {
         name: user.name,
         role: user.role,
         planTier: user.planTier,
+        bonusProUntil: user.bonusProUntil,
+        stripeProUntil: user.stripeProUntil,
         avatarUrl: user.avatarUrl,
         bio: user.bio,
         emailVerifiedAt: user.emailVerifiedAt,
@@ -81,6 +122,7 @@ export async function GET() {
         preferences: user.preferences,
         reputationScore: user.reputationScore,
         isPublicCollection: user.isPublicCollection,
+        lastPushError: user.lastPushError,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       },
@@ -98,10 +140,21 @@ export async function GET() {
           : null,
       },
       watchlist: user.watchlistItems,
+      setWatches: user.setWatches,
       collection: user.collectionItems,
+      sales: user.sales,
       posts: user.posts,
       comments: user.comments,
+      likes: user.likes,
+      savedPosts: user.savedPosts,
       alerts: user.alerts,
+      communityReports: user.reports,
+      offerReports: user.offerReports,
+      scanHistory: user.scannerJobs,
+      gradingHistory: user.gradingJobs,
+      pushDevices: user.pushTokens,
+      invitesSent: user.invitesSent,
+      inviteUsed: user.inviteUsed,
     };
 
     return new NextResponse(JSON.stringify(exportData, null, 2), {

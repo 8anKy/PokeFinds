@@ -1,7 +1,9 @@
 node_modules/
 .next/
-.env
-.env.local
+# Glob, inte exakt namn: .env.production, .env.local.bak, .env.*.local m.fl. måste
+# ALLA fångas — repot är PUBLIKT och en enda oskyddad env-fil läcker prod-hemligheter.
+.env*
+!.env.example
 *.log
 coverage/
 playwright-report/

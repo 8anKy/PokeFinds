@@ -558,7 +558,7 @@
       },
       {
         "lead": "Push-notiser:",
-        "text": "en teknisk push-token för din enhet, om du slår på pushnotiser. Den raderas när du stänger av dem eller loggar ut."
+        "text": "en teknisk push-token för din enhet, om du slår på pushnotiser. Den slutar användas när du stänger av notiserna, tas bort automatiskt om den blir ogiltig, och raderas helt när du raderar ditt konto."
       },
       {
         "lead": "Betalningsuppgifter:",
@@ -676,9 +676,17 @@
       {
         "lead": "Prenumerationsstatus i appen:",
         "text": "RevenueCat, som håller ordning på köp gjorda via App Store och Google Play (USA)."
+      },
+      {
+        "lead": "Feldiagnostik:",
+        "text": "Sentry, som tar emot tekniska felrapporter så att vi kan hitta och rätta buggar. Rapporterna kan innehålla tekniska uppgifter om din förfrågan."
+      },
+      {
+        "lead": "Säkerhet och belastningsskydd:",
+        "text": "Upstash (Redis, EU-region, Frankfurt), som vi använder för att begränsa antalet inloggnings- och mejlförsök. Här hanteras tillfälligt din e-postadress och IP-adress som räknare."
       }
     ],
-    "s7Outro": "Lagring av din kontodata sker inom EU/EES. Vid överföring till tredjeland (t.ex. USA för e-post och AI-identifiering) används godkända skyddsmekanismer enligt GDPR, såsom EU:s standardavtalsklausuler. Vi säljer aldrig dina uppgifter.",
+    "s7Outro": "Lagring av din kontodata sker inom EU/EES. Vid överföring till tredjeland (t.ex. USA för e-post, AI-identifiering och feldiagnostik) används godkända skyddsmekanismer enligt GDPR, såsom EU:s standardavtalsklausuler. Vi säljer aldrig dina uppgifter.",
     "s8Title": "8. Ändringar",
     "s8Body": "Vid väsentliga ändringar av denna policy informerar vi dig via e-post eller i tjänsten. Den senaste versionen finns alltid på denna sida. Se även våra <link>användarvillkor</link>.",
     "s7bTitle": "7b. Mottagare som ansvarar själva",
@@ -690,11 +698,15 @@
       },
       {
         "lead": "Discord:",
-        "text": "om du väljer att länka ditt Discord-konto delar vi ditt Discord-id för att lägga till dig i vår server och tilldela rätt roll. Vi delar ingen e-postadress och ingen information om vad du gör i Foilio."
+        "text": "om du väljer att länka ditt Discord-konto delar vi ditt Discord-id och din medlemsnivå (t.ex. Pro) för att lägga till dig i vår server och tilldela rätt roll. Vi delar ingen e-postadress och inget om din aktivitet i övrigt."
       },
       {
         "lead": "Tradera:",
         "text": "om du väljer att sälja via din Tradera-koppling delar vi de uppgifter som krävs för att skapa annonsen du själv begärt."
+      },
+      {
+        "lead": "Apple (push-notiser):",
+        "text": "om du slår på push på en iPhone skickas notisen via Apples pushtjänst (APNs), som då tar emot din enhets push-token och notisens innehåll för att leverera den."
       }
     ],
     "s7bOutro": "Kopplingarna är alltid frivilliga och kan tas bort i Inställningar."
@@ -1417,7 +1429,7 @@
       },
       {
         "q": "Hur betalar jag för Pro?",
-        "a": "I appen sker köpet säkert via App Store eller Google Play. På webben lanseras betalning inom kort. Tills dess är gratisnivån öppen för alla."
+        "a": "I appen sker köpet säkert via App Store eller Google Play. På webben sköts betalningen säkert av Stripe — vi ser aldrig ditt kortnummer. Du kan säga upp när du vill; du behåller Pro perioden ut."
       }
     ]
   },

@@ -558,7 +558,7 @@
       },
       {
         "lead": "Push notifications:",
-        "text": "a technical push token for your device, if you enable push notifications. It is deleted when you turn them off or sign out."
+        "text": "a technical push token for your device, if you enable push notifications. It stops being used when you turn notifications off, is removed automatically if it becomes invalid, and is deleted entirely when you delete your account."
       },
       {
         "lead": "Payment details:",
@@ -676,9 +676,17 @@
       {
         "lead": "Subscription status in the app:",
         "text": "RevenueCat, which keeps track of purchases made via App Store and Google Play (USA)."
+      },
+      {
+        "lead": "Error diagnostics:",
+        "text": "Sentry, which receives technical error reports so we can find and fix bugs. Reports may contain technical details about your request."
+      },
+      {
+        "lead": "Security and abuse protection:",
+        "text": "Upstash (Redis, EU region, Frankfurt), which we use to limit the number of login and email attempts. Your email address and IP address are handled here temporarily as counters."
       }
     ],
-    "s7Outro": "Storage of your account data takes place within the EU/EEA. For transfers to third countries (e.g. the USA for email and AI identification), approved safeguards under GDPR are used, such as the EU's standard contractual clauses. We never sell your data.",
+    "s7Outro": "Storage of your account data takes place within the EU/EEA. For transfers to third countries (e.g. the USA for email, AI identification and error diagnostics), approved safeguards under GDPR are used, such as the EU's standard contractual clauses. We never sell your data.",
     "s8Title": "8. Changes",
     "s8Body": "For material changes to this policy, we'll inform you by email or in the service. The latest version is always on this page. See also our <link>terms of use</link>.",
     "s7bTitle": "7b. Recipients responsible in their own right",
@@ -690,11 +698,15 @@
       },
       {
         "lead": "Discord:",
-        "text": "if you choose to link your Discord account, we share your Discord ID to add you to our server and assign the right role. We share no email address and no information about what you do in Foilio."
+        "text": "if you choose to link your Discord account, we share your Discord ID and your membership level (e.g. Pro) to add you to our server and assign the right role. We share no email address and nothing else about your activity."
       },
       {
         "lead": "Tradera:",
         "text": "if you choose to sell through your Tradera connection, we share the data required to create the listing you requested."
+      },
+      {
+        "lead": "Apple (push notifications):",
+        "text": "if you enable push on an iPhone, the notification is delivered via Apple's push service (APNs), which then receives your device's push token and the notification's content in order to deliver it."
       }
     ],
     "s7bOutro": "The connections are always optional and can be removed in Settings."
@@ -1417,7 +1429,7 @@
       },
       {
         "q": "How do I pay for Pro?",
-        "a": "In the app the purchase is made securely via the App Store or Google Play. On the web, payment launches soon. Until then the free tier is open to everyone."
+        "a": "In the app the purchase is made securely via the App Store or Google Play. On the web, payment is handled securely by Stripe — we never see your card number. You can cancel any time and keep Pro until the end of the period."
       }
     ]
   },

@@ -5,6 +5,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { apiError, jsonOk } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/client-ip";
+import { hashToken } from "@/lib/tokens";
 import { sendMail } from "@/lib/mailer";
 import { verifyEmail } from "@/emails/templates";
 
@@ -27,8 +29,7 @@ const SUCCESS_MESSAGE = "Om adressen behöver bekräftas har vi skickat en ny l�
  */
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anon";
-    const { ok } = await rateLimit(`resend-verify:${ip}`, 3, 15 * 60 * 1000);
+    const { ok } = await rateLimit(`resend-verify:${clientIp(req)}`, 3, 15 * 60 * 1000);
     if (!ok) {
       return NextResponse.json(
         { error: "För många försök. Vänta en stund och försök igen." },
@@ -60,7 +61,8 @@ export async function POST(req: NextRequest) {
         // ute från verifiering. Med den här ordningen står den gamla länken kvar
         // som fallback tills en ny bevisligen är på väg.
         await sendMail({ to: user.email, ...verifyEmail(user.name, verifyUrl) });
-        await prisma.user.update({ where: { id: user.id }, data: { verificationToken } });
+        // Bara HASHEN lagras; råtoken lever enbart i verifieringslänken ovan. Se hashToken().
+        await prisma.user.update({ where: { id: user.id }, data: { verificationToken: hashToken(verificationToken) } });
       } catch (mailError) {
         // Loggas högt men rapporteras inte till klienten — ett felsvar bara för
         // befintliga adresser vore precis den läcka svaret ska stoppa.

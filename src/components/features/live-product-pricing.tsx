@@ -483,13 +483,16 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
               </>
             )}
 
-            {/* ERSÄTTNINGSUPPLYSNING. Måste stå där länkarna står, inte bara i
-                villkoren: den som klickar vidare ska se den utan att leta. Formulerad
-                som ett MÖJLIGT arvode ("kan få") — alla butiker har inte ett program,
-                och `affiliateEnabled` avgör per butik vilka som faktiskt har det. */}
-            <p className="mt-4 text-xs leading-relaxed text-ink-faint">
-              {t("affiliateDisclosure")}
-            </p>
+            {/* ERSÄTTNINGSUPPLYSNING. Visas BARA när minst en synlig länk faktiskt är
+                affiliate-märkt (`affiliateIds`). ⛔ Får ALDRIG visas ovillkorligt: i dag
+                är affiliate inte aktivt (ägarbeslut 2026-08-08), och en stående
+                "vi kan få ersättning" motsäger då direkt villkoren §8 och /om, som lovar
+                motsatsen. Grinden gör upplysningen sann i båda lägena. */}
+            {affiliateIds.size > 0 && (
+              <p className="mt-4 text-xs leading-relaxed text-ink-faint">
+                {t("affiliateDisclosure")}
+              </p>
+            )}
           </div>
         )}
         {showTraderaSearch && (

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { apiError, jsonOk } from "@/lib/api";
+import { hashToken } from "@/lib/tokens";
 import { creditInviteOnVerify } from "@/services/invites";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,8 @@ export async function POST(req: Request) {
   try {
     const { token } = schema.parse(await req.json());
 
-    const user = await prisma.user.findUnique({ where: { verificationToken: token } });
+    // DB håller bara hashen (se register/resend-verification) → hasha råtoken före uppslag.
+    const user = await prisma.user.findUnique({ where: { verificationToken: hashToken(token) } });
     if (!user) {
       return NextResponse.json(
         { error: "Ogiltig eller redan använd verifieringslänk." },

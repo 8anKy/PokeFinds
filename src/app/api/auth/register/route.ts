@@ -6,6 +6,8 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { apiError, jsonOk } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/client-ip";
+import { hashToken } from "@/lib/tokens";
 import { sendMail } from "@/lib/mailer";
 import { welcomeEmail, verifyEmail } from "@/emails/templates";
 import { redeemInviteAtRegistration } from "@/services/invites";
@@ -23,8 +25,7 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anon";
-    const { ok } = await rateLimit(`register:${ip}`, 5, 15 * 60 * 1000);
+    const { ok } = await rateLimit(`register:${clientIp(req)}`, 5, 15 * 60 * 1000);
     if (!ok) {
       return NextResponse.json(
         { error: "För många försök. Vänta en stund och försök igen." },
@@ -58,7 +59,8 @@ export async function POST(req: NextRequest) {
     const verificationToken = crypto.randomBytes(32).toString("hex");
 
     const user = await prisma.user.create({
-      data: { name, email: normalizedEmail, passwordHash, verificationToken },
+      // Bara HASHEN lagras; råtoken lever enbart i verifieringslänken nedan. Se hashToken().
+      data: { name, email: normalizedEmail, passwordHash, verificationToken: hashToken(verificationToken) },
       select: { id: true, name: true, email: true },
     });
 

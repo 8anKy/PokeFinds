@@ -5,6 +5,7 @@ import { apiError, jsonOk } from "@/lib/api";
 import { requireUser, AuthError } from "@/lib/auth";
 import { isPro, proSource } from "@/lib/plan";
 import { revokeDiscordRoles } from "@/services/discord-sync";
+import { getStripe, stripeEnabled } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
@@ -146,11 +147,35 @@ export async function DELETE() {
     // rörs inte; vi kickar ingen.
     const linked = await prisma.user.findUnique({
       where: { id: sessionUser.id },
-      select: { discordUserId: true },
+      select: { discordUserId: true, stripeSubscriptionId: true },
     });
     await revokeDiscordRoles(linked?.discordUserId, "Foilio: kontot raderades");
 
-    // Relationer hanteras via onDelete: Cascade i schemat.
+    // ⛔ AVSLUTA STRIPE-PRENUMERATIONEN FÖRE raderingen. User-raden bär
+    // stripeSubscriptionId; raderar vi den utan att säga upp fortsätter kortet
+    // debiteras och webhooken kan aldrig mer mappa prenumerationen till ett konto
+    // (tyst tills en återkravstvist). Får ALDRIG blockera raderingen — GDPR art. 17
+    // väger tyngre än en städad prenumeration — men vi måste FÖRSÖKA och logga högt.
+    if (linked?.stripeSubscriptionId && stripeEnabled()) {
+      try {
+        await getStripe().subscriptions.cancel(linked.stripeSubscriptionId);
+      } catch (stripeErr) {
+        console.error(
+          `[users/me DELETE] Kunde inte säga upp Stripe-prenumeration ${linked.stripeSubscriptionId} för raderat konto:`,
+          stripeErr
+        );
+      }
+    }
+
+    // OfferReport har reporterId → SetNull vid radering, men den fria texten `note`
+    // (kan innehålla vad som helst användaren skrivit) överlever annars raderingen.
+    // Nolla den först så ingen personuppgift blir kvar i en anonymiserad rad.
+    await prisma.offerReport.updateMany({
+      where: { reporterId: sessionUser.id },
+      data: { note: null },
+    });
+
+    // Övriga relationer hanteras via onDelete: Cascade i schemat.
     await prisma.user.delete({ where: { id: sessionUser.id } });
     return jsonOk({ message: "Ditt konto och all din data har raderats." });
   } catch (e) {

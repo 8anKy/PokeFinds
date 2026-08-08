@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/client-ip";
 import { trackEvent } from "@/services/analytics";
 
 export const dynamic = "force-dynamic";
@@ -30,10 +31,9 @@ const bodySchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anon";
     // Generöst tak — en vanlig bläddrarsession genererar många händelser; taket
     // finns bara för att en enskild klient inte ska kunna blåsa upp topplistan.
-    const { ok } = await rateLimit(`track:${ip}`, 200, 60 * 1000);
+    const { ok } = await rateLimit(`track:${clientIp(req)}`, 200, 60 * 1000);
     if (!ok) return jsonOk({ ok: true }); // tyst drop — spårning får aldrig störa
 
     const { type, slug } = bodySchema.parse(await req.json());

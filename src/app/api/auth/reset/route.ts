@@ -3,6 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { apiError, jsonOk } from "@/lib/api";
+import { hashToken } from "@/lib/tokens";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,8 @@ export async function POST(req: Request) {
   try {
     const { token, password } = schema.parse(await req.json());
 
-    const user = await prisma.user.findUnique({ where: { resetToken: token } });
+    // DB håller bara hashen (se forgot-route) → hasha den inkommande råtoken innan uppslag.
+    const user = await prisma.user.findUnique({ where: { resetToken: hashToken(token) } });
     if (!user || !user.resetTokenExpiresAt || user.resetTokenExpiresAt < new Date()) {
       return NextResponse.json(
         { error: "Länken är ogiltig eller har gått ut. Begär en ny återställningslänk." },
