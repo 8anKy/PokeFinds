@@ -49,6 +49,9 @@ const MERGES: { dup: string; target: string }[] = [
   { dup: "mega-brave-m1b-booster-pack-japanskt", target: "pokemon-tcg-mega-brave-booster-pack-japansk-m1l" },
   { dup: "shiny-treasure-ex-booster-box-japansk", target: "pokemon-scarlet-violet-shiny-treasure-ex-sv4a-booster-box-japanese" },
   { dup: "shiny-treasure-ex-booster-pack-japansk", target: "pokemon-tcg-scarlet-violet-high-class-pack-shiny-treasure-ex-sv4a-japansk-booster" },
+  // Ägarens svar 2026-08-08 på verify-paret: BÅDA 151-boxarna är den japanska sv2a-displayen.
+  { dup: "151-booster-box", target: "pokemon-scarlet-violet-pokemon-151-sv2a-display-booster-box-japansk" },
+  { dup: "151-booster-box-japansk", target: "pokemon-scarlet-violet-pokemon-151-sv2a-display-booster-box-japansk" },
 ];
 
 const DELETES: { slug: string; why: string }[] = [
