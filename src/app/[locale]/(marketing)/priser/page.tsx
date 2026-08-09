@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { alternatesFor } from "@/lib/canonical";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { Link } from "@/i18n/navigation";
 import { IconCheck, IconPlus, IconX } from "@/components/ui/icons";
 import { stripeCheckoutAdvertised } from "@/lib/stripe";
 import { UpgradeButton } from "./upgrade-button";
@@ -105,6 +106,21 @@ export default async function PricingPage({
                 NEXT_PUBLIC_-flagga hade blivit en andra sanning som glider isär
                 från STRIPE_ENABLED. */}
             <UpgradeButton webCheckout={stripeCheckoutAdvertised()} />
+            {/* Apple 3.1.2: förnyelsevillkoret och BÅDA de legala länkarna måste
+                stå VID köpknappen, inte bara i sidfoten (som dessutom är dold
+                bakom bottenflikarna i appen). iOS-appen är en Capacitor-WebView
+                över exakt den här sidan, så det HÄR är app:ens paywall — ändras
+                texten slår den igenom utan nytt native-bygge. */}
+            <p className="mt-3 text-center text-xs text-ink-faint">{t("subRenewNote")}</p>
+            <p className="mt-2 flex flex-wrap items-center justify-center gap-x-2 text-xs text-ink-muted">
+              <Link href="/villkor" className="underline underline-offset-2 transition-colors duration-150 hover:text-ink">
+                {t("legalTerms")}
+              </Link>
+              <span aria-hidden="true" className="text-ink-faint">·</span>
+              <Link href="/integritetspolicy" className="underline underline-offset-2 transition-colors duration-150 hover:text-ink">
+                {t("legalPrivacy")}
+              </Link>
+            </p>
           </div>
         </div>
       </div>
