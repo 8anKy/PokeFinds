@@ -369,10 +369,11 @@ export function ExploreFilterBar({
         </div>
         {/* Rankningstransparens (EU:s Omnibus-regler): förklaringen av "Bäst
             matchning" ska gå att nå därifrån rangordningen visas — inte bara
-            ligga i villkoren. */}
+            ligga i villkoren. Nedtonad (ägarbeslut 2026-08-09) men ALDRIG
+            borttagen. */}
         <Link
           href="/om#ranking"
-          className="mt-2 block px-3 py-2 text-xs text-ink-faint underline-offset-2 hover:text-ink-muted hover:underline"
+          className="mt-1 block px-3 py-1.5 text-[11px] text-ink-faint/60 underline-offset-2 hover:text-ink-muted hover:underline"
         >
           {t("howWeRank")}
         </Link>

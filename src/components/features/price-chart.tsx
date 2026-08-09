@@ -57,6 +57,21 @@ function shortDate(d: string, withYear = false, monthly = false, dateLocale = "s
   });
 }
 
+/**
+ * Y-axelns bredd måste rymma den längsta ticketiketten. Fast 48px klippte
+ * tusentalsgruppen mot SVG-kanten: "3 284,91" ritades som "284,91" (mätt
+ * 2026-08-09 på en JP-box vars hela spann låg kring 3 284,89 kr → 2 decimaler).
+ * 1,05× tar höjd för att auto-domänen rundar översta ticken uppåt förbi en
+ * siffergräns (999,95 → 1 000).
+ */
+function yAxisWidth(maxPriceOre: number, decimals: number): number {
+  const sample = ((maxPriceOre * 1.05) / 100).toLocaleString("sv-SE", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+  return Math.max(40, Math.ceil(sample.length * 6.5) + 10);
+}
+
 function ChartTooltip({
   active,
   payload,
@@ -199,7 +214,7 @@ function MultiSeriesChart({
           tick={{ fill: TICK, fontSize: 11 }}
           axisLine={false}
           tickLine={false}
-          width={48}
+          width={yAxisWidth(Math.max(...prices), decimals)}
           domain={["auto", "auto"]}
         />
         <Tooltip
@@ -469,7 +484,7 @@ export function PriceChart({
             tick={{ fill: TICK, fontSize: 11 }}
             axisLine={false}
             tickLine={false}
-            width={48}
+            width={yAxisWidth(Math.max(...prices), decimals)}
             domain={["auto", "auto"]}
           />
           <Tooltip

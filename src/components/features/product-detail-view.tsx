@@ -79,7 +79,9 @@ export function ProductDetailView({
           {data.set && (
             <>
               <span className="mx-2 text-ink-faint" aria-hidden="true">›</span>
-              <Link href={`/sets/${data.set.id}`} className="hover:text-ink">
+              {/* Katalogen med set-filtret, inte set-sidan — ägarbeslut 2026-08-09:
+                  från en produkt vill man tillbaka till listan man bläddrade i. */}
+              <Link href={`/produkter?set=${data.set.id}`} className="hover:text-ink">
                 {data.set.name}
               </Link>
             </>
@@ -98,7 +100,7 @@ export function ProductDetailView({
             {data.set && (
               <>
                 <Link
-                  href={`/sets/${data.set.id}`}
+                  href={`/produkter?set=${data.set.id}`}
                   className="text-holo-cyan hover:underline"
                 >
                   {data.set.name}

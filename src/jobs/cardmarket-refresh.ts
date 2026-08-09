@@ -23,6 +23,7 @@ import {
   type FirstEdFilter,
 } from "../lib/marketplace-urls";
 import { judgeSameProduct } from "../lib/same-product";
+import { adoptCmName } from "./adopt-cm-name";
 import { createSetLabeler } from "./sealed-set-label";
 import { runJapaneseSetLabels } from "./jp-set-label";
 import { utcToday } from "../lib/utils";
@@ -1255,6 +1256,9 @@ export async function runJapaneseSealedRefresh(): Promise<JpRefreshResult> {
           ownedBy.set(c.idProduct, p.id);
           res.mapped++;
           console.log(`[cm-jp] mappade "${p.title}" → ${c.idProduct} "${c.name}" (sim ${sim.toFixed(2)})`);
+          // Identiteten är just avgjord → butiksfrasen byts mot CM:s katalognamn
+          // (ägarbeslut 2026-08-09, se adopt-cm-name.ts).
+          await adoptCmName(p.id, c.name);
           break;
         }
       }
@@ -2208,6 +2212,11 @@ export async function runCardmarketRefresh(
           skippedOwned++;
           continue;
         }
+        // Identiteten är just avgjord (fuzzy = produkten hade ingen betrodd
+        // CM-länk) → butiksfrasen byts mot CM:s katalognamn (ägarbeslut
+        // 2026-08-09, se adopt-cm-name.ts). Exakta idProduct-träffar rörs inte
+        // här — de namntvättas EN gång av scripts/adopt-cm-names.ts.
+        if (best.cardmarket_id != null) await adoptCmName(p.id, best.name);
       }
       if (best.cardmarket_id == null) continue;
       if (best.cardmarket_id != null) ownedCmIds.add(best.cardmarket_id);
