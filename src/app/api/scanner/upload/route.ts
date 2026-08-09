@@ -5,12 +5,16 @@ import { requireUser } from "@/lib/auth";
 import { effectivePlanTier } from "@/lib/plan";
 import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
+import { readJsonCapped } from "@/lib/body-limit";
 import { runScannerJob } from "@/services/scanner";
 
 export const dynamic = "force-dynamic";
 
 /** Maxstorlek för bilddata (~4 MB base64). */
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+
+/** Hårt body-tak, verkställs INNAN kroppen buffras (bild ×1,4 + JSON-overhead). */
+const MAX_BODY_BYTES = 8 * 1024 * 1024;
 
 const uploadSchema = z.object({
   image: z
@@ -31,7 +35,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { image } = uploadSchema.parse(await req.json());
+    const { image } = uploadSchema.parse(await readJsonCapped(req, MAX_BODY_BYTES));
 
     if (image.length > MAX_IMAGE_BYTES * 1.4) {
       throw new ServiceError(

@@ -5,12 +5,16 @@ import { requireUser } from "@/lib/auth";
 import { effectivePlanTier } from "@/lib/plan";
 import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
+import { readJsonCapped } from "@/lib/body-limit";
 import { getGradingQuota, runGradingJob } from "@/services/grading";
 
 export const dynamic = "force-dynamic";
 
 /** Maxstorlek per bild (~5 MB base64). */
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/** Hårt body-tak, verkställs INNAN kroppen buffras (två bilder ×1,4 + overhead). */
+const MAX_BODY_BYTES = 16 * 1024 * 1024;
 
 const imageData = z
   .string()
@@ -42,7 +46,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const { front, back, cardName, locale } = gradeSchema.parse(await req.json());
+    const { front, back, cardName, locale } = gradeSchema.parse(
+      await readJsonCapped(req, MAX_BODY_BYTES)
+    );
 
     if (front.length > MAX_IMAGE_BYTES * 1.4 || back.length > MAX_IMAGE_BYTES * 1.4) {
       throw new ServiceError(

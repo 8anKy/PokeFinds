@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { apiError, jsonOk } from "@/lib/api";
 import { ServiceError } from "@/lib/errors";
+import { readJsonCapped } from "@/lib/body-limit";
 import {
   createTraderaListing,
   traderaCategoryId,
@@ -11,6 +12,13 @@ import {
 } from "@/lib/tradera-sell";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Hårt body-tak, verkställs INNAN kroppen buffras. Klienten skalar foton till
+ * 1600 px JPEG (~0,2–0,6 MB styck), så 32 MB täcker 12 ovanligt stora foton
+ * med bred marginal — schemat ensamt tillät ~96 MB att buffras först.
+ */
+const MAX_BODY_BYTES = 32 * 1024 * 1024;
 
 const CONDITION_LABELS: Record<string, string> = {
   MINT: "Mint",
@@ -48,7 +56,7 @@ export async function POST(req: Request) {
       throw new ServiceError(400, "Tradera-kopplingen har gått ut. Anslut kontot igen.");
     }
 
-    const input = schema.parse(await req.json());
+    const input = schema.parse(await readJsonCapped(req, MAX_BODY_BYTES));
 
     const item = await prisma.collectionItem.findFirst({
       where: { id: input.collectionItemId, userId: user.id },
