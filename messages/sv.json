@@ -55,7 +55,7 @@
     "traderaErrorToast": "Kunde inte koppla Tradera-kontot",
     "traderaDisconnectedToast": "Tradera-kontot är frånkopplat",
     "disconnectFail": "Det gick inte att koppla från",
-    "gdprTitle": "Konto & integritet (GDPR)",
+    "gdprTitle": "Konto & integritet",
     "gdprDesc": "Din data är din. Exportera allt vi har om dig, eller radera kontot permanent.",
     "exportData": "Exportera mina data",
     "deleteAccount": "Radera konto",

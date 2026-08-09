@@ -1,5 +1,6 @@
 /** Gemensam felhantering för API-routes. */
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { ZodError } from "zod";
 import { Prisma } from "@prisma/client";
 import { AuthError } from "@/lib/auth";
@@ -24,6 +25,11 @@ export function apiError(error: unknown): NextResponse {
     );
   }
   console.error("API-fel:", error);
+  // Okända 500-fel når aldrig Next (vi fångar och svarar JSON), så `onRequestError`/
+  // captureRequestError kan inte se dem — utan raden här är API-fel OSYNLIGA för
+  // Sentry. Väntade fel ovanför (ServiceError/Auth/Zod/Prisma-koder) rapporteras
+  // inte: de är användarfel, inte buggar. No-op när Sentry inte är initierad (dev).
+  Sentry.captureException(error);
   return NextResponse.json({ error: "Något gick fel. Försök igen." }, { status: 500 });
 }
 

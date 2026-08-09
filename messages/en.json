@@ -55,7 +55,7 @@
     "traderaErrorToast": "Couldn't connect the Tradera account",
     "traderaDisconnectedToast": "Tradera account disconnected",
     "disconnectFail": "Couldn't disconnect",
-    "gdprTitle": "Account & privacy (GDPR)",
+    "gdprTitle": "Account & privacy",
     "gdprDesc": "Your data is yours. Export everything we have about you, or delete your account permanently.",
     "exportData": "Export my data",
     "deleteAccount": "Delete account",
