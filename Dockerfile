@@ -84,6 +84,12 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/public ./public
+# ⛔ next.config.mjs LÄSES OM AV `next start` VID RUNTIME — utan filen kör servern
+# med DEFAULTS: experimental.instrumentationHook stängs av (instrumentation.ts
+# laddas aldrig ⇒ Sentry.init körs aldrig — prod stod HELT utan felrapportering
+# tills 2026-08-09) och cacheMaxMemorySize faller till 50 MB. headers()/redirects
+# överlevde bara för att de bakas in i routes-manifest vid BYGGET. Ta inte bort.
+COPY --from=build /app/next.config.mjs ./next.config.mjs
 EXPOSE 3000
 # migrate får INTE blockera start: med App Sleeping (scale-to-zero) körs detta vid
 # varje cold start, och en långsam/kall Neon-anslutning fick `&&` att döda containern
