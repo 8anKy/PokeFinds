@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { syncDiscordRoles } from "@/services/discord-sync";
-import { planForEvent } from "./mapping";
+import { planChangesForEvent } from "./mapping";
 
 export const dynamic = "force-dynamic";
 
@@ -12,15 +12,14 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => null);
   const event = body?.event;
-  const userId: unknown = event?.app_user_id;
-  // RC anonyma id:n börjar med $RCAnonymousID — koppla aldrig dem till en user.
-  if (typeof userId !== "string" || userId.startsWith("$RCAnonymousID")) {
-    return new Response("ok", { status: 200 });
-  }
-
   const eventType = String(event?.type);
-  const plan = planForEvent(eventType);
-  if (plan) {
+
+  // ⛔ ETT EVENT KAN RÖRA FLERA ANVÄNDARE. TRANSFER bär ingen `app_user_id` alls
+  // utan `transferred_to`/`transferred_from` — se mapping.ts. Den gamla koden
+  // läste bara `app_user_id` och svarade tyst 200 på varje transfer.
+  const changes = planChangesForEvent(event);
+
+  for (const { userId, plan } of changes) {
     // Läs föregående plan FÖRE skrivningen — annars går en nedgradering inte att
     // spåra i efterhand. 2026-07-08 satte en EXPIRATION ägarkontot till FREE utan
     // ett enda spår, och ALLA restock-larm dog tyst i fyra dygn. Nu loggas varje
@@ -29,7 +28,7 @@ export async function POST(req: Request) {
       where: { id: userId },
       select: { planTier: true },
     });
-    if (!before) return new Response("ok", { status: 200 }); // raderat konto
+    if (!before) continue; // raderat konto, eller ett id som inte är vårt
 
     // updateMany = ingen krasch om id:t inte finns (race mot kontoradering).
     await prisma.user.updateMany({ where: { id: userId }, data: { planTier: plan } });
@@ -53,5 +52,6 @@ export async function POST(req: Request) {
     // Pro-rollen i servern till nästa nattkörning. Kastar aldrig.
     await syncDiscordRoles(userId, `Foilio: RevenueCat ${eventType}`);
   }
+
   return new Response("ok", { status: 200 });
 }
