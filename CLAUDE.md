@@ -206,6 +206,15 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
 - Övrigt: se docs/TODO.md.
 
 ## Tekniska beslut (VIKTIGA — ändra inte utan skäl)
+- **KATALOGNAMN FÖR SEALED = CARDMARKETS NAMN (ägarbeslut 2026-08-09)**: en auto-importerad stub bär butikens
+  fras bara tills CM-identiteten avgörs — då adopteras CM:s katalognamn (`adoptCmName`, `src/jobs/adopt-cm-name.ts`,
+  ansluten i cardmarket-refresh EN-fuzzy-grenen + JP-auto-mappningen). Engångstvätt av befintlig data =
+  `scripts/adopt-cm-names.ts` (körd: 313 omdöpta). ⛔ KOLLISIONSVAKT: bär en annan produkt (samma språk) redan det
+  normaliserade namnet skrivs INGET — [GVSE]/[LUJF]-boxart och variant-ETB:er får aldrig kollapsa till samma titel.
+  ⛔ Slug rörs ALDRIG (publicerade URL:er). Samma dag: produktsidans set-länkar går till `/produkter?set=` (inte
+  `/sets/[id]`), och "Så fungerar Bäst matchning" i sorteringsarket är NEDTONAD men får ALDRIG tas bort
+  (EU-rankningstransparens — ägaren valde "mindre synlig", inte "borta"). Prisgrafens Y-axelbredd räknas ur längsta
+  ticketiketten (`yAxisWidth`, price-chart.tsx) — fast 48px klippte tusentalsgruppen ("3 284,91" → "284,91").
 - **STRIPE SKRIVER ALDRIG `planTier` (2026-08-06)**: webbens Pro bor i EGNA kolumner
   (`stripeCustomerId`/`stripeSubscriptionId`/`stripeProUntil`) och blir en FJÄRDE gren i `isPro()` och
   `proUserWhere()` — exakt samma mönster som referral-bonusens `bonusProUntil`, av exakt samma skäl:
