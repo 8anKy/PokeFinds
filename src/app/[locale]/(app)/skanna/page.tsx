@@ -1940,8 +1940,14 @@ function QuotaBadge({ quota, onUpgrade }: { quota: ScanQuota; onUpgrade: () => v
     </span>
   );
   // Lika bred som kortramen i kameravyn (w-[68%] max-w-[20rem] av helskärm).
+  //
+  // ⛔ HÅLL DEN LÅG. Badgen sitter i bottenstapeln, och LIVE-CHIPPET (kortets
+  // namn + nummer) hänger 36 px under kortramen — växer badgen uppåt äter den
+  // chippet, vilket är den enda återkoppling användaren har på att kameran
+  // känner igen kortet. Rapporterat i fält 2026-08-09: "30 skanningar kvar"
+  // täckte halva korttexten. Två rader ryms, men bara med tajt luft.
   const cls =
-    "mx-auto flex w-[min(68vw,20rem)] items-center gap-3 rounded-2xl bg-black/70 px-4 py-3 ring-1 ring-white/10 backdrop-blur";
+    "mx-auto flex w-[min(68vw,20rem)] items-center gap-2.5 rounded-2xl bg-black/70 px-3.5 py-2 ring-1 ring-white/10 backdrop-blur";
   if (isPremium) {
     return (
       <div className={cls}>
@@ -2165,7 +2171,15 @@ function CaptureView(props: {
       {cameraState === "live" && props.mode === "single" && (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
+          // ⛔ z-30, ÖVER bottenstapeln (z-20). Live-chippet hänger 36 px under
+          // kortramen och låg tidigare på z-10 → bottenstapeln målade över det,
+          // så kvot-badgen dolde kortnamnet kameran just känt igen (rapporterat
+          // i fält 2026-08-09). Att bara krympa badgen räcker inte: avståndet
+          // beror på skärmhöjden, och nästa telefon har en annan. Overlayn är
+          // `pointer-events-none` och ritar bara hörnmarkörer + chippet, så den
+          // stjäl inga tryck från zoom-kontrollerna. Capture-flashen ligger kvar
+          // överst: samma z-30 men SENARE i DOM:en.
+          className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center"
         >
           <div ref={frameRef} className="relative mb-[14vh] aspect-[5/7] w-[68%] max-w-[20rem]">
             <CornerFrame />

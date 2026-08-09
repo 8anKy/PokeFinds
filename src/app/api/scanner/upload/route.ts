@@ -1,7 +1,7 @@
 /** POST /api/scanner/upload — ladda upp kortbild och starta skanning. */
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { requireEntitledUser } from "@/lib/auth";
 import { effectivePlanTier } from "@/lib/plan";
 import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
@@ -25,7 +25,7 @@ const uploadSchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireEntitledUser();
 
     const { ok } = await rateLimit(`scanner-upload:${user.id}`, 10, 10 * 60 * 1000);
     if (!ok) {

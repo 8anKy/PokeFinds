@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireEntitledUser } from "@/lib/auth";
 import { isPro } from "@/lib/plan";
 import { addSetWatch, listSetWatches, listSetWatchIds } from "@/services/set-watch";
 
@@ -27,7 +27,9 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const user = await requireUser();
+    // Pro-grindad → färsk plan ur DB, aldrig sessionstoken (som släpar 30 min
+    // efter ett köp). GET ovan är ogrindad och läser token:en gratis.
+    const user = await requireEntitledUser();
     const { setId } = addSchema.parse(await req.json());
     const result = await addSetWatch(user.id, isPro(user), setId);
     return jsonOk(result, { status: result.created ? 201 : 200 });

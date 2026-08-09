@@ -185,6 +185,51 @@ export async function requireUser() {
   return session.user;
 }
 
+/**
+ * Inloggad användare MED plan-fälten färska ur databasen.
+ *
+ * ⛔ ANVÄND DEN I ALLA ENTITLEMENT-GRINDAR (kvoter och Pro-funktioner), aldrig
+ * bara `requireUser()`. `requireUser()` läser SESSIONSTOKEN, och token:en läser
+ * bara om planen ur DB var TOKEN_REFRESH_MS (30 min) — eller när klienten
+ * råkar kalla `session.update()`. RevenueCat-webhooken skriver planTier=PREMIUM
+ * i DATABASEN; telefonens token vet inget om det förrän TTL:n löper ut.
+ *
+ * MÄTT I DRIFT 2026-08-09 (sandbox-köp i TestFlight): /priser visade "Din
+ * nuvarande plan ✓" — den sidan läser DB via `/api/users/me` — medan skannern
+ * i SAMMA minut sa "GRATIS · 30 skanningar kvar", för den läste token:en. Alla
+ * Pro-funktioner (skanner, bulk, gradering, bevakningstak, set-bevakning) var
+ * alltså döda i upp till en halvtimme efter att kunden betalat, utan att något
+ * felade. En granskare hos Apple gör exakt det köpet och exakt det testet.
+ *
+ * ⛔ VÄLJ ALLA FYRA PLAN-FÄLTEN. `isPro()` räknar på formen, och ett fält som
+ * inte är valt blir `undefined` → vakten failar ÖPPET. Samma familj som
+ * stripeProUntil (2026-08-06) och variantLabel (2026-07-28).
+ *
+ * KOSTNAD: ett uppslag på PRIMÄRNYCKEL, i vägar som ändå gör DB-arbete
+ * (kvoträkning, skrivningar). ⛔ Lägg den ALDRIG i en publik läsväg — Neon
+ * debiteras per VAKEN TID, och en katalogsida får inte väcka computen.
+ */
+export async function requireEntitledUser() {
+  const user = await requireUser();
+  const fresh = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { planTier: true, role: true, bonusProUntil: true, stripeProUntil: true },
+  });
+  // Ingen rad (kontot raderat mitt i sessionen) → behåll token:ens värden och
+  // låt anroparen falla på sitt eget fel. ⛔ Anta ALDRIG Pro när vi inte vet.
+  if (!fresh) return user;
+  const merged = {
+    ...user,
+    planTier: fresh.planTier,
+    role: fresh.role,
+    bonusProUntil: fresh.bonusProUntil?.toISOString() ?? null,
+    stripeProUntil: fresh.stripeProUntil?.toISOString() ?? null,
+  };
+  // ⛔ `isPro` måste räknas om, inte ärvas: fältet finns på sessionsobjektet och
+  // hade annars burit token:ens gamla svar vidare — precis den lögn vi rättar.
+  return { ...merged, isPro: isPro(merged) };
+}
+
 export async function requireRole(role: Role) {
   const user = await requireUser();
   if (!hasRole(user.role, role)) throw new AuthError(403, "Du saknar behörighet.");

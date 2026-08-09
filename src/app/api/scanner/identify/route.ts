@@ -7,7 +7,7 @@
  */
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { requireEntitledUser } from "@/lib/auth";
 import { effectivePlanTier, isPro } from "@/lib/plan";
 import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
@@ -73,7 +73,7 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireEntitledUser();
 
     // Live-flödet pollar ~var 1,5 s (= ~40/min) → 60/min ger marginal men halverar
     // värsta-fallet (varje anrop = Claude vision = kostnad). OBS: rate-limit är

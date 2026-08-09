@@ -14,7 +14,7 @@
  */
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { requireEntitledUser } from "@/lib/auth";
 import { ServiceError } from "@/lib/errors";
 import { prisma } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
@@ -57,7 +57,7 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireEntitledUser();
     // BULK ÄR PRO (ägarbeslut 2026-08-02). Grinden sitter HÄR, inte bara i UI:t:
     // klienten visar knappen för alla med flit (den ska sälja Pro), så utan en
     // servergrind räckte det att posta hit direkt för att få funktionen gratis.

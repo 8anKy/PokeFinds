@@ -16,7 +16,7 @@
  */
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { requireEntitledUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { normalizeGtin } from "@/lib/gtin";
@@ -64,7 +64,7 @@ interface SealedMatch {
 
 export async function POST(req: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireEntitledUser();
 
     // Samma tak som /identify. Avkodningen sker i klienten och en ask som ligger
     // still framför linsen läses om och om igen — klienten ska avduplicera, men

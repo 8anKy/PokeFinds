@@ -30,18 +30,32 @@ export function UpgradeButton({ webCheckout = false }: { webCheckout?: boolean }
   const [msg, setMsg] = useState<string | null>(null);
 
   /**
-   * Vänta in att Pro slår igenom i sessionen.
+   * Vänta in att Pro slår igenom efter ett köp.
    *
-   * ⛔ Nödvändigt, inte kosmetiskt: jwt-callbacken läser bara om planen ur DB
-   * var 30:e minut (TOKEN_REFRESH_MS). Utan det här `update()`-anropet hade en
-   * kund som just betalat kunnat vänta en halvtimme på sitt Pro, utan att något
-   * felade. Webhooken landar normalt på 1–3 s.
+   * ⛔ FRÅGAN STÄLLS TILL DATABASEN, INTE TILL SESSIONSTOKEN. RevenueCat-
+   * webhooken skriver planTier i DB; token:en läser bara om planen var 30:e
+   * minut (TOKEN_REFRESH_MS). `/api/users/me` läser DB färskt och är samma
+   * källa som resten av den här sidan redan litar på — att polla
+   * `session.update()` mätte i praktiken när token:en råkade uppdateras, inte
+   * när kunden faktiskt fick Pro.
+   *
+   * ⛔ FÖNSTRET ÄR 30 s, INTE 9. Webhooken landar normalt på 1–3 s, men vår
+   * Neon-compute skalar till noll — en kall väckning äter lätt tio sekunder.
+   * Mätt 2026-08-09: ett riktigt sandbox-köp hann INTE inom sex försök, och
+   * kunden fick "Pro aktiveras strax" trots att köpet gått igenom.
    */
   const waitForPro = useCallback(async () => {
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 20; i++) {
       await new Promise((r) => setTimeout(r, 1500));
-      const s = await update();
-      if (s?.user?.isPro) return true;
+      const me = await fetch("/api/users/me")
+        .then((r) => r.json())
+        .catch(() => null);
+      if (me?.isPro) {
+        // Låt token:en hinna ikapp så sidor som läser sessionen slipper vänta
+        // ut TTL:n. Fel här får inte fälla köpet — Pro gäller redan i DB.
+        await update().catch(() => undefined);
+        return true;
+      }
     }
     return false;
   }, [update]);
