@@ -69,8 +69,16 @@ FROM base AS runner
 # 150 req/min-skur) var skräp, inte levande data. Sänk till 384 först efter att
 # ha bevakat `railway metrics` — en OOM-omstart på en live-sajt är dyrare än
 # den dollar det sparar.
+# MALLOC_ARENA_MAX (2026-08-09): RSS nådde 6–8 GB TROTS heap-taket ovan under ett
+# crawler-svep på ~7 req/s (Claude-SearchBot + GoogleOther) — dvs. minnet var INTE
+# JS-heap utan glibc:s malloc-arenor. glibc skapar upp till 8 arenor PER KÄRNA
+# (Railways värdar rapporterar många kärnor) och lämnar nästan aldrig tillbaka
+# minne till OS:et → fragmenteringen växer med varje samtidig rendering och ser ut
+# som en läcka. 2 arenor är standardreceptet för Node-containrar; CPU-kostnaden är
+# försumbar för oss (0,2 % av en kärna). Railway fakturerar MINNE ($10/GB-mån).
 ENV NODE_ENV=production \
-    NODE_OPTIONS="--max-old-space-size=512"
+    NODE_OPTIONS="--max-old-space-size=512" \
+    MALLOC_ARENA_MAX=2
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json

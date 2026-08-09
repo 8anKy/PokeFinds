@@ -1,5 +1,5 @@
 /**
- * POST /api/cron/dispatch?job=<restock-watch|restock-watch-manatorsk>
+ * POST /api/cron/dispatch?job=<restock-watch>
  *
  * Retry-proxy för restock-pingrarna. cron-job.org POST:ade tidigare DIREKT till
  * GitHubs workflow_dispatch-API — men när GitHub har en transient 5xx-blip (t.ex.
@@ -20,8 +20,14 @@ const REPO = "8anKy/PokeFinds";
 // Allowlist: bara restock-pingrarnas workflows får fyras via proxyn.
 const ALLOWED: Record<string, string> = {
   "restock-watch": "restock-watch.yml",
-  "restock-watch-manatorsk": "restock-watch-manatorsk.yml",
 };
+
+// Nedlagda jobb som externa pingers kan fortsätta anropa. Svarar 200 no-op i stället
+// för 400/502 — annars mejlar cron-job.org ägaren ett fel VAR ANNAN MINUT tills
+// pingern raderas. Manatörsk-snabbfilen togs bort 2026-08-09 (ägarbeslut: Manatörsk
+// täcks av 10-min-lanen som alla andra butiker). Ta bort tombstonen när
+// cron-job.org-jobbet "Foilio restock Manatörsk fast" är raderat.
+const RETIRED = new Set(["restock-watch-manatorsk"]);
 
 const MAX_ATTEMPTS = 4;
 
@@ -76,6 +82,9 @@ export async function POST(req: NextRequest) {
   }
 
   const job = new URL(req.url).searchParams.get("job") ?? "restock-watch";
+  if (RETIRED.has(job)) {
+    return NextResponse.json({ ok: true, job, retired: true });
+  }
   const workflowFile = ALLOWED[job];
   if (!workflowFile) {
     return NextResponse.json({ error: `Okänt jobb: ${job}` }, { status: 400 });

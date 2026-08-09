@@ -20,6 +20,7 @@ import { PushManager } from "@/components/push-manager";
 import { ScrollReset } from "@/components/scroll-reset";
 import { EngagementTracker } from "@/components/engagement-tracker";
 import { AppBoot } from "@/components/app-boot";
+import { AppResumeRefresh } from "@/components/app-resume-refresh";
 import { OfflineBanner } from "@/components/offline-banner";
 
 export async function generateMetadata({
@@ -121,6 +122,7 @@ export default async function LocaleLayout({
             <ScrollReset />
             <EngagementTracker />
             <AppBoot />
+            <AppResumeRefresh />
             <OfflineBanner />
           </Providers>
         </NextIntlClientProvider>

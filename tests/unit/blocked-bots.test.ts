@@ -39,6 +39,12 @@ describe("blocklistan för bulk-crawlers", () => {
     "Applebot/0.1 (+http://www.apple.com/go/applebot)",
     "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.1; +https://openai.com/gptbot",
     "Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)",
+    // Anthropics NYARE crawler-UA — matchades INTE av ClaudeBot/Claude-Web och svepte
+    // katalogen i 5,7 req/s (63 % av all trafik, Railway httpLogs 2026-08-09).
+    "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Claude-SearchBot/1.0; +searchbot@anthropic.com)",
+    // Googles icke-sök-crawler (28 % av trafiken samma dygn). Sökindexeringen görs av
+    // Googlebot (egen UA) och påverkas inte.
+    "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.7871.186 Mobile Safari/537.36 (compatible; GoogleOther)",
     "Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)",
     "Mozilla/5.0 (compatible; Bytespider; spider-feedback@bytedance.com)",
     "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)",
@@ -53,6 +59,12 @@ describe("blocklistan för bulk-crawlers", () => {
   it.each([
     // SEO vi VILL ha.
     ["Googlebot", "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"],
+    // Mobil-Googlebot delar Chrome-prefix med GoogleOther — vakten mot att
+    // GoogleOther-blocket råkar träffa den riktiga indexeraren.
+    [
+      "Googlebot (mobil)",
+      "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.7871.186 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    ],
     ["Bingbot", "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)"],
     ["DuckDuckBot", "Mozilla/5.0 (compatible; DuckDuckBot-Https/1.1; https://duckduckgo.com/duckduckbot)"],
     // Länkförhandsvisare: hämtar EN delad URL, inte katalogen. Blockas de blir

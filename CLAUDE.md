@@ -17,7 +17,9 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
 - **Priser**: singlar = Cardmarket engelska NM-"From" (RapidAPI) × live-kurs; sealed = CM `lowest`. Graf/historik = CM trend.
 - **Auto-uppdatering** via GitHub Actions (repot är publikt → obegränsade Actions-minuter):
   `cardmarket-refresh` (dagl 13:00 UTC) + `hot-card-refresh` (21:00), `tradera-sweep` (dagl 04:00), `scrape-all` (dagl 02:00),
-  `restock-watch` (var 10:e min via extern pinger) + `restock-watch-manatorsk` (snabbfil var 2:a min).
+  `restock-watch` (var 10:e min via extern pinger). ⛔ Manatörsk-snabbfilen (2-min) TOGS BORT 2026-08-09 (ägarbeslut) —
+  Manatörsk täcks av 10-min-lanen som alla andra butiker. Tombstone i `/api/cron/dispatch` svarar 200 tills ägaren
+  raderat cron-job.org-jobbet "Foilio restock Manatörsk fast".
   Jobben kör DB-skrivningar med `mapPool`-samtidighet så de hinner klart innan timeout.
   **restock-watch** = `runRestockScan()` i `src/scrapers/runner.ts` (ej längre tunga runScrapeJob-loopen): hämtar de
   restock-bevakade butikernas (config.restockWatch) kataloger PARALLELLT (bara HTTP → Neon sover), läser sedan befintliga
@@ -561,8 +563,18 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   inaktualitet i en SORTERINGSORDNING. Egen cache-nyckel ("…Personal"), aldrig delad med den utloggade.
   ⛔ `loadPersonalIdsRaw` returnerar ARRAYER, inte Set: `unstable_cache` serialiserar till JSON och ett `Set` blir
   `{}` — `.has()` hade kastat, men bara vid cache-TRÄFF, bara i produktion, bara för inloggade. Samma familj som
-  Date→sträng-fällan. ⏭️ KVAR från samma pass: migrera Manatörsk-lanen från `fingerprintGate` till `stateGate`
-  (frisk idag, men en cache-buster i deras URL:er gör den till ~288 väckningar/dygn).
+  Date→sträng-fällan. (Manatörsk-2-min-lanen och dess fingerprintGate-risk försvann när lanen togs bort 2026-08-09.)
+- **CRAWLER-UA-LISTAN ÄR EN FÄRSKVARA — NYA BOT-NAMN DYKER UPP OANMÄLT (2026-08-09)**: Neon var vaken 36 h I STRÄCK
+  och Railway-RSS nådde 6–8 GB. Railways httpLogs (UA-aggregering, se scratchpad-receptet i minnesfilen) visade att
+  **Claude-SearchBot** (NY Anthropic-UA, matchades inte av ClaudeBot/Claude-Web) svepte katalogen i 5,7 req/s = 63 %
+  av ALL trafik, plus **GoogleOther** (Googles icke-sök-crawler) 28 %. Båda 403:as nu i `blocked-bots.ts` + står i
+  robots.ts. ⛔ Googlebot (inkl. mobil-UA:n med Chrome-prefix) får ALDRIG in i blocklistan — sökindexeringen är hela
+  poängen med SEO-arbetet; testet vaktar. Räkna med att detta händer IGEN med nästa nya bot-namn: symptomet är
+  "Neon vaken dygnet runt utan att jobben kör" → kolla UA-fördelningen FÖRST. Railway-minnet var följdsymptom, inte
+  läcka: heapen är capad till 512 MB, resten var glibc-malloc-arenor under crawl-lasten → `MALLOC_ARENA_MAX=2` i
+  Dockerfile. **APP-RESUME (samma dag)**: `AppResumeRefresh` (rot-layouten) kör `router.refresh()` när appen varit
+  dold ≥5 min — OS:et fryser WebView:en i bakgrunden (ingen CPU går till spillo), men uppvaknandet visade gammalt
+  data och gamla Server Action-id:n efter deploys. ⛔ Aldrig `location.reload()` (Capacitor-Safari-fällan).
 - **0 KR ÄR INGET PRIS (2026-08-05)**: `priceOreFromEur()` i `src/lib/exchange-rate.ts` är enda vägen från EUR till
   öre, och den returnerar `null` när resultatet inte är positivt. Två verkliga vägar till en nolla: källan säger
   noll (RapidAPI publicerar `"30d_average": 0` för kort utan engelska annonser — mätt på np-4 Grovyle · Nintendo

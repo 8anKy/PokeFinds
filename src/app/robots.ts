@@ -34,7 +34,14 @@ export default function robots(): MetadataRoute.Robots {
           "ChatGPT-User",
           "ClaudeBot",
           "Claude-Web",
+          // Anthropics nyare crawler-UA:er — Claude-SearchBot svepte katalogen i
+          // 5,7 req/s (63 % av all trafik) 2026-08-09 och höll Neon vaken dygnet runt.
+          "Claude-SearchBot",
+          "Claude-User",
           "anthropic-ai",
+          // Googles icke-sök-crawler (R&D/AI-hämtningar). Sökindexeringen görs av
+          // Googlebot (egen UA) och påverkas inte av att den här blockas.
+          "GoogleOther",
           "CCBot",
           "Bytespider",
           "AhrefsBot",
