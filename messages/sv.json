@@ -680,10 +680,6 @@
       {
         "lead": "Feldiagnostik:",
         "text": "Sentry, som tar emot tekniska felrapporter så att vi kan hitta och rätta buggar. Rapporterna kan innehålla tekniska uppgifter om din förfrågan."
-      },
-      {
-        "lead": "Säkerhet och belastningsskydd:",
-        "text": "Upstash (Redis, EU-region, Frankfurt), som vi använder för att begränsa antalet inloggnings- och mejlförsök. Här hanteras tillfälligt din e-postadress och IP-adress som räknare."
       }
     ],
     "s7Outro": "Lagring av din kontodata sker inom EU/EES. Vid överföring till tredjeland (t.ex. USA för e-post, AI-identifiering och feldiagnostik) används godkända skyddsmekanismer enligt GDPR, såsom EU:s standardavtalsklausuler. Vi säljer aldrig dina uppgifter.",

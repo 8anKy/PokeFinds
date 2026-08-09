@@ -680,10 +680,6 @@
       {
         "lead": "Error diagnostics:",
         "text": "Sentry, which receives technical error reports so we can find and fix bugs. Reports may contain technical details about your request."
-      },
-      {
-        "lead": "Security and abuse protection:",
-        "text": "Upstash (Redis, EU region, Frankfurt), which we use to limit the number of login and email attempts. Your email address and IP address are handled here temporarily as counters."
       }
     ],
     "s7Outro": "Storage of your account data takes place within the EU/EEA. For transfers to third countries (e.g. the USA for email, AI identification and error diagnostics), approved safeguards under GDPR are used, such as the EU's standard contractual clauses. We never sell your data.",
