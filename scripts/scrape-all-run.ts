@@ -14,6 +14,15 @@ import { refreshRankScores } from "../src/jobs/rank-refresh";
 // tabellen inte sväller obegränsat och fönsterfrågorna hålls snabba.
 const ANALYTICS_RETENTION_DAYS = 90;
 
+// Lagringsminimering, GDPR art. 5(1)(e) — ägarbeslut 2026-08-09: interna driftrader
+// rensas efter 12 månader. Gäller ScannerJob (diagnostik; kvoten räknar bara
+// innevarande månad), Alert (skickade larm; cooldown-/flappvakterna läser dygn,
+// aldrig år) och AuditLog. Fönstret är PUBLICERAT i integritetspolicyns
+// lagringstidsavsnitt — ändras talet måste policytexten ändras med.
+// ⛔ GradingJob rensas MED FLIT INTE: "Senaste graderingar" är en synlig funktion
+// och policyn lovar lagring så länge kontot finns. Samling/portfölj berörs aldrig.
+const INTERNAL_RETENTION_DAYS = 365;
+
 async function main() {
   // Väck Neon före första riktiga frågan — se ensureDbAwake.
   await ensureDbAwake();
@@ -26,6 +35,19 @@ async function main() {
   });
   if (pruned.count > 0) {
     console.log(`Rensade ${pruned.count} analyshändelser äldre än ${ANALYTICS_RETENTION_DAYS} d.`);
+  }
+
+  const internalCutoff = new Date(Date.now() - INTERNAL_RETENTION_DAYS * 24 * 3600 * 1000);
+  const [oldScans, oldAlerts, oldAudits] = await prisma.$transaction([
+    prisma.scannerJob.deleteMany({ where: { createdAt: { lt: internalCutoff } } }),
+    prisma.alert.deleteMany({ where: { triggeredAt: { lt: internalCutoff } } }),
+    prisma.auditLog.deleteMany({ where: { createdAt: { lt: internalCutoff } } }),
+  ]);
+  if (oldScans.count + oldAlerts.count + oldAudits.count > 0) {
+    console.log(
+      `Lagringsminimering (${INTERNAL_RETENTION_DAYS} d): ${oldScans.count} skanningar, ` +
+        `${oldAlerts.count} larm, ${oldAudits.count} auditrader rensade.`
+    );
   }
 
   // Engagemangsvolymen (30 d) skrivs till Product.viewCount …
