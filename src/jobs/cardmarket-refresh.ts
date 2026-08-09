@@ -23,6 +23,7 @@ import {
   type FirstEdFilter,
 } from "../lib/marketplace-urls";
 import { judgeSameProduct } from "../lib/same-product";
+import { expansionSetJoin } from "../lib/cm-expansion-join";
 import { adoptCmName } from "./adopt-cm-name";
 import { createSetLabeler } from "./sealed-set-label";
 import { runJapaneseSetLabels } from "./jp-set-label";
@@ -794,6 +795,7 @@ export async function fetchCmGuide(): Promise<Map<number, CmGuideEntry>> {
  * hämtningsfel → fallbacken avstår helt (ingen regression). Samma export som JP-refreshen läser.
  */
 let cmSealedIdsCache: Set<number> | null = null;
+let cmSealedExpansionsCache: Map<number, number> | null = null;
 export async function fetchCmSealedIds(): Promise<Set<number>> {
   if (cmSealedIdsCache) return cmSealedIdsCache;
   const r = await fetch(CM_NONSINGLES_URL);
@@ -801,9 +803,22 @@ export async function fetchCmSealedIds(): Promise<Set<number>> {
     console.error(`[cm-refresh] nonsingles-katalog HTTP ${r.status} — EN-guide-fallback avstår denna körning`);
     return new Set();
   }
-  const cat = (await r.json()) as { products: { idProduct: number }[] };
+  const cat = (await r.json()) as { products: { idProduct: number; idExpansion?: number | null }[] };
   cmSealedIdsCache = new Set(cat.products.map((p) => p.idProduct));
+  cmSealedExpansionsCache = new Map(
+    cat.products.flatMap((p) => (p.idExpansion != null ? [[p.idProduct, p.idExpansion] as const] : []))
+  );
   return cmSealedIdsCache;
+}
+
+/**
+ * idProduct → idExpansion ur SAMMA nedladdning. Används av set-etiketteringen i
+ * guide-fallback-grenen: produkter som inte finns i RapidAPI (nya tins i ett
+ * kommande set) har ändå en exakt expansionstillhörighet i CM:s egen katalog.
+ */
+export async function fetchCmSealedExpansions(): Promise<Map<number, number>> {
+  if (!cmSealedExpansionsCache) await fetchCmSealedIds();
+  return cmSealedExpansionsCache ?? new Map();
 }
 
 // Dag-över-dag-vakt: en äkta CM-From/lowest rör sig aldrig ≥3x på ett dygn. Ett sådant
@@ -1194,6 +1209,9 @@ export async function runJapaneseSealedRefresh(): Promise<JpRefreshResult> {
 
   type JpOp = { productId: string; offerId?: string; idProduct: number; priceOre: number; refOre?: number | null; stock: "IN_STOCK" | "OUT_OF_STOCK" };
   const ops: JpOp[] = [];
+  // Nymappade produkter vars guide-rad är tom (presale utan CM-annonser) — de får
+  // en LÄNK-OFFER utan pris så identiteten inte tappas. Se kommentaren i loopen.
+  const linkOnly: { productId: string; idProduct: number }[] = [];
 
   for (const p of jpProducts) {
     const cmOffer = p.offers.find((o) => o.retailerId === cm.id);
@@ -1269,12 +1287,23 @@ export async function runJapaneseSealedRefresh(): Promise<JpRefreshResult> {
     }
 
     const g = guideById.get(idProduct);
-    if (!g) continue;
     // Lägsta pris ("low") = det vi visar/spårar; utan aktuell annons → trend/avg
     // som ur-lager-referens (samma semantik som EN-sealed). sanePriceEur skyddar
     // mot glitchade micro-/jättepriser.
-    const eur = sanePriceEur(g.low, g.trend ?? g.avg);
-    if (eur == null) continue;
+    const eur = g ? sanePriceEur(g.low, g.trend ?? g.avg) : null;
+    if (g == null || eur == null) {
+      // IDENTITETEN FÅR INTE TAPPAS FÖR ATT PRISET SAKNAS (2026-08-09): en
+      // nymappad presale-produkt (30th Celebration JP Booster, 890359) hade en
+      // guide-rad med enbart null → `continue` före offer-skrivningen → domen
+      // glömdes och samma fråga ställdes om varje dygn, medan produkten stod
+      // utan CM-länk, set-etikett och CM-namn. En länk-offer UTAN pris (price
+      // null är per schema "länk-offer utan känt pris") bevarar identiteten:
+      // jp-set-label når idExpansion via offer-URL:en, ownedBy ser ägarskapet
+      // nästa körning, och priset kommer av sig självt när CM får annonser.
+      // Inget pris fabriceras — produktsidan visar "–".
+      if (!cmOffer) linkOnly.push({ productId: p.id, idProduct });
+      continue;
+    }
     const stock = g.low != null && eur === g.low ? "IN_STOCK" : "OUT_OF_STOCK";
     const refEur = cmGuideRefEur(g);
     const priceOre = priceOreFromEur(eur, rates);
@@ -1317,6 +1346,16 @@ export async function runJapaneseSealedRefresh(): Promise<JpRefreshResult> {
     }
     res.updated++;
   }
+
+  for (const op of linkOnly) {
+    const url = cardmarketJapaneseProductUrl(op.idProduct);
+    await prisma.offer.upsert({
+      where: { productId_retailerId_condition_language: { productId: op.productId, retailerId: cm.id, condition: "SEALED", language: "JP" } },
+      update: { url, lastSeenAt: new Date() },
+      create: { productId: op.productId, retailerId: cm.id, condition: "SEALED", language: "JP", price: null, currency: "SEK", stockStatus: "UNKNOWN", url },
+    });
+  }
+  if (linkOnly.length) console.log(`[cm-jp] ${linkOnly.length} länk-offers utan pris (tom guide-rad — presale).`);
 
   if (res.unmatched.length) {
     console.log(`[cm-jp] ${res.unmatched.length} JP-produkter utan CM-mappning: ${res.unmatched.slice(0, 10).join(" | ")}${res.unmatched.length > 10 ? " …" : ""}`);
@@ -2121,6 +2160,20 @@ export async function runCardmarketRefresh(
     const cmGuide = await fetchCmGuide();
     // Sealed-katalogens idProducts → EN-guide-fallbacken (nedan) prissätter BARA mot dessa.
     const sealedCmIds = await fetchCmSealedIds();
+    // idExpansion → vårt setId, härlett ur våra REDAN etiketterade produkter.
+    // Ger guide-fallback-produkter en set-etikett: de finns inte i RapidAPI, så
+    // setLabeler (episodnamn) nås aldrig av dem — 30th Celebration-tinsen
+    // prissattes dagligen men stod set-lösa i evighet (upptäckt 2026-08-09).
+    // ⛔ Vakterna (enhällighet + dubbelriktning) bor i expansionSetJoin — se
+    // container-expansionsfällan dokumenterad där innan något ändras.
+    const sealedExpansionById = await fetchCmSealedExpansions();
+    const setIdByExpansion = expansionSetJoin(
+      ours.map((p) => {
+        const m = p.offers.find((o) => o.retailerId === cm.id)?.url?.match(/idProduct=(\d+)/);
+        return { setId: p.setId, idProduct: m ? parseInt(m[1], 10) : null };
+      }),
+      sealedExpansionById
+    );
     // Set-etiketteraren. Etiketten sätts alltid (den är additiv och nyckeln är
     // exakt), men SKAPANDET av saknade CardSet (B2) sker bara i en full körning:
     // en riktad omkörning ser inte hela katalogen och ska inte lägga till
@@ -2156,6 +2209,20 @@ export async function runCardmarketRefresh(
       if (!best && idm && cmOffer) {
         const gid = parseInt(idm[1], 10);
         if (sealedCmIds.has(gid)) {
+          // SET-ETIKETT ÄVEN HÄR (2026-08-09): den här grenen `continue`:ar före
+          // setLabeler nedan, och en produkt som saknas i RapidAPI nådde därför
+          // ALDRIG någon etikettering — priset uppdaterades varje dag medan
+          // setet stod tomt. Etiketten sätts FÖRE prisfrågan (samma regel som
+          // fuzzy-grenen): en produkt vars pris hoppas över har ändå en känd
+          // set-tillhörighet. Skriver bara null → värde.
+          if (p.setId == null) {
+            const exp = sealedExpansionById.get(gid);
+            const target = exp != null ? setIdByExpansion.get(exp) : undefined;
+            if (target) {
+              await prisma.product.update({ where: { id: p.id }, data: { setId: target } });
+              console.log(`[cm-refresh] Set-etikett via expansion ${exp}: "${p.title}"`);
+            }
+          }
           const gEntryGuide = cmGuide.get(gid);
           const priced = priceFromGuide(gEntryGuide);
           if (priced) {
