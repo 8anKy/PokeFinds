@@ -27,6 +27,8 @@ const BASE_URL = "https://www.webhallen.com";
  */
 const SEARCH_QUERY = "pokemon";
 const MAX_PAGES = 5;
+/** Tak för live-koll av icke-i-lager-produkter per hämtning (~37 i feeden i dag). */
+const LIVE_POLL_MAX = 40;
 
 function searchUrl(page: number): string {
   return `${BASE_URL}/api/productdiscovery/search/${encodeURIComponent(SEARCH_QUERY)}?page=${page}&touchpoint=DESKTOP&totalProductCountSet=true`;
@@ -161,6 +163,40 @@ export class WebhallenAdapter implements SourceAdapter {
 
         // Sista sidan upprepar ofta tidigare produkter — stoppa när inget nytt kommer
         if (newOnPage === 0) break;
+      }
+
+      // LIVE-KOLL AV RESTOCK-KANDIDATER (2026-08-10): sök-API:ts lagerfält SLÄPAR —
+      // uppmätt: Pitch Black ETB blev köpbar ~11:48 UTC men sök-feeden visade flippen
+      // först 12:38, så fem gröna 10-minuterskörningar missade den och larmet kom
+      // ~50 min sent. Produkt-API:t (/api/product/{id}) är live — samma endpoint och
+      // samma dom (webhallenStockStatus) som stock-verify redan litar på. Slå därför
+      // upp varje icke-i-lager-produkt direkt och låt DET svaret gälla.
+      // Bara icke-IN med flit: restocken är OOS/PREORDER → IN och det är den som ska
+      // fångas snabbt; en stale "i lager" i sökindexet är ofarlig (rättas nästa flip,
+      // och IN→OUT larmar aldrig). Cappad + politeFetch-delay av artighet mot butiken.
+      let polled = 0;
+      for (const p of products) {
+        if (p.stockStatus === StockStatus.IN_STOCK) continue;
+        if (polled >= LIVE_POLL_MAX) break;
+        polled++;
+        try {
+          const raw = p.raw as WebhallenRaw;
+          const res = await politeFetch(`${BASE_URL}/api/product/${raw.id}`, {
+            delayMs: 800,
+            headers: { accept: "application/json" },
+          });
+          if (!res.ok) continue;
+          const detail = (await res.json()) as { product?: WebhallenProduct };
+          if (!detail.product) continue;
+          const live = webhallenStockStatus(detail.product);
+          if (live !== p.stockStatus) {
+            p.stockStatus = live;
+            raw.stockStatus = live;
+            raw.rawProduct = detail.product;
+          }
+        } catch {
+          /* best effort — sök-feedens status står kvar, precis som före live-kollen */
+        }
       }
     } catch (err) {
       errors.push(

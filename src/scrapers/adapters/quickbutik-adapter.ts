@@ -82,6 +82,24 @@ const NON_PRODUCT_PATH = /^\/(cart|checkout|sidor|pages|contact|kontakt|account|
 const SOLD_OUT_MARKERS = /Ej tillgänglig|Slutsåld|Sold out|Bevaka|Meddela mig|area-label="Ej/i;
 
 /**
+ * Lagerdomen för ett produktblock — på KOMMENTARSFRI text.
+ *
+ * ⛔ STRIPPNINGEN ÄR INTE VALFRI (2026-08-10): Swepokes tema började 2026-07-27 rendera
+ * mallkommentarer i VARJE produktkort — `<!-- Sold out -->`, `<!-- Has options -->` — och
+ * SOLD_OUT_MARKERS träffade texten inne i kommentaren. Följden var total och tyst:
+ * 101 av 101 Swepoke-offers stod OUT_OF_STOCK i 14 dygn (11 äkta IN→OUT-flippar skrevs
+ * 07-27 när temat bytte, sedan NOLL händelser), medan butikssidorna sa "I lager" —
+ * inga restock-larm kunde någonsin fyras. En mallkommentar är ingen lagerstatus; bara
+ * synlig markup får rösta. Mätt efter fix: 57 IN / 104 OUT på Swepokes riktiga feed,
+ * med de äkta slutsålda fällda av `area-label="Ej`-attributet som förut.
+ */
+export function qbBlockStock(block: string): { soldOut: boolean; buyable: boolean } {
+  const text = block.replace(/<!--[\s\S]*?-->/g, " ");
+  const soldOut = SOLD_OUT_MARKERS.test(text);
+  return { soldOut, buyable: !soldOut && /Lägg i|>\s*I lager|text-success/i.test(text) };
+}
+
+/**
  * Produktlänken i ETT data-pid-block.
  *
  * VARFÖR INTE BARA /pokemon/…: Quickbutik låter samma produkt bo under flera toppsegment,
@@ -233,9 +251,7 @@ export abstract class QuickbutikAdapter implements SourceAdapter {
       const href = productHrefInBlock(block);
       if (!href) continue;
       const title = titleM[1].replace(/&amp;/g, "&").replace(/&[a-z]+;/g, " ").replace(/\s+/g, " ").trim();
-      const soldOut = SOLD_OUT_MARKERS.test(block);
-      const inStock = !soldOut && /Lägg i|>\s*I lager|text-success/i.test(block);
-      byData.push({ title, priceOre, url: `${this.baseUrl}${href}`, inStock });
+      byData.push({ title, priceOre, url: `${this.baseUrl}${href}`, inStock: qbBlockStock(block).buyable });
     }
     if (byData.length > 0) return byData;
 
@@ -255,11 +271,11 @@ export abstract class QuickbutikAdapter implements SourceAdapter {
       if (!priceM) continue;
       const priceOre = parseSekPrice(priceM[1]);
       if (!priceOre) continue;
-      // Samma slutsåld-markörer som primärparsern. Fallbacken kollade förr BARA
-      // "Ej tillgänglig" och antog i lager annars → en produkt vars knapp säger
-      // "Slutsåld" rapporterades som I LAGER (Pitch Black ETB, 2026-07-28).
-      const soldOut = SOLD_OUT_MARKERS.test(seg);
-      out.push({ title, priceOre, url: `${this.baseUrl}${href}`, inStock: !soldOut });
+      // Samma slutsåld-markörer som primärparsern (via qbBlockStock, kommentarsfri text).
+      // Fallbacken kollade förr BARA "Ej tillgänglig" och antog i lager annars → en
+      // produkt vars knapp säger "Slutsåld" rapporterades som I LAGER (Pitch Black ETB,
+      // 2026-07-28).
+      out.push({ title, priceOre, url: `${this.baseUrl}${href}`, inStock: !qbBlockStock(seg).soldOut });
     }
     return out;
   }
