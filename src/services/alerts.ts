@@ -60,7 +60,13 @@ export interface FlapPolicy {
 
 export function flapPolicy(): FlapPolicy {
   return {
-    minAwayMinutes: Number(process.env.RESTOCK_MIN_AWAY_MINUTES ?? 60),
+    // 20, inte 60 (ägarbeslut 2026-08-10): 60-minutersblinken åt ett ÄKTA larm — TCG
+    // Stores Prismatic-bundle såldes slut 06:43 och fylldes på 07:13 (borta 30 min),
+    // och för heta släpp är just den snabba påfyllningen det man bevakar. 21-dygns-
+    // facitet från 07-26 mättes med 60; priset för 20 är fler mejl från studsiga
+    // butiker (DL). Defaulten bor HÄR (en definition för Actions + Railway) —
+    // env-variabeln är kvar som nödventil, inte som produktbeslut.
+    minAwayMinutes: Number(process.env.RESTOCK_MIN_AWAY_MINUTES ?? 20),
     flapMaxTransitions: Number(process.env.RESTOCK_FLAP_MAX_TRANSITIONS ?? 6),
     flapCooldownHours: Number(process.env.RESTOCK_FLAP_COOLDOWN_HOURS ?? 24),
   };

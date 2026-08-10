@@ -311,9 +311,11 @@ describe("evaluateStockFlap", () => {
     expect(evaluateStockFlap(recent, null, NOW, P).blip).toBe(false);
   });
 
-  it("standardpolicyn är 60 min / 6 övergångar / 24h", () => {
+  it("standardpolicyn är 20 min / 6 övergångar / 24h", () => {
+    // 20, inte 60, sedan 2026-08-10 (ägarbeslut): 60-blinken åt ett äkta larm —
+    // en vara som var borta 30 min och fylldes på är precis det man bevakar.
     expect(flapPolicy()).toEqual({
-      minAwayMinutes: 60,
+      minAwayMinutes: 20,
       flapMaxTransitions: 6,
       flapCooldownHours: 24,
     });

@@ -590,11 +590,14 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   (kollektions-JSON och produktens `.js` sa samma sak), alltså butikens riktiga lager som studsar, inte vår sampling.
   2h-cooldownen ensam gav då ett mejl varannan timme i all oändlighet. `checkRestockAlerts` läser nu paret
   (produkt, butik)-egen RestockEvent-historik: **(A) blink** — tillbaka i samma status inom `RESTOCK_MIN_AWAY_MINUTES`
-  (60) → inget larm (den lämnade aldrig hyllan); **(B) flapp** — fler än `RESTOCK_FLAP_MAX_TRANSITIONS` (6)
+  (**20 sedan 2026-08-10**, var 60 — ägarbeslut: 60-blinken åt ett ÄKTA larm, TCG Stores Prismatic-bundle var borta
+  30 min och fylldes på; defaulten bor i `flapPolicy()`, env-variabeln är nödventil) → inget larm (den lämnade
+  aldrig hyllan); **(B) flapp** — fler än `RESTOCK_FLAP_MAX_TRANSITIONS` (6)
   övergångar/dygn → cooldown blir `RESTOCK_FLAP_COOLDOWN_HOURS` (24), dvs ett besked per dygn i stället för ett
   varannan timme. Tystar ALDRIG helt: att en het vara trillar in med jämna mellanrum är i sig information.
   MÄTT mot 21 dygns facit före ship (470 händelser): 177 → 147 larmtillfällen, värsta paren 12/6 → 7/3, och de enda
-  par som blir helt tysta hade bara 30-minutersblinkar. Ren dom = `evaluateStockFlap` (testad utan DB).
+  par som blev helt tysta hade bara 30-minutersblinkar — med 20-tröskeln larmar de igen (avsiktligt).
+  Ren dom = `evaluateStockFlap` (testad utan DB).
   Själva historiken (produktsidan, /marknad, dashboard, `/api/market/restocks`) är ADMIN-ONLY — en lista där
   "i lager för 4 min sedan" oftast leder till en slutsåld sida är driftlogg, inte produktfunktion. Rollen läses
   KLIENT-sida (`useIsAdmin`, `restock-history.tsx`) och datat ligger INTE i ISR-payloaden — produktsidan hämtar
