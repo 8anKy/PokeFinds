@@ -60,3 +60,38 @@ export function visibleListings<T extends { price: number }>(
   const kept = rows.filter((r) => listingPriceIsPlausible(r.price, referenceOre));
   return kept.length > 0 ? kept : rows;
 }
+
+/**
+ * PLATSHÅLLARPRIS: butikens "pris" på en ännu inte prissatt förhandsbokning.
+ *
+ * Kanto Vault publicerar 1 kr på presale-sidor (verifierat i deras egen Shopify-
+ * JSON 2026-08-10: "Pokémon 30th Celebration Booster Pack (Japansk)" price=100 öre,
+ * available=false), och Pokétalk lät en Booster Box stå på 10 kr. Sådana tal är
+ * inte priser — de blev ändå offer-pris, grafpunkt och "Average price 100 kr",
+ * eftersom rimlighetsvakten mot CM-facit är verkningslös precis när stubben är ny
+ * (inget CM-pris finns än — vakten passerar tomt).
+ *
+ * Gränserna är MÄTTA mot alla butiksoffers ≤30 kr i prod 2026-08-10 (13 st):
+ * de fyra platshållarna (3×1 kr Kanto Vault, 10 kr Pokétalk-box) fälls, medan
+ * de billigaste ÄKTA priserna överlever — Trick or Trade-minipack 10 kr,
+ * KV:s japanska packs 29 kr. Därför är golvet för styckprodukter 5 kr (< 500 öre),
+ * inte 10 kr: ett äkta pack-pris på exakt 10 kr finns i katalogen.
+ * För lådskaliga kategorier är även ett tvåsiffrigt kronbelopp omöjligt
+ * (billigaste äkta box-familjepriset i katalogen ligger hundratals kronor upp),
+ * så där fälls allt under 50 kr.
+ *
+ * Ett platshållarpris betyder "priset är okänt": offern ska finnas (länken och
+ * lagerstatusen är äkta) men med price=null — schemats "länk-offer utan känt pris".
+ */
+const PLACEHOLDER_MAX_ORE = 500;
+const PLACEHOLDER_BOX_MAX_ORE = 5000;
+const BOX_SCALE_CATEGORIES = new Set(["BOOSTER_BOX", "ETB", "COLLECTION_BOX", "BUNDLE"]);
+
+export function isPlaceholderListingPrice(
+  priceOre: number | null | undefined,
+  category: string | null | undefined
+): boolean {
+  if (priceOre == null) return false;
+  if (priceOre < PLACEHOLDER_MAX_ORE) return true;
+  return BOX_SCALE_CATEGORIES.has(category ?? "") && priceOre < PLACEHOLDER_BOX_MAX_ORE;
+}

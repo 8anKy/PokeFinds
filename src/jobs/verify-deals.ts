@@ -342,16 +342,36 @@ export async function verifyTraderaMatches(
   res.offers = offers.length;
   log(`[verify-matches] ${offers.length} sealed Tradera-offers.`);
 
-  // Redan avgjorda (annons, produkt)-par hoppas över — domen är stabil.
-  const known = new Set(
-    (await prisma.traderaMatch.findMany({ select: { itemId: true, productId: true } })).map(
-      (m) => `${m.itemId}|${m.productId}`
+  // Redan avgjorda (annons, produkt)-par prövas inte om — domen är stabil. Men de
+  // HOPPAS inte längre blint över: en offer som MOTSÄGER en fälld dom nollas igen.
+  const known = new Map(
+    (await prisma.traderaMatch.findMany({ select: { itemId: true, productId: true, ok: true } })).map(
+      (m) => [`${m.itemId}|${m.productId}`, m.ok] as const
     )
   );
 
   await mapPool(offers, 3, async (offer) => {
     const itemId = await resolveItemId(offer);
-    if (!itemId || known.has(`${itemId}|${offer.productId}`)) {
+    if (!itemId) {
+      res.skipped++;
+      return;
+    }
+    const priorOk = known.get(`${itemId}|${offer.productId}`);
+    if (priorOk !== undefined) {
+      // SJÄLVLÄKNING (2026-08-10): domen fanns, men offern levde vidare ändå —
+      // scrape-alls Tradera-adapter skrev tillbaka den "tomma asken" (738310978,
+      // dömd 07-07) varje natt i en månad, och den här funktionen hoppade över
+      // paret som "redan avgjort". En fälld dom utan verkställighet är ingen dom:
+      // bär offern fortfarande annonsens direktlänk eller ett pris → nolla igen,
+      // utan nytt LLM-anrop (verdiktet är redan betalt).
+      if (priorOk === false && (extractTraderaItemId(offer.url) === itemId || offer.price != null)) {
+        await prisma.offer.update({
+          where: { id: offer.id },
+          data: { price: null, stockStatus: StockStatus.UNKNOWN, url: traderaResetSearchUrl(offer.product) },
+        });
+        res.hidden++;
+        log(`   ❌ nollade igen (dom fanns redan): ${offer.product.title} ← item ${itemId}`);
+      }
       res.skipped++;
       return;
     }

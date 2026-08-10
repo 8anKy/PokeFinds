@@ -1130,6 +1130,37 @@ interface CmNonSingle {
   dateAdded?: string;
 }
 
+/**
+ * CM:s KINESISKA produkter bär setkoden i namnet ("CSM1aC: Storming Emergence -
+ * Radiant Booster Box"). Vår katalog är EN+JP — en kinesisk utgåva är ALDRIG rätt
+ * mappning för en japansk butikstitel, men namnet ligger nära nog för att vinna
+ * när den riktiga produkten är bortfiltrerad (mätt 2026-08-09: "Storm Emeralda
+ * Booster Box (Japansk)" mappades till just CSM1aC-produkten). Kolon krävs med
+ * flit: noll risk att fälla ett äkta EN/JP-namn. Kinesiska produkter UTAN kod i
+ * namnet ("Tidal Storm Booster") fångas av tvillingvakten nedan i stället.
+ */
+export function isCmChineseName(name: string): boolean {
+  return /^CS[A-Z0-9]*C:/i.test(name.trim());
+}
+
+/**
+ * TVILLINGVAKT-MARGINAL: blockera auto-mappningen när den mest lika kandidaten i
+ * HELA CM-katalogen redan ägs av en ANNAN produkt och dess likhet överstiger bästa
+ * oägda kandidat med minst så här mycket. Då är vår produkt sannolikt en DUBBLETT
+ * av ägaren — ownedBy-filtret ensamt gör i det läget aktiv skada: det tar bort det
+ * RÄTTA svaret ur poolen och låter närmaste oägda lookalike vinna (så fick Storm
+ * Emeralda-stubbarna kinesiska CM-identiteter och två skräp-set skapades).
+ * Marginalen skyddar den legitima gränsen: en ny japansk produkt vars engelska
+ * namne redan är ägd ligger poängmässigt NÄRA sin riktiga kandidat — där ska
+ * domaren avgöra, inte tvillingvakten. MÄTT 2026-08-10 mot alla 121 redan mappade
+ * JP-produkter: 0,1 blockerar 0 legitima; 0 hade falskt blockerat "Black Bolt JP
+ * Booster" och "White Flare JP Booster" (ägd EN-twin sim 1,00 mot rätt JP-kandidat
+ * 0,92) — sänk den inte. Pack-stubben ("Storm Emeralda Booster Pack") blockeras av
+ * vakten (ägd 0,89 mot oägd 0,64); box-stubbarna stoppas i stället av kinafiltret
+ * (rätt fel-kandidat borta) + domarens CASE-regel på kvarvarande "Booster Box Case".
+ */
+const JP_TWIN_MARGIN = 0.1;
+
 /** CM-katalogkategorier som får matchas per vår produktkategori (JP-mappning). */
 const JP_CM_CATEGORIES: Record<string, string[]> = {
   BOOSTER_PACK: ["Pokémon Booster"],
@@ -1225,17 +1256,32 @@ export async function runJapaneseSealedRefresh(): Promise<JpRefreshResult> {
     if (idProduct == null) {
       const ourClean = jpComparableTitle(p.title);
       const allowedCats = JP_CM_CATEGORIES[p.category] ?? null;
-      const cands = catalog.products
+      // Poängsätt HELA fältet (inklusive redan ägda kandidater) — ownedBy-filtret
+      // får inte appliceras före tvillingvakten, för det är just bortfiltreringen
+      // av det rätta, redan ägda svaret som gjorde lookalike-felen möjliga.
+      const scored = catalog.products
         .filter(
           (c) =>
             (!allowedCats || allowedCats.includes(c.categoryName)) &&
             !/coin|lot|single/i.test(c.categoryName) &&
-            (ownedBy.get(c.idProduct) === undefined || ownedBy.get(c.idProduct) === p.id)
+            !isCmChineseName(c.name)
         )
         .map((c) => ({ c, sim: scoreSimilarity(ourClean, norm(c.name)) }))
         .filter((x) => x.sim >= 0.5)
-        .sort((a, b) => b.sim - a.sim)
-        .slice(0, 3);
+        .sort((a, b) => b.sim - a.sim);
+      const ownedByOther = (id: number) => {
+        const o = ownedBy.get(id);
+        return o !== undefined && o !== p.id;
+      };
+      const bestOwned = scored.find((x) => ownedByOther(x.c.idProduct));
+      const cands = scored.filter((x) => !ownedByOther(x.c.idProduct)).slice(0, 3);
+      if (bestOwned && bestOwned.sim > (cands[0]?.sim ?? 0) + JP_TWIN_MARGIN) {
+        console.log(
+          `[cm-jp] TROLIG DUBBLETT — "${p.title}" liknar mest "${bestOwned.c.name}" (sim ${bestOwned.sim.toFixed(2)}) som redan ägs av en annan produkt. Mappar inte; kör dedupe i stället.`
+        );
+        res.unmatched.push(p.title);
+        continue;
+      }
       for (const { c, sim } of cands) {
         // ⛔ LEDTRÅDEN MÅSTE SÄGA ATT B ALDRIG BÄR SPRÅKMARKÖR (mätt 2026-08-07).
         // Systemprompten i same-product.ts säger — helt riktigt i allmänhet — att

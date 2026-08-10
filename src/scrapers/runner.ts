@@ -78,6 +78,7 @@ import { gtinConflict, isPokemonManufacturerGtin } from "@/lib/gtin";
 import { isDeniedListingUrl } from "@/scrapers/import-denylist";
 import { netStockEvent, isRestock, isNewInStockArrival } from "@/scrapers/restock";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
+import { isPlaceholderListingPrice } from "@/lib/listing-plausibility";
 import { isBlockedListingLanguage, listingCardLanguage } from "@/lib/listing-language";
 import type { SourceAdapter } from "@/scrapers/types";
 import { checkPriceAlerts, checkRestockAlerts, checkListingAlerts } from "@/services/alerts";
@@ -521,13 +522,17 @@ export async function ensureListingProduct(
  * bevisad felaktig butikslänk, hittad med ren SQL utan en enda LLM-token.
  */
 async function upsertListingOffer(
-  it: { title: string; url: string; price: number | null; retailerId: string },
+  it: { title: string; url: string; price: number | null; retailerId: string; category?: string | null },
   productId: string,
   stockStatus: StockStatus,
   gtin: string | null
 ): Promise<void> {
   // Offer-språket följer annonsen (japansk annons → JP-offer), inte hårdkodat EN.
   const offerLanguage = listingCardLanguage(it.title, it.url);
+  // PLATSHÅLLARPRIS (1 kr-presale) blir aldrig ett offer-pris: här är enda stället
+  // rimlighetsvakten mot CM-facit inte kan skydda (stubben är ny → inget facit än),
+  // och det var exakt så Kanto Vaults 1 kr fastnade som pris + "Average price 100 kr".
+  const price = isPlaceholderListingPrice(it.price, it.category ?? null) ? null : it.price;
   // Butiken kan redan ha en offer för produkten via en ANNAN sida (variant) — kapa
   // inte den offerens URL (varianten spåras i StoreListing-huvudboken). Bara skapa
   // när offer saknas helt; URL:en själv är obelagd (owner-vakten ovan returnerade annars).
@@ -537,7 +542,7 @@ async function upsertListingOffer(
   });
   if (!existing) {
     await prisma.offer.create({
-      data: { productId, retailerId: it.retailerId, condition: "SEALED", language: offerLanguage, price: it.price, currency: "SEK", stockStatus, url: it.url, gtin },
+      data: { productId, retailerId: it.retailerId, condition: "SEALED", language: offerLanguage, price, currency: "SEK", stockStatus, url: it.url, gtin },
     });
     return;
   }
@@ -798,7 +803,10 @@ export async function runRestockScan(opts?: {
             // (Charizard ex SC: 699 kr i mejlet, 799 kr i butiken, 2026-07-16).
             // Feeden HAR dagspriset; skriv det i SAMMA write som statusflippen
             // (noll extra Neon-writes — lanen skriver fortfarande bara vid övergångar).
-            ...(it.price != null ? { price: it.price } : {}),
+            // Platshållarpris (1 kr-presale) räknas som "pris okänt" — skriv inget.
+            ...(it.price != null && !isPlaceholderListingPrice(it.price, it.category)
+              ? { price: it.price }
+              : {}),
           },
         });
       }
@@ -830,7 +838,9 @@ export async function runRestockScan(opts?: {
           retailerId: it.retailerId,
           url: it.url,
           title: it.title,
-          price: it.price,
+          // Platshållarpris (1 kr-presale) i huvudboken hade satt "1 kr" i
+          // "Ny produkt"-larmmejlet — okänt pris är det ärliga värdet.
+          price: isPlaceholderListingPrice(it.price, it.category) ? null : it.price,
           imageUrl: it.imageUrl,
           stockStatus: newStatus,
           // Gratis: ensureListingProduct slog redan upp koden för samma URL och
@@ -1066,6 +1076,24 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
     // inte hela dess katalog som "nya produkter"). Läs FÖRE vi uppdaterar lastRunAt.
     const scrapedBefore = source.lastRunAt != null;
 
+    // LLM-FÄLLDA TRADERA-PAR ÅTERSKAPAS ALDRIG — INTE HELLER HÄR (2026-08-10).
+    // Sweepen och findReplacementListing konsulterar TraderaMatch(ok=false), men den
+    // här generiska skrap-loopen gjorde det inte: "Pokémon TCG: Mega Charizard Tin"
+    // (738310978, dömd "tom ask" 07-07) skrevs tillbaka som 100 kr-offer VARJE natt i
+    // en månad — verifyTraderaMatches nollar bara par den inte redan dömt. Samma
+    // nyckel som sweepen: `${itemId}|${productId}`.
+    const rejectedTraderaPairs =
+      source.name === "Tradera"
+        ? new Set(
+            (
+              await prisma.traderaMatch.findMany({
+                where: { ok: false },
+                select: { itemId: true, productId: true },
+              })
+            ).map((m) => `${m.itemId}|${m.productId}`)
+          )
+        : null;
+
     // Billigaste annonsen vinner: när flera annonser i samma körning matchar
     // samma produkt ska offerten visa den billigaste, inte den senast bearbetade.
     const bestPriceThisRun = new Map<string, number>();
@@ -1129,6 +1157,15 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
           continue;
         }
 
+        // Tradera-annons + produkt som en LLM-dom redan fällt → rör den aldrig.
+        if (rejectedTraderaPairs) {
+          const itemId = normalized.url.match(/\/item\/\d+\/(\d+)/)?.[1];
+          if (itemId && rejectedTraderaPairs.has(`${itemId}|${productId}`)) {
+            logs.push(`Känd felmatch (TraderaMatch ok=false) — hoppar: "${rawProduct.title}"`);
+            continue;
+          }
+        }
+
         // Erbjudandepriset (det vi VISAR) kan skilja sig från observationspriset:
         // för Cardmarket är offerPrice lägsta annonspris ("From") medan
         // normalized.price är trend-priset som prishistoriken/grafen bygger på.
@@ -1144,6 +1181,16 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
           !isPlausiblePriceFor(matchedCategory, cmPriceByProduct.get(productId), normalized.price)
         ) {
           logs.push(`Orimligt pris vs marknadspris (trolig lot/felmatch): "${rawProduct.title}" ${normalized.price} öre`);
+          continue;
+        }
+
+        // Platshållarpris (1 kr-presale): inget pris, ingen observation. Rimlighets-
+        // vakten ovan kräver ett CM-facit; det här är det facit-fria golvet.
+        if (
+          !CARDMARKET_SOURCE_NAMES.includes(source.name) &&
+          isPlaceholderListingPrice(normalized.price, matchedCategory)
+        ) {
+          logs.push(`Platshållarpris — hoppar: "${rawProduct.title}" ${normalized.price} öre`);
           continue;
         }
 

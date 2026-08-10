@@ -162,6 +162,21 @@ const DENIED = new Set<string>(
     "https://dragonslair.se/products/pokemon-25th-anniversary-celebrations-pokemon",
     "https://cardgame.se/engelska-pokmon-produkter/packbattle/packbattle-mega-evolution-booster-pack",
     "https://cardgame.se/engelska-pokmon-produkter/packbattle/packbattle-crown-zenith-boosster-pack-2026-05-08-2300",
+    // ── Ägarens kataloggenomgång 2026-08-10 (apply-owner-catalog-cleanup-2026-08-10.ts) ──
+    // Raderade produkter som ALDRIG ska tillbaka:
+    // "Pokemon Evolving Skies/Astral Radiance Blister: Eevee" (ägaren: radera):
+    "https://theswedishfish.se/product/pokemon-evolving-skies-astral-radiance-blister-eevee/",
+    // "Battle Academy 2022" (ägaren: tillbehör/brädspel, inte katalogvara):
+    "https://www.webhallen.com/se/product/345269",
+    "https://beamcardshop.com/products/pokemon-battle-academy",
+    // Pokemurres "EJ SEALED"-listning av Storm Emeralda-boxen: katalogen länkar
+    // den FÖRSEGLADE listningen; en oförseglad box är inte katalogprodukten.
+    // Utan denylist återuppstår URL:en som stub efter mergen (offern föll bort
+    // som konflikt → URL:en blev herrelös — samma fälla som Kanto Vault-stubbarna).
+    "https://pokemurre.se/products/forbokning-pokemon-mega-storm-emeralda-m6-booster-box-ej-sealed-japansk",
+    // Kanto Vaults "30th Celebration Card Set": placeholder-sida (1 kr, slut) som
+    // felländes till engelska 30th Celebration Booster — oklar SKU, ingen katalogvara.
+    "https://kantovault.se/products/pokemon-30th-celebration-card-set",
   ].map(normUrl)
 );
 

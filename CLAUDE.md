@@ -206,6 +206,36 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
 - Övrigt: se docs/TODO.md.
 
 ## Tekniska beslut (VIKTIGA — ändra inte utan skäl)
+- **KATALOGSTÄDNING 2026-08-10 → TRE NYA VAKTER (alla MÄTTA mot facit före ship)**: ägaren pekade ut 16 dubbletter
+  (mergade via `scripts/apply-owner-catalog-cleanup-2026-08-10.ts`; CM-länkar följer ALDRIG med — målen bar redan rätt)
+  + 2 raderingar (denylistade). Rotorsakerna stängdes:
+  (1) **JP-AUTOMAPPNINGENS TVILLINGVAKT + KINAFILTER** (`cardmarket-refresh.ts`): Storm Emeralda-stubbar mappades till
+  Cardmarkets KINESISKA produkter ("CSM1aC: Storming Emergence", "Tidal Storm" — CM säljer kinesiskt och INGET i
+  kandidatpoolen visste det) och skapade skräp-set. Roten: `ownedBy`-filtret tog bort det RÄTTA svaret (ägt av
+  tvillingen) FÖRE likhetsjämförelsen → närmaste oägda lookalike vann. Nu: kandidater vars namn matchar `^CS…C:`
+  utesluts (`isCmChineseName`, 163 träffar i CM-katalogen, kolon krävs = noll falska), och är bästa ÄGDA kandidat >
+  bästa oägda + `JP_TWIN_MARGIN` (0,1) mappas inget ("TROLIG DUBBLETT" → dedupe). ⛔ MÄTT: 0/121 legitima mappningar
+  blockerade; marginal 0 hade falskt blockerat "Black Bolt/White Flare JP Booster" (ägd EN-twin sim 1,00 mot rätt
+  JP-kandidat 0,92) — sänk den inte.
+  (2) **PLATSHÅLLARPRIS-GOLVET** (`isPlaceholderListingPrice`, `src/lib/listing-plausibility.ts`): Kanto Vault
+  publicerar 1 kr på presale-sidor (verifierat i deras egen Shopify-JSON) och Pokétalk lät en box stå på 10 kr —
+  blev offer-pris + "Average price 100 kr" eftersom CM-rimlighetsvakten är verkningslös precis när stubben är NY
+  (inget facit finns än). Golv: < 5 kr = alltid platshållare; lådkategorier (BOX/ETB/COLLECTION_BOX/BUNDLE) < 50 kr.
+  ⛔ MÄTT mot alla ≤30 kr-butiksoffers: exakt de 4 platshållarna fälls, Trick or Trade-minipacks på 10 kr överlever —
+  höj inte styckgolvet till 10 kr. Appliceras på ALLA fyra skrivvägar: `upsertListingOffer` (skapandet är den
+  kritiska — där finns inget CM-facit), StoreListing-huvudboken (larmtext), restock-transitionens prisskrivning och
+  scrape-loopen. Platshållare ⇒ `price: null` (länk + lagerstatus behålls), aldrig skippa själva offern.
+  (3) **TRADERA-DOMAR VERKSTÄLLS ÖVERALLT**: scrape-alls `TraderaAdapter`-väg (runner-loopen) konsulterade ALDRIG
+  `TraderaMatch(ok=false)` → "tom ask"-annonsen på Mega Charizard X ex Tin (dömd 07-07) skrevs tillbaka som 100 kr-
+  offer VARJE natt i en månad, och `verifyTraderaMatches` hoppade över paret som "redan avgjort" utan att titta på
+  offern. Nu: runner-loopen slår upp fällda par per körning, och verify-matches NOLLAR en offer som MOTSÄGER en
+  redan fälld dom (ingen ny LLM-dom — verdiktet är redan betalt). En dom utan verkställighet är ingen dom.
+  ⏭️ KVAR till nästa runda (ägaren återkommer om restock-alerts m.m.): misstänkta länkfel som INTE åtgärdades —
+  Pokétalk "mega-charizard-x-ex-mep023…-promo" på X-tinen, Samlarhobby "…x-ex-tin…-red" på Y-tinen, Mystery Shack
+  "kopia-…-gengar" på Clefable-tinen, Card Clubs singel-liknande URL:er ("bulbasaur-037" → GO-blister); 6 JP-produkter
+  utan CM-mappning (Classic Collection Box, en TILL Future Flash-box-dubblett, Terastal Festival-box, Start Deck 100,
+  Ultra Force Bout, Heat Wave Arena-box). Genie Trio-blisterns "Card Club/Pokétalk-länkar" gick inte att hitta i DB
+  (bara CM + CardGame, och CardGames "forces-of-nature-trio" ÄR genie-trion) — be ägaren peka igen.
 - **KATALOGNAMN FÖR SEALED = CARDMARKETS NAMN (ägarbeslut 2026-08-09)**: en auto-importerad stub bär butikens
   fras bara tills CM-identiteten avgörs — då adopteras CM:s katalognamn (`adoptCmName`, `src/jobs/adopt-cm-name.ts`,
   ansluten i cardmarket-refresh EN-fuzzy-grenen + JP-auto-mappningen). Engångstvätt av befintlig data =
