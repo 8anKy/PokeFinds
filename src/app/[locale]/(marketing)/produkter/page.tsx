@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { alternatesFor } from "@/lib/canonical";
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { useTranslations } from "next-intl";
-import { Link } from "@/i18n/navigation";
 import { cachedRead } from "@/lib/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -13,15 +11,25 @@ import {
   type ProductSort,
   type SearchProductsParams,
 } from "@/services/products";
+import {
+  getExploreFacets,
+  getExploreLastSeen,
+  HISTOGRAM_EDGES_KR,
+} from "@/services/explore-facets";
+import { getTopDrops } from "@/services/market";
+import { formatPercent } from "@/lib/format";
 import type { CardLanguage, ProductCategory } from "@prisma/client";
 import { CATEGORY_LABELS } from "@/components/features/product-card";
 import { ExploreFeed } from "@/components/features/explore-feed";
 import { ExploreFilterBar } from "@/components/features/explore-filter-bar";
-import { SearchAutocomplete } from "@/components/features/search-autocomplete";
-import { Input, Select, Label, Checkbox } from "@/components/ui/input";
-import { Button, LinkButton } from "@/components/ui/button";
+import { ExploreSearchRow } from "@/components/features/explore-search-row";
+import {
+  ExploreActiveChips,
+  ExploreFilterPanel,
+} from "@/components/features/explore-filter-panel";
+import { LinkButton } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { IconSearch, IconScan } from "@/components/ui/icons";
+import { IconSearch } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -209,172 +217,6 @@ function buildFeedQuery(p: SearchProductsParams): string {
   return s.toString();
 }
 
-/** Sök-fält (q) med skanna-genväg — desktop-varianten. */
-function SearchField({ defaultQuery }: { defaultQuery?: string }) {
-  const t = useTranslations("Products");
-  return (
-    <div>
-      <Label htmlFor="q">{t("search")}</Label>
-      <div className="flex items-center gap-2">
-        <SearchAutocomplete
-          id="q"
-          defaultValue={defaultQuery ?? ""}
-          placeholder={t("searchPlaceholder")}
-          className="h-10 flex-1 rounded-lg border border-surface-border bg-surface-raised px-3 transition-colors focus-within:border-holo-cyan focus-within:ring-2 focus-within:ring-holo-cyan/30"
-          dropdownClassName="left-0 w-[24rem] max-w-[calc(100vw-2rem)]"
-        />
-        <Link
-          href="/skanna"
-          aria-label={t("scanAria")}
-          title={t("scanTitle")}
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-surface-border bg-surface-overlay text-ink-muted transition-colors hover:border-holo-cyan/60 hover:text-holo-cyan focus-visible:border-holo-cyan/60 focus-visible:text-holo-cyan"
-        >
-          <IconScan size={20} />
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Filterfälten (kategori … sortering) utan sök och utan eget <form>. Återanvänds av
- * desktop-sidofältet och mobilens hopfällbara panel. `idPrefix` håller fält-id unika
- * mellan de två kopiorna (annars dubblett-id i DOM:en).
- */
-function CatalogFilterFields({
-  searchParams,
-  sets,
-  retailers,
-  idPrefix,
-}: {
-  searchParams: CatalogSearchParams;
-  sets: { id: string; name: string; language: string }[];
-  retailers: { id: string; name: string }[];
-  idPrefix: string;
-}) {
-  const t = useTranslations("Products");
-  const tCat = useTranslations("Category");
-  const tLang = useTranslations("Language");
-  // Mobilens "Fler filter" är FLERVAL och skriver kommalistor i URL:en. Desktop-
-  // sidofältet är enval — visa första värdet i stället för att stå tomt (ett tomt
-  // <select> hade sett ut som "inget filter" fast katalogen var filtrerad).
-  const first = (v: string | undefined) => (v ? v.split(",")[0] : "");
-  return (
-    <>
-      <div>
-        <Label htmlFor={`${idPrefix}kategori`}>{t("category")}</Label>
-        <Select id={`${idPrefix}kategori`} name="kategori" defaultValue={first(searchParams.kategori)}>
-          <option value="">{t("allCategories")}</option>
-          {Object.keys(CATEGORY_LABELS)
-            .filter((value) => !HIDDEN_CATEGORIES.includes(value as ProductCategory))
-            .map((value) => (
-              <option key={value} value={value}>
-                {tCat(value)}
-              </option>
-            ))}
-        </Select>
-      </div>
-      <div>
-        <Label htmlFor={`${idPrefix}set`}>{t("set")}</Label>
-        {/* Samma uppdelning som mobilens set-ark: japanska set ligger under en egen
-            rubrik. En platt lista hade blandat in "Black Bolt (SV11B)" bland de
-            engelska seten utan att säga varför två set nästan heter likadant. */}
-        <Select id={`${idPrefix}set`} name="set" defaultValue={searchParams.set ?? ""}>
-          <option value="">{t("allSets")}</option>
-          {sets
-            .filter((s) => s.language !== "JP")
-            .map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          {sets.some((s) => s.language === "JP") && (
-            <optgroup label={t("setLanguageJp")}>
-              {sets
-                .filter((s) => s.language === "JP")
-                .map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-            </optgroup>
-          )}
-        </Select>
-      </div>
-      <div>
-        <Label htmlFor={`${idPrefix}butik`}>{t("store")}</Label>
-        <Select id={`${idPrefix}butik`} name="butik" defaultValue={first(searchParams.butik)}>
-          <option value="">{t("allStores")}</option>
-          {retailers.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </Select>
-      </div>
-      <div>
-        <Label>{t("price")}</Label>
-        <div className="flex items-center gap-2">
-          <Input
-            name="minPris"
-            type="number"
-            min={0}
-            placeholder={t("min")}
-            aria-label={t("minAria")}
-            defaultValue={searchParams.minPris ?? ""}
-          />
-          <span className="text-ink-faint">–</span>
-          <Input
-            name="maxPris"
-            type="number"
-            min={0}
-            placeholder={t("max")}
-            aria-label={t("maxAria")}
-            defaultValue={searchParams.maxPris ?? ""}
-          />
-        </div>
-      </div>
-      <div>
-        <Label htmlFor={`${idPrefix}sprak`}>{t("language")}</Label>
-        <Select id={`${idPrefix}sprak`} name="sprak" defaultValue={first(searchParams.sprak)}>
-          <option value="">{t("allLanguages")}</option>
-          {BROWSE_LANGUAGES.map((value) => (
-            <option key={value} value={value}>
-              {tLang(value)}
-            </option>
-          ))}
-        </Select>
-      </div>
-      <Checkbox
-        id={`${idPrefix}lager`}
-        name="lager"
-        value="1"
-        label={t("inStockOnly")}
-        defaultChecked={searchParams.lager === "1"}
-      />
-      <div>
-        <Label htmlFor={`${idPrefix}sortera`}>{t("sortBy")}</Label>
-        <Select id={`${idPrefix}sortera`} name="sortera" defaultValue={searchParams.sortera ?? "popular"}>
-          {SORT_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {t(`sort.${o.key}`)}
-            </option>
-          ))}
-        </Select>
-      </div>
-      <Button type="submit" className="w-full">
-        {t("filter")}
-      </Button>
-      <Link
-        href="/produkter"
-        className="block text-center text-sm text-ink-muted hover:text-ink"
-      >
-        {t("clearFilters")}
-      </Link>
-    </>
-  );
-}
-
 export default async function ProductsPage({
   params: routeParams,
   searchParams,
@@ -391,10 +233,15 @@ export default async function ProductsPage({
   // JWT-sessioner → ingen DB-fråga. Bara "bäst matchning" bryr sig om vem du är.
   const session = await auth();
   const params = { ...buildParams(searchParams), userId: session?.user?.id };
-  const [result, sets, retailers] = await Promise.all([
+  // Facetter/toppfall/senast-sedd är delade cacher (1h/10 min) — de kostar inga
+  // extra Neon-läsningar per sidvisning, bara per TTL-fönster.
+  const [result, sets, retailers, facets, lastSeenIso, topDrops] = await Promise.all([
     getExploreFeed(params, 0, PAGE_SIZE),
     getFilterSets(),
     getFilterRetailers(),
+    getExploreFacets(),
+    getExploreLastSeen(),
+    getTopDrops(),
   ]);
   const feedQuery = buildFeedQuery(params);
   const filterKey = filterStateKey(searchParams);
@@ -412,6 +259,51 @@ export default async function ProductsPage({
     value: o.value,
     label: t(`sort.${o.key}`),
   }));
+
+  // ── Desktop-sidofältets data: facetantal kopplas på filterlistorna ──
+  const categoryCount = new Map(facets.categories.map((c) => [c.value as string, c.count]));
+  const panelCategories = categoryOptions
+    .map((c) => ({ ...c, count: categoryCount.get(c.value) ?? 0 }))
+    .sort((a, b) => b.count - a.count);
+  const setCount = new Map(facets.sets.map((s) => [s.id, s.count]));
+  const panelSets = sets.map((s) => ({
+    id: s.id,
+    name: s.name,
+    language: s.language,
+    count: setCount.get(s.id) ?? 0,
+  }));
+  const retailerCount = new Map(facets.retailers.map((r) => [r.id, r.count]));
+  const panelRetailers = retailers
+    .map((r) => ({ value: r.id, label: r.name, count: retailerCount.get(r.id) ?? 0 }))
+    .sort((a, b) => b.count - a.count);
+
+  // Rubrikradens siffror. "Uppdaterad …" räknas per request (sidan är
+  // force-dynamic); källan är en 10-min-cachad MAX(lastSeenAt).
+  const nf = new Intl.NumberFormat("sv-SE");
+  let updatedLabel = t("updatedNow");
+  if (lastSeenIso) {
+    const minutes = Math.max(0, Math.floor((Date.now() - new Date(lastSeenIso).getTime()) / 60_000));
+    updatedLabel =
+      minutes < 1
+        ? t("updatedNow")
+        : minutes < 60
+          ? t("updatedMinAgo", { count: minutes })
+          : t("updatedHoursAgo", { count: Math.floor(minutes / 60) });
+  }
+  const biggestDrop = topDrops[0]?.changePercent ?? null;
+
+  const currentSort =
+    SORT_OPTIONS.find((o) => o.value === searchParams.sortera)?.value ?? SORT_OPTIONS[0].value;
+  const hiddenSearchParams = {
+    kategori: searchParams.kategori,
+    set: searchParams.set,
+    butik: searchParams.butik,
+    minPris: searchParams.minPris,
+    maxPris: searchParams.maxPris,
+    lager: searchParams.lager,
+    sprak: searchParams.sprak,
+    sortera: searchParams.sortera,
+  };
 
   const feed = result.items.length === 0 ? (
       <EmptyState
@@ -442,12 +334,37 @@ export default async function ProductsPage({
 
   return (
     <div className="mx-auto max-w-7xl px-2.5 py-6 sm:px-6 lg:py-10">
-      {/* Rubrik — endast desktop (mobilen leder med sökfältet) */}
-      <div className="hidden lg:block">
-        <h1 className="font-display text-3xl font-bold text-ink">{t("h1")}</h1>
-        <p className="mt-2 text-ink-muted">
-          {t("intro")}
-        </p>
+      {/* Rubrikrad — endast desktop (mobilen leder med sökfältet). Till höger:
+          live-punkt + "uppdaterad …" och två marknadssiffror ur delade cacher. */}
+      <div className="hidden items-end justify-between gap-6 lg:flex">
+        <div>
+          <h1 className="font-display text-3xl font-bold text-ink">{t("h1")}</h1>
+          <p className="mt-2 max-w-xl text-ink-muted">{t("intro")}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-8 pb-1">
+          <span className="flex items-center gap-2 text-xs text-ink-muted">
+            <span aria-hidden className="h-2 w-2 animate-pulse-soft rounded-full bg-rise" />
+            {updatedLabel}
+          </span>
+          <div className="text-right">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
+              {t("inStockNow")}
+            </p>
+            <p className="font-display text-lg font-bold tabular-nums text-ink">
+              {nf.format(facets.inStock)}
+            </p>
+          </div>
+          {biggestDrop != null && biggestDrop < 0 && (
+            <div className="text-right">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
+                {t("biggestDrop7d")}
+              </p>
+              <p className="font-display text-lg font-bold tabular-nums text-fall">
+                {formatPercent(biggestDrop)}
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ───────── Mobil: app-känsla ───────── */}
@@ -470,33 +387,51 @@ export default async function ProductsPage({
         <section>{feed}</section>
       </div>
 
-      {/* ───────── Desktop: sidofält + resultat ───────── */}
-      <div className="mt-8 hidden gap-8 lg:grid lg:grid-cols-[260px_1fr]">
-        <aside>
-          <form
+      {/* ───────── Desktop: fullbred sökrad + sidofält + resultat ───────── */}
+      <div className="hidden lg:block">
+        {/* key={filterKey}: sök-/sorteringsraden bär defaultValue + dolda fält ur
+            URL:en och måste MONTERAS OM vid klientnavigering (samma skäl som
+            mobilformuläret ovan). relative z-30 i komponenten: under headerns
+            z-40, över kortgriden (sökförslags-dropdownen målas annars under). */}
+        <div className="mt-6">
+          <ExploreSearchRow
             key={filterKey}
-            method="GET"
-            action="/produkter"
-            // z-30: sticky skapar en egen stacking context på z-auto → utan
-            // uttryckligt z målades kortgriden (senare i DOM) över sökförslags-
-            // dropdownen. Under headerns z-40.
-            className="card-surface sticky top-20 z-30 space-y-4 p-5"
-          >
-            <SearchField defaultQuery={searchParams.q} />
-            <CatalogFilterFields
-              searchParams={searchParams}
-              sets={sets}
-              retailers={retailers}
-              idPrefix="d-"
+            defaultQuery={searchParams.q}
+            hiddenParams={hiddenSearchParams}
+            sortOptions={sortOptionList}
+            currentSort={currentSort}
+            defaultSort={SORT_OPTIONS[0].value}
+          />
+        </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+          {/* z-10, UNDER sökradens z-30: sökförslags-dropdownen hänger ner ÖVER
+              panelens övre kant och målades annars bakom den (samma stacking-
+              fälla som gamla sidofältet, fast åt andra hållet). */}
+          <aside className="sticky top-20 z-10 self-start">
+            <ExploreFilterPanel
+              categories={panelCategories}
+              sets={panelSets}
+              retailers={panelRetailers}
+              languages={languageOptions}
+              priceBuckets={facets.priceBuckets}
+              edgesKr={HISTOGRAM_EDGES_KR}
+              total={result.total}
             />
-          </form>
-        </aside>
-        <section>
-          <p className="mb-4 text-sm text-ink-muted" aria-live="polite">
-            {t("resultFound", { count: result.total })}
-          </p>
-          {feed}
-        </section>
+          </aside>
+          {/* scroll-mt: "Visa N produkter"-knappen scrollar hit — landa under
+              den sticky headern, inte bakom den. */}
+          <section id="explore-results" className="scroll-mt-24">
+            <ExploreActiveChips
+              categories={panelCategories}
+              sets={panelSets}
+              retailers={panelRetailers}
+              languages={languageOptions}
+              total={result.total}
+            />
+            {feed}
+          </section>
+        </div>
       </div>
     </div>
   );

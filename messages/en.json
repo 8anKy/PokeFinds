@@ -115,7 +115,15 @@
     "overview": "My overview",
     "profile": "Profile",
     "login": "Log in",
-    "joinFree": "Join for free"
+    "joinFree": "Join for free",
+    "accountMenu": "Account menu",
+    "account": "My account",
+    "pro": "PRO",
+    "watches": "Watches",
+    "grading": "AI grading",
+    "collection": "My collection",
+    "settings": "Settings",
+    "logout": "Log out"
   },
   "Auth": {
     "emailLabel": "Email address",
@@ -1233,7 +1241,27 @@
       "card_number_asc": "Card number (low to high)",
       "card_number_desc": "Card number (high to low)"
     },
-    "howWeRank": "How Best match works"
+    "howWeRank": "How Best match works",
+    "filters": "Filters",
+    "clearAll": "Clear all",
+    "availability": "Availability",
+    "all": "All",
+    "showAllCategories": "Show all {count} categories",
+    "showFewer": "Show fewer",
+    "browseAllSets": "Browse all {count} sets",
+    "browseAllStores": "Show all {count} stores",
+    "anyPrice": "Any price",
+    "priceNoCap": "{min}+ kr",
+    "priceSpan": "{min}–{max} kr",
+    "inStockNow": "In stock now",
+    "biggestDrop7d": "Biggest drop 7d",
+    "updatedNow": "Updated just now",
+    "updatedMinAgo": "Updated {count} min ago",
+    "updatedHoursAgo": "Updated {count} h ago",
+    "sortLabel": "Sort",
+    "removeFilter": "Remove filter {name}",
+    "minThumbAria": "Minimum price",
+    "maxThumbAria": "Maximum price"
   },
   "Sets": {
     "metaTitle": "Sets",

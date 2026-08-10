@@ -7,10 +7,12 @@ import { cn } from "@/lib/utils";
 import { useIsAdmin } from "@/components/admin-only";
 
 // Marknad är ADMIN-ONLY (ägarbeslut 2026-07-21): vanliga besökare ska bara se
-// Utforska, Community och Priser. Sidan finns kvar och nås via URL — det här är
-// bara navigationen.
+// Utforska, Portfölj, Community och Priser (ägarbeslut 2026-08-11: fyra huvudflikar
+// på desktop, samma Portfölj-mål som mobilens tabb = /samling). Sidan Marknad finns
+// kvar och nås via URL — det här är bara navigationen.
 const NAV_LINKS = [
   { href: "/produkter", key: "explore" },
+  { href: "/samling", key: "portfolio" },
   { href: "/marknad", key: "market", adminOnly: true },
   { href: "/community", key: "community" },
   { href: "/priser", key: "pricing" },

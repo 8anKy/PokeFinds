@@ -115,7 +115,15 @@
     "overview": "Min översikt",
     "profile": "Profil",
     "login": "Logga in",
-    "joinFree": "Gå med gratis"
+    "joinFree": "Gå med gratis",
+    "accountMenu": "Kontomeny",
+    "account": "Mitt konto",
+    "pro": "PRO",
+    "watches": "Bevakningar",
+    "grading": "AI-gradering",
+    "collection": "Min samling",
+    "settings": "Inställningar",
+    "logout": "Logga ut"
   },
   "Auth": {
     "emailLabel": "E-postadress",
@@ -1233,7 +1241,27 @@
       "card_number_asc": "Kortnummer (lägst först)",
       "card_number_desc": "Kortnummer (högst först)"
     },
-    "howWeRank": "Så fungerar Bäst matchning"
+    "howWeRank": "Så fungerar Bäst matchning",
+    "filters": "Filter",
+    "clearAll": "Rensa alla",
+    "availability": "Tillgänglighet",
+    "all": "Alla",
+    "showAllCategories": "Visa alla {count} kategorier",
+    "showFewer": "Visa färre",
+    "browseAllSets": "Bläddra bland alla {count} set",
+    "browseAllStores": "Visa alla {count} butiker",
+    "anyPrice": "Alla priser",
+    "priceNoCap": "{min}+ kr",
+    "priceSpan": "{min}–{max} kr",
+    "inStockNow": "I lager nu",
+    "biggestDrop7d": "Störst fall 7 d",
+    "updatedNow": "Uppdaterad nyss",
+    "updatedMinAgo": "Uppdaterad för {count} min sedan",
+    "updatedHoursAgo": "Uppdaterad för {count} tim sedan",
+    "sortLabel": "Sortera",
+    "removeFilter": "Ta bort filtret {name}",
+    "minThumbAria": "Lägsta pris",
+    "maxThumbAria": "Högsta pris"
   },
   "Sets": {
     "metaTitle": "Set",
