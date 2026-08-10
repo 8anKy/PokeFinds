@@ -25,7 +25,12 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 60, inte 15: audit-links hämtar VARJE butikslänk (~2 900 efter Wave 4) med 1,5 s
+    # per-värd-delay → ~10–15 min bara för det steget. Med taket på 15 CANCELLADES jobbet
+    # mitt i audit-links tre veckor i rad (20/7, 27/7, 3/8) och ALLT efter — GTIN-rapport,
+    # CM-länkrapporter, gtin-fix, stub-dedup — hoppade tyst. Publikt repo = gratis
+    # Actions-minuter; Neon-kostnaden är ~1 CU-h extra i veckan, dvs ören.
+    timeout-minutes: 60
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }} # stub-dedupen (Haiku, ören/vecka)
