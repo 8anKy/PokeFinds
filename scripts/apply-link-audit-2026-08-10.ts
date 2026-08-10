@@ -152,6 +152,14 @@ const RELINK: { offerId: string; toProductId: string; note: string }[] = [
     toProductId: "cmqdy7mxw001t9rw43xwaf8mr", // Mega Moonlit Tins: Mega Gengar ex Tin
     note: "Speltrollet: Moonlit Mega Gengar-tin (satt på Zacian-tinen)",
   },
+  {
+    // Ägaren tittade på sidan 2026-08-11: Spelexpertens "TF ETB - Flutter Mane" är
+    // Walking Wake-versionen (teal boxkonst, artnr POK85657-FLU) — butikens eget
+    // variantnamn är påhittat. Offern satt på Iron Leaves-ETB:n.
+    offerId: "cmr881x4u008koi5xb8ct44ry",
+    toProductId: "cmqdy88u300gz11jhmsp5nno1", // Temporal Forces Walking Wake Elite Trainer Box
+    note: "Spelexperten: 'Flutter Mane' = TF Walking Wake ETB (ägarverifierad 08-11)",
+  },
 ];
 
 /** C. Radera — rätt produkt saknas/får inte skapas; auto-importen gör om det rätt. */
@@ -162,11 +170,14 @@ const DELETE_WRONG: { offerId: string; note: string }[] = [
   { offerId: "cmsjtwl8b056k7kcvozqiqr4d", note: "AuroraDex: karaktärslös 'Perfect Order 3-Pack Blister' på Makuhita 1-pack (ägarregel: karaktärslös blister binds aldrig)" },
 ];
 
-/** D. Ägarbeslut krävs — ingen åtgärd här. */
-const OWNER_PENDING = [
-  "Spelexperten cmr881x4u008koi5xb8ct44ry: sidan säger 'TF ETB - Flutter Mane' (varianten finns inte i TF)",
-  "Spelexperten cmq9ulhfh006pv4caundw4rok: sidan säger 'TF ETB - Iron Thorns' (varianten finns inte i TF)",
-];
+/**
+ * D. Ägarbeslut — BÅDA AVGJORDA 2026-08-11 (ägaren tittade på sidorna):
+ *  - "Flutter Mane" = Walking Wake-versionen → omlänkad i fas B ovan.
+ *  - "Iron Thorns" (cmq9ulhfh006pv4caundw4rok) = Iron Leaves-versionen (grön boxkonst,
+ *    POK85657-IRO) — offern satt REDAN RÄTT på Iron Leaves-ETB:n. Ingen åtgärd.
+ * Spelexpertens variantnamn är alltså butikens egna påhitt; boxkonsten avgör.
+ */
+const OWNER_PENDING: string[] = [];
 
 async function stillDead(url: string): Promise<boolean> {
   try {
