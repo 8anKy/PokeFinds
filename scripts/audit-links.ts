@@ -36,7 +36,13 @@ import {
 
 const prisma = new PrismaClient();
 
-const NON_STORE = ["Cardmarket", "Tradera", "Pokémon TCG API", "TCGdex API"];
+// CardTrader hör hit sedan 2026-08-10: variantbygget (08-03) skapade ~26 400 singel-
+// offers med CardTrader-länkar, och utan undantaget växte revisionen 2 900 → 29 300
+// sidhämtningar (~20 h) — det var DET som fick store-health att timeouta vecka efter
+// vecka, inte butikslänkarna. CardTrader-länkarna byggs dessutom ur deras EGET API med
+// dubbla namnvakter (blueprint-namn + CM-katalog) — en sidhämtning reviderar inget som
+// inte redan är maskinverifierat.
+const NON_STORE = ["Cardmarket", "Tradera", "CardTrader", "Pokémon TCG API", "TCGdex API"];
 const UA = "FoilioBot/1.0 (+kontakt: hej@foilio.se)";
 /** Per värd, INTE globalt: butikerna 429:ar om man skjuter parallellt mot samma domän. */
 const HOST_DELAY_MS = Number(process.env.AUDIT_DELAY_MS ?? 1500);
