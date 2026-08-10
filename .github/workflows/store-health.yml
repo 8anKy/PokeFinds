@@ -64,36 +64,44 @@ jobs:
       # efterhand (de vaktar bara NYA matchningar). Röd körning = mejl till ägaren.
       - if: steps.guard.outputs.ready == 'true'
         run: npx tsx scripts/audit-links.ts
+      # ⛔ STEGEN NEDAN KÖR ÄVEN NÄR EN RAPPORT OVANFÖR BLIVIT RÖD (`!cancelled()`):
+      # audit-links och underpris-rapporten exit:ar 1 när de HITTAR något — det är
+      # larmmekanismen (röd körning = mejl), inte ett skäl att svälta resten. Utan
+      # villkoret hoppade gtin-fix och stub-dedupen varje vecka det fanns ETT stående
+      # fynd (2026-08-10: 106 döda länkar i backlog efter tre tysta veckor → varje
+      # måndag hade dött vid audit-links och underhållet aldrig körts igen).
+      # Jobbet blir ändå rött av det fallerade steget — larmet består.
+      #
       # GTIN-rapport: felaktiga butikslänkar (samma produkt, motstridiga streckkoder)
       # och katalogdubbletter (olika produkter, samma streckkod) — REN SQL, noll tokens.
       # Körs FÖRE stub-dedupen: streckkoden svarar gratis på den största par-klassen,
       # så LLM:en bara ser de par som faktiskt saknar kod. Läs-only, blir aldrig röd.
-      - if: steps.guard.outputs.ready == 'true'
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
         run: npx tsx scripts/gtin-report.ts
       # CM-enkel-länk-rapport: sealed-produkter vars CM-offer pekar på en SINGEL (fel prisspår).
       # Fångar legacy-fellänkar som refreshens exakt-väg redan avvisar för NYA (men inte städar).
       # Se scripts/cm-single-link-report.ts (2026-07-17: 16 hittade+lagade, bl.a. Venusaur→Surfing Pikachu).
-      - if: steps.guard.outputs.ready == 'true'
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
         run: npx tsx scripts/cm-single-link-report.ts
       # Marknads-underpris: Tradera-offers <15% av CM-priset = falskt/spelat/öppnat ex.
       # Ingest-vakten missar dem när CM-facit själv glitchar (Riolu 19 kr, 2026-07-19) —
       # rapporten kör mot NUVARANDE facit varje vecka. Röd körning = mejl till ägaren.
-      - if: steps.guard.outputs.ready == 'true'
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
         run: npx tsx scripts/marketplace-underprice-report.ts --strict
       # CM-länk-missmatch: sealed vars CM-idProduct FINNS men är FEL vara (spårar fel pris).
       # Titel↔CM-katalognamn-likhet. Informativ (kan ha falska positiva) — granska loggen.
       # Fångar det fuzzy-re-mismatch skapar (Water Stacking Tin→Tapu Lele, Meowth→Tyrantrum).
-      - if: steps.guard.outputs.ready == 'true'
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
         run: npx tsx scripts/cm-link-mismatch-report.ts
       # Åtgärdar det rapporten hittar, men BARA det som är bevisbart: merga dubbletter där
       # ingen titelvakt protesterar, och omdirigera offers vars streckkod ägs av en annan
       # katalogprodukt. RADERAR ALDRIG något — majoritetsröstning bland butiker är INTE
       # sanning (sortiments-koder vinner omröstningen och skulle radera den korrekta länken).
       # Resten hamnar i rapporten + "Fel länk?"-kön för mänsklig granskning.
-      - if: steps.guard.outputs.ready == 'true'
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
         run: npx tsx scripts/gtin-fix.ts --apply
       # Stub-dedup: auto-importens dubblettprodukter (olika butiksnamn på samma SKU)
       # merge:as LLM-verifierat (Haiku, två titlar/anrop). Se src/jobs/dedupe-stubs.ts.
       # Streckkods-identiska stubbar merge:as redan gratis inuti jobbet (gtinMerges).
-      - if: steps.guard.outputs.ready == 'true'
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
         run: npx tsx scripts/dedupe-stubs-run.ts
