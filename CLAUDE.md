@@ -230,12 +230,24 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   offer VARJE natt i en månad, och `verifyTraderaMatches` hoppade över paret som "redan avgjort" utan att titta på
   offern. Nu: runner-loopen slår upp fällda par per körning, och verify-matches NOLLAR en offer som MOTSÄGER en
   redan fälld dom (ingen ny LLM-dom — verdiktet är redan betalt). En dom utan verkställighet är ingen dom.
+  **RUNDA 2 (2026-08-11, apply-owner-catalog-cleanup-2026-08-11.ts)**: fullkatalogsvep med fem detektorer.
+  Starkaste detektorn = **två produkter med SAMMA CM-idProduct** (ren SQL, bevisade dubbletter): fångade
+  Beam/TCG Store-vågens variantnamngivna ETB-stubbar ("Paradox Rift ROARING MOON ETB") — CM:s produkt på det
+  delade id:t ÄR variantprodukten, så etablerade "generiska" ETB:er fick CM:s variantnamn efter mergen.
+  11 merges totalt + DL:s karaktärslösa Destined Rivals-blister-URL bort (låg på TVÅ karaktärsblistrar).
+  ⛔ Detektorn "olika idProduct men nästan samma namn" gav BARA falska positiva (US-versioner, mini tin-familjer,
+  X/Y) — CM:s egen id-uppdelning är beviset att de SKA vara isär; bygg ingen automatik på den.
+  ⚠️ Titelbaserad languageMismatch får ALDRIG användas på JP↔JP-kandidatpar: CM-namn bär ingen språkmarkör,
+  så kollen fällde "Future Flash Booster Box (Japansk)" mot sin egen kanoniska produkt (fältet räcker).
   ⏭️ KVAR till nästa runda (ägaren återkommer om restock-alerts m.m.): misstänkta länkfel som INTE åtgärdades —
   Pokétalk "mega-charizard-x-ex-mep023…-promo" på X-tinen, Samlarhobby "…x-ex-tin…-red" på Y-tinen, Mystery Shack
-  "kopia-…-gengar" på Clefable-tinen, Card Clubs singel-liknande URL:er ("bulbasaur-037" → GO-blister); 6 JP-produkter
-  utan CM-mappning (Classic Collection Box, en TILL Future Flash-box-dubblett, Terastal Festival-box, Start Deck 100,
-  Ultra Force Bout, Heat Wave Arena-box). Genie Trio-blisterns "Card Club/Pokétalk-länkar" gick inte att hitta i DB
-  (bara CM + CardGame, och CardGames "forces-of-nature-trio" ÄR genie-trion) — be ägaren peka igen.
+  "kopia-…-gengar" på Clefable-tinen, Card Clubs singel-liknande URL:er ("bulbasaur-037" → GO-blister); kvarvarande
+  CM-lösa (medvetet, inga dubbletter): XY/SM sleeved-boosterstubbar (CM saknar produkterna), Pokétalks Neo Genesis
+  ARTWORK-varianter (Feraligatr/Meganium — wrapper-art modelleras inte; CM har EN produkt), Poké Ball Tin-årgångarna
+  (2023/okt-2024/2026, olika GTIN men delar CM:s enda "Generic Poké Ball Tin"-id; RahTechs 2025-URL sitter på
+  2026-produkten), presale-JP utan CM (Terastal Festival m.fl.). Genie Trio-blisterns "Card Club/Pokétalk-länkar"
+  gick inte att hitta i DB (bara CM + CardGame, och CardGames "forces-of-nature-trio" ÄR genie-trion) — be ägaren
+  peka igen.
 - **KATALOGNAMN FÖR SEALED = CARDMARKETS NAMN (ägarbeslut 2026-08-09)**: en auto-importerad stub bär butikens
   fras bara tills CM-identiteten avgörs — då adopteras CM:s katalognamn (`adoptCmName`, `src/jobs/adopt-cm-name.ts`,
   ansluten i cardmarket-refresh EN-fuzzy-grenen + JP-auto-mappningen). Engångstvätt av befintlig data =

@@ -177,6 +177,15 @@ const DENIED = new Set<string>(
     // Kanto Vaults "30th Celebration Card Set": placeholder-sida (1 kr, slut) som
     // felländes till engelska 30th Celebration Booster — oklar SKU, ingen katalogvara.
     "https://kantovault.se/products/pokemon-30th-celebration-card-set",
+    // ── Dubblettsvepningen 2026-08-11 (apply-owner-catalog-cleanup-2026-08-11.ts) ──
+    // DL:s KARAKTÄRSLÖSA Destined Rivals-blisterssida låg som offer på BÅDE Kangaskhan-
+    // och Zebstrika-blistern (samma URL, ingen variant). CM:s blistrar är per karaktär —
+    // en karaktärslös sida kan inte länkas till någon av dem (samma regel som
+    // journey-together-blistrarna ovan).
+    "https://dragonslair.se/products/pokemon-tcg-scarlet-violet-10-destined-rivals-3-pack-blister-pokemon",
+    // Pokétalks "UTAN PLAST"-listning av PE-bundlen: föll bort som konflikt vid mergen
+    // (målet har redan Pokétalks ordinarie listning) — utan denylist återuppstår stubben.
+    "https://www.poketalk.se/products/pokemon-scarlet-violet-prismatic-evolutions-booster-bundle-1",
   ].map(normUrl)
 );
 
