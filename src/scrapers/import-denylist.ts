@@ -20,6 +20,10 @@ function normUrl(u: string): string {
 // Nekade URL:er (redan normaliserade). Grupperade efter borttagen produkt.
 const DENIED = new Set<string>(
   [
+    // Goblinens "Mega Zygarde ex Premium Collection" (ägarverdikt 2026-08-11, GTIN-
+    // revisionen): sidan säljer INTE vår Zygarde-UPC trots att slugen matchar produkt-
+    // namnet exakt — utan denylist hade nästa import bundit om samma fellänk direkt.
+    "https://goblinen.com/products/pokemon-tcg-mega-zygarde-ex-premium-collection",
     // "2 Booster Packs & Smoliv or Lechonk Eraser" (tillbehör: suddgummi)
     "https://www.swepoke.se/pokemon/blister-packs/pokemon-eraser-lechonk-smoliv-2-pack",
     "https://dragonslair.se/products/pokemon-tcg-2-booster-packs-smoliv-or-lechonk-eraser-pokemon",

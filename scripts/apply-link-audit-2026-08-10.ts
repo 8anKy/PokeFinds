@@ -168,6 +168,15 @@ const DELETE_WRONG: { offerId: string; note: string }[] = [
   { offerId: "cmrrcpwml019lgbjraqo5hfti", note: "Samlarhobby: Chaos Rising Checklane Toxel på Zacian-blistern" },
   { offerId: "cmr8ulwwe00pyxrgss3q0jp3p", note: "Spelexperten: Journey Together Checklane Yanma på S&V Gengar-blistern" },
   { offerId: "cmsjtwl8b056k7kcvozqiqr4d", note: "AuroraDex: karaktärslös 'Perfect Order 3-Pack Blister' på Makuhita 1-pack (ägarregel: karaktärslös blister binds aldrig)" },
+
+  // ---- E. GTIN-revisionens ägarverdikt (2026-08-11): ägaren gick igenom alla 13
+  // ---- konfliktprodukter; dessa fyra länkar dömdes FEL (Alphaspels tre var redan
+  // ---- med bland de döda länkarna i fas A). Goblinen-URL:en är dessutom denylistad
+  // ---- (slugen matchar produktnamnet exakt → hade bundits om vid nästa import).
+  { offerId: "cmr5zoi2k01tx8lzq8qvzqmz9", note: "Manatörsk: Gengar-tin-sidan finns inte för produkten (ägarverdikt)" },
+  { offerId: "cmqe78tka016u11sdzx9vuaql", note: "Goblinen: 'Mega Zygarde ex Premium Collection' är fel länk (ägarverdikt; URL denylistad)" },
+  { offerId: "cmrij56o700353f11pzshmxdk", note: "MaxGaming: karaktärslös 'Perfect Order Blister 1-pack' på Makuhita (ägarverdikt; vakten blockerar återbindning)" },
+  { offerId: "cmsju7zy107o57kcvh99caa2p", note: "Miniature Metropolis: karaktärslös 'ME5 checklane' på Makuhita (ägarverdikt; vakten blockerar återbindning)" },
 ];
 
 /**
