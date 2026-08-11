@@ -711,8 +711,12 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   ofiltrerad katalog personaliseras inte (`MAX_CANDIDATES`, se "Bäst matchning"). Setvalet visar setlogotyper
   (samma bricka som setfiltret och "Bevakade set"), och det finns ingen väg att ändra valet efteråt.
 - **Caching/ISR (kvot-kritiskt)**: publika läs-sidor är ISR-cachade, INTE `force-dynamic` (`revalidate=3600`): startsidan, `/marknad`,
-  `/sets`, `/sets/[id]`, `/produkter/[slug]`. Data ändras ~1×/dygn så cache är osynlig; live-priser/offers uppdateras ändå klient-sida
-  via polling. **Sätt ALDRIG tillbaka `force-dynamic` på dessa** utan skäl — det var orsaken till hög Vercel Active CPU + Neon-CU.
+  `/sets`, `/sets/[id]`, `/produkter/[slug]`. Data ändras ~1×/dygn så cache är för det mesta osynlig. ⚠️ RÄTTAT 2026-08-11: raden här
+  påstod att "offers uppdateras klient-sida via polling" — det är FALSKT sedan klient-hämtningen togs bort av kostnadsskäl
+  (LivePricingProvider hämtar ALDRIG själv; `refresh` är bara adminens knapp). Offer-tabellens lagerstatus kan alltså släpa ≤1h efter
+  DB:n — bara synligt för admin, som ser den färska restock-historiken bredvid. Vill man stänga glappet är det ett KOSTNADSBESLUT
+  (en fetch per produktvisning; `/api/products/[slug]/offers` är CDN-cachad 60 s så origin-lasten är avgränsad — men fråga ägaren).
+  **Sätt ALDRIG tillbaka `force-dynamic` på dessa** utan skäl — det var orsaken till hög Vercel Active CPU + Neon-CU.
   Förutsättning: ingen server-`auth()`/`cookies()` i den delade chrome:n. Session läses därför KLIENT-sida i `header-auth-actions.tsx`,
   `bottom-tabs.tsx` (self-gate + egen klarerings-spacer) och `live-product-pricing.tsx` (admin-knapp). Rot-layouten + marketing-layouten
   + `SiteHeader` får INTE kalla `auth()` (då blir HELA appen dynamisk igen). `/produkter` är dynamisk med flit (läser searchParams).

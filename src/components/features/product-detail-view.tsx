@@ -166,7 +166,9 @@ export function ProductDetailView({
           />
         </div>
 
-        {/* Prispanel — live-uppdateras via polling */}
+        {/* Prispanel — visar ISR-snapshotens data (≤1h). INGEN polling: klient-
+            hämtningen per sidvisning togs bort med flit (kostnad, se kommentaren
+            i LivePricingProvider) — "Live" i namnet är historiskt. */}
         <LivePricePanel
           priceChange7dPercent={data.change7}
           change30={data.change30}
@@ -181,7 +183,9 @@ export function ProductDetailView({
         {/* Beskrivning borttagen: dubblade rubriken (Set · Kategori · Språk) och
             fanns bara på ~54 sealed-produkter som svensk boilerplate. */}
 
-        {/* Erbjudanden — live-uppdateras via polling */}
+        {/* Erbjudanden — ISR-snapshotens data (≤1h gammal, ingen polling — se ovan).
+            Lagerstatusen här kan därför släpa efter restock-historiken nedanför,
+            som är admin-only och hämtas färsk on-demand. */}
         <LiveOffersTable
           slug={data.slug}
           traderaSearch={
