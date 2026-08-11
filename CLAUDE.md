@@ -50,12 +50,12 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   `isPro()` (inkl. admin + referral-bonus). Se "DISCORD-ROLLEN" under Tekniska beslut.
 - **DISCORD RESTOCK-LARM BYGGT 2026-08-11, INERT TILLS VARIABLERNA SÄTTS**: egen lane
   (`.github/workflows/discord-restock.yml` + `scripts/discord-restock-run.ts`) som postar
-  restocks var 3:e minut, kanal per SERIE. Kvar för ägaren: (1) skapa kanalerna i Discord,
+  restocks var 2:a minut, kanal per SERIE. Kvar för ägaren: (1) skapa kanalerna i Discord,
   (2) sätt repo-VARIABLERNA `DISCORD_RESTOCK_ENABLED=true` och `DISCORD_RESTOCK_CHANNELS`
   (`{"default":"<id>","sets":{"Prismatic Evolutions":"<id>"},"series":{"Mega Evolution":"<id>",…}}`
   — variabler, INTE secrets: kanal-id:n är inga hemligheter, till skillnad från webhook-URL:er som
   är rena bärartokens), (3) ge boten
-  **Send Messages + Embed Links** i kanalerna, (4) lägg upp en cron-job.org-pingare var 3:e minut
+  **Send Messages + Embed Links** i kanalerna, (4) lägg upp en cron-job.org-pingare var 2:a minut
   mot `…/workflows/discord-restock.yml/dispatches` (GitHubs egen `schedule:` är best effort och
   kördes i praktiken var 1,5–3,5 h — samma lärdom som restock-watch).
   ✅ **ALLT OVAN ÄR GJORT 2026-08-11 och bevisat i drift**: 7/7 kanaler kvitterade testinlägget
@@ -63,8 +63,23 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   postade 1 larm. ⛔ **PINGAREN ÄR DET GAMLA MANATÖRSK-JOBBET, OMSKRIVET** (cron-job.org id
   8000102, numera "Foilio Discord restock") — PAT:en låg redan i dess Authorization-header, så
   ingen behövde hantera token. Manatörsk-jobbet finns därmed INTE LÄNGRE, dvs tombstone-punkten
-  under Auto-uppdatering är avklarad. ⛔ cron-job.org saknar 3-minuters-preset (hoppar 2 → 5) →
-  schemat är ett CUSTOM crontab-uttryck, `*/3 * * * *`; väljer man en preset tappas takten.
+  under Auto-uppdatering är avklarad. Schemat är `*/2 * * * *` (2 minuter finns även som
+  preset hos cron-job.org — det var 3-minuters som saknades och tvingade fram ett custom-uttryck).
+  ⛔ **TAKTEN 2 MIN ÄR ETT GOLV SATT PÅ MÄTNING (2026-08-11), inte ett avrundat tal.** En körning
+  tar 65–81 s (median ~72 s) över 18 körningar i drift: ~25 s Actions-omkostnad (dispatch→start,
+  runner-boot, checkout, tre cache-restores, setup-node) + **~42 s feed-hämtning** + ~4 s cache-save.
+  De 42 s går INTE att parallellisera bort — `RESTOCK_SCAN_CONCURRENCY` är 8 och defaultlistan är
+  8 butiker, så alla hämtas redan samtidigt; 42 s ÄR den långsammaste butikens paginerade katalog
+  (Dragon's Lair). Höjd concurrency gör därför ingenting. ⛔ **1 MINUT LIGGER UNDER KÖRNINGSTIDEN.**
+  Det kraschar inte (concurrency-gruppen är äkta mottryck, och `cancel-in-progress: false` dödar
+  aldrig en PÅGÅENDE körning, så flapp-historiken är trygg) — men den nya dispatchen blir PENDING,
+  och kommer nästa dispatch medan en redan väntar avbryter GitHub den VÄNTANDE. Facit: ~70–75 s
+  faktisk takt, avbrutna körningar i historiken, noll marginal. **Latens = väntan (takt/2) + ~67 s
+  fast pipeline**, så 3→2 min gav ~2,6 → ~2,1 min och 1 min hade gett ~1,6 — halverad takt halverar
+  alltså inte latensen. Den fasta pipen (särskilt de 25 s omkostnad) är den enda kvarvarande spaken,
+  och den kräver en långkörande process i stället för Actions (kostar Railway-minne → eget beslut).
+  ⚠️ Kontrollerat och EJ begränsande: Actions-cachen (1,18 GB av 10 GB, state-filerna ~0 MB) och
+  GitHubs API-tak (720 dispatches/dygn mot 5 000/h).
   ⛔ **INGET NYTT SAMTYCKE BEHÖVS**: inlägget är produktdata, inga personuppgifter, så det är
   INTE blockerat av juristgranskningen som håller `DISCORD_ENABLED=false`. Egen spak med flit.
   ⛔ **"GRATIS" ÄR ETT VILLKOR, INTE EN BIEFFEKT.** `shouldProcess` returnerar ALLTID false →
@@ -100,8 +115,10 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   mejl EFTER det fria inlägget. Medvetet valt 08-11. Vill man vända på det finns Pro-rollen redan
   (kanalbehörighet på `Pro`), men den kräver att rollsynken är påslagen, dvs juristgranskningen.
   ⚠️ **BUTIKSURVALET ÄR EN ARTIGHETSFRÅGA, INTE EN KOSTNADSFRÅGA**: default är de åtta mest
-  aktiva (82 % av alla restocks). Var 3:e minut mot ALLA 34 vore ~16 000 feed-hämtningar/dygn mot
-  dagens ~4 900 — att bli blockerad av en butik skadar hela produkten, inte bara Discord.
+  aktiva (82 % av alla restocks). Var 2:a minut mot ALLA 34 vore ~24 500 feed-hämtningar/dygn mot
+  10-min-lanens ~4 900 — att bli blockerad av en butik skadar hela produkten, inte bara Discord.
+  Med åtta butiker: ~5 800/dygn (var 1:a minut hade blivit ~11 500, dvs en full katalogkrypning av
+  varje butik var 60:e sekund dygnet runt — för ~30 s lägre snittlatens på 12,2 restocks/dygn).
   `DISCORD_RESTOCK_STORES=all` öppnar upp.
 - **LEVERANTÖRSSURVEY 2026-08-02 — SLUTSATS: byt inte prisfeed, lägg till TCGdex gratis**: `lowest_near_mint`
   (vår rubrik) finns hos INGEN annan än nuvarande leverantör. Men **TCGdex** (tcgdex.dev, MIT, ingen nyckel,

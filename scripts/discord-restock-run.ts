@@ -1,5 +1,5 @@
 /**
- * DISCORD-SNABBFILEN — restock-larm till Discord var 3:e minut, helt utan databas.
+ * DISCORD-SNABBFILEN — restock-larm till Discord var 2:a minut, helt utan databas.
  *
  * ⛔ RÖR ALDRIG NEON. Grinden (`shouldProcess`) returnerar ALLTID false, så
  * `runRestockScan` kör bara fas 1 (parallell feed-hämtning över HTTP) och returnerar
@@ -44,11 +44,16 @@ const cooldownHours = Number(process.env.RESTOCK_ALERT_COOLDOWN_HOURS ?? 2);
  * Tillsammans 141 av 171 restocks = 82 %.
  *
  * ⛔ URVALET ÄR EN ARTIGHETSFRÅGA, INTE EN KOSTNADSFRÅGA. Actions-minuter är gratis
- * (publikt repo), men var 3:e minut mot ALLA 34 butiker vore ~16 000 feed-hämtningar
- * per dygn i stället för dagens ~4 900 — en trefaldigad last på småbutikers servrar,
- * och att bli blockerad av en butik skadar hela produkten, inte bara Discord. Med
- * åtta butiker blir det ~3 800/dygn ovanpå dagens, och 10-min-lanen täcker alla 34
+ * (publikt repo), men var 2:a minut mot ALLA 34 butiker vore ~24 500 feed-hämtningar
+ * per dygn i stället för 10-min-lanens ~4 900 — en femdubblad last på småbutikers
+ * servrar, och att bli blockerad av en butik skadar hela produkten, inte bara Discord.
+ * Med åtta butiker blir det ~5 800/dygn ovanpå dagens, och 10-min-lanen täcker alla 34
  * som förut. Sätt `DISCORD_RESTOCK_STORES=all` för att köra på hela listan.
+ *
+ * ⛔ SAMMA RÄKNING ÄR SKÄLET ATT TAKTEN INTE ÄR 1 MINUT: åtta butiker varje minut vore
+ * ~11 500 hämtningar/dygn, dvs en full paginerad katalogkrypning av varje butik var
+ * 60:e sekund dygnet runt. Det köper ~30 s lägre snittlatens på 12,2 restocks/dygn.
+ * (Och 1 minut ligger dessutom UNDER körningstiden — se workflow-filens huvud.)
  */
 const DEFAULT_STORES = [
   "Dragon's Lair",
@@ -121,7 +126,7 @@ async function main() {
   const routesData = readRoutes();
   if (!routesData) {
     // Medvetet INGEN DB-reserv här. Se filhuvudet: att hämta källistan ur Neon hade
-    // väckt computen var 3:e minut, vilket är precis det den här lanen finns för att
+    // väckt computen var 2:a minut, vilket är precis det den här lanen finns för att
     // undvika. Filen skrivs av scrape-all inom ett dygn.
     console.warn(
       `[discord-restock] Ingen ruttabell (${routesFile}) — hoppar över. ` +
