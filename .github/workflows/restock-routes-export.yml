@@ -1,0 +1,65 @@
+name: Ruttabell för Discord-larm (manuell)
+
+# Skriver .restock-routes/routes.json till Actions-cachen på begäran.
+#
+# NORMALVÄGEN ÄR scrape-all, som gör exakt samma sak sist i sin nattkörning där Neon
+# ändå är vaken. Den här filen finns för två lägen där man inte vill vänta ett dygn:
+#   1. FÖRSTA UPPSTARTEN av discord-restock.yml (utan ruttabell hoppar den över).
+#   2. ÅTERSTÄLLNING när Actions-cachen fallit ur (GitHub evictar efter 7 dygn utan
+#      träff, och LRU vid 10 GB).
+#
+# ⚠️ KOSTAR EN NEON-UPPVAKNING (minst 300 s debiterad compute, i storleksordningen
+# några ören). Det är hela skillnaden mot scrape-all-vägen, som är gratis eftersom
+# databasen redan är vaken där. Kör den alltså manuellt vid behov — lägg den ALDRIG
+# på schema, då är vi tillbaka i precis det som gjorde 2-min-snabbfilen dyr.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restock-routes-export
+  cancel-in-progress: false
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - name: Förkrav — DATABASE_URL måste vara satt
+        id: guard
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::notice::DATABASE_URL saknas — hoppar över. Förväntat = grön körning."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+      - if: steps.guard.outputs.ready == 'true'
+        id: nm
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: node_modules
+          key: nm-${{ runner.os }}-node20-${{ hashFiles('package-lock.json', 'prisma/schema.prisma') }}
+      - if: steps.guard.outputs.ready == 'true' && steps.nm.outputs.cache-hit != 'true'
+        run: npm ci --legacy-peer-deps
+      - if: steps.guard.outputs.ready == 'true' && steps.nm.outputs.cache-hit != 'true'
+        run: npx prisma generate
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx tsx scripts/export-restock-routes.ts
+      # Samma nyckelprefix som scrape-all skriver och discord-restock läser.
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .restock-routes
+          key: restock-routes-${{ github.run_id }}
