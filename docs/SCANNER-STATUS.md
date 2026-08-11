@@ -1170,6 +1170,70 @@ inget är svaret att väljaren förblir manuell, och då har vi bara kostat mät
 konsten går ut i kanten. Därför rapporteras regionerna var för sig, aldrig bara
 kvoten.
 
+## PÄRMRUNDAN (2026-08-11): sidan är en Ö — och öar fylls nu om inifrån
+
+Ägarrapport: "skannern funkar dåligt genom pärmen". Telemetrin + de sparade
+bulk-fångsterna (08-10 16:01 mot 08-10 21:22, samma kort) gav en kontrollerad
+jämförelse, och ägaren körde sedan ett protokoll: 10 singelscans genom fickorna
++ nya bulk-fångster av 2×2-pärmen.
+
+**SINGELLÄGET GENOM FICKPLASTEN FUNGERAR — 10/10 rätt (ägarfacit).** 7/10
+bildsäkra ($0, 0,78–0,90 i poäng, marginal 0,11–0,21 — samma liga som lösa
+kort), och de tre som gick till vision var omtryckstvillingar där Gemini läste
+samlarnumret RÄTT genom plasten (037/217, 036/217, 017/217) och numret valde
+tryckning. **Plasten är alltså inte problemet på nära håll** — pärmproblemet
+bor helt i bulk-detekteringen.
+
+**Tre staplade mekanismer, alla mätta i ägarens egna fångster:**
+1. **Pärmsidan är en Ö.** Bakgrundsmodellen är "det som når bildkanten" — en
+   pärm på bordet gör hela sidan (pärmmaterial + fickplast + kort) till EN
+   förgrundsblob, 20–45 % av bilden, förkastad "för stor" → noll kort + ibland
+   underlagsvarning. Den perfekta 2×2-fångsten gav **0 av 4**.
+2. **Skräpkluster röstade ut äkta kort.** Där karvning delvis skedde vann halva
+   kort (glansklyvda vid konstfönstret, form 1,32–1,43), hopslagna PAR
+   (1,33–1,48) och mönsterrutor (0,98–1,06) referensomröstningen, och det
+   perfekt segmenterade kortet (fyllnad 0,97!) förkastades som avvikare.
+3. **Glansklyvning av bleka kort.** Fyllningen läcker genom urblekta/blanka
+   kortkroppar (Kangaskhan, Snom, Feebas) och lämnar bara konstfönstret.
+
+**FIXEN (`refloodIslands` + pärmpasset i `detectCardRegions`):** jätteblobbar
+≥ `REGION_ISLAND_MIN_FRAC` (15 %) fylls om inifrån sin egen rand — samma
+lokala tolerans, samma modell en nivå in: sidans rand och kanalerna mellan
+fickorna hänger ihop färgmässigt, korten stannar som öar. Pärmpasset dömer med
+ett STÅENDE kortband (`REGION_ISLAND_ASPECT_*` 0,55–0,87 — i en ficka finns
+inga liggande kort; ⛔ bordsvägen får ALDRIG ett absolut formkrav), klyver
+par-blobbar (~2 ankare breda, ~1 hög) på mitten mot de karvade kortens median,
+och adopterar utfallet BARA när ö-celler bevisar det: cellen måste vara 5–60 %
+av sin ö (`REGION_ISLAND_CELL_*`; äkta kort 0,17–0,21, en hel 2×2-sida som
+"kort" 0,88 — en sida har samma proportioner som ett kort!), busy-domen görs om
+EFTER klyvningen, och celler UTANFÖR öar räknas aldrig som bevis (de fanns
+redan för förstapasset — Poké Ball-ikonerna i 21:23-fångsten var på väg att
+adoptera ett haveri innan den regeln fanns).
+
+**MÄTT över ALLA 40 sparade fångster** (`bulk-debug.ts`, baslinje → efter):
+- 2×2-pärmsidan (8jrirl): **0 → 3 av 4** (Crustle karvad + nedre paret klyvt;
+  Mudbray är glansklyvd och saknas ärligt).
+- Överkastet (p5ms09, "strukturellt omöjligt" i fältrunda 11): gated →
+  **2 äkta kort, noll mönsterrutor** (alla tio föll på pärmbandet).
+- **Alla 23 bordsfångster identiska. Alla mönstrade fortsatt gated.
+  Enkortsfelanvändningen (bulk på ett kort) fortsatt gated. Noll regressioner.**
+- `diag.islandDebug` skrivs VARJE gång en ö fylls om (även när adoptionen
+  faller) — utan den var "ön fylldes om men inget hände" odiagnosticerbart.
+
+⛔ **Tre vägar som PROVADES och FÖLL under bygget** (gör inte om): (a) adoption
+på enbart "fler regioner än förstapasset" → överkastet levererade 6
+mönsterrutor som celler; (b) utan ö-cellbandet → hela sidan adopterades som EN
+jättecell (0,88 av ön, form 0,82 = inom kortbandet); (c) utan
+kvarBusy-omprövning EFTER parklyvningen → paret själv (~16 % av bilden)
+blockerade sin egen adoption.
+
+**KVAR för pärmen:** glansklyvda halvor återvinns inte (Mudbray/Snom — kräver
+halv-komplettering mot rutnätet, bygg först när fler fångster visar mönstret);
+hela uppslagna pärmen på håll har inget ankare (paren klyvs aldrig utan ett
+karvat helt kort); tomma fickor ger jättevita glansytor (xm1yr1). Nästa
+fältrunda: ägaren fotar pärmsidor NÄRA och RAKT uppifrån — det är den mätta
+arbetspunkten.
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.

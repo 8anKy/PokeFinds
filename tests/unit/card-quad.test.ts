@@ -354,6 +354,95 @@ describe("detectCardRegions", () => {
     const img = renderTable(480, 560, [{ x: 10, y: 10, cw: 460, ch: 540 }]);
     expect(detectCardRegions(img, 480, 560, 4).length).toBe(0);
   });
+
+  /** Pärmbild: mörkt bord, en enfärgad "pärmsida" som INTE når bildkanten, och
+   *  kort målade PÅ sidan (samma kortstil som renderTable). Sidan blir en ö —
+   *  förstapasset förkastar den "för stor" — och omfyllningen ska karva fram
+   *  korten via sidans egna kanaler. Mekaniktest, inte fototvilling: skarpa
+   *  kanter och enfärgad sida är deterministiska per konstruktion (samma skäl
+   *  som storleksfiltret testas syntetiskt men trösklarna mäts mot fältfoton). */
+  function renderBinder(
+    w: number,
+    h: number,
+    page: { x: number; y: number; pw: number; ph: number },
+    cards: Array<{ x: number; y: number; cw: number; ch: number }>
+  ): Uint8Array {
+    const img = renderTable(w, h, []);
+    for (let y = page.y; y < page.y + page.ph; y++) {
+      for (let x = page.x; x < page.x + page.pw; x++) {
+        const p = (y * w + x) * 4;
+        img[p] = 105;
+        img[p + 1] = 105;
+        img[p + 2] = 105;
+      }
+    }
+    const withCards = renderTable(w, h, cards);
+    for (const c of cards) {
+      for (let y = c.y; y < c.y + c.ch; y++) {
+        for (let x = c.x; x < c.x + c.cw; x++) {
+          const p = (y * w + x) * 4;
+          img[p] = withCards[p];
+          img[p + 1] = withCards[p + 1];
+          img[p + 2] = withCards[p + 2];
+        }
+      }
+    }
+    return img;
+  }
+
+  it("PÄRMSIDA SOM Ö: omfyllningen karvar fram fyra kort ur en förkastad sida", () => {
+    const cards = [
+      { x: 85, y: 85, cw: 140, ch: 190 },
+      { x: 255, y: 85, cw: 140, ch: 190 },
+      { x: 85, y: 305, cw: 140, ch: 190 },
+      { x: 255, y: 305, cw: 140, ch: 190 },
+    ];
+    const img = renderBinder(480, 560, { x: 60, y: 50, pw: 360, ph: 460 }, cards);
+    const diag: import("../../src/lib/card-quad").RegionDiag = {};
+    const regions = detectCardRegions(img, 480, 560, 4, 12, diag);
+    expect(diag.islandReflood).toBe(true);
+    expect(regions.length).toBe(4);
+    for (const c of cards) {
+      const hit = regions.find((r) => {
+        const cx = r.x + r.w / 2;
+        const cy = r.y + r.h / 2;
+        return cx > c.x && cx < c.x + c.cw && cy > c.y && cy < c.y + c.ch;
+      });
+      expect(hit).toBeDefined();
+    }
+  });
+
+  it("PARKLYVNING: två hopvuxna grannkort på en pärmsida klyvs mot ankaret", () => {
+    // Nedre raden är två kort UTAN kanal emellan — en blob 2 ankare bred, 1 hög.
+    // Utan klyvningen hade den dessutom varit ≥14 % av bilden och blockerat
+    // adoptionen som kvarvarande jätteblob; konsumtionen är alltså också testad.
+    const singles = [
+      { x: 85, y: 85, cw: 140, ch: 190 },
+      { x: 245, y: 85, cw: 140, ch: 190 },
+    ];
+    const pairHalves = [
+      { x: 85, y: 305, cw: 140, ch: 190 },
+      { x: 225, y: 305, cw: 140, ch: 190 },
+    ];
+    const img = renderBinder(
+      480,
+      560,
+      { x: 60, y: 50, pw: 360, ph: 460 },
+      [...singles, ...pairHalves]
+    );
+    const diag: import("../../src/lib/card-quad").RegionDiag = {};
+    const regions = detectCardRegions(img, 480, 560, 4, 12, diag);
+    expect(diag.islandReflood).toBe(true);
+    expect(regions.length).toBe(4);
+    for (const c of [...singles, ...pairHalves]) {
+      const hit = regions.find((r) => {
+        const cx = r.x + r.w / 2;
+        const cy = r.y + r.h / 2;
+        return cx > c.x && cx < c.x + c.cw && cy > c.y && cy < c.y + c.ch;
+      });
+      expect(hit).toBeDefined();
+    }
+  });
 });
 
 describe("warpPerspective", () => {

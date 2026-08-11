@@ -85,9 +85,10 @@ async function main() {
       .png()
       .toFile(`${base}-regions.png`);
 
+    if (diag.islandDebug) console.log(`      ö-pass: ${diag.islandDebug}`);
     console.log(
       `${stamp} ${row.id.slice(-6)}: fångsten fann ${d.found ?? "?"} · DAGENS kod finner ${regions.length}` +
-        ` ${diag.busySurface ? "[UNDERLAG!]" : ""} · kamera ${d.video ?? "?"} · tolerans ${diag.tol} · bakgrunden tog ${((diag.backgroundFrac ?? 0) * 100).toFixed(0)} % av bilden` +
+        ` ${diag.busySurface ? "[UNDERLAG!]" : ""}${diag.islandReflood ? "[Ö-OMFYLLD]" : ""} · kamera ${d.video ?? "?"} · tolerans ${diag.tol} · bakgrunden tog ${((diag.backgroundFrac ?? 0) * 100).toFixed(0)} % av bilden` +
         `  → ${path.relative(process.cwd(), base)}-regions.png`
     );
 

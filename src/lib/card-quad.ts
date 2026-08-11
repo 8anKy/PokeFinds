@@ -502,6 +502,54 @@ const REGION_ASPECT_REL_MAX = 1.55;
  *  ⛔ Bara FÖRKASTADE blobbar räknas: ett enda kort fotat nära är också en stor
  *  blob, men den godkänns och ska inte larma. */
 const REGION_BUSY_MAX_BLOB = 0.14;
+/** EN Ö SOM ÄR VÄRD ATT FYLLA OM: minsta förgrundskomponent (som andel av
+ *  bilden) som prövas med den inre omfyllningen (`refloodIslands`). En pärmsida
+ *  som ligger PÅ bordet når inte bildkanten — sidan (pärmmaterial + fickplast +
+ *  kort) blir EN jätteblob som förkastas "för stor", och inga kort hittas alls.
+ *  MÄTT över ägarens pärmfångster 2026-08-10/11: sidorna är 20–45 % av bilden.
+ *  Hopslagna kortPAR (två kort kant i kant) är 8–13 % och ska INTE fyllas om —
+ *  en omfyllning där äter kortens ramar och lämnar konstfönster-skärvor. 15 %
+ *  ligger mellan populationerna med marginal åt båda håll. */
+const REGION_ISLAND_MIN_FRAC = 0.15;
+/** KORT I FICKA ÄR STÅENDE — pärmpassets absoluta formband. Bordsvägen får
+ *  ALDRIG ett absolut formkrav (ett liggande kort på bordet är 1,40 och
+ *  legitimt), men i en pärmficka finns inga liggande kort, och den plana
+ *  fotovinkeln är samtidigt bildmatchningens arbetsvillkor. MÄTT över
+ *  ö-fångsterna 2026-08-10/11: äkta karvade kort 0,71–0,76 · halva kort
+ *  (glansklyvda vid konstfönstret) 1,32–1,43 · hopslagna PAR 1,33–1,48 ·
+ *  mönsterrutor (överkastet, fältrunda 11) 0,98–1,06. 0,87 delar gapet
+ *  kort→mönsterruta med ~14 % marginal åt båda håll. Utan bandet vann
+ *  skräpklustren omröstningen och det perfekt karvade kortet (fyllnad 0,97!)
+ *  förkastades som avvikare — i TRE av fyra ö-fångster. */
+const REGION_ISLAND_ASPECT_MIN = 0.55;
+const REGION_ISLAND_ASPECT_MAX = 0.87;
+/** PARKLYVNING i pärmpasset: en förkastad blob som är ~2 kort bred och ~1 kort
+ *  hög (mot de karvade kortens median) är två grannkort vars mellankanal inte
+ *  karvades — klyv den på mitten i stället för att tappa båda. Banden är satta
+ *  runt exakt 2,0/1,0 med rymlig marginal; en halvklyvd glansskärva är ~1 kort
+ *  bred och ~0,5 hög och träffar aldrig bandet. ⛔ Kräver ett ANKARE (minst ett
+ *  karvat helt kort i samma ö) — utan facit på kortstorleken är "dubbelt så
+ *  bred" inget påstående. Gäller båda leden (två i bredd OCH två i höjd). */
+const REGION_PAIR_SPAN_MIN = 1.7;
+const REGION_PAIR_SPAN_MAX = 2.3;
+const REGION_PAIR_MATCH_MIN = 0.75;
+const REGION_PAIR_MATCH_MAX = 1.25;
+const REGION_PAIR_FILL_MIN = 0.55;
+/** EN Ö-CELL MÅSTE VARA EN MENINGSFULL DEL AV SIN Ö. Ett kort i en pärmficka
+ *  är 12–44 % av sidans yta (MÄTT över ö-fångsterna); skräpöar — de två
+ *  Poké Ball-ikonerna på det avskurna kortet i 21:23-fångsten var 0,7 % — är
+ *  storleksordningar mindre. 5 % ger bred marginal åt båda håll. Bara celler
+ *  INUTI en ö räknas dessutom som bevis för adoption: celler utanför öarna
+ *  fanns tillgängliga redan för förstapasset och säger ingenting om huruvida
+ *  omfyllningen förklarade jätteblobben. */
+const REGION_ISLAND_CELL_MIN_FRAC = 0.05;
+/** …OCH ALDRIG NÄSTAN HELA ÖN. En 2×2-pärmsida har samma proportioner som ett
+ *  kort (2×63:88 i rutnät ≈ 63:88), så en sida som karvningen bara naggade i
+ *  kanten passerar kortbandet som EN jättecell — MÄTT: 0,88 av sin ö
+ *  (zlfpv8-fångsten), mot äkta korts 0,17–0,21 på en sida som fyller rutan.
+ *  0,6 lämnar marginal för extrema närbilder (ön ≈ två fickor, kortet drygt
+ *  halva ön) utan att släppa igenom sidan-som-cell. */
+const REGION_ISLAND_CELL_MAX_FRAC = 0.6;
 /** Fyllnadsgrad relativt kortklustrets median.
  *
  *  0,85 → 0,75 (fältrunda 13, 2026-08-02). Talet var satt när äkta kort mätts
@@ -565,6 +613,14 @@ export interface RegionDiag {
   /** Hur stor del av bilden fyllningen tog. Nära 1,0 = fyllningen har LÄCKT
    *  in i korten; nära 0 = den kom inte loss från kanten. Båda syns direkt. */
   backgroundFrac?: number;
+  /** Pärmsidefallet: en jätteblob fylldes om inifrån och utfallet vann över
+   *  förstapasset. Se `refloodIslands`. */
+  islandReflood?: boolean;
+  /** Kompakt bokföring av pärmpassets dom — skrivs VARJE gång en ö fylldes om,
+   *  även när adoptionen föll. Utan den är "ön fylldes om men inget hände"
+   *  odiagnosticerbart i fält: förkastade celler och en misslyckad adoption
+   *  lämnar annars inga spår (diagnosen visar bara det adopterade passet). */
+  islandDebug?: string;
 }
 
 export function detectCardRegions(
@@ -670,19 +726,288 @@ export function detectCardRegions(
 
   // Binärt fält in i den OFÖRÄNDRADE nedströmskedjan: erosion (skuggbryggor),
   // sammanhängande komponenter, formvillkor och storlekssamstämmighet.
-  const dist = new Float32Array(mw * mh);
-  for (let i = 0; i < dist.length; i++) dist[i] = bg[i] ? 0 : 255;
+  const runPass = (mask: Uint8Array, cardAspectPrior = false) => {
+    const dist = new Float32Array(mw * mh);
+    for (let i = 0; i < dist.length; i++) dist[i] = mask[i] ? 0 : 255;
+    const d: RegionDiag = {};
+    const regions = regionsFromDistance(
+      dist,
+      mw,
+      mh,
+      128,
+      scale,
+      width,
+      height,
+      maxRegions,
+      d,
+      cardAspectPrior
+    );
+    return { regions, d, dist };
+  };
+  const passA = runPass(bg);
+  let adopted = passA;
+  let adoptedRegions = passA.regions;
+  let adoptedBg: Uint8Array = bg;
+  let islandReflood = false;
+
+  // PÄRMSIDAN ÄR EN Ö (2026-08-11): en pärm på bordet når inte bildkanten, så
+  // hela sidan — pärmmaterial, fickplast och kort — blir EN förgrundsblob som
+  // förkastas "för stor" och fångsten ger noll kort. Botemedlet är samma modell
+  // en gång till, inifrån: fyll om jätteblobbens inre med dess EGEN kant som
+  // utgångspunkt. Kanten är sidans rand (pärmmaterial), och de mörka kanalerna
+  // mellan fickorna hänger färgmässigt ihop med den — fyllningen rinner genom
+  // kanalerna och stannar vid kortens skarpa kanter, precis som bordsfyllningen
+  // stannar vid kort på ett bord.
+  //
+  // Pärmpasset dömer med det STÅENDE kortbandet (cardAspectPrior): MÄTT på
+  // ö-fångsterna karvades minst ett perfekt kort (fyllnad 0,97) i tre av fyra,
+  // men skräpet — halva kort, hopslagna par, mönsterrutor — bildade större
+  // kluster och röstade ut det äkta kortet. I en ficka finns inga liggande
+  // kort, så bandet är legitimt HÄR och bara här.
+  //
+  // ⛔ UTFALLET ADOPTERAS BARA NÄR DET BEVISAR SIG: fler celler än förstapasset
+  // levererar (ett busy-flaggat förstapass levererar noll — klienten grindar),
+  // och ingen kvarvarande jätteblob. Ett mönstrat underlag (fältrunda 11)
+  // karvas till mönsterrutor som faller utanför kortbandet, ett ensamt för
+  // nära fotat kort ger på sin höjd skärvor — båda faller tillbaka på
+  // förstapassets svar och beteendet är exakt som före fixen.
+  const island = refloodIslands(bg, rgb, mw, mh, tol);
+  if (island) {
+    const passB = runPass(island.bg, true);
+    const inv = 1 / scale;
+    // Vilken ö en cell/blob hör till (mitten inuti öns bbox), null = utanför.
+    const islandAt = (cx: number, cy: number) =>
+      island.boxes.find(
+        (b) =>
+          cx >= b.minX * inv &&
+          cx <= (b.maxX + 1) * inv &&
+          cy >= b.minY * inv &&
+          cy <= (b.maxY + 1) * inv
+      ) ?? null;
+    // Bara Ö-CELLER är bevis (celler utanför öarna fanns redan för
+    // förstapasset), och en ö-cell måste vara en meningsfull del av sin ö —
+    // Poké Ball-ikonerna i 21:23-fångsten (0,7 % av sin ö... och utanför den)
+    // hade annars adopterat ett haveri. Cellens bbox-area jämförs i MASKskala
+    // mot öns pixelarea.
+    const outside: CardRegion[] = [];
+    const inIsland: CardRegion[] = [];
+    const cellRatios: string[] = [];
+    for (const c of passB.regions) {
+      const home = islandAt(c.x + c.w / 2, c.y + c.h / 2);
+      if (!home) {
+        outside.push(c);
+        continue;
+      }
+      const ratio = (c.w * scale * (c.h * scale)) / home.area;
+      cellRatios.push(ratio.toFixed(2));
+      if (ratio >= REGION_ISLAND_CELL_MIN_FRAC && ratio <= REGION_ISLAND_CELL_MAX_FRAC)
+        inIsland.push(c);
+    }
+    const consumed = new Set<NonNullable<RegionDiag["rejections"]>[number]>();
+
+    // PARKLYVNING: två grannkort vars mellankanal inte karvades är EN förkastad
+    // blob som är ~2 ankare bred och ~1 ankare hög (eller tvärtom). Med minst
+    // ett karvat helt kort som ANKARE är det ett mätbart påstående — klyv på
+    // mitten i stället för att tappa båda korten. En glansklyvd halva (~1 bred,
+    // ~0,5 hög) träffar aldrig banden.
+    const splits: CardRegion[] = [];
+    if (inIsland.length > 0) {
+      const med = (xs: number[]) => xs.sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+      const anchorW = med(inIsland.map((c) => c.w));
+      const anchorH = med(inIsland.map((c) => c.h));
+      for (const r of passB.d.rejections ?? []) {
+        if (r.fill < REGION_PAIR_FILL_MIN) continue;
+        if (!islandAt(r.x + r.w / 2, r.y + r.h / 2)) continue;
+        const wr = r.w / anchorW;
+        const hr = r.h / anchorH;
+        if (
+          wr >= REGION_PAIR_SPAN_MIN &&
+          wr <= REGION_PAIR_SPAN_MAX &&
+          hr >= REGION_PAIR_MATCH_MIN &&
+          hr <= REGION_PAIR_MATCH_MAX
+        ) {
+          splits.push({ x: r.x, y: r.y, w: r.w / 2, h: r.h });
+          splits.push({ x: r.x + r.w / 2, y: r.y, w: r.w / 2, h: r.h });
+          consumed.add(r);
+        } else if (
+          hr >= REGION_PAIR_SPAN_MIN &&
+          hr <= REGION_PAIR_SPAN_MAX &&
+          wr >= REGION_PAIR_MATCH_MIN &&
+          wr <= REGION_PAIR_MATCH_MAX
+        ) {
+          splits.push({ x: r.x, y: r.y, w: r.w, h: r.h / 2 });
+          splits.push({ x: r.x, y: r.y + r.h / 2, w: r.w, h: r.h / 2 });
+          consumed.add(r);
+        }
+      }
+    }
+    const cells: CardRegion[] = [...inIsland, ...splits, ...outside];
+
+    // Busy-domen görs OM efter klyvningen: en blob som blev celler är inte
+    // längre ett tecken på att underlaget smält ihop med korten.
+    const remaining = (passB.d.rejections ?? []).filter((r) => !consumed.has(r));
+    let largestRemaining = 0;
+    for (const r of remaining) if (r.areaFrac > largestRemaining) largestRemaining = r.areaFrac;
+    const remainingBusy = largestRemaining >= REGION_BUSY_MAX_BLOB;
+
+    // Effektiv leverans från förstapasset: busy ⇒ klienten skickar ingenting,
+    // annars räknas bara regioner i kortbandet (utanför bandet är de i en
+    // pärmfångst halva kort eller plast — mätt: gårdagens "1 funnen region"
+    // var ett halvt Snom-kort).
+    const inBand = (c: CardRegion) => {
+      const a = c.w / c.h;
+      return a >= REGION_ISLAND_ASPECT_MIN && a <= REGION_ISLAND_ASPECT_MAX;
+    };
+    const effA = passA.d.busySurface === true ? 0 : passA.regions.filter(inBand).length;
+
+    if (diag) {
+      diag.islandDebug =
+        `öar=${island.boxes.map((b) => (b.area / (mw * mh)).toFixed(2)).join("/")}` +
+        ` ökvot=${cellRatios.join("/") || "–"} inne=${inIsland.length}` +
+        ` klyvda=${splits.length} ute=${outside.length} effA=${effA}` +
+        ` kvarBusy=${remainingBusy ? largestRemaining.toFixed(2) : "nej"}`;
+    }
+
+    if (
+      !remainingBusy &&
+      inIsland.length + splits.length >= 1 &&
+      cells.length > effA
+    ) {
+      adopted = passB;
+      adoptedRegions = cells.slice(0, maxRegions);
+      adoptedBg = island.bg;
+      islandReflood = true;
+      passB.d.rejections = remaining;
+      passB.d.largestRejectedFrac = largestRemaining;
+      passB.d.busySurface = remainingBusy;
+    }
+  }
+
   if (diag) {
     diag.mw = mw;
     diag.mh = mh;
     diag.rgb = rgb;
-    diag.dist = dist;
+    diag.dist = adopted.dist;
     diag.tol = tol;
     let n = 0;
-    for (let i = 0; i < bg.length; i++) if (bg[i]) n++;
-    diag.backgroundFrac = n / bg.length;
+    for (let i = 0; i < adoptedBg.length; i++) if (adoptedBg[i]) n++;
+    diag.backgroundFrac = n / adoptedBg.length;
+    diag.rejections = adopted.d.rejections;
+    diag.largestRejectedFrac = adopted.d.largestRejectedFrac;
+    diag.busySurface = adopted.d.busySurface;
+    diag.islandReflood = islandReflood;
   }
-  return regionsFromDistance(dist, mw, mh, 128, scale, width, height, maxRegions, diag);
+  return adoptedRegions;
+}
+
+/**
+ * Fyller om jätteblobbars inre inifrån deras egen kant. Bakgrundsmodellen är
+ * oförändrad — "det sammanhängande som når kanten" — men appliceras en nivå in:
+ * för en pärmsida är "kanten" sidans rand, och det som hänger ihop med den
+ * (pärmmaterial, kanalerna mellan fickorna) är sidans bakgrund, medan korten
+ * stannar kvar som öar. Returnerar null när ingen komponent når
+ * REGION_ISLAND_MIN_FRAC — då finns ingen ö att fylla om och förstapasset står.
+ *
+ * ⛔ Omfyllningen är BEGRÄNSAD till jätteblobbarnas egna pixlar: mindre
+ * komponenter (redan korrekt segmenterade kort) får inte sina ramar uppätna av
+ * en global andrafyllning.
+ */
+function refloodIslands(
+  bg: Uint8Array,
+  rgb: Float32Array,
+  mw: number,
+  mh: number,
+  tol: number
+): {
+  bg: Uint8Array;
+  boxes: Array<{ area: number; minX: number; maxX: number; minY: number; maxY: number }>;
+} | null {
+  const total = mw * mh;
+  // Sammanhängande FÖRGRUNDS-komponenter (före erosion — erosionen är ett
+  // valideringssteg, inte en del av bakgrundsmodellen).
+  const label = new Int32Array(total).fill(-1);
+  const comps: Array<{ area: number; minX: number; maxX: number; minY: number; maxY: number }> =
+    [];
+  const stack: number[] = [];
+  for (let start = 0; start < total; start++) {
+    if (bg[start] || label[start] >= 0) continue;
+    const id = comps.length;
+    const comp = { area: 0, minX: mw, maxX: 0, minY: mh, maxY: 0 };
+    stack.length = 0;
+    stack.push(start);
+    label[start] = id;
+    while (stack.length > 0) {
+      const i = stack.pop()!;
+      comp.area++;
+      const x = i % mw;
+      const y = (i / mw) | 0;
+      if (x < comp.minX) comp.minX = x;
+      if (x > comp.maxX) comp.maxX = x;
+      if (y < comp.minY) comp.minY = y;
+      if (y > comp.maxY) comp.maxY = y;
+      const tryPush = (j: number) => {
+        if (!bg[j] && label[j] < 0) {
+          label[j] = id;
+          stack.push(j);
+        }
+      };
+      if (x > 0) tryPush(i - 1);
+      if (x < mw - 1) tryPush(i + 1);
+      if (y > 0) tryPush(i - mw);
+      if (y < mh - 1) tryPush(i + mw);
+    }
+    comps.push(comp);
+  }
+  const giant = new Set<number>();
+  for (let id = 0; id < comps.length; id++) {
+    if (comps[id].area >= total * REGION_ISLAND_MIN_FRAC) giant.add(id);
+  }
+  if (giant.size === 0) return null;
+
+  // Andra fyllningen: sås från jätteblobbens randring (pixlar som gränsar till
+  // den riktiga bakgrunden) och växer med SAMMA lokala tolerans som
+  // huvudfyllningen — en annan tolerans hade varit en andra modell att trimma.
+  const out = new Uint8Array(bg);
+  const tol2 = tol * tol;
+  stack.length = 0;
+  const seed = (i: number) => {
+    if (!out[i]) {
+      out[i] = 1;
+      stack.push(i);
+    }
+  };
+  for (let i = 0; i < total; i++) {
+    if (!giant.has(label[i])) continue;
+    const x = i % mw;
+    const y = (i / mw) | 0;
+    if (
+      (x > 0 && bg[i - 1]) ||
+      (x < mw - 1 && bg[i + 1]) ||
+      (y > 0 && bg[i - mw]) ||
+      (y < mh - 1 && bg[i + mw])
+    ) {
+      seed(i);
+    }
+  }
+  while (stack.length > 0) {
+    const i = stack.pop()!;
+    const x = i % mw;
+    const y = (i / mw) | 0;
+    const grow = (j: number) => {
+      if (out[j] || !giant.has(label[j])) return;
+      let acc = 0;
+      for (let c = 0; c < 3; c++) {
+        const d = rgb[j * 3 + c] - rgb[i * 3 + c];
+        acc += d * d;
+      }
+      if (acc <= tol2) seed(j);
+    };
+    if (x > 0) grow(i - 1);
+    if (x < mw - 1) grow(i + 1);
+    if (y > 0) grow(i - mw);
+    if (y < mh - 1) grow(i + mw);
+  }
+  return { bg: out, boxes: [...giant].map((id) => comps[id]) };
 }
 
 /** Avståndsfältet → validerade regioner: tröskling, erosion, sammanhängande
@@ -698,7 +1023,12 @@ export function regionsFromDistance(
   width: number,
   height: number,
   maxRegions: number,
-  diag?: RegionDiag
+  diag?: RegionDiag,
+  /** Pärmpasset (ö-omfyllningen): blobbar utanför det STÅENDE kortbandet
+   *  utesluts FÖRE klustringen, så halva kort, hopslagna par och mönsterrutor
+   *  inte kan vinna referensomröstningen över ett äkta karvat kort. ⛔ Får
+   *  aldrig sättas på bordsvägen — ett liggande kort på bordet är legitimt. */
+  cardAspectPrior = false
 ): CardRegion[] {
   const rawMask = new Uint8Array(mw * mh);
   for (let i = 0; i < mw * mh; i++) if (dist[i] > threshold) rawMask[i] = 1;
@@ -789,6 +1119,12 @@ export function regionsFromDistance(
     if (b.area > total * REGION_MAX_AREA_FRAC) return note(b, "för stor"), false;
     if (aspect < REGION_ASPECT_MIN || aspect > REGION_ASPECT_MAX) {
       return note(b, `form ${aspect.toFixed(2)} utanför absolut spann`), false;
+    }
+    if (
+      cardAspectPrior &&
+      (aspect < REGION_ISLAND_ASPECT_MIN || aspect > REGION_ISLAND_ASPECT_MAX)
+    ) {
+      return note(b, `form ${aspect.toFixed(2)} utanför pärmband`), false;
     }
     if (b.area / (bw * bh) < REGION_FILL_MIN) {
       return note(b, `fyllnad ${(b.area / (bw * bh)).toFixed(2)} under golvet`), false;
