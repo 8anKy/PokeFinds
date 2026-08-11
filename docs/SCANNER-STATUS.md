@@ -1327,7 +1327,24 @@ varenda bords-, mönster- och felanvändningsfångst identisk (inklusive vid
 produktionens celltak 15, där de fyra bortmätta slumpräddningarna annars hade
 levererats).
 
-**TVILLINGFALLET I BULK ÄR INTE ETT DETEKTERINGSFEL**: Scorbunny 26↔36 och
+**RUNDA 7 — LODRÄT-VAKTEN + facit på hela kedjan:** med rutnätsräddningen
+live levererade ägarens sidor 4/4 och 7/8 (tvåsidan; missen var en tvilling,
+inte detektering). Sidan med BLEKA kort avslöjade en sista klyvningsfälla:
+glanshalvorna är FLER än de hela korten där, vinner klustret, och mot ett
+HALV-ankare ser ett riktigt stående kort ut som "2× på höjden" → det klövs
+till två skräphalvor som vision identifierade till ett FANTOMKORT (Tarountula)
+som inte finns i pärmen. ⛔ **En blob som själv är formad som ett fickkort
+(0,55–0,9) klyvs aldrig lodrätt** (`cardShaped`, delad av båda
+klyvningsvägarna) — en äkta lodrät parblobb mäter ~0,38 och verifierades
+oskadd i samma runda. MÄTT: fångsten 5→3 celler (falskklyvningen borta), alla
+övriga 51 fångster identiska.
+⏭️ **NÄSTA BYGGE — SIDKONTEXT FÖR TVILLINGVAL**: rundans alla tre felval
+(Snom 42↔52, Scorbunny 26↔36, Camerupt ↔28) är samma-konst-tvillingar där
+"nyast set först" systematiskt väljer Mega Evolution över Ascended Heroes när
+numret är oläsbart på cellavstånd. En pärmsida är nästan alltid set-homogen:
+de SÄKRA cellernas set i SAMMA fångst är en mätbar prior som hade rättat alla
+observerade fall. Kräver att klienten skickar fångstkontext till /identify och
+att tie-breaken mäts mot facitsetet (choice-replay) INNAN ship — eget pass. Scorbunny 26↔36 och
 Snom 42↔52 valdes fel i en pärmfångst — cellerna GICK till vision men numret
 var oläsbart på cellavstånd genom plasten och bilden var brus (0,49/0,52) →
 namn-only → "nyast set först" gissade fel tvilling. Marginalerna (0,005/0,016)

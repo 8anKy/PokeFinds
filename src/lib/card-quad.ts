@@ -563,6 +563,21 @@ const REGION_GRID_FILL_MIN = 0.45;
  *  ~10 % marginal till mönsterrutan och ~20 % till äkta kort. */
 const REGION_GRID_FORM_MIN = 0.7;
 const REGION_GRID_FORM_MAX = 1.35;
+
+/**
+ * ⛔ EN BLOB SOM SJÄLV ÄR FORMAD SOM ETT FICKKORT KLYVS ALDRIG LODRÄTT.
+ * På en glansig sida vinner halvorna klustret (de är FLER än de hela korten),
+ * och mot ett HALV-ankare ser ett riktigt stående kort ut som "2× på höjden".
+ * MÄTT (rkhn4v 2026-08-11): ett äkta kort med egen form 0,76 klövs till två
+ * skräphalvor som vision sedan identifierade till ett FANTOMKORT som inte
+ * fanns i pärmen. En äkta lodrät parblobb mäter ~0,38 (två stående kort på
+ * varandra) och blockeras aldrig av vakten — verifierad korrekt i quyvs4
+ * samma runda. Delas av BÅDA klyvningsvägarna (ö-passet + huvudpasset).
+ */
+function cardShaped(r: { w: number; h: number }): boolean {
+  const a = r.w / r.h;
+  return a >= REGION_ISLAND_ASPECT_MIN && a <= REGION_ISLAND_ASPECT_MAX;
+}
 /** EN Ö-CELL MÅSTE VARA EN MENINGSFULL DEL AV SIN Ö. Ett kort i en pärmficka
  *  är 12–44 % av sidans yta (MÄTT över ö-fångsterna); skräpöar — de två
  *  Poké Ball-ikonerna på det avskurna kortet i 21:23-fångsten var 0,7 % — är
@@ -876,7 +891,7 @@ export function detectCardRegions(
           splits.push({ x: r.x, y: r.y, w: r.w / 2, h: r.h });
           splits.push({ x: r.x + r.w / 2, y: r.y, w: r.w / 2, h: r.h });
           consumed.add(r);
-        } else if (hSpan && wOne) {
+        } else if (hSpan && wOne && !cardShaped(r)) {
           splits.push({ x: r.x, y: r.y, w: r.w, h: r.h / 2 });
           splits.push({ x: r.x, y: r.y + r.h / 2, w: r.w, h: r.h / 2 });
           consumed.add(r);
@@ -957,7 +972,7 @@ export function detectCardRegions(
         splits.push({ x: r.x + r.w / 2, y: r.y, w: r.w / 2, h: r.h });
         consumed.add(r);
         notes.push(`${wr.toFixed(1)}x${hr.toFixed(1)}→2`);
-      } else if (hSpan && wOne) {
+      } else if (hSpan && wOne && !cardShaped(r)) {
         splits.push({ x: r.x, y: r.y, w: r.w, h: r.h / 2 });
         splits.push({ x: r.x, y: r.y + r.h / 2, w: r.w, h: r.h / 2 });
         consumed.add(r);
