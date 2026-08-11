@@ -35,9 +35,6 @@ interface PanelProps {
   sets: FilterSetOption[];
   retailers: FacetOption[];
   languages: FacetOption[];
-  /** Antal produkter per prisintervall — kanterna i edgesKr, sista = öppet uppåt. */
-  priceBuckets: number[];
-  edgesKr: readonly number[];
   /** Aktuellt träffantal (SSR) — filtren applicerar direkt, så talet är i synk. */
   total: number;
 }
@@ -175,92 +172,6 @@ function Segmented({
   );
 }
 
-/* ─────────────────────────── prisreglaget ─────────────────────────── */
-
-/**
- * Reglagets lägen ÄR histogramkanterna (index i edgesKr, sista läget = inget tak)
- * — staplar och tumlägen kan då aldrig peka på olika intervall. Två native
- * <input type="range"> ovanpå varandra (tummarna får pointer-events, spåren
- * inte — CSS i globals: .dual-range). Navigeringen sker först när tummen
- * SLÄPPS, annars hade varje pixeldrag varit en server-rendering.
- */
-function PriceSlider({
-  edgesKr,
-  buckets,
-  minIdx,
-  maxIdx,
-  onDraft,
-  onCommit,
-}: {
-  edgesKr: readonly number[];
-  buckets: number[];
-  minIdx: number;
-  maxIdx: number;
-  onDraft: (minIdx: number, maxIdx: number) => void;
-  onCommit: () => void;
-}) {
-  const t = useTranslations("Products");
-  const N = edgesKr.length;
-  const maxCount = Math.max(1, ...buckets);
-  const minPct = (minIdx / N) * 100;
-  const maxPct = (maxIdx / N) * 100;
-
-  return (
-    <div>
-      <div aria-hidden className="flex h-12 items-end gap-px">
-        {buckets.map((count, i) => {
-          const inRange = i >= minIdx && i < maxIdx;
-          // sqrt-skala: singlarna dominerar lågprisintervallen så grovt att en
-          // linjär skala hade gjort alla andra staplar osynliga.
-          const height = count > 0 ? Math.max(10, Math.sqrt(count / maxCount) * 100) : 4;
-          return (
-            <span
-              key={i}
-              style={{ height: `${height}%` }}
-              className={cn(
-                "min-w-0 flex-1 rounded-[2px] transition-colors",
-                inRange ? "bg-holo-cyan/70" : "bg-surface-overlay"
-              )}
-            />
-          );
-        })}
-      </div>
-
-      <div className="dual-range relative mt-1.5 h-6">
-        <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-surface-overlay" />
-        <div
-          className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-holo-cyan"
-          style={{ left: `${minPct}%`, right: `${100 - maxPct}%` }}
-        />
-        <input
-          type="range"
-          min={0}
-          max={N}
-          step={1}
-          value={minIdx}
-          aria-label={t("minThumbAria")}
-          aria-valuetext={`${nf.format(edgesKr[minIdx])} kr`}
-          onChange={(e) => onDraft(Math.min(Number(e.target.value), maxIdx - 1), maxIdx)}
-          onPointerUp={onCommit}
-          onKeyUp={onCommit}
-        />
-        <input
-          type="range"
-          min={0}
-          max={N}
-          step={1}
-          value={maxIdx}
-          aria-label={t("maxThumbAria")}
-          aria-valuetext={maxIdx >= N ? t("priceNoCap", { min: nf.format(edgesKr[N - 1]) }) : `${nf.format(edgesKr[maxIdx])} kr`}
-          onChange={(e) => onDraft(minIdx, Math.max(Number(e.target.value), minIdx + 1))}
-          onPointerUp={onCommit}
-          onKeyUp={onCommit}
-        />
-      </div>
-    </div>
-  );
-}
-
 /* ─────────────────────────── panelen ─────────────────────────── */
 
 /**
@@ -274,8 +185,6 @@ export function ExploreFilterPanel({
   sets,
   retailers,
   languages,
-  priceBuckets,
-  edgesKr,
   total,
 }: PanelProps) {
   const t = useTranslations("Products");
@@ -295,56 +204,34 @@ export function ExploreFilterPanel({
   const [setSheetOpen, setSetSheetOpen] = useState(false);
   const [showAllStores, setShowAllStores] = useState(false);
 
-  /* Prisreglaget: lokalt utkast medan tummen dras, URL:en först vid släpp. */
-  const N = edgesKr.length;
-  const nearestIdx = (kr: number) =>
-    edgesKr.reduce((best, edge, i) => (Math.abs(edge - kr) < Math.abs(edgesKr[best] - kr) ? i : best), 0);
-  const urlMinIdx = minPris && Number(minPris) > 0 ? nearestIdx(Number(minPris)) : 0;
-  const urlMaxIdx =
-    maxPris && Number(maxPris) > 0 ? Math.max(nearestIdx(Number(maxPris)), urlMinIdx + 1) : N;
-  const [draft, setDraft] = useState<{ min: number; max: number }>({ min: urlMinIdx, max: urlMaxIdx });
+  /* Prisintervallet: lokala fältvärden, URL:en först vid Enter/blur
+     (ägarbeslut 2026-08-11: rena Från–Till-fält i stället för
+     histogram + reglage + snabbval — kompaktare). */
+  const [minInput, setMinInput] = useState(minPris);
+  const [maxInput, setMaxInput] = useState(maxPris);
   const priceKey = `${minPris}|${maxPris}`;
   useEffect(() => {
-    // Extern navigering (chips, presets, bakåtknapp) → reglaget följer URL:en.
-    setDraft({ min: urlMinIdx, max: urlMaxIdx });
+    // Extern navigering (chips, bakåtknapp) → fälten följer URL:en.
+    setMinInput(minPris);
+    setMaxInput(maxPris);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [priceKey]);
 
   const commitPrice = () => {
-    if (draft.min === urlMinIdx && draft.max === urlMaxIdx) return;
-    apply({
-      minPris: draft.min === 0 ? null : String(edgesKr[draft.min]),
-      maxPris: draft.max >= N ? null : String(edgesKr[draft.max]),
-    });
+    const norm = (raw: string): string | null => {
+      const n = Number(raw.trim().replace(",", "."));
+      return Number.isFinite(n) && n > 0 ? String(n) : null;
+    };
+    let lo = norm(minInput);
+    let hi = norm(maxInput);
+    // Omvänt intervall är aldrig avsikten — byt plats i stället för noll träffar.
+    if (lo !== null && hi !== null && Number(lo) > Number(hi)) [lo, hi] = [hi, lo];
+    if ((lo ?? "") === minPris && (hi ?? "") === maxPris) return;
+    apply({ minPris: lo, maxPris: hi });
   };
 
-  const pricePresets: { min: number | null; max: number | null }[] = [
-    { min: null, max: null },
-    { min: null, max: 200 },
-    { min: 200, max: 500 },
-    { min: 500, max: 1000 },
-    { min: 1000, max: null },
-  ];
   const currentMin = minPris ? Number(minPris) : null;
   const currentMax = maxPris ? Number(maxPris) : null;
-  const presetLabel = (p: { min: number | null; max: number | null }) => {
-    if (p.min === null && p.max === null) return t("all");
-    // Utan "kr"-suffix — kolumnen heter redan "Pris (kr)" och chipsen ska läsa
-    // som en skala ("0–200 · 200–500 · 1 000+"), inte som fem meningar.
-    if (p.max === null) return `${nf.format(p.min ?? 0)}+`;
-    return `${nf.format(p.min ?? 0)}–${nf.format(p.max)}`;
-  };
-  const presetActive = (p: { min: number | null; max: number | null }) =>
-    (currentMin ?? null) === p.min && (currentMax ?? null) === p.max;
-
-  // Förformaterade tal (tusentalsmellanslag) — next-intl formaterar inte bara
-  // interpolerade tal av sig själv, och "1000" bredvid "1 000" ser trasigt ut.
-  const priceSummary =
-    currentMin === null && currentMax === null
-      ? t("anyPrice")
-      : currentMax === null
-        ? t("priceNoCap", { min: nf.format(currentMin ?? 0) })
-        : t("priceSpan", { min: nf.format(currentMin ?? 0), max: nf.format(currentMax) });
 
   /* Listor: topp-N efter antal, men en ikryssad rad utanför toppen visas alltid
      — annars går ett aktivt filter inte att kryssa UR utan att fälla ut listan. */
@@ -492,43 +379,41 @@ export function ExploreFilterPanel({
           )}
         </Section>
 
-        <Section
-          title={t("price")}
-          action={<span className="text-xs font-medium text-holo-cyan">{priceSummary}</span>}
-        >
-          <PriceSlider
-            edgesKr={edgesKr}
-            buckets={priceBuckets}
-            minIdx={draft.min}
-            maxIdx={draft.max}
-            onDraft={(min, max) => setDraft({ min, max })}
-            onCommit={commitPrice}
-          />
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {pricePresets.map((p, i) => {
-              const active = presetActive(p);
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() =>
-                    apply({
-                      minPris: p.min !== null ? String(p.min) : null,
-                      maxPris: p.max !== null ? String(p.max) : null,
-                    })
-                  }
-                  className={cn(
-                    "rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-holo-cyan",
-                    active
-                      ? "border-holo-cyan/60 bg-holo-cyan/10 text-holo-cyan"
-                      : "border-surface-border text-ink-muted hover:border-holo-cyan/40 hover:text-ink"
-                  )}
-                >
-                  {presetLabel(p)}
-                </button>
-              );
-            })}
+        <Section title={t("price")}>
+          {/* Samma fältform som mobilens prisark: etikett i rutan, tomt fält =
+              ingen gräns. Navigerar på Enter/blur, bara när värdet ändrats. */}
+          <div className="flex items-center gap-2">
+            {(
+              [
+                { key: "min", label: t("priceFrom"), aria: t("minAria"), value: minInput, set: setMinInput, placeholder: "0" },
+                { key: "max", label: t("priceTo"), aria: t("maxAria"), value: maxInput, set: setMaxInput, placeholder: t("max") },
+              ] as const
+            ).map((field, i) => (
+              <span key={field.key} className="contents">
+                {i > 0 && <span aria-hidden className="text-ink-faint">–</span>}
+                <label className="min-w-0 flex-1 rounded-lg border border-surface-border px-2.5 py-1.5 transition-colors focus-within:border-holo-cyan/60">
+                  <span className="block text-[9px] font-medium uppercase tracking-[0.08em] text-ink-faint">
+                    {field.label}
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    placeholder={field.placeholder}
+                    value={field.value}
+                    onChange={(e) => field.set(e.target.value)}
+                    onBlur={commitPrice}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur();
+                    }}
+                    aria-label={field.aria}
+                    // Spinnerpilarna göms — fälten ska läsa som ett rent
+                    // intervall, och 1 kr-steg är ändå meningslösa här.
+                    className="w-full bg-transparent text-sm tabular-nums text-ink [appearance:textfield] placeholder:text-ink-faint focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  />
+                </label>
+              </span>
+            ))}
           </div>
         </Section>
 

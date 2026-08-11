@@ -1250,13 +1250,10 @@
     "showFewer": "Show fewer",
     "browseAllSets": "Browse all {count} sets",
     "browseAllStores": "Show all {count} stores",
-    "anyPrice": "Any price",
     "priceNoCap": "{min}+ kr",
     "priceSpan": "{min}–{max} kr",
     "sortLabel": "Sort",
-    "removeFilter": "Remove filter {name}",
-    "minThumbAria": "Minimum price",
-    "maxThumbAria": "Maximum price"
+    "removeFilter": "Remove filter {name}"
   },
   "Sets": {
     "metaTitle": "Sets",

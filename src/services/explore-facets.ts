@@ -19,18 +19,7 @@ export interface ExploreFacets {
   categories: { value: ProductCategory; count: number }[];
   sets: { id: string; count: number }[];
   retailers: { id: string; count: number }[];
-  /** Produkter per prisintervall — kanterna i HISTOGRAM_EDGES_KR, sista = öppet uppåt. */
-  priceBuckets: number[];
 }
-
-/**
- * Histogrammets/reglagets kanter i KRONOR. Reglagets lägen ÄR de här indexen
- * (sista läget = inget tak), så staplar och tumlägen kan aldrig glida isär.
- * Tätare steg i låga lägen där katalogen bor (median långt under 500 kr).
- */
-export const HISTOGRAM_EDGES_KR = [
-  0, 25, 50, 75, 100, 150, 200, 300, 400, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000,
-] as const;
 
 /**
  * Synlighetsvillkoret som RÅ SQL — samma regel som buildProductWhere({}) (EN+JP,
@@ -45,9 +34,8 @@ const visibleSql = () => Prisma.sql`
 
 async function getExploreFacetsRaw(): Promise<ExploreFacets> {
   const base = await buildProductWhere({});
-  const thresholdsOre = HISTOGRAM_EDGES_KR.slice(1).map((kr) => kr * 100);
 
-  const [categoryRows, setRows, retailerRows, bucketRows] = await Promise.all([
+  const [categoryRows, setRows, retailerRows] = await Promise.all([
     prisma.product.groupBy({ by: ["category"], where: base, _count: { _all: true } }),
     // Singelns set bor på KORTET (Product.setId är null där) — därav COALESCE,
     // exakt som setfiltret i buildProductWhere frågar på båda.
@@ -66,20 +54,7 @@ async function getExploreFacetsRaw(): Promise<ExploreFacets> {
         AND o."price" IS NOT NULL
         AND o."url" NOT ILIKE '%search%'
       GROUP BY 1`,
-    // width_bucket(x, ARRAY[t1..tn]) = antal trösklar ≤ x → 0..n, dvs exakt ett
-    // index per intervall i HISTOGRAM_EDGES_KR (sista = över högsta kanten).
-    prisma.$queryRaw<{ bucket: number; count: number }[]>`
-      SELECT width_bucket(p."lowestPriceOre", ARRAY[${Prisma.join(thresholdsOre)}]::int[]) AS bucket,
-             COUNT(*)::int AS count
-      FROM "Product" p
-      WHERE ${visibleSql()} AND p."lowestPriceOre" IS NOT NULL
-      GROUP BY 1`,
   ]);
-
-  const priceBuckets = new Array<number>(HISTOGRAM_EDGES_KR.length).fill(0);
-  for (const row of bucketRows) {
-    if (row.bucket >= 0 && row.bucket < priceBuckets.length) priceBuckets[row.bucket] = row.count;
-  }
 
   return {
     categories: categoryRows
@@ -87,7 +62,6 @@ async function getExploreFacetsRaw(): Promise<ExploreFacets> {
       .sort((a, b) => b.count - a.count),
     sets: setRows,
     retailers: retailerRows,
-    priceBuckets,
   };
 }
 

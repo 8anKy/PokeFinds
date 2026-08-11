@@ -1250,13 +1250,10 @@
     "showFewer": "Visa färre",
     "browseAllSets": "Bläddra bland alla {count} set",
     "browseAllStores": "Visa alla {count} butiker",
-    "anyPrice": "Alla priser",
     "priceNoCap": "{min}+ kr",
     "priceSpan": "{min}–{max} kr",
     "sortLabel": "Sortera",
-    "removeFilter": "Ta bort filtret {name}",
-    "minThumbAria": "Lägsta pris",
-    "maxThumbAria": "Högsta pris"
+    "removeFilter": "Ta bort filtret {name}"
   },
   "Sets": {
     "metaTitle": "Set",

@@ -11,7 +11,7 @@ import {
   type ProductSort,
   type SearchProductsParams,
 } from "@/services/products";
-import { getExploreFacets, HISTOGRAM_EDGES_KR } from "@/services/explore-facets";
+import { getExploreFacets } from "@/services/explore-facets";
 import type { CardLanguage, ProductCategory } from "@prisma/client";
 import { CATEGORY_LABELS } from "@/components/features/product-card";
 import { ExploreFeed } from "@/components/features/explore-feed";
@@ -365,8 +365,6 @@ export default async function ProductsPage({
               sets={panelSets}
               retailers={panelRetailers}
               languages={languageOptions}
-              priceBuckets={facets.priceBuckets}
-              edgesKr={HISTOGRAM_EDGES_KR}
               total={result.total}
             />
           </aside>
