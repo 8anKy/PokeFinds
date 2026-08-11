@@ -443,6 +443,43 @@ describe("detectCardRegions", () => {
       expect(hit).toBeDefined();
     }
   });
+
+  it("KVADRANTKLYVNING: en hel 2×2-ficksida som EN blob klyvs i fyra mot ankaret", () => {
+    // Ägarens tvåsidesfångst 08-11: högersidans fyra kort smälte till ETT block
+    // ~2×2 ankare (2,2×2,1) som föll på storlekssamstämmigheten och klövs i
+    // fyra kvadranter. ⚠️ Kräver att de karvade korten VINNER klusterröstningen
+    // — med ETT ensamt ankare mot blocket blir det oavgjort och "större area
+    // vinner" kröner blocket (då levereras blocket som en cell i stället för
+    // att klyvas). Verkliga sidor bär flera karvade kort, som fältfångsten.
+    const singles = [
+      { x: 75, y: 90, cw: 100, ch: 140 },
+      { x: 75, y: 260, cw: 100, ch: 140 },
+    ];
+    const blockCards = [
+      { x: 200, y: 120, cw: 100, ch: 140 },
+      { x: 300, y: 120, cw: 100, ch: 140 },
+      { x: 200, y: 260, cw: 100, ch: 140 },
+      { x: 300, y: 260, cw: 100, ch: 140 },
+    ];
+    const img = renderBinder(
+      480,
+      560,
+      { x: 60, y: 50, pw: 360, ph: 460 },
+      [...singles, ...blockCards]
+    );
+    const diag: import("../../src/lib/card-quad").RegionDiag = {};
+    const regions = detectCardRegions(img, 480, 560, 4, 12, diag);
+    expect(diag.islandReflood).toBe(true);
+    expect(regions.length).toBe(6);
+    for (const c of [...singles, ...blockCards]) {
+      const hit = regions.find((r) => {
+        const cx = r.x + r.w / 2;
+        const cy = r.y + r.h / 2;
+        return cx > c.x && cx < c.x + c.cw && cy > c.y && cy < c.y + c.ch;
+      });
+      expect(hit).toBeDefined();
+    }
+  });
 });
 
 describe("warpPerspective", () => {

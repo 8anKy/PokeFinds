@@ -1234,6 +1234,27 @@ karvat helt kort); tomma fickor ger jättevita glansytor (xm1yr1). Nästa
 fältrunda: ägaren fotar pärmsidor NÄRA och RAKT uppifrån — det är den mätta
 arbetspunkten.
 
+**UPPFÖLJNINGSRUNDA SAMMA DAG (ägarens tre nya fångster, telefonen körde
+fortfarande GAMLA koden):** två datadrivna justeringar.
+1. **Kortbandets tak 0,87 → 0,90.** Ett ÄKTA kort (Crustle, fickmarginal i
+   utsnittet) mättes till exakt 0,87 och föll på taket — sidan blev 3 av 4 i
+   stället för 4 av 4. Närmaste mönsterruta ligger på 0,97 ⇒ 0,90 behåller 7 %
+   marginal.
+2. **KVADRANTKLYVNING**: i tvåsidesfångsten smälte högersidans fyra kort till
+   ETT block ~2×2 ankare (2,2×2,1, fyllnad 0,69) som föll på
+   storlekssamstämmigheten. Ett block med BÅDA dimensionerna i par-bandet är en
+   hel 2×2-ficksida och klyvs i fyra kvadranter — tvåsidesfångsten gick
+   4 → **8 av 8**.
+   ⚠️ Kräver att karvade kort VINNER klusterröstningen: med ETT ensamt ankare
+   mot blocket blir storleksröstningen oavgjord och "större area vinner" kröner
+   BLOCKET, som då levereras som en cell (syntetiskt bevisat i enhetstestet).
+   Verkliga sidor bar 2–4 karvade kort; går det fel är kostnaden en cell som
+   inte matchar något.
+Ommätt över alla 43 sparade fångster: sidan 3→4, tvåsidan 4→8, ALLT annat
+identiskt (bord, mönster, enkortsfelanvändning). ⚠️ Fångsten jv6brj (andra
+sidan, 2 av 4) är INTE en ö (sidan karvas naturligt) — de två saknade är
+glansklyvda halvor, samma öppna klass som ovan.
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.

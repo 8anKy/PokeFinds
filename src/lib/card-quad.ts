@@ -517,19 +517,24 @@ const REGION_ISLAND_MIN_FRAC = 0.15;
  *  fotovinkeln är samtidigt bildmatchningens arbetsvillkor. MÄTT över
  *  ö-fångsterna 2026-08-10/11: äkta karvade kort 0,71–0,76 · halva kort
  *  (glansklyvda vid konstfönstret) 1,32–1,43 · hopslagna PAR 1,33–1,48 ·
- *  mönsterrutor (överkastet, fältrunda 11) 0,98–1,06. 0,87 delar gapet
- *  kort→mönsterruta med ~14 % marginal åt båda håll. Utan bandet vann
+ *  mönsterrutor (överkastet, fältrunda 11) 0,97–1,06. Utan bandet vann
  *  skräpklustren omröstningen och det perfekt karvade kortet (fyllnad 0,97!)
- *  förkastades som avvikare — i TRE av fyra ö-fångster. */
+ *  förkastades som avvikare — i TRE av fyra ö-fångster.
+ *  ⚠️ Taket var först 0,87 och fällde ett ÄKTA kort på exakt 0,87 i ägarens
+ *  första fångst efter deployen (Crustle med fickmarginal i utsnittet) — 0,90
+ *  behåller 7 % marginal till närmaste mönsterruta (0,97). */
 const REGION_ISLAND_ASPECT_MIN = 0.55;
-const REGION_ISLAND_ASPECT_MAX = 0.87;
+const REGION_ISLAND_ASPECT_MAX = 0.9;
 /** PARKLYVNING i pärmpasset: en förkastad blob som är ~2 kort bred och ~1 kort
  *  hög (mot de karvade kortens median) är två grannkort vars mellankanal inte
  *  karvades — klyv den på mitten i stället för att tappa båda. Banden är satta
  *  runt exakt 2,0/1,0 med rymlig marginal; en halvklyvd glansskärva är ~1 kort
  *  bred och ~0,5 hög och träffar aldrig bandet. ⛔ Kräver ett ANKARE (minst ett
  *  karvat helt kort i samma ö) — utan facit på kortstorleken är "dubbelt så
- *  bred" inget påstående. Gäller båda leden (två i bredd OCH två i höjd). */
+ *  bred" inget påstående. Gäller båda leden (två i bredd OCH två i höjd), och
+ *  BÅDA samtidigt: ett block ~2×2 ankare är en hel 2×2-ficksida (MÄTT i
+ *  ägarens tvåsidesfångst 08-11: högersidan 2,2×2,1 ankare, fyllnad 0,69) och
+ *  klyvs i fyra kvadranter. */
 const REGION_PAIR_SPAN_MIN = 1.7;
 const REGION_PAIR_SPAN_MAX = 2.3;
 const REGION_PAIR_MATCH_MIN = 0.75;
@@ -820,21 +825,28 @@ export function detectCardRegions(
         if (!islandAt(r.x + r.w / 2, r.y + r.h / 2)) continue;
         const wr = r.w / anchorW;
         const hr = r.h / anchorH;
-        if (
-          wr >= REGION_PAIR_SPAN_MIN &&
-          wr <= REGION_PAIR_SPAN_MAX &&
-          hr >= REGION_PAIR_MATCH_MIN &&
-          hr <= REGION_PAIR_MATCH_MAX
-        ) {
+        const wSpan = wr >= REGION_PAIR_SPAN_MIN && wr <= REGION_PAIR_SPAN_MAX;
+        const hSpan = hr >= REGION_PAIR_SPAN_MIN && hr <= REGION_PAIR_SPAN_MAX;
+        const wOne = wr >= REGION_PAIR_MATCH_MIN && wr <= REGION_PAIR_MATCH_MAX;
+        const hOne = hr >= REGION_PAIR_MATCH_MIN && hr <= REGION_PAIR_MATCH_MAX;
+        if (wSpan && hSpan) {
+          // Hel 2×2-ficksida som EN blob → fyra kvadranter.
+          for (const dx of [0, 1]) {
+            for (const dy of [0, 1]) {
+              splits.push({
+                x: r.x + (dx * r.w) / 2,
+                y: r.y + (dy * r.h) / 2,
+                w: r.w / 2,
+                h: r.h / 2,
+              });
+            }
+          }
+          consumed.add(r);
+        } else if (wSpan && hOne) {
           splits.push({ x: r.x, y: r.y, w: r.w / 2, h: r.h });
           splits.push({ x: r.x + r.w / 2, y: r.y, w: r.w / 2, h: r.h });
           consumed.add(r);
-        } else if (
-          hr >= REGION_PAIR_SPAN_MIN &&
-          hr <= REGION_PAIR_SPAN_MAX &&
-          wr >= REGION_PAIR_MATCH_MIN &&
-          wr <= REGION_PAIR_MATCH_MAX
-        ) {
+        } else if (hSpan && wOne) {
           splits.push({ x: r.x, y: r.y, w: r.w, h: r.h / 2 });
           splits.push({ x: r.x, y: r.y + r.h / 2, w: r.w, h: r.h / 2 });
           consumed.add(r);
