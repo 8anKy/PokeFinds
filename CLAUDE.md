@@ -47,6 +47,49 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   08-05, Tradera) — de är försenade oavsett Discord; (2) **testa flödet** med ett ANNAT konto än serverägarens;
   (3) `DISCORD_ENABLED=true`. Ägarbeslut tagna: roller tas bort men ingen kickas, och Pro-rollen följer hela
   `isPro()` (inkl. admin + referral-bonus). Se "DISCORD-ROLLEN" under Tekniska beslut.
+- **DISCORD RESTOCK-LARM BYGGT 2026-08-11, INERT TILLS VARIABLERNA SÄTTS**: egen lane
+  (`.github/workflows/discord-restock.yml` + `scripts/discord-restock-run.ts`) som postar
+  restocks var 3:e minut, kanal per SERIE. Kvar för ägaren: (1) skapa kanalerna i Discord,
+  (2) sätt repo-VARIABLERNA `DISCORD_RESTOCK_ENABLED=true` och `DISCORD_RESTOCK_CHANNELS`
+  (`{"default":"<id>","series":{"Mega Evolution":"<id>",…}}` — variabler, INTE secrets: kanal-id:n
+  är inga hemligheter, till skillnad från webhook-URL:er som är rena bärartokens), (3) ge boten
+  **Send Messages + Embed Links** i kanalerna, (4) lägg upp en cron-job.org-pingare var 3:e minut
+  mot `…/workflows/discord-restock.yml/dispatches` (GitHubs egen `schedule:` är best effort och
+  kördes i praktiken var 1,5–3,5 h — samma lärdom som restock-watch).
+  ⛔ **INGET NYTT SAMTYCKE BEHÖVS**: inlägget är produktdata, inga personuppgifter, så det är
+  INTE blockerat av juristgranskningen som håller `DISCORD_ENABLED=false`. Egen spak med flit.
+  ⛔ **"GRATIS" ÄR ETT VILLKOR, INTE EN BIEFFEKT.** `shouldProcess` returnerar ALLTID false →
+  `runRestockScan` stannar efter fas 1 (ren HTTP) och når aldrig `ensureDbAwake()`; dessutom
+  sätter workflowet en AVSIKTLIGT oåtkomlig `DATABASE_URL` så en framtida DB-fråga dör synligt i
+  stället för att tyst kosta pengar. Neon debiteras per VAKEN TID (minst 300 s per väckning) —
+  det var precis därför 2-min-snabbfilen togs bort 08-09. Källista + ruttabell (butiks-URL →
+  produkt/set/serie) kommer från `scripts/export-restock-routes.ts`, som körs i **scrape-all** där
+  Neon ändå är vaken. Saknas filen HOPPAR lanen över; den slår aldrig upp den själv.
+  ⛔ **EGEN CACHE-NYCKEL** (`.discord-restock-cache`, prefix `discord-restock-state-`). Delad
+  katalog med restock-watch hade gett lanarna varandras lagerläge → både missade och dubblerade
+  larm, båda tysta.
+  ⛔ **FLAPP-DÄMPNINGEN ÄR SAMMA DOM, INTE EN KOPIA**: `evaluateStockFlap` bor nu i
+  `src/lib/stock-flap.ts` (DB-fri) och re-exporteras ur `services/alerts.ts`. Historiken ligger i
+  Actions-cachen i stället för i RestockEvent. Kopiera aldrig reglerna — DL står för 46 av 171
+  restocks och togglar heta varor dussintals gånger per dygn.
+  ⛔ **COOLDOWN STÄMPLAS EFTER KVITTENS** (`markPosted`), aldrig vid beslutet: annars tystar ett
+  nekat utskick produkten i två timmar, dvs precis när larmet inte kom fram.
+  ⛔ **OKÄND URL POSTAS INTE.** Saknas URL:en i ruttabellen kan den vara sleeves/singel/figur —
+  DB-vägens vakter (`ensureListingProduct`) finns inte här. Nya SKU:er syns i Discord först efter
+  nästa nattliga export (≤24 h); mejl/app larmar direkt som förut.
+  **MÄTT före bygget** (14 dygn, `scripts/discord-channel-shape.ts`): 171 restocks = 12,2/dygn
+  (27,4 lagerövergångar/dygn åt båda håll — den gamla "75,2 flippar/dygn" i historiken mättes i en
+  hetare period), 40 distinkta set varav 15 delar på ~1 inlägg/dygn ⇒ en kanal per set = ett
+  trettiotal döda kanaler. Per serie: Mega Evolution 7,0/dygn · Scarlet & Violet 3,6 · resten <0,4.
+  7 % saknar set ⇒ catch-all obligatorisk. Utan matchande kanal OCH utan catch-all postas inget.
+  ⚠️ **ÄGARBESLUT: kanalerna är ÖPPNA för alla.** Restock-larm är annars Pro-only, så den fria
+  kanalen ger bort en betalfunktion — och eftersom den är snabbare får den betalande kunden sitt
+  mejl EFTER det fria inlägget. Medvetet valt 08-11. Vill man vända på det finns Pro-rollen redan
+  (kanalbehörighet på `Pro`), men den kräver att rollsynken är påslagen, dvs juristgranskningen.
+  ⚠️ **BUTIKSURVALET ÄR EN ARTIGHETSFRÅGA, INTE EN KOSTNADSFRÅGA**: default är de åtta mest
+  aktiva (82 % av alla restocks). Var 3:e minut mot ALLA 34 vore ~16 000 feed-hämtningar/dygn mot
+  dagens ~4 900 — att bli blockerad av en butik skadar hela produkten, inte bara Discord.
+  `DISCORD_RESTOCK_STORES=all` öppnar upp.
 - **LEVERANTÖRSSURVEY 2026-08-02 — SLUTSATS: byt inte prisfeed, lägg till TCGdex gratis**: `lowest_near_mint`
   (vår rubrik) finns hos INGEN annan än nuvarande leverantör. Men **TCGdex** (tcgdex.dev, MIT, ingen nyckel,
   domän från 2020) ger tre saker vi saknar, gratis: (1) **tryckningstaxonomin som förstklassiga rader** — alla
