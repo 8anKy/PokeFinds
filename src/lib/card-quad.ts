@@ -536,10 +536,18 @@ const REGION_ISLAND_ASPECT_MAX = 0.9;
  *  ägarens tvåsidesfångst 08-11: högersidan 2,2×2,1 ankare, fyllnad 0,69) och
  *  klyvs i fyra kvadranter. */
 const REGION_PAIR_SPAN_MIN = 1.7;
-const REGION_PAIR_SPAN_MAX = 2.3;
+/** Taket var 2,3 och missade en RIKTIG 2×2-sida på 2,42× ankaret (kanal +
+ *  fickmarginaler adderas till 2×kortet) — uppmätta äkta block: 2,07–2,42.
+ *  Ingen skräpklass observerad i 2,3–2,5; trippelrader ligger på ~3,1+. */
+const REGION_PAIR_SPAN_MAX = 2.5;
 const REGION_PAIR_MATCH_MIN = 0.75;
 const REGION_PAIR_MATCH_MAX = 1.25;
 const REGION_PAIR_FILL_MIN = 0.55;
+/** Parklyvningen UTANFÖR ön kräver högre fyllnad än ö-passets: äkta parblobbar
+ *  mätta till 0,76–0,88, medan xm1yr1:s falska kandidat (ett riktigt kort som
+ *  mot ett JUNK-ankare såg ut som "2× på höjden") bar 0,59 — glansuräten. Utan
+ *  portättbandets ankargaranti är fyllnaden den vakt som skiljer fallen. */
+const REGION_PAIR_SPLIT_FILL_MIN = 0.72;
 /** EN Ö-CELL MÅSTE VARA EN MENINGSFULL DEL AV SIN Ö. Ett kort i en pärmficka
  *  är 12–44 % av sidans yta (MÄTT över ö-fångsterna); skräpöar — de två
  *  Poké Ball-ikonerna på det avskurna kortet i 21:23-fångsten var 0,7 % — är
@@ -621,6 +629,11 @@ export interface RegionDiag {
   /** Pärmsidefallet: en jätteblob fylldes om inifrån och utfallet vann över
    *  förstapasset. Se `refloodIslands`. */
   islandReflood?: boolean;
+  /** Det vinnande klustrets referens (maskskala) + antal medlemmar —
+   *  parklyvningen utanför ön behöver ett ankare med belagd kvalitet. */
+  clusterRef?: { area: number; aspect: number; fill: number; count: number };
+  /** Parklyvningen utanför ön: bokföring per försök. */
+  pairDebug?: string;
   /** Kompakt bokföring av pärmpassets dom — skrivs VARJE gång en ö fylldes om,
    *  även när adoptionen föll. Utan den är "ön fylldes om men inget hände"
    *  odiagnosticerbart i fält: förkastade celler och en misslyckad adoption
@@ -895,6 +908,57 @@ export function detectCardRegions(
     }
   }
 
+  // PARKLYVNING UTANFÖR ÖN (2026-08-11, runda 4): på nära håll karvas sidan
+  // naturligt (ingen ö bildas) men två grannkort vars fickor nuddar smälter
+  // ändå till EN blob — och parklyvningen fanns bara i ö-passet. Samma
+  // geometri-regel körs nu mot HUVUDPASSETS eget kortkluster, med två vakter
+  // som ö-passet inte behöver (dess portättband garanterar ankarkvaliteten):
+  // (1) klustret måste ha ≥2 medlemmar, (2) blobbens fyllnad ≥ 0,72 — en äkta
+  // parblobb är två styva rektanglar (MÄTT: 0,76–0,88) medan det farliga
+  // falska fallet (xm1yr1: junk-halvor vann klustret och det RIKTIGA kortet
+  // såg ut som "2× ankare" på höjden) bar fyllnad 0,59 (glansuräten).
+  // ⛔ INGEN kvadrantklyvning här — ett 2×2-block utanför en ö har inga
+  // portättvakter alls; det fallet förblir ö-passets.
+  const ref = adopted.d.clusterRef;
+  if (ref && ref.count >= 2 && ref.area > 0) {
+    const inv = 1 / scale;
+    const anchorW = Math.sqrt(ref.area * ref.aspect) * inv;
+    const anchorH = Math.sqrt(ref.area / ref.aspect) * inv;
+    const splits: CardRegion[] = [];
+    const consumed = new Set<NonNullable<RegionDiag["rejections"]>[number]>();
+    const notes: string[] = [];
+    for (const r of adopted.d.rejections ?? []) {
+      if (r.fill < REGION_PAIR_SPLIT_FILL_MIN) continue;
+      const wr = r.w / anchorW;
+      const hr = r.h / anchorH;
+      const wSpan = wr >= REGION_PAIR_SPAN_MIN && wr <= REGION_PAIR_SPAN_MAX;
+      const hSpan = hr >= REGION_PAIR_SPAN_MIN && hr <= REGION_PAIR_SPAN_MAX;
+      const wOne = wr >= REGION_PAIR_MATCH_MIN && wr <= REGION_PAIR_MATCH_MAX;
+      const hOne = hr >= REGION_PAIR_MATCH_MIN && hr <= REGION_PAIR_MATCH_MAX;
+      if (wSpan && hOne) {
+        splits.push({ x: r.x, y: r.y, w: r.w / 2, h: r.h });
+        splits.push({ x: r.x + r.w / 2, y: r.y, w: r.w / 2, h: r.h });
+        consumed.add(r);
+        notes.push(`${wr.toFixed(1)}x${hr.toFixed(1)}→2`);
+      } else if (hSpan && wOne) {
+        splits.push({ x: r.x, y: r.y, w: r.w, h: r.h / 2 });
+        splits.push({ x: r.x, y: r.y + r.h / 2, w: r.w, h: r.h / 2 });
+        consumed.add(r);
+        notes.push(`${wr.toFixed(1)}x${hr.toFixed(1)}→2`);
+      }
+    }
+    if (splits.length > 0) {
+      adoptedRegions = [...adoptedRegions, ...splits].slice(0, maxRegions);
+      const remaining = (adopted.d.rejections ?? []).filter((r) => !consumed.has(r));
+      adopted.d.rejections = remaining;
+      let largest = 0;
+      for (const r of remaining) if (r.areaFrac > largest) largest = r.areaFrac;
+      adopted.d.largestRejectedFrac = largest;
+      adopted.d.busySurface = largest >= REGION_BUSY_MAX_BLOB;
+      adopted.d.pairDebug = notes.join(" ");
+    }
+  }
+
   if (diag) {
     diag.mw = mw;
     diag.mh = mh;
@@ -908,6 +972,7 @@ export function detectCardRegions(
     diag.largestRejectedFrac = adopted.d.largestRejectedFrac;
     diag.busySurface = adopted.d.busySurface;
     diag.islandReflood = islandReflood;
+    diag.pairDebug = adopted.d.pairDebug;
   }
   return adoptedRegions;
 }
@@ -1231,6 +1296,9 @@ export function regionsFromDistance(
     .map((b) => b.area / ((b.maxX - b.minX + 1) * (b.maxY - b.minY + 1)))
     .sort((a, b) => a - b);
   const refFill = sortedFills[Math.floor(sortedFills.length / 2)] ?? 1;
+  if (diag) {
+    diag.clusterRef = { area: refArea, aspect: refAspect, fill: refFill, count: cluster.length };
+  }
   const accepted = valid
     .filter((b) => {
       const a = bboxArea(b);

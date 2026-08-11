@@ -1279,6 +1279,21 @@ inget (samma fysik som fältrunda 5:s "utsmetad kant"). Och geometrisk
 parklyvning UTAN ö-vakterna är osäker: i xm1yr1 vinner en glanshalva klustret,
 och det RIKTIGA kortet ser då ut som "2× ankare" och hade klyvts falskt.
 Kvarvarande öppen klass: hopvuxna par i icke-ö-fångster (5rh9u6:s bottenpar).
+**RUNDA 4 — PARKLYVNING ÄVEN UTANFÖR ÖN + SPANNTAKET 2,3 → 2,5:** ägarens
+tredje fältomgång gav tre hårsmåns-missar: en ÄKTA 2×2-sida på 2,42× ankaret
+(utanför spanntaket 2,3 — äkta block mätta 2,07–2,42, ingen skräpklass i
+2,3–2,5), och hopvuxna par i fångster där sidan karvas naturligt (ingen ö ⇒
+ingen klyvning). Parklyvningen körs nu även mot HUVUDPASSETS kluster, med två
+vakter ö-passet inte behöver: klustret ≥ 2 medlemmar och blobbfyllnad ≥ 0,72
+(`REGION_PAIR_SPLIT_FILL_MIN` — äkta par 0,76–0,88, xm1yr1:s falska kandidat
+0,59). ⛔ Ingen kvadrantklyvning utanför ön (inga portättvakter där).
+MÄTT över alla 49 fångster: tvåsidan 3→7, sid-fångsterna 2→4 och 2→4 (busy
+hävd när paret förklarats), gårdagens vinkelfångst 1→4, och de två GAMLA
+bordsfångsterna med kant-i-kant-par gick 10→12 — det uppskjutna
+"HOPSLAGNA KORT — DELNING"-ärendet landade därmed med mätning i stället för
+varning. xm1yr1 föll INTE för falsk klyvning (fyllnadsvakten höll). Noll
+regressioner.
+
 **TVILLINGFALLET I BULK ÄR INTE ETT DETEKTERINGSFEL**: Scorbunny 26↔36 och
 Snom 42↔52 valdes fel i en pärmfångst — cellerna GICK till vision men numret
 var oläsbart på cellavstånd genom plasten och bilden var brus (0,49/0,52) →
