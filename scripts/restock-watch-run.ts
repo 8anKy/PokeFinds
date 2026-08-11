@@ -186,5 +186,18 @@ async function main() {
 }
 
 main()
-  .catch((e) => { console.error("Misslyckades:", e); process.exit(1); })
-  .finally(() => prisma.$disconnect());
+  .catch((e) => {
+    console.error("Misslyckades:", e);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+    // Avsluta EXPLICIT (samma läxa som scrape-all-run.ts juli 2026): APNs-pushens
+    // HTTP/2-session (node-apn-providern i src/lib/apns.ts) hålls öppen efter en
+    // skickad push och håller event-loopen vid liv → varje körning som skickade
+    // ≥1 alert satt sysslolös tills 15-minuterstaket dödade den ("cancelled"),
+    // tappade sitt state-cache (post-steget hoppas vid cancel) och köade nästa
+    // körning (mätt 2026-08-11: 11 cancellerade körningar på en förmiddag, alla
+    // med "1 alerts" som sista rad).
+    process.exit(process.exitCode ?? 0);
+  });

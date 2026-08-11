@@ -103,17 +103,27 @@ async function buildAlertEmail(alert: {
       }
       if (alert.type === AlertType.RESTOCK) {
         // Restock = butiks-händelse. Länka DIREKT till butiken som fick lager igen
-        // (alert.retailerId), annars billigaste butik i lager. Aldrig Cardmarket/
-        // Tradera (de utlöser inte restock-larm). "Köp nu" → butikens egen produktsida.
+        // (alert.retailerId) — hämtad med EGEN fråga, inte ur prisfönstret ovan:
+        // `product.offers` är de 10 BILLIGASTE prissatta offersen, och den
+        // restockande butiken ligger ofta utanför det fönstret (mätt 2026-08-11:
+        // 10 av 22 restock-mejl visade fel butik). Reserv = billigaste butik i
+        // lager. Aldrig Cardmarket/Tradera (de utlöser inte restock-larm) — det
+        // sista `bestOffer`-fallet var precis den läckan: CM är oftast billigast
+        // och stod som avsändare i mejlet. Hellre vår produktsida än fel källa.
+        const alertOffer = alert.retailerId
+          ? await prisma.offer.findFirst({
+              where: { productId: product.id, retailerId: alert.retailerId },
+              include: { retailer: true },
+            })
+          : null;
         const retailOffer =
-          (alert.retailerId &&
-            product.offers.find((o) => o.retailerId === alert.retailerId)) ||
+          alertOffer ??
           product.offers.find(
             (o) =>
               o.stockStatus === "IN_STOCK" &&
               !NON_RETAIL_SOURCE_NAMES.includes(o.retailer.name)
-          ) ||
-          bestOffer;
+          ) ??
+          null;
         // RESTOCK täcker tre olika besked — mallen väljs på lagerövergången, inte på
         // offerns status HÄR (den hann redan bli det nya läget under skanningen).
         // Saknas övergången (larm från före kolumnerna) → påfyllning, som förut.
@@ -134,10 +144,23 @@ async function buildAlertEmail(alert: {
         // Ny produkt i lager = butiks-händelse. Mejlet länkar DIREKT till butikens
         // egen produktsida (som RESTOCK ovan), inte vår Foilio-sida. Pushen länkar
         // fortfarande till vår produktsida (se sendAlertPush). PREORDER lagras som
-        // NEW_LISTING → välj copy på offerns lagerstatus.
+        // NEW_LISTING → välj copy på offerns lagerstatus. Samma regel som RESTOCK:
+        // larmets egen butiks-offer hämtas med egen fråga (prisfönstret ovan kan
+        // sakna den), och reserven är en BUTIK i lager — aldrig `offers[0]`, som
+        // oftast är Cardmarket.
         const listingOffer =
-          (alert.retailerId && product.offers.find((o) => o.retailerId === alert.retailerId)) ||
-          product.offers[0];
+          (alert.retailerId
+            ? await prisma.offer.findFirst({
+                where: { productId: product.id, retailerId: alert.retailerId },
+                include: { retailer: true },
+              })
+            : null) ??
+          product.offers.find(
+            (o) =>
+              o.stockStatus === "IN_STOCK" &&
+              !NON_RETAIL_SOURCE_NAMES.includes(o.retailer.name)
+          ) ??
+          null;
         const storeName = listingOffer?.retailer.name ?? "en butik";
         const args = [alert.user.name, product.title, storeName, listingOffer?.url ?? productUrl, listingOffer?.price ?? undefined] as const;
         return listingOffer?.stockStatus === StockStatus.PREORDER
