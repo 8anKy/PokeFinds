@@ -105,9 +105,20 @@ jobs:
         with:
           node-version: "20"
           cache: npm
+      # node_modules cachas HELT (inkl. genererad Prisma-klient) → varm körning
+      # hoppar över npm ci + prisma generate (~35 s per körning, var 10:e minut).
+      # Nyckeln bär BÅDE package-lock och prisma-schemat: en schemaändring måste
+      # regenerera klienten, annars kör skanningen mot en förlegad klient — samma
+      # felklass som "migrationen måste ligga före koden".
       - if: steps.guard.outputs.ready == 'true'
+        id: nm
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: node_modules
+          key: nm-${{ runner.os }}-node20-${{ hashFiles('package-lock.json', 'prisma/schema.prisma') }}
+      - if: steps.guard.outputs.ready == 'true' && steps.nm.outputs.cache-hit != 'true'
         run: npm ci --legacy-peer-deps
-      - if: steps.guard.outputs.ready == 'true'
+      - if: steps.guard.outputs.ready == 'true' && steps.nm.outputs.cache-hit != 'true'
         run: npx prisma generate
       - if: steps.guard.outputs.ready == 'true'
         run: npx tsx scripts/restock-watch-run.ts

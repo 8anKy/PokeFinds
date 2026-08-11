@@ -745,14 +745,24 @@ export async function runRestockScan(opts?: {
   let checked = 0;
   let restocks = 0;
   let newListings = 0;
+  let sent = 0;
   /** Lat, delad katalog i minnet — se anropet i feed-först-grenen. */
   let matchIndexForImport: MatchIndex | null = null;
+  // TVÅ PASS med flit (2026-08-12): offer-diffen (restock-larmen, det tidskritiska)
+  // körs FÖRST och larmen SKICKAS direkt efteråt — feed-först-grenen därunder gör
+  // auto-import med LLM-domar och GTIN-uppslag som mätt tar 1–2 min, och innan
+  // uppdelningen satt ett färdigt restock-larm och väntade bakom det arbetet.
+  const feedFirst: Array<[string, FeedItem & { retailerId: string; sourceName: string }]> = [];
   for (const [key, it] of fresh) {
     const newStatus = it.stockStatus;
     const offer = offerByKey.get(key);
+    if (!offer) {
+      feedFirst.push([key, it]);
+      continue;
+    }
 
     // ---- Matchad produkt: beprövad offer-diff (oförändrad logik) ----
-    if (offer) {
+    {
       checked++;
       // ORDNINGEN ÄR KRITISK: larma FÖRST, flippa lagerstatus SIST. Statusflippen är det
       // som KONSUMERAR övergången — nästa körning diffar mot den. Flippade vi först och
@@ -810,10 +820,19 @@ export async function runRestockScan(opts?: {
           },
         });
       }
-      continue;
     }
+  }
 
-    // ---- Feed-först: URL utan Offer (ny SKU / art-variant / produkt utanför katalogen) ----
+  // Restock-/förhandsbokningslarmen från offer-diffen skickas NU, inte efter
+  // hela skanningen: feed-först-passet nedan kan ta minuter, och ett färdigt larm
+  // ska inte vänta bakom det. Grindad så en larmlös körning slipper extra fråga.
+  if (restocks + newListings > 0) {
+    sent += (await dispatchPendingAlerts()).sent;
+  }
+
+  // ---- Feed-först: URL utan Offer (ny SKU / art-variant / produkt utanför katalogen) ----
+  for (const [key, it] of feedFirst) {
+    const newStatus = it.stockStatus;
     // Bara sealed — singlar/övrigt skulle spamma (se SEALED_FEED_CATEGORIES).
     if (!SEALED_FEED_CATEGORIES.has(it.category ?? "")) continue;
     // Blockade språk (kinesiska/koreanska) auto-importeras inte "for now" → ingen ny
@@ -980,7 +999,7 @@ export async function runRestockScan(opts?: {
     else soldOutReconciled++;
   }
 
-  const { sent } = await dispatchPendingAlerts();
+  sent += (await dispatchPendingAlerts()).sent;
   console.log(
     `[restock-scan] ${sources.length} butiker, ${checked} kollade, ${restocks} restocks, ${newListings} nya, ${verified} verifierade mot produktsidan, ${soldOutReconciled} utan svar (UNKNOWN), ${sent} alerts.`
   );
