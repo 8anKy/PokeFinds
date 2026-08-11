@@ -1255,6 +1255,13 @@ export function regionsFromDistance(
     for (let j = 0; j < areas.length; j++) if (agrees(i, j)) votes++;
     // Lika många röster → större area vinner: ett kort är aldrig det minsta
     // skräpet i bilden, men skräp kan vara lika talrikt.
+    // ⛔ FYLLNAD SOM SKILJEDOMARE PROVAD OCH MOTBEVISAD (2026-08-11): en
+    // glansklyvd HALVA är en kompakt rektangel med fyllnad 0,86–0,93 — HÖGRE
+    // än ett glansnaggat helt kort. Med fyllnadsskiljedom vann halvorna tre
+    // fångster (xjai1a blev 6 junk-celler: halv-ankaret fick de RIKTIGA korten
+    // att se ut som "2× på höjden" och parklyvas falskt; jv6brj tappade båda
+    // äkta korten). "Större area" skyddar exakt det fallet — halvan är alltid
+    // mindre än kortet.
     if (votes > bestVotes || (votes === bestVotes && areas[i] > areas[bestIdx])) {
       bestVotes = votes;
       bestIdx = i;

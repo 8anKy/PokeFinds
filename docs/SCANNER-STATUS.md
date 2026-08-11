@@ -1294,6 +1294,21 @@ bordsfångsterna med kant-i-kant-par gick 10→12 — det uppskjutna
 varning. xm1yr1 föll INTE för falsk klyvning (fyllnadsvakten höll). Noll
 regressioner.
 
+**RUNDA 5 — ÄGARENS FÄRSKA FACIT + EN MOTBEVISAD SKILJEDOM:** första rundan
+där telefonen bevisligen körde aktuell kod (telefon ≈ harness på alla tre).
+Läget på färska foton: sida 3/4 · sida 1/4 · tvåsidan 4–5/8. ALLA kvarvarande
+missar är EN klass: **glansurätna blobbar** — rätt form och storlek men
+fyllnad 0,46–0,60 därför att fyllningen ätit genom blänket (bleka kort värst).
+⛔ **FYLLNAD SOM RÖST-SKILJEDOM PROVAD OCH MOTBEVISAD**: en glansklyvd halva är
+en KOMPAKT rektangel (fyllnad 0,86–0,93) — högre än ett glansnaggat helt kort.
+Med fyllnadsskiljedom vann halvorna tre fångster och xjai1a blev 6 junk-celler
+(halv-ankaret parklöv de riktiga korten falskt). "Större area vinner" skyddar
+exakt det fallet; återställd före ship, dokumenterad i koden.
+Praktisk arbetspunkt: undvik takljusets spegling i fickorna — samma sida gav
+4/4 i tidigare rundor med mindre blänk. Nästa strukturella spak är
+RUTNÄTSKOMPLETTERING (fyll i saknade fickpositioner ur de funna korten +
+sidans geometri) — byggs mot de ~20 sparade pärmfångsterna som facit.
+
 **TVILLINGFALLET I BULK ÄR INTE ETT DETEKTERINGSFEL**: Scorbunny 26↔36 och
 Snom 42↔52 valdes fel i en pärmfångst — cellerna GICK till vision men numret
 var oläsbart på cellavstånd genom plasten och bilden var brus (0,49/0,52) →
