@@ -122,6 +122,7 @@
     "login": "Logga in",
     "joinFree": "Gå med gratis",
     "accountMenu": "Kontomeny",
+    "greeting": "Hej, {name}",
     "account": "Mitt konto",
     "pro": "PRO",
     "watches": "Bevakningar",

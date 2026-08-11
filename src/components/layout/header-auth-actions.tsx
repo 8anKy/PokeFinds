@@ -25,8 +25,8 @@ export function HeaderAuthActions() {
   if (loggedIn) {
     return (
       <>
-        {/* Desktop (≥sm-tall): kontomeny med avatar — samlar Min översikt/
-            Bevakningar/AI-gradering/Min samling/Inställningar/Logga ut.
+        {/* Desktop (≥sm-tall): kontomeny med avatar — samlar Bevakningar/
+            AI-gradering/Min samling/Inställningar/Logga ut.
             Höjdgrindad precis som toppnavigeringen: en telefon på tvären är
             inte desktop (se tailwind.config-screens). */}
         <div className="hidden sm-tall:block">

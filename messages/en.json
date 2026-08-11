@@ -122,6 +122,7 @@
     "login": "Log in",
     "joinFree": "Join for free",
     "accountMenu": "Account menu",
+    "greeting": "Hi, {name}",
     "account": "My account",
     "pro": "PRO",
     "watches": "Watches",

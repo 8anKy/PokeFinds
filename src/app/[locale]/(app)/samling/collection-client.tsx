@@ -1,13 +1,12 @@
 "use client";
 
-import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { formatPrice, formatPercent, formatDate } from "@/lib/format";
 import { apiFetch } from "@/lib/client-api";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
-import { downloadFromApi } from "@/lib/download";
 import { Modal } from "@/components/ui/modal";
 import { Input, Textarea, Select, Label, Checkbox, FieldError } from "@/components/ui/input";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
@@ -80,55 +79,6 @@ interface CardHit {
   set: { id: string; name: string } | null;
 }
 
-/** Enkel CSV-parser med stöd för citattecken. */
-function parseCsv(text: string): Record<string, string>[] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (inQuotes) {
-      if (ch === '"') {
-        if (text[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        field += ch;
-      }
-    } else if (ch === '"') {
-      inQuotes = true;
-    } else if (ch === ",") {
-      row.push(field);
-      field = "";
-    } else if (ch === "\n" || ch === "\r") {
-      if (ch === "\r" && text[i + 1] === "\n") i++;
-      row.push(field);
-      field = "";
-      if (row.some((c) => c.trim() !== "")) rows.push(row);
-      row = [];
-    } else {
-      field += ch;
-    }
-  }
-  row.push(field);
-  if (row.some((c) => c.trim() !== "")) rows.push(row);
-
-  if (rows.length < 2) return [];
-  const headers = rows[0].map((h) => h.trim());
-  return rows.slice(1).map((cells) => {
-    const obj: Record<string, string> = {};
-    headers.forEach((h, i) => {
-      const value = (cells[i] ?? "").trim();
-      if (value !== "") obj[h] = value;
-    });
-    return obj;
-  });
-}
-
 interface FormState {
   cardId: string;
   cardLabel: string;
@@ -198,11 +148,6 @@ export function CollectionClient({
   const [search, setSearch] = useState("");
   const [hits, setHits] = useState<CardHit[]>([]);
   const [searching, setSearching] = useState(false);
-
-  // CSV-import
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [importing, setImporting] = useState(false);
-  const [importErrors, setImportErrors] = useState<{ row: number; message: string }[]>([]);
 
   const { toast } = useToast();
   const router = useRouter();
@@ -368,44 +313,6 @@ export function CollectionClient({
     }
   }
 
-  async function handleImportFile(file: File) {
-    setImporting(true);
-    setImportErrors([]);
-    try {
-      const text = await file.text();
-      const rows = parseCsv(text);
-      if (rows.length === 0) {
-        toast({
-          title: t("emptyCsvTitle"),
-          description: t("emptyCsvDesc"),
-          variant: "error",
-        });
-        return;
-      }
-      const result = await apiFetch<{ imported: number; errors: { row: number; message: string }[] }>(
-        "/api/collection/import",
-        { method: "POST", body: { rows } }
-      );
-      setImportErrors(result.errors);
-      toast({
-        title: t("importedToast", { count: result.imported }),
-        description:
-          result.errors.length > 0 ? t("importPartialDesc", { count: result.errors.length }) : undefined,
-        variant: result.errors.length > 0 ? "default" : "success",
-      });
-      router.refresh();
-    } catch (e) {
-      toast({
-        title: t("importFailToast"),
-        description: e instanceof Error ? e.message : undefined,
-        variant: "error",
-      });
-    } finally {
-      setImporting(false);
-      if (fileRef.current) fileRef.current.value = "";
-    }
-  }
-
   async function togglePublic(next: boolean) {
     setIsPublic(next);
     try {
@@ -538,34 +445,10 @@ export function CollectionClient({
           <IconPlus size={16} />
           {t("addManually")}
         </Button>
-        <Button
-          variant="secondary"
-          onClick={() =>
-            downloadFromApi("/api/collection/export", "foilio-samling.csv").catch(() =>
-              toast({ title: t("genericFail"), variant: "error" }),
-            )
-          }
-        >
-          {t("exportCsv")}
-        </Button>
-        <Button
-          variant="secondary"
-          loading={importing}
-          onClick={() => fileRef.current?.click()}
-        >
-          {t("importCsv")}
-        </Button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".csv,text/csv"
-          className="hidden"
-          aria-label={t("chooseCsvAria")}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void handleImportFile(file);
-          }}
-        />
+        {/* CSV-export/import är TILLFÄLLIGT BORTTAGNA ur gränssnittet
+            (ägarbeslut 2026-08-11): flödet var glitchigt. API:erna
+            (/api/collection/export + /import) är orörda, så knapparna kan
+            återställas ur git-historiken när flödet är lagat. */}
         <div className="ml-auto">
           <Checkbox
             id="publicCollection"
@@ -575,23 +458,6 @@ export function CollectionClient({
           />
         </div>
       </div>
-
-      {importErrors.length > 0 && (
-        <div
-          role="alert"
-          className="rounded-xl border border-fall/30 bg-fall/5 px-4 py-3 text-sm text-ink"
-        >
-          <p className="font-semibold text-fall">{t("importFailedRows")}</p>
-          <ul className="mt-2 list-inside list-disc space-y-1 text-ink-muted">
-            {importErrors.slice(0, 10).map((err) => (
-              <li key={err.row}>
-                {t("importRow", { row: err.row, message: err.message })}
-              </li>
-            ))}
-            {importErrors.length > 10 && <li>{t("importAndMore", { count: importErrors.length - 10 })}</li>}
-          </ul>
-        </div>
-      )}
 
       {/* Tabell */}
       {items.length === 0 ? (

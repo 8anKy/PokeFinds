@@ -9,7 +9,6 @@ import { setAuthHint } from "@/lib/auth-hint";
 import {
   IconBell,
   IconChevronDown,
-  IconDashboard,
   IconLogout,
   IconPackage,
   IconSettings,
@@ -115,8 +114,9 @@ export function AccountMenu() {
   const itemClass =
     "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-surface-border/50 focus-visible:bg-surface-border/50 focus-visible:outline-none";
 
+  // "Min översikt" (/dashboard) är BORTTAGEN ur menyn (ägarbeslut 2026-08-11) —
+  // sidan finns kvar och nås via URL, det här är bara navigationen.
   const links = [
-    { href: "/dashboard", label: t("overview"), icon: <IconDashboard size={16} /> },
     { href: "/bevakningar", label: t("watches"), icon: <IconBell size={16} />, badge: watchCount },
     { href: "/gradera", label: t("grading"), icon: <IconSparkle size={16} /> },
     { href: "/samling", label: t("collection"), icon: <IconPackage size={16} /> },
