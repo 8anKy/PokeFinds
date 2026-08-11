@@ -11,13 +11,7 @@ import {
   type ProductSort,
   type SearchProductsParams,
 } from "@/services/products";
-import {
-  getExploreFacets,
-  getExploreLastSeen,
-  HISTOGRAM_EDGES_KR,
-} from "@/services/explore-facets";
-import { getTopDrops } from "@/services/market";
-import { formatPercent } from "@/lib/format";
+import { getExploreFacets, HISTOGRAM_EDGES_KR } from "@/services/explore-facets";
 import type { CardLanguage, ProductCategory } from "@prisma/client";
 import { CATEGORY_LABELS } from "@/components/features/product-card";
 import { ExploreFeed } from "@/components/features/explore-feed";
@@ -233,15 +227,13 @@ export default async function ProductsPage({
   // JWT-sessioner → ingen DB-fråga. Bara "bäst matchning" bryr sig om vem du är.
   const session = await auth();
   const params = { ...buildParams(searchParams), userId: session?.user?.id };
-  // Facetter/toppfall/senast-sedd är delade cacher (1h/10 min) — de kostar inga
-  // extra Neon-läsningar per sidvisning, bara per TTL-fönster.
-  const [result, sets, retailers, facets, lastSeenIso, topDrops] = await Promise.all([
+  // Facetterna är en delad 1h-cache — kostar inga extra Neon-läsningar per
+  // sidvisning, bara per TTL-fönster.
+  const [result, sets, retailers, facets] = await Promise.all([
     getExploreFeed(params, 0, PAGE_SIZE),
     getFilterSets(),
     getFilterRetailers(),
     getExploreFacets(),
-    getExploreLastSeen(),
-    getTopDrops(),
   ]);
   const feedQuery = buildFeedQuery(params);
   const filterKey = filterStateKey(searchParams);
@@ -266,31 +258,20 @@ export default async function ProductsPage({
     .map((c) => ({ ...c, count: categoryCount.get(c.value) ?? 0 }))
     .sort((a, b) => b.count - a.count);
   const setCount = new Map(facets.sets.map((s) => [s.id, s.count]));
+  // logoUrl + series följer med: sidofältets set-rader visar logotypen och
+  // "Bläddra bland alla set" öppnar samma logotyp-ark som mobilen (SetSheet).
   const panelSets = sets.map((s) => ({
     id: s.id,
     name: s.name,
     language: s.language,
+    logoUrl: s.logoUrl,
+    series: s.series,
     count: setCount.get(s.id) ?? 0,
   }));
   const retailerCount = new Map(facets.retailers.map((r) => [r.id, r.count]));
   const panelRetailers = retailers
     .map((r) => ({ value: r.id, label: r.name, count: retailerCount.get(r.id) ?? 0 }))
     .sort((a, b) => b.count - a.count);
-
-  // Rubrikradens siffror. "Uppdaterad …" räknas per request (sidan är
-  // force-dynamic); källan är en 10-min-cachad MAX(lastSeenAt).
-  const nf = new Intl.NumberFormat("sv-SE");
-  let updatedLabel = t("updatedNow");
-  if (lastSeenIso) {
-    const minutes = Math.max(0, Math.floor((Date.now() - new Date(lastSeenIso).getTime()) / 60_000));
-    updatedLabel =
-      minutes < 1
-        ? t("updatedNow")
-        : minutes < 60
-          ? t("updatedMinAgo", { count: minutes })
-          : t("updatedHoursAgo", { count: Math.floor(minutes / 60) });
-  }
-  const biggestDrop = topDrops[0]?.changePercent ?? null;
 
   const currentSort =
     SORT_OPTIONS.find((o) => o.value === searchParams.sortera)?.value ?? SORT_OPTIONS[0].value;
@@ -334,38 +315,9 @@ export default async function ProductsPage({
 
   return (
     <div className="mx-auto max-w-7xl px-2.5 py-6 sm:px-6 lg:py-10">
-      {/* Rubrikrad — endast desktop (mobilen leder med sökfältet). Till höger:
-          live-punkt + "uppdaterad …" och två marknadssiffror ur delade cacher. */}
-      <div className="hidden items-end justify-between gap-6 lg:flex">
-        <div>
-          <h1 className="font-display text-3xl font-bold text-ink">{t("h1")}</h1>
-          <p className="mt-2 max-w-xl text-ink-muted">{t("intro")}</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-8 pb-1">
-          <span className="flex items-center gap-2 text-xs text-ink-muted">
-            <span aria-hidden className="h-2 w-2 animate-pulse-soft rounded-full bg-rise" />
-            {updatedLabel}
-          </span>
-          <div className="text-right">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
-              {t("inStockNow")}
-            </p>
-            <p className="font-display text-lg font-bold tabular-nums text-ink">
-              {nf.format(facets.inStock)}
-            </p>
-          </div>
-          {biggestDrop != null && biggestDrop < 0 && (
-            <div className="text-right">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
-                {t("biggestDrop7d")}
-              </p>
-              <p className="font-display text-lg font-bold tabular-nums text-fall">
-                {formatPercent(biggestDrop)}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Ingen synlig rubrik (ägarbeslut 2026-08-11: desktopen leder med
+          sökfältet, precis som mobilen) — h1 finns kvar för skärmläsare/SEO. */}
+      <h1 className="sr-only">{t("h1")}</h1>
 
       {/* ───────── Mobil: app-känsla ───────── */}
       {/* Sökfältet ligger kvar i ett GET-<form> (Enter = full sökning utan JS);
@@ -393,7 +345,7 @@ export default async function ProductsPage({
             URL:en och måste MONTERAS OM vid klientnavigering (samma skäl som
             mobilformuläret ovan). relative z-30 i komponenten: under headerns
             z-40, över kortgriden (sökförslags-dropdownen målas annars under). */}
-        <div className="mt-6">
+        <div>
           <ExploreSearchRow
             key={filterKey}
             defaultQuery={searchParams.q}
@@ -405,10 +357,9 @@ export default async function ProductsPage({
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-          {/* z-10, UNDER sökradens z-30: sökförslags-dropdownen hänger ner ÖVER
-              panelens övre kant och målades annars bakom den (samma stacking-
-              fälla som gamla sidofältet, fast åt andra hållet). */}
-          <aside className="sticky top-20 z-10 self-start">
+          {/* Ingen sticky/max-h längre (ägarbeslut 2026-08-11): panelen är hela
+              sin egen höjd och scrollar med sidan — ingen egen rullningslist. */}
+          <aside className="self-start">
             <ExploreFilterPanel
               categories={panelCategories}
               sets={panelSets}

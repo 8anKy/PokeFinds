@@ -534,7 +534,13 @@ function Sheet({
 
 /* ────────────────────────── Set-sheet ─────────────────────────── */
 
-function SetSheet({
+/**
+ * Exporterad sedan 2026-08-11: desktop-sidofältets "Bläddra bland alla set"
+ * öppnar SAMMA ark (ägarbeslut — set väljs med logotypbrickor grupperade på
+ * serie, en implementation). Kolumnantalet är därför responsivt; telefonen på
+ * höjden får exakt de tre kolumner den alltid haft.
+ */
+export function SetSheet({
   open,
   sets,
   activeSetId,
@@ -656,7 +662,9 @@ function SetSheet({
             <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-faint">
               {group.series}
             </p>
-            <div className="grid grid-cols-3 gap-2.5">{group.items.map(tile)}</div>
+            {/* md/xl-stegen gäller bara när arket öppnas från desktop-sidofältet —
+                mobilens filterrad renderas enbart under lg. */}
+            <div className="grid grid-cols-3 gap-2.5 md:grid-cols-5 xl:grid-cols-8">{group.items.map(tile)}</div>
           </div>
         ))}
       </div>

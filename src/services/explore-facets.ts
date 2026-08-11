@@ -16,10 +16,6 @@ import { PRINT_VARIANT_LABELS } from "@/lib/print-variant";
  * (samma mönster och skäl som produkterFilterSets).
  */
 export interface ExploreFacets {
-  /** Antal synliga produkter totalt (samma villkor som katalogens grundvy). */
-  total: number;
-  /** Antal produkter med minst en offer i lager (= filtret "I lager"). */
-  inStock: number;
   categories: { value: ProductCategory; count: number }[];
   sets: { id: string; count: number }[];
   retailers: { id: string; count: number }[];
@@ -51,11 +47,7 @@ async function getExploreFacetsRaw(): Promise<ExploreFacets> {
   const base = await buildProductWhere({});
   const thresholdsOre = HISTOGRAM_EDGES_KR.slice(1).map((kr) => kr * 100);
 
-  const [total, inStock, categoryRows, setRows, retailerRows, bucketRows] = await Promise.all([
-    prisma.product.count({ where: base }),
-    prisma.product.count({
-      where: { AND: [base, { offers: { some: { stockStatus: "IN_STOCK" } } }] },
-    }),
+  const [categoryRows, setRows, retailerRows, bucketRows] = await Promise.all([
     prisma.product.groupBy({ by: ["category"], where: base, _count: { _all: true } }),
     // Singelns set bor på KORTET (Product.setId är null där) — därav COALESCE,
     // exakt som setfiltret i buildProductWhere frågar på båda.
@@ -90,8 +82,6 @@ async function getExploreFacetsRaw(): Promise<ExploreFacets> {
   }
 
   return {
-    total,
-    inStock,
     categories: categoryRows
       .map((r) => ({ value: r.category, count: r._count._all }))
       .sort((a, b) => b.count - a.count),
@@ -102,17 +92,3 @@ async function getExploreFacetsRaw(): Promise<ExploreFacets> {
 }
 
 export const getExploreFacets = cachedRead(getExploreFacetsRaw, "exploreFacets", 3600);
-
-/**
- * Senaste gången någon feed faktiskt såg en butiksannons — driver "Uppdaterad …"-
- * raden i katalogens rubrik. ISO-sträng, inte Date: cachen serialiserar ändå till
- * JSON (Date→sträng-fällan), så typen säger sanningen direkt.
- */
-export const getExploreLastSeen = cachedRead(
-  async () => {
-    const agg = await prisma.offer.aggregate({ _max: { lastSeenAt: true } });
-    return agg._max.lastSeenAt?.toISOString() ?? null;
-  },
-  "exploreLastSeen",
-  600
-);

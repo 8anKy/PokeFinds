@@ -35,12 +35,9 @@ export function ExploreSearchRow({
   const t = useTranslations("Products");
   const formRef = useRef<HTMLFormElement>(null);
 
-  // ⌘K/Ctrl+K fokuserar sökfältet. Etiketten sätts efter mount (plattformen är
-  // okänd på servern — att gissa hade gett en hydreringsvarning).
-  const [shortcutLabel, setShortcutLabel] = useState<string | null>(null);
+  // ⌘K/Ctrl+K fokuserar sökfältet — genvägen finns kvar men visas inte
+  // (ägarbeslut 2026-08-11: ingen kbd-bricka i fältet).
   useEffect(() => {
-    const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
-    setShortcutLabel(isMac ? "⌘K" : "Ctrl K");
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -66,16 +63,6 @@ export function ExploreSearchRow({
           ariaLabel={t("search")}
           className="flex h-12 items-center gap-3 rounded-xl border border-surface-border bg-surface-raised px-4 transition-colors focus-within:border-holo-cyan focus-within:ring-2 focus-within:ring-holo-cyan/30"
           leading={<IconSearch size={18} className="shrink-0 text-holo-cyan" aria-hidden />}
-          trailing={
-            shortcutLabel && (
-              <kbd
-                aria-hidden
-                className="hidden shrink-0 rounded-md border border-surface-border bg-surface-overlay px-1.5 py-0.5 font-sans text-[11px] text-ink-faint xl:block"
-              >
-                {shortcutLabel}
-              </kbd>
-            )
-          }
         />
       </form>
       <ExploreSortMenu options={sortOptions} current={currentSort} defaultValue={defaultSort} />

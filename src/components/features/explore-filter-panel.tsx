@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { isSealedCategory } from "@/lib/product-category";
 import { Button } from "@/components/ui/button";
+import { SafeImage } from "@/components/ui/safe-image";
+import { SetSheet } from "@/components/features/explore-filter-bar";
 import { useExploreParams } from "@/components/features/explore-params";
-import { IconCheck, IconFilter, IconX } from "@/components/ui/icons";
+import { IconCards, IconCheck, IconFilter, IconX } from "@/components/ui/icons";
 
 /** Antal rader per lista innan "Visa alla …"-utfällningen tar vid. */
 const COLLAPSED_ROWS = 5;
@@ -22,6 +25,8 @@ export interface FilterSetOption {
   id: string;
   name: string;
   language: string;
+  logoUrl: string | null;
+  series: string;
   count: number;
 }
 
@@ -65,11 +70,14 @@ function FacetRow({
   checked,
   label,
   count,
+  thumb,
   onToggle,
 }: {
   checked: boolean;
   label: string;
   count?: number;
+  /** Liten bild mellan kryssrutan och etiketten (setlogotyp). */
+  thumb?: ReactNode;
   onToggle: () => void;
 }) {
   return (
@@ -89,6 +97,7 @@ function FacetRow({
       >
         {checked && <IconCheck size={11} strokeWidth={3} />}
       </span>
+      {thumb}
       <span
         className={cn(
           "min-w-0 flex-1 truncate text-sm",
@@ -281,7 +290,9 @@ export function ExploreFilterPanel({
   const maxPris = sp?.get("maxPris") ?? "";
 
   const [showAllCategories, setShowAllCategories] = useState(false);
-  const [showAllSets, setShowAllSets] = useState(false);
+  // "Bläddra bland alla set" öppnar SAMMA logotyp-ark som mobilen (SetSheet) —
+  // ingen inline-utfällning för set på desktop (ägarbeslut 2026-08-11).
+  const [setSheetOpen, setSetSheetOpen] = useState(false);
   const [showAllStores, setShowAllStores] = useState(false);
 
   /* Prisreglaget: lokalt utkast medan tummen dras, URL:en först vid släpp. */
@@ -344,9 +355,20 @@ export function ExploreFilterPanel({
     return [...top, ...pinned];
   };
 
-  const enSets = useMemo(() => sets.filter((s) => s.language !== "JP"), [sets]);
-  const jpSets = useMemo(() => sets.filter((s) => s.language === "JP"), [sets]);
-  const setsByCount = useMemo(() => [...enSets].sort((a, b) => b.count - a.count), [enSets]);
+  const setsByCount = useMemo(() => [...sets].sort((a, b) => b.count - a.count), [sets]);
+
+  /**
+   * "Alla sealed" — en genväg, inte en kategori (samma regel som mobilens
+   * kategorisheet): kryssad exakt när urvalet ÄR hela sealed-mängden.
+   */
+  const sealedValues = categories.map((c) => c.value).filter(isSealedCategory);
+  const sealedActive =
+    sealedValues.length > 0 &&
+    activeCategories.length === sealedValues.length &&
+    sealedValues.every((v) => activeCategories.includes(v));
+  const sealedCount = categories
+    .filter((c) => isSealedCategory(c.value))
+    .reduce((sum, c) => sum + (c.count ?? 0), 0);
 
   const activeCount =
     activeCategories.length +
@@ -380,13 +402,26 @@ export function ExploreFilterPanel({
       checked={activeSet === s.id}
       label={s.name}
       count={s.count > 0 ? s.count : undefined}
+      thumb={
+        <span aria-hidden className="grid h-6 w-10 shrink-0 place-items-center">
+          <SafeImage
+            src={s.logoUrl}
+            alt=""
+            className="max-h-6 max-w-full object-contain"
+            fallback={<IconCards size={14} className="text-ink-faint" />}
+          />
+        </span>
+      }
       onToggle={() => apply({ set: activeSet === s.id ? null : s.id })}
     />
   );
 
   return (
-    <div className="card-surface flex max-h-[calc(100vh-6rem)] flex-col overflow-hidden">
-      <div className="flex flex-1 flex-col overflow-y-auto">
+    <>
+      {/* Panelen är hela sin egen höjd och scrollar med SIDAN — ingen egen
+          rullningslist (ägarbeslut 2026-08-11). Bara butikslistans utfällning
+          behåller en intern scroll. */}
+      <div className="card-surface overflow-hidden">
         <div className="flex items-center justify-between gap-2 border-b border-surface-border/60 px-4 py-3.5">
           <span className="flex items-center gap-2 text-sm font-semibold text-ink">
             <IconFilter size={16} className="text-holo-cyan" aria-hidden />
@@ -422,6 +457,16 @@ export function ExploreFilterPanel({
 
         <Section title={t("category")}>
           <div>
+            {sealedValues.length > 0 && (
+              <FacetRow
+                checked={sealedActive}
+                label={t("allSealed")}
+                count={sealedCount}
+                onToggle={() =>
+                  apply({ kategori: sealedActive ? null : sealedValues.join(",") })
+                }
+              />
+            )}
             {visibleRows(categories, showAllCategories, (c) => activeCategories.includes(c.value)).map(
               (c) => (
                 <FacetRow
@@ -488,23 +533,16 @@ export function ExploreFilterPanel({
         </Section>
 
         <Section title={t("set")}>
-          <div className={cn(showAllSets && "max-h-72 overflow-y-auto pr-1")}>
-            {visibleRows(setsByCount, showAllSets, (s) => activeSet === s.id).map(setRow)}
-            {showAllSets && jpSets.length > 0 && (
-              <>
-                <p className="mb-1 mt-3 px-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
-                  {t("setLanguageJp")}
-                </p>
-                {jpSets.map(setRow)}
-              </>
-            )}
-          </div>
-          {(enSets.length > COLLAPSED_ROWS || jpSets.length > 0) && (
-            <ExpandToggle
-              expanded={showAllSets}
-              label={showAllSets ? t("showFewer") : t("browseAllSets", { count: sets.length })}
-              onClick={() => setShowAllSets((v) => !v)}
-            />
+          <div>{visibleRows(setsByCount, false, (s) => activeSet === s.id).map(setRow)}</div>
+          {sets.length > COLLAPSED_ROWS && (
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              onClick={() => setSetSheetOpen(true)}
+              className="mt-1 px-1.5 text-sm text-holo-cyan transition-colors hover:text-ink focus-visible:outline-none focus-visible:underline"
+            >
+              {t("browseAllSets", { count: sets.length })}
+            </button>
           )}
         </Section>
 
@@ -537,14 +575,28 @@ export function ExploreFilterPanel({
             options={[{ value: "", label: t("all") }, ...languages.map((l) => ({ value: l.value, label: l.label }))]}
           />
         </Section>
+
+        <div className="p-3">
+          <Button type="button" className="w-full" onClick={scrollToResults}>
+            {t("showResults", { results: t("resultCount", { count: total }) })}
+          </Button>
+        </div>
       </div>
 
-      <div className="border-t border-surface-border/60 bg-surface/95 p-3">
-        <Button type="button" className="w-full" onClick={scrollToResults}>
-          {t("showResults", { results: t("resultCount", { count: total }) })}
-        </Button>
-      </div>
-    </div>
+      {/* Samma logotyp-ark som mobilen (portalas till <body>): val applicerar
+          direkt och stänger arket. */}
+      <SetSheet
+        open={setSheetOpen}
+        sets={sets}
+        activeSetId={activeSet || undefined}
+        total={total}
+        onClose={() => setSetSheetOpen(false)}
+        onPick={(id) => {
+          setSetSheetOpen(false);
+          apply({ set: id ?? null });
+        }}
+      />
+    </>
   );
 }
 
