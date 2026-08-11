@@ -1255,6 +1255,39 @@ identiskt (bord, mönster, enkortsfelanvändning). ⚠️ Fångsten jv6brj (andr
 sidan, 2 av 4) är INTE en ö (sidan karvas naturligt) — de två saknade är
 glansklyvda halvor, samma öppna klass som ovan.
 
+**RUNDA 3 SAMMA DAG — KLUSTERRÖSTEN BLEV TVÅDIMENSIONELL, KARVNINGEN
+MOTBEVISAD:** ägarens närbildsfångster (sidan karvas naturligt, INGEN ö bildas)
+visade att ö-maskineriet aldrig når det fallet, och blottade rotfelet i
+klusterröstningen: **rösten räknade bara STORLEK**, så halva kort och hela kort
+röstade på varandra, och formmedianen i ett jämnt blandkluster landade på
+skräpets sida (xjai1a: kluster [0,63·0,71·1,39·1,40] → referensform 1,39 →
+BÅDA riktiga korten förkastade "form 0,45x klustret" medan en glansklyvd halva
+levererades — samma mekanism i mydfjv och 16-01-47). **En klusterkamrat måste
+nu likna kandidaten i BÅDE storlek och form** (`agrees()` i
+regionsFromDistance) — det är hela det fysiska påståendet bakom klustringen.
+MÄTT över alla 46 fångster: xjai1a 1→2 äkta kort, mydfjv (Snom-halve-fångsten)
+1→2 äkta kort, enkortsfångsten 5vsv1z levererar nu KORTET självt (bulk på ett
+kort fungerar i stället för toast), alla bords-/mönster-/ö-fångster identiska.
+⚠️ Medveten kostnad: vqx37r (hela pärmen på HÅLL) levererar nu en junk-megacell
+i stället för att grindas — felanvändningsfallet betalar för att
+riktiga-användningsfallet fungerar.
+⛔ **INRE KARVNING AV MEDELBLOBBAR PROVAD OCH MOTBEVISAD** (byggd som
+`carveSmallBlobs`, riven): omfyllning inifrån ett hopvuxet pars egen rand gav
+**0 interiörer i 12 av 12 försök över fältfångsterna, vid BÅDE tolerans 12 och
+8** — glansen suddar ram→konst-kanten så fyllningen antingen äter allt eller
+inget (samma fysik som fältrunda 5:s "utsmetad kant"). Och geometrisk
+parklyvning UTAN ö-vakterna är osäker: i xm1yr1 vinner en glanshalva klustret,
+och det RIKTIGA kortet ser då ut som "2× ankare" och hade klyvts falskt.
+Kvarvarande öppen klass: hopvuxna par i icke-ö-fångster (5rh9u6:s bottenpar).
+**TVILLINGFALLET I BULK ÄR INTE ETT DETEKTERINGSFEL**: Scorbunny 26↔36 och
+Snom 42↔52 valdes fel i en pärmfångst — cellerna GICK till vision men numret
+var oläsbart på cellavstånd genom plasten och bilden var brus (0,49/0,52) →
+namn-only → "nyast set först" gissade fel tvilling. Marginalerna (0,005/0,016)
+märker dem "?" och tvillingen ligger alltid i vallistan. Samma kort lästes RÄTT
+i singelläget samma dag (036/217 ✓, bild 0,84 ✓). Tvillingsäkerhet i bulk
+kräver närmare fångst — eller en sidkontext-prior (sidkamraternas set), som är
+OMÄTT och inte byggs utan facit.
+
 ## Öppet — nästa steg
 1. **`numberLegible` är just infört och OMÄTT.** Modellen får nu svara ja/nej på om
    varje tecken i numret var läsbart, och numret används bara när svaret är ja.

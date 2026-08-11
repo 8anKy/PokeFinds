@@ -912,6 +912,7 @@ export function detectCardRegions(
   return adoptedRegions;
 }
 
+
 /**
  * Fyller om jätteblobbars inre inifrån deras egen kant. Bakgrundsmodellen är
  * oförändrad — "det sammanhängande som når kanten" — men appliceras en nivå in:
@@ -1166,14 +1167,27 @@ export function regionsFromDistance(
   // STÖRSTA GRUPPEN av likstora regioner: varje kandidat får rösta på hur många
   // andra som ligger inom samma storleksband, och den vinnande gruppens median
   // blir referens. Här: kortklustret får 5 röster, varje skräpkluster 2–3.
+  // ⛔ RÖSTEN ÄR TVÅDIMENSIONELL (2026-08-11): en klusterkamrat måste likna
+  // kandidaten i BÅDE storlek OCH form. Med enbart storleksband röstade halva
+  // kort och hela kort på varandra, och formmedianen i ett jämnt blandkluster
+  // landade på SKRÄPETS sida — MÄTT i tre riktiga pärmfångster (xjai1a:
+  // kluster [0,63 · 0,71 · 1,39 · 1,40] → referensform 1,39 → BÅDA riktiga
+  // korten förkastade "form 0,45x klustret" medan en glansklyvd halva
+  // levererades). Kort är fysiskt lika i båda dimensionerna — det är hela
+  // påståendet bakom klustringen, nu uttryckt i rösten också.
   const areas = valid.map(bboxArea);
+  const aspects = valid.map(bboxAspect);
+  const agrees = (i: number, j: number) => {
+    if (areas[j] < areas[i] * REGION_SIZE_MIN_RATIO) return false;
+    if (areas[j] > areas[i] * REGION_SIZE_MAX_RATIO) return false;
+    const rel = aspects[j] / (aspects[i] || 1);
+    return rel >= REGION_ASPECT_REL_MIN && rel <= REGION_ASPECT_REL_MAX;
+  };
   let bestIdx = 0;
   let bestVotes = -1;
   for (let i = 0; i < areas.length; i++) {
-    const lo = areas[i] * REGION_SIZE_MIN_RATIO;
-    const hi = areas[i] * REGION_SIZE_MAX_RATIO;
     let votes = 0;
-    for (let j = 0; j < areas.length; j++) if (areas[j] >= lo && areas[j] <= hi) votes++;
+    for (let j = 0; j < areas.length; j++) if (agrees(i, j)) votes++;
     // Lika många röster → större area vinner: ett kort är aldrig det minsta
     // skräpet i bilden, men skräp kan vara lika talrikt.
     if (votes > bestVotes || (votes === bestVotes && areas[i] > areas[bestIdx])) {
@@ -1181,12 +1195,7 @@ export function regionsFromDistance(
       bestIdx = i;
     }
   }
-  const clusterLo = areas[bestIdx] * REGION_SIZE_MIN_RATIO;
-  const clusterHi = areas[bestIdx] * REGION_SIZE_MAX_RATIO;
-  const cluster = valid.filter((b) => {
-    const a = bboxArea(b);
-    return a >= clusterLo && a <= clusterHi;
-  });
+  const cluster = valid.filter((_, j) => agrees(bestIdx, j));
   const clusterAreas = cluster.map(bboxArea).sort((a, b) => a - b);
   const refArea = clusterAreas[Math.floor(clusterAreas.length / 2)] ?? 0;
 
