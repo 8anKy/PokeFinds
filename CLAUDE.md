@@ -57,6 +57,13 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   **Send Messages + Embed Links** i kanalerna, (4) lägg upp en cron-job.org-pingare var 3:e minut
   mot `…/workflows/discord-restock.yml/dispatches` (GitHubs egen `schedule:` är best effort och
   kördes i praktiken var 1,5–3,5 h — samma lärdom som restock-watch).
+  ✅ **ALLT OVAN ÄR GJORT 2026-08-11 och bevisat i drift**: 7/7 kanaler kvitterade testinlägget
+  (`--test`), och 19:54 UTC hittade en körning som ingen människa startade 1 lagerflipp och
+  postade 1 larm. ⛔ **PINGAREN ÄR DET GAMLA MANATÖRSK-JOBBET, OMSKRIVET** (cron-job.org id
+  8000102, numera "Foilio Discord restock") — PAT:en låg redan i dess Authorization-header, så
+  ingen behövde hantera token. Manatörsk-jobbet finns därmed INTE LÄNGRE, dvs tombstone-punkten
+  under Auto-uppdatering är avklarad. ⛔ cron-job.org saknar 3-minuters-preset (hoppar 2 → 5) →
+  schemat är ett CUSTOM crontab-uttryck, `*/3 * * * *`; väljer man en preset tappas takten.
   ⛔ **INGET NYTT SAMTYCKE BEHÖVS**: inlägget är produktdata, inga personuppgifter, så det är
   INTE blockerat av juristgranskningen som håller `DISCORD_ENABLED=false`. Egen spak med flit.
   ⛔ **"GRATIS" ÄR ETT VILLKOR, INTE EN BIEFFEKT.** `shouldProcess` returnerar ALLTID false →
