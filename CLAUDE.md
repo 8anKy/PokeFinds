@@ -18,8 +18,9 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
 - **Auto-uppdatering** via GitHub Actions (repot är publikt → obegränsade Actions-minuter):
   `cardmarket-refresh` (dagl 13:00 UTC) + `hot-card-refresh` (21:00), `tradera-sweep` (dagl 04:00), `scrape-all` (dagl 02:00),
   `restock-watch` (var 10:e min via extern pinger). ⛔ Manatörsk-snabbfilen (2-min) TOGS BORT 2026-08-09 (ägarbeslut) —
-  Manatörsk täcks av 10-min-lanen som alla andra butiker. Tombstone i `/api/cron/dispatch` svarar 200 tills ägaren
-  raderat cron-job.org-jobbet "Foilio restock Manatörsk fast".
+  Manatörsk täcks av 10-min-lanen som alla andra butiker. ✅ HELT AVSLUTAT 2026-08-11: workflow-filen var redan borta,
+  cron-job.org-jobbet skrevs om till Discord-pingaren (finns alltså inte längre), och tombstonen i
+  `/api/cron/dispatch` är borttagen. Kvarvarande "Manatörsk" i koden är BUTIKEN, som fortfarande skrapas som alla andra.
   Jobben kör DB-skrivningar med `mapPool`-samtidighet så de hinner klart innan timeout.
   **restock-watch** = `runRestockScan()` i `src/scrapers/runner.ts` (ej längre tunga runScrapeJob-loopen): hämtar de
   restock-bevakade butikernas (config.restockWatch) kataloger PARALLELLT (bara HTTP → Neon sover), läser sedan befintliga
