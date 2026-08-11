@@ -35,6 +35,20 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // RSC-FLIGHT-SVAR FÅR ALDRIG EDGE-CACHAS (incident 2026-07-05 + 2026-08-11):
+        // Railways edge-CDN nycklar bara på URL (ignorerar Vary: RSC), så ett
+        // klientnavigerings flight-svar (text/x-component) cachas under SAMMA
+        // nyckel som HTML-dokumentet — nästa sidbesök får rå RSC-text, och på en
+        // helt statisk sida (s-maxage=31536000) sitter giftet i ett år och
+        // överlever deploys (auto-purgen tar bara HTML-klassen). /logga-in föll
+        // 07-05, /en/community 08-11. ⛔ Middleware KAN inte fixa detta — Next
+        // skriver över Cache-Control för prerendrade svar EFTER middleware
+        // (verifierat mot byggd server 08-11); config-headers appliceras sist.
+        source: "/:path*",
+        has: [{ type: "header", key: "rsc" }],
+        headers: [{ key: "Cache-Control", value: "private, no-store" }],
+      },
+      {
         source: "/:path*",
         headers: [
           {
