@@ -105,6 +105,11 @@
     "cookies": "Cookiepolicy",
     "copyright": "© {year} Foilio. Pokémon och alla relaterade namn är varumärken som tillhör sina respektive ägare. Foilio är en oberoende tjänst."
   },
+  "JoinUs": {
+    "title": "Häng med oss",
+    "badgeAria": "Ladda ned Foilio i App Store",
+    "badgeTagline": "Ladda ned på"
+  },
   "Meta": {
     "title": "Foilio · Din kontrollpanel för Pokémon TCG-marknaden",
     "description": "Bevaka priser, lagerstatus och värdet på din samling. Foilio samlar prisdata, restock-alerts och marknadstrender för Pokémon TCG i Sverige.",
@@ -972,7 +977,8 @@
     "admin": "Adminpanel",
     "logout": "Logga ut",
     "inviteTitle": "Bjud in vänner, få Pro gratis",
-    "inviteSubtitle": "3 vänner som skapar konto = 1 månad Pro"
+    "inviteSubtitle": "3 vänner som skapar konto = 1 månad Pro",
+    "followTitle": "Följ Foilio"
   },
   "Invite": {
     "h1": "Bjud in vänner",

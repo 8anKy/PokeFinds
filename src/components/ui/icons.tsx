@@ -225,6 +225,15 @@ export const IconChevronRight = (p: IconProps) => (
   </svg>
 );
 
+/** Extern länk (pil ut ur rutan) — länken lämnar Foilio/öppnar systemwebbläsaren. */
+export const IconExternalLink = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M14 4h6v6" />
+    <path d="M20 4 11 13" />
+    <path d="M19 14v4.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 3 18.5v-11A2.5 2.5 0 0 1 5.5 5H10" />
+  </svg>
+);
+
 export const IconChevronLeft = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="m15 6-6 6 6 6" />

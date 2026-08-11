@@ -12,8 +12,10 @@ import {
   IconTrophy,
   IconGift,
   IconChevronRight,
+  IconExternalLink,
   type IconProps,
 } from "@/components/ui/icons";
+import { SOCIAL_CHANNELS } from "@/components/features/join-us-card";
 import { LogoutButton } from "./logout-button";
 
 export const dynamic = "force-dynamic";
@@ -148,6 +150,29 @@ export default async function MerPage() {
           {/* Logga ut som sista menyrad (inte fristående knapp) → sidan ryms
               utan scroll på mobil även med invite-kort + adminrad. */}
           <LogoutButton />
+        </nav>
+      </div>
+
+      {/* Följ Foilio — samma kanallista som katalogens "Häng med oss"-kort.
+          Externa länkar (öppnar utanför appen) → utåtpil, inte chevron. */}
+      <div className="overflow-hidden rounded-2xl border border-surface-border bg-surface-raised/40">
+        <p className="border-b border-surface-border px-4 py-3 text-sm font-semibold text-ink">
+          {t("followTitle")}
+        </p>
+        <nav className="flex flex-col">
+          {SOCIAL_CHANNELS.map((c) => (
+            <a
+              key={c.label}
+              href={c.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 border-b border-surface-border px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-overlay/60 active:bg-surface-overlay"
+            >
+              <c.icon size={20} className="shrink-0 text-ink-muted" />
+              <span className="flex-1 text-sm font-medium text-ink">{c.label}</span>
+              <IconExternalLink size={16} className="shrink-0 text-ink-muted" />
+            </a>
+          ))}
         </nav>
       </div>
     </div>

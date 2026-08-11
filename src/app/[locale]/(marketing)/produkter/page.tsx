@@ -16,6 +16,8 @@ import type { CardLanguage, ProductCategory } from "@prisma/client";
 import { CATEGORY_LABELS } from "@/components/features/product-card";
 import { ExploreFeed } from "@/components/features/explore-feed";
 import { ExploreFilterBar } from "@/components/features/explore-filter-bar";
+import { JoinUsCard } from "@/components/features/join-us-card";
+import { AppStoreBadge } from "@/components/layout/app-store-badge";
 import { ExploreSearchRow } from "@/components/features/explore-search-row";
 import {
   ExploreActiveChips,
@@ -324,17 +326,24 @@ export default async function ProductsPage({
           chip-raden inuti navigerar klient-sida och speglar filtren som dolda fält.
           Träffantalet bor i chip-raden — därav ingen egen rubrikrad här. */}
       <div className="space-y-8 lg:hidden">
-        <form key={filterKey} method="GET" action="/produkter">
-          <ExploreFilterBar
-            searchParams={searchParams}
-            sets={sets}
-            retailers={retailers.map((r) => ({ value: r.id, label: r.name }))}
-            categories={categoryOptions}
-            languages={languageOptions}
-            sortOptions={sortOptionList}
-            total={result.total}
-          />
-        </form>
+        <div className="space-y-3">
+          {/* App Store-brickan överst (ägarens placering) — bara mobilwebben:
+              desktop har den i headern, native-appen döljer den själv. */}
+          <div className="flex justify-center">
+            <AppStoreBadge />
+          </div>
+          <form key={filterKey} method="GET" action="/produkter">
+            <ExploreFilterBar
+              searchParams={searchParams}
+              sets={sets}
+              retailers={retailers.map((r) => ({ value: r.id, label: r.name }))}
+              categories={categoryOptions}
+              languages={languageOptions}
+              sortOptions={sortOptionList}
+              total={result.total}
+            />
+          </form>
+        </div>
 
         <section>{feed}</section>
       </div>
@@ -359,7 +368,7 @@ export default async function ProductsPage({
         <div className="mt-6 grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
           {/* Ingen sticky/max-h längre (ägarbeslut 2026-08-11): panelen är hela
               sin egen höjd och scrollar med sidan — ingen egen rullningslist. */}
-          <aside className="self-start">
+          <aside className="space-y-4 self-start">
             <ExploreFilterPanel
               categories={panelCategories}
               sets={panelSets}
@@ -367,6 +376,9 @@ export default async function ProductsPage({
               languages={languageOptions}
               total={result.total}
             />
+            {/* Sociala kanaler under filtren (ägarbeslut 2026-08-11: hellre
+                här än i sidfoten som nästan ingen ser). */}
+            <JoinUsCard />
           </aside>
           {/* scroll-mt: "Visa N produkter"-knappen scrollar hit — landa under
               den sticky headern, inte bakom den. */}
