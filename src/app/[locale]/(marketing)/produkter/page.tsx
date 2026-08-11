@@ -26,6 +26,7 @@ import {
 import { LinkButton } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconSearch } from "@/components/ui/icons";
+import { SiteSchema } from "@/components/seo/site-schema";
 
 export const dynamic = "force-dynamic";
 
@@ -317,6 +318,12 @@ export default async function ProductsPage({
 
   return (
     <div className="mx-auto max-w-7xl px-2.5 py-6 sm:px-6 lg:py-10">
+      {/* Varumärkesschemat bor här för att `/` omdirigerar hit — /produkter ÄR
+          sajtens ingång för Google. Se site-schema.tsx. */}
+      {/* routeParams, INTE params — `params` är omdefinierad ovan till
+          sökparametrarna och har ingen locale. */}
+      <SiteSchema locale={routeParams.locale} />
+
       {/* Ingen synlig rubrik (ägarbeslut 2026-08-11: desktopen leder med
           sökfältet, precis som mobilen) — h1 finns kvar för skärmläsare/SEO. */}
       <h1 className="sr-only">{t("h1")}</h1>

@@ -3,5 +3,5 @@ import { routing } from "./routing";
 
 // Locale-medvetna ersättare för next/link + next/navigation. Använd DESSA i stället
 // så att engelska (/en) behålls vid navigering; på svenska beter de sig som vanligt.
-export const { Link, redirect, usePathname, useRouter, getPathname } =
+export const { Link, redirect, permanentRedirect, usePathname, useRouter, getPathname } =
   createNavigation(routing);
