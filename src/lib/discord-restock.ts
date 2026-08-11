@@ -195,6 +195,56 @@ export function chunk<T>(items: T[], size: number): T[][] {
 }
 
 /**
+ * Postar ETT testinlägg i varje konfigurerad kanal, märkt med vilken routingregel som
+ * pekar dit. Rör varken feedar eller state.
+ *
+ * Finns för att uppsättningsfelet är TYST: en bot utan "Send Messages"/"Embed Links",
+ * eller ett kanal-id från fel server, upptäcks annars först när en riktig påfyllning
+ * inte dyker upp — och då syns det bara i en körningslogg ingen läser. Kör den här
+ * efter varje kanaländring; att den märker ut regeln gör att en förväxlad kanal syns
+ * direkt i Discord i stället för att upptäckas veckor senare på ett felsorterat larm.
+ */
+export async function postTestMessages(
+  config: DiscordRestockConfig
+): Promise<{ ok: string[]; failed: string[] }> {
+  const targets: { channelId: string; rule: string }[] = [
+    ...Object.entries(config.setChannels).map(([k, v]) => ({ channelId: v, rule: `set: ${k}` })),
+    ...Object.entries(config.seriesChannels).map(([k, v]) => ({ channelId: v, rule: `serie: ${k}` })),
+    ...(config.defaultChannelId
+      ? [{ channelId: config.defaultChannelId, rule: "default (allt utan egen kanal)" }]
+      : []),
+  ];
+
+  const ok: string[] = [];
+  const failed: string[] = [];
+  for (const t of targets) {
+    const res = await discordFetch(`/channels/${t.channelId}/messages`, {
+      method: "POST",
+      authorization: `Bot ${config.botToken}`,
+      body: JSON.stringify({
+        embeds: [
+          {
+            title: "Testinlägg från Foilio",
+            description:
+              `Den här kanalen tar emot restock-larm för **${t.rule}**.\n\n` +
+              "Ser du det här är boten rätt kopplad. Inlägget går att radera.",
+            color: BRAND_COLOR,
+            footer: { text: "Foilio · foilio.se" },
+          },
+        ],
+      }),
+    });
+    if (res.ok) {
+      ok.push(`${t.rule} → ${t.channelId}`);
+    } else {
+      const body = await res.text().catch(() => "");
+      failed.push(`${t.rule} → ${t.channelId}: ${res.status} ${body}`);
+    }
+  }
+  return { ok, failed };
+}
+
+/**
  * Postar larmen, grupperade per kanal och buntade tio och tio.
  *
  * Buntningen är inte kosmetisk: Discord rate-limitar per kanal, och ett släpp kan ge

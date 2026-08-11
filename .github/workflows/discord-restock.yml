@@ -31,7 +31,12 @@ name: Discord restock-larm (var 3:e minut)
 on:
   schedule:
     - cron: "0 * * * *" # RESERV om pingern dör. Ger timmes-takt, inte 3-minuters.
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "Posta ett testinlägg i varje kanal och sluta (rör inga feedar)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -116,5 +121,8 @@ jobs:
         run: npm ci --legacy-peer-deps
       - if: steps.guard.outputs.ready == 'true' && steps.nm.outputs.cache-hit != 'true'
         run: npx prisma generate
+      # `test`-läget hoppar över feed-hämtningen helt och postar bara en märkt rad per
+      # kanal — kör det efter varje kanaländring, annars upptäcks ett rättighetsfel
+      # först när en riktig påfyllning uteblir.
       - if: steps.guard.outputs.ready == 'true'
-        run: npx tsx scripts/discord-restock-run.ts
+        run: npx tsx scripts/discord-restock-run.ts ${{ inputs.test && '--test' || '' }}

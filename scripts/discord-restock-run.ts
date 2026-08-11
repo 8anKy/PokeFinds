@@ -23,7 +23,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { runRestockScan, type RestockSourceInfo } from "../src/scrapers/runner";
-import { discordRestockConfig, postRestocks } from "../src/lib/discord-restock";
+import { discordRestockConfig, postRestocks, postTestMessages } from "../src/lib/discord-restock";
 import {
   deriveRestockPosts,
   markPosted,
@@ -103,6 +103,18 @@ async function main() {
       "[discord-restock] Avstängd (DISCORD_RESTOCK_ENABLED != true, eller saknad " +
         "DISCORD_BOT_TOKEN/DISCORD_RESTOCK_CHANNELS) — gör ingenting."
     );
+    return;
+  }
+
+  // `--test`: posta ett märkt testinlägg i varje kanal och sluta. Rör varken feedar
+  // eller state — enda sättet att bevisa att boten FÅR skriva innan en riktig
+  // påfyllning inträffar (ett 403 syns annars bara i en logg ingen läser).
+  if (process.argv.includes("--test")) {
+    const { ok, failed } = await postTestMessages(config);
+    for (const line of ok) console.log(`[discord-restock][test] OK   ${line}`);
+    for (const line of failed) console.error(`[discord-restock][test] FEL  ${line}`);
+    console.log(`[discord-restock][test] ${ok.length} kanaler OK, ${failed.length} misslyckades.`);
+    if (failed.length) process.exitCode = 1;
     return;
   }
 
