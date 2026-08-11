@@ -51,8 +51,9 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   (`.github/workflows/discord-restock.yml` + `scripts/discord-restock-run.ts`) som postar
   restocks var 3:e minut, kanal per SERIE. Kvar för ägaren: (1) skapa kanalerna i Discord,
   (2) sätt repo-VARIABLERNA `DISCORD_RESTOCK_ENABLED=true` och `DISCORD_RESTOCK_CHANNELS`
-  (`{"default":"<id>","series":{"Mega Evolution":"<id>",…}}` — variabler, INTE secrets: kanal-id:n
-  är inga hemligheter, till skillnad från webhook-URL:er som är rena bärartokens), (3) ge boten
+  (`{"default":"<id>","sets":{"Prismatic Evolutions":"<id>"},"series":{"Mega Evolution":"<id>",…}}`
+  — variabler, INTE secrets: kanal-id:n är inga hemligheter, till skillnad från webhook-URL:er som
+  är rena bärartokens), (3) ge boten
   **Send Messages + Embed Links** i kanalerna, (4) lägg upp en cron-job.org-pingare var 3:e minut
   mot `…/workflows/discord-restock.yml/dispatches` (GitHubs egen `schedule:` är best effort och
   kördes i praktiken var 1,5–3,5 h — samma lärdom som restock-watch).
@@ -82,6 +83,10 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   hetare period), 40 distinkta set varav 15 delar på ~1 inlägg/dygn ⇒ en kanal per set = ett
   trettiotal döda kanaler. Per serie: Mega Evolution 7,0/dygn · Scarlet & Violet 3,6 · resten <0,4.
   7 % saknar set ⇒ catch-all obligatorisk. Utan matchande kanal OCH utan catch-all postas inget.
+  **ROUTING = SET → SERIE → CATCH-ALL** (`resolveChannelId`). Setnivån tillkom 08-11 för att
+  enstaka set bär egen kanal medan svansen inte gör det: Prismatic Evolutions ensamt = 91
+  butiks-URL:er, men 15 av 40 set delar på ~1 inlägg/dygn. ⛔ Ordningen är hela poängen — låg
+  serien först hade en setkanal aldrig kunnat ta emot något, eftersom varje set har en serie.
   ⚠️ **ÄGARBESLUT: kanalerna är ÖPPNA för alla.** Restock-larm är annars Pro-only, så den fria
   kanalen ger bort en betalfunktion — och eftersom den är snabbare får den betalande kunden sitt
   mejl EFTER det fria inlägget. Medvetet valt 08-11. Vill man vända på det finns Pro-rollen redan

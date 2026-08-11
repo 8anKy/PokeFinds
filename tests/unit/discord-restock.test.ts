@@ -77,23 +77,34 @@ const KEY = "Dragon's Lair\thttps://butik.se/pitch-black-etb";
 
 describe("resolveChannelId", () => {
   const config = {
+    setChannels: { "prismatic evolutions": "777" },
     seriesChannels: { "mega evolution": "111", "scarlet & violet": "222" },
     defaultChannelId: "999",
   };
 
-  it("väljer seriekanalen, skiftlägesokänsligt", () => {
-    expect(resolveChannelId("Mega Evolution", config)).toBe("111");
-    expect(resolveChannelId("  mega evolution ", config)).toBe("111");
+  it("SET vinner över SERIE — annars kan en setkanal aldrig ta emot något", () => {
+    // Prismatic Evolutions ligger i serien Scarlet & Violet, som har egen kanal (222).
+    expect(resolveChannelId("Prismatic Evolutions", "Scarlet & Violet", config)).toBe("777");
   });
 
-  it("faller tillbaka på catch-all för okänd eller saknad serie", () => {
-    expect(resolveChannelId("Sword & Shield", config)).toBe("999");
-    expect(resolveChannelId(null, config)).toBe("999");
+  it("väljer seriekanalen när setet saknar egen kanal", () => {
+    expect(resolveChannelId("Surging Sparks", "Scarlet & Violet", config)).toBe("222");
+    expect(resolveChannelId(null, "Mega Evolution", config)).toBe("111");
+  });
+
+  it("matchar skiftlägesokänsligt och utan kantmellanslag", () => {
+    expect(resolveChannelId("  prismatic evolutions ", null, config)).toBe("777");
+    expect(resolveChannelId(null, "  MEGA EVOLUTION", config)).toBe("111");
+  });
+
+  it("faller tillbaka på catch-all för okänt set och okänd serie", () => {
+    expect(resolveChannelId("Silver Tempest", "Sword & Shield", config)).toBe("999");
+    expect(resolveChannelId(null, null, config)).toBe("999");
   });
 
   it("FAIL CLOSED: utan catch-all postas inget alls hellre än i fel kanal", () => {
-    expect(resolveChannelId("Okänd", { ...config, defaultChannelId: null })).toBeNull();
-    expect(resolveChannelId(null, { ...config, defaultChannelId: null })).toBeNull();
+    expect(resolveChannelId("Okänd", "Okänd", { ...config, defaultChannelId: null })).toBeNull();
+    expect(resolveChannelId(null, null, { ...config, defaultChannelId: null })).toBeNull();
   });
 });
 

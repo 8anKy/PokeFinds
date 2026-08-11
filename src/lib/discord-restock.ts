@@ -33,15 +33,25 @@ const MAX_FIELD_VALUE = 1024;
 
 export interface DiscordRestockConfig {
   botToken: string;
-  /** Serienamn → kanal-id. Saknas serien används `defaultChannelId`. */
+  /**
+   * SETNAMN → kanal-id, och den vinner över serien. Finns för att enstaka set är stora
+   * nog att bära en egen kanal (Prismatic Evolutions ensamt = 91 butiks-URL:er) medan
+   * svansen inte är det. Utan det här steget hade man tvingats välja mellan sju
+   * seriekanaler eller ~136 setkanaler; nu kan man ha båda delarna där de passar.
+   */
+  setChannels: Record<string, string>;
+  /** Serienamn → kanal-id. Används när setet inte har en egen kanal. */
   seriesChannels: Record<string, string>;
-  /** Catch-all. Utan den postas INGENTING som inte har en seriekanal (fail closed). */
+  /** Catch-all. Utan den postas INGENTING som saknar kanal (fail closed). */
   defaultChannelId: string | null;
 }
 
 /**
  * Läser konfigurationen ur env. `DISCORD_RESTOCK_CHANNELS` är JSON:
- *   {"default":"123","series":{"Mega Evolution":"456","Scarlet & Violet":"789"}}
+ *   {"default":"123",
+ *    "sets":{"Prismatic Evolutions":"456"},
+ *    "series":{"Scarlet & Violet":"789","Mega Evolution":"012"}}
+ * `sets` är valfri och vinner över `series` (se resolveChannelId).
  *
  * ⛔ Kanal-id:n är INTE hemligheter (till skillnad från webhook-URL:er, som är rena
  * bärartokens — vem som helst med URL:en kan posta i kanalen). Därför bot-token +
@@ -58,45 +68,62 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
 
   const raw = process.env.DISCORD_RESTOCK_CHANNELS;
   if (!raw) return null;
-  let parsed: { default?: unknown; series?: unknown };
+  let parsed: { default?: unknown; sets?: unknown; series?: unknown };
   try {
-    parsed = JSON.parse(raw) as { default?: unknown; series?: unknown };
+    parsed = JSON.parse(raw) as { default?: unknown; sets?: unknown; series?: unknown };
   } catch {
     console.error("[discord-restock] DISCORD_RESTOCK_CHANNELS är inte giltig JSON — inget postas.");
     return null;
   }
 
-  const seriesChannels: Record<string, string> = {};
-  if (parsed.series && typeof parsed.series === "object") {
-    for (const [k, v] of Object.entries(parsed.series as Record<string, unknown>)) {
-      if (typeof v === "string" && v.trim()) seriesChannels[normalizeSeries(k)] = v.trim();
+  const readMap = (value: unknown): Record<string, string> => {
+    const out: Record<string, string> = {};
+    if (value && typeof value === "object") {
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        if (typeof v === "string" && v.trim()) out[normalizeChannelKey(k)] = v.trim();
+      }
     }
-  }
+    return out;
+  };
+
+  const setChannels = readMap(parsed.sets);
+  const seriesChannels = readMap(parsed.series);
   const defaultChannelId =
     typeof parsed.default === "string" && parsed.default.trim() ? parsed.default.trim() : null;
 
-  if (!defaultChannelId && Object.keys(seriesChannels).length === 0) return null;
-  return { botToken, seriesChannels, defaultChannelId };
+  if (!defaultChannelId && !Object.keys(setChannels).length && !Object.keys(seriesChannels).length) {
+    return null;
+  }
+  return { botToken, setChannels, seriesChannels, defaultChannelId };
 }
 
-/** Serienamn jämförs skiftlägesokänsligt och utan kantmellanslag — inget annat. */
-export function normalizeSeries(series: string): string {
-  return series.trim().toLowerCase();
+/** Set- och serienamn jämförs skiftlägesokänsligt och utan kantmellanslag. */
+export function normalizeChannelKey(name: string): string {
+  return name.trim().toLowerCase();
 }
 
 /**
- * Vilken kanal ett larm hör hemma i. `null` = posta inte alls.
+ * Vilken kanal ett larm hör hemma i: SET före SERIE före catch-all.
+ * `null` = posta inte alls.
  *
- * ⛔ FAIL CLOSED: utan matchande seriekanal OCH utan catch-all returneras null i
- * stället för att välja "någon" kanal. Ett larm i fel kanal är värre än inget larm —
- * det lär medlemmarna att kanalindelningen inte betyder något.
+ * Ordningen är hela poängen — den specifika regeln måste slå den generella, annars
+ * kunde en setkanal aldrig ta emot något (allt hade fastnat i seriekanalen ovanför).
+ *
+ * ⛔ FAIL CLOSED: utan träff OCH utan catch-all returneras null i stället för att
+ * välja "någon" kanal. Ett larm i fel kanal är värre än inget larm — det lär
+ * medlemmarna att kanalindelningen inte betyder något.
  */
 export function resolveChannelId(
+  setName: string | null | undefined,
   series: string | null | undefined,
-  config: Pick<DiscordRestockConfig, "seriesChannels" | "defaultChannelId">
+  config: Pick<DiscordRestockConfig, "setChannels" | "seriesChannels" | "defaultChannelId">
 ): string | null {
+  if (setName) {
+    const hit = config.setChannels[normalizeChannelKey(setName)];
+    if (hit) return hit;
+  }
   if (series) {
-    const hit = config.seriesChannels[normalizeSeries(series)];
+    const hit = config.seriesChannels[normalizeChannelKey(series)];
     if (hit) return hit;
   }
   return config.defaultChannelId;
@@ -187,9 +214,12 @@ export async function postRestocks(
 ): Promise<{ sent: number; postedKeys: string[] }> {
   const byChannel = new Map<string, RestockPost[]>();
   for (const p of posts) {
-    const channelId = resolveChannelId(p.series, config);
+    const channelId = resolveChannelId(p.setName, p.series, config);
     if (!channelId) {
-      console.warn(`[discord-restock] Ingen kanal för serie "${p.series ?? "(saknas)"}" — hoppar ${p.title}`);
+      console.warn(
+        `[discord-restock] Ingen kanal för set "${p.setName ?? "(saknas)"}" / serie ` +
+          `"${p.series ?? "(saknas)"}" — hoppar ${p.title}`
+      );
       continue;
     }
     const list = byChannel.get(channelId);
