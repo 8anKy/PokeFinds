@@ -12,6 +12,11 @@ prisma/migrations/dev/
 .DS_Store
 .cache/
 .scratch/
+# Actions-cachade arbetsfiler för restock-lanarna (lagerläge + ruttabell). De skapas
+# också lokalt vid torrkörning och hör aldrig hemma i repot.
+.restock-cache/
+.discord-restock-cache/
+.restock-routes/
 *.tsbuildinfo
 next-env.d.ts
 # Glob, inte exakt namn: verktyg lämnar sidofiler (t.ex. .doctor-bak) som annars

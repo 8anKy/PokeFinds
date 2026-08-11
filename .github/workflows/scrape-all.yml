@@ -83,6 +83,24 @@ jobs:
       - if: steps.guard.outputs.ready == 'true'
         run: npx tsx scripts/backfill-gtin.ts --limit 400
 
+      # Ruttabell + källista åt Discord-snabbfilen (discord-restock.yml), som är DB-FRI
+      # och därför inte kan slå upp "vilken produkt är den här butiks-URL:en?" själv.
+      # ⛔ Ligger HÄR med flit: Neon är redan vaken i det här fönstret. En egen cron
+      # hade varit ytterligare en väckning à minst 300 s — och då vore snabbfilen inte
+      # längre gratis, vilket är hela dess existensberättigande.
+      # continue-on-error: en missad export gör bara att snabbfilen hoppar över tills
+      # nästa natt; den får ALDRIG fälla nattkedjan.
+      - if: steps.guard.outputs.ready == 'true'
+        name: Exportera ruttabell åt Discord-snabbfilen
+        id: routes
+        continue-on-error: true
+        run: npx tsx scripts/export-restock-routes.ts
+      - if: steps.guard.outputs.ready == 'true' && steps.routes.outcome == 'success'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .restock-routes
+          key: restock-routes-${{ github.run_id }}
+
       # Discord-rollavstämning. Ligger HÄR i stället för i en egen cron med flit:
       # Neon debiteras per vaken tid, och databasen är redan vaken i det här
       # fönstret — en egen nattlig start hade varit ytterligare en väckning à

@@ -130,7 +130,7 @@ export function buildAuthorizeUrl(state: string): string {
  * en realistisk träff — och en obehandlad 429 där hade sett ut som "rollen
  * kunde inte sättas" för en slumpmässig delmängd användare.
  */
-async function discordFetch(
+export async function discordFetch(
   path: string,
   init: RequestInit & { authorization: string },
   attempt = 0

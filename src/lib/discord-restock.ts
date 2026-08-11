@@ -1,0 +1,223 @@
+/**
+ * Restock-larm till Discord: routing till kanal per SERIE + inläggsformat + utskick.
+ *
+ * ⛔ SKILD FRÅN `@/lib/discord.ts` MED FLIT, och beroende av en EGEN spak
+ * (`DISCORD_RESTOCK_ENABLED`) — inte av `DISCORD_ENABLED`. De två sakerna har olika
+ * juridisk tyngd: rollhanteringen behandlar PERSONUPPGIFTER (Discord-id kopplat till
+ * ett konto hos oss) och ligger mörklagd tills integritetspolicyn är granskad, medan
+ * ett restock-inlägg bara är produktdata i en publik kanal. Att låta den senare hänga
+ * på den förras flagga hade blockerat en ofarlig funktion bakom en juristfråga den
+ * inte har något med att göra — och, värre, gjort det frestande att slå på
+ * `DISCORD_ENABLED` för tidigt.
+ *
+ * Delar BARA 429-hanteringen (`discordFetch`) med rollmodulen.
+ *
+ * KANALVAL = SERIE, inte set (mätt 2026-08-11 på 14 dygns RestockEvent):
+ * 171 restocks fördelade på 40 DISTINKTA set, där 15 av dem delar på ~1 inlägg/dygn.
+ * En kanal per set hade alltså gett ett trettiotal döda kanaler. På SERIE blir det
+ * sju grupper med läsbar volym: Mega Evolution 7,0/dygn · Scarlet & Violet 3,6/dygn ·
+ * resten under 0,4/dygn. 7 % av restockarna saknar set helt (nya förhandsboxar får sin
+ * etikett inom ≤24 h av sealed-set-label) → catch-all-kanalen är obligatorisk, inte
+ * en artighet.
+ */
+import { discordFetch } from "@/lib/discord";
+import { formatPrice } from "@/lib/format";
+
+/** Turkos signaturaccent (`holo.cyan` = #2dd4bf) som heltal, för embed-kanten. */
+const BRAND_COLOR = 0x2dd4bf;
+
+/** Discords hårda tak. Överskrids något svarar API:t 400 och HELA batchen tappas. */
+const MAX_EMBEDS_PER_MESSAGE = 10;
+const MAX_TITLE = 256;
+const MAX_FIELD_VALUE = 1024;
+
+export interface DiscordRestockConfig {
+  botToken: string;
+  /** Serienamn → kanal-id. Saknas serien används `defaultChannelId`. */
+  seriesChannels: Record<string, string>;
+  /** Catch-all. Utan den postas INGENTING som inte har en seriekanal (fail closed). */
+  defaultChannelId: string | null;
+}
+
+/**
+ * Läser konfigurationen ur env. `DISCORD_RESTOCK_CHANNELS` är JSON:
+ *   {"default":"123","series":{"Mega Evolution":"456","Scarlet & Violet":"789"}}
+ *
+ * ⛔ Kanal-id:n är INTE hemligheter (till skillnad från webhook-URL:er, som är rena
+ * bärartokens — vem som helst med URL:en kan posta i kanalen). Därför bot-token +
+ * kanal-id i stället för N webhookar: EN hemlighet som redan finns, och resten är
+ * konfiguration som får ligga öppet i ett publikt repo.
+ *
+ * ⛔ Läser env vid ANROPET, aldrig på modulnivå — samma skäl som `discordBotConfig()`:
+ * Railway bygger utan runtime-env, så ett modulnivå-värde hade frusit till "avstängt".
+ */
+export function discordRestockConfig(): DiscordRestockConfig | null {
+  if (process.env.DISCORD_RESTOCK_ENABLED !== "true") return null;
+  const botToken = process.env.DISCORD_BOT_TOKEN;
+  if (!botToken) return null;
+
+  const raw = process.env.DISCORD_RESTOCK_CHANNELS;
+  if (!raw) return null;
+  let parsed: { default?: unknown; series?: unknown };
+  try {
+    parsed = JSON.parse(raw) as { default?: unknown; series?: unknown };
+  } catch {
+    console.error("[discord-restock] DISCORD_RESTOCK_CHANNELS är inte giltig JSON — inget postas.");
+    return null;
+  }
+
+  const seriesChannels: Record<string, string> = {};
+  if (parsed.series && typeof parsed.series === "object") {
+    for (const [k, v] of Object.entries(parsed.series as Record<string, unknown>)) {
+      if (typeof v === "string" && v.trim()) seriesChannels[normalizeSeries(k)] = v.trim();
+    }
+  }
+  const defaultChannelId =
+    typeof parsed.default === "string" && parsed.default.trim() ? parsed.default.trim() : null;
+
+  if (!defaultChannelId && Object.keys(seriesChannels).length === 0) return null;
+  return { botToken, seriesChannels, defaultChannelId };
+}
+
+/** Serienamn jämförs skiftlägesokänsligt och utan kantmellanslag — inget annat. */
+export function normalizeSeries(series: string): string {
+  return series.trim().toLowerCase();
+}
+
+/**
+ * Vilken kanal ett larm hör hemma i. `null` = posta inte alls.
+ *
+ * ⛔ FAIL CLOSED: utan matchande seriekanal OCH utan catch-all returneras null i
+ * stället för att välja "någon" kanal. Ett larm i fel kanal är värre än inget larm —
+ * det lär medlemmarna att kanalindelningen inte betyder något.
+ */
+export function resolveChannelId(
+  series: string | null | undefined,
+  config: Pick<DiscordRestockConfig, "seriesChannels" | "defaultChannelId">
+): string | null {
+  if (series) {
+    const hit = config.seriesChannels[normalizeSeries(series)];
+    if (hit) return hit;
+  }
+  return config.defaultChannelId;
+}
+
+export interface RestockPost {
+  /**
+   * State-nyckeln (`butik\turl`). Bokföring, inte innehåll — den följer med så att
+   * BARA faktiskt postade larm stämplas i cooldown-kartan. Se `postRestocks`.
+   */
+  key: string;
+  /** Butikens annonstitel (eller katalogtiteln när URL:en är känd). */
+  title: string;
+  storeName: string;
+  /** Butikens produktsida — alltid känd, det är den man ska klicka på. */
+  storeUrl: string;
+  priceOre: number | null;
+  imageUrl: string | null;
+  setName: string | null;
+  series: string | null;
+  /** Vår produktsida, när URL:en gick att slå upp i ruttabellen. */
+  productUrl: string | null;
+  /** PREORDER-övergång får egen rubrik — det är ett annat besked än en påfyllning. */
+  preorder?: boolean;
+}
+
+function clamp(s: string, max: number): string {
+  return s.length <= max ? s : `${s.slice(0, max - 1)}…`;
+}
+
+/**
+ * Ett embed per restock. Länken går till BUTIKEN, inte till oss: den som får larmet
+ * ska kunna köra direkt: varan är slutsåld igen om några minuter. Vår produktsida
+ * ligger som en egen rad när vi känner igen URL:en.
+ */
+export function buildRestockEmbed(post: RestockPost) {
+  const fields: { name: string; value: string; inline: boolean }[] = [
+    { name: "Butik", value: clamp(post.storeName, MAX_FIELD_VALUE), inline: true },
+    { name: "Pris", value: formatPrice(post.priceOre), inline: true },
+  ];
+  if (post.setName) {
+    fields.push({ name: "Set", value: clamp(post.setName, MAX_FIELD_VALUE), inline: true });
+  }
+  if (post.productUrl) {
+    fields.push({
+      name: "Prishistorik",
+      value: clamp(`[Se på Foilio](${post.productUrl})`, MAX_FIELD_VALUE),
+      inline: false,
+    });
+  }
+
+  return {
+    title: clamp(post.title, MAX_TITLE),
+    url: post.storeUrl,
+    description: post.preorder ? "Går nu att förhandsboka." : "Finns i lager igen.",
+    color: BRAND_COLOR,
+    fields,
+    ...(post.imageUrl ? { thumbnail: { url: post.imageUrl } } : {}),
+    footer: { text: "Foilio · foilio.se" },
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/** Delar en lista i bitar om högst `size`. */
+export function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+/**
+ * Postar larmen, grupperade per kanal och buntade tio och tio.
+ *
+ * Buntningen är inte kosmetisk: Discord rate-limitar per kanal, och ett släpp kan ge
+ * ett tiotal restocks i samma körning. Tio embeds i ETT inlägg är en förfrågan i
+ * stället för tio, och läser dessutom som en lista i stället för en vägg.
+ *
+ * Returnerar nycklarna för de larm som FAKTISKT gick ut.
+ *
+ * ⛔ Antalet räcker inte: anroparen stämplar cooldown-kartan med det här utfallet, och
+ * stämplar man ett larm som aldrig postades tystas produkten i två timmar på grund av
+ * ett fel hos Discord. Ett misslyckat inlägg hoppas alltså (larmet är färskvara — en
+ * retry nästa körning vore ett inaktuellt besked) men får INTE räknas som levererat.
+ */
+export async function postRestocks(
+  posts: RestockPost[],
+  config: DiscordRestockConfig
+): Promise<{ sent: number; postedKeys: string[] }> {
+  const byChannel = new Map<string, RestockPost[]>();
+  for (const p of posts) {
+    const channelId = resolveChannelId(p.series, config);
+    if (!channelId) {
+      console.warn(`[discord-restock] Ingen kanal för serie "${p.series ?? "(saknas)"}" — hoppar ${p.title}`);
+      continue;
+    }
+    const list = byChannel.get(channelId);
+    if (list) list.push(p);
+    else byChannel.set(channelId, [p]);
+  }
+
+  let sent = 0;
+  const postedKeys: string[] = [];
+  for (const [channelId, list] of byChannel) {
+    for (const batch of chunk(list, MAX_EMBEDS_PER_MESSAGE)) {
+      const res = await discordFetch(`/channels/${channelId}/messages`, {
+        method: "POST",
+        authorization: `Bot ${config.botToken}`,
+        body: JSON.stringify({ embeds: batch.map(buildRestockEmbed) }),
+      });
+      if (res.ok) {
+        sent += batch.length;
+        for (const p of batch) postedKeys.push(p.key);
+        continue;
+      }
+      // 403 här betyder nästan alltid att boten saknar "Send Messages" i kanalen,
+      // 404 att kanal-id:t är fel. Båda är tysta för användaren — därav loggraden.
+      console.error(
+        `[discord-restock] Kunde inte posta ${batch.length} larm i kanal ${channelId}: ` +
+          `${res.status} ${await res.text().catch(() => "")}`
+      );
+    }
+  }
+  return { sent, postedKeys };
+}

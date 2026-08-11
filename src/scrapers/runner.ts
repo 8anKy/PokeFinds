@@ -228,7 +228,7 @@ const RESTOCK_SCAN_CONCURRENCY = 8;
 const SECOND_CHANCE_MIN_SCORE = 0.75;
 
 /** En normaliserad annons från en butiksfeed, med det som ett feed-först-larm behöver. */
-type FeedItem = {
+export type FeedItem = {
   url: string;
   stockStatus: StockStatus;
   title: string;
@@ -616,8 +616,12 @@ export async function runRestockScan(opts?: {
   // Cachad källista (från förra körningen) — utan denna väcker redan källist-
   // uppslaget Neon på VARJE körning, vilket på 2-min-snabbfilen = aldrig scale-to-zero.
   sources?: RestockSourceInfo[];
+  // Får HELA den normaliserade annonsen (inte bara url+status): Discord-snabbfilen
+  // (scripts/discord-restock-run.ts) bygger sina inlägg här och returnerar alltid
+  // false, så den kör fas 1 (ren HTTP) och lämnar DB:n orörd. Signaturen speglar
+  // därmed vad som FAKTISKT skickas in — den var smalare än verkligheten.
   shouldProcess?: (
-    fetched: { sourceName: string; items: { url: string; stockStatus: StockStatus } [] }[]
+    fetched: { sourceName: string; items: FeedItem[] }[]
   ) => boolean | Promise<boolean>;
 }): Promise<RestockScanResult> {
   let sources: RestockSourceInfo[];

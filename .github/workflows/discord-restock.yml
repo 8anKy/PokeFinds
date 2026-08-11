@@ -1,0 +1,120 @@
+name: Discord restock-larm (var 3:e minut)
+
+# Snabbfil som postar restocks till Discord LÅNGT före mejlet hinner ut.
+#
+# VARFÖR EN EGEN LANE: 10-min-lanen är inte långsam för att utskicket är långsamt —
+# mejl och push skickas redan inne i samma körning som upptäckten (dispatchPendingAlerts
+# anropas direkt efter offer-diffen). Flaskhalsen är TAKTEN. Den här lanen kör var 3:e
+# minut i stället för var 10:e och blir därmed ~3× snabbare på att upptäcka en påfyllning.
+#
+# ⛔ DEN RÖR ALDRIG DATABASEN, OCH DET ÄR VILLKORET FÖR ATT DEN SKA VARA GRATIS.
+# Neon debiteras per VAKEN TID och varje väckning köper minst 300 s. Skulle den här
+# lanen väcka computen var 3:e minut vore den dyrare än allt annat vi kör tillsammans —
+# det var precis därför 2-minuters-snabbfilen togs bort 2026-08-09.
+# Två spärrar håller invarianten:
+#   1. `shouldProcess` returnerar ALLTID false i scripts/discord-restock-run.ts, så
+#      runRestockScan stannar efter fas 1 (ren HTTP) och når aldrig ensureDbAwake().
+#   2. DATABASE_URL nedan pekar med FLIT på en oåtkomlig adress. Skulle någon någon
+#      gång lägga in en DB-fråga här dör körningen omedelbart och SYNLIGT i stället för
+#      att tyst börja kosta pengar. Sätt aldrig in den riktiga strängen.
+#
+# Källistan och ruttabellen (butiks-URL → vår produkt/set/serie) kommer från
+# .restock-routes/routes.json, som export-restock-routes.ts skriver i scrape-alls
+# fönster där Neon ändå är vaken. Saknas filen hoppar körningen över.
+#
+# TRIGGER: samma lärdom som restock-watch.yml — GitHub `schedule:`-cron är best effort
+# och kördes i praktiken var 1,5–3,5 h trots "*/10". Riktig takt kräver en EXTERN cron
+# (cron-job.org) som POST:ar till GitHub-API:t var 3:e minut:
+#   POST https://api.github.com/repos/8anKy/PokeFinds/actions/workflows/discord-restock.yml/dispatches
+#   headers: Authorization: Bearer <PAT (Actions: read+write)>, Accept: application/vnd.github+json
+#   body: {"ref":"main"}
+on:
+  schedule:
+    - cron: "0 * * * *" # RESERV om pingern dör. Ger timmes-takt, inte 3-minuters.
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# Samma skäl som restock-watch: en avbruten körning sparar ALDRIG sin cache
+# (post-steget hoppas vid cancel), och utan cache seedar nästa körning om sitt
+# lagerläge och tappar flapp-historiken.
+concurrency:
+  group: discord-restock
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # ⛔ AVSIKTLIGT OÅTKOMLIG. Se filhuvudet. PrismaClient konstrueras vid import av
+      # runner.ts; en syntaktiskt giltig men död URL låter konstruktionen lyckas och
+      # gör varje faktisk fråga till ett omedelbart, högljutt fel.
+      DATABASE_URL: "postgresql://disabled:disabled@127.0.0.1:1/disabled"
+      DISCORD_RESTOCK_ENABLED: ${{ vars.DISCORD_RESTOCK_ENABLED }}
+      DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+      # Kanal-id:n är INGA hemligheter (till skillnad från webhook-URL:er, som är rena
+      # bärartokens) → repo-VARIABLER, inte secrets. Format:
+      #   {"default":"<kanal-id>","series":{"Mega Evolution":"<id>","Scarlet & Violet":"<id>"}}
+      DISCORD_RESTOCK_CHANNELS: ${{ vars.DISCORD_RESTOCK_CHANNELS }}
+      # Tom → default-listan i scriptet (de åtta mest aktiva butikerna, mätt).
+      # "all" = alla 34. Läs artighetsresonemanget i scriptet innan du sätter "all".
+      DISCORD_RESTOCK_STORES: ${{ vars.DISCORD_RESTOCK_STORES }}
+      NEXT_PUBLIC_APP_URL: "https://www.foilio.se"
+    steps:
+      # Hoppa tyst och grönt när integrationen är avstängd — annars kör vi checkout
+      # och npm var 3:e minut för att göra ingenting.
+      - name: Förkrav — integrationen måste vara påslagen
+        id: guard
+        run: |
+          if [ "${DISCORD_RESTOCK_ENABLED}" != "true" ]; then
+            echo "::notice::DISCORD_RESTOCK_ENABLED != true — hoppar över. Förväntat = grön körning."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif [ -z "${DISCORD_BOT_TOKEN}" ] || [ -z "${DISCORD_RESTOCK_CHANNELS}" ]; then
+            echo "::notice::DISCORD_BOT_TOKEN eller DISCORD_RESTOCK_CHANNELS saknas — hoppar över."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # EGEN cache-nyckel. ⛔ Dela ALDRIG `.restock-cache`/`restock-fp-` med
+      # restock-watch.yml: lanarna skulle läsa och skriva varandras lagerläge, och
+      # både missade och dubblerade larm hade blivit tysta fel.
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .discord-restock-cache
+          key: discord-restock-state-${{ github.run_id }}
+          restore-keys: |
+            discord-restock-state-
+
+      # Ruttabellen — BARA restore. Den skrivs av scrape-all (export-restock-routes.ts).
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .restock-routes
+          key: restock-routes-
+          restore-keys: |
+            restock-routes-
+
+      - if: steps.guard.outputs.ready == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+      # Samma nyckel som de andra lanarna → delad, varm cache (sparar ~35 s/körning).
+      - if: steps.guard.outputs.ready == 'true'
+        id: nm
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: node_modules
+          key: nm-${{ runner.os }}-node20-${{ hashFiles('package-lock.json', 'prisma/schema.prisma') }}
+      - if: steps.guard.outputs.ready == 'true' && steps.nm.outputs.cache-hit != 'true'
+        run: npm ci --legacy-peer-deps
+      - if: steps.guard.outputs.ready == 'true' && steps.nm.outputs.cache-hit != 'true'
+        run: npx prisma generate
+      - if: steps.guard.outputs.ready == 'true'
+        run: npx tsx scripts/discord-restock-run.ts
