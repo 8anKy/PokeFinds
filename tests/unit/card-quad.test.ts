@@ -444,6 +444,54 @@ describe("detectCardRegions", () => {
     }
   });
 
+  it("GLANSFÖRLÅTELSE: ett urätet kort i rutnätslinje räddas — off-grid räddas inte", () => {
+    // Ett kort vars inre "ätits" av blänket (sidfärgad tugga in från kanten →
+    // låg fyllnad, intakt bbox) faller på den relativa fyllnadsvakten men
+    // räddas när det ligger i samma RAD/KOLUMN som ett funnet kort. Samma
+    // objekt diagonalt off-grid räddas INTE (skugg-skyddet).
+    const bite = (img: Uint8Array, w: number, c: { x: number; y: number; cw: number; ch: number }) => {
+      // Tugga från högerkanten: 60 % bredd × 70 % höjd, sidfärgad (105).
+      const bx = Math.round(c.x + c.cw * 0.4);
+      const by = Math.round(c.y + c.ch * 0.15);
+      for (let y = by; y < by + Math.round(c.ch * 0.7); y++) {
+        for (let x = bx; x < c.x + c.cw; x++) {
+          const p = (y * w + x) * 4;
+          img[p] = 105;
+          img[p + 1] = 105;
+          img[p + 2] = 105;
+        }
+      }
+    };
+    const normals = [
+      { x: 85, y: 85, cw: 140, ch: 190 },
+      { x: 85, y: 305, cw: 140, ch: 190 },
+    ];
+    const eaten = { x: 255, y: 85, cw: 140, ch: 190 }; // samma RAD som normals[0]
+    const img = renderBinder(480, 560, { x: 60, y: 50, pw: 360, ph: 460 }, [
+      ...normals,
+      eaten,
+    ]);
+    bite(img, 480, eaten);
+    const regions = detectCardRegions(img, 480, 560, 4, 12);
+    expect(regions.length).toBe(3);
+    const hit = regions.find((r) => {
+      const cx = r.x + r.w / 2;
+      const cy = r.y + r.h / 2;
+      return cx > eaten.x && cx < eaten.x + eaten.cw && cy > eaten.y && cy < eaten.y + eaten.ch;
+    });
+    expect(hit).toBeDefined();
+
+    // Off-grid-kontrollen: samma urätna kort förskjutet en halv ficka lodrätt —
+    // linjerar varken i rad eller kolumn → ingen räddning.
+    const offgrid = { x: 255, y: 190, cw: 140, ch: 190 };
+    const img2 = renderBinder(480, 560, { x: 60, y: 50, pw: 360, ph: 460 }, [
+      ...normals,
+      offgrid,
+    ]);
+    bite(img2, 480, offgrid);
+    expect(detectCardRegions(img2, 480, 560, 4, 12).length).toBe(2);
+  });
+
   it("KVADRANTKLYVNING: en hel 2×2-ficksida som EN blob klyvs i fyra mot ankaret", () => {
     // Ägarens tvåsidesfångst 08-11: högersidans fyra kort smälte till ETT block
     // ~2×2 ankare (2,2×2,1) som föll på storlekssamstämmigheten och klövs i

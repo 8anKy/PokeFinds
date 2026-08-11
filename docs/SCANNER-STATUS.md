@@ -1309,6 +1309,24 @@ Praktisk arbetspunkt: undvik takljusets spegling i fickorna — samma sida gav
 RUTNÄTSKOMPLETTERING (fyll i saknade fickpositioner ur de funna korten +
 sidans geometri) — byggs mot de ~20 sparade pärmfångsterna som facit.
 
+**RUNDA 6 — GLANSFÖRLÅTELSE VID RUTNÄTSLINJE (den kvarvarande klassen):**
+alla kvarvarande pärmmissar var blobbar med rätt läge/storlek/form vars inre
+ätits av blänket (fyllnad 0,46–0,63) — fällda uteslutande av den RELATIVA
+fyllnadsvakten, som finns för skuggor och tyg. Det blänket inte kan dölja är
+RUTNÄTET: fickorna sitter fast. En förkastad blob räddas nu som cell när den
+(1) ligger i klustrets storleksband, (2) håller det EGNA formbandet 0,7–1,35
+(klusterbandets 1,55 släppte igenom en mönsterruta på 1,49), (3) har fyllnad
+≥ 0,45 (absoluta golvet 0,35 räckte inte: en SKUGGA faller rakt under sin
+kastare och linjerade tätt i hr264b med fyllnad 0,42 — tunn marginal, ommät),
+och (4) linjerar med ett funnet korts rad ELLER kolumn inom 0,15 av ankarmåttet
+— MÄTT: äkta fickfragment 0,01–0,05, slumplinjeringar på fullsatta bord
+0,23–0,33 (~3× marginal åt båda håll).
+MÄTT över alla 49 fångster: ägarens sida 3→4/4, tvåsidan 7→**8/8**, gårdagens
+första närbild 3→4/4 — och EXAKT tre räddningar totalt, alla verifierat äkta;
+varenda bords-, mönster- och felanvändningsfångst identisk (inklusive vid
+produktionens celltak 15, där de fyra bortmätta slumpräddningarna annars hade
+levererats).
+
 **TVILLINGFALLET I BULK ÄR INTE ETT DETEKTERINGSFEL**: Scorbunny 26↔36 och
 Snom 42↔52 valdes fel i en pärmfångst — cellerna GICK till vision men numret
 var oläsbart på cellavstånd genom plasten och bilden var brus (0,49/0,52) →

@@ -548,6 +548,21 @@ const REGION_PAIR_FILL_MIN = 0.55;
  *  mot ett JUNK-ankare såg ut som "2× på höjden") bar 0,59 — glansuräten. Utan
  *  portättbandets ankargaranti är fyllnaden den vakt som skiljer fallen. */
 const REGION_PAIR_SPLIT_FILL_MIN = 0.72;
+/** Rutnätslinjeringens tolerans: mittpunktsavstånd i andel av ankarmåttet.
+ *  MÄTT över alla sparade fångster: äkta glansurätna kort i fickor linjerar
+ *  inom 0,01–0,05 (fickorna sitter fast), medan SLUMPlinjeringar på fullsatta
+ *  bord mätte 0,23–0,33. 0,15 delar populationerna med ~3× marginal åt båda
+ *  håll. ⛔ En skugga faller RakT under sin kastare och kan linjera tätt
+ *  (hr264b: 0,05!) — därför bär räddningen även ett fyllnadsgolv (0,45; äkta
+ *  0,46–0,63, skuggan 0,42 — TUNN marginal, ommät vid nya fångster). */
+const REGION_GRID_ALIGN_TOL = 0.15;
+const REGION_GRID_FILL_MIN = 0.45;
+/** Räddningens EGET formband — snävare än klustrets: en mönsterruta på
+ *  överkastet passerade klusterbandet med 1,49 (mot taket 1,55) och räddades
+ *  som cell. Äkta glansurätna kort mäter ≤1,1 relativt klustret; 1,35 ger
+ *  ~10 % marginal till mönsterrutan och ~20 % till äkta kort. */
+const REGION_GRID_FORM_MIN = 0.7;
+const REGION_GRID_FORM_MAX = 1.35;
 /** EN Ö-CELL MÅSTE VARA EN MENINGSFULL DEL AV SIN Ö. Ett kort i en pärmficka
  *  är 12–44 % av sidans yta (MÄTT över ö-fångsterna); skräpöar — de två
  *  Poké Ball-ikonerna på det avskurna kortet i 21:23-fångsten var 0,7 % — är
@@ -634,6 +649,8 @@ export interface RegionDiag {
   clusterRef?: { area: number; aspect: number; fill: number; count: number };
   /** Parklyvningen utanför ön: bokföring per försök. */
   pairDebug?: string;
+  /** Glansförlåtelsen vid rutnätslinje: bokföring per räddat fragment. */
+  gridDebug?: string;
   /** Kompakt bokföring av pärmpassets dom — skrivs VARJE gång en ö fylldes om,
    *  även när adoptionen föll. Utan den är "ön fylldes om men inget hände"
    *  odiagnosticerbart i fält: förkastade celler och en misslyckad adoption
@@ -959,6 +976,59 @@ export function detectCardRegions(
     }
   }
 
+  // GLANSFÖRLÅTELSE VID RUTNÄTSLINJE (2026-08-11, runda 6): kvarvarande
+  // pärmmissar är blobbar med RÄTT läge, storlek och form vars inre ätits av
+  // blänket (fyllnad 0,46–0,60) — de faller uteslutande på den RELATIVA
+  // fyllnadsvakten, som finns för skuggor och tyg. Det blänket inte kan dölja
+  // är RUTNÄTET: fickorna sitter fast, så ett fragment i samma RAD eller
+  // KOLUMN som ett redan funnet kort är ett kort, inte en skugga (skuggor på
+  // ett bord ligger inte i linje med korten OCH i kortens storleks- och
+  // formband samtidigt). Kraven: samma storleks-/formband som klustret, det
+  // ABSOLUTA fyllnadsgolvet orört (0,18-spretet förblir dött), kluster ≥ 2,
+  // och linjering på EXAKT en axel (båda axlarna = samma position som ett
+  // funnet kort, vilket ett förkastat fragment inte kan vara).
+  const gref = adopted.d.clusterRef;
+  if (gref && gref.count >= 2 && gref.area > 0 && adoptedRegions.length >= 2) {
+    const inv = 1 / scale;
+    const anchorW = Math.sqrt(gref.area * gref.aspect) * inv;
+    const anchorH = Math.sqrt(gref.area / gref.aspect) * inv;
+    const recovered: CardRegion[] = [];
+    const consumed = new Set<NonNullable<RegionDiag["rejections"]>[number]>();
+    const notes: string[] = [];
+    for (const r of adopted.d.rejections ?? []) {
+      const a = r.w * scale * (r.h * scale);
+      if (a < gref.area * REGION_SIZE_MIN_RATIO || a > gref.area * REGION_SIZE_MAX_RATIO)
+        continue;
+      const rel = r.w / r.h / (gref.aspect || 1);
+      if (rel < REGION_GRID_FORM_MIN || rel > REGION_GRID_FORM_MAX) continue;
+      if (r.fill < REGION_GRID_FILL_MIN) continue;
+      const cx = r.x + r.w / 2;
+      const cy = r.y + r.h / 2;
+      let bestErr = Infinity;
+      for (const c of adoptedRegions) {
+        const dx = Math.abs(cx - (c.x + c.w / 2)) / anchorW;
+        const dy = Math.abs(cy - (c.y + c.h / 2)) / anchorH;
+        const sameCol = dx <= REGION_GRID_ALIGN_TOL;
+        const sameRow = dy <= REGION_GRID_ALIGN_TOL;
+        if (sameCol !== sameRow) bestErr = Math.min(bestErr, sameCol ? dx : dy);
+      }
+      if (!Number.isFinite(bestErr)) continue;
+      recovered.push({ x: r.x, y: r.y, w: r.w, h: r.h });
+      consumed.add(r);
+      notes.push(`fyll${r.fill.toFixed(2)}/avv${bestErr.toFixed(2)}`);
+    }
+    if (recovered.length > 0) {
+      adoptedRegions = [...adoptedRegions, ...recovered].slice(0, maxRegions);
+      const remaining = (adopted.d.rejections ?? []).filter((r) => !consumed.has(r));
+      adopted.d.rejections = remaining;
+      let largest = 0;
+      for (const r of remaining) if (r.areaFrac > largest) largest = r.areaFrac;
+      adopted.d.largestRejectedFrac = largest;
+      adopted.d.busySurface = largest >= REGION_BUSY_MAX_BLOB;
+      adopted.d.gridDebug = notes.join(" ");
+    }
+  }
+
   if (diag) {
     diag.mw = mw;
     diag.mh = mh;
@@ -973,6 +1043,7 @@ export function detectCardRegions(
     diag.busySurface = adopted.d.busySurface;
     diag.islandReflood = islandReflood;
     diag.pairDebug = adopted.d.pairDebug;
+    diag.gridDebug = adopted.d.gridDebug;
   }
   return adoptedRegions;
 }
