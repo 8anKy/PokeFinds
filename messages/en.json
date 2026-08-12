@@ -1298,6 +1298,10 @@
     "period1y": "1Y",
     "periodMax": "MAX",
     "maxProOnly": "Full history is a Pro feature. Tap to upgrade",
+    "traderaProOnly": "Tradera history is a Pro feature. Tap to upgrade",
+    "traderaProTitle": "Tradera history is a Pro feature",
+    "traderaProDesc": "This product's price history comes from Tradera. With Pro you see both listing prices and what it actually sold for.",
+    "traderaProCta": "See Pro →",
     "chartEmptyTitle": "No price history yet",
     "chartEmptyDesc": "We haven't collected enough price data for this product yet.",
     "chartLatest": "Latest market price",
@@ -1431,6 +1435,7 @@
       "Unlimited watches",
       "Unlimited card scanning",
       "Bulk scanning of several cards in one photo",
+      "Tradera in the chart: listing prices and what it sold for",
       "Advanced price charts and longer history"
     ],
     "proLead": "Everything in Free, plus:",
@@ -1441,6 +1446,7 @@
       "15 AI gradings per month (stronger model)",
       "Unlimited card scanning (fair use)",
       "Bulk scanning · lay out the whole row and scan every card at once",
+      "Tradera in the chart: listing prices and what it sold for",
       "Advanced price charts and longer history"
     ],
     "faqTitle": "Questions about the plans",

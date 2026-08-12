@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { getSession } from "next-auth/react";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { hasAuthHint } from "@/lib/auth-hint";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { IconLock } from "@/components/ui/icons";
+import { SOURCE_ORDER, sourceGate, type SourceKey } from "@/lib/price-graph-sources";
 import { PriceChartLazy } from "@/components/features/price-chart-lazy";
 import type { PriceChartSeries } from "@/components/features/price-chart";
 
@@ -42,12 +44,8 @@ export const SOURCE_COLORS: Record<string, string> = {
   traderaSold: "#fb7185",
 };
 
-/**
- * Ordningen källorna visas i — mest täckande först.
- * ⛔ Butiker ingår INTE: de är länkar, inte en marknad. Se HISTORY_SOURCE_KEYS.
- */
-const SOURCE_ORDER = ["cardmarket", "cardtrader", "tradera", "traderaSold"] as const;
-export type SourceKey = (typeof SOURCE_ORDER)[number];
+/** Källordning, Pro-grinden och dess dom bor i `@/lib/price-graph-sources`. */
+export type { SourceKey };
 
 const PERIODS = [
   { value: "1w", labelKey: "period1w", days: 7 },
@@ -114,7 +112,9 @@ export function ProductPriceCard({
     const primary = available.includes("cardmarket") ? "cardmarket" : available[0];
     return new Set(available.filter((k) => k !== primary));
   });
-  const selected = available.filter((k) => !off.has(k));
+  // Pro-grinden: Tradera-serierna är låsta för gratisanvändare. Domen är ren och
+  // testad — se @/lib/price-graph-sources.
+  const { selected, isLocked, proGated } = sourceGate(available, off, isPro);
 
   const filtered = withinDays(series, period.days);
   // Gles historik (t.ex. äldre sealed med en ensam arkivpunkt): har vald period
@@ -136,8 +136,20 @@ export function ProductPriceCard({
       })
     : undefined;
   // Enkelserie-vägen (yta, uttoning, endpoint-prick) behålls när exakt en källa
-  // är vald — den är mer läsbar än en naken linje.
-  const chartSingle = chartSeries?.length === 1 ? chartSeries[0].points : data;
+  // har punkter i fönstret — den är mer läsbar än en naken linje.
+  //
+  // ⛔ `series`-PROPEN FÅR INTE VARA RESERVEN NÄR VI HAR KÄLLOR. Den är
+  // trendserien (`trendSource` i services/products), och den PEKAR PÅ TRADERA när
+  // Cardmarket saknas — dvs precis den kurva som är Pro-låst. Den gamla raden lät
+  // dessutom `data` vinna så fort två källor var valda men bara en hade punkter i
+  // perioden, och ritade då en serie ingen bockat i. Nu ritas den valda källan;
+  // trendserien används bara i legacy-läget helt utan `bySource`.
+  const withPoints = chartSeries?.filter((s) => s.points.length > 0) ?? [];
+  const chartSingle = available.length
+    ? withPoints.length === 1
+      ? withPoints[0].points
+      : []
+    : data;
 
   return (
     <Card>
@@ -179,16 +191,24 @@ export function ProductPriceCard({
       <CardContent>
         {/* data-swipe-ignore: horisontellt drag på grafen = tooltip-scrubbing,
             inte svep-tillbaka (overlayns gest hoppar över den här ytan). */}
-        {available.length > 1 && (
+        {!proGated && available.length > 1 && (
           <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label={t("sourceFilter")}>
             {available.map((key) => {
-              const on = !off.has(key);
+              const chipLocked = isLocked(key);
+              const on = !chipLocked && !off.has(key);
               return (
                 <button
                   key={key}
                   type="button"
                   aria-pressed={on}
-                  onClick={() =>
+                  title={chipLocked ? t("traderaProOnly") : undefined}
+                  onClick={() => {
+                    // Låst chip väljer INGENTING — den säljer. Samma gest som
+                    // MAX-perioden: ett tryck tar dig till prissidan.
+                    if (chipLocked) {
+                      router.push("/priser");
+                      return;
+                    }
                     setOff((prev) => {
                       const next = new Set(prev);
                       // Minst en källa måste vara vald — annars står man inför en
@@ -198,27 +218,49 @@ export function ProductPriceCard({
                       else next.add(key);
                       return next;
                     })
-                  }
+                  }}
                   className={cn(
                     "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors",
                     on
                       ? "border-surface-border bg-surface-overlay text-ink"
-                      : "border-surface-border/60 text-ink-faint hover:text-ink-muted"
+                      : chipLocked
+                        ? "border-surface-border/60 text-ink-faint hover:text-holo-cyan"
+                        : "border-surface-border/60 text-ink-faint hover:text-ink-muted"
                   )}
                 >
-                  <span
-                    className="inline-block h-2 w-2 rounded-full transition-opacity"
-                    style={{ backgroundColor: SOURCE_COLORS[key], opacity: on ? 1 : 0.3 }}
-                  />
+                  {chipLocked ? (
+                    <IconLock size={11} />
+                  ) : (
+                    <span
+                      className="inline-block h-2 w-2 rounded-full transition-opacity"
+                      style={{ backgroundColor: SOURCE_COLORS[key], opacity: on ? 1 : 0.3 }}
+                    />
+                  )}
                   {t(`source_${key}` as never)}
                 </button>
               );
             })}
           </div>
         )}
-        <div data-swipe-ignore>
-          <PriceChartLazy data={chartSingle} series={chartSeries} />
-        </div>
+        {proGated ? (
+          <EmptyState
+            icon={<IconLock size={28} />}
+            title={t("traderaProTitle")}
+            description={t("traderaProDesc")}
+            action={
+              <Link
+                href="/priser"
+                className="rounded-full bg-holo-cyan/15 px-4 py-1.5 text-xs font-semibold text-holo-cyan transition-colors hover:bg-holo-cyan/25"
+              >
+                {t("traderaProCta")}
+              </Link>
+            }
+          />
+        ) : (
+          <div data-swipe-ignore>
+            <PriceChartLazy data={chartSingle} series={chartSeries} />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

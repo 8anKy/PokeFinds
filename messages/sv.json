@@ -1298,6 +1298,10 @@
     "period1y": "1ÅR",
     "periodMax": "MAX",
     "maxProOnly": "Full historik ingår i Pro. Tryck för att uppgradera",
+    "traderaProOnly": "Tradera-historik ingår i Pro. Tryck för att uppgradera",
+    "traderaProTitle": "Tradera-historik ingår i Pro",
+    "traderaProDesc": "Den här varans prishistorik kommer från Tradera. Med Pro ser du både annonspriser och vad varan faktiskt sålts för.",
+    "traderaProCta": "Läs om Pro →",
     "chartEmptyTitle": "Ingen prishistorik ännu",
     "chartEmptyDesc": "Vi har inte samlat in tillräckligt med prisdata för den här produkten.",
     "chartLatest": "Senaste marknadspris",
@@ -1431,6 +1435,7 @@
       "Obegränsade bevakningar",
       "Obegränsad kortskanning",
       "Bulkskanning av flera kort i samma bild",
+      "Tradera i grafen: annonspriser och vad varan sålts för",
       "Avancerade prisgrafer och längre historik"
     ],
     "proLead": "Allt i Free, plus:",
@@ -1441,6 +1446,7 @@
       "15 AI-graderingar per månad (starkare modell)",
       "Obegränsad kortskanning (skäligt bruk)",
       "Bulkskanning · lägg upp hela raden och skanna alla kort på en gång",
+      "Tradera i grafen: annonspriser och vad varan sålts för",
       "Avancerade prisgrafer och längre historik"
     ],
     "faqTitle": "Frågor om planerna",
