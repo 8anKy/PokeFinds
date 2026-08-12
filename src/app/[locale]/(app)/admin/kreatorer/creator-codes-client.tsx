@@ -77,6 +77,34 @@ export function CreatorCodesClient({ rows, appUrl }: Props) {
     }
   }
 
+  /**
+   * ⛔ Radering är STÄDNING (felstavningar, testrader), inte "avsluta samarbetet".
+   * Servern nekar koder som värvat konton — attributionen är utbetalningsunderlaget
+   * och går inte att återskapa. Avsluta ett samarbete med Aktiv-rutan i stället.
+   */
+  async function remove(row: CreatorCodeStats) {
+    const warning =
+      `Radera ${row.code} permanent?\n\n` +
+      "Koden försvinner och länken slutar attribuera — tyst, utan felmeddelande för " +
+      "den som klickar. Ska samarbetet bara avslutas: stäng av Aktiv i stället.";
+    if (!confirm(warning)) return;
+    setBusyId(row.id);
+    try {
+      const res = await fetch(`/api/admin/creator-codes/${row.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Något gick fel.");
+      toast({ title: "Koden raderad", description: row.code, variant: "success" });
+      router.refresh();
+    } catch (err) {
+      toast({
+        title: "Kunde inte radera koden",
+        description: err instanceof Error ? err.message : undefined,
+        variant: "error",
+      });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function toggleActive(row: CreatorCodeStats) {
     setBusyId(row.id);
     try {
@@ -244,14 +272,28 @@ export function CreatorCodesClient({ rows, appUrl }: Props) {
                       <span className="text-xs text-ink-faint">Ingen</span>
                     )}
                   </TD>
-                  <TD className="text-right">
-                    <Checkbox
-                      id={`active-${r.id}`}
-                      checked={r.isActive}
-                      disabled={busyId === r.id}
-                      onChange={() => toggleActive(r)}
-                      label="Aktiv"
-                    />
+                  <TD>
+                    <div className="flex items-center justify-end gap-3">
+                      <Checkbox
+                        id={`active-${r.id}`}
+                        checked={r.isActive}
+                        disabled={busyId === r.id}
+                        onChange={() => toggleActive(r)}
+                        label="Aktiv"
+                      />
+                      {/* Bara koder utan värvade konton går att radera — servern är
+                          facit, knappen döljs här så vägen inte ens erbjuds. */}
+                      {r.signups === 0 && (
+                        <button
+                          type="button"
+                          onClick={() => remove(r)}
+                          disabled={busyId === r.id}
+                          className="text-sm text-ink-faint transition-colors hover:text-fall disabled:opacity-50"
+                        >
+                          Radera
+                        </button>
+                      )}
+                    </div>
                   </TD>
                 </TR>
               ))}
