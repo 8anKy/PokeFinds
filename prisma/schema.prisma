@@ -186,6 +186,10 @@ model User {
   creatorCodeId        String?
   creatorCode          CreatorCode? @relation(fields: [creatorCodeId], references: [id], onDelete: SetNull)
   attributedAt         DateTime?
+  // När vi senast varnade om att en GRATIS Pro-period är på väg att ta slut.
+  // Dubblettspärr för src/jobs/pro-expiry-notice.ts — utan den mejlas samma person
+  // varje natt så länge hen ligger i varningsfönstret.
+  proExpiryNotifiedAt  DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

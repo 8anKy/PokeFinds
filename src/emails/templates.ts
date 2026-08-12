@@ -133,6 +133,29 @@ export function proRewardEmail(name: string, until: Date): EmailContent {
   return { subject, html, text };
 }
 
+/**
+ * Varning några dagar innan en gratis Pro-period tar slut.
+ *
+ * ⛔ DEN HÄR FÅR INTE UTEBLI. Restock-larm är Pro-only, så när perioden löper ut
+ * SLUTAR larmen tyst — och en användare som inte fått veta varför drar slutsatsen
+ * att Foilio är trasigt, inte att provperioden tog slut. Exakt det tysta bortfallet
+ * har redan hänt en gång (RevenueCat-EXPIRATION 2026-07-08, fyra dygn utan larm).
+ */
+export function proExpiringEmail(name: string, until: Date, daysLeft: number): EmailContent {
+  const untilStr = until.toLocaleDateString("sv-SE", { year: "numeric", month: "long", day: "numeric" });
+  const dayWord = daysLeft === 1 ? "i morgon" : `om ${daysLeft} dagar`;
+  const subject = `Din gratisperiod med Pro tar slut ${dayWord} · Foilio`;
+  const html = layout(
+    "Din Pro-period närmar sig slutet",
+    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Din gratisperiod med Foilio Pro gäller till och med <strong style="color:#ffffff;">${untilStr}</strong>.</p>
+     <p style="line-height:1.6;color:#cbd5e1;">Efter det pausas dina <strong style="color:#ffffff;">restock-larm</strong> och du går tillbaka till gratisplanens gränser. Dina bevakningar och din samling ligger kvar — du behöver inte göra någonting för att spara dem.</p>
+     <p style="line-height:1.6;color:#cbd5e1;">Vill du behålla larmen kostar Pro 49 kr i månaden och kan sägas upp när som helst.</p>
+     ${button(`${APP_URL}/priser`, "Fortsätt med Pro")}`
+  );
+  const text = `Hej ${name}!\n\nDin gratisperiod med Foilio Pro gäller till och med ${untilStr}.\n\nEfter det pausas dina restock-larm och du går tillbaka till gratisplanens gränser. Dina bevakningar och din samling ligger kvar.\n\nVill du behålla larmen kostar Pro 49 kr i månaden och kan sägas upp när som helst: ${APP_URL}/priser${textFooter}`;
+  return { subject, html, text };
+}
+
 export function priceAlertEmail(
   name: string,
   productTitle: string,

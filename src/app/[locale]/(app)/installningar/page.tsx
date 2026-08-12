@@ -59,6 +59,16 @@ export default async function SettingsPage() {
     bio: user.bio,
     planTier: user.planTier,
     isPro: isPro(user),
+    // Gratis Pro-period (kampanj eller inbjudningsbonus) — visas med DATUM, aldrig
+    // bara som "Pro". En användare som inte vet att perioden tar slut upplever
+    // bortfallet av restock-larm som att appen gått sönder. Sätts bara när bonusen
+    // är det som FAKTISKT ger Pro: har personen betalat är slutdatumet irrelevant.
+    bonusProUntil:
+      user.bonusProUntil &&
+      user.bonusProUntil.getTime() > Date.now() &&
+      !isPro({ ...user, bonusProUntil: null })
+        ? user.bonusProUntil.toISOString()
+        : null,
     notificationSettings: parseNotificationSettings(user.notificationSettings),
     traderaUserId: user.traderaUserId,
     discordUsername: user.discordUsername,

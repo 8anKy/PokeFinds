@@ -30,6 +30,8 @@ export interface SettingsUser {
   planTier: "FREE" | "PREMIUM";
   /** Pro-förmåner (planTier ELLER admin-roll) — grinda features på denna, ej planTier. */
   isPro: boolean;
+  /** ISO-datum när en GRATIS Pro-period tar slut, annars null. Se page.tsx. */
+  bonusProUntil: string | null;
   notificationSettings: NotificationSettings;
   traderaUserId: string | null;
   /** Discord-visningsnamnet när kontot är länkat, annars null. */
@@ -354,9 +356,23 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
           <p className="text-sm text-ink-muted">
             {user.isPro ? tSettings("planProDesc") : tSettings("planFreeDesc")}
           </p>
-          {!user.isPro && (
+          {/* Gratisperioden visas med SLUTDATUM. Utan datumet upptäcker användaren
+              att perioden tagit slut genom att restock-larmen tystnar — vilket läser
+              som ett fel i appen, inte som ett utgånget erbjudande. */}
+          {user.bonusProUntil && (
+            <p className="mt-2 text-sm font-medium text-holo-cyan">
+              Gratisperiod till och med{" "}
+              {new Date(user.bonusProUntil).toLocaleDateString("sv-SE", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+              .
+            </p>
+          )}
+          {(!user.isPro || user.bonusProUntil) && (
             <LinkButton href="/priser" className="mt-4">
-              {tSettings("upgradeCta")}
+              {user.bonusProUntil ? "Fortsätt med Pro" : tSettings("upgradeCta")}
             </LinkButton>
           )}
         </CardContent>

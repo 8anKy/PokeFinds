@@ -12,6 +12,7 @@ import { redeemInviteAtRegistration, creditInviteOnVerify } from "@/services/inv
 import { evaluateSignupCode, type SignupCodeVerdict } from "@/lib/signup-code";
 import { CREATOR_REF_COOKIE } from "@/lib/creator-ref";
 import { resolveCreatorCode } from "@/services/creator-codes";
+import { signupBonusUntil, signupCampaignFromEnv } from "@/lib/signup-campaign";
 
 export const dynamic = "force-dynamic";
 
@@ -99,6 +100,14 @@ export async function POST(req: NextRequest) {
     // fritt redigerbara. Okänd/avstängd kod ⇒ null ⇒ kontot skapas som organiskt.
     const creatorCode = await resolveCreatorCode(req.cookies.get(CREATOR_REF_COOKIE)?.value);
 
+    // Lanseringskampanj: gratis Pro till alla som registrerar sig inom fönstret.
+    // ⛔ INERT utan SIGNUP_BONUS_UNTIL — se lib/signup-campaign.ts. Gåvan gäller
+    // ALLA nya konton, inte bara kreatörsvärvade: erbjudandet annonseras utan kod
+    // ("registrera dig före den X"), så det vore fel att neka någon som hörde talas
+    // om det på annat håll. Bevakningen av VILKEN kreatör som levererade sköts av
+    // creatorCodeId ovan och påverkas inte av gåvan.
+    const bonusUntil = signupBonusUntil(signupCampaignFromEnv(), new Date());
+
     // Koden ÄR bekräftelsen → kontot föds verifierat. Länk-flödet
     // (verificationToken + /verifiera) finns kvar enbart för gamla konton.
     const user = await prisma.user.create({
@@ -109,6 +118,7 @@ export async function POST(req: NextRequest) {
         emailVerifiedAt: new Date(),
         creatorCodeId: creatorCode?.id ?? null,
         attributedAt: creatorCode ? new Date() : null,
+        bonusProUntil: bonusUntil,
       },
       select: { id: true, name: true, email: true },
     });

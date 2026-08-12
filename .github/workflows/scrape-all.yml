@@ -126,6 +126,20 @@ jobs:
           # glömma vid rotation (jfr APNs-nyckeln, som lever i tre filer).
         run: npx tsx scripts/discord-reconcile-run.ts
 
+      # Varna dem vars GRATIS Pro-period tar slut om några dagar. Ligger här av
+      # samma skäl som avstämningen ovan: Neon är redan vaken i det här fönstret.
+      # ⛔ Varför den är obligatorisk: restock-larm är Pro-only, så en utgången
+      # gratisperiod tystar larmen UTAN ett ord — och användaren drar slutsatsen att
+      # appen är trasig, inte att provperioden tog slut. Se src/jobs/pro-expiry-notice.ts.
+      - if: steps.guard.outputs.ready == 'true'
+        name: Varna om utgående gratis Pro-perioder
+        continue-on-error: true
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+        run: npx tsx scripts/pro-expiry-notice-run.ts
+
       # Släng den cachade bilden av priserna — se cardmarket-refresh.yml för varför.
       - if: steps.guard.outputs.ready == 'true'
         name: Invalidera sid-cachen (priserna är skrivna)
