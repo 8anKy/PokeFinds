@@ -101,54 +101,77 @@ export async function POST() {
     // billigare för oss än butikernas provision).
     const promotionCodeId = await checkoutPromotionCodeFor(user.id);
 
-    const checkout = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      customer: customerId,
-      line_items: [{ price: priceId, quantity: 1 }],
-      // Identiteten bärs på TVÅ ställen med flit: `client_reference_id` räddar
-      // checkout.session.completed innan någon stripeCustomerId hunnit sparas,
-      // och metadatan följer med prenumerationen genom ALLA senare event.
-      client_reference_id: user.id,
-      subscription_data: { metadata: { userId: user.id } },
-      // Stripe Tax: räknar och tar ut moms automatiskt. ⛔ Måste vara aktiverat
-      // på KONTOT — annars felar hela anropet och köpknappen dör (inte bara
-      // momsen). Se automaticTaxEnabled(); default AV.
-      automatic_tax: { enabled: automaticTaxEnabled() },
-      // Adressen krävs av Stripe Tax för att kunna bestämma momssats, och är
-      // ändå rimlig att ha på ett kvitto. `customer_update` är OBLIGATORISK när
-      // automatic_tax kombineras med en BEFINTLIG kund — utan den vägrar Stripe
-      // skriva adressen till kunden och anropet felar.
-      billing_address_collection: "required",
-      customer_update: { address: "auto", name: "auto" },
-      ...(promotionCodeId
-        ? { discounts: [{ promotion_code: promotionCodeId }] }
-        : { allow_promotion_codes: true }),
-      locale: "sv",
-      // ⛔ ÅNGERRÄTTEN KRÄVER BÅDE SAMTYCKE OCH INFORMATION. Distansavtalslagen
-      // 2 kap.: ångerrätten för en digital tjänst upphör när leveransen påbörjats
-      // — men bara om kunden UTTRYCKLIGEN samtyckt OCH fått veta att rätten går
-      // förlorad. Kryssrutan här är samtycket, /villkor § 11 är informationen.
-      // Saknas endera håller inte avståendet, och kunden kan ångra köpet efter
-      // att ha använt tjänsten.
-      // ⚠️ `terms_of_service: "required"` kräver att en villkors-URL är satt i
-      // Stripes Checkout-inställningar — utan den felar anropet.
-      consent_collection: { terms_of_service: "required" },
-      custom_text: {
-        terms_of_service_acceptance: {
-          // ⛔ Måste säga SAMMA sak som villkorens ångerrättsavsnitt. Modellen är
-          // den proportionella (digital TJÄNST, den försiktigare tolkningen av
-          // distansavtalslagen): ångerrätten försvinner inte helt vid omedelbar
-          // leverans, men den som ångrar sig betalar för nyttjad tid. Den gamla
-          // texten ("ångerrätten upphör") var innehålls-modellen — håller den
-          // inte rättsligt hade kunden BEHÅLLIT full ångerrätt, vilket är sämre
-          // för oss än att lova pro rata. Se villkoren avsnitt 12 + jurist-TODO.
-          message:
-            "Foilio Pro levereras direkt. Genom att godkänna samtycker du till att leveransen påbörjas under ångerfristen; ångrar du dig inom 14 dagar betalar du för den tid du haft tillgång och får resten åter.",
+    const buildSession = (discountId: string | null) =>
+      stripe.checkout.sessions.create({
+        mode: "subscription",
+        customer: customerId,
+        line_items: [{ price: priceId, quantity: 1 }],
+        // Identiteten bärs på TVÅ ställen med flit: `client_reference_id` räddar
+        // checkout.session.completed innan någon stripeCustomerId hunnit sparas,
+        // och metadatan följer med prenumerationen genom ALLA senare event.
+        client_reference_id: user.id,
+        subscription_data: { metadata: { userId: user.id } },
+        // Stripe Tax: räknar och tar ut moms automatiskt. ⛔ Måste vara aktiverat
+        // på KONTOT — annars felar hela anropet och köpknappen dör (inte bara
+        // momsen). Se automaticTaxEnabled(); default AV.
+        automatic_tax: { enabled: automaticTaxEnabled() },
+        // Adressen krävs av Stripe Tax för att kunna bestämma momssats, och är
+        // ändå rimlig att ha på ett kvitto. `customer_update` är OBLIGATORISK när
+        // automatic_tax kombineras med en BEFINTLIG kund — utan den vägrar Stripe
+        // skriva adressen till kunden och anropet felar.
+        billing_address_collection: "required",
+        customer_update: { address: "auto", name: "auto" },
+        ...(discountId
+          ? { discounts: [{ promotion_code: discountId }] }
+          : { allow_promotion_codes: true }),
+        locale: "sv",
+        // ⛔ ÅNGERRÄTTEN KRÄVER BÅDE SAMTYCKE OCH INFORMATION. Distansavtalslagen
+        // 2 kap.: ångerrätten för en digital tjänst upphör när leveransen påbörjats
+        // — men bara om kunden UTTRYCKLIGEN samtyckt OCH fått veta att rätten går
+        // förlorad. Kryssrutan här är samtycket, /villkor § 11 är informationen.
+        // Saknas endera håller inte avståendet, och kunden kan ångra köpet efter
+        // att ha använt tjänsten.
+        // ⚠️ `terms_of_service: "required"` kräver att en villkors-URL är satt i
+        // Stripes Checkout-inställningar — utan den felar anropet.
+        consent_collection: { terms_of_service: "required" },
+        custom_text: {
+          terms_of_service_acceptance: {
+            // ⛔ Måste säga SAMMA sak som villkorens ångerrättsavsnitt. Modellen är
+            // den proportionella (digital TJÄNST, den försiktigare tolkningen av
+            // distansavtalslagen): ångerrätten försvinner inte helt vid omedelbar
+            // leverans, men den som ångrar sig betalar för nyttjad tid. Den gamla
+            // texten ("ångerrätten upphör") var innehålls-modellen — håller den
+            // inte rättsligt hade kunden BEHÅLLIT full ångerrätt, vilket är sämre
+            // för oss än att lova pro rata. Se villkoren avsnitt 12 + jurist-TODO.
+            message:
+              "Foilio Pro levereras direkt. Genom att godkänna samtycker du till att leveransen påbörjas under ångerfristen; ångrar du dig inom 14 dagar betalar du för den tid du haft tillgång och får resten åter.",
+          },
         },
-      },
-      success_url: `${appUrl}/priser?checkout=klar&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/priser?checkout=avbruten`,
-    });
+        success_url: `${appUrl}/priser?checkout=klar&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${appUrl}/priser?checkout=avbruten`,
+      });
+
+    // ⛔ EN UTGÅNGEN RABATTKOD FÅR ALDRIG DÖDA KÖPKNAPPEN. Ett promotion code blir
+    // PERMANENT inaktivt när det passerar `expires_at` eller `max_redemptions`
+    // (Stripes egen formulering) — och det är själva POÄNGEN med en kampanj som
+    // tar slut. Skickar vi då `discounts` med ett dött id felar HELA anropet, så
+    // alla kreatörsvärvade användare hade mött en trasig uppgradering i stället
+    // för bara ett uteblivet avdrag. Tyst, och bara för dem.
+    //
+    // Vi speglar därför INTE Stripes kampanjstatus i vår databas (två sanningar
+    // som glider isär) utan gör om försöket utan rabatt. Faller även det andra
+    // försöket är felet något annat än koden — då kastas det vidare som vanligt.
+    let checkout;
+    try {
+      checkout = await buildSession(promotionCodeId);
+    } catch (stripeError) {
+      if (!promotionCodeId) throw stripeError;
+      console.warn(
+        `[billing] Rabattkoden ${promotionCodeId} nekades av Stripe (troligen utgången kampanj) — kassan öppnas till fullt pris.`,
+        stripeError
+      );
+      checkout = await buildSession(null);
+    }
 
     if (!checkout.url) throw new ServiceError(502, "Stripe gav ingen betalningslänk.");
     return jsonOk({ url: checkout.url });
