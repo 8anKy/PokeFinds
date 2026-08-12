@@ -121,7 +121,13 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   mejl EFTER det fria inlägget. Medvetet valt 08-11. Vill man vända på det finns Pro-rollen redan
   (kanalbehörighet på `Pro`), men den kräver att rollsynken är påslagen, dvs juristgranskningen.
   ⚠️ **BUTIKSURVALET ÄR EN ARTIGHETSFRÅGA, INTE EN KOSTNADSFRÅGA**: default är de åtta mest
-  aktiva (82 % av alla restocks). Var 2:a minut mot ALLA 34 vore ~24 500 feed-hämtningar/dygn mot
+  aktiva (82 % av alla restocks). Sedan 2026-08-12 är repo-variabeln `DISCORD_RESTOCK_STORES`
+  satt till de åtta + **MaxGaming** (ägaren fick MaxGaming-restocks från en konkurrentbot men
+  inte från oss — butiken låg utanför default-listan). ⛔ **EN NY KÄLLA SEEDAS TYST PER KÄLLA**
+  (`seededSources` i `deriveRestockPosts`): när MaxGaming lades till såg diffen alla dess ~41
+  lagerförda varor som "ny-i-lager" och postade 11 av dem som restocks — de var bara befintligt
+  sortiment. En källa utan nycklar i förra lagerläget behandlas nu som roterande exakt den
+  körningen; nästa körning diffas den som vanligt. Vaktat av test. Var 2:a minut mot ALLA 34 vore ~24 500 feed-hämtningar/dygn mot
   10-min-lanens ~4 900 — att bli blockerad av en butik skadar hela produkten, inte bara Discord.
   Med åtta butiker: ~5 800/dygn (var 1:a minut hade blivit ~11 500, dvs en full katalogkrypning av
   varje butik var 60:e sekund dygnet runt — för ~30 s lägre snittlatens på 12,2 restocks/dygn).

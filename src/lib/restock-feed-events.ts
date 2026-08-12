@@ -88,7 +88,15 @@ export interface DeriveResult {
   posts: RestockPost[];
   nextState: DiscordRestockState;
   /** Diagnostik för körningsloggen — inte för användaren. */
-  stats: { changes: number; seeded: boolean; skippedUnknownUrl: number; skippedFlap: number; skippedCooldown: number };
+  stats: {
+    changes: number;
+    seeded: boolean;
+    /** Källor som seedades TYST denna körning (nya i state-filen). */
+    seededSources: string[];
+    skippedUnknownUrl: number;
+    skippedFlap: number;
+    skippedCooldown: number;
+  };
 }
 
 const IN_STOCK = "IN_STOCK";
@@ -105,7 +113,14 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
   const seeded = state == null || Object.keys(prev.stock).length === 0;
 
   const nextStock = mergeStateMap(prev.stock, groups);
-  const stats = { changes: 0, seeded, skippedUnknownUrl: 0, skippedFlap: 0, skippedCooldown: 0 };
+  const stats: DeriveResult["stats"] = {
+    changes: 0,
+    seeded,
+    seededSources: [],
+    skippedUnknownUrl: 0,
+    skippedFlap: 0,
+    skippedCooldown: 0,
+  };
 
   if (seeded) {
     return {
@@ -115,7 +130,24 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
     };
   }
 
-  const changes = actionableChanges(prev.stock, groups, rotating);
+  // ⛔ SEEDNINGEN GÄLLER PER KÄLLA, INTE BARA FÖR HELA FILEN (mätt 2026-08-12: när
+  // MaxGaming lades till i butikslistan såg diffen alla dess ~41 lagerförda varor som
+  // "ny-i-lager" och POSTADE 11 av dem som restocks — de var bara befintligt
+  // sortiment). En källa utan en enda nyckel i förra lagerläget är NY: dess varor
+  // seedas tyst genom att källan behandlas som roterande exakt den här körningen —
+  // nästa körning har den nycklar i state och diffas som vanligt.
+  const prevSources = new Set(
+    Object.keys(prev.stock).map((k) => k.slice(0, k.indexOf("\t")))
+  );
+  const effectiveRotating = new Set(rotating);
+  for (const g of groups) {
+    if (g.items.length > 0 && !prevSources.has(g.sourceName) && !effectiveRotating.has(g.sourceName)) {
+      effectiveRotating.add(g.sourceName);
+      stats.seededSources.push(g.sourceName);
+    }
+  }
+
+  const changes = actionableChanges(prev.stock, groups, effectiveRotating);
   stats.changes = changes.length;
 
   // Alla övergångar (även slutförsäljningar) in i historiken — flapp-fönstret räknar

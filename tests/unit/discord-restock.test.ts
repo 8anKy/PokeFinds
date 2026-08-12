@@ -120,6 +120,28 @@ describe("deriveRestockPosts", () => {
     expect(r.nextState.stock[KEY]).toBe("IN_STOCK");
   });
 
+  it("SEEDAR en NY KÄLLA tyst fast state redan finns för andra källor", () => {
+    // Mätt 2026-08-12: när MaxGaming lades till i butikslistan såg diffen alla dess
+    // lagerförda varor som "ny-i-lager" och postade befintligt sortiment som restocks.
+    const otherStoreKey = "Webhallen\thttps://webhallen.se/nagon-vara";
+    const r = derive({
+      state: state({ stock: { [otherStoreKey]: "IN_STOCK" } }),
+      groups: groups([{ url: "https://butik.se/pitch-black-etb", stockStatus: "IN_STOCK" }]),
+    });
+    expect(r.posts).toHaveLength(0);
+    expect(r.stats.seededSources).toEqual(["Dragon's Lair"]);
+    // Källans lagerläge skrivs ändå — nästa körning diffas den som vanligt...
+    expect(r.nextState.stock[KEY]).toBe("IN_STOCK");
+
+    // ...och en riktig påfyllning efteråt postar.
+    const r2 = derive({
+      state: state({ stock: { ...r.nextState.stock, [KEY]: "OUT_OF_STOCK" } }),
+      groups: groups([{ url: "https://butik.se/pitch-black-etb", stockStatus: "IN_STOCK" }]),
+    });
+    expect(r2.stats.seededSources).toEqual([]);
+    expect(r2.posts).toHaveLength(1);
+  });
+
   it("postar en påfyllning (OUT → IN) på en känd URL", () => {
     const r = derive({
       state: state({ stock: { [KEY]: "OUT_OF_STOCK" } }),

@@ -186,6 +186,12 @@ async function main() {
       if (s.seeded) {
         console.log("[discord-restock] Ingen tidigare state — seedar lagerläget, postar inget.");
       } else {
+        if (s.seededSources.length) {
+          console.log(
+            `[discord-restock] Ny(a) källa(or) i state: ${s.seededSources.join(", ")} — ` +
+              "seedas tyst, postar inget för dem denna körning."
+          );
+        }
         console.log(
           `[discord-restock] ${s.changes} lagerflipp(ar) → ${derived.posts.length} att posta ` +
             `(hoppade: ${s.skippedUnknownUrl} okänd URL, ${s.skippedFlap} blink/flapp, ` +
