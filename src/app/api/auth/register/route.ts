@@ -10,6 +10,8 @@ import { sendMail } from "@/lib/mailer";
 import { welcomeEmail } from "@/emails/templates";
 import { redeemInviteAtRegistration, creditInviteOnVerify } from "@/services/invites";
 import { evaluateSignupCode, type SignupCodeVerdict } from "@/lib/signup-code";
+import { CREATOR_REF_COOKIE } from "@/lib/creator-ref";
+import { resolveCreatorCode } from "@/services/creator-codes";
 
 export const dynamic = "force-dynamic";
 
@@ -90,10 +92,24 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
+    // Kreatörsattribution: koden kommer från `fo_ref`-cookien som middleware satte
+    // när besökaren klickade på kreatörens `?ref=`-länk (upp till 30 dygn sedan).
+    // Läses SERVER-side ur cookien, aldrig ur klientens body — annars kan vilken
+    // POST som helst tillskriva sig ett konto och kreatörsutbetalningarna blir
+    // fritt redigerbara. Okänd/avstängd kod ⇒ null ⇒ kontot skapas som organiskt.
+    const creatorCode = await resolveCreatorCode(req.cookies.get(CREATOR_REF_COOKIE)?.value);
+
     // Koden ÄR bekräftelsen → kontot föds verifierat. Länk-flödet
     // (verificationToken + /verifiera) finns kvar enbart för gamla konton.
     const user = await prisma.user.create({
-      data: { name, email: normalizedEmail, passwordHash, emailVerifiedAt: new Date() },
+      data: {
+        name,
+        email: normalizedEmail,
+        passwordHash,
+        emailVerifiedAt: new Date(),
+        creatorCodeId: creatorCode?.id ?? null,
+        attributedAt: creatorCode ? new Date() : null,
+      },
       select: { id: true, name: true, email: true },
     });
 

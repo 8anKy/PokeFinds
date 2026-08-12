@@ -179,6 +179,13 @@ model User {
   discordUserId        String?   @unique
   discordUsername      String? // visningsnamn, bara för att UI:t ska kunna säga VILKET konto
   discordLinkedAt      DateTime?
+  // Kreatörsspårning: vilken TikTok-kreatörs länk kontot skapades via.
+  // ⛔ Sätts EN gång, vid registreringen, och skrivs aldrig om — attributionen är
+  // ett historiskt faktum om hur kontot uppstod, inte ett föränderligt tillstånd.
+  // onDelete: SetNull → en raderad kod tar inte användaren med sig.
+  creatorCodeId        String?
+  creatorCode          CreatorCode? @relation(fields: [creatorCodeId], references: [id], onDelete: SetNull)
+  attributedAt         DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -202,6 +209,42 @@ model User {
   sales           Sale[]
 
   @@index([email])
+  @@index([creatorCodeId])
+}
+
+// Betald kreatörssamarbete (TikTok m.fl.): en kod per kreatör.
+//
+// Koden gör TVÅ oberoende saker, och de får aldrig blandas ihop:
+//   1. ATTRIBUTION — `?ref=EMMA` → cookie → User.creatorCodeId vid registrering.
+//      Gäller ALLA konton, på alla plattformar, oavsett om personen köper Pro.
+//      Det är den här siffran kreatören betalas på.
+//   2. RABATT — samma sträng finns som ett promotion code hos Stripe och ger
+//      15 % i webbkassan. ⛔ BARA WEBBEN: Apple tillåter inte egen checkout i
+//      app:en, så en iOS-användare som köper via App Store kan inte få rabatten
+//      (Apples egna offer codes är ett helt separat system i App Store Connect).
+//      Därför ska kreatörslänken landa på webben, inte i butiken.
+model CreatorCode {
+  id String @id @default(cuid())
+  /// Kanonisk form: VERSALER, [A-Z0-9_-]. Se normalizeCreatorCode() —
+  /// koden skrivs av för hand från en video, så "emma" och "EMMA" måste bli samma rad.
+  code        String  @unique
+  creatorName String
+  /// Var kreatören publicerar (@handle eller URL) — ren dokumentation för oss.
+  channel     String?
+  note        String?
+  /// Stripes promotion_code-id ("promo_…", INTE själva koden). Finns det ett
+  /// sådant förifylls rabatten i kassan så användaren slipper skriva koden igen.
+  /// Tomt = koden spårar bara, ingen rabatt (fullt giltigt).
+  stripePromotionCodeId String?
+  /// Avstängd kod slutar attribuera NYA konton. Befintlig attribution rörs aldrig —
+  /// historiken är fortfarande sann, och kreatören ska betalas för den.
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[]
+
+  @@index([isActive])
 }
 
 // Engångskod som bevisar e-postägarskap FÖRE kontot skapas ("Skicka kod" i

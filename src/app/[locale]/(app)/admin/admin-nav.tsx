@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: "/admin/lankfel", label: "Länkfel" },
   { href: "/admin/butiker", label: "Butiker" },
   { href: "/admin/engagemang", label: "Engagemang" },
+  { href: "/admin/kreatorer", label: "Kreatörer" },
 ] as const;
 
 export function AdminNav() {

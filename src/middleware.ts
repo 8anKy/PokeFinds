@@ -4,6 +4,12 @@ import createMiddleware from "next-intl/middleware";
 import { routing } from "@/i18n/routing";
 import { BLOCKED_BOTS } from "@/lib/blocked-bots";
 import {
+  CREATOR_REF_COOKIE,
+  CREATOR_REF_MAX_AGE,
+  CREATOR_REF_PARAM,
+  creatorRefAction,
+} from "@/lib/creator-ref";
+import {
   AUTH_HINT_COOKIE,
   AUTH_HINT_MAX_AGE,
   SESSION_COOKIE_NAMES,
@@ -82,6 +88,34 @@ function syncAuthHint(req: NextRequest, res: NextResponse): NextResponse {
 }
 
 /**
+ * Fångar kreatörslänkens `?ref=EMMA` i en cookie som lever i 30 dygn, så att
+ * attributionen överlever fram till registreringen (som kan ske långt senare, på
+ * en annan sida). Se lib/creator-ref.ts för VARFÖR den måste sättas här:
+ * `document.cookie` kapas till 7 dygn av WebKit, dvs på ungefär halva trafiken.
+ *
+ * ⛔ NOLL DB. Koden slås upp mot CreatorCode först vid registreringen — en fråga
+ * här hade väckt Neon för varje anonym sidvisning och crawler-träff.
+ *
+ * ⛔ Parametern lämnas kvar i URL:en med flit. Att strippa den kräver en redirect
+ * (en extra rundtur för varje kreatörsklick) och skulle dessutom göra länken
+ * omöjlig att felsöka genom att bara titta på adressfältet.
+ */
+function captureCreatorRef(req: NextRequest, res: NextResponse): NextResponse {
+  const action = creatorRefAction(
+    req.nextUrl.searchParams.get(CREATOR_REF_PARAM),
+    req.cookies.get(CREATOR_REF_COOKIE)?.value
+  );
+  if (action.type === "set") {
+    res.cookies.set(CREATOR_REF_COOKIE, action.value, {
+      path: "/",
+      maxAge: CREATOR_REF_MAX_AGE,
+      sameSite: "lax",
+    });
+  }
+  return res;
+}
+
+/**
  * GLIDANDE SESSION. Skriver om sessionscookien med en färsk utgång så att en
  * användare som faktiskt använder appen aldrig loggas ut av sig själv.
  *
@@ -132,7 +166,7 @@ export async function middleware(req: NextRequest) {
   // Publika sidor auth-gatas inte — låt next-intl sköta locale-routing direkt.
   const isProtected = PROTECTED_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
   if (!isProtected) {
-    const res = syncAuthHint(req, intlMiddleware(req));
+    const res = captureCreatorRef(req, syncAuthHint(req, intlMiddleware(req)));
     // Sessionen förnyas ÄVEN på publika sidor — annars hade den som mest bläddrar
     // i katalogen loggats ut trots daglig användning. `getToken` (en JWE-dekryptering)
     // körs bara när det FINNS en sessionscookie, så utloggade besökare — merparten
@@ -154,7 +188,10 @@ export async function middleware(req: NextRequest) {
     loginUrl.searchParams.set("callbackUrl", pathname + search);
     const res = NextResponse.redirect(loginUrl);
     res.cookies.set("fo_auth", "", { maxAge: 0, path: "/" });
-    return res;
+    // En kreatörslänk kan peka på en skyddad sida — cookien måste överleva
+    // omdirigeringen till inloggningen, annars tappas attributionen precis för
+    // den besökare som är på väg att skapa ett konto.
+    return captureCreatorRef(req, res);
   }
 
   if (path.startsWith("/admin")) {
@@ -165,7 +202,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Autentiserad OK → låt next-intl sätta locale-context/rewrite.
-  const res = syncAuthHint(req, intlMiddleware(req));
+  const res = captureCreatorRef(req, syncAuthHint(req, intlMiddleware(req)));
   await renewSession(req, res, token);
   return res;
 }

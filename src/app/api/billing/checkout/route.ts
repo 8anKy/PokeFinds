@@ -5,6 +5,7 @@ import { ServiceError } from "@/lib/errors";
 import { legalEntity } from "@/lib/legal-entity";
 import { rateLimit } from "@/lib/rate-limit";
 import { automaticTaxEnabled, getStripe } from "@/lib/stripe";
+import { checkoutPromotionCodeFor } from "@/services/creator-codes";
 
 export const dynamic = "force-dynamic";
 
@@ -87,6 +88,19 @@ export async function POST() {
       );
     }
 
+    // Kom användaren in via en kreatörslänk vars kod har ett Stripe promotion code
+    // förifylls rabatten, annars visas den vanliga "har du en rabattkod?"-rutan.
+    //
+    // ⛔ `discounts` och `allow_promotion_codes` UTESLUTER VARANDRA i Stripe
+    // Checkout — skickas båda felar hela anropet och köpknappen dör. Därför ETT av
+    // dem, aldrig båda.
+    //
+    // ⚠️ Rabatten gäller BARA webben. Native köper via App Store/Google Play, som
+    // har sina egna rabattsystem — en iOS-användare med kreatörskod betalar fullt
+    // pris i app:en. Skicka kreatörstrafiken till webben (den är dessutom
+    // billigare för oss än butikernas provision).
+    const promotionCodeId = await checkoutPromotionCodeFor(user.id);
+
     const checkout = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
@@ -106,7 +120,9 @@ export async function POST() {
       // skriva adressen till kunden och anropet felar.
       billing_address_collection: "required",
       customer_update: { address: "auto", name: "auto" },
-      allow_promotion_codes: true,
+      ...(promotionCodeId
+        ? { discounts: [{ promotion_code: promotionCodeId }] }
+        : { allow_promotion_codes: true }),
       locale: "sv",
       // ⛔ ÅNGERRÄTTEN KRÄVER BÅDE SAMTYCKE OCH INFORMATION. Distansavtalslagen
       // 2 kap.: ångerrätten för en digital tjänst upphör när leveransen påbörjats
