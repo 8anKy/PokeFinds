@@ -154,6 +154,7 @@ async function main() {
   );
   let nextState: DiscordRestockState | null = null;
   let posted = 0;
+  let postFailures = 0;
 
   const result = await runRestockScan({
     sources: routesData.sources,
@@ -195,6 +196,7 @@ async function main() {
       if (derived.posts.length) {
         const res = await postRestocks(derived.posts, config);
         posted = res.sent;
+        postFailures = res.failed;
         // Bara det som Discord kvitterade får en cooldown-stämpel. Misslyckades
         // utskicket ligger övergången kvar och larmas igen nästa körning.
         nextState = markPosted(derived.nextState, res.postedKeys, now);
@@ -224,6 +226,19 @@ async function main() {
   }
 
   console.log(`[discord-restock] ${result.sources} butiker hämtade, ${posted} larm postade.`);
+
+  // ⛔ NEKADE UTSKICK GÖR KÖRNINGEN RÖD. 2026-08-12 förlorade boten Send Messages i
+  // alla sju kanaler och lanen stod tyst i 14 timmar — varenda körning grön, felet
+  // bara en loggrad ingen läser. Ett rött jobb är den enda signal som når någon.
+  // (Testläget beter sig redan så; det här är samma regel för driftvägen.)
+  if (postFailures > 0) {
+    console.error(
+      `[discord-restock] ${postFailures} larm NEKADES av Discord — kontrollera att boten ` +
+        `har "Visa kanal" + "Skicka meddelanden" + "Bädda in länkar" i kanalerna ` +
+        `(kör workflow-dispatch med test=true för en kanal-för-kanal-rapport).`
+    );
+    process.exitCode = 1;
+  }
 }
 
 main()

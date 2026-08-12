@@ -251,7 +251,10 @@ export async function postTestMessages(
  * ett tiotal restocks i samma körning. Tio embeds i ETT inlägg är en förfrågan i
  * stället för tio, och läser dessutom som en lista i stället för en vägg.
  *
- * Returnerar nycklarna för de larm som FAKTISKT gick ut.
+ * Returnerar nycklarna för de larm som FAKTISKT gick ut, plus antalet som NEKADES —
+ * anroparen ska göra körningen RÖD på nekade utskick. Mätt behov 2026-08-12: boten
+ * förlorade Send Messages i alla sju kanaler och lanen stod tyst i 14 timmar med
+ * gröna körningar; enda spåret var en loggrad ingen läser.
  *
  * ⛔ Antalet räcker inte: anroparen stämplar cooldown-kartan med det här utfallet, och
  * stämplar man ett larm som aldrig postades tystas produkten i två timmar på grund av
@@ -261,7 +264,7 @@ export async function postTestMessages(
 export async function postRestocks(
   posts: RestockPost[],
   config: DiscordRestockConfig
-): Promise<{ sent: number; postedKeys: string[] }> {
+): Promise<{ sent: number; postedKeys: string[]; failed: number }> {
   const byChannel = new Map<string, RestockPost[]>();
   for (const p of posts) {
     const channelId = resolveChannelId(p.setName, p.series, config);
@@ -278,6 +281,7 @@ export async function postRestocks(
   }
 
   let sent = 0;
+  let failed = 0;
   const postedKeys: string[] = [];
   for (const [channelId, list] of byChannel) {
     for (const batch of chunk(list, MAX_EMBEDS_PER_MESSAGE)) {
@@ -293,11 +297,12 @@ export async function postRestocks(
       }
       // 403 här betyder nästan alltid att boten saknar "Send Messages" i kanalen,
       // 404 att kanal-id:t är fel. Båda är tysta för användaren — därav loggraden.
+      failed += batch.length;
       console.error(
         `[discord-restock] Kunde inte posta ${batch.length} larm i kanal ${channelId}: ` +
           `${res.status} ${await res.text().catch(() => "")}`
       );
     }
   }
-  return { sent, postedKeys };
+  return { sent, postedKeys, failed };
 }
