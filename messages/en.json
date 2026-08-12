@@ -160,7 +160,16 @@
       "errEmail": "Invalid email address.",
       "errPassword": "The password must be at least 8 characters.",
       "errConfirm": "The passwords don't match.",
-      "inviteNote": "You are signing up through a friend's invite. Confirm your email after registering to make it count."
+      "errCode": "Enter the 6-digit code from the email.",
+      "sendCode": "Send code",
+      "sendCodeHint": "We'll email you a code to confirm the address is yours. Your account is created in the next step.",
+      "codeTitle": "Confirm your email address",
+      "codeSentTo": "We've emailed a 6-digit code to {email}. Enter it here to create your account.",
+      "codeLabel": "Verification code",
+      "resend": "Send a new code",
+      "resendWait": "Send a new code ({seconds}s)",
+      "editDetails": "Edit details",
+      "inviteNote": "You are signing up through a friend's invite – it counts as soon as your account is created."
     },
     "forgot": {
       "title": "Forgot your password?",

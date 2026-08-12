@@ -204,6 +204,20 @@ model User {
   @@index([email])
 }
 
+// Engångskod som bevisar e-postägarskap FÖRE kontot skapas ("Skicka kod" i
+// registreringen). En rad per adress (upsert vid ny kod). Bara HASHEN av koden
+// lagras — se hashToken(). SKILD från User.verificationToken, som är länk-flödet
+// för REDAN skapade konton: två gamla obekräftade konton lever på tokens utan
+// utgångstid och det flödet lämnas orört. Koder här är pre-konto och får gå ut —
+// den som missar fönstret begär bara en ny.
+model SignupVerification {
+  email     String   @id
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
 // Såld annons (ögonblicksbild) — byggs när ett samlingsobjekts Tradera-annons säljs.
 // Fristående från CollectionItem så sålda poster aldrig läcker in i aktiv samling/värde.
 model Sale {

@@ -15,8 +15,16 @@ function formatSek(ore: number): string {
   return `${(ore / 100).toLocaleString("sv-SE", { minimumFractionDigits: 2 })} kr`;
 }
 
-/** Gemensamt skal för alla mejl. */
-function layout(title: string, bodyHtml: string): string {
+/**
+ * Gemensamt skal för alla mejl. `footerReason` finns för mejl till adresser
+ * UTAN konto (registreringskoden) — standardraden "du har ett konto" vore
+ * då osann, och mottagaren kan vara någon vars adress en främling knappade in.
+ */
+function layout(
+  title: string,
+  bodyHtml: string,
+  footerReason = "Du får detta mejl för att du har ett konto på Foilio.<br>Du kan ändra dina aviseringsinställningar i Foilio-appen."
+): string {
   return `<!DOCTYPE html>
 <html lang="sv">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
@@ -30,8 +38,7 @@ function layout(title: string, bodyHtml: string): string {
       ${bodyHtml}
     </div>
     <div style="text-align:center;padding-top:24px;font-size:12px;color:#6b7280;line-height:1.6;">
-      Du får detta mejl för att du har ett konto på Foilio.<br>
-      Du kan ändra dina aviseringsinställningar i Foilio-appen.<br>
+      ${footerReason}<br>
       © Foilio · Sveriges marknadsplats för Pokémon TCG
     </div>
   </div>
@@ -71,6 +78,32 @@ export function welcomeEmail(name: string): EmailContent {
      <p style="line-height:1.6;color:#cbd5e1;">Öppna Foilio-appen och lägg till produkter i din bevakningslista för att komma igång.</p>`
   );
   const text = `Välkommen, ${name}!\n\nKul att ha dig här! Med Foilio kan du jämföra priser, bevaka produkter och få aviseringar vid prisfall och restocks.\n\nÖppna Foilio-appen för att komma igång.${textFooter}`;
+  return { subject, html, text };
+}
+
+/**
+ * Registreringskoden ("Skicka kod"-steget). Mottagaren har inget konto ännu,
+ * och kan vara någon vars adress en främling knappade in — därav footern och
+ * ignorera-raden. `ttlMs` skickas in av anroparen (SIGNUP_CODE_TTL_MS) så copy
+ * och kod inte kan glida isär — ⛔ modulen får inte importera signup-code
+ * själv: den drar in Node-crypto, och templates.ts når edge-bundlen via
+ * instrumentation → scheduler → notifications, där 'crypto' inte finns.
+ */
+export function signupCodeEmail(code: string, ttlMs: number): EmailContent {
+  const minutes = Math.round(ttlMs / 60_000);
+  const subject = "Din verifieringskod – Foilio";
+  const footerReason = "Du får detta mejl för att din adress angavs vid registrering på Foilio.";
+  const html = layout(
+    "Bekräfta din e-postadress",
+    `<p style="line-height:1.6;color:#cbd5e1;">Ange koden nedan för att slutföra registreringen av ditt Foilio-konto.</p>
+     <div style="text-align:center;margin:24px 0;">
+       <span style="display:inline-block;background-color:#0f1115;border:1px solid #2a2e38;border-radius:8px;padding:14px 24px;font-size:28px;font-weight:700;letter-spacing:8px;color:#ffffff;">${code}</span>
+     </div>
+     <p style="line-height:1.6;color:#cbd5e1;">Koden gäller i ${minutes} minuter.</p>
+     <p style="line-height:1.6;color:#6b7280;font-size:13px;">Försökte du inte skapa ett konto? Då kan du ignorera detta mejl — inget konto skapas utan koden.</p>`,
+    footerReason
+  );
+  const text = `Din verifieringskod för att skapa ett Foilio-konto: ${code}\n\nKoden gäller i ${minutes} minuter.\n\nFörsökte du inte skapa ett konto? Då kan du ignorera detta mejl — inget konto skapas utan koden.\n\nFoilio · Sveriges marknadsplats för Pokémon TCG`;
   return { subject, html, text };
 }
 

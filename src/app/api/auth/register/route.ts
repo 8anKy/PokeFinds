@@ -1,4 +1,3 @@
-import crypto from "crypto";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -7,10 +6,10 @@ import { prisma } from "@/lib/db";
 import { apiError, jsonOk } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/client-ip";
-import { hashToken } from "@/lib/tokens";
 import { sendMail } from "@/lib/mailer";
-import { welcomeEmail, verifyEmail } from "@/emails/templates";
-import { redeemInviteAtRegistration } from "@/services/invites";
+import { welcomeEmail } from "@/emails/templates";
+import { redeemInviteAtRegistration, creditInviteOnVerify } from "@/services/invites";
+import { evaluateSignupCode, type SignupCodeVerdict } from "@/lib/signup-code";
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +17,20 @@ const schema = z.object({
   name: z.string().trim().min(2, "Namnet måste vara minst 2 tecken.").max(80),
   email: z.string().trim().email("Ogiltig e-postadress."),
   password: z.string().min(8, "Lösenordet måste vara minst 8 tecken.").max(128),
+  // Koden från "Skicka kod"-steget (/api/auth/register/send-code) — beviset på
+  // att adressen är användarens egen. Utan giltig kod skapas inget konto.
+  code: z.string().trim().regex(/^\d{6}$/, "Ange den 6-siffriga koden från mejlet."),
   // Inbjudningskod (#10) — valfri; ogiltig/använd kod ignoreras tyst
   // (registreringen ska aldrig stoppas av en dålig kod).
   invite: z.string().trim().max(64).optional(),
 });
+
+const CODE_ERRORS: Record<Exclude<SignupCodeVerdict, "ok">, string> = {
+  missing: "Ingen kod är utfärdad för den här adressen. Tryck på ”Skicka kod” först.",
+  expired: "Koden har gått ut. Begär en ny kod.",
+  locked: "För många felaktiga försök. Begär en ny kod.",
+  wrong: "Fel kod. Kontrollera mejlet och försök igen.",
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,7 +42,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { name, email, password, invite } = schema.parse(await req.json());
+    const { name, email, password, code, invite } = schema.parse(await req.json());
     const normalizedEmail = email.toLowerCase();
 
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
@@ -55,36 +64,48 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
-    const verificationToken = crypto.randomBytes(32).toString("hex");
+    // E-postägarskapet bevisas FÖRE kontot skapas. Koden kontrolleras EFTER
+    // namn-/adresskollarna ovan så att ett upptaget namn inte bränner ett av
+    // kodens fem försök; den förbrukas (raderas) först när kontot faktiskt
+    // skapats, så användaren kan rätta andra fält utan att begära ny kod.
+    const verification = await prisma.signupVerification.findUnique({
+      where: { email: normalizedEmail },
+    });
+    const verdict = evaluateSignupCode(verification, code, new Date());
+    if (verdict !== "ok") {
+      if (verdict === "wrong") {
+        await prisma.signupVerification.update({
+          where: { email: normalizedEmail },
+          data: { attempts: { increment: 1 } },
+        });
+      }
+      return NextResponse.json({ error: CODE_ERRORS[verdict] }, { status: 400 });
+    }
 
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Koden ÄR bekräftelsen → kontot föds verifierat. Länk-flödet
+    // (verificationToken + /verifiera) finns kvar enbart för gamla konton.
     const user = await prisma.user.create({
-      // Bara HASHEN lagras; råtoken lever enbart i verifieringslänken nedan. Se hashToken().
-      data: { name, email: normalizedEmail, passwordHash, verificationToken: hashToken(verificationToken) },
+      data: { name, email: normalizedEmail, passwordHash, emailVerifiedAt: new Date() },
       select: { id: true, name: true, email: true },
     });
 
+    // Förbrukad — deleteMany är idempotent om två flikar tävlade (unikt e-post-
+    // index på User avgjorde redan vinnaren ovan).
+    await prisma.signupVerification.deleteMany({ where: { email: normalizedEmail } });
+
     // Inbjudan (#10): förbruka koden mot det NYA kontot (registrering är enda
-    // inlösningsvägen). Engångs + atomär i redeemInviteAtRegistration.
-    if (invite) await redeemInviteAtRegistration(invite, user.id);
-
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-    const verifyUrl = `${appUrl}/verifiera?token=${verificationToken}`;
-
-    // E-postfel ska inte stoppa registreringen — kontot finns och behålls.
-    // ⛔ De två mejlen delade förr ETT try-block med välkomstmejlet FÖRST: föll
-    // det (och det är det kosmetiska av de två) hoppades verifieringsmejlet över
-    // helt, medan svaret ändå sa "kolla din inkorg". Verifieringen skickas därför
-    // FÖRST och OBEROENDE, och dess utfall styr vad vi påstår i svaret.
-    let verificationSent = true;
-    try {
-      await sendMail({ to: user.email, ...verifyEmail(user.name, verifyUrl) });
-    } catch (mailError) {
-      verificationSent = false;
-      console.error(
-        `[register] Verifieringsmejlet till ${user.email} gick inte att skicka:`,
-        mailError
-      );
+    // inlösningsvägen). Engångs + atomär i redeemInviteAtRegistration. Kontot
+    // föds bekräftat, så vännens belöning krediteras direkt — nya konton når
+    // aldrig /api/auth/verify, som var den gamla krediteringspunkten.
+    if (invite) {
+      await redeemInviteAtRegistration(invite, user.id);
+      try {
+        await creditInviteOnVerify(user.id);
+      } catch (e) {
+        console.error("creditInviteOnVerify misslyckades:", e);
+      }
     }
 
     // Välkomstmejlet är trevligt, inte funktionellt: eget try, påverkar inte svaret.
@@ -94,16 +115,7 @@ export async function POST(req: NextRequest) {
       console.error(`[register] Välkomstmejlet till ${user.email} gick inte att skicka:`, mailError);
     }
 
-    // Ärligt svar: be aldrig någon kolla en inkorg som aldrig får något.
-    return jsonOk(
-      {
-        message: verificationSent
-          ? "Kontot har skapats. Kolla din inkorg för att bekräfta din e-postadress."
-          : "Kontot har skapats, men bekräftelsemejlet fastnade på vägen. Använd “Skicka igen” i påminnelsen högst upp i appen när du är inloggad.",
-        verificationEmailSent: verificationSent,
-      },
-      { status: 201 }
-    );
+    return jsonOk({ message: "Kontot har skapats. Välkommen till Foilio!" }, { status: 201 });
   } catch (e) {
     return apiError(e);
   }

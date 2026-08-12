@@ -1447,6 +1447,16 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
 - **Offers = endast direkta länkar**: visa aldrig sök-/bläddringslänkar som offers. `isDirectOfferUrl()` vaktar både UI och prisstatistik. Butiksfilter kräver IN_STOCK + direkt länk. Direkta länkar UTAN pris visas ändå (pris "–")
 - **TCG-import paginering**: använd ALDRIG `orderBy=number` i `fetchTcgCardsForSet` — pokemontcg.io:s string-sort tappar kort mellan sidor. Set kan ha >250 kort (totalCount), paginera stabilt utan orderBy
 - **Auth**: NextAuth v4 med Credentials provider + JWT-sessioner. RBAC via `role` på User (USER/MODERATOR/ADMIN/SUPERADMIN)
+- **REGISTRERING KRÄVER MEJLAD KOD — KONTOT FÖDS VERIFIERAT (2026-08-12)**: tvåstegad registrering.
+  `/api/auth/register/send-code` mejlar en 6-siffrig kod (hashad rad i `SignupVerification`, TTL 15 min,
+  5 gissningar sedan låst, per-IP + per-adress-spärr, skicka-först-spara-sedan) och `/api/auth/register`
+  kräver koden → `emailVerifiedAt` sätts vid skapandet. Ren dom = `src/lib/signup-code.ts` (testad utan DB).
+  Inbjudningar krediteras DIREKT i register-routen (`creditInviteOnVerify`) — nya konton når aldrig
+  `/api/auth/verify`. ⛔ LÄNK-FLÖDET (`verificationToken`/`/verifiera`/resend-verification + bannern) finns
+  kvar ENBART för gamla konton och får inte rivas: två konton (inkl. ägarens SUPERADMIN) lever på tokens
+  utan utgångstid. ⛔ `templates.ts` får INTE importera signup-code (drar in Node-crypto i edge-bundlen via
+  instrumentation → scheduler → notifications) — TTL:en skickas in som parameter. E2E kan inte läsa inkorgen,
+  så auth.spec verifierar att kodsteget NÅS; själva skapandet täcks av enhetstester + smoke-test.
 - **DB**: PROD = Neon serverless Postgres (Frankfurt), connection-string i `.env` som `NEON_DATABASE_URL`. DEV = lokal PostgreSQL 18 (tjänst `postgresql-x64-18`), databas `pokefinds`, user `postgres`, lösen `pokefinds-local`. Docker behövs INTE. `DB_POOL`-env sätter `connection_limit` för batch-jobb
 - **Prod-DB från CLI — ANVÄND ALLTID `scripts/with-prod-db.mjs`**:
   ```bash
@@ -1457,6 +1467,11 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   agent-transkript. 2026-07-13 grep:ade en subagent fram connection-stringen och skrev ut delar
   av den i sitt verktygsutdata (lösenordet nådde aldrig disk — men det var tur, inte design).
   Wrappern skickar värdet som miljövariabel till barnprocessen; det passerar aldrig ett skal.
+  ⚠️ **`migrate deploy` kan timeouta på advisory-låset** ("Timed out trying to acquire a postgres advisory
+  lock") — pooler-URL:en går via PgBouncer i transaktionsläge, så ett sessionslås från en tidigare
+  migrering kan stranda på en poolad backend och aldrig släppas (sett 2026-08-12: en app-session höll
+  låset). När ingen deploy pågår: kör om med `PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1` — låset skyddar bara
+  mot SAMTIDIGA migreringar, och våra migrationer är idempotenta (IF NOT EXISTS).
   `.claude/settings.json` NEKAR dessutom läsning av `.env` (Read + vanliga cat/grep) — en spärr
   i djupet, inte ett fullgott skydd: ett skal kan alltid läsa en fil på något sätt. Det riktiga
   skyddet är att ingen BEHÖVER hemligheten.

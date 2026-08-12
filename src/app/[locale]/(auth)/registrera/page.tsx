@@ -14,18 +14,29 @@ interface FieldErrors {
   email?: string;
   password?: string;
   confirm?: string;
+  code?: string;
 }
+
+/** Klient-sidans "skicka igen"-paus. Ingen säkerhetsspärr (servern har sina
+ *  egna) — bara en ärlig indikation på att mejl tar några sekunder att landa. */
+const RESEND_COOLDOWN_S = 60;
 
 export default function RegisterPage() {
   const t = useTranslations("Auth");
   const router = useRouter();
+  // Registreringen sker i två steg: uppgifterna fylls i, en 6-siffrig kod
+  // mejlas ("Skicka kod"), och kontot skapas först när koden anges — beviset
+  // på att adressen är användarens egen.
+  const [step, setStep] = useState<"details" | "code">("details");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [code, setCode] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
   // Inbjudningskod (#10) ur ?invite= — läses från location (ej useSearchParams:
   // slipper Suspense-kravet). Skickas med registreringen och visas som notis.
   const [invite, setInvite] = useState<string | null>(null);
@@ -33,6 +44,12 @@ export default function RegisterPage() {
     const code = new URLSearchParams(window.location.search).get("invite");
     if (code) setInvite(code);
   }, []);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const id = setInterval(() => setResendIn((s) => s - 1), 1000);
+    return () => clearInterval(id);
+  }, [resendIn]);
 
   function validate(): boolean {
     const errors: FieldErrors = {};
@@ -44,10 +61,58 @@ export default function RegisterPage() {
     return Object.keys(errors).length === 0;
   }
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function sendCode(): Promise<boolean> {
+    const res = await fetch("/api/auth/register/send-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim() }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      setError(data?.error ?? t("genericError"));
+      return false;
+    }
+    setResendIn(RESEND_COOLDOWN_S);
+    return true;
+  }
+
+  async function handleSendCode(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     if (!validate()) return;
+    setLoading(true);
+    try {
+      if (await sendCode()) {
+        setCode("");
+        setStep("code");
+      }
+    } catch {
+      setError(t("genericError"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    setError(null);
+    setLoading(true);
+    try {
+      await sendCode();
+    } catch {
+      setError(t("genericError"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRegister(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    if (!/^\d{6}$/.test(code)) {
+      setFieldErrors({ code: t("register.errCode") });
+      return;
+    }
+    setFieldErrors({});
     setLoading(true);
     try {
       const res = await fetch("/api/auth/register", {
@@ -57,6 +122,7 @@ export default function RegisterPage() {
           name: name.trim(),
           email: email.trim(),
           password,
+          code,
           ...(invite ? { invite } : {}),
         }),
       });
@@ -85,6 +151,67 @@ export default function RegisterPage() {
     }
   }
 
+  if (step === "code") {
+    return (
+      <div>
+        <h1 className="font-display text-2xl font-bold text-ink">{t("register.codeTitle")}</h1>
+        <p className="mt-1 text-sm text-ink-muted">
+          {t("register.codeSentTo", { email: email.trim() })}
+        </p>
+
+        <form onSubmit={handleRegister} className="mt-6 space-y-4" noValidate>
+          <div>
+            <Label htmlFor="code">{t("register.codeLabel")}</Label>
+            <Input
+              id="code"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              required
+              maxLength={6}
+              placeholder="123456"
+              className="text-center text-lg tracking-[0.5em]"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              autoFocus
+            />
+            <FieldError message={fieldErrors.code} />
+          </div>
+
+          <FieldError message={error} />
+
+          <Button type="submit" loading={loading} className="w-full" size="lg">
+            {t("register.submit")}
+          </Button>
+        </form>
+
+        <div className="mt-6 flex items-center justify-between text-sm">
+          <button
+            type="button"
+            className="text-ink-muted hover:text-ink hover:underline"
+            onClick={() => {
+              setError(null);
+              setFieldErrors({});
+              setStep("details");
+            }}
+          >
+            {t("register.editDetails")}
+          </button>
+          <button
+            type="button"
+            disabled={resendIn > 0 || loading}
+            className="font-medium text-holo-cyan hover:underline disabled:cursor-default disabled:text-ink-muted disabled:no-underline"
+            onClick={handleResend}
+          >
+            {resendIn > 0
+              ? t("register.resendWait", { seconds: resendIn })
+              : t("register.resend")}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <h1 className="font-display text-2xl font-bold text-ink">{t("register.title")}</h1>
@@ -97,7 +224,7 @@ export default function RegisterPage() {
         </p>
       )}
 
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
+      <form onSubmit={handleSendCode} className="mt-6 space-y-4" noValidate>
         <div>
           <Label htmlFor="name">{t("register.nameLabel")}</Label>
           <Input
@@ -153,8 +280,9 @@ export default function RegisterPage() {
         <FieldError message={error} />
 
         <Button type="submit" loading={loading} className="w-full" size="lg">
-          {t("register.submit")}
+          {t("register.sendCode")}
         </Button>
+        <p className="text-center text-xs text-ink-muted">{t("register.sendCodeHint")}</p>
       </form>
 
       <p className="mt-6 text-center text-sm text-ink-muted">
