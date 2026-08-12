@@ -42,6 +42,13 @@ export interface DiscordRestockConfig {
   setChannels: Record<string, string>;
   /** Serienamn → kanal-id. Används när setet inte har en egen kanal. */
   seriesChannels: Record<string, string>;
+  /**
+   * SPRÅK → kanal-id (t.ex. {"JP":"…"} för en japansk kanal). Icke-engelska produkter
+   * går HIT eller till catch-all — aldrig till set-/seriekanalerna: japanska set bär
+   * samma latinska serienamn som de engelska ("Mega Evolution"), så utan spärren
+   * hamnade fyra japanska boxar i EN-seriekanalen (mätt 2026-08-12).
+   */
+  languageChannels: Record<string, string>;
   /** Catch-all. Utan den postas INGENTING som saknar kanal (fail closed). */
   defaultChannelId: string | null;
 }
@@ -50,8 +57,10 @@ export interface DiscordRestockConfig {
  * Läser konfigurationen ur env. `DISCORD_RESTOCK_CHANNELS` är JSON:
  *   {"default":"123",
  *    "sets":{"Prismatic Evolutions":"456"},
- *    "series":{"Scarlet & Violet":"789","Mega Evolution":"012"}}
- * `sets` är valfri och vinner över `series` (se resolveChannelId).
+ *    "series":{"Scarlet & Violet":"789","Mega Evolution":"012"},
+ *    "languages":{"JP":"345"}}
+ * `sets` är valfri och vinner över `series` (se resolveChannelId). `languages` är
+ * valfri och gäller icke-engelska produkter (utan den går de till catch-all).
  *
  * ⛔ Kanal-id:n är INTE hemligheter (till skillnad från webhook-URL:er, som är rena
  * bärartokens — vem som helst med URL:en kan posta i kanalen). Därför bot-token +
@@ -68,9 +77,9 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
 
   const raw = process.env.DISCORD_RESTOCK_CHANNELS;
   if (!raw) return null;
-  let parsed: { default?: unknown; sets?: unknown; series?: unknown };
+  let parsed: { default?: unknown; sets?: unknown; series?: unknown; languages?: unknown };
   try {
-    parsed = JSON.parse(raw) as { default?: unknown; sets?: unknown; series?: unknown };
+    parsed = JSON.parse(raw) as typeof parsed;
   } catch {
     console.error("[discord-restock] DISCORD_RESTOCK_CHANNELS är inte giltig JSON — inget postas.");
     return null;
@@ -88,13 +97,14 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
 
   const setChannels = readMap(parsed.sets);
   const seriesChannels = readMap(parsed.series);
+  const languageChannels = readMap(parsed.languages);
   const defaultChannelId =
     typeof parsed.default === "string" && parsed.default.trim() ? parsed.default.trim() : null;
 
   if (!defaultChannelId && !Object.keys(setChannels).length && !Object.keys(seriesChannels).length) {
     return null;
   }
-  return { botToken, setChannels, seriesChannels, defaultChannelId };
+  return { botToken, setChannels, seriesChannels, languageChannels, defaultChannelId };
 }
 
 /** Set- och serienamn jämförs skiftlägesokänsligt och utan kantmellanslag. */
@@ -109,6 +119,12 @@ export function normalizeChannelKey(name: string): string {
  * Ordningen är hela poängen — den specifika regeln måste slå den generella, annars
  * kunde en setkanal aldrig ta emot något (allt hade fastnat i seriekanalen ovanför).
  *
+ * ⛔ ICKE-ENGELSKA PRODUKTER GÅR ALDRIG VIA SET/SERIE (mätt 2026-08-12): japanska
+ * set bär samma latinska serienamn som de engelska — "Ninja Spinner (M4)" har serien
+ * "Mega Evolution" — så fyra japanska boxar landade i EN-seriekanalen. De routas till
+ * språkkanalen (`languages` i konfigurationen) eller catch-all. `language` saknas i
+ * äldre cachade ruttabeller → tolkas som EN (oförändrat beteende tills ny export).
+ *
  * ⛔ FAIL CLOSED: utan träff OCH utan catch-all returneras null i stället för att
  * välja "någon" kanal. Ett larm i fel kanal är värre än inget larm — det lär
  * medlemmarna att kanalindelningen inte betyder något.
@@ -116,8 +132,16 @@ export function normalizeChannelKey(name: string): string {
 export function resolveChannelId(
   setName: string | null | undefined,
   series: string | null | undefined,
-  config: Pick<DiscordRestockConfig, "setChannels" | "seriesChannels" | "defaultChannelId">
+  config: Pick<
+    DiscordRestockConfig,
+    "setChannels" | "seriesChannels" | "languageChannels" | "defaultChannelId"
+  >,
+  language?: string | null
 ): string | null {
+  const lang = language ? normalizeChannelKey(language) : "en";
+  if (lang !== "en") {
+    return config.languageChannels[lang] ?? config.defaultChannelId;
+  }
   if (setName) {
     const hit = config.setChannels[normalizeChannelKey(setName)];
     if (hit) return hit;
@@ -144,6 +168,8 @@ export interface RestockPost {
   imageUrl: string | null;
   setName: string | null;
   series: string | null;
+  /** Produktens språk ("EN"/"JP"). Styr kanalvalet — se resolveChannelId. */
+  language?: string | null;
   /** Vår produktsida, när URL:en gick att slå upp i ruttabellen. */
   productUrl: string | null;
   /** PREORDER-övergång får egen rubrik — det är ett annat besked än en påfyllning. */
@@ -166,6 +192,11 @@ export function buildRestockEmbed(post: RestockPost) {
   ];
   if (post.setName) {
     fields.push({ name: "Set", value: clamp(post.setName, MAX_FIELD_VALUE), inline: true });
+  }
+  // Bara när det AVVIKER från engelska — ett "Språk: Engelska" på varje rad är brus.
+  if (post.language && post.language.toUpperCase() !== "EN") {
+    const label = post.language.toUpperCase() === "JP" ? "Japanska" : post.language;
+    fields.push({ name: "Språk", value: clamp(label, MAX_FIELD_VALUE), inline: true });
   }
   if (post.productUrl) {
     fields.push({
@@ -210,6 +241,7 @@ export async function postTestMessages(
   const targets: { channelId: string; rule: string }[] = [
     ...Object.entries(config.setChannels).map(([k, v]) => ({ channelId: v, rule: `set: ${k}` })),
     ...Object.entries(config.seriesChannels).map(([k, v]) => ({ channelId: v, rule: `serie: ${k}` })),
+    ...Object.entries(config.languageChannels).map(([k, v]) => ({ channelId: v, rule: `språk: ${k}` })),
     ...(config.defaultChannelId
       ? [{ channelId: config.defaultChannelId, rule: "default (allt utan egen kanal)" }]
       : []),
@@ -267,7 +299,7 @@ export async function postRestocks(
 ): Promise<{ sent: number; postedKeys: string[]; failed: number }> {
   const byChannel = new Map<string, RestockPost[]>();
   for (const p of posts) {
-    const channelId = resolveChannelId(p.setName, p.series, config);
+    const channelId = resolveChannelId(p.setName, p.series, config, p.language);
     if (!channelId) {
       console.warn(
         `[discord-restock] Ingen kanal för set "${p.setName ?? "(saknas)"}" / serie ` +

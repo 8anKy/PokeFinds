@@ -54,6 +54,8 @@ async function main() {
         select: {
           title: true,
           slug: true,
+          language: true,
+          imageUrl: true,
           set: { select: { name: true, series: true } },
         },
       },
@@ -71,6 +73,12 @@ async function main() {
       slug: o.product.slug,
       setName: o.product.set?.name ?? null,
       series: o.product.set?.series ?? null,
+      // Språket styr KANALVALET: JP-set bär samma latinska serienamn som de engelska
+      // ("Mega Evolution"), så utan språket hade JP-boxar routats till EN-seriekanalen
+      // (hände 2026-08-12: fyra japanska boxar i #mega-evolution).
+      language: o.product.language,
+      // Katalogbilden som reserv för embed-miniatyren — butiksfeedarna bär sällan bild.
+      imageUrl: o.product.imageUrl ?? null,
     };
   }
 

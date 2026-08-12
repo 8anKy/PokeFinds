@@ -27,6 +27,8 @@ const ROUTES: RouteTable = {
     slug: "pitch-black-elite-trainer-box",
     setName: "Pitch Black",
     series: "Mega Evolution",
+    language: "EN",
+    imageUrl: "https://cdn.foilio.se/pitch-black-etb.jpg",
   },
   "https://butik.se/prismatic-etb": {
     title: "Prismatic Evolutions Elite Trainer Box",
@@ -79,6 +81,7 @@ describe("resolveChannelId", () => {
   const config = {
     setChannels: { "prismatic evolutions": "777" },
     seriesChannels: { "mega evolution": "111", "scarlet & violet": "222" },
+    languageChannels: {} as Record<string, string>,
     defaultChannelId: "999",
   };
 
@@ -105,6 +108,24 @@ describe("resolveChannelId", () => {
   it("FAIL CLOSED: utan catch-all postas inget alls hellre än i fel kanal", () => {
     expect(resolveChannelId("Okänd", "Okänd", { ...config, defaultChannelId: null })).toBeNull();
     expect(resolveChannelId(null, null, { ...config, defaultChannelId: null })).toBeNull();
+  });
+
+  // Mätt 2026-08-12: japanska set bär samma latinska serienamn som de engelska
+  // ("Ninja Spinner (M4)" har serien "Mega Evolution") → fyra JP-boxar hamnade i
+  // EN-seriekanalen. Språket måste därför spärra set-/serieuppslaget helt.
+  it("JAPANSKA produkter går ALDRIG till set-/seriekanalerna", () => {
+    expect(resolveChannelId("Ninja Spinner", "Mega Evolution", config, "JP")).toBe("999");
+  });
+
+  it("japanska produkter tar språkkanalen när den finns", () => {
+    const withJp = { ...config, languageChannels: { jp: "555" } };
+    expect(resolveChannelId("Ninja Spinner", "Mega Evolution", withJp, "JP")).toBe("555");
+  });
+
+  it("saknat språk (äldre ruttabell) tolkas som engelska — oförändrad routing", () => {
+    expect(resolveChannelId("Prismatic Evolutions", "Scarlet & Violet", config, null)).toBe("777");
+    expect(resolveChannelId("Prismatic Evolutions", "Scarlet & Violet", config, undefined)).toBe("777");
+    expect(resolveChannelId("Prismatic Evolutions", "Scarlet & Violet", config, "EN")).toBe("777");
   });
 });
 
@@ -152,7 +173,10 @@ describe("deriveRestockPosts", () => {
       title: "Pitch Black Elite Trainer Box", // katalogens titel, inte butikens fras
       storeName: "Dragon's Lair",
       series: "Mega Evolution",
+      language: "EN",
       priceOre: 54900,
+      // Feeden bär ingen bild → katalogbilden ur ruttabellen som reserv.
+      imageUrl: "https://cdn.foilio.se/pitch-black-etb.jpg",
       productUrl: `${BASE}/produkter/pitch-black-elite-trainer-box`,
     });
   });

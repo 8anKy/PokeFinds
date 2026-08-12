@@ -47,6 +47,13 @@ export interface RouteEntry {
   slug: string;
   setName: string | null;
   series: string | null;
+  /**
+   * Produktens språk ("EN"/"JP"). Saknas i äldre cachade ruttabeller → tolkas som EN.
+   * Behövs för kanalvalet: JP-set bär samma latinska serienamn som EN-serierna.
+   */
+  language?: string | null;
+  /** Katalogbilden — reserv för embed-miniatyren när butiksfeeden saknar bild. */
+  imageUrl?: string | null;
 }
 
 export type RouteTable = Record<string, RouteEntry>;
@@ -179,6 +186,12 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
   const posts: RestockPost[] = [];
   const cooldownMs = cooldownHours * 3600_000;
 
+  const site = baseUrl.replace(/\/$/, "");
+  // Discord hämtar miniatyren själv och kan bara följa absoluta URL:er — en handfull
+  // katalogbilder är relativa (/api/cm-image/…) och pekas då mot sajten.
+  const absoluteImage = (url: string | null | undefined): string | null =>
+    !url ? null : url.startsWith("/") ? `${site}${url}` : url;
+
   for (const c of changes) {
     // Bara påfyllningar. En slutförsäljning är ingen nyhet för den som vill köpa.
     if (c.to !== IN_STOCK) continue;
@@ -217,10 +230,13 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
       storeName: found.sourceName,
       storeUrl: found.item.url,
       priceOre: found.item.price,
-      imageUrl: found.item.imageUrl,
+      // Butikens egen bild först (den visar exakt varan), katalogbilden som reserv —
+      // de flesta feedar bär ingen bild alls och embedden stod bildlös.
+      imageUrl: found.item.imageUrl ?? absoluteImage(route.imageUrl),
       setName: route.setName,
       series: route.series,
-      productUrl: `${baseUrl.replace(/\/$/, "")}/produkter/${route.slug}`,
+      language: route.language ?? null,
+      productUrl: `${site}/produkter/${route.slug}`,
     });
   }
 
