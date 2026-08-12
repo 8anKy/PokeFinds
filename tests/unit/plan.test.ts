@@ -1,5 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { proUserWhere, effectivePlanTier, isPro, proSource } from "@/lib/plan";
+import {
+  proUserWhere,
+  effectivePlanTier,
+  isPro,
+  proSource,
+  bonusUntilFromDateInput,
+} from "@/lib/plan";
+
+describe("bonusUntilFromDateInput (adminpanelens Pro-gåva)", () => {
+  it("gäller HELA den valda dagen", () => {
+    const until = bonusUntilFromDateInput("2026-09-12");
+    // Mitt på dagen den 12:e — gåvan måste fortfarande gälla. En rå
+    // new Date("2026-09-12") hade gett midnatt och alltså redan gått ut här.
+    expect(until.getTime()).toBeGreaterThan(Date.parse("2026-09-12T12:00:00Z"));
+    // Sista sekunden av dygnet gäller …
+    expect(until.getTime()).toBeGreaterThan(Date.parse("2026-09-12T23:59:00Z"));
+    // … men inte dagen efter.
+    expect(until.getTime()).toBeLessThan(Date.parse("2026-09-13T00:00:01Z"));
+  });
+
+  it("tolkas i UTC oavsett serverns tidszon", () => {
+    expect(bonusUntilFromDateInput("2026-09-12").toISOString()).toBe(
+      "2026-09-12T23:59:59.999Z"
+    );
+  });
+
+  it("ger Pro via isPro() för ett framtida datum, men inte för ett passerat", () => {
+    const framtid = bonusUntilFromDateInput("2099-01-01");
+    const dåtid = bonusUntilFromDateInput("2000-01-01");
+    expect(isPro({ planTier: "FREE", role: "USER", bonusProUntil: framtid })).toBe(true);
+    expect(isPro({ planTier: "FREE", role: "USER", bonusProUntil: dåtid })).toBe(false);
+  });
+});
 
 describe("isPro", () => {
   it("betalande prenumerant är Pro", () => {

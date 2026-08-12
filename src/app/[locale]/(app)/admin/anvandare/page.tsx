@@ -38,6 +38,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
         name: true,
         role: true,
         planTier: true,
+        bonusProUntil: true,
         reputationScore: true,
         createdAt: true,
       },
@@ -51,6 +52,9 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
   const rows: AdminUserRow[] = users.map((u) => ({
     ...u,
     createdAt: u.createdAt.toISOString(),
+    // Bara datumdelen: <input type="date"> vill ha YYYY-MM-DD, och gåvan är
+    // dagsupplöst ändå (servern lägger på slutet av dygnet vid skrivning).
+    bonusProUntil: u.bonusProUntil ? u.bonusProUntil.toISOString().slice(0, 10) : null,
   }));
 
   return (

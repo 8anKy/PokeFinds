@@ -18,6 +18,8 @@ export interface AdminUserRow {
   name: string;
   role: Role;
   planTier: PlanTier;
+  /** Gratis Pro t.o.m. (YYYY-MM-DD), null = ingen gåva. Se lib/plan.ts. */
+  bonusProUntil: string | null;
   reputationScore: number;
   createdAt: string;
 }
@@ -140,6 +142,41 @@ export function UsersTable({
     }
   }
 
+  /**
+   * Ge (eller ta bort) gratis Pro t.o.m. ett datum — kreatörssamarbeten, kompensation,
+   * support. ⛔ ANVÄND INTE plan-väljaren till det: `planTier: PREMIUM` ägs av
+   * RevenueCat-webhooken (EXPIRATION nollar den tyst) OCH blockerar Stripe-kassan, så
+   * mottagaren kunde aldrig teckna ett riktigt abonnemang efteråt. Se lib/plan.ts.
+   */
+  async function handleBonusChange(userId: string, value: string) {
+    setSavingId(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bonusProUntil: value || null }),
+      });
+      const data: { error?: string } = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Kunde inte uppdatera Pro-gåvan.");
+      toast({
+        title: value ? "Pro tilldelad" : "Pro-gåvan borttagen",
+        description: value ? `Gäller t.o.m. ${value}.` : undefined,
+        variant: "success",
+      });
+      router.refresh();
+    } catch (error) {
+      toast({
+        title: "Fel vid uppdatering",
+        description: error instanceof Error ? error.message : "Något gick fel.",
+        variant: "error",
+      });
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+
   return (
     <div className="space-y-4">
       <form onSubmit={handleSearch} className="flex max-w-md items-center gap-2">
@@ -173,6 +210,7 @@ export function UsersTable({
               <TH>E-post</TH>
               <TH>Roll</TH>
               <TH>Plan</TH>
+              <TH>Gratis Pro t.o.m.</TH>
               <TH>Skapad</TH>
               <TH>Rykte</TH>
               {isSuperAdmin && <TH>Ändra roll</TH>}
@@ -200,6 +238,30 @@ export function UsersTable({
                       </option>
                     ))}
                   </Select>
+                </TD>
+                <TD>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="date"
+                      value={user.bonusProUntil ?? ""}
+                      min={today}
+                      disabled={savingId === user.id}
+                      onChange={(e) => handleBonusChange(user.id, e.target.value)}
+                      aria-label={`Ge ${user.name} gratis Pro till och med`}
+                      className="h-9 w-40"
+                    />
+                    {user.bonusProUntil && (
+                      <button
+                        type="button"
+                        onClick={() => handleBonusChange(user.id, "")}
+                        disabled={savingId === user.id}
+                        title="Ta bort Pro-gåvan"
+                        className="text-sm text-ink-faint transition-colors hover:text-fall disabled:opacity-50"
+                      >
+                        Rensa
+                      </button>
+                    )}
+                  </div>
                 </TD>
                 <TD className="whitespace-nowrap text-ink-muted">
                   {formatDateTime(user.createdAt)}

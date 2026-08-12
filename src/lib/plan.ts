@@ -62,6 +62,20 @@ export function proSource(
   return null;
 }
 
+/**
+ * Adminpanelens datumfält (YYYY-MM-DD) → `bonusProUntil`.
+ *
+ * ⛔ SLUTET AV DYGNET, INTE BÖRJAN. "Pro t.o.m. 12 september" ska gälla HELA den
+ * 12:e; en rå `new Date("2026-09-12")` blir midnatt UTC, dvs gåvan går ut i samma
+ * ögonblick dagen börjar och mottagaren får noll dagar av den sista.
+ *
+ * ⛔ UTC, aldrig `setHours` — det ger LOKAL midnatt och betyder olika saker på
+ * servern (UTC) och i webbläsaren. Samma regel som PriceSnapshot-datumen.
+ */
+export function bonusUntilFromDateInput(dateInput: string): Date {
+  return new Date(`${dateInput}T23:59:59.999Z`);
+}
+
 /** Planen som kvoter/gränser ska räknas mot (admins får Pro-gränserna). */
 export function effectivePlanTier(user: ProUserShape): PlanTier {
   return isPro(user) ? "PREMIUM" : "FREE";
