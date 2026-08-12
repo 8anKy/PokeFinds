@@ -120,14 +120,22 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   kanalen ger bort en betalfunktion — och eftersom den är snabbare får den betalande kunden sitt
   mejl EFTER det fria inlägget. Medvetet valt 08-11. Vill man vända på det finns Pro-rollen redan
   (kanalbehörighet på `Pro`), men den kräver att rollsynken är påslagen, dvs juristgranskningen.
-  ⚠️ **BUTIKSURVALET ÄR EN ARTIGHETSFRÅGA, INTE EN KOSTNADSFRÅGA**: default är de åtta mest
-  aktiva (82 % av alla restocks). Sedan 2026-08-12 är repo-variabeln `DISCORD_RESTOCK_STORES`
-  satt till de åtta + **MaxGaming** (ägaren fick MaxGaming-restocks från en konkurrentbot men
-  inte från oss — butiken låg utanför default-listan). ⛔ **EN NY KÄLLA SEEDAS TYST PER KÄLLA**
-  (`seededSources` i `deriveRestockPosts`): när MaxGaming lades till såg diffen alla dess ~41
-  lagerförda varor som "ny-i-lager" och postade 11 av dem som restocks — de var bara befintligt
-  sortiment. En källa utan nycklar i förra lagerläget behandlas nu som roterande exakt den
-  körningen; nästa körning diffas den som vanligt. Vaktat av test. Var 2:a minut mot ALLA 34 vore ~24 500 feed-hämtningar/dygn mot
+  ⚠️ **BUTIKSURVALET**: sedan 2026-08-12 är repo-variabeln `DISCORD_RESTOCK_STORES=all`
+  (ÄGARBESLUT — ägaren fick MaxGaming-restocks från en konkurrentbot men inte från oss, och
+  valde sedan alla 34). Kod-defaulten är fortfarande de åtta mest aktiva (82 % av restockarna);
+  artighetsräkningen (~24 500 feed-hämtningar/dygn vid alla 34) står kvar ovan som beslutsunderlag.
+  MÄTT efter påslaget: 34 butiker hämtas+diffas på ~76 s, fortfarande inom 2-minuterstakten.
+  ⛔ **EN NY KÄLLA SEEDAS TYST PER KÄLLA** (`seededSources` i `deriveRestockPosts`): när
+  MaxGaming lades till såg diffen alla dess ~41 lagerförda varor som "ny-i-lager" och postade
+  11 av dem som restocks — de var bara befintligt sortiment. En källa utan nycklar i förra
+  lagerläget behandlas nu som roterande exakt den körningen; nästa körning diffas den som
+  vanligt. Vaktat av test (alla 25 nya källor seedade tyst 12:52 UTC när "all" slogs på).
+  ⛔ **SPRÅKET STYR KANALVALET** (2026-08-12): JP-set bär med flit samma latinska serienamn
+  som EN-serierna ("Ninja Spinner (M4)" har serien "Mega Evolution") → fyra japanska boxar
+  postades i EN-seriekanalen. Ruttabellen bär nu `language` + katalogens `imageUrl`
+  (embed-miniatyr-reserv — feedarna bär sällan bild), och icke-EN går ALDRIG via set-/serie-
+  kanalerna: språkkanal (`"languages":{"JP":"<id>"}` i `DISCORD_RESTOCK_CHANNELS`, valfri)
+  eller catch-all. Saknat språk i en äldre cachad ruttabell tolkas som EN. Var 2:a minut mot ALLA 34 vore ~24 500 feed-hämtningar/dygn mot
   10-min-lanens ~4 900 — att bli blockerad av en butik skadar hela produkten, inte bara Discord.
   Med åtta butiker: ~5 800/dygn (var 1:a minut hade blivit ~11 500, dvs en full katalogkrypning av
   varje butik var 60:e sekund dygnet runt — för ~30 s lägre snittlatens på 12,2 restocks/dygn).
