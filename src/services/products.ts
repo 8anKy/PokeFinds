@@ -51,6 +51,14 @@ export function normalizeSort(sort: ProductSort | undefined): ProductSort {
   return !sort || sort === "popular" ? "best_match" : sort;
 }
 
+/**
+ * Sorteringar som ordnar på priset SJÄLVT — de kräver därför att produkten HAR ett
+ * pris (se synlighetsvillkoret i buildProductWhere). "Största prisfall" hör INTE hit:
+ * den ordnar på förändringen, och den räknas bara fram för produkter som redan har
+ * prishistorik. Normaliserade värden (`normalizeSort`).
+ */
+const PRICE_SORTS = new Set<ProductSort>(["price_asc", "price_desc"]);
+
 export interface SearchProductsParams {
   query?: string;
   // Kategori, butik och språk tar EN eller FLERA värden (katalogens "Fler filter"
@@ -317,7 +325,10 @@ export async function snapshotStorePricedProducts(): Promise<number> {
  * automatiskt igen när de får ett pris (Cardmarket/Tradera).
  */
 export async function buildProductWhere(
-  params: Pick<SearchProductsParams, "query" | "category" | "setId" | "retailerId" | "stockStatus" | "language">
+  params: Pick<
+    SearchProductsParams,
+    "query" | "category" | "setId" | "retailerId" | "stockStatus" | "language" | "sort"
+  >
 ): Promise<Prisma.ProductWhereInput> {
   const { query, category, setId, retailerId, stockStatus, language } = params;
   const andClauses: Prisma.ProductWhereInput[] = [];
@@ -393,9 +404,27 @@ export async function buildProductWhere(
   // ingen uppskattning (den hade blivit identisk för båda) — utan undantaget nedan
   // vore de därför osynliga, och en sökning på "charizard base" hade visat en av tre
   // tryckningar i stället för alla tre. Priset visas som "–".
-  andClauses.push({
-    OR: [{ lowestPriceOre: { not: null } }, { variantLabel: { in: [...PRINT_VARIANT_LABELS] } }],
-  });
+  //
+  // ⛔ MEN UNDANTAGET GÄLLER INTE NÄR MAN SORTERAR PÅ PRIS (2026-08-13). Postgres
+  // sorterar NULL FÖRST i DESC, så "Högsta pris" inleddes med de prislösa
+  // tryckningarna — MÄTT i prod: 56 produkter (41 Shadowless + 15 1st Edition) av
+  // 31 063, dvs hela första sidan visade "–" där det dyraste skulle stå. Att ordna
+  // på ett värde produkten inte HAR är ingen fråga vi kan besvara, så
+  // prissorteringarna kräver ett pris i stället för att stoppa in tryckningarna i
+  // en godtycklig ände. Katalogens standardordning, sökningen och setvyn är orörda.
+  // ⛔ Villkoret hör i where-byggaren, inte vid orderBy: `nulls: "last"` hade bara
+  // flyttat dem till slutet av 31 007 produkter (alltså kvar i listan), och feedens
+  // eget träffantal räknas på PRECIS det här villkoret — det ska säga 31 007.
+  // ⚠️ Filter-sheetens knapp (`/api/products/count`) skickar INTE sorteringen och
+  // räknar därför fortfarande med tryckningarna: den beskriver filterurvalet, och
+  // att lägga sort i dess cache-nyckel hade multiplicerat antalet cache-poster med
+  // antalet sorteringar för ett svar som skiljer 56 av 31 063.
+  const requirePrice = PRICE_SORTS.has(normalizeSort(params.sort));
+  andClauses.push(
+    requirePrice
+      ? { lowestPriceOre: { not: null } }
+      : { OR: [{ lowestPriceOre: { not: null } }, { variantLabel: { in: [...PRINT_VARIANT_LABELS] } }] }
+  );
   if (andClauses.length > 0) where.AND = andClauses;
   return where;
 }
