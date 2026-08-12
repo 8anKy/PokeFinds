@@ -339,10 +339,10 @@ function makeSearchFns(appId: string, appKey: string): { name: string; fn: Searc
  * sökning går rakt på den. Använder samma SearchAdvanced-metod som SS.SearchAdv.
  */
 function searchAdvancedFor(
-  appId: string, appKey: string, words: string, catId: number
+  appId: string, appKey: string, words: string, catId: number, page = 1
 ): Promise<string> {
   return callApi(SEARCH_API,
-    `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><SearchAdvanced xmlns="http://api.tradera.com"><request><SearchWords>${esc(words)}</SearchWords><CategoryId>${catId}</CategoryId><SearchInDescription>false</SearchInDescription><PageNumber>1</PageNumber><OrderBy>PriceAscending</OrderBy><ItemStatus>Active</ItemStatus><ItemType>BuyItNow</ItemType><ItemsPerPage>50</ItemsPerPage><CountyId>0</CountyId><OnlyAuctionsWithBuyNow>false</OnlyAuctionsWithBuyNow><OnlyItemsWithThumbnail>false</OnlyItemsWithThumbnail></request></SearchAdvanced></soap:Body></soap:Envelope>`,
+    `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><SearchAdvanced xmlns="http://api.tradera.com"><request><SearchWords>${esc(words)}</SearchWords><CategoryId>${catId}</CategoryId><SearchInDescription>false</SearchInDescription><PageNumber>${page}</PageNumber><OrderBy>PriceAscending</OrderBy><ItemStatus>Active</ItemStatus><ItemType>BuyItNow</ItemType><ItemsPerPage>50</ItemsPerPage><CountyId>0</CountyId><OnlyAuctionsWithBuyNow>false</OnlyAuctionsWithBuyNow><OnlyItemsWithThumbnail>false</OnlyItemsWithThumbnail></request></SearchAdvanced></soap:Body></soap:Envelope>`,
     "SearchAdvanced", appId, appKey);
 }
 
@@ -466,30 +466,56 @@ export async function runTraderaSweep(
       take: SEARCH_BUDGET,
     });
     let quotaHit = false;
+    // Räddningssidor för syskonskuggade produkter (MÄTT 2026-08-12 på Mega Darkrai ex
+    // 120/084): sökningen "Mega Darkrai ex Pitch Black" träffar 68 annonser, men sida 1
+    // sorterad PriceAscending är HELT fylld av det billiga syskonkortet 048/084
+    // (15–37 kr) — guldkortets annonser ligger på sida 2 och pickRailCandidates
+    // avvisar korrekt alla 50 på sida 1 ⇒ produkten stod utan både skena och offer
+    // fast annonserna fanns. Regeln: ger sida 1 NOLL kandidater läses nästa sida,
+    // upp till TRADERA_HOT_MAX_PAGES, ur en delad extra-budget (håller Fas 0 under
+    // metodkvoten 10k/dygn även om många produkter är skuggade).
+    const HOT_MAX_PAGES = parseInt(process.env.TRADERA_HOT_MAX_PAGES ?? "4", 10);
+    let extraPagesLeft = parseInt(process.env.TRADERA_HOT_EXTRA_PAGES ?? "1500", 10);
+    let extraPagesUsed = 0;
     await mapPool(hot, SEARCH_CONCURRENCY, async (p) => {
       if (quotaHit) return;
       const words = p.card ? `${p.card.name} ${p.card.set.name}` : p.title;
       const catId = p.card ? TRADERA_CATEGORY.SINGLE_CARD : (TRADERA_CATEGORY[p.category] ?? 293307);
-      let result;
-      try {
-        const xml = await searchAdvancedFor(appId, appKey, words, catId);
-        result = parseItemsFromXml(xml);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes("429") || msg.includes("AboveCallLimit")) quotaHit = true;
-        return;
-      }
-      hotCalls++;
-      searchedProductIds.add(p.id);
 
-      for (const item of result.items) {
-        if (item.sellerId) sellerCounts.set(item.sellerId, (sellerCounts.get(item.sellerId) ?? 0) + 1);
-      }
+      const candidates: TraderaItem[] = [];
+      let totalPages = 1;
+      for (let page = 1; page <= HOT_MAX_PAGES; page++) {
+        if (page > 1) {
+          if (page > totalPages || extraPagesLeft <= 0) break;
+          extraPagesLeft--;
+          extraPagesUsed++;
+        }
+        let result;
+        try {
+          const xml = await searchAdvancedFor(appId, appKey, words, catId, page);
+          result = parseItemsFromXml(xml);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes("429") || msg.includes("AboveCallLimit")) quotaHit = true;
+          break;
+        }
+        hotCalls++;
+        searchedProductIds.add(p.id);
+        totalPages = result.totalPages;
 
-      // Alla annonser som genuint matchar JUST denna produkt — inte bara den
-      // billigaste. Pris-vakten hämtar facit EN gång per produkt (samma DB-last
-      // som gamla en-annons-kollen) och appliceras rent per annons.
-      const candidates = pickRailCandidates(result.items, p, rejected);
+        for (const item of result.items) {
+          if (item.sellerId) sellerCounts.set(item.sellerId, (sellerCounts.get(item.sellerId) ?? 0) + 1);
+        }
+
+        // Alla annonser som genuint matchar JUST denna produkt — inte bara den
+        // billigaste. Pris-vakten hämtar facit EN gång per produkt (samma DB-last
+        // som gamla en-annons-kollen) och appliceras rent per annons.
+        candidates.push(...pickRailCandidates(result.items, p, rejected));
+        // Första sidan med kandidater räcker: sorteringen är PriceAscending, så
+        // billigare träffar än de funna finns inte längre fram.
+        if (candidates.length > 0) break;
+        if (result.items.length === 0) break;
+      }
       if (candidates.length === 0) return;
       const plausible = await getListingPriceGuard(p.id);
       const kept = candidates
@@ -514,7 +540,10 @@ export async function runTraderaSweep(
       });
     }
     callsByMethod["Fas0.HotSearch"] = hotCalls;
-    log(`   ${hotCalls} sökningar → ${directMatches.size} direkt-matchade produkter\n`);
+    log(
+      `   ${hotCalls} sökningar (varav ${extraPagesUsed} räddningssidor) → ` +
+        `${directMatches.size} direkt-matchade produkter\n`
+    );
   }
 
   // ── Fas 1: Bred sökning (sökmetoder × 100 anrop) ──────────────────────

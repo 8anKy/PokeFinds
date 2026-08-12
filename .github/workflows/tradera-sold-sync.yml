@@ -38,7 +38,9 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Rymmer BÅDE synken och sålt-svepet (sista steget). Svepet matchar numera
+    # ~10k avslutade annonser/dygn mot katalogen och kan ta uppåt en timme.
+    timeout-minutes: 90
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DB_POOL: "10"
@@ -68,3 +70,20 @@ jobs:
         run: npx prisma generate
       - if: steps.guard.outputs.ready == 'true'
         run: npx tsx scripts/tradera-sold-sync.ts
+
+      # ── SÅLT-SVEPET BOR HÄR SOM ETT STEG, INTE SOM ETT FEMTE KEDJELED ────────
+      # GitHub fyrar `workflow_run` högst TRE nivåer djupt från roten. Kedjan
+      # scrape-all → tradera-sweep → cardtrader-refresh → det här jobbet är redan
+      # tre led — ett fjärde (tradera-sold-sweep.yml på workflow_run) fyrar ALDRIG,
+      # tyst. Mätt 2026-08-12: filen hade NOLL körningar någonsin trots korrekt
+      # namnlänk, medan det här jobbet (led 3) körde varje natt. Ett steg i samma
+      # jobb delar dessutom Neon-fönstret och checkout/npm-kostnaden.
+      # ⛔ `!cancelled()`: svepet är OBEROENDE av synken — samma princip som
+      # kedjans "ingen conclusion-grind". Ett synkfel får inte tyst svälja svepet.
+      # `tests/unit/cron-chain-sync.test.ts` vaktar att steget finns kvar.
+      - name: Tradera sålt-svep (hammarpriser till prisgrafen)
+        if: steps.guard.outputs.ready == 'true' && !cancelled()
+        env:
+          TRADERA_SOLD_PAGES: "200"
+          TRADERA_SOLD_LOOKBACK_DAYS: "3"
+        run: npx tsx scripts/tradera-sold-sweep.ts

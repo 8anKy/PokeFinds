@@ -36,11 +36,14 @@ function upstreamName(file: string): string {
 }
 
 // Kedjan, i ordning. Varje par är (jobb, dess uppströmsjobb).
+// ⛔ HÖGST TRE LED: GitHub fyrar `workflow_run` max tre nivåer djupt från roten.
+// Ett fjärde led fyrar ALDRIG och felet är helt tyst — tradera-sold-sweep låg som
+// led 4 i två månader med noll körningar (upptäckt 2026-08-12). Ska ett nytt jobb
+// in i nattfönstret läggs det som ett STEG i ett befintligt led, aldrig som länk 4.
 const CHAIN: [downstream: string, upstream: string][] = [
   ["tradera-sweep", "scrape-all"],
   ["cardtrader-refresh", "tradera-sweep"],
   ["tradera-sold-sync", "cardtrader-refresh"],
-  ["tradera-sold-sweep", "tradera-sold-sync"],
 ];
 
 describe("nattkedjan av GitHub-workflows", () => {
@@ -68,5 +71,19 @@ describe("nattkedjan av GitHub-workflows", () => {
 
   it.each(CHAIN.map(([d]) => d))("%s går fortfarande att köra manuellt", (file) => {
     expect(read(file)).toMatch(/^\s*workflow_dispatch:/m);
+  });
+
+  // Sålt-svepet är ett STEG i led 3, inte ett eget kedjeled — se kedjegränsen ovan.
+  describe("tradera-sold-sweep (led 3-steget, aldrig länk 4)", () => {
+    it("tradera-sold-sync kör svepet som sista steg", () => {
+      expect(read("tradera-sold-sync")).toMatch(/scripts\/tradera-sold-sweep\.ts/);
+    });
+
+    it("tradera-sold-sweep.yml har varken workflow_run eller schedule", () => {
+      // En workflow_run här vore länk 4 — den fyrar aldrig, och bortfallet är tyst.
+      // En egen schedule vore en femte Neon-väckning.
+      expect(read("tradera-sold-sweep")).not.toMatch(/^\s*workflow_run:/m);
+      expect(read("tradera-sold-sweep")).not.toMatch(/^\s*schedule:/m);
+    });
   });
 });

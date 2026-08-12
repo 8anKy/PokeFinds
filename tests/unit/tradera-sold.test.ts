@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseSoldFromXml } from "@/jobs/tradera-sold-sweep";
+import { parseEndedFromXml, soldByBidsOre, getItemVerdict } from "@/jobs/tradera-sold-sweep";
 import {
   bucketObservationsBySource,
   medianOre,
@@ -28,42 +28,80 @@ const SOLD = {
   ItemUrl: "http://www.tradera.com/item/1001340/743187136/destined-rivals",
 };
 
-describe("parseSoldFromXml", () => {
-  it("läser vinnande budet i öre och affärens egen sluttid", () => {
-    const [it0] = parseSoldFromXml(item(SOLD)).items;
+describe("parseEndedFromXml", () => {
+  it("läser bud, sluttid och länk ur ett avslutat block", () => {
+    const [it0] = parseEndedFromXml(item(SOLD)).items;
     expect(it0.itemId).toBe("743187136");
-    expect(it0.priceOre).toBe(395_000);
+    expect(it0.maxBidOre).toBe(395_000);
+    expect(it0.buyItNowOre).toBe(420_000);
     expect(it0.bidCount).toBe(14);
+    expect(it0.hasBids).toBe(true);
     expect(it0.endDate.toISOString()).toBe("2026-08-05T17:41:49.463Z");
     // http → https, aldrig en bild-URL (samma fälla som det aktiva svepet gick i).
     expect(it0.url).toBe("https://www.tradera.com/item/1001340/743187136/destined-rivals");
   });
 
-  // ⛔ KÄRNAN I HELA FUNKTIONEN. En avslutad PureBuyItNow har HasBids=false och
-  // BuyItNowPrice == MaxBid oavsett om någon köpte den eller om den bara löpte ut.
-  // Mätt 2026-08-06: 2 109 av 2 768 avslutade utan bud bar exakt den likheten.
-  it("avvisar allt som inte BEVISLIGEN såldes", () => {
-    const cases = [
-      { ...SOLD, HasBids: "false", ItemType: "PureBuyItNow" }, // såld ELLER utgången
-      { ...SOLD, HasBids: "false" }, // auktion utan bud = ingen affär
-      { ...SOLD, ItemType: "ShopItem" }, // butiksannons, inte budbar
-      { ...SOLD, IsEnded: "false" }, // pågår fortfarande
-      { ...SOLD, MaxBid: "0" }, // 0 kr är inget pris
-    ];
-    for (const c of cases) {
-      expect(parseSoldFromXml(item(c)).items).toHaveLength(0);
-    }
+  it("behåller Köp nu/butiksannonser i listan — deras dom faller i GetItem-steget", () => {
+    const bin = { ...SOLD, HasBids: "false", ItemType: "PureBuyItNow" };
+    expect(parseEndedFromXml(item(bin)).items).toHaveLength(1);
   });
 
-  it("accepterar AuctionWithBuyItNow — den är budbar", () => {
-    expect(
-      parseSoldFromXml(item({ ...SOLD, ItemType: "AuctionWithBuyItNow" })).items
-    ).toHaveLength(1);
+  it("kastar pågående annonser och räknar råa rader separat", () => {
+    const out = parseEndedFromXml(item({ ...SOLD, IsEnded: "false" }));
+    expect(out.items).toHaveLength(0);
+    // ⛔ Pagineringen bryter på rawRows, aldrig på den filtrerade längden — en sida
+    // full av bortfiltrerade rader är inte samma sak som en tom sida.
+    expect(out.rawRows).toBe(1);
   });
 
   it("släpper inte igenom blockerade språk", () => {
     const de = { ...SOLD, ShortDescription: "Pokemon Karmesin & Purpur Deutsch Display" };
-    expect(parseSoldFromXml(item(de)).items).toHaveLength(0);
+    expect(parseEndedFromXml(item(de)).items).toHaveLength(0);
+  });
+});
+
+// ⛔ KÄRNAN: i SÖK-svaret har en avslutad PureBuyItNow HasBids=false och
+// BuyItNowPrice == MaxBid oavsett om någon köpte den eller om den bara löpte ut
+// (mätt 2026-08-06: 2 109 av 2 768). Budbevis finns bara hos auktionstyperna.
+describe("soldByBidsOre", () => {
+  const base = { itemType: "Auction", hasBids: true, maxBidOre: 395_000 };
+
+  it("budbevisar bara auktionstyper med bud och positivt vinnande bud", () => {
+    expect(soldByBidsOre(base)).toBe(395_000);
+    expect(soldByBidsOre({ ...base, itemType: "AuctionWithBuyItNow" })).toBe(395_000);
+    expect(soldByBidsOre({ ...base, itemType: "PureBuyItNow" })).toBeNull();
+    expect(soldByBidsOre({ ...base, itemType: "ShopItem" })).toBeNull();
+    expect(soldByBidsOre({ ...base, hasBids: false })).toBeNull();
+    expect(soldByBidsOre({ ...base, maxBidOre: null })).toBeNull();
+  });
+});
+
+// GetItem skiljer såld från utgången Köp nu: GotWinner=true är Traderas eget besked
+// att annonsen fick en köpare. Fälten verifierade mot riktiga svar 2026-08-12.
+describe("getItemVerdict", () => {
+  const xml = (fields: Record<string, string>) =>
+    Object.entries(fields).map(([k, v]) => `<${k}>${v}</${k}>`).join("");
+
+  it("utgången annons (GotWinner=false) är ingen affär", () => {
+    // Verkligt mönster: Ended=true, GotWinner=false, RemainingQuantity kvar.
+    const v = getItemVerdict(xml({ Ended: "true", GotWinner: "false", TotalBids: "0", MaxBid: "22", BuyItNowPrice: "22" }));
+    expect(v.sold).toBe(false);
+  });
+
+  it("accepterat bud på en Köp nu ger BUDETS pris, inte utropet", () => {
+    // Verkligt fall: BIN 250 kr, säljaren accepterade 198 kr → betalt 198.
+    const v = getItemVerdict(xml({ Ended: "true", GotWinner: "true", TotalBids: "1", MaxBid: "198", BuyItNowPrice: "250" }));
+    expect(v).toEqual({ sold: true, priceOre: 19_800 });
+  });
+
+  it("köp utan budgivning ger Köp nu-priset", () => {
+    const v = getItemVerdict(xml({ Ended: "true", GotWinner: "true", TotalBids: "0", MaxBid: "0", BuyItNowPrice: "4200" }));
+    expect(v).toEqual({ sold: true, priceOre: 420_000 });
+  });
+
+  it("en annons som inte är avslutad döms aldrig", () => {
+    const v = getItemVerdict(xml({ Ended: "false", GotWinner: "true", TotalBids: "1", MaxBid: "100" }));
+    expect(v.sold).toBe(false);
   });
 });
 

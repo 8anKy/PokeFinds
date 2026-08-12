@@ -60,7 +60,13 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   kördes i praktiken var 1,5–3,5 h — samma lärdom som restock-watch).
   ✅ **ALLT OVAN ÄR GJORT 2026-08-11 och bevisat i drift**: 7/7 kanaler kvitterade testinlägget
   (`--test`), och 19:54 UTC hittade en körning som ingen människa startade 1 lagerflipp och
-  postade 1 larm. ⛔ **PINGAREN ÄR DET GAMLA MANATÖRSK-JOBBET, OMSKRIVET** (cron-job.org id
+  postade 1 larm.
+  ⛔ **INCIDENT 2026-08-12: boten förlorade Send Messages i ALLA sju kanaler** (403 code 50013,
+  `--test` 0/7 mot gårdagens 7/7) — något ändrades i serverns rättigheter efter 20:00 UTC 08-11.
+  Detektionen fungerade hela tiden; körningarna var ändå GRÖNA och lanen stod tyst i 14 h.
+  **Nekade utskick sätter nu `process.exitCode = 1`** (röd körning, samma regel som testläget).
+  Fixen på Discord-sidan är ägarens: botens roll behöver View Channel + Send Messages +
+  Embed Links i varje kanal/kategori; verifiera med workflow_dispatch `test=true` → 7/7 OK. ⛔ **PINGAREN ÄR DET GAMLA MANATÖRSK-JOBBET, OMSKRIVET** (cron-job.org id
   8000102, numera "Foilio Discord restock") — PAT:en låg redan i dess Authorization-header, så
   ingen behövde hantera token. Manatörsk-jobbet finns därmed INTE LÄNGRE, dvs tombstone-punkten
   under Auto-uppdatering är avklarad. Schemat är `*/2 * * * *` (2 minuter finns även som
@@ -608,6 +614,14 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   Pack" (0,99) — `normalizeTitle` kastar korta tokens ("X", "Y", "2"), och en exakt normaliserad träff hoppar
   dessutom över HELA vaktkedjan. Beviset tas därför på RÅTITELN. Skriptet är en RAPPORT tills svepningen mätts
   i sin helhet; faktiska merges görs via `merge-verified-duplicates.ts` med granskade par.
+- **TRADERA-SKENAN: RÄDDNINGSSIDOR MOT SYSKONSKUGGA (2026-08-12)**: Fas 0 i `tradera-sweep.ts` läste bara
+  SIDA 1 (50 träffar, PriceAscending) av produktens namn-sökning. För ett dyrt kort med ett billigt namnsyskon
+  fylls sida 1 helt av syskonet — MÄTT på Mega Darkrai ex 120/084: sökningen träffar 68 annonser men sida 1 är
+  bara 15–37 kr-exemplar av 048/084, `pickRailCandidates` avvisar korrekt alla 50 ⇒ produkten stod utan både
+  skena och offer fast annonserna fanns (guldkortets låg på sida 2). Nu läses nästa sida när en sida ger NOLL
+  kandidater, upp till `TRADERA_HOT_MAX_PAGES` (4) ur en delad extra-budget (`TRADERA_HOT_EXTRA_PAGES` 1500,
+  håller Fas 0 under metodkvoten 10k/dygn). Första sidan MED kandidater räcker — sorteringen är PriceAscending,
+  så billigare träffar finns inte längre fram.
 - **GTIN = exakt cross-store-nyckel (2026-07-13)**: premissen "vi har ingen universell produkt-identifierare" var FEL.
   5 av 7 butiker publicerar tillverkarens streckkod (GS1-prefix `196214` = The Pokémon Company International, `4521329…`
   = Pokémon Japan). **Uppmätt täckning på riktiga prod-offers: 73%.** Vägar (varje butik sin egen — `src/scrapers/gtin-source.ts`):
@@ -682,7 +696,10 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   tradera-sold-sync är länkade med `workflow_run` i stället för fyra egna cron. Fyra spridda starter var fyra
   väckningar; kedjade blir de ett sammanhängande fönster, och glappet (runner-kö + checkout + npm ci) är minuter,
   alltså under autosuspenden. ⛔ `workflows:` matchar `name:`-FÄLTET i den andra filen — byter du namn på ett
-  uppströmsjobb slutar de efterföljande köra TYST. `tests/unit/cron-chain-sync.test.ts` vaktar kedjan.
+  uppströmsjobb slutar de efterföljande köra TYST. ⛔ **KEDJAN FÅR ALDRIG BLI LÄNGRE ÄN TRE LED**: GitHub fyrar
+  `workflow_run` max tre nivåer från roten, och länk 4 fyrar ALDRIG — tyst (tradera-sold-sweep låg så i två
+  månader med noll körningar, upptäckt 2026-08-12). Nya nattjobb läggs som STEG i ett befintligt led.
+  `tests/unit/cron-chain-sync.test.ts` vaktar kedjan.
   ⛔ INGEN `conclusion`-grind: jobben är oberoende och delar bara tidsfönster; en success-grind hade bytt en synlig
   röd körning mot tre osynligt uteblivna. **(2) PERSONALISERADE SVAR CACHAS 60 s** (`PERSONAL_TTL_SECONDS`,
   `services/products.ts`) i stället för att gå helt förbi cachen. En inloggad besökare väckte förut computen vid
@@ -722,12 +739,30 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   ⛔ **UTAN NUMMER — INGEN BILD.** 92 % av korten delar namn med minst ett annat; på strängarna ovan fick
   namn+nummer 1,53 och fyra olika Camerupt fick 1,03 var. Träffen måste bära precis det numret OCH vara ensam om
   det. Fel bild bredvid en gradering är ett påstående om en tryckning vi inte känner — värre än ingen bild.
-- **"TRADERA · SÅLT" ÄR EN EGEN SERIE — BETALT, INTE BEGÄRT (2026-08-06)**: prisgrafen ritar genomförda
-  Tradera-auktioner vid sidan av annonskurvan (`src/jobs/tradera-sold-sweep.ts`, källa `TRADERA_SOLD_SOURCE_NAME`
-  = "Tradera sålt", sist i nattkedjan). ⛔ **BARA AUKTIONER MED BUD GÅR ATT VERIFIERA.** En avslutad
-  `PureBuyItNow` har `HasBids=false` och `BuyItNowPrice == MaxBid` oavsett om någon köpte den eller om den bara
-  löpte ut — tillstånden är IDENTISKA i API-svaret (mätt: 2 109 av 2 768 avslutade utan bud bar exakt den
-  likheten). En avslutad auktion med bud bär vinnande budet i `MaxBid`, i kronor. Allt annat vore fabricerad data.
+- **"TRADERA · SÅLT" ÄR EN EGEN SERIE — BETALT, INTE BEGÄRT (2026-08-06, OMBYGGD 2026-08-12)**: prisgrafen ritar
+  genomförda Tradera-affärer vid sidan av annonskurvan (`src/jobs/tradera-sold-sweep.ts`, källa
+  `TRADERA_SOLD_SOURCE_NAME` = "Tradera sålt").
+  ⛔ **SVEPET HADE ALDRIG KÖRTS FÖRE 2026-08-12**: det låg som FJÄRDE `workflow_run`-led i nattkedjan, och
+  **GitHub fyrar högst TRE led från roten** — länk 4 fyrar ALDRIG, helt tyst (0 körningar någonsin; led 3 körde
+  varje natt). All sålt-data var 08-06-seedens 566 affärer. Svepet är nu ett STEG sist i `tradera-sold-sync.yml`
+  (`!cancelled()` — synkfel får inte svälja svepet); `tradera-sold-sweep.yml` är enbart manuell/backfill och
+  `cron-chain-sync.test.ts` vaktar att ingen lägger tillbaka länk 4. **Nya nattjobb blir STEG i ett befintligt
+  led, aldrig en fjärde länk.**
+  **TVÅ BEVISVÄGAR (2026-08-12)**: (1) auktion med bud bär vinnande budet i `MaxBid` — direkt ur sök-svaret,
+  som förut. (2) **Köp nu/butiksannonser bevisas via `PublicService.GetItem`**: i SÖK-svaret är såld och utgången
+  `PureBuyItNow` identiska (`HasBids=false`, `BuyItNowPrice == MaxBid`, mätt 2 109 av 2 768), men GetItem svarar
+  `GotWinner=true` + `RemainingQuantity=0` för sålda och `GotWinner=false` för utgångna (verifierat mot Traderas
+  egen "Sålda"-filtrering). Pris: `TotalBids>0` ⇒ `MaxBid` (ett accepterat bud kan ligga UNDER utropet — mätt:
+  BIN 250 kr, betalt 198), annars `BuyItNowPrice`. GetItem görs SIST i vaktkedjan (efter match + kategori +
+  prisvakt) så kvoten (10k/dygn/metod, tak `TRADERA_SOLD_GETITEM_MAX` 2500) bara går till blivande grafpunkter.
+  ⛔ **INGA SÖKORD** (`SearchWords` tomt): kategorierna ÄR Pokémon-scopade och ordet "pokemon" gömde 2/3 av
+  annonserna (118 543 mot 346 023 avslutade i singel-kategorin — "Mega Darkrai ex 120/084" bär inte ordet).
+  **DJUPET ÄR TIDSSTYRT** (`TRADERA_SOLD_LOOKBACK_DAYS` 3, sidtak 200): singlar avslutar ~8 900/dygn ≈ 178
+  sidor — gamla "10 sidor/kategori" såg 500 av dem. ⚠️ API:t SERVERAR bara ~200 sidor per fråga oavsett
+  `TotalNumberOfItems` (sida 300 = tomt, mätt) — längre backfill kräver prisband, inte fler sidor.
+  ⛔ Pagineringen bryter på RÅA radantalet (`rawRows`), aldrig på filtrerad längd — en sida full av
+  bortfiltrerade rader är inte en tom sida. **Dry-run-facit** (2,4 h-fönster): 46 affärer på 37 produkter,
+  23 budbevisade + 23 GetItem-bevisade, 17 korrekt avvisade som utgångna.
   ⛔ **ERSÄTTER INTE ANNONSKURVAN** (ägarbeslut, mätt före bygget): annonskurvan täcker 19 561 produkter på
   30 dygn (17 134 med fler än en punkt), sålt några hundra och nästan bara hett sealed — ett byte hade tömt
   Tradera-kurvan för ~9 av 10 produkter som har en. Och storheterna är olika: hammarpris är vad någon BETALADE,
