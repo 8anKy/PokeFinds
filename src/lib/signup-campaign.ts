@@ -30,11 +30,34 @@ export interface SignupCampaignConfig {
   months?: string | number | null;
 }
 
-/** Läser kampanjen ur miljön. Egen funktion så testerna slipper röra process.env. */
+/**
+ * Läser kampanjen ur miljön. Egen funktion så testerna slipper röra process.env.
+ *
+ * ⛔ **`NEXT_PUBLIC_`-NAMNEN ÄR HUVUDSPÅRET — MED FLIT.** Både registreringen
+ * (server) och kampanjbannern (klient) måste veta samma sak, och två variabler med
+ * samma datum hade garanterat glidit isär: bannern hade lovat något registreringen
+ * inte gav, eller tvärtom. Slutdatumet är dessutom publik information — det står i
+ * kreatörens video — så det finns inget att skydda. De opublika namnen behålls som
+ * reserv så en redan satt variabel inte slutar fungera.
+ *
+ * ⚠️ `NEXT_PUBLIC_*` BAKAS IN VID BYGGET — och inte bara i klientbunten. Next byter
+ * ut uttrycket mot en literal ÖVERALLT, alltså även i register-routen på servern.
+ * Följderna:
+ *   · Variabeln MÅSTE finnas som ARG i Dockerfile, annars är den `undefined` i bygget
+ *     hur rätt den än står på Railway (samma fälla som STRIPE_ENABLED 2026-08-07).
+ *   · Att sätta datumet kräver en OMBYGGNAD. Railway bygger om automatiskt vid
+ *     variabeländring, så det sköter sig — men gåvan börjar delas ut först när det
+ *     nya bygget rullat ut, inte i samma sekund variabeln sparas.
+ *   · Banner och registrering kan aldrig säga emot varandra, eftersom de bakas från
+ *     SAMMA literal i samma bygge. Det var hela poängen med ett gemensamt namn.
+ * De opublika namnen läses däremot i runtime och fungerar som nödventil: sätts
+ * `SIGNUP_BONUS_UNTIL` slår den igenom utan ombyggnad, men bara på serversidan
+ * (registreringen ger gåvan, remsan syns inte).
+ */
 export function signupCampaignFromEnv(): SignupCampaignConfig {
   return {
-    until: process.env.SIGNUP_BONUS_UNTIL,
-    months: process.env.SIGNUP_BONUS_MONTHS,
+    until: process.env.NEXT_PUBLIC_SIGNUP_BONUS_UNTIL ?? process.env.SIGNUP_BONUS_UNTIL,
+    months: process.env.NEXT_PUBLIC_SIGNUP_BONUS_MONTHS ?? process.env.SIGNUP_BONUS_MONTHS,
   };
 }
 

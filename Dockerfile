@@ -29,6 +29,12 @@ ARG NEXT_PUBLIC_RC_ANDROID_KEY
 # `stripeEnabled()` i RUNTIME, så checkout slutar sälja direkt; bara knappens
 # utseende släpar tills bygget är klart.
 ARG STRIPE_ENABLED
+# Kampanjen "gratis Pro till nya konton": bannern är en klientkomponent, så datumet
+# BAKAS IN här. Utan de här raderna är det undefined i bunten och remsan syns aldrig,
+# hur rätt variabeln än står på Railway — exakt samma fälla som STRIPE_ENABLED ovan.
+# Registreringen läser samma variabel i RUNTIME och påverkas inte.
+ARG NEXT_PUBLIC_SIGNUP_BONUS_UNTIL
+ARG NEXT_PUBLIC_SIGNUP_BONUS_MONTHS
 ARG LEGAL_ENTITY_NAME
 ARG LEGAL_ENTITY_ADDRESS
 ARG LEGAL_ENTITY_VAT
@@ -40,6 +46,8 @@ ENV NODE_ENV=production \
     NEXT_PUBLIC_RC_IOS_KEY=$NEXT_PUBLIC_RC_IOS_KEY \
     NEXT_PUBLIC_RC_ANDROID_KEY=$NEXT_PUBLIC_RC_ANDROID_KEY \
     STRIPE_ENABLED=$STRIPE_ENABLED \
+    NEXT_PUBLIC_SIGNUP_BONUS_UNTIL=$NEXT_PUBLIC_SIGNUP_BONUS_UNTIL \
+    NEXT_PUBLIC_SIGNUP_BONUS_MONTHS=$NEXT_PUBLIC_SIGNUP_BONUS_MONTHS \
     LEGAL_ENTITY_NAME=$LEGAL_ENTITY_NAME \
     LEGAL_ENTITY_ADDRESS=$LEGAL_ENTITY_ADDRESS \
     LEGAL_ENTITY_VAT=$LEGAL_ENTITY_VAT \
