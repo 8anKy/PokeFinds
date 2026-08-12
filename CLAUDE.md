@@ -1452,11 +1452,18 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   5 gissningar sedan låst, per-IP + per-adress-spärr, skicka-först-spara-sedan) och `/api/auth/register`
   kräver koden → `emailVerifiedAt` sätts vid skapandet. Ren dom = `src/lib/signup-code.ts` (testad utan DB).
   Inbjudningar krediteras DIREKT i register-routen (`creditInviteOnVerify`) — nya konton når aldrig
-  `/api/auth/verify`. ⛔ LÄNK-FLÖDET (`verificationToken`/`/verifiera`/resend-verification + bannern) finns
+  `/api/auth/verify`. ⛔ LÄNK-FLÖDET (`verificationToken`/`/verifiera`/resend-verification) finns
   kvar ENBART för gamla konton och får inte rivas: två konton (inkl. ägarens SUPERADMIN) lever på tokens
   utan utgångstid. ⛔ `templates.ts` får INTE importera signup-code (drar in Node-crypto i edge-bundlen via
   instrumentation → scheduler → notifications) — TTL:en skickas in som parameter. E2E kan inte läsa inkorgen,
   så auth.spec verifierar att kodsteget NÅS; själva skapandet täcks av enhetstester + smoke-test.
+  **UPPTAGET NAMN/ADRESS FÄLLS VID "SKICKA KOD", INTE EFTER KODEN (2026-08-12)**: send-code gör samma
+  namn-/adresskollar som /register och svarar 409 med `field: "name"|"email"` så klienten fäster felet vid
+  rätt fält — ägaren fick annars "namnet upptaget" först i kodsteget. Kollarna ligger FÖRE per-adress-
+  spärren (3 utskick/h) så en namnrättelse aldrig bränner utskicksbudgeten; /register behåller sina kollar
+  som facit (racet namn-tas-mellan-stegen skickar tillbaka till fältet, koden överlever rättelsen).
+  **VerifyEmailBanner BORTTAGEN (ägarbeslut 2026-08-12)**: nya konton föds verifierade, så bannern kunde
+  bara nå de två legacy-kontona — deras väg är /verifiera:s resend-formulär (endpointen lever kvar).
 - **DB**: PROD = Neon serverless Postgres (Frankfurt), connection-string i `.env` som `NEON_DATABASE_URL`. DEV = lokal PostgreSQL 18 (tjänst `postgresql-x64-18`), databas `pokefinds`, user `postgres`, lösen `pokefinds-local`. Docker behövs INTE. `DB_POOL`-env sätter `connection_limit` för batch-jobb
 - **Prod-DB från CLI — ANVÄND ALLTID `scripts/with-prod-db.mjs`**:
   ```bash

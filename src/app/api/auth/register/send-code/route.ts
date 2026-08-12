@@ -11,11 +11,21 @@ import { generateSignupCode, hashSignupCode, SIGNUP_CODE_TTL_MS } from "@/lib/si
 
 export const dynamic = "force-dynamic";
 
-const schema = z.object({ email: z.string().trim().email("Ogiltig e-postadress.") });
+const schema = z.object({
+  email: z.string().trim().email("Ogiltig e-postadress."),
+  // Namnet valideras REDAN HÄR (inte bara i /register): ett upptaget namn ska
+  // stoppa användaren vid "Skicka kod", inte efter att koden hämtats ur inkorgen.
+  name: z.string().trim().min(2, "Namnet måste vara minst 2 tecken.").max(80),
+});
 
 /**
  * Steg 1 i registreringen: mejlar en 6-siffrig kod som bevisar att adressen är
  * användarens egen. Kontot skapas först när koden anges i /api/auth/register.
+ *
+ * Svar med `field` ("name"/"email") låter klienten fästa felet vid rätt fält.
+ * Ordningen är medveten: namn- och adresskollarna ligger FÖRE per-adress-
+ * spärren, så att den som rättar ett upptaget namn inte bränner sina tre
+ * kodutskick per timme på försök som aldrig skickade något.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -27,16 +37,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { email } = schema.parse(await req.json());
+    const { email, name } = schema.parse(await req.json());
     const normalizedEmail = email.toLowerCase();
 
-    // Adress-spärr utöver IP-spärren: utan den kan en roterande IP fylla någon
-    // annans inkorg med koder.
-    const perEmail = await rateLimit(`register-code:mail:${normalizedEmail}`, 3, 60 * 60 * 1000);
-    if (!perEmail.ok) {
+    // Samma kontroll (och besked) som /register — den är fortfarande facit vid
+    // själva skapandet; det här är samma dom, bara tidigare.
+    const nameTaken = await prisma.user.findFirst({
+      where: { name: { equals: name, mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (nameTaken) {
       return NextResponse.json(
-        { error: "Vi har redan skickat flera koder till den adressen. Vänta en stund och försök igen." },
-        { status: 429 }
+        { error: "Användarnamnet är upptaget. Välj ett annat.", field: "name" },
+        { status: 409 }
       );
     }
 
@@ -49,8 +62,21 @@ export async function POST(req: NextRequest) {
     });
     if (existing) {
       return NextResponse.json(
-        { error: "Du har redan ett konto med den här e-postadressen – logga in istället." },
+        {
+          error: "Du har redan ett konto med den här e-postadressen – logga in istället.",
+          field: "email",
+        },
         { status: 409 }
+      );
+    }
+
+    // Adress-spärr utöver IP-spärren: utan den kan en roterande IP fylla någon
+    // annans inkorg med koder. Räknas bara på försök som annars hade SKICKAT.
+    const perEmail = await rateLimit(`register-code:mail:${normalizedEmail}`, 3, 60 * 60 * 1000);
+    if (!perEmail.ok) {
+      return NextResponse.json(
+        { error: "Vi har redan skickat flera koder till den adressen. Vänta en stund och försök igen." },
+        { status: 429 }
       );
     }
 

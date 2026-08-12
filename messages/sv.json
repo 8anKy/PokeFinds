@@ -205,15 +205,6 @@
       "resendHint": "Ange e-postadressen du skapade kontot med.",
       "resendDone": "Behöver adressen bekräftas är en ny länk på väg. Kika i skräpposten om den dröjer."
     },
-    "verifyBanner": {
-      "title": "Bekräfta din e-postadress",
-      "body": "Utan bekräftelse missar du prislarm och restocks.",
-      "resend": "Skicka igen",
-      "sending": "Skickar…",
-      "sent": "Ny länk skickad. Kolla skräpposten.",
-      "error": "Det gick inte just nu. Försök igen om en stund.",
-      "dismiss": "Dölj påminnelsen"
-    },
     "onboarding": {
       "step": "Steg {step} av 3",
       "interestsTitle": "Vad samlar du på?",

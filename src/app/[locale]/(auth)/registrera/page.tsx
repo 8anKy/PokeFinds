@@ -65,11 +65,21 @@ export default function RegisterPage() {
     const res = await fetch("/api/auth/register/send-code", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.trim() }),
+      body: JSON.stringify({ email: email.trim(), name: name.trim() }),
     });
     if (!res.ok) {
-      const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? t("genericError"));
+      const data = (await res.json().catch(() => null)) as
+        | { error?: string; field?: string }
+        | null;
+      // Upptaget namn/adress fångas redan HÄR (före något mejl skickas) och
+      // fästs vid sitt fält. Kommer felet under kodsteget (namnet hann tas av
+      // någon annan) skickas användaren tillbaka så fältet syns.
+      if (data?.error && (data.field === "name" || data.field === "email")) {
+        setFieldErrors({ [data.field]: data.error });
+        setStep("details");
+      } else {
+        setError(data?.error ?? t("genericError"));
+      }
       return false;
     }
     setResendIn(RESEND_COOLDOWN_S);
@@ -127,8 +137,18 @@ export default function RegisterPage() {
         }),
       });
       if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        setError(data?.error ?? t("genericError"));
+        const data = (await res.json().catch(() => null)) as
+          | { error?: string; field?: string }
+          | null;
+        // Namnet/adressen hann tas mellan kodutskicket och submit (send-code
+        // fångar annars detta redan i steg 1) → tillbaka till fältet. Koden
+        // förbrukas inte av det, så den gäller fortfarande efter rättelsen.
+        if (data?.error && (data.field === "name" || data.field === "email")) {
+          setFieldErrors({ [data.field]: data.error });
+          setStep("details");
+        } else {
+          setError(data?.error ?? t("genericError"));
+        }
         setLoading(false);
         return;
       }

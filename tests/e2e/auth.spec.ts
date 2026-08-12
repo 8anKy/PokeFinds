@@ -26,9 +26,11 @@ test.describe("Registrering", () => {
     await page.goto("/registrera");
     await expect(page.getByRole("heading", { name: "Skapa konto" })).toBeVisible();
 
-    const uniqueEmail = `e2e-${Date.now()}@example.test`;
-    await page.locator("#name").fill("E2E Testare");
-    await page.locator("#email").fill(uniqueEmail);
+    // Namnet måste också vara unikt: send-code kollar numera namnupptaget
+    // FÖRE utskicket, så ett fast namn hade fällt varje körning efter den första.
+    const stamp = Date.now();
+    await page.locator("#name").fill(`E2E Testare ${stamp}`);
+    await page.locator("#email").fill(`e2e-${stamp}@example.test`);
     await page.locator("#password").fill("testlosen123");
     // Bekräfta lösenord-fältet
     await page.locator('input[type="password"]').nth(1).fill("testlosen123");

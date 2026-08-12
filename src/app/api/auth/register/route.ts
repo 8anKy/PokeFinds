@@ -45,10 +45,16 @@ export async function POST(req: NextRequest) {
     const { name, email, password, code, invite } = schema.parse(await req.json());
     const normalizedEmail = email.toLowerCase();
 
+    // `field` låter klienten fästa felet vid rätt fält. Send-code gör samma
+    // kontroller FÖRE koden skickas — de här är facit vid skapandet och fångar
+    // bara racet där namnet/adressen togs mellan kodutskicket och submit.
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
       return NextResponse.json(
-        { error: "Du har redan ett konto med den här e-postadressen – logga in istället." },
+        {
+          error: "Du har redan ett konto med den här e-postadressen – logga in istället.",
+          field: "email",
+        },
         { status: 409 }
       );
     }
@@ -59,7 +65,7 @@ export async function POST(req: NextRequest) {
     });
     if (nameTaken) {
       return NextResponse.json(
-        { error: "Användarnamnet är upptaget. Välj ett annat." },
+        { error: "Användarnamnet är upptaget. Välj ett annat.", field: "name" },
         { status: 409 }
       );
     }
