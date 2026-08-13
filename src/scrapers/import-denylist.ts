@@ -945,6 +945,101 @@ const DENIED = new Set<string>(
     // Pokémon Base Set Vintage Booster Pack (ENG) (offer krockar med målets)
     "https://aquitaz.se/products/pokemon-base-set-vintage-booster-pack-blastoise-artwork-11-kort-eng",
     "https://aquitaz.se/products/pokemon-base-set-vintage-booster-pack-charizard-artwork-11-kort-eng",
+    // ── Ägarens katalogbeslut 2026-08-13 (apply-owner-decisions.ts) ──
+    // EX Deoxys Booster Pack - Rayquaza (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-ex-deoxys-booster-pack?variant=56387847225675",
+    // EX Deoxys Booster Pack - Deoxys - (Gul) (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-ex-deoxys-booster-pack?variant=56387847258443",
+    // EX Deoxys Booster Pack - Deoxys (Blå) (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-ex-deoxys-booster-pack?variant=56387847323979",
+    // Base Set 2 Booster Pack - Unlimited - Mewtwo artwork (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-base-set-2-booster-pack-unlimited?variant=50330772767051",
+    // Base Set 2 Booster Pack - Unlimited - Raichu artwork (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-base-set-2-booster-pack-unlimited?variant=50330772799819",
+    // Base Set 2 Booster Pack - Unlimited - Pidgeot artwork (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-base-set-2-booster-pack-unlimited?variant=46912861831499",
+    // Pokémon Base Set Vintage Booster Pack (ENG) (offer krockar med målets)
+    "https://aquitaz.se/products/pokemon-base-set-vintage-booster-pack-venusaur-artwork-11-kort-eng",
+    // Pokémon Mega Evolution: Mega Evolution Pokémon Center Elite Trainer Box (Mega Lucario) (ETB) (offer krockar med målets)
+    "https://aquitaz.se/products/pokemon-mega-evolution-mega-evolution-pokemon-center-elite-trainer-box-mega-lucario-etb-11-pack",
+    // Pokémon: Prismatic Bundle Display (raderad produkt)
+    "https://pokexclusive.se/products/pokemon-prismatic-bundle-display",
+    // Sword Booster Box (raderad produkt)
+    "https://aquitaz.se/products/pokemon-sword-shield-pokemon-go-booster-box",
+    // Pokémon Sun & Moon: Dragon Storm SM6a Booster Box (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-sun-moon-dragon-storm-sm6a-booster-box-30-pack-jp",
+    // Pokémon Sun & Moon: Night Unison SM9a Booster Box (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-sun-moon-night-unison-sm9a-booster-box-5-kort-jp",
+    // Mega Mewtwo X Collection (raderad produkt)
+    "https://tinymisters.com/products/pokemon-mega-mega-brave-pokemon-center-collection-box-60-pack-jp",
+    // Pokémon MEGA: Mega Symphonia Pokémon Center Collection Box (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-mega-mega-symphonia-pokemon-center-collection-box-60-pack-jp",
+    "https://tinymisters.com/products/pokemon-mega-mega-symphonia-pokemon-center-collection-box-60-pack-jp",
+    "https://speltrollet.se/products/pokemon-mega-symphonia-pokemon-center-set-japansk",
+    "https://nordictcg.se/57-mega-symphonia-pokémon-center-special-box.html",
+    // Pokémon TCG Illustration Contest 2024 Promo Card Pack (raderad produkt)
+    "https://aquitaz.se/products/pokemon-scarlet-violet-illustration-contest-2024-promo-card-booster-pack-jp",
+    // Pokémon: 5th Edition Gym Promo Booster Pack (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-sword-shield-5th-edition-gym-promo-booster-pack-7-kort-jp",
+    // Pokémon Scarlet & Violet: GYM Vol. 7 Promo Booster Pack (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-xy-gym-vol-7-promo-booster-pack-1-kort-jp",
+    // Pokémon McDonalds Happy Meal 2023 Match Battle (Klawf) Booster Pack (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-mcdonalds-happy-meal-2023-match-battle-klawf-booster-pack",
+    // Pokémon McDonalds Happy Meal 2023 Match Battle (Fuecoco B) Booster Pack (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-mcdonalds-happy-meal-2023-match-battle-fuecoco-b-booster-pack",
+    // Pokémon XY: GYM Vol. 3 Promo Booster Pack (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-xy-gym-vol-3-promo-booster-pack-1-kort-jp",
+    // Pokémon XY: GYM Vol. 5 Promo Booster Pack (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-xy-gym-vol-5-promo-booster-pack-1-kort-jp",
+    // Pokémon Card Gym Promo MEGA Vol. 4 Booster (1 Card) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-scarlet-violet-gym-vol-4-promo-booster-pack-1-kort-jp",
+    // Pokémon Scarlet & Violet: GYM Vol. 8 Promo Booster Pack (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-scarlet-violet-gym-vol-8-promo-booster-pack-1-kort-jp",
+    // Pokémon Scarlet & Violet: Journey Together SV9 (Scraggy & Yanma) Checklane Blister Pack (ENG) (Bundl (raderad produkt)
+    "https://aquitaz.se/products/pokemon-scarlet-violet-journey-together-sv9-scraggy-yanma-checklane-blister-pack-eng-bundle-of-2",
+    // Pokémon Scarlet & Violet: Journey Together SV9 (Yanmega & Scrafty) 3-Pack Blister (Bundle of 2) (ENG (raderad produkt)
+    "https://aquitaz.se/products/pokemon-scarlet-violet-journey-together-sv9-yanmega-scrafty-3-pack-blister-bundle-of-2-eng",
+    // Pokémon Sword & Shield: Evolving Skies & Chilling Reign 2-Pack Pin Blister (Latias) (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-sword-shield-evolving-skies-chilling-reign-2-pack-pin-blister-latias-eng",
+    // Pokémon Sword & Shield: Evolving Skies & Chilling Reign 2-Pack Pin Blister (Latios) (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-sword-shield-evolving-skies-chilling-reign-2-pack-pin-blister-latios-eng",
+    // Mega Gengar Pin 2-Pack Blister (raderad produkt)
+    "https://aquitaz.se/products/pokemon-mega-raikou-2-pack-blister-eng",
+    // Pokémon Sun & Moon: Meganium, Typhlosion & Feraligatr 2-Pack Blisters (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-meganium-typhlosion-feraligatr-2-pack-blisters-eng",
+    // Pokémon Diamond & Pearl: Platinum Supreme Victors Booster Pack (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-platinum-supreme-victors-booster-pack-10-kort-eng",
+    // Pokémon MEGA: MEGA Card GYM Vol. 1 Promo Booster Pack (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-mega-mega-card-gym-vol-1-promo-booster-pack-2-kort-jp",
+    // Pokémon: First Partner Grookey, Scorbunny & Sobble Booster Pack (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-first-partner-grookey-scorbunny-sobble-booster-pack-3-kort-2-boosters-eng",
+    // Pokémon: First Partner Bulbasaur, Charmander & Squirtle Booster Pack (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-first-partner-bulbasaur-charmander-squirtle-booster-pack-3-kort-eng",
+    "https://dragonslair.se/products/pokemon-tcg-my-first-battle-charmander-squirtle",
+    "https://tcgstore.se/products/pokemon-tcg-my-first-battle-charmander-vs-squirtle",
+    "https://www.maxgaming.se/sv/pokemon/tcg-my-first-battle-charmander-squirtle",
+    // Pokemon: First Partner Series 1 Booster Pack (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-first-partner-series-1-booster-pack-3-kort-eng",
+    // Pokemon MEGA: MEGA Card GYM Vol. 5 Promo Booster Pack (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-mega-mega-card-gym-vol-5-promo-booster-pack-1-card-jp",
+    // YU NAGABA × Pokémon Card Game Eeveelution Promo Pack (raderad produkt)
+    "https://aquitaz.se/products/pokemon-yu-nagaba-eevees-special-promo-booster-pack",
+    // Pokémon Card Summer Is Here! Promo Card Get Campaign! Promo Card Pack (raderad produkt)
+    "https://aquitaz.se/products/pokemon-summer-is-here-2024-promo-booster-pack",
+    // Pokémon XY: GYM Vol. 6 Promo Booster Pack (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-xy-gym-vol-6-promo-booster-pack-1-kort-jp",
+    // Pokémon Scarlet & Violet: GYM Vol. 9 Promo Booster Pack (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-scarlet-violet-gym-vol-9-promo-booster-pack-1-kort-jp",
+    // Pokémon Scarlet & Violet: Event Trainer Organizer Booster Pack (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-scarlet-violet-event-trainer-organizer-booster-pack-1-kort-jp",
+    // Pokémon Scarlet & Violet: Extra Battle Day Booster Pack (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-scarlet-violet-extra-battle-day-booster-pack-1-kort-jp",
+    // McDonald's 2014 Promo Booster (raderad produkt)
+    "https://aquitaz.se/products/pokemon-xy-macdonalds-promo-booster-pack-1-kort-jp",
+    // Pokémon Card Gym Promo MEGA Vol. 2 Booster (1 Card) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-scarlet-violet-gym-vol-2-promo-booster-pack-7-kort-jp",
+    // Pokémon Scarlet & Violet: GYM Vol. 10 Promo Booster Pack (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-xy-gym-vol-10-promo-booster-pack-1-kort-jp",
   ].map(normUrl)
 );
 
