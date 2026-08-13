@@ -15,12 +15,17 @@
  *     bygg aldrig state ur bara den här körningens feed. Att missa det kostade
  *     23 % → 84 % vaken Neon-tid i juli 2026.
  *
- * ⛔ OKÄND URL POSTAS INTE. En URL som saknas i ruttabellen kan vara vad som helst —
- * sleeves, en singel, en figur — och DB-vägens vakter (`ensureListingProduct` med
- * isAccessoryListing/isSingleCardListing/isMerchandiseListing) finns inte här. En
- * publik kanal som postar plastfickor lär medlemmarna att ignorera den. Nya SKU:er
- * dyker upp i Discord när ruttabellen uppdateras (≤24 h); mejl och app larmar om dem
- * direkt via 10-min-lanen som har vakterna.
+ * ⛔ OKÄND URL POSTAS INTE — MEN DEN GLÖMS INTE (2026-08-13). En URL som saknas i
+ * ruttabellen kan vara vad som helst — sleeves, en singel, en figur — och DB-vägens
+ * vakter (`ensureListingProduct` med isAccessoryListing/isSingleCardListing/
+ * isMerchandiseListing) finns inte här. En publik kanal som postar plastfickor lär
+ * medlemmarna att ignorera den. Förut var det slutgiltigt: övergången konsumerades och
+ * Samlarhobbys Paradox Rift-booster (offer född 18:02 via auto-import, ruttabell från
+ * 12:57) postades ALDRIG fast lanen såg flippen före DB-lanen. Nu läggs okända
+ * IN_STOCK-övergångar i `pending` och postas i ett senare tick när URL:en dykt upp i
+ * en färskare ruttabell (10-min-lanen exporterar om den så fort nya offers skapats)
+ * och varan fortfarande är i lager. TTL:en finns för att en URL som ALDRIG får en
+ * rutt (sleeves, singlar) inte ska ligga kvar i state-filen i evighet.
  */
 import { actionableChanges, mergeStateMap, type FeedStateMap } from "@/lib/feed-state-diff";
 import { evaluateStockFlap, FLAP_WINDOW_HOURS, type FlapPolicy } from "@/lib/stock-flap";
@@ -73,11 +78,20 @@ export interface DiscordRestockState {
   history: Record<string, HistoryEntry[]>;
   /** url-nyckel → när vi senast POSTADE om den (cooldown). */
   posted: Record<string, number>;
+  /**
+   * url-nyckel → när en IN_STOCK-övergång hoppades som okänd URL. Andra chansen:
+   * postas när ruttabellen hunnit ikapp (se filhuvudet). Saknas i äldre state-filer
+   * → tolkas som tom.
+   */
+  pending?: Record<string, number>;
 }
 
 export function emptyState(): DiscordRestockState {
-  return { stock: {}, history: {}, posted: {} };
+  return { stock: {}, history: {}, posted: {}, pending: {} };
 }
+
+/** Hur länge en okänd URL väntar på sin rutt innan den släpps (sleeves/singlar får aldrig en). */
+const PENDING_UNKNOWN_TTL_HOURS = 12;
 
 export interface DeriveOptions {
   state: DiscordRestockState | null;
@@ -103,6 +117,13 @@ export interface DeriveResult {
     skippedUnknownUrl: number;
     skippedFlap: number;
     skippedCooldown: number;
+    /**
+     * De faktiska nycklarna ("källa\turl") som hoppades som okänd URL. Utredningen
+     * 2026-08-13 (Samlarhobbys Paradox Rift-booster) krävde korsreferens mot DB-lanens
+     * loggar bara för att ta reda på VILKEN URL som hoppats — räknare utan namn går
+     * inte att felsöka. Produktdata, inga hemligheter — säkert i publika loggar.
+     */
+    unknownUrlKeys: string[];
   };
 }
 
@@ -127,15 +148,24 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
     skippedUnknownUrl: 0,
     skippedFlap: 0,
     skippedCooldown: 0,
+    unknownUrlKeys: [],
   };
 
   if (seeded) {
     return {
       posts: [],
-      nextState: { stock: nextStock, history: prev.history, posted: prev.posted },
+      nextState: { stock: nextStock, history: prev.history, posted: prev.posted, pending: prev.pending ?? {} },
       stats,
     };
   }
+
+  // Väntande okända URL:er från tidigare tick, beskurna till TTL-fönstret.
+  const pendingCutoff = now.getTime() - PENDING_UNKNOWN_TTL_HOURS * 3600_000;
+  const carriedPending: Record<string, number> = {};
+  for (const [k, t] of Object.entries(prev.pending ?? {})) {
+    if (t >= pendingCutoff) carriedPending[k] = t;
+  }
+  const pending: Record<string, number> = {};
 
   // ⛔ SEEDNINGEN GÄLLER PER KÄLLA, INTE BARA FÖR HELA FILEN (mätt 2026-08-12: när
   // MaxGaming lades till i butikslistan såg diffen alla dess ~41 lagerförda varor som
@@ -201,6 +231,11 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
     const route = routes[found.item.url];
     if (!route) {
       stats.skippedUnknownUrl++;
+      stats.unknownUrlKeys.push(c.key);
+      // Andra chansen: kom URL:en in i en färskare ruttabell postas den då (nedan i
+      // ett senare tick). Behåll den URSPRUNGLIGA tidsstämpeln om den redan väntade.
+      pending[c.key] = carriedPending[c.key] ?? now.getTime();
+      delete carriedPending[c.key];
       continue;
     }
 
@@ -240,7 +275,50 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
     });
   }
 
-  return { posts, nextState: { stock: nextStock, history, posted: { ...posted } }, stats };
+  // ANDRA CHANSEN: väntande okända URL:er vars rutt nu FINNS. Kraven är desamma som
+  // för en färsk övergång (flapp/cooldown), plus att varan fortfarande är i lager —
+  // en väntande post som hann ta slut är ingen nyhet längre och SLÄPPS (den riktiga
+  // nästa påfyllningen är en vanlig övergång). En källa som inte var med i det här
+  // ticket (artighetsnivån sveps varannan gång) behåller sin väntplats.
+  const postedNow = new Set(posts.map((p) => p.key));
+  for (const [k, t0] of Object.entries(carriedPending)) {
+    if (postedNow.has(k)) continue;
+    const found = itemByKey.get(k);
+    if (!found) {
+      pending[k] = t0; // källan sveptes inte detta tick — vänta kvar
+      continue;
+    }
+    const route = routes[found.item.url];
+    if (!route) {
+      pending[k] = t0; // fortfarande okänd — vänta kvar (TTL:n beskär)
+      continue;
+    }
+    if (nextStock[k] !== IN_STOCK) continue; // hann ta slut → släpp
+    const flap = evaluateStockFlap(
+      (history[k] ?? []).map((e) => ({ oldStatus: e.o as StockStatus, detectedAt: new Date(e.t) })),
+      IN_STOCK as StockStatus,
+      now,
+      policy
+    );
+    if (flap.blip) continue;
+    const effectiveCooldownMs = Math.max(cooldownMs, flap.cooldownHours * 3600_000);
+    const last = posted[k];
+    if (last != null && now.getTime() - last < effectiveCooldownMs) continue;
+    posts.push({
+      key: k,
+      title: route.title || found.item.title,
+      storeName: found.sourceName,
+      storeUrl: found.item.url,
+      priceOre: found.item.price,
+      imageUrl: found.item.imageUrl ?? absoluteImage(route.imageUrl),
+      setName: route.setName,
+      series: route.series,
+      language: route.language ?? null,
+      productUrl: `${site}/produkter/${route.slug}`,
+    });
+  }
+
+  return { posts, nextState: { stock: nextStock, history, posted: { ...posted }, pending }, stats };
 }
 
 /**

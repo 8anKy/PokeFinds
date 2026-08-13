@@ -197,6 +197,84 @@ describe("deriveRestockPosts", () => {
     });
     expect(r.posts).toHaveLength(0);
     expect(r.stats.skippedUnknownUrl).toBe(1);
+    expect(r.stats.unknownUrlKeys).toEqual([key]);
+    // ...men den GLÖMS inte: övergången väntar på att ruttabellen ska hinna ikapp.
+    expect(r.nextState.pending?.[key]).toBe(NOW.getTime());
+  });
+
+  // Samlarhobbys Paradox Rift-booster 2026-08-12: offern föddes 18:02 via auto-import,
+  // ruttabellen var från 12:57 → övergången konsumerades och postades ALDRIG. Andra
+  // chansen: okända IN_STOCK-övergångar väntar i state och postas när rutten dykt upp.
+  describe("andra chansen för okända URL:er", () => {
+    const NEW_URL = "https://butik.se/paradox-rift-booster";
+    const NEW_KEY = `Dragon's Lair\t${NEW_URL}`;
+    const ROUTED: RouteTable = {
+      ...ROUTES,
+      [NEW_URL]: {
+        title: "Paradox Rift Booster",
+        slug: "paradox-rift-booster",
+        setName: "Paradox Rift",
+        series: "Scarlet & Violet",
+      },
+    };
+    const pendingState = () =>
+      state({
+        stock: { [NEW_KEY]: "IN_STOCK" },
+        pending: { [NEW_KEY]: NOW.getTime() - 10 * 60_000 },
+      });
+    const inStockGroups = () => groups([{ url: NEW_URL, stockStatus: "IN_STOCK" }]);
+
+    it("postar när rutten dykt upp och varan fortfarande är i lager", () => {
+      const r = deriveRestockPosts({
+        state: pendingState(),
+        groups: inStockGroups(),
+        rotating: new Set(),
+        routes: ROUTED,
+        now: NOW,
+        policy: POLICY,
+        cooldownHours: 2,
+        baseUrl: BASE,
+      });
+      expect(r.posts).toHaveLength(1);
+      expect(r.posts[0].title).toBe("Paradox Rift Booster");
+      expect(r.nextState.pending?.[NEW_KEY]).toBeUndefined();
+    });
+
+    it("väntar kvar när rutten fortfarande saknas — och när källan inte sveptes", () => {
+      const still = derive({ state: pendingState(), groups: inStockGroups() });
+      expect(still.posts).toHaveLength(0);
+      expect(still.nextState.pending?.[NEW_KEY]).toBe(NOW.getTime() - 10 * 60_000);
+
+      // Artighetsnivån: källan var inte med i det här ticket → rör ingenting.
+      const absent = derive({ state: pendingState(), groups: groups([]) });
+      expect(absent.nextState.pending?.[NEW_KEY]).toBe(NOW.getTime() - 10 * 60_000);
+    });
+
+    it("släpper en väntande post som hann ta slut", () => {
+      const r = deriveRestockPosts({
+        state: pendingState(),
+        groups: groups([{ url: NEW_URL, stockStatus: "OUT_OF_STOCK" }]),
+        rotating: new Set(),
+        routes: ROUTED,
+        now: NOW,
+        policy: POLICY,
+        cooldownHours: 2,
+        baseUrl: BASE,
+      });
+      expect(r.posts).toHaveLength(0);
+      expect(r.nextState.pending?.[NEW_KEY]).toBeUndefined();
+    });
+
+    it("släpper väntande poster äldre än TTL-fönstret (sleeves får aldrig en rutt)", () => {
+      const r = derive({
+        state: state({
+          stock: { [NEW_KEY]: "IN_STOCK" },
+          pending: { [NEW_KEY]: NOW.getTime() - 13 * 3600_000 },
+        }),
+        groups: inStockGroups(),
+      });
+      expect(r.nextState.pending?.[NEW_KEY]).toBeUndefined();
+    });
   });
 
   it("BLINK: tillbaka i lager inom 20 min efter att ha lämnat lagret → inget larm", () => {

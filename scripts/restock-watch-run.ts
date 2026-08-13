@@ -153,6 +153,22 @@ async function main() {
     console.log("[restock-watch][SHADOW] OK — grinden ville hoppa och DB-fasen fann inget (0 restocks, 0 nya). Skip hade varit säkert.");
   }
 
+  // NYA OFFERS SKAPADES (auto-import) → exportera om Discord-lanens ruttabell NU.
+  // Neon är garanterat vaken (DB-fasen skapade just offers), så omexporten är gratis
+  // enligt väckningsregeln. Utan den är en ny SKU:s första restock "okänd URL" i
+  // Discord i upp till ett dygn — Samlarhobbys Paradox Rift-booster 2026-08-12 sågs
+  // av 2-min-lanen FÖRE DB-lanen men kunde aldrig postas. Workflowet sparar filen
+  // som en ny restock-routes-cache; Discord-lanen restaurerar på prefix inom minuter.
+  const routesFile = process.env.RESTOCK_ROUTES_FILE;
+  if (routesFile && (r.offersCreated ?? 0) > 0) {
+    try {
+      const { exportRestockRoutes } = await import("./lib/restock-routes");
+      await exportRestockRoutes(routesFile);
+    } catch (e) {
+      console.warn("[restock-watch] Kunde inte exportera ruttabellen:", e instanceof Error ? e.message : e);
+    }
+  }
+
   // Färsk källista (hämtad från DB denna körning) → cacha för nästa körning.
   if (srcFile && !cachedSources && r.sourceList?.length) {
     try {

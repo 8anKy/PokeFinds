@@ -1,26 +1,31 @@
-name: Discord restock-larm (var 2:a minut)
+name: Discord restock-larm (loop-jobb, tick var 60:e s)
 
 # Snabbfil som postar restocks till Discord LÅNGT före mejlet hinner ut.
 #
 # VARFÖR EN EGEN LANE: 10-min-lanen är inte långsam för att utskicket är långsamt —
 # mejl och push skickas redan inne i samma körning som upptäckten (dispatchPendingAlerts
-# anropas direkt efter offer-diffen). Flaskhalsen är TAKTEN. Den här lanen kör var 2:a
-# minut i stället för var 10:e.
+# anropas direkt efter offer-diffen). Flaskhalsen är TAKTEN.
 #
-# ⛔ 2 MINUTER ÄR ETT GOLV SATT PÅ MÄTNING, INTE ETT AVRUNDAT TAL (2026-08-11).
-# En körning tar 65–81 s (median ~72 s), mätt över 18 körningar i drift. Fördelningen:
-# ~25 s Actions-omkostnad (dispatch→start, runner-boot, checkout, tre cache-restores,
-# setup-node), ~42 s FEED-HÄMTNING och ~4 s cache-save. De 42 s går INTE att
-# parallellisera bort: RESTOCK_SCAN_CONCURRENCY är 8 och defaultlistan är 8 butiker,
-# så alla hämtas redan samtidigt — 42 s ÄR den långsammaste enskilda butikens
-# paginerade katalog (Dragon's Lair). Höjd concurrency gör därför ingenting.
-# Vid 120 s takt finns ~50 s marginal: körningar möts aldrig, inget köar.
-# ⛔ SÄTT ALDRIG 1 MINUT. Det är UNDER körningstiden. Det kraschar inte — concurrency-
-# gruppen nedan är äkta mottryck — men den nya dispatchen blir PENDING, och när nästa
-# dispatch kommer medan en redan väntar avbryter GitHub den VÄNTANDE. Facit blir
-# ~70–75 s faktisk takt (alltså inte 60), en jämn ström av avbrutna körningar i
-# historiken, och noll marginal för en långsam butiksdag. Dessutom fördubblas lasten på
-# småbutikernas servrar en gång till — se artighetsresonemanget i scriptet.
+# LOOP-I-JOBBET (2026-08-13, ersätter "en körning per dispatch var 2:a minut"):
+# Den gamla modellen betalade ~25 s Actions-omkostnad (dispatch→start, boot, checkout,
+# cache-restores) PER SVEP — omkostnaden var större än själva feed-hämtningen och
+# gick inte att optimera bort per körning. Nu loopar JOBBET i stället: ett jobb kör
+# svep ("tick") var 60:e sekund i ~5 minuter och avslutar sig självt; omkostnaden
+# betalas en gång per jobb. Snittlatens ≈ tick/2 + feed-hämtning ≈ ~45–60 s, mot
+# ~2,1 min förut. Feed-hämtningen kortades samtidigt i sig: Shopify-JSON-pacingen
+# sänktes 1200→300 ms (CDN-serverad; Speltrollets 28 kollektioner var den mätta
+# ~40 s-svansen) och TCG Store/Pokétalk/Samlarhobby läser /products.json.
+#
+# ARTIGHETEN SITTER I SCRIPTET, PER PLATTFORM: Shopify-butiker (CDN) sveps varje tick,
+# butiker på egna servrar (Quickbutik/Woo/custom) varannan — dvs samma takt som den
+# gamla 2-minuterslanen gav dem. Läs isFastTier i scripts/discord-restock-run.ts.
+#
+# PINGERN (cron-job.org, var 2:a min) BEHÖVS FORTFARANDE och får gärna stå kvar på 2
+# min: medan ett loop-jobb kör blir dispatcher PENDING i concurrency-gruppen, GitHub
+# byter ut den väntande mot varje nyare dispatch (någon "avbruten" körning per jobb i
+# historiken — kosmetiskt), och när jobbet slutar startar nästa direkt = sömlös kedja
+# med självläkning om ett jobb dör. Vill man ha renare historik kan pingern sättas
+# till var 5:e min (samma latens — jobben är ~5 min långa); ägarens val, noll kostnad.
 #
 # ⛔ DEN RÖR ALDRIG DATABASEN, OCH DET ÄR VILLKORET FÖR ATT DEN SKA VARA GRATIS.
 # Neon debiteras per VAKEN TID och varje väckning köper minst 300 s. Skulle den här
@@ -79,8 +84,15 @@ jobs:
       #   {"default":"<kanal-id>","series":{"Mega Evolution":"<id>","Scarlet & Violet":"<id>"}}
       DISCORD_RESTOCK_CHANNELS: ${{ vars.DISCORD_RESTOCK_CHANNELS }}
       # Tom → default-listan i scriptet (de åtta mest aktiva butikerna, mätt).
-      # "all" = alla 34. Läs artighetsresonemanget i scriptet innan du sätter "all".
+      # "all" = alla bevakade. Läs artighetsresonemanget i scriptet innan du sätter "all".
       DISCORD_RESTOCK_STORES: ${{ vars.DISCORD_RESTOCK_STORES }}
+      # Loop-i-jobbet: totalbudget ~5 min, ett tick var 60:e s (se filhuvudet).
+      # Jobbet slutar självt när nästa tick inte ryms i budgeten.
+      DISCORD_RESTOCK_LOOP_SECONDS: "300"
+      DISCORD_RESTOCK_TICK_SECONDS: "60"
+      # Wall-clock för ett tick = långsammaste ENSKILDA butik, inte summan per worker.
+      # Butikslistan är >40 på väg mot ~50 — 16 workers håller ticket under intervallet.
+      RESTOCK_SCAN_CONCURRENCY: "16"
       NEXT_PUBLIC_APP_URL: "https://www.foilio.se"
     steps:
       # Hoppa tyst och grönt när integrationen är avstängd — annars kör vi checkout
@@ -120,11 +132,13 @@ jobs:
           restore-keys: |
             restock-routes-
 
+      # ⛔ Ingen `cache: npm` här: node_modules-cachen nedan träffar nästan alltid, och
+      # ~/.npm-restoren var då en död restore per jobb. På nm-miss blir npm ci långsammare
+      # en enda gång — rätt byte för en lane som bootar dygnet runt.
       - if: steps.guard.outputs.ready == 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
-          cache: npm
       # Samma nyckel som de andra lanarna → delad, varm cache (sparar ~35 s/körning).
       - if: steps.guard.outputs.ready == 'true'
         id: nm
