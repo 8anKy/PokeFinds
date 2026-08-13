@@ -299,6 +299,10 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   Efter den delar **noll** sealed-produkter normaliserad titel med en annan
   (`docs/owner-decisions-2026-08-13-e.txt` + `-f.txt`). Kohorten 898 → **115 kvar**, katalogen 31 314.
   Denylistningen hann före nästa skrapning: `purge-denylisted-products.ts` hittade 0 återuppståndna.
+  ✅ **OMGÅNG 6**: 38 beslut → 41 mergade + 36 raderade (`docs/owner-decisions-2026-08-13-g.txt`).
+  Mest japanska boosterboxar där butikens "(JP)"-form gick in i katalogens "…display booster box
+  japansk", plus promo-paketen (GYM Vol., McDonald's, First Partner). Kohorten 898 → **43 kvar**,
+  katalogen 31 239, fortfarande noll delade sealed-titlar och noll återuppståndna rader.
   ⏭️ **KVAR — väntar på ägaren**: de 74 LLM-dömda paren, och
   **omslagskonstfrågan**: Rogerz säljer vintage booster packs PER OMSLAG → 137 produkter på 38 set.
   MÄTT (`scripts/wrapper-art-report.ts`): 33 av 38 set har IDENTISKT pris på alla omslag, 2 skiljer
