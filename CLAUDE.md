@@ -71,19 +71,29 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   ingen behövde hantera token. Manatörsk-jobbet finns därmed INTE LÄNGRE, dvs tombstone-punkten
   under Auto-uppdatering är avklarad. Schemat är `*/2 * * * *` (2 minuter finns även som
   preset hos cron-job.org — det var 3-minuters som saknades och tvingade fram ett custom-uttryck).
-  ⛔ **TAKTEN 2 MIN ÄR ETT GOLV SATT PÅ MÄTNING (2026-08-11), inte ett avrundat tal.** En körning
-  tar 65–81 s (median ~72 s) över 18 körningar i drift: ~25 s Actions-omkostnad (dispatch→start,
-  runner-boot, checkout, tre cache-restores, setup-node) + **~42 s feed-hämtning** + ~4 s cache-save.
-  De 42 s går INTE att parallellisera bort — `RESTOCK_SCAN_CONCURRENCY` är 8 och defaultlistan är
-  8 butiker, så alla hämtas redan samtidigt; 42 s ÄR den långsammaste butikens paginerade katalog
-  (Dragon's Lair). Höjd concurrency gör därför ingenting. ⛔ **1 MINUT LIGGER UNDER KÖRNINGSTIDEN.**
-  Det kraschar inte (concurrency-gruppen är äkta mottryck, och `cancel-in-progress: false` dödar
-  aldrig en PÅGÅENDE körning, så flapp-historiken är trygg) — men den nya dispatchen blir PENDING,
-  och kommer nästa dispatch medan en redan väntar avbryter GitHub den VÄNTANDE. Facit: ~70–75 s
-  faktisk takt, avbrutna körningar i historiken, noll marginal. **Latens = väntan (takt/2) + ~67 s
-  fast pipeline**, så 3→2 min gav ~2,6 → ~2,1 min och 1 min hade gett ~1,6 — halverad takt halverar
-  alltså inte latensen. Den fasta pipen (särskilt de 25 s omkostnad) är den enda kvarvarande spaken,
-  och den kräver en långkörande process i stället för Actions (kostar Railway-minne → eget beslut).
+  ⛔ **OMBYGGD TILL LOOP-I-JOBBET 2026-08-13** (ersätter "en körning per dispatch var 2:a minut",
+  vars 2-min-golv sattes av ~25 s Actions-omkostnad PER SVEP): jobbet loopar nu SJÄLVT — ett tick
+  var 60:e sekund i ~5 min (`DISCORD_RESTOCK_LOOP_SECONDS`/`TICK_SECONDS`), omkostnaden betalas per
+  JOBB. Snittlatens ≈ tick/2 + feed-hämtning ≈ **~45–60 s** (var ~2,1 min). Feed-hämtningen kortades
+  samtidigt: Shopify-JSON-pacingen 1200→300 ms (CDN-serverad — mätt: DL-sida 0,15–0,27 s; den gamla
+  "42 s-butiken" var Speltrollets 28 kollektioner à 1,2 s paus, inte DL:s sidantal) och de tunga
+  butikerna läser numera `/products.json` (se täckningsfixarna nedan). `RESTOCK_SCAN_CONCURRENCY`
+  är env-styrbar (workflow kör 16 — wall-clock per tick = långsammaste ENSKILDA butik).
+  ⛔ **ARTIGHETEN ÄR PER PLATTFORM** (`isFastTier` i scripts/discord-restock-run.ts): Shopify-butiker
+  (CDN) + Webhallen sveps varje tick; butiker på EGNA servrar (Quickbutik/Woo/custom) varannan —
+  exakt samma takt som gamla 2-min-lanen gav dem. Klassning via `instanceof ShopifyAdapter`, så nya
+  butiker hamnar rätt automatiskt. Pingern (cron-job.org, var 2:a min) står kvar orörd: pending-
+  dispatcher byts ut medan ett jobb kör (någon "avbruten" i historiken per jobb — kosmetiskt; ägaren
+  KAN sätta pingern till var 5:e min för renare historik, samma latens). Nästa spak därefter är en
+  långkörande process (kostar Railway-minne → ägarbeslut, se kostnadsavsnittet i sessionens rapport).
+  ⛔ **OKÄND URL GLÖMS INTE LÄNGRE**: en IN_STOCK-flipp vars URL saknas i ruttabellen läggs i
+  `pending` (state-filen, TTL 12 h) och postas när rutten dykt upp och varan fortfarande är i lager
+  — Samlarhobbys Paradox Rift-booster 08-12 (offer född 18:02 via auto-import, ruttabell från 12:57)
+  sågs av lanen FÖRE DB-lanen men gick förlorad för alltid. Dessutom exporterar 10-min-lanen numera
+  om ruttabellen SÅ FORT den skapat nya offers (`offersCreated` i scan-resultatet + cache-save i
+  restock-watch.yml — Neon är redan vaken i exakt de körningarna) ⇒ ny SKU postbar inom minuter, inte
+  ≤24 h. Loggarna namnger nu både postade nycklar och hoppade okända URL:er (räknare utan namn gick
+  inte att felsöka — hela 08-13-utredningen krävde korsreferens mot DB-lanens loggar).
   ⚠️ Kontrollerat och EJ begränsande: Actions-cachen (1,18 GB av 10 GB, state-filerna ~0 MB) och
   GitHubs API-tak (720 dispatches/dygn mot 5 000/h).
   ⛔ **INGET NYTT SAMTYCKE BEHÖVS**: inlägget är produktdata, inga personuppgifter, så det är
@@ -206,6 +216,38 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   cache (se Auto-uppdatering) → scale-to-zero funkar igen; (5) robots.txt blockerar /produkter?-facettcrawl
   (oändlig dynamisk URL-rymd), sitemap = hela katalogen med weekly changefreq. Bevaka Neon-grafen efter deploy:
   compute ska nu vara piggar (batch-fönster) istället för 0,25 CU dygnet runt.
+- **BUTIKS-WAVE 5 + TÄCKNINGSREVISION (2026-08-13)**: ägaren pekade ut två konkurrentlistor + Carsmästaren.
+  (1) **TÄCKNINGSREVISION AV ALLA 34** (fullständig rapport i sessionsloggen): namnfiltret på Shopify-
+  kollektioner MISSADE stora delar av sortimentet — Speltrollet 281 sealed osynliga (butiken har slutat
+  kurera kollektioner), TCG Store 198 (30-taket kapade 17 av 47 kollektioner, inkl. alla nyaste set),
+  Samlarhobby 50 (typ-hyllor utan "pokemon" i namnet: "tins", "lösa boosters"), Hobbykort 45 (i INGEN
+  kollektion alls), CardGame 32+ (JP/CN-hyllan på URL-djup 3–4 bakom en tom landningssida). Fixar:
+  `wholeCatalog` på Samlarhobby/TCG Store/Pokétalk/Hobbykort/Kanto Vault, `wholeCatalog`+Pokémon-
+  markörfilter på Speltrollet (MÄTT: 0 av 368 täckta föll ut — ⛔ Kanto Vault är MOTEXEMPLET, 349/422
+  saknar markören), MAX_COLLECTIONS 30→60 + VARNING vid kapning (tysta tak var roten), Quickbutik-
+  barn-nedstigning när en kategorisida renderar 0 produkter, Spelexperten sidtak 10→15 (11 sidor
+  finns), Webhallen 5→8. ⛔ En utökad BEFINTLIG butiks feed måste omseedas TYST (`RESTOCK_SEED_SILENT=1`
+  i run-wave5-import.ts) — annars mejlas hela utökningen som "Ny produkt i lager" till set-bevakare.
+  (2) **WAVE 5**: Aquitaz (Shopify, >1000 sealed EN/JP/CN/KR — "pokemonkort"=3 896 singlar + rip&ship
+  uteslutna per butik), Rogerz (rogerz.dk, Shopify Markets ⇒ verifierat SEK; vägda vintage-packs
+  fällda av `dropTitles` — korslistade, kollektionsuteslutning ensam läckte 42), Yonko TCG
+  (yonko-tcg.de, SEK verifierat), Firegames, Spelkortsbutiken (Quickbutik; singlar under
+  /los-pokemon fällda av SINGLE_URL; ⚠️ temat kan sakna lagermarkör i listningen → status kan
+  läsa falsk-OUT). PrestaShop-adapter (delad bas → Leksaksaffären 37 prissatta av 102 — OOS-rader
+  saknar pris och faller ur feeden, restock syns först vid omprissättning; NordicTCG 47) +
+  Starweb (Coolcard, 149 varor, "N st i lager"-text). Registrering =
+  `scripts/setup-wave5-sources.ts --apply --restock`, engångsimport = `scripts/run-wave5-import.ts`.
+  ⛔ **PLAYOTEKET ÄR FORTFARANDE ROBOTS-BLOCKERAD**: robots.txt SLUTAR med ett andra
+  `User-agent: *`-block med `Disallow: /` — toppen ser ut som standard-PrestaShop och lurade två
+  granskningar 08-13; läs alltid HELA filen. ⛔ **CARSMÄSTAREN EJ TILLAGD**: Abicart-JSON-RPC:n
+  (webshop 89109) är verifierad fungerande, men varje värd som serverar den har `Disallow:
+  /backend` — "dokumenterat publikt API vs robots" är ett ÄGARBESLUT som väntar.
+  ⚠️ **Arcade Dreams robots.txt har ÄNDRATS på riktigt** (hela filen läst) — blanket-Disallow
+  borta; butiken är åter möjlig att bygga. ⚠️ EJ tillagda, ägarbeslut krävs: Cees Cards (EUR),
+  Kelz0r (DKK), Poromagia (EUR) — pipeline antar SEK; PokéBooster (bot-vägg), CS Megastore
+  (Cloudflare-utmaning), EvoKort (JS-skal utan data = NOT_VIABLE), Elgiganten/Jollyroom/Proshop/
+  Spel & Sånt/Toyspace/Card Haven/Samlargrottan/Gimmick (custom/SPA — byggbara men var sin insats,
+  se probe-rapporten).
 - **BUTIKS-WAVE 4 = 23 NYA BUTIKER (2026-08-07)**: alla på tre ÅTERANVÄNDA plattformar — 17 Shopify, 3 Quickbutik,
   3 WooCommerce (`woocommerce-adapter.ts`, ny, publika Store API v1). Varje butik verifierades mot sin RIKTIGA feed
   före påslag med `scripts/probe-new-adapters.ts` (rapporterar feedstorlek + hur många annonser som passerar
@@ -414,95 +456,7 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   Discord-kolumnerna, så koden mot en omigrerad databas ger 500 för ALLA användare, inte bara Discord-användare.
   Dockerfilens `migrate deploy || true` är avsiktligt icke-blockerande och kan alltså tiga ihjäl felet — kör
   `node scripts/with-prod-db.mjs npx prisma migrate deploy` MANUELLT före push vid schemaändringar.
-- **JAPANSKA SET KOMMER FRÅN CARDMARKETS EXPANSIONER (2026-08-07)**: katalogens set kommer från
-  pokemontcg.io, som BARA har engelska set — alla 100 japanska produkter hade därför `setId = null` och
-  japanska set gick inte att filtrera på. ⛔ **TCGGO stänger inte hålet**: episodlistan är 175 västerländska
-  expansioner och `?language=japanese` ignoreras TYST (identiskt svar) — mätt 2026-08-07. Källan är i stället
-  CM:s publika sealed-katalog (`products_nonsingles_6.json`), som JP-prisrefreshen redan laddar ner varje dag:
-  varje produkt bär `idExpansion`, och CM namnger dem i LATINSK skrift ("Black Bolt JP Booster Box"). Setnamnet
-  härleds ur det (`deriveJpSetName`, `src/lib/jp-set-name.ts`) och identiteten är `CardSet.cmExpansionId` —
-  ingen titelmatchning i något led. 49 set, 96 av 100 produkter etiketterade. Jobbet (`jp-set-label.ts`) körs
-  sist i `runJapaneseSealedRefresh` där katalogen redan ligger i minnet ⇒ noll extra hämtningar, ny japansk
-  förhandsbox syns inom ett dygn. ⛔ **Namnet får ALDRIG komma från TCGdex**: deras japanska namn är japansk
-  skrift OCH mätbart fel på minst ett set (`SV4a` bär Raging Surfs namn men Shiny Treasures datum). TCGdex ger
-  bara SLÄPPDATUMET, och bara när koden är styrkt: butikstitelns egen setkod ("- sv6", "(s6K)") räknas som
-  bevis (tillverkarens identifierare, samma logik som GTIN), medan tabellförslaget `JP_CODE_BY_NAME` måste
-  klara datumfönstret -6..+71 dygn mot CM:s `dateAdded` (kalibrerat på de 39 set vars kod stod i titeln).
-  25th Anniversary föll utanför (118 d) och står därför utan datum, sist i listan.
-  ⛔ **VARJE NAMNBASERAT SETUPPSLAG MÅSTE FILTRERA PÅ `language`.** JP och EN delar latinska setnamn
-  ("Black Bolt", "White Flare", "151"), och `import-tcg-data.ts` adopterar befintliga set PÅ NAMN när
-  pokemontcg.io publicerar dem. Utan grinden hade den engelska importen svalt det japanska setet och tagit
-  med sig dess produkter. Grindade: import-tcg-data (adoption), sealed-set-label, cardmarket-refresh
-  (`setsByName`), import-sealed-from-cardmarket, set-from-cm-episode.
-  ⛔ **`totalCards` är 0 på japanska set.** TCGdex vet att SV11B har 174 kort, men vi har inga japanska
-  singlar — setsidan skriver ut talet rakt av och hade lovat kort som inte finns hos oss.
-  **SERIE + BILD (2026-08-07)**: JP-fliken grupperas på SERIE precis som den engelska — serien kommer från
-  TCGdex:s `serie.id` på den STYRKTA koden och skrivs med den latinska eran (`JP_SERIES_BY_TCGDEX_ID`:
-  SV → "Scarlet & Violet" osv), samma skrivning som de engelska seten, så rubrikerna läser likadant i båda
-  flikarna. Utfall: Mega Evolution 7 · Scarlet & Violet 25 · Sword & Shield 13 · Sun & Moon 3 · **Other 1**
-  (25th Anniversary, vars kod aldrig styrktes). ⛔ Ingen era gissas: utan styrkt kod blir det "Other", som
-  sorteras sist av sig själv (releaseDate nulls last).
-  **SETLOGOTYPERNA ÄR HÄMTADE EN GÅNG OCH LIGGER I REPOT (2026-08-07)**: `public/set-logos/jp/{KOD}.png`,
-  49 filer, 2,9 MB. INGEN leverantör publicerar japanska setlogotyper — TCGdex har 0 av 177
-  (`assets.tcgdex.net/.../logo.png` = 404), TCGGO:s japanska endpoint svarar med tom lista, CardTrader har
-  expansionerna men ingen bild, och den OFFICIELLA japanska sajten har bara 21 av våra 49 set, med bespoke
-  hashade filnamn per sida (`hero-img-01-y25ri.png`) som inte går att härleda. Filerna hämtades därför en
-  gång med `scripts/fetch-jp-set-logos.ts` och bor hos oss: ingen annans CDN belastas per sidvisning, och
-  bilderna kan inte försvinna under oss. ⚠️ Artwork tillhör The Pokémon Company (samma sak som kortbilderna
-  och de engelska setlogotyperna vi redan visar). Nya set får produktbilden tills någon kör skriptet igen.
-  ⛔ **MATCHA ALDRIG LOGOTYP MOT SET PÅ NAMN.** Samma japanska set översätts olika av olika källor: ムニキスゼロ
-  är "Nihil Zero" hos Cardmarket (vår skrivning) och "Munikis Zero" hos logotypkällan, 摩天パーフェクト är
-  "Towering Perfection" respektive "Perfect Skyscraper", SM10b är "Sky Legend" respektive "Sky Legends" —
-  7 av 49 föll på det. ⛔ Och KODEN duger inte heller ensam: källan märker "Future Flash" som SV4K, vilket är
-  Ancient Roars kod, och "Lost Abyss" som S12, vilket är Paradigm Trigger. Automatiken kräver därför att
-  BÅDA är ense (39 av 49); resten är granskade för hand genom att LÄSA den japanska ordbilden i logotypen och
-  jämföra med TCGdex japanska namn (tabellen `VERIFIED` i skriptet, med det verifierade namnet per rad).
-  Granskningen fångade en riktig förväxling: SV4K/SV4M var omkastade i källan, så utan den hade ett set fått
-  fel logotyp och det andra ingen alls.
-  **FALLBACK**: `pickJpSetImage` (BOOSTER_PACK före BOOSTER_BOX, CM-render före butiksfoto) används bara när
-  ingen logotypfil finns — en japansk boosterpåse bär ändå setets logotyp på omslaget.
-  ⛔ Filnamnet härleds av `jpSetLogoFileKey` — EN definition delad av skriptet och jobbet, annars slutar
-  filerna hittas tyst den dag den ena sidan ändrar sin namngivning.
-  **SJÄLVLÄKNING**: `refreshJpSetMetadata` fyller bara TOMMA fält och kör i varje jobbkörning — ett set skapas
-  i samma andetag som sin första produkt och kan sakna bild då. ⛔ "Serien saknas" är formulerat som en MÄNGD
-  (`series notIn [kända eror, "Other"]`), inte som en jämförelse mot den gamla platshållaren "Japanska set" —
-  annars hade en legacy-sträng behövt leva i koden för alltid. Och utfallet skrivs även när det blir "Other",
-  annars frågas TCGdex om samma set vid varje körning i evighet.
-  **UI**: flikarna Engelska/Japanska i set-arket (visas bara när japanska set finns), desktopens `<select>`
-  har en `optgroup` "Japanska" (platt där, precis som EN-listan i samma kontroll). `/sets`-galleriet är
-  ENGELSKT tills vidare (JP-set har inga kortrader). Backfill/granskning = `scripts/label-jp-sets.ts`
-  (torrkörning default, `--apply`).
-  ⛔ **LLM-DOMAREN AVVISADE VARJE KORREKT JP-PAR (rättat 2026-08-07)**: `judgeSameProduct`s systemprompt
-  säger — riktigt i allmänhet — att "japansk ≠ engelsk utgåva är ALLTID olika produkter". Men Cardmarket
-  skriver ALDRIG ut språket i namnet på en japansk expansion, medan våra butikstitlar alltid gör det
-  ("(Japansk)"). Domaren läste den saknade markören i B som en konkret motsägelse och svarade same=false på
-  VARJE par: "VMAX Climax Booster" (sim 1,00!), "Storm Emeralda Booster Box" (0,91), "Jet Black Spirit
-  Booster Box" (0,82). Följden: INGEN ny japansk SKU kunde någonsin auto-mappas — fyra produkter satt utan
-  pris och utan set, och Storm Emeralda-setet fanns inte alls. Ledtråden säger nu uttryckligen att frånvaron
-  av språkmarkör i B inte är ett bevis. ⛔ Men den fick inte göra domaren slapp: mätt på 9 kontrollfall
-  (4 rätta par + 5 fällor) blev det först 7/9 — "Booster Box CASE" (en låda MED FLERA lådor) godkändes som
-  "Booster Box". Den regeln ligger nu i SYSTEMprompten (gäller alla anropare) och kontrollen står på 8/9.
-  Kvarvarande miss: internationella "151" mot japanska. Skyddet mot DEN är strukturellt och sitter ovanför
-  domaren — `ownedBy` filtrerar bort varje idProduct som redan ägs, och vår engelska katalog är komplett,
-  så CM:s internationella produkter når aldrig fram som JP-kandidater. **Domaren är andra linjen.**
-  **KODEN KAN KOMMA FRÅN CARDTRADER (2026-08-07)**: ett japanskt set finns hos CM långt före TCGdex — Storm
-  Emeralda låg i CM:s katalog 2026-07-02 medan TCGdex fortfarande slutade på M5, och butikstitlarna bar
-  ingen kod. Setet skapades därför utan kod, era och datum. `cardTraderCode()` slår upp koden i CardTraders
-  expansionslista (M6 ✓) och skriver in den i namnet, så TCGdex-uppslaget kan lyckas SENARE:
-  `refreshJpSetMetadata` plockar upp varje datumlöst set igen, och "Other" uppgraderas till rätt era när
-  TCGdex hunnit ikapp. ⛔ **Filtrera på `game_id === 5`** — listan spänner över alla spel CardTrader säljer,
-  och "25th Anniversary" matchade en YU-GI-OH!-expansion (torrkörningen visade "25th Anniversary (25THYUG)").
-  ⛔ Kräv ETT entydigt namn: CT listar både "Black Bolt | sv11B" (japanska) och "Black Bolt" (`blk`,
-  internationella).
-  **TVÅ TABELLER MED OLIKA BEVISKRAV** (`jp-set-name.ts`): `JP_CODE_BY_NAME` är FÖRSLAG som måste klara
-  datumfönstret, medan `JP_CODE_VERIFIED` är koder kontrollerade mot setets EGEN ordbild (logotypen läst mot
-  TCGdex japanska namn) och används utan datumprövning. 25th Anniversary hörde hemma i den senare: tre
-  källor sa S8a (TCGdex-namnet 25thアニバーサリーコレクション, logotypens ordbild, logotypkällans `[S8A]`) men
-  datumfönstret förkastade den för att CM la in produkterna 118 dygn före släppet. ⛔ Lägg aldrig en
-  okontrollerad rad i `JP_CODE_VERIFIED` — "verkar rimligt" hör hemma bland förslagen.
-  ⚠️ Läge 2026-08-07: 100 av 100 JP-produkter har set, 50 set, alla med logotyp. Serier: Scarlet & Violet 25,
-  Sword & Shield 14, Mega Evolution 7, Sun & Moon 3, Other 1. Enda datumlösa: **Storm Emeralda (M6)** —
-  TCGdex slutar på M5, så eran och datumet fylls i av sig själva när de publicerar M6.
+- **JAPANSKA SET-regelverket FLYTTAT till `.claude/rules/jp-sets.md`** (laddas automatiskt vid arbete i JP-set-filerna). Kärnan: JP-set kommer från CM:s expansioner (`CardSet.cmExpansionId`), varje namnbaserat setuppslag MÅSTE filtrera på `language`, logotyper matchas aldrig på namn.
 - **SET-BEVAKNING ÄR EN STÅENDE REGEL, INTE EN ÖGONBLICKSBILD (2026-08-06)**: `SetWatch` (userId+setId, unik) ger
   restock-larm på ALLA sealed-produkter i ett set. ⛔ Expandera den ALDRIG till en `WatchlistItem` per sealed-produkt
   vid klick: auto-importen (`ensureListingProduct`) skapar sealed-SKU:er löpande, så en expansion vid klicktillfället
@@ -845,345 +799,9 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   Produktsidans prishistorik: servern hämtar HELA serien en gång (`MAX_DAYS`), `product-price-card.tsx` filtrerar perioden i klienten
   (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
 - **Växelkurs**: live via `src/lib/exchange-rate.ts` (`getRatesOre()` → Frankfurter, dygnscache, fallback 1150/1050 öre). Anropa i början av en ingest-körning; synkrona pris-funktioner läser `getCachedRatesOre()`. `EUR_SEK`-env pinnar kursen. Hårdkoda ALDRIG 11.50 igen — använd modulen
-- **Singelpris**: `Offer.price` på singlar = Cardmarkets engelska **NM-lägsta ("From")** × live-kurs, hämtat från **CardMarket API TCG (RapidAPI Pro)** — `CARDMARKET_RAPIDAPI_*` i .env, fältet `prices.cardmarket.lowest_near_mint` (DECIMAL EUR; bas-fältet är engelska, `_DE`/`_FR`/`_ES`/`_IT` = språk-överstyrningar). Detta ÄR det engelska From-pris som löste det gamla lowPrice-problemet (pokemontcg.io `lowPrice` = all-språk/all-skick-golv som grovt underskattade — använd ALDRIG). Fyll via `scripts/rapidapi-fill-singles.ts` (set-paginering `/pokemon/episodes/{id}/cards`, matcha på `tcgid`=`tcgExternalId`, ~1000 anrop för hela katalogen). Exakt uppslag = `?tcgid={id}` (1 träff). **GOLVET RAKT AV — HELA REGELN (ägarbeslut 2026-07-24, OMBEKRÄFTAT 2026-07-27)**:
-  priset = `lowest_near_mint` EXAKT som fältet står, även när CM:s billigaste NM-engelska annons är en enstaka feldyr/graderad
-  (Rayquaza ★ · Deoxys: 37 000 € PSA 7-ask visas som 37 000 €). **INGENTING får byta ut det värdet.** `singlesHeadlineEur`
-  är därför en enda rad: finns From publiceras From. Fallback BARA när From SAKNAS HELT: **medianen** av (guide.trend,
-  guide.avg, guide.avg30, RapidAPI 30d) — ALDRIG guidens `low`, och aldrig en prioritetsordning (vilket fält som är korrupt
-  varierar: guide.trend = 0,02 € på N · Noble Victories, RapidAPI 30d = 10,46 € på en Base-Charizard som guiden sätter till
-  2 506 €). Uppskattningen märks **OUT_OF_STOCK** och rubriken byter till "Uppskattat värde · ingen aktiv annons" (469 singlar,
-  258 sealed 2026-07-27).
-  ⛔ **BYGG ALDRIG EN PER-KORT-VAKT PÅ `price_guide_6.json` IGEN.** Tre försök i rad har rivits, alla för att guiden inte är
-  CM:s From: `fromElseTrend` (07-18→07-24, visade trenden under rubriken "Lägsta pris"), `fromContradictsCardmarket`→guidens
-  `low` (07-25→07-27) och `fromExceedsCardmarket`→`cmGuideMedianEur` (07-27, levde ett dygn). **Beviset**: för Rayquaza Gold
-  Star (idProduct 276510) säger guiden `low` = 2 900 € medan CM:s EGEN produktsida samma dag visar **From 37 000 €** för
-  NM+engelska — precis vad feeden sa. Guidens `low` var 12x fel om det enda fall vi kunde kontrollera, och HELA golv-vaktens
-  premiss ("engelska+NM ⊆ alla annonser ⇒ From ≥ guidens low") vilar på att `low` är produktens lägsta annons. Taket, byggt på
-  samma fil, sänkte Rayquaza ★ till ~5 600 € och audit-skriptet vidare till **215,61 kr**. Att `lowest_near_mint` ÄR det
-  engelska fältet syns i API:ts eget dokexempel: basen (1,00) ligger ÖVER `lowest_near_mint_DE` (0,90), vilket vore omöjligt
-  om basen var "alla språk". **Skyddet mot korrupt feed ligger på KÖRNINGSNIVÅ**, inte per kort: `feedMoveShares` (>5 % av
-  singlarna ≥10x på ett dygn → körningen avbryts RÖD utan skrivningar, `CM_FEED_BREAKER_*`-env). Ingen per-kort-dagklämma
-  (kan inte skilja äkta ask-hopp från glitch utan att bli spärrhake).
-  **IDENTITETSVAKT, TVÅ FRÅGOR (2026-07-26)** — gäller nu bara UPPSKATTNINGEN, men behövs precis lika mycket där:
-  (1) `guideRowIsSingle` — är guide-radens `idProduct` ens en SINGEL enligt CM:s egen singel-katalog? RapidAPI gav Pidgey ·
-  Flashfire 75/106 `cardmarket_id` 271938, som är en SEALED-produkt (finns i sealed-listan, saknas bland de 71 586 singlarna);
-  radens `low` 295 € publicerades som kortets pris (3 262,70 kr för en common). Tom katalog (CDN-fel) = vakten står över
-  körningen, aldrig "kasta alla rader". Vakten finns i BÅDA singel-jobben (cardmarket-refresh + hot-card-refresh).
-  (2) `guideNameMatches` — är raden VÅRT kort? RapidAPI:s `cardmarket_id` kan peka på ett annat kort (`base1-2` Blastoise →
-  291582 = "Rayquaza [Dual Claw | Dragon Blast]"). Döm ALDRIG identitet på prisavstånd — det kastar den rätta raden när det
-  är RapidAPI som är trasig.
-  **EN NYCKEL SOM VÄLJER PRODUKT MÅSTE VAKTAS LIKA HÅRT SOM EN SOM VÄLJER PRIS (2026-08-05)**: de två vakterna ovan skyddade
-  bara GUIDE-RADEN. Själva MATCHNINGEN på `cardmarket_id` hade ingen namnvakt alls — samma opålitliga fält fick alltså peka
-  ut VILKEN PRODUKT som skulle prissättas, obevakat. MÄTT i MEP Black Star Promos: 13 av 139 rader bär ett trasigt
-  `cardmarket_id` (null, ett id utanför CM:s katalog, eller ett id som tillhör ett annat kort), och raden "Mega Charizard X ex"
-  (MEP 023) bar 873704 — som hos CM är en **N's Zekrom**, och som VI också har, korrekt länkad. Charizard-raden matchade
-  därför vår Zekrom och skrev Charizards From (38,00 € = 416,48 kr) på den, medan Zekroms egen rad (60,07 €) förlorade
-  arbitreringen. ⛔ **EN FELMATCHNING SKADAR ALLTID TVÅ KORT**: ett får fel pris, ett blir hemlöst. Charizard föll ur
-  körningen, frös på 12 juli och plockades till slut upp av guide-reserven, som märker OUT_OF_STOCK ⇒ produktsidan visade
-  "Sold out" + 647,63 kr (guidens avg30) fast feedens egen rad bar rätt From hela tiden. Vakten är nu den vanliga:
-  `cmCardNameAgrees` på cmid-matchen, och vid oenighet får raden söka sig fram via nummerreserven i stället.
-  **NUMMERRESERV FÖR KORT UTAN `tcgExternalId`** (`byNumberNoTcg` + `cmNumberKeyNoSetCode`): promo-korten (84 st, alla i MEP)
-  saknar pokemontcg.io-id, så `cardmarket_id` var deras ENDA nyckel — huvudloopens `byNumber` ser dem inte, den frågar
-  `card: { tcgExternalId: { not: null } }`. De har nu set+nummer+namn som reserv. ⛔ Nyckeln skalar av setkoden ("MEP 023" →
-  "23") och den toleransen är en EGEN karta som ALDRIG får nå huvudkatalogen: där är prefixet ofta självaste numret, och
-  "TG10" → "10" hade krockat med kort 10 i samma set. Villkoret är därför separatorn (`MEP 023`, `SWSH-045`), aldrig
-  bokstäverna i sig. **REPARATION av felaktiga länkar**: `scripts/fix-promo-cm-links.ts` (torrkörning default, `--apply`) —
-  kräver TVÅ bevis: nuvarande länk måste vara bevisat fel enligt CM:s egen singelkatalog OCH ersättaren bevisat rätt enligt
-  både feeden (set+nummer) och samma katalog. Håller namnen ihop rörs raden aldrig — MEP 023 är rätt länkad hos OSS och fel i
-  feeden, och ska absolut inte skrivas om. 1 av 84 var fel (Makuhita · MEP 068 låg på CM:s "Energy Switch" sedan 12 juli).
-  ⚠️ N's Zekrom 031 (idProduct 873704) bär förorenade historikpunkter från ~12 juli till 5 aug (Charizards ~440 kr varvat med
-  sitt eget ~660 kr). De är INTE städade: att skilja dem åt kräver en tvåbands-heuristik, och att skriva om historik på en
-  gissning är precis det `cm-range-audit --apply` togs bort för.
-  **REVISION (rapport, aldrig reparation)**: `scripts/cm-range-audit.ts` (gratis, CM:s guide, ingen RapidAPI-kvot) listar
-  priser långt utanför CM:s spann. `--apply` ÄR BORTTAGET: det skrev guide-medianer (fel policy) OCH band identiteten på ett
-  normaliserat namn som fäller ihop olika CM-produkter — vårt "Rayquaza ★" blev "rayquaza" och matchade CM:s vanliga Rayquaza
-  i EX Deoxys, varpå 160 rader skrevs om 2026-07-26 22:11 UTC. Rapporten hoppar nu över namn som är PREFIX till ett annat
-  namn i expansionen (Rayquaza ⊂ Rayquaza Gold Star). Ett fynd betyder "kontrollera länken på Cardmarket", aldrig "skriv om
-  priset" — golvet-rakt-av ligger med flit ibland utanför guidens spann. Ångra en sådan skrivning med
-  `scripts/revert-guide-median-prices.ts` (återställer ur VÅR egen historik, ingen RapidAPI-kvot).
-  ⛔ **RÄTTAT 2026-08-02**: den gamla raden här sa att Cardmarket "inte längre delar ut API-nycklar". Halvfel.
-  API:t LEVER och underhålls — det bytte domän 2026-01-30 (`api.cardmarket.com` → **410 Gone** med texten "Please
-  switch to https://apiv2.cardmarket.com"; `apiv2.cardmarket.com/ws/documentation` svarar 200, och
-  `/ws/v2.0/output.json/games` svarar 403, dvs den fungerar men kräver OAuth). Spärren är alltså POLICY, inte
-  teknik, och den är trefaldig: (1) "we are not accepting applications for access"; (2) åtkomst är begränsad till
-  PROFESSIONELLA SÄLJARE med manuell godkännandeprocess; (3) — den avgörande — vårt exakta användningsmönster är
-  uttryckligen förbjudet: *"We explicitly do not allow that Dedicated App users constantly only request the public
-  Marketplace resources (products, articles, prices, etc.) on consecutive days"*, med automatisk avstängning som
-  påföljd. Det ÄR vår dagliga 20k-uppdatering.
-  ⚠️ Värt att veta för framtiden: Cardmarkets API skulle lösa BÅDA våra luckor perfekt. `Article.isReverseHolo`
-  och `Article.isFirstEd` är dokumenterade FÖR POKÉMON-SINGLAR, och de sitter på ANNONSEN, inte på produkten — så
-  Shadowless kontra 1st Edition GÅR att skilja genom att partitionera den delade produktens annonser på
-  `isFirstEd`. Det är precis det ingen återförsäljare av `price_guide_6.json` någonsin kan göra (guiden är keyad
-  på `idProduct`). Kapaciteten finns alltså och är stängd — bygg inte mot den, men gissa inte heller att den inte
-  existerar.
-- **EN FRUSEN KURVA ÄR ETT TILLSTÅNDSFEL, INTE ETT RADFEL (2026-08-05)**: leverantören (TCGGO) slutar då och då
-  leverera CM-koppling för enskilda kort — `cardmarket_id: null` och tom `prices.cardmarket` i EPISOD-feeden (verifierat
-  på xy9-10 Growlithe · BREAKpoint, sm8-88, smp-SM191, sm11-10: helt vanliga kort som CM självklart har). Koden gjorde
-  rätt PER RAD — den vägrar hitta på ett pris — men fel i TILLSTÅNDET: kortet föll ur körningen, offern rördes inte,
-  ingen historikpunkt skrevs, och gårdagens tal stod kvar under rubriken "Lägsta pris" som om det vore dagens.
-  **108 singlar hade frusit så, de äldsta sedan 2026-06-13.**
-  ⚠️ **"Sista grafpunkt 2026-07-25" ÄR INTE SISTA MÄTNINGEN.** Ett engångs-backfill den dagen skrev en CM-punkt för
-  20 153 singlar med deras BEFINTLIGA offer-pris — ett falskt livstecken som får varje sådan kurva att se ut att dö
-  just då. **Mät på `Offer.lastSeenAt`** (bumpas bara när en körning faktiskt hittade kortet), aldrig på sista
-  observationen. Rapport = `scripts/frozen-cm-report.ts` (läser bara, noll kvot, `--csv`).
-  **GUIDE-RESERVEN** (`guideReserveEur` + blocket i `runCardmarketRefresh`) prissätter sådana kort ur CM:s EGEN
-  gratisguide via det `idProduct` VÅR EGEN länk bär — spegling av EN-guide-fallbacken för sealed. Ingen ny prispolicy:
-  värdet går genom samma `singlesHeadlineEur`, och utan From blir det per definition en UPPSKATTNING (`from: false`
-  ⇒ OUT_OF_STOCK ⇒ "Uppskattat värde · ingen aktiv annons").
-  ⛔ **ALDRIG PÅ EN DELKÖRNING.** Reserven definieras av "feeden prissatte INTE kortet i den här körningen" — i en
-  riktad omkörning (`CM_ONLY_EPISODES`) är det sant om nästan hela katalogen. Utan den grinden hade en kvotsnål
-  omkörning av ETT set bytt ~20 000 äkta From-priser mot guide-uppskattningar. Farligare än täckningsvakten, som
-  bara larmar: det här SKRIVER. ⛔ Tom CM-katalog (CDN-fel) ⇒ ingen reserv den körningen; ett fruset dygn är rätt
-  svar när identiteten inte kan styrkas. ⛔ Tryckningar är undantagna (delar CM-produkt ⇒ samma värde på två poster).
-  **ÅTERSTÄLL SAKNADE `idProduct`** = `scripts/recover-cm-idproduct.ts` (torrkörning default, `--apply`): lösta
-  slug-länkar bär inget id, och utan id kan reserven inte veta vilken CM-produkt kortet är. Kedjan är vårt set →
-  CardTrader-expansion → blueprint på SAMLARNUMMER → `card_market_ids` → idProduct. **Noll RapidAPI-kvot** (CT gratis,
-  CM:s filer publika). ⛔ **NUMRET ENSAMT ÄR INTE IDENTITET** — utan namnvakt gav kedjan rent skräp, mätt på riktiga
-  produkter: "Charizard ex 196" → CT:s *Eevee*, "Xerneas ex 179" → *Basic Psychic Energy*, "Noctowl 141" → *Sky Field*
-  (37 av 103 kandidater; promo-set numrerar olika hos olika leverantörer). Därför krävs att TVÅ OBEROENDE namn håller
-  med: CardTraders eget blueprint-namn OCH CM:s singelkatalog. Med båda vakterna avvisades alla 37 och **0 föll på
-  CM-ledet** — källorna var eniga varje gång de fick tala till punkt. 49 länkar återställda 2026-08-05.
-  ⚠️ Kvar utan väg: de nyaste SV/SM-promosen (CT numrerar dem annorlunda) — de behåller sitt gamla pris tills
-  leverantören kommer tillbaka, per ägarbeslut 2026-08-05. Listan står i rapporten ovan.
-- **RUBRIKEN NAMNGER KÄLLAN, DEN PÅSTÅR INGET (2026-07-26, utökad 07-27)**: "Lägsta pris · NM engelska (Cardmarket)" gäller BARA när
-  den vinnande offern faktiskt är Cardmarkets OCH är I LAGER; vinner en marknadsplats/butik står "Lägsta pris · {källa}",
-  och är den vinnande offern slutsåld står "Uppskattat värde · ingen aktiv annons ({källa})" (`lowestOfferSource` returnerar
-  `{name, live}`, `src/lib/offer-source.ts` — samma urvalsregel som servern, och namnger källan bara om den bevisligen gav den
-  visade siffran). En OUT_OF_STOCK CM-offer bär per definition en uppskattning, och "lägst bland NM-engelska annonser" är då ett
-  påstående om annonser som inte finns — samma sorts fel som taket 07-27 gjorde med själva talet.
-  Rubriken stod förut hårdkodad på varje singel: 2 751 singlar visade en Tradera-annons under rubriken "Cardmarket", och tre
-  hela set hade ingen CM-offer alls. Samma sak i grafens underrubrik — den följer nu `trendSource` även för singlar
-  (`rawSubtitleTradera`/`rawSubtitleStores`), tom serie = "Ingen prishistorik ännu". **MATCHNINGEN FÅR INTE HÄNGA PÅ `tcgid`**:
-  RapidAPI publicerar tre lägen — rätt id (`me2-1`), CM:s setkod (`POR-1`, `CRI-1`) och `null` (hela Pitch Black) — så 366
-  singlar i tre av de nyaste seten hade noll CM-data. Ordningen är nu tcgid → cardmarket_id → **set+samlarnummer+kortnamn**
-  (SET+NUMMER-RESERVEN i cardmarket-refresh.ts). Namnvakten (`cmCardNameAgrees`) är hela poängen: CM listar Chaos Rising 77
-  som "Great Haul Net" där vår katalog har "Emma" (78 omvänt) → numret ensamt hade prissatt fel kort, och vid oenighet
-  prissätts INGET. Undantag bara för energityp som symbol vs utskriven ("Shadowy [D]" = "Shadowy Darkness"). Och `cards_total`
-  i episodlistan LJUGER (0 för både MEP 412 och Pitch Black 415) → sidantalet läses ur svarets `paging.total`, aldrig ur
-  metadatan. **GRAFEN** = publicerat headline-värde per dag; CM-serien visar SISTA observationen per dag, aldrig dagsmedel (`bucketObservationsBySource` — dagsmedel av en avbruten + en omkörd körning gav 175 439 kr som aldrig funnits). **DURABILITET + AUTO**: `runner.ts` låter inte trend-källan (Pokémon TCG API/TCGdex) skriva över singel-offer-priset; istället auto-uppdateras From dagligen av `src/jobs/cardmarket-refresh.ts` (`runCardmarketRefresh()`). Sealed-pris = CM `lowest` exakt via samma modul + `scripts/rapidapi-fill-sealed.ts` (matchnings-vakter behålls: boosterbox kräver "booster" i API-namn, poäng ≥0,55, butik-cross-check ×2.5 — men INGEN pris-utjämning)
-- **BASE = TRE KATALOGPOSTER PER KORT (2026-07-28)**: Unlimited, Shadowless och 1st Edition är olika varor (Ponyta
-  5,74 / 47,36 / 292,56 kr) och har egna produkter via `variantLabel` (`src/lib/print-variant.ts`). Den BEFINTLIGA
-  produkten blev **Unlimited** — den behåller id, slug, historik, bevakningar och samlingsposter — och de två andra är
-  nya. **101 av 102 kort delade** (304 produkter). Uppdelning = `scripts/split-base-printings.ts` (torrkörning default).
-  **LÄNKEN PER TRYCKNING**: CM har TVÅ produkter per Base-kort — den ursprungliga (ordinarie) och en tillagd
-  2022-05-24 där Shadowless OCH 1st Edition bor (1st Edition är en flagga på annonsen, inte en egen produkt). Paret
-  bestäms av TVÅ oberoende signaler som måste vara ense: datumbatchen OCH att 2022-produkten är dyrare i CM:s guide.
-  RapidAPI:s `cardmarket_id` DUGER INTE till det här: Chansey 1st Ed bär 273698 (den ORDINARIE produkten) och
-  Blastoise bär 291582 (en Rayquaza) — MÄTT: 38 av 147 Base-rader pekar på fel CM-produkt, så feeden får aldrig
-  sätta en tryckningsprodukts länk (`cardmarket-refresh` faller INTE tillbaka på `cardmarket_id` för dem).
-  **PARET ÄR BATCHEN, INTE ANTALET (2026-07-28)**: regeln var först "exakt två CM-produkter med det namnet", vilket
-  lämnade 10 kort odelade. Expansion 1523 har 104 produkter daterade `0000-00-00` (ordinarie), 103 daterade
-  2022-05-24 (shadowless/1st Ed) och fyra udda — tre starters med en extra produkt från 2021-03-04 (prissatta som
-  Unlimited i guiden, alltså varken Shadowless eller 1st Edition) och en Pikachu från 2018. Paret är därför den ENDA
-  produkten i vardera batchen; övriga batchar är något tredje som vi inte modellerar. Prissignalen röstar över
-  `trend`/`avg`/`low` med majoritet: enstaka guide-fält är mätbart trasiga (Drowzee och Machop har `trend` = 0,02 €
-  på 2022-produkten medan `avg` och `low` säger tvärtom), så ett enfältstest läste fyra kort som "oense".
-  Regeln validerad mot facit före körning: den reproducerar alla 270 befintliga länkar, 0 avvikelser.
-  **PIKACHU 58 DELAS INTE**: CM har SEX produkter (V1–V6) där röda/gula kinder korsar tryckningarna — tre i
-  ordinarie batchen, två i 2022-batchen. Det finns inget entydigt par att peka på, och hellre ett odelat kort än
-  tre produkter med fel länkar. Kräver CM:s versionsetiketter (bara synliga på webben) för att lösas.
-  **VARJE SINGEL-LÄNK SÄGER SITT TRYCKNINGSLÄGE UTTRYCKLIGEN** (`withFirstEd`, `src/lib/marketplace-urls.ts`):
-  1st Edition-produkter → `isFirstEd=Y`, ALLA andra singlar → `isFirstEd=N`. ⛔ Att utelämna parametern är INTE
-  "inget filter": CM lägger filtret i besökarens SESSION och stämplar tillbaka det på nästa produktsida hen öppnar.
-  MÄTT 2026-07-28: en förfrågan till `?idProduct=273696&language=1&minCondition=2` — helt utan isFirstEd — landade
-  på `.../Alakazam-V1-BS1?…&isFirstEd=N`, och samma dag fick ett annat kort tillbaka `&isFirstEd=Y`. Följden var att
-  den som klickat på EN 1st Edition-länk sedan såg 1st Edition-annonser även på Unlimited-kortet (ägaren rapporterade
-  det på Alakazam). För Shadowless är N dessutom rätt i sak: den delar CM-produkt med 1st Edition, och N är precis
-  "allt utom 1st Edition-annonserna". `withFirstEd` är idempotent OCH korrigerande (skriver över fel läge).
-  Sealed lämnas orört — CM stämplar in parametern där också, men sealed-sidan har varken skick- eller 1st
-  Edition-filter i panelen och listan påverkas inte (verifierat: S&V Booster, 3 204 annonser med isFirstEd=N).
-  ⛔ FILTRET STYRS AV PRODUKTEN, ALDRIG AV FEED-RADEN: villkoret stod först på radens `version`, så en 1st
-  Edition-rad som prissatte en icke-tryckningsprodukt satte Y på DESS länk (Pikachu 58 fick det direkt).
-  Engångsstädning = `scripts/fix-cm-firsted-links.ts`; de dagliga jobben håller nya länkar rätt.
-  ⛔ **`?tcgid=` SVARAR BARA MED 1st EDITION-RADEN i vintage-seten** (mätt 2026-07-28: `?tcgid=base1-1` → EN rad,
-  "1st Edition Shadowless"; `?tcgid=neo1-1` → "1st Edition"; ett modernt kort → omärkt rad). `runHotCardRefresh`
-  tog `data[0]` och publicerade därför 1st Edition-priset på det ORDINARIE kortet varje kväll — några timmar efter
-  att dagliga körningen valt rätt tryckning — och efter uppdelningen hade alla tre Base-tryckningarna fått samma
-  rad. Jobbet kan INTE välja tryckning som dagliga körningen (den läser hela episoden och kan jämföra; här finns
-  bara en rad), så regeln är konservativ: **raden måste VARA produktens tryckning**, annars skrivs ingenting och
-  dagliga körningens värde står kvar (`pickRowForProduct`, testad utan DB). Följd: vintage-kort får ingen
-  intradagsuppdatering — hellre det än ett pris från fel tryckning. Samma urval används av
-  `scripts/repair-single-prices.ts`. Guide-raden för en tryckning hämtas ur OFFERNS `idProduct`, aldrig ur feedens
-  `cardmarket_id`.
-  **CM:s EGEN STAVNING** (`CM_SPELLING` i cardmarket-refresh.ts): CM skriver "Imposter Professor Oak" där katalogen
-  har "Impostor" (Base 73) → namnvakten avvisade CM:s Unlimited-rad och produkten blev kvar på 1st Edition-radens
-  pris (1 382 kr i stället för ~105 kr) efter uppdelningen. Tabellen är EXPLICIT: en generell stavningstolerans hade
-  fällt ihop kort som verkligen är olika. Vakten hade rätt — den saknade bara ordboken.
-  **ROUTNING** i cardmarket-refresh: `tcgid|etikett` → `idProduct|etikett` → `setId|nummer|etikett`. Alla tre behövs —
-  i Base bär BARA 1st Edition-raden `tcgid`, och holornas Unlimited-rader heter `card_number: "BS 4"` (inte "4") så
-  nummerreserven missar dem. Utan idProduct-nyckeln stod Charizard Unlimited kvar på ett gammalt 1st Edition-pris
-  (3 205 € i stället för 340 €).
-  **BARA UNLIMITED FÅR UPPSKATTAS**: Shadowless och 1st Edition delar CM-produkt ⇒ samma guide-rad ⇒ en uppskattning
-  hade gett båda SAMMA värde. De publiceras bara med ett äkta From; annars pris "–". Unlimited har en egen CM-produkt
-  och uppskattas som vanligt (annars hade 85 av 92 Base-kort tappat sitt pris). Guide-raden hämtas från OFFERNS
-  länkade `idProduct`, aldrig från feed-radens `cardmarket_id`.
-  **SYNLIGHET**: `buildProductWhere` gömmer prislösa produkter — tryckningar är UNDANTAGNA, annars hade en sökning på
-  "charizard base" visat en av tre. **TRADERA-VAKT** (`printLabelInTitle`): de tre delar kortnamn OCH kortnummer, så
-  singel-identiteten gav tre lika starka träffar och fuzzy-poängen fick avgöra. En annons som inte SÄGER "1st
-  edition"/"shadowless" är per konvention Unlimited.
-  ⛔ **VAKTEN FAILADE ÖPPET FÖRSTA DYGNET (2026-07-28)**: `variantLabel` var ett VALFRITT fält på
-  `matchListingToProduct`, och INGEN anropare valde ut det ur databasen → `undefined` föll rakt igenom
-  `isPrintVariantLabel` och vakten var bortkopplad i BÅDA Tradera-vägarna (svepets `pickRailCandidates` och
-  `findReplacementListing`). Mätt morgonen efter uppdelningen: 84 Shadowless- och 39 1st Edition-produkter fick en
-  offer från en annons som bara sålde det ordinarie kortet (Blastoise 1st Edition visade 119 kr; två annonser sa
-  uttryckligen "base set unlimited"), plus 1 156 skena-rader och 128 grafpunkter. Fältet är nu OBLIGATORISKT — samma
-  miss blir ett TYPFEL i stället för en tyst felmatchning. Samma lärdom som tcgid-incidenten: **ett fält som saknas
-  på objektet gör att vakten failar öppet**, så vakter ska kräva sina indata, inte hoppas på dem.
-  **ATT TA BORT OFFERN RÄCKER INTE**: svepet skriver en `PriceObservation` per offer och produktsidans graf ritar en
-  serie PER KÄLLA ur dem — felmatchens pris låg alltså kvar som en Tradera-KURVA på kort där bara Cardmarket har ett
-  pris. `scripts/repair-marketplace-offers.ts` har därför en **Fas 4** som vetar historiken med samma matchare
-  (annonstiteln finns i `rawData`), tidsfönster `OBS_DAYS`=7 (~24k rader; hela historiken är ~170k). **SKANNERN** rör inte tryckningar: den matchar på Card och
-  `getCardValues` tar lägsta produkten (= Unlimited); vill man ha en specifik tryckning lägger man till den från dess
-  produktsida (produktsidan listar redan syskonvarianterna).
-- **TRYCKNINGEN ÄR IDENTITET, INTE EN PRISNIVÅ (2026-07-28)**: RapidAPI publicerar EN RAD PER TRYCKNING (`version`:
-  "1st Edition", "1st Edition Shadowless", "Shadowless", "Unlimited") i de tio WOTC-episoderna — och hänger `tcgid`
-  på **1st Edition**-raden. Vår starkaste nyckel valde därför systematiskt den dyraste tryckningen fast katalogen
-  (pokemontcg.io, en post per kort) bara innehåller det ORDINARIE kortet: Ponyta · Base 60/102 publicerades som
-  26,50 € i stället för 4,29 € (292,56 kr mot 47,36 kr). `printRank()` rangordnar därför Unlimited/omärkt > Shadowless
-  > 1st Edition, och `feedRowWins` väger TRYCKNINGEN före nyckelstyrkan. Mätt över alla tio episoderna (1 983 rader,
-  940 av våra kort): 154 kort prissätts nu av den ordinarie tryckningen; värst var Bill · Base 91 (220,80 → 0,22 kr),
-  Super Potion · Base 90 (662 → 0,77 kr) och Ninetales · Base 12 (11 040 → 221 kr).
-  ⛔ **BARA en rad med BEVISAT äkta `lowest_near_mint` får vinna på tryckning.** Låter man rätt tryckning vinna utan
-  det villkoret faller `singlesHeadlineEur` till guide-medianen på radens `cardmarket_id` — ofta fel produkt. Mätt i
-  produktion: Sabrina's Gaze · Gym Heroes 125 skrevs 0,55 € → **434,04 €** (Unlimited-radens 30d-snitt) innan villkoret
-  satt. `undefined` är INTE bevis för att From saknas — kandidaten måste bära `from` på toppnivå, inte bara i `op`
-  (det var exakt buggen). Saknas From på den ordinarie tryckningen behåller vi hellre dagens pris än gissar.
-  Reserv-nyckeln (set+nummer) KONSUMERAS INTE längre: i Base svarar tryckningarna i block, så Shadowless-raden åt upp
-  nyckeln och Unlimited-raden föll bort innan den fick tävla. Flera rader mot samma produkt är ofarligt när exakt en
-  kan vinna.
-- **DE NIO ANDRA WOTC-SETEN GÅR INTE ATT DELA (mätt 2026-07-28)**: `version`-raderna är printningsspecifika BARA när
-  CM har en egen produkt per tryckning. I Jungle/Fossil/Team Rocket/Gym/Neo har CM **en produkt per kort** (111 av 115
-  kort delar `cardmarket_id` mellan tryckningarna), och feedens From gäller PRODUKTEN: av 123 kort med From på båda
-  tryckningarna är **88 exakt identiska** och de övriga 35 skiljer 0,6–1,1x (8 mot 8,50 €). I Base — där CM la till en
-  ANDRA produkt 2022-05-24 — är 0 av 23 identiska och skillnaden 6–66x (Hitmonchan 18,10 mot 1 200 €). En uppdelning
-  av de nio seten skulle alltså ge två katalogposter med SAMMA pris, dvs en påhittad precision. Vill man ha äkta
-  1st Edition-priser där krävs en källa som prissätter per tryckning; CM:s filtrerade sida (`isFirstEd=Y`) visar
-  annonserna men API:t ger inte talet. ⚠️ Den gamla öppna posten ("~730 vintage-kort prissätts av fel tryckning,
-  60 st ≥3x över pokemontcg.io:s trend") byggde på att version-raderna ÄR printningsspecifika — det stämmer inte i de
-  här seten. Deras pris är den delade produktens NM-engelska golv, samma policy som resten av katalogen. Mät om innan
-  någon agerar på den. Revision: `scripts/print-variant-audit.ts` (`--sweep` → `--fetch=…` → `--report`).
-- **SKANNERN IDENTIFIERAR PÅ UTSEENDE, INTE PÅ TEXT (2026-07-29)**: samlarnumret trycks ~2 mm högt. På en fysisk
-  kortbild går det att läsa; i en skärmfotografering eller ett suddigt foto FINNS informationen inte i bilden, och då
-  kan ingen modell och ingen upplösning laga det — mätt i produktion svarade Haiku med kortets HP ("110", tryckt stort
-  uppe till höger) och sedan med ett påhittat "172/167". `Card.artFingerprint` (264 byte = 8×11 celler × RGB, int8,
-  `src/lib/art-fingerprint.ts`) matchar kortets FÄRGLAYOUT mot hela katalogen i stället.
-  **MÄTT** (`scripts/art-audit/`, hela katalogen som referens = 20 431 bilder, 300 frågor försämrade som
-  skärmfotograferingar): topp-15 **99,7 % mild / 96,0 % hård** försämring, topp-1 93,3 % / 86,0 %.
-  ⛔ **FINARE RUTNÄT ÄR SÄMRE** — 24×33 (2 376 dim) ger 98,3 % mot 8×11:s 99,7 %, för självlikheten efter försämring
-  faller 0,918 → 0,764: fin detalj överlever inte en dålig bild och bidrar med brus. Det är också skälet att INGET
-  neuralt nät valdes (CLIP/DINOv2): deras styrka är finkorniga särdrag, och vi har MÄTT att finkorniga särdrag inte
-  hjälper här. Höj inte rutnätet utan att köra om revisionen.
-  **KOSTNADSFORMEN (ägarkrav: ingen stor Neon/Railway-träff)**: klienten räknar avtrycket i canvas och skickar **264
-  byte UPP** — den laddar aldrig ner indexet (5,4 MB per besökare hade varit Railway-egress). Sökningen är en linjär
-  genomgång i processminnet (`src/services/scanner/art-index.ts`), indexet hålls som **int8 (5,4 MB), inte float32
-  (21,6 MB)** eftersom minne är ~92 % av Railway-notan, och det laddas **LATT vid första skanningen** — aldrig på
-  toppnivå eller på timer, så Neons scale-to-zero bevaras. En delad in-flight-promise hindrar att två samtidiga
-  skanningar läser 5,4 MB var vid kallstart. Per skanning går Neon-arbetet NER: bilden ger kort-id, så vi hämtar ~15
-  rader på PRIMÄRNYCKEL i stället för ännu en genomsökning. Ingen pgvector — ett ANN-index sparar CPU vi inte saknar
-  och kostar minne vi betalar för.
-  ⛔ **EN ENDA implementation av avtrycket.** Servern läser 3 kanaler (sharp `.raw()`), klienten 4 (`getImageData`), och
-  BÅDA anropar `fingerprintFromRgb`. All aritmetik inklusive nedskalningen (rent boxmedelvärde) ligger där: ett
-  mellansteg med `resize()` hade smugit in bibliotekets omsamplingsfilter i nyckeln, och sharps lanczos är inte
-  canvasens utjämning. Testet `art-fingerprint.test.ts` jämför 3- och 4-kanalsvägarna byte för byte — samma sorts vakt
-  som `Card.numberSortKey` mot `cardNumberSortKey()`.
-  **EN SÄKER BILDTRÄFF SLÅR MODELLENS NAMN — OCH MARGINALEN, INTE POÄNGEN, AVGÖR VAD "SÄKER" ÄR (2026-07-30)**:
-  modellens NAMN är opålitligt på skärmfotograferingar. Samma kort, samma ram, fyra skanningar: "Pelipper", "Pawmot",
-  "Falinks", "Palafin ex" — det sista med konfidens 0,85. Ett hallucinerat namn får full namnlikhet (1,0) mot SINA kort
-  medan rätt kort får ~0 på namn, så texten vann alltid. MÄTT över 250 kort (hård försämring + 3 % marginal) för träff 1:
-  RÄTT (210 st) poäng median 0,873 / min 0,570 · marginal median 0,111 / p90 0,297 — FEL (40 st) poäng median 0,758 /
-  **MAX 0,922** · marginal median 0,012 / **MAX 0,066**.
-  ⛔ **POÄNGEN SKILJER INTE RÄTT FRÅN FEL** (fördelningarna överlappar: en felträff kan ha 0,92, en rätt träff 0,57).
-  MARGINALEN till tvåan gör det. Regeln `poäng ≥ 0,70 OCH marginal ≥ 0,10` (`ART_TRUST_*`) gav **100 % precision** — 0 av
-  40 felträffar slapp igenom — och täckte 117 av 210 rätta. Tröskeln har ~1,5× marginal till sämsta observerade felträff
-  och är satt på FÖRDELNINGEN, inte på det produktionsfall som väckte frågan (Falinks TG07: 0,857, marginal 0,379).
-  Bonusen (1,15) ligger ÖVER en ren namnträff (max 1,0) men UNDER namn+nummer (1,4–1,5): ett hallucinerat namn utan
-  nummerstöd förlorar, men namn OCH nummer som pekar på samma kort vinner — där är texten bevisad, inte gissad.
-  Verifierat i tre riktningar: hallucinerat namn + säker bild → bilden vinner; hallucinerat namn + OSÄKER bild → namnet
-  står kvar; namn+nummer på ett annat kort → texten vinner.
-  **KORSVALIDERING — NAMNET DÄMPAS NÄR BILDEN INTE HÅLLER MED (2026-07-30)**: marginalregeln räddar bara de 56 % av
-  rätta bildträffar som är BEVISAT säkra; de övriga 44 % har en äkta men smalare marginal och förlorade fortfarande mot
-  ett hallucinerat namn. Håller modellens namn inte med om NÅGOT av bildens 15 bästa kort (Dice < `NAME_AGREE_MIN` 0,5)
-  OCH bilden själv är stark (≥ `ART_STRONG`), skruvas namnvikten ner till `NAME_DISTRUST` (0,25). Två oberoende signaler
-  som pekar isär betyder att en av dem är fel, och bilden är den mätta av de två. Namnet NOLLAS inte — namnträffar
-  ligger kvar över orelaterade kort, för i ~7 % av fallen är det BILDEN som har fel.
-  ⛔ **DÄMPNINGEN MÅSTE GÄLLA NUMRET OCKSÅ.** Namn och nummer kommer ur SAMMA modellsvar — är det ena påhittat är det
-  andra lika misstänkt. MÄTT när bara namnet dämpades: det hallucinerade numret "041/193" matchade Paldean Tauros 41 i
-  Paldea Evolved EXAKT (setet har 193 kort), fick full nummerbonus och vann över rätt kort. Ett påhittat tal träffar en
-  riktig rad förr eller senare — katalogen har 20 563 kort.
-  **FLERA VIDEORUTOR PER SLUTARTRYCK (`CAPTURE_FRAMES` 3)**: moiré, rörelseoskärpa och autofokus-sökning varierar PER
-  RUTA, och avtrycket är gratis att räkna (ingen API-kostnad). Servern väljer den ruta som var mest AVGÖRANDE — störst
-  marginal, `searchByFrames`. ⛔ Slå INTE ihop rutor med max-poäng per kort: det plockar den lyckligaste observationen
-  per kort, trycker ihop fältet och förstör marginalen, som är hela vårt mått på tillförlitlighet. Bilden och närbilden
-  till modellen tas från FÖRSTA rutan (den användaren såg); extra rutor skulle bara kosta uppladdning.
-  **DIAGNOSTIK SPARAS FÖR ADMIN** (`ScannerJob.result`, ingen migration, inga extra rader): modellens svar, bildens
-  topp-3 och det valda kortet — plus konstavtrycket (264 byte), ALDRIG bilden. Det är vad som gör det möjligt att mäta
-  VERKLIG träffsäkerhet; alla siffror ovan är tak, byggda på frågor härledda ur samma filer som referenserna. Bara
-  admin, av dataminimeringsskäl.
-  ⛔ **BILDTRÄFFARNA MÅSTE LIGGA ÖVER NAMN-SYSKONEN i kandidatlistan** (skikt 2 mot 3): med ett hallucinerat namn är dess
-  syskon en lista över FEL kort, och låg bildträffarna i "övrigt" försvann rätt kort ur listan helt.
-  **BILDEN FÖRESLÅR, NUMRET AVGÖR**: `ART_WEIGHT` (0,3) är medvetet LÄGRE än nummerbonusen (0,4–0,5). Ett läst
-  samlarnummer är ett exakt bevis, bildlikhet en gradering — väger bilden tyngre börjar den välja fel TRYCKNING (Base
-  Unlimited/Shadowless/1st Edition har identisk konst och skiljs BARA av numret). Kandidaterna läggs dessutom TILL
-  text-matchningen, de ersätter den aldrig: bildmatchningens verkliga träffsäkerhet är omätt (alla siffror kommer från
-  frågor härledda ur samma filer som referenserna, dvs ett tak), så värsta fallet ska vara att bilden inte hjälper.
-  ⛔ **AVTRYCKET ÄR EN VAKT SOM FAILAR TYST.** `numberSortKey` räknas av Postgres (GENERATED) just för att ingen import
-  ska kunna glömma den; ett avtryck kräver bildavkodning och kan inte genereras i databasen. Det byggs av
-  `scripts/build-art-fingerprints.ts`, som körs i `import-new-sets.yml` EFTER set-importen. Tas det steget bort blir
-  nya kort osynliga för bildmatchningen utan att något felar. Ändras rutnätet krävs `FORCE=1` för hela katalogen —
-  avtryck med fel längd hoppas över (aldrig jämförda), så följden är tysta bortfall, inte fel träffar.
-  ⛔ **MARGINALEN RUNT KORTET ÄR DEN ENSKILT STÖRSTA FELKÄLLAN (fix 2026-07-30)**: avtrycket räknades först på det
-  MARGINALFÖRSEDDA utsnittet (`CROP_PAD` 6 %), medan indexet är byggt på katalogbilder som är EXAKT kortet. Vid ett
-  8×11-rutnät smittar ytterringen **34 av 88 celler**. MÄTT på Falinks TG07 (hård försämring): utan marginal plats 1
-  och likhet 0,989 — med 6 % marginal UTANFÖR topp-15, bästa träff 0,547. Över hela katalogen föll topp-15 från 96 %
-  till **15 %**. Revisionen rapporterade ändå 96 %, för dess simulerade felbeskärning skär IN i kortet i stället för
-  att lägga bakgrund runt om; profilen `padded` + `PAD=`-övrestyrningen finns nu så samma miss inte kan upprepas.
-  Avtrycket räknas därför på ramen UTAN marginal (`fx/fy/fw/fh` i `captureFrame`) — bilden till modellen behåller
-  marginalen, så ett snett kort inte tappar numret.
-  **OCH DET RÄCKER INTE ATT TA BORT DEN FASTA MARGINALEN**: känsligheten är brutal (topp-15 mot marginal: 0 % → 96 %,
-  1 % → 94 %, 2 % → 84 %, 4 % → 49 %, 6 % → 15 %) och en handhållen fångst sitter inte inom 1–2 %. Klienten skickar
-  därför ett **INSET-SVEP** (`FINGERPRINT_INSETS` = 0 / 3 / 6 / 9 %): samma fångst beskuren fyra gånger, och servern
-  tar varje korts BÄSTA likhet (`searchByFingerprints`). MÄTT: topp-15 blir **93 % oavsett marginal** (mot 87/51/18 %
-  vid 2/4/6 % med ett enda avtryck). ⛔ Slå ihop varianterna med MAX, aldrig medelvärde — bara EN beskärning är den
-  rätta, så ett medelvärde drar ner rätt kort med brus från de felbeskurna. Kostnaden är ~1 kB upp och fyra sökningar
-  à ~10 ms; `getImageData` körs EN gång och insetet appliceras i `fingerprintFromRgb` (delad kod, samma aritmetik som
-  indexet).
-  **132 kort har döda bild-URL:er** uppströms (mcd17/mcd18 + en promo, 404 på både hires och liten variant) → de får
-  inget avtryck och matchas som förut på namn/nummer.
-- **SKANNERN: NUMRET ÄR IDENTITETEN, OCH KANDIDATURVALET VAR ETT SLUMPURVAL (2026-07-29)**: "skannern gissar fel kort"
-  lästes som ett modellproblem (Haiku), men modellen var bara halva kedjan. `matchCards` hämtade kandidater med ett `OR`
-  över namn-tokens och `take: 50` UTAN `orderBy` — Postgres returnerar då de 50 rader planen råkar ge. MÄTT mot prod:
-  18 938 av 20 563 kort (92 %) delar namn med minst ett annat kort, "charizard" ger 111 kandidatrader och "pikachu" 178
-  → rätt kort låg utanför urvalet ungefär varannan gång, och VILKA 50 varierade mellan körningar. Dessutom jämfördes
-  numret som `parseInt(card.number, 10)`, vilket ger `NaN` för VARJE bokstavsnumrerat kort ("TG10", "GG08", "SWSH034",
-  "SV075") och tappar suffixet på "130a" — alltså exakt de tryckningar någon bryr sig om att skanna (Trainer Gallery,
-  Shiny Vault, promos); vanliga commons skannar man inte. Numret jämförs nu som STRÄNG mot `Card.numberSortKey`
-  (indexerad GENERATED-kolumn) via `parseGuessedNumber().sortKey`, och kandidater hämtas ur TRE unionade källor:
-  nummer+namn, bara nummer (räddar felstavat namn), bara namn (räddar oläst nummer). Namn-tokens matchas AND-först med
-  OR som reserv — "Iron Valiant ex" som OR drog in varenda Iron Hands i katalogen. Bokstavsnummer UTAN siffror hanteras
-  också ("H", "ONE"): 31 kort är Unowns eget alfabet, och "O/115" lästes förut som kort 115 (totalen).
-  **FACIT** = `scripts/scanner-match-audit.ts` (matar matchCards med kortets EGET namn+nummer, dvs en felfri simulerad
-  OCR; läser bara, n=400/profil): topp-1 86,5 % → **100 %** (uniformt urval) och 91,0 % → **99,8 %** (kort vars namn
-  delas av ≥5 andra). Utan läsbart nummer: 21 % / 8,5 % topp-1 — strukturellt otillgängligt, det finns ingen annan
-  särskiljare när 92 % delar namn. ⛔ Följden: HELA skannerns träffsäkerhet hänger nu på att modellen läser
-  SAMLARNUMRET rätt. En modelluppgradering ska mätas mot det, inte mot "känns bättre".
-- **SKANNERBILDEN BESKÄRS TILL KORTRAMEN (2026-07-29)**: `captureFrame` skickade hela videorutan trots att overlayen ber
-  användaren lägga kortet i en ram som täcker ~1/3 av ytan — två tredjedelar av de vision-tokens vi betalade för var
-  skrivbord och hand, och kortet fick ~0,4 MP av bildbudgeten. Utsnittet MÄTS nu med `getBoundingClientRect()` på både
-  video- och ram-elementet och räknas om genom `object-cover`-matten till källpixlar (+6 % marginal). ⛔ Räkna ALDRIG på
-  overlayens `w-[68%]`/`mb-[14vh]` i stället — hårdkodade tal börjar tyst beskära fel dagen någon rör ramen, och ett fel
-  utsnitt kapar numret, vilket är värre än ingen beskärning alls. Kortet får ~2,7× fler pixlar till SAMMA token-kostnad
-  (utsnittet skalas till samma längsta sida, `CAPTURE_MAX`). ⛔ Haiku 4.5 tar emot max 1568 px längsta sida (~1,15 MP)
-  och skalar ner allt däröver SERVER-SIDE — att höja `CAPTURE_MAX` ger alltså ingenting på Haiku. Vägen till fler pixlar
-  på numret är beskärning eller en modell med högupplöst vision (Sonnet 5 / Opus 5: 2576 px, ~4784 bildtokens).
-- **SKANNERKOSTNADEN ÄR VERIFIERAD MOT FAKTURA (2026-08-02)**: sedan Gemini slogs på (01:14 UTC) har **177 kort
-  identifierats** — **68 gratis** (bilden avgjorde, noll API-anrop), **97 vision-anrop**, 12 utan diagnostik
-  (icke-admin). De 97 anropen förbrukade 362 353 in- och 5 565 ut-tokens, och Googles konsol visade **0,82 kr**.
-  Alltså **~0,0085 kr per vision-anrop** och **~0,0046 kr per identifierat kort** (bildvägen späder ut notan).
-  Sätt det mot Pro: 49 kr/mån, och skäligt-bruk-taket 1 000 skanningar ⇒ värsta fallet ~8,5 kr om VARENDA
-  skanning krävde vision. Marginalen är alltså bekväm, och ~40-50 % avgörs gratis av bilden i praktiken.
-  ⛔ `scripts/scanner-telemetry.ts` PRICES-tabell är en uppskattning för att följa kostnaden MELLAN fakturor —
-  **fakturan är facit.** Den gamla gemini-raden (0,25/1,50) låg ~28 % för högt och är rättad till 0,20/0,80 mot
-  det uppmätta utfallet. Stämmer de inte överens: rätta tabellen, aldrig tvärtom.
+- **Singelpris-policyn, frusna CM-kurvor och rubrik-källregeln FLYTTADE till `.claude/rules/cm-pricing.md`** (laddas vid arbete i cardmarket-refresh/hot-card-refresh/RapidAPI-skripten). Kärnan: singlar = CM engelska NM-"From" RAKT AV (ägarbeslut); guiden är INTE CM:s From — bygg aldrig en per-kort-vakt på den; 0 kr är inget pris.
+- **Base-tryckningarna (Unlimited/Shadowless/1st Edition) — hela regelverket FLYTTAT till `.claude/rules/base-printings.md`** (laddas vid arbete med print-variant/CM-länkar/refresh-jobben). Kärnan: tryckningen är identitet, inte en prisnivå; Pikachu 58 delas inte; de nio andra WOTC-seten går INTE att dela; `variantLabel` är obligatoriskt i matcharvakterna.
+- **Skanner-djupdykningarna FLYTTADE till `.claude/rules/scanner.md`** (laddas vid arbete i skanner-/kamerafilerna): bildavtryck & marginalregeln, numret är identiteten, beskärning, kostnad, bulk-taket, ägarprefix-fällan, namnsyskon, kamera-livscykeln, tre lägen, streckkod, ficklampa/zoom, alternativlistan, skäligt bruk-taket (1 000/mån = AVTALSVILLKOR). LÄS `docs/SCANNER-STATUS.md` före ändringar.
 - **HAPTIK BOR I `src/lib/haptics.ts`, MED TRE STYRKOR (2026-08-02)**: `hapticTick` (långtryck löste ut, val
   gjordes), `hapticGlide` (fingret gled till ett NYTT värde) och `hapticImpact` (något blev klart — skannern
   låste ett kort). ⛔ Hitta inte på millisekunder på anropsstället: spridda `vibrate(37)` ger en app som känns
@@ -1199,44 +817,6 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   skäl: koden körs också på webben där paketet inte har någon native-sida, och en statisk import hade dragit in
   modulen i webbuntet i onödan. ⚠️ **iOS är tyst tills `npx cap sync` körts och appen byggts om (Codemagic) —
   en `git push` räcker INTE.**
-- **BULK-TAKET = 15, SATT PÅ MÄTNING (2026-08-02)**: bor på TRE ställen — `BULK_MAX_CARDS` i skanna/page.tsx
-  (vad klienten skickar), `cells.max(N)` i `/api/scanner/identify-bulk` (vad servern accepterar) och
-  `BULK_DETECTOR_MAX_CARDS` i lib/camera-controls.ts (vad zoom-rekommendationen klampas mot).
-  12 → 20 → **15**. Måttet är andelen celler som BILDEN avgjorde utan att kosta ett vision-anrop, ur
-  `ScannerJob`-telemetrin: **12 kort → 42/42/50 % · 15 kort → 47 % · 18 kort → 28 %** (och notan dubblas,
-  $0,008 → $0,013). 15 ligger i samma band som 12; vid 18 kollapsar det. ⛔ Glider de tre talen isär blir felet
-  TYST: ett för lågt Zod-tak avvisar HELA fångsten med 400 (inte bara överskottet), ett för lågt klient-tak kapar
-  korten utan förklaring. `tests/unit/bulk-cap-sync.test.ts` vaktar att de är samma tal.
-- **⛔ MODELLEN LÄSER ÄGARPREFIX FEL — OCH TEXTEN SLÅR DÅ BILDEN (MÄTT 2026-08-02)**: de nya seten (Ascended
-  Heroes, Destined Rivals) är fulla av kort som heter "Larry's Komala", "Steven's Beldum", "Erika's Gloom",
-  "Team Rocket's Murkrow". Modellen läser bara Pokémon-namnet, och det TRUNKERADE namnet matchar ett HELT ANNAT
-  kort EXAKT — som då vinner över bildens träff:
-  `"Komala" → Komala 185 (Unified Minds)` medan bilden sa Larry's Komala 175 · `"Beldum" → Beldum 59` mot
-  Steven's Beldum 143 · `"Gloom" → Gloom 44` mot Erika's Gloom 2. **Bilden hade rätt i alla tre.** Värre: vinnaren
-  delar då varken namn eller konst med rätt kort, så det föll ur alternativlistan och gick INTE att rätta.
-  Lindring: `ScanCandidate.artRank` märker bildens `ART_ALWAYS_SHOWN`(3) bästa, och detaljvyn visar dem ALLTID.
-  Det fabricerar ingen säkerhet — poäng och ordning är orörda, kortet går bara alltid att välja.
-  ⏭️ KVAR (den egentliga fixen): låt namnmatchningen förstå ägarprefix, så "Komala" också krediterar
-  "Larry's Komala". Det ändrar poängsättningen för HELA katalogen och måste mätas med
-  `scripts/scanner-match-audit.ts` före ship — inte gissas.
-- **NAMNSYSKON HAR GARANTERADE PLATSER I KANDIDATLISTAN (2026-08-02)**: `SIBLING_RESERVED`=4 i
-  `matchCards`. Syskonen ligger i skikt 3, UNDER bildkandidaterna (skikt 2), och en bulk-cell kan ha upp till
-  `ART_CANDIDATES` kort över `ART_STRONG` — då fyller skikt 2 hela taket och syskonen faller ur listan. Det är
-  exakt det fall användaren måste kunna rätta: **samma konst, olika samlarnummer**. MÄTT I FÄLT: en bulk-fångst
-  gav Raboot #27 där kortet var #37, omärkt som osäker och utan #37 bland alternativen. Reservationen ändrar inte
-  ORDNINGEN, bara vilka som får plats. I detaljvyn visas dessutom **kort med SAMMA KONST alltid**, oavsett
-  poängfönstret — förtroendebonusen (ART_TRUST 1,15) skjuter annars omtrycket långt utanför `ALT_SCORE_WINDOW`,
-  vilket var precis vad som gjorde felmatchningen omöjlig att rätta. Flaggan `ScanCandidate.sameArt` sätts
-  server-sida med `artPairSimilarity` mot **samma `SAME_ART_MIN` (0,9)** som omtryckssyskonens tie-break redan
-  använder — kalibrerat mot verkliga fall: äkta omtryck **0,954–0,976**, olika konst **≤ 0,638**. Två tal på var
-  sin sida om det gapet är samma beslut och får inte glida isär. ⛔ Beräknas BARA när bildmatchningen kördes
-  (`artScores?.size`), annars hade en ren textskanning tvingat fram en lat inläsning av hela 5,4 MB-indexet.
-  ⛔ **KONST, inte NAMN** (ägarbeslut 2026-08-02): namnregeln drog in varenda annan Raboot i katalogen och gjorde
-  listan onödigt lång fast de flesta inte ser likadana ut. Regeln bor i `src/lib/scan-alternatives.ts` — ren och
-  testad, för den avgör om en felmatchning går att RÄTTA och har felat i fält en gång. `MAX_ALTERNATIVES` 3 → 6.
-  ⚠️ Server-reservationen går på NAMN medan visningen går på KONST: **var generös med vad som HÄMTAS, strikt med
-  vad som VISAS.** Ett namnsyskon med annan konst är fortfarande en trolig rättelse (mätt: Falinks ur Astral
-  Radiance TG matchad som Falinks ur Stellar Crown) och kostar inget att ha i listan när UI:t ändå filtrerar.
 - **⛔ `Haptics.selectionChanged()` ÄR EN TYST NO-OP PÅ iOS UTAN `selectionStart()` (2026-08-02)**: Capacitor
   skapar `UISelectionFeedbackGenerator` först i `selectionStart()`, så ett ensamt `selectionChanged()` returnerar
   utan fel och utan vibration. Det var därför långtrycken kändes på iPhone men graferna inte gjorde det —
@@ -1251,12 +831,6 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   renderas av recharts för båda inmatningssätten, så haptiken bor i `ChartTooltip` och triggas när `label` byts
   (dvs per DATAPUNKT, aldrig per pixel). `onMouseMove` driver fortfarande linjens uttoning, inget mer.
   Portföljgrafen och produktsidans prishistorik delar `PriceChart` — en fix, båda ytorna.
-- **BULK VID 0,5× ÄR FÄLTVERIFIERAT PÅ 12 KORT (ägaren 2026-08-02)**: tolv kort i EN fångst, alla tolv rätt
-  identifierade. Farhågan i `ZOOM_PRESET_MAX_CARDS` — att pixelbudgeten (~1/12 av bilden per kort) skulle fälla
-  det — besannades INTE, och det är väntat efter bildmatchningen: avtrycket läser FÄRGLAYOUT, inte det ~2 mm höga
-  samlarnumret. Det är numret som behöver pixlar, och bulkvägen avgörs av bilden. 1× och 2× är fortfarande omätta
-  (copyn säger "ca"). Om 12 är ett tak eller bara det högsta någon provat går inte att veta utan att höja
-  `BULK_MAX_CARDS` först — detektorns eget tak är 12.
 - **BOTTENARKET ÄR APPENS "VÄLJ OCH BEKRÄFTA"-FORM (ägarbeslut 2026-08-02)**: `src/components/ui/bottom-sheet.tsx`
   — mörk överlagring, rundad panel som glider upp, draghandtag, rubrikrad med valfri åtgärd, scrollande kropp,
   fast fot med huvudknappen. Katalogens filter-/sorteringsark var förlagan; snabbtillägget i samlingen (håll in
@@ -1267,67 +841,6 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   Vinsten med formbytet var att ankarmätning, portal förbi kortets `overflow-hidden`, flip över/under, klampning
   mot visualViewport, omräkning när felraden ändrar höjden och följ-ankaret-vid-scroll ALLA försvann: ett ark är
   fäst vid skärmen, inte vid ett kort.
-- **⛔ KAMERANS LIVSCYKEL FÅR ALDRIG BERO PÅ ETT HOOK-OBJEKTS IDENTITET (2026-08-02)**: `useCameraControls`
-  returnerade ett bart objektliteral → ny identitet varje rendering. `stopCamera` fick `[camera]` som beroende,
-  och eftersom den anropas av `useEffect(() => () => stopCamera(), [stopCamera])` kördes den effekten om vid varje
-  rendering — och dess CLEANUP river strömmen. `startCamera` startade om, anropade `attach()` → setState → ny
-  rendering → loop. Kameran revs ner i samma andetag som den startades och gick aldrig live. Fixat i TVÅ lager:
-  hooken memoiserar sitt returvärde, OCH skanner-sidan når `attach` via en REF så livscykeln inte kan bero på
-  objektet alls. Memoiseringen ensam räcker INTE — identiteten byts ändå när `zoomPresets` fylls i efter första
-  spåret, vilket hade rivit strömmen en gång till. Regeln generellt: en callback som en avmonterings-effekt
-  beror på måste ha stabila beroenden, annars är dess cleanup en tyst rivning vid varje rendering.
-- **SKANNING = OBEGRÄNSAD FÖR PRO, MED 1 000/MÅNAD SOM PUBLICERAT SKÄLIGT BRUK (ägarbeslut 2026-08-02)**:
-  fyra ytor måste säga SAMMA sak och de gör det nu: prissidan ("Obegränsad kortskanning (skäligt bruk)"),
-  skannerns Pro-badge (`∞`), villkoren `Terms.s6FairUse` ("upp till 1 000 skanningar per kalendermånad, nollställs
-  den 1:a") och koden `PREMIUM_FAIR_USE = 1000` i `src/services/scanner/index.ts`. Gratis = 30/månad, oförändrat.
-  Kvoten räknar IDENTIFIERADE KORT och nollställs på UTC-månadsskiftet (`startOfMonthUtc`), inte på
-  prenumerationens årsdag. ⛔ **Taket är nu ett AVTALSVILLKOR, inte bara en skyddsspärr.** Sänks det — i koden
-  eller via `SCANNER_PREMIUM_MONTHLY_LIMIT` — blir villkorstexten falsk, och ett dolt tak under det publicerade är
-  ett villkor kunden aldrig fått se. Ändra konstanten och villkorstexten tillsammans, eller ingen av dem.
-  Env-variabeln finns kvar för nödlägen, inte för produktbeslut.
-  Sidofix samma dag: `Grading.limitPremium` sa "Tillbaka i morgon" fast graderingskvoten är MÅNADSVIS
-  (`startOfMonthUtc` i `src/services/grading/index.ts`) — en Pro-kund som slog i taket fick veta att det löste sig
-  i morgon, och blockerades igen dagen därpå.
-- **SKANNERN HAR TRE LÄGEN, OCH DE ÄR ETT `mode`-FÄLT (2026-08-02)**: `"single" | "bulk" | "barcode"` i
-  `skanna/page.tsx`. ⛔ Inte tre booleaner: två flaggor har fyra tillstånd varav ett ("båda på") är meningslöst men
-  fullt möjligt, och lägena tävlar om SAMMA videoruta, slutare och poll-loop. Live-pollen/låset körs BARA i
-  `single` (låset är ett enkortsbegrepp), bulk pollar inte alls, och streckkodsläget kör sin egen detektor.
-  **BULK ÄR PRO**: grinden sitter i `/api/scanner/identify-bulk` (`isPro`, aldrig `planTier` — RevenueCat nollar
-  planTier vid EXPIRATION och har tystat ägarens egna funktioner förr). Knappen VISAS ändå för gratisanvändare, med
-  hänglås + PRO-märke → `/priser`; en funktion man inte kan se säljer ingenting. Låset sätts först när kvoten
-  laddats (`quota != null && !isPremium`) — att gissa låst medan den är okänd blinkade ett Pro-lås för betalande
-  kunder vid varje öppning. Ett 403 städar cellerna och skickar till prissidan i stället för att visa nio fel.
-  Kvoten var redan rätt: `identifyCellsArt` bokför en scan per SÄKER cell och osäkra celler bokförs av `/identify`,
-  dvs 9 identifierade kort = 9 kvot.
-- **SEALED SKANNAS PÅ STRECKKOD, INTE PÅ UTSEENDE (2026-08-02)**: en ask har ingen konstbild att matcha mot, men
-  den bär tillverkarens GTIN — och vi har redan hela GTIN-infrastrukturen (~73 % täckning på riktiga offers,
-  `src/lib/gtin.ts`). Koden ÄR identiteten: `/api/scanner/identify-gtin` slår upp på normaliserad GTIN-14, så en
-  träff är exakt och kostar noll vision-anrop. `src/services/scanner/barcode.ts` avkodar via webbläsarens
-  `BarcodeDetector` och normaliserar ALLTID genom `gtin.ts` (fel checksiffra → INGEN träff, aldrig en gissning).
-  ⛔ **iOS/WebKit har ingen `BarcodeDetector`** → `barcodeSupported()` är false och läget döljs HELT. Skillnaden mot
-  bulk är avsiktlig: bulk är låst av OSS och går att låsa upp, streckkod är omöjlig på enheten. Detektorn skapas EN
-  gång per lägesbyte (Android initierar Play Services-modellen i konstruktorn), och en `seen`-mängd hindrar att
-  samma ask läses om 2,5 ggr/s medan den ligger kvar framför linsen. Skicket sätts till SEALED — NEAR_MINT hade
-  varit ett påstående om något vi inte kan se.
-- **FICKLAMPA + ZOOM: RENDERA BARA DET ENHETEN FAKTISKT KAN (2026-08-02)**: `src/lib/camera-controls.ts` (ren
-  logik, testbar) + `src/hooks/use-camera-controls.ts` (livscykel). Torch saknas på desktop, framkameror och HELA
-  iOS; zoom-kapabilitetens intervall är enhetsspecifikt och står INTE i "x" (både faktor- och procentskala
-  förekommer), och **0,5× är oftast ett ANNAT OBJEKTIV** — en egen enhet i `enumerateDevices()`, inte ett
-  zoom-värde. Hooken returnerar därför bara NÅBARA förval; en 0,5×-knapp som inte gör något är sämre än ingen knapp.
-  ⛔ Modulen rör ALDRIG strömmens livscykel: kräver ett förval en annan kamera svarar den `needs-stream-restart`
-  med enhetens id och skanner-sidan öppnar om strömmen själv (`withDeviceId` släpper `facingMode` — exakt
-  deviceId + facingMode kan motsäga varandra och ge OverconstrainedError). ⚠️ Korttalen per zoomnivå
-  (`ZOOM_PRESET_MAX_CARDS`: 0,5× = 12, 1× = 6, 2× = 1) är HÄRLEDDA UR GEOMETRIN, inte mätta — copyn säger därför
-  "ca". De är ett tak för vad som FÅR PLATS, inte ett löfte om vad som går att LÄSA.
-- **SKANNERNS ALTERNATIVLISTA GALLRAS FÖR VISNING, ALDRIG FÖR MATCHNING (2026-08-02)**: `MAX_ALTERNATIVES`=3 och
-  `ALT_SCORE_WINDOW`=0,2 mot TRÄFFENS poäng (inte listans topp — frågan är "kan skannern ha tagit fel på DET HÄR
-  kortet?"). Listan var oavkortad, och eftersom 92 % av katalogen delar namn med minst ett annat kort radade en
-  vanlig skanning upp tio kort och sköt ner prisutvecklingen under vikningen. Ett kort långt under träffen delade
-  oftast bara ett namn-token och är ingen förväxlingsrisk — att visa det får användaren att tvivla på en träff som
-  var rätt. Kandidaterna räknas fram precis som förut och `onChoose` kan fortfarande välja vilken som helst.
-  Under alternativen ligger `ScanPriceHistory`: hämtar `/api/products/{slug}/detail` (samma CDN-cachade endpoint
-  som produkt-overlayn) NÄR DETALJVYN ÖPPNAS, aldrig vid skanningen — en bulk-fångst hade annars dragit nio
-  detaljhämtningar ingen tittar på. Grafen ritas bara med ≥2 punkter.
 - **PRODUKT-OVERLAYNS z-index ÄR INTE EN KONSTANT (2026-08-02)**: overlayn ligger på z-40 (över sidans header,
   UNDER bottenflikarna som målas senare i DOM). Skannern är `fixed inset-0 z-[60]` → "Visa produkt" därifrån
   öppnade overlayn UNDER kameravyn: den monterades och hämtade sitt data, men användaren såg ingenting hända.
