@@ -290,6 +290,8 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   butikens offer FLYTTAS priset och då gäller oron igen.
   ⛔ **[LUJF]/[GVSE]/[SEGV]-boxkonsten överlevde** och ligger kvar som skilda produkter (5/2/7 offers)
   — de var MÅL i listan, aldrig stubbar. Regeln "merga aldrig dem" är intakt.
+  ✅ **OMGÅNG 3**: 46 beslut → 50 rader sammanslagna + 36 raderade
+  (`docs/owner-decisions-2026-08-13-c.txt`). Kohorten 898 → **386 kvar**.
   ⏭️ **KVAR — väntar på ägaren**: Team Rocket 1st Edition Booster Pack, de 74 LLM-dömda paren, och
   **omslagskonstfrågan**: Rogerz säljer vintage booster packs PER OMSLAG → 137 produkter på 38 set.
   MÄTT (`scripts/wrapper-art-report.ts`): 33 av 38 set har IDENTISKT pris på alla omslag, 2 skiljer
@@ -1035,6 +1037,17 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   skriver över dess offer varje körning, så länk och pris VÄXLAR mellan listningarna. MÄTT: 166 av
   wave 5:s 172 momsmergar drabbas. Ordningen är därför `--write-denylist` → commit + push → `--apply`,
   och raderingar VÄGRAR köra innan URL:en är nekad.
+  ⛔ **BARA BUTIKS-OFFERS FLYTTAS (ägarbeslut 2026-08-13)**: `mergeStubInto` RADERAR stubbens
+  Cardmarket-/Tradera-/CardTrader-offers i stället för att flytta dem (`NON_STORE_RETAILERS`,
+  `src/lib/offer-source.ts`). Skälet är IDENTITET, inte pris: en butiks-offer är ett faktum om en
+  URL, en marknadsplats-offer ett PÅSTÅENDE våra egna jobb fuzzy-matchat fram. Kanonprodukten har
+  redan sin granskade länk; stubbens är ogranskad, och en överflyttning kan tyst ersätta ett rätt
+  `idProduct` med ett fel — osynligt, för priset ser rimligt ut. Saknad länk återställs av de
+  dagliga jobben; en FELAKTIG städas bara för hand. Gäller ALLA anropare, även veckans dedupe-stubs.
+  ⛔ **FÖLJDREGEL: marknadsplats-URL:er hör inte hemma i denylistan** (den läses bara av
+  `ensureListingProduct`, som hämtar ur butiksfeedar) — OCH raderingsvakten måste använda SAMMA
+  urval. Räknar den marknadsplatslänkar väntar den på en denylist-post som aldrig skrivs; två
+  raderingar i omgång 3 fastnade på en Tradera-SÖKlänk.
   ⛔ Efter en körning: `recompute-price-cache.ts` OCH en färsk ruttabell (workflow "Ruttabell för
   Discord-larm (manuell)") — annars länkar Discord-inlägg till produkt-id:n som inte finns kvar.
 - **"NYLIGEN TILLAGD" ÄR ADMIN-ONLY, OCH GRINDEN SITTER PÅ TRE STÄLLEN (2026-08-13)**: sorteringen
