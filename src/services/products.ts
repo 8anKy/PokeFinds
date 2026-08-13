@@ -44,7 +44,13 @@ export type ProductSort =
   | "card_number_asc"
   | "card_number_desc"
   | "title_asc"
-  | "title_desc";
+  | "title_desc"
+  // ADMIN-ONLY (2026-08-13). Nyast skapade produkt först — driftvy, inte
+  // produktfunktion: en besökare bryr sig om vad varan kostar, inte om vilken natt
+  // vår auto-import råkade skapa raden. Den finns för att kunna granska vad en ny
+  // butiksvåg drog in (wave 5 skapade 898 produkter på en natt, varav 118 skulle
+  // aldrig ha kommit in). Grinden sitter i /produkter, som redan läser sessionen.
+  | "recently_added";
 
 /** Gamla `popular` = dagens `best_match` (kvalitetspoängen innehåller engagemanget). */
 export function normalizeSort(sort: ProductSort | undefined): ProductSort {
@@ -442,6 +448,11 @@ const DB_SORTABLE = new Set<ProductSort>([
   // fönster — "sortera efter kortnummer" hade då hoppat över nummer beroende på
   // när raden råkade skrivas sist. Ordningen kommer ur Card.numberSortKey.
   "card_number_asc", "card_number_desc",
+  // Nyligen tillagd MÅSTE vara DB-sorterad av samma skäl som kortnummer: den
+  // beräknade vägen hämtar de 500 SENAST ÄNDRADE, och "senast ändrad" är inte
+  // "senast skapad" — varje prisuppdatering rör updatedAt. Fönstret hade alltså
+  // visat en godtycklig blandning och kallat den nyast.
+  "recently_added",
 ]);
 
 /**
@@ -472,6 +483,12 @@ function feedOrderBy(sort: ProductSort): Prisma.ProductOrderByWithRelationInput 
     // ska inte inleda listan), därför explicit `nulls: "last"`.
     case "card_number_asc": return { card: { numberSortKey: { sort: "asc", nulls: "last" } } };
     case "card_number_desc": return { card: { numberSortKey: { sort: "desc", nulls: "last" } } };
+    // ⛔ createdAt, ALDRIG updatedAt: den senare rörs av varje prisuppdatering, så
+    //    "nyligen tillagd" hade blivit "nyligen prisändrad" — dvs hela katalogen i
+    //    slumpmässig ordning. Kolumnen är oindexerad; sorteringen är admin-only och
+    //    körs sällan, så en sortering av ~31k rader (tiotals ms) är billigare än en
+    //    migration som måste köras för hand mot prod.
+    case "recently_added": return { createdAt: "desc" };
     default: return { viewCount: "desc" };
   }
 }

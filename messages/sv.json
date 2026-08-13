@@ -1235,6 +1235,7 @@
     "dealsProCta": "Se vad Pro ger dig",
     "sort": {
       "best_match": "Bäst matchning",
+      "recently_added": "Nyligen tillagd (admin)",
       "title_asc": "Namn (A–Ö)",
       "title_desc": "Namn (Ö–A)",
       "popular": "Mest populär",

@@ -93,7 +93,7 @@ const getFilterRetailers = cachedRead(
  * relevans × kvalitet, plus dina egna bevakningar/samling. Volymen finns kvar som en
  * INGREDIENS i poängen. Gamla länkar med ?sortera=popular funkar (normalizeSort).
  */
-const SORT_OPTIONS: { value: string; key: string; sort: ProductSort }[] = [
+const SORT_OPTIONS: { value: string; key: string; sort: ProductSort; adminOnly?: boolean }[] = [
   // Relevans
   { value: "basta-traff", key: "best_match", sort: "best_match" },
   // Pris
@@ -109,6 +109,11 @@ const SORT_OPTIONS: { value: string; key: string; sort: ProductSort }[] = [
   { value: "trend", key: "trending", sort: "trending" },
   { value: "bevakad", key: "most_watched", sort: "most_watched" },
   { value: "restock", key: "recently_restocked", sort: "recently_restocked" },
+  // Drift (ADMIN-ONLY)
+  // Sist i listan med flit: den svarar på "vad drog importen in i natt?", inte på
+  // någon fråga en besökare ställer. Lades till efter wave 5, som skapade 898
+  // produkter på en natt varav 118 aldrig skulle ha kommit in i katalogen.
+  { value: "nyligen-tillagd", key: "recently_added", sort: "recently_added", adminOnly: true },
   // "Fynd" borttaget ur filtret 2026-07-21 (ägarbeslut). Sorteringen finns kvar i
   // feed-API:t och services/products, så filtret kan tas tillbaka med en rad här.
 ];
@@ -148,7 +153,7 @@ function csv(value: string | undefined): string[] | undefined {
   return list.length > 0 ? list : undefined;
 }
 
-function buildParams(sp: CatalogSearchParams): SearchProductsParams {
+function buildParams(sp: CatalogSearchParams, isAdmin: boolean): SearchProductsParams {
   // Kategori/butik/språk är FLERVAL (kommaseparerat i URL:en). Okända värden
   // kastas tyst — en gammal länk med en borttagen butik ska visa katalogen, inte
   // ett tomt resultat.
@@ -159,8 +164,11 @@ function buildParams(sp: CatalogSearchParams): SearchProductsParams {
     LANGUAGE_KEYS.includes(v as CardLanguage)
   );
   // Okänt/borttaget värde (t.ex. den gamla ?sortera=popular) → katalogens standard.
+  // En admin-only-sortering som någon annan skriver in i URL:en behandlas likadant:
+  // den finns inte för dem. Att bara utelämna alternativet ur menyn hade inte räckt —
+  // ?sortera=nyligen-tillagd går att gissa, och länken kan delas vidare.
   const sort =
-    SORT_OPTIONS.find((o) => o.value === sp.sortera)?.sort ?? "best_match";
+    SORT_OPTIONS.find((o) => o.value === sp.sortera && (!o.adminOnly || isAdmin))?.sort ?? "best_match";
   const page = Math.max(1, Number(sp.sida) || 1);
 
   return {
@@ -229,7 +237,9 @@ export default async function ProductsPage({
   // måste förbli auth-fri för att resten av katalogen ska kunna ISR-cachas.
   // JWT-sessioner → ingen DB-fråga. Bara "bäst matchning" bryr sig om vem du är.
   const session = await auth();
-  const params = { ...buildParams(searchParams), userId: session?.user?.id };
+  const role = session?.user?.role;
+  const isAdmin = role === "ADMIN" || role === "SUPERADMIN";
+  const params = { ...buildParams(searchParams, isAdmin), userId: session?.user?.id };
   // Facetterna är en delad 1h-cache — kostar inga extra Neon-läsningar per
   // sidvisning, bara per TTL-fönster.
   const [result, sets, retailers, facets] = await Promise.all([
@@ -250,7 +260,10 @@ export default async function ProductsPage({
     value,
     label: tLang(value),
   }));
-  const sortOptionList = SORT_OPTIONS.map((o) => ({
+  // Admin-only-alternativ når aldrig klienten för någon annan — listan är det enda
+  // sorteringsmenyn (mobil-ark och desktop-sidofält) känner till.
+  const visibleSortOptions = SORT_OPTIONS.filter((o) => !o.adminOnly || isAdmin);
+  const sortOptionList = visibleSortOptions.map((o) => ({
     value: o.value,
     label: t(`sort.${o.key}`),
   }));
@@ -277,7 +290,7 @@ export default async function ProductsPage({
     .sort((a, b) => b.count - a.count);
 
   const currentSort =
-    SORT_OPTIONS.find((o) => o.value === searchParams.sortera)?.value ?? SORT_OPTIONS[0].value;
+    visibleSortOptions.find((o) => o.value === searchParams.sortera)?.value ?? SORT_OPTIONS[0].value;
   const hiddenSearchParams = {
     kategori: searchParams.kategori,
     set: searchParams.set,
