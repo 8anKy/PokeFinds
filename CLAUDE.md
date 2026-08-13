@@ -292,7 +292,10 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   — de var MÅL i listan, aldrig stubbar. Regeln "merga aldrig dem" är intakt.
   ✅ **OMGÅNG 3**: 46 beslut → 50 rader sammanslagna + 36 raderade
   (`docs/owner-decisions-2026-08-13-c.txt`). Kohorten 898 → **386 kvar**.
-  ⏭️ **KVAR — väntar på ägaren**: Team Rocket 1st Edition Booster Pack, de 74 LLM-dömda paren, och
+  ✅ **OMGÅNG 4**: 29 beslut → 152 rader sammanslagna + 61 raderade + 41 återuppståndna rader rensade
+  (`docs/owner-decisions-2026-08-13-d.txt`). Team Rocket 1st Edition är nu mergad (ägaren bekräftade).
+  Kohorten 898 → **177 kvar**.
+  ⏭️ **KVAR — väntar på ägaren**: de 74 LLM-dömda paren, och
   **omslagskonstfrågan**: Rogerz säljer vintage booster packs PER OMSLAG → 137 produkter på 38 set.
   MÄTT (`scripts/wrapper-art-report.ts`): 33 av 38 set har IDENTISKT pris på alla omslag, 2 skiljer
   2–16 kr (avrundning) — men i Expedition och WOTC 1999 Base Set kostar **Charizard-omslaget 754 kr
@@ -1048,6 +1051,26 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   `ensureListingProduct`, som hämtar ur butiksfeedar) — OCH raderingsvakten måste använda SAMMA
   urval. Räknar den marknadsplatslänkar väntar den på en denylist-post som aldrig skrivs; två
   raderingar i omgång 3 fastnade på en Tradera-SÖKlänk.
+  ⛔ **HERRELÖSA URL:er RÄKNAS ÖVER HELA GRUPPEN, SEKVENTIELLT** (`orphanedOfferUrlsForMerge`).
+  Slås N stubbar ihop till ETT mål som saknar butikens offer flyttas den FÖRSTA stubbens offer in —
+  och de N−1 följande krockar då med DEN. En beräkning som jämför varje stub mot målet SOM DET SÅG
+  UT INNAN gruppen kördes ser noll krockar, denylistar noll, och N−1 butiks-URL:er blir ägarlösa ⇒
+  nästa skrapning skapar N−1 nya produkter. **Det var precis så dubbletterna "kom tillbaka"**
+  (Rogerz Aquapolis: 8 varianter → 7 tysta raderingar → 7 nya produkter 16:46 samma dag).
+  Siffran avslöjar felet: omgång 1 rapporterade 51 herrelösa på 82 beslut, omgång 4 rapporterade 210
+  på 29 — varav 149 från just gruppkrockar.
+  ⛔ **DENYLISTANS NORMALISERING AVGÖR HUR BRETT EN POST SLÅR** (`normUrl`): den strippade HELA
+  queryn. Cardmarkets identitet ligger där (`?idProduct=`), så EN inlagd CM-URL nekade varje
+  CM-produkt; och Shopifys `?variant=` ÄR annonsens identitet (vår adapter delar en sida i en annons
+  per variant), så en nekad variant nekade hela sidan — inklusive den variant som lagligen satt på
+  kanonprodukten. 22 kanoniska vintage-produkter hade sin LEVANDE Rogerz-offer nekad, och
+  `runner.ts` hoppar över nekade URL:er ÄVEN när offern finns ⇒ priset hade frusit. `variant` bevaras
+  nu, allt annat strippas. Regeln är inte "aldrig marknadsplatser" utan **"identiteten måste överleva
+  normaliseringen"** — en Tradera-ITEM-URL bär den i sökvägen och är därför ofarlig.
+  ⛔ **ATT NEKA EN URL RADERAR INGEN BEFINTLIG RAD**, och mellan radering och push hinner en redan
+  startad Actions-körning återskapa det som togs bort (mätt: 43 produkter 20:55–20:58 mitt under
+  omgång 3). Kör `scripts/purge-denylisted-products.ts` efter varje omgång — den raderar produkter
+  vars SAMTLIGA butiks-URL:er är nekade och håller undan allt med historik/bevakning utan `--force`.
   ⛔ Efter en körning: `recompute-price-cache.ts` OCH en färsk ruttabell (workflow "Ruttabell för
   Discord-larm (manuell)") — annars länkar Discord-inlägg till produkt-id:n som inte finns kvar.
 - **"NYLIGEN TILLAGD" ÄR ADMIN-ONLY, OCH GRINDEN SITTER PÅ TRE STÄLLEN (2026-08-13)**: sorteringen
