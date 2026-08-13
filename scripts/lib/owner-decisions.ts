@@ -31,7 +31,12 @@ export type Decision = {
  *     rad efter en pil" är den mest naturliga att skriva — den måste funka. */
 // ⛔ `go(?:es)?`, INTE `goes?` — det senare betyder "goe" med valfritt "s" och
 //    matchar alltså aldrig "Go to", vilket är just det ägaren skriver.
-const KEEP_RE = /^(?:(?:go(?:es)?\s*to|g[åa]r\s*till|till|beh[åa]ll|keep|merge\s*(?:in)?to|mergas?\s*till)\b|->|=>|→|>)\s*/i;
+// ⛔ "to" är VALFRITT: ägaren skriver ibland bara "Go <länk>". Utan det föll hela
+//    gruppen på "dubblettgrupp utan mål" (omgång 4, Black & White-raden).
+// ⛔ LOOKAHEAD `(?=\s|$)` i stället för `\b`: en bar slug som börjar på "go"
+//    ("go-nagot") har ordgräns efter "go" och hade annars lästs som en målmarkör.
+const KEEP_RE =
+  /^(?:(?:go(?:es)?(?:\s+to)?|g[åa]r\s+till|till|beh[åa]ll|keep|merge\s*(?:in)?to|mergas?\s+till)(?=\s|$)|->|=>|→|>)\s*/i;
 const DELETE_RE = /^(?:delete|radera|ta\s*bort|bort|skrota|remove|x)\b\s*[:\-]?\s*/i;
 const DUPES_RE = /^(?:duplicates?|dubbletter?|dubblett|merge|merga|sl[åa]\s*ihop|same)\b\s*[:\-]?\s*$/i;
 const COMMENT_RE = /^\s*(?:#|\/\/)/;
@@ -172,10 +177,23 @@ export type OfferKey = {
 };
 
 /**
- * Butiks-URL:er som blir HERRELÖSA av en merge.
+ * Butiks-URL:er som blir HERRELÖSA av en merge — HELA GRUPPEN på en gång.
+ *
+ * ⛔ DEN HÄR MÅSTE SIMULERA MERGEN SEKVENTIELLT, och det var ett riktigt fel att den
+ *    inte gjorde det (upptäckt 2026-08-13 av ägaren: "de har kommit tillbaka").
+ *    Beräkningen jämförde varje stub mot målets offers SOM DE SÅG UT INNAN gruppen
+ *    kördes. När N stubbar slås ihop till ETT mål som saknar butikens offer flyttas
+ *    den FÖRSTA stubbens offer in — och då krockar de N−1 följande med den. Den gamla
+ *    koden såg noll krockar, rapporterade noll herrelösa URL:er, och N−1 riktiga
+ *    butiks-URL:er blev ägarlösa UTAN att hamna i denylistan.
+ *    MÄTT: Rogerz Aquapolis-sida har 8 varianter; alla 8 mergades in i
+ *    `aquapolis-ecard2-booster-pack`, 7 offers raderades tyst, och nästa skrapning
+ *    (16:46 samma dag) skapade 7 NYA produkter av exakt de URL:erna. Samma sak för
+ *    Expedition, Jungle, Dragon Frontiers, Diamond & Pearl … — hela "de kom tillbaka".
  *
  * `Offer` är unik på (produkt, butik, skick, språk), så när stubbens offer krockar
- * med en som målet redan har RADERAR `mergeStubInto` stubbens rad. URL:en pekar då
+ * med en som målet redan har — ELLER med en som en tidigare stub i samma grupp just
+ * flyttat dit — RADERAR `mergeStubInto` stubbens rad. URL:en pekar då
  * inte längre på någon offer, och två saker händer vid nästa skrapning:
  *   · matchar URL:en ingen produkt skapas stubben om (mätt 2026-07-14: tre stubbar
  *     återuppstod sju minuter efter en merge), och
@@ -185,6 +203,26 @@ export type OfferKey = {
  *     pris, så växlingen syns direkt i katalogen.
  * Båda fallen löses av att den förlorande URL:en denylistas.
  */
+export function orphanedOfferUrlsForMerge(dropsInOrder: OfferKey[][], keepOffers: OfferKey[]): string[] {
+  // Nyckeln som `Offer` är unik på. Målet "håller" en nyckel så fort någon offer
+  // med den nyckeln ligger där — inklusive en som FLYTTATS DIT tidigare i samma grupp.
+  const key = (o: OfferKey) => `${o.retailerId}|${o.condition}|${o.language}`;
+  const held = new Set(keepOffers.map(key));
+  const out: string[] = [];
+  for (const drop of dropsInOrder) {
+    for (const o of drop) {
+      // Marknadsplats-offers RADERAS alltid (se mergeStubInto) — de flyttar aldrig in,
+      // så de får varken ta en nyckel eller hamna i denylistan.
+      if (o.retailerName && !isStoreRetailer(o.retailerName)) continue;
+      if (!o.url) continue;
+      if (held.has(key(o))) out.push(o.url); // krock → offern raderas → URL:en blir herrelös
+      else held.add(key(o)); // flyttas in och ockuperar nyckeln för resten av gruppen
+    }
+  }
+  return out;
+}
+
+/** @deprecated Enskilt par — använd orphanedOfferUrlsForMerge för en hel grupp. */
 export function orphanedOfferUrls(dropOffers: OfferKey[], keepOffers: OfferKey[]): string[] {
   const out: string[] = [];
   for (const o of dropOffers) {

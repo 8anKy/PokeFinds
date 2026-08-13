@@ -49,7 +49,7 @@ import { isDeniedListingUrl } from "../src/scrapers/import-denylist";
 import { isStoreRetailer } from "../src/lib/offer-source";
 // ⛔ Parsern bor i lib/ och har egna tester. En andra kopia här hade drivit isär
 //    med den testade — och det är TOLKNINGEN som avgör vilken produkt som överlever.
-import { orphanedOfferUrls, parseDecisions, validateDecisions } from "./lib/owner-decisions";
+import { orphanedOfferUrlsForMerge, parseDecisions, validateDecisions } from "./lib/owner-decisions";
 
 const args = process.argv.slice(2);
 const FILE = args.find((a) => !a.startsWith("--"));
@@ -108,14 +108,20 @@ async function main() {
     }
     const keep = bySlug.get(g.keep!);
     if (!keep) continue;
-    for (const s of g.drop) {
-      const drop = bySlug.get(s);
-      if (!drop) continue;
-      const dropKeys = drop.offers.map((o) => ({ ...o, retailerName: o.retailer.name }));
-      for (const url of orphanedOfferUrls(dropKeys, keep.offers)) {
-        const store = drop.offers.find((o) => o.url === url)?.retailer.name ?? "—";
-        orphans.push({ url, store, from: drop.title, why: "offer krockar med målets" });
-      }
+    // ⛔ HELA GRUPPEN simuleras i MERGE-ORDNING — samma ordning som loopen längre ner
+    //    kör. Stub 1:s offer flyttar in i målet och stub 2–N krockar sedan med DEN.
+    //    Beräknas de var för sig ser ingen av dem en krock, och N−1 butiks-URL:er blir
+    //    ägarlösa utan att denylistas. Det var precis så dubbletterna kom tillbaka.
+    const dropsInOrder = g.drop
+      .map((s) => bySlug.get(s))
+      .filter((d): d is NonNullable<typeof d> => !!d)
+      .map((d) => d.offers.map((o) => ({ ...o, retailerName: o.retailer.name })));
+    const owners = new Map<string, string>();
+    for (const s of g.drop) for (const o of bySlug.get(s)?.offers ?? []) if (o.url) owners.set(o.url, bySlug.get(s)!.title);
+    for (const url of orphanedOfferUrlsForMerge(dropsInOrder, keep.offers)) {
+      const all = g.drop.flatMap((s) => bySlug.get(s)?.offers ?? []);
+      const store = all.find((o) => o.url === url)?.retailer.name ?? "—";
+      orphans.push({ url, store, from: owners.get(url) ?? "—", why: "offer krockar med målets" });
     }
   }
   const needDeny = orphans.filter((o) => !isDeniedListingUrl(o.url));

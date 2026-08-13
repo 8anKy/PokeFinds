@@ -462,6 +462,366 @@ const DENIED = new Set<string>(
     "https://aquitaz.se/products/pokemon-sword-shield-pokemon-go-booster-pack",
     // Pokemon Chilling Reign Elite Trainer Box (raderad produkt)
     "https://speltrollet.se/products/pokemon-sword-shield-6-chilling-reign-elite-trainer-box",
+    // ── Ägarens katalogbeslut 2026-08-13 (apply-owner-decisions.ts) ──
+    // XY BreakThrough Elite Trainer Box / Mewtwo Y - Uden hul i folie (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-breakthrough-elite-trainer-box-x-y?variant=57218967503179",
+    // Paradox Rift Elite Trainer Box (Scarlet & Violet) - Roaring Moon Elite Trainer Box (blå) (offer krockar med målets)
+    "https://rogerz.dk/products/paradox-rift-elite-trainer-box?variant=57143620337995",
+    "https://rogerz.dk/products/paradox-rift-elite-trainer-box?variant=46839950377291",
+    // Temporal Forces Elite Trainer Box (Scarlet & Violet) - Walking Wake Elite Trainer Box (Blå) (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-temporal-forces-elite-trainer-box?variant=57143629742411",
+    "https://rogerz.dk/products/pokemon-temporal-forces-elite-trainer-box?variant=47369355821387",
+    // Pokémon Mega: 30th Celebration Sylveon ex Mini Tin (4 Pack) (ENG) (offer krockar med målets)
+    "https://aquitaz.se/products/pokemon-mega-30th-celebration-sylveon-ex-mini-tin-4-pack-eng",
+    // Base Set 2 Booster Pack - Unlimited - Gyarados artwork (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-base-set-2-booster-pack-unlimited?variant=57143622664523",
+    // Base Set 2 Booster Pack - Unlimited - Mewtwo artwork / Brugtmoms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-base-set-2-booster-pack-unlimited?variant=57143622730059",
+    // Base Set 2 Booster Pack - Unlimited - Pidgeot artwork / Brugtmoms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-base-set-2-booster-pack-unlimited?variant=57143622697291",
+    // Base Set 2 Booster Pack - Unlimited - Raichu artwork / Brugtmoms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-base-set-2-booster-pack-unlimited?variant=57143622762827",
+    // Expedition Booster Pack (eSeries) - Charizard (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-expedition-booster-pack?variant=47713725579595",
+    "https://rogerz.dk/products/pokemon-expedition-booster-pack?variant=57143633740107",
+    // Expedition Booster Pack (eSeries) - Feraligatr (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-expedition-booster-pack?variant=47713725645131",
+    "https://rogerz.dk/products/pokemon-expedition-booster-pack?variant=57143633772875",
+    // Expedition Booster Pack (eSeries) - Venusaur (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-expedition-booster-pack?variant=47713963442507",
+    "https://rogerz.dk/products/pokemon-expedition-booster-pack?variant=57143633805643",
+    // Expedition Booster Pack (eSeries) - Blastoise (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-expedition-booster-pack?variant=50330816774475",
+    // Aquapolis Booster Pack (eSeries) - Entei (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-aquapolis-booster-pack?variant=47755235492171",
+    "https://rogerz.dk/products/pokemon-aquapolis-booster-pack?variant=57143635411275",
+    // Aquapolis Booster Pack (eSeries) - Scizor (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-aquapolis-booster-pack?variant=57143635378507",
+    // Aquapolis Booster Pack (eSeries) - Tyranitar (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-aquapolis-booster-pack?variant=47755235524939",
+    "https://rogerz.dk/products/pokemon-aquapolis-booster-pack?variant=57143635444043",
+    // Aquapolis Booster Pack (eSeries) - Arcanine (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-aquapolis-booster-pack?variant=47755235557707",
+    "https://rogerz.dk/products/pokemon-aquapolis-booster-pack?variant=57143635476811",
+    // Legendary Collection Booster Pack (eSeries) - Venusaur/Charizard/Blastoise (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-legendary-collection-booster-pack?variant=57143633379659",
+    "https://rogerz.dk/products/pokemon-legendary-collection-booster-pack?variant=50331164311883",
+    // Legendary Collection Booster Pack (eSeries) - Moltres/Articuno/Zapdos (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-legendary-collection-booster-pack?variant=57143633346891",
+    "https://rogerz.dk/products/pokemon-legendary-collection-booster-pack?variant=50331164279115",
+    // Legendary Collection Booster Pack (eSeries) - Mewtwo/Alakazam/Machamp (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-legendary-collection-booster-pack?variant=57143633281355",
+    // Dragon Frontiers Booster Pack (EX Ruby & Sapphire) - Nidoking (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-dragon-frontiers-booster-pack?variant=50410578280779",
+    "https://rogerz.dk/products/pokemon-dragon-frontiers-booster-pack?variant=57143646978379",
+    // Dragon Frontiers Booster Pack (EX Ruby & Sapphire) - Tyranitar (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-dragon-frontiers-booster-pack?variant=50410578346315",
+    "https://rogerz.dk/products/pokemon-dragon-frontiers-booster-pack?variant=57143647011147",
+    // Dragon Frontiers Booster Pack (EX Ruby & Sapphire) - Salamence (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-dragon-frontiers-booster-pack?variant=50410601808203",
+    "https://rogerz.dk/products/pokemon-dragon-frontiers-booster-pack?variant=57143647043915",
+    // Dragon Frontiers Booster Pack (EX Ruby & Sapphire) - Latias/Latios (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-dragon-frontiers-booster-pack?variant=50410601873739",
+    // Diamond & Pearl Base Set Booster Pack (Diamond & Pearl) - Lucario (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-diamond-pearl-base-set-booster-pack?variant=57143648584011",
+    "https://rogerz.dk/products/pokemon-diamond-pearl-base-set-booster-pack?variant=50445195968843",
+    // Diamond & Pearl Base Set Booster Pack (Diamond & Pearl) - Palkia (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-diamond-pearl-base-set-booster-pack?variant=57143648551243",
+    "https://rogerz.dk/products/pokemon-diamond-pearl-base-set-booster-pack?variant=50445195936075",
+    // Diamond & Pearl Base Set Booster Pack (Diamond & Pearl) - Electivire (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-diamond-pearl-base-set-booster-pack?variant=57143648518475",
+    "https://rogerz.dk/products/pokemon-diamond-pearl-base-set-booster-pack?variant=50445138952523",
+    // Diamond & Pearl Base Set Booster Pack (Diamond & Pearl) - Dialga (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-diamond-pearl-base-set-booster-pack?variant=50445196001611",
+    // Great Encounters Booster Pack (Diamond & Pearl) - Cresselia (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-great-encounters-booster-pack?variant=57143648387403",
+    "https://rogerz.dk/products/pokemon-great-encounters-booster-pack?variant=50445007880523",
+    // Great Encounters Booster Pack (Diamond & Pearl) - Palkia (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-great-encounters-booster-pack?variant=57143648354635",
+    "https://rogerz.dk/products/pokemon-great-encounters-booster-pack?variant=50445007847755",
+    // Great Encounters Booster Pack (Diamond & Pearl) - Dialga (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-great-encounters-booster-pack?variant=57143648321867",
+    "https://rogerz.dk/products/pokemon-great-encounters-booster-pack?variant=50444893946187",
+    // Great Encounters Booster Pack (Diamond & Pearl) - Darkrai (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-great-encounters-booster-pack?variant=50445008765259",
+    // Majestic Dawn Booster Pack (Diamond & Pearl) - Darkrai (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-majestic-dawn-booster-pack?variant=57143648190795",
+    "https://rogerz.dk/products/pokemon-majestic-dawn-booster-pack?variant=50444821463371",
+    // Majestic Dawn Booster Pack (Diamond & Pearl) - Garchomp (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-majestic-dawn-booster-pack?variant=57143648158027",
+    "https://rogerz.dk/products/pokemon-majestic-dawn-booster-pack?variant=50444821430603",
+    // Majestic Dawn Booster Pack (Diamond & Pearl) - Empoleon (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-majestic-dawn-booster-pack?variant=57143648125259",
+    "https://rogerz.dk/products/pokemon-majestic-dawn-booster-pack?variant=50444821397835",
+    // Majestic Dawn Booster Pack (Diamond & Pearl) - Hippowdon (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-majestic-dawn-booster-pack?variant=50444821496139",
+    // Unleashed Booster Pack (HeartGold SoulSilver) - Entei (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-unleashed-booster-pack?variant=57143647568203",
+    "https://rogerz.dk/products/pokemon-unleashed-booster-pack?variant=50438445072715",
+    // Unleashed Booster Pack (HeartGold SoulSilver) - Raikou (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-unleashed-booster-pack?variant=57143647535435",
+    "https://rogerz.dk/products/pokemon-unleashed-booster-pack?variant=50438445007179",
+    // Unleashed Booster Pack (HeartGold SoulSilver) - Crobat (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-unleashed-booster-pack?variant=57143647502667",
+    "https://rogerz.dk/products/pokemon-unleashed-booster-pack?variant=50438444974411",
+    // Unleashed Booster Pack (HeartGold SoulSilver) - Suicune (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-unleashed-booster-pack?variant=50438513983819",
+    // Undaunted Booster Pack (HeartGold SoulSilver) - Houndoom (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-undaunted-booster-pack?variant=57143647404363",
+    "https://rogerz.dk/products/pokemon-undaunted-booster-pack?variant=50438379241803",
+    // Undaunted Booster Pack (HeartGold SoulSilver) - Rayquaza (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-undaunted-booster-pack?variant=57143647371595",
+    "https://rogerz.dk/products/pokemon-undaunted-booster-pack?variant=50438379209035",
+    // Undaunted Booster Pack (HeartGold SoulSilver) - Jolteon (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-undaunted-booster-pack?variant=57143647338827",
+    "https://rogerz.dk/products/pokemon-undaunted-booster-pack?variant=50438379176267",
+    // Undaunted Booster Pack (HeartGold SoulSilver) - Skarmory (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-undaunted-booster-pack?variant=50438379274571",
+    // Triumphant Booster Pack (HeartGold SoulSilver) - Electivire (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-triumphant-booster-pack?variant=57143647207755",
+    "https://rogerz.dk/products/pokemon-triumphant-booster-pack?variant=50438285492555",
+    // Triumphant Booster Pack (HeartGold SoulSilver) - Palkia (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-triumphant-booster-pack?variant=57143647174987",
+    "https://rogerz.dk/products/pokemon-triumphant-booster-pack?variant=50438285427019",
+    // Triumphant Booster Pack (HeartGold SoulSilver) - Dialga (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-triumphant-booster-pack?variant=57143647142219",
+    "https://rogerz.dk/products/pokemon-triumphant-booster-pack?variant=50438285361483",
+    // Triumphant Booster Pack (HeartGold SoulSilver) - Magmortar (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-triumphant-booster-pack?variant=50438349259083",
+    // Black & White Base Set Booster Pack (Black & White) - Reshiram (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-black-white-base-set-booster-pack?variant=57143646847307",
+    "https://rogerz.dk/products/pokemon-black-white-base-set-booster-pack?variant=50405601182027",
+    // Black & White Base Set Booster Pack (Black & White) - Zoroark (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-black-white-base-set-booster-pack?variant=57143646814539",
+    "https://rogerz.dk/products/pokemon-black-white-base-set-booster-pack?variant=50405572149579",
+    // Black & White Base Set Booster Pack (Black & White) - Zebstrika (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-black-white-base-set-booster-pack?variant=57143646781771",
+    "https://rogerz.dk/products/pokemon-black-white-base-set-booster-pack?variant=50405572084043",
+    // Black & White Base Set Booster Pack (Black & White) - Zekrom (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-black-white-base-set-booster-pack?variant=50405601214795",
+    // Emerging Powers Booster Pack (Black & White) - Cobalion (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-emerging-powers-booster-pack?variant=57143646683467",
+    "https://rogerz.dk/products/pokemon-emerging-powers-booster-pack?variant=50405487542603",
+    // Emerging Powers Booster Pack (Black & White) - Braviary (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-emerging-powers-booster-pack?variant=57143646650699",
+    "https://rogerz.dk/products/pokemon-emerging-powers-booster-pack?variant=50405487509835",
+    // Emerging Powers Booster Pack (Black & White) - Darmanitan (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-emerging-powers-booster-pack?variant=57143646617931",
+    "https://rogerz.dk/products/pokemon-emerging-powers-booster-pack?variant=50405487477067",
+    // Emerging Powers Booster Pack (Black & White) - Tornadus (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-emerging-powers-booster-pack?variant=50405514445131",
+    // Next Destinies Booster Pack (Black & White) - Reshiram (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-next-destinies-booster-pack?variant=57143646486859",
+    "https://rogerz.dk/products/pokemon-next-destinies-booster-pack?variant=50405407392075",
+    // Next Destinies Booster Pack (Black & White) - Regigigas (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-next-destinies-booster-pack?variant=57143646454091",
+    "https://rogerz.dk/products/pokemon-next-destinies-booster-pack?variant=50405407359307",
+    // Next Destinies Booster Pack (Black & White) - Mewtwo (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-next-destinies-booster-pack?variant=57143646421323",
+    "https://rogerz.dk/products/pokemon-next-destinies-booster-pack?variant=50405407326539",
+    // Next Destinies Booster Pack (Black & White) - Zekrom (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-next-destinies-booster-pack?variant=50405407424843",
+    // Dark Explorers Booster Pack (Black & White) - Excadrill (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-dark-explorers-booster-pack?variant=57143646093643",
+    "https://rogerz.dk/products/pokemon-dark-explorers-booster-pack?variant=50398312759627",
+    // Dark Explorers Booster Pack (Black & White) - Darkrai (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-dark-explorers-booster-pack?variant=57143646060875",
+    "https://rogerz.dk/products/pokemon-dark-explorers-booster-pack?variant=50398312726859",
+    // Dark Explorers Booster Pack (Black & White) - Venusaur (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-dark-explorers-booster-pack?variant=57143646028107",
+    "https://rogerz.dk/products/pokemon-dark-explorers-booster-pack?variant=50398312661323",
+    // Dark Explorers Booster Pack (Black & White) - Scrafty (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-dark-explorers-booster-pack?variant=50398312792395",
+    // Dragons Exalted Booster Pack (Black & White) - Giratina (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-dragons-exalted-booster-pack?variant=57143645929803",
+    "https://rogerz.dk/products/pokemon-dragons-exalted-booster-pack?variant=50397153919307",
+    // Dragons Exalted Booster Pack (Black & White) - Rayquaza (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-dragons-exalted-booster-pack?variant=57143645897035",
+    "https://rogerz.dk/products/pokemon-dragons-exalted-booster-pack?variant=50397153853771",
+    // Dragons Exalted Booster Pack (Black & White) - Gyarados (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-dragons-exalted-booster-pack?variant=57143645864267",
+    "https://rogerz.dk/products/pokemon-dragons-exalted-booster-pack?variant=50397153886539",
+    // Dragons Exalted Booster Pack (Black & White) - Terrakion (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-dragons-exalted-booster-pack?variant=50397153952075",
+    // Boundaries Crossed Booster Pack (Black & White) - White Kyurem (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-boundaries-crossed-booster-pack?variant=57143645634891",
+    "https://rogerz.dk/products/pokemon-boundaries-crossed-booster-pack?variant=50396964684107",
+    // Boundaries Crossed Booster Pack (Black & White) - Black Kyurem (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-boundaries-crossed-booster-pack?variant=57143645602123",
+    "https://rogerz.dk/products/pokemon-boundaries-crossed-booster-pack?variant=50396964651339",
+    // Boundaries Crossed Booster Pack (Black & White) - Landorus (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-boundaries-crossed-booster-pack?variant=57143645569355",
+    "https://rogerz.dk/products/pokemon-boundaries-crossed-booster-pack?variant=50396964618571",
+    // Boundaries Crossed Booster Pack (Black & White) - Keldeo (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-boundaries-crossed-booster-pack?variant=50396964716875",
+    // Plasma Freeze Booster Pack (Black & White) - Bisharp (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-plasma-freeze-booster-pack?variant=57143645471051",
+    "https://rogerz.dk/products/pokemon-plasma-freeze-booster-pack?variant=50396150759755",
+    // Plasma Freeze Booster Pack (Black & White) - Deoxys (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-plasma-freeze-booster-pack?variant=57143645438283",
+    "https://rogerz.dk/products/pokemon-plasma-freeze-booster-pack?variant=50396150726987",
+    // Plasma Freeze Booster Pack (Black & White) - Absol (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-plasma-freeze-booster-pack?variant=57143645405515",
+    "https://rogerz.dk/products/pokemon-plasma-freeze-booster-pack?variant=50396150694219",
+    // Plasma Freeze Booster Pack (Black & White) - Thundurus (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-plasma-freeze-booster-pack?variant=50396150792523",
+    // Legendary Treasures Booster Pack (Black & White) - Mewtwo (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-legendary-treasures-booster-pack?variant=57143645077835",
+    "https://rogerz.dk/products/pokemon-legendary-treasures-booster-pack?variant=50395900805451",
+    // Legendary Treasures Booster Pack (Black & White) - Reshiram (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-legendary-treasures-booster-pack?variant=57143645045067",
+    "https://rogerz.dk/products/pokemon-legendary-treasures-booster-pack?variant=50395900772683",
+    // Legendary Treasures Booster Pack (Black & White) - Zekrom (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-legendary-treasures-booster-pack?variant=57143645012299",
+    "https://rogerz.dk/products/pokemon-legendary-treasures-booster-pack?variant=50395900739915",
+    // Legendary Treasures Booster Pack (Black & White) - Genesect (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-legendary-treasures-booster-pack?variant=50395900838219",
+    // Platinum Base Set Booster Pack - Giratina (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-platinum-base-set-booster-pack?variant=57143664968011",
+    "https://rogerz.dk/products/pokemon-tcg-platinum-base-set-booster-pack?variant=51345684693323",
+    // Platinum Base Set Booster Pack - Palkia (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-platinum-base-set-booster-pack?variant=57143664935243",
+    "https://rogerz.dk/products/pokemon-tcg-platinum-base-set-booster-pack?variant=51345684660555",
+    // Platinum Base Set Booster Pack - Dialga (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-platinum-base-set-booster-pack?variant=57143664902475",
+    "https://rogerz.dk/products/pokemon-tcg-platinum-base-set-booster-pack?variant=51345684627787",
+    // Platinum Base Set Booster Pack - Shaymin (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-platinum-base-set-booster-pack?variant=51345684726091",
+    // Platinum Arceus Booster Pack - Arceus - grøn (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-platinum-arceus-booster-pack?variant=57143635607883",
+    "https://rogerz.dk/products/pokemon-platinum-arceus-booster-pack?variant=47755536531787",
+    // Platinum Arceus Booster Pack - Salamence (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-platinum-arceus-booster-pack?variant=57143635575115",
+    "https://rogerz.dk/products/pokemon-platinum-arceus-booster-pack?variant=47755536433483",
+    // Platinum Arceus Booster Pack - Zapdos (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-platinum-arceus-booster-pack?variant=57143635542347",
+    "https://rogerz.dk/products/pokemon-platinum-arceus-booster-pack?variant=47755536466251",
+    // Platinum Arceus Booster Pack - Arceus - blå (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-platinum-arceus-booster-pack?variant=47755536499019",
+    // Team Rocket 1st Edition Booster Pack (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-team-rocket-1st-edition-booster-pack",
+    // Pokémon XY: Hoopa EX Legendary Collection Box (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-xy-hoopa-ex-legendary-collection-box-5-pack-eng",
+    // Base Set Booster Box - Unlimited (Wizards of the Coast) (raderad produkt)
+    "https://rogerz.dk/products/pokemon-base-set-booster-box-unlimited",
+    // Pokémon XY: GYM Vol. 4 Promo Booster Pack (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-xy-gym-vol-4-promo-booster-pack-1-kort-jp",
+    // Prismatic Evolutions Lucario & Tyranitar EX Premium Collection (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-prismatic-evolutions-lucario-tyranitar-ex-premium-collection",
+    // Prismatic Evolutions: Lucario ex & Tyranitar ex Premium Collection (raderad produkt)
+    "https://aquitaz.se/products/pokemon-scarlet-violet-prismatic-evolutions-lucario-ex-tyranitar-ex-premium-collection-box-14-pack-eng",
+    // Special Haunted Edition 1-Pack Blister Crobat/Alolan Persian (Sun & Moon) - Alolan Persian / Brugtmo (raderad produkt)
+    "https://rogerz.dk/products/pokemon-special-haunted-edition-1-pack-blister-crobat-alolan-persian?variant=57143654121803",
+    // Special Haunted Edition 1-Pack Blister Crobat/Alolan Persian (Sun & Moon) - Crobat / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-special-haunted-edition-1-pack-blister-crobat-alolan-persian?variant=57143654089035",
+    // Special Haunted Edition 1-Pack Blister Crobat/Alolan Persian (Sun & Moon) - Alolan Persian / Alm. mo (raderad produkt)
+    "https://rogerz.dk/products/pokemon-special-haunted-edition-1-pack-blister-crobat-alolan-persian?variant=50902706454859",
+    // Special Haunted Edition 1-Pack Blister Crobat/Alolan Persian (Sun & Moon) - Crobat / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-special-haunted-edition-1-pack-blister-crobat-alolan-persian?variant=50902706422091",
+    // Legendary Beasts Collectors Pin 3-Pack Blister - Entei / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-legendary-beasts-collectors-pin-3-pack?variant=57143674962251",
+    // Legendary Beasts Collectors Pin 3-Pack Blister - Raikou / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-legendary-beasts-collectors-pin-3-pack?variant=57143674929483",
+    // Legendary Beasts Collectors Pin 3-Pack Blister - Suicune / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-legendary-beasts-collectors-pin-3-pack?variant=57143674896715",
+    // Legendary Beasts Collectors Pin 3-Pack Blister - Entei / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-legendary-beasts-collectors-pin-3-pack?variant=51876754424139",
+    // Legendary Beasts Collectors Pin 3-Pack Blister - Raikou / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-legendary-beasts-collectors-pin-3-pack?variant=51876632887627",
+    // Legendary Beasts Collectors Pin 3-Pack Blister - Suicune / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-legendary-beasts-collectors-pin-3-pack?variant=51876632854859",
+    // Sword & Shield Ultra-Premium Collection - Zacian & Zamazenta (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-sword-shield-ultra-premium-collection-zacian-zamazenta",
+    // Pokemon GO Pokémon Center Elite Trainer Box (Sword & Shield) (raderad produkt)
+    "https://rogerz.dk/products/pokemon-go-pokemon-center-etb",
+    // Base Set Booster Pack - 1st Edition - Charizard / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-base-set-booster-pack-1st-edition?variant=57143673848139",
+    // Base Set Booster Pack - 1st Edition - Blastoise / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-base-set-booster-pack-1st-edition?variant=57143673815371",
+    // Base Set Booster Pack - 1st Edition - Venusaur / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-base-set-booster-pack-1st-edition?variant=57143673782603",
+    // Base Set Booster Pack - 1st Edition - Charizard / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-base-set-booster-pack-1st-edition?variant=51787360108875",
+    // Base Set Booster Pack - 1st Edition - Blastoise / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-base-set-booster-pack-1st-edition?variant=51787360076107",
+    // Base Set Booster Pack - 1st Edition - Venusaur / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-base-set-booster-pack-1st-edition?variant=51787360043339",
+    // WOTC 1999 Base Set Booster Pack - Charizard - Unlimited / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-base-set-booster-pack-unlimited?variant=57154563637579",
+    // WOTC 1999 Base Set Booster Pack - Charizard - Unlimited / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-base-set-booster-pack-unlimited?variant=57154563604811",
+    // WOTC 1999 Base Set Booster Pack - Venusaur - Unlimited / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-base-set-booster-pack-unlimited?variant=57154563572043",
+    // WOTC 1999 Base Set Booster Pack - Venusaur - Unlimited / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-base-set-booster-pack-unlimited?variant=57154563539275",
+    // WOTC 1999 Base Set Booster Pack - Blastoise - Unlimited / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-base-set-booster-pack-unlimited?variant=57154563506507",
+    // WOTC 1999 Base Set Booster Pack - Blastoise - Unlimited / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-base-set-booster-pack-unlimited?variant=57154563473739",
+    // WOTC 1999 Base Set Booster Pack - Blastoise (Shadowless) / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-base-set-booster-pack-unlimited?variant=57143650517323",
+    // WOTC 1999 Base Set Booster Pack - Blastoise (Shadowless) / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-base-set-booster-pack-unlimited?variant=53126477447499",
+    // WOTC 1999 Base Set Booster Pack - Charizard (UK Print 1999-00) / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-base-set-booster-pack-unlimited?variant=57143650386251",
+    // WOTC 1999 Base Set Booster Pack - Charizard (UK Print 1999-00) / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-base-set-booster-pack-unlimited?variant=50976522174795",
+    // WOTC 1999 Base Set Booster Pack - Blastoise (UK Print 1999-00) / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-base-set-booster-pack-unlimited?variant=57143650353483",
+    // WOTC 1999 Base Set Booster Pack - Blastoise (UK Print 1999-00) / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-base-set-booster-pack-unlimited?variant=50976522142027",
+    // WOTC 1999 Base Set Booster Pack - Venusaur (UK Print 1999-00) / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-base-set-booster-pack-unlimited?variant=57143650320715",
+    // WOTC 1999 Base Set Booster Pack - Venusaur (UK Print 1999-00) / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-base-set-booster-pack-unlimited?variant=50464411386187",
+    // Jungle Booster Pack - 1st Edition - Flareon / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-jungle-booster-pack-1st-edition?variant=57143635280203",
+    // Jungle Booster Pack - 1st Edition - Scyther / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-jungle-booster-pack-1st-edition?variant=57143635247435",
+    // Jungle Booster Pack - 1st Edition - Wigglytuff / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-jungle-booster-pack-1st-edition?variant=57143635214667",
+    // Jungle Booster Pack - 1st Edition - Flareon / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-jungle-booster-pack-1st-edition?variant=50331110015307",
+    // Jungle Booster Pack - 1st Edition - Scyther / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-jungle-booster-pack-1st-edition?variant=47751090176331",
+    // Jungle Booster Pack - 1st Edition - Wigglytuff / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-jungle-booster-pack-1st-edition?variant=47751090143563",
+    // Jungle Booster Pack - Unlimited - Flareon / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-jungle-booster-pack-unlimited?variant=57143634100555",
+    // Jungle Booster Pack - Unlimited - Scyther / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-jungle-booster-pack-unlimited?variant=57143634067787",
+    // Jungle Booster Pack - Unlimited - Wigglytuff / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-jungle-booster-pack-unlimited?variant=57143634035019",
+    // Jungle Booster Pack - Unlimited - Flareon / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-jungle-booster-pack-unlimited?variant=50331076591947",
+    // Jungle Booster Pack - Unlimited - Scyther / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-jungle-booster-pack-unlimited?variant=50331076559179",
+    // Jungle Booster Pack - Unlimited - Wigglytuff / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-jungle-booster-pack-unlimited?variant=47723174920523",
+    // Fossil Booster Pack - 1st Edition - Aerodactyl / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-fossil-booster-pack-1st-edition?variant=57143634231627",
+    // Fossil Booster Pack - 1st Edition - Lapras / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-fossil-booster-pack-1st-edition?variant=57143634198859",
+    // Fossil Booster Pack - 1st Edition - Zapdos / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-fossil-booster-pack-1st-edition?variant=57143634166091",
+    // Fossil Booster Pack - 1st Edition - Aerodactyl / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-fossil-booster-pack-1st-edition?variant=50330895679819",
+    // Fossil Booster Pack - 1st Edition - Lapras / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-fossil-booster-pack-1st-edition?variant=50464309444939",
+    // Fossil Booster Pack - 1st Edition - Zapdos / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-fossil-booster-pack-1st-edition?variant=47723211489611",
+    // Fossil Booster Pack - Unlimited - Zapdos / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/fossil-booster-pack-unlimited?variant=57143622336843",
+    // Fossil Booster Pack - Unlimited - Lapras / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/fossil-booster-pack-unlimited?variant=57143622304075",
+    // Fossil Booster Pack - Unlimited - Aerodactyl / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/fossil-booster-pack-unlimited?variant=57143622238539",
+    // Fossil Booster Pack - Unlimited - Zapdos / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/fossil-booster-pack-unlimited?variant=50330912686411",
+    // Fossil Booster Pack - Unlimited - Lapras / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/fossil-booster-pack-unlimited?variant=47723206345035",
+    // Fossil Booster Pack - Unlimited - Aerodactyl / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/fossil-booster-pack-unlimited?variant=47723208966475",
   ].map(normUrl)
 );
 

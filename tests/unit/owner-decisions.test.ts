@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { orphanedOfferUrls, parseDecisions, slugOf, slugsOf, validateDecisions } from "../../scripts/lib/owner-decisions";
+import { orphanedOfferUrls, orphanedOfferUrlsForMerge, parseDecisions, slugOf, slugsOf, validateDecisions } from "../../scripts/lib/owner-decisions";
 import { isStoreRetailer } from "../../src/lib/offer-source";
 
 /**
@@ -271,5 +271,81 @@ describe("bara butiker flyttas vid merge", () => {
   it("en butiks-offer utan krock är inte herrelös", () => {
     const drop = [{ url: "https://rogerz.dk/products/x", retailerId: "r-rogerz", condition: "SEALED", language: "EN", retailerName: "Rogerz" }];
     expect(orphanedOfferUrls(drop, [])).toEqual([]);
+  });
+});
+
+/**
+ * "DE HAR KOMMIT TILLBAKA" (2026-08-13) — det allvarligaste felet i hela verktyget.
+ *
+ * Ägaren mergade bort dubbletter och såg dem dyka upp igen samma dag. Orsaken satt i
+ * beräkningen av herrelösa URL:er: den jämförde varje stub mot målets offers SOM DE
+ * SÅG UT INNAN gruppen kördes. Slås N stubbar ihop till ETT mål som saknar butikens
+ * offer flyttas den FÖRSTA stubbens offer in — och då krockar de N−1 följande med
+ * DEN. Gamla koden såg noll krockar ⇒ noll denylistade ⇒ N−1 butiks-URL:er blev
+ * ägarlösa ⇒ nästa skrapning skapade N−1 NYA produkter.
+ *
+ * MÄTT i produktion: Rogerz Aquapolis-sida har 8 varianter, alla mergade in i
+ * `aquapolis-ecard2-booster-pack`. 7 offers raderades tyst, och 16:46 samma dag fanns
+ * 7 nya produkter av exakt de URL:erna.
+ */
+describe("herrelösa URL:er räknas över HELA gruppen, i merge-ordning", () => {
+  const store = (url: string, retailerId = "r-rogerz") => ({
+    url, retailerId, condition: "SEALED", language: "EN", retailerName: "Rogerz",
+  });
+
+  it("N stubbar → ett mål UTAN butikens offer ⇒ N−1 herrelösa", () => {
+    const drops = [[store("u1")], [store("u2")], [store("u3")], [store("u4")]];
+    // Målet har ingen Rogerz-offer alls: u1 flyttar in, u2–u4 krockar med u1.
+    expect(orphanedOfferUrlsForMerge(drops, [])).toEqual(["u2", "u3", "u4"]);
+  });
+
+  it("har målet redan butikens offer blir ALLA herrelösa", () => {
+    const drops = [[store("u1")], [store("u2")]];
+    const keep = [{ url: "keep", retailerId: "r-rogerz", condition: "SEALED", language: "EN" }];
+    expect(orphanedOfferUrlsForMerge(drops, keep)).toEqual(["u1", "u2"]);
+  });
+
+  it("olika butiker krockar inte med varandra", () => {
+    const drops = [[store("u1", "r-rogerz")], [store("u2", "r-aquitaz")]];
+    expect(orphanedOfferUrlsForMerge(drops, [])).toEqual([]);
+  });
+
+  it("marknadsplats-offers varken ockuperar nyckeln eller denylistas", () => {
+    // Tradera raderas alltid vid merge, så den får inte "hålla" nyckeln och därmed
+    // få nästa Tradera-URL att se ut som en krock som ska denylistas.
+    const drops = [
+      [{ url: "t1", retailerId: "r-tradera", condition: "SEALED", language: "EN", retailerName: "Tradera" }],
+      [{ url: "t2", retailerId: "r-tradera", condition: "SEALED", language: "EN", retailerName: "Tradera" }],
+    ];
+    expect(orphanedOfferUrlsForMerge(drops, [])).toEqual([]);
+  });
+
+  it("en stub med FLERA butiks-offers hanteras rad för rad", () => {
+    const drops = [[store("u1"), store("u2")]]; // samma butik två gånger i samma stub
+    expect(orphanedOfferUrlsForMerge(drops, [])).toEqual(["u2"]);
+  });
+
+  it("Aquapolis-fallet: 8 varianter, 7 måste denylistas", () => {
+    const drops = Array.from({ length: 8 }, (_, i) => [store(`variant-${i}`)]);
+    const orphans = orphanedOfferUrlsForMerge(drops, []);
+    expect(orphans).toHaveLength(7);
+    expect(orphans).not.toContain("variant-0"); // den enda som faktiskt flyttar in
+  });
+});
+
+describe("målmarkören: alla former ägaren faktiskt skriver", () => {
+  const P = (s: string) => `https://www.foilio.se/en/produkter/${s}`;
+  it('accepterar bart "Go" utan "to"', () => {
+    // Omgång 4: en hel grupp föll på "dubblettgrupp utan mål" för att raden löd
+    // "Go <länk>". Felet var högljutt — men det stoppade 7 korrekta mergar.
+    for (const m of ["Go", "Go to", "Goes to", "Till", "Behåll", "->", ">"]) {
+      const { decisions } = parseDecisions(`This ${P("stub-x")}\n${m} ${P("kanonisk-y")}\n`);
+      expect(decisions[0]?.keep, m).toBe("kanonisk-y");
+    }
+  });
+  it('läser INTE en bar slug som börjar på "go" som markör', () => {
+    const { decisions } = parseDecisions(`Duplicates\ngo-nagot-har\nGoes to\n${P("kanonisk-y")}\n`);
+    expect(decisions[0].drop).toEqual(["go-nagot-har"]);
+    expect(decisions[0].keep).toBe("kanonisk-y");
   });
 });
