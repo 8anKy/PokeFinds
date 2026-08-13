@@ -243,7 +243,37 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   (webshop 89109) är verifierad fungerande, men varje värd som serverar den har `Disallow:
   /backend` — "dokumenterat publikt API vs robots" är ett ÄGARBESLUT som väntar.
   ⚠️ **Arcade Dreams robots.txt har ÄNDRATS på riktigt** (hela filen läst) — blanket-Disallow
-  borta; butiken är åter möjlig att bygga. ⚠️ EJ tillagda, ägarbeslut krävs: Cees Cards (EUR),
+  borta; butiken är åter möjlig att bygga.
+  (3) **REVISION AV KOHORTEN (samma dag, `scripts/audit-new-products.ts` — 7 mekaniska tekniker +
+  2 LLM-domare, rapport utan DB-skrivningar; DB-läsningen cachas i `.audit-cache/` så domarna kan
+  köras om utan att väcka Neon). 898 nya produkter, och två vakter hade hål:
+  **118 BLOCKERADE SPRÅK SLANK IN** — Aquitaz taggar allt `(ENG)/(JP)/(KOR)` → 81 KOREANSKA
+  (regeln kände bara `(KR)`), Yonko TCG taggar `[S-CHN]/[T-CHN]` → 37 KINESISKA (regeln kände
+  `cn|ch|tw|hk`, varken `chn` eller hakparentes-prefixet). Alla 118 låg inne med `language: EN`
+  (kolumnen ljuger — språket står bara i titeln) OCH var restock-bevakade, dvs de kunde larma
+  Pro-kunder och postas i Discord. **172 DUBBLETTER UR EN MOMSREGEL** — Rogerz listar varje
+  begagnad vara under BÅDA danska momsordningarna (`/ Brugtmoms` och `/ Alm. moms`); taggen ligger
+  nu i `LISTING_TITLE_JUNK` bredvid omslagskonsten och är självläkande på samma sätt.
+  ⛔ MÄTT mot alla 31 216 produkter som fanns FÖRE wave 5: noll träffar för alla tre mönstren.
+  Bart versalt `KOR`/`CHN` utan parentes är FÖRBJUDET — avgränsningen gör tecknet entydigt.
+  ⛔ **TVÅKÄLLSKRAVET ÄR MÄTT, INTE BYRÅKRATI**: klassen där BARA LLM-domaren flaggade (41 rader)
+  var ~33 FALSKLARM — den läser innehållsordet som kategori och kallar "Tech Sticker Collection
+  Blister", "Pin Blister" och "Eraser Blister" för merch/tillbehör fast alla innehåller riktiga
+  booster packs och är CM-modellerade SKU:er. Hade domaren fått bestämma ensam hade 33 äkta SKU:er
+  raderats. De 118 språkraderingarna är säkra just för att regel OCH domare pekade oberoende
+  (domarens språkräkning gav exakt samma 81 + 37).
+  ⛔ **DUBBLETTBEVIS TAS PÅ RÅTITELN** (`apply-new-product-cleanup-2026-08-13.ts`): tecken för
+  tecken lika sedan känt brus + accenter fällts. `scoreSimilarity` godkände en gång "Mega Charizard
+  X ex Tin" == "Y ex Tin" på 1,00. (`normalizeTitle` kastar för övrigt INTE korta tokens —
+  kontrollprov: X/Y överlever — tvärtemot kommentaren i `merge-verified-duplicates.ts`.)
+  ⏭️ **INTE VERKSTÄLLT — väntar på ägaren**: raderingen av de 118 (kör `purge-blocked-language.ts`,
+  som grindar på samma lagade funktion), mergen av de 172, de 74 LLM-dömda paren, och
+  **omslagskonstfrågan**: Rogerz säljer vintage booster packs PER OMSLAG → 137 produkter på 38 set.
+  MÄTT (`scripts/wrapper-art-report.ts`): 33 av 38 set har IDENTISKT pris på alla omslag, 2 skiljer
+  2–16 kr (avrundning) — men i Expedition och WOTC 1999 Base Set kostar **Charizard-omslaget 754 kr
+  mer** än Blastoise/Venusaur. Omslaget bär alltså prisinformation för marqueekonsten, inte för de
+  andra 135. Katalogens dom 08-11 ("omslagskonst modelleras inte") gällde moderna varianter.
+  ⚠️ EJ tillagda, ägarbeslut krävs: Cees Cards (EUR),
   Kelz0r (DKK), Poromagia (EUR) — pipeline antar SEK; PokéBooster (bot-vägg), CS Megastore
   (Cloudflare-utmaning), EvoKort (JS-skal utan data = NOT_VIABLE), Elgiganten/Jollyroom/Proshop/
   Spel & Sånt/Toyspace/Card Haven/Samlargrottan/Gimmick (custom/SPA — byggbara men var sin insats,
@@ -962,6 +992,22 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   "22 233 produkter" hade blivit 500 för varje inloggad besökare och den oändliga scrollen tagit slut där.
   Personligt lyft gäller när träffmängden ryms i fönstret (valt set/kategori) eller vid sökning. Personaliserade
   svar går dessutom FÖRBI `cachedRead`/CDN — annars ligger en användares ordning kvar i en delad cache.
+- **"NYLIGEN TILLAGD" ÄR ADMIN-ONLY, OCH GRINDEN SITTER PÅ TRE STÄLLEN (2026-08-13)**: sorteringen
+  ordnar katalogen på `Product.createdAt` (nyast först) och finns för att kunna granska vad en
+  butiksvåg drog in. Alla tre grindarna behövs: (1) menyn i `/produkter` byggs ur en filtrerad
+  lista så alternativet aldrig når klienten, (2) sorterings**uppslaget** i samma fil — annars gäller
+  `?sortera=nyligen-tillagd` för alla som gissar eller får länken delad, (3) **feed-routen**, som
+  levererar ALLT utom första sidan (infinite scroll). Punkt 3 är den som ser redundant ut och tas
+  bort; utan den räcker det att scrolla en sida. Sidan är `force-dynamic` och läser redan sessionen,
+  så grinden kostar ingen extra DB-fråga och rör inte de ISR-cachade sidorna.
+  ⛔ **`createdAt`, ALDRIG `updatedAt`** — den senare rörs av varje prisuppdatering, så sorteringen
+  hade blivit "nyligen prisändrad", dvs katalogen i nästan slumpmässig ordning, och felet syns inte
+  förrän man jämför mot databasen. ⛔ **DB-sorterad** (i `DB_SORTABLE`): den beräknade vägen tar bara
+  `MAX_CANDIDATES` rader valda på `updatedAt` — exakt fel urval för just den frågan.
+  ⛔ **Aldrig i den delade CDN-cachen**: `jsonCached` nycklar på URL:en, så adminens riktiga svar
+  och den tomma listan hade delat post. Kolumnen lämnas OINDEXERAD med flit (mätt mot prod: 59 ms
+  över hela katalogen; en handkörd prod-migration är dyrare än så för en vy som körs sällan).
+  Vaktat av `tests/unit/admin-sort-gate-sync.test.ts`.
 - **FUZZY SÖK = RÄDDNING, INTE FÖRBÄTTRING (2026-07-29)**: `pg_trgm` (migration 20260729180000) används BARA när den
   exakta ordsökningen ger NOLL träffar. Påslaget för lyckade sökningar hade "charizard" dragit in "charmander"
   (likhet ~0,35). Reserven är en UNION av två mått, för de missar olika saker (mätt): `similarity()` (hela titeln)
