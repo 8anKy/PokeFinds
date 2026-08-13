@@ -280,7 +280,17 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   ger nu "Inga blockade språk i katalogen (2 109 sealed granskade)". ⛔ Ingen denylist behövdes:
   `ensureListingProduct` grindar på `isBlockedListingLanguage` FÖRE allt annat, så den lagade
   detektorn ÄR den permanenta spärren.
-  ⏭️ **KVAR — väntar på ägaren**: de 74 LLM-dömda paren, och
+  ✅ **OMGÅNG 2 (samma dag)**: ytterligare 88 beslut → **132 rader sammanslagna + 11 raderade**,
+  39 nya denylist-URL:er. Facit: `docs/owner-decisions-2026-08-13-b.txt`. Kohorten är nu nere i 454
+  av 898. ⛔ **1st EDITION-MERGARNA ÄR OFARLIGA — MEN INTE AV DET SKÄL MAN TROR**: oron att en 1st
+  Edition-prislapp skulle landa på Unlimited-produkten gäller inte när butiken har en offer på BÅDA
+  raderna. Stubbens offer KROCKAR då med målets (`Offer` unik på produkt/butik/skick/språk) och
+  raderas av `mergeStubInto` i stället för att flyttas — mergen blir "ta bort raden + spärra URL:en".
+  Kontrollera det i torrkörningens herrelös-lista innan en tryckningsmerge körs; saknar målet
+  butikens offer FLYTTAS priset och då gäller oron igen.
+  ⛔ **[LUJF]/[GVSE]/[SEGV]-boxkonsten överlevde** och ligger kvar som skilda produkter (5/2/7 offers)
+  — de var MÅL i listan, aldrig stubbar. Regeln "merga aldrig dem" är intakt.
+  ⏭️ **KVAR — väntar på ägaren**: Team Rocket 1st Edition Booster Pack, de 74 LLM-dömda paren, och
   **omslagskonstfrågan**: Rogerz säljer vintage booster packs PER OMSLAG → 137 produkter på 38 set.
   MÄTT (`scripts/wrapper-art-report.ts`): 33 av 38 set har IDENTISKT pris på alla omslag, 2 skiljer
   2–16 kr (avrundning) — men i Expedition och WOTC 1999 Base Set kostar **Charizard-omslaget 754 kr
