@@ -1,0 +1,232 @@
+/**
+ * ÄGARENS KATALOGBESLUT — läser en textfil med länkar och verkställer den.
+ *
+ *   node scripts/with-prod-db.mjs npx tsx scripts/apply-owner-decisions.ts beslut.txt
+ *   node scripts/with-prod-db.mjs npx tsx scripts/apply-owner-decisions.ts beslut.txt --write-denylist
+ *   node scripts/with-prod-db.mjs npx tsx scripts/apply-owner-decisions.ts beslut.txt --apply
+ *
+ * FORMATET ÄR ÄGARENS EGET ("Duplicates … Goes to …", samma som katalogsvepningens
+ * utdata) och kräver bara LÄNKAR — inga titlar, inga id:n, ingen exakt stavning:
+ *
+ *     Duplicates
+ *     https://www.foilio.se/produkter/stub-a
+ *     https://www.foilio.se/produkter/stub-b
+ *     Goes to
+ *     https://www.foilio.se/produkter/kanonisk
+ *
+ *     Delete
+ *     https://www.foilio.se/produkter/skrapet
+ *
+ * Kortformerna funkar också — `https://…/a -> https://…/kanonisk` på EN rad, och
+ * `x https://…/skrapet` för en radering. Rader som börjar med # eller // är
+ * kommentarer, tomrader avslutar en grupp, och all text som inte är en länk
+ * ignoreras (klistra gärna in titlarna också — de gör filen läsbar).
+ *
+ * ⛔ TORRKÖRNING SOM DEFAULT, och torrkörningen skriver ut PRODUKTERNAS RIKTIGA
+ *    TITLAR. Det är hela poängen med att kräva en bekräftelse: en felklistrad länk
+ *    syns bara om man ser vad den faktiskt pekar på.
+ *
+ * ⛔ RADERING KRÄVER DENYLIST FÖRST. En raderad produkts butiks-URL ligger kvar i
+ *    butikens feed, och auto-importen (`ensureListingProduct`) skapar om stubben
+ *    inom minuter — mätt 2026-07-14: tre stubbar återuppstod sju minuter efter en
+ *    merge. Skriptet vägrar därför radera en produkt vars butiks-URL:er inte redan
+ *    är nekade, och `--write-denylist` skriver in dem åt dig. Ordningen är:
+ *      1. --write-denylist    (skriver src/scrapers/import-denylist.ts)
+ *      2. commit + push       (Actions-lanan checkar ut repot vid varje körning)
+ *      3. --apply             (raderar/mergar)
+ *
+ * ⛔ SAMMA FÄLLA GÄLLER MERGAR, fast dolt: `mergeStubInto` flyttar stubbens offers
+ *    till målet, MEN en offer vars (butik, skick, språk) redan finns på målet
+ *    RADERAS i stället — och då blir dess URL herrelös och återskapas som ny stub.
+ *    Skriptet räknar ut vilka mergar som drabbas och listar de URL:erna med.
+ */
+import "./load-env";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { prisma } from "../src/lib/db";
+import { mergeStubInto } from "../src/jobs/dedupe-stubs";
+import { isDeniedListingUrl } from "../src/scrapers/import-denylist";
+// ⛔ Parsern bor i lib/ och har egna tester. En andra kopia här hade drivit isär
+//    med den testade — och det är TOLKNINGEN som avgör vilken produkt som överlever.
+import { orphanedOfferUrls, parseDecisions, validateDecisions } from "./lib/owner-decisions";
+
+const args = process.argv.slice(2);
+const FILE = args.find((a) => !a.startsWith("--"));
+const APPLY = args.includes("--apply");
+const WRITE_DENYLIST = args.includes("--write-denylist");
+const DENYLIST_PATH = path.join(process.cwd(), "src/scrapers/import-denylist.ts");
+
+if (!FILE) {
+  console.error("Ange filen med besluten:  npx tsx scripts/apply-owner-decisions.ts beslut.txt");
+  process.exit(1);
+}
+
+// ─────────────────────────── verkställande ────────────────────────────
+const URL = (slug: string) => `https://www.foilio.se/produkter/${slug}`;
+
+async function main() {
+  const text = fs.readFileSync(path.resolve(FILE!), "utf8");
+  const { decisions: groups, problems } = parseDecisions(text);
+  const [{ db }] = await prisma.$queryRaw<{ db: string }[]>`SELECT current_database() AS db`;
+  console.log(`DB: ${db} — ${APPLY ? "APPLY (skriver)" : "TORRKÖRNING"}`);
+  console.log(`Fil: ${FILE} → ${groups.length} beslut\n`);
+  for (const p of problems) console.log(`⚠ ${p}`);
+
+  const slugs = [...new Set(groups.flatMap((g) => [...g.drop, ...(g.keep ? [g.keep] : [])]))];
+  const rows = await prisma.product.findMany({
+    where: { slug: { in: slugs } },
+    select: {
+      id: true, slug: true, title: true, category: true,
+      offers: { select: { id: true, url: true, retailerId: true, condition: true, language: true, retailer: { select: { name: true } } } },
+      _count: { select: { priceSnapshots: true, watchlistItems: true, collectionItems: true } },
+    },
+  });
+  const bySlug = new Map(rows.map((r) => [r.slug, r]));
+
+  // ── Validering: hellre stopp än en gissning (ren funktion, egna tester) ──
+  const errors = validateDecisions(groups, new Set(bySlug.keys()));
+
+  // ── Herrelösa URL:er: raderingar + offers som krockar vid merge ──
+  type Orphan = { url: string; store: string; from: string; why: string };
+  const orphans: Orphan[] = [];
+  for (const g of groups) {
+    if (g.kind === "delete") {
+      for (const s of g.drop) {
+        for (const o of bySlug.get(s)?.offers ?? []) {
+          if (o.url) orphans.push({ url: o.url, store: o.retailer.name, from: bySlug.get(s)!.title, why: "raderad produkt" });
+        }
+      }
+      continue;
+    }
+    const keep = bySlug.get(g.keep!);
+    if (!keep) continue;
+    for (const s of g.drop) {
+      const drop = bySlug.get(s);
+      if (!drop) continue;
+      for (const url of orphanedOfferUrls(drop.offers, keep.offers)) {
+        const store = drop.offers.find((o) => o.url === url)?.retailer.name ?? "—";
+        orphans.push({ url, store, from: drop.title, why: "offer krockar med målets" });
+      }
+    }
+  }
+  const needDeny = orphans.filter((o) => !isDeniedListingUrl(o.url));
+
+  // ── Utskrift ──
+  for (const g of groups) {
+    console.log("");
+    if (g.kind === "delete") {
+      console.log(`RADERA  (rad ${g.line})`);
+      for (const s of g.drop) {
+        const p = bySlug.get(s);
+        console.log(`   ${p ? `[${p.category}, ${p._count.priceSnapshots} snap, ${p._count.watchlistItems} bev, ${p._count.collectionItems} saml] ${p.title}` : `❌ OKÄND SLUG "${s}"`}`);
+        console.log(`   ${URL(s)}`);
+        for (const o of p?.offers ?? []) if (o.url) console.log(`      ${o.retailer.name}: ${o.url}`);
+      }
+      continue;
+    }
+    const keep = bySlug.get(g.keep!);
+    console.log(`SLÅ IHOP  (rad ${g.line})`);
+    for (const s of g.drop) {
+      const p = bySlug.get(s);
+      console.log(`   ✗ ${p ? `[${p.category}, ${p._count.priceSnapshots} snap, ${p._count.watchlistItems} bev] ${p.title}` : `❌ OKÄND SLUG "${s}"`}`);
+    }
+    console.log(`   → ${keep ? `[${keep.category}, ${keep._count.priceSnapshots} snap, ${keep.offers.length} offer] ${keep.title}` : `❌ OKÄND SLUG "${g.keep}"`}`);
+    console.log(`     ${URL(g.keep!)}`);
+  }
+
+  if (errors.length) {
+    console.log(`\n${"═".repeat(70)}\n${errors.length} FEL — ingenting körs förrän de är lösta:`);
+    for (const e of errors) console.log(`  ⛔ ${e}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const merges = groups.filter((g) => g.kind === "merge");
+  const deletes = groups.filter((g) => g.kind === "delete");
+  console.log(`\n${"═".repeat(70)}`);
+  console.log(`${merges.length} sammanslagningar (${merges.reduce((n, g) => n + g.drop.length, 0)} rader bort) · ${deletes.reduce((n, g) => n + g.drop.length, 0)} raderingar`);
+  if (needDeny.length) {
+    console.log(`\n⚠ ${needDeny.length} butiks-URL blir HERRELÖS och återskapas som ny stub inom minuter.`);
+    for (const o of needDeny) console.log(`   ${o.store}: ${o.url}\n      (${o.why} · ${o.from})`);
+    console.log(`\n   Kör --write-denylist, commit + push, och därefter --apply.`);
+  } else if (orphans.length) {
+    console.log(`\n✅ Alla ${orphans.length} berörda butiks-URL:er är redan nekade i import-denylist.ts.`);
+  }
+
+  // ── --write-denylist ──
+  if (WRITE_DENYLIST) {
+    if (needDeny.length === 0) {
+      console.log("\nInget att lägga till i denylistan.");
+    } else {
+      const today = new Date().toISOString().slice(0, 10);
+      const byProduct = new Map<string, Orphan[]>();
+      for (const o of needDeny) byProduct.set(o.from, [...(byProduct.get(o.from) ?? []), o]);
+      const block: string[] = [`    // ── Ägarens katalogbeslut ${today} (apply-owner-decisions.ts) ──`];
+      for (const [title, os] of byProduct) {
+        block.push(`    // ${title.replace(/\s+/g, " ").slice(0, 100)} (${os[0].why})`);
+        for (const o of os) block.push(`    ${JSON.stringify(o.url)},`);
+      }
+      const src = fs.readFileSync(DENYLIST_PATH, "utf8");
+      const anchor = "  ].map(normUrl)";
+      if (!src.includes(anchor)) {
+        console.error(`⛔ Hittar inte insättningspunkten i ${DENYLIST_PATH} — lägg in raderna för hand:\n${block.join("\n")}`);
+        process.exitCode = 1;
+        return;
+      }
+      fs.writeFileSync(DENYLIST_PATH, src.replace(anchor, `${block.join("\n")}\n${anchor}`), "utf8");
+      console.log(`\n✍  ${needDeny.length} URL:er tillagda i src/scrapers/import-denylist.ts.`);
+      console.log(`   COMMITTA OCH PUSHA innan du kör --apply — Actions-lanan läser repot vid varje körning.`);
+    }
+    if (!APPLY) return;
+  }
+
+  if (!APPLY) {
+    console.log(`\nTORRKÖRNING — ingenting skrivet. Lägg till --apply när listan stämmer.`);
+    return;
+  }
+
+  // ⛔ Vägra radera det som skulle komma tillbaka. Mergar går alltid att köra:
+  //    en herrelös URL efter en merge ger en ny stub, inte en återuppstånden dubblett
+  //    av det som togs bort — men den varnas för ovan så den kan denylistas ändå.
+  const blockedDeletes = new Set<string>();
+  for (const g of deletes) {
+    for (const s of g.drop) {
+      const p = bySlug.get(s)!;
+      const open = p.offers.filter((o) => o.url && !isDeniedListingUrl(o.url));
+      if (open.length) blockedDeletes.add(s);
+    }
+  }
+
+  let merged = 0;
+  for (const g of merges) {
+    const keepId = bySlug.get(g.keep!)!.id;
+    for (const s of g.drop) {
+      try {
+        await mergeStubInto(bySlug.get(s)!.id, keepId, () => {});
+        merged++;
+      } catch (err) {
+        console.error(`  FEL vid merge av ${s}: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+  }
+  let removed = 0;
+  for (const g of deletes) {
+    for (const s of g.drop) {
+      if (blockedDeletes.has(s)) {
+        console.log(`  ⏭  hoppar över "${s}" — butiks-URL:en är inte nekad än (kör --write-denylist först).`);
+        continue;
+      }
+      await prisma.product.delete({ where: { id: bySlug.get(s)!.id } });
+      removed++;
+    }
+  }
+  console.log(`\n🔀 ${merged} sammanslagna · 🗑 ${removed} raderade${blockedDeletes.size ? ` · ${blockedDeletes.size} avvaktar denylist` : ""}.`);
+  console.log(`   Kör sedan: node scripts/with-prod-db.mjs npx tsx scripts/recompute-price-cache.ts`);
+}
+
+main()
+  .catch((e) => {
+    console.error("Misslyckades:", e);
+    process.exitCode = 1;
+  })
+  .finally(() => prisma.$disconnect());

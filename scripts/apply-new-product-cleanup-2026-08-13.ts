@@ -40,6 +40,8 @@ import { mergeStubInto } from "../src/jobs/dedupe-stubs";
 import { normalizeTitle } from "../src/lib/utils";
 import { cleanListingTitle } from "../src/scrapers/matching";
 import { detectListingLanguage, isBlockedListingLanguage } from "../src/lib/listing-language";
+import { isDeniedListingUrl } from "../src/scrapers/import-denylist";
+import { orphanedOfferUrls } from "./lib/owner-decisions";
 
 const APPLY = process.argv.includes("--apply");
 const SINCE = new Date("2026-08-13T00:00:00.000Z");
@@ -68,7 +70,9 @@ async function main() {
       slug: true,
       language: true,
       createdAt: true,
-      offers: { select: { url: true, retailer: { select: { name: true } } } },
+      offers: {
+        select: { url: true, retailerId: true, condition: true, language: true, retailer: { select: { name: true } } },
+      },
       _count: { select: { priceSnapshots: true, watchlistItems: true, collectionItems: true } },
     },
   });
@@ -148,6 +152,27 @@ async function main() {
       for (const p of s.group) console.log(`        ${isNew(p) ? "NY " : "old"} ${JSON.stringify(p.title)}`);
     }
   }
+  // ⛔ HERRELÖSA URL:er (upptäckt 2026-08-13 av apply-owner-decisions.ts torrkörning).
+  //    `Offer` är unik på (produkt, butik, skick, språk), så stubbens offer RADERAS av
+  //    mergen när målet redan har en från samma butik. Rogerz momstvillingar har olika
+  //    `?variant=`-URL:er och olika pris — den förlorande URL:en matchar efter
+  //    titeltvätten numera MÅLET, så nästa skrapning skriver över målets offer och
+  //    länk/pris börjar växla mellan de två listningarna vid varje körning.
+  const orphans: { url: string; store: string; from: string }[] = [];
+  for (const m of merges) {
+    for (const url of orphanedOfferUrls(m.drop.offers, m.keep.offers)) {
+      orphans.push({ url, store: m.drop.offers.find((o) => o.url === url)?.retailer.name ?? "—", from: m.drop.title });
+    }
+  }
+  const needDeny = orphans.filter((o) => !isDeniedListingUrl(o.url));
+  if (needDeny.length) {
+    console.log(`\n  ⚠ ${needDeny.length} butiks-URL blir herrelös av mergen och måste denylistas.`);
+    console.log(`     Skriv in dem med scripts/apply-owner-decisions.ts --write-denylist, eller`);
+    console.log(`     acceptera att länk/pris växlar mellan momsvarianterna på de produkterna.`);
+    for (const o of needDeny.slice(0, 5)) console.log(`     ${o.store}: ${o.url}`);
+    if (needDeny.length > 5) console.log(`     … ${needDeny.length - 5} till`);
+  }
+
   console.log("");
   for (const m of merges.slice(0, 25)) {
     console.log(`  ✗ ${m.drop.title}`);
