@@ -370,6 +370,98 @@ const DENIED = new Set<string>(
     "https://rogerz.dk/products/pokemon-fossil-booster-box-1st-edition",
     // Team Rocket Booster Box - 1st Edition (Wizards of the Coast) (raderad produkt)
     "https://rogerz.dk/products/pokemon-team-rocket-booster-box-1st-edition",
+    // ── Ägarens katalogbeslut 2026-08-13 (apply-owner-decisions.ts) ──
+    // Pokemon ME02 Phantasmal Flames Elite Trainer - Speltrollet Collector Edition (offer krockar med målets)
+    "https://speltrollet.se/products/pokemon-me02-phantasmal-flames-checklane",
+    "https://www.maxgaming.se/sv/pokemon/pokemon-me02-phantasmal-flames-premium-checklane",
+    // Pokémon Mega Evolution: Pitch Black Checklane 1-Pack Blister (Aurorus and Amaura) (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-mega-evolution-pitch-black-checklane-1-pack-blister-aurorus-and-amaura-eng",
+    // Pokémon Mega Evolution: Pitch Black Checklane 1-Pack Blister (Tyrantrum and Tyrunt) (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-mega-evolution-pitch-black-checklane-1-pack-blister-tyrantrum-and-tyrunt-eng",
+    // Pokémon Sword & Shield: Fusion Strike/Chilling Reign Jirachi Pin Blister (2 Pack) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-sword-shield-fusion-strike-jirachi-pin-blister-2-pack",
+    // Pokémon Sword & Shield: Fusion Strike/Chilling Reign Celebi Pin Blister (2 Pack) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-sword-shield-fusion-strike-celebi-pin-blister-2-pack",
+    // Pokémon, 25th Anniversary Celebrations, 1 booster pack (raderad produkt)
+    "https://samlarhobby.se/products/pokemon-25th-anniversary-celebrations-1-booster-pack",
+    // Pokémon Tin: Pokémon GO (raderad produkt)
+    "https://tcgstore.se/products/pokemon-tin-pokemon-go-1",
+    // Virizion V Collection Box (raderad produkt)
+    "https://tcgstore.se/products/pokemon-tcg-virizion-v-collection-box",
+    "https://speltrollet.se/products/pokemon-virizion-v-box",
+    // Hisuian Electrode V Collection Box (raderad produkt)
+    "https://tcgstore.se/products/pokemon-tcg-hisuian-electrode-v-collection-box",
+    "https://speltrollet.se/products/pokemon-hisuian-electrode-v-box",
+    "https://dragonslair.se/products/pokemon-tcg-hisuian-electrode-v-box-pokemon",
+    // Pokémon Collectors Chest Tin Fall 2022: Dialga & Palkia (raderad produkt)
+    "https://tcgstore.se/products/pokemon-collectors-chest-tin-fall-2022-dialga-palkia",
+    // Pokémon Collectors' Chest Tin Spring 2022: Arceus (raderad produkt)
+    "https://tcgstore.se/products/pokemon-collector-s-chest-tin-spring-2022-arceus",
+    // Pokémon Sword & Shield: Hisuian Zoroark VSTAR Premium Collection Box (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-sword-shield-hisuian-zoroark-vstar-premium-collection-5-pack-eng",
+    // Hisuian Zoroark VSTAR Premium Collection Box (raderad produkt)
+    "https://tcgstore.se/products/pokemon-tcg-hisuian-zoroark-vstar-premium-collection-box",
+    // Pokemon Hisuian Zoroark VSTAR Premium Collection (raderad produkt)
+    "https://speltrollet.se/products/pokemon-hisuian-zoroark-vstar-premium-collection",
+    // Celebi 2-Pack Pin Blister (Evolving Skies & Chilling Reign) (raderad produkt)
+    "https://tcgstore.se/products/pokemon-tcg-celebi-2-pack-pin-blister-evolving-skies-chilling-reign",
+    // Jirachi 2-Pack Pin Blister (Evolving Skies & Chilling Reign) (raderad produkt)
+    "https://tcgstore.se/products/pokemon-tcg-jirachi-2-pack-pin-blister-evolving-skies-chilling-reign",
+    // V Powers Tin - Pikachu V (raderad produkt)
+    "https://tcgstore.se/products/pokemon-tcg-v-powers-tin-pikachu-v",
+    // V Powers Tin - Eevee (raderad produkt)
+    "https://tcgstore.se/products/pokemon-tcg-v-powers-tin-eevee",
+    // V Powers Tin - Eternatus V (raderad produkt)
+    "https://tcgstore.se/products/pokemon-tcg-v-powers-tin-eternatus-v",
+    // Pokémon XY Base Set Sleeved Booster Pack (raderad produkt)
+    "https://hobbykort.se/products/pokemon-sv5-temporal-forces-1-sleeved-booster-copypokemon-scarlet-violet-1-sleeved-booster",
+    "https://rogerz.dk/products/pokemon-x-y-base-set-booster-pack",
+    "https://beamcardshop.com/products/xy-base-sleeved-booster",
+    // Pokémon XY Flashfire Sleeved Booster Pack (raderad produkt)
+    "https://beamcardshop.com/products/xy-flashfire-sleeved-booster",
+    // Pokémon XY BREAKthrough Sleeved Booster Pack (raderad produkt)
+    "https://beamcardshop.com/products/breakthrough-sleeved-booster",
+    // Pokémon XY BREAKpoint Sleeved Booster Pack (raderad produkt)
+    "https://rogerz.dk/products/pokemon-breakpoint-sleeved-booster-pack",
+    "https://beamcardshop.com/products/breakpoint-sleeved-booster",
+    // Pokémon XY Evolutions Sleeved Booster Pack (raderad produkt)
+    "https://aquitaz.se/products/pokemon-xy-evolutions-sleeved-booster-pack-10-kort-eng",
+    "https://beamcardshop.com/products/evolutions-sleeved-booster",
+    // Pokémon Sun & Moon Base Set Sleeved Booster Pack (raderad produkt)
+    "https://aquitaz.se/products/pokemon-sun-moon-base-set-booster-pack-10-kort-eng",
+    "https://rogerz.dk/products/sun-moon-base-set-booster-pack",
+    "https://beamcardshop.com/products/sun-moon-base-booster-pack",
+    // Shining Fates Pin Collection Box Polteageist (raderad produkt)
+    "https://beamcardshop.com/products/shining-fates-pin-collection-box-polteageist",
+    // Pokémon MEGA Start Deck 100 Battle Collection Box (Japanese) (raderad produkt)
+    "https://yonko-tcg.de/products/jp-pokemon-mega-start-deck-100-battle-collection",
+    "https://pokemurre.se/products/preorder-pokemon-mega-start-deck-100-battle-collection-box-japanese",
+    "https://nordictcg.se/60-mega-start-deck-100-battle-collection-från-förseglat-case.html",
+    "https://speltrollet.se/products/pokemon-start-deck-100-battle-collection-japansk",
+    "https://aquitaz.se/products/pokemon-mega-100-battle-collection-starter-deck-jp",
+    // True Steel Premium Collection - Versionen med 1 Team Up Pack (raderad produkt)
+    "https://cardlevels.se/products/pokemon-tcg-true-steel-premium-collection",
+    // Pokémon Single Strike Urshifu VMAX Premium Collection Box (ENG) (raderad produkt)
+    "https://tcgstore.se/products/pokemon-tcg-single-strike-urshifu-vmax-premium-collection-box",
+    "https://aquitaz.se/products/pokemon-single-strike-urshifu-vmax-premium-collection-box-8-pack-eng",
+    // Pokémon Mega Evolution: Mega Evolution Checklane Blister (Target Exclusive) (Lycanroc & Rockruff) (E (raderad produkt)
+    "https://aquitaz.se/products/pokemon-mega-evolution-checklane-blister-target-exclusive-lycanroc-rockruff-eng",
+    // Japansk Ultra Force Bout Booster Kit (raderad produkt)
+    "https://pocketmonsters.se/pokemon/japanese-ultra-force-bout-booster-paket/",
+    // Pokemon Scarlet & Violet 4.5 - Paldean Fates Premium Collection (raderad produkt)
+    "https://speltrollet.se/products/pokemon-scarlet-violet-4-5-paldean-fates-premium-collection",
+    // Pokemon Spring Tin 2025 Azure Legends Tin (4 boosters) (raderad produkt)
+    "https://hobbykort.se/products/pokemon-tcg-azure-legends-collectors-tin",
+    "https://rogerz.dk/products/pokemon-tcg-azure-legends-collectors-tin-box",
+    "https://speltrollet.se/products/pokemon-spring-tin-2025-azure-legends-tin",
+    // Pokemon Sword & Shield: Pokemon Go Booster (Japansk) (raderad produkt)
+    "https://speltrollet.se/products/pokemon-sword-shield-pokemon-go-booster-japansk",
+    // Pokemon VMAX Dragons Premium Collection Rayquaza & Duraludon (raderad produkt)
+    "https://speltrollet.se/products/pokemon-vmax-dragons-premium-collection",
+    // Pokémon Sword & Shield: Pokémon GO Booster Pack (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-sword-shield-pokemon-go-booster-pack",
+    // Pokemon Chilling Reign Elite Trainer Box (raderad produkt)
+    "https://speltrollet.se/products/pokemon-sword-shield-6-chilling-reign-elite-trainer-box",
   ].map(normUrl)
 );
 

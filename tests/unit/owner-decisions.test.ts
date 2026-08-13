@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseDecisions, slugOf, slugsOf, validateDecisions } from "../../scripts/lib/owner-decisions";
+import { orphanedOfferUrls, parseDecisions, slugOf, slugsOf, validateDecisions } from "../../scripts/lib/owner-decisions";
+import { isStoreRetailer } from "../../src/lib/offer-source";
 
 /**
  * ÄGARENS BESLUTSFIL (2026-08-13). Formatet är ägarens eget ("Duplicates … Goes to
@@ -224,5 +225,51 @@ describe("ägarens riktiga skrivsätt (13 aug)", () => {
     );
     const { errors } = validateDecisions(decisions, new Set(["pack-a"]));
     expect(errors.some((e) => e.includes("utan mål"))).toBe(true);
+  });
+});
+
+/**
+ * MARKNADSPLATSLÄNKAR FÖLJER ALDRIG MED I EN MERGE (ägarbeslut 2026-08-13):
+ * "vi flyttar bara butikerna, inte cardmarket eller tradera".
+ *
+ * ⛔ SKÄLET ÄR IDENTITET, INTE PRIS. En butiks-offer är ett faktum om en URL; en
+ *    Cardmarket-/Tradera-/CardTrader-offer är ett PÅSTÅENDE våra egna jobb
+ *    fuzzy-matchat fram. Kanonprodukten har redan sin granskade länk — stubbens är
+ *    ogranskad, och att flytta över den kan tyst ersätta ett rätt `idProduct` med ett
+ *    fel. Det felet är osynligt: priset ser rimligt ut, det är bara fel produkt.
+ *    Själva flytten sker i mergeStubInto; här vaktas den lista som avgör vad som är
+ *    en butik, och att denylistan inte fylls med marknadsplats-URL:er.
+ */
+describe("bara butiker flyttas vid merge", () => {
+  it("känner igen marknadsplatserna", () => {
+    for (const n of ["Cardmarket", "Tradera", "Tradera sålt", "CardTrader", "Pokémon TCG API", "TCGdex API"]) {
+      expect(isStoreRetailer(n), n).toBe(false);
+    }
+  });
+
+  it("räknar riktiga butiker som butiker", () => {
+    for (const n of ["Dragon's Lair", "Rogerz", "Aquitaz", "Yonko TCG", "Webhallen", "Speltrollet", "Samlarhobby"]) {
+      expect(isStoreRetailer(n), n).toBe(true);
+    }
+  });
+
+  it("marknadsplats-URL:er hamnar ALDRIG i denylistan", () => {
+    // Denylistan läses bara av ensureListingProduct, som skapar produkter ur
+    // butiksfeedar. En Tradera-annons blir aldrig en katalogprodukt den vägen.
+    const drop = [
+      { url: "https://tradera.com/item/1/2/x", retailerId: "r-tradera", condition: "SEALED", language: "EN", retailerName: "Tradera" },
+      { url: "https://rogerz.dk/products/x", retailerId: "r-rogerz", condition: "SEALED", language: "EN", retailerName: "Rogerz" },
+    ];
+    const keep = [
+      { url: "https://tradera.com/item/9/9/y", retailerId: "r-tradera", condition: "SEALED", language: "EN" },
+      { url: "https://rogerz.dk/products/y", retailerId: "r-rogerz", condition: "SEALED", language: "EN" },
+    ];
+    // BÅDA krockar — men bara butikens URL ska denylistas.
+    expect(orphanedOfferUrls(drop, keep)).toEqual(["https://rogerz.dk/products/x"]);
+  });
+
+  it("en butiks-offer utan krock är inte herrelös", () => {
+    const drop = [{ url: "https://rogerz.dk/products/x", retailerId: "r-rogerz", condition: "SEALED", language: "EN", retailerName: "Rogerz" }];
+    expect(orphanedOfferUrls(drop, [])).toEqual([]);
   });
 });

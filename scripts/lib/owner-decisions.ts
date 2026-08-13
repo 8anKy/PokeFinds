@@ -12,6 +12,8 @@
  *    köra om något är tvetydigt, och torrkörningen skriver ut de RIKTIGA titlarna.
  */
 
+import { isStoreRetailer } from "../../src/lib/offer-source";
+
 export type Decision = {
   kind: "merge" | "delete";
   /** Slugs som ska bort (mergas in i `keep`, eller raderas). */
@@ -160,7 +162,14 @@ export function parseDecisions(text: string): { decisions: Decision[]; problems:
   return { decisions, problems };
 }
 
-export type OfferKey = { url: string | null; retailerId: string; condition: string; language: string };
+export type OfferKey = {
+  url: string | null;
+  retailerId: string;
+  condition: string;
+  language: string;
+  /** Butiksnamnet — marknadsplatser hoppas över, se orphanedOfferUrls. */
+  retailerName?: string;
+};
 
 /**
  * Butiks-URL:er som blir HERRELÖSA av en merge.
@@ -180,6 +189,12 @@ export function orphanedOfferUrls(dropOffers: OfferKey[], keepOffers: OfferKey[]
   const out: string[] = [];
   for (const o of dropOffers) {
     if (!o.url) continue;
+    // ⛔ Marknadsplatslänkar (Cardmarket/Tradera/CardTrader) hör inte hemma i
+    //    denylistan: den läses BARA av `ensureListingProduct`, som skapar produkter ur
+    //    BUTIKSFEEDAR. En Tradera-annons blir aldrig en katalogprodukt den vägen, så en
+    //    post där skyddar ingenting — den gör bara listan svårare att läsa. (Omgång 1
+    //    och 2 hann skriva in några sådana; de är harmlösa och lämnas.)
+    if (o.retailerName && !isStoreRetailer(o.retailerName)) continue;
     const clash = keepOffers.some(
       (k) => k.retailerId === o.retailerId && k.condition === o.condition && k.language === o.language
     );

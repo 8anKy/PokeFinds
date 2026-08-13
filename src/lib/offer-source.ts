@@ -1,5 +1,41 @@
 import { isDirectOfferUrl } from "./marketplace-urls";
 
+/**
+ * Källor som INTE är butiker (ägarbeslut 2026-08-13).
+ *
+ * En BUTIKS-offer är ett faktum förankrat i en URL: butiken säljer den här varan på
+ * den här sidan. En MARKNADSPLATS-offer är ett PÅSTÅENDE OM IDENTITET som våra egna
+ * jobb räknat fram — Cardmarket-länken kommer ur en fuzzy-match, Tradera-länken ur en
+ * titelsökning, CardTrader ur en blueprint-join.
+ *
+ * ⛔ DÄRFÖR FÖLJER DE ALDRIG MED I EN MERGE. Kanonprodukten har redan sin egen,
+ *    verifierade marknadsplatslänk; stubbens är en gissning som ingen granskat. Att
+ *    flytta över den kan tysta ersätta ett granskat `idProduct` med ett fuzzy-matchat,
+ *    och det felet är osynligt — priset ser rimligt ut, det är bara fel produkt.
+ *    Tappar kanonprodukten en länk den borde ha återställer de dagliga jobben
+ *    (cardmarket-refresh, tradera-sweep, cardtrader-refresh) den; en felaktig länk
+ *    städas däremot bara för hand.
+ *
+ * ⛔ Listan är NAMN, inte en flagga på Retailer — samma form som `.audit/`-skripten
+ *    använt sedan katalogrevisionen, och namnen är stabila (de sätts i prisma/seed.ts
+ *    och av prisjobben). "Tradera sålt" är TRADERA_SOLD_SOURCE_NAME i
+ *    services/products.ts; den bär genomförda affärer och är ren historik.
+ */
+export const NON_STORE_RETAILERS = [
+  "Cardmarket",
+  "Tradera",
+  "Tradera sålt",
+  "CardTrader",
+  "Pokémon TCG API",
+  "TCGdex API",
+  "Mock-datakälla",
+] as const;
+
+/** Är källan en riktig butik (dvs en URL man kan handla på)? */
+export function isStoreRetailer(name: string): boolean {
+  return !(NON_STORE_RETAILERS as readonly string[]).includes(name);
+}
+
 export interface OfferSourceLike {
   /** öre — null/0 = länk-offer utan känt pris */
   price: number | null;

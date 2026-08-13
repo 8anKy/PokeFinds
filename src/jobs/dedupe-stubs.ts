@@ -20,6 +20,7 @@
  * aldrig dömts (eller vars titel ändrats) kostar ett anrop.
  */
 import { prisma } from "@/lib/db";
+import { isStoreRetailer } from "@/lib/offer-source";
 import { judgeSameProduct } from "@/lib/same-product";
 import { gtinConflict, isPokemonManufacturerGtin } from "@/lib/gtin";
 import {
@@ -82,13 +83,33 @@ export async function mergeStubInto(
     select: {
       title: true,
       imageUrl: true,
-      offers: { select: { id: true, url: true, retailerId: true, condition: true, language: true } },
+      offers: {
+        select: {
+          id: true,
+          url: true,
+          retailerId: true,
+          condition: true,
+          language: true,
+          retailer: { select: { name: true } },
+        },
+      },
       watchlistItems: { select: { id: true, userId: true } },
       collectionItems: { select: { id: true } },
     },
   });
   if (!stub) return;
   for (const o of stub.offers) {
+    // ⛔ BARA BUTIKS-OFFERS FLYTTAS (ägarbeslut 2026-08-13). En marknadsplatslänk
+    //    (Cardmarket/Tradera/CardTrader) är ett PÅSTÅENDE OM IDENTITET som våra egna
+    //    jobb fuzzy-matchat fram, inte ett faktum om en URL. Kanonprodukten har redan
+    //    sin granskade länk; stubbens är ogranskad, och att flytta över den kan tyst
+    //    ersätta ett rätt `idProduct` med ett fel — ett osynligt fel, för priset ser
+    //    rimligt ut. Saknar kanonprodukten en länk återställer de dagliga jobben den.
+    //    Se NON_STORE_RETAILERS i src/lib/offer-source.ts.
+    if (!isStoreRetailer(o.retailer.name)) {
+      await prisma.offer.delete({ where: { id: o.id } });
+      continue;
+    }
     const conflict = await prisma.offer.findFirst({
       where: { productId: canonicalId, retailerId: o.retailerId, condition: o.condition, language: o.language },
       select: { id: true },

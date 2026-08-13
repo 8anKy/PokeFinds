@@ -46,6 +46,7 @@ import * as path from "node:path";
 import { prisma } from "../src/lib/db";
 import { mergeStubInto } from "../src/jobs/dedupe-stubs";
 import { isDeniedListingUrl } from "../src/scrapers/import-denylist";
+import { isStoreRetailer } from "../src/lib/offer-source";
 // ⛔ Parsern bor i lib/ och har egna tester. En andra kopia här hade drivit isär
 //    med den testade — och det är TOLKNINGEN som avgör vilken produkt som överlever.
 import { orphanedOfferUrls, parseDecisions, validateDecisions } from "./lib/owner-decisions";
@@ -97,7 +98,10 @@ async function main() {
     if (g.kind === "delete") {
       for (const s of g.drop) {
         for (const o of bySlug.get(s)?.offers ?? []) {
-          if (o.url) orphans.push({ url: o.url, store: o.retailer.name, from: bySlug.get(s)!.title, why: "raderad produkt" });
+          // Samma skäl som i orphanedOfferUrls: denylistan läses bara av
+          // ensureListingProduct, som skapar produkter ur BUTIKSFEEDAR.
+          if (!o.url || !isStoreRetailer(o.retailer.name)) continue;
+          orphans.push({ url: o.url, store: o.retailer.name, from: bySlug.get(s)!.title, why: "raderad produkt" });
         }
       }
       continue;
@@ -107,7 +111,8 @@ async function main() {
     for (const s of g.drop) {
       const drop = bySlug.get(s);
       if (!drop) continue;
-      for (const url of orphanedOfferUrls(drop.offers, keep.offers)) {
+      const dropKeys = drop.offers.map((o) => ({ ...o, retailerName: o.retailer.name }));
+      for (const url of orphanedOfferUrls(dropKeys, keep.offers)) {
         const store = drop.offers.find((o) => o.url === url)?.retailer.name ?? "—";
         orphans.push({ url, store, from: drop.title, why: "offer krockar med målets" });
       }

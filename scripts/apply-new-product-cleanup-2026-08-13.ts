@@ -160,7 +160,8 @@ async function main() {
   //    länk/pris börjar växla mellan de två listningarna vid varje körning.
   const orphans: { url: string; store: string; from: string }[] = [];
   for (const m of merges) {
-    for (const url of orphanedOfferUrls(m.drop.offers, m.keep.offers)) {
+    const dropKeys = m.drop.offers.map((o) => ({ ...o, retailerName: o.retailer.name }));
+    for (const url of orphanedOfferUrls(dropKeys, m.keep.offers)) {
       orphans.push({ url, store: m.drop.offers.find((o) => o.url === url)?.retailer.name ?? "—", from: m.drop.title });
     }
   }
