@@ -295,6 +295,10 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   ✅ **OMGÅNG 4**: 29 beslut → 152 rader sammanslagna + 61 raderade + 41 återuppståndna rader rensade
   (`docs/owner-decisions-2026-08-13-d.txt`). Team Rocket 1st Edition är nu mergad (ägaren bekräftade).
   Kohorten 898 → **177 kvar**.
+  ✅ **OMGÅNG 5**: 24 beslut → 23 mergade + 44 raderade, plus tre självdubbletter med IDENTISK titel.
+  Efter den delar **noll** sealed-produkter normaliserad titel med en annan
+  (`docs/owner-decisions-2026-08-13-e.txt` + `-f.txt`). Kohorten 898 → **115 kvar**, katalogen 31 314.
+  Denylistningen hann före nästa skrapning: `purge-denylisted-products.ts` hittade 0 återuppståndna.
   ⏭️ **KVAR — väntar på ägaren**: de 74 LLM-dömda paren, och
   **omslagskonstfrågan**: Rogerz säljer vintage booster packs PER OMSLAG → 137 produkter på 38 set.
   MÄTT (`scripts/wrapper-art-report.ts`): 33 av 38 set har IDENTISKT pris på alla omslag, 2 skiljer
