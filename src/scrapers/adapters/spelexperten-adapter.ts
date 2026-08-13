@@ -130,7 +130,9 @@ export class SpelexpertenAdapter implements SourceAdapter {
         // Hämta sida 1 (och eventuellt fler sidor)
         let page = 1;
         let hasMore = true;
-        while (hasMore && page <= 10) {
+        // Taket höjt 10 → 15 (2026-08-13): kategorin är nu 11 sidor och sida 11 föll
+        // tyst utanför (~27 produkter). Loopen bryter ändå på första tomma sidan.
+        while (hasMore && page <= 15) {
           const url = `${BASE_URL}${categoryPath}${page > 1 ? `?page=${page}` : ""}`;
           const res = await politeFetch(url, { delayMs: 2000 });
           if (!res.ok) {

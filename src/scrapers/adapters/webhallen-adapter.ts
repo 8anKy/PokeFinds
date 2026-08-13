@@ -26,7 +26,10 @@ const BASE_URL = "https://www.webhallen.com";
  * OBS: sidnummer måste skickas som ?page= (path-segment ignoreras).
  */
 const SEARCH_QUERY = "pokemon";
-const MAX_PAGES = 5;
+// 5 → 8 (2026-08-13): sökningen är nu 7 sidor (157 träffar à 24). Sidorna 6–7 var
+// bara Ultra Pro-tillbehör vid mätningen, men ett tak under sidantalet är en tyst
+// gräns som brister först den dag ett riktigt TCG-släpp hamnar där.
+const MAX_PAGES = 8;
 /** Tak för live-koll av icke-i-lager-produkter per hämtning (~37 i feeden i dag). */
 const LIVE_POLL_MAX = 40;
 

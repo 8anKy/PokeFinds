@@ -39,6 +39,10 @@ import {
   MiniatureMetropolisAdapter,
   PokexclusiveAdapter,
   SpelgalaxenAdapter,
+  AquitazAdapter,
+  RogerzAdapter,
+  YonkoTcgAdapter,
+  FiregamesAdapter,
 } from "@/scrapers/adapters/shopify-adapter";
 import {
   SwepokeAdapter,
@@ -46,12 +50,18 @@ import {
   CardGameAdapter,
   MysteryShackAdapter,
   PacksOnPacksAdapter,
+  SpelkortsbutikenAdapter,
 } from "@/scrapers/adapters/quickbutik-adapter";
 import {
   FantasiaNorthAdapter,
   TheSwedishFishAdapter,
   PocketmonstersAdapter,
 } from "@/scrapers/adapters/woocommerce-adapter";
+import {
+  LeksaksaffarenAdapter,
+  NordicTcgAdapter,
+} from "@/scrapers/adapters/prestashop-adapter";
+import { CoolcardAdapter } from "@/scrapers/adapters/starweb-adapter";
 import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
 import {
   classifyForm,
@@ -133,6 +143,15 @@ const SCRAPER_ADAPTERS: Record<string, new () => SourceAdapter> = {
   "Fantasia North": FantasiaNorthAdapter,
   "The Swedish Fish": TheSwedishFishAdapter,
   Pocketmonsters: PocketmonstersAdapter,
+  // ---- Wave 5 (2026-08-13): 4 Shopify + 1 Quickbutik + PrestaShop (delad) + Starweb ----
+  Aquitaz: AquitazAdapter,
+  Rogerz: RogerzAdapter,
+  "Yonko TCG": YonkoTcgAdapter,
+  Firegames: FiregamesAdapter,
+  Spelkortsbutiken: SpelkortsbutikenAdapter,
+  Leksaksaffären: LeksaksaffarenAdapter,
+  NordicTCG: NordicTcgAdapter,
+  Coolcard: CoolcardAdapter,
 };
 
 export function getAdapter(type: SourceType, sourceName?: string): SourceAdapter {
@@ -182,6 +201,13 @@ export interface RestockScanResult {
   /** Källorna skanningen använde — CLI-wrappern cachar listan på disk så nästa
    *  körning slipper väcka Neon bara för källist-uppslaget. */
   sourceList?: RestockSourceInfo[];
+  /**
+   * Hur många offer-lösa feed-URL:er som fick en Offer denna körning (auto-import).
+   * CLI-wrappern exporterar om Discord-lanens ruttabell när talet är > 0 — annars är
+   * en NY SKU:s första restock "okänd URL" i upp till ett dygn (Samlarhobbys Paradox
+   * Rift-booster 2026-08-12 postades aldrig av exakt det skälet).
+   */
+  offersCreated?: number;
 }
 
 /** Det minimum en restock-skanning behöver veta om en källa (cachebart som JSON). */
@@ -212,8 +238,13 @@ export interface RestockSourceInfo {
  * i stället för att självläka. Feedarna växer dessutom med sortimentet.
  * ⛔ Höj inte vidare "för säkerhets skull": fas 1 håller alla butikers feedar i minnet
  *    samtidigt, och den enda vinsten därutöver är sekunder vi inte saknar.
+ *
+ * Env-styrbar sedan 2026-08-13: butikslistan växer förbi 40 och Discord-lanen (som
+ * kör tätast) vill åt wall-clock = långsammaste ENSKILDA butik i stället för
+ * summan-per-worker. Talet styr fortfarande bara parallellitet MELLAN butiker —
+ * politeFetch håller sin fördröjning per värd precis som förut.
  */
-const RESTOCK_SCAN_CONCURRENCY = 8;
+const RESTOCK_SCAN_CONCURRENCY = Math.max(1, Number(process.env.RESTOCK_SCAN_CONCURRENCY ?? 8));
 
 /**
  * Golv för att ens FRÅGA LLM-domaren om en annons matcharen inte ville binda
@@ -750,6 +781,7 @@ export async function runRestockScan(opts?: {
   let restocks = 0;
   let newListings = 0;
   let sent = 0;
+  let offersCreated = 0;
   /** Lat, delad katalog i minnet — se anropet i feed-först-grenen. */
   let matchIndexForImport: MatchIndex | null = null;
   // TVÅ PASS med flit (2026-08-12): offer-diffen (restock-larmen, det tidskritiska)
@@ -852,6 +884,7 @@ export async function runRestockScan(opts?: {
     // pålitliga — och nearestCatalogCandidate för vad den används till här.
     matchIndexForImport ??= await loadMatchIndex();
     const productId = await ensureListingProduct(it, newStatus, matchIndexForImport);
+    if (productId) offersCreated++;
     const listing = listingByKey.get(key);
     if (!listing) {
       // Aldrig sedd → skapa huvudboksrad. Larma BARA om butiken redan har historik
@@ -879,7 +912,13 @@ export async function runRestockScan(opts?: {
       // icke-katalogvärdig (tillbehör/lot/annan franchise) och får då ALDRIG larma.
       // Utan grinden mejlades Speltrollets akrylfodral "for One Piece Booster Box"
       // som "Ny produkt i lager" (2026-07-16): vakten stoppade PRODUKTEN men inte LARMET.
-      if (productId && seededRetailers.has(it.retailerId) && !rotatingRetailerIds.has(it.retailerId)) {
+      // RESTOCK_SEED_SILENT=1 (2026-08-13): tyst seedning även för butiker MED
+      // historik — när en BEFINTLIG butiks feed-täckning utökas (Samlarhobby gick
+      // 379 → 975 synliga produkter) är de "nya" URL:erna gammalt sortiment, och utan
+      // spaken hade första skanningen mejlat hela utökningen som "Ny produkt i lager".
+      // Sätts BARA av engångsimporter (run-wave-import), aldrig i workflowen.
+      const silentSeed = process.env.RESTOCK_SEED_SILENT === "1";
+      if (productId && !silentSeed && seededRetailers.has(it.retailerId) && !rotatingRetailerIds.has(it.retailerId)) {
         if (newStatus === StockStatus.IN_STOCK) {
           await checkListingAlerts({ ...created, productId }, "NEW_LISTING");
           newListings++;
@@ -1007,7 +1046,7 @@ export async function runRestockScan(opts?: {
   console.log(
     `[restock-scan] ${sources.length} butiker, ${checked} kollade, ${restocks} restocks, ${newListings} nya, ${verified} verifierade mot produktsidan, ${soldOutReconciled} utan svar (UNKNOWN), ${sent} alerts.`
   );
-  return { sources: sources.length, checked, restocks, newListings, alertsSent: sent, sourceList: sources };
+  return { sources: sources.length, checked, restocks, newListings, alertsSent: sent, sourceList: sources, offersCreated };
 }
 
 /**

@@ -18,11 +18,25 @@ import { getAdapter } from "@/scrapers/runner";
  * Testet läser namnen ur skriptets egen lista, så en ny butik som glömts i
  * registret failar här i stället för i produktion klockan 02:00.
  */
+function setupScriptBlocks(): string[] {
+  // Varje våg har sitt eget setup-skript — testet läser ALLA så en ny butik som
+  // glömts i registret failar här i stället för i produktion klockan 02:00.
+  const files: Array<[string, RegExp]> = [
+    ["scripts/setup-wave4-sources.ts", /const WAVE4[\s\S]*?\n\];/],
+    ["scripts/setup-wave5-sources.ts", /const WAVE5[\s\S]*?\n\];/],
+  ];
+  return files.map(([f, re]) => {
+    const src = readFileSync(resolve(process.cwd(), f), "utf8");
+    const block = src.match(re)?.[0];
+    if (!block) throw new Error(`Hittade inte butikslistan i ${f}`);
+    return block;
+  });
+}
+
 function storeNamesFromSetupScript(): string[] {
-  const src = readFileSync(resolve(process.cwd(), "scripts/setup-wave4-sources.ts"), "utf8");
-  const block = src.match(/const WAVE4[\s\S]*?\n\];/)?.[0];
-  if (!block) throw new Error("Hittade inte WAVE4-listan i setup-wave4-sources.ts");
-  return [...block.matchAll(/name:\s*"([^"]+)"/g)].map((m) => m[1]);
+  return setupScriptBlocks().flatMap((block) =>
+    [...block.matchAll(/name:\s*"([^"]+)"/g)].map((m) => m[1])
+  );
 }
 
 describe("adapter-registret", () => {
@@ -53,9 +67,9 @@ describe("adapter-registret", () => {
   });
 
   it("bas-URL:en i setup-skriptet är samma som adapterns", () => {
-    const src = readFileSync(resolve(process.cwd(), "scripts/setup-wave4-sources.ts"), "utf8");
-    const block = src.match(/const WAVE4[\s\S]*?\n\];/)![0];
-    const pairs = [...block.matchAll(/name:\s*"([^"]+)",\s*baseUrl:\s*"([^"]+)"/g)];
+    const pairs = setupScriptBlocks().flatMap((block) =>
+      [...block.matchAll(/name:\s*"([^"]+)",\s*baseUrl:\s*"([^"]+)"/g)]
+    );
     expect(pairs.length).toBe(names.length);
     for (const [, name, baseUrl] of pairs) {
       expect(getAdapter(SourceType.SCRAPER, name).baseUrl, name).toBe(baseUrl);

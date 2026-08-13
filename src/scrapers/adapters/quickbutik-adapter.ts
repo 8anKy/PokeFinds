@@ -23,6 +23,16 @@ import type {
 
 const MAX_CATEGORIES = 24;
 const MAX_PAGES_PER_CATEGORY = 4;
+/**
+ * Extra kategorier som får hämtas via BARN-NEDSTIGNING (2026-08-13): en upptäckt
+ * kategorisida som renderar NOLL produkter är en LANDNINGSSIDA vars barn bär varorna —
+ * CardGames hela JP/CN-hylla (Mega Dream, Terastal Festival, Mega Symphonia …) låg på
+ * djup 3–4 under `/engelska-pokmon-produkter/japansktkinesiskt`, som själv renderar 0,
+ * och tvåsegmentsupptäckten kunde aldrig nå den. Budgeten är per butik och finns för
+ * att en butik med många äkta (kaskaderande) föräldrasidor inte ska dra igång en
+ * krypning av hela sitt kategoriträd — barn hämtas BARA när föräldern var tom.
+ */
+const MAX_CHILD_CATEGORIES = 12;
 
 /**
  * Den URSPRUNGLIGA uteslutningen, ordagrant. Används BARA av regel 1 nedan, som är den
@@ -62,10 +72,12 @@ const SEALED_MARKER =
 // Fallback-parsern plockar upp korsförsäljnings-hrefs → singel-URL:er kan smita in och
 // fel-länkas till en sealed katalogprodukt (t.ex. "Blastoise 1-Pack Blister" bunden till
 // ett Blastoise-singelkort). Singlar prissätts via Cardmarket, aldrig via butik → släng dem.
-// Butikerna stavar singel-katalogen olika: /singles/, /singles-and-graded-cards/ OCH
-// /singles-loskort/ (Shinycards). En hårdkodad lista över stavningar missar nästa —
-// matcha på segmentet som BÖRJAR med "singles", plus svenskans "löskort".
-const SINGLE_URL = /\/(singles[a-z-]*|l[oö]skort[a-z-]*)\//i;
+// Butikerna stavar singel-katalogen olika: /singles/, /singles-and-graded-cards/,
+// /singles-loskort/ (Shinycards) OCH /los-pokemon/ (Spelkortsbutiken, 2026-08-13).
+// En hårdkodad lista över stavningar missar nästa — matcha på segmentet som BÖRJAR
+// med "singles", plus svenskans "löskort"/"lös-pokemon". ⛔ INTE bara "lös-": Samlar-
+// hobbys "lösa paket"/"lösa boosters" är SEALED (lösplock ur display), inte singlar.
+const SINGLE_URL = /\/(singles[a-z-]*|l[oö]skort[a-z-]*|l[oö]s-pokemon[a-z-]*)\//i;
 
 /** Ska en Quickbutik-annons släppas? (singel-URL fel-länkas till sealed). Ren → testbar. */
 export function qbShouldDrop(url: string): boolean {
@@ -174,6 +186,9 @@ export abstract class QuickbutikAdapter implements SourceAdapter {
   supportsSearch = false;
   supportsStock = true;
 
+  /** Hela sitemapens vägar — sparas av pokemonCategories för barn-nedstigningen. */
+  private sitemapPaths: { url: string; path: string }[] = [];
+
   /** Pokémon-kategorisidor ur sitemap. */
   protected async pokemonCategories(errors: string[]): Promise<string[]> {
     const res = await politeFetch(`${this.baseUrl}/sitemap.xml`, { delayMs: 1000 });
@@ -193,6 +208,7 @@ export abstract class QuickbutikAdapter implements SourceAdapter {
         /* trasig loc — hoppa */
       }
     }
+    this.sitemapPaths = urls;
     const cats = new Set<string>();
 
     // ---- 1) DEN BEPRÖVADE REGELN, ORÖRD ----
@@ -280,13 +296,35 @@ export abstract class QuickbutikAdapter implements SourceAdapter {
     return out;
   }
 
+  /**
+   * Direkta BARN till en kategoriväg i sitemapen som själva är kategorier (har egna
+   * barn) och passerar samma filter som upptäckten. Används bara när förälderns sida
+   * renderade noll produkter — se MAX_CHILD_CATEGORIES.
+   */
+  private sitemapChildren(parentPath: string): { url: string; path: string }[] {
+    const out: { url: string; path: string }[] = [];
+    for (const u of this.sitemapPaths) {
+      if (!u.path.startsWith(`${parentPath}/`)) continue;
+      if (u.path.slice(parentPath.length + 1).includes("/")) continue; // bara direkta barn
+      if (NON_SEALED_CATEGORY.test(u.path) || NON_PRODUCT_CATEGORY.test(u.path)) continue;
+      if (!this.sitemapPaths.some((c) => c.path.startsWith(`${u.path}/`))) continue; // barnlös = produkt
+      out.push(u);
+    }
+    return out;
+  }
+
   async fetchProducts(): Promise<AdapterResult> {
     const products: RawProductData[] = [];
     const errors: string[] = [];
     const seen = new Set<string>();
     try {
       const categories = await this.pokemonCategories(errors);
-      for (const cat of categories) {
+      const queue = [...categories];
+      const queued = new Set(queue.map((u) => new URL(u).pathname.replace(/\/$/, "")));
+      let childBudget = MAX_CHILD_CATEGORIES;
+      while (queue.length > 0) {
+        const cat = queue.shift()!;
+        let firstPageCount = -1;
         for (let page = 1; page <= MAX_PAGES_PER_CATEGORY; page++) {
           const url = page === 1 ? cat : `${cat}?page=${page}`;
           const res = await politeFetch(url, { delayMs: 900 });
@@ -296,6 +334,7 @@ export abstract class QuickbutikAdapter implements SourceAdapter {
           }
           const html = await res.text();
           const found = this.parseProducts(html);
+          if (page === 1) firstPageCount = found.length;
           if (found.length === 0) break;
           let added = 0;
           for (const item of found) {
@@ -316,6 +355,19 @@ export abstract class QuickbutikAdapter implements SourceAdapter {
             });
           }
           if (added === 0) break; // ingen ny produkt → sista sidan
+        }
+        // LANDNINGSSIDA: sida 1 fanns men bar noll produktblock → varorna bor hos
+        // barnen (CardGames JP/CN-hylla på djup 3–4). Ställ barnen i kön; är även de
+        // landningssidor tar samma regel dem vidare ett steg till.
+        if (firstPageCount === 0 && childBudget > 0) {
+          const catPath = new URL(cat).pathname.replace(/\/$/, "");
+          for (const child of this.sitemapChildren(catPath)) {
+            if (childBudget <= 0) break;
+            if (queued.has(child.path)) continue;
+            queued.add(child.path);
+            queue.push(child.url);
+            childBudget--;
+          }
         }
       }
     } catch (err) {
@@ -389,4 +441,12 @@ export class MysteryShackAdapter extends QuickbutikAdapter {
 export class PacksOnPacksAdapter extends QuickbutikAdapter {
   name = "Packs on Packs";
   baseUrl = "https://packsonpacks.se";
+}
+
+// ---------- Wave 5 (2026-08-13) ----------
+// Verifierad mot sin egen markup före påslag (data-pid-block, robots.txt tillåter).
+// Singlarna bor under /pokemon/los-pokemon/ — fällda av SINGLE_URL, se kommentaren där.
+export class SpelkortsbutikenAdapter extends QuickbutikAdapter {
+  name = "Spelkortsbutiken";
+  baseUrl = "https://www.spelkortsbutiken.se";
 }
