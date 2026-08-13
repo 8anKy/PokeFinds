@@ -85,7 +85,7 @@ import { judgeSameProduct } from "@/lib/same-product";
 import { fetchListingFacts, fetchListingGtin } from "@/scrapers/gtin-source";
 import { statusAfterVerify, verifyStockForUrl } from "@/scrapers/stock-verify";
 import { gtinConflict, isPokemonManufacturerGtin } from "@/lib/gtin";
-import { isDeniedListingUrl } from "@/scrapers/import-denylist";
+import { isDeniedListingUrl, setDynamicDenylist, dynamicDenylistSize } from "@/scrapers/import-denylist";
 import { netStockEvent, isRestock, isNewInStockArrival } from "@/scrapers/restock";
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
 import { isPlaceholderListingPrice } from "@/lib/listing-plausibility";
@@ -730,6 +730,11 @@ export async function runRestockScan(opts?: {
   // endpointen först. Den körs BARA här, efter ändringsgrinden — en oförändrad feed rör
   // fortfarande aldrig DB:n, så scale-to-zero är intakt.
   await ensureDbAwake();
+  // Admins denylistade URL:er — EFTER ändringsgrinden och ensureDbAwake, av exakt
+  // samma skäl som allt annat här: fas 1 ska aldrig röra DB:n. Utan den här raden
+  // skulle feed-först-grenen (ensureListingProduct) skapa om precis det admin nyss
+  // tagit bort på produktsidan.
+  await loadAdminDenylist();
 
   // Fas 2 (DB-burst): retailer per källa + alla befintliga offers i EN läsning.
   const retailerByName = new Map<string, string>();
@@ -1078,7 +1083,28 @@ export async function loadCatalogMaps(): Promise<CatalogMaps> {
   return { categoryByProduct, cmPriceByProduct, matchIndex };
 }
 
+/**
+ * Laddar admins denylistade URL:er (`DeniedListingUrl`) in i minnet.
+ *
+ * ⛔ EN GÅNG PER KÖRNING, aldrig per annons: `isDeniedListingUrl` anropas i loopar med
+ *    tusentals varv, och ett uppslag där hade blivit tusentals frågor. Kallas därför
+ *    från jobbens ingångar, där Neon ändå är vaken.
+ * ⛔ ETT FEL SVÄLJS INTE TYST utan loggas — utan listan skapar auto-importen om precis
+ *    det admin nyss tagit bort, och det felet syns annars först när dubbletten är
+ *    tillbaka. Den STATISKA listan gäller ändå.
+ */
+async function loadAdminDenylist(log?: (m: string) => void): Promise<void> {
+  try {
+    const rows = await prisma.deniedListingUrl.findMany({ select: { url: true } });
+    setDynamicDenylist(rows.map((r) => r.url));
+    log?.(`Denylista: ${dynamicDenylistSize()} admin-nekade URL:er laddade.`);
+  } catch (err) {
+    console.error("[denylist] kunde inte läsa DeniedListingUrl:", err instanceof Error ? err.message : err);
+  }
+}
+
 export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promise<ScrapeJobSummary> {
+  await loadAdminDenylist();
   const source = await prisma.scrapeSource.findUnique({ where: { id: sourceId } });
   if (!source) throw new Error(`Okänd källa: ${sourceId}`);
   // Fristående anrop (admin/CLI) laddar sina egna kartor; passet skickar in delade.

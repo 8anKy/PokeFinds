@@ -133,41 +133,41 @@ enum PlanTier {
 // ---------- Auth & användare ----------
 
 model User {
-  id                   String    @id @default(cuid())
-  email                String    @unique
+  id                    String       @id @default(cuid())
+  email                 String       @unique
   // Case-insensitivt unikt (lower(name)) via råmigration User_name_lower_key —
   // kan inte uttryckas här. Kör INTE `migrate dev` så att indexet tappas.
-  name                 String
-  passwordHash         String
-  role                 Role      @default(USER)
-  planTier             PlanTier  @default(FREE)
-  avatarUrl            String?
-  bio                  String?
-  emailVerifiedAt      DateTime?
-  verificationToken    String?   @unique
+  name                  String
+  passwordHash          String
+  role                  Role         @default(USER)
+  planTier              PlanTier     @default(FREE)
+  avatarUrl             String?
+  bio                   String?
+  emailVerifiedAt       DateTime?
+  verificationToken     String?      @unique
   // Referral-Pro (#10): Pro t.o.m. detta datum, intjänat via 3 verifierade
   // inbjudningar. SEPARAT kolumn med flit: planTier ägs av RevenueCat-webhooken
   // (EXPIRATION sätter FREE) och får aldrig kunna nolla en intjänad bonus.
   // isPro()/proUserWhere() räknar båda. Se src/services/invites.ts.
-  bonusProUntil        DateTime?
+  bonusProUntil         DateTime?
   // Stripe (webbens Pro). SEPARAT från planTier av EXAKT samma skäl som
   // bonusProUntil: planTier ägs av RevenueCat-webhooken, vars EXPIRATION sätter
   // FREE ovillkorligt — en utgången Apple-sandbox hade annars kunnat säga upp en
   // betalande webbkund. Datum (inte boolean) → självläkande: missas uppsägningen
   // löper Pro ut ändå. Skrivs BARA av src/app/api/webhooks/stripe/route.ts.
-  stripeCustomerId     String?   @unique
-  stripeSubscriptionId String?
-  stripeProUntil       DateTime?
-  resetToken           String?   @unique
-  resetTokenExpiresAt  DateTime?
-  onboardingCompleted  Boolean   @default(false)
-  notificationSettings Json      @default("{\"email\":true,\"push\":false,\"allRestocks\":false}")
-  lastPushError        String?    // debug: senaste APNs/push-registreringsfel (egen kolumn → ej clobbrad av settings-PATCH)
-  preferences          Json      @default("{}")
-  reputationScore      Int       @default(0)
-  isPublicCollection   Boolean   @default(false)
-  traderaUserId        String? // Traderas userId när kontot är kopplat (för "Sälj på Tradera")
-  traderaToken         String? // AuthToken från FetchToken; behandlas som en hemlighet
+  stripeCustomerId      String?      @unique
+  stripeSubscriptionId  String?
+  stripeProUntil        DateTime?
+  resetToken            String?      @unique
+  resetTokenExpiresAt   DateTime?
+  onboardingCompleted   Boolean      @default(false)
+  notificationSettings  Json         @default("{\"email\":true,\"push\":false,\"allRestocks\":false}")
+  lastPushError         String? // debug: senaste APNs/push-registreringsfel (egen kolumn → ej clobbrad av settings-PATCH)
+  preferences           Json         @default("{}")
+  reputationScore       Int          @default(0)
+  isPublicCollection    Boolean      @default(false)
+  traderaUserId         String? // Traderas userId när kontot är kopplat (för "Sälj på Tradera")
+  traderaToken          String? // AuthToken från FetchToken; behandlas som en hemlighet
   traderaTokenExpiresAt DateTime? // HardExpirationTime — koppla om kontot när denna passeras
   // Discord-koppling (Pro-rollen i vår server).
   // ⛔ Ingen OAuth-token lagras — MEDVETET, till skillnad från traderaToken ovan.
@@ -176,22 +176,22 @@ model User {
   // varken läcka eller behöva deklareras i integritetspolicyn.
   // UNIKT: ett Discord-konto får bära Pro från exakt ETT Foilio-konto, annars
   // kan en delad prenumeration ge Pro-rollen till hur många konton som helst.
-  discordUserId        String?   @unique
-  discordUsername      String? // visningsnamn, bara för att UI:t ska kunna säga VILKET konto
-  discordLinkedAt      DateTime?
+  discordUserId         String?      @unique
+  discordUsername       String? // visningsnamn, bara för att UI:t ska kunna säga VILKET konto
+  discordLinkedAt       DateTime?
   // Kreatörsspårning: vilken TikTok-kreatörs länk kontot skapades via.
   // ⛔ Sätts EN gång, vid registreringen, och skrivs aldrig om — attributionen är
   // ett historiskt faktum om hur kontot uppstod, inte ett föränderligt tillstånd.
   // onDelete: SetNull → en raderad kod tar inte användaren med sig.
-  creatorCodeId        String?
-  creatorCode          CreatorCode? @relation(fields: [creatorCodeId], references: [id], onDelete: SetNull)
-  attributedAt         DateTime?
+  creatorCodeId         String?
+  creatorCode           CreatorCode? @relation(fields: [creatorCodeId], references: [id], onDelete: SetNull)
+  attributedAt          DateTime?
   // När vi senast varnade om att en GRATIS Pro-period är på väg att ta slut.
   // Dubblettspärr för src/jobs/pro-expiry-notice.ts — utan den mejlas samma person
   // varje natt så länge hen ligger i varningsfönstret.
-  proExpiryNotifiedAt  DateTime?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  proExpiryNotifiedAt   DateTime?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 
   watchlistItems  WatchlistItem[]
   setWatches      SetWatch[]
@@ -228,23 +228,23 @@ model User {
 //      (Apples egna offer codes är ett helt separat system i App Store Connect).
 //      Därför ska kreatörslänken landa på webben, inte i butiken.
 model CreatorCode {
-  id String @id @default(cuid())
+  id                    String   @id @default(cuid())
   /// Kanonisk form: VERSALER, [A-Z0-9_-]. Se normalizeCreatorCode() —
   /// koden skrivs av för hand från en video, så "emma" och "EMMA" måste bli samma rad.
-  code        String  @unique
-  creatorName String
+  code                  String   @unique
+  creatorName           String
   /// Var kreatören publicerar (@handle eller URL) — ren dokumentation för oss.
-  channel     String?
-  note        String?
+  channel               String?
+  note                  String?
   /// Stripes promotion_code-id ("promo_…", INTE själva koden). Finns det ett
   /// sådant förifylls rabatten i kassan så användaren slipper skriva koden igen.
   /// Tomt = koden spårar bara, ingen rabatt (fullt giltigt).
   stripePromotionCodeId String?
   /// Avstängd kod slutar attribuera NYA konton. Befintlig attribution rörs aldrig —
   /// historiken är fortfarande sann, och kreatören ska betalas för den.
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   users User[]
 
@@ -302,14 +302,14 @@ model PushToken {
 // ---------- Kortdata ----------
 
 model CardSet {
-  id          String    @id @default(cuid())
-  name        String
-  series      String
-  releaseDate DateTime?
-  logoUrl     String?
-  symbolUrl   String?
-  externalId  String?   @unique
-  totalCards  Int       @default(0)
+  id            String       @id @default(cuid())
+  name          String
+  series        String
+  releaseDate   DateTime?
+  logoUrl       String?
+  symbolUrl     String?
+  externalId    String?      @unique
+  totalCards    Int          @default(0)
   /// Katalogens set kommer från pokemontcg.io, som BARA har engelska set. Japanska
   /// set finns därför inte där och skapas i stället ur Cardmarkets egen expansions-
   /// indelning (se jp-set-label.ts). Kolumnen är inte kosmetisk: JP och EN delar
@@ -317,14 +317,14 @@ model CardSet {
   /// befintliga set PÅ NAMN när pokemontcg.io publicerar dem. Utan språkgrinden
   /// hade den engelska importen svalt det japanska setet och tagit med sig dess
   /// produkter. Varje namnbaserat setuppslag MÅSTE därför filtrera på språk.
-  language    CardLanguage @default(EN)
+  language      CardLanguage @default(EN)
   /// Cardmarkets `idExpansion` — identiteten för japanska set (de har inget
   /// pokemontcg.io-id att lägga i `externalId`, och ett gissat id vore värre än
   /// inget: se regeln om att aldrig sätta ett gissat externalId). Unik: en
   /// CM-expansion är exakt ett set hos oss, vilket också gör importen idempotent.
-  cmExpansionId Int?    @unique
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  cmExpansionId Int?         @unique
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   cards    Card[]
   products Product[]
@@ -360,47 +360,47 @@ model SetWatch {
 }
 
 model Card {
-  id            String       @id @default(cuid())
-  name          String
-  setId         String
-  number        String
-  rarity        String
-  imageUrl      String?
-  language      CardLanguage @default(EN)
-  tcgExternalId String?      @unique
+  id                String       @id @default(cuid())
+  name              String
+  setId             String
+  number            String
+  rarity            String
+  imageUrl          String?
+  language          CardLanguage @default(EN)
+  tcgExternalId     String?      @unique
   // Cardmarket idProduct — identitet för promo-/specialset utan pokemontcg.io-tcgid
   // (t.ex. MEP Black Star Promos). Möjliggör idempotent import + daglig pris-refresh.
-  cardmarketId  Int?         @unique
-  supertype     String?
-  subtype       String?
-  artist        String?
+  cardmarketId      Int?         @unique
+  supertype         String?
+  subtype           String?
+  artist            String?
   // HP — kortets största tryckta tal. Skannerns särskiljare när samlarnumret
   // (~3 px på skärmfoto) inte går att läsa: 28 kort heter exakt "Gyarados",
   // men HP 90 bär bara 3 av dem. Fylls av import-tcg-data + backfill-card-hp
   // från pokemontcg.io. Null för trainers/energi (har inget HP) och kort som
   // saknas uppströms.
-  hp            Int?
+  hp                Int?
   // SAMLARORDNING: sorterbar nyckel för `number` ("1, 2, 3 … 102", inte "1, 10,
   // 100, 11"). Räknas av POSTGRES (GENERATED ALWAYS ... STORED, se migrationen
   // 20260728210000) — skriv den ALDRIG från appen: fältet skickas aldrig i
   // `data`, och en generated-kolumn vägrar INSERT. Att låta databasen äga den är
   // hela poängen: en kolumn importerna måste minnas att fylla i hade sorterat
   // nya kort fel, tyst. Motsvarande JS-komparator: src/lib/card-number-order.ts.
-  numberSortKey String?
+  numberSortKey     String?
   // KONSTAVTRYCK: 264 byte (8×11 celler × RGB, int8) som identifierar kortet på
   // UTSEENDE i stället för på text. Samlarnumret trycks ~2 mm högt och finns
   // helt enkelt inte i en suddig fångst — se src/lib/art-fingerprint.ts för
   // mätningen. Räknas av `scripts/build-art-fingerprints.ts`, INTE av appen.
   // Avsiktligt OINDEXERAT: sökningen är en linjär genomgång i minnet (hela
   // indexet är ~5,4 MB), så ett B-tree-index vore ren skrivkostnad.
-  artFingerprint Bytes?
+  artFingerprint    Bytes?
   // STRUKTURAVTRYCK: 959 byte (255 DCT-tecken + 704 gradienthistogram, int8).
   // Belysningsimmuna särdrag som överlever SKÄRMFOTO/omrendering där färg-
   // avtrycket mätt fallerar (topp-15 38,5 % → 97,1 % med blandningen, se
   // src/lib/art-fingerprint.ts). Byggs av samma build-art-fingerprints.ts.
   structFingerprint Bytes?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   set             CardSet          @relation(fields: [setId], references: [id])
   products        Product[]
@@ -417,17 +417,17 @@ model Card {
 // ---------- Produkter & priser ----------
 
 model Product {
-  id              String          @id @default(cuid())
-  title           String
-  normalizedTitle String
-  slug            String          @unique
-  category        ProductCategory
+  id                 String          @id @default(cuid())
+  title              String
+  normalizedTitle    String
+  slug               String          @unique
+  category           ProductCategory
   // Cardmarket har ofta flera produkter under samma kortnummer (vanlig common +
   // Poké/Master Ball reverse + promo). pokemontcg.io och RapidAPI mappar samma
   // tcgid till OLIKA CM-produkter. variantLabel != null = specialvariant som
   // prissätts via pokemontcg.io-trend (RapidAPI saknar den); null = bas-common
   // som prissätts via RapidAPI From. Se cardmarket-refresh.ts.
-  variantLabel    String?
+  variantLabel       String?
   // Tillverkarens streckkod, normaliserad till GTIN-14 (se src/lib/gtin.ts). Den EXAKTA
   // cross-store-nyckeln: samma nummer står på asken i varje butik i världen. Sätts av
   // auto-importen/backfillen från butikernas feeds (5 av 7 butiker publicerar den).
@@ -435,37 +435,37 @@ model Product {
   // MEDVETET INTE @unique: befintliga katalogdubbletter KROCKAR direkt vid backfill — och
   // krocken ÄR dubbletten vi vill hitta, inte ett fel att krascha på. Unikhet drivs i
   // stället av matchningen (GTIN-träff → länka i stället för att skapa) + konfliktrapporten.
-  gtin            String?
+  gtin               String?
   // Admin-kvittering av GRANSKADE streckkods-konflikter (länkfel-vyn). Lagrar de
   // konfliktdrivande koderna (sorterade, komma-separerade) som en admin markerat OK.
   // Vyn döljer konflikten så länge nyckeln matchar; dyker en NY avvikande kod upp
   // ändras nyckeln → konflikten återuppstår automatiskt. Se src/services/gtin-conflicts.ts.
   gtinConflictAckKey String?
-  cardId          String?
-  setId           String?
-  imageUrl        String?
-  description     String?
-  releaseDate     DateTime?
-  language        CardLanguage    @default(EN)
-  viewCount       Int             @default(0)
-  clickCount      Int             @default(0)
+  cardId             String?
+  setId              String?
+  imageUrl           String?
+  description        String?
+  releaseDate        DateTime?
+  language           CardLanguage    @default(EN)
+  viewCount          Int             @default(0)
+  clickCount         Int             @default(0)
   // "Bäst matchning": produktens KVALITETSpoäng × 1000 (heltal → DB-sorterbart utan
   // flyttal), räknad av qualityScore() i src/services/ranking.ts och skriven en gång
   // per dygn av scrape-all. Utan sökord ÄR den katalogens ordning; med sökord är den
   // ena halvan av relevans × kvalitet. Egen kolumn (inte beräknad vid läsning) därför
   // att feeden pagineras i SQL — en ordning som bara finns i minnet hade bara sorterat
   // den sida vi råkat hämta. Samma skäl som Card.numberSortKey.
-  rankScore       Int             @default(0)
+  rankScore          Int             @default(0)
   // Denormaliserat lägsta prissatta offer-pris (öre) — null = inget pris (gömd ur
   // katalogen tills den får ett pris). Möjliggör DB-nivå prissortering +
   // paginering (infinite scroll) utan att läsa in alla offers. Räknas om av
   // recomputeProductPriceCache() efter scrape/refresh.
-  lowestPriceOre  Int?
+  lowestPriceOre     Int?
   // Senast namn-sökt på Tradera (roterande full-katalog-svep). null = aldrig sökt
   // → prioriteras först. Se src/jobs/tradera-sweep.ts (Fas 0).
-  traderaCheckedAt DateTime?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  traderaCheckedAt   DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
   card              Card?              @relation(fields: [cardId], references: [id])
   set               CardSet?           @relation(fields: [setId], references: [id])
@@ -486,17 +486,17 @@ model Product {
 }
 
 model Retailer {
-  id               String   @id @default(cuid())
-  name             String   @unique
+  id               String     @id @default(cuid())
+  name             String     @unique
   websiteUrl       String
   logoUrl          String?
-  country          String   @default("SE")
-  isActive         Boolean  @default(true)
+  country          String     @default("SE")
+  isActive         Boolean    @default(true)
   sourceType       SourceType @default(MANUAL)
-  affiliateEnabled Boolean  @default(false)
+  affiliateEnabled Boolean    @default(false)
   affiliateParams  String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
 
   offers        Offer[]
   restockEvents RestockEvent[]
@@ -548,8 +548,8 @@ model Offer {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  product   Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
-  retailer  Retailer   @relation(fields: [retailerId], references: [id])
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  retailer  Retailer      @relation(fields: [retailerId], references: [id])
   dealCheck DealCheck?
   reports   OfferReport[]
 
@@ -709,11 +709,11 @@ model WatchlistItem {
 }
 
 model Alert {
-  id          String       @id @default(cuid())
+  id             String       @id @default(cuid())
   userId         String
   productId      String?
-  retailerId     String?      // butiken som utlöste larmet (restock) → mejl länkar direkt dit
-  storeListingId String?      // feed-först-larm (ny produkt/restock utanför katalogen) → mejl bygger på annonsen
+  retailerId     String? // butiken som utlöste larmet (restock) → mejl länkar direkt dit
+  storeListingId String? // feed-först-larm (ny produkt/restock utanför katalogen) → mejl bygger på annonsen
   type           AlertType
   // Lagerövergången som utlöste larmet. Behövs för att mejlet ska kunna säga rätt sak:
   // RESTOCK täcker tre olika händelser som alla slutar "köpbar" — påfyllning
@@ -769,13 +769,13 @@ model Notification {
 // ---------- Samling ----------
 
 model CollectionItem {
-  id             String         @id @default(cuid())
+  id             String        @id @default(cuid())
   userId         String
   cardId         String?
   productId      String?
-  quantity       Int            @default(1)
-  condition      CardCondition  @default(NEAR_MINT)
-  language       CardLanguage   @default(EN)
+  quantity       Int           @default(1)
+  condition      CardCondition @default(NEAR_MINT)
+  language       CardLanguage  @default(EN)
   purchasePrice  Int? // öre
   purchaseDate   DateTime?
   estimatedValue Int? // öre
@@ -785,8 +785,8 @@ model CollectionItem {
   imageUrl       String?
   // Traderas objektnr när objektet lagts ut till försäljning (för auto-borttagning vid sålt).
   traderaItemId  String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   card    Card?    @relation(fields: [cardId], references: [id])
@@ -1015,4 +1015,33 @@ model AnalyticsEvent {
   createdAt DateTime @default(now())
 
   @@index([eventType, createdAt])
+}
+
+// DENYLISTADE BUTIKS-URL:er SATTA FRÅN ADMIN (2026-08-14).
+//
+// `src/scrapers/import-denylist.ts` är en KÄLLFIL — en körande container kan inte
+// skriva i den, så "Ta bort" på produktsidan kunde bara radera offer-raden. URL:en
+// låg kvar i butikens feed, var inte nekad, och nästa skrapning (var 10:e minut)
+// matchade och skapade om den. Mätt 2026-08-13: ägaren tog bort två länkar på
+// Base Set Booster och båda fanns igen inom en minut. Tabellen gör borttagningen
+// permanent.
+//
+// ⛔ `url` lagras NORMALISERAD (normalizeListingUrl i import-denylist.ts): gemener,
+//    utan hash och utan query — UTOM `variant`, som är Shopify-annonsens identitet.
+//    Skriv aldrig en rå URL hit; då matchar den aldrig.
+// ⛔ Ångra = radera raden (scripts/undeny-listing-url.ts). Den statiska listan i
+//    källfilen rörs aldrig härifrån — den är kodgranskad historik.
+model DeniedListingUrl {
+  id          String   @id @default(cuid())
+  /// Normaliserad URL — se normalizeListingUrl().
+  url         String   @unique
+  /// Fritext: varför den togs bort. Sätts av admin-borttagningen.
+  reason      String?
+  /// Produkten den satt på när den togs bort — spårbarhet, ingen FK (produkten kan raderas).
+  productId   String?
+  retailer    String?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
 }

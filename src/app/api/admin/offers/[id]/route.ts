@@ -5,6 +5,8 @@ import { ServiceError } from "@/lib/errors";
 import { writeAuditLog } from "@/services/analytics";
 import { recomputeProductPriceCache } from "@/services/products";
 import { purgeMismatchedMarketplaceOffer } from "@/services/marketplace-offers";
+import { normalizeListingUrl } from "@/scrapers/import-denylist";
+import { isStoreRetailer } from "@/lib/offer-source";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +50,29 @@ export async function DELETE(
       `admin-borttagning av ${admin.email ?? admin.id}`
     );
     if (!purge) await prisma.offer.delete({ where: { id: params.id } });
+
+    // ⛔ ATT RADERA RADEN RÄCKER INTE FÖR EN BUTIKS-OFFER. URL:en ligger kvar i
+    //    butikens feed, och nästa skrapning (var 10:e minut) matchar den och skapar
+    //    om offern — mätt 2026-08-13: ägaren tog bort två länkar på Base Set Booster
+    //    och båda fanns igen inom en minut. "Ta bort" måste betyda borta.
+    //    Marknadsplats-annonser går INTE hit: `purgeMismatchedMarketplaceOffer` har
+    //    redan skrivit en dom på annons-id:t, vilket är deras motsvarighet.
+    // ⛔ URL:en normaliseras med SAMMA funktion som läsningen — en rå URL matchar aldrig.
+    const isStore = !purge && offer.url && isStoreRetailer(offer.retailer?.name ?? "");
+    if (isStore) {
+      const url = normalizeListingUrl(offer.url!);
+      await prisma.deniedListingUrl.upsert({
+        where: { url },
+        update: {},
+        create: {
+          url,
+          reason: `admin-borttagning av ${admin.email ?? admin.id}`,
+          productId: offer.productId,
+          retailer: offer.retailer?.name ?? null,
+          createdById: admin.id,
+        },
+      });
+    }
     await recomputeProductPriceCache();
 
     await writeAuditLog({

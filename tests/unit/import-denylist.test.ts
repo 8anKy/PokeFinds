@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { isDeniedListingUrl } from "../../src/scrapers/import-denylist";
+import { describe, it, expect, afterEach} from "vitest";
+import { isDeniedListingUrl, setDynamicDenylist } from "../../src/scrapers/import-denylist";
 
 // Denylist gör ägarens borttagningar PERMANENTA: nekade URL:er blir aldrig produkter igen.
 describe("isDeniedListingUrl", () => {
@@ -61,5 +61,54 @@ describe("normaliseringen: varianten är identitet, spårning är brus", () => {
     expect(isDeniedListingUrl("https://www.tradera.com/item/1001339/1/en-helt-annan-annons")).toBe(false);
     // …men den ENA avsiktliga Tradera-posten gäller fortfarande.
     expect(isDeniedListingUrl("https://www.tradera.com/item/1001341/742200148/pokemon-tcg-luminous-city-mini-tins")).toBe(true);
+  });
+});
+
+/**
+ * ADMINS EGEN DENYLISTA (2026-08-14) — "Ta bort" ska betyda borta.
+ *
+ * Källfilen kan inte skrivas av en körande container, så admin-borttagningen kunde
+ * bara radera offer-raden. URL:en låg kvar i butikens feed och nästa skrapning
+ * återskapade den — mätt: ägaren tog bort två länkar på Base Set Booster och båda
+ * fanns igen inom en minut. Dynamiska poster kommer nu ur `DeniedListingUrl`.
+ *
+ * ⛔ MODULEN RÖR ALDRIG DATABASEN SJÄLV: `isDeniedListingUrl` anropas en gång per
+ *    annons i loopar med tusentals varv. Anroparen (runner.ts) hämtar raderna EN gång
+ *    per körning och matar in dem här.
+ */
+describe("dynamisk denylista (admins borttagningar)", () => {
+  afterEach(() => setDynamicDenylist([]));
+
+  it("nekar en URL som lagts till dynamiskt", () => {
+    const u = "https://exempelbutik.se/products/nagot-som-inte-ska-finnas";
+    expect(isDeniedListingUrl(u)).toBe(false);
+    setDynamicDenylist([u]);
+    expect(isDeniedListingUrl(u)).toBe(true);
+  });
+
+  it("normaliserar indata — en rå URL med spårning matchar ändå", () => {
+    setDynamicDenylist(["https://Exempelbutik.se/products/VARA?utm_source=mail"]);
+    expect(isDeniedListingUrl("https://exempelbutik.se/products/vara")).toBe(true);
+    expect(isDeniedListingUrl("https://exempelbutik.se/products/vara#pris")).toBe(true);
+  });
+
+  it("behåller variant-precisionen även dynamiskt", () => {
+    const bas = "https://butik.se/products/x";
+    setDynamicDenylist([`${bas}?variant=111`]);
+    expect(isDeniedListingUrl(`${bas}?variant=111`)).toBe(true);
+    expect(isDeniedListingUrl(`${bas}?variant=222`)).toBe(false);
+    expect(isDeniedListingUrl(bas)).toBe(false);
+  });
+
+  it("ersätter listan vid varje laddning — gamla poster hänger inte kvar", () => {
+    setDynamicDenylist(["https://butik.se/products/a"]);
+    setDynamicDenylist(["https://butik.se/products/b"]);
+    expect(isDeniedListingUrl("https://butik.se/products/a")).toBe(false);
+    expect(isDeniedListingUrl("https://butik.se/products/b")).toBe(true);
+  });
+
+  it("den KODGRANSKADE listan gäller oavsett dynamisk laddning", () => {
+    setDynamicDenylist([]);
+    expect(isDeniedListingUrl("https://goblinen.com/products/pokemon-tcg-mega-zygarde-ex-premium-collection")).toBe(true);
   });
 });

@@ -35,7 +35,7 @@
  * ⛔ Övriga parametrar strippas fortfarande med flit: `?utm_source=…`, `?ref=…` och
  *    liknande spårning ändrar inte vilken vara sidan säljer.
  */
-function normUrl(u: string): string {
+export function normalizeListingUrl(u: string): string {
   const trimmed = u.trim().toLowerCase();
   const [path, query = ""] = trimmed.replace(/#.*$/, "").split("?");
   const variant = new URLSearchParams(query).get("variant");
@@ -1043,10 +1043,43 @@ const DENIED = new Set<string>(
     // ── Ägarens katalogbeslut 2026-08-13 (apply-owner-decisions.ts) ──
     // Pokémon Sword & Shield: s1H Shield Expansion Booster Pack (JP) (raderad produkt)
     "https://aquitaz.se/products/pokemon-sword-shield-shield-expansion-booster-pack-5-kort-jp",
-  ].map(normUrl)
+  ].map(normalizeListingUrl)
 );
 
-/** SANT om URL:en är nekad → auto-importen ska ALDRIG skapa en produkt för den. */
+/**
+ * URL:er nekade FRÅN ADMIN (tabellen `DeniedListingUrl`), speglade i minnet.
+ *
+ * ⛔ MODULEN FÅR INTE RÖRA DATABASEN SJÄLV. Den importeras av skrapare, skript och
+ *    tester som inte alla har en anslutning, och `isDeniedListingUrl` anropas EN GÅNG
+ *    PER ANNONS i loopar med tusentals varv — ett uppslag där hade blivit tusentals
+ *    frågor per körning. (Samma lärdom som restock-lanens källcache 2026-07-07: ett
+ *    DB-uppslag per körning höll Neons compute vaken dygnet runt.) Anroparen hämtar
+ *    raderna EN gång och matar in dem här; funktionen förblir synkron.
+ */
+const DYNAMIC = new Set<string>();
+
+/**
+ * Fyller den dynamiska listan. Anropas en gång per skrapkörning av runner.ts, där
+ * databasen ändå är vaken. URL:erna normaliseras här, så anroparen kan skicka råa.
+ */
+export function setDynamicDenylist(urls: readonly string[]): void {
+  DYNAMIC.clear();
+  for (const u of urls) DYNAMIC.add(normalizeListingUrl(u));
+}
+
+/** Antal dynamiska poster — för loggning och för att kunna se att laddningen skett. */
+export function dynamicDenylistSize(): number {
+  return DYNAMIC.size;
+}
+
+/**
+ * SANT om URL:en är nekad → auto-importen ska ALDRIG skapa en produkt för den.
+ *
+ * Två källor: den KODGRANSKADE listan ovan (historik, ändras via PR) och admins
+ * borttagningar (`DeniedListingUrl`). Den statiska listan gäller alltid; den
+ * dynamiska bara efter `setDynamicDenylist` — se varningen där.
+ */
 export function isDeniedListingUrl(url: string): boolean {
-  return DENIED.has(normUrl(url));
+  const n = normalizeListingUrl(url);
+  return DENIED.has(n) || DYNAMIC.has(n);
 }
