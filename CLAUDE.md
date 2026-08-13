@@ -273,8 +273,14 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   ⏸️ **TEAM ROCKET 1st EDITION HÖLLS TILLBAKA** ur ägarens lista: "Team Rocket 1st Edition Booster
   Pack" (7 537 kr) mot "Team Rocket Booster" (Unlimited, CM 3 254 kr) är 2,3× isär — tryckningen är
   identitet, samma regel som håller Base Set delat i tre katalogposter. Kräver uttryckligt besked.
-  ⏭️ **KVAR — väntar på ägaren**: 81 KOREANSKA + 10 kinesiska produkter (kör `purge-blocked-language.ts`,
-  som grindar på samma lagade funktion — mätt: den fångar alla 91), de 74 LLM-dömda paren, och
+  ✅ **SPRÅKRENSNINGEN KÖRD 2026-08-13** (ägarbeslut): `purge-blocked-language.ts` raderade **93**
+  produkter — 81 koreanska + 12 kinesiska. Två fler än titelsökningen på "CHN" gav: `CBB4C`/`CBB6C`
+  "Gem Pack" fångas av den kinesiska produktlinje-regeln, inte av en språktagg. ALLA 93 var skapade
+  2026-08-13, dvs enbart wave 5-kohorten, och ingen låg i någons bevakning eller samling. Omkörning
+  ger nu "Inga blockade språk i katalogen (2 109 sealed granskade)". ⛔ Ingen denylist behövdes:
+  `ensureListingProduct` grindar på `isBlockedListingLanguage` FÖRE allt annat, så den lagade
+  detektorn ÄR den permanenta spärren.
+  ⏭️ **KVAR — väntar på ägaren**: de 74 LLM-dömda paren, och
   **omslagskonstfrågan**: Rogerz säljer vintage booster packs PER OMSLAG → 137 produkter på 38 set.
   MÄTT (`scripts/wrapper-art-report.ts`): 33 av 38 set har IDENTISKT pris på alla omslag, 2 skiljer
   2–16 kr (avrundning) — men i Expedition och WOTC 1999 Base Set kostar **Charizard-omslaget 754 kr
