@@ -266,8 +266,15 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   tecken lika sedan känt brus + accenter fällts. `scoreSimilarity` godkände en gång "Mega Charizard
   X ex Tin" == "Y ex Tin" på 1,00. (`normalizeTitle` kastar för övrigt INTE korta tokens —
   kontrollprov: X/Y överlever — tvärtemot kommentaren i `merge-verified-duplicates.ts`.)
-  ⏭️ **INTE VERKSTÄLLT — väntar på ägaren**: raderingen av de 118 (kör `purge-blocked-language.ts`,
-  som grindar på samma lagade funktion), mergen av de 172, de 74 LLM-dömda paren, och
+  ✅ **ÄGARENS EGEN GENOMGÅNG VERKSTÄLLD 2026-08-13** (`scripts/apply-owner-decisions.ts`, se
+  "ÄGARENS BESLUTSFIL" nedan): 82 beslut → **327 rader sammanslagna + 28 raderade**, och 51
+  herrelösa butiks-URL:er denylistade FÖRE körningen. Kontrollerat före ship: i alla 81 grupper
+  hade noll bortplockade rader mer historik än sitt mål, och noll bar bevakningar/samlingsposter.
+  ⏸️ **TEAM ROCKET 1st EDITION HÖLLS TILLBAKA** ur ägarens lista: "Team Rocket 1st Edition Booster
+  Pack" (7 537 kr) mot "Team Rocket Booster" (Unlimited, CM 3 254 kr) är 2,3× isär — tryckningen är
+  identitet, samma regel som håller Base Set delat i tre katalogposter. Kräver uttryckligt besked.
+  ⏭️ **KVAR — väntar på ägaren**: 81 KOREANSKA + 10 kinesiska produkter (kör `purge-blocked-language.ts`,
+  som grindar på samma lagade funktion — mätt: den fångar alla 91), de 74 LLM-dömda paren, och
   **omslagskonstfrågan**: Rogerz säljer vintage booster packs PER OMSLAG → 137 produkter på 38 set.
   MÄTT (`scripts/wrapper-art-report.ts`): 33 av 38 set har IDENTISKT pris på alla omslag, 2 skiljer
   2–16 kr (avrundning) — men i Expedition och WOTC 1999 Base Set kostar **Charizard-omslaget 754 kr
@@ -992,6 +999,28 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   "22 233 produkter" hade blivit 500 för varje inloggad besökare och den oändliga scrollen tagit slut där.
   Personligt lyft gäller när träffmängden ryms i fönstret (valt set/kategori) eller vid sökning. Personaliserade
   svar går dessutom FÖRBI `cachedRead`/CDN — annars ligger en användares ordning kvar i en delad cache.
+- **ÄGARENS BESLUTSFIL: LÄNKAR IN, MERGAR UT (2026-08-13)**: ägaren går igenom katalogen och
+  skriver sitt EGET format — `Duplicates` / länkar / `Go to` / länk, tomrad mellan grupper,
+  `Delete`-rubrik för raderingar. `scripts/apply-owner-decisions.ts` läser filen; parsern bor i
+  `scripts/lib/owner-decisions.ts` med 25 tester, för det är TOLKNINGEN som avgör vilken produkt
+  som överlever. Torrkörning som default, och den skriver ut produkternas RIKTIGA titlar — en
+  felklistrad länk syns bara om man ser vad den faktiskt pekar på.
+  ⛔ **FLERA LÄNKAR PER RAD MÅSTE LÄSAS ALLA**: ägaren skriver "These &lt;A&gt; &lt;B&gt;", och en parser som
+  tog den första hade TYST lämnat kvar B som en dubblett ingen visste fanns. Tyst bortfall är det
+  farligaste utfallet här. ⛔ `go(?:es)?\s*to`, INTE `goes?` — det senare betyder "goe" med valfritt
+  "s" och matchar aldrig "Go to", vilket är just vad ägaren skriver; MÅLET hamnade då i bort-listan.
+  ⛔ **EN UPPREPNING ÄR INTE ALLTID ETT FEL**: samma URL två gånger i raderingslistan är harmlöst och
+  dedupliceras. Det som fälls är motstridiga ROLLER — mål på ett ställe och bortplockad på ett annat,
+  eller bortplockad i två olika mergar (vilket mål gäller?).
+  ⛔ **HERRELÖSA URL:er ÄR HUVUDFÄLLAN, OCH DEN GÄLLER MERGAR OCKSÅ.** `Offer` är unik på (produkt,
+  butik, skick, språk), så en stubs offer som krockar med målets RADERAS av `mergeStubInto` — URL:en
+  blir herrelös och auto-importen skapar om stubben inom minuter (mätt 2026-07-14: tre stubbar
+  återuppstod efter sju minuter). Efter titeltvätten är det värre: URL:en matchar numera MÅLET och
+  skriver över dess offer varje körning, så länk och pris VÄXLAR mellan listningarna. MÄTT: 166 av
+  wave 5:s 172 momsmergar drabbas. Ordningen är därför `--write-denylist` → commit + push → `--apply`,
+  och raderingar VÄGRAR köra innan URL:en är nekad.
+  ⛔ Efter en körning: `recompute-price-cache.ts` OCH en färsk ruttabell (workflow "Ruttabell för
+  Discord-larm (manuell)") — annars länkar Discord-inlägg till produkt-id:n som inte finns kvar.
 - **"NYLIGEN TILLAGD" ÄR ADMIN-ONLY, OCH GRINDEN SITTER PÅ TRE STÄLLEN (2026-08-13)**: sorteringen
   ordnar katalogen på `Product.createdAt` (nyast först) och finns för att kunna granska vad en
   butiksvåg drog in. Alla tre grindarna behövs: (1) menyn i `/produkter` byggs ur en filtrerad
