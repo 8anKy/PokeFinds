@@ -939,6 +939,12 @@ const DENIED = new Set<string>(
     "https://aquitaz.se/products/pokemon-mega-mega-brave-pokemon-center-collection-box-60-pack-jp",
     // Pokémon Sun & Moon: Umbreon GX Premium Collection Box (ENG) (raderad produkt)
     "https://aquitaz.se/products/pokemon-sun-moon-umbreon-gx-premium-collection-box-6-pack-eng",
+    // ── Ägarens katalogbeslut 2026-08-13 (apply-owner-decisions.ts) ──
+    // Pokémon MEGA: MEGA Card GYM Vol. 1 Promo Booster Pack (JP) (offer krockar med målets)
+    "https://aquitaz.se/products/pokemon-mega-mega-card-gym-vol-1-promo-booster-pack-1-kort-jp",
+    // Pokémon Base Set Vintage Booster Pack (ENG) (offer krockar med målets)
+    "https://aquitaz.se/products/pokemon-base-set-vintage-booster-pack-blastoise-artwork-11-kort-eng",
+    "https://aquitaz.se/products/pokemon-base-set-vintage-booster-pack-charizard-artwork-11-kort-eng",
   ].map(normUrl)
 );
 
