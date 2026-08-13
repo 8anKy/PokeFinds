@@ -1081,6 +1081,23 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   vars SAMTLIGA butiks-URL:er är nekade och håller undan allt med historik/bevakning utan `--force`.
   ⛔ Efter en körning: `recompute-price-cache.ts` OCH en färsk ruttabell (workflow "Ruttabell för
   Discord-larm (manuell)") — annars länkar Discord-inlägg till produkt-id:n som inte finns kvar.
+- **"TA BORT" PÅ EN BUTIKSLÄNK BETYDER BORTA (2026-08-14)**: admin-borttagningen raderade bara
+  offer-raden. URL:en låg kvar i butikens feed och var inte nekad, så nästa skrapning (var 10:e
+  minut) matchade den och skapade om offern — MÄTT: ägaren tog bort två länkar på Base Set Booster,
+  båda fanns igen inom en minut. Går inte att lösa i `import-denylist.ts`: den är en KÄLLFIL och en
+  körande container kan inte skriva i den. Därför tabellen **`DeniedListingUrl`**, som endpointen
+  skriver till; `isDeniedListingUrl` läser BÅDA källorna (kodgranskad lista + admins egna).
+  ⛔ **MODULEN RÖR ALDRIG DB:N SJÄLV** — `isDeniedListingUrl` anropas en gång PER ANNONS i loopar
+  med tusentals varv. Runner hämtar raderna EN gång per jobb (`loadAdminDenylist` →
+  `setDynamicDenylist`) och funktionen förblir synkron. Samma lärdom som restock-lanens källcache
+  2026-07-07, där ETT uppslag per körning räckte för att hålla computen vaken dygnet runt.
+  I restock-lanen laddas de EFTER `ensureDbAwake` — fas 1 förblir ren HTTP.
+  ⛔ **BARA BUTIKS-OFFERS**: marknadsplatsannonser går redan genom purge-receptet (dom på annons-id).
+  ⛔ **EN FEL LÄNK SKA FLYTTAS, INTE TAS BORT.** Knappen nekar URL:en permanent, vilket är rätt när
+  listningen inte hör hemma alls — men fel när den bara sitter på FEL produkt. Aquitaz/Rogerz sålde
+  "Scarlet & Violet: Base Set Booster Pack" med länken på Base Set Booster (WOTC 1999, CM 5 074 kr)
+  ⇒ produktsidan visade "Lägsta pris 91 kr". Hade de nekats i stället för flyttats hade den RÄTTA
+  produkten förlorat två av sina fjorton butiker. Ångra = `scripts/undeny-listing-url.ts`.
 - **"NYLIGEN TILLAGD" ÄR ADMIN-ONLY, OCH GRINDEN SITTER PÅ TRE STÄLLEN (2026-08-13)**: sorteringen
   ordnar katalogen på `Product.createdAt` (nyast först) och finns för att kunna granska vad en
   butiksvåg drog in. Alla tre grindarna behövs: (1) menyn i `/produkter` byggs ur en filtrerad
