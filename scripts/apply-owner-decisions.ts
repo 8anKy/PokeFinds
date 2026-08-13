@@ -201,7 +201,13 @@ async function main() {
   for (const g of deletes) {
     for (const s of g.drop) {
       const p = bySlug.get(s)!;
-      const open = p.offers.filter((o) => o.url && !isDeniedListingUrl(o.url));
+      // ⛔ SAMMA URVAL SOM DENYLIST-INSAMLINGEN, annars blockerar vakten en radering
+      //    som aldrig KAN avblockeras: en produkt vars enda kvarvarande länk är en
+      //    Tradera-annons denylistas med flit inte (listan läses bara av
+      //    ensureListingProduct, som hämtar ur butiksfeedar), så en vakt som räknar
+      //    marknadsplatslänkar väntar för evigt på en post som aldrig skrivs.
+      //    Upptäckt i omgång 3: två raderingar fastnade i just den slingan.
+      const open = p.offers.filter((o) => o.url && isStoreRetailer(o.retailer.name) && !isDeniedListingUrl(o.url));
       if (open.length) blockedDeletes.add(s);
     }
   }
