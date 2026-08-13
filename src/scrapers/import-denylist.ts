@@ -1040,6 +1040,9 @@ const DENIED = new Set<string>(
     "https://aquitaz.se/products/pokemon-scarlet-violet-gym-vol-2-promo-booster-pack-7-kort-jp",
     // Pokémon Scarlet & Violet: GYM Vol. 10 Promo Booster Pack (JP) (raderad produkt)
     "https://aquitaz.se/products/pokemon-xy-gym-vol-10-promo-booster-pack-1-kort-jp",
+    // ── Ägarens katalogbeslut 2026-08-13 (apply-owner-decisions.ts) ──
+    // Pokémon Sword & Shield: s1H Shield Expansion Booster Pack (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-sword-shield-shield-expansion-booster-pack-5-kort-jp",
   ].map(normUrl)
 );
 

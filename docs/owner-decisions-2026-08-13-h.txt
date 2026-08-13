@@ -1,0 +1,8 @@
+# ⏸ HÅLLS TILLBAKA — se frågan i svaret. Stubben heter "Charizard X" men målet är
+# Y-tinen. Både mega-charizard-x-ex-tin (16 offer) och mega-charizard-y-ex-tin
+# (13 offer) finns, och i omgång 2 gick X-stubbarna till X-tinen.
+# This https://www.foilio.se/en/produkter/mega-charizard-collector-s-tin-box-charizard-x
+# Go to https://www.foilio.se/en/produkter/mega-charizard-y-ex-tin
+
+DELETE
+https://www.foilio.se/en/produkter/pokemon-sword-shield-s1h-shield-expansion-booster-pack-jp
