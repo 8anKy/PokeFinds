@@ -292,6 +292,84 @@ const DENIED = new Set<string>(
     "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-brave-stars-cs5b",
     // [S-CHN] Pokémon Jumbo-BOOSTERPACK - Brave Stars (CS5b) (raderad produkt)
     "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-brave-stars-cs5b-kopie",
+    // ── Ägarens katalogbeslut 2026-08-13 (apply-owner-decisions.ts) ──
+    // Dragon Storm Booster Box (offer krockar med målets)
+    "https://www.cardmarket.com/en/Pokemon/Products?idProduct=551776&language=7",
+    // Tidal Storm Booster Box (offer krockar med målets)
+    "https://www.cardmarket.com/en/Pokemon/Products?idProduct=552239&language=7",
+    // Space Juggler Booster Box (s10P)(Japansk) (offer krockar med målets)
+    "https://www.tradera.com/item/1001340/737534925/pokemon-space-juggler-s10p-booster-box-japanese",
+    // Shiny Star V Limited Booster Box Set (offer krockar med målets)
+    "https://www.cardmarket.com/en/Pokemon/Products?idProduct=522555&language=7",
+    // Evolutions 3-pack Blister (X & Y) - Braixen / Alm. moms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-evolutions-3-pack-blister?variant=46990550270283",
+    // Team Up 1-pack Blister (Sun & Moon) - Pikachu / Alm. moms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-team-up-1-pack-blister?variant=47184794747211",
+    // Team Up 1-pack Blister (Sun & Moon) - Mimikyu / Alm. moms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-team-up-1-pack-blister?variant=47184794714443",
+    // EX Deoxys Booster Pack - Deoxys (Blå) / Brugtmoms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-ex-deoxys-booster-pack?variant=57143756292427",
+    // EX Deoxys Booster Pack - Deoxys - (Grøn) / Brugtmoms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-ex-deoxys-booster-pack?variant=57143756259659",
+    // EX Deoxys Booster Pack - Deoxys - (Gul) / Brugtmoms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-ex-deoxys-booster-pack?variant=57143756226891",
+    // Prismatic Evolutions Pokémon Center Elite Trainer Box (offer krockar med målets)
+    "https://www.tradera.com/item/1001341/740329962/prismatic-evolutions-pok%C3%A9mon-center-elite-trainer-box",
+    // Ascended Heroes Pokémon Center Elite Trainer Box (offer krockar med målets)
+    "https://www.tradera.com/item/1001341/744751379/ascended-heroes-pokemon-center-etb",
+    // Mega Evolution Base Set Elite Trainer Box - Gardevoir / Brugtmoms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-mega-evolution-base-set-elite-trainer-box?variant=57143680631115",
+    // Mega Evolution Base Set Elite Trainer Box - Lucario / Brugtmoms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-mega-evolution-base-set-elite-trainer-box?variant=57143680598347",
+    // Back to School 2023 Eraser Blister Pack - Lechonk/Smoliv - Smoliv / Alm. moms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-back-to-school-2023-eraser-blister-pack-lechonk-smoliv?variant=51403563139403",
+    // Back to School 2023 Eraser Blister Pack - Lechonk/Smoliv - Lechonk / Alm. moms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-back-to-school-2023-eraser-blister-pack-lechonk-smoliv?variant=51403563106635",
+    // Slashing Legends Collector's Tin - Koraidon / Alm. moms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-slashing-legends-collectors-tin?variant=51860802928971",
+    // Slashing Legends Collector's Tin - Zacian / Alm. moms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-slashing-legends-collectors-tin?variant=51860802896203",
+    // Greninja Ultra-Premium Collection (offer krockar med målets)
+    "https://www.tradera.com/item/1001341/738765124/pok%C3%A9mon-tcg-greninja-ex-ultra-premium-collection",
+    // Scarlet & Violet - 151 Ultra-Premium Collection (Scarlet & Violet 3.5) (offer krockar med målets)
+    "https://www.tradera.com/item/1001341/745001135/pok%C3%A9mon-scarlet-violet-151-ultra-premium-collection-upc-",
+    // Pokémon Sword & Shield Charizard Ultra-Premium Collection (offer krockar med målets)
+    "https://www.tradera.com/item/1001341/744510562/pok%C3%A9mon-sword-shield-ultra-premium-collection-charizard",
+    // Pokémon Sword & Shield: Celebrations Ultra-Premium Collection (ENG) (offer krockar med målets)
+    "https://www.tradera.com/item/1001341/742557228/pok%C3%A9mon-celebrations-25th-anniversary-ultra-premium-collection-eng",
+    // Greninja/Kingdra ex Special Illustration Collection Box (Scarlet & Violet) - Greninja / Alm. moms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-greninja-kingdra-ex-special-illustration-collection?variant=49902071120203",
+    // Greninja/Kingdra ex Special Illustration Collection Box (Scarlet & Violet) - Kingdra / Alm. moms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-greninja-kingdra-ex-special-illustration-collection?variant=49902071152971",
+    // Abyss Eye Booster Box - Japansk (Mega Evolution) (offer krockar med målets)
+    "https://www.tradera.com/item/1001340/742378871/pok%C3%A9mon-mega-abyss-eye-booster-box-japansk-",
+    // Poke Ball Tin Fall 2025 (E25) (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-poke-ball-tin-fall-2025",
+    // Poké Ball Tin 2025 (raderad produkt)
+    "https://tcgstore.se/products/pokemon-tcg-poke-ball-tin-2025",
+    // Pokemon GO Pokeball Tin (raderad produkt)
+    "https://speltrollet.se/products/of-course-p-p-the-pokemon-tcg-pokemon-go-poke-ball-tin-contains-p-ul-li-3-pokemon-tcg-pokemon-go-booster-packs-li-li-2-sticker-sheets-li-li-br-li-ul",
+    // Jungle Booster Box - Unlimited (Belgium edt.) (raderad produkt)
+    "https://rogerz.dk/products/jungle-booster-box-unlimited",
+    // Gym Heroes Booster Box (Wizards of the Coast) (raderad produkt)
+    "https://rogerz.dk/products/pokemon-gym-heroes-booster-box",
+    // Gym Challenge Booster Box (Wizards of the Coast) (raderad produkt)
+    "https://rogerz.dk/products/pokemon-gym-challenge-booster-box",
+    // Neo Genesis Booster Box (Wizards of the Coast) (raderad produkt)
+    "https://rogerz.dk/products/pokemon-neo-genesis-booster-box",
+    // Scarlet & Violet Anytime, Anywhere Battle Academy (raderad produkt)
+    "https://aquitaz.se/products/pokemon-scarlet-violet-anytime-anywhere-battle-academy-collection-box-jp",
+    "https://www.cardmarket.com/en/Pokemon/Products?idProduct=754822&language=7",
+    // Gym Heroes Booster Pack - 1st Edition (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-gym-heroes-booster-pack-1st-edition",
+    // Gym Challenge Booster Pack - 1st Edition (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-gym-challenge-booster-pack-1st-edition",
+    // Jungle Booster Box - 1st Edition (Wizards of the Coast) (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-jungle-booster-box-1st-edition-wizards-of-the-coast",
+    // Fossil Booster Box - 1st Edition (Wizards of the Coast) (raderad produkt)
+    "https://rogerz.dk/products/pokemon-fossil-booster-box-1st-edition",
+    // Team Rocket Booster Box - 1st Edition (Wizards of the Coast) (raderad produkt)
+    "https://rogerz.dk/products/pokemon-team-rocket-booster-box-1st-edition",
   ].map(normUrl)
 );
 
