@@ -12,9 +12,35 @@
  * och kostar noll runtime.) Matchning sker på NORMALISERAD URL, se normUrl.
  */
 
-/** Normaliserar en URL för jämförelse: gemener, utan query/hash, utan avslutande slash. */
+/**
+ * Normaliserar en URL för jämförelse: gemener, utan hash, utan avslutande slash,
+ * och utan query — MED ETT UNDANTAG: `variant` behålls.
+ *
+ * ⛔ VARFÖR UNDANTAGET FINNS (2026-08-13). Shopifys `?variant=` ÄR annonsens identitet:
+ *    vår egen ShopifyAdapter delar en produktsida i en annons per variant, och en
+ *    butik som Rogerz säljer åtta olika varor (fyra omslag × två momsordningar) på
+ *    EN sida. Med query-strippning blev alla åtta samma nyckel, så att neka EN
+ *    variant nekade HELA sidan — inklusive den variant som lagligen sitter på den
+ *    kanoniska produkten. Följden: kanonprodukten hoppas över i skraparen
+ *    (`runner.ts` avvisar nekade URL:er även när offern redan finns), priset fryser
+ *    och offern dör. Mätt: 22 kanoniska vintage-produkter — Aquapolis, Expedition,
+ *    Arceus … — hade sin LEVANDE Rogerz-offer nekad.
+ *
+ * ⛔ OCH DET SLOG BREDARE ÄN SÅ: `.../Products?idProduct=271864` normaliserades till
+ *    `.../products`, så EN inlagd Cardmarket-URL nekade varje Cardmarket-produkt.
+ *    Marknadsplats-URL:er hör aldrig hemma i listan (den läses bara av
+ *    ensureListingProduct, som skapar produkter ur BUTIKSFEEDAR) — de som råkade
+ *    hamna här är borttagna.
+ *
+ * ⛔ Övriga parametrar strippas fortfarande med flit: `?utm_source=…`, `?ref=…` och
+ *    liknande spårning ändrar inte vilken vara sidan säljer.
+ */
 function normUrl(u: string): string {
-  return u.trim().toLowerCase().replace(/[?#].*$/, "").replace(/\/+$/, "");
+  const trimmed = u.trim().toLowerCase();
+  const [path, query = ""] = trimmed.replace(/#.*$/, "").split("?");
+  const variant = new URLSearchParams(query).get("variant");
+  const base = path.replace(/\/+$/, "");
+  return variant ? `${base}?variant=${variant}` : base;
 }
 
 // Nekade URL:er (redan normaliserade). Grupperade efter borttagen produkt.
@@ -93,6 +119,9 @@ const DENIED = new Set<string>(
     // egen hopsättning, inte en tillverkar-SKU — de har inget pris att jämföra
     // mellan butiker och hör därför inte hemma i en priskatalog.
     "https://www.swepoke.se/pokemon/mystery-box/swepoke-mysterybox",
+    // Tradera-annons för samma sortiments-tin. En Tradera-ITEM-URL bär identiteten i
+    // SÖKVÄGEN och normaliseras därför precist — till skillnad från Cardmarket, vars
+    // idProduct ligger i queryn och som därför aldrig får stå i den här listan.
     "https://www.tradera.com/item/1001341/742200148/pokemon-tcg-luminous-city-mini-tins",
     "https://manatorsk.com/products/pokemon-mini-tin-luminose-city-alla-fem-tins-max-1st-per-hushall",
     // ── Ägarens kataloggenomgång 2026-08-08 (apply-owner-catalog-cleanup-2026-08-08.ts) ──
@@ -192,9 +221,7 @@ const DENIED = new Set<string>(
     "https://www.poketalk.se/products/pokemon-scarlet-violet-prismatic-evolutions-booster-bundle-1",
     // ── Ägarens katalogbeslut 2026-08-13 (apply-owner-decisions.ts) ──
     // [JP] Pokémon BOOSTERPACK - Glory of Team Rocket (SV10) (offer krockar med målets)
-    "https://www.tradera.com/item/1001339/721590995/pok%C3%A9mon-glory-of-team-rocket-booster-pack-jp-sv10-",
     // Inferno X Booster Pack Japansk (offer krockar med målets)
-    "https://www.tradera.com/item/1001339/720305768/pok%C3%A9mon-inferno-x-booster-pack-japansk-m2-",
     // Pokémon WOTC: Neo Genesis Booster Pack - Feraligatr (offer krockar med målets)
     "https://www.poketalk.se/products/pokemon-wotc-neo-genesis-booster-pack?variant=52365478461782",
     // Pokémon WOTC: Neo Genesis Booster Pack - Meganium (offer krockar med målets)
@@ -203,39 +230,24 @@ const DENIED = new Set<string>(
     "https://www.poketalk.se/products/pokemon-wotc-neo-genesis-booster-pack?variant=52365478396246",
     // Pokémon Mega: Nihil Zero (M3) Booster – JAPANSK (offer krockar med målets)
     "https://cardgame.se/engelska-pokmon-produkter/japansktkinesiskt/booster-boxar/nihil-zero-japansk",
-    "https://www.tradera.com/item/1001339/721530411/pok%C3%A9mon-mega-nihil-zero-booster-pack-jp-",
     // [JP] Pokémon BOOSTERPACK - Cyber Judge (SV5M) (offer krockar med målets)
-    "https://www.tradera.com/item/1001339/720305769/pok%C3%A9mon-cyber-judge-booster-pack-jp-sv5m-",
     // [JP] Pokémon BOOSTERPACK - Stellar Miracle (SV7) (offer krockar med målets)
-    "https://www.tradera.com/item/1001339/727090510/pok%C3%A9mon-stellar-miracle-sv7-booster-pack-5-kort-jp-",
     // Pokémon Scarlet & Violet: Stellar Miracle Booster Pack (JP) (offer krockar med målets)
-    "https://www.tradera.com/item/1001339/727090510/pok%C3%A9mon-stellar-miracle-sv7-booster-pack-5-kort-jp-",
     // [JP] Pokémon BOOSTERPACK - Battle Partners (SV9) (offer krockar med målets)
-    "https://www.tradera.com/item/1001339/673967025/pok%C3%A9mon-battle-partners-booster-pack-japanskt-",
     // Pokémon Scarlet & Violet: Battle Partners Booster Pack (JP) (offer krockar med målets)
-    "https://www.tradera.com/item/1001339/704224957/pok%C3%A9mon-scarlet-violet-battle-partners-booster-pack-japanskt-sv9-",
     // [JP] Pokémon BOOSTERPACK - Mega Brave (M1L) (offer krockar med målets)
-    "https://www.tradera.com/item/1001339/689761145/pokemon-mega-brave-booster-pack-1-jp-m1l-",
     // [JP] Pokémon BOOSTERPACK - Mega Symphonia (M1S) (offer krockar med målets)
-    "https://www.tradera.com/item/1001339/744340934/pokemon-mega-mega-symphonia-booster-pack-m1s-japanska",
     // Paldea Evolved 1-Pack Checklane Booster Pack - Smoliv / Alm. moms (offer krockar med målets)
     "https://rogerz.dk/products/pokemon-tcg-paldea-evolved-1-pack-checklane-booster-pack?variant=51778464252235",
     // Paldea Evolved 1-Pack Checklane Booster Pack - Growlithe / Alm. moms (offer krockar med målets)
     "https://rogerz.dk/products/pokemon-tcg-paldea-evolved-1-pack-checklane-booster-pack?variant=51778464219467",
     // Dark Explorers Booster Pack (Black & White) - Darkrai / Brugtmoms (offer krockar med målets)
-    "https://www.tradera.com/item/1001339/741530740/booster-paket-1-st-pokemon-b-w-dark-explorers-darkrai-nytt",
     // Boundaries Crossed Booster Pack (Black & White) - Black Kyurem / Brugtmoms (offer krockar med målets)
-    "https://www.tradera.com/item/1001339/741529864/booster-paket-1-st-pokemon-b-w-boundaries-crossed-black-kyurem-nytt",
     // Boundaries Crossed Booster Pack (Black & White) - Landorus / Brugtmoms (offer krockar med målets)
-    "https://www.tradera.com/item/1001339/741529759/booster-paket-1-st-pokemon-b-w-boundaries-crossed-landorus-nytt",
     // Plasma Freeze Booster Pack (Black & White) - Thundurus / Brugtmoms (offer krockar med målets)
-    "https://www.tradera.com/item/1001339/741530031/booster-paket-1-st-pokemon-b-w-plasma-freeze-thundurus-nytt",
     // Plasma Freeze Booster Pack (Black & White) - Bisharp / Brugtmoms (offer krockar med målets)
-    "https://www.tradera.com/item/1001339/741530231/booster-paket-1-st-pokemon-b-w-plasma-freeze-bisharp-nytt",
     // Plasma Freeze Booster Pack (Black & White) - Deoxys / Brugtmoms (offer krockar med målets)
-    "https://www.tradera.com/item/1001339/741530034/booster-paket-1-st-pokemon-b-w-plasma-freeze-deoxys-nytt",
     // Plasma Freeze Booster Pack (Black & White) - Absol / Brugtmoms (offer krockar med målets)
-    "https://www.tradera.com/item/1001339/741530133/booster-paket-1-st-pokemon-b-w-plasma-freeze-absol-nytt",
     // HS Triumphant Booster Pack Artwork Set (raderad produkt)
     "https://rogerz.dk/products/pokemon-hs-triumphant-booster-pack-artwork-set",
     // [S-CHN] Pokémon Jumbo-BOOSTERPACK - Brave Stars (CS5a) (raderad produkt)
@@ -294,13 +306,9 @@ const DENIED = new Set<string>(
     "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-brave-stars-cs5b-kopie",
     // ── Ägarens katalogbeslut 2026-08-13 (apply-owner-decisions.ts) ──
     // Dragon Storm Booster Box (offer krockar med målets)
-    "https://www.cardmarket.com/en/Pokemon/Products?idProduct=551776&language=7",
     // Tidal Storm Booster Box (offer krockar med målets)
-    "https://www.cardmarket.com/en/Pokemon/Products?idProduct=552239&language=7",
     // Space Juggler Booster Box (s10P)(Japansk) (offer krockar med målets)
-    "https://www.tradera.com/item/1001340/737534925/pokemon-space-juggler-s10p-booster-box-japanese",
     // Shiny Star V Limited Booster Box Set (offer krockar med målets)
-    "https://www.cardmarket.com/en/Pokemon/Products?idProduct=522555&language=7",
     // Evolutions 3-pack Blister (X & Y) - Braixen / Alm. moms (offer krockar med målets)
     "https://rogerz.dk/products/pokemon-evolutions-3-pack-blister?variant=46990550270283",
     // Team Up 1-pack Blister (Sun & Moon) - Pikachu / Alm. moms (offer krockar med målets)
@@ -314,9 +322,7 @@ const DENIED = new Set<string>(
     // EX Deoxys Booster Pack - Deoxys - (Gul) / Brugtmoms (offer krockar med målets)
     "https://rogerz.dk/products/pokemon-tcg-ex-deoxys-booster-pack?variant=57143756226891",
     // Prismatic Evolutions Pokémon Center Elite Trainer Box (offer krockar med målets)
-    "https://www.tradera.com/item/1001341/740329962/prismatic-evolutions-pok%C3%A9mon-center-elite-trainer-box",
     // Ascended Heroes Pokémon Center Elite Trainer Box (offer krockar med målets)
-    "https://www.tradera.com/item/1001341/744751379/ascended-heroes-pokemon-center-etb",
     // Mega Evolution Base Set Elite Trainer Box - Gardevoir / Brugtmoms (offer krockar med målets)
     "https://rogerz.dk/products/pokemon-tcg-mega-evolution-base-set-elite-trainer-box?variant=57143680631115",
     // Mega Evolution Base Set Elite Trainer Box - Lucario / Brugtmoms (offer krockar med målets)
@@ -330,19 +336,14 @@ const DENIED = new Set<string>(
     // Slashing Legends Collector's Tin - Zacian / Alm. moms (offer krockar med målets)
     "https://rogerz.dk/products/pokemon-tcg-slashing-legends-collectors-tin?variant=51860802896203",
     // Greninja Ultra-Premium Collection (offer krockar med målets)
-    "https://www.tradera.com/item/1001341/738765124/pok%C3%A9mon-tcg-greninja-ex-ultra-premium-collection",
     // Scarlet & Violet - 151 Ultra-Premium Collection (Scarlet & Violet 3.5) (offer krockar med målets)
-    "https://www.tradera.com/item/1001341/745001135/pok%C3%A9mon-scarlet-violet-151-ultra-premium-collection-upc-",
     // Pokémon Sword & Shield Charizard Ultra-Premium Collection (offer krockar med målets)
-    "https://www.tradera.com/item/1001341/744510562/pok%C3%A9mon-sword-shield-ultra-premium-collection-charizard",
     // Pokémon Sword & Shield: Celebrations Ultra-Premium Collection (ENG) (offer krockar med målets)
-    "https://www.tradera.com/item/1001341/742557228/pok%C3%A9mon-celebrations-25th-anniversary-ultra-premium-collection-eng",
     // Greninja/Kingdra ex Special Illustration Collection Box (Scarlet & Violet) - Greninja / Alm. moms (offer krockar med målets)
     "https://rogerz.dk/products/pokemon-greninja-kingdra-ex-special-illustration-collection?variant=49902071120203",
     // Greninja/Kingdra ex Special Illustration Collection Box (Scarlet & Violet) - Kingdra / Alm. moms (offer krockar med målets)
     "https://rogerz.dk/products/pokemon-greninja-kingdra-ex-special-illustration-collection?variant=49902071152971",
     // Abyss Eye Booster Box - Japansk (Mega Evolution) (offer krockar med målets)
-    "https://www.tradera.com/item/1001340/742378871/pok%C3%A9mon-mega-abyss-eye-booster-box-japansk-",
     // Poke Ball Tin Fall 2025 (E25) (raderad produkt)
     "https://rogerz.dk/products/pokemon-tcg-poke-ball-tin-fall-2025",
     // Poké Ball Tin 2025 (raderad produkt)
@@ -359,7 +360,6 @@ const DENIED = new Set<string>(
     "https://rogerz.dk/products/pokemon-neo-genesis-booster-box",
     // Scarlet & Violet Anytime, Anywhere Battle Academy (raderad produkt)
     "https://aquitaz.se/products/pokemon-scarlet-violet-anytime-anywhere-battle-academy-collection-box-jp",
-    "https://www.cardmarket.com/en/Pokemon/Products?idProduct=754822&language=7",
     // Gym Heroes Booster Pack - 1st Edition (offer krockar med målets)
     "https://rogerz.dk/products/pokemon-gym-heroes-booster-pack-1st-edition",
     // Gym Challenge Booster Pack - 1st Edition (offer krockar med målets)
