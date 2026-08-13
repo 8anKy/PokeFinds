@@ -822,6 +822,123 @@ const DENIED = new Set<string>(
     "https://rogerz.dk/products/fossil-booster-pack-unlimited?variant=47723206345035",
     // Fossil Booster Pack - Unlimited - Aerodactyl / Alm. moms (raderad produkt)
     "https://rogerz.dk/products/fossil-booster-pack-unlimited?variant=47723208966475",
+    // ── Ägarens katalogbeslut 2026-08-13 (apply-owner-decisions.ts) ──
+    // Pokémon Mega Evolution: Mega Evolution Checklane Blister 1-Pack Blisters (Drifblim) (ENG) (offer krockar med målets)
+    "https://aquitaz.se/products/pokemon-mega-evolution-mega-evolution-1-pack-blisters-drifblim-eng",
+    // Pokemon Scarlet & Violet 4.5 - Paldean Fates Tin Charizard (offer krockar med målets)
+    "https://speltrollet.se/products/copy-of-pokemon-scarlet-violet-4-5-paldean-fates-mini-tin-display-1",
+    // Pokemon ME02 Phantasmal Flames Elite Trainer - Speltrollet Collector Edition (offer krockar med målets)
+    "https://speltrollet.se/products/pokemon-me02-phantasmal-flames-elite-trainer-speltrollet-collector-edition",
+    // Call of Legends Booster Pack - Deoxys / Alm. moms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-call-of-legends-booster-pack?variant=50438632702283",
+    // Pokémon: Classic Collection Box (Japansk) (raderad produkt)
+    "https://kantovault.se/products/pokemon-classic-collection-box-japansk",
+    "https://tcgstore.se/products/pokemon-japansk-classic-collection",
+    // Pokemon GO Premium Collection Dragonite V Star (raderad produkt)
+    "https://speltrollet.se/products/pokemon-go-premium-collection-dragonite-v-star",
+    // Black Sparkle Booster (raderad produkt)
+    "https://aquitaz.se/products/pokemon-sword-shield-jet-black-geist-booster-pack",
+    // Pokemon Mega Evolution: Pitch Black Half Booster Display (ENG) (raderad produkt)
+    "https://beamcardshop.com/products/pitch-black-premium-checklane-display",
+    "https://aquitaz.se/products/pokemon-mega-evolution-pitch-black-half-booster-display-18-pack-eng",
+    // Pokémon Mega Evolution: Mega Evolution Half Booster Display (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-mega-evolution-half-booster-display-18-pack-eng",
+    // Pokémon Scarlet & Violet: Surging Sparks Half-Size Booster Display (raderad produkt)
+    "https://rogerz.dk/products/pokemon-surging-sparks-half-size-booster-box",
+    "https://aquitaz.se/products/pokemon-scarlet-violet-surging-sparks-half-size-booster-display",
+    // Pokémon Scarlet & Violet Half Booster Display (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-scarlet-violet-half-booster-display-18-pack-eng",
+    // Pokémon Mega Evolution: Perfect Order Mega Zygarde ex Premium Collection Box (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-mega-evolution-perfect-order-mega-zygarde-ex-premium-collection-box-8-pack-eng",
+    // Pokémon Scarlet & Violet: Holiday Calendar 2025 Collection Box (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-scarlet-violet-holiday-calendar-2025-collection-box-6-pack-eng",
+    "https://tcgstore.se/products/pokemon-tcg-holiday-calendar-adventskalender-2025",
+    "https://www.spelexperten.com/sallskapsspel/pokemon/pokemon-tcg-holiday-calendar-2025.html",
+    "https://hobbykort.se/products/pokemon-tcg-holiday-calendar-2025",
+    "https://dragonslair.se/products/pokemon-tcg-holiday-calendar-2025-pokemon",
+    "https://speltrollet.se/products/pokemon-tcg-adventskalender-holiday-calendar-2025",
+    // Pokémon Sword & Shield: Team Instinct Special Collection Box (ENG) (raderad produkt)
+    "https://dragonslair.se/products/pokemon-tcg-pokemon-go-special-team-collection-team-instinct-pokemon",
+    "https://aquitaz.se/products/pokemon-sword-and-shield-team-instinct-special-collection-box-6-pack-eng",
+    "https://beamcardshop.com/products/pokemon-go-special-collection-team-instinct",
+    // Pokémon Sword & Shield: Team Mystic Special Collection Box (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-sword-and-shield-team-mystic-special-collection-box-6-pack-eng",
+    "https://dragonslair.se/products/pokemon-tcg-pokemon-go-special-team-collection-team-mystic-pokemon",
+    "https://beamcardshop.com/products/pokemon-go-special-collection-team-mystic",
+    // Pokémon: Paldea Adventure Chest Collection Box (ENG) (raderad produkt)
+    "https://speltrollet.se/products/pok85608",
+    "https://aquitaz.se/products/pokemon-paldea-adventure-chest-collection-box-6-pack-eng",
+    "https://www.spelexperten.com/sallskapsspel/pokemon/pokemon-tcg-paldea-adventure-chest.html",
+    "https://dragonslair.se/products/pokemon-tcg-paldea-adventure-chest-pokemon",
+    "https://tcgstore.se/products/pokemon-tcg-paldea-adventure-chest",
+    "https://www.shinycards.se/pokemon/collection-box/pokemon-tcg-paldea-adventure-chest",
+    // Pokémon Scarlet & Violet: Stellar Crown (Terapagos ex) Ultra Premium Collection (raderad produkt)
+    "https://aquitaz.se/products/pokemon-scarlet-violet-stellar-crown-terapagos-ex-ultra-premium-collection",
+    // Pokemon Crown Zenith Tin (raderad produkt)
+    "https://speltrollet.se/products/pokemon-crown-zenith-tin",
+    // Pokémon Sword & Shield: Team Valor Special Collection Box (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-sword-and-shield-team-valor-special-collection-box-6-pack-eng",
+    "https://dragonslair.se/products/pokemon-tcg-pokemon-go-special-team-collection-team-valor-pokemon",
+    "https://beamcardshop.com/products/pokemon-go-special-collection-team-valor",
+    // Pokémon: BREAK Evolution Featuring Ho-Oh and Lugia Collection Box (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-break-evolution-featuring-ho-oh-and-lugia-collection-box-5-pack-eng",
+    // Pokémon Sun & Moon: Ultra Beasts GX Premium Collection Box (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-sun-moon-ultra-beasts-gx-premium-collection-box-8-pack-eng",
+    // Pokémon Mega Evolution: Enhanced 2-Pack Blister (Gengar, Marshadow & Team Rocket's Mimikyu) (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-mega-evolution-enhanced-2-pack-blister-gengar-marshadow-team-rockets-mimikyu-eng",
+    // Pokémon Sun & Moon Base Set Sleeved Booster Pack (raderad produkt)
+    "https://beamcardshop.com/products/sun-moon-base-sleeved-booster",
+    // Neo Discovery Booster Pack - 1st Edition (Neo) - Xatu / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-neo-discovery-booster-pack-1st-edition?variant=57143650025803",
+    // Neo Discovery Booster Pack - 1st Edition (Neo) - Umbreon / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-neo-discovery-booster-pack-1st-edition?variant=57143649993035",
+    // Neo Discovery Booster Pack - 1st Edition (Neo) - Scizor / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-neo-discovery-booster-pack-1st-edition?variant=57143649960267",
+    // Neo Discovery Booster Pack - 1st Edition (Neo) - Smeargle / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-neo-discovery-booster-pack-1st-edition?variant=57143649927499",
+    // Neo Discovery Booster Pack - 1st Edition (Neo) - Xatu / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-neo-discovery-booster-pack-1st-edition?variant=50461360390475",
+    // Neo Discovery Booster Pack - 1st Edition (Neo) - Umbreon / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-neo-discovery-booster-pack-1st-edition?variant=50461360357707",
+    // Neo Discovery Booster Pack - 1st Edition (Neo) - Scizor / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-neo-discovery-booster-pack-1st-edition?variant=50461360324939",
+    // Neo Discovery Booster Pack - 1st Edition (Neo) - Smeargle / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-neo-discovery-booster-pack-1st-edition?variant=50461335093579",
+    // Flashfire Sleeved Booster Pack (X & Y) - Mega Charizard Y / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-flashfire-sleeved-booster-pack?variant=57143653859659",
+    // Flashfire Sleeved Booster Pack (X & Y) - Mega Charizard X / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-flashfire-sleeved-booster-pack?variant=57143653826891",
+    // Flashfire Sleeved Booster Pack (X & Y) - Mega Pyroar / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-flashfire-sleeved-booster-pack?variant=57143653794123",
+    // Flashfire Sleeved Booster Pack (X & Y) - Mega Kangaskhan / Brugtmoms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-flashfire-sleeved-booster-pack?variant=57143653761355",
+    // Flashfire Sleeved Booster Pack (X & Y) - Mega Charizard Y / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-flashfire-sleeved-booster-pack?variant=56682983424331",
+    // Flashfire Sleeved Booster Pack (X & Y) - Mega Charizard X / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-flashfire-sleeved-booster-pack?variant=56682983391563",
+    // Flashfire Sleeved Booster Pack (X & Y) - Mega Pyroar / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-flashfire-sleeved-booster-pack?variant=56682983358795",
+    // Flashfire Sleeved Booster Pack (X & Y) - Mega Kangaskhan / Alm. moms (raderad produkt)
+    "https://rogerz.dk/products/pokemon-flashfire-sleeved-booster-pack?variant=56682983326027",
+    // Team Up Sleeved Booster Pack (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-team-up-sleeved-booster-pack",
+    // Neo Discovery Booster Pack (Japansk) (raderad produkt)
+    "https://rogerz.dk/products/pokemon-neo-discovery-booster-pack-japansk",
+    // GX Ultra Shiny Booster Box (Sun & Moon) (raderad produkt)
+    "https://rogerz.dk/products/gx-ultra-shiny-booster-box",
+    // Pokémon GO Booster Box - Japansk (Sword & Shield) (raderad produkt)
+    "https://rogerz.dk/products/pokemon-go-booster-box",
+    "https://nordictcg.se/55-pokémon-go-booster-box.html",
+    // Pokemon Sword & Shield: Pokemon Go Booster Box Display (Japansk) (raderad produkt)
+    "https://speltrollet.se/products/pokemon-sword-shield-pokemon-go-booster-box-display-japansk",
+    // Mega Evolution ID/TH Booster Box (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-ninja-spinner-booster-box-japansk-mega-evolution",
+    // Pokémon Mega: Premium Trainer Collection Box (JP) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-mega-premium-trainer-collection-box-20-pack-jp",
+    // Mega Powers Collection (raderad produkt)
+    "https://aquitaz.se/products/pokemon-mega-mega-brave-pokemon-center-collection-box-60-pack-jp",
+    // Pokémon Sun & Moon: Umbreon GX Premium Collection Box (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-sun-moon-umbreon-gx-premium-collection-box-6-pack-eng",
   ].map(normUrl)
 );
 
