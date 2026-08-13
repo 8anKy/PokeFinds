@@ -27,7 +27,9 @@ export type Decision = {
  *     mellanslag är ingen ordgräns (båda är icke-ordtecken), så en delad regex med
  *     ett avslutande `\b` matchade ALDRIG raden "-> https://…". Formen "mål på egen
  *     rad efter en pil" är den mest naturliga att skriva — den måste funka. */
-const KEEP_RE = /^(?:(?:goes\s*to|g[åa]r\s*till|till|beh[åa]ll|keep|merge\s*(?:in)?to|mergas?\s*till)\b|->|=>|→|>)\s*/i;
+// ⛔ `go(?:es)?`, INTE `goes?` — det senare betyder "goe" med valfritt "s" och
+//    matchar alltså aldrig "Go to", vilket är just det ägaren skriver.
+const KEEP_RE = /^(?:(?:go(?:es)?\s*to|g[åa]r\s*till|till|beh[åa]ll|keep|merge\s*(?:in)?to|mergas?\s*till)\b|->|=>|→|>)\s*/i;
 const DELETE_RE = /^(?:delete|radera|ta\s*bort|bort|skrota|remove|x)\b\s*[:\-]?\s*/i;
 const DUPES_RE = /^(?:duplicates?|dubbletter?|dubblett|merge|merga|sl[åa]\s*ihop|same)\b\s*[:\-]?\s*$/i;
 const COMMENT_RE = /^\s*(?:#|\/\/)/;
@@ -36,13 +38,28 @@ const COMMENT_RE = /^\s*(?:#|\/\/)/;
 const SLUG_RE = /(?:https?:\/\/[^\s/]*foilio\.se)?\/?(?:[a-z]{2}\/)?produkter\/([a-z0-9][a-z0-9-]{2,})/i;
 const BARE_SLUG_RE = /^([a-z0-9][a-z0-9-]{6,})$/i;
 
-export function slugOf(text: string): string | null {
-  const m = text.match(SLUG_RE);
-  if (m) return m[1].toLowerCase().replace(/[?#].*$/, "");
+/**
+ * ALLA slugs på raden — inte bara den första.
+ *
+ * ⛔ Att ta bara den första var ett riktigt fel (2026-08-13): ägaren klistrar in
+ *    flera länkar på samma rad ("These <A> <B>"), och en parser som bara läste A
+ *    hade TYST hoppat över B. Tyst bortfall är det farligaste utfallet här — B hade
+ *    blivit kvar i katalogen som en dubblett ingen visste fanns kvar.
+ */
+export function slugsOf(text: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(new RegExp(SLUG_RE.source, "gi"))) {
+    out.push(m[1].toLowerCase().replace(/[?#].*$/, ""));
+  }
+  if (out.length > 0) return out;
   // Bar slug godtas BARA när raden inte innehåller något annat och innehåller ett
   // bindestreck — annars hade varje enstaka ord i en inklistrad titel blivit en slug.
   const bare = text.trim().match(BARE_SLUG_RE);
-  return bare && bare[1].includes("-") ? bare[1].toLowerCase() : null;
+  return bare && bare[1].includes("-") ? [bare[1].toLowerCase()] : [];
+}
+
+export function slugOf(text: string): string | null {
+  return slugsOf(text)[0] ?? null;
 }
 
 export function parseDecisions(text: string): { decisions: Decision[]; problems: string[] } {
@@ -88,13 +105,13 @@ export function parseDecisions(text: string): { decisions: Decision[]; problems:
 
     if (DELETE_RE.test(line)) {
       const rest = line.replace(DELETE_RE, "");
-      const s = slugOf(rest);
-      if (s) {
+      const ss = slugsOf(rest);
+      if (ss.length) {
         // "x <länk>" — en radering oavsett vad som pågick.
-        if (cur?.kind === "delete") cur.drop.push(s);
+        if (cur?.kind === "delete") cur.drop.push(...ss);
         else {
           flush();
-          cur = { kind: "delete", drop: [s], keep: null, line: n };
+          cur = { kind: "delete", drop: ss, keep: null, line: n };
         }
       } else {
         // Bar "Delete"-rubrik → allt som följer raderas.
@@ -105,7 +122,11 @@ export function parseDecisions(text: string): { decisions: Decision[]; problems:
     }
 
     if (KEEP_RE.test(line)) {
-      const s = slugOf(line.replace(KEEP_RE, ""));
+      const ks = slugsOf(line.replace(KEEP_RE, ""));
+      const s = ks[0] ?? null;
+      if (ks.length > 1) {
+        problems.push(`Rad ${n}: flera länkar efter målmarkören — bara den första (${ks[0]}) används.`);
+      }
       // ⛔ Ett mål utan något att slå ihop är ALLTID ett misstag — oftast en andra
       //    "Goes to"-rad i samma grupp. Att tyst skapa en tom grupp (eller värre,
       //    byta mål) hade låtit fel produkt överleva.
@@ -124,14 +145,15 @@ export function parseDecisions(text: string): { decisions: Decision[]; problems:
       continue;
     }
 
-    const s = slugOf(line);
-    if (!s) continue; // fri text (titlar, anteckningar) — ignoreras med flit
+    const ss = slugsOf(line);
+    if (ss.length === 0) continue; // fri text (titlar, anteckningar) — ignoreras med flit
     if (!cur) cur = { kind: "merge", drop: [], keep: null, line: n };
     if (expectKeep && !cur.keep) {
-      cur.keep = s;
+      cur.keep = ss[0];
+      if (ss.length > 1) problems.push(`Rad ${n}: flera länkar där målet väntades — bara ${ss[0]} används.`);
       flush();
     } else {
-      cur.drop.push(s);
+      cur.drop.push(...ss);
     }
   }
   flush();
@@ -166,22 +188,64 @@ export function orphanedOfferUrls(dropOffers: OfferKey[], keepOffers: OfferKey[]
   return out;
 }
 
-/** Fel som gör att INGENTING får köras. Kräver en slug→finns-uppslagning. */
-export function validateDecisions(decisions: Decision[], known: ReadonlySet<string>): string[] {
+/**
+ * Fel som gör att INGENTING får köras, plus en STÄDAD kopia av besluten.
+ *
+ * ⛔ EN UPPREPNING ÄR INTE ALLTID ETT FEL. Ägarens första riktiga lista (2026-08-13)
+ *    hade samma URL två gånger i raderingslistan — helt harmlöst, men en regel som
+ *    bara sa "slugen förekommer två gånger" hade stoppat hela körningen på det.
+ *    Det som FAKTISKT är farligt är motstridiga roller: samma produkt som mål på ett
+ *    ställe och bortplockad på ett annat, eller bortplockad i två olika mergar (vilket
+ *    mål gäller?). De felen fälls; ren upprepning dedupliceras och nämns.
+ */
+export function validateDecisions(
+  decisions: Decision[],
+  known: ReadonlySet<string>
+): { errors: string[]; notes: string[]; cleaned: Decision[] } {
   const errors: string[] = [];
-  const seen = new Map<string, number>();
-  for (const d of decisions) {
+  const notes: string[] = [];
+
+  const cleaned: Decision[] = decisions.map((d) => ({ ...d, drop: [...new Set(d.drop)] }));
+  for (let i = 0; i < decisions.length; i++) {
+    const removed = decisions[i].drop.length - cleaned[i].drop.length;
+    if (removed > 0) notes.push(`Rad ${decisions[i].line}: ${removed} upprepad länk i samma grupp — räknas en gång.`);
+  }
+
+  const asKeep = new Map<string, number[]>();
+  const asDropMerge = new Map<string, number[]>();
+  const asDropDelete = new Map<string, number[]>();
+  const push = (m: Map<string, number[]>, k: string, v: number) => m.set(k, [...(m.get(k) ?? []), v]);
+
+  for (const d of cleaned) {
     for (const s of [...d.drop, ...(d.keep ? [d.keep] : [])]) {
       if (!known.has(s)) errors.push(`Rad ${d.line}: hittar ingen produkt med slug "${s}".`);
-      const prev = seen.get(s);
-      if (prev !== undefined) errors.push(`Rad ${d.line}: "${s}" står redan i beslutet på rad ${prev}.`);
-      seen.set(s, d.line);
     }
+    if (d.keep) push(asKeep, d.keep, d.line);
+    for (const s of d.drop) push(d.kind === "merge" ? asDropMerge : asDropDelete, s, d.line);
     if (d.kind === "merge") {
       if (!d.keep) errors.push(`Rad ${d.line}: dubblettgrupp utan mål — saknas en "Goes to"-rad?`);
       if (d.drop.length === 0) errors.push(`Rad ${d.line}: mål angivet men inga produkter att slå ihop.`);
       if (d.keep && d.drop.includes(d.keep)) errors.push(`Rad ${d.line}: målet står också i listan som ska bort.`);
     }
   }
-  return errors;
+
+  for (const [s, lines] of asDropMerge) {
+    if (lines.length > 1) errors.push(`"${s}" ska slås ihop på flera ställen (rad ${lines.join(", ")}) — vilket mål gäller?`);
+    if (asKeep.has(s)) errors.push(`"${s}" är mål på rad ${asKeep.get(s)!.join(", ")} men plockas bort på rad ${lines.join(", ")}.`);
+    if (asDropDelete.has(s)) errors.push(`"${s}" ska både slås ihop (rad ${lines.join(", ")}) och raderas (rad ${asDropDelete.get(s)!.join(", ")}).`);
+  }
+  for (const [s, lines] of asDropDelete) {
+    if (asKeep.has(s)) errors.push(`"${s}" är mål på rad ${asKeep.get(s)!.join(", ")} men raderas på rad ${lines.join(", ")}.`);
+    if (lines.length > 1) notes.push(`"${s}" står i raderingslistan ${lines.length} gånger (rad ${lines.join(", ")}) — raderas en gång.`);
+  }
+
+  // Samma slug i två DELETE-grupper: behåll den första förekomsten, tappa resten.
+  const takenDelete = new Set<string>();
+  for (const d of cleaned) {
+    if (d.kind !== "delete") continue;
+    d.drop = d.drop.filter((s) => !takenDelete.has(s));
+    for (const s of d.drop) takenDelete.add(s);
+  }
+
+  return { errors, notes, cleaned: cleaned.filter((d) => d.drop.length > 0 || d.keep) };
 }

@@ -66,7 +66,9 @@ const URL = (slug: string) => `https://www.foilio.se/produkter/${slug}`;
 
 async function main() {
   const text = fs.readFileSync(path.resolve(FILE!), "utf8");
-  const { decisions: groups, problems } = parseDecisions(text);
+  const parsed = parseDecisions(text);
+  let groups = parsed.decisions;
+  const problems = parsed.problems;
   const [{ db }] = await prisma.$queryRaw<{ db: string }[]>`SELECT current_database() AS db`;
   console.log(`DB: ${db} — ${APPLY ? "APPLY (skriver)" : "TORRKÖRNING"}`);
   console.log(`Fil: ${FILE} → ${groups.length} beslut\n`);
@@ -84,7 +86,9 @@ async function main() {
   const bySlug = new Map(rows.map((r) => [r.slug, r]));
 
   // ── Validering: hellre stopp än en gissning (ren funktion, egna tester) ──
-  const errors = validateDecisions(groups, new Set(bySlug.keys()));
+  const { errors, notes, cleaned } = validateDecisions(groups, new Set(bySlug.keys()));
+  for (const nt of notes) console.log(`ℹ ${nt}`);
+  groups = cleaned;
 
   // ── Herrelösa URL:er: raderingar + offers som krockar vid merge ──
   type Orphan = { url: string; store: string; from: string; why: string };

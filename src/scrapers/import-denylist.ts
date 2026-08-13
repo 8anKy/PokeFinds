@@ -190,6 +190,108 @@ const DENIED = new Set<string>(
     // Pokétalks "UTAN PLAST"-listning av PE-bundlen: föll bort som konflikt vid mergen
     // (målet har redan Pokétalks ordinarie listning) — utan denylist återuppstår stubben.
     "https://www.poketalk.se/products/pokemon-scarlet-violet-prismatic-evolutions-booster-bundle-1",
+    // ── Ägarens katalogbeslut 2026-08-13 (apply-owner-decisions.ts) ──
+    // [JP] Pokémon BOOSTERPACK - Glory of Team Rocket (SV10) (offer krockar med målets)
+    "https://www.tradera.com/item/1001339/721590995/pok%C3%A9mon-glory-of-team-rocket-booster-pack-jp-sv10-",
+    // Inferno X Booster Pack Japansk (offer krockar med målets)
+    "https://www.tradera.com/item/1001339/720305768/pok%C3%A9mon-inferno-x-booster-pack-japansk-m2-",
+    // Pokémon WOTC: Neo Genesis Booster Pack - Feraligatr (offer krockar med målets)
+    "https://www.poketalk.se/products/pokemon-wotc-neo-genesis-booster-pack?variant=52365478461782",
+    // Pokémon WOTC: Neo Genesis Booster Pack - Meganium (offer krockar med målets)
+    "https://www.poketalk.se/products/pokemon-wotc-neo-genesis-booster-pack?variant=52365478429014",
+    // Pokémon WOTC: Neo Genesis Booster Pack - Lugia (offer krockar med målets)
+    "https://www.poketalk.se/products/pokemon-wotc-neo-genesis-booster-pack?variant=52365478396246",
+    // Pokémon Mega: Nihil Zero (M3) Booster – JAPANSK (offer krockar med målets)
+    "https://cardgame.se/engelska-pokmon-produkter/japansktkinesiskt/booster-boxar/nihil-zero-japansk",
+    "https://www.tradera.com/item/1001339/721530411/pok%C3%A9mon-mega-nihil-zero-booster-pack-jp-",
+    // [JP] Pokémon BOOSTERPACK - Cyber Judge (SV5M) (offer krockar med målets)
+    "https://www.tradera.com/item/1001339/720305769/pok%C3%A9mon-cyber-judge-booster-pack-jp-sv5m-",
+    // [JP] Pokémon BOOSTERPACK - Stellar Miracle (SV7) (offer krockar med målets)
+    "https://www.tradera.com/item/1001339/727090510/pok%C3%A9mon-stellar-miracle-sv7-booster-pack-5-kort-jp-",
+    // Pokémon Scarlet & Violet: Stellar Miracle Booster Pack (JP) (offer krockar med målets)
+    "https://www.tradera.com/item/1001339/727090510/pok%C3%A9mon-stellar-miracle-sv7-booster-pack-5-kort-jp-",
+    // [JP] Pokémon BOOSTERPACK - Battle Partners (SV9) (offer krockar med målets)
+    "https://www.tradera.com/item/1001339/673967025/pok%C3%A9mon-battle-partners-booster-pack-japanskt-",
+    // Pokémon Scarlet & Violet: Battle Partners Booster Pack (JP) (offer krockar med målets)
+    "https://www.tradera.com/item/1001339/704224957/pok%C3%A9mon-scarlet-violet-battle-partners-booster-pack-japanskt-sv9-",
+    // [JP] Pokémon BOOSTERPACK - Mega Brave (M1L) (offer krockar med målets)
+    "https://www.tradera.com/item/1001339/689761145/pokemon-mega-brave-booster-pack-1-jp-m1l-",
+    // [JP] Pokémon BOOSTERPACK - Mega Symphonia (M1S) (offer krockar med målets)
+    "https://www.tradera.com/item/1001339/744340934/pokemon-mega-mega-symphonia-booster-pack-m1s-japanska",
+    // Paldea Evolved 1-Pack Checklane Booster Pack - Smoliv / Alm. moms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-paldea-evolved-1-pack-checklane-booster-pack?variant=51778464252235",
+    // Paldea Evolved 1-Pack Checklane Booster Pack - Growlithe / Alm. moms (offer krockar med målets)
+    "https://rogerz.dk/products/pokemon-tcg-paldea-evolved-1-pack-checklane-booster-pack?variant=51778464219467",
+    // Dark Explorers Booster Pack (Black & White) - Darkrai / Brugtmoms (offer krockar med målets)
+    "https://www.tradera.com/item/1001339/741530740/booster-paket-1-st-pokemon-b-w-dark-explorers-darkrai-nytt",
+    // Boundaries Crossed Booster Pack (Black & White) - Black Kyurem / Brugtmoms (offer krockar med målets)
+    "https://www.tradera.com/item/1001339/741529864/booster-paket-1-st-pokemon-b-w-boundaries-crossed-black-kyurem-nytt",
+    // Boundaries Crossed Booster Pack (Black & White) - Landorus / Brugtmoms (offer krockar med målets)
+    "https://www.tradera.com/item/1001339/741529759/booster-paket-1-st-pokemon-b-w-boundaries-crossed-landorus-nytt",
+    // Plasma Freeze Booster Pack (Black & White) - Thundurus / Brugtmoms (offer krockar med målets)
+    "https://www.tradera.com/item/1001339/741530031/booster-paket-1-st-pokemon-b-w-plasma-freeze-thundurus-nytt",
+    // Plasma Freeze Booster Pack (Black & White) - Bisharp / Brugtmoms (offer krockar med målets)
+    "https://www.tradera.com/item/1001339/741530231/booster-paket-1-st-pokemon-b-w-plasma-freeze-bisharp-nytt",
+    // Plasma Freeze Booster Pack (Black & White) - Deoxys / Brugtmoms (offer krockar med målets)
+    "https://www.tradera.com/item/1001339/741530034/booster-paket-1-st-pokemon-b-w-plasma-freeze-deoxys-nytt",
+    // Plasma Freeze Booster Pack (Black & White) - Absol / Brugtmoms (offer krockar med målets)
+    "https://www.tradera.com/item/1001339/741530133/booster-paket-1-st-pokemon-b-w-plasma-freeze-absol-nytt",
+    // HS Triumphant Booster Pack Artwork Set (raderad produkt)
+    "https://rogerz.dk/products/pokemon-hs-triumphant-booster-pack-artwork-set",
+    // [S-CHN] Pokémon Jumbo-BOOSTERPACK - Brave Stars (CS5a) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-jumbo-boosterpack-brave-stars-cs5a",
+    // [S-CHN] Pokémon Boosterpack - True Mystic (CSV6) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-true-mystic-csv6",
+    // [S-CHN] Pokémon Boosterpack - Dark Crystal Blaze (CSV5) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-dark-crystal-blaze-csv5",
+    // [S-CHN] Pokémon Jumbo-BOOSTERPACK - Azure Shadows - Roar (CS6a) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-jumbo-booster-azure-shadows-roar-cs6a",
+    // [S-CHN] Pokémon BOOSTERPACK - Dynamax Clash: Thunder (CS1a) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-dynamax-clash-thunder-cs1a",
+    // [S-CHN] Pokémon Jumbo-BOOSTERPACK - Vivid Portrayals: Indigo (CS2b) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-jumbo-boosterpack-vivid-portrayals-indigo-cs2b",
+    // [S-CHN] Pokémon Jumbo-BOOSTERPACK - Vivid Portrayals: Obsidian (CS2a) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-jumbo-boosterpack-vivid-portrayals-obsidian-cs2a",
+    // [S-CHN] Pokémon BOOSTERPACK - "Vivid Portrayals: Indigo" (CS2b) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-vivid-portrayals-indigo-cs2b",
+    // [T-CHN] Pokémon BOOSTERPACK - Hidden Fates Sonne und Mond (AC1B) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-hidden-fates-sonne-und-mond-ac1b",
+    // [T-CHN] Pokémon BOOSTERPACK - Hidden Fates (AC1A) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-hidden-fates-sonne-und-mond-ac1a",
+    // [S-CHN] Pokémon BOOSTERPACK - Victory Stars (CS6.5) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-victory-stars-cs6-5",
+    // [S-CHN] Pokémon JUMBO-BOOSTERPACK- Azure Shadows - Pursuit (CS6b) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-jumbo-boosterpack-azure-shadows-pursuit-cs6b",
+    // [S-CHN] Pokémon BOOSTERPACK Jumbo - Nine Colors Gathering: Friend (CS4a) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-jumbo-nine-colors-gathering-friend-cs4a",
+    // [S-CHN] Pokémon BOOSTERPACK - Nine Colors Gathering: Friend (CS4a) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-nine-colors-gathering-friend-cs4a",
+    // [S-CHN] Pokémon BOOSTERPACK Jumbo - Nine Colors Gathering: Origin (CS4b) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-jumbo-nine-colors-gathering-origin-cs4b",
+    // [S-CHN] Pokémon BOOSTERPACK - "Nine Colors Gathering: Origin" (CS4b) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-nine-colors-gathering-origin-cs4b",
+    // [S-CHN] Pokémon BOOSTERPACK - Shining Synergy: Shower (CSM2a) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-shining-synergy-shower-csm2a",
+    // [S-CHN] Pokémon BOOSTERPACK - Shining Synergy: Supreme (CSM2b) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-shining-synergy-supreme-csm2b",
+    // [S-CHN] Pokémon BOOSTERPACK - Shining Synergy: Summon (CSM2c) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-shining-synergy-summon-csm2c",
+    // [S-CHN] Pokémon Jumbo-BOOSTERPACK - Ancient Martial Arts: Overgrow (CS3a) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-ancient-martial-arts-overgrow-cs3a",
+    // [S-CHN] Pokémon Jumbo-BOOSTERPACK - Ancient Martial Arts: Torrent (CS3b) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-ancient-martial-arts-torrent-cs3b",
+    // [S-CHN] Pokémon BOOSTERPACK - Striking Competition (CSM2.5) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-striking-competition-csm2-5",
+    // [S-CHN] Pokémon BOOSTERPACK - tobende Flamme (CS3.5) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-tobende-flamme-cs3-5",
+    // [S-CHN] Pokémon BOOSTERPACK - Vivid Portrayals: Obsidian (CS2a) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-vivid-portrayals-obsidian-cs2a",
+    // [S-CHN] Pokémon BOOSTERPACK - Brave Stars (CS5a) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-brave-stars-cs5a",
+    // [S-CHN] Pokémon BOOSTERPACK - Brave Stars (CS5b) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-brave-stars-cs5b",
+    // [S-CHN] Pokémon Jumbo-BOOSTERPACK - Brave Stars (CS5b) (raderad produkt)
+    "https://yonko-tcg.de/products/s-chn-pokemon-boosterpack-brave-stars-cs5b-kopie",
   ].map(normUrl)
 );
 
