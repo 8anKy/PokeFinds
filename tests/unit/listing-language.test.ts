@@ -171,3 +171,79 @@ describe("kinesiska markörer (Wave 4-läckan)", () => {
     }
   });
 });
+
+/**
+ * WAVE 5-LÄCKAN (2026-08-13) — 118 blockerade produkter tog sig in på EN NATT.
+ *
+ * Täckningsrevisionen + wave 5 lät auto-importen skapa 898 katalogprodukter, och
+ * 118 av dem var koreanska eller kinesiska. Alla bar språket UTSKRIVET i titeln;
+ * detektorn kände bara inte just de formerna:
+ *
+ *   · Aquitaz taggar allt "(ENG)"/"(JP)"/"(KOR)" → 81 koreanska. Regeln hade "kr".
+ *   · Yonko TCG taggar "[S-CHN]"/"[T-CHN]" (Simplified/Traditional) → 37 kinesiska.
+ *     Regeln hade "cn|ch|tw|hk", varken "chn" eller hakparentes-prefixet.
+ *
+ * Varje rad nedan är en RIKTIG produktionstitel ur den kohorten.
+ */
+describe("wave 5-läckan: (KOR) och [S-CHN]", () => {
+  it("flaggar Aquitaz trebokstavskod för koreanska", () => {
+    for (const t of [
+      "Pokémon Scarlet & Violet: Surging Sparks SV8 Booster Box (KOR)",
+      "Pokémon Sword & Shield: Lost Abyss s11 Booster Box (KOR)",
+      "Pokémon 151 (sv2a) Booster Pack (KOR)",
+      "Pokémon Sword & Shield: Eevee Heroes (S6a) Booster Box (KOR)",
+    ]) {
+      expect(detectListingLanguage(t), t).toBe("KR");
+      expect(isBlockedListingLanguage(t), t).toBe(true);
+    }
+  });
+
+  it("flaggar Yonkos S-/T-prefixade kinesiska hakparenteser", () => {
+    for (const t of [
+      "[S-CHN] Pokémon BOOSTERPACK - Shining Synergy: Summon (CSM2c)",
+      "[S-CHN] Pokémon Display Bundle - Vivid Portrayals (CS2a, CS2b)",
+      "[T-CHN] Pokémon Blister - Glory of Team Rocket - Collector's Set (SV10F)",
+      "[S-CHN] Pokemon - Trainer Tin (CSL)",
+      "[S-CHN] Pokémon Blind Box - Collect 151 Hope Tin",
+    ]) {
+      expect(detectListingLanguage(t), t).toBe("CN");
+      expect(isBlockedListingLanguage(t), t).toBe(true);
+    }
+  });
+
+  it("släpper fortfarande igenom butikernas EN/JP-taggar", () => {
+    // Samma butiker, samma taggformat — bara språket skiljer. Fälls någon av de här
+    // har regeln blivit för bred och tystar två helt lagliga sortiment.
+    for (const t of [
+      "Pokémon Scarlet & Violet: Zebstrica Destined Rivals Blisters (3 Pack) (ENG)",
+      "Pokémon Mega Evolution: Mega Evolution 3-Pack Blisters (Golduck) (ENG)",
+      "Pokémon Sword & Shield: Crown Zenith Premium Art Galarian Articuno Big Tin (ENG)",
+    ]) {
+      expect(detectListingLanguage(t), t).toBe("EN");
+    }
+    for (const t of [
+      "[JP] Pokémon BOOSTERPACK - Lost Abyss (S11)",
+      "Pokémon Sword & Shield: Blue Sky Stream Booster Pack (JP)",
+      "Pokémon Scarlet & Violet: Paradise Dragona Booster Box (JP)",
+    ]) {
+      expect(detectListingLanguage(t), t).toBe("JP");
+      expect(isBlockedListingLanguage(t), t).toBe(false);
+    }
+  });
+
+  it("MÄTT: de nya formerna rör inte en enda av katalogens äldre titlar", () => {
+    // Sonderingen 2026-08-13 körde båda mönstren mot alla 31 216 produkter som fanns
+    // FÖRE wave 5: noll träffar. De här raderna är de närmaste grannarna i katalogen —
+    // strängar som INNEHÅLLER bokstäverna men inte som avgränsad språkkod.
+    for (const t of [
+      "Scarlet & Violet: Surging Sparks Booster Bundle",
+      "Champion's Path Elite Trainer Box",
+      "Kanto Power Mini Tin",
+      "Chilling Reign (CRE) Booster Pack",
+      "Sword & Shield: Astral Radiance Trainer Box",
+      "Pokémon GO Premium Collection (Radiant Eevee)",
+    ]) {
+      expect(isBlockedListingLanguage(t), t).toBe(false);
+    }
+  });
+});

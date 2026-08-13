@@ -1010,6 +1010,18 @@ const LISTING_TITLE_JUNK: RegExp[] = [
   // hjälpte inte: butiks-URL:en blev herrelös och restock-skanningen skapade om stubben
   // inom minuter (mätt 2026-07-14: tre stubbar återuppstod 19:52, sju minuter efter merge).
   /\([^)]*\b(?:artwork|art)\b[^)]*\)/gi,
+  // DANSK MOMSORDNING: "… / Brugtmoms" vs "… / Alm. moms". Rogerz (rogerz.dk, wave 5)
+  // listar VARJE begagnad vara TVÅ gånger — en gång under vinstmarginalordningen för
+  // begagnat och en gång under vanlig moms. Det är samma fysiska SKU till olika
+  // prissättning, alltså butiksadministration, inte produktidentitet.
+  // MÄTT 2026-08-13: 331 av 898 nyimporterade titlar bar taggen, och 156 av dem var
+  // rena tvillingpar som blev var sin katalogprodukt. Noll av katalogens 31 216
+  // äldre titlar innehåller orden — regeln kan inte röra befintlig data.
+  // Strippningen är självläkande på samma sätt som omslagskonsten ovan: båda
+  // varianterna normaliserar till samma titel, så den andra auto-länkar (1,00) i
+  // stället för att bli en ny rad. Formen är delimiterad ("- Alm. moms /", "/ Brugtmoms")
+  // eftersom taggen även dyker upp MITT i titeln ("… Box - Alm. moms / Mewtwo X …").
+  /\s*[-–—/|]\s*(?:brugtmoms|alm\.?\s*moms)\b/gi,
 ];
 
 /**

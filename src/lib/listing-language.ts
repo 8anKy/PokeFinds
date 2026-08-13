@@ -89,9 +89,24 @@ const CN_LINES = /\bgem pack\b|\b151\s*c\b/i;
  *    hämtning per annons i alla adaptrar; formatordet ger samma svar gratis.
  */
 const CN_MARKERS = /\bCSV[A-Z0-9]{1,4}C\b|\bslim booster\b/i;
-/** Språkkod i parentes för asiatiska marknader — motsvarigheten till EU_CODE_PAREN. */
-const ASIA_CODE_PAREN = /[([]\s*(cn|ch|tw|hk)\s*[)\]]/i;
-const KR_CODE_PAREN = /[([]\s*kr\s*[)\]]/i;
+/**
+ * Språkkod i parentes för asiatiska marknader — motsvarigheten till EU_CODE_PAREN.
+ *
+ * ⛔ `chn` OCH `S-`/`T-`-prefixet tillkom 2026-08-13: wave 5-butiken Yonko TCG märker
+ *    hela sitt kinesiska sortiment "[S-CHN] Pokémon BOOSTERPACK – Brave Stars (CS5a)"
+ *    (S = Simplified, T = Traditional). Varken `chn` eller hakparentes-prefixet fanns
+ *    här, så 37 kinesiska produkter auto-importerades med `language: EN` och blev
+ *    restock-bevakade. Detektorn såg dem aldrig ens som kandidater.
+ */
+const ASIA_CODE_PAREN = /[([]\s*(?:[st][-\s])?(cn|chn|ch|tw|hk)\s*[)\]]/i;
+/**
+ * ⛔ `kor` tillkom 2026-08-13 av samma skäl: Aquitaz taggar varje produkt med
+ *    "(ENG)"/"(JP)"/"(KOR)" och 81 KOREANSKA produkter tog sig in på att regeln
+ *    bara kände tvåbokstavsformen "(KR)". Bart versalt "KOR" utan parentes är
+ *    FÖRBJUDET som regel — mätt mot hela katalogen ger det visserligen noll falska
+ *    i dag, men avgränsningen i parentes är det som gör tecknet entydigt.
+ */
+const KR_CODE_PAREN = /[([]\s*(?:kr|kor)\s*[)\]]/i;
 
 /** Fäller ihop accenter: "Púrpura"→"Purpura", "Écarlate"→"Ecarlate", "Español"→"Espanol".
  *  Utan detta missar orden ovan varje korrekt stavad titel. Rör inte kana/han/hangul. */
