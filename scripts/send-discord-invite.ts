@@ -27,6 +27,18 @@ import { DISCORD_URL } from "@/lib/social-links";
 
 const APPLY = process.argv.includes("--apply");
 const ONLY = process.argv.find((a) => a.startsWith("--to="))?.slice("--to=".length);
+/**
+ * Adresser som redan fått mejlet — typiskt provutskicket till en själv.
+ * Skriptet för ingen egen logg över vad som skickats (en tabell för ETT
+ * engångsutskick vore mer kod att underhålla än värdet), så dubblettskyddet är
+ * den här listan. ⛔ Kör aldrig den fulla omgången utan den efter ett provutskick.
+ */
+const SKIP = new Set(
+  (process.argv.find((a) => a.startsWith("--skip="))?.slice("--skip=".length) ?? "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+);
 /** Paus mellan utskick — Resend tar 2 req/s. */
 const GAP_MS = 600;
 
@@ -38,7 +50,9 @@ async function main() {
   });
 
   let recipients = users.filter(
-    (u) => parseNotificationSettings(u.notificationSettings).email
+    (u) =>
+      parseNotificationSettings(u.notificationSettings).email &&
+      !SKIP.has(u.email.toLowerCase())
   );
   if (ONLY) {
     recipients = recipients.filter((u) => u.email.toLowerCase() === ONLY.toLowerCase());
@@ -60,6 +74,29 @@ async function main() {
   if (!APPLY) {
     for (const u of recipients) console.log(`  [torrkörning] ${u.email} (${u.name})`);
     console.log(`\nInget skickat. Lägg till --apply när du vill skicka på riktigt.`);
+    return;
+  }
+
+  // ⛔ KONSOLLÄGE ÄR INTE ETT UTSKICK. Lokalt står `EMAIL_MODE=console` i .env och
+  // `RESEND_API_KEY` finns bara i Railway/Actions — då loggar `sendMail` mejlet och
+  // returnerar utan fel, så loopen nedan rapporterar "✓ skickat" för varenda
+  // mottagare utan att ett enda mejl lämnat maskinen. Det HÄNDE vid provutskicket
+  // 2026-08-14. Samma familj som mailerns egen regel om saknad nyckel i produktion:
+  // ett tyst lyckat no-op är värre än ett fel, för då tror både du och koden att
+  // mejlet är på väg. Kör hellre via .github/workflows/discord-invite.yml, där
+  // nyckeln redan är en secret.
+  if (process.env.EMAIL_MODE === "console" || !process.env.RESEND_API_KEY) {
+    console.error(
+      [
+        "AVBRUTET: mailern går i konsolläge — inga mejl skulle lämna maskinen.",
+        `  EMAIL_MODE  = ${process.env.EMAIL_MODE ?? "(osatt)"}`,
+        `  RESEND_API_KEY satt = ${!!process.env.RESEND_API_KEY}`,
+        "",
+        'Kör utskicket via workflowet "Discord-inbjudan (manuell)" i GitHub Actions,',
+        "där RESEND_API_KEY redan finns som secret.",
+      ].join("\n")
+    );
+    process.exitCode = 1;
     return;
   }
 
