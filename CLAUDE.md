@@ -1096,6 +1096,17 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   vars SAMTLIGA butiks-URL:er är nekade och håller undan allt med historik/bevakning utan `--force`.
   ⛔ Efter en körning: `recompute-price-cache.ts` OCH en färsk ruttabell (workflow "Ruttabell för
   Discord-larm (manuell)") — annars länkar Discord-inlägg till produkt-id:n som inte finns kvar.
+  ⛔ **TOMRAD AVSLUTAR GRUPPEN — även under en `DELETE`-rubrik.** Skriver man rubriken och sedan en
+  tomrad läses varje följande länk som en dubblettgrupp UTAN mål, och hela filen faller på
+  "dubblettgrupp utan mål". Kommentarrader (`#`) är däremot ofarliga och kan stå var som helst.
+  ⛔ **`--write-denylist` FÅR INTE ANKRA PÅ NORMALISERARENS NAMN** (2026-08-14): ankaret var
+  strängen `].map(normUrl)` och funktionen döptes om till `normalizeListingUrl` 08-13 → skrivningen
+  hittade ingen insättningspunkt mitt i en städomgång. Ankaret matchar nu arrayens slut.
+  ⛔ **MERGE ELLER RADERING SPELAR INGEN ROLL NÄR MÅLET REDAN HAR BUTIKENS OFFER** (2026-08-14):
+  `Offer` är unik på (produkt, butik, skick, språk), så stubbens offer RADERAS i mergen i stället för
+  att flyttas. Kolla alltså målets butikslista först — bär den redan butiken är radering + denylist
+  exakt samma utfall som en merge, och enklare. Bär den INTE butiken flyttar mergen en riktig länk
+  och radering hade kostat kanonprodukten en butik.
 - **"TA BORT" PÅ EN BUTIKSLÄNK BETYDER BORTA (2026-08-14)**: admin-borttagningen raderade bara
   offer-raden. URL:en låg kvar i butikens feed och var inte nekad, så nästa skrapning (var 10:e
   minut) matchade den och skapade om offern — MÄTT: ägaren tog bort två länkar på Base Set Booster,
