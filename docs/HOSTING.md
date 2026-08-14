@@ -77,9 +77,10 @@ Den ska bli grön och uppdatera priser i Neon.
    | `NEXTAUTH_SECRET` | en lång slumpsträng (`openssl rand -base64 32`) |
    | `NEXT_PUBLIC_APP_URL` | samma som NEXTAUTH_URL |
    | `NEXT_PUBLIC_APP_NAME` | `Foilio` |
-   | `OCR_PROVIDER` | `claude` (för riktig kortidentifiering) |
-   | `ANTHROPIC_API_KEY` | din Anthropic-nyckel (skanner + gradering) |
-   | `GRADING_PROVIDER` | `claude` |
+   | `OCR_PROVIDER` | `gemini` (kortidentifiering — prod sedan 2026-08) |
+   | `GRADING_PROVIDER` | `gemini` (gradering — prod sedan 2026-08-05) |
+   | `GEMINI_API_KEY` | din Google-nyckel (skanner + gradering) |
+   | `ANTHROPIC_API_KEY` | din Anthropic-nyckel — INTE valfri: bakgrundsjobbens LLM-domare (`judgeSameProduct`, fynd-verifieringen) kör Claude oavsett de två variablerna ovan. Är även rollback för skanner/gradering (`=claude`) |
    | `CARDMARKET_RAPIDAPI_HOST` / `CARDMARKET_RAPIDAPI_KEY` | som ovan |
    | `TRADERA_APP_ID` / `TRADERA_APP_KEY` | som ovan |
    | `EMAIL_MODE` | `console` tills SMTP är satt (se nedan) |

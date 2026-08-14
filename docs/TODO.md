@@ -2,7 +2,7 @@
 
 ## Kända begränsningar (MVP)
 - **Endast mock-datakälla** — riktiga adapters (officiella API:er/feeds först) måste implementeras per källa
-- **Kortskanning kör mock-OCR** — riktig vision-API kopplas in via `OCR_PROVIDER` (se SCANNER.md)
+- ~~**Kortskanning kör mock-OCR**~~ — LÖST: prod kör `OCR_PROVIDER=gemini` (se SCANNER.md)
 - **Bilduppladdningar lagras inte** (scanner: inline; community: imageUrl-fält finns men ingen uppladdningsbackend) — S3-kompatibel lagring är produktionsvägen
 - **Stripe avstängt** (`STRIPE_ENABLED=false`) — Premium-knappen är "Kommer snart"
 - **Web push ej aktiv** — service worker-grund finns ej; kräver VAPID-nycklar + sw.js
@@ -41,8 +41,7 @@
 - [ ] **favicon.ico fortf. gammal palett** (binär ico, ej regenererad till teal som `icon.svg`/PNG:erna). Regenerera via designverktyg → ersätt `public/favicon.ico`.
 
 ### Funktionella luckor
-- [ ] **Skanner kör mock-OCR** — riktig kortidentifiering från foto saknas. Koppla vision-leverantör via `OCR_PROVIDER` (se SCANNER.md). Kan ev. återanvända Claude vision (samma som gradering).
-- [ ] **AI-gradering kör mock** om inte `GRADING_PROVIDER=claude` + `ANTHROPIC_API_KEY` är satta. (Allt annat klart — se grading-tjänsten.)
+- [x] **Skanner + AI-gradering kör riktig vision** — prod har `OCR_PROVIDER=gemini` och `GRADING_PROVIDER=gemini` (avläst i Railway 2026-08-14). Mock gäller bara lokalt/utan variabler. ⚠️ `SCANNER_MODEL_PRECISE` defaultar till `gemini-3.5-flash`, som är STRIKT DOMINERAD av `gemini-3.6-flash` (samma inpris, 20 % billigare ut, nyare) — graderingen bytte 08-05, skannern glömdes.
 - [ ] **Skan-/graderingsbilder lagras inte** (`imageUrl="inline-upload"`) → S3-kompatibel objektlagring för historik-thumbnails + omgradering.
 - [ ] **HEIC/ovanliga bildformat avvisas** (iOS fotobibliotek ger ofta HEIC) i gradering/skanning → klient-sidig konvertering till JPEG, eller bredda stödet.
 - [ ] **Samlingens `valueOverTime`** = NUvärde bucketat på inköpsmånad (ej historiskt korrekt). Kräver dagliga samlingsvärde-snapshots per användare för en riktig kurva.

@@ -53,16 +53,17 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   **TREDJE MOTTAGARKÄLLAN = SET-BEVAKNING (2026-08-06)**: `SetWatch` (userId+setId) larmar på ALLA sealed-produkter i ett set. Se
   "SET-BEVAKNING" under Tekniska beslut.
 - **Funktioner live**: watchlist/prisbevakning, restock-alerts (8 butikskällor), samlingsvärde (live),
-  AI-gradering (`/gradera`, Claude vision), live kort-skanner (`/skanna`, capture-baserad), community, admin, PWA.
+  AI-gradering (`/gradera`, Gemini vision), live kort-skanner (`/skanna`, capture-baserad, Gemini vision), community, admin, PWA.
 
 ## Öppna ärenden / Nästa steg
-- **DISCORD-KOPPLINGEN ÄR BYGGD OCH DEPLOYAD, MEN AVSTÄNGD (2026-08-07)**: kod live, prod-migrationen körd,
-  `DISCORD_ENABLED=false` i Railway + GitHub. Kvar, i ORDNING: (1) **integritetspolicyn** — jurist måste läsa
-  `../PokeFinds-private/docs/PRIVACY-DISCORD-DRAFT.md`, som utöver Discord listar TRE leverantörer som
-  behandlar personuppgifter i produktion i dag UTAN att stå i policyn (Stripe sedan 08-07, Google/Gemini sedan
-  08-05, Tradera) — de är försenade oavsett Discord; (2) **testa flödet** med ett ANNAT konto än serverägarens;
-  (3) `DISCORD_ENABLED=true`. Ägarbeslut tagna: roller tas bort men ingen kickas, och Pro-rollen följer hela
+- **DISCORD-KOPPLINGEN ÄR PÅSLAGEN**: `DISCORD_ENABLED=true` i BÅDE Railway och GitHub (avläst 2026-08-14;
+  GitHub-variabeln stämplad 2026-08-07). Rollsynken är alltså live — länkning, webhookar och den nattliga
+  avstämningen kör skarpt. Ägarbeslut tagna: roller tas bort men ingen kickas, och Pro-rollen följer hela
   `isPro()` (inkl. admin + referral-bonus). Se "DISCORD-ROLLEN" under Tekniska beslut.
+  ⛔ **INTEGRITETSPOLICYN ÄR FORTFARANDE INTE JURISTGRANSKAD** — den var villkoret för påslaget och är nu
+  försenad MEDAN behandlingen pågår, inte före den. `../PokeFinds-private/docs/PRIVACY-DISCORD-DRAFT.md`
+  listar utöver Discord TRE leverantörer som behandlar personuppgifter i produktion UTAN att stå i policyn
+  (Stripe sedan 08-07, Google/Gemini sedan 08-05, Tradera). Det är den enda kvarvarande punkten.
 - **DISCORD RESTOCK-LARM BYGGT 2026-08-11, INERT TILLS VARIABLERNA SÄTTS**: egen lane
   (`.github/workflows/discord-restock.yml` + `scripts/discord-restock-run.ts`) som postar
   restocks var 2:a minut, kanal per SERIE. Kvar för ägaren: (1) skapa kanalerna i Discord,
@@ -112,7 +113,7 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   ⚠️ Kontrollerat och EJ begränsande: Actions-cachen (1,18 GB av 10 GB, state-filerna ~0 MB) och
   GitHubs API-tak (720 dispatches/dygn mot 5 000/h).
   ⛔ **INGET NYTT SAMTYCKE BEHÖVS**: inlägget är produktdata, inga personuppgifter, så det är
-  INTE blockerat av juristgranskningen som håller `DISCORD_ENABLED=false`. Egen spak med flit.
+  INTE blockerat av juristgranskningen som gällde `DISCORD_ENABLED`. Egen spak med flit.
   ⛔ **"GRATIS" ÄR ETT VILLKOR, INTE EN BIEFFEKT.** `shouldProcess` returnerar ALLTID false →
   `runRestockScan` stannar efter fas 1 (ren HTTP) och når aldrig `ensureDbAwake()`; dessutom
   sätter workflowet en AVSIKTLIGT oåtkomlig `DATABASE_URL` så en framtida DB-fråga dör synligt i
@@ -528,7 +529,7 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   `connectedAccounts` (och `traderaUserId`, som SAKNATS i exporten sedan Tradera-kopplingen byggdes).
   Kontoradering tar bort rollerna FÖRE raderingen — efteråt finns ingen rad att läsa id:t ur, och en Pro-roll
   utan konto är just en sådan kvarleva art. 17 handlar om.
-  ⚠️ **MÖRKLAGD BAKOM `DISCORD_ENABLED` tills integritetspolicyn är uppdaterad.** Utkast + de tre ANDRA
+  ⚠️ **`DISCORD_ENABLED` ÄR PÅ (avläst 2026-08-14) — spaken finns kvar som nödstopp.** Utkast + de tre ANDRA
   odeklarerade leverantörerna (Stripe, Google/Gemini, Tradera) ligger i `../PokeFinds-private/docs/
   PRIVACY-DISCORD-DRAFT.md`. ⛔ Discord får INTE bara läggas i `Privacy.s7Items`: den listan påstår att varje
   post är ett personuppgiftsbiträde bundet av biträdesavtal, och Discord är självständigt personuppgifts-
@@ -957,6 +958,17 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   bas visas "–", aldrig "0 kr" (en nolla läser som "du går jämnt ut"). EN penningparser för hela appen:
   `src/lib/purchase-price.ts` (`parseKronorToOre`, tar både "," och ".", taket är int4).
 - **Samlingsvärde**: live via `computeCollectionValue`/`valueCollectionItems` (`src/services/collection.ts`) → `getCardValues`/`getProductValues` (`src/services/products.ts`) = produktens lägsta pris (singel = CM-trend, sealed = butik) × live-kurs. Faller tillbaka på lagrat `estimatedValue` (ögonblicksbild vid tillägg) när live saknas. Skannade kandidater visar samma värde via `estimateCardValue`
+- **VILKEN LEVERANTÖR GÖR VAD (avläst i Railway/GitHub 2026-08-14)**: de två `*_PROVIDER`-variablerna styr
+  BARA de två BILD-funktionerna. **Gemini** = allt användaren ser: kortskannern (`OCR_PROVIDER=gemini`) och
+  AI-graderingen (`GRADING_PROVIDER=gemini`). **Claude** = hela bakgrundspipelinen, och den har INGEN
+  provider-variabel: `judgeSameProduct` (Haiku, `src/lib/same-product.ts`) i auto-importens gränsfall
+  (`runner.ts`, var 10:e min via restock-watch + scrape-all), veckans stub-dedup och JP→CM-mappningen, plus
+  fynd-/Tradera-verifieringen (`src/services/deal-verify/`, default `claude`, `DEALS_VERIFY_PROVIDER` är
+  OSATT i repo-variablerna). ⛔ **`ANTHROPIC_API_KEY` är därför inte valfri även om båda bild-funktionerna
+  står på Gemini** — utan den returnerar domaren null, vilket är omöjligt att skilja från "olika produkter",
+  och HELA 0,55–0,85-bandet blir dubbletter. Tyst, i drift. ⚠️ `SCANNER_MODEL_PRECISE` defaultar till
+  `gemini-3.5-flash`, som är STRIKT DOMINERAD av `gemini-3.6-flash` (samma inpris, 20 % billigare ut, nyare);
+  graderingen bytte 08-05, skannern glömdes.
 - **AI-gradering = GEMINI PÅ BÅDA NIVÅERNA (ägarbeslut 2026-08-05)**: adaptermönster i `src/services/grading/`
   (`GradingAdapter` + mock + Claude + Gemini). Plan→modell är nu PER LEVERANTÖR: FREE = `GRADING_MODEL_FREE_GEMINI`
   (`gemini-3.1-flash-lite`, $0,25/$1,50 per MTok, max `GRADING_FREE_MONTHLY_LIMIT`=3/mån), PREMIUM =
@@ -1245,7 +1257,7 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   Kräv därför att VARJE variant nämner en Pokémon + tillbehörsvakten. Migrering av gammal data:
   `scripts/split-shopify-variants.ts` (torrkörning default).
 - **Scrapers**: Adapter-mönster i `src/scrapers/`. Riktiga adapters MÅSTE respektera robots.txt, rate limits, tydlig user-agent. Ingen captcha/login-bypass. Rå data sparas i `PriceObservation.rawData`. Samtidighet via `mapPool` (`src/lib/concurrency.ts`) i batch-jobben; runner-loopen lämnas sekventiell med flit (billigast-vinner + restock-dedup)
-- **Skanning**: `src/services/scanner/` — OCR-adapter-interface med mock + `ClaudeVisionOcrAdapter`. Riktig vision via `OCR_PROVIDER=claude`
+- **Skanning**: `src/services/scanner/` — OCR-adapter-interface med mock + `ClaudeVisionOcrAdapter` + `GeminiVisionOcrAdapter`. PROD KÖR `OCR_PROVIDER=gemini` (avläst 2026-08-14); `=claude` är rollback
 - **Priser**: lagras i öre (integer) för SEK, `currency`-fält. Visa via `formatPrice()` i `src/lib/format.ts`
 - **Kortnummer-sortering = GENERERAD KOLUMN, inte app-logik (2026-07-28)**: `Card.number` är TEXT ("93", "TG28",
   "143a", "MEP 074", "A"), så en rak sortering ger 1, 10, 100, 101, 102, 11 — inte pärmordning. `/produkter`
