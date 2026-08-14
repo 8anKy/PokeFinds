@@ -741,6 +741,18 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   **Kvar som verktyg**: `scripts/audit-restock-truth.ts` (rapport-only) rangordnar (produkt, butik)-par
   på flippar/dygn och listar butiker utan en enda slutsåld offer. ⚠️ Ett högt tal är en MISSTANKE, inte
   en dom — Webhallens 7,1 flippar/par såg ut som en bugg och var det inte.
+- **SEX BUTIKER KAN ALDRIG GE ETT RESTOCK-LARM (mätt 2026-08-14 mot alla 42 feedar)**:
+  `scripts/audit-store-stock-signals.ts` hämtar varje bevakad butiks feed live (fas 1, rör aldrig DB:n)
+  och ställer EN fråga: kan feeden över huvud taget uttrycka "slut i lager"? Svarar den nej står varje
+  offer permanent på IN_STOCK, OUT→IN inträffar aldrig, och butiken kan bara någonsin ge "ny produkt i
+  lager". Felet är TYST — butiken ser frisk ut i alla hälsomått (färsk `lastSeenAt`, inga adapterfel).
+  **Utfall: Cardlevels (78 annonser), The Swedish Fish (41), Leksaksaffären (37), Pocketmonsters (36),
+  Pokexclusive (31), Packs on Packs (28) — alla med NOLL slutsålda.** Övriga 36 har frisk blandning.
+  ⚠️ **KÖR REVISIONEN LUGNT**: 42 butiker på en gång fick Shopify att 429:a oss, och två butiker såg
+  då "trasiga" ut. Kontroll mot `Offer.lastSeenAt` i prod visade att båda setts 12 min tidigare —
+  döm aldrig en butik trasig utifrån en egen burst-körning utan att kolla prod-färskheten först.
+  ⏭️ Leksaksaffären: 8 offers med 42 h gammal `lastSeenAt` medan feeden ger 37 annonser (URL:erna
+  troligen utbytta) och butiken saknar strategi i `STORE_STOCK_STRATEGY` → går inte att verifiera.
 - **FRÅNVARO UR FEEDEN KOLLAS, DEN TOLKAS INTE (2026-07-28)**: en offer vars URL försvann ur butikens feed
   nollades förr till UNKNOWN ("Okänd" i pristabellen bredvid ett dagsgammalt pris) — ärligt men blint, OCH
   eftersom UNKNOWN→IN_STOCK inte är en äkta övergång larmade en efterföljande restock ALDRIG. Sådana offers
