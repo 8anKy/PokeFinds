@@ -3,13 +3,21 @@
  * Mörkvänlig, enkel inline-stylad HTML med Foilio-branding.
  */
 
+// ⛔ Bara rena konstanter får importeras hit: templates.ts når EDGE-bundlen via
+// instrumentation → scheduler → notifications, där Node-API:er (t.ex. 'crypto')
+// inte finns. social-links.ts är enbart strängar — se signup-code-noten nedan.
+import { DISCORD_URL } from "@/lib/social-links";
+
 export interface EmailContent {
   subject: string;
   html: string;
   text: string;
 }
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.foilio.se";
+// ⛔ APEX, aldrig www: apex är kanonisk sedan 2026-08-14 och www 301:as av
+// Cloudflare. En webbläsare följer den redirecten, men reservvärdet ska ändå peka
+// rätt — samma regel som för alla maskinella URL:er.
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://foilio.se";
 
 function formatSek(ore: number): string {
   return `${(ore / 100).toLocaleString("sv-SE", { minimumFractionDigits: 2 })} kr`;
@@ -70,14 +78,30 @@ function setWatchReason(setName?: string | null): { html: string; text: string }
   };
 }
 
+/**
+ * Välkomstmejlet bär också Discord-inbjudan (2026-08-14). Det är den DURABLA
+ * versionen av engångsutskicket: varje nytt konto blir bjudet automatiskt, i
+ * stället för att någon måste komma ihåg att köra ett skript igen.
+ *
+ * ⛔ Inbjudan står SIST och som en egen ruta — välkomstmejlets uppgift är att få
+ * folk att komma igång i appen, och en Discord-knapp högst upp hade konkurrerat
+ * med precis det. Nämner inte kontokoppling: `DISCORD_ENABLED=false`.
+ */
 export function welcomeEmail(name: string): EmailContent {
   const subject = "Välkommen till Foilio!";
   const html = layout(
     `Välkommen, ${name}!`,
     `<p style="line-height:1.6;color:#cbd5e1;">Kul att ha dig här! Med Foilio kan du jämföra priser på Pokémon TCG-produkter, bevaka dina favoriter och få aviseringar när priser sjunker eller produkter kommer tillbaka i lager.</p>
-     <p style="line-height:1.6;color:#cbd5e1;">Öppna Foilio-appen och lägg till produkter i din bevakningslista för att komma igång.</p>`
+     <p style="line-height:1.6;color:#cbd5e1;">Öppna Foilio-appen och lägg till produkter i din bevakningslista för att komma igång.</p>
+     <div style="margin:28px 0 0;padding:20px;background-color:#0f1115;border:1px solid #2a2e38;border-radius:10px;">
+       <p style="margin:0 0 6px;font-size:15px;font-weight:700;color:#ffffff;">Häng med oss på Discord 👋</p>
+       <p style="margin:0;line-height:1.6;color:#cbd5e1;font-size:14px;">Restocks postas direkt i egna kanaler per serie, och du kan fråga andra samlare om priser och fynd. Gratis och öppet för alla.</p>
+       <p style="margin:16px 0 0;">
+         <a href="${DISCORD_URL}" style="display:inline-block;background-color:#2dd4bf;color:#08110f;text-decoration:none;font-weight:700;padding:10px 22px;border-radius:8px;font-size:14px;">Gå med i Discord</a>
+       </p>
+     </div>`
   );
-  const text = `Välkommen, ${name}!\n\nKul att ha dig här! Med Foilio kan du jämföra priser, bevaka produkter och få aviseringar vid prisfall och restocks.\n\nÖppna Foilio-appen för att komma igång.${textFooter}`;
+  const text = `Välkommen, ${name}!\n\nKul att ha dig här! Med Foilio kan du jämföra priser, bevaka produkter och få aviseringar vid prisfall och restocks.\n\nÖppna Foilio-appen för att komma igång.\n\n— Häng med oss på Discord —\nRestocks postas direkt i egna kanaler per serie, och du kan fråga andra samlare om priser och fynd. Gratis och öppet för alla.\nGå med: ${DISCORD_URL}${textFooter}`;
   return { subject, html, text };
 }
 
@@ -284,6 +308,52 @@ export function preorderEmail(
      ${reason.html}`
   );
   const text = `Hej ${name}!\n\nÖppen för förhandsbokning: ${productTitle}${price ? `\nPris: ${formatSek(price)}` : ""}\nHos: ${retailerName}\n\nFörhandsboka: ${url}\n\nFörhandsbokningar tar ofta slut innan release!${reason.text}${textFooter}`;
+  return { subject, html, text };
+}
+
+/**
+ * INBJUDAN TILL DISCORD — ett engångsutskick till befintliga konton, inte ett larm.
+ *
+ * ⛔ Nämner INTE kontokoppling eller roller: `DISCORD_ENABLED=false` tills
+ * integritetspolicyn är juristgranskad, så knappen i /installningar finns inte.
+ * Mejlet leder till den PUBLIKA inbjudan, som fungerar oavsett — går servern och
+ * kontot ihop senare är det en egen nyhet.
+ *
+ * ⛔ Footern måste peka på avanmälan: det här är inget transaktionsmejl, och
+ * `notificationSettings.email` är den enda spak mottagaren har.
+ */
+export function discordInviteEmail(name: string): EmailContent {
+  const subject = "Foilio finns på Discord – restocks direkt i mobilen";
+  const footerReason =
+    "Du får detta mejl för att du har ett konto på Foilio. Det här är ett engångsutskick om vår community.<br>Vill du inte ha mejl från oss stänger du av e-post under Inställningar i Foilio-appen.";
+  const html = layout(
+    "Kom och häng med oss på Discord 👋",
+    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Vi har öppnat en Discord-server för svenska Pokémon-samlare – och du är varmt välkommen in.</p>
+     <p style="line-height:1.6;color:#cbd5e1;margin:20px 0 8px;font-weight:600;color:#ffffff;">Vad du får där:</p>
+     <ul style="line-height:1.7;color:#cbd5e1;padding-left:20px;margin:0;">
+       <li><strong style="color:#ffffff;">Restocks postas direkt</strong> – egna kanaler per serie, så du slipper bruset från set du inte samlar på.</li>
+       <li><strong style="color:#ffffff;">Fråga om priser och fynd</strong> – är 900 kr rimligt för lådan? Fråga folk som köper dem varje vecka.</li>
+       <li><strong style="color:#ffffff;">Påverka vad vi bygger</strong> – saknas din butik i Foilio? Säg till, så står den ofta på listan samma vecka.</li>
+     </ul>
+     ${button(DISCORD_URL, "Gå med i Discord")}
+     <p style="line-height:1.6;color:#6b7280;font-size:13px;">Servern är gratis och öppen för alla. Du behöver inte koppla ditt Foilio-konto – det räcker med att klicka.</p>`,
+    footerReason
+  );
+  const text = `Hej ${name}!
+
+Vi har öppnat en Discord-server för svenska Pokémon-samlare – och du är varmt välkommen in.
+
+Vad du får där:
+· Restocks postas direkt – egna kanaler per serie, så du slipper bruset från set du inte samlar på.
+· Fråga om priser och fynd – är 900 kr rimligt för lådan? Fråga folk som köper dem varje vecka.
+· Påverka vad vi bygger – saknas din butik i Foilio? Säg till, så står den ofta på listan samma vecka.
+
+Gå med här: ${DISCORD_URL}
+
+Servern är gratis och öppen för alla. Du behöver inte koppla ditt Foilio-konto – det räcker med att klicka.
+
+Du får detta mejl för att du har ett konto på Foilio. Det här är ett engångsutskick om vår community. Vill du inte ha mejl från oss stänger du av e-post under Inställningar i Foilio-appen.
+Foilio · Sveriges marknadsplats för Pokémon TCG`;
   return { subject, html, text };
 }
 

@@ -3,6 +3,7 @@ import { HeaderNav } from "@/components/layout/header-nav";
 import { HeaderAuthActions } from "@/components/layout/header-auth-actions";
 import { BrandLogo } from "@/components/layout/brand-logo";
 import { AppStoreBadge } from "@/components/layout/app-store-badge";
+import { DiscordLink } from "@/components/layout/discord-link";
 
 export function SiteHeader() {
   // Mobil: headern scrollar bort (bottom-tabs är navet) → blockerar inte innehåll.
@@ -19,7 +20,11 @@ export function SiteHeader() {
           <BrandLogo />
         </Link>
         <HeaderNav />
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Discord ligger FÖRE App Store-brickan och visas i ALLA storlekar:
+              brickan är webb-only (appanvändaren har redan appen), communityn
+              gäller alla. Se discord-link.tsx. */}
+          <DiscordLink />
           {/* App Store-brickan: desktop-headern är sticky → alltid i bild.
               Mobilen har sin egen bricka ovanför sökfältet (headern scrollar
               bort där); i native-appen döljer komponenten sig själv. */}

@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox, FieldError, Label } from "@/components/ui/input";
 import { SafeImage } from "@/components/ui/safe-image";
 import { IconCards, IconCheck } from "@/components/ui/icons";
+import { IconDiscord } from "@/components/ui/brand-icons";
+import { DISCORD_URL } from "@/lib/social-links";
 import { cn } from "@/lib/utils";
 
 // value = lagrat/skickat till API (stabilt), key = översättningsnyckel för visning.
@@ -305,6 +307,31 @@ export default function OnboardingPage() {
                 checked={notif.email}
                 onChange={(e) => setNotif((n) => ({ ...n, email: e.target.checked }))}
               />
+            </div>
+
+            {/* Discord-inbjudan i SISTA steget, inte som ett eget fjärde steg:
+                registreringen ska inte bli längre för att vi vill ha medlemmar.
+                ⛔ `target="_blank"` är inte kosmetik — öppnades servern i samma
+                flik vore onboardingen övergiven precis före "Slutför", och
+                svaren (intressen, budget, favoritset) hade aldrig sparats. */}
+            <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
+              <div className="flex items-start gap-3">
+                <IconDiscord size={22} className="mt-0.5 shrink-0 text-ink-muted" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink">{t("discordTitle")}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+                    {t("discordBody")}
+                  </p>
+                  <a
+                    href={DISCORD_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex items-center rounded-lg border border-holo-cyan/50 px-3 py-1.5 text-xs font-semibold text-holo-cyan transition-colors hover:bg-holo-cyan/10"
+                  >
+                    {t("discordCta")}
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
 
