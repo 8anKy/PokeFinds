@@ -93,7 +93,7 @@ jobs:
       # Wall-clock för ett tick = långsammaste ENSKILDA butik, inte summan per worker.
       # Butikslistan är >40 på väg mot ~50 — 16 workers håller ticket under intervallet.
       RESTOCK_SCAN_CONCURRENCY: "16"
-      NEXT_PUBLIC_APP_URL: "https://www.foilio.se"
+      NEXT_PUBLIC_APP_URL: "https://foilio.se"
     steps:
       # Hoppa tyst och grönt när integrationen är avstängd — annars kör vi checkout
       # och npm var 2:a minut för att göra ingenting.

@@ -9,10 +9,25 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
 > versioner av denna fil). Den här filen håller bara NULÄGE, durabla beslut och vad som är kvar.
 
 ## Nuläge
-- **LIVE i produktion** på https://www.foilio.se — **Railway** (projekt `divine-reflection/PokeFinds`) + Neon serverless
+- **LIVE i produktion** på https://foilio.se — **Railway** (projekt `divine-reflection/PokeFinds`) + Neon serverless
   Postgres (Frankfurt). Deploy = `git push origin main` (Railway auto-bygger via Dockerfile, node:22-slim). INGEN `vercel --prod`
   längre — vi har lämnat Vercel. Railway BLOCKAR SMTP-portar → mejl skickas via Resend HTTP API (se `src/lib/mailer.ts`).
-  OBS: apex `foilio.se` resolvar inte (NXDOMAIN) — använd `www.foilio.se` i länkar tills apex-DNS:en kopplas.
+- **APEX ÄR KANONISK SEDAN 2026-08-14 (var `www`)**: DNS ligger hos **Cloudflare** (`hal`/`tori.ns.cloudflare.com`,
+  flyttad från one.com). `foilio.se` är GRÅMOLNAD (DNS-only) och pekar med CNAME-flattening på Railways
+  `6yygajda.up.railway.app` — Railway serverar alltså apex direkt med eget cert. `www.foilio.se` är ORANGEMOLNAD
+  (proxad) och existerar BARA för att Cloudflares Redirect Rule ska 301:a den till apex; den är med flit INTE
+  registrerad som custom domain på Railway. Lägg inte tillbaka den — då börjar www serva appen parallellt.
+  ⛔ **VÄRDBYTET LOGGADE UT ALLA EN GÅNG.** Sessionscookien sätts utan `domain` (host-only, se `sessionCookieOptions`),
+  så en cookie utfärdad för `www.foilio.se` skickas aldrig till `foilio.se`. Det var väntat och engångs — men det är
+  också regeln: **byter värden igen loggas alla ut igen.**
+  ⛔ **EN 301 ÄR INTE GRATIS FÖR MASKINER.** Cloudflares www→apex-svar är ett 301, och `curl` utan `-L`,
+  Stripes webhook-leverans och de flesta API-klienter FÖLJER INTE redirects — de ser bara en 3xx och ger upp.
+  Därför måste varje maskinell URL peka DIREKT på apex: `NEXTAUTH_URL`, `NEXT_PUBLIC_APP_URL`, Stripes
+  webhook-endpoint, OAuth-redirect-URI:er (Discord/Tradera) och workflow-defaultarna för `/api/revalidate`.
+  Symptomet när en missas är TYST: webhooken "levereras" aldrig, cachen invalideras aldrig.
+  ⚠️ Fördröjd DNS-utrullning är normal: en resolver som cachat de GAMLA NS-posterna (one.com) frågar fel
+  auktoritet tills NS-TTL:en löper ut (~2 h) — sajten ser då död ut för just den användaren medan alla andra
+  är opåverkade. Mät med `Resolve-DnsName foilio.se -Type NS -Server <resolver>` innan något felsöks i appen.
 - **Katalog komplett**: ~173 set, ~20k singlar + ~1558 sealed-produkter (0 saknade set/kort mot pokemontcg.io).
 - **Priser**: singlar = Cardmarket engelska NM-"From" (RapidAPI) × live-kurs; sealed = CM `lowest`. Graf/historik = CM trend.
 - **Auto-uppdatering** via GitHub Actions (repot är publikt → obegränsade Actions-minuter):

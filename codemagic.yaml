@@ -16,7 +16,7 @@ workflows:
         - ios_signing        # innehåller CERTIFICATE_PRIVATE_KEY (Codemagic-UI, Secure)
       vars:
         # Appen öppnar direkt på Utforska (ingen blink av marknadsförings-startsidan).
-        CAP_SERVER_URL: "https://www.foilio.se/produkter"
+        CAP_SERVER_URL: "https://foilio.se/produkter"
         BUNDLE_ID: "se.foilio.app"
         # Capacitor 8 = SPM-mall: inget CocoaPods, ingen .xcworkspace — bygg xcodeproj:t direkt.
         XCODE_PROJECT: "ios/App/App.xcodeproj"

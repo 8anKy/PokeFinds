@@ -14,7 +14,7 @@ import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { parseNotificationSettings as parseSettings } from "@/lib/notification-settings";
 
 const MAX_RETRIES = 3;
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.foilio.se";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://foilio.se";
 
 /** Bygger e-postinnehåll för en alert baserat på typ. */
 async function buildAlertEmail(alert: {

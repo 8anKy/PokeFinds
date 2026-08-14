@@ -19,7 +19,7 @@ export default async function AdminCreatorCodesPage() {
   }
 
   const rows = await getCreatorCodeStats();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.foilio.se";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://foilio.se";
 
   return <CreatorCodesClient rows={rows} appUrl={appUrl} />;
 }
