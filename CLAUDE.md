@@ -718,41 +718,29 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   **Artikelnummer/SKU är fortfarande DÖTT** (ommätt: 14 av 1656 delas mellan butiker; DL kör egen räknare). MPN
   (`POK10407-101`) ser cross-store ut men butikerna hittar på egna (MaxGaming: `POK-AB-EYE-BB`). GTIN är en ANNAN
   identifierare — blanda ALDRIG ihop dem.
-- **EN UTGÅNGEN VARA RAPPORTERADES SOM I LAGER (2026-08-14)**: Webhallens Mega Greninja ex Premium
-  Collection stod på `stock.web: 1` samtidigt som produktsidan sa "Produkten har utgått ur
-  sortimentet" (ägarens skärmbild + `discontinued: 2` i API:t, verifierat kl. 21:44).
-  ⚠️ **VAD SOM ÄR BEVISAT OCH VAD SOM INTE ÄR DET**: bevisat är att varan är UTGÅNGEN medan
-  lagerfältet säger 1, dvs utan fixen hade vi fortsatt rapportera den som köpbar. **Larmet 21:13 var
-  däremot sannolikt ÄKTA — ägaren såg att sidan hann uppdateras strax efter.** Webhallens API bär
-  ingen tidsstämpel på `discontinued`, så när flaggan sattes går INTE att avgöra i efterhand; påstå
-  därför inte att de tio restockarna 08-10→08-14 var falska. Webhallen skickar dessutom FRÅN BUTIK
-  (Pitch Black Booster Bundle är fullt köpbar med webblagret `992: 0`), så en enhet i en fysisk butik
-  ÄR normalt säljbar — `stock.web` är alltså rätt fält för köpbarhet. Det enda `web` inte vet är att
-  varan utgått.
-  ⛔ **BLINK-DÄMPNINGEN TÄCKER INTE DEN HÄR KLASSEN**: flipparna låg 46 min–3 h isär, långt över
-  `RESTOCK_MIN_AWAY_MINUTES` (20). Flapp-vakten dämpar en HET vara som studsar; den kan inte veta att
-  varan utgått ur sortimentet.
-  **Fixen är Webhallens egen `discontinued`-markör** (uppmätt värderymd över 120 produkter i fyra
-  kategorier: bara 0 och 2, ingen tvetydig mellannivå → läses som boolean). Den slår lagersiffran i
-  `webhallenStockStatus`, som DELAS med `verifyStockForUrl` — en ändring rättar båda vägarna.
-  ⛔ **MARKÖREN FINNS BARA I PRODUKT-API:t** (`/api/product/{id}`); sök-API:ts rader saknar fältet
-  HELT. Och adapterns live-koll hoppade uttryckligen över allt sökfeeden kallade i lager (`if
-  IN_STOCK continue`) — dvs precis de rader där markören spelade roll. Live-kollen omfattar nu även
-  dem; de behöver bara markören, inte en färsk lagersiffra, så de svarar ur en process-cache (TTL 1 h)
-  i stället för att slås upp var 60:e sekund för ett svar som aldrig ändras.
-  ⛔ **`webStock["992"]` DUGER INTE SOM ERSÄTTNING** — det var den uppenbara reflexen och den är MÄTT
-  FEL i BÅDA riktningarna: Pitch Black Booster Bundle är fullt köpbar med `992: 0` (Webhallen skickar
-  från butik), och den utgångna 9-pocket-pärmen har `992: 3`. `discontinued` är enda fältet som svarar
-  på frågan; `isShippable`/`isCollectable`/`possibleDeliveryMethods` är IDENTISKA för utgångna varor.
-  ⛔ `LIVE_POLL_MAX` 40 → 80: feeden är 59 rader, så taket kapade TYST de sista ~19 — och i feed-ordning
-  var det alltid SAMMA rader. Kapning loggas nu (console.warn, INTE `errors`: ett täckningshål är inget
-  adapterfel och ska inte dra igång butikshälso-larmen).
-  **DETEKTORN ÄR MÖNSTRET, INTE FLIPPEN** (`scripts/audit-restock-truth.ts`, rapport-only): en enskild
-  flipp säger ingenting — det är att SAMMA (produkt, butik) återkommer som är signalen. Uppmätt 14
-  dygn: Webhallen 7,1 flippar per par mot Dragon's Lair 3,2. ⚠️ Ett högt tal är en MISSTANKE, inte en
-  dom: DL:s churn är äkta (46 av 171 restocks), och Greninja-fallet visade att även ett ytterlighetspar
-  kan ha äkta larm i sig. Domen kräver butikens egen produktsida. Skriptet listar också butiker utan en
-  enda slutsåld offer — de kan aldrig ge ett restock-larm, tyst.
+- **⛔ `discontinued` HOS WEBHALLEN ÄR INTE EN LAGERSIGNAL — PRÖVAT OCH ÅTERSTÄLLT SAMMA DAG (2026-08-14)**:
+  ägaren fick ett restock-larm på Mega Greninja ex Premium Collection och såg "Produkten har utgått ur
+  sortimentet" på Webhallens sida. Jag drog slutsatsen att `stock.web` ljög, hittade produkt-API:ts
+  `discontinued`-fält (värden 0 eller 2) och lät det slå lagersiffran. **Det var fel och deployades i ~40
+  minuter innan ägaren visade motbeviset**: samma produkt hade samtidigt `discontinued: 2`, `web: 1`,
+  "Lägg i varukorg" och "Webblager ✓ 1 st". Larmet var alltså KORREKT hela tiden.
+  **Rätt tolkning**: `discontinued: 2` = varan har utgått ur SORTIMENTET (inget mer kommer in), inte att
+  den är osäljbar. Kvarvarande exemplar säljs som vanligt, och rutan "har utgått" visas först när en
+  utgången vara nått NOLL. En vakt på fältet stänger därför av larm för de SISTA exemplaren av utgående
+  produkter — precis de larm som är mest värdefulla.
+  ⛔ **`stock.web` ÄR rätt fält för köpbarhet.** Webhallen skickar FRÅN BUTIK, så en enhet i en fysisk
+  butik räknas som webblager och är säljbar. `webStock["992"]` (rena webblagret) är 0 även för fullt
+  köpbara varor (Pitch Black Booster Bundle) och 3 för en utgången pärm — använd inte heller det.
+  ⚠️ **METODLÄXAN, VIKTIGARE ÄN FYNDET**: en produktsida i ett ÖGONBLICK bevisar inte vad som gällde när
+  larmet gick. Jag byggde en vakt på en skärmbild + ett fältnamn som lät självklart, och räknade 20
+  lagerflippar som stöd — men flipparna var ÄKTA lagerrörelser på en vara med ett fåtal exemplar.
+  Innan en lagervakt byggs: bevisa att fältet motsvarar KÖPBARHET, genom att hitta ett fall där de
+  skiljer sig åt. Här fanns inget sådant fall.
+  ✅ **Det enda som behölls** är höjt `LIVE_POLL_MAX` (40 → 80, feeden är 59 rader) med VARNING vid
+  kapning — det gamla taket kapade tyst, alltid samma rader i feed-ordning.
+  **Kvar som verktyg**: `scripts/audit-restock-truth.ts` (rapport-only) rangordnar (produkt, butik)-par
+  på flippar/dygn och listar butiker utan en enda slutsåld offer. ⚠️ Ett högt tal är en MISSTANKE, inte
+  en dom — Webhallens 7,1 flippar/par såg ut som en bugg och var det inte.
 - **FRÅNVARO UR FEEDEN KOLLAS, DEN TOLKAS INTE (2026-07-28)**: en offer vars URL försvann ur butikens feed
   nollades förr till UNKNOWN ("Okänd" i pristabellen bredvid ett dagsgammalt pris) — ärligt men blint, OCH
   eftersom UNKNOWN→IN_STOCK inte är en äkta övergång larmade en efterföljande restock ALDRIG. Sådana offers
