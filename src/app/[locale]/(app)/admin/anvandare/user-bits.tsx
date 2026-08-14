@@ -46,7 +46,11 @@ const PLATFORM_LABELS: Record<string, string> = {
  * "Ingen enhet", aldrig "Ingen app".
  */
 export function describeDevices(platforms: string[]): string {
-  if (platforms.length === 0) return "Ingen enhet";
+  // "Ingen PUSH-enhet", inte "Ingen enhet": det senare läses som "har ingen
+  // telefon", vilket vi inte vet något om. Att en användare skannat 247 kort
+  // bevisar en KAMERA, inte appen — /skanna är en vanlig webbsida (getUserMedia)
+  // och fungerar lika bra i mobilens webbläsare och som PWA.
+  if (platforms.length === 0) return "Ingen push-enhet";
   const counts = new Map<string, number>();
   for (const p of platforms) {
     const label = PLATFORM_LABELS[p] ?? p;

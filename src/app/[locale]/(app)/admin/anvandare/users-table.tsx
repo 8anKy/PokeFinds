@@ -237,7 +237,12 @@ export function UsersTable({
               <TH>Plan</TH>
               <TH>Gratis Pro t.o.m.</TH>
               <TH title="E-post · Push · Alla restocks">Notiser</TH>
-              <TH title="Registrerade push-enheter = appen är installerad">Enheter</TH>
+              {/* ⛔ Rubriken påstod förut "= appen är installerad". Det är en
+                  ÖVERTOLKNING åt fel håll: en token bevisar appen, men tomt
+                  bevisar ingenting (appen kan finnas utan push-tillstånd). */}
+              <TH title="Registrerade push-enheter. En token bevisar att appen finns — tomt bevisar INTE motsatsen (push kan vara nekad).">
+                Push-enheter
+              </TH>
               <TH title="Senaste autentiserade aktivitet (±15 min)">Senast sedd</TH>
               <TH title={`Skanningar + graderingar de senaste ${costWindowDays} dygnen`}>
                 Användning

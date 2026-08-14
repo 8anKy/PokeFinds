@@ -296,7 +296,7 @@ export default async function AdminUserDetailPage({
             {user.pushTokens.length > 0 ? (
               describeDevices(user.pushTokens.map((t) => t.platform))
             ) : (
-              <span className="text-ink-faint">Ingen enhet registrerad</span>
+              <span className="text-ink-faint">Ingen push-enhet registrerad</span>
             )}
           </Row>
           {user.pushTokens.map((t, i) => (
