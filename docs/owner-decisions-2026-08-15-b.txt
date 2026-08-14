@@ -1,0 +1,9 @@
+# Ägarens genomgång 2026-08-15, omgång b — tredje JP-boosterboxen ur samma familj
+# (butiksfrasering "Storm Emeralda (M6)" mot katalogens kanoniska CM-namn).
+# Egen fil: de två i -2026-08-15.txt är redan verkställda och slugarna finns
+# inte längre, så en omkörning av den filen hade fallit på "okänd slug".
+
+Duplicates
+https://foilio.se/produkter/storm-emeralda-m6-booster-box-japansk
+Goes to
+https://foilio.se/produkter/pokemon-mega-storm-emeralda-booster-box-japansk

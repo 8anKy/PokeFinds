@@ -1,0 +1,13 @@
+# Ägarens genomgång 2026-08-15 — två japanska boosterbox-dubbletter.
+# Butikens frasering ("Mega Dream ex (M2a)", "Ninja Spinner (M4)") mot katalogens
+# kanoniska CM-namn ("Pokémon … Booster Box Japansk").
+
+Duplicates
+https://foilio.se/produkter/mega-dream-ex-m2a-booster-box-japansk
+Goes to
+https://foilio.se/produkter/pokemon-mega-dream-ex-booster-box-japansk
+
+Duplicates
+https://foilio.se/produkter/ninja-spinner-m4-booster-box-japansk
+Goes to
+https://foilio.se/produkter/pokemon-ninja-spinner-booster-box-japansk
