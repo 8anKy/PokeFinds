@@ -718,14 +718,20 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   **Artikelnummer/SKU är fortfarande DÖTT** (ommätt: 14 av 1656 delas mellan butiker; DL kör egen räknare). MPN
   (`POK10407-101`) ser cross-store ut men butikerna hittar på egna (MaxGaming: `POK-AB-EYE-BB`). GTIN är en ANNAN
   identifierare — blanda ALDRIG ihop dem.
-- **"I LAGER" ÄR BUTIKENS PÅSTÅENDE, INTE ALLTID "GÅR ATT KÖPA" (2026-08-14)**: Mega Greninja ex
-  Premium Collection skickade FEM falska RESTOCK-mejl (+ tre NEW_LISTING) på fyra dygn medan
-  Webhallens produktsida hela tiden sa "Produkten har utgått ur sortimentet". Roten: `stock.web` är
-  INTE "köpbar online" — den sista enheten låg i FYSISK BUTIK 14 (`webStock` = {14: 1, **992: 0**},
-  där 992 är webblagret) och räknaren togglade 0↔1 när den reserverades och släpptes. 20 lagerflippar
-  på 14 dygn. ⛔ **BLINK-DÄMPNINGEN RÄDDAR INTE DEN HÄR KLASSEN**: flipparna låg 46 min–3 h isär,
-  alltså långt över `RESTOCK_MIN_AWAY_MINUTES` (20). Flapp-vakten dämpar en HET vara som studsar;
-  den kan inte veta att varan inte finns.
+- **EN UTGÅNGEN VARA RAPPORTERADES SOM I LAGER (2026-08-14)**: Webhallens Mega Greninja ex Premium
+  Collection stod på `stock.web: 1` samtidigt som produktsidan sa "Produkten har utgått ur
+  sortimentet" (ägarens skärmbild + `discontinued: 2` i API:t, verifierat kl. 21:44).
+  ⚠️ **VAD SOM ÄR BEVISAT OCH VAD SOM INTE ÄR DET**: bevisat är att varan är UTGÅNGEN medan
+  lagerfältet säger 1, dvs utan fixen hade vi fortsatt rapportera den som köpbar. **Larmet 21:13 var
+  däremot sannolikt ÄKTA — ägaren såg att sidan hann uppdateras strax efter.** Webhallens API bär
+  ingen tidsstämpel på `discontinued`, så när flaggan sattes går INTE att avgöra i efterhand; påstå
+  därför inte att de tio restockarna 08-10→08-14 var falska. Webhallen skickar dessutom FRÅN BUTIK
+  (Pitch Black Booster Bundle är fullt köpbar med webblagret `992: 0`), så en enhet i en fysisk butik
+  ÄR normalt säljbar — `stock.web` är alltså rätt fält för köpbarhet. Det enda `web` inte vet är att
+  varan utgått.
+  ⛔ **BLINK-DÄMPNINGEN TÄCKER INTE DEN HÄR KLASSEN**: flipparna låg 46 min–3 h isär, långt över
+  `RESTOCK_MIN_AWAY_MINUTES` (20). Flapp-vakten dämpar en HET vara som studsar; den kan inte veta att
+  varan utgått ur sortimentet.
   **Fixen är Webhallens egen `discontinued`-markör** (uppmätt värderymd över 120 produkter i fyra
   kategorier: bara 0 och 2, ingen tvetydig mellannivå → läses som boolean). Den slår lagersiffran i
   `webhallenStockStatus`, som DELAS med `verifyStockForUrl` — en ändring rättar båda vägarna.
@@ -741,10 +747,12 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   ⛔ `LIVE_POLL_MAX` 40 → 80: feeden är 59 rader, så taket kapade TYST de sista ~19 — och i feed-ordning
   var det alltid SAMMA rader. Kapning loggas nu (console.warn, INTE `errors`: ett täckningshål är inget
   adapterfel och ska inte dra igång butikshälso-larmen).
-  **DETEKTORN ÄR MÖNSTRET, INTE FLIPPEN** (`scripts/audit-restock-truth.ts`, rapport-only): ingen
-  enskild flipp såg konstig ut — det var att SAMMA (produkt, butik) återkom som avslöjade den. Uppmätt
-  14 dygn: Webhallen 7,1 flippar per par mot Dragon's Lair 3,2 (DL:s churn är ÄKTA). Skriptet listar
-  också butiker utan en enda slutsåld offer — de kan aldrig ge ett restock-larm, tyst.
+  **DETEKTORN ÄR MÖNSTRET, INTE FLIPPEN** (`scripts/audit-restock-truth.ts`, rapport-only): en enskild
+  flipp säger ingenting — det är att SAMMA (produkt, butik) återkommer som är signalen. Uppmätt 14
+  dygn: Webhallen 7,1 flippar per par mot Dragon's Lair 3,2. ⚠️ Ett högt tal är en MISSTANKE, inte en
+  dom: DL:s churn är äkta (46 av 171 restocks), och Greninja-fallet visade att även ett ytterlighetspar
+  kan ha äkta larm i sig. Domen kräver butikens egen produktsida. Skriptet listar också butiker utan en
+  enda slutsåld offer — de kan aldrig ge ett restock-larm, tyst.
 - **FRÅNVARO UR FEEDEN KOLLAS, DEN TOLKAS INTE (2026-07-28)**: en offer vars URL försvann ur butikens feed
   nollades förr till UNKNOWN ("Okänd" i pristabellen bredvid ett dagsgammalt pris) — ärligt men blint, OCH
   eftersom UNKNOWN→IN_STOCK inte är en äkta övergång larmade en efterföljande restock ALDRIG. Sådana offers

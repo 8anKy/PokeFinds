@@ -25,9 +25,9 @@ describe("webhallenStockStatus", () => {
 
 /**
  * REGRESSIONSVAKT: Mega Greninja ex Premium Collection (2026-08-14). Produkten var
- * utgången ur sortimentet men bar `web: 1` — den sista enheten låg i en FYSISK butik och
- * räknaren togglade 0↔1. Resultatet blev 14 lagerflippar på fyra dygn och fem falska
- * restock-mejl. Utgått måste därför slå lagersiffran, oavsett vad den säger.
+ * utgången ur sortimentet ("Produkten har utgått", `discontinued: 2`) men bar samtidigt
+ * `web: 1` — den sista enheten låg i en fysisk butik. Utgått måste slå lagersiffran,
+ * annars rapporteras en vara som inte går att köpa som "i lager".
  */
 describe("webhallenStockStatus — utgången produkt", () => {
   it("utgått slår lagersiffran (det verkliga Greninja-fallet: web=1)", () => {

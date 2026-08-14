@@ -103,19 +103,21 @@ function isWebhallenRaw(raw: unknown): raw is WebhallenRaw {
  * (web=0 men lanseringsdatum i framtiden — köpbar nu, levereras vid release). De två
  * senare ser identiska ut i lagerfältet; bara `release`-datumet skiljer dem åt.
  *
- * ⛔ UTGÅTT SLÅR LAGERSIFFRAN — OCH `stock.web` ÄR INTE "KÖPBAR ONLINE" (2026-08-14).
- * Mega Greninja ex Premium Collection stod på `web: 1` i FYRA dygn medan produktsidan
- * sa "Produkten har utgått": den enda kvarvarande enheten låg i FYSISK BUTIK 14
- * (`webStock` = {14: 1, 992: 0} — 992 är webblagret) och räknaren togglade 0↔1 när den
- * reserverades och släpptes. Följden blev 14 lagerflippar på fyra dygn och FEM falska
- * RESTOCK-mejl (plus tre NEW_LISTING) för en vara som aldrig gick att köpa. Blink-
- * dämpningen räddar inte här: flipparna låg 46 min–3 h isär, alltså långt över
- * RESTOCK_MIN_AWAY_MINUTES.
+ * ⛔ UTGÅTT SLÅR LAGERSIFFRAN (2026-08-14). Mega Greninja ex Premium Collection stod på
+ * `web: 1` medan produktsidan sa "Produkten har utgått ur sortimentet" — den sista
+ * enheten låg i FYSISK BUTIK 14 (`webStock` = {14: 1, 992: 0}). Utan den här raden
+ * rapporterar vi en vara som inte går att köpa som "i lager", om och om igen.
+ *
+ * ⚠️ `stock.web` ÄR RÄTT FÄLT FÖR KÖPBARHET — det är bara utgått den inte känner till.
+ * Webhallen skickar FRÅN BUTIK (Pitch Black Booster Bundle är fullt köpbar med
+ * webblagret `992: 0`), så en enhet i en fysisk butik är normalt säljbar. Läs alltså
+ * inte det här som "butikslager räknas inte".
  *
  * ⛔ ANVÄND INTE `webStock["992"]` SOM ERSÄTTNING — det var den uppenbara reflexen och
  * den är MÄTT FEL i båda riktningarna: Pitch Black Booster Bundle är fullt köpbar med
  * `992: 0` (falskt slutsåld), och den utgångna 9-pocket-pärmen har `992: 3` (falskt i
- * lager). `discontinued` är det enda fält som faktiskt svarar på frågan.
+ * lager). `discontinued` är det enda fält som faktiskt svarar på frågan; `isShippable`,
+ * `isCollectable` och `possibleDeliveryMethods` är IDENTISKA för utgångna varor.
  */
 export function webhallenStockStatus(item: WebhallenProduct): StockStatus {
   if (item.discontinued) return StockStatus.OUT_OF_STOCK;
@@ -228,10 +230,10 @@ export class WebhallenAdapter implements SourceAdapter {
       // och IN→OUT larmar aldrig). Cappad + politeFetch-delay av artighet mot butiken.
       // ⛔ ÄVEN RADER SÖKFEEDEN KALLAR "I LAGER" (2026-08-14). Förr hoppade loopen över
       // dem (`if IN_STOCK continue`) — men utgått-markören finns BARA i produkt-API:t,
-      // så en utgången vara vars butiksexemplar togglar 0↔1 kunde aldrig avslöjas. Det
-      // var exakt så Mega Greninja skickade fem falska restock-mejl. Rader i lager
-      // behöver dock bara markören, inte en färsk lagersiffra, så de svarar oftast ur
-      // cachen; rader UTAN lager slås upp varje gång, för där är latensen hela poängen.
+      // så en utgången vara som ändå bär ett lagersaldo kunde aldrig avslöjas: exakt
+      // Mega Greninja-fallet. Rader i lager behöver dock bara markören, inte en färsk
+      // lagersiffra, så de svarar oftast ur cachen; rader UTAN lager slås upp varje
+      // gång, för där är latensen hela poängen.
       let polled = 0;
       let skippedByCap = 0;
       const now = Date.now();
