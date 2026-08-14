@@ -483,6 +483,7 @@ model Product {
   collectionItems   CollectionItem[]
   priceSnapshots    PriceSnapshot[]
   traderaListings   TraderaListing[]
+  storeListings     StoreListing[]
 
   @@index([normalizedTitle])
   @@index([category])
@@ -525,14 +526,40 @@ model StoreListing {
   // Streckkod för den råa annonsen (GTIN-14). Cachas här så auto-importen slipper
   // hämta om den för en URL vi redan slagit upp.
   gtin        String?
+  /// MEMO: vilken katalogprodukt den här URL:en löstes till, och på VILKEN titel.
+  ///
+  /// ⛔ UTAN DEN BETALAS SAMMA LLM-DOM 144 GÅNGER OM DYGNET. `ensureListingProduct`
+  /// frågade "har URL:en en Offer?" — och för en URL som ALDRIG kan få en egen offer
+  /// (butiken har redan en offer på produkten via en annan variant-URL; Offer är unik
+  /// på produkt+butik+skick+språk) är svaret alltid nej. Alltså: matcha, fråga Haiku,
+  /// binda, skriva ingenting, upprepa var 10:e minut i evighet. Mätt 2026-08-14: 5
+  /// listningar × 144 körningar = 720 anrop/dygn för domar vi redan hade (~$18/mån,
+  /// ~90 % av appens hela Anthropic-nota). Samma sjuka som DedupeVerdict botade för
+  /// veckojobbet — den här vägen fick bara aldrig sin cache.
+  ///
+  /// `productMatchTitle` är RÅTITELN domen gällde (cache-invalidering, samma regel som
+  /// DedupeVerdict.titleA/B): byter butiken titel på sidan är domen inte längre giltig
+  /// och vi dömer om. Rå titel med flit — den finns FÖRE `fetchListingFacts`, så en
+  /// memo-träff slipper både HTTP-uppslaget och API-anropet.
+  ///
+  /// ⛔ Memot läses EFTER språk-/denylist-vakterna. En URL admin nekat får aldrig
+  /// återuppstå ur cachen.
+  productId         String?
+  productMatchTitle String?
   firstSeenAt DateTime    @default(now())
   lastSeenAt  DateTime    @default(now())
 
   retailer Retailer @relation(fields: [retailerId], references: [id])
   alerts   Alert[]
+  /// `onDelete: SetNull` är memots enda invalidering vid radering: en mergad eller
+  /// raderad produkt nollar memot i DATABASEN, så nästa körning dömer om och binder
+  /// till målet. Utan FK:n hade memot pekat på ett dött id och FK-felet slagit i
+  /// offer-skrivningen i stället — tyst, i en bakgrundsloop.
+  product  Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@unique([retailerId, url])
   @@index([retailerId])
+  @@index([productId])
 }
 
 model Offer {

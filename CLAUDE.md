@@ -594,6 +594,28 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   ett sätt CardTrader inte modellerar, och deras länkar är satta för hand.
   ✅ Durabelt: dagliga `runCardmarketRefresh` återanvänder `entry.url` (skriver inte om den), och
   `resolve-cm-urls.ts` rör bara redirect-/sök-URL:er.
+- **EN LLM-DOM SKRIVS NER, ANNARS BETALAS DEN VAR 10:e MINUT I EVIGHET (2026-08-14)**: `ensureListingProduct`
+  frågade "har URL:en en Offer?" för att avgöra om annonsen var ny. För en URL som ALDRIG kan få en egen offer
+  är svaret alltid nej: butiken har redan en offer på produkten via en ANNAN variant-URL, och `Offer` är unik på
+  (produkt, butik, skick, språk) → `upsertListingOffer` skriver ingenting. Alltså matchades, dömdes (Haiku) och
+  bands samma annons om och om igen. **MÄTT: 5 listningar × 144 körningar = 720 anrop/dygn ≈ $18/mån ≈ 90 % av
+  hela Anthropic-notan**, för domar vi redan hade. Rogerz listar varje begagnad vara under BÅDA danska
+  momsordningarna på SAMMA sida — den ena varianten fick offern, den andra kunde per konstruktion aldrig få en.
+  Domen bor nu i `StoreListing.productId` + `productMatchTitle` (migration 20260814210000).
+  ⛔ **MEMOT LÄSES EFTER språk- och denylist-vakterna** — en URL admin nekat får aldrig återuppstå ur cachen.
+  ⛔ **DET KORTSLUTER INTE `upsertListingOffer`**: memot sparar det DYRA (butikens produktsida via HTTP +
+  LLM-domen), aldrig garantin att en offer skapas när den GÅR att skapa. En misslyckad skrivning ska kunna
+  göras om nästa körning.
+  ⛔ **BARA POSITIVA DOMAR MEMORERAS.** `judgeSameProduct` returnerar null när domaren är OTILLGÄNGLIG, inte
+  när produkterna är olika — cachas det låser vi in ett icke-svar (samma familj som "0 kr är inget pris").
+  ⛔ **INVALIDERINGEN ÄR RÅTITELN**, samma regel som `DedupeVerdict.titleA/B`: byter butiken titel gäller inte
+  domen längre. Rå titel med flit — den finns FÖRE `fetchListingFacts`, så en memo-träff slipper HTTP-uppslaget
+  också. ⛔ **FK:n är `onDelete: SetNull`** — en mergad/raderad produkt nollar memot i DATABASEN, så nästa
+  körning dömer om och binder till målet; utan den hade memot pekat på ett dött id och FK-felet slagit i
+  offer-skrivningen i stället, tyst, i en bakgrundsloop. Vaktat av `tests/unit/listing-product-memo.test.ts`.
+  ⏭️ KVAR (samma körning, EJ åtgärdat): feed-först-grenen kollade **6 243 URL:er** mot bara ~2 100
+  huvudboksrader utan offer — gapet antyder att URL:er ÅTERSKAPAS i stället för att matchas. Mät innan något
+  byggs på siffran.
 - **AUTO-IMPORTEN STÄLLER EN ANNAN FRÅGA ÄN PRISVÄGEN — DÄRAV "ANDRA CHANSEN" (2026-08-07)**: `matchProduct` säger
   nej av två helt olika skäl, och `ensureListingProduct` behandlade dem likadant: som "varan finns inte". Det stämmer
   bara för det ena. **(a)** ingen kandidat är i närheten → ny produkt är RÄTT. **(b)** kandidaten finns men får inte

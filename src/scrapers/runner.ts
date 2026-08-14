@@ -331,6 +331,34 @@ export async function ensureListingProduct(
   // Ägar-denylist: URL:er som ALDRIG ska bli produkter (tillbehör/generiska sortiment
   // ägaren tagit bort). Utan detta återskapar nästa import den raderade produkten.
   if (isDeniedListingUrl(it.url)) return null;
+  // ---- MEMO: har vi redan avgjort vad URL:en är? ----
+  // ⛔ UTAN DETTA BETALAS SAMMA LLM-DOM 144 GÅNGER OM DYGNET. Vakten nedan frågar
+  // "har URL:en en Offer?", och för en URL som ALDRIG kan få en egen offer är svaret
+  // alltid nej: butiken har redan en offer på produkten via en ANNAN variant-URL, och
+  // Offer är unik på (produkt, butik, skick, språk) → `upsertListingOffer` skriver
+  // ingenting. Alltså matchades, dömdes och band vi om samma annons var 10:e minut i
+  // evighet. MÄTT 2026-08-14: 5 listningar × 144 körningar = 720 Haiku-anrop/dygn för
+  // domar vi redan hade (~$18/mån = ~90 % av appens Anthropic-nota). Rogerz listar
+  // varje begagnad vara under BÅDA danska momsordningarna på samma sida — den ena
+  // varianten fick offern, den andra kunde per konstruktion aldrig få en.
+  //
+  // Domen är stabil, så den skrivs ner (se memo-skrivningen sist i funktionen) och
+  // läses här. Jämförelsen mot RÅTITELN är cache-invalideringen (samma regel som
+  // DedupeVerdict.titleA/B): byter butiken titel gäller inte domen längre.
+  //
+  // ⛔ LIGGER EFTER språk- och denylist-vakterna med flit — en URL admin nekat får
+  //    aldrig återuppstå ur cachen.
+  // ⛔ Kortsluter INTE offer-skrivningen: memot sparar det DYRA (butikens produktsida
+  //    via HTTP + LLM-domen), aldrig garantin att en offer skapas när den GÅR att
+  //    skapa. Misslyckades offer-skrivningen en gång ska nästa körning försöka igen.
+  const ledger = await prisma.storeListing.findUnique({
+    where: { retailerId_url: { retailerId: it.retailerId, url: it.url } },
+    select: { productId: true, productMatchTitle: true, gtin: true },
+  });
+  if (ledger?.productId && ledger.productMatchTitle === it.title) {
+    await upsertListingOffer(it, ledger.productId, stockStatus, ledger.gtin);
+    return ledger.productId;
+  }
   // Cross-produkt-vakt: ägs URL:en redan av en produkt (t.ex. länkad av scrape-all-
   // matcharen) → använd DEN länken. Skapa aldrig en andra produkt/offer för samma
   // butikssida — det var så dubblettstubbarna uppstod (34 delade URL:er, städat 07-07).
@@ -338,7 +366,10 @@ export async function ensureListingProduct(
     where: { retailerId: it.retailerId, url: it.url },
     select: { productId: true },
   });
-  if (owner) return owner.productId;
+  if (owner) {
+    await rememberListingProduct(it, owner.productId);
+    return owner.productId;
+  }
   // ---- EN hämtning av butikens produktsida ger BÅDA nycklarna ----
   // Aldrig i restock-lanens feed-hämtning (den kör var 2:a minut) — bara här, för NYA
   // butiks-URL:er. Se gtin-source.ts för varför.
@@ -543,7 +574,30 @@ export async function ensureListingProduct(
     }
   }
   await upsertListingOffer(it, productId, stockStatus, gtin);
+  await rememberListingProduct(it, productId);
   return productId;
+}
+
+/**
+ * Skriver ner vilken produkt en butiks-URL löstes till, så nästa körning slipper
+ * betala för samma dom igen (se memo-läsningen i ensureListingProduct).
+ *
+ * ⛔ `updateMany`, inte `update`: huvudboksraden skapas av anroparen EFTER det här
+ * anropet första gången URL:en ses. `update` hade kastat P2025 på varje ny annons —
+ * i en bakgrundsloop som redan sväljer fel hade det blivit tyst uteblivet memo, dvs
+ * exakt buggen vi lagar. Anroparen skriver därför memot direkt i sin `create`.
+ *
+ * ⛔ Bara POSITIVA domar memoreras. Ett null-svar från domaren betyder "otillgänglig",
+ * inte "olika produkter" — cachas det låser vi in ett icke-svar.
+ */
+async function rememberListingProduct(
+  it: { url: string; title: string; retailerId: string },
+  productId: string
+): Promise<void> {
+  await prisma.storeListing.updateMany({
+    where: { retailerId: it.retailerId, url: it.url },
+    data: { productId, productMatchTitle: it.title },
+  });
 }
 
 /**
@@ -907,6 +961,11 @@ export async function runRestockScan(opts?: {
           // Gratis: ensureListingProduct slog redan upp koden för samma URL och
           // fetchListingGtin memoiserar per körning → ingen extra HTTP-request.
           gtin: await fetchListingGtin(it.sourceName, it.url),
+          // Memot skrivs HÄR för en URL vi aldrig sett förut: rememberListingProduct
+          // körde innan raden fanns (updateMany → 0 rader). Utan detta hade varje ny
+          // annons dömts en andra gång i nästa körning.
+          productId,
+          productMatchTitle: productId ? it.title : null,
         },
       });
       // Larma bara om butiken redan har historik (ej tyst seed). Ny produkt I LAGER
