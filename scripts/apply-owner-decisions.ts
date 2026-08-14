@@ -182,8 +182,14 @@ async function main() {
         for (const o of os) block.push(`    ${JSON.stringify(o.url)},`);
       }
       const src = fs.readFileSync(DENYLIST_PATH, "utf8");
-      const anchor = "  ].map(normUrl)";
-      if (!src.includes(anchor)) {
+      // ⛔ ANKARET FÅR INTE NÄMNA NORMALISERARENS NAMN. Det hette "normUrl" tills
+      //    2026-08-13, då variantundantaget döpte om det till normalizeListingUrl —
+      //    och skrivningen slutade hitta insättningspunkten. Felet är inte tyst
+      //    (skriptet skriver ut blocket och sätter exitkod 1), men det bryter det
+      //    dokumenterade flödet mitt i en städomgång. Matcha på ARRAYENS slut i
+      //    stället; det är det som är platsen, inte funktionens namn.
+      const anchor = src.match(/^ {2}\]\.map\(\w+\)$/m)?.[0];
+      if (!anchor) {
         console.error(`⛔ Hittar inte insättningspunkten i ${DENYLIST_PATH} — lägg in raderna för hand:\n${block.join("\n")}`);
         process.exitCode = 1;
         return;

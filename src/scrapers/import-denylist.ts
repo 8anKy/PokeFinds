@@ -1043,6 +1043,19 @@ const DENIED = new Set<string>(
     // ── Ägarens katalogbeslut 2026-08-13 (apply-owner-decisions.ts) ──
     // Pokémon Sword & Shield: s1H Shield Expansion Booster Pack (JP) (raderad produkt)
     "https://aquitaz.se/products/pokemon-sword-shield-shield-expansion-booster-pack-5-kort-jp",
+    // ── Ägarens katalogbeslut 2026-08-14 (apply-owner-decisions.ts) ──
+    // Pokémon Sword & Shield: Vaporeon VMAX Premium Collection Box (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-sword-shield-vaporeon-vmax-premium-collection-box-6-pack-eng",
+    // Neo Genesis Booster Pack - Unlimited (Neo) - Meganium (raderad produkt)
+    "https://rogerz.dk/products/pokemon-neo-genesis-booster-pack?variant=57143633969483",
+    // Neo Genesis Booster Pack - Unlimited (Neo) - Typhlosion (raderad produkt)
+    "https://rogerz.dk/products/pokemon-neo-genesis-booster-pack?variant=57143634002251",
+    // Base Set Booster Box - 4th Print (Wizards of the Coast) (raderad produkt)
+    "https://rogerz.dk/products/pokemon-base-set-booster-box-4th-print",
+    // CBB6C: Gem Pack Vol. 6 Booster (raderad produkt)
+    "https://aquitaz.se/products/pokemon-scarlet-violet-gym-vol-6-promo-booster-pack-7-kort-jp",
+    // Pokemon Sword & Shield 5 Battle Styles Elite Trainer (raderad produkt)
+    "https://speltrollet.se/products/pokemon-sword-shield-5-battle-styles-elite-trainer",
   ].map(normalizeListingUrl)
 );
 

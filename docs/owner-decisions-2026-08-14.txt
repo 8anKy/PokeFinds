@@ -1,0 +1,35 @@
+# Ägarens genomgång 2026-08-14 — "de här kommer tillbaka, ta bort dem för gott".
+#
+# Alla sex skapades av auto-importen SAMMA DYGN (00:34–15:37). Fem stod i ägarens
+# lista; den sjätte (Typhlosion) är samma Rogerz-omslagsvariant som ägaren redan
+# dömde 2026-08-13 (se owner-decisions-2026-08-13.txt rad 34/37) och dök upp först
+# efter att listan skrevs.
+#
+# VARFÖR RADERING OCH INTE MERGE: varje kanonprodukt HAR redan en offer från samma
+# butik (Rogerz/Speltrollet/Aquitaz), och Offer är unik på (produkt, butik, skick,
+# språk) — en merge hade alltså RADERAT stubbens offer, inte flyttat den. Utfallet
+# är identiskt, och denylistan är det som gör det permanent.
+#
+# ⛔ INGA TOMRADER INUTI BLOCKET — en tomrad avslutar gruppen och nästa länk läses
+#    som en dubblettgrupp utan mål. Kommentarrader är däremot ofarliga.
+DELETE
+# Aquitaz duplicerar sin egen listning: kanonprodukten (vaporeon-vmax-premium-collection)
+# bär redan "…-6-pack-eng-1" (1 299 kr). Den här är samma sida utan suffix, 6 999 kr.
+https://foilio.se/en/produkter/pokemon-sword-shield-vaporeon-vmax-premium-collection-box-eng
+# Rogerz säljer Neo Genesis-boostrar PER OMSLAG (en variant per omslagskonst).
+# Omslagskonst modelleras inte — kanon = neo-genesis-neo1-booster-pack, som redan
+# har en Rogerz-offer (variant 47714032746827).
+https://foilio.se/en/produkter/neo-genesis-booster-pack-unlimited-neo-meganium
+https://foilio.se/en/produkter/neo-genesis-booster-pack-unlimited-neo-typhlosion
+# Tryckningsvariant utan egen katalogidentitet; kanon = base-base1-booster-box
+# (som redan har en Rogerz-offer). Ägarbeslut 08-13, omgång b.
+https://foilio.se/en/produkter/base-set-booster-box-4th-print-wizards-of-the-coast
+# JP-promopaket som CM-matchningen band till den KINESISKA produkten
+# "CBB6C: Gem Pack Vol. 6" (samma familj som språkrensningen 08-13 tog).
+# Ägaren raderade systerraderna (gym vol 2/4/7/8/9/10 + xy vol 6) i omgång g.
+https://foilio.se/en/produkter/pokemon-scarlet-violet-gym-vol-6-promo-booster-pack-jp
+# Speltrollets generiska ETB-listning. Kanon = battle-styles-elite-trainer-box-single-strike,
+# som redan bär Speltrollets "-rod"-URL (ägarbeslut 08-13, omgång g). Titeln säger
+# varken Single Strike eller Rapid Strike, så matcharen avstår (AMBIGUITY_MARGIN)
+# och auto-importen skapar en ny rad varje gång — därav denylistan.
+https://foilio.se/en/produkter/pokemon-sword-shield-5-battle-styles-elite-trainer
