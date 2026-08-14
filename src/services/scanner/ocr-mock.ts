@@ -16,6 +16,8 @@ import type { OcrAdapter, OcrResult } from "@/services/scanner/types";
 
 export class MockOcrAdapter implements OcrAdapter {
   readonly name = "mock";
+  /** Mocken anropar inget API och kostar därför ingenting. */
+  readonly model = null;
 
   async extractCardInfo(imageDataUrl: string): Promise<OcrResult> {
     // Bilden analyseras inte — vi använder bara dess längd för att göra

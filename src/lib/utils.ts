@@ -60,6 +60,24 @@ export function utcDaysAgo(days: number): Date {
   return d;
 }
 
+/**
+ * Den 1:a i innevarande månad, UTC-midnatt. **Kvotfönstret** — skanner- och
+ * graderingskvoten räknar båda härifrån, och adminpanelens kostnadsvy måste
+ * använda EXAKT samma gräns för att dess "denna månad" ska gå att jämföra med
+ * det kunden ser i appen.
+ *
+ * ⛔ Låg som en privat kopia i BÅDE scanner/index.ts och grading/index.ts, och
+ * en tredje var på väg in i admin-vyn. Samma skäl som utcToday() ovan: lokal
+ * midnatt (`d.setDate(1)` utan UTC) hade gett fel månadsgräns för alla öster om
+ * Greenwich, tyst och bara vid manuella körningar.
+ */
+export function startOfMonthUtc(): Date {
+  const d = new Date();
+  d.setUTCDate(1);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
 export function decodeTitle(s: string): string {
   return decodeHtmlEntities(s);
 }

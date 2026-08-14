@@ -213,15 +213,19 @@ export class GeminiVisionGradingAdapter implements GradingAdapter {
     }
 
     // API:ts egna tokental → verklig kostnad per anrop, aldrig en gissning.
-    // ⛔ Loggas i stället för att returneras: GradeResult bär inget usage-fält,
-    // och att lägga till ett hade ändrat vad som skrivs till GradingJob.result i
-    // samma ändring som leverantörsbytet. Fakturan är ändå facit (se
-    // skannerkostnaden i CLAUDE.md) — det här är spårningen MELLAN fakturor.
+    // Sedan 2026-08-14 returneras de OCKSÅ (GradeResult.usage) så adminpanelen
+    // kan summera kostnad per användare; loggraden står kvar som spårning mellan
+    // fakturor. ⛔ Fakturan är fortfarande facit — stämmer de inte överens är det
+    // prislistan i src/lib/ai-pricing.ts som ska rättas, aldrig tvärtom.
+    const usage = {
+      inputTokens: json.usageMetadata?.promptTokenCount ?? 0,
+      outputTokens: json.usageMetadata?.candidatesTokenCount ?? 0,
+    };
     console.log(
-      `[grading/gemini] ${this.model} in=${json.usageMetadata?.promptTokenCount ?? 0} ut=${json.usageMetadata?.candidatesTokenCount ?? 0}`
+      `[grading/gemini] ${this.model} in=${usage.inputTokens} ut=${usage.outputTokens}`
     );
 
     // ⛔ ALL tolkning i den DELADE buildGradeResult — se contract.ts.
-    return buildGradeResult(call.args, this.model);
+    return buildGradeResult(call.args, this.model, usage);
   }
 }

@@ -190,6 +190,12 @@ model User {
   // Dubblettspärr för src/jobs/pro-expiry-notice.ts — utan den mejlas samma person
   // varje natt så länge hen ligger i varningsfönstret.
   proExpiryNotifiedAt   DateTime?
+  // "Senast online" i adminpanelen. Skrivs BARA i jwt-callbacken, och bara när
+  // den redan hämtat användarraden ur DB:n (var 30:e min per aktiv session) OCH
+  // värdet är äldre än LAST_SEEN_THROTTLE_MS. Det ger noll extra Neon-väckningar
+  // — poängen med hela konstruktionen, se src/lib/auth.ts. Fältet är därför
+  // ungefärligt uppåt till ~15 min, aldrig exakt "just nu".
+  lastSeenAt            DateTime?
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
 

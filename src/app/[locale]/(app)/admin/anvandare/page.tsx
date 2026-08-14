@@ -1,5 +1,9 @@
 import { auth, hasRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { isPro } from "@/lib/plan";
+import { parseNotificationSettings } from "@/lib/notification-settings";
+import { COST_WINDOW_DAYS, loadUserCosts } from "@/services/admin/user-costs";
+import { utcDaysAgo } from "@/lib/utils";
 import { AdminRequired } from "../admin-required";
 import { UsersTable, type AdminUserRow } from "./users-table";
 
@@ -39,8 +43,16 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
         role: true,
         planTier: true,
         bonusProUntil: true,
+        // ⛔ `stripeProUntil` MÅSTE väljas när raden matar isPro() — ett ovalt
+        // fält blir `undefined` och vakten failar ÖPPET (se CLAUDE.md, Stripe).
+        stripeProUntil: true,
         reputationScore: true,
+        emailVerifiedAt: true,
+        notificationSettings: true,
+        lastSeenAt: true,
         createdAt: true,
+        // Enheter = beviset på att appen är INSTALLERAD (se users-table.tsx).
+        pushTokens: { select: { platform: true } },
       },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * PAGE_SIZE,
@@ -49,13 +61,38 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
     prisma.user.count({ where }),
   ]);
 
-  const rows: AdminUserRow[] = users.map((u) => ({
-    ...u,
-    createdAt: u.createdAt.toISOString(),
-    // Bara datumdelen: <input type="date"> vill ha YYYY-MM-DD, och gåvan är
-    // dagsupplöst ändå (servern lägger på slutet av dygnet vid skrivning).
-    bonusProUntil: u.bonusProUntil ? u.bonusProUntil.toISOString().slice(0, 10) : null,
-  }));
+  // EN kostnadsfråga för hela sidan, inte en per användare — se user-costs.ts.
+  const since = utcDaysAgo(COST_WINDOW_DAYS);
+  const costs = await loadUserCosts(
+    users.map((u) => u.id),
+    since
+  );
+
+  const rows: AdminUserRow[] = users.map((u) => {
+    const notif = parseNotificationSettings(u.notificationSettings);
+    const cost = costs.get(u.id);
+    return {
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      role: u.role,
+      planTier: u.planTier,
+      // Bara datumdelen: <input type="date"> vill ha YYYY-MM-DD, och gåvan är
+      // dagsupplöst ändå (servern lägger på slutet av dygnet vid skrivning).
+      bonusProUntil: u.bonusProUntil ? u.bonusProUntil.toISOString().slice(0, 10) : null,
+      isPro: isPro(u),
+      reputationScore: u.reputationScore,
+      emailVerified: u.emailVerifiedAt !== null,
+      notifications: notif,
+      devices: u.pushTokens.map((t) => t.platform),
+      lastSeenAt: u.lastSeenAt?.toISOString() ?? null,
+      createdAt: u.createdAt.toISOString(),
+      costOre: cost?.totalOre ?? 0,
+      costUnmeasured: cost?.totalUnmeasured ?? 0,
+      scanRows: cost?.scanner.rows ?? 0,
+      gradeRows: cost?.grading.rows ?? 0,
+    };
+  });
 
   return (
     <UsersTable
@@ -66,6 +103,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
       query={q}
       currentUserId={session.user.id}
       isSuperAdmin={hasRole(session.user.role, "SUPERADMIN")}
+      costWindowDays={COST_WINDOW_DAYS}
     />
   );
 }

@@ -47,6 +47,16 @@ export interface OcrAdapter {
   /** Leverantörens namn, t.ex. "mock", "google-vision". */
   name: string;
   /**
+   * Modell-id:t adaptern faktiskt anropar ("claude-haiku-4-5",
+   * "gemini-3.1-flash-lite"). `null` för mocken, som inte kostar något.
+   *
+   * ⛔ Leverantörsnamnet duger INTE för kostnadsberäkning: "claude" kan vara
+   * Haiku (1/5 $ per MTok) eller Sonnet (3/15 $) beroende på `precise`, dvs en
+   * faktor tre. Kostnaden räknas i efterhand ur sparade rader, så modellnamnet
+   * måste följa med in i databasen — se recordScanUsage.
+   */
+  model: string | null;
+  /**
    * Extraherar kortinformation ur en bild (data-URL, base64).
    *
    * `detailDataUrl` är en valfri NÄRBILD på kortets nederkant, där samlarnumret

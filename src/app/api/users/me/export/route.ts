@@ -39,6 +39,10 @@ export async function GET() {
         discordUserId: true,
         discordUsername: true,
         discordLinkedAt: true,
+        // Aktivitetsstämpeln adminpanelen visar som "senast sedd" (2026-08-14).
+        // Det är en uppgift OM personen och måste därför med i exporten — samma
+        // resonemang som traderaUserId ovan, som saknades i ett år.
+        lastSeenAt: true,
         createdAt: true,
         updatedAt: true,
         watchlistItems: {

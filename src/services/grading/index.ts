@@ -15,6 +15,9 @@
 import type { GradingJob, PlanTier, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
+// ⛔ Delad med skannern OCH adminens kostnadsvy — kvotfönstret måste vara
+// samma gräns överallt. Se src/lib/utils.ts.
+import { startOfMonthUtc } from "@/lib/utils";
 import { resolveGradedCard } from "@/services/grading/card-link";
 import { ClaudeVisionGradingAdapter } from "@/services/grading/claude-vision";
 import { GeminiVisionGradingAdapter } from "@/services/grading/gemini-vision";
@@ -92,12 +95,6 @@ export function getGradingAdapter(planTier: PlanTier): GradingAdapter {
   }
 }
 
-function startOfMonthUtc(): Date {
-  const d = new Date();
-  d.setUTCDate(1);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-}
 
 export interface GradingQuota {
   /** Antal graderingar gjorda denna månad. */
@@ -195,6 +192,12 @@ export async function runGradingJob(
           confidence: result.confidence,
           rationale: result.rationale,
           modelUsed: result.modelUsed,
+          // KOSTNADSAVTRYCK (2026-08-14): API:ts egna tokental, för ALLA
+          // användare. Adminpanelens kostnad-per-användare summerar dem
+          // tillsammans med `modelUsed` (som redan är en egen kolumn).
+          // ⛔ Saknas fältet räknas graderingen som OMÄTT, aldrig som gratis —
+          // alla rader före det här datumet ser ut så. Se src/lib/ai-pricing.ts.
+          costUsage: result.usage ? { ...result.usage } : null,
           // Modellens egen identifiering vinner över anroparens hint: hinten kommer
           // från en tidigare skanning och kan gälla ett helt annat kort än det som
           // just fotograferades.

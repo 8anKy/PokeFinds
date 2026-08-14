@@ -69,6 +69,23 @@ declare module "next-auth/jwt" {
 // kund vänta upp till 30 minuter på sitt Pro — utan att något felar.
 const TOKEN_REFRESH_MS = 30 * 60 * 1000;
 
+/**
+ * Hur gammal `User.lastSeenAt` får bli innan den skrivs om (15 min).
+ *
+ * ⛔ **SKRIVNINGEN ÅKER SNÅLSKJUTS, DEN BETALAR INGEN EGEN VÄCKNING.** Den sker
+ * bara inne i grenen nedan som REDAN läste användarraden — Neon är alltså
+ * bevisligen vaken i exakt det ögonblicket, och en liten UPDATE kostar då
+ * ingenting mätbart. Neon debiteras per VAKEN TID (minst 300 s per väckning),
+ * så en egen `lastSeenAt`-ping per sidladdning hade varit precis det misstag som
+ * höll computen vaken dygnet runt 2026-07-07.
+ *
+ * Följden är att fältet är UNGEFÄRLIGT: "senast online" kan ligga upp till ~15
+ * min efter verkligheten, och en användare som bara läser publika ISR-sidor utan
+ * att träffa en autentiserad route syns inte alls. Adminvyn säger därför
+ * "senast sedd", inte "online nu".
+ */
+const LAST_SEEN_THROTTLE_MS = 15 * 60 * 1000;
+
 export const authOptions: NextAuthOptions = {
   // ⛔ `maxAge` är ett INAKTIVITETSFÖNSTER, inte en inloggningstid — middleware
   // skriver om cookien med en färsk utgång vid användning (`renewSession`). Utan
@@ -141,6 +158,19 @@ export const authOptions: NextAuthOptions = {
           token.stripeProUntil = fresh.stripeProUntil?.toISOString() ?? null;
           token.onboardingCompleted = fresh.onboardingCompleted;
           token.refreshedAt = Date.now();
+
+          // "Senast online" — se LAST_SEEN_THROTTLE_MS. Raden är redan hämtad, så
+          // vi vet om värdet behöver röras utan att fråga DB:n en extra gång.
+          //
+          // ⛔ Fel SVÄLJS. Exakt samma regel som sessionsförnyelsen i middleware:
+          // ett misslyckat statistikfält får aldrig ge 500 på varje sida för alla
+          // inloggade. En saknad tidsstämpel är en tom cell i adminpanelen.
+          const seenAt = fresh.lastSeenAt?.getTime() ?? 0;
+          if (Date.now() - seenAt > LAST_SEEN_THROTTLE_MS) {
+            await prisma.user
+              .update({ where: { id: fresh.id }, data: { lastSeenAt: new Date() } })
+              .catch(() => undefined);
+          }
         }
       }
       return token;

@@ -84,7 +84,8 @@ const CARD_TOOL: Anthropic.Tool = {
 export class ClaudeVisionOcrAdapter implements OcrAdapter {
   readonly name = "claude";
 
-  constructor(private readonly model: string) {}
+  // Publik: kostnaden per skanning räknas ur modellnamnet, se OcrAdapter.model.
+  constructor(readonly model: string) {}
 
   async extractCardInfo(imageDataUrl: string, detailDataUrl?: string): Promise<OcrResult> {
     const apiKey = process.env.ANTHROPIC_API_KEY;

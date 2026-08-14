@@ -105,6 +105,10 @@ export class ClaudeVisionGradingAdapter implements GradingAdapter {
       throw new ServiceError(502, "Graderingen kunde inte tolkas. Försök igen.");
     }
     // ⛔ ALL tolkning i den DELADE buildGradeResult — se contract.ts.
-    return buildGradeResult(toolUse.input as Record<string, unknown>, this.model);
+    return buildGradeResult(toolUse.input as Record<string, unknown>, this.model, {
+      // API:ts egna tokental → kostnaden per gradering är en MÄTNING.
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+    });
   }
 }

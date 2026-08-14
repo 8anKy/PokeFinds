@@ -1,9 +1,17 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import type { Role, PlanTier } from "@prisma/client";
 import { formatDateTime } from "@/lib/format";
+import type { NotificationSettings } from "@/lib/notification-settings";
+import {
+  LastSeen,
+  NotificationBadges,
+  YesNo,
+  describeDevices,
+  formatCostOre,
+} from "./user-bits";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
@@ -20,8 +28,21 @@ export interface AdminUserRow {
   planTier: PlanTier;
   /** Gratis Pro t.o.m. (YYYY-MM-DD), null = ingen gåva. Se lib/plan.ts. */
   bonusProUntil: string | null;
+  /** Sammanvägd Pro-status (isPro): planTier ∪ bonus ∪ Stripe ∪ admin-roll. */
+  isPro: boolean;
   reputationScore: number;
+  emailVerified: boolean;
+  notifications: NotificationSettings;
+  /** Plattform per registrerad push-token ("ios", "android", …). */
+  devices: string[];
+  lastSeenAt: string | null;
   createdAt: string;
+  /** AI-kostnad i öre under kostnadsfönstret (skanner + gradering). */
+  costOre: number;
+  /** Rader i fönstret som saknar kostnadsavtryck — se user-costs.ts. */
+  costUnmeasured: number;
+  scanRows: number;
+  gradeRows: number;
 }
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -55,6 +76,8 @@ interface UsersTableProps {
   query: string;
   currentUserId: string;
   isSuperAdmin: boolean;
+  /** Hur många dygn bakåt kostnadskolumnen summerar. */
+  costWindowDays: number;
 }
 
 export function UsersTable({
@@ -65,6 +88,7 @@ export function UsersTable({
   query,
   currentUserId,
   isSuperAdmin,
+  costWindowDays,
 }: UsersTableProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -208,36 +232,78 @@ export function UsersTable({
             <TR>
               <TH>Namn</TH>
               <TH>E-post</TH>
+              <TH title="Bekräftad e-postadress">Bekr.</TH>
               <TH>Roll</TH>
               <TH>Plan</TH>
               <TH>Gratis Pro t.o.m.</TH>
+              <TH title="E-post · Push · Alla restocks">Notiser</TH>
+              <TH title="Registrerade push-enheter = appen är installerad">Enheter</TH>
+              <TH title="Senaste autentiserade aktivitet (±15 min)">Senast sedd</TH>
+              <TH title={`Skanningar + graderingar de senaste ${costWindowDays} dygnen`}>
+                Användning
+              </TH>
+              <TH title={`AI-kostnad de senaste ${costWindowDays} dygnen (uppmätta tokental)`}>
+                Kostnad {costWindowDays} d
+              </TH>
               <TH>Skapad</TH>
-              <TH>Rykte</TH>
               {isSuperAdmin && <TH>Ändra roll</TH>}
             </TR>
           </THead>
           <TBody>
             {users.map((user) => (
               <TR key={user.id}>
-                <TD className="font-medium">{user.name}</TD>
+                <TD className="font-medium">
+                  {/* Detaljsidan är den enda vy som visar kostnaden per FUNKTION
+                      och alla kopplingar (Discord/Tradera/Stripe/kreatörskod). */}
+                  <Link
+                    href={`/admin/anvandare/${user.id}`}
+                    className="text-holo-cyan transition-opacity hover:opacity-80"
+                  >
+                    {user.name}
+                  </Link>
+                </TD>
                 <TD className="text-ink-muted">{user.email}</TD>
+                <TD>
+                  <YesNo
+                    value={user.emailVerified}
+                    title={
+                      user.emailVerified
+                        ? "E-postadressen är bekräftad"
+                        : "Obekräftad — konton skapade före 2026-08-12 kan sakna bekräftelse"
+                    }
+                  />
+                </TD>
                 <TD>
                   <Badge variant={ROLE_VARIANTS[user.role]}>{ROLE_LABELS[user.role]}</Badge>
                 </TD>
                 <TD>
-                  <Select
-                    value={user.planTier}
-                    disabled={savingId === user.id}
-                    onChange={(e) => handlePlanChange(user.id, e.target.value as PlanTier)}
-                    aria-label={`Ändra plan för ${user.name}`}
-                    className="h-9 w-32"
-                  >
-                    {ALL_PLANS.map((plan) => (
-                      <option key={plan} value={plan}>
-                        {PLAN_LABELS[plan]}
-                      </option>
-                    ))}
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={user.planTier}
+                      disabled={savingId === user.id}
+                      onChange={(e) => handlePlanChange(user.id, e.target.value as PlanTier)}
+                      aria-label={`Ändra plan för ${user.name}`}
+                      className="h-9 w-28"
+                    >
+                      {ALL_PLANS.map((plan) => (
+                        <option key={plan} value={plan}>
+                          {PLAN_LABELS[plan]}
+                        </option>
+                      ))}
+                    </Select>
+                    {/* Väljaren visar bara `planTier`. Pro kan komma från FYRA
+                        oberoende källor (planTier, bonusProUntil, stripeProUntil,
+                        admin-roll) — utan den här brickan ser en Stripe-kund ut
+                        som gratis i listan. Se isPro() i lib/plan.ts. */}
+                    {user.isPro && user.planTier !== "PREMIUM" && (
+                      <Badge
+                        variant="info"
+                        title="Har Pro via bonus, Stripe eller sin roll — inte via planTier"
+                      >
+                        Pro
+                      </Badge>
+                    )}
+                  </div>
                 </TD>
                 <TD>
                   <div className="flex items-center gap-2">
@@ -263,10 +329,41 @@ export function UsersTable({
                     )}
                   </div>
                 </TD>
+                <TD>
+                  <NotificationBadges settings={user.notifications} />
+                </TD>
+                <TD className="whitespace-nowrap text-ink-muted">
+                  {describeDevices(user.devices)}
+                </TD>
+                <TD className="whitespace-nowrap">
+                  <LastSeen iso={user.lastSeenAt} />
+                </TD>
+                <TD className="whitespace-nowrap text-ink-muted">
+                  {user.scanRows === 0 && user.gradeRows === 0 ? (
+                    <span className="text-ink-faint">–</span>
+                  ) : (
+                    <span title="Skanningar / graderingar">
+                      {user.scanRows} skan · {user.gradeRows} grad
+                    </span>
+                  )}
+                </TD>
+                <TD className="whitespace-nowrap">
+                  {formatCostOre(user.costOre)}
+                  {/* ⛔ OMÄTTA rader visas SEPARAT, aldrig som noll: allt före
+                      2026-08-14 saknar kostnadsavtryck, och en tyst nolla hade
+                      fått en tung användare att se gratis ut. */}
+                  {user.costUnmeasured > 0 && (
+                    <span
+                      className="ml-1 text-xs text-ink-faint"
+                      title={`${user.costUnmeasured} rader saknar tokental (skapade före kostnadsspårningen, eller en modell utan pris) och ingår INTE i beloppet.`}
+                    >
+                      +{user.costUnmeasured} omätta
+                    </span>
+                  )}
+                </TD>
                 <TD className="whitespace-nowrap text-ink-muted">
                   {formatDateTime(user.createdAt)}
                 </TD>
-                <TD>{user.reputationScore}</TD>
                 {isSuperAdmin && (
                   <TD>
                     <Select

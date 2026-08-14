@@ -10,6 +10,9 @@ import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { FINGERPRINT_BYTES, STRUCT_BYTES } from "@/lib/art-fingerprint";
 import { cardNumberSortKey } from "@/lib/card-number-order";
+// ⛔ Delad med graderingen OCH adminens kostnadsvy — kvotfönstret måste vara
+// samma gräns överallt. Se src/lib/utils.ts.
+import { startOfMonthUtc } from "@/lib/utils";
 import { scoreSimilarity } from "@/scrapers/matching";
 import {
   type ArtMatch,
@@ -86,12 +89,6 @@ function scannerLimitForTier(planTier: PlanTier): number {
       : 30;
 }
 
-function startOfMonthUtc(): Date {
-  const d = new Date();
-  d.setUTCDate(1);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-}
 
 export interface ScannerQuota {
   used: number;
@@ -190,7 +187,25 @@ export async function recordScanUsage(
    * skrivs bara för admin. Utan ett eget fält vore kvoten omätbar för en vanlig
    * kund. Fältet är ett booleskt värde — ingen kortdata, ingen bild.
    */
-  matched = true
+  matched = true,
+  /**
+   * KOSTNADSAVTRYCK — modellnamn + API:ts egna tokental. Skrivs för ALLA
+   * användare, av samma skäl som `matched`: adminpanelens kostnad-per-användare
+   * summerar de här talen, och skrevs de bara för admin hade varje riktig kund
+   * sett gratis ut. Det är två heltal och en modellsträng — ingen kortdata,
+   * ingen bild, inget om VAD som skannades. Diagnostiken (som bär `chosen` och
+   * konstavtrycket) förblir admin-only.
+   *
+   * ⛔ **GRATIS OCH OMÄTT ÄR OLIKA SVAR.** `{ model: null }` betyder "inget
+   * API-anrop gjordes" (bilden eller streckkoden avgjorde) och bokförs som
+   * 0 kr. Utelämnas hela argumentet skrivs ingen nyckel alls, och raden räknas
+   * som OMÄTT — precis som alla rader från före 2026-08-14. Blandas de ihop
+   * ser en tung användare gratis ut, vilket är fel håll för en kostnadsvy.
+   */
+  cost?: {
+    model: string | null;
+    usage?: { inputTokens: number; outputTokens: number };
+  } | null
 ): Promise<string> {
   const job = await prisma.scannerJob.create({
     data: {
@@ -198,7 +213,17 @@ export async function recordScanUsage(
       imageUrl: INLINE_UPLOAD,
       status: "COMPLETED",
       // `matched` slås ihop med diagnostiken så en admin-rad bär båda.
-      result: { ...(diagnostics ?? {}), matched },
+      result: {
+        ...(diagnostics ?? {}),
+        matched,
+        ...(cost
+          ? {
+              // null skrivs UT (inte bortplockad) — se kommentaren ovan.
+              costModel: cost.model,
+              ...(cost.usage ? { costUsage: { ...cost.usage } } : {}),
+            }
+          : {}),
+      },
     },
     select: { id: true },
   });
@@ -1374,6 +1399,13 @@ export async function runScannerJob(
 
     const result: Prisma.JsonObject = {
       provider: adapter.name,
+      // KOSTNADSAVTRYCK — samma nycklar som recordScanUsage skriver, så
+      // adminens kostnadsvy ser ALLA skanningsvägar. ⛔ Uppladdningsvägen
+      // (/api/scanner/upload) går inte via recordScanUsage och hade annars
+      // varit ett PERMANENT hål i kostnadsvyn, inte bara ett historiskt: varje
+      // uppladdad skanning hade räknats som "omätt" för alltid.
+      costModel: adapter.model,
+      ...(ocr.usage ? { costUsage: { ...ocr.usage } } : {}),
       ocr: {
         rawText: ocr.rawText,
         guessedName: ocr.guessedName ?? null,
@@ -1442,6 +1474,13 @@ export interface IdentifyResult {
   candidates: ScanCandidate[];
   /** Vision-anropets tokental (API:ts usage), null när anropet hoppades över. */
   usage: { inputTokens: number; outputTokens: number } | null;
+  /**
+   * Modell-id:t som anropades ("claude-haiku-4-5"), null när vision hoppades
+   * över (bilden avgjorde) eller mocken kördes. Följer med in i ScannerJob så
+   * kostnaden kan räknas i efterhand — leverantörsnamnet räcker inte, se
+   * OcrAdapter.model.
+   */
+  model: string | null;
   /** Bildmatchningens bästa likhet 0..1, eller null när inget avtryck skickades. */
   artTop: number | null;
   /**
@@ -1602,7 +1641,11 @@ export async function identifyCellsArt(
                 : [],
             }
           : undefined,
-        true
+        true,
+        // Bulk-cellen avgjordes av BILDEN — inget vision-anrop, alltså 0 kr.
+        // (En osäker cell skickas vidare till /identify och bokförs där, med
+        // det anropets verkliga tokental.)
+        { model: null }
       );
     }
     out.push({
@@ -1691,6 +1734,9 @@ export async function identifyCard(
 
   return {
     provider: skipVision ? "bild" : adapter.name,
+    // Hoppades vision över kostade skanningen ingenting — då finns ingen modell
+    // att prissätta, och raden ska räknas som gratis, inte som omätt.
+    model: skipVision ? null : adapter.model,
     guessedName: ocr.guessedName ?? null,
     guessedNumber: ocr.guessedNumber ?? null,
     guessedEra: ocr.guessedEra ?? null,

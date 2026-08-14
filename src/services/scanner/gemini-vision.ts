@@ -65,7 +65,8 @@ interface GeminiPart {
 export class GeminiVisionOcrAdapter implements OcrAdapter {
   readonly name = "gemini";
 
-  constructor(private readonly model: string) {}
+  // Publik: kostnaden per skanning räknas ur modellnamnet, se OcrAdapter.model.
+  constructor(readonly model: string) {}
 
   async extractCardInfo(imageDataUrl: string, detailDataUrl?: string): Promise<OcrResult> {
     const apiKey = process.env.GEMINI_API_KEY;

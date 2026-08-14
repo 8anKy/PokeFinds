@@ -6,7 +6,9 @@ import { auth } from "@/lib/auth";
 import { isPro } from "@/lib/plan";
 import { discordLinkingEnabled } from "@/lib/discord";
 import { prisma } from "@/lib/db";
-import { SettingsClient, type NotificationSettings, type SettingsUser } from "./settings-client";
+// ⛔ Delad läsare — se src/lib/notification-settings.ts. Skriv ingen lokal kopia.
+import { parseNotificationSettings } from "@/lib/notification-settings";
+import { SettingsClient, type SettingsUser } from "./settings-client";
 import { PageBackButton } from "@/components/layout/page-back-button";
 
 export const dynamic = "force-dynamic";
@@ -14,21 +16,6 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("Settings");
   return { title: t("pageTitle") };
-}
-
-function parseNotificationSettings(json: unknown): NotificationSettings {
-  const defaults: NotificationSettings = {
-    email: true,
-    push: false,
-    allRestocks: false,
-  };
-  if (typeof json !== "object" || json === null) return defaults;
-  const o = json as Record<string, unknown>;
-  return {
-    email: typeof o.email === "boolean" ? o.email : defaults.email,
-    push: typeof o.push === "boolean" ? o.push : defaults.push,
-    allRestocks: typeof o.allRestocks === "boolean" ? o.allRestocks : defaults.allRestocks,
-  };
 }
 
 export default async function SettingsPage() {

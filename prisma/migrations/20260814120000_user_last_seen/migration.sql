@@ -1,0 +1,11 @@
+-- "Senast online" per användare (adminpanelen).
+--
+-- Skrivs bara i jwt-callbacken, strypt till en skrivning per LAST_SEEN_THROTTLE_MS
+-- och alltid i samma andetag som en DB-läsning som ändå sker → noll extra
+-- Neon-väckningar. Se src/lib/auth.ts.
+--
+-- OINDEXERAD med flit: kolumnen läses av admin-listan (25 rader/sida, redan
+-- sorterad på createdAt) och av användardetaljen (en rad). Ett index hade
+-- kostat skrivtid på varje inloggad session för en vy som körs sällan — samma
+-- avvägning som "Nyligen tillagd"-sorteringen 2026-08-13.
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "lastSeenAt" TIMESTAMP(3);

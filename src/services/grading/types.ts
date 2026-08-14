@@ -20,6 +20,16 @@ export interface GradeSubScores {
   surface: number;
 }
 
+/**
+ * API:ts EGNA tokental för anropet. Grunden för kostnad-per-användare i
+ * adminpanelen — ett uppmätt tal, aldrig en schablon per gradering (bilderna
+ * skalas inte ner, så in-tokens varierar kraftigt mellan två foton).
+ */
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 /** Resultat av en gradering. */
 export interface GradeResult {
   /** Sammanvägd PSA-liknande gradering 1–10 (en decimal). */
@@ -38,6 +48,12 @@ export interface GradeResult {
    * (det är en bildtolkning, inte en matchning).
    */
   cardName?: string;
+  /**
+   * Tokentalen anropet förbrukade. Undefined för mocken och för adaptrar som
+   * inte rapporterar dem — då räknas graderingen som OMÄTT i kostnadsvyn,
+   * aldrig som gratis.
+   */
+  usage?: TokenUsage;
 }
 
 /** Extra kontext som kan förbättra graderingen. */

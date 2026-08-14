@@ -16,12 +16,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { Input, Label, Checkbox, FieldError } from "@/components/ui/input";
+import type { NotificationSettings } from "@/lib/notification-settings";
 
-export interface NotificationSettings {
-  email: boolean;
-  push: boolean;
-  allRestocks: boolean;
-}
+// ⛔ Formen bor i src/lib/notification-settings.ts tillsammans med läsaren och
+// defaultvärdena — en lokal kopia hade kunnat glida isär från det som faktiskt
+// sparas i kolumnen.
+export type { NotificationSettings };
 
 export interface SettingsUser {
   name: string;

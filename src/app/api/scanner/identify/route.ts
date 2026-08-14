@@ -191,7 +191,14 @@ export async function POST(req: Request) {
         : undefined,
       // KVOTEN RÄKNAR TRÄFFAR: en skanning utan kandidat har inte gett kunden
       // något och ska vara gratis.
-      result.candidates.length > 0
+      result.candidates.length > 0,
+      // KOSTNADEN bokförs för ALLA användare (till skillnad från diagnostiken
+      // ovan): adminpanelens "kostnad per användare" summerar de här talen, och
+      // utan dem hade varje icke-admin sett gratis ut. `null` när bilden avgjorde
+      // utan vision-anrop — då VAR skanningen gratis.
+      result.model && result.usage
+        ? { model: result.model, usage: result.usage }
+        : { model: null }
     );
 
     return jsonOk({

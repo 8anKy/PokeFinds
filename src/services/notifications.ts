@@ -9,24 +9,12 @@ import { sendPush } from "@/lib/apns";
 import { newListingEmail, preorderEmail, priceAlertEmail, releasedEmail, restockAlertEmail } from "@/emails/templates";
 import { NON_RETAIL_SOURCE_NAMES } from "@/services/products";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
+// ⛔ Delad läsare (samma defaultvärden som förut: email=true, push=false).
+// Fanns i tre handskrivna kopior — se src/lib/notification-settings.ts.
+import { parseNotificationSettings as parseSettings } from "@/lib/notification-settings";
 
 const MAX_RETRIES = 3;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.foilio.se";
-
-interface NotificationSettings {
-  email: boolean;
-  push: boolean;
-}
-
-function parseSettings(json: unknown): NotificationSettings {
-  const defaults: NotificationSettings = { email: true, push: false };
-  if (typeof json !== "object" || json === null) return defaults;
-  const o = json as Record<string, unknown>;
-  return {
-    email: typeof o.email === "boolean" ? o.email : defaults.email,
-    push: typeof o.push === "boolean" ? o.push : defaults.push,
-  };
-}
 
 /** Bygger e-postinnehåll för en alert baserat på typ. */
 async function buildAlertEmail(alert: {

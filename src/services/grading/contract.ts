@@ -16,7 +16,7 @@
  */
 import { ServiceError } from "@/lib/errors";
 import { parseDataUrl } from "@/services/scanner/vision-contract";
-import type { GradeResult } from "@/services/grading/types";
+import type { GradeResult, TokenUsage } from "@/services/grading/types";
 
 /** Språken appen kan visa. `rationale` är MODELLGENERERAD prosa, så den kan
  *  aldrig översättas via messages/*.json — språket måste följa med förfrågan. */
@@ -173,7 +173,14 @@ const CARD_NAME_MAX = 120;
  */
 export function buildGradeResult(
   input: Record<string, unknown>,
-  modelUsed: string
+  modelUsed: string,
+  /**
+   * API:ts egna tokental för anropet. Sparas i GradingJob så adminpanelen kan
+   * räkna VERKLIG kostnad per användare i stället för en schablon per gradering
+   * (två foton à upp till 5 MB gör spridningen stor). Utelämnas den räknas
+   * graderingen som OMÄTT, aldrig som gratis — se src/lib/ai-pricing.ts.
+   */
+  usage?: TokenUsage
 ): GradeResult {
   const subScores = {
     centering: clamp(input.centering, 1, 10, 5),
@@ -196,5 +203,6 @@ export function buildGradeResult(
       typeof input.cardName === "string" && input.cardName.trim()
         ? input.cardName.trim().slice(0, CARD_NAME_MAX)
         : undefined,
+    usage,
   };
 }

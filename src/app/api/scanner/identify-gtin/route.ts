@@ -195,7 +195,10 @@ export async function POST(req: Request) {
             chosen: { productId: best.id, title: best.title },
           }
         : undefined,
-      true
+      true,
+      // En streckkodsträff är ett rent DB-uppslag — noll API-anrop, alltså
+      // bevisligen 0 kr. `model: null` bokför det som gratis i stället för omätt.
+      { model: null }
     );
 
     return jsonOk({
