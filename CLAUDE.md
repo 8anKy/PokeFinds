@@ -718,6 +718,33 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   **Artikelnummer/SKU är fortfarande DÖTT** (ommätt: 14 av 1656 delas mellan butiker; DL kör egen räknare). MPN
   (`POK10407-101`) ser cross-store ut men butikerna hittar på egna (MaxGaming: `POK-AB-EYE-BB`). GTIN är en ANNAN
   identifierare — blanda ALDRIG ihop dem.
+- **"I LAGER" ÄR BUTIKENS PÅSTÅENDE, INTE ALLTID "GÅR ATT KÖPA" (2026-08-14)**: Mega Greninja ex
+  Premium Collection skickade FEM falska RESTOCK-mejl (+ tre NEW_LISTING) på fyra dygn medan
+  Webhallens produktsida hela tiden sa "Produkten har utgått ur sortimentet". Roten: `stock.web` är
+  INTE "köpbar online" — den sista enheten låg i FYSISK BUTIK 14 (`webStock` = {14: 1, **992: 0**},
+  där 992 är webblagret) och räknaren togglade 0↔1 när den reserverades och släpptes. 20 lagerflippar
+  på 14 dygn. ⛔ **BLINK-DÄMPNINGEN RÄDDAR INTE DEN HÄR KLASSEN**: flipparna låg 46 min–3 h isär,
+  alltså långt över `RESTOCK_MIN_AWAY_MINUTES` (20). Flapp-vakten dämpar en HET vara som studsar;
+  den kan inte veta att varan inte finns.
+  **Fixen är Webhallens egen `discontinued`-markör** (uppmätt värderymd över 120 produkter i fyra
+  kategorier: bara 0 och 2, ingen tvetydig mellannivå → läses som boolean). Den slår lagersiffran i
+  `webhallenStockStatus`, som DELAS med `verifyStockForUrl` — en ändring rättar båda vägarna.
+  ⛔ **MARKÖREN FINNS BARA I PRODUKT-API:t** (`/api/product/{id}`); sök-API:ts rader saknar fältet
+  HELT. Och adapterns live-koll hoppade uttryckligen över allt sökfeeden kallade i lager (`if
+  IN_STOCK continue`) — dvs precis de rader där markören spelade roll. Live-kollen omfattar nu även
+  dem; de behöver bara markören, inte en färsk lagersiffra, så de svarar ur en process-cache (TTL 1 h)
+  i stället för att slås upp var 60:e sekund för ett svar som aldrig ändras.
+  ⛔ **`webStock["992"]` DUGER INTE SOM ERSÄTTNING** — det var den uppenbara reflexen och den är MÄTT
+  FEL i BÅDA riktningarna: Pitch Black Booster Bundle är fullt köpbar med `992: 0` (Webhallen skickar
+  från butik), och den utgångna 9-pocket-pärmen har `992: 3`. `discontinued` är enda fältet som svarar
+  på frågan; `isShippable`/`isCollectable`/`possibleDeliveryMethods` är IDENTISKA för utgångna varor.
+  ⛔ `LIVE_POLL_MAX` 40 → 80: feeden är 59 rader, så taket kapade TYST de sista ~19 — och i feed-ordning
+  var det alltid SAMMA rader. Kapning loggas nu (console.warn, INTE `errors`: ett täckningshål är inget
+  adapterfel och ska inte dra igång butikshälso-larmen).
+  **DETEKTORN ÄR MÖNSTRET, INTE FLIPPEN** (`scripts/audit-restock-truth.ts`, rapport-only): ingen
+  enskild flipp såg konstig ut — det var att SAMMA (produkt, butik) återkom som avslöjade den. Uppmätt
+  14 dygn: Webhallen 7,1 flippar per par mot Dragon's Lair 3,2 (DL:s churn är ÄKTA). Skriptet listar
+  också butiker utan en enda slutsåld offer — de kan aldrig ge ett restock-larm, tyst.
 - **FRÅNVARO UR FEEDEN KOLLAS, DEN TOLKAS INTE (2026-07-28)**: en offer vars URL försvann ur butikens feed
   nollades förr till UNKNOWN ("Okänd" i pristabellen bredvid ett dagsgammalt pris) — ärligt men blint, OCH
   eftersom UNKNOWN→IN_STOCK inte är en äkta övergång larmade en efterföljande restock ALDRIG. Sådana offers

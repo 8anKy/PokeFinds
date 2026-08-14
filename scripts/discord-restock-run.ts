@@ -171,6 +171,18 @@ async function main() {
   );
   const fastNames = selected.filter(isFastTier).map((s) => s.name);
 
+  // ⛔ DEFAULTEN ÄR EN KLIPPA, INTE EN MJUKLANDNING. Repo-variabeln står på "all" (42
+  // butiker sedan 2026-08-14); försvinner den faller lanen tillbaka på de åtta i
+  // DEFAULT_STORES och tappar 34 butiker UTAN att något felar — körningen blir grön och
+  // larmen bara uteblir. Samma tystnad som när boten förlorade Send Messages 2026-08-12.
+  if (!storesEnv) {
+    console.warn(
+      `[discord-restock] ⚠️ DISCORD_RESTOCK_STORES ÄR OSATT — faller tillbaka på ` +
+        `kod-defaulten (${DEFAULT_STORES.length} butiker) medan ruttabellen bär ` +
+        `${routesData.sources!.length}. Sätt variabeln till "all" om det inte är avsiktligt.`
+    );
+  }
+
   console.log(
     `[discord-restock] Ruttabell: ${Object.keys(routesData.routes!).length} URL:er` +
       (ageH != null ? `, ${ageH.toFixed(1)} h gammal` : "") +
