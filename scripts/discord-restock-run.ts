@@ -40,7 +40,7 @@ import { flapPolicy } from "../src/lib/stock-flap";
 
 const routesFile = process.env.RESTOCK_ROUTES_FILE ?? ".restock-routes/routes.json";
 const stateFile = process.env.DISCORD_RESTOCK_STATE_FILE ?? ".discord-restock-cache/state.json";
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.foilio.se";
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://foilio.se";
 const cooldownHours = Number(process.env.RESTOCK_ALERT_COOLDOWN_HOURS ?? 2);
 
 /**

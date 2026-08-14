@@ -11,7 +11,9 @@
 import { PrismaClient } from "@prisma/client";
 
 const db = new PrismaClient();
-const BASE = process.env.PROBE_BASE ?? "https://www.foilio.se";
+// ⛔ APEX, aldrig www: www 301:as av Cloudflare och en sond mot den mäter
+// redirecten i stället för appen (noll DB-renders → "gratis" och helt fel).
+const BASE = process.env.PROBE_BASE ?? "https://foilio.se";
 const N = Number(process.env.PROBE_N ?? 8);
 
 const total = async () => {

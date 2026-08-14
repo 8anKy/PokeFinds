@@ -31,11 +31,12 @@
 - **Health endpoint** — `/api/health` (liveness only, no DB ping → doesn't keep Neon awake).
 
 ## 🧑 Owner action before launch
-- [ ] **Uptime monitor** — point UptimeRobot/BetterStack at `https://www.foilio.se/api/health`.
+- [ ] **Uptime monitor** — point UptimeRobot/BetterStack at `https://foilio.se/api/health`
+      (apex, not www — www is a Cloudflare 301 and would be monitoring the redirect, not the app).
 - [ ] **Confirm a real alert email delivers** in prod (Resend) — end-to-end, to a real inbox.
 - [ ] **Cross-browser / real-device** — Safari, Chrome, Firefox; iOS + Android app shells.
 - [ ] **Neon backup-restore drill** — confirm a restore actually works.
-- [ ] **Load test** — `node scripts/load-test.mjs https://www.foilio.se` while watching Neon CU + Railway metrics.
+- [ ] **Load test** — `node scripts/load-test.mjs https://foilio.se` while watching Neon CU + Railway metrics.
 
 ## 🟡 Deferred decisions / nice-to-have
 - [ ] **Next 14 → 16 migration** — npm's advisory DB only marks the Next CVEs fixed in v16 (breaking). 14.2.35 carries backports and most flagged CVEs don't apply (no i18n, no WebSocket upgrades, no `next/image`). Recommendation: **defer**, do post-launch as its own task.

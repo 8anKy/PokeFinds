@@ -1,13 +1,13 @@
 // Enkel last-test utan beroenden. Kör samtidiga requests mot de dyraste
 // publika ytorna och rapporterar latens (p50/p95/max) + fel per endpoint.
 //
-//   node scripts/load-test.mjs https://www.foilio.se [concurrency] [rounds]
+//   node scripts/load-test.mjs https://foilio.se [concurrency] [rounds]
 //
 // Hitta vilken mätare som rör sig först (Vercel/Railway CPU, Neon CU) genom att
 // titta i respektive dashboard MEDAN detta kör. Default: 20 samtidiga × 5 rundor.
 // OBS: kör mot din EGEN sajt — detta är ett verktyg, inte ett vapen.
 
-const base = (process.argv[2] || "https://www.foilio.se").replace(/\/$/, "");
+const base = (process.argv[2] || "https://foilio.se").replace(/\/$/, "");
 const concurrency = parseInt(process.argv[3] || "20", 10);
 const rounds = parseInt(process.argv[4] || "5", 10);
 

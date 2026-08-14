@@ -7,8 +7,8 @@ går den **inte** att exportera statiskt. Den native appen är därför ett tunt
 `server.url`. Samma app som på webben — ingen UI-omskrivning, inga två kodbaser.
 
 > **Förutsättning:** Hosting måste vara live först (se `docs/HOSTING.md`). Du
-> behöver en publik HTTPS-URL (t.ex. `https://www.foilio.se`) att peka
-> appen mot.
+> behöver en publik HTTPS-URL (i prod: `https://foilio.se` — apex, inte www) att
+> peka appen mot.
 
 ## ✨ Stor fördel: uppdateringar utan ny store-granskning
 
@@ -51,7 +51,7 @@ SDK + JDK).
 1. Peka appen mot din hostade URL och synka:
    ```bash
    # PowerShell
-   $env:CAP_SERVER_URL="https://www.foilio.se"; npm run cap:sync
+   $env:CAP_SERVER_URL="https://foilio.se"; npm run cap:sync
    ```
    (Android-projektet `android/` finns redan — `cap:add:android` behövs inte igen.)
 2. Öppna i Android Studio:
@@ -84,7 +84,7 @@ Windows, så välj **A** eller **B**.
 ```bash
 npm install --legacy-peer-deps
 npm run cap:add:ios                       # genererar ios/ (kör pod install)
-export CAP_SERVER_URL="https://www.foilio.se"
+export CAP_SERVER_URL="https://foilio.se"
 npm run cap:sync
 npm run cap:ios                           # öppnar Xcode
 ```
@@ -123,15 +123,19 @@ env-variabler, inte i iOS-bygget:
 - `NEXT_PUBLIC_RC_IOS_KEY`, `NEXT_PUBLIC_RC_ANDROID_KEY` (publika SDK-nycklar)
 - `REVENUECAT_WEBHOOK_AUTH` (delad hemlighet = `Authorization`-header på webhooken)
 
-Sätt dem i Railway → redeploya. iOS-/Android-bygget pekar bara på `www.foilio.se`.
+Sätt dem i Railway → redeploya. iOS-/Android-bygget pekar bara på `foilio.se`.
 
 **Setup-ordning (engång):**
 1. RevenueCat-projekt (gratis): skapa entitlement `premium` + en *offering* med
    din 49 kr/mån-produkt. Kopiera iOS-/Android-API-nycklarna → Railway.
 2. App Store Connect / Play Console: definiera prenumerationen (49 kr/mån) och en
    **sandbox-testanvändare**. Länka produkten till `premium`-entitlementet i RC.
-3. RevenueCat → webhook-URL `https://www.foilio.se/api/webhooks/revenuecat`,
+3. RevenueCat → webhook-URL `https://foilio.se/api/webhooks/revenuecat`,
    `Authorization`-headern = ditt `REVENUECAT_WEBHOOK_AUTH`.
+   ⛔ **APEX, aldrig `www`.** Cloudflare 301:ar www → apex, och RevenueCat följer inte
+   redirects: webhooken slutar levereras TYST. Den äger `planTier` (`EXPIRATION` sätter
+   FREE ovillkorligt), så utfallet är att app-köpares Pro fryser — samma tysta mekanism
+   som dödade alla restock-larm i fyra dygn 2026-07-08. Gäller Stripe-webhooken likaså.
 4. Xcode (på Mac) / Codemagic: lägg till **In-App Purchase**-capability i iOS-appen.
 5. Testa köpet på en riktig iPhone via TestFlight, inloggad med sandbox-kontot.
 
