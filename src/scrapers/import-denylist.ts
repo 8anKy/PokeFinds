@@ -1056,6 +1056,9 @@ const DENIED = new Set<string>(
     "https://aquitaz.se/products/pokemon-scarlet-violet-gym-vol-6-promo-booster-pack-7-kort-jp",
     // Pokemon Sword & Shield 5 Battle Styles Elite Trainer (raderad produkt)
     "https://speltrollet.se/products/pokemon-sword-shield-5-battle-styles-elite-trainer",
+    // ── Ägarens katalogbeslut 2026-08-15 (apply-owner-decisions.ts) ──
+    // Pokémon - Build & Battle Stadium - Astral Radiance (offer krockar med målets)
+    "https://dragonslair.se/products/pokemon-tcg-sword-shield-10-astral-radiance-build-battle-stadium-box-pokemon",
   ].map(normalizeListingUrl)
 );
 
