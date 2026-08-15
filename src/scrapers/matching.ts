@@ -1159,9 +1159,16 @@ const SINGLE_CARD_SIGNS = [
  */
 const JP_PROMO_NUMBER = /\b\d{1,3}\s*\/\s*(?:sv|s|xy|smp?|bwp?|dpp?|m)-?p\b/i;
 
+/**
+ * Vetot mot JP_PROMO_NUMBER. `[\s-]*` och `booster` med flit: butikerna skriver
+ * "Promo Pack", "Promo-Boosterpack" (Yonko TCG) och "Promopaket" — alla tre beskriver
+ * ett OÖPPNAT paket som råkar namnge kortet i sig.
+ */
+const SEALED_PROMO_PACK = /promo[\s-]*(pack|paket|booster)/i;
+
 export function isSingleCardListing(title: string): boolean {
   if (SINGLE_CARD_SIGNS.some((re) => re.test(title))) return true;
-  return JP_PROMO_NUMBER.test(title) && !/promo\s*pack/i.test(title);
+  return JP_PROMO_NUMBER.test(title) && !SEALED_PROMO_PACK.test(title);
 }
 
 /**
@@ -1197,8 +1204,11 @@ const ACCESSORY_SIGNS =
 // bredvid de riktiga. En titel som säger att kort/boosters INTE följer med beskriver
 // ett tillbehör oavsett vilka formord den bär, så den här vakten står ÖVER
 // sealed-formordet (till skillnad från merch-vakten).
+// "Endast box" / "box only" = butiken säljer den TOMMA förpackningen (Shinycards
+// "Prismatic Evolution Suprise Box (Endast Box)"). Samma familj som "boosters ingår ej":
+// titeln säger själv att innehållet inte följer med, alltså ett tillbehör oavsett formord.
 const CONTENT_EXCLUDED_SIGNS =
-  /\b(ingår|medföljer)\s+(ej|inte)\b|\bnot\s+included\b|\butan\s+boosters?\b/i;
+  /\b(ingår|medföljer)\s+(ej|inte)\b|\bnot\s+included\b|\butan\s+boosters?\b|\bendast\s+(box|ask|f[öo]rpackning)\b|\bbox\s+only\b/i;
 
 // Lösa mynt/jumbokort som säljs separat ur en collection ("151 Ultra Premium
 // Collection Jumbo Mynt", 2026-08-08). Bart "mynt"/"coin" är FÖRBJUDET — riktiga

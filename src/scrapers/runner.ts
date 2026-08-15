@@ -1033,8 +1033,13 @@ export async function runRestockScan(opts?: {
     checked++;
     // Samma köpbarhetskoll som offer-grenen: en HELT ny annons som feeden säger är i
     // lager blir ett "ny produkt i lager"-larm, och ett falskt sådant är lika fel som
-    // ett falskt restock-larm. Grinden ligger EFTER vaktkedjans billiga filter så vi
-    // aldrig hämtar en produktsida för en singel eller ett gosedjur.
+    // ett falskt restock-larm. Statusen måste vara rättad INNAN
+    // `ensureListingProduct` skriver offern med den.
+    // ⚠️ Bara kategori- och språkfiltret har körts här; tillbehörs-, merch- och
+    //    singelvakterna sitter INNE i ensureListingProduct. En körning med många nya
+    //    skräp-URL:er kan alltså bränna budgeten (`RESTOCK_BUY_CHECK_MAX`) på annonser
+    //    som ändå avvisas. Det är avgränsat och medvetet: taket är litet, och när det
+    //    är slut litar vi på feeden (fail open) — samma riktning som resten av kedjan.
     newStatus = await confirmIncomingStock(it.sourceName, it.url, newStatus);
     // Auto-import: skapa/länka katalogprodukt + offer → larmet pekar på VÅR produktsida
     // (in-app), och nästa skanning spårar URL:en via offer-diffen ovan.

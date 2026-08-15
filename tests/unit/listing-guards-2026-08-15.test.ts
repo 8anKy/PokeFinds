@@ -55,6 +55,15 @@ describe("isSingleCardListing — brädgårdsprefixet", () => {
     ).toBe(false);
   });
 
+  it("vetot mot japansk promo-notation täcker butikernas skrivningar", () => {
+    // Yonko TCG skriver "Promo-Boosterpack" med bindestreck — vetot matchade bara
+    // "promo pack" och fällde därför ett OÖPPNAT paket med levande butikslänk.
+    expect(isSingleCardListing("[JP] Pokémon McDonalds Promo-Boosterpack - Pikachu (020/M-P)")).toBe(false);
+    expect(isSingleCardListing("Pokemon Promopaket Pikachu 020/M-P")).toBe(false);
+    // …men kortets egen annons är fortfarande en singel.
+    expect(isSingleCardListing("Pikachu Promo 197/SV-P")).toBe(true);
+  });
+
   it("fäller bulk-lotter och graderade lotter", () => {
     expect(isSingleCardListing("Pokémon AR Bulk (Japanska)")).toBe(true);
     expect(isSingleCardListing("Pokémon RR/RRR (EX/V/VSTAR/VMAX) Bulk (Japanska)")).toBe(true);
@@ -132,6 +141,16 @@ describe("isAccessoryListing — svenska sammansättningar och kortställ", () =
     // sealed-ord-veto, så ett så generellt ord hade nollat dem tyst.
     expect(isAccessoryListing("Prismatic Evolutions: Accessory Pouch Special Collection")).toBe(false);
     expect(isAccessoryListing("Pokémon TCG: Prismatic Evolutions Accessory Pouch Collection")).toBe(false);
+  });
+
+  it("fäller TOMMA förpackningar — innehållet ingår inte", () => {
+    // Samma regel som "Mini Tin + Art Card & Coin (Boosters ingår ej)" 2026-08-08:
+    // en titel som säger att innehållet inte följer med beskriver ett tillbehör,
+    // oavsett vilka formord den bär. MÄTT: fäller exakt en katalograd — en ETB-post
+    // som heter "Empty Elite Trainer Card Box", dvs själva felet regeln finns mot.
+    expect(isAccessoryListing("Stellar Crown Empty Elite Trainer Card Box (Endast box)")).toBe(true);
+    expect(isAccessoryListing("Prismatic Evolution Suprise Box (Endast Box)")).toBe(true);
+    expect(isAccessoryListing("Prismatic Evolutions Surprise Box")).toBe(false);
   });
 
   it("⛔ 'Album 2-Pack Blister' är fortfarande en riktig SKU", () => {

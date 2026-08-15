@@ -36,6 +36,8 @@ import {
   isOtherFranchiseListing,
   isMerchandiseListing,
   isSingleCardListing,
+  isUnspecifiedCharacterListing,
+  hasPokemonTitleSignal,
 } from "../src/scrapers/matching";
 import { isBlockedListingLanguage } from "../src/lib/listing-language";
 import { isDeniedListingUrl, setDynamicDenylist } from "../src/scrapers/import-denylist";
@@ -51,8 +53,18 @@ const dbOnly = process.argv.includes("--db-only");
  */
 const feedsFile = process.argv.find((a) => a.startsWith("--feeds="))?.slice("--feeds=".length);
 
-/** Samma kedja som ensureListingProduct, men den RAPPORTERAR i stället för att returnera null. */
-function rejectionReason(title: string, url: string, category: string | null): string | null {
+/**
+ * Samma kedja som ensureListingProduct, men den RAPPORTERAR i stället för att returnera
+ * null. ⛔ Inklusive de TVÅ vakter som står sist och bara gäller SKAPANDET (positiv
+ * Pokémon-evidens + karaktärslös blister) — utan dem räknas Kanto Vaults Disney/Marvel-
+ * boosterboxar som "saknade Pokémon-produkter".
+ */
+function rejectionReason(
+  title: string,
+  url: string,
+  category: string | null,
+  setNames: ReadonlySet<string>
+): string | null {
   if (!category) return "ingen kategori";
   if (!isSealedCategory(category)) return "ej sealed-kategori";
   if (isBlockedListingLanguage(title, url)) return "blockerat språk (CN/KR)";
@@ -65,6 +77,12 @@ function rejectionReason(title: string, url: string, category: string | null): s
   if (isOtherFranchiseListing(clean)) return "annan franchise";
   if (isSingleCardListing(clean)) return "enskilt kort";
   if (isMerchandiseListing(clean)) return "merch";
+  // Evidensen läses på BÅDA titlarna: cleanListingTitle tar bort "Pokémon TCG:"-prefixet,
+  // som ofta ÄR hela beviset (se runner.ts).
+  if (!hasPokemonTitleSignal(clean, setNames) && !hasPokemonTitleSignal(title, setNames)) {
+    return "ingen Pokémon-signal";
+  }
+  if (isUnspecifiedCharacterListing(clean)) return "karaktärslös blister/tin";
   return null;
 }
 
@@ -83,9 +101,28 @@ async function main() {
   // Admins egna nekade URL:er räknas med, annars överskattar rapporten importbarheten.
   const denied = await prisma.deniedListingUrl.findMany({ select: { url: true } }).catch(() => []);
   setDynamicDenylist(denied.map((d) => d.url));
+  // Setnamnen normaliseras precis som runner.ts knownSetNames() gör.
+  const setNames = new Set<string>();
+  for (const row of await prisma.cardSet.findMany({ select: { name: true } })) {
+    for (const variant of [row.name, row.name.replace(/\(.*?\)/g, " ")]) {
+      const n = normalizeTitle(variant);
+      if (n.length >= 3) setNames.add(n);
+    }
+  }
 
   const retailers = await prisma.retailer.findMany({ select: { id: true, name: true } });
   const idByName = new Map(retailers.map((r) => [r.name, r.id]));
+  const nameById = new Map(retailers.map((r) => [r.id, r.name]));
+  // Offer-URL:er per butik — HÅL-avsnittet frågar "har DEN HÄR URL:en en offer?",
+  // inte "finns det lika många offers som annonser".
+  const offerUrls = new Set(
+    (
+      await prisma.offer.findMany({
+        where: { retailerId: { in: retailers.map((r) => r.id) } },
+        select: { url: true, retailerId: true },
+      })
+    ).map((o) => `${nameById.get(o.retailerId) ?? o.retailerId}\t${o.url}`)
+  );
 
   // ---- DB-sidan: offers per butik, uppdelat på exakt facettens tre villkor ----
   type DbStat = {
@@ -149,6 +186,8 @@ async function main() {
     unknown: number;
     reasons: Map<string, number>;
     urls: Set<string>;
+    /** URL:erna som passerade vaktkedjan — gapet mäts per URL, se HÅL-avsnittet. */
+    importableUrls: Set<string>;
   };
   const feedStats = new Map<string, FeedStat>();
 
@@ -162,15 +201,19 @@ async function main() {
           unknown: 0,
           reasons: new Map(),
           urls: new Set(),
+          importableUrls: new Set(),
         };
         for (const it of f.items) {
           s.urls.add(it.url);
           if (it.stockStatus === StockStatus.IN_STOCK) s.inStock++;
           else if (it.stockStatus === StockStatus.OUT_OF_STOCK) s.outOfStock++;
           else s.unknown++;
-          const reason = rejectionReason(it.title, it.url, it.category ?? null);
+          const reason = rejectionReason(it.title, it.url, it.category ?? null, setNames);
           if (reason) s.reasons.set(reason, (s.reasons.get(reason) ?? 0) + 1);
-          else s.importable++;
+          else {
+            s.importable++;
+            s.importableUrls.add(it.url);
+          }
         }
         feedStats.set(f.sourceName, s);
     }
@@ -211,14 +254,20 @@ async function main() {
     );
   }
 
-  console.log("\n=== HÅL: importabla annonser i feeden som saknar offer ===");
+  // ⛔ GAPET MÄTS PER URL, ALDRIG SOM (importabla − antal offers). Den subtraktionen
+  //    överskattar grovt: många feed-annonser pekar på SAMMA produkt (omslagskonst,
+  //    varianter, momsdubbletter), och `Offer` är unik på (produkt, butik, skick,
+  //    språk) — så bara en av dem KAN ha en offer. Mätt 2026-08-15 rapporterade
+  //    subtraktionen 225 saknade hos Samlarhobby; per URL var det TVÅ, båda bundna i
+  //    huvudboken (Generations-boosters i två omslagskonster = en katalogprodukt).
+  console.log("\n=== HÅL: importabla annonser i feeden som saknar EGEN offer (per URL) ===");
   for (const r of rows) {
     const f = r.feed;
     if (!f) continue;
-    const gap = f.importable - r.db.offers;
-    if (gap > 5) {
+    const missing = [...f.importableUrls].filter((u) => !offerUrls.has(`${r.name}\t${u}`));
+    if (missing.length > 5) {
       console.log(
-        `  ${r.name}: feed har ${f.importable} importabla men bara ${r.db.offers} offers (gap ${gap})` +
+        `  ${r.name}: ${missing.length} av ${f.importable} importabla saknar egen offer` +
           `  [huvudbok: ${r.db.ledger} rader, ${r.db.ledgerWithProduct} bundna]`
       );
     }

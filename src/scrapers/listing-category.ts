@@ -93,14 +93,24 @@ export function guessListingCategory(title: string): ListingCategory {
 
   // Byggda lekdäck som säljs sealed. "Deck" ensamt är FÖRBJUDET — "Deck Box" och
   // "Deck Protector" är tillbehör, och "deck sleeves" likaså.
+  // ⛔ `championships?` — butikerna skriver BÅDE "World Championship Deck" (Alphaspel)
+  //    och "World Championships Deck" (Speltrollet, fyra 2024-deck). Ett saknat "s"
+  //    lämnade dem i OTHER.
+  // ⛔ `start deck` utöver `starter deck`: den japanska linjen heter "MEGA Start Deck
+  //    100 Battle Collection", inte "Starter".
   if (
-    /\b(world\s*championship|league\s*battle|battle|theme|starter|premium\s*deck|trainer'?s?)\s*deck\b/.test(t) ||
+    /\b(world\s*championships?|league\s*battle|battle|theme|starter|start|premium\s*deck|trainer'?s?)\s*deck\b/.test(t) ||
     /\bdeck\s*set\b/.test(t) ||
     /\bv-?battle\s*deck\b/.test(t) ||
     /\bbattle\s*academy\b/.test(t)
   ) {
     return "COLLECTION_BOX";
   }
+
+  // Pokémon Centers "Special Box" är en egen sealed-linje ("Shiny Star V Crobat
+  // Special Box", "Special Box Pokemon Center Tohoku"). Bart "box" vore alldeles för
+  // brett; frasen är det inte.
+  if (/\bspecial\s*box\b/.test(t)) return "COLLECTION_BOX";
 
   // Build & Battle Box / Stadium — sealed prerelease-paket med fyra boosters.
   if (/build\s*(&|and|\+|\s)*\s*battle/.test(t)) return "COLLECTION_BOX";

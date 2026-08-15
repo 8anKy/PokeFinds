@@ -71,6 +71,17 @@ describe("guessListingCategory — formerna som föll till OTHER (2026-08-15)", 
     });
   }
 
+  it("stavningsvarianterna butikerna faktiskt använder", () => {
+    // ⛔ "Championship" OCH "Championships": Alphaspel skriver singular, Speltrollet
+    //    plural. Ett saknat "s" lämnade fyra 2024-deck i OTHER.
+    expect(guessListingCategory("Pokémon TCG: 2024 World Championships Deck - Iron Thorns ex")).toBe("COLLECTION_BOX");
+    // Den japanska linjen heter "Start Deck", inte "Starter Deck".
+    expect(guessListingCategory("Pokemon MEGA Start Deck 100 Battle Collection (Japansk)")).toBe("COLLECTION_BOX");
+    // Pokémon Centers egen sealed-linje.
+    expect(guessListingCategory("Pokémon Center: Shiny Star V Crobat Special Box")).toBe("COLLECTION_BOX");
+    expect(guessListingCategory("Pokémon TCG: Special Box Pokemon Center Tohoku (Japansk)")).toBe("COLLECTION_BOX");
+  });
+
   it("promo-paket blir BOOSTER_PACK", () => {
     expect(guessListingCategory("Pokémon GO Promo Pack (Japansk)")).toBe("BOOSTER_PACK");
     expect(guessListingCategory('Pokemon TCG: First Partner 25th Anniversary Oversized Card Promo Pack "Kalos"')).toBe("BOOSTER_PACK");

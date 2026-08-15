@@ -708,10 +708,16 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   Pokémon-ord satt i prefixet raderade tvätten precis det bevis vakten frågade efter
   ("Pokemon TCG: 2025 World Championship Deck - Pult Bomb" avvisades). Tvätten svarar på vad produkten ska
   HETA, vakten på om det är Pokémon — två frågor.
-  ✅ **UTFALL (tyst seedning 2026-08-15, `scripts/run-category-widening-import.ts`)**: **+273
-  katalogprodukter, 443 nya offers, 0 larm**. Fördelning: 269 COLLECTION_BOX + 4 BOOSTER_PACK; 244 EN +
-  29 JP, **noll CN/KR**. Varenda titel faller i en känd produktlinje (79 Battle Deck, 48 Build & Battle,
-  40 Starter Set, 29 Figure Collection, 23 League Battle Deck …) — ingen merch, inga singlar.
+  ✅ **UTFALL (tyst seedning 2026-08-15, `scripts/run-category-widening-import.ts`, två omgångar)**:
+  **+320 katalogprodukter (31 237 → 31 557), 658 nya offers, 0 larm**. Fördelning: 307 COLLECTION_BOX +
+  8 BOOSTER_PACK + 5 TIN; 286 EN + 34 JP, **noll CN/KR**. Varenda titel faller i en känd produktlinje
+  (79 Battle Deck, 48 Build & Battle, 40 Starter Set, 29 Figure Collection, 23 League Battle Deck,
+  World Championship(s) Deck, Special Box …) — ingen merch, inga singlar.
+  ⚠️ **DEN KVARVARANDE OTHER-SVANSEN (~420) ÄR MEST MERCH** och ska stanna där: tote bags,
+  Squishmallows, statyer, kakburkar, badbomber, Monopol. De passerar merch-vakten (orden saknas i
+  MERCHANDISE_SIGNS) och hålls ute ENBART av kategorigrinden — samma slump som förut, fast åt rätt håll.
+  ⛔ **Öppna alltså ALDRIG `OTHER` för feed-först.** Den vidgade klassificeraren namnger former; grinden
+  ska fortsätta neka allt den inte känner igen.
   ⛔ **`RESTOCK_SEED_SILENT=1` ÄR INTE VALFRITT VID EN VIDGNING.** Butikerna HAR huvudboks-historik, så
   utan spaken mejlas varje nyupptäckt URL som "Ny produkt i lager" till alla set-bevakare — samma fälla
   som när Samlarhobbys täckning gick 379 → 975. Kör seedningen FÖRE push; varje 10-minuterskörning som
