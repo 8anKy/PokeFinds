@@ -1,0 +1,48 @@
+# Ägarens genomgång 2026-08-15, omgång c — 12 japanska display-/booster-dubbletter.
+# Samma familj som -b: butikens frasering ("… (sv10) Booster display – JAPANSK")
+# mot katalogens kanoniska CM-namn ("The Glory of Team Rocket Booster Box").
+# Egen fil: slugarna i de tidigare filerna finns inte längre, så en omkörning av
+# dem hade fallit på "okänd slug".
+#
+# VERKSTÄLLD: 12 sammanslagna, 0 raderade. Noll herrelösa butiks-URL:er i
+# torrkörningen ⇒ ingen denylist behövdes; varje stubs butikslänk flyttade in
+# i målet i stället för att raderas.
+
+This https://foilio.se/en/produkter/pokemon-scarlet-violet-the-glory-of-team-rocket-sv10-booster-display-japansk
+Go to https://foilio.se/en/produkter/pokemon-scarlet-violet-glory-of-team-rocket-sv10-booster-box-japanese
+
+This https://foilio.se/en/produkter/pokemon-mega-inferno-x-m2-booster-display-japansk
+Go to https://foilio.se/en/produkter/pokemon-mega-inferno-x-booster-box-japansk
+
+This https://foilio.se/en/produkter/pokemon-scarlet-violet-wild-force-sv5k-booster-display-japansk
+Go to https://foilio.se/en/produkter/pokemon-scarlet-violet-wild-force-booster-box-japansk
+
+This https://foilio.se/en/produkter/pokemon-scarlet-violet-triplet-beat-sv1a-booster-display-japansk
+Go to https://foilio.se/en/produkter/pokemon-triplet-beat-booster-box-display-sv1a-japansk
+
+This https://foilio.se/en/produkter/pokemon-scarlet-violet-ruler-of-the-black-flame-sv3-booster-display-japansk
+Go to https://foilio.se/en/produkter/pokemon-scarlet-violet-ruler-of-the-black-flame-sv3-display-booster-box-japansk
+
+This https://foilio.se/en/produkter/pokemon-scarlet-violet-crimson-haze-sv5a-booster-display-japansk
+Go to https://foilio.se/en/produkter/pokemon-scarlet-violet-crimson-haze-sv5a-display-booster-box-japansk
+
+# Stubben bar namnet "Tidal Storm Booster Box" — den kinesiska CM-felmappningen
+# från 2026-08-10 på M6-displayen. Den felaktiga CM-offern följde INTE med:
+# mergeStubInto raderar marknadsplats-offers i stället för att flytta dem.
+This https://foilio.se/en/produkter/pokemon-mega-storm-emeralda-m6-booster-display-japansk
+Go to https://foilio.se/en/produkter/pokemon-mega-storm-emeralda-booster-box-japansk
+
+This https://foilio.se/en/produkter/pokemon-mega-storm-emeralda-m6-booster-japansk
+Go to https://foilio.se/en/produkter/pokemon-mega-storm-emeralda-booster-pack-japansk
+
+This https://foilio.se/en/produkter/pokemon-scarlet-violet-future-flash-booster-pack-japansk
+Go to https://foilio.se/en/produkter/pokemon-tcg-future-flash-booster-pack-japansk-sv4m
+
+This https://foilio.se/en/produkter/pokemon-scarlet-violet-future-flash-booster-box-japansk
+Go to https://foilio.se/en/produkter/pokemon-scarlet-violet-future-flash-sv4m-display-booster-box-japansk
+
+This https://foilio.se/en/produkter/pokemon-scarlet-violet-battle-partners-booster-box-japansk
+Go to https://foilio.se/en/produkter/pokemon-scarlet-violet-battle-partners-booster-box-sv9-japansk
+
+This https://foilio.se/en/produkter/pokemon-scarlet-violet-battle-partners-booster-pack-japansk
+Go to https://foilio.se/en/produkter/pokemon-tcg-battle-partners-booster-pack-japansk-sv9
