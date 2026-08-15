@@ -1468,8 +1468,28 @@ const MERCHANDISE_SIGNS =
 const SEALED_FORM_WORD =
   /\b(booster|boosters|booster\s*display|display\s*box|etb|elite\s*trainer|blister|bundle|tin|tins|booster\s*box|premium\s*collection|poster\s*collection|figure\s*collection|build\s*(&|and)\s*battle|checklane|theme\s*deck|battle\s*deck|starter\s*deck)\b/i;
 
+/**
+ * Tillverkare som ALDRIG gör TCG-produkter. Vetar även `SEALED_FORM_WORD`.
+ *
+ * ⛔ ORDNINGEN ÄR HELA POÄNGEN — en vanlig merch-regel hade varit verkningslös här.
+ *    Re-Ment är ett japanskt leksaksbolag som gör miniatyrdioramor, och varenda en av
+ *    deras produkter heter "... **Figure Collection** ...". Den frasen står i
+ *    `SEALED_FORM_WORD` (Pokémons EGEN "Shining Legends Figure Collection" är en
+ *    riktig SKU med boosters i), så merch-vakten vetades bort och 28 dioramaserier
+ *    importerades som COLLECTION_BOX — osynligt för varje ordbaserad merch-regel.
+ *    Märket är det enda entydiga tecknet: det säger VEM som tillverkat varan, inte
+ *    vad förpackningen kallas.
+ * ⛔ MÄTT 2026-08-16 mot hela prod-katalogen och hela huvudboken: enda träffarna är
+ *    Re-Ments egna 28 produkter. Ordgränsen skyddar mot "measurement"/"requirement".
+ * ⚠️ Lägg bara till märken som ALDRIG gör TCG-varor. Ett märke som gör både (t.ex.
+ *    Pokémon Center) hör inte hemma här — då fälls riktiga SKU:er tyst.
+ */
+const NON_TCG_BRAND = /\bre[-\s]?ment\b/i;
+
 /** Merch (gosedjur, figurer, kläder, affischer) — aldrig en TCG-katalogprodukt. */
 export function isMerchandiseListing(title: string): boolean {
+  // ⛔ FÖRE sealed-formorden med flit. Se NON_TCG_BRAND.
+  if (NON_TCG_BRAND.test(title)) return true;
   if (SEALED_FORM_WORD.test(title)) return false;
   return MERCHANDISE_SIGNS.test(title);
 }

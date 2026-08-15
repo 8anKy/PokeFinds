@@ -1059,6 +1059,63 @@ const DENIED = new Set<string>(
     // ── Ägarens katalogbeslut 2026-08-15 (apply-owner-decisions.ts) ──
     // Pokémon - Build & Battle Stadium - Astral Radiance (offer krockar med målets)
     "https://dragonslair.se/products/pokemon-tcg-sword-shield-10-astral-radiance-build-battle-stadium-box-pokemon",
+    // ── Ägarens katalogbeslut 2026-08-15 (apply-owner-decisions.ts) ──
+    // Re-Ment Pokemon A Little Tale of the Forest Figure Collection Complete Box (raderad produkt)
+    "https://speltrollet.se/products/re-ment-pokemon-a-little-tale-of-the-forest-collection-figure-box-komplett",
+    // Re-Ment Pokemon Bonsai Vol. 3 With The Changing Seasons Figure Collection Complete Box (raderad produkt)
+    "https://speltrollet.se/products/re-ment-pokemon-bonsai-3-with-the-changing-seasons-collection-figure-box",
+    // Re-Ment Pokemon Circular Diorama Figure Collection Complete Box (raderad produkt)
+    "https://speltrollet.se/products/re-ment-pokemon-circular-diorama-figure-collection-6pcs-complete-box-6st",
+    // Re-Ment Pokemon Desk Battle On Desk Figure Collection Complete Box (raderad produkt)
+    "https://speltrollet.se/products/re-ment-samlarfigurer-pokemon-desq-battle-on-desk-ver-anime-figure-collection-komplett",
+    // Re-Ment Pokemon Desk Battle On Desk Figure Collection figur (raderad produkt)
+    "https://speltrollet.se/products/re-ment-samlarfigurer-pokemon-desq-battle-on-desk-ver-anime-figure-collection-figur",
+    // Re-Ment Pokemon Diorama Collection Old Castle Ruins Figure Collection Complete Box (raderad produkt)
+    "https://speltrollet.se/products/re-ment-pokemon-diorama-collection-old-castle-ruins-figure-collection-box-komplett",
+    // Re-Ment Pokemon Diorama Collection - Old Castle Ruins Figure Collection figure (raderad produkt)
+    "https://speltrollet.se/products/re-ment-samlarfigurer-pokemon-diorama-collection-old-castle-ruins-figure-collection-figur",
+    // Re-Ment Pokemon Funwari Yurarin Figure Collection (raderad produkt)
+    "https://speltrollet.se/products/re-ment-pokemon-funwari-yurarin-figure-collection",
+    // Re-Ment Pokemon Garden Afternoon Of Sunshine Filtering Through Trees Figure Collection Complete Box (raderad produkt)
+    "https://speltrollet.se/products/re-ment-pokemon-garden-afternoon-of-sunshine-filtering-through-trees-collection-box-komplett",
+    // Re-Ment Pokemon Gemstone Collection Vol 03 Figure Collection (raderad produkt)
+    "https://speltrollet.se/products/re-ment-samlarfigurer-pokemon-gemstone-collection-shining-miracle-of-mystery-figure-collection-figur",
+    // Re-Ment Pokemon Lantern Diorama Figure Collection Complete Box (raderad produkt)
+    "https://speltrollet.se/products/re-ment-pokemon-lantern-diorama-figure-collection-complete-box-6st",
+    // Re-Ment Pokemon Lantern Diorama Figure Collection Figure (raderad produkt)
+    "https://speltrollet.se/products/re-ment-pokemon-lantern-diorama-figure-collection-figure",
+    // Re-Ment Pokemon Midnight Mansion Vol.2 Figure Collection Complete Box (raderad produkt)
+    "https://speltrollet.se/products/re-ment-pokemon-midnight-mansion-vol-2-figure-collection-figure-box",
+    // Re-Ment Pokemon Midnight Mansion Vol.2 Figure Collection Figure (raderad produkt)
+    "https://speltrollet.se/products/re-ment-samlarfigurer-pokemon-midnight-mansion-vol-2-figure-collection-figur",
+    // Re-Ment Pokemon Ovaltique Figure Collection Complete Box (raderad produkt)
+    "https://speltrollet.se/products/re-ment-pokemon-ovaltique-collection-collection-figure-set-box-6st",
+    // Re-Ment Pokemon Peaceful Moments A Little Tale of the Forest Series 2 Figure Collection Complete Box (raderad produkt)
+    "https://speltrollet.se/products/re-ment-pokemon-peaceful-moments-a-little-tale-of-the-forest-series-2-collection-6pcs-complete-box-6st",
+    // Re-Ment Pokemon Romantic Figure Collection Complete Box (raderad produkt)
+    "https://speltrollet.se/products/re-ment-pokemon-romantic-collection-figure-box-6st",
+    // Re-Ment Pokemon Starrium Series Dreamy Moonlit Night Figure Collection Complete Box (raderad produkt)
+    "https://speltrollet.se/products/re-ment-pokemon-starrium-series-dreamy-moonlit-night-collection-figure-box",
+    // Re-Ment Pokemon Swing Vignette Collection Vol. 2 Figure Collection Complete Box (raderad produkt)
+    "https://speltrollet.se/products/re-ment-samlarfigurer-pokemon-swing-vignette-collection-vol-2-collection-figur",
+    // Re-Ment Pokemon Swing Vignette Collection Vol. 4 Figure Collection (raderad produkt)
+    "https://speltrollet.se/products/re-ment-pokemon-swing-vignette-collection-vol-4-figure-collection",
+    // Re-Ment Pokemon Terrarium Collection Vol. 12 Figure Collection Complete Box (raderad produkt)
+    "https://speltrollet.se/products/re-ment-samlarfigurer-pokemon-terrarium-collection-vol-12-figure-collection-box-komplett",
+    // Re-Ment Pokemon Terrarium EX Exploring Paldea Figure Collection Complete Box (raderad produkt)
+    "https://speltrollet.se/products/re-ment-pokemon-terrarium-collection-ex-exploring-paldea-collection-6pcs-complete-box-6st",
+    // Re-Ment Pokemon Terrarium Vol. 13 Figure Collection Complete Box (raderad produkt)
+    "https://speltrollet.se/products/re-ment-pokemon-terrarium-vol-13-collection-6pcs-complete-box-6st",
+    // Re-Ment Pokemon Terrarium Vol. 15 Figure Collection Complete Box (raderad produkt)
+    "https://speltrollet.se/products/re-ment-pokemon-terrarium-vol-15-collection-figure-box-6st",
+    // Re-Ment Pokemon Vintage Collection Type Steel Figure Collection Complete Box (raderad produkt)
+    "https://speltrollet.se/products/re-ment-pokemon-vintage-collection-type-steel-figure-box-komplett",
+    // Re-Ment Samlarfigurer Pokemon Frame - Deep Woods Figure Collection figur (raderad produkt)
+    "https://speltrollet.se/products/re-ment-samlarfigurer-pokemon-pokemon-frame-deep-woods-figure-collection-figur",
+    // Re-Ment Samlarfigurer Pokemon Gemstone Collection Vol.2 Figure Collection figur (raderad produkt)
+    "https://speltrollet.se/products/pokemon-gemstone-samlarfigurer-collection-vol-2",
+    // Re-Ment Samlarfigurer Pokemon Terrarium Collection Vol.12 Figure Collection Figure (raderad produkt)
+    "https://speltrollet.se/products/re-ment-samlarfigurer-pokemon-terrarium-collection-vol-12-figure-collection-figur",
   ].map(normalizeListingUrl)
 );
 
