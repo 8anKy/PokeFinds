@@ -16,6 +16,7 @@ import type {
   RawProductData,
   SourceAdapter,
 } from "../types";
+import { guessListingCategory } from "../listing-category";
 
 const BASE_URL = "https://www.spelexperten.com";
 
@@ -101,18 +102,6 @@ function extractProducts(html: string, _pageUrl: string): SpelexpertenRaw[] {
   return products;
 }
 
-function guessCategory(title: string): string {
-  const lower = title.toLowerCase();
-  if (/booster\s*(box|display)/i.test(lower)) return "BOOSTER_BOX";
-  if (/elite\s*trainer/i.test(lower) || /etb/i.test(lower)) return "ETB";
-  if (/booster\s*bundle/i.test(lower)) return "BUNDLE";
-  if (/booster\s*pack|booster\b/i.test(lower)) return "BOOSTER_PACK";
-  if (/collection\s*box|premium\s*collection/i.test(lower)) return "COLLECTION_BOX";
-  if (/tin\b/i.test(lower)) return "TIN";
-  if (/blister/i.test(lower)) return "BLISTER";
-  if (/bundle/i.test(lower)) return "BUNDLE";
-  return "OTHER";
-}
 
 export class SpelexpertenAdapter implements SourceAdapter {
   name = "Spelexperten";
@@ -146,7 +135,7 @@ export class SpelexpertenAdapter implements SourceAdapter {
             break;
           }
           for (const item of found) {
-            const category = guessCategory(item.title);
+            const category = guessListingCategory(item.title);
             // Filtrera bort icke-Pokémon-produkter
             if (!/pok[eé]mon/i.test(item.title) && !/tcg/i.test(item.title)) continue;
 

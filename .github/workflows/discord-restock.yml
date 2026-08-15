@@ -10,11 +10,23 @@ name: Discord restock-larm (loop-jobb, tick var 60:e s)
 # Den gamla modellen betalade ~25 s Actions-omkostnad (dispatch→start, boot, checkout,
 # cache-restores) PER SVEP — omkostnaden var större än själva feed-hämtningen och
 # gick inte att optimera bort per körning. Nu loopar JOBBET i stället: ett jobb kör
-# svep ("tick") var 60:e sekund i ~5 minuter och avslutar sig självt; omkostnaden
-# betalas en gång per jobb. Snittlatens ≈ tick/2 + feed-hämtning ≈ ~45–60 s, mot
-# ~2,1 min förut. Feed-hämtningen kortades samtidigt i sig: Shopify-JSON-pacingen
-# sänktes 1200→300 ms (CDN-serverad; Speltrollets 28 kollektioner var den mätta
-# ~40 s-svansen) och TCG Store/Pokétalk/Samlarhobby läser /products.json.
+# svep ("tick") var 60:e sekund och avslutar sig självt; omkostnaden betalas en gång
+# per jobb. Feed-hämtningen kortades samtidigt i sig: Shopify-JSON-pacingen sänktes
+# 1200→300 ms (CDN-serverad; Speltrollets 28 kollektioner var den mätta ~40 s-svansen)
+# och TCG Store/Pokétalk/Samlarhobby läser /products.json.
+#
+# LATENSPASS 2026-08-15 — två saker gjorde att "tick var 60:e sekund" inte stämde:
+#   1. SVEPET TOG LÄNGRE TID ÄN TICKET. Med 42 butiker och samtidighet 16 kördes
+#      hämtningen i tre vågor (~76 s mätt vid 34 butiker), och loopen startar nästa
+#      tick först när det förra är klart — så det verkliga intervallet sattes av
+#      svepet, inte av inställningen. Samtidigheten är nu 48 (= fler än butikerna),
+#      vilket gör wall-clock till långsammaste ENSKILDA butik. Det ökar inte lasten
+#      mot någon butik: politeFetch fördröjer per VÄRD, inte globalt.
+#   2. GLAPPET MELLAN JOBB. Ett 5-minutersjobb betalade ~30 s blind boot-tid var
+#      femte minut (~10 %). Loopbudgeten är nu 9 min (~6 %).
+# Svepets väggklocka OCH de fem långsammaste butikerna loggas numera varje körning
+# ("[restock-scan] Feed-svep: … Långsammast: …") — utan den raden går det inte att se
+# vilken butik som sätter takten, och det var precis vad som saknades.
 #
 # ARTIGHETEN SITTER I SCRIPTET, PER PLATTFORM: Shopify-butiker (CDN) sveps varje tick,
 # butiker på egna servrar (Quickbutik/Woo/custom) varannan — dvs samma takt som den
@@ -71,7 +83,9 @@ concurrency:
 jobs:
   post:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 10 → 15: loopbudgeten är 540 s (9 min) och sista ticket får löpa klart efter det.
+    # Taket är ett skyddsräcke mot en hängd körning, inte en planerad gräns.
+    timeout-minutes: 15
     env:
       # ⛔ AVSIKTLIGT OÅTKOMLIG. Se filhuvudet. PrismaClient konstrueras vid import av
       # runner.ts; en syntaktiskt giltig men död URL låter konstruktionen lyckas och
@@ -86,13 +100,24 @@ jobs:
       # Tom → default-listan i scriptet (de åtta mest aktiva butikerna, mätt).
       # "all" = alla bevakade. Läs artighetsresonemanget i scriptet innan du sätter "all".
       DISCORD_RESTOCK_STORES: ${{ vars.DISCORD_RESTOCK_STORES }}
-      # Loop-i-jobbet: totalbudget ~5 min, ett tick var 60:e s (se filhuvudet).
+      # Loop-i-jobbet: totalbudget ~9 min, ett tick var 60:e s (se filhuvudet).
       # Jobbet slutar självt när nästa tick inte ryms i budgeten.
-      DISCORD_RESTOCK_LOOP_SECONDS: "300"
+      #
+      # 300 → 540 (2026-08-15): mellan två jobb är lanen BLIND medan nästa dispatch
+      # bootar (dispatch→start, checkout, cache-restore ≈ 25–40 s). Med 5-minutersjobb
+      # var det glappet ~10 % av all tid; med 9-minutersjobb ~6 %. Samma antal jobb-
+      # omkostnader betalas över dubbelt så lång täckning. timeout-minutes höjd i takt.
+      DISCORD_RESTOCK_LOOP_SECONDS: "540"
       DISCORD_RESTOCK_TICK_SECONDS: "60"
-      # Wall-clock för ett tick = långsammaste ENSKILDA butik, inte summan per worker.
-      # Butikslistan är >40 på väg mot ~50 — 16 workers håller ticket under intervallet.
-      RESTOCK_SCAN_CONCURRENCY: "16"
+      # ⛔ TICKINTERVALLET KAN ALDRIG BLI KORTARE ÄN SVEPET. 16 → 48 (2026-08-15):
+      # med 42 butiker och 16 workers kördes svepet i tre vågor och tog ~76 s (mätt
+      # 2026-08-12 vid 34 butiker) — alltså LÄNGRE än de 60 s som står ovan, så
+      # "tick var 60:e sekund" var en önskan, inte en takt. Samtidigheten gäller
+      # MELLAN butiker; politeFetch håller sin fördröjning per VÄRD (lastRequestPerHost),
+      # så en höjning ökar inte lasten mot någon enskild butik — den tar bara bort
+      # köandet mellan dem. Wall-clock blir då långsammaste ENSKILDA butiken, som
+      # loggas varje körning ("Feed-svep: … Långsammast: …") sedan samma datum.
+      RESTOCK_SCAN_CONCURRENCY: "48"
       NEXT_PUBLIC_APP_URL: "https://foilio.se"
     steps:
       # Hoppa tyst och grönt när integrationen är avstängd — annars kör vi checkout

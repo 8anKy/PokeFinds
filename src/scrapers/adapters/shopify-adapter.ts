@@ -16,6 +16,7 @@ import { StockStatus, SourceType } from "@prisma/client";
 import { politeFetch } from "../http";
 import { normalizeTitle } from "../../lib/utils";
 import { characterNames, isAccessoryListing } from "../matching";
+import { guessListingCategory } from "../listing-category";
 import type {
   AdapterResult,
   NormalizedProduct,
@@ -117,19 +118,6 @@ const NON_SEALED_COLLECTION =
  * priset ALLTID är ink. moms, oavsett var runnern står. Butiker utan Markets ignorerar den.
  */
 const SE_MARKET_HEADERS = { cookie: "localization=SE", "accept-language": "sv-SE" } as const;
-
-function guessCategory(title: string): string {
-  const t = title.toLowerCase();
-  if (/booster\s*(box|display)/.test(t)) return "BOOSTER_BOX";
-  if (/elite\s*trainer|\betb\b/.test(t)) return "ETB";
-  if (/booster\s*bundle/.test(t)) return "BUNDLE";
-  if (/booster\s*pack|booster\b/.test(t)) return "BOOSTER_PACK";
-  if (/collection\s*box|premium\s*collection/.test(t)) return "COLLECTION_BOX";
-  if (/\btin\b/.test(t)) return "TIN";
-  if (/blister/.test(t)) return "BLISTER";
-  if (/bundle/.test(t)) return "BUNDLE";
-  return "OTHER";
-}
 
 interface ShopifyRaw {
   productId: number;
@@ -344,7 +332,7 @@ export abstract class ShopifyAdapter implements SourceAdapter {
           currency: "SEK",
           stockStatus: v.available ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
           imageUrl: v.featured_image?.src ?? p.images?.[0]?.src,
-          category: guessCategory(title),
+          category: guessListingCategory(title),
           raw: rawData,
         });
       }
@@ -369,7 +357,7 @@ export abstract class ShopifyAdapter implements SourceAdapter {
         currency: "SEK",
         stockStatus: anyAvailable ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
         imageUrl: p.images?.[0]?.src,
-        category: guessCategory(p.title),
+        category: guessListingCategory(p.title),
         raw: rawData,
       },
     ];

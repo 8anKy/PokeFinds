@@ -15,6 +15,7 @@ import type {
   RawProductData,
   SourceAdapter,
 } from "../types";
+import { guessListingCategory } from "../listing-category";
 
 const BASE_URL = "https://www.alphaspel.se";
 
@@ -121,18 +122,6 @@ function extractProducts(html: string): AlphaspelRaw[] {
   return products;
 }
 
-function guessCategory(title: string): string {
-  const lower = title.toLowerCase();
-  if (/booster\s*(box|display)/i.test(lower)) return "BOOSTER_BOX";
-  if (/elite\s*trainer/i.test(lower) || /etb/i.test(lower)) return "ETB";
-  if (/booster\s*bundle/i.test(lower)) return "BUNDLE";
-  if (/booster\s*pack|booster\b/i.test(lower)) return "BOOSTER_PACK";
-  if (/collection\s*box|premium\s*collection/i.test(lower)) return "COLLECTION_BOX";
-  if (/tin\b/i.test(lower)) return "TIN";
-  if (/blister/i.test(lower)) return "BLISTER";
-  if (/bundle/i.test(lower)) return "BUNDLE";
-  return "OTHER";
-}
 
 export class AlphaspelAdapter implements SourceAdapter {
   name = "Alphaspel";
@@ -175,7 +164,7 @@ export class AlphaspelAdapter implements SourceAdapter {
               currency: "SEK",
               stockStatus: item.inStock ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
               imageUrl: item.imageUrl,
-              category: guessCategory(item.title),
+              category: guessListingCategory(item.title),
               raw: item,
             });
           }

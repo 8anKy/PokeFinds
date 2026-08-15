@@ -90,6 +90,18 @@ const CN_LINES = /\bgem pack\b|\b151\s*c\b/i;
  */
 const CN_MARKERS = /\bCSV[A-Z0-9]{1,4}C\b|\bslim booster\b/i;
 /**
+ * HELA den kinesiska setkodsfamiljen, inte bara CSV-grenen (2026-08-15).
+ *
+ * Kinesiska utgåvor kodas `C` + serieförkortning + nummer + `C` — "CSV10C" fanns här,
+ * men "CBB1C" (Captain Pikachu-promon i Kanto Vaults feed) och "CS5aC" gjorde inte det.
+ * Regeln nedan täcker formen i stället för de enskilda serierna.
+ *
+ * ⛔ SKIFTLÄGESKÄNSLIG MED FLIT (ingen `i`-flagga): koden är versal i alla butikers
+ *    skrivning, och en skiftlägesokänslig variant hade matchat vanliga ord som
+ *    innehåller c…siffra…c. Mätt mot katalogens 1 679 sealed-produkter: noll träffar.
+ */
+const CN_SET_CODE = /\bC[A-Z]{1,4}\d{1,3}[a-z]?C\b/;
+/**
  * Språkkod i parentes för asiatiska marknader — motsvarigheten till EU_CODE_PAREN.
  *
  * ⛔ `chn` OCH `S-`/`T-`-prefixet tillkom 2026-08-13: wave 5-butiken Yonko TCG märker
@@ -130,6 +142,7 @@ export function detectListingLanguage(title: string, url?: string | null): Listi
     CN.test(hay) ||
     CN_LINES.test(hay) ||
     CN_MARKERS.test(hay) ||
+    CN_SET_CODE.test(hay) ||
     ASIA_CODE_PAREN.test(title) ||
     (HAN.test(hay) && !KANA.test(hay))
   ) {

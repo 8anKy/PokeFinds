@@ -30,9 +30,11 @@ import { SourceType } from "@prisma/client";
 import { getAdapter, runRestockScan, type RestockSourceInfo } from "../src/scrapers/runner";
 import { ShopifyAdapter } from "../src/scrapers/adapters/shopify-adapter";
 import { discordRestockConfig, postRestocks, postTestMessages } from "../src/lib/discord-restock";
+import { fetchShopifyPurchasable } from "../src/scrapers/stock-verify";
 import {
   deriveRestockPosts,
   markPosted,
+  parseDiscordRestockState,
   type DiscordRestockState,
   type RouteTable,
 } from "../src/lib/restock-feed-events";
@@ -90,13 +92,9 @@ function readRoutes(): RoutesFile | null {
 function readState(): DiscordRestockState | null {
   if (!existsSync(stateFile)) return null;
   try {
-    const parsed = JSON.parse(readFileSync(stateFile, "utf8")) as Partial<DiscordRestockState>;
-    if (!parsed.stock || typeof parsed.stock !== "object") return null;
-    return {
-      stock: parsed.stock,
-      history: parsed.history && typeof parsed.history === "object" ? parsed.history : {},
-      posted: parsed.posted && typeof parsed.posted === "object" ? parsed.posted : {},
-    };
+    // Domen bor i lib (testbar utan filsystem) — se parseDiscordRestockState för
+    // varför `pending` tappades tyst i två dygn när tolkningen låg här inne.
+    return parseDiscordRestockState(JSON.parse(readFileSync(stateFile, "utf8")));
   } catch (e) {
     console.warn("[discord-restock] Kunde inte läsa state-filen:", e instanceof Error ? e.message : e);
     return null;
@@ -170,6 +168,21 @@ async function main() {
     (s) => !onlySources || onlySources.includes(s.name)
   );
   const fastNames = selected.filter(isFastTier).map((s) => s.name);
+  // Butiker vars produktsidor köpbarhetskollen kan läsa (se utskicksgrinden nedan).
+  // Samma instanceof-klassning som artighetsnivån — nya Shopify-butiker klassas
+  // automatiskt, ingen handhållen lista att glömma.
+  const shopifyStores = new Set(
+    selected
+      .filter((s) => {
+        if (s.type !== SourceType.SCRAPER) return false;
+        try {
+          return getAdapter(s.type, s.name) instanceof ShopifyAdapter;
+        } catch {
+          return false;
+        }
+      })
+      .map((s) => s.name)
+  );
 
   // ⛔ DEFAULTEN ÄR EN KLIPPA, INTE EN MJUKLANDNING. Repo-variabeln står på "all" (42
   // butiker sedan 2026-08-14); försvinner den faller lanen tillbaka på de åtta i
@@ -262,8 +275,34 @@ async function main() {
           }
         }
 
-        if (derived.posts.length) {
-          const res = await postRestocks(derived.posts, config);
+        // ---- KÖPBARHETSKOLL FÖRE UTSKICK (2026-08-15) ----
+        // Shopifys `available` betyder inte "går att köpa" (se
+        // purchasableFromShopifyPage). DB-lanen slår upp butikens produktsida vid varje
+        // lagerövergång; den här lanen ser samma feed och måste ställa samma fråga,
+        // annars postar Discord ett larm som webbplatsen redan vet är fel.
+        // ⛔ Kostnaden är avgränsad av ANTALET INLÄGG, inte av feedens storlek —
+        //    mätt 12–27 påfyllningar per dygn över alla butiker. Ren HTTP mot butiken,
+        //    så lanens "rör aldrig Neon"-invariant är orörd.
+        // ⛔ null = vet inte ⇒ POSTA. Ett uteblivet svar är ingen ny upplysning, och
+        //    att tolka det som slutsåld hade tystat äkta påfyllningar vid varje 429.
+        const postable: typeof derived.posts = [];
+        for (const p of derived.posts) {
+          if (!shopifyStores.has(p.storeName)) {
+            postable.push(p);
+            continue;
+          }
+          const purchasable = await fetchShopifyPurchasable(p.storeUrl);
+          if (purchasable === false) {
+            console.log(
+              `[discord-restock]   hoppar (köpknappen låst hos butiken): ${p.storeName} → ${p.storeUrl}`
+            );
+            continue;
+          }
+          postable.push(p);
+        }
+
+        if (postable.length) {
+          const res = await postRestocks(postable, config);
           posted = res.sent;
           postFailures = res.failed;
           for (const k of res.postedKeys) {

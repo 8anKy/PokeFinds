@@ -90,6 +90,32 @@ export function emptyState(): DiscordRestockState {
   return { stock: {}, history: {}, posted: {}, pending: {} };
 }
 
+/**
+ * Läser tillbaka state-filens innehåll. `null` = oanvändbar (saknar lagerläget) →
+ * anroparen seedar om.
+ *
+ * ⛔ LIGGER HÄR, INTE I CLI-SCRIPTET, för att den ska gå att TESTA. Fältet `pending`
+ * tappades tyst vid inläsningen mellan 2026-08-13 och 2026-08-15: den rena domen
+ * (deriveRestockPosts) hade tester på andra chansen, men serialiseringen runt den
+ * hade inga — så väntlistan skrevs till disk och kastades vid nästa jobbstart.
+ * Mekanismen som skulle rädda en ny SKU:s FÖRSTA restock kunde därmed bara verka
+ * inom ett och samma jobb (~5–9 min), medan rutten typiskt dyker upp senare.
+ * En ren funktion utan I/O är skillnaden mellan "testat" och "trodde vi testade".
+ */
+export function parseDiscordRestockState(parsed: unknown): DiscordRestockState | null {
+  if (!parsed || typeof parsed !== "object") return null;
+  const p = parsed as Partial<DiscordRestockState>;
+  if (!p.stock || typeof p.stock !== "object") return null;
+  const obj = <T>(v: unknown): Record<string, T> =>
+    v && typeof v === "object" ? (v as Record<string, T>) : {};
+  return {
+    stock: p.stock,
+    history: obj(p.history),
+    posted: obj(p.posted),
+    pending: obj(p.pending),
+  };
+}
+
 /** Hur länge en okänd URL väntar på sin rutt innan den släpps (sleeves/singlar får aldrig en). */
 const PENDING_UNKNOWN_TTL_HOURS = 12;
 

@@ -1122,10 +1122,46 @@ const SINGLE_CARD_SIGNS = [
   // Bokstavsprefixet är valfritt och gäller BÅDA sidor: delserierna numrerar så
   // ("TG27/TG30", "GG08/GG70", "SWSH034/SWSH299") och det är just de tryckningar
   // någon bryr sig om att lista — en vanlig common säljs sällan styckvis.
-  /(?:^|[\s(\[])[A-Za-z]{0,3}\d{1,3}\s*\/\s*[A-Za-z]{0,3}\d{2,3}(?:$|[\s)\]])/,
+  //
+  // ⛔ `#` MÅSTE STÅ I AVGRÄNSARKLASSEN (2026-08-15). Pokétalk skriver sina singlar
+  //    "Mewtwo GX - #SV59/SV94 - Pokémon Sun & Moon - Hidden Fates", och tecknet före
+  //    numret är då `#`, som inte fanns i `[\s(\[]` → HELA butikens singelsortiment
+  //    (mätt: 60+ titlar i en enda feed-dump) passerade som sealed. De syntes inte
+  //    förrän nu bara för att `guessCategory` råkade svara OTHER, vilket är en
+  //    slump och inte en vakt.
+  /(?:^|[\s(\[#])[A-Za-z]{0,3}\d{1,3}\s*\/\s*[A-Za-z]{0,3}\d{2,3}(?:$|[\s)\]])/,
+  // PROMO-/SAMLARKOD MED BRÄDGÅRD: "#SWSH262", "#SM82", "#MEP027", "#TG5", "#SV59".
+  // Setkoderna är längre än de tre bokstäver regeln ovan tillåter och saknar ofta
+  // "/total" helt, så de behöver en egen rad. `#` + BOKSTAV är det entydiga: ett
+  // sealed-format skrivs aldrig så.
+  // ⛔ HTML-entiteten `&#039;` (apostrof) kan inte träffas — den har siffror efter
+  //    brädgården, inte bokstäver, och föregås av `&` som inte är en avgränsare.
+  /(?:^|[\s(\[])#\s?[A-Za-z]{1,6}[-\s]?\d{1,4}[a-z]?\b/,
+  // BULK/LOTTER av singlar ("AR Bulk (Japanska)", "RR/RRR (EX/V/VSTAR/VMAX) Bulk").
+  // Det är en hög lösa kort, inte en tillverkar-SKU, och kan varken prisjämföras
+  // eller länkas. Tillbehörens "TOPLOADER Bulk (100ct)" fälls redan av tillbehörsvakten.
+  /\bbulk\b/i,
+  // GRADERADE KORT säljs styckvis eller i graderade lotter — aldrig en sealed-SKU.
+  // ("Phoenix Shield Suitcase Graded Card Collect Box Red & White (42 graded cards)")
+  /\bgraded\s*cards?\b|\bgraderade?\s*kort\b/i,
 ];
+
+/**
+ * JAPANSK PROMO-NOTATION: "120/SV-P", "043/S-P", "012/XY-P". Höger sida är en
+ * promo-SERIE utan siffror, vilket samlarnummer-regeln (som kräver siffror på båda
+ * sidor) inte kan träffa.
+ *
+ * ⛔ EGEN RAD MED VETO, inte en post i listan ovan: "PROMO PACK" i titeln vänder domen.
+ *    MÄTT 2026-08-15 mot alla feedar — Pokemurres "2025 McDonalds Pokemon Promo Pack
+ *    Japan Exclusive Sealed Pikachu 020/M-P" är ett OÖPPNAT paket som råkar namna
+ *    kortet i sig, med en levande butikslänk. Kortets egen annons hos Kanto Vault
+ *    heter "Pikachu Promo 197/SV-P" — samma notation, utan ordet "pack".
+ */
+const JP_PROMO_NUMBER = /\b\d{1,3}\s*\/\s*(?:sv|s|xy|smp?|bwp?|dpp?|m)-?p\b/i;
+
 export function isSingleCardListing(title: string): boolean {
-  return SINGLE_CARD_SIGNS.some((re) => re.test(title));
+  if (SINGLE_CARD_SIGNS.some((re) => re.test(title))) return true;
+  return JP_PROMO_NUMBER.test(title) && !/promo\s*pack/i.test(title);
 }
 
 /**
@@ -1144,8 +1180,17 @@ export function isSingleCardListing(title: string): boolean {
 // på förpackningsdetaljen, inte innehållet) — ingen katalog-SKU (ägarbeslut 2026-08-08).
 // Ordparet förekommer aldrig i en riktig produkttitel, så det bor bland tillbehörstecknen
 // trots att det inte är ett tillbehör: effekten (aldrig en katalogprodukt) är densamma.
+// ⛔ Bart "accessory" är FÖRBJUDET (prövat och MÄTT 2026-08-15): "Prismatic Evolutions
+//    Accessory Pouch Special Collection" är en RIKTIG sealed-SKU (väska + boosters) som
+//    finns i katalogen och säljs av sju butiker. Tillbehörsvakten har ingen
+//    sealed-ord-veto (den är absolut, till skillnad från merch-vakten), så ett så
+//    generellt ord här hade nollat alla sju länkarna tyst.
+// "card display" = ett kortSTÄLL, inte en booster display. Kanto Vault säljer
+// "Card Display Set Gift Box Charizard" och "Eeveelution Card Display Keychain Gift
+// Box" — möbler för att visa upp kort. En boosterdisplay skrivs alltid "Booster
+// Display"/"Display Box", aldrig "Card Display".
 const ACCESSORY_SIGNS =
-  /\b(spelmatta|playmat|lekmatta|sleeves?|kortfodral|deck ?box|kortl[åa]da|akryl\w*|acrylic|skyddsfodral|toploader|binder|(long|short)[- ]?crimp)\b/i;
+  /\b(spelmatta|playmat|lekmatta|sleeves?|kortfodral|deck ?box|kortl[åa]da|akryl\w*|acrylic|skyddsfodral|toploader|binder|(long|short)[- ]?crimp|kortst[äa]ll|card\s*stand|card\s*display)\b/i;
 
 // INNEHÅLLET INGÅR INTE = inte varan (2026-08-08). TCG Store sålde tio "Mini Tin +
 // Art Card & Coin (Boosters ingår ej)" — TOMMA tins, alla blev katalogprodukter
@@ -1167,7 +1212,11 @@ const LOOSE_EXTRAS_SIGNS = /\bjumbo\s?(mynt|coin|kort|card)\b/i;
 // gör det. `\bram\b` är säkert i just det här ordförrådet: ordgränsen skyddar
 // Rampardos/Rampage/Ramos, och ett kort SÅLT i ram är ändå ett paket, inte kortet.
 const FRAME_SIGNS = /\b(kortram|ram|ramar|ramen|inramad|inramning|card\s?frame)\b/i;
-const PORTFOLIO_SIGNS = /\b(p[äa]rm|portfolio|album|pocket)\b/i;
+// ⛔ INGEN INLEDANDE ORDGRÄNS PÅ "pärm" (2026-08-15): svenskan sätter ihop ord, och
+//    Webhallens "Pokemon ME5 Pitch Black **Samlarpärm** 4-fickor" gled därför förbi
+//    hela portfolio-vakten. Ordslutet räcker som avgränsning i det här ordförrådet —
+//    inget sealed-format slutar på "pärm"/"parm".
+const PORTFOLIO_SIGNS = /(p[äa]rm)\b|\b(portfolio|album|pocket)\b/i;
 
 // Tredjeparts-TILLVERKARE av tillbehör. Ingen av dem tillverkar Pokémon-kort, så
 // namnet ensamt räcker som dom. Exakta fraser — "ultra" ensamt är FÖRBJUDET, det
@@ -1392,14 +1441,22 @@ export function isUnspecifiedCharacterListing(title: string): boolean {
  *    ett föremålsord.
  */
 const MERCHANDISE_SIGNS =
-  /\b(gosedjur|mjukisdjur|plush(ie)?|plysch|figur(er|in|ine)?s?|funko|nendoroid|amiibo|affisch(er)?|poster|tavla|mugg(ar)?|nyckelring|keychain|t-?shirt|tr[öo]ja|hoodie|keps|m[üu]ss(a|or)|strumpor|kl[äa]der|ryggs[äa]ck|pennfodral|pussel|puzzle|lego|mega\s?construx|s[äa]ngkl[äa]der|handduk|termos|vattenflaska|matl[åa]da|godis|choklad)\b|\bpok[eé]\s?ball\s+(figur|leksak|replika|beh[åa]llare)\b/i;
+  /\b(gosedjur|mjukisdjur|plush(ie)?|plysch|figur(e|er|es|in|ine|ines)?s?|funko|nendoroid|amiibo|affisch(er)?|poster|tavla|mugg(ar)?|nyckelring|keychain|t-?shirt|tr[öo]ja|hoodie|keps|m[üu]ss(a|or)|strumpor|kl[äa]der|ryggs[äa]ck|pennfodral|pussel|puzzle|lego|mega\s?construx|s[äa]ngkl[äa]der|handduk|termos|vattenflaska|matl[åa]da|godis|choklad|gumm(y|i|ies)|cand(y|ies)|blind\s*box|mynt\s*set|coin\s*set|player'?s?\s*guide|spelguide|markör(er)?|damage\s*counters?)\b|\bpok[eé]\s?ball\s+(figur|leksak|replika|beh[åa]llare)\b/i;
 
 /** Formord som bevisar att annonsen ÄR en sealed TCG-vara, oavsett merch-ord.
  *  "poster collection" (2026-08-08): en riktig TCG-produktlinje (boosters + affisch,
  *  CM-modellerad, säljs av 9 butiker) — utan frasen här åt merch-vaktens "poster"-ord
- *  upp varje ny butikslänk för dem, tyst. Hittad av katalogsvepningen. */
+ *  upp varje ny butikslänk för dem, tyst. Hittad av katalogsvepningen.
+ *
+ *  ⛔ BART "display" ÄR BORTTAGET (2026-08-15). Ordet är sealed-svenska/tyska för en
+ *     boosterbox ("Display / Booster Box", "36er Display") — men de titlarna bär
+ *     ALLTID även "booster", som redan står här. Ensamt vetade det merch-vakten för
+ *     varje "Card **Display** Set Gift Box", "Card **Display** Keychain Gift Box" och
+ *     "Plush Toy Card **Display** Gift Box" i Kanto Vaults feed, dvs ordet skyddade
+ *     exakt de varor det inte borde. `display box`/`booster display` står kvar
+ *     uttryckligen; ett kortställ heter aldrig så. */
 const SEALED_FORM_WORD =
-  /\b(booster|boosters|display|etb|elite\s*trainer|blister|bundle|tin|tins|booster\s*box|premium\s*collection|poster\s*collection|build\s*(&|and)\s*battle|checklane|theme\s*deck|battle\s*deck|starter\s*deck)\b/i;
+  /\b(booster|boosters|booster\s*display|display\s*box|etb|elite\s*trainer|blister|bundle|tin|tins|booster\s*box|premium\s*collection|poster\s*collection|figure\s*collection|build\s*(&|and)\s*battle|checklane|theme\s*deck|battle\s*deck|starter\s*deck)\b/i;
 
 /** Merch (gosedjur, figurer, kläder, affischer) — aldrig en TCG-katalogprodukt. */
 export function isMerchandiseListing(title: string): boolean {

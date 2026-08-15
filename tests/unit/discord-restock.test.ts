@@ -11,6 +11,7 @@ import { chunk, resolveChannelId, buildRestockEmbed } from "@/lib/discord-restoc
 import {
   deriveRestockPosts,
   markPosted,
+  parseDiscordRestockState,
   type DiscordRestockState,
   type FullFeedGroup,
   type RouteTable,
@@ -406,5 +407,44 @@ describe("chunk", () => {
   it("delar i bitar om högst tio (Discords tak per inlägg)", () => {
     expect(chunk(Array.from({ length: 23 }, (_, i) => i), 10).map((c) => c.length)).toEqual([10, 10, 3]);
     expect(chunk([], 10)).toEqual([]);
+  });
+});
+
+/**
+ * STATE-FILENS SERIALISERING (2026-08-15).
+ *
+ * Andra chansen för en okänd URL testades bara som REN DOM (deriveRestockPosts ovan) —
+ * aldrig som round-trip genom state-filen. Fältet `pending` skrevs till disk men
+ * tappades vid inläsningen, så mekanismen kunde bara verka inom ETT jobb (~5–9 min)
+ * medan rutten för en ny SKU typiskt dyker upp först efter att jobbet dött. En ren dom
+ * med testad logik kan alltså vara helt verkningslös om I/O:t runt den inte testas.
+ */
+describe("parseDiscordRestockState", () => {
+  it("behåller ALLA fyra fälten genom en round-trip", () => {
+    const state = {
+      stock: { "Butik\thttps://x.se/p/1": "IN_STOCK" },
+      history: { "Butik\thttps://x.se/p/1": [{ o: "OUT_OF_STOCK", t: 1 }] },
+      posted: { "Butik\thttps://x.se/p/1": 2 },
+      pending: { "Butik\thttps://x.se/p/2": 3 },
+    };
+    const back = parseDiscordRestockState(JSON.parse(JSON.stringify(state)));
+    expect(back).not.toBeNull();
+    expect(back!.pending).toEqual({ "Butik\thttps://x.se/p/2": 3 });
+    expect(back!.stock).toEqual(state.stock);
+    expect(back!.history).toEqual(state.history);
+    expect(back!.posted).toEqual(state.posted);
+  });
+
+  it("äldre state-filer utan pending läses som tom väntlista, inte som fel", () => {
+    const back = parseDiscordRestockState({ stock: { a: "IN_STOCK" } });
+    expect(back).not.toBeNull();
+    expect(back!.pending).toEqual({});
+    expect(back!.history).toEqual({});
+  });
+
+  it("null när lagerläget saknas — då måste anroparen seeda om", () => {
+    expect(parseDiscordRestockState(null)).toBeNull();
+    expect(parseDiscordRestockState({})).toBeNull();
+    expect(parseDiscordRestockState({ history: {} })).toBeNull();
   });
 });

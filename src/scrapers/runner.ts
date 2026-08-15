@@ -17,6 +17,10 @@ import { AlphaspelAdapter } from "@/scrapers/adapters/alphaspel-adapter";
 import { TraderaAdapter } from "@/scrapers/adapters/tradera-adapter";
 import { CardmarketPriceGuideAdapter } from "@/scrapers/adapters/cardmarket-adapter";
 import {
+  // Basklassen: `instanceof ShopifyAdapter` avgör vilka källor som får
+  // köpbarhetskollen (se confirmIncomingStock) — nya Shopify-butiker klassas
+  // automatiskt, precis som Discord-lanens artighetsnivå redan gör.
+  ShopifyAdapter,
   SpeltrolletAdapter,
   SamlarhobbyAdapter,
   GoblinenAdapter,
@@ -83,7 +87,7 @@ import {
 } from "@/scrapers/matching";
 import { judgeSameProduct } from "@/lib/same-product";
 import { fetchListingFacts, fetchListingGtin } from "@/scrapers/gtin-source";
-import { statusAfterVerify, verifyStockForUrl } from "@/scrapers/stock-verify";
+import { fetchShopifyPurchasable, statusAfterVerify, verifyStockForUrl } from "@/scrapers/stock-verify";
 import { gtinConflict, isPokemonManufacturerGtin } from "@/lib/gtin";
 import { isDeniedListingUrl, setDynamicDenylist, dynamicDenylistSize } from "@/scrapers/import-denylist";
 import { netStockEvent, isRestock, isNewInStockArrival } from "@/scrapers/restock";
@@ -245,6 +249,19 @@ export interface RestockSourceInfo {
  * politeFetch håller sin fördröjning per värd precis som förut.
  */
 const RESTOCK_SCAN_CONCURRENCY = Math.max(1, Number(process.env.RESTOCK_SCAN_CONCURRENCY ?? 8));
+
+/**
+ * Tak för hur många lagerövergångar per körning som får slås upp mot butikens EGEN
+ * produktsida innan de skrivs och larmas (se fetchShopifyPurchasable).
+ *
+ * Övergångarna är få i drift — mätt 12–27 per dygn över ALLA butiker — men första
+ * körningen efter en cache-förlust, eller en butik som byter feed, kan ge hundratals
+ * på en gång. Taket gör att en sådan körning inte drar hundratals produktsidor.
+ * ⛔ ÖVER TAKET LITAR VI PÅ FEEDEN (fail open). Ett uteblivet uppslag är ingen ny
+ *    upplysning, och att tolka det som "slutsåld" hade tystat äkta påfyllningar —
+ *    samma regel som statusAfterVerify redan bär.
+ */
+const RESTOCK_BUY_CHECK_MAX = Math.max(0, Number(process.env.RESTOCK_BUY_CHECK_MAX ?? 25));
 
 /**
  * Golv för att ens FRÅGA LLM-domaren om en annons matcharen inte ville binda
@@ -734,7 +751,14 @@ export async function runRestockScan(opts?: {
 
   // Fas 1: parallell katalog-hämtning (ingen DB → Neon sover under tiden).
   const fetched: { sourceName: string; items: FeedItem[] }[] = new Array(sources.length);
+  // ⏱ TIDTAGNING PER BUTIK. Discord-lanens TICK-INTERVALL kan aldrig bli kortare än
+  // det här svepet, så "lanen är långsam" är nästan alltid "en butik är långsam" —
+  // och fram till nu fanns det ingen logg som sa VILKEN. Ett tak eller en svans som
+  // inte syns i loggen är samma sorts tysta gräns som MAX_COLLECTIONS var.
+  const sweepStart = Date.now();
+  const durations = new Map<string, number>();
   await mapPool(sources, RESTOCK_SCAN_CONCURRENCY, async (source, i) => {
+    const started = Date.now();
     try {
       const adapter = getAdapter(source.type, source.name);
       const result = await adapter.fetchProducts();
@@ -755,8 +779,21 @@ export async function runRestockScan(opts?: {
     } catch (err) {
       console.error(`[restock-scan] ${source.name} misslyckades:`, err instanceof Error ? err.message : err);
       fetched[i] = { sourceName: source.name, items: [] };
+    } finally {
+      durations.set(source.name, Date.now() - started);
     }
   });
+
+  // Svepets väggklocka + de fem långsammaste butikerna. Wall-clock är INTE summan:
+  // butikerna hämtas `RESTOCK_SCAN_CONCURRENCY` åt gången, och samtidigheten går över
+  // OLIKA värdar — varje butiks EGNA requests är fortfarande serialiserade med sin
+  // egen paus, så en höjning ökar aldrig lasten mot en enskild butik.
+  const slowest = [...durations].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  console.log(
+    `[restock-scan] Feed-svep: ${((Date.now() - sweepStart) / 1000).toFixed(1)} s för ` +
+      `${sources.length} butiker (samtidighet ${RESTOCK_SCAN_CONCURRENCY}). Långsammast: ` +
+      slowest.map(([n, ms]) => `${n} ${(ms / 1000).toFixed(1)} s`).join(", ")
+  );
 
   // Tom katalog UTAN kastat fel är osynligt annars — och det var precis den tystnaden
   // som gömde flapp-buggen 2026-07-25 (Alphaspel svarade tomt varannan körning). Logga
@@ -841,6 +878,48 @@ export async function runRestockScan(opts?: {
   let newListings = 0;
   let sent = 0;
   let offersCreated = 0;
+  // ---- KÖPBARHETSKOLL VID LAGERÖVERGÅNG (2026-08-15) ----
+  // Shopifys `available` betyder inte "går att köpa": Kortarkivets Ascended Heroes
+  // Booster Bundle stod `available: true` i både products.json och .js medan
+  // storefronten visade "Slut i lager" och renderade köpknappen `disabled`. Se
+  // purchasableFromShopifyPage för hela utredningen. Slås upp BARA när en offer är på
+  // väg IN i lager — det är då svaret spelar roll, och det är få tillfällen.
+  //
+  // ⛔ MÄTT FÖRE PÅSLAG (2026-08-15) mot 20 Shopify-butikers riktiga produktsidor,
+  //    tre i lager + tre slutsålda per butik: 0 fall där detektorn MOTSADE feeden
+  //    felaktigt, 1 äkta träff (just den produkten), och 4 butiker där den avstår
+  //    (null) för att temat inte renderar ett `/cart/add`-formulär vi kan läsa.
+  //    Den egenskapen — håller med eller avstår — är varför den kan användas för
+  //    ALLA butiker utan en handhållen lista: `null` betyder "lita på feeden".
+  const shopifySources = new Set<string>();
+  for (const s of sources) {
+    if (s.type !== SourceType.SCRAPER) continue;
+    try {
+      if (getAdapter(s.type, s.name) instanceof ShopifyAdapter) shopifySources.add(s.name);
+    } catch {
+      // Okänt källnamn → ingen adapter → ingen köpbarhetskoll. Loggas redan av getAdapter.
+    }
+  }
+  let buyChecks = 0;
+  let buyChecksBlocked = 0;
+  /** IN_STOCK som butikens egen sida motsäger → behandla som slutsåld. */
+  const confirmIncomingStock = async (
+    sourceName: string,
+    url: string,
+    newStatus: StockStatus
+  ): Promise<StockStatus> => {
+    if (newStatus !== StockStatus.IN_STOCK) return newStatus;
+    if (!shopifySources.has(sourceName)) return newStatus;
+    if (buyChecks >= RESTOCK_BUY_CHECK_MAX) return newStatus; // fail open, se konstanten
+    buyChecks++;
+    const purchasable = await fetchShopifyPurchasable(url);
+    if (purchasable === false) {
+      buyChecksBlocked++;
+      console.log(`[restock-scan] ${sourceName}: feeden säger i lager men köpknappen är låst — ${url}`);
+      return StockStatus.OUT_OF_STOCK;
+    }
+    return newStatus;
+  };
   /** Lat, delad katalog i minnet — se anropet i feed-först-grenen. */
   let matchIndexForImport: MatchIndex | null = null;
   // TVÅ PASS med flit (2026-08-12): offer-diffen (restock-larmen, det tidskritiska)
@@ -849,7 +928,7 @@ export async function runRestockScan(opts?: {
   // uppdelningen satt ett färdigt restock-larm och väntade bakom det arbetet.
   const feedFirst: Array<[string, FeedItem & { retailerId: string; sourceName: string }]> = [];
   for (const [key, it] of fresh) {
-    const newStatus = it.stockStatus;
+    let newStatus = it.stockStatus;
     const offer = offerByKey.get(key);
     if (!offer) {
       feedFirst.push([key, it]);
@@ -859,6 +938,11 @@ export async function runRestockScan(opts?: {
     // ---- Matchad produkt: beprövad offer-diff (oförändrad logik) ----
     {
       checked++;
+      // Bara vid en ÄKTA övergång in i lager — inte för en offer som redan står där.
+      // Annars hade varje körning slagit upp varenda i-lager-produkt.
+      if (newStatus === StockStatus.IN_STOCK && offer.stockStatus !== StockStatus.IN_STOCK) {
+        newStatus = await confirmIncomingStock(it.sourceName, it.url, newStatus);
+      }
       // ORDNINGEN ÄR KRITISK: larma FÖRST, flippa lagerstatus SIST. Statusflippen är det
       // som KONSUMERAR övergången — nästa körning diffar mot den. Flippade vi först och
       // dog innan larmet (workflow-cancel, timeout, evict) såg nästa körning ingen
@@ -927,7 +1011,7 @@ export async function runRestockScan(opts?: {
 
   // ---- Feed-först: URL utan Offer (ny SKU / art-variant / produkt utanför katalogen) ----
   for (const [key, it] of feedFirst) {
-    const newStatus = it.stockStatus;
+    let newStatus = it.stockStatus;
     // Bara sealed — singlar/övrigt skulle spamma (se SEALED_FEED_CATEGORIES).
     if (!SEALED_FEED_CATEGORIES.has(it.category ?? "")) continue;
     // Blockade språk (kinesiska/koreanska) auto-importeras inte "for now" → ingen ny
@@ -935,6 +1019,11 @@ export async function runRestockScan(opts?: {
     // slugs som "…-kinesisk-version" avslöjar språk som titeln döljer.
     if (isBlockedListingLanguage(it.title, it.url)) continue;
     checked++;
+    // Samma köpbarhetskoll som offer-grenen: en HELT ny annons som feeden säger är i
+    // lager blir ett "ny produkt i lager"-larm, och ett falskt sådant är lika fel som
+    // ett falskt restock-larm. Grinden ligger EFTER vaktkedjans billiga filter så vi
+    // aldrig hämtar en produktsida för en singel eller ett gosedjur.
+    newStatus = await confirmIncomingStock(it.sourceName, it.url, newStatus);
     // Auto-import: skapa/länka katalogprodukt + offer → larmet pekar på VÅR produktsida
     // (in-app), och nästa skanning spårar URL:en via offer-diffen ovan.
     // Katalogindexet laddas LAT och delas: bara feed-först-grenen behöver det, och en
@@ -1110,6 +1199,13 @@ export async function runRestockScan(opts?: {
   console.log(
     `[restock-scan] ${sources.length} butiker, ${checked} kollade, ${restocks} restocks, ${newListings} nya, ${verified} verifierade mot produktsidan, ${soldOutReconciled} utan svar (UNKNOWN), ${sent} alerts.`
   );
+  if (buyChecks > 0) {
+    console.log(
+      `[restock-scan] Köpbarhetskoll: ${buyChecks} uppslag, ${buyChecksBlocked} annons(er) ` +
+        `omklassade till slut i lager (feeden sa i lager, butikens köpknapp var låst)` +
+        (buyChecks >= RESTOCK_BUY_CHECK_MAX ? ` — TAKET (${RESTOCK_BUY_CHECK_MAX}) NÅTT, resten litade på feeden.` : ".")
+    );
+  }
   return { sources: sources.length, checked, restocks, newListings, alertsSent: sent, sourceList: sources, offersCreated };
 }
 

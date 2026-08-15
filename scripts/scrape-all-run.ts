@@ -4,10 +4,14 @@
  * Samma kärna som instrumentation/8h-ticken (src/jobs/scheduler.ts). Körs i CI:
  *   npx tsx scripts/scrape-all-run.ts
  */
+import { SourceType } from "@prisma/client";
 import { prisma, ensureDbAwake } from "../src/lib/db";
 import { runScheduledScrapesOnce } from "../src/jobs/scheduler";
 import { refreshPopularityScores } from "../src/services/market";
 import { refreshRankScores } from "../src/jobs/rank-refresh";
+import { verifyInStockBuyable } from "../src/jobs/verify-instock-buyable";
+import { getAdapter } from "../src/scrapers/runner";
+import { ShopifyAdapter } from "../src/scrapers/adapters/shopify-adapter";
 
 // Engagemangsloggen (AnalyticsEvent) skrivs per händelse och behövs bara för
 // Trendar-fönstret (7 d) + admin-engagemang (30 d). Rensa allt äldre än detta så
@@ -58,6 +62,35 @@ async function main() {
   // "bäst matchning"-ordning). MÅSTE därför köras EFTER raden ovan.
   const rank = await refreshRankScores();
   console.log(`Rankningspoäng: ${rank.updated} ändrade av ${rank.scanned} produkter.`);
+
+  // KÖPBARHETSROTATION: Shopifys `available` kan säga "i lager" om något storefronten
+  // inte låter någon köpa (se src/jobs/verify-instock-buyable.ts). Övergångar kollas
+  // redan i runRestockScan; det här fångar de offers som redan STÅR på IN_STOCK och
+  // därför aldrig gör en övergång igen. En skärva per dygn ⇒ hela stocken (~1 000
+  // offers) gås igenom på en vecka utan att någon natt drar mer än ~140 produktsidor.
+  // ⛔ Fel sväljs: det är en städuppgift, och nattkedjans efterföljande led
+  //    (tradera-sweep m.fl.) triggas på `workflow_run` — ett kastat fel här hade
+  //    tagit dem med sig.
+  try {
+    const shopifyStores = (await prisma.scrapeSource.findMany({ where: { isActive: true } }))
+      .filter((s) => s.type === SourceType.SCRAPER)
+      .filter((s) => {
+        try {
+          return getAdapter(s.type, s.name) instanceof ShopifyAdapter;
+        } catch {
+          return false;
+        }
+      })
+      .map((s) => s.name);
+    const buy = await verifyInStockBuyable({ storeNames: shopifyStores, apply: true });
+    console.log(
+      `Köpbarhetsrotation: ${buy.checked} av ${buy.candidates} i-lager-offers kontrollerade, ` +
+        `${buy.unknown} obestämbara, ${buy.fixed} rättade till slut i lager.`
+    );
+    for (const u of buy.fixedUrls) console.log(`   ⛔ falskt "i lager": ${u}`);
+  } catch (e) {
+    console.warn("Köpbarhetsrotationen misslyckades (ignoreras):", e instanceof Error ? e.message : e);
+  }
 }
 
 main()

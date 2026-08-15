@@ -33,6 +33,7 @@ import type {
   RawProductData,
   SourceAdapter,
 } from "../types";
+import { guessListingCategory } from "../listing-category";
 
 const MAX_CATEGORIES = 12;
 const PER_PAGE = 100;
@@ -70,18 +71,6 @@ interface WooCategory {
 const NON_SEALED_CATEGORY =
   /l[oö]s(a|t)?[\s-]*kort|l[oö]skort|\bsingles?\b|\bsinglar\b|singel|gradera|\bgraded\b|\bslabs?\b|gosedjur|mjukisdjur|plush|figur|affisch|poster|kl[äa]der|barnrum|skolan|p[äa]rm|mynt|nyckelring|tr[äa]narkort|stora[\s-]*kort|speciella|shiny|break[\s-]*kort|\bv-?l[oö]skort|pok[eé]mon-?kort\b/i;
 
-function guessCategory(title: string): string {
-  const t = title.toLowerCase();
-  if (/booster\s*(box|display)/.test(t)) return "BOOSTER_BOX";
-  if (/elite\s*trainer|\betb\b/.test(t)) return "ETB";
-  if (/booster\s*bundle/.test(t)) return "BUNDLE";
-  if (/booster\s*pack|booster\b/.test(t)) return "BOOSTER_PACK";
-  if (/collection\s*box|premium\s*collection/.test(t)) return "COLLECTION_BOX";
-  if (/\btin\b/.test(t)) return "TIN";
-  if (/blister/.test(t)) return "BLISTER";
-  if (/bundle/.test(t)) return "BUNDLE";
-  return "OTHER";
-}
 
 interface WooRaw {
   productId: number;
@@ -178,7 +167,7 @@ export abstract class WooCommerceAdapter implements SourceAdapter {
         currency: "SEK",
         stockStatus: p.is_in_stock ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
         imageUrl: p.images?.[0]?.src,
-        category: guessCategory(p.name),
+        category: guessListingCategory(p.name),
         raw: { productId: p.id, priceOre, available: !!p.is_in_stock, sku: p.sku } satisfies WooRaw,
       });
     };

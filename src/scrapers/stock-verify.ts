@@ -65,6 +65,35 @@ export const STORE_STOCK_STRATEGY: Record<string, StockStrategy> = {
   Cardmarket: "none",
 };
 
+/**
+ * Vilken strategi gäller för en URL vi inte har en handskriven rad för?
+ *
+ * ⛔ EN HANDHÅLLEN LISTA FALLER EFTER — DET HAR DEN REDAN GJORT. Tabellen ovan skrevs
+ * när vi hade elva butiker; sedan dess har wave 4 och 5 lagt till 31 till, och ingen av
+ * dem fick en rad. Följden är TYST och tvåsidig: `verifyStockForUrl` returnerar null,
+ * så en offer vars URL försvunnit ur feeden faller till UNKNOWN i stället för att
+ * kollas — och eftersom UNKNOWN→IN_STOCK inte räknas som en äkta övergång larmar
+ * nästa påfyllning ALDRIG. 30 av 42 butiker satt i det läget (mätt 2026-08-15).
+ *
+ * Formen på URL:en avgör i stället: `…/products/{handle}` är Shopifys egen
+ * produktväg, och `/products/{handle}.js` finns på varje Shopify-butik. En
+ * uttrycklig rad i tabellen vinner alltid — inklusive `"none"` (Swepokes
+ * klient-renderade sida, marknadsplatserna).
+ */
+export function resolveStockStrategy(sourceName: string, url: string): StockStrategy {
+  const explicit = STORE_STOCK_STRATEGY[sourceName];
+  if (explicit) return explicit;
+  // `/products/{handle}` ⇒ pröva Shopifys `.js` först (definitivt svar, en request).
+  // Svarar den inte faller shopify-grenen tillbaka på JSON-LD, så en Quickbutik-butik
+  // med samma URL-form (Mystery Shack) hamnar ändå rätt.
+  if (shopifyHandleFromUrl(url)) return "shopify-js";
+  // Allt annat: läs produktsidans JSON-LD. Den ger null när den saknas eller är
+  // tvetydig, dvs exakt samma utfall som "none" gav — men de butiker som FAKTISKT
+  // publicerar `offers.availability` (de flesta Woo-/PrestaShop-/Starweb-teman) får
+  // ett riktigt svar i stället för ett antagande.
+  return "json-ld";
+}
+
 /** schema.org-availability → vår status. Nyckeln är gemener utan URL-prefix. */
 const AVAILABILITY: Record<string, StockStatus> = {
   instock: StockStatus.IN_STOCK,
@@ -138,6 +167,133 @@ export function stockFromShopifyJs(data: ShopifyJsProduct, wantedVariantId: numb
 }
 
 /**
+ * ⛔ SHOPIFYS `available` ÄR INTE SAMMA SAK SOM "GÅR ATT KÖPA" (2026-08-15).
+ *
+ * Kortarkivets "Mega Evolution: Ascended Heroes Booster Bundle (ME2.5)" svarade
+ * `available: true` i BÅDE `/products.json` och `/products/{handle}.js`, och sidans
+ * JSON-LD sa `schema.org/InStock` — medan storefronten visade "Slut i lager" och
+ * renderade köpknappen med `disabled`. Alla tre "definitiva" källorna kommer ur samma
+ * Liquid-fält, så de kan inte motsäga varandra; bara KNAPPEN vet.
+ *
+ * Kontrollerat innan slutsatsen drogs (metodläxan från Webhallens `discontinued`
+ * 2026-08-14 — bevisa att fältet motsvarar KÖPBARHET, hitta fallet där de skiljer sig):
+ *   · inte CDN-cache — cache-busting query gav samma svar, `cf-cache-status: DYNAMIC`
+ *   · inte marknad/valuta — samma `localization=SE` som adaptern använder
+ *   · inte taggen `locked` — 35 produkter bär den, 12 är köpbara
+ *   · de två produkternas publika JSON är IDENTISK fält för fält utom taggar
+ * Fördelningen: 1 av 35 av butikens Pokémon-varor i lager. Sällsynt, men tyst — och
+ * ett falskt "i lager" är precis vad ett restock-larm INTE ska vara.
+ *
+ * DETEKTORN läser köpformuläret: `<form action=".../cart/add">` innehåller ett dolt
+ * `name="id"` (variantens id) och en submit-knapp (`name="add"` /
+ * `.product-form__submit`). Är knappen `disabled` eller bär den slutsåld-text kan
+ * kunden inte köpa. Rent parsande, inget nätverk → testbart.
+ *
+ * ⛔ TVETYDIGT ⇒ null, aldrig en gissning. Sidor bär flera cart-formulär (avbetalning,
+ *    snabbköp i "andra köpte också"). Vi väljer formuläret med RÄTT variant-id när
+ *    URL:en pekar ut en; annars huvudformuläret; kan vi inte peka ut ett — null.
+ */
+const SOLD_OUT_BUTTON_TEXT =
+  /slut\s*i\s*lager|slutsåld|slutsalgt|uts[åa]ld|sold\s*out|udsolgt|ausverkauft|ikke\s*på\s*lager|ej\s*i\s*lager/i;
+
+/** Alla `<form action="…/cart/add…">`-block med sin råa HTML. */
+function cartForms(html: string): { open: string; body: string }[] {
+  const out: { open: string; body: string }[] = [];
+  const re = /<form[^>]*action="[^"]*\/cart\/add[^"]*"[^>]*>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    const start = m.index;
+    const end = html.indexOf("</form>", start);
+    out.push({ open: m[0], body: html.slice(start, end === -1 ? start + 20000 : end) });
+  }
+  return out;
+}
+
+/** Formulärets dolda `name="id"` = variantens id. */
+function hiddenVariantId(formHtml: string): number | null {
+  const re = /<input\b[^>]*>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(formHtml))) {
+    const tag = m[0];
+    if (!/\bname\s*=\s*"id"/i.test(tag)) continue;
+    const v = /\bvalue\s*=\s*"(\d+)"/i.exec(tag);
+    if (v) return Number(v[1]);
+  }
+  return null;
+}
+
+function buyButton(formHtml: string): { tag: string; text: string } | null {
+  const re = /<button\b[^>]*>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(formHtml))) {
+    const tag = m[0];
+    if (/\bname\s*=\s*"add"/i.test(tag) || /product-form__submit/i.test(tag)) {
+      const end = formHtml.indexOf("</button>", m.index);
+      return { tag, text: formHtml.slice(m.index, end === -1 ? m.index : end).replace(/<[^>]*>/g, " ") };
+    }
+  }
+  return null;
+}
+
+/** true = kunden kan lägga i varukorgen, false = kan inte, null = går inte att avgöra. */
+export function purchasableFromShopifyPage(html: string, wantedVariantId: number | null): boolean | null {
+  const forms = cartForms(html).map((f) => ({ ...f, variantId: hiddenVariantId(f.body) }));
+  if (!forms.length) return null;
+
+  let chosen: (typeof forms)[number] | null = null;
+  if (wantedVariantId !== null) {
+    chosen = forms.find((f) => f.variantId === wantedVariantId) ?? null;
+    // URL:en pekade ut en variant som inte finns på sidan → vi vet inget om DEN varan.
+    if (!chosen) return null;
+  }
+  if (!chosen) {
+    const main = forms.filter((f) => /product-form|main-product/i.test(f.open));
+    const withId = forms.filter((f) => f.variantId !== null);
+    if (main.length === 1) chosen = main[0];
+    else if (main.length > 1) {
+      const withButton = main.filter((f) => buyButton(f.body));
+      chosen = withButton.length === 1 ? withButton[0] : null;
+    } else if (withId.length === 1) chosen = withId[0];
+  }
+  if (!chosen) return null;
+
+  const btn = buyButton(chosen.body);
+  if (!btn) return null;
+  if (/\bdisabled\b/i.test(btn.tag)) return false;
+  if (SOLD_OUT_BUTTON_TEXT.test(btn.text)) return false;
+  return true;
+}
+
+/**
+ * Hämtar butikens produktsida och svarar: kan kunden köpa varan NU?
+ *
+ * `null` = vet inte (nätfel, 404, tvetydig sida) — anroparen ska då LITA PÅ FEEDEN.
+ * Ett uteblivet svar är ingen ny upplysning, och att tolka det som "slutsåld" hade
+ * gjort varje 429 till ett tyst bortfall av restock-larm. Samma regel som
+ * statusAfterVerify nedan bygger på.
+ *
+ * ⛔ ANROPA BARA VID EN LAGERÖVERGÅNG, aldrig per annons i en feed-loop. En
+ *    produktsida är ~500 kB mot feed-JSON:ens några hundra byte per vara; att slå upp
+ *    hela sortimentet vore hundratals megabyte per svep ur butikernas servrar. Antalet
+ *    övergångar är litet (mätt: 12–27 per dygn över alla butiker), och det är exakt
+ *    de tillfällen då svaret spelar roll.
+ */
+export async function fetchShopifyPurchasable(url: string): Promise<boolean | null> {
+  try {
+    const res = await politeFetch(url, {
+      delayMs: 800,
+      // Samma marknad som ShopifyAdapter pinnar — annars kan en annan marknads
+      // sortiment/pris rendera en annan knapp.
+      headers: { cookie: "localization=SE", "accept-language": "sv-SE" },
+    });
+    if (!res.ok) return null;
+    return purchasableFromShopifyPage(await res.text(), variantIdFromUrl(url));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Vad ska offern stå på när uppslaget INTE gav svar (429, timeout, butik utan
  * strukturerad data)?
  *
@@ -163,7 +319,7 @@ export function statusAfterVerify(current: StockStatus, verified: StockStatus | 
  * inte att varan sålt slut. Döda länkar är länkrevisionens jobb (scripts/audit-links.ts).
  */
 export async function verifyStockForUrl(sourceName: string, url: string): Promise<StockStatus | null> {
-  const strategy = STORE_STOCK_STRATEGY[sourceName] ?? "none";
+  const strategy = resolveStockStrategy(sourceName, url);
   if (strategy === "none") return null;
 
   try {
@@ -176,8 +332,19 @@ export async function verifyStockForUrl(sourceName: string, url: string): Promis
         delayMs: 800,
         headers: { cookie: "localization=SE", "accept-language": "sv-SE" },
       });
-      if (!res.ok) return null;
-      return stockFromShopifyJs((await res.json()) as ShopifyJsProduct, variantIdFromUrl(url));
+      // Ingen `.js` ⇒ butiken är inte Shopify trots `/products/`-formen (Mystery Shack
+      // kör Quickbutik på samma väg). Fall tillbaka på JSON-LD i stället för att svara
+      // "vet inte" — annars hade formgissningen gjort verifieringen SÄMRE för dem.
+      if (!res.ok) return await stockFromPageJsonLd(url);
+      const fromJs = stockFromShopifyJs((await res.json()) as ShopifyJsProduct, variantIdFromUrl(url));
+      // `available: false` är definitivt — Shopify ljuger aldrig ÅT DET HÅLLET.
+      if (fromJs !== StockStatus.IN_STOCK) return fromJs;
+      // `available: true` är däremot inte samma sak som köpbar (se
+      // purchasableFromShopifyPage). Bekräfta mot storefronten innan vi påstår "i
+      // lager" om en vara vars URL försvunnit ur feeden — det är just den sortens
+      // påstående UNKNOWN en gång infördes för att slippa.
+      const purchasable = await fetchShopifyPurchasable(url);
+      return purchasable === false ? StockStatus.OUT_OF_STOCK : StockStatus.IN_STOCK;
     }
 
     if (strategy === "webhallen-api") {
@@ -189,11 +356,16 @@ export async function verifyStockForUrl(sourceName: string, url: string): Promis
       return data.product ? webhallenStockStatus(data.product) : null;
     }
 
-    const res = await politeFetch(url, { delayMs: 800 });
-    if (!res.ok) return null;
-    return stockFromJsonLd(await res.text());
+    return await stockFromPageJsonLd(url);
   } catch {
     // Butiken svarade inte (429 efter backoff, timeout, trasig JSON) → vet inte.
     return null;
   }
+}
+
+/** Hämtar produktsidan och läser lagerstatus ur dess JSON-LD. Null = vet inte. */
+async function stockFromPageJsonLd(url: string): Promise<StockStatus | null> {
+  const res = await politeFetch(url, { delayMs: 800 });
+  if (!res.ok) return null;
+  return stockFromJsonLd(await res.text());
 }

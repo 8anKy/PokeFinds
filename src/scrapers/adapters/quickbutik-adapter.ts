@@ -20,6 +20,7 @@ import type {
   RawProductData,
   SourceAdapter,
 } from "../types";
+import { guessListingCategory } from "../listing-category";
 
 const MAX_CATEGORIES = 24;
 const MAX_PAGES_PER_CATEGORY = 4;
@@ -156,18 +157,6 @@ function parseSekPrice(text: string): number | null {
   return Math.round(num * 100);
 }
 
-function guessCategory(title: string): string {
-  const t = title.toLowerCase();
-  if (/booster\s*(box|display)/.test(t)) return "BOOSTER_BOX";
-  if (/elite\s*trainer|\betb\b/.test(t)) return "ETB";
-  if (/booster\s*bundle/.test(t)) return "BUNDLE";
-  if (/booster\s*pack|booster\b/.test(t)) return "BOOSTER_PACK";
-  if (/collection\s*box|premium\s*collection/.test(t)) return "COLLECTION_BOX";
-  if (/\btin\b/.test(t)) return "TIN";
-  if (/blister/.test(t)) return "BLISTER";
-  if (/bundle/.test(t)) return "BUNDLE";
-  return "OTHER";
-}
 
 interface QbRaw {
   title: string;
@@ -350,7 +339,7 @@ export abstract class QuickbutikAdapter implements SourceAdapter {
               price: item.priceOre,
               currency: "SEK",
               stockStatus: item.inStock ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
-              category: guessCategory(item.title),
+              category: guessListingCategory(item.title),
               raw: item,
             });
           }

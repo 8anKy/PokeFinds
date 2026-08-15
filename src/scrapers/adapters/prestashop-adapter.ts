@@ -43,6 +43,7 @@ import type {
   RawProductData,
   SourceAdapter,
 } from "../types";
+import { guessListingCategory } from "../listing-category";
 
 const MAX_PAGES_PER_CATEGORY = 8; // 8 × 36-60 artiklar täcker alla tre butikerna med marginal
 const PAGE_DELAY_MS = 1500;
@@ -73,18 +74,6 @@ export function parseSekListingPrice(text: string): number | null {
   return Math.round(num * 100);
 }
 
-function guessCategory(title: string): string {
-  const t = title.toLowerCase();
-  if (/booster\s*(box|display)/.test(t)) return "BOOSTER_BOX";
-  if (/elite\s*trainer|\betb\b/.test(t)) return "ETB";
-  if (/booster\s*bundle/.test(t)) return "BUNDLE";
-  if (/booster\s*pack|\bbooster\b/.test(t)) return "BOOSTER_PACK";
-  if (/collection\s*box|premium\s*collection/.test(t)) return "COLLECTION_BOX";
-  if (/\btin\b/.test(t)) return "TIN";
-  if (/blister/.test(t)) return "BLISTER";
-  if (/bundle/.test(t)) return "BUNDLE";
-  return "OTHER";
-}
 
 export type PrestaStock = "in" | "out" | "unknown";
 
@@ -252,7 +241,7 @@ export abstract class PrestaShopAdapter implements SourceAdapter {
                   ? StockStatus.OUT_OF_STOCK
                   : StockStatus.UNKNOWN,
             imageUrl: item.imageUrl,
-            category: guessCategory(item.title),
+            category: guessListingCategory(item.title),
             raw: {
               idProduct: item.idProduct,
               priceOre: item.priceOre,
