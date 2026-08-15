@@ -161,14 +161,15 @@
       "errPassword": "Lösenordet måste vara minst 8 tecken.",
       "errConfirm": "Lösenorden matchar inte.",
       "errCode": "Ange den 6-siffriga koden från mejlet.",
+      "didYouMean": "Menade du {email}?",
       "sendCode": "Skicka kod",
       "sendCodeHint": "Vi mejlar en kod som bekräftar att adressen är din. Kontot skapas i nästa steg.",
       "codeTitle": "Bekräfta din e-postadress",
-      "codeSentTo": "Vi har mejlat en 6-siffrig kod till {email}. Ange den här för att skapa ditt konto.",
+      "codeSentTo": "Vi har mejlat en 6-siffrig kod. Ange den nedan för att skapa ditt konto.",
+      "codeWrongEmail": "Fel adress?",
       "codeLabel": "Verifieringskod",
       "resend": "Skicka ny kod",
       "resendWait": "Skicka ny kod ({seconds} s)",
-      "editDetails": "Ändra uppgifter",
       "inviteNote": "Du registrerar dig via en väns inbjudan – den räknas så fort ditt konto är skapat."
     },
     "forgot": {

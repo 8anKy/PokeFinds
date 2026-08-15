@@ -8,6 +8,7 @@ import { signIn } from "next-auth/react";
 import { setAuthHint } from "@/lib/auth-hint";
 import { Button } from "@/components/ui/button";
 import { Input, PasswordInput, Label, FieldError } from "@/components/ui/input";
+import { suggestEmailCorrection } from "@/lib/email-typo";
 
 interface FieldErrors {
   name?: string;
@@ -33,6 +34,10 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [code, setCode] = useState("");
+  // Förslag på rättad domän ("Menade du …@gmail.com?"). En feltypad adress är
+  // annars en återvändsgränd: koden mejlas till ingenstans, och vi har varken
+  // ett konto att laga eller en adress att nå personen på.
+  const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -90,6 +95,15 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(null);
     if (!validate()) return;
+    // ⛔ Förslaget stoppar aldrig mer än EN gång. Visas det redan har användaren
+    // sett det och valt sin adress ändå — den kan mycket väl vara riktig, och
+    // då ska den gå att skicka in. Bumpen finns för dem som trycker Enter i
+    // fältet, där blur aldrig hinner visa förslaget.
+    const suggestion = suggestEmailCorrection(email);
+    if (suggestion && suggestion !== emailSuggestion) {
+      setEmailSuggestion(suggestion);
+      return;
+    }
     setLoading(true);
     try {
       if (await sendCode()) {
@@ -175,8 +189,25 @@ export default function RegisterPage() {
     return (
       <div>
         <h1 className="font-display text-2xl font-bold text-ink">{t("register.codeTitle")}</h1>
-        <p className="mt-1 text-sm text-ink-muted">
-          {t("register.codeSentTo", { email: email.trim() })}
+        <p className="mt-1 text-sm text-ink-muted">{t("register.codeSentTo")}</p>
+        {/* Adressen står på egen rad, i full kontrast, med utgången BREDVID sig.
+            Den låg tidigare inbakad i meningen ovan medan "Ändra uppgifter" satt
+            nedtonad i sidfoten — den som mejlat koden till en feltypad adress
+            läste alltså rätt svar men såg aldrig vägen tillbaka. */}
+        <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+          <span className="break-all font-medium text-ink">{email.trim()}</span>
+          <button
+            type="button"
+            className="font-medium text-holo-cyan hover:underline"
+            onClick={() => {
+              setError(null);
+              setFieldErrors({});
+              setEmailSuggestion(null);
+              setStep("details");
+            }}
+          >
+            {t("register.codeWrongEmail")}
+          </button>
         </p>
 
         <form onSubmit={handleRegister} className="mt-6 space-y-4" noValidate>
@@ -205,18 +236,7 @@ export default function RegisterPage() {
           </Button>
         </form>
 
-        <div className="mt-6 flex items-center justify-between text-sm">
-          <button
-            type="button"
-            className="text-ink-muted hover:text-ink hover:underline"
-            onClick={() => {
-              setError(null);
-              setFieldErrors({});
-              setStep("details");
-            }}
-          >
-            {t("register.editDetails")}
-          </button>
+        <div className="mt-6 flex items-center justify-center text-sm">
           <button
             type="button"
             disabled={resendIn > 0 || loading}
@@ -267,9 +287,26 @@ export default function RegisterPage() {
             required
             placeholder={t("emailPlaceholder")}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setEmailSuggestion(null);
+            }}
+            onBlur={(e) => setEmailSuggestion(suggestEmailCorrection(e.target.value))}
           />
           <FieldError message={fieldErrors.email} />
+          {emailSuggestion && (
+            <button
+              type="button"
+              className="mt-1.5 text-left text-sm text-holo-cyan hover:underline"
+              onClick={() => {
+                setEmail(emailSuggestion);
+                setEmailSuggestion(null);
+                setFieldErrors((prev) => ({ ...prev, email: undefined }));
+              }}
+            >
+              {t("register.didYouMean", { email: emailSuggestion })}
+            </button>
+          )}
         </div>
         <div>
           <Label htmlFor="password">{t("passwordLabel")}</Label>

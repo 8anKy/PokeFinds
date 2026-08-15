@@ -1285,6 +1285,20 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   som facit (racet namn-tas-mellan-stegen skickar tillbaka till fältet, koden överlever rättelsen).
   **VerifyEmailBanner BORTTAGEN (ägarbeslut 2026-08-12)**: nya konton föds verifierade, så bannern kunde
   bara nå de två legacy-kontona — deras väg är /verifiera:s resend-formulär (endpointen lever kvar).
+  **EN FELTYPAD ADRESS ÄR EN ÅTERVÄNDSGRÄND — DÄRFÖR TYPO-FÖRSLAGET (2026-08-15)**: en registrering gick
+  förlorad på `@email.com` (studs i Resend, mejlet nådde ingen, personen försökte aldrig igen). Kontot
+  skapas först NÄR koden anges, så det fanns varken ett konto att laga eller en fungerande adress att nå
+  personen på — enda botemedlet är att fånga typon FÖRE utskicket. `suggestEmailCorrection`
+  (`src/lib/email-typo.ts`, Damerau-Levenshtein mot en kort lista kända domäner) visar "Menade du …?" som
+  en KNAPP under fältet. ⛔ Den blockerar aldrig mer än EN gång: visas förslaget redan när "Skicka kod"
+  trycks skickas adressen som den är — en ovanlig domän måste alltid gå att registrera. ⛔ `email.com` och
+  `mail.com` står MED FLIT INTE i domänlistan (riktiga domäner, men i svensk trafik är gmail-typon långt
+  vanligare och ett onödigt förslag kostar inget); Microsofts regionala domäner (hotmail.fr/.co.uk,
+  outlook.dk …) står DÄR just för att de annars fått ett falskt förslag. ⛔ Oavgjort mellan två kandidater
+  ⇒ inget förslag — ett myntkast i gränssnittet läser som ett påstående. Lokaldelen rörs aldrig (går inte
+  att gissa), så kodsteget visar numera adressen i full kontrast med "Fel adress?" BREDVID sig i stället
+  för en nedtonad "Ändra uppgifter" i sidfoten. ⏭️ EJ byggt: studs-detektering (Resend-webhook eller
+  `GET /emails/{id}`) som kan säga "mejlet kom aldrig fram" medan personen sitter kvar på kodsteget.
 - **DB**: PROD = Neon serverless Postgres (Frankfurt), connection-string i `.env` som `NEON_DATABASE_URL`. DEV = lokal PostgreSQL 18 (tjänst `postgresql-x64-18`), databas `pokefinds`, user `postgres`, lösen `pokefinds-local`. Docker behövs INTE. `DB_POOL`-env sätter `connection_limit` för batch-jobb
 - **Prod-DB från CLI — ANVÄND ALLTID `scripts/with-prod-db.mjs`**:
   ```bash
