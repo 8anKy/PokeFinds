@@ -16,6 +16,30 @@ paths:
 ---
 # Matchning, auto-import och kategorivakter
 
+- **⛔ ETT SEALED-FORMORD KAN VETA MERCH-VAKTEN — MÄRKET ÄR DÅ ENDA UTVÄGEN (2026-08-16)**: 28 Re-Ment-
+  dioramor låg i katalogen som COLLECTION_BOX med Speltrollet-länkar, dvs de kunde larma restock i
+  Discords Pokémon-kanaler. Ingen ordbaserad merch-regel hade kunnat stoppa dem: varenda Re-Ment-titel
+  heter "… **Figure Collection** …", och den frasen står i `SEALED_FORM_WORD` eftersom Pokémons EGEN
+  "Shining Legends Figure Collection" är en riktig SKU med boosters i (mätt 2026-08-15: 8 katalog-
+  produkter, 24 butikslänkar). Sealed-ordet vetade alltså merch-vakten, tyst, för varje ny produkt.
+  `NON_TCG_BRAND` (`matching.ts`) prövas därför **FÖRE** `SEALED_FORM_WORD` — märket säger VEM som
+  tillverkat varan, inte vad förpackningen kallas. ⛔ Vänds ordningen om är vakten verkningslös igen och
+  felet syns inte; produkterna importeras bara vidare som vanliga sealed-varor. Vaktat av
+  `tests/unit/merch-brand-guard.test.ts`, som också kräver att Pokémons egna Figure-/Pin-/Poster
+  Collection-SKU:er ÖVERLEVER.
+  ⚠️ **Lägg bara till märken som ALDRIG gör TCG-varor.** Ett märke som gör både (Pokémon Center) hör
+  inte hemma där — då fälls riktiga SKU:er tyst.
+  ⛔ **MÄT DELTAT AV REGELN, INTE HELA VAKTEN.** `isMerchandiseListing` fäller redan i dag singlar som
+  "Rare Candy" och "Puzzle of Time" via `MERCHANDISE_SIGNS` — men de når aldrig merch-vakten, eftersom
+  `isSingleCardListing` fäller dem först i `ensureListingProduct`. En mätning av HELA funktionen mot
+  HELA katalogen visar därför ett tjugotal "falsklarm" som varken är nya eller verkliga, och man
+  förkastar en korrekt regel. Delta-mätningen var ren: 28/28 på båda facit (katalogens sealed 1 960
+  rader, huvudbokens accepterade annonser 459), noll som inte var Re-Ment.
+  ⛔ **MERCH RADERAS, RIKTIGA SKU:er GÖMS.** Ägarbeslut 2026-08-16: merch ska inte finnas i katalogen
+  alls och ska aldrig kunna komma tillbaka ⇒ radering + denylist (och nu även märkesvakten, som är det
+  som gör "aldrig" sant — en denylist täcker bara de URL:er som RÅKAR finnas i dag, och en 28:e
+  Re-Ment-produkt fanns redan utanför ägarens lista). Se `catalog-curation.md` för gömningsvägen.
+
 - **⛔ `OTHER` VAR EN OAVSIKTLIG BROMS — 436 RIKTIGA SKU:er FASTNADE I DEN (2026-08-15)**: ägaren såg
   att butikerna hade "för få produkter" i katalogen. Roten var kategoriseringen, inte adaptrarna:
   `guessCategory` fanns i **TIO nästan identiska kopior** (en per adapter, redan isärdrivna — tre
