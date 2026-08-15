@@ -17,6 +17,14 @@ export interface MailInput {
 }
 
 /**
+ * `id` = Resends meddelande-id, det enda handtaget till om mejlet KOM FRAM.
+ * Saknas i konsolläge (inget mejl skickades) — anroparen måste tåla det.
+ */
+export interface MailResult {
+  id?: string;
+}
+
+/**
  * Fel från ett utskick, med en DOM om det är lönt att försöka igen.
  * `permanent` = mottagaren eller innehållet är fel och blir aldrig rätt av ett
  * omförsök. Varje sådant omförsök är ännu en hård studs mot foilio.se:s
@@ -58,7 +66,7 @@ function isConsoleMode(): boolean {
   return !process.env.RESEND_API_KEY && process.env.NODE_ENV !== "production";
 }
 
-async function sendViaResend(input: MailInput): Promise<void> {
+async function sendViaResend(input: MailInput): Promise<MailResult> {
   let res: Response;
   try {
     res = await fetch("https://api.resend.com/emails", {
@@ -90,9 +98,20 @@ async function sendViaResend(input: MailInput): Promise<void> {
       res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429;
     throw new MailError(`Resend ${res.status}: ${body}`, { permanent, status: res.status });
   }
+
+  // Id:t är frivilligt för anroparen men obligatoriskt för den som vill kunna
+  // fråga "kom det fram?". ⛔ Ett trasigt svar får ALDRIG fälla ett utskick som
+  // Resend redan kvitterat med 2xx — mejlet ÄR skickat, vi vet bara inte vart
+  // vi ska ringa och fråga om det.
+  try {
+    const body = (await res.json()) as { id?: unknown };
+    return { id: typeof body.id === "string" ? body.id : undefined };
+  } catch {
+    return {};
+  }
 }
 
-export async function sendMail(input: MailInput): Promise<void> {
+export async function sendMail(input: MailInput): Promise<MailResult> {
   if (isConsoleMode()) {
     console.log(
       [
@@ -105,7 +124,7 @@ export async function sendMail(input: MailInput): Promise<void> {
         "────────────────────────────────────────",
       ].join("\n")
     );
-    return;
+    return {};
   }
   if (!process.env.RESEND_API_KEY) {
     // Prod utan nyckel: skrik. Ett tyst "skickat" är värre än ett fel — då tror
@@ -118,5 +137,5 @@ export async function sendMail(input: MailInput): Promise<void> {
       permanent: false,
     });
   }
-  await sendViaResend(input);
+  return sendViaResend(input);
 }

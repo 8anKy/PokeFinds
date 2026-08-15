@@ -167,6 +167,8 @@
       "codeTitle": "Confirm your email address",
       "codeSentTo": "We've emailed a 6-digit code. Enter it below to create your account.",
       "codeWrongEmail": "Wrong address?",
+      "mailBounced": "The email never arrived – the address couldn't be reached. Check that it's spelled correctly.",
+      "mailBouncedAction": "Change email address",
       "codeLabel": "Verification code",
       "resend": "Send a new code",
       "resendWait": "Send a new code ({seconds}s)",

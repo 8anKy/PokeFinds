@@ -22,6 +22,13 @@ interface FieldErrors {
  *  egna) — bara en ärlig indikation på att mejl tar några sekunder att landa. */
 const RESEND_COOLDOWN_S = 60;
 
+/** När vi frågar Resend "kom mejlet fram?", i millisekunder efter utskicket.
+ *  En hård studs kommer oftast inom sekunder, men mottagarens server får ta sin
+ *  tid — därför tre glesa kontroller i stället för en tät loop. Tre räcker:
+ *  syns ingen studs inom 45 s är den nästan alltid fördröjd, inte permanent,
+ *  och då är "skicka ny kod" ändå rätt väg. */
+const MAIL_CHECK_DELAYS_MS = [8000, 20000, 45000];
+
 export default function RegisterPage() {
   const t = useTranslations("Auth");
   const router = useRouter();
@@ -38,6 +45,12 @@ export default function RegisterPage() {
   // annars en återvändsgränd: koden mejlas till ingenstans, och vi har varken
   // ett konto att laga eller en adress att nå personen på.
   const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
+  // Resends meddelande-id för den senast skickade koden + domen om den. Ett fel
+  // i adressens LOKALDEL går inte att gissa i förväg (till skillnad från domänen,
+  // se suggestEmailCorrection) — bara mottagarens server vet, och utan det här
+  // står användaren kvar vid ett kodfält som aldrig kan fyllas.
+  const [mailId, setMailId] = useState<string | null>(null);
+  const [mailUndeliverable, setMailUndeliverable] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -55,6 +68,34 @@ export default function RegisterPage() {
     const id = setInterval(() => setResendIn((s) => s - 1), 1000);
     return () => clearInterval(id);
   }, [resendIn]);
+
+  // Frågar Resend om koden nådde fram medan användaren sitter kvar på kodsteget.
+  // ⛔ Pollningen rör ALDRIG databasen (id:t bärs av klienten) — Neon debiteras
+  // per vaken tid, och en väckning per kontroll hade varit dyrare än funktionen.
+  // ⛔ Ett fel här sväljs: en misslyckad kontroll får aldrig störa någon som är
+  // mitt i att skriva in en kod som faktiskt kom fram.
+  useEffect(() => {
+    if (step !== "code" || !mailId) return;
+    let cancelled = false;
+    const timers = MAIL_CHECK_DELAYS_MS.map((delay) =>
+      setTimeout(async () => {
+        try {
+          const res = await fetch(
+            `/api/auth/register/mail-status?id=${encodeURIComponent(mailId)}`
+          );
+          if (!res.ok || cancelled) return;
+          const data = (await res.json()) as { status?: string };
+          if (!cancelled && data.status === "undeliverable") setMailUndeliverable(true);
+        } catch {
+          /* tyst — "vet inte" är inte samma sak som "studsade" */
+        }
+      }, delay)
+    );
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+    };
+  }, [step, mailId]);
 
   function validate(): boolean {
     const errors: FieldErrors = {};
@@ -87,6 +128,11 @@ export default function RegisterPage() {
       }
       return false;
     }
+    // Varje nytt utskick får ett eget id och en egen dom — annars hade en studs
+    // från den GAMLA adressen legat kvar och sagt att den rättade inte fungerar.
+    const data = (await res.json().catch(() => null)) as { mailId?: string } | null;
+    setMailUndeliverable(false);
+    setMailId(data?.mailId ?? null);
     setResendIn(RESEND_COOLDOWN_S);
     return true;
   }
@@ -209,6 +255,30 @@ export default function RegisterPage() {
             {t("register.codeWrongEmail")}
           </button>
         </p>
+
+        {/* Mottagarens server avvisade mejlet. Beskedet är det enda som kan nå
+            någon som annars sitter och väntar på en kod som aldrig kommer —
+            och knappen tar dem till fältet i stället för att bara beklaga. */}
+        {mailUndeliverable && (
+          <div
+            role="alert"
+            className="mt-4 rounded-lg border border-fall/40 bg-fall/10 px-3 py-2.5 text-sm text-ink"
+          >
+            <p>{t("register.mailBounced")}</p>
+            <button
+              type="button"
+              className="mt-1 font-medium text-holo-cyan hover:underline"
+              onClick={() => {
+                setError(null);
+                setFieldErrors({});
+                setEmailSuggestion(null);
+                setStep("details");
+              }}
+            >
+              {t("register.mailBouncedAction")}
+            </button>
+          </div>
+        )}
 
         <form onSubmit={handleRegister} className="mt-6 space-y-4" noValidate>
           <div>

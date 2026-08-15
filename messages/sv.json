@@ -167,6 +167,8 @@
       "codeTitle": "Bekräfta din e-postadress",
       "codeSentTo": "Vi har mejlat en 6-siffrig kod. Ange den nedan för att skapa ditt konto.",
       "codeWrongEmail": "Fel adress?",
+      "mailBounced": "Mejlet kom aldrig fram – adressen gick inte att nå. Kontrollera att den är rätt stavad.",
+      "mailBouncedAction": "Ändra e-postadress",
       "codeLabel": "Verifieringskod",
       "resend": "Skicka ny kod",
       "resendWait": "Skicka ny kod ({seconds} s)",

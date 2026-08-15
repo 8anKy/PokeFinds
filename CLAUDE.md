@@ -1297,8 +1297,22 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   outlook.dk …) står DÄR just för att de annars fått ett falskt förslag. ⛔ Oavgjort mellan två kandidater
   ⇒ inget förslag — ett myntkast i gränssnittet läser som ett påstående. Lokaldelen rörs aldrig (går inte
   att gissa), så kodsteget visar numera adressen i full kontrast med "Fel adress?" BREDVID sig i stället
-  för en nedtonad "Ändra uppgifter" i sidfoten. ⏭️ EJ byggt: studs-detektering (Resend-webhook eller
-  `GET /emails/{id}`) som kan säga "mejlet kom aldrig fram" medan personen sitter kvar på kodsteget.
+  för en nedtonad "Ändra uppgifter" i sidfoten.
+  **STUDS-DETEKTERING (2026-08-15, andra halvan)**: `sendMail` returnerar numera Resends meddelande-id,
+  send-code skickar det till KLIENTEN, och kodsteget frågar `/api/auth/register/mail-status?id=…` vid
+  8/20/45 s. `last_event: bounced|failed|suppressed` ⇒ röd ruta "Mejlet kom aldrig fram" + knapp till
+  fältet. Det är den enda mekanism som fångar ett fel i adressens LOKALDEL.
+  ⛔ **INGEN DB, INGEN MIGRATION, INGEN WEBHOOK.** Id:t bärs av klienten (det gavs till just den
+  besökaren) ⇒ pollningen är ren HTTP mot Resend och väcker aldrig Neon, som debiteras per VAKEN TID.
+  En kolumn på `SignupVerification` hade kostat en läsning per kontroll; en webhook hade dessutom krävt
+  signaturverifiering och en publik skrivväg. Samma doktrin som restock-lanens källcache.
+  ⛔ **`delivery_delayed` ÄR INTE EN STUDS** — Resend definierar det som ett TILLFÄLLIGT fel hos
+  mottagarens server. Läses det som terminalt skickas någon som strax får sin kod tillbaka till
+  formuläret. ⛔ **`complained` BETYDER ATT MEJLET KOM FRAM** (spamanmälan sker efter leverans) — koden
+  ligger i skräpposten, och "adressen gick inte att nå" vore fel besked. ⛔ **Allt okänt är `pending`**:
+  nya Resend-händelser, 404/429 från API:t, saknad nyckel i konsolläge. Ett falskt studsbesked avbryter
+  en registrering som var på väg att lyckas. Domen är en ren funktion i `src/lib/mail-status.ts`, testad
+  utan nätverk. ⚠️ Utan `RESEND_API_KEY` (dev/konsolläge) finns inget id ⇒ ingen pollning alls.
 - **DB**: PROD = Neon serverless Postgres (Frankfurt), connection-string i `.env` som `NEON_DATABASE_URL`. DEV = lokal PostgreSQL 18 (tjänst `postgresql-x64-18`), databas `pokefinds`, user `postgres`, lösen `pokefinds-local`. Docker behövs INTE. `DB_POOL`-env sätter `connection_limit` för batch-jobb
 - **Prod-DB från CLI — ANVÄND ALLTID `scripts/with-prod-db.mjs`**:
   ```bash

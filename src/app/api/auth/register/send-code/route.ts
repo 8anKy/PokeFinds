@@ -85,8 +85,17 @@ export async function POST(req: NextRequest) {
     // Skicka FÖRST, spara SEDAN (samma ordning som resend-verification): failar
     // utskicket står en eventuell äldre kod kvar som giltig, och svaret säger
     // sanningen i stället för att be någon leta efter ett mejl som aldrig gick.
+    // Meddelande-id:t går tillbaka till klienten, som pollar /mail-status med det
+    // medan kodsteget är öppet. En feltypad adress (ett fel i lokaldelen går inte
+    // att gissa i förväg) blir annars en TYST återvändsgränd: mejlet studsar, och
+    // den som väntar ser bara ett kodfält som aldrig kan fyllas.
+    let mailId: string | undefined;
     try {
-      await sendMail({ to: normalizedEmail, ...signupCodeEmail(code, SIGNUP_CODE_TTL_MS) });
+      const sent = await sendMail({
+        to: normalizedEmail,
+        ...signupCodeEmail(code, SIGNUP_CODE_TTL_MS),
+      });
+      mailId = sent.id;
     } catch (mailError) {
       console.error(
         `[register/send-code] Koden till ${normalizedEmail} gick inte att skicka:`,
@@ -114,7 +123,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return jsonOk({ message: "Vi har mejlat en kod till din adress." });
+    return jsonOk({ message: "Vi har mejlat en kod till din adress.", mailId });
   } catch (e) {
     return apiError(e);
   }
