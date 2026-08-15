@@ -23,9 +23,11 @@
  *    (`shouldProcess` returnerar alltid false) så Neon bara läses för källistan.
  */
 import "./load-env";
+import { readFileSync } from "node:fs";
 import { StockStatus } from "@prisma/client";
 import { prisma } from "../src/lib/db";
 import { runRestockScan, type RestockSourceInfo } from "../src/scrapers/runner";
+import { resolveStockStrategy } from "../src/scrapers/stock-verify";
 import {
   classifyForm,
   cleanListingTitle,
@@ -42,6 +44,12 @@ import { isSealedCategory } from "../src/lib/product-category";
 
 const onlyStore = process.argv.find((a) => a.startsWith("--store="))?.slice("--store=".length);
 const dbOnly = process.argv.includes("--db-only");
+/**
+ * Läs feedarna från en dump (scripts/dump-store-feeds.ts) i stället för att hämta dem
+ * igen. 42 butiker per körning är oartigt att upprepa — och 2026-08-14 fick just en
+ * sådan upprepad svepning Shopify att 429:a oss, varefter friska butiker såg trasiga ut.
+ */
+const feedsFile = process.argv.find((a) => a.startsWith("--feeds="))?.slice("--feeds=".length);
 
 /** Samma kedja som ensureListingProduct, men den RAPPORTERAR i stället för att returnera null. */
 function rejectionReason(title: string, url: string, category: string | null): string | null {
@@ -144,11 +152,8 @@ async function main() {
   };
   const feedStats = new Map<string, FeedStat>();
 
-  console.log(`[audit] hämtar feed för ${sources.length} butiker...\n`);
-  await runRestockScan({
-    sources,
-    shouldProcess: async (fetched) => {
-      for (const f of fetched) {
+  const collect = (fetched: { sourceName: string; items: { url: string; title: string; category: string | null; stockStatus: StockStatus }[] }[]) => {
+    for (const f of fetched) {
         const s: FeedStat = {
           items: f.items.length,
           importable: 0,
@@ -168,10 +173,25 @@ async function main() {
           else s.importable++;
         }
         feedStats.set(f.sourceName, s);
-      }
-      return false; // rör aldrig DB-fasen
-    },
-  });
+    }
+  };
+
+  if (feedsFile) {
+    const dumped = JSON.parse(readFileSync(feedsFile, "utf8")) as {
+      groups: { sourceName: string; items: { url: string; title: string; category: string | null; stockStatus: StockStatus }[] }[];
+    };
+    console.log(`[audit] läser feedarna ur dumpen ${feedsFile} (ingen ny hämtning).\n`);
+    collect(dumped.groups);
+  } else {
+    console.log(`[audit] hämtar feed för ${sources.length} butiker...\n`);
+    await runRestockScan({
+      sources,
+      shouldProcess: async (fetched) => {
+        collect(fetched);
+        return false; // rör aldrig DB-fasen
+      },
+    });
+  }
 
   // ---- Rapport ----
   console.log("=== TÄCKNING PER BUTIK ===");
@@ -220,6 +240,33 @@ async function main() {
       console.log(`  ${r.name}: ${f.items} annonser, ${f.inStock} i lager, 0 slut, ${f.unknown} okänd`);
     }
   }
+
+  // ---- KAN BUTIKEN ÖVER HUVUD TAGET LARMA? ----
+  // Frågan ägaren ställde ("den larmar inte för många produkter och butiker") bryts ner i
+  // fyra villkor som ALLA måste hålla. Faller ett av dem är butiken tyst — och tystnaden
+  // ser likadan ut i alla hälsomått, vilket är varför den kan pågå i månader.
+  console.log("\n=== KAN BUTIKEN LARMA? (alla fyra måste vara ✅) ===");
+  console.log("  feed  offers  OUT-signal  lagerkoll   butik");
+  for (const r of rows) {
+    const f = r.feed;
+    const hasFeed = (f?.items ?? 0) > 0;
+    const hasOffers = r.db.offers > 0;
+    // En feed som aldrig säger "slut" kan bara ge "ny produkt i lager", aldrig en
+    // restock: OUT→IN inträffar per definition inte.
+    const canSayOut = (f?.outOfStock ?? 0) > 0 || !hasFeed;
+    // Frånvaro ur feeden kollas mot butikens egen sida. Saknas den vägen faller offern
+    // till UNKNOWN, och UNKNOWN→IN_STOCK räknas inte som en övergång ⇒ nästa
+    // påfyllning larmar aldrig.
+    const sampleUrl = [...(f?.urls ?? [])][0] ?? "";
+    const strategy = sampleUrl ? resolveStockStrategy(r.name, sampleUrl) : "none";
+    const mark = (ok: boolean) => (ok ? "✅" : "❌");
+    if (hasFeed && hasOffers && canSayOut && strategy !== "none") continue; // frisk → tyst
+    console.log(
+      `  ${mark(hasFeed)}     ${mark(hasOffers)}       ${mark(canSayOut)}          ` +
+        `${(strategy === "none" ? "❌ ingen" : `✅ ${strategy}`).padEnd(14)} ${r.name}`
+    );
+  }
+  console.log("  (butiker där alla fyra håller listas inte)");
 
   console.log("\n=== FACETT-FÖRLUST: offers som finns men inte syns i filtret ===");
   for (const r of rows) {

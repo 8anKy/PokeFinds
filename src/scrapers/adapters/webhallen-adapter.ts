@@ -38,7 +38,33 @@ const MAX_PAGES = 8;
  * Ett tak under det verkliga antalet är precis den sortens tysta gräns som brister
  * först den dag den spelar roll (jfr MAX_COLLECTIONS 30→60). Kapning loggas nu.
  */
-const LIVE_POLL_MAX = 80;
+const LIVE_POLL_MAX = Math.max(1, Number(process.env.WEBHALLEN_LIVE_POLL_MAX ?? 80));
+/**
+ * Fördröjning mellan live-uppslagen mot samma värd. Egen konstant för att den är
+ * lanens största latenspost — se rotationen nedan.
+ */
+const LIVE_POLL_DELAY_MS = Math.max(100, Number(process.env.WEBHALLEN_LIVE_POLL_DELAY_MS ?? 800));
+
+/**
+ * ROTATIONSMARKÖR för live-kollen (2026-08-15).
+ *
+ * ⛔ EN LÅNGSAM BUTIK SATTE TAKTEN FÖR ALLA 42. Live-kollen slår upp varje icke-i-lager-
+ * produkt sekventiellt med 800 ms paus: 48 rader ≈ 38 s, och MÄTT 2026-08-15 tog hela
+ * Webhallen-hämtningen 52,3 s medan hela svepet över 42 butiker tog 54,4 s. Discord-
+ * lanens tick kan aldrig bli kortare än sitt svep, så "tick var 60:e sekund" var en
+ * önskan — och den butik som satte golvet står för 0,4 restocks/dygn av 12,2.
+ *
+ * I LOOP-LÄGE (Discord-lanen kör många svep i samma process) behöver inte varje tick
+ * kolla alla: markören går vidare, så tick 1 tar de första N, tick 2 nästa N osv. Varje
+ * produkt kollas då var (antal/N):e tick i stället för varje. Med N=16 och 48 rader blir
+ * det var tredje tick ≈ 3 min — fortfarande långt under de ~50 min sökindexet släpar,
+ * vilket var hela skälet till live-kollen.
+ *
+ * ⛔ DEFAULTEN ÄR OFÖRÄNDRAD (80 = alla). Ett engångsjobb (scrape-all, restock-watch)
+ *    kör EN hämtning per process och måste täcka allt; bara den loopande lanen sätter
+ *    ner talet via env. Sänk det aldrig som global default.
+ */
+let livePollCursor = 0;
 
 function searchUrl(page: number): string {
   return `${BASE_URL}/api/productdiscovery/search/${encodeURIComponent(SEARCH_QUERY)}?page=${page}&touchpoint=DESKTOP&totalProductCountSet=true`;
@@ -185,10 +211,16 @@ export class WebhallenAdapter implements SourceAdapter {
       // Bara icke-IN med flit: restocken är OOS/PREORDER → IN och det är den som ska
       // fångas snabbt; en stale "i lager" i sökindexet är ofarlig (rättas nästa flip,
       // och IN→OUT larmar aldrig). Cappad + politeFetch-delay av artighet mot butiken.
+      // Kandidaterna i feed-ordning, sedan ROTERADE med markören: i loop-läge tar
+      // varje tick nästa skiva i stället för samma första N om och om igen.
+      const candidates = products.filter((p) => p.stockStatus !== StockStatus.IN_STOCK);
+      const start = candidates.length ? livePollCursor % candidates.length : 0;
+      const ordered = [...candidates.slice(start), ...candidates.slice(0, start)];
+      livePollCursor = start + Math.min(LIVE_POLL_MAX, candidates.length);
+
       let polled = 0;
       let skippedByCap = 0;
-      for (const p of products) {
-        if (p.stockStatus === StockStatus.IN_STOCK) continue;
+      for (const p of ordered) {
         if (polled >= LIVE_POLL_MAX) {
           skippedByCap++;
           continue;
@@ -197,7 +229,7 @@ export class WebhallenAdapter implements SourceAdapter {
         try {
           const raw = p.raw as WebhallenRaw;
           const res = await politeFetch(`${BASE_URL}/api/product/${raw.id}`, {
-            delayMs: 800,
+            delayMs: LIVE_POLL_DELAY_MS,
             headers: { accept: "application/json" },
           });
           if (!res.ok) continue;
@@ -219,8 +251,9 @@ export class WebhallenAdapter implements SourceAdapter {
       if (skippedByCap > 0) {
         console.warn(
           `[webhallen] Live-kollen kapades av LIVE_POLL_MAX (${LIVE_POLL_MAX}) — ` +
-            `${skippedByCap} produkter kollades INTE och deras lagerstatus kommer från ` +
-            `det släpande sökindexet.`
+            `${skippedByCap} av ${candidates.length} produkter kollades INTE denna hämtning ` +
+            `och deras lagerstatus kommer från det släpande sökindexet. I loop-läge tas de ` +
+            `av nästa tick (rotationsmarkören står på ${livePollCursor % Math.max(1, candidates.length)}).`
         );
       }
     } catch (err) {

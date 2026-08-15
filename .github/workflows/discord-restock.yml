@@ -118,6 +118,16 @@ jobs:
       # köandet mellan dem. Wall-clock blir då långsammaste ENSKILDA butiken, som
       # loggas varje körning ("Feed-svep: … Långsammast: …") sedan samma datum.
       RESTOCK_SCAN_CONCURRENCY: "48"
+      # ⛔ WEBHALLEN VAR SVANSEN. MÄTT 2026-08-15: hela svepet över 42 butiker tog
+      # 54,4 s och Webhallen ensam 52,3 s av dem — dess live-koll slår upp varje
+      # icke-i-lager-produkt (~48 st) sekventiellt med 800 ms paus. En butik som står
+      # för 0,4 restocks/dygn av 12,2 satte alltså tickgolvet för alla 42.
+      # I LOOP-LÄGE behövs inte allt varje tick: adaptern roterar markören, så 16 per
+      # tick betyder att varje produkt kollas var tredje tick (~3 min) — långt under de
+      # ~50 min sökindexet släpar, vilket var hela skälet till live-kollen.
+      # ⛔ Sätts BARA här. scrape-all och restock-watch kör ett svep per process och
+      #    behåller defaulten (80 = alla) — där finns inget nästa tick att rotera till.
+      WEBHALLEN_LIVE_POLL_MAX: "16"
       NEXT_PUBLIC_APP_URL: "https://foilio.se"
     steps:
       # Hoppa tyst och grönt när integrationen är avstängd — annars kör vi checkout

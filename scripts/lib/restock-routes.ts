@@ -63,20 +63,56 @@ export async function exportRestockRoutes(outFile: string): Promise<{ sources: n
   // felaktig länkning; först vinner, och länkrevisionen (audit-links.ts) är rätt
   // ställe att lösa det — inte här.
   const routes: RouteTable = {};
-  for (const o of offers) {
-    if (routes[o.url]) continue;
-    routes[o.url] = {
-      title: o.product.title,
-      slug: o.product.slug,
-      setName: o.product.set?.name ?? null,
-      series: o.product.set?.series ?? null,
+  const put = (
+    url: string,
+    product: { title: string; slug: string; language: string | null; imageUrl: string | null; set: { name: string; series: string | null } | null }
+  ) => {
+    if (routes[url]) return;
+    routes[url] = {
+      title: product.title,
+      slug: product.slug,
+      setName: product.set?.name ?? null,
+      series: product.set?.series ?? null,
       // Språket styr KANALVALET: JP-set bär samma latinska serienamn som de engelska
       // ("Mega Evolution"), så utan språket hade JP-boxar routats till EN-seriekanalen
       // (hände 2026-08-12: fyra japanska boxar i #mega-evolution).
-      language: o.product.language,
+      language: product.language,
       // Katalogbilden som reserv för embed-miniatyren — butiksfeedarna bär sällan bild.
-      imageUrl: o.product.imageUrl ?? null,
+      imageUrl: product.imageUrl ?? null,
     };
+  };
+  for (const o of offers) put(o.url, o.product);
+
+  // ---- HUVUDBOKEN FYLLER PÅ (2026-08-15) ----
+  // ⛔ EN URL UTAN OFFER KAN ÄNDÅ VARA EN KÄND PRODUKT. `Offer` är unik på
+  // (produkt, butik, skick, språk), så när en butik säljer samma vara under TVÅ
+  // URL:er får bara den ena en offer — den andra kan per konstruktion aldrig få en
+  // (Rogerz listar varje begagnad vara under båda danska momsordningarna; 87 av
+  // deras huvudboksrader är bundna men offer-lösa). Ruttabellen byggdes bara ur
+  // Offer, så en påfyllning på den andra URL:en blev "okänd URL" i Discord-lanen
+  // och postades ALDRIG — tyst, och omöjligt att se skillnad på från en sleeve.
+  // `StoreListing.productId` är samma dom, redan betald och nerskriven (memot från
+  // 2026-08-14). Offers vinner fortfarande: de är kontrollerade av länkrevisionen.
+  const ledger = await prisma.storeListing.findMany({
+    where: { retailerId: { in: retailers.map((r) => r.id) }, productId: { not: null } },
+    select: {
+      url: true,
+      product: {
+        select: {
+          title: true,
+          slug: true,
+          language: true,
+          imageUrl: true,
+          set: { select: { name: true, series: true } },
+        },
+      },
+    },
+  });
+  let fromLedger = 0;
+  for (const l of ledger) {
+    if (!l.product || routes[l.url]) continue;
+    put(l.url, l.product);
+    fromLedger++;
   }
 
   const payload = { at: Date.now(), sources, routes };
@@ -86,7 +122,8 @@ export async function exportRestockRoutes(outFile: string): Promise<{ sources: n
   const withSeries = Object.values(routes).filter((r) => r.series).length;
   console.log(
     `[export-routes] ${sources.length} källor, ${Object.keys(routes).length} URL:er ` +
-      `(${withSeries} med serie, ${Object.keys(routes).length - withSeries} utan → catch-all) → ${outFile}`
+      `(${withSeries} med serie, ${Object.keys(routes).length - withSeries} utan → catch-all; ` +
+      `${fromLedger} från huvudboken utan egen offer) → ${outFile}`
   );
   return { sources: sources.length, routes: Object.keys(routes).length };
 }

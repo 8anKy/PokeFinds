@@ -555,7 +555,19 @@ export async function ensureListingProduct(
     // därför bevisa att den är Pokémon: ordet, ett Pokémon-namn, ett känt setnamn
     // eller en Pokémon-exklusiv produktlinje. Länkning till BEFINTLIGA produkter
     // påverkas inte — vakten står bara vid skapandet.
-    if (!hasPokemonTitleSignal(cleanTitle, await knownSetNames())) {
+    // ⛔ EVIDENSEN LÄSES PÅ RÅTITELN OCKSÅ (2026-08-15). Vakten kördes bara på den
+    //    TVÄTTADE titeln — och `cleanListingTitle` tar MED FLIT bort "Pokémon TCG:"-
+    //    prefixet (katalogen namnger inte produkter så, ägarbeslut). För varje SKU vars
+    //    enda Pokémon-ord SATT i prefixet raderade tvätten alltså precis det bevis
+    //    vakten frågade efter, och produkten avvisades som "ingen Pokémon-signal":
+    //      "Pokemon TCG: 2025 World Championship Deck - Pult Bomb"  → avvisad
+    //      "Pokémon TCG: Battle Academy"                            → avvisad
+    //    Tvätten svarar på "vad ska produkten HETA?", vakten på "är det här Pokémon?" —
+    //    två olika frågor, och bara den senare får läsa butikens hela formulering.
+    //    Namnsättningen är oförändrad; det är bara beviskällan som vidgas.
+    const setNames = await knownSetNames();
+    const rawTitle = facts.name ?? it.title;
+    if (!hasPokemonTitleSignal(cleanTitle, setNames) && !hasPokemonTitleSignal(rawTitle, setNames)) {
       console.log(`[import] Ingen Pokémon-signal — skapar ingen produkt: "${cleanTitle}"`);
       return null;
     }

@@ -110,6 +110,34 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   restock-watch.yml — Neon är redan vaken i exakt de körningarna) ⇒ ny SKU postbar inom minuter, inte
   ≤24 h. Loggarna namnger nu både postade nycklar och hoppade okända URL:er (räknare utan namn gick
   inte att felsöka — hela 08-13-utredningen krävde korsreferens mot DB-lanens loggar).
+  ⛔ **…MEN `pending` TAPPADES VID INLÄSNINGEN (buggat 08-13 → 08-15).** `readState` byggde sitt
+  returobjekt fält för fält och `pending` fanns inte med, så väntlistan skrevs till state-filen och
+  KASTADES vid nästa jobbstart. Mekanismen överlevde alltså bara mellan tick INOM ett jobb (~5–9 min),
+  medan rutten för en ny SKU typiskt dyker upp senare — dvs den kunde nästan aldrig rädda det den
+  byggdes för. **Den rena domen (`deriveRestockPosts`) hade tester på andra chansen; serialiseringen
+  runt den hade inga.** Tolkningen bor nu i `parseDiscordRestockState` (lib, testad utan filsystem).
+  Läxa: en testad ren funktion kan vara helt verkningslös om I/O:t runt den inte testas.
+  ⛔ **LATENSPASS 2026-08-15 — "tick var 60:e sekund" var en ÖNSKAN, inte en takt.** Loopen startar
+  nästa tick först när det förra är klart, så tickintervallet kan aldrig bli kortare än feed-svepet.
+  Tre fynd, alla MÄTTA (svepet loggar numera väggklocka + de fem långsammaste butikerna varje körning —
+  `[restock-scan] Feed-svep: … Långsammast: …`; utan den raden gick det inte att se vem som satte takten):
+  (1) **Webhallen ensam tog 52,3 s av svepets 54,4 s.** Dess live-koll slår upp varje icke-i-lager-
+  produkt (~48 st) sekventiellt med 800 ms paus. En butik som står för 0,4 restocks/dygn av 12,2 satte
+  alltså golvet för alla 42. Adaptern ROTERAR nu markören mellan hämtningar, så lanen kan sätta
+  `WEBHALLEN_LIVE_POLL_MAX=16` och ändå täcka allt var tredje tick (~3 min — långt under de ~50 min
+  sökindexet släpar, vilket var hela skälet till live-kollen). ⛔ Defaulten är oförändrad (80 = alla):
+  ett engångsjobb kör EN hämtning per process och har inget nästa tick att rotera till.
+  (2) **Samtidigheten 16 gjorde svepet till tre vågor.** Den är nu 48 (fler än butikerna) ⇒ wall-clock =
+  långsammaste ENSKILDA butik. Det ökar INTE lasten mot någon butik: `politeFetch` fördröjer per VÄRD
+  (`lastRequestPerHost`), och samtidigheten gäller mellan olika värdar.
+  (3) **Glappet mellan jobb** (~25–40 s blind boot-tid) var ~10 % av tiden med 5-minutersjobb.
+  Loopbudgeten är nu 540 s (~6 %), `timeout-minutes` 15.
+  ⛔ **RUTTABELLEN BYGGS NUMERA UR OFFERS **OCH** HUVUDBOKEN.** En URL utan offer kan ändå vara en känd
+  produkt: `Offer` är unik på (produkt, butik, skick, språk), så när en butik säljer samma vara under
+  TVÅ URL:er får bara den ena en offer — den andra kan per konstruktion aldrig få en (Rogerz listar
+  varje begagnad vara under båda danska momsordningarna; 87 av deras huvudboksrader är bundna men
+  offer-lösa). De blev "okänd URL" i lanen och postades ALDRIG. `StoreListing.productId` är samma dom,
+  redan betald och nerskriven — offers vinner fortfarande, de är granskade av länkrevisionen.
   ⚠️ Kontrollerat och EJ begränsande: Actions-cachen (1,18 GB av 10 GB, state-filerna ~0 MB) och
   GitHubs API-tak (720 dispatches/dygn mot 5 000/h).
   ⛔ **INGET NYTT SAMTYCKE BEHÖVS**: inlägget är produktdata, inga personuppgifter, så det är
@@ -641,6 +669,64 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   **DIAGNOSTIK**: `setMatchTracer()` i matching.ts + `scripts/diagnose-listing-match.ts "<titel>" --utan-nya=3`.
   Skriver ut poolstorlek, överlevare efter vaktkedjan, bästa/tvåan och VILKET utfall som gällde. Tre gånger nu har
   felsökningen fastnat på "kom kandidaten ens in i poolen?"; kroken gör frågan mätbar. Null i drift = noll kostnad.
+- **⛔ `OTHER` VAR EN OAVSIKTLIG BROMS — 436 RIKTIGA SKU:er FASTNADE I DEN (2026-08-15)**: ägaren såg
+  att butikerna hade "för få produkter" i katalogen. Roten var kategoriseringen, inte adaptrarna:
+  `guessCategory` fanns i **TIO nästan identiska kopior** (en per adapter, redan isärdrivna — tre
+  testade `/tin\b/` och `/etb/i` UTAN inledande ordgräns, så tyska "Karmesin" blev TIN) och kände bara
+  sju formord. Allt annat blev `OTHER`, och `OTHER` står i `HIDDEN_CATEGORIES` ⇒ produkten är osynlig i
+  katalogen, tyst i restock-larmen (`hidden`-grinden) OCH oskapbar (feed-först grindar på
+  `SEALED_FEED_CATEGORIES`, som saknar OTHER).
+  MÄTT mot alla 42 bevakade butikers levande feedar: **479 annonser passerade HELA vaktkedjan utan att
+  ha en offer — 436 av dem (91 %) stoppades enbart av kategorigrinden.** Det var hela produktlinjer:
+  Battle Decks, League Battle Decks, World Championship Decks, Build & Battle Box/Stadium/Kit, Starter
+  Sets/Decks, Theme Decks, Trainer's Toolkit, Battle Academy, Premium Deck Set, samt kvalificerade
+  Collections (Figure/Poster/Pin/Sticker/Special) och promo-paket.
+  Kopiorna är nu EN definition: `src/scrapers/listing-category.ts` (`guessListingCategory`).
+  ⛔ **Tradera-adapterns egen `guessCategory(title, fallback)` rörs INTE** — den är en marknadsplats med
+  GRADED_CARD/SINGLE_CARD-grenar och en fallback-kategori, och sitter i skenor/sålt-svepet.
+  ⛔ **ORDNINGEN ÄR BETYDELSEBÄRANDE**: den kvalificerade collection-regeln måste stå EFTER blister/tin.
+  MÄTT: låg den före bytte sex av Aquitaz "Tech Sticker Collection **Blister**" kategori — kvalificeringen
+  beskriver vad som ligger I paketet, inte formen.
+  ⛔ **VAKTERNA MÅSTE HÄRDAS FÖRST — `OTHER` VAR DET ENDA SOM HÖLL SKRÄPET UTE.** Innan gaten vidgades
+  passerade gosedjur, figurer, godis, myntset, nyckelringar, kortställ, spelarguider, bulk-lotter och
+  **hela Pokétalks singelsortiment** varenda vakt; de syntes bara inte, eftersom klassificeraren råkade
+  svara OTHER. Det var en slump, inte en vakt. Härdat samma dag (`tests/unit/listing-guards-2026-08-15.test.ts`):
+  `#`-prefixade samlarnummer (`#SV59/SV94`, `#SWSH262` — `#` saknades i avgränsarklassen), japansk
+  promo-notation (`120/SV-P`, med veto för "promo **pack**"), bulk-/graderade lotter, engelska
+  `figure`/`figures`, blindboxar, godis, myntset, spelarguider, markörer, svenskt sammansatt "Samlar**pärm**"
+  (ordgränsen före "pärm" borttagen) och "card display" (kortställ). Kinesiska setkoder utanför CSV-grenen
+  (`CBB1C`) fälls nu av `CN_SET_CODE`.
+  ⛔ **VARJE VAKTÄNDRING MÄTS MOT TVÅ FACIT** (`scripts/measure-guard-changes.ts`): katalogens sealed-produkter
+  och de feedannonser som REDAN har en offer. Utfall: **0 katalogträffar**, och de enda nya feedträffarna var
+  tre äkta singlar — varav "Mega Charizard X ex - #MEP023" är en felaktig länk ägaren redan flaggat.
+  Mätningen fällde tre av mina egna regler: bart `accessory` (Prismatic Evolutions **Accessory Pouch**
+  Special Collection är en riktig SKU med sju butikslänkar), `figure` utan kvalificering (**Figure
+  Collection** = 8 katalogprodukter, 24 länkar) och bart `display` som sealed-ord (vetade merch-vakten
+  för varje "Card **Display** Gift Box").
+  ⛔ **POKÉMON-EVIDENSEN LÄSES NU ÄVEN PÅ RÅTITELN.** `hasPokemonTitleSignal` kördes bara på den TVÄTTADE
+  titeln, och `cleanListingTitle` tar med flit bort "Pokémon TCG:"-prefixet — så för varje SKU vars enda
+  Pokémon-ord satt i prefixet raderade tvätten precis det bevis vakten frågade efter
+  ("Pokemon TCG: 2025 World Championship Deck - Pult Bomb" avvisades). Tvätten svarar på vad produkten ska
+  HETA, vakten på om det är Pokémon — två frågor.
+  ✅ **UTFALL (tyst seedning 2026-08-15, `scripts/run-category-widening-import.ts`)**: **+273
+  katalogprodukter, 443 nya offers, 0 larm**. Fördelning: 269 COLLECTION_BOX + 4 BOOSTER_PACK; 244 EN +
+  29 JP, **noll CN/KR**. Varenda titel faller i en känd produktlinje (79 Battle Deck, 48 Build & Battle,
+  40 Starter Set, 29 Figure Collection, 23 League Battle Deck …) — ingen merch, inga singlar.
+  ⛔ **`RESTOCK_SEED_SILENT=1` ÄR INTE VALFRITT VID EN VIDGNING.** Butikerna HAR huvudboks-historik, så
+  utan spaken mejlas varje nyupptäckt URL som "Ny produkt i lager" till alla set-bevakare — samma fälla
+  som när Samlarhobbys täckning gick 379 → 975. Kör seedningen FÖRE push; varje 10-minuterskörning som
+  hinner emellan gör larmsvallet i stället.
+  ⚠️ **FACETTSIFFRAN ÄR "I LAGER NU", INTE "I KATALOGEN"** (`services/explore-facets.ts` räknar IN_STOCK +
+  prissatt + direkt länk, samma villkor som butiksfiltret). "NordicTCG 3" betydde 40 offers varav 3 i
+  lager — inte tre produkter. Mät alltid med `scripts/audit-store-catalog-coverage.ts` innan en
+  facettsiffra tolkas som ett täckningshål.
+  ⛔ **KOLLEKTIONSFILTRET ÄR INTE PROBLEMET (mätt 2026-08-15, `scripts/probe-shopify-coverage.ts`)**:
+  för alla 18 kollektionsbaserade Shopify-butiker jämfördes kollektionsvägen mot `/products.json`.
+  Det som ligger UTANFÖR kollektionerna är tillbehör, singlar, graderat, merch och tv-spel — Goblinens
+  234 är Vault X-pärmar och Dragon Shield-sleeves, Cardlevels 972 är singlar, AuroraDex 413 är graderade
+  kort. **Slå alltså INTE på `wholeCatalog` för dem**; det hade dragit in tusentals främmande produkter
+  i varje svep för noll vinst. Spelkortsbutikens feed på 3 varor är också korrekt — deras sitemap har
+  exakt tre Pokémon-produkter.
 - **NYA BUTIKER SÄLJER INTE BARA SEALED — VAKTERNA SATT I FEL KODVÄG (2026-08-07)**: `isSingleCardListing` fanns
   sedan länge i `productsConflict`, men ALDRIG i `ensureListingProduct`, den enda väg som SKAPAR produkter. Det gick
   an så länge butikerna vi hämtade sålde nästan bara sealed. De nya gör inte det: TCG Store har 754 singlar i sin
@@ -753,6 +839,44 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   döm aldrig en butik trasig utifrån en egen burst-körning utan att kolla prod-färskheten först.
   ⏭️ Leksaksaffären: 8 offers med 42 h gammal `lastSeenAt` medan feeden ger 37 annonser (URL:erna
   troligen utbytta) och butiken saknar strategi i `STORE_STOCK_STRATEGY` → går inte att verifiera.
+  ✅ **STRATEGIHÅLET STÄNGT 2026-08-15**: `resolveStockStrategy` härleder numera strategin ur URL:ens
+  FORM när butiken saknar en handskriven rad — `…/products/{handle}` ⇒ `shopify-js` (faller tillbaka
+  på JSON-LD om `.js` inte finns, så Quickbutik-butiker med samma URL-form hamnar ändå rätt), allt
+  annat ⇒ `json-ld`. Tabellen skrevs när vi hade elva butiker; wave 4 och 5 lade till 31 utan att
+  någon fick en rad, så **30 av 42 butiker gick inte att verifiera**. MÄTT efter fixen mot riktiga
+  produktsidor: The Swedish Fish, Pocketmonsters, Packs on Packs, NordicTCG, Coolcard och Spelexperten
+  ger nu RIKTIGA svar (tidigare null), och **varje svar stämde med feeden** — noll motsägelser.
+  Kvar utan svar: Leksaksaffären, Mystery Shack, CardGame (ingen JSON-LD) och Swepoke (uttryckligt
+  `none`). En uttrycklig rad i tabellen vinner alltid, inklusive `"none"`.
+- **⛔ SHOPIFYS `available` ÄR INTE SAMMA SAK SOM "GÅR ATT KÖPA" (2026-08-15)**: ägaren hittade
+  "Ascended Heroes Booster Bundle (ME2.5)" som i lager hos Kortarkivet medan butikens egen sida sa
+  "Slut i lager". Alla tre källor vi litat på — `products.json`, `/products/{handle}.js` och sidans
+  JSON-LD (`schema.org/InStock`) — kommer ur SAMMA Liquid-fält och kan därför inte motsäga varandra.
+  Bara KÖPKNAPPEN vet: storefronten renderade `<button name="add" … disabled>`.
+  **Uteslutet innan slutsatsen drogs** (metodläxan från `discontinued` 08-14): CDN-cache
+  (`cf-cache-status: DYNAMIC` även med cache-buster), marknad/valuta (samma `localization=SE` som
+  adaptern), och taggen `locked` (35 produkter bär den, 12 är köpbara). De två produkternas publika
+  JSON är IDENTISK fält för fält utom taggar.
+  `purchasableFromShopifyPage` (`stock-verify.ts`) läser `<form action="…/cart/add">`, väljer
+  formuläret med RÄTT variant-id och dömer på knappens `disabled`/slutsåld-text.
+  ⛔ **DEN HÅLLER MED ELLER AVSTÅR — DÄRFÖR BEHÖVS INGEN BUTIKSLISTA.** MÄTT mot 20 Shopify-butikers
+  riktiga produktsidor (tre i lager + tre slutsålda per butik): **0 fall där den felaktigt motsade
+  feeden**, 1 äkta träff, 4 butiker där den svarar null (temat renderar inget cart-formulär vi kan
+  läsa: Card Club, Beam Cardshop, Mystery Shack, Dragon's Lair). `null` ⇒ LITA PÅ FEEDEN.
+  **Tre inkopplingspunkter**: (1) varje övergång IN i lager i `runRestockScan` (både offer-grenen och
+  feed-först-grenen, tak `RESTOCK_BUY_CHECK_MAX`=25/körning, fail open över taket), (2) före utskick i
+  Discord-lanen, (3) `src/jobs/verify-instock-buyable.ts` som roterande nattlig kontroll i scrape-all.
+  ⛔ **ROTATIONEN ÄR EN SKÄRVA AV OFFER-ID, INTE EN KOLUMN.** Det finns ~1 000 IN_STOCK-offers hos
+  Shopify-butikerna och en produktsida är ~500 kB — att hämta alla varje natt vore ~500 MB ur
+  butikernas servrar för ett fel som drabbar 5 av 1 000. En skärva per dygn (1/7) ger full täckning på
+  en vecka utan migration.
+  ⛔ **RÄTTELSEN SKRIVER INGEN RestockEvent.** Det är ett felaktigt TILLSTÅND som korrigeras, inte en
+  lagerhändelse; skrivs den som händelse hamnar den i flapp-historiken och kan tysta nästa ÄKTA
+  påfyllning.
+  **Full svepning av alla 999**: 5 falska "i lager", ALLA hos Kortarkivet (butiken låser
+  release-produkter), rättade i prod 2026-08-15. Verktyg:
+  `scripts/verify-instock-buyable-run.ts` (`--all`, `--store=`, `--apply`) och
+  `scripts/probe-shopify-buy-button.ts` (mäter detektorn mot en feed-dump).
 - **FRÅNVARO UR FEEDEN KOLLAS, DEN TOLKAS INTE (2026-07-28)**: en offer vars URL försvann ur butikens feed
   nollades förr till UNKNOWN ("Okänd" i pristabellen bredvid ett dagsgammalt pris) — ärligt men blint, OCH
   eftersom UNKNOWN→IN_STOCK inte är en äkta övergång larmade en efterföljande restock ALDRIG. Sådana offers

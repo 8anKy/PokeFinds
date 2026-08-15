@@ -15,6 +15,8 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  cleanListingTitle,
+  hasPokemonTitleSignal,
   isAccessoryListing,
   isMerchandiseListing,
   isSingleCardListing,
@@ -157,6 +159,39 @@ describe("isBlockedListingLanguage — hela den kinesiska setkodsfamiljen", () =
       "Pokémon TCG: Mega Lucario ex League Battle Deck",
     ]) {
       expect(isBlockedListingLanguage(t, URL), t).toBe(false);
+    }
+  });
+});
+
+describe("Pokémon-evidensen får inte läsas på en titel som tvättats ren från beviset", () => {
+  // ⛔ ensureListingProduct körde `hasPokemonTitleSignal` BARA på den tvättade titeln,
+  //    och cleanListingTitle tar MED FLIT bort "Pokémon TCG:"-prefixet (katalogen
+  //    namnger inte produkter så). För varje SKU vars enda Pokémon-ord satt i prefixet
+  //    raderade tvätten precis det bevis vakten frågade efter → produkten avvisades som
+  //    "ingen Pokémon-signal". MÄTT mot 42 butikers feedar: 5 riktiga SKU:er föll så.
+  //    Vakten läser numera BÅDE råtiteln och den tvättade; testet vaktar premissen.
+  const strippedOfEvidence = [
+    "Pokemon TCG: 2025 World Championship Deck - Pult Bomb",
+    "Pokémon TCG: Battle Academy 2024",
+  ];
+  for (const raw of strippedOfEvidence) {
+    it(`"${raw}" tappar sitt bevis i tvätten men har det i råtiteln`, () => {
+      const empty = new Set<string>();
+      expect(hasPokemonTitleSignal(raw, empty)).toBe(true);
+      expect(hasPokemonTitleSignal(cleanListingTitle(raw), empty)).toBe(false);
+    });
+  }
+
+  it("råtiteln räddar INTE något som inte är Pokémon", () => {
+    const empty = new Set<string>();
+    for (const t of [
+      "Disney 100 Years of Wonder Booster Box",
+      "MARVEL Vol.3 Booster Pack",
+      "KPop Demon Hunters Energy Edition Booster Box",
+      "Toy Story 30 Years & Beyond Booster Box",
+    ]) {
+      expect(hasPokemonTitleSignal(t, empty), t).toBe(false);
+      expect(hasPokemonTitleSignal(cleanListingTitle(t), empty), t).toBe(false);
     }
   });
 });
