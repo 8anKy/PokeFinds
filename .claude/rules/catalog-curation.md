@@ -44,6 +44,13 @@ paths:
   (som också vaktar att ruttabells-exporten ALDRIG får ett gömfilter) + `restock-scan-ordering.test.ts`.
   ⚠️ Gömning är en UPPRÄKNING AV YTOR, inte ett tillstånd — varje ny publik lista måste filtrera själv.
   Sync-testet är listan.
+  ⚠️ **SÖK-AUTOCOMPLETE SLÄPAR UPP TILL ETT DYGN EFTER EN GÖMNING.** `/api/search/suggest` håller hela
+  den synliga katalogen i en MODUL-GLOBAL med `INDEX_TTL_MS = 24 h` (medvetet: den får aldrig gå till
+  Neon per tangenttryckning). Indexet byggs vid processtart, så en gömning syns i förslagen först vid
+  nästa **omstart** (= deploy) eller när dygnet gått. Katalogen/sök/facetter är DB-nära och stämmer
+  direkt. Mätt 2026-08-16: omgång 2 pushades FÖRE gömningen kördes, så deployen laddade indexet med de
+  132 produkterna kvar och de låg synliga i autocomplete efteråt. **Ordningen är alltså: kör
+  `--hide --apply` FÖRST, pusha sedan** — eller tvinga en omstart efteråt.
 
 - **ÄGARENS BESLUTSFIL: LÄNKAR IN, MERGAR UT (2026-08-13)**: ägaren går igenom katalogen och
   skriver sitt EGET format — `Duplicates` / länkar / `Go to` / länk, tomrad mellan grupper,
