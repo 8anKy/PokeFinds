@@ -16,6 +16,35 @@ paths:
 ---
 # Katalogstädning: ägarbeslut, mergar och denylist
 
+- **⛔ ATT RADERA UR KATALOGEN TYSTAR DISCORD PERMANENT — GÖM I STÄLLET (2026-08-15)**: Discord-lanen är
+  DB-fri och slår upp butiks-URL:en i ruttabellen, som byggs ur **Offer + StoreListing**. En raderad
+  produkt tar med sig sina offers ⇒ lanen SER fortfarande lagerflippen men kan inte posta den
+  ("okänd URL"), tyst. Och tystnaden är PERMANENT: raderingsflödet kräver att butiks-URL:erna
+  denylistas, och en nekad URL grindas ut i `ensureListingProduct` (runner.ts) före memot, så den kan
+  aldrig återfå sin route. MÄTT på ägarens lista: **155 butiks-URL:er över 18 restock-bevakade butiker**
+  (Aquitaz 41, DL 39, Coolcard 13, Rogerz 13, TCG Store 8 …) hade tystnat för alltid.
+  **`Product.hiddenAt` + `apply-owner-decisions.ts --hide`** är därför NORMALVÄGEN för "ta bort ur
+  katalogen": raden försvinner ur katalog/sök, facetter, autocomplete, liknande produkter, /marknad och
+  sitemap, mejl-/push-larmen tystnar (`isHiddenFromAlerts`) — men offern, routen och Discord-inlägget
+  lever vidare. Ångra = `--unhide` (samma fil; omgången bär EN tidsstämpel).
+  ⛔ **GÖMNING BEHÖVER INGEN DENYLIST OCH ÄR EN STARKARE SPÄRR ÄN RADERING**: `loadMatchIndex` läser hela
+  Product utan kategorifilter, så auto-importen binder URL:en till den GÖMDA raden i stället för att
+  skapa en ny stub. Inga herrelösa URL:er kan uppstå ⇒ ingen `--write-denylist`, ingen push före
+  körningen, ingen `purge-denylisted-products.ts`.
+  ⛔ **RADERA BARA DET SOM INTE ÄR EN PRODUKT** (tillbehör, merch, singlar som halkat in). Är det en
+  riktig SKU ägaren bara inte vill visa — göm.
+  ⛔ **PRODUKTSIDAN GRINDAS ALDRIG PÅ `hiddenAt`** — Discord-embedden länkar dit, så en 404 där vore
+  precis det utfall gömningen finns för att undvika. Sidan svarar; den annonseras bara inte.
+  ⛔ **`NOT_HIDDEN` BOR I `src/lib/product-visibility.ts`, INTE i services/products.ts**:
+  `products.ts` importerar `services/market.ts`, så konstanten därifrån hade slutit en importcykel —
+  och en `const` i en cykel kan bli `undefined`, vilket i ett `where` filtrerar INGENTING.
+  ⛔ **`isHiddenFromAlerts` JÄMFÖR LÖST (`!= null`) MED FLIT**: strikt `!== null` gör ett saknat fält
+  (en select som glömt kolumnen) till "gömd" ⇒ varenda restock-larm tystnar, tyst, i en bakgrundsloop.
+  Riktningen ska vara ett larm för mycket, aldrig noll. Vaktat av `tests/unit/product-hidden-sync.test.ts`
+  (som också vaktar att ruttabells-exporten ALDRIG får ett gömfilter) + `restock-scan-ordering.test.ts`.
+  ⚠️ Gömning är en UPPRÄKNING AV YTOR, inte ett tillstånd — varje ny publik lista måste filtrera själv.
+  Sync-testet är listan.
+
 - **ÄGARENS BESLUTSFIL: LÄNKAR IN, MERGAR UT (2026-08-13)**: ägaren går igenom katalogen och
   skriver sitt EGET format — `Duplicates` / länkar / `Go to` / länk, tomrad mellan grupper,
   `Delete`-rubrik för raderingar. `scripts/apply-owner-decisions.ts` läser filen; parsern bor i
