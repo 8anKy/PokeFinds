@@ -205,7 +205,33 @@ export async function recordScanUsage(
   cost?: {
     model: string | null;
     usage?: { inputTokens: number; outputTokens: number };
-  } | null
+  } | null,
+  /**
+   * RECALL-MÄTNINGEN (2026-08-15) — skrivs för ALLA användare, av samma skäl
+   * som `matched` och `cost`: mätdata som bara finns för admin mäter ägarens
+   * egna omsorgsfulla fångster, och det talet har redan lurat oss en gång
+   * (dokumenterad hoppfrekvens 79 % mot 30,5 % i produktion).
+   *
+   * Frågan den svarar på: räcker BILDEN ensam? Användarens bekräftade kort
+   * (`userChosen`, /api/scanner/feedback) jämförs mot `art` — ligger det i
+   * listan hade en bild-först-skanner hittat kortet utan vision-anrop.
+   *
+   * ⛔ **`art` OCH `shown` ÄR OLIKA LISTOR OCH BÅDA BEHÖVS.** `art` är
+   *    bildsökningens egen topplista, `shown` den kandidatlista användaren
+   *    faktiskt fick (bild + text vägt ihop). Utan båda går det inte att skilja
+   *    "bilden hade kortet men vägningen tryckte ner det" från "bilden hittade
+   *    det aldrig" — och de har helt olika åtgärder. Samma skäl som
+   *    `artTopLabel` finns bredvid `chosen` i admin-diagnostiken.
+   *
+   * ⛔ **INGA BILDER, INGA AVTRYCK.** Det här är kort-id:n ur vår egen katalog
+   *    — ingen kortdata, inget om personen. Avtrycket (264 byte) är nästa steg
+   *    och kräver en rad i integritetspolicyn; den här listan gör det inte.
+   *
+   * ⚠️ Storlek: 2 × 15 id:n ≈ 800 byte per rad. Bevaka den om listorna växer —
+   *    `ScannerJob.result` läses med rå SQL i kostnadsvyn just för att slippa
+   *    dra hem hela kolumnen.
+   */
+  recall?: { art: string[]; shown: string[] } | null
 ): Promise<string> {
   const job = await prisma.scannerJob.create({
     data: {
@@ -223,6 +249,9 @@ export async function recordScanUsage(
               ...(cost.usage ? { costUsage: { ...cost.usage } } : {}),
             }
           : {}),
+        // Egen nyckel, aldrig hopblandad med diagnostiken: den senare är
+        // admin-only och skulle ta med sig recall-datat in i den grinden.
+        ...(recall ? { recall: { v: 1, art: recall.art, shown: recall.shown } } : {}),
       },
     },
     select: { id: true },
@@ -1506,6 +1535,23 @@ export interface IdentifyResult {
    * mellan dem är precis den blinda justering som kostade oss flera varv.
    */
   artTopLabel: string | null;
+  /**
+   * Bildmatchningens topplista som RENA ID:n — mätunderlaget för frågan
+   * "skulle bilden ensam räcka?" (2026-08-15).
+   *
+   * ⛔ **DET HÄR ÄR INTE `artTopLabel`.** Den är en människoläsbar sträng för
+   *    admin-diagnostiken och går inte att räkna på. Recall mäts genom att
+   *    jämföra användarens BEKRÄFTADE kort mot den här listan, vilket kräver
+   *    id:n. `scripts/scanner-art-recall.ts` mäter samma sak på ägarens
+   *    facitset; det här fältet är vägen till samma tal för RIKTIGA användare.
+   *
+   * ⛔ **SKICKAS ALDRIG TILL KLIENTEN.** Routen plockar bort fältet innan
+   *    svaret går ut — live-vyn pollar ~var 1,5 s och ska inte bära 15 id:n
+   *    den inte använder. Det är mätdata, inte produktdata.
+   *
+   * Ordnad, bäst först. Tom när inget avtryck skickades.
+   */
+  artCandidateIds: string[];
 }
 
 /**
@@ -1747,6 +1793,7 @@ export async function identifyCard(
     ambiguous: isAmbiguous(candidates) || numberContradictedByArt,
     artTop: artMatches.length > 0 ? artMatches[0].score : null,
     artTopLabel,
+    artCandidateIds: artMatches.map((m) => m.cardId),
   };
 }
 

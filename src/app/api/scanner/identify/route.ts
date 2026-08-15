@@ -198,16 +198,27 @@ export async function POST(req: Request) {
       // utan vision-anrop — då VAR skanningen gratis.
       result.model && result.usage
         ? { model: result.model, usage: result.usage }
-        : { model: null }
+        : { model: null },
+      // RECALL-MÄTNINGEN — för ALLA användare. Se recordScanUsage.
+      {
+        art: result.artCandidateIds,
+        shown: result.candidates.map((c) => c.cardId),
+      }
     );
 
+    // ⛔ `artCandidateIds` är MÄTDATA och går inte ut på tråden: live-vyn
+    // pollar ~var 1,5 s och ska inte bära 15 id:n den aldrig läser.
+    const { artCandidateIds: _measurementOnly, ...clientResult } = result;
+
     return jsonOk({
-      ...result,
+      ...clientResult,
       remaining: Math.max(0, quota.remaining - 1),
-      // Bara admin: gör att klienten kan rapportera in ett manuellt korrigerat
-      // val som facit (/api/scanner/feedback). Vanliga rader saknar diagnostik
-      // (dataminimering) och har inget att koppla facit till.
-      jobId: isAdmin ? jobId : null,
+      // Gör att klienten kan rapportera in användarens val (/api/scanner/feedback).
+      // ⛔ SEDAN 2026-08-15 FÖR ALLA, inte bara admin: bekräftelsen är hela
+      // mätningen. Med enbart admin mäter vi ägarens egna fångster, och exakt
+      // den snedvridningen fick oss att tro att 79 % av skanningarna var gratis
+      // när produktionen låg på 30,5 %. Rader bär nu `recall` att fästa facit i.
+      jobId,
     });
   } catch (e) {
     return apiError(e);

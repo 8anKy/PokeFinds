@@ -150,7 +150,8 @@ interface ScanItem {
   condition: string;
   language: string;
   errorMessage?: string;
-  /** Admin: skanningens jobb-id — användarens korrigering rapporteras som facit. */
+  /** Skanningens jobb-id — användarens korrigering rapporteras som facit.
+   *  Sätts för ALLA användare sedan 2026-08-15 (var admin-only). */
   jobId?: string | null;
 }
 
