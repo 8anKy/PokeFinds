@@ -11,6 +11,7 @@ import { visibleListings } from "@/lib/listing-plausibility";
 import { compareCardNumbers } from "@/lib/card-number-order";
 import { PRINT_VARIANT_LABELS, REVERSE_VARIANT_LABELS } from "@/lib/print-variant";
 import { favoriteSetIds } from "@/lib/user-preferences";
+import { NOT_HIDDEN, NOT_HIDDEN_SQL } from "@/lib/product-visibility";
 import { getTrendingLift } from "@/services/market";
 import {
   bestMatchScore,
@@ -257,6 +258,10 @@ function toListItem(p: ProductWithRelations): ProductListItem {
  */
 export const HIDDEN_CATEGORIES: ProductCategory[] = ["ACCESSORY", "GRADED_CARD", "OTHER"];
 
+// Ägarens katalogborttagning bor i en leaf-modul (importcykel, se filens topp).
+// Re-exporteras här så anropare bara behöver ETT ställe för synlighetsreglerna.
+export { NOT_HIDDEN, NOT_HIDDEN_SQL } from "@/lib/product-visibility";
+
 /** Språk katalogen visar. EN + JP är policyn; CN/KR/EU importeras inte och ska inte
  *  synas ens om något halkat in (isBlockedListingLanguage vaktar ingången). */
 export const CATALOG_LANGUAGES: CardLanguage[] = ["EN", "JP"];
@@ -350,7 +355,10 @@ export async function buildProductWhere(
     if (hasCompoundWords) {
       const conditions = words.map((_, i) => `REPLACE(LOWER("normalizedTitle"), ' ', '') LIKE $${i + 1}`);
       const values = words.map((w) => `%${w.toLowerCase()}%`);
-      const sql = `SELECT "id" FROM "Product" WHERE ${conditions.join(" AND ")} LIMIT ${MAX_CANDIDATES}`;
+      // ⛔ Gömda måste bort HÄR också, inte bara i where-objektet nedan: id-listan
+      //    går in i en OR-gren, och en gömd produkt som matchar kompaktsökningen
+      //    hade då tagit sig förbi filtret via just den grenen.
+      const sql = `SELECT "id" FROM "Product" WHERE ${conditions.join(" AND ")} AND ${NOT_HIDDEN_SQL} LIMIT ${MAX_CANDIDATES}`;
       const rows = await prisma.$queryRawUnsafe<{ id: string }[]>(sql, ...values);
       compactMatchIds = rows.map((r) => r.id);
     }
@@ -376,6 +384,9 @@ export async function buildProductWhere(
   if (setId) andClauses.push({ OR: [{ setId }, { card: { setId } }] });
 
   const where: Prisma.ProductWhereInput = andClauses.length > 0 ? { AND: andClauses } : {};
+  // Ägarens borttagna produkter — se NOT_HIDDEN. Ligger på `where` och inte bland
+  // andClauses för att gälla oavsett vilka grenar ovan som råkat vara aktiva.
+  where.hiddenAt = null;
   // Flera valda kategorier = OR mellan dem. Gömda kategorier filtreras bort ur
   // valet först; blir listan tom faller vi tillbaka på "allt utom de gömda".
   const categories = toList(category).filter((c) => !HIDDEN_CATEGORIES.includes(c));
@@ -595,8 +606,9 @@ async function fuzzyIds(query: string): Promise<string[]> {
     // exakta sökningen redan gav NOLL, och poängsättningen ordnar unionen efteråt.
     const rows = await prisma.$queryRaw<{ id: string }[]>`
       SELECT id FROM "Product"
-      WHERE similarity("normalizedTitle", ${q}) > 0.28
-         OR word_similarity(${q}, "normalizedTitle") > 0.6
+      WHERE "hiddenAt" IS NULL
+        AND (similarity("normalizedTitle", ${q}) > 0.28
+         OR word_similarity(${q}, "normalizedTitle") > 0.6)
       ORDER BY GREATEST(
         similarity("normalizedTitle", ${q}),
         word_similarity(${q}, "normalizedTitle")
@@ -1691,7 +1703,8 @@ async function getSimilarProductsRaw(productId: string, limit = 8) {
     }
   };
   const remaining = () => limit - picked.length;
-  const priced = { lowestPriceOre: { not: null } } as const;
+  // Prissatt OCH inte bortgömd av ägaren — nivå 1-3 nedan spridar in båda.
+  const priced = { lowestPriceOre: { not: null }, ...NOT_HIDDEN } as const;
   const isSingle = product.category === "SINGLE_CARD";
   const rarity = product.card?.rarity ?? null;
 
@@ -1776,9 +1789,11 @@ async function getSimilarProductsRaw(productId: string, limit = 8) {
   }
 
   // Sista utväg (gamla beteendet): samma kategori oavsett språk/prissättning.
+  // ⛔ Den här grenen spridar INTE `priced` och behöver därför gömfiltret uttryckligen
+  //    — annars är sista utvägen precis den väg en bortgömd produkt tar tillbaka in.
   if (remaining() > 0) {
     add(await prisma.product.findMany({
-      where: { category: product.category, id: { notIn: [...pickedIds] } },
+      where: { category: product.category, ...NOT_HIDDEN, id: { notIn: [...pickedIds] } },
       include: SIMILAR_INCLUDE,
       orderBy: { viewCount: "desc" },
       take: remaining(),

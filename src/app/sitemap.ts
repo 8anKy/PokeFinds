@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { cachedRead, STATIC_CACHE_TAG } from "@/lib/cache";
 import { prisma } from "@/lib/db";
+import { NOT_HIDDEN } from "@/lib/product-visibility";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -43,6 +44,10 @@ const getSitemapRows = cachedRead(
   async (): Promise<{ products: SitemapRow[]; sets: SitemapRow[] }> => {
     const [products, sets] = await Promise.all([
       prisma.product.findMany({
+        // ⛔ Ägarens bortgömda produkter annonseras inte för crawlers. Sidorna SVARAR
+        //    fortfarande på en direkt träff — Discord-embeddens produktlänk måste
+        //    fungera — de ligger bara inte längre i sitemapen.
+        where: { ...NOT_HIDDEN },
         select: { slug: true, updatedAt: true },
         orderBy: { viewCount: "desc" },
         // Hela katalogen (long-tail-SEO är sajtens poäng); sitemap-taket är 50k URL:er.

@@ -470,6 +470,27 @@ model Product {
   // Senast namn-sökt på Tradera (roterande full-katalog-svep). null = aldrig sökt
   // → prioriteras först. Se src/jobs/tradera-sweep.ts (Fas 0).
   traderaCheckedAt   DateTime?
+  /// Ägaren har tagit bort produkten UR KATALOGEN utan att radera raden.
+  ///
+  /// ⛔ SKÄLET ÄR DISCORD-LANEN. En radering tar med sig produktens offers, och
+  /// ruttabellen (butiks-URL → produkt) byggs ur just Offer + StoreListing — så en
+  /// raderad produkt gör att restock-lanen ser lagerflippen men inte kan posta den
+  /// ("okänd URL"), TYST och för alltid. Dessutom kräver raderingsflödet att
+  /// butiks-URL:erna denylistas först, vilket gör tystnaden permanent.
+  /// Att i stället GÖMMA raden behåller offern, ruttabellen och Discord-inlägget.
+  ///
+  /// ⛔ DEN GÖMDA PRODUKTEN ÄR OCKSÅ VARFÖR DEN INTE KOMMER TILLBAKA: `loadMatchIndex`
+  /// läser hela Product utan kategorifilter, så auto-importen binder butiks-URL:en
+  /// till den gömda raden i stället för att skapa en ny stub. Ingen denylist behövs.
+  ///
+  /// ⛔ EGEN KOLUMN, INTE `category: OTHER`. HIDDEN_CATEGORIES är en DELAD spak vars
+  /// egen kommentar säger att den "kan återinföras senare" — hade gömningen legat
+  /// där hade varje sådan ändring dragit tillbaka hela ägarens borttagningslista i
+  /// katalogen på en gång. Kategorin styr dessutom annan logik och ska förbli sann.
+  ///
+  /// ⚠️ Sidan SVARAR fortfarande på sin egen URL (Discord-embedden länkar dit); den
+  /// är borta ur listning, filter, facetter, autocomplete, /marknad och sitemap.
+  hiddenAt           DateTime?
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 

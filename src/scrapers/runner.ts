@@ -102,6 +102,31 @@ import { mapPool } from "@/lib/concurrency";
 
 const MAX_ERRORS = 20;
 
+/**
+ * Ska den här produkten ALDRIG ge ett restock-larm (mejl/push)?
+ *
+ * Två skäl, samma utfall:
+ *   1. gömd KATEGORI — pärmar/sleeves/graderat, sedan 2026-06-14
+ *   2. `hiddenAt` — ägaren har tagit bort produkten ur katalogen utan att radera den
+ *
+ * ⛔ DEN HÄR GRINDEN GÄLLER INTE DISCORD-LANEN, och det är avsiktligt. Discord läser
+ *    ruttabellen (butiks-URL → produkt) och rör aldrig databasen — det är precis
+ *    därför en bortgömd produkt fortsätter posta där medan mejlen tystnar. En
+ *    radering hade tagit BÅDA, för ruttabellen byggs ur produktens offers.
+ * ⛔ Lagerstatus uppdateras fortfarande; det är bara UTSKICKET som uteblir. Annars
+ *    hade en gömd produkt legat kvar på fel status och larmat fel dag den visas igen.
+ *
+ * ⛔ `!= null`, INTE `!== null` — OCH RIKTNINGEN ÄR HELA POÄNGEN. Saknas fältet (en
+ *    select som glömt kolumnen) är värdet `undefined`, och med strikt jämförelse
+ *    blir VARENDA produkt "gömd" ⇒ alla restock-larm tystnar, tyst, i en
+ *    bakgrundsloop. Fångades av restock-scan-ordering-testet 2026-08-15. Den lösa
+ *    jämförelsen felar i stället ÅT ANDRA HÅLLET: ett larm för mycket, aldrig noll.
+ *    Typen kräver ändå fältet, så en riktig anropare fångas av kompilatorn.
+ */
+function isHiddenFromAlerts(product: { category: ProductCategory; hiddenAt: Date | null }): boolean {
+  return product.hiddenAt != null || HIDDEN_CATEGORIES.includes(product.category);
+}
+
 /** Namn → adapter-klass för SCRAPER-typ-källor. */
 const SCRAPER_ADAPTERS: Record<string, new () => SourceAdapter> = {
   Spelexperten: SpelexpertenAdapter,
@@ -854,7 +879,7 @@ export async function runRestockScan(opts?: {
     where: { retailerId: { in: retailerIds } },
     select: {
       id: true, url: true, productId: true, retailerId: true, stockStatus: true, lastSeenAt: true,
-      product: { select: { category: true } },
+      product: { select: { category: true, hiddenAt: true } },
     },
   });
   const offerByKey = new Map<string, (typeof offers)[number]>();
@@ -963,7 +988,11 @@ export async function runRestockScan(opts?: {
       // checkRestockAlerts äter dubbletten. Dubbelt larm >> missat larm.
       const ev = netStockEvent(offer.stockStatus, newStatus);
       // Gömda kategorier (pärmar/sleeves/graderat) uppdaterar lager men larmar aldrig.
-      const hidden = HIDDEN_CATEGORIES.includes(offer.product.category);
+      // ⛔ Detsamma för ägarens bortgömda produkter (`hiddenAt`): de är borta ur
+      //    katalogen, så ett mejl med en länk kunden inte kan hitta vore ohederligt.
+      //    Discord-lanen är OPÅVERKAD — den läser ruttabellen, inte den här grinden,
+      //    och det är hela skälet till att produkten göms i stället för att raderas.
+      const hidden = isHiddenFromAlerts(offer.product);
       if (!hidden && ev.emit) {
         await prisma.restockEvent.create({
           data: {
@@ -1189,7 +1218,7 @@ export async function runRestockScan(opts?: {
     // övergång och larmar därför inte — så en offer som stått "Okänd" i dagar helas
     // TYST i stället för att mejla ut en restock som aldrig hänt.
     const ev = netStockEvent(o.stockStatus, newStatus);
-    const hidden = HIDDEN_CATEGORIES.includes(o.product.category);
+    const hidden = isHiddenFromAlerts(o.product);
     if (!hidden && ev.emit) {
       await prisma.restockEvent.create({
         data: { productId: o.productId, retailerId: o.retailerId, oldStatus: ev.oldStatus, newStatus, price: null },

@@ -28,7 +28,8 @@ export interface ExploreFacets {
  * Refererar bara alias `p` så fragmentet kan delas av alla tre frågorna.
  */
 const visibleSql = () => Prisma.sql`
-  p."language"::text IN (${Prisma.join([...CATALOG_LANGUAGES])})
+  p."hiddenAt" IS NULL
+  AND p."language"::text IN (${Prisma.join([...CATALOG_LANGUAGES])})
   AND p."category"::text NOT IN (${Prisma.join([...HIDDEN_CATEGORIES])})
   AND (p."lowestPriceOre" IS NOT NULL OR p."variantLabel" IN (${Prisma.join([...PRINT_VARIANT_LABELS])}))`;
 

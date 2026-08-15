@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/db";
 import { cachedRead } from "@/lib/cache";
 import { utcDaysAgo } from "@/lib/utils";
+import { NOT_HIDDEN } from "@/lib/product-visibility";
 
 // UTC — samma nyckelrymd som PriceSnapshot.date (@db.Date). Se utcDaysAgo.
 const daysAgo = utcDaysAgo;
@@ -63,7 +64,9 @@ const computeChanges = cachedRead(computeChangesRaw, "computeChanges", 3600);
 
 async function attachProducts(changes: ProductChange[]) {
   const products = await prisma.product.findMany({
-    where: { id: { in: changes.map((c) => c.productId) } },
+    // Bortgömda produkter faller ur trending/ras/set-index. Uppslaget är
+    // choke point för alla tre — filtrera här, inte i varje anropare.
+    where: { id: { in: changes.map((c) => c.productId) }, ...NOT_HIDDEN },
     select: {
       id: true,
       title: true,
@@ -106,7 +109,7 @@ async function getMostWatchedRaw(limit = 10) {
     take: limit,
   });
   const products = await prisma.product.findMany({
-    where: { id: { in: grouped.map((g) => g.productId) } },
+    where: { id: { in: grouped.map((g) => g.productId) }, ...NOT_HIDDEN },
     select: {
       id: true,
       title: true,
@@ -325,7 +328,7 @@ export async function refreshPopularityScores(): Promise<{ updated: number }> {
 async function hydrateEngagement(counts: EngagementCount[]) {
   if (counts.length === 0) return [];
   const products = await prisma.product.findMany({
-    where: { slug: { in: counts.map((c) => c.productSlug) } },
+    where: { slug: { in: counts.map((c) => c.productSlug) }, ...NOT_HIDDEN },
     select: {
       id: true,
       title: true,
@@ -404,7 +407,7 @@ async function getSetIndexRaw() {
   if (changes.length === 0) return [];
 
   const products = await prisma.product.findMany({
-    where: { id: { in: changes.map((c) => c.productId) }, setId: { not: null } },
+    where: { id: { in: changes.map((c) => c.productId) }, setId: { not: null }, ...NOT_HIDDEN },
     select: { id: true, setId: true },
   });
   const setByProduct = new Map(products.map((p) => [p.id, p.setId!]));

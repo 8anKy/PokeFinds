@@ -4,6 +4,7 @@ import { apiError, jsonCached } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { normalizeTitle } from "@/lib/utils";
 import { HIDDEN_CATEGORIES } from "@/services/products";
+import { NOT_HIDDEN } from "@/lib/product-visibility";
 
 /**
  * Sökförslag (autocomplete). KVOT-KRITISKT: får ALDRIG göra en Neon-fråga per
@@ -36,8 +37,9 @@ function getIndex(): Promise<IndexEntry[]> {
   if (indexCache && Date.now() - indexCache.at < INDEX_TTL_MS) return indexCache.promise;
   const promise = prisma.product
     .findMany({
-      // Samma synlighetsregler som katalogen (buildProductWhere): prissatt + ej gömd kategori.
-      where: { lowestPriceOre: { not: null }, category: { notIn: HIDDEN_CATEGORIES } },
+      // Samma synlighetsregler som katalogen (buildProductWhere): prissatt, ej gömd
+      // kategori, och inte bortgömd av ägaren (NOT_HIDDEN).
+      where: { lowestPriceOre: { not: null }, category: { notIn: HIDDEN_CATEGORIES }, ...NOT_HIDDEN },
       select: {
         title: true,
         normalizedTitle: true,

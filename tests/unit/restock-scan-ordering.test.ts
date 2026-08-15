@@ -25,7 +25,11 @@ const offerRow = {
   retailerId: "r1",
   stockStatus: StockStatus.OUT_OF_STOCK as StockStatus, // var slut... (bred typ: happy path-testet skriver om den)
   lastSeenAt: new Date("2026-07-13T12:00:00Z"),
-  product: { category: "ETB" }, // sealed → larmar (ej HIDDEN_CATEGORIES)
+  // sealed OCH inte bortgömd av ägaren → larmar. Båda fälten krävs: grinden är
+  // `isHiddenFromAlerts` (runner.ts), och `hiddenAt` måste vara uttryckligen null —
+  // det var precis den utelämnade kolumnen som avslöjade att en strikt `!== null`
+  // hade tystat ALLA larm när fältet saknas.
+  product: { category: "ETB", hiddenAt: null as Date | null },
 };
 
 // Feeden säger nu IN_STOCK → äkta restock-övergång (OUT_OF_STOCK → IN_STOCK).
@@ -136,6 +140,30 @@ describe("runRestockScan — skrivordning vid restock", () => {
     // Övergången får INTE vara konsumerad: hade vi flippat först vore offern nu
     // IN_STOCK i DB:n och nästa körning hade sett "ingen ändring" → larmet försvunnit.
     expect(offerUpdate).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ÄGARENS BORTGÖMDA PRODUKTER (`Product.hiddenAt`, 2026-08-15) larmar inte via
+   * mejl/push — de är borta ur katalogen, så en länk kunden inte kan hitta vore
+   * ohederlig. Discord-lanen är opåverkad: den läser ruttabellen och rör aldrig
+   * den här koden, vilket är hela skälet att gömma i stället för att radera.
+   *
+   * ⛔ LAGERSTATUSEN MÅSTE ÄNDÅ FLIPPAS. Görs den inte ligger offern kvar på fel
+   *    status, och den dagen produkten visas igen larmar den för en "restock" som
+   *    hände för veckor sedan.
+   */
+  it("bortgömd produkt: inget event, inget larm — men statusen flippas ändå", async () => {
+    offerRow.product.hiddenAt = new Date("2026-08-15T00:00:00Z");
+    try {
+      const r = await runScan();
+
+      expect(r.restocks).toBe(0);
+      expect(restockEventCreate).not.toHaveBeenCalled();
+      expect(checkRestockAlertsMock).not.toHaveBeenCalled();
+      expect(offerUpdate).toHaveBeenCalledOnce();
+    } finally {
+      offerRow.product.hiddenAt = null;
+    }
   });
 });
 

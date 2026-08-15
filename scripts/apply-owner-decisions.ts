@@ -39,6 +39,20 @@
  *    till målet, MEN en offer vars (butik, skick, språk) redan finns på målet
  *    RADERAS i stället — och då blir dess URL herrelös och återskapas som ny stub.
  *    Skriptet räknar ut vilka mergar som drabbas och listar de URL:erna med.
+ *
+ * ⛔ `--hide` GÖMMER I STÄLLET FÖR ATT RADERA (2026-08-15), och det är oftast det
+ *    ägaren VILL. En radering tar med sig produktens offers, och Discord-lanens
+ *    ruttabell (butiks-URL → produkt) byggs ur just Offer + StoreListing — så en
+ *    raderad produkt gör att restock-lanen fortfarande SER lagerflippen men inte kan
+ *    posta den ("okänd URL"). Tyst, och permanent, eftersom raderingen dessutom
+ *    kräver att butiks-URL:erna denylistas.
+ *    Med `--hide` sätts `Product.hiddenAt` i stället: raden försvinner ur katalog,
+ *    sök, facetter, autocomplete, /marknad och sitemap, mejl-/push-larmen tystnar —
+ *    men offern, routen och Discord-inlägget lever vidare.
+ *    Följdregel: **ingen denylist behövs.** Produkten finns kvar, så `loadMatchIndex`
+ *    ser den och auto-importen binder butiks-URL:en till den gömda raden i stället
+ *    för att skapa en ny stub. Inga herrelösa URL:er kan uppstå.
+ *    Ångra = `--unhide` (nollar `hiddenAt` för samma lista).
  */
 import "./load-env";
 import * as fs from "node:fs";
@@ -55,6 +69,10 @@ const args = process.argv.slice(2);
 const FILE = args.find((a) => !a.startsWith("--"));
 const APPLY = args.includes("--apply");
 const WRITE_DENYLIST = args.includes("--write-denylist");
+// "Delete"-grupperna GÖMS i stället för att raderas — se filhuvudet. `--unhide`
+// är ångra-knappen och implicerar samma läge (annars hade den försökt radera).
+const UNHIDE = args.includes("--unhide");
+const HIDE = args.includes("--hide") || UNHIDE;
 const DENYLIST_PATH = path.join(process.cwd(), "src/scrapers/import-denylist.ts");
 
 if (!FILE) {
@@ -96,6 +114,11 @@ async function main() {
   const orphans: Orphan[] = [];
   for (const g of groups) {
     if (g.kind === "delete") {
+      // ⛔ EN GÖMD PRODUKT GÖR INGEN URL HERRELÖS. Raden och dess offers ligger kvar,
+      //    så ruttabellen behåller routen och auto-importen matchar mot den gömda
+      //    produkten i stället för att skapa en ny stub. Att denylista här hade
+      //    tystat Discord-inlägget — dvs precis det gömningen finns för att rädda.
+      if (HIDE) continue;
       for (const s of g.drop) {
         for (const o of bySlug.get(s)?.offers ?? []) {
           // Samma skäl som i orphanedOfferUrls: denylistan läses bara av
@@ -130,7 +153,7 @@ async function main() {
   for (const g of groups) {
     console.log("");
     if (g.kind === "delete") {
-      console.log(`RADERA  (rad ${g.line})`);
+      console.log(`${HIDE ? (UNHIDE ? "VISA IGEN" : "GÖM (behåller offers + Discord-route)") : "RADERA"}  (rad ${g.line})`);
       for (const s of g.drop) {
         const p = bySlug.get(s);
         console.log(`   ${p ? `[${p.category}, ${p._count.priceSnapshots} snap, ${p._count.watchlistItems} bev, ${p._count.collectionItems} saml] ${p.title}` : `❌ OKÄND SLUG "${s}"`}`);
@@ -159,7 +182,9 @@ async function main() {
   const merges = groups.filter((g) => g.kind === "merge");
   const deletes = groups.filter((g) => g.kind === "delete");
   console.log(`\n${"═".repeat(70)}`);
-  console.log(`${merges.length} sammanslagningar (${merges.reduce((n, g) => n + g.drop.length, 0)} rader bort) · ${deletes.reduce((n, g) => n + g.drop.length, 0)} raderingar`);
+  const dropCount = deletes.reduce((n, g) => n + g.drop.length, 0);
+  const dropWord = HIDE ? (UNHIDE ? "visas igen" : "göms (offers + Discord-route behålls)") : "raderingar";
+  console.log(`${merges.length} sammanslagningar (${merges.reduce((n, g) => n + g.drop.length, 0)} rader bort) · ${dropCount} ${dropWord}`);
   if (needDeny.length) {
     console.log(`\n⚠ ${needDeny.length} butiks-URL blir HERRELÖS och återskapas som ny stub inom minuter.`);
     for (const o of needDeny) console.log(`   ${o.store}: ${o.url}\n      (${o.why} · ${o.from})`);
@@ -211,6 +236,9 @@ async function main() {
   //    av det som togs bort — men den varnas för ovan så den kan denylistas ändå.
   const blockedDeletes = new Set<string>();
   for (const g of deletes) {
+    // Gömning kan inget "komma tillbaka" från — raden finns kvar och ÄR det
+    // auto-importen matchar mot. Vakten gäller bara riktiga raderingar.
+    if (HIDE) break;
     for (const s of g.drop) {
       const p = bySlug.get(s)!;
       // ⛔ SAMMA URVAL SOM DENYLIST-INSAMLINGEN, annars blockerar vakten en radering
@@ -237,18 +265,35 @@ async function main() {
     }
   }
   let removed = 0;
+  // EN tidsstämpel för hela körningen → omgången går att identifiera och ångra
+  // exakt (`WHERE "hiddenAt" = …`), i stället för 145 stämplar på var sin sekund.
+  const hiddenAt = UNHIDE ? null : new Date();
   for (const g of deletes) {
     for (const s of g.drop) {
       if (blockedDeletes.has(s)) {
         console.log(`  ⏭  hoppar över "${s}" — butiks-URL:en är inte nekad än (kör --write-denylist först).`);
         continue;
       }
-      await prisma.product.delete({ where: { id: bySlug.get(s)!.id } });
+      if (HIDE) {
+        await prisma.product.update({ where: { id: bySlug.get(s)!.id }, data: { hiddenAt } });
+      } else {
+        await prisma.product.delete({ where: { id: bySlug.get(s)!.id } });
+      }
       removed++;
     }
   }
-  console.log(`\n🔀 ${merged} sammanslagna · 🗑 ${removed} raderade${blockedDeletes.size ? ` · ${blockedDeletes.size} avvaktar denylist` : ""}.`);
+  const verb = HIDE ? (UNHIDE ? "🙈 visade igen" : "🙈 gömda") : "🗑 raderade";
+  console.log(`\n🔀 ${merged} sammanslagna · ${verb} ${removed}${blockedDeletes.size ? ` · ${blockedDeletes.size} avvaktar denylist` : ""}.`);
+  if (HIDE && !UNHIDE) {
+    console.log(`   Ångra HELA omgången: samma fil med --unhide --apply.`);
+  }
   console.log(`   Kör sedan: node scripts/with-prod-db.mjs npx tsx scripts/recompute-price-cache.ts`);
+  if (merged > 0) {
+    // ⛔ Mergen flyttar butiks-URL:en till målet, men ruttabellen i Actions-cachen
+    //    pekar fortfarande på stubbens slug → Discord-inlägg länkar till en produkt
+    //    som inte finns. Gömningar kräver INTE detta (routen är oförändrad).
+    console.log(`   Och: kör workflowet "Ruttabell för Discord-larm (manuell)" — mergade slugs finns kvar i cachen.`);
+  }
 }
 
 main()
