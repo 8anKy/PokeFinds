@@ -9,6 +9,7 @@ import { setAuthHint } from "@/lib/auth-hint";
 import { Button } from "@/components/ui/button";
 import { Input, PasswordInput, Label, FieldError } from "@/components/ui/input";
 import { suggestEmailCorrection } from "@/lib/email-typo";
+import { EmailTypoHint, useEmailTypoHint } from "@/components/features/email-typo-hint";
 
 interface FieldErrors {
   name?: string;
@@ -44,7 +45,12 @@ export default function RegisterPage() {
   // Förslag på rättad domän ("Menade du …@gmail.com?"). En feltypad adress är
   // annars en återvändsgränd: koden mejlas till ingenstans, och vi har varken
   // ett konto att laga eller en adress att nå personen på.
-  const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
+  const {
+    suggestion: emailSuggestion,
+    setSuggestion: setEmailSuggestion,
+    fieldProps: emailFieldProps,
+    accept: acceptEmailSuggestion,
+  } = useEmailTypoHint(setEmail);
   // Resends meddelande-id för den senast skickade koden + domen om den. Ett fel
   // i adressens LOKALDEL går inte att gissa i förväg (till skillnad från domänen,
   // se suggestEmailCorrection) — bara mottagarens server vet, och utan det här
@@ -357,26 +363,16 @@ export default function RegisterPage() {
             required
             placeholder={t("emailPlaceholder")}
             value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              setEmailSuggestion(null);
-            }}
-            onBlur={(e) => setEmailSuggestion(suggestEmailCorrection(e.target.value))}
+            {...emailFieldProps}
           />
           <FieldError message={fieldErrors.email} />
-          {emailSuggestion && (
-            <button
-              type="button"
-              className="mt-1.5 text-left text-sm text-holo-cyan hover:underline"
-              onClick={() => {
-                setEmail(emailSuggestion);
-                setEmailSuggestion(null);
-                setFieldErrors((prev) => ({ ...prev, email: undefined }));
-              }}
-            >
-              {t("register.didYouMean", { email: emailSuggestion })}
-            </button>
-          )}
+          <EmailTypoHint
+            suggestion={emailSuggestion}
+            onAccept={() => {
+              acceptEmailSuggestion();
+              setFieldErrors((prev) => ({ ...prev, email: undefined }));
+            }}
+          />
         </div>
         <div>
           <Label htmlFor="password">{t("passwordLabel")}</Label>

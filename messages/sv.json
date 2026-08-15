@@ -136,6 +136,7 @@
     "emailPlaceholder": "din@epost.se",
     "passwordLabel": "Lösenord",
     "genericError": "Något gick fel. Försök igen.",
+    "didYouMean": "Menade du {email}?",
     "login": {
       "title": "Logga in",
       "subtitle": "Välkommen tillbaka! Logga in för att se dina bevakningar.",
@@ -161,7 +162,6 @@
       "errPassword": "Lösenordet måste vara minst 8 tecken.",
       "errConfirm": "Lösenorden matchar inte.",
       "errCode": "Ange den 6-siffriga koden från mejlet.",
-      "didYouMean": "Menade du {email}?",
       "sendCode": "Skicka kod",
       "sendCodeHint": "Vi mejlar en kod som bekräftar att adressen är din. Kontot skapas i nästa steg.",
       "codeTitle": "Bekräfta din e-postadress",

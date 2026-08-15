@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { EmailTypoHint, useEmailTypoHint } from "@/components/features/email-typo-hint";
 
 type Status = "loading" | "success" | "error";
 
@@ -102,6 +103,9 @@ function ResendForm() {
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
+  // Svaret är detsamma oavsett om adressen finns (kartläggningsskydd), så en
+  // felstavning ser ut som en lyckad utskick. Förslaget är enda varningen.
+  const emailTypo = useEmailTypoHint(setEmail);
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -138,8 +142,9 @@ function ResendForm() {
           required
           placeholder={t("emailPlaceholder")}
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          {...emailTypo.fieldProps}
         />
+        <EmailTypoHint suggestion={emailTypo.suggestion} onAccept={emailTypo.accept} />
       </div>
       <Button type="submit" loading={sending} variant="secondary" className="w-full">
         {t("verify.resendSubmit")}

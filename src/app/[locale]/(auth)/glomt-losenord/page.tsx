@@ -5,10 +5,18 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
+import { EmailTypoHint, useEmailTypoHint } from "@/components/features/email-typo-hint";
 
 export default function ForgotPasswordPage() {
   const t = useTranslations("Auth");
   const [email, setEmail] = useState("");
+  // Samma återvändsgränd som registreringen hade, av motsatt skäl: en felstavad
+  // adress matchar inget konto, så INGET mejl skickas — men svaret är ändå "om
+  // kontot finns skickar vi en länk" (med flit, annars går det att kartlägga
+  // vilka adresser som har konto). Användaren väntar då för alltid på en länk
+  // som aldrig skickades. ⛔ Studs-detektering går därför INTE att återanvända
+  // här: ett meddelande-id i svaret hade avslöjat att adressen finns.
+  const emailTypo = useEmailTypoHint(setEmail);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -69,8 +77,9 @@ export default function ForgotPasswordPage() {
               required
               placeholder={t("emailPlaceholder")}
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              {...emailTypo.fieldProps}
             />
+            <EmailTypoHint suggestion={emailTypo.suggestion} onAccept={emailTypo.accept} />
           </div>
 
           <FieldError message={error} />

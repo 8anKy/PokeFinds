@@ -1313,6 +1313,29 @@ egen design, egen copy (svenska). Nämn ALDRIG inspirations-/konkurrentsidor i k
   nya Resend-händelser, 404/429 från API:t, saknad nyckel i konsolläge. Ett falskt studsbesked avbryter
   en registrering som var på väg att lyckas. Domen är en ren funktion i `src/lib/mail-status.ts`, testad
   utan nätverk. ⚠️ Utan `RESEND_API_KEY` (dev/konsolläge) finns inget id ⇒ ingen pollning alls.
+  **TYPO-FÖRSLAGET SITTER PÅ ALLA FYRA E-POSTFÄLT (2026-08-15)**: registrering, inloggning, glömt
+  lösenord och begär-ny-länk delar `useEmailTypoHint` + `<EmailTypoHint>`
+  (`src/components/features/email-typo-hint.tsx`) och nyckeln `Auth.didYouMean`. EN implementation —
+  fyra kopior hade drivit isär vid nästa domän som läggs till.
+  ⛔ **STUDS-DETEKTERING GÅR INTE ATT ÅTERANVÄNDA PÅ /glomt-losenord ELLER /verifiera.** Båda svarar
+  MED FLIT likadant oavsett om kontot finns ("Om kontot finns skickar vi en återställningslänk") för
+  att adresser inte ska gå att kartlägga. Ett `mailId` i svaret hade avslöjat att ett mejl FAKTISKT
+  skickades, dvs. att kontot existerar — kartläggningsorakel. Typo-förslaget är därför enda varningen
+  där, och det är också där det behövs mest: en felstavad adress matchar inget konto, så inget mejl
+  skickas över huvud taget och användaren väntar för alltid på en länk som aldrig fanns.
+  ⚠️ Inloggningen bromsar inte vid submit (ett misslyckat försök är omedelbart synligt); bara
+  registreringen gör det, eftersom ett utskick till fel adress är svårt att ta tillbaka.
+  **VÄNTRUMMET GALLRAS NATTLIGEN (2026-08-15)**: `SignupVerification`-raden raderas annars BARA vid
+  lyckad registrering, så varje avbruten/utgången/studsad registrering lämnade en e-postadress i
+  tabellen för alltid. `scripts/signup-verification-report.ts` (steg i scrape-all, `--apply`) städar
+  rader som gått ut för mer än `GRACE_HOURS` (24) sedan. ⛔ **RAPPORTEN SKRIVS FÖRE RADERINGEN** —
+  raderna är det ENDA spåret av misslyckade registreringar (ingen analytics, ingen adminvy), så
+  fördelningen loggas varje natt även när raderna försvinner. ⛔ En rad vars adress redan är ett konto
+  är INGEN avhoppare: raderingen i register-routen är nycklad på adressen som faktiskt användes, så
+  den som rättade en felstavning lämnar kvar väntrumsraden för den gamla. Räknas den som "gav upp"
+  blir tratten fel. ⛔ Karensen finns för MÄNNISKAN, inte för koden (som lever 15 min): den som skrev
+  fel adress ska hinna komma tillbaka nästa morgon. Mätt 2026-08-15 före första körningen: 6 rader
+  totalt, 2 städbara — problemet var principiellt, aldrig volymmässigt.
 - **DB**: PROD = Neon serverless Postgres (Frankfurt), connection-string i `.env` som `NEON_DATABASE_URL`. DEV = lokal PostgreSQL 18 (tjänst `postgresql-x64-18`), databas `pokefinds`, user `postgres`, lösen `pokefinds-local`. Docker behövs INTE. `DB_POOL`-env sätter `connection_limit` för batch-jobb
 - **Prod-DB från CLI — ANVÄND ALLTID `scripts/with-prod-db.mjs`**:
   ```bash

@@ -9,6 +9,7 @@ import { signIn } from "next-auth/react";
 import { setAuthHint } from "@/lib/auth-hint";
 import { Button } from "@/components/ui/button";
 import { Input, PasswordInput, Label, FieldError } from "@/components/ui/input";
+import { EmailTypoHint, useEmailTypoHint } from "@/components/features/email-typo-hint";
 
 function LoginForm() {
   const t = useTranslations("Auth");
@@ -20,6 +21,10 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // En felstavad domän här ger "fel e-post eller lösenord", och den som är säker
+  // på sitt lösenord letar då efter fel fel. Ingen broms vid submit — ett
+  // misslyckat inloggningsförsök är omedelbart synligt och kostar ingenting.
+  const emailTypo = useEmailTypoHint(setEmail);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -62,8 +67,9 @@ function LoginForm() {
             required
             placeholder={t("emailPlaceholder")}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            {...emailTypo.fieldProps}
           />
+          <EmailTypoHint suggestion={emailTypo.suggestion} onAccept={emailTypo.accept} />
         </div>
         <div>
           <div className="flex items-center justify-between">

@@ -140,6 +140,19 @@ jobs:
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
         run: npx tsx scripts/pro-expiry-notice-run.ts
 
+      # Gallra väntrummet för påbörjade registreringar. Raden raderas annars BARA
+      # när registreringen lyckas, så varje avbruten, utgången eller studsad
+      # registrering lämnar en e-postadress i tabellen för alltid — personuppgifter
+      # utan syfte och utan gallringstid. Ligger som STEG här (aldrig egen cron):
+      # Neon debiteras per VAKEN TID och är redan vaken i det här fönstret.
+      # ⛔ Skriptet skriver ut fördelningen INNAN det raderar. Raderna är det enda
+      # spår som finns av misslyckade registreringar, så loggen är kvar även när
+      # raderna är borta. Se src/lib/signup-verification-audit.ts.
+      - if: steps.guard.outputs.ready == 'true'
+        name: Gallra utgångna registreringskoder
+        continue-on-error: true
+        run: npx tsx scripts/signup-verification-report.ts --apply
+
       # Släng den cachade bilden av priserna — se cardmarket-refresh.yml för varför.
       - if: steps.guard.outputs.ready == 'true'
         name: Invalidera sid-cachen (priserna är skrivna)

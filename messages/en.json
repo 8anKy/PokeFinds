@@ -136,6 +136,7 @@
     "emailPlaceholder": "you@email.com",
     "passwordLabel": "Password",
     "genericError": "Something went wrong. Try again.",
+    "didYouMean": "Did you mean {email}?",
     "login": {
       "title": "Log in",
       "subtitle": "Welcome back! Log in to see your watches.",
@@ -161,7 +162,6 @@
       "errPassword": "The password must be at least 8 characters.",
       "errConfirm": "The passwords don't match.",
       "errCode": "Enter the 6-digit code from the email.",
-      "didYouMean": "Did you mean {email}?",
       "sendCode": "Send code",
       "sendCodeHint": "We'll email you a code to confirm the address is yours. Your account is created in the next step.",
       "codeTitle": "Confirm your email address",
