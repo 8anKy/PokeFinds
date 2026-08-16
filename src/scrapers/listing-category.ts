@@ -74,7 +74,15 @@ export function guessListingCategory(title: string): ListingCategory {
   //    (Scarlet) och engelska "Martin"/"Latin".
   if (/\btin\b/.test(t)) return "TIN";
 
-  if (/blister/.test(t)) return "BLISTER";
+  // ⛔ "CHECKLANE" UTAN ORDET "BLISTER" ÄR OCKSÅ EN BLISTER (2026-08-16). Butikerna
+  //    skriver ofta bara formen: "Journey Together Premium Checklane", "Pitch Black
+  //    Checklane (max 2 per hushåll)". Resten av kodbasen VET redan att checklane är
+  //    en blister — `CHARACTER_IDENTITY_FORMS` i matching.ts listar den bredvid
+  //    blister och mini tin, och blistervakten räknar checklane som en 1-pack — men
+  //    klassificeraren gjorde det inte, så de föll till OTHER och blev därmed
+  //    osynliga i katalogen OCH tysta i Discord-lanen. Ordet är Pokémon-specifik
+  //    butiksterminologi; ingen annan produktklass bär det.
+  if (/blister|checklane/.test(t)) return "BLISTER";
   if (/bundle/.test(t)) return "BUNDLE";
 
   // ── NYA FORMER (2026-08-15) ────────────────────────────────────────────────
@@ -89,7 +97,13 @@ export function guessListingCategory(title: string): ListingCategory {
   //    "Ascended Heroes **Tech Sticker Collection Blister** (Gastly) (3 Pack)" bytte
   //    annars BLISTER → COLLECTION_BOX. En blister är en blister; kvalificeringen
   //    beskriver vad som ligger I den, inte formen.
-  if (/\b(figure|poster|pin|sticker|special)\s*collection\b/.test(t)) return "COLLECTION_BOX";
+  // `illustration` tillkom 2026-08-16: "First Partner Illustration Collection Series 2"
+  // är en riktig sealed-linje som föll till OTHER. ⛔ Frasen måste stå ihop — bart
+  // "illustration" är kortRARITETEN ("Illustration Rare") och skulle fånga singlar.
+  if (/\b(figure|poster|pin|sticker|special|illustration)\s*collection\b/.test(t)) return "COLLECTION_BOX";
+  // Pokémons egen "Collector's Chest" är en plåtask med boosters — egen produktlinje,
+  // Pokémon-specifik fras, och den bar inget av formorden ovan.
+  if (/\bcollector'?s?\s*chest\b/.test(t)) return "TIN";
 
   // Byggda lekdäck som säljs sealed. "Deck" ensamt är FÖRBJUDET — "Deck Box" och
   // "Deck Protector" är tillbehör, och "deck sleeves" likaså.

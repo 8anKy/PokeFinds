@@ -114,3 +114,36 @@ describe("guessListingCategory — ordningen är betydelsebärande", () => {
     expect(guessListingCategory("Pokémon Palmsize Wonders Series 2 Eeveelution Blind Box")).toBe("OTHER");
   });
 });
+
+/**
+ * FORMER SOM FÖLL TILL OTHER OCH DÄRMED BLEV OSYNLIGA (2026-08-16).
+ * Mätt mot alla 42 butikers levande feedar: fyra riktiga sealed-annonser nådde
+ * aldrig Discord-kanalen enbart för att klassificeraren inte kände formen.
+ * ⛔ OTHER är inte en etikett — den gör varan osynlig i katalogen, tyst i larmen och
+ *    oimporterbar. Se filhuvudet i listing-category.ts.
+ */
+describe("former som tidigare föll till OTHER", () => {
+  it("checklane ÄR en blister även utan ordet 'blister'", () => {
+    // Resten av kodbasen vet det redan (CHARACTER_IDENTITY_FORMS i matching.ts);
+    // klassificeraren gjorde det inte.
+    expect(guessListingCategory("Pokemon Scarlet & Violet 9: Journey Together Premium Checklane")).toBe("BLISTER");
+    expect(guessListingCategory("Pokemon Pitch Black Checklane (max 2 per hushåll)")).toBe("BLISTER");
+    // …och den vanliga skrivningen är oförändrad.
+    expect(guessListingCategory("Destined Rivals: Zarude 1-Pack Blister")).toBe("BLISTER");
+  });
+
+  it("Illustration Collection är en sealed-linje", () => {
+    expect(guessListingCategory("Pokémon TCG: First Partner Illustration Collection Series 2")).toBe("COLLECTION_BOX");
+  });
+
+  it("⛔ men bart 'illustration' är kortRARITETEN, inte en form", () => {
+    // "Illustration Rare" är en rarity på ENSKILDA kort — fångas den blir varje
+    // sådan singel en katalogprodukt.
+    expect(guessListingCategory("Charizard ex 234/197 Special Illustration Rare")).toBe("OTHER");
+  });
+
+  it("Collector's Chest är en plåtask med boosters", () => {
+    expect(guessListingCategory("Pokémon, Collectors Chest 2025")).toBe("TIN");
+    expect(guessListingCategory("Pokemon Collector's Chest Tin 2024")).toBe("TIN");
+  });
+});
