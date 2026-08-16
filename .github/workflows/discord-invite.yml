@@ -10,6 +10,13 @@ name: Discord-inbjudan (manuell)
 # `Foilio <noreply@foilio.se>` i stället för den lokala .env:ens föråldrade
 # pokefinds.se-avsändare.
 #
+# ⚠️ DEN FALLBACKEN VAR TRASIG till 2026-08-16: repo-variabeln `EMAIL_FROM` finns
+# inte, `${{ vars.EMAIL_FROM }}` expanderar då till TOM STRÄNG, och mailern använde
+# `??` som bara fångar undefined. Avsändaren blev tom ⇒ Resend `422 "The domain is
+# invalid"`. Fixat med `||` i src/lib/mailer.ts. Sätt alltså INTE repo-variabeln för
+# att "laga" det — koden äger avsändaren, och en variabel som pekar på pokefinds.se
+# vore en tyst regression.
+#
 # ⛔ ALDRIG PÅ SCHEMA. Det här är ett engångsutskick; ett schemalagt sådant vore
 # spam mot en lista där avanmälan är samma spak som bär pris- och restock-larmen.
 on:

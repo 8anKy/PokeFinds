@@ -61,12 +61,22 @@ export function isPermanentMailError(err: unknown): boolean {
   return err instanceof MailError && err.permanent;
 }
 
-const FROM = process.env.EMAIL_FROM ?? "Foilio <noreply@foilio.se>";
+// ⛔ `||`, ALDRIG `??`. GitHub Actions expanderar `${{ vars.EMAIL_FROM }}` till TOM
+// STRÄNG när repo-variabeln inte finns — och `"" ?? default` är `""`, inte defaulten.
+// Avsändaren blev alltså tom och Resend svarade `422 "The domain is invalid"`.
+// Upptäckt 2026-08-16 vid första skarpa provutskicket av veckobrevet; felet var
+// LATENT i scrape-alls pro-expiry-steg (samma `vars.EMAIL_FROM`), som bara mejlar
+// när någon faktiskt håller på att förlora Pro — dvs det hade slagit till först i
+// exakt det ögonblick meddelandet betyder något, och tyst, bakom continue-on-error.
+// Samma familj som `variantLabel`-vakten 07-28: ett fält som FINNS men är tomt
+// passerar en vakt som bara letar efter att det saknas.
+const FROM = process.env.EMAIL_FROM || "Foilio <noreply@foilio.se>";
 // Avsändaren är noreply@ (DKIM-signerad via Resend på foilio.se). Men användare
 // svarar ändå på larmmejlen ("priset har sjunkit" → "har ni kvar den?"). Utan
 // reply_to landar svaret på noreply@, som inte finns i Google Workspace → studs
 // med "user unknown" och frågan når oss aldrig. Peka svaren på den bemannade lådan.
-const REPLY_TO = process.env.EMAIL_REPLY_TO ?? "hej@foilio.se";
+// `||` av samma skäl som FROM ovan — en tom variabel är inte ett val, den är ett hål.
+const REPLY_TO = process.env.EMAIL_REPLY_TO || "hej@foilio.se";
 
 /**
  * Konsolläge är ett UTTRYCKLIGT val (EMAIL_MODE=console) eller utveckling utan
