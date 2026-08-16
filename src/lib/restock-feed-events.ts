@@ -456,6 +456,17 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
       series: route?.series ?? guessed?.series ?? null,
       language,
       productUrl: route ? `${site}/produkter/${route.slug}` : null,
+      // ⛔ RESERVLÄNK NÄR PRODUKTSIDAN INTE FINNS (2026-08-16). En URL utan rutt har
+      // ingen produktsida att peka på — inlägget stod därför helt utan väg tillbaka
+      // till oss, vilket ägaren såg direkt i kanalen. Setet vet vi ändå (det är så
+      // inlägget hamnade i rätt kanal), och katalogen filtrerar på `setId`.
+      // ⛔ FRITEXTSÖK (`?q=`) DUGER INTE: filtret kräver att ALLA ord i frågan finns i
+      //    produktens normalizedTitle, och butikstiteln bär prefix ("Pokémon Mega
+      //    Evolution: …"), språktaggar ("(ENG)") och ibland stavfel ("Phantsmal") —
+      //    en sådan sökning hade landat på NOLL träffar. En setlänk kan varken bli
+      //    fel eller landa tomt, och det är samma avvägning som kanalvalet gör:
+      //    hellre rätt och generellt än specifikt och felaktigt.
+      setUrl: !route && guessed?.id ? `${site}/produkter?set=${encodeURIComponent(guessed.id)}` : null,
       preorder: isPreorderOpen,
     });
   }

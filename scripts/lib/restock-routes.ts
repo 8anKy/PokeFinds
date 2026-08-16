@@ -44,11 +44,15 @@ export interface RestockRoutesPayload {
    */
   deniedUrls: string[];
   /**
-   * Set → serie/språk. Låter lanen välja RÄTT kanal även för en URL som saknar rutt:
-   * setnamnet står nästan alltid i butikens titel. Utan detta hade varje ny SKU
+   * Set → id/serie/språk. Låter lanen välja RÄTT kanal även för en URL som saknar
+   * rutt: setnamnet står nästan alltid i butikens titel. Utan detta hade varje ny SKU
    * hamnat i catch-all och seriekanalerna blivit tomma skal.
+   *
+   * `id` bär dessutom RESERVLÄNKEN i inlägget: `/produkter?set=<id>` (katalogsidan
+   * filtrerar på `setId`). En URL utan rutt har ingen produktsida att peka på — men
+   * setet vet vi, och en setlänk kan varken bli fel eller landa tomt.
    */
-  sets: { name: string; series: string | null; language: string | null }[];
+  sets: { id: string; name: string; series: string | null; language: string | null }[];
 }
 
 export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null> {
@@ -154,10 +158,11 @@ export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null>
   // aldrig sett. Båda är TAXONOMI — några hundra rader, inga produkter — och
   // hämtas här, i det fönster där Neon ändå är vaken.
   const cardSets = await prisma.cardSet.findMany({
-    select: { name: true, series: true, language: true },
+    select: { id: true, name: true, series: true, language: true },
   });
   const setNames = cardSets.map((s) => s.name);
   const sets = cardSets.map((s) => ({
+    id: s.id,
     name: s.name,
     series: s.series ?? null,
     language: (s.language as string | null) ?? null,

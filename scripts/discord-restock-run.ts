@@ -416,7 +416,9 @@ async function main() {
         console.log(
           `[discord-restock][dry] ${p.storeName} → ${p.title} ` +
             `[set ${p.setName ?? "–"} / serie ${p.series ?? "–"} / ${p.language ?? "EN"}` +
-            `${p.preorder ? " / FÖRHANDSBOKNING" : ""}] ${p.storeUrl}`
+            `${p.preorder ? " / FÖRHANDSBOKNING" : ""}] ${p.storeUrl}` +
+            // Vägen tillbaka till oss — den rad ägaren saknade i kanalen 2026-08-16.
+            ` | oss: ${p.productUrl ?? p.setUrl ?? "INGEN"}`
         );
       }
       totalPosted += postable.length;

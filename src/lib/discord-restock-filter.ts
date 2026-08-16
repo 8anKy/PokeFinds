@@ -206,6 +206,11 @@ export function classifyDiscordListing(
  * i takt med att lanen ser MER.
  */
 export interface KnownSet {
+  /**
+   * CardSet.id — bär reservlänken i inlägget (`/produkter?set=<id>`). Saknas i äldre
+   * cachade ruttabeller → ingen setlänk, bara kanalvalet, dvs oförändrat beteende.
+   */
+  id: string | null;
   name: string;
   series: string | null;
   language: string | null;
@@ -214,7 +219,7 @@ export interface KnownSet {
 }
 
 export function buildKnownSets(payload: {
-  sets?: { name: string; series: string | null; language: string | null }[] | null;
+  sets?: { id?: string | null; name: string; series: string | null; language: string | null }[] | null;
 }): KnownSet[] {
   const out: KnownSet[] = [];
   for (const s of payload.sets ?? []) {
@@ -227,7 +232,7 @@ export function buildKnownSets(payload: {
       //    varenda butik); en gissning på tre tecken är inte värd risken att posta
       //    "Mega Evolution"-varor i 151-kanalen.
       if (normalized.length >= 4 && !out.some((o) => o.normalized === normalized && o.language === s.language)) {
-        out.push({ name: s.name, series: s.series, language: s.language, normalized });
+        out.push({ id: s.id ?? null, name: s.name, series: s.series, language: s.language, normalized });
       }
     }
   }

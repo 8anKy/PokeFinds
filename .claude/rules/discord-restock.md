@@ -53,6 +53,19 @@ allt annat butikerna säljer var osynligt, och bortfallet gick inte att skilja f
   i kanalerna också). ⛔ Setnamnen byggs dessutom ur ruttabellens EGNA `setName`-värden, så en ÄLDRE
   cachad fil ger en användbar lista — annars hade en deploy stått med försvagad Pokémon-vakt tills
   nästa nattliga export, dvs fällt riktiga påfyllningar som "no-pokemon-signal" i upp till ett dygn.
+- **RESERVLÄNK NÄR PRODUKTSIDAN SAKNAS (2026-08-16, ägaren såg det i kanalen)**: ett katalogfritt
+  inlägg har ingen produktsida att peka på, så embedden stod helt utan väg tillbaka till oss. Setet
+  vet vi ändå (det är så inlägget hamnade i rätt kanal) ⇒ `/produkter?set=<CardSet.id>`, fältnamn
+  **"Hos oss"**, inte "Prishistorik" — det senare lovar en prisgraf som bara finns på produktsidan.
+  ⛔ **FRITEXTSÖK (`?q=`) DUGER INTE SOM RESERV.** Katalogfiltret kräver att ALLA ord i frågan finns
+  i produktens `normalizedTitle` (`buildProductWhere`, AND över orden), och butikstiteln bär prefix
+  ("Pokémon Mega Evolution: …"), språktaggar ("(ENG)") och ibland stavfel ("Phantsmal") — en sådan
+  sökning landar på NOLL träffar. Dessutom är `/produkter?q=` blockerad i robots.txt, dvs den är
+  medvetet inte en delbar URL-rymd. En setlänk kan varken bli fel eller landa tomt (verifierat mot
+  prod: 200 och 25 produkter). ⛔ Lägg INTE på `&kategori=` "för att träffa rätt" — då kan sidan bli
+  tom när katalogen saknar just den formen, och tom sida är värre än en bred.
+  ⚠️ `sets[].id` tillkom i ruttabellen samtidigt; en ÄLDRE cachad fil ger kanalval men ingen
+  setlänk (testat), aldrig ett uteblivet inlägg.
 - ⛔ **ETT SET SOM HETER SAMMA SAK SOM SIN SERIE är den MINST specifika tolkningen** (`matchKnownSet`):
   "Mega Evolution" är både ett set (seriens basutgåva) och en serie, och butikerna skriver ut serien
   före setet ("Mega Evolution - Chaos Rising Booster"). Längsta-namn-matchning ensam hade lagt varan

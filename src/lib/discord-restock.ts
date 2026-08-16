@@ -172,6 +172,13 @@ export interface RestockPost {
   language?: string | null;
   /** Vår produktsida, när URL:en gick att slå upp i ruttabellen. */
   productUrl: string | null;
+  /**
+   * Reservlänk till katalogen filtrerad på SETET, för inlägg där vi inte känner igen
+   * butikens URL och därför inte har någon produktsida. Används bara när
+   * `productUrl` saknas — en setlänk kan varken bli fel eller landa tomt, till
+   * skillnad från ett fritextsök på butikens titel (se restock-feed-events.ts).
+   */
+  setUrl?: string | null;
   /** PREORDER-övergång får egen rubrik — det är ett annat besked än en påfyllning. */
   preorder?: boolean;
 }
@@ -198,10 +205,20 @@ export function buildRestockEmbed(post: RestockPost) {
     const label = post.language.toUpperCase() === "JP" ? "Japanska" : post.language;
     fields.push({ name: "Språk", value: clamp(label, MAX_FIELD_VALUE), inline: true });
   }
+  // ⛔ EN VÄG TILLBAKA TILL OSS I VARJE INLÄGG SOM KAN HA EN. Produktsidan när vi
+  // känner igen butikens URL, annars katalogen filtrerad på setet. Fältnamnet skiljer
+  // dem åt med flit: "Prishistorik" lovar en prisgraf, och den finns bara på
+  // produktsidan — att kalla setlänken samma sak hade varit ett löfte vi inte håller.
   if (post.productUrl) {
     fields.push({
       name: "Prishistorik",
       value: clamp(`[Se på Foilio](${post.productUrl})`, MAX_FIELD_VALUE),
+      inline: false,
+    });
+  } else if (post.setUrl) {
+    fields.push({
+      name: "Hos oss",
+      value: clamp(`[Se hela setet på Foilio](${post.setUrl})`, MAX_FIELD_VALUE),
       inline: false,
     });
   }

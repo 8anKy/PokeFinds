@@ -52,10 +52,10 @@ const ROUTES: RouteTable = {
 };
 
 const SETS = [
-  { name: "Pitch Black", series: "Mega Evolution", language: "EN" },
-  { name: "Prismatic Evolutions", series: "Scarlet & Violet", language: "EN" },
-  { name: "Paradox Rift", series: "Scarlet & Violet", language: "EN" },
-  { name: "Ninja Spinner (M4)", series: "Mega Evolution", language: "JP" },
+  { id: "set_pitch", name: "Pitch Black", series: "Mega Evolution", language: "EN" },
+  { id: "set_prism", name: "Prismatic Evolutions", series: "Scarlet & Violet", language: "EN" },
+  { id: "set_paradox", name: "Paradox Rift", series: "Scarlet & Violet", language: "EN" },
+  { id: "set_ninja", name: "Ninja Spinner (M4)", series: "Mega Evolution", language: "JP" },
 ];
 const FILTER = buildDiscordFilterContext({ routes: ROUTES, setNames: SETS.map((s) => s.name) });
 const KNOWN_SETS = buildKnownSets({ sets: SETS });
@@ -348,10 +348,69 @@ describe("deriveRestockPosts", () => {
       expect(r.posts[0]).toMatchObject({
         title: "Pokémon Paradox Rift Booster Box", // butikens egen fras, tvättad
         productUrl: null, // vi känner inte URL:en → ingen prishistorik att länka till
-        // …men setet gick att läsa ur titeln, så inlägget hamnar i rätt seriekanal.
+        // …men setet gick att läsa ur titeln, så inlägget hamnar i rätt seriekanal
+        // OCH får en väg tillbaka till oss via katalogen filtrerad på setet.
         setName: "Paradox Rift",
         series: "Scarlet & Violet",
+        setUrl: `${BASE}/produkter?set=set_paradox`,
       });
+    });
+
+    /**
+     * ⛔ VARJE INLÄGG SOM KAN HA EN VÄG TILLBAKA TILL OSS SKA HA DET. Ägaren såg ett
+     * katalogfritt inlägg utan "Se på Foilio" och frågade efter länken — den saknades
+     * för att vi inte vet VILKEN produkt butikens URL är. Setet vet vi ändå.
+     * ⛔ Fritextsök (`?q=`) duger INTE som reserv: katalogfiltret kräver att ALLA ord
+     *    finns i produktens normalizedTitle, och butikstiteln bär prefix, språktaggar
+     *    och ibland stavfel — sökningen hade landat på noll träffar.
+     */
+    it("en ROUTAD post behåller produktlänken och får INGEN setlänk", () => {
+      const r = derive({
+        state: state({ stock: { [KEY]: "OUT_OF_STOCK" } }),
+        groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }]),
+      });
+      expect(r.posts[0].productUrl).toBe(`${BASE}/produkter/pitch-black-elite-trainer-box`);
+      expect(r.posts[0].setUrl).toBeNull();
+    });
+
+    it("utan känt set finns ingen ärlig länk — då sätts ingen", () => {
+      const url = "https://butik.se/okant-set";
+      const key = `Dragon's Lair\t${url}`;
+      const r = derive({
+        state: state({ stock: { [key]: "OUT_OF_STOCK" } }),
+        groups: groups([
+          { url, stockStatus: "IN_STOCK", title: "Pokémon Elite Trainer Box" },
+        ]),
+      });
+      expect(r.posts).toHaveLength(1);
+      expect(r.posts[0].productUrl).toBeNull();
+      expect(r.posts[0].setUrl).toBeNull();
+    });
+
+    it("en ÄLDRE ruttabell utan set-id ger kanalval men ingen setlänk", () => {
+      // Bakåtkompatibilitet: `sets[].id` tillkom 2026-08-16. En cachad fil utan
+      // fältet får inte sluta posta — den ska bara sakna reservlänken.
+      const url = "https://butik.se/helt-ny-sku-2";
+      const key = `Dragon's Lair\t${url}`;
+      const r = deriveRestockPosts({
+        state: state({ stock: { [key]: "OUT_OF_STOCK" } }),
+        groups: groups([
+          { url, stockStatus: "IN_STOCK", title: "Pokémon Paradox Rift Booster Box" },
+        ]),
+        rotating: new Set(),
+        routes: ROUTES,
+        filter: FILTER,
+        knownSets: buildKnownSets({
+          sets: [{ name: "Paradox Rift", series: "Scarlet & Violet", language: "EN" }],
+        }),
+        now: NOW,
+        policy: POLICY,
+        cooldownHours: 2,
+        baseUrl: BASE,
+      });
+      expect(r.posts).toHaveLength(1);
+      expect(r.posts[0].series).toBe("Scarlet & Violet"); // kanalvalet funkar ändå
+      expect(r.posts[0].setUrl).toBeNull();
     });
 
     /**
@@ -676,6 +735,30 @@ describe("buildRestockEmbed", () => {
 
   it("skriver egen rubriktext för förhandsbokning — det är ett annat besked", () => {
     expect(buildRestockEmbed({ ...post, preorder: true }).description).toContain("förhandsboka");
+  });
+
+  it("faller tillbaka på SETLÄNKEN när produktsidan saknas", () => {
+    const fields = buildRestockEmbed({
+      ...post,
+      productUrl: null,
+      setUrl: `${BASE}/produkter?set=set_pitch`,
+    }).fields;
+    const link = fields.find((f) => f.name === "Hos oss");
+    expect(link?.value).toContain(`${BASE}/produkter?set=set_pitch`);
+    // ⛔ Fältnamnet får INTE vara "Prishistorik": det lovar en prisgraf, och den
+    //    finns bara på produktsidan. Ett löfte vi inte håller är värre än inget.
+    expect(fields.some((f) => f.name === "Prishistorik")).toBe(false);
+  });
+
+  it("produktsidan vinner över setlänken när båda finns", () => {
+    const fields = buildRestockEmbed({ ...post, setUrl: `${BASE}/produkter?set=set_pitch` }).fields;
+    expect(fields.find((f) => f.name === "Prishistorik")?.value).toContain(post.productUrl);
+    expect(fields.some((f) => f.name === "Hos oss")).toBe(false);
+  });
+
+  it("utan både produktsida och set finns ingen länkrad alls", () => {
+    const fields = buildRestockEmbed({ ...post, productUrl: null, setUrl: null }).fields;
+    expect(fields.some((f) => f.name === "Prishistorik" || f.name === "Hos oss")).toBe(false);
   });
 });
 
