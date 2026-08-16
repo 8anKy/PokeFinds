@@ -55,15 +55,21 @@ allt annat butikerna säljer var osynligt, och bortfallet gick inte att skilja f
   nästa nattliga export, dvs fällt riktiga påfyllningar som "no-pokemon-signal" i upp till ett dygn.
 - **RESERVLÄNK NÄR PRODUKTSIDAN SAKNAS (2026-08-16, ägaren såg det i kanalen)**: ett katalogfritt
   inlägg har ingen produktsida att peka på, så embedden stod helt utan väg tillbaka till oss. Setet
-  vet vi ändå (det är så inlägget hamnade i rätt kanal) ⇒ `/produkter?set=<CardSet.id>`, fältnamn
+  vet vi ändå (det är så inlägget hamnade i rätt kanal) ⇒ **`/sets/<CardSet.id>`**, fältnamn
   **"Hos oss"**, inte "Prishistorik" — det senare lovar en prisgraf som bara finns på produktsidan.
+  ⛔ **SETSIDAN, INTE KATALOGFILTRET `/produkter?set=<id>` — OCH SKÄLET ÄR KOSTNAD.** `/produkter`
+  är `force-dynamic` med flit (searchParams), så varje klick från en PUBLIK kanal hade blivit en
+  serverrendering med DB-frågor, dvs en Neon-väckning som debiteras minst 300 s. En länk vi postar
+  dussintals gånger per dygn i en öppen kanal är en trafikkälla vi inte styr. `/sets/[id]` är
+  ISR-cachad (`revalidate = 3600` + `generateStaticParams`) och serveras ur cachen.
+  ⚠️ Setsidan saknar dessutom katalogfiltrets pris- och `hiddenAt`-krav (`buildProductWhere` kräver
+  `lowestPriceOre != null`), så den kan inte stå tom för ett FÄRSKT set — vilket är precis det läge
+  där rutten oftast saknas. Verifierat mot prod: 200 med 215 resp. 198 produkter.
   ⛔ **FRITEXTSÖK (`?q=`) DUGER INTE SOM RESERV.** Katalogfiltret kräver att ALLA ord i frågan finns
   i produktens `normalizedTitle` (`buildProductWhere`, AND över orden), och butikstiteln bär prefix
   ("Pokémon Mega Evolution: …"), språktaggar ("(ENG)") och ibland stavfel ("Phantsmal") — en sådan
-  sökning landar på NOLL träffar. Dessutom är `/produkter?q=` blockerad i robots.txt, dvs den är
-  medvetet inte en delbar URL-rymd. En setlänk kan varken bli fel eller landa tomt (verifierat mot
-  prod: 200 och 25 produkter). ⛔ Lägg INTE på `&kategori=` "för att träffa rätt" — då kan sidan bli
-  tom när katalogen saknar just den formen, och tom sida är värre än en bred.
+  sökning landar på NOLL träffar. Dessutom är `/produkter?q=` blockerad i robots.txt, dvs medvetet
+  inte en delbar URL-rymd.
   ⚠️ `sets[].id` tillkom i ruttabellen samtidigt; en ÄLDRE cachad fil ger kanalval men ingen
   setlänk (testat), aldrig ett uteblivet inlägg.
 - ⛔ **ETT SET SOM HETER SAMMA SAK SOM SIN SERIE är den MINST specifika tolkningen** (`matchKnownSet`):

@@ -458,15 +458,26 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
       productUrl: route ? `${site}/produkter/${route.slug}` : null,
       // ⛔ RESERVLÄNK NÄR PRODUKTSIDAN INTE FINNS (2026-08-16). En URL utan rutt har
       // ingen produktsida att peka på — inlägget stod därför helt utan väg tillbaka
-      // till oss, vilket ägaren såg direkt i kanalen. Setet vet vi ändå (det är så
-      // inlägget hamnade i rätt kanal), och katalogen filtrerar på `setId`.
-      // ⛔ FRITEXTSÖK (`?q=`) DUGER INTE: filtret kräver att ALLA ord i frågan finns i
-      //    produktens normalizedTitle, och butikstiteln bär prefix ("Pokémon Mega
-      //    Evolution: …"), språktaggar ("(ENG)") och ibland stavfel ("Phantsmal") —
-      //    en sådan sökning hade landat på NOLL träffar. En setlänk kan varken bli
-      //    fel eller landa tomt, och det är samma avvägning som kanalvalet gör:
-      //    hellre rätt och generellt än specifikt och felaktigt.
-      setUrl: !route && guessed?.id ? `${site}/produkter?set=${encodeURIComponent(guessed.id)}` : null,
+      // till oss, vilket ägaren såg direkt i kanalen. Setet vet vi ändå: det är så
+      // inlägget hamnade i rätt kanal.
+      //
+      // ⛔ SETSIDAN (`/sets/<id>`), INTE KATALOGFILTRET (`/produkter?set=<id>`).
+      //    Skälet är KOSTNAD, inte innehåll: `/produkter` är `force-dynamic` med flit
+      //    (searchParams), så varje klick från en PUBLIK Discord-kanal hade blivit en
+      //    serverrendering med DB-frågor — dvs en väckning av en Neon-compute som
+      //    debiteras per vaken tid, minst 300 s per väckning. En länk vi postar
+      //    dussintals gånger per dygn i en öppen kanal är en trafikkälla vi inte
+      //    styr. `/sets/[id]` är ISR-cachad (`revalidate = 3600` + `generateStaticParams`)
+      //    och serveras ur cachen. Samma skäl som håller startsidan och /marknad ISR.
+      //    Setsidan saknar dessutom katalogfiltrets pris- och `hiddenAt`-krav, så den
+      //    kan inte stå tom för ett FÄRSKT set — vilket är precis det läge där rutten
+      //    oftast saknas.
+      // ⛔ FRITEXTSÖK (`?q=`) DUGER INTE HELLER: filtret kräver att ALLA ord i frågan
+      //    finns i produktens normalizedTitle, och butikstiteln bär prefix ("Pokémon
+      //    Mega Evolution: …"), språktaggar ("(ENG)") och ibland stavfel
+      //    ("Phantsmal") — en sådan sökning hade landat på NOLL träffar. Den URL-rymden
+      //    är dessutom blockerad i robots.txt, dvs medvetet inte delbar.
+      setUrl: !route && guessed?.id ? `${site}/sets/${encodeURIComponent(guessed.id)}` : null,
       preorder: isPreorderOpen,
     });
   }

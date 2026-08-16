@@ -352,7 +352,7 @@ describe("deriveRestockPosts", () => {
         // OCH får en väg tillbaka till oss via katalogen filtrerad på setet.
         setName: "Paradox Rift",
         series: "Scarlet & Violet",
-        setUrl: `${BASE}/produkter?set=set_paradox`,
+        setUrl: `${BASE}/sets/set_paradox`,
       });
     });
 
@@ -741,17 +741,17 @@ describe("buildRestockEmbed", () => {
     const fields = buildRestockEmbed({
       ...post,
       productUrl: null,
-      setUrl: `${BASE}/produkter?set=set_pitch`,
+      setUrl: `${BASE}/sets/set_pitch`,
     }).fields;
     const link = fields.find((f) => f.name === "Hos oss");
-    expect(link?.value).toContain(`${BASE}/produkter?set=set_pitch`);
+    expect(link?.value).toContain(`${BASE}/sets/set_pitch`);
     // ⛔ Fältnamnet får INTE vara "Prishistorik": det lovar en prisgraf, och den
     //    finns bara på produktsidan. Ett löfte vi inte håller är värre än inget.
     expect(fields.some((f) => f.name === "Prishistorik")).toBe(false);
   });
 
   it("produktsidan vinner över setlänken när båda finns", () => {
-    const fields = buildRestockEmbed({ ...post, setUrl: `${BASE}/produkter?set=set_pitch` }).fields;
+    const fields = buildRestockEmbed({ ...post, setUrl: `${BASE}/sets/set_pitch` }).fields;
     expect(fields.find((f) => f.name === "Prishistorik")?.value).toContain(post.productUrl);
     expect(fields.some((f) => f.name === "Hos oss")).toBe(false);
   });
