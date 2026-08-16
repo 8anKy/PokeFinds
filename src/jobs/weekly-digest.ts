@@ -329,6 +329,7 @@ export async function runWeeklyDigest(
     result.skippedOptedOut++;
     return false;
   });
+  const afterOptOut = recipients.length;
   if (opts?.onlyEmail) {
     const only = opts.onlyEmail.toLowerCase();
     recipients = recipients.filter((u) => u.email.toLowerCase() === only);
@@ -340,8 +341,19 @@ export async function runWeeklyDigest(
     pulse.underMarketCount > 0 || pulse.restockCount > 0 || pulse.newSetCount > 0;
 
   if (recipients.length === 0) {
+    // ⛔ SÄG VILKET FILTER SOM TÖMDE LISTAN. Raden löd förut alltid "0 mottagare
+    // efter opt-out", vilket 2026-08-16 pekade felsökningen mot notisinställningar
+    // när den verkliga orsaken var att `--to=`-adressen inte ens fanns bland
+    // kandidaterna (overifierad e-post). Ett provutskick som tyst rapporterar fel
+    // orsak är värre än inget meddelande alls.
+    const why = opts?.onlyEmail
+      ? afterOptOut === 0
+        ? "alla kandidater har avregistrerat sig"
+        : `--to=${opts.onlyEmail} matchade ingen av ${afterOptOut} mottagare ` +
+          `(adressen är overifierad, redan mejlad den här veckan, eller finns inte)`
+      : "alla kandidater har avregistrerat sig";
     console.log(
-      `[weekly-digest] ${result.candidates} kandidater · 0 mottagare efter opt-out · ` +
+      `[weekly-digest] ${result.candidates} kandidater · 0 mottagare — ${why} · ` +
         `${pulse.underMarketCount} varor under marknadspris.`
     );
     return result;
