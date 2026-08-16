@@ -14,10 +14,17 @@ export interface EmailContent {
   text: string;
 }
 
+// ⛔ **MALLEN LÄSER INTE MILJÖN.** Ett mejl renderas i ett jobb, i en webrequest och
+// i en testkörning — bara ANROPAREN vet vilken sajt det gäller. 2026-08-16 satte
+// workflowet `NEXT_PUBLIC_APP_URL=""` (repo-variabeln fanns inte), `?? `-reserven
+// hoppades förbi den tomma strängen, och varje länk i det skarpa veckobrevet blev
+// relativ: mejlklienten har ingen bas-URL och visade `http:///produkter`. Tyst.
+// Veckobrevet tar därför in `appUrl`; övriga mallar använder konstanten nedan.
+//
 // ⛔ APEX, aldrig www: apex är kanonisk sedan 2026-08-14 och www 301:as av
-// Cloudflare. En webbläsare följer den redirecten, men reservvärdet ska ändå peka
-// rätt — samma regel som för alla maskinella URL:er.
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://foilio.se";
+// Cloudflare. En webbläsare följer den redirecten, men maskinella URL:er ska ändå
+// peka rätt direkt.
+const APP_URL = "https://foilio.se";
 
 function formatSek(ore: number): string {
   return `${(ore / 100).toLocaleString("sv-SE", { minimumFractionDigits: 2 })} kr`;
@@ -361,12 +368,61 @@ Foilio · Sveriges marknadsplats för Pokémon TCG`;
 // VECKOBREVET
 // ---------------------------------------------------------------------------
 
+/**
+ * ⛔ **VECKOBREVET HAR EGEN LAYOUT — DELA ALDRIG `layout()` MED LARMEN.**
+ *
+ * Larmen är en enda mening ("den här varan är i lager") och mår bra av ett smalt,
+ * textigt skal. Veckobrevet är ett REDAKTIONELLT brev som ska sälja appen: det
+ * behöver bilder, avsnitt, progressbar och en egen åtgärd per avsnitt. Ett skal
+ * som försöker göra båda blir dåligt på båda — och varje ändring här hade annars
+ * riskerat att flytta sig in i restock-larmen, som är det mejl vi minst av allt
+ * vill röra.
+ *
+ * ⛔ **E-POST-HTML ÄR INTE WEBB-HTML.** Tabeller, inline-stilar, absoluta URL:er,
+ * max 600 px. Ingen flexbox, inget `<style>`-block, inga externa resurser, inga
+ * `%`-breddade `<div>`-ar (progressbaren är en tabellcell just därför).
+ *
+ * ⛔ **VARJE CELL SÄTTER SIN EGEN BAKGRUNDS- OCH TEXTFÄRG.** Gmail och Outlook
+ * tvingar ofta ljust läge och ärver inte färg nedåt — en cell som litar på arv
+ * blir svart text på svart yta hos någon.
+ */
+
+/** Brevets palett. SVART yta, turkos signatur — aldrig blått. */
+const D_PAGE = "#000000";
+const D_CARD = "#0b0d12";
+const D_PANEL = "#12171f";
+const D_LINE = "#1f2430";
+const D_TEXT = "#e5e7eb";
+const D_MUTED = "#9ca3af";
+const D_WHITE = "#ffffff";
+const D_ACCENT = "#2dd4bf";
+const D_UP = "#34d399";
+const D_DOWN = "#f87171";
+const D_FONT = "'Segoe UI',Arial,sans-serif";
+
+/**
+ * HTML-escape för allt som kommer ur databasen. Produkttitlar är SKRAPADE ur
+ * butiksfeedar — ett `&` eller ett `<` i en titel får aldrig kunna stänga en
+ * attributsträng i ett massutskick.
+ */
+function esc(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 /** Ett kort i samlingen som rört sig mest på sju dagar. */
 export interface DigestMover {
   name: string;
   setName: string | null;
   percent: number;
   valueOre: number | null;
+  /** ABSOLUT bild-URL (jobbet gör den absolut). Saknas den renderas raden utan bild. */
+  imageUrl?: string | null;
+  /** Produktsidan. Saknas den blir namnet vanlig text — aldrig en död länk. */
+  url?: string | null;
 }
 
 /** Prisfall på en produkt användaren bevakar. `percent` är NEGATIV. */
@@ -375,6 +431,7 @@ export interface DigestDrop {
   url: string;
   priceOre: number | null;
   percent: number;
+  imageUrl?: string | null;
 }
 
 /** Restock i ett bevakat set eller på en bevakad produkt. */
@@ -383,6 +440,7 @@ export interface DigestRestock {
   url: string;
   retailerName: string;
   priceOre: number | null;
+  imageUrl?: string | null;
 }
 
 /** Ett butiksfynd under Cardmarket-pris. `percentUnder` är POSITIV. */
@@ -394,10 +452,30 @@ export interface DigestDealExample {
   percentUnder: number;
 }
 
+/**
+ * Hur långt användaren kommit i ett set hen faktiskt samlar på.
+ *
+ * Den mest "custom" ytan brevet har: ingen annan avsändare kan skriva "64 av 165
+ * i Prismatic Evolutions" till just den här mottagaren. `url` pekar på setet.
+ */
+export interface DigestSetProgress {
+  setName: string;
+  owned: number;
+  total: number;
+  url: string;
+}
+
 export interface WeeklyDigestContent {
   name: string;
   /** Signerad avanmälan (src/lib/unsubscribe-token.ts). Obligatorisk — se sidfoten. */
   unsubscribeUrl: string;
+  /**
+   * ⛔ BAS-URL:EN KOMMER IN, MALLEN LÄSER ALDRIG MILJÖN. Ett mejl renderas i ett
+   * jobb, i en webrequest och i en testkörning — bara anroparen vet vilken sajt
+   * det gäller. Den 2026-08-16 gav en tom `NEXT_PUBLIC_APP_URL` varenda länk i
+   * det skarpa utskicket formen `http:///produkter`, tyst.
+   */
+  appUrl: string;
   /** Utelämnas helt för den som inte har någon samling. */
   collection?: {
     totalValueOre: number;
@@ -408,6 +486,8 @@ export interface WeeklyDigestContent {
   };
   drops: DigestDrop[];
   restocks: DigestRestock[];
+  /** Påbörjade set, mest kompletta först. Utelämnas när inget set är påbörjat. */
+  setProgress?: DigestSetProgress[];
   pulse: {
     underMarketCount: number;
     /** Tröskeln bandet räknades med — copyn får ALDRIG påstå en annan siffra. */
@@ -424,11 +504,159 @@ function pct(value: number): string {
   return `${value >= 0 ? "+" : "−"}${s} %`;
 }
 
-function digestSection(title: string, inner: string): string {
-  return `<div style="margin:28px 0 0;padding-top:20px;border-top:1px solid #2a2e38;">
-       <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#ffffff;">${title}</p>
-       ${inner}
-     </div>`;
+/**
+ * Miniatyr + text, som en tabellrad.
+ *
+ * ⛔ Bilden får ALDRIG bära raden. Outlook blockerar bilder som standard och
+ * `alt` är avsiktligt TOMT: titeln står redan i cellen bredvid, och en alt-text
+ * som upprepar den fyller rutan med dubbeltext hos precis de mottagare som har
+ * bilderna avstängda. Saknas `imageUrl` renderas ingen cell alls — texten
+ * flyttar bara ut till kanten, layouten går inte sönder.
+ */
+function mediaRow(imageUrl: string | null | undefined, inner: string): string {
+  const thumb = imageUrl
+    ? `<td width="52" valign="top" style="width:52px;padding:0 12px 0 0;">
+              <img src="${esc(imageUrl)}" alt="" width="52" height="52" style="display:block;width:52px;height:52px;border:0;border-radius:8px;background-color:#171d26;object-fit:contain;">
+            </td>`
+    : "";
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin:0 0 14px;">
+          <tr>
+            ${thumb}<td valign="top" style="font-family:${D_FONT};font-size:14px;line-height:1.5;color:${D_TEXT};">${inner}</td>
+          </tr>
+        </table>`;
+}
+
+/** Titeln som länk när vi har en, annars som ren text. Aldrig en död `href`. */
+function titleLink(title: string, url?: string | null): string {
+  const strong = `<strong style="color:${D_WHITE};font-weight:700;">${esc(title)}</strong>`;
+  return url ? `<a href="${esc(url)}" style="color:${D_WHITE};text-decoration:none;">${strong}</a>` : strong;
+}
+
+/**
+ * Progressbaren för set-komplettering.
+ *
+ * ⛔ TVÅ TABELLCELLER MED BAKGRUNDSFÄRG, aldrig en `<div>` med `width:%`. Outlook
+ * renderar tabeller med Word-motorn och en procentbreddad div blir antingen
+ * fullbred eller osynlig. Andelen golvas på 4 % så en nyss påbörjad samling ändå
+ * syns som ett streck.
+ */
+function progressBar(owned: number, total: number): string {
+  const raw = total > 0 ? Math.round((owned / total) * 100) : 0;
+  const filled = Math.max(4, Math.min(100, raw));
+  const rest = 100 - filled;
+  const cell = (w: number, color: string) =>
+    `<td width="${w}%" height="8" style="width:${w}%;height:8px;line-height:8px;font-size:0;background-color:${color};border-radius:4px;">&nbsp;</td>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin:10px 0 0;">
+          <tr>${cell(filled, D_ACCENT)}${rest > 0 ? cell(rest, "#1a1f29") : ""}</tr>
+        </table>`;
+}
+
+/** Den turkosa huvudknappen. Tabell, inte `<a>` med padding — Outlook igen. */
+function digestButton(url: string, label: string): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;margin:20px 0 0;">
+          <tr>
+            <td align="center" bgcolor="${D_ACCENT}" style="background-color:${D_ACCENT};border-radius:8px;">
+              <a href="${esc(url)}" style="display:inline-block;padding:13px 28px;font-family:${D_FONT};font-size:15px;font-weight:700;color:#04110f;text-decoration:none;">${esc(label)}</a>
+            </td>
+          </tr>
+        </table>`;
+}
+
+/** Ett avsnitt i brevet, byggt en gång och renderat antingen som ledare eller som löpande. */
+interface DigestBlock {
+  key: "restocks" | "drops" | "sets" | "collection" | "pulse";
+  title: string;
+  inner: string;
+  note?: string;
+  /** ⛔ Varje avsnitt har EN egen åtgärd, och den går till RÄTT sida. */
+  action?: { url: string; label: string };
+  text: string;
+}
+
+/**
+ * LEDAREN FÅR EN EGEN RUTA. Resten löper på med en tunn linje emellan.
+ *
+ * Det är hela skillnaden mot det gamla brevet: där låg samlingens totalvärde
+ * överst varje vecka, oavsett om det hänt något. Nu är det VECKANS HÄNDELSE som
+ * ligger överst, och den ser också ut som en händelse.
+ */
+function digestBlockHtml(block: DigestBlock, lead: boolean): string {
+  const note = block.note
+    ? `<p style="margin:12px 0 0;font-family:${D_FONT};font-size:12px;line-height:1.5;color:${D_MUTED};">${block.note}</p>`
+    : "";
+  const action = block.action
+    ? `<p style="margin:16px 0 0;font-family:${D_FONT};font-size:13px;line-height:1.4;">
+              <a href="${esc(block.action.url)}" style="color:${D_ACCENT};text-decoration:none;font-weight:700;">${esc(block.action.label)} &rarr;</a>
+            </p>`
+    : "";
+
+  if (lead) {
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;margin:0 0 4px;">
+        <tr>
+          <td bgcolor="${D_PANEL}" style="background-color:${D_PANEL};border:1px solid ${D_LINE};border-left:3px solid ${D_ACCENT};border-radius:12px;padding:20px 18px;color:${D_TEXT};">
+            <p style="margin:0 0 14px;font-family:${D_FONT};font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${D_ACCENT};">${esc(block.title)}</p>
+            ${block.inner}${note}${action}
+          </td>
+        </tr>
+      </table>`;
+  }
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin:26px 0 0;">
+        <tr>
+          <td style="padding:22px 0 0;border-top:1px solid ${D_LINE};background-color:${D_CARD};color:${D_TEXT};">
+            <p style="margin:0 0 14px;font-family:${D_FONT};font-size:16px;font-weight:700;color:${D_WHITE};">${esc(block.title)}</p>
+            ${block.inner}${note}${action}
+          </td>
+        </tr>
+      </table>`;
+}
+
+/**
+ * Brevets skal.
+ *
+ * ⛔ **INGEN LOGOTYPBILD.** `public/brand/foilio-logo.png` finns, men den är 800 kB,
+ * blockeras av Outlook som standard och blev en trasig ruta i det skarpa utskicket
+ * 2026-08-16 (tom bas-URL). En ordbild i text kan inte gå sönder, väger noll och
+ * renderas likadant i varje klient. Bilderna i brevet ska vara KORT — det är de
+ * som gör mejlet till Foilio.
+ */
+function digestLayout(preheader: string, headline: string, bodyHtml: string, footerHtml: string): string {
+  return `<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="supported-color-schemes" content="dark">
+</head>
+<body style="margin:0;padding:0;background-color:${D_PAGE};">
+  <div style="display:none;max-height:0;max-width:0;overflow:hidden;opacity:0;font-size:1px;line-height:1px;color:${D_PAGE};">${preheader}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${D_PAGE}" style="width:100%;border-collapse:collapse;background-color:${D_PAGE};">
+    <tr>
+      <td align="center" style="padding:24px 12px;background-color:${D_PAGE};">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;border-collapse:collapse;">
+          <tr>
+            <td align="left" style="padding:0 4px 18px;font-family:${D_FONT};">
+              <span style="font-size:20px;font-weight:800;letter-spacing:5px;color:${D_ACCENT};text-transform:uppercase;">Foilio</span>
+              <span style="font-size:12px;font-weight:600;letter-spacing:1px;color:${D_MUTED};text-transform:uppercase;">&nbsp;&middot;&nbsp;Veckobrevet</span>
+            </td>
+          </tr>
+          <tr>
+            <td bgcolor="${D_CARD}" style="background-color:${D_CARD};border:1px solid ${D_LINE};border-radius:16px;padding:26px 20px;color:${D_TEXT};font-family:${D_FONT};">
+              <h1 style="margin:0 0 18px;font-family:${D_FONT};font-size:22px;line-height:1.3;font-weight:800;color:${D_WHITE};">${headline}</h1>
+              ${bodyHtml}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px 8px 0;font-family:${D_FONT};font-size:12px;line-height:1.7;color:#6b7280;">
+              ${footerHtml}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 }
 
 /**
@@ -438,6 +666,13 @@ function digestSection(title: string, inner: string): string {
  * och "+0,0 %" läser som att tjänsten är tom; ett brev med bara de avsnitt som
  * faktiskt bär något läser som att vi bara hör av oss när vi har något att säga.
  * Samma regel som "–" i pristabellen: vi hittar aldrig på en nolla.
+ *
+ * ⛔ **LEDAREN VÄLJS AV VAD SOM HÄNT, ALDRIG AV EN FAST ORDNING.** Första
+ * versionen ledde med samlingens totalvärde och "+0,1 % senaste sju dagarna" —
+ * den tråkigaste siffran vi äger, överst, varje vecka. Ordningen nedan är
+ * NYHETSVÄRDE: ett restock på något du bevakar slår ett prisfall, som slår hur
+ * långt du kommit i ett set, som slår portföljens rörelse. Är veckan händelselös
+ * är plattformspulsen ledare.
  *
  * ⛔ **PLATTFORMSPULSEN ÄR SAMMA SIFFROR FÖR ALLA** och räknas EN gång per körning
  * — den är brevets skäl att finnas för den som varken har samling eller
@@ -450,43 +685,148 @@ function digestSection(title: string, inner: string): string {
  */
 export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
   const { pulse } = data;
-  const parts: string[] = [];
-  const textParts: string[] = [];
+  // Trailing slash bort: `${base}/samling` får aldrig bli `//samling`. Reserven är
+  // apex — den är kanonisk, och en tom sträng in ska inte kunna ge en relativ länk.
+  const base = (data.appUrl || "https://foilio.se").replace(/\/+$/, "");
+  const setProgress = data.setProgress ?? [];
 
-  // ---- Samlingen ----
+  const blocks: DigestBlock[] = [];
+
+  // ---- 1. Tillbaka i lager (högst nyhetsvärde: det tar slut) ----
+  if (data.restocks.length) {
+    const n = data.restocks.length;
+    const rows = data.restocks
+      .map((r) =>
+        mediaRow(
+          r.imageUrl,
+          `${titleLink(r.title, r.url)}<br>
+                <span style="color:${D_ACCENT};font-weight:700;">${esc(r.retailerName)}</span>${
+                  r.priceOre != null
+                    ? ` <span style="color:${D_MUTED};">&middot; ${formatSek(r.priceOre)}</span>`
+                    : ""
+                }`
+        )
+      )
+      .join("\n          ");
+    blocks.push({
+      key: "restocks",
+      title: "Tillbaka i lager",
+      inner: `<p style="margin:0 0 16px;font-family:${D_FONT};font-size:14px;line-height:1.6;color:${D_TEXT};">${
+        n === 1 ? "En vara du bevakar" : `${n} varor du bevakar`
+      } kom tillbaka i lager den här veckan.</p>
+          ${rows}`,
+      note: "Lagret kan ha ändrats sedan vi räknade — heta varor tar slut fort.",
+      action: { url: `${base}/bevakningar`, label: "Sköt dina bevakningar" },
+      text: `— Tillbaka i lager —\n${
+        n === 1 ? "En vara du bevakar" : `${n} varor du bevakar`
+      } kom tillbaka i lager den här veckan.\n${data.restocks
+        .map(
+          (r) =>
+            `  · ${r.title} hos ${r.retailerName}${r.priceOre != null ? ` · ${formatSek(r.priceOre)}` : ""}\n    ${r.url}`
+        )
+        .join("\n")}\n  Lagret kan ha ändrats sedan vi räknade.\n  Sköt dina bevakningar: ${base}/bevakningar`,
+    });
+  }
+
+  // ---- 2. Prisfall på bevakat ----
+  if (data.drops.length) {
+    const rows = data.drops
+      .map((d) =>
+        mediaRow(
+          d.imageUrl,
+          `${titleLink(d.title, d.url)}<br>
+                <span style="color:${D_UP};font-weight:700;">${pct(d.percent)}</span>${
+                  d.priceOre != null
+                    ? ` <span style="color:${D_MUTED};">&middot; nu ${formatSek(d.priceOre)}</span>`
+                    : ""
+                }`
+        )
+      )
+      .join("\n          ");
+    blocks.push({
+      key: "drops",
+      title: "Prisfall på det du bevakar",
+      inner: rows,
+      action: { url: `${base}/produkter?sortera=prisfall`, label: "Se veckans största prisfall" },
+      text: `— Prisfall på det du bevakar —\n${data.drops
+        .map(
+          (d) =>
+            `  · ${d.title} ${pct(d.percent)}${d.priceOre != null ? ` · nu ${formatSek(d.priceOre)}` : ""}\n    ${d.url}`
+        )
+        .join("\n")}\n  Se veckans största prisfall: ${base}/produkter?sortera=prisfall`,
+    });
+  }
+
+  // ---- 3. Set-komplettering ----
+  if (setProgress.length) {
+    const rows = setProgress
+      .map((s) => {
+        const left = Math.max(0, s.total - s.owned);
+        return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin:0 0 18px;">
+            <tr>
+              <td style="font-family:${D_FONT};font-size:14px;line-height:1.5;color:${D_TEXT};">
+                <a href="${esc(s.url)}" style="color:${D_WHITE};text-decoration:none;"><strong style="color:${D_WHITE};font-weight:700;">${esc(
+                  s.setName
+                )}</strong></a><br>
+                <span style="color:${D_MUTED};">${s.owned} av ${s.total} kort &middot; </span><span style="color:${D_ACCENT};font-weight:700;">${left} kvar</span>
+                ${progressBar(s.owned, s.total)}
+              </td>
+            </tr>
+          </table>`;
+      })
+      .join("\n          ");
+    const top = setProgress[0];
+    blocks.push({
+      key: "sets",
+      title: "Så långt har du kommit",
+      inner: rows,
+      action: { url: top.url, label: `Fyll luckorna i ${top.setName}` },
+      text: `— Så långt har du kommit —\n${setProgress
+        .map(
+          (s) =>
+            `  · ${s.setName}: ${s.owned} av ${s.total} kort · ${Math.max(0, s.total - s.owned)} kvar\n    ${s.url}`
+        )
+        .join("\n")}`,
+    });
+  }
+
+  // ---- 4. Samlingen ----
   if (data.collection) {
     const c = data.collection;
     const changeHtml =
       c.changePercent != null && c.changeOre != null
-        ? `<p style="margin:4px 0 0;font-size:14px;color:${c.changeOre >= 0 ? "#34d399" : "#f87171"};">${pct(
-            c.changePercent
-          )} senaste sju dagarna (${c.changeOre >= 0 ? "+" : "−"}${formatSek(Math.abs(c.changeOre))})</p>`
+        ? `<p style="margin:6px 0 0;font-family:${D_FONT};font-size:14px;color:${
+            c.changeOre >= 0 ? D_UP : D_DOWN
+          };">${pct(c.changePercent)} senaste sju dagarna (${c.changeOre >= 0 ? "+" : "−"}${formatSek(
+            Math.abs(c.changeOre)
+          )})</p>`
         : "";
     const moversHtml = c.movers.length
-      ? `<p style="margin:16px 0 8px;font-size:13px;color:#9ca3af;">Veckans rörelser i din samling:</p>
-         <ul style="line-height:1.7;color:#cbd5e1;padding-left:20px;margin:0;font-size:14px;">
-           ${c.movers
-             .map(
-               (m) =>
-                 `<li><strong style="color:#ffffff;">${m.name}</strong>${
-                   m.setName ? ` <span style="color:#6b7280;">· ${m.setName}</span>` : ""
-                 } — <span style="color:#34d399;">${pct(m.percent)}</span>${
-                   m.valueOre != null ? ` · ${formatSek(m.valueOre)}/st` : ""
-                 }</li>`
-             )
-             .join("\n           ")}
-         </ul>`
+      ? `<p style="margin:20px 0 12px;font-family:${D_FONT};font-size:13px;color:${D_MUTED};">Störst rörelse den här veckan:</p>
+          ${c.movers
+            .map((m) =>
+              mediaRow(
+                m.imageUrl,
+                `${titleLink(m.name, m.url)}${
+                  m.setName ? `<br><span style="color:${D_MUTED};font-size:13px;">${esc(m.setName)}</span>` : ""
+                }<br>
+                <span style="color:${m.percent >= 0 ? D_UP : D_DOWN};font-weight:700;">${pct(m.percent)}</span>${
+                  m.valueOre != null
+                    ? ` <span style="color:${D_MUTED};">&middot; ${formatSek(m.valueOre)}/st</span>`
+                    : ""
+                }`
+              )
+            )
+            .join("\n          ")}`
       : "";
-    parts.push(
-      digestSection(
-        "Din samling",
-        `<p style="margin:0;font-size:24px;font-weight:800;color:#ffffff;">${formatSek(c.totalValueOre)}</p>
-         ${changeHtml}
-         ${moversHtml}`
-      )
-    );
-    textParts.push(
-      `— Din samling —\nVärde: ${formatSek(c.totalValueOre)}${
+    blocks.push({
+      key: "collection",
+      title: "Din samling",
+      inner: `<p style="margin:0;font-family:${D_FONT};font-size:26px;font-weight:800;color:${D_WHITE};">${formatSek(
+        c.totalValueOre
+      )}</p>${changeHtml}${moversHtml}`,
+      action: { url: `${base}/samling`, label: "Öppna samlingen" },
+      text: `— Din samling —\nVärde: ${formatSek(c.totalValueOre)}${
         c.changePercent != null && c.changeOre != null
           ? `\nSenaste sju dagarna: ${pct(c.changePercent)} (${c.changeOre >= 0 ? "+" : "−"}${formatSek(
               Math.abs(c.changeOre)
@@ -494,7 +834,7 @@ export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
           : ""
       }${
         c.movers.length
-          ? `\nVeckans rörelser:\n${c.movers
+          ? `\nStörst rörelse:\n${c.movers
               .map(
                 (m) =>
                   `  · ${m.name}${m.setName ? ` (${m.setName})` : ""} ${pct(m.percent)}${
@@ -503,71 +843,16 @@ export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
               )
               .join("\n")}`
           : ""
-      }`
-    );
+      }\n  Öppna samlingen: ${base}/samling`,
+    });
   }
 
-  // ---- Prisfall på bevakat ----
-  if (data.drops.length) {
-    parts.push(
-      digestSection(
-        "Prisfall på det du bevakar",
-        `<ul style="line-height:1.7;color:#cbd5e1;padding-left:20px;margin:0;font-size:14px;">
-           ${data.drops
-             .map(
-               (d) =>
-                 `<li><a href="${d.url}" style="color:#ffffff;font-weight:600;text-decoration:none;">${d.title}</a> — <span style="color:#34d399;">${pct(
-                   d.percent
-                 )}</span>${d.priceOre != null ? ` · nu ${formatSek(d.priceOre)}` : ""}</li>`
-             )
-             .join("\n           ")}
-         </ul>`
-      )
-    );
-    textParts.push(
-      `— Prisfall på det du bevakar —\n${data.drops
-        .map(
-          (d) =>
-            `  · ${d.title} ${pct(d.percent)}${d.priceOre != null ? ` · nu ${formatSek(d.priceOre)}` : ""}\n    ${d.url}`
-        )
-        .join("\n")}`
-    );
-  }
-
-  // ---- Restocks i bevakat ----
-  if (data.restocks.length) {
-    parts.push(
-      digestSection(
-        "Tillbaka i lager den här veckan",
-        `<ul style="line-height:1.7;color:#cbd5e1;padding-left:20px;margin:0;font-size:14px;">
-           ${data.restocks
-             .map(
-               (r) =>
-                 `<li><a href="${r.url}" style="color:#ffffff;font-weight:600;text-decoration:none;">${r.title}</a> hos <strong style="color:#2dd4bf;">${r.retailerName}</strong>${
-                   r.priceOre != null ? ` · ${formatSek(r.priceOre)}` : ""
-                 }</li>`
-             )
-             .join("\n           ")}
-         </ul>
-         <p style="margin:12px 0 0;font-size:12px;color:#6b7280;">Lagret kan ha ändrats sedan vi räknade — heta varor tar slut fort.</p>`
-      )
-    );
-    textParts.push(
-      `— Tillbaka i lager den här veckan —\n${data.restocks
-        .map(
-          (r) =>
-            `  · ${r.title} hos ${r.retailerName}${r.priceOre != null ? ` · ${formatSek(r.priceOre)}` : ""}\n    ${r.url}`
-        )
-        .join("\n")}\n  Lagret kan ha ändrats sedan vi räknade.`
-    );
-  }
-
-  // ---- Plattformspulsen ----
+  // ---- 5. Plattformspulsen ----
   const pulseBits: string[] = [];
   const pulseTextBits: string[] = [];
   if (pulse.underMarketCount > 0) {
     pulseBits.push(
-      `<p style="margin:0;line-height:1.6;color:#cbd5e1;">Just nu ligger <strong style="color:#ffffff;font-size:18px;">${pulse.underMarketCount}</strong> varor hos svenska butiker minst <strong style="color:#ffffff;">${pulse.minDiscountPercent} %</strong> under Cardmarket-priset.</p>`
+      `<p style="margin:0;font-family:${D_FONT};font-size:15px;line-height:1.6;color:${D_TEXT};">Just nu ligger <strong style="color:${D_ACCENT};font-size:20px;">${pulse.underMarketCount}</strong> varor hos svenska butiker minst <strong style="color:${D_WHITE};">${pulse.minDiscountPercent} %</strong> under Cardmarket-priset.</p>`
     );
     pulseTextBits.push(
       `Just nu ligger ${pulse.underMarketCount} varor hos svenska butiker minst ${pulse.minDiscountPercent} % under Cardmarket-priset.`
@@ -575,16 +860,17 @@ export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
   }
   if (pulse.examples.length) {
     pulseBits.push(
-      `<ul style="line-height:1.7;color:#cbd5e1;padding-left:20px;margin:12px 0 0;font-size:14px;">
-         ${pulse.examples
-           .map(
-             (e) =>
-               `<li><a href="${e.url}" style="color:#ffffff;font-weight:600;text-decoration:none;">${e.title}</a> — ${formatSek(
-                 e.priceOre
-               )} hos <strong style="color:#2dd4bf;">${e.retailerName}</strong> <span style="color:#34d399;">(${e.percentUnder} % under)</span></li>`
-           )
-           .join("\n         ")}
-       </ul>`
+      pulse.examples
+        .map((e) =>
+          mediaRow(
+            null,
+            `${titleLink(e.title, e.url)}<br>
+                <span style="color:${D_MUTED};">${formatSek(e.priceOre)} hos </span><span style="color:${D_ACCENT};font-weight:700;">${esc(
+                  e.retailerName
+                )}</span> <span style="color:${D_UP};font-weight:700;">${e.percentUnder} % under</span>`
+          )
+        )
+        .join("\n          ")
     );
     pulseTextBits.push(
       pulse.examples
@@ -602,60 +888,190 @@ export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
     // faktiska släpp. Se kommentaren i weekly-digest.ts — "i katalogen" räknade även
     // bokföringsrader för set från 2014 och läste som 33 nya släpp.
     counters.push(
-      `${pulse.newSetCount} ${pulse.newSetCount === 1 ? "nytt set" : "nya set"} släppta`
+      pulse.newSetCount === 1 ? "1 nytt set släppt" : `${pulse.newSetCount} nya set släppta`
     );
   if (counters.length) {
     pulseBits.push(
-      `<p style="margin:16px 0 0;font-size:13px;color:#9ca3af;">Vi bevakade också butikerna åt dig: ${counters.join(
-        " · "
+      `<p style="margin:16px 0 0;font-family:${D_FONT};font-size:13px;line-height:1.6;color:${D_MUTED};">Vi bevakade butikerna åt dig medan du gjorde annat: ${counters.join(
+        " &middot; "
       )}.</p>`
     );
-    pulseTextBits.push(`Vi bevakade också butikerna åt dig: ${counters.join(" · ")}.`);
+    pulseTextBits.push(`Vi bevakade butikerna åt dig medan du gjorde annat: ${counters.join(" · ")}.`);
   }
-  if (pulseBits.length) {
-    parts.push(digestSection("Veckans läge på marknaden", pulseBits.join("\n         ")));
-    textParts.push(`— Veckans läge på marknaden —\n${pulseTextBits.join("\n")}`);
+  const pulseHasContent = pulseBits.length > 0;
+  if (pulseHasContent) {
+    blocks.push({
+      key: "pulse",
+      title: "Läget på marknaden",
+      inner: pulseBits.join("\n          "),
+      action: { url: `${base}/produkter?sortera=prisfall`, label: "Jaga fynden i katalogen" },
+      text: `— Läget på marknaden —\n${pulseTextBits.join("\n")}\n  Jaga fynden: ${base}/produkter?sortera=prisfall`,
+    });
   }
 
-  const subject =
-    pulse.underMarketCount > 0
-      ? `Veckan på Foilio: ${pulse.underMarketCount} varor under marknadspris`
-      : "Veckan på Foilio";
+  // ---- Ledare, ämnesrad och ingress ----
+  // Blocken ligger redan i nyhetsvärdesordning, så ledaren är helt enkelt det
+  // första som bar innehåll. ⛔ Ändra ordningen ovan och du ändrar ämnesraden.
+  const lead = blocks[0];
+  const firstSet = setProgress[0];
+  const leadCopy = ((): { subject: string; headline: string; preheader: string } => {
+    switch (lead?.key) {
+      case "restocks": {
+        const n = data.restocks.length;
+        const first = data.restocks[0];
+        return {
+          subject:
+            n === 1
+              ? `Tillbaka i lager: ${first.title} · Foilio`
+              : `${n} av dina bevakade är i lager igen · Foilio`,
+          headline:
+            n === 1
+              ? "Något du bevakar är tillbaka i lager"
+              : `${n} av dina bevakade är tillbaka i lager`,
+          preheader: `${first.title} hos ${first.retailerName}${
+            n > 1 ? ` och ${n - 1} till` : ""
+          }.`,
+        };
+      }
+      case "drops": {
+        const n = data.drops.length;
+        const first = data.drops[0];
+        return {
+          subject:
+            n === 1
+              ? `${pct(first.percent)} på ${first.title} · Foilio`
+              : `Prisfall på ${n} av dina bevakade · Foilio`,
+          headline: n === 1 ? "Priset föll på något du bevakar" : `Priset föll på ${n} av dina bevakade`,
+          preheader: `${first.title} ${pct(first.percent)}${
+            first.priceOre != null ? ` — nu ${formatSek(first.priceOre)}` : ""
+          }.`,
+        };
+      }
+      case "sets": {
+        const left = firstSet ? Math.max(0, firstSet.total - firstSet.owned) : 0;
+        return {
+          subject: `${left} kort kvar i ${firstSet?.setName ?? "ditt set"} · Foilio`,
+          headline: `Du är ${left} kort från att fylla ${firstSet?.setName ?? "setet"}`,
+          preheader: firstSet
+            ? `${firstSet.owned} av ${firstSet.total} kort i hus. Vi visar vilka som fattas.`
+            : "",
+        };
+      }
+      case "collection": {
+        const c = data.collection!;
+        // ⛔ En rörelse under en procent är ingen nyhet och får ALDRIG bli rubrik —
+        // "+0,1 % senaste sju dagarna" var precis det som fick brevet att läsa som
+        // ett kontoutdrag. Värdet i sig duger som rubrik; procenten står i avsnittet.
+        const big = c.changePercent != null && Math.abs(c.changePercent) >= 1;
+        return {
+          subject: big
+            ? `Din samling ${pct(c.changePercent!)} den här veckan · Foilio`
+            : `Din samling: ${formatSek(c.totalValueOre)} · Foilio`,
+          headline: big
+            ? `Din samling gick ${pct(c.changePercent!)} den här veckan`
+            : `Din samling står i ${formatSek(c.totalValueOre)}`,
+          preheader: c.movers.length
+            ? `Störst rörelse: ${c.movers[0].name} ${pct(c.movers[0].percent)}.`
+            : "Se hur kurvan rört sig.",
+        };
+      }
+      case "pulse":
+        return {
+          subject:
+            pulse.underMarketCount > 0
+              ? `${pulse.underMarketCount} varor under marknadspris just nu · Foilio`
+              : "Veckan på Foilio",
+          headline:
+            pulse.underMarketCount > 0
+              ? `${pulse.underMarketCount} varor ligger under marknadspris`
+              : "Veckan på den svenska Pokémon-marknaden",
+          preheader: "Vi räknade om hela katalogen mot Cardmarket i natt.",
+        };
+      default:
+        return {
+          subject: "Veckan på Foilio",
+          headline: "Din vecka på Foilio",
+          preheader: "Lägg upp din samling så handlar nästa brev om dina kort.",
+        };
+    }
+  })();
+
+  const hasPersonal =
+    !!data.collection || data.drops.length > 0 || data.restocks.length > 0 || setProgress.length > 0;
+  const intro = hasPersonal
+    ? `Hej ${data.name}! Här är veckan som gick — dina kort, dina bevakningar och var fynden fanns.`
+    : `Hej ${data.name}! Du har inget upplagt ännu, så det här brevet handlar om marknaden. Lägg upp din samling och bevaka det du jagar, så handlar nästa om dina kort.`;
+
+  // ---- "Det här kan Foilio" ----
+  // ⛔ Diskret och SIST. Den är för den som inte redan vet vad appen gör — inte en
+  // funktionslista som konkurrerar med veckans nyhet. Max en mening per funktion.
+  const capability = (label: string, path: string, line: string) =>
+    `<tr>
+              <td style="padding:0 0 10px;font-family:${D_FONT};font-size:13px;line-height:1.6;color:${D_MUTED};">
+                <a href="${base}${path}" style="color:${D_ACCENT};text-decoration:none;font-weight:700;">${label}</a> <span style="color:${D_MUTED};">${line}</span>
+              </td>
+            </tr>`;
+  const capabilitiesHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin:28px 0 0;">
+        <tr>
+          <td style="padding:22px 0 0;border-top:1px solid ${D_LINE};background-color:${D_CARD};">
+            <p style="margin:0 0 14px;font-family:${D_FONT};font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${D_MUTED};">Det här kan Foilio</p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
+              ${capability("Skanna kort", "/skanna", "— rikta kameran mot kortet, vi hittar det och lägger det i samlingen.")}
+              ${capability("Bevaka lager", "/bevakningar", "— vi håller koll på 42 svenska butiker och larmar när något du jagar dyker upp.")}
+              ${capability("Värdera samlingen", "/samling", "— dagsfärskt värde på varje kort, och kurvan bakåt.")}
+              ${capability("Gradera med AI", "/gradera", "— fota kortet och få ett skickomdöme innan du skickar in det.")}
+            </table>
+          </td>
+        </tr>
+      </table>`;
+  const capabilitiesText = `— Det här kan Foilio —
+  · Skanna kort — rikta kameran mot kortet, vi hittar det och lägger det i samlingen: ${base}/skanna
+  · Bevaka lager — vi håller koll på 42 svenska butiker och larmar när något du jagar dyker upp: ${base}/bevakningar
+  · Värdera samlingen — dagsfärskt värde på varje kort, och kurvan bakåt: ${base}/samling
+  · Gradera med AI — fota kortet och få ett skickomdöme innan du skickar in det: ${base}/gradera`;
+
+  // ---- Slutknappen: nästa steg för just den här mottagaren ----
+  // ⛔ Ett tomt konto ska ALDRIG få "Se allt i appen". Den som saknar samling ska
+  // få veta vad hen ska göra först — det är hela skillnaden mot ett brev som bara
+  // rapporterar.
+  const finalCta = !data.collection
+    ? { url: `${base}/samling`, label: "Lägg upp din samling" }
+    : data.drops.length === 0 && data.restocks.length === 0
+    ? { url: `${base}/bevakningar`, label: "Bevaka det du jagar" }
+    : { url: `${base}/dashboard`, label: "Öppna Foilio" };
+
+  const bodyHtml = `<p style="margin:0 0 22px;font-family:${D_FONT};font-size:15px;line-height:1.6;color:${D_TEXT};">${esc(
+    intro
+  )}</p>
+      ${blocks.map((b, i) => digestBlockHtml(b, i === 0)).join("\n      ")}
+      ${digestButton(finalCta.url, finalCta.label)}
+      ${capabilitiesHtml}`;
 
   // ⛔ Avanmälan i BÅDE sidfoten och textversionen. En länk som bara finns i
   // HTML-halvan är osynlig för den som läser i ren text.
-  const footerReason = `Du får det här brevet för att du har ett konto på Foilio.<br>
-      <a href="${data.unsubscribeUrl}" style="color:#9ca3af;">Avregistrera dig från veckobrevet</a> · du behåller dina pris- och restock-larm.`;
+  const footerHtml = `Du får det här brevet för att du har ett konto på Foilio.<br>
+              <a href="${esc(data.unsubscribeUrl)}" style="color:#9ca3af;">Avregistrera dig från veckobrevet</a> &middot; du behåller dina pris- och restock-larm.<br>
+              © Foilio &middot; Sveriges marknadsplats för Pokémon TCG`;
 
-  // ⛔ Ingressen får inte lova något brevet inte innehåller. Har mottagaren varken
-  // samling eller bevakningar är "vad din samling gjorde" en tom kula — då är
-  // marknadsläget hela brevet, och nästa steg är att lägga upp något.
-  const hasPersonal = !!data.collection || data.drops.length > 0 || data.restocks.length > 0;
-  const intro = hasPersonal
-    ? "Sammanfattningen av din vecka på Foilio: vad din samling gjorde, vad som hände med det du bevakar, och var fynden fanns."
-    : "Här är veckans läge på den svenska Pokémon-marknaden. Lägg upp din samling och bevaka det du jagar, så handlar nästa brev om dina kort också.";
+  const html = digestLayout(esc(leadCopy.preheader), esc(leadCopy.headline), bodyHtml, footerHtml);
 
-  const html = layout(
-    `Hej ${data.name}, här är din vecka`,
-    `<p style="line-height:1.6;color:#cbd5e1;">${intro}</p>
-     ${parts.join("\n     ")}
-     ${button(`${APP_URL}/produkter?sortera=prisfall`, "Se allt i appen")}`,
-    footerReason
-  );
+  const text = `FOILIO · VECKOBREVET
 
-  const text = `Hej ${data.name}!
+${leadCopy.headline}
 
 ${intro}
 
-${textParts.join("\n\n")}
+${blocks.map((b) => b.text).join("\n\n")}
 
-Se allt i appen: ${APP_URL}/produkter?sortera=prisfall
+${finalCta.label}: ${finalCta.url}
+
+${capabilitiesText}
 
 Du får det här brevet för att du har ett konto på Foilio.
 Avregistrera dig från veckobrevet: ${data.unsubscribeUrl}
 Foilio · Sveriges marknadsplats för Pokémon TCG`;
 
-  return { subject, html, text };
+  return { subject: leadCopy.subject, html, text };
 }
 
 export function passwordResetEmail(name: string, resetUrl: string): EmailContent {

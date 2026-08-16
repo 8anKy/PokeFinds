@@ -9,16 +9,24 @@
  *    inte får brevet.
  * 3. Tomma avsnitt. "0 prisfall" och "+0,0 %" är fabricerat innehåll; avsnitt utan
  *    data ska UTELÄMNAS, inte nollas.
+ * 4. Movers-dedupen. Samlingen lagrar LOTS, så samma vara köpt två gånger ger två
+ *    movers-rader — och brevet listade 2026-08-16 samma produkt två gånger av tre.
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   NOTIFICATION_DEFAULTS,
   parseNotificationSettings,
 } from "@/lib/notification-settings";
 import { weeklyDigestEmail } from "@/emails/templates";
+
+// Jobbet importerar prisma-klienten; dedupen är ren och rör aldrig databasen.
+vi.mock("@/lib/db", () => ({ prisma: {} }));
+
+import { pickMovers, type CollectionRef } from "@/jobs/weekly-digest";
+import type { CollectionMover } from "@/services/collection";
 
 describe("avregistreringstoken", () => {
   const OLD = process.env.UNSUBSCRIBE_SECRET;
@@ -87,10 +95,89 @@ describe("notisdefaulterna speglar schema.prisma", () => {
   });
 });
 
+describe("movers: en rad per VARA, aldrig en per lot", () => {
+  const mover = (over: Partial<CollectionMover> & { id: string }): CollectionMover => ({
+    name: "Prismatic Evolutions Super-Premium Collection",
+    imageUrl: null,
+    setName: null,
+    value: 258_511,
+    percent: 7.3,
+    ...over,
+  });
+  // Två LOTS av samma produkt (två köp till olika pris) + en annan vara.
+  const refs = new Map<string, CollectionRef>([
+    ["lot-1", { key: "product:prismatic-spc", url: "https://foilio.se/produkter/a" }],
+    ["lot-2", { key: "product:prismatic-spc", url: "https://foilio.se/produkter/a" }],
+    ["lot-3", { key: "card:umbreon-vmax", url: "https://foilio.se/produkter/b" }],
+  ]);
+
+  it("dedupar på varans identitet — det skarpa brevet listade samma box två gånger", () => {
+    const out = pickMovers(
+      [mover({ id: "lot-1" }), mover({ id: "lot-2", percent: 6.1 }), mover({ id: "lot-3", name: "Umbreon VMAX", percent: 4 })],
+      refs
+    );
+    expect(out.map((m) => m.name)).toEqual([
+      "Prismatic Evolutions Super-Premium Collection",
+      "Umbreon VMAX",
+    ]);
+  });
+
+  it("dedupar FÖRE kapningen — tre rader betyder tre olika varor", () => {
+    const many = new Map<string, CollectionRef>([
+      ...refs,
+      ["lot-4", { key: "card:charizard", url: null }],
+      ["lot-5", { key: "card:pikachu", url: null }],
+    ]);
+    const out = pickMovers(
+      [
+        mover({ id: "lot-1" }),
+        mover({ id: "lot-2", percent: 6.9 }),
+        mover({ id: "lot-3", name: "Umbreon VMAX", percent: 5 }),
+        mover({ id: "lot-4", name: "Charizard ex", percent: 4 }),
+        mover({ id: "lot-5", name: "Pikachu", percent: 3 }),
+      ],
+      many,
+      3
+    );
+    expect(out).toHaveLength(3);
+    expect(new Set(out.map((m) => m.name)).size).toBe(3);
+  });
+
+  it("behåller ordningen (störst uppgång först) och första lotten av varan", () => {
+    const out = pickMovers([mover({ id: "lot-1", percent: 9.5 }), mover({ id: "lot-2", percent: 2.1 })], refs);
+    expect(out).toHaveLength(1);
+    expect(out[0].percent).toBe(9.5);
+    expect(out[0].url).toBe("https://foilio.se/produkter/a");
+  });
+
+  it("faller tillbaka på namn+set när posten saknas i uppslaget — hellre än en dubblett", () => {
+    const out = pickMovers(
+      [mover({ id: "borta-1" }), mover({ id: "borta-2", percent: 1 })],
+      new Map<string, CollectionRef>()
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].url).toBeNull();
+  });
+
+  it("relativa bild-URL:er blir absoluta, skräp blir null — mejlklienten har ingen bas-URL", () => {
+    const out = pickMovers(
+      [
+        mover({ id: "lot-1", imageUrl: "/uploads/min-bild.jpg" }),
+        mover({ id: "lot-3", imageUrl: "data:image/png;base64,AAAA" }),
+      ],
+      refs
+    );
+    expect(out[0].imageUrl?.startsWith("https://")).toBe(true);
+    expect(out[1].imageUrl).toBeNull();
+  });
+});
+
 describe("weeklyDigestEmail", () => {
   const base = {
     name: "Anna",
     unsubscribeUrl: "https://foilio.se/api/unsubscribe?token=abc",
+    // Bas-URL:en injiceras av jobbet — mallen läser aldrig miljön själv.
+    appUrl: "https://foilio.se",
     drops: [],
     restocks: [],
     pulse: {

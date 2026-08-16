@@ -53,7 +53,7 @@ import {
 } from "@/emails/templates";
 import { parseNotificationSettings } from "@/lib/notification-settings";
 import { requireUnsubscribeSecret, unsubscribeUrl } from "@/lib/unsubscribe-token";
-import { computeCollectionValue } from "@/services/collection";
+import { computeCollectionValue, type CollectionMover } from "@/services/collection";
 import {
   CM_MIN_CTE,
   DEAL_MAX_DISCOUNT,
@@ -141,7 +141,38 @@ const SHOW_DEAL_EXAMPLES = false;
 /** Hur många restock-händelser vi hämtar för bevakningsavsnitten. */
 const RESTOCK_EVENT_CAP = 1000;
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://foilio.se";
+/** Hur många påbörjade set vi visar komplettering för. */
+const MAX_SET_PROGRESS = 3;
+
+/**
+ * ⛔ `||`, ALDRIG `??` — SAMMA BUGG SOM `EMAIL_FROM` I `src/lib/mailer.ts`.
+ *
+ * GitHub Actions expanderar `${{ vars.NEXT_PUBLIC_APP_URL }}` till TOM STRÄNG när
+ * repository-variabeln inte finns (den finns INTE), och `"" ?? default` är `""` —
+ * `??` fångar bara null/undefined, aldrig den tomma strängen.
+ *
+ * Följden i det skarpa utskicket 2026-08-16: varje länk i brevet blev RELATIV
+ * (`/produkter?sortera=prisfall`), mejlklienten satte ihop `http:///produkter…`
+ * och knappen ledde till en felsida. Tyst — jobbet rapporterade lyckade utskick.
+ *
+ * Mönstret är familjen "ett fält som FINNS men är tomt passerar en vakt som bara
+ * letar efter att det saknas" (samma som `variantLabel`-vakten 07-28). Läser du
+ * en `process.env`-default i den här kodbasen: `||`, och fäll tomma strängar.
+ */
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se";
+
+/**
+ * Bild-URL som fungerar i EN MEJLKLIENT. Katalogens bilder är absoluta och går
+ * rakt in; en app-relativ sökväg (egen uppladdning) måste få värdnamnet påklistrat
+ * — annars blir det exakt samma trasiga `http:///…` som APP_URL-buggen ovan gav.
+ * Allt annat (data:-URI:er, skräp) blir `null` → mallen hoppar bilden.
+ */
+function mailImage(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith("/")) return `${APP_URL}${url}`;
+  return null;
+}
 
 export interface WeeklyDigestResult {
   /** Sant när jobbet avstod för att det var fel veckodag (inget annat kördes). */
@@ -162,6 +193,30 @@ interface UnderMarketRow {
   retailerName: string;
   price: number;
   cmPrice: number;
+}
+
+/** En rad ur den AGGREGERADE set-kompletteringsfrågan (en rad per användare+set). */
+interface SetProgressRow {
+  userId: string;
+  setId: string;
+  setName: string;
+  owned: number;
+  total: number;
+}
+
+/** Set-komplettering som brevet visar. Speglar `setProgress` i mallens kontrakt. */
+interface DigestSetProgress {
+  setName: string;
+  owned: number;
+  total: number;
+  url: string;
+}
+
+/** Identitet + produktlänk för en samlingspost (för moversens dedup och länkar). */
+export interface CollectionRef {
+  /** VARANS identitet (kort eller produkt) — INTE postens. Se dedupen nedan. */
+  key: string;
+  url: string | null;
 }
 
 interface PlatformPulse {
@@ -267,9 +322,179 @@ async function loadPlatformPulse(weekAgo: Date, now: Date): Promise<PlatformPuls
   };
 }
 
+/**
+ * ⛔ DEDUP PER VARA, INTE PER POST — OCH BARA I PRESENTATIONEN.
+ *
+ * Samlingen lagrar LOTS (ett andra köp av samma vara till ett annat pris blir en
+ * EGEN rad — se `.claude/rules/collection-portfolio.md`: försäljningen kräver
+ * poster), så `computeCollectionValue().movers` returnerar en post per LOT. Det
+ * skarpa brevet 2026-08-16 listade därför "Prismatic Evolutions Super-Premium
+ * Collection +7,3 % · 2 585,11 kr/st" TVÅ gånger i en lista på tre — mottagaren
+ * läser det som en bugg, inte som två köp.
+ *
+ * ⛔ Dedupen sker FÖRE kapningen till MAX_MOVERS: kapar man först blir listan
+ * kortare i stället för bredare, och tre rader ska betyda tre olika VAROR.
+ * ⛔ Slå ALDRIG ihop lots i värdeberäkningen — bara här, i presentationen.
+ *
+ * Identiteten kommer ur `collectionRefs` (kort- eller produkt-id). Saknas posten
+ * där (borttagen mellan frågorna) faller vi tillbaka på namn+set — sämre, men
+ * aldrig sämre än att dubblera raden. Listan kommer sorterad på störst uppgång;
+ * ordningen bevaras, så den dyraste/vassaste lotten av en vara är den som visas.
+ */
+export function pickMovers(
+  movers: CollectionMover[],
+  refs: Map<string, CollectionRef>,
+  max = MAX_MOVERS
+): DigestMover[] {
+  const seen = new Set<string>();
+  const out: DigestMover[] = [];
+  for (const m of movers) {
+    if (out.length >= max) break;
+    const ref = refs.get(m.id);
+    const key = ref?.key ?? `name:${m.name}|${m.setName ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      name: m.name,
+      setName: m.setName,
+      percent: m.percent,
+      valueOre: m.value,
+      imageUrl: mailImage(m.imageUrl),
+      url: ref?.url ?? null,
+    });
+  }
+  return out;
+}
+
+/**
+ * SET-KOMPLETTERING FÖR HELA MOTTAGARLISTAN I **EN** FRÅGA.
+ *
+ * ⛔ `getSetCompletion()` (services/set-completion.ts) tar ETT set för EN användare
+ * och kan alltså inte anropas här: 65 mottagare × deras påbörjade set hade blivit
+ * N×M rundturer mot Neon — samma misstag som en gång höll computen vaken dygnet
+ * runt, fast i ett jobb som redan har ett smalt fönster. Aggregeringen görs i
+ * Postgres i stället.
+ *
+ * ⛔ NÄMNAREN LJUGER LÄTT (samma varning som set-completion.ts bär):
+ * `CardSet.totalCards` kommer från pokemontcg.io och räknar inte alltid secret
+ * rares, så en samlare kan äga FLER kort än nämnaren påstår. Vi använder därför
+ * samma fallback som setsidan (antalet kort vi själva har) och slänger raden när
+ * `owned >= total` — "0 kort kvar" är ingen anledning att öppna appen, och ett
+ * negativt tal hade varit rent fel.
+ *
+ * Bara set där användaren äger MINST ett kort kommer med (JOIN:en ser till det).
+ */
+async function loadSetProgress(userIds: string[]): Promise<Map<string, DigestSetProgress[]>> {
+  const byUser = new Map<string, DigestSetProgress[]>();
+  if (userIds.length === 0) return byUser;
+
+  const rows = await prisma.$queryRaw<SetProgressRow[]>`
+    SELECT ci."userId"                      AS "userId",
+           s.id                             AS "setId",
+           s.name                           AS "setName",
+           COUNT(DISTINCT ci."cardId")::int AS "owned",
+           (CASE
+              WHEN s."totalCards" > 0 THEN s."totalCards"
+              ELSE (SELECT COUNT(*)::int FROM "Card" x WHERE x."setId" = s.id)
+            END)                            AS "total"
+    FROM "CollectionItem" ci
+      JOIN "Card" c ON c.id = ci."cardId"
+      JOIN "CardSet" s ON s.id = c."setId"
+    WHERE ci."userId" = ANY(${userIds})
+    GROUP BY ci."userId", s.id, s.name, s."totalCards"
+  `;
+
+  const grouped = new Map<string, SetProgressRow[]>();
+  for (const r of rows) {
+    if (r.total <= 0 || r.owned <= 0 || r.owned >= r.total) continue;
+    const list = grouped.get(r.userId);
+    if (list) list.push(r);
+    else grouped.set(r.userId, [r]);
+  }
+
+  for (const [userId, list] of grouped) {
+    byUser.set(
+      userId,
+      list
+        // MEST KOMPLETTA först — det är den raden som är värd att öppna appen för
+        // ("12 kort kvar"). Lika andel → fler ägda kort vinner.
+        .sort((a, b) => b.owned / b.total - a.owned / a.total || b.owned - a.owned)
+        .slice(0, MAX_SET_PROGRESS)
+        .map((r) => ({
+          setName: r.setName,
+          owned: r.owned,
+          total: r.total,
+          url: `${APP_URL}/sets/${r.setId}`,
+        }))
+    );
+  }
+  return byUser;
+}
+
+/**
+ * `collectionItemId → { varans identitet, produktlänk }` för HELA mottagarlistan.
+ *
+ * Två frågor, aldrig två per mottagare. Behövs till två saker samtidigt:
+ * dedupen av movers (som är per VARA, inte per post) och länken från en mover
+ * till produktsidan — `computeCollectionValue().movers` bär bara postens id.
+ */
+async function loadCollectionRefs(userIds: string[]): Promise<Map<string, CollectionRef>> {
+  const refs = new Map<string, CollectionRef>();
+  if (userIds.length === 0) return refs;
+
+  const items = await prisma.collectionItem.findMany({
+    where: { userId: { in: userIds } },
+    select: { id: true, cardId: true, productId: true, product: { select: { slug: true } } },
+  });
+
+  // Singel-kort länkas till kortets BILLIGASTE produkt — samma val som
+  // /samling gör, så mejlet och sidan landar på samma produktsida.
+  const cardIds = Array.from(
+    new Set(items.map((i) => i.cardId).filter((v): v is string => v != null))
+  );
+  const slugByCard = new Map<string, string>();
+  if (cardIds.length > 0) {
+    const cardProducts = await prisma.product.findMany({
+      where: { cardId: { in: cardIds }, hiddenAt: null },
+      select: { cardId: true, slug: true, lowestPriceOre: true },
+    });
+    const best = new Map<string, number>();
+    for (const p of cardProducts) {
+      if (!p.cardId) continue;
+      const lp = p.lowestPriceOre ?? Number.MAX_SAFE_INTEGER;
+      const prev = best.get(p.cardId);
+      if (prev == null || lp < prev) {
+        best.set(p.cardId, lp);
+        slugByCard.set(p.cardId, p.slug);
+      }
+    }
+  }
+
+  for (const i of items) {
+    const slug = i.product?.slug ?? (i.cardId ? slugByCard.get(i.cardId) ?? null : null);
+    refs.set(i.id, {
+      key: i.cardId ? `card:${i.cardId}` : i.productId ? `product:${i.productId}` : `item:${i.id}`,
+      url: slug ? productUrl(slug) : null,
+    });
+  }
+  return refs;
+}
+
 export async function runWeeklyDigest(
   now = new Date(),
-  opts?: { force?: boolean; dryRun?: boolean; onlyEmail?: string }
+  opts?: {
+    force?: boolean;
+    dryRun?: boolean;
+    onlyEmail?: string;
+    /**
+     * Får varje FÄRDIGBYGGT brev innan det skickas (eller i stället för, vid
+     * torrkörning). Finns för att kunna GRANSKA brevet — 2026-08-16 gick ett
+     * skarpt utskick ut med relativa länkar och trasig logotyp, och det gick
+     * inte att se förrän det låg i en inkorg. En torrkörning som bara räknar
+     * mottagare säger inget om hur brevet SER UT.
+     */
+    onBuilt?: (email: string, mail: { subject: string; html: string; text: string }) => void;
+  }
 ): Promise<WeeklyDigestResult> {
   const empty: WeeklyDigestResult = {
     skippedWrongDay: false,
@@ -376,6 +601,7 @@ export async function runWeeklyDigest(
             setId: true,
             category: true,
             lowestPriceOre: true,
+            imageUrl: true,
             hiddenAt: true,
           },
         },
@@ -432,12 +658,29 @@ export async function runWeeklyDigest(
           price: true,
           detectedAt: true,
           retailer: { select: { name: true } },
-          product: { select: { title: true, slug: true, setId: true, category: true, hiddenAt: true } },
+          product: {
+            select: {
+              title: true,
+              slug: true,
+              setId: true,
+              category: true,
+              imageUrl: true,
+              hiddenAt: true,
+            },
+          },
         },
         orderBy: { detectedAt: "desc" },
         take: RESTOCK_EVENT_CAP,
       })
     : [];
+
+  // Set-komplettering och samlingens identiteter — också EN batch för hela listan,
+  // och bara för dem som faktiskt har poster (ingen fråga för tomma samlingar).
+  const collectionUserIds = ids.filter((id) => hasCollection.has(id));
+  const [setProgressByUser, collectionRefs] = await Promise.all([
+    loadSetProgress(collectionUserIds),
+    loadCollectionRefs(collectionUserIds),
+  ]);
 
   // ---- Bygg och skicka ----
   for (const user of recipients) {
@@ -457,6 +700,7 @@ export async function runWeeklyDigest(
         url: productUrl(w.product!.slug),
         priceOre: w.product!.lowestPriceOre,
         percent,
+        imageUrl: mailImage(w.product!.imageUrl),
       }));
 
     const seenRestock = new Set<string>();
@@ -470,14 +714,23 @@ export async function runWeeklyDigest(
       // lovat något set-bevakningen aldrig larmar om.
       const viaSet = p.setId != null && mySetIds.has(p.setId) && isSealedCategory(p.category);
       if (!viaProduct && !viaSet) continue;
-      const key = `${ev.productId}:${ev.retailer.name}`;
-      if (seenRestock.has(key)) continue;
-      seenRestock.add(key);
+      // ⛔ EN RAD PER VARA, INTE PER BUTIK. Nyckeln bar förut butiksnamnet, så
+      // samma låda som fyllts på hos två butiker blev två rader — i granskningen
+      // 2026-08-16 låg "Ascended Heroes Elite Trainer Box" två gånger i en lista
+      // på fem, och läste som samma dubblettbugg som movers hade. Listan svarar på
+      // "vad är tillbaka?", inte "hos vilka butiker?"; butiksvalet gör man på
+      // produktsidan, där ALLA butiker syns med aktuellt pris.
+      // Händelserna är sorterade `detectedAt desc`, så den rad som behålls är den
+      // SENASTE påfyllningen — den färskaste uppgiften, inte den billigaste (ett
+      // pris ur en gammal händelse hade kunnat vara inaktuellt).
+      if (seenRestock.has(ev.productId)) continue;
+      seenRestock.add(ev.productId);
       restocks.push({
         title: p.title,
         url: productUrl(p.slug),
         retailerName: ev.retailer.name,
         priceOre: ev.price,
+        imageUrl: mailImage(p.imageUrl),
       });
     }
 
@@ -514,17 +767,19 @@ export async function runWeeklyDigest(
           totalValueOre: value.totalValue,
           changeOre,
           changePercent,
-          movers: value.movers.slice(0, MAX_MOVERS).map((m) => ({
-            name: m.name,
-            setName: m.setName,
-            percent: m.percent,
-            valueOre: m.value,
-          })),
+          movers: pickMovers(value.movers, collectionRefs),
         };
       }
     }
 
-    const hasContent = !!collection || drops.length > 0 || restocks.length > 0 || pulseHasContent;
+    const setProgress = setProgressByUser.get(user.id) ?? [];
+
+    const hasContent =
+      !!collection ||
+      drops.length > 0 ||
+      restocks.length > 0 ||
+      setProgress.length > 0 ||
+      pulseHasContent;
     if (!hasContent) {
       // ⛔ INGEN STÄMPEL: fick hen inget brev ska nästa vecka pröva på nytt.
       result.skippedNoContent++;
@@ -534,11 +789,21 @@ export async function runWeeklyDigest(
     const mail = weeklyDigestEmail({
       name: user.name,
       unsubscribeUrl: unsubscribeUrl(APP_URL, user.id, "weekly"),
+      // ⛔ BAS-URL:EN INJICERAS AV JOBBET — mallen läser inte env själv. Ett enda
+      // ställe att få tomt (och att laga) i stället för två, och testerna kan
+      // därför bevisa att varje länk i brevet är absolut.
+      appUrl: APP_URL,
       collection: collection ?? undefined,
       drops,
       restocks,
+      // Tomma avsnitt skickas som tom lista → mallen utelämnar dem. Ingen utfyllnad.
+      setProgress: setProgress.length > 0 ? setProgress : undefined,
       pulse,
     });
+
+    // Granskningskroken körs för BÅDA lägena: brevet som skickas är exakt det
+    // som går att inspektera, aldrig en rekonstruktion.
+    opts?.onBuilt?.(user.email, mail);
 
     if (opts?.dryRun) {
       console.log(`  [torrkörning] ${user.email} — "${mail.subject}"`);
