@@ -2,10 +2,124 @@
 paths:
   - "scripts/discord-restock-run.ts"
   - "scripts/export-restock-routes.ts"
+  - "scripts/lib/restock-routes.ts"
+  - "src/lib/discord-restock-filter.ts"
+  - "src/lib/restock-feed-events.ts"
+  - "src/lib/restock-poll-interval.ts"
   - "src/lib/stock-flap.ts"
   - ".github/workflows/discord-restock.yml"
 ---
 # Discord restock-lane
+
+## ⛔ KATALOGEN GRINDAR INTE LÄNGRE (2026-08-16) — ombygget som löste ägarens felrapport
+Symtomet: **mejl och push kom fram om påfyllningar Discord teg om, i de flesta butiker.**
+Roten var att lanen grindade på RUTTABELLEN — saknades butikens URL där postades ingenting.
+Ruttabellen bär bara URL:er med en `Offer` eller en bunden `StoreListing` hos en bevakad butik;
+allt annat butikerna säljer var osynligt, och bortfallet gick inte att skilja från en sleeve.
+**Domen tas nu på ANNONSEN** (`src/lib/discord-restock-filter.ts`), rutten är ENRIKNING
+(snyggare titel, rätt kanal, länk till vår produktsida).
+- **VAKTKEDJAN ÄR SAMMA FUNKTIONER SOM AUTO-IMPORTEN, ALDRIG KOPIOR**: språk → denylist →
+  tillbehör (`isAccessoryListing` + `classifyForm` accessory/event) → merch → singel → annan
+  franchise → butiksbundle → känd form (`guessListingCategory` ≠ OTHER) → positiv Pokémon-evidens.
+  Kopieras reglerna driver lanarna isär tyst, exakt som flapp-dämpningen en gång gjorde.
+- ⛔ **EN KÄND RUTT ÖVERTRUMFAR VAKTERNA — annars vore ombygget en REGRESSION.** Fram till nu
+  postades VARJE routad URL utan någon vakt alls; hade en ordlista kunnat rösta ner den hade
+  ändringen tagit BORT larm samtidigt som den lade till dem. Katalogen har redan avgjort att en
+  routad URL är en riktig sealed Pokémon-produkt. MÄTT 2026-08-16: "Starter Deck 100 Japansk" och
+  "Phantsmal Flames Booster Pack" (butikens stavfel) faller båda på `no-pokemon-signal` fast de är
+  riktiga varor — en ordlista täcker aldrig butikernas formuleringar.
+  ⛔ **TVÅ UNDANTAG SOM ALDRIG ÖVERTRUMFAS**, för de är POLICY och inte gissningar: `language`
+  (kanalerna är EN + JP, ägarkrav) och `denylist` (ägarens "Ta bort" måste gälla i kanalerna också).
+  `stats.rescuedByRoute` loggas — **ett stigande tal betyder att en vakt är för bred för butikernas
+  formuleringar**, och är signalen att mäta om den innan den ändras.
+- ⛔ **`isUnspecifiedCharacterListing` står MED FLIT INTE i kedjan.** Den finns bara för att hindra
+  DUBBLETTER när en produkt SKAPAS; en karaktärslös "Premium Checklane Blister" är en fullt riktig
+  påfyllning att larma om. Asymmetrin är omvänd här: ett falskt JA kostar ett inlägg, ett falskt NEJ
+  kostar precis det ägaren klagade på.
+- ⛔ **KATEGORIGRINDEN (OTHER) STÅR KVAR.** Svansen som blir kvar i OTHER är mest merch ordlistorna
+  inte känner igen (tote bags, Squishmallows, kakburkar, badbomber). MÄTT i drift 2026-08-16:
+  Pocketmonsters levererade 83 "flippar" i ETT tick — badbyxor, plånböcker, plysch, kepsar. Utan
+  vakterna hade den katalogfriheten fyllt kanalerna med exakt det.
+- **MÄTT FÖRE OCH EFTER** (`scripts/audit-discord-lane-coverage.ts`, alla 42 butikers levande feedar):
+  5 295 annonser i lager → 1 428 passerar vakterna → **64 av dem saknade rutt och kunde alltså
+  ALDRIG postas förut**. Resten fälls av vakterna: 1 199 tillbehör, 869 singlar, 528 okänd form,
+  488 blockerat språk, 465 annan franchise, 174 merch.
+  ⚠️ **`RestockEvent` kan inte mäta bortfallet** — en restock på en URL utan offer skriver ingen
+  RestockEvent alls, så en jämförelse mot DB-lanens facit visar 0 missar per konstruktion. Mät på
+  FEEDEN, inte på händelsetabellen. (`scripts/audit-discord-vs-db-alerts.ts` gör jämförelsen och bär
+  samma varning.)
+- **RUTTABELLEN BÄR NU OCKSÅ TAXONOMI**: `setNames` (den positiva Pokémon-vakten), `sets`
+  (namn/serie/språk → kanalval för URL:er utan rutt) och `deniedUrls` (ägarens "Ta bort" måste gälla
+  i kanalerna också). ⛔ Setnamnen byggs dessutom ur ruttabellens EGNA `setName`-värden, så en ÄLDRE
+  cachad fil ger en användbar lista — annars hade en deploy stått med försvagad Pokémon-vakt tills
+  nästa nattliga export, dvs fällt riktiga påfyllningar som "no-pokemon-signal" i upp till ett dygn.
+- ⛔ **ETT SET SOM HETER SAMMA SAK SOM SIN SERIE är den MINST specifika tolkningen** (`matchKnownSet`):
+  "Mega Evolution" är både ett set (seriens basutgåva) och en serie, och butikerna skriver ut serien
+  före setet ("Mega Evolution - Chaos Rising Booster"). Längsta-namn-matchning ensam hade lagt varan
+  i basutgåvans kanal.
+
+## ⛔ FRÅNVARO HAR ETT MINNE (2026-08-16)
+`mergeStateMap` GLÖMMER en URL som försvinner ur en levererande feed. Det gav två fel åt var sitt håll:
+- **ROTERANDE BUTIKER TAPPADE ÄKTA PÅFYLLNINGAR.** Shinycards och Swepoke levererar en roterande
+  delmängd, så en URL som setts slutsåld, roterat ut och kommit tillbaka I LAGER dök upp som
+  `ABSENT → IN_STOCK` — och rotationsregeln kastar den, med rätta. DB-lanen larmade ändå, eftersom
+  `Offer.stockStatus` LIGGER KVAR. Nu minns `absent` statusen över frånvaron: ett IHÅGKOMMET
+  slutsålt → i lager ÄR en påfyllning oavsett rotation. Rotationen kan inte fabricera den — ett
+  `OUT_OF_STOCK` måste faktiskt ha OBSERVERATS.
+- **FEED-HICKOR BLEV FALSKA PÅFYLLNINGAR.** En delvis levererad feed tappade sina URL:er ur minnet
+  och fick dem tillbaka som nyheter. Var de borta kortare än blinkfönstret (`minAwayMinutes`, samma
+  tal som DB-vägen) lämnade varan aldrig hyllan. Utan regeln stämplas dessutom cooldown på hundratals
+  URL:er, vilket kan TYSTA en äkta påfyllning i två timmar.
+- ⛔ **En URL som var IN_STOCK, försvann och kommer tillbaka I LAGER efter blinkfönstret postas
+  fortfarande** — för Speltrollet-liknande butiker är frånvaro ur kollektionen det ENDA
+  slutsåld-beskedet. Ta inte bort den grenen "för att statusen inte ändrades".
+- `pending`-mekanismen (andra chansen för okända URL:er) är BORTTAGEN: den fanns bara för att rutten
+  var en grind, och är det inte längre. Äldre state-filers `pending` ignoreras.
+
+## ⛔ PREORDER VAR ETT SVART HÅL (2026-08-16)
+`actionableChanges` krävde att BÅDA statusarna var IN_STOCK/OUT_OF_STOCK, medan DB-vägens `isRestock`
+med flit räknar **PREORDER → IN_STOCK** som en restock (tillagt 2026-07-25 sedan ägaren felsökt exakt
+det symtomet — släppet är det mest värdefulla larmet av alla). Följden: den övergången kunde varken
+väcka databasen eller synas i Discord-diffen, så ett släpp larmade bara om NÅGON ANNAN produkt råkade
+flippa i samma körning. Villkoret är nu ordagrant `isRealStockTransition` — enbart UNKNOWN utesluts —
+och `OUT_OF_STOCK → PREORDER` får ett eget besked (`RestockPost.preorder`, embed-texten fanns redan
+men sattes aldrig). Kostnad: bara Webhallen-adaptern skriver PREORDER och statusen står still i
+veckor (mätt 1 övergång på 14 dygn).
+
+## ⛔ SVEPET ÄR BORTTAGET — VARJE BUTIK GÅR I SIN EGEN TAKT (2026-08-16)
+Lanen var ett SVEP: alla butiker hämtades parallellt, och först när den LÅNGSAMMASTE svarat kördes
+diffen och inläggen gick ut. **MÄTT i drift: svepet tog 36 s och sattes av Shinycards (35,9 s) och
+Swepoke (35,0 s)** — en butik som svarade på 4 s fick alltså ~32 s ren väntan påklistrad på varje
+larm, dygnet runt, för att två ANDRA butiker är långsamma. Ovanpå det låg ett tickintervall på 60 s.
+Nu har varje butik en egen loop (hämta → diffa → posta → vänta ut sin takt) och väntar aldrig på
+någon annan. **Uppmätt effekt för en CDN-butik: ~66 s snittlatens → ~20 s.**
+- ⛔ **TAKTEN VÄLJS INTE, DEN FALLER UT UR ETT ARTIGHETSTAK** (`src/lib/restock-poll-interval.ts`).
+  Den gamla indelningen var per PLATTFORM ("Shopify varje tick, egna servrar varannan"), som om alla
+  feedar kostade lika mycket att hämta. De gör inte det. Scriptet mäter förfrågningarna per hämtning
+  (räknare i `scrapers/http.ts`) och sätter intervallet så att ingen butik får mer än **en förfrågan
+  per 2,5 s (CDN) respektive 6 s (egen server)**, med golv 25/60 s och tak 240 s.
+  MÄTT 2026-08-16: Dragon's Lair 5 förfrågn. → 25 s (var 60), Speltrollet 5 → 25 s (var 60),
+  NordicTCG 3 → 60 s (var 120), Coolcard 5 → 60 s (var 120), Webhallen 24 → 60 s (oförändrat).
+  Billiga feedar pollas alltså OFTARE än förut, dyra mer SÄLLAN, och lasten mot varje butik är känd.
+- ⛔ **VÄRDNAMNET MÅSTE LUCKRAS UPP.** Källans registrerade `baseUrl` är inte alltid den värd
+  adaptern hämtar från — Dragon's Lair står som `www.dragonslair.se` medan feeden ligger på
+  `dragonslair.se`. En uppslagning på bara baseUrl-värden gav noll förfrågningar för dem, dvs
+  mätningen SÅG ut att fungera och gjorde det inte. Matcha på både baseUrl och feedens egna URL:er.
+- ⛔ **STARTA INTE ALLA BUTIKER SAMTIDIGT.** `politeFetch` fördröjer per VÄRD, så 42 parallella
+  hämtningar mot 42 butiker är i sig artigt — men Shopify svarar 429 när för många av deras BUTIKER
+  träffas från samma IP i samma ögonblick (ett dussin backoffar när svepet startade allt på en gång;
+  samma symtom som täckningsrevisionen 2026-08-13). `DISCORD_RESTOCK_STAGGER_MS` (400 ms × index)
+  sprider starten, och sedan driver butikerna isär av sig själva eftersom de går i olika takt.
+- **GLAPPET MELLAN JOBB ÄR MÄTT**: dispatch → runner-tilldelning → checkout → cache-restore tog
+  **~112 s, varav ~95 s är GitHubs egen kö** (bara ~17 s är vårt: checkout, node, cache). Det går
+  inte att optimera bort, bara amorteras — loopbudgeten är därför 1200 s (~9 % blind tid mot ~17 %
+  vid 9-minutersjobb), `timeout-minutes` 25. ⛔ Glappet KOSTAR INGA LARM, bara latens: nästa jobb
+  diffar mot samma state och hittar övergången.
+  ⚠️ Med 20-minutersjobb ger 2-minuterspingen ~10 avbrutna körningar per jobb. Pingern får gärna
+  sättas till var 5:e minut — samma latens, renare historik, självläker fortfarande inom fem minuter.
+- **`--dry-run`** kör hela kedjan utan att posta och utan bot-token (egen state-fil via
+  `DISCORD_RESTOCK_STATE_FILE`). Enda vägen att prova en ändring var annars att deploya den och se om
+  kanalerna fylldes med fel saker — och felet i den här lanen är alltid tyst åt något håll.
 
 - **DISCORD RESTOCK-LARM BYGGT 2026-08-11, INERT TILLS VARIABLERNA SÄTTS**: egen lane
   (`.github/workflows/discord-restock.yml` + `scripts/discord-restock-run.ts`) som postar

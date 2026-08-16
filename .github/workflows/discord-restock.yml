@@ -1,4 +1,4 @@
-name: Discord restock-larm (loop-jobb, tick var 60:e s)
+name: Discord restock-larm (loop-jobb, egen takt per butik)
 
 # Snabbfil som postar restocks till Discord LÅNGT före mejlet hinner ut.
 #
@@ -9,35 +9,43 @@ name: Discord restock-larm (loop-jobb, tick var 60:e s)
 # LOOP-I-JOBBET (2026-08-13, ersätter "en körning per dispatch var 2:a minut"):
 # Den gamla modellen betalade ~25 s Actions-omkostnad (dispatch→start, boot, checkout,
 # cache-restores) PER SVEP — omkostnaden var större än själva feed-hämtningen och
-# gick inte att optimera bort per körning. Nu loopar JOBBET i stället: ett jobb kör
-# svep ("tick") var 60:e sekund och avslutar sig självt; omkostnaden betalas en gång
-# per jobb. Feed-hämtningen kortades samtidigt i sig: Shopify-JSON-pacingen sänktes
-# 1200→300 ms (CDN-serverad; Speltrollets 28 kollektioner var den mätta ~40 s-svansen)
-# och TCG Store/Pokétalk/Samlarhobby läser /products.json.
+# gick inte att optimera bort per körning. Nu loopar JOBBET i stället, och omkostnaden
+# betalas en gång per jobb.
 #
-# LATENSPASS 2026-08-15 — två saker gjorde att "tick var 60:e sekund" inte stämde:
-#   1. SVEPET TOG LÄNGRE TID ÄN TICKET. Med 42 butiker och samtidighet 16 kördes
-#      hämtningen i tre vågor (~76 s mätt vid 34 butiker), och loopen startar nästa
-#      tick först när det förra är klart — så det verkliga intervallet sattes av
-#      svepet, inte av inställningen. Samtidigheten är nu 48 (= fler än butikerna),
-#      vilket gör wall-clock till långsammaste ENSKILDA butik. Det ökar inte lasten
-#      mot någon butik: politeFetch fördröjer per VÄRD, inte globalt.
-#   2. GLAPPET MELLAN JOBB. Ett 5-minutersjobb betalade ~30 s blind boot-tid var
-#      femte minut (~10 %). Loopbudgeten är nu 9 min (~6 %).
-# Svepets väggklocka OCH de fem långsammaste butikerna loggas numera varje körning
-# ("[restock-scan] Feed-svep: … Långsammast: …") — utan den raden går det inte att se
-# vilken butik som sätter takten, och det var precis vad som saknades.
+# ⛔ SVEPET ÄR BORTTAGET (2026-08-16). Fram till nu hämtades alla butiker parallellt
+# och först när den LÅNGSAMMASTE svarat kördes diffen och inläggen gick ut. MÄTT i
+# drift: svepet tog 36 s och sattes av Shinycards (35,9 s) och Swepoke (35,0 s) — så
+# en butik som svarade på 4 s fick ändå ~32 s ren väntan påklistrad på varje larm,
+# dygnet runt, för att två ANDRA butiker är långsamma. Ovanpå det låg ett tickintervall
+# på 60 s. Nu har varje butik en EGEN loop (hämta → diffa → posta → vänta ut sin takt)
+# och väntar aldrig på någon annan. Uppmätt effekt för en CDN-serverad butik:
+# ~66 s snittlatens → ~20 s.
 #
-# ARTIGHETEN SITTER I SCRIPTET, PER PLATTFORM: Shopify-butiker (CDN) sveps varje tick,
-# butiker på egna servrar (Quickbutik/Woo/custom) varannan — dvs samma takt som den
-# gamla 2-minuterslanen gav dem. Läs isFastTier i scripts/discord-restock-run.ts.
+# ⛔ TAKTEN VÄLJS INTE, DEN FALLER UT UR ETT ARTIGHETSTAK. Den gamla indelningen var
+# per PLATTFORM ("Shopify varje tick, egna servrar varannan"), som om alla feedar
+# kostade lika mycket att hämta. De gör inte det: en butik vars hela feed är två
+# sidhämtningar och en vars feed är trettio kollektionsanrop fick femton gångers
+# skillnad i last utan att någon valt det. Scriptet mäter nu förfrågningarna per
+# hämtning (räknare i scrapers/http.ts) och sätter intervallet så att ingen butik får
+# mer än en förfrågan per 2,5 s (CDN) respektive 6 s (egen server). Billiga feedar
+# pollas därmed OFTARE än förut, dyra mer SÄLLAN, och lasten mot varje butik är känd
+# i stället för gissad. Läs pollIntervalMs i src/lib/restock-poll-interval.ts.
 #
-# PINGERN (cron-job.org, var 2:a min) BEHÖVS FORTFARANDE och får gärna stå kvar på 2
-# min: medan ett loop-jobb kör blir dispatcher PENDING i concurrency-gruppen, GitHub
-# byter ut den väntande mot varje nyare dispatch (någon "avbruten" körning per jobb i
-# historiken — kosmetiskt), och när jobbet slutar startar nästa direkt = sömlös kedja
-# med självläkning om ett jobb dör. Vill man ha renare historik kan pingern sättas
-# till var 5:e min (samma latens — jobben är ~5 min långa); ägarens val, noll kostnad.
+# GLAPPET MELLAN JOBB är det som återstår: dispatch → runner-tilldelning → checkout →
+# cache-restore mättes 2026-08-16 till ~112 s, varav ~95 s är GitHubs egen kö efter
+# att jobbet blivit körbart (bara ~17 s är vårt: checkout, node, cache). Det går inte
+# att optimera bort — bara amorteras. Loopbudgeten är därför 20 min (~9 % blind tid
+# mot ~17 % vid 9-minutersjobb). Glappet KOSTAR INGA LARM, bara latens: nästa jobb
+# diffar mot samma state och hittar övergången.
+#
+# PINGERN (cron-job.org) BEHÖVS FORTFARANDE: medan ett loop-jobb kör blir dispatchen
+# PENDING i concurrency-gruppen, GitHub byter ut den väntande mot varje nyare dispatch
+# (någon "avbruten" körning per jobb i historiken — kosmetiskt), och när jobbet slutar
+# startar nästa direkt = sömlös kedja med självläkning om ett jobb dör.
+# ⚠️ MED 20-MINUTERSJOBB GER 2-MINUTERSPINGEN ~10 AVBRUTNA KÖRNINGAR PER JOBB. Sätt
+# gärna pingern till var 5:e minut i stället: samma latens (den enda som räknas är att
+# EN dispatch står och väntar när jobbet slutar), renare historik, och en död lane
+# självläker fortfarande inom fem minuter. Ägarens val, noll kostnad åt båda håll.
 #
 # ⛔ DEN RÖR ALDRIG DATABASEN, OCH DET ÄR VILLKORET FÖR ATT DEN SKA VARA GRATIS.
 # Neon debiteras per VAKEN TID och varje väckning köper minst 300 s. Skulle den här
@@ -83,9 +91,11 @@ concurrency:
 jobs:
   post:
     runs-on: ubuntu-latest
-    # 10 → 15: loopbudgeten är 540 s (9 min) och sista ticket får löpa klart efter det.
-    # Taket är ett skyddsräcke mot en hängd körning, inte en planerad gräns.
-    timeout-minutes: 15
+    # Loopbudgeten är 1200 s (20 min) och en butiks sista varv får löpa klart efter
+    # den. Taket är ett skyddsräcke mot en hängd körning, inte en planerad gräns —
+    # men det är också hur länge lanen står blind om ett jobb hänger, så håll
+    # marginalen liten (den längsta enskilda hämtningen är ~40 s).
+    timeout-minutes: 25
     env:
       # ⛔ AVSIKTLIGT OÅTKOMLIG. Se filhuvudet. PrismaClient konstrueras vid import av
       # runner.ts; en syntaktiskt giltig men död URL låter konstruktionen lyckas och
@@ -100,33 +110,25 @@ jobs:
       # Tom → default-listan i scriptet (de åtta mest aktiva butikerna, mätt).
       # "all" = alla bevakade. Läs artighetsresonemanget i scriptet innan du sätter "all".
       DISCORD_RESTOCK_STORES: ${{ vars.DISCORD_RESTOCK_STORES }}
-      # Loop-i-jobbet: totalbudget ~9 min, ett tick var 60:e s (se filhuvudet).
-      # Jobbet slutar självt när nästa tick inte ryms i budgeten.
+      # Loop-i-jobbet: totalbudget 20 min. Varje BUTIK har sin egen takt inuti (se
+      # filhuvudet); det här talet styr bara hur länge jobbet lever.
       #
-      # 300 → 540 (2026-08-15): mellan två jobb är lanen BLIND medan nästa dispatch
-      # bootar (dispatch→start, checkout, cache-restore ≈ 25–40 s). Med 5-minutersjobb
-      # var det glappet ~10 % av all tid; med 9-minutersjobb ~6 %. Samma antal jobb-
-      # omkostnader betalas över dubbelt så lång täckning. timeout-minutes höjd i takt.
-      DISCORD_RESTOCK_LOOP_SECONDS: "540"
-      DISCORD_RESTOCK_TICK_SECONDS: "60"
-      # ⛔ TICKINTERVALLET KAN ALDRIG BLI KORTARE ÄN SVEPET. 16 → 48 (2026-08-15):
-      # med 42 butiker och 16 workers kördes svepet i tre vågor och tog ~76 s (mätt
-      # 2026-08-12 vid 34 butiker) — alltså LÄNGRE än de 60 s som står ovan, så
-      # "tick var 60:e sekund" var en önskan, inte en takt. Samtidigheten gäller
-      # MELLAN butiker; politeFetch håller sin fördröjning per VÄRD (lastRequestPerHost),
-      # så en höjning ökar inte lasten mot någon enskild butik — den tar bara bort
-      # köandet mellan dem. Wall-clock blir då långsammaste ENSKILDA butiken, som
-      # loggas varje körning ("Feed-svep: … Långsammast: …") sedan samma datum.
-      RESTOCK_SCAN_CONCURRENCY: "48"
-      # ⛔ WEBHALLEN VAR SVANSEN. MÄTT 2026-08-15: hela svepet över 42 butiker tog
-      # 54,4 s och Webhallen ensam 52,3 s av dem — dess live-koll slår upp varje
-      # icke-i-lager-produkt (~48 st) sekventiellt med 800 ms paus. En butik som står
-      # för 0,4 restocks/dygn av 12,2 satte alltså tickgolvet för alla 42.
-      # I LOOP-LÄGE behövs inte allt varje tick: adaptern roterar markören, så 16 per
-      # tick betyder att varje produkt kollas var tredje tick (~3 min) — långt under de
-      # ~50 min sökindexet släpar, vilket var hela skälet till live-kollen.
-      # ⛔ Sätts BARA här. scrape-all och restock-watch kör ett svep per process och
-      #    behåller defaulten (80 = alla) — där finns inget nästa tick att rotera till.
+      # 540 → 1200 (2026-08-16): mellan två jobb är lanen BLIND medan nästa dispatch
+      # tilldelas en runner och bootar — MÄTT till ~112 s, varav ~95 s är GitHubs egen
+      # kö. Det glappet går inte att optimera bort, bara amorteras: ~17 % blind tid vid
+      # 9-minutersjobb, ~9 % vid 20-minutersjobb. Samma antal jobb-omkostnader betalas
+      # över dubbelt så lång täckning. ⛔ Höj inte vidare utan att väga in att ett
+      # HÄNGT jobb blockerar lanen tills timeout-minutes löper ut.
+      DISCORD_RESTOCK_LOOP_SECONDS: "1200"
+      # ⛔ WEBHALLEN VAR SVANSEN I SVEPET. MÄTT 2026-08-15: hela svepet över 42 butiker
+      # tog 54,4 s och Webhallen ensam 52,3 s av dem — dess live-koll slår upp varje
+      # icke-i-lager-produkt (~48 st) sekventiellt med 800 ms paus. Sedan svepet ersatts
+      # av per-butiks-loopar bromsar den bara SIG SJÄLV, men rotationen är fortfarande
+      # rätt: 16 per hämtning betyder att varje produkt kollas var tredje varv (~3 min)
+      # — långt under de ~50 min sökindexet släpar, vilket var hela skälet till
+      # live-kollen.
+      # ⛔ Sätts BARA här. scrape-all och restock-watch kör EN hämtning per process och
+      #    behåller defaulten (80 = alla) — där finns inget nästa varv att rotera till.
       WEBHALLEN_LIVE_POLL_MAX: "16"
       NEXT_PUBLIC_APP_URL: "https://foilio.se"
     steps:

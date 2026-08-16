@@ -24,6 +24,34 @@ const ROBOTS_CACHE_TTL_MS = 60 * 60 * 1000; // 1 timme
 const robotsCache = new Map<string, RobotsRules>();
 const lastRequestPerHost = new Map<string, number>();
 
+/**
+ * Hur många förfrågningar vi gjort mot varje värd i den här processen.
+ *
+ * ⛔ ARTIGHET SKA MÄTAS, INTE GISSAS (2026-08-16). Discord-lanen satte tidigare sin
+ * takt per PLATTFORM ("Shopify varje minut, egna servrar varannan"), som om alla
+ * butiker kostade lika mycket att hämta. De gör inte det: en butik vars hela feed är
+ * två sidhämtningar och en vars feed är trettio kollektionsanrop får då femton
+ * gångers skillnad i last utan att någon valt det. Räknaren gör det möjligt att i
+ * stället sätta ETT tak på förfrågningar per butik och sekund och låta
+ * pollningstakten falla ut ur det — se `intervalForSource` i
+ * scripts/discord-restock-run.ts.
+ */
+const requestsPerHost = new Map<string, number>();
+
+/**
+ * Ögonblicksbild av räknaren (värd → antal). Anroparen tar en före och en efter en
+ * hämtning och jämför.
+ *
+ * ⛔ RETURNERAR HELA KARTAN, INTE EN ENDA VÄRD. En källas registrerade `baseUrl` är
+ * inte alltid den värd adaptern faktiskt hämtar från — Dragon's Lair står som
+ * `https://www.dragonslair.se` medan feeden ligger på `dragonslair.se`. En uppslagning
+ * på bara baseUrl-värden gav därför noll förfrågningar för dem, dvs mätningen såg ut
+ * att fungera och gjorde det inte. Anroparen får matcha på flera värdformer.
+ */
+export function requestCountSnapshot(): Record<string, number> {
+  return Object.fromEntries(requestsPerHost);
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -130,6 +158,7 @@ export async function politeFetch(
     const wait = last + delayMs - Date.now();
     if (wait > 0) await sleep(wait);
     lastRequestPerHost.set(parsed.host, Date.now());
+    requestsPerHost.set(parsed.host, (requestsPerHost.get(parsed.host) ?? 0) + 1);
 
     try {
       const res = await fetch(url, {

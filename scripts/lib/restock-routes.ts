@@ -19,7 +19,39 @@ import { prisma } from "../../src/lib/db";
 import type { RestockSourceInfo } from "../../src/scrapers/runner";
 import type { RouteTable } from "../../src/lib/restock-feed-events";
 
-export async function exportRestockRoutes(outFile: string): Promise<{ sources: number; routes: number } | null> {
+/**
+ * Ruttabellsfilens innehåll. `routes` är numera ENRIKNING, inte en grind:
+ * Discord-lanen postar på butiksannonsens egna meriter (se
+ * `src/lib/discord-restock-filter.ts`) och använder rutten för att sätta en snyggare
+ * titel, rätt kanal och en länk till vår produktsida NÄR vi känner igen URL:en.
+ */
+export interface RestockRoutesPayload {
+  at: number;
+  sources: RestockSourceInfo[];
+  routes: RouteTable;
+  /**
+   * Katalogens setnamn — enda indatan Discord-lanens POSITIVA Pokémon-vakt behöver
+   * ur databasen. Skickas som RÅA namn; lanen normaliserar själv.
+   * ⛔ Måste täcka mer än `routes` gör: ett HELT NYTT set har ännu inga offers, och
+   *    utan namnet faller dess första påfyllning på "no-pokemon-signal" om butikens
+   *    titel varken nämner "Pokémon" eller en Pokémon-karaktär.
+   */
+  setNames: string[];
+  /**
+   * Admin-nekade butiks-URL:er (`DeniedListingUrl`). Utan dem postar Discord-lanen
+   * glatt en URL ägaren nyss tagit bort på produktsidan — raderingen ska gälla i
+   * ALLA kanaler, inte bara i katalogen.
+   */
+  deniedUrls: string[];
+  /**
+   * Set → serie/språk. Låter lanen välja RÄTT kanal även för en URL som saknar rutt:
+   * setnamnet står nästan alltid i butikens titel. Utan detta hade varje ny SKU
+   * hamnat i catch-all och seriekanalerna blivit tomma skal.
+   */
+  sets: { name: string; series: string | null; language: string | null }[];
+}
+
+export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null> {
   const active = await prisma.scrapeSource.findMany({ where: { isActive: true } });
   const sources: RestockSourceInfo[] = active
     .filter((s) => (s.config as { restockWatch?: boolean } | null)?.restockWatch === true)
@@ -115,15 +147,52 @@ export async function exportRestockRoutes(outFile: string): Promise<{ sources: n
     fromLedger++;
   }
 
-  const payload = { at: Date.now(), sources, routes };
-  mkdirSync(dirname(outFile), { recursive: true });
-  writeFileSync(outFile, JSON.stringify(payload));
+  // ---- KATALOGENS TAXONOMI (2026-08-16) ----
+  // Discord-lanen slutade grinda på ruttabellen och dömer numera butiksannonsen
+  // själv. Två saker klarar den ändå inte utan oss: den positiva Pokémon-vakten
+  // (som frågar om ett känt setnamn står i titeln) och kanalvalet för en URL vi
+  // aldrig sett. Båda är TAXONOMI — några hundra rader, inga produkter — och
+  // hämtas här, i det fönster där Neon ändå är vaken.
+  const cardSets = await prisma.cardSet.findMany({
+    select: { name: true, series: true, language: true },
+  });
+  const setNames = cardSets.map((s) => s.name);
+  const sets = cardSets.map((s) => ({
+    name: s.name,
+    series: s.series ?? null,
+    language: (s.language as string | null) ?? null,
+  }));
+
+  // Admin-nekade URL:er. Listan är liten (ägarens "Ta bort") och måste följa med —
+  // lanen har ingen DB att slå upp den i.
+  const denied = await prisma.deniedListingUrl.findMany({ select: { url: true } });
+
+  const payload: RestockRoutesPayload = {
+    at: Date.now(),
+    sources,
+    routes,
+    setNames,
+    deniedUrls: denied.map((d) => d.url),
+    sets,
+  };
 
   const withSeries = Object.values(routes).filter((r) => r.series).length;
   console.log(
     `[export-routes] ${sources.length} källor, ${Object.keys(routes).length} URL:er ` +
       `(${withSeries} med serie, ${Object.keys(routes).length - withSeries} utan → catch-all; ` +
-      `${fromLedger} från huvudboken utan egen offer) → ${outFile}`
+      `${fromLedger} från huvudboken utan egen offer), ${setNames.length} setnamn, ` +
+      `${payload.deniedUrls.length} nekade URL:er.`
   );
-  return { sources: sources.length, routes: Object.keys(routes).length };
+  return payload;
+}
+
+export async function exportRestockRoutes(
+  outFile: string
+): Promise<{ sources: number; routes: number } | null> {
+  const payload = await buildRestockRoutes();
+  if (!payload) return null;
+  mkdirSync(dirname(outFile), { recursive: true });
+  writeFileSync(outFile, JSON.stringify(payload));
+  console.log(`[export-routes] → ${outFile}`);
+  return { sources: payload.sources.length, routes: Object.keys(payload.routes).length };
 }

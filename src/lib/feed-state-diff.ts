@@ -20,6 +20,16 @@ import type { StockStatus } from "@prisma/client";
  *    (sellout): DB-fasen måste registrera slutförsäljningen, annars ser NÄSTA körning
  *    ingen OOS→IN-övergång och restocken larmas aldrig. Båda flipparna väcker alltså.
  *  - UNKNOWN räknas ALDRIG (isRealStockTransition kräver båda ≠ UNKNOWN).
+ *  - ⛔ ALLT ANNAT RÄKNAS — OCKSÅ PREORDER (2026-08-16). Grinden krävde tidigare att
+ *    BÅDA statusarna var IN_STOCK/OUT_OF_STOCK, vilket gjorde PREORDER till ett svart
+ *    hål: `isRestock` räknar med flit **PREORDER → IN_STOCK** som en restock (tillagt
+ *    2026-07-25 sedan ägaren felsökt exakt det symtomet — släppet är det mest
+ *    värdefulla larmet av alla), men den övergången kunde aldrig väcka databasen och
+ *    syntes inte heller i Discord-lanens diff. En förhandsbokning som blev riktigt
+ *    lager larmade alltså bara om NÅGON ANNAN produkt råkade flippa i samma körning.
+ *    Villkoret är nu ordagrant `isRealStockTransition`: enbart UNKNOWN utesluts.
+ *    (Kostnad: bara Webhallen-adaptern skriver PREORDER, och statusen står still i
+ *    veckor — mätt 1 PREORDER-övergång på 14 dygn.)
  *  - Ny URL i lager (fanns ej förra körningen): för ICKE-roterande butiker = möjlig ny
  *    produkt → väck. För roterande = rotation, inte signal → väck INTE (samma som att
  *    roterande feeds inte ger "ny produkt"-larm i övrigt).
@@ -93,8 +103,12 @@ export type StockChange = {
   key: string;
   from: string; // "ABSENT" = fanns inte förra körningen
   to: string;
-  reason: "restock" | "sellout" | "ny-i-lager";
+  /** Speglar src/scrapers/restock.ts: `isRestock` respektive `isPreorderOpen`. */
+  reason: "restock" | "preorder-open" | "sellout" | "ny-i-lager";
 };
+
+const UNKNOWN = "UNKNOWN";
+const PREORDER = "PREORDER";
 
 /**
  * Förändringar som MÅSTE väcka DB:n. Tom lista = säkert att hoppa (Neon sover).
@@ -124,11 +138,18 @@ export function actionableChanges(
       continue;
     }
 
-    // Verklig lagerflipp på en URL vi såg BÅDA gångerna. Båda måste vara IN/OOS
-    // (UNKNOWN räknas aldrig — speglar isRealStockTransition).
-    const bothReal = (from === IN || from === OOS) && (to === IN || to === OOS);
+    // Verklig lagerflipp på en URL vi såg BÅDA gångerna. ⛔ Villkoret är ordagrant
+    // `isRealStockTransition`: bara UNKNOWN utesluts. Se filhuvudet om varför den
+    // tidigare IN/OOS-begränsningen gjorde PREORDER till ett svart hål.
+    const bothReal = from !== UNKNOWN && to !== UNKNOWN;
     if (from !== to && bothReal) {
-      changes.push({ key: k, from, to, reason: from === OOS ? "restock" : "sellout" });
+      const reason: StockChange["reason"] =
+        to === IN && (from === OOS || from === PREORDER)
+          ? "restock"
+          : to === PREORDER && from === OOS
+            ? "preorder-open"
+            : "sellout";
+      changes.push({ key: k, from, to, reason });
     }
   }
   return changes;

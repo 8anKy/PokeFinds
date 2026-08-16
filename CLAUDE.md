@@ -36,7 +36,8 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
 
 ## Auto-uppdatering (GitHub Actions; publikt repo → obegränsade minuter)
 `cardmarket-refresh` 13:00 UTC + `hot-card-refresh` 21:00, `tradera-sweep` 04:00, `scrape-all` 02:00,
-`restock-watch` var 10:e min (extern pinger), `discord-restock` (loop-i-jobbet, pingas var 2:a min).
+`restock-watch` var 10:e min (extern pinger), `discord-restock` (loop-i-jobbet, egen takt per butik,
+pingas var 2:a min).
 DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
 - ⛔ **Nattkedjan får ALDRIG bli längre än tre led**: scrape-all → tradera-sweep → cardtrader-refresh är
   länkade med `workflow_run` för att dela ETT Neon-fönster. GitHub fyrar max tre nivåer från roten; led 4
@@ -181,7 +182,7 @@ klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
 | Fil | Hårdaste regeln |
 |---|---|
 | `scraping-restock.md` | Shopifys `available` ≠ köpbar; `discontinued` är INGEN lagersignal; frånvaro ur feeden kollas, tolkas inte |
-| `discord-restock.md` | Lanen är GRATIS på villkor — når aldrig DB:n; egen cache-nyckel; okänd URL postas inte |
+| `discord-restock.md` | Lanen är GRATIS på villkor — når aldrig DB:n; egen cache-nyckel; domen tas på ANNONSEN, men en känd rutt övertrumfar vakterna |
 | `matching-import.md` | `OTHER` var det enda som höll skräpet ute — härda vakterna FÖRE en vidgning; mät mot två facit |
 | `catalog-curation.md` | Herrelösa URL:er räknas över HELA gruppen; denylist FÖRE apply; identiteten måste överleva normaliseringen |
 | `cm-pricing.md` | Singlar = CM engelska NM-"From" RAKT AV; guiden är INTE CM:s From |

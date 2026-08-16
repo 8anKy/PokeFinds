@@ -748,6 +748,39 @@ export function offersToVerify<
     .sort((a, b) => (a.lastSeenAt?.getTime() ?? 0) - (b.lastSeenAt?.getTime() ?? 0));
 }
 
+/**
+ * FAS 1 FÖR EN ENDA KÄLLA: hämta butikens katalog och normalisera annonserna.
+ * ⛔ RÖR ALDRIG DATABASEN. Kastar aldrig — en butik som failar ger tom lista, precis
+ * som i svepet (och "tom" betyder INGEN INFORMATION hos anroparen, aldrig "allt slut").
+ *
+ * Utbruten ur `runRestockScan` 2026-08-16 för att Discord-lanen ska kunna schemalägga
+ * butikerna VAR FÖR SIG. I ett gemensamt svep kan ingen butiks påfyllning postas förrän
+ * den LÅNGSAMMASTE butiken svarat — mätt samma dag: svepet tog 36 s, så en butik som
+ * svarade på 4 s fick ändå ~32 s ren väntan påklistrad innan diffen ens beräknades.
+ */
+export async function fetchSourceFeed(source: RestockSourceInfo): Promise<FeedItem[]> {
+  try {
+    const adapter = getAdapter(source.type, source.name);
+    const result = await adapter.fetchProducts();
+    return result.products
+      .filter((p) => adapter.validateResult(p))
+      .map((p) => {
+        const n = adapter.normalizeProduct(p);
+        return {
+          url: n.url,
+          stockStatus: n.stockStatus,
+          title: p.title,
+          price: n.offerPrice ?? n.price ?? null,
+          imageUrl: n.imageUrl ?? p.imageUrl ?? null,
+          category: n.category ?? null,
+        };
+      });
+  } catch (err) {
+    console.error(`[restock-scan] ${source.name} misslyckades:`, err instanceof Error ? err.message : err);
+    return [];
+  }
+}
+
 export async function runRestockScan(opts?: {
   // Snabb-fil: begränsa till namngivna butiker (t.ex. ["Manatörsk"]) → fingeravtrycket
   // täcker bara dem, så en tät körning väcker Neon bara när DE flippar. Utelämnas = alla.
@@ -796,29 +829,10 @@ export async function runRestockScan(opts?: {
   const durations = new Map<string, number>();
   await mapPool(sources, RESTOCK_SCAN_CONCURRENCY, async (source, i) => {
     const started = Date.now();
-    try {
-      const adapter = getAdapter(source.type, source.name);
-      const result = await adapter.fetchProducts();
-      const items: FeedItem[] = result.products
-        .filter((p) => adapter.validateResult(p))
-        .map((p) => {
-          const n = adapter.normalizeProduct(p);
-          return {
-            url: n.url,
-            stockStatus: n.stockStatus,
-            title: p.title,
-            price: n.offerPrice ?? n.price ?? null,
-            imageUrl: n.imageUrl ?? p.imageUrl ?? null,
-            category: n.category ?? null,
-          };
-        });
-      fetched[i] = { sourceName: source.name, items };
-    } catch (err) {
-      console.error(`[restock-scan] ${source.name} misslyckades:`, err instanceof Error ? err.message : err);
-      fetched[i] = { sourceName: source.name, items: [] };
-    } finally {
-      durations.set(source.name, Date.now() - started);
-    }
+    // fetchSourceFeed sväljer själv adapterfel och ger tom lista — samma beteende
+    // som förut, nu delat med Discord-lanens per-butiks-schemaläggare.
+    fetched[i] = { sourceName: source.name, items: await fetchSourceFeed(source) };
+    durations.set(source.name, Date.now() - started);
   });
 
   // Svepets väggklocka + de fem långsammaste butikerna. Wall-clock är INTE summan:

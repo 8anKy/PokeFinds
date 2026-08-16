@@ -16,6 +16,19 @@ paths:
 ---
 # Matchning, auto-import och kategorivakter
 
+- **⛔ ADJEKTIVET KRÄVER SITT SUBSTANTIV — "PROTECTIVE CASE" ÄR PLAST, "PROTECTIVE ORB" ÄR ETT KORT
+  (2026-08-16)**: `PROTECTOR_SIGNS` kände `protector(s)` men inte adjektivet, så Hobbykorts fem
+  "Pokémon **Protective** Case – Booster Box / Elite Trainer Box / Mini Tin Display" passerade HELA
+  vaktkedjan — formordet "Booster Box" gav dem till och med en giltig kategori. De kunde alltså både
+  bli katalogprodukter och postas som restock-larm i Discord.
+  ⛔ **Bart `\bprotective\b` är FÖRBJUDET.** Delta-mätning mot prod (`scripts/measure-protective-guard.ts`):
+  "Protective Goggles · 151 164/165" och "Protective Orb · Unseen Forces 90/115" är riktiga
+  trainer-KORT — 4 katalograder och 9 offers — och vakten sitter också i `productsConflict`, där en
+  falsk träff blockerar en korrekt butikslänk TYST. Regeln kräver därför substantivet
+  (`case|sleeve|box|cover|holder|film|fodral|hylsa`). Utfall: **0 katalogträffar, 0 bundna
+  huvudboksrader, 6 träffar — alla Hobbykorts skyddsplast.** Samma familj som bart "accessory", bart
+  "display" och bart "figure". Vaktat av `tests/unit/protective-case-guard.test.ts`.
+
 - **⛔ ETT SEALED-FORMORD KAN VETA MERCH-VAKTEN — MÄRKET ÄR DÅ ENDA UTVÄGEN (2026-08-16)**: 28 Re-Ment-
   dioramor låg i katalogen som COLLECTION_BOX med Speltrollet-länkar, dvs de kunde larma restock i
   Discords Pokémon-kanaler. Ingen ordbaserad merch-regel hade kunnat stoppa dem: varenda Re-Ment-titel

@@ -1,10 +1,16 @@
 /**
- * Tester för Discord-snabbfilens RENA delar: kanalvalet och domen om vad som ska
- * postas. Ingen DB, inga nätanrop — precis som lanen själv.
+ * Tester för Discord-lanens RENA delar: kanalvalet och domen om vad som ska postas.
+ * Ingen DB, inga nätanrop — precis som lanen själv.
  *
- * De två fall som MÅSTE hålla är seedningen och flapp-dämpningen: brister den första
- * postas hela sortimentet på en gång, brister den andra spammar Dragon's Lair kanalen
- * sönder. Båda felen är tysta i produktion.
+ * De fall som MÅSTE hålla:
+ *  · SEEDNINGEN — brister den postas hela sortimentet på en gång.
+ *  · FLAPP-DÄMPNINGEN — brister den spammas Dragon's Lairs kanal sönder.
+ *  · VAKTKEDJAN — den ersatte ruttabellen som grind 2026-08-16. Brister den fylls
+ *    kanalerna med gosedjur och lösa kort (Pocketmonsters ensam levererade 83
+ *    "flippar" i ett tick: badbyxor, plånböcker, plysch).
+ *  · FRÅNVAROMINNET — brister det tappar roterande butiker sina äkta påfyllningar,
+ *    vilket var precis den tystnad ägaren rapporterade (mejl kom, Discord teg).
+ * Alla fyra felen är tysta i produktion.
  */
 import { describe, expect, it } from "vitest";
 import { chunk, resolveChannelId, buildRestockEmbed } from "@/lib/discord-restock";
@@ -16,6 +22,12 @@ import {
   type FullFeedGroup,
   type RouteTable,
 } from "@/lib/restock-feed-events";
+import {
+  buildDiscordFilterContext,
+  buildKnownSets,
+  classifyDiscordListing,
+  matchKnownSet,
+} from "@/lib/discord-restock-filter";
 import type { FlapPolicy } from "@/lib/stock-flap";
 
 const POLICY: FlapPolicy = { minAwayMinutes: 20, flapMaxTransitions: 6, flapCooldownHours: 24 };
@@ -39,14 +51,29 @@ const ROUTES: RouteTable = {
   },
 };
 
-function groups(items: { url: string; stockStatus: string }[], sourceName = "Dragon's Lair"): FullFeedGroup[] {
+const SETS = [
+  { name: "Pitch Black", series: "Mega Evolution", language: "EN" },
+  { name: "Prismatic Evolutions", series: "Scarlet & Violet", language: "EN" },
+  { name: "Paradox Rift", series: "Scarlet & Violet", language: "EN" },
+  { name: "Ninja Spinner (M4)", series: "Mega Evolution", language: "JP" },
+];
+const FILTER = buildDiscordFilterContext({ routes: ROUTES, setNames: SETS.map((s) => s.name) });
+const KNOWN_SETS = buildKnownSets({ sets: SETS });
+
+/** En titel som passerar hela vaktkedjan — det normala fallet. */
+const OK_TITLE = "Pokémon TCG: Pitch Black Elite Trainer Box";
+
+function groups(
+  items: { url: string; stockStatus: string; title?: string }[],
+  sourceName = "Dragon's Lair"
+): FullFeedGroup[] {
   return [
     {
       sourceName,
       items: items.map((i) => ({
         url: i.url,
         stockStatus: i.stockStatus as FullFeedGroup["items"][number]["stockStatus"],
-        title: "Butikens titel",
+        title: i.title ?? OK_TITLE,
         price: 54900,
         imageUrl: null,
       })),
@@ -62,13 +89,16 @@ function derive(opts: {
   state: DiscordRestockState | null;
   groups: FullFeedGroup[];
   rotating?: Set<string>;
+  routes?: RouteTable;
   now?: Date;
 }) {
   return deriveRestockPosts({
     state: opts.state,
     groups: opts.groups,
     rotating: opts.rotating ?? new Set(),
-    routes: ROUTES,
+    routes: opts.routes ?? ROUTES,
+    filter: FILTER,
+    knownSets: KNOWN_SETS,
     now: opts.now ?? NOW,
     policy: POLICY,
     cooldownHours: 2,
@@ -76,7 +106,8 @@ function derive(opts: {
   });
 }
 
-const KEY = "Dragon's Lair\thttps://butik.se/pitch-black-etb";
+const URL_ETB = "https://butik.se/pitch-black-etb";
+const KEY = `Dragon's Lair\t${URL_ETB}`;
 
 describe("resolveChannelId", () => {
   const config = {
@@ -130,11 +161,119 @@ describe("resolveChannelId", () => {
   });
 });
 
+/**
+ * VAKTKEDJAN ÄR NUMERA ENDA GRINDEN (2026-08-16). Fram till dess postades bara URL:er
+ * som fanns i ruttabellen, dvs varor katalogen kände igen — och det var därför mejl
+ * gick ut om påfyllningar Discord teg om. Varje rad nedan står för en klass som
+ * FAKTISKT förekom i butikernas levande feedar när grinden mättes.
+ */
+describe("classifyDiscordListing", () => {
+  const ok = (title: string, url = "https://butik.se/x") =>
+    classifyDiscordListing({ title, url }, FILTER);
+
+  it("släpper igenom en vanlig sealed-vara utan att katalogen känner URL:en", () => {
+    const v = ok("Pokémon Mega Evolution: Pitch Black Booster Box");
+    expect(v.ok).toBe(true);
+    expect(v.language).toBe("EN");
+  });
+
+  it("släpper igenom JAPANSKA varor och märker språket", () => {
+    const v = ok("Pokémon Ninja Spinner (M4) Booster Box (Japansk)");
+    expect(v.ok).toBe(true);
+    expect(v.language).toBe("JP");
+  });
+
+  it("blockerar kinesiska och koreanska utgåvor", () => {
+    expect(ok("Pokémon Gem Pack Vol 6 Booster Box (Kinesisk)").reason).toBe("language");
+    expect(ok("Pokémon Mega Brave Booster Box (KOR)").reason).toBe("language");
+  });
+
+  it("blockerar tillbehör — uttrycklig ägarregel för kanalerna", () => {
+    expect(ok("Pokemon ME02 Phantasmal Flames Samlarpärm 9-pocket").reason).toBe("accessory");
+    expect(ok("Ultra Pro Pokemon Mega Charizard X&Y Spelmatta").reason).toBe("accessory");
+    // Adjektivet krävde sitt substantiv innan den här smet igenom (Hobbykort).
+    expect(ok("Pokémon Protective Case - Booster Box Japanese").reason).toBe("accessory");
+  });
+
+  it("blockerar merch och lösa kort", () => {
+    expect(ok("Pokémon Palmsize Wonders Series 2 Eeveelution Blind Box").reason).toBe("merch");
+    expect(ok("Charizard ex #199 - PSA 8").reason).toBe("single");
+  });
+
+  it("blockerar andra TCG-franchiser", () => {
+    expect(ok("One Piece [OP-17]: The World's Strongest Warrior Booster Pack").reason).toBe(
+      "other-franchise"
+    );
+  });
+
+  it("blockerar butikens egen hopsättning", () => {
+    expect(ok("Swepoke's Mystery Box").reason).toBe("store-bundle");
+  });
+
+  it("blockerar former vi inte känner igen (OTHER-svansen är mest merch)", () => {
+    expect(ok("Pokémon Squishmallow 40 cm").reason).toBeDefined();
+  });
+
+  it("kräver POSITIV Pokémon-evidens — en blocklista kan aldrig bli komplett", () => {
+    expect(ok("Toy Story 30 Years & Beyond Booster Box").reason).toBe("no-pokemon-signal");
+    // Evidensen läses också på RÅTITELN: cleanListingTitle tar bort "Pokémon TCG:"-
+    // prefixet, och för den här SKU:n satt hela beviset just där.
+    expect(ok("Pokemon TCG: 2025 World Championship Deck - Pult Bomb").ok).toBe(true);
+  });
+
+  it("respekterar ägarens denylist på URL:en, inte bara på titeln", () => {
+    const denied = "https://goblinen.com/products/pokemon-tcg-mega-zygarde-ex-premium-collection";
+    expect(classifyDiscordListing({ title: OK_TITLE, url: denied }, FILTER).reason).toBe("denylist");
+  });
+});
+
+describe("matchKnownSet", () => {
+  it("hittar setet i butikens egen titel så kanalvalet funkar utan rutt", () => {
+    expect(matchKnownSet("Pokémon Pitch Black Booster Box", KNOWN_SETS, "EN")?.series).toBe(
+      "Mega Evolution"
+    );
+  });
+
+  it("väljer setet med RÄTT SPRÅK när namnet delas mellan EN och JP", () => {
+    const shared = buildKnownSets({
+      sets: [
+        { name: "Black Bolt", series: "Scarlet & Violet", language: "EN" },
+        { name: "Black Bolt", series: "Mega Evolution", language: "JP" },
+      ],
+    });
+    expect(matchKnownSet("Black Bolt Booster Box", shared, "JP")?.series).toBe("Mega Evolution");
+    expect(matchKnownSet("Black Bolt Booster Box", shared, "EN")?.series).toBe("Scarlet & Violet");
+  });
+
+  it("SERIENS basutgåva förlorar mot det specifika setet i samma titel", () => {
+    // "Mega Evolution" är BÅDE ett set (seriens basutgåva) och en serie, och
+    // butikerna skriver ut serien före setet. Utan specificitetsregeln vinner det
+    // längre namnet och varan hamnar i basutgåvans kanal i stället för i sin egen.
+    const both = buildKnownSets({
+      sets: [
+        { name: "Mega Evolution", series: "Mega Evolution", language: "EN" },
+        { name: "Chaos Rising", series: "Mega Evolution", language: "EN" },
+      ],
+    });
+    expect(matchKnownSet("Pokémon TCG: Mega Evolution - Chaos Rising Booster", both, "EN")?.name).toBe(
+      "Chaos Rising"
+    );
+    // …men bär titeln BARA basutgåvans namn är den fortfarande rätt svar.
+    expect(matchKnownSet("Pokémon TCG: Mega Evolution Booster Box", both, "EN")?.name).toBe(
+      "Mega Evolution"
+    );
+  });
+
+  it("null när inget känt set nämns → catch-all", () => {
+    expect(matchKnownSet("Pokémon Booster Box", KNOWN_SETS, "EN")).toBeNull();
+  });
+});
+
 describe("deriveRestockPosts", () => {
   it("SEEDAR utan att posta när ingen tidigare state finns", () => {
     const r = derive({
       state: null,
-      groups: groups([{ url: "https://butik.se/pitch-black-etb", stockStatus: "IN_STOCK" }]),
+      groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }]),
     });
     expect(r.posts).toHaveLength(0);
     expect(r.stats.seeded).toBe(true);
@@ -148,7 +287,7 @@ describe("deriveRestockPosts", () => {
     const otherStoreKey = "Webhallen\thttps://webhallen.se/nagon-vara";
     const r = derive({
       state: state({ stock: { [otherStoreKey]: "IN_STOCK" } }),
-      groups: groups([{ url: "https://butik.se/pitch-black-etb", stockStatus: "IN_STOCK" }]),
+      groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }]),
     });
     expect(r.posts).toHaveLength(0);
     expect(r.stats.seededSources).toEqual(["Dragon's Lair"]);
@@ -158,7 +297,7 @@ describe("deriveRestockPosts", () => {
     // ...och en riktig påfyllning efteråt postar.
     const r2 = derive({
       state: state({ stock: { ...r.nextState.stock, [KEY]: "OUT_OF_STOCK" } }),
-      groups: groups([{ url: "https://butik.se/pitch-black-etb", stockStatus: "IN_STOCK" }]),
+      groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }]),
     });
     expect(r2.stats.seededSources).toEqual([]);
     expect(r2.posts).toHaveLength(1);
@@ -167,7 +306,7 @@ describe("deriveRestockPosts", () => {
   it("postar en påfyllning (OUT → IN) på en känd URL", () => {
     const r = derive({
       state: state({ stock: { [KEY]: "OUT_OF_STOCK" } }),
-      groups: groups([{ url: "https://butik.se/pitch-black-etb", stockStatus: "IN_STOCK" }]),
+      groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }]),
     });
     expect(r.posts).toHaveLength(1);
     expect(r.posts[0]).toMatchObject({
@@ -179,102 +318,249 @@ describe("deriveRestockPosts", () => {
       // Feeden bär ingen bild → katalogbilden ur ruttabellen som reserv.
       imageUrl: "https://cdn.foilio.se/pitch-black-etb.jpg",
       productUrl: `${BASE}/produkter/pitch-black-elite-trainer-box`,
+      preorder: false,
     });
   });
 
   it("postar INTE en slutförsäljning", () => {
     const r = derive({
       state: state({ stock: { [KEY]: "IN_STOCK" } }),
-      groups: groups([{ url: "https://butik.se/pitch-black-etb", stockStatus: "OUT_OF_STOCK" }]),
+      groups: groups([{ url: URL_ETB, stockStatus: "OUT_OF_STOCK" }]),
     });
     expect(r.posts).toHaveLength(0);
   });
 
-  it("hoppar över URL:er som saknas i ruttabellen (kan vara sleeves/singlar)", () => {
-    const key = "Dragon's Lair\thttps://butik.se/kartongfodral";
-    const r = derive({
-      state: state({ stock: { [key]: "OUT_OF_STOCK" } }),
-      groups: groups([{ url: "https://butik.se/kartongfodral", stockStatus: "IN_STOCK" }]),
-    });
-    expect(r.posts).toHaveLength(0);
-    expect(r.stats.skippedUnknownUrl).toBe(1);
-    expect(r.stats.unknownUrlKeys).toEqual([key]);
-    // ...men den GLÖMS inte: övergången väntar på att ruttabellen ska hinna ikapp.
-    expect(r.nextState.pending?.[key]).toBe(NOW.getTime());
-  });
-
-  // Samlarhobbys Paradox Rift-booster 2026-08-12: offern föddes 18:02 via auto-import,
-  // ruttabellen var från 12:57 → övergången konsumerades och postades ALDRIG. Andra
-  // chansen: okända IN_STOCK-övergångar väntar i state och postas när rutten dykt upp.
-  describe("andra chansen för okända URL:er", () => {
-    const NEW_URL = "https://butik.se/paradox-rift-booster";
-    const NEW_KEY = `Dragon's Lair\t${NEW_URL}`;
-    const ROUTED: RouteTable = {
-      ...ROUTES,
-      [NEW_URL]: {
-        title: "Paradox Rift Booster",
-        slug: "paradox-rift-booster",
-        setName: "Paradox Rift",
-        series: "Scarlet & Violet",
-      },
-    };
-    const pendingState = () =>
-      state({
-        stock: { [NEW_KEY]: "IN_STOCK" },
-        pending: { [NEW_KEY]: NOW.getTime() - 10 * 60_000 },
-      });
-    const inStockGroups = () => groups([{ url: NEW_URL, stockStatus: "IN_STOCK" }]);
-
-    it("postar när rutten dykt upp och varan fortfarande är i lager", () => {
-      const r = deriveRestockPosts({
-        state: pendingState(),
-        groups: inStockGroups(),
-        rotating: new Set(),
-        routes: ROUTED,
-        now: NOW,
-        policy: POLICY,
-        cooldownHours: 2,
-        baseUrl: BASE,
+  /**
+   * ⛔ KÄRNAN I 2026-08-16-OMBYGGET. Att ruttabellen inte kände URL:en var det
+   * vanligaste skälet till att Discord teg om en påfyllning som mejlades ut.
+   */
+  describe("katalogen grindar inte längre", () => {
+    it("POSTAR en okänd URL som passerar vakterna — utan produktlänk", () => {
+      const url = "https://butik.se/helt-ny-sku";
+      const key = `Dragon's Lair\t${url}`;
+      const r = derive({
+        state: state({ stock: { [key]: "OUT_OF_STOCK" } }),
+        groups: groups([
+          { url, stockStatus: "IN_STOCK", title: "Pokémon Paradox Rift Booster Box" },
+        ]),
       });
       expect(r.posts).toHaveLength(1);
-      expect(r.posts[0].title).toBe("Paradox Rift Booster");
-      expect(r.nextState.pending?.[NEW_KEY]).toBeUndefined();
+      expect(r.posts[0]).toMatchObject({
+        title: "Pokémon Paradox Rift Booster Box", // butikens egen fras, tvättad
+        productUrl: null, // vi känner inte URL:en → ingen prishistorik att länka till
+        // …men setet gick att läsa ur titeln, så inlägget hamnar i rätt seriekanal.
+        setName: "Paradox Rift",
+        series: "Scarlet & Violet",
+      });
     });
 
-    it("väntar kvar när rutten fortfarande saknas — och när källan inte sveptes", () => {
-      const still = derive({ state: pendingState(), groups: inStockGroups() });
-      expect(still.posts).toHaveLength(0);
-      expect(still.nextState.pending?.[NEW_KEY]).toBe(NOW.getTime() - 10 * 60_000);
-
-      // Artighetsnivån: källan var inte med i det här ticket → rör ingenting.
-      const absent = derive({ state: pendingState(), groups: groups([]) });
-      expect(absent.nextState.pending?.[NEW_KEY]).toBe(NOW.getTime() - 10 * 60_000);
+    /**
+     * ⛔ INGEN REGRESSION. Fram till 2026-08-16 postades VARJE routad URL utan någon
+     * vakt alls. Skulle en ordlista nu kunna rösta ner en sådan hade ombygget tagit
+     * BORT larm samtidigt som det lade till dem. MÄTT samma dag: "Starter Deck 100
+     * Japansk" och "Phantsmal Flames Booster Pack" (butikens stavfel) faller båda på
+     * "no-pokemon-signal" trots att de är riktiga varor.
+     */
+    it("en KÄND rutt övertrumfar vakterna — annars vore ombygget en regression", () => {
+      const r = derive({
+        state: state({ stock: { [KEY]: "OUT_OF_STOCK" } }),
+        // Titeln bär varken formord eller Pokémon-bevis; ensam hade den fällts.
+        groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK", title: "Phantsmal Flames" }]),
+      });
+      expect(r.posts).toHaveLength(1);
+      expect(r.stats.rescuedByRoute).toBe(1);
+      expect(r.posts[0].title).toBe("Pitch Black Elite Trainer Box");
     });
 
-    it("släpper en väntande post som hann ta slut", () => {
-      const r = deriveRestockPosts({
-        state: pendingState(),
-        groups: groups([{ url: NEW_URL, stockStatus: "OUT_OF_STOCK" }]),
-        rotating: new Set(),
-        routes: ROUTED,
-        now: NOW,
-        policy: POLICY,
-        cooldownHours: 2,
-        baseUrl: BASE,
+    it("…men SPRÅK och DENYLIST övertrumfas ALDRIG — de är policy, inte gissningar", () => {
+      const cn = derive({
+        state: state({ stock: { [KEY]: "OUT_OF_STOCK" } }),
+        groups: groups([
+          { url: URL_ETB, stockStatus: "IN_STOCK", title: "Pokémon Gem Pack Vol 6 (Kinesisk)" },
+        ]),
+      });
+      expect(cn.posts).toHaveLength(0);
+      expect(cn.stats.filteredReasons.language).toBe(1);
+      expect(cn.stats.rescuedByRoute).toBe(0);
+
+      const deniedUrl =
+        "https://goblinen.com/products/pokemon-tcg-mega-zygarde-ex-premium-collection";
+      const deniedKey = `Dragon's Lair\t${deniedUrl}`;
+      const denied = derive({
+        state: state({ stock: { [deniedKey]: "OUT_OF_STOCK" } }),
+        groups: groups([{ url: deniedUrl, stockStatus: "IN_STOCK" }]),
+        routes: { ...ROUTES, [deniedUrl]: ROUTES[URL_ETB] },
+      });
+      expect(denied.posts).toHaveLength(0);
+      expect(denied.stats.filteredReasons.denylist).toBe(1);
+    });
+
+    it("postar ALDRIG en okänd URL som vakterna fäller (det var ruttens enda skydd)", () => {
+      const url = "https://butik.se/gosedjur";
+      const key = `Dragon's Lair\t${url}`;
+      const r = derive({
+        state: state({ stock: { [key]: "OUT_OF_STOCK" } }),
+        groups: groups([
+          { url, stockStatus: "IN_STOCK", title: "Pokémon Pikachu Gosedjur 30 cm" },
+        ]),
       });
       expect(r.posts).toHaveLength(0);
-      expect(r.nextState.pending?.[NEW_KEY]).toBeUndefined();
+      expect(r.stats.skippedFiltered).toBe(1);
+      expect(r.stats.filteredReasons.merch).toBe(1);
+      // Namnet, inte bara räknaren — annars går bortfallet inte att felsöka.
+      expect(r.stats.filteredSamples[0]).toContain(url);
+    });
+  });
+
+  /**
+   * FRÅNVAROMINNET (2026-08-16). `mergeStateMap` glömmer en URL som lämnar en
+   * levererande feed. Det gav två fel åt var sitt håll — se filhuvudet i
+   * restock-feed-events.ts.
+   */
+  describe("frånvarominne", () => {
+    const OTHER = "Swepoke\thttps://butik.se/annat";
+    const SWE_KEY = `Swepoke\t${URL_ETB}`;
+
+    it("ROTERANDE butik: en URL som bara dyker upp är rotation, inte en påfyllning", () => {
+      const r = derive({
+        state: state({ stock: { [OTHER]: "IN_STOCK" } }),
+        groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }], "Swepoke"),
+        rotating: new Set(["Swepoke"]),
+      });
+      expect(r.posts).toHaveLength(0);
     });
 
-    it("släpper väntande poster äldre än TTL-fönstret (sleeves får aldrig en rutt)", () => {
+    it("ROTERANDE butik: ett IHÅGKOMMET slutsålt → i lager ÄR en påfyllning", () => {
+      // Rotationen kan inte fabricera det här: OUT_OF_STOCK måste ha OBSERVERATS.
+      // Utan minnet var Shinycards och Swepoke — två av de mest aktiva butikerna —
+      // helt oförmögna att ge ett restock-inlägg via den vägen, medan DB-lanen
+      // larmade som vanligt eftersom Offer.stockStatus ligger kvar.
       const r = derive({
         state: state({
-          stock: { [NEW_KEY]: "IN_STOCK" },
-          pending: { [NEW_KEY]: NOW.getTime() - 13 * 3600_000 },
+          stock: { [OTHER]: "IN_STOCK" },
+          absent: { [SWE_KEY]: { s: "OUT_OF_STOCK", t: NOW.getTime() - 3 * 3600_000 } },
         }),
-        groups: inStockGroups(),
+        groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }], "Swepoke"),
+        rotating: new Set(["Swepoke"]),
       });
-      expect(r.nextState.pending?.[NEW_KEY]).toBeUndefined();
+      expect(r.posts).toHaveLength(1);
+    });
+
+    it("FEED-HICKA: borta ur feeden kortare än blinkfönstret → ingen nyhet", () => {
+      // Pocketmonsters levererade 83 "flippar" i ETT tick 2026-08-16 för att feeden
+      // kom tillbaka med en delmängd. Utan regeln stämplas dessutom cooldown på
+      // hundratals URL:er, vilket kan TYSTA en äkta påfyllning i två timmar.
+      const r = derive({
+        state: state({
+          stock: { "Dragon's Lair\thttps://butik.se/annat": "IN_STOCK" },
+          absent: { [KEY]: { s: "IN_STOCK", t: NOW.getTime() - 5 * 60_000 } },
+        }),
+        groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }]),
+      });
+      expect(r.posts).toHaveLength(0);
+      expect(r.stats.skippedBlip).toBe(1);
+    });
+
+    it("…men en vara som varit borta LÄNGE och är tillbaka i lager postas", () => {
+      // Speltrollet listar inte slutsålda varor i sina kollektioner alls — för dem är
+      // frånvaro det ENDA slutsåld-beskedet, och återkomsten en riktig påfyllning.
+      const r = derive({
+        state: state({
+          stock: { "Dragon's Lair\thttps://butik.se/annat": "IN_STOCK" },
+          absent: { [KEY]: { s: "IN_STOCK", t: NOW.getTime() - 6 * 3600_000 } },
+        }),
+        groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }]),
+      });
+      expect(r.posts).toHaveLength(1);
+    });
+
+    /**
+     * ⛔ ROTATION FÅR ALDRIG IN I HISTORIKEN. Historiken driver flapp-dämpningen: en
+     * roterande butik levererar en NY delmängd varje hämtning, så om rotationen
+     * bokförs som övergångar passerar varje URL sexövergångarsgränsen inom ett dygn
+     * och får 24 h cooldown — dvs rotationen TYSTAR de äkta påfyllningarna. Upptäckt
+     * i ett 100-sekunders röktest mot riktiga feedar: 94 fantomposter efter tre varv
+     * över tre butiker.
+     */
+    it("skriver INGEN historik för rotationsbrus eller tyst seedade källor", () => {
+      const rot = derive({
+        state: state({ stock: { [OTHER]: "IN_STOCK" } }),
+        groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }], "Swepoke"),
+        rotating: new Set(["Swepoke"]),
+      });
+      expect(rot.nextState.history[SWE_KEY]).toBeUndefined();
+
+      const fresh = derive({
+        state: state({ stock: { "Webhallen\thttps://webhallen.se/x": "IN_STOCK" } }),
+        groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }]),
+      });
+      expect(fresh.stats.seededSources).toEqual(["Dragon's Lair"]);
+      expect(Object.keys(fresh.nextState.history)).toHaveLength(0);
+    });
+
+    it("en feed-hicka räknas inte som en övergång i flapp-historiken", () => {
+      const r = derive({
+        state: state({
+          stock: { "Dragon's Lair\thttps://butik.se/annat": "IN_STOCK" },
+          absent: { [KEY]: { s: "IN_STOCK", t: NOW.getTime() - 5 * 60_000 } },
+        }),
+        groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }]),
+      });
+      expect(r.stats.skippedBlip).toBe(1);
+      expect(r.nextState.history[KEY]).toBeUndefined();
+      // Lagerläget skrivs ändå — annars ser nästa varv samma sak som "ny".
+      expect(r.nextState.stock[KEY]).toBe("IN_STOCK");
+    });
+
+    it("minns statusen när en URL lämnar en LEVERERANDE feed", () => {
+      const r = derive({
+        state: state({ stock: { [KEY]: "OUT_OF_STOCK", "Dragon's Lair\thttps://butik.se/kvar": "IN_STOCK" } }),
+        groups: groups([{ url: "https://butik.se/kvar", stockStatus: "IN_STOCK" }]),
+      });
+      expect(r.nextState.absent?.[KEY]).toEqual({ s: "OUT_OF_STOCK", t: NOW.getTime() });
+    });
+
+    it("TOM feed rör inte minnet — frånvaro utan leverans är ingen information", () => {
+      const r = derive({
+        state: state({ stock: { [KEY]: "OUT_OF_STOCK" } }),
+        groups: groups([]),
+      });
+      expect(r.nextState.absent?.[KEY]).toBeUndefined();
+      expect(r.nextState.stock[KEY]).toBe("OUT_OF_STOCK");
+    });
+  });
+
+  /**
+   * PREORDER var ett svart hål fram till 2026-08-16: `actionableChanges` krävde att
+   * BÅDA statusarna var IN_STOCK/OUT_OF_STOCK, medan DB-vägens `isRestock` med flit
+   * räknar PREORDER → IN_STOCK som en restock. Släppet är det mest värdefulla larmet
+   * av alla och kunde alltså aldrig postas.
+   */
+  describe("förhandsbokning", () => {
+    it("PREORDER → IN_STOCK är en påfyllning (släppet)", () => {
+      const r = derive({
+        state: state({ stock: { [KEY]: "PREORDER" } }),
+        groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }]),
+      });
+      expect(r.posts).toHaveLength(1);
+      expect(r.posts[0].preorder).toBe(false);
+    });
+
+    it("OUT_OF_STOCK → PREORDER får ett EGET besked", () => {
+      const r = derive({
+        state: state({ stock: { [KEY]: "OUT_OF_STOCK" } }),
+        groups: groups([{ url: URL_ETB, stockStatus: "PREORDER" }]),
+      });
+      expect(r.posts).toHaveLength(1);
+      expect(r.posts[0].preorder).toBe(true);
+    });
+
+    it("IN_STOCK → PREORDER är en FÖRSÄMRING och postas inte", () => {
+      const r = derive({
+        state: state({ stock: { [KEY]: "IN_STOCK" } }),
+        groups: groups([{ url: URL_ETB, stockStatus: "PREORDER" }]),
+      });
+      expect(r.posts).toHaveLength(0);
     });
   });
 
@@ -285,7 +571,7 @@ describe("deriveRestockPosts", () => {
         // Lämnade IN_STOCK för 5 minuter sedan → har aldrig varit borta på riktigt.
         history: { [KEY]: [{ o: "IN_STOCK", t: NOW.getTime() - 5 * 60_000 }] },
       }),
-      groups: groups([{ url: "https://butik.se/pitch-black-etb", stockStatus: "IN_STOCK" }]),
+      groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }]),
     });
     expect(r.posts).toHaveLength(0);
     expect(r.stats.skippedFlap).toBe(1);
@@ -297,7 +583,7 @@ describe("deriveRestockPosts", () => {
         stock: { [KEY]: "OUT_OF_STOCK" },
         history: { [KEY]: [{ o: "IN_STOCK", t: NOW.getTime() - 90 * 60_000 }] },
       }),
-      groups: groups([{ url: "https://butik.se/pitch-black-etb", stockStatus: "IN_STOCK" }]),
+      groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }]),
     });
     expect(r.posts).toHaveLength(1);
   });
@@ -308,7 +594,7 @@ describe("deriveRestockPosts", () => {
         stock: { [KEY]: "OUT_OF_STOCK" },
         posted: { [KEY]: NOW.getTime() - 30 * 60_000 },
       }),
-      groups: groups([{ url: "https://butik.se/pitch-black-etb", stockStatus: "IN_STOCK" }]),
+      groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }]),
     });
     expect(r.posts).toHaveLength(0);
     expect(r.stats.skippedCooldown).toBe(1);
@@ -325,7 +611,7 @@ describe("deriveRestockPosts", () => {
         history: { [KEY]: history },
         posted: { [KEY]: NOW.getTime() - 5 * 3600_000 }, // 5 h sedan: över 2h men under 24h
       }),
-      groups: groups([{ url: "https://butik.se/pitch-black-etb", stockStatus: "IN_STOCK" }]),
+      groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }]),
     });
     expect(r.posts).toHaveLength(0);
     expect(r.stats.skippedCooldown).toBe(1);
@@ -336,7 +622,7 @@ describe("deriveRestockPosts", () => {
     // precis när larmet aldrig kom fram.
     const r = derive({
       state: state({ stock: { [KEY]: "OUT_OF_STOCK" } }),
-      groups: groups([{ url: "https://butik.se/pitch-black-etb", stockStatus: "IN_STOCK" }]),
+      groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK" }]),
     });
     expect(r.posts).toHaveLength(1);
     expect(r.nextState.posted[KEY]).toBeUndefined();
@@ -356,16 +642,6 @@ describe("deriveRestockPosts", () => {
     expect(r.posts).toHaveLength(0);
     expect(r.nextState.stock[KEY]).toBe("IN_STOCK");
   });
-
-  it("ROTERANDE butik: en URL som dyker upp i lager är rotation, inte en påfyllning", () => {
-    const r = derive({
-      // Icke-tom state (annars seedar den) men URL:en är ny.
-      state: state({ stock: { "Swepoke\thttps://butik.se/annat": "IN_STOCK" } }),
-      groups: groups([{ url: "https://butik.se/pitch-black-etb", stockStatus: "IN_STOCK" }], "Swepoke"),
-      rotating: new Set(["Swepoke"]),
-    });
-    expect(r.posts).toHaveLength(0);
-  });
 });
 
 describe("buildRestockEmbed", () => {
@@ -373,7 +649,7 @@ describe("buildRestockEmbed", () => {
     key: KEY,
     title: "Pitch Black Elite Trainer Box",
     storeName: "Dragon's Lair",
-    storeUrl: "https://butik.se/pitch-black-etb",
+    storeUrl: URL_ETB,
     priceOre: 54900,
     imageUrl: null,
     setName: "Pitch Black",
@@ -382,7 +658,7 @@ describe("buildRestockEmbed", () => {
   };
 
   it("länkar till BUTIKEN i rubriken — den som får larmet ska kunna köpa direkt", () => {
-    expect(buildRestockEmbed(post).url).toBe("https://butik.se/pitch-black-etb");
+    expect(buildRestockEmbed(post).url).toBe(URL_ETB);
   });
 
   it("tar med pris, butik, set och en länk till vår produktsida", () => {
@@ -413,32 +689,32 @@ describe("chunk", () => {
 /**
  * STATE-FILENS SERIALISERING (2026-08-15).
  *
- * Andra chansen för en okänd URL testades bara som REN DOM (deriveRestockPosts ovan) —
- * aldrig som round-trip genom state-filen. Fältet `pending` skrevs till disk men
- * tappades vid inläsningen, så mekanismen kunde bara verka inom ETT jobb (~5–9 min)
- * medan rutten för en ny SKU typiskt dyker upp först efter att jobbet dött. En ren dom
- * med testad logik kan alltså vara helt verkningslös om I/O:t runt den inte testas.
+ * Andra chansen för en okänd URL testades bara som REN DOM — aldrig som round-trip
+ * genom state-filen. Fältet skrevs till disk men tappades vid inläsningen, så
+ * mekanismen kunde bara verka inom ETT jobb. En ren dom med testad logik kan alltså
+ * vara helt verkningslös om I/O:t runt den inte testas. Samma vakt gäller nu
+ * `absent`, som bär exakt samma sorts ansvar.
  */
 describe("parseDiscordRestockState", () => {
   it("behåller ALLA fyra fälten genom en round-trip", () => {
-    const state = {
+    const s = {
       stock: { "Butik\thttps://x.se/p/1": "IN_STOCK" },
       history: { "Butik\thttps://x.se/p/1": [{ o: "OUT_OF_STOCK", t: 1 }] },
       posted: { "Butik\thttps://x.se/p/1": 2 },
-      pending: { "Butik\thttps://x.se/p/2": 3 },
+      absent: { "Butik\thttps://x.se/p/2": { s: "OUT_OF_STOCK", t: 3 } },
     };
-    const back = parseDiscordRestockState(JSON.parse(JSON.stringify(state)));
+    const back = parseDiscordRestockState(JSON.parse(JSON.stringify(s)));
     expect(back).not.toBeNull();
-    expect(back!.pending).toEqual({ "Butik\thttps://x.se/p/2": 3 });
-    expect(back!.stock).toEqual(state.stock);
-    expect(back!.history).toEqual(state.history);
-    expect(back!.posted).toEqual(state.posted);
+    expect(back!.absent).toEqual({ "Butik\thttps://x.se/p/2": { s: "OUT_OF_STOCK", t: 3 } });
+    expect(back!.stock).toEqual(s.stock);
+    expect(back!.history).toEqual(s.history);
+    expect(back!.posted).toEqual(s.posted);
   });
 
-  it("äldre state-filer utan pending läses som tom väntlista, inte som fel", () => {
+  it("äldre state-filer utan frånvarominne läses som tomt, inte som fel", () => {
     const back = parseDiscordRestockState({ stock: { a: "IN_STOCK" } });
     expect(back).not.toBeNull();
-    expect(back!.pending).toEqual({});
+    expect(back!.absent).toEqual({});
     expect(back!.history).toEqual({});
   });
 

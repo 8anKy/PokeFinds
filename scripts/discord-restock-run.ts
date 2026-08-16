@@ -1,34 +1,50 @@
 /**
- * DISCORD-SNABBFILEN — restock-larm till Discord, helt utan databas. Sedan 2026-08-13
- * loopar den INUTI jobbet: ett Actions-jobb kör svep ("tick") var 60:e sekund i ~5 min
- * (DISCORD_RESTOCK_LOOP_SECONDS/TICK_SECONDS) så dispatch/boot/checkout-omkostnaden
- * betalas per jobb i stället för per svep. Shopify-butiker (CDN-serverade) sveps varje
- * tick; butiker på egna servrar varannan — samma takt som gamla 2-minuterslanen gav dem.
+ * DISCORD-SNABBFILEN — restock-larm till Discord, helt utan databas.
  *
- * ⛔ RÖR ALDRIG NEON. Grinden (`shouldProcess`) returnerar ALLTID false, så
- * `runRestockScan` kör bara fas 1 (parallell feed-hämtning över HTTP) och returnerar
- * innan `ensureDbAwake()`. Källistan och ruttabellen kommer från en fil som
- * `export-restock-routes.ts` skrivit i scrape-alls fönster, där Neon ändå var vaken.
- * Saknas filen HOPPAR körningen över — den frågar hellre ingen än väcker databasen,
- * för Neon debiteras per vaken tid och varje väckning köper minst 300 s.
- * Det här är hela skälet att lanen är gratis; tas invarianten bort blir den inte det.
+ * ⛔ VARJE BUTIK GÅR I SIN EGEN TAKT (2026-08-16). Fram till nu var lanen ett SVEP:
+ * alla butiker hämtades parallellt, och först när den LÅNGSAMMASTE svarat kördes
+ * diffen och inläggen gick ut. Mätt i drift samma dag: svepet tog 36 s och sattes av
+ * Shinycards (35,9 s) och Swepoke (35,0 s) — så en butik som svarade på 4 s fick ändå
+ * 32 s ren väntan påklistrad på varje larm, dygnet runt, för att två ANDRA butiker är
+ * långsamma. Ovanpå det låg ett tickintervall på 60 s. Nu har varje butik en egen
+ * loop: hämta → diffa → posta, och sedan vänta ut SIN egen takt. Ingen butik väntar
+ * längre på någon annan.
+ *
+ * ⛔ TAKTEN FALLER UT UR ETT ARTIGHETSTAK, DEN VÄLJS INTE (se
+ * `pollIntervalMs` i src/lib/restock-poll-interval.ts).
+ * Den gamla modellen delade in butikerna i "Shopify varje minut / egna servrar
+ * varannan", som om alla feedar kostade lika mycket att hämta. De gör inte det: en
+ * butik vars hela feed är två sidhämtningar och en vars feed är trettio
+ * kollektionsanrop fick femton gångers skillnad i last utan att någon valt det. Vi
+ * mäter i stället FÖRFRÅGNINGARNA per hämtning (räknare i http.ts) och sätter
+ * intervallet så att ingen butik får mer än en förfrågan per X sekunder i snitt.
+ * Följden: billiga feedar pollas oftare ÄN FÖRUT, dyra feedar mer sällan än förut,
+ * och den sammanlagda lasten mot varje enskild butik är känd i stället för gissad.
+ *
+ * ⛔ RÖR ALDRIG NEON. Ingen kodväg här frågar databasen; källistan, ruttabellen,
+ * setnamnen och ägarens denylist kommer från en fil som `export-restock-routes.ts`
+ * skrivit i scrape-alls fönster, där Neon ändå var vaken. Saknas filen HOPPAR
+ * körningen över — den frågar hellre ingen än väcker databasen, för Neon debiteras
+ * per vaken tid och varje väckning köper minst 300 s. Det är hela skälet att lanen är
+ * gratis; tas invarianten bort blir den inte det.
  *
  * ⛔ EGEN CACHE-NYCKEL. State-filen ligger i `.discord-restock-cache/`, INTE i
  * `.restock-cache/` som 10-min-lanen äger. Delade de katalog skulle lanarna läsa och
  * skriva varandras lagerläge — den ena hade missat restocks, den andra dubblerat dem,
  * och båda felen är tysta.
  *
- * ⛔ FLAPP-DÄMPNING ÄR INTE VALFRI HÄR. Dragon's Lair stod för 46 av 171 restocks de
- * senaste 14 dygnen och togglar heta varor dussintals gånger per dygn. DB-vägens
- * skydd (blink + dygnscooldown) sitter i checkRestockAlerts, som den här lanen aldrig
- * anropar — därför körs SAMMA dom (`evaluateStockFlap`) mot en historik som ligger i
- * cachen. Se src/lib/restock-feed-events.ts.
+ * ⛔ KATALOGEN GRINDAR INTE LÄNGRE (se src/lib/discord-restock-filter.ts). Domen om
+ * vad som får postas tas på butiksannonsen med samma vakter som auto-importen; rutten
+ * används bara för att göra inlägget snyggare. Det var den gamla ruttgrinden som gjorde
+ * att mejl gick ut om påfyllningar Discord teg om.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { SourceType } from "@prisma/client";
-import { getAdapter, runRestockScan, type RestockSourceInfo } from "../src/scrapers/runner";
+import { fetchSourceFeed, getAdapter, type FeedItem, type RestockSourceInfo } from "../src/scrapers/runner";
 import { ShopifyAdapter } from "../src/scrapers/adapters/shopify-adapter";
+import { requestCountSnapshot } from "../src/scrapers/http";
+import { setDynamicDenylist } from "../src/scrapers/import-denylist";
 import { discordRestockConfig, postRestocks, postTestMessages } from "../src/lib/discord-restock";
 import { fetchShopifyPurchasable } from "../src/scrapers/stock-verify";
 import {
@@ -38,7 +54,14 @@ import {
   type DiscordRestockState,
   type RouteTable,
 } from "../src/lib/restock-feed-events";
+import {
+  buildDiscordFilterContext,
+  buildKnownSets,
+  type DiscordFilterContext,
+  type KnownSet,
+} from "../src/lib/discord-restock-filter";
 import { flapPolicy } from "../src/lib/stock-flap";
+import { pollBudget, pollIntervalMs } from "../src/lib/restock-poll-interval";
 
 const routesFile = process.env.RESTOCK_ROUTES_FILE ?? ".restock-routes/routes.json";
 const stateFile = process.env.DISCORD_RESTOCK_STATE_FILE ?? ".discord-restock-cache/state.json";
@@ -46,18 +69,10 @@ const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://foilio.se";
 const cooldownHours = Number(process.env.RESTOCK_ALERT_COOLDOWN_HOURS ?? 2);
 
 /**
- * Butikerna snabbfilen hämtar. Default är de mest aktiva, MÄTT 2026-08-11 på 14 dygns
- * RestockEvent (restocks/dygn): Dragon's Lair 3,3 · Shinycards 1,9 · Swepoke 1,5 ·
- * Speltrollet 1,3 · TCG Store 0,7 · Samlarhobby 0,6 · Alphaspel 0,4 · Webhallen 0,4.
- * Tillsammans 141 av 171 restocks = 82 %.
- *
- * ⛔ URVALET ÄR EN ARTIGHETSFRÅGA, INTE EN KOSTNADSFRÅGA. Actions-minuter är gratis
- * (publikt repo), men lasten landar på butikernas servrar och att bli blockerad av en
- * butik skadar hela produkten, inte bara Discord. Sedan loop-läget (2026-08-13) är
- * artigheten PER PLATTFORM i stället för per lane: Shopify-butiker serveras av
- * Shopifys CDN och sveps varje tick (60 s), butiker på egna servrar (Quickbutik/Woo/
- * custom) varannan tick (120 s) — dvs exakt den takt den gamla 2-minuterslanen gav
- * dem. Se isFastTier i main(). Sätt `DISCORD_RESTOCK_STORES=all` för hela listan.
+ * Butikerna snabbfilen hämtar när `DISCORD_RESTOCK_STORES` inte är satt. Repo-
+ * variabeln står på "all" sedan 2026-08-12 (ägarbeslut); listan här är en klippa, inte
+ * en mjuklandning — försvinner variabeln tappar lanen 34 butiker UTAN att något felar.
+ * Därför varnas det högljutt nedan.
  */
 const DEFAULT_STORES = [
   "Dragon's Lair",
@@ -74,6 +89,9 @@ interface RoutesFile {
   at?: number;
   sources?: RestockSourceInfo[];
   routes?: RouteTable;
+  setNames?: string[];
+  deniedUrls?: string[];
+  sets?: { name: string; series: string | null; language: string | null }[];
 }
 
 function readRoutes(): RoutesFile | null {
@@ -101,9 +119,68 @@ function readState(): DiscordRestockState | null {
   }
 }
 
+/** Värdnamn utan `www.` — se requestCountSnapshot om varför formen måste luckras upp. */
+function bareHost(url: string): string {
+  try {
+    return new URL(url).host.replace(/^www\./, "");
+  } catch {
+    return url.replace(/^www\./, "");
+  }
+}
+
+/**
+ * Hur många förfrågningar kostade hämtningen? Jämför två ögonblicksbilder och
+ * summerar de värdar som hör till butiken.
+ *
+ * ⛔ BÅDE `baseUrl` OCH FEEDENS EGNA URL:er. Källans registrerade baseUrl är inte
+ *    alltid den värd adaptern hämtar från (Dragon's Lair: `www.dragonslair.se` i
+ *    registret, `dragonslair.se` i feeden). Matchas bara baseUrl blir svaret noll,
+ *    intervallet fastnar på "omätt" och hela artighetstaket blir verkningslöst —
+ *    tyst, och det såg ut att fungera i loggen.
+ */
+function requestsForSource(
+  before: Record<string, number>,
+  after: Record<string, number>,
+  source: RestockSourceInfo,
+  sampleUrl: string | undefined
+): number {
+  const wanted = new Set([bareHost(source.baseUrl)]);
+  if (sampleUrl) wanted.add(bareHost(sampleUrl));
+  let n = 0;
+  for (const [host, count] of Object.entries(after)) {
+    if (wanted.has(host.replace(/^www\./, ""))) n += count - (before[host] ?? 0);
+  }
+  return n;
+}
+
+/** Serveras butikens feed av ett CDN (Shopify) i stället för butikens egen server? */
+function isCdnServed(s: RestockSourceInfo): boolean {
+  // Webhallen är en storkedja med ett eget produkt-API byggt för volym — den hör
+  // till samma nivå som CDN, inte till småbutikernas.
+  if (s.name === "Webhallen") return true;
+  if (s.type !== SourceType.SCRAPER) return false;
+  try {
+    return getAdapter(s.type, s.name) instanceof ShopifyAdapter;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * `--dry-run`: kör HELA kedjan (hämtning, diff, vaktkedja, kanalval) men postar
+ * ingenting och kräver ingen bot-token. Finns för att den enda tidigare vägen att
+ * prova en ändring var att deploya den och se om kanalerna fylldes med fel saker —
+ * och felet i den här lanen är alltid tyst åt något håll. Skriver till en egen
+ * state-fil via DISCORD_RESTOCK_STATE_FILE så driftens minne inte rörs.
+ */
+const DRY_RUN = process.argv.includes("--dry-run");
+
+/** Startförskjutning mellan butikernas loopar — se kommentaren i storeLoop. */
+const STAGGER_MS = Math.max(0, Number(process.env.DISCORD_RESTOCK_STAGGER_MS ?? 400));
+
 async function main() {
-  const config = discordRestockConfig();
-  if (!config) {
+  const config = DRY_RUN ? null : discordRestockConfig();
+  if (!config && !DRY_RUN) {
     console.log(
       "[discord-restock] Avstängd (DISCORD_RESTOCK_ENABLED != true, eller saknad " +
         "DISCORD_BOT_TOKEN/DISCORD_RESTOCK_CHANNELS) — gör ingenting."
@@ -114,7 +191,7 @@ async function main() {
   // `--test`: posta ett märkt testinlägg i varje kanal och sluta. Rör varken feedar
   // eller state — enda sättet att bevisa att boten FÅR skriva innan en riktig
   // påfyllning inträffar (ett 403 syns annars bara i en logg ingen läser).
-  if (process.argv.includes("--test")) {
+  if (config && process.argv.includes("--test")) {
     const { ok, failed } = await postTestMessages(config);
     for (const line of ok) console.log(`[discord-restock][test] OK   ${line}`);
     for (const line of failed) console.error(`[discord-restock][test] FEL  ${line}`);
@@ -126,8 +203,8 @@ async function main() {
   const routesData = readRoutes();
   if (!routesData) {
     // Medvetet INGEN DB-reserv här. Se filhuvudet: att hämta källistan ur Neon hade
-    // väckt computen var 2:a minut, vilket är precis det den här lanen finns för att
-    // undvika. Filen skrivs av scrape-all inom ett dygn.
+    // väckt computen var 30:e sekund, vilket är precis det den här lanen finns för
+    // att undvika. Filen skrivs av scrape-all inom ett dygn.
     console.warn(
       `[discord-restock] Ingen ruttabell (${routesFile}) — hoppar över. ` +
         "Den skrivs av export-restock-routes.ts i scrape-all; första körningen efter " +
@@ -136,41 +213,47 @@ async function main() {
     return;
   }
 
+  const routes = routesData.routes!;
+  // ⛔ ÄGARENS "TA BORT" MÅSTE GÄLLA HÄR OCKSÅ. Utan raden postar lanen glatt en URL
+  //    som nyss nekats på produktsidan — raderingen vore bara halv.
+  setDynamicDenylist(routesData.deniedUrls ?? []);
+  const filter: DiscordFilterContext = buildDiscordFilterContext(routesData);
+  const knownSets: KnownSet[] = buildKnownSets(routesData);
+
   const ageH = routesData.at ? (Date.now() - routesData.at) / 3600_000 : null;
   const storesEnv = process.env.DISCORD_RESTOCK_STORES?.trim();
   const onlySources =
     storesEnv === "all"
-      ? undefined
+      ? null
       : (storesEnv ? storesEnv.split(",").map((s) => s.trim()).filter(Boolean) : DEFAULT_STORES);
 
-  // LOOP-LÄGE: flera svep ("tick") i SAMMA jobb. Actions-omkostnaden (~25 s dispatch/
-  // boot/checkout/cache) betalades förut per svep — i loop-läget betalas den per JOBB,
-  // så latensen per tick är bara väntan (tick/2) + feed-hämtning + utskick.
   const loopSeconds = Math.max(0, Number(process.env.DISCORD_RESTOCK_LOOP_SECONDS ?? 0));
-  const tickSeconds = Math.max(30, Number(process.env.DISCORD_RESTOCK_TICK_SECONDS ?? 60));
 
-  // ⛔ ARTIGHETEN ÄR PER PLATTFORM, INTE PER LANE. Shopify-butiker serveras av Shopifys
-  // CDN — ett svep i minuten landar på deras edge, inte på en småbutiks server, och får
-  // därför gå i varje tick ("snabb nivå"; Webhallen är en storkedja med eget API och
-  // räknas dit). Quickbutik/Woo/custom kör egna servrar och sveps varannan tick, dvs
-  // exakt samma takt som den gamla 2-minuterslanen gav dem. Klassningen kommer från
-  // adapterregistret (instanceof ShopifyAdapter) så nya butiker klassas automatiskt.
-  const isFastTier = (s: RestockSourceInfo): boolean => {
-    if (s.name === "Webhallen") return true;
-    if (s.type !== SourceType.SCRAPER) return false;
-    try {
-      return getAdapter(s.type, s.name) instanceof ShopifyAdapter;
-    } catch {
-      return false;
-    }
-  };
-  const selected = routesData.sources!.filter(
-    (s) => !onlySources || onlySources.includes(s.name)
+  const selected = routesData.sources!.filter((s) => !onlySources || onlySources.includes(s.name));
+
+  // ⛔ DEFAULTEN ÄR EN KLIPPA, INTE EN MJUKLANDNING. Repo-variabeln står på "all";
+  // försvinner den faller lanen tillbaka på de åtta i DEFAULT_STORES och tappar
+  // resten UTAN att något felar — körningen blir grön och larmen bara uteblir. Samma
+  // tystnad som när boten förlorade Send Messages 2026-08-12.
+  if (!storesEnv) {
+    console.warn(
+      `[discord-restock] ⚠️ DISCORD_RESTOCK_STORES ÄR OSATT — faller tillbaka på ` +
+        `kod-defaulten (${DEFAULT_STORES.length} butiker) medan ruttabellen bär ` +
+        `${routesData.sources!.length}. Sätt variabeln till "all" om det inte är avsiktligt.`
+    );
+  }
+
+  console.log(
+    `[discord-restock] Ruttabell: ${Object.keys(routes).length} URL:er` +
+      (ageH != null ? `, ${ageH.toFixed(1)} h gammal` : "") +
+      `, ${filter.setNames.size} setnamn, ${knownSets.length} set för kanalval, ` +
+      `${(routesData.deniedUrls ?? []).length} nekade URL:er. ` +
+      `${selected.length} butiker, egen takt per butik` +
+      (loopSeconds ? `, loopbudget ${loopSeconds}s.` : ".")
   );
-  const fastNames = selected.filter(isFastTier).map((s) => s.name);
+
+  const rotating = new Set(routesData.sources!.filter((s) => s.rotatingFeed).map((s) => s.name));
   // Butiker vars produktsidor köpbarhetskollen kan läsa (se utskicksgrinden nedan).
-  // Samma instanceof-klassning som artighetsnivån — nya Shopify-butiker klassas
-  // automatiskt, ingen handhållen lista att glömma.
   const shopifyStores = new Set(
     selected
       .filter((s) => {
@@ -184,190 +267,201 @@ async function main() {
       .map((s) => s.name)
   );
 
-  // ⛔ DEFAULTEN ÄR EN KLIPPA, INTE EN MJUKLANDNING. Repo-variabeln står på "all" (42
-  // butiker sedan 2026-08-14); försvinner den faller lanen tillbaka på de åtta i
-  // DEFAULT_STORES och tappar 34 butiker UTAN att något felar — körningen blir grön och
-  // larmen bara uteblir. Samma tystnad som när boten förlorade Send Messages 2026-08-12.
-  if (!storesEnv) {
-    console.warn(
-      `[discord-restock] ⚠️ DISCORD_RESTOCK_STORES ÄR OSATT — faller tillbaka på ` +
-        `kod-defaulten (${DEFAULT_STORES.length} butiker) medan ruttabellen bär ` +
-        `${routesData.sources!.length}. Sätt variabeln till "all" om det inte är avsiktligt.`
-    );
-  }
-
-  console.log(
-    `[discord-restock] Ruttabell: ${Object.keys(routesData.routes!).length} URL:er` +
-      (ageH != null ? `, ${ageH.toFixed(1)} h gammal` : "") +
-      `. Butiker: ${onlySources ? onlySources.join(", ") : "alla"} ` +
-      `(${fastNames.length} på snabb nivå${loopSeconds ? `, loop ${loopSeconds}s/tick ${tickSeconds}s` : ""}).`
-  );
-
-  const rotating = new Set(
-    routesData.sources!.filter((s) => s.rotatingFeed).map((s) => s.name)
-  );
-
-  // State läses EN gång och lever i minnet mellan tickarna; filen skrivs efter varje
-  // tick så jobb-slutets cache-save alltid har senaste läget.
+  // ---- DELAT TILLSTÅND ----
+  // ⛔ MUTERAS BARA SYNKRONT. Butikernas loopar kör samtidigt, men JS är entrådigt:
+  //    ett synkront block kan inte avbrytas. `deriveRestockPosts` och `markPosted` är
+  //    båda rena och synkrona, så "läs state → räkna → skriv state" är atomärt så
+  //    länge inget `await` ligger emellan. Lägg ALDRIG in ett await där.
   let state: DiscordRestockState | null = readState();
   let totalPosted = 0;
   let totalFailures = 0;
+  let stateDirty = false;
 
-  const writeState = (s: DiscordRestockState) => {
+  const writeState = () => {
+    if (!state || !stateDirty) return;
+    stateDirty = false;
     try {
       mkdirSync(dirname(stateFile), { recursive: true });
-      writeFileSync(stateFile, JSON.stringify(s));
+      writeFileSync(stateFile, JSON.stringify(state));
     } catch (e) {
       console.warn("[discord-restock] Kunde inte skriva state-filen:", e instanceof Error ? e.message : e);
     }
   };
+  // Skrivs på timer i stället för efter varje butiksvarv: kartan rymmer alla ~25 000
+  // feed-URL:er, och 42 butikers loopar hade annars serialiserat om samma JSON flera
+  // gånger i sekunden för ingenting. Jobbets cache-save läser filen efteråt.
+  const stateTimer = setInterval(writeState, 10_000);
 
-  const runTick = async (only: string[] | undefined) => {
-    let nextState: DiscordRestockState | null = null;
-    let posted = 0;
-    let postFailures = 0;
+  const deadline = loopSeconds ? Date.now() + loopSeconds * 1000 : 0;
 
-    const result = await runRestockScan({
-      sources: routesData.sources,
-      onlySources: only,
-      // ⛔ RETURNERAR ALLTID FALSE. Allt arbete sker här, i fas 1, och DB-fasen nås aldrig.
-      shouldProcess: async (fetched) => {
-        const empty = fetched.filter((f) => f.items.length === 0).map((f) => f.sourceName);
-        if (empty.length) {
-          console.warn(
-            `[discord-restock] Tom katalog från: ${empty.join(", ")} — räknas som "ingen ` +
-              `information", förra lagerläget behålls.`
-          );
-        }
+  /** Ett varv för EN butik: hämta → diffa → posta. Returnerar hämtningens kostnad. */
+  const runStore = async (source: RestockSourceInfo): Promise<number> => {
+    const before = requestCountSnapshot();
+    const items: FeedItem[] = await fetchSourceFeed(source);
+    const requests = requestsForSource(before, requestCountSnapshot(), source, items[0]?.url);
 
-        const now = new Date();
-        const derived = deriveRestockPosts({
-          state,
-          groups: fetched,
-          rotating,
-          routes: routesData.routes!,
-          now,
-          policy: flapPolicy(),
-          cooldownHours,
-          baseUrl,
-        });
-        nextState = derived.nextState;
-
-        const s = derived.stats;
-        if (s.seeded) {
-          console.log("[discord-restock] Ingen tidigare state — seedar lagerläget, postar inget.");
-        } else {
-          if (s.seededSources.length) {
-            console.log(
-              `[discord-restock] Ny(a) källa(or) i state: ${s.seededSources.join(", ")} — ` +
-                "seedas tyst, postar inget för dem denna körning."
-            );
-          }
-          console.log(
-            `[discord-restock] ${s.changes} lagerflipp(ar) → ${derived.posts.length} att posta ` +
-              `(hoppade: ${s.skippedUnknownUrl} okänd URL, ${s.skippedFlap} blink/flapp, ` +
-              `${s.skippedCooldown} cooldown).`
-          );
-          // Nycklarna, inte bara räknarna: Samlarhobby-utredningen 2026-08-13 krävde
-          // korsreferens mot DB-lanens loggar bara för att se VILKEN URL som hoppats.
-          for (const k of s.unknownUrlKeys.slice(0, 10)) {
-            console.log(`[discord-restock]   okänd URL: ${k.replace("\t", " → ")}`);
-          }
-        }
-
-        // ---- KÖPBARHETSKOLL FÖRE UTSKICK (2026-08-15) ----
-        // Shopifys `available` betyder inte "går att köpa" (se
-        // purchasableFromShopifyPage). DB-lanen slår upp butikens produktsida vid varje
-        // lagerövergång; den här lanen ser samma feed och måste ställa samma fråga,
-        // annars postar Discord ett larm som webbplatsen redan vet är fel.
-        // ⛔ Kostnaden är avgränsad av ANTALET INLÄGG, inte av feedens storlek —
-        //    mätt 12–27 påfyllningar per dygn över alla butiker. Ren HTTP mot butiken,
-        //    så lanens "rör aldrig Neon"-invariant är orörd.
-        // ⛔ null = vet inte ⇒ POSTA. Ett uteblivet svar är ingen ny upplysning, och
-        //    att tolka det som slutsåld hade tystat äkta påfyllningar vid varje 429.
-        const postable: typeof derived.posts = [];
-        for (const p of derived.posts) {
-          if (!shopifyStores.has(p.storeName)) {
-            postable.push(p);
-            continue;
-          }
-          const purchasable = await fetchShopifyPurchasable(p.storeUrl);
-          if (purchasable === false) {
-            console.log(
-              `[discord-restock]   hoppar (köpknappen låst hos butiken): ${p.storeName} → ${p.storeUrl}`
-            );
-            continue;
-          }
-          postable.push(p);
-        }
-
-        if (postable.length) {
-          const res = await postRestocks(postable, config);
-          posted = res.sent;
-          postFailures = res.failed;
-          for (const k of res.postedKeys) {
-            console.log(`[discord-restock]   postade: ${k.replace("\t", " → ")}`);
-          }
-          // Bara det som Discord kvitterade får en cooldown-stämpel. Misslyckades
-          // utskicket ligger övergången kvar och larmas igen nästa körning.
-          nextState = markPosted(derived.nextState, res.postedKeys, now);
-        }
-        return false;
-      },
-    });
-
-    // Skriv state EFTER utskicket. Dör körningen däremellan ligger övergången kvar och
-    // upptäcks igen nästa tick — dubbelt larm är oändligt mycket bättre än ett missat,
-    // exakt samma ordningsregel som DB-vägen (larma först, konsumera övergången sist).
-    //
-    // ⚠️ MEDVETEN BEGRÄNSNING: ett larm som Discord NEKADE (401/403/404) konsumerar ändå
-    // sin lagerövergång — det nya lagerläget skrivs oavsett. Cooldown-stämpeln sätts dock
-    // inte (se markPosted), så NÄSTA påfyllning larmar normalt. Alternativet — att behålla
-    // det gamla lagerläget för nekade larm — ger en återförsökssnurra som matar in falska
-    // övergångar i flapp-historiken och därmed kan tysta en ÄKTA påfyllning i ett dygn.
-    // Nekade utskick är i praktiken felkonfiguration (fel kanal-id, boten saknar
-    // "Send Messages"), syns direkt i loggen ovan, och rättas en gång.
-    if (nextState) {
-      state = nextState;
-      writeState(nextState);
+    if (items.length === 0) {
+      // Tom feed = INGEN INFORMATION, inte "allt försvann". mergeStateMap äger
+      // regeln; vi hoppar helt så inte ens frånvarominnet rörs.
+      console.warn(`[discord-restock] Tom katalog från ${source.name} — förra lagerläget behålls.`);
+      return requests;
     }
 
-    console.log(`[discord-restock] ${result.sources} butiker hämtade, ${posted} larm postade.`);
-    return { posted, postFailures };
+    const now = new Date();
+    // ---- ATOMÄRT BLOCK: inga await här inne ----
+    const derived = deriveRestockPosts({
+      state,
+      groups: [{ sourceName: source.name, items }],
+      rotating,
+      routes,
+      filter,
+      knownSets,
+      now,
+      policy: flapPolicy(),
+      cooldownHours,
+      baseUrl,
+    });
+    state = derived.nextState;
+    stateDirty = true;
+    // ---- slut atomärt block ----
+
+    const s = derived.stats;
+    if (s.seeded) {
+      console.log(`[discord-restock] ${source.name}: ingen tidigare state — seedar, postar inget.`);
+    } else if (s.seededSources.length) {
+      console.log(`[discord-restock] ${source.name}: ny källa i state — seedas tyst.`);
+    } else if (s.changes > 0) {
+      const reasons = Object.entries(s.filteredReasons)
+        .map(([k, v]) => `${k} ${v}`)
+        .join(", ");
+      console.log(
+        `[discord-restock] ${source.name}: ${s.changes} lagerflipp(ar) → ${derived.posts.length} att posta ` +
+          `(hoppade: ${s.skippedFiltered} vaktade${reasons ? ` [${reasons}]` : ""}, ` +
+          `${s.skippedFlap} blink/flapp, ${s.skippedBlip} feed-hicka, ${s.skippedCooldown} cooldown` +
+            `${s.rescuedByRoute ? `; ${s.rescuedByRoute} räddade av rutten` : ""}).`
+      );
+      for (const sample of s.filteredSamples) console.log(`[discord-restock]   vaktad: ${sample}`);
+    }
+
+    if (!derived.posts.length) return requests;
+
+    // ---- KÖPBARHETSKOLL FÖRE UTSKICK ----
+    // Shopifys `available` betyder inte "går att köpa" (se purchasableFromShopifyPage).
+    // DB-lanen slår upp butikens produktsida vid varje lagerövergång; den här lanen ser
+    // samma feed och måste ställa samma fråga, annars postar Discord ett larm som
+    // webbplatsen redan vet är fel.
+    // ⛔ null = vet inte ⇒ POSTA. Ett uteblivet svar är ingen ny upplysning, och att
+    //    tolka det som slutsåld hade tystat äkta påfyllningar vid varje 429.
+    const postable: typeof derived.posts = [];
+    for (const p of derived.posts) {
+      if (!shopifyStores.has(p.storeName)) {
+        postable.push(p);
+        continue;
+      }
+      const purchasable = await fetchShopifyPurchasable(p.storeUrl);
+      if (purchasable === false) {
+        console.log(
+          `[discord-restock]   hoppar (köpknappen låst hos butiken): ${p.storeName} → ${p.storeUrl}`
+        );
+        continue;
+      }
+      postable.push(p);
+    }
+    if (!postable.length) return requests;
+
+    if (!config) {
+      // --dry-run: visa vad som HADE postats, rör inte Discord.
+      for (const p of postable) {
+        console.log(
+          `[discord-restock][dry] ${p.storeName} → ${p.title} ` +
+            `[set ${p.setName ?? "–"} / serie ${p.series ?? "–"} / ${p.language ?? "EN"}` +
+            `${p.preorder ? " / FÖRHANDSBOKNING" : ""}] ${p.storeUrl}`
+        );
+      }
+      totalPosted += postable.length;
+      return requests;
+    }
+
+    const res = await postRestocks(postable, config);
+    totalPosted += res.sent;
+    totalFailures += res.failed;
+    for (const k of res.postedKeys) {
+      console.log(`[discord-restock]   postade: ${k.replace("\t", " → ")}`);
+    }
+    // Bara det som Discord kvitterade får en cooldown-stämpel. Misslyckades
+    // utskicket ligger övergången kvar och larmas igen nästa varv.
+    // ⛔ Synkront, av samma skäl som blocket ovan.
+    if (res.postedKeys.length && state) {
+      state = markPosted(state, res.postedKeys, now);
+      stateDirty = true;
+    }
+    return requests;
   };
 
-  const deadline = Date.now() + loopSeconds * 1000;
-  for (let tick = 0; ; tick++) {
-    const tickStart = Date.now();
-    // Tick 0 och varje jämnt tick = ALLA valda butiker; udda tick = bara snabba nivån.
-    // ⛔ Tom snabblista får INTE bli "inga filter" — runRestockScan tolkar en tom
-    // onlySources som ofiltrerat och hade svept ALLA butiker varje tick.
-    if (tick % 2 === 1 && fastNames.length === 0) {
-      const next = tickStart + tickSeconds * 1000;
-      if (!loopSeconds || next + tickSeconds * 1000 > deadline) break;
-      await new Promise((r2) => setTimeout(r2, Math.max(0, next - Date.now())));
-      continue;
+  /**
+   * En butiks egen loop. Kör tills loopbudgeten är slut; väntar ut SIN takt mellan
+   * varven. Ett fel i en butik får aldrig stoppa de andra — därav try/catch per varv.
+   */
+  const storeLoop = async (source: RestockSourceInfo, index: number) => {
+    // ⛔ STARTA INTE ALLA SAMTIDIGT. politeFetch fördröjer per VÄRD, så 42 parallella
+    //    hämtningar mot 42 olika butiker är i sig artigt — men Shopify svarar 429 när
+    //    för många av deras BUTIKER träffas från samma IP i samma ögonblick (mätt:
+    //    ett dussin 429-backoffar när svepet startade allt på en gång, exakt samma
+    //    symtom som täckningsrevisionen 2026-08-13 råkade ut för). Ett litet
+    //    startförskjut sprider dem, och eftersom butikerna sedan går i OLIKA takt
+    //    driver de isär av sig själva i stället för att synka upp som svepet gjorde.
+    await new Promise((r) => setTimeout(r, index * STAGGER_MS));
+
+    const cdn = isCdnServed(source);
+    const budget = pollBudget(cdn);
+    let interval = pollIntervalMs(0, budget);
+    let logged = false;
+    for (;;) {
+      const started = Date.now();
+      try {
+        const requests = await runStore(source);
+        if (requests > 0) {
+          interval = pollIntervalMs(requests, budget);
+          if (!logged) {
+            logged = true;
+            console.log(
+              `[discord-restock] takt ${source.name}: ${requests} förfrågn./hämtning ` +
+                `(${cdn ? "CDN" : "egen server"}) → var ${Math.round(interval / 1000)}:e sekund.`
+            );
+          }
+        }
+      } catch (e) {
+        console.error(
+          `[discord-restock] ${source.name} kastade:`,
+          e instanceof Error ? e.message : e
+        );
+      }
+      if (!deadline) return;
+      const next = started + interval;
+      // Sista varvet får STARTA före deadline och löpa klart efter den —
+      // `timeout-minutes` i workflowet har marginal för en hel hämtning. Att i
+      // stället kräva att hela varvet ryms hade lämnat butiken tyst i upp till ett
+      // helt intervall före varje jobbslut, dvs infört ett andra blint glapp
+      // ovanpå det jobbytet redan kostar.
+      if (next >= deadline) return;
+      const wait = next - Date.now();
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     }
-    const r = await runTick(tick % 2 === 0 ? onlySources : fastNames);
-    totalPosted += r.posted;
-    totalFailures += r.postFailures;
+  };
 
-    // Ryms ett helt tick till före deadline? Annars sluta — hellre att jobbet slutar
-    // tidigt än att det krockar med nästa dispatch (concurrency-gruppen köar den).
-    const nextStart = tickStart + tickSeconds * 1000;
-    if (!loopSeconds || nextStart + tickSeconds * 1000 > deadline) break;
-    const wait = nextStart - Date.now();
-    if (wait > 0) await new Promise((r2) => setTimeout(r2, wait));
-  }
+  // Alla butiker samtidigt. Det ökar INTE lasten mot någon enskild butik: politeFetch
+  // fördröjer per VÄRD, och varje butik är en egen värd. Det tar bara bort köandet
+  // MELLAN dem, vilket var hela poängen med att sluta svepa.
+  await Promise.all(selected.map((s, i) => storeLoop(s, i)));
 
-  if (loopSeconds) {
-    console.log(`[discord-restock] Loop klar: ${totalPosted} larm postade totalt.`);
-  }
+  clearInterval(stateTimer);
+  writeState();
+
+  console.log(`[discord-restock] Klart: ${totalPosted} larm postade totalt.`);
 
   // ⛔ NEKADE UTSKICK GÖR KÖRNINGEN RÖD. 2026-08-12 förlorade boten Send Messages i
   // alla sju kanaler och lanen stod tyst i 14 timmar — varenda körning grön, felet
   // bara en loggrad ingen läser. Ett rött jobb är den enda signal som når någon.
-  // (Testläget beter sig redan så; det här är samma regel för driftvägen.)
   if (totalFailures > 0) {
     console.error(
       `[discord-restock] ${totalFailures} larm NEKADES av Discord — kontrollera att boten ` +

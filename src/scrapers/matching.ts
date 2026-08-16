@@ -1242,8 +1242,18 @@ const ACCESSORY_BRANDS =
 // cards not included".
 // Bart "case" är FÖRBJUDET här — "Booster Case" är en RIKTIG sealed-SKU (en kartong
 // displayer), t.ex. "Paldea Evolved 24 Sleeved Booster Case".
+// ⛔ ADJEKTIVET KRÄVER SITT SUBSTANTIV (2026-08-16). `protectors?` fångade inte
+//    "Pokémon **Protective** Case - Booster Box", så Hobbykorts fem plastskydd
+//    passerade hela vaktkedjan — formordet "Booster Box" gav dem till och med en
+//    giltig kategori, dvs de kunde bli katalogprodukter OCH postas som restock-larm.
+//    Bart `\bprotective\b` är däremot FÖRBJUDET: mätt mot prod-katalogen är
+//    "Protective Goggles · 151 164/165" och "Protective Orb · Unseen Forces 90/115"
+//    riktiga trainer-KORT (4 rader, 9 offers), och vakten sitter också i
+//    `productsConflict` där en falsk träff blockerar en korrekt butikslänk tyst.
+//    Substantivet gör tecknet entydigt. Delta mätt: 0 katalogträffar, 0 bundna
+//    huvudboksrader, 6 träffar — alla Hobbykorts skyddsplast.
 const PROTECTOR_SIGNS =
-  /\b(one[- ]?touch|magnetic holder|protectors?|skyddsplast|display[- ]?skydd)\b/i;
+  /\b(one[- ]?touch|magnetic holder|protectors?|skyddsplast|display[- ]?skydd)\b|\bprotective\s+(case|cases|sleeve|sleeves|box|boxes|cover|covers|holder|film|fodral|hylsa)\b/i;
 
 // ── OMSLAGSKONST ÄR INTE EN EGEN PRODUKT (2026-07-14) ────────────────────────
 // Samlarhobby säljer vintage-boosters på PACKETS BILD:
