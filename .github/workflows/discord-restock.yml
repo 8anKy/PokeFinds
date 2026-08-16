@@ -166,7 +166,16 @@ jobs:
       # EGEN cache-nyckel. ⛔ Dela ALDRIG `.restock-cache`/`restock-fp-` med
       # restock-watch.yml: lanarna skulle läsa och skriva varandras lagerläge, och
       # både missade och dubblerade larm hade blivit tysta fel.
-      - if: steps.guard.outputs.ready == 'true'
+      #
+      # ⛔ TESTLÄGET RÖR INTE CACHEN — OCH DET ÄR EN KORREKTHETSREGEL, INTE SNÅLHET.
+      # `--test` läser aldrig och skriver aldrig state-filen, men cache-steget gjorde
+      # det åt den: körningen RESTAURERADE ett lagerläge och SPARADE tillbaka det under
+      # en NYARE nyckel. Sedan testet fick en egen concurrency-grupp kan det överlappa
+      # driften, och då blir det farligt: avslutar en driftkörning med färskt state
+      # medan testet håller en äldre kopia, skriver testet tillbaka den ÄLDRE kopian
+      # sist — och nästa driftkörning restaurerar den och diffar mot inaktuellt
+      # lagerläge. Följden är dubbelpostade eller missade påfyllningar, tyst.
+      - if: steps.guard.outputs.ready == 'true' && github.event.inputs.test != 'true'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .discord-restock-cache
