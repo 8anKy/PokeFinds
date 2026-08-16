@@ -8,6 +8,7 @@ import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SetProductGrid } from "@/components/features/set-product-grid";
+import { SetCompletionBar } from "@/components/features/set-completion-bar";
 import { SetWatchButton } from "@/components/features/set-watch-button";
 import { isSealedCategory } from "@/lib/product-category";
 import { IconPackage } from "@/components/ui/icons";
@@ -43,6 +44,9 @@ async function getSet(id: string) {
           imageUrl: true,
           category: true,
           variantLabel: true,
+          // cardId behövs av "visa bara saknade" i rutnätet — `ownedCardIds`
+          // från /api/sets/[id]/completion är KORT-id:n, inte produkt-id:n.
+          cardId: true,
           card: { select: { name: true, number: true, rarity: true } },
           offers: { select: { price: true, stockStatus: true } },
         },
@@ -123,6 +127,12 @@ export default async function SetPage({ params }: PageProps) {
         )}
       </div>
 
+      {/* Progressraden gör INGET på servern — den ritar sig själv först när den
+          inloggades siffra landat klient-sida (ISR-regeln, se komponenten).
+          Renderas bara för set som faktiskt HAR kort: ett rent sealed-set har
+          ingen komplettering att mäta. */}
+      {set._count.cards > 0 && <SetCompletionBar setId={set.id} />}
+
       {products.length === 0 ? (
         <EmptyState
           className="mt-8"
@@ -132,12 +142,14 @@ export default async function SetPage({ params }: PageProps) {
         />
       ) : (
         <SetProductGrid
+          setId={set.id}
           products={products.map((p) => ({
             id: p.id,
             slug: p.slug,
             title: p.title,
             imageUrl: p.imageUrl,
             category: p.category,
+            cardId: p.cardId,
             setId: set.id,
             setName: set.name,
             setTotalCards: set.totalCards,

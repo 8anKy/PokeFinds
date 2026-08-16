@@ -76,6 +76,10 @@ export function NotificationBadges({
       on: settings.allRestocks,
       title: "Alla restocks (Pro-opt-in)",
     },
+    // Veckobrevet är en egen spak (alla konton, inte bara Pro). Utan brickan syns
+    // inte här varför en användare "inte får mejl" — och det är just den frågan
+    // vyn finns för.
+    { key: "weekly", label: "VECKA", on: settings.weekly, title: "Veckobrev" },
   ];
   return (
     <span className="flex flex-wrap items-center gap-1">

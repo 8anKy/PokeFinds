@@ -1,28 +1,44 @@
 # Kända begränsningar & roadmap
 
-## Kända begränsningar (MVP)
-- **Endast mock-datakälla** — riktiga adapters (officiella API:er/feeds först) måste implementeras per källa
-- ~~**Kortskanning kör mock-OCR**~~ — LÖST: prod kör `OCR_PROVIDER=gemini` (se SCANNER.md)
-- **Bilduppladdningar lagras inte** (scanner: inline; community: imageUrl-fält finns men ingen uppladdningsbackend) — S3-kompatibel lagring är produktionsvägen
-- **Stripe avstängt** (`STRIPE_ENABLED=false`) — Premium-knappen är "Kommer snart"
-- **Web push ej aktiv** — service worker-grund finns ej; kräver VAPID-nycklar + sw.js
+> ⚠️ **Uppdaterad 2026-08-16.** Filen var kvar i MVP-läge och beskrev en app som inte
+> längre finns (mock-OCR, avstängd Stripe, inga riktiga adapters). Punkter som är
+> verifierat levererade är strukna eller flyttade till "Levererat" nedan.
+> ⛔ Skriv inte in en status du inte kan verifiera i koden — skriv "overifierad".
+
+## Levererat sedan MVP (verifierat i kod 2026-08-16)
+- **Riktiga datakälle-adapters** — adapter-mönstret i `src/scrapers/` kör 42 svenska
+  butiker i prod. Mock-källan är historik.
+- **Riktig vision** — skanning (`OCR_PROVIDER=gemini`) och AI-gradering
+  (`GRADING_PROVIDER=gemini`), avläst i Railway 2026-08-14. Mock gäller bara lokalt.
+- **Live-kamerascanning** — `/skanna` kör getUserMedia-strömmen; gradering är kvar som
+  foto-/uppladdningsflöde med flit.
+- **Stripe** — `src/lib/stripe.ts` + `/api/billing/checkout`, `/api/billing/portal`,
+  `/api/webhooks/stripe` finns och är kompletta. Spakens VÄRDE i prod (`STRIPE_ENABLED`)
+  bor i Railway och går inte att verifiera ur repot.
+- **Native push** — APNs (`src/lib/apns.ts`) + Capacitor-klienten (`src/lib/push-client.ts`).
+- **Restock-alerts** — 42 bevakade butiker, larm + Discord-lane i drift.
+- **i18n (SV/EN)** — `next-intl`, `messages/sv.json` + `messages/en.json`.
+
+## Kända begränsningar (nuläge)
+- **Bilduppladdningar lagras inte** (scanner: inline; community: `imageUrl`-fält finns men
+  ingen uppladdningsbackend) — S3-kompatibel lagring är produktionsvägen
+- **WEBB-push ej aktiv** — `public/sw.js` finns, men det finns NOLL VAPID-referenser i
+  `src/` (kontrollerat 2026-08-16), dvs. ingen browser-push-prenumeration. PUSH-kanalen
+  i alerts går i dag bara via NATIVE push (APNs/Capacitor), inte via webbläsaren.
 - **Samlingsvärdets 7d-förändring** approximeras (inga dagliga collection-snapshots)
 - E-post i dev loggas till konsolen (`EMAIL_MODE=console`)
-- In-memory rate limiting utan Redis (ok för en instans)
+- In-memory rate limiting utan Redis (ok för en instans). Se även
+  `docs/LAUNCH-CHECKLIST.md` Section 0.3: limitern är påsatt på 21 av 94 API-router.
 
 ## Nästa version
-1. Riktiga datakälle-adapters (API:er → feeds → tillåten scraping)
-2. Riktig OCR/vision-leverantör för skanning
-3. S3-bildlagring (scanner + community + avatarer)
-4. Stripe-aktivering: Premium-prenumeration, webhook, plan-uppgradering
-5. Web push (VAPID + service worker) för snabbare restock-notiser
-6. Dagliga snapshots av samlingsvärde per användare
-7. SSE/WebSocket för live-prisuppdateringar i UI
-8. Admin review-queue för låg-confidence produktmatchningar (UI finns delvis via jobs)
-9. Blogg/nyhetssektion för TCG-guider (SEO)
-10. 2FA (arkitekturen är förberedd via NextAuth)
-11. i18n (engelska)
-12. Heatmaps i marknadsanalysen
+1. S3-bildlagring (scanner + community + avatarer)
+2. Webb-push (VAPID + service worker) för restock-notiser i webbläsaren
+3. Dagliga snapshots av samlingsvärde per användare
+4. SSE/WebSocket för live-prisuppdateringar i UI
+5. Admin review-queue för låg-confidence produktmatchningar (UI finns delvis via jobs)
+6. Blogg/nyhetssektion för TCG-guider (SEO)
+7. 2FA (arkitekturen är förberedd via NextAuth)
+8. Heatmaps i marknadsanalysen
 
 ---
 
@@ -45,11 +61,11 @@
 - [ ] **Skan-/graderingsbilder lagras inte** (`imageUrl="inline-upload"`) → S3-kompatibel objektlagring för historik-thumbnails + omgradering.
 - [ ] **HEIC/ovanliga bildformat avvisas** (iOS fotobibliotek ger ofta HEIC) i gradering/skanning → klient-sidig konvertering till JPEG, eller bredda stödet.
 - [ ] **Samlingens `valueOverTime`** = NUvärde bucketat på inköpsmånad (ej historiskt korrekt). Kräver dagliga samlingsvärde-snapshots per användare för en riktig kurva.
-- [ ] **Web push ej aktiv** — `public/sw.js` finns nu, men VAPID-nycklar + push-prenumeration saknas. Behövs för PUSH-kanalen i alerts (relevant för restock-alerts nedan).
-- [ ] **Stripe avstängt** → `PlanTier.PREMIUM` går inte att köpa. För att testa pro-funktioner: sätt `planTier=PREMIUM` manuellt i DB (`prisma studio` eller SQL). Aktivera Stripe för riktig uppgradering.
+- [ ] **WEBB-push ej aktiv** — `public/sw.js` finns, men VAPID-nycklar + push-prenumeration saknas (noll VAPID-träffar i `src/`, kontrollerat 2026-08-16). NATIVE push (APNs/Capacitor) är däremot i drift, så PUSH-kanalen i alerts fungerar i app:en men inte i webbläsaren.
+- [x] **Stripe är BYGGT och komplett** — `stripeEnabled()` i `src/lib/stripe.ts`, checkout/portal/webhook-routerna finns. ⛔ Spakens värde i prod (`STRIPE_ENABLED`) bor i Railways miljövariabler och går INTE att verifiera ur repot; enligt CLAUDE.md är webbens Pro live och provköp end-to-end är det som återstår. ⛔ Stripe skriver ALDRIG `planTier` — entitlement läses via `proUserWhere()`/`isPro()`.
 
 ### Teknisk skuld / underhåll
-- [ ] **npm audit**: 12 sårbarheter (5 moderate, 6 high, 1 critical) — transitiva/förbefintliga. `npm audit fix --force` kan bryta — granska manuellt.
+- [ ] **npm audit** (ommätt 2026-08-16): `npm audit` = 20 sårbarheter (4 moderate, 14 high, 2 critical) — men merparten är DEV/BYGG-kedjan (`xcode`/`uuid` via Capacitor-verktygen m.fl.), som aldrig körs i prod. `npm audit --omit=dev` = **4 high**, samtliga `postcss` under `next`, med enda fixen `next@16` (brytande — se Next 14→16 i LAUNCH-CHECKLIST). CI kör därför `npm audit --omit=dev` INFORMATIVT, utan att blockera. `npm audit fix --force` kan bryta — granska manuellt.
 - [ ] **Prisma v5 → v6** uppgradering finns tillgänglig.
 - [ ] **Byggvarningar** `mailer.ts`/`queue.ts` "Critical dependency" (bullmq/nodemailer dynamiska require) — kosmetiskt, hanteras av `serverComponentsExternalPackages`.
 - [ ] **Graderingskvot** är UTC-dygn (återställs ~01–02 lokal tid) + liten TOCTOU-race vid samtidiga anrop. Acceptabelt; byt till lokal tidszon + transaktionsräkning vid behov.
@@ -61,7 +77,12 @@ Ett system använder Traderas officiella API (`runTraderaSweep()` i `src/jobs/tr
 
 ---
 
-## Planerad funktion: Restock-alerts för Pro (sealed) — bygg senare
+## ✅ LEVERERAT: Restock-alerts (sealed) — avsnittet nedan är HISTORIK
+
+> Funktionen är i drift: `runRestockScan()` i `src/scrapers/runner.ts` bevakar 42 butiker,
+> larmar via IN_APP/EMAIL/PUSH och matas dessutom till Discord-lanen. Läs avsnittet som
+> designmotiv, inte som en att-göra-lista. Gällande regler: `.claude/rules/scraping-restock.md`
+> och `.claude/rules/alerts-setwatch.md`.
 
 **Mål (användarens ord):** alerta **Pro-prenumeranter** (`PlanTier.PREMIUM`) när en **restock** skett hos Webhallen och andra butiker som säljer **sealed** (boxar, bundles, ETB, paket osv.).
 
@@ -87,7 +108,12 @@ Ett system använder Traderas officiella API (`runTraderaSweep()` i `src/jobs/tr
 
 ---
 
-## Planerad funktion: Live-kamerascanning (utan att ta foto) — bygg senare
+## ✅ LEVERERAT: Live-kamerascanning — avsnittet nedan är HISTORIK
+
+> `/skanna` kör live-kameran i prod och graderingen är kvar som foto-/uppladdningsflöde,
+> precis som beslutet nedan säger. ⛔ Raden "Beror på: riktig OCR/vision (idag mock)" är
+> ÖVERSPELAD — prod kör `OCR_PROVIDER=gemini`. **LÄS `docs/SCANNER-STATUS.md` före varje
+> ändring i skannern**; den här texten är designmotiv, inte nuläge.
 
 **Mål (användarens ord + beslut 2026-06-14):** **identifiering/pris** ska kunna ske **live** — öppna kameran (live-video), kortet scannas i realtid, identifieras och visar pris, med möjlighet att lägga till i portföljen (inget foto behövs). **Gradering ska INTE vara live — den förblir foto-/uppladdning** (kräver skarp fram-/baksida). Foto-/uppladdningsvägen finns kvar även för identifiering som fallback.
 

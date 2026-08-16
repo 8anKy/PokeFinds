@@ -6,10 +6,19 @@ import { requireUser, AuthError } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
+/*
+ * ⛔ `budget` och `interests` ÄR BORTA (2026-08-16) — fälten skrevs till
+ * `preferences` och lästes av ingen kod. De togs bort ur klienten och HÄR i
+ * samma ändring: hade schemat behållit `budget: z.enum(...)` (obligatoriskt)
+ * hade en klient utan fältet fått 400 och HELA onboardingen dött för varje nytt
+ * konto. Objektet är icke-strikt, så en gammal cachad klient som fortfarande
+ * skickar fälten får dem tyst bortsållade i stället för ett fel.
+ *
+ * Gamla `preferences`-rader behåller sina döda fält (vi spridar in `...existingPrefs`
+ * och städar inte) — `favoriteSetIds()` bryr sig bara om `favoriteSets`.
+ */
 const schema = z.object({
   favoriteSets: z.array(z.string()).max(50).default([]),
-  budget: z.enum(["low", "medium", "high"]),
-  interests: z.array(z.string()).max(20).default([]),
   notificationSettings: z
     .object({
       email: z.boolean().optional(),
@@ -39,8 +48,6 @@ export async function POST(req: Request) {
         preferences: {
           ...existingPrefs,
           favoriteSets: input.favoriteSets,
-          budget: input.budget,
-          interests: input.interests,
         } as Prisma.InputJsonValue,
         notificationSettings: {
           ...existingNotif,

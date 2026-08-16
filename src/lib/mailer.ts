@@ -14,6 +14,20 @@ export interface MailInput {
   subject: string;
   html: string;
   text: string;
+  /**
+   * Avregistreringslänk för ICKE-transaktionella utskick (veckobrevet).
+   *
+   * ⛔ SÄTTS BARA PÅ MASSUTSKICK. Ett `List-Unsubscribe` på ett lösenords-
+   * återställningsmejl erbjuder mottagaren att avanmäla sig från något hen inte
+   * prenumererar på, och gör headern meningslös där den betyder något.
+   *
+   * Finns den byggs BÅDA headrarna (`List-Unsubscribe` +
+   * `List-Unsubscribe-Post`) här — RFC 8058 kräver att URL:en tar en POST, och
+   * en av dem utan den andra ger Gmail/Outlook ingen ett-klicks-knapp alls.
+   * Att bygga dem på ETT ställe är hela poängen: två anropare hade formaterat
+   * vinkelparenteserna olika och den ena hade tyst tappat knappen.
+   */
+  unsubscribeUrl?: string;
 }
 
 /**
@@ -82,6 +96,18 @@ async function sendViaResend(input: MailInput): Promise<MailResult> {
         subject: input.subject,
         html: input.html,
         text: input.text,
+        // Ett-klicks-avanmälan (RFC 8058). Gmail och Outlook visar då sin egen
+        // "Avsluta prenumeration"-knapp bredvid avsändaren och POST:ar till
+        // URL:en — mottagaren behöver aldrig öppna mejlet. Utan headern är
+        // spamknappen enda vägen ut, och den kostar avsändarryktet.
+        ...(input.unsubscribeUrl
+          ? {
+              headers: {
+                "List-Unsubscribe": `<${input.unsubscribeUrl}>`,
+                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+              },
+            }
+          : {}),
       }),
     });
   } catch (err) {

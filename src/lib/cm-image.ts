@@ -40,8 +40,12 @@ export function cmImageCandidates(idProduct: string | number): string[] {
 /** Proxy-URL:en vi lagrar i Product.imageUrl (serveras av /api/cm-image/[idProduct]). */
 export const cmImageProxyUrl = (idProduct: string | number) => `/api/cm-image/${idProduct}`;
 
+/** Tak per utgående prob. Kapar en hängande S3-anslutning i stället för att vänta ut den. */
+export const CM_IMAGE_PROBE_TIMEOUT_MS = 8000;
+
 /**
- * Finns det en render hos Cardmarket? HEAD-probar de kända bucketarna PARALLELLT.
+ * Vilken kandidat-URL bär rendern? HEAD-probar de kända bucketarna PARALLELLT och
+ * returnerar den FÖRSTA träffen i kandidatordning (= sannolikhetsordning), eller null.
  *
  * Sekventiellt (som förr) 404:ade en render-LÖS produkt på alla 28 kandidater i följd,
  * och UTAN timeout kunde en hängande S3-anslutning blockera i minuter. Mätt 2026-07-24:
@@ -50,13 +54,24 @@ export const cmImageProxyUrl = (idProduct: string | number) => `/api/cm-image/${
  * gör varje produkt till ~1 round-trip (404:er svarar snabbt); värsta fallet kapas av
  * timeouten i stället för att hänga. `AbortSignal.timeout` finns i Node 18+ (CI = Node 20).
  */
-export async function cmRenderExists(idProduct: string | number): Promise<boolean> {
+export async function cmResolveImageUrl(idProduct: string | number): Promise<string | null> {
+  const urls = cmImageCandidates(idProduct);
   const results = await Promise.all(
-    cmImageCandidates(idProduct).map((url) =>
-      fetch(url, { method: "HEAD", headers: CM_IMAGE_HEADERS, signal: AbortSignal.timeout(8000) })
+    urls.map((url) =>
+      fetch(url, {
+        method: "HEAD",
+        headers: CM_IMAGE_HEADERS,
+        signal: AbortSignal.timeout(CM_IMAGE_PROBE_TIMEOUT_MS),
+      })
         .then((res) => res.ok)
         .catch(() => false)
     )
   );
-  return results.some(Boolean);
+  const hit = results.findIndex(Boolean);
+  return hit === -1 ? null : urls[hit];
+}
+
+/** Finns det en render hos Cardmarket? Samma probning som ovan, bara boolean. */
+export async function cmRenderExists(idProduct: string | number): Promise<boolean> {
+  return (await cmResolveImageUrl(idProduct)) != null;
 }

@@ -105,9 +105,17 @@ export function ProductCard({ product, className }: ProductCardProps) {
             −{product.dealPercent}%
           </span>
         )}
+        {/* ratio="square" följer BRUNNEN, inte motivet: ett 5:7-kort och en
+            kvadratisk sealed-box skalas båda in i samma kvadrat med
+            `object-contain`, så det är kvadraten webbläsaren ska reservera.
+            Brunnens `aspect-square` gör redan det jobbet (bilden ärver `h-full
+            w-full` ur en ruta med definitiv höjd) — kvoten här är bältet till
+            hängslet: tas `h-full` bort, eller renderas bilden någon gång utan
+            brunn, står rutan kvar och rutnätet slutar hoppa på 4G. */}
         <SafeImage
           src={product.imageUrl}
           alt={product.title}
+          ratio="square"
           className="h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-105"
           fallback={
             <div

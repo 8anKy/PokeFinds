@@ -181,9 +181,12 @@ async function main() {
         rawData: { tcgdexId: `${tcgdexSetId}-${p.card.number}`, pricing: card.pricing ?? null } as Prisma.InputJsonValue,
       },
     });
+    // ⛔ Skriv ALDRIG en platt fraktavgift här (här låg 4500). TCGdex levererar
+    // bara kortpriser — fraktkostnaden hos Cardmarket beror på säljare och land
+    // och är okänd för oss. Okänd frakt förblir null ("–"), aldrig ett påhittat tal.
     await prisma.offer.update({
       where: { id: p.offers[0].id },
-      data: { price: priceOre, stockStatus: "IN_STOCK", shippingPrice: 4500 },
+      data: { price: priceOre, stockStatus: "IN_STOCK" },
     });
     priced++;
     if (priced % 50 === 0) console.log(`   ${priced} prissatta...`);

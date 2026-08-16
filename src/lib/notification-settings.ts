@@ -26,12 +26,26 @@ export interface NotificationSettings {
   push: boolean;
   /** Pro-opt-in: restock-larm för VILKEN sealed-produkt som helst. */
   allRestocks: boolean;
+  /**
+   * Veckobrevet (src/jobs/weekly-digest.ts). Gäller ALLA konton, inte bara Pro.
+   *
+   * ⛔ EGEN SPAK, INTE `email`. Veckobrevet är appens första ICKE-transaktionella
+   * massutskick: den som vill ha sina restock-larm men inte ett nyhetsbrev måste
+   * kunna säga just det. Låg brevet under `email` vore enda avanmälan att stänga
+   * av larmen också — dvs. att stänga av det man betalat för.
+   * `email` är fortfarande MASTER: är den av skickas inget veckobrev heller.
+   */
+  weekly: boolean;
 }
 
 export const NOTIFICATION_DEFAULTS: NotificationSettings = {
   email: true,
   push: false,
   allRestocks: false,
+  // Opt-out, inte opt-in: brevet är kontots egen sammanfattning (samlingens
+  // värde, dina bevakningar) och inte reklam från tredje part. Speglar
+  // `@default` på User.notificationSettings — ändras det ena måste det andra med.
+  weekly: true,
 };
 
 /** Läser kolumnen till ett komplett objekt. Okända/felaktiga fält → default. */
@@ -45,5 +59,6 @@ export function parseNotificationSettings(json: unknown): NotificationSettings {
       typeof o.allRestocks === "boolean"
         ? o.allRestocks
         : NOTIFICATION_DEFAULTS.allRestocks,
+    weekly: typeof o.weekly === "boolean" ? o.weekly : NOTIFICATION_DEFAULTS.weekly,
   };
 }

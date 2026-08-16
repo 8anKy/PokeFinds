@@ -17,18 +17,36 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ProductCard, type ProductCardProps } from "@/components/features/product-card";
-import { Label, Select } from "@/components/ui/input";
+import { Checkbox, Label, Select } from "@/components/ui/input";
 import { compareCardNumbers } from "@/lib/card-number-order";
+import { useSetCompletion } from "@/lib/set-completion";
 
-type Product = ProductCardProps["product"] & { id: string };
+/** `cardId` = kortets id (null för sealed) — nyckeln "visa bara saknade" filtrerar på. */
+type Product = ProductCardProps["product"] & { id: string; cardId: string | null };
 
 /** Värdena motsvarar ProductSort-nycklarna i services/products.ts (samma etiketter). */
 type SetSort = "popular" | "card_number_asc" | "card_number_desc";
 const SET_SORTS: SetSort[] = ["popular", "card_number_asc", "card_number_desc"];
 
-export function SetProductGrid({ products }: { products: Product[] }) {
+export function SetProductGrid({
+  setId,
+  products,
+}: {
+  setId: string;
+  products: Product[];
+}) {
   const t = useTranslations("Products");
+  const tc = useTranslations("SetCompletion");
   const [sort, setSort] = useState<SetSort>("popular");
+  const [onlyMissing, setOnlyMissing] = useState(false);
+
+  // Ingen extra hämtning: samma delade anrop som progressraden redan gjort
+  // (`lib/set-completion.ts` dedupar), och sidan har korten renderade sedan
+  // servern — filtret är rent klient-sida. `null` när setet inte har några
+  // kort-produkter alls, då hoppas anropet över helt.
+  const hasCards = useMemo(() => products.some((p) => p.cardId), [products]);
+  const completion = useSetCompletion(hasCards ? setId : null);
+  const canFilter = !!completion && completion.ownedCount > 0;
 
   const sorted = useMemo(() => {
     if (sort === "popular") return products; // serverns ordning, orörd
@@ -45,31 +63,59 @@ export function SetProductGrid({ products }: { products: Product[] }) {
     });
   }, [products, sort]);
 
+  // ⛔ Sealed (utan `cardId`) faller bort när filtret är på: en boosterbox är
+  // inget kort man "saknar" i setet, och att låta lådorna ligga kvar hade gjort
+  // listan till "saknade kort + allt annat".
+  const visible = useMemo(() => {
+    if (!onlyMissing || !completion) return sorted;
+    return sorted.filter((p) => p.cardId && !completion.ownedCardIds.has(p.cardId));
+  }, [sorted, onlyMissing, completion]);
+
   return (
     <>
-      <div className="mt-8 flex items-center justify-end gap-2">
-        <Label htmlFor="set-sort" className="whitespace-nowrap text-sm text-ink-muted">
-          {t("sortBy")}
-        </Label>
-        <Select
-          id="set-sort"
-          value={sort}
-          onChange={(e) => setSort(e.target.value as SetSort)}
-          className="w-auto min-w-[13rem]"
-        >
-          {SET_SORTS.map((s) => (
-            <option key={s} value={s}>
-              {t(`sort.${s}`)}
-            </option>
-          ))}
-        </Select>
+      <div className="mt-8 flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+        {/* Bara meningsfullt för den som redan äger något i setet — annars är
+            "visa bara saknade" samma lista som redan visas. */}
+        {canFilter && (
+          // Wrappern bär `mr-auto`, inte checkboxen: `className` i Checkbox går
+          // till <input>, och etiketten är ett syskon inuti dess <label>.
+          <div className="mr-auto">
+            <Checkbox
+              id="set-only-missing"
+              label={tc("showMissingOnly")}
+              checked={onlyMissing}
+              onChange={(e) => setOnlyMissing(e.target.checked)}
+            />
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <Label htmlFor="set-sort" className="whitespace-nowrap text-sm text-ink-muted">
+            {t("sortBy")}
+          </Label>
+          <Select
+            id="set-sort"
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SetSort)}
+            className="w-auto min-w-[13rem]"
+          >
+            {SET_SORTS.map((s) => (
+              <option key={s} value={s}>
+                {t(`sort.${s}`)}
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-3.5 xl:grid-cols-4">
-        {sorted.map((p) => (
-          <ProductCard key={p.id} product={p} />
-        ))}
-      </div>
+      {visible.length === 0 ? (
+        <p className="mt-10 text-center text-sm text-ink-muted">{tc("noneMissing")}</p>
+      ) : (
+        <div className="mt-4 grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-3.5 xl:grid-cols-4">
+          {visible.map((p) => (
+            <ProductCard key={p.id} product={p} />
+          ))}
+        </div>
+      )}
     </>
   );
 }

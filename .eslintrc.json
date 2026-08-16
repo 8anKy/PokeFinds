@@ -1,0 +1,11 @@
+{
+  "extends": "next/core-web-vitals",
+  "plugins": ["@typescript-eslint"],
+  "ignorePatterns": [
+    "android/**",
+    "ios/**",
+    "mobile-shell/**",
+    "public/sw.js",
+    ".next/**"
+  ]
+}

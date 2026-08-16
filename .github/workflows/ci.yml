@@ -1,4 +1,4 @@
-name: CI (typecheck, tester, bygge)
+name: CI (typecheck, lint, tester, bygge, e2e)
 
 # VARFÖR: 2026-07-14 gick en typfel-commit rakt ut i main och Railway-deployen dog.
 # Felet låg i scripts/ — `next build` typecheckar ÄVEN den mappen, men inget här körde
@@ -58,7 +58,11 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "20"
+          # ⛔ MÅSTE MATCHA RUNTIME. Dockerfilen kör node:22-slim och package.json
+          # `engines` säger 22.x. CI stod på 20 → grinden kunde gröna ett bygge som
+          # betedde sig annorlunda i produktion (annan V8, andra Node-API:er, annan
+          # npm-upplösning). Byts runtime måste den här raden bytas i samma commit.
+          node-version: "22"
           cache: npm
       - run: npm ci --legacy-peer-deps
       - run: npx prisma generate
@@ -72,7 +76,78 @@ jobs:
       - name: Enhetstester
         run: npx vitest run
 
+      # `next lint` kräver en ESLint-konfig i repot — utan `.eslintrc.json` ställer den
+      # en INTERAKTIV fråga ("How would you like to configure ESLint?") och hänger sig
+      # tills jobbet timar ut. Konfigen ligger därför i repo-roten; ta inte bort den.
+      - name: Lint
+        run: npm run lint
+
       # DET SOM FAKTISKT SMÄLLDE. `next build` typecheckar hela repot inklusive scripts/,
       # så det här steget är det som hade fångat Railway-kraschen.
       - name: Bygge (samma kommando som Railway kör)
         run: npx next build
+
+      # RAPPORTERAR, GRINDAR INTE. Repot har kända transitiva sårbarheter (node-forge via
+      # node-apn, tar/glob/esbuild i devkedjan) som inte går att åtgärda utan att bryta
+      # beroenden — en blockerande `npm audit` hade stängt main för alla commits tills
+      # någon annans paket släpper en fix. Steget finns för att LUCKAN SKA SYNAS i loggen
+      # när något nytt tillkommer; åtgärdsbeslutet är manuellt (docs/TODO.md).
+      - name: npm audit (informativt, blockerar inte)
+        continue-on-error: true
+        run: npm audit --omit=dev
+
+  # EGET JOBB MED FLIT: e2e kräver Playwright-webbläsare (~1 min nedladdning) och en
+  # startad dev-server. Låg det i `verify` hade varje typfel-commit fått vänta på det.
+  # Som separat jobb kör det PARALLELLT med bygg-grinden och fördröjer den inte.
+  e2e:
+    name: E2E (Playwright, smoke)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
+      NEXTAUTH_SECRET: "ci-dummy-secret-not-used-for-anything"
+      NEXTAUTH_URL: "http://localhost:3000"
+      # Inga mejl ut ur CI. Utan detta försöker mailer.ts nå Resends HTTP-API.
+      EMAIL_MODE: "console"
+      # ⛔ SEED_DEMO_PASSWORD sätts INTE här. `tests/e2e/auth.spec.ts` hoppar över
+      # inloggningstestet när variabeln saknas — precis som avsett, eftersom repot är
+      # publikt och seeden slumpar lösenordet. Vill man köra inloggningsvägen krävs
+      # både en seedad databas och samma värde i båda stegen; det är ett eget jobb.
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx prisma generate
+      - name: Migrera CI-databasen
+        run: npx prisma migrate deploy
+
+      # Bara chromium: smoke-specen är webbläsaroberoende och tre motorer tredubblar
+      # både nedladdningen och körtiden utan att säga något nytt.
+      - name: Installera Playwright (chromium)
+        run: npx playwright install --with-deps chromium
+
+      # BARA SMOKE-SPECEN TILLS VIDARE. Den kräver ingen seed-data (publika sidor +
+      # inloggningsformulärets fält). auth.spec.ts kräver ett seedat demokonto och
+      # läggs till när den vägen är verifierad i CI — inte innan, en flakig e2e som
+      # rödar main är värre än ingen e2e. Dev-servern startas av playwright.config.ts.
+      - name: Röktester
+        run: npx playwright test tests/e2e/smoke.spec.ts

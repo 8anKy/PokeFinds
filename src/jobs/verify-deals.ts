@@ -1,5 +1,8 @@
 /**
- * Fynd-verifiering (Pro-only "Fynd"-feed).
+ * Tradera-verifiering: `verifyTraderaMatches` (LEVER, körs nattligt) och
+ * `verifyDeals` (⛔ AVSTÄNGD 2026-08-16, se kommentaren vid funktionen).
+ *
+ * ── Fynd-verifiering (Pro-only "Fynd"-feed) ─────────────────────────────────
  *
  * Fynd-feeden lyfter fram Tradera-annonser långt under sitt Cardmarket-pris — men
  * den lyfter DÄRMED fram de sämsta matchningarna (fel produkt = störst "rabatt"),
@@ -32,7 +35,8 @@
  * skälet måste vara kvalitet — och den ska mätas, inte antas.
  *
  * Kräver TRADERA_APP_ID/TRADERA_APP_KEY + leverantörens nyckel (ANTHROPIC_API_KEY
- * eller GEMINI_API_KEY). Körs sist i tradera-sweepen.
+ * eller GEMINI_API_KEY). ⚠️ Kostnadsnoten ovan gäller BÅDA funktionerna (samma
+ * adapter) — men bara `verifyTraderaMatches` betalar den numera.
  */
 import { prisma } from "@/lib/db";
 import { mapPool } from "@/lib/concurrency";
@@ -160,6 +164,31 @@ export interface VerifyDealsResult {
 }
 
 /**
+ * ⛔ AVSTÄNGD SEDAN 2026-08-16 (ÄGARBESLUT) — INGEN ANROPARE, KÖRS INTE NATTLIGT.
+ *
+ * Fynd-ytan togs ur katalogfiltret 2026-07-21 (ägarbeslut) och ingen länk i appen
+ * pekar längre på den enda läsvägen (`getDealsRaw()` via `/api/products/feed?sort=deals`).
+ * Funktionen låg ändå kvar sist i `scripts/tradera-full-sweep.ts` och betalade varje
+ * natt ett Tradera `PublicService.GetItem` PLUS en LLM-dom per kandidat för att fylla
+ * en tabell ingen läste — fyra och en halv månad av rent spill. Anropet är därför
+ * borttaget ur kedjan; koden och DealCheck-modellen står kvar orörda.
+ *
+ * ⛔ Bygg inte nytt mot DealCheck, och läs inte en tom/gammal tabell som att
+ * verifieringen är trasig — den är AVSTÄNGD. (Samma disciplin som Notification-
+ * modellen i schema.prisma.) `dealVerdict`, `extractTraderaItemId`, `fetchTraderaItem`
+ * och `verifyMatch` LEVER vidare: de används av `verifyTraderaMatches` nedan, som gör
+ * den globala nyttan (döljer felmatchade Tradera-offers över hela sajten) och som
+ * INTE får stängas av.
+ *
+ * FÖR ATT TA TILLBAKA DEN krävs tre saker, i den ordningen:
+ *  1) en LÄSARE igen — Fynd tillbaka i katalogfiltret/navigationen, annars är
+ *     kostnaden per natt fortfarande utan mottagare,
+ *  2) en kostnadsbriefing till ägaren (GetItem-anrop + LLM-domar per natt; Tradera-
+ *     kvoten är 10 000/dygn PER metod och delas med sweepens Fas 0 och sålt-svepet),
+ *  3) återinför anropet i `scripts/tradera-full-sweep.ts` EFTER `verifyTraderaMatches`
+ *     — ordningen är inte kosmetisk: matchningsverifieringen nollar felmatchade
+ *     offers först, så fynd-kandidaterna blir färre och billigare.
+ *
  * Verifierar alla fynd-kandidater som saknar färsk DealCheck (eller vars pris ändrats).
  * Sätter DealCheck.ok som fynd-feeden sedan filtrerar på.
  */

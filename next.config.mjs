@@ -49,6 +49,19 @@ const nextConfig = {
         headers: [{ key: "Cache-Control", value: "private, no-store" }],
       },
       {
+        // Universella länkar: Apple hämtar /.well-known/apple-app-site-association
+        // och KRÄVER application/json. Filen är avsiktligt utan filändelse (Apples
+        // krav) → `send` hittar ingen mime-typ och skulle svara
+        // application/octet-stream; Apple sväljer filen tyst och länkarna öppnar i
+        // Safari i stället för appen. Config-headers sätts före den statiska
+        // filhanteraren, som bara sätter Content-Type om den saknas → vår vinner.
+        // ⛔ Apple följer INTE redirects för den här filen: den måste ligga på
+        // apex (foilio.se). Registrera aldrig applinks:www.foilio.se — Cloudflares
+        // 301 www→apex ser ut som en korrekt konfiguration och verifierar aldrig.
+        source: "/.well-known/apple-app-site-association",
+        headers: [{ key: "Content-Type", value: "application/json" }],
+      },
+      {
         source: "/:path*",
         headers: [
           {

@@ -99,8 +99,24 @@ COPY --from=build /app/public ./public
 # överlevde bara för att de bakas in i routes-manifest vid BYGGET. Ta inte bort.
 COPY --from=build /app/next.config.mjs ./next.config.mjs
 EXPOSE 3000
-# migrate får INTE blockera start: med App Sleeping (scale-to-zero) körs detta vid
-# varje cold start, och en långsam/kall Neon-anslutning fick `&&` att döda containern
-# (CRASHED). `|| true; ` → appen startar alltid; migrationer appliceras ändå vid en
-# frisk boot. Vid faktiska schemaändringar: kör `npx prisma migrate deploy` manuellt.
-CMD ["sh", "-c", "npx prisma migrate deploy || true; npm start"]
+# ⛔ MIGRATIONEN KÖRS INTE VID START SOM STANDARD (RUN_MIGRATIONS saknas → hoppas över).
+#
+# VARFÖR AV (kostnad): med App Sleeping (scale-to-zero) körs CMD vid VARJE cold start.
+# `prisma migrate deploy` öppnar en anslutning mot Neon och VÄCKER computen — och en
+# väckning kostar minst 300 s debiterad tid. Det händer även när första besökaren bara
+# skulle ha fått en ISR-cachad sida ur containerns disk, utan en enda DB-fråga. Vi
+# betalade alltså compute för att fråga en migrationstabell som nästan alltid är i fas.
+#
+# VARFÖR DET INTE KOSTAR OSS NÅGOT SKYDD: CLAUDE.md kräver ändå att schemaändringar
+# migreras MANUELLT före push (`node scripts/with-prod-db.mjs npx prisma migrate deploy`),
+# just för att ny kod som `select`:ar nya kolumner mot en omigrerad databas ger 500 för
+# ALLA. Boot-körningen var aldrig den grinden: den är avsiktligt icke-blockerande (se
+# `|| true` nedan) och kunde tiga ihjäl exakt det fel den påstods fånga.
+#
+# ⛔ `|| true` STÅR KVAR i den grenen som körs: en långsam/kall Neon-anslutning fick
+# `&&` att döda containern en gång (CRASHED). Migrationen får aldrig blockera start.
+#
+# SPAKEN: sätt RUN_MIGRATIONS=1 (eller "true") på Railway-tjänsten för att slå på
+# boot-migrationen igen — t.ex. under en engångsåterställning där ingen har CLI-åtkomst.
+# Dokumenterad i docs/DEPLOYMENT.md.
+CMD ["sh", "-c", "if [ \"$RUN_MIGRATIONS\" = \"1\" ] || [ \"$RUN_MIGRATIONS\" = \"true\" ]; then npx prisma migrate deploy || true; fi; npm start"]

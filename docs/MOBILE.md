@@ -164,6 +164,101 @@ npm run cap:sync
   Foilio notifikationssystem. Dokumenteras som nästa steg.
 - **Konton/avgifter:** Apple Developer $99/år, Google Play $25 engång.
 
+## Universella länkar (e-post → appen, inte Safari)
+
+**Problemet:** push deep-länkar in i appen, men **e-post gör det inte** — och e-post
+är kanalen de flesta faktiskt har. Ett restock-mejl som öppnas på en iPhone landar i
+**Safari**, som har en **helt egen cookie-jar** (WKWebView:ens session delas inte).
+Användaren möts därför ofta av en utloggad sajt i stället för produkten som pushen
+kom ifrån.
+
+**Lösningen** är universella länkar (iOS) / App Links (Android): en fil på
+`https://foilio.se/.well-known/…` som talar om att appen äger domänen.
+
+### iOS — läget just nu
+
+| Del | Status |
+| --- | --- |
+| `public/.well-known/apple-app-site-association` | ✅ i repot (Team ID `F2XP44FF3B`, bundle `se.foilio.app`) |
+| `application/json`-headern | ✅ regel i `next.config.mjs` |
+| `associated-domains`-entitlementet i bygget | ⛔ **KVAR** (se nedan) |
+| Associated Domains på App-id:t i Developer-portalen | ⛔ **KVAR** (ägaren) |
+
+Filen ligger under `public/` och har **ingen filändelse** — det är Apples krav.
+Två icke-uppenbara detaljer som annars biter tyst:
+
+- **Content-Type måste vara `application/json`.** Utan filändelse gissar den
+  statiska filhanteraren `application/octet-stream`, och Apple förkastar filen
+  **tyst** — länkarna öppnar i Safari precis som förut. Därav headers-regeln i
+  `next.config.mjs`.
+- **Apple följer inte redirects för AASA-filen.** Den måste hämtas från **apex**
+  (`https://foilio.se/...`). ⛔ Registrera aldrig `applinks:www.foilio.se` — Cloudflares
+  301 www→apex ser konfigurerad ut men verifieras aldrig (samma mekanism som gör att
+  Stripe-/RevenueCat-webhooks måste peka på apex).
+- i18n-middlewaren rör inte sökvägen: matchern exkluderar allt som innehåller en punkt,
+  och `.well-known` börjar med en. Ingen `/sv`-rewrite alltså.
+
+**Det som återstår — och det kräver ett NYTT native-bygge.** `git push` räcker
+**inte**: entitlementet sitter i binären, inte på webben.
+
+1. **Apple Developer-portalen** (ägaren, engång): Identifiers → `se.foilio.app` →
+   kryssa i **Associated Domains** → Save. Utan capability på App-id:t går profilen
+   inte att signera med entitlementet.
+2. **`codemagic.yaml`** — `ios/` är gitignorerad och genereras färskt av `cap add ios`
+   vid varje bygge, så all iOS-konfiguration bor i codemagic.yaml. Utöka
+   `App.entitlements`-heredocen i steget *Generera iOS-projektet* med
+   associated-domains-nyckeln (samma fil som redan bär `aps-environment`):
+
+   ```xml
+   <key>com.apple.developer.associated-domains</key>
+   <array>
+     <string>applinks:foilio.se</string>
+   </array>
+   ```
+
+   Lägg till en fail-loud-kontroll i samma stil som de befintliga:
+   `grep -q applinks:foilio.se ios/App/App/App.entitlements`.
+3. **Kör ett nytt Codemagic-bygge** → TestFlight → verifiera på en riktig iPhone.
+   Installationen hämtar AASA-filen; ändringar i filen slår igenom först vid
+   ominstallation eller när iOS uppdaterar den (kan dröja).
+
+**Verifiera filen innan bygget:**
+
+```bash
+curl -sI https://foilio.se/.well-known/apple-app-site-association
+# vill se: HTTP/2 200 + content-type: application/json  (ingen 301, ingen www)
+```
+
+### Android — INTE byggd, värdena saknas
+
+`assetlinks.json` är **avsiktligt inte skapad**. En fil med platshållar-fingeravtryck
+ser konfigurerad ut och fungerar aldrig — värre än ingen fil. Det som behövs:
+
+| Värde | Var det hämtas |
+| --- | --- |
+| Paketnamn `se.foilio.app` | ✅ finns (`android/app/build.gradle`, `applicationId`) |
+| SHA-256-fingeravtryck | ⛔ **saknas** — Play Console → Release → Setup → **App signing** → *SHA-256 certificate fingerprint*. Ta **appsignerings**nyckeln (Play App Signing), inte enbart uppladdningsnyckeln. Kör du interna byggen direkt från en .aab/.apk signerad med uppladdningsnyckeln: lägg in **båda** fingeravtrycken. |
+
+När ägaren har fingeravtrycket:
+
+1. Skapa `public/.well-known/assetlinks.json`:
+   ```json
+   [{
+     "relation": ["delegate_permission/common.handle_all_urls"],
+     "target": {
+       "namespace": "android_app",
+       "package_name": "se.foilio.app",
+       "sha256_cert_fingerprints": ["<SHA-256 från Play Console>"]
+     }
+   }]
+   ```
+   (Filändelsen `.json` gör att Content-Type blir rätt av sig själv — ingen
+   headers-regel behövs.)
+2. Lägg ett `intent-filter` med `android:autoVerify="true"` för `https://foilio.se`
+   på `MainActivity` i `android/app/src/main/AndroidManifest.xml`. Till skillnad från
+   `ios/` **är** `android/` incheckad, så den ändringen ligger kvar i repot.
+3. Nytt Android-bygge (`npm run cap:sync` + ny .aab). Även här: `git push` räcker inte.
+
 ## Konfiguration i korthet
 
 | Sak | Var |
@@ -172,4 +267,6 @@ npm run cap:sync
 | App-id / namn | `capacitor.config.ts` (`se.foilio.app` / `Foilio`) |
 | Android-behörigheter | `android/app/src/main/AndroidManifest.xml` |
 | iOS-behörigheter | `ios/App/App/Info.plist` (på Mac) |
+| iOS-entitlements/Plist i CI | `codemagic.yaml` (`ios/` genereras om vid varje bygge) |
+| Universella länkar (iOS) | `public/.well-known/apple-app-site-association` + `next.config.mjs` |
 | Offline-skal | `mobile-shell/index.html` |

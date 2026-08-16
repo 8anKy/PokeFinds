@@ -35,6 +35,13 @@ import {
   profitToneClass,
   rowProfit,
 } from "./profit";
+import {
+  DEFAULT_COLLECTION_SORT,
+  filterCollectionRows,
+  sortCollectionGroups,
+  type CollectionSort,
+} from "./collection-filter";
+import { CollectionToolbar } from "./collection-toolbar";
 import { SellButton } from "./sell-on-tradera";
 
 const LONG_PRESS_MS = 450;
@@ -61,13 +68,30 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
   // sidan får inte bli beroende av searchParams (se Caching/ISR i CLAUDE.md).
   const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
 
+  // Sök + sortering. Samma regel: lokalt state, ingen URL, ingen ny hämtning —
+  // raderna finns redan i minnet (se collection-filter.ts).
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<CollectionSort>(DEFAULT_COLLECTION_SORT);
+
   const pressTimer = useRef<number | null>(null);
   const longPressed = useRef(false);
   const panelIdBase = useId();
 
   // En ruta per VARA. Poster utan pris räknas aldrig in i snittet — groupLots
   // rapporterar costedQuantity så gränssnittet kan säga hur många snittet gäller.
-  const groups = useMemo(() => groupCollectionLots(rows), [rows]);
+  const allGroups = useMemo(() => groupCollectionLots(rows), [rows]);
+
+  // FILTRERA POSTER → GRUPPERA → SORTERA GRUPPER. Grupperingen måste ske EFTER
+  // filtreringen (den bygger på poster, aldrig på namn) och sorteringen på
+  // grupperna (det är dem rutnätet ritar). Tom sökning återanvänder den redan
+  // grupperade listan — filterCollectionRows returnerar då samma referens.
+  const groups = useMemo(() => {
+    const filtered = filterCollectionRows(rows, query);
+    const base = filtered === rows ? allGroups : groupCollectionLots(filtered);
+    return sortCollectionGroups(base, sort);
+  }, [rows, allGroups, query, sort]);
+
+  const filterActive = query.trim().length > 0;
 
   // Markeringen gäller alltid ENSKILDA poster (det är dem API:t raderar). En grupp
   // markeras genom att alla dess poster markeras — allt-eller-inget, så ett andra
@@ -279,6 +303,39 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
         )}
       </div>
 
+      {/* Sök + sortering. Göms i VÄLJLÄGET med flit: markeringen gäller poster,
+          och ett filter som ändras mitt i ett urval hade dolt vad man raderar. */}
+      {!selectMode && (
+        <CollectionToolbar
+          idPrefix="m-collection"
+          query={query}
+          onQueryChange={setQuery}
+          sort={sort}
+          onSortChange={setSort}
+          matchCount={groups.length}
+          totalCount={allGroups.length}
+          className="mb-3"
+        />
+      )}
+
+      {/* Tomläge för filtret — samlingen är inte tom, sökningen träffade bara
+          ingenting, så vägen ut är att rensa den (inte att lägga till kort). */}
+      {filterActive && groups.length === 0 && (
+        <div className="card-surface flex flex-col items-center gap-2 px-4 py-8 text-center">
+          <span className="text-ink-faint">
+            <IconPackage size={26} />
+          </span>
+          <p className="text-sm font-medium text-ink">
+            {t("filterNoMatchTitle", { query: query.trim() })}
+          </p>
+          <Button variant="ghost" size="sm" onClick={() => setQuery("")}>
+            {t("filterClear")}
+          </Button>
+        </div>
+      )}
+
+      {/* Rutnätet renderas alltid; är listan tom ritas ingenting (tomläget ovan
+          bär beskedet), så resten av filen står kvar orörd. */}
       <div className="grid grid-cols-2 gap-3">
         {groups.map((g, index) => {
           const r = g.lots[0];

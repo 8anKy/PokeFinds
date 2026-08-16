@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/modal";
 import { Input, Label } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { IconBell, IconPackage, IconPlus } from "@/components/ui/icons";
+import { DiscordRestockTip } from "@/components/features/discord-restock-tip";
 
 export interface ProductActionsProps {
   productId: string;
@@ -27,6 +28,10 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
   const [quantity, setQuantity] = useState("1");
   const [targetValue, setTargetValue] = useState("");
   const [alreadyWatched, setAlreadyWatched] = useState(false);
+  // Bevakning skapad HÄR OCH NU (inte "bevakas sedan tidigare") → Discord-tipset.
+  // ⛔ Grinda den aldrig på `alreadyWatched`: då hade skylten suttit kvar på varje
+  // besök hos varje bevakad produkt, vilket är tjat och inte ett tips.
+  const [justWatched, setJustWatched] = useState(false);
   // null = okänt (utloggad/laddar) → visa standard-knapparna; false = gratiskonto
   // (larm avfyras aldrig → erbjud "spara" + upsell istället för larm-knappar).
   const [isPro, setIsPro] = useState<boolean | null>(null);
@@ -71,12 +76,15 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
     setPriceModalOpen(true);
   }
 
+  /** Returnerar true bara när servern faktiskt skapade posten — Discord-tipset
+   *  hänger på det, och ett tips efter ett misslyckat anrop hade läst som att
+   *  bevakningen gick igenom. */
   async function post(
     key: ActionKey,
     url: string,
     body: Record<string, unknown>,
     successTitle: string
-  ) {
+  ): Promise<boolean> {
     setLoading(key);
     try {
       const res = await fetch(url, {
@@ -86,21 +94,23 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
       });
       if (res.status === 401) {
         router.push("/logga-in");
-        return;
+        return false;
       }
       if (!res.ok) {
         // Servern svarar med svenska felmeddelanden → visa ALDRIG data.error rått
         // (läcker svenska i EN-läget). 409 = redan bevakad → lokaliserat meddelande.
         if (res.status === 409) {
           toast({ title: t("alreadyWatching"), description: t("alreadyWatchingDesc") });
-          return;
+          return false;
         }
         toast({ title: t("actionFailed"), description: t("tryAgain"), variant: "error" });
-        return;
+        return false;
       }
       toast({ title: successTitle, variant: "success" });
+      return true;
     } catch {
       toast({ title: t("tryAgain"), variant: "error" });
+      return false;
     } finally {
       setLoading(null);
     }
@@ -118,7 +128,7 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
       targetPrice = Math.round(kr * 100);
     }
     setPriceModalOpen(false);
-    await post(
+    const ok = await post(
       "price",
       "/api/watchlist",
       { productId, priceAlert: true, ...(targetPrice != null ? { targetPrice } : {}) },
@@ -126,6 +136,7 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
     );
     setTargetValue("");
     setAlreadyWatched(true);
+    if (ok) setJustWatched(true);
   }
 
   async function saveCollection() {
@@ -151,7 +162,7 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
       "/api/watchlist",
       { productId, priceAlert: false, restockAlert: false },
       t("savedToWatchlist")
-    );
+    ).then((ok) => ok && setJustWatched(true));
     setAlreadyWatched(true);
   }
 
@@ -173,12 +184,12 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
             variant="secondary"
             loading={loading === "restock"}
             onClick={() =>
-              post(
+              void post(
                 "restock",
                 "/api/watchlist",
                 { productId, restockAlert: true },
                 t("restockWatchCreated")
-              )
+              ).then((ok) => ok && setJustWatched(true))
             }
           >
             <IconPackage size={16} />
@@ -200,6 +211,11 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
         </Link>
       )}
     </div>
+
+    {/* Skylten, i det ögonblick bevakningen just skapades. Ligger UTANFÖR
+        knappraden (som är `flex-wrap`) så den blir en egen rad i stället för ett
+        till "chip" mellan knapparna. */}
+    {justWatched && <DiscordRestockTip />}
 
       <Modal
         open={priceModalOpen}

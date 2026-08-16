@@ -161,7 +161,9 @@ model User {
   resetToken            String?      @unique
   resetTokenExpiresAt   DateTime?
   onboardingCompleted   Boolean      @default(false)
-  notificationSettings  Json         @default("{\"email\":true,\"push\":false,\"allRestocks\":false}")
+  // ⛔ Defaulten MÅSTE spegla NOTIFICATION_DEFAULTS i src/lib/notification-settings.ts.
+  // Glider de isär beter sig gamla och nya konton olika, tyst.
+  notificationSettings  Json         @default("{\"email\":true,\"push\":false,\"allRestocks\":false,\"weekly\":true}")
   lastPushError         String? // debug: senaste APNs/push-registreringsfel (egen kolumn → ej clobbrad av settings-PATCH)
   preferences           Json         @default("{}")
   reputationScore       Int          @default(0)
@@ -190,6 +192,10 @@ model User {
   // Dubblettspärr för src/jobs/pro-expiry-notice.ts — utan den mejlas samma person
   // varje natt så länge hen ligger i varningsfönstret.
   proExpiryNotifiedAt   DateTime?
+  // När veckobrevet senast gick iväg till kontot. Dubblettspärr för
+  // src/jobs/weekly-digest.ts: stämplas EFTER lyckat utskick, så ett tillfälligt
+  // mejlfel inte tystar användaren för veckan.
+  weeklyDigestSentAt    DateTime?
   // "Senast online" i adminpanelen. Skrivs BARA i jwt-callbacken, och bara när
   // den redan hämtat användarraden ur DB:n (var 30:e min per aktiv session) OCH
   // värdet är äldre än LAST_SEEN_THROTTLE_MS. Det ger noll extra Neon-väckningar

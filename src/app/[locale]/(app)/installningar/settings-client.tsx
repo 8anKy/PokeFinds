@@ -262,6 +262,9 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
 
   const notificationOptions: { key: keyof NotificationSettings; label: string; hint: string }[] = [
     { key: "email", label: tSettings("notifEmail"), hint: tSettings("notifEmailHint") },
+    // Veckobrevet är en EGEN spak och gäller alla konton, inte bara Pro. Ligger
+    // direkt under e-post-mastern eftersom det är den som styr över den.
+    { key: "weekly", label: tSettings("notifWeekly"), hint: tSettings("notifWeeklyHint") },
     { key: "allRestocks", label: tSettings("notifAll"), hint: tSettings("notifAllHint") },
     { key: "push", label: tSettings("notifPush"), hint: tSettings("notifPushHint") },
   ];

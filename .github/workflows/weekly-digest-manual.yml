@@ -1,0 +1,99 @@
+name: Veckobrev (manuellt provutskick)
+
+# PROVUTSKICK av veckobrevet (src/jobs/weekly-digest.ts). Det schemalagda utskicket
+# ligger som ETT STEG i scrape-all.yml — det här workflowet finns BARA för att kunna
+# se brevet på riktigt före en måndag.
+#
+# ⛔ VARFÖR ETT WORKFLOW OCH INTE EN LOKAL KÖRNING: `RESEND_API_KEY` finns bara i
+# Railway och som Actions-secret — den ligger INTE i utvecklingsmaskinens .env.
+# Lokalt står dessutom `EMAIL_MODE=console`, och då LOGGAR mailern brevet i stället
+# för att skicka det. Ett Discord-provutskick 2026-08-14 rapporterade "✓ skickat"
+# för en mottagare som aldrig fick något; jobbet VÄGRAR därför numera köra skarpt i
+# konsolläge, vilket är exakt varför en lokal `--to=`-körning avbryts med fel.
+# Här finns nyckeln, och tom `EMAIL_FROM` faller tillbaka på kodens
+# `Foilio <noreply@foilio.se>` i stället för .env:ens föråldrade pokefinds.se.
+#
+# ⛔ ALDRIG PÅ SCHEMA. Schemat bor i scrape-all (Neon är redan vaken i det fönstret,
+# och nattkedjan får max tre led). Ett andra schemalagt utskick här hade dubblerat
+# brevet utan att någon märkte det förrän mottagarna hörde av sig.
+#
+# ⚠️ `--to=` går förbi mottagarurvalet men INTE förbi dubblettspärren: adressen
+# stämplas med `weeklyDigestSentAt`, och personen hoppas då över i nästa ordinarie
+# utskick inom sex dygn. Provskicka därför till dig själv, inte till en kund.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Torrkörning (bygg allt, skicka inget). Rekommenderas först."
+        type: boolean
+        default: true
+      force:
+        description: "Gå förbi veckodagsvakten (annars körs brevet bara på måndagar)"
+        type: boolean
+        default: true
+      to:
+        description: "Skicka BARA till denna adress. ⛔ Tomt = ALLA mottagare."
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  # Egen grupp: ett provutskick får aldrig krocka med nattens ordinarie steg.
+  group: weekly-digest-manual
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+      NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+      # Signerar avregistreringslänkarna. MÅSTE vara samma värde som appen i Railway
+      # verifierar med, annars är varje avanmälan i brevet död.
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      UNSUBSCRIBE_SECRET: ${{ secrets.UNSUBSCRIBE_SECRET }}
+    steps:
+      - name: Förkrav — DATABASE_URL och RESEND_API_KEY måste vara satta
+        run: |
+          # Till skillnad från de schemalagda jobben är ett saknat förkrav här ett
+          # FEL, inte en tyst no-op: någon har tryckt på knappen och väntar sig ett
+          # utskick. En grön körning utan mejl är precis den lögn jobbets
+          # konsollägesvakt finns för att förhindra.
+          missing=""
+          [ -z "${DATABASE_URL}" ] && missing="${missing} DATABASE_URL"
+          [ -z "${RESEND_API_KEY}" ] && missing="${missing} RESEND_API_KEY"
+          if [ -n "${missing}" ]; then
+            echo "::error::Saknade secrets:${missing} — inget skickat."
+            exit 1
+          fi
+      - name: Varna för skarpt utskick till alla
+        if: ${{ !inputs.dry_run && inputs.to == '' }}
+        run: |
+          echo "::warning::Skarpt utskick UTAN --to: brevet går till ALLA mottagare som inte avregistrerat sig."
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+      - id: nm
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: node_modules
+          key: nm-${{ runner.os }}-node20-${{ hashFiles('package-lock.json', 'prisma/schema.prisma') }}
+      - if: steps.nm.outputs.cache-hit != 'true'
+        run: npm ci --legacy-peer-deps
+      - if: steps.nm.outputs.cache-hit != 'true'
+        run: npx prisma generate
+      - name: Skicka veckobrevet
+        run: |
+          args=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then args="${args} --dry-run"; fi
+          if [ "${{ inputs.force }}" = "true" ]; then args="${args} --force"; fi
+          if [ -n "${{ inputs.to }}" ]; then args="${args} --to=${{ inputs.to }}"; fi
+          echo "Kör: scripts/weekly-digest-run.ts${args}"
+          npx tsx scripts/weekly-digest-run.ts ${args}

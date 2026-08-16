@@ -20,17 +20,21 @@ if (fs.existsSync(envPath)) {
 
 import { prisma } from "../src/lib/db";
 import { runTraderaSweep } from "../src/jobs/tradera-sweep";
-import { verifyDeals, verifyTraderaMatches } from "../src/jobs/verify-deals";
+import { verifyTraderaMatches } from "../src/jobs/verify-deals";
 
 runTraderaSweep({
   dryRun: process.env.DRY_RUN === "1",
   expiryDays: parseInt(process.env.EXPIRY_DAYS ?? "3", 10),
 })
-  // EFTER svepet, LLM-verifiering (fel här får inte fälla svepet som redan lyckats):
-  //  1) global matchning — dölj felmatchade sealed-offers överallt,
-  //  2) fynd-kandidater — striktare koll (komplett/oöppnad) för Fynd-feeden.
+  // EFTER svepet, LLM-verifiering av matchningen (fel här får inte fälla svepet
+  // som redan lyckats): dölj felmatchade sealed-offers ÖVERALLT på sajten.
+  //
+  // ⛔ `verifyDeals()` kördes här t.o.m. 2026-08-16 och är AVSTÄNGD på ägarbeslut:
+  // Fynd-ytan togs ur katalogfiltret 2026-07-21 och ingen länk i appen pekar på
+  // `?sort=deals` längre, så varje natt betalade vi ett Tradera-GetItem plus en
+  // LLM-dom per kandidat för en tabell (DealCheck) som ingen läste. Funktionen är
+  // KVAR i src/jobs/verify-deals.ts — läs kommentaren där innan den kopplas in igen.
   .then(() => verifyTraderaMatches().catch((e) => console.error("[verify-matches] fel:", e)))
-  .then(() => verifyDeals().catch((e) => console.error("[verify-deals] fel:", e)))
   .catch((e) => {
     console.error("Misslyckades:", e);
     process.exit(1);

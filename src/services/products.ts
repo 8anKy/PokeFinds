@@ -787,7 +787,12 @@ async function getExploreFeedRaw(
 
 // Gemensamt villkor: en Tradera-offer (alias o, produkt p, cm-CTE) i fynd-bandet mot
 // Cardmarket, bara sealed, direkt annons-URL. Params: $1=cmId $2=traderaId $3=min $4=max.
-const CM_MIN_CTE = `WITH cm AS (
+//
+// `CM_MIN_CTE` är EXPORTERAD för att veckobrevet (src/jobs/weekly-digest.ts) ska
+// räkna sitt "under marknadspris"-band mot EXAKT samma Cardmarket-referens som
+// Fynd-feeden och produktsidans CM-rad. En egen referens där hade varit en andra
+// sanning om vad "marknadspris" betyder — i ett massutskick.
+export const CM_MIN_CTE = `WITH cm AS (
   SELECT "productId", MIN(price) AS price FROM "Offer"
   WHERE "retailerId" = $1 AND price > 0 GROUP BY "productId"
 )`;

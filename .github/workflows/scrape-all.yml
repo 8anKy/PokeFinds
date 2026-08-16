@@ -140,6 +140,27 @@ jobs:
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
         run: npx tsx scripts/pro-expiry-notice-run.ts
 
+      # VECKOBREVET till alla konton. Ligger som STEG här av samma skäl som stegen
+      # ovan: Neon är redan vaken i det här fönstret, och nattkedjan får max tre led
+      # (ett fjärde workflow_run-led fyrar ALDRIG, tyst). ⛔ Ingen egen cron —
+      # jobbet avgör SJÄLV om det är rätt veckodag (UTC, WEEKLY_DIGEST_WEEKDAY,
+      # default måndag) och `weeklyDigestSentAt` spärrar dubbletter vid omkörning.
+      # ⛔ NEXTAUTH_SECRET behövs för att SIGNERA avregistreringslänkarna, och måste
+      # vara EXAKT samma värde som appen i Railway verifierar med — annars är varje
+      # avanmälan i utskicket död. Saknas den vägrar jobbet skicka (röd, men noll mejl).
+      # continue-on-error: ett brev som uteblir får aldrig fälla insamlingen.
+      - if: steps.guard.outputs.ready == 'true'
+        name: Skicka veckobrevet (bara på rätt veckodag)
+        continue-on-error: true
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          UNSUBSCRIBE_SECRET: ${{ secrets.UNSUBSCRIBE_SECRET }}
+          WEEKLY_DIGEST_WEEKDAY: ${{ vars.WEEKLY_DIGEST_WEEKDAY }}
+        run: npx tsx scripts/weekly-digest-run.ts
+
       # Gallra väntrummet för påbörjade registreringar. Raden raderas annars BARA
       # när registreringen lyckas, så varje avbruten, utgången eller studsad
       # registrering lämnar en e-postadress i tabellen för alltid — personuppgifter

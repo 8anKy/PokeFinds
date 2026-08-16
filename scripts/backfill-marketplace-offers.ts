@@ -131,15 +131,20 @@ async function main() {
             condition,
             language: "EN",
             stockStatus: marketPrice !== null ? "IN_STOCK" : "UNKNOWN",
-            shippingPrice: marketPrice !== null ? 4500 : null,
+            // ⛔ Sätt ALDRIG en platt fraktavgift här. Cardmarket-frakten beror på
+            // säljare, land och paketstorlek — vi känner den inte. Ett påhittat
+            // belopp (här låg 4500) blir fabricerad prisdata i samma sekund
+            // någon renderar fältet. null = "vi vet inte" och visas som "–".
+            shippingPrice: null,
           },
         });
         cmCreated++;
       } else if (cmOffer.price === null && marketPrice !== null) {
-        // Tidigare länk-offer som nu har fått riktigt pris
+        // Tidigare länk-offer som nu har fått riktigt pris. Frakten rörs INTE —
+        // att ett pris blev känt säger ingenting om fraktkostnaden.
         await prisma.offer.update({
           where: { id: cmOffer.id },
-          data: { price: marketPrice, stockStatus: "IN_STOCK", shippingPrice: 4500 },
+          data: { price: marketPrice, stockStatus: "IN_STOCK" },
         });
         cmUpdated++;
       }

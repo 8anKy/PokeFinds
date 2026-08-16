@@ -1,0 +1,20 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["F2XP44FF3B.se.foilio.app"],
+        "components": [
+          {
+            "/": "/api/*",
+            "exclude": true,
+            "comment": "API-svar är maskinella (OAuth-callbacks, webhooks, JSON) och ska aldrig kapas in i appen."
+          },
+          {
+            "/": "/*",
+            "comment": "Allt annat på foilio.se öppnas i appen när den är installerad — restock-mejlets /produkter/<slug> är hela poängen."
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -5,30 +5,25 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
-import { Checkbox, FieldError, Label } from "@/components/ui/input";
+import { Checkbox, FieldError } from "@/components/ui/input";
 import { SafeImage } from "@/components/ui/safe-image";
 import { IconCards, IconCheck } from "@/components/ui/icons";
 import { IconDiscord } from "@/components/ui/brand-icons";
 import { DISCORD_URL } from "@/lib/social-links";
 import { cn } from "@/lib/utils";
 
-// value = lagrat/skickat till API (stabilt), key = översättningsnyckel för visning.
-const INTERESTS = [
-  { value: "Sealed", key: "intSealed" },
-  { value: "Singles", key: "intSingles" },
-  { value: "Slabs/Gradat", key: "intSlabs" },
-  { value: "Engelskt", key: "intEnglish" },
-  { value: "Investering", key: "intInvestment" },
-  { value: "Casual collecting", key: "intCasual" },
-] as const;
-
-type Budget = "low" | "medium" | "high";
-
-const BUDGETS: { value: Budget; labelKey: string; descKey: string }[] = [
-  { value: "low", labelKey: "budgetLow", descKey: "budgetLowDesc" },
-  { value: "medium", labelKey: "budgetMedium", descKey: "budgetMediumDesc" },
-  { value: "high", labelKey: "budgetHigh", descKey: "budgetHighDesc" },
-];
+/*
+ * ONBOARDINGEN ÄR TVÅ STEG (2026-08-16). Den var tre: ett obligatoriskt
+ * "intressen + budget"-steg låg först och blockerade "Fortsätt" tills båda var
+ * ifyllda. Svaren skrevs till `User.preferences` och lästes sedan av INGEN kod
+ * i hela repot — två grindar mellan registrering och första värdeupplevelse för
+ * data som var död vid ankomst. Stegen är borta; favoritseten är kvar därför att
+ * de FAKTISKT läses (`favoriteSetIds()` → rankningssignal i services/products.ts).
+ *
+ * ⛔ Favoritseten skapar INGA set-bevakningar. `addSetWatch` är en hård Pro-grind,
+ * och att tyst lägga rader i bevakningslistan ur ett registreringskryss är ett
+ * annat påstående än att användaren bad om bevakningen.
+ */
 
 interface SetItem {
   id: string;
@@ -43,6 +38,8 @@ interface SetItem {
 // utan att göra steget till en katalog man måste bläddra igenom.
 const SET_CHOICES = 30;
 
+const TOTAL_STEPS = 2;
+
 export default function OnboardingPage() {
   const t = useTranslations("Auth.onboarding");
   const tError = useTranslations("Auth");
@@ -50,8 +47,6 @@ export default function OnboardingPage() {
   const { update } = useSession();
 
   const [step, setStep] = useState(1);
-  const [interests, setInterests] = useState<string[]>([]);
-  const [budget, setBudget] = useState<Budget | null>(null);
   const [sets, setSets] = useState<SetItem[]>([]);
   const [setsLoading, setSetsLoading] = useState(true);
   const [favoriteSets, setFavoriteSets] = useState<string[]>([]);
@@ -78,21 +73,10 @@ export default function OnboardingPage() {
     };
   }, []);
 
-  function toggle(list: string[], value: string, setter: (next: string[]) => void) {
-    setter(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
-  }
-
-  function nextFromStep1() {
-    if (interests.length === 0) {
-      setError(t("errInterest"));
-      return;
-    }
-    if (!budget) {
-      setError(t("errBudget"));
-      return;
-    }
-    setError(null);
-    setStep(2);
+  function toggleFavorite(value: string) {
+    setFavoriteSets((list) =>
+      list.includes(value) ? list.filter((v) => v !== value) : [...list, value]
+    );
   }
 
   async function handleSubmit() {
@@ -104,8 +88,6 @@ export default function OnboardingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           favoriteSets,
-          budget,
-          interests,
           notificationSettings: notif,
         }),
       });
@@ -129,7 +111,7 @@ export default function OnboardingPage() {
       <div className="mb-6">
         <p className="text-xs font-medium text-holo-cyan">{t("step", { step })}</p>
         <div className="mt-2 flex gap-1.5">
-          {[1, 2, 3].map((s) => (
+          {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((s) => (
             <span
               key={s}
               className={cn(
@@ -142,79 +124,6 @@ export default function OnboardingPage() {
       </div>
 
       {step === 1 && (
-        <div>
-          <h1 className="font-display text-2xl font-bold text-ink">{t("interestsTitle")}</h1>
-          <p className="mt-1 text-sm text-ink-muted">
-            {t("interestsSubtitle")}
-          </p>
-
-          <div className="mt-5">
-            <Label>{t("interestsLabel")}</Label>
-            <div className="flex flex-wrap gap-2">
-              {INTERESTS.map((interest) => {
-                const active = interests.includes(interest.value);
-                return (
-                  <button
-                    key={interest.value}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => toggle(interests, interest.value, setInterests)}
-                    className={cn(
-                      "rounded-full border px-3.5 py-1.5 text-sm transition-colors",
-                      active
-                        ? "border-holo-cyan bg-holo-cyan/15 font-medium text-holo-cyan"
-                        : "border-surface-border bg-surface-raised text-ink-muted hover:border-holo-cyan/50 hover:text-ink"
-                    )}
-                  >
-                    {t(interest.key)}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="mt-5">
-            <Label>{t("budgetLabel")}</Label>
-            <div className="grid grid-cols-3 gap-2">
-              {BUDGETS.map((b) => {
-                const active = budget === b.value;
-                return (
-                  <button
-                    key={b.value}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => setBudget(b.value)}
-                    className={cn(
-                      "rounded-lg border p-3 text-left transition-colors",
-                      active
-                        ? "border-holo-cyan bg-holo-cyan/10"
-                        : "border-surface-border bg-surface-raised hover:border-holo-cyan/50"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "block text-sm font-semibold",
-                        active ? "text-holo-cyan" : "text-ink"
-                      )}
-                    >
-                      {t(b.labelKey)}
-                    </span>
-                    <span className="mt-0.5 block text-xs text-ink-muted">{t(b.descKey)}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <FieldError message={error} className="mt-4" />
-
-          <Button onClick={nextFromStep1} className="mt-6 w-full" size="lg">
-            {t("continue")}
-          </Button>
-        </div>
-      )}
-
-      {step === 2 && (
         <div>
           <h1 className="font-display text-2xl font-bold text-ink">{t("favoritesTitle")}</h1>
           <p className="mt-1 text-sm text-ink-muted">
@@ -240,7 +149,7 @@ export default function OnboardingPage() {
                       key={set.id}
                       type="button"
                       aria-pressed={active}
-                      onClick={() => toggle(favoriteSets, set.id, setFavoriteSets)}
+                      onClick={() => toggleFavorite(set.id)}
                       className="flex flex-col gap-1.5 text-center"
                     >
                       <span
@@ -281,18 +190,16 @@ export default function OnboardingPage() {
             )}
           </div>
 
-          <div className="mt-6 flex gap-3">
-            <Button variant="secondary" onClick={() => setStep(1)} className="flex-1" size="lg">
-              {t("back")}
-            </Button>
-            <Button onClick={() => setStep(3)} className="flex-1" size="lg">
-              {t("continue")}
-            </Button>
-          </div>
+          {/* Inget "Tillbaka" — det här ÄR första steget. Och inget val krävs:
+              tom lista är ett giltigt svar (rankningen faller tillbaka på
+              bevakningar och samling). */}
+          <Button onClick={() => setStep(2)} className="mt-6 w-full" size="lg">
+            {t("continue")}
+          </Button>
         </div>
       )}
 
-      {step === 3 && (
+      {step === 2 && (
         <div>
           <h1 className="font-display text-2xl font-bold text-ink">{t("notifTitle")}</h1>
           <p className="mt-1 text-sm text-ink-muted">
@@ -309,11 +216,11 @@ export default function OnboardingPage() {
               />
             </div>
 
-            {/* Discord-inbjudan i SISTA steget, inte som ett eget fjärde steg:
+            {/* Discord-inbjudan i SISTA steget, inte som ett eget extra steg:
                 registreringen ska inte bli längre för att vi vill ha medlemmar.
                 ⛔ `target="_blank"` är inte kosmetik — öppnades servern i samma
                 flik vore onboardingen övergiven precis före "Slutför", och
-                svaren (intressen, budget, favoritset) hade aldrig sparats. */}
+                svaren (favoritset, aviseringsval) hade aldrig sparats. */}
             <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
               <div className="flex items-start gap-3">
                 <IconDiscord size={22} className="mt-0.5 shrink-0 text-ink-muted" />
@@ -340,7 +247,7 @@ export default function OnboardingPage() {
           <div className="mt-6 flex gap-3">
             <Button
               variant="secondary"
-              onClick={() => setStep(2)}
+              onClick={() => setStep(1)}
               className="flex-1"
               size="lg"
               disabled={submitting}

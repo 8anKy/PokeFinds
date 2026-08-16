@@ -290,6 +290,12 @@ export default async function AdminUserDetailPage({
             {notif.allRestocks ? "På" : "Av"}
           </Row>
           <Row
+            label="Veckobrev"
+            hint="Gäller alla konton, inte bara Pro. E-postnotiser är master — är den av går inget veckobrev ut heller."
+          >
+            {notif.weekly ? "På" : "Av"}
+          </Row>
+          <Row
             label="Appen installerad"
             hint="Bevisas av en registrerad push-token. Frånvaro bevisar inte motsatsen — appen kan vara installerad utan att push tillåtits."
           >

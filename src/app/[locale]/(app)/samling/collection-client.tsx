@@ -30,6 +30,13 @@ import {
   profitToneClass,
   rowProfit,
 } from "./profit";
+import {
+  DEFAULT_COLLECTION_SORT,
+  filterCollectionRows,
+  sortCollectionGroups,
+  type CollectionSort,
+} from "./collection-filter";
+import { CollectionToolbar } from "./collection-toolbar";
 
 export const CONDITION_LABELS: Record<string, string> = {
   MINT: "Mint",
@@ -132,8 +139,27 @@ export function CollectionClient({
   const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
   const rowIdBase = useId();
 
+  // Filtrering + sortering av SAMLINGEN. Lokalt state, ingen URL-parameter och
+  // ingen ny hämtning — raderna finns redan i minnet (se collection-filter.ts).
+  // ⛔ Förväxla inte `filterQuery` med `search` längre ned: det senare är
+  // KORTSÖKNINGEN i "Lägg till manuellt" och går mot /api/cards.
+  const [filterQuery, setFilterQuery] = useState("");
+  const [sort, setSort] = useState<CollectionSort>(DEFAULT_COLLECTION_SORT);
+
   // En tabellrad per VARA; flera köp av samma vara fälls ut som underrader.
-  const groups = useMemo(() => groupCollectionLots(items), [items]);
+  const allGroups = useMemo(() => groupCollectionLots(items), [items]);
+
+  // FILTRERA POSTER → GRUPPERA → SORTERA GRUPPER. Grupperingen bygger på poster
+  // (lotKey), aldrig på namnet, så den måste ske efter filtreringen; sorteringen
+  // gäller grupperna, det är dem tabellen radar upp. Tom sökning återanvänder
+  // den redan grupperade listan (samma array-referens tillbaka från filtret).
+  const groups = useMemo(() => {
+    const filtered = filterCollectionRows(items, filterQuery);
+    const base = filtered === items ? allGroups : groupCollectionLots(filtered);
+    return sortCollectionGroups(base, sort);
+  }, [items, allGroups, filterQuery, sort]);
+
+  const filterActive = filterQuery.trim().length > 0;
 
   function toggleGroup(key: string) {
     setOpenKeys((prev) => {
@@ -468,6 +494,32 @@ export function CollectionClient({
           action={<Button onClick={() => setAddOpen(true)}>{t("addFirst")}</Button>}
         />
       ) : (
+        <>
+        {/* Sök + sortering av samlingen (klient-sida, inga URL-parametrar). */}
+        <CollectionToolbar
+          idPrefix="d-collection"
+          query={filterQuery}
+          onQueryChange={setFilterQuery}
+          sort={sort}
+          onSortChange={setSort}
+          matchCount={groups.length}
+          totalCount={allGroups.length}
+          className="max-w-xl"
+        />
+        {/* Samlingen är inte tom — sökningen träffade bara ingenting. Vägen ut
+            är därför att rensa filtret, inte att lägga till ett objekt. */}
+        {filterActive && groups.length === 0 ? (
+        <EmptyState
+          icon={<IconPackage size={32} />}
+          title={t("filterNoMatchTitle", { query: filterQuery.trim() })}
+          description={t("filterNoMatchDesc")}
+          action={
+            <Button variant="ghost" onClick={() => setFilterQuery("")}>
+              {t("filterClear")}
+            </Button>
+          }
+        />
+        ) : (
         <Table>
           <THead>
             <TR>
@@ -761,6 +813,8 @@ export function CollectionClient({
             })}
           </TBody>
         </Table>
+        )}
+        </>
       )}
 
       {/* Lägg till */}

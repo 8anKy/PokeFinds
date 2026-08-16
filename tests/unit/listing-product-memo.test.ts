@@ -35,7 +35,10 @@ const ownerOffer: { current: { productId: string } | null } = { current: null };
 const storeOffer: { current: { id: string; gtin: string | null } | null } = {
   current: { id: "o1", gtin: null },
 };
-const offerFindFirst = vi.fn(async (args: { where?: { url?: string } }) =>
+// `args` är valfri i signaturen med flit: anropsställena spreadar `...(a as [])`,
+// vilket typas som noll argument. Funktionen läser redan med `args?.` — kravet på
+// ett argument var alltså bara en typ, aldrig en förutsättning.
+const offerFindFirst = vi.fn(async (args?: { where?: { url?: string } }) =>
   args?.where?.url !== undefined ? ownerOffer.current : storeOffer.current
 );
 const offerCreate = vi.fn(async () => ({}));

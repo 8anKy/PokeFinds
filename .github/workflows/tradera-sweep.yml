@@ -46,8 +46,9 @@ jobs:
       DB_POOL: "10" # större Prisma-pool → mapPool-samtidighet utan pool_timeout
       TRADERA_APP_ID: ${{ secrets.TRADERA_APP_ID }}
       TRADERA_APP_KEY: ${{ secrets.TRADERA_APP_KEY }}
-      # LLM-verifieringen (verify-matches/verify-deals) efter svepet — utan nyckeln
-      # hoppas den TYST över i molnet (kördes bara lokalt t.o.m. 2026-07-07).
+      # LLM-verifieringen (verify-matches) efter svepet — utan nyckeln hoppas den
+      # TYST över i molnet (kördes bara lokalt t.o.m. 2026-07-07).
+      # (verify-deals kördes här t.o.m. 2026-08-16, nu avstängd — se src/jobs/verify-deals.ts.)
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       # Leverantörsvalet: tomt/osatt = claude (nuvarande, mätta beteendet).
       # Sätt repo-variabeln DEALS_VERIFY_PROVIDER=gemini för att flytta över —

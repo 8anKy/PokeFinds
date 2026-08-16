@@ -28,6 +28,8 @@
     "notifDesc": "Välj hur du vill bli larmad.",
     "notifEmail": "E-postnotiser",
     "notifEmailHint": "Prislarm och restocks via e-post.",
+    "notifWeekly": "Veckobrev",
+    "notifWeeklyHint": "En sammanfattning varje vecka: din samlings värde, prisfall på det du bevakar och veckans fynd. Kräver att e-postnotiser är på.",
     "notifAll": "Alla restocks",
     "notifAllHint": "Få larm när VILKEN sealed-produkt som helst kommer i lager, utan att bevaka den.",
     "notifPush": "Pushnotiser",
@@ -209,17 +211,7 @@
       "resendDone": "Behöver adressen bekräftas är en ny länk på väg. Kika i skräpposten om den dröjer."
     },
     "onboarding": {
-      "step": "Steg {step} av 3",
-      "interestsTitle": "Vad samlar du på?",
-      "interestsSubtitle": "Hjälp oss skräddarsy Foilio efter dina intressen.",
-      "interestsLabel": "Intressen",
-      "budgetLabel": "Budget per månad",
-      "budgetLow": "Låg",
-      "budgetLowDesc": "Under 500 kr/mån",
-      "budgetMedium": "Mellan",
-      "budgetMediumDesc": "500–2000 kr/mån",
-      "budgetHigh": "Hög",
-      "budgetHighDesc": "2000+ kr/mån",
+      "step": "Steg {step} av 2",
       "continue": "Fortsätt",
       "favoritesTitle": "Dina favoritset",
       "favoritesSubtitle": "Välj de set du följer extra noga. Du kan ändra detta senare.",
@@ -232,15 +224,7 @@
       "discordTitle": "Häng med oss på Discord",
       "discordBody": "Restocks postas direkt i egna kanaler per serie, och du kan fråga andra samlare om priser och fynd. Gratis och öppet för alla.",
       "discordCta": "Gå med i Discord",
-      "finish": "Slutför",
-      "errInterest": "Välj minst ett intresse.",
-      "errBudget": "Välj din ungefärliga budget.",
-      "intSealed": "Sealed",
-      "intSingles": "Singles",
-      "intSlabs": "Slabs/Gradat",
-      "intEnglish": "Engelskt",
-      "intInvestment": "Investering",
-      "intCasual": "Casual collecting"
+      "finish": "Slutför"
     }
   },
   "Condition": {
@@ -333,6 +317,17 @@
     "lotAvgPartial": "snitt {price} · {costed} av {total}",
     "lotAvgUnknown": "Inget inköpspris angivet",
     "lotProfitPartialHint": "Gäller {costed} av {total} exemplar · övriga saknar inköpspris.",
+    "filterLabel": "Sök i samlingen",
+    "filterPlaceholder": "Sök på kort, produkt eller set…",
+    "filterClear": "Rensa sökningen",
+    "filterMatchCount": "{count} av {total} objekt matchar",
+    "filterNoMatchTitle": "Inga poster matchar ”{query}”",
+    "filterNoMatchDesc": "Prova ett annat namn, eller rensa sökningen för att se hela samlingen igen.",
+    "sortLabel": "Sortera",
+    "sortRecent": "Senast tillagd",
+    "sortValue": "Värde (högst först)",
+    "sortName": "Namn A–Ö",
+    "sortQuantity": "Antal (flest först)",
     "estimatedValue": "Uppskattat värde (kr)",
     "estimatedValuePlaceholder": "t.ex. 399",
     "gradingCompany": "Gradingbolag",
@@ -415,6 +410,12 @@
     "h1": "Community",
     "comingSoon": "Snart här",
     "placeholderBody": "Vi bygger en plats för pulls, byten och marknadssnack. Av samlare, för samlare. Håll utkik, den öppnar snart."
+  },
+  "DiscordTip": {
+    "title": "Vill du ha den ännu snabbare?",
+    "body": "Restocks postas i vår Discord oftast inom en minut efter att butiken lagt upp dem.",
+    "cta": "Gå med i Discord",
+    "dismiss": "Dölj tipset"
   },
   "Profile": {
     "metaSuffix": "{name} · profil",
@@ -1164,7 +1165,7 @@
     "colProducts": "Produkter",
     "colAvgChange": "Snittförändring",
     "proTitle": "Vill du gräva djupare i datan?",
-    "proDesc": "Med Pro får du längre prishistorik, avancerade grafer, veckorapporter och alla restock-larm, så att du agerar innan alla andra.",
+    "proDesc": "Med Pro får du längre prishistorik, avancerade grafer och alla restock-larm, så att du agerar innan alla andra.",
     "proCta": "Se vad Pro ger dig"
   },
   "Language": {
@@ -1285,6 +1286,12 @@
     "detailDescription": "Produkter och priser för {name} ({series}). Jämför svenska butiker på Foilio.",
     "emptyProductsTitle": "Inga produkter i setet ännu",
     "emptyProductsDesc": "Vi har inte hittat några produkter från det här setet hos bevakade butiker."
+  },
+  "SetCompletion": {
+    "title": "Din samling",
+    "progress": "{owned} av {total} · {percent} %",
+    "showMissingOnly": "Visa bara saknade",
+    "noneMissing": "Du äger alla kort vi listar i det här setet."
   },
   "PageNav": {
     "back": "Tillbaka"
@@ -1433,7 +1440,8 @@
       "Spara upp till 5 produkter i din bevakningslista",
       "Samling med värdeöversikt",
       "3 AI-graderingar och 30 skanningar per månad",
-      "Marknadsdata och prisgrafer"
+      "Marknadsdata och prisgrafer",
+      "Veckobrev med samlingens utveckling och veckans fynd"
     ],
     "freeExcluded": [
       "Pris- och restock-larm",

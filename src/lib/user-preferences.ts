@@ -11,6 +11,13 @@
  * Därför: ren funktion, ingen kastning, allt som inte är en icke-tom sträng
  * sållas bort. Ett id som pekar på ett borttaget set är ofarligt — det matchar
  * bara aldrig.
+ *
+ * `favoriteSets` är det ENDA fältet någon kod läser. Onboardingen slutade skriva
+ * `budget`/`interests` 2026-08-16 (de lästes aldrig), men gamla rader — och
+ * seeden — har dem kvar. Den här funktionen plockar bara ut sitt eget fält, så
+ * kvarvarande skräpfält är per konstruktion ofarliga; städa dem inte "för
+ * ordningens skull" (en migration som skriver om varje användarrad är en Neon-
+ * väckning för noll nytta).
  */
 
 /** Favoritseten från onboardingen. Returnerar alltid en (möjligen tom) lista. */

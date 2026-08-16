@@ -357,6 +357,307 @@ Foilio · Sveriges marknadsplats för Pokémon TCG`;
   return { subject, html, text };
 }
 
+// ---------------------------------------------------------------------------
+// VECKOBREVET
+// ---------------------------------------------------------------------------
+
+/** Ett kort i samlingen som rört sig mest på sju dagar. */
+export interface DigestMover {
+  name: string;
+  setName: string | null;
+  percent: number;
+  valueOre: number | null;
+}
+
+/** Prisfall på en produkt användaren bevakar. `percent` är NEGATIV. */
+export interface DigestDrop {
+  title: string;
+  url: string;
+  priceOre: number | null;
+  percent: number;
+}
+
+/** Restock i ett bevakat set eller på en bevakad produkt. */
+export interface DigestRestock {
+  title: string;
+  url: string;
+  retailerName: string;
+  priceOre: number | null;
+}
+
+/** Ett butiksfynd under Cardmarket-pris. `percentUnder` är POSITIV. */
+export interface DigestDealExample {
+  title: string;
+  url: string;
+  retailerName: string;
+  priceOre: number;
+  percentUnder: number;
+}
+
+export interface WeeklyDigestContent {
+  name: string;
+  /** Signerad avanmälan (src/lib/unsubscribe-token.ts). Obligatorisk — se sidfoten. */
+  unsubscribeUrl: string;
+  /** Utelämnas helt för den som inte har någon samling. */
+  collection?: {
+    totalValueOre: number;
+    /** null = vi har inte sju dygns kurva ännu. Då visas ingen förändring alls. */
+    changeOre: number | null;
+    changePercent: number | null;
+    movers: DigestMover[];
+  };
+  drops: DigestDrop[];
+  restocks: DigestRestock[];
+  pulse: {
+    underMarketCount: number;
+    /** Tröskeln bandet räknades med — copyn får ALDRIG påstå en annan siffra. */
+    minDiscountPercent: number;
+    examples: DigestDealExample[];
+    restockCount: number;
+    newSetCount: number;
+  };
+}
+
+/** "+3,2 %" / "−1,8 %". Minustecknet är ett riktigt minus, inte ett bindestreck. */
+function pct(value: number): string {
+  const s = Math.abs(value).toFixed(1).replace(".", ",");
+  return `${value >= 0 ? "+" : "−"}${s} %`;
+}
+
+function digestSection(title: string, inner: string): string {
+  return `<div style="margin:28px 0 0;padding-top:20px;border-top:1px solid #2a2e38;">
+       <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#ffffff;">${title}</p>
+       ${inner}
+     </div>`;
+}
+
+/**
+ * VECKOBREVET — går till ALLA konton, inte bara Pro (ägarbeslut 2026-08-16).
+ *
+ * ⛔ **VARJE AVSNITT SOM SAKNAR DATA UTELÄMNAS HELT.** Ett brev med "0 prisfall"
+ * och "+0,0 %" läser som att tjänsten är tom; ett brev med bara de avsnitt som
+ * faktiskt bär något läser som att vi bara hör av oss när vi har något att säga.
+ * Samma regel som "–" i pristabellen: vi hittar aldrig på en nolla.
+ *
+ * ⛔ **PLATTFORMSPULSEN ÄR SAMMA SIFFROR FÖR ALLA** och räknas EN gång per körning
+ * — den är brevets skäl att finnas för den som varken har samling eller
+ * bevakningar, och den är därför också det som avgör om ett annars tomt brev ändå
+ * har innehåll.
+ *
+ * ⛔ **SIDFOTEN MÅSTE BÄRA AVANMÄLAN.** Det här är inget transaktionsmejl. Utan
+ * en fungerande utloggad avregistreringslänk är spamknappen mottagarens enda
+ * utväg, och den kostar foilio.se:s avsändarrykte permanent.
+ */
+export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
+  const { pulse } = data;
+  const parts: string[] = [];
+  const textParts: string[] = [];
+
+  // ---- Samlingen ----
+  if (data.collection) {
+    const c = data.collection;
+    const changeHtml =
+      c.changePercent != null && c.changeOre != null
+        ? `<p style="margin:4px 0 0;font-size:14px;color:${c.changeOre >= 0 ? "#34d399" : "#f87171"};">${pct(
+            c.changePercent
+          )} senaste sju dagarna (${c.changeOre >= 0 ? "+" : "−"}${formatSek(Math.abs(c.changeOre))})</p>`
+        : "";
+    const moversHtml = c.movers.length
+      ? `<p style="margin:16px 0 8px;font-size:13px;color:#9ca3af;">Veckans rörelser i din samling:</p>
+         <ul style="line-height:1.7;color:#cbd5e1;padding-left:20px;margin:0;font-size:14px;">
+           ${c.movers
+             .map(
+               (m) =>
+                 `<li><strong style="color:#ffffff;">${m.name}</strong>${
+                   m.setName ? ` <span style="color:#6b7280;">· ${m.setName}</span>` : ""
+                 } — <span style="color:#34d399;">${pct(m.percent)}</span>${
+                   m.valueOre != null ? ` · ${formatSek(m.valueOre)}/st` : ""
+                 }</li>`
+             )
+             .join("\n           ")}
+         </ul>`
+      : "";
+    parts.push(
+      digestSection(
+        "Din samling",
+        `<p style="margin:0;font-size:24px;font-weight:800;color:#ffffff;">${formatSek(c.totalValueOre)}</p>
+         ${changeHtml}
+         ${moversHtml}`
+      )
+    );
+    textParts.push(
+      `— Din samling —\nVärde: ${formatSek(c.totalValueOre)}${
+        c.changePercent != null && c.changeOre != null
+          ? `\nSenaste sju dagarna: ${pct(c.changePercent)} (${c.changeOre >= 0 ? "+" : "−"}${formatSek(
+              Math.abs(c.changeOre)
+            )})`
+          : ""
+      }${
+        c.movers.length
+          ? `\nVeckans rörelser:\n${c.movers
+              .map(
+                (m) =>
+                  `  · ${m.name}${m.setName ? ` (${m.setName})` : ""} ${pct(m.percent)}${
+                    m.valueOre != null ? ` · ${formatSek(m.valueOre)}/st` : ""
+                  }`
+              )
+              .join("\n")}`
+          : ""
+      }`
+    );
+  }
+
+  // ---- Prisfall på bevakat ----
+  if (data.drops.length) {
+    parts.push(
+      digestSection(
+        "Prisfall på det du bevakar",
+        `<ul style="line-height:1.7;color:#cbd5e1;padding-left:20px;margin:0;font-size:14px;">
+           ${data.drops
+             .map(
+               (d) =>
+                 `<li><a href="${d.url}" style="color:#ffffff;font-weight:600;text-decoration:none;">${d.title}</a> — <span style="color:#34d399;">${pct(
+                   d.percent
+                 )}</span>${d.priceOre != null ? ` · nu ${formatSek(d.priceOre)}` : ""}</li>`
+             )
+             .join("\n           ")}
+         </ul>`
+      )
+    );
+    textParts.push(
+      `— Prisfall på det du bevakar —\n${data.drops
+        .map(
+          (d) =>
+            `  · ${d.title} ${pct(d.percent)}${d.priceOre != null ? ` · nu ${formatSek(d.priceOre)}` : ""}\n    ${d.url}`
+        )
+        .join("\n")}`
+    );
+  }
+
+  // ---- Restocks i bevakat ----
+  if (data.restocks.length) {
+    parts.push(
+      digestSection(
+        "Tillbaka i lager den här veckan",
+        `<ul style="line-height:1.7;color:#cbd5e1;padding-left:20px;margin:0;font-size:14px;">
+           ${data.restocks
+             .map(
+               (r) =>
+                 `<li><a href="${r.url}" style="color:#ffffff;font-weight:600;text-decoration:none;">${r.title}</a> hos <strong style="color:#2dd4bf;">${r.retailerName}</strong>${
+                   r.priceOre != null ? ` · ${formatSek(r.priceOre)}` : ""
+                 }</li>`
+             )
+             .join("\n           ")}
+         </ul>
+         <p style="margin:12px 0 0;font-size:12px;color:#6b7280;">Lagret kan ha ändrats sedan vi räknade — heta varor tar slut fort.</p>`
+      )
+    );
+    textParts.push(
+      `— Tillbaka i lager den här veckan —\n${data.restocks
+        .map(
+          (r) =>
+            `  · ${r.title} hos ${r.retailerName}${r.priceOre != null ? ` · ${formatSek(r.priceOre)}` : ""}\n    ${r.url}`
+        )
+        .join("\n")}\n  Lagret kan ha ändrats sedan vi räknade.`
+    );
+  }
+
+  // ---- Plattformspulsen ----
+  const pulseBits: string[] = [];
+  const pulseTextBits: string[] = [];
+  if (pulse.underMarketCount > 0) {
+    pulseBits.push(
+      `<p style="margin:0;line-height:1.6;color:#cbd5e1;">Just nu ligger <strong style="color:#ffffff;font-size:18px;">${pulse.underMarketCount}</strong> varor hos svenska butiker minst <strong style="color:#ffffff;">${pulse.minDiscountPercent} %</strong> under Cardmarket-priset.</p>`
+    );
+    pulseTextBits.push(
+      `Just nu ligger ${pulse.underMarketCount} varor hos svenska butiker minst ${pulse.minDiscountPercent} % under Cardmarket-priset.`
+    );
+  }
+  if (pulse.examples.length) {
+    pulseBits.push(
+      `<ul style="line-height:1.7;color:#cbd5e1;padding-left:20px;margin:12px 0 0;font-size:14px;">
+         ${pulse.examples
+           .map(
+             (e) =>
+               `<li><a href="${e.url}" style="color:#ffffff;font-weight:600;text-decoration:none;">${e.title}</a> — ${formatSek(
+                 e.priceOre
+               )} hos <strong style="color:#2dd4bf;">${e.retailerName}</strong> <span style="color:#34d399;">(${e.percentUnder} % under)</span></li>`
+           )
+           .join("\n         ")}
+       </ul>`
+    );
+    pulseTextBits.push(
+      pulse.examples
+        .map(
+          (e) =>
+            `  · ${e.title} — ${formatSek(e.priceOre)} hos ${e.retailerName} (${e.percentUnder} % under)\n    ${e.url}`
+        )
+        .join("\n")
+    );
+  }
+  const counters: string[] = [];
+  if (pulse.restockCount > 0) counters.push(`${pulse.restockCount} restocks fångade`);
+  if (pulse.newSetCount > 0)
+    // "släppt", inte "i katalogen": talet räknar set med releaseDate i veckan, dvs
+    // faktiska släpp. Se kommentaren i weekly-digest.ts — "i katalogen" räknade även
+    // bokföringsrader för set från 2014 och läste som 33 nya släpp.
+    counters.push(
+      `${pulse.newSetCount} ${pulse.newSetCount === 1 ? "nytt set" : "nya set"} släppta`
+    );
+  if (counters.length) {
+    pulseBits.push(
+      `<p style="margin:16px 0 0;font-size:13px;color:#9ca3af;">Vi bevakade också butikerna åt dig: ${counters.join(
+        " · "
+      )}.</p>`
+    );
+    pulseTextBits.push(`Vi bevakade också butikerna åt dig: ${counters.join(" · ")}.`);
+  }
+  if (pulseBits.length) {
+    parts.push(digestSection("Veckans läge på marknaden", pulseBits.join("\n         ")));
+    textParts.push(`— Veckans läge på marknaden —\n${pulseTextBits.join("\n")}`);
+  }
+
+  const subject =
+    pulse.underMarketCount > 0
+      ? `Veckan på Foilio: ${pulse.underMarketCount} varor under marknadspris`
+      : "Veckan på Foilio";
+
+  // ⛔ Avanmälan i BÅDE sidfoten och textversionen. En länk som bara finns i
+  // HTML-halvan är osynlig för den som läser i ren text.
+  const footerReason = `Du får det här brevet för att du har ett konto på Foilio.<br>
+      <a href="${data.unsubscribeUrl}" style="color:#9ca3af;">Avregistrera dig från veckobrevet</a> · du behåller dina pris- och restock-larm.`;
+
+  // ⛔ Ingressen får inte lova något brevet inte innehåller. Har mottagaren varken
+  // samling eller bevakningar är "vad din samling gjorde" en tom kula — då är
+  // marknadsläget hela brevet, och nästa steg är att lägga upp något.
+  const hasPersonal = !!data.collection || data.drops.length > 0 || data.restocks.length > 0;
+  const intro = hasPersonal
+    ? "Sammanfattningen av din vecka på Foilio: vad din samling gjorde, vad som hände med det du bevakar, och var fynden fanns."
+    : "Här är veckans läge på den svenska Pokémon-marknaden. Lägg upp din samling och bevaka det du jagar, så handlar nästa brev om dina kort också.";
+
+  const html = layout(
+    `Hej ${data.name}, här är din vecka`,
+    `<p style="line-height:1.6;color:#cbd5e1;">${intro}</p>
+     ${parts.join("\n     ")}
+     ${button(`${APP_URL}/produkter?sortera=prisfall`, "Se allt i appen")}`,
+    footerReason
+  );
+
+  const text = `Hej ${data.name}!
+
+${intro}
+
+${textParts.join("\n\n")}
+
+Se allt i appen: ${APP_URL}/produkter?sortera=prisfall
+
+Du får det här brevet för att du har ett konto på Foilio.
+Avregistrera dig från veckobrevet: ${data.unsubscribeUrl}
+Foilio · Sveriges marknadsplats för Pokémon TCG`;
+
+  return { subject, html, text };
+}
+
 export function passwordResetEmail(name: string, resetUrl: string): EmailContent {
   const subject = "Återställ ditt lösenord – Foilio";
   const html = layout(

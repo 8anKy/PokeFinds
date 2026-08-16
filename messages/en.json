@@ -28,6 +28,8 @@
     "notifDesc": "Choose how you want to be alerted.",
     "notifEmail": "Email notifications",
     "notifEmailHint": "Price alerts and restocks via email.",
+    "notifWeekly": "Weekly digest",
+    "notifWeeklyHint": "A weekly summary: your collection's value, price drops on what you watch and this week's finds. Requires email notifications to be on.",
     "notifAll": "All restocks",
     "notifAllHint": "Get an alert when ANY sealed product comes back in stock, without watching it.",
     "notifPush": "Push notifications",
@@ -209,17 +211,7 @@
       "resendDone": "If the address needs confirming, a new link is on its way. Check your spam folder if it takes a while."
     },
     "onboarding": {
-      "step": "Step {step} of 3",
-      "interestsTitle": "What do you collect?",
-      "interestsSubtitle": "Help us tailor Foilio to your interests.",
-      "interestsLabel": "Interests",
-      "budgetLabel": "Budget per month",
-      "budgetLow": "Low",
-      "budgetLowDesc": "Under 500 kr/month",
-      "budgetMedium": "Medium",
-      "budgetMediumDesc": "500–2000 kr/month",
-      "budgetHigh": "High",
-      "budgetHighDesc": "2000+ kr/month",
+      "step": "Step {step} of 2",
       "continue": "Continue",
       "favoritesTitle": "Your favorite sets",
       "favoritesSubtitle": "Pick the sets you follow most closely. You can change this later.",
@@ -232,15 +224,7 @@
       "discordTitle": "Join us on Discord",
       "discordBody": "Restocks are posted instantly in dedicated channels per series, and you can ask other collectors about prices and deals. Free and open to everyone.",
       "discordCta": "Join Discord",
-      "finish": "Finish",
-      "errInterest": "Choose at least one interest.",
-      "errBudget": "Choose your approximate budget.",
-      "intSealed": "Sealed",
-      "intSingles": "Singles",
-      "intSlabs": "Slabs/Graded",
-      "intEnglish": "English",
-      "intInvestment": "Investment",
-      "intCasual": "Casual collecting"
+      "finish": "Finish"
     }
   },
   "Condition": {
@@ -333,6 +317,17 @@
     "lotAvgPartial": "avg {price} · {costed} of {total}",
     "lotAvgUnknown": "No purchase price set",
     "lotProfitPartialHint": "Covers {costed} of {total} copies · the rest have no purchase price.",
+    "filterLabel": "Search your collection",
+    "filterPlaceholder": "Search card, product or set…",
+    "filterClear": "Clear search",
+    "filterMatchCount": "{count} of {total} items match",
+    "filterNoMatchTitle": "No items match “{query}”",
+    "filterNoMatchDesc": "Try another name, or clear the search to see your whole collection again.",
+    "sortLabel": "Sort",
+    "sortRecent": "Recently added",
+    "sortValue": "Value (highest first)",
+    "sortName": "Name A–Z",
+    "sortQuantity": "Quantity (most first)",
     "estimatedValue": "Estimated value (kr)",
     "estimatedValuePlaceholder": "e.g. 399",
     "gradingCompany": "Grading company",
@@ -415,6 +410,12 @@
     "h1": "Community",
     "comingSoon": "Coming soon",
     "placeholderBody": "We're building a place for pulls, trades and market talk. By collectors, for collectors. Stay tuned, it opens soon."
+  },
+  "DiscordTip": {
+    "title": "Want it even faster?",
+    "body": "Restocks are posted in our Discord, usually within a minute of the store putting them up.",
+    "cta": "Join the Discord",
+    "dismiss": "Hide tip"
   },
   "Profile": {
     "metaSuffix": "{name} · profile",
@@ -1164,7 +1165,7 @@
     "colProducts": "Products",
     "colAvgChange": "Avg. change",
     "proTitle": "Want to dig deeper into the data?",
-    "proDesc": "With Pro you get longer price history, advanced charts, weekly reports and all restock alerts, so you act before everyone else.",
+    "proDesc": "With Pro you get longer price history, advanced charts and all restock alerts, so you act before everyone else.",
     "proCta": "See what Pro gives you"
   },
   "Language": {
@@ -1285,6 +1286,12 @@
     "detailDescription": "Products and prices for {name} ({series}). Compare Swedish stores on Foilio.",
     "emptyProductsTitle": "No products in this set yet",
     "emptyProductsDesc": "We haven't found any products from this set at tracked stores."
+  },
+  "SetCompletion": {
+    "title": "Your collection",
+    "progress": "{owned} of {total} · {percent}%",
+    "showMissingOnly": "Show only missing",
+    "noneMissing": "You own every card we list in this set."
   },
   "PageNav": {
     "back": "Back"
@@ -1433,7 +1440,8 @@
       "Save up to 5 products to your watchlist",
       "Collection with value overview",
       "3 AI gradings and 30 scans per month",
-      "Market data and price charts"
+      "Market data and price charts",
+      "Weekly digest with your collection's progress and the week's finds"
     ],
     "freeExcluded": [
       "Price and restock alerts",
