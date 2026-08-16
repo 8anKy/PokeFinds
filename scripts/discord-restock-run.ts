@@ -278,6 +278,23 @@ async function main() {
   let stateDirty = false;
   /** Butiker som redan rapporterat tom feed i det här jobbet — se runStore. */
   const emptyFeedLogged = new Set<string>();
+  /**
+   * Jobbets sammanräkning. Per-butiksraderna finns kvar (de namnger URL:erna), men
+   * ett jobb rör 42 butiker × ~20 varv — utan en rad på slutet måste man läsa
+   * hundratals rader för att svara på "gjorde lanen sitt jobb den här kvarten?".
+   * ⛔ RÄKNARE UTAN NAMN GÅR INTE ATT FELSÖKA: därför bryts de vaktade ned per ORSAK,
+   *    samma regel som gjorde att okända URL:er började namnges 2026-08-13.
+   */
+  const jobTotals = {
+    changes: 0,
+    filtered: 0,
+    flap: 0,
+    blip: 0,
+    cooldown: 0,
+    rescued: 0,
+    buyBlocked: 0,
+    reasons: {} as Record<string, number>,
+  };
 
   const writeState = () => {
     if (!state || !stateDirty) return;
@@ -340,6 +357,15 @@ async function main() {
     // ---- slut atomärt block ----
 
     const s = derived.stats;
+    jobTotals.changes += s.changes;
+    jobTotals.filtered += s.skippedFiltered;
+    jobTotals.flap += s.skippedFlap;
+    jobTotals.blip += s.skippedBlip;
+    jobTotals.cooldown += s.skippedCooldown;
+    jobTotals.rescued += s.rescuedByRoute;
+    for (const [k, v] of Object.entries(s.filteredReasons)) {
+      jobTotals.reasons[k] = (jobTotals.reasons[k] ?? 0) + (v ?? 0);
+    }
     if (s.seeded) {
       console.log(`[discord-restock] ${source.name}: ingen tidigare state — seedar, postar inget.`);
     } else if (s.seededSources.length) {
@@ -374,6 +400,7 @@ async function main() {
       }
       const purchasable = await fetchShopifyPurchasable(p.storeUrl);
       if (purchasable === false) {
+        jobTotals.buyBlocked++;
         console.log(
           `[discord-restock]   hoppar (köpknappen låst hos butiken): ${p.storeName} → ${p.storeUrl}`
         );
@@ -471,7 +498,21 @@ async function main() {
   clearInterval(stateTimer);
   writeState();
 
-  console.log(`[discord-restock] Klart: ${totalPosted} larm postade totalt.`);
+  // ⛔ EN RAD SOM SVARAR PÅ "GJORDE LANEN SITT JOBB?". Ett jobb rör 42 butiker × ~20
+  // varv; utan sammanräkningen måste man läsa hundratals rader för att se om tystnad
+  // betyder "inget hände" eller "allt fälldes". Just den skillnaden var hela
+  // felrapporten 2026-08-16.
+  const reasonSummary = Object.entries(jobTotals.reasons)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `${k} ${v}`)
+    .join(", ");
+  console.log(
+    `[discord-restock] Klart: ${jobTotals.changes} lagerflipp(ar) → ${totalPosted} larm postade. ` +
+      `Hoppade: ${jobTotals.filtered} vaktade${reasonSummary ? ` [${reasonSummary}]` : ""}, ` +
+      `${jobTotals.flap} blink/flapp, ${jobTotals.blip} feed-hicka, ${jobTotals.cooldown} cooldown, ` +
+      `${jobTotals.buyBlocked} låst köpknapp` +
+      `${jobTotals.rescued ? `; ${jobTotals.rescued} räddade av rutten` : ""}.`
+  );
 
   // ⛔ NEKADE UTSKICK GÖR KÖRNINGEN RÖD. 2026-08-12 förlorade boten Send Messages i
   // alla sju kanaler och lanen stod tyst i 14 timmar — varenda körning grön, felet
