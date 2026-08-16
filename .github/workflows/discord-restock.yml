@@ -89,8 +89,17 @@ permissions:
 # Samma skäl som restock-watch: en avbruten körning sparar ALDRIG sin cache
 # (post-steget hoppas vid cancel), och utan cache seedar nästa körning om sitt
 # lagerläge och tappar flapp-historiken.
+#
+# ⛔ TESTLÄGET HAR EN EGEN GRUPP (2026-08-16). GitHub håller bara EN väntande körning
+# per concurrency-grupp och byter ut den mot varje nyare dispatch. Pingern fyrar var
+# 2:a minut, så en MANUELL testkörning hann aldrig starta — den blev pending och
+# ersattes inom två minuter, varje gång (verifierat: conclusion "cancelled" utan en
+# enda loggrad). Testet var alltså i praktiken omöjligt att köra medan lanen levde,
+# vilket är precis tvärtemot varför det finns.
+# Det är ofarligt att låta det gå vid sidan av: `--test` rör varken feedar eller
+# state-filen, så det finns ingenting att serialisera mot driftkörningen.
 concurrency:
-  group: discord-restock
+  group: discord-restock${{ github.event.inputs.test == 'true' && '-test' || '' }}
   cancel-in-progress: false
 
 jobs:
