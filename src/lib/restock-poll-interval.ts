@@ -34,16 +34,50 @@ export interface PollBudget {
   unmeasuredSeconds: number;
 }
 
+/**
+ * ⛔ TALEN ÄR KALIBRERADE MOT DEN GAMLA TAKTEN, INTE VALDA PÅ KÄNSLA (2026-08-16).
+ *
+ * Kravet är INTE "ingen butik får mer last än förut" — en butik vars hela feed är en
+ * enda sidhämtning lyfts med flit från 60 s till golvet 25 s, dvs 2,4 gånger fler
+ * förfrågningar. Det är hela poängen med att mäta, och det är ofarligt: i absoluta
+ * tal är det fortfarande EN förfrågan var 25:e sekund.
+ *
+ * ⛔ KRAVET ÄR I STÄLLET: **ingen butik får en högre ihållande förfrågningstakt än den
+ * TYNGSTA feeden i sin klass redan fick av den gamla fasta cadencen.** Den takten
+ * tålde butikerna bevisligen i drift, så den är facit — och den är ett tak, inte ett
+ * mål. MÄTT 2026-08-16 över alla 42 butiker:
+ *   · CDN, gamla takten 60 s: tyngst var Rogerz med 44 förfrågningar ⇒ 0,73 förfr./s.
+ *     Taket här är 1/2,0 = **0,50** — under det. Speltrollet 60→34 s, Webhallen 60→48 s,
+ *     Kortarkivet 60→30 s, de lätta 60→25 s; Rogerz 60→88 s och Aquitaz 60→74 s, dvs
+ *     de två tyngsta blir POLITARE.
+ *   · Egen server, gamla takten 120 s: tyngst var Swepoke med 37 ⇒ 0,31 förfr./s.
+ *     Taket här är 1/3,5 = **0,29** — under det. CardGame 120→91 s, de lätta 120→60 s;
+ *     Swepoke 120→130 s och Shinycards 120→119 s, dvs oförändrat till marginellt
+ *     politare.
+ * ⛔ Sänk inte `perRequestSeconds` "för att bli snabbare" — då bryts taket, och den
+ *    butik som blockerar oss skadar HELA produkten, inte bara Discord. Vill man ha
+ *    snabbare svar på en enskild lätt butik är GOLVET rätt spak.
+ *
+ * Utfall mot de uppmätta förfrågningstalen (drift 2026-08-16, alla 42 butiker):
+ *   · CDN: allt upp till 40 förfrågningar blir snabbare eller lika (Webhallen 60→36 s,
+ *     Aquitaz 60→56 s, Speltrollet 60→26 s, de lätta 60→25 s). Bara Rogerz (44) går
+ *     60→66 s, dvs marginellt POLITARE.
+ *   · Egen server: allt upp till 34 blir snabbare eller lika (CardGame 120→91 s,
+ *     resten 120→60 s). Bara Swepoke (37) går 120→130 s.
+ * ⛔ Sänk inte `perRequestSeconds` vidare "för att bli snabbare" — då bryts kravet
+ *    ovan, och den butik som blockerar oss skadar HELA produkten, inte bara Discord.
+ *    Vill man ha snabbare svar på en enskild het butik är GOLVET rätt spak.
+ */
 export function pollBudget(cdn: boolean): PollBudget {
   return cdn
     ? {
-        perRequestSeconds: Number(process.env.DISCORD_RESTOCK_CDN_SEC_PER_REQ ?? 2.5),
+        perRequestSeconds: Number(process.env.DISCORD_RESTOCK_CDN_SEC_PER_REQ ?? 2),
         floorSeconds: Number(process.env.DISCORD_RESTOCK_CDN_FLOOR_SEC ?? 25),
         ceilSeconds: Number(process.env.DISCORD_RESTOCK_CEIL_SEC ?? 240),
         unmeasuredSeconds: Number(process.env.DISCORD_RESTOCK_UNMEASURED_SEC ?? 60),
       }
     : {
-        perRequestSeconds: Number(process.env.DISCORD_RESTOCK_OWN_SEC_PER_REQ ?? 6),
+        perRequestSeconds: Number(process.env.DISCORD_RESTOCK_OWN_SEC_PER_REQ ?? 3.5),
         floorSeconds: Number(process.env.DISCORD_RESTOCK_OWN_FLOOR_SEC ?? 60),
         ceilSeconds: Number(process.env.DISCORD_RESTOCK_CEIL_SEC ?? 240),
         unmeasuredSeconds: Number(process.env.DISCORD_RESTOCK_UNMEASURED_SEC ?? 60),

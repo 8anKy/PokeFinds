@@ -276,6 +276,8 @@ async function main() {
   let totalPosted = 0;
   let totalFailures = 0;
   let stateDirty = false;
+  /** Butiker som redan rapporterat tom feed i det här jobbet — se runStore. */
+  const emptyFeedLogged = new Set<string>();
 
   const writeState = () => {
     if (!state || !stateDirty) return;
@@ -303,9 +305,21 @@ async function main() {
     if (items.length === 0) {
       // Tom feed = INGEN INFORMATION, inte "allt försvann". mergeStateMap äger
       // regeln; vi hoppar helt så inte ens frånvarominnet rörs.
-      console.warn(`[discord-restock] Tom katalog från ${source.name} — förra lagerläget behålls.`);
+      // ⛔ EN GÅNG PER BUTIK OCH JOBB. En permanent trasig butik (Leksaksaffären)
+      //    skrev annars raden vid VARJE varv — 18 rader per jobb, ~1 300 per dygn,
+      //    som dränker de rader man faktiskt läser loggen för. Att den loggas alls är
+      //    poängen (tyst tom feed gömde flapp-buggen 2026-07-25); att den upprepas är
+      //    inte det.
+      if (!emptyFeedLogged.has(source.name)) {
+        emptyFeedLogged.add(source.name);
+        console.warn(
+          `[discord-restock] Tom katalog från ${source.name} — förra lagerläget behålls ` +
+            `(loggas en gång per jobb).`
+        );
+      }
       return requests;
     }
+    emptyFeedLogged.delete(source.name);
 
     const now = new Date();
     // ---- ATOMÄRT BLOCK: inga await här inne ----

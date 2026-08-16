@@ -95,12 +95,22 @@ Nu har varje butik en egen loop (hämta → diffa → posta → vänta ut sin ta
 någon annan. **Uppmätt effekt för en CDN-butik: ~66 s snittlatens → ~20 s.**
 - ⛔ **TAKTEN VÄLJS INTE, DEN FALLER UT UR ETT ARTIGHETSTAK** (`src/lib/restock-poll-interval.ts`).
   Den gamla indelningen var per PLATTFORM ("Shopify varje tick, egna servrar varannan"), som om alla
-  feedar kostade lika mycket att hämta. De gör inte det. Scriptet mäter förfrågningarna per hämtning
-  (räknare i `scrapers/http.ts`) och sätter intervallet så att ingen butik får mer än **en förfrågan
-  per 2,5 s (CDN) respektive 6 s (egen server)**, med golv 25/60 s och tak 240 s.
-  MÄTT 2026-08-16: Dragon's Lair 5 förfrågn. → 25 s (var 60), Speltrollet 5 → 25 s (var 60),
-  NordicTCG 3 → 60 s (var 120), Coolcard 5 → 60 s (var 120), Webhallen 24 → 60 s (oförändrat).
-  Billiga feedar pollas alltså OFTARE än förut, dyra mer SÄLLAN, och lasten mot varje butik är känd.
+  feedar kostade lika mycket att hämta. De gör inte det — MÄTT i drift kostar Pokexclusives feed
+  **1** förfrågan och Rogerz **44**. Scriptet mäter förfrågningarna per hämtning (räknare i
+  `scrapers/http.ts`) och sätter intervallet därefter: **en förfrågan per 2 s (CDN) respektive 3,5 s
+  (egen server)**, golv 25/60 s, tak 240 s.
+  ⛔ **KRAVET ÄR INTE "ingen butik får mer last än förut".** En enfrågas-feed lyfts med flit från
+  60 s till golvet 25 s (2,4× fler förfrågningar) — det är hela poängen, och i absoluta tal är det
+  fortfarande en förfrågan var 25:e sekund. Kravet är att **ingen butik får en högre ihållande takt
+  än den TYNGSTA feeden i sin klass redan fick av den gamla fasta cadencen**: CDN 44/60 s = 0,73/s
+  (taket är 0,50), egen server 37/120 s = 0,31/s (taket är 0,29). Den takten tålde butikerna
+  bevisligen. Vaktat av `tests/unit/restock-poll-interval.test.ts` mot de UPPMÄTTA talen.
+  Utfall (drift 2026-08-16, alla 42): Dragon's Lair 3 förfrågn. 60→25 s, Speltrollet 17 → 34 s,
+  Webhallen 24 → 48 s, NordicTCG 3 → 60 s (var 120), Coolcard 5 → 60 s (var 120), CardGame 26 →
+  91 s (var 120). De två tyngsta blir POLITARE: Rogerz 44 → 88 s, Swepoke 37 → 130 s — priset för
+  att sluta låta dem sätta takten för alla 42.
+  ⛔ Sänk inte `perRequestSeconds` "för att bli snabbare". Vill man ha snabbare svar på en lätt
+  butik är GOLVET rätt spak.
 - ⛔ **VÄRDNAMNET MÅSTE LUCKRAS UPP.** Källans registrerade `baseUrl` är inte alltid den värd
   adaptern hämtar från — Dragon's Lair står som `www.dragonslair.se` medan feeden ligger på
   `dragonslair.se`. En uppslagning på bara baseUrl-värden gav noll förfrågningar för dem, dvs
