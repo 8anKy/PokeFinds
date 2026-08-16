@@ -13,7 +13,7 @@
  * Alla fyra felen är tysta i produktion.
  */
 import { describe, expect, it } from "vitest";
-import { chunk, resolveChannelId, buildRestockEmbed } from "@/lib/discord-restock";
+import { chunk, resolveChannelId, buildRestockEmbed, postTestMessages } from "@/lib/discord-restock";
 import {
   deriveRestockPosts,
   markPosted,
@@ -805,5 +805,32 @@ describe("parseDiscordRestockState", () => {
     expect(parseDiscordRestockState(null)).toBeNull();
     expect(parseDiscordRestockState({})).toBeNull();
     expect(parseDiscordRestockState({ history: {} })).toBeNull();
+  });
+});
+
+/**
+ * TESTLÄGETS KANALFILTER (2026-08-16). Att lägga till EN kanal, eller rätta
+ * rättigheterna i EN kanal, krävde tidigare ett testinlägg i ALLA — åtta meddelanden
+ * att städa bort för att kontrollera ett. Ett test som är obekvämt att köra körs inte,
+ * och då är vi tillbaka i det tysta uppsättningsfelet som lät lanen stå still i 14
+ * timmar 2026-08-12.
+ */
+describe("postTestMessages kanalfilter", () => {
+  const config = {
+    botToken: "x",
+    setChannels: { "pitch black": "111" },
+    seriesChannels: { "mega evolution": "222" },
+    languageChannels: { jp: "333" },
+    defaultChannelId: "999",
+  };
+
+  it("⛔ ett filter som inte träffar rapporteras som FEL, aldrig som grönt", async () => {
+    // Utan den regeln hade "0 kanaler OK, 0 misslyckades" sett ut som ett lyckat
+    // test för ett id som inte ens står i konfigurationen.
+    const res = await postTestMessages(config, "4711");
+    expect(res.ok).toHaveLength(0);
+    expect(res.failed).toHaveLength(1);
+    expect(res.failed[0]).toContain("4711");
+    expect(res.failed[0]).toContain("finns INTE");
   });
 });

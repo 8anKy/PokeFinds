@@ -192,7 +192,11 @@ async function main() {
   // eller state — enda sättet att bevisa att boten FÅR skriva innan en riktig
   // påfyllning inträffar (ett 403 syns annars bara i en logg ingen läser).
   if (config && process.argv.includes("--test")) {
-    const { ok, failed } = await postTestMessages(config);
+    // `--test-channel=<id>` testar EN kanal i stället för alla — se postTestMessages.
+    const onlyArg = process.argv.find((a) => a.startsWith("--test-channel="));
+    const only = onlyArg?.slice("--test-channel=".length).trim() || undefined;
+    if (only) console.log(`[discord-restock][test] Endast kanal ${only}.`);
+    const { ok, failed } = await postTestMessages(config, only);
     for (const line of ok) console.log(`[discord-restock][test] OK   ${line}`);
     for (const line of failed) console.error(`[discord-restock][test] FEL  ${line}`);
     console.log(`[discord-restock][test] ${ok.length} kanaler OK, ${failed.length} misslyckades.`);

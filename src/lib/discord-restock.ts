@@ -253,9 +253,19 @@ export function chunk<T>(items: T[], size: number): T[][] {
  * direkt i Discord i stället för att upptäckas veckor senare på ett felsorterat larm.
  */
 export async function postTestMessages(
-  config: DiscordRestockConfig
+  config: DiscordRestockConfig,
+  /**
+   * Bara den här kanalen (id). Utelämnas → alla konfigurerade kanaler.
+   *
+   * ⛔ FINNS FÖR ATT TESTET SKA GÅ ATT KÖRA OM UTAN ATT SPAMMA SERVERN. Att lägga
+   * till EN kanal, eller rätta rättigheterna i EN kanal, krävde annars ett testinlägg
+   * i ALLA — åtta meddelanden att städa bort för att kontrollera ett. Ett test som är
+   * obekvämt att köra körs inte, och då är vi tillbaka i det tysta uppsättningsfelet
+   * som lät lanen stå still i 14 timmar 2026-08-12.
+   */
+  onlyChannelId?: string
 ): Promise<{ ok: string[]; failed: string[] }> {
-  const targets: { channelId: string; rule: string }[] = [
+  const all: { channelId: string; rule: string }[] = [
     ...Object.entries(config.setChannels).map(([k, v]) => ({ channelId: v, rule: `set: ${k}` })),
     ...Object.entries(config.seriesChannels).map(([k, v]) => ({ channelId: v, rule: `serie: ${k}` })),
     ...Object.entries(config.languageChannels).map(([k, v]) => ({ channelId: v, rule: `språk: ${k}` })),
@@ -263,6 +273,18 @@ export async function postTestMessages(
       ? [{ channelId: config.defaultChannelId, rule: "default (allt utan egen kanal)" }]
       : []),
   ];
+  const targets = onlyChannelId ? all.filter((t) => t.channelId === onlyChannelId) : all;
+  // ⛔ ETT FILTER SOM INTE TRÄFFAR FÅR INTE SE UT SOM ETT LYCKAT TEST. Utan raden
+  //    hade "0 kanaler OK, 0 misslyckades" rapporterats som grönt för ett id som
+  //    inte ens står i konfigurationen — dvs precis den tystnad testet finns för.
+  if (onlyChannelId && targets.length === 0) {
+    return {
+      ok: [],
+      failed: [
+        `kanal-id ${onlyChannelId} finns INTE i DISCORD_RESTOCK_CHANNELS — inget testades`,
+      ],
+    };
+  }
 
   const ok: string[] = [];
   const failed: string[] = [];

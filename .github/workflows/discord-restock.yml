@@ -77,6 +77,11 @@ on:
         description: "Posta ett testinlägg i varje kanal och sluta (rör inga feedar)"
         type: boolean
         default: false
+      test_channel:
+        description: "Bara denna kanal-id (kräver test=true). Tomt = alla kanaler."
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -190,5 +195,16 @@ jobs:
       # `test`-läget hoppar över feed-hämtningen helt och postar bara en märkt rad per
       # kanal — kör det efter varje kanaländring, annars upptäcks ett rättighetsfel
       # först när en riktig påfyllning uteblir.
+      # ⛔ Kanal-id:t skickas via ENV, inte interpolerat rakt in i kommandoraden.
+      #    `inputs.*` är fritext från den som startar körningen; klistras den in i
+      #    `run:` blir den skalkod. Här är det bara en variabel scriptet läser.
       - if: steps.guard.outputs.ready == 'true'
-        run: npx tsx scripts/discord-restock-run.ts ${{ inputs.test && '--test' || '' }}
+        env:
+          TEST_CHANNEL: ${{ inputs.test_channel }}
+        run: |
+          args=""
+          if [ "${{ inputs.test }}" = "true" ]; then
+            args="--test"
+            if [ -n "$TEST_CHANNEL" ]; then args="$args --test-channel=$TEST_CHANNEL"; fi
+          fi
+          npx tsx scripts/discord-restock-run.ts $args
