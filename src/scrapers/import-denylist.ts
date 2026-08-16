@@ -1116,6 +1116,57 @@ const DENIED = new Set<string>(
     "https://speltrollet.se/products/pokemon-gemstone-samlarfigurer-collection-vol-2",
     // Re-Ment Samlarfigurer Pokemon Terrarium Collection Vol.12 Figure Collection Figure (raderad produkt)
     "https://speltrollet.se/products/re-ment-samlarfigurer-pokemon-terrarium-collection-vol-12-figure-collection-figur",
+    // ── Ägarens katalogbeslut 2026-08-16 (apply-owner-decisions.ts) ──
+    // Pokémon - Collector Chest 2025 (raderad produkt)
+    "https://beamcardshop.com/products/pokemon-collector-chest-2025",
+    // Collector's Chest Fall 2025 - Mega Evolutions (Gardevoir & Lucario) (raderad produkt)
+    "https://rogerz.dk/products/pokemon-tcg-collectors-chest-fall-2025-mega-evolutions-gardevoir-lucario",
+    // Pokémon Mega Evolution: Collector Chest (Ralts, Kirlia & Riolu) (Fall 2025) Box (ENG) (raderad produkt)
+    "https://aquitaz.se/products/pokemon-mega-evolution-mega-evolution-ralts-kirlia-riolu-collector-chest-fall-2025-box-6-pack-eng",
+    // Pokemon - Collectors Chest 2025 (raderad produkt)
+    "https://dragonslair.se/products/pokemon-collectors-chest-2025-pokemon",
+    // Back to School Collector's Chest (raderad produkt)
+    "https://hobbykort.se/products/pokemon-tcg-back-to-school-collectors-chest",
+    // Collector's Chest Fall 2023 - Charizard (raderad produkt)
+    "https://hobbykort.se/products/pokemon-tcg-collectors-chest-fall-2023-charizard",
+    "https://tcgstore.se/products/pokemon-tcg-collectors-chest-fall-2023-charizard",
+    // Collector's Chest Fall 2024 (raderad produkt)
+    "https://hobbykort.se/products/pokemon-tcg-collectors-chest-fall-2024",
+    // Collector's Chest Back to School 2024 (raderad produkt)
+    "https://www.spelexperten.com/sallskapsspel/pokemon/pokemon-tcg-collectors-chest-back-to-school-2024.html",
+    // Collector's Chest 2024 (raderad produkt)
+    "https://www.spelexperten.com/sallskapsspel/pokemon/pokemon-tcg-collectors-chest-2024.html",
+    // Collector's Chest 2025 (raderad produkt)
+    "https://www.spelexperten.com/sallskapsspel/pokemon/pokemon-tcg-collectors-chest-2025.html",
+    // Pokémon, Collectors Chest 2025 (raderad produkt)
+    "https://samlarhobby.se/products/pokemon-ball-tin-fall-2025-premier-ball-kopia",
+    // 25th Anniversary Celebrations Collectors Chest (raderad produkt)
+    "https://tcgstore.se/products/pokemon-tcg-celebrations-collectors-chest-25th-anniversary",
+    // Collector's Chest 2023 - Back to School (raderad produkt)
+    "https://tcgstore.se/products/pokemon-tcg-collectors-chest-2023",
+    // Collector's Chest 2024 - Back to School (raderad produkt)
+    "https://tcgstore.se/products/pokemon-tcg-collectors-chest-2024-back-to-school",
+    // Collector's Chest Fall 2024 - Pikachu (raderad produkt)
+    "https://tcgstore.se/products/pokemon-tcg-collectors-chest-fall-2024-pikachu",
+    // Collector's Chest Fall 2025 (raderad produkt)
+    "https://tcgstore.se/products/pokemon-tcg-collectors-chest-fall-2025",
+    // Pokemon Collectors Chest 2026 (raderad produkt)
+    "https://www.swepoke.se/pokemon/pokemon-boxar/pokemon-collectors-chest-2026",
+    // Pokemon Collector Chest Fall 2024 (raderad produkt)
+    "https://speltrollet.se/products/pokemon-collector-chest-fall-2024",
+    "https://dragonslair.se/products/pokemon-collector-chest-pikachu-2024-pokemon",
+    // Pokemon Collector's Chest Charizard (raderad produkt)
+    "https://dragonslair.se/products/pokemon-november-2023-collectors-chest-pokemon",
+    "https://speltrollet.se/products/pok85692",
+    // Pokemon Back to School Collector Chest (raderad produkt)
+    "https://dragonslair.se/products/pokemon-summer-2023-collectors-chest-pokemon",
+    "https://speltrollet.se/products/pok85291",
+    // Pokemon Back to School Collector Chest 2024 (raderad produkt)
+    "https://speltrollet.se/products/pokemon-back-to-school-collector-chest-2024",
+    "https://dragonslair.se/products/pokemon-back-to-school-collector-chest-2024-pokemon",
+    // Collectors Chest 2025 (raderad produkt)
+    "https://speltrollet.se/products/pokemon-tcg-collectors-chest-2025",
+    "https://www.maxgaming.se/sv/pokemon/pokemon-collectors-chest",
   ].map(normalizeListingUrl)
 );
 
