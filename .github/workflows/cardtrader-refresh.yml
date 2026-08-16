@@ -56,37 +56,49 @@ jobs:
       EUR_SEK: ${{ secrets.EUR_SEK }}
       APPLY: "1"
     steps:
+      # ── ⛔ FAIL-OPEN VAR FEL JUST HÄR (rättat 2026-08-17) ──────────────────────
+      # Steget satte förut `ready=false` när en secret saknades, alla efterföljande
+      # steg blev `skipped` och körningen rapporterade SUCCESS. `CARDTRADER_TOKEN`
+      # finns inte bland repots secrets ⇒ **13 gröna körningar i rad utförde noll
+      # arbete** (bekräftat i körning 31925641206: varje substantiellt steg
+      # `skipped`, jobbet `success`), och 26 393 CardTrader-offers stod kvar på
+      # `lastSeenAt = 2026-08-03`. Det upptäcktes av en ANVÄNDARE som saknade
+      # reverse holo-kort, inte av oss.
+      #
+      # Ett jobb vars ENDA uppgift är att hämta färsk data får aldrig rapportera
+      # framgång när det inte hämtat något. Tyst grönt är värre än rött: rött syns i
+      # körningslistan, grönt betyder "kontrollerat och i sin ordning".
+      # (Den tysta varianten hör hemma i jobb som är MENINGSFULLA utan sitt förkrav
+      # — de vi skrev innan Neon fanns. Det här är inte ett sådant.)
+      #
+      # ⛔ EN RÖD KÖRNING BRYTER INTE NATTKEDJAN. `tradera-sold-sync.yml` länkar hit
+      # med `types: [completed]`, som fyrar OAVSETT utfall — alltså ingen
+      # `conclusion`-grind, precis som CLAUDE.md kräver. Vaktat av
+      # `tests/unit/cron-chain-sync.test.ts`.
       - name: Förkrav — DATABASE_URL och CARDTRADER_TOKEN måste vara satta
-        id: guard
         run: |
-          if [ -z "${DATABASE_URL}" ] || [ -z "${CARDTRADER_TOKEN}" ]; then
-            echo "::notice::DATABASE_URL eller CARDTRADER_TOKEN saknas — hoppar över."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
+          missing=""
+          if [ -z "${DATABASE_URL}" ]; then missing="${missing} DATABASE_URL"; fi
+          if [ -z "${CARDTRADER_TOKEN}" ]; then missing="${missing} CARDTRADER_TOKEN"; fi
+          if [ -n "${missing}" ]; then
+            echo "::error::Saknade secrets:${missing} — jobbet kan inte hämta något och rapporterar RÖTT i stället för tyst grönt. CardTrader-priserna står still tills secreten finns."
+            exit 1
           fi
-      - if: steps.guard.outputs.ready == 'true'
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - if: steps.guard.outputs.ready == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
           cache: npm
-      - if: steps.guard.outputs.ready == 'true'
-        run: npm ci --legacy-peer-deps
-      - if: steps.guard.outputs.ready == 'true'
-        run: npx prisma generate
+      - run: npm ci --legacy-peer-deps
+      - run: npx prisma generate
 
       # Ordningen är den billigaste först: bollarna och 1st Edition rör ett
       # tiotal expansioner var, reverse-passet går igenom hela katalogen (~10 min).
-      - if: steps.guard.outputs.ready == 'true'
-        name: Master Ball / Poké Ball reverse holo
+      - name: Master Ball / Poké Ball reverse holo
         run: npx tsx scripts/import-cardtrader-ball-reverse.ts
 
-      - if: steps.guard.outputs.ready == 'true'
-        name: 1st Edition (WOTC-seten)
+      - name: 1st Edition (WOTC-seten)
         run: npx tsx scripts/import-cardtrader-first-edition.ts
 
-      - if: steps.guard.outputs.ready == 'true'
-        name: Reverse holo (hela katalogen)
+      - name: Reverse holo (hela katalogen)
         run: npx tsx scripts/import-cardtrader-reverse.ts

@@ -27,8 +27,14 @@ async function main() {
   console.log(`  utan blueprint:           ${r.noBlueprint}`);
   console.log(`  avvisade — för tunt:      ${r.rejectedThin}`);
   console.log(`  avvisade — orimlig kvot:  ${r.rejectedImplausible}`);
+  // ⛔ "MARKNADEN SAKNAS" ÄR INTE SAMMA SAK SOM "VI FÄLLDE KORTET". Raden fanns
+  // inte förut (grind 5c gjorde ett tyst `continue`), och utan den ser bortfallet
+  // ut som noll — vilket är precis den siffra beslutet om prislösa
+  // reverse-produkter ska vila på.
+  console.log(`  inga reverse-annonser alls: ${r.noReverseMarket}`);
   console.log(`  TCGdex sa NEJ till reverse: ${r.gateRejected}`);
   console.log(`  TCGdex kunde inte svara:  ${r.gateUnknown}`);
+  console.log(`Set med OANVÄNDBAR TCGdex-taxonomi: ${r.dexDistrustedSets}`);
   console.log(`PRODUKTER ${APPLY ? "SKAPADE" : "SOM SKULLE SKAPAS"}:  ${r.productsCreated}`);
   console.log(`OFFERS ${APPLY ? "SKRIVNA" : "SOM SKULLE SKRIVAS"}:    ${r.offersUpserted}`);
   console.log(`ORDINARIE kort — grafpunkter:    ${r.baseObservations} bedömda`);

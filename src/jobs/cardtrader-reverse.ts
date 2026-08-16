@@ -76,6 +76,17 @@ export interface ReverseImportResult {
   noBlueprint: number;
   rejectedThin: number;
   rejectedImplausible: number;
+  /**
+   * Kort där CardTrader inte hade EN ENDA publicerbar reverse-annons.
+   *
+   * ⛔ RÄKNADES INTE ALLS FÖRE 2026-08-16 — grenen var ett tyst `continue`. Det
+   * gjorde den viktigaste frågan om katalogens luckor omätbar: av de ~6 300 kort
+   * som saknar reverse holo-produkt gick det inte att skilja "marknaden har
+   * ingen" (datagräns, inget att göra åt) från "våra vakter fällde den" (bugg).
+   * Utan den skillnaden går det inte att avgöra om prislösa reverse-produkter
+   * ska skapas — och det är ett ägarbeslut som kräver en siffra, inte en känsla.
+   */
+  noReverseMarket: number;
   gateRejected: number;
   gateUnknown: number;
   productsCreated: number;
@@ -205,6 +216,7 @@ export async function runCardTraderReverseImport(opts: {
     noBlueprint: 0,
     rejectedThin: 0,
     rejectedImplausible: 0,
+    noReverseMarket: 0,
     gateRejected: 0,
     gateUnknown: 0,
     productsCreated: 0,
@@ -401,6 +413,11 @@ export async function runCardTraderReverseImport(opts: {
       if (!verdict.price) {
         if (verdict.reason === "thin") res.rejectedThin++;
         else if (verdict.reason === "implausible") res.rejectedImplausible++;
+        // "none" UTAN pris = noll publicerbara reverse-annonser. Räknas, aldrig
+        // tyst. (Samma `reason` bär OCKSÅ det lyckade utfallet — när ingen
+        // referens finns hoppas kvotvakten över — därför står räknaren innanför
+        // `!verdict.price`.)
+        else res.noReverseMarket++;
         continue;
       }
       candidates.push({
