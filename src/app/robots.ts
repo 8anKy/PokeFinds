@@ -24,9 +24,19 @@ const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se";
  * en ny rad här slår igenom i BÅDA grupperna, vilket var precis det som misslyckades
  * när listorna stod skrivna två gånger.
  */
-const DISALLOW = [
+// ⛔ `Disallow` är PREFIXMATCHNING, inte segmentmatchning. Varje väg under `[locale]`
+// finns i TVÅ former — oprefixad (svenska, next-intl `localePrefix: "as-needed"`) och
+// `/en/`-prefixad — och den oprefixade regeln täcker INTE den engelska tvillingen.
+// Bara `/produkter?` hade sin tvilling skriven för hand; de åtta app-vägarna saknade
+// sina, så `/en/dashboard`, `/en/skanna`, `/en/admin` … var fritt krypbara och 307:ade
+// (en dynamisk render per krypning — exakt den Neon-yta listan skrevs för att stänga).
+// Tvillingarna HÄRLEDS därför nedan i stället för att skrivas två gånger: samma skäl
+// som gruppduplicering ovan, samma felkälla om de får glida isär.
+//
+// ⚠️ Prefixmatchningen skär åt andra hållet också: `/mer` blockerar även ett framtida
+// `/merch`. Ingen kollision i dagens rutträd (`/mer` + `/mer/bjud-in`).
+const LOCALIZED = [
   "/admin",
-  "/api",
   "/dashboard",
   "/installningar",
   // Inloggade app-vyer. Ingenting att indexera (auth-grindade — en crawler ser bara
@@ -47,7 +57,14 @@ const DISALLOW = [
   // renders (varje träff = Neon-frågor). Produkterna nås ändå via sitemap +
   // /produkter utan query + set-sidorna, så inget innehåll göms för Google.
   "/produkter?",
-  "/en/produkter?",
+];
+
+// `/api` ligger UTANFÖR `[locale]`-segmentet (`src/app/api/`) och har ingen `/en/`-tvilling
+// — den ska inte härledas, bara blockeras rakt av.
+const DISALLOW = [
+  "/api",
+  ...LOCALIZED,
+  ...LOCALIZED.map((path) => `/en${path}`),
 ];
 
 export default function robots(): MetadataRoute.Robots {

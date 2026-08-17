@@ -14,7 +14,13 @@ import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { parseNotificationSettings as parseSettings } from "@/lib/notification-settings";
 
 const MAX_RETRIES = 3;
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://foilio.se";
+// ⛔ `||`, ALDRIG `??`: en TOM sträng är det verkliga felläget, inte `undefined`. En
+// odefinierad men SATT variabel i Actions gör `??` till en no-op, och då byggs varje
+// djuplänk i restock-/prisfallslarmen som `/produkter/...` utan värd — trasiga länkar i
+// mejl som redan lämnat huset. Samma tomsträngsbugg dödade veckobrevet 2026-08-16.
+// Den här filen kör i scrape-all MED variabeln injicerad — se
+// tests/unit/env-empty-string-guard.test.ts.
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se";
 
 /** Bygger e-postinnehåll för en alert baserat på typ. */
 async function buildAlertEmail(alert: {

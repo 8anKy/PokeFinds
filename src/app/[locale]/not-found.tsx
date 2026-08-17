@@ -6,7 +6,7 @@ import { LinkButton } from "@/components/ui/button";
  * 404-sidan saknade egen titel (2026-08-17) och ärvde därför rot-layoutens
  * `Meta.title` ORDAGRANT — varje död länk såg i fliken, historiken och
  * bokmärkena ut som sajtens startsida. Rot-layoutens
- * `template: "%s | Foilio"` gör detta till "Sidan hittades inte | Foilio".
+ * `template: "%s | Foilio"` gör detta till "Sidan kunde inte hittas | Foilio".
  *
  * ⚠️ Raden når `<title>` men INTE `og:title`. Rot-layouten sätter
  * `openGraph.title` EXPLICIT, och Nexts merge kopierar bara de nycklar barnet

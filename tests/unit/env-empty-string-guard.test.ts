@@ -119,16 +119,16 @@ function findNullishReads(injected: Set<string>): Occurrence[] {
  * som för längesedan är rätt). Städa en rad → ta bort raden här.
  *
  * ⚠️ HETAST FÖRST — dessa körs faktiskt i GitHub Actions med variabeln injicerad:
- *   · `src/services/notifications.ts:NEXT_PUBLIC_APP_URL` — bygger djuplänkarna i
- *     restock-/prisfallslarmen från scrape-all. Exakt samma tomma-bas-URL som sänkte
- *     veckobrevet, fast i larmen.
  *   · `src/jobs/*.ts:CARDMARKET_RAPIDAPI_HOST` — tom host ⇒ `https:///…` ⇒ hela
  *     CM-uppdateringen faller, tyst.
  * Resten läses i webrequests (Railway-miljö) där tomma värden är mindre sannolika,
  * men inte omöjliga.
  */
 const KNOWN_GAPS: readonly string[] = [
-  "src/services/notifications.ts:NEXT_PUBLIC_APP_URL",
+  // Städat 2026-08-17: `src/services/notifications.ts:NEXT_PUBLIC_APP_URL` läser nu med
+  // `||`. Den var listans hetaste post — den bygger djuplänkarna i restock- och
+  // prisfallslarmen från scrape-all, alltså exakt samma tomma-bas-URL som sänkte
+  // veckobrevet 2026-08-16, fast i mejl som redan lämnat huset.
   "src/jobs/cardmarket-refresh.ts:CARDMARKET_RAPIDAPI_HOST",
   "src/jobs/hot-card-refresh.ts:CARDMARKET_RAPIDAPI_HOST",
   "src/jobs/sealed-set-label.ts:CARDMARKET_RAPIDAPI_HOST",
