@@ -243,6 +243,26 @@ Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md p
   som produkt-overlayn) NÄR DETALJVYN ÖPPNAS, aldrig vid skanningen — en bulk-fångst hade annars dragit nio
   detaljhämtningar ingen tittar på. Grafen ritas bara med ≥2 punkter.
 
+- **RECALL-MÄTNINGEN: ETT GRINDAT URVAL ÄR INGET MÅTT (2026-08-18)**: `result.recall = { art, shown }`
+  skrivs för ALLA användare av `/api/scanner/identify` OCH (sedan 08-18) av `identifyCellsArt`. Bulk-raderna
+  bär `src: "bulk"`, och taggen är inte bokföring utan en VAKT: en bulk-cell bokförs bara när
+  `artConfidentFrom` redan sagt ja, så **bildens topp-1 är rätt svar per konstruktion**. Summeras de med
+  enkelskanningarna går recall mot 100 % utan att skannern blivit bättre — urvalet är grindat på exakt det
+  som mäts. `scripts/scanner-recall-live.ts` håller hinkarna isär; saknad `src` = enkelskanning (alla rader
+  före 08-18). Bulkens KORRIGERINGAR är däremot ett eget, nytt mått: trust-regelns precision i FÄLT
+  (offline 2026-07-30: 100 %, n=40).
+  ⛔ **SKRIV ALDRIG `recall` FRÅN EN VÄG SOM INTE KÖRT BILDSÖKNINGEN** (streckkod, uppladdning). En tom
+  `art`-lista räknas som "bilden missade" i stället för "bilden tillfrågades aldrig", dvs mätningen sjunker
+  av rader som inte mäter något. Nyckeln ska då saknas HELT — vaktat i `scanner-quota.test.ts`.
+  ⛔ **`jobId` MÅSTE TILLBAKA TILL KLIENTEN PÅ VARJE VÄG SOM BOKFÖR EN TRÄFF.** `reportScanFeedback` är
+  gated på just `jobId`, så en väg som utelämnar det kastar användarens rättelse TYST. `/identify` öppnades
+  08-15, `identify-gtin` glömdes och öppnades först 08-18 — mellan de datumen var varje vanlig användares
+  streckkodsrättelse förlorad.
+  ⚠️ **MÄT TÄCKNING PER DYGN EFTER DEPLOYEN, aldrig över ett fönster som spänner över den** — ett fönster
+  som börjar på deploydagen blandar in rader från före koden och ser ut som ett pågående hål (hände
+  2026-08-17: "103 av 400 saknar mätdata" var i själva verket rader från före 13:15 UTC; dygnet efter var
+  täckningen 152/152).
+
 ## Status och modellval (flyttat ur CLAUDE.md 2026-08-15)
 - **SKANNERN: LÄS `docs/SCANNER-STATUS.md` FÖRE NÄSTA ÄNDRING (2026-07-30)**: lägesbilden med alla mätvärden,
   vad som är BEVISAT och vad som är MOTBEVISAT (finare rutnät = sämre, viktat konstfönster = sämre, neuralt nät =
