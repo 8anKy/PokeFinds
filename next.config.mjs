@@ -53,16 +53,19 @@ const nextConfig = {
         // RSC-fallet nedan är edge-cachning här ofarlig: EN URL, ETT innehåll, ingen
         // `Vary`-dimension som nyckeln kan missa.
         //
-        // ⚠️ SVARET BÄR NU TVÅ `Cache-Control` (uppmätt mot `next start`): den här och
-        // ruttens egen `public, max-age=0, must-revalidate`. Config-headers LÄGGS TILL,
-        // de ersätter inte ruttens — och `force-dynamic` i sitemap.ts är det som ger
-        // rutten sin (den får inte tas bort: den finns för att INGEN DB-fråga ska köras
-        // under `next build`). Det är ofarligt men värt att veta varför det ser konstigt
-        // ut: RFC 9111 slår ihop fälten, och `s-maxage` övertrumfar `max-age` för en
-        // DELAD cache — så en edge cachar ett dygn. En cache som i stället tar sista
-        // fältet beter sig exakt som före ändringen. Utfallet kan alltså bli "som förut"
-        // men aldrig sämre. ⏭️ Bekräfta med `curl -sI https://foilio.se/sitemap.xml`
-        // efter deploy: `x-cache: HIT` på andra hämtningen = det tog.
+        // ⚠️ SVARET BÄR TVÅ `Cache-Control`: den här och ruttens egen `public,
+        // max-age=0, must-revalidate`. Config-headers LÄGGS TILL, de ersätter inte
+        // ruttens — och `force-dynamic` i sitemap.ts är det som ger rutten sin (den
+        // får inte tas bort: den finns för att ingen DB-fråga ska köras under
+        // `next build`). RFC 9111 slår ihop fälten och `s-maxage` övertrumfar
+        // `max-age` för en DELAD cache, så en edge cachar ändå ett dygn.
+        //
+        // ✅ UPPMÄTT I PRODUKTION 2026-08-17, inte resonerat fram: en förbikörning av
+        // edgen (`?cb=…`) visar BÅDA fälten och `x-cache: MISS`; andra hämtningen av
+        // samma URL ger `x-cache: HIT`. ⚠️ Railways edge ekar då tillbaka BARA
+        // `max-age=0, must-revalidate` — den behåller `s-maxage` för sig själv. En
+        // `curl -sI https://foilio.se/sitemap.xml` ser alltså ut som före ändringen
+        // fast cachningen fungerar. Läs `x-cache`, inte `Cache-Control`, vid kontroll.
         //
         // ⛔ REGELN MÅSTE LIGGA FÖRE RSC-REGELN. Alla matchande header-regler körs, och
         // den SISTA som sätter samma nyckel vinner — låg den här efter RSC-regeln hade
