@@ -16,8 +16,8 @@ import {
   needsAllCosts,
   parseUserSort,
   userOrderBy,
+  type ComputedSortKey,
   type SortDir,
-  type UserSortKey,
 } from "./users-sort";
 
 export const dynamic = "force-dynamic";
@@ -58,16 +58,28 @@ interface PageProps {
  * synligt visar "Pro". `cost`/`usage` läser den redan hämtade kostnadssumman.
  */
 function computedRank(
-  sort: UserSortKey,
+  sort: ComputedSortKey,
   user: { planTier: UserRow["planTier"]; role: UserRow["role"]; bonusProUntil: Date | null; stripeProUntil: Date | null },
   cost: UserCostSummary | undefined
 ): number {
-  if (sort === "plan") return isPro(user) ? 1 : 0;
-  // Kostnaden sorteras på det UPPMÄTTA beloppet — det är talet kolumnen visar.
-  // De omätta raderna räknas inte in (de har inget belopp), utan står kvar som
-  // "+N omätta" bredvid; se user-costs.ts om varför de aldrig blir en nolla.
-  if (sort === "cost") return cost?.totalOre ?? 0;
-  return (cost?.scanner.rows ?? 0) + (cost?.grading.rows ?? 0);
+  switch (sort) {
+    case "plan":
+      return isPro(user) ? 1 : 0;
+    // Kostnaden sorteras på det UPPMÄTTA beloppet — det är talet kolumnen visar.
+    // De omätta raderna räknas inte in (de har inget belopp), utan står kvar som
+    // "+N omätta" bredvid; se user-costs.ts om varför de aldrig blir en nolla.
+    case "cost":
+      return cost?.totalOre ?? 0;
+    case "usage":
+      return (cost?.scanner.rows ?? 0) + (cost?.grading.rows ?? 0);
+    default: {
+      // ⛔ Ingen tyst reserv: en ny beräknad kolumn som glöms här hade annars
+      //    ärvt föregående grens tal och sorterat på FEL värde utan att något
+      //    går sönder. `never` gör glömskan till ett KOMPILERINGSfel.
+      const missing: never = sort;
+      throw new Error(`computedRank saknar gren för "${String(missing)}"`);
+    }
+  }
 }
 
 /**
@@ -82,7 +94,7 @@ function computedRank(
  */
 async function rankComputed(
   where: Prisma.UserWhereInput,
-  sort: UserSortKey,
+  sort: ComputedSortKey,
   dir: SortDir,
   page: number,
   since: Date

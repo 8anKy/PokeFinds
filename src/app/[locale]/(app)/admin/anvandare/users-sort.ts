@@ -74,7 +74,18 @@ const DB_SORTABLE = new Set<UserSortKey>([
   "created",
 ]);
 
-export function isDbSortable(sort: UserSortKey): boolean {
+/** De sorteringar som måste rangordnas i JS. Se DB_SORTABLE ovan. */
+export type ComputedSortKey = "plan" | "usage" | "cost";
+
+/**
+ * Typpredikat, inte bara en boolean: `else`-grenen på anropsstället smalnar då
+ * av till `ComputedSortKey`, och rangordningen där kan göras UTTÖMMANDE. Utan
+ * det hade en ny beräknad kolumn kunnat glömmas i rangordningen och tyst ärvt
+ * en annan kolumns tal — sorteringen ser ut att fungera, på fel värde.
+ */
+export function isDbSortable(
+  sort: UserSortKey
+): sort is Exclude<UserSortKey, ComputedSortKey> {
   return DB_SORTABLE.has(sort);
 }
 
@@ -114,7 +125,7 @@ export function isDefaultSort(sort: UserSortKey, dir: SortDir): boolean {
  * och en genererad kolumn på User vore en migration för en kosmetisk detalj.
  */
 export function userOrderBy(
-  sort: UserSortKey,
+  sort: Exclude<UserSortKey, ComputedSortKey>,
   dir: SortDir
 ): Prisma.UserOrderByWithRelationInput[] {
   // Se filhuvudet: null ska vara skalans botten, inte Postgres standardplacering.
