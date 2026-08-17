@@ -40,6 +40,18 @@ interface Recall {
   v?: number;
   art?: string[];
   shown?: string[];
+  /**
+   * Vilken väg skrev raden. Saknas = enkelskanning (/api/scanner/identify),
+   * vilket är vad ALLA rader före 2026-08-18 är.
+   *
+   * ⛔ **"bulk" FÅR ALDRIG SUMMERAS MED ENKELSKANNINGARNA.** `identifyCellsArt`
+   * bokför bara celler där `artConfidentFrom` redan sagt ja, så bildens topp-1
+   * är rätt svar PER KONSTRUKTION. Hinken är alltså grindad på exakt det måttet
+   * den skulle mäta, och en sammanslagning drar topp-1 mot 100 % utan att
+   * skannern blivit bättre. Den redovisas separat, som kontroll — inte som
+   * resultat.
+   */
+  src?: "bulk";
 }
 
 interface UserChosen {
@@ -98,8 +110,12 @@ async function main() {
 
   const corrected = emptyBucket();
   const confirmed = emptyBucket();
+  // Bulk hålls i EGNA hinkar — se `Recall.src`. Aldrig summerade med ovan.
+  const bulkCorrected = emptyBucket();
+  const bulkConfirmed = emptyBucket();
   let withRecall = 0;
   let withoutChoice = 0;
+  let bulkRows = 0;
   const users = new Set<string>();
 
   for (const job of jobs) {
@@ -108,13 +124,22 @@ async function main() {
     const recall = r.recall as Recall | undefined;
     if (!recall || !Array.isArray(recall.art)) continue;
     withRecall++;
+    const isBulk = recall.src === "bulk";
+    if (isBulk) bulkRows++;
     const chosen = r.userChosen as UserChosen | undefined;
     if (!chosen?.cardId) {
       withoutChoice++;
       continue;
     }
     users.add(job.userId);
-    const bucket = chosen.kind === "corrected" ? corrected : confirmed;
+    const bucket =
+      chosen.kind === "corrected"
+        ? isBulk
+          ? bulkCorrected
+          : corrected
+        : isBulk
+          ? bulkConfirmed
+          : confirmed;
     bucket.n++;
     bucket.artRanks.push(recall.art.indexOf(chosen.cardId) + 1);
     bucket.shownRanks.push((recall.shown ?? []).indexOf(chosen.cardId) + 1);
@@ -123,6 +148,7 @@ async function main() {
   console.log(`\n=== KONST-RECALL, PRODUKTION (${DAYS} dygn) ===`);
   console.log(`Skanningar med mätdata : ${withRecall}`);
   console.log(`  varav utan användarval: ${withoutChoice}  (ingen bekräftelse — se överlevnadsbias i filhuvudet)`);
+  console.log(`  varav bulk (egen hink): ${bulkRows}  (grindad på svaret — redovisas separat, aldrig summerad)`);
   console.log(`Distinkta användare    : ${users.size}`);
 
   if (withRecall === 0) {
@@ -144,11 +170,37 @@ async function main() {
     artRanks: [...corrected.artRanks, ...confirmed.artRanks],
     shownRanks: [...corrected.shownRanks, ...confirmed.shownRanks],
   };
-  report("ALLA (blandningsberoende — läs de två ovan i stället)", all);
+  report("ALLA ENKELSKANNINGAR (blandningsberoende — läs de två ovan i stället)", all);
+
+  // BULK SIST OCH MÄRKT. Hinken kan inte jämföras med ovanstående: raderna
+  // finns bara när bildmatchningen redan var säker, så ett högt tal här säger
+  // ingenting om recall — det säger att grinden fungerar som den ska.
+  if (bulkCorrected.n + bulkConfirmed.n > 0) {
+    console.log(
+      `\n\n########## BULK — KONTROLLHINK, INTE ETT RESULTAT ##########\n` +
+        `Raderna bokförs bara när bilden REDAN var säker (artConfidentFrom).\n` +
+        `Topp-1 nära 100 % är därför väntat och betyder inget om träffsäkerhet.\n` +
+        `Det som ÄR intressant: varje KORRIGERING här är en trust-regel som föll.`
+    );
+    report("BULK, korrigerade — trust-regeln hade FEL", bulkCorrected);
+    report("BULK, bekräftade — trust-regeln hade rätt", bulkConfirmed);
+    const precision =
+      bulkCorrected.n + bulkConfirmed.n > 0
+        ? (bulkConfirmed.n / (bulkCorrected.n + bulkConfirmed.n)) * 100
+        : 0;
+    console.log(
+      `\n  TRUST-PRECISION I FÄLT: ${bulkConfirmed.n}/${bulkCorrected.n + bulkConfirmed.n}` +
+        ` = ${precision.toFixed(1)} %  (offline-mätningen 2026-07-30 gav 100 %, n=40)`
+    );
+  }
 
   console.log(
-    `\nGRINDEN: bygg bild-först om KORRIGERADE topp-3 håller ≥ 95 %.\n` +
-      `Facitfilen (ägarens fångster) gav 98,0 % — se scripts/scanner-art-recall.ts.`
+    `\nGRINDEN: bygg bild-först om KORRIGERADE topp-3 håller ≥ 95 % — ENKELSKANNINGAR.\n` +
+      `Facitfilen (ägarens fångster) gav 98,0 % — se scripts/scanner-art-recall.ts.\n` +
+      `⚠️ Mätt 2026-08-17 på riktiga användare: BEKRÄFTADE topp-3 = 70,9 % (n=79),\n` +
+      `   topp-15 = 79,7 %. Facitfilens 98 % reproducerades INTE — dess massa på\n` +
+      `   plats 2 (32,3 %) finns inte i riktiga fångster. Korrigerade: n=1, dvs\n` +
+      `   grinden går ännu inte att utvärdera.`
   );
 }
 

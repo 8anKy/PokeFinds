@@ -208,8 +208,22 @@ export async function POST(req: Request) {
       /** >0 = katalogen har flera produkter med samma kod (dubblett att städa). */
       duplicates: rows.length - 1,
       remaining: Math.max(0, quota.remaining - 1),
-      /** Admin: bär en manuell korrigering vidare, som i /identify. */
-      jobId: isAdmin ? jobId : null,
+      /**
+       * Bär en manuell korrigering vidare, som i /identify.
+       *
+       * ⛔ **FÖR ALLA SEDAN 2026-08-18** (var `isAdmin ? jobId : null`). Samma
+       * grind som /identify tog bort 08-15, och den lämnades kvar här: en
+       * vanlig användare som skannade en streckkod och sedan rättade produkten
+       * fick sin rättelse tyst bortkastad, eftersom `reportScanFeedback` är
+       * gated på just `jobId`. En felmappad GTIN är dessutom precis det som är
+       * värt att få veta — koden ÄR identiteten, så en rättelse betyder att
+       * katalogen har fel, inte att skannern gissade.
+       *
+       * ⚠️ Ingen `recall` skrivs för den här vägen, med flit: ingen
+       * bildsökning har körts, och en tom `art`-lista hade räknats som "bilden
+       * missade" i recall-rapporten i stället för "bilden tillfrågades aldrig".
+       */
+      jobId,
     });
   } catch (e) {
     return apiError(e);

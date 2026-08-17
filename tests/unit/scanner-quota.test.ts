@@ -82,6 +82,56 @@ describe("recordScanUsage", () => {
     await recordScanUsage("u1");
     expect(create.mock.calls[0][0].data.status).toBe("COMPLETED");
   });
+
+  // RECALL-BLOCKET ÄR MÄTDATA FÖR ALLA ANVÄNDARE. Vakterna nedan skyddar tre
+  // fel som alla är TYSTA: de ger ett tal, bara fel tal.
+  describe("recall", () => {
+    const resultOf = () => create.mock.calls[0][0].data.result;
+
+    it("skriver INGEN recall-nyckel när argumentet utelämnas", async () => {
+      // ⛔ Streckkods- och uppladdningsvägarna kör ALDRIG bildsökningen. En tom
+      // `art`-lista där hade räknats som "bilden missade" i recall-rapporten i
+      // stället för "bilden tillfrågades aldrig" — dvs mätningen hade sjunkit
+      // av rader som inte mäter något. Nyckeln ska då saknas helt.
+      create.mockResolvedValue({});
+      await recordScanUsage("u1");
+      expect(resultOf()).not.toHaveProperty("recall");
+    });
+
+    it("enkelskanning taggas INTE med src (default = enkel)", async () => {
+      // Alla rader före 2026-08-18 saknar `src`. Skulle enkelskanningen börja
+      // sätta ett värde vore de gamla raderna plötsligt en egen, tredje klass.
+      create.mockResolvedValue({});
+      await recordScanUsage("u1", undefined, true, null, { art: ["a"], shown: ["a"] });
+      expect(resultOf().recall).toEqual({ v: 1, art: ["a"], shown: ["a"] });
+      expect(resultOf().recall).not.toHaveProperty("src");
+    });
+
+    it("bulk MÅSTE bära src: raden är grindad på det den mäter", async () => {
+      // identifyCellsArt bokför bara celler där bilden REDAN var säker, så
+      // topp-1 är rätt per konstruktion. Utan taggen blandas de in i
+      // enkelskanningarnas hink och recall ser ut att stiga mot 100 % utan att
+      // något förbättrats. Se scripts/scanner-recall-live.ts.
+      create.mockResolvedValue({});
+      await recordScanUsage("u1", undefined, true, null, {
+        art: ["a", "b"],
+        shown: ["a"],
+        src: "bulk",
+      });
+      expect(resultOf().recall).toEqual({ v: 1, art: ["a", "b"], shown: ["a"], src: "bulk" });
+    });
+
+    it("recall lever UTANFÖR den admin-grindade diagnostiken", async () => {
+      // Diagnostiken skrivs bara för admin. Låg recall inuti den vore mätdatat
+      // begränsat till ägarens egna skanningar igen — precis den snedvridning
+      // 08-15 avskaffade.
+      create.mockResolvedValue({});
+      await recordScanUsage("u1", undefined, true, null, { art: ["a"], shown: ["a"] });
+      const r = resultOf();
+      expect(r).not.toHaveProperty("v");
+      expect(r.recall.art).toEqual(["a"]);
+    });
+  });
 });
 
 describe("isIntroScan", () => {

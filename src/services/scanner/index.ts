@@ -230,8 +230,17 @@ export async function recordScanUsage(
    * ⚠️ Storlek: 2 × 15 id:n ≈ 800 byte per rad. Bevaka den om listorna växer —
    *    `ScannerJob.result` läses med rå SQL i kostnadsvyn just för att slippa
    *    dra hem hela kolumnen.
+   *
+   * ⛔ **`src` ÄR INTE KOSMETIK — UTAN DEN LJUGER MÄTNINGEN UPPÅT.** En
+   *    bulk-cell bokförs BARA när `artConfidentFrom` redan sagt ja, dvs bildens
+   *    topp-1 är rätt svar per konstruktion. Slås de raderna ihop med
+   *    enkelskanningens i recall-rapporten stiger topp-1 mot 100 % utan att
+   *    skannern blivit bättre — urvalet är grindat på det man mäter. Märk
+   *    raden vid källan och håll hinkarna isär i analysen
+   *    (`scripts/scanner-recall-live.ts`). Utelämnad = enkelskanning, så alla
+   *    rader skrivna före 2026-08-18 förblir korrekt tolkade.
    */
-  recall?: { art: string[]; shown: string[] } | null
+  recall?: { art: string[]; shown: string[]; src?: "bulk" } | null
 ): Promise<string> {
   const job = await prisma.scannerJob.create({
     data: {
@@ -251,7 +260,18 @@ export async function recordScanUsage(
           : {}),
         // Egen nyckel, aldrig hopblandad med diagnostiken: den senare är
         // admin-only och skulle ta med sig recall-datat in i den grinden.
-        ...(recall ? { recall: { v: 1, art: recall.art, shown: recall.shown } } : {}),
+        ...(recall
+          ? {
+              recall: {
+                v: 1,
+                art: recall.art,
+                shown: recall.shown,
+                // Skrivs bara när den finns: en saknad `src` betyder
+                // enkelskanning, vilket är exakt vad de äldre raderna är.
+                ...(recall.src ? { src: recall.src } : {}),
+              },
+            }
+          : {}),
       },
     },
     select: { id: true },
@@ -1618,9 +1638,9 @@ export interface BulkCellResult {
  * BULK-SKANNING (Fas 1, 2026-08-01): en pärmsida/bordsyta fångas i EN bild,
  * klienten delar upp den i celler (rutnätsoverlay = placeringsguide, funkar
  * för pärmficka OCH lösa kort på ett bord) och skickar VARJE cells
- * avtryckssvep hit. Ren bildmatchning — ingen vision, ingen kvot, inga
- * ScannerJob-rader (12 rader per sida vore diagnostikbrus; de osäkra cellerna
- * går vidare till /identify som bokför precis som vanligt).
+ * avtryckssvep hit. Ren bildmatchning — ingen vision, alltså $0 per sida.
+ * ⚠️ SÄKRA celler bokförs numera ändå (kvot + rättningsbarhet, se `owner`
+ * nedan); de osäkra går vidare till /identify som bokför precis som vanligt.
  *
  * Återanvänder HELA kandidatkedjan genom matchCards med tom OCR — exakt samma
  * väg som en vision-hoppad skanning: tryckningar expanderas, värden hämtas,
@@ -1691,7 +1711,22 @@ export async function identifyCellsArt(
         // Bulk-cellen avgjordes av BILDEN — inget vision-anrop, alltså 0 kr.
         // (En osäker cell skickas vidare till /identify och bokförs där, med
         // det anropets verkliga tokental.)
-        { model: null }
+        { model: null },
+        /**
+         * RECALL — saknades här till 2026-08-18 och det var en TYST FÖRLUST.
+         *
+         * Raden fick `userChosen` som vanligt (klienten skickar `scanId` till
+         * feedback-endpointen), men utan `recall` hade rapporten inget att
+         * jämföra facit MOT och hoppade över raden helt. Alltså: bulk-vägens
+         * bekräftelser och rättelser samlades in och kastades sedan bort —
+         * mätt i prod 2026-08-17, 15 av 17 omätta rader var just de här.
+         *
+         * ⛔ Märkt `src: "bulk"` för att hinken är GRINDAD PÅ SVARET: vi är
+         * här bara när `confidentId !== null`, så bildens topp-1 är rätt per
+         * konstruktion. Blandas de med enkelskanningens rader ser recall ut
+         * att skjuta i höjden utan att något förbättrats.
+         */
+        { art: artMatches.map((m) => m.cardId), shown: candidates.map((c) => c.cardId), src: "bulk" }
       );
     }
     out.push({
