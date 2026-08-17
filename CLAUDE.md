@@ -134,6 +134,13 @@ klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
 - **Katalogens länkgraf var en SLUTEN CIRKEL** (2026-08-17): `/produkter` är dynamisk och `/produkter?…`
   robots-blockerad, så pagineringen är ocrawlbar och Googlebot ser bara sida 1. Sidfotens `/sets`-länk är den
   ENDA interna vägen in i ~20k produktsidor — ta inte bort den. JSON-LD-brödsmulor ger UPPTÄCKT, inte länkkraft.
+- ⚠️ **MJUK 404 PÅ ISR-RUTTERNA, UTREDD OCH MEDVETET OLAGAD**: `/produkter/<död slug>` och
+  `/sets/<dött id>` svarar **HTTP 200** (rätt innehåll + `noindex`, fel status, cachat 1 h). Mätt
+  2026-08-17: varken `notFound()` i `generateMetadata` eller borttagen `loading.tsx` ändrar det —
+  orsaken är ISR självt (prerenderad post bär ingen statuskod), och `force-dynamic`/`dynamicParams:
+  false` kostar mer än felet. Skadan är crawl-budget + en GSC-varning, aldrig indexerat skräp.
+  ⏭️ Testa om vid Next-uppgraderingen. Gräv inte upp frågan igen utan att läsa kommentaren i
+  `produkter/[slug]/page.tsx`.
 - **Ingen fabricerad strukturerad data**: `Product` renderas INTE alls utan `offers` (en tom nod underkänns),
   `brand: "Pokémon"` utelämnas för `ACCESSORY`/`OTHER` (tredjepartstillverkare), och `aggregateRating`/`review`
   hittas aldrig på. `alternatesFor()` sätts från SIDAN, aldrig layouten; `BASE_URL` faller tillbaka på

@@ -74,12 +74,19 @@ export function alternatesFor(locale: string, path: string): Metadata["alternate
  * Sajtens delningsbild. RELATIV med flit — Next absolutiserar mot `metadataBase`
  * (satt i rot-layouten), så bilden följer med av sig själv nästa gång värdnamnet byts.
  *
- * ⚠️ Det här är märket (1024×1024), inte ett ändamålsbyggt 1200×630-kort: en sådan
- * bild är en DESIGNLEVERANS som inte finns ännu. Kvadraten visas rakt av i Discord,
- * Slack och iMessage; X beskär den till 2:1. En beskuren logga slår en TOM
- * förhandsvisning, men byt hit `/brand/foilio-og.png` så fort kortet är ritat.
+ * ⛔ MÅTTEN MÅSTE MATCHA FILEN, och filen måste vara 1200×630 (2:1-ish). Var
+ * `foilio-mark.png`, en KVADRAT: Discord/Slack/iMessage visade den hel, men X beskär
+ * ett stort kort till 2:1 och kapade loggans över- och underkant — därför stod
+ * `twitter:card` på `summary` i stället för `summary_large_image`. Med rätt
+ * bildförhållande i själva filen behöver ingen yta beskära något. Byts bilden ut måste
+ * `width`/`height` nedan följa med: en felaktig storleksuppgift får vissa ytor att
+ * reservera fel ruta och visa kortet brevlådeformat.
+ *
+ * Kortet byggs av `scripts/build-og-card.mjs` (körs FÖR HAND, aldrig i bygget) och är
+ * en incheckad statisk fil. Läs skriptet innan du ändrar bilden — det förklarar bl.a.
+ * varför den medvetet INTE innehåller någon text.
  */
-const OG_IMAGE = "/brand/foilio-mark.png";
+const OG_IMAGE = "/brand/foilio-og.png";
 
 /**
  * Bas-fälten för `openGraph`. Spreadas av VARJE sida som sätter ett eget
@@ -107,6 +114,6 @@ export function baseOpenGraph(locale: string) {
     type: "website" as const,
     siteName: "Foilio",
     locale: locale === "en" ? "en_US" : "sv_SE",
-    images: [{ url: OG_IMAGE, width: 1024, height: 1024, alt: "Foilio" }],
+    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: "Foilio" }],
   };
 }

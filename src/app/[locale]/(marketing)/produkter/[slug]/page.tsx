@@ -121,6 +121,27 @@ const ldJson = (node: unknown) => JSON.stringify(node).replace(/</g, "\\u003c");
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const t = await getTranslations({ locale: params.locale, namespace: "Detail" });
   const product = await loadProduct(params.slug);
+  // ⚠️ MJUK 404: en död slug svarar HTTP **200**, inte 404. Sidan renderar rätt
+  // innehåll ("Produkten hittades inte" + `noindex`), men statuskoden är fel, och
+  // svaret cachas en timme (`s-maxage=3600`). Katalogen döper om och slår ihop slugs
+  // som rutinunderhåll, så varje pensionerad slug i en gammal sitemap-kopia hamnar
+  // här — Search Console rapporterar "Soft 404" och crawl-budget går åt.
+  //
+  // ⛔ INGET AV DET UPPENBARA HJÄLPER — mätt 2026-08-17, sluta inte gissa vidare:
+  //   · `notFound()` HÄR i `generateMetadata` i stället för i sidan → fortfarande 200.
+  //   · `loading.tsx` bortflyttad (dvs ingen Suspense-gräns) → fortfarande 200, och
+  //     den vanliga förklaringen "svaret har redan börjat strömma" är alltså INTE
+  //     orsaken här.
+  // Orsaken är ISR självt: rutten är statiskt genererad on demand (`revalidate` +
+  // tom `generateStaticParams`), och den prerenderade posten bär ingen statuskod.
+  // `/profil/[id]`, som är `force-dynamic`, svarar korrekt 404 — skillnaden är cachen.
+  //
+  // ⛔ DE ENDA KÄNDA FIXARNA KOSTAR MER ÄN FELET: `force-dynamic` river ISR:en (varje
+  // träff = en Neon-väckning à minst 300 s — hela kostnadsdoktrinen), och
+  // `dynamicParams: false` skulle 404:a ALLT eftersom `generateStaticParams` med flit
+  // returnerar en tom lista. Skadan är dessutom begränsad: `noindex` ligger på sidan,
+  // så det här är bortkastad crawl-budget och en varningsrad — aldrig indexerat skräp.
+  // ⏭️ Testa om vid Next-uppgraderingen (se "Öppna ärenden" i CLAUDE.md).
   if (!product) return { title: t("metaNotFound") };
   const description = await describeProduct(params.locale, {
     description: product.description,

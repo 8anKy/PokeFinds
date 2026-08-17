@@ -52,14 +52,14 @@ export async function generateMetadata({
     // Utan `twitter` faller X/Twitter tillbaka på en naken länk. Kortet ärver
     // `og:image`/`og:title` automatiskt — därför bara korttypen här, ingen dubblerad
     // bild- och titeldeklaration som kan glida isär från openGraph.
-    // ⚠️ `summary`, INTE `summary_large_image`: korttypen måste matcha BILDEN, och vår
-    // delningsbild är märket i kvadrat (1024×1024). X beskär ett stort kort till 2:1
-    // och hade kapat loggans över- och underkant; `summary` visar kvadraten hel.
-    // Byt hit `summary_large_image` samtidigt som `OG_IMAGE` blir ett riktigt
-    // 1200×630-kort (se lib/canonical.ts) — de två ändringarna hör ihop.
+    // ⛔ KORTTYPEN MÅSTE MATCHA BILDENS FORMAT. Den stod på `summary` så länge
+    // delningsbilden var märket i KVADRAT — X beskär ett stort kort till 2:1 och hade
+    // kapat loggans över- och underkant. Sedan `OG_IMAGE` blev ett riktigt
+    // 1200×630-kort (se lib/canonical.ts) finns inget att beskära, och `large` är rätt.
+    // Byts bilden tillbaka till något kvadratiskt måste den här raden följa med.
     // ⚠️ Gäller BARA X. Discord, Slack, iMessage och Facebook läser `og:image` och
     // bryr sig inte om den här raden.
-    twitter: { card: "summary" },
+    twitter: { card: "summary_large_image" },
     icons: {
       icon: [
         { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
