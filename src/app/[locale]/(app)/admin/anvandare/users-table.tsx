@@ -19,6 +19,7 @@ import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
+import { isDefaultSort, type SortDir, type UserSortKey } from "./users-sort";
 
 export interface AdminUserRow {
   id: string;
@@ -68,12 +69,136 @@ const PLAN_LABELS: Record<PlanTier, string> = {
 
 const ALL_PLANS: PlanTier[] = ["FREE", "PREMIUM"];
 
+interface ColumnDef {
+  label: string;
+  title?: string;
+  /** Utelämnad = kolumnen går inte att sortera på. */
+  sortKey?: UserSortKey;
+}
+
+/**
+ * Rubrikraden. Ordningen MÅSTE matcha cellerna i <TBody> nedan — den enda
+ * kopplingen dem emellan är att båda listorna står i den här filen.
+ */
+function buildColumns(costWindowDays: number): ColumnDef[] {
+  return [
+    { label: "Namn", sortKey: "name" },
+    { label: "E-post", sortKey: "email" },
+    {
+      label: "Bekr.",
+      sortKey: "verified",
+      title: "Bekräftad e-postadress. Sorterat stigande = obekräftade först.",
+    },
+    {
+      label: "Roll",
+      sortKey: "role",
+      title: "Sorteras efter behörighetsnivå: Användare → Moderator → Admin → Superadmin.",
+    },
+    {
+      // ⛔ Sorteras på EFFEKTIV Pro (isPro), inte på `planTier` — annars hade en
+      //    Stripe- eller bonuskund hamnat bland "Gratis" på en rad som synligt
+      //    bär brickan "Pro". Se lib/plan.ts.
+      label: "Plan",
+      sortKey: "plan",
+      title:
+        "Sorteras på faktisk Pro-status (planTier, bonus, Stripe eller roll) — inte bara på väljarens värde.",
+    },
+    { label: "Gratis Pro t.o.m.", sortKey: "bonus" },
+    {
+      // Notiser är fyra oberoende reglage utan inbördes ordning — det finns
+      // inget "mer notiser än" att sortera på. Osorterbar med flit: en
+      // godtycklig ordning hade sett ut som en rangordning.
+      label: "Notiser",
+      title: "E-post · Push · Alla restocks",
+    },
+    {
+      // ⛔ Rubriken påstod förut "= appen är installerad". Det är en
+      //    ÖVERTOLKNING åt fel håll: en token bevisar appen, men tomt bevisar
+      //    ingenting (appen kan finnas utan push-tillstånd).
+      label: "Push-enheter",
+      sortKey: "devices",
+      title:
+        "Registrerade push-enheter. En token bevisar att appen finns — tomt bevisar INTE motsatsen (push kan vara nekad). Sorteras på antal.",
+    },
+    {
+      label: "Senast sedd",
+      sortKey: "lastSeen",
+      title: "Senaste autentiserade aktivitet (±15 min). ”Aldrig” räknas som lägst.",
+    },
+    {
+      label: "Användning",
+      sortKey: "usage",
+      title: `Skanningar + graderingar de senaste ${costWindowDays} dygnen. Sorteras på antal rader.`,
+    },
+    {
+      label: `Kostnad ${costWindowDays} d`,
+      sortKey: "cost",
+      title: `AI-kostnad de senaste ${costWindowDays} dygnen (uppmätta tokental). Omätta rader har inget belopp och påverkar inte ordningen.`,
+    },
+    { label: "Skapad", sortKey: "created" },
+  ];
+}
+
+/**
+ * Klickbar kolumnrubrik. Första klicket sorterar STIGANDE, andra vänder — och
+ * byter alltid till sida 1, eftersom "sida 3 av den gamla ordningen" inte är en
+ * position som betyder något i den nya.
+ *
+ * ⛔ Ligger på modulnivå, inte inuti UsersTable: en komponent som DEKLARERAS i en
+ *    render får en ny identitet varje gång och React monterar då om hela
+ *    rubrikraden i stället för att uppdatera den.
+ */
+function SortTH({
+  sortKey,
+  label,
+  title,
+  sort,
+  dir,
+  onSort,
+}: {
+  sortKey: UserSortKey;
+  label: string;
+  title?: string;
+  sort: UserSortKey;
+  dir: SortDir;
+  onSort: (sort: UserSortKey, dir: SortDir) => void;
+}) {
+  const active = sort === sortKey;
+  const nextDir: SortDir = active && dir === "asc" ? "desc" : "asc";
+  return (
+    <TH
+      title={title}
+      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
+      // Padding flyttas till knappen så HELA cellen är klickbar, inte bara texten.
+      className="p-0"
+    >
+      <button
+        type="button"
+        onClick={() => onSort(sortKey, nextDir)}
+        aria-label={`Sortera på ${label}, ${nextDir === "asc" ? "lägst först" : "högst först"}`}
+        className={`flex w-full items-center gap-1 px-4 py-3 text-left transition-colors ${
+          active ? "text-holo-cyan" : "hover:text-ink"
+        }`}
+      >
+        <span>{label}</span>
+        {/* Pilen är dekor för seende — riktningen står i aria-sort på cellen. */}
+        <span aria-hidden className={active ? undefined : "text-ink-faint"}>
+          {active ? (dir === "asc" ? "▲" : "▼") : "↕"}
+        </span>
+      </button>
+    </TH>
+  );
+}
+
 interface UsersTableProps {
   users: AdminUserRow[];
   total: number;
   page: number;
   totalPages: number;
   query: string;
+  /** Aktiv sortering — kommer från URL:en, ordnas på servern. */
+  sort: UserSortKey;
+  dir: SortDir;
   currentUserId: string;
   isSuperAdmin: boolean;
   /** Hur många dygn bakåt kostnadskolumnen summerar. */
@@ -86,6 +211,8 @@ export function UsersTable({
   page,
   totalPages,
   query,
+  sort,
+  dir,
   currentUserId,
   isSuperAdmin,
   costWindowDays,
@@ -95,18 +222,39 @@ export function UsersTable({
   const [search, setSearch] = useState(query);
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  function navigate(nextQuery: string, nextPage: number) {
+  /**
+   * ⛔ Sorteringen går via URL:en och servern, ALDRIG via en `users.sort()` här.
+   *    Listan är serverpaginerad: en sortering i klienten hade kastat om de 25
+   *    rader som råkade ligga på sidan och kallat resultatet "dyrast först".
+   *    Se users-sort.ts.
+   */
+  function navigate(
+    nextQuery: string,
+    nextPage: number,
+    nextSort: UserSortKey,
+    nextDir: SortDir
+  ) {
     const params = new URLSearchParams();
     if (nextQuery) params.set("q", nextQuery);
     if (nextPage > 1) params.set("page", String(nextPage));
+    if (!isDefaultSort(nextSort, nextDir)) {
+      params.set("sort", nextSort);
+      params.set("dir", nextDir);
+    }
     const qs = params.toString();
     router.push(`/admin/anvandare${qs ? `?${qs}` : ""}`);
   }
 
   function handleSearch(e: FormEvent) {
     e.preventDefault();
-    navigate(search.trim(), 1);
+    navigate(search.trim(), 1, sort, dir);
   }
+
+  /** Sorterar om från sida 1 — se SortTH. */
+  const sortBy = (nextSort: UserSortKey, nextDir: SortDir) =>
+    navigate(query, 1, nextSort, nextDir);
+
+  const columns = buildColumns(costWindowDays);
 
   async function handleRoleChange(userId: string, role: Role) {
     setSavingId(userId);
@@ -230,27 +378,23 @@ export function UsersTable({
         <Table>
           <THead>
             <TR>
-              <TH>Namn</TH>
-              <TH>E-post</TH>
-              <TH title="Bekräftad e-postadress">Bekr.</TH>
-              <TH>Roll</TH>
-              <TH>Plan</TH>
-              <TH>Gratis Pro t.o.m.</TH>
-              <TH title="E-post · Push · Alla restocks">Notiser</TH>
-              {/* ⛔ Rubriken påstod förut "= appen är installerad". Det är en
-                  ÖVERTOLKNING åt fel håll: en token bevisar appen, men tomt
-                  bevisar ingenting (appen kan finnas utan push-tillstånd). */}
-              <TH title="Registrerade push-enheter. En token bevisar att appen finns — tomt bevisar INTE motsatsen (push kan vara nekad).">
-                Push-enheter
-              </TH>
-              <TH title="Senaste autentiserade aktivitet (±15 min)">Senast sedd</TH>
-              <TH title={`Skanningar + graderingar de senaste ${costWindowDays} dygnen`}>
-                Användning
-              </TH>
-              <TH title={`AI-kostnad de senaste ${costWindowDays} dygnen (uppmätta tokental)`}>
-                Kostnad {costWindowDays} d
-              </TH>
-              <TH>Skapad</TH>
+              {columns.map((col) =>
+                col.sortKey ? (
+                  <SortTH
+                    key={col.label}
+                    sortKey={col.sortKey}
+                    label={col.label}
+                    title={col.title}
+                    sort={sort}
+                    dir={dir}
+                    onSort={sortBy}
+                  />
+                ) : (
+                  <TH key={col.label} title={col.title}>
+                    {col.label}
+                  </TH>
+                )
+              )}
               {isSuperAdmin && <TH>Ändra roll</TH>}
             </TR>
           </THead>
@@ -400,7 +544,7 @@ export function UsersTable({
       <Pagination
         page={page}
         totalPages={totalPages}
-        onPageChange={(p) => navigate(query, p)}
+        onPageChange={(p) => navigate(query, p, sort, dir)}
       />
     </div>
   );

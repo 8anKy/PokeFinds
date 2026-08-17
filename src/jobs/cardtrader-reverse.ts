@@ -245,13 +245,39 @@ export async function runCardTraderReverseImport(opts: {
   // fråga, i stället för en SELECT per produkt.
   const obs = await createObservationWriter(apply);
 
-  const [sets, expansions] = await Promise.all([
-    prisma.cardSet.findMany({
-      select: { id: true, name: true, series: true },
-      orderBy: { releaseDate: "desc" },
-    }),
+  // ⛔ STALASTE SETET FÖRST — ALDRIG EN FAST ORDNING.
+  //
+  // Ordningen var `releaseDate: "desc"` (nyast först). Med jobbets 60-minuterstak
+  // och en full genomgång på ~2,5 h betyder en FAST ordning att samma första ~40 %
+  // betas av varje natt och att svansen ALDRIG nås. MÄTT 2026-08-17 efter första
+  // körningen på 13 dygn: 10 299 offers färska, 16 166 kvar på `lastSeenAt`
+  // 2026-08-03 — och de kvarvarande är just de äldre seten (EX-eran, e-Card), dvs
+  // exakt de med sämst reverse holo-täckning. En fast ordning gör inte jobbet
+  // långsamt, den gör en del av katalogen PERMANENT ouppdaterad.
+  //
+  // Sorteringen på hur gammal setets äldsta CardTrader-offer är gör körningen
+  // självläkande: varje natt fortsätter den där gårdagen kapades, och när
+  // eftersläpningen är ikapp blir ordningen i praktiken rundgång. Samma grepp som
+  // `verify-instock-buyable` använder med sin skärva per dygn.
+  //
+  // Set UTAN CardTrader-offers (aldrig importerade) sorteras FÖRST — de har mest
+  // att hämta, och `NULLS FIRST` säger det uttryckligen i stället för att förlita
+  // sig på Postgres default.
+  const [staleOrder, expansions] = await Promise.all([
+    prisma.$queryRaw<{ id: string; name: string; series: string | null }[]>`
+      SELECT s.id, s.name, s.series
+      FROM "CardSet" s
+      LEFT JOIN LATERAL (
+        SELECT MIN(o."lastSeenAt") AS oldest
+        FROM "Product" p
+        JOIN "Offer" o ON o."productId" = p.id
+        JOIN "Retailer" r ON r.id = o."retailerId"
+        WHERE p."setId" = s.id AND r.name = ${RETAILER_NAME}
+      ) ct ON TRUE
+      ORDER BY ct.oldest ASC NULLS FIRST, s."releaseDate" DESC NULLS LAST`,
     ctExpansions(),
   ]);
+  const sets = staleOrder;
 
   const targets = sets
     .map((s) => ({ set: s, exp: matchExpansion(s.name, s.series, expansions) }))
