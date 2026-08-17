@@ -17,6 +17,36 @@
 import { prisma } from "../src/lib/db";
 import { getAdapter } from "../src/scrapers/runner";
 
+/**
+ * "0 produkter" har TVÅ helt olika orsaker och de kräver olika människa-åtgärd:
+ * butiken svarade 200 med markup vi inte längre förstår (adaptern måste skrivas om),
+ * eller butiken VÄGRADE svara (brandvägg/WAF/ratelimit — adaptern är oskyldig och en
+ * omskrivning hjälper inte). Meddelandet sa förut alltid det första, vilket skickade
+ * granskningen åt fel håll i en hel vecka för Leksaksaffären (HTTP 403 mot
+ * Actions-egress; `parsePrestaShopListing` mot samma HTML ger 23 giltiga poster, och
+ * butikens robots.txt tillåter oss).
+ * ⛔ Båda fallen förblir RÖDA. En 403 som degraderas till `::warning::` når ingen —
+ * GitHub mejlar bara på failure.
+ */
+const REFUSAL_CODES = new Set([401, 403, 407, 429, 451]);
+
+function refusalStatus(err?: string): number | null {
+  const m = err?.match(/\bHTTP (\d{3})\b/);
+  const code = m ? Number(m[1]) : null;
+  return code !== null && REFUSAL_CODES.has(code) ? code : null;
+}
+
+function describeDead(d: { name: string; err?: string }): string {
+  const code = refusalStatus(d.err);
+  if (code !== null) {
+    return (
+      `${d.name} AVVISAR oss (HTTP ${code}) — butikens brandvägg/ratelimit, inte en trasig ` +
+      `adapter. Kontrollera robots.txt och vår anropstakt innan adaptern rörs. ${d.err ?? ""}`
+    );
+  }
+  return `${d.name} returnerar 0 produkter — trolig trasig adapter (butiken kan ha bytt plattform). ${d.err ?? ""}`;
+}
+
 async function main() {
   const sources = await prisma.scrapeSource.findMany({ where: { isActive: true } });
   const watched = sources.filter(
@@ -47,13 +77,19 @@ async function main() {
   if (dead.length > 0) {
     for (const d of dead) {
       // ::error:: syns tydligt i Actions-loggen och sammanfattningen.
+      console.log(`::error::${describeDead(d)}`);
+    }
+    const refused = dead.filter((d) => refusalStatus(d.err) !== null);
+    console.log(
+      `\n⚠️ ${dead.length} av ${watched.length} butiker gav 0 produkter: ${dead.map((d) => d.name).join(", ")}`
+    );
+    if (refused.length > 0) {
       console.log(
-        `::error::${d.name} returnerar 0 produkter — trolig trasig adapter (butiken kan ha bytt plattform). ${d.err ?? ""}`
+        `   ${refused.length} av dem AVVISADE oss (${refused
+          .map((d) => `${d.name} ${refusalStatus(d.err)}`)
+          .join(", ")}) — det är åtkomst, inte markup. Lagas inte i adaptern.`
       );
     }
-    console.log(
-      `\n⚠️ ${dead.length} av ${watched.length} butiker verkar trasiga: ${dead.map((d) => d.name).join(", ")}`
-    );
     process.exitCode = 1; // → röd körning → GitHub mejlar repo-ägaren
   } else {
     console.log(`\n✅ Alla ${watched.length} watched-butiker returnerar produkter.`);

@@ -62,7 +62,13 @@ jobs:
       # Länk-revision: butiks-offers vars URL-slug motsäger produkttiteln (serienummer,
       # sifferset, språk). Fångar fel-länkar som matcher-vakterna inte kan laga i
       # efterhand (de vaktar bara NYA matchningar). Röd körning = mejl till ägaren.
-      - if: steps.guard.outputs.ready == 'true'
+      # ⛔ `!cancelled()` KRÄVS HÄR OCKSÅ. Ett `if:` utan statusfunktion får implicit
+      # `success()`, så det här steget hoppades tyst så fort check-store-health blev röd
+      # — vilket det blir varje vecka en enda butik är onåbar. Länkrevisionen uteblev
+      # 2026-08-10 (Fantasia North) och 2026-08-17 (Leksaksaffären): två veckor utan
+      # mätning av länk-backloggen, av en blockerad butik som inte har med saken att göra.
+      # `be9266d` la villkoret på alla steg från gtin-report och nedåt men missade det här.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
         run: npx tsx scripts/audit-links.ts
       # ⛔ STEGEN NEDAN KÖR ÄVEN NÄR EN RAPPORT OVANFÖR BLIVIT RÖD (`!cancelled()`):
       # audit-links och underpris-rapporten exit:ar 1 när de HITTAR något — det är
@@ -93,13 +99,27 @@ jobs:
       # Fångar det fuzzy-re-mismatch skapar (Water Stacking Tin→Tapu Lele, Meowth→Tyrantrum).
       - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
         run: npx tsx scripts/cm-link-mismatch-report.ts
-      # Åtgärdar det rapporten hittar, men BARA det som är bevisbart: merga dubbletter där
-      # ingen titelvakt protesterar, och omdirigera offers vars streckkod ägs av en annan
-      # katalogprodukt. RADERAR ALDRIG något — majoritetsröstning bland butiker är INTE
-      # sanning (sortiments-koder vinner omröstningen och skulle radera den korrekta länken).
-      # Resten hamnar i rapporten + "Fel länk?"-kön för mänsklig granskning.
+      # Rapporterar vad som SKULLE åtgärdas: dubbletter där ingen titelvakt protesterar,
+      # och offers vars streckkod ägs av en annan katalogprodukt. Resten hamnar i
+      # rapporten + "Fel länk?"-kön för mänsklig granskning.
+      #
+      # ⛔ `--apply` ÄR AVSIKTLIGT BORTTAGET (2026-08-17). Kommentaren som stod här
+      # påstod "RADERAR ALDRIG något". Det var FALSKT för merge-grenen: `mergeStubInto`
+      # slutar i `prisma.product.delete` (src/jobs/dedupe-stubs.ts) och raderar dessutom
+      # kolliderande butiks-offers i stället för att flytta dem. Körningen 2026-08-17
+      # mergade fyra produkter oåterkalleligt — bl.a. "Kanto Friends Mini Tins: Eevee
+      # Tin" → "Kanto Friends Mini Tin 5-Pack Bundle", en enstyckstin in i ett
+      # 5-pack — utan att någon människa såg det, och loggen sa `0 raderade` eftersom
+      # `gtin-fix.ts` hårdkodar `const deleted = 0` och skickar `() => {}` som logger.
+      #
+      # Vakterna som gatar mergen är 9 av 16: packVsBoxMismatch, cardCountMismatch,
+      # premiumGradeMismatch, setCodeMismatch, regionVersionMismatch,
+      # blisterCharacterMismatch och deckCharacterMismatch finns i matching.ts men är
+      # inte importerade i gtin-fix.ts. `--apply` får återinföras när (a) de sju vakterna
+      # är med i GUARDS, (b) faktiska raderingar loggas, och (c) herrelösa offer-URL:er
+      # hanteras (orphanedOfferUrlsForMerge) enligt .claude/rules/catalog-curation.md.
       - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
-        run: npx tsx scripts/gtin-fix.ts --apply
+        run: npx tsx scripts/gtin-fix.ts
       # Stub-dedup: auto-importens dubblettprodukter (olika butiksnamn på samma SKU)
       # merge:as LLM-verifierat (Haiku, två titlar/anrop). Se src/jobs/dedupe-stubs.ts.
       # Streckkods-identiska stubbar merge:as redan gratis inuti jobbet (gtinMerges).
