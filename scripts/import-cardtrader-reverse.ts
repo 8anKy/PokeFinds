@@ -2,7 +2,7 @@
  * Kör reverse holo-importen. Torrkörning som standard.
  *
  *   npx tsx scripts/import-cardtrader-reverse.ts                 # torrt, hela katalogen
- *   SETS=5 npx tsx scripts/import-cardtrader-reverse.ts          # torrt, 5 nyaste seten
+ *   SETS=5 npx tsx scripts/import-cardtrader-reverse.ts          # torrt, 5 STALASTE seten
  *   APPLY=1 npx tsx scripts/import-cardtrader-reverse.ts         # SKRIVER
  *
  * Efter en skarp körning: `recomputeProductPriceCache()` måste ha kört, annars

@@ -245,6 +245,10 @@ export async function runCardTraderReverseImport(opts: {
   // fråga, i stället för en SELECT per produkt.
   const obs = await createObservationWriter(apply);
 
+  /** Hur ofta en mellansumma skrivs. 20 ger ~8 rader per avbruten körning. */
+  const PROGRESS_EVERY = 20;
+  let setsDone = 0;
+
   // ⛔ STALASTE SETET FÖRST — ALDRIG EN FAST ORDNING.
   //
   // Ordningen var `releaseDate: "desc"` (nyast först). Med jobbets 60-minuterstak
@@ -346,10 +350,27 @@ export async function runCardTraderReverseImport(opts: {
     };
     // PER SET, inte löpande totaler: en logg som räknar upp globalt läser som om
     // varje set vore större än det förra.
-    const logSet = () =>
+    const logSet = () => {
       console.log(
         `[ct-reverse] ${set.name.padEnd(30).slice(0, 30)} nya ${String(res.productsCreated - before.created).padStart(4)} · offers ${String(res.offersUpserted - before.offers).padStart(4)} · tunt ${res.rejectedThin - before.thin} · orimligt ${res.rejectedImplausible - before.implausible} · TCGdex nej ${res.gateRejected - before.gateNo}`
       );
+      // ⛔ MELLANSUMMA MED JÄMNA MELLANRUM — ANNARS ÄR RÄKNARNA OLÄSBARA I DRIFT.
+      //
+      // Slutsammanfattningen i scripts/import-cardtrader-reverse.ts skrivs först
+      // när HELA katalogen är genomgången. Jobbet hinner inte det: en full
+      // genomgång tar ~2,5 h mot workflowets 60-minuterstak, så körningen
+      // avbryts mitt i och slutraderna skrivs ALDRIG. Räknarna fanns alltså men
+      // gick inte att läsa någonstans — inklusive `noReverseMarket`, som lades
+      // till just för att kunna skilja "marknaden saknas" från "vakten fällde".
+      // En mellansumma i loggen gör siffrorna läsbara även för en avbruten
+      // körning, utan att kosta ett enda extra API-anrop.
+      setsDone++;
+      if (setsDone % PROGRESS_EVERY === 0) {
+        console.log(
+          `[ct-reverse] — MELLANSUMMA efter ${setsDone} set: nya ${res.productsCreated} · offers ${res.offersUpserted} · tunt ${res.rejectedThin} · orimligt ${res.rejectedImplausible} · ingen reverse-marknad ${res.noReverseMarket} · TCGdex nej ${res.gateRejected} · TCGdex okänt ${res.gateUnknown}`
+        );
+      }
+    };
 
     const baseByCard = new Map<string, (typeof products)[number]>();
     const reverseByCard = new Map<string, (typeof products)[number]>();
