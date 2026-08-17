@@ -47,6 +47,7 @@ import {
   RogerzAdapter,
   YonkoTcgAdapter,
   FiregamesAdapter,
+  TcgPicksAdapter,
 } from "@/scrapers/adapters/shopify-adapter";
 import {
   SwepokeAdapter,
@@ -181,6 +182,8 @@ const SCRAPER_ADAPTERS: Record<string, new () => SourceAdapter> = {
   Leksaksaffären: LeksaksaffarenAdapter,
   NordicTCG: NordicTcgAdapter,
   Coolcard: CoolcardAdapter,
+  // ---- Wave 6 (2026-08-17) ----
+  "TCG Picks": TcgPicksAdapter,
 };
 
 export function getAdapter(type: SourceType, sourceName?: string): SourceAdapter {

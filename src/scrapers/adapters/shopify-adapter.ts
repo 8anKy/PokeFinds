@@ -573,3 +573,30 @@ export class FiregamesAdapter extends ShopifyAdapter {
   name = "Firegames";
   baseUrl = "https://firegames.se";
 }
+
+// ---------- Wave 6: Shopify-butiker (2026-08-17) ----------
+// TCG Picks (Skene) — ägaren såg deras Storm Emeralda-restock i en KONKURRENTS
+// Discord men inte i vår. Butiken fanns inte som källa alls.
+//
+// ⛔ `tcgpicks.se` 301:ar till `tcgpicks.com` — bas-URL:en MÅSTE vara .com. En 301 är
+//    gratis bara för webbläsare (samma regel som apex-domänen i CLAUDE.md): feed-URL:er
+//    byggs av adaptern och `politeFetch` hämtar robots.txt för den värd vi PEKAR PÅ.
+//
+// wholeCatalog för att kollektionsNAMN-filtret strukturellt inte kan fungera här:
+// butiken har 20 kollektioner och de som bär sealed heter "booster-boxes",
+// "elite-trainer-boxes", "sealed-products" och "upc-spc-boxes" — INGEN med "pokemon"
+// i namn eller handle (mätt 2026-08-17). Namnfiltret hade hittat fyra hyllor, varav
+// tre är singlar/graderat/displaystativ. Hela katalogen är 888 produkter = **4
+// hämtningar** (250+250+250+138 → sista sidan bryter loopen), alltså BILLIGARE än
+// kollektionsvägen och utan tyst tak.
+// ⛔ INGEN `wholeCatalogPokemonOnly`: 784 av 888 är löskort och 55 sealed, och alla
+//    839 bär "Pokemon TCG - …" som product_type — markörfiltret hade alltså inte tagit
+//    bort singlarna (de fälls nedströms av isSingleCardListing ändå), bara de 49
+//    otypade raderna (slab guards, pärmar, 3D-figurer). Samma skäl som Kanto Vault:
+//    ren Pokémon-butik ⇒ ofiltrerad wholeCatalog, ingen risk att en framtida sealed-SKU
+//    utan markör faller ur feeden tyst.
+export class TcgPicksAdapter extends ShopifyAdapter {
+  name = "TCG Picks";
+  baseUrl = "https://tcgpicks.com";
+  protected wholeCatalog = true;
+}

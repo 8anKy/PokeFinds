@@ -134,6 +134,19 @@ paths:
   (sleeves/pärmar/tärningar) — splittas de blir varje FÄRG en annons med huvudboksrad och ett "ny produkt"-larm.
   Kräv därför att VARJE variant nämner en Pokémon + tillbehörsvakten. Migrering av gammal data:
   `scripts/split-shopify-variants.ts` (torrkörning default).
+- **BUTIKS-WAVE 6 = TCG PICKS (2026-08-17)**: ägaren såg en Storm Emeralda-restock i en KONKURRENTS
+  Discord men inte i vår — butiken fanns inte som källa alls. `TcgPicksAdapter` (Shopify,
+  `wholeCatalog`), registrering via `scripts/setup-wave6-sources.ts --apply --restock`. 43 bevakade.
+  ⛔ **BAS-URL:EN ÄR `.com`**: `tcgpicks.se` 301:ar till `tcgpicks.com`, och adaptern bygger sina
+  egna feed-URL:er — en 301 är gratis bara för webbläsare (samma regel som apex-domänen).
+  **Mätt före påslag**: 888 produkter = **4 hämtningar** (sista sidan bryter loopen), 861 i lager,
+  varav 55 sealed. Kollektionsvägen kan strukturellt inte fungera här — butikens sealed-hyllor heter
+  "booster-boxes"/"elite-trainer-boxes"/"sealed-products"/"upc-spc-boxes", INGEN med "pokemon" i
+  namnet, medan de fyra som matchar namnfiltret är singlar/graderat/displaystativ.
+  ⚠️ **~60 PROMOSINGLAR PASSERAR `isSingleCardListing`** ("Chimchar 041 - Mega Evolution Black Star
+  Promos" — namn + löst nummer, ingen "X/Y"-bråkform). De stoppas av KATEGORIGRINDEN i stället:
+  alla landar i `OTHER`, som både auto-importen och Discord-lanen fäller. Vidgas OTHER någon gång
+  måste den här klassen mätas om FÖRST.
 - **BUTIKS-WAVE 5 + TÄCKNINGSREVISION (2026-08-13)**: ägaren pekade ut två konkurrentlistor + Carsmästaren.
   (1) **TÄCKNINGSREVISION AV ALLA 34** (fullständig rapport i sessionsloggen): namnfiltret på Shopify-
   kollektioner MISSADE stora delar av sortimentet — Speltrollet 281 sealed osynliga (butiken har slutat
@@ -160,8 +173,13 @@ paths:
   granskningar 08-13; läs alltid HELA filen. ⛔ **CARSMÄSTAREN EJ TILLAGD**: Abicart-JSON-RPC:n
   (webshop 89109) är verifierad fungerande, men varje värd som serverar den har `Disallow:
   /backend` — "dokumenterat publikt API vs robots" är ett ÄGARBESLUT som väntar.
-  ⚠️ **Arcade Dreams robots.txt har ÄNDRATS på riktigt** (hela filen läst) — blanket-Disallow
-  borta; butiken är åter möjlig att bygga.
+  ⛔ **ARCADE DREAMS ÄR FORTFARANDE BLOCKERAD — noteringen 08-13 om att blanket-spärren var borta
+  var FEL (omprövad 2026-08-17, hela filen läst).** robots.txt är ~180 rader: en `User-agent: *`
+  med sökvägsregler i toppen, sedan en lång allow-lista för namngivna bottar (Googlebot,
+  ClaudeBot, GPTBot …) — och SIST `# Block all other unknown bots` + `User-agent: * / Disallow: /`.
+  Exakt samma form som Playoteket, och exakt samma fälla: filen ser tillåtande ut om man läser
+  toppen eller mitten. **Läs alltid HELA robots.txt, och läs den igen innan en butik byggs** —
+  två granskningar har nu gått på det här mönstret på tre olika sajter.
   (3) **REVISION AV KOHORTEN (samma dag, `scripts/audit-new-products.ts` — 7 mekaniska tekniker +
   2 LLM-domare, rapport utan DB-skrivningar; DB-läsningen cachas i `.audit-cache/` så domarna kan
   köras om utan att väcka Neon). 898 nya produkter, och två vakter hade hål:

@@ -225,6 +225,22 @@ async function main() {
   const knownSets: KnownSet[] = buildKnownSets(routesData);
 
   const ageH = routesData.at ? (Date.now() - routesData.at) / 3600_000 : null;
+  // ⛔ EN GAMMAL RUTTABELL DEGRADERAR TYST, OCH SYMPTOMET SYNS BARA I DISCORD.
+  //    Filen skrivs av scrape-all (02:00 UTC) och av restock-watch när den skapat
+  //    offers; lanen RESTAURERAR den ur Actions-cachen på prefix. Slutar båda
+  //    skribenterna fungera evictas cachen aldrig (den träffas ju varje körning) —
+  //    den bara ÅLDRAS, och lanen kör vidare grönt med en allt sämre tabell. Följden
+  //    är precis det ägaren rapporterade 2026-08-17: inlägg som faller tillbaka på
+  //    setlänken ("Hos oss") i stället för att peka på produktsidan, plus nya butiker
+  //    som aldrig hämtas. Ett dygn + marginal är taket; äldre än så är ett FEL att
+  //    felsöka uppströms, inte en detalj i en loggrad ingen läser.
+  if (ageH != null && ageH > 30) {
+    console.warn(
+      `[discord-restock] ⚠️ RUTTABELLEN ÄR ${ageH.toFixed(1)} h GAMMAL (skrivs varje natt av ` +
+        `scrape-all). Nya butiker saknas och fler inlägg får setlänk i stället för ` +
+        `produktlänk. Kontrollera export-restock-routes.ts i scrape-all.`
+    );
+  }
   const storesEnv = process.env.DISCORD_RESTOCK_STORES?.trim();
   const onlySources =
     storesEnv === "all"

@@ -77,6 +77,33 @@ allt annat butikerna säljer var osynligt, och bortfallet gick inte att skilja f
   före setet ("Mega Evolution - Chaos Rising Booster"). Längsta-namn-matchning ensam hade lagt varan
   i basutgåvans kanal.
 
+## ⛔ "HOS OSS"-SETLÄNKEN ÄR INTE EN BUGG — MÄTT 2026-08-17 (öppna inte frågan igen utan nya siffror)
+Ägaren rapporterade att inlägg ibland länkar till HELA SETET ("Hos oss") i stället för till varan
+("Prishistorik → Se på Foilio"). **Mätt två vägar samma dag:**
+- **Faktiskt postade larm, senaste dygnet** (40 unika URL:er ur 40 lyckade körningars loggar):
+  **39 av 40 hade produktlänk.** Den enda utan var Rogerz "Pokémon TCG: Pitch Black Checklane
+  Blister" — en KARAKTÄRSLÖS blistertitel, medan katalogen (som CM) har en SKU per karaktär.
+- **Hela lagerläget hos alla 42 butiker** (`scripts/audit-discord-product-links.ts`): 1 546 postbara,
+  **95,7 % produktlänk via rutt**, 3,2 % bara setlänk, 0,3 % ingen länk alls.
+⛔ **SVANSEN ÄR VAROR VI MED FLIT INTE HAR I KATALOGEN**: av de 49 setlänkarna är nästan alla CASE /
+DISPLAY / PACKSTACK ("Booster Box Case", "Sealed Case (6 Boxes)", "Booster Bundle Display",
+"4x … (1x Packstack)", "Tin (4 Pack)") — `classifyForm` returnerar `multipack`/`case` och matcharen
+avvisar dem per konstruktion. De HAR ingen produktsida, och att peka dem på enkelboxen vore fel pris
+och fel vara.
+⛔ **EN TITELMATCHNING MOT KATALOGEN ÄR PRÖVAD OCH FÖRKASTAD.** `matchListingToProduct` (Traderas
+riktade matchare) körd blint mot setets sealed-produkter gav 13 träffar av 49 — och de flesta var
+MYNTKAST: "Journey Together Premium Checklane" → "…Rhyperior Premium Checklane" (0,74), "Perfect
+Order 3-Pack Blister" → "…Makuhita 1-Pack Blister" (0,71), "Pitch Black 3-Pack Blister" →
+"…Slowpoke 1-Pack Blister". Funktionen saknar med flit `blisterCharacterMismatch`/`packVsBoxMismatch`
+(den förutsätter att produkten redan är känd via namnsökning) — de vakterna sitter i `matchProducts`
+egen loop. Med dem tillagda återstår ~1 räddad av 49, till priset av ett produktindex i
+ruttabellsfilen, matchnings-CPU i en lane som kör dygnet runt, och risken för en FELAKTIG
+produktlänk i en publik kanal. **Bygg det inte utan att först mäta att svansen ser annorlunda ut.**
+⚠️ **DET SOM DÄREMOT KAN DEGRADERA TYST ÄR RUTTABELLENS ÅLDER.** Filen restaureras ur Actions-cachen
+på PREFIX och träffas varje körning, så den evictas aldrig — den bara åldras om scrape-all slutar
+skriva den, och då får fler och fler inlägg setlänk medan körningarna förblir gröna. `ageH > 30 h`
+loggar numera en varning.
+
 ## ⛔ FRÅNVARO HAR ETT MINNE (2026-08-16)
 `mergeStateMap` GLÖMMER en URL som försvinner ur en levererande feed. Det gav två fel åt var sitt håll:
 - **ROTERANDE BUTIKER TAPPADE ÄKTA PÅFYLLNINGAR.** Shinycards och Swepoke levererar en roterande
