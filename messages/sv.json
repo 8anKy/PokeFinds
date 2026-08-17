@@ -95,7 +95,9 @@
     "marketTrends": "Marknadstrender",
     "scanCards": "Skanna kort",
     "pricingPro": "Priser & Pro",
+    "allSets": "Alla set",
     "communityHeading": "Community",
+    "discord": "Discord",
     "feed": "Flödet",
     "pulls": "Pulls",
     "trades": "Trades",
@@ -405,11 +407,35 @@
     "lastUpdated": "Senast uppdaterad: {date}"
   },
   "Community": {
-    "metaTitle": "Community",
+    "metaTitle": "Community för svenska samlare",
     "metaDescription": "Community på Foilio: pulls, byten och marknadssnack för svenska Pokémon TCG-samlare. Snart här.",
     "h1": "Community",
     "comingSoon": "Snart här",
     "placeholderBody": "Vi bygger en plats för pulls, byten och marknadssnack. Av samlare, för samlare. Håll utkik, den öppnar snart."
+  },
+  "Discord": {
+    "metaTitle": "Pokémon TCG Discord för Sverige",
+    "metaDescription": "Gå med i Foilios Discord — samlingsplatsen för Pokémon TCG i Sverige. Restock-larm från svenska butiker i realtid, prissnack, pulls och byten. Gratis.",
+    "h1": "Pokémon TCG Discord för svenska samlare",
+    "subtitle": "Foilios Discord-server — restocks, priser och pulls, på svenska.",
+    "intro": "Vi startade Foilios Discord av samma skäl som vi byggde Foilio: det fanns ingen svensk plats där man fick veta att en display släppts innan den redan var slutsåld. Servern är gratis, öppen för alla och kräver inget Foilio-konto.",
+    "cta": "Gå med i Discord",
+    "ctaNote": "Gratis · inget Foilio-konto krävs",
+    "insideTitle": "Vad servern är till för",
+    "inside1Lead": "Restock-larm i realtid",
+    "inside1Text": "Samma bevakning som driver Foilios larm postas i servern — oftast inom en minut efter att butiken lagt upp produkten. Vi bevakar över 40 svenska butiker.",
+    "inside2Lead": "Prissnack och marknadsläge",
+    "inside2Text": "Vad är kortet värt, är displayen övervärderad, håller trenden? Snack med folk som faktiskt följer den svenska marknaden.",
+    "inside3Lead": "Pulls och byten",
+    "inside3Text": "Visa upp dagens drag, jämför pulls och hitta någon att byta med. Svenska samlare, svenska frakter.",
+    "inside4Lead": "Direktkontakt med oss som bygger",
+    "inside4Text": "Saknas en butik i bevakningen eller är något fel i katalogen? Skriv i servern — det är snabbaste vägen in till oss.",
+    "whoTitle": "Vem passar servern för?",
+    "whoBody": "Dig som samlar Pokémon-kort i Sverige — oavsett om du jagar sealed till hyllan, bygger set nummer för nummer eller bara vill veta när nästa Elite Trainer Box landar. Nybörjare är lika välkomna som den som haft pärmarna i ordning sedan Base Set.",
+    "rulesTitle": "Ordningsregler, kort och gott",
+    "rulesBody": "Svenska eller engelska går lika bra. Ingen spam, inga scams, ingen otrevlighet. Byten och försäljning sker mellan medlemmar — Foilio är inte part i affären och förmedlar inga betalningar.",
+    "alsoTitle": "Foilio i övrigt",
+    "alsoBody": "Discord är den enda platsen där restocks postas i realtid. Vill du ha larmen som push i mobilen finns appen på App Store, och <catalog>hela katalogen med priser och prishistorik</catalog> ligger här på sajten."
   },
   "DiscordTip": {
     "title": "Vill du ha den ännu snabbare?",
@@ -729,7 +755,7 @@
     "s7bOutro": "Kopplingarna är alltid frivilliga och kan tas bort i Inställningar."
   },
   "About": {
-    "metaTitle": "Om Foilio",
+    "metaTitle": "Om oss",
     "metaDescription": "Foilio är Sveriges marknadsplattform för Pokémon TCG: prisbevakning, restock-alerts och samlingsverktyg.",
     "h1": "Om Foilio",
     "subtitle": "Sveriges Pokémon TCG-plattform",
@@ -1133,7 +1159,7 @@
     "addedToCollectionN": "{count, plural, =1 {Tillagd i samlingen} other {# ex tillagda i samlingen}}"
   },
   "Market": {
-    "metaTitle": "Marknad",
+    "metaTitle": "Marknadsläget för Pokémon-kort",
     "metaDescription": "Marknadsöversikt för Pokémon TCG i Sverige: trender, prisfall, mest bevakade produkter, restocks och prisindex per set.",
     "h1": "Marknaden",
     "intro": "Läget på den svenska Pokémon TCG-marknaden just nu, uppdaterat löpande.",
@@ -1177,7 +1203,7 @@
     "OTHER": "Övriga"
   },
   "Products": {
-    "metaTitle": "Utforska produkter",
+    "metaTitle": "Utforska Pokémon-kort och sealed",
     "metaDescription": "Sök och jämför priser på Pokémon TCG-produkter hos svenska butiker. Filtrera på kategori, set, pris och lagerstatus.",
     "h1": "Utforska produkter",
     "intro": "Jämför priser och lagerstatus hos svenska butiker, och bevaka det du inte vill missa.",
@@ -1271,8 +1297,9 @@
     "removeFilter": "Ta bort filtret {name}"
   },
   "Sets": {
-    "metaTitle": "Set",
+    "metaTitle": "Alla Pokémon TCG-set",
     "metaDescription": "Bläddra bland alla Pokémon TCG-set: serier, releasedatum och produkter med aktuella priser.",
+    "detailTitle": "{name} — priser och kort",
     "h1": "Set",
     "intro": "Alla set vi följer, med produkter, priser och prisindex.",
     "emptyTitle": "Inga set ännu",
@@ -1394,7 +1421,8 @@
     "traderaSeeAll": "Se alla på Tradera",
     "metaNotFound": "Produkten hittades inte",
     "fallbackCategory": "Produkt",
-    "metaDescription": "Jämför priser på {title} ({category}) hos svenska butiker. Lägsta pris just nu: {price}. Bevaka pris och restock på Foilio."
+    "metaDescription": "Jämför priser på {title} ({category}) hos svenska butiker. Lägsta pris just nu: {price}. Bevaka pris och restock på Foilio.",
+    "metaDescriptionNoPrice": "Jämför priser på {title} ({category}) hos svenska butiker. Bevaka pris och restock på Foilio."
   },
   "Upgrade": {
     "currentPlan": "Din nuvarande plan ✓",
@@ -1420,7 +1448,7 @@
     "msgFailed": "Köpet kunde inte slutföras."
   },
   "Pricing": {
-    "metaTitle": "Priser",
+    "metaTitle": "Priser och Pro",
     "metaDescription": "Kom igång gratis med Foilio eller uppgradera till Pro för obegränsade bevakningar, alla restock-larm och AI-gradering.",
     "h1": "Enkel prissättning, inga överraskningar",
     "subtitle": "Kom igång gratis. Uppgradera när du vill ha full koll på marknaden. Säg upp när som helst.",

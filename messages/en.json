@@ -95,7 +95,9 @@
     "marketTrends": "Market trends",
     "scanCards": "Scan cards",
     "pricingPro": "Pricing & Pro",
+    "allSets": "All sets",
     "communityHeading": "Community",
+    "discord": "Discord",
     "feed": "The feed",
     "pulls": "Pulls",
     "trades": "Trades",
@@ -405,11 +407,35 @@
     "lastUpdated": "Last updated: {date}"
   },
   "Community": {
-    "metaTitle": "Community",
+    "metaTitle": "Community for Swedish collectors",
     "metaDescription": "Community on Foilio: pulls, trades and market talk for Swedish Pokémon TCG collectors. Coming soon.",
     "h1": "Community",
     "comingSoon": "Coming soon",
     "placeholderBody": "We're building a place for pulls, trades and market talk. By collectors, for collectors. Stay tuned, it opens soon."
+  },
+  "Discord": {
+    "metaTitle": "Pokémon TCG Discord for Sweden",
+    "metaDescription": "Join Foilio's Discord — the gathering place for Pokémon TCG in Sweden. Real-time restock alerts from Swedish stores, price talk, pulls and trades. Free.",
+    "h1": "Pokémon TCG Discord for Swedish collectors",
+    "subtitle": "Foilio's Discord server — restocks, prices and pulls, in Swedish.",
+    "intro": "We started Foilio's Discord for the same reason we built Foilio: there was no Swedish place to hear that a display had dropped before it was already sold out. The server is free, open to everyone and needs no Foilio account.",
+    "cta": "Join the Discord",
+    "ctaNote": "Free · no Foilio account required",
+    "insideTitle": "What the server is for",
+    "inside1Lead": "Real-time restock alerts",
+    "inside1Text": "The same monitoring that powers Foilio's alerts is posted in the server — usually within a minute of the store publishing the product. We watch more than 40 Swedish stores.",
+    "inside2Lead": "Price talk and market reads",
+    "inside2Text": "What's the card worth, is the display overpriced, does the trend hold? Talk with people who actually follow the Swedish market.",
+    "inside3Lead": "Pulls and trades",
+    "inside3Text": "Show off today's hit, compare pulls and find someone to trade with. Swedish collectors, Swedish shipping.",
+    "inside4Lead": "Direct line to the people building it",
+    "inside4Text": "Missing a store in the monitoring, or found something wrong in the catalogue? Post it in the server — it's the fastest way to reach us.",
+    "whoTitle": "Who is the server for?",
+    "whoBody": "Anyone collecting Pokémon cards in Sweden — whether you're chasing sealed for the shelf, building sets number by number, or just want to know when the next Elite Trainer Box lands. Beginners are as welcome as the person who has kept their binders in order since Base Set.",
+    "rulesTitle": "House rules, briefly",
+    "rulesBody": "Swedish or English both work. No spam, no scams, no rudeness. Trades and sales happen between members — Foilio is not a party to the deal and handles no payments.",
+    "alsoTitle": "Foilio elsewhere",
+    "alsoBody": "Discord is the only place restocks are posted in real time. If you want the alerts as push notifications, the app is on the App Store, and <catalog>the full catalogue with prices and price history</catalog> lives here on the site."
   },
   "DiscordTip": {
     "title": "Want it even faster?",
@@ -729,7 +755,7 @@
     "s7bOutro": "The connections are always optional and can be removed in Settings."
   },
   "About": {
-    "metaTitle": "About Foilio",
+    "metaTitle": "About us",
     "metaDescription": "Foilio is Sweden's marketplace platform for Pokémon TCG: price tracking, restock alerts and collection tools.",
     "h1": "About Foilio",
     "subtitle": "Sweden's Pokémon TCG platform",
@@ -1133,7 +1159,7 @@
     "addedToCollectionN": "{count, plural, =1 {Added to your collection} other {# added to your collection}}"
   },
   "Market": {
-    "metaTitle": "Market",
+    "metaTitle": "Pokémon card market overview",
     "metaDescription": "Market overview for Pokémon TCG in Sweden: trends, price drops, most watched products, restocks and a price index per set.",
     "h1": "The market",
     "intro": "The state of the Swedish Pokémon TCG market right now, updated continuously.",
@@ -1177,7 +1203,7 @@
     "OTHER": "Other"
   },
   "Products": {
-    "metaTitle": "Explore products",
+    "metaTitle": "Explore Pokémon cards and sealed",
     "metaDescription": "Search and compare prices on Pokémon TCG products at Swedish stores. Filter by category, set, price and stock status.",
     "h1": "Explore products",
     "intro": "Compare prices and stock status at Swedish stores, and watch what you don't want to miss.",
@@ -1271,8 +1297,9 @@
     "removeFilter": "Remove filter {name}"
   },
   "Sets": {
-    "metaTitle": "Sets",
+    "metaTitle": "All Pokémon TCG sets",
     "metaDescription": "Browse all Pokémon TCG sets: series, release dates and products with current prices.",
+    "detailTitle": "{name} — prices and cards",
     "h1": "Sets",
     "intro": "Every set we track, with products, prices and a price index.",
     "emptyTitle": "No sets yet",
@@ -1394,7 +1421,8 @@
     "traderaSeeAll": "See all on Tradera",
     "metaNotFound": "Product not found",
     "fallbackCategory": "Product",
-    "metaDescription": "Compare prices on {title} ({category}) at Swedish stores. Lowest price right now: {price}. Track price and restock on Foilio."
+    "metaDescription": "Compare prices on {title} ({category}) at Swedish stores. Lowest price right now: {price}. Track price and restock on Foilio.",
+    "metaDescriptionNoPrice": "Compare prices on {title} ({category}) at Swedish stores. Track price and restock on Foilio."
   },
   "Upgrade": {
     "currentPlan": "Your current plan ✓",
@@ -1420,7 +1448,7 @@
     "msgFailed": "The purchase couldn't be completed."
   },
   "Pricing": {
-    "metaTitle": "Pricing",
+    "metaTitle": "Pricing and Pro",
     "metaDescription": "Get started free with Foilio or upgrade to Pro for unlimited watches, all restock alerts and AI grading.",
     "h1": "Simple pricing, no surprises",
     "subtitle": "Get started free. Upgrade when you want full control of the market. Cancel any time.",

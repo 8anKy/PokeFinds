@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { alternatesFor } from "@/lib/canonical";
+import { alternatesFor, localeUrl } from "@/lib/canonical";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { notFound } from "next/navigation";
@@ -65,7 +65,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   });
   if (!set) return { title: t("notFound") };
   return {
-    title: set.name,
+    // Bara `set.name` gav en flik och en SERP-rad som lyder "Surging Sparks | Foilio"
+    // — ett setnamn utan ett ord om att sidan visar PRISER och kort. Den som söker
+    // "surging sparks pris" har ingen anledning att klicka på ett bart namn.
+    title: t("detailTitle", { name: set.name }),
     description: t("detailDescription", { name: set.name, series: set.series }),
     alternates: alternatesFor(params.locale, `/sets/${params.id}`),
   };
@@ -97,8 +100,41 @@ export default async function SetPage({ params }: PageProps) {
   // bevakningsknappen ("larm på 26 sealed-produkter").
   const sealedCount = products.filter((p) => isSealedCategory(p.category)).length;
 
+  // Speglar EXAKT den synliga stigen nedan (Set / {set.name}): samma två steg, samma
+  // ordning, samma namn. Strukturerad data som påstår något sidan inte visar är det
+  // Google utfärdar manuella åtgärder för — här finns per konstruktion inget glapp.
+  // ⛔ Ingen ny fråga: namnet kommer ur `getSet` ovan och id:t ur `params`.
+  // Noden bor därför i sidan och inte i `generateMetadata` — Metadata-API:t skriver
+  // `<meta>`/`<link>`, JSON-LD måste renderas som en tagg i själva sidan.
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: t("breadcrumb"),
+        item: localeUrl(params.locale, "/sets"),
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: set.name,
+        item: localeUrl(params.locale, `/sets/${params.id}`),
+      },
+    ],
+  };
+
   return (
     <div className="mx-auto max-w-7xl px-2.5 py-10 sm:px-6">
+      {/* <-escapen: JSON.stringify escapar inte "<", så ett setnamn med
+          "</script>" skulle annars bryta sig ut ur script-taggen. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(breadcrumbJsonLd).replace(/</g, "\\u003c"),
+        }}
+      />
       <nav aria-label={t("breadcrumb")} className="mb-6 text-sm text-ink-muted">
         <Link href="/sets" className="hover:text-ink">{t("breadcrumb")}</Link>
         <span className="mx-2 text-ink-faint" aria-hidden="true">/</span>

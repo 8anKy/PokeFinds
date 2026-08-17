@@ -1,5 +1,6 @@
 import { routing } from "@/i18n/routing";
 import { localeUrl } from "@/lib/canonical";
+import { APP_STORE_URL, DISCORD_URL, INSTAGRAM_URL, TIKTOK_URL } from "@/lib/social-links";
 
 /**
  * `Organization` + `WebSite` som JSON-LD — schemat Google använder för att förstå
@@ -45,6 +46,21 @@ export function SiteSchema({ locale }: { locale: string }) {
         name: "Foilio",
         url: root,
         logo: `${origin}/brand/foilio-logo.png`,
+        // ⛔ VAD `sameAs` FAKTISKT GÖR — och inte gör. Det är en IDENTITETSSIGNAL:
+        // "profilerna nedan är samma enhet som den här domänen". Den används för
+        // entitetsförståelse (kunskapspanel, varumärkeskluster), och det är hela
+        // vinsten. Den får INTE discord.gg att ranka på något — utgående länkar har
+        // aldrig kunnat lyfta målet, och en `sameAs` är inte ens en klickbar länk.
+        // Lova aldrig annat i en rapport.
+        // ⛔ VARFÖR DET ÄNDÅ ÄR VÄRT DET: "Foilio" är ett namn vi delar med minst två
+        // orelaterade verksamheter, och utan sameAs finns ingen maskinläsbar tråd
+        // mellan domänen, App Store-appen och våra konton — Google får klustra på
+        // gissning. Det här är dessutom den ENDA strukturerade signalen om att Foilio
+        // har en Discord; den syns annars bara som en vanlig länk i sidfoten.
+        // ⛔ BARA PROFILER VI ÄGER. `sameAs` är ett påstående om identitet: en butiks-,
+        // återförsäljar- eller omnämnandelänk här beskriver oss som någon annan.
+        // Adresserna bor i @/lib/social-links (en definition, ändras DÄR).
+        sameAs: [APP_STORE_URL, DISCORD_URL, INSTAGRAM_URL, TIKTOK_URL],
       },
       {
         "@type": "WebSite",

@@ -35,6 +35,52 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // Sitemapen är flera megabyte och svarade `max-age=0, must-revalidate` — dvs
+        // INGEN cache alls. Varje crawler-hämtning (flera crawlers, flera gånger per
+        // dygn) byggde och serialiserade om hela XML:en i en heap som är capad till
+        // 512 MB (se Dockerfile), och en flermegabytes-sträng i den heapen är inte
+        // gratis.
+        //
+        // Ett dygn är inte en gissning: datat BAKOM svaret är redan cachat exakt så
+        // länge (`cachedRead("sitemapRows", 86400)` i src/app/sitemap.ts). Svaret kan
+        // alltså inte bli färskare än 24h hur ofta vi än bygger om det — vi betalade
+        // bara serialiseringen. `stale-while-revalidate` gör dessutom att hämtningen
+        // efter utgången serveras direkt ur cachen medan nästa byggs i bakgrunden, så
+        // ingen crawler får vänta på ett kallt bygge.
+        //
+        // ⚠️ `public` + `s-maxage` gäller DELADE cacher (Railways edge), inte en
+        // webbläsare — en sitemap har inga besökare. Och till skillnad från
+        // RSC-fallet nedan är edge-cachning här ofarlig: EN URL, ETT innehåll, ingen
+        // `Vary`-dimension som nyckeln kan missa.
+        //
+        // ⚠️ SVARET BÄR NU TVÅ `Cache-Control` (uppmätt mot `next start`): den här och
+        // ruttens egen `public, max-age=0, must-revalidate`. Config-headers LÄGGS TILL,
+        // de ersätter inte ruttens — och `force-dynamic` i sitemap.ts är det som ger
+        // rutten sin (den får inte tas bort: den finns för att INGEN DB-fråga ska köras
+        // under `next build`). Det är ofarligt men värt att veta varför det ser konstigt
+        // ut: RFC 9111 slår ihop fälten, och `s-maxage` övertrumfar `max-age` för en
+        // DELAD cache — så en edge cachar ett dygn. En cache som i stället tar sista
+        // fältet beter sig exakt som före ändringen. Utfallet kan alltså bli "som förut"
+        // men aldrig sämre. ⏭️ Bekräfta med `curl -sI https://foilio.se/sitemap.xml`
+        // efter deploy: `x-cache: HIT` på andra hämtningen = det tog.
+        //
+        // ⛔ REGELN MÅSTE LIGGA FÖRE RSC-REGELN. Alla matchande header-regler körs, och
+        // den SISTA som sätter samma nyckel vinner — låg den här efter RSC-regeln hade
+        // ett (i dag omöjligt, men billigt att utesluta) RSC-flaggat anrop mot
+        // /sitemap.xml fått `public, s-maxage=…` i stället för `no-store`, dvs exakt
+        // den edge-förgiftning RSC-regeln finns för att omöjliggöra.
+        //
+        // Behövs den tömd i förtid (nya set): pusha en deploy — cachen är per
+        // container. Sänk INTE värdet i stället; då är vi tillbaka i omserialiseringen.
+        source: "/sitemap.xml",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, s-maxage=86400, stale-while-revalidate=86400",
+          },
+        ],
+      },
+      {
         // RSC-FLIGHT-SVAR FÅR ALDRIG EDGE-CACHAS (incident 2026-07-05 + 2026-08-11):
         // Railways edge-CDN nycklar bara på URL (ignorerar Vary: RSC), så ett
         // klientnavigerings flight-svar (text/x-component) cachas under SAMMA

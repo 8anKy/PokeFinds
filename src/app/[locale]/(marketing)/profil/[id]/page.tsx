@@ -13,6 +13,28 @@ import { IconHeart, IconMessage, IconSparkle } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * ⛔ PROFILSIDAN INDEXERAS INTE (2026-08-17). Sidan är `force-dynamic` och gör
+ * `auth()` + tre DB-frågor per visning — varje crawl är alltså en Neon-väckning
+ * (minst 300 s debiterad tid) för en sida vars enda värde är för den som redan
+ * har länken. Att en användares namn, rykte och offentliga samling hamnar i ett
+ * sökresultat är dessutom inget hen har bett om.
+ *
+ * ⛔ Alternativet var ett `Disallow: /profil/` i robots.ts — VALT BORT med flit:
+ * en disallowad URL HÄMTAS ALDRIG, så Google läser aldrig noindex-taggen och
+ * URL:en förblir behörig för URL-only-indexering (bar länk, ingen titel, går
+ * inte att få bort). Noindex kräver att sidan får hämtas — den ena gången.
+ *
+ * Realiserad crawl-volym är ändå ~noll: INGENTING i repot länkar till /profil/
+ * (verifierat med `git grep "profil/"` 2026-08-17) och sitemapen listar den inte.
+ * Kostnaden är alltså inte det bindande skälet, integriteten är det.
+ *
+ * ⛔ Lägg INTE till `alternatesFor()` här. En kanonisk tagg är en INBJUDAN att
+ * crawla, och en ocachad force-dynamic DB-sida är precis vad vi inte vill bjuda
+ * in till. `follow: false` av samma skäl: de utgående länkarna pekar bara till
+ * community-inlägg, som redan nås via /community:s egen lista — ingen
+ * upptäcktsväg går förlorad.
+ */
 export async function generateMetadata({
   params,
 }: {
@@ -23,7 +45,10 @@ export async function generateMetadata({
     where: { id: params.id },
     select: { name: true },
   });
-  return { title: user ? t("metaSuffix", { name: user.name }) : t("metaNotFound") };
+  return {
+    title: user ? t("metaSuffix", { name: user.name }) : t("metaNotFound"),
+    robots: { index: false, follow: false },
+  };
 }
 
 export default async function ProfilePage({ params }: { params: { locale: string; id: string } }) {

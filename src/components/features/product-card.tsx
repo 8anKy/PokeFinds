@@ -3,7 +3,7 @@ import { Link } from "@/i18n/navigation";
 /* eslint-disable @next/next/no-img-element */
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/format";
-import { productDisplayName, productMetaLabel } from "@/lib/product-display";
+import { cardNumberLabel, productDisplayName, productMetaLabel } from "@/lib/product-display";
 import { PriceChange } from "@/components/ui/price-change";
 import { StockBadge } from "@/components/ui/badge";
 import { SafeImage } from "@/components/ui/safe-image";
@@ -75,9 +75,49 @@ export interface ProductCardProps {
     dealListingTitle?: string | null; // Fynd-feed: verifierad Tradera-annonstitel
   };
   className?: string;
+  /**
+   * Opt-in: kortets bild hämtas direkt i stället för lazy (se `SafeImage`).
+   *
+   * ⛔ Sätts av RUTNÄTET, aldrig av kortet självt — bara den som vet vilken
+   * ordning korten ligger i vet vilka som syns utan att besökaren scrollar.
+   * ⛔ Och bara på de FÖRSTA (en rad, inte en skärm): flaggan är en kö, så
+   * markeras allt är ingenting prioriterat och den första bilden blir
+   * långsammare än innan.
+   */
+  priority?: boolean;
 }
 
-export function ProductCard({ product, className }: ProductCardProps) {
+/**
+ * Alt-texten ska beskriva KORTET för den som inte ser bilden.
+ *
+ * `product.title` är den lagrade sök-/matchningsnyckeln och bakar in set och
+ * nummer med avdelare ("Umbreon · Obsidian Flames 130/197 · Specialversion") —
+ * en skärmläsare läser upp den rakt av, mittprickar och allt. Vi bygger därför
+ * en läsbar mening av delar cellen ÄNDÅ har i props: namn, kortnummer, set.
+ * Ingen ny data, ingen extra DB-läsning.
+ *
+ * ⛔ Sällsyntheten (`cardRarity`) utelämnas med flit trots att den finns i
+ * props: den beskriver kortets värde, inte vad man ser, och ett tredje
+ * kommatecken tippar meningen till en nyckelordslista. Alt-text LÄSES UPP — den
+ * är inte en rad att stoppa söktermer i.
+ * ⛔ Får ALDRIG bli tom: `alt=""` betyder "dekorativ bild, hoppa över" och
+ * bilden ÄR produkten här. `title` är sista utvägen, precis som förut.
+ */
+function productImageAlt(product: ProductCardProps["product"]): string {
+  const head = [productDisplayName(product), cardNumberLabel(product)]
+    .filter(Boolean)
+    .join(" ");
+  const setName = product.setName?.trim();
+  // Sealed bär oftast setet redan i titeln ("Obsidian Flames Elite Trainer
+  // Box") — upprepa det inte, då låter meningen som en lista igen.
+  const withSet =
+    setName && !head.toLowerCase().includes(setName.toLowerCase())
+      ? `${head}, ${setName}`
+      : head;
+  return withSet.trim() || product.title;
+}
+
+export function ProductCard({ product, className, priority = false }: ProductCardProps) {
   const tProduct = useTranslations("Product");
   const CategoryIcon = CATEGORY_ICONS[product.category] ?? CATEGORY_ICONS.OTHER;
   const name = productDisplayName(product);
@@ -114,8 +154,9 @@ export function ProductCard({ product, className }: ProductCardProps) {
             brunn, står rutan kvar och rutnätet slutar hoppa på 4G. */}
         <SafeImage
           src={product.imageUrl}
-          alt={product.title}
+          alt={productImageAlt(product)}
           ratio="square"
+          priority={priority}
           className="h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-105"
           fallback={
             <div

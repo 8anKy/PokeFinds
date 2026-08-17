@@ -7,7 +7,12 @@ import { localeUrl, alternatesFor } from "@/lib/canonical";
 // dirigerar aktivt bort indexeringen. Reglerna som kan glida är exakt två:
 // sv ligger på rot (localePrefix "as-needed") och en ligger på /en.
 
-const BASE = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+// ⛔ MÅSTE SPEGLA canonical.ts EXAKT — både variabeln OCH operatorn. Fallbacken
+// blev `https://foilio.se` 2026-08-17 (localhost i produktion = tyst avindexering),
+// och `||` i stället för `??` eftersom en TOM sträng är det verkliga felläget: `??`
+// släpper igenom "" och `new URL("")` kastar. Står `??` här men `||` i modulen går
+// testet grönt lokalt (där .env sätter variabeln) och rött i CI, som inte gör det.
+const BASE = process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se";
 
 describe("canonical", () => {
   it("lägger INGET prefix på svenska (standardspråket)", () => {

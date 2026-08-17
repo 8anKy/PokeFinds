@@ -9,6 +9,7 @@ import {
   CREATOR_REF_PARAM,
   creatorRefAction,
 } from "@/lib/creator-ref";
+import { LOCALE_COOKIE_NAME, dropSetCookie, shouldDropLocaleCookie } from "@/lib/locale-cookie";
 import {
   AUTH_HINT_COOKIE,
   AUTH_HINT_MAX_AGE,
@@ -167,13 +168,27 @@ export async function middleware(req: NextRequest) {
   const isProtected = PROTECTED_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
   if (!isProtected) {
     const res = captureCreatorRef(req, syncAuthHint(req, intlMiddleware(req)));
+    const hasSession = sessionCookieCandidates().some((n) => req.cookies.has(n));
     // Sessionen förnyas ÄVEN på publika sidor — annars hade den som mest bläddrar
     // i katalogen loggats ut trots daglig användning. `getToken` (en JWE-dekryptering)
     // körs bara när det FINNS en sessionscookie, så utloggade besökare — merparten
     // av den publika trafiken, och all crawler-trafik — kostar noll krypto.
-    if (sessionCookieCandidates().some((n) => req.cookies.has(n))) {
+    if (hasSession) {
       const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
       if (token) await renewSession(req, res, token);
+    }
+    // ⛔ SIST AV ALLT, OCH BARA HÄR. next-intl sätter `NEXT_LOCALE` på varje
+    // begäran som saknar BÅDE cookien och `Accept-Language` — dvs om och om igen
+    // för klienter som inte sparar cookies (crawlers, `curl`), en enda gång för
+    // en webbläsare. Ett svar med `Set-Cookie` lagras aldrig av Railways
+    // edge-cache (mätt: DYNAMIC→HIT när cookien ströks). Domen
+    // — inklusive "aldrig för en inloggad" — bor i lib/locale-cookie.ts, som
+    // också förklarar varför det här INTE sparar någon Neon-tid: Next:s egen
+    // ISR-cache var redan HIT, så ingen DB-väckning stod på spel. Strykningen
+    // måste ligga efter renewSession/syncAuthHint/captureCreatorRef eftersom ett
+    // senare `res.cookies.set(...)` bygger om hela Set-Cookie-headern.
+    if (shouldDropLocaleCookie(req.headers.get("accept-language"), hasSession)) {
+      dropSetCookie(res.headers, LOCALE_COOKIE_NAME);
     }
     return res;
   }

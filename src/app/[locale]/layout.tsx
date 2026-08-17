@@ -5,6 +5,7 @@ import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 import "@/styles/globals.css";
 import { routing } from "@/i18n/routing";
+import { baseOpenGraph } from "@/lib/canonical";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -30,19 +31,35 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const t = await getTranslations({ locale: params.locale, namespace: "Meta" });
   return {
-    metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
+    // ⛔ `||`, ALDRIG `??`: en tom miljövariabel (GitHub Actions expanderar en saknad
+    // repo-variabel till "") passerar `??` — och `new URL("")` KASTAR, dvs rot-layouten
+    // faller och HELA sajten svarar 500. Reserven är produktionsdomänen, inte localhost:
+    // en absolut URL mot localhost hade i stället avindexerat sajten tyst. Vaktat av
+    // tests/unit/env-empty-string-guard.test.ts.
+    metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se"),
     title: {
       default: t("title"),
       template: "%s | Foilio",
     },
     description: t("description"),
+    // Basen (type/siteName/og:locale/delningsbild) bor i baseOpenGraph() eftersom
+    // Nexts metadata-merge är GRUND per toppfält — se kommentaren där.
     openGraph: {
-      type: "website",
-      locale: t("ogLocale"),
-      siteName: "Foilio",
+      ...baseOpenGraph(params.locale),
       title: t("title"),
       description: t("ogDescription"),
     },
+    // Utan `twitter` faller X/Twitter tillbaka på en naken länk. Kortet ärver
+    // `og:image`/`og:title` automatiskt — därför bara korttypen här, ingen dubblerad
+    // bild- och titeldeklaration som kan glida isär från openGraph.
+    // ⚠️ `summary`, INTE `summary_large_image`: korttypen måste matcha BILDEN, och vår
+    // delningsbild är märket i kvadrat (1024×1024). X beskär ett stort kort till 2:1
+    // och hade kapat loggans över- och underkant; `summary` visar kvadraten hel.
+    // Byt hit `summary_large_image` samtidigt som `OG_IMAGE` blir ett riktigt
+    // 1200×630-kort (se lib/canonical.ts) — de två ändringarna hör ihop.
+    // ⚠️ Gäller BARA X. Discord, Slack, iMessage och Facebook läser `og:image` och
+    // bryr sig inte om den här raden.
+    twitter: { card: "summary" },
     icons: {
       icon: [
         { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
@@ -51,9 +68,17 @@ export async function generateMetadata({
       apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
     },
     manifest: "/manifest.json",
-    // Ägarverifiering för Google Search Console-egenskapen https://www.foilio.se
-    // (URL-prefix). ⛔ TA INTE BORT den efter att verifieringen gått igenom: Google
-    // kontrollerar taggen om med jämna mellanrum och AVVERIFIERAR egenskapen om den
+    // Ägarverifiering för Google Search Console. ⚠️ Egenskapen är sedan 2026-08-14 en
+    // DOMÄN-property för `foilio.se` (täcker apex + www, http + https i EN property och
+    // håller ihop historiken över värdbytet) — inte bara URL-prefixet
+    // https://www.foilio.se, som var ENDA egenskapen när raden skrevs. Den propertyn
+    // lever kvar (den hänger på en DNS-TXT utanför repot); apex blev kanonisk samma dag.
+    // Domän-propertyn verifierades via DNS-TXT på `@`; den här taggen och
+    // public/google892b920dceef4a34.html är de äldre bevisen. BÅDA stannar — vilket
+    // bevis som håller vilken property är inte värt att gissa i, och att behålla dem
+    // kostar ingenting.
+    // ⛔ TA INTE BORT NÅGOT AV BEVISEN efter att verifieringen gått igenom: Google
+    // kontrollerar beviset om med jämna mellanrum och AVVERIFIERAR egenskapen om det
     // försvunnit — då slutar sitemap-inlämning, indexeringsrapporter och
     // "Begär indexering" fungera, tyst och utan att något i appen felar.
     // ⛔ Hårdkodad med flit, INTE en env-variabel: token är publik per design (den

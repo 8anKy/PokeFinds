@@ -132,9 +132,11 @@ const KNOWN_GAPS: readonly string[] = [
   "src/jobs/cardmarket-refresh.ts:CARDMARKET_RAPIDAPI_HOST",
   "src/jobs/hot-card-refresh.ts:CARDMARKET_RAPIDAPI_HOST",
   "src/jobs/sealed-set-label.ts:CARDMARKET_RAPIDAPI_HOST",
-  "src/app/robots.ts:NEXT_PUBLIC_APP_URL",
-  "src/app/sitemap.ts:NEXT_PUBLIC_APP_URL",
-  "src/app/[locale]/layout.tsx:NEXT_PUBLIC_APP_URL",
+  // Städat 2026-08-17 (SEO-passet): robots.ts, sitemap.ts, [locale]/layout.tsx och
+  // lib/canonical.ts läser nu med `||` mot "https://foilio.se". Alla fyra byggde
+  // ABSOLUTA URL:er som Google läser — en tom variabel gav `http://localhost:3000` i
+  // canonical/sitemap (tyst självavindexering) och ett kastande `new URL("")` i
+  // rot-layouten. Raderna är borta här med flit: listan får bara krympa.
   "src/app/[locale]/(app)/admin/kreatorer/page.tsx:NEXT_PUBLIC_APP_URL",
   "src/app/api/auth/forgot/route.ts:NEXT_PUBLIC_APP_URL",
   "src/app/api/auth/resend-verification/route.ts:NEXT_PUBLIC_APP_URL",
@@ -143,7 +145,6 @@ const KNOWN_GAPS: readonly string[] = [
   "src/app/api/tradera/callback/route.ts:NEXT_PUBLIC_APP_URL",
   "src/app/api/tradera/connect/route.ts:NEXT_PUBLIC_APP_URL",
   "src/app/api/unsubscribe/route.ts:NEXT_PUBLIC_APP_URL",
-  "src/lib/canonical.ts:NEXT_PUBLIC_APP_URL",
   "src/lib/discord.ts:NEXT_PUBLIC_APP_URL",
 ];
 

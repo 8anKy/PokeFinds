@@ -24,7 +24,22 @@ const DEFAULT_INVITE_CODE = "kpgmdEebgW";
 /** Tipsets egen kod. Tom sträng ⇒ fallback ovan. */
 const WATCH_INVITE_CODE = "";
 
+/**
+ * Landningssidans egen kod (`/discord`). Den sidan finns för att fångas upp av
+ * Google på frågor som "pokemon tcg sverige discord" — utan en egen kod går det
+ * inte att skilja en besökare som HITTADE oss via sökning från en som redan var
+ * inne i appen och klickade på headerns Discord-ikon. Det är hela mätpunkten för
+ * om SEO-arbetet betalar sig, och den kostar ingenting att sätta.
+ * Tom sträng ⇒ fallback ovan (allt fungerar, bara utan mätning).
+ */
+const LANDING_INVITE_CODE = "";
+
 /** Inbjudnings-URL för tipset som visas när en bevakning just skapats. */
 export function watchTipInviteUrl(): string {
   return `https://discord.gg/${WATCH_INVITE_CODE || DEFAULT_INVITE_CODE}`;
+}
+
+/** Inbjudnings-URL för landningssidan /discord. */
+export function landingInviteUrl(): string {
+  return `https://discord.gg/${LANDING_INVITE_CODE || DEFAULT_INVITE_CODE}`;
 }

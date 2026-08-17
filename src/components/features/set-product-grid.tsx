@@ -111,8 +111,12 @@ export function SetProductGrid({
         <p className="mt-10 text-center text-sm text-ink-muted">{tc("noneMissing")}</p>
       ) : (
         <div className="mt-4 grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-3.5 xl:grid-cols-4">
-          {visible.map((p) => (
-            <ProductCard key={p.id} product={p} />
+          {/* De första fyra = rutnätets 2×2 ovanför vecket på telefon (en hel rad
+              på xl). Deras bilder hämtas direkt i stället för lazy — se SafeImage.
+              ⛔ Höj inte talet: flaggan är en KÖ, så markeras allt är ingenting
+              prioriterat och den första bilden blir långsammare än utan flaggan. */}
+          {visible.map((p, i) => (
+            <ProductCard key={p.id} product={p} priority={i < 4} />
           ))}
         </div>
       )}

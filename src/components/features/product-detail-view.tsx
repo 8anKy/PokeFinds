@@ -141,6 +141,15 @@ export function ProductDetailView({
             <SafeImage
               src={data.imageUrl}
               alt={data.title}
+              /* Sidans STÖRSTA bild ovanför vecket = den webbläsaren mäter som
+                 LCP. Den låg som `lazy` tillsammans med rutnätens hundratals
+                 miniatyrer, dvs hämtades efter att layouten räknats ut fast den
+                 alltid syns direkt. ⚠️ Flaggan är BARA en hämtningsordning —
+                 rutan är redan reserverad av brunnens `aspect-[4/3]`, så inget
+                 flyttar sig en pixel. ⛔ Sätt den inte på fler bilder här (varken
+                 Tradera-skenan eller liknande produkter): det är just för att de
+                 väntar som den här kommer först. */
+              priority
               className="h-full w-full object-contain p-4"
               fallback={
                 <div className="flex h-full w-full items-center justify-center">

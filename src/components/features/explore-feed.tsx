@@ -93,9 +93,15 @@ export function ExploreFeed({
   return (
     <>
       <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-3.5 xl:grid-cols-4">
-        {items.map((p) => (
+        {/* De första fyra = 2×2 ovanför vecket på telefon; deras bilder hämtas
+            direkt i stället för lazy (se SafeImage). ⛔ Höj inte talet — flaggan är
+            en KÖ, och markeras allt blir ingenting prioriterat. Villkoret gäller
+            ORIGINALFYRAN även vid oändlig scroll: `items` växer bakåt, så inget
+            eftersläpp får flaggan. */}
+        {items.map((p, i) => (
           <ProductCard
             key={p.id}
+            priority={i < 4}
             product={{
               id: p.id,
               slug: p.slug,

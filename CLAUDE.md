@@ -72,6 +72,11 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
 - **Leverantörsfrågor** (utredda, ingen åtgärd): prisbasen vilar på en ANONYM leverantör (TCGGO — inget
   bolagsnamn, ingen jurisdiktion, inga villkor); pokemontcg.io ägs numera av Scrydex; TCGdex (gratis, MIT)
   kan ge tryckningstaxonomi + fixa 132 döda bild-URL:er.
+- **SEO-passet 2026-08-17 — kvar hos ÄGAREN, inte i koden**: (1) fyll Discord-serverns `guild.description` +
+  svenskt servernamn, (2) lista servern på DISBOARD/Discadia/top.gg med rätt TAGGAR (⛔ inte `pokemon-sv` —
+  "SV" läses som Scarlet/Violet), (3) väx mot ~150 medlemmar (Kortjakt 97, PokeJakt 141 — Discord Discoverys
+  1000-gräns är irrelevant här). Kodsidan: ett riktigt 1200×630 OG-kort saknas (`OG_IMAGE` är märket i
+  kvadrat, därför `twitter: summary`), och `/en/`-vägarna saknas i robots-disallowen (prefixmatchning).
 - **Launch-readiness + kostnad vid skala**: `docs/LAUNCH-CHECKLIST.md` (Section 0 = hetspunkter vid
   samtidig trafik; öppet: offers-refetch per produktvisning, `force-dynamic` på `/api/*`, ingen rate
   limiting, collection-värde live-compute). Övrigt: `docs/TODO.md`.
@@ -106,6 +111,33 @@ klient-sida i `header-auth-actions.tsx`, `bottom-tabs.tsx` (self-gate + klarerin
 adminens knapp). Att stänga glappet är ett KOSTNADSBESLUT (en fetch per produktvisning) — fråga ägaren.
 Prishistorik: servern hämtar HELA serien en gång (`MAX_DAYS`), `product-price-card.tsx` filtrerar perioden i
 klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
+
+## SEO & indexering
+- **`/discord` är Discord-serverns landningssida** (ägarbeslut 2026-08-17). Målet "ligg överst på *pokemon
+  tcg sverige discord*" går INTE att nå med metadata: en `discord.gg`-inbjudan är en tunn sida vi varken äger
+  eller kan optimera, och en UTGÅENDE länk hjälper aldrig mottagarens rankning — frågan vinns av en sida vars
+  TEXT handlar om servern. ⛔ **Den tyngsta spaken är ändå OFF-SITE och kodlös**: serverns `guild.description`
+  och namn (tomma ⇒ Googles snippet blir Discords boilerplate "hang out with N other members"), samt DISBOARD,
+  vars sök matchar TAGGAR — inte namn, inte beskrivning. Egen inbjudningskod per yta (`discord-invites.ts`) är
+  enda mätpunkten; `/api/go/…`-loggning hade kostat en Neon-väckning per klick.
+- ⛔ **Bingbot har en EGEN robots-grupp och ÄRVER INGENTING** (RFC 9309: en crawler följer exakt EN grupp).
+  `DISALLOW`-arrayen i `src/app/robots.ts` måste därför upprepas i båda grupperna — den låg bara i `*`, så
+  Bingbot var fri att sveppa `/produkter?` (dynamisk render per träff). ⛔ Googlebot aldrig i blocklistan.
+- ⛔ **Sitemapen har INGEN `lastmod`, med flit**: `Product.updatedAt` bumpas av viewCount-nollningen,
+  omrankningen och `traderaCheckedAt`, medan den enda RIKTIGA innehållsändringen (`recomputeProductPriceCache`)
+  går via `$executeRawUnsafe` och förbigår `@updatedAt` — signalen var alltså OMVÄND. `lastmod` är det enda
+  sitemap-fält Google läser, och ett falskt värde är sämre än inget. ⛔ `priority`/`changefreq` ignoreras av
+  Google sedan år tillbaka — tuna dem aldrig, det är ren ceremoni.
+- ⛔ **Nexts metadata-merge är GRUND per TOPPFÄLT**: en sida som sätter `openGraph` ersätter rotens HELA objekt
+  och tappar `og:site_name`/`og:type`/`og:locale`. Spreada `baseOpenGraph(locale)` (`src/lib/canonical.ts`).
+  Samma fälla gör att ett barns `title` aldrig når `og:title` — en delad länk visar då startsidans rubrik.
+- **Katalogens länkgraf var en SLUTEN CIRKEL** (2026-08-17): `/produkter` är dynamisk och `/produkter?…`
+  robots-blockerad, så pagineringen är ocrawlbar och Googlebot ser bara sida 1. Sidfotens `/sets`-länk är den
+  ENDA interna vägen in i ~20k produktsidor — ta inte bort den. JSON-LD-brödsmulor ger UPPTÄCKT, inte länkkraft.
+- **Ingen fabricerad strukturerad data**: `Product` renderas INTE alls utan `offers` (en tom nod underkänns),
+  `brand: "Pokémon"` utelämnas för `ACCESSORY`/`OTHER` (tredjepartstillverkare), och `aggregateRating`/`review`
+  hittas aldrig på. `alternatesFor()` sätts från SIDAN, aldrig layouten; `BASE_URL` faller tillbaka på
+  `https://foilio.se` med `||` (inte `??` — tom sträng är felläget, och localhost i drift = tyst avindexering).
 
 ## Tvärgående invarianter
 - **Priser lagras i öre** (integer) + `currency`-fält. Visa via `formatPrice()` (`src/lib/format.ts`).

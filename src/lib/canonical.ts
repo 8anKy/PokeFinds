@@ -26,7 +26,20 @@ import { routing } from "@/i18n/routing";
  * dessutom blivit SAMMA för varje sida, vilket är exakt det fel vi lagar.
  */
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+/**
+ * ⛔ `||`, ALDRIG `??` (2026-08-17): en variabel kan vara SATT MEN TOM. GitHub Actions
+ * expanderar en saknad `${{ vars.X }}` till tom sträng, och `"" ?? reserv` är `""` —
+ * reservvärdet används aldrig. Se `tests/unit/env-empty-string-guard.test.ts`, som
+ * vaktar hela buggklassen.
+ *
+ * ⛔ RESERVEN ÄR PRODUKTIONSDOMÄNEN, INTE LOCALHOST. En `<link rel="canonical"
+ * href="http://localhost:3000/produkter">` i drift är TYST SJÄLVAVINDEXERING: vi säger
+ * själva att sidan egentligen bor på en adress ingen crawler kan nå, och Google följer
+ * vår egen signal — samma familj av fel som marcustheatres-klustringen ovan, fast
+ * självförvållad. Inget felar, inget larmar; trafiken bara upphör. Samma reservvärde
+ * som `src/services/notifications.ts` (djuplänkarna i larmen).
+ */
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se";
 
 /**
  * Absolut URL för `path` på ett givet språk. `path` anges UTAN språkprefix
@@ -54,5 +67,46 @@ export function alternatesFor(locale: string, path: string): Metadata["alternate
       en: localeUrl("en", path),
       "x-default": localeUrl(routing.defaultLocale, path),
     },
+  };
+}
+
+/**
+ * Sajtens delningsbild. RELATIV med flit — Next absolutiserar mot `metadataBase`
+ * (satt i rot-layouten), så bilden följer med av sig själv nästa gång värdnamnet byts.
+ *
+ * ⚠️ Det här är märket (1024×1024), inte ett ändamålsbyggt 1200×630-kort: en sådan
+ * bild är en DESIGNLEVERANS som inte finns ännu. Kvadraten visas rakt av i Discord,
+ * Slack och iMessage; X beskär den till 2:1. En beskuren logga slår en TOM
+ * förhandsvisning, men byt hit `/brand/foilio-og.png` så fort kortet är ritat.
+ */
+const OG_IMAGE = "/brand/foilio-mark.png";
+
+/**
+ * Bas-fälten för `openGraph`. Spreadas av VARJE sida som sätter ett eget
+ * openGraph-block: `openGraph: { ...baseOpenGraph(locale), title, description, images }`.
+ *
+ * ⛔ NEXTS METADATA-MERGE ÄR GRUND PER TOPPFÄLT (2026-08-17). En sida som sätter
+ * `openGraph` ERSÄTTER rot-layoutens hela objekt — den slås inte ihop fält för fält.
+ * Produktsidan satte redan `{ title, description, images }` och tappade därmed
+ * `og:site_name`, `og:type` och `og:locale` på sajtens ~20k mest delade URL:er, utan
+ * att något felar eller syns i appen. Därför en DELAD funktion i stället för en literal
+ * som kopieras vidare: nästa sida som lägger till ett openGraph-block ärver rätt bas
+ * även om ingen kommer ihåg varför.
+ *
+ * ⚠️ `images: undefined` ÖVERSKRIVER basbilden — ett utskrivet fält vinner över
+ * spreaden även när värdet är undefined. Har sidan ingen egen bild ska nyckeln
+ * UTELÄMNAS (eller falla tillbaka på `baseOpenGraph(locale).images`), annars delas
+ * sidan helt utan förhandsvisning.
+ *
+ * `locale` mappas här och inte via meddelandekatalogen: `og:locale` är en språkKOD
+ * (`sv_SE`/`en_US`), inte copy — den ska aldrig översättas, och funktionen måste vara
+ * synkron för att kunna anropas från vilken `generateMetadata` som helst.
+ */
+export function baseOpenGraph(locale: string) {
+  return {
+    type: "website" as const,
+    siteName: "Foilio",
+    locale: locale === "en" ? "en_US" : "sv_SE",
+    images: [{ url: OG_IMAGE, width: 1024, height: 1024, alt: "Foilio" }],
   };
 }

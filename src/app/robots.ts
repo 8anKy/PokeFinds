@@ -1,6 +1,54 @@
 import type { MetadataRoute } from "next";
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+// `||`, inte `??`: en saknad variabel expanderas till TOM STRÄNG (GitHub Actions,
+// och en tom Railway-variabel beter sig likadant), och `"" ?? x` ger `""` — reserven
+// hade aldrig använts och `Sitemap:`-raden pekat på `/sitemap.xml` utan värd.
+// Reserven är prod-apex, inte localhost: en robots.txt som skickar crawlers till
+// localhost är värdelös, och apex är kanonisk sedan 2026-08-14.
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se";
+
+/**
+ * Stängda vägar. DELAS av `*`-gruppen och Bingbot-gruppen — med flit.
+ *
+ * ⛔ EN CRAWLER LYDER EXAKT EN GRUPP (RFC 9309 §2.2.1): den mest specifika grupp vars
+ * namn matchar, och den ÄRVER INGENTING från `*`. Bingbot-gruppen nedan hade därför
+ * bara `allow: "/"` + `crawlDelay` och var i praktiken en FRISEDEL: Bing var
+ * uttryckligen tillåten att krypa `/produkter?…`, `/api`, `/admin`, `/dashboard` och
+ * `/installningar` — exakt den oändliga URL-rymd som `*`-gruppen stänger av
+ * Neon-kostnadsskäl (varje träff = dynamisk render = väckt compute, och en väckning
+ * kostar minst 300 s debiterad tid). Crawl-delayen bromsade takten men ändrade inte
+ * VAD som fick krypas.
+ *
+ * Dupliceringen är alltså inte slarv utan protokollet — varje grupp måste bära hela
+ * sin egen lista. Konstanten finns för att de två aldrig ska kunna glida isär igen:
+ * en ny rad här slår igenom i BÅDA grupperna, vilket var precis det som misslyckades
+ * när listorna stod skrivna två gånger.
+ */
+const DISALLOW = [
+  "/admin",
+  "/api",
+  "/dashboard",
+  "/installningar",
+  // Inloggade app-vyer. Ingenting att indexera (auth-grindade — en crawler ser bara
+  // inloggningsväggen), men varje hämtning är ändå en dynamisk render som väcker
+  // computen, och de indexerade väggarna konkurrerar dessutom med riktiga sidor i
+  // varumärkessök (samma fel som `/logga-in` gjorde innan den fick noindex).
+  //
+  // ⚠️ Sidfoten (`src/components/layout/site-footer.tsx`) länkar till `/skanna`.
+  // Det är avsiktligt och ofarligt: länken finns för BESÖKAREN, och en internt
+  // länkad men blockerad URL ger ingen ranknings-straff — Search Console noterar
+  // den som "Blockerad av robots.txt", vilket är exakt vad vi menar med den.
+  "/bevakningar",
+  "/samling",
+  "/mer",
+  "/skanna",
+  "/gradera",
+  // /produkter?… (filter/sök/paginering) är en oändlig URL-rymd av dynamiska
+  // renders (varje träff = Neon-frågor). Produkterna nås ändå via sitemap +
+  // /produkter utan query + set-sidorna, så inget innehåll göms för Google.
+  "/produkter?",
+  "/en/produkter?",
+];
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -8,17 +56,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        // /produkter?… (filter/sök/paginering) är en oändlig URL-rymd av dynamiska
-        // renders (varje träff = Neon-frågor). Produkterna nås ändå via sitemap +
-        // /produkter utan query + set-sidorna, så inget innehåll göms för Google.
-        disallow: [
-          "/admin",
-          "/api",
-          "/dashboard",
-          "/installningar",
-          "/produkter?",
-          "/en/produkter?",
-        ],
+        disallow: DISALLOW,
       },
       {
         // Lågvärdes-crawlers som svepte hela ~20k-produktkatalogen var par sekund
@@ -73,8 +111,11 @@ export default function robots(): MetadataRoute.Robots {
         // Bingbot behåller vi (SEO) men bromsar: den sveper gärna hela katalogen i ett
         // svep, och varje kall produktsida kostar ~50 Neon-frågor. Bing HEDRAR
         // crawl-delay (Google ignorerar den — Googles takt styrs i Search Console).
+        //
+        // `disallow` MÅSTE upprepas här: gruppen ärver ingenting från `*` (se DISALLOW).
         userAgent: "Bingbot",
         allow: "/",
+        disallow: DISALLOW,
         crawlDelay: 10,
       },
     ],
