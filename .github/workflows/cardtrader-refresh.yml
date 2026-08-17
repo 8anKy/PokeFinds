@@ -100,5 +100,24 @@ jobs:
       - name: 1st Edition (WOTC-seten)
         run: npx tsx scripts/import-cardtrader-first-edition.ts
 
-      - name: Reverse holo (hela katalogen)
+      # ⛔ `SETS` ÄR EN TIDSBUDGET, INTE EN NEDSKÄRNING. Passet är sekventiellt — en
+      # Prisma-rundtur per kort mot Neon/Frankfurt från en US-runner — och hann bara
+      # ~165 set innan `timeout-minutes: 60` dödade körningen tre nätter i rad
+      # (31978303688, 31981303793, 31992805304; GitHub bokför timeout som "cancelled").
+      #
+      # En dödad körning är värre än en kortare: den når aldrig
+      # `recomputeProductPriceCache()`, så nattens nya reverse-produkter blir stående
+      # med `lowestPriceOre = NULL` och göms ur katalogen — men ligger kvar i sitemapen.
+      #
+      # 110 räcker i budget med marginal för `npm ci` + de två passen ovan + omräkningen.
+      # Full täckning tar två nätter i stället för en, vilket är ofarligt: ordningen är
+      # STALAST FÖRST (b6faea6), så det som hoppades över i natt ligger överst i morgon —
+      # rotationen är garanterad utan markör, migration eller extra DB-läsning.
+      # ⛔ Höj inte `timeout-minutes` i stället. Neon debiteras på VAKEN TID och det här
+      # jobbet är redan flottans dyraste enskilda fönster.
+      # Siffran är mätt mot dagens tempo — mät om den när batchningen i
+      # `src/jobs/cardtrader-reverse.ts` landat (då ska den kunna höjas eller tas bort).
+      - name: Reverse holo (stalaste seten först — se SETS)
+        env:
+          SETS: "110"
         run: npx tsx scripts/import-cardtrader-reverse.ts
