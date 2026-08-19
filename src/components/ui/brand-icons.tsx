@@ -54,3 +54,32 @@ export const IconInstagram = ({ size = 20, ...props }: IconProps) => (
     <circle cx="17.2" cy="6.8" r="0.75" fill="currentColor" stroke="none" />
   </svg>
 );
+
+/**
+ * Reddit ritas GEOMETRISKT av samma skäl som Instagram: märket ÄR en cirkulär
+ * ansiktsform med antenn, ögonprickar och ett leende, så det tecknas rätt i vårt
+ * stroke-manér. ⛔ Alternativet — att klistra in märkets officiella path-sträng —
+ * ger 700 tecken kurvdata som ingen granskning kan läsa, och en enda felaktig
+ * siffra renderas som grafiskt brus i stället för att fela synligt.
+ */
+export const IconReddit = ({ size = 20, ...props }: IconProps) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.6}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+    {...props}
+  >
+    <ellipse cx="12" cy="14.5" rx="9" ry="6.5" />
+    <path d="M13.1 8.2 16.4 4.4" />
+    <circle cx="17.6" cy="3.6" r="1.6" />
+    <circle cx="8.9" cy="14" r="1.15" fill="currentColor" stroke="none" />
+    <circle cx="15.1" cy="14" r="1.15" fill="currentColor" stroke="none" />
+    <path d="M8.9 17.4c1.9 1.3 4.3 1.3 6.2 0" />
+  </svg>
+);

@@ -1,6 +1,6 @@
 import { useTranslations } from "next-intl";
-import { DISCORD_URL, INSTAGRAM_URL, TIKTOK_URL } from "@/lib/social-links";
-import { IconDiscord, IconInstagram, IconTikTok } from "@/components/ui/brand-icons";
+import { DISCORD_URL, INSTAGRAM_URL, REDDIT_URL, TIKTOK_URL } from "@/lib/social-links";
+import { IconDiscord, IconInstagram, IconReddit, IconTikTok } from "@/components/ui/brand-icons";
 import type { IconProps } from "@/components/ui/icons";
 
 /**
@@ -14,6 +14,7 @@ export const SOCIAL_CHANNELS: {
   icon: (p: IconProps) => JSX.Element;
 }[] = [
   { href: DISCORD_URL, label: "Discord", icon: IconDiscord },
+  { href: REDDIT_URL, label: "Reddit", icon: IconReddit },
   { href: INSTAGRAM_URL, label: "Instagram", icon: IconInstagram },
   { href: TIKTOK_URL, label: "TikTok", icon: IconTikTok },
 ];

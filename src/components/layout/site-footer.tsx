@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { BrandLogo } from "@/components/layout/brand-logo";
 import { AdminOnly } from "@/components/admin-only";
+import { REDDIT_URL } from "@/lib/social-links";
 
 export async function SiteFooter() {
   const t = await getTranslations("Footer");
@@ -46,6 +47,14 @@ export async function SiteFooter() {
                 redan är inne i appen vill inte läsa en presentation först) — den
                 här länken är för besökaren som ännu inte vet vad servern är. */}
             <li><Link href="/discord" className="transition-colors duration-150 hover:text-ink">{t("discord")}</Link></li>
+            {/* Subredditen. ⛔ Extern URL, alltså <a> och inte <Link> — next-intl
+                hade prefixat den med locale. Raden är inte pynt: Reddit publicerar
+                ingen sitemap och robots.txt saknar Sitemap-direktiv, så länkar
+                från sidor som redan kryps är hela vägen Google har att upptäcka en
+                ny subreddit. ⛔ Ingen rel="me"/"nofollow" behövs — det är vår egen
+                community, och den strukturerade identitetskopplingen görs i
+                site-schema.tsx (sameAs). */}
+            <li><a href={REDDIT_URL} target="_blank" rel="noopener noreferrer" className="transition-colors duration-150 hover:text-ink">{t("reddit")}</a></li>
             <li><Link href="/community" className="transition-colors duration-150 hover:text-ink">{t("feed")}</Link></li>
             <li><Link href="/community?kategori=PULLS" className="transition-colors duration-150 hover:text-ink">{t("pulls")}</Link></li>
             <li><Link href="/community?kategori=TRADES" className="transition-colors duration-150 hover:text-ink">{t("trades")}</Link></li>
