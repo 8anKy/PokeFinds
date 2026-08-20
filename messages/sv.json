@@ -1332,6 +1332,10 @@
     "tierLabel": "Nivå {tier}",
     "unlockedOn": "Upplåst {date}",
     "progress": "{count} av {total}",
+    "subtitle": "Allt du kan låsa upp — och hur långt du kommit.",
+    "sectionUnlocked": "Upplåsta",
+    "sectionLocked": "Kvar att låsa upp",
+    "allDone": "Klar",
     "forsta_kortet": {
       "name": "Första kortet",
       "desc": "Ditt första kort i samlingen."

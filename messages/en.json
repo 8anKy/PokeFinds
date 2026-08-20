@@ -1332,6 +1332,10 @@
     "tierLabel": "Level {tier}",
     "unlockedOn": "Unlocked {date}",
     "progress": "{count} of {total}",
+    "subtitle": "Everything you can unlock — and how far you've come.",
+    "sectionUnlocked": "Unlocked",
+    "sectionLocked": "Still to unlock",
+    "allDone": "Done",
     "forsta_kortet": {
       "name": "First card",
       "desc": "Your first card in the collection."

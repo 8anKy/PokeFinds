@@ -18,9 +18,13 @@
  */
 import { prisma } from "@/lib/db";
 import {
+  ACHIEVEMENTS,
+  EMPTY_STATS,
   achievementByKey,
   achievementOrder,
   thresholdFor,
+  type AchievementMetric,
+  type AchievementStats,
   type AchievementVariant,
 } from "@/lib/achievements";
 
@@ -112,4 +116,153 @@ export async function markAnnounced(ids: string[]): Promise<number> {
     data: { announcedAt: new Date() },
   });
   return res.count;
+}
+
+// ---------- Framstegsvyn: vad är kvar, och hur når man dit? ----------
+
+/**
+ * Mätvärdena för EN användare — det som gör "21 av 100" möjligt att visa.
+ *
+ * ⛔ EN FRÅGA. Samma nio grenar som nattsvepets `UNION ALL`, men filtrerade på en
+ * användare, plus kompletta set som en tionde gren. Nio separata `count()` hade
+ * varit nio rundturer mot Frankfurt för en enda sida.
+ *
+ * ⛔ **DE HÄR TALEN DELAR ALDRIG UT NÅGOT.** De visar bara framsteg. Utdelningen
+ * sker i nattsvepet, och tabellen är facit — annars hade ett märke kunnat dyka
+ * upp i en vy och saknas i en annan beroende på vem som räknade senast.
+ * ⛔ Kompletta set kräver `totalCardsFull > 0`, exakt som svepet: ett set utan
+ * uppströmsfacit får aldrig räknas som klart. Se `lib/set-denominator.ts`.
+ */
+export async function loadUserStats(userId: string): Promise<AchievementStats> {
+  const rows = await prisma.$queryRaw<{ metric: string; n: number }[]>`
+    SELECT 'collectionLots' AS metric, COUNT(*)::int AS n
+      FROM "CollectionItem" WHERE "userId" = ${userId}
+    UNION ALL
+    SELECT 'distinctSets', COUNT(DISTINCT c."setId")::int
+      FROM "CollectionItem" ci JOIN "Card" c ON c.id = ci."cardId"
+      WHERE ci."userId" = ${userId}
+    UNION ALL
+    SELECT 'scans', COUNT(*)::int
+      FROM "ScannerJob" WHERE "userId" = ${userId} AND status = 'COMPLETED'
+    UNION ALL
+    SELECT 'gradings', COUNT(*)::int
+      FROM "GradingJob" WHERE "userId" = ${userId} AND status <> 'FAILED'
+    UNION ALL
+    SELECT 'sales', COUNT(*)::int FROM "Sale" WHERE "userId" = ${userId}
+    UNION ALL
+    SELECT 'profitableSales', COUNT(*)::int
+      FROM "Sale"
+      WHERE "userId" = ${userId}
+        AND "purchasePriceOre" IS NOT NULL
+        AND "salePriceOre" > "purchasePriceOre"
+    UNION ALL
+    SELECT 'watchlistItems', COUNT(*)::int
+      FROM "WatchlistItem" WHERE "userId" = ${userId}
+    UNION ALL
+    SELECT 'sentAlerts', COUNT(*)::int
+      FROM "Alert" WHERE "userId" = ${userId} AND status = 'SENT'
+    UNION ALL
+    SELECT 'verifiedInvites', COUNT(*)::int
+      FROM "Invite" WHERE "inviterId" = ${userId} AND "verifiedAt" IS NOT NULL
+    UNION ALL
+    SELECT 'membershipDays',
+           GREATEST(0, DATE_PART('day', NOW() AT TIME ZONE 'UTC' - u."createdAt"))::int
+      FROM "User" u WHERE u.id = ${userId}
+    UNION ALL
+    SELECT 'discordLinked', CASE WHEN u."discordUserId" IS NOT NULL THEN 1 ELSE 0 END
+      FROM "User" u WHERE u.id = ${userId}
+    UNION ALL
+    SELECT 'completedSets', COUNT(*)::int FROM (
+      SELECT c."setId"
+        FROM "CollectionItem" ci JOIN "Card" c ON c.id = ci."cardId"
+        JOIN "CardSet" s ON s.id = c."setId"
+        LEFT JOIN (SELECT "setId" AS sid, COUNT(*)::int AS cnt FROM "Card" GROUP BY "setId") k
+          ON k.sid = s.id
+       WHERE ci."userId" = ${userId} AND s."totalCardsFull" > 0
+       GROUP BY c."setId", s."totalCardsFull", k.cnt
+      HAVING COUNT(DISTINCT ci."cardId") >= GREATEST(s."totalCardsFull", COALESCE(k.cnt, 0))
+    ) done`;
+
+  const stats: AchievementStats = { ...EMPTY_STATS };
+  for (const r of rows) {
+    if (r.metric in stats) stats[r.metric as AchievementMetric] = Number(r.n) || 0;
+  }
+  return stats;
+}
+
+export interface AchievementProgress {
+  key: string;
+  labelKey: string;
+  descKey: string;
+  icon: string;
+  variant: AchievementVariant;
+  /** Högsta upplåsta nivån. 0 = ingen ännu. */
+  earnedTier: number;
+  tierCount: number;
+  tiered: boolean;
+  /** Nivån man jobbar mot just nu. null = alla nivåer klara. */
+  nextTier: number | null;
+  /** Tröskeln beskrivningen ska interpolera in — nästa nivå, annars den sista. */
+  threshold: number;
+  /** Var användaren står i mätvärdet just nu. */
+  current: number;
+  /** 0–100 mot nästa nivå. null = klar, eller ett mått där en stapel är nonsens. */
+  percent: number | null;
+  done: boolean;
+  unlockedAt: Date | null;
+}
+
+/**
+ * Katalogen + användarens rader + mätvärdena → en rad per märke, KLARA SOM
+ * OKLARA. Ren funktion: inga anrop, testbar.
+ *
+ * ⛔ **ALLA 15 MÄRKEN RETURNERAS, ALLTID.** Vyn måste kunna visa det man INTE
+ * har och hur man når dit — en lista med bara de upplåsta säger ingenting om vad
+ * som finns kvar, och det var precis klagomålet som byggde den här sidan.
+ *
+ * ⛔ `earnedTier` läses ur de LAGRADE raderna, aldrig ur `stats`. Talen här är
+ * bara framsteg; utdelningen är nattsvepets jobb och tabellen är facit.
+ * Konsekvensen är avsiktlig: den som passerat en tröskel i dag ser "99 av 100 →
+ * 100 av 100" men får själva märket först efter nattens körning.
+ */
+export function buildAchievementProgress(
+  earned: UserAchievementView[],
+  stats: AchievementStats
+): AchievementProgress[] {
+  const earnedByKey = new Map<string, UserAchievementView[]>();
+  for (const e of earned) {
+    const list = earnedByKey.get(e.key);
+    if (list) list.push(e);
+    else earnedByKey.set(e.key, [e]);
+  }
+
+  return ACHIEVEMENTS.map((def) => {
+    const mine = earnedByKey.get(def.key) ?? [];
+    const earnedTier = mine.reduce((max, e) => Math.max(max, e.tier), 0);
+    const nextTier = earnedTier < def.tiers.length ? earnedTier + 1 : null;
+    const threshold = thresholdFor(def, nextTier ?? def.tiers.length) ?? def.tiers[def.tiers.length - 1];
+    const current = stats[def.metric];
+    const highest = mine.find((e) => e.tier === earnedTier) ?? null;
+    return {
+      key: def.key,
+      labelKey: def.labelKey,
+      descKey: def.descKey,
+      icon: def.icon,
+      variant: def.variant,
+      earnedTier,
+      tierCount: def.tiers.length,
+      tiered: def.tiers.length > 1,
+      nextTier,
+      threshold,
+      current,
+      // ⛔ Ingen stapel för ett ja/nej-mått: "0 av 1" som en halvtom stapel läser
+      // som framsteg, och man är antingen kopplad till Discord eller inte.
+      percent:
+        nextTier == null || threshold <= 1
+          ? null
+          : Math.min(100, Math.round((current / threshold) * 100)),
+      done: nextTier == null,
+      unlockedAt: highest?.unlockedAt ?? null,
+    };
+  });
 }
