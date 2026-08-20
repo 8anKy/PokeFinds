@@ -1,6 +1,6 @@
 import { routing } from "@/i18n/routing";
 import { localeUrl } from "@/lib/canonical";
-import { APP_STORE_URL, DISCORD_URL, INSTAGRAM_URL, REDDIT_URL, TIKTOK_URL } from "@/lib/social-links";
+import { APP_STORE_URL, DISCORD_URL, INSTAGRAM_URL, TIKTOK_URL } from "@/lib/social-links";
 
 /**
  * `Organization` + `WebSite` som JSON-LD — schemat Google använder för att förstå
@@ -60,13 +60,13 @@ export function SiteSchema({ locale }: { locale: string }) {
         // ⛔ BARA PROFILER VI ÄGER. `sameAs` är ett påstående om identitet: en butiks-,
         // återförsäljar- eller omnämnandelänk här beskriver oss som någon annan.
         // Adresserna bor i @/lib/social-links (en definition, ändras DÄR).
-        // ⛔ Subredditen kvalificerar för `sameAs` på exakt en grund: vi skapade
-        // och modererar den, alltså är den en profil VI ÄGER. En subreddit om
-        // Foilio som någon annan drev hade varit ett OMNÄMNANDE och aldrig fått
-        // stå här. Samma sak gäller åt andra hållet: raden är en identitetstråd
-        // mellan domänen och communityn, den skickar ingen rankningskraft till
-        // Reddit och tar ingen därifrån (varje länk där bär `nofollow ugc`).
-        sameAs: [APP_STORE_URL, DISCORD_URL, REDDIT_URL, INSTAGRAM_URL, TIKTOK_URL],
+        // ⛔ SUBREDDITEN ÄR BORTTAGEN HÄRIFRÅN (ägarbeslut 2026-08-21). `sameAs` är
+        // ett påstående om IDENTITET, inte en länksamling: att behålla raden medan
+        // varje synlig Reddit-länk tagits bort hade låtit sidkällan hävda en profil
+        // vi inte längre står för. Vill ägaren ha tillbaka subredditen är det HÄR
+        // identitetstråden återskapas, tillsammans med sidfotslänken — se
+        // tombstonen i @/lib/social-links.
+        sameAs: [APP_STORE_URL, DISCORD_URL, INSTAGRAM_URL, TIKTOK_URL],
       },
       {
         "@type": "WebSite",

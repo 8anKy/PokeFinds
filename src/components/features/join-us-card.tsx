@@ -1,12 +1,16 @@
 import { useTranslations } from "next-intl";
-import { DISCORD_URL, INSTAGRAM_URL, REDDIT_URL, TIKTOK_URL } from "@/lib/social-links";
-import { IconDiscord, IconInstagram, IconReddit, IconTikTok } from "@/components/ui/brand-icons";
+import { DISCORD_URL, INSTAGRAM_URL, TIKTOK_URL } from "@/lib/social-links";
+import { IconDiscord, IconInstagram, IconTikTok } from "@/components/ui/brand-icons";
 import type { IconProps } from "@/components/ui/icons";
 
 /**
  * Kanalerna i visningsordning (Discord först — det är communityn, inte bara en
  * följ-knapp). Delas med /mer:s "Följ Foilio"-kort så listorna aldrig glider isär.
  * Etiketterna är varumärkesnamn och översätts inte.
+ *
+ * ⛔ REDDIT ÄR BORTTAGET (ägarbeslut 2026-08-21) och ska inte tillbaka utan att
+ * ägaren säger till. `REDDIT_URL` finns kvar i social-links.ts som tombstone —
+ * läs kommentaren där innan du länkar dit igen.
  */
 export const SOCIAL_CHANNELS: {
   href: string;
@@ -14,7 +18,6 @@ export const SOCIAL_CHANNELS: {
   icon: (p: IconProps) => JSX.Element;
 }[] = [
   { href: DISCORD_URL, label: "Discord", icon: IconDiscord },
-  { href: REDDIT_URL, label: "Reddit", icon: IconReddit },
   { href: INSTAGRAM_URL, label: "Instagram", icon: IconInstagram },
   { href: TIKTOK_URL, label: "TikTok", icon: IconTikTok },
 ];

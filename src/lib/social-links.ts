@@ -15,7 +15,18 @@ export const INSTAGRAM_URL = "https://www.instagram.com/foilio.se";
 export const TIKTOK_URL = "https://www.tiktok.com/@foilio.se";
 
 /**
- * Subredditen r/PokemonTCGSverige.
+ * Subredditen r/PokemonTCGSverige. ⛔ **TOMBSTONE — LÄNKAS INTE FRÅN NÅGONSTANS.**
+ *
+ * Ägarbeslut 2026-08-21: Reddit ska inte synas i appen eller på webben. Borttaget
+ * från `SOCIAL_CHANNELS` (join-us-card.tsx, delas med /mer:s "Följ Foilio"),
+ * från sidfoten och från `sameAs` i site-schema.tsx. Konstanten står kvar av två
+ * skäl: adressen ska inte behöva grävas fram igen, och kommentaren nedan är vad
+ * nästa person måste läsa INNAN de länkar hit på nytt.
+ *
+ * ⚠️ **FÖLJDEN AV BORTTAGET, MÄTT OCH MEDVETEN:** vår länk var HELA
+ * upptäcktsvägen (se stycket nedan). Utan den kommer Google i praktiken inte att
+ * hitta eller behålla subredditen i indexet — den lever då bara på trafik inifrån
+ * Reddit. Det är inte ett fel i koden utan priset för beslutet.
  *
  * ⛔ VARFÖR DEN LIGGER HÄR OCH INTE I DISCORD-INVITES-MÖNSTRET: Discord räknar
  * användningar per inbjudningskod, vilket gör mätningen gratis. Reddit har ingen
