@@ -35,7 +35,20 @@ const COLLECTION_INCLUDE = {
       set: { select: { id: true, name: true } },
     },
   },
-  product: { select: { id: true, title: true, slug: true, imageUrl: true } },
+  // `cardId` + `variantLabel`: produkten BÄR tryckningen ("Reverse Holo"), och
+  // `cardId` behövs för att en post som lagts till från en produktsida ska kunna
+  // räknas av set-kompletteringen. Båda är billiga skalärer på en rad vi ändå
+  // hämtar. ⛔ Fortfarande `select`, aldrig `include`.
+  product: {
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      imageUrl: true,
+      cardId: true,
+      variantLabel: true,
+    },
+  },
 } as const;
 
 export async function listCollection(userId: string) {
@@ -71,9 +84,20 @@ export async function addCollectionItem(userId: string, input: CollectionItemInp
   if (input.productId) {
     const product = await prisma.product.findUnique({
       where: { id: input.productId },
-      select: { id: true },
+      select: { id: true, cardId: true },
     });
     if (!product) throw new ServiceError(404, "Produkten hittades inte.");
+    // ⛔ NUMERATORLÄCKAN (mätt 2026-08-20: 196 poster hos 12 användare).
+    // Produktsidan och snabbtillägget skickar BARA `productId`
+    // (product-actions.tsx, collection-quick-add.tsx), men set-kompletteringen
+    // frågar på `card: { setId }` (services/set-completion.ts) och veckobrevet
+    // joinar `Card` — en post utan `cardId` räknas alltså inte alls. Stapeln på
+    // /sets/[id] visade för lågt, TYST, för precis de användare som lägger till
+    // ur katalogen. Löst HÄR i stället för i klienterna: det täcker även native-
+    // appen och det publika API:t, och SELECT:en ovan körs ändå.
+    // ⚠️ Sealed har `cardId = null` på produkten — då blir posten oförändrat
+    // kortlös, vilket är rätt: en ETB är inget kort i setet.
+    if (!input.cardId && product.cardId) input = { ...input, cardId: product.cardId };
   }
   const addQty = input.quantity ?? 1;
   // Stacka på befintlig identisk post istället för att skapa en ny (samma kort/produkt,
@@ -163,9 +187,15 @@ export async function valueCollectionItems(
 
   const result = new Map<string, number>();
   for (const item of items) {
+    // ⛔ `productId` FÖRE `cardId`. Tryckningen ÄR identitet — den produkt
+    // användaren valde är varan. Ordningen är dessutom BÄRANDE sedan
+    // `addCollectionItem` fyller i `cardId` från produkten: `getCardValues`
+    // undantar reverse-varianter med flit (products.ts, REVERSE_VARIANT_LABELS),
+    // så med kortet först hade varje reverse-post värderats som det ordinarie
+    // kortet — tyst, och alltid för lågt.
     const live =
-      (item.cardId != null ? cardValues.get(item.cardId) : undefined) ??
-      (item.productId != null ? productValues.get(item.productId) : undefined);
+      (item.productId != null ? productValues.get(item.productId) : undefined) ??
+      (item.cardId != null ? cardValues.get(item.cardId) : undefined);
     const value = live ?? item.estimatedValue ?? null;
     if (value != null) result.set(item.id, value);
   }

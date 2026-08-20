@@ -145,6 +145,9 @@ async function main() {
           logoUrl: tcgSet.images?.logo ?? null,
           symbolUrl: tcgSet.images?.symbol ?? null,
           totalCards: tcgSet.printedTotal || tcgSet.total,
+          // Hela setet inkl. secret rares — set-kompletteringens nämnare.
+          // ⛔ Skilj den från `totalCards` (= printedTotal, talet skannern läser).
+          totalCardsFull: tcgSet.total,
         },
         create: {
           externalId: tcgSet.id,
@@ -154,6 +157,7 @@ async function main() {
           logoUrl: tcgSet.images?.logo ?? null,
           symbolUrl: tcgSet.images?.symbol ?? null,
           totalCards: tcgSet.printedTotal || tcgSet.total,
+          totalCardsFull: tcgSet.total,
         },
       });
     } catch (err) {

@@ -314,14 +314,41 @@ model PushToken {
 // ---------- Kortdata ----------
 
 model CardSet {
-  id            String       @id @default(cuid())
-  name          String
-  series        String
-  releaseDate   DateTime?
-  logoUrl       String?
-  symbolUrl     String?
-  externalId    String?      @unique
-  totalCards    Int          @default(0)
+  id             String       @id @default(cuid())
+  name           String
+  series         String
+  releaseDate    DateTime?
+  logoUrl        String?
+  symbolUrl      String?
+  externalId     String?      @unique
+  totalCards     Int          @default(0)
+  /// pokemontcg.io:s `total` — HELA setet INKLUSIVE secret rares (Pitch Black = 120,
+  /// inte 84). ⛔ Detta är INTE `totalCards`. `totalCards` är `printedTotal`, talet
+  /// som står tryckt på kortet ("12/84"), och den meningen är BÄRANDE: skannern
+  /// jämför den mot numret den läst (services/scanner/index.ts) och `cardNumberLabel`
+  /// skriver ut den på varje produktkort. 107 av 176 engelska set har
+  /// printedTotal ≠ total, så en omtolkning hade tyst förstört båda.
+  ///
+  /// Set-KOMPLETTERINGEN mäter alltid mot det FULLA setet — annars ger en secret rare
+  /// "120 av 84". 0 = OKÄNT (samma konvention som totalCards): japanska set har inget
+  /// pokemontcg.io-facit och behåller 0. Kolumnens andra uppgift är att avslöja när
+  /// VÅR kortlista är kortare än det verkliga setet; utan den går "du äger allt" inte
+  /// att skilja från "vi listar inte resten".
+  totalCardsFull Int          @default(0)
+  /// TCGdex-setets id ("me05"). Egen identitet eftersom TCGdex numrerar annorlunda än
+  /// pokemontcg.io (me05 vs me5, sv08 vs sv8). Mappas på namn + kortantal av
+  /// scripts/import-tcgdex-printings.ts. ⛔ Gissa aldrig fram den ur externalId.
+  tcgdexId       String?
+  /// MASTER SET-nämnaren: antal TRYCKNINGAR i setet enligt TCGdex
+  /// (`normal + holo + reverse + firstEd`), dvs varje version av varje kort.
+  /// Pitch Black = 67 + 53 + 67 = 187, exakt vad vi själva listar.
+  ///
+  /// ⛔ SKRIVS BARA NÄR `normal + holo === vårt kortantal`. TCGdex:s set-nivåtal är
+  /// skräp för gamla set (Base Set påstår normal=346 på 102 kort) och saknas helt för
+  /// hela XY-/SM-/BW-eran. Identitetskontrollen är vad som skiljer "vi vet" från "vi
+  /// gissar" — den fäller alla tre felfallen, och 0 betyder därför OKÄNT: master
+  /// set-raden VISAS INTE alls då, hellre än att påstå en nämnare vi inte äger.
+  printingsTotal Int          @default(0)
   /// Katalogens set kommer från pokemontcg.io, som BARA har engelska set. Japanska
   /// set finns därför inte där och skapas i stället ur Cardmarkets egen expansions-
   /// indelning (se jp-set-label.ts). Kolumnen är inte kosmetisk: JP och EN delar
@@ -329,14 +356,14 @@ model CardSet {
   /// befintliga set PÅ NAMN när pokemontcg.io publicerar dem. Utan språkgrinden
   /// hade den engelska importen svalt det japanska setet och tagit med sig dess
   /// produkter. Varje namnbaserat setuppslag MÅSTE därför filtrera på språk.
-  language      CardLanguage @default(EN)
+  language       CardLanguage @default(EN)
   /// Cardmarkets `idExpansion` — identiteten för japanska set (de har inget
   /// pokemontcg.io-id att lägga i `externalId`, och ett gissat id vore värre än
   /// inget: se regeln om att aldrig sätta ett gissat externalId). Unik: en
   /// CM-expansion är exakt ett set hos oss, vilket också gör importen idempotent.
-  cmExpansionId Int?         @unique
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  cmExpansionId  Int?         @unique
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   cards    Card[]
   products Product[]
@@ -543,16 +570,16 @@ model Retailer {
 // offers missar. Bara URL:er UTAN en matchande Offer hamnar här (matchade sköts av
 // den beprövade offer-diffen). Se runRestockScan.
 model StoreListing {
-  id          String      @id @default(cuid())
-  retailerId  String
-  url         String
-  title       String
-  price       Int? // öre — från feeden (kan saknas)
-  imageUrl    String?
-  stockStatus StockStatus @default(UNKNOWN)
+  id                String      @id @default(cuid())
+  retailerId        String
+  url               String
+  title             String
+  price             Int? // öre — från feeden (kan saknas)
+  imageUrl          String?
+  stockStatus       StockStatus @default(UNKNOWN)
   // Streckkod för den råa annonsen (GTIN-14). Cachas här så auto-importen slipper
   // hämta om den för en URL vi redan slagit upp.
-  gtin        String?
+  gtin              String?
   /// MEMO: vilken katalogprodukt den här URL:en löstes till, och på VILKEN titel.
   ///
   /// ⛔ UTAN DEN BETALAS SAMMA LLM-DOM 144 GÅNGER OM DYGNET. `ensureListingProduct`
@@ -573,8 +600,8 @@ model StoreListing {
   /// återuppstå ur cachen.
   productId         String?
   productMatchTitle String?
-  firstSeenAt DateTime    @default(now())
-  lastSeenAt  DateTime    @default(now())
+  firstSeenAt       DateTime    @default(now())
+  lastSeenAt        DateTime    @default(now())
 
   retailer Retailer @relation(fields: [retailerId], references: [id])
   alerts   Alert[]

@@ -63,6 +63,18 @@ jobs:
         name: Importera nya set (no-op om inget nytt)
         run: npx tsx scripts/import-tcg-data.ts
 
+      # NÄMNARNA för set-komplettering: `totalCardsFull` (pokemontcg.io `total`,
+      # hela setet inkl. secret rares) och `printingsTotal` (TCGdex, master
+      # set-nämnaren). Måste ligga som ett EGET steg, inte bara i upserten ovan:
+      # jobbet kör med TCG_NEW_ONLY=1, så importens `update`-gren rör ALDRIG
+      # befintliga set — en kolumn som bara fylls där hade fyllts för nya set och
+      # för ingen annan, för alltid. Steget är en billig no-op när inget ändrats.
+      # ⛔ Lägg inga fler LED i nattkedjan — det här jobbet har egen cron och
+      # ingen workflow_run, så ett STEG här är lagligt.
+      - if: steps.guard.outputs.ready == 'true'
+        name: Fyll set-nämnarna (pokemontcg.io total + TCGdex-tryckningar)
+        run: npx tsx scripts/import-set-denominators.ts
+
       # DÖDA BILDLÄNKAR — hotlinkar vi inte äger ruttnar, och en död bild är inte
       # ett skönhetsfel: `Card.artFingerprint` byggs UR bilden, så kortet blir
       # osynligt för skannerns bildmatchning. MÄTT 2026-08-03: TCGGO roterade sina
