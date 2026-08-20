@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { listCollection, computeCollectionValue } from "@/services/collection";
+import { loadSetDenominators, buildSetPortfolio } from "@/services/set-portfolio";
 import { listSales } from "@/services/sales";
 import { syncSoldCollectionItems } from "@/jobs/tradera-sold-sync";
 import { formatPrice, formatPercent } from "@/lib/format";
@@ -23,6 +24,7 @@ import { CollectionClient, type CollectionRow } from "./collection-client";
 import { MobileCollectionGrid } from "./mobile-collection-grid";
 import { PortfolioTabs } from "./portfolio-tabs";
 import { SoldList } from "./sold-list";
+import { SetProgressList } from "./set-progress-list";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +46,7 @@ export default async function CollectionPage() {
   );
 
   const isPremium = session.user.isPro;
-  const [items, value, user, sales] = await Promise.all([
+  const [items, value, user, sales, setDenominators] = await Promise.all([
     listCollection(userId),
     // Gratis: max 6 mån historik. Premium: full (range-väljaren styr visningen).
     computeCollectionValue(userId, { maxDays: isPremium ? null : 183 }),
@@ -53,6 +55,10 @@ export default async function CollectionPage() {
       select: { isPublicCollection: true },
     }),
     listSales(userId),
+    // Nämnarna per set är IDENTISKA för alla användare och cachas globalt 24 h
+    // — en cache-träff kostar noll Neon-rundturer, och en miss är EN sats som
+    // rider på en request som redan väckt databasen.
+    loadSetDenominators(),
   ]);
 
   // Slug per singel-kort → produktsida att inspektera (kortets billigaste produkt).
@@ -97,6 +103,11 @@ export default async function CollectionPage() {
     notes: item.notes,
   }));
 
+  // Set-raderna byggs i MINNET ur data sidan redan hämtat — noll extra
+  // Neon-rundturer. `itemValues` är värde per styck; aggregeringen multiplicerar
+  // med antalet, precis som totalvärdet ovanför gör.
+  const setRows = buildSetPortfolio(items, value.itemValues, setDenominators);
+
   const chartData = value.valueOverTime.map((p) => ({
     date: p.date,
     price: p.value,
@@ -133,6 +144,7 @@ export default async function CollectionPage() {
       <PortfolioTabs
         soldCount={sales.length}
         sold={<SoldList sales={sales} />}
+        sets={<SetProgressList rows={setRows} />}
         collection={
           <div className="space-y-8">
       {/* Mobil-hero: totalt värde + förändring över vald period + graf */}

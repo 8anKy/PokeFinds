@@ -21,8 +21,16 @@ import { Checkbox, Label, Select } from "@/components/ui/input";
 import { compareCardNumbers } from "@/lib/card-number-order";
 import { useSetCompletion } from "@/lib/set-completion";
 
-/** `cardId` = kortets id (null för sealed) — nyckeln "visa bara saknade" filtrerar på. */
-type Product = ProductCardProps["product"] & { id: string; cardId: string | null };
+/**
+ * `cardId` = kortets id (null för sealed), `variantLabel` = tryckningen
+ * ("Reverse Holo", null = ordinarie). "Visa bara saknade" filtrerar på BEGGE:
+ * äger man ordinarie är reverse holon fortfarande saknad.
+ */
+type Product = ProductCardProps["product"] & {
+  id: string;
+  cardId: string | null;
+  variantLabel: string | null;
+};
 
 /** Värdena motsvarar ProductSort-nycklarna i services/products.ts (samma etiketter). */
 type SetSort = "popular" | "card_number_asc" | "card_number_desc";
@@ -66,9 +74,22 @@ export function SetProductGrid({
   // ⛔ Sealed (utan `cardId`) faller bort när filtret är på: en boosterbox är
   // inget kort man "saknar" i setet, och att låta lådorna ligga kvar hade gjort
   // listan till "saknade kort + allt annat".
+  //
+  // ⛔ MATCHAS PÅ PRODUKT, INTE PÅ KORT. Tryckningen är identitet: äger man den
+  // ordinarie versionen är reverse holon fortfarande SAKNAD, och ett kort-id-filter
+  // hade gömt den — tyst, och exakt för den som jagar master set. Kort-id:t
+  // behålls som reserv för poster som lagts till utan produkt (manuellt tillägg,
+  // CSV-import): där vet vi bara att kortet ägs, och då är det den ordinarie
+  // tryckningen användaren menat.
   const visible = useMemo(() => {
     if (!onlyMissing || !completion) return sorted;
-    return sorted.filter((p) => p.cardId && !completion.ownedCardIds.has(p.cardId));
+    return sorted.filter((p) => {
+      if (!p.cardId) return false;
+      if (completion.ownedProductIds.has(p.id)) return false;
+      // Ingen variant ⇒ den ordinarie tryckningen: den täcks också av ett rent
+      // kortägande utan produkt.
+      return !(p.variantLabel == null && completion.ownedCardIds.has(p.cardId));
+    });
   }, [sorted, onlyMissing, completion]);
 
   return (

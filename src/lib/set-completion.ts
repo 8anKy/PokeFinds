@@ -19,11 +19,20 @@ import { useEffect, useState } from "react";
 import { useAuthHint } from "@/lib/auth-hint";
 
 export interface SetCompletion {
-  /** Nämnaren. ⚠️ Kan vara LÄGRE än `ownedCount` — se services/set-completion.ts. */
+  /** Nämnaren för KORT: hela setet inkl. secret rares. */
   total: number;
   ownedCount: number;
   /** Kort-id:n. Rutnätet filtrerar mot `Product.cardId`. */
   ownedCardIds: Set<string>;
+  /** Nämnaren för MASTER SET: tryckningar vi listar. 0 = vi listar inga. */
+  printingsTotal: number;
+  ownedPrintings: number;
+  /** Produkt-id:n. Rutnätets filter matchar på TRYCKNING, inte på kort. */
+  ownedProductIds: Set<string>;
+  /** true när setet bevisligen har fler kort än vi listar. */
+  catalogShort: boolean;
+  /** Setets tryckningar enligt TCGdex när de är fler än vi listar. 0 = ingen not. */
+  printingsElsewhere: number;
 }
 
 /** Kort TTL: siffran ändras av användarens egna klick (snabbtillägg i rutnätet). */
@@ -47,12 +56,17 @@ export async function getSetCompletion(setId: string): Promise<SetCompletion | n
     credentials: "include",
   })
     .then((r) => (r.ok ? r.json() : null))
-    .then((d: { total?: number; ownedCount?: number; ownedCardIds?: string[] } | null) => {
+    .then((d: Partial<Record<keyof SetCompletion, unknown>> | null) => {
       if (!d || typeof d.total !== "number") return null;
       const data: SetCompletion = {
         total: d.total,
-        ownedCount: d.ownedCount ?? 0,
-        ownedCardIds: new Set(d.ownedCardIds ?? []),
+        ownedCount: (d.ownedCount as number) ?? 0,
+        ownedCardIds: new Set((d.ownedCardIds as string[]) ?? []),
+        printingsTotal: (d.printingsTotal as number) ?? 0,
+        ownedPrintings: (d.ownedPrintings as number) ?? 0,
+        ownedProductIds: new Set((d.ownedProductIds as string[]) ?? []),
+        catalogShort: d.catalogShort === true,
+        printingsElsewhere: (d.printingsElsewhere as number) ?? 0,
       };
       cache.set(setId, { at: Date.now(), data });
       return data;

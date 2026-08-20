@@ -161,6 +161,20 @@ jobs:
           WEEKLY_DIGEST_WEEKDAY: ${{ vars.WEEKLY_DIGEST_WEEKDAY }}
         run: npx tsx scripts/weekly-digest-run.ts
 
+      # UTMÄRKELSER: dela ut nya märken till alla konton. Ligger som STEG här av
+      # samma skäl som stegen ovan: Neon är redan vaken i det här fönstret, och
+      # nattkedjan får max tre led (ett fjärde workflow_run-led fyrar ALDRIG, tyst).
+      # ⛔ Ingen egen cron — en separat start hade varit ytterligare en väckning à
+      # minst 300 s för ett jobb som är fem SQL-satser och tar sekunder.
+      # ⛔ Jobbet är rent set-baserat (aggregat över hela basen, aldrig en fråga per
+      # användare) och idempotent: @@unique([userId, key, tier]) + skipDuplicates
+      # gör en omkörning till noll skrivningar. Se src/jobs/achievement-sweep.ts.
+      # continue-on-error: ett uteblivet märke får aldrig fälla insamlingen.
+      - if: steps.guard.outputs.ready == 'true'
+        name: Dela ut utmärkelser
+        continue-on-error: true
+        run: npx tsx scripts/achievement-sweep-run.ts
+
       # Gallra väntrummet för påbörjade registreringar. Raden raderas annars BARA
       # när registreringen lyckas, så varje avbruten, utgången eller studsad
       # registrering lämnar en e-postadress i tabellen för alltid — personuppgifter

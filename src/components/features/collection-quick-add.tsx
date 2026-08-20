@@ -7,6 +7,7 @@ import { useAuthHint } from "@/lib/auth-hint";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { hapticTick } from "@/lib/haptics";
+import { clearSetCompletionCache } from "@/lib/set-completion";
 import { IconCheck, IconPlus } from "@/components/ui/icons";
 import {
   CollectionQuickAddPopover,
@@ -107,6 +108,11 @@ export function CollectionQuickAdd({ productId, estimatedValue }: CollectionQuic
       }
       if (!res.ok) throw new Error("add");
       setState("added");
+      // Set-kompletteringen cachas 60 s i klienten. Utan den här nollställningen
+      // står stapeln och "visa bara saknade" kvar på gamla siffror i upp till en
+      // minut efter att man just lagt till kortet — på exakt den sida där man
+      // tänkte se dem ändras. (Funktionen hade noll anropare innan.)
+      clearSetCompletionCache();
       toast({
         title:
           body.quantity > 1

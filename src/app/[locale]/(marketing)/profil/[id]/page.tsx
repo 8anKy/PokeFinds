@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate, formatPrice, formatRelative } from "@/lib/format";
 import { computeCollectionValue } from "@/services/collection";
+import { listUserAchievements } from "@/services/achievements";
 import { POST_CATEGORY_VARIANTS } from "@/lib/community-labels";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -73,7 +74,7 @@ export default async function ProfilePage({ params }: { params: { locale: string
 
   const isOwnProfile = session?.user?.id === user.id;
 
-  const [recentPosts, collection] = await Promise.all([
+  const [recentPosts, collection, allAchievements, tA] = await Promise.all([
     prisma.communityPost.findMany({
       where: { userId: user.id, isHidden: false },
       select: {
@@ -87,7 +88,32 @@ export default async function ProfilePage({ params }: { params: { locale: string
       take: 5,
     }),
     user.isPublicCollection || isOwnProfile ? computeCollectionValue(user.id) : Promise.resolve(null),
+    listUserAchievements(user.id),
+    getTranslations("Achievements"),
   ]);
+
+  /**
+   * ⛔ INTE ALLA UTMÄRKELSER ÄR OFFENTLIGA. Profilsidan kan läsas av vem som helst
+   * med länken, och "Första försäljningen"/"Vinstaffär" avslöjar att personen
+   * SÄLJER kort, och gör det med vinst — det är affärsinformation om en privatperson,
+   * inte en merit att sprida åt dem. Skanning och gradering avslöjar användningsmönster.
+   * Vitlista i stället för svartlista: en NY utmärkelse ska default vara PRIVAT tills
+   * någon aktivt bestämt att den tål att visas.
+   * På sin EGEN profil ser man allt — där finns ingen att skydda sig från.
+   */
+  const PUBLIC_ACHIEVEMENTS = new Set([
+    "forsta_kortet",
+    "samlare",
+    "setjagare",
+    "fullt_set",
+    "setmastare",
+    "arsmedlem",
+    "discordare",
+    "fadder",
+  ]);
+  const achievements = isOwnProfile
+    ? allAchievements
+    : allAchievements.filter((a) => PUBLIC_ACHIEVEMENTS.has(a.key));
 
   // Enkla utmärkelser
   const badges: { label: string; variant: "holo" | "info" | "success" }[] = [];
@@ -131,11 +157,23 @@ export default async function ProfilePage({ params }: { params: { locale: string
             <span aria-hidden="true" className="text-ink-faint">·</span>
             <span>{t("memberSince", { date: formatDate(user.createdAt) })}</span>
           </p>
-          {badges.length > 0 && (
+          {(badges.length > 0 || achievements.length > 0) && (
             <div className="mt-2 flex flex-wrap justify-center gap-2 sm:justify-start">
               {badges.map((b) => (
                 <Badge key={b.label} variant={b.variant}>
                   {b.label}
+                </Badge>
+              ))}
+              {/* ⚠️ De tre märkena ovan räknas LIVE och kan försvinna igen; de nedan
+                  är lagrade fakta och kan aldrig tas ifrån någon. Samma rad, olika
+                  hållbarhet — vet om det innan du slår ihop dem. */}
+              {achievements.map((a) => (
+                <Badge
+                  key={a.id}
+                  variant={a.variant}
+                  title={tA(`${a.key}.desc`, { count: a.threshold })}
+                >
+                  {tA(`${a.key}.name`)}
                 </Badge>
               ))}
             </div>

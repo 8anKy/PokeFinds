@@ -87,7 +87,8 @@ export default async function SetsPage({
                         </p>
                       </div>
                       <p className="hidden shrink-0 text-sm tabular-nums text-ink-muted sm:block">
-                        {t("cards", { count: set.totalCards > 0 ? set.totalCards : set._count.cards })}
+                        {/* Vår egen lista, inte printedTotal — se kommentaren på setsidan. */}
+                        {t("cards", { count: set._count.cards })}
                       </p>
                       <p className="shrink-0 text-sm tabular-nums text-ink-muted">
                         {t("products", { count: set._count.products })}

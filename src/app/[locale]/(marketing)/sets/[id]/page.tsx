@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SetProductGrid } from "@/components/features/set-product-grid";
 import { SetCompletionBar } from "@/components/features/set-completion-bar";
+import { SetComposition } from "@/components/features/set-composition";
+import { computeSetComposition, type CompositionCard } from "@/lib/set-composition";
 import { SetWatchButton } from "@/components/features/set-watch-button";
 import { isSealedCategory } from "@/lib/product-category";
 import { IconPackage } from "@/components/ui/icons";
@@ -100,6 +102,25 @@ export default async function SetPage({ params }: PageProps) {
   // bevakningsknappen ("larm på 26 sealed-produkter").
   const sealedCount = products.filter((p) => isSealedCategory(p.category)).length;
 
+  // SETETS SAMMANSÄTTNING — räknas ur produkterna vi REDAN hämtat. Ingen ny fråga:
+  // `card.rarity` ligger redan i `getSet`s select och `lowestPrice` är uräknad ovan.
+  // ⛔ EN RAD PER KORT, INTE PER PRODUKT: Base-setets tryckningar (Unlimited /
+  // Shadowless / 1st Edition) är tre `Product` på SAMMA `cardId` — utan dedupen
+  // hade "Rare Holo" räknats tre gånger. Priset som representerar kortet är det
+  // LÄGSTA kända bland dess tryckningar, dvs vad det kostar att få ett.
+  // Sealed (utan `card`) hålls utanför: en boosterbox har ingen sällsynthet.
+  const compositionByCard = new Map<string, CompositionCard>();
+  for (const p of products) {
+    if (!p.cardId || !p.card) continue;
+    const prev = compositionByCard.get(p.cardId);
+    const priceOre =
+      prev?.priceOre != null && p.lowestPrice != null
+        ? Math.min(prev.priceOre, p.lowestPrice)
+        : (prev?.priceOre ?? p.lowestPrice);
+    compositionByCard.set(p.cardId, { rarity: p.card.rarity, priceOre });
+  }
+  const composition = computeSetComposition([...compositionByCard.values()]);
+
   // Speglar EXAKT den synliga stigen nedan (Set / {set.name}): samma två steg, samma
   // ordning, samma namn. Strukturerad data som påstår något sidan inte visar är det
   // Google utfärdar manuella åtgärder för — här finns per konstruktion inget glapp.
@@ -150,8 +171,13 @@ export default async function SetPage({ params }: PageProps) {
             <Badge variant="holo">{set.series}</Badge>
           </div>
           <p className="mt-2 text-sm text-ink-muted">
+            {/* ⛔ KORTANTALET ÄR VÅR EGEN LISTA, INTE `totalCards`. `totalCards` är
+                printedTotal — talet på kortet ("12/84") — och 107 av 176 engelska
+                set har secret rares ovanför det. Rubriken sa då "84 kort" medan
+                rutnätet under den listade 120 och stapeln mätte mot 120. Tre tal om
+                samma set på samma skärm; nu ett. */}
             {t("releaseColon", { date: formatDate(set.releaseDate) })} ·{" "}
-            {t("cards", { count: set.totalCards > 0 ? set.totalCards : set._count.cards })} ·{" "}
+            {t("cards", { count: set._count.cards })} ·{" "}
             {t("products", { count: products.length })}
           </p>
         </div>
@@ -168,6 +194,8 @@ export default async function SetPage({ params }: PageProps) {
           Renderas bara för set som faktiskt HAR kort: ett rent sealed-set har
           ingen komplettering att mäta. */}
       {set._count.cards > 0 && <SetCompletionBar setId={set.id} />}
+
+      <SetComposition composition={composition} />
 
       {products.length === 0 ? (
         <EmptyState

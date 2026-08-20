@@ -27,7 +27,16 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
 - **Priser**: singlar = Cardmarket engelska NM-"From" (RapidAPI) × live-kurs; sealed = CM `lowest`;
   graf/historik = CM trend.
 - **Funktioner live**: watchlist/prisbevakning, restock-alerts (42 butiker), samlingsvärde, AI-gradering
-  (`/gradera`), live kort-skanner (`/skanna`), community, admin, PWA.
+  (`/gradera`), live kort-skanner (`/skanna`), community, admin, PWA, **set-komplettering** (Set-fliken i
+  `/samling` + stapel på `/sets/[id]`).
+- ⛔ **TRE TAL OM ETT SET, ALDRIG BLANDADE**: `totalCards` = printedTotal (talet på kortet, som skannern
+  läser — byt ALDRIG mening på den); `totalCardsFull` = hela setet inkl. secret rares (kompletteringens
+  nämnare); master set-nämnaren = de TRYCKNINGAR VI listar, aldrig TCGdex tal — en nämnare användaren inte
+  kan NÅ är en lögn om deras samling. 0 = OKÄNT ⇒ ingen stapel alls. Regler: `.claude/rules/collection-portfolio.md`.
+- ⛔ **PULL RATES GÅR INTE ATT VISA ÄRLIGT** (utrett 2026-08-20, öppna inte frågan igen): ingen officiell
+  källa finns, den enda uppmätta är varken maskinläsbar eller tillåten att återanvända, och de breda
+  sajterna kallar sina egna tal simulerade uppskattningar. `1/(antal kort med sällsyntheten)` ÄR INTE ODDS —
+  paket sätts samman från tryckark. Vi visar `SetComposition` i stället, med en synlig rad om varför.
 - **Katalogflödet är hands-off**: nya set + singlar (`import-new-sets.yml`, sön 03:30 UTC), sealed
   CM-pris/trend + set-etiketter (`runCardmarketRefresh`), auto-import av butiks-SKU:er (restock-skanningen).
   Inget manuellt steg återstår — bevaka bara RapidAPI-kvoten vid stora släpp.
@@ -45,6 +54,12 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   `name:`-FÄLTET — byter du namn på ett uppströmsjobb slutar de efterföljande köra tyst. ⛔ Ingen
   `conclusion`-grind (byter en synlig röd körning mot tre osynligt uteblivna). Vaktat av
   `tests/unit/cron-chain-sync.test.ts`.
+- **Utmärkelser**: `achievement-sweep` är ett STEG i `scrape-all` (aldrig egen cron — en extra start är en
+  extra väckning à ≥300 s). Fem set-baserade satser över HELA basen, aldrig en fråga per användare;
+  `@@unique([userId, key, tier])` + `skipDuplicates` gör omkörning gratis. ⛔ Märken TAS ALDRIG BORT — de är
+  historiska fakta, och en utmärkelse som kan försvinna är ingen utmärkelse. ⛔ Ingen daglig svit: det finns
+  ingen inloggningshistorik (`AnalyticsEvent` bär medvetet ingen `userId`) och en skulle kosta en skrivning per
+  session. ⛔ Profilsidan visar bara en VITLISTA — försäljnings-, graderings- och skannermärken är privata.
 - **restock-watch** = `runRestockScan()` i `src/scrapers/runner.ts`: butikskatalogerna hämtas PARALLELLT
   (fas 1 = ren HTTP → Neon sover), offers läses EN gång och lagerstatus diffas i minnet. Källistan ligger i
   diskcache (TTL 24 h) → **en ändrad restockWatch-flagga slår igenom först inom ett dygn.**
@@ -234,7 +249,7 @@ klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
 | `alerts-setwatch.md` | Regeln utvärderas vid LARMTILLFÄLLET, i BÅDA vägarna |
 | `marketplace-tradera.md` | Sålt är en EGEN serie, ersätter aldrig annonskurvan; ingen `fillForward` |
 | `catalog-browse.md` | Ofiltrerad katalog personaliseras ALDRIG; bygg ingen inlärd rankning |
-| `collection-portfolio.md` | Poster (lots), aldrig ett snitt i databasen |
+| `collection-portfolio.md` | Poster (lots), aldrig ett snitt i databasen; TRE set-tal och de blandas aldrig |
 | `ui-shell.md` | Porträttlås; bredd ensam ≠ desktop; min-height måste dra av spacer + safe-area |
 | `admin-ops.md` | Tre utfall, aldrig två: kostnadsförd / gratis / OMÄTT |
 | `legal-copy.md` | Ångerrätten är den PROPORTIONELLA modellen — villkor och checkout-samtycke är EN mekanism |

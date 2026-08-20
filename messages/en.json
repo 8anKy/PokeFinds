@@ -269,6 +269,7 @@
     "showInPct": "Show change in percent",
     "unlockMax": "Unlock full history with Premium",
     "tabCollection": "Collection",
+    "tabSets": "Sets",
     "tabSold": "Sold",
     "soldEmptyTitle": "No sold items yet",
     "soldEmptyDesc": "When one of your Tradera listings sells, the item shows up here with its sale price and result.",
@@ -1318,8 +1319,113 @@
   "SetCompletion": {
     "title": "Your collection",
     "progress": "{owned} of {total} · {percent}%",
+    "masterTitle": "Master set",
+    "printingsProgress": "{owned} of {total} printings · {percent}%",
+    "printingsElsewhereNote": "This set has {total} printings in total — we list {listed} of them.",
+    "catalogueShortNote": "We don't list every card in this set yet, so 100% isn't reachable here.",
     "showMissingOnly": "Show only missing",
     "noneMissing": "You own every card we list in this set."
+  },
+  "Achievements": {
+    "title": "Achievements",
+    "empty": "No achievements yet — they show up as you collect, scan and watch.",
+    "tierLabel": "Level {tier}",
+    "unlockedOn": "Unlocked {date}",
+    "progress": "{count} of {total}",
+    "forsta_kortet": {
+      "name": "First card",
+      "desc": "Your first card in the collection."
+    },
+    "samlare": {
+      "name": "Collector",
+      "desc": "{count} items in your collection."
+    },
+    "setjagare": {
+      "name": "Set hunter",
+      "desc": "Cards from {count} different sets."
+    },
+    "fullt_set": {
+      "name": "Full set",
+      "desc": "You completed an entire set."
+    },
+    "setmastare": {
+      "name": "Set master",
+      "desc": "{count} completed sets in your collection."
+    },
+    "forsta_skanningen": {
+      "name": "First scan",
+      "desc": "You scanned your first card."
+    },
+    "skannarveteran": {
+      "name": "Scan veteran",
+      "desc": "{count} successful scans."
+    },
+    "forsta_graderingen": {
+      "name": "First grading",
+      "desc": "You had your first card AI-graded."
+    },
+    "forsta_forsaljningen": {
+      "name": "First sale",
+      "desc": "You sold your first item."
+    },
+    "vinstaffar": {
+      "name": "Profitable flip",
+      "desc": "You sold something for more than you paid for it."
+    },
+    "bevakaren": {
+      "name": "The watcher",
+      "desc": "{count} products on your watchlist."
+    },
+    "prisjagare": {
+      "name": "Price hunter",
+      "desc": "Your first price alert went out."
+    },
+    "arsmedlem": {
+      "name": "One year in",
+      "desc": "A whole year with Foilio."
+    },
+    "discordare": {
+      "name": "Discord member",
+      "desc": "You linked your Discord account."
+    },
+    "fadder": {
+      "name": "Sponsor",
+      "desc": "{count} friends you invited confirmed their accounts."
+    }
+  },
+  "SetComposition": {
+    "title": "Set composition",
+    "intro": "Cards per rarity and what they cost right now, counted across the cards we list in this set.",
+    "summary": "{cards} cards · {rarities} rarities",
+    "disclaimer": "The Pokémon Company publishes no probabilities for physical booster packs. So we invent no pull odds — this is the set's actual composition, nothing more. A rarity having few cards says nothing about the odds of pulling one: packs are collated from print sheets.",
+    "affiliation": "Foilio is an independent service and is not affiliated with, sponsored by or endorsed by Nintendo, The Pokémon Company or GAME FREAK.",
+    "colRarity": "Rarity",
+    "colCount": "Cards",
+    "colShare": "Share",
+    "colMedian": "Median",
+    "colTotal": "Total",
+    "unknownRarity": "Unknown rarity",
+    "pricedOf": "{priced} of {count} priced",
+    "dashMeansUnknown": "– means we have no price data, not that the card is free.",
+    "pricedCoverage": "{priced} of {total} cards have a known price."
+  },
+  "SetProgress": {
+    "statStarted": "Sets started",
+    "statCompleted": "Sets completed",
+    "sortLabel": "Sort sets",
+    "sort_closest": "Closest to done",
+    "sort_value": "Highest value",
+    "sort_remaining": "Most left",
+    "sort_name": "Name",
+    "progress": "{owned} of {total} cards · {percent}%",
+    "masterProgress": "{owned}/{total} printings",
+    "catalogueShortNote": "We don't list every card in this set yet — 100% isn't reachable here.",
+    "valueMissing": "{count} items have no known value",
+    "sealedOnly": "Sealed only",
+    "noCardsYet": "We don't list any cards in this set yet",
+    "emptyTitle": "No sets started yet",
+    "emptyDesc": "Add your first card and we'll keep count for you — set by set.",
+    "emptyAction": "Browse sets"
   },
   "PageNav": {
     "back": "Back"

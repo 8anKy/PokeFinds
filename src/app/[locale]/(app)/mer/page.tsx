@@ -17,6 +17,9 @@ import {
 } from "@/components/ui/icons";
 import { SOCIAL_CHANNELS } from "@/components/features/join-us-card";
 import { LogoutButton } from "./logout-button";
+import { AchievementBadges } from "@/components/features/achievement-badges";
+import { ACHIEVEMENTS } from "@/lib/achievements";
+import { listUserAchievements } from "@/services/achievements";
 
 export const dynamic = "force-dynamic";
 
@@ -40,9 +43,15 @@ export default async function MerPage() {
   const isAdmin = hasRole(session.user.role, "MODERATOR");
   const isPremium = session.user.isPro;
 
-  const watchCount = await prisma.watchlistItem.count({
-    where: { userId: session.user.id },
-  });
+  // ⛔ EN rundtur, inte två. Två sekventiella await är två tur-och-retur mot
+  // Frankfurt för en sida som redan är dynamisk.
+  const [watchCount, achievements, tA] = await Promise.all([
+    prisma.watchlistItem.count({ where: { userId: session.user.id } }),
+    listUserAchievements(session.user.id),
+    getTranslations("Achievements"),
+  ]);
+  // Antal upplåsbara RADER (nivåer), inte antal märken — "samlare" är tre.
+  const totalUnlockable = ACHIEVEMENTS.reduce((n, d) => n + d.tiers.length, 0);
 
   const name = session.user.name ?? t("defaultName");
   const initial = name.trim().charAt(0).toUpperCase() || "S";
@@ -79,6 +88,25 @@ export default async function MerPage() {
         <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
         <p className="mt-1 text-sm text-ink-muted">{t("subtitle")}</p>
       </header>
+
+      {/* UTMÄRKELSER — lagrade fakta, inte en live-beräkning: ett märke som kan
+          försvinna igen är ingen utmärkelse. Raderna kommer ur samma Promise.all
+          som antalet ovan, så blocket kostar noll extra rundturer. */}
+      <section className="rounded-2xl border border-surface-border bg-surface-raised/40 p-4">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="font-display text-sm font-bold text-ink">{tA("title")}</h2>
+          <span className="shrink-0 text-xs tabular-nums text-ink-faint">
+            {tA("progress", { count: achievements.length, total: totalUnlockable })}
+          </span>
+        </div>
+        {achievements.length === 0 ? (
+          <p className="mt-2 text-sm text-ink-muted">{tA("empty")}</p>
+        ) : (
+          <div className="mt-3">
+            <AchievementBadges achievements={achievements} />
+          </div>
+        )}
+      </section>
 
       {/* Bjud in vänner (#10) — 3 verifierade = 1 månad Pro. Döljs för alltid
           när belöningen är uttagen (engångs). */}

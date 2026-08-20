@@ -269,6 +269,7 @@
     "showInPct": "Visa förändring i procent",
     "unlockMax": "Lås upp full historik med Premium",
     "tabCollection": "Samling",
+    "tabSets": "Set",
     "tabSold": "Sålt",
     "soldEmptyTitle": "Inga sålda objekt än",
     "soldEmptyDesc": "När en av dina Tradera-annonser säljs dyker objektet upp här med försäljningspris och resultat.",
@@ -1318,8 +1319,113 @@
   "SetCompletion": {
     "title": "Din samling",
     "progress": "{owned} av {total} · {percent} %",
+    "masterTitle": "Master set",
+    "printingsProgress": "{owned} av {total} tryckningar · {percent} %",
+    "printingsElsewhereNote": "Setet har {total} tryckningar totalt — vi listar {listed} av dem.",
+    "catalogueShortNote": "Vi listar ännu inte alla kort i det här setet, så 100 % går inte att nå här.",
     "showMissingOnly": "Visa bara saknade",
     "noneMissing": "Du äger alla kort vi listar i det här setet."
+  },
+  "Achievements": {
+    "title": "Utmärkelser",
+    "empty": "Inga utmärkelser än — de dyker upp när du samlar, skannar och bevakar.",
+    "tierLabel": "Nivå {tier}",
+    "unlockedOn": "Upplåst {date}",
+    "progress": "{count} av {total}",
+    "forsta_kortet": {
+      "name": "Första kortet",
+      "desc": "Ditt första kort i samlingen."
+    },
+    "samlare": {
+      "name": "Samlare",
+      "desc": "{count} poster i samlingen."
+    },
+    "setjagare": {
+      "name": "Setjägare",
+      "desc": "Kort från {count} olika set."
+    },
+    "fullt_set": {
+      "name": "Fullt set",
+      "desc": "Du har samlat ihop ett helt set."
+    },
+    "setmastare": {
+      "name": "Setmästare",
+      "desc": "{count} kompletta set i samlingen."
+    },
+    "forsta_skanningen": {
+      "name": "Första skanningen",
+      "desc": "Du skannade ditt första kort."
+    },
+    "skannarveteran": {
+      "name": "Skannarveteran",
+      "desc": "{count} lyckade skanningar."
+    },
+    "forsta_graderingen": {
+      "name": "Första graderingen",
+      "desc": "Du lät AI:n gradera ditt första kort."
+    },
+    "forsta_forsaljningen": {
+      "name": "Första försäljningen",
+      "desc": "Du sålde ditt första objekt."
+    },
+    "vinstaffar": {
+      "name": "Vinstaffär",
+      "desc": "Du sålde något för mer än du köpte det för."
+    },
+    "bevakaren": {
+      "name": "Bevakaren",
+      "desc": "{count} produkter i bevakningen."
+    },
+    "prisjagare": {
+      "name": "Prisjägare",
+      "desc": "Ditt första prislarm gick iväg."
+    },
+    "arsmedlem": {
+      "name": "Årsmedlem",
+      "desc": "Ett helt år med Foilio."
+    },
+    "discordare": {
+      "name": "Discordare",
+      "desc": "Du kopplade ditt Discord-konto."
+    },
+    "fadder": {
+      "name": "Fadder",
+      "desc": "{count} vänner du bjudit in har bekräftat sina konton."
+    }
+  },
+  "SetComposition": {
+    "title": "Setets sammansättning",
+    "intro": "Antal kort per sällsynthet och vad de kostar just nu, räknat på de kort vi listar i setet.",
+    "summary": "{cards} kort · {rarities} sällsyntheter",
+    "disclaimer": "The Pokémon Company publicerar inga sannolikheter för fysiska boosterpaket. Vi hittar därför inte på några dragchanser — det här är setets faktiska sammansättning, inget annat. Att en sällsynthet har få kort säger ingenting om oddsen att dra ett av dem: paket sätts samman från tryckark.",
+    "affiliation": "Foilio är en oberoende tjänst och är inte ansluten till, sponsrad av eller godkänd av Nintendo, The Pokémon Company eller GAME FREAK.",
+    "colRarity": "Sällsynthet",
+    "colCount": "Antal",
+    "colShare": "Andel",
+    "colMedian": "Median",
+    "colTotal": "Summa",
+    "unknownRarity": "Okänd sällsynthet",
+    "pricedOf": "{priced} av {count} har pris",
+    "dashMeansUnknown": "– betyder att vi saknar prisdata, inte att kortet är gratis.",
+    "pricedCoverage": "{priced} av {total} kort har ett känt pris."
+  },
+  "SetProgress": {
+    "statStarted": "Set påbörjade",
+    "statCompleted": "Set klara",
+    "sortLabel": "Sortera set",
+    "sort_closest": "Närmast klart",
+    "sort_value": "Högst värde",
+    "sort_remaining": "Flest kvar",
+    "sort_name": "Namn",
+    "progress": "{owned} av {total} kort · {percent} %",
+    "masterProgress": "{owned}/{total} tryckningar",
+    "catalogueShortNote": "Vi listar ännu inte alla kort i setet — 100 % går inte att nå här.",
+    "valueMissing": "{count} poster saknar känt värde",
+    "sealedOnly": "Endast sealed",
+    "noCardsYet": "Vi listar inga kort i det här setet ännu",
+    "emptyTitle": "Inga set påbörjade än",
+    "emptyDesc": "Lägg till ditt första kort så börjar vi hålla räkningen åt dig — set för set.",
+    "emptyAction": "Bläddra bland set"
   },
   "PageNav": {
     "back": "Tillbaka"

@@ -220,9 +220,10 @@ model User {
   offerReports    OfferReport[]
   savedPosts      SavedPost[]
   pushTokens      PushToken[]
-  invitesSent     Invite[]         @relation("InviteInviter")
-  inviteUsed      Invite?          @relation("InviteUsedBy")
+  invitesSent     Invite[]          @relation("InviteInviter")
+  inviteUsed      Invite?           @relation("InviteUsedBy")
   sales           Sale[]
+  achievements    UserAchievement[]
 
   @@index([email])
   @@index([creatorCodeId])
@@ -1131,4 +1132,54 @@ model DeniedListingUrl {
   createdAt   DateTime @default(now())
 
   @@index([createdAt])
+}
+
+/// UTMÄRKELSER — en rad per (användare, märke, nivå) som FAKTISKT delats ut.
+///
+/// ⛔ **TABELLEN ÄR FACIT, INTE EN VY.** Ett märke är ett HISTORISKT FAKTUM: den
+/// som en gång ägde 1 000 poster och sedan sålde av dem har fortfarande klarat
+/// 1 000. Räknas märkena om vid varje läsning kan de FÖRSVINNA igen, och en
+/// utmärkelse som kan tas ifrån en är ingen utmärkelse. Dessutom hade en
+/// live-uträkning krävt ett halvdussin aggregat per sidvisning — se
+/// Kostnadsdoktrinen i CLAUDE.md: Neons nota är VAKEN TID.
+///
+/// ⛔ **DELAS UT AV ETT SET-BASERAT NATTJOBB** (`src/jobs/achievement-sweep.ts`,
+/// ett STEG i scrape-all.yml), aldrig av en skrivväg i appen. En "kolla efter
+/// varje tillägg"-krok hade blivit ett uppslag per klick på varje formulär i
+/// hela appen — exakt den sortens per-varv-läsning som en gång höll computen
+/// vaken dygnet runt.
+model UserAchievement {
+  id     String @id @default(cuid())
+  userId String
+  /// ⛔ STABIL SLUG, ALDRIG ÖVERSATT TEXT ("samlare", inte "Samlare"). Nyckeln är
+  /// katalogens identitet i `src/lib/achievements.ts` och slår upp namn/beskrivning
+  /// i i18n. Lagras texten här är märket låst till det språk användaren råkade ha
+  /// när det delades ut, och en omformulering av copyn hade krävt en datamigration.
+  key    String
+  /// 1/2/3 för trappade märken (samlare 10 → 100 → 1 000). En egen RAD per nivå,
+  /// inte en uppdaterad kolumn: nivå 1 låstes upp vid ett annat tillfälle än nivå 3,
+  /// och `unlockedAt` ska vara sant för var och en. Otrappade märken har alltid 1.
+  tier   Int    @default(1)
+
+  unlockedAt  DateTime  @default(now())
+  /// ⛔ **STÄMPLAS EFTER LYCKAT UTSKICK, ALDRIG FÖRE.** Samma regel som
+  /// `User.weeklyDigestSentAt` och `proExpiryNotifiedAt` bär: stämplas fältet innan
+  /// mejlet gått iväg tystar ett TILLFÄLLIGT mejlfel användaren för alltid — märket
+  /// räknas som meddelat och tas aldrig upp igen. null = ännu inte omtalat.
+  announcedAt DateTime?
+  /// Ögonblicksbild av VARFÖR märket gavs (t.ex. `{ setId, setName }` för `fullt_set`,
+  /// `{ value }` för de räknade). ⛔ Härled aldrig skälet i efterhand — det är en känd
+  /// fälla i den här kodbasen (`Alert.reasonSetName`, `Sale.purchasePriceOre`): setet
+  /// kan ha bytt namn, posterna kan vara sålda, och då påstår UI:t fel anledning med
+  /// full självsäkerhet. Skälet skrivs när beslutet fattas.
+  meta        Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// ⛔ DEN HÄR RADEN ÄR VAD SOM GÖR NATTJOBBET IDEMPOTENT. Svepet räknar om ALLA
+  /// användare varje natt och skriver med `createMany({ skipDuplicates: true })` —
+  /// utan det unika indexet blir varje körning en ny dubblettrad, och "du låste upp
+  /// Samlare" hade dykt upp igen varje natt i all evighet.
+  @@unique([userId, key, tier])
+  @@index([userId])
 }

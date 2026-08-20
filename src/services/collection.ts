@@ -47,6 +47,9 @@ const COLLECTION_INCLUDE = {
       imageUrl: true,
       cardId: true,
       variantLabel: true,
+      // Sealed bär sitt set här (kortlösa poster har inget `card.set`) —
+      // set-portföljen kan annars inte värdera en ETB till rätt set.
+      setId: true,
     },
   },
 } as const;

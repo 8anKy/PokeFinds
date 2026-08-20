@@ -62,6 +62,7 @@ import {
   computePriceChange7d,
 } from "@/services/products";
 import { NOT_HIDDEN_SQL } from "@/lib/product-visibility";
+import { SET_FULL_TOTAL_SQL } from "@/lib/set-denominator";
 import { isSealedCategory } from "@/lib/product-category";
 import { utcDaysAgo } from "@/lib/utils";
 
@@ -375,12 +376,14 @@ export function pickMovers(
  * runt, fast i ett jobb som redan har ett smalt fönster. Aggregeringen görs i
  * Postgres i stället.
  *
- * ⛔ NÄMNAREN LJUGER LÄTT (samma varning som set-completion.ts bär):
- * `CardSet.totalCards` kommer från pokemontcg.io och räknar inte alltid secret
- * rares, så en samlare kan äga FLER kort än nämnaren påstår. Vi använder därför
- * samma fallback som setsidan (antalet kort vi själva har) och slänger raden när
- * `owned >= total` — "0 kort kvar" är ingen anledning att öppna appen, och ett
- * negativt tal hade varit rent fel.
+ * ⛔ SAMMA NÄMNARE SOM WEBBEN, ORDAGRANT. Uttrycket kommer från
+ * `SET_FULL_TOTAL_SQL` (lib/set-denominator.ts) och RÄKNAR SOM `resolveSetTotals`.
+ * Skriver man om det här för hand säger mejlet ett tal och set-fliken ett annat om
+ * samma set — och det är mejlet man tror på, för det kom först.
+ * Tidigare stod här `CASE WHEN s."totalCards" > 0`, alltså det TRYCKTA talet
+ * (printedTotal): en samlare med secret rares fick "120 av 84" och föll ur listan
+ * som "redan klar". Raden slängs fortfarande när `owned >= total` — "0 kort kvar"
+ * är ingen anledning att öppna appen.
  *
  * Bara set där användaren äger MINST ett kort kommer med (JOIN:en ser till det).
  */
@@ -388,21 +391,29 @@ async function loadSetProgress(userIds: string[]): Promise<Map<string, DigestSet
   const byUser = new Map<string, DigestSetProgress[]>();
   if (userIds.length === 0) return byUser;
 
-  const rows = await prisma.$queryRaw<SetProgressRow[]>`
-    SELECT ci."userId"                      AS "userId",
-           s.id                             AS "setId",
-           s.name                           AS "setName",
-           COUNT(DISTINCT ci."cardId")::int AS "owned",
-           (CASE
-              WHEN s."totalCards" > 0 THEN s."totalCards"
-              ELSE (SELECT COUNT(*)::int FROM "Card" x WHERE x."setId" = s.id)
-            END)                            AS "total"
-    FROM "CollectionItem" ci
-      JOIN "Card" c ON c.id = ci."cardId"
-      JOIN "CardSet" s ON s.id = c."setId"
-    WHERE ci."userId" = ANY(${userIds})
-    GROUP BY ci."userId", s.id, s.name, s."totalCards"
-  `;
+  // ⚠️ `$queryRawUnsafe`, inte taggad `$queryRaw`: nämnaruttrycket måste
+  // interpoleras som SQL, och det kräver annars `Prisma.raw` — dvs en import av
+  // `@prisma/client` högst upp i modulen. Den importen läser `.env` som sidoeffekt
+  // och skrev över `NEXT_PUBLIC_APP_URL` INNAN `APP_URL` här i filen evaluerats,
+  // vilket tyst gav mejlen localhost-länkar i test (och kunde ha gjort det i drift).
+  // "Unsafe" gäller INDATA: `SET_FULL_TOTAL_SQL` är en konstant i vår egen källkod
+  // och `userIds` binds som parameter ($1), aldrig konkateneras.
+  const rows = await prisma.$queryRawUnsafe<SetProgressRow[]>(
+    `SELECT ci."userId"                      AS "userId",
+            s.id                             AS "setId",
+            s.name                           AS "setName",
+            COUNT(DISTINCT ci."cardId")::int AS "owned",
+            ${SET_FULL_TOTAL_SQL}::int       AS "total"
+     FROM "CollectionItem" ci
+       JOIN "Card" c ON c.id = ci."cardId"
+       JOIN "CardSet" s ON s.id = c."setId"
+       LEFT JOIN (
+         SELECT "setId", COUNT(*)::int AS cnt FROM "Card" GROUP BY "setId"
+       ) k ON k."setId" = s.id
+     WHERE ci."userId" = ANY($1)
+     GROUP BY ci."userId", s.id, s.name, s."totalCardsFull", k.cnt`,
+    userIds
+  );
 
   const grouped = new Map<string, SetProgressRow[]>();
   for (const r of rows) {
