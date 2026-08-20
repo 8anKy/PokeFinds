@@ -33,6 +33,11 @@ import type { StockStatus } from "@prisma/client";
  *  - Ny URL i lager (fanns ej förra körningen): för ICKE-roterande butiker = möjlig ny
  *    produkt → väck. För roterande = rotation, inte signal → väck INTE (samma som att
  *    roterande feeds inte ger "ny produkt"-larm i övrigt).
+ *  - ⛔ Ny URL i FÖRHANDSBOKNING räknas BARA när anroparen ber om det
+ *    (`ChangeOptions.newUrlPreorder`, 2026-08-21). Grinden här ska inte väcka på den —
+ *    väckningen köper minst 300 s och DB-fasen gör inget den natten ändå inte hade
+ *    gjort. Discord-lanen slår på den, för där ÄR inlägget hela poängen. Läs varför
+ *    vid ChangeOptions innan du flyttar defaulten.
  *
  * Rena funktioner, inga node-builtins → unit-testbara och importeras bara av CLI-
  * wrappern + tester (ALDRIG runner.ts/restock.ts som Next buntar). Se feed-fingerprint.ts.
@@ -103,9 +108,38 @@ export type StockChange = {
   key: string;
   from: string; // "ABSENT" = fanns inte förra körningen
   to: string;
-  /** Speglar src/scrapers/restock.ts: `isRestock` respektive `isPreorderOpen`. */
-  reason: "restock" | "preorder-open" | "sellout" | "ny-i-lager";
+  /**
+   * Speglar src/scrapers/restock.ts: `isRestock` respektive `isPreorderOpen`.
+   * `preorder-new` har ingen motsvarighet där — se `newUrlPreorder` nedan.
+   */
+  reason: "restock" | "preorder-open" | "preorder-new" | "sellout" | "ny-i-lager";
 };
+
+export interface ChangeOptions {
+  /**
+   * Räkna en HELT NY URL vars första observerade status är PREORDER som en händelse
+   * (`reason: "preorder-new"`). AVSTÄNGT som default, och skillnaden är avsiktlig:
+   *
+   * ⛔ **DB-VÄCKNINGSGRINDEN SKA INTE VÄCKA PÅ DEN.** Grindens enda fråga är "finns
+   *    det något DB-fasen kommer att GÖRA?". Väckningen köper minst 300 s debiterad
+   *    Neon-tid, och det enda den skulle köpa här är att ett NEW_LISTING/PREORDER-larm
+   *    går ut minuter i stället för timmar tidigare — samma annons skapas ändå av
+   *    scrape-all samma natt. Vill man betala för den snabbheten är det ETT ord här,
+   *    men det är ett KOSTNADSBESLUT som ska tas medvetet, inte ärvas.
+   *
+   * ⛔ **DISCORD-LANEN SLÅR PÅ DEN, för där är inlägget hela poängen.** Webhallen är
+   *    ENDA adaptern som skriver PREORDER, och den gör det direkt i katalogfeeden:
+   *    en produkt med `stock.web = 0` och ett lanseringsdatum i framtiden. En NY
+   *    förhandsbokning dyker alltså upp som en URL vi aldrig sett, med PREORDER som
+   *    FÖRSTA status — och `preorder-open` (OUT_OF_STOCK → PREORDER) kan per
+   *    konstruktion aldrig fånga den. Följden var att släppets viktigaste förvarning
+   *    var osynlig i kanalerna medan bara den senare PREORDER → IN_STOCK-flippen syntes.
+   *    Samma lucka gäller en URL som faller ur feeden ETT varv (tappat pris, sidbrytning)
+   *    och kommer tillbaka som PREORDER: `mergeStateMap` glömmer nyckeln, så även den
+   *    såg ut som ny. Rotationsregeln gäller fortfarande — se `rotating` nedan.
+   */
+  newUrlPreorder?: boolean;
+}
 
 const UNKNOWN = "UNKNOWN";
 const PREORDER = "PREORDER";
@@ -122,6 +156,7 @@ export function actionableChanges(
   prev: FeedStateMap,
   groups: FeedGroup[],
   rotating: Set<string>,
+  opts?: ChangeOptions,
 ): StockChange[] {
   const cur = buildStateMap(groups);
   const changes: StockChange[] = [];
@@ -132,8 +167,13 @@ export function actionableChanges(
     if (from === undefined) {
       // Ny URL. Roterande butik → rotation, inte signal. Icke-roterande + i lager →
       // möjlig ny produkt (feed-först-larm) → väck.
-      if (!rotating.has(source) && to === IN) {
+      if (rotating.has(source)) continue;
+      if (to === IN) {
         changes.push({ key: k, from: "ABSENT", to, reason: "ny-i-lager" });
+      } else if (opts?.newUrlPreorder && to === PREORDER) {
+        // ⛔ BARA PÅ BEGÄRAN. Se ChangeOptions: den här grenen är den enda vägen till
+        //    en ny förhandsbokning, och den enda som INTE ska väcka databasen.
+        changes.push({ key: k, from: "ABSENT", to, reason: "preorder-new" });
       }
       continue;
     }

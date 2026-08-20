@@ -4,6 +4,7 @@ paths:
   - "scripts/export-restock-routes.ts"
   - "scripts/lib/restock-routes.ts"
   - "src/lib/discord-restock-filter.ts"
+  - "src/lib/price-drop.ts"
   - "src/lib/restock-feed-events.ts"
   - "src/lib/restock-poll-interval.ts"
   - "src/lib/stock-flap.ts"
@@ -131,6 +132,74 @@ flippa i samma körning. Villkoret är nu ordagrant `isRealStockTransition` — 
 och `OUT_OF_STOCK → PREORDER` får ett eget besked (`RestockPost.preorder`, embed-texten fanns redan
 men sattes aldrig). Kostnad: bara Webhallen-adaptern skriver PREORDER och statusen står still i
 veckor (mätt 1 övergång på 14 dygn).
+
+## ⛔ PREORDER-LUCKAN VAR STÖRRE ÄN 08-16-FIXEN (2026-08-21)
+`OUT_OF_STOCK → PREORDER` fixades 08-16, men **Webhallen listar en NY förhandsbokning som en URL vi
+aldrig sett, med PREORDER som FÖRSTA status** (`stock.web = 0` + lanseringsdatum i framtiden,
+`webhallenStockStatus`). `actionableChanges` skapade en händelse för en ny URL BARA när `to === IN`,
+så den övergången fanns inte ens som en `StockChange` — varken `preorder-open` (kräver ett känt
+OUT_OF_STOCK) eller DB-vägens `isPreorderOpen` kunde fånga den. Samma blinda fläck träffade en URL
+som föll ur feeden ETT varv och kom tillbaka som PREORDER: `mergeStateMap` glömmer nyckeln, så även
+den såg ut som ny. Följd: släppets viktigaste FÖRVARNING var osynlig i kanalerna (release-flippen
+PREORDER → IN_STOCK postades dock hela tiden — larmet gick aldrig förlorat, bara förvarningen).
+- **`ChangeOptions.newUrlPreorder`** (`feed-state-diff.ts`) ⇒ `reason: "preorder-new"`.
+  ⛔ **AV som default, PÅ i Discord-lanen — och det är ett KOSTNADSBESLUT, inte en slarvig asymmetri.**
+  Modulen är också DB-lanens väckningsgrind, och en väckning köper minst 300 s debiterad Neon-tid.
+  Det enda den skulle köpa här är ett NEW_LISTING/PREORDER-larm minuter i stället för timmar tidigare
+  — annonsen skapas ändå av scrape-all samma natt (`runner.ts`, `checkListingAlerts(…, "PREORDER")`).
+  Vill ägaren betala för snabbheten är det ETT ord i `restock-watch-run.ts`.
+- ⛔ **BLINKREGELN JÄMFÖR NU MOT SAMMA STATUS** (`judgeAbsent(key, to)`), inte mot `IN_STOCK`. Före
+  förhandsbokningsgrenen var i-lager den enda status som kunde nå dit; utan generaliseringen hade
+  varje sidbrytning hos Webhallen gett ett nytt "går nu att förhandsboka".
+- ⛔ **MINNS VI DEN I LAGER ÄR PREORDER EN FÖRSÄMRING** ⇒ tyst. Minns vi den redan som PREORDER är
+  det ingen förändring alls. Bara "inget minne" (äkta ny) eller ett IHÅGKOMMET `OUT_OF_STOCK` postas
+  — exakt samma dom som `isPreorderOpen`, bara utsträckt över en frånvaro.
+- **Bara Webhallen-adaptern skriver PREORDER i en feed.** Shopify/Woo/Quickbutik/PrestaShop/Starweb
+  mappar tvåvägs (in/out) och kan inte se en förhandsbokning; `stock-verify.ts` mappar visserligen
+  schema.org `PreOrder/PreSale/BackOrder` → PREORDER, men den vägen körs BARA i DB-fasen och når
+  aldrig den här lanen. Att lära en till adapter skriva PREORDER ändrar väckningsaritmetiken för
+  10-min-lanen och kräver en kostnadsbriefing först.
+
+## ⛔ PRISSÄNKNINGAR: FEEDPRISET ÄR EN AVLÄSNING, INTE EN PRISLISTA (2026-08-21)
+Lanen postar nu **"Nytt lägre pris"** när en vara som stått I LAGER blir billigare
+(`src/lib/price-drop.ts` + `price`/`pricePosted` i state-filen). Gratis på samma villkor som resten:
+priset kommer ur feeden vi ändå hämtar, ingen DB rörs.
+- ⛔ **ALDRIG ORDET "LÄGSTAPRIS".** Talet vi jämför mot är priset vi SÅG SENAST, inte ett historiskt
+  lägsta — den historiken bor i databasen. Rubriken är "Nytt lägre pris" och texten "Sänkt från X
+  till Y (−Z %)". Ett obelagt prispåstående är precis det katalogens övriga regler finns för.
+- ⛔ **FYRA SPAKAR, ALLA FÖR ATT FEEDPRISET LJUGER PÅ KÄNDA SÄTT:**
+  · **golv** ≥5 % OCH ≥10 kr (5 % av 40 kr är brus);
+  · **tak** 60 % — de fem kopiorna av `parseSekPrice` strippar inte punkt-tusental, så ett tema-byte
+    till "2.999,00 kr" gör priset till **300 öre**, ett tal som passerar `price > 0` och läser som
+    årets fynd;
+  · **burst** högst 8 per butik och HÄMTNING, annars postas INGET från den butiken det varvet —
+    Shopifys svenska marknad hänger på `localization=SE`, och utan den serveras hela sortimentet
+    EX MOMS (uppmätt: 55,20 = 69/1,25), dvs ~20 % "sänkning" på allt samtidigt;
+  · **cooldown** 12 h, med undantag för ett YTTERLIGARE fall — annars postas en butik som pendlar
+    559 ⇄ 450 varje varv.
+  ⚠️ Inget av talen är mätt på VÅR trafik (lanen har aldrig sparat priser). Loggen namnger både
+  postade och fällda fall (`pris: …`) — justera på dem, inte på magkänsla.
+- ⛔ **BURST-VARNINGEN ÄR ETT EGET STATS-FÄLT** (`priceBurstStores`), inte en rad i `priceSamples`.
+  Mätt i torrkörning: en butik med 106 samtidiga fall fyllde urvalslistans tio platser innan
+  burst-raden hann skrivas — den ENDA rad som pekar ut ett systemfel trängdes undan av exemplen på
+  symptomet. Anroparen loggar fältet villkorslöst som `console.warn`.
+- ⛔ **PRISMINNET BÄR BARA VAROR I LAGER** (plus dem i frånvarominnet). MÄTT 2026-08-21: 796 priser
+  mot 2 113 lagerposter = **38 %** (83 kB mot 237 kB) — hela state-filen serialiseras om SYNKRONT var
+  10:e sekund på samma tråd som 42 butikers diff-block, så en andra karta över hela nyckelrymden hade
+  fördubblat den stallen. En slutsåld annons kan ändå aldrig ge ett prisinlägg, och kommer den
+  tillbaka är PÅFYLLNINGEN nyheten. Undantaget för `absent` finns för att de två mest aktiva
+  ROTERANDE butikerna annars aldrig kunde ge ett prisinlägg alls.
+- ⛔ **DEN NUMERISKA DOMEN KOMMER FÖRE VAKTKEDJAN.** Loopen ser hela butikens feed varje varv, dygnet
+  runt, i 42 parallella loopar; `classifyDiscordListing` är ett dussin regexar per annons. Två
+  heltalsjämförelser släpper igenom en handfull kandidater — först DE betalar vakten. (Priset är att
+  minnet också bär gosedjur och sleeves. Det är rätt byte.)
+- ⛔ **EN PÅFYLLNING PÅ SAMMA URL VINNER SAMMA VARV** — priset står redan i det inlägget. Och
+  prisinlägg stämplas i `pricePosted`, ALDRIG i `posted`: delade de karta hade ett prisinlägg tystat
+  en riktig påfyllning i två timmar, dvs det värdefullaste larmet offrat för det billigaste.
+- **Spakar**: `DISCORD_PRICE_DROPS_ENABLED` (tom = PÅ; "false" = av — en tom `${{ vars.X }}` får
+  ALDRIG läsas som "av"), `DISCORD_PRICE_DROP_MIN_PERCENT` / `_MIN_ORE` / `_MAX_PERCENT` /
+  `_MAX_PER_STORE` / `_COOLDOWN_HOURS`. Egen kanal via `"prices":"<id>"` i
+  `DISCORD_RESTOCK_CHANNELS` — utan den routas prisinläggen som påfyllningarna.
 
 ## ⛔ SVEPET ÄR BORTTAGET — VARJE BUTIK GÅR I SIN EGEN TAKT (2026-08-16)
 Lanen var ett SVEP: alla butiker hämtades parallellt, och först när den LÅNGSAMMASTE svarat kördes

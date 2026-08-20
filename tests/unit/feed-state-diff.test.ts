@@ -128,3 +128,52 @@ describe("mergeStateMap — en TOM feed får inte radera butikens minne", () => 
     expect(next["DL\ta"]).toBe("IN_STOCK");
   });
 });
+
+/**
+ * NY URL I FÖRHANDSBOKNING (2026-08-21). Webhallen listar en ny förhandsbokning som en
+ * URL vi aldrig sett med PREORDER som FÖRSTA status, så `preorder-open`
+ * (OUT_OF_STOCK → PREORDER) kan per konstruktion aldrig fånga den.
+ *
+ * ⛔ DEFAULTEN ÄR AV, OCH DET ÄR EN KOSTNADSREGEL. Den här modulen är DB-lanens
+ * väckningsgrind, och en väckning köper minst 300 s debiterad Neon-tid. Det enda den
+ * skulle köpa här är ett NEW_LISTING-larm minuter i stället för timmar tidigare —
+ * samma annons skapas ändå av scrape-all samma natt. Discord-lanen slår på flaggan,
+ * för där ÄR inlägget hela poängen.
+ */
+describe("feed-state-diff — ny URL i förhandsbokning", () => {
+  it("⛔ AV som default: väckningsgrinden väcker INTE på en ny PREORDER-URL", () => {
+    const changes = actionableChanges({}, [g("Webhallen", [["x", "PREORDER"]])], NONE);
+    expect(changes).toHaveLength(0);
+  });
+
+  it("PÅ på begäran: samma URL blir en händelse med egen orsak", () => {
+    const changes = actionableChanges({}, [g("Webhallen", [["x", "PREORDER"]])], NONE, {
+      newUrlPreorder: true,
+    });
+    expect(changes).toEqual([
+      { key: "Webhallen\tx", from: "ABSENT", to: "PREORDER", reason: "preorder-new" },
+    ]);
+  });
+
+  it("⛔ roterande butiker är undantagna även med flaggan på — rotation är inte signal", () => {
+    const changes = actionableChanges({}, [g("Swepoke", [["x", "PREORDER"]])], new Set(["Swepoke"]), {
+      newUrlPreorder: true,
+    });
+    expect(changes).toHaveLength(0);
+  });
+
+  it("en KÄND URL som går OUT_OF_STOCK → PREORDER är oförändrat `preorder-open`", () => {
+    const prev = buildStateMap([g("Webhallen", [["x", "OUT_OF_STOCK"]])]);
+    const changes = actionableChanges(prev, [g("Webhallen", [["x", "PREORDER"]])], NONE);
+    expect(changes).toEqual([
+      { key: "Webhallen\tx", from: "OUT_OF_STOCK", to: "PREORDER", reason: "preorder-open" },
+    ]);
+  });
+
+  it("⛔ flaggan rör inte andra nya statusar — OUT_OF_STOCK väcker fortfarande aldrig", () => {
+    const changes = actionableChanges({}, [g("DL", [["x", "OUT_OF_STOCK"]])], NONE, {
+      newUrlPreorder: true,
+    });
+    expect(changes).toHaveLength(0);
+  });
+});

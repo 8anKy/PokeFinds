@@ -21,7 +21,7 @@
  * en artighet.
  */
 import { discordFetch } from "@/lib/discord";
-import { formatPrice } from "@/lib/format";
+import { formatPercent, formatPrice } from "@/lib/format";
 
 /** Turkos signaturaccent (`holo.cyan` = #2dd4bf) som heltal, för embed-kanten. */
 const BRAND_COLOR = 0x2dd4bf;
@@ -51,6 +51,18 @@ export interface DiscordRestockConfig {
   languageChannels: Record<string, string>;
   /** Catch-all. Utan den postas INGENTING som saknar kanal (fail closed). */
   defaultChannelId: string | null;
+  /**
+   * EN kanal som tar ALLA prissänkningsinlägg (`"prices":"<id>"`). Valfri: utan den
+   * följer prisinläggen samma set-/serie-/språkrouting som påfyllningarna.
+   *
+   * ⛔ FINNS FÖR ATT VOLYMERNA INTE ÄR JÄMFÖRBARA. Kanalerna bär ~12 påfyllningar per
+   * dygn; hur många prissänkningar 42 butiker gör per dygn är OMÄTT (ingen sådan
+   * historik finns — lanen har aldrig sparat priser). Blir det tio gånger fler
+   * dränker de påfyllningarna, som är det larm folk faktiskt jagar. En egen kanal är
+   * spaken för det, och den kräver ingen kodändring — bara ett fält i
+   * DISCORD_RESTOCK_CHANNELS.
+   */
+  priceChannelId: string | null;
 }
 
 /**
@@ -58,9 +70,12 @@ export interface DiscordRestockConfig {
  *   {"default":"123",
  *    "sets":{"Prismatic Evolutions":"456"},
  *    "series":{"Scarlet & Violet":"789","Mega Evolution":"012"},
- *    "languages":{"JP":"345"}}
+ *    "languages":{"JP":"345"},
+ *    "prices":"678"}
  * `sets` är valfri och vinner över `series` (se resolveChannelId). `languages` är
  * valfri och gäller icke-engelska produkter (utan den går de till catch-all).
+ * `prices` är valfri och är EN kanal-id (inte en karta) som tar alla
+ * prissänkningsinlägg — utan den routas de som påfyllningarna.
  *
  * ⛔ Kanal-id:n är INTE hemligheter (till skillnad från webhook-URL:er, som är rena
  * bärartokens — vem som helst med URL:en kan posta i kanalen). Därför bot-token +
@@ -77,7 +92,13 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
 
   const raw = process.env.DISCORD_RESTOCK_CHANNELS;
   if (!raw) return null;
-  let parsed: { default?: unknown; sets?: unknown; series?: unknown; languages?: unknown };
+  let parsed: {
+    default?: unknown;
+    sets?: unknown;
+    series?: unknown;
+    languages?: unknown;
+    prices?: unknown;
+  };
   try {
     parsed = JSON.parse(raw) as typeof parsed;
   } catch {
@@ -100,11 +121,20 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
   const languageChannels = readMap(parsed.languages);
   const defaultChannelId =
     typeof parsed.default === "string" && parsed.default.trim() ? parsed.default.trim() : null;
+  const priceChannelId =
+    typeof parsed.prices === "string" && parsed.prices.trim() ? parsed.prices.trim() : null;
 
   if (!defaultChannelId && !Object.keys(setChannels).length && !Object.keys(seriesChannels).length) {
     return null;
   }
-  return { botToken, setChannels, seriesChannels, languageChannels, defaultChannelId };
+  return {
+    botToken,
+    setChannels,
+    seriesChannels,
+    languageChannels,
+    defaultChannelId,
+    priceChannelId,
+  };
 }
 
 /** Set- och serienamn jämförs skiftlägesokänsligt och utan kantmellanslag. */
@@ -181,6 +211,17 @@ export interface RestockPost {
   setUrl?: string | null;
   /** PREORDER-övergång får egen rubrik — det är ett annat besked än en påfyllning. */
   preorder?: boolean;
+  /**
+   * Priset FÖRE sänkningen (öre). Satt ⇒ inlägget är ett PRISLARM, inte en påfyllning:
+   * varan har stått i lager hela tiden, det är priset som är nyheten.
+   *
+   * ⛔ RUBRIKEN SÄGER "NYTT LÄGRE PRIS", ALDRIG "LÄGSTAPRIS". Talet här är priset vi
+   * SÅG SENAST i butikens feed, inte ett historiskt lägsta — den historiken bor i
+   * databasen, som den här lanen aldrig får röra. "Lägstapris" hade varit ett
+   * påstående vi inte kan belägga, och ett obelagt påstående om pris är precis det
+   * katalogens övriga regler finns för att förhindra.
+   */
+  previousPriceOre?: number | null;
 }
 
 function clamp(s: string, max: number): string {
@@ -193,6 +234,17 @@ function clamp(s: string, max: number): string {
  * ligger som en egen rad när vi känner igen URL:en.
  */
 export function buildRestockEmbed(post: RestockPost) {
+  // ⛔ BÅDA TALEN MÅSTE VARA RIKTIGA PRISER. `previousPriceOre` sätts bara av
+  //    prisdomen, men embedden byggs också av testläget och av äldre state — och en
+  //    nolla i nämnaren hade gett "−Infinity %" i en publik kanal.
+  const priceDrop =
+    post.previousPriceOre != null &&
+    post.previousPriceOre > 0 &&
+    post.priceOre != null &&
+    post.priceOre > 0 &&
+    post.priceOre < post.previousPriceOre
+      ? { percent: ((post.previousPriceOre - post.priceOre) / post.previousPriceOre) * 100 }
+      : null;
   const fields: { name: string; value: string; inline: boolean }[] = [
     { name: "Butik", value: clamp(post.storeName, MAX_FIELD_VALUE), inline: true },
     { name: "Pris", value: formatPrice(post.priceOre), inline: true },
@@ -224,9 +276,14 @@ export function buildRestockEmbed(post: RestockPost) {
   }
 
   return {
-    title: clamp(post.title, MAX_TITLE),
+    title: clamp(priceDrop ? `Nytt lägre pris — ${post.title}` : post.title, MAX_TITLE),
     url: post.storeUrl,
-    description: post.preorder ? "Går nu att förhandsboka." : "Finns i lager igen.",
+    description: priceDrop
+      ? `Sänkt från ${formatPrice(post.previousPriceOre)} till ${formatPrice(post.priceOre)} ` +
+        `(${formatPercent(-priceDrop.percent)}).`
+      : post.preorder
+        ? "Går nu att förhandsboka."
+        : "Finns i lager igen.",
     color: BRAND_COLOR,
     fields,
     ...(post.imageUrl ? { thumbnail: { url: post.imageUrl } } : {}),
@@ -269,6 +326,9 @@ export async function postTestMessages(
     ...Object.entries(config.setChannels).map(([k, v]) => ({ channelId: v, rule: `set: ${k}` })),
     ...Object.entries(config.seriesChannels).map(([k, v]) => ({ channelId: v, rule: `serie: ${k}` })),
     ...Object.entries(config.languageChannels).map(([k, v]) => ({ channelId: v, rule: `språk: ${k}` })),
+    ...(config.priceChannelId
+      ? [{ channelId: config.priceChannelId, rule: "prissänkningar" }]
+      : []),
     ...(config.defaultChannelId
       ? [{ channelId: config.defaultChannelId, rule: "default (allt utan egen kanal)" }]
       : []),
@@ -338,7 +398,12 @@ export async function postRestocks(
 ): Promise<{ sent: number; postedKeys: string[]; failed: number }> {
   const byChannel = new Map<string, RestockPost[]>();
   for (const p of posts) {
-    const channelId = resolveChannelId(p.setName, p.series, config, p.language);
+    // Prisinlägg kan styras till EN egen kanal — se priceChannelId. Utan den följer de
+    // samma routing som påfyllningarna.
+    const channelId =
+      p.previousPriceOre != null && config.priceChannelId
+        ? config.priceChannelId
+        : resolveChannelId(p.setName, p.series, config, p.language);
     if (!channelId) {
       console.warn(
         `[discord-restock] Ingen kanal för set "${p.setName ?? "(saknas)"}" / serie ` +

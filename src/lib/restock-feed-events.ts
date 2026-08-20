@@ -47,6 +47,12 @@
  */
 import { actionableChanges, mergeStateMap, type FeedStateMap } from "@/lib/feed-state-diff";
 import { evaluateStockFlap, FLAP_WINDOW_HOURS, type FlapPolicy } from "@/lib/stock-flap";
+import {
+  judgePriceDrop,
+  type PriceDropPolicy,
+  type PricePostMemory,
+  type PriceRejectReason,
+} from "@/lib/price-drop";
 import type { RestockPost } from "@/lib/discord-restock";
 import {
   classifyDiscordListing,
@@ -120,10 +126,38 @@ export interface DiscordRestockState {
    * → tolkas som tom, och lanen beter sig då exakt som förut tills minnet byggts upp.
    */
   absent?: Record<string, AbsentEntry>;
+  /**
+   * url-nyckel → senast sedda pris i ÖRE, men BARA för annonser vi såg I LAGER
+   * (plus de som ligger i `absent`). Baslinjen för prissänkningslarmen.
+   *
+   * ⛔ AVGRÄNSNINGEN ÄR EN KOSTNADSREGEL, INTE SNÅLHET. `stock` bär alla ~25 000
+   * feed-URL:er (~3 MB) och HELA state-filen serialiseras om synkront var 10:e sekund
+   * på samma tråd som 42 butikers diff-block. En andra karta över samma nyckelrymd
+   * hade fördubblat den stallen för ingenting: en slutsåld annons kan aldrig ge ett
+   * prisinlägg, och kommer den tillbaka i lager är PÅFYLLNINGEN nyheten.
+   * MÄTT 2026-08-21 (torrkörning, fem butiker): 796 priser mot 2 113 lagerposter =
+   * **38 %**, dvs 83 kB mot lagerkartans 237 kB. Filen växer alltså ~⅓, inte dubbelt.
+   *
+   * ⚠️ Kartan bär också annonser vaktkedjan skulle fälla (gosedjur, sleeves) — med
+   * flit. Att filtrera minnet hade krävt ett dussin regexar per annons och varv,
+   * dygnet runt, för att spara några tiotals kilobyte. Vakten körs i stället bara på
+   * de fåtal annonser som faktiskt föll i pris.
+   *
+   * Saknas i äldre state-filer → tom karta ⇒ ingen baslinje ⇒ inga prisinlägg första
+   * varvet efter en deploy. Det är rätt beteende: utan baslinje finns ingen sänkning.
+   */
+  price?: Record<string, number>;
+  /**
+   * url-nyckel → prisnivån vi SENAST postade om, och när. Pendlingsspärr: en butik som
+   * växlar 559 ⇄ 450 får annars ett inlägg varje varv. Egen karta, INTE `posted` —
+   * delade de nyckelrymd hade ett prisinlägg tystat en riktig PÅFYLLNING i två timmar,
+   * och påfyllningen är alltid det värdefullare larmet.
+   */
+  pricePosted?: Record<string, PricePostMemory>;
 }
 
 export function emptyState(): DiscordRestockState {
-  return { stock: {}, history: {}, posted: {}, absent: {} };
+  return { stock: {}, history: {}, posted: {}, absent: {}, price: {}, pricePosted: {} };
 }
 
 /**
@@ -147,6 +181,12 @@ export function parseDiscordRestockState(parsed: unknown): DiscordRestockState |
     history: obj(p.history),
     posted: obj(p.posted),
     absent: obj(p.absent),
+    // ⛔ NYA FÄLT MÅSTE IN PÅ TRE STÄLLEN SAMTIDIGT: här, i den seedade tidiga
+    //    returen och i den slutliga returen ur deriveRestockPosts. Missas ett enda
+    //    överlever kartan bara i minnet — gröna körningar, tyst död mekanism, exakt
+    //    `pending`-regressionen ovan.
+    price: obj(p.price),
+    pricePosted: obj(p.pricePosted),
   };
 }
 
@@ -176,6 +216,14 @@ export interface DeriveOptions {
   /** Timmar mellan två inlägg om samma butik+URL. Speglar RESTOCK_ALERT_COOLDOWN_HOURS. */
   cooldownHours: number;
   baseUrl: string;
+  /**
+   * Gränserna för prissänkningslarm (`pricePolicy()`). `null`/utelämnad = funktionen
+   * avstängd, och då TÖMS prisminnet (`price`/`pricePosted`) i nästa state — en
+   * avstängd funktion ska inte bära ~⅓ av state-filens storlek. Priset för det är att
+   * ett nytt påslag behöver ETT varv på sig att bygga baslinjen igen; utan baslinje
+   * finns ingen sänkning, så det första varvet är tyst med flit.
+   */
+  priceDrops?: PriceDropPolicy | null;
 }
 
 export interface DeriveResult {
@@ -207,6 +255,27 @@ export interface DeriveResult {
      * inga hemligheter — säkert i publika loggar.
      */
     filteredSamples: string[];
+    /** Prissänkningar som blev inlägg. */
+    priceDrops: number;
+    /** Hur många prisfall som föll på VILKEN gräns. Räknare utan namn går inte att felsöka. */
+    priceRejected: Partial<Record<PriceRejectReason | "burst" | "filtered", number>>;
+    /**
+     * Ett urval av prisfallen — BÅDE de postade och de avvisade ("källa → url:
+     * 559 kr → 450 kr (−19,5 %) [orsak]"). Gränserna är satta i underkant utan att vara
+     * mätta på vår egen trafik; utan namngivna exempel går de inte att justera på annat
+     * än magkänsla. Produktdata, inga hemligheter — säkert i publika loggar.
+     */
+    priceSamples: string[];
+    /**
+     * Butiker vars prisfall fälldes av burst-gränsen, med antalet.
+     *
+     * ⛔ EGET FÄLT, INTE EN RAD I `priceSamples`. Mätt i torrkörning 2026-08-21: en
+     * butik med 106 samtidiga fall fyllde urvalslistans tio platser innan
+     * burst-raden hann skrivas — dvs den ENDA rad som pekar ut ett systemfel
+     * (valuta/marknad) trängdes undan av exemplen på symptomet. Anroparen loggar det
+     * här fältet villkorslöst.
+     */
+    priceBurstStores: { store: string; count: number }[];
   };
 }
 
@@ -217,8 +286,19 @@ export interface DeriveResult {
  * Samma invariant som DB-vägens "ingen tidigare state → seeda".
  */
 export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
-  const { state, groups, rotating, routes, filter, knownSets, now, policy, cooldownHours, baseUrl } =
-    opts;
+  const {
+    state,
+    groups,
+    rotating,
+    routes,
+    filter,
+    knownSets,
+    now,
+    policy,
+    cooldownHours,
+    baseUrl,
+    priceDrops,
+  } = opts;
   const prev = state ?? emptyState();
   const seeded = state == null || Object.keys(prev.stock).length === 0;
 
@@ -234,6 +314,10 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
     rescuedByRoute: 0,
     filteredReasons: {},
     filteredSamples: [],
+    priceDrops: 0,
+    priceRejected: {},
+    priceSamples: [],
+    priceBurstStores: [],
   };
 
   // ---- FRÅNVAROMINNET (se filhuvudet) ----
@@ -254,10 +338,23 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
   }
   for (const k of Object.keys(nextStock)) delete absent[k];
 
+  // ---- PRISMINNET ----
+  // Uppdateras ALLTID när funktionen är på, också under seedningen — av samma skäl
+  // som frånvarominnet: annars vore baslinjen tom exakt när den behövs som mest.
+  const nextPrice = priceDrops ? mergePriceMap(prev.price, groups, absent) : {};
+  const pricePosted = priceDrops ? prunePricePosted(prev.pricePosted, now) : {};
+
   if (seeded) {
     return {
       posts: [],
-      nextState: { stock: nextStock, history: prev.history, posted: prev.posted, absent },
+      nextState: {
+        stock: nextStock,
+        history: prev.history,
+        posted: prev.posted,
+        absent,
+        price: nextPrice,
+        pricePosted,
+      },
       stats,
     };
   }
@@ -299,7 +396,7 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
    * tre varv över tre butiker.)
    */
   type AbsentVerdict = "post" | "silent" | "blip";
-  const judgeAbsent = (key: string): AbsentVerdict => {
+  const judgeAbsent = (key: string, to: string): AbsentVerdict => {
     const source = sourceOf(key);
     // En KÄLLA vi aldrig fört bok över seedas tyst — hela dess sortiment ser nytt ut.
     if (freshSources.has(source)) return "silent";
@@ -310,18 +407,36 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
       // inte ger "ny produkt"-larm i övrigt.
       return remembered?.s === OUT_OF_STOCK ? "post" : "silent";
     }
-    if (remembered && remembered.s === IN_STOCK && now.getTime() - remembered.t < minAwayMs) {
-      // Den var i lager, försvann ur feeden och är tillbaka inom blinkfönstret: en
-      // feed-hicka, inte en påfyllning. Samma tal som DB-vägens blinkregel.
+    if (remembered && remembered.s === to && now.getTime() - remembered.t < minAwayMs) {
+      // Den hade SAMMA status, försvann ur feeden och är tillbaka inom blinkfönstret:
+      // en feed-hicka, inte en nyhet. Samma tal som DB-vägens blinkregel.
+      // ⛔ VILLKORET ÄR `remembered.s === to`, INTE `=== IN_STOCK`. Fram till att
+      //    förhandsbokningar fick sin egen gren gällde regeln bara i lager, för det var
+      //    den enda status som kunde nå hit. En PREORDER som blinkar ur feeden ett varv
+      //    ska tiga av exakt samma skäl som en i-lager-vara gör det.
       return "blip";
+    }
+    if (to === PREORDER && remembered && remembered.s !== OUT_OF_STOCK) {
+      // ⛔ EN FÖRHANDSBOKNING ÄR BARA EN NYHET OM VI INTE REDAN KUNDE KÖPA VARAN.
+      //    Minns vi den i lager är PREORDER en FÖRSÄMRING (samma dom som
+      //    `isPreorderOpen`, som bara accepterar OUT_OF_STOCK → PREORDER); minns vi
+      //    den redan som förhandsbokning är det ingen förändring alls, bara en URL
+      //    som varit borta längre än blinkfönstret.
+      return "silent";
     }
     return "post";
   };
 
   const absentVerdicts = new Map<string, AbsentVerdict>();
-  const changes = actionableChanges(prev.stock, groups, new Set()).filter((c) => {
+  // ⛔ `newUrlPreorder` PÅ HÄR, AV I VÄCKNINGSGRINDEN. En ny Webhallen-förhandsbokning
+  //    dyker upp som en URL vi aldrig sett med PREORDER som FÖRSTA status, så
+  //    `preorder-open` (OUT_OF_STOCK → PREORDER) kan per konstruktion aldrig fånga den.
+  //    Läs kostnadsresonemanget vid ChangeOptions i feed-state-diff.ts.
+  const changes = actionableChanges(prev.stock, groups, new Set(), {
+    newUrlPreorder: true,
+  }).filter((c) => {
     if (c.from !== "ABSENT") return true;
-    const v = judgeAbsent(c.key);
+    const v = judgeAbsent(c.key, c.to);
     absentVerdicts.set(c.key, v);
     if (v === "blip") stats.skippedBlip++;
     return v !== "silent";
@@ -368,8 +483,9 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
 
   for (const c of changes) {
     // Bara påfyllningar och öppnade förhandsbokningar. En slutförsäljning är ingen
-    // nyhet för den som vill köpa. (`reason` speglar isRestock/isPreorderOpen.)
-    const isPreorderOpen = c.reason === "preorder-open";
+    // nyhet för den som vill köpa. (`reason` speglar isRestock/isPreorderOpen, plus
+    // `preorder-new` som bara den här lanen ber om — se ChangeOptions.)
+    const isPreorderOpen = c.reason === "preorder-open" || c.reason === "preorder-new";
     if (c.to !== IN_STOCK && !isPreorderOpen) continue;
     // Feed-hicka: domen är redan fälld ovan (och räknad), lagerläget skrivs ändå.
     if (absentVerdicts.get(c.key) === "blip") continue;
@@ -430,59 +546,57 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
       continue;
     }
 
-    // Språket: katalogen vet bäst när den känner URL:en, annars annonsen själv.
-    const language = route?.language ?? verdict.language;
-    // Set/serie: rutten först, annars ett känt setnamn ur butikens egen titel — utan
-    // det hade varje URL utanför katalogen hamnat i catch-all och seriekanalerna
-    // blivit tomma skal precis när lanen började se mer.
-    const guessed =
-      route?.setName || !knownSets?.length
-        ? null
-        : matchKnownSet(found.item.title, knownSets, language);
-
     posts.push({
-      key: c.key,
-      // Katalogens titel framför butikens fras — butikstitlar bär "MAX 1 per kund",
-      // "(kopia)" och liknande skräp. Utan rutt är `verdict.title` samma fras redan
-      // tvättad av cleanListingTitle.
-      title: route?.title || verdict.title || found.item.title,
-      storeName: found.sourceName,
-      storeUrl: found.item.url,
-      priceOre: found.item.price,
-      // Butikens egen bild först (den visar exakt varan), katalogbilden som reserv —
-      // de flesta feedar bär ingen bild alls och embedden stod bildlös.
-      imageUrl: found.item.imageUrl ?? absoluteImage(route?.imageUrl),
-      setName: route?.setName ?? guessed?.name ?? null,
-      series: route?.series ?? guessed?.series ?? null,
-      language,
-      productUrl: route ? `${site}/produkter/${route.slug}` : null,
-      // ⛔ RESERVLÄNK NÄR PRODUKTSIDAN INTE FINNS (2026-08-16). En URL utan rutt har
-      // ingen produktsida att peka på — inlägget stod därför helt utan väg tillbaka
-      // till oss, vilket ägaren såg direkt i kanalen. Setet vet vi ändå: det är så
-      // inlägget hamnade i rätt kanal.
-      //
-      // ⛔ SETSIDAN (`/sets/<id>`), INTE KATALOGFILTRET (`/produkter?set=<id>`).
-      //    Skälet är KOSTNAD, inte innehåll: `/produkter` är `force-dynamic` med flit
-      //    (searchParams), så varje klick från en PUBLIK Discord-kanal hade blivit en
-      //    serverrendering med DB-frågor — dvs en väckning av en Neon-compute som
-      //    debiteras per vaken tid, minst 300 s per väckning. En länk vi postar
-      //    dussintals gånger per dygn i en öppen kanal är en trafikkälla vi inte
-      //    styr. `/sets/[id]` är ISR-cachad (`revalidate = 3600` + `generateStaticParams`)
-      //    och serveras ur cachen. Samma skäl som håller startsidan och /marknad ISR.
-      //    Setsidan saknar dessutom katalogfiltrets pris- och `hiddenAt`-krav, så den
-      //    kan inte stå tom för ett FÄRSKT set — vilket är precis det läge där rutten
-      //    oftast saknas.
-      // ⛔ FRITEXTSÖK (`?q=`) DUGER INTE HELLER: filtret kräver att ALLA ord i frågan
-      //    finns i produktens normalizedTitle, och butikstiteln bär prefix ("Pokémon
-      //    Mega Evolution: …"), språktaggar ("(ENG)") och ibland stavfel
-      //    ("Phantsmal") — en sådan sökning hade landat på NOLL träffar. Den URL-rymden
-      //    är dessutom blockerad i robots.txt, dvs medvetet inte delbar.
-      setUrl: !route && guessed?.id ? `${site}/sets/${encodeURIComponent(guessed.id)}` : null,
+      ...buildPostBase({
+        key: c.key,
+        item: found.item,
+        sourceName: found.sourceName,
+        route,
+        verdict,
+        knownSets,
+        site,
+        absoluteImage,
+      }),
       preorder: isPreorderOpen,
     });
   }
 
-  return { posts, nextState: { stock: nextStock, history, posted: { ...posted }, absent }, stats };
+  // ---- PRISSÄNKNINGAR ----
+  // ⛔ EFTER lagerdomen, med flit: en URL som redan får ett påfyllnings- eller
+  //    förhandsbokningsinlägg i samma varv ska inte få ett prisinlägg ovanpå. Det
+  //    priset står redan i det första inlägget.
+  if (priceDrops) {
+    collectPriceDrops({
+      groups,
+      prev,
+      nextPrice,
+      pricePosted,
+      alreadyPosted: new Set(posts.map((p) => p.key)),
+      freshSources,
+      routes,
+      filter,
+      knownSets,
+      now,
+      policy: priceDrops,
+      site,
+      absoluteImage,
+      posts,
+      stats,
+    });
+  }
+
+  return {
+    posts,
+    nextState: {
+      stock: nextStock,
+      history,
+      posted: { ...posted },
+      absent,
+      price: nextPrice,
+      pricePosted,
+    },
+    stats,
+  };
 }
 
 function absentMemory(
@@ -491,6 +605,274 @@ function absentMemory(
 ): AbsentEntry | undefined {
   const e = map?.[key];
   return e && typeof e.t === "number" && typeof e.s === "string" ? e : undefined;
+}
+
+/**
+ * De fält ALLA inlägg delar, oavsett om nyheten är lager, förhandsbokning eller pris.
+ *
+ * ⛔ EN ENDA DEFINITION, ALDRIG EN KOPIA. Titelvalet, bildreserven, set-/seriegissningen
+ * och de två länkarna tillbaka till oss är fyra separata beslut som var och en har
+ * kostat en felrapport att få rätt. Byggdes prisinlägget av en egen kopia hade den
+ * driftat isär tyst — exakt så flapp-dämpningen en gång driftade mellan lanarna.
+ */
+function buildPostBase(args: {
+  key: string;
+  item: FeedItemFull;
+  sourceName: string;
+  route: RouteEntry | undefined;
+  verdict: { title: string; language: "EN" | "JP" };
+  knownSets: KnownSet[] | undefined;
+  site: string;
+  absoluteImage: (url: string | null | undefined) => string | null;
+}): Omit<RestockPost, "preorder" | "previousPriceOre"> {
+  const { key, item, sourceName, route, verdict, knownSets, site, absoluteImage } = args;
+  // Språket: katalogen vet bäst när den känner URL:en, annars annonsen själv.
+  const language = route?.language ?? verdict.language;
+  // Set/serie: rutten först, annars ett känt setnamn ur butikens egen titel — utan
+  // det hade varje URL utanför katalogen hamnat i catch-all och seriekanalerna
+  // blivit tomma skal precis när lanen började se mer.
+  const guessed =
+    route?.setName || !knownSets?.length ? null : matchKnownSet(item.title, knownSets, language);
+
+  return {
+    key,
+    // Katalogens titel framför butikens fras — butikstitlar bär "MAX 1 per kund",
+    // "(kopia)" och liknande skräp. Utan rutt är `verdict.title` samma fras redan
+    // tvättad av cleanListingTitle.
+    title: route?.title || verdict.title || item.title,
+    storeName: sourceName,
+    storeUrl: item.url,
+    priceOre: item.price,
+    // Butikens egen bild först (den visar exakt varan), katalogbilden som reserv —
+    // de flesta feedar bär ingen bild alls och embedden stod bildlös.
+    imageUrl: item.imageUrl ?? absoluteImage(route?.imageUrl),
+    setName: route?.setName ?? guessed?.name ?? null,
+    series: route?.series ?? guessed?.series ?? null,
+    language,
+    productUrl: route ? `${site}/produkter/${route.slug}` : null,
+    // ⛔ RESERVLÄNK NÄR PRODUKTSIDAN INTE FINNS (2026-08-16). En URL utan rutt har
+    // ingen produktsida att peka på — inlägget stod därför helt utan väg tillbaka
+    // till oss, vilket ägaren såg direkt i kanalen. Setet vet vi ändå: det är så
+    // inlägget hamnade i rätt kanal.
+    //
+    // ⛔ SETSIDAN (`/sets/<id>`), INTE KATALOGFILTRET (`/produkter?set=<id>`).
+    //    Skälet är KOSTNAD, inte innehåll: `/produkter` är `force-dynamic` med flit
+    //    (searchParams), så varje klick från en PUBLIK Discord-kanal hade blivit en
+    //    serverrendering med DB-frågor — dvs en väckning av en Neon-compute som
+    //    debiteras per vaken tid, minst 300 s per väckning. En länk vi postar
+    //    dussintals gånger per dygn i en öppen kanal är en trafikkälla vi inte
+    //    styr. `/sets/[id]` är ISR-cachad (`revalidate = 3600` + `generateStaticParams`)
+    //    och serveras ur cachen. Samma skäl som håller startsidan och /marknad ISR.
+    //    Setsidan saknar dessutom katalogfiltrets pris- och `hiddenAt`-krav, så den
+    //    kan inte stå tom för ett FÄRSKT set — vilket är precis det läge där rutten
+    //    oftast saknas.
+    // ⛔ FRITEXTSÖK (`?q=`) DUGER INTE HELLER: filtret kräver att ALLA ord i frågan
+    //    finns i produktens normalizedTitle, och butikstiteln bär prefix ("Pokémon
+    //    Mega Evolution: …"), språktaggar ("(ENG)") och ibland stavfel
+    //    ("Phantsmal") — en sådan sökning hade landat på NOLL träffar. Den URL-rymden
+    //    är dessutom blockerad i robots.txt, dvs medvetet inte delbar.
+    setUrl: !route && guessed?.id ? `${site}/sets/${encodeURIComponent(guessed.id)}` : null,
+  };
+}
+
+/**
+ * Nästa varvs prisminne. Speglar `mergeStateMap` fält för fält, med två skillnader
+ * som båda är avsiktliga:
+ *
+ *  1. **BARA ANNONSER I LAGER SKRIVS.** En slutsåld annons kan aldrig ge ett
+ *     prisinlägg, och kommer den tillbaka är PÅFYLLNINGEN nyheten. Att ändå bära
+ *     dess pris hade femdubblat kartan (5 295 i lager av ~25 000 URL:er) och därmed
+ *     den synkrona serialiseringen var 10:e sekund.
+ *  2. **URL:er I FRÅNVAROMINNET BEHÅLLER SITT PRIS.** Utan undantaget hade de två
+ *     mest aktiva roterande butikerna (Shinycards, Swepoke) aldrig kunnat ge ett
+ *     prisinlägg alls: deras URL:er faller ur feeden hela tiden, och en raderad
+ *     baslinje betyder "ingen sänkning" varje gång de kommer tillbaka.
+ *
+ * En källa som svarade TOMT lämnas orörd — tom feed är ingen information, samma
+ * invariant som lagerläget vilar på.
+ */
+export function mergePriceMap(
+  prev: Record<string, number> | undefined,
+  groups: FullFeedGroup[],
+  absent: Record<string, AbsentEntry>
+): Record<string, number> {
+  const next: Record<string, number> = { ...(prev ?? {}) };
+  for (const g of groups) {
+    if (g.items.length === 0) continue;
+    const prefix = `${g.sourceName}\t`;
+    for (const k of Object.keys(next)) {
+      if (k.startsWith(prefix) && !absent[k]) delete next[k];
+    }
+    for (const it of g.items) {
+      if (it.stockStatus !== IN_STOCK) continue;
+      // ⛔ 0 KR ÄR INGET PRIS. En nolla som baslinje hade gjort varje senare pris till
+      //    en "höjning" (tyst), och som nytt pris hade den postat "0 kr" som ett fynd.
+      if (typeof it.price !== "number" || !(it.price > 0)) continue;
+      next[`${g.sourceName}\t${it.url}`] = it.price;
+    }
+  }
+  return next;
+}
+
+/** Hur länge vi minns att vi postat om en prisnivå. Egen klocka — kartan måste gallra. */
+const PRICE_POSTED_MEMORY_HOURS = 72;
+
+function prunePricePosted(
+  prev: Record<string, PricePostMemory> | undefined,
+  now: Date
+): Record<string, PricePostMemory> {
+  const cutoff = now.getTime() - PRICE_POSTED_MEMORY_HOURS * 3600_000;
+  const out: Record<string, PricePostMemory> = {};
+  for (const [k, e] of Object.entries(prev ?? {})) {
+    if (e && typeof e.t === "number" && typeof e.p === "number" && e.t >= cutoff) out[k] = e;
+  }
+  return out;
+}
+
+/**
+ * Prissänkningarna i den här hämtningen → inlägg.
+ *
+ * ⛔ DEN NUMERISKA DOMEN KOMMER FÖRE VAKTKEDJAN, OCH ORDNINGEN ÄR EN CPU-REGEL.
+ * Loopen ser HELA butikens feed varje varv, dygnet runt, i ett jobb som kör 42 sådana
+ * loopar parallellt. `classifyDiscordListing` är ett dussin regexar per annons — körd
+ * på allt hade den bränt CPU i evighet för att avvisa samma sleeves om och om igen.
+ * Två heltalsjämförelser släpper igenom en handfull kandidater per varv; först DE
+ * betalar vaktkedjan.
+ */
+function collectPriceDrops(args: {
+  groups: FullFeedGroup[];
+  prev: DiscordRestockState;
+  nextPrice: Record<string, number>;
+  pricePosted: Record<string, PricePostMemory>;
+  alreadyPosted: ReadonlySet<string>;
+  freshSources: ReadonlySet<string>;
+  routes: RouteTable;
+  filter: DiscordFilterContext;
+  knownSets: KnownSet[] | undefined;
+  now: Date;
+  policy: PriceDropPolicy;
+  site: string;
+  absoluteImage: (url: string | null | undefined) => string | null;
+  posts: RestockPost[];
+  stats: DeriveResult["stats"];
+}): void {
+  const {
+    groups,
+    prev,
+    alreadyPosted,
+    freshSources,
+    routes,
+    filter,
+    knownSets,
+    now,
+    policy,
+    site,
+    absoluteImage,
+    posts,
+    stats,
+  } = args;
+
+  const note = (reason: PriceRejectReason | "burst" | "filtered") => {
+    stats.priceRejected[reason] = (stats.priceRejected[reason] ?? 0) + 1;
+  };
+  const sample = (line: string) => {
+    if (stats.priceSamples.length < 10) stats.priceSamples.push(line);
+  };
+  const kr = (ore: number) => `${(ore / 100).toFixed(0)} kr`;
+
+  for (const g of groups) {
+    if (g.items.length === 0) continue;
+    // En källa vi aldrig fört bok över seedas tyst — precis som lagerläget. Utan
+    // raden hade en nyinlagd butik postat varje pris som en "sänkning" den dagen
+    // dess första hämtning råkade ge ett lägre tal än den föregående.
+    if (freshSources.has(g.sourceName)) continue;
+
+    const candidates: RestockPost[] = [];
+    for (const item of g.items) {
+      if (item.stockStatus !== IN_STOCK) continue;
+      const key = `${g.sourceName}\t${item.url}`;
+      // Lagernyheten går först — priset står redan i det inlägget.
+      if (alreadyPosted.has(key)) continue;
+
+      const verdictPrice = judgePriceDrop(
+        prev.price?.[key],
+        item.price,
+        args.pricePosted[key],
+        now,
+        policy
+      );
+      if (!verdictPrice.post) {
+        // "no-baseline"/"not-cheaper"/"no-price" är NORMALTILLSTÅNDET för tiotusentals
+        // annonser varje varv — att räkna dem hade gjort loggen oläsbar och sagt
+        // ingenting. Bara de fall där ett verkligt fall FÄLLDES är intressanta.
+        if (
+          verdictPrice.reason === "too-small" ||
+          verdictPrice.reason === "implausible" ||
+          verdictPrice.reason === "cooldown"
+        ) {
+          note(verdictPrice.reason);
+          if (verdictPrice.reason !== "too-small") {
+            sample(
+              `${g.sourceName} → ${item.url}: ${kr(prev.price![key])} → ${kr(item.price!)} ` +
+                `[${verdictPrice.reason}]`
+            );
+          }
+        }
+        continue;
+      }
+
+      // ---- SAMMA VAKTKEDJA SOM PÅFYLLNINGARNA, SAMMA RÄDDNINGSREGEL ----
+      const route = routes[item.url];
+      const verdict = classifyDiscordListing(
+        { title: item.title, url: item.url, category: item.category },
+        filter
+      );
+      if (!verdict.ok) {
+        const rescued = route && verdict.reason !== "language" && verdict.reason !== "denylist";
+        if (!rescued) {
+          note("filtered");
+          continue;
+        }
+        stats.rescuedByRoute++;
+      }
+
+      candidates.push({
+        ...buildPostBase({
+          key,
+          item,
+          sourceName: g.sourceName,
+          route,
+          verdict,
+          knownSets,
+          site,
+          absoluteImage,
+        }),
+        preorder: false,
+        previousPriceOre: prev.price![key],
+      });
+      sample(
+        `${g.sourceName} → ${item.url}: ${kr(prev.price![key])} → ${kr(item.price!)} ` +
+          `(−${verdictPrice.percent.toFixed(1)} %)`
+      );
+    }
+
+    // ---- BURST-GRÄNSEN ----
+    // ⛔ ALLA ELLER INGA, OCH DET ÄR MED FLIT. Faller ett tiotal priser hos SAMMA butik
+    //    i SAMMA hämtning är den troligaste förklaringen inte tio reor utan att vi
+    //    läser fel tal: Shopifys svenska marknad hänger på en cookie, och utan den
+    //    serveras hela butiken EX MOMS (~20 % "sänkning" på allt samtidigt, uppmätt).
+    //    Att posta de fem största hade gjort en tyst valutamiss till fem fejkade fynd
+    //    i en öppen kanal. Vi tiger och SKRIKER i loggen i stället — kandidaterna
+    //    namnges i `priceSamples`, och prisminnet skrivs ändå så samma tal inte
+    //    upprepas varje varv.
+    if (candidates.length > policy.maxPerStore) {
+      stats.priceRejected.burst = (stats.priceRejected.burst ?? 0) + candidates.length;
+      stats.priceBurstStores.push({ store: g.sourceName, count: candidates.length });
+      continue;
+    }
+    for (const p of candidates) posts.push(p);
+    stats.priceDrops += candidates.length;
+  }
 }
 
 /**
@@ -503,11 +885,25 @@ function absentMemory(
 export function markPosted(
   state: DiscordRestockState,
   keys: string[],
-  now: Date
+  now: Date,
+  /**
+   * De nycklar vars inlägg var en PRISSÄNKNING → priset som postades (öre).
+   *
+   * ⛔ DE STÄMPLAS I `pricePosted`, ALDRIG I `posted`. Kartorna delar nyckelrymd men
+   *    inte betydelse: `posted` är påfyllningarnas cooldown, och hamnade ett prisinlägg
+   *    där hade det tystat en RIKTIG påfyllning på samma URL i två timmar — det
+   *    värdefullaste larmet offrat för det billigaste.
+   */
+  pricedKeys?: Record<string, number>
 ): DiscordRestockState {
   const cutoff = now.getTime() - FLAP_WINDOW_HOURS * 3600_000;
   const posted: Record<string, number> = {};
   for (const [k, t] of Object.entries(state.posted)) if (t >= cutoff) posted[k] = t;
-  for (const k of keys) posted[k] = now.getTime();
-  return { ...state, posted };
+  const pricePosted = prunePricePosted(state.pricePosted, now);
+  for (const k of keys) {
+    const p = pricedKeys?.[k];
+    if (p != null && p > 0) pricePosted[k] = { p, t: now.getTime() };
+    else posted[k] = now.getTime();
+  }
+  return { ...state, posted, pricePosted };
 }

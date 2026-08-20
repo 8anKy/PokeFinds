@@ -120,10 +120,28 @@ jobs:
       # Kanal-id:n är INGA hemligheter (till skillnad från webhook-URL:er, som är rena
       # bärartokens) → repo-VARIABLER, inte secrets. Format:
       #   {"default":"<kanal-id>","series":{"Mega Evolution":"<id>","Scarlet & Violet":"<id>"}}
+      # Valfritt: "prices":"<kanal-id>" samlar ALLA prissänkningsinlägg i EN kanal i
+      # stället för att blanda dem med påfyllningarna i set-/seriekanalerna.
       DISCORD_RESTOCK_CHANNELS: ${{ vars.DISCORD_RESTOCK_CHANNELS }}
       # Tom → default-listan i scriptet (de åtta mest aktiva butikerna, mätt).
       # "all" = alla bevakade. Läs artighetsresonemanget i scriptet innan du sätter "all".
       DISCORD_RESTOCK_STORES: ${{ vars.DISCORD_RESTOCK_STORES }}
+      # ── PRISSÄNKNINGSLARM (2026-08-21) ────────────────────────────────────────
+      # Alla fyra är TOMMA som default och faller då tillbaka på kodens gränser
+      # (≥5 % OCH ≥10 kr, tak 60 %, högst 8 per butik och hämtning, 12 h cooldown).
+      # ⛔ EN TOM VARIABEL ÄR "OSATT", INTE "AV" — `pricePolicy()` trimmar och
+      #    ignorerar tomma värden med flit, för `${{ vars.X }}` blir en tom STRÄNG när
+      #    repo-variabeln inte finns. Sätt "false" för att faktiskt stänga av.
+      # ⚠️ Gränserna är satta i underkant UTAN att vara mätta på vår egen trafik: lanen
+      #    har aldrig sparat priser förut, så det finns ingen historik att räkna på.
+      #    Körningsloggen namnger både postade och fällda prisfall (`pris: …`) — justera
+      #    på DE talen. Volymen första dygnet är också svaret på om prisinläggen ska ha
+      #    en EGEN kanal ("prices" i DISCORD_RESTOCK_CHANNELS) i stället för att dela
+      #    set-/seriekanalerna med påfyllningarna.
+      DISCORD_PRICE_DROPS_ENABLED: ${{ vars.DISCORD_PRICE_DROPS_ENABLED }}
+      DISCORD_PRICE_DROP_MIN_PERCENT: ${{ vars.DISCORD_PRICE_DROP_MIN_PERCENT }}
+      DISCORD_PRICE_DROP_MIN_ORE: ${{ vars.DISCORD_PRICE_DROP_MIN_ORE }}
+      DISCORD_PRICE_DROP_MAX_PER_STORE: ${{ vars.DISCORD_PRICE_DROP_MAX_PER_STORE }}
       # Loop-i-jobbet: totalbudget 20 min. Varje BUTIK har sin egen takt inuti (se
       # filhuvudet); det här talet styr bara hur länge jobbet lever.
       #

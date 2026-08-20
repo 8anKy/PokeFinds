@@ -29,6 +29,8 @@ import {
   matchKnownSet,
 } from "@/lib/discord-restock-filter";
 import type { FlapPolicy } from "@/lib/stock-flap";
+import { formatPrice } from "@/lib/format";
+import { judgePriceDrop, pricePolicy, type PriceDropPolicy } from "@/lib/price-drop";
 
 const POLICY: FlapPolicy = { minAwayMinutes: 20, flapMaxTransitions: 6, flapCooldownHours: 24 };
 const NOW = new Date("2026-08-11T12:00:00Z");
@@ -64,7 +66,7 @@ const KNOWN_SETS = buildKnownSets({ sets: SETS });
 const OK_TITLE = "Pokémon TCG: Pitch Black Elite Trainer Box";
 
 function groups(
-  items: { url: string; stockStatus: string; title?: string }[],
+  items: { url: string; stockStatus: string; title?: string; price?: number }[],
   sourceName = "Dragon's Lair"
 ): FullFeedGroup[] {
   return [
@@ -74,7 +76,7 @@ function groups(
         url: i.url,
         stockStatus: i.stockStatus as FullFeedGroup["items"][number]["stockStatus"],
         title: i.title ?? OK_TITLE,
-        price: 54900,
+        price: i.price ?? 54900,
         imageUrl: null,
       })),
     },
@@ -85,12 +87,25 @@ function state(partial: Partial<DiscordRestockState>): DiscordRestockState {
   return { stock: {}, history: {}, posted: {}, ...partial };
 }
 
+/**
+ * Prisgränserna i testerna är HÅRDKODADE, aldrig `pricePolicy()`: den läser env, och
+ * ett test som ärver driftens spakar bevisar ingenting om domen.
+ */
+const PRICE_POLICY: PriceDropPolicy = {
+  minPercent: 5,
+  minOre: 1000,
+  maxPercent: 60,
+  maxPerStore: 8,
+  cooldownHours: 12,
+};
+
 function derive(opts: {
   state: DiscordRestockState | null;
   groups: FullFeedGroup[];
   rotating?: Set<string>;
   routes?: RouteTable;
   now?: Date;
+  priceDrops?: PriceDropPolicy | null;
 }) {
   return deriveRestockPosts({
     state: opts.state,
@@ -103,6 +118,7 @@ function derive(opts: {
     policy: POLICY,
     cooldownHours: 2,
     baseUrl: BASE,
+    priceDrops: opts.priceDrops === undefined ? PRICE_POLICY : opts.priceDrops,
   });
 }
 
@@ -822,6 +838,7 @@ describe("postTestMessages kanalfilter", () => {
     seriesChannels: { "mega evolution": "222" },
     languageChannels: { jp: "333" },
     defaultChannelId: "999",
+    priceChannelId: null,
   };
 
   it("⛔ ett filter som inte träffar rapporteras som FEL, aldrig som grönt", async () => {
@@ -832,5 +849,377 @@ describe("postTestMessages kanalfilter", () => {
     expect(res.failed).toHaveLength(1);
     expect(res.failed[0]).toContain("4711");
     expect(res.failed[0]).toContain("finns INTE");
+  });
+});
+
+/**
+ * NY FÖRHANDSBOKNING (2026-08-21). Webhallen är enda adaptern som skriver PREORDER,
+ * och den gör det direkt i katalogfeeden: `stock.web = 0` + lanseringsdatum i
+ * framtiden. En ny förhandsbokning dyker alltså upp som en URL vi ALDRIG SETT med
+ * PREORDER som FÖRSTA status — och `preorder-open` (OUT_OF_STOCK → PREORDER) kan per
+ * konstruktion aldrig fånga den. Före den här grenen var släppets viktigaste
+ * förvarning osynlig i kanalerna.
+ */
+describe("deriveRestockPosts — ny URL i förhandsbokning", () => {
+  const URL_NEW = "https://butik.se/webhallen-ny-preorder";
+  const NEW_KEY = `Dragon's Lair\t${URL_NEW}`;
+
+  it("en HELT NY URL med PREORDER som första status blir ett inlägg", () => {
+    const r = derive({
+      // Källan är känd sedan förut (annars seedas den tyst) — bara URL:en är ny.
+      state: state({ stock: { [KEY]: "IN_STOCK" } }),
+      groups: groups([
+        { url: URL_ETB, stockStatus: "IN_STOCK" },
+        { url: URL_NEW, stockStatus: "PREORDER" },
+      ]),
+    });
+    const post = r.posts.find((p) => p.key === NEW_KEY);
+    expect(post).toBeDefined();
+    expect(post!.preorder).toBe(true);
+  });
+
+  it("⛔ en NY URL i lager är fortfarande en påfyllning, inte en förhandsbokning", () => {
+    const r = derive({
+      state: state({ stock: { [KEY]: "IN_STOCK" } }),
+      groups: groups([
+        { url: URL_ETB, stockStatus: "IN_STOCK" },
+        { url: URL_NEW, stockStatus: "IN_STOCK" },
+      ]),
+    });
+    expect(r.posts.find((p) => p.key === NEW_KEY)!.preorder).toBe(false);
+  });
+
+  it("⛔ hos en ROTERANDE butik är en ny PREORDER-URL rotation, inte en nyhet", () => {
+    const SWE = "Swepoke";
+    const swKey = `${SWE}\thttps://swepoke.se/pre-order`;
+    const r = derive({
+      state: state({ stock: { [`${SWE}\thttps://swepoke.se/annan`]: "IN_STOCK" } }),
+      rotating: new Set([SWE]),
+      groups: groups([{ url: "https://swepoke.se/pre-order", stockStatus: "PREORDER" }], SWE),
+    });
+    expect(r.posts.find((p) => p.key === swKey)).toBeUndefined();
+  });
+
+  it("⛔ minns vi den I LAGER är PREORDER en FÖRSÄMRING — tyst", () => {
+    // Sågs i lager, försvann ur feeden, kommer tillbaka som förhandsbokning. Samma dom
+    // som isPreorderOpen: bara OUT_OF_STOCK → PREORDER är en nyhet.
+    const r = derive({
+      state: state({
+        stock: { [KEY]: "IN_STOCK" },
+        absent: { [NEW_KEY]: { s: "IN_STOCK", t: NOW.getTime() - 5 * 3600_000 } },
+      }),
+      groups: groups([
+        { url: URL_ETB, stockStatus: "IN_STOCK" },
+        { url: URL_NEW, stockStatus: "PREORDER" },
+      ]),
+    });
+    expect(r.posts.find((p) => p.key === NEW_KEY)).toBeUndefined();
+  });
+
+  it("minns vi den SLUTSÅLD är samma URL tillbaka i förhandsbokning en nyhet", () => {
+    const r = derive({
+      state: state({
+        stock: { [KEY]: "IN_STOCK" },
+        absent: { [NEW_KEY]: { s: "OUT_OF_STOCK", t: NOW.getTime() - 5 * 3600_000 } },
+      }),
+      groups: groups([
+        { url: URL_ETB, stockStatus: "IN_STOCK" },
+        { url: URL_NEW, stockStatus: "PREORDER" },
+      ]),
+    });
+    expect(r.posts.find((p) => p.key === NEW_KEY)?.preorder).toBe(true);
+  });
+
+  it("⛔ en PREORDER som blinkar ur feeden ett varv är en feed-hicka, inte en nyhet", () => {
+    // Blinkregeln jämför nu mot SAMMA status, inte bara mot IN_STOCK — annars hade
+    // varje sidbrytning hos Webhallen gett ett nytt förhandsboknings-inlägg.
+    const r = derive({
+      state: state({
+        stock: { [KEY]: "IN_STOCK" },
+        absent: { [NEW_KEY]: { s: "PREORDER", t: NOW.getTime() - 60_000 } },
+      }),
+      groups: groups([
+        { url: URL_ETB, stockStatus: "IN_STOCK" },
+        { url: URL_NEW, stockStatus: "PREORDER" },
+      ]),
+    });
+    expect(r.posts.find((p) => p.key === NEW_KEY)).toBeUndefined();
+    expect(r.stats.skippedBlip).toBe(1);
+  });
+
+  it("⛔ en ny källa seedas tyst — hela sortimentet ser ut som nya förhandsbokningar", () => {
+    const r = derive({
+      state: state({ stock: { [KEY]: "IN_STOCK" } }),
+      groups: groups([{ url: URL_NEW, stockStatus: "PREORDER" }], "Webhallen"),
+    });
+    expect(r.posts).toHaveLength(0);
+    expect(r.stats.seededSources).toEqual(["Webhallen"]);
+  });
+});
+
+/**
+ * PRISSÄNKNINGAR. Gränserna finns för att feedpriset är en AVLÄSNING, inte en
+ * prislista: Shopify utan variantsplit rapporterar billigaste köpbara varianten, fem
+ * kopior av parseSekPrice gör "2.999,00" till 300 öre, och Shopifys svenska marknad
+ * hänger på en cookie som utan verkan ger hela butiken EX MOMS.
+ */
+describe("judgePriceDrop", () => {
+  const P = PRICE_POLICY;
+  const now = NOW;
+
+  it("ett riktigt fall passerar", () => {
+    const v = judgePriceDrop(55900, 45000, null, now, P);
+    expect(v.post).toBe(true);
+    if (v.post) expect(Math.round(v.percent)).toBe(19);
+  });
+
+  it("⛔ 0 kr är inget pris — varken som baslinje eller som nytt pris", () => {
+    expect(judgePriceDrop(0, 45000, null, now, P)).toMatchObject({ reason: "no-baseline" });
+    expect(judgePriceDrop(55900, 0, null, now, P)).toMatchObject({ reason: "no-price" });
+  });
+
+  it("utan baslinje finns ingen sänkning", () => {
+    expect(judgePriceDrop(undefined, 45000, null, now, P)).toMatchObject({ reason: "no-baseline" });
+  });
+
+  it("BÅDA golven måste passeras — 5 % av 40 kr är brus", () => {
+    // 12,5 % men bara 5 kr.
+    expect(judgePriceDrop(4000, 3500, null, now, P)).toMatchObject({ reason: "too-small" });
+    // 30 kr men bara 3 %.
+    expect(judgePriceDrop(100000, 97000, null, now, P)).toMatchObject({ reason: "too-small" });
+  });
+
+  it("⛔ ett för STORT fall är troligare vår parser än deras pris", () => {
+    // "2.999,00 kr" → 300 öre är exakt det felet, och det läser som årets fynd.
+    expect(judgePriceDrop(299900, 300, null, now, P)).toMatchObject({ reason: "implausible" });
+  });
+
+  it("⛔ pendling 559 ⇄ 450 postas inte om och om igen", () => {
+    const lastPosted = { p: 45000, t: now.getTime() - 3600_000 };
+    expect(judgePriceDrop(55900, 45000, lastPosted, now, P)).toMatchObject({ reason: "cooldown" });
+  });
+
+  it("…men ett YTTERLIGARE fall bryter cooldownen", () => {
+    const lastPosted = { p: 45000, t: now.getTime() - 3600_000 };
+    expect(judgePriceDrop(45000, 39000, lastPosted, now, P).post).toBe(true);
+  });
+
+  it("efter cooldown-fönstret räcker ett vanligt fall igen", () => {
+    const lastPosted = { p: 45000, t: now.getTime() - 13 * 3600_000 };
+    expect(judgePriceDrop(55900, 45000, lastPosted, now, P).post).toBe(true);
+  });
+});
+
+describe("deriveRestockPosts — prissänkningar", () => {
+  const inStock = state({ stock: { [KEY]: "IN_STOCK" }, price: { [KEY]: 55900 } });
+
+  it("en sänkning på en vara som stått i lager blir ett prisinlägg", () => {
+    const r = derive({
+      state: inStock,
+      groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK", price: 45000 }]),
+    });
+    expect(r.posts).toHaveLength(1);
+    expect(r.posts[0]).toMatchObject({
+      key: KEY,
+      priceOre: 45000,
+      previousPriceOre: 55900,
+      preorder: false,
+      // Samma berikning som påfyllningarna — en delad byggare, aldrig en kopia.
+      title: "Pitch Black Elite Trainer Box",
+      productUrl: `${BASE}/produkter/pitch-black-elite-trainer-box`,
+    });
+    expect(r.stats.priceDrops).toBe(1);
+  });
+
+  it("⛔ prisminnet uppdateras även när inget postas — annars finns ingen baslinje", () => {
+    const r = derive({
+      state: state({ stock: { [KEY]: "IN_STOCK" } }),
+      groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK", price: 45000 }]),
+    });
+    expect(r.posts).toHaveLength(0);
+    expect(r.nextState.price?.[KEY]).toBe(45000);
+  });
+
+  it("⛔ bara varor I LAGER bär ett pris i minnet — kartan får inte femdubblas", () => {
+    const r = derive({
+      state: inStock,
+      groups: groups([{ url: URL_ETB, stockStatus: "OUT_OF_STOCK", price: 45000 }]),
+    });
+    expect(r.nextState.price?.[KEY]).toBeUndefined();
+    expect(r.posts).toHaveLength(0);
+  });
+
+  it("⛔ en URL i frånvarominnet BEHÅLLER sitt pris — annars kan roterande butiker aldrig ge prisinlägg", () => {
+    const OTHER = "https://butik.se/prismatic-etb";
+    const otherKey = `Dragon's Lair\t${OTHER}`;
+    const r = derive({
+      state: state({
+        stock: { [KEY]: "IN_STOCK", [otherKey]: "IN_STOCK" },
+        price: { [KEY]: 55900, [otherKey]: 39900 },
+      }),
+      // Bara den ena URL:en levereras — den andra hamnar i frånvarominnet.
+      groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK", price: 55900 }]),
+    });
+    expect(r.nextState.absent?.[otherKey]).toBeDefined();
+    expect(r.nextState.price?.[otherKey]).toBe(39900);
+  });
+
+  it("⛔ en PÅFYLLNING på samma URL vinner — priset står redan i det inlägget", () => {
+    const r = derive({
+      state: state({ stock: { [KEY]: "OUT_OF_STOCK" }, price: { [KEY]: 55900 } }),
+      groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK", price: 45000 }]),
+    });
+    expect(r.posts).toHaveLength(1);
+    expect(r.posts[0].previousPriceOre).toBeUndefined();
+  });
+
+  it("⛔ vaktkedjan gäller prisinlägg också — en sleeve-sänkning postas inte", () => {
+    const SLEEVE = "https://butik.se/kortfodral";
+    const sleeveKey = `Dragon's Lair\t${SLEEVE}`;
+    const r = derive({
+      state: state({ stock: { [sleeveKey]: "IN_STOCK" }, price: { [sleeveKey]: 19900 } }),
+      routes: {},
+      groups: groups([
+        {
+          url: SLEEVE,
+          stockStatus: "IN_STOCK",
+          title: "Pokémon Card Sleeves Pikachu 65-pack",
+          price: 9900,
+        },
+      ]),
+    });
+    expect(r.posts).toHaveLength(0);
+    expect(r.stats.priceRejected.filtered).toBe(1);
+  });
+
+  it("⛔ BURST-GRÄNSEN: faller allt hos en butik samtidigt postas INGET", () => {
+    // Symtomet på att `localization=SE` slutat bita är hela butiken ~20 % ned på en
+    // gång. Att posta "de största" hade gjort en tyst valutamiss till fejkade fynd.
+    const many = Array.from({ length: 9 }, (_, i) => `https://butik.se/vara-${i}`);
+    const prevPrice: Record<string, number> = {};
+    const prevStock: Record<string, string> = {};
+    for (const u of many) {
+      prevPrice[`Dragon's Lair\t${u}`] = 55900;
+      prevStock[`Dragon's Lair\t${u}`] = "IN_STOCK";
+    }
+    const r = derive({
+      state: state({ stock: prevStock, price: prevPrice }),
+      groups: groups(many.map((url) => ({ url, stockStatus: "IN_STOCK", price: 45000 }))),
+    });
+    expect(r.posts).toHaveLength(0);
+    expect(r.stats.priceRejected.burst).toBe(9);
+    // Prisminnet skrivs ändå — annars hade samma tal fällts på nytt varje varv.
+    expect(r.nextState.price?.[`Dragon's Lair\t${many[0]}`]).toBe(45000);
+  });
+
+  it("avstängd funktion rör inte prisminnet alls", () => {
+    const r = derive({
+      state: inStock,
+      priceDrops: null,
+      groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK", price: 45000 }]),
+    });
+    expect(r.posts).toHaveLength(0);
+    expect(r.nextState.price).toEqual({});
+  });
+
+  it("⛔ första körningen (seed) postar inga prisinlägg men bygger baslinjen", () => {
+    const r = derive({
+      state: null,
+      groups: groups([{ url: URL_ETB, stockStatus: "IN_STOCK", price: 45000 }]),
+    });
+    expect(r.posts).toHaveLength(0);
+    expect(r.nextState.price?.[KEY]).toBe(45000);
+  });
+});
+
+describe("markPosted — prisinlägg får ALDRIG tysta en påfyllning", () => {
+  it("prisnycklar stämplas i pricePosted, inte i posted", () => {
+    const before = state({ stock: { [KEY]: "IN_STOCK" } });
+    const after = markPosted(before, [KEY], NOW, { [KEY]: 45000 });
+    expect(after.posted[KEY]).toBeUndefined();
+    expect(after.pricePosted?.[KEY]).toEqual({ p: 45000, t: NOW.getTime() });
+  });
+
+  it("vanliga larm stämplas som förut", () => {
+    const after = markPosted(state({ stock: {} }), [KEY], NOW);
+    expect(after.posted[KEY]).toBe(NOW.getTime());
+    expect(after.pricePosted?.[KEY]).toBeUndefined();
+  });
+});
+
+describe("state-filens serialisering bär de nya kartorna", () => {
+  it("⛔ price och pricePosted överlever en rundtur — annars är mekanismen tyst död", () => {
+    // Exakt `pending`-regressionen: en ren dom med tester, men serialiseringen runt
+    // den hade inga, så kartan skrevs till filen och kastades vid nästa jobbstart.
+    const back = parseDiscordRestockState({
+      stock: { a: "IN_STOCK" },
+      price: { a: 45000 },
+      pricePosted: { a: { p: 45000, t: 1 } },
+    });
+    expect(back!.price).toEqual({ a: 45000 });
+    expect(back!.pricePosted).toEqual({ a: { p: 45000, t: 1 } });
+  });
+
+  it("äldre state-filer utan prisminne läses som tomt, inte som fel", () => {
+    const back = parseDiscordRestockState({ stock: { a: "IN_STOCK" } });
+    expect(back!.price).toEqual({});
+    expect(back!.pricePosted).toEqual({});
+  });
+});
+
+describe("buildRestockEmbed — prissänkning", () => {
+  const post = {
+    key: "k",
+    title: "Pitch Black Elite Trainer Box",
+    storeName: "Dragon's Lair",
+    storeUrl: "https://butik.se/x",
+    priceOre: 45000,
+    imageUrl: null,
+    setName: "Pitch Black",
+    series: "Mega Evolution",
+    productUrl: null,
+  };
+
+  it("rubriken säger NYTT LÄGRE PRIS och texten bär båda talen", () => {
+    const e = buildRestockEmbed({ ...post, previousPriceOre: 55900 });
+    expect(e.title).toContain("Nytt lägre pris");
+    // formatPrice ger sv-SE-valuta med HÅRT mellanslag (U+00A0) — jämför mot
+    // funktionen, aldrig mot en handskriven sträng.
+    expect(e.description).toContain(formatPrice(55900));
+    expect(e.description).toContain(formatPrice(45000));
+    expect(e.description).toContain("19,5 %");
+  });
+
+  it("⛔ ALDRIG ordet lägstapris — lanen har ingen prishistorik att belägga det med", () => {
+    const e = buildRestockEmbed({ ...post, previousPriceOre: 55900 });
+    expect(e.title.toLowerCase()).not.toContain("lägstapris");
+    expect(e.description.toLowerCase()).not.toContain("lägstapris");
+  });
+
+  it("⛔ ett ogiltigt gammalt pris ger ingen −Infinity % i en publik kanal", () => {
+    const e = buildRestockEmbed({ ...post, previousPriceOre: 0 });
+    expect(e.description).toBe("Finns i lager igen.");
+  });
+
+  it("en påfyllning ser ut precis som förut", () => {
+    expect(buildRestockEmbed(post).description).toBe("Finns i lager igen.");
+    expect(buildRestockEmbed(post).title).toBe("Pitch Black Elite Trainer Box");
+  });
+});
+
+describe("pricePolicy", () => {
+  it("⛔ läser env vid ANROPET — ett modulnivåvärde hade frusit till avstängt", () => {
+    const before = process.env.DISCORD_PRICE_DROPS_ENABLED;
+    process.env.DISCORD_PRICE_DROPS_ENABLED = "false";
+    expect(pricePolicy()).toBeNull();
+    process.env.DISCORD_PRICE_DROPS_ENABLED = "true";
+    expect(pricePolicy()).toMatchObject({ minPercent: 5, minOre: 1000 });
+    // ⛔ TOM STRÄNG = OSATT, INTE AV. `${{ vars.X }}` i workflowet blir en tom sträng
+    //    när repo-variabeln inte finns — hade det tolkats som "av" skulle själva
+    //    raden i workflowet tyst ha stängt av funktionen.
+    process.env.DISCORD_PRICE_DROPS_ENABLED = "";
+    expect(pricePolicy()).not.toBeNull();
+    if (before === undefined) delete process.env.DISCORD_PRICE_DROPS_ENABLED;
+    else process.env.DISCORD_PRICE_DROPS_ENABLED = before;
   });
 });

@@ -61,6 +61,7 @@ import {
   type KnownSet,
 } from "../src/lib/discord-restock-filter";
 import { flapPolicy } from "../src/lib/stock-flap";
+import { pricePolicy } from "../src/lib/price-drop";
 import { pollBudget, pollIntervalMs } from "../src/lib/restock-poll-interval";
 
 const routesFile = process.env.RESTOCK_ROUTES_FILE ?? ".restock-routes/routes.json";
@@ -272,6 +273,18 @@ async function main() {
       (loopSeconds ? `, loopbudget ${loopSeconds}s.` : ".")
   );
 
+  // Prissänkningslarmen har en EGEN spak: de är mycket vanligare än påfyllningar och
+  // måste gå att stänga av utan att tysta restock-larmen. `null` = av, och då töms
+  // prisminnet ur state-filen (~⅓ av dess storlek) i stället för att bäras runt.
+  const priceRules = pricePolicy();
+  console.log(
+    priceRules
+      ? `[discord-restock] Prissänkningar PÅ: minst ${priceRules.minPercent} % och ` +
+          `${priceRules.minOre / 100} kr, tak ${priceRules.maxPercent} %, högst ` +
+          `${priceRules.maxPerStore} per butik och hämtning, ${priceRules.cooldownHours} h cooldown.`
+      : "[discord-restock] Prissänkningar AV (DISCORD_PRICE_DROPS_ENABLED != true)."
+  );
+
   const rotating = new Set(routesData.sources!.filter((s) => s.rotatingFeed).map((s) => s.name));
   // Butiker vars produktsidor köpbarhetskollen kan läsa (se utskicksgrinden nedan).
   const shopifyStores = new Set(
@@ -313,7 +326,9 @@ async function main() {
     cooldown: 0,
     rescued: 0,
     buyBlocked: 0,
+    priceDrops: 0,
     reasons: {} as Record<string, number>,
+    priceReasons: {} as Record<string, number>,
   };
 
   const writeState = () => {
@@ -371,6 +386,7 @@ async function main() {
       policy: flapPolicy(),
       cooldownHours,
       baseUrl,
+      priceDrops: priceRules,
     });
     state = derived.nextState;
     stateDirty = true;
@@ -385,6 +401,27 @@ async function main() {
     jobTotals.rescued += s.rescuedByRoute;
     for (const [k, v] of Object.entries(s.filteredReasons)) {
       jobTotals.reasons[k] = (jobTotals.reasons[k] ?? 0) + (v ?? 0);
+    }
+    for (const [k, v] of Object.entries(s.priceRejected)) {
+      jobTotals.priceReasons[k] = (jobTotals.priceReasons[k] ?? 0) + (v ?? 0);
+    }
+    // ⛔ GRÄNSERNA FÖR PRISLARM ÄR SATTA I UNDERKANT UTAN ATT VARA MÄTTA PÅ VÅR EGEN
+    //    TRAFIK. Raderna här ÄR mätningen: de namnger både de postade fallen och de
+    //    som föll på taket, burst-gränsen eller pendlingsspärren. Utan dem gick de
+    //    bara att justera på magkänsla.
+    for (const line of s.priceSamples) console.log(`[discord-restock]   pris: ${line}`);
+    // ⛔ VILLKORSLÖST OCH SOM WARN. Ett burst är symptomet på att vi läser FEL TAL för
+    //    en hel butik (Shopifys svenska marknad hänger på en cookie; utan den serveras
+    //    hela sortimentet EX MOMS ≈ 20 % "sänkning" på allt samtidigt). I torrkörning
+    //    2026-08-21 fyllde en butik med 106 samtidiga fall urvalslistans tio platser
+    //    innan burst-raden hann skrivas — dvs den enda rad som pekar ut felet trängdes
+    //    undan av exemplen på symptomet.
+    for (const b of s.priceBurstStores) {
+      console.warn(
+        `[discord-restock] ⚠️ ${b.store}: ${b.count} prisfall i EN hämtning — postar INGET ` +
+          `(tak ${priceRules?.maxPerStore}). Ett helt sortiment som faller samtidigt är ` +
+          `troligare fel valuta/marknad i adaptern än ${b.count} enskilda prissänkningar.`
+      );
     }
     if (s.seeded) {
       console.log(`[discord-restock] ${source.name}: ingen tidigare state — seedar, postar inget.`);
@@ -436,18 +473,30 @@ async function main() {
         console.log(
           `[discord-restock][dry] ${p.storeName} → ${p.title} ` +
             `[set ${p.setName ?? "–"} / serie ${p.series ?? "–"} / ${p.language ?? "EN"}` +
-            `${p.preorder ? " / FÖRHANDSBOKNING" : ""}] ${p.storeUrl}` +
+            `${p.preorder ? " / FÖRHANDSBOKNING" : ""}` +
+            `${p.previousPriceOre != null ? ` / PRISSÄNKNING ${p.previousPriceOre}→${p.priceOre} öre` : ""}] ` +
+            `${p.storeUrl}` +
             // Vägen tillbaka till oss — den rad ägaren saknade i kanalen 2026-08-16.
             ` | oss: ${p.productUrl ?? p.setUrl ?? "INGEN"}`
         );
       }
       totalPosted += postable.length;
+      jobTotals.priceDrops += postable.filter((p) => p.previousPriceOre != null).length;
       return requests;
+    }
+
+    // Prisinlägg stämplas i sin EGEN karta (pricePosted), aldrig i påfyllningarnas
+    // cooldown — se markPosted. Kartan byggs FÖRE utskicket så att räkningen nedan
+    // gäller det som faktiskt gick ut, inte det vi hoppades skicka.
+    const pricedKeys: Record<string, number> = {};
+    for (const p of postable) {
+      if (p.previousPriceOre != null && p.priceOre != null) pricedKeys[p.key] = p.priceOre;
     }
 
     const res = await postRestocks(postable, config);
     totalPosted += res.sent;
     totalFailures += res.failed;
+    jobTotals.priceDrops += res.postedKeys.filter((k) => pricedKeys[k] != null).length;
     for (const k of res.postedKeys) {
       console.log(`[discord-restock]   postade: ${k.replace("\t", " → ")}`);
     }
@@ -455,7 +504,7 @@ async function main() {
     // utskicket ligger övergången kvar och larmas igen nästa varv.
     // ⛔ Synkront, av samma skäl som blocket ovan.
     if (res.postedKeys.length && state) {
-      state = markPosted(state, res.postedKeys, now);
+      state = markPosted(state, res.postedKeys, now, pricedKeys);
       stateDirty = true;
     }
     return requests;
@@ -528,11 +577,17 @@ async function main() {
     .sort((a, b) => b[1] - a[1])
     .map(([k, v]) => `${k} ${v}`)
     .join(", ");
+  const priceSummary = Object.entries(jobTotals.priceReasons)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `${k} ${v}`)
+    .join(", ");
   console.log(
-    `[discord-restock] Klart: ${jobTotals.changes} lagerflipp(ar) → ${totalPosted} larm postade. ` +
+    `[discord-restock] Klart: ${jobTotals.changes} lagerflipp(ar) → ${totalPosted} larm postade ` +
+      `(varav ${jobTotals.priceDrops} prissänkningar). ` +
       `Hoppade: ${jobTotals.filtered} vaktade${reasonSummary ? ` [${reasonSummary}]` : ""}, ` +
       `${jobTotals.flap} blink/flapp, ${jobTotals.blip} feed-hicka, ${jobTotals.cooldown} cooldown, ` +
       `${jobTotals.buyBlocked} låst köpknapp` +
+      `${priceSummary ? `; prisfall fällda: ${priceSummary}` : ""}` +
       `${jobTotals.rescued ? `; ${jobTotals.rescued} räddade av rutten` : ""}.`
   );
 

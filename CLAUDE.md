@@ -236,7 +236,7 @@ klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
 | Fil | Hårdaste regeln |
 |---|---|
 | `scraping-restock.md` | Shopifys `available` ≠ köpbar; `discontinued` är INGEN lagersignal; frånvaro ur feeden kollas, tolkas inte |
-| `discord-restock.md` | Lanen är GRATIS på villkor — når aldrig DB:n; egen cache-nyckel; domen tas på ANNONSEN, men en känd rutt övertrumfar vakterna |
+| `discord-restock.md` | Lanen är GRATIS på villkor — når aldrig DB:n; egen cache-nyckel; domen tas på ANNONSEN, men en känd rutt övertrumfar vakterna. Feedpriset är en AVLÄSNING, inte en prislista ⇒ "nytt lägre pris", aldrig "lägstapris" |
 | `matching-import.md` | `OTHER` var det enda som höll skräpet ute — härda vakterna FÖRE en vidgning; mät mot två facit |
 | `catalog-curation.md` | Herrelösa URL:er räknas över HELA gruppen; denylist FÖRE apply; identiteten måste överleva normaliseringen |
 | `cm-pricing.md` | Singlar = CM engelska NM-"From" RAKT AV; guiden är INTE CM:s From |
