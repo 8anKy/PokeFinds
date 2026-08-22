@@ -1085,3 +1085,47 @@ export function passwordResetEmail(name: string, resetUrl: string): EmailContent
   const text = `Hej ${name}!\n\nÅterställ ditt lösenord via länken (giltig i 1 timme):\n${resetUrl}\n\nOm du inte begärde detta kan du ignorera mejlet.${textFooter}`;
   return { subject, html, text };
 }
+
+/**
+ * ENGÅNGSUTSKICK 2026-08-23: restock-bevakningen (mejl/push) är PAUSAD.
+ *
+ * ⛔ SÄG VAD SOM FAKTISKT HÄNDE, INTE VAD SOM LÅTER BÄST. Mejlet får inte antyda
+ * att mottagaren gjort något fel, och det får inte sälja Discord som en
+ * "uppgradering" — det är en ERSÄTTNING som råkar vara snabbare och gratis.
+ * Discord-lanen rör aldrig databasen och är därför opåverkad av pausen; det är
+ * hela skälet till att den kan rekommenderas med rent samvete.
+ *
+ * ⛔ INGEN SLUTDATUM-UTFÄSTELSE. Vi vet inte när den kommer tillbaka, och ett
+ * datum vi missar är värre än ett ärligt "vi säger till".
+ *
+ * `unsubscribeUrl` MÅSTE sättas av anroparen: det här är ett massutskick, inte
+ * ett transaktionsmejl (se MailInput i lib/mailer.ts).
+ */
+export function restockPausedEmail(name: string): EmailContent {
+  const subject = "Restock-larmen via mejl är pausade — så får du dem snabbare gratis";
+  const html = layout(
+    "Restock-larmen via mejl är pausade",
+    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! En kort uppdatering om hur Foilio bevakar lagerpåfyllningar.</p>
+     <p style="line-height:1.6;color:#cbd5e1;">Vi har <strong style="color:#ffffff;">pausat den skanning som skickar restock-larm via mejl och push</strong>. Den kostade oss betydligt mer i drift än den gjorde nytta, och pengarna gör mer nytta på andra håll i tjänsten.</p>
+     <p style="line-height:1.6;color:#cbd5e1;margin:20px 0 8px;"><strong style="color:#ffffff;">Din bevakningslista ligger kvar.</strong> Ingenting är raderat. Slår vi på skanningen igen fungerar den precis som förut, och då hör du av oss.</p>
+     <div style="background-color:#111827;border:1px solid #2a2e38;border-radius:10px;padding:20px;margin:24px 0;">
+       <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#2dd4bf;">Discord är snabbare — och gratis</p>
+       <p style="margin:0;line-height:1.6;color:#cbd5e1;">Vår Discord-server bevakar samma 43 butiker och postar påfyllningar <strong style="color:#ffffff;">var annan minut</strong> i stället för var tionde. Den påverkas inte av pausen. Du väljer själv vilka kanaler du vill följa och kan stänga av notiser du inte bryr dig om.</p>
+     </div>
+     ${button(DISCORD_URL, "Gå med i Discord")}
+     <p style="line-height:1.6;color:#6b7280;font-size:13px;margin:16px 0 0;">Prisbevakningar och prissänkningar berörs inte — de fungerar som vanligt.</p>`,
+    "Du får det här mejlet för att du har ett konto på Foilio.<br>Du kan ändra dina aviseringsinställningar i Foilio-appen."
+  );
+  const text =
+    `Hej ${name}!\n\n` +
+    `Vi har pausat den skanning som skickar restock-larm via mejl och push. Den kostade oss ` +
+    `betydligt mer i drift än den gjorde nytta, och pengarna gör mer nytta på andra håll i tjänsten.\n\n` +
+    `Din bevakningslista ligger kvar — ingenting är raderat. Slår vi på skanningen igen hör du av oss.\n\n` +
+    `DISCORD ÄR SNABBARE — OCH GRATIS\n` +
+    `Vår Discord-server bevakar samma 43 butiker och postar påfyllningar var annan minut i stället ` +
+    `för var tionde. Den påverkas inte av pausen.\n\n` +
+    `Gå med: ${DISCORD_URL}\n\n` +
+    `Prisbevakningar och prissänkningar berörs inte — de fungerar som vanligt.` +
+    textFooter;
+  return { subject, html, text };
+}

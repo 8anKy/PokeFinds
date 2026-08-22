@@ -1,0 +1,67 @@
+name: Restock pausad — meddela användarna (engångsutskick)
+
+# ENGÅNGSUTSKICK 2026-08-23: restock-bevakningen (var 10:e minut) är pausad, och
+# användarna ska få veta det + tipset om Discord-lanen som är gratis och snabbare.
+#
+# ⛔ VARFÖR ETT WORKFLOW OCH INTE EN LOKAL KÖRNING: `RESEND_API_KEY` finns bara i
+# Railway och som Actions-secret — den ligger INTE i utvecklingsmaskinens .env, och
+# lokalt står `EMAIL_MODE=console` så mailern LOGGAR i stället för att skicka.
+# Skriptet vägrar numera köra i konsolläge, just för att en grön körning utan mejl
+# är den farligaste utfallet (jfr Discord-provutskicket 2026-08-14).
+#
+# ⛔ ALDRIG PÅ SCHEMA. Det här är ett ENGÅNGSUTSKICK. Ett schema hade mejlat samma
+# besked om och om igen.
+#
+# ⚠️ `send_to_all: false` (standard) skickar EN förhandsgranskning till ägaren.
+# `true` skickar skarpt till alla konton med e-post påslagen. Det går inte att ångra.
+on:
+  workflow_dispatch:
+    inputs:
+      send_to_all:
+        description: "SKARPT utskick till ALLA. Tomt/false = förhandsgranskning till ägaren."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restock-paused-notice
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+      NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+    steps:
+      - name: Förkrav — DATABASE_URL och RESEND_API_KEY måste vara satta
+        run: |
+          # Till skillnad från de schemalagda jobben är ett saknat förkrav här ett
+          # FEL, inte en tyst no-op: någon har tryckt på knappen och väntar sig ett
+          # utskick. En grön körning utan mejl är precis den lögn vakten finns för.
+          missing=""
+          [ -z "${DATABASE_URL}" ] && missing="${missing} DATABASE_URL"
+          [ -z "${RESEND_API_KEY}" ] && missing="${missing} RESEND_API_KEY"
+          if [ -n "${missing}" ]; then
+            echo "::error::Saknade hemligheter:${missing}"
+            exit 1
+          fi
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx prisma generate
+      - name: Skicka
+        run: |
+          if [ "${{ inputs.send_to_all }}" = "true" ]; then
+            npx tsx scripts/send-restock-paused-notice.ts --send-to-all
+          else
+            npx tsx scripts/send-restock-paused-notice.ts
+          fi

@@ -45,8 +45,8 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
 
 ## Auto-uppdatering (GitHub Actions; publikt repo → obegränsade minuter)
 `cardmarket-refresh` 13:00 UTC + `hot-card-refresh` 21:00, `tradera-sweep` 04:00, `scrape-all` 02:00,
-`restock-watch` var 10:e min (extern pinger), `discord-restock` (loop-i-jobbet, egen takt per butik,
-pingas var 2:a min).
+⛔ `restock-watch` är **PAUSAD sedan 2026-08-23** (se nedan), `discord-restock` (loop-i-jobbet, egen
+takt per butik, pingas var 2:a min).
 DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
 - ⛔ **Nattkedjan får ALDRIG bli längre än tre led**: scrape-all → tradera-sweep → cardtrader-refresh är
   länkade med `workflow_run` för att dela ETT Neon-fönster. GitHub fyrar max tre nivåer från roten; led 4
@@ -60,6 +60,26 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   historiska fakta, och en utmärkelse som kan försvinna är ingen utmärkelse. ⛔ Ingen daglig svit: det finns
   ingen inloggningshistorik (`AnalyticsEvent` bär medvetet ingen `userId`) och en skulle kosta en skrivning per
   session. ⛔ Profilsidan visar bara en VITLISTA — försäljnings-, graderings- och skannermärken är privata.
+- ⛔ **restock-watch ÄR PAUSAD (ägarbeslut 2026-08-23)** — `gh workflow disable restock-watch.yml`,
+  status `disabled_manually`. **Den externa pingern (cron-job.org) fyrar fortfarande och får nu fel;
+  stäng av den där också.** Slå på igen med `gh workflow enable restock-watch.yml`.
+  **VARFÖR**: jobbet hade vuxit från 11 till 43 butiker och mediankörtiden från 88 s (08-15) till
+  **503 s** (08-22, n=122) medan pingern stod kvar på 600 s. Glappet mellan körningar blev ~30–100 s,
+  ALLTID under Neons autosuspend på 300 s ⇒ computen kunde matematiskt inte somna. Mätt: 18,8 h vaken
+  tid/dygn och 8,5 CU-h/dygn ≈ **$27/mån** mot ~$14 i baslinjen 2026-08-05. En körning gjorde ~420 s
+  DB-arbete och hittade **0 restocks, 0 larm**; ändringsgrinden hoppade bara 26 av 91 körningar.
+  **VAD SOM SLUTADE FUNGERA** — allt detta ligger nere tills jobbet slås på igen:
+  restock-larm via mejl/push (Pro-funktionen, `proUserWhere()` i `src/services/alerts.ts`),
+  `Offer.stockStatus` (lagerbadgen på ALLA produktsidor fryser), `RestockEvent` +
+  `/api/market/restocks`, och auto-importen av nya butiks-SKU:er.
+  ⛔ **Discord-lanen är OPÅVERKAD** — `scripts/discord-restock-run.ts` importerar bara en TYP ur
+  `@prisma/client` och rör aldrig databasen. Ruttabellen (`export-restock-routes.ts`) skrevs av BÅDE
+  restock-watch och `scrape-all`; nattkedjan uppdaterar den alltså fortfarande, så lanen tappar bara
+  förfining för SKU:er som dyker upp mitt på dagen och läker till natten.
+  **NÄR DEN SLÅS PÅ IGEN**: höj pingern FÖRE — vid 600 s är golvet ~102 väckningar × 300 s = 8,5 h/dygn
+  även med en oändligt snabb DB-fas. Kodhastighet är en KLIPPKANT, inte en skala: inget händer förrän
+  DB-fasen kommer under 300 s. Användarna är meddelade via
+  `.github/workflows/restock-paused-notice.yml` (engångsutskick, Discord som gratis alternativ).
 - **restock-watch** = `runRestockScan()` i `src/scrapers/runner.ts`: butikskatalogerna hämtas PARALLELLT
   (fas 1 = ren HTTP → Neon sover), offers läses EN gång och lagerstatus diffas i minnet. Källistan ligger i
   diskcache (TTL 24 h) → **en ändrad restockWatch-flagga slår igenom först inom ett dygn.**
