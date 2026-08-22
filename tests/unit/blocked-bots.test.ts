@@ -45,6 +45,12 @@ describe("blocklistan för bulk-crawlers", () => {
     // Googles icke-sök-crawler (28 % av trafiken samma dygn). Sökindexeringen görs av
     // Googlebot (egen UA) och påverkas inte.
     "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.7871.186 Mobile Safari/537.36 (compatible; GoogleOther)",
+    // Amazons NYARE UA. `Amazonbot` stod redan i listan och matchar den INTE — det
+    // här testet finns för att en blockerad UA från en leverantör aldrig ska få
+    // förväxlas med att leverantören är blockerad. Stod för 35 % av all trafik och
+    // mest servertid av alla UA:er (Railway httpLogs 2026-08-22), höll Neon vaken 65 h.
+    "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amzn-SearchBot/0.1) Chrome/119.0.6045.214 Safari/537.36",
+    "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ShapBot/0.1.0",
     "Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)",
     "Mozilla/5.0 (compatible; Bytespider; spider-feedback@bytedance.com)",
     "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)",

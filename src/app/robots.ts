@@ -104,6 +104,12 @@ export default function robots(): MetadataRoute.Robots {
           "DataForSeoBot",
           "MJ12bot",
           "Amazonbot",
+          // Amazons ANDRA crawler-UA. `Amazonbot` täcker den INTE — namnen är olika
+          // strängar, och den svepte /produkter/[slug] var ~10:e sekund dygnet runt
+          // (35 % av all trafik 2026-08-22) tills den blockerades. Se blocked-bots.ts.
+          "Amzn-SearchBot",
+          // Okänd lågvärdes-crawler i samma svep. Ingen SEO-nytta för en svensk nischsajt.
+          "ShapBot",
           "Meta-ExternalAgent",
           // Metas ANDRA bulk-crawler. Saknades här och i middleware och stod för
           // 78 % av all egress 2026-07-26. facebookexternalhit/meta-externalfetcher
