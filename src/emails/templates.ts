@@ -1087,45 +1087,39 @@ export function passwordResetEmail(name: string, resetUrl: string): EmailContent
 }
 
 /**
- * ENGÅNGSUTSKICK 2026-08-23: restock-bevakningen (mejl/push) är PAUSAD.
+ * ENGÅNGSUTSKICK 2026-08-23: restock-larmen via mejl/push är pausade.
  *
- * ⛔ SÄG VAD SOM FAKTISKT HÄNDE, INTE VAD SOM LÅTER BÄST. Mejlet får inte antyda
- * att mottagaren gjort något fel, och det får inte sälja Discord som en
- * "uppgradering" — det är en ERSÄTTNING som råkar vara snabbare och gratis.
- * Discord-lanen rör aldrig databasen och är därför opåverkad av pausen; det är
- * hela skälet till att den kan rekommenderas med rent samvete.
+ * ⛔ KORT MED FLIT (ägarbeslut). Ingen motivering av VARFÖR vi pausade, ingen
+ * förklaring av hur Discord-lanen fungerar, ingen beskrivning av hur mejl/push
+ * fungerade förut. Mottagaren behöver veta tre saker: att det är pausat, att
+ * inget är raderat, och var larmen finns under tiden. Allt utöver det gör
+ * mejlet till en ursäkt.
  *
- * ⛔ INGEN SLUTDATUM-UTFÄSTELSE. Vi vet inte när den kommer tillbaka, och ett
- * datum vi missar är värre än ett ärligt "vi säger till".
+ * ⛔ INGET SLUTDATUM. Ett datum vi missar är värre än "vi säger till".
  *
- * `unsubscribeUrl` MÅSTE sättas av anroparen: det här är ett massutskick, inte
- * ett transaktionsmejl (se MailInput i lib/mailer.ts).
+ * ⛔ INGEN `unsubscribeUrl` — se anroparen (scripts/send-restock-paused-notice.ts)
+ * för skälet: UnsubscribeType har bara "weekly", och det här är ett
+ * driftmeddelande om mottagarens eget konto.
  */
 export function restockPausedEmail(name: string): EmailContent {
-  const subject = "Restock-larmen via mejl är pausade — så får du dem snabbare gratis";
+  const subject = "Restock-larmen via mejl är pausade";
   const html = layout(
-    "Restock-larmen via mejl är pausade",
-    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! En kort uppdatering om hur Foilio bevakar lagerpåfyllningar.</p>
-     <p style="line-height:1.6;color:#cbd5e1;">Vi har <strong style="color:#ffffff;">pausat den skanning som skickar restock-larm via mejl och push</strong>. Den kostade oss betydligt mer i drift än den gjorde nytta, och pengarna gör mer nytta på andra håll i tjänsten.</p>
-     <p style="line-height:1.6;color:#cbd5e1;margin:20px 0 8px;"><strong style="color:#ffffff;">Din bevakningslista ligger kvar.</strong> Ingenting är raderat. Slår vi på skanningen igen fungerar den precis som förut, och då hör du av oss.</p>
+    "Restock-larmen är pausade",
+    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Restock-larm via mejl och push är pausade tills vidare.</p>
+     <p style="line-height:1.6;color:#cbd5e1;">Din bevakningslista ligger kvar. Vi säger till när de är igång igen.</p>
      <div style="background-color:#111827;border:1px solid #2a2e38;border-radius:10px;padding:20px;margin:24px 0;">
-       <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#2dd4bf;">Discord är snabbare — och gratis</p>
-       <p style="margin:0;line-height:1.6;color:#cbd5e1;">Vår Discord-server bevakar samma 43 butiker och postar påfyllningar <strong style="color:#ffffff;">var annan minut</strong> i stället för var tionde. Den påverkas inte av pausen. Du väljer själv vilka kanaler du vill följa och kan stänga av notiser du inte bryr dig om.</p>
+       <p style="margin:0;line-height:1.6;color:#cbd5e1;">Vill du ha restock-larm under tiden? De går ut i vår <strong style="color:#2dd4bf;">Discord</strong> — snabbare, och gratis.</p>
      </div>
      ${button(DISCORD_URL, "Gå med i Discord")}
-     <p style="line-height:1.6;color:#6b7280;font-size:13px;margin:16px 0 0;">Prisbevakningar och prissänkningar berörs inte — de fungerar som vanligt.</p>`,
-    "Du får det här mejlet för att du har ett konto på Foilio.<br>Du kan ändra dina aviseringsinställningar i Foilio-appen."
+     <p style="line-height:1.6;color:#6b7280;font-size:13px;margin:16px 0 0;">Prisbevakningar fungerar som vanligt.</p>`
   );
   const text =
     `Hej ${name}!\n\n` +
-    `Vi har pausat den skanning som skickar restock-larm via mejl och push. Den kostade oss ` +
-    `betydligt mer i drift än den gjorde nytta, och pengarna gör mer nytta på andra håll i tjänsten.\n\n` +
-    `Din bevakningslista ligger kvar — ingenting är raderat. Slår vi på skanningen igen hör du av oss.\n\n` +
-    `DISCORD ÄR SNABBARE — OCH GRATIS\n` +
-    `Vår Discord-server bevakar samma 43 butiker och postar påfyllningar var annan minut i stället ` +
-    `för var tionde. Den påverkas inte av pausen.\n\n` +
-    `Gå med: ${DISCORD_URL}\n\n` +
-    `Prisbevakningar och prissänkningar berörs inte — de fungerar som vanligt.` +
+    `Restock-larm via mejl och push är pausade tills vidare.\n\n` +
+    `Din bevakningslista ligger kvar. Vi säger till när de är igång igen.\n\n` +
+    `Vill du ha restock-larm under tiden? De går ut i vår Discord — snabbare, och gratis.\n` +
+    `${DISCORD_URL}\n\n` +
+    `Prisbevakningar fungerar som vanligt.` +
     textFooter;
   return { subject, html, text };
 }
