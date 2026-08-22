@@ -21,6 +21,10 @@ on:
         description: "SKARPT utskick till ALLA. Tomt/false = förhandsgranskning till ägaren."
         type: boolean
         default: false
+      only:
+        description: "Komplettera EN adress efter ett delvis misslyckat utskick (kräver send_to_all)."
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -61,7 +65,11 @@ jobs:
       - name: Skicka
         run: |
           if [ "${{ inputs.send_to_all }}" = "true" ]; then
-            npx tsx scripts/send-restock-paused-notice.ts --send-to-all
+            if [ -n "${{ inputs.only }}" ]; then
+              npx tsx scripts/send-restock-paused-notice.ts --send-to-all --only="${{ inputs.only }}"
+            else
+              npx tsx scripts/send-restock-paused-notice.ts --send-to-all
+            fi
           else
             npx tsx scripts/send-restock-paused-notice.ts
           fi

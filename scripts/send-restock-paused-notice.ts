@@ -20,6 +20,18 @@ import { restockPausedEmail } from "@/emails/templates";
 
 const OWNER = "milostheking88@gmail.com";
 const sendToAll = process.argv.includes("--send-to-all");
+/** Skicka bara till EN adress — för att komplettera efter ett delvis misslyckat utskick. */
+const only = /--only=(\S+)/.exec(process.argv.join(" "))?.[1];
+
+/**
+ * ⛔ RESEND TAR MAX 10 REQUESTS/SEKUND. Utskicket 2026-08-23 sköt iväg 61 mejl i en
+ * loop utan paus och fick `429 rate_limit_exceeded` på ett av dem — mottagaren blev
+ * tyst utan mejl medan körningen ändå rapporterade "Klart". 150 ms mellan varje ger
+ * ~6,7/s, med marginal under taket, och 61 mejl tar under 10 sekunder.
+ * ⛔ Sänk inte pausen "för att det går fortare" — den som faller bort märks inte.
+ */
+const SEND_GAP_MS = 150;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
   // ⛔ KONSOLLÄGE ÄR INTE ETT UTSKICK. Utan RESEND_API_KEY (och utan
@@ -57,8 +69,13 @@ async function main() {
     return;
   }
 
+  const targets = only ? recipients.filter((r) => r.email === only) : recipients;
+  if (only && targets.length === 0) throw new Error(`--only=${only} matchar ingen mottagare med e-post PÅ.`);
+  if (only) console.log(`--only=${only} → ${targets.length} mottagare`);
+
   let ok = 0, failed = 0;
-  for (const r of recipients) {
+  const retryable: string[] = [];
+  for (const r of targets) {
     const mail = restockPausedEmail(r.name?.split(" ")[0] ?? "där");
     try {
       // ⛔ MEDVETET UTAN `unsubscribeUrl`. Två skäl, och de drar åt samma håll:
@@ -79,10 +96,19 @@ async function main() {
       ok++;
     } catch (e) {
       failed++;
+      retryable.push(r.email);
       console.error(`FEL ${r.email}: ${String(e).slice(0, 120)}`);
     }
+    await sleep(SEND_GAP_MS);
   }
   console.log(`Klart: ${ok} skickade, ${failed} misslyckades.`);
+  // ⛔ EN TYST DELFRAMGÅNG ÄR DET FARLIGA UTFALLET. Skriv ut exakt vilka som ska köras
+  // om, och FAILA rött — annars ser körningen grön ut och ingen kompletterar.
+  if (failed > 0) {
+    console.error(`
+Kör om dessa: ${retryable.map((e) => `--only=${e}`).join(" ")}`);
+    process.exitCode = 1;
+  }
 }
 
 main().finally(() => prisma.$disconnect());
