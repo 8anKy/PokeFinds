@@ -38,6 +38,14 @@ jobs:
       # Auto-importens gränsfalls-dom (Haiku, ören/dygn) — attach istället för dubblettstub.
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }} # utan denna mailas inga alerts (mailer går i console-mode)
+      # ⛔ RESTOCK-LARMEN ÄR PAUSADE (ägarbeslut 2026-08-23). Att stänga av restock-watch.yml
+      # räckte INTE: den fulla insamlingen nedan diffar också lagerstatus och anropar samma
+      # checkRestockAlerts — larmen fortsatte alltså gå ut en gång per natt (8 mejl 2026-08-25)
+      # medan pause-mejlet sa till användarna att de låg nere. Raden är den enda spaken som
+      # behövs här; koden defaultar också till pausat (src/lib/restock-alerts-pause.ts).
+      # SÄTT TILL "0" NÄR LARMEN SKA PÅ IGEN — och slå på restock-watch.yml samtidigt.
+      # ⛔ Prislarm (PRICE_TARGET), veckobrevet och RestockEvent-historiken berörs INTE.
+      RESTOCK_ALERTS_PAUSED: "1"
       # APNs (iOS push). Utan APNS_KEY blir sendPush en no-op → bara mejl, ingen pushnotis.
       # ⛔ VID NYCKELROTATION: uppdatera BÅDE GH-secreten APNS_KEY *och* APNS_KEY_ID i
       # ALLA tre workflow-filer — Railway är en HELT egen uppsättning variabler.

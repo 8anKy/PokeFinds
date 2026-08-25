@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { isBlockedListingLanguage } from "@/lib/listing-language";
 import { proUserWhere } from "@/lib/plan";
+import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
 import { isSealedCategory } from "@/lib/product-category";
 // Lokalt bruk (checkRestockAlerts nedan). Re-exporten längre ner är för utomstående
 // importvägar — `export … from` binder INTE namnen i den här modulens scope.
@@ -156,6 +157,10 @@ export async function checkRestockAlerts(
   // vad alla anropare gjorde före 2026-07-25 och vad copyn defaultar till.
   transition?: { from?: StockStatus | null; to?: StockStatus | null }
 ) {
+  // ⛔ PAUSAT LÄGE: inga rader skapas alls — se restock-alerts-pause.ts för varför
+  // grinden ligger här och inte vid utskicket. Först av allt, före produktuppslaget:
+  // nattkedjan gör hundratals anrop hit och Neon debiteras per vaken tid.
+  if (restockAlertsPaused()) return { triggered: 0 };
   const product = await prisma.product.findUnique({
     where: { id: productId },
     // setId + category + setnamn: set-bevakarna nedan avgörs på dem, och namnet
@@ -325,6 +330,10 @@ export async function checkListingAlerts(
   // ett "Åter i lager"-mejl för något som aldrig varit i lager.
   transition?: { from?: StockStatus | null; to?: StockStatus | null }
 ) {
+  // ⛔ PAUSAT LÄGE — samma grind som checkRestockAlerts. Gäller ALLA tre bespeden
+  // härifrån (NEW_LISTING/RESTOCK/PREORDER): de levereras av samma Pro-funktion och
+  // samma inställning ("Alla restocks/nya produkter") som pause-mejlet gällde.
+  if (restockAlertsPaused()) return { triggered: 0 };
   // Blockade språk (kinesiska/koreanska) larmar vi inte på "for now". Japanska = OK.
   if (isBlockedListingLanguage(listing.title)) return { triggered: 0 };
 

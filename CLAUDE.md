@@ -68,15 +68,25 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   ALLTID under Neons autosuspend på 300 s ⇒ computen kunde matematiskt inte somna. Mätt: 18,8 h vaken
   tid/dygn och 8,5 CU-h/dygn ≈ **$27/mån** mot ~$14 i baslinjen 2026-08-05. En körning gjorde ~420 s
   DB-arbete och hittade **0 restocks, 0 larm**; ändringsgrinden hoppade bara 26 av 91 körningar.
+  ⛔ **ATT STÄNGA AV JOBBET RÄCKTE INTE — larmen skapas på TVÅ vägar** (upptäckt 2026-08-25: 8 mejl
+  kl 05:30 medan pause-mejlet påstod motsatsen). `runRestockScan` var bara snabbfilen; nattens
+  `scrape-all` → `runScrapeJob` diffar lagerstatus per butik och anropar SAMMA `checkRestockAlerts`.
+  Båda larmskaparna grindas nu av `restockAlertsPaused()` (`src/lib/restock-alerts-pause.ts`, default
+  PAUSAT). ⛔ Grinden ligger vid SKAPANDET: `dispatchPendingAlerts` läser inte `Alert.channel` utan
+  skickar varje PENDING-rad till användarens påslagna kanaler — en grind vid utskicket hade lämnat
+  raderna liggande och tömt hela högen i ett svep den dag larmen slås på igen.
   **VAD SOM SLUTADE FUNGERA** — allt detta ligger nere tills jobbet slås på igen:
-  restock-larm via mejl/push (Pro-funktionen, `proUserWhere()` i `src/services/alerts.ts`),
-  `Offer.stockStatus` (lagerbadgen på ALLA produktsidor fryser), `RestockEvent` +
-  `/api/market/restocks`, och auto-importen av nya butiks-SKU:er.
+  restock-larm via mejl/push/in-app (Pro-funktionen, `proUserWhere()` i `src/services/alerts.ts`),
+  inklusive NEW_LISTING/PREORDER ur feed-först-vägen, `Offer.stockStatus` (lagerbadgen på ALLA
+  produktsidor fryser), `RestockEvent` + `/api/market/restocks`, och auto-importen av nya
+  butiks-SKU:er. ⛔ Prislarm (PRICE_TARGET) och veckobrevets "X av dina bevakade är i lager igen" är
+  EGNA funktioner och är INTE pausade; nattkedjan skriver fortfarande `RestockEvent`.
   ⛔ **Discord-lanen är OPÅVERKAD** — `scripts/discord-restock-run.ts` importerar bara en TYP ur
   `@prisma/client` och rör aldrig databasen. Ruttabellen (`export-restock-routes.ts`) skrevs av BÅDE
   restock-watch och `scrape-all`; nattkedjan uppdaterar den alltså fortfarande, så lanen tappar bara
   förfining för SKU:er som dyker upp mitt på dagen och läker till natten.
-  **NÄR DEN SLÅS PÅ IGEN**: höj pingern FÖRE — vid 600 s är golvet ~102 väckningar × 300 s = 8,5 h/dygn
+  **NÄR DEN SLÅS PÅ IGEN**: `RESTOCK_ALERTS_PAUSED=0` i `scrape-all.yml` (annars är larmen tysta även
+  med jobbet igång) OCH `gh workflow enable restock-watch.yml`. Höj pingern FÖRE — vid 600 s är golvet ~102 väckningar × 300 s = 8,5 h/dygn
   även med en oändligt snabb DB-fas. Kodhastighet är en KLIPPKANT, inte en skala: inget händer förrän
   DB-fasen kommer under 300 s. Användarna är meddelade via
   `.github/workflows/restock-paused-notice.yml` (engångsutskick, Discord som gratis alternativ).

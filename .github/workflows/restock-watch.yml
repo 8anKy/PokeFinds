@@ -1,5 +1,13 @@
 name: Restock-bevakning (var 10:e minut)
 
+# ⛔ JOBBET ÄR PAUSAT (ägarbeslut 2026-08-23): `gh workflow disable restock-watch.yml`.
+# ⛔ ATT SLÅ PÅ DET IGEN RÄCKER INTE FÖR ATT FÅ TILLBAKA LARMEN. Larmskaparna är sedan
+# 2026-08-25 grindade av `restockAlertsPaused()` (src/lib/restock-alerts-pause.ts), som
+# defaultar till PAUSAT — utan `RESTOCK_ALERTS_PAUSED: "0"` i env-blocket nedan (och i
+# scrape-all.yml) skannar det här jobbet, väcker Neon och skickar INGENTING. Skälet till
+# grinden: larmen skapas på TVÅ vägar och den här filen var bara den ena.
+# Höj den externa pingern FÖRE påslag — se kostnadsavsnittet i CLAUDE.md.
+#
 # Lätt restock-skanning (runRestockScan): hämtar de restock-bevakade butikernas
 # kataloger PARALLELLT (bara HTTP → Neon sover) och diffar sedan lagerstatus mot
 # befintliga offers i en kort DB-burst. Skriver bara lagerövergångar (+ alerts).
