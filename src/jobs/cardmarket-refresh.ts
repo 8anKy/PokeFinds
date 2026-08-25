@@ -1795,7 +1795,25 @@ export async function runCardmarketRefresh(
         // kastar — men då tappas också den FALLBACK som ska bära kortet när From
         // saknas. Vår egen länk vet vilken CM-produkt kortet är; identitetsvakterna
         // nedan dömer den ändå.
-        const linkedCmId = printEntry || viaNoTcgNumber
+        //
+        // OCH SAMMA SAK NÄR `cardmarket_id` ÄR NULL (2026-08-26). Då fanns ingen nyckel
+        // alls, så guide-raden slogs aldrig upp — trots att VÅR länk bar rätt idProduct
+        // och guiden hade raden. Följden är värre än en utebliven fallback: `refs` i
+        // `singlesHeadlineEur` kollapsar till EN referens (leverantörens 30d-snitt), och
+        // medianen som finns just för att "ETT trasigt fält" inte ska bestämma skyddar
+        // då ingenting. MÄTT på Professor Elm's Training Method (DF 79, idProduct
+        // 277284): leverantören sa 30d = 20,55 € där Cardmarket själv säger 0,27 €, och
+        // priset skrevs till 22 769 öre mot ~310 öre dygnet före — 73x på en natt, rakt
+        // in i prishistoriken som byggs FRAMÅT och aldrig backfillas. Med guide-raden
+        // blir refs [0,26 · 0,27 · 0,28 · 20,55] ⇒ median 0,275 € = 304 öre, dvs precis
+        // den nivå kortet legat på.
+        // ⛔ Dagvakten kunde inte rädda det: `refOre` härleds ur SAMMA svar, så det
+        //    korrupta värdet höll med sin egen referens och `saneDayMove` läste hoppet
+        //    som en RÄTTELSE och släppte igenom det. En vakt vars facit kommer från den
+        //    källa den ska granska är ingen vakt.
+        // Identitetsvakterna nedan (guideRowIsSingle + guideNameMatches) dömer länken
+        // precis som förut — det här öppnar ingen väg förbi dem.
+        const linkedCmId = printEntry || viaNoTcgNumber || card.cardmarket_id == null
           ? Number(entry.url?.match(/idProduct=(\d+)/)?.[1] ?? NaN)
           : NaN;
         const guideId = Number.isFinite(linkedCmId) ? linkedCmId : card.cardmarket_id;

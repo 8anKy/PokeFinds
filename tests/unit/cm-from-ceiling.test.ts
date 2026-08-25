@@ -81,4 +81,32 @@ describe("singlesHeadlineEur — guiden får bara fylla ett tomrum", () => {
     expect(singlesHeadlineEur({ from: null, avg30: null }, null)).toBeNull();
     expect(singlesHeadlineEur({ from: 0, avg30: 0 }, { low: 0, trend: 0, avg30: 0 })).toBeNull();
   });
+
+  /**
+   * REGRESSION 2026-08-25 — GUIDE-RADEN ÄR HELA SKYDDET NÄR `from` SAKNAS.
+   *
+   * Professor Elm's Training Method (DF 79, idProduct 277284): leverantören svarade
+   * `lowest_near_mint: null` och `30d_average: 20.55` — där Cardmarkets EGEN sida
+   * samma dag visar From 0,10 € och 30d-snitt 0,27 €. Utan guide-rad kollapsar `refs`
+   * till EN referens, och medianen som finns just för att ett trasigt fält inte ska
+   * bestämma skyddar då ingenting: priset skrevs till 22 769 öre mot ~310 öre dygnet
+   * före, rakt in i prishistoriken (som byggs FRAMÅT och aldrig backfillas).
+   *
+   * Roten låg i UPPSLAGET, inte här: guide-nyckeln togs ur feedens `cardmarket_id`,
+   * som var null för kortet, fastän vår egen CM-länk bar rätt idProduct. Testet
+   * fastställer vad de två utfallen är värda, så ingen kan "förenkla" bort nyckeln.
+   */
+  const ELM_GUIDE = { low: 0.02, trend: 0.26, avg: 0.28, avg1: 0.21, avg7: 0.29, avg30: 0.27 };
+  const ELM_FEED = { from: null, avg30: 20.55 }; // leverantörens korrupta 30d-snitt
+
+  it("guide-raden dränker ett korrupt 30d-snitt (Elm: 20,55 € → 0,275 €)", () => {
+    const r = singlesHeadlineEur(ELM_FEED, ELM_GUIDE)!;
+    expect(r.eur).toBeCloseTo(0.275, 5);
+    expect(r.from).toBe(false);
+  });
+
+  it("UTAN guide-rad bestämmer det korrupta fältet ensamt — därför måste nyckeln finnas", () => {
+    // Dokumenterar skadan, inte ett önskat beteende: en median av ETT tal är ingen median.
+    expect(singlesHeadlineEur(ELM_FEED, null)!.eur).toBe(20.55);
+  });
 });
