@@ -18,13 +18,22 @@
  * därför länkade till den vanliga butiks-ETB:n vecka efter vecka utan ett ord.
  * Lägg till nya vakter i productsConflict, aldrig här.
  *
- * Läser bara. Fixa alltid via offer-ID, aldrig via URL ([[project-wrong-link-orphan-offers]]).
- *   node scripts/with-prod-db.mjs npx tsx scripts/audit-links.ts
+ * Fixa alltid via offer-ID, aldrig via URL ([[project-wrong-link-orphan-offers]]).
+ *   node scripts/with-prod-db.mjs npx tsx scripts/audit-links.ts            # bara rapport
+ *   node scripts/with-prod-db.mjs npx tsx scripts/audit-links.ts --prune    # + auto-rensning
+ * Utan `--prune` skriver skriptet INGENTING. Med `--prune` raderas döda butiks-offers
+ * enligt två-signalregeln — se kommentaren vid PRUNE_MIN_STALE_DAYS.
  * Exit 1 om säkra fel hittas → röd körning i store-health.
  */
 import { PrismaClient } from "@prisma/client";
 import { isDirectOfferUrl } from "../src/lib/marketplace-urls";
 import { detectListingLanguage } from "../src/lib/listing-language";
+import {
+  isDeadStatus,
+  isPrunableDeadLink,
+  isStoreRefusal,
+  PRUNE_MIN_STALE_DAYS as DEFAULT_STALE_DAYS,
+} from "../src/lib/link-audit-policy";
 import {
   cleanListingTitle,
   distinctiveOverlap,
@@ -121,22 +130,6 @@ const STORE_SUFFIX =
 
 type Fetched = { name: string | null; dead: boolean; refused: boolean; why: string };
 
-/**
- * ⛔ "BUTIKEN VÄGRADE SVARA" ÄR INTE "LÄNKEN ÄR DÖD". Samma skillnad som
- * `check-store-health.ts` gör på 0 produkter: en 404/410 betyder att sidan är BORTA
- * (länken ska bort), medan 401/403/407/451 betyder att butikens brandvägg/WAF sa nej
- * till OSS — sidan kan vara kerngfrisk för en riktig besökare.
- *
- * MÄTT 2026-08-25: alla nio Leksaksaffären-länkar som veckorapporten listade under
- * "SÄKRA fel" svarar **HTTP 200** från en vanlig IP, med vår egen FoilioBot-UA. De var
- * 403 enbart för att GitHub Actions egress-IP är blockerad hos butiken. De låg alltså i
- * exakt den hög en människa bulk-rensar — och en rensning hade tagit bort nio fullt
- * fungerande köplänkar och strippat Leksaksaffären från nio produktsidor.
- *
- * 429 hamnar INTE här: den har redan gjort tre omförsök ovan och betyder "för fort",
- * inte "nej till dig".
- */
-const REFUSAL_CODES = new Set([401, 403, 407, 451]);
 
 async function fetchIdentity(url: string): Promise<Fetched> {
   // Variantlänk: bara butikens variant-JSON vet vilken SKU länken pekar på (se ovan).
@@ -147,8 +140,8 @@ async function fetchIdentity(url: string): Promise<Fetched> {
     try {
       const res = await fetch(url, { headers: { "user-agent": UA }, signal: AbortSignal.timeout(45_000) });
       if (res.status === 429 || res.status >= 500) { await sleep(4000 * (attempt + 1)); continue; }
-      if (REFUSAL_CODES.has(res.status)) return { name: null, dead: false, refused: true, why: `HTTP ${res.status}` };
-      if (res.status === 404 || res.status === 410) return { name: null, dead: true, refused: false, why: `HTTP ${res.status}` };
+      if (isStoreRefusal(res.status)) return { name: null, dead: false, refused: true, why: `HTTP ${res.status}` };
+      if (isDeadStatus(res.status)) return { name: null, dead: true, refused: false, why: `HTTP ${res.status}` };
       if (!res.ok) return { name: null, dead: true, refused: false, why: `HTTP ${res.status}` };
       const html = await res.text();
       const raw =
@@ -177,11 +170,42 @@ function bundleWithAccessory(pageName: string): string {
   return pageName.replace(/\s*[+&]\s*(acrylic|akryl)\w*[^,]*/i, "").trim();
 }
 
+/**
+ * AUTO-RENSNING AV DÖDA LÄNKAR (ägarbeslut 2026-08-25) — "två röda veckor".
+ *
+ * En butik som avlistar en vara tar bort produktsidan och släpper den ur feeden, men
+ * INGENTING städade Offer-raden. Den låg kvar för alltid, rapporterades som död varje
+ * måndag, och backloggen växte: 161 rader 2026-08-24, varav ~149 äkta 404.
+ *
+ * ⛔ TVÅ OBEROENDE SIGNALER KRÄVS, ALDRIG BARA EN — och ingen av dem TOLKAS, båda MÄTS
+ * (samma doktrin som `.claude/rules/scraping-restock.md`: frånvaro ur feeden kollas,
+ * den gissas inte):
+ *   1. Raden har fallit UR FEEDEN — `lastSeenAt` äldre än PRUNE_MIN_STALE_DAYS.
+ *   2. Sidan svarar verifierat 404/410 vid en FÄRSK hämtning i den här körningen.
+ *
+ * Det ger "två veckor" utan att kosta en ny tabell, en migration eller en enda extra
+ * DB-skrivning per körning (Neons nota är vaken tid — se kostnadsdoktrinen). En vara
+ * som avlistades i går har färsk `lastSeenAt` ⇒ den RAPPORTERAS men rensas inte förrän
+ * nästa vecka. En sida som 404:ar av en tillfällig ombyggnad hinner läka.
+ *
+ * ⛔ AVVISADE (403) RENSAS ALDRIG — de når aldrig hit, se REFUSAL_CODES. Det var hela
+ *    poängen med att skilja koderna åt: annars hade nio friska Leksaksaffären-länkar
+ *    varit först i rensningskön.
+ * ⛔ INGEN DENYLIST: en 404-URL som inte längre finns i feeden kan inte återskapas av
+ *    auto-importen. Kommer varan tillbaka SKA länken återskapas — se
+ *    .claude/rules/catalog-curation.md om hur brett en denylist-post annars slår.
+ * ⛔ VARJE RADERING LOGGAS MED ANTAL OCH RAD. `gtin-fix.ts` hårdkodade `deleted = 0`
+ *    och mergade fyra produkter oåterkalleligt medan loggen sa "0 raderade" — en
+ *    städare som inte redovisar vad den tog bort är inte granskningsbar.
+ */
+const PRUNE = process.argv.includes("--prune");
+const PRUNE_MIN_STALE_DAYS = Number(process.env.AUDIT_PRUNE_STALE_DAYS ?? DEFAULT_STALE_DAYS);
+
 async function main() {
   const offers = await prisma.offer.findMany({
     where: { retailer: { name: { notIn: NON_STORE } } },
     select: {
-      id: true, url: true,
+      id: true, url: true, lastSeenAt: true,
       retailer: { select: { name: true } },
       product: { select: { id: true, title: true, language: true } },
     },
@@ -294,6 +318,55 @@ async function main() {
     for (const [store, v] of [...perStore.entries()].sort((a, b) => b[1].n - a[1].n)) {
       console.log(`   • ${store}: ${v.n} länkar (${v.why})`);
     }
+  }
+
+  // ── Auto-rensning: signal 1 (ur feeden) + signal 2 (verifierat 404) ──────────
+  const now = new Date();
+  const deadLinks = definite.filter((d) => d.why.startsWith("DÖD LÄNK"));
+  const prunable = deadLinks.filter((d) =>
+    isPrunableDeadLink({ dead: true, lastSeenAt: d.o.lastSeenAt, now, minStaleDays: PRUNE_MIN_STALE_DAYS })
+  );
+  const firstStrike = deadLinks.length - prunable.length;
+
+  if (deadLinks.length > 0) {
+    console.log(`\n\n=== DÖDA LÄNKAR: ${deadLinks.length} (${prunable.length} rensningsbara) ===`);
+    console.log(
+      `   Rensas när sidan är 404 OCH raden fallit ur feeden > ${PRUNE_MIN_STALE_DAYS} dygn.` +
+        ` ${firstStrike} har färsk lastSeenAt — rapporteras nu, rensas tidigast nästa vecka.`
+    );
+  }
+
+  if (prunable.length > 0 && PRUNE) {
+    // Räkna FÖRE raderingen: en produkt som blir helt utan butikslänk tappar sitt
+    // pris på produktsidan. Det är rätt utfall (varan säljs inte längre någonstans
+    // vi känner till) men det ska synas i loggen, inte upptäckas av en användare.
+    const perProduct = new Map<string, number>();
+    for (const p of prunable) perProduct.set(p.o.product.id, (perProduct.get(p.o.product.id) ?? 0) + 1);
+    const remaining = await prisma.offer.groupBy({
+      by: ["productId"],
+      where: { productId: { in: [...perProduct.keys()] }, retailer: { name: { notIn: NON_STORE } } },
+      _count: { _all: true },
+    });
+    const emptied = remaining.filter((r) => r._count._all - (perProduct.get(r.productId) ?? 0) <= 0);
+
+    const { count } = await prisma.offer.deleteMany({ where: { id: { in: prunable.map((p) => p.o.id) } } });
+    console.log(`\n🗑️  RENSADE ${count} döda butiks-offers:`);
+    for (const p of prunable) {
+      console.log(
+        `   • ${p.o.retailer.name} | "${p.o.product.title}" | ur feeden sedan ` +
+          `${p.o.lastSeenAt.toISOString().slice(0, 10)} | ${p.why}`
+      );
+      console.log(`     ${p.o.url}`);
+    }
+    if (emptied.length > 0) {
+      console.log(`\n⚠️  ${emptied.length} produkter står nu HELT utan butikslänk (visar inget pris):`);
+      for (const e of emptied) {
+        const t = prunable.find((p) => p.o.product.id === e.productId)?.o.product.title;
+        console.log(`   • ${t ?? e.productId}`);
+      }
+    }
+  } else if (prunable.length > 0) {
+    console.log(`\n(TORRKÖRNING — ${prunable.length} skulle rensats. Kör med --prune.)`);
   }
 
   console.log(

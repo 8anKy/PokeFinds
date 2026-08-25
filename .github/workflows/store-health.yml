@@ -69,7 +69,11 @@ jobs:
       # mätning av länk-backloggen, av en blockerad butik som inte har med saken att göra.
       # `be9266d` la villkoret på alla steg från gtin-report och nedåt men missade det här.
       - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
-        run: npx tsx scripts/audit-links.ts
+        # `--prune` raderar en död butiks-offer först när TVÅ oberoende signaler pekar
+        # åt samma håll: raden har fallit ur butikens feed (>7 dygn) OCH sidan svarar
+        # verifierat 404 i den här körningen (ägarbeslut 2026-08-25). En butik som
+        # AVVISAR oss (403) rörs aldrig — se REFUSAL_CODES i skriptet.
+        run: npx tsx scripts/audit-links.ts --prune
       # ⛔ STEGEN NEDAN KÖR ÄVEN NÄR EN RAPPORT OVANFÖR BLIVIT RÖD (`!cancelled()`):
       # audit-links och underpris-rapporten exit:ar 1 när de HITTAR något — det är
       # larmmekanismen (röd körning = mejl), inte ett skäl att svälta resten. Utan

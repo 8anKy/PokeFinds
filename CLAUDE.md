@@ -26,7 +26,7 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   + ~24 sealed saknar genuint CM-marknadsdata → ärlig "–"/döljs tills data finns.
 - **Priser**: singlar = Cardmarket engelska NM-"From" (RapidAPI) × live-kurs; sealed = CM `lowest`;
   graf/historik = CM trend.
-- **Funktioner live**: watchlist/prisbevakning, restock-alerts (42 butiker), samlingsvärde, AI-gradering
+- **Funktioner live**: watchlist/prisbevakning, restock-alerts (41 butiker), samlingsvärde, AI-gradering
   (`/gradera`), live kort-skanner (`/skanna`), community, admin, PWA, **set-komplettering** (Set-fliken i
   `/samling` + stapel på `/sets/[id]`).
 - ⛔ **TRE TAL OM ETT SET, ALDRIG BLANDADE**: `totalCards` = printedTotal (talet på kortet, som skannern

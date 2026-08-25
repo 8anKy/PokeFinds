@@ -172,6 +172,15 @@ paths:
   borttagna (alla OUT_OF_STOCK, produkterna behöll 22–27 butiker) och klassen står kvar som
   gravsten i `quickbutik-adapter.ts`. **Bevakade butiker: 43 → 42.** Lägg inte tillbaka den i en
   ny wave utan att butiken faktiskt öppnat en ny shop.
+  ⛔ **LEKSAKSAFFÄREN UR BEVAKNINGEN 2026-08-25 (ägarbeslut) — BUTIKEN SPÄRRAR VÅR IP, ADAPTERN ÄR
+  OSKYLDIG.** leksaksaffaren.com svarar 403 mot GitHub Actions egress men **200 från en vanlig IP med
+  vår egen FoilioBot-UA** (verifierat mot sex riktiga offer-URL:er); robots.txt tillåter oss och
+  `parsePrestaShopListing` läser samma HTML utan problem. En omskriven adapter får exakt samma 403 —
+  det går inte att laga i kod. Källan står `isActive=false` + `restockWatch=false`
+  (`scripts/retire-leksaksaffaren-watch.ts`, `--enable` ångrar), men **retailern och de 9 offers är
+  ORÖRDA**: länkarna fungerar för användare, som surfar från vanliga IP:n. Följd: inga nya produkter,
+  priser eller lagerstatus därifrån. **Bevakade butiker: 42 → 41.** Vill man ha tillbaka täckningen är
+  enda vägen att butiken vitlistar oss.
   PrestaShop-adapter (delad bas → Leksaksaffären 37 prissatta av 102 — OOS-rader
   saknar pris och faller ur feeden, restock syns först vid omprissättning; NordicTCG 47) +
   Starweb (Coolcard, 149 varor, "N st i lager"-text). Registrering =

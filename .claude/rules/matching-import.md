@@ -240,3 +240,13 @@ paths:
   ("MAX 1 per kund", "förhandsbokning", "(kopia)") innan matchning/namnsättning; (3) veckovis LLM-dedup (`src/jobs/dedupe-stubs.ts`,
   Haiku ~2 titlar/anrop, körs i store-health.yml) merge:ar stubbar som är samma SKU med annan butiksfrasering. Länk-revision =
   `scripts/audit-links.ts` (också veckovis, röd körning vid säkra fel).
+- **DÖDA LÄNKAR AUTO-RENSAS EFTER "TVÅ RÖDA VECKOR" (ägarbeslut 2026-08-25)**: en butik som avlistar en vara tar bort
+  produktsidan och släpper den ur feeden, men INGENTING städade Offer-raden — den rapporterades som död varje måndag och
+  backloggen växte till 161 rader (varav ~149 äkta 404). `audit-links.ts --prune` raderar en rad först när **TVÅ oberoende,
+  MÄTTA signaler** pekar åt samma håll: (1) raden har fallit ur butikens feed, `lastSeenAt` > 7 dygn, OCH (2) sidan svarar
+  verifierat 404/410 vid en FÄRSK hämtning i samma körning. Ingen av dem tolkas — frånvaro ur feeden KOLLAS (samma doktrin som
+  `scraping-restock.md`). Det ger två veckors fördröjning utan ny tabell, migration eller en enda extra DB-skrivning per körning.
+  Regeln bor i `src/lib/link-audit-policy.ts` med tester; rensningen loggar VARJE rad plus de produkter som blir helt utan
+  butikslänk. ⛔ **EN AVVISAD LÄNK (401/403/407/451) RENSAS ALDRIG** — se `isStoreRefusal`; det var precis den förväxlingen som
+  la nio friska Leksaksaffären-länkar först i rensningskön. ⛔ **INGEN DENYLIST**: en 404-URL som lämnat feeden kan inte
+  återskapas av auto-importen, och kommer varan tillbaka SKA länken återskapas.
