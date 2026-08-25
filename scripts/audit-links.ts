@@ -119,32 +119,50 @@ async function shopifyVariantName(url: string): Promise<string | null> {
 const STORE_SUFFIX =
   /\s*[|–—-]\s*(Dragon'?s Lair|MaxGaming.*|Speltrollet.*|Alphaspel.*|Webhallen.*|Goblinen.*|Samlarhobby.*|Swepoke.*|Shinycards.*|Spelexperten.*|Manat[öo]rsk.*|K[öo]p .*|Handla .*)\s*$/i;
 
-type Fetched = { name: string | null; dead: boolean; why: string };
+type Fetched = { name: string | null; dead: boolean; refused: boolean; why: string };
+
+/**
+ * ⛔ "BUTIKEN VÄGRADE SVARA" ÄR INTE "LÄNKEN ÄR DÖD". Samma skillnad som
+ * `check-store-health.ts` gör på 0 produkter: en 404/410 betyder att sidan är BORTA
+ * (länken ska bort), medan 401/403/407/451 betyder att butikens brandvägg/WAF sa nej
+ * till OSS — sidan kan vara kerngfrisk för en riktig besökare.
+ *
+ * MÄTT 2026-08-25: alla nio Leksaksaffären-länkar som veckorapporten listade under
+ * "SÄKRA fel" svarar **HTTP 200** från en vanlig IP, med vår egen FoilioBot-UA. De var
+ * 403 enbart för att GitHub Actions egress-IP är blockerad hos butiken. De låg alltså i
+ * exakt den hög en människa bulk-rensar — och en rensning hade tagit bort nio fullt
+ * fungerande köplänkar och strippat Leksaksaffären från nio produktsidor.
+ *
+ * 429 hamnar INTE här: den har redan gjort tre omförsök ovan och betyder "för fort",
+ * inte "nej till dig".
+ */
+const REFUSAL_CODES = new Set([401, 403, 407, 451]);
 
 async function fetchIdentity(url: string): Promise<Fetched> {
   // Variantlänk: bara butikens variant-JSON vet vilken SKU länken pekar på (se ovan).
   const variantName = await shopifyVariantName(url);
-  if (variantName) return { name: cleanListingTitle(variantName), dead: false, why: "" };
+  if (variantName) return { name: cleanListingTitle(variantName), dead: false, refused: false, why: "" };
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const res = await fetch(url, { headers: { "user-agent": UA }, signal: AbortSignal.timeout(45_000) });
       if (res.status === 429 || res.status >= 500) { await sleep(4000 * (attempt + 1)); continue; }
-      if (res.status === 404 || res.status === 410) return { name: null, dead: true, why: `HTTP ${res.status}` };
-      if (!res.ok) return { name: null, dead: true, why: `HTTP ${res.status}` };
+      if (REFUSAL_CODES.has(res.status)) return { name: null, dead: false, refused: true, why: `HTTP ${res.status}` };
+      if (res.status === 404 || res.status === 410) return { name: null, dead: true, refused: false, why: `HTTP ${res.status}` };
+      if (!res.ok) return { name: null, dead: true, refused: false, why: `HTTP ${res.status}` };
       const html = await res.text();
       const raw =
         ldName(html) ??
         pick(html, /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) ??
         pick(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
-      if (!raw) return { name: null, dead: false, why: "ingen titel på sidan" };
-      return { name: cleanListingTitle(raw.replace(STORE_SUFFIX, "").replace(/\s+/g, " ").trim()), dead: false, why: "" };
+      if (!raw) return { name: null, dead: false, refused: false, why: "ingen titel på sidan" };
+      return { name: cleanListingTitle(raw.replace(STORE_SUFFIX, "").replace(/\s+/g, " ").trim()), dead: false, refused: false, why: "" };
     } catch (e) {
-      if (attempt === 2) return { name: null, dead: false, why: e instanceof Error ? e.message.slice(0, 60) : "fetch-fel" };
+      if (attempt === 2) return { name: null, dead: false, refused: false, why: e instanceof Error ? e.message.slice(0, 60) : "fetch-fel" };
       await sleep(2000);
     }
   }
-  return { name: null, dead: false, why: "429 efter omförsök" };
+  return { name: null, dead: false, refused: false, why: "429 efter omförsök" };
 }
 
 /**
@@ -181,15 +199,19 @@ async function main() {
 
   const definite: { o: (typeof targets)[number]; page: string; why: string }[] = [];
   const review: { o: (typeof targets)[number]; page: string; why: string; score: number }[] = [];
+  // Butiken sa nej till OSS — varken säkert fel eller något en människa kan granska
+  // på titeln (vi får ingen titel). Egen hink, aldrig röd. Se REFUSAL_CODES.
+  const refusedByStore: { o: (typeof targets)[number]; why: string }[] = [];
   let done = 0;
 
   await Promise.all(
     [...byHost.values()].map(async (list) => {
       for (const o of list) {
-        const { name, dead, why } = await fetchIdentity(o.url);
+        const { name, dead, refused, why } = await fetchIdentity(o.url);
         await sleep(HOST_DELAY_MS);
         if (++done % 100 === 0) console.log(`  …${done}/${targets.length}`);
 
+        if (refused) { refusedByStore.push({ o, why }); continue; }
         if (dead) { definite.push({ o, page: "—", why: `DÖD LÄNK (${why})` }); continue; }
         if (!name) { review.push({ o, page: "—", why: why || "ingen titel", score: 0 }); continue; }
 
@@ -253,7 +275,33 @@ async function main() {
     console.log(`     ${r.o.url}`);
   }
 
-  console.log(`\nSUMMERING: ${definite.length} säkra fel · ${review.length} att granska · ${targets.length} kontrollerade`);
+  // Egen rubrik, UNDER granska-listan: de här länkarna är inte trasiga, och det finns
+  // inget att granska på titeln — vi fick ingen. Rapporten finns för att bortfallet ska
+  // vara SYNLIGT (butiken spärrar vår IP ⇒ revisionen täcker dem inte alls), inte för
+  // att någon ska agera på dem länk för länk. Summerat per butik: det är butiken som är
+  // enheten här, aldrig den enskilda länken.
+  if (refusedByStore.length > 0) {
+    const perStore = new Map<string, { n: number; why: string }>();
+    for (const r of refusedByStore) {
+      const cur = perStore.get(r.o.retailer.name);
+      if (cur) cur.n++;
+      else perStore.set(r.o.retailer.name, { n: 1, why: r.why });
+    }
+    console.log(`\n\n=== BUTIKEN AVVISADE OSS — EJ REVIDERADE: ${refusedByStore.length} ===`);
+    console.log("   (INTE döda länkar. Butikens brandvägg sa nej till vår IP/UA — sidorna kan");
+    console.log("    vara helt friska för en vanlig besökare. Ta ALDRIG bort dem på den grunden;");
+    console.log("    verifiera först från en annan IP.)");
+    for (const [store, v] of [...perStore.entries()].sort((a, b) => b[1].n - a[1].n)) {
+      console.log(`   • ${store}: ${v.n} länkar (${v.why})`);
+    }
+  }
+
+  console.log(
+    `\nSUMMERING: ${definite.length} säkra fel · ${review.length} att granska · ` +
+      `${refusedByStore.length} avvisade av butiken · ${targets.length} kontrollerade`
+  );
+  // ⛔ `refusedByStore` gör ALDRIG körningen röd. Att en butik spärrar Actions-IP:n går
+  // inte att laga i koden, och en rapport som är permanent röd slutar bli läst.
   if (definite.length > 0) process.exitCode = 1;
   await prisma.$disconnect();
 }
