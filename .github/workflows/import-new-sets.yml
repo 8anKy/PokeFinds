@@ -71,7 +71,17 @@ jobs:
       # för ingen annan, för alltid. Steget är en billig no-op när inget ändrats.
       # ⛔ Lägg inga fler LED i nattkedjan — det här jobbet har egen cron och
       # ingen workflow_run, så ett STEG här är lagligt.
-      - if: steps.guard.outputs.ready == 'true'
+      #
+      # ⛔ `!cancelled()` KRÄVS PÅ STEGEN HÄRIFRÅN OCH NEDÅT. Ett `if:` utan
+      # statusfunktion får implicit `success()`, så ETT rött steg svälter allt
+      # efter det — tyst. MÄTT 2026-08-23: `/v2/sets` hos pokemontcg.io svarade
+      # 500 och nämnarsteget dog, varpå BÅDE bildlagningen och avtrycksbygget
+      # hoppades över (`skipped` i körning 32617045678). De två stegen har
+      # ingenting med nämnarna att göra, och priset för att missa dem är att
+      # kort blir OSYNLIGA för skannerns bildmatchning — se kommentarerna nedan.
+      # Samma fälla, samma lagning som i store-health.yml. Jobbet blir ändå rött
+      # av det fallerade steget, så larmet består.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
         name: Fyll set-nämnarna (pokemontcg.io total + TCGdex-tryckningar)
         run: npx tsx scripts/import-set-denominators.ts
 
@@ -82,7 +92,7 @@ jobs:
       # att något felade. Steget måste ligga FÖRE avtryckssteget så nya kort som
       # kom in med en trasig bild ändå får ett avtryck samma körning.
       # Verifierar varje URL innan den skrivs → fungerande bilder rörs aldrig.
-      - if: steps.guard.outputs.ready == 'true'
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
         name: Laga döda kortbilder (verifierar, rör aldrig en fungerande bild)
         env:
           APPLY: "1"
@@ -94,6 +104,6 @@ jobs:
       # bildavkodning och kan därför inte genereras i databasen, så det MÅSTE
       # köras här. Steget rör bara kort som saknar avtryck → billig no-op när
       # inga nya set kom. Se src/lib/art-fingerprint.ts.
-      - if: steps.guard.outputs.ready == 'true'
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
         name: Bygg konstavtryck för nya kort (no-op om inga saknas)
         run: npx tsx scripts/build-art-fingerprints.ts

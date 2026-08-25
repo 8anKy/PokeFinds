@@ -121,7 +121,21 @@ async function fetchTcgJson<T>(path: string, opts?: { retries?: number }): Promi
 /**
  * Hämtar set (sorterat på releasedatum, nyast först).
  * limit=0 → alla set (paginerat).
+ *
+ * ⛔ FLER OMFÖRSÖK ÄN STANDARD, MED FLIT. `/v2/sets` är INTE lika stabil som
+ * `/v2/cards`: mätt 2026-08-25 svarade den 500/502 på ungefär VARANNAT anrop,
+ * oberoende av `page`, `pageSize`, `orderBy` och `select` (`/v2/cards` svarade
+ * 200 hela tiden). Med standardens 4 omförsök = 5 försök föll veckoimporten
+ * 2026-08-23 på ~3 % otur PER SKRIPT — och två skript i samma jobb läser
+ * listan, så det blev ~6 % röd körning i veckan av ren uppströms-flakighet.
+ * 8 försök tar bort felet (~0,4 %) och kostar bara tid, och bara när det
+ * faktiskt fallerar: hela set-listan (~176 set) ryms i EN sida à 250, så en
+ * grön körning gör ett enda anrop. Värsta väntan är ~2 min mot jobbets 30 min.
+ * Bara batch-skript (import, nämnare, revision) anropar det här — aldrig en
+ * webbrequest, aldrig den tidsbudgeterade dagliga refreshen.
  */
+const SETS_RETRIES = 7;
+
 export async function fetchTcgSets(limit = 0): Promise<TcgSet[]> {
   const select = "id,name,series,printedTotal,total,releaseDate,images";
   const all: TcgSet[] = [];
@@ -130,7 +144,8 @@ export async function fetchTcgSets(limit = 0): Promise<TcgSet[]> {
 
   while (true) {
     const json = await fetchTcgJson<TcgListResponse<TcgSet>>(
-      `/sets?orderBy=-releaseDate&page=${page}&pageSize=${pageSize}&select=${select}`
+      `/sets?orderBy=-releaseDate&page=${page}&pageSize=${pageSize}&select=${select}`,
+      { retries: SETS_RETRIES }
     );
     all.push(...json.data);
 

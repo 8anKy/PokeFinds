@@ -164,7 +164,15 @@ paths:
   fällda av `dropTitles` — korslistade, kollektionsuteslutning ensam läckte 42), Yonko TCG
   (yonko-tcg.de, SEK verifierat), Firegames, Spelkortsbutiken (Quickbutik; singlar under
   /los-pokemon fällda av SINGLE_URL; ⚠️ temat kan sakna lagermarkör i listningen → status kan
-  läsa falsk-OUT). PrestaShop-adapter (delad bas → Leksaksaffären 37 prissatta av 102 — OOS-rader
+  läsa falsk-OUT). ⛔ **SPELKORTSBUTIKEN ÄR RETIRERAD 2026-08-25 — LADE NER WEBBSHOPPEN.**
+  Domänen republicerades 08-17 på Duda som informationssajt för en öl- och spelpub i Karlstad
+  ("Boka bord", Oktoberfest): sitemapen har FYRA url:er och `StorePagesUrls` = base64 för `{}`,
+  dvs noll butikssidor. Ingen adapter kan laga det — det finns ingen produktlista. Källan +
+  retailern står `isActive=false` (`scripts/retire-spelkortsbutiken.ts`), de 3 döda offers är
+  borttagna (alla OUT_OF_STOCK, produkterna behöll 22–27 butiker) och klassen står kvar som
+  gravsten i `quickbutik-adapter.ts`. **Bevakade butiker: 43 → 42.** Lägg inte tillbaka den i en
+  ny wave utan att butiken faktiskt öppnat en ny shop.
+  PrestaShop-adapter (delad bas → Leksaksaffären 37 prissatta av 102 — OOS-rader
   saknar pris och faller ur feeden, restock syns först vid omprissättning; NordicTCG 47) +
   Starweb (Coolcard, 149 varor, "N st i lager"-text). Registrering =
   `scripts/setup-wave5-sources.ts --apply --restock`, engångsimport = `scripts/run-wave5-import.ts`.

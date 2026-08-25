@@ -435,6 +435,19 @@ export class PacksOnPacksAdapter extends QuickbutikAdapter {
 // ---------- Wave 5 (2026-08-13) ----------
 // Verifierad mot sin egen markup före påslag (data-pid-block, robots.txt tillåter).
 // Singlarna bor under /pokemon/los-pokemon/ — fällda av SINGLE_URL, se kommentaren där.
+//
+// ⛔ RETIRERAD 2026-08-25 — BUTIKEN HAR LAGT NER WEBBSHOPPEN. GRÄV INTE I MARKUPEN.
+// www.spelkortsbutiken.se republicerades 2026-08-17 på Duda (`SiteType: DUDAONE`) som
+// en informationssajt för en öl- och spelpub i Karlstad: menyn är "Våra öl och spel /
+// Evenemang / Boka bord", sitemapen har fyra url:er och `StorePagesUrls` är base64 för
+// `{}` — noll butikssidor. Det är alltså INTE en plattform vi behöver stödja; det
+// finns ingen produktlista kvar att läsa, oavsett adapter.
+// Källan är avstängd i databasen (`isActive=false`, `restockWatch=false`, via
+// `scripts/retire-spelkortsbutiken.ts`), så klassen nås inte längre av `getAdapter`.
+// Den står kvar som gravsten: utan den läser nästa granskare bara ett saknat namn i
+// `runner.ts` och börjar felsöka en butik som inte finns. Öppnar butiken en ny shop
+// får adaptern verifieras mot den NYA plattformen innan källan slås på igen.
+// Hälsokollen fångade nedläggningen inom en vecka: 08-17 gav 3 produkter, 08-24 gav 0.
 export class SpelkortsbutikenAdapter extends QuickbutikAdapter {
   name = "Spelkortsbutiken";
   baseUrl = "https://www.spelkortsbutiken.se";
