@@ -4,6 +4,8 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { IconCheck, IconPlus, IconX } from "@/components/ui/icons";
 import { stripeCheckoutAdvertised } from "@/lib/stripe";
+import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
+import { withRestockFeatures } from "@/lib/pricing-features";
 import { UpgradeButton } from "./upgrade-button";
 import { FreePlanCta } from "./free-plan-cta";
 import { PageBackButton } from "@/components/layout/page-back-button";
@@ -48,9 +50,32 @@ export default async function PricingPage({
   setRequestLocale(params.locale);
   const t = await getTranslations("Pricing");
   const freeFeatures = t.raw("freeFeatures") as string[];
-  const freeExcluded = t.raw("freeExcluded") as string[];
-  const premiumFeatures = t.raw("premiumFeatures") as string[];
   const faq = t.raw("faqItems") as { q: string; a: string }[];
+
+  /**
+   * ⛔ DEN HÄR SIDAN ÄR KÖPSTÄLLET, OCH I APPEN ÄR DEN HELA PAYWALLEN (Capacitor-
+   * WebView över exakt den här rutten). Står restock-larm i punktlistan medan de
+   * är avstängda är det ett vilseledande påstående VID KÖPTILLFÄLLET, inte ett
+   * gränssnittsfel. Två kunder hann köpa under pausen 2026-08-22/24 — den ena
+   * fick pausbeskedet elva timmar efter köpet, den andra fick det aldrig
+   * (engångsutskicket hade redan gått).
+   *
+   * ⛔ DÄRFÖR LIGGER PUNKTERNA I EGNA LISTOR, INTE BORTREDIGERADE. Att stryka dem
+   * ur `premiumFeatures` hade krävt att någon MINNS att skriva tillbaka dem den
+   * dag larmen slås på — samma sorts vakt som failar öppet. Nu följer listan
+   * flaggan av sig själv.
+   */
+  const restockPaused = restockAlertsPaused();
+  const premiumFeatures = withRestockFeatures(
+    t.raw("premiumFeatures") as string[],
+    t.raw("premiumRestockFeatures") as string[],
+    restockPaused
+  );
+  const freeExcluded = withRestockFeatures(
+    t.raw("freeExcluded") as string[],
+    t.raw("freeExcludedRestock") as string[],
+    restockPaused
+  );
 
   return (
     // Mobil: pt-6 så bakåtknappen sitter i höjd med Mer-tabbens andra undersidor
@@ -65,6 +90,23 @@ export default async function PricingPage({
           {t("subtitle")}
         </p>
       </div>
+
+      {/* ⛔ Notisen står ovanför korten med flit: under köpknappen hade den varit
+          en brasklapp efter beslutet. Den ska läsas innan priset. */}
+      {restockPaused && (
+        <div className="mx-auto mt-8 max-w-2xl rounded-xl border border-holo-gold/30 bg-holo-gold/5 px-5 py-4 text-sm text-ink-muted">
+          <p>{t("restockPausedNotice")}</p>
+          {/* Internt till /discord, inte rakt ut till discord.gg: den sidan
+              FÖRKLARAR vad servern är, och en utgående länk från paywallen tar
+              besökaren ur köpflödet utan att svara på frågan. */}
+          <Link
+            href="/discord"
+            className="mt-2 inline-block font-medium text-holo-cyan underline-offset-2 hover:underline"
+          >
+            {t("restockPausedCta")}
+          </Link>
+        </div>
+      )}
 
       <div className="mt-12 grid gap-6 md:grid-cols-2">
         {/* Free */}

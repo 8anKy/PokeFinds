@@ -11,6 +11,12 @@
     "sv": "Svenska",
     "en": "English"
   },
+  "RestockPause": {
+    "banner": "Restock alerts by email and push are paused for now. Your watches stay put and price alerts work as usual — we'll let you know when they are back.",
+    "bannerDiscord": "Restocks are posted in real time in our Discord in the meantime — free.",
+    "discordCta": "Join the Discord",
+    "tag": "Paused"
+  },
   "Settings": {
     "pageTitle": "Settings",
     "pageSubtitle": "Manage your profile, notifications and account.",
@@ -27,11 +33,12 @@
     "notifTitle": "Notifications",
     "notifDesc": "Choose how you want to be alerted.",
     "notifEmail": "Email notifications",
-    "notifEmailHint": "Price alerts and restocks via email.",
+    "notifEmailHint": "Price alerts via email.",
     "notifWeekly": "Weekly digest",
     "notifWeeklyHint": "A weekly summary: your collection's value, price drops on what you watch and this week's finds. Requires email notifications to be on.",
     "notifAll": "All restocks",
     "notifAllHint": "Get an alert when ANY sealed product comes back in stock, without watching it.",
+    "notifAllPausedHint": "Paused for now — no restock alerts are sent.",
     "notifPush": "Push notifications",
     "notifPushHint": "Straight to your device (app only).",
     "proTag": "Pro",
@@ -42,8 +49,8 @@
     "planTitle": "Plan",
     "proBadge": "Pro",
     "freeBadge": "Free",
-    "planProDesc": "You have Pro. Unlimited watches, all restocks and AI grading.",
-    "planFreeDesc": "With Pro you get unlimited watches, all restocks, more AI gradings and full price history.",
+    "planProDesc": "You have Pro. Unlimited watches, price alerts, unlimited scanning and AI grading.",
+    "planFreeDesc": "With Pro you get unlimited watches, price alerts, more AI gradings and full price history.",
     "upgradeCta": "Upgrade to Pro",
     "traderaTitle": "Sell on Tradera",
     "connected": "Connected",
@@ -116,7 +123,7 @@
   },
   "Meta": {
     "title": "Foilio · Your control panel for the Pokémon TCG market",
-    "description": "Track prices, stock status and the value of your collection. Foilio brings together price data, restock alerts and market trends for Pokémon TCG in Sweden.",
+    "description": "Track prices, stock status and the value of your collection. Foilio brings together price data, stock status and market trends for Pokémon TCG in Sweden.",
     "ogDescription": "Track prices, stock status and the value of your collection. Stay ahead of the market.",
     "ogLocale": "en_US"
   },
@@ -221,8 +228,8 @@
       "noSets": "No sets found right now. You can skip this step.",
       "back": "Back",
       "notifTitle": "Notifications",
-      "notifSubtitle": "How would you like to be notified about price drops and restocks?",
-      "notifEmail": "Email notifications for price drops and restocks",
+      "notifSubtitle": "How would you like to be notified about price drops?",
+      "notifEmail": "Email notifications for price drops",
       "discordTitle": "Join us on Discord",
       "discordBody": "Restocks are posted instantly in dedicated channels per series, and you can ask other collectors about prices and deals. Free and open to everyone.",
       "discordCta": "Join Discord",
@@ -1067,17 +1074,21 @@
     "setButton": "Watch sealed",
     "setButtonActive": "Watching sealed",
     "setButtonHint": "Restock alerts on {count} sealed products, including new releases.",
+    "setButtonHintPaused": "Restock alerts are paused for now — set watching is therefore turned off.",
+    "scopeSetPaused": "Paused for now.",
+    "scopeItemPaused": "Restock alerts are paused for now.",
     "setButtonHintActive": "You'll be alerted when sealed products in this set come in stock.",
     "watchedSetsTitle": "Watched sets",
+    "watchedSetsSubPaused": "Restock alerts are paused for now — the sets stay put and start alerting again once alerts are back.",
     "watchedSetsSub": "You get restock alerts on every sealed product in these sets, including new ones as they appear.",
     "sealedCount": "{count, plural, =1 {# sealed product} other {# sealed products}}",
     "removeSetAria": "Stop watching {set}"
   },
   "Watchlist": {
     "metaTitle": "Watches",
-    "freeAlertsBanner": "Price and restock alerts are a Pro feature. <link>Upgrade to activate them</link>. You can still save products here.",
+    "freeAlertsBanner": "Price alerts are a Pro feature. <link>Upgrade to activate them</link>. You can still save products here.",
     "h1": "Watches",
-    "subtitle": "We alert you on price drops, target prices and restocks, before everyone else.",
+    "subtitle": "We alert you on price drops and target prices, before everyone else.",
     "findProducts": "Find products to watch",
     "emptyTitle": "You're not watching anything yet",
     "emptyDesc": "Add products to your watchlist and we'll let you know as soon as the price drops or stock is replenished.",
@@ -1192,7 +1203,7 @@
     "colProducts": "Products",
     "colAvgChange": "Avg. change",
     "proTitle": "Want to dig deeper into the data?",
-    "proDesc": "With Pro you get longer price history, advanced charts and all restock alerts, so you act before everyone else.",
+    "proDesc": "With Pro you get longer price history, advanced charts and price alerts, so you act before everyone else.",
     "proCta": "See what Pro gives you"
   },
   "Language": {
@@ -1461,7 +1472,7 @@
     "watchRestock": "Watch restock",
     "saveToWatchlist": "Save to watchlist",
     "savedToWatchlist": "Saved to your watchlist",
-    "alertsProCta": "Get price & restock alerts with Pro →",
+    "alertsProCta": "Get price alerts with Pro →",
     "addToCollection": "Add to collection",
     "watchCta": "Watch",
     "alreadyWatching": "You're already watching this product",
@@ -1559,7 +1570,7 @@
   },
   "Pricing": {
     "metaTitle": "Pricing and Pro",
-    "metaDescription": "Get started free with Foilio or upgrade to Pro for unlimited watches, all restock alerts and AI grading.",
+    "metaDescription": "Get started free with Foilio or upgrade to Pro for unlimited watches, unlimited card scanning and AI grading.",
     "h1": "Simple pricing, no surprises",
     "subtitle": "Get started free. Upgrade when you want full control of the market. Cancel any time.",
     "perMonth": "/ month",
@@ -1581,10 +1592,20 @@
       "Market data and price charts",
       "Weekly digest with your collection's progress and the week's finds"
     ],
-    "freeExcluded": [
-      "Price and restock alerts",
+    "freeExcludedRestock": [
+      "Restock alerts",
       "Restock alerts on every sealed product",
-      "Watch entire sets at once",
+      "Watch entire sets at once"
+    ],
+    "premiumRestockFeatures": [
+      "Restock alerts on everything you watch",
+      "Watch entire sets · alerts on all sealed products, including new releases",
+      "All restocks: alerts for every sealed product"
+    ],
+    "restockPausedNotice": "Restock alerts by email and push are paused for now and are not part of Pro at the moment. Price alerts work as usual. Restocks are posted in real time in our Discord — free, no account needed.",
+    "restockPausedCta": "See restocks in Discord",
+    "freeExcluded": [
+      "Price alerts on what you watch",
       "Unlimited watches",
       "Unlimited card scanning",
       "Bulk scanning of several cards in one photo",
@@ -1593,9 +1614,7 @@
     ],
     "proLead": "Everything in Free, plus:",
     "premiumFeatures": [
-      "Unlimited watches with price and restock alerts",
-      "Watch entire sets · alerts on all sealed products, including new releases",
-      "All restocks: alerts for every sealed product",
+      "Unlimited watches with price alerts",
       "15 AI gradings per month (stronger model)",
       "Unlimited card scanning (fair use)",
       "Bulk scanning · lay out the whole row and scan every card at once",

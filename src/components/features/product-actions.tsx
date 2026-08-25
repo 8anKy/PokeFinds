@@ -11,6 +11,7 @@ import { Input, Label } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { IconBell, IconPackage, IconPlus } from "@/components/ui/icons";
 import { DiscordRestockTip } from "@/components/features/discord-restock-tip";
+import { restockAlertsPausedClient } from "@/lib/restock-alerts-pause";
 
 export interface ProductActionsProps {
   productId: string;
@@ -37,6 +38,7 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
   const [isPro, setIsPro] = useState<boolean | null>(null);
   const { toast } = useToast();
   const router = useRouter();
+  const restockPaused = restockAlertsPausedClient();
 
   // Läs plan klient-sida (produktsidan ISR-cachas → ingen server-auth). Bara om
   // fo_auth-cookien finns, så utloggade aldrig träffar /api/auth/session.
@@ -180,21 +182,28 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
             <IconBell size={16} />
             {t("watchPrice")}
           </Button>
-          <Button
-            variant="secondary"
-            loading={loading === "restock"}
-            onClick={() =>
-              void post(
-                "restock",
-                "/api/watchlist",
-                { productId, restockAlert: true },
-                t("restockWatchCreated")
-              ).then((ok) => ok && setJustWatched(true))
-            }
-          >
-            <IconPackage size={16} />
-            {t("watchRestock")}
-          </Button>
+          {/* ⛔ KNAPPEN FÖRSVINNER UNDER PAUSEN, den låses inte. Till skillnad
+              från set-klockan (som är hela funktionen) är det här en av två
+              knappar bredvid varandra — en grå "Bevaka restock" intill en aktiv
+              "Bevaka pris" läser som ett fel i appen. Prisbevakningen står kvar
+              och gör exakt det den lovar. */}
+          {!restockPaused && (
+            <Button
+              variant="secondary"
+              loading={loading === "restock"}
+              onClick={() =>
+                void post(
+                  "restock",
+                  "/api/watchlist",
+                  { productId, restockAlert: true },
+                  t("restockWatchCreated")
+                ).then((ok) => ok && setJustWatched(true))
+              }
+            >
+              <IconPackage size={16} />
+              {t("watchRestock")}
+            </Button>
+          )}
         </>
       )}
       <Button

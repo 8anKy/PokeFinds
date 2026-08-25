@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { isPro } from "@/lib/plan";
 import { discordLinkingEnabled } from "@/lib/discord";
+import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
 import { prisma } from "@/lib/db";
 // ⛔ Delad läsare — se src/lib/notification-settings.ts. Skriv ingen lokal kopia.
 import { parseNotificationSettings } from "@/lib/notification-settings";
@@ -65,6 +66,10 @@ export default async function SettingsPage() {
     // LINKING, inte bara bot: kortets knapp startar ett OAuth-flöde, så den ska
     // döljas även om bara client secret saknas.
     discordEnabled: discordLinkingEnabled(),
+    // Sidan är force-dynamic → env läses vid varje besök, precis som
+    // discordEnabled ovan. Ett reglage som inte kan göra något ska inte gå
+    // att slå på.
+    restockPaused: restockAlertsPaused(),
   };
 
   return (

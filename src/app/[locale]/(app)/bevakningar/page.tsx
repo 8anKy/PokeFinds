@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { listWatchlist } from "@/services/watchlist";
 import { listSetWatches } from "@/services/set-watch";
 import { listAlerts } from "@/services/alerts";
+import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
 import { formatDateTime, formatRelative } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
@@ -14,6 +15,7 @@ import { IconBell, IconPlus } from "@/components/ui/icons";
 import { WatchlistTable, type WatchlistRow } from "./watchlist-table";
 import { WatchedSets } from "./watched-sets";
 import { PageBackButton } from "@/components/layout/page-back-button";
+import { RestockPausedBanner } from "@/components/features/restock-paused-banner";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +35,8 @@ export default async function WatchlistPage() {
   const session = await auth();
   if (!session?.user) redirect("/logga-in");
   const t = await getTranslations("Watchlist");
+  // force-dynamic ovan → env läses per besök; ingen ISR-fördröjning här.
+  const restockPaused = restockAlertsPaused();
 
   const [items, alerts, setWatches] = await Promise.all([
     listWatchlist(session.user.id),
@@ -78,6 +82,11 @@ export default async function WatchlistPage() {
         </div>
       </div>
 
+      {/* ⛔ Banner FÖRE bevakningarna, inte efter: set-bevakning och restock-
+          reglaget nedan är helt beroende av de pausade larmen. Ser användaren
+          listan först läser den som fungerande. */}
+      {restockPaused && <RestockPausedBanner />}
+
       {/* Set-bevakningar ovanför produktlistan: de täcker flest produkter och är
           det enda stället de går att se och ta bort. Kortet döljer sig självt när
           listan är tom. */}
@@ -103,7 +112,7 @@ export default async function WatchlistPage() {
           />
         )
       ) : (
-        <WatchlistTable initialItems={rows} isPro={session.user.isPro} />
+        <WatchlistTable initialItems={rows} isPro={session.user.isPro} restockPaused={restockPaused} />
       )}
 
       {/* Alerthistorik */}

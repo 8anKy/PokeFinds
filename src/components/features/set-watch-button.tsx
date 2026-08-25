@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { IconBell, IconBellFilled, IconLock } from "@/components/ui/icons";
 import { getWatchedSetIds, setSetWatched } from "@/lib/watched-sets";
+import { restockAlertsPausedClient } from "@/lib/restock-alerts-pause";
 
 interface SetWatchButtonProps {
   setId: string;
@@ -97,7 +98,15 @@ export function SetWatchButton({ setId, setName, sealedCount }: SetWatchButtonPr
     }
   }
 
-  const locked = isPro === false;
+  /**
+   * ⛔ SET-BEVAKNING ÄR EN REN RESTOCK-FUNKTION: den gör ingenting annat än att
+   * skapa restock-larm för setets sealed-produkter. Är larmen pausade är
+   * knappen ett löfte utan täckning, så den låses för ALLA — även den som
+   * betalar. Låst hellre än dold: en knapp som förklarar varför den är av är
+   * ärligare än en funktion som tyst försvann.
+   */
+  const paused = restockAlertsPausedClient();
+  const locked = paused || isPro === false;
 
   return (
     <div className="flex flex-col items-stretch gap-1 sm:items-end">
@@ -118,14 +127,18 @@ export function SetWatchButton({ setId, setName, sealedCount }: SetWatchButtonPr
           <IconBell size={16} />
         )}
         {watched ? t("setButtonActive") : t("setButton")}
-        {locked && (
+        {locked && !paused && (
           <span className="ml-1 rounded bg-holo-cyan/15 px-1.5 py-0.5 text-[10px] font-bold text-holo-cyan">
             PRO
           </span>
         )}
       </Button>
       <p className="text-xs text-ink-faint sm:text-right">
-        {watched ? t("setButtonHintActive") : t("setButtonHint", { count: sealedCount })}
+        {paused
+          ? t("setButtonHintPaused")
+          : watched
+            ? t("setButtonHintActive")
+            : t("setButtonHint", { count: sealedCount })}
       </p>
     </div>
   );

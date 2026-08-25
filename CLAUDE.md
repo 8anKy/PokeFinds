@@ -85,8 +85,22 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   `@prisma/client` och rör aldrig databasen. Ruttabellen (`export-restock-routes.ts`) skrevs av BÅDE
   restock-watch och `scrape-all`; nattkedjan uppdaterar den alltså fortfarande, så lanen tappar bara
   förfining för SKU:er som dyker upp mitt på dagen och läker till natten.
-  **NÄR DEN SLÅS PÅ IGEN**: `RESTOCK_ALERTS_PAUSED=0` i `scrape-all.yml` (annars är larmen tysta även
-  med jobbet igång) OCH `gh workflow enable restock-watch.yml`. Höj pingern FÖRE — vid 600 s är golvet ~102 väckningar × 300 s = 8,5 h/dygn
+  ⛔ **COPYN ÄR EN DEL AV PAUSEN SEDAN 2026-08-26.** Att stänga av larmen utan att röra texten sålde
+  dem vidare: `/priser` (som i appen ÄR hela paywallen — Capacitor-WebView över den rutten) listade
+  "alla restock-larm" i tre av åtta Pro-punkter, reglagen i inställningarna och bevakningslistan gick
+  att slå på, och set-klockan sålde en ren restock-funktion. **Två kunder betalade 49 kr/mån under
+  pausen** (2026-08-22 kl 12:23 och 2026-08-24 kl 20:12, båda RevenueCat INITIAL_PURCHASE); den senare
+  hann aldrig få pausbeskedet — engångsutskicket gick 2026-08-22 kl 23:57 till de 61 konton som fanns
+  DÅ. Restock-punkterna är nu FLYTTADE, inte raderade, till `premiumRestockFeatures` /
+  `freeExcludedRestock` och konkateneras tillbaka av `withRestockFeatures()` när flaggan är av.
+  Vaktat av `tests/unit/restock-pause-copy.test.ts` (tvåsidigt: punkterna måste både försvinna OCH
+  komma tillbaka).
+  **NÄR DEN SLÅS PÅ IGEN — TRE STÄLLEN, inte två**: `RESTOCK_ALERTS_PAUSED=0` i `scrape-all.yml`
+  (annars är larmen tysta även med jobbet igång), `gh workflow enable restock-watch.yml`, OCH
+  `RESTOCK_ALERTS_PAUSED=0` i **Railway** — den styr copyn via `next.config.mjs`-speglingen till
+  `NEXT_PUBLIC_RESTOCK_ALERTS_PAUSED` och bakas in vid BYGGET (env-ändring ⇒ ny deploy, inte omstart).
+  Glöms den tredje ljuger gränssnittet åt andra hållet: larmen går men appen säger "pausade".
+  Höj pingern FÖRE — vid 600 s är golvet ~102 väckningar × 300 s = 8,5 h/dygn
   även med en oändligt snabb DB-fas. Kodhastighet är en KLIPPKANT, inte en skala: inget händer förrän
   DB-fasen kommer under 300 s. Användarna är meddelade via
   `.github/workflows/restock-paused-notice.yml` (engångsutskick, Discord som gratis alternativ).

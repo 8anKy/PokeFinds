@@ -94,12 +94,16 @@ function krInputToOre(value: string): number | null {
 export function WatchlistTable({
   initialItems,
   isPro,
+  restockPaused,
 }: {
   initialItems: WatchlistRow[];
   isPro: boolean;
+  /** Restock-larmen avstängda → reglaget låses och visas som pausat. */
+  restockPaused: boolean;
 }) {
   const t = useTranslations("Watchlist");
   const tc = useTranslations("Common");
+  const tPause = useTranslations("RestockPause");
   const [items, setItems] = useState(initialItems);
   const [editing, setEditing] = useState<WatchlistRow | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -274,8 +278,8 @@ export function WatchlistTable({
             <div className="mt-3 flex flex-col items-start gap-2">
               <label className="flex items-center gap-2 text-sm text-ink">
                 <Checkbox
-                  checked={isPro && item.restockAlert}
-                  disabled={busyId === item.id || !isPro}
+                  checked={isPro && !restockPaused && item.restockAlert}
+                  disabled={busyId === item.id || !isPro || restockPaused}
                   onChange={(e) =>
                     void patchItem(
                       item.id,
@@ -285,6 +289,9 @@ export function WatchlistTable({
                   }
                 />
                 {t("restockLabel")}
+                {restockPaused && (
+                  <span className="text-xs text-holo-gold">{tPause("tag")}</span>
+                )}
               </label>
               <label className="flex items-center gap-2 text-sm text-ink">
                 <Checkbox
@@ -315,7 +322,12 @@ export function WatchlistTable({
             <TH>{t("colProduct")}</TH>
             <TH>{t("colLowest")}</TH>
             <TH>{t("colTarget")}</TH>
-            <TH>{t("colRestock")}</TH>
+            <TH>
+              {t("colRestock")}
+              {restockPaused && (
+                <span className="ml-1 text-xs font-normal text-holo-gold">{tPause("tag")}</span>
+              )}
+            </TH>
             <TH>{t("colPriceAlert")}</TH>
             <TH>{t("colStatus")}</TH>
             <TH className="text-right">{t("colActions")}</TH>
@@ -346,8 +358,8 @@ export function WatchlistTable({
               <TD data-price>{item.targetPrice != null ? formatPrice(item.targetPrice) : "–"}</TD>
               <TD>
                 <Checkbox
-                  checked={isPro && item.restockAlert}
-                  disabled={busyId === item.id || !isPro}
+                  checked={isPro && !restockPaused && item.restockAlert}
+                  disabled={busyId === item.id || !isPro || restockPaused}
                   aria-label={t("restockAria", { title: item.product.title })}
                   onChange={(e) =>
                     void patchItem(

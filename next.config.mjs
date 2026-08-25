@@ -5,6 +5,19 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // SPEGLING, INTE EN ANDRA SANNING. Restock-larmen grindas av
+  // `RESTOCK_ALERTS_PAUSED` (src/lib/restock-alerts-pause.ts), men de ytor som
+  // LOVAR larm sitter i klientkomponenter under ISR-sidor och ser inga
+  // server-env. Speglas här så det fortfarande finns exakt EN variabel att
+  // ändra när larmen slås på igen.
+  // ⛔ Defaulten är "1" (PAUSAT), samma fail-safe som serverfunktionen: hellre
+  // ett gränssnitt som underdriver än ett som lovar en betalande kund larm som
+  // aldrig kommer.
+  // ⚠️ Bakas in vid BYGGET. En ändrad variabel i Railway kräver en ny deploy
+  // (vilket Railway gör automatiskt vid env-ändring) — inte bara en omstart.
+  env: {
+    NEXT_PUBLIC_RESTOCK_ALERTS_PAUSED: process.env.RESTOCK_ALERTS_PAUSED ?? "1",
+  },
   // Next håller renderade ISR-sidor + `unstable_cache`-poster i en minnes-LRU som
   // som standard får ta 50 MB. Det är resident minne dygnet runt, och minne är
   // ~92 % av Railway-notan (se Dockerfile). Sidorna ligger ÄVEN på disk i

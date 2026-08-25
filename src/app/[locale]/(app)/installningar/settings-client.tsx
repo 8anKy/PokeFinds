@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { Input, Label, Checkbox, FieldError } from "@/components/ui/input";
 import type { NotificationSettings } from "@/lib/notification-settings";
+import { RestockPausedBanner } from "@/components/features/restock-paused-banner";
 
 // ⛔ Formen bor i src/lib/notification-settings.ts tillsammans med läsaren och
 // defaultvärdena — en lokal kopia hade kunnat glida isär från det som faktiskt
@@ -38,6 +39,8 @@ export interface SettingsUser {
   discordUsername: string | null;
   /** Är integrationen påslagen i miljön? Falskt → kortet visas inte alls. */
   discordEnabled: boolean;
+  /** Restock-larmen avstängda? Då får "Alla restocks" inte gå att slå på. */
+  restockPaused: boolean;
 }
 
 /** Discord-loggan, inlinead (ingen extern asset att ladda eller cachebusta). */
@@ -77,6 +80,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   const { toast } = useToast();
   const tSettings = useTranslations("Settings");
   const tc = useTranslations("Common");
+  const tPause = useTranslations("RestockPause");
   const deleteWord = tSettings("deleteWord");
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -265,7 +269,13 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
     // Veckobrevet är en EGEN spak och gäller alla konton, inte bara Pro. Ligger
     // direkt under e-post-mastern eftersom det är den som styr över den.
     { key: "weekly", label: tSettings("notifWeekly"), hint: tSettings("notifWeeklyHint") },
-    { key: "allRestocks", label: tSettings("notifAll"), hint: tSettings("notifAllHint") },
+    {
+      key: "allRestocks",
+      label: tSettings("notifAll"),
+      // ⛔ Hela reglaget styr EN pausad funktion. Hade hinten stått kvar hade
+      //    den beskrivit larm som aldrig skickas.
+      hint: user.restockPaused ? tSettings("notifAllPausedHint") : tSettings("notifAllHint"),
+    },
     { key: "push", label: tSettings("notifPush"), hint: tSettings("notifPushHint") },
   ];
 
@@ -319,10 +329,15 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
           <p className="text-sm text-ink-muted">{tSettings("notifDesc")}</p>
         </CardHeader>
         <CardContent>
+          {user.restockPaused && <RestockPausedBanner className="mb-4" />}
           <div className="space-y-4">
             {notificationOptions.map((opt) => {
-              // "Alla restocks" är en Pro-förmån.
-              const locked = opt.key === "allRestocks" && !user.isPro;
+              // "Alla restocks" är en Pro-förmån OCH en pausad funktion. Under
+              // pausen låses den för alla — inklusive den som betalar — eftersom
+              // ett påslaget reglage annars påstår att larm är på väg.
+              const locked =
+                opt.key === "allRestocks" && (!user.isPro || user.restockPaused);
+              const pausedOpt = opt.key === "allRestocks" && user.restockPaused;
               return (
                 <div key={opt.key} className="flex items-start gap-3">
                   <Checkbox
@@ -334,7 +349,11 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
                   <label htmlFor={`notif-${opt.key}`} className="cursor-pointer">
                     <span className="block text-sm font-medium text-ink">
                       {opt.label}
-                      {locked && <span className="ml-2 text-xs text-holo-cyan">{tSettings("proTag")}</span>}
+                      {pausedOpt ? (
+                        <span className="ml-2 text-xs text-holo-gold">{tPause("tag")}</span>
+                      ) : (
+                        locked && <span className="ml-2 text-xs text-holo-cyan">{tSettings("proTag")}</span>
+                      )}
                     </span>
                     <span className="block text-xs text-ink-muted">{opt.hint}</span>
                   </label>

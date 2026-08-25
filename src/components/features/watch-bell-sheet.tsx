@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
 import { cn } from "@/lib/utils";
+import { restockAlertsPausedClient } from "@/lib/restock-alerts-pause";
 import { IconBell, IconBellFilled, IconCards, IconCheck, IconLock } from "@/components/ui/icons";
 
 export type WatchScope = "item" | "set";
@@ -49,7 +50,14 @@ export function WatchBellSheet({
   // Förvalet är varan: det är vad ett kort tryck gör, så hållet börjar där
   // fingret hade hamnat ändå och blir ett tillägg, inte ett omval.
   const [scope, setScope] = useState<WatchScope>("item");
-  const setLocked = !isPro;
+  /**
+   * ⛔ KLOCKAN RENDERAS BARA FÖR SEALED och skapar BARA ett restock-larm
+   * (`priceAlert: false` i watch-bell.tsx). Under pausen sparar den alltså
+   * produkten men larmar aldrig — hinten måste säga det, annars är arket ett
+   * löfte. Set-valet låses helt: det ÄR restock-larmen och inget annat.
+   */
+  const restockPaused = restockAlertsPausedClient();
+  const setLocked = !isPro || restockPaused;
   const chosen = scope === "set" && setLocked ? "item" : scope;
 
   return (
@@ -74,7 +82,13 @@ export function WatchBellSheet({
           watched={itemWatched}
           icon={itemWatched ? <IconBellFilled size={18} /> : <IconBell size={18} />}
           label={t("scopeItem")}
-          hint={itemWatched ? t("scopeItemRemove") : t("scopeItemHint")}
+          hint={
+            itemWatched
+              ? t("scopeItemRemove")
+              : restockPaused
+                ? t("scopeItemPaused")
+                : t("scopeItemHint")
+          }
           onSelect={() => setScope("item")}
         />
 
@@ -86,18 +100,23 @@ export function WatchBellSheet({
             icon={<IconCards size={18} />}
             label={t("scopeSet", { set: setName })}
             hint={
-              setLocked
-                ? t("scopeSetPro")
-                : setWatched
-                  ? t("scopeSetRemove")
-                  : t("scopeSetHint")
+              restockPaused
+                ? t("scopeSetPaused")
+                : setLocked
+                  ? t("scopeSetPro")
+                  : setWatched
+                    ? t("scopeSetRemove")
+                    : t("scopeSetHint")
             }
             onSelect={() => !setLocked && setScope("set")}
           />
         )}
       </div>
 
-      {setName && setLocked && (
+      {/* ⛔ Ingen Pro-uppsäljning när låset beror på PAUSEN. Att skicka någon
+          till kassan för en funktion vi stängt av är precis det felet den här
+          grinden finns för. */}
+      {setName && setLocked && !restockPaused && (
         <Link
           href="/priser"
           className="mt-3 block text-xs font-medium text-holo-cyan hover:underline"

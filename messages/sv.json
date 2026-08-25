@@ -11,6 +11,12 @@
     "sv": "Svenska",
     "en": "English"
   },
+  "RestockPause": {
+    "banner": "Restock-larm via mejl och push är pausade tills vidare. Dina bevakningar ligger kvar och prislarm fungerar som vanligt — vi säger till när larmen är igång igen.",
+    "bannerDiscord": "Restocks postas i realtid i vår Discord så länge — gratis.",
+    "discordCta": "Gå med i Discord",
+    "tag": "Pausad"
+  },
   "Settings": {
     "pageTitle": "Inställningar",
     "pageSubtitle": "Hantera din profil, dina notiser och ditt konto.",
@@ -27,11 +33,12 @@
     "notifTitle": "Notiser",
     "notifDesc": "Välj hur du vill bli larmad.",
     "notifEmail": "E-postnotiser",
-    "notifEmailHint": "Prislarm och restocks via e-post.",
+    "notifEmailHint": "Prislarm via e-post.",
     "notifWeekly": "Veckobrev",
     "notifWeeklyHint": "En sammanfattning varje vecka: din samlings värde, prisfall på det du bevakar och veckans fynd. Kräver att e-postnotiser är på.",
     "notifAll": "Alla restocks",
     "notifAllHint": "Få larm när VILKEN sealed-produkt som helst kommer i lager, utan att bevaka den.",
+    "notifAllPausedHint": "Pausad tills vidare — inga restock-larm skickas.",
     "notifPush": "Pushnotiser",
     "notifPushHint": "Direkt till din enhet (endast i appen).",
     "proTag": "Pro",
@@ -42,8 +49,8 @@
     "planTitle": "Plan",
     "proBadge": "Pro",
     "freeBadge": "Gratis",
-    "planProDesc": "Du har Pro. Obegränsade bevakningar, alla restocks och AI-gradering.",
-    "planFreeDesc": "Med Pro får du obegränsade bevakningar, alla restocks, fler AI-graderingar och full prishistorik.",
+    "planProDesc": "Du har Pro. Obegränsade bevakningar, prislarm, obegränsad skanning och AI-gradering.",
+    "planFreeDesc": "Med Pro får du obegränsade bevakningar, prislarm, fler AI-graderingar och full prishistorik.",
     "upgradeCta": "Uppgradera till Pro",
     "traderaTitle": "Sälj på Tradera",
     "connected": "Ansluten",
@@ -116,7 +123,7 @@
   },
   "Meta": {
     "title": "Foilio · Din kontrollpanel för Pokémon TCG-marknaden",
-    "description": "Bevaka priser, lagerstatus och värdet på din samling. Foilio samlar prisdata, restock-alerts och marknadstrender för Pokémon TCG i Sverige.",
+    "description": "Bevaka priser, lagerstatus och värdet på din samling. Foilio samlar prisdata, lagerstatus och marknadstrender för Pokémon TCG i Sverige.",
     "ogDescription": "Bevaka priser, lagerstatus och värdet på din samling. Håll koll på marknaden innan alla andra.",
     "ogLocale": "sv_SE"
   },
@@ -221,8 +228,8 @@
       "noSets": "Inga set hittades just nu. Du kan hoppa över detta steg.",
       "back": "Tillbaka",
       "notifTitle": "Aviseringar",
-      "notifSubtitle": "Hur vill du bli notifierad vid prisfall och restocks?",
-      "notifEmail": "E-postaviseringar vid prisfall och restocks",
+      "notifSubtitle": "Hur vill du bli notifierad vid prisfall?",
+      "notifEmail": "E-postaviseringar vid prisfall",
       "discordTitle": "Häng med oss på Discord",
       "discordBody": "Restocks postas direkt i egna kanaler per serie, och du kan fråga andra samlare om priser och fynd. Gratis och öppet för alla.",
       "discordCta": "Gå med i Discord",
@@ -1067,17 +1074,21 @@
     "setButton": "Bevaka sealed",
     "setButtonActive": "Bevakar sealed",
     "setButtonHint": "Restock-larm på {count} sealed-produkter, även nya som släpps.",
+    "setButtonHintPaused": "Restock-larm är pausade tills vidare — set-bevakning är därför avstängd.",
+    "scopeSetPaused": "Pausad tills vidare.",
+    "scopeItemPaused": "Restock-larm är pausade tills vidare.",
     "setButtonHintActive": "Du får larm när sealed-produkter i setet kommer i lager.",
     "watchedSetsTitle": "Bevakade set",
+    "watchedSetsSubPaused": "Restock-larm är pausade tills vidare — seten ligger kvar och börjar larma igen när larmen är igång.",
     "watchedSetsSub": "Du får restock-larm på alla sealed-produkter i de här seten, inklusive nya som tillkommer.",
     "sealedCount": "{count, plural, =1 {# sealed-produkt} other {# sealed-produkter}}",
     "removeSetAria": "Sluta bevaka {set}"
   },
   "Watchlist": {
     "metaTitle": "Bevakningar",
-    "freeAlertsBanner": "Pris- och restock-larm är en Pro-förmån. <link>Uppgradera för att aktivera dem</link>. Du kan fortfarande spara produkter här.",
+    "freeAlertsBanner": "Prislarm är en Pro-förmån. <link>Uppgradera för att aktivera dem</link>. Du kan fortfarande spara produkter här.",
     "h1": "Bevakningar",
-    "subtitle": "Vi larmar dig vid prisfall, målpriser och restocks, innan alla andra hinner före.",
+    "subtitle": "Vi larmar dig vid prisfall och målpriser, innan alla andra hinner före.",
     "findProducts": "Hitta produkter att bevaka",
     "emptyTitle": "Du bevakar inget än",
     "emptyDesc": "Lägg till produkter i din bevakningslista så säger vi till så fort priset faller eller lagret fylls på.",
@@ -1192,7 +1203,7 @@
     "colProducts": "Produkter",
     "colAvgChange": "Snittförändring",
     "proTitle": "Vill du gräva djupare i datan?",
-    "proDesc": "Med Pro får du längre prishistorik, avancerade grafer och alla restock-larm, så att du agerar innan alla andra.",
+    "proDesc": "Med Pro får du längre prishistorik, avancerade grafer och prislarm, så att du agerar innan alla andra.",
     "proCta": "Se vad Pro ger dig"
   },
   "Language": {
@@ -1461,7 +1472,7 @@
     "watchRestock": "Bevaka restock",
     "saveToWatchlist": "Spara i bevakningar",
     "savedToWatchlist": "Sparad i dina bevakningar",
-    "alertsProCta": "Få pris- & restock-larm med Pro →",
+    "alertsProCta": "Få prislarm med Pro →",
     "addToCollection": "Lägg till i samling",
     "watchCta": "Bevaka",
     "alreadyWatching": "Du bevakar redan den här produkten",
@@ -1559,7 +1570,7 @@
   },
   "Pricing": {
     "metaTitle": "Priser och Pro",
-    "metaDescription": "Kom igång gratis med Foilio eller uppgradera till Pro för obegränsade bevakningar, alla restock-larm och AI-gradering.",
+    "metaDescription": "Kom igång gratis med Foilio eller uppgradera till Pro för obegränsade bevakningar, obegränsad kortskanning och AI-gradering.",
     "h1": "Enkel prissättning, inga överraskningar",
     "subtitle": "Kom igång gratis. Uppgradera när du vill ha full koll på marknaden. Säg upp när som helst.",
     "perMonth": "/ månad",
@@ -1581,10 +1592,20 @@
       "Marknadsdata och prisgrafer",
       "Veckobrev med samlingens utveckling och veckans fynd"
     ],
-    "freeExcluded": [
-      "Pris- och restock-larm",
+    "freeExcludedRestock": [
+      "Restock-larm",
       "Restock-larm för varje sealed-produkt",
-      "Bevaka hela set på en gång",
+      "Bevaka hela set på en gång"
+    ],
+    "premiumRestockFeatures": [
+      "Restock-larm på allt du bevakar",
+      "Bevaka hela set · larm på alla sealed-produkter, även nya som släpps",
+      "Alla restocks: larm för varje sealed-produkt"
+    ],
+    "restockPausedNotice": "Restock-larm via mejl och push är pausade tills vidare och ingår inte i Pro just nu. Prislarm fungerar som vanligt. Restocks postas i realtid i vår Discord — gratis, utan konto hos oss.",
+    "restockPausedCta": "Se restocks i Discord",
+    "freeExcluded": [
+      "Prislarm på det du bevakar",
       "Obegränsade bevakningar",
       "Obegränsad kortskanning",
       "Bulkskanning av flera kort i samma bild",
@@ -1593,9 +1614,7 @@
     ],
     "proLead": "Allt i Free, plus:",
     "premiumFeatures": [
-      "Obegränsade bevakningar med pris- och restock-alerts",
-      "Bevaka hela set · larm på alla sealed-produkter, även nya som släpps",
-      "Alla restocks: larm för varje sealed-produkt",
+      "Obegränsade bevakningar med prislarm",
       "15 AI-graderingar per månad (starkare modell)",
       "Obegränsad kortskanning (skäligt bruk)",
       "Bulkskanning · lägg upp hela raden och skanna alla kort på en gång",

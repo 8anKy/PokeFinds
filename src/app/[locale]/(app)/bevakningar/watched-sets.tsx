@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { restockAlertsPausedClient } from "@/lib/restock-alerts-pause";
 import { Link } from "@/i18n/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
@@ -63,7 +64,12 @@ export function WatchedSets({ initialSets }: { initialSets: WatchedSetRow[] }) {
     <Card>
       <CardHeader>
         <CardTitle>{t("watchedSetsTitle")}</CardTitle>
-        <p className="text-sm text-ink-muted">{t("watchedSetsSub")}</p>
+        <p className="text-sm text-ink-muted">
+          {/* ⛔ Underrubriken lovar larm i presens. Under pausen måste den säga
+              att seten ligger kvar men inte larmar — annars tolkar användaren
+              tystnaden som att bevakningen slutat fungera och tar bort den. */}
+          {restockAlertsPausedClient() ? t("watchedSetsSubPaused") : t("watchedSetsSub")}
+        </p>
       </CardHeader>
       <CardContent className="p-0">
         <ul className="divide-y divide-surface-border">
