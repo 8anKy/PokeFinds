@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { encode, getToken, type JWT } from "next-auth/jwt";
 import createMiddleware from "next-intl/middleware";
 import { routing } from "@/i18n/routing";
-import { BLOCKED_BOTS } from "@/lib/blocked-bots";
+import { isBlockedBot } from "@/lib/blocked-bots";
 import {
   CREATOR_REF_COOKIE,
   CREATOR_REF_MAX_AGE,
@@ -157,7 +157,10 @@ async function renewSession(req: NextRequest, res: NextResponse, token: JWT): Pr
 
 export async function middleware(req: NextRequest) {
   const ua = req.headers.get("user-agent") ?? "";
-  if (BLOCKED_BOTS.test(ua)) {
+  // ⛔ `isBlockedBot`, inte `BLOCKED_BOTS.test` — namnlistan är bara HALVA domen sedan
+  // 2026-08-26. Det största svepet den dagen bar inget crawler-namn alls utan en
+  // förfalskad webbläsarsträng från 321 roterande IP-adresser; se blocked-bots.ts.
+  if (isBlockedBot(ua)) {
     return new NextResponse(null, { status: 403 });
   }
 

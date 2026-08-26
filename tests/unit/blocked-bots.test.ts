@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isBlockedBot } from "@/lib/blocked-bots";
+import { isBlockedBot, isForgedBrowserUa } from "@/lib/blocked-bots";
 
 /**
  * Regressionsskydd för crawler-blocklistan. Listan är EN 400 tecken lång regex-rad
@@ -93,5 +93,54 @@ describe("blocklistan för bulk-crawlers", () => {
   it("är skiftlägesokänslig (butiker/bottar varierar versalisering)", () => {
     expect(isBlockedBot("meta-webindexer/1.0")).toBe(true);
     expect(isBlockedBot("META-WEBINDEXER/1.0")).toBe(true);
+  });
+});
+
+/**
+ * SVEPET UTAN NAMN (mätt 2026-08-26): 416 hämtningar från 321 olika IP-adresser,
+ * 99 % `/produkter/[slug]`, aldrig samma slug två gånger. Ingen crawler-signatur att
+ * matcha på — men UA:n är fysiskt omöjlig: `AppleWebKit/605.x` är Safaris motor och
+ * Chrome rapporterar alltid `AppleWebKit/537.36`.
+ *
+ * ⛔ FALSKA POSITIVA ÄR DYRARE ÄN FALSKA NEGATIVA HÄR. En felaktig 403 gör sajten helt
+ * osynlig för en riktig besökare, och tyst. Varje "släpper igenom"-rad nedan är ett
+ * skydd för en äkta webbläsare som verkligen skickar AppleWebKit/6xx.
+ */
+describe("isForgedBrowserUa: den omöjliga webbläsarsträngen", () => {
+  it.each([
+    // Exakt strängen ur Railways httpLogs 2026-08-26.
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/605.1.15",
+    // Samma omöjlighet med annan version/plattform — svepet byter siffror, inte form.
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/604.1.38 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/604.1",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/605.1.15",
+  ])("blockar %s", (ua) => {
+    expect(isForgedBrowserUa(ua)).toBe(true);
+    expect(isBlockedBot(ua)).toBe(true);
+  });
+
+  it.each([
+    // Safari: WebKit-motorn MED sin Version/-token. Får aldrig träffas.
+    ["Safari på Mac", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15"],
+    ["Safari på iPhone", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"],
+    // Chrome/Edge/Firefox PÅ iOS ÄR WebKit-skal — de har AppleWebKit/605 och en egen
+    // märkestoken. Skulle de någon gång också skriva "Chrome/" räddar CriOS-villkoret dem.
+    ["Chrome på iOS", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/145.0.0.0 Mobile/15E148 Safari/604.1"],
+    ["Edge på iOS", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 EdgiOS/132.0.0.0 Mobile/15E148 Safari/605.1.15"],
+    ["Firefox på iOS", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/135.0 Mobile/15E148 Safari/605.1.15"],
+    // Facebook-appens WebView: WebKit utan Chrome-token.
+    ["Facebook in-app", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [FBAN/FBIOS;FBDV/iPhone15,2]"],
+    // Riktig Chrome: Blink, alltså 537.36. Två helt olika tal.
+    ["Chrome på Mac", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"],
+    ["Chrome på Android", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36"],
+    // ⛔ Googlebot får ALDRIG träffas — varken desktop- eller mobil-UA:n.
+    ["Googlebot (mobil)", "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.7871.186 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"],
+    // Smart-TV-webbläsare skriver både Version/ och Chrome/ — men på Blink.
+    ["Tizen-TV", "Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) Version/6.0 Chrome/76.0.3809.146 TV Safari/537.36"],
+  ])("släpper igenom %s", (_namn, ua) => {
+    expect(isForgedBrowserUa(ua)).toBe(false);
+  });
+
+  it("tom UA är inte en förfalskning (den fångas av andra skäl eller inte alls)", () => {
+    expect(isForgedBrowserUa("")).toBe(false);
   });
 });

@@ -79,8 +79,8 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   restock-larm via mejl/push/in-app (Pro-funktionen, `proUserWhere()` i `src/services/alerts.ts`),
   inklusive NEW_LISTING/PREORDER ur feed-först-vägen, `Offer.stockStatus` (lagerbadgen på ALLA
   produktsidor fryser), `RestockEvent` + `/api/market/restocks`, och auto-importen av nya
-  butiks-SKU:er. ⛔ Prislarm (PRICE_TARGET) och veckobrevets "X av dina bevakade är i lager igen" är
-  EGNA funktioner och är INTE pausade; nattkedjan skriver fortfarande `RestockEvent`.
+  butiks-SKU:er. ⛔ Veckobrevets "X av dina bevakade är i lager igen" är en EGEN funktion och är
+  INTE pausad; nattkedjan skriver fortfarande `RestockEvent`.
   ⛔ **Discord-lanen är OPÅVERKAD** — `scripts/discord-restock-run.ts` importerar bara en TYP ur
   `@prisma/client` och rör aldrig databasen. Ruttabellen (`export-restock-routes.ts`) skrevs av BÅDE
   restock-watch och `scrape-all`; nattkedjan uppdaterar den alltså fortfarande, så lanen tappar bara
@@ -104,6 +104,24 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   även med en oändligt snabb DB-fas. Kodhastighet är en KLIPPKANT, inte en skala: inget händer förrän
   DB-fasen kommer under 300 s. Användarna är meddelade via
   `.github/workflows/restock-paused-notice.yml` (engångsutskick, Discord som gratis alternativ).
+- ⛔ **PRISLARMEN (PRICE_TARGET) ÄR OCKSÅ PAUSADE (ägarbeslut 2026-08-26)** — egen flagga
+  `PRICE_ALERTS_PAUSED` (`src/lib/price-alerts-pause.ts`, default PAUSAT), grind vid SKAPANDET i
+  `checkPriceAlerts`. **Helt annat skäl än restock**: restock väntar på KOSTNAD, prislarmen på en
+  LAGNING — blanda aldrig ihop flaggorna, de slås på vid olika tillfällen.
+  **TRE OLAGADE DEFEKTER, alla mätta i prod 2026-08-26**: (1) larmet kollar varken lagerstatus,
+  direktlänk eller källa på offern som utlöste det — larmet "nu 1 338,00 kr" kom från en
+  OUT_OF_STOCK-offer hos Beam Cardshop på en produkt vars verkliga lägsta pris var 2 665,55 kr och
+  vars mål var 2 000 kr; (2) INGEN cooldown alls — samma produkt+användare larmade 7 ggr på 30 dygn
+  (mot restock-larmens cooldown + flappdämpning); (3) mejlet visar priset ur billigaste offer VID
+  UTSKICKET, inte det som utlöste larmet (larmraden sa 459 kr, mejlrubriken 354,56 kr).
+  ⛔ Enda anroparen är `runScrapeJob` (nattkedjan + adminens skrapknapp) — det finns ingen andra väg
+  den här gången. ⛔ Copyn är grindad som restockens: prispunkterna ligger i `premiumPriceFeatures` /
+  `freeExcludedPrice` och konkateneras tillbaka av `pausableFeatures()`; `RestockPausedBanner` väljer
+  själv mellan tre besked (restock / prislarm / båda). Notisen som sa "Prislarm fungerar som vanligt"
+  är borttagen — den var sann till 08-26 och en lögn efter. Vaktat av
+  `tests/unit/price-alert-pause.test.ts`. **SLÅ PÅ IGEN**: laga de tre defekterna FÖRST, sedan
+  `PRICE_ALERTS_PAUSED=0` i `scrape-all.yml` OCH i **Railway** (copyn, bakas in vid bygget).
+  ⛔ Omfattning när pausen sattes: exakt 3 bevakningar i hela DB:n hade målpris, alla ägarens egna.
 - **restock-watch** = `runRestockScan()` i `src/scrapers/runner.ts`: butikskatalogerna hämtas PARALLELLT
   (fas 1 = ren HTTP → Neon sover), offers läses EN gång och lagerstatus diffas i minnet. Källistan ligger i
   diskcache (TTL 24 h) → **en ändrad restockWatch-flagga slår igenom först inom ett dygn.**
@@ -155,6 +173,21 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   utan att jobben kör" → **kolla UA-fördelningen FÖRST** (Railways httpLogs), blockera i `blocked-bots.ts`
   + robots.ts. ⛔ Googlebot (inkl. mobil-UA:n med Chrome-prefix) får ALDRIG in i blocklistan — testet vaktar.
   Railway-minnet är följdsymptom, inte läcka (heap capad till 512 MB, `MALLOC_ARENA_MAX=2` i Dockerfile).
+  ⛔ **MEN UA-LISTAN ÄR INTE LÄNGRE HUVUDSPAKEN** (mätt 2026-08-26, `scripts/neon-wake-attribution.ts`):
+  **RÄKNA TOMMA 5-MINUTERSLUCKOR, INTE REQUESTS** — Neon kan bara somna i en lucka helt utan DB-arbete,
+  så en kategori som bara DELAR luckor med en annan kostar noll att ta bort. Mätt över 24 h: 191 av 210
+  luckor hade DB-trafik (91 %, stämmer mot Neons 92 % vaken tid). Att blockera ALLA namnlösa/namngivna
+  botar frigör bara **35 luckor ≈ 2,9 h/dygn**; att få bort ALLA publika sidrenders från Postgres frigör
+  **147 luckor ≈ 12,3 h/dygn** (19 h → ~5 h). Restock-pausen ändrade INGENTING — det var aldrig jobben.
+  ⛔ **LÄNGRE `revalidate` HJÄLPER INTE MOT ETT SVEP**: ~40 000 ISR-vägar (20k produkter × 2 locale),
+  `generateStaticParams()` returnerar `[]` (inget prerenderas) och en crawler besöker varje slug ÉN gång
+  — 88 % av 1 546 dygnstträffar på `/produkter/[slug]` var kalla renders. Bara prerendering eller ett
+  edge-lager som svarar utan Postgres flyttar den siffran.
+  ⛔ **SVEPEN HAR SLUTAT HA NAMN**: största enskilda källan var 416 hämtningar från **321 olika IP:n**
+  (1,3 per IP ⇒ IP-blockering är meningslös) med en FÖRFALSKAD webbläsar-UA. Den fälls av
+  `isForgedBrowserUa()` — `AppleWebKit/6xx` (Safaris motor) tillsammans med `Chrome/` är fysiskt omöjligt.
+  Ett ANDRA svep samma dygn (107 hämtningar, 49 IP:n, 100 % katalog) använde redan en helt giltig
+  Chrome-sträng och går inte att skilja från en besökare — nästa steg är alltså inte en fjärde regex.
 - **INGA INFRAKOSTNADER FÖRDELAS PER ANVÄNDARE** — den som är först på morgonen "orsakar" hela väckningen.
   Larm redovisas som ANTAL, aldrig kronor.
 - **Kostnadsbriefing FÖRE funktioner**: kostar något pengar/app/tjänst — lägg fram siffran och invänta OK.
