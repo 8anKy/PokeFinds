@@ -54,3 +54,39 @@ paths:
   olika. Samma sak gjordes med `startOfMonthUtc()` (låg som privat kopia i BÅDE scanner/index.ts och
   grading/index.ts) → nu i `src/lib/utils.ts`: **kvotfönstret måste vara samma gräns i kvoten och i
   kostnadsvyn**, annars visar admin ett annat antal skanningar än kunden ser.
+- **ÖVERSIKTEN ÄR NYCKELTALSSIDAN (2026-08-26)**: `/admin` visar tillväxt, tratt, aktivitet,
+  betalande kunder vid NAMN, inbjudningsgrafen (vem bjöd in vem) och räckvidd.
+  `src/services/admin/overview.ts` hämtar allt i ETT `$transaction` + tre `date_trunc`-frågor.
+  ⛔ **En fråga per siffra är förbjudet** — Neon debiteras per VAKEN TID (minst 300 s per väckning),
+  och sidan är `force-dynamic`. ⛔ **`count(distinct "userId")` i rå SQL, aldrig
+  `groupBy(["userId"]).length`** — det senare drar hela grupplistan till Node (2 615 skannerrader för
+  att få fram talet 55).
+- **⛔ "BETALANDE" HAR EN DEFINITION, `payingUserWhere()` i `src/lib/plan.ts` (2026-08-26)**. Den är
+  INTE `proUserWhere()`: den frågan är "vem ska få förmånen" (admins, referral-bonus, allt), den här
+  är "vem genererar en krona". **STAFF RÄKNAS ALDRIG, ÄVEN NÄR planTier SÄGER PREMIUM** — ägarens
+  eget konto blåste upp MRR:en med 49 kr/mån ren bokföringsfiktion (mätt: 5 "betalande" varav 3 egna
+  konton → 245 kr redovisat mot 98 kr verkligt). Rollen kan inte gå ut och är därför en pålitlig
+  grind; planTier ägs av RevenueCat. ⛔ **En sandbox-prenumeration går INTE att se i databasen** —
+  samma planTier, samma webhook-väg, bara daglig förnyelse i stället för månatlig, och att gissa på
+  takten börjar tyst räkna bort riktiga kunder. Därför listas varje betalande konto vid NAMN:
+  **tabellen är facit, siffran är en sammanfattning.**
+- **⛔ EN BETALANDE KUND MED NOLL BEVAKNINGAR ÄR ETT LARM, INTE EN SIFFRA (2026-08-26)**. Båda
+  kunderna som köpte i augusti hade 0 bevakningar, 0 set-bevakningar och 0 larm — de betalade för
+  något de aldrig använt, och ingen siffra i den gamla översikten visade det. Kolumnen färgas och
+  kortet bär en räknare. Tratten (`Konton → Verifierad → Skannat → Samling → Bevakar → Betalar`) är
+  **ingen rangordning**: stegen är samma resa men garanterat monotona är de inte, och att understa
+  stapeln inte är smalast av rätt skäl är precis vad vyn ska avslöja.
+- **DIAGRAM: PALETTEN ÄR VALIDERAD, INTE VALD (2026-08-26)**:
+  `src/components/features/admin/chart-palette.ts`. `#13a99b, #8b5cf6, #c2820a, #d4488a` klarar alla
+  sex kontrollerna mot ren svart yta (sämsta granne deutan ΔE 14,2 · normalseende ΔE 21,3).
+  ⛔ **Inte `holo.cyan` (#2dd4bf) som första färg**: turkos i den ljusstyrkan ligger på OKLCH L≈0,79
+  och faller utanför bandet 0,48–0,67 ihop med violett/guld/rosa — serierna blir jämnljusa och skiljs
+  bara på kulör, vilket är exakt det en färgblind läsare inte kan. Prisgrafen behåller
+  varumärkesturkosen: EN serie, ingen separationsfråga. ⛔ **Färg följer entiteten, aldrig ordningen**
+  (`seriesColor(key)`) — plockas färg på index målas kvarvarande serier om när en filtreras bort.
+  ⛔ **Aldrig två y-axlar**: "nya per dag" och "totalt" är två LÄGEN i samma graf, inte två skalor.
+  ⛔ `fillDays()` måste fylla tomma dygn med nollor — Postgres returnerar bara dygn som HAR rader, och
+  recharts drar annars en rak linje genom en tyst vecka. ⛔ **Hover och klick är TVÅ tillstånd** i
+  tratten: med ett enda `active` hann `onMouseEnter` slå på steget innan klicket kom fram, så klicket
+  stängde av det igen och på datormus hände ingenting. ⚠️ recharts kör en ~1,5 s enter-animation —
+  läser du DOM:en direkt efter ett filterklick ser staplarna ut att saknas.

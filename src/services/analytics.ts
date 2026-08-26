@@ -2,6 +2,7 @@
  * Analystjänster. Händelser anonymiseras – användar-id:n lagras ALDRIG i metadata.
  */
 import { prisma } from "@/lib/db";
+import { payingUserWhere } from "@/lib/plan";
 
 const FORBIDDEN_METADATA_KEYS = ["userId", "user_id", "email", "userEmail", "ip"];
 
@@ -150,14 +151,10 @@ export async function getAdminStats() {
     events24h,
   ] = await prisma.$transaction([
     prisma.user.count(),
-    // BETALANDE kunder, båda kanalerna. ⛔ Ett bart `planTier: "PREMIUM"` räknar
-    // bara app-köpen — Stripe rör aldrig det fältet, så varje webbprenumerant
-    // saknades i siffran (2026-08-07). ⛔ Och detta är MEDVETET inte
-    // `proUserWhere()`: admins och referral-Pro HAR Pro men BETALAR inte, och
-    // ska inte blåsa upp ett intäktsmått.
-    prisma.user.count({
-      where: { OR: [{ planTier: "PREMIUM" }, { stripeProUntil: { gt: new Date() } }] },
-    }),
+    // BETALANDE kunder — EN definition, delad med adminöversikten.
+    // ⛔ Låg som en egen `OR`-kopia här och räknade då med ägarens eget
+    // PREMIUM-konto; se payingUserWhere() för varför staff aldrig får ingå.
+    prisma.user.count({ where: payingUserWhere() }),
     prisma.user.count({ where: { createdAt: { gte: since7d } } }),
     prisma.product.count(),
     prisma.offer.count(),

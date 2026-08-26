@@ -101,3 +101,31 @@ export function proUserWhere(): Prisma.UserWhereInput {
     ],
   };
 }
+
+/**
+ * VEM SOM FAKTISKT BETALAR OSS — intäktsmåttens filter, skilt från `proUserWhere()`.
+ *
+ * ⛔ INTE SAMMA FRÅGA SOM "HAR PRO". `proUserWhere()` svarar "vem ska få
+ * förmånen" och ska därför famna vidare: admins, referral-bonus, allt. Det här
+ * svarar "vem genererar en krona", och där är varje extra rad en ren
+ * överdrift av intäkten.
+ *
+ * ⛔ STAFF RÄKNAS ALDRIG, ÄVEN NÄR planTier SÄGER PREMIUM. Ägarens eget konto
+ * bar `planTier=PREMIUM` och blåste upp adminpanelens MRR med 49 kr/mån av ren
+ * bokföringsfiktion (mätt 2026-08-26: 5 "betalande", varav 3 egna konton →
+ * 245 kr redovisad MRR mot 98 kr verklig). Rollen kan inte gå ut och är därför
+ * en pålitlig grind — till skillnad från planTier, som RevenueCat äger.
+ *
+ * ⛔ VAD DET HÄR FILTRET INTE KAN SE: en sandbox-prenumeration ser i databasen
+ * exakt ut som en riktig (samma planTier, samma webhook-väg). Enda skillnaden är
+ * att den förnyas varje DYGN i stället för varje månad, och att gissa på den
+ * takten vore en heuristik som tyst börjar räkna bort riktiga kunder den dagen
+ * någon köper två gånger. Därför listar adminvyn varje betalande konto vid namn:
+ * TABELLEN är facit, siffran är en sammanfattning.
+ */
+export function payingUserWhere(now: Date = new Date()): Prisma.UserWhereInput {
+  return {
+    role: { notIn: PRO_ROLES },
+    OR: [{ planTier: "PREMIUM" }, { stripeProUntil: { gt: now } }],
+  };
+}
