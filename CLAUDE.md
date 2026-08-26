@@ -108,20 +108,30 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   `PRICE_ALERTS_PAUSED` (`src/lib/price-alerts-pause.ts`, default PAUSAT), grind vid SKAPANDET i
   `checkPriceAlerts`. **Helt annat skäl än restock**: restock väntar på KOSTNAD, prislarmen på en
   LAGNING — blanda aldrig ihop flaggorna, de slås på vid olika tillfällen.
-  **TRE OLAGADE DEFEKTER, alla mätta i prod 2026-08-26**: (1) larmet kollar varken lagerstatus,
+  **SEX OLAGADE DEFEKTER, belagda 2026-08-26**: (1) larmet kollar varken lagerstatus,
   direktlänk eller källa på offern som utlöste det — larmet "nu 1 338,00 kr" kom från en
   OUT_OF_STOCK-offer hos Beam Cardshop på en produkt vars verkliga lägsta pris var 2 665,55 kr och
   vars mål var 2 000 kr; (2) INGEN cooldown alls — samma produkt+användare larmade 7 ggr på 30 dygn
   (mot restock-larmens cooldown + flappdämpning); (3) mejlet visar priset ur billigaste offer VID
-  UTSKICKET, inte det som utlöste larmet (larmraden sa 459 kr, mejlrubriken 354,56 kr).
+  UTSKICKET, inte det som utlöste larmet (larmraden sa 459 kr, mejlrubriken 354,56 kr) — och pushen
+  bär en TREDJE variant (`alert.message`, dvs trigger-priset);
+  (4) ⛔ **"Lämna tomt för att bara bevaka prisfall" har ALDRIG fungerat** — copyn föreslår aktivt
+  ett tomt målprisfält, men frågan filtrerar `targetPrice: { not: null }`. MÄTT: **18 aktiva
+  bevakningar hos 4 användare** står i det läget, mot 3 som faktiskt larmade; (5) `PRICE_DROP`
+  skapas ALDRIG — enda vägen in är butiksfeedarnas offer-diff, så äkta CM-prisfall på ~20k singlar
+  larmar inte alls; (6) `dealOffer?.price ?? bestOffer?.price ?? 0` kan mejla **"0 kr"** (enda
+  prisvägen i kodbasen som inte kräver `> 0`).
   ⛔ Enda anroparen är `runScrapeJob` (nattkedjan + adminens skrapknapp) — det finns ingen andra väg
   den här gången. ⛔ Copyn är grindad som restockens: prispunkterna ligger i `premiumPriceFeatures` /
   `freeExcludedPrice` och konkateneras tillbaka av `pausableFeatures()`; `RestockPausedBanner` väljer
   själv mellan tre besked (restock / prislarm / båda). Notisen som sa "Prislarm fungerar som vanligt"
   är borttagen — den var sann till 08-26 och en lögn efter. Vaktat av
-  `tests/unit/price-alert-pause.test.ts`. **SLÅ PÅ IGEN**: laga de tre defekterna FÖRST, sedan
+  `tests/unit/price-alert-pause.test.ts`. **SLÅ PÅ IGEN**: laga de sex defekterna FÖRST, sedan
   `PRICE_ALERTS_PAUSED=0` i `scrape-all.yml` OCH i **Railway** (copyn, bakas in vid bygget).
-  ⛔ Omfattning när pausen sattes: exakt 3 bevakningar i hela DB:n hade målpris, alla ägarens egna.
+  ⛔ Räkna om cooldownen mot ett LATCH-läge, inte en tidsgräns: larmet ska gå EN gång per gång målet
+  nås, inte var gång priset rör sig nedåt under målet.
+  ⛔ Omfattning när pausen sattes: 3 bevakningar med målpris (alla ägarens egna) plus de 18 tysta i
+  defekt 4 hos 4 andra användare.
 - **restock-watch** = `runRestockScan()` i `src/scrapers/runner.ts`: butikskatalogerna hämtas PARALLELLT
   (fas 1 = ren HTTP → Neon sover), offers läses EN gång och lagerstatus diffas i minnet. Källistan ligger i
   diskcache (TTL 24 h) → **en ändrad restockWatch-flagga slår igenom först inom ett dygn.**
@@ -179,15 +189,28 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   luckor hade DB-trafik (91 %, stämmer mot Neons 92 % vaken tid). Att blockera ALLA namnlösa/namngivna
   botar frigör bara **35 luckor ≈ 2,9 h/dygn**; att få bort ALLA publika sidrenders från Postgres frigör
   **147 luckor ≈ 12,3 h/dygn** (19 h → ~5 h). Restock-pausen ändrade INGENTING — det var aldrig jobben.
-  ⛔ **LÄNGRE `revalidate` HJÄLPER INTE MOT ETT SVEP**: ~40 000 ISR-vägar (20k produkter × 2 locale),
-  `generateStaticParams()` returnerar `[]` (inget prerenderas) och en crawler besöker varje slug ÉN gång
-  — 88 % av 1 546 dygnstträffar på `/produkter/[slug]` var kalla renders. Bara prerendering eller ett
-  edge-lager som svarar utan Postgres flyttar den siffran.
+  ⛔ **LÄNGRE `revalidate` HJÄLPER INTE MOT ETT SVEP**: ~63 600 produktvägar (31 807 × 2 locale) +
+  ~350 setvägar, `generateStaticParams()` returnerar `[]` (NOLL prerenderas), och ett svep hinner runt
+  ytan på **14–23 dygn** — när crawlern kommer tillbaka till samma URL är posten 14–23 dygn gammal mot
+  en TTL på 1 h, dvs träffkvot ≈ 0. 88 % av 1 546 dygnsträffar på `/produkter/[slug]` var kalla renders.
+  Dessutom nollar `/api/revalidate`-släggan hela lagret 3 ggr/dygn och VARJE deploy kastar det.
+  ⛔ **PRERENDERING VID BYGGET ÄR INTE FIXEN** (utrett 2026-08-26): ISR-revalidering är LAT men
+  RENDERAR ändå efter TTL:en, så en prerenderad sida blir kall igen — vinsten är latens, inte vaken tid,
+  och bygget betalar N × 25–50 Neon-frågor per deploy. **Den strukturella fixen är att ta PRISET ur den
+  ISR-cachade HTML:en** (klienthämtning vid mount; `LivePricingProvider` finns redan men används aldrig
+  till initialpriset). Först då får HTML:en cachas länge — och först då blir ett edge-lager meningsfullt.
   ⛔ **SVEPEN HAR SLUTAT HA NAMN**: största enskilda källan var 416 hämtningar från **321 olika IP:n**
   (1,3 per IP ⇒ IP-blockering är meningslös) med en FÖRFALSKAD webbläsar-UA. Den fälls av
   `isForgedBrowserUa()` — `AppleWebKit/6xx` (Safaris motor) tillsammans med `Chrome/` är fysiskt omöjligt.
   Ett ANDRA svep samma dygn (107 hämtningar, 49 IP:n, 100 % katalog) använde redan en helt giltig
   Chrome-sträng och går inte att skilja från en besökare — nästa steg är alltså inte en fjärde regex.
+  ⛔ **GOLVET ÄR HÖGT OCH TVÅ DELAR AV DET GÅR INTE ATT RÖRA.** Mätt 2026-08-26: schemalagda jobb =
+  **3,4 h/dygn** (3 oberoende väckningar: nattkedjan 02:59→03:50, cardmarket 13:00, hot-card 21:00 —
+  varje fönster + 300 s svans), och **Googlebot ensam håller 57 % av 5-minutersfönstren vakna** och får
+  aldrig blockeras. Blockering av BÅDA svepen tar 93 % → ~71 %, inte till noll. `/sitemap.xml` (1
+  hämtning/dygn) och `/api/health` (DB-fri, ~279/dygn) kostar INGENTING — jaga dem aldrig.
+  ⚠️ `ANALYTICS_FLUSH_MS = 300 000` är EXAKT autosuspend-tröskeln: ~1,7–2,1 h/dygn i dag, men en
+  tidsinställd bomb — talet garanterar att fönstren kedjas ände-mot-ände så fort trafiken blir jämn.
 - **INGA INFRAKOSTNADER FÖRDELAS PER ANVÄNDARE** — den som är först på morgonen "orsakar" hela väckningen.
   Larm redovisas som ANTAL, aldrig kronor.
 - **Kostnadsbriefing FÖRE funktioner**: kostar något pengar/app/tjänst — lägg fram siffran och invänta OK.

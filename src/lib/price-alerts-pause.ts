@@ -1,7 +1,7 @@
 /**
  * ⛔ PRISLARMEN (PRICE_TARGET) ÄR PAUSADE (ägarbeslut 2026-08-26).
  *
- * VARFÖR — tre defekter, alla mätta i prod samma dag, ingen av dem lagad:
+ * VARFÖR — sex defekter, alla belagda 2026-08-26, ingen av dem lagad:
  *
  *  1. LARMET KAN VARA OSANT. `checkPriceAlerts` jämför målpriset mot VILKEN offer som
  *     helst som just blev billigare, utan att kolla lagerstatus, direktlänk eller
@@ -20,7 +20,26 @@
  *  3. MEJLET VISAR ETT ANNAT PRIS ÄN LARMET. `buildAlertEmail` bygger om priset ur
  *     billigaste offer med direktlänk VID UTSKICKET, inte ur priset som utlöste larmet.
  *     Mätt: alert-raden sa "Nuvarande pris: 459 kr" (Beam Cardshop) medan mejlets rubrik
- *     sa "nu 354,56 kr" (Cardmarkets pris i samma stund). Två tal, ett mejl.
+ *     sa "nu 354,56 kr" (Cardmarkets pris i samma stund). Två tal, ett mejl. Pushen bär
+ *     dessutom en TREDJE variant — den skickar `alert.message`, dvs trigger-priset — så
+ *     samma larm kan nå samma person med två olika tal.
+ *
+ * Revisionen 2026-08-26 hittade tre defekter till, som INTE syntes i de två mejlen:
+ *
+ *  4. ⛔ "LÄMNA TOMT FÖR ATT BARA BEVAKA PRISFALL" HAR ALDRIG FUNGERAT. Copyn
+ *     (`Detail.priceModalIntro`) föreslår aktivt att lämna målprisfältet tomt, vilket ger
+ *     `targetPrice = null` — men `checkPriceAlerts` filtrerar `targetPrice: { not: null }`
+ *     och hoppar över raden. MÄTT i prod: **18 aktiva bevakningar hos 4 användare** har
+ *     `priceAlert=true` utan målpris (mot 3 med). Sex gånger fler bevakningar var alltså
+ *     tysta av design än som faktiskt larmade, och de tillhör KUNDER, inte bara ägaren.
+ *  5. `PRICE_DROP` skapas ALDRIG. Enda vägen in är butiksfeedarnas offer-diff, så ett
+ *     äkta prisfall som bara syns i Cardmarket-priset (merparten av katalogens ~20k
+ *     singlar) larmar inte alls — samtidigt som en enskild butiks skenbara fall larmar
+ *     falskt. Funktionen missar alltså sanna fall och hittar på osanna.
+ *  6. MEJLET KAN SKRIVA "0 KR". `notifications.ts` gör `dealOffer?.price ?? bestOffer?.price
+ *     ?? 0` och filtrerar bara `price: { not: null }`, aldrig `> 0` — enda prisvägen i
+ *     kodbasen som släpper igenom noll. Bryter invarianten "0 kr är inget pris" rakt av.
+ *     (Kodväg, ingen uppmätt förekomst.)
  *
  * GRINDEN LIGGER VID SKAPANDET, INTE VID UTSKICKET — exakt samma skäl som för
  * restock-pausen: `dispatchPendingAlerts` läser inte `Alert.channel` utan skickar varje
@@ -33,15 +52,16 @@
  *
  * OMFATTNING NÄR PAUSEN SATTES: exakt 3 bevakningar i hela databasen hade ett målpris,
  * alla tre ägarens egna. Ingen betalande kund fick ett prislarm den dagen pausen
- * infördes — men copyn sålde dem ändå, se nedan.
+ * infördes — men copyn sålde dem ändå, se nedan, och 18 bevakningar hos 4 andra
+ * användare stod redan i det tysta läget i defekt 4.
  *
  * SLÅ PÅ IGEN — TRE STÄLLEN, samma som för restock:
  *   1. `PRICE_ALERTS_PAUSED=0` i env-blocket för `scrape-all.yml` (och
  *      `restock-watch.yml` om det jobbet också startas)
  *   2. `PRICE_ALERTS_PAUSED=0` i RAILWAY — den styr COPYN via speglingen i
  *      `next.config.mjs` och bakas in vid BYGGET (env-ändring ⇒ ny deploy, inte omstart)
- *   3. LAGA DE TRE DEFEKTERNA OVAN FÖRST. Att bara flippa flaggan återuppväcker ett
- *      larm som kan påstå ett pris som inte finns.
+ *   3. LAGA DE SEX DEFEKTERNA OVAN FÖRST. Att bara flippa flaggan återuppväcker ett
+ *      larm som kan påstå ett pris som inte finns — och lämnar 18 bevakningar tysta.
  * Läses vid varje ANROP, aldrig vid modulladdning, så tester och engångsskript kan sätta
  * den utan importordningsberoende.
  *
