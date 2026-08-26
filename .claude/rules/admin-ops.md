@@ -107,6 +107,18 @@ paths:
   vi VET inte) / `error`. En okonfigurerad tjänst får ALDRIG ligga i ringen som 0 kr; den listas
   under den som "okänd". ⛔ **OMÄTTA ANROP REDOVISAS BREDVID BELOPPET** — annars ser notan lägre
   ut än den är.
+- **⛔ `classifyCostRow()` ÄR DEN ENDA DEFINITIONEN AV DE TRE UTFALLEN (2026-08-26)** —
+  bor i `services/admin/user-costs.ts`, används av BÅDE per-användare-vyn och översiktens
+  liggare. Ordningen är inte utbytbar: `!hasCost` → OMÄTT · `model === null` → GRATIS ·
+  `micro === null` → OMÄTT · annars KOSTNADSFÖRD. Adminöversikten hade först en egen kopia med
+  de två första grenarna OMKASTADE — ~1 000 kostnadsfria bild-först-anrop per månad redovisades
+  som okända, och de verkligt okända som gratis. Båda felen är tysta. Vaktat av
+  `tests/unit/admin-costs.test.ts`.
+- **⛔ `SUM(bigint)` I POSTGRES ÄR `numeric`, SOM PRISMA MAPPAR TILL `Decimal` (2026-08-26)** —
+  ett objekt, inte ett tal. En `typeof v === "bigint"`-konvertering släppte igenom det orört,
+  `costMicroUsd()` såg något som inte var ett tal och gav null, och HELA liggaren blev
+  "0 kr, 2 329 omätta" i produktion trots att modellerna stod i prislistan. Använd
+  `Number(v ?? 0)` — den klarar bigint, Decimal och sträng.
 - **⛔ VAD SOM INTE GÅR ATT HÄMTA — UTREDD 2026-08-26, ÖPPNA INTE FRÅGAN IGEN**:
   · **Anthropics kvarvarande kredit**: inget publikt endpoint. `GET /v1/organizations/balance`
     ger 404; öppen feature request. Bara konsolen visar saldot. FAKTISK KOSTNAD går däremot att
@@ -124,3 +136,6 @@ paths:
     rimligt ut.
   · **Railway**: `usage`/`estimatedUsage` finns i schemat men INTE i publik dokumentation. En
     gissad fråga hade blivit en tyst trasig integration — introspektera med en riktig token först.
+  ⛔ De här förklaringarna står i KODEN och HÄR, aldrig i gränssnittet: en instrumentpanel full av
+  brasklappar om vad som inte går att hämta läser som att hela vyn är trasig. Kortet visar det som
+  finns; det som saknas listas som "okänt" på en rad.

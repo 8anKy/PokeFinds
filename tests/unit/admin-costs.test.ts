@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { anthropicCentsToOre, providerOf } from "@/services/admin/service-costs";
+import { classifyCostRow } from "@/services/admin/user-costs";
 
 /** Ungefär dagens kurs; testerna bryr sig om storleksordning, inte om örena. */
 const USD_TO_ORE = 956;
@@ -49,5 +50,34 @@ describe("providerOf", () => {
     expect(providerOf("gpt-5").key).toBe("unknown");
     expect(providerOf(null).key).toBe("unknown");
     expect(providerOf("").key).toBe("unknown");
+  });
+});
+
+describe("classifyCostRow — tre utfall, och grenarna får inte kastas om", () => {
+  it("inget avtryck alls = OMÄTT, aldrig gratis", () => {
+    // Rader före 2026-08-14 bär inget avtryck. Att kalla dem gratis hade fått
+    // notan att se lägre ut än den är.
+    expect(classifyCostRow(false, null, null)).toBe("unmeasured");
+    expect(classifyCostRow(false, "gemini-3.6-flash", 1234)).toBe("unmeasured");
+  });
+
+  it("avtryck med model=null = GRATIS, aldrig omätt", () => {
+    // Avtrycket säger uttryckligen att bilden avgjorde och inget API-anrop
+    // gjordes. ⛔ Exakt den här grenen var omkastad i adminöversiktens första
+    // version: ~1 000 gratisanrop per månad redovisades som okända.
+    expect(classifyCostRow(true, null, null)).toBe("free");
+  });
+
+  it("känd modell utan pris eller tokental = OMÄTT", () => {
+    expect(classifyCostRow(true, "nagon-ny-modell", null)).toBe("unmeasured");
+  });
+
+  it("avtryck + modell + pris = KOSTNADSFÖRD", () => {
+    expect(classifyCostRow(true, "gemini-3.6-flash", 4200)).toBe("priced");
+  });
+
+  it("noll kronor är ett giltigt PRISSATT utfall, inte gratis", () => {
+    // Ett äkta men försvinnande litet belopp avrundas till 0 — det är mätt.
+    expect(classifyCostRow(true, "gemini-3.6-flash", 0)).toBe("priced");
   });
 });

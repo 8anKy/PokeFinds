@@ -25,8 +25,9 @@
  */
 import { prisma } from "@/lib/db";
 import { getRatesOre } from "@/lib/exchange-rate";
-import { costMicroUsd, microUsdToOre } from "@/lib/ai-pricing";
+import { costMicroUsd, microUsdToOre, priceForModel } from "@/lib/ai-pricing";
 import { startOfMonthUtc } from "@/lib/utils";
+import { classifyCostRow } from "@/services/admin/user-costs";
 
 /** Hur länge ett leverantörssvar återanvänds. Deras data är ändå minuter gammal. */
 const EXTERNAL_TTL_MS = 15 * 60 * 1000;
@@ -43,8 +44,10 @@ export interface LedgerBucket {
   label: string;
   costOre: number;
   calls: number;
-  /** Rader utan tokental/pris. ⛔ Visas alltid — omätt är inte gratis. */
+  /** Rader med avtryck men utan pris/tokental. ⛔ Visas alltid — omätt är inte gratis. */
   unmeasured: number;
+  /** Anrop som aldrig gick till ett API (bilden avgjorde). Äkta noll kronor. */
+  free: number;
 }
 
 export interface AiLedger {
@@ -54,18 +57,38 @@ export interface AiLedger {
   byFeature: LedgerBucket[];
   totalOre: number;
   totalUnmeasured: number;
+  totalFree: number;
   unpricedModels: string[];
   since: Date;
 }
 
 interface LedgerRow {
   model: string | null;
-  rows: bigint | number;
-  inputTokens: bigint | number;
-  outputTokens: bigint | number;
+  /**
+   * Bar raden ett kostnadsavtryck alls?
+   * ⛔ SKILJER GRATIS FRÅN OMÄTT. En skannerrad utan `costModel` betyder att
+   * BILDEN avgjorde och inget API-anrop gjordes — den är gratis, inte okänd.
+   * `->>` kan inte skilja "nyckeln saknas" från "värdet är null", därav
+   * `jsonb_exists()` som egen kolumn. Utan den redovisades hela den kostnadsfria
+   * bild-först-vägen (~1 500 anrop/mån) som omätt, vilket överdriver osäkerheten
+   * lika mycket som motsatsen underdriver notan.
+   */
+  hasCost: boolean;
+  rows: unknown;
+  inputTokens: unknown;
+  outputTokens: unknown;
 }
 
-const num = (v: bigint | number): number => (typeof v === "bigint" ? Number(v) : v);
+/**
+ * ⛔ `SUM(bigint)` I POSTGRES ÄR `numeric`, INTE `bigint` — och Prisma mappar
+ * numeric till `Prisma.Decimal`, ett OBJEKT. En `typeof v === "bigint"`-gren
+ * släppte alltså igenom Decimal orörd, `costMicroUsd()` såg något som inte var
+ * ett tal och returnerade null, och HELA liggaren redovisades som OMÄTT: 0 kr
+ * och 2 329 "omätta" anrop i produktion 2026-08-26, för modeller som stod i
+ * prislistan. `Number()` klarar bigint, Decimal och sträng. Samma helper som
+ * user-costs.ts redan använde — den här filen uppfann en egen och fick det fel.
+ */
+const num = (v: unknown): number => Number(v ?? 0);
 
 /**
  * Leverantör ur modellnamnet. ⛔ Prefixmatchning, inte en handlista: en ny
@@ -97,22 +120,24 @@ export async function getAiLedger(since: Date = startOfMonthUtc()): Promise<AiLe
     prisma.$queryRaw<LedgerRow[]>`
       SELECT
         "result"->>'costModel' AS "model",
+        COALESCE(jsonb_exists("result", 'costModel'), false) AS "hasCost",
         COUNT(*) AS "rows",
         COALESCE(SUM(("result"->'costUsage'->>'inputTokens')::bigint), 0)  AS "inputTokens",
         COALESCE(SUM(("result"->'costUsage'->>'outputTokens')::bigint), 0) AS "outputTokens"
       FROM "ScannerJob"
       WHERE "createdAt" >= ${since} AND "status" <> 'FAILED'
-      GROUP BY 1
+      GROUP BY 1, 2
     `,
     prisma.$queryRaw<LedgerRow[]>`
       SELECT
         "modelUsed" AS "model",
+        COALESCE(("result"->'costUsage') IS NOT NULL AND jsonb_typeof("result"->'costUsage') = 'object', false) AS "hasCost",
         COUNT(*) AS "rows",
         COALESCE(SUM(("result"->'costUsage'->>'inputTokens')::bigint), 0)  AS "inputTokens",
         COALESCE(SUM(("result"->'costUsage'->>'outputTokens')::bigint), 0) AS "outputTokens"
       FROM "GradingJob"
       WHERE "createdAt" >= ${since} AND "status" <> 'FAILED'
-      GROUP BY 1
+      GROUP BY 1, 2
     `,
   ]);
 
@@ -121,6 +146,7 @@ export async function getAiLedger(since: Date = startOfMonthUtc()): Promise<AiLe
   const unpriced = new Set<string>();
   let totalOre = 0;
   let totalUnmeasured = 0;
+  let totalFree = 0;
 
   const featureLabels: Record<string, string> = {
     scanner: "Kortskanning",
@@ -133,20 +159,33 @@ export async function getAiLedger(since: Date = startOfMonthUtc()): Promise<AiLe
   ] as const) {
     for (const row of rows) {
       const calls = num(row.rows);
-      const micro = costMicroUsd(row.model, {
-        inputTokens: num(row.inputTokens),
-        outputTokens: num(row.outputTokens),
-      });
-      // ⛔ `null` = OMÄTT (okänd modell eller inga tokental), aldrig 0 kr.
-      // En skannerrad utan `costModel` betyder dessutom ofta att bilden avgjorde
-      // och inget API-anrop gjordes — men det kan vi inte skilja från en gammal
-      // rad, så båda redovisas som omätta.
-      const ore = micro == null ? 0 : microUsdToOre(micro, usdToOre);
-      const unmeasured = micro == null ? calls : 0;
-      if (micro == null && row.model) unpriced.add(row.model);
+      const micro =
+        row.model === null
+          ? null
+          : costMicroUsd(row.model, {
+              inputTokens: num(row.inputTokens),
+              outputTokens: num(row.outputTokens),
+            });
+      /**
+       * ⛔ TRE UTFALL, ALDRIG TVÅ — och grenarna får INTE kastas om. Den här
+       * filen hade först sin egen variant med `!hasCost` = gratis, vilket är
+       * precis tvärtom: då såg den kostnadsfria bild-först-vägen okänd ut och de
+       * verkligt okända såg gratis ut. Definitionen bor numera på ETT ställe.
+       */
+      const outcome = classifyCostRow(row.hasCost, row.model, micro);
+      const ore = outcome === "priced" && micro != null ? microUsdToOre(micro, usdToOre) : 0;
+      const unmeasured = outcome === "unmeasured" ? calls : 0;
+      const free = outcome === "free" ? calls : 0;
+      // ⛔ "Saknar pris" är inte samma sak som "omätt": en prissatt modell vars
+      //    rader saknar tokental är också omätt, men den hör inte hemma i
+      //    listan över modeller att lägga in i prislistan.
+      if (outcome === "unmeasured" && row.model && !priceForModel(row.model)) {
+        unpriced.add(row.model);
+      }
 
       totalOre += ore;
       totalUnmeasured += unmeasured;
+      totalFree += free;
 
       const prov = providerOf(row.model);
       const p = providers.get(prov.key) ?? {
@@ -155,10 +194,12 @@ export async function getAiLedger(since: Date = startOfMonthUtc()): Promise<AiLe
         costOre: 0,
         calls: 0,
         unmeasured: 0,
+        free: 0,
       };
       p.costOre += ore;
       p.calls += calls;
       p.unmeasured += unmeasured;
+      p.free += free;
       providers.set(prov.key, p);
 
       const f = features.get(featureKey) ?? {
@@ -167,10 +208,12 @@ export async function getAiLedger(since: Date = startOfMonthUtc()): Promise<AiLe
         costOre: 0,
         calls: 0,
         unmeasured: 0,
+        free: 0,
       };
       f.costOre += ore;
       f.calls += calls;
       f.unmeasured += unmeasured;
+      f.free += free;
       features.set(featureKey, f);
     }
   }
@@ -183,6 +226,7 @@ export async function getAiLedger(since: Date = startOfMonthUtc()): Promise<AiLe
     byFeature: sort(features),
     totalOre,
     totalUnmeasured,
+    totalFree,
     unpricedModels: [...unpriced].sort(),
     since,
   };

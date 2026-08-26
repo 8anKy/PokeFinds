@@ -116,6 +116,38 @@ const num = (v: bigint | number | null | undefined): number => Number(v ?? 0);
  * är matematiskt identiskt eftersom priset är linjärt i tokental, och sparar en
  * prisuppslagning per skanning.
  */
+/**
+ * VILKET AV DE TRE UTFALLEN ÄR DEN HÄR RADEN? Den kanoniska definitionen —
+ * `service-costs.ts` (adminöversikten) importerar den i stället för att ha en
+ * egen kopia.
+ *
+ * ⛔ ORDNINGEN ÄR INTE UTBYTBAR, och de två första grenarna är lätta att kasta om:
+ *   1. `!hasCost`            → OMÄTT. Avtrycket saknas HELT (rader före
+ *      2026-08-14, eller en väg som inte bokför). Vi vet ingenting.
+ *   2. `model === null`      → GRATIS. Avtrycket FINNS och säger uttryckligen att
+ *      bilden/streckkoden avgjorde: inget API-anrop gjordes. Äkta noll kronor.
+ *   3. `micro === null`      → OMÄTT. Modellen saknas i prislistan eller
+ *      tokentalen saknas — att räkna 0 kr vore en tyst underskattning.
+ *   4. annars                → KOSTNADSFÖRD.
+ * Kastas 1 och 2 om ser den kostnadsfria bild-först-vägen (~1 000 anrop/mån) ut
+ * som okänd, och de verkligt okända ser gratis ut. Båda felen är tysta, och
+ * exakt det hände i adminöversiktens första version (2026-08-26).
+ * ⛔ `jsonb_exists()` som EGEN kolumn krävs för steg 1: `->>` kan inte skilja
+ * "nyckeln saknas" från "värdet är null", vilket ÄR gränsen mellan omätt och gratis.
+ */
+export type CostOutcome = "priced" | "free" | "unmeasured";
+
+export function classifyCostRow(
+  hasCost: boolean,
+  model: string | null,
+  microUsd: number | null
+): CostOutcome {
+  if (!hasCost) return "unmeasured";
+  if (model === null) return "free";
+  if (microUsd === null) return "unmeasured";
+  return "priced";
+}
+
 function foldGroups(groups: CostGroupRow[], usdToOre: number): FeatureCost {
   const out = emptyFeature();
   const unpriced = new Set<string>();
@@ -124,28 +156,26 @@ function foldGroups(groups: CostGroupRow[], usdToOre: number): FeatureCost {
     const rows = num(g.rows);
     out.rows += rows;
 
-    if (!g.hasCost) {
-      // Raden är från före kostnadsspårningen (eller en väg som inte bokför).
+    const input = num(g.inputTokens);
+    const output = num(g.outputTokens);
+    const micro = g.model === null
+      ? null
+      : costMicroUsd(g.model, { inputTokens: input, outputTokens: output });
+
+    const outcome = classifyCostRow(g.hasCost, g.model, micro);
+    if (outcome === "unmeasured") {
       out.unmeasured += rows;
+      if (g.model !== null && !priceForModel(g.model)) unpriced.add(g.model);
       continue;
     }
-    if (g.model === null) {
-      // Avtrycket finns och säger uttryckligen: inget API-anrop gjordes.
+    if (outcome === "free") {
       out.freeCalls += rows;
       continue;
     }
 
-    const input = num(g.inputTokens);
-    const output = num(g.outputTokens);
-    const micro = costMicroUsd(g.model, { inputTokens: input, outputTokens: output });
-    if (micro === null) {
-      // Känd modell saknas i prislistan, eller tokentalen saknas på raderna.
-      // Att räkna dem som 0 kr hade varit en tyst underskattning.
-      out.unmeasured += rows;
-      if (!priceForModel(g.model)) unpriced.add(g.model);
-      continue;
-    }
-
+    // `outcome === "priced"` garanterar att micro är ett tal; TS kan inte se
+    // det genom klassificeraren, därav vakten (som aldrig ska kunna slå).
+    if (micro === null) continue;
     out.pricedCalls += rows;
     out.inputTokens += input;
     out.outputTokens += output;

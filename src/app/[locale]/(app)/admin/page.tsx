@@ -376,15 +376,26 @@ export default async function AdminOverviewPage() {
           {/* ⛔ OMÄTT REDOVISAS ALLTID BREDVID BELOPPET. Rader utan tokental
               (allt före 2026-08-14, plus modeller utan pris) är inte gratis —
               de är okända, och utan raden ser notan lägre ut än den är. */}
-          {(costs.ledger.totalUnmeasured > 0 || costs.ledger.unpricedModels.length > 0) && (
-            <p className="text-xs text-holo-gold">
-              {nf(costs.ledger.totalUnmeasured)} anrop är OMÄTTA (saknar tokental) och
-              ingår inte i beloppet.
-              {costs.ledger.unpricedModels.length > 0 && (
-                <> Modeller utan pris: {costs.ledger.unpricedModels.join(", ")}.</>
-              )}
-            </p>
-          )}
+          {/* ⛔ TRE UTFALL, OCKSÅ I GRÄNSSNITTET. Gratis (bilden avgjorde, inget
+              API-anrop) och omätt (avtrycket saknas) är olika fakta: slås de ihop
+              ser antingen notan lägre ut än den är, eller osäkerheten större. */}
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
+            {costs.ledger.totalFree > 0 && (
+              <span className="text-rise">
+                {nf(costs.ledger.totalFree)} anrop var gratis (bilden avgjorde)
+              </span>
+            )}
+            {costs.ledger.totalUnmeasured > 0 && (
+              <span className="text-holo-gold">
+                {nf(costs.ledger.totalUnmeasured)} anrop är omätta och ingår inte i beloppet
+              </span>
+            )}
+            {costs.ledger.unpricedModels.length > 0 && (
+              <span className="text-holo-gold">
+                Modeller utan pris: {costs.ledger.unpricedModels.join(", ")}
+              </span>
+            )}
+          </div>
 
           <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
             <div className="space-y-2">
@@ -399,7 +410,7 @@ export default async function AdminOverviewPage() {
                     key={f.key}
                     label={f.label}
                     value={formatPrice(f.costOre)}
-                    hint={`${nf(f.calls)} anrop${f.unmeasured > 0 ? ` · ${nf(f.unmeasured)} omätta` : ""}`}
+                    hint={`${nf(f.calls)} anrop${f.free > 0 ? ` · ${nf(f.free)} gratis` : ""}${f.unmeasured > 0 ? ` · ${nf(f.unmeasured)} omätta` : ""}`}
                   />
                 ))
               )}
@@ -433,23 +444,6 @@ export default async function AdminOverviewPage() {
                   <SourceState source={costs.anthropic} envHint />
                 </div>
               )}
-              {/* ⛔ UTREDD OCH OMÖJLIG — öppna inte frågan igen utan ny information.
-                  Se src/services/admin/service-costs.ts för källorna. */}
-              <div>
-                <p className="text-sm text-ink-muted">Kvarvarande krediter</p>
-                <p className="text-xs text-ink-faint">
-                  Finns inte att hämta: Anthropic har inget saldo-endpoint (bara
-                  konsolen), och Gemini är ingen förbetald kreditprodukt utan
-                  faktureras via Google Cloud.
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-ink-muted">Railway</p>
-                <p className="text-xs text-ink-faint">
-                  Deras kostnadsfråga finns i schemat men inte i den publika
-                  dokumentationen — läggs till när den introspekterats med en token.
-                </p>
-              </div>
             </div>
           </div>
 
