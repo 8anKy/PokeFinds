@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { alertCopyKey } from "@/lib/alert-copy";
 import { alternatesFor } from "@/lib/canonical";
+import { priceAlertsPaused } from "@/lib/price-alerts-pause";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { formatPrice } from "@/lib/format";
@@ -284,7 +286,7 @@ export default async function MarketPage({
             {t("proTitle")}
           </h2>
           <p className="relative mx-auto mt-2 max-w-xl text-ink-muted">
-            {t("proDesc")}
+            {t(alertCopyKey("proDesc", priceAlertsPaused()))}
           </p>
           <div className="relative mt-6">
             <LinkButton href="/priser" size="lg">

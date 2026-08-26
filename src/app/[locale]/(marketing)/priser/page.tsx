@@ -5,7 +5,8 @@ import { Link } from "@/i18n/navigation";
 import { IconCheck, IconPlus, IconX } from "@/components/ui/icons";
 import { stripeCheckoutAdvertised } from "@/lib/stripe";
 import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
-import { withRestockFeatures } from "@/lib/pricing-features";
+import { pausableFeatures } from "@/lib/pricing-features";
+import { priceAlertsPaused } from "@/lib/price-alerts-pause";
 import { UpgradeButton } from "./upgrade-button";
 import { FreePlanCta } from "./free-plan-cta";
 import { PageBackButton } from "@/components/layout/page-back-button";
@@ -66,16 +67,18 @@ export default async function PricingPage({
    * flaggan av sig själv.
    */
   const restockPaused = restockAlertsPaused();
-  const premiumFeatures = withRestockFeatures(
-    t.raw("premiumFeatures") as string[],
-    t.raw("premiumRestockFeatures") as string[],
-    restockPaused
-  );
-  const freeExcluded = withRestockFeatures(
-    t.raw("freeExcluded") as string[],
-    t.raw("freeExcludedRestock") as string[],
-    restockPaused
-  );
+  // ⛔ EGEN FLAGGA, INTE SAMMA. Prislarmen pausades 2026-08-26 för att de kan påstå ett
+  // pris som inte finns (mätt falskt larm samma dag), restock-larmen 2026-08-23 för att
+  // de kostade för mycket compute. De kommer tillbaka vid olika tillfällen.
+  const pricePaused = priceAlertsPaused();
+  const premiumFeatures = pausableFeatures(t.raw("premiumFeatures") as string[], [
+    { items: t.raw("premiumPriceFeatures") as string[], paused: pricePaused },
+    { items: t.raw("premiumRestockFeatures") as string[], paused: restockPaused },
+  ]);
+  const freeExcluded = pausableFeatures(t.raw("freeExcluded") as string[], [
+    { items: t.raw("freeExcludedPrice") as string[], paused: pricePaused },
+    { items: t.raw("freeExcludedRestock") as string[], paused: restockPaused },
+  ]);
 
   return (
     // Mobil: pt-6 så bakåtknappen sitter i höjd med Mer-tabbens andra undersidor
@@ -93,6 +96,14 @@ export default async function PricingPage({
 
       {/* ⛔ Notisen står ovanför korten med flit: under köpknappen hade den varit
           en brasklapp efter beslutet. Den ska läsas innan priset. */}
+      {/* Prislarmen har ingen Discord-utväg — det finns ingen gratis kanal som ersätter
+          dem — så notisen står för sig själv, utan CTA. */}
+      {pricePaused && (
+        <div className="mx-auto mt-8 max-w-2xl rounded-xl border border-holo-gold/30 bg-holo-gold/5 px-5 py-4 text-sm text-ink-muted">
+          <p>{t("priceAlertsPausedNotice")}</p>
+        </div>
+      )}
+
       {restockPaused && (
         <div className="mx-auto mt-8 max-w-2xl rounded-xl border border-holo-gold/30 bg-holo-gold/5 px-5 py-4 text-sm text-ink-muted">
           <p>{t("restockPausedNotice")}</p>

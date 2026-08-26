@@ -42,7 +42,10 @@ beforeEach(() => {
   transaction.mockReset().mockResolvedValue([]);
 });
 afterEach(() => {
-  process.env.RESTOCK_ALERTS_PAUSED = "0"; // vitest.config.ts-läget
+  // vitest.config.ts-läget: båda larmen PÅ, så resten av sviten testar beteendet när
+  // funktionerna faktiskt kör.
+  process.env.RESTOCK_ALERTS_PAUSED = "0";
+  process.env.PRICE_ALERTS_PAUSED = "0";
 });
 
 describe("restockAlertsPaused", () => {
@@ -77,12 +80,30 @@ describe("pausat läge", () => {
     expect(alertCreate).not.toHaveBeenCalled();
   });
 
-  it("PRISLARM är INTE pausade — det är en egen funktion", async () => {
+  it("rör INTE prislarmen — de har en egen flagga", async () => {
+    // ⛔ TVÅ OBEROENDE SPAKAR, INTE EN. Prislarmen pausades också (2026-08-26), men av
+    // helt andra skäl: restock väntar på KOSTNAD, prislarmen på en LAGNING. De slås på
+    // igen vid olika tillfällen, och den här assertionen är det som gör det möjligt —
+    // faller den har någon slagit ihop flaggorna och den ena funktionen kan inte längre
+    // återvända utan den andra.
+    process.env.PRICE_ALERTS_PAUSED = "0";
     productFindUnique.mockResolvedValue({ id: "p1", title: PRODUCT.title, slug: PRODUCT.slug });
     watchlistFindMany.mockResolvedValue([{ userId: "u1", targetPrice: 90000 }]);
     const r = await checkPriceAlerts("p1", 89000);
     expect(r).toEqual({ triggered: 1 });
     expect(alertCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("och åt andra hållet: pausade prislarm rör inte restock-larmen", async () => {
+    process.env.RESTOCK_ALERTS_PAUSED = "0";
+    process.env.PRICE_ALERTS_PAUSED = "1";
+    const r = await checkRestockAlerts("p1", undefined, { from: "OUT_OF_STOCK", to: "IN_STOCK" });
+    expect(r.triggered).toBeGreaterThan(0);
+    // ...och prislarmet är tyst i samma läge, utan att ha rört databasen.
+    productFindUnique.mockClear();
+    const p = await checkPriceAlerts("p1", 89000);
+    expect(p).toEqual({ triggered: 0 });
+    expect(productFindUnique).not.toHaveBeenCalled();
   });
 });
 

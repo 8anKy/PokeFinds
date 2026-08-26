@@ -7,6 +7,8 @@ import { useRouter } from "@/i18n/navigation";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/client-api";
+import { alertCopyKey } from "@/lib/alert-copy";
+import { priceAlertsPausedClient } from "@/lib/price-alerts-pause";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -104,6 +106,12 @@ export function WatchlistTable({
   const t = useTranslations("Watchlist");
   const tc = useTranslations("Common");
   const tPause = useTranslations("RestockPause");
+  // ⛔ LÄSES HÄR, INTE SOM PROP. Prislarmen pausades 2026-08-26 och den här tabellen
+  // är en klientkomponent — flaggan finns redan i bundlen via speglingen i
+  // next.config.mjs, och en extra prop hade betytt att varje NYTT anropsställe måste
+  // minnas att skicka den. Restock-flaggan är prop av historiska skäl (servern läser
+  // den redan på en force-dynamic-sida); blanda inte ihop dem.
+  const pricePaused = priceAlertsPausedClient();
   const [items, setItems] = useState(initialItems);
   const [editing, setEditing] = useState<WatchlistRow | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -214,7 +222,7 @@ export function WatchlistTable({
           aktivt. Visa upsell + inaktivera reglagen nedan. */}
       {!isPro && (
         <div className="mb-4 rounded-lg border border-holo-cyan/30 bg-holo-cyan/5 px-4 py-3 text-sm text-ink-muted">
-          {t.rich("freeAlertsBanner", {
+          {t.rich(alertCopyKey("freeAlertsBanner", pricePaused), {
             link: (c) => (
               <Link href="/priser" className="font-medium text-holo-cyan hover:underline">
                 {c}
@@ -295,8 +303,8 @@ export function WatchlistTable({
               </label>
               <label className="flex items-center gap-2 text-sm text-ink">
                 <Checkbox
-                  checked={isPro && item.priceAlert}
-                  disabled={busyId === item.id || !isPro}
+                  checked={isPro && !pricePaused && item.priceAlert}
+                  disabled={busyId === item.id || !isPro || pricePaused}
                   onChange={(e) =>
                     void patchItem(
                       item.id,
@@ -306,6 +314,9 @@ export function WatchlistTable({
                   }
                 />
                 {t("priceLabel")}
+                {pricePaused && (
+                  <span className="text-xs text-holo-gold">{tPause("tag")}</span>
+                )}
               </label>
             </div>
 
@@ -328,7 +339,12 @@ export function WatchlistTable({
                 <span className="ml-1 text-xs font-normal text-holo-gold">{tPause("tag")}</span>
               )}
             </TH>
-            <TH>{t("colPriceAlert")}</TH>
+            <TH>
+              {t("colPriceAlert")}
+              {pricePaused && (
+                <span className="ml-1 text-xs font-normal text-holo-gold">{tPause("tag")}</span>
+              )}
+            </TH>
             <TH>{t("colStatus")}</TH>
             <TH className="text-right">{t("colActions")}</TH>
           </TR>
@@ -372,8 +388,8 @@ export function WatchlistTable({
               </TD>
               <TD>
                 <Checkbox
-                  checked={isPro && item.priceAlert}
-                  disabled={busyId === item.id || !isPro}
+                  checked={isPro && !pricePaused && item.priceAlert}
+                  disabled={busyId === item.id || !isPro || pricePaused}
                   aria-label={t("priceAria", { title: item.product.title })}
                   onChange={(e) =>
                     void patchItem(
@@ -423,7 +439,7 @@ export function WatchlistTable({
           }}
         >
           <p className="mb-4 text-sm text-ink-muted">
-            {t.rich("editHint", {
+            {t.rich(alertCopyKey("editHint", pricePaused), {
               title: editing?.product.title ?? "",
               b: (chunks) => <span className="font-medium text-ink">{chunks}</span>,
             })}

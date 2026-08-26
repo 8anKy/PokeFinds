@@ -125,9 +125,13 @@ describe.each(LOCALES)("$name: punkterna finns kvar och kommer tillbaka", ({ m }
   });
 
   it("pausnotisen på paywallen säger vad som FORTFARANDE gäller", () => {
-    // ⛔ Ett bart "pausat" är inte ärligt nog vid köpstället: den som betalar
-    // måste se vad de faktiskt får. Notisen ska nämna prislarm.
-    expect(m.Pricing.restockPausedNotice).toMatch(/prislarm|price alert/i);
+    // ⛔ Ett bart "pausat" är inte ärligt nog vid köpstället: den som betalar måste se
+    // vad de faktiskt får. Notisen pekade förr på PRISLARM som det som ändå fungerar —
+    // den raden togs bort 2026-08-26 när prislarmen också pausades (och blev därmed en
+    // lögn; vaktat åt andra hållet i price-alert-pause.test.ts). Kvar som "det här
+    // gäller ändå" är Discord-kanalen, som till skillnad från prislarmen faktiskt
+    // levererar restocks just nu.
+    expect(m.Pricing.restockPausedNotice).toMatch(/discord/i);
   });
 });
 

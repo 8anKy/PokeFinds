@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { isBlockedListingLanguage } from "@/lib/listing-language";
 import { proUserWhere } from "@/lib/plan";
+import { priceAlertsPaused } from "@/lib/price-alerts-pause";
 import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
 import { isSealedCategory } from "@/lib/product-category";
 // Lokalt bruk (checkRestockAlerts nedan). Re-exporten längre ner är för utomstående
@@ -99,8 +100,17 @@ export async function markRead(userId: string, alertId: string) {
 /**
  * Kontrollerar prislarm för en produkt vid nytt pris (öre).
  * Skapar Alert (EMAIL) för bevakningar med targetPrice >= newPrice.
+ *
+ * ⛔ TRE KÄNDA DEFEKTER, ALLA OLAGADE (se src/lib/price-alerts-pause.ts för mätdata):
+ * ingen lagerstatus-/direktlänkskontroll på offern som utlöste larmet, ingen cooldown,
+ * och mejlet visar ett annat pris än det som utlöste larmet. Funktionen är därför
+ * PAUSAD tills de är lagade — flippa inte flaggan utan att laga dem först.
  */
 export async function checkPriceAlerts(productId: string, newPrice: number) {
+  // ⛔ PAUSAT LÄGE: inga rader skapas alls. Grinden ligger FÖRST, före produktuppslaget
+  // — nattkedjan anropar hit en gång per prissänkning i hela katalogen och Neon
+  // debiteras per vaken tid, inte per rad.
+  if (priceAlertsPaused()) return { triggered: 0 };
   const product = await prisma.product.findUnique({
     where: { id: productId },
     select: { id: true, title: true, slug: true },

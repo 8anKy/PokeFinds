@@ -12,10 +12,12 @@
     "en": "English"
   },
   "RestockPause": {
-    "banner": "Restock alerts by email and push are paused for now. Your watches stay put and price alerts work as usual — we'll let you know when they are back.",
+    "banner": "Restock alerts by email and push are paused for now. Your watches stay put — we will let you know when they are back.",
     "bannerDiscord": "Restocks are posted in real time in our Discord in the meantime — free.",
     "discordCta": "Join the Discord",
-    "tag": "Paused"
+    "tag": "Paused",
+    "bannerPrice": "Price alerts by email and push are paused for now. Your watches and target prices stay put — we will let you know when they are back.",
+    "bannerBoth": "Alerts by email and push are paused for now — both restock alerts and price alerts. Your watches and target prices stay put; we will let you know when they are back."
   },
   "Settings": {
     "pageTitle": "Settings",
@@ -84,7 +86,10 @@
     "discordDisconnectedToast": "Discord account disconnected.",
     "discordCancelledToast": "Linking was cancelled.",
     "discordAlreadyLinkedToast": "That Discord account is already linked to another Foilio account.",
-    "discordErrorToast": "Could not link your Discord account."
+    "discordErrorToast": "Could not link your Discord account.",
+    "notifEmailHintPaused": "Weekly digest and account email. Price alerts are paused right now.",
+    "planProDescPaused": "You have Pro. Unlimited watches, unlimited scanning and AI grading. Alerts are paused right now.",
+    "planFreeDescPaused": "With Pro you get unlimited watches, more AI gradings and full price history."
   },
   "Nav": {
     "explore": "Explore",
@@ -1145,7 +1150,10 @@
     "targetPriceLabel": "Target price (kr)",
     "targetPlaceholder": "e.g. 499",
     "deleteTitle": "Remove watch?",
-    "deleteConfirm": "Are you sure you want to stop watching <b>{title}</b>? You won't get any more alerts for this product."
+    "deleteConfirm": "Are you sure you want to stop watching <b>{title}</b>? You won't get any more alerts for this product.",
+    "subtitlePaused": "Save what you are hunting and follow the price. Alerts are paused right now.",
+    "freeAlertsBannerPaused": "Alerts by email and push are paused right now — for Pro too. You can still save products and target prices here.",
+    "editHintPaused": "Your target price is saved on <b>{title}</b>, but alerts are paused right now — we will let you know when they are back. Leave empty to remove the target."
   },
   "Category": {
     "SINGLE_CARD": "Single card",
@@ -1213,7 +1221,8 @@
     "colAvgChange": "Avg. change",
     "proTitle": "Want to dig deeper into the data?",
     "proDesc": "With Pro you get longer price history, advanced charts and price alerts, so you act before everyone else.",
-    "proCta": "See what Pro gives you"
+    "proCta": "See what Pro gives you",
+    "proDescPaused": "With Pro you get longer price history and advanced charts, so you see the move before everyone else."
   },
   "Language": {
     "SV": "Swedish",
@@ -1552,7 +1561,9 @@
     "metaNotFound": "Product not found",
     "fallbackCategory": "Product",
     "metaDescription": "Compare prices on {title} ({category}) at Swedish stores. Lowest price right now: {price}. Track price and restock on Foilio.",
-    "metaDescriptionNoPrice": "Compare prices on {title} ({category}) at Swedish stores. Track price and restock on Foilio."
+    "metaDescriptionNoPrice": "Compare prices on {title} ({category}) at Swedish stores. Track price and restock on Foilio.",
+    "alertsProCtaPaused": "Alerts are paused right now",
+    "priceModalIntroPaused": "Your target price is saved on <b>{title}</b>, but alerts are paused right now — we will let you know when they are back. Leave empty to just watch the product."
   },
   "Upgrade": {
     "currentPlan": "Your current plan ✓",
@@ -1611,10 +1622,9 @@
       "Watch entire sets · alerts on all sealed products, including new releases",
       "All restocks: alerts for every sealed product"
     ],
-    "restockPausedNotice": "Restock alerts by email and push are paused for now and are not part of Pro at the moment. Price alerts work as usual. Restocks are posted in real time in our Discord — free, no account needed.",
+    "restockPausedNotice": "Restock alerts by email and push are paused for now and are not part of Pro at the moment. Restocks are posted in real time in our Discord — free, no account needed.",
     "restockPausedCta": "See restocks in Discord",
     "freeExcluded": [
-      "Price alerts on what you watch",
       "Unlimited watches",
       "Unlimited card scanning",
       "Bulk scanning of several cards in one photo",
@@ -1623,7 +1633,7 @@
     ],
     "proLead": "Everything in Free, plus:",
     "premiumFeatures": [
-      "Unlimited watches with price alerts",
+      "Unlimited watches",
       "15 AI gradings per month (stronger model)",
       "Unlimited card scanning (fair use)",
       "Bulk scanning · lay out the whole row and scan every card at once",
@@ -1644,7 +1654,14 @@
         "q": "How do I pay for Pro?",
         "a": "In the app the purchase is made securely via the App Store or Google Play. On the web, payment is handled securely by Stripe — we never see your card number. You can cancel any time and keep Pro until the end of the period."
       }
-    ]
+    ],
+    "premiumPriceFeatures": [
+      "Price alerts on everything you watch · we tell you when your target is hit"
+    ],
+    "freeExcludedPrice": [
+      "Price alerts on what you watch"
+    ],
+    "priceAlertsPausedNotice": "Price alerts by email and push are paused for now and are not part of Pro at the moment. Your target prices stay put and the price chart keeps updating."
   },
   "Home": {
     "hero": {

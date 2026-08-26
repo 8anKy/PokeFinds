@@ -12,10 +12,12 @@
     "en": "English"
   },
   "RestockPause": {
-    "banner": "Restock-larm via mejl och push är pausade tills vidare. Dina bevakningar ligger kvar och prislarm fungerar som vanligt — vi säger till när larmen är igång igen.",
+    "banner": "Restock-larm via mejl och push är pausade tills vidare. Dina bevakningar ligger kvar — vi säger till när larmen är igång igen.",
     "bannerDiscord": "Restocks postas i realtid i vår Discord så länge — gratis.",
     "discordCta": "Gå med i Discord",
-    "tag": "Pausad"
+    "tag": "Pausad",
+    "bannerPrice": "Prislarm via mejl och push är pausade tills vidare. Dina bevakningar och målpriser ligger kvar — vi säger till när larmen är igång igen.",
+    "bannerBoth": "Larm via mejl och push är pausade tills vidare — både restock-larm och prislarm. Dina bevakningar och målpriser ligger kvar; vi säger till när larmen är igång igen."
   },
   "Settings": {
     "pageTitle": "Inställningar",
@@ -84,7 +86,10 @@
     "discordDisconnectedToast": "Discord-kontot är frånkopplat.",
     "discordCancelledToast": "Länkningen avbröts.",
     "discordAlreadyLinkedToast": "Det Discord-kontot är redan länkat till ett annat Foilio-konto.",
-    "discordErrorToast": "Kunde inte länka Discord-kontot."
+    "discordErrorToast": "Kunde inte länka Discord-kontot.",
+    "notifEmailHintPaused": "Veckobrev och kontomejl. Prislarm är pausade just nu.",
+    "planProDescPaused": "Du har Pro. Obegränsade bevakningar, obegränsad skanning och AI-gradering. Larmen är pausade just nu.",
+    "planFreeDescPaused": "Med Pro får du obegränsade bevakningar, fler AI-graderingar och full prishistorik."
   },
   "Nav": {
     "explore": "Utforska",
@@ -1145,7 +1150,10 @@
     "targetPriceLabel": "Målpris (kr)",
     "targetPlaceholder": "t.ex. 499",
     "deleteTitle": "Ta bort bevakning?",
-    "deleteConfirm": "Är du säker på att du vill sluta bevaka <b>{title}</b>? Du får inga fler larm för den här produkten."
+    "deleteConfirm": "Är du säker på att du vill sluta bevaka <b>{title}</b>? Du får inga fler larm för den här produkten.",
+    "subtitlePaused": "Spara det du jagar och följ priset. Larmen är pausade just nu.",
+    "freeAlertsBannerPaused": "Larm via mejl och push är pausade just nu — även för Pro. Du kan fortfarande spara produkter och målpriser här.",
+    "editHintPaused": "Målpriset sparas på <b>{title}</b>, men larmen är pausade just nu — vi hör av oss när de är igång igen. Lämna tomt för att ta bort målpriset."
   },
   "Category": {
     "SINGLE_CARD": "Singelkort",
@@ -1213,7 +1221,8 @@
     "colAvgChange": "Snittförändring",
     "proTitle": "Vill du gräva djupare i datan?",
     "proDesc": "Med Pro får du längre prishistorik, avancerade grafer och prislarm, så att du agerar innan alla andra.",
-    "proCta": "Se vad Pro ger dig"
+    "proCta": "Se vad Pro ger dig",
+    "proDescPaused": "Med Pro får du längre prishistorik och avancerade grafer, så att du ser rörelsen före alla andra."
   },
   "Language": {
     "SV": "Svenska",
@@ -1552,7 +1561,9 @@
     "metaNotFound": "Produkten hittades inte",
     "fallbackCategory": "Produkt",
     "metaDescription": "Jämför priser på {title} ({category}) hos svenska butiker. Lägsta pris just nu: {price}. Bevaka pris och restock på Foilio.",
-    "metaDescriptionNoPrice": "Jämför priser på {title} ({category}) hos svenska butiker. Bevaka pris och restock på Foilio."
+    "metaDescriptionNoPrice": "Jämför priser på {title} ({category}) hos svenska butiker. Bevaka pris och restock på Foilio.",
+    "alertsProCtaPaused": "Larmen är pausade just nu",
+    "priceModalIntroPaused": "Målpriset sparas på <b>{title}</b>, men larmen är pausade just nu — vi hör av oss när de är igång igen. Lämna tomt för att bara bevaka produkten."
   },
   "Upgrade": {
     "currentPlan": "Din nuvarande plan ✓",
@@ -1611,10 +1622,9 @@
       "Bevaka hela set · larm på alla sealed-produkter, även nya som släpps",
       "Alla restocks: larm för varje sealed-produkt"
     ],
-    "restockPausedNotice": "Restock-larm via mejl och push är pausade tills vidare och ingår inte i Pro just nu. Prislarm fungerar som vanligt. Restocks postas i realtid i vår Discord — gratis, utan konto hos oss.",
+    "restockPausedNotice": "Restock-larm via mejl och push är pausade tills vidare och ingår inte i Pro just nu. Restocks postas i realtid i vår Discord — gratis, utan konto hos oss.",
     "restockPausedCta": "Se restocks i Discord",
     "freeExcluded": [
-      "Prislarm på det du bevakar",
       "Obegränsade bevakningar",
       "Obegränsad kortskanning",
       "Bulkskanning av flera kort i samma bild",
@@ -1623,7 +1633,7 @@
     ],
     "proLead": "Allt i Free, plus:",
     "premiumFeatures": [
-      "Obegränsade bevakningar med prislarm",
+      "Obegränsade bevakningar",
       "15 AI-graderingar per månad (starkare modell)",
       "Obegränsad kortskanning (skäligt bruk)",
       "Bulkskanning · lägg upp hela raden och skanna alla kort på en gång",
@@ -1644,7 +1654,14 @@
         "q": "Hur betalar jag för Pro?",
         "a": "I appen sker köpet säkert via App Store eller Google Play. På webben sköts betalningen säkert av Stripe — vi ser aldrig ditt kortnummer. Du kan säga upp när du vill; du behåller Pro perioden ut."
       }
-    ]
+    ],
+    "premiumPriceFeatures": [
+      "Prislarm på det du bevakar · vi säger till när målpriset nås"
+    ],
+    "freeExcludedPrice": [
+      "Prislarm på det du bevakar"
+    ],
+    "priceAlertsPausedNotice": "Prislarm via mejl och push är pausade tills vidare och ingår inte i Pro just nu. Dina målpriser ligger kvar och prisgrafen uppdateras som vanligt."
   },
   "Home": {
     "hero": {

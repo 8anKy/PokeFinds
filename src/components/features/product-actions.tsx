@@ -11,6 +11,8 @@ import { Input, Label } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { IconBell, IconPackage, IconPlus } from "@/components/ui/icons";
 import { DiscordRestockTip } from "@/components/features/discord-restock-tip";
+import { alertCopyKey } from "@/lib/alert-copy";
+import { priceAlertsPausedClient } from "@/lib/price-alerts-pause";
 import { restockAlertsPausedClient } from "@/lib/restock-alerts-pause";
 
 export interface ProductActionsProps {
@@ -39,6 +41,8 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
   const { toast } = useToast();
   const router = useRouter();
   const restockPaused = restockAlertsPausedClient();
+  // Prislarmen har en EGEN paus (2026-08-26) — se price-alerts-pause.ts.
+  const pricePaused = priceAlertsPausedClient();
 
   // Läs plan klient-sida (produktsidan ISR-cachas → ingen server-auth). Bara om
   // fo_auth-cookien finns, så utloggade aldrig träffar /api/auth/session.
@@ -216,7 +220,7 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
       </Button>
       {isPro === false && (
         <Link href="/priser" className="text-xs font-medium text-holo-cyan hover:underline">
-          {t("alertsProCta")}
+          {t(alertCopyKey("alertsProCta", priceAlertsPausedClient()))}
         </Link>
       )}
     </div>
@@ -248,7 +252,7 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
           }}
         >
           <p className="mb-4 text-sm text-ink-muted">
-            {t.rich("priceModalIntro", {
+            {t.rich(alertCopyKey("priceModalIntro", pricePaused), {
               b: (c) => <span className="font-medium text-ink">{c}</span>,
               title,
             })}

@@ -17,6 +17,12 @@ const nextConfig = {
   // (vilket Railway gör automatiskt vid env-ändring) — inte bara en omstart.
   env: {
     NEXT_PUBLIC_RESTOCK_ALERTS_PAUSED: process.env.RESTOCK_ALERTS_PAUSED ?? "1",
+    // Samma mekanik, egen spak: prislarmen (PRICE_TARGET) pausades 2026-08-26 av helt
+    // andra skäl än restock-larmen (tre olagade defekter, se price-alerts-pause.ts).
+    // ⛔ EN FLAGGA PER FUNKTION. Slås de ihop går det inte att sätta tillbaka den ena
+    // utan den andra, och den dagen kommer: restock väntar på kostnad, prislarm på en
+    // lagning.
+    NEXT_PUBLIC_PRICE_ALERTS_PAUSED: process.env.PRICE_ALERTS_PAUSED ?? "1",
   },
   // Next håller renderade ISR-sidor + `unstable_cache`-poster i en minnes-LRU som
   // som standard får ta 50 MB. Det är resident minne dygnet runt, och minne är

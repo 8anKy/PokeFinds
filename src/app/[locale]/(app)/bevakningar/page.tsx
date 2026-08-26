@@ -5,6 +5,8 @@ import { auth } from "@/lib/auth";
 import { listWatchlist } from "@/services/watchlist";
 import { listSetWatches } from "@/services/set-watch";
 import { listAlerts } from "@/services/alerts";
+import { alertCopyKey } from "@/lib/alert-copy";
+import { priceAlertsPaused } from "@/lib/price-alerts-pause";
 import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
 import { formatDateTime, formatRelative } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +39,7 @@ export default async function WatchlistPage() {
   const t = await getTranslations("Watchlist");
   // force-dynamic ovan → env läses per besök; ingen ISR-fördröjning här.
   const restockPaused = restockAlertsPaused();
+  const pricePaused = priceAlertsPaused();
 
   const [items, alerts, setWatches] = await Promise.all([
     listWatchlist(session.user.id),
@@ -72,7 +75,10 @@ export default async function WatchlistPage() {
         <div>
           <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            {t("subtitle")}
+            {/* ⛔ Underrubriken lovade "vi larmar dig vid prisfall och målpriser".
+                Sant fram till 2026-08-26, en lögn efter — och den står rakt ovanför
+                listan med målpriser. Originaltexten är kvar under sin egen nyckel. */}
+            {t(alertCopyKey("subtitle", pricePaused))}
           </p>
         </div>
         <LinkButton href="/produkter" variant="outline">
@@ -85,7 +91,9 @@ export default async function WatchlistPage() {
       {/* ⛔ Banner FÖRE bevakningarna, inte efter: set-bevakning och restock-
           reglaget nedan är helt beroende av de pausade larmen. Ser användaren
           listan först läser den som fungerande. */}
-      {restockPaused && <RestockPausedBanner />}
+      {/* Banderollen avgör SJÄLV vilket besked som gäller (restock, prislarm eller båda)
+          och renderar ingenting när ingendera är pausad — se restock-paused-banner.tsx. */}
+      <RestockPausedBanner />
 
       {/* Set-bevakningar ovanför produktlistan: de täcker flest produkter och är
           det enda stället de går att se och ta bort. Kortet döljer sig självt när

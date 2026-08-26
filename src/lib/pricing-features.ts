@@ -17,8 +17,28 @@ export function withRestockFeatures(
   restock: readonly string[],
   paused: boolean
 ): string[] {
-  if (paused) return [...base];
-  // Tom baslista: lägg restock-punkterna först i stället för att tappa dem.
-  if (base.length === 0) return [...restock];
-  return [base[0], ...restock, ...base.slice(1)];
+  return pausableFeatures(base, [{ items: restock, paused }]);
+}
+
+/**
+ * SAMMA MEKANIK FÖR FLERA PAUSBARA GRUPPER.
+ *
+ * Prislarmen pausades 2026-08-26 (tre olagade defekter, se `price-alerts-pause.ts`) och
+ * hamnade i exakt samma sits som restock-larmen fyra dagar tidigare: en Pro-punkt som
+ * säljer en avstängd funktion. Två grupper med varsin flagga i stället för en
+ * hopslagen "larm"-flagga — restock väntar på KOSTNAD, prislarm på en LAGNING, och de
+ * kommer tillbaka vid olika tillfällen.
+ *
+ * Grupperna läggs in EFTER första punkten, i den ordning de skickas in — så listan
+ * läser likadant som före pauserna när båda flaggorna är av.
+ */
+export function pausableFeatures(
+  base: readonly string[],
+  groups: readonly { items: readonly string[]; paused: boolean }[]
+): string[] {
+  const extras = groups.filter((g) => !g.paused).flatMap((g) => [...g.items]);
+  if (extras.length === 0) return [...base];
+  // Tom baslista: lägg de pausbara punkterna först i stället för att tappa dem.
+  if (base.length === 0) return extras;
+  return [base[0], ...extras, ...base.slice(1)];
 }

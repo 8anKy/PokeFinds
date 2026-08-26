@@ -9,7 +9,11 @@ export default defineConfig({
     // testar hur larmen ska bete sig NÄR de är på — pausen har ett eget test som
     // sätter variabeln själv. Utan raden hade varje befintligt larmtest blivit
     // grönt av fel skäl (noll larm, ingen assertion körd).
-    env: { RESTOCK_ALERTS_PAUSED: "0" },
+    // Samma sak för prislarmen, pausade 2026-08-26 (src/lib/price-alerts-pause.ts).
+    // ⛔ TVÅ RADER, INTE EN. Slås de ihop till en "larm"-variabel går det inte längre
+    // att testa det troliga nästa läget: prislarmen lagade och påslagna medan restock
+    // fortfarande väntar på kostnad.
+    env: { RESTOCK_ALERTS_PAUSED: "0", PRICE_ALERTS_PAUSED: "0" },
   },
   resolve: {
     alias: {

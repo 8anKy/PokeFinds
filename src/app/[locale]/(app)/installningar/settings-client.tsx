@@ -7,7 +7,9 @@ import { useRouter } from "@/i18n/navigation";
 import { signOut } from "next-auth/react";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { setAuthHint } from "@/lib/auth-hint";
+import { alertCopyKey } from "@/lib/alert-copy";
 import { apiFetch } from "@/lib/client-api";
+import { priceAlertsPausedClient } from "@/lib/price-alerts-pause";
 import { enablePush } from "@/lib/push-client";
 import { useToast } from "@/components/ui/toast";
 import { Button, LinkButton } from "@/components/ui/button";
@@ -81,6 +83,9 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   const tSettings = useTranslations("Settings");
   const tc = useTranslations("Common");
   const tPause = useTranslations("RestockPause");
+  // Prislarmen har en EGEN paus (2026-08-26). Klientflaggan, inte serverns: den här
+  // komponenten renderas i webbläsaren och ser bara NEXT_PUBLIC_-speglingen.
+  const pricePaused = priceAlertsPausedClient();
   const deleteWord = tSettings("deleteWord");
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -265,7 +270,10 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   }
 
   const notificationOptions: { key: keyof NotificationSettings; label: string; hint: string }[] = [
-    { key: "email", label: tSettings("notifEmail"), hint: tSettings("notifEmailHint") },
+    // ⛔ E-post-mastern styr fler utskick än larmen (veckobrev, kontomejl). Hinten
+    // måste därför sluta säga "prislarm" medan de är pausade — annars läser en
+    // påslagen kryssruta som ett löfte om larm som aldrig kommer.
+    { key: "email", label: tSettings("notifEmail"), hint: tSettings(alertCopyKey("notifEmailHint", pricePaused)) },
     // Veckobrevet är en EGEN spak och gäller alla konton, inte bara Pro. Ligger
     // direkt under e-post-mastern eftersom det är den som styr över den.
     { key: "weekly", label: tSettings("notifWeekly"), hint: tSettings("notifWeeklyHint") },
@@ -329,7 +337,8 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
           <p className="text-sm text-ink-muted">{tSettings("notifDesc")}</p>
         </CardHeader>
         <CardContent>
-          {user.restockPaused && <RestockPausedBanner className="mb-4" />}
+          {/* Självgrindande: visar rätt besked för restock, prislarm eller båda. */}
+          <RestockPausedBanner className="mb-4" />
           <div className="space-y-4">
             {notificationOptions.map((opt) => {
               // "Alla restocks" är en Pro-förmån OCH en pausad funktion. Under
@@ -376,7 +385,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-ink-muted">
-            {user.isPro ? tSettings("planProDesc") : tSettings("planFreeDesc")}
+            {tSettings(alertCopyKey(user.isPro ? "planProDesc" : "planFreeDesc", pricePaused))}
           </p>
           {/* Gratisperioden visas med SLUTDATUM. Utan datumet upptäcker användaren
               att perioden tagit slut genom att restock-larmen tystnar — vilket läser
