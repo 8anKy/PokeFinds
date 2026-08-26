@@ -194,6 +194,13 @@ const CAPTURE_MAX = 1280; // px bredd på fångad ruta — högre = tydligare ko
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 const MIN_MATCH_CONF = 0.2;
 
+/**
+ * Under så här många kvarvarande skanningar stannar kvot-badgen kvar även när
+ * användaren redan börjat skanna. ⛔ Håll den låg: badgen ligger i bottenstapeln
+ * och äter live-chippet om den syns i onödan (se kommentaren i QuotaBadge).
+ */
+const LOW_QUOTA = 5;
+
 type CameraState = "starting" | "live" | "error" | "unsupported";
 type View = "capture" | "review";
 /** Skanningslägen. Se `mode`-state i Scanner för varför det är ETT fält. */
@@ -798,6 +805,8 @@ function Scanner() {
   const [addingAll, setAddingAll] = useState(false);
   const [addedCount, setAddedCount] = useState<number | null>(null);
   const [quota, setQuota] = useState<ScanQuota | null>(null);
+  /** Betalväggen när gratiskvoten tar slut. Öppnas av 429 ELLER av slutaren. */
+  const [limitOpen, setLimitOpen] = useState(false);
 
   // Hämta kvoten när skannern öppnas (badge: "X skanningar kvar").
   useEffect(() => {
@@ -889,10 +898,23 @@ function Scanner() {
         const r = data.remaining;
         setQuota((q) => (q ? { ...q, remaining: r } : q));
       }
-      // Slut på kvoten = ett tydligt besked, inte ett tyst "ingen träff" per
-      // skanning. Toasten syns i kameravyn där användaren faktiskt står.
+      /**
+       * ⛔ ATT TA SLUT PÅ KVOTEN ÄR INGET FEL — det är köpögonblicket.
+       *
+       * Förut: en röd fel-toast PLUS ett "kort" i remsan vars titel var
+       * felmeddelandet. Varje blockerat slutartryck lade till ett skräpkort till
+       * (två syntes i fält 2026-08-26), och beskedet hade ingen knapp att trycka
+       * på — texten sa "Uppgradera till Pro" utan att vara en länk. Sex
+       * gratisanvändare slog i taket i augusti och noll uppgraderade.
+       *
+       * Nu: raden tas BORT (inget halvfärdigt kort i remsan) och betalväggen
+       * öppnas en gång, med en riktig knapp.
+       */
       if ("error" in data && data.httpStatus === 429) {
-        toast({ title: data.error, variant: "error" });
+        setQuota((q) => (q ? { ...q, remaining: 0 } : q));
+        setLimitOpen(true);
+        setScans((prev) => prev.filter((s) => s.id !== id));
+        return;
       }
       setScans((prev) =>
         prev.map((s) => {
@@ -919,7 +941,7 @@ function Scanner() {
         })
       );
     },
-    [runIdentify, toast]
+    [runIdentify]
   );
 
   // ---- Kamera --------------------------------------------------------------
@@ -1847,6 +1869,10 @@ function Scanner() {
           onZoom={(p) => void onZoom(p)}
           onUpgrade={() => router.push("/priser")}
           onRetryCamera={() => void startCamera()}
+          // ⛔ `quota != null` krävs: `null` betyder "vet inte än", och att gissa
+          // "slut" hade sålt Pro till en betalande kund varje gång skannern öppnas.
+          outOfQuota={quota != null && !quota.isPremium && quota.remaining <= 0}
+          onUpgradePrompt={() => setLimitOpen(true)}
           onCapture={bulkMode ? captureBulk : capture}
           onGallery={() => fileInputRef.current?.click()}
           onSettings={() => setSettingsOpen(true)}
@@ -1871,6 +1897,22 @@ function Scanner() {
             setView("capture");
           }}
           onClose={closeScanner}
+        />
+      )}
+
+      {/* Betalvägg när gratiskvoten är slut. Samma ark-form som resten av
+          appen — inte en toast: det här är köpögonblicket, inte ett fel.
+          ⛔ `limit` är GRÄNSEN, inte hur många kort användaren skannat — de
+          sammanfaller bara för den som står exakt på taket. Copyn säger därför
+          "gratisplanen ger N", aldrig "du har skannat N". */}
+      {limitOpen && (
+        <ScanLimitSheet
+          limit={quota?.limit ?? 30}
+          onClose={() => setLimitOpen(false)}
+          onUpgrade={() => {
+            setLimitOpen(false);
+            router.push("/priser");
+          }}
         />
       )}
 
@@ -2088,6 +2130,9 @@ function CaptureView(props: {
   onUpgrade: () => void;
   onRetryCamera: () => void;
   onCapture: () => void;
+  /** Gratiskvoten slut → slutaren säljer i stället för att skanna. */
+  outOfQuota: boolean;
+  onUpgradePrompt: () => void;
   onGallery: () => void;
   onSettings: () => void;
   onReview: () => void;
@@ -2243,7 +2288,13 @@ function CaptureView(props: {
       <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col gap-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         {/* Kvot-badgen göms när remsan visas — annars trycks den upp i kortramen
             (remsan visar ändå antalet skanningar). Syns före första skanningen. */}
-        {quota && scans.length === 0 && <QuotaBadge quota={quota} onUpgrade={props.onUpgrade} />}
+        {/* ⛔ Badgen doldes så fort man skannat ett enda kort, så väggen kom
+            utan förvarning mitt i en pärm. Den stannar kvar när det börjar ta
+            slut — det är precis då den är värd sin plats. Vid gott om kvot
+            döljs den fortfarande, annars äter den live-chippet. */}
+        {quota && (scans.length === 0 || (!quota.isPremium && quota.remaining <= LOW_QUOTA)) && (
+          <QuotaBadge quota={quota} onUpgrade={props.onUpgrade} />
+        )}
 
         {isMock && (
           <p className="mx-auto rounded-full bg-black/70 px-3 py-1 text-center text-[11px] font-medium text-holo-gold ring-1 ring-holo-gold/30 backdrop-blur">
@@ -2322,18 +2373,29 @@ function CaptureView(props: {
           </button>
 
           {/* Slutare */}
+          {/* ⛔ SLUTAREN FÅR INTE FYRA MOT EN TOM KVOT. Auto-fångsten har alltid
+              respekterat kvoten; det manuella trycket gjorde det inte, så en
+              användare kunde trycka om och om igen och få ett blockerat anrop
+              varje gång. Knappen är kvar och aktiv — den gör bara något annat:
+              öppnar betalväggen i stället för att skicka en dömd förfrågan. En
+              grå slutare hade läst som att kameran gått sönder. */}
           <button
             type="button"
-            onClick={props.onCapture}
+            onClick={props.outOfQuota ? props.onUpgradePrompt : props.onCapture}
             disabled={cameraState !== "live"}
-            aria-label={t("takePhoto")}
+            aria-label={props.outOfQuota ? t("limitBadge") : t("takePhoto")}
             className={cn(
               "flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full ring-4 ring-white/30 transition-transform",
               "disabled:opacity-40",
               shutterCooling ? "scale-90" : "active:scale-90"
             )}
           >
-            <span className="h-[3.6rem] w-[3.6rem] rounded-full bg-white shadow-[0_2px_12px_rgba(0,0,0,0.4)]" />
+            <span
+              className={cn(
+                "h-[3.6rem] w-[3.6rem] rounded-full shadow-[0_2px_12px_rgba(0,0,0,0.4)]",
+                props.outOfQuota ? "bg-holo-cyan" : "bg-white"
+              )}
+            />
           </button>
 
           {/* Bekräfta/granska */}
@@ -2795,6 +2857,54 @@ function Stepper({ value, onChange }: { value: number; onChange: (v: number) => 
 /* ===========================================================================
  * Settings-sheet
  * ======================================================================== */
+/**
+ * BETALVÄGGEN NÄR GRATISKVOTEN TAR SLUT.
+ *
+ * ⛔ ETT TAK ÄR INGET FEL. Förut var beskedet en röd fel-toast med varningstriangel
+ * och texten "Uppgradera till Pro för fler" — som INTE var en knapp. Dessutom lade
+ * varje blockerat slutartryck till ett skräpkort i remsan med felmeddelandet som
+ * titel. Mätt i augusti 2026: sex gratisanvändare slog i taket, noll uppgraderade.
+ * Det här är det enda ögonblicket i produkten där användaren bevisligen vill ha
+ * mer av det Pro säljer — då ska det finnas en knapp, inte en varningstriangel.
+ *
+ * ⛔ SÄG VAD SOM INTE HÄNDER OCKSÅ. "Allt du redan skannat ligger kvar" och
+ * "kvoten nollställs den 1:a" är hela skillnaden mellan "appen tog något ifrån
+ * mig" och "jag har använt upp månadens portion".
+ *
+ * ⛔ PUNKTERNA ÄR SKANNINGSPUNKTER, inte hela Pro-listan. Användaren står i
+ * kameravyn med ett kort i handen — prisgrafer och Tradera-serier svarar inte på
+ * det hen försöker göra just nu.
+ */
+function ScanLimitSheet(props: { limit: number; onClose: () => void; onUpgrade: () => void }) {
+  const t = useTranslations("Scanner");
+  return (
+    <Sheet title={t("limitTitle")} onClose={props.onClose}>
+      <div className="flex flex-col gap-4">
+        <p className="text-sm text-ink-muted">{t("limitBody", { count: props.limit })}</p>
+        <div>
+          <p className="mb-2 text-sm font-medium text-ink">{t("limitProLead")}</p>
+          <ul className="space-y-2">
+            {[t("limitProScans"), t("limitProBulk"), t("limitProGrading")].map((line) => (
+              <li key={line} className="flex items-start gap-2.5 text-sm text-ink-muted">
+                <IconCheck size={18} className="mt-0.5 shrink-0 text-rise" />
+                {line}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <Button onClick={props.onUpgrade}>{t("limitCta")}</Button>
+        <button
+          type="button"
+          onClick={props.onClose}
+          className="text-sm text-ink-faint transition-colors hover:text-ink-muted"
+        >
+          {t("limitDismiss")}
+        </button>
+      </div>
+    </Sheet>
+  );
+}
+
 function SettingsSheet(props: {
   condition: string;
   onCondition: (v: string) => void;
