@@ -1965,19 +1965,35 @@ function QuotaBadge({ quota, onUpgrade }: { quota: ScanQuota; onUpgrade: () => v
       {isPremium ? t("pro") : t("free")}
     </span>
   );
+  /**
+   * ⛔ BÅDA RADERNA ÄR ENRADIGA (`truncate`) — ANNARS BESTÄMMER SPRÅKET HÖJDEN.
+   *
+   * Badgen har fast bredd, och "GRATIS"-pillret är bredare än "PRO". Den svenska
+   * underraden ("Tryck här för fler med Pro", 26 tecken) fick därför mindre plats
+   * än den engelska och bröt till en TREDJE rad — gratis-badgen blev synligt
+   * klumpigare än Pro-badgen, fast de skulle se lika ut (rapporterat 2026-08-26).
+   * Med `truncate` är höjden två rader i ALLA språk, oavsett hur långt någon
+   * översätter. Texterna är dessutom korta nog att inte kapas.
+   */
   const body = (
-    <span className="min-w-0 text-left">
+    <span className="min-w-0 flex-1 text-left">
       {/* Pro-raden var ett ensamt "∞" ett kort tag (2026-08-02) — det såg ut som
           ett renderingsfel bredvid "Förnyas nästa månad" och rullades tillbaka
           till text samma dag. */}
-      <span className="block text-sm font-semibold text-ink">
+      <span className="block truncate text-sm font-semibold text-ink">
         {/* Pro säljs som OBEGRÄNSAT — då ska ingen nedräkning visas. Taket i
             koden är ett skydd mot skenande loopar, inte en produktgräns, och en
             siffra här hade läst som "du har X kvar" av en kund som betalat för
             obegränsat. Träffas taket säger felmeddelandet det då det händer. */}
-        {isPremium ? t("scansUnlimited") : t("scansLeft", { count: remaining })}
+        {/* Vid noll läser "0 skanningar kvar" som en nedräkning som gick fel;
+            säg vad tillståndet ÄR i stället. */}
+        {isPremium
+          ? t("scansUnlimited")
+          : remaining <= 0
+            ? t("limitBadge")
+            : t("scansLeft", { count: remaining })}
       </span>
-      <span className="block text-xs text-ink-muted">
+      <span className="block truncate text-xs text-ink-muted">
         {isPremium ? t("renewsNextMonth") : t("tapForMore")}
       </span>
     </span>
