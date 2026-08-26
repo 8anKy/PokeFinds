@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { isRedisAvailable } from "@/lib/queue";
 import { formatRelative, formatDateTime, formatPrice } from "@/lib/format";
 import { getAdminOverview, STORE_CUT } from "@/services/admin/overview";
+import { getServiceCosts, type CostSource } from "@/services/admin/service-costs";
 import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
@@ -10,6 +11,8 @@ import { Link } from "@/i18n/navigation";
 import type { JobStatus } from "@prisma/client";
 import { PageBackButton } from "@/components/layout/page-back-button";
 import { FunnelChart } from "@/components/features/admin/funnel-chart";
+import { DonutChart, type DonutSlice } from "@/components/features/admin/donut-chart";
+import { CATEGORICAL, EVENT_SERIES, seriesLabel } from "@/components/features/admin/chart-palette";
 import {
   ActivityChartLazy,
   ScanChartLazy,
@@ -88,10 +91,29 @@ function Row({ label, value, hint }: { label: string; value: string; hint?: stri
   );
 }
 
+/**
+ * ⛔ TRE UTFALL, ALDRIG TVÅ. En saknad nyckel är "vi vet inte", inte "0 kr" —
+ * slås de ihop ser en dyr tjänst gratis ut. Felet visas med leverantörens egen
+ * text: en tyst nolla är det farliga utfallet i en kostnadsvy.
+ */
+function SourceState({ source, envHint }: { source: CostSource<unknown>; envHint?: boolean }) {
+  if (source.status === "ok") return null;
+  if (source.status === "not_configured") {
+    return (
+      <p className="text-xs text-ink-faint">
+        Ej konfigurerad — sätt <code className="text-ink-muted">{source.envVar}</code>.
+        {envHint && <span className="block">{source.note}</span>}
+      </p>
+    );
+  }
+  return <p className="text-xs text-fall">Kunde inte hämtas: {source.message}</p>;
+}
+
 export default async function AdminOverviewPage() {
-  const [overview, observationCount, productsWithoutOffers, latestObservation, latestJob, catalog] =
+  const [overview, costs, observationCount, productsWithoutOffers, latestObservation, latestJob, catalog] =
     await Promise.all([
       getAdminOverview(),
+      getServiceCosts(),
       prisma.priceObservation.count(),
       prisma.product.count({ where: { offers: { none: {} } } }),
       prisma.priceObservation.findFirst({
@@ -116,7 +138,8 @@ export default async function AdminOverviewPage() {
     ]);
 
   const [products, offers, retailers, jobs24h, failedJobs24h] = catalog;
-  const { users, revenue, reach, invites, activity, funnel, series, payingUsers } = overview;
+  const { users, revenue, reach, invites, activity, funnel, series, payingUsers, planMix, eventMix } =
+    overview;
   const redisOk = isRedisAvailable();
   const alertsPaused = restockAlertsPaused();
 
@@ -126,6 +149,85 @@ export default async function AdminOverviewPage() {
    * ut exakt så, och ingen siffra i den gamla översikten visade det.
    */
   const payingWithoutWatch = payingUsers.filter((u) => u.watchlistCount === 0).length;
+
+  // ── Ringdiagrammens data ────────────────────────────────────────────────
+  // ⛔ Färg per NYCKEL ur den fasta ordningen, aldrig per index i en filtrerad
+  //    lista — annars byter en kategori färg så fort en annan blir noll.
+  const PLAN_COLORS: Record<string, string> = {
+    paying: CATEGORICAL[0],
+    bonus: CATEGORICAL[1],
+    admin: CATEGORICAL[2],
+    free: "#6b7280",
+  };
+  const planSlices: DonutSlice[] = planMix.map((p) => ({
+    key: p.key,
+    label: p.label,
+    value: p.value,
+    color: PLAN_COLORS[p.key] ?? "#6b7280",
+  }));
+
+  const eventSlices: DonutSlice[] = eventMix.map((e) => ({
+    key: e.key,
+    label: seriesLabel(e.key),
+    value: e.value,
+    color: EVENT_SERIES.find((s) => s.key === e.key)?.color ?? "#6b7280",
+  }));
+
+  /**
+   * KOSTNADSRINGEN. ⛔ Bara poster vi HAR en siffra för får ligga i ringen — en
+   * okonfigurerad tjänst är inte 0 kr och skulle göra "andel av totalen" till en
+   * lögn. De saknade listas i stället under ringen.
+   */
+  const costSlices: DonutSlice[] = [];
+  const missingCosts: { label: string; source: CostSource<unknown> }[] = [];
+  const anthropicOre =
+    costs.anthropic.status === "ok" ? costs.anthropic.data.costOre : null;
+  // Anthropics FAKTISKA kostnad går före vår egen uträkning när båda finns —
+  // fakturan är facit. Utan admin-nyckel används liggarens Anthropic-post.
+  const ledgerAnthropic = costs.ledger.byProvider.find((b) => b.key === "anthropic");
+  const ledgerGoogle = costs.ledger.byProvider.find((b) => b.key === "google");
+
+  if (anthropicOre != null) {
+    costSlices.push({
+      key: "anthropic",
+      label: "Anthropic (faktisk)",
+      value: anthropicOre,
+      color: CATEGORICAL[0],
+      display: formatPrice(anthropicOre),
+    });
+  } else if (ledgerAnthropic && ledgerAnthropic.costOre > 0) {
+    costSlices.push({
+      key: "anthropic",
+      label: "Anthropic (vår uträkning)",
+      value: ledgerAnthropic.costOre,
+      color: CATEGORICAL[0],
+      display: formatPrice(ledgerAnthropic.costOre),
+    });
+  }
+  if (ledgerGoogle && ledgerGoogle.costOre > 0) {
+    costSlices.push({
+      key: "google",
+      label: "Google Gemini (vår uträkning)",
+      value: ledgerGoogle.costOre,
+      color: CATEGORICAL[1],
+      display: formatPrice(ledgerGoogle.costOre),
+    });
+  }
+  if (costs.neon.status === "ok") {
+    costSlices.push({
+      key: "neon",
+      label: "Neon (beräknad)",
+      value: costs.neon.data.costOre,
+      color: CATEGORICAL[2],
+      display: formatPrice(costs.neon.data.costOre),
+    });
+  } else {
+    missingCosts.push({ label: "Neon", source: costs.neon });
+  }
+  if (costs.anthropic.status !== "ok") {
+    missingCosts.push({ label: "Anthropic (faktisk kostnad)", source: costs.anthropic });
+  }
+  const costTotalOre = costSlices.reduce((sum, c) => sum + c.value, 0);
 
   return (
     <div className="space-y-6">
@@ -214,6 +316,151 @@ export default async function AdminOverviewPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Fördelningar (ringar) ───────────────────────────────────────── */}
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Kontofördelning</CardTitle>
+            <p className="text-sm text-ink-muted">
+              Varje konto tillhör exakt en grupp. Peka på ett segment för andelen.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <DonutChart
+              slices={planSlices}
+              centerLabel="konton"
+              centerValue={nf(users.total)}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Vad folk gör</CardTitle>
+            <p className="text-sm text-ink-muted">
+              Andel av alla händelser senaste 30 dygnen.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <DonutChart
+              slices={eventSlices}
+              centerLabel="händelser"
+              centerValue={nf(eventSlices.reduce((sum, e) => sum + e.value, 0))}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Kostnader ───────────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Kostnader denna månad</CardTitle>
+          <p className="text-sm text-ink-muted">
+            Från och med den 1:a (UTC). AI-kostnaden räknas ur API:ernas egna
+            tokental × leverantörens publicerade pris — samma uträkning som
+            kostnaden per användare.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {costSlices.length > 0 ? (
+            <DonutChart
+              slices={costSlices}
+              centerLabel="denna månad"
+              centerValue={formatPrice(costTotalOre)}
+            />
+          ) : (
+            <p className="text-sm text-ink-faint">Ingen mätbar kostnad ännu denna månad.</p>
+          )}
+
+          {/* ⛔ OMÄTT REDOVISAS ALLTID BREDVID BELOPPET. Rader utan tokental
+              (allt före 2026-08-14, plus modeller utan pris) är inte gratis —
+              de är okända, och utan raden ser notan lägre ut än den är. */}
+          {(costs.ledger.totalUnmeasured > 0 || costs.ledger.unpricedModels.length > 0) && (
+            <p className="text-xs text-holo-gold">
+              {nf(costs.ledger.totalUnmeasured)} anrop är OMÄTTA (saknar tokental) och
+              ingår inte i beloppet.
+              {costs.ledger.unpricedModels.length > 0 && (
+                <> Modeller utan pris: {costs.ledger.unpricedModels.join(", ")}.</>
+              )}
+            </p>
+          )}
+
+          <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">
+                Per funktion
+              </p>
+              {costs.ledger.byFeature.length === 0 ? (
+                <p className="text-sm text-ink-faint">Inga anrop ännu.</p>
+              ) : (
+                costs.ledger.byFeature.map((f) => (
+                  <Row
+                    key={f.key}
+                    label={f.label}
+                    value={formatPrice(f.costOre)}
+                    hint={`${nf(f.calls)} anrop${f.unmeasured > 0 ? ` · ${nf(f.unmeasured)} omätta` : ""}`}
+                  />
+                ))
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">
+                Infrastruktur
+              </p>
+              {costs.neon.status === "ok" ? (
+                <Row
+                  label="Neon (compute)"
+                  value={formatPrice(costs.neon.data.costOre)}
+                  hint={`${costs.neon.data.computeUnitHours.toFixed(1)} CU-timmar × $${costs.neon.data.cuHourUsd}/CU-h — vår uträkning, inte Neons faktura`}
+                />
+              ) : (
+                <div>
+                  <p className="text-sm text-ink-muted">Neon</p>
+                  <SourceState source={costs.neon} envHint />
+                </div>
+              )}
+              {costs.anthropic.status === "ok" ? (
+                <Row
+                  label="Anthropic (faktisk)"
+                  value={formatPrice(costs.anthropic.data.costOre)}
+                  hint="Från Anthropics Admin-API — fakturan, inte vår uträkning"
+                />
+              ) : (
+                <div>
+                  <p className="text-sm text-ink-muted">Anthropic (faktisk kostnad)</p>
+                  <SourceState source={costs.anthropic} envHint />
+                </div>
+              )}
+              {/* ⛔ UTREDD OCH OMÖJLIG — öppna inte frågan igen utan ny information.
+                  Se src/services/admin/service-costs.ts för källorna. */}
+              <div>
+                <p className="text-sm text-ink-muted">Kvarvarande krediter</p>
+                <p className="text-xs text-ink-faint">
+                  Finns inte att hämta: Anthropic har inget saldo-endpoint (bara
+                  konsolen), och Gemini är ingen förbetald kreditprodukt utan
+                  faktureras via Google Cloud.
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-ink-muted">Railway</p>
+                <p className="text-xs text-ink-faint">
+                  Deras kostnadsfråga finns i schemat men inte i den publika
+                  dokumentationen — läggs till när den introspekterats med en token.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {missingCosts.length > 0 && (
+            <p className="text-xs text-ink-faint">
+              Ringen visar bara poster vi har en siffra för. Saknade:{" "}
+              {missingCosts.map((m) => m.label).join(", ")} — de är inte 0 kr, de är okända.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ── Betalande ───────────────────────────────────────────────────── */}
       <Card>

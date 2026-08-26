@@ -90,3 +90,37 @@ paths:
   tratten: med ett enda `active` hann `onMouseEnter` slå på steget innan klicket kom fram, så klicket
   stängde av det igen och på datormus hände ingenting. ⚠️ recharts kör en ~1,5 s enter-animation —
   läser du DOM:en direkt efter ett filterklick ser staplarna ut att saknas.
+- **RINGDIAGRAM BARA FÖR ÄKTA DEL-AV-HELHET (2026-08-26)**:
+  `src/components/features/admin/donut-chart.tsx`. Tre lagliga fall i panelen —
+  kontofördelning (varje konto tillhör exakt EN grupp), aktivitetsmix (varje händelse har exakt
+  en typ) och kostnadsfördelning (varje krona hör till en tjänst). ⛔ **ALDRIG för tratten**:
+  de stegen är DELMÄNGDER av varandra, och en ring hade påstått att de summerar till 100 %.
+  ⛔ Aldrig två segment (sämre än två siffror) och aldrig för att jämföra närliggande värden —
+  vinklar är den svåraste visuella jämförelsen. ⛔ **Buckets måste vara ömsesidigt uteslutande**:
+  `planMix` räknar gratis som `total − betalande − bonus − admin`, och bonus-frågan filtrerar bort
+  staff OCH betalande — annars räknas ett konto två gånger och ringen visar >100 %.
+  Förklaringen bär alltid EXAKT värde + andel, så små segment går att läsa som tal.
+- **KOSTNADSVYN: VÅR EGEN LIGGARE FÖRST (2026-08-26)** —
+  `src/services/admin/service-costs.ts`. AI-kostnaden räknas ur API:ernas EGNA tokental ×
+  publicerat pris (samma uträkning som per-användare-vyn, bara summerad). Kräver ingen extern
+  nyckel och kostar inget att hämta. ⛔ **TRE UTFALL**: `ok` / `not_configured` (nyckeln saknas —
+  vi VET inte) / `error`. En okonfigurerad tjänst får ALDRIG ligga i ringen som 0 kr; den listas
+  under den som "okänd". ⛔ **OMÄTTA ANROP REDOVISAS BREDVID BELOPPET** — annars ser notan lägre
+  ut än den är.
+- **⛔ VAD SOM INTE GÅR ATT HÄMTA — UTREDD 2026-08-26, ÖPPNA INTE FRÅGAN IGEN**:
+  · **Anthropics kvarvarande kredit**: inget publikt endpoint. `GET /v1/organizations/balance`
+    ger 404; öppen feature request. Bara konsolen visar saldot. FAKTISK KOSTNAD går däremot att
+    hämta: `GET /v1/organizations/cost_report`, header `x-api-key` + `anthropic-version`, och
+    kräver en **ADMIN-nyckel** (`sk-ant-admin01-…`) — den vanliga API-nyckeln ger 401.
+    ⛔ `amount` är CENT som decimalsträng, inte dollar: `"123.45"` = 1,2345 USD. Tolkas den som
+    dollar blir notan 100× för hög, tyst. Vaktat av `tests/unit/admin-costs.test.ts`.
+  · **Geminis kvarvarande kredit**: begreppet finns inte — Gemini faktureras via Google Cloud
+    Billing, inte som förbetalda krediter, och faktisk förbrukning kräver BigQuery-export
+    (Budget-API:t ger budgeten, inte utfallet). Vår egen liggare är enda ärliga Gemini-talet.
+  · **Neon**: `GET console.neon.tech/api/v2/consumption_history/account`, `Bearer $NEON_API_KEY`,
+    kräver betald plan. ⛔ Returnerar FÖRBRUKNING (`compute_time_seconds`), aldrig kronor —
+    priset per CU-timme beror på planen och står inte i svaret, därav `NEON_CU_HOUR_USD`.
+    Beloppet är alltså VÅR uträkning och märks som sådan. Hitta aldrig på ett pris som ser
+    rimligt ut.
+  · **Railway**: `usage`/`estimatedUsage` finns i schemat men INTE i publik dokumentation. En
+    gissad fråga hade blivit en tyst trasig integration — introspektera med en riktig token först.

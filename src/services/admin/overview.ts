@@ -105,7 +105,17 @@ export async function getAdminOverview() {
     prisma.user.count({ where: payingUserWhere(now) }),
     prisma.user.count({ where: { ...payingUserWhere(now), planTier: "PREMIUM" } }),
     prisma.user.count({ where: { ...payingUserWhere(now), stripeProUntil: { gt: now } } }),
-    prisma.user.count({ where: { bonusProUntil: { gt: now } } }),
+    // ⛔ MÅSTE VARA ÖMSESIDIGT UTESLUTANDE — ringen påstår att delarna summerar
+    //    till helheten. Ett konto med både bonus och betalning hade annars
+    //    räknats två gånger och fått ringen att visa >100 %.
+    prisma.user.count({
+      where: {
+        role: { notIn: ["ADMIN", "SUPERADMIN"] },
+        planTier: { not: "PREMIUM" },
+        stripeProUntil: null,
+        bonusProUntil: { gt: now },
+      },
+    }),
     prisma.user.count({ where: { role: { in: ["ADMIN", "SUPERADMIN"] } } }),
     prisma.invite.count(),
     prisma.invite.count({ where: { usedById: { not: null } } }),
@@ -242,7 +252,36 @@ export async function getAdminOverview() {
     },
   ];
 
+  /**
+   * PLANFÖRDELNING — en partition av ALLA konton, inte överlappande mängder.
+   * Gratis räknas ut som resten så summan alltid blir `users`; en direkt
+   * count hade kunnat glida isär med de tre andra och ge en ring som inte går
+   * ihop.
+   */
+  const planMix = [
+    { key: "paying", label: "Betalande", value: paying },
+    { key: "bonus", label: "Gratis Pro (inbjudningar)", value: bonusPro },
+    { key: "admin", label: "Admin", value: adminPro },
+    {
+      key: "free",
+      label: "Gratiskonto",
+      value: Math.max(0, users - paying - bonusPro - adminPro),
+    },
+  ];
+
+  /** Händelsemix senaste 30 dygnen — varje händelse har exakt EN typ. */
+  const eventCutoff = d30.toISOString().slice(0, 10);
+  const eventMix = new Map<string, number>();
+  for (const row of eventSeries) {
+    if (row.date < eventCutoff) continue;
+    eventMix.set(row.eventType, (eventMix.get(row.eventType) ?? 0) + row.value);
+  }
+
   return {
+    planMix,
+    eventMix: [...eventMix.entries()]
+      .map(([key, value]) => ({ key, value }))
+      .sort((a, b) => b.value - a.value),
     users: {
       total: users,
       new7d: usersNew7d,
