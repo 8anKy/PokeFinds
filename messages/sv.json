@@ -920,7 +920,13 @@
     "zoomCardHint": "Ca {count} kort",
     "bulkNoCards": "Inga kort hittades — fota rakt uppifrån, med lite mellanrum, mot en enfärgad yta",
     "bulkBusySurface": "Underlaget går inte att skilja från korten — lägg dem på en enfärgad yta som når bildens kanter",
-    "bulkFound": "Hittade {count} kort"
+    "bulkFound": "Hittade {count} kort",
+    "whichCard": "Vilket kort är det?",
+    "whichCardHelp": "Flera kort ligger för nära för att vi ska kunna påstå ett svar. Välj rätt kort — då blir priset och samlingen rätt.",
+    "noneOfThese": "Inget av dem",
+    "pendingChoiceSuffix": "{count} väntar på val",
+    "chooseFirstN": "Välj kort ({count})",
+    "holdStill": "Håll stilla"
   },
   "Grading": {
     "h1": "Gradera kort",

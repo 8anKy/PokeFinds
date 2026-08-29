@@ -27,6 +27,7 @@ import {
   structFingerprintFromRgb,
 } from "@/lib/art-fingerprint";
 import { foilProbeFromRgb, type FoilSample } from "@/lib/foil-probe";
+import { frameSharpness, SHARP_AUTO_MIN } from "@/lib/frame-sharpness";
 import { classifyDrag, shouldCloseSheet } from "@/lib/sheet-drag";
 import { useEventCallback } from "@/hooks/use-event-callback";
 import {
@@ -123,6 +124,9 @@ interface IdentifyResponse {
   artTopLabel: string | null;
   /** Flera OLIKA kort ligger praktiskt taget lika — ingen träff går att påstå. */
   ambiguous: boolean;
+  /** De två bästa OLIKA korten är i praktiken OAVGJORDA. Smalare än `ambiguous`
+   *  — det är den här som får FRÅGA, se TIE_MARGIN i services/scanner/index.ts. */
+  tied?: boolean;
   remaining?: number;
   /** Admin: skanningens jobb-id — gör användarens korrigering till facit. */
   jobId?: string | null;
@@ -134,7 +138,29 @@ interface ScanQuota {
   isPremium: boolean;
 }
 
-type ScanStatus = "identifying" | "matched" | "nomatch" | "error";
+/**
+ * ⛔ **"choose" ÄR NYTT (2026-08-29) OCH VÄNDER ETT BESLUT FRÅN 2026-07-30.**
+ *
+ * Förut fanns bara ett svar: låg flera OLIKA kort praktiskt taget lika visades
+ * ändå TOPPEN, märkt med ett gult "?". Motiveringen var mätt och rimlig — första
+ * versionen svarade "ingen träff" i de lägena och det var sämre än en märkt
+ * gissning. Men det var ett val mellan GISSNING och INGENTING; en LISTA var
+ * aldrig på bordet, och skillnaden är avgörande av två skäl:
+ *
+ * 1. En tyst gissning felprissätter samlingen. Tryckning bär riktiga pengar
+ *    (Team Rocket 1st Ed 7 537 kr mot 3 254 kr).
+ * 2. **Ett val ÄR facit.** Mätt 2026-08-29 fick 54 % av alla mätrader ingen dom
+ *    alls, och av 649 domar var bara 2 korrigeringar — grinden "korrigerade
+ *    topp-3 ≥ 95 %" har därför varit outvärderingsbar i två veckor. Att FRÅGA
+ *    när vi är osäkra är den enda vägen som producerar starkt facit som
+ *    biprodukt av normal användning, i stället för att vänta på att någon
+ *    självmant öppnar ett ark de inte vet finns.
+ *
+ * ⚠️ Hur ofta läget fyrar är ÄNNU OMÄTT — `ambiguous` har styrt det gula "?"
+ * sedan 2026-07-30 utan att någonsin bokföras. Flaggan skrivs nu som
+ * `recall.amb`; läs frekvensen innan tröskeln (MATCH_MARGIN_MIN) rörs.
+ */
+type ScanStatus = "identifying" | "matched" | "choose" | "nomatch" | "error";
 
 interface ScanItem {
   id: string;
@@ -156,25 +182,75 @@ interface ScanItem {
 }
 
 /**
- * Användarens eget val ÄR facit — rapportera det (eld-och-glöm, admin-only).
- * En korrigering i kandidatlistan betyder att användaren tittat på det fysiska
- * kortet och pekat ut rätt rad; en oförändrad tillägg-till-samlingen är en
- * bekräftelse. Bägge landar i admin-diagnostiken och läses av scoreboardet —
- * utan detta försvann rättelsen i klienten och facit fick skrivas för hand.
+ * Användarens eget val ÄR facit — rapportera det (eld-och-glöm, för ALLA sedan
+ * 2026-08-15). En korrigering i kandidatlistan betyder att användaren tittat på
+ * det fysiska kortet och pekat ut rätt rad; en oförändrad tillägg-till-samlingen
+ * är en bekräftelse. Utan detta försvann rättelsen i klienten.
+ *
+ * ⛔ **`via` ÄR INTE VALFRI I PRAKTIKEN — UTAN DEN MÄTER HINKEN FEL SAK.** Mätt
+ * 2026-08-29: 83,4 % av alla domar kom ur ETT tryck på "Lägg till alla", och de
+ * innehöll NOLL korrigeringar (0 av 454, mot 2 av 50 aktiva val). Hinken kan
+ * alltså bara säga ja. ⚠️ Skillnaden i RECALL är däremot liten inom samma
+ * stratum — 6,6 p.e. på topp-1 — så argumentet är uppmärksamhet, inte
+ * träffsäkerhet. Skickas ingen `via` går de två inte att skilja i efterhand
+ * annat än med skurgissning på tidsstämplarna. Sätt den vid varje anropsställe.
  */
 function reportScanFeedback(
   jobId: string | null | undefined,
-  cardId: string,
-  kind: "corrected" | "confirmed"
+  cardId: string | null,
+  kind: "corrected" | "confirmed" | "rejected" | "searched",
+  extra?: {
+    via?: "pick" | "bulk" | "auto";
+    productId?: string | null;
+    /** Samma kort, annan tryckning — en äkta rättelse av PRODUKTEN, inte av kortet. */
+    variantChanged?: boolean;
+    /** 1-baserad plats i den visade listan. 0 = inte vald därifrån. */
+    rank?: number;
+  }
 ) {
   if (!jobId) return;
   fetch("/api/scanner/feedback", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ jobId, cardId, kind }),
+    body: JSON.stringify({
+      jobId,
+      ...(cardId ? { cardId } : {}),
+      kind,
+      ...(extra?.via ? { via: extra.via } : {}),
+      ...(extra?.productId ? { productId: extra.productId } : {}),
+      ...(extra?.variantChanged ? { variantChanged: true } : {}),
+      ...(extra?.rank != null ? { rank: extra.rank } : {}),
+    }),
   }).catch(() => {
     // Facit är trevligt att ha, aldrig värt ett felmeddelande i skannerflödet.
   });
+}
+
+/**
+ * Vad valsteget erbjuder. ⛔ **EN POST PER KORT, inte per tryckning.**
+ *
+ * Frågan här är "vilket KORT är det?" — tryckningen väljs efteråt i
+ * variantväljaren, som redan finns och är byggd för just det. Utan dedupen
+ * fylls raden av tre likadana Base-Charizard och det verkliga alternativet
+ * skjuts utanför skärmen. Samma misstag som `pickAlternatives` gör tvärtom och
+ * med flit (där ÄR tryckningen frågan).
+ *
+ * Taket är 6: raden ska gå att överblicka i ett svep. Mätt 2026-08-29 ligger
+ * 96,1 % av de kort bilden faktiskt hittar på plats 1–5 och bara 3,9 % på
+ * plats 6–15 — svansen är tom, så ett högre tak köper ingenting.
+ */
+const CHOOSE_OPTIONS_MAX = 6;
+
+function chooseOptions(candidates: Candidate[]): Candidate[] {
+  const seen = new Set<string>();
+  const out: Candidate[] = [];
+  for (const c of candidates) {
+    if (seen.has(c.cardId)) continue;
+    seen.add(c.cardId);
+    out.push(c);
+    if (out.length >= CHOOSE_OPTIONS_MAX) break;
+  }
+  return out;
 }
 
 const CONDITIONS = [
@@ -286,6 +362,9 @@ function captureFrame(
   /** FOLIESOND (base64) ur samma pixelläsning — instrumentering, påverkar inget
    *  i matchningen. Se src/lib/foil-probe.ts. */
   probe: string | null;
+  /** Normaliserad medelgradient på kortytan — fångstkvalitet, se
+   *  src/lib/frame-sharpness.ts. Null när den inte gick att räkna. */
+  sharpness: number | null;
   stripDataUrl?: string;
   crop: string;
 } | null {
@@ -377,6 +456,9 @@ function captureFrame(
   // och den kostar en linjär genomgång till av pixlar vi ändå läst.
   const probeBytes = foilProbeFromRgb(fpPixels, fpW, fpH, 4);
   const probe = probeBytes ? toB64(probeBytes) : null;
+  // FÅNGSTKVALITET ur exakt samma pixlar — en linjär genomgång till, ingen ny
+  // `getImageData`. Se src/lib/frame-sharpness.ts för varför den mäts alls.
+  const sharpness = frameSharpness(fpPixels, fpW, fpH, 4);
   for (const inset of FINGERPRINT_INSETS) {
     const fp = fingerprintFromRgb(fpPixels, fpW, fpH, 4, inset);
     const sfp = structFingerprintFromRgb(fpPixels, fpW, fpH, 4, inset);
@@ -435,7 +517,7 @@ function captureFrame(
   }
 
   if (fpOnly) {
-    return { dataUrl: "", fingerprints, structFingerprints, probe, crop: "" };
+    return { dataUrl: "", fingerprints, structFingerprints, probe, sharpness, crop: "" };
   }
 
   // Bilden till modellen: MED marginal, så ett snett kort inte tappar numret.
@@ -474,6 +556,7 @@ function captureFrame(
     fingerprints,
     structFingerprints,
     probe,
+    sharpness,
     stripDataUrl,
     // Utsnitt i KÄLLpixlar → skickad storlek. Står källan under den skickade
     // storleken skalar vi UPP, dvs modellen får interpolerade pixlar och ingen
@@ -779,7 +862,11 @@ function Scanner() {
     name: string;
     number: string;
     locked: boolean;
+    /** Rutan är för suddig för att auto-trycka av. Se src/lib/frame-sharpness.ts. */
+    blurry: boolean;
   } | null>(null);
+  /** Senaste live-pollens skärpa — följer med fångsten upp som mätdata. */
+  const lastSharpness = useRef<number | null>(null);
   const liveStreak = useRef<{ id: string; n: number }>({ id: "", n: 0 });
   const livePollBusy = useRef(false);
   /** De senaste live-pollarnas foliesonder (äldst först, max 5 ≈ 3 s). */
@@ -804,6 +891,9 @@ function Scanner() {
 
   const [addingAll, setAddingAll] = useState(false);
   const [addedCount, setAddedCount] = useState<number | null>(null);
+  /** Har brickan redan lagts till? Läses av `removeScan`, som har tomma
+   *  beroenden — en state-läsning där hade varit inaktuell. */
+  const addedRef = useRef(false);
   const [quota, setQuota] = useState<ScanQuota | null>(null);
   /** Betalväggen när gratiskvoten tar slut. Öppnas av 429 ELLER av slutaren. */
   const [limitOpen, setLimitOpen] = useState(false);
@@ -832,6 +922,16 @@ function Scanner() {
     () => scans.filter((s) => s.status === "nomatch" || s.status === "error").length,
     [scans]
   );
+  /**
+   * Skanningar som väntar på ett VAL. ⛔ De blockerar "Lägg till alla" med flit:
+   * ett masstryck som tyst hoppar över de osäkra korten hade gjort valsteget till
+   * en fälla — användaren tror att allt lades till, och de kort vi var minst säkra
+   * på är precis de som försvinner. Knappen ska säga vad som återstår i stället.
+   */
+  const pendingChoice = useMemo(
+    () => scans.filter((s) => s.status === "choose").length,
+    [scans]
+  );
   const total = useMemo(
     () =>
       matched.reduce(
@@ -849,7 +949,9 @@ function Scanner() {
       strip?: string,
       fingerprintFrames?: string[][],
       structFrames?: string[][],
-      foil?: FoilSample
+      foil?: FoilSample,
+      /** Fångstkvalitet, se src/lib/frame-sharpness.ts. Ren mätdata. */
+      sharp?: number | null
     ): Promise<IdentifyResponse | { error: string; httpStatus?: number }> => {
       try {
         // Standard = billiga Haiku-modellen (ingen `precise`) — håller scan-kostnaden
@@ -867,6 +969,12 @@ function Scanner() {
             // Instrumentering (foliefrågan). Servern lagrar den bara för admin
             // och den påverkar ingenting i svaret — se src/lib/foil-probe.ts.
             foil,
+            // FÅNGSTKVALITET — påverkar heller ingenting i svaret, men bokförs
+            // för ALLA (recall.sharp). ⛔ Utan den går tröskeln SHARP_AUTO_MIN
+            // inte att sätta på en fördelning, bara på en gissning — och exakt
+            // det felet gjorde att vi trodde 79 % av skanningarna var gratis när
+            // produktionen låg på 30,5 %.
+            ...(sharp != null ? { sharp } : {}),
           }),
         });
         const data = (await res.json()) as IdentifyResponse & { error?: string };
@@ -891,9 +999,17 @@ function Scanner() {
       strip?: string,
       fingerprintFrames?: string[][],
       structFrames?: string[][],
-      foil?: FoilSample
+      foil?: FoilSample,
+      sharp?: number | null
     ) => {
-      const data = await runIdentify(dataUrl, strip, fingerprintFrames, structFrames, foil);
+      const data = await runIdentify(
+        dataUrl,
+        strip,
+        fingerprintFrames,
+        structFrames,
+        foil,
+        sharp
+      );
       if (!("error" in data) && typeof data.remaining === "number") {
         const r = data.remaining;
         setQuota((q) => (q ? { ...q, remaining: r } : q));
@@ -927,6 +1043,36 @@ function Scanner() {
           // (Första versionen gjorde tvärtom och de flesta kort blev "ingen
           // träff", vilket är sämre än en märkt gissning.)
           if (top && data.confidence >= MIN_MATCH_CONF) {
+            // ⛔ MEN ETT "?" ÄR INTE ETT VAL. Är de två bästa OLIKA korten i
+            // praktiken oavgjorda har vi inget svar att påstå — då frågar vi i
+            // stället för att gissa och märka gissningen. Se ScanStatus ovan för
+            // varför beslutet från 2026-07-30 vändes.
+            // ⛔ **VILLKORET ÄR `tied`, INTE `ambiguous`.** `ambiguous` (0,05)
+            // MÄRKER en gissning och är generös med flit; att FRÅGA på samma
+            // tröskel provades 2026-07-30 och gjorde att "de flesta kort blev
+            // 'ingen träff'" (commit 8c7529c vände det). `tied` (0,01) fångar
+            // det uppmätta läget där svaret är ren tärningskastning — nio
+            // Gyarados på exakt 1,000. ⚠️ Frekvensen är ÄNNU OMÄTT; `recall.amb`
+            // börjar bokföras nu. Läs den innan tröskeln rörs.
+            // ⚠️ Kräver ≥2 olika KORT, inte ≥2 kandidater: en lista som bara
+            // innehåller tryckningar av samma kort är inget val mellan kort, och
+            // variantväljaren i raden hanterar den frågan bättre.
+            const distinctCards = new Set(data.candidates.map((c) => c.cardId)).size;
+            if (data.tied && distinctCards >= 2) {
+              return {
+                ...s,
+                status: "choose",
+                // ⛔ INGEN FÖRVALD TRÄFF. Sätts `match` här smyger vi tillbaka
+                // en vinnare, och då är valet en formalitet användaren trycker
+                // förbi — vilket är exakt hur "Lägg till alla" blev 82 % av
+                // vårt facit utan att någon granskat ett kort.
+                match: null,
+                candidates: data.candidates,
+                confidence: data.confidence,
+                uncertain: true,
+                jobId: data.jobId ?? null,
+              };
+            }
             return {
               ...s,
               status: "matched",
@@ -1176,14 +1322,34 @@ function Scanner() {
           if (s.id !== top.cardId) autoFired.current = null;
           liveStreak.current =
             s.id === top.cardId ? { id: s.id, n: s.n + 1 } : { id: top.cardId, n: 1 };
+          // ⛔ FÅNGSTKVALITETEN ÄR EN EGEN GRIND, OBEROENDE AV MATCHNINGEN.
+          // Låset kräver att BILDMATCHNINGEN är stabil och säker — men en
+          // rörelsesuddig ruta kan mycket väl ge tre stabila träffar på FEL
+          // kort, och då fyrar auto-slutaren på en fångst ingen människa hade
+          // tryckt av på. Mätt 2026-08-29 är takten den enda felkällan i datan
+          // med en mekanism: < 1,5 s mellan skanningar ger 34,1 % missar mot
+          // 15,3 % vid > 60 s, och gradienten håller inom BÅDA de tunga
+          // användarna. Se src/lib/frame-sharpness.ts.
+          const sharp = shot.sharpness;
+          lastSharpness.current = sharp;
+          // Null = måttet gick inte att räkna (för liten yta, helt svart ruta).
+          // ⛔ Behandla det som "vet inte", inte som "suddig": att blockera på ett
+          // uteblivet mått hade gjort auto-fångsten oberäknelig på enheter där
+          // ytan råkar bli liten.
+          const blurry = sharp != null && sharp < SHARP_AUTO_MIN;
           const locked = liveStreak.current.n >= 3 && d?.confident === true;
-          lockedPolls.current = locked ? lockedPolls.current + 1 : 0;
-          setLiveHint({ name: top.name, number: top.number, locked });
+          lockedPolls.current = locked && !blurry ? lockedPolls.current + 1 : 0;
+          setLiveHint({ name: top.name, number: top.number, locked, blurry });
           // AUTO-FÅNGST: låset har hållit ≥2 pollar efter att det tändes, och
           // det här kortet har inte redan auto-fångats. Kvot-slut auto-trycker
           // inte (bara toast-spam annars); manuellt tryck funkar som vanligt.
+          // ⛔ `!blurry` grindar BARA den här automatiken. Ett manuellt tryck går
+          // alltid igenom — en kamera som vägrar fotografera är trasig, inte
+          // försiktig, och tröskeln är ännu okalibrerad (talet bokförs nu för
+          // att kunna sättas på en fördelning i stället för på en gissning).
           if (
             locked &&
+            !blurry &&
             lockedPolls.current >= 3 &&
             autoFired.current !== top.cardId &&
             (quotaRef.current == null || quotaRef.current.remaining > 0)
@@ -1317,7 +1483,8 @@ function Scanner() {
       strip?: string,
       fingerprintFrames?: string[][],
       structFrames?: string[][],
-      foil?: FoilSample
+      foil?: FoilSample,
+      sharp?: number | null
     ) => {
       const id = nextId();
       setScans((prev) => [
@@ -1335,7 +1502,7 @@ function Scanner() {
           language: defaultLanguage,
         },
       ]);
-      void identifyInto(id, dataUrl, strip, fingerprintFrames, structFrames, foil);
+      void identifyInto(id, dataUrl, strip, fingerprintFrames, structFrames, foil, sharp);
     },
     [defaultCondition, defaultLanguage, identifyInto]
   );
@@ -1373,29 +1540,48 @@ function Scanner() {
         body: JSON.stringify({ gtin }),
       })
         .then((r) => r.json())
-        .then((d: { found?: boolean; match?: Candidate | null; remaining?: number }) => {
-          if (typeof d.remaining === "number") {
-            const r = d.remaining;
-            setQuota((q) => (q ? { ...q, remaining: r } : q));
+        .then(
+          (d: {
+            found?: boolean;
+            match?: Candidate | null;
+            remaining?: number;
+            /** ⛔ Servern har returnerat den här sedan 2026-08-18 — klienten läste
+             *  den aldrig, så `s.jobId` förblev undefined och `reportScanFeedback`
+             *  returnerade direkt. En användare som rättade en felmappad
+             *  streckkodsträff fick rättelsen tyst bortkastad. Exakt samma bugg som
+             *  0db70e3 (bulk-vägens facit), och den enda anledningen att förlusten
+             *  var NOLL är att 0 streckkodsrader skrevs efter 08-18. */
+            jobId?: string | null;
+          }) => {
+            if (typeof d.remaining === "number") {
+              const r = d.remaining;
+              setQuota((q) => (q ? { ...q, remaining: r } : q));
+            }
+            setScans((prev) =>
+              prev.map((s) =>
+                s.id !== id
+                  ? s
+                  : d.found && d.match
+                    ? {
+                        ...s,
+                        status: "matched",
+                        match: d.match,
+                        candidates: [d.match],
+                        confidence: 1,
+                        jobId: d.jobId ?? null,
+                      }
+                    : // Koden lästes RÄTT men finns inte i katalogen — det är inte
+                      // ett fel i skanningen, och felmeddelandet ska säga just det.
+                      {
+                        ...s,
+                        status: "nomatch",
+                        errorMessage: t("barcodeNotFound"),
+                        jobId: d.jobId ?? null,
+                      }
+              )
+            );
           }
-          setScans((prev) =>
-            prev.map((s) =>
-              s.id !== id
-                ? s
-                : d.found && d.match
-                  ? {
-                      ...s,
-                      status: "matched",
-                      match: d.match,
-                      candidates: [d.match],
-                      confidence: 1,
-                    }
-                  : // Koden lästes RÄTT men finns inte i katalogen — det är inte
-                    // ett fel i skanningen, och felmeddelandet ska säga just det.
-                    { ...s, status: "nomatch", errorMessage: t("barcodeNotFound") }
-            )
-          );
-        })
+        )
         .catch(() => {
           setScans((prev) =>
             prev.map((s) =>
@@ -1488,6 +1674,11 @@ function Scanner() {
     const structFrames: string[][] = shot.fingerprints.length
       ? [shot.structFingerprints]
       : [];
+    // FÅNGSTKVALITETEN TAS SOM MAX ÖVER RUTORNA, aldrig som medelvärde — av
+    // exakt samma skäl som servern tar varje korts BÄSTA likhet över insetsvepet:
+    // bara EN ruta är den avgörande, och ett medelvärde drar ner den med brus
+    // från de rutor som råkade fångas mitt i en rörelse.
+    const sharps: number[] = shot.sharpness != null ? [shot.sharpness] : [];
     let taken = 1;
     const grabNext = () => {
       if (taken >= CAPTURE_FRAMES) {
@@ -1499,7 +1690,8 @@ function Scanner() {
           // Sonden för DEN fångade rutan + live-pollens sonder (600 ms isär).
           // Historiken tas som den är: den beskriver de sista sekunderna av
           // samma scen, vilket ÄR den temporala signalen.
-          shot.probe ? { probe: shot.probe, history: [...probeHistory.current] } : undefined
+          shot.probe ? { probe: shot.probe, history: [...probeHistory.current] } : undefined,
+          sharps.length ? Math.max(...sharps) : null
         );
         // Nollställ efter användning: nästa korts första skanning får INTE bära
         // sonder från det förra kortets scen — då mäter den temporala signalen
@@ -1516,6 +1708,7 @@ function Scanner() {
         if (extra?.fingerprints.length) {
           frames.push(extra.fingerprints);
           structFrames.push(extra.structFingerprints);
+          if (extra.sharpness != null) sharps.push(extra.sharpness);
         }
         grabNext();
       });
@@ -1729,7 +1922,27 @@ function Scanner() {
   }, []);
 
   const removeScan = useCallback((id: string) => {
-    setScans((prev) => prev.filter((s) => s.id !== id));
+    setScans((prev) => {
+      // ⛔ ATT RADERA ÄR OCKSÅ ETT SVAR — och det kastades tyst till 2026-08-29.
+      // En raderad skanning betyder "det här dög inte", vilket är facit av precis
+      // den sort bekräftelsehinken saknar: den är anrikad med de SVÅRA fallen.
+      // 54 % av alla mätrader saknade dom helt, och den som inte hittar sitt kort
+      // ger upp — det här stänger en del av det hålet.
+      //
+      // ⛔ **MEN INTE EFTER ATT BRICKAN LAGTS TILL.** Är korten redan i samlingen
+      // är ett tryck på "Ta bort" en STÄDNING av remsan, inte ett underkännande —
+      // och eftersom "rejected" väger tyngre än "confirmed" hade det skrivit över
+      // en riktig bekräftelse med sin motsats. Ett facit som betyder olika saker
+      // före och efter ett knapptryck är värre än inget facit.
+      const s = addedRef.current ? undefined : prev.find((x) => x.id === id);
+      if (s) {
+        reportScanFeedback(s.jobId, s.match?.cardId ?? null, "rejected", {
+          via: "pick",
+          productId: s.match?.productId,
+        });
+      }
+      return prev.filter((x) => x.id !== id);
+    });
     setDetailsId((d) => (d === id ? null : d));
   }, []);
 
@@ -1737,15 +1950,35 @@ function Scanner() {
     setScans((prev) =>
       prev.map((s) => {
         if (s.id !== id) return s;
-        // ANVÄNDARENS VAL ÄR FACIT: valde hen ett ANNAT kort än skannerns är
+        // ANVÄNDARENS VAL ÄR FACIT: valde hen ett ANNAT KORT än skannerns är
         // det en korrigering (hen tittar på det fysiska kortet); samma kort =
         // bekräftelse. (Sidoeffekt i updatern: kan dubbelköras i dev-StrictMode
         // — servern skriver samma värde idempotent, så det är ofarligt.)
-        reportScanFeedback(
-          s.jobId,
-          cand.cardId,
-          cand.cardId === s.match?.cardId ? "confirmed" : "corrected"
-        );
+        //
+        // ⛔ **JÄMFÖRELSEN GÖRS PÅ KORTET, MEN TRYCKNINGEN MÅSTE ÄNDÅ MED.**
+        // Raden expanderar VARIANTER till egna poster som delar `cardId`, så ett
+        // byte ordinarie → reverse holo träffade `cardId === cardId` och skrevs
+        // som "confirmed". Mätt 2026-08-29: i 378 av 649 domar (58,2 %) hade
+        // raden exakt ETT kort men flera varianter — dvs i majoriteten av fallen
+        // var den enda NÅBARA rättelsen också den enda som mislabelades.
+        // ⛔ Men den får INTE bli en "corrected": ett variantbyte bär samma
+        // `cardId` och därmed samma artRank som en bekräftelse, så det skulle
+        // kontaminera korrigeringshinken precis som `src: "art"` gjorde. Den
+        // bokförs som en EGEN signal (`variantChanged`).
+        const sameCard = cand.cardId === s.match?.cardId;
+        reportScanFeedback(s.jobId, cand.cardId, sameCard ? "confirmed" : "corrected", {
+          via: "pick",
+          productId: cand.productId,
+          variantChanged: sameCard && cand.productId !== s.match?.productId,
+          // ⛔ PLATSEN I SERVERNS KANDIDATLISTA, INTE I SVEP-RADEN — och det är
+          // med flit. Raden är omsorterad (sameArt → artRank → namn → poäng) och
+          // variantexpanderad, så dess index går inte att jämföra med något.
+          // `s.candidates` ÄR listan som bokförs som `recall.shown`, alltså den
+          // enda rang som går att ställa mot bildens egen topplista i rapporten.
+          // Utan den går "vi hade rätt kort på plats 2" inte att skilja från
+          // "plats 9". 0 = kortet fanns inte i listan alls.
+          rank: s.candidates.findIndex((c) => c.cardId === cand.cardId) + 1,
+        });
         // Användaren valde själv ur listan → inte längre en gissning.
         return { ...s, status: "matched", match: cand, uncertain: false };
       })
@@ -1784,13 +2017,24 @@ function Scanner() {
           ok += 1;
           // Oförändrad i samlingen = bekräftat facit (servern vaktar så att en
           // tidigare KORRIGERING aldrig degraderas till bekräftelse).
-          reportScanFeedback(s.jobId, s.match!.cardId, "confirmed");
+          //
+          // ⛔ **`via: "bulk"` ÄR DET SOM GÖR DEN HÄR RADEN LÄSBAR.** Ett tryck
+          // här skickar EN bekräftelse per kort i hela brickan — användaren har
+          // inte tittat på det enskilda kortet. Mätt 2026-08-29: sådana rader var
+          // 83,4 % av allt facit och innehöll NOLL korrigeringar (0 av 454, mot
+          // 2 av 50 aktiva val). Summeras de med de granskade valen mäter
+          // rapporten knapptryckningsfrekvens i stället för träffsäkerhet.
+          reportScanFeedback(s.jobId, s.match!.cardId, "confirmed", {
+            via: "bulk",
+            productId: s.match!.productId,
+          });
         }
       } catch {
         /* fortsätt med nästa */
       }
     }
     setAddingAll(false);
+    addedRef.current = true;
     setAddedCount(ok);
     toast({
       title: ok === matched.length ? t("addedAllTitle") : t("addedPartialTitle"),
@@ -1884,16 +2128,20 @@ function Scanner() {
           scans={scans}
           matchedCount={matched.length}
           noMatchCount={noMatchCount}
+          pendingChoice={pendingChoice}
           total={total}
           addingAll={addingAll}
           addedCount={addedCount}
           onPatch={patchScan}
           onRemove={removeScan}
+          onChoose={chooseCandidate}
           onOpenDetails={setDetailsId}
           onAddAll={() => void addAll()}
           onScanMore={() => {
             setScans([]);
             setAddedCount(null);
+            // Ny bricka ⇒ raderingar är återigen ett underkännande, inte städning.
+            addedRef.current = false;
             setView("capture");
           }}
           onClose={closeScanner}
@@ -2133,7 +2381,7 @@ function CaptureView(props: {
   onZoom: (p: ZoomPreset) => void;
   /** Live-bildmatchningens bästa gissning (chippen under ramen). Ren data —
    *  kortnamn + nummer — så ingen ny copy/översättning behövs. */
-  liveHint: { name: string; number: string; locked: boolean } | null;
+  liveHint: { name: string; number: string; locked: boolean; blurry: boolean } | null;
   cameraState: CameraState;
   cameraError: string;
   flash: boolean;
@@ -2252,13 +2500,25 @@ function CaptureView(props: {
               <div
                 className={cn(
                   "absolute -bottom-9 left-1/2 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold backdrop-blur transition-colors",
-                  props.liveHint.locked
-                    ? "bg-holo-cyan text-black"
-                    : "bg-black/60 text-ink ring-1 ring-white/15"
+                  props.liveHint.blurry
+                    ? "bg-holo-gold text-black"
+                    : props.liveHint.locked
+                      ? "bg-holo-cyan text-black"
+                      : "bg-black/60 text-ink ring-1 ring-white/15"
                 )}
               >
-                {props.liveHint.locked && <IconCheck size={13} />}
-                {props.liveHint.name} #{props.liveHint.number}
+                {/* ⛔ SUDDIGT SLÅR LÅST I CHIPPET. Ett grönt lås på en ruta vi
+                    just vägrat auto-trycka av på är motsägelsefullt — och det
+                    enda användaren kan GÖRA något åt är skärpan. Beskedet ska
+                    säga vad handen ska göra, inte vad matchningen tycker. */}
+                {props.liveHint.blurry ? (
+                  t("holdStill")
+                ) : (
+                  <>
+                    {props.liveHint.locked && <IconCheck size={13} />}
+                    {props.liveHint.name} #{props.liveHint.number}
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -2558,6 +2818,15 @@ function ScanStrip({
                     {s.match.estimatedValue != null ? formatPrice(s.match.estimatedValue) : "–"}
                   </span>
                 </>
+              ) : s.status === "choose" ? (
+                /* ⛔ ETT VÄNTANDE VAL ÄR INTE EN MISS. Utan den här grenen föll
+                   choose-poster ner i else:et och remsan sa "ingen träff" i rött
+                   om en skanning som hittade FLERA möjliga kort — motsatsen till
+                   sanningen, och den sortens besked får folk att skanna om i
+                   stället för att svara. */
+                <span className="block text-[11px] font-medium leading-tight text-holo-gold">
+                  {t("whichCard")}
+                </span>
               ) : (
                 <span className="block text-[11px] font-medium leading-tight text-fall">
                   {/* Ett FEL (t.ex. slut på kvoten) är inte en "ingen träff" —
@@ -2614,11 +2883,14 @@ function ReviewView(props: {
   scans: ScanItem[];
   matchedCount: number;
   noMatchCount: number;
+  /** Skanningar i "choose"-läge — blockerar masstillägget, se pendingChoice. */
+  pendingChoice: number;
   total: number;
   addingAll: boolean;
   addedCount: number | null;
   onPatch: (id: string, patch: Partial<ScanItem>) => void;
   onRemove: (id: string) => void;
+  onChoose: (id: string, cand: Candidate) => void;
   onOpenDetails: (id: string) => void;
   onAddAll: () => void;
   onScanMore: () => void;
@@ -2630,11 +2902,13 @@ function ReviewView(props: {
     scans,
     matchedCount,
     noMatchCount,
+    pendingChoice,
     total,
     addingAll,
     addedCount,
     onPatch,
     onRemove,
+    onChoose,
     onOpenDetails,
   } = props;
 
@@ -2753,6 +3027,79 @@ function ReviewView(props: {
                     </div>
                   </div>
                 </div>
+              ) : s.status === "choose" ? (
+                /* VALSTEGET (2026-08-29). Ligger INLINE i granskningsraden, inte
+                   bakom miniatyrbilden: den vägen krävde två tryck på en omärkt
+                   affordans och användes i praktiken aldrig — 2 av 649 domar var
+                   korrigeringar. Ett val som ska ske måste synas där blicken är. */
+                <div className="p-3">
+                  <div className="flex gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={s.captured}
+                      alt={t("yourImage")}
+                      className="h-24 w-[4.3rem] shrink-0 rounded-md object-cover ring-1 ring-holo-gold/40"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-ink">{t("whichCard")}</p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-ink-muted">
+                        {t("whichCardHelp")}
+                      </p>
+                    </div>
+                  </div>
+                  {/* Samma vågräta svep-rad som detaljarket: konsten är det man
+                      känner igen ett kort på, inte en textrad. Bleeder ut till
+                      kanten så ett halvt kort tittar fram — den affordansen är
+                      det som säger att raden går att svepa. */}
+                  <div className="-mx-3 mt-3 flex snap-x gap-2 overflow-x-auto px-3 pb-1">
+                    {chooseOptions(s.candidates).map((c) => (
+                      <button
+                        key={`${c.cardId}:${c.productId ?? ""}`}
+                        type="button"
+                        onClick={() => onChoose(s.id, c)}
+                        className="flex w-28 shrink-0 snap-start flex-col gap-1.5 rounded-xl bg-surface-overlay p-2 text-left ring-1 ring-surface-border transition-colors hover:ring-holo-cyan focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
+                      >
+                        {c.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={c.imageUrl}
+                            alt={c.name}
+                            className="aspect-[5/7] w-full rounded-md object-cover"
+                          />
+                        ) : (
+                          <span className="flex aspect-[5/7] w-full items-center justify-center rounded-md bg-white/5 text-ink-faint">
+                            <IconSearch size={18} />
+                          </span>
+                        )}
+                        <span className="block truncate text-[11px] font-medium text-ink">
+                          {c.name}
+                        </span>
+                        <span className="block truncate text-[10px] text-ink-faint">
+                          {c.setName} · #{c.number}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-2 flex items-center gap-3">
+                    {/* ⛔ "Inget av dem" är INTE kosmetik — det är den enda vägen
+                        som kan skriva ett NEGATIVT facit för ett osäkert fall.
+                        Utan den kan mätapparaten strukturellt bara säga ja. */}
+                    <button
+                      type="button"
+                      onClick={() => onOpenDetails(s.id)}
+                      className="text-xs font-medium text-holo-cyan hover:underline"
+                    >
+                      {t("noneOfThese")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onRemove(s.id)}
+                      className="text-xs text-ink-faint hover:text-fall"
+                    >
+                      {t("remove")}
+                    </button>
+                  </div>
+                </div>
               ) : s.status === "identifying" ? (
                 <div className="flex items-center gap-3 p-3">
                   <ScanThumb item={s} size="lg" />
@@ -2804,6 +3151,12 @@ function ReviewView(props: {
           <div>
             <p className="text-xs text-ink-muted">
               {t("matchedCount", { count: matchedCount })}
+              {pendingChoice > 0 && (
+                <span className="text-holo-gold">
+                  {" "}
+                  · {t("pendingChoiceSuffix", { count: pendingChoice })}
+                </span>
+              )}
               {noMatchCount > 0 && (
                 <span className="text-fall"> · {t("noMatchSuffix", { count: noMatchCount })}</span>
               )}
@@ -2823,13 +3176,22 @@ function ReviewView(props: {
             <Button
               onClick={props.onAddAll}
               loading={addingAll}
-              disabled={matchedCount === 0}
+              // ⛔ ETT OBESVARAT VAL BLOCKERAR MASSTILLÄGGET. Alternativet — att
+              // lägga till de säkra och tyst hoppa över resten — hade tappat
+              // precis de kort vi var minst säkra på, utan att användaren märkte
+              // det. Knappen säger vad som återstår i stället för att göra
+              // ingenting: en disabled knapp utan förklaring läses som en bugg.
+              disabled={matchedCount === 0 || pendingChoice > 0}
               // Disabled = solid dämpad yta i FULL opacitet (ej dimmad teal). Den
               // gamla disabled:opacity-50 på teal-knappen lämnade en ljus cyan
               // "spök"-remsa i WebKit:s compositing-lager när sista kortet togs bort.
               className="px-5 disabled:bg-surface-overlay disabled:text-ink-faint disabled:opacity-100"
             >
-              {matchedCount > 0 ? t("addToCollectionN", { count: matchedCount }) : t("addToCollection")}
+              {pendingChoice > 0
+                ? t("chooseFirstN", { count: pendingChoice })
+                : matchedCount > 0
+                  ? t("addToCollectionN", { count: matchedCount })
+                  : t("addToCollection")}
             </Button>
           )}
         </div>
@@ -2986,9 +3348,25 @@ function ScanDetailsSheet(props: {
   // Regeln bor i lib/scan-alternatives.ts — ren och testad, för den avgör om
   // en felmatchning går att RÄTTA och har felat i fält en gång.
   // Raden bär korten med IDENTISK KONST, en post per variant — den enda frågan
-  // bilden inte kan svara på själv. Kördes ingen bildmatchning finns ingen
-  // konst att gruppera på; då faller vi tillbaka på poäng-/namnregeln, annars
-  // vore en textskanning helt utan rättningsväg.
+  // bilden inte kan svara på själv.
+  //
+  // ⛔ **FALLBACKEN ÄR INTE LÄNGRE ETT KANTFALL (2026-08-29).** Kommentaren här
+  // sa förut att den finns för textskanningar utan bildmatchning. Sedan
+  // `pickSameArtRail` slutade räkna träffens EGET kort som ett alternativ är den
+  // majoritetsvägen: nedre gräns 378 av 649 domar (58,2 %) hade exakt ett kort i
+  // raden, och för art-avgjorda skanningar fyrar den nästan alltid: ett
+  // same-art-syskon (likhet ≥ SAME_ART_MIN) trycker ner marginalen mot noll, och
+  // `artConfidentFrom` kräver en marginal. ⚠️ Det är en TENDENS, inte en
+  // konstruktion — grinden är tvågrenad (agree-grenen har ett lägre golv) och
+  // 5 av 81 art-avgjorda rader kom just den vägen. Se scan-alternatives.ts.
+  // Före ändringen var raden ALDRIG tom när det
+  // fanns en träff, så en felmatchning till ett kort med ANNAN konst gick inte
+  // att rätta alls — vilket gjorde 0 av 142 i den art-avgjorda hinken
+  // ofalsifierbart. ⚠️ Priset är att bredare (gallrade) alternativ nu visas i de
+  // fallen; det är en OBEMÄTT avvägning, inte ett fältbevisat urval.
+  // ⛔ `item.match` MÅSTE prependas i fallback-läget: `pickAlternatives` filtrerar
+  // bort exakt träffens post för att undvika dubblett, så utan den försvinner
+  // det valda kortet ur raden. Vaktat mekaniskt i scan-alternatives.test.ts.
   const rail = useMemo(() => {
     const sameArt = pickSameArtRail(item.candidates, item.match);
     if (sameArt.length > 0) return sameArt;
@@ -3185,8 +3563,27 @@ function ScanDetailsSheet(props: {
         <div className="flex flex-wrap gap-2">
           {!item.match?.slug && (
             <LinkButton
-              href={`/produkter?q=${encodeURIComponent(item.match?.name ?? "")}`}
+              /* ⛔ EN TOM `?q=` ÄR INTE EN SÖKNING. Vid "ingen träff" är `match`
+                 null, så länken blev `/produkter?q=` — en ofiltrerad katalog som
+                 SER ut som ett sökresultat, och dessutom en robots-blockerad
+                 dynamisk render. Utan namn skickar vi till katalogen rakt av. */
+              href={
+                item.match?.name
+                  ? `/produkter?q=${encodeURIComponent(item.match.name)}`
+                  : "/produkter"
+              }
               variant="outline"
+              /* ⛔ ATT LÄMNA SKANNERN ÄR ETT NEGATIVT FACIT — och det kastades
+                 tyst. Den som inte hittar sitt kort söker manuellt, lägger till
+                 det från katalogen och rapporterar ingenting; mätt 2026-08-29
+                 saknade 54 % av alla mätrader dom helt, och det är precis de
+                 SVÅRA fallen. Rapporteras FÖRE navigeringen — efteråt är
+                 komponenten avmonterad. */
+              onClick={() =>
+                reportScanFeedback(item.jobId, item.match?.cardId ?? null, "searched", {
+                  via: "pick",
+                })
+              }
             >
               <IconSearch size={15} /> {t("searchManually")}
             </LinkButton>

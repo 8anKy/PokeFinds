@@ -920,7 +920,13 @@
     "zoomCardHint": "About {count} cards",
     "bulkNoCards": "No cards found — shoot straight from above, with a little space, on a plain surface",
     "bulkBusySurface": "The surface blends into the cards — place them on a plain surface that reaches the edges of the frame",
-    "bulkFound": "Found {count} cards"
+    "bulkFound": "Found {count} cards",
+    "whichCard": "Which card is it?",
+    "whichCardHelp": "Several cards are too close for us to claim an answer. Pick the right one — that's what makes the price and your collection correct.",
+    "noneOfThese": "None of these",
+    "pendingChoiceSuffix": "{count} awaiting a choice",
+    "chooseFirstN": "Choose cards ({count})",
+    "holdStill": "Hold still"
   },
   "Grading": {
     "h1": "Grade card",

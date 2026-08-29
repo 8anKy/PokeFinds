@@ -66,6 +66,13 @@ const schema = z.object({
       history: z.array(z.string().min(1).max(1024)).max(5).optional(),
     })
     .optional(),
+  // FÅNGSTKVALITET — normaliserad medelgradient på kortytan, räknad av klienten
+  // ur pixlar den redan läst (src/lib/frame-sharpness.ts). Påverkar INGET i
+  // svaret: den bokförs bara, så tröskeln SHARP_AUTO_MIN (som i dag grindar
+  // auto-slutaren på en OKALIBRERAD gissning) kan sättas på en fördelning.
+  // Taket är generöst — måttet är obundet uppåt och en absurd siffra ska
+  // avvisas, inte klampas tyst till något som ser rimligt ut.
+  sharp: z.number().min(0).max(1000).optional(),
   // Starkare (dyrare) vision-modell — körs bara vid bekräftelse/uppladdning,
   // inte för varje live-ruta.
   precise: z.boolean().optional(),
@@ -93,6 +100,7 @@ export async function POST(req: Request) {
       structFingerprints,
       structFrames,
       foil,
+      sharp,
       precise,
     } = schema.parse(await req.json());
     if (image.length + (detail?.length ?? 0) > MAX_IMAGE_BYTES * 1.4) {
@@ -203,12 +211,41 @@ export async function POST(req: Request) {
       {
         art: result.artCandidateIds,
         shown: result.candidates.map((c) => c.cardId),
+        // ⛔ HINKEN MÅSTE MÄRKAS VID KÄLLAN. Hoppades vision över är `shown[0]`
+        // samma kort som `art[0]` PER KONSTRUKTION (tom OCR + ART_TRUST_BONUS),
+        // så raden mäter grinden, inte träffsäkerheten. Omärkt låg den i samma
+        // hink som de riktiga mätraderna och drog topp-1 från 39,8 % till 53,2 %
+        // (mätt 2026-08-29, n=142 av 649). Samma fälla som `src: "bulk"`.
+        //
+        // ⛔ Härled den ALDRIG ur `result.model` — det är ett KOSTNADSFÄLT och
+        // blir null även när adaptern svarade utan tokental. `artDecided` är
+        // mätbegreppet och sätts där beslutet faktiskt fattas.
+        ...(result.artDecided ? { src: "art" as const } : {}),
+        top: result.artTop,
+        margin: result.artMargin,
+        // En bit: fyrade osäkerhetsregeln? Styr det gula "?" och (sedan
+        // 2026-08-29) valsteget — men har aldrig bokförts, så frekvensen är okänd.
+        amb: result.ambiguous,
+        // Den SMALARE tröskeln — den som faktiskt visar valsteget. Skillnaden
+        // mot `amb` är hur mycket vi skulle störa om frågan vidgades.
+        ask: result.tied,
+        // Fångstkvaliteten klienten mätte. ⛔ Den enda vägen till ett svar på
+        // "hur mycket av missarna är dålig fångst?" — revisionen 2026-08-29 kunde
+        // bara mäta TAKTEN som proxy (< 1,5 s → 34,1 % miss mot 15,3 % vid > 60 s)
+        // eftersom skärpan aldrig bokförts.
+        sharp,
       }
     );
 
-    // ⛔ `artCandidateIds` är MÄTDATA och går inte ut på tråden: live-vyn
-    // pollar ~var 1,5 s och ska inte bära 15 id:n den aldrig läser.
-    const { artCandidateIds: _measurementOnly, ...clientResult } = result;
+    // ⛔ `artCandidateIds` och `artMargin` är MÄTDATA och går inte ut på tråden:
+    // klienten läser dem aldrig, och 15 id:n per svar är ren vikt. Marginalen
+    // finns redan klient-sida där den behövs — live-pollen (`/identify-art`)
+    // returnerar sin egen.
+    const {
+      artCandidateIds: _measurementOnly,
+      artMargin: _measurementOnly2,
+      ...clientResult
+    } = result;
 
     return jsonOk({
       ...clientResult,

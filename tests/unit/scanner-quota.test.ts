@@ -17,7 +17,16 @@ vi.mock("@/lib/db", () => ({
 
 import { cardNumberSortKey } from "@/lib/card-number-order";
 import { sanitizeName, sanitizeNumber } from "@/services/scanner/vision-contract";
-import { getScannerQuota, isAmbiguous, isIntroScan, parseGuessedNumber, recordScanUsage, runScannerJob } from "@/services/scanner";
+import {
+  getScannerQuota,
+  isAmbiguous,
+  isIntroScan,
+  isTied,
+  parseGuessedNumber,
+  recordScanUsage,
+  runScannerJob,
+  TIE_MARGIN,
+} from "@/services/scanner";
 
 beforeEach(() => {
   count.mockReset();
@@ -103,8 +112,54 @@ describe("recordScanUsage", () => {
       // sätta ett värde vore de gamla raderna plötsligt en egen, tredje klass.
       create.mockResolvedValue({});
       await recordScanUsage("u1", undefined, true, null, { art: ["a"], shown: ["a"] });
-      expect(resultOf().recall).toEqual({ v: 1, art: ["a"], shown: ["a"] });
+      expect(resultOf().recall).toEqual({ v: 2, art: ["a"], shown: ["a"] });
       expect(resultOf().recall).not.toHaveProperty("src");
+    });
+
+    it("ART-AVGJORD MÅSTE bära src: den hinken är också grindad på svaret", async () => {
+      // ⛔ Hoppas vision över körs matchCards med TOM OCR, så alla namn-/nummer-
+      // poäng blir 0 och den art-säkra kandidaten vinner på ART_TRUST_BONUS —
+      // `shown[0] === art[0]` PER KONSTRUKTION, exakt som i bulk. Raderna bar
+      // ingen tagg fram till 2026-08-29 och räknades som vanliga mätrader: 142 av
+      // 647 bekräftade enkelskanningar, med 100 % topp-1, mot 39,8 % i den hink
+      // där vision faktiskt anropades.
+      create.mockResolvedValue({});
+      await recordScanUsage("u1", undefined, true, { model: null }, {
+        art: ["a", "b"],
+        shown: ["a"],
+        src: "art",
+      });
+      expect(resultOf().recall.src).toBe("art");
+    });
+
+    it("TOM art-lista skriver INGEN recall-nyckel", async () => {
+      // Samma regel som när argumentet utelämnas, men den läckte ändå: 4 rader i
+      // prod 2026-08-29 bar `art: []`, varav en hade en dom och bokfördes som en
+      // MISS. En tom lista betyder "bilden tillfrågades aldrig", inte "bilden
+      // missade" — och skillnaden är hela mätningens riktning.
+      create.mockResolvedValue({});
+      await recordScanUsage("u1", undefined, true, null, { art: [], shown: [] });
+      expect(resultOf()).not.toHaveProperty("recall");
+    });
+
+    it("top/margin/sharp skrivs bara när de finns — aldrig som null", async () => {
+      // ⛔ `null` i JSON läses som "vi mätte och fick inget". En saknad nyckel är
+      // "det här fältet fanns inte när raden skrevs", vilket är sant om varje rad
+      // före 2026-08-29. Blandas de ihop går det inte att skilja en gammal rad
+      // från en ny där avtrycket saknade tvåa.
+      create.mockResolvedValue({});
+      await recordScanUsage("u1", undefined, true, null, {
+        art: ["a"],
+        shown: ["a"],
+        top: 0.8,
+        margin: null,
+        sharp: null,
+      });
+      const r = resultOf().recall;
+      expect(r.top).toBe(0.8);
+      expect(r).not.toHaveProperty("margin");
+      expect(r).not.toHaveProperty("sharp");
+      expect(r).not.toHaveProperty("amb");
     });
 
     it("bulk MÅSTE bära src: raden är grindad på det den mäter", async () => {
@@ -118,7 +173,7 @@ describe("recordScanUsage", () => {
         shown: ["a"],
         src: "bulk",
       });
-      expect(resultOf().recall).toEqual({ v: 1, art: ["a", "b"], shown: ["a"], src: "bulk" });
+      expect(resultOf().recall).toEqual({ v: 2, art: ["a", "b"], shown: ["a"], src: "bulk" });
     });
 
     it("recall lever UTANFÖR den admin-grindade diagnostiken", async () => {
@@ -215,9 +270,42 @@ describe("isAmbiguous (utan avstånd till nästa KORT finns ingen träff att på
     expect(isAmbiguous([...printings, c("other", 1.48)])).toBe(true);
   });
 
+  // ⛔ ATT MÄRKA OCH ATT FRÅGA ÄR OLIKA BESLUT. `isAmbiguous` (0,05) styr det
+  // gula "?" — gratis för användaren, alltså generös. `isTied` (0,01) styr
+  // VALSTEGET, som kostar ett tryck och blockerar masstillägget. Samma tröskel
+  // för båda provades 2026-07-30 (commit e9b3e11) och gjorde att "de flesta kort
+  // blev 'ingen träff'" (8c7529c vände det). Testerna nedan vaktar att de inte
+  // glider ihop igen.
+  it("isTied är STRIKT SMALARE än isAmbiguous", () => {
+    expect(TIE_MARGIN).toBeLessThan(0.05);
+    // Bandet mellan trösklarna: MÄRKS som gissning, men frågas INTE om.
+    const nearMiss = [c("a", 1.0), c("b", 0.97)];
+    expect(isAmbiguous(nearMiss)).toBe(true);
+    expect(isTied(nearMiss)).toBe(false);
+  });
+
+  it("isTied fyrar på det UPPMÄTTA fallet: nio Gyarados på exakt 1,000", () => {
+    // Namnet lästes rätt, numret var oläsligt, bilden oanvändbar. Där är ett
+    // svar ren tärningskastning och en fråga det enda ärliga.
+    expect(isTied([c("a", 1.0), c("b", 1.0), c("d", 1.0)])).toBe(true);
+  });
+
+  it("isTied räknar INTE tryckningar av samma kort som oavgjort", () => {
+    // Samma regel som isAmbiguous — annars hade VARJE Base-skanning blivit en
+    // fråga, och frågan hade varit fel: tryckningen väljs i variantväljaren.
+    expect(
+      isTied([
+        c("base-charizard", 1.5, "Unlimited", "p1"),
+        c("base-charizard", 1.5, "1st Edition", "p2"),
+      ])
+    ).toBe(false);
+  });
+
   it("tål tom lista och en enda kandidat", () => {
     expect(isAmbiguous([])).toBe(false);
     expect(isAmbiguous([c("a", 1.0)])).toBe(false);
+    expect(isTied([])).toBe(false);
+    expect(isTied([c("a", 1.0)])).toBe(false);
   });
 });
 

@@ -60,6 +60,12 @@ export interface LinkButtonProps {
   className?: string;
   children: ReactNode;
   prefetch?: boolean;
+  /**
+   * Sidoeffekt FÖRE navigeringen — t.ex. att bokföra att användaren lämnade ett
+   * flöde. ⛔ Får aldrig avbryta navigeringen (ingen `preventDefault`): knappen
+   * är en LÄNK, och en länk som ibland inte går någonstans är trasig.
+   */
+  onClick?: () => void;
 }
 
 export function LinkButton({
@@ -69,11 +75,13 @@ export function LinkButton({
   className,
   children,
   prefetch,
+  onClick,
 }: LinkButtonProps) {
   return (
     <Link
       href={href}
       prefetch={prefetch}
+      onClick={onClick}
       className={cn(baseClasses, variantClasses[variant], sizeClasses[size], className)}
     >
       {children}

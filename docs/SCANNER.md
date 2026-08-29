@@ -98,7 +98,13 @@ Mätt i fält 2026-08-02: tre celler i rad föll på det med
 | `gemini-3.1-flash-lite` | 0,25 / 1,50 | **$0,00144** | 2,6x billigare |
 | `gemini-3.5-flash-lite` | 0,30 / 2,50 | $0,00184 | 2,0x billigare |
 | `gemini-3.6-flash` | 1,50 / 7,50 | $0,0084 | 2,3x DYRARE |
-| `gemini-3.5-flash` | 1,50 / 9,00 | $0,0087 | 2,4x DYRARE |
+| `gemini-3.5-flash` | 1,50 / 9,375 | $0,0087 | 2,4x DYRARE |
+
+> ⛔ **TABELLEN OVAN ÄR LISTPRISER, FÖR MODELLVAL — INTE KOSTNADSBOKFÖRING.** Den enda prislistan är
+> `src/lib/ai-pricing.ts`, och den prissätter sedan 2026-08-29 `gemini-3.1-flash-lite` på **0,2136 in**
+> (löst ur den enda faktura vi läst), inte listans 0,25. Att ha två tabeller VAR buggen en gång:
+> skriptets egen lista och adminpanelens gav samma anrop två priser, 28,6 % isär. Räkna aldrig kostnad
+> ur den här tabellen.
 
 ⛔ Kontrollera ALLTID att modellen går att nå med en färsk nyckel innan den
 sätts som default — prislistan visar modeller som API:t inte lämnar ut.

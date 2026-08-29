@@ -10,7 +10,16 @@ paths:
 - **KOSTNAD PER ANVÄNDARE OCH FUNKTION I ADMIN (2026-08-14)**: `/admin/anvandare` visar kostnad per
   användare, och en ny detaljsida `/admin/anvandare/[id]` bryter ner den per funktion tillsammans
   med hela profilen (notisinställningar, enheter, kopplingar, aktivitet). Beloppet = leverantörens
-  publicerade pris per MTok (`src/lib/ai-pricing.ts`) × API:ts EGNA tokental, aldrig en schablon.
+  pris per MTok i `src/lib/ai-pricing.ts` × API:ts EGNA tokental, aldrig en schablon.
+  ⚠️ **DET ÄR INTE ALLTID LEVERANTÖRENS PUBLICERADE PRIS** (sedan 2026-08-29): `gemini-3.1-flash-lite`
+  bär ett INPRIS löst ur den enda faktura vi läst (**0,2136** mot listans 0,25), medan utpriset är
+  listpris — utdelen är ~9,7 % av notan vid det priset, så en faktura kan inte se utpriset.
+  ⛔ **0,22 VAR FEL OCH FÅR INTE TILLBAKA**: det talet parade ihop den övre änden av ett
+  avvägningsband (0,2135 vid ut=1,50 · 0,2243 vid ut=0,80) med det HÖGRE utpriset, dvs dubbelräknade.
+  ⚠️ Och nämnaren är ofullständig — fakturadagen hade 19 icke-admin-anrop utan tokental — så det
+  ärliga bandet är **~0,159–0,2136**; 0,2136 är den övre änden, vald enligt "hellre överskatta".
+  Varje rad i tabellen säger själv om den är kalibrerad eller listpris. ⛔ Kalibrera ALDRIG mot en faktura utan att dividera med den kurs
+  `getRatesOre()` gav fakturadagen; den förra kalibreringen använde ~10,6 SEK/USD, dvs fallback-kursen.
   ⛔ **TRE UTFALL, ALDRIG TVÅ** — varje jobbrad är KOSTNADSFÖRD, GRATIS (`costModel: null`, dvs
   bilden/streckkoden avgjorde och inget API-anrop gjordes) eller **OMÄTT** (avtrycket saknas helt:
   allt före 2026-08-14, plus modeller utan pris). Slås GRATIS och OMÄTT ihop ser en tung användare

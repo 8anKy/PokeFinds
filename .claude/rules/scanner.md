@@ -135,8 +135,23 @@ Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md p
   Sätt det mot Pro: 49 kr/mån, och skäligt-bruk-taket 1 000 skanningar ⇒ värsta fallet ~8,5 kr om VARENDA
   skanning krävde vision. Marginalen är alltså bekväm, och ~40-50 % avgörs gratis av bilden i praktiken.
   ⛔ `scripts/scanner-telemetry.ts` PRICES-tabell är en uppskattning för att följa kostnaden MELLAN fakturor —
-  **fakturan är facit.** Den gamla gemini-raden (0,25/1,50) låg ~28 % för högt och är rättad till 0,20/0,80 mot
-  det uppmätta utfallet. Stämmer de inte överens: rätta tabellen, aldrig tvärtom.
+  **fakturan är facit.**
+  ⛔ **UPPDATERAT 2026-08-29 — SKRIPTET HAR INGEN EGEN PRISLISTA LÄNGRE, OCH 0,20/0,80 VAR FEL.** Två
+  tabeller (skriptets `gemini: 0,20/0,80` per LEVERANTÖR mot `ai-pricing.ts` `gemini-3.1-flash-lite:
+  0,25/1,50` per MODELL) gav samma anrop två priser — 28,6 % isär mätt över hela ScannerJob-historiken.
+  Skriptet läser nu `costMicroUsd` som alla andra. ⛔ Och den gamla "kalibreringen" reproducerade bara
+  fakturan vid ~10,6 SEK/USD, vilket i praktiken är FALLBACK-kursen (`exchange-rate.ts`) — exakt fällan
+  `.claude/rules/admin-ops.md` varnar för. ECB närmaste bankdag före fakturan (2026-07-31) var **9,5651**
+  ⇒ fakturan är $0,0857, och 0,20/0,80 UNDERskattar den med 10,3 % medan listpriset ÖVERskattar med 15,4 %.
+  ⛔ **Fakturan pinnar bara INPRISET** — utdelen är ~9,7 % av notan, så $0,80 och $1,50 går inte att skilja
+  åt ur den. Med ut pinnat på listpris 1,50 är det fakturakonsistenta inpriset **$0,2136**, och det är
+  talet i koden (residual ≈ 0). ⛔ **INTE 0,22** — det parade den övre änden av avvägningsbandet
+  (0,2135 vid ut=1,50 · 0,2243 vid ut=0,80) med det HÖGRE utpriset, dvs dubbelräknade, och gav en
+  konstlad residual på +2,7 %. ⚠️ **NÄMNAREN ÄR OFULLSTÄNDIG**: fakturadagen 2026-08-02 hade 247
+  ScannerJob-rader varav 19 saknade diagnostik (icke-admin, inget `costModel` fanns före 08-14) — deras
+  tokental är okänt men Google fakturerade dem. Det ärliga bandet är därför **~0,159–0,2136**, och
+  0,2136 är den ÖVRE änden, vald enligt "hellre överskatta än underskatta". Stämmer en NY faktura inte:
+  rätta tabellen, aldrig tvärtom — och dividera med den kurs `getRatesOre()` gav DEN dagen.
 - **BULK-TAKET = 15, SATT PÅ MÄTNING (2026-08-02)**: bor på TRE ställen — `BULK_MAX_CARDS` i skanna/page.tsx
   (vad klienten skickar), `cells.max(N)` i `/api/scanner/identify-bulk` (vad servern accepterar) och
   `BULK_DETECTOR_MAX_CARDS` i lib/camera-controls.ts (vad zoom-rekommendationen klampas mot).
@@ -262,6 +277,73 @@ Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md p
   som börjar på deploydagen blandar in rader från före koden och ser ut som ett pågående hål (hände
   2026-08-17: "103 av 400 saknar mätdata" var i själva verket rader från före 13:15 UTC; dygnet efter var
   täckningen 152/152).
+
+- **BILD-FÖRST ÄR REDAN HALVVÄGS, OCH MÄTNINGEN VAR TRASIG (2026-08-29)**: `skipVision =
+  artConfidentFrom(...) !== null` (`services/scanner/index.ts`) har hoppat över vision sedan
+  2026-07-31 — MÄTT **31,6 % av alla enkelskanningar** (463 av 1 466). Frågan "kan vi kortsluta
+  vision?" är alltså besvarad med JA i drift; det som återstår är hur mycket grinden kan VIDGAS.
+  ⛔ **DE PUBLICERADE RECALL-TALEN BLANDADE TVÅ STRATA.** De art-avgjorda raderna körs med TOM OCR,
+  så alla namn-/nummerpoäng blir 0 och ART_TRUST_BONUS gör bildens etta till svaret ⇒
+  `shown[0] === art[0]` **per konstruktion** — samma fälla som `src: "bulk"`, men de bar ingen tagg.
+  Rätt redovisning är två tal, ALDRIG ett:
+  | | art-avgjord (n=142) | vision behövdes (n=507) |
+  |---|---|---|
+  | topp-1 | 100 % (per konstruktion) | **39,8 %** |
+  | topp-3 | 100 % | **58,2 %** |
+  | topp-15 | 100 % | **67,9 %** |
+  ⚠️ **MEN "58 % är det ärliga talet" ÄR OCKSÅ FEL.** Domtäckningen skiljer sig systematiskt
+  (art-avgjorda 30,7 %, vision 50,5 %), så art-stratumet är UNDERrepresenterat i facit.
+  Populationsviktat: 58,9 / 71,3 / 77,9 %. 39,8/58,2 är stratumtalet för de SVÅRA fallen.
+  Säg alltid vilket stratum ett tal gäller. Täckningstaket för ren bild-först med en N-korts meny =
+  `andel_art + andel_vision × vision_toppN` ≈ **74,6 %** vid N=5 — var fjärde skanning skulle få ett
+  ark utan rätt kort. `recall.src: "art"` skrivs sedan 2026-08-29; äldre rader skiljs på `costModel === null`.
+- ⛔ **FACIT VAR ETT KNAPPTRYCK (2026-08-29)**: `addAll()` skickade en `confirmed` per kort i hela
+  brickan efter ETT tryck. Mätt på `userChosen.at`: **533 av 649 domar (82,1 %)** låg i skurar om ≥5
+  med ≤5 s mellanrum (median-glapp 161 ms). Över ALLA strata: **83,4 % av allt facit**.
+  ⛔ **RÄTTELSE AV EN FÖRSTA SLUTSATS, OCH DEN ÄR SJÄLV EN STRATUM-BLANDNING.** Det första talet var
+  "26 procentenheters gap i topp-1 mellan skur och icke-skur". Det var räknat över alla strata, och de
+  art-avgjorda raderna (100 % per konstruktion) ligger tätare utanför skurarna — gapet var alltså till
+  största delen stratumet, inte uppmärksamheten. INOM vision-stratumet: aktivt val (n=50) topp-1
+  46,0 % / topp-3 60,0 % mot masstryck (n=454) 39,4 % / 57,9 % — **6,6 respektive 2,1 procentenheter**.
+  Skälet att hålla dem isär är alltså inte att recallen skiljer sig mycket, utan att en masskonfirmation
+  är ett UTEBLIVET klick: den kan aldrig bli en korrigering (0 av 454 mot 2 av 50).
+  `via: "pick" | "bulk" | "auto"` skrivs nu vid varje anropsställe.
+  ⛔ **KORRIGERINGAR MISLABELADES**: `chooseCandidate` jämför `cardId`, men rättningsraden expanderar
+  VARIANTER som delar `cardId` ⇒ ett byte ordinarie → reverse holo skrevs som "confirmed". I 378 av
+  649 domar (58,2 %) hade raden ett kort men flera varianter. ⛔ Ett variantbyte får ändå INTE bli en
+  `corrected`: samma `cardId` ⇒ samma artRank som en bekräftelse, dvs en TREDJE kontaminering av
+  korrigeringshinken. Det bokförs som `variantChanged`, en egen signal.
+  ⛔ **NEGATIVA DOMAR SKA IN**: `kind` är nu fyra värden — `corrected` / `rejected` (raderad skanning)
+  / `searched` (gick till manuell sökning) / `confirmed`. De två negativa kastades tyst, och de är
+  anrikade med precis de svåra fall bekräftelserna saknar (54 % av mätraderna hade ingen dom alls).
+  Styrkeordningen bor i `src/lib/scan-verdict.ts` och är testad: en svagare dom får aldrig skriva över
+  en starkare, annars nollar nästa masstryck en rättelse.
+- **VALSTEGET (`status: "choose"`, 2026-08-29) VÄNDER BESLUTET FRÅN 07-30**: låg flera OLIKA kort
+  praktiskt taget lika (`isAmbiguous`) visades förut ändå TOPPEN med ett gult "?". Det var ett val
+  mellan GISSNING och INGENTING — en LISTA var aldrig på bordet. Nu: ingen förvald träff, korten
+  inline i granskningsraden (aldrig bakom miniatyrbilden), och "Lägg till alla" blockeras tills valet
+  är gjort. ⛔ Att hoppa över de osäkra i masstillägget hade tappat precis de kort vi var minst säkra
+  på, utan att användaren märkte det. ⚠️ Hur ofta läget fyrar är ÄNNU OMÄTT — `ambiguous` styrde "?"
+  i en månad utan att bokföras; den skrivs nu som `recall.amb`. Läs frekvensen innan `MATCH_MARGIN_MIN` rörs.
+- **FÅNGSTKVALITET ÄR DEN ENDA FELKÄLLAN I DATAN MED EN MEKANISM (2026-08-29)**: revisionen av 163
+  missar hittade ingen KATALOGorsak — gamla WotC-ramar faller ut MINST (12,6 %, bäst av alla eror),
+  fullart/IR minst av alla raritetsklasser (12,5–15,4 %), 0 saknade/felaktiga avtryck
+  (20 563/20 563), ingen attraktor-bugg, och det är INTE "rätt konst fel tryckning" (likheten till
+  det valda kortet låg på SLUMPBASLINJE, median 0,624 mot 0,610). Det som föll ut var TAKTEN:
+  **< 1,5 s mellan skanningar → 34,1 % miss mot 15,3 % vid > 60 s**, monotont och inom BÅDA de tunga
+  användarna; 2 av 24 användare bar 130 av 163 missar över 6 dygn och ALLA kortkategorier.
+  ⛔ **ETT STÖRRE K RÄDDAR INGENTING** — rang 6–15 rymmer 3,9 % av raderna. Informationen fanns inte
+  i fångsten. `src/lib/frame-sharpness.ts` mäter normaliserad medelgradient ur SAMMA pixelläsning som
+  avtrycket (ingen ny `getImageData`) och grindar **bara auto-slutaren**.
+  ⛔ **ALDRIG ETT MANUELLT SLUTARTRYCK** — en kamera som vägrar fotografera är trasig, inte försiktig.
+  ⚠️ `SHARP_AUTO_MIN` är OKALIBRERAD; talet bokförs som `recall.sharp` just för att kunna sättas på en
+  fördelning i stället för på dagens gissning.
+- ⛔ **KOSTNADEN ÄR INTE SKÄLET ATT GÅ BILD-FÖRST** (mätt 2026-08-29, fönster 14,3 dygn):
+  gemini-3.1-flash-lite, 1 130 anrop, ~20–25 kr/mån. Att ta bort vision HELT sparar hela den summan;
+  en bredare trust-grind ~7 kr/mån. Motiven är LATENS (40 ms mot 1–2 s), oberoende av Google i den
+  användarsynliga vägen och huvudrum vid skala (~209 kr/mån först vid 1 000 skanningar/dygn).
+  ⚠️ `SCANNER_MODEL_PRECISE` hade ALDRIG kört (0 rader i hela tabellen) — defaulten är flyttad
+  3.5 → 3.6 (strikt dominerad), men det är en defaultändring, inte en besparing.
 
 ## Status och modellval (flyttat ur CLAUDE.md 2026-08-15)
 - **SKANNERN: LÄS `docs/SCANNER-STATUS.md` FÖRE NÄSTA ÄNDRING (2026-07-30)**: lägesbilden med alla mätvärden,

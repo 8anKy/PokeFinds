@@ -239,8 +239,65 @@ export async function recordScanUsage(
    *    raden vid källan och håll hinkarna isär i analysen
    *    (`scripts/scanner-recall-live.ts`). Utelämnad = enkelskanning, så alla
    *    rader skrivna före 2026-08-18 förblir korrekt tolkade.
+   *
+   * ⛔ **`src: "art"` (2026-08-29) — SAMMA FÄLLA, ANDRA VÄGEN, OMÄRKT I ETT DYGN.**
+   *    `identifyCard` hoppar över vision när `artConfidentFrom` säger ja. Då körs
+   *    `matchCards` med TOM OCR: alla namn-/nummerpoäng blir 0 och den art-säkra
+   *    kandidaten får `ART_TRUST_BONUS` — alltså `shown[0] === art[0]` PER
+   *    KONSTRUKTION, precis som i bulk. De raderna bar ingen `src` och räknades
+   *    som vanliga enkelskanningar. MÄTT 2026-08-29: 142 av 647 bekräftade
+   *    enkelskanningar (21,9 %) var sådana, med 100 % topp-1 per konstruktion,
+   *    mot 39,8 % i den hink där vision faktiskt anropades. Två strata, aldrig
+   *    ett tal. Retroaktivt går de att skilja på `costModel === null`.
+   *
+   * ⛔ **`top`/`margin` ÄR DET SOM GÖR TRÖSKELN MÄTBAR.** Grindens utfall (ja/nej)
+   *    har alltid bokförts, men aldrig TALEN den dömde på — `artTop`/`artTopLabel`
+   *    ligger i den admin-grindade diagnostiken, och mätt 2026-08-29 bar 0 av
+   *    1 466 rader från en icke-admin dem. Följden: frågan "vad hade hänt vid
+   *    poäng ≥ 0,50 och marginal ≥ 0,08" gick inte att besvara ur telemetrin, bara
+   *    de trösklar som råkade vara i drift. Två floats löser det, och de bär ingen
+   *    kortidentitet alls — strikt mindre känsliga än de 15 kort-id som redan
+   *    ligger här. ⚠️ Saknas på alla rader före 2026-08-29; ett tröskelsvep måste
+   *    alltså vänta in ~14 dygns nya rader.
    */
-  recall?: { art: string[]; shown: string[]; src?: "bulk" } | null
+  recall?: {
+    art: string[];
+    shown: string[];
+    src?: "bulk" | "art";
+    /** Bildens topp-1-poäng (blandad likhet 0..1). */
+    top?: number | null;
+    /** topp-1 − topp-2. Null när tvåa saknas — INTE 0, se `pos()`-doktrinen. */
+    margin?: number | null;
+    /**
+     * Var slutrankningen tvetydig (`isAmbiguous`)? EN BIT, ingen kortidentitet.
+     *
+     * ⛔ Utan den går "fråga användaren när vi är osäkra" inte att DIMENSIONERA i
+     * förväg: flaggan har styrt ett gult "?" sedan 2026-07-30 utan att någonsin
+     * bokföras, så hur ofta den fyrar är okänt. Att bygga ett valsteg på en
+     * ogräddad frekvens är att gissa hur ofta man stör användaren.
+     */
+    amb?: boolean;
+    /**
+     * Fyrade det SMALARE villkoret (`isTied`) som faktiskt frågar användaren?
+     *
+     * ⛔ Två bitar, inte en, och det är avsiktligt: `amb` är märkningströskeln
+     * (0,05) och `ask` frågetröskeln (0,01). Skillnaden mellan dem ÄR beslutet
+     * från 2026-07-30 — samma tröskel för båda gjorde att "de flesta kort blev
+     * 'ingen träff'". Med bara ett tal går det inte att svara på "hur mycket
+     * oftare skulle vi störa om vi vidgade frågan?" utan att först vidga den.
+     */
+    ask?: boolean;
+    /**
+     * FÅNGSTKVALITET, räknad av klienten (`src/lib/frame-sharpness.ts`).
+     *
+     * ⛔ Revisionen 2026-08-29 kunde bara mäta TAKTEN som proxy för fångstkvalitet
+     * (< 1,5 s mellan skanningar → 34,1 % missar mot 15,3 % vid > 60 s) eftersom
+     * skärpan aldrig bokförts. Takten är en indirekt och grov ersättare; det här
+     * är storheten själv, och den behövs för att sätta `SHARP_AUTO_MIN` på en
+     * fördelning i stället för på dagens gissning.
+     */
+    sharp?: number | null;
+  } | null
 ): Promise<string> {
   const job = await prisma.scannerJob.create({
     data: {
@@ -260,15 +317,29 @@ export async function recordScanUsage(
           : {}),
         // Egen nyckel, aldrig hopblandad med diagnostiken: den senare är
         // admin-only och skulle ta med sig recall-datat in i den grinden.
-        ...(recall
+        //
+        // ⛔ TOM `art`-LISTA SKRIVS INTE ALLS. En tom lista läses av rapporten som
+        // "bilden missade" när sanningen är "bildsökningen kördes aldrig" (klienten
+        // skickade inga avtryck) — två helt olika svar med olika åtgärd. Regeln står
+        // i .claude/rules/scanner.md och läckte ändå: 4 rader i prod 2026-08-29 bar
+        // `art: []`, varav 1 hade en dom och bokfördes som en miss.
+        ...(recall && recall.art.length > 0
           ? {
               recall: {
-                v: 1,
+                v: 2,
                 art: recall.art,
                 shown: recall.shown,
                 // Skrivs bara när den finns: en saknad `src` betyder
-                // enkelskanning, vilket är exakt vad de äldre raderna är.
+                // enkelskanning MED vision, vilket är exakt vad de äldre
+                // raderna är (bulk märktes 08-18, art 08-29).
                 ...(recall.src ? { src: recall.src } : {}),
+                // Grindens egna tal. Utelämnas när de saknas — `null` i JSON hade
+                // varit "vi mätte och fick inget", och det är inte sant här.
+                ...(recall.top != null ? { top: recall.top } : {}),
+                ...(recall.margin != null ? { margin: recall.margin } : {}),
+                ...(recall.amb ? { amb: true } : {}),
+                ...(recall.ask ? { ask: true } : {}),
+                ...(recall.sharp != null ? { sharp: recall.sharp } : {}),
               },
             }
           : {}),
@@ -332,7 +403,15 @@ export function getOcrAdapter(precise = false): OcrAdapter {
     case "gemini":
       return new GeminiVisionOcrAdapter(
         precise
-          ? process.env.SCANNER_MODEL_PRECISE ?? "gemini-3.5-flash"
+          // ⛔ 3.5 ÄR STRIKT DOMINERAD AV 3.6 — samma inpris, 20 % billigare ut.
+          // Graderingen bytte 2026-08-2x, skannern glömdes. Bytet är gratis och
+          // ⚠️ kostar i praktiken ingenting i dag: MÄTT 2026-08-29 har den
+          // precisa vägen ALDRIG kört i produktion (0 rader i hela
+          // ScannerJob-tabellen), eftersom den kräver isIntroScan
+          // (SCANNER_INTRO_SONNET_SCANS default 0 = av) eller att klienten
+          // skickar `precise: true` — och skanna/page.tsx gör aldrig det.
+          // Det är alltså en riktig defaultändring, inte en besparing.
+          ? process.env.SCANNER_MODEL_PRECISE ?? "gemini-3.6-flash"
           : process.env.SCANNER_MODEL ?? "gemini-3.1-flash-lite"
       );
     default:
@@ -1412,6 +1491,22 @@ export interface ScanResult {
  * Kör en komplett skanning: skapar ett ScannerJob (RUNNING), kör
  * OCR-adaptern, matchar mot katalogen och sparar resultatet (COMPLETED).
  * Vid fel markeras jobbet som FAILED och felet kastas vidare.
+ *
+ * ⛔ **DÖD I PRODUKTION OCH ETT HÅL OM DEN VÄCKS (belagt 2026-08-29).** Ingen
+ * klient anropar `/api/scanner/upload` — 0 rader i hela ScannerJob-tabellen har
+ * gått den här vägen. Men koden finns kvar, och den skiljer sig från
+ * `identifyCard` på två sätt som båda är tysta:
+ *   1. **Ingen bildsökning.** Vision anropas VILLKORSLÖST, så
+ *      `artConfidentFrom`-grinden — som i dag gör 31,6 % av skanningarna gratis
+ *      (mätt 2026-08-29, 463 av 1 466) — kringgås helt. Varje uppladdning skulle
+ *      betala Gemini även när bilden ensam hade räckt.
+ *   2. **Ingen `recall`.** Raden blir osynlig i mätningen. ⚠️ Och den får INTE
+ *      "fixas" genom att skriva en tom `art`-lista: den läses som "bilden
+ *      missade" i stället för "bilden tillfrågades aldrig". Se
+ *      `.claude/rules/scanner.md`.
+ * Ska vägen återupplivas: låt den gå genom `identifyCard` (servern kan räkna
+ * avtrycket ur den uppladdade bilden med sharp, samma `fingerprintFromRgb`), rör
+ * inte den här funktionen bit för bit.
  */
 export async function runScannerJob(
   userId: string,
@@ -1533,6 +1628,27 @@ export interface IdentifyResult {
   /** Bildmatchningens bästa likhet 0..1, eller null när inget avtryck skickades. */
   artTop: number | null;
   /**
+   * Avstånd topp-1 → topp-2 i bildens egen lista. Null när tvåa saknas.
+   *
+   * ⛔ **MARGINALEN, INTE POÄNGEN, ÄR DET SOM AVGÖR** (mätt 2026-07-30 över 250
+   * kort): felträffar når poäng 0,92 och rätta träffar ner till 0,57 — nivåerna
+   * överlappar helt. Marginalen gör det inte: felträffarnas max var 0,066.
+   * Fältet finns här för att kunna BOKFÖRAS per rad (se `recall.margin`), så en
+   * framtida tröskeljustering går att räkna fram i stället för att gissas.
+   */
+  artMargin: number | null;
+  /**
+   * Avgjorde BILDEN ensam? Sant ⇔ `artConfidentFrom` sa ja och vision hoppades
+   * över, dvs `matchCards` kördes med tom OCR.
+   *
+   * ⛔ **ANVÄND DEN HÄR, INTE `model === null`, FÖR ATT MÄRKA MÄTRADEN.** De två
+   * sammanfaller nästan alltid men inte alltid: `model` blir också null när
+   * adaptern svarade utan tokental (mocken, ett API-fel som gav tomt usage). Att
+   * härleda ett MÄTBEGREPP ur ett KOSTNADSFÄLT är precis den sortens tyst
+   * ihopblandning som redan kostat oss två mätomgångar.
+   */
+  artDecided: boolean;
+  /**
    * Träffen går INTE att motivera — flera olika kort ligger praktiskt taget lika.
    *
    * MÄTT fall: användaren skannade en Gyarados. Modellen läste namnet HELT RÄTT,
@@ -1546,6 +1662,15 @@ export interface IdentifyResult {
    * kandidatlistan i stället för ett svar.
    */
   ambiguous: boolean;
+  /**
+   * De två bästa OLIKA korten är i praktiken OAVGJORDA (< `TIE_MARGIN`).
+   *
+   * ⛔ Det här — inte `ambiguous` — är villkoret för att FRÅGA användaren.
+   * `ambiguous` (0,05) märker en gissning och är generös med flit; samma
+   * tröskel som fråga gjorde att "de flesta kort blev 'ingen träff'" när det
+   * provades 2026-07-30.
+   */
+  tied: boolean;
   /**
    * Bildmatchningens tre bästa kort som text, för admin-diagnostiken.
    *
@@ -1726,7 +1851,14 @@ export async function identifyCellsArt(
          * konstruktion. Blandas de med enkelskanningens rader ser recall ut
          * att skjuta i höjden utan att något förbättrats.
          */
-        { art: artMatches.map((m) => m.cardId), shown: candidates.map((c) => c.cardId), src: "bulk" }
+        {
+          art: artMatches.map((m) => m.cardId),
+          shown: candidates.map((c) => c.cardId),
+          src: "bulk",
+          top: artMatches[0]?.score ?? null,
+          margin:
+            artMatches.length > 1 ? artMatches[0].score - artMatches[1].score : null,
+        }
       );
     }
     out.push({
@@ -1826,7 +1958,16 @@ export async function identifyCard(
     usage: ocr.usage ?? null,
     candidates,
     ambiguous: isAmbiguous(candidates) || numberContradictedByArt,
+    // ⛔ SMALARE ÄN `ambiguous`, med flit — se TIE_MARGIN. Ett märke är gratis,
+    // en fråga är det inte.
+    tied: isTied(candidates),
     artTop: artMatches.length > 0 ? artMatches[0].score : null,
+    // Null, aldrig 0, när det inte FINNS en tvåa: 0 betyder "ingen marginal
+    // alls" (två kort på exakt samma poäng), vilket är motsatsen till "vi hade
+    // bara ett kort att jämföra med". Samma skäl som `priceOreFromEur` hellre
+    // ger null än en nolla.
+    artMargin: artMatches.length > 1 ? artMatches[0].score - artMatches[1].score : null,
+    artDecided: skipVision,
     artTopLabel,
     artCandidateIds: artMatches.map((m) => m.cardId),
   };
@@ -1908,6 +2049,43 @@ export function isAmbiguous(candidates: ScanCandidate[]): boolean {
   const rival = candidates.find((c) => c.cardId !== top.cardId);
   if (!rival) return false; // bara tryckningar av ett och samma kort
   return top.score - rival.score < MATCH_MARGIN_MIN;
+}
+
+/**
+ * ⛔ **ATT MÄRKA EN GISSNING OCH ATT FRÅGA ÄR OLIKA BESLUT MED OLIKA TRÖSKLAR.**
+ *
+ * `isAmbiguous` (0,05) styr det gula "?" och SKA vara generös: ett märke kostar
+ * användaren ingenting. Valsteget (`status: "choose"`) kostar ett tryck och
+ * blockerar masstillägget, och får därför bara fyra när vi verkligen inte har
+ * något svar att påstå.
+ *
+ * ⛔ **HISTORIKEN SÄGER ATT 0,05 ÄR ALLDELES FÖR BRETT FÖR EN FRÅGA.** Första
+ * versionen (commit e9b3e11, 2026-07-30) lät exakt `isAmbiguous` betyda "ingen
+ * träff" — och **"de flesta kort blev 'ingen träff'"** (8c7529c, som vände
+ * beslutet). Samma tröskel för valsteget hade alltså gjort en pärmgenomgång till
+ * en förhörssession. Frekvensen är fortfarande OMÄTT (`recall.amb` börjar
+ * bokföras 2026-08-29) — tills den finns är det enda ansvarsfulla att fråga
+ * SMALARE än vi märker.
+ *
+ * TRÖSKELN ÄR ANKRAD I ETT UPPMÄTT FALL, inte vald på känsla: den Gyarados som
+ * gav upphov till hela `ambiguous`-begreppet hade **ALLA nio Gyarados i katalogen
+ * på exakt 1,000** — namnet lästes rätt, numret var oläsligt och bilden oanvändbar
+ * på ett klassiskt ramat kort. Det är det läge där ett svar är ren tärningskastning
+ * och en fråga är det enda ärliga. `TIE_MARGIN` fångar det bandet och nästan
+ * ingenting annat.
+ *
+ * ⚠️ Höj den INTE innan `recall.amb`-fördelningen lästs. Sänks/höjs den ska både
+ * ask-frekvensen och andelen `corrected` mätas — hela poängen med steget är att
+ * det ska producera facit, och ett steg som fyrar för ofta blir bortklickat.
+ */
+export const TIE_MARGIN = 0.01;
+
+export function isTied(candidates: ScanCandidate[]): boolean {
+  const top = candidates[0];
+  if (!top) return false;
+  const rival = candidates.find((c) => c.cardId !== top.cardId);
+  if (!rival) return false;
+  return top.score - rival.score < TIE_MARGIN;
 }
 
 /** Bildträffarna som kort text. Uppslag på primärnyckel — tre rader. */

@@ -57,7 +57,7 @@
 - [ ] **favicon.ico fortf. gammal palett** (binär ico, ej regenererad till teal som `icon.svg`/PNG:erna). Regenerera via designverktyg → ersätt `public/favicon.ico`.
 
 ### Funktionella luckor
-- [x] **Skanner + AI-gradering kör riktig vision** — prod har `OCR_PROVIDER=gemini` och `GRADING_PROVIDER=gemini` (avläst i Railway 2026-08-14). Mock gäller bara lokalt/utan variabler. ⚠️ `SCANNER_MODEL_PRECISE` defaultar till `gemini-3.5-flash`, som är STRIKT DOMINERAD av `gemini-3.6-flash` (samma inpris, 20 % billigare ut, nyare) — graderingen bytte 08-05, skannern glömdes.
+- [x] **Skanner + AI-gradering kör riktig vision** — prod har `OCR_PROVIDER=gemini` och `GRADING_PROVIDER=gemini` (avläst i Railway 2026-08-14). Mock gäller bara lokalt/utan variabler. ✅ `SCANNER_MODEL_PRECISE` bytte 3.5 → `gemini-3.6-flash` 2026-08-29 (3.5 är strikt dominerad). ⚠️ Ingen besparing: den precisa vägen har aldrig kört i produktion (0 rader i hela ScannerJob-tabellen).
 - [ ] **Skan-/graderingsbilder lagras inte** (`imageUrl="inline-upload"`) → S3-kompatibel objektlagring för historik-thumbnails + omgradering.
 - [ ] **HEIC/ovanliga bildformat avvisas** (iOS fotobibliotek ger ofta HEIC) i gradering/skanning → klient-sidig konvertering till JPEG, eller bredda stödet.
 - [ ] **Samlingens `valueOverTime`** = NUvärde bucketat på inköpsmånad (ej historiskt korrekt). Kräver dagliga samlingsvärde-snapshots per användare för en riktig kurva.

@@ -103,13 +103,20 @@ export function providerOf(model: string | null): { key: string; label: string }
 }
 
 /**
- * VÅR EGEN LIGGARE: kostnaden räknad ur API:ernas EGNA tokental × leverantörens
- * publicerade pris. Ingen schablon, ingen extern nyckel, ingen kostnad att hämta.
+ * VÅR EGEN LIGGARE: kostnaden räknad ur API:ernas EGNA tokental × priset i
+ * `ai-pricing.ts`. Ingen schablon, ingen extern nyckel, ingen kostnad att hämta.
  *
  * ⛔ Detta är inte ett estimat av fakturan — det ÄR samma uträkning som
  * `/admin/anvandare` gör per användare, bara summerad över hela basen. Skiljer
- * den sig från fakturan är det prislistan i `ai-pricing.ts` som ska rättas
- * (`AI_PRICE_OVERRIDES`), inte den här vyn.
+ * den sig från fakturan är det prislistan i `ai-pricing.ts` som ska rättas, inte
+ * den här vyn.
+ *
+ * ⚠️ **PRISET ÄR INTE ALLTID LISTPRISET.** Gemini 3.1 Flash-Lite bär sedan
+ * 2026-08-29 ett INPRIS kalibrerat mot Googles konsol 2026-08-02 (utpriset är
+ * kvar på listpris — fakturan kan inte se det, se uträkningen i `ai-pricing.ts`).
+ * Beloppet här är alltså så nära fakturan vi kommer utan att läsa en ny; en NY
+ * konsolsiffra hör hemma i prislistan, med datum, aldrig i `AI_PRICE_OVERRIDES`
+ * (den bär varken källa eller datum).
  */
 export async function getAiLedger(since: Date = startOfMonthUtc()): Promise<AiLedger> {
   // ⛔ `getRatesOre()`, inte den synkrona: en webbrequest har inte hämtat kursen

@@ -316,9 +316,10 @@ klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
   veckans stub-dedup, JP→CM-mappningen, fynd-/Tradera-verifieringen.
   ⛔ **`ANTHROPIC_API_KEY` är därför inte valfri även om båda bild-funktionerna står på Gemini** — utan den
   returnerar domaren null, omöjligt att skilja från "olika produkter", och HELA gränsfallsbandet blir
-  dubbletter. Tyst, i drift. ⛔ Aldrig `gemini-2.5-*` (spärrad för nya nycklar). ⚠️ `SCANNER_MODEL_PRECISE`
-  defaultar fortfarande till `gemini-3.5-flash`, strikt dominerad av `gemini-3.6-flash` (samma inpris, 20 %
-  billigare ut) — graderingen bytte, skannern glömdes.
+  dubbletter. Tyst, i drift. ⛔ Aldrig `gemini-2.5-*` (spärrad för nya nycklar). ✅ `SCANNER_MODEL_PRECISE` bytte
+  3.5 → `gemini-3.6-flash` 2026-08-29 (3.5 är strikt dominerad). ⚠️ Det var en DEFAULTÄNDRING, inte en
+  besparing: den precisa vägen har **aldrig kört i produktion** (0 rader i hela ScannerJob-tabellen) —
+  den kräver `isIntroScan` (default av) eller `precise: true`, som klienten aldrig skickar.
 - **Skanning**: `src/services/scanner/` — OCR-adapterinterface med mock + `ClaudeVisionOcrAdapter` +
   `GeminiVisionOcrAdapter`. `OCR_PROVIDER=claude` är rollback.
 - **PWA/app**: `public/manifest.json` + `public/sw.js` (registreras i prod av `pwa-register.tsx`). Native =
