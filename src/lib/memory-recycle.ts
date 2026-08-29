@@ -34,7 +34,19 @@
  *
  * Sätt MEMORY_RECYCLE_MB=0 för att stänga av helt.
  */
-import { readFileSync } from "node:fs";
+// Ingen statisk fs-import: instrumentation.ts buntas även för edge-runtimen och webpack
+// vägrar "node:fs" där. process.getBuiltinModule (Node ≥ 22.3) laddar modulen utan att
+// webpack ser den; saknas den (edge/äldre Node) blir svaret null = "ingen container".
+type FsLike = { readFileSync(path: string, enc: string): string };
+function nodeFs(): FsLike | null {
+  const get = (process as unknown as { getBuiltinModule?: (id: string) => unknown }).getBuiltinModule;
+  if (typeof get !== "function") return null;
+  try {
+    return get.call(process, "node:fs") as FsLike;
+  } catch {
+    return null;
+  }
+}
 
 const CGROUP_FILES = [
   "/sys/fs/cgroup/memory.current", // cgroup v2 (Railway)
@@ -43,9 +55,11 @@ const CGROUP_FILES = [
 
 /** Containerns minne i byte enligt cgroup, eller null utanför en container. */
 export function readCgroupMemoryBytes(): number | null {
+  const fs = nodeFs();
+  if (!fs) return null;
   for (const file of CGROUP_FILES) {
     try {
-      const n = Number(readFileSync(file, "utf8").trim());
+      const n = Number(fs.readFileSync(file, "utf8").trim());
       if (Number.isFinite(n) && n > 0) return n;
     } catch {
       /* finns inte här — prova nästa */
