@@ -132,8 +132,8 @@ export async function runJapaneseSinglesRefresh(
     apiCalls: 0, remaining: Infinity, cards: 0, setsCreated: 0, cardsCreated: 0,
     productsCreated: 0, offersWritten: 0, historyPoints: 0, skippedNoEpisode: 0, skippedNoName: 0,
   };
-  const HOST = process.env.CARDMARKET_RAPIDAPI_HOST ?? "cardmarket-api-tcg.p.rapidapi.com";
-  const KEY = process.env.CARDMARKET_RAPIDAPI_KEY ?? "";
+  const HOST = process.env.CARDMARKET_RAPIDAPI_HOST || "cardmarket-api-tcg.p.rapidapi.com";
+  const KEY = process.env.CARDMARKET_RAPIDAPI_KEY || "";
   if (!KEY) {
     console.warn("[cm-jp-singles] CARDMARKET_RAPIDAPI_KEY saknas — hoppar över.");
     return res;
