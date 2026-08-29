@@ -33,10 +33,17 @@ function makeDist(buildId: string): string {
   return dir;
 }
 
+/** Ny "process": modulen laddas om så minnes-LRU + tags-manifest börjar tomma. */
 function load(serverDistDir: string, extra: Record<string, unknown> = {}): Handler {
   delete require.cache[require.resolve(handlerPath)];
   const Ctor = require(handlerPath);
   return new Ctor({ serverDistDir, maxMemoryCacheSize: 1024 * 1024, _appDir: true, experimental: {}, ...extra });
+}
+
+/** Samma process, ny instans — så som Next skapar en hanterare PER REQUEST. */
+function reinstantiate(serverDistDir: string): Handler {
+  const Ctor = require(handlerPath);
+  return new Ctor({ serverDistDir, maxMemoryCacheSize: 1024 * 1024, _appDir: true, experimental: {} });
 }
 
 const page = (html: string, tags?: string) => ({
@@ -62,6 +69,32 @@ afterEach(() => {
 });
 
 describe("PersistentIsrCache", () => {
+  it("minne och tagg-manifest delas mellan instanser i samma process (Next skapar en per request)", async () => {
+    delete process.env.ISR_CACHE_DIR; // utan volym: BARA minnet kan ge träff
+    const first = load(distA);
+    await first.set("/sv/produkter/req1", page("R1"));
+    const second = reinstantiate(distA);
+    expect((await second.get("/sv/produkter/req1", { kindHint: "app" }))?.value).toMatchObject({ html: "R1" });
+    // Tagg-manifestet är också delat: en revalidering i EN instans syns i nästa.
+    await new Promise((r) => setTimeout(r, 5));
+    await first.set("/sv/produkter/req2", page("R2", "_N_T_/sv/produkter/req2"));
+    await new Promise((r) => setTimeout(r, 5));
+    await second.revalidateTag("_N_T_/sv/produkter/req2");
+    expect(await reinstantiate(distA).get("/sv/produkter/req2", { kindHint: "app" })).toBeNull();
+  });
+
+  it("prune rör aldrig en färsk .tmp (pågående skrivning), bara övergivna", async () => {
+    const a = load(distA);
+    const pagesDir = path.join(process.env.ISR_CACHE_DIR!, "v1", "pages");
+    fs.mkdirSync(pagesDir, { recursive: true });
+    fs.writeFileSync(path.join(pagesDir, "fresh.gz.1.tmp"), "x");
+    fs.writeFileSync(path.join(pagesDir, "abandoned.gz.2.tmp"), "x");
+    const old = new Date(Date.now() - 60 * 60 * 1000);
+    fs.utimesSync(path.join(pagesDir, "abandoned.gz.2.tmp"), old, old);
+    expect(await a.prune()).toEqual({ pages: 1, fetchDirs: 0 });
+    expect(fs.existsSync(path.join(pagesDir, "fresh.gz.1.tmp"))).toBe(true);
+  });
+
   it("skriver en PAGE till volymen och läser den i en NY process/bygge", async () => {
     const a = load(distA);
     await a.set("/sv/produkter/x", page("<html>A</html>"));

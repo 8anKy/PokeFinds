@@ -8,6 +8,7 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/cache", () => ({
   cachedRead: (fn: unknown) => fn,
   singleFlight: (fn: unknown) => fn,
+  STATIC_CACHE_TAG: "statisk",
 }));
 vi.mock("@/services/market", () => ({ getTrendingLift: vi.fn() }));
 

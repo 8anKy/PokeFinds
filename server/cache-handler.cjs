@@ -114,6 +114,18 @@ class MemoryLru {
   }
 }
 
+// ⛔ NEXT SKAPAR EN NY HANTERARINSTANS PER REQUEST (IncrementalCache byggs med
+// requestens headers). Allt som ska överleva mellan requests MÅSTE vara modul-
+// globalt — exakt som FileSystemCache håller `memoryCache`/`tagsManifest` på
+// modulnivå. Första produktionsversionen hade minnes-LRU:n per instans (⇒ tom
+// varje request) och körde prune i konstruktorn (⇒ raderade andra requests
+// halvskrivna .tmp-filer ⇒ ENOENT ⇒ MISS på varje träff). Mätt i drift 2026-08-29.
+let sharedMemory = null;
+let sharedTagsManifest = null;
+let pruneTimer = null;
+/** .tmp-filer yngre än så är skrivningar som pågår — rör dem aldrig. */
+const TMP_GRACE_MS = 5 * 60 * 1000;
+
 function serialize(obj) {
   return zlib.gzipSync(Buffer.from(JSON.stringify(obj)), { level: 4 });
 }
@@ -130,9 +142,9 @@ class PersistentIsrCache {
     this.revalidatedTags = ctx.revalidatedTags || [];
     this.ppr = !!(ctx.experimental && ctx.experimental.ppr);
     this.debug = !!process.env.NEXT_PRIVATE_DEBUG_CACHE;
-    this.memory = new MemoryLru(ctx.maxMemoryCacheSize || 0);
+    if (!sharedMemory) sharedMemory = new MemoryLru(ctx.maxMemoryCacheSize || 0);
+    this.memory = sharedMemory;
     this.buildId = readBuildId(this.serverDistDir);
-    this.tagsManifest = null;
 
     if (this.dir) {
       try {
@@ -144,11 +156,21 @@ class PersistentIsrCache {
       }
     }
     this.loadTagsManifest();
-    if (this.dir && !process.env.ISR_CACHE_NO_PRUNE) {
-      const timer = setInterval(() => void this.prune(), PRUNE_INTERVAL_MS);
-      if (typeof timer.unref === "function") timer.unref();
-      void this.prune();
+    if (this.dir && !pruneTimer && !process.env.ISR_CACHE_NO_PRUNE) {
+      pruneTimer = setInterval(() => void this.prune(), PRUNE_INTERVAL_MS);
+      if (typeof pruneTimer.unref === "function") pruneTimer.unref();
+      // Första städningen en stund efter start — aldrig i requestvägen.
+      const first = setTimeout(() => void this.prune(), 60 * 1000);
+      if (typeof first.unref === "function") first.unref();
     }
+  }
+
+  /** Bara för tester: nollställ modulens delade tillstånd. */
+  static _resetShared() {
+    sharedMemory = null;
+    sharedTagsManifest = null;
+    if (pruneTimer) clearInterval(pruneTimer);
+    pruneTimer = null;
   }
 
   // ── Kataloger ──────────────────────────────────────────────────────────────
@@ -172,18 +194,20 @@ class PersistentIsrCache {
   }
 
   // ── Taggar (samma semantik som FileSystemCache) ────────────────────────────
+  get tagsManifest() {
+    return sharedTagsManifest;
+  }
+
   loadTagsManifest() {
-    if (this.tagsManifest) return;
+    if (sharedTagsManifest) return;
+    let manifest;
     try {
-      this.tagsManifest = this.dir
-        ? JSON.parse(fs.readFileSync(this.tagsManifestPath(), "utf8"))
-        : { version: 1, items: {} };
-      if (!this.tagsManifest || typeof this.tagsManifest !== "object" || !this.tagsManifest.items) {
-        this.tagsManifest = { version: 1, items: {} };
-      }
+      manifest = this.dir ? JSON.parse(fs.readFileSync(this.tagsManifestPath(), "utf8")) : null;
     } catch {
-      this.tagsManifest = { version: 1, items: {} };
+      manifest = null;
     }
+    if (!manifest || typeof manifest !== "object" || !manifest.items) manifest = { version: 1, items: {} };
+    sharedTagsManifest = manifest;
   }
 
   async revalidateTag(...args) {
@@ -340,7 +364,11 @@ class PersistentIsrCache {
         const file = path.join(this.pagesDir(), name);
         try {
           const st = await fsp.stat(file);
-          if (name.endsWith(".tmp") || now - st.mtimeMs > PAGE_MAX_AGE_MS) {
+          const age = now - st.mtimeMs;
+          // ⛔ En .tmp är en pågående skrivning från en annan request — bara
+          // övergivna (gamla) tas. Färdiga sidor tas när de passerat maxåldern.
+          const stale = name.endsWith(".tmp") ? age > TMP_GRACE_MS : age > PAGE_MAX_AGE_MS;
+          if (stale) {
             await fsp.unlink(file);
             pages++;
           }
