@@ -40,10 +40,11 @@ import {
   cardmarketJpSearchUrl,
   isCardmarketJpSearchUrl,
 } from "@/lib/marketplace-urls";
-import { codeFromJpSetName, jpSetDisplayName, jpSetLogoPath } from "@/lib/jp-set-name";
+import { codeFromJpSetName, jpSetDisplayName } from "@/lib/jp-set-name";
 import { upsertTodaySnapshots } from "@/jobs/cardmarket-refresh";
-import * as fs from "fs";
-import * as path from "path";
+// ⛔ INGEN `fs`/`path` HÄR: modulen nås från cardmarket-refresh, som instrumentation.ts
+// importerar — och den kompileras även för Edge-runtimen, där Node-moduler inte
+// finns. Bygget föll på exakt det 2026-08-29 (deploy 389d8ca).
 
 const DB_CONCURRENCY = 8;
 const THROTTLE_MS = 220;
@@ -205,16 +206,14 @@ export async function runJapaneseSinglesRefresh(
       byName.get(setNameKey(ep.name));
     if (!set) {
       const name = jpSetDisplayName(clean, ep.code);
-      const logoFile = jpSetLogoPath(name);
-      const hasLocalLogo = fs.existsSync(path.join(process.cwd(), "public", logoFile));
       const created = await prisma.cardSet.create({
         data: {
           name,
           series: ep.series?.name?.trim() || "Other",
           releaseDate: ep.released_at ? new Date(ep.released_at) : null,
-          // Lokal logotyp om den redan finns (scripts/fetch-jp-set-logos.ts), annars
-          // leverantörens CDN tills någon kör skriptet igen — samma regel som förr.
-          logoUrl: hasLocalLogo ? logoFile : ep.logo,
+          // Leverantörens logotyp tills någon kör scripts/fetch-jp-set-logos.ts
+          // (som lägger en lokal fil och pekar om) — samma regel som förr.
+          logoUrl: ep.logo,
           externalId: ext,
           language: "JP",
           totalCards: printed,
