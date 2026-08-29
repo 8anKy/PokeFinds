@@ -12,6 +12,24 @@ paths:
 
 # Japanska set — regler och gotchas (flyttade verbatim från CLAUDE.md 2026-08-12)
 
+- ✅ **JAPANSKA SINGLAR SEDAN 2026-08-29** (`src/jobs/jp-singles-refresh.ts`, körs i
+  `runCardmarketRefresh` efter JP-sealed; manuellt `scripts/run-jp-singles.ts`). Källa: RapidAPI:s
+  **globala** `/pokemon-jp/cards` (278 sidor, ~280 anrop/dygn). ⛔ Per-set-endpointen
+  `/pokemon-jp/episodes/{id}/cards` är TOM för 62 av 71 set — använd den aldrig. Mätt 2026-08-29:
+  5 553 kort, 40 set kompletta, 7 partiella, **24 set utan kort hos leverantören** (nästan hela
+  2021–2022: VSTAR Universe, VMAX Climax, Eevee Heroes …) — de kommer av sig själva när listan växer.
+  Identitet `Card.tcgExternalId = "tcggo-jp:<id>"`; nya set `CardSet.externalId = "tcggo-jp:<episode>"`;
+  befintliga JP-set matchas på KOD (`codeFromJpSetName`), sedan namn (33 + 5 av 46 vid importen).
+  Namn = engelska + " (JP)" (ägarbeslut) — skannern föredrar då EN vid lika läsning och listar JP som
+  val (`sameNameCards` söker båda formerna). ⛔ `cardmarket_id` är **0 %** ⇒ ingen produktsida:
+  offern bär `cardmarketJpSearchUrl` (CM-sök, `language=7`), det ENDA sök-URL som får bära ett pris
+  (undantag i `isDirectOfferUrl` + `DIRECT_URL_SQL`; knappen säger "Sök på Cardmarket"). Ägaren
+  valde bort leverantörens `tcggo.com/external/cm/<id>`-redirect (tredjepart, Cloudflare-grindad).
+  Länken uppgraderas automatiskt till `cardmarketJapaneseProductUrl` den dag `cardmarket_id` kommer.
+  ⛔ EN-refreshen, hot-card och täckningsvakten filtrerar nu `language: "EN"` — JP-kort har också ett
+  `tcgExternalId` och hade annars fått EN-offers. `totalCards`/`totalCardsFull` på JP-set fylls nu
+  från leverantören (printed / total). Vaktat av `tests/unit/jp-singles.test.ts`.
+
 Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md pekar hit.
 
 - **JAPANSKA SET KOMMER FRÅN CARDMARKETS EXPANSIONER (2026-08-07)**: katalogens set kommer från

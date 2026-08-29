@@ -1232,9 +1232,16 @@ export async function matchCards(
   // åtta andra Falinks trängdes ut av en Pawmot. Listan sorteras därför i skikt,
   // inte på poäng: rätt kort ska ligga ett tryck bort, inte sjunka under brus
   // som råkar poängsätta högre.
+  // Japanska kort heter "<engelskt namn> (JP)" (jp-singles-refresh). Ägarbeslut
+  // 2026-08-29: EN-kortet vinner vid lika läsning (namnbonusen faller bara ut för
+  // det exakta namnet), men JP-utgåvan ska finnas som val i listan — och tvärtom.
+  const baseName = winner.name.replace(/\s*\(JP\)\s*$/i, "");
   const sameNameCards = await prisma.card.findMany({
     where: {
-      name: { equals: winner.name, mode: "insensitive" },
+      OR: [
+        { name: { equals: baseName, mode: "insensitive" } },
+        { name: { equals: `${baseName} (JP)`, mode: "insensitive" } },
+      ],
       id: { notIn: ranked.slice(0, MAX_CANDIDATES).map((r) => r.candidate.cardId) },
     },
     select: {

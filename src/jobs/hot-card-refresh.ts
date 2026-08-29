@@ -142,6 +142,9 @@ export async function runHotCardRefresh(
   } as const;
   const baseWhere = {
     category: "SINGLE_CARD" as const,
+    // Bara engelska: JP-singlar har "tcggo-jp:…" som externt id och prissätts av
+    // jp-singles-refresh — /pokemon/cards?tcgid= känner inte till dem.
+    language: "EN" as const,
     card: { tcgExternalId: { not: null } },
     offers: { some: { retailerId: cm.id } },
     // Tryckningar ÄR med: pickRowForProduct väljer raden för precis produktens

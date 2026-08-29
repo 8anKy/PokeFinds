@@ -264,6 +264,7 @@ export function ProductDetailView({
           priceChange7dPercent={data.change7}
           change30={data.change30}
           isSingle={isSingle}
+          isJapanese={data.language === "JP"}
           pending={pending}
         />
         <div className="mt-6 flex flex-wrap items-center gap-4">

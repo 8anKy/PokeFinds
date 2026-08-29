@@ -1459,6 +1459,10 @@ export async function runCardmarketRefresh(
       // prissätts här, en produkt per tryckning (se src/lib/print-variant.ts).
       where: {
         category: "SINGLE_CARD",
+        // ⛔ BARA ENGELSKA: japanska singlar (2026-08-29) har också ett
+        // tcgExternalId ("tcggo-jp:…") men prissätts av jp-singles-refresh ur
+        // /pokemon-jp. Utan grinden hade de fått en EN-offer med fel pris.
+        language: "EN",
         OR: [{ variantLabel: null }, { variantLabel: { in: [...PRINT_VARIANT_LABELS] } }],
         card: { tcgExternalId: { not: null } },
       },
@@ -2583,6 +2587,22 @@ export async function runCardmarketRefresh(
     }
   }
 
+  // Japanska SINGLAR (2026-08-29): RapidAPI:s /pokemon-jp, ~280 anrop/dygn ur samma
+  // kvot (1197 + 280 + hot-card 400 = ~1 880 av 3 000). Egen modul; ett fel här får
+  // inte tysta resten av dagens priser.
+  if (opts.singles !== false && !process.env.CM_ONLY_EPISODES && !process.env.CM_LIMIT_EPISODES) {
+    try {
+      const { runJapaneseSinglesRefresh } = await import("@/jobs/jp-singles-refresh");
+      const jp = await runJapaneseSinglesRefresh();
+      res.apiCalls += jp.apiCalls;
+      res.historyPoints += jp.historyPoints;
+      res.singlesUpdated += jp.offersWritten;
+      res.singlesCreated += jp.productsCreated;
+    } catch (err) {
+      console.error("[cm-refresh] JP-singelrefresh misslyckades:", err instanceof Error ? err.message : err);
+    }
+  }
+
   // Specialvariant-priser (GameStop-promo, reverse m.m.) via pokemontcg.io-trend.
   res.historyPoints += await runVariantRefresh();
 
@@ -2630,11 +2650,13 @@ export async function readSinglesCoverage(pricedThisRun = 0): Promise<CoverageIn
            COUNT(*) FILTER (WHERE EXISTS (
              SELECT 1 FROM "Offer" o JOIN "Retailer" r ON r.id = o."retailerId"
              WHERE o."productId" = p.id AND r.name = 'Cardmarket'))::bigint AS covered
-    FROM "Product" p WHERE p.category = 'SINGLE_CARD'`;
+    FROM "Product" p WHERE p.category = 'SINGLE_CARD' AND p.language = 'EN'`;
+  // language = EN på alla tre: vakten mäter den ENGELSKA feeden (episodlistan).
+  // Japanska singlar prissätts ur en annan endpoint med egen loggrad.
   const emptySets = await prisma.$queryRaw<{ set: string; singles: bigint }[]>`
     SELECT COALESCE(cs."externalId", cs.name) AS set, COUNT(*)::bigint AS singles
     FROM "Product" p JOIN "CardSet" cs ON cs.id = p."setId"
-    WHERE p.category = 'SINGLE_CARD'
+    WHERE p.category = 'SINGLE_CARD' AND p.language = 'EN'
     GROUP BY COALESCE(cs."externalId", cs.name)
     HAVING COUNT(*) FILTER (WHERE EXISTS (
              SELECT 1 FROM "Offer" o JOIN "Retailer" r ON r.id = o."retailerId"
@@ -2644,7 +2666,7 @@ export async function readSinglesCoverage(pricedThisRun = 0): Promise<CoverageIn
     `SELECT COUNT(*)::bigint AS n
      FROM "Offer" o
      JOIN "Retailer" r ON r.id = o."retailerId" AND r.name = 'Cardmarket'
-     JOIN "Product" p ON p.id = o."productId" AND p.category = 'SINGLE_CARD'
+     JOIN "Product" p ON p.id = o."productId" AND p.category = 'SINGLE_CARD' AND p.language = 'EN'
      WHERE o."lastSeenAt" < NOW() - ($1 || ' days')::interval`,
     String(COVERAGE_STALE_DAYS)
   );

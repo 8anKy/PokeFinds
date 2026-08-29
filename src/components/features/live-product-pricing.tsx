@@ -22,7 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { OfferClickButton } from "@/components/features/offer-click-button";
 import { IconStore, IconChevronDown } from "@/components/ui/icons";
 import { hapticTick } from "@/lib/haptics";
-import { isDirectOfferUrl } from "@/lib/marketplace-urls";
+import { isCardmarketJpSearchUrl, isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { lowestOfferSource } from "@/lib/offer-source";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -178,6 +178,8 @@ export interface LivePricePanelProps {
    * de tusentals där siffran kom från en Tradera-annons och ingen CM-länk fanns.
    */
   isSingle?: boolean;
+  /** Japansk singel → "NM japanska", inte "NM engelska" (priset är CM:s JP-From). */
+  isJapanese?: boolean;
   /** Skal-läge: priset är inte hämtat ännu → skelett i stället för "–". */
   pending?: boolean;
 }
@@ -186,6 +188,7 @@ export function LivePricePanel({
   priceChange7dPercent,
   change30,
   isSingle = false,
+  isJapanese = false,
   pending = false,
 }: LivePricePanelProps) {
   const t = useTranslations("Detail");
@@ -223,7 +226,7 @@ export function LivePricePanel({
   const priceLabel = !isSingle
     ? t("priceLabelDefault")
     : source?.name === "Cardmarket" && source.live
-      ? t("priceLabelSingle")
+      ? t(isJapanese ? "priceLabelSingleJp" : "priceLabelSingle")
       : source && !source.live
         ? t("priceLabelEstimate", { source: source.name })
         : source
@@ -357,6 +360,10 @@ export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOf
     }
   }
 
+  // JP-singlarnas Cardmarket-rad är en SÖKlänk (det enda tillåtna undantaget, se
+  // isDirectOfferUrl) — knappen får inte lova "Till butik".
+  const offerLabel = (url: string) => (isCardmarketJpSearchUrl(url) ? t("searchOnCardmarket") : undefined);
+
   // Visa alla offers med direkt produktlänk (sök-/bläddringslänkar filtreras
   // redan bort på servern; detta är en defensiv extra gallring). Pris kan
   // saknas (t.ex. helt nya kort utan marknadsdata) — då visas länken ändå med
@@ -428,7 +435,7 @@ export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOf
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-2">
-                        <OfferClickButton slug={slug} offerId={offer.id} fallbackUrl={offer.url} />
+                        <OfferClickButton slug={slug} offerId={offer.id} fallbackUrl={offer.url} label={offerLabel(offer.url)} />
                         {isAdmin && (
                           <button
                             type="button"
@@ -481,6 +488,7 @@ export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOf
                                 slug={slug}
                                 offerId={offer.id}
                                 fallbackUrl={offer.url}
+                                label={offerLabel(offer.url)}
                               />
                               {isAdmin && (
                                 <button

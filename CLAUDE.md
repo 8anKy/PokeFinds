@@ -24,6 +24,8 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   `Resolve-DnsName foilio.se -Type NS -Server <resolver>` innan något felsöks i appen.
 - **Katalog komplett**: ~173 set, ~20k singlar + ~2100 sealed (0 saknade mot pokemontcg.io). ~868 singlar
   + ~24 sealed saknar genuint CM-marknadsdata → ärlig "–"/döljs tills data finns.
+  **+ Japanska singlar sedan 2026-08-29** (~5 550 kort, 47 set; 24 JP-set saknar kort hos leverantören) —
+  regler i `.claude/rules/jp-sets.md`. RapidAPI-baslinjen är nu ~1 880/3 000 per dygn.
 - **Priser**: singlar = Cardmarket engelska NM-"From" (RapidAPI) × live-kurs; sealed = CM `lowest`;
   graf/historik = CM trend.
 - **Google-/Apple-inloggning (kod klar 2026-08-29, AKTIVERAS AV ENV)**: webb = NextAuth-providers

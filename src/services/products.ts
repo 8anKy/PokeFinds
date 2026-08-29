@@ -164,15 +164,26 @@ const MAX_CANDIDATES = 500;
  * SQL-villkor som speglar isDirectOfferUrl() (src/lib/marketplace-urls.ts):
  * sök-/bläddringslänkar + CM-redirecten exkluderas. Delas av pris-cachen och Fynd-feeden.
  */
-export const DIRECT_URL_SQL = `
-  lower(url) NOT LIKE '%/search%'
-  AND lower(url) NOT LIKE '%searchstring=%'
-  AND lower(url) NOT LIKE '%sokstr=%'
-  AND lower(url) NOT LIKE '%funk=sok%'
-  AND lower(url) NOT LIKE '%?query=%' AND lower(url) NOT LIKE '%&query=%'
-  AND lower(url) NOT LIKE '%?q=%' AND lower(url) NOT LIKE '%&q=%'
-  AND lower(url) NOT LIKE '%prices.pokemontcg.io/cardmarket%'
-`;
+// ⛔ PARENTESERAD: uttrycket innehåller ett OR (JP-undantaget) och konsumeras som
+// `... AND ${DIRECT_URL_SQL}` på tre ställen — utan parenteser hade OR:et brutit
+// sig ut ur varje sådan WHERE. Undantaget speglar `isCardmarketJpSearchUrl`
+// (lib/marketplace-urls.ts): Cardmarket-sök med language=7 = japansk singel.
+export const DIRECT_URL_SQL = `(
+  (
+    lower(url) NOT LIKE '%/search%'
+    AND lower(url) NOT LIKE '%searchstring=%'
+    AND lower(url) NOT LIKE '%sokstr=%'
+    AND lower(url) NOT LIKE '%funk=sok%'
+    AND lower(url) NOT LIKE '%?query=%' AND lower(url) NOT LIKE '%&query=%'
+    AND lower(url) NOT LIKE '%?q=%' AND lower(url) NOT LIKE '%&q=%'
+    AND lower(url) NOT LIKE '%prices.pokemontcg.io/cardmarket%'
+  ) OR (
+    lower(url) LIKE '%cardmarket.com/%'
+    AND lower(url) LIKE '%/products/search?%'
+    AND lower(url) LIKE '%searchstring=%'
+    AND (lower(url) LIKE '%?language=7' OR lower(url) LIKE '%&language=7' OR lower(url) LIKE '%?language=7&%' OR lower(url) LIKE '%&language=7&%')
+  )
+)`;
 
 // UTC, inte lokal midnatt: PriceSnapshot.date är en @db.Date som lagrar UTC-datumet,
 // så ett lokalt fönster i UTC+2 börjar 22:00 dagen innan och drar in en extra dag.

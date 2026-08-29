@@ -19,6 +19,15 @@
 export function isDirectOfferUrl(url: string | null | undefined): boolean {
   if (!url) return false;
   const u = url.toLowerCase();
+  // ⛔ ETT ENDA UNDANTAG, ägarbeslut 2026-08-29: Cardmarket-sök på JAPANSKA singlar.
+  // Priset på en japansk singel är CM:s exakta NM-"From" för just det kortet (ur
+  // RapidAPI:s /pokemon-jp), men leverantören ger inget `cardmarket_id` och ingen
+  // produktsida — bara en Cloudflare-skyddad redirect via sin egen sajt, som ägaren
+  // valde bort. Länken är därför CM:s sök förfiltrerad till japanska annonser
+  // (language=7), och knappen säger "Sök på Cardmarket", inte "Till butik".
+  // Regeln ovan gäller oförändrat för allt annat; SQL-spegeln i DIRECT_URL_SQL
+  // (services/products.ts) bär samma undantag. Vaktat av marketplace-urls.test.ts.
+  if (isCardmarketJpSearchUrl(u)) return true;
   // Sökvägar/parametrar som avslöjar en sök- eller bläddringslänk.
   if (u.includes("/search")) return false;        // Tradera & CM Search, butikssök
   if (u.includes("searchstring=")) return false;  // Cardmarket-sök
@@ -156,6 +165,32 @@ export function cardmarketJapaneseProductUrl(idProduct: number): string {
 
 export function cardmarketSearchUrl(term: string): string {
   return `https://www.cardmarket.com/en/Pokemon/Products/Search?searchString=${encodeURIComponent(term)}&site=1`;
+}
+
+/** Cardmarkets språk-id för japanska annonser (`language=7`). */
+export const CARDMARKET_LANGUAGE_JP = 7;
+
+/**
+ * "Sök på Cardmarket" för en JAPANSK singel: namnsök (set+nummer ger 0 träffar hos
+ * CM) förfiltrerad till japanska annonser. Det ENDA sök-URL:et som får bära ett
+ * pris — se undantaget i `isDirectOfferUrl`. Bara det engelska kortnamnet, aldrig
+ * vårt "(JP)"-suffix: det är vår skrivning, inte CM:s.
+ */
+export function cardmarketJpSearchUrl(nameEn: string): string {
+  const term = nameEn.replace(/\s*\(JP\)\s*$/i, "").trim();
+  return `https://www.cardmarket.com/en/Pokemon/Products/Search?searchString=${encodeURIComponent(term)}&language=${CARDMARKET_LANGUAGE_JP}`;
+}
+
+/** Är URL:en exakt den JP-söklänk `cardmarketJpSearchUrl` bygger? (Skiftlägesokänslig.) */
+export function isCardmarketJpSearchUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  const u = url.toLowerCase();
+  return (
+    u.includes("cardmarket.com/") &&
+    u.includes("/products/search?") &&
+    u.includes("searchstring=") &&
+    /[?&]language=7(&|$)/.test(u)
+  );
 }
 
 export function traderaSearchUrl(term: string): string {
