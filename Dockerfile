@@ -110,6 +110,10 @@ COPY --from=build /app/public ./public
 # tills 2026-08-09) och cacheMaxMemorySize faller till 50 MB. headers()/redirects
 # överlevde bara för att de bakas in i routes-manifest vid BYGGET. Ta inte bort.
 COPY --from=build /app/next.config.mjs ./next.config.mjs
+# Persistent ISR-cache (server/cache-handler.cjs) + chunk-arkivet som körs före
+# start (server/isr-cache-boot.cjs). Aktiveras BARA när en volym är monterad
+# (RAILWAY_VOLUME_MOUNT_PATH) — utan volym är båda no-ops.
+COPY --from=build /app/server ./server
 EXPOSE 3000
 # ⛔ MIGRATIONEN KÖRS INTE VID START SOM STANDARD (RUN_MIGRATIONS saknas → hoppas över).
 #
@@ -131,4 +135,4 @@ EXPOSE 3000
 # SPAKEN: sätt RUN_MIGRATIONS=1 (eller "true") på Railway-tjänsten för att slå på
 # boot-migrationen igen — t.ex. under en engångsåterställning där ingen har CLI-åtkomst.
 # Dokumenterad i docs/DEPLOYMENT.md.
-CMD ["sh", "-c", "if [ \"$RUN_MIGRATIONS\" = \"1\" ] || [ \"$RUN_MIGRATIONS\" = \"true\" ]; then npx prisma migrate deploy || true; fi; npm start"]
+CMD ["sh", "-c", "node server/isr-cache-boot.cjs || true; if [ \"$RUN_MIGRATIONS\" = \"1\" ] || [ \"$RUN_MIGRATIONS\" = \"true\" ]; then npx prisma migrate deploy || true; fi; npm start"]

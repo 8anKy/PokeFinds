@@ -216,8 +216,8 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   ⛔ **PRERENDERING VID BYGGET ÄR INTE FIXEN** (utrett 2026-08-26): ISR-revalidering är LAT men
   RENDERAR ändå efter TTL:en, så en prerenderad sida blir kall igen — vinsten är latens, inte vaken tid,
   och bygget betalar N × 25–50 Neon-frågor per deploy. **Den strukturella fixen är att ta PRISET ur den
-  ISR-cachade HTML:en** (klienthämtning vid mount; `LivePricingProvider` finns redan men används aldrig
-  till initialpriset). Först då får HTML:en cachas länge — och först då blir ett edge-lager meningsfullt.
+  ISR-cachade HTML:en** — ✅ GJORD 2026-08-29, se "Caching/ISR". Mät effekten med
+  `scripts/neon-wake-attribution.ts` efter en vecka.
   ⛔ **SVEPEN HAR SLUTAT HA NAMN**: största enskilda källan var 416 hämtningar från **321 olika IP:n**
   (1,3 per IP ⇒ IP-blockering är meningslös) med en FÖRFALSKAD webbläsar-UA. Den fälls av
   `isForgedBrowserUa()` — `AppleWebKit/6xx` (Safaris motor) tillsammans med `Chrome/` är fysiskt omöjligt.
@@ -251,8 +251,22 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
 - **Kostnadsbriefing FÖRE funktioner**: kostar något pengar/app/tjänst — lägg fram siffran och invänta OK.
 
 ## Caching/ISR (kvot-kritiskt)
+- ✅ **PRODUKTSIDAN ÄR ETT DB-FRITT SKAL MED 30-DYGNS ISR PÅ EN VOLYM (2026-08-29)** — den strukturella fixen
+  ovan är GJORD. `/produkter/[slug]` renderas ur `loadProductShell` (namn/bild/set/varianter, egen smal
+  Prisma-fråga, `cachedRead` 30 d + `STATIC_CACHE_TAG`); priser/offers/graf/skena/liknande hämtar
+  `ProductDetailView` själv vid montering (`/api/products/[slug]/detail`, samma payload som overlayn), och
+  crawlers som kör JS hoppar över hämtningen (`lib/crawler-ua.ts` — Googlebot får skalet och "–").
+  ISR-posterna ligger i `server/cache-handler.cjs` (Next 14.2-kontraktet, gzip på `$RAILWAY_VOLUME_MOUNT_PATH/isr`,
+  aktiveras av att volymen finns) och överlever deployer; `server/isr-cache-boot.cjs` ackumulerar
+  `/_next/static`-chunks på volymen så gamla sidor hydrerar. ⛔ Importera ALDRIG `getProductBySlug`/
+  `loadProductDetail` (1 h) i sidan — ruttens TTL blir MIN av alla cachade läsningar. ⛔ `/api/revalidate`
+  får inte `revalidatePath`:a produktsidorna igen (slaggan som nollade vinsten). ⛔ FETCH-poster nycklas
+  på BUILD_ID, PAGE-poster på `PAGE_EPOCH` — bumpa epoken när produktsidans UI/API-kontrakt ändras så att
+  det måste nå besökare inom 30 d. Ingen Product-nod i JSON-LD längre (kräver `offers`). Vaktat av
+  `tests/unit/product-page-isr-ttl.test.ts` + `isr-cache-handler.test.ts`. Verifierat lokalt:
+  `s-maxage=2592000`, HIT efter processomstart. Volymkostnad ~$0,15/GB-mån (~1–2 GB).
 Publika läs-sidor är ISR-cachade (`revalidate=3600`), INTE `force-dynamic`: startsidan, `/marknad`, `/sets`,
-`/sets/[id]`, `/produkter/[slug]`. ⛔ **Sätt aldrig tillbaka `force-dynamic`** — det var orsaken till hög
+`/sets/[id]` (och `/produkter/[slug]` med 30 d, se ovan). ⛔ **Sätt aldrig tillbaka `force-dynamic`** — det var orsaken till hög
 Active CPU + Neon-CU. Förutsättning: ingen server-`auth()`/`cookies()` i den delade chrome:n — rot-layouten,
 marketing-layouten och `SiteHeader` får INTE kalla `auth()` (då blir HELA appen dynamisk). Session läses
 klient-sida i `header-auth-actions.tsx`, `bottom-tabs.tsx` (self-gate + klarerings-spacer) och

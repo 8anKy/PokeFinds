@@ -18,6 +18,7 @@ import { Badge, StockBadge } from "@/components/ui/badge";
 import { PriceChange } from "@/components/ui/price-change";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { OfferClickButton } from "@/components/features/offer-click-button";
 import { IconStore, IconChevronDown } from "@/components/ui/icons";
 import { hapticTick } from "@/lib/haptics";
@@ -106,6 +107,17 @@ export function LivePricingProvider({
   );
   const prevLowestRef = useRef(initialStats.lowestPrice);
 
+  // SSR-sidan monterar med skalets tomma värden och får det riktiga paketet
+  // strax efter (product-detail-view hämtar det) → följ propparna, annars
+  // hade panelen stått kvar på "–" med live-datat i handen.
+  useEffect(() => {
+    setOffers(initialOffers);
+    setStats(initialStats);
+    setUpdatedAt(initialUpdatedAt);
+    setAffiliateIds(new Set(affiliateRetailerIds));
+    prevLowestRef.current = initialStats.lowestPrice;
+  }, [initialOffers, initialStats, initialUpdatedAt, affiliateRetailerIds]);
+
   const fetchOffers = useCallback(async () => {
     try {
       const res = await fetch(`/api/products/${slug}/offers`, {
@@ -141,11 +153,10 @@ export function LivePricingProvider({
     }
   }, [slug]);
 
-  // Ingen hämtning vid sidvisning: servern lägger redan initialOffers/initialStats
-  // i den ISR-cachade HTML:en (≤1h gammalt; priser ändras var 8:e h av skrapjobben).
-  // En klient-fetch per produktsidvisning (~20k sidor) körde en serverless-funktion
-  // + Neon-fråga i onödan och brände Vercel Active CPU. `refresh` finns kvar för
-  // admins manuella uppdatering efter att ha tagit bort ett erbjudande.
+  // Ingen egen hämtning här: datat kommer via propparna (overlayn har det redan;
+  // SSR-sidan hämtar detail-payloaden EN gång vid montering i product-detail-view).
+  // `refresh` finns kvar för adminens manuella uppdatering efter att ha tagit bort
+  // ett erbjudande.
 
   return (
     <LivePricingContext.Provider
@@ -167,15 +178,39 @@ export interface LivePricePanelProps {
    * de tusentals där siffran kom från en Tradera-annons och ingen CM-länk fanns.
    */
   isSingle?: boolean;
+  /** Skal-läge: priset är inte hämtat ännu → skelett i stället för "–". */
+  pending?: boolean;
 }
 
 export function LivePricePanel({
   priceChange7dPercent,
   change30,
   isSingle = false,
+  pending = false,
 }: LivePricePanelProps) {
   const t = useTranslations("Detail");
   const { stats, offers, flash } = useLivePricing();
+
+  if (pending) {
+    return (
+      <div className="card-surface mt-6 max-w-2xl" aria-busy="true">
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 px-5 py-4">
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-9 w-32" />
+          </div>
+          <Skeleton className="h-6 w-20 rounded-full" />
+        </div>
+        <div className="flex items-start justify-between gap-4 border-t border-surface-border px-5 py-3">
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-36" />
+            <Skeleton className="h-4 w-28" />
+          </div>
+          <Skeleton className="h-4 w-16" />
+        </div>
+      </div>
+    );
+  }
 
   // NM-engelska-kvalificeringen hör till Cardmarkets From-pris och får bara stå
   // där priset faktiskt kommer därifrån. Okänd källa → neutral rubrik.
@@ -289,9 +324,11 @@ export interface LiveOffersTableProps {
   slug: string;
   /** Reserv-länk "Sök på Tradera" (sealed utan direkt Tradera-annons). */
   traderaSearch?: string | null;
+  /** Skal-läge: offers inte hämtade ännu → skelettrader, inte "inga erbjudanden". */
+  pending?: boolean;
 }
 
-export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
+export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOffersTableProps) {
   const t = useTranslations("Detail");
   const { offers, affiliateIds, refresh } = useLivePricing();
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -350,7 +387,13 @@ export function LiveOffersTable({ slug, traderaSearch }: LiveOffersTableProps) {
         <h2 className="font-display text-xl font-semibold text-ink">
           {t("storePrices")}
         </h2>
-        {directOffers.length === 0 ? (
+        {pending ? (
+          <div className="mt-4 space-y-3" aria-busy="true">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-16 w-full rounded-xl" />
+            ))}
+          </div>
+        ) : directOffers.length === 0 ? (
           <EmptyState
             className="mt-4"
             icon={<IconStore size={32} />}

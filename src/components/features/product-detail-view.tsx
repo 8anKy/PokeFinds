@@ -1,14 +1,16 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { track } from "@/lib/track";
 import { formatPrice, formatRelative } from "@/lib/format";
-import type { ProductDetailData } from "@/services/products";
+import { isCrawlerClient } from "@/lib/crawler-ua";
+import type { ProductDetailData, ProductShellData } from "@/services/products";
 import { StockBadge } from "@/components/ui/badge";
 import { SafeImage } from "@/components/ui/safe-image";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ProductPriceCard } from "@/components/features/product-price-card";
 import { ProductCard, CATEGORY_LABELS } from "@/components/features/product-card";
 import { ProductActions } from "@/components/features/product-actions";
@@ -36,30 +38,107 @@ const SEALED_CATEGORIES: string[] = [
 const LANGUAGE_KEYS = ["SV", "EN", "JP", "DE", "FR", "OTHER"];
 
 /**
+ * Skalet som HELT paket: samma form som `ProductDetailData`, med tomma pris-fält.
+ * Gör att resten av vyn är EN kodväg — den vet inte om datat är skal eller live,
+ * bara `pending` säger att prisdelarna ska visa skelett i stället för "–"/"inga".
+ */
+function shellToDetail(shell: ProductShellData): ProductDetailData {
+  return {
+    id: shell.id,
+    slug: shell.slug,
+    title: shell.title,
+    category: shell.category,
+    language: shell.language,
+    description: shell.description,
+    imageUrl: shell.imageUrl,
+    watchCount: 0,
+    updatedAt: "",
+    set: shell.set,
+    chartData: [],
+    historyBySource: { cardmarket: [], cardtrader: [], tradera: [], traderaSold: [] },
+    trendSource: "cardmarket",
+    change7: null,
+    change30: null,
+    offerCount: 0,
+    stats: {
+      lowestPrice: null,
+      lowestPriceStockStatus: null,
+      highestPrice: null,
+      avgPrice: null,
+      offerCount: 0,
+    },
+    serializedOffers: [],
+    affiliateRetailerIds: [],
+    similar: [],
+    variants: shell.variants.map((v) => ({ slug: v.slug, label: v.label, lowestPrice: null })),
+    traderaListings: [],
+  };
+}
+
+/**
  * Hela produktsidans innehåll, delat av SSR-sidan (`/produkter/[slug]`) och
- * produkt-overlayn. Ren presentation — all data kommer serialiserad via
- * `loadProductDetail`. JSON-LD ligger kvar på SSR-sidan (SEO), inte här.
+ * produkt-overlayn. Ren presentation. JSON-LD ligger kvar på SSR-sidan (SEO),
+ * inte här.
+ *
+ * TVÅ INGÅNGAR (2026-08-29):
+ *   · `data`  — hela paketet, redan hämtat (overlayn, via `/api/products/[slug]/detail`).
+ *   · `shell` — SSR-sidans DB-fria skal (namn/bild/set). Vyn hämtar då SJÄLV
+ *     samma detail-payload vid montering — utom för crawlers som kör JS
+ *     (`isCrawlerClient`): de får skalet och "–" som pris, och Neon får sova.
+ *     Skälet till hela uppdelningen står i produkter/[slug]/page.tsx.
  *
  * `showBack`: bakåtknapp överst. Sätts BARA av SSR-sidan — dit landar man via
  * djuplänk/push-notis, där overlayns svep-tillbaka inte finns (man fastnade).
  * Overlayn har redan svep + SiteHeader, så den skickar inte proppen.
  */
 export function ProductDetailView({
-  data,
+  data: dataProp,
+  shell,
   showBack = false,
 }: {
-  data: ProductDetailData;
+  data?: ProductDetailData;
+  shell?: ProductShellData;
   showBack?: boolean;
 }) {
   const t = useTranslations("Detail");
   const tCat = useTranslations("Category");
   const tLang = useTranslations("Language");
 
+  const slug = dataProp?.slug ?? shell?.slug ?? "";
+  const [live, setLive] = useState<ProductDetailData | null>(dataProp ?? null);
+
+  // Skal-läget: hämta prisdelen klient-sida. Ingen polling, EN hämtning per
+  // montering — och ingen alls för crawlers (se lib/crawler-ua.ts).
+  useEffect(() => {
+    if (dataProp) {
+      setLive(dataProp);
+      return;
+    }
+    if (!shell) return;
+    if (isCrawlerClient(typeof navigator === "undefined" ? undefined : navigator)) return;
+    let alive = true;
+    fetch(`/api/products/${shell.slug}/detail`)
+      .then((r) => (r.ok ? (r.json() as Promise<ProductDetailData>) : null))
+      .then((d) => {
+        if (alive && d) setLive(d);
+      })
+      .catch(() => {
+        /* skalet står kvar — "–" är sant tills vi vet bättre */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [dataProp, shell]);
+
   // Engagemang: en produktvy per klientmontering (både SSR-sidan och overlayn
   // renderar den här komponenten → immunt mot ISR-cachen). Fire-and-forget.
   useEffect(() => {
-    track("product_view", data.slug);
-  }, [data.slug]);
+    if (slug) track("product_view", slug);
+  }, [slug]);
+
+  if (!dataProp && !shell) return null;
+  const data: ProductDetailData = live ?? shellToDetail(shell!);
+  const pending = live === null;
 
   const isSingle = data.category === "SINGLE_CARD";
 
@@ -125,7 +204,7 @@ export function ProductDetailView({
                 className="card-surface rounded-full px-3 py-1 text-ink transition hover:text-holo-cyan"
               >
                 {v.label ?? t("baseVersion")}
-                {v.lowestPrice != null && (
+                {!pending && v.lowestPrice != null && (
                   <span className="text-ink-muted"> · {formatPrice(v.lowestPrice)}</span>
                 )}
               </Link>
@@ -159,6 +238,9 @@ export function ProductDetailView({
             />
           </div>
 
+          {pending ? (
+            <Skeleton className="card-surface min-h-64 w-full" />
+          ) : (
           <ProductPriceCard
             bySource={data.historyBySource}
             title={isSingle ? t("historyRawTitle") : t("historyTitle")}
@@ -173,29 +255,33 @@ export function ProductDetailView({
             subtitle={data.chartData.length === 0 ? t("historyNone") : t("historyQuality")}
             series={data.chartData}
           />
+          )}
         </div>
 
-        {/* Prispanel — visar ISR-snapshotens data (≤1h). INGEN polling: klient-
-            hämtningen per sidvisning togs bort med flit (kostnad, se kommentaren
-            i LivePricingProvider) — "Live" i namnet är historiskt. */}
+        {/* Prispanel — ur detail-payloaden (overlay: redan hämtad; SSR-sida: hämtad
+            vid montering, skelett tills dess). INGEN polling. */}
         <LivePricePanel
           priceChange7dPercent={data.change7}
           change30={data.change30}
           isSingle={isSingle}
+          pending={pending}
         />
         <div className="mt-6 flex flex-wrap items-center gap-4">
           <ProductActions productId={data.id} title={data.title} />
-          <p className="text-xs text-ink-faint">
-            {t("watchers", { count: data.watchCount })}
-          </p>
+          {!pending && (
+            <p className="text-xs text-ink-faint">
+              {t("watchers", { count: data.watchCount })}
+            </p>
+          )}
         </div>
         {/* Beskrivning borttagen: dubblade rubriken (Set · Kategori · Språk) och
             fanns bara på ~54 sealed-produkter som svensk boilerplate. */}
 
-        {/* Erbjudanden — ISR-snapshotens data (≤1h gammal, ingen polling — se ovan).
+        {/* Erbjudanden — detail-payloaden är cachad ≤1h (cachedRead), ingen polling.
             Lagerstatusen här kan därför släpa efter restock-historiken nedanför,
             som är admin-only och hämtas färsk on-demand. */}
         <LiveOffersTable
+          pending={pending}
           slug={data.slug}
           traderaSearch={
             SEALED_CATEGORIES.includes(data.category)

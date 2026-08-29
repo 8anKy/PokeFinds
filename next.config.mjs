@@ -1,6 +1,15 @@
 import createNextIntlPlugin from "next-intl/plugin";
+import { fileURLToPath } from "node:url";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
+
+// PERSISTENT ISR-CACHE PÅ EN VOLYM (2026-08-29). Slås på av `ISR_CACHE_DIR` eller
+// Railways `RAILWAY_VOLUME_MOUNT_PATH` (sätts automatiskt när en volym är monterad).
+// Utan volym: Nexts vanliga filcache i containern, som förr. Skälet (crawlersvep ×
+// deploy-kastad cache = Neon vaken ~19 h/dygn) står i server/cache-handler.cjs.
+// ⚠️ Filen läses vid RUNTIME av `next start` (se Dockerfile) — det är därför
+// runtime-miljön, inte byggets, avgör om hanteraren kopplas in.
+const isrCacheEnabled = !!(process.env.ISR_CACHE_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -37,6 +46,9 @@ const nextConfig = {
   // Med p50-latens på 4 ms är det osynligt; med $10/GB-månad är 18 MB inte det.
   // Sänk INTE till 0: de hetaste sidorna ska fortfarande serveras ur minnet.
   cacheMaxMemorySize: 32 * 1024 * 1024,
+  ...(isrCacheEnabled
+    ? { cacheHandler: fileURLToPath(new URL("./server/cache-handler.cjs", import.meta.url)) }
+    : {}),
   experimental: {
     instrumentationHook: true,
     serverComponentsExternalPackages: ["bullmq", "ioredis", "redis-parser"],

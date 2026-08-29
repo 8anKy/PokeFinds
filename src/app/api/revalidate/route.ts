@@ -38,11 +38,16 @@ export async function POST(req: Request) {
       return jsonOk({ ok: false, reason: "Fel hemlighet." }, { status: 401 });
     }
 
-    // Taggen tömmer datacachen (cachedRead). Sidcachen för de dynamiska
-    // produktsidorna tas dessutom via revalidatePath med "page"-typen — den
-    // träffar ALLA slugs på en gång, till skillnad från en path per produkt.
+    // Taggen tömmer datacachen (cachedRead) — det räcker för produktsidorna:
+    // sedan 2026-08-29 bär deras HTML inget pris (klienten hämtar
+    // `/api/products/[slug]/detail`, som läser genom just den taggen). ⛔ Ingen
+    // `revalidatePath` på `/[locale]/produkter/[slug]` längre: den kastade ~63k
+    // ISR-poster tre gånger per dygn, och varje nästa träff blev en kall rendering
+    // — det var slaggan som gjorde 30-dygns-TTL:en meningslös. Sidorna ligger på
+    // en volym (server/cache-handler.cjs) just för att INTE kastas.
+    // Set-sidorna bär fortfarande priser i HTML:en → de invalideras som förr
+    // (~350 sidor, renderas om lat vid nästa besök).
     revalidateTag(PRICE_CACHE_TAG);
-    revalidatePath("/[locale]/produkter/[slug]", "page");
     revalidatePath("/[locale]/sets/[id]", "page");
     revalidatePath("/[locale]", "page");
     revalidatePath("/[locale]/marknad", "page");

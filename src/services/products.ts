@@ -3,7 +3,7 @@
  * Rena funktioner utan framework-beroenden.
  */
 import { prisma, withDbRetry } from "@/lib/db";
-import { cachedRead, singleFlight } from "@/lib/cache";
+import { cachedRead, singleFlight, STATIC_CACHE_TAG } from "@/lib/cache";
 import { normalizeTitle, utcDaysAgo, utcToday } from "@/lib/utils";
 import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
@@ -1632,6 +1632,96 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
     variants,
     traderaListings,
   };
+}
+
+/**
+ * PRODUKTSIDANS SKAL — allt som INTE är pris (2026-08-29).
+ *
+ * Produktsidan (`/produkter/[slug]`) renderas ur DET HÄR paketet och ISR-cachas i
+ * 30 dygn på en volym som överlever deployer. Priser, offers, graf, Tradera-skena
+ * och liknande produkter hämtar klienten själv vid montering
+ * (`/api/products/[slug]/detail`, samma payload som overlayn). Skälet är
+ * kostnad: ~63 600 produktvägar sveps av crawlers på 14–23 dygn, och med 1 h TTL
+ * blev nästan varje träff en kall rendering med ~25–50 Neon-frågor — det var
+ * det, inte jobben, som höll Neon vaken ~19 h/dygn (mätt 2026-08-26).
+ *
+ * ⛔ FÅR INTE LÄSA GENOM EN 1h-CACHE. Next sätter ruttens revalidate till det
+ * LÄGSTA värdet bland segmentets `revalidate` och alla `unstable_cache`-läsningar
+ * i renderingen (bevisat i drift 2026-07-25, se lib/cache.ts). Ett anrop till
+ * `getProductBySlug` (3600 s) hade tyst gjort sidan 1h-cachad igen. Därför en
+ * egen, smal Prisma-fråga + `cachedRead` med samma 30 dygn och den STATISKA
+ * taggen — prisjobbens `revalidateTag` rör den aldrig, för här finns inget pris.
+ * Vaktat av `tests/unit/product-page-isr-ttl.test.ts`.
+ *
+ * ⛔ `null` CACHAS ALDRIG: ett "finns inte" kastas som ServiceError(404) inuti
+ * cachen (fel cachas inte) och fångas utanför. Annars hade en död slug — eller
+ * ett P1017 under Neons uppvaknande — låst sidan till 404 i 30 dygn.
+ */
+export interface ProductShellData {
+  id: string;
+  slug: string;
+  title: string;
+  category: ProductCategory;
+  language: CardLanguage;
+  description: string | null;
+  imageUrl: string | null;
+  set: { id: string; name: string } | null;
+  /** Andra tryckningar/versioner av samma kort — bara identitet, priset hämtas live. */
+  variants: { slug: string; label: string | null }[];
+}
+
+/** ISR-TTL för produktsidans skal. Delas av sidan och skal-cachen — EN siffra. */
+export const PRODUCT_PAGE_REVALIDATE_SECONDS = 30 * 24 * 3600;
+
+async function loadProductShellRaw(slug: string): Promise<ProductShellData> {
+  const product = await withDbRetry(() =>
+    prisma.product.findUnique({
+      where: { slug },
+      select: {
+        id: true,
+        slug: true,
+        title: true,
+        category: true,
+        language: true,
+        description: true,
+        imageUrl: true,
+        cardId: true,
+        set: { select: { id: true, name: true } },
+      },
+    })
+  );
+  if (!product) throw new ServiceError(404, "Produkten hittades inte.");
+  const siblings = product.cardId
+    ? await prisma.product.findMany({
+        where: { cardId: product.cardId, id: { not: product.id } },
+        select: { slug: true, variantLabel: true },
+      })
+    : [];
+  return {
+    id: product.id,
+    slug: product.slug,
+    title: product.title,
+    category: product.category,
+    language: product.language,
+    description: product.description,
+    imageUrl: product.imageUrl,
+    set: product.set ? { id: product.set.id, name: product.set.name } : null,
+    variants: siblings.map((v) => ({ slug: v.slug, label: v.variantLabel })),
+  };
+}
+
+const cachedProductShell = singleFlight(
+  cachedRead(loadProductShellRaw, "loadProductShell", PRODUCT_PAGE_REVALIDATE_SECONDS, [STATIC_CACHE_TAG]),
+  (slug) => slug
+);
+
+export async function loadProductShell(slug: string): Promise<ProductShellData | null> {
+  try {
+    return await cachedProductShell(slug);
+  } catch (err) {
+    if (isNotFoundError(err)) return null;
+    throw err;
+  }
 }
 
 const SIMILAR_INCLUDE = {
