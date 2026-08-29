@@ -1,6 +1,11 @@
 import { type NextAuthOptions, getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
+import AppleProvider from "next-auth/providers/apple";
 import bcrypt from "bcryptjs";
+import { appleClientSecretFromEnv } from "@/lib/apple-client-secret";
+import { verifyIdToken, type OAuthProvider } from "@/lib/oauth-id-token";
+import { findOrCreateOAuthUser, type OAuthUser } from "@/services/oauth-account";
 import { prisma } from "@/lib/db";
 import { rateLimit, peekRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { isPro } from "@/lib/plan";
@@ -86,6 +91,25 @@ const TOKEN_REFRESH_MS = 30 * 60 * 1000;
  */
 const LAST_SEEN_THROTTLE_MS = 15 * 60 * 1000;
 
+/** Apples client secret (signerad JWT ur .p8) — null ⇒ Apple-providern registreras inte. */
+const appleSecret = appleClientSecretFromEnv();
+/** Speglar NextAuths egen `useSecureCookies`-härledning: https ⇒ `__Secure-`-prefix. */
+const secureCookies = (process.env.NEXTAUTH_URL ?? "").startsWith("https://");
+
+/** Kontot i den form NextAuth stoppar i JWT:n (samma fält som lösenordsvägen). */
+function toAuthUser(user: OAuthUser) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    planTier: user.planTier,
+    bonusProUntil: user.bonusProUntil?.toISOString() ?? null,
+    stripeProUntil: user.stripeProUntil?.toISOString() ?? null,
+    onboardingCompleted: user.onboardingCompleted,
+  };
+}
+
 export const authOptions: NextAuthOptions = {
   // ⛔ `maxAge` är ett INAKTIVITETSFÖNSTER, inte en inloggningstid — middleware
   // skriver om cookien med en färsk utgång vid användning (`renewSession`). Utan
@@ -96,6 +120,9 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt", maxAge: SESSION_MAX_AGE },
   pages: {
     signIn: "/logga-in",
+    // OAuth-fel (nekad länkning, avbrutet Apple-flöde) landar på inloggningen
+    // med ?error=… i stället för NextAuths egen felsida.
+    error: "/logga-in",
   },
   providers: [
     CredentialsProvider({
@@ -114,8 +141,12 @@ export const authOptions: NextAuthOptions = {
         const user = await prisma.user.findUnique({
           where: { email },
         });
+        // ⛔ passwordHash är NULL för konton skapade via Google/Apple — de har
+        // inget lösenord att jämföra mot, och bcrypt.compare mot null kastar.
+        // Räknas som ett misslyckat försök precis som fel lösenord (samma svar
+        // utåt, så vägen inte avslöjar vilka adresser som är Google-konton).
         const valid =
-          !!user && (await bcrypt.compare(credentials.password, user.passwordHash));
+          !!user?.passwordHash && (await bcrypt.compare(credentials.password, user.passwordHash));
         if (!valid || !user) {
           await rateLimit(failKey, 10, 5 * 60_000); // räkna upp misslyckandet
           return null;
@@ -133,8 +164,100 @@ export const authOptions: NextAuthOptions = {
         };
       },
     }),
+    /**
+     * NATIVA inloggningar i appen. Google blockerar sitt OAuth-webbflöde i
+     * inbäddade WebViews, så appen kör leverantörens nativa SDK (Capacitor-
+     * plugin, lib/social-login.ts) och skickar hit id_token. Verifieringen
+     * (signatur, iss, aud, exp) sker i lib/oauth-id-token.ts; kontot slås upp/
+     * skapas i EXAKT samma tjänst som webbflödet nedan.
+     */
+    CredentialsProvider({
+      id: "native-token",
+      name: "Google/Apple (app)",
+      credentials: {
+        provider: { label: "Provider", type: "text" },
+        idToken: { label: "ID-token", type: "text" },
+        name: { label: "Namn", type: "text" },
+      },
+      async authorize(credentials) {
+        const provider = credentials?.provider;
+        if ((provider !== "google" && provider !== "apple") || !credentials?.idToken) return null;
+        const identity = await verifyIdToken(provider as OAuthProvider, credentials.idToken);
+        if (!identity) return null;
+        const result = await findOrCreateOAuthUser({
+          ...identity,
+          // Apple skickar namnet BARA vid första auktoriseringen och aldrig i
+          // token — appen skickar det med som förslag. Bara ett förslag: det
+          // deduppas och trunkeras som allt annat.
+          name: identity.name ?? (credentials.name?.trim() || null),
+        });
+        if (!result.ok) return null;
+        return toAuthUser(result.user);
+      },
+    }),
+    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+      ? [
+          GoogleProvider({
+            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          }),
+        ]
+      : []),
+    ...(appleSecret && process.env.APPLE_CLIENT_ID
+      ? [
+          AppleProvider({
+            clientId: process.env.APPLE_CLIENT_ID,
+            clientSecret: appleSecret,
+          }),
+        ]
+      : []),
   ],
+  /**
+   * ⛔ Apple svarar med `response_mode=form_post` — ett CROSS-SITE POST till vår
+   * callback. Cookies med `SameSite=Lax` (NextAuths default) skickas INTE med
+   * ett sådant anrop, så PKCE-verifieraren och callback-URL:en är borta när
+   * svaret kommer ⇒ "OAuthCallback"-fel för varje Apple-inloggning på webben.
+   * Just de två cookiesarna sätts därför `SameSite=None` (kräver Secure ⇒ bara
+   * på https; i dev på http lämnas defaulten). Sessionscookien rörs INTE —
+   * den sätts först EFTER callbacken, av vårt eget svar.
+   */
+  cookies: secureCookies
+    ? {
+        pkceCodeVerifier: {
+          name: "__Secure-next-auth.pkce.code_verifier",
+          options: { httpOnly: true, sameSite: "none", path: "/", secure: true, maxAge: 900 },
+        },
+        callbackUrl: {
+          name: "__Secure-next-auth.callback-url",
+          options: { sameSite: "none", path: "/", secure: true },
+        },
+      }
+    : undefined,
   callbacks: {
+    /**
+     * Webbflödet (Google/Apple via NextAuth): här byts leverantörens profil mot
+     * VÅRT konto. Utan adapter är `user` annars leverantörens profilobjekt
+     * (id = deras `sub`), och jwt-callbacken hade stoppat det i token:en som om
+     * det vore ett Foilio-id. Objektet muteras på plats — samma referens når
+     * jwt-callbacken direkt efter. `false` ⇒ /logga-in?error=AccessDenied.
+     */
+    async signIn({ user, account, profile }) {
+      if (!account || (account.provider !== "google" && account.provider !== "apple")) return true;
+      const p = (profile ?? {}) as { email?: string; email_verified?: boolean | string; name?: string };
+      const result = await findOrCreateOAuthUser({
+        provider: account.provider,
+        subject: account.providerAccountId,
+        email: typeof p.email === "string" ? p.email : null,
+        emailVerified: p.email_verified === true || p.email_verified === "true",
+        name: typeof p.name === "string" ? p.name : null,
+      });
+      if (!result.ok) {
+        console.warn(`[oauth] ${account.provider}-inloggning nekad: ${result.reason}`);
+        return false;
+      }
+      Object.assign(user, toAuthUser(result.user));
+      return true;
+    },
     async jwt({ token, user, trigger }) {
       if (user) {
         token.id = user.id;

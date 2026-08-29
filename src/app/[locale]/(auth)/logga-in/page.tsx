@@ -10,16 +10,23 @@ import { setAuthHint } from "@/lib/auth-hint";
 import { Button } from "@/components/ui/button";
 import { Input, PasswordInput, Label, FieldError } from "@/components/ui/input";
 import { EmailTypoHint, useEmailTypoHint } from "@/components/features/email-typo-hint";
+import { SocialLoginButtons } from "@/components/features/social-login-buttons";
 
 function LoginForm() {
   const t = useTranslations("Auth");
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/produkter";
+  // NextAuth landar här med ?error=… när ett Google-/Apple-flöde inte gick att
+  // slutföra (pages.error i lib/auth.ts). AccessDenied = vår signIn-callback
+  // nekade (obekräftad/saknad adress), allt annat = avbrutet/tekniskt fel.
+  const oauthError = searchParams.get("error");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    oauthError ? t(oauthError === "AccessDenied" ? "social.denied" : "social.error") : null
+  );
   const [loading, setLoading] = useState(false);
   // En felstavad domän här ger "fel e-post eller lösenord", och den som är säker
   // på sitt lösenord letar då efter fel fel. Ingen broms vid submit — ett
@@ -97,6 +104,8 @@ function LoginForm() {
           {t("login.submit")}
         </Button>
       </form>
+
+      <SocialLoginButtons next={callbackUrl} />
 
       <p className="mt-6 text-center text-sm text-ink-muted">
         {t("login.noAccount")}{" "}

@@ -239,6 +239,13 @@
       "discordBody": "Restocks postas direkt i egna kanaler per serie, och du kan fråga andra samlare om priser och fynd. Gratis och öppet för alla.",
       "discordCta": "Gå med i Discord",
       "finish": "Slutför"
+    },
+    "social": {
+      "or": "eller",
+      "google": "Fortsätt med Google",
+      "apple": "Fortsätt med Apple",
+      "error": "Inloggningen via Google eller Apple gick inte att slutföra. Försök igen eller logga in med e-post.",
+      "denied": "Vi kunde inte koppla kontot: adressen är inte bekräftad hos leverantören, eller så saknas den. Registrera dig med e-post i stället."
     }
   },
   "Condition": {
@@ -763,6 +770,10 @@
       {
         "lead": "Apple (push-notiser):",
         "text": "om du slår på push på en iPhone skickas notisen via Apples pushtjänst (APNs), som då tar emot din enhets push-token och notisens innehåll för att leverera den."
+      },
+      {
+        "lead": "Google och Apple (inloggning):",
+        "text": "om du väljer att logga in med Google eller Apple bekräftar leverantören din identitet åt oss och vi får din e-postadress, ett namnförslag och ett användar-id. Vi får inget lösenord, ingen kontaktlista och inget om din övriga aktivitet hos dem. Apple kan ge oss en vidarebefordringsadress i stället för din riktiga."
       }
     ],
     "s7bOutro": "Kopplingarna är alltid frivilliga och kan tas bort i Inställningar."

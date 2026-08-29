@@ -26,6 +26,18 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   + ~24 sealed saknar genuint CM-marknadsdata → ärlig "–"/döljs tills data finns.
 - **Priser**: singlar = Cardmarket engelska NM-"From" (RapidAPI) × live-kurs; sealed = CM `lowest`;
   graf/historik = CM trend.
+- **Google-/Apple-inloggning (kod klar 2026-08-29, AKTIVERAS AV ENV)**: webb = NextAuth-providers
+  (`lib/auth.ts`), app = NATIVT SDK via `@capgo/capacitor-social-login` → id_token → provider
+  `native-token` (verifieras mot JWKS i `lib/oauth-id-token.ts`). Google blockar sitt WEBBFLÖDE i
+  WebViews — därför nativt; Apple på Android kör webbflödet (`appleid.apple.com` i `allowNavigation`).
+  Knapparna visas bara när `GOOGLE_CLIENT_ID` / `APPLE_CLIENT_ID` finns (speglas till `NEXT_PUBLIC_*`
+  i `next.config.mjs`, bakas in vid BYGGET). Apples client secret SIGNERAS I RUNTIME ur `.p8`
+  (`lib/apple-client-secret.ts`, max 6 mån — hårdkoda aldrig). ⛔ `passwordHash` är nullable sedan
+  migrationen `20260829120000` — `authorize()` nekar explicit. ⛔ Apple form_post ⇒ pkce-/callback-
+  cookien MÅSTE vara `SameSite=None` (satt i `authOptions.cookies`). Konton ur OAuth får samma
+  kreatörsattribution/bonus/välkomstmejl som formuläret (`services/oauth-account.ts`). Ett nytt
+  iOS-bygge (Codemagic) krävs: `Info.plist` har `REPLACE_WITH_IOS_CLIENT_ID`-platshållare +
+  `App.entitlements` (applesignin + aps). Env-tabellen: `docs/SETUP.md`.
 - **Funktioner live**: watchlist/prisbevakning, restock-alerts (41 butiker), samlingsvärde, AI-gradering
   (`/gradera`), live kort-skanner (`/skanna`), community, admin, PWA, **set-komplettering** (Set-fliken i
   `/samling` + stapel på `/sets/[id]`).

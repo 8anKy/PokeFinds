@@ -138,7 +138,16 @@ model User {
   // Case-insensitivt unikt (lower(name)) via råmigration User_name_lower_key —
   // kan inte uttryckas här. Kör INTE `migrate dev` så att indexet tappas.
   name                  String
-  passwordHash          String
+  // NULL = kontot skapades via Google/Apple och har inget lösenord. `authorize()`
+  // i lib/auth.ts nekar då lösenordsinloggning explicit — bcrypt.compare mot null
+  // kastar annars. "Glömt lösenord" fungerar ändå och SÄTTER ett (reset-routen).
+  passwordHash          String?
+  // Google-/Apple-inloggning: leverantörens stabila `sub` ur id_token. Unika så
+  // ett Google-konto aldrig kan öppna två Foilio-konton. Samma mönster som
+  // discordUserId nedan — ingen Account-/Session-tabell, ingen token lagras.
+  // Apples `sub` är per utvecklarteam (samma för webb-Services-ID och appen).
+  googleId              String?      @unique
+  appleId               String?      @unique
   role                  Role         @default(USER)
   planTier              PlanTier     @default(FREE)
   avatarUrl             String?

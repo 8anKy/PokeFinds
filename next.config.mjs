@@ -23,6 +23,12 @@ const nextConfig = {
     // utan den andra, och den dagen kommer: restock väntar på kostnad, prislarm på en
     // lagning.
     NEXT_PUBLIC_PRICE_ALERTS_PAUSED: process.env.PRICE_ALERTS_PAUSED ?? "1",
+    // Google-/Apple-inloggning: klient-id:n är PUBLIKA (står i appens binär) och
+    // speglas hit så knapparna visas exakt när servern har providern. Bakas in
+    // vid BYGGET — ny variabel i Railway ⇒ ny deploy. Se lib/social-login.ts.
+    NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? "",
+    NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID: process.env.GOOGLE_IOS_CLIENT_ID ?? "",
+    NEXT_PUBLIC_APPLE_SERVICE_ID: process.env.APPLE_CLIENT_ID ?? "",
   },
   // Next håller renderade ISR-sidor + `unstable_cache`-poster i en minnes-LRU som
   // som standard får ta 50 MB. Det är resident minne dygnet runt, och minne är

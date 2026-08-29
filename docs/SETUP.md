@@ -60,6 +60,10 @@ Alla variabler finns i `.env.example`:
 | `DATABASE_URL` | Ja | PostgreSQL-anslutning. Default matchar docker-compose: `postgresql://pokefinds:pokefinds@localhost:5432/pokefinds?schema=public` |
 | `NEXTAUTH_URL` | Ja | Appens bas-URL, `http://localhost:3000` i dev |
 | `NEXTAUTH_SECRET` | Ja | Slumpad hemlighet för JWT-sessioner. Generera: `openssl rand -base64 32` |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Nej | Google-inloggning (webb + Android + iOS-verifiering). OAuth-klient av typ **Webbapplikation**; redirect `https://foilio.se/api/auth/callback/google`. Saknas ⇒ knappen visas inte |
+| `GOOGLE_IOS_CLIENT_ID` | Nej | Google-inloggning i iOS-appen: OAuth-klient av typ **iOS** (bundle `se.foilio.app`). Samma id + baklänges i `ios/App/App/Info.plist` |
+| `APPLE_CLIENT_ID` / `APPLE_TEAM_ID` / `APPLE_KEY_ID` / `APPLE_PRIVATE_KEY` | Nej | Apple-inloggning: Services-ID (webb, redirect `https://foilio.se/api/auth/callback/apple`), team-id, nyckel-id + `.p8`-innehåll (radbrytningar som `\n`). Client secret signeras i runtime (`src/lib/apple-client-secret.ts`) |
+| `APPLE_APP_BUNDLE_ID` | Nej | Tillåten `aud` för appens nativa Apple-token. Default `se.foilio.app` |
 | `REDIS_URL` | Nej | Redis för kö/cache (BullMQ). **Valfri** — utan Redis används in-memory fallback (`src/lib/queue.ts`) |
 | `EMAIL_MODE` | Ja | `console` (loggar mejl till terminalen, dev) eller `smtp` (riktig sändning) |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Vid `smtp` | SMTP-uppgifter för utgående e-post |

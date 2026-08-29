@@ -42,7 +42,17 @@ const config: CapacitorConfig = {
         // görs EN gång (WKWebView:s cookies överlever appomstarter). Det finns ingen
         // "logga in via Discord-appen"-väg att erbjuda i stället: Discords OAuth är
         // alltid deras webbsida, per deras egen design.
-        allowNavigation: ["foilio.se", "www.foilio.se", "api.tradera.com", "discord.com"],
+        // appleid.apple.com: Apple-inloggningen på ANDROID kör Apples webbflöde i
+        // WebView:en (Apple tillåter WebViews; iOS använder det nativa SDK:t via
+        // SocialLogin-pluginet nedan). Google står INTE här med flit — Google
+        // blockerar sitt webbflöde i WebViews, appen kör alltid nativt för Google.
+        allowNavigation: [
+          "foilio.se",
+          "www.foilio.se",
+          "api.tradera.com",
+          "discord.com",
+          "appleid.apple.com",
+        ],
       }
     : { androidScheme: "https" },
   ios: {
@@ -54,6 +64,13 @@ const config: CapacitorConfig = {
     backgroundColor: "#0a0a0c",
   },
   plugins: {
+    // Google-/Apple-inloggning i appen (lib/social-login.ts). Bara de två
+    // providrarna buntas — facebook/twitter hade dragit in deras SDK:er i binären.
+    // ⛔ Ändring här kräver `npx cap sync` + nytt nativt bygge.
+    SocialLogin: {
+      providers: { google: true, apple: true, facebook: false, twitter: false },
+      logLevel: 1,
+    },
     // resize: none → WebView:en ändrar INTE storlek när tangentbordet öppnas, så
     // position:fixed (bottom-tabs) hoppar inte. Tangentbordet läggs ovanpå i stället.
     Keyboard: { resize: "none" },

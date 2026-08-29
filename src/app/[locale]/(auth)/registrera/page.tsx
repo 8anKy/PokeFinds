@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input, PasswordInput, Label, FieldError } from "@/components/ui/input";
 import { suggestEmailCorrection } from "@/lib/email-typo";
 import { EmailTypoHint, useEmailTypoHint } from "@/components/features/email-typo-hint";
+import { SocialLoginButtons } from "@/components/features/social-login-buttons";
 
 interface FieldErrors {
   name?: string;
@@ -407,6 +408,10 @@ export default function RegisterPage() {
         </Button>
         <p className="text-center text-xs text-ink-muted">{t("register.sendCodeHint")}</p>
       </form>
+
+      {/* Google/Apple hoppar över kodsteget: leverantören har redan bekräftat
+          adressen. Inbjudningskoden följer INTE med den vägen (medvetet). */}
+      <SocialLoginButtons next="/produkter" />
 
       <p className="mt-6 text-center text-sm text-ink-muted">
         {t("register.haveAccount")}{" "}

@@ -239,6 +239,13 @@
       "discordBody": "Restocks are posted instantly in dedicated channels per series, and you can ask other collectors about prices and deals. Free and open to everyone.",
       "discordCta": "Join Discord",
       "finish": "Finish"
+    },
+    "social": {
+      "or": "or",
+      "google": "Continue with Google",
+      "apple": "Continue with Apple",
+      "error": "Signing in with Google or Apple could not be completed. Try again or log in with email.",
+      "denied": "We couldn't link the account: the address isn't verified by the provider, or it's missing. Sign up with email instead."
     }
   },
   "Condition": {
@@ -763,6 +770,10 @@
       {
         "lead": "Apple (push notifications):",
         "text": "if you enable push on an iPhone, the notification is delivered via Apple's push service (APNs), which then receives your device's push token and the notification's content in order to deliver it."
+      },
+      {
+        "lead": "Google and Apple (sign-in):",
+        "text": "if you choose to sign in with Google or Apple, the provider confirms your identity to us and we receive your email address, a suggested name and a user ID. We get no password, no contacts and nothing about your other activity there. Apple may give us a relay address instead of your real one."
       }
     ],
     "s7bOutro": "The connections are always optional and can be removed in Settings."
