@@ -129,7 +129,8 @@ workflows:
           # Samma id ligger som GOOGLE_IOS_CLIENT_ID i Railway (servern verifierar aud).
           GID="$GOOGLE_IOS_CLIENT_ID"
           test -n "$GID"  # fail-loud: sätt GOOGLE_IOS_CLIENT_ID i Codemagic-miljön
-          /usr/libexec/PlistBuddy -c "Add :GIDClientID string \"$GID\"" "$PL" || \n            /usr/libexec/PlistBuddy -c "Set :GIDClientID \"$GID\"" "$PL"
+          /usr/libexec/PlistBuddy -c "Add :GIDClientID string \"$GID\"" "$PL" || \
+            /usr/libexec/PlistBuddy -c "Set :GIDClientID \"$GID\"" "$PL"
           REV="com.googleusercontent.apps.${GID%%.apps.googleusercontent.com}"
           /usr/libexec/PlistBuddy -c "Delete :CFBundleURLTypes" "$PL" || true
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "$PL"
