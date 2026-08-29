@@ -31,6 +31,12 @@ export async function register() {
   // Vercel — oavsett env. Lokalt/egen server: env-flaggorna nedan styr som vanligt.
   if (process.env.VERCEL || process.env.RAILWAY_ENVIRONMENT) {
     console.log("[instrumentation] Hostad (Vercel/Railway) — in-process jobb av (GitHub Actions kör dem, sparar minne/CPU).");
+    // Enda in-process-timern som får finnas här: den rör aldrig databasen och
+    // finns för att hålla Railways minnesnota under Hobby-krediten (se modulen).
+    if (process.env.RAILWAY_ENVIRONMENT) {
+      const { startMemoryRecycler } = await import("@/lib/memory-recycle");
+      startMemoryRecycler();
+    }
     return;
   }
 

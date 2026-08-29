@@ -221,7 +221,12 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   **Railway är den lilla notan**: est. $5,92/mån (minne $5,34) mot Neons ~$26. Minnesgrafen är en
   sågtand som nollas vid deploy och växer till ~1 GB på tre dygn TROTS heap-taket ⇒ tillväxten är
   utanför V8. Hypotes (overifierad): kernelns sidcache för ISR-filerna Next skriver vid kalla renders.
-  `/api/health` visar nu `mem.rss` för att kunna skilja processen från cgroup-talet.
+  `/api/health` visar `mem.rss` + `mem.cgroup` (det Railway fakturerar).
+  ✅ **Självåtervinning sedan 2026-08-29** (`src/lib/memory-recycle.ts`, startas i `instrumentation.ts`
+  bara på Railway): läser cgroup-minnet var 10:e min; > 700 MB kl 04 UTC eller > 3 000 MB när som helst
+  (≥ 6 h mellan) ⇒ töm buffertar, `exit(1)` ⇒ Railway startar om (policy ON_FAILURE). Målet är att
+  hålla notan under Hobby-krediten $5. ⛔ Kräver ON_FAILURE/ALWAYS med HÖGT omstartstal — vid 10
+  och ett tal som inte nollställs står sajten nere efter tio nätter. `MEMORY_RECYCLE_MB=0` stänger av.
 - **INGA INFRAKOSTNADER FÖRDELAS PER ANVÄNDARE** — den som är först på morgonen "orsakar" hela väckningen.
   Larm redovisas som ANTAL, aldrig kronor.
 - **Kostnadsbriefing FÖRE funktioner**: kostar något pengar/app/tjänst — lägg fram siffran och invänta OK.
