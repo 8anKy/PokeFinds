@@ -944,13 +944,14 @@
     "pendingChoiceSuffix": "{count} väntar på val",
     "chooseFirstN": "Välj kort ({count})",
     "holdStill": "Håll stilla",
-    "guestScansLeft": "{count} av {limit} gratis kvar",
-    "guestTapForMore": "Skapa konto → 30 i månaden",
     "guestLimitBadge": "Gratisskanningarna är slut",
     "guestLimitTitle": "Dina 10 gratis skanningar är slut",
     "guestLimitBody": "Skapa ett konto så får du 20 skanningar till – 30 i månaden, helt gratis. Kontot tar en minut, och Apple/Google fungerar.",
     "guestLimitCta": "Skapa konto – få 20 till",
-    "guestLimitLogin": "Har du redan ett konto? Logga in"
+    "guestLimitLogin": "Har du redan ett konto? Logga in",
+    "guestHeadline": "Få 20 skanningar till – gratis",
+    "guestSub": "Skapa konto · {count} av {limit} kvar",
+    "guestEmptySub": "Skapa konto → 20 skanningar till"
   },
   "Grading": {
     "h1": "Gradera kort",

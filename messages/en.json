@@ -944,13 +944,14 @@
     "pendingChoiceSuffix": "{count} awaiting a choice",
     "chooseFirstN": "Choose cards ({count})",
     "holdStill": "Hold still",
-    "guestScansLeft": "{count} of {limit} free left",
-    "guestTapForMore": "Create account → 30 a month",
     "guestLimitBadge": "Free scans used up",
     "guestLimitTitle": "Your 10 free scans are used up",
     "guestLimitBody": "Create an account and you get 20 more – 30 a month, completely free. It takes a minute, and Apple/Google work too.",
     "guestLimitCta": "Create account – get 20 more",
-    "guestLimitLogin": "Already have an account? Log in"
+    "guestLimitLogin": "Already have an account? Log in",
+    "guestHeadline": "Get 20 more scans – free",
+    "guestSub": "Create account · {count} of {limit} left",
+    "guestEmptySub": "Create account → 20 more scans"
   },
   "Grading": {
     "h1": "Grade card",

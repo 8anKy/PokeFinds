@@ -2284,17 +2284,11 @@ function QuotaBadge({ quota, onUpgrade }: { quota: ScanQuota; onUpgrade: () => v
         {isPremium
           ? t("scansUnlimited")
           : remaining <= 0
-            ? guest
-              ? t("guestLimitBadge")
-              : t("limitBadge")
-            : guest
-              ? t("guestScansLeft", { count: remaining, limit: quota.limit })
-              : t("scansLeft", { count: remaining })}
+            ? t("limitBadge")
+            : t("scansLeft", { count: remaining })}
       </span>
       <span className="block truncate text-xs text-ink-muted">
-        {/* Gästen säljs KONTOT (20 till), aldrig Pro — den har inget konto att
-            uppgradera. Syns från första skanningen, inte först vid noll. */}
-        {isPremium ? t("renewsNextMonth") : guest ? t("guestTapForMore") : t("tapForMore")}
+        {isPremium ? t("renewsNextMonth") : t("tapForMore")}
       </span>
     </span>
   );
@@ -2307,6 +2301,36 @@ function QuotaBadge({ quota, onUpgrade }: { quota: ScanQuota; onUpgrade: () => v
   // täckte halva korttexten. Två rader ryms, men bara med tajt luft.
   const cls =
     "mx-auto flex w-[min(68vw,20rem)] items-center gap-2.5 rounded-2xl bg-black/70 px-3.5 py-2 ring-1 ring-white/10 backdrop-blur";
+  // GÄST: badgen ÄR erbjudandet. "10 av 10 gratis kvar · Skapa konto → 30 a…"
+  // sa inte vad man fick och kapades (fält 2026-08-29). Rubriken är nu vinsten
+  // ("Få 20 skanningar till"), underraden vägen + räknaren. Inget GRATIS-pill —
+  // det åt bredden utan att säga något gästen inte redan vet. Turkos ring så
+  // den läses som en knapp, inte som status.
+  if (guest) {
+    const empty = remaining <= 0;
+    return (
+      <button
+        type="button"
+        onClick={onUpgrade}
+        className={cn(
+          cls,
+          "w-[min(80vw,22rem)] ring-holo-cyan/50 transition-colors hover:bg-black/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
+        )}
+      >
+        <span className="min-w-0 flex-1 text-left">
+          <span className="block truncate text-sm font-semibold text-ink">
+            {empty ? t("guestLimitBadge") : t("guestHeadline")}
+          </span>
+          <span className="block truncate text-xs text-ink-muted">
+            {empty
+              ? t("guestEmptySub")
+              : t("guestSub", { count: remaining, limit: quota.limit })}
+          </span>
+        </span>
+        <IconArrowRight size={18} className="ml-auto shrink-0 text-holo-cyan" />
+      </button>
+    );
+  }
   if (isPremium) {
     return (
       <div className={cls}>
