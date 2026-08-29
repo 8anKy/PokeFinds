@@ -786,12 +786,17 @@ export default function SkannaPage() {
       return;
     }
     let cancelled = false;
-    void import("@/lib/device-id").then(async ({ getDeviceId }) => {
-      const id = await getDeviceId();
-      if (cancelled) return;
-      if (id) setAuthed(true);
-      else router.replace("/logga-in?callbackUrl=/skanna");
-    });
+    // ⛔ Allt som kan gå fel här ska sluta i inloggningen, aldrig i en svart
+    // sida: getDeviceId har egen tidsgräns, och ett importfel (chunk saknas
+    // mitt i en deploy) fångas nedan.
+    void import("@/lib/device-id")
+      .then(({ getDeviceId }) => getDeviceId())
+      .catch(() => null)
+      .then((id) => {
+        if (cancelled) return;
+        if (id) setAuthed(true);
+        else router.replace("/logga-in?callbackUrl=/skanna");
+      });
     return () => {
       cancelled = true;
     };

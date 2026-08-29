@@ -41,8 +41,23 @@ async function resolve(): Promise<string | null> {
   }
 }
 
+/**
+ * ⛔ FÅR ALDRIG BLOCKERA. I ett appbygge där pluginet inte är inkompilerat
+ * (bygge 40, 2026-08-29) resolvade `SecureStorage.get` aldrig — skannern stod
+ * svart för utloggade och fastnade på "Startar kameran…" för inloggade, för
+ * båda väntade på id:t. Hård tidsgräns: inget id inom 2,5 s ⇒ null, dvs
+ * "ingen gästidentitet" — inloggade skannar som förut, utloggade skickas
+ * till inloggningen.
+ */
+const TIMEOUT_MS = 2500;
+
 export function getDeviceId(): Promise<string | null> {
-  if (!cached) cached = resolve();
+  if (!cached) {
+    cached = Promise.race([
+      resolve(),
+      new Promise<string | null>((r) => setTimeout(() => r(null), TIMEOUT_MS)),
+    ]);
+  }
   return cached;
 }
 
