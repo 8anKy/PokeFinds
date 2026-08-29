@@ -24,12 +24,19 @@ async function resolve(): Promise<string | null> {
   try {
     const { Capacitor } = await import("@capacitor/core");
     if (!Capacitor.isNativePlatform()) return null;
+    // ⛔ RÖR ALDRIG ETT PLUGIN SOM INTE FINNS I BYGGET. Appbygge 40 (utan de
+    // här pluginen) HÄNGDE hela WebView:en när SecureStorage anropades — svart
+    // sida, tabbarna svarade inte, kameran startade aldrig (2026-08-29). Ett
+    // äldre bygge ska bete sig exakt som före gästskanningen: inget id ⇒ ingen
+    // gäst, inloggade skannar som vanligt.
     if (Capacitor.getPlatform() === "android") {
+      if (!Capacitor.isPluginAvailable("Device")) return null;
       const { Device } = await import("@capacitor/device");
       const { identifier } = await Device.getId();
       const hex = identifier?.toLowerCase().replace(/[^0-9a-f]/g, "") ?? "";
       return hex.length >= 8 ? `and-${hex.slice(0, 32)}` : null;
     }
+    if (!Capacitor.isPluginAvailable("SecureStorage")) return null;
     const { SecureStorage } = await import("@aparajita/capacitor-secure-storage");
     const existing = (await SecureStorage.get(KEY, false, false)) as string | null;
     if (typeof existing === "string" && existing.length >= 20) return existing;
