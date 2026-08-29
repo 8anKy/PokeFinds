@@ -10,15 +10,15 @@ import { socialLogin, socialProviderEnabled } from "@/lib/social-login";
 import type { OAuthProvider } from "@/lib/oauth-id-token";
 
 /**
- * "Fortsätt med Google / Apple" på inloggning och registrering. Renderar
- * ingenting alls när ingen provider är konfigurerad (webb utan nycklar) — då
- * finns inte ens skiljelinjen, så formuläret ser ut som förut.
+ * "– eller logga in med –" + IKONKNAPPAR under e-postformuläret (ägarens
+ * referens 2026-08-29). Ikon utan text: två rader "Fortsätt med …" kostade
+ * ~110 px och tvingade registreringen att scrolla på mobil. Hela frasen finns
+ * kvar som aria-label/title. Renderar ingenting när ingen provider är
+ * konfigurerad — då finns inte linjen heller.
  *
- * ⛔ Apple visas ALLTID när Google visas i appen — App Store-riktlinje 4.8:
- * erbjuds tredjepartsinloggning i appen måste Sign in with Apple finnas där.
- * Ordningen (Apple först på iOS) är också Apples önskemål.
+ * ⛔ Apple visas ALLTID när Google visas i appen — App Store-riktlinje 4.8.
  */
-export function SocialLoginButtons({ next }: { next: string }) {
+export function SocialLoginButtons({ next, mode }: { next: string; mode: "login" | "register" }) {
   const t = useTranslations("Auth.social");
   const router = useRouter();
   const [busy, setBusy] = useState<OAuthProvider | null>(null);
@@ -46,13 +46,11 @@ export function SocialLoginButtons({ next }: { next: string }) {
   }
 
   return (
-    <div className="mt-6">
-      <div className="flex items-center gap-3 text-xs uppercase tracking-wide text-ink-faint">
-        <span className="h-px flex-1 bg-surface-border" />
-        {t("or")}
-        <span className="h-px flex-1 bg-surface-border" />
-      </div>
-      <div className="mt-4 space-y-2.5">
+    <div className="mt-5">
+      <p className="text-center text-xs text-ink-muted">
+        {mode === "login" ? t("orLogin") : t("orRegister")}
+      </p>
+      <div className="mt-3 grid grid-cols-2 gap-3">
         {providers.map((provider) => (
           <Button
             key={provider}
@@ -60,13 +58,14 @@ export function SocialLoginButtons({ next }: { next: string }) {
             variant="secondary"
             size="lg"
             className="w-full"
+            aria-label={t(provider)}
+            title={t(provider)}
             loading={busy === provider}
             disabled={busy !== null}
             onClick={() => void start(provider)}
           >
             {busy !== provider &&
-              (provider === "google" ? <IconGoogle size={18} /> : <IconAppleLogo size={18} />)}
-            {t(provider)}
+              (provider === "google" ? <IconGoogle size={22} /> : <IconAppleLogo size={22} />)}
           </Button>
         ))}
       </div>

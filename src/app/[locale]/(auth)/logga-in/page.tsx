@@ -12,6 +12,11 @@ import { Input, PasswordInput, Label, FieldError } from "@/components/ui/input";
 import { EmailTypoHint, useEmailTypoHint } from "@/components/features/email-typo-hint";
 import { SocialLoginButtons } from "@/components/features/social-login-buttons";
 
+/**
+ * Inloggningen får plats på EN mobilskärm utan scroll (ägarbeslut 2026-08-29):
+ * e-post + lösenord med platshållare som etikett (etiketterna finns kvar för
+ * skärmläsare), knapp, "– eller logga in med –" + Apple/Google-ikoner, kontolänk.
+ */
 function LoginForm() {
   const t = useTranslations("Auth");
   const router = useRouter();
@@ -59,53 +64,53 @@ function LoginForm() {
 
   return (
     <div>
-      <h1 className="font-display text-2xl font-bold text-ink">{t("login.title")}</h1>
-      <p className="mt-1 text-sm text-ink-muted">
-        {t("login.subtitle")}
-      </p>
+      <h1 className="mb-5 font-display text-xl font-semibold text-ink">{t("login.title")}</h1>
 
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
+      <form onSubmit={handleSubmit} className="space-y-3" noValidate>
         <div>
-          <Label htmlFor="email">{t("emailLabel")}</Label>
+          <Label htmlFor="email" className="sr-only">
+            {t("emailLabel")}
+          </Label>
           <Input
             id="email"
             type="email"
             autoComplete="email"
             required
-            placeholder={t("emailPlaceholder")}
+            placeholder={t("emailLabel")}
+            className="h-12"
             value={email}
             {...emailTypo.fieldProps}
           />
           <EmailTypoHint suggestion={emailTypo.suggestion} onAccept={emailTypo.accept} />
         </div>
         <div>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="password">{t("passwordLabel")}</Label>
-            <Link
-              href="/glomt-losenord"
-              className="mb-1.5 text-xs text-holo-cyan hover:underline"
-            >
-              {t("login.forgot")}
-            </Link>
-          </div>
+          <Label htmlFor="password" className="sr-only">
+            {t("passwordLabel")}
+          </Label>
           <PasswordInput
             id="password"
             autoComplete="current-password"
             required
-            placeholder="••••••••"
+            placeholder={t("passwordLabel")}
+            className="h-12"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
+          <div className="mt-1.5 text-right">
+            <Link href="/glomt-losenord" className="text-xs text-holo-cyan hover:underline">
+              {t("login.forgot")}
+            </Link>
+          </div>
         </div>
 
-        <FieldError message={error} />
+        <FieldError message={error} className="mt-0" />
 
         <Button type="submit" loading={loading} className="w-full" size="lg">
           {t("login.submit")}
         </Button>
       </form>
 
-      <SocialLoginButtons next={callbackUrl} />
+      <SocialLoginButtons next={callbackUrl} mode="login" />
 
       <p className="mt-6 text-center text-sm text-ink-muted">
         {t("login.noAccount")}{" "}

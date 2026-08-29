@@ -245,7 +245,9 @@
       "google": "Continue with Google",
       "apple": "Continue with Apple",
       "error": "Signing in with Google or Apple could not be completed. Try again or log in with email.",
-      "denied": "We couldn't link the account: the address isn't verified by the provider, or it's missing. Sign up with email instead."
+      "denied": "We couldn't link the account: the address isn't verified by the provider, or it's missing. Sign up with email instead.",
+      "orLogin": "– or sign in with –",
+      "orRegister": "– or sign up with –"
     }
   },
   "Condition": {

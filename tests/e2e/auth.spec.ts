@@ -32,9 +32,9 @@ test.describe("Registrering", () => {
     await page.locator("#name").fill(`E2E Testare ${stamp}`);
     await page.locator("#email").fill(`e2e-${stamp}@example.test`);
     await page.locator("#password").fill("testlosen123");
-    // Bekräfta lösenord-fältet
-    await page.locator('input[type="password"]').nth(1).fill("testlosen123");
-    await page.getByRole("button", { name: /Skicka kod/ }).click();
+    // Bekräfta lösenord-fältet togs bort 2026-08-29 (en skärm utan scroll);
+    // knappen heter "Skapa konto" och leder till kodsteget.
+    await page.getByRole("button", { name: /Skapa konto/ }).click();
 
     // Kodsteget: rubriken byts och kodfältet visas
     await expect(page.getByRole("heading", { name: "Bekräfta din e-postadress" })).toBeVisible({
@@ -48,8 +48,7 @@ test.describe("Registrering", () => {
     await page.locator("#name").fill("E2E Testare");
     await page.locator("#email").fill("kort@example.test");
     await page.locator("#password").fill("kort");
-    await page.locator('input[type="password"]').nth(1).fill("kort");
-    await page.getByRole("button", { name: /Skicka kod/ }).click();
+    await page.getByRole("button", { name: /Skapa konto/ }).click();
     await expect(page.getByText("minst 8 tecken")).toBeVisible();
     expect(page.url()).toContain("/registrera");
   });

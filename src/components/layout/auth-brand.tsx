@@ -13,10 +13,10 @@ import { isEmailLandingRoute } from "@/lib/auth-routes";
 export function AuthBrand() {
   const pathname = usePathname();
   const locked = isEmailLandingRoute(pathname);
-  const logo = <BrandLogo markSize={44} textClass="text-3xl font-extrabold" />;
-  if (locked) return <div className="mb-8">{logo}</div>;
+  const logo = <BrandLogo markSize={32} textClass="text-2xl font-extrabold" />;
+  if (locked) return <div className="mb-5">{logo}</div>;
   return (
-    <Link href="/" className="mb-8" aria-label="Foilio startsida">
+    <Link href="/" className="mb-5" aria-label="Foilio startsida">
       {logo}
     </Link>
   );

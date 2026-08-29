@@ -35,8 +35,10 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <AuthShell>
       <AuthBrand />
-      <div className="card-surface w-full max-w-md p-6 shadow-card sm:p-8">{children}</div>
-      <p className="mt-8 text-center text-xs text-ink-faint">
+      {/* På mobil är hela skärmen kortet: ingen ram, ingen padding, ingen sidfot —
+          allt som inte är formuläret kostade höjd och tvingade fram scroll. */}
+      <div className="w-full max-w-md sm:card-surface sm:p-8 sm:shadow-card">{children}</div>
+      <p className="mt-8 hidden text-center text-xs text-ink-faint sm:block">
         © Foilio · Sveriges marknadsplats för Pokémon TCG
       </p>
     </AuthShell>

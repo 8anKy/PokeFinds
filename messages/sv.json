@@ -245,7 +245,9 @@
       "google": "Fortsätt med Google",
       "apple": "Fortsätt med Apple",
       "error": "Inloggningen via Google eller Apple gick inte att slutföra. Försök igen eller logga in med e-post.",
-      "denied": "Vi kunde inte koppla kontot: adressen är inte bekräftad hos leverantören, eller så saknas den. Registrera dig med e-post i stället."
+      "denied": "Vi kunde inte koppla kontot: adressen är inte bekräftad hos leverantören, eller så saknas den. Registrera dig med e-post i stället.",
+      "orLogin": "– eller logga in med –",
+      "orRegister": "– eller skapa konto med –"
     }
   },
   "Condition": {

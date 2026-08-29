@@ -16,7 +16,6 @@ interface FieldErrors {
   name?: string;
   email?: string;
   password?: string;
-  confirm?: string;
   code?: string;
 }
 
@@ -41,7 +40,6 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
   const [code, setCode] = useState("");
   // Förslag på rättad domän ("Menade du …@gmail.com?"). En feltypad adress är
   // annars en återvändsgränd: koden mejlas till ingenstans, och vi har varken
@@ -109,7 +107,6 @@ export default function RegisterPage() {
     if (name.trim().length < 2) errors.name = t("register.errName");
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) errors.email = t("register.errEmail");
     if (password.length < 8) errors.password = t("register.errPassword");
-    if (confirm !== password) errors.confirm = t("register.errConfirm");
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -331,38 +328,40 @@ export default function RegisterPage() {
 
   return (
     <div>
-      <h1 className="font-display text-2xl font-bold text-ink">{t("register.title")}</h1>
-      <p className="mt-1 text-sm text-ink-muted">
-        {t("register.subtitle")}
-      </p>
+      {/* EN mobilskärm utan scroll (ägarbeslut 2026-08-29): ingen underrubrik,
+          Apple/Google överst, tre fält (bekräfta-lösenord togs bort — ögat i
+          fältet visar lösenordet, och "Glömt lösenord" finns för resten). */}
+      <h1 className="mb-5 font-display text-xl font-semibold text-ink">{t("register.title")}</h1>
       {invite && (
-        <p className="mt-3 rounded-lg border border-holo-cyan/30 bg-holo-cyan/10 px-3 py-2 text-sm text-ink">
+        <p className="mb-4 rounded-lg border border-holo-cyan/30 bg-holo-cyan/10 px-3 py-2 text-sm text-ink">
           {t("register.inviteNote")}
         </p>
       )}
 
-      <form onSubmit={handleSendCode} className="mt-6 space-y-4" noValidate>
+      <form onSubmit={handleSendCode} className="space-y-3" noValidate>
         <div>
-          <Label htmlFor="name">{t("register.nameLabel")}</Label>
+          <Label htmlFor="name" className="sr-only">{t("register.nameLabel")}</Label>
           <Input
             id="name"
             type="text"
             autoComplete="name"
             required
-            placeholder={t("register.namePlaceholder")}
+            placeholder={t("register.nameLabel")}
+            className="h-12"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
           <FieldError message={fieldErrors.name} />
         </div>
         <div>
-          <Label htmlFor="email">{t("emailLabel")}</Label>
+          <Label htmlFor="email" className="sr-only">{t("emailLabel")}</Label>
           <Input
             id="email"
             type="email"
             autoComplete="email"
             required
-            placeholder={t("emailPlaceholder")}
+            placeholder={t("emailLabel")}
+            className="h-12"
             value={email}
             {...emailFieldProps}
           />
@@ -376,42 +375,31 @@ export default function RegisterPage() {
           />
         </div>
         <div>
-          <Label htmlFor="password">{t("passwordLabel")}</Label>
+          <Label htmlFor="password" className="sr-only">{t("passwordLabel")}</Label>
           <PasswordInput
             id="password"
             autoComplete="new-password"
             required
             minLength={8}
             placeholder={t("register.passwordPlaceholder")}
+            className="h-12"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
           <FieldError message={fieldErrors.password} />
         </div>
-        <div>
-          <Label htmlFor="confirm">{t("register.confirmLabel")}</Label>
-          <PasswordInput
-            id="confirm"
-            autoComplete="new-password"
-            required
-            placeholder={t("register.confirmPlaceholder")}
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-          />
-          <FieldError message={fieldErrors.confirm} />
-        </div>
 
-        <FieldError message={error} />
+        <FieldError message={error} className="mt-0" />
 
         <Button type="submit" loading={loading} className="w-full" size="lg">
-          {t("register.sendCode")}
+          {t("register.submit")}
         </Button>
-        <p className="text-center text-xs text-ink-muted">{t("register.sendCodeHint")}</p>
       </form>
 
       {/* Google/Apple hoppar över kodsteget: leverantören har redan bekräftat
-          adressen. Inbjudningskoden följer INTE med den vägen (medvetet). */}
-      <SocialLoginButtons next="/produkter" />
+          adressen. E-postvägen behåller koden. Inbjudningskoden följer INTE med
+          OAuth-vägen (medvetet). */}
+      <SocialLoginButtons next="/produkter" mode="register" />
 
       <p className="mt-6 text-center text-sm text-ink-muted">
         {t("register.haveAccount")}{" "}
