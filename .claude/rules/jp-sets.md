@@ -29,6 +29,26 @@ paths:
   ⛔ EN-refreshen, hot-card och täckningsvakten filtrerar nu `language: "EN"` — JP-kort har också ett
   `tcgExternalId` och hade annars fått EN-offers. `totalCards`/`totalCardsFull` på JP-set fylls nu
   från leverantören (printed / total). Vaktat av `tests/unit/jp-singles.test.ts`.
+- ✅ **DIREKTA CM-LÄNKAR UR GRATISKATALOGEN (2026-08-30)** — `scripts/link-jp-singles-to-cardmarket.ts`.
+  `products_singles_6.json` bär `idExpansion`; inom en expansion är namnet det engelska kortnamnet och
+  kort med SAMMA namn (vanlig/SAR/SIR) ligger i **id-ordning = nummerordning** (verifierat på riktiga
+  CM-sidor: 719445→#003 V1, 719637→#184 V2). Regel: namngrupp + LIKA versionsantal + k:te id ↔ k:te
+  nummer; ⛔ gissa aldrig vid olika antal. Utfall: **5 272 av 5 553** har `Card.cardmarketId` + riktig
+  produktsida via `cardmarketJapaneseSingleUrl` (= `…&language=7&minCondition=2`, NM-filtret som EN).
+  Kvar med söklänk (281): Mega Series Promos (~100, CM-expansionen hittades inte — kandidaten börjar
+  på Bulbasaur, vår på Chikorita), VMAX Special Set (4; CM har 8 versioner), 118 med fler CM-versioner
+  än vi har (S-erans holo-varianter), 59 med annat CM-namn (energier). Tre expansioner sattes för hand
+  efter browserkontroll: Legendary Pulse=3384 ("Legendary Heartbeat"), Matchless Fighter=3751, SVP=5212.
+  ⛔ Vårt `cardmarketId` VINNER över leverantörens (`cmIdDisagreements` loggas); luckor fylls av API:t.
+- ✅ **Set-städning + titlar (2026-08-30)**: `scripts/sync-jp-sets-from-api.ts` — leverantörens
+  `/pokemon-jp/episodes` HAR setlogotyper (19 hämtade till `public/set-logos/jp/`), koder in i namnen
+  (Sword (S1W), Shield (S1H), VMAX Rising (S1a), Eevee Heroes (S6a), Blue Sky Stream (S7R), Fusion Arts
+  (S8), S5L→S5I, 30th Celebration M6→M6A), serie ur kodprefix, 12 tomma skal-set (ID/TH, gem packs,
+  McDonald's) raderade. ~20 SM-era-set (bara sealed) har fortfarande produktfoto — kräver manuell
+  logotypgranskning (`fetch-jp-set-logos.ts`). **Produkttitlar utan setkod** ("Dusclops (JP) · Night
+  Wanderer 19/64", `scripts/retitle-jp-singles.ts`) — koden bor på setet, inte i titeln.
+  Katalogen visar bara prissatta singlar: 3 984 av 5 553 JP-singlar syns i bläddringen, resten
+  nås via set/skanner/URL tills CM får en japansk annons. JP-kort har konstavtryck (skannern).
 
 Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md pekar hit.
 

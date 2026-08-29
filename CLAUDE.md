@@ -158,6 +158,15 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   diskcache (TTL 24 h) → **en ändrad restockWatch-flagga slår igenom först inom ett dygn.**
 
 ## Öppna ärenden / Nästa steg
+- **Mät ISR-effekten (~2026-09-05)**: `scripts/neon-wake-attribution.ts` mot baslinjen 19 h/dygn (08-26).
+  Nästa kandidat om set-sidorna dominerar: samma skal-behandling för `/sets/[id]` (bär pris i HTML, 1 h).
+- **Forum (ägarbeslut 2026-08-29, nästa bygge)**: forum med grupper (Facebook-liknande), bild-uppladdning
+  till Railway Bucket ($0,015/GB), köp/sälj/byt-trådar ⇒ marknadsplatsklausul i villkoren. ⛔ Ingen
+  live-chatt — polling mot Neon hade kostat ~$45/mån ensamt.
+- **JP-singlar, kvar**: 281 utan direkt CM-länk (se jp-sets.md), Mega Series Promos saknar CM-expansion,
+  ~20 SM-era-set utan logotyp, 24 JP-set utan kort hos leverantören (läker av sig själva).
+- **Gratis "sålt"-snitt**: CM:s prisguide `avg1/avg7/avg30` = snitt av FAKTISKA försäljningar — kan visas
+  som "Sålt senast" utan kostnad (konkurrenternas "recently sold" är sannolikt just det). Ej byggt.
 - ⛔ **Integritetspolicyn är inte juristgranskad** — enda kvarvarande punkten i legalpaketet.
   `DISCORD_ENABLED=true` kör skarpt trots att granskningen var villkoret. Utöver Discord behandlar Stripe,
   Google/Gemini och Tradera personuppgifter i prod UTAN att stå i policyn
