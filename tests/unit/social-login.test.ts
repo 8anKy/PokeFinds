@@ -81,6 +81,17 @@ describe("nativt bygge — fyra filer måste vara eniga", () => {
     expect(cm).toContain('build_settings["CODE_SIGN_ENTITLEMENTS"]="App/App.entitlements"');
   });
 
+  it("Dockerfile släpper in klient-id:na i BYGGET (annars hydrerar klienten bort knapparna)", () => {
+    const df = read("Dockerfile");
+    for (const v of ["GOOGLE_CLIENT_ID", "GOOGLE_IOS_CLIENT_ID", "APPLE_CLIENT_ID"]) {
+      expect(df).toContain(`ARG ${v}`);
+      expect(df).toContain(`${v}=$${v}`);
+    }
+    // Hemligheterna får ALDRIG bakas in i imagen.
+    expect(df).not.toContain("ARG GOOGLE_CLIENT_SECRET");
+    expect(df).not.toContain("ARG APPLE_PRIVATE_KEY");
+  });
+
   it("pluginet är ett deklarerat beroende", () => {
     const pkg = JSON.parse(read("package.json")) as { dependencies: Record<string, string> };
     expect(pkg.dependencies["@capgo/capacitor-social-login"]).toBeTruthy();

@@ -39,6 +39,15 @@ ARG LEGAL_ENTITY_NAME
 ARG LEGAL_ENTITY_ADDRESS
 ARG LEGAL_ENTITY_VAT
 ARG LEGAL_ENTITY_EMAIL
+# Google-/Apple-inloggning: klient-id:na speglas till NEXT_PUBLIC_* i next.config.mjs
+# och BAKAS IN i klientbunten — utan de här raderna renderar servern knapparna
+# (den har variablerna i runtime) medan klienten hydrerar bort dem: SSR-HTML:en
+# innehåller "Fortsätt med Google", sidan i webbläsaren gör det inte. Exakt den
+# fällan kostade en felsökningsrunda 2026-08-29. Hemligheterna (CLIENT_SECRET,
+# APPLE_PRIVATE_KEY) läses i RUNTIME och ska INTE hit.
+ARG GOOGLE_CLIENT_ID
+ARG GOOGLE_IOS_CLIENT_ID
+ARG APPLE_CLIENT_ID
 ENV NODE_ENV=production \
     DATABASE_URL=$DATABASE_URL \
     NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME \
@@ -51,7 +60,10 @@ ENV NODE_ENV=production \
     LEGAL_ENTITY_NAME=$LEGAL_ENTITY_NAME \
     LEGAL_ENTITY_ADDRESS=$LEGAL_ENTITY_ADDRESS \
     LEGAL_ENTITY_VAT=$LEGAL_ENTITY_VAT \
-    LEGAL_ENTITY_EMAIL=$LEGAL_ENTITY_EMAIL
+    LEGAL_ENTITY_EMAIL=$LEGAL_ENTITY_EMAIL \
+    GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID \
+    GOOGLE_IOS_CLIENT_ID=$GOOGLE_IOS_CLIENT_ID \
+    APPLE_CLIENT_ID=$APPLE_CLIENT_ID
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
