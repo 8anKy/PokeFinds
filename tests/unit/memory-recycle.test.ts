@@ -15,10 +15,11 @@ describe("decideRecycle", () => {
     expect(decideRecycle(900 * MB, busy, 7200, null, cfg)).toBe("none");
     expect(decideRecycle(900 * MB, quiet, 600, null, cfg)).toBe("none");
   });
-  it("nödomstart när som helst över nödtaket, men aldrig tätare än 6 h", () => {
-    expect(decideRecycle(3500 * MB, busy, 7200, null, cfg)).toBe("emergency");
+  it("nödomstart när som helst över nödtaket (1,5 GB), men aldrig tätare än 3 h", () => {
+    expect(decideRecycle(1400 * MB, busy, 7200, null, cfg)).toBe("none");
+    expect(decideRecycle(1600 * MB, busy, 7200, null, cfg)).toBe("emergency");
     expect(decideRecycle(3500 * MB, busy, 7200, busy - 3600 * 1000, cfg)).toBe("none");
-    expect(decideRecycle(3500 * MB, busy, 7200, busy - 7 * 3600 * 1000, cfg)).toBe("emergency");
+    expect(decideRecycle(3500 * MB, busy, 7200, busy - 4 * 3600 * 1000, cfg)).toBe("emergency");
   });
   it("MEMORY_RECYCLE_MB=0 stänger av allt, även nöd", () => {
     const off = recycleConfigFromEnv({ MEMORY_RECYCLE_MB: "0" });

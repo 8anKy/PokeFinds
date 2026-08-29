@@ -17,9 +17,13 @@
  *  - Nattlig: i det tysta fönstret (04:00–04:59 UTC = efter nattkedjan, före
  *    morgontrafiken) och minnet > MEMORY_RECYCLE_MB (700) ⇒ starta om. En gång
  *    per dygn räcker för att kapa sågtanden till dess första dygn.
- *  - Nöd: minnet > MEMORY_RECYCLE_EMERGENCY_MB (3000) när som helst ⇒ starta om.
- *    5–6 GB i sex timmar är $0,10 — små pengar, men det är skräp, inte arbete.
- *    Minst 6 h mellan nödomstarter så en envis skur inte ger en omstartsloop.
+ *  - Nöd: minnet > MEMORY_RECYCLE_EMERGENCY_MB (1500) när som helst ⇒ starta om.
+ *    Det är NÖDGRINDEN som betalar sig, inte den nattliga: per dygn (railway-cost-
+ *    report 2026-08-29) kostar en lugn dag ~0,4 GB ≈ $0,14, men 08-22 (2,9 GB snitt,
+ *    crawler-skur) kostade $1,01 och 08-28 (1,6 GB) $0,56 — två skurdagar = en
+ *    vecka av lugna. 1,5 GB är 5× minnet efter boot; en skur som passerar det är
+ *    skräp, inte arbete. Minst 3 h mellan nödomstarter så en envis skur inte ger
+ *    en omstartsloop (värsta fall: ~8 omstarter/dygn, var och en några sekunder).
  *
  * SÅ HÄR STARTAR VI OM: buffertarna töms först (analytics + klickräknare — samma
  * väg som SIGTERM), sedan `process.exit(1)`. Railways omstartspolicy (ON_FAILURE)
@@ -63,10 +67,10 @@ export function recycleConfigFromEnv(
 ): RecycleConfig {
   return {
     thresholdMb: Number(env.MEMORY_RECYCLE_MB ?? 700),
-    emergencyMb: Number(env.MEMORY_RECYCLE_EMERGENCY_MB ?? 3000),
+    emergencyMb: Number(env.MEMORY_RECYCLE_EMERGENCY_MB ?? 1500),
     quietHourUtc: 4,
     minUptimeSec: 3600,
-    emergencySpacingSec: 6 * 3600,
+    emergencySpacingSec: 3 * 3600,
   };
 }
 
