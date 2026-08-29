@@ -22,12 +22,12 @@
  * katalog: `deriveJpSetName` på expansionens booster-rader måste ge VÅRT setnamn.
  *
  * Skriver: `Card.cardmarketId` (unik, gör omkörning + framtida refresh idempotent)
- * och Cardmarket-offerns `url` → `cardmarketJapaneseProductUrl(idProduct)`.
+ * och Cardmarket-offerns `url` → `cardmarketJapaneseSingleUrl(idProduct)`.
  * jp-singles-refresh bevarar en produktsida framför söklänken.
  */
 import "./load-env";
 import { prisma } from "../src/lib/db";
-import { cardmarketJapaneseProductUrl, isCardmarketJpSearchUrl } from "../src/lib/marketplace-urls";
+import { cardmarketJapaneseSingleUrl, isCardmarketJpSearchUrl } from "../src/lib/marketplace-urls";
 import { deriveJpSetName, type CmCatalogRow } from "../src/lib/jp-set-name";
 import { mapPool } from "../src/lib/concurrency";
 
@@ -129,7 +129,7 @@ async function main() {
         where: { productId_retailerId_condition_language: { productId: o.productId, retailerId: cm.id, condition: "NEAR_MINT", language: "JP" } },
         select: { id: true, url: true },
       });
-      const url = cardmarketJapaneseProductUrl(o.idProduct);
+      const url = cardmarketJapaneseSingleUrl(o.idProduct);
       if (offer && (isCardmarketJpSearchUrl(offer.url) || offer.url !== url)) {
         await prisma.offer.update({ where: { id: offer.id }, data: { url } });
       } else if (!offer) {

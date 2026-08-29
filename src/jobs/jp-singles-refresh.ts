@@ -25,7 +25,7 @@
  * LÄNK: ingen produktsida finns → offern bär `cardmarketJpSearchUrl` (CM-sök,
  * language=7). Det är det enda sök-URL som får bära ett pris — se undantaget i
  * `isDirectOfferUrl`. Skulle leverantören börja leverera `cardmarket_id` uppgraderas
- * länken automatiskt till en riktig produktsida (`cardmarketJapaneseProductUrl`).
+ * länken automatiskt till en riktig produktsida (`cardmarketJapaneseSingleUrl`).
  *
  * ⛔ Priser via `priceOreFromEur` — 0 kr är inget pris. Stock: From finns ⇒ IN_STOCK,
  * bara 30d-snitt ⇒ uppskattning (OUT_OF_STOCK, samma modell som EN), inget ⇒
@@ -36,7 +36,7 @@ import { mapPool } from "@/lib/concurrency";
 import { getRatesOre, priceOreFromEur } from "@/lib/exchange-rate";
 import { normalizeTitle, slugify, utcToday } from "@/lib/utils";
 import {
-  cardmarketJapaneseProductUrl,
+  cardmarketJapaneseSingleUrl,
   cardmarketJpSearchUrl,
   isCardmarketJpSearchUrl,
 } from "@/lib/marketplace-urls";
@@ -323,7 +323,7 @@ export async function runJapaneseSinglesRefresh(
         cmId = null;
       });
     }
-    const url = cmId ? cardmarketJapaneseProductUrl(cmId) : cardmarketJpSearchUrl(nameEn);
+    const url = cmId ? cardmarketJapaneseSingleUrl(cmId) : cardmarketJpSearchUrl(nameEn);
     const key = { productId, retailerId: cm.id, condition: "NEAR_MINT" as const, language: "JP" as const };
     const current = await prisma.offer.findUnique({ where: { productId_retailerId_condition_language: key }, select: { url: true } });
     // En riktig produktsida skrivs ALDRIG över av söklänken.

@@ -163,6 +163,15 @@ export function cardmarketJapaneseProductUrl(idProduct: number): string {
   return `https://www.cardmarket.com/en/Pokemon/Products?idProduct=${idProduct}&language=7`;
 }
 
+/**
+ * Samma sida för en japansk SINGEL: + Near Mint-filtret (`minCondition=2`), precis
+ * som de engelska singlarna får via `withNearMint`. Priset vi visar är CM:s NM-From,
+ * så sidan ska öppna på de annonser priset gäller. Sealed får INGET skickfilter.
+ */
+export function cardmarketJapaneseSingleUrl(idProduct: number): string {
+  return withNearMint(cardmarketJapaneseProductUrl(idProduct));
+}
+
 export function cardmarketSearchUrl(term: string): string {
   return `https://www.cardmarket.com/en/Pokemon/Products/Search?searchString=${encodeURIComponent(term)}&site=1`;
 }
