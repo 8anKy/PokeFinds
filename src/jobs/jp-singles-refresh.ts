@@ -115,9 +115,16 @@ export function jpCardName(nameEn: string): string {
   return `${nameEn.trim()} (JP)`;
 }
 
+/**
+ * Titeln följer de engelska singlarnas form ("Venusaur ex · 151 3/165"): setets
+ * NAMN utan kodsuffixet. Koden ("(SV6a)") finns på CardSet för att hålla isär
+ * JP/EN-set med samma namn i set-väljaren — i en produkttitel är den bara brus
+ * (ägarbeslut 2026-08-30).
+ */
 export function jpProductTitle(nameEn: string, setName: string, number: string, printed: number | null): string {
   const num = printed && printed > 0 ? `${number}/${printed}` : number;
-  return `${jpCardName(nameEn)} · ${setName} ${num}`;
+  const plainSet = setName.replace(/\s*\([A-Za-z0-9-]{1,6}\)\s*$/, "").trim();
+  return `${jpCardName(nameEn)} · ${plainSet} ${num}`;
 }
 
 async function sleep(ms: number) {

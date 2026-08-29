@@ -51,8 +51,10 @@ describe("Cardmarket JP-sök som prisbärande länk", () => {
 describe("JP-namn och titlar", () => {
   it("kortnamn = engelska namnet + (JP); titel = namn · set nummer/tryckt total", () => {
     expect(jpCardName("Tropius")).toBe("Tropius (JP)");
-    expect(jpProductTitle("Tropius", "Abyss Eye (M5)", "1", 81)).toBe("Tropius (JP) · Abyss Eye (M5) 1/81");
-    expect(jpProductTitle("Pikachu", "Scarlet & Violet Promos (SVP)", "1", 0)).toBe("Pikachu (JP) · Scarlet & Violet Promos (SVP) 1");
+    // Setkoden stannar på setet, inte i titeln — samma form som EN-singlarna.
+    expect(jpProductTitle("Tropius", "Abyss Eye (M5)", "1", 81)).toBe("Tropius (JP) · Abyss Eye 1/81");
+    expect(jpProductTitle("Pikachu", "Scarlet & Violet Promos (SVP)", "1", 0)).toBe("Pikachu (JP) · Scarlet & Violet Promos 1");
+    expect(jpProductTitle("Roselia", "Sword", "1", 60)).toBe("Roselia (JP) · Sword 1/60");
   });
 
   it("leverantörens '(Japanese)' i setnamnet tas bort — språket bär kolumnen", () => {
