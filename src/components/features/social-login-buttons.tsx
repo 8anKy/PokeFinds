@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { useRouter } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/input";
 import { IconAppleLogo, IconGoogle } from "@/components/ui/brand-icons";
@@ -19,6 +20,7 @@ import type { OAuthProvider } from "@/lib/oauth-id-token";
  */
 export function SocialLoginButtons({ next }: { next: string }) {
   const t = useTranslations("Auth.social");
+  const router = useRouter();
   const [busy, setBusy] = useState<OAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,8 +32,13 @@ export function SocialLoginButtons({ next }: { next: string }) {
     setBusy(provider);
     try {
       const outcome = await socialLogin(provider, next);
-      if (outcome === "redirecting") return; // sidan byts — behåll laddningen
-      if (outcome === "failed") setError(t("error"));
+      if (outcome.kind === "redirecting") return; // sidan byts — behåll laddningen
+      if (outcome.kind === "signed-in") {
+        router.push(outcome.target);
+        router.refresh();
+        return;
+      }
+      if (outcome.kind === "failed") setError(t("error"));
     } catch {
       setError(t("error"));
     }

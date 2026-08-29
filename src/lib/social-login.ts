@@ -1,6 +1,6 @@
 "use client";
 
-import { signIn } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import { setAuthHint } from "@/lib/auth-hint";
 import type { OAuthProvider } from "@/lib/oauth-id-token";
 import type { AppleProviderResponse, GoogleLoginResponse } from "@capgo/capacitor-social-login";
@@ -70,11 +70,21 @@ async function nativePlugin() {
   return SocialLogin;
 }
 
-export type SocialLoginOutcome = "redirecting" | "cancelled" | "failed";
+export type SocialLoginOutcome =
+  /** Webbläsaren är på väg till leverantören (full redirect) — nollställ inte laddningen. */
+  | { kind: "redirecting" }
+  /** Inloggad i appen — anroparen navigerar KLIENT-side till `target` (ingen omladdning). */
+  | { kind: "signed-in"; target: string }
+  | { kind: "cancelled" }
+  | { kind: "failed" };
 
 /**
- * Starta inloggningen. "redirecting" = webbläsaren är på väg vidare (webb-
- * redirect eller after-social) — anroparen ska INTE nollställa sin laddning.
+ * Starta inloggningen. Den nativa vägen slutar INTE med en omladdning: efter
+ * bygge 40 (2026-08-29) tog inloggningen "extremt lång tid" — Google-arket i
+ * sig är snabbt, det var vår svans efteråt: POST till NextAuth, sedan en hel
+ * dokumentladdning av /api/auth/after-social som gjorde ännu en serverresa
+ * innan sidan byttes. Nu läses sessionen en gång (samma svar NextAuth ändå
+ * hämtar) och navigeringen sker i klienten.
  */
 export async function socialLogin(provider: OAuthProvider, next: string): Promise<SocialLoginOutcome> {
   const where = await platform();
@@ -82,7 +92,7 @@ export async function socialLogin(provider: OAuthProvider, next: string): Promis
 
   if (!useNative) {
     await signIn(provider, { callbackUrl: afterSocialUrl(next) });
-    return "redirecting";
+    return { kind: "redirecting" };
   }
 
   let idToken: string | null = null;
@@ -106,9 +116,9 @@ export async function socialLogin(provider: OAuthProvider, next: string): Promis
   } catch (e) {
     // Användaren stängde rutan ⇒ tyst. Allt annat ⇒ fel.
     const msg = e instanceof Error ? e.message.toLowerCase() : "";
-    return /cancel|canceled|cancelled|1001/.test(msg) ? "cancelled" : "failed";
+    return { kind: /cancel|canceled|cancelled|1001/.test(msg) ? "cancelled" : "failed" };
   }
-  if (!idToken) return "failed";
+  if (!idToken) return { kind: "failed" };
 
   const result = await signIn("native-token", {
     provider,
@@ -116,8 +126,11 @@ export async function socialLogin(provider: OAuthProvider, next: string): Promis
     name: name ?? "",
     redirect: false,
   });
-  if (!result?.ok || result.error) return "failed";
+  if (!result?.ok || result.error) return { kind: "failed" };
   setAuthHint(true);
-  window.location.assign(afterSocialUrl(next));
-  return "redirecting";
+  // Samma beslut som /api/auth/after-social, men ur sessionen NextAuth just
+  // utfärdade — nya konton till onboardingen, gamla till `next`.
+  const session = await getSession();
+  const done = session?.user?.onboardingCompleted === true;
+  return { kind: "signed-in", target: done && /^\/(?!\/)/.test(next) ? next : "/onboarding" };
 }
