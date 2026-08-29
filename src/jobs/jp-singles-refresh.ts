@@ -84,6 +84,8 @@ export interface JpSinglesResult {
   historyPoints: number;
   skippedNoEpisode: number;
   skippedNoName: number;
+  /** Leverantörens cardmarket_id ≠ vårt verifierade — loggas, skrivs aldrig. */
+  cmIdDisagreements: number;
 }
 
 /** "SECRET RARE" / "rare" / "Double Rare" → "Secret Rare" / "Rare" / "Double Rare". */
@@ -138,6 +140,7 @@ export async function runJapaneseSinglesRefresh(
   const res: JpSinglesResult = {
     apiCalls: 0, remaining: Infinity, cards: 0, setsCreated: 0, cardsCreated: 0,
     productsCreated: 0, offersWritten: 0, historyPoints: 0, skippedNoEpisode: 0, skippedNoName: 0,
+    cmIdDisagreements: 0,
   };
   const HOST = process.env.CARDMARKET_RAPIDAPI_HOST || "cardmarket-api-tcg.p.rapidapi.com";
   const KEY = process.env.CARDMARKET_RAPIDAPI_KEY || "";
@@ -248,7 +251,7 @@ export async function runJapaneseSinglesRefresh(
   const today = utcToday();
   const existingCards = await prisma.card.findMany({
     where: { tcgExternalId: { startsWith: JP_EXTERNAL_PREFIX } },
-    select: { id: true, tcgExternalId: true, products: { where: { language: "JP" }, select: { id: true, slug: true }, take: 1 } },
+    select: { id: true, tcgExternalId: true, cardmarketId: true, products: { where: { language: "JP" }, select: { id: true, slug: true }, take: 1 } },
   });
   const cardByExt = new Map(existingCards.map((c) => [c.tcgExternalId!, c]));
   const priced: { productId: string; priceOre: number }[] = [];
@@ -306,7 +309,21 @@ export async function runJapaneseSinglesRefresh(
     const avg = priceOreFromEur(c.prices?.cardmarket?.["30d_average"], rates);
     const priceOre = from ?? avg;
     const stock = from ? "IN_STOCK" : "OUT_OF_STOCK";
-    const url = c.cardmarket_id ? cardmarketJapaneseProductUrl(c.cardmarket_id) : cardmarketJpSearchUrl(nameEn);
+    // ⛔ VÅRT cardmarketId VINNER. Det sattes ur CM:s egen katalog och verifierades
+    // mot riktiga produktsidor (link-jp-singles-to-cardmarket.ts). Ett avvikande id
+    // från leverantören skrivs ALDRIG över det — det loggas, så avvikelsen syns.
+    // Saknar kortet id fyller leverantörens id luckan, och skrivs då även på kortet.
+    let cmId = existing?.cardmarketId ?? null;
+    if (cmId && c.cardmarket_id && c.cardmarket_id !== cmId) {
+      res.cmIdDisagreements++;
+    } else if (!cmId && c.cardmarket_id) {
+      cmId = c.cardmarket_id;
+      await prisma.card.update({ where: { id: cardId }, data: { cardmarketId: cmId } }).catch(() => {
+        // Unikt index: id:t ägs redan av ett annat kort → lita inte på det.
+        cmId = null;
+      });
+    }
+    const url = cmId ? cardmarketJapaneseProductUrl(cmId) : cardmarketJpSearchUrl(nameEn);
     const key = { productId, retailerId: cm.id, condition: "NEAR_MINT" as const, language: "JP" as const };
     const current = await prisma.offer.findUnique({ where: { productId_retailerId_condition_language: key }, select: { url: true } });
     // En riktig produktsida skrivs ALDRIG över av söklänken.
@@ -333,6 +350,7 @@ export async function runJapaneseSinglesRefresh(
     `[cm-jp-singles] Klart: ${res.cards} kort, ${res.setsCreated} nya set, ${res.cardsCreated} nya kort, ` +
       `${res.productsCreated} nya produkter, ${res.offersWritten} offers, ${res.historyPoints} historikpunkter` +
       (res.skippedNoEpisode || res.skippedNoName ? ` (hoppade över ${res.skippedNoEpisode} utan set, ${res.skippedNoName} utan namn)` : "") +
+      (res.cmIdDisagreements ? ` ⚠️ ${res.cmIdDisagreements} kort där leverantörens cardmarket_id avviker från vårt (ignorerat)` : "") +
       `. ${res.apiCalls} API-anrop, kvot kvar ${res.remaining}.`
   );
   return res;
