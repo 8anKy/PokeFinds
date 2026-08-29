@@ -71,15 +71,14 @@ describe("nativt bygge — fyra filer måste vara eniga", () => {
     expect(cfg).not.toMatch(/allowNavigation:[\s\S]*?"accounts\.google\.com"/);
   });
 
-  it("iOS: URL-schema för Google-återhopp + Sign in with Apple-entitlement kopplad", () => {
-    const plist = read("ios/App/App/Info.plist");
-    expect(plist).toContain("<key>GIDClientID</key>");
-    expect(plist).toMatch(/<string>com\.googleusercontent\.apps\./);
-    const ent = read("ios/App/App/App.entitlements");
-    expect(ent).toContain("com.apple.developer.applesignin");
-    expect(ent).toContain("aps-environment");
-    const pbx = read("ios/App/App.xcodeproj/project.pbxproj");
-    expect(pbx.match(/CODE_SIGN_ENTITLEMENTS = App\/App\.entitlements;/g)).toHaveLength(2);
+  it("iOS byggs på Codemagic (ios/ är gitignorerad): URL-schema + applesignin-entitlement ligger i pipelinen", () => {
+    const cm = read("codemagic.yaml");
+    expect(cm).toMatch(/GOOGLE_IOS_CLIENT_ID:\s*"\d+-[a-z0-9]+\.apps\.googleusercontent\.com"/);
+    expect(cm).toContain("Add :GIDClientID string");
+    expect(cm).toContain("com.googleusercontent.apps.");
+    expect(cm).toContain("com.apple.developer.applesignin");
+    expect(cm).toContain("aps-environment"); // push får inte försvinna när filen skrivs om
+    expect(cm).toContain('build_settings["CODE_SIGN_ENTITLEMENTS"]="App/App.entitlements"');
   });
 
   it("pluginet är ett deklarerat beroende", () => {

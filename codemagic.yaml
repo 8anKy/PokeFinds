@@ -17,6 +17,8 @@ workflows:
       vars:
         # Appen öppnar direkt på Utforska (ingen blink av marknadsförings-startsidan).
         CAP_SERVER_URL: "https://foilio.se/produkter"
+        # Google-inloggning i appen: iOS-klient-id:t (publikt, står i binären ändå).
+        GOOGLE_IOS_CLIENT_ID: "920300522039-odqr8p38snk5ouptk3mp4g1e6ntmtojj.apps.googleusercontent.com"
         BUNDLE_ID: "se.foilio.app"
         # Capacitor 8 = SPM-mall: inget CocoaPods, ingen .xcworkspace — bygg xcodeproj:t direkt.
         XCODE_PROJECT: "ios/App/App.xcodeproj"
@@ -101,6 +103,10 @@ workflows:
           # Utan den får appen aldrig en APNs-token (registreringen tyst-failar). Skapa
           # entitlement-filen och koppla den till App-targeten (ingen Xcode behövs).
           # "production" = rätt för TestFlight/App Store (de använder produktions-APNs).
+          # Sign in with Apple (2026-08-29): capabilityn är påslagen på App ID:t i
+          # Developer-portalen; entitlementen här är appens halva. Det nativa
+          # SocialLogin-pluginet (lib/social-login.ts) kräver den, annars svarar
+          # ASAuthorizationController med error 1000 utan förklaring.
           cat > ios/App/App/App.entitlements <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -108,9 +114,30 @@ workflows:
           <dict>
             <key>aps-environment</key>
             <string>production</string>
+            <key>com.apple.developer.applesignin</key>
+            <array>
+              <string>Default</string>
+            </array>
           </dict>
           </plist>
           PLIST
+          grep -q applesignin ios/App/App/App.entitlements
+          # Google-inloggning (nativt GoogleSignIn-SDK via @capgo/capacitor-social-login):
+          # GIDClientID = iOS-klient-id:t (Google Cloud → Clients → "Foilio iOS", bundle
+          # se.foilio.app) och URL-schemat är SAMMA id BAKLÄNGES — dit återvänder Googles
+          # inloggningsflöde. Saknas de kraschar Google-knappen i appen med "no client ID".
+          # Samma id ligger som GOOGLE_IOS_CLIENT_ID i Railway (servern verifierar aud).
+          GID="$GOOGLE_IOS_CLIENT_ID"
+          test -n "$GID"  # fail-loud: sätt GOOGLE_IOS_CLIENT_ID i Codemagic-miljön
+          /usr/libexec/PlistBuddy -c "Add :GIDClientID string \"$GID\"" "$PL" || \n            /usr/libexec/PlistBuddy -c "Set :GIDClientID \"$GID\"" "$PL"
+          REV="com.googleusercontent.apps.${GID%%.apps.googleusercontent.com}"
+          /usr/libexec/PlistBuddy -c "Delete :CFBundleURLTypes" "$PL" || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "$PL"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" "$PL"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleTypeRole string Editor" "$PL"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$PL"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string \"$REV\"" "$PL"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes:0:CFBundleURLSchemes:0" "$PL" | grep -q "^com.googleusercontent.apps."
           # TARGETED_DEVICE_FAMILY=1 = iPhone-only. Capacitor-mallen bygger för iPhone OCH
           # iPad (1,2) → Apple kräver då iPad-skärmbilder och GRANSKAR appen på iPad, där
           # layouten aldrig testats. Öppna upp till "1,2" den dag iPad är genomtestad.
