@@ -51,14 +51,17 @@ type BufferedEvent = {
 };
 
 const FLUSH_SIZE = Number(process.env.ANALYTICS_FLUSH_SIZE ?? 50);
-// 300 000 ms = EXAKT Neons minsta debiterade fönster, och det är hela poängen med
-// talet. Med 60 s tömde vi fem gånger inom ett fönster som ändå debiteras som ett —
-// men värre: varje tömning kan ARMA ett nytt fönster, så en ensam besökare som
-// bläddrar i några minuter kunde starta flera. En tömning per fönster betyder att
-// en hel besökssession kostar ETT uppvaknande. Priset är att färsk statistik
-// släpar upp till fem minuter, vilket ingen yta bryr sig om (aggregeringarna är
-// 7- och 30-dagars).
-const FLUSH_MS = Number(process.env.ANALYTICS_FLUSH_MS ?? 300_000);
+// 1 800 000 ms = 30 min. Låg på 300 000 (= exakt Neons minsta debiterade fönster)
+// till 2026-08-29, och det talet var en tidsinställd bomb: varje tömning kan ARMA
+// ett nytt 300-sekundersfönster, och med en tömning var 5:e minut kedjas fönstren
+// ände-mot-ände så fort trafiken blir jämn — computen kan då matematiskt inte
+// somna. MÄTT 2026-08-29 (7 dygn): 1 130 händelser spridda över 271 av 2 016
+// femminutersluckor (13 %). Med 30 min per tömning halveras antalet luckor som
+// spårningen ensam kan väcka. Priset är att "Trendar"/admin-engagemang släpar
+// upp till 30 min — aggregeringarna är 7- och 30-dagars, ingen yta bryr sig.
+// ⛔ Sänk aldrig under 300 000 igen (se ovan). FLUSH_SIZE-grenen skyddar mot en
+// buffert som växer vid en skur.
+const FLUSH_MS = Number(process.env.ANALYTICS_FLUSH_MS ?? 1_800_000);
 
 let buffer: BufferedEvent[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;

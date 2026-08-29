@@ -6,7 +6,7 @@ import { clientIp } from "@/lib/client-ip";
 import { readJsonCapped } from "@/lib/body-limit";
 import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
-import { trackEvent } from "@/services/analytics";
+import { flushAnalyticsEvents, trackEvent } from "@/services/analytics";
 import { loadProductDetail } from "@/services/products";
 
 export const dynamic = "force-dynamic";
@@ -92,8 +92,13 @@ const affiliateParamsByRetailer = cachedRead(
 // Samma avvägning (och samma tal) som `trackEvent`: en omstart tappar det som ligger
 // obuffrat, vilket är acceptabelt för en räknare som inte rör priser, larm eller pengar.
 // ⛔ Lägg aldrig tillbaka en skrivning per klick här.
+// 30 min sedan 2026-08-29 (var 300 000 = exakt Neons minsta fönster — se
+// services/analytics.ts för mätningen). ⛔ Två oberoende timers kan arma TVÅ
+// fönster: därför tömmer den här även analytics-bufferten när den ändå har väckt
+// databasen (`flushAnalyticsEvents` nedan) — ett klick lägger alltid en händelse i
+// båda, så utan kopplingen hade samma klick kunnat betala två väckningar.
 const CLICK_FLUSH_SIZE = Number(process.env.CLICK_FLUSH_SIZE ?? 50);
-const CLICK_FLUSH_MS = Number(process.env.CLICK_FLUSH_MS ?? 300_000);
+const CLICK_FLUSH_MS = Number(process.env.CLICK_FLUSH_MS ?? 1_800_000);
 
 let clickBuffer = new Map<string, number>();
 let clickTimer: ReturnType<typeof setTimeout> | null = null;
@@ -127,6 +132,8 @@ async function flushClickCounts(): Promise<void> {
     // när databasen är nere.
     console.error("Kunde inte spara klickräknare:", error);
   }
+  // Computen är vaken nu — låt spårningsbufferten åka med i samma fönster.
+  await flushAnalyticsEvents();
 }
 
 function queueClick(productId: string): void {

@@ -209,8 +209,19 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   varje fönster + 300 s svans), och **Googlebot ensam håller 57 % av 5-minutersfönstren vakna** och får
   aldrig blockeras. Blockering av BÅDA svepen tar 93 % → ~71 %, inte till noll. `/sitemap.xml` (1
   hämtning/dygn) och `/api/health` (DB-fri, ~279/dygn) kostar INGENTING — jaga dem aldrig.
-  ⚠️ `ANALYTICS_FLUSH_MS = 300 000` är EXAKT autosuspend-tröskeln: ~1,7–2,1 h/dygn i dag, men en
-  tidsinställd bomb — talet garanterar att fönstren kedjas ände-mot-ände så fort trafiken blir jämn.
+  ✅ `ANALYTICS_FLUSH_MS` och `CLICK_FLUSH_MS` är **30 min sedan 2026-08-29** (var 300 000 = exakt
+  autosuspend-tröskeln ⇒ fönstren kedjades ände-mot-ände vid jämn trafik). Klick-tömningen tömmer
+  även analytics-bufferten i samma fönster. ⛔ Sänk aldrig till 300 000 igen.
+  ⛔ **NEON AUTOSKALAR UPP UTAN ATT BEHÖVA DET** (mätt 2026-08-29): endpointen står på min 0,25 /
+  **max 2 CU**, och månadens `compute_time/active_time` = **0,42 CU i snitt** (230 CU-h på 28 dygn ≈
+  $26/mån) medan CPU-grafen ligger på ~0,05 vCPU nästan hela tiden — uppskalningen drivs av
+  cache-minne (LFC), inte av last. Att pinna max = 0,25 gör kostnaden = vaken tid × 0,25 (≈ $15/mån
+  vid samma vakna tid). Görs i Neon-konsolen (Edit endpoint) eller PATCH via API — ägaren gör det.
+  ⛔ Awake-rapporten räknar "≈ CU-h vid 0,25" — det är ett GOLV, inte fakturan.
+  **Railway är den lilla notan**: est. $5,92/mån (minne $5,34) mot Neons ~$26. Minnesgrafen är en
+  sågtand som nollas vid deploy och växer till ~1 GB på tre dygn TROTS heap-taket ⇒ tillväxten är
+  utanför V8. Hypotes (overifierad): kernelns sidcache för ISR-filerna Next skriver vid kalla renders.
+  `/api/health` visar nu `mem.rss` för att kunna skilja processen från cgroup-talet.
 - **INGA INFRAKOSTNADER FÖRDELAS PER ANVÄNDARE** — den som är först på morgonen "orsakar" hela väckningen.
   Larm redovisas som ANTAL, aldrig kronor.
 - **Kostnadsbriefing FÖRE funktioner**: kostar något pengar/app/tjänst — lägg fram siffran och invänta OK.
