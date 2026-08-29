@@ -16,7 +16,8 @@
  */
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
-import { requireEntitledUser } from "@/lib/auth";
+import { actorKey, resolveScanActor } from "@/lib/scan-actor";
+import { getGuestQuota, recordDeviceScan } from "@/services/scanner/guest-device";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { normalizeGtin } from "@/lib/gtin";
@@ -64,12 +65,13 @@ interface SealedMatch {
 
 export async function POST(req: Request) {
   try {
-    const user = await requireEntitledUser();
+    const actor = await resolveScanActor(req);
+    const user = actor.kind === "user" ? actor.user : null;
 
     // Samma tak som /identify. Avkodningen sker i klienten och en ask som ligger
     // still framför linsen läses om och om igen — klienten ska avduplicera, men
     // taket får inte hänga på att den gör det.
-    const { ok } = await rateLimit(`scanner-gtin:${user.id}`, 60, 60 * 1000);
+    const { ok } = await rateLimit(`scanner-gtin:${actorKey(actor)}`, 60, 60 * 1000);
     if (!ok) {
       throw new ServiceError(429, "För många skanningar på kort tid. Vänta en stund.");
     }
@@ -79,13 +81,18 @@ export async function POST(req: Request) {
     // KVOTEN GRINDAS FÖRE UPPSLAGET, precis som i vision-vägen. Den binder inte
     // en kostnad här (uppslaget är en indexerad SELECT) utan VÄRDET: se
     // beslutet vid recordScanUsage längst ner.
-    const quota = await getScannerQuota(user.id, effectivePlanTier(user), user.role);
+    const quota =
+      actor.kind === "user"
+        ? await getScannerQuota(actor.user.id, effectivePlanTier(actor.user), actor.user.role, actor.deviceId)
+        : await getGuestQuota(actor.deviceId, actor.ip);
     if (quota.remaining <= 0) {
       throw new ServiceError(
         429,
-        isPro(user)
-          ? `Du har nått månadens gräns på ${quota.limit} skanningar. Tillbaka nästa månad.`
-          : `Du har använt dina ${quota.limit} gratis skanningar denna månad. Uppgradera till Pro för fler.`
+        !user
+          ? `Dina ${quota.limit} gratis skanningar är slut. Skapa ett konto så får du 20 till.`
+          : isPro(user)
+            ? `Du har nått månadens gräns på ${quota.limit} skanningar. Tillbaka nästa månad.`
+            : `Du har använt dina ${quota.limit} gratis skanningar denna månad. Uppgradera till Pro för fler.`
       );
     }
 
@@ -179,8 +186,14 @@ export async function POST(req: Request) {
      * förkastat en gång. Vill man ändå göra den gratis är det ETT anrop nedan som
      * ska bort — men gör det som ett produktbeslut, inte som en optimering.
      */
-    const isAdmin = user.role === "ADMIN" || user.role === "SUPERADMIN";
-    const jobId = await recordScanUsage(
+    // Enhetens räknare för ALLA appskanningar (se /identify) — bara träffar.
+    if (actor.kind === "guest" || actor.deviceId) {
+      await recordDeviceScan(actor.deviceId as string, user?.id ?? null);
+    }
+    const isAdmin = !!user && (user.role === "ADMIN" || user.role === "SUPERADMIN");
+    const jobId = !user
+      ? null
+      : await recordScanUsage(
       user.id,
       isAdmin
         ? {

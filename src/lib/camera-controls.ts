@@ -112,7 +112,7 @@ export interface ZoomPresetOption {
 
 /**
  * Bulk-detektorns TAK. Speglar `BULK_MAX_CARDS` i
- * `src/app/[locale]/(app)/skanna/page.tsx` (konstanten är inte exporterad
+ * `src/app/[locale]/(scan)/skanna/page.tsx` (konstanten är inte exporterad
  * därifrån — det är en sid-modul). Ändras den där måste den ändras här;
  * `camera-controls.test.ts` vaktar åtminstone att tabellen aldrig går ÖVER taket.
  */

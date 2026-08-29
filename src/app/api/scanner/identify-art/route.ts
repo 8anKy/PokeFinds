@@ -14,7 +14,7 @@
  */
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { actorKey, resolveScanActor } from "@/lib/scan-actor";
 import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
 import { identifyCardArt } from "@/services/scanner";
@@ -28,9 +28,10 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   try {
-    const user = await requireUser();
+    // Gäst (enhets-id) eller inloggad — live-pollen kostar ingen kvot, bara CPU.
+    const actor = await resolveScanActor(req);
     // ~2 poll/s i kameravyn → 120/min räcker med marginal; taket binder CPU.
-    const { ok } = await rateLimit(`scanner-art:${user.id}`, 180, 60 * 1000);
+    const { ok } = await rateLimit(`scanner-art:${actorKey(actor)}`, 180, 60 * 1000);
     if (!ok) throw new ServiceError(429, "För många förfrågningar.");
     const { fingerprints, structFingerprints } = schema.parse(await req.json());
     return jsonOk(await identifyCardArt({ fingerprints, structFingerprints }));

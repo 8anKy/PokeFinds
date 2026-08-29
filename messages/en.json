@@ -656,6 +656,10 @@
       {
         "lead": "Technical data:",
         "text": "session data necessary for signing in."
+      },
+      {
+        "lead": "Device ID (app):",
+        "text": "a random identifier the app stores on your device to count the free scans you make without an account. It contains nothing about you and is only linked to your account if you create one; it is removed when you erase the app's data on the device."
       }
     ],
     "s3Title": "3. Purposes and legal basis",
@@ -939,7 +943,14 @@
     "noneOfThese": "None of these",
     "pendingChoiceSuffix": "{count} awaiting a choice",
     "chooseFirstN": "Choose cards ({count})",
-    "holdStill": "Hold still"
+    "holdStill": "Hold still",
+    "guestScansLeft": "{count} of {limit} free left",
+    "guestTapForMore": "Create account → 30 a month",
+    "guestLimitBadge": "Free scans used up",
+    "guestLimitTitle": "Your 10 free scans are used up",
+    "guestLimitBody": "Create an account and you get 20 more – 30 a month, completely free. It takes a minute, and Apple/Google work too.",
+    "guestLimitCta": "Create account – get 20 more",
+    "guestLimitLogin": "Already have an account? Log in"
   },
   "Grading": {
     "h1": "Grade card",

@@ -13,6 +13,8 @@ import { cardNumberSortKey } from "@/lib/card-number-order";
 // ⛔ Delad med graderingen OCH adminens kostnadsvy — kvotfönstret måste vara
 // samma gräns överallt. Se src/lib/utils.ts.
 import { startOfMonthUtc } from "@/lib/utils";
+import { mergedMonthUsed } from "@/lib/guest-device";
+import { getDeviceMonthScans } from "@/services/scanner/guest-device";
 import { scoreSimilarity } from "@/scrapers/matching";
 import {
   type ArtMatch,
@@ -126,7 +128,14 @@ export async function getScannerQuota(
   /** ADMIN/SUPERADMIN = i praktiken obegränsat: kvoten finns för att binda
    *  vision-kostnaden mot intäkten, och ägaren som testar sin egen produkt
    *  är inte den kostnaden. Vanliga användare påverkas inte. */
-  role?: string
+  role?: string,
+  /**
+   * GÄSTSKANNING (2026-08-29): appens enhets-id när det finns. "Använt" blir
+   * då max(kontots månad, ENHETENS månad) — gästens 10 räknas in i kontots
+   * första 30, och "radera kontot, skapa nytt" på samma telefon ger ingen ny
+   * kvot. Se src/lib/guest-device.ts. Webben skickar inget id ⇒ som förut.
+   */
+  deviceId?: string | null
 ): Promise<ScannerQuota> {
   const limit =
     role === "ADMIN" || role === "SUPERADMIN" ? 100000 : scannerLimitForTier(planTier);
@@ -157,7 +166,10 @@ export async function getScannerQuota(
       },
     }),
   ]);
-  const used = Math.max(0, rows - missed);
+  const accountUsed = Math.max(0, rows - missed);
+  const used = deviceId
+    ? mergedMonthUsed(accountUsed, await getDeviceMonthScans(deviceId))
+    : accountUsed;
   return { used, limit, remaining: Math.max(0, limit - used) };
 }
 

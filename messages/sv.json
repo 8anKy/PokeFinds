@@ -656,6 +656,10 @@
       {
         "lead": "Teknisk data:",
         "text": "nödvändiga sessionsuppgifter för inloggning."
+      },
+      {
+        "lead": "Enhets-id (appen):",
+        "text": "ett slumpmässigt id som appen sparar på din enhet för att räkna de gratis skanningar du gör utan konto. Det innehåller inget om dig och kopplas till ditt konto först om du skapar ett; det raderas när du raderar appens data på enheten."
       }
     ],
     "s3Title": "3. Ändamål och rättslig grund",
@@ -939,7 +943,14 @@
     "noneOfThese": "Inget av dem",
     "pendingChoiceSuffix": "{count} väntar på val",
     "chooseFirstN": "Välj kort ({count})",
-    "holdStill": "Håll stilla"
+    "holdStill": "Håll stilla",
+    "guestScansLeft": "{count} av {limit} gratis kvar",
+    "guestTapForMore": "Skapa konto → 30 i månaden",
+    "guestLimitBadge": "Gratisskanningarna är slut",
+    "guestLimitTitle": "Dina 10 gratis skanningar är slut",
+    "guestLimitBody": "Skapa ett konto så får du 20 skanningar till – 30 i månaden, helt gratis. Kontot tar en minut, och Apple/Google fungerar.",
+    "guestLimitCta": "Skapa konto – få 20 till",
+    "guestLimitLogin": "Har du redan ett konto? Logga in"
   },
   "Grading": {
     "h1": "Gradera kort",

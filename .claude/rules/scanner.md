@@ -13,6 +13,14 @@ paths:
 
 # Skannern — bildmatchning, kandidater, kamera, lägen, kvot (flyttad verbatim från CLAUDE.md 2026-08-12)
 
+- **GÄSTSKANNING (2026-08-29)**: `/skanna` ligger i `(scan)`, INTE `(app)` — flytta den aldrig tillbaka,
+  (app)-layouten redirectar utloggade på servern. Vem som skannar avgörs av `resolveScanActor()`
+  (`lib/scan-actor.ts`): inloggad (färsk via requireEntitledUser) ELLER gäst på enhets-id. Gäst = 10
+  livstid (`GUEST_SCAN_LIMIT`), aldrig `precise`, aldrig intro, inget ScannerJob (jobId null ⇒ ingen
+  återkoppling/bekräftelse — samlingen kräver konto och skickar gästen till /registrera). Kontokvoten
+  = max(konto, enhet) per månad (`mergedMonthUsed`). ⛔ Alla skanner-anrop i sidan går via `scanFetch`
+  (bär `x-foilio-device`); ett bart `fetch("/api/scanner/…")` bryter gästvägen tyst — testet vaktar.
+
 Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md pekar hit.
 
 - **SKANNERN IDENTIFIERAR PÅ UTSEENDE, INTE PÅ TEXT (2026-07-29)**: samlarnumret trycks ~2 mm högt. På en fysisk

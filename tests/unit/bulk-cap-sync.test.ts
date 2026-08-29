@@ -28,7 +28,7 @@ function readNumber(relPath: string, pattern: RegExp): number {
 
 describe("bulk-takets tre kopior", () => {
   const clientCap = () =>
-    readNumber("src/app/[locale]/(app)/skanna/page.tsx", /const BULK_MAX_CARDS = (\d+)/);
+    readNumber("src/app/[locale]/(scan)/skanna/page.tsx", /const BULK_MAX_CARDS = (\d+)/);
   // Cellistans tak står ENSAMT på sin rad; schemats övriga tak (.min(1).max(1024)
   // på fingeravtrycken, .max(8) på svepet) är inline. Ett bart
   // /\.max\((\d+)\)/ plockade 1024 — därför radankaret.

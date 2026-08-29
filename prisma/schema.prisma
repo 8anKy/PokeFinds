@@ -233,6 +233,7 @@ model User {
   inviteUsed      Invite?           @relation("InviteUsedBy")
   sales           Sale[]
   achievements    UserAchievement[]
+  guestDevices    GuestDevice[]
 
   @@index([email])
   @@index([creatorCodeId])
@@ -1050,6 +1051,28 @@ model ScrapeJob {
 }
 
 // ---------- Kortskanning ----------
+
+// GÄSTENHET — kortskanning UTAN konto i appen (2026-08-29). `id` är ett slump-
+// id klienten håller i iOS Keychain / Androids ANDROID_ID (båda överlever
+// avinstallation), skickat som `x-foilio-device`. Raden bär INGA personuppgifter:
+// ett id, räknare och en frivillig länk till det konto som senast skannade på
+// enheten. ⛔ Raden RADERAS INTE med kontot (SetNull): hela poängen är att
+// "radera kontot, skapa nytt" inte ger nya gratis skanningar.
+//   guestScans  livstidsräknare för skanningar utan konto (taket är 10)
+//   monthKey/monthScans  enhetens skanningar innevarande UTC-månad, inloggad
+//                        eller ej — kontokvoten räknar max(konto, enhet)
+model GuestDevice {
+  id         String   @id
+  guestScans Int      @default(0)
+  monthKey   String?
+  monthScans Int      @default(0)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([userId])
+}
 
 model ScannerJob {
   id         String    @id @default(cuid())

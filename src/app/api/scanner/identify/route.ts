@@ -7,8 +7,9 @@
  */
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
-import { requireEntitledUser } from "@/lib/auth";
 import { effectivePlanTier, isPro } from "@/lib/plan";
+import { actorKey, resolveScanActor } from "@/lib/scan-actor";
+import { getGuestQuota, recordDeviceScan } from "@/services/scanner/guest-device";
 import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
 import { getScannerQuota, identifyCard, isIntroScan, recordScanUsage } from "@/services/scanner";
@@ -80,14 +81,19 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   try {
-    const user = await requireEntitledUser();
+    // GÄSTSKANNING (2026-08-29): appen utan konto skannar på enhets-id, med
+    // eget livstidstak (10). Allt nedan som rör konto/Pro/diagnostik är
+    // grindat på `actor.kind` — en gäst får billiga modellen, ingen intro-
+    // skanning, inget ScannerJob (ingen rad att fästa återkoppling i).
+    const actor = await resolveScanActor(req);
+    const user = actor.kind === "user" ? actor.user : null;
 
     // Live-flödet pollar ~var 1,5 s (= ~40/min) → 60/min ger marginal men halverar
     // värsta-fallet (varje anrop = Claude vision = kostnad). OBS: rate-limit är
     // in-memory utan Redis → per-instans/svag på serverless. Hård budget-spärr =
     // Anthropic-kontots spend limit (sätt i konsolen) + ev. Upstash/Redis för äkta
     // distribuerad gräns. Se docs/LAUNCH-CHECKLIST.md Section 0.
-    const { ok } = await rateLimit(`scanner-identify:${user.id}`, 60, 60 * 1000);
+    const { ok } = await rateLimit(`scanner-identify:${actorKey(actor)}`, 60, 60 * 1000);
     if (!ok) {
       throw new ServiceError(429, "För många skanningar på kort tid. Vänta en stund.");
     }
@@ -108,22 +114,29 @@ export async function POST(req: Request) {
     }
 
     // Månadskvot (binder vision-kostnaden mot Pro-priset). Admin = obegränsat.
-    const quota = await getScannerQuota(user.id, effectivePlanTier(user), user.role);
+    // Gäst: 10 skanningar livstid per enhet.
+    const quota =
+      actor.kind === "user"
+        ? await getScannerQuota(actor.user.id, effectivePlanTier(actor.user), actor.user.role, actor.deviceId)
+        : await getGuestQuota(actor.deviceId, actor.ip);
     if (quota.remaining <= 0) {
       throw new ServiceError(
         429,
-        isPro(user)
-          ? `Du har nått månadens gräns på ${quota.limit} skanningar. Tillbaka nästa månad.`
-          : `Du har använt dina ${quota.limit} gratis skanningar denna månad. Uppgradera till Pro för fler.`
+        !user
+          ? `Dina ${quota.limit} gratis skanningar är slut. Skapa ett konto så får du 20 till.`
+          : isPro(user)
+            ? `Du har nått månadens gräns på ${quota.limit} skanningar. Tillbaka nästa månad.`
+            : `Du har använt dina ${quota.limit} gratis skanningar denna månad. Uppgradera till Pro för fler.`
       );
     }
 
     // Standard = billiga Haiku-modellen. Sonnet (precise) körs när: (a) det är
     // användarens första skanning(ar) — wow-faktor för nya användare, eller
     // (b) klienten uttryckligen ber om det ("försök igen, skarpare") OCH är Pro.
-    const intro = await isIntroScan(user.id);
+    // Gäster får aldrig den dyra vägen — de har inte betalat med ett konto ens.
+    const intro = user ? await isIntroScan(user.id) : false;
     const result = await identifyCard(image, {
-      precise: intro || (precise && isPro(user)),
+      precise: intro || (precise && !!user && isPro(user)),
       detailDataUrl: detail,
       fingerprints,
       fingerprintFrames,
@@ -138,7 +151,7 @@ export async function POST(req: Request) {
     // verkliga träffsäkerheten kan mätas. Allt vi har i dag är TAK-siffror: varje
     // mätning bygger på frågor härledda ur samma filer som referenserna, aldrig
     // på en riktig fångst. Avtrycket (264 byte) sparas, aldrig bilden.
-    const isAdmin = user.role === "ADMIN" || user.role === "SUPERADMIN";
+    const isAdmin = !!user && (user.role === "ADMIN" || user.role === "SUPERADMIN");
     // FOLIEMÅTTEN räknas bara för admin — de är instrumentering, inte en
     // produktfunktion, och en vanlig rad ska inte bära diagnostik alls
     // (dataminimering). Referensavtrycket jämförs mot FÖRSTA rutans FÖRSTA
@@ -152,7 +165,16 @@ export async function POST(req: Request) {
             cardId: result.candidates[0]?.cardId ?? null,
           })
         : null;
-    const jobId = await recordScanUsage(
+    const matched = result.candidates.length > 0;
+    // Enheten bokförs för ALLA appskanningar (gäst OCH inloggad) — det är
+    // enhetens räknare som gör att ett nytt konto på samma telefon inte får
+    // en ny kvot. Bara träffar, samma regel som kontokvoten.
+    if (matched && (actor.kind === "guest" || actor.deviceId)) {
+      await recordDeviceScan(actor.deviceId as string, user?.id ?? null);
+    }
+    const jobId = !user
+      ? null
+      : await recordScanUsage(
       user.id,
       isAdmin
         ? {

@@ -386,7 +386,7 @@ describe("pickSameArtRail — svep-radens innehåll", () => {
  * `item.match` slutar sättas FÖRST, eller att fallbacken kopplas bort.
  * ⛔ Läs bara filen — den ägs av skanner-sidan, inte av det här testet.
  */
-const PAGE = "src/app/[locale]/(app)/skanna/page.tsx";
+const PAGE = "src/app/[locale]/(scan)/skanna/page.tsx";
 
 function railSource(): string {
   const src = readFileSync(resolve(process.cwd(), PAGE), "utf8");

@@ -45,6 +45,7 @@ import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/format";
 import { hasAuthHint } from "@/lib/auth-hint";
+import { deviceHeaders } from "@/lib/device-id";
 import { openProductOverlay, registerFullscreenHost } from "@/lib/product-overlay-open";
 import { hapticImpact } from "@/lib/haptics";
 import { pickAlternatives, pickSameArtRail } from "@/lib/scan-alternatives";
@@ -136,6 +137,8 @@ interface ScanQuota {
   remaining: number;
   limit: number;
   isPremium: boolean;
+  /** Skannar UTAN konto (appen, enhets-id). 10 livstid; konto ger 20 till. */
+  guest?: boolean;
 }
 
 /**
@@ -755,17 +758,43 @@ function captureBulkCells(
   return { cells, debugImage, video: videoSize, busySurface };
 }
 
+/**
+ * Skanner-anrop bär appens enhets-id (`x-foilio-device`) — det är det som gör
+ * gästskanning möjlig och som slår ihop enhetens räknare med kontots. På
+ * webben finns inget id och anropet är exakt som förut. Se src/lib/device-id.ts.
+ */
+async function scanFetch(url: string, init?: RequestInit): Promise<Response> {
+  const extra = await deviceHeaders();
+  return fetch(url, { ...init, headers: { ...(init?.headers as Record<string, string>), ...extra } });
+}
+
 // Klient-gate: utloggad → redirecta till login I APPEN (router.replace = SPA-nav,
 // ingen hård navigering som Capacitor kastar till Safari). Scanner monteras (och
 // kameran startar) först när inloggning bekräftats, så ingen kamera-flash.
+//
+// GÄSTSKANNING (2026-08-29): i APPEN får en utloggad användare in ändå — som
+// gäst på enhets-id, 10 skanningar livstid. Webben kräver konto som förut:
+// där finns ingen enhetsidentitet att räkna på.
 export default function SkannaPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState<boolean | null>(null);
   // Kör EN gång ([] deps). Med [router] kunde detta re-köras när kamera-permission
   // beviljas (→ re-render → instabil router-ref) och router.replace loopa = flimmer.
   useEffect(() => {
-    if (hasAuthHint()) setAuthed(true);
-    else router.replace("/logga-in?callbackUrl=/skanna");
+    if (hasAuthHint()) {
+      setAuthed(true);
+      return;
+    }
+    let cancelled = false;
+    void import("@/lib/device-id").then(async ({ getDeviceId }) => {
+      const id = await getDeviceId();
+      if (cancelled) return;
+      if (id) setAuthed(true);
+      else router.replace("/logga-in?callbackUrl=/skanna");
+    });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   if (!authed) return null;
@@ -901,7 +930,7 @@ function Scanner() {
   // Hämta kvoten när skannern öppnas (badge: "X skanningar kvar").
   useEffect(() => {
     let active = true;
-    fetch("/api/scanner/quota")
+    scanFetch("/api/scanner/quota")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (active && d && typeof d.remaining === "number") setQuota(d as ScanQuota);
@@ -956,7 +985,7 @@ function Scanner() {
       try {
         // Standard = billiga Haiku-modellen (ingen `precise`) — håller scan-kostnaden
         // mot Pro-priset. Sonnet körs bara på uttryckligt "försök igen, skarpare".
-        const res = await fetch("/api/scanner/identify", {
+        const res = await scanFetch("/api/scanner/identify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           // `detail` = närbild på kortets nederkant. Saknas den (galleriuppladdning,
@@ -1299,7 +1328,7 @@ function Scanner() {
         if (h.length > 5) h.shift();
       }
       livePollBusy.current = true;
-      fetch("/api/scanner/identify-art", {
+      scanFetch("/api/scanner/identify-art", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1534,7 +1563,7 @@ function Scanner() {
           language: defaultLanguage,
         },
       ]);
-      void fetch("/api/scanner/identify-gtin", {
+      void scanFetch("/api/scanner/identify-gtin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gtin }),
@@ -1992,6 +2021,13 @@ function Scanner() {
 
   async function addAll() {
     if (matched.length === 0) return;
+    // Gäst: samlingen kräver konto. Skicka till registreringen i stället för
+    // att låta /api/collection svara 401 — och det är dessutom det bästa
+    // säljögonblicket: kortet är hittat och användaren vill spara det.
+    if (quota?.guest) {
+      router.push("/registrera?callbackUrl=/skanna");
+      return;
+    }
     setAddingAll(true);
     let ok = 0;
     for (const s of matched) {
@@ -2111,7 +2147,7 @@ function Scanner() {
           zoomPresets={camera.zoomPresets}
           zoom={camera.zoom}
           onZoom={(p) => void onZoom(p)}
-          onUpgrade={() => router.push("/priser")}
+          onUpgrade={() => router.push(quota?.guest ? "/registrera?callbackUrl=/skanna" : "/priser")}
           onRetryCamera={() => void startCamera()}
           // ⛔ `quota != null` krävs: `null` betyder "vet inte än", och att gissa
           // "slut" hade sålt Pro till en betalande kund varje gång skannern öppnas.
@@ -2156,10 +2192,15 @@ function Scanner() {
       {limitOpen && (
         <ScanLimitSheet
           limit={quota?.limit ?? 30}
+          guest={quota?.guest === true}
           onClose={() => setLimitOpen(false)}
           onUpgrade={() => {
             setLimitOpen(false);
-            router.push("/priser");
+            router.push(quota?.guest ? "/registrera?callbackUrl=/skanna" : "/priser");
+          }}
+          onLogin={() => {
+            setLimitOpen(false);
+            router.push("/logga-in?callbackUrl=/skanna");
           }}
         />
       )}
@@ -2200,7 +2241,7 @@ function Scanner() {
 /** Liten kvot-badge i kameravyn. Free = tappbar → /priser; Pro = bara info. */
 function QuotaBadge({ quota, onUpgrade }: { quota: ScanQuota; onUpgrade: () => void }) {
   const t = useTranslations("Scanner");
-  const { remaining, isPremium } = quota;
+  const { remaining, isPremium, guest } = quota;
   const pill = (
     <span
       className={cn(
@@ -2238,11 +2279,17 @@ function QuotaBadge({ quota, onUpgrade }: { quota: ScanQuota; onUpgrade: () => v
         {isPremium
           ? t("scansUnlimited")
           : remaining <= 0
-            ? t("limitBadge")
-            : t("scansLeft", { count: remaining })}
+            ? guest
+              ? t("guestLimitBadge")
+              : t("limitBadge")
+            : guest
+              ? t("guestScansLeft", { count: remaining, limit: quota.limit })
+              : t("scansLeft", { count: remaining })}
       </span>
       <span className="block truncate text-xs text-ink-muted">
-        {isPremium ? t("renewsNextMonth") : t("tapForMore")}
+        {/* Gästen säljs KONTOT (20 till), aldrig Pro — den har inget konto att
+            uppgradera. Syns från första skanningen, inte först vid noll. */}
+        {isPremium ? t("renewsNextMonth") : guest ? t("guestTapForMore") : t("tapForMore")}
       </span>
     </span>
   );
@@ -3253,8 +3300,39 @@ function Stepper({ value, onChange }: { value: number; onChange: (v: number) => 
  * kameravyn med ett kort i handen — prisgrafer och Tradera-serier svarar inte på
  * det hen försöker göra just nu.
  */
-function ScanLimitSheet(props: { limit: number; onClose: () => void; onUpgrade: () => void }) {
+function ScanLimitSheet(props: {
+  limit: number;
+  /** Gäst i appen: säljer KONTOT (20 skanningar till), inte Pro. */
+  guest?: boolean;
+  onClose: () => void;
+  onUpgrade: () => void;
+  onLogin?: () => void;
+}) {
   const t = useTranslations("Scanner");
+  if (props.guest) {
+    return (
+      <Sheet title={t("guestLimitTitle")} onClose={props.onClose}>
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-ink-muted">{t("guestLimitBody", { count: props.limit })}</p>
+          <Button onClick={props.onUpgrade}>{t("guestLimitCta")}</Button>
+          <button
+            type="button"
+            onClick={props.onLogin}
+            className="text-sm text-holo-cyan transition-colors hover:underline"
+          >
+            {t("guestLimitLogin")}
+          </button>
+          <button
+            type="button"
+            onClick={props.onClose}
+            className="text-sm text-ink-faint transition-colors hover:text-ink-muted"
+          >
+            {t("limitDismiss")}
+          </button>
+        </div>
+      </Sheet>
+    );
+  }
   return (
     <Sheet title={t("limitTitle")} onClose={props.onClose}>
       <div className="flex flex-col gap-4">

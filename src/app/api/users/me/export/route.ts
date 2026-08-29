@@ -42,6 +42,10 @@ export async function GET() {
         // Google-/Apple-inloggning (2026-08-29): leverantörens användar-id.
         googleId: true,
         appleId: true,
+        // Gästskanning (2026-08-29): enheter kontot skannat från + räknarna.
+        // Raden överlever kontoradering med flit (SetNull) — men den HÖR till
+        // personen så länge länken finns, alltså med i exporten.
+        guestDevices: { select: { id: true, guestScans: true, monthScans: true, createdAt: true } },
         // Aktivitetsstämpeln adminpanelen visar som "senast sedd" (2026-08-14).
         // Det är en uppgift OM personen och måste därför med i exporten — samma
         // resonemang som traderaUserId ovan, som saknades i ett år.

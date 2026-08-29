@@ -38,6 +38,13 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   kreatörsattribution/bonus/välkomstmejl som formuläret (`services/oauth-account.ts`). Ett nytt
   iOS-bygge (Codemagic) krävs: `Info.plist` har `REPLACE_WITH_IOS_CLIENT_ID`-platshållare +
   `App.entitlements` (applesignin + aps). Env-tabellen: `docs/SETUP.md`.
+- **Gästskanning i appen (2026-08-29)**: `/skanna` ligger i `(scan)` (utanför auth-gejtade `(app)`) och
+  släpper in utloggade i APPEN på ett enhets-id (`x-foilio-device`: iOS Keychain-UUID /
+  ANDROID_ID — båda överlever ominstallation; webben kräver konto). **10 skanningar livstid per enhet**,
+  konto ger 30/mån där använt = **max(konto, enhet)** — så gästens 10 ingår i första månadens 30 och
+  "radera konto, skapa nytt" ger ingen ny kvot. `GuestDevice` raderas ALDRIG med kontot (SetNull).
+  Modell: `src/lib/guest-device.ts`, DB: `services/scanner/guest-device.ts`, vem-skannar: `lib/scan-actor.ts`.
+  ⛔ Nya enhetsrader IP-bromsas (20/dygn). Vaktat av `tests/unit/guest-device.test.ts`.
 - **Funktioner live**: watchlist/prisbevakning, restock-alerts (41 butiker), samlingsvärde, AI-gradering
   (`/gradera`), live kort-skanner (`/skanna`), community, admin, PWA, **set-komplettering** (Set-fliken i
   `/samling` + stapel på `/sets/[id]`).

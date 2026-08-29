@@ -58,9 +58,17 @@ describe("entitlement-grindar läser färsk plan", () => {
       const gates = /effectivePlanTier\(\s*user\s*\)|isPro\(\s*user\s*\)/.test(src);
       if (!gates) continue;
 
-      // ...då måste användaren komma från den färska vägen.
-      if (!src.includes("requireEntitledUser()")) offenders.push(rel);
+      // ...då måste användaren komma från den färska vägen — direkt, eller via
+      // skannerns `resolveScanActor()` (lib/scan-actor.ts), som själv kallar
+      // requireEntitledUser() för inloggade och är gästskanningens enda ingång.
+      if (!src.includes("requireEntitledUser()") && !src.includes("resolveScanActor(")) {
+        offenders.push(rel);
+      }
     }
+
+    // Undantaget ovan gäller bara så länge scan-actor faktiskt går den färska vägen.
+    const actor = readFileSync(resolve(process.cwd(), "src/lib/scan-actor.ts"), "utf8");
+    expect(actor).toContain("await requireEntitledUser()");
 
     expect(
       offenders,
