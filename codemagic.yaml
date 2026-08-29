@@ -20,6 +20,8 @@ workflows:
         # Google-inloggning i appen: iOS-klient-id:t (publikt, står i binären ändå).
         GOOGLE_IOS_CLIENT_ID: "920300522039-odqr8p38snk5ouptk3mp4g1e6ntmtojj.apps.googleusercontent.com"
         BUNDLE_ID: "se.foilio.app"
+        # App Store-version. 1.0 är godkänd ⇒ 1.1 = Google-/Apple-inloggning. Höj vid varje släpp.
+        MARKETING_VERSION: "1.1"
         # Capacitor 8 = SPM-mall: inget CocoaPods, ingen .xcworkspace — bygg xcodeproj:t direkt.
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
@@ -150,6 +152,12 @@ workflows:
         script: |
           cd ios/App
           agvtool new-version -all "$BUILD_NUMBER"
+          # Marknadsversionen (CFBundleShortVersionString) MÅSTE höjas när en
+          # version redan är GODKÄND i App Store: bygge #39 (2026-08-29) byggde
+          # grönt men uppladdningen 422:ade med "must contain a higher version than
+          # the previously approved version [1.0]". Höj MARKETING_VERSION ovan vid
+          # varje släpp efter godkännande — build-numret räcker bara inom en version.
+          agvtool new-marketing-version "$MARKETING_VERSION"
       - name: Kodsignering (auto via App Store Connect API-nyckel)
         script: |
           exec > >(tee "$CM_BUILD_DIR/sign.log") 2>&1
