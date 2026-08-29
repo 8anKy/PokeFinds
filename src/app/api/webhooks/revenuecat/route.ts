@@ -43,6 +43,16 @@ export async function POST(req: Request) {
           from: before.planTier,
           to: plan,
           eventId: typeof event?.id === "string" ? event.id : null,
+          // Svarar på "betalade de på riktigt?" ur vår egen data (2026-08-30): tre
+          // INITIAL_PURCHASE samma dag som en TestFlight-build gick ut syntes i
+          // RevenueCat men aldrig hos Apple — sandbox-köp bär `environment: SANDBOX`
+          // och provperioder `period_type: TRIAL/INTRO`, och ingetdera loggades.
+          environment: typeof event?.environment === "string" ? event.environment : null,
+          periodType: typeof event?.period_type === "string" ? event.period_type : null,
+          store: typeof event?.store === "string" ? event.store : null,
+          productId: typeof event?.product_id === "string" ? event.product_id : null,
+          price: typeof event?.price === "number" ? event.price : null,
+          currency: typeof event?.currency === "string" ? event.currency : null,
         },
       },
     });
