@@ -36,6 +36,7 @@ import { prisma } from "../lib/db";
 import { getRatesOre } from "../lib/exchange-rate";
 import { createObservationWriter } from "./cardtrader-observation";
 import { normalizeTitle } from "@/lib/utils";
+import { TCGDEX_BASE, tcgdexJson } from "../lib/tcgdex";
 import { PRINT_FIRST_EDITION } from "../lib/print-variant";
 import {
   CT_MAX_REVERSE_RATIO,
@@ -87,10 +88,7 @@ let dexSetsCache: Map<string, string> | null = null;
 async function dexSetIdByName(setName: string): Promise<string | null> {
   if (!dexSetsCache) {
     try {
-      const sets = (await (await fetch("https://api.tcgdex.net/v2/en/sets")).json()) as {
-        id: string;
-        name: string;
-      }[];
+      const sets = (await tcgdexJson<{ id: string; name: string }[]>(`${TCGDEX_BASE}/en/sets`)) ?? [];
       dexSetsCache = new Map(sets.map((s) => [dexNorm(s.name), s.id]));
     } catch {
       dexSetsCache = new Map();
@@ -107,11 +105,9 @@ async function dexSetIdByName(setName: string): Promise<string | null> {
  */
 async function dexSetHasFirstEdition(dexSetId: string): Promise<number | null> {
   try {
-    const r = await fetch(
-      `https://api.tcgdex.net/v2/en/cards?variants.firstEdition=true&id=${dexSetId}-*`
+    const j = await tcgdexJson<unknown[]>(
+      `${TCGDEX_BASE}/en/cards?variants.firstEdition=true&id=${dexSetId}-*`
     );
-    if (!r.ok) return null;
-    const j = (await r.json()) as unknown[];
     return Array.isArray(j) ? j.length : null;
   } catch {
     return null;

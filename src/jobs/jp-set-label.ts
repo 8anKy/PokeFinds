@@ -17,6 +17,7 @@
  *    gissat värde ger två rader med samma namn i filtret den dag källan får setet
  *    (samma regel som för kommande CM-episoder).
  */
+import { TCGDEX_BASE, tcgdexJson } from "../lib/tcgdex";
 import { prisma } from "../lib/db";
 import {
   codeFromJpSetName,
@@ -69,9 +70,8 @@ interface TcgdexSet {
  */
 async function fetchTcgdexSet(code: string): Promise<TcgdexSet | null> {
   try {
-    const r = await fetch(`https://api.tcgdex.net/v2/ja/sets/${encodeURIComponent(code)}`);
-    if (!r.ok) return null;
-    const j = (await r.json()) as TcgdexSet;
+    const j = await tcgdexJson<TcgdexSet>(`${TCGDEX_BASE}/ja/sets/${encodeURIComponent(code)}`);
+    if (!j) return null;
     // ⛔ Id:t måste vara DET vi bad om. TCGdex slår upp löst, och ett svar för ett
     //    annat set hade gett fel släppdatum utan att något felar.
     if (!j.id || j.id.toLowerCase() !== code.toLowerCase()) return null;

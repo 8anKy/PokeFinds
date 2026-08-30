@@ -27,7 +27,11 @@ concurrency:
 jobs:
   import:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 90, inte 30: bildlagningen verifierar varje TCGGO-bild och JP-singlarna (08-29)
+    # gjorde kandidaterna ~150 → 5 691 (nedladdning + hash + avkodning ≈ 0,3 s/st ≈
+    # 30 min). Med taket på 30 CANCELLADES jobbet mitt i steget 2026-08-30 (två gånger)
+    # och avtryckssteget efter det uteblev. Publikt repo = gratis minuter.
+    timeout-minutes: 90
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       POKEMONTCG_API_KEY: ${{ secrets.POKEMONTCG_API_KEY }} # valfri — högre rate limit

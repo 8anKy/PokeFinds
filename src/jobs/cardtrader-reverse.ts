@@ -55,6 +55,7 @@ import {
 import { getRatesOre } from "@/lib/exchange-rate";
 import { createObservationWriter } from "./cardtrader-observation";
 import { normalizeTitle } from "@/lib/utils";
+import { TCGDEX_BASE, tcgdexJson } from "@/lib/tcgdex";
 
 const prisma = new PrismaClient();
 
@@ -123,10 +124,7 @@ let dexSetsCache: Map<string, string> | null = null;
 async function dexSetIdByName(setName: string): Promise<string | null> {
   if (!dexSetsCache) {
     try {
-      const sets = (await (await fetch("https://api.tcgdex.net/v2/en/sets")).json()) as {
-        id: string;
-        name: string;
-      }[];
+      const sets = (await tcgdexJson<{ id: string; name: string }[]>(`${TCGDEX_BASE}/en/sets`)) ?? [];
       dexSetsCache = new Map(sets.map((s) => [dexNorm(s.name), s.id]));
     } catch {
       dexSetsCache = new Map();
@@ -139,10 +137,8 @@ async function dexSetIdByName(setName: string): Promise<string | null> {
 async function dexCardIndex(dexSetId: string): Promise<Map<string, string>> {
   const idx = new Map<string, string>();
   try {
-    const set = (await (await fetch(`https://api.tcgdex.net/v2/en/sets/${dexSetId}`)).json()) as {
-      cards?: DexCard[];
-    };
-    for (const c of set.cards ?? []) {
+    const set = await tcgdexJson<{ cards?: DexCard[] }>(`${TCGDEX_BASE}/en/sets/${dexSetId}`);
+    for (const c of set?.cards ?? []) {
       const k = ctNumberKey(c.localId);
       if (k && !idx.has(k)) idx.set(k, c.id);
     }
@@ -168,12 +164,10 @@ async function dexSetTaxonomy(
   dexSetId: string
 ): Promise<{ cards: number; reverse: number } | null> {
   try {
-    const [all, rev] = await Promise.all([
-      fetch(`https://api.tcgdex.net/v2/en/cards?id=${dexSetId}-*`),
-      fetch(`https://api.tcgdex.net/v2/en/cards?variants.reverse=true&id=${dexSetId}-*`),
+    const [a, r] = await Promise.all([
+      tcgdexJson<unknown[]>(`${TCGDEX_BASE}/en/cards?id=${dexSetId}-*`),
+      tcgdexJson<unknown[]>(`${TCGDEX_BASE}/en/cards?variants.reverse=true&id=${dexSetId}-*`),
     ]);
-    if (!all.ok || !rev.ok) return null;
-    const [a, r] = (await Promise.all([all.json(), rev.json()])) as [unknown[], unknown[]];
     if (!Array.isArray(a) || !Array.isArray(r)) return null;
     return { cards: a.length, reverse: r.length };
   } catch {
@@ -188,9 +182,7 @@ async function dexSetTaxonomy(
  */
 async function tcgdexHasReverse(dexCardId: string): Promise<boolean | null> {
   try {
-    const res = await fetch(`https://api.tcgdex.net/v2/en/cards/${dexCardId}`);
-    if (!res.ok) return null;
-    const card = (await res.json()) as DexCard;
+    const card = await tcgdexJson<DexCard>(`${TCGDEX_BASE}/en/cards/${dexCardId}`);
     if (!card?.variants) return null;
     return card.variants.reverse === true;
   } catch {

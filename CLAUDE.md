@@ -343,6 +343,10 @@ klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
   idempotent). ⛔ Visa aldrig en bar `prices.pokemontcg.io/cardmarket/{id}`-redirect (302:n strippar
   language=1) — lös via `resolve-cm-urls.ts`; `runner.ts` bevarar lösta slug-länkar framför inkommande
   redirects. Sealed: INGET minCondition (inget skick).
+- ⛔ **TCGdex anropas ALDRIG med bart `fetch()`** — `tcgdexJson()` (`src/lib/tcgdex.ts`). api.tcgdex.net
+  ligger bakom GeoDNS och GitHub-runnern (US-East) fick 2026-08-30 en DÖD nordamerikansk spegel medan Europa
+  fick fungerande; hjälparen har timeout, backoff, DoH-fallback (pinnar en spegel som svarar) och kretsbrytare.
+  `null` = "finns inte" (404), `TcgdexUnavailable` = "kunde inte fråga" — behåll då det du visste, nolla aldrig.
 - ⛔ **Aldrig `orderBy=number` i `fetchTcgCardsForSet`** — pokemontcg.io:s string-sort tappar kort mellan
   sidor. Set kan ha >250 kort (totalCount); paginera stabilt utan orderBy.
 - **`Card.numberSortKey` är en GENERERAD kolumn** (`GENERATED ALWAYS ... STORED`) — Postgres äger den, för en
