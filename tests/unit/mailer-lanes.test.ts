@@ -59,6 +59,13 @@ describe("mailer-lanes", () => {
     expect(res.id).toBe("<b1@brevo>");
   });
 
+  it("en nyckel med BOM/radbrytning (gh secret set via pipe) skickas städad", async () => {
+    process.env.BREVO_API_KEY = "﻿xkeysib_test\n";
+    const { sendMail } = await mailer();
+    await sendMail({ to: "a@b.se", subject: "Hej", html: "<p>x</p>", text: "x", lane: "bulk" });
+    expect((calls[0].init.headers as Record<string, string>)["api-key"]).toBe("xkeysib_test");
+  });
+
   it("transaktionellt → Resend även när Brevo-nyckeln finns", async () => {
     const { sendMail } = await mailer();
     const res = await sendMail({ to: "a@b.se", subject: "Hej", html: "<p>x</p>", text: "x" });

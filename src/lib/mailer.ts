@@ -134,6 +134,17 @@ function parseAddress(value: string): { name?: string; email: string } {
   return { email: value.trim() };
 }
 
+/**
+ * API-nyckeln som HEADER-VÄRDE. `.trim()` tar bort radbrytningar OCH U+FEFF (BOM):
+ * `gh secret set` via en PowerShell-pipe skrev 2026-08-30 in nyckeln med en
+ * ledande BOM, och `fetch` vägrade då bygga headern ("Cannot convert argument to
+ * a ByteString … 65279"). Ett osynligt tecken i en hemlighet är omöjligt att se i
+ * GitHubs UI — därför städas det här, inte i den som sätter hemligheten.
+ */
+function apiKey(name: "RESEND_API_KEY" | "BREVO_API_KEY"): string {
+  return String(process.env[name] || "").trim();
+}
+
 /** Samma dom för båda leverantörerna: 4xx utom 408/429 = permanent, 5xx = försök igen. */
 function permanentStatus(status: number): boolean {
   return status >= 400 && status < 500 && status !== 408 && status !== 429;
@@ -145,7 +156,7 @@ async function sendViaBrevo(input: MailInput): Promise<MailResult> {
     res = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
-        "api-key": process.env.BREVO_API_KEY ?? "",
+        "api-key": apiKey("BREVO_API_KEY"),
         "Content-Type": "application/json",
         Accept: "application/json",
       },
@@ -198,7 +209,7 @@ async function sendViaResend(input: MailInput): Promise<MailResult> {
     res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        Authorization: `Bearer ${apiKey("RESEND_API_KEY")}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
