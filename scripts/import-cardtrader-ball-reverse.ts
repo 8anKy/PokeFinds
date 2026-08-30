@@ -28,6 +28,7 @@ async function main() {
   console.log(`Boll-expansioner funna:     ${r.expansionsFound}`);
   console.log(`Kort granskade:             ${r.cardsConsidered}`);
   console.log(`  utan blueprint:           ${r.noBlueprint}`);
+  console.log(`  avvisade — fel namn:      ${r.rejectedName}`);
   console.log(`  avvisade — för tunt:      ${r.rejectedThin}`);
   console.log(`  avvisade — utliggare:     ${r.rejectedImplausible}`);
   console.log(`PRODUKTER ${APPLY ? "SKAPADE" : "SOM SKULLE SKAPAS"}:  ${r.productsCreated}`);

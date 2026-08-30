@@ -13,6 +13,7 @@ import {
   matchBallExpansions,
   matchJpBallExpansions,
   isBuyableNmListing,
+  ctNamesAgree,
   type CtBlueprint,
   type CtExpansion,
   type CtListing,
@@ -405,6 +406,23 @@ describe("matchBallExpansions", () => {
 
   it("grundsetet självt är ingen bollexpansion", () => {
     expect(matchBallExpansions("Black Bolt", exps(["Black Bolt"]))).toEqual([]);
+  });
+});
+
+describe("ctNamesAgree — numret ensamt räcker inte (2026-08-30)", () => {
+  it("släpper igenom CT:s stavningar av samma kort", () => {
+    expect(ctNamesAgree("Nidoran M (JP)", "Nidoran ♂")).toBe(true);
+    expect(ctNamesAgree("Farfetchd (JP)", "Farfetch'd")).toBe(true);
+    expect(ctNamesAgree("Erikas Invitation (JP)", "Erika's Invitation")).toBe(true);
+    expect(ctNamesAgree("Antique Old Amber (JP)", "Old Old Amber")).toBe(true);
+    expect(ctNamesAgree("Professor Sadas Vitality (JP)", "Professor Sada's Vitality")).toBe(true);
+    expect(ctNamesAgree("Umbreon ex", "Umbreon ex")).toBe(true);
+  });
+
+  it("⛔ fäller ett annat kort på samma nummer (Espeon ex fick Duskulls pris)", () => {
+    expect(ctNamesAgree("Espeon ex (JP)", "Duskull")).toBe(false);
+    expect(ctNamesAgree("Bloodmoon Ursaluna ex (JP)", "Iron Jugulis")).toBe(false);
+    expect(ctNamesAgree("Pikachu", "Raichu")).toBe(false);
   });
 });
 

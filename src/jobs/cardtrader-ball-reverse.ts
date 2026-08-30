@@ -39,6 +39,7 @@ import {
   matchBallExpansions,
   matchJpBallExpansions,
   ctSetNameKey,
+  ctNamesAgree,
   type CtBlueprint,
 } from "../lib/cardtrader";
 
@@ -61,6 +62,8 @@ export interface BallImportResult {
   expansionsFound: number;
   cardsConsidered: number;
   noBlueprint: number;
+  /** Numret fanns men blueprintens NAMN är ett annat kort — se ctNamesAgree. */
+  rejectedName: number;
   rejectedThin: number;
   rejectedImplausible: number;
   productsCreated: number;
@@ -97,6 +100,7 @@ export async function runCardTraderBallImport(opts: {
     expansionsFound: 0,
     cardsConsidered: 0,
     noBlueprint: 0,
+    rejectedName: 0,
     rejectedThin: 0,
     rejectedImplausible: 0,
     productsCreated: 0,
@@ -205,6 +209,12 @@ export async function runCardTraderBallImport(opts: {
       const bp = numKey ? bpByNum.get(numKey) : undefined;
       if (!bp) {
         res.noBlueprint++;
+        continue;
+      }
+      // ⛔ NAMNET MÅSTE STÄMMA — numret ensamt gav Espeon ex Duskulls pris.
+      if (!ctNamesAgree(base.title.split(" · ")[0], bp.name)) {
+        res.rejectedName++;
+        console.warn(`[ct-ball] ${expansion.name}: #${base.card?.number} "${base.title.split(" · ")[0]}" ≠ CT "${bp.name}" — hoppas över.`);
         continue;
       }
       const listings = (market[String(bp.id)] ?? []).filter((l) => isBuyableNmListing(l, lang));

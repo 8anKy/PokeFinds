@@ -491,6 +491,44 @@ export function matchBallExpansions(
 }
 
 /**
+ * NAMNVAKT FÖR NUMMERMATCHNINGEN (2026-08-30). Boll- och 1st Edition-importen
+ * slog vårt kort mot CT:s blueprint på SAMLARNUMRET ENSAMT. MÄTT samma dag på de
+ * japanska bollexpansionerna: Terastal Festival #063 är hos oss Espeon ex, hos
+ * CT:s Master Ball-expansion Duskull; #134 Bloodmoon Ursaluna ex mot Iron
+ * Jugulis. Ett ex-kort HAR ingen bollvariant — så produkten "Espeon ex · Master
+ * Ball" bar Duskulls pris. Numret är identiteten, men bara inom SAMMA lista, och
+ * CT:s nummer är inte alltid vårt.
+ *
+ * Lenient med flit: CT skriver "Nidoran ♂", "Farfetch'd", "Erika's Invitation"
+ * och till och med "Old Old Amber" (deras stavfel för Antique Old Amber) —
+ * apostrofer, könssymboler och tokenordning får inte fälla ett äkta par. Två
+ * kort som inte delar hälften av sina tokens är däremot olika kort.
+ */
+export function ctNameKey(name: string): string[] {
+  return name
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/\s*\(jp\)\s*$/i, "")
+    .replace(/♂/g, " m ")
+    .replace(/♀/g, " f ")
+    .toLowerCase()
+    .replace(/['’]s/g, "s")
+    .replace(/['’]/g, "")
+    .replace(/&/g, " and ")
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
+export function ctNamesAgree(ours: string, theirs: string): boolean {
+  const a = new Set(ctNameKey(ours));
+  const b = new Set(ctNameKey(theirs));
+  if (a.size === 0 || b.size === 0) return false;
+  let shared = 0;
+  for (const t of a) if (b.has(t)) shared++;
+  return shared * 2 >= Math.min(a.size, b.size) && shared > 0 && (shared / Math.max(a.size, b.size)) >= 0.5;
+}
+
+/**
  * De JAPANSKA bollexpansionerna (2026-08-30). Leverantören (TCGGO) har inga
  * boll-varianter alls — en rad per nummer — men CardTrader har egna expansioner
  * med japanska annonser: "Pokémon Card 151 - Master Ball Reverse Holo" (666 JP
