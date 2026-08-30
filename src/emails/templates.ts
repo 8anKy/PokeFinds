@@ -1151,7 +1151,7 @@ export function releaseNotesEmail(input: { name: string; unsubscribeUrl: string 
      <div style="margin:20px 0 4px;">
        ${item(
          "🇯🇵 Japanska singlar",
-         "Över 5 500 japanska kort från 46 set finns nu i katalogen — sök, bevaka och lägg dem i samlingen precis som de engelska."
+         "Över 5 500 japanska kort från 46 set finns nu i katalogen — sök upp dem och lägg dem i samlingen precis som de engelska."
        )}
        ${item(
          "Logga in med Google eller Apple",
@@ -1166,7 +1166,7 @@ export function releaseNotesEmail(input: { name: string; unsubscribeUrl: string 
        <p style="margin:0;line-height:1.6;color:#cbd5e1;"><strong style="color:#2dd4bf;">Har du appen?</strong> Inloggningen och gästskanningen kräver version 1.1. Har du inte automatiska uppdateringar på behöver du uppdatera själv i App Store.</p>
      </div>
      ${button(APP_STORE_URL, "Uppdatera appen")}
-     <p style="line-height:1.6;color:#6b7280;font-size:13px;margin:16px 0 0;">Hittar du något som inte stämmer? Svara på det här mejlet — vi läser allt.</p>`,
+     <p style="line-height:1.6;color:#cbd5e1;margin:16px 0 0;">Frågor eller funderingar? Hoppa in i vår <a href="${DISCORD_URL}" style="color:#2dd4bf;font-weight:700;">Discord</a> — där svarar vi snabbast, och där släpper vi nyheterna först.</p>`,
     `Du får det här mejlet för att du har ett konto på Foilio.<br>
       <a href="${unsubscribeUrl}" style="color:#9ca3af;">Vill du inte ha nyhetsmejl? Avregistrera dig</a> &middot; dina larm och ditt veckobrev rörs inte.`
   );
@@ -1174,14 +1174,15 @@ export function releaseNotesEmail(input: { name: string; unsubscribeUrl: string 
     `Hej ${name}!\n\n` +
     `Vi har släppt en ny version av Foilio. Tre saker du kommer märka:\n\n` +
     `JAPANSKA SINGLAR\n` +
-    `Över 5 500 japanska kort från 46 set finns nu i katalogen — sök, bevaka och lägg dem i samlingen precis som de engelska.\n\n` +
+    `Över 5 500 japanska kort från 46 set finns nu i katalogen — sök upp dem och lägg dem i samlingen precis som de engelska.\n\n` +
     `LOGGA IN MED GOOGLE ELLER APPLE\n` +
     `Ett tryck, inget lösenord att komma ihåg. Fungerar på webben och i appen.\n\n` +
     `SKANNA UTAN KONTO\n` +
     `Den som laddar ner appen kan prova kortskannern 10 gånger utan att skapa konto. Tipsa gärna en kompis.\n\n` +
     `Har du appen? Inloggningen och gästskanningen kräver version 1.1. Har du inte automatiska uppdateringar på behöver du uppdatera själv i App Store:\n` +
     `${APP_STORE_URL}\n\n` +
-    `Hittar du något som inte stämmer? Svara på det här mejlet — vi läser allt.\n\n` +
+    `Frågor eller funderingar? Hoppa in i vår Discord — där svarar vi snabbast, och där släpper vi nyheterna först:\n` +
+    `${DISCORD_URL}\n\n` +
     `Vill du inte ha nyhetsmejl? Avregistrera dig: ${unsubscribeUrl}\n` +
     `Dina larm och ditt veckobrev rörs inte.\n` +
     `Foilio · Sveriges marknadsplats för Pokémon TCG`;
