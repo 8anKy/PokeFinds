@@ -370,3 +370,13 @@ Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md p
   ⛔ Byter man modell: `max_tokens` är 256 i `claude-vision.ts`, och på Sonnet 5 är adaptivt tänkande PÅ som standard
   med `max_tokens` som tak för tänkande + svar — 256 trunkerar före verktygsanropet. Höj till ~2000 eller sätt
   `thinking: { type: "disabled" }`.
+- **FÄLTAVTRYCK FÖR ALLA + GRATIS OCR-HARNESS (2026-08-30, ägarmål: skanner utan Gemini)**:
+  `result.fp = { v:1, color[≤7], struct[≤7] }` (första rutans variantsvep) skrivs för ALLA användare
+  via `recordScanUsage`:s sjätte argument, i BÅDA vägarna (identify + bulk), med SAMMA grind som
+  `recall` (ingen art-lista ⇒ inget fp). ~11 kB/rad ≈ 54 MB/mån. Täcks av policyns "Skannerdiagnostik"
+  (uppdaterad 30 aug 2026) — ⛔ visas aldrig, exporteras inte, raderas med kontot. Syftet är
+  REFERENSER UR RIKTIGA FÅNGSTER (katalog + fält, ta max) — ⛔ men augmenterade referenser mätte
+  NEGATIVT förr (docs/SCANNER-STATUS "Fas 2"): bygg aldrig in fältreferenser i indexet utan replay-
+  mätning. `result.strip` (nummerremsan som JPEG, ≤200 kB) skrivs BARA för admin — det är en bild.
+  Mät med `scripts/scanner-number-ocr-eval.ts --field` (tesseract.js, devDep); `--catalog N` är ett TAK
+  (76 % exakt på renderingar, 68 % rå remsa, ~0,5 s/remsa). Beslut om lokal OCR tas på FÄLTTALET.

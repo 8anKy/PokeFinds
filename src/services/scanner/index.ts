@@ -309,7 +309,34 @@ export async function recordScanUsage(
      * fördelning i stället för på dagens gissning.
      */
     sharp?: number | null;
-  } | null
+  } | null,
+  /**
+   * FÄLTAVTRYCKET (2026-08-30) — skrivs för ALLA användare. Ägarbeslut: målet
+   * är en skanner utan vision-anrop, och den enda vägen dit är referenser ur
+   * RIKTIGA fångster (mobilkamera, plastficka, blandljus) bredvid katalogens
+   * renderingar — "matcha mot båda, ta max" (project_art_first_free_scanner).
+   * Fram till nu fanns avtrycken bara i admin-diagnostiken: 609 rader, alla
+   * ägarens, mot 2 718 vanliga rader UTAN avtryck. Ett facit utan avtryck kan
+   * bara stämma av trösklar, aldrig lägga till kunskap.
+   *
+   * FORM: första rutans hela variantsvep (4 inset + 2 outset + quad), färg
+   * (352 tecken) OCH struktur (1 280 tecken) ≈ 11 kB/rad. Rutorna ligger
+   * ~16 ms isär och är nära identiska — en ruta räcker för en referens, alla
+   * varianter behövs för att offline kunna välja den som bäst träffar det
+   * BEKRÄFTADE kortets katalogavtryck (vinnarens bästa variant är inte
+   * nödvändigtvis det rätta kortets). Mätt 2026-08-30: ~156 skanningar/dygn
+   * ⇒ ~54 MB/mån mot en databas på 1,46 GB.
+   *
+   * ⛔ INGEN BILD, och avtrycket går inte att vända till en bild (8×11 medel-
+   * färger + DCT-/gradienthistogram). Täcks av integritetspolicyns rad
+   * "Skannerdiagnostik" (uppdaterad 2026-08-30). Visas ALDRIG i något
+   * gränssnitt och exporteras inte (`/api/users/me/export` utelämnar `result`
+   * med flit); raderas med kontot (Cascade).
+   *
+   * ⛔ Samma grind som `recall`: utan art-lista skrivs inget. Ett avtryck utan
+   * bildsökning är en rad som inte kan få facit.
+   */
+  fp?: { color: string[]; struct: string[] } | null
 ): Promise<string> {
   const job = await prisma.scannerJob.create({
     data: {
@@ -353,6 +380,9 @@ export async function recordScanUsage(
                 ...(recall.ask ? { ask: true } : {}),
                 ...(recall.sharp != null ? { sharp: recall.sharp } : {}),
               },
+              ...(fp && fp.color.length > 0
+                ? { fp: { v: 1, color: fp.color.slice(0, 7), struct: fp.struct.slice(0, 7) } }
+                : {}),
             }
           : {}),
       },
@@ -1902,6 +1932,12 @@ export async function identifyCellsArt(
           top: artMatches[0]?.score ?? null,
           margin:
             artMatches.length > 1 ? artMatches[0].score - artMatches[1].score : null,
+        },
+        // Fältavtrycket — se recordScanUsage. Bulk-cellen är art-avgjord per
+        // konstruktion, så en bekräftad cell är en stark referens.
+        {
+          color: cell.fingerprints.slice(0, 7),
+          struct: (cell.structFingerprints ?? []).slice(0, 7),
         }
       );
     }

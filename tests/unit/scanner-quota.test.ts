@@ -142,6 +142,37 @@ describe("recordScanUsage", () => {
       expect(resultOf()).not.toHaveProperty("recall");
     });
 
+    it("fp (fältavtrycket) skrivs för ALLA användare — utan diagnostik, med recall", async () => {
+      // Ägarbeslut 2026-08-30: referenser ur riktiga fångster kräver att
+      // avtrycken finns för vanliga användare, inte bara i admin-diagnostiken.
+      create.mockResolvedValue({ id: "j1" });
+      await recordScanUsage(
+        "u1",
+        undefined,
+        true,
+        null,
+        { art: ["a"], shown: ["a"] },
+        { color: ["c0", "c1", "c2", "c3", "c4", "c5", "c6", "c7"], struct: ["s0"] }
+      );
+      expect(resultOf().fp).toEqual({
+        v: 1,
+        color: ["c0", "c1", "c2", "c3", "c4", "c5", "c6"],
+        struct: ["s0"],
+      });
+      // Ingen bild i en vanlig rad — remsan är admin-diagnostik.
+      expect(resultOf()).not.toHaveProperty("strip");
+    });
+
+    it("⛔ fp följer recall-grinden: utan art-lista skrivs inget avtryck", async () => {
+      create.mockResolvedValue({ id: "j1" });
+      await recordScanUsage("u1", undefined, true, null, { art: [], shown: [] }, { color: ["c0"], struct: [] });
+      expect(resultOf()).not.toHaveProperty("fp");
+      create.mockClear();
+      create.mockResolvedValue({ id: "j2" });
+      await recordScanUsage("u1", undefined, true, null, { art: ["a"], shown: ["a"] }, { color: [], struct: [] });
+      expect(resultOf()).not.toHaveProperty("fp");
+    });
+
     it("top/margin/sharp skrivs bara när de finns — aldrig som null", async () => {
       // ⛔ `null` i JSON läses som "vi mätte och fick inget". En saknad nyckel är
       // "det här fältet fanns inte när raden skrevs", vilket är sant om varje rad

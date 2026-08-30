@@ -19,6 +19,9 @@ export const dynamic = "force-dynamic";
 
 /** Live-rutor är nedskalade på klienten — taket är generöst men begränsat. */
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+/** Nummerremsan i admin-diagnostiken: 1280 px bred JPEG (q 0,85) ligger på
+ *  ~60–120 kB base64; 200 kB är en spärr mot det oväntade, inte en budget. */
+const STRIP_DIAG_MAX_CHARS = 200_000;
 
 const schema = z.object({
   image: z
@@ -217,6 +220,15 @@ export async function POST(req: Request) {
             // FOLIEMÅTT + råa sonder (~2 kB). Bara ägarens egna skanningar bär
             // dem, och de påverkar ingenting i svaret — se services/scanner/foil.ts.
             foil: foilDiagnostics,
+            // NUMMERREMSAN SOM BILD (2026-08-30) — BARA ADMIN, och bara för ett
+            // mätprojekt: kan en GRATIS lokal OCR (tesseract) läsa samlarnumret
+            // ur riktiga fångster? Numret är identiteten (rules/scanner.md), så
+            // en tillförlitlig gratis läsning ersätter det mesta vision gör.
+            // Utvärderas offline av scripts/scanner-number-ocr-eval.ts mot
+            // `chosen`/`userChosen`. ⛔ Aldrig för vanliga användare — det är en
+            // bild, inte ett avtryck, och policyn lovar att bilden inte sparas.
+            // Taket avvisar en oväntat stor remsa i stället för att svälla raden.
+            ...(detail && detail.length <= STRIP_DIAG_MAX_CHARS ? { strip: detail } : {}),
           }
         : undefined,
       // KVOTEN RÄKNAR TRÄFFAR: en skanning utan kandidat har inte gett kunden
@@ -256,6 +268,13 @@ export async function POST(req: Request) {
         // bara mäta TAKTEN som proxy (< 1,5 s → 34,1 % miss mot 15,3 % vid > 60 s)
         // eftersom skärpan aldrig bokförts.
         sharp,
+      },
+      // FÄLTAVTRYCKET — för ALLA användare, se recordScanUsage. Första rutans
+      // hela variantsvep; struktur följer positionsvis (kan saknas från en äldre
+      // cachad klient — då skrivs en tom lista, aldrig en påhittad).
+      {
+        color: (fingerprintFrames?.[0] ?? fingerprints ?? []).slice(0, 7),
+        struct: (structFrames?.[0] ?? structFingerprints ?? []).slice(0, 7),
       }
     );
 
