@@ -249,9 +249,12 @@ export async function runJapaneseSinglesRefresh(
   // ── 3. Kort + produkt + offer ───────────────────────────────────────────────
   const rates = await getRatesOre();
   const today = utcToday();
+  // ⛔ `variantLabel: null`: kortet kan sedan 2026-08-30 ha en Master Ball-/Poké
+  // Ball-produkt (cardtrader-ball-reverse). `take: 1` utan filtret kunde ta DEN
+  // och skriva över dess titel med grundkortets.
   const existingCards = await prisma.card.findMany({
     where: { tcgExternalId: { startsWith: JP_EXTERNAL_PREFIX } },
-    select: { id: true, tcgExternalId: true, cardmarketId: true, products: { where: { language: "JP" }, select: { id: true, slug: true }, take: 1 } },
+    select: { id: true, tcgExternalId: true, cardmarketId: true, products: { where: { language: "JP", variantLabel: null }, select: { id: true, slug: true }, take: 1 } },
   });
   const cardByExt = new Map(existingCards.map((c) => [c.tcgExternalId!, c]));
   const priced: { productId: string; priceOre: number }[] = [];

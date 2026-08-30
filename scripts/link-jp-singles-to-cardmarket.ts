@@ -68,7 +68,7 @@ async function main() {
     select: {
       id: true, name: true, cmExpansionId: true,
       cards: {
-        select: { id: true, name: true, number: true, cardmarketId: true, products: { where: { language: "JP" }, select: { id: true }, take: 1 } },
+        select: { id: true, name: true, number: true, cardmarketId: true, products: { where: { language: "JP", variantLabel: null }, select: { id: true }, take: 1 } },
         orderBy: { numberSortKey: "asc" },
       },
     },

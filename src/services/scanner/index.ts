@@ -1432,12 +1432,37 @@ export async function matchCards(
     const byArt = top
       .filter((c) => artScores.has(c.cardId))
       .sort((a, b) => (artScores.get(b.cardId) ?? 0) - (artScores.get(a.cardId) ?? 0));
-    byArt.slice(0, ART_ALWAYS_SHOWN).forEach((c, i) => {
+    artRankTargets(byArt, artConfidentCardId ?? null).forEach((c, i) => {
       c.artRank = i + 1;
     });
   }
 
   return top;
+}
+
+/**
+ * Vilka av bildens bästa kort som ska MÄRKAS så att de alltid visas.
+ *
+ * Märkningen finns för fallet där TEXTEN vann över bilden (Komala/Beldum/Gloom
+ * ovan) — då är bildens topp den enda vägen till rätt kort. Men när bilden
+ * själv AVGJORDE (`artConfidentCardId`, dvs poäng + marginal klarade
+ * ART_TRUST_*) är vinnaren redan bildens etta, och tvåan/trean är per
+ * definition kort bilden redan har DÖMT UT med marginal. FÄLTFALL 2026-08-30:
+ * Poltchageist #5 (Pitch Black) avgjord på 0,802 med marginal 0,13 — och raden
+ * visade Croagunk, Mankey, Toedscool, Dartrix: samma gulgröna ram, annan
+ * Pokémon, ingen av dem en tänkbar rättelse. Namnsyskonen (samma kort i andra
+ * set, EN + JP) bär rättelsen i det läget och ligger kvar orörda.
+ *
+ * ⛔ Bara vid AVGJORD bild. Är bilden osäker (Probopass 0,722 mot ett
+ * hallucinerat "Groudon", 2026-08-01) står regeln kvar som förut: bildens
+ * topp-3 måste gå att välja, för då är det bilden som har rätt.
+ */
+export function artRankTargets<T extends { cardId: string }>(
+  byArt: readonly T[],
+  artConfidentCardId: string | null
+): T[] {
+  if (artConfidentCardId !== null) return byArt.filter((c) => c.cardId === artConfidentCardId);
+  return byArt.slice(0, ART_ALWAYS_SHOWN);
 }
 
 /**

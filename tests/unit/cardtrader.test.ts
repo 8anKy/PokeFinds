@@ -11,6 +11,8 @@ import {
   matchExpansion,
   shouldDistrustDexTaxonomy,
   matchBallExpansions,
+  matchJpBallExpansions,
+  isBuyableNmListing,
   type CtBlueprint,
   type CtExpansion,
   type CtListing,
@@ -403,6 +405,58 @@ describe("matchBallExpansions", () => {
 
   it("grundsetet självt är ingen bollexpansion", () => {
     expect(matchBallExpansions("Black Bolt", exps(["Black Bolt"]))).toEqual([]);
+  });
+});
+
+describe("matchJpBallExpansions (2026-08-30)", () => {
+  const exps = (names: string[]) =>
+    names.map((name, i) => ({ id: 4000 + i, game_id: 5, code: `c${i}`, name }));
+  const enKeys = new Set(["151", "black bolt", "white flare", "prismatic evolutions"].map(ctSetNameKey));
+
+  it("koden i vårt namn matchar CT:s '<namn> | <kod>'-form", () => {
+    const list = exps([
+      "Black Bolt - Master Ball Reverse Holo",
+      "Black Bolt | sv11B - Master Ball Reverse Holo",
+      "Black Bolt | sv11B - Poké Ball Reverse Holo",
+      "Black Bolt - Poké Ball Reverse Holo",
+    ]);
+    const hits = matchJpBallExpansions("Black Bolt (SV11B)", list, enKeys);
+    expect(hits.map((h) => h.expansion.name)).toEqual([
+      "Black Bolt | sv11B - Master Ball Reverse Holo",
+      "Black Bolt | sv11B - Poké Ball Reverse Holo",
+    ]);
+  });
+
+  it("bart namn duger när CT saknar kod och inget ENGELSKT set heter så", () => {
+    const list = exps([
+      "Pokémon Card 151 - Master Ball Reverse Holo",
+      "Pokémon Card 151 - Poké Ball Reverse Holo",
+      "Collect 151 - Master ball Reverse Holo",
+    ]);
+    const hits = matchJpBallExpansions("Pokémon Card 151 (SV2a)", list, enKeys);
+    expect(hits.map((h) => [h.label, h.expansion.id])).toEqual([
+      [VARIANT_MASTER_BALL, 4000],
+      [VARIANT_POKE_BALL, 4001],
+    ]);
+  });
+
+  it("⛔ tar ALDRIG den engelska expansionen när namnet delas med ett EN-set", () => {
+    // Utan kodformen hos CT och med "Black Bolt" som engelskt set: inget val,
+    // hellre inget golv än ett engelskt golv på ett japanskt kort.
+    const list = exps(["Black Bolt - Master Ball Reverse Holo"]);
+    expect(matchJpBallExpansions("Black Bolt (SV11B)", list, enKeys)).toEqual([]);
+  });
+
+  it("⛔ 'Ball & Rocket' är ingen boll-etikett", () => {
+    const list = exps(["MEGA Dream ex - Ball & Rocket Reverse Holo"]);
+    expect(matchJpBallExpansions("MEGA Dream ex (M2a)", list, enKeys)).toEqual([]);
+  });
+
+  it("isBuyableNmListing: jp-annonser passerar bara med språket jp", () => {
+    const jp = listing({ props: { pokemon_language: "jp" } });
+    expect(isBuyableNmListing(jp, "jp")).toBe(true);
+    expect(isBuyableNmListing(jp, "en")).toBe(false);
+    expect(isBuyableNmListing(listing(), "jp")).toBe(false);
   });
 
   it("tvetydigt (två med samma namn) ger ingen träff — aldrig ett myntkast", () => {

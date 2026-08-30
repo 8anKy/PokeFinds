@@ -34,9 +34,11 @@ import {
   ctExpansions,
   ctMarketplace,
   ctNumberKey,
-  isBuyableNmEnListing,
+  isBuyableNmListing,
   isSingleBlueprint,
   matchBallExpansions,
+  matchJpBallExpansions,
+  ctSetNameKey,
   type CtBlueprint,
 } from "../lib/cardtrader";
 
@@ -118,17 +120,28 @@ export async function runCardTraderBallImport(opts: {
   const [sets, expansions] = await Promise.all([
     prisma.cardSet.findMany({
       orderBy: { releaseDate: { sort: "desc", nulls: "last" } },
-      select: { id: true, name: true, series: true },
+      select: { id: true, name: true, series: true, language: true },
     }),
     ctExpansions(),
   ]);
 
+  // JAPANSKA SET SEDAN 2026-08-30: samma expansionstyp hos CT, men japanska
+  // annonser och kodbärande namn — se matchJpBallExpansions. Offern skrivs med
+  // setets språk så att JP-golv aldrig läses som engelska.
+  const enSetKeys = new Set(sets.filter((s) => s.language !== "JP").map((s) => ctSetNameKey(s.name)));
   const targets = sets
-    .flatMap((set) => matchBallExpansions(set.name, expansions).map((b) => ({ set, ...b })))
+    .flatMap((set) => {
+      const isJp = set.language === "JP";
+      const hits = isJp
+        ? matchJpBallExpansions(set.name, expansions, enSetKeys)
+        : matchBallExpansions(set.name, expansions);
+      return hits.map((b) => ({ set, ...b, lang: isJp ? ("jp" as const) : ("en" as const) }));
+    })
     .slice(0, setLimit ?? undefined);
   res.expansionsFound = targets.length;
 
-  for (const { set, label, expansion } of targets) {
+  for (const { set, label, expansion, lang } of targets) {
+    const offerLanguage = lang === "jp" ? ("JP" as const) : ("EN" as const);
     let blueprints: CtBlueprint[];
     let market: Awaited<ReturnType<typeof ctMarketplace>>;
     try {
@@ -194,7 +207,7 @@ export async function runCardTraderBallImport(opts: {
         res.noBlueprint++;
         continue;
       }
-      const listings = (market[String(bp.id)] ?? []).filter(isBuyableNmEnListing);
+      const listings = (market[String(bp.id)] ?? []).filter((l) => isBuyableNmListing(l, lang));
       if (listings.length < CT_MIN_DEPTH) {
         res.rejectedThin++;
         continue;
@@ -272,7 +285,7 @@ export async function runCardTraderBallImport(opts: {
             productId: product.id,
             retailerId: retailer.id,
             condition: "NEAR_MINT",
-            language: "EN",
+            language: offerLanguage,
           },
         },
         update: {
@@ -286,7 +299,7 @@ export async function runCardTraderBallImport(opts: {
           productId: product.id,
           retailerId: retailer.id,
           condition: "NEAR_MINT",
-          language: "EN",
+          language: offerLanguage,
           price: priceOre,
           currency: "SEK",
           stockStatus: "IN_STOCK",

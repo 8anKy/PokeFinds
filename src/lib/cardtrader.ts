@@ -31,6 +31,7 @@
  */
 
 import { VARIANT_MASTER_BALL, VARIANT_POKE_BALL, VARIANT_REVERSE_HOLO } from "./print-variant";
+import { codeFromJpSetName } from "./jp-set-name";
 
 /** Pokémon i CardTraders speltabell (`/games`). */
 export const CT_GAME_POKEMON = 5;
@@ -116,9 +117,18 @@ export const CT_NM_CONDITIONS = new Set(["Mint", "Near Mint"]);
  * påstående rubriken inte får göra.
  */
 export function isBuyableNmEnListing(l: CtListing): boolean {
+  return isBuyableNmListing(l, "en");
+}
+
+/**
+ * Samma vakt, valbart språk. Japanska annonser bär `pokemon_language: "jp"` —
+ * de japanska bollexpansionerna (2026-08-30) har 0 engelska annonser, så en
+ * EN-låst vakt hade tyst gett 0 golv och "för tunt" på varenda kort.
+ */
+export function isBuyableNmListing(l: CtListing, language: "en" | "jp"): boolean {
   const p = l.properties_hash ?? {};
   return (
-    p.pokemon_language === "en" &&
+    p.pokemon_language === language &&
     typeof p.condition === "string" &&
     CT_NM_CONDITIONS.has(p.condition) &&
     l.graded !== true &&
@@ -476,6 +486,50 @@ export function matchBallExpansions(
       return pattern.test(ctSetNameKey(e.name.slice(idx + 3)));
     });
     if (hits.length === 1) out.push({ label, expansion: hits[0] });
+  }
+  return out;
+}
+
+/**
+ * De JAPANSKA bollexpansionerna (2026-08-30). Leverantören (TCGGO) har inga
+ * boll-varianter alls — en rad per nummer — men CardTrader har egna expansioner
+ * med japanska annonser: "Pokémon Card 151 - Master Ball Reverse Holo" (666 JP
+ * NM-annonser), "Terastal Festival ex - Poké Ball Reverse Holo", "White Flare |
+ * sv11W - Master Ball Reverse Holo" …
+ *
+ * Vårt JP-setnamn bär koden i parentes ("Pokémon Card 151 (SV2a)"), CT:s
+ * antingen INGEN kod eller `| kod`. Två kandidatformer, i ordning:
+ *  (a) "<namn> | <kod>" — kodstyrkt, vinner alltid när den finns;
+ *  (b) bart "<namn>" — bara när CT-prefixet saknar `|` OCH inget ENGELSKT set
+ *      heter så. ⛔ "Black Bolt (SV11B)" utan den grinden hade tagit den
+ *      engelska "Black Bolt - Master Ball Reverse Holo" (4263) i stället för
+ *      "Black Bolt | sv11B - …" (4223), och japanska kort hade fått engelska golv.
+ * ⛔ "Ball & Rocket Reverse Holo" (MEGA Dream ex) tas INTE: CT klumpar två
+ * mönster i en expansion, och en etikett som inte säger vilket är en lögn.
+ */
+export function matchJpBallExpansions(
+  setName: string,
+  expansions: CtExpansion[],
+  enSetKeys: ReadonlySet<string>
+): BallExpansion[] {
+  const code = codeFromJpSetName(setName);
+  const base = code ? setName.replace(/\s*\([^)]*\)\s*$/, "") : setName;
+  const baseKey = ctSetNameKey(base);
+  const codedKey = code ? ctSetNameKey(`${base} ${code}`) : null;
+  const out: BallExpansion[] = [];
+  for (const { label, pattern } of BALL_EXPANSION_SUFFIXES) {
+    const split = expansions.flatMap((e) => {
+      const idx = e.name.lastIndexOf(" - ");
+      if (idx < 0) return [];
+      if (!pattern.test(ctSetNameKey(e.name.slice(idx + 3)))) return [];
+      return [{ e, prefix: e.name.slice(0, idx) }];
+    });
+    const coded = codedKey ? split.filter((s) => ctSetNameKey(s.prefix) === codedKey) : [];
+    const bare = enSetKeys.has(baseKey)
+      ? []
+      : split.filter((s) => !s.prefix.includes("|") && ctSetNameKey(s.prefix) === baseKey);
+    const hits = coded.length > 0 ? coded : bare;
+    if (hits.length === 1) out.push({ label, expansion: hits[0].e });
   }
   return out;
 }
