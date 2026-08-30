@@ -30,8 +30,6 @@
  *    1 s sömn + försök) per kort med död bild — och slog i 30-minuterstaket. Normalt
  *    1,5–2,5 min. En nedtid ska kosta EN väntan, inte en per kort.
  */
-import https from "node:https";
-
 export const TCGDEX_BASE = "https://api.tcgdex.net/v2";
 
 const UA = { "User-Agent": "FoilioBot/1.0 (+https://foilio.se)" };
@@ -131,8 +129,15 @@ export async function resolveViaDoh(host: string, fetchImpl: typeof fetch = fetc
  * GET JSON med adressuppslaget UTBYTT: TLS-SNI och certifikatkontroll använder
  * fortfarande värdnamnet ur URL:en, bara TCP-anslutningen går till `address`.
  * `node:https` i stället för `fetch` för att undici inte exponerar `lookup`.
+ *
+ * ⛔ `node:https` laddas LAZY med `webpackIgnore`, aldrig som toppimport: modulen
+ * nås från `instrumentation.ts` (→ cardmarket-refresh → jp-set-label) och Next
+ * kompilerar den även för Edge, där webpack vägrar `node:`-schemat. Railway-bygget
+ * 9f514dc föll exakt så ("Build failed because of webpack errors"). Samma mönster
+ * som fs/path i `exchange-rate.ts`. Funktionen anropas bara i Node-jobb.
  */
-export function getJsonViaAddress(url: string, address: string, timeoutMs: number): Promise<JsonResponse> {
+export async function getJsonViaAddress(url: string, address: string, timeoutMs: number): Promise<JsonResponse> {
+  const https = await import(/* webpackIgnore: true */ "node:https");
   return new Promise((resolve, reject) => {
     const lookup = (_host: string, opts: unknown, cb: (...args: unknown[]) => void) => {
       if ((opts as { all?: boolean } | undefined)?.all) cb(null, [{ address, family: 4 }]);
