@@ -830,6 +830,8 @@ export async function runWeeklyDigest(
         text: mail.text,
         // Ett-klicks-avanmälan i mejlklienten. Samma signerade URL som sidfoten.
         unsubscribeUrl: unsubscribeUrl(APP_URL, user.id, "weekly"),
+        // Massutskick → Brevo-lanen (300/dygn) när nyckeln finns, annars Resend.
+        lane: "bulk",
       });
       // ⛔ Stämplas EFTER lyckat utskick — annars tystar ett tillfälligt mejlfel
       // användaren för hela veckan (samma regel som pro-expiry-notice).

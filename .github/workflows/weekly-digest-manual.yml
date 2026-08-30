@@ -51,6 +51,7 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
       EMAIL_FROM: ${{ vars.EMAIL_FROM }}
       NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
       # Signerar avregistreringslänkarna. MÅSTE vara samma värde som appen i Railway

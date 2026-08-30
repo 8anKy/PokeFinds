@@ -20,6 +20,10 @@ Sätt alla från `.env.example`. Viktigast:
 - `RESEND_API_KEY` + `EMAIL_FROM` — riktig e-post. ⛔ **Inte SMTP**: Railway blockerar
   SMTP-portarna, `src/lib/mailer.ts` går över Resends HTTP-API. `EMAIL_MODE=console`
   loggar i stället för att skicka (dev).
+- `BREVO_API_KEY` — bulk-lanen (veckobrev + nyhetsmejl, `lane: "bulk"`), 300/dygn mot
+  Resends 100. Bara i GitHub Actions (massutskicken körs där), inte i Railway. Saknas
+  den går bulk på Resend. Domänen `foilio.se` ska vara verifierad hos Brevo också
+  (egen DKIM-post, krockar inte med Resends).
 - `CRON_SECRET` — för schemalagd scraping och `/api/revalidate`
 - `REDIS_URL` — om Redis används (rekommenderas i prod; annars in-memory-fallback)
 

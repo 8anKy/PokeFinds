@@ -25,7 +25,7 @@
  *   npx tsx scripts/send-release-notes.ts --send-to-all --only=x@y.se
  */
 import { prisma } from "@/lib/db";
-import { sendMail } from "@/lib/mailer";
+import { providerFor, sendMail } from "@/lib/mailer";
 import { releaseNotesEmail } from "@/emails/templates";
 import { requireUnsubscribeSecret, unsubscribeUrl } from "@/lib/unsubscribe-token";
 
@@ -47,14 +47,15 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function main() {
   // ⛔ KONSOLLÄGE ÄR INTE ETT UTSKICK. Utan RESEND_API_KEY loggar `sendMail` och
   // returnerar utan fel — körningen blir grön och ingen får något.
-  if (process.env.EMAIL_MODE === "console" || !process.env.RESEND_API_KEY) {
+  if (process.env.EMAIL_MODE === "console" || !providerFor({ lane: "bulk" })) {
     throw new Error(
-      "Mailern går i konsolläge (EMAIL_MODE=console eller RESEND_API_KEY saknas) — " +
+      "Mailern går i konsolläge (EMAIL_MODE=console eller RESEND_API_KEY/BREVO_API_KEY saknas) — " +
         "utskicket avbryts hellre än rapporterar grönt utan att skicka något. " +
         "Kör via .github/workflows/release-notes-notice.yml."
     );
   }
   requireUnsubscribeSecret();
+  console.log(`Leverantör för bulk-lanen: ${providerFor({ lane: "bulk" })}`);
 
   const recipients = await prisma.$queryRawUnsafe<{ id: string; email: string; name: string | null }[]>(
     `select id, email, name from "User"
@@ -84,8 +85,9 @@ async function main() {
       html: mail.html,
       text: mail.text,
       unsubscribeUrl: unsubscribeUrl(APP_URL, me.id, "news"),
+      lane: "bulk",
     });
-    console.log(`\nSkickat till ${OWNER}. Resend-id: ${res.id ?? "(konsolläge — inget mejl skickades)"}`);
+    console.log(`\nSkickat till ${OWNER} via ${res.provider ?? "?"}. Id: ${res.id ?? "(konsolläge — inget mejl skickades)"}`);
     console.log(`\nSkarpt utskick till ${recipients.length} mottagare: lägg till --send-to-all`);
     return;
   }
@@ -100,7 +102,7 @@ async function main() {
   for (const r of targets) {
     const mail = mailFor(r, "där");
     try {
-      await sendMail({ ...mail, to: r.email, unsubscribeUrl: unsubscribeUrl(APP_URL, r.id, "news") });
+      await sendMail({ ...mail, to: r.email, unsubscribeUrl: unsubscribeUrl(APP_URL, r.id, "news"), lane: "bulk" });
       ok++;
     } catch (e) {
       failed++;

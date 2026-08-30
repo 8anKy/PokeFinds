@@ -43,6 +43,8 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      # Bulk-lanen (Brevo, 300/dygn). Saknas den går utskicket på Resend (100/dygn).
+      BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
       NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
       UNSUBSCRIBE_SECRET: ${{ secrets.UNSUBSCRIBE_SECRET }}
       EMAIL_FROM: ${{ vars.EMAIL_FROM }}
