@@ -50,6 +50,18 @@ paths:
   Katalogen visar bara prissatta singlar: 3 984 av 5 553 JP-singlar syns i bläddringen, resten
   nås via set/skanner/URL tills CM får en japansk annons. JP-kort har konstavtryck (skannern).
 
+- ✅ **MASTER BALL / POKÉ BALL PÅ JP-SINGLAR (2026-08-30)**: leverantören (TCGGO) har INGA
+  bollvarianter — en rad per nummer, ingen rarity/flagga. Källan är CardTrader, som har egna
+  JP-expansioner med japanska annonser ("Pokémon Card 151 - Master Ball Reverse Holo", "White Flare |
+  sv11W - Poké Ball Reverse Holo" …). `matchJpBallExpansions` (`lib/cardtrader.ts`): kodformen
+  `<namn> | <kod>` vinner; bart namn bara när CT-prefixet saknar `|` OCH inget EN-set heter så
+  (⛔ annars hade "Black Bolt (SV11B)" tagit den ENGELSKA expansionen). Annonser filtreras med
+  `isBuyableNmListing(l, "jp")`, offern skrivs `language: "JP"`. Utfall: **526 produkter** (151: 135 MB
+  + 152 PB, Terastal Festival: 100 + 139); Black Bolt/White Flare JP matchar men har 0 kort hos
+  leverantören ännu. ⛔ "Ball & Rocket" (MEGA Dream ex) tas inte — två mönster i en etikett. ⛔ Alla
+  `products`-uppslag per JP-kort MÅSTE filtrera `variantLabel: null` (jp-singles-refresh, link-jp) —
+  `take: 1` kunde annars ta bollprodukten och skriva över dess titel. Vaktat i `cardtrader.test.ts`.
+
 Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md pekar hit.
 
 - **JAPANSKA SET KOMMER FRÅN CARDMARKETS EXPANSIONER (2026-08-07)**: katalogens set kommer från
