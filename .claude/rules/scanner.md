@@ -386,3 +386,12 @@ Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md p
   on-device i appen (skuggläge, nytt native-bygge) eller en egen liten sifferdetektor när ~1 000 admin-remsor
   finns. ⚠️ Samma batch visade att JP-skanningar landar på EN-kortet (08-29-regeln) — ett `language`-fält i
   vision-kontraktet kan bryta lika mot JP; ej byggt.
+- ⛔ **JP-KATALOGEN HÖJDE GEMINI-ANVÄNDNINGEN TYST — SPRÅKTVILLINGAR ÄR INTE RIVALER (2026-08-31)**:
+  varje kort som finns på EN och JP har sedan 08-29 två referenser med identisk konst, och trust-regeln
+  mäter marginalen till TVÅAN. Mätt på ägarens JP-batch 08-30 (n=44): fri andel **9 %** mot 19–57 %
+  dagarna före; 30 av 40 betalda anrop hade EN/JP-tvillingen på plats 1–2 med marginal < 0,10.
+  `artConfidentFrom(best, tops, isTwinOfTop)` mäter nu mot första rivalen som INTE är en språktvilling
+  (`languageTwinsOfTop`: samma basnamn, olika `language`, konstlikhet ≥ SAME_ART_MIN ur indexet, meta ur
+  `artMetaCache`); vinnaren i gruppen är EN när den finns (ägarregeln), JP ligger i raden. Replay på de
+  43 fp-raderna: fri **1 → 15**, alla 15 samma kort som Geminis svar. ⛔ Bara SPRÅK-tvillingar — samma
+  konst i två EN-set är ett tryckningsval och ska förbli osäkert. Vaktat i `art-confidence.test.ts`.

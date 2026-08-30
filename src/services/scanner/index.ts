@@ -717,15 +717,76 @@ export const ART_AGREE_MARGIN = 0.05;
  */
 export function artConfidentFrom(
   best: ArtMatch[],
-  frameTops: ArtMatch[]
+  frameTops: ArtMatch[],
+  /**
+   * SPRÅKTVILLINGAR RÄKNAS INTE SOM RIVALER (2026-08-31). Sedan de japanska
+   * singlarna kom (08-29) har varje kort som finns på både EN och JP en
+   * referens med IDENTISK konst — och marginalregeln mäter avståndet till
+   * tvåan. MÄTT på ägarens JP-batch 2026-08-30 (n=44): fri andel föll från
+   * ~42 % till **9 %**, och 30 av de 40 betalda vision-anropen hade EN/JP-
+   * tvillingen på plats 1–2 med marginal < 0,10 och topp ≥ 0,55. Katalogen
+   * hade alltså tyst HÖJT Gemini-användningen — motsatsen till målet.
+   *
+   * Predikatet säger om två id är samma kort på olika språk (samma basnamn,
+   * olika `language`, parvis konstlikhet ≥ SAME_ART_MIN — anroparen räknar det
+   * ur indexet, ingen DB-fråga). Marginalen mäts då mot första rivalen som INTE
+   * är en tvilling: bilden får avgöra KORTET, och språket — som bilden inte kan
+   * se — löses av ägarregeln "EN vid lika läsning, JP i raden"
+   * (preferEnglishTwin). ⛔ Bara SPRÅK-tvillingar: samma-konst-omtryck i två
+   * EN-set är fortfarande ett val av TRYCKNING och ska förbli osäkra.
+   */
+  isTwinOfTop?: (rivalCardId: string) => boolean
 ): string | null {
   if (best.length < 2 || best[0].score < ART_TRUST_SCORE) return null;
-  const margin = best[0].score - best[1].score;
+  const rival = isTwinOfTop ? best.slice(1).find((r) => !isTwinOfTop(r.cardId)) : best[1];
+  // Bara tvillingar i hela listan: ingen rival alls ⇒ kortet är entydigt.
+  const margin = rival ? best[0].score - rival.score : Number.POSITIVE_INFINITY;
   if (margin >= ART_TRUST_MARGIN) return best[0].cardId;
   const allAgree =
-    frameTops.length >= 2 && frameTops.every((t) => t.cardId === best[0].cardId);
+    frameTops.length >= 2 &&
+    frameTops.every((t) => t.cardId === best[0].cardId || (isTwinOfTop?.(t.cardId) ?? false));
   if (allAgree && margin >= ART_AGREE_MARGIN) return best[0].cardId;
   return null;
+}
+
+/** Basnamnet utan språkmarkören — "Vileplume (JP)" och "Vileplume" är samma kort. */
+function cardBaseName(name: string): string {
+  return name.replace(/\s*\(JP\)\s*$/i, "").trim().toLowerCase();
+}
+
+/**
+ * Språktvillingarna till bildens etta bland dess närmaste rivaler, plus vilket
+ * id som ska VINNA om bilden avgör gruppen: EN-utgåvan när den finns
+ * (ägarbeslut 2026-08-29 — "EN vid lika läsning, JP som val i raden").
+ *
+ * Kostnad: metadata för topp-`TWIN_SCAN` id ur `artMetaCache` (en PK-fråga
+ * första gången per kort, sedan processminne) + parvis konstlikhet ur indexet.
+ */
+const TWIN_SCAN = 5;
+export async function languageTwinsOfTop(
+  matches: ArtMatch[]
+): Promise<{ isTwinOfTop: (id: string) => boolean; preferred: string | null }> {
+  const none = { isTwinOfTop: () => false, preferred: null };
+  if (matches.length < 2) return none;
+  const head = matches.slice(0, TWIN_SCAN);
+  await ensureArtMeta(head);
+  const top = artMetaCache.get(head[0].cardId);
+  if (!top) return none;
+  const twins = new Set<string>();
+  for (const m of head.slice(1)) {
+    const meta = artMetaCache.get(m.cardId);
+    if (!meta || meta.language === top.language) continue;
+    if (cardBaseName(meta.name) !== cardBaseName(top.name)) continue;
+    const sim = await artPairSimilarity(head[0].cardId, m.cardId);
+    if (sim !== null && sim >= SAME_ART_MIN) twins.add(m.cardId);
+  }
+  if (twins.size === 0) return none;
+  const preferred =
+    top.language === "EN"
+      ? head[0].cardId
+      : (head.find((m) => twins.has(m.cardId) && artMetaCache.get(m.cardId)?.language === "EN")?.cardId ??
+        head[0].cardId);
+  return { isTwinOfTop: (id) => twins.has(id), preferred };
 }
 
 /**
@@ -1872,7 +1933,9 @@ export async function identifyCellsArt(
     }
     const artMatches = await searchByFingerprints(sweep, ART_CANDIDATES);
     const artScores = new Map(artMatches.map((m) => [m.cardId, m.score]));
-    const confidentId = artConfidentFrom(artMatches, []);
+    const twins = await languageTwinsOfTop(artMatches);
+    const confidentRaw = artConfidentFrom(artMatches, [], twins.isTwinOfTop);
+    const confidentId = confidentRaw !== null && twins.preferred !== null ? twins.preferred : confidentRaw;
     const candidates = await matchCards(
       // Samma tomma OCR som när vision hoppas över: bilden bär hela bedömningen.
       { rawText: "", confidence: confidentId ? 0.95 : 0 },
@@ -1996,7 +2059,12 @@ export async function identifyCard(
   // MARGINALEN till tvåan är det som avgör om bildträffen går att lita på —
   // poängen ensam skiljer inte rätt från fel. Med full ruta-samstämmighet
   // sänks marginalkravet (temporalt bevis) — se artConfidentFrom/ART_AGREE_MARGIN.
-  const artConfidentCardId = artConfidentFrom(artMatches, detailed.frameTops);
+  // Språktvillingar (EN/JP, samma konst) är inte rivaler — se artConfidentFrom.
+  const twins = await languageTwinsOfTop(artMatches);
+  const artConfidentCardId = (() => {
+    const id = artConfidentFrom(artMatches, detailed.frameTops, twins.isTwinOfTop);
+    return id !== null && twins.preferred !== null ? twins.preferred : id;
+  })();
 
   // `precise` = användaren bad uttryckligen om modellen — hoppa aldrig då.
   const skipVision = artConfidentCardId !== null && !opts.precise;
@@ -2057,9 +2125,23 @@ export async function identifyCard(
  *  så pollandet inte väcker Neon per ruta. Taket skyddar mot obegränsad växt. */
 const artMetaCache = new Map<
   string,
-  { name: string; number: string; setName: string }
+  { name: string; number: string; setName: string; language: string }
 >();
 const ART_META_CACHE_MAX = 4000;
+
+/** Fyller cachen för de id som saknas — EN PK-fråga, aldrig en per kort. */
+async function ensureArtMeta(matches: ArtMatch[]): Promise<void> {
+  const missing = matches.filter((m) => !artMetaCache.has(m.cardId));
+  if (missing.length === 0) return;
+  const rows = await prisma.card.findMany({
+    where: { id: { in: missing.map((m) => m.cardId) } },
+    select: { id: true, name: true, number: true, language: true, set: { select: { name: true } } },
+  });
+  if (artMetaCache.size + rows.length > ART_META_CACHE_MAX) artMetaCache.clear();
+  for (const r of rows) {
+    artMetaCache.set(r.id, { name: r.name, number: r.number, setName: r.set.name, language: r.language });
+  }
+}
 
 export interface ArtLiveResult {
   candidates: Array<{
@@ -2093,23 +2175,15 @@ export async function identifyCardArt(opts: {
   const matches = await searchByFingerprints(queries, 5);
   if (matches.length === 0) return { candidates: [], margin: null, confident: false };
 
-  const missing = matches.filter((m) => !artMetaCache.has(m.cardId));
-  if (missing.length > 0) {
-    const rows = await prisma.card.findMany({
-      where: { id: { in: missing.map((m) => m.cardId) } },
-      select: { id: true, name: true, number: true, set: { select: { name: true } } },
-    });
-    if (artMetaCache.size + rows.length > ART_META_CACHE_MAX) artMetaCache.clear();
-    for (const r of rows) {
-      artMetaCache.set(r.id, { name: r.name, number: r.number, setName: r.set.name });
-    }
-  }
+  await ensureArtMeta(matches);
 
   const margin = matches.length >= 2 ? matches[0].score - matches[1].score : null;
   return {
     candidates: matches.flatMap((m) => {
       const meta = artMetaCache.get(m.cardId);
-      return meta ? [{ cardId: m.cardId, ...meta, score: m.score }] : [];
+      return meta
+        ? [{ cardId: m.cardId, name: meta.name, number: meta.number, setName: meta.setName, score: m.score }]
+        : [];
     }),
     margin,
     confident:
