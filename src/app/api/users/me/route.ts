@@ -55,6 +55,7 @@ const notificationSettingsSchema = z.object({
   email: z.boolean().optional(),
   push: z.boolean().optional(),
   allRestocks: z.boolean().optional(),
+  news: z.boolean().optional(),
   // Veckobrevet. ⛔ Måste stå här — Zod strippar okända nycklar, så en glömd rad
   // hade gjort avstängningen i /installningar till en tyst no-op.
   weekly: z.boolean().optional(),

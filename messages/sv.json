@@ -38,6 +38,8 @@
     "notifEmailHint": "Prislarm via e-post.",
     "notifWeekly": "Veckobrev",
     "notifWeeklyHint": "En sammanfattning varje vecka: din samlings värde, prisfall på det du bevakar och veckans fynd. Kräver att e-postnotiser är på.",
+    "notifNews": "Nyheter från Foilio",
+    "notifNewsHint": "Ett mejl när något nytt släpps — nya funktioner och större uppdateringar. Sällan. Kräver att e-postnotiser är på.",
     "notifAll": "Alla restocks",
     "notifAllHint": "Få larm när VILKEN sealed-produkt som helst kommer i lager, utan att bevaka den.",
     "notifAllPausedHint": "Pausad tills vidare — inga restock-larm skickas.",
@@ -1492,6 +1494,12 @@
   },
   "PageNav": {
     "back": "Tillbaka"
+  },
+  "UpdateBanner": {
+    "title": "Foilio {version} finns i App Store",
+    "body": "Logga in med Google eller Apple och skanna utan konto — uppdatera appen för att få det.",
+    "cta": "Uppdatera",
+    "dismiss": "Stäng"
   },
   "Offline": {
     "message": "Ingen internetanslutning",

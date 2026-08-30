@@ -24,10 +24,14 @@
  */
 import crypto from "crypto";
 
-/** Vilken typ av utskick avanmälan gäller. En typ per utskick som inte är transaktionellt. */
-export type UnsubscribeType = "weekly";
+/**
+ * Vilken typ av utskick avanmälan gäller. En typ per utskick som inte är
+ * transaktionellt: `weekly` = veckobrevet, `news` = nyhetsmejlen per släpp.
+ * Typen avgör vilken nyckel i `notificationSettings` som slås av (/api/unsubscribe).
+ */
+export type UnsubscribeType = "weekly" | "news";
 
-const TYPES: readonly UnsubscribeType[] = ["weekly"];
+const TYPES: readonly UnsubscribeType[] = ["weekly", "news"];
 
 /**
  * Egen variabel först, NextAuths som reserv. `NEXTAUTH_SECRET` finns redan i

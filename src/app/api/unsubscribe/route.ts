@@ -22,7 +22,7 @@
  */
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { verifyUnsubscribeToken } from "@/lib/unsubscribe-token";
+import { verifyUnsubscribeToken, type UnsubscribeType } from "@/lib/unsubscribe-token";
 import { parseNotificationSettings } from "@/lib/notification-settings";
 import type { Prisma } from "@prisma/client";
 
@@ -53,12 +53,44 @@ function page(title: string, body: string, status = 200): Response {
   });
 }
 
-const DONE_BODY = `<p style="line-height:1.6;color:#cbd5e1;">Du får inga fler veckobrev från Foilio. Dina prislarm och restock-larm rörs inte — de är en egen inställning.</p>
-     <p style="line-height:1.6;color:#cbd5e1;">Ångrar du dig slår du på veckobrevet igen under Inställningar i appen.</p>
-     <p style="margin:24px 0 0;"><a href="${APP_URL}/installningar" style="display:inline-block;background-color:#2dd4bf;color:#08110f;text-decoration:none;font-weight:700;padding:12px 24px;border-radius:8px;">Öppna inställningar</a></p>`;
+/**
+ * Copy per utskickstyp. Typens namn ÄR nyckeln i `notificationSettings` som slås
+ * av (`weekly`, `news`) — håll dem lika, det är vad `unsubscribe()` bygger på.
+ */
+const KINDS: Record<UnsubscribeType, { what: string; title: string; keeps: string; resume: string }> = {
+  weekly: {
+    what: "Foilios veckobrev",
+    title: "veckobrevet",
+    keeps: "Dina prislarm och restock-larm rörs inte — de är en egen inställning.",
+    resume: "veckobrevet",
+  },
+  news: {
+    what: "Foilios nyhetsmejl",
+    title: "nyhetsmejlen",
+    keeps: "Dina larm och ditt veckobrev rörs inte — de är egna inställningar.",
+    resume: "nyhetsmejlen",
+  },
+};
 
-/** Slår av `weekly` utan att röra övriga nycklar i JSON-kolumnen. */
-async function unsubscribeWeekly(userId: string): Promise<void> {
+/**
+ * Typen ur tokenens första segment, UTAN verifiering — bara för att välja copy.
+ * En förfalskad token får alltså samma sida som en äkta av samma typ, och ett
+ * okänt prefix faller till veckobrevet. Ingenting här rör databasen.
+ */
+function kindOf(token: string | null | undefined): UnsubscribeType {
+  const head = (token ?? "").split(".")[0];
+  return head === "news" ? "news" : "weekly";
+}
+
+function doneBody(type: UnsubscribeType): string {
+  const k = KINDS[type];
+  return `<p style="line-height:1.6;color:#cbd5e1;">Du får inga fler ${k.what.replace("Foilios ", "")} från Foilio. ${k.keeps}</p>
+     <p style="line-height:1.6;color:#cbd5e1;">Ångrar du dig slår du på ${k.resume} igen under Inställningar i appen.</p>
+     <p style="margin:24px 0 0;"><a href="${APP_URL}/installningar" style="display:inline-block;background-color:#2dd4bf;color:#08110f;text-decoration:none;font-weight:700;padding:12px 24px;border-radius:8px;">Öppna inställningar</a></p>`;
+}
+
+/** Slår av typens nyckel utan att röra övriga nycklar i JSON-kolumnen. */
+async function unsubscribe(userId: string, type: UnsubscribeType): Promise<void> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { notificationSettings: true },
@@ -70,22 +102,23 @@ async function unsubscribeWeekly(userId: string): Promise<void> {
   await prisma.user.update({
     where: { id: userId },
     data: {
-      notificationSettings: { ...existing, weekly: false } as Prisma.InputJsonValue,
+      notificationSettings: { ...existing, [type]: false } as Prisma.InputJsonValue,
     },
   });
 }
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token") ?? "";
+  const k = KINDS[kindOf(token)];
   // Bekräftelsesteg — inte för att vi tvivlar på mottagaren, utan för att
   // förhämtningen i inkorgen inte ska avregistrera någon som aldrig klickade.
-  const body = `<p style="line-height:1.6;color:#cbd5e1;">Vill du sluta få Foilios veckobrev? Dina prislarm och restock-larm påverkas inte.</p>
+  const body = `<p style="line-height:1.6;color:#cbd5e1;">Vill du sluta få ${k.what}? ${k.keeps}</p>
      <form method="post" action="/api/unsubscribe">
        <input type="hidden" name="token" value="${token.replace(/"/g, "&quot;")}">
        <button type="submit" style="margin-top:16px;background-color:#2dd4bf;color:#08110f;border:0;font-weight:700;font-size:15px;padding:12px 24px;border-radius:8px;cursor:pointer;">Ja, avregistrera mig</button>
      </form>
-     <p style="line-height:1.6;color:#6b7280;font-size:13px;margin-top:20px;">Vill du behålla brevet behöver du inte göra något alls — stäng bara den här sidan.</p>`;
-  return page("Avregistrera från veckobrevet", body);
+     <p style="line-height:1.6;color:#6b7280;font-size:13px;margin-top:20px;">Vill du behålla ${k.title} behöver du inte göra något alls — stäng bara den här sidan.</p>`;
+  return page(`Avregistrera från ${k.title}`, body);
 }
 
 export async function POST(req: NextRequest) {
@@ -108,7 +141,7 @@ export async function POST(req: NextRequest) {
   const claim = verifyUnsubscribeToken(token);
   if (claim) {
     try {
-      await unsubscribeWeekly(claim.userId);
+      await unsubscribe(claim.userId, claim.type);
     } catch (e) {
       // ⛔ HÄR LJUGER VI INTE. "Klart, du är avregistrerad" när skrivningen
       // misslyckades betyder att nästa veckobrev kommer ändå — och då är
@@ -127,5 +160,6 @@ export async function POST(req: NextRequest) {
     }
   }
   // Samma svar för giltig och förfalskad token — se kartläggningsregeln i filens topp.
-  return page("Klart — du är avregistrerad", DONE_BODY);
+  // Copyn väljs på tokenens (overifierade) prefix, inte på `claim`, av samma skäl.
+  return page("Klart — du är avregistrerad", doneBody(kindOf(token)));
 }

@@ -80,6 +80,7 @@ export function NotificationBadges({
     // inte här varför en användare "inte får mejl" — och det är just den frågan
     // vyn finns för.
     { key: "weekly", label: "VECKA", on: settings.weekly, title: "Veckobrev" },
+    { key: "news", label: "NYTT", on: settings.news, title: "Nyhetsmejl" },
   ];
   return (
     <span className="flex flex-wrap items-center gap-1">

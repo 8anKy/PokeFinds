@@ -84,7 +84,19 @@ describe("notisdefaulterna speglar schema.prisma", () => {
     const m = schema.match(/notificationSettings\s+Json\s+@default\("(.+?)"\)/);
     expect(m, "hittade ingen @default på notificationSettings").toBeTruthy();
     const fromSchema = JSON.parse(m![1].replace(/\\"/g, '"'));
-    expect(fromSchema).toEqual(NOTIFICATION_DEFAULTS);
+    // Varje nyckel i kolumnens default måste ha SAMMA värde i koden …
+    for (const [key, value] of Object.entries(fromSchema)) {
+      expect(NOTIFICATION_DEFAULTS[key as keyof typeof NOTIFICATION_DEFAULTS], key).toBe(value);
+    }
+    // … och en nyckel som bara finns i koden (`news`, 2026-08-30) får bara vara
+    // en OPT-OUT-spak: saknad i JSON:en ⇒ PÅ, både i parsern och i utskickets
+    // `coalesce(..., true)`. Då beter sig gamla och nya konton lika utan migration.
+    // En parser-only-nyckel med default `false` hade däremot krävt kolumndefaulten.
+    for (const key of Object.keys(NOTIFICATION_DEFAULTS)) {
+      if (!(key in fromSchema)) {
+        expect(NOTIFICATION_DEFAULTS[key as keyof typeof NOTIFICATION_DEFAULTS], key).toBe(true);
+      }
+    }
   });
 
   it("veckobrevet är PÅ för ett konto som aldrig rört inställningarna", () => {

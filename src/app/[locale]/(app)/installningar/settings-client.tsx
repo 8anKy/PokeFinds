@@ -277,6 +277,8 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
     // Veckobrevet är en EGEN spak och gäller alla konton, inte bara Pro. Ligger
     // direkt under e-post-mastern eftersom det är den som styr över den.
     { key: "weekly", label: tSettings("notifWeekly"), hint: tSettings("notifWeeklyHint") },
+    // Nyhetsmejlen (ett per släpp) — egen spak av samma skäl som veckobrevet.
+    { key: "news", label: tSettings("notifNews"), hint: tSettings("notifNewsHint") },
     {
       key: "allRestocks",
       label: tSettings("notifAll"),

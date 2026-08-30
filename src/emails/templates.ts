@@ -6,7 +6,7 @@
 // ⛔ Bara rena konstanter får importeras hit: templates.ts når EDGE-bundlen via
 // instrumentation → scheduler → notifications, där Node-API:er (t.ex. 'crypto')
 // inte finns. social-links.ts är enbart strängar — se signup-code-noten nedan.
-import { DISCORD_URL } from "@/lib/social-links";
+import { APP_STORE_URL, DISCORD_URL } from "@/lib/social-links";
 
 export interface EmailContent {
   subject: string;
@@ -1098,8 +1098,8 @@ export function passwordResetEmail(name: string, resetUrl: string): EmailContent
  * ⛔ INGET SLUTDATUM. Ett datum vi missar är värre än "vi säger till".
  *
  * ⛔ INGEN `unsubscribeUrl` — se anroparen (scripts/send-restock-paused-notice.ts)
- * för skälet: UnsubscribeType har bara "weekly", och det här är ett
- * driftmeddelande om mottagarens eget konto.
+ * för skälet: det här är ett driftmeddelande om mottagarens eget konto, inte
+ * nyheter. (Nyhetsmejl har en egen typ, `news` — se releaseNotesEmail.)
  */
 export function restockPausedEmail(name: string): EmailContent {
   const subject = "Restock-larmen via mejl är pausade";
@@ -1121,5 +1121,69 @@ export function restockPausedEmail(name: string): EmailContent {
     `${DISCORD_URL}\n\n` +
     `Prisbevakningar fungerar som vanligt.` +
     textFooter;
+  return { subject, html, text };
+}
+
+/**
+ * NYHETSMEJL PER SLÄPP — "det här är nytt i Foilio". Skickas av
+ * scripts/send-release-notes.ts (förhandsgranskning till ägaren först).
+ *
+ * ⛔ `unsubscribeUrl` ÄR OBLIGATORISK. Det här är produktnyheter, inte ett
+ * driftmeddelande som restockPausedEmail — mottagaren måste kunna säga nej på
+ * ett klick, och typen är `news` (egen spak i inställningarna), aldrig `weekly`.
+ *
+ * ⛔ INGA PÅSTÅENDEN SOM INTE GÄLLER FÖR ALLA: japanska singlar finns i webben
+ * och i VARJE appversion (appen är ett skal över webben); inloggningen och
+ * gästskanningen kräver app 1.1 — därav uppdatera-knappen, och därav att
+ * texten säger det.
+ */
+export function releaseNotesEmail(input: { name: string; unsubscribeUrl: string }): EmailContent {
+  const { name, unsubscribeUrl } = input;
+  const subject = "Nytt i Foilio: japanska singlar, Google-/Apple-inloggning och skanning utan konto";
+  const item = (title: string, body: string) =>
+    `<div style="padding:14px 0;border-top:1px solid #2a2e38;">
+       <p style="margin:0 0 4px;font-weight:700;color:#ffffff;">${title}</p>
+       <p style="margin:0;line-height:1.6;color:#cbd5e1;">${body}</p>
+     </div>`;
+  const html = layout(
+    "Det här är nytt i Foilio",
+    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Vi har släppt en ny version av Foilio. Tre saker du kommer märka:</p>
+     <div style="margin:20px 0 4px;">
+       ${item(
+         "🇯🇵 Japanska singlar",
+         "Över 5 500 japanska kort från 46 set finns nu i katalogen — sök, bevaka och lägg dem i samlingen precis som de engelska."
+       )}
+       ${item(
+         "Logga in med Google eller Apple",
+         "Ett tryck, inget lösenord att komma ihåg. Fungerar på webben och i appen."
+       )}
+       ${item(
+         "Skanna utan konto",
+         "Den som laddar ner appen kan prova kortskannern 10 gånger utan att skapa konto. Tipsa gärna en kompis."
+       )}
+     </div>
+     <div style="background-color:#111827;border:1px solid #2a2e38;border-radius:10px;padding:20px;margin:24px 0 8px;">
+       <p style="margin:0;line-height:1.6;color:#cbd5e1;"><strong style="color:#2dd4bf;">Har du appen?</strong> Inloggningen och gästskanningen kräver version 1.1. Har du inte automatiska uppdateringar på behöver du uppdatera själv i App Store.</p>
+     </div>
+     ${button(APP_STORE_URL, "Uppdatera appen")}
+     <p style="line-height:1.6;color:#6b7280;font-size:13px;margin:16px 0 0;">Hittar du något som inte stämmer? Svara på det här mejlet — vi läser allt.</p>`,
+    `Du får det här mejlet för att du har ett konto på Foilio.<br>
+      <a href="${unsubscribeUrl}" style="color:#9ca3af;">Vill du inte ha nyhetsmejl? Avregistrera dig</a> &middot; dina larm och ditt veckobrev rörs inte.`
+  );
+  const text =
+    `Hej ${name}!\n\n` +
+    `Vi har släppt en ny version av Foilio. Tre saker du kommer märka:\n\n` +
+    `JAPANSKA SINGLAR\n` +
+    `Över 5 500 japanska kort från 46 set finns nu i katalogen — sök, bevaka och lägg dem i samlingen precis som de engelska.\n\n` +
+    `LOGGA IN MED GOOGLE ELLER APPLE\n` +
+    `Ett tryck, inget lösenord att komma ihåg. Fungerar på webben och i appen.\n\n` +
+    `SKANNA UTAN KONTO\n` +
+    `Den som laddar ner appen kan prova kortskannern 10 gånger utan att skapa konto. Tipsa gärna en kompis.\n\n` +
+    `Har du appen? Inloggningen och gästskanningen kräver version 1.1. Har du inte automatiska uppdateringar på behöver du uppdatera själv i App Store:\n` +
+    `${APP_STORE_URL}\n\n` +
+    `Hittar du något som inte stämmer? Svara på det här mejlet — vi läser allt.\n\n` +
+    `Vill du inte ha nyhetsmejl? Avregistrera dig: ${unsubscribeUrl}\n` +
+    `Dina larm och ditt veckobrev rörs inte.\n` +
+    `Foilio · Sveriges marknadsplats för Pokémon TCG`;
   return { subject, html, text };
 }

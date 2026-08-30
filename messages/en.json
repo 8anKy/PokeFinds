@@ -38,6 +38,8 @@
     "notifEmailHint": "Price alerts via email.",
     "notifWeekly": "Weekly digest",
     "notifWeeklyHint": "A weekly summary: your collection's value, price drops on what you watch and this week's finds. Requires email notifications to be on.",
+    "notifNews": "News from Foilio",
+    "notifNewsHint": "An email when something new ships — new features and major updates. Rarely. Requires email notifications to be on.",
     "notifAll": "All restocks",
     "notifAllHint": "Get an alert when ANY sealed product comes back in stock, without watching it.",
     "notifAllPausedHint": "Paused for now — no restock alerts are sent.",
@@ -1492,6 +1494,12 @@
   },
   "PageNav": {
     "back": "Back"
+  },
+  "UpdateBanner": {
+    "title": "Foilio {version} is on the App Store",
+    "body": "Sign in with Google or Apple and scan without an account — update the app to get it.",
+    "cta": "Update",
+    "dismiss": "Dismiss"
   },
   "Offline": {
     "message": "No internet connection",

@@ -1,0 +1,82 @@
+name: Nyhetsmejl — "det här är nytt i Foilio" (manuellt utskick)
+
+# NYHETSMEJL PER SLÄPP: vad som är nytt i den senaste versionen (första gången
+# 2026-08-30: japanska singlar, Google-/Apple-inloggning, skanning utan konto).
+# Mallen: src/emails/templates.ts (`releaseNotesEmail`). Vid nästa släpp byts
+# innehållet där, sedan körs det här workflowet igen.
+#
+# ⛔ VARFÖR ETT WORKFLOW OCH INTE EN LOKAL KÖRNING: `RESEND_API_KEY` finns bara i
+# Railway och som Actions-secret — inte i utvecklingsmaskinens .env, och lokalt
+# står `EMAIL_MODE=console` så mailern LOGGAR i stället för att skicka. Skriptet
+# vägrar köra i konsolläge — en grön körning utan mejl är det farligaste utfallet.
+#
+# ⛔ ALDRIG PÅ SCHEMA. Ett schema hade mejlat samma nyheter om och om igen.
+#
+# ⚠️ `send_to_all: false` (standard) skickar EN förhandsgranskning till ägaren.
+# `true` skickar skarpt till alla konton med e-post + nyheter påslagna. Det går
+# inte att ångra. Avanmälan (typ `news`) signeras med UNSUBSCRIBE_SECRET /
+# NEXTAUTH_SECRET — samma hemlighet som webben verifierar med, annars är varje
+# avanmälningslänk död och skriptet vägrar skicka.
+on:
+  workflow_dispatch:
+    inputs:
+      send_to_all:
+        description: "SKARPT utskick till ALLA. Tomt/false = förhandsgranskning till ägaren."
+        type: boolean
+        default: false
+      only:
+        description: "Komplettera EN adress efter ett delvis misslyckat utskick (kräver send_to_all)."
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-notes-notice
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      UNSUBSCRIBE_SECRET: ${{ secrets.UNSUBSCRIBE_SECRET }}
+      EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+      NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+    steps:
+      - name: Förkrav — hemligheterna måste vara satta
+        run: |
+          # Ett saknat förkrav här är ett FEL, inte en tyst no-op: någon har tryckt
+          # på knappen och väntar sig ett utskick.
+          missing=""
+          [ -z "${DATABASE_URL}" ] && missing="${missing} DATABASE_URL"
+          [ -z "${RESEND_API_KEY}" ] && missing="${missing} RESEND_API_KEY"
+          if [ -z "${UNSUBSCRIBE_SECRET}" ] && [ -z "${NEXTAUTH_SECRET}" ]; then
+            missing="${missing} UNSUBSCRIBE_SECRET/NEXTAUTH_SECRET"
+          fi
+          if [ -n "${missing}" ]; then
+            echo "::error::Saknade hemligheter:${missing}"
+            exit 1
+          fi
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx prisma generate
+      - name: Skicka
+        run: |
+          if [ "${{ inputs.send_to_all }}" = "true" ]; then
+            if [ -n "${{ inputs.only }}" ]; then
+              npx tsx scripts/send-release-notes.ts --send-to-all --only="${{ inputs.only }}"
+            else
+              npx tsx scripts/send-release-notes.ts --send-to-all
+            fi
+          else
+            npx tsx scripts/send-release-notes.ts
+          fi

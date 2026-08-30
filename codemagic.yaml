@@ -21,6 +21,8 @@ workflows:
         GOOGLE_IOS_CLIENT_ID: "920300522039-odqr8p38snk5ouptk3mp4g1e6ntmtojj.apps.googleusercontent.com"
         BUNDLE_ID: "se.foilio.app"
         # App Store-version. 1.0 är godkänd ⇒ 1.1 = Google-/Apple-inloggning. Höj vid varje släpp.
+        # ⛔ Höj även `MIN_APP_VERSION` i src/lib/app-version.ts — men först när versionen
+        # är GODKÄND i App Store: den tänder "uppdatera appen"-remsan i alla äldre byggen.
         MARKETING_VERSION: "1.1"
         # Capacitor 8 = SPM-mall: inget CocoaPods, ingen .xcworkspace — bygg xcodeproj:t direkt.
         XCODE_PROJECT: "ios/App/App.xcodeproj"
