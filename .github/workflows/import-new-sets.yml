@@ -27,11 +27,13 @@ concurrency:
 jobs:
   import:
     runs-on: ubuntu-latest
-    # 90, inte 30: bildlagningen verifierar varje TCGGO-bild och JP-singlarna (08-29)
-    # gjorde kandidaterna ~150 → 5 691 (nedladdning + hash + avkodning ≈ 0,3 s/st ≈
-    # 30 min). Med taket på 30 CANCELLADES jobbet mitt i steget 2026-08-30 (två gånger)
-    # och avtryckssteget efter det uteblev. Publikt repo = gratis minuter.
-    timeout-minutes: 90
+    # 300, inte 30/90: bildlagningen verifierar varje TCGGO-bild sekventiellt och
+    # JP-singlarna (08-29) gjorde kandidaterna ~150 → 5 691 (nedladdning + hash +
+    # avkodning per kort). MÄTT 2026-08-30: svepet höll på i 88,5 min och cancellades
+    # av 90-taket — och 30-taket hade cancellat samma svep mitt i två gånger tidigare;
+    # "28 min" var aldrig steget, det var taket. Avtryckssteget efter uteblev varje
+    # gång. Publikt repo = gratis minuter; taket ska fånga en HÄNGNING, inte arbetet.
+    timeout-minutes: 300
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       POKEMONTCG_API_KEY: ${{ secrets.POKEMONTCG_API_KEY }} # valfri — högre rate limit
