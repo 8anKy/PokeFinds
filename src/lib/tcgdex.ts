@@ -45,6 +45,23 @@ export interface TcgdexFetchOptions {
 
 const realSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+/**
+ * KRETSBRYTARE. När ett anrop gett upp (alla omförsök slut) är värden nere för
+ * ALLA anrop i processen under `TCGDEX_BREAKER_MS` — de kastar direkt, utan
+ * fetch och utan backoff-sömn. MÄTT 2026-08-30 (körning 33324672536): utan
+ * brytaren tog bildlagningen > 29 min mot ett dött TCGdex — varje kort med död
+ * bild gjorde två anrop à (försök + 1 s sömn + försök) — och jobbet slog i
+ * 30-minuterstaket. Normalt tar steget 1,5–2,5 min. En nedtid ska kosta EN
+ * väntan, inte en per kort.
+ */
+export const TCGDEX_BREAKER_MS = 10 * 60_000;
+let breakerOpenUntil = 0;
+
+/** Bara för test. */
+export function resetTcgdexBreaker(): void {
+  breakerOpenUntil = 0;
+}
+
 /** Är svaret värt ett omförsök? 429 = "för fort", 5xx = deras fel. 4xx i övrigt = svaret. */
 export function isRetryableStatus(status: number): boolean {
   return status === 429 || status >= 500;
@@ -52,6 +69,9 @@ export function isRetryableStatus(status: number): boolean {
 
 export async function tcgdexJson<T>(url: string, options: TcgdexFetchOptions = {}): Promise<T | null> {
   const { retries = 3, timeoutMs = 15_000, fetchImpl = fetch, sleep = realSleep } = options;
+  if (breakerOpenUntil > Date.now()) {
+    throw new TcgdexUnavailable(url, new Error("kretsbrytaren är öppen efter tidigare fel"));
+  }
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -64,5 +84,6 @@ export async function tcgdexJson<T>(url: string, options: TcgdexFetchOptions = {
     }
     if (attempt < retries) await sleep(1000 * 2 ** attempt);
   }
+  breakerOpenUntil = Date.now() + TCGDEX_BREAKER_MS;
   throw new TcgdexUnavailable(url, lastError);
 }

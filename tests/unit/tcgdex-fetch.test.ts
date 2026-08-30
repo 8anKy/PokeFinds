@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it, vi } from "vitest";
-import { TcgdexUnavailable, isRetryableStatus, tcgdexJson } from "@/lib/tcgdex";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { TcgdexUnavailable, isRetryableStatus, resetTcgdexBreaker, tcgdexJson } from "@/lib/tcgdex";
+
+beforeEach(() => resetTcgdexBreaker());
 
 /**
  * 2026-08-30: api.tcgdex.net vägrade anslutningar från GitHub-runnern i några
@@ -59,6 +61,31 @@ describe("tcgdexJson", () => {
     const fetchImpl = vi.fn(async () => (++calls < 3 ? res(503) : res(200, [{ id: "a" }])));
     await expect(tcgdexJson("u", { fetchImpl, sleep: noSleep })).resolves.toEqual([{ id: "a" }]);
     expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it("efter ett uppgivet anrop är värden nere för alla: kastar direkt utan fetch/sömn", async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    });
+    const sleep = vi.fn(async (_ms: number) => {});
+    await expect(tcgdexJson("a", { fetchImpl, sleep, retries: 1 })).rejects.toBeInstanceOf(TcgdexUnavailable);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+
+    // Körning 33324672536: 29 min av (försök + sömn + försök) per kort mot ett dött värd.
+    await expect(tcgdexJson("b", { fetchImpl, sleep, retries: 1 })).rejects.toBeInstanceOf(TcgdexUnavailable);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledTimes(1);
+
+    resetTcgdexBreaker();
+    await tcgdexJson("c", { fetchImpl, sleep, retries: 0 }).catch(() => null);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it("ett 404 öppnar INTE brytaren", async () => {
+    const fetchImpl = vi.fn(async () => res(404));
+    await tcgdexJson("a", { fetchImpl, sleep: noSleep });
+    await tcgdexJson("b", { fetchImpl, sleep: noSleep });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
   it("varje försök bär en timeout", async () => {

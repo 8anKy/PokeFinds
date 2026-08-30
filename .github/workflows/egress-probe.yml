@@ -1,0 +1,66 @@
+name: Egress-sond (når runnern värden X?)
+
+# DIAGNOSTIK, körs bara för hand. Svarar på EN fråga: "svarar värden X från en
+# GitHub-runner, och i så fall för vem?" — curl v4, curl v6, Nodes fetch med
+# standardinställningar och Nodes fetch med höjd happy-eyeballs-tid. Tre värdar har
+# hittills betett sig olika mot Actions än mot vanliga IP:n (Leksaksaffären 403,
+# api.tcgdex.net ETIMEDOUT 2026-08-30), och utan sonden blir varje sådan fråga en
+# gissning i ett 30-minutersjobb. Inga hemligheter, ingen DB, ingen checkout.
+#
+# Läs utfallet så här:
+#   curl 200 + node FEL  → Nodes happy eyeballs (250 ms per adress i Node 20) ger
+#                          upp före SYN-ACK; höj autoSelectFamilyAttemptTimeout.
+#   curl FEL + node FEL  → värden spärrar Azure-/Actions-IP:n; går inte att laga i kod.
+#   allt 200             → transient; sonden kördes för sent.
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "URL att sondera"
+        required: true
+        default: "https://api.tcgdex.net/v2/en/sets"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      URL: ${{ inputs.url }}
+    steps:
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+      - name: Runnerns egress
+        run: |
+          echo "IPv4: $(curl -4 -sS --max-time 10 https://api.ipify.org || echo 'saknas')"
+          echo "IPv6: $(curl -6 -sS --max-time 10 https://api6.ipify.org || echo 'saknas')"
+          echo "DNS:"; getent ahosts "$(echo "$URL" | sed -E 's#https?://([^/]+).*#\1#')" || true
+      - name: curl
+        run: |
+          curl -4 -sS -o /dev/null --max-time 20 -w "curl v4: HTTP %{http_code} connect=%{time_connect}s total=%{time_total}s ip=%{remote_ip}\n" "$URL" || echo "curl v4: FEL ($?)"
+          curl -6 -sS -o /dev/null --max-time 20 -w "curl v6: HTTP %{http_code} connect=%{time_connect}s total=%{time_total}s ip=%{remote_ip}\n" "$URL" || echo "curl v6: FEL ($?)"
+      - name: node fetch
+        run: |
+          node -e '
+            const why = (e) => `${e.cause?.code ?? e.message}${e.cause?.errors ? " [" + e.cause.errors.map((x) => `${x.code} ${x.address ?? ""}`).join(", ") + "]" : ""}`;
+            const run = async (label, prep) => {
+              prep?.();
+              const t = Date.now();
+              try {
+                const r = await fetch(process.env.URL, { signal: AbortSignal.timeout(20000) });
+                console.log(`${label}: HTTP ${r.status} på ${Date.now() - t} ms`);
+              } catch (e) {
+                console.log(`${label}: FEL ${why(e)} efter ${Date.now() - t} ms`);
+              }
+            };
+            (async () => {
+              const net = require("net");
+              console.log(`node ${process.version}, autoSelectFamilyAttemptTimeout=${net.getDefaultAutoSelectFamilyAttemptTimeout()} ms`);
+              await run("node fetch (standard)");
+              await run("node fetch (attemptTimeout 3000 ms)", () => net.setDefaultAutoSelectFamilyAttemptTimeout(3000));
+              await run("node fetch (autoSelectFamily av)", () => net.setDefaultAutoSelectFamily(false));
+            })();
+          '
