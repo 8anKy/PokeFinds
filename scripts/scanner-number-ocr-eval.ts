@@ -51,7 +51,22 @@ interface Sample {
 
 type Variant = { name: string; prep: (b: Buffer) => Promise<Buffer>; psm: PSM };
 
+/** Nedre vänstra hörnet av remsan — där moderna kort (SV, JP) trycker numret.
+ *  ⚠️ WotC-erans nummer sitter nere till HÖGER; den här beskärningen missar dem
+ *  med flit i den här mätrundan (batchen är JP/SV). */
+async function bottomLeft(b: Buffer, scale: number): Promise<Buffer> {
+  const img = await Jimp.read(b);
+  const w = Math.round(img.width * 0.45);
+  const y = Math.round(img.height * 0.3);
+  img.crop({ x: 0, y, w, h: img.height - y }).greyscale();
+  img.resize({ w: img.width * scale, h: img.height * scale });
+  return img.getBuffer("image/png");
+}
+
 const VARIANTS: Variant[] = [
+  { name: "vä 45 % · 3× · block", prep: (b) => bottomLeft(b, 3), psm: PSM.SINGLE_BLOCK },
+  { name: "vä 45 % · 3× · sparse", prep: (b) => bottomLeft(b, 3), psm: PSM.SPARSE_TEXT },
+  { name: "vä 45 % · 4× · block", prep: (b) => bottomLeft(b, 4), psm: PSM.SINGLE_BLOCK },
   { name: "rå · block", prep: async (b) => b, psm: PSM.SINGLE_BLOCK },
   {
     name: "grå 2× · block",

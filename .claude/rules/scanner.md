@@ -380,3 +380,9 @@ Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md p
   mätning. `result.strip` (nummerremsan som JPEG, ≤200 kB) skrivs BARA för admin — det är en bild.
   Mät med `scripts/scanner-number-ocr-eval.ts --field` (tesseract.js, devDep); `--catalog N` är ett TAK
   (76 % exakt på renderingar, 68 % rå remsa, ~0,5 s/remsa). Beslut om lokal OCR tas på FÄLTTALET.
+  **FÄLTTAL 2026-08-31 (43 JP-remsor, ägarens iPhone):** tesseract bästa enskilda variant **25,6 %**,
+  bästa-av-7 **44,2 %** — mot **Gemini 94,9 %** på SAMMA remsor. ⛔ Iterera inte tesseract mer: siffrorna är
+  ~20 px, vita med mörk kontur OVANPÅ konsten, plastficka + rörelseoskärpa. Kvar som gratis spår: ML Kit
+  on-device i appen (skuggläge, nytt native-bygge) eller en egen liten sifferdetektor när ~1 000 admin-remsor
+  finns. ⚠️ Samma batch visade att JP-skanningar landar på EN-kortet (08-29-regeln) — ett `language`-fält i
+  vision-kontraktet kan bryta lika mot JP; ej byggt.
