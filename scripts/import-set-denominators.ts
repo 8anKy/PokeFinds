@@ -44,6 +44,7 @@
 import { PrismaClient, Prisma } from "@prisma/client";
 import { fetchTcgSets } from "../src/scrapers/adapters/pokemontcg-adapter";
 import { mapPool } from "../src/lib/concurrency";
+import { TCGDEX_BASE, TcgdexUnavailable, tcgdexJson } from "../src/lib/tcgdex";
 
 const prisma = new PrismaClient();
 const DRY = process.argv.includes("--dry");
@@ -54,8 +55,7 @@ const REFRESH_ALL = process.argv.includes("--refresh-all");
 const REFRESH_DAYS = 365;
 const DEX_CONCURRENCY = 10;
 
-const DEX_BASE = "https://api.tcgdex.net/v2/en";
-const UA = { "User-Agent": "FoilioBot/1.0 (+https://foilio.se)" };
+const DEX_BASE = `${TCGDEX_BASE}/en`;
 
 interface DexSet {
   id: string;
@@ -81,11 +81,12 @@ const norm = (s: string) =>
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
-async function dexJson<T>(url: string): Promise<T | null> {
-  const r = await fetch(url, { headers: UA });
-  if (!r.ok) return null;
-  return (await r.json()) as T;
-}
+/**
+ * Omförsök + timeout bor i `src/lib/tcgdex.ts`. `null` = "finns inte hos TCGdex"
+ * (ett DATA-svar), `TcgdexUnavailable` = "vi kunde inte fråga" — de två måste
+ * hanteras OLIKA nedan: det första ger 0 = OKÄNT, det andra behåller det vi visste.
+ */
+const dexJson = <T>(url: string) => tcgdexJson<T>(url);
 
 async function main() {
   const sets = await prisma.cardSet.findMany({
@@ -109,13 +110,37 @@ async function main() {
   console.log(`pokemontcg.io: ${upstream.length} set.`);
 
   // ---------- Källa 2: TCGdex ----------
-  const list = (await dexJson<{ id: string }[]>(`${DEX_BASE}/sets`)) ?? [];
-  const fetched: (DexSet | null)[] = new Array(list.length).fill(null);
-  await mapPool(list, 8, async (s, i) => {
-    fetched[i] = await dexJson<DexSet>(`${DEX_BASE}/sets/${s.id}`);
-  });
-  const dexSets = fetched.filter((s): s is DexSet => s != null && s.serie?.id !== "tcgp");
-  console.log(`TCGdex: ${list.length} set, ${dexSets.length} fysiska.`);
+  // ⛔ EN OTILLGÄNGLIG KÄLLA FÅR ALDRIG NOLLA DET VI REDAN VET. Före 2026-08-30
+  // gav ett icke-ok svar på set-listan en TOM lista ⇒ vartenda set blev
+  // "omatchat" ⇒ `tcgdexId = null, printingsTotal = 0` skrevs för alla 176 set.
+  // En 500:a hos TCGdex hade alltså raderat master set-nämnarna över hela
+  // katalogen, i en körning som såg grön ut. Nu: går TCGdex inte att nå hoppas
+  // källan över och varje set behåller sina tidigare TCGdex-värden; bara
+  // pokemontcg.io-nämnaren (`totalCardsFull`) uppdateras. Nästa vecka läker det.
+  let list: { id: string }[] | null = null;
+  try {
+    list = await dexJson<{ id: string }[]>(`${DEX_BASE}/sets`);
+  } catch (e) {
+    if (!(e instanceof TcgdexUnavailable)) throw e;
+    console.warn(`TCGdex: ${e.message}`);
+  }
+  // En tom set-lista är aldrig ett giltigt svar — TCGdex har hundratals set.
+  const dexAvailable = list != null && list.length > 0;
+  if (!dexAvailable) {
+    console.warn("TCGdex: otillgänglig — behåller tidigare tcgdexId/printingsTotal, fyller bara totalCardsFull.");
+  }
+  let dexSets: DexSet[] = [];
+  if (dexAvailable) {
+    const fetched: (DexSet | null)[] = new Array(list!.length).fill(null);
+    await mapPool(list!, 8, async (s, i) => {
+      fetched[i] = await dexJson<DexSet>(`${DEX_BASE}/sets/${s.id}`).catch((e) => {
+        if (!(e instanceof TcgdexUnavailable)) throw e;
+        return null;
+      });
+    });
+    dexSets = fetched.filter((s): s is DexSet => s != null && s.serie?.id !== "tcgp");
+    console.log(`TCGdex: ${list!.length} set, ${dexSets.length} fysiska.`);
+  }
 
   const dexByName = new Map<string, DexSet[]>();
   for (const d of dexSets) {
@@ -133,6 +158,8 @@ async function main() {
     printingsComputed: 0,
     printingsReused: 0,
     printingsFailed: 0,
+    /** Set där TCGdex inte gick att nå — tidigare värden behålls, inte 0. */
+    dexUnavailable: 0,
     dexCardRequests: 0,
   };
   const unmatched: string[] = [];
@@ -144,6 +171,12 @@ async function main() {
     const full = (s.externalId ? totalByExt.get(s.externalId) : undefined) ?? 0;
     if (full > 0) stats.fullFilled++;
     else stats.fullMissing++;
+
+    if (!dexAvailable) {
+      stats.dexUnavailable++;
+      updates.push({ id: s.id, full, dexId: s.tcgdexId, printings: s.printingsTotal });
+      continue;
+    }
 
     // Namnkrockar löses på KORTANTAL, aldrig på gissning.
     const cands = dexByName.get(norm(s.name)) ?? [];
@@ -167,8 +200,31 @@ async function main() {
       continue;
     }
 
-    const detail = await dexJson<DexSet>(`${DEX_BASE}/sets/${dex.id}`);
-    const ids = detail?.cards?.map((c) => c.id) ?? [];
+    // "Vi kunde inte fråga" ≠ "de vet inte". Dör TCGdex MITT I körningen behåller
+    // setet sitt förra tal (räknat komplett en gång) i stället för att nollas —
+    // samma regel som för listan ovan. 0 reserveras för äkta dataluckor.
+    let printings = 0;
+    let missing = 0;
+    let ids: string[] = [];
+    try {
+      const detail = await dexJson<DexSet>(`${DEX_BASE}/sets/${dex.id}`);
+      ids = detail?.cards?.map((c) => c.id) ?? [];
+      if (ids.length > 0) {
+        await mapPool(ids, DEX_CONCURRENCY, async (cardId) => {
+          const c = await dexJson<DexCard>(`${DEX_BASE}/cards/${cardId}`);
+          stats.dexCardRequests++;
+          const n = c?.variants_detailed?.length ?? 0;
+          if (n === 0) missing++;
+          printings += n;
+        });
+      }
+    } catch (e) {
+      if (!(e instanceof TcgdexUnavailable)) throw e;
+      stats.dexUnavailable++;
+      failures.push(`${s.name} [${dex.id}]: ${e.message} — behåller ${s.printingsTotal}`);
+      updates.push({ id: s.id, full, dexId: dex.id, printings: s.printingsTotal });
+      continue;
+    }
     if (ids.length === 0) {
       stats.printingsFailed++;
       failures.push(`${s.name} [${dex.id}]: TCGdex gav ingen kortlista`);
@@ -176,19 +232,9 @@ async function main() {
       continue;
     }
 
-    let printings = 0;
-    let missing = 0;
-    await mapPool(ids, DEX_CONCURRENCY, async (cardId) => {
-      const c = await dexJson<DexCard>(`${DEX_BASE}/cards/${cardId}`);
-      stats.dexCardRequests++;
-      const n = c?.variants_detailed?.length ?? 0;
-      if (n === 0) missing++;
-      printings += n;
-    });
-
-    // ⛔ ALLT ELLER INGET. Ett delvis svar (nätverksfel mitt i, kort utan
-    // variantdata) ger ett för LÅGT tal som ser exakt lika trovärdigt ut som ett
-    // rätt. 0 = OKÄNT och noten uteblir — det är det ärliga utfallet.
+    // ⛔ ALLT ELLER INGET. Ett delvis svar (kort utan variantdata) ger ett för
+    // LÅGT tal som ser exakt lika trovärdigt ut som ett rätt. 0 = OKÄNT och
+    // noten uteblir — det är det ärliga utfallet.
     if (missing > 0) {
       stats.printingsFailed++;
       failures.push(`${s.name} [${dex.id}]: ${missing} av ${ids.length} kort saknade variantdata`);

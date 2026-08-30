@@ -57,6 +57,7 @@ import {
   type CtBlueprint,
   type CtExpansion,
 } from "../src/lib/cardtrader";
+import { TCGDEX_BASE, TcgdexUnavailable, tcgdexJson } from "../src/lib/tcgdex";
 
 function fromDotEnv(key: string): string | undefined {
   try {
@@ -399,10 +400,16 @@ async function main() {
   });
   console.log(`Kandidater: ${targets.length}${ONLY_SET ? ` (set=${ONLY_SET})` : ""}\n`);
 
-  const dexSets = (await (await fetch("https://api.tcgdex.net/v2/en/sets")).json()) as {
-    id: string;
-    name: string;
-  }[];
+  // TCGdex är källa 3 av 4 — går den inte att nå (2026-08-30: ETIMEDOUT från
+  // runnern) ska pokemontcg.io/TCGGO/CardTrader ändå få laga det de kan, inte
+  // hela steget dö på första anropet. Tom karta ⇒ TCGdex-vägen hoppas över.
+  let dexSets: { id: string; name: string }[] = [];
+  try {
+    dexSets = (await tcgdexJson<{ id: string; name: string }[]>(`${TCGDEX_BASE}/en/sets`)) ?? [];
+  } catch (e) {
+    if (!(e instanceof TcgdexUnavailable)) throw e;
+    console.warn(`TCGdex otillgänglig — hoppar över den källan: ${e.message}`);
+  }
   const dexByName = new Map(dexSets.map((s) => [norm(s.name), s.id]));
 
   let alreadyOk = 0;
@@ -506,22 +513,19 @@ async function main() {
       const dexSet = SET_OVERRIDES[c.set.externalId ?? ""] ?? dexByName.get(norm(c.set.name));
       if (dexSet) dexIds.push(`${dexSet}-${c.number}`);
       for (const dexId of dexIds) {
-        const rr = await fetch(`https://api.tcgdex.net/v2/en/cards/${dexId}`).catch(() => null);
-        if (!rr?.ok) continue;
-        const card = (await rr.json()) as { image?: string };
-        if (!card.image) continue;
+        const card = await tcgdexJson<{ image?: string }>(`${TCGDEX_BASE}/en/cards/${dexId}`, {
+          retries: 1,
+        }).catch(() => null);
+        if (!card?.image) continue;
         for (const suf of IMAGE_SUFFIXES) candidates.push({ url: `${card.image}${suf}`, src: "TCGdex" });
         break;
       }
       if (dexSet) {
-        const r = await fetch(`https://api.tcgdex.net/v2/en/cards/${dexSet}-${c.number}`).catch(
-          () => null
-        );
-        if (r?.ok) {
-          const card = (await r.json()) as {
-            image?: string;
-            pricing?: { tcgplayer?: Record<string, { productId?: number } | undefined> };
-          };
+        const card = await tcgdexJson<{
+          image?: string;
+          pricing?: { tcgplayer?: Record<string, { productId?: number } | undefined> };
+        }>(`${TCGDEX_BASE}/en/cards/${dexSet}-${c.number}`, { retries: 1 }).catch(() => null);
+        if (card) {
           if (card.image)
             for (const s of IMAGE_SUFFIXES) candidates.push({ url: `${card.image}${s}`, src: "TCGdex" });
           const pid = Object.values(card.pricing?.tcgplayer ?? {}).find((v) => v?.productId)
