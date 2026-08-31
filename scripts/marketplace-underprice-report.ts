@@ -18,7 +18,7 @@
  *   node scripts/with-prod-db.mjs npx tsx scripts/marketplace-underprice-report.ts --strict  # exit 1 om någon (CI)
  */
 import { PrismaClient } from "@prisma/client";
-import { replaceHealthSection } from "../src/lib/store-health-findings";
+import { healthAckKey, loadHealthAckKeys, replaceHealthSection } from "../src/lib/store-health-findings";
 
 const prisma = new PrismaClient();
 const STRICT = process.argv.includes("--strict");
@@ -83,8 +83,18 @@ async function main() {
     }))
   );
 
-  if (STRICT && rows.length > 0) {
-    console.error(`\nSTRICT: ${rows.length} underpris-offers → exit 1`);
+  // Kvitterade offers ("korrekt billig — t.ex. skadad, medvetet lågt utrop") gör inte
+  // körningen röd; de syns ändå i loggen och döljs av adminvyn själv.
+  const acks = await loadHealthAckKeys(prisma);
+  const unacked = rows.filter(
+    (r) => !acks.has(healthAckKey("UNDERPRICE", { offerId: r.offerId, title: r.title }))
+  );
+  if (rows.length > unacked.length) {
+    console.log(`\n  (${rows.length - unacked.length} kvitterade OK i admin — räknas inte som röda.)`);
+  }
+
+  if (STRICT && unacked.length > 0) {
+    console.error(`\nSTRICT: ${unacked.length} underpris-offers → exit 1`);
     process.exitCode = 1;
   }
   await prisma.$disconnect();

@@ -44,7 +44,7 @@ import {
   scoreSimilarity,
   setMarkerMismatch,
 } from "../src/scrapers/matching";
-import { replaceHealthSection } from "../src/lib/store-health-findings";
+import { healthAckKey, loadHealthAckKeys, replaceHealthSection } from "../src/lib/store-health-findings";
 
 const prisma = new PrismaClient();
 
@@ -433,13 +433,22 @@ async function main() {
     emptiedTitles.map((t) => ({ severity: "INFO" as const, title: t }))
   );
 
+  // Kvitterade fynd ("offern är korrekt", /admin/halsokoll) gör inte körningen röd —
+  // en rapport som är permanent röd för ett bedömt-korrekt fynd slutar bli läst.
+  // De rapporteras ändå i loggen och i adminvyn (som döljer dem själv).
+  const acks = await loadHealthAckKeys(prisma);
+  const definiteUnacked = definite.filter(
+    (d) => !acks.has(healthAckKey("LINK_DEFINITE", { offerId: d.o.id, title: d.o.product.title }))
+  );
+  const ackedCount = definite.length - definiteUnacked.length;
+
   console.log(
-    `\nSUMMERING: ${definite.length} säkra fel · ${review.length} att granska · ` +
+    `\nSUMMERING: ${definite.length} säkra fel${ackedCount > 0 ? ` (varav ${ackedCount} kvitterade OK i admin — räknas inte som röda)` : ""} · ${review.length} att granska · ` +
       `${refusedByStore.length} avvisade av butiken · ${targets.length} kontrollerade`
   );
   // ⛔ `refusedByStore` gör ALDRIG körningen röd. Att en butik spärrar Actions-IP:n går
   // inte att laga i koden, och en rapport som är permanent röd slutar bli läst.
-  if (definite.length > 0) process.exitCode = 1;
+  if (definiteUnacked.length > 0) process.exitCode = 1;
   await prisma.$disconnect();
 }
 

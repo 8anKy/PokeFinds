@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { replaceHealthSection, storeHealthDbEnabled } from "@/lib/store-health-findings";
+import {
+  healthAckKey,
+  loadHealthAckKeys,
+  replaceHealthSection,
+  storeHealthDbEnabled,
+} from "@/lib/store-health-findings";
 import type { PrismaClient } from "@prisma/client";
 
 /**
@@ -83,6 +88,37 @@ describe("replaceHealthSection", () => {
     await expect(
       replaceHealthSection(prisma, "UNDERPRICE", [{ severity: "DEFINITE", title: "x" }])
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("healthAckKey (kvittering av korrekta fynd)", () => {
+  it("är stabil över veckans omskrivningar: offer-id när det finns, annars titeln", () => {
+    expect(healthAckKey("UNDERPRICE", { offerId: "o1", title: "X" })).toBe("UNDERPRICE:o1");
+    expect(healthAckKey("GTIN_CONFLICT", { offerId: null, title: "Lillie PTC" })).toBe(
+      "GTIN_CONFLICT:Lillie PTC"
+    );
+  });
+
+  it("inkluderar SEKTIONEN — ett kvitterat granska-fynd som senare dör återuppstår", () => {
+    const asReview = healthAckKey("LINK_REVIEW", { offerId: "o1", title: "X" });
+    const asDefinite = healthAckKey("LINK_DEFINITE", { offerId: "o1", title: "X" });
+    expect(asReview).not.toBe(asDefinite);
+  });
+});
+
+describe("loadHealthAckKeys", () => {
+  it("failar ÖPPET (tom mängd) mot en databas utan tabellen — rapporten ska ändå köra", async () => {
+    const prisma = {
+      storeHealthAck: { findMany: vi.fn().mockRejectedValue(new Error("relation does not exist")) },
+    } as unknown as PrismaClient;
+    await expect(loadHealthAckKeys(prisma)).resolves.toEqual(new Set());
+  });
+
+  it("returnerar nycklarna som mängd", async () => {
+    const prisma = {
+      storeHealthAck: { findMany: vi.fn().mockResolvedValue([{ key: "UNDERPRICE:o1" }]) },
+    } as unknown as PrismaClient;
+    await expect(loadHealthAckKeys(prisma)).resolves.toEqual(new Set(["UNDERPRICE:o1"]));
   });
 });
 

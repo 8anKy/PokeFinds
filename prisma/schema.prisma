@@ -1194,6 +1194,24 @@ model StoreHealthFinding {
   @@index([section])
 }
 
+/// KVITTERING av ett hälsokolls-fynd som admin bedömt KORREKT ("offern är rätt,
+/// rapporten har fel"). Samma mönster som Product.gtinConflictAckKey: kvitteringen
+/// överlever veckans omskrivning av fynden (nyckeln är stabil: sektion + offer-id,
+/// eller titel när offer saknas) och döljer fyndet i /admin/halsokoll + räknas bort
+/// ur den röda exit-koden i audit-links/underpris-rapporten. Byter fyndet SEKTION
+/// (t.ex. granska-länk som senare dör) matchar nyckeln inte längre → fyndet återuppstår.
+/// Ångra = radera raden (knapp i adminvyn).
+model StoreHealthAck {
+  id          String   @id @default(cuid())
+  /// `${section}:${offerId ?? title}` — se healthAckKey().
+  key         String   @unique
+  section     String
+  offerId     String?
+  title       String
+  createdById String?
+  createdAt   DateTime @default(now())
+}
+
 /// UTMÄRKELSER — en rad per (användare, märke, nivå) som FAKTISKT delats ut.
 ///
 /// ⛔ **TABELLEN ÄR FACIT, INTE EN VY.** Ett märke är ett HISTORISKT FAKTUM: den

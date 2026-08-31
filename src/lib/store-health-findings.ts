@@ -106,6 +106,29 @@ export const HEALTH_SECTIONS = {
 
 export type HealthSection = keyof typeof HEALTH_SECTIONS;
 
+/**
+ * KVITTERING ("fyndet är fel — offern är korrekt"). Nyckeln måste överleva veckans
+ * omskrivning av fyndraderna (nya cuid varje körning): offer-id när det finns,
+ * annars titeln. Sektionen ingår med flit — en granska-länk som kvitterats och
+ * SENARE dör hamnar i en annan sektion, matchar inte nyckeln och återuppstår.
+ */
+export function healthAckKey(section: string, f: { offerId?: string | null; title: string }): string {
+  return `${section}:${f.offerId ?? f.title}`;
+}
+
+/**
+ * Läser alla kvitteringsnycklar. Best-effort med flit: rapportskripten ska fungera
+ * mot en dev-databas som inte migrerats än — då finns inga kvitteringar, inte ett fel.
+ */
+export async function loadHealthAckKeys(prisma: PrismaClient): Promise<Set<string>> {
+  try {
+    const rows = await prisma.storeHealthAck.findMany({ select: { key: true } });
+    return new Set(rows.map((r) => r.key));
+  } catch {
+    return new Set();
+  }
+}
+
 /** Tak per sektion — adminvyn är en arbetslista, inte en dump; loggen har alltid allt. */
 const MAX_ROWS = 400;
 
