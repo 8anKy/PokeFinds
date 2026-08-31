@@ -178,12 +178,12 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
       createdAt: { gte: windowStart },
     },
     orderBy: { createdAt: "asc" },
-    select: { id: true, title: true, category: true, createdAt: true, gtin: true },
+    select: { id: true, title: true, slug: true, category: true, createdAt: true, gtin: true },
   });
   res.stubs = stubs.length;
   const catalog = await prisma.product.findMany({
     where: { category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY"] } },
-    select: { id: true, title: true, category: true, setId: true, createdAt: true, gtin: true },
+    select: { id: true, title: true, slug: true, category: true, setId: true, createdAt: true, gtin: true },
   });
   log(`[dedupe-stubs] ${stubs.length} stubbar (≤${STUB_WINDOW_DAYS} dgr), ${catalog.length} sealed-produkter i katalogen.`);
 
@@ -324,6 +324,9 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
             severity: "REVIEW",
             title: `"${stubTitle}" → "${c.title}"`,
             detail: "LLM sa samma SKU men ordmängdsvakten protesterade — merga bara manuellt",
+            // Titeln länkar STUBBEN; url länkar den föreslagna MÅLPRODUKTEN (intern länk).
+            productSlug: stub.slug,
+            url: `/produkter/${c.slug}`,
           });
           break;
         }

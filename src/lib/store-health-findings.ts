@@ -61,24 +61,25 @@ export const HEALTH_SECTIONS = {
   GTIN_CONFLICT: {
     label: "Motstridiga streckkoder",
     blurb:
-      "Produkter vars offers bär OLIKA streckkoder — minst en butikslänk är fel. Granska i Länkfel-fliken (filtrerad vy med kvittering).",
-    canDeleteOffer: false,
+      "En rad per butikslänk: produktens offers bär OLIKA koder, så minst en länk pekar på fel produkt. Öppna länkarna, se vilken butik som säljer något annat, och radera DEN offern (raden visar vilka koder som krockar).",
+    canDeleteOffer: true,
   },
   GTIN_CLASH: {
     label: "Vakt-krock (merga aldrig)",
     blurb:
-      "Streckkoden säger \"samma produkt\", en titelvakt säger emot. Vanligast: butiken säljer ett sortiment under en kod. Alltid människa.",
+      "Streckkoden säger \"samma produkt\", en titelvakt säger emot. Vanligast: butiken säljer ett sortiment under en kod — då är butikens LÄNK fel, inte katalogen. Titeln länkar produkt A, länkraden produkt B — jämför båda.",
     canDeleteOffer: false,
   },
   GTIN_DUPE: {
     label: "Säkra dubblettgrupper",
-    blurb: "Olika katalogprodukter, samma streckkod, ingen vakt protesterar — merge-kandidater.",
+    blurb:
+      "Olika katalogprodukter, samma streckkod, ingen vakt protesterar — merge-kandidater. En rad per produkt; raden länkar produktsidan.",
     canDeleteOffer: false,
   },
   CM_SINGLE_LINK: {
     label: "Sealed → singel-länk",
     blurb:
-      "Sealed-produkter vars CM-offer pekar på ett enstaka kort/ogiltigt idProduct. Repeka till rätt sealed-id — radera inte (receptet i loggen).",
+      "Sealed-produkter vars CM-offer pekar på ett enstaka kort/ogiltigt idProduct — ett maskinellt verifierat fel. Fixen är att REPEKA länken (receptet i loggen), inte radera. Falskt alarm-knappen ska i praktiken aldrig behövas här.",
     canDeleteOffer: false,
   },
   CM_MISMATCH: {
@@ -88,7 +89,8 @@ export const HEALTH_SECTIONS = {
   },
   DEDUPE_PROPOSAL: {
     label: "Dubblettförslag (stub-dedup)",
-    blurb: "LLM:en sa \"samma SKU\" men ordmängdsvakten protesterade — mergas aldrig automatiskt.",
+    blurb:
+      "LLM:en sa \"samma SKU\" men ordmängdsvakten protesterade — mergas aldrig automatiskt. Titeln länkar stubben, länkraden den föreslagna målprodukten — jämför båda.",
     canDeleteOffer: false,
   },
   LINK_EMPTIED: {

@@ -69,8 +69,9 @@ export function HealthClient({ findings, acks }: { findings: FindingRow[]; acks:
       if (!res.ok) throw new Error(data.error ?? "Kunde inte kvittera fyndet.");
       setAcked((prev) => new Set(prev).add(row.id));
       toast({
-        title: "Kvitterat som korrekt",
-        description: "Fyndet döljs och gör inte längre körningen röd. Ångra under Kvitterade.",
+        title: "Kvitterat som falskt alarm",
+        description:
+          "Du intygade att DIN DATA är rätt och rapporten hade fel. Fyndet döljs och gör inte körningen röd. Ångra längst ner.",
         variant: "success",
       });
     } catch (error) {
@@ -166,6 +167,14 @@ export function HealthClient({ findings, acks }: { findings: FindingRow[]; acks:
         . Varje sektion ersätts av nästa körning — det som är åtgärdat försvinner då av sig
         självt.
       </p>
+      <p className="rounded-lg border border-surface-border bg-surface-raised px-4 py-3 text-sm text-ink-muted">
+        <span className="font-medium text-ink">Knapparna betyder:</span>{" "}
+        <span className="font-medium text-ink">Ta bort offer</span> = fyndet stämmer, länken är
+        fel — offern raderas (och spärras/purgas enligt receptet).{" "}
+        <span className="font-medium text-ink">Falskt alarm — dölj</span> = fyndet stämmer INTE,
+        din data är korrekt — inget ändras, fyndet döljs permanent och slutar göra
+        veckokörningen röd. Kvittera lagar alltså aldrig något.
+      </p>
 
       {[...sectionKeys, ...unknownSections].map((key) => {
         const rows = bySection.get(key) ?? [];
@@ -206,7 +215,7 @@ export function HealthClient({ findings, acks }: { findings: FindingRow[]; acks:
                             <span className="text-xs text-ink-muted">{row.retailer}</span>
                           )}
                           {isDone && <Badge variant="success">Åtgärdad</Badge>}
-                          {isAcked && <Badge variant="success">Kvitterad OK</Badge>}
+                          {isAcked && <Badge variant="success">Falskt alarm — dolt</Badge>}
                           {deadLink && <Badge variant="default">rensas automatiskt</Badge>}
                         </div>
                         {row.productSlug ? (
@@ -252,7 +261,7 @@ export function HealthClient({ findings, acks }: { findings: FindingRow[]; acks:
                               disabled={busy !== null && busy !== `ack:${row.id}`}
                               onClick={() => ackFinding(row)}
                             >
-                              Korrekt — kvittera
+                              Falskt alarm — dölj
                             </Button>
                           )}
                         </div>
@@ -270,12 +279,13 @@ export function HealthClient({ findings, acks }: { findings: FindingRow[]; acks:
         <details className="group">
           <summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg border border-surface-border bg-surface-raised px-4 py-2.5">
             <span className="text-ink-muted transition-transform group-open:rotate-90">▸</span>
-            <span className="font-medium text-ink">Kvitterade som korrekta</span>
+            <span className="font-medium text-ink">Kvitterade falskt alarm</span>
             <Badge variant="success">{acks.length}</Badge>
           </summary>
           <p className="px-4 py-2 text-sm text-ink-muted">
-            Fynd du bedömt som korrekta — dolda ur listan och räknas inte som röda i
-            veckokörningen. Ångra så räknas fyndet igen från nästa körning.
+            Fynd du bedömt som falskt alarm (din data var rätt, rapporten fel) — dolda ur
+            listan och räknas inte som röda i veckokörningen. Ångra så räknas fyndet igen
+            från nästa körning.
           </p>
           <div className="mt-1 space-y-2">
             {acks.map((ack) => {

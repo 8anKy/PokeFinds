@@ -55,7 +55,9 @@ async function main() {
   // ---------- (B) DUBBLETT: olika produkter, samma streckkod ----------
   // Bara produkter vars offers är ENIGA (en distinkt kod) — annars vore vi
   // beroende av en produkt som redan är trasig enligt (A).
-  const dupes = await prisma.$queryRaw<{ gtin: string; productIds: string[]; titles: string[] }[]>`
+  const dupes = await prisma.$queryRaw<
+    { gtin: string; productIds: string[]; titles: string[]; slugs: string[] }[]
+  >`
     WITH clean AS (
       SELECT o."productId", MIN(o.gtin) AS gtin
       FROM "Offer" o
@@ -65,7 +67,8 @@ async function main() {
     )
     SELECT c.gtin,
            ARRAY_AGG(c."productId" ORDER BY p."createdAt") AS "productIds",
-           ARRAY_AGG(p.title ORDER BY p."createdAt")       AS titles
+           ARRAY_AGG(p.title ORDER BY p."createdAt")       AS titles,
+           ARRAY_AGG(p.slug ORDER BY p."createdAt")        AS slugs
     FROM clean c
     JOIN "Product" p ON p.id = c."productId"
     GROUP BY c.gtin
@@ -108,6 +111,7 @@ async function main() {
   ];
 
   const clash: string[] = [];
+  const clashRows: { gtin: string; guard: string; a: string; b: string; aSlug: string; bSlug: string }[] = [];
   const safe: typeof dupes = [];
   for (const d of dupes) {
     let flagged: string | null = null;
@@ -117,6 +121,7 @@ async function main() {
       if (hit) {
         flagged = hit[0];
         clash.push(`  ⚠ ${formatGtin(d.gtin)}  [${hit[0]}]\n      A: ${a.slice(0, 66)}\n      B: ${b.slice(0, 66)}`);
+        clashRows.push({ gtin: d.gtin, guard: hit[0], a, b, aSlug: d.slugs[0], bSlug: d.slugs[i] });
       }
     }
     if (!flagged) safe.push(d);
@@ -135,31 +140,53 @@ async function main() {
   console.log(`\n  → ${safe.length} av ${dupes.length} dubblettgrupper är SÄKRA att merga (ingen vakt protesterar).`);
 
   // ── Spegla till /admin/halsokoll (skriver bara när STORE_HEALTH_DB=1) ──────────
+  // EN RAD PER OFFER, med butikens länk: det är offern som är fel och offern som
+  // raderas — en rad per produkt gav admin inget att titta på och inget att trycka på.
+  const conflictOffers = await prisma.offer.findMany({
+    where: { productId: { in: conflicts.map((c) => c.productId) }, gtin: { not: null } },
+    select: { id: true, gtin: true, url: true, productId: true, retailer: { select: { name: true } } },
+  });
   await replaceHealthSection(
     prisma,
     "GTIN_CONFLICT",
-    conflicts.map((c) => ({
-      severity: "DEFINITE" as const,
-      title: c.title,
-      detail: `${c.codes} motstridiga streckkoder — minst en butikslänk är fel`,
-      productSlug: c.slug,
-    }))
+    conflictOffers.map((o) => {
+      const c = conflicts.find((x) => x.productId === o.productId)!;
+      const others = conflictOffers.filter((x) => x.productId === o.productId && x.gtin !== o.gtin);
+      return {
+        severity: "DEFINITE" as const,
+        title: c.title,
+        detail: `${formatGtin(o.gtin)} — krockar med ${others
+          .map((x) => `${x.retailer.name} ${formatGtin(x.gtin)}`)
+          .join(", ")}. Radera offern med FEL kod.`,
+        url: o.url,
+        offerId: o.id,
+        productSlug: c.slug,
+        retailer: o.retailer.name,
+      };
+    })
   );
   await replaceHealthSection(
     prisma,
     "GTIN_DUPE",
-    safe.map((d) => ({
-      severity: "REVIEW" as const,
-      title: d.titles.join("  ⇄  ").slice(0, 300),
-      detail: `${formatGtin(d.gtin)} — ${d.productIds.length} produkter, samma tillverkar-SKU`,
-    }))
+    safe.flatMap((d) =>
+      d.titles.map((t, i) => ({
+        severity: "REVIEW" as const,
+        title: t,
+        detail: `${formatGtin(d.gtin)} — samma kod som: ${d.titles.filter((_, j) => j !== i).join(" · ")}`,
+        productSlug: d.slugs[i],
+      }))
+    )
   );
   await replaceHealthSection(
     prisma,
     "GTIN_CLASH",
-    clash.map((c) => ({
+    clashRows.map((c) => ({
       severity: "REVIEW" as const,
-      title: c.replace(/\s+/g, " ").trim().slice(0, 300),
+      title: `${c.a}  ⇄  ${c.b}`.slice(0, 300),
+      detail: `[vakt: ${c.guard}] streckkod ${formatGtin(c.gtin)} — troligen är en BUTIKSLÄNK fel (sortimentskod), inte katalogen`,
+      // Titeln länkar produkt A; url länkar produkt B (intern länk).
+      productSlug: c.aSlug,
+      url: `/produkter/${c.bSlug}`,
     }))
   );
 
