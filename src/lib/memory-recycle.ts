@@ -35,6 +35,11 @@
  * mitt i en request tappas — därav det tysta fönstret för den planerade vägen.
  * ⛔ Kräver att omstartspolicyn står på ON_FAILURE/ALWAYS i Railway (Settings →
  * Deploy). Står den på NEVER blir det här en självdödare.
+ * ⛔ HÄNDE 2026-08-31: exit(1) kl 04:52 UTC och containern kom ALDRIG tillbaka —
+ * sajten låg nere ~6,5 h tills en manuell deploy väckte den. Policyn är därför
+ * PINNAD i repo:t via railway.json (restartPolicyType: ALWAYS, sleepApplication:
+ * false) — config-as-code vinner över dashboarden vid varje deploy. Ta aldrig
+ * bort railway.json utan att först verifiera policyn i dashboarden.
  *
  * Sätt MEMORY_RECYCLE_MB=0 för att stänga av helt.
  */
