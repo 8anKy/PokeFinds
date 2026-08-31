@@ -90,8 +90,9 @@ export const HEALTH_SECTIONS = {
   DEDUPE_PROPOSAL: {
     label: "Dubblettförslag (stub-dedup)",
     blurb:
-      "LLM:en sa \"samma SKU\" men ordmängdsvakten protesterade — mergas aldrig automatiskt. Titeln länkar stubben, länkraden den föreslagna målprodukten — jämför båda.",
+      "LLM:en sa \"samma SKU\" men ordmängdsvakten protesterade — mergas aldrig automatiskt. Titeln länkar stubben, länkraden den föreslagna målprodukten — jämför båda. Samma produkt → Merga (stubben slås ihop in i målet, oåterkalleligt; hårda vakter mot fel riktning/olika streckkoder körs ändå). Olika produkter → Falskt alarm.",
     canDeleteOffer: false,
+    canMerge: true,
   },
   LINK_EMPTIED: {
     label: "Produkter utan butikslänk",

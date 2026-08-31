@@ -56,6 +56,37 @@ export function HealthClient({ findings, acks }: { findings: FindingRow[]; acks:
   // Kvitterade i den här sessionen (servern filtrerar redan bort tidigare kvitterade).
   const [acked, setAcked] = useState<Set<string>>(new Set());
   const [undone, setUndone] = useState<Set<string>>(new Set());
+  // Merge är oåterkalleligt → tvåstegs-knapp: första klicket armar, andra utför.
+  const [confirmMerge, setConfirmMerge] = useState<string | null>(null);
+  const [merged, setMerged] = useState<Set<string>>(new Set());
+
+  async function mergeFinding(row: FindingRow) {
+    setBusy(`merge:${row.id}`);
+    try {
+      const res = await fetch("/api/admin/health-merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ findingId: row.id }),
+      });
+      const data: { error?: string } = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Kunde inte merga.");
+      setMerged((prev) => new Set(prev).add(row.id));
+      toast({
+        title: "Mergad",
+        description: "Stubben är sammanslagen in i målprodukten — butikslänkarna flyttade, stubben raderad.",
+        variant: "success",
+      });
+    } catch (error) {
+      toast({
+        title: "Merge nekades",
+        description: error instanceof Error ? error.message : "Något gick fel.",
+        variant: "error",
+      });
+    } finally {
+      setBusy(null);
+      setConfirmMerge(null);
+    }
+  }
 
   async function ackFinding(row: FindingRow) {
     setBusy(`ack:${row.id}`);
@@ -198,13 +229,16 @@ export function HealthClient({ findings, acks }: { findings: FindingRow[]; acks:
               {rows.map((row) => {
                 const isDone = done.has(row.id);
                 const isAcked = acked.has(row.id);
+                const isMerged = merged.has(row.id);
                 // ⛔ Döda länkar rensas av auto-prunen och får ALDRIG denylistas via
                 // admin-raderingen (kommer varan tillbaka SKA länken återskapas).
                 const deadLink = row.detail?.startsWith("DÖD LÄNK") ?? false;
-                const canDelete = meta.canDeleteOffer && !!row.offerId && !deadLink && !isDone && !isAcked;
-                const canAck = !isDone && !isAcked;
+                const settled = isDone || isAcked || isMerged;
+                const canDelete = meta.canDeleteOffer && !!row.offerId && !deadLink && !settled;
+                const canAck = !settled;
+                const canMerge = "canMerge" in meta && meta.canMerge === true && !settled;
                 return (
-                  <Card key={row.id} className={isDone || isAcked ? "opacity-50" : undefined}>
+                  <Card key={row.id} className={settled ? "opacity-50" : undefined}>
                     <CardContent className="flex flex-col gap-2 py-3 md:flex-row md:items-start md:justify-between">
                       <div className="min-w-0 space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -215,6 +249,7 @@ export function HealthClient({ findings, acks }: { findings: FindingRow[]; acks:
                             <span className="text-xs text-ink-muted">{row.retailer}</span>
                           )}
                           {isDone && <Badge variant="success">Åtgärdad</Badge>}
+                          {isMerged && <Badge variant="success">Mergad</Badge>}
                           {isAcked && <Badge variant="success">Falskt alarm — dolt</Badge>}
                           {deadLink && <Badge variant="default">rensas automatiskt</Badge>}
                         </div>
@@ -240,8 +275,39 @@ export function HealthClient({ findings, acks }: { findings: FindingRow[]; acks:
                           </a>
                         )}
                       </div>
-                      {(canDelete || canAck) && (
+                      {(canDelete || canAck || canMerge) && (
                         <div className="flex shrink-0 items-center gap-2">
+                          {canMerge &&
+                            (confirmMerge === row.id ? (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="danger"
+                                  loading={busy === `merge:${row.id}`}
+                                  disabled={busy !== null && busy !== `merge:${row.id}`}
+                                  onClick={() => mergeFinding(row)}
+                                >
+                                  Bekräfta — oåterkalleligt
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  disabled={busy !== null}
+                                  onClick={() => setConfirmMerge(null)}
+                                >
+                                  Avbryt
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                disabled={busy !== null}
+                                onClick={() => setConfirmMerge(row.id)}
+                              >
+                                Merga in i målet
+                              </Button>
+                            ))}
                           {canDelete && (
                             <Button
                               size="sm"
