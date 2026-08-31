@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { singleFlight } from "@/lib/cache";
+import { cachedRead, singleFlight } from "@/lib/cache";
 
 describe("singleFlight — samtidiga identiska läsningar blir EN DB-fråga", () => {
   it("två parallella anrop med samma nyckel kör funktionen en gång", async () => {
@@ -54,5 +54,27 @@ describe("singleFlight — samtidiga identiska läsningar blir EN DB-fråga", ()
     }, () => "k");
     const results = await Promise.allSettled([wrapped(), wrapped()]);
     expect(results.every((r) => r.status === "rejected")).toBe(true);
+  });
+});
+
+// Identitet: testet vaktar KOMPOSITIONEN (att cachedRead lägger singleFlight runt
+// råfunktionen), inte Nexts cachelager — unstable_cache kräver en request-kontext
+// som inte finns i vitest.
+vi.mock("next/cache", () => ({ unstable_cache: (fn: unknown) => fn }));
+
+describe("cachedRead — åskflocken deduperas", () => {
+  it("två samtidiga missar på samma nyckel+args kör råfunktionen EN gång", async () => {
+    const raw = vi.fn(async (days: number) => {
+      await new Promise((r) => setTimeout(r, 20));
+      return days * 2;
+    });
+    const cached = cachedRead(raw, "testKey");
+    const [a, b] = await Promise.all([cached(7), cached(7)]);
+    expect(raw).toHaveBeenCalledTimes(1);
+    expect(a).toBe(14);
+    expect(b).toBe(14);
+    // Olika args = olika nycklar — deduperas INTE ihop.
+    await cached(30);
+    expect(raw).toHaveBeenCalledTimes(2);
   });
 });

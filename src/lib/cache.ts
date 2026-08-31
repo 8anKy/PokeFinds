@@ -54,7 +54,18 @@ export function cachedRead<A extends unknown[], R>(
   revalidateSeconds = 3600,
   tags: string[] = [PRICE_CACHE_TAG]
 ): (...args: A) => Promise<R> {
-  return unstable_cache(fn, [key], { revalidate: revalidateSeconds, tags });
+  // ÅSKFLOCKEN (mätt i prod 2026-08-31, pg_stat-delta 00:32 UTC): unstable_cache
+  // har INGEN dedup av samtidiga missar — vid en TTL-utgång körde ~5 parallella
+  // requests VAR SIN råläsning (marknadsstatistikens 24h-count à 15 s kördes 5 ggr,
+  // computeChanges' 344k-radersaggregat 13 ggr på 5 min). singleFlight INNANFÖR
+  // unstable_cache gör flocken till EN DB-körning; alla väntare delar löftet.
+  // ⛔ Wrappern suddar fn.toString()-entropin ur Nexts cachenyckel — `key` är nu
+  // hela identiteten. Aldrig samma key-sträng för två olika läsningar.
+  return unstable_cache(
+    singleFlight(fn, (...args) => `${key}:${JSON.stringify(args)}`),
+    [key],
+    { revalidate: revalidateSeconds, tags }
+  );
 }
 
 /**

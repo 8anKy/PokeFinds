@@ -750,6 +750,9 @@ model PriceObservation {
   source  ScrapeSource? @relation(fields: [sourceId], references: [id])
 
   @@index([productId, observedAt])
+  // Marknadsstatistikens 24h-count filtrerar på ENBART observedAt — utan det här
+  // indexet var det en fullskanning (~2,3M rader, 15 s per anrop vid 0,25 CU).
+  @@index([observedAt])
 }
 
 // Daglig aggregerad prisdata för snabba grafer
