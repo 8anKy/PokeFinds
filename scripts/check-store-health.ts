@@ -16,6 +16,7 @@
  */
 import { prisma } from "../src/lib/db";
 import { getAdapter } from "../src/scrapers/runner";
+import { replaceHealthSection } from "../src/lib/store-health-findings";
 
 /**
  * "0 produkter" har TVÅ helt olika orsaker och de kräver olika människa-åtgärd:
@@ -73,6 +74,14 @@ async function main() {
       dead.push({ name: s.name, count: 0, err: e instanceof Error ? e.message : String(e) });
     }
   }
+
+  // Spegla till /admin/halsokoll (skriver bara när STORE_HEALTH_DB=1 — workflowen).
+  // Skrivs ÄVEN när listan är tom: det är så "lagat" blir synligt i admin.
+  await replaceHealthSection(
+    prisma,
+    "STORE_ADAPTER",
+    dead.map((d) => ({ severity: "DEFINITE" as const, title: describeDead(d), retailer: d.name }))
+  );
 
   if (dead.length > 0) {
     for (const d of dead) {

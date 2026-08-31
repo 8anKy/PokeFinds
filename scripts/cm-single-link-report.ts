@@ -17,6 +17,7 @@
  *   node scripts/with-prod-db.mjs npx tsx scripts/cm-single-link-report.ts --strict   # exit 1 om någon (CI)
  */
 import { PrismaClient } from "@prisma/client";
+import { replaceHealthSection } from "../src/lib/store-health-findings";
 
 const prisma = new PrismaClient();
 const STRICT = process.argv.includes("--strict");
@@ -67,6 +68,21 @@ async function main() {
         `\n    radera CM-historiken. Se [[project-cm-single-link-mismatch]].`
     );
   }
+
+  // Spegla till /admin/halsokoll (skriver bara när STORE_HEALTH_DB=1).
+  await replaceHealthSection(
+    prisma,
+    "CM_SINGLE_LINK",
+    bad.map(({ o, id }) => ({
+      severity: "DEFINITE" as const,
+      title: o.product.title,
+      detail: `idProduct=${id} finns EJ i CM:s sealed-katalog — repeka, nolla priset, radera CM-historiken`,
+      url: o.url,
+      offerId: o.id,
+      productSlug: o.product.slug,
+      retailer: "Cardmarket",
+    }))
+  );
 
   if (STRICT && bad.length > 0) {
     console.error(`\nSTRICT: ${bad.length} sealed-offers pekar på en singel → exit 1`);

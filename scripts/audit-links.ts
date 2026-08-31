@@ -24,6 +24,8 @@
  * Utan `--prune` skriver skriptet INGENTING. Med `--prune` raderas döda butiks-offers
  * enligt två-signalregeln — se kommentaren vid PRUNE_MIN_STALE_DAYS.
  * Exit 1 om säkra fel hittas → röd körning i store-health.
+ * Undantag: med STORE_HEALTH_DB=1 (bara workflowen) speglas fynden till
+ * StoreHealthFinding för /admin/halsokoll — se src/lib/store-health-findings.ts.
  */
 import { PrismaClient } from "@prisma/client";
 import { isDirectOfferUrl } from "../src/lib/marketplace-urls";
@@ -42,6 +44,7 @@ import {
   scoreSimilarity,
   setMarkerMismatch,
 } from "../src/scrapers/matching";
+import { replaceHealthSection } from "../src/lib/store-health-findings";
 
 const prisma = new PrismaClient();
 
@@ -207,7 +210,7 @@ async function main() {
     select: {
       id: true, url: true, lastSeenAt: true,
       retailer: { select: { name: true } },
-      product: { select: { id: true, title: true, language: true } },
+      product: { select: { id: true, title: true, slug: true, language: true } },
     },
   });
   const targets = offers.filter((o) => isDirectOfferUrl(o.url));
@@ -336,6 +339,10 @@ async function main() {
     );
   }
 
+  // Produkter som blir helt utan butikslänk efter rensningen — hoistad så att
+  // admin-speglingen nedan kan skriva sektionen även när prune-grenen inte körs.
+  let emptiedTitles: string[] = [];
+
   if (prunable.length > 0 && PRUNE) {
     // Räkna FÖRE raderingen: en produkt som blir helt utan butikslänk tappar sitt
     // pris på produktsidan. Det är rätt utfall (varan säljs inte längre någonstans
@@ -364,10 +371,67 @@ async function main() {
         const t = prunable.find((p) => p.o.product.id === e.productId)?.o.product.title;
         console.log(`   • ${t ?? e.productId}`);
       }
+      emptiedTitles = emptied.map(
+        (e) => prunable.find((p) => p.o.product.id === e.productId)?.o.product.title ?? e.productId
+      );
     }
   } else if (prunable.length > 0) {
     console.log(`\n(TORRKÖRNING — ${prunable.length} skulle rensats. Kör med --prune.)`);
   }
+
+  // ── Spegla backloggen till /admin/halsokoll (skriver bara när STORE_HEALTH_DB=1) ──
+  // Rensade offers utelämnas — de är redan åtgärdade, inte backlog.
+  const prunedIds = new Set(PRUNE ? prunable.map((p) => p.o.id) : []);
+  await replaceHealthSection(
+    prisma,
+    "LINK_DEFINITE",
+    definite
+      .filter((d) => !prunedIds.has(d.o.id))
+      .map((d) => ({
+        severity: "DEFINITE" as const,
+        title: d.o.product.title,
+        detail: `${d.why} — sidan: "${d.page}"`,
+        url: d.o.url,
+        offerId: d.o.id,
+        productSlug: d.o.product.slug,
+        retailer: d.o.retailer.name,
+      }))
+  );
+  await replaceHealthSection(
+    prisma,
+    "LINK_REVIEW",
+    review.map((r) => ({
+      severity: "REVIEW" as const,
+      title: r.o.product.title,
+      detail: `${r.why} (sim ${r.score.toFixed(2)}) — sidan: "${r.page}"`,
+      url: r.o.url,
+      offerId: r.o.id,
+      productSlug: r.o.product.slug,
+      retailer: r.o.retailer.name,
+    }))
+  );
+  {
+    const perStore = new Map<string, { n: number; why: string }>();
+    for (const r of refusedByStore) {
+      const cur = perStore.get(r.o.retailer.name);
+      if (cur) cur.n++;
+      else perStore.set(r.o.retailer.name, { n: 1, why: r.why });
+    }
+    await replaceHealthSection(
+      prisma,
+      "LINK_REFUSED",
+      [...perStore.entries()].map(([store, v]) => ({
+        severity: "INFO" as const,
+        title: `${store}: ${v.n} länkar avvisade (${v.why})`,
+        retailer: store,
+      }))
+    );
+  }
+  await replaceHealthSection(
+    prisma,
+    "LINK_EMPTIED",
+    emptiedTitles.map((t) => ({ severity: "INFO" as const, title: t }))
+  );
 
   console.log(
     `\nSUMMERING: ${definite.length} säkra fel · ${review.length} att granska · ` +

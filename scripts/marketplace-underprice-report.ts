@@ -18,6 +18,7 @@
  *   node scripts/with-prod-db.mjs npx tsx scripts/marketplace-underprice-report.ts --strict  # exit 1 om någon (CI)
  */
 import { PrismaClient } from "@prisma/client";
+import { replaceHealthSection } from "../src/lib/store-health-findings";
 
 const prisma = new PrismaClient();
 const STRICT = process.argv.includes("--strict");
@@ -65,6 +66,22 @@ async function main() {
         `\n    radera förgiftade PriceObservations. Se Riolu-receptet 2026-07-19.`
     );
   }
+
+  // Spegla till /admin/halsokoll (skriver bara när STORE_HEALTH_DB=1). Radera-knappen
+  // där kör admin-DELETE:n → hela purge-receptet (dom + förgiftade observationer).
+  await replaceHealthSection(
+    prisma,
+    "UNDERPRICE",
+    rows.map((r) => ({
+      severity: "DEFINITE" as const,
+      title: r.title,
+      detail: `Tradera ${(r.price / 100).toFixed(0)} kr mot CM ${(r.cmPrice / 100).toFixed(0)} kr (itemId ${r.url.match(/\/item\/\d+\/(\d+)/)?.[1] ?? "?"})`,
+      url: r.url,
+      offerId: r.offerId,
+      productSlug: r.slug,
+      retailer: "Tradera",
+    }))
+  );
 
   if (STRICT && rows.length > 0) {
     console.error(`\nSTRICT: ${rows.length} underpris-offers → exit 1`);

@@ -17,18 +17,19 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { formatGtin } from "../src/lib/gtin";
+import { replaceHealthSection } from "../src/lib/store-health-findings";
 
 const prisma = new PrismaClient();
 const STRICT = process.argv.includes("--strict");
 
 async function main() {
   // ---------- (A) KONFLIKT: samma produkt, olika streckkoder ----------
-  const conflicts = await prisma.$queryRaw<{ productId: string; title: string; codes: number }[]>`
-    SELECT p.id AS "productId", p.title, COUNT(DISTINCT o.gtin)::int AS codes
+  const conflicts = await prisma.$queryRaw<{ productId: string; title: string; slug: string; codes: number }[]>`
+    SELECT p.id AS "productId", p.title, p.slug, COUNT(DISTINCT o.gtin)::int AS codes
     FROM "Offer" o
     JOIN "Product" p ON p.id = o."productId"
     WHERE o.gtin IS NOT NULL
-    GROUP BY p.id, p.title
+    GROUP BY p.id, p.title, p.slug
     HAVING COUNT(DISTINCT o.gtin) > 1
     ORDER BY COUNT(DISTINCT o.gtin) DESC, p.title
   `;
@@ -132,6 +133,35 @@ async function main() {
     clash.slice(0, 25).forEach((c) => console.log(c));
   }
   console.log(`\n  → ${safe.length} av ${dupes.length} dubblettgrupper är SÄKRA att merga (ingen vakt protesterar).`);
+
+  // ── Spegla till /admin/halsokoll (skriver bara när STORE_HEALTH_DB=1) ──────────
+  await replaceHealthSection(
+    prisma,
+    "GTIN_CONFLICT",
+    conflicts.map((c) => ({
+      severity: "DEFINITE" as const,
+      title: c.title,
+      detail: `${c.codes} motstridiga streckkoder — minst en butikslänk är fel`,
+      productSlug: c.slug,
+    }))
+  );
+  await replaceHealthSection(
+    prisma,
+    "GTIN_DUPE",
+    safe.map((d) => ({
+      severity: "REVIEW" as const,
+      title: d.titles.join("  ⇄  ").slice(0, 300),
+      detail: `${formatGtin(d.gtin)} — ${d.productIds.length} produkter, samma tillverkar-SKU`,
+    }))
+  );
+  await replaceHealthSection(
+    prisma,
+    "GTIN_CLASH",
+    clash.map((c) => ({
+      severity: "REVIEW" as const,
+      title: c.replace(/\s+/g, " ").trim().slice(0, 300),
+    }))
+  );
 
   console.log(
     `\n\nSUMMERING: ${conflicts.length} felaktiga butikslänkar · ${dupes.length} dubblett-grupper ` +

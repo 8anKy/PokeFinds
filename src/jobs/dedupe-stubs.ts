@@ -22,6 +22,7 @@
 import { prisma } from "@/lib/db";
 import { isStoreRetailer } from "@/lib/offer-source";
 import { judgeSameProduct } from "@/lib/same-product";
+import { replaceHealthSection, type HealthFindingInput } from "@/lib/store-health-findings";
 import { gtinConflict, isPokemonManufacturerGtin } from "@/lib/gtin";
 import {
   cleanListingTitle,
@@ -158,6 +159,8 @@ export interface DedupeResult {
 
 export async function dedupeStubs(log: (msg: string) => void = console.log): Promise<DedupeResult> {
   const res: DedupeResult = { stubs: 0, llmCalls: 0, merged: 0, gtinMerges: 0, proposals: 0 };
+  // Förslag för mänsklig granskning — speglas till /admin/halsokoll (bara STORE_HEALTH_DB=1).
+  const proposalRows: HealthFindingInput[] = [];
   // GTIN-mergarna kräver ingen LLM — men resten av jobbet gör det, så utan nyckel
   // hoppar vi fortfarande över hela körningen (som förr). Vill vi köra ENBART
   // streckkods-mergen görs det via scripts/gtin-report.ts (B) som är helt LLM-fri.
@@ -317,6 +320,11 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
         if (!mergeEquivalent(stubTitle, c.title)) {
           log(`[dedupe-stubs] FÖRSLAG (ej mergad — kräver granskning): "${stubTitle}" → "${c.title}"`);
           res.proposals++;
+          proposalRows.push({
+            severity: "REVIEW",
+            title: `"${stubTitle}" → "${c.title}"`,
+            detail: "LLM sa samma SKU men ordmängdsvakten protesterade — merga bara manuellt",
+          });
           break;
         }
         // Meritlistan vinner även över en godkänd merge: pekar den åt fel håll (stubben har
@@ -333,6 +341,8 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
       }
     }
   }
+
+  await replaceHealthSection(prisma, "DEDUPE_PROPOSAL", proposalRows);
 
   log(
     `[dedupe-stubs] klart: ${res.merged} mergade av ${res.stubs} stubbar ` +

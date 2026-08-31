@@ -18,6 +18,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { formatPrice } from "../src/lib/format";
+import { replaceHealthSection } from "../src/lib/store-health-findings";
 
 const prisma = new PrismaClient();
 const CM_NONSINGLES_URL =
@@ -75,7 +76,7 @@ async function main() {
 
   const offers = await prisma.offer.findMany({
     where: { retailer: { name: "Cardmarket" }, product: { category: { in: [...SEALED] } }, url: { contains: "idProduct=" } },
-    select: { url: true, price: true, product: { select: { title: true, slug: true, language: true, category: true } } },
+    select: { id: true, url: true, price: true, product: { select: { title: true, slug: true, language: true, category: true } } },
   });
 
   const suspects = offers
@@ -100,6 +101,21 @@ async function main() {
       `           → CM ${s.id} "${s.cn}"  ${s.o.price != null ? formatPrice(s.o.price) : "–"}  /produkter/${s.o.product.slug}`
     );
   }
+
+  // Spegla till /admin/halsokoll (skriver bara när STORE_HEALTH_DB=1).
+  await replaceHealthSection(
+    prisma,
+    "CM_MISMATCH",
+    suspects.map((s) => ({
+      severity: "REVIEW" as const,
+      title: s.o.product.title,
+      detail: `sim=${s.sim.toFixed(2)} → CM ${s.id} "${s.cn}"`,
+      url: s.o.url,
+      offerId: s.o.id,
+      productSlug: s.o.product.slug,
+      retailer: "Cardmarket",
+    }))
+  );
   await prisma.$disconnect();
 }
 

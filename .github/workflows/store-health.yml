@@ -34,6 +34,9 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }} # stub-dedupen (Haiku, ören/vecka)
+      # Speglar rapportskriptens fynd till StoreHealthFinding → /admin/halsokoll.
+      # BARA här: lokala körningar av samma skript förblir skrivfria (läs-only-kontraktet).
+      STORE_HEALTH_DB: "1"
     steps:
       # Samma vakt som restock-watch: utan DATABASE_URL hoppar vi över och lyckas
       # grönt (ingen falsk-röd/mejlspam innan molnhosting är konfigurerad).

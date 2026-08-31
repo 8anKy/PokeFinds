@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/admin/jobb", label: "Scrapingjobb" },
   { href: "/admin/rapporter", label: "Rapporter" },
   { href: "/admin/lankfel", label: "Länkfel" },
+  { href: "/admin/halsokoll", label: "Hälsokoll" },
   { href: "/admin/butiker", label: "Butiker" },
   { href: "/admin/engagemang", label: "Engagemang" },
   { href: "/admin/kreatorer", label: "Kreatörer" },

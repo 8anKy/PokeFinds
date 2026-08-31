@@ -1169,6 +1169,31 @@ model DeniedListingUrl {
   @@index([createdAt])
 }
 
+/// BUTIKS-HÄLSOKOLLENS FYND (store-health.yml, måndagar) — det som förut BARA levde i
+/// Actions-loggen. En rad = ett fynd ur SENASTE körningen: varje rapportskript ERSÄTTER
+/// sin egen sektion, så tabellen är alltid "aktuell backlog", aldrig historik
+/// (historiken bor i Actions-loggen). Skrivs BARA när STORE_HEALTH_DB=1 (sätts i
+/// workflowen) — rapportskripten förblir skrivfria vid lokala körningar.
+/// Läses av /admin/halsokoll.
+model StoreHealthFinding {
+  id          String   @id @default(cuid())
+  /// Sektionsnyckel — se HEALTH_SECTIONS i src/lib/store-health-findings.ts.
+  section     String
+  /// DEFINITE (säkert fel) | REVIEW (granska) | INFO (kännedom).
+  severity    String
+  title       String
+  detail      String?
+  url         String?
+  /// ⛔ Ingen FK: offern kan redan vara raderad/rensad när admin läser — fyndet ska
+  /// ändå synas tills nästa körning skriver om sektionen.
+  offerId     String?
+  productSlug String?
+  retailer    String?
+  reportedAt  DateTime @default(now())
+
+  @@index([section])
+}
+
 /// UTMÄRKELSER — en rad per (användare, märke, nivå) som FAKTISKT delats ut.
 ///
 /// ⛔ **TABELLEN ÄR FACIT, INTE EN VY.** Ett märke är ett HISTORISKT FAKTUM: den
