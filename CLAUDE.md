@@ -212,7 +212,7 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
 - **CRAWLER-UA-LISTAN ÄR FÄRSKVARA — nya bot-namn dyker upp oanmält.** Symptomet är "Neon vaken dygnet runt
   utan att jobben kör" → **kolla UA-fördelningen FÖRST** (Railways httpLogs), blockera i `blocked-bots.ts`
   + robots.ts. ⛔ Googlebot (inkl. mobil-UA:n med Chrome-prefix) får ALDRIG in i blocklistan — testet vaktar.
-  Railway-minnet är följdsymptom, inte läcka (heap capad till 512 MB, `MALLOC_ARENA_MAX=2` i Dockerfile).
+  Railway-minnet är följdsymptom, inte läcka (heap capad till 384 MB (512→384 2026-08-31, heapUsed mätt 166 MB), `MALLOC_ARENA_MAX=2` i Dockerfile).
   ⛔ **MEN UA-LISTAN ÄR INTE LÄNGRE HUVUDSPAKEN** (mätt 2026-08-26, `scripts/neon-wake-attribution.ts`):
   **RÄKNA TOMMA 5-MINUTERSLUCKOR, INTE REQUESTS** — Neon kan bara somna i en lucka helt utan DB-arbete,
   så en kategori som bara DELAR luckor med en annan kostar noll att ta bort. Mätt över 24 h: 191 av 210
@@ -253,7 +253,7 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   utanför V8. Hypotes (overifierad): kernelns sidcache för ISR-filerna Next skriver vid kalla renders.
   `/api/health` visar `mem.rss` + `mem.cgroup` (det Railway fakturerar).
   ✅ **Självåtervinning sedan 2026-08-29** (`src/lib/memory-recycle.ts`, startas i `instrumentation.ts`
-  bara på Railway): läser cgroup-minnet var 10:e min; > 700 MB kl 04 UTC eller > 1 500 MB när som helst
+  bara på Railway): läser cgroup-minnet var 10:e min; > 450 MB kl 04 UTC eller > 1 000 MB när som helst (sänkta 2026-08-31: 541 MB cgroup 4,5 h efter deploy — 700 fyrade inte varje natt)
   (≥ 3 h mellan — skurdagarna 08-22/08-28 kostade mer än en vecka av lugna) ⇒ töm buffertar, `exit(1)` ⇒ Railway startar om (policy ON_FAILURE). Målet är att
   hålla notan under Hobby-krediten $5. ⛔ Kräver ON_FAILURE/ALWAYS med HÖGT omstartstal — vid 10
   och ett tal som inte nollställs står sajten nere efter tio nätter. `MEMORY_RECYCLE_MB=0` stänger av.

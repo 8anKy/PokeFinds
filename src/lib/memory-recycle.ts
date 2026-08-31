@@ -15,13 +15,17 @@
  *
  * TVÅ GRINDAR, aldrig fler:
  *  - Nattlig: i det tysta fönstret (04:00–04:59 UTC = efter nattkedjan, före
- *    morgontrafiken) och minnet > MEMORY_RECYCLE_MB (700) ⇒ starta om. En gång
+ *    morgontrafiken) och minnet > MEMORY_RECYCLE_MB (450) ⇒ starta om. En gång
  *    per dygn räcker för att kapa sågtanden till dess första dygn.
- *  - Nöd: minnet > MEMORY_RECYCLE_EMERGENCY_MB (1500) när som helst ⇒ starta om.
+ *    ⚠️ 700→450 (2026-08-31): cgroup mätte 541 MB redan 4,5 h efter en deploy —
+ *    700 fyrade alltså inte varje natt och dygnssnittet parkerade över 0,5 GB
+ *    (> $5/mån för minnet ensamt). Under $5 TOTALT kräver snitt ≤ ~0,42 GB ⇒
+ *    taket måste ligga UNDER dygn-1-nivån så omstarten i praktiken blir nattlig.
+ *  - Nöd: minnet > MEMORY_RECYCLE_EMERGENCY_MB (1000) när som helst ⇒ starta om.
  *    Det är NÖDGRINDEN som betalar sig, inte den nattliga: per dygn (railway-cost-
  *    report 2026-08-29) kostar en lugn dag ~0,4 GB ≈ $0,14, men 08-22 (2,9 GB snitt,
  *    crawler-skur) kostade $1,01 och 08-28 (1,6 GB) $0,56 — två skurdagar = en
- *    vecka av lugna. 1,5 GB är 5× minnet efter boot; en skur som passerar det är
+ *    vecka av lugna. 1 GB (sänkt från 1,5 2026-08-31) är ~3× minnet efter boot; en skur förbi det är
  *    skräp, inte arbete. Minst 3 h mellan nödomstarter så en envis skur inte ger
  *    en omstartsloop (värsta fall: ~8 omstarter/dygn, var och en några sekunder).
  *
@@ -80,8 +84,8 @@ export function recycleConfigFromEnv(
   env: Record<string, string | undefined> = process.env
 ): RecycleConfig {
   return {
-    thresholdMb: Number(env.MEMORY_RECYCLE_MB ?? 700),
-    emergencyMb: Number(env.MEMORY_RECYCLE_EMERGENCY_MB ?? 1500),
+    thresholdMb: Number(env.MEMORY_RECYCLE_MB ?? 450),
+    emergencyMb: Number(env.MEMORY_RECYCLE_EMERGENCY_MB ?? 1000),
     quietHourUtc: 4,
     minUptimeSec: 3600,
     emergencySpacingSec: 3 * 3600,

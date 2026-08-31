@@ -84,11 +84,13 @@ FROM base AS runner
 # Ett tak tvingar fram GC vid en vettig nivå. Vi har råd med den CPU:n: tjänsten
 # använder 0,2 % av EN kärna, och CPU kostar oss $0,04/mån.
 #
-# 512 MB = ~8× det uppmätta arbetssättet vid boot (63 MB) och bekvämt över natt-
-# platån (190–260 MB). Topparna vi sett (725 MB dygnssnitt, 2 GB under en
-# 150 req/min-skur) var skräp, inte levande data. Sänk till 384 först efter att
-# ha bevakat `railway metrics` — en OOM-omstart på en live-sajt är dyrare än
-# den dollar det sparar.
+# 384 MB (512→384 2026-08-31, EFTER den mätning gamla kommentaren krävde):
+# heapUsed låg på 166 MB efter 4,5 h drift medan RSS drivit till 432 MB — taket
+# är budgeten V8 dimensionerar efter, inte behovet, så 512 lät RSS parkera nära
+# en halv GB. 384 = 2,3× uppmätt levande heap. Nästa steg nedåt (320) kräver ny
+# mätning av heapUsed via /api/health först — en OOM-omstart på en live-sajt är
+# dyrare än dollarn den sparar. Syns "JavaScript heap out of memory" i
+# deploy-loggen är 512 rollbacken.
 # MALLOC_ARENA_MAX (2026-08-09): RSS nådde 6–8 GB TROTS heap-taket ovan under ett
 # crawler-svep på ~7 req/s (Claude-SearchBot + GoogleOther) — dvs. minnet var INTE
 # JS-heap utan glibc:s malloc-arenor. glibc skapar upp till 8 arenor PER KÄRNA
@@ -97,7 +99,7 @@ FROM base AS runner
 # som en läcka. 2 arenor är standardreceptet för Node-containrar; CPU-kostnaden är
 # försumbar för oss (0,2 % av en kärna). Railway fakturerar MINNE ($10/GB-mån).
 ENV NODE_ENV=production \
-    NODE_OPTIONS="--max-old-space-size=512" \
+    NODE_OPTIONS="--max-old-space-size=384" \
     MALLOC_ARENA_MAX=2
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/node_modules ./node_modules
