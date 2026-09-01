@@ -173,6 +173,24 @@ export async function getScannerQuota(
   return { used, limit, remaining: Math.max(0, limit - used) };
 }
 
+/** Vad `ScannerJob.result.local` bär — se `recordScanUsage`:s `local`-argument. */
+export interface LocalNumberTelemetry {
+  /** Läsningens väggklockstid på enheten, ms. */
+  ms: number;
+  /** Tolkat nummer i `parseGuessedNumber().printed`-form; null = läste inget nummer. */
+  printed: string | null;
+  num: number | null;
+  total: number | null;
+  /** Antal "n/N"-kandidater i OCR-texten. */
+  candidates: number;
+  /** Geminis `guessedNumber` för SAMMA fångst. Nyckeln saknas när vision hoppades över. */
+  gemini?: string | null;
+  /** Läsningen kördes men gav inget: "timeout" | "plugin". Saknas = kördes klart. */
+  err?: string;
+  /** Hela OCR-texten (kapad) — BARA admin, rutten filtrerar. */
+  raw?: string;
+}
+
 /** Bokför en skanning mot månadskvoten. VARJE scan som nådde vision-API:t räknas
  *  (träff ELLER no-match) — annars kan no-match-scans dränera API-budgeten gratis
  *  (bara 60/min skyddar). Live-skannern (/api/scanner/identify) skapar inget jobb
@@ -309,6 +327,14 @@ export async function recordScanUsage(
      * fördelning i stället för på dagens gissning.
      */
     sharp?: number | null;
+    /**
+     * GRINDENS marginal (tvillingjusterad, `artGateMargin`). ⛔ `margin` ovan är
+     * den RÅA topp-1 − topp-2; sedan språktvillingarna (2026-08-31) dömer
+     * grinden på den här. Ett svep på `margin` underskattar det fria utrymmet.
+     */
+    gm?: number | null;
+    /** Agree-grenens villkor var uppfyllt — utan biten går den grenen inte att svepa. */
+    agree?: boolean;
   } | null,
   /**
    * FÄLTAVTRYCKET (2026-08-30) — skrivs för ALLA användare. Ägarbeslut: målet
@@ -336,7 +362,28 @@ export async function recordScanUsage(
    * ⛔ Samma grind som `recall`: utan art-lista skrivs inget. Ett avtryck utan
    * bildsökning är en rad som inte kan få facit.
    */
-  fp?: { color: string[]; struct: string[] } | null
+  fp?: { color: string[]; struct: string[] } | null,
+  /**
+   * LOKAL NUMMERLÄSNING, SKUGGLÄGE (2026-09-01) — skrivs för ALLA användare.
+   * Appen läser samlarnumret on-device (ML Kit) ur samma remsa som `detail`
+   * och skickar TOLKNINGEN (`src/lib/mlkit-number.ts`). Här läggs Geminis
+   * läsning av SAMMA fångst bredvid, så mätskriptet
+   * (`scripts/scanner-number-ocr-eval.ts --mlkit`) kan döma båda mot facit
+   * (userChosen → Card.number, annars shown[0]) per stratum.
+   *
+   * ⛔ PÅVERKAR INGET I SVARET. `matchCards` är orörd; det är hela poängen med
+   * ett skuggläge — talet mäts innan det får bestämma något.
+   *
+   * INNEHÅLL: ett tolkat nummer, tre heltal, en bool-liknande räknare och
+   * Geminis nummersträng — kortdata, ingen bild, inget om personen. Täcks av
+   * policyns "Skannerdiagnostik" (uppdaterad 2026-09-01). `raw` (hela
+   * OCR-texten, kan bära illustratörsnamn) skrivs BARA för admin — rutten
+   * filtrerar, inte den här funktionen.
+   * `gemini` UTELÄMNAS när vision hoppades över (då finns ingen läsning att
+   * jämföra med) och är null när vision körde men inte läste något — två
+   * olika svar, samma doktrin som `cost`.
+   */
+  local?: LocalNumberTelemetry | null
 ): Promise<string> {
   const job = await prisma.scannerJob.create({
     data: {
@@ -379,12 +426,17 @@ export async function recordScanUsage(
                 ...(recall.amb ? { amb: true } : {}),
                 ...(recall.ask ? { ask: true } : {}),
                 ...(recall.sharp != null ? { sharp: recall.sharp } : {}),
+                ...(recall.gm != null ? { gm: recall.gm } : {}),
+                ...(recall.agree ? { agree: true } : {}),
               },
               ...(fp && fp.color.length > 0
                 ? { fp: { v: 1, color: fp.color.slice(0, 7), struct: fp.struct.slice(0, 7) } }
                 : {}),
             }
           : {}),
+        // Egen nyckel, INTE grindad på recall: läsningen är oberoende av
+        // bildsökningen och ska bokföras även om avtrycken saknades.
+        ...(local ? { local: { v: 1, ...local } } : {}),
       },
     },
     select: { id: true },
@@ -738,15 +790,48 @@ export function artConfidentFrom(
   isTwinOfTop?: (rivalCardId: string) => boolean
 ): string | null {
   if (best.length < 2 || best[0].score < ART_TRUST_SCORE) return null;
-  const rival = isTwinOfTop ? best.slice(1).find((r) => !isTwinOfTop(r.cardId)) : best[1];
-  // Bara tvillingar i hela listan: ingen rival alls ⇒ kortet är entydigt.
-  const margin = rival ? best[0].score - rival.score : Number.POSITIVE_INFINITY;
+  const margin = artGateMargin(best, isTwinOfTop);
+  if (margin === null) return null;
   if (margin >= ART_TRUST_MARGIN) return best[0].cardId;
-  const allAgree =
-    frameTops.length >= 2 &&
-    frameTops.every((t) => t.cardId === best[0].cardId || (isTwinOfTop?.(t.cardId) ?? false));
-  if (allAgree && margin >= ART_AGREE_MARGIN) return best[0].cardId;
+  if (artFramesAgree(best, frameTops, isTwinOfTop) && margin >= ART_AGREE_MARGIN) {
+    return best[0].cardId;
+  }
   return null;
+}
+
+/**
+ * Marginalen GRINDEN dömer på: topp-1 minus första rivalen som INTE är en
+ * språktvilling. ⛔ Inte samma tal som `artMargin` (topp-1 − topp-2 rakt av):
+ * sedan 2026-08-31 skiljer de sig på varje kort som finns på både EN och JP,
+ * och ett tröskelsvep på det råa talet UNDERSKATTAR då hur många skanningar
+ * som redan ligger över golvet (den råa marginalen är alltid ≤ den här).
+ * Bokförs som `recall.gm` så svepet kan räkna på det grinden såg.
+ * `Infinity` när listan bara rymmer tvillingar (kortet är entydigt), null när
+ * det inte finns någon tvåa alls.
+ */
+export function artGateMargin(
+  best: ArtMatch[],
+  isTwinOfTop?: (rivalCardId: string) => boolean
+): number | null {
+  if (best.length < 2) return null;
+  const rival = isTwinOfTop ? best.slice(1).find((r) => !isTwinOfTop(r.cardId)) : best[1];
+  return rival ? best[0].score - rival.score : Number.POSITIVE_INFINITY;
+}
+
+/**
+ * Agree-grenens villkor: minst två rutor, och varje rutas topp-1 är bästa
+ * rutans kort (eller dess språktvilling). Bokförs som `recall.agree` — utan
+ * den går agree-grenen (golv ART_AGREE_MARGIN) inte att svepa i efterhand.
+ */
+export function artFramesAgree(
+  best: ArtMatch[],
+  frameTops: ArtMatch[],
+  isTwinOfTop?: (rivalCardId: string) => boolean
+): boolean {
+  if (best.length === 0 || frameTops.length < 2) return false;
+  return frameTops.every(
+    (t) => t.cardId === best[0].cardId || (isTwinOfTop?.(t.cardId) ?? false)
+  );
 }
 
 /** Basnamnet utan språkmarkören — "Vileplume (JP)" och "Vileplume" är samma kort. */
@@ -1773,6 +1858,14 @@ export interface IdentifyResult {
    */
   artMargin: number | null;
   /**
+   * Marginalen GRINDEN dömde på — tvillingjusterad (se `artGateMargin`). Null
+   * när tvåa saknas eller listan bara rymde språktvillingar. ⛔ Det är DEN här,
+   * inte `artMargin`, ett tröskelsvep ska läsa: den råa är alltid ≤ den här.
+   */
+  artGateMargin: number | null;
+  /** Agree-grenens villkor (alla rutor ense om bästa rutans kort) var uppfyllt. */
+  artAgree: boolean;
+  /**
    * Avgjorde BILDEN ensam? Sant ⇔ `artConfidentFrom` sa ja och vision hoppades
    * över, dvs `matchCards` kördes med tom OCR.
    *
@@ -2065,6 +2158,10 @@ export async function identifyCard(
     const id = artConfidentFrom(artMatches, detailed.frameTops, twins.isTwinOfTop);
     return id !== null && twins.preferred !== null ? twins.preferred : id;
   })();
+  // Grindens EGNA tal, bokförda så tröskeln kan svepas på det den faktiskt
+  // dömde på (tvillingjusterad marginal + agree-villkoret) — se artGateMargin.
+  const gateMargin = artGateMargin(artMatches, twins.isTwinOfTop);
+  const artAgree = artFramesAgree(artMatches, detailed.frameTops, twins.isTwinOfTop);
 
   // `precise` = användaren bad uttryckligen om modellen — hoppa aldrig då.
   const skipVision = artConfidentCardId !== null && !opts.precise;
@@ -2115,6 +2212,10 @@ export async function identifyCard(
     // bara ett kort att jämföra med". Samma skäl som `priceOreFromEur` hellre
     // ger null än en nolla.
     artMargin: artMatches.length > 1 ? artMatches[0].score - artMatches[1].score : null,
+    // Infinity (bara tvillingar i listan) går inte att lagra i JSON och är
+    // inte en marginal — utelämnas, precis som "ingen tvåa".
+    artGateMargin: gateMargin !== null && Number.isFinite(gateMargin) ? gateMargin : null,
+    artAgree,
     artDecided: skipVision,
     artTopLabel,
     artCandidateIds: artMatches.map((m) => m.cardId),

@@ -158,6 +158,11 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   diskcache (TTL 24 h) → **en ändrad restockWatch-flagga slår igenom först inom ett dygn.**
 
 ## Öppna ärenden / Nästa steg
+- **Skannern: ML Kit-skuggläge i koden sedan 2026-09-01** (`.claude/rules/scanner.md`): kräver NYTT
+  Android-bygge för att ge rader; ⛔ iOS blockerat — pluginet är CocoaPods-only, `ios/App` är SPM (ägarbeslut:
+  byt till Pods eller egen Apple Vision-plugin). Läs `scanner-number-ocr-eval.ts --mlkit` ~2 veckor efter
+  bygget; fas 2 (numret avgör) först vid ≥ ~90 % i vision-stratumet. Skärpegrinden mätt DÖD (skarpast missar
+  mest — höj aldrig `SHARP_AUTO_MIN`); trust-grinden vidgas INTE (94 % vs 98 %), svep om ~09-15 på `recall.gm`.
 - **Mät ISR-effekten (~2026-09-05)**: `scripts/neon-wake-attribution.ts` mot baslinjen 19 h/dygn (08-26).
   Nästa kandidat om set-sidorna dominerar: samma skal-behandling för `/sets/[id]` (bär pris i HTML, 1 h).
 - **Forum (ägarbeslut 2026-08-29, nästa bygge)**: forum med grupper (Facebook-liknande), bild-uppladdning

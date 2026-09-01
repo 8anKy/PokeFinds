@@ -610,7 +610,7 @@
     "metaTitle": "Integritetspolicy",
     "metaDescription": "Så behandlar Foilio dina personuppgifter, i enlighet med GDPR.",
     "h1": "Integritetspolicy",
-    "updated": "30 augusti 2026",
+    "updated": "1 september 2026",
     "s1Title": "1. Personuppgiftsansvarig",
     "s1Body": "Personuppgiftsansvarig för behandlingen av dina personuppgifter är {entity}, som driver Foilio. Fullständiga företagsuppgifter finns i våra användarvillkor. Har du frågor om hur vi hanterar dina uppgifter når du oss på <email>hej@foilio.se</email>.",
     "s2Title": "2. Vilka uppgifter vi behandlar",
@@ -649,7 +649,7 @@
       },
       {
         "lead": "Skannerdiagnostik:",
-        "text": "för att kunna mäta och förbättra skannerns träffsäkerhet sparas per skanning vilka kort som föreslogs och vilket du valde, samt ett litet numeriskt bildavtryck (cirka 1 kB: medelfärger i ett rutnät och ett strukturhistogram). Avtrycket går inte att återskapa en bild ur, visas aldrig och används bara för att skannern ska känna igen kort bättre i riktiga fångster. Själva bilden sparas inte. Avtrycken raderas tillsammans med ditt konto."
+        "text": "för att kunna mäta och förbättra skannerns träffsäkerhet sparas per skanning vilka kort som föreslogs och vilket du valde, samt ett litet numeriskt bildavtryck (cirka 1 kB: medelfärger i ett rutnät och ett strukturhistogram). Avtrycket går inte att återskapa en bild ur, visas aldrig och används bara för att skannern ska känna igen kort bättre i riktiga fångster. I appen sparas också det samlarnummer som läses lokalt på din enhet ur kortets nederkant (bara numret, ingen bild). Själva bilden sparas inte. Uppgifterna raderas tillsammans med ditt konto."
       },
       {
         "lead": "Användningsstatistik:",

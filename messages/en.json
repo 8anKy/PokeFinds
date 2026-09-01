@@ -610,7 +610,7 @@
     "metaTitle": "Privacy policy",
     "metaDescription": "How Foilio processes your personal data, in accordance with GDPR.",
     "h1": "Privacy policy",
-    "updated": "30 August 2026",
+    "updated": "1 September 2026",
     "s1Title": "1. Data controller",
     "s1Body": "The data controller for the processing of your personal data is {entity}, which operates Foilio. Full company details are available in our terms of service. If you have questions about how we handle your data, reach us at <email>hej@foilio.se</email>.",
     "s2Title": "2. What data we process",
@@ -649,7 +649,7 @@
       },
       {
         "lead": "Scanner diagnostics:",
-        "text": "to measure and improve the scanner's accuracy, we store per scan which cards were suggested and which one you chose, plus a small numeric image fingerprint (about 1 kB: average colours on a grid and a structure histogram). The fingerprint cannot be turned back into an image, is never displayed, and is used only to help the scanner recognise cards better in real captures. The image itself is not stored. Fingerprints are deleted together with your account."
+        "text": "to measure and improve the scanner's accuracy, we store per scan which cards were suggested and which one you chose, plus a small numeric image fingerprint (about 1 kB: average colours on a grid and a structure histogram). The fingerprint cannot be turned back into an image, is never displayed, and is used only to help the scanner recognise cards better in real captures. In the app we also store the collector number read locally on your device from the bottom edge of the card (the number only, no image). The image itself is not stored. This data is deleted together with your account."
       },
       {
         "lead": "Usage statistics:",

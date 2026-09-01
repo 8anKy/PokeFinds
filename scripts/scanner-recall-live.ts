@@ -82,6 +82,7 @@ import {
   ART_TRUST_MARGIN,
   ART_TRUST_SCORE,
 } from "../src/services/scanner/index";
+import { SHARP_AUTO_MIN } from "../src/lib/frame-sharpness";
 
 const prisma = new PrismaClient();
 const DAYS = Number(process.env.DAGAR ?? "30");
@@ -117,8 +118,45 @@ interface Recall {
   src?: "bulk" | "art";
   /** Bildens topp-1-poäng. Två floats, ingen kortidentitet. Saknas på v1. */
   top?: number | null;
-  /** topp1 − topp2. Det är MARGINALEN, inte poängen, som trust-grinden går på. */
+  /** topp1 − topp2 RÅTT. Det är MARGINALEN, inte poängen, som trust-grinden går på. */
   margin?: number | null;
+  /**
+   * GRINDENS marginal — tvillingjusterad (`artGateMargin`, skrivs sedan
+   * 2026-09-01). ⛔ Rå `margin` ≤ `gm` alltid: språktvillingen (EN/JP) räknas
+   * inte som rival sedan 2026-08-31. Ett svep på `margin` underskattar det fria
+   * utrymmet; saknas `gm` används `margin` som KONSERVATIV ersättare och
+   * raden märks (`gmKalla`).
+   */
+  gm?: number | null;
+  /** Agree-grenens villkor var uppfyllt (alla rutor ense). Sedan 2026-09-01. */
+  agree?: boolean;
+  /** Fångstkvalitet (normaliserad medelgradient, src/lib/frame-sharpness.ts). Sedan 2026-08-29. */
+  sharp?: number | null;
+}
+
+/** Grindens tal per rad — samlas för ALLA recall-rader (även utan dom). */
+interface Mat {
+  stratum: Stratum;
+  top?: number;
+  gm?: number;
+  gmKalla?: "gm" | "margin";
+  agree?: boolean;
+  sharp?: number;
+}
+
+function matFor(recall: Recall): Omit<Mat, "stratum"> {
+  const out: Omit<Mat, "stratum"> = {};
+  if (typeof recall.top === "number") out.top = recall.top;
+  if (typeof recall.gm === "number") {
+    out.gm = recall.gm;
+    out.gmKalla = "gm";
+  } else if (typeof recall.margin === "number") {
+    out.gm = recall.margin;
+    out.gmKalla = "margin";
+  }
+  if (recall.agree) out.agree = true;
+  if (typeof recall.sharp === "number") out.sharp = recall.sharp;
+  return out;
 }
 
 interface UserChosen {
@@ -305,6 +343,8 @@ interface Row {
   shownLen: number;
   /** Sätts av skurpasset; undefined = ingen tidsstämpel att gissa på. */
   iSkur?: boolean;
+  /** Grindens tal på raden — se `Mat`. */
+  mat: Omit<Mat, "stratum">;
 }
 
 /**
@@ -513,6 +553,9 @@ async function main() {
   let v2Rader = 0;
   const topValues: number[] = [];
   const marginValues: number[] = [];
+  const sharpValues: number[] = [];
+  /** Grindens tal för ALLA recall-rader, med och utan dom — nämnaren i 5c. */
+  const allaMat: Mat[] = [];
 
   /**
    * KANARIEFÅGEL — HELTÄCKANDE, ÖVER ALLA STRATA OCH ALLA DOMTYPER.
@@ -564,6 +607,8 @@ async function main() {
     if ((recall.v ?? 1) >= 2) v2Rader++;
     if (typeof recall.top === "number") topValues.push(recall.top);
     if (typeof recall.margin === "number") marginValues.push(recall.margin);
+    if (typeof recall.sharp === "number") sharpValues.push(recall.sharp);
+    const mat = matFor(recall);
 
     if (recall.src !== undefined && !KANDA_SRC.includes(recall.src)) kanarie.okandSrc++;
 
@@ -581,6 +626,7 @@ async function main() {
       stratum = "vision";
     }
     rader[stratum]++;
+    allaMat.push({ stratum, ...mat });
 
     const chosen = r.userChosen as UserChosen | undefined;
     if (!chosen?.kind) {
@@ -630,6 +676,7 @@ async function main() {
       artRank: kort ? recall.art.indexOf(kort) + 1 : 0,
       shownRank,
       shownLen: shown.length,
+      mat,
     });
   }
 
@@ -1061,6 +1108,137 @@ async function main() {
           `     Frågan går alltså inte att svara på ännu, bara att förbereda.`
         : `  ⚠️ Fälten saknas på alla rader före 2026-08-29 — läs n ovan, inte withRecall.`)
   );
+
+  /* --- 5b. SKÄRPA — kalibrering av SHARP_AUTO_MIN ----------------------- */
+  const pct = (v: number) => `${(v * 100).toFixed(1)} %`;
+  const positivRad = (r: Row) => r.chosen.kind === "corrected" || r.chosen.kind === "confirmed";
+  console.log(`\n\n########## 5b. SKÄRPA — KALIBRERING AV SHARP_AUTO_MIN (${sv(SHARP_AUTO_MIN, 3)}) ##########`);
+  fordelning(
+    "sharp    ",
+    sharpValues,
+    `${sharpValues.length} av ${withRecall} rader bär fältet — bara enkelskanningar ur kameran, sedan 2026-08-29`
+  );
+  console.log(
+    `  ⛔ Tröskeln grindar BARA auto-slutaren (ett manuellt tryck går alltid). Frågan\n` +
+      `     är alltså: hur många auto-fångster hade hållits tillbaka, och var de sämre?\n` +
+      `     Facit = vision-stratumets positiva domar: utanför topp-15 (miss) och topp-1.`
+  );
+  const visionSharp = rows.filter(
+    (r) => r.stratum === "vision" && typeof r.mat.sharp === "number" && positivRad(r)
+  );
+  if (visionSharp.length < MIN_GRIND_N) {
+    console.log(`  OTILLRÄCKLIGT UNDERLAG — n=${visionSharp.length} vision-domar med skärpa (krävs ≥ ${MIN_GRIND_N}).`);
+  } else {
+    const sorted = [...visionSharp].sort((a, b) => (a.mat.sharp ?? 0) - (b.mat.sharp ?? 0));
+    const Q = 5;
+    console.log(`  PER SKÄRPEKVINTIL (vision-stratumet, n=${sorted.length}):`);
+    for (let i = 0; i < Q; i++) {
+      const part = sorted.slice(Math.floor((i * sorted.length) / Q), Math.floor(((i + 1) * sorted.length) / Q));
+      if (part.length === 0) continue;
+      const lo = part[0].mat.sharp ?? 0;
+      const hi = part[part.length - 1].mat.sharp ?? 0;
+      const miss = part.filter((r) => r.artRank === 0).length;
+      const top1 = part.filter((r) => r.artRank === 1).length;
+      console.log(
+        `    Q${i + 1} [${sv(lo, 3)}–${sv(hi, 3)}] n=${String(part.length).padStart(3)}:` +
+          ` utanför topp-15 ${pct(miss / part.length).padStart(7)} · topp-1 ${pct(top1 / part.length).padStart(7)}`
+      );
+    }
+    const kameraRader = allaMat.filter((m) => typeof m.sharp === "number");
+    console.log(`  TRÖSKELSVEP (andel av ALLA kamerarader under T · miss-rate under/över T i vision-domarna):`);
+    for (const T of [0.02, 0.03, SHARP_AUTO_MIN, 0.05, 0.06, 0.08, 0.1]) {
+      const under = kameraRader.filter((m) => (m.sharp ?? 0) < T).length;
+      const u = visionSharp.filter((r) => (r.mat.sharp ?? 0) < T);
+      const o = visionSharp.filter((r) => (r.mat.sharp ?? 0) >= T);
+      const rate = (xs: Row[]) => (xs.length ? pct(xs.filter((r) => r.artRank === 0).length / xs.length) : "–");
+      console.log(
+        `    T=${sv(T, 3)}${T === SHARP_AUTO_MIN ? " (drift)" : "        "}:` +
+          ` under ${String(under).padStart(4)} av ${kameraRader.length} (${pct(under / Math.max(1, kameraRader.length)).padStart(6)})` +
+          ` · miss under ${rate(u).padStart(6)} (n=${u.length}) · miss över ${rate(o).padStart(6)} (n=${o.length})`
+      );
+    }
+    console.log(
+      `  Läs: en tröskel är motiverad där miss-raten UNDER den är tydligt högre än ÖVER\n` +
+        `  den, och andelen kamerarader under den är liten. Är miss-raten platt över\n` +
+        `  skärpan mäter måttet inte det som fäller fångsterna (t.ex. fokus, inte rörelse)\n` +
+        `  — då är takten (< 1,5 s) fortfarande den enda kända mekanismen.`
+    );
+  }
+
+  /* --- 5c. TRÖSKELSVEP — vad hade en vidgad trust-grind gjort? ---------- */
+  console.log(`\n\n########## 5c. TRÖSKELSVEP — KAN TRUST-GRINDEN VIDGAS? ##########`);
+  const visionMat = allaMat.filter((m) => m.stratum === "vision" && m.top != null && m.gm != null);
+  const gmAvlast = visionMat.filter((m) => m.gmKalla === "gm").length;
+  const visionPos = rows.filter(
+    (r) => r.stratum === "vision" && r.mat.top != null && r.mat.gm != null && positivRad(r)
+  );
+  console.log(
+    `  Nämnare: ${visionMat.length} vision-rader med top+marginal (${gmAvlast} med avläst gm,` +
+      ` ${visionMat.length - gmAvlast} med RÅ margin som konservativ ersättare) ·` +
+      ` ${visionPos.length} av dem har positiv dom.\n` +
+      `  ⛔ Rå margin ≤ gm (språktvillingen räknas inte som rival sedan 08-31): rader utan gm\n` +
+      `     UNDERSKATTAR hur många som skulle flippa. Talen mognar när gm-raderna dominerar.\n` +
+      `  ⛔ Facit är till ~80 % "Lägg till alla" (se DOMKLASSNING): "fel" här betyder att\n` +
+      `     bildens etta INTE var det kort användaren lät stå — och det kortet valdes ur en\n` +
+      `     lista där vision redan vägt in. Ett fel är alltså "bilden ≠ vision+användaren".`
+  );
+  if (visionPos.length < MIN_GRIND_N) {
+    console.log(`  OTILLRÄCKLIGT UNDERLAG — n=${visionPos.length} (krävs ≥ ${MIN_GRIND_N}).`);
+  } else {
+    // KANARIE: vid produktionens trösklar ska INGEN vision-rad passera — de hade
+    // varit art-avgjorda. Passerar någon är gm inte det grinden såg (eller
+    // raden är äldre än tvillingregeln och bär rå margin som ändå räcker).
+    const kanarieRader = visionMat.filter(
+      (m) => (m.top ?? 0) >= ART_TRUST_SCORE && (m.gm ?? 0) >= ART_TRUST_MARGIN
+    ).length;
+    console.log(
+      `  KANARIE: ${kanarieRader} vision-rader passerar produktionens basregel` +
+        ` (poäng ≥ ${sv(ART_TRUST_SCORE)}, marginal ≥ ${sv(ART_TRUST_MARGIN)}) — ska vara 0.` +
+        (kanarieRader > 0
+          ? ` ⚠️ Är de > 0: \`precise\`-anrop, eller rader från före 08-31 där rå margin\n` +
+            `     låg över golvet men grinden dömde på en annan lista.`
+          : "")
+    );
+    const svep = (S: number, M: number, agreeOnly: boolean) => {
+      const pass = (m: { top?: number; gm?: number; agree?: boolean }) =>
+        (m.top ?? 0) >= S && (m.gm ?? 0) >= M && (!agreeOnly || m.agree === true);
+      const flip = visionMat.filter(pass).length;
+      const dom = visionPos.filter((r) => pass(r.mat));
+      const ratt = dom.filter((r) => r.artRank === 1).length;
+      const fel = dom.length - ratt;
+      return { flip, n: dom.length, ratt, fel };
+    };
+    const rad = (label: string, x: ReturnType<typeof svep>) =>
+      console.log(
+        `    ${label}: skulle avgöra ${String(x.flip).padStart(4)} av ${visionMat.length}` +
+          ` vision-rader (${pct(x.flip / Math.max(1, visionMat.length)).padStart(6)})` +
+          ` · med dom n=${String(x.n).padStart(3)}: rätt ${String(x.ratt).padStart(3)} fel ${String(x.fel).padStart(3)}` +
+          (x.n > 0
+            ? ` · precision ${pct(x.ratt / x.n).padStart(6)}${x.fel === 0 ? ` · fel ${nollFelTak(x.n)}` : ""}`
+            : "")
+      );
+    console.log(`  BASREGELN (marginal mot första icke-tvilling-rivalen), poäng ≥ S:`);
+    for (const S of [ART_TRUST_SCORE, 0.5, 0.45]) {
+      for (const M of [ART_TRUST_MARGIN, 0.09, 0.08, 0.07, 0.06, ART_AGREE_MARGIN, 0.04, 0.03]) {
+        rad(`S=${sv(S)} M=${sv(M)}`, svep(S, M, false));
+      }
+    }
+    const agreeRader = visionMat.filter((m) => m.agree === true).length;
+    console.log(
+      `  AGREE-GRENEN (alla rutor ense; ${agreeRader} vision-rader bär agree=true —` +
+        ` fältet skrivs sedan 2026-09-01), poäng ≥ ${sv(ART_TRUST_SCORE)}:`
+    );
+    for (const M of [ART_AGREE_MARGIN, 0.04, 0.03, 0.02]) {
+      rad(`agree M=${sv(M)}`, svep(ART_TRUST_SCORE, M, true));
+    }
+    console.log(
+      `  Läs: "skulle avgöra" är den EXTRA fria andelen (× andel_vision ${pct(
+        rader.vision / Math.max(1, rader.vision + rader.art)
+      )} för hela flödet). Precisionen måste hålla mot dagens 98,2 % (avsnitt 2, ett TAK)\n` +
+        `  — och fel-taket ("rule of three") på en liten hink är stort. ⛔ Sänk aldrig på en\n` +
+        `  hink under ${MIN_GRIND_N}; det var så 0,05-som-fråga föll 2026-07-30.`
+    );
+  }
 
   /* --- 6. GRINDEN ------------------------------------------------------ */
   const gVal = artRecall(visionCorrected, 3) * 100;

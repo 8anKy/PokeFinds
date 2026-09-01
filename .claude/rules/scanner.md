@@ -386,6 +386,27 @@ Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md p
   on-device i appen (skuggläge, nytt native-bygge) eller en egen liten sifferdetektor när ~1 000 admin-remsor
   finns. ⚠️ Samma batch visade att JP-skanningar landar på EN-kortet (08-29-regeln) — ett `language`-fält i
   vision-kontraktet kan bryta lika mot JP; ej byggt.
+- **ON-DEVICE-NUMMERLÄSNING I APPEN, SKUGGLÄGE (2026-09-01)**: `@capacitor-mlkit/text-recognition` +
+  `@capacitor/filesystem`. Klienten (`lib/mlkit-number.ts`) läser samlarnumret LOKALT ur SAMMA remsa som
+  skickas som `detail`, tolkar den (`lib/local-number-read.ts`, ren + testad) och skickar `localNumber`
+  i identify-anropet; servern bokför `result.local = { v, ms, printed, num, total, candidates, gemini?,
+  err?, raw? }` för ALLA användare (`raw` bara admin; `gemini` UTELÄMNAS när vision hoppades över,
+  null när vision läste inget). ⛔ **PÅVERKAR INGET I SVARET — `matchCards` är orörd.** Fas 2 (numret
+  avgör när bildens topp-N bär ett kort med samma nummer) byggs FÖRST när
+  `scripts/scanner-number-ocr-eval.ts --mlkit` visar ≥ ~90 % exakt i VISION-stratumet.
+  Läsningen väntas in FÖRE anropet (tidsgräns 2,5 s, modellen värms upp när kameran går live) så talet
+  hamnar på samma rad som Geminis läsning och facit. ⛔ JS:et är hostat och laddas av ÄLDRE binärer utan
+  pluginet: UNIMPLEMENTED ⇒ tyst av för sessionen, INGET skickas. ⛔ Pluginet är **CocoaPods-only på iOS**
+  (Googles ML Kit saknar SPM) medan `ios/App` bygger med SPM — `cap sync ios` varnar och hoppar över det;
+  iOS tar UNIMPLEMENTED-vägen tills ios-projektet byter till Pods (ägarbeslut). Android bundlar ALLA fem
+  skriptmodeller (plugin-gradle, ~+30 MB APK). Latin-modellen läser inte kana — `jp`-frågan kräver en
+  andra pass med `script: Japanese`. ⛔ Inget lookbehind i klientregexar (iOS 15-WebView = SyntaxError vid
+  modulladdning, hela sidan dör).
+  **Grindens egna tal bokförs sedan samma dag**: `recall.gm` (tvillingjusterad marginal, `artGateMargin`)
+  och `recall.agree` (agree-grenens villkor). ⛔ `recall.margin` är den RÅA topp-1−topp-2 och är alltid ≤ gm
+  — ett tröskelsvep på den underskattar det fria utrymmet. `scanner-recall-live.ts` avsnitt 5c sveper på gm
+  (rå margin som konservativ ersättare på äldre rader, räknas ut), 5b kalibrerar `SHARP_AUTO_MIN` på
+  `recall.sharp` mot miss-rate per kvintil. Båda vägrar under `MIN_GRIND_N`.
 - ⛔ **JP-KATALOGEN HÖJDE GEMINI-ANVÄNDNINGEN TYST — SPRÅKTVILLINGAR ÄR INTE RIVALER (2026-08-31)**:
   varje kort som finns på EN och JP har sedan 08-29 två referenser med identisk konst, och trust-regeln
   mäter marginalen till TVÅAN. Mätt på ägarens JP-batch 08-30 (n=44): fri andel **9 %** mot 19–57 %

@@ -20,6 +20,15 @@
  *               (STRIP_FRACTION = 0,22, samma som klienten) skärs ut. Det är
  *               ett TAK (ren rendering, inget kameraljus) och validerar
  *               rörledningen — aldrig ett fälttal.
+ *   --mlkit     SKUGGLÄGET (2026-09-01): rader med `result.local` — appens
+ *               on-device-läsning (ML Kit) bokförd bredvid Geminis läsning av
+ *               SAMMA fångst, för ALLA användare. Ingen OCR körs här; skriptet
+ *               dömer det som redan lästes, per stratum (art-avgjord / vision).
+ *               Facit: userChosen (positiv dom) → Card.number, annars
+ *               recall.shown[0] (skannerns svar — svagare, redovisas isär).
+ *               ⛔ Beslutet "låt numret avgöra" (fas 2) tas på VISION-stratumets
+ *               dom-rader — det är där ett gratis nummer sparar ett anrop.
+ *               Tröskel enligt planen: ≥ ~90 % exakt där.
  *
  * Varje remsa körs genom några förbehandlingar (rå · gråskala+2× · gråskala+
  * 2×+tröskel) och två segmenteringslägen; per remsa räknas den bästa varianten
@@ -167,10 +176,178 @@ async function loadCatalog(n: number): Promise<Sample[]> {
   return out;
 }
 
+/* ------------------------------------------------------------------ *
+ * --mlkit: SKUGGLÄGET — döm appens lokala läsning mot facit och Gemini
+ * ------------------------------------------------------------------ */
+
+interface LocalRow {
+  id: string;
+  createdAt: Date;
+  local: {
+    ms?: number;
+    printed?: string | null;
+    num?: number | null;
+    total?: number | null;
+    candidates?: number;
+    gemini?: string | null;
+    err?: string;
+    raw?: string;
+  };
+  src: string | null;
+  shown0: string | null;
+  userCard: string | null;
+  kind: string | null;
+}
+
+function pctOf(n: number, of: number): string {
+  return of > 0 ? `${((100 * n) / of).toFixed(1).padStart(5)} %` : "    – ";
+}
+
+function percentile(sorted: number[], p: number): number {
+  if (sorted.length === 0) return NaN;
+  return sorted[Math.min(sorted.length - 1, Math.max(0, Math.round((p / 100) * (sorted.length - 1))))];
+}
+
+async function runMlkit(): Promise<void> {
+  const rows = await prisma.$queryRawUnsafe<LocalRow[]>(
+    `select id, "createdAt", result->'local' as local, result->'recall'->>'src' as src,
+            result->'recall'->'shown'->>0 as "shown0",
+            result->'userChosen'->>'cardId' as "userCard", result->'userChosen'->>'kind' as kind
+       from "ScannerJob" where result ? 'local' order by "createdAt" desc limit 5000`
+  );
+  console.log(`mlkit: ${rows.length} rader med result.local`);
+  if (rows.length === 0) {
+    console.log("Inga rader ännu — appen måste vara byggd med pluginet (Android: cap sync + nytt bygge; iOS: kräver CocoaPods).");
+    return;
+  }
+  const dagar = new Map<string, number>();
+  for (const r of rows) {
+    const d = r.createdAt.toISOString().slice(0, 10);
+    dagar.set(d, (dagar.get(d) ?? 0) + 1);
+  }
+  console.log("  per dygn: " + [...dagar.entries()].sort().map(([d, n]) => `${d} ${n}`).join(" · "));
+
+  const ids = new Set<string>();
+  for (const r of rows) {
+    if (r.userCard) ids.add(r.userCard);
+    if (r.shown0) ids.add(r.shown0);
+  }
+  const cards = ids.size
+    ? await prisma.card.findMany({ where: { id: { in: [...ids] } }, select: { id: true, number: true } })
+    : [];
+  const numberOf = new Map(cards.map((c) => [c.id, c.number]));
+
+  type Strat = "art" | "vision";
+  interface Cell {
+    n: number;
+    dom: number;
+    localExact: number;
+    localNone: number;
+    localErr: number;
+    multi: number;
+    geminiN: number;
+    geminiExact: number;
+    both: number;
+    onlyLocal: number;
+    onlyGemini: number;
+    neither: number;
+  }
+  const cell = (): Cell => ({ n: 0, dom: 0, localExact: 0, localNone: 0, localErr: 0, multi: 0, geminiN: 0, geminiExact: 0, both: 0, onlyLocal: 0, onlyGemini: 0, neither: 0 });
+  const per: Record<Strat, Cell> = { art: cell(), vision: cell() };
+  const perDom: Record<Strat, Cell> = { art: cell(), vision: cell() };
+  const ms: number[] = [];
+  const errs = new Map<string, number>();
+  let utanFacit = 0;
+  const misses: string[] = [];
+
+  for (const r of rows) {
+    const strat: Strat = r.src === "art" ? "art" : "vision";
+    const positiv = r.kind === "corrected" || r.kind === "confirmed";
+    const fromDom = positiv && r.userCard ? numberOf.get(r.userCard) : undefined;
+    const truth = fromDom ?? (r.shown0 ? numberOf.get(r.shown0) : undefined);
+    if (typeof r.local.ms === "number") ms.push(r.local.ms);
+    if (r.local.err) errs.set(r.local.err, (errs.get(r.local.err) ?? 0) + 1);
+    if (!truth) {
+      utanFacit++;
+      continue;
+    }
+    const targets = fromDom ? [per[strat], perDom[strat]] : [per[strat]];
+    const localExact = r.local.printed ? judge([{ num: r.local.printed, total: null }], truth).exact : false;
+    const hasGemini = "gemini" in r.local && r.local.gemini !== undefined;
+    const geminiExact = hasGemini && r.local.gemini ? judge(extractNumbers(r.local.gemini), truth).exact : false;
+    for (const c of targets) {
+      c.n++;
+      if (fromDom) c.dom++;
+      if (localExact) c.localExact++;
+      if (!r.local.printed && !r.local.err) c.localNone++;
+      if (r.local.err) c.localErr++;
+      if ((r.local.candidates ?? 0) > 1) c.multi++;
+      if (hasGemini) {
+        c.geminiN++;
+        if (geminiExact) c.geminiExact++;
+        if (localExact && geminiExact) c.both++;
+        else if (localExact) c.onlyLocal++;
+        else if (geminiExact) c.onlyGemini++;
+        else c.neither++;
+      }
+    }
+    if (!localExact && misses.length < 40) {
+      misses.push(
+        `  ${r.id} [${strat}${fromDom ? ", dom" : ""}] facit ${truth} → lokal ${r.local.printed ?? (r.local.err ? `FEL:${r.local.err}` : "–")}` +
+          (hasGemini ? ` · gemini ${r.local.gemini ?? "–"}` : "") +
+          (r.local.raw ? ` · raw "${r.local.raw.replace(/\s+/g, " ").slice(0, 80)}"` : "")
+      );
+    }
+  }
+
+  const skriv = (rubrik: string, c: Cell) => {
+    console.log(`\n--- ${rubrik} (n=${c.n}, varav med dom ${c.dom}) ---`);
+    if (c.n === 0) return;
+    console.log(`  LOKAL exakt          : ${String(c.localExact).padStart(4)}  ${pctOf(c.localExact, c.n)}`);
+    console.log(`  LOKAL läste inget    : ${String(c.localNone).padStart(4)}  ${pctOf(c.localNone, c.n)}`);
+    console.log(`  LOKAL fel/timeout    : ${String(c.localErr).padStart(4)}  ${pctOf(c.localErr, c.n)}`);
+    console.log(`  LOKAL >1 kandidat    : ${String(c.multi).padStart(4)}  ${pctOf(c.multi, c.n)}`);
+    if (c.geminiN > 0) {
+      console.log(`  GEMINI exakt (samma fångster, n=${c.geminiN}): ${String(c.geminiExact).padStart(4)}  ${pctOf(c.geminiExact, c.geminiN)}`);
+      console.log(
+        `  båda rätt ${c.both} · bara lokal ${c.onlyLocal} · bara Gemini ${c.onlyGemini} · ingen ${c.neither}` +
+          `   ⇒ lokal+Gemini tillsammans ${pctOf(c.both + c.onlyLocal + c.onlyGemini, c.geminiN)}`
+      );
+    }
+  };
+  console.log("\n" + "=".repeat(78));
+  console.log(`FACIT: userChosen (positiv dom) → Card.number, annars shown[0]. ${utanFacit} rader utan facit hoppas över.`);
+  skriv("VISION-STRATUMET — det som avgör fas 2 (alla facit)", per.vision);
+  skriv("VISION-STRATUMET — bara rader med DOM (starkare facit)", perDom.vision);
+  skriv("ART-AVGJORDA — kontroll (facit = bildens etta, Gemini kördes inte)", per.art);
+  skriv("ART-AVGJORDA — bara rader med DOM", perDom.art);
+  const s = [...ms].sort((a, b) => a - b);
+  console.log(
+    `\nTID PÅ ENHETEN (ms, n=${s.length}): p10 ${percentile(s, 10)} · median ${percentile(s, 50)} · p90 ${percentile(s, 90)} · max ${s[s.length - 1] ?? "–"}`
+  );
+  if (errs.size) console.log(`FEL: ${[...errs.entries()].map(([k, v]) => `${k} ${v}`).join(" · ")}`);
+  console.log(
+    `\n⛔ Fas 2-grinden går på VISION-stratumets rader (helst med dom): där sparar ett\n` +
+      `   rätt läst nummer ett Gemini-anrop. Art-stratumets facit är bildens egen etta\n` +
+      `   (100 % per konstruktion) — det mäter läsningen, inte skannern.\n` +
+      `⚠️ "bara lokal"-raderna är de där numret hade RÄTTAT Gemini; "bara Gemini" är\n` +
+      `   priset för att slippa anropet. Läs båda innan fas 2 byggs.`
+  );
+  console.log("=".repeat(78));
+  if (misses.length) {
+    console.log(`\nMISSAR (${misses.length} visade):`);
+    for (const m of misses) console.log(m);
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
+  if (args.includes("--mlkit")) {
+    await runMlkit();
+    return;
+  }
   const mode = args.includes("--field") ? "field" : args.includes("--catalog") ? "catalog" : null;
-  if (!mode) throw new Error("ange --field eller --catalog N");
+  if (!mode) throw new Error("ange --field, --catalog N eller --mlkit");
   const samples = mode === "field" ? await loadField() : await loadCatalog(Number(args[args.indexOf("--catalog") + 1] ?? 20));
   console.log(`${mode}: ${samples.length} remsor` + (mode === "field" ? ` (dom ${samples.filter((s) => s.truthStrength === "dom").length} · skannerns svar ${samples.filter((s) => s.truthStrength === "skanner").length})` : ""));
   if (samples.length === 0) {

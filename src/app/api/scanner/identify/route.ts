@@ -77,6 +77,22 @@ const schema = z.object({
   // Taket är generöst — måttet är obundet uppåt och en absurd siffra ska
   // avvisas, inte klampas tyst till något som ser rimligt ut.
   sharp: z.number().min(0).max(1000).optional(),
+  // LOKAL NUMMERLÄSNING, SKUGGLÄGE (2026-09-01): appen läser samlarnumret
+  // on-device (ML Kit) ur SAMMA remsa som `detail` och skickar tolkningen
+  // (src/lib/mlkit-number.ts). ⛔ Påverkar INGET i svaret — bokförs bara
+  // (result.local) bredvid Geminis läsning så båda kan dömas mot facit.
+  // Webben skickar aldrig fältet. Taken avvisar det absurda, klampar inget.
+  localNumber: z
+    .object({
+      ms: z.number().int().min(0).max(60_000),
+      printed: z.string().max(16).nullable(),
+      num: z.number().int().min(0).max(9999).nullable(),
+      total: z.number().int().min(0).max(9999).nullable(),
+      candidates: z.number().int().min(0).max(99),
+      raw: z.string().max(400).optional(),
+      err: z.enum(["timeout", "plugin"]).optional(),
+    })
+    .optional(),
   // Starkare (dyrare) vision-modell — körs bara vid bekräftelse/uppladdning,
   // inte för varje live-ruta.
   precise: z.boolean().optional(),
@@ -110,6 +126,7 @@ export async function POST(req: Request) {
       structFrames,
       foil,
       sharp,
+      localNumber,
       precise,
     } = schema.parse(await req.json());
     if (image.length + (detail?.length ?? 0) > MAX_IMAGE_BYTES * 1.4) {
@@ -268,6 +285,10 @@ export async function POST(req: Request) {
         // bara mäta TAKTEN som proxy (< 1,5 s → 34,1 % miss mot 15,3 % vid > 60 s)
         // eftersom skärpan aldrig bokförts.
         sharp,
+        // Grindens EGNA tal (2026-09-01): tvillingjusterad marginal + agree-
+        // villkoret. ⛔ `margin` ovan är den RÅA; ett tröskelsvep ska läsa `gm`.
+        gm: result.artGateMargin,
+        agree: result.artAgree,
       },
       // FÄLTAVTRYCKET — för ALLA användare, se recordScanUsage. Första rutans
       // hela variantsvep; struktur följer positionsvis (kan saknas från en äldre
@@ -275,7 +296,24 @@ export async function POST(req: Request) {
       {
         color: (fingerprintFrames?.[0] ?? fingerprints ?? []).slice(0, 7),
         struct: (structFrames?.[0] ?? structFingerprints ?? []).slice(0, 7),
-      }
+      },
+      // LOKAL NUMMERLÄSNING (skuggläge) — för ALLA användare, se recordScanUsage.
+      // Geminis läsning av SAMMA fångst läggs bredvid; nyckeln UTELÄMNAS när
+      // vision hoppades över (ingen läsning att jämföra med) och är null när
+      // vision körde utan att läsa något. `raw` bara för admin: hela OCR-texten
+      // kan bära illustratör/copyright, mer än mätningen behöver för andra.
+      localNumber
+        ? {
+            ms: localNumber.ms,
+            printed: localNumber.printed,
+            num: localNumber.num,
+            total: localNumber.total,
+            candidates: localNumber.candidates,
+            ...(result.artDecided ? {} : { gemini: result.guessedNumber ?? null }),
+            ...(localNumber.err ? { err: localNumber.err } : {}),
+            ...(isAdmin && localNumber.raw ? { raw: localNumber.raw } : {}),
+          }
+        : null
     );
 
     // ⛔ `artCandidateIds` och `artMargin` är MÄTDATA och går inte ut på tråden:
@@ -285,6 +323,8 @@ export async function POST(req: Request) {
     const {
       artCandidateIds: _measurementOnly,
       artMargin: _measurementOnly2,
+      artGateMargin: _measurementOnly3,
+      artAgree: _measurementOnly4,
       ...clientResult
     } = result;
 

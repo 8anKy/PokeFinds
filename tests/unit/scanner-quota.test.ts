@@ -173,6 +173,51 @@ describe("recordScanUsage", () => {
       expect(resultOf()).not.toHaveProperty("fp");
     });
 
+    it("local (on-device-nummerläsningen, skuggläge) skrivs för ALLA — egen nyckel, INTE grindad på recall", async () => {
+      // Läsningen är oberoende av bildsökningen: en rad utan avtryck ska ändå
+      // bära den, annars går ML Kit-talet inte att mäta på de raderna.
+      create.mockResolvedValue({ id: "j1" });
+      await recordScanUsage("u1", undefined, true, null, { art: [], shown: [] }, null, {
+        ms: 140,
+        printed: "42",
+        num: 42,
+        total: 165,
+        candidates: 1,
+        gemini: "042/165",
+      });
+      expect(resultOf().local).toEqual({
+        v: 1,
+        ms: 140,
+        printed: "42",
+        num: 42,
+        total: 165,
+        candidates: 1,
+        gemini: "042/165",
+      });
+      expect(resultOf()).not.toHaveProperty("recall");
+      // Utelämnad ⇒ ingen nyckel alls (webben skickar aldrig fältet).
+      create.mockClear();
+      create.mockResolvedValue({ id: "j2" });
+      await recordScanUsage("u1", undefined, true, null, { art: ["a"], shown: ["a"] }, null, null);
+      expect(resultOf()).not.toHaveProperty("local");
+    });
+
+    it("gm/agree (grindens egna tal) skrivs bara när de finns", async () => {
+      create.mockResolvedValue({ id: "j1" });
+      await recordScanUsage("u1", undefined, true, null, {
+        art: ["a"],
+        shown: ["a"],
+        gm: 0.12,
+        agree: true,
+      });
+      expect(resultOf().recall).toMatchObject({ gm: 0.12, agree: true });
+      create.mockClear();
+      create.mockResolvedValue({ id: "j2" });
+      await recordScanUsage("u1", undefined, true, null, { art: ["a"], shown: ["a"], gm: null, agree: false });
+      expect(resultOf().recall).not.toHaveProperty("gm");
+      expect(resultOf().recall).not.toHaveProperty("agree");
+    });
+
     it("top/margin/sharp skrivs bara när de finns — aldrig som null", async () => {
       // ⛔ `null` i JSON läses som "vi mätte och fick inget". En saknad nyckel är
       // "det här fältet fanns inte när raden skrevs", vilket är sant om varje rad

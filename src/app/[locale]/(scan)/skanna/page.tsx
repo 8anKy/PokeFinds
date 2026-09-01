@@ -28,6 +28,7 @@ import {
 } from "@/lib/art-fingerprint";
 import { foilProbeFromRgb, type FoilSample } from "@/lib/foil-probe";
 import { frameSharpness, SHARP_AUTO_MIN } from "@/lib/frame-sharpness";
+import { readNumberStripNative, warmUpLocalNumberReader } from "@/lib/mlkit-number";
 import { classifyDrag, shouldCloseSheet } from "@/lib/sheet-drag";
 import { useEventCallback } from "@/hooks/use-event-callback";
 import {
@@ -988,6 +989,14 @@ function Scanner() {
       sharp?: number | null
     ): Promise<IdentifyResponse | { error: string; httpStatus?: number }> => {
       try {
+        // LOKAL NUMMERLÄSNING, SKUGGLÄGE (2026-09-01): i APPEN läser ML Kit
+        // samlarnumret on-device ur samma remsa som skickas som `detail`;
+        // webben får `undefined` direkt. ⛔ Ren telemetri — servern ändrar
+        // inget i svaret på den. Väntas in FÖRE anropet (egen tidsgräns,
+        // 2,5 s) så talet hamnar på SAMMA rad som Geminis läsning och facit —
+        // en efterhandsrapport hade saknat raden i 43 % av fallen (ingen dom).
+        // Se src/lib/mlkit-number.ts.
+        const localNumber = strip ? await readNumberStripNative(strip) : undefined;
         // Standard = billiga Haiku-modellen (ingen `precise`) — håller scan-kostnaden
         // mot Pro-priset. Sonnet körs bara på uttryckligt "försök igen, skarpare".
         const res = await scanFetch("/api/scanner/identify", {
@@ -1009,6 +1018,7 @@ function Scanner() {
             // det felet gjorde att vi trodde 79 % av skanningarna var gratis när
             // produktionen låg på 30,5 %.
             ...(sharp != null ? { sharp } : {}),
+            ...(localNumber ? { localNumber } : {}),
           }),
         });
         const data = (await res.json()) as IdentifyResponse & { error?: string };
@@ -1178,6 +1188,10 @@ function Scanner() {
         await video.play().catch(() => undefined);
       }
       setCameraState("live");
+      // Ladda ML Kit-modellen medan användaren riktar in kortet — annars äter
+      // första skanningens modellstart (~1 s på Android) ur läsningens tidsgräns.
+      // No-op på webben. Se src/lib/mlkit-number.ts.
+      warmUpLocalNumberReader();
     } catch (err) {
       const name = err instanceof DOMException ? err.name : "";
       setCameraError(
