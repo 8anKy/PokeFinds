@@ -51,7 +51,7 @@ android/keystore.properties
 __pycache__/
 
 # iOS-projektet genereras färskt av Codemagic (`cap add ios`) — checkas aldrig in
-ios/
+/ios/
 
 # Katalog-säkerhetskopior (stora, prod-data — hör inte hemma i git)
 backup-catalog-*.json

@@ -366,7 +366,7 @@ export async function recordScanUsage(
   /**
    * LOKAL NUMMERLÄSNING, SKUGGLÄGE (2026-09-01) — skrivs för ALLA användare.
    * Appen läser samlarnumret on-device (ML Kit) ur samma remsa som `detail`
-   * och skickar TOLKNINGEN (`src/lib/mlkit-number.ts`). Här läggs Geminis
+   * och skickar TOLKNINGEN (`src/lib/on-device-number.ts`). Här läggs Geminis
    * läsning av SAMMA fångst bredvid, så mätskriptet
    * (`scripts/scanner-number-ocr-eval.ts --mlkit`) kan döma båda mot facit
    * (userChosen → Card.number, annars shown[0]) per stratum.

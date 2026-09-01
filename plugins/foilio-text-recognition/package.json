@@ -1,0 +1,22 @@
+{
+  "name": "foilio-text-recognition",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Foilio: on-device textigenkänning på iOS via Apple Vision (VNRecognizeTextRequest). Inga externa beroenden, ren SPM — se plugins/foilio-text-recognition/README.md.",
+  "main": "dist/plugin.cjs.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/esm/index.d.ts",
+  "files": [
+    "dist/",
+    "ios/Sources",
+    "Package.swift"
+  ],
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    }
+  },
+  "peerDependencies": {
+    "@capacitor/core": ">=8.0.0"
+  }
+}

@@ -387,7 +387,7 @@ Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md p
   finns. ⚠️ Samma batch visade att JP-skanningar landar på EN-kortet (08-29-regeln) — ett `language`-fält i
   vision-kontraktet kan bryta lika mot JP; ej byggt.
 - **ON-DEVICE-NUMMERLÄSNING I APPEN, SKUGGLÄGE (2026-09-01)**: `@capacitor-mlkit/text-recognition` +
-  `@capacitor/filesystem`. Klienten (`lib/mlkit-number.ts`) läser samlarnumret LOKALT ur SAMMA remsa som
+  `@capacitor/filesystem`. Klienten (`lib/on-device-number.ts`) läser samlarnumret LOKALT ur SAMMA remsa som
   skickas som `detail`, tolkar den (`lib/local-number-read.ts`, ren + testad) och skickar `localNumber`
   i identify-anropet; servern bokför `result.local = { v, ms, printed, num, total, candidates, gemini?,
   err?, raw? }` för ALLA användare (`raw` bara admin; `gemini` UTELÄMNAS när vision hoppades över,
@@ -396,11 +396,16 @@ Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md p
   `scripts/scanner-number-ocr-eval.ts --mlkit` visar ≥ ~90 % exakt i VISION-stratumet.
   Läsningen väntas in FÖRE anropet (tidsgräns 2,5 s, modellen värms upp när kameran går live) så talet
   hamnar på samma rad som Geminis läsning och facit. ⛔ JS:et är hostat och laddas av ÄLDRE binärer utan
-  pluginet: UNIMPLEMENTED ⇒ tyst av för sessionen, INGET skickas. ⛔ Pluginet är **CocoaPods-only på iOS**
-  (Googles ML Kit saknar SPM) medan `ios/App` bygger med SPM — `cap sync ios` varnar och hoppar över det;
-  iOS tar UNIMPLEMENTED-vägen tills ios-projektet byter till Pods (ägarbeslut). Android bundlar ALLA fem
-  skriptmodeller (plugin-gradle, ~+30 MB APK). Latin-modellen läser inte kana — `jp`-frågan kräver en
-  andra pass med `script: Japanese`. ⛔ Inget lookbehind i klientregexar (iOS 15-WebView = SyntaxError vid
+  pluginet: UNIMPLEMENTED ⇒ tyst av för sessionen, INGET skickas.
+  **TVÅ MOTORER, ETT KONTRAKT**: iOS = EGEN plugin `plugins/foilio-text-recognition` (Apple Vision,
+  `VNRecognizeTextRequest`, systemramverk, noll beroenden, ren SPM, tar base64 direkt) — ML Kit-pluginet är
+  **CocoaPods-only på iOS** (Googles ML Kit saknar SPM) medan `ios/App` genereras som SPM-projekt av
+  `cap add ios` i Codemagic; `cap sync ios` varnar och hoppar över ML Kit där. Android = ML Kit via
+  Filesystem-fil (bundlar ALLA fem skriptmodeller, ~+30 MB APK). Pluginen ligger som `file:`-beroende ⇒
+  `npm ci` symlänkar, `cap add/sync` hittar `Package.swift`, `@objc(FoilioTextRecognitionPlugin)` hamnar i
+  `packageClassList`. ⚠️ Swift-filen kompileras FÖRST i Codemagic (ägaren är på Windows) — håll den minimal.
+  Latin-modellen (Android) läser inte kana — `jp`-frågan kräver `script: Japanese`; Vision tar `languages`
+  filtrerat mot enhetens stödda lista. ⛔ Inget lookbehind i klientregexar (iOS 15-WebView = SyntaxError vid
   modulladdning, hela sidan dör).
   **Grindens egna tal bokförs sedan samma dag**: `recall.gm` (tvillingjusterad marginal, `artGateMargin`)
   och `recall.agree` (agree-grenens villkor). ⛔ `recall.margin` är den RÅA topp-1−topp-2 och är alltid ≤ gm

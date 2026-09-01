@@ -1,5 +1,5 @@
 /**
- * ON-DEVICE NUMMERLÄSNING I APPEN (ML Kit) — SKUGGLÄGE (2026-09-01).
+ * ON-DEVICE NUMMERLÄSNING I APPEN — SKUGGLÄGE (2026-09-01).
  *
  * Appen läser samlarnumret LOKALT ur samma nederkantsremsa som redan skickas
  * till servern som `detail`, och skickar tolkningen som telemetri bredvid
@@ -8,29 +8,29 @@
  * tar det — först på det talet fattas beslutet att låta numret avgöra
  * (fas 2 i project_scanner_field_fingerprints_and_free_ocr).
  *
- * VARFÖR ML KIT OCH INTE TESSERACT: mätt 2026-08-31 på 43 riktiga remsor —
- * tesseract 25,6 % (bästa variant) / 44,2 % (bästa-av-7) mot Gemini 94,9 %.
- * Siffrorna är ~20 px, vita med mörk kontur ovanpå konsten, plastficka och
- * rörelseoskärpa: olösligt för klassisk segmentering, vardag för ML Kits
- * modell. Gratis, offline, ingen nätverkstrafik.
+ * TVÅ MOTORER, ETT KONTRAKT:
+ *   iOS     → `foilio-text-recognition` (plugins/, egen): Apple Vision,
+ *             systemramverk, noll beroenden, tar base64 direkt.
+ *   Android → `@capacitor-mlkit/text-recognition`: ML Kit, vill ha en FILVÄG
+ *             ⇒ remsan skrivs till app-cachen (Filesystem), läses, tas bort.
+ *   Webb    → `undefined` utan att något importeras.
+ * ⛔ ML Kit-pluginet är CocoaPods-only på iOS (Googles ML Kit saknar SPM) medan
+ * ios/App genereras som SPM-projekt i Codemagic — därför den egna pluginen.
  *
- * PLATTFORM: bara nativt (`Capacitor.isNativePlatform()`); webben får
- * `undefined` utan att något importeras. ⛔ JS:et är HOSTAT och laddas även av
- * en ÄLDRE appbinär utan pluginet — då kastar Capacitor UNIMPLEMENTED och vi
- * stänger av oss tyst för resten av sessionen. Skickar INGET i det läget
- * (inte `err`), annars hade varje gammal app spammat telemetrin.
- * ⚠️ iOS: pluginet är CocoaPods-only (Googles ML Kit saknar SPM) medan
- * ios/App bygger med SPM — tills det är löst tar iOS UNIMPLEMENTED-vägen.
+ * VARFÖR INTE TESSERACT: mätt 2026-08-31 på 43 riktiga remsor — 25,6 % (bästa
+ * variant) / 44,2 % (bästa-av-7) mot Gemini 94,9 %. Siffrorna är ~20 px, vita
+ * med mörk kontur ovanpå konsten, plastficka och rörelseoskärpa: olösligt för
+ * klassisk segmentering, vardag för en modern textmodell.
  *
- * FILVÄGEN: pluginet vill ha en FILSÖKVÄG, inte base64. Remsan skrivs till
- * app-cachen (Filesystem, Directory.Cache), läses, och tas bort. Ett roterande
- * filnamn (8 platser) så att bulkens seriella celler inte skriver över varandra
- * om en radering släpar.
+ * ⛔ JS:et är HOSTAT och laddas även av en ÄLDRE appbinär utan pluginet — då
+ * kastar Capacitor UNIMPLEMENTED och vi stänger av oss tyst för resten av
+ * sessionen. Skickar INGET i det läget (inte `err`), annars hade varje gammal
+ * app spammat telemetrin.
  */
 import { analyzeStripText } from "@/lib/local-number-read";
 
 export interface LocalNumberPayload {
-  /** Väggklockstid för hela läsningen (filskrivning + igenkänning), ms. */
+  /** Väggklockstid för hela läsningen (ev. filskrivning + igenkänning), ms. */
   ms: number;
   /** Tolkat nummer, null = OCR:n läste text men inget samlarnummer. */
   printed: string | null;
@@ -53,6 +53,7 @@ const RAW_MAX = 300;
 const READ_TIMEOUT_MS = 2500;
 const WARMUP_TIMEOUT_MS = 8000;
 
+type Platform = "ios" | "android" | "web";
 type State = "unknown" | "ready" | "unsupported";
 let state: State = "unknown";
 let seq = 0;
@@ -75,28 +76,40 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-async function isNative(): Promise<boolean> {
+async function platform(): Promise<Platform> {
   try {
     const { Capacitor } = await import("@capacitor/core");
-    return Capacitor.isNativePlatform();
+    if (!Capacitor.isNativePlatform()) return "web";
+    return Capacitor.getPlatform() === "ios" ? "ios" : "android";
   } catch {
-    return false;
+    return "web";
   }
 }
 
-/** Capacitors "pluginet finns inte i den här binären" — äldre app, eller iOS utan Pods. */
+/** Capacitors "pluginet finns inte i den här binären" — äldre app utan pluginet. */
 function isUnimplemented(e: unknown): boolean {
   const code = (e as { code?: unknown } | null)?.code;
   const msg = e instanceof Error ? e.message : typeof e === "string" ? e : "";
   return code === "UNIMPLEMENTED" || /not implemented|not available|UNIMPLEMENTED/i.test(msg);
 }
 
-async function recognize(dataUrl: string): Promise<string> {
+function stripPrefix(dataUrl: string): string {
+  return dataUrl.replace(/^data:image\/[a-z+.-]+;base64,/i, "");
+}
+
+async function recognizeIos(base64: string): Promise<string> {
+  const { FoilioTextRecognition } = await import("foilio-text-recognition");
+  const { text } = await FoilioTextRecognition.recognize({ base64 });
+  return text;
+}
+
+async function recognizeAndroid(base64: string): Promise<string> {
   const [{ Filesystem, Directory }, { TextRecognition }] = await Promise.all([
     import("@capacitor/filesystem"),
     import("@capacitor-mlkit/text-recognition"),
   ]);
-  const base64 = dataUrl.replace(/^data:image\/[a-z+.-]+;base64,/i, "");
+  // Roterande filnamn (8 platser) så bulkens seriella celler inte skriver
+  // över varandra om en radering släpar.
   const path = `foilio-strip-${seq++ % 8}.jpg`;
   const { uri } = await Filesystem.writeFile({ path, data: base64, directory: Directory.Cache });
   try {
@@ -107,24 +120,30 @@ async function recognize(dataUrl: string): Promise<string> {
   }
 }
 
+async function recognize(dataUrl: string, on: Platform): Promise<string> {
+  const base64 = stripPrefix(dataUrl);
+  return on === "ios" ? recognizeIos(base64) : recognizeAndroid(base64);
+}
+
 /**
- * Läser numret ur remsan. `undefined` = kördes inte (webb, äldre app, iOS
- * utan pluginet) — då skickas inget. Ett objekt = kördes; `printed: null`
- * utan `err` betyder att OCR:n svarade men texten bar inget nummer, vilket
- * är en MISS i mätningen och måste bokföras som en.
+ * Läser numret ur remsan. `undefined` = kördes inte (webb, äldre app utan
+ * pluginet) — då skickas inget. Ett objekt = kördes; `printed: null` utan
+ * `err` betyder att OCR:n svarade men texten bar inget nummer, vilket är en
+ * MISS i mätningen och måste bokföras som en.
  */
 export async function readNumberStripNative(
   dataUrl: string,
   timeoutMs = READ_TIMEOUT_MS
 ): Promise<LocalNumberPayload | undefined> {
   if (state === "unsupported") return undefined;
-  if (!(await isNative())) {
+  const on = await platform();
+  if (on === "web") {
     state = "unsupported";
     return undefined;
   }
   const t0 = performance.now();
   try {
-    const text = await withTimeout(recognize(dataUrl), timeoutMs);
+    const text = await withTimeout(recognize(dataUrl, on), timeoutMs);
     state = "ready";
     const { number, candidates } = analyzeStripText(text);
     return {
@@ -152,15 +171,16 @@ export async function readNumberStripNative(
 }
 
 /**
- * Värm upp modellen när kameran går live. Första igenkänningen på Android
- * laddar modellen (~1 s); utan uppvärmning hade första skanningen i varje
- * session ätit det ur sin tidsgräns och bokförts som "timeout". Kör en
- * 64×32 vit JPEG — resultatet kastas. No-op på webben och när läget är känt.
+ * Värm upp motorn när kameran går live. Första igenkänningen laddar modellen
+ * (~1 s på Android, kortare på iOS); utan uppvärmning hade första skanningen
+ * i varje session ätit det ur sin tidsgräns och bokförts som "timeout". Kör
+ * en 64×32 vit JPEG — resultatet kastas. No-op på webben och när läget är känt.
  */
 export function warmUpLocalNumberReader(): void {
   if (state !== "unknown") return;
   void (async () => {
-    if (!(await isNative())) {
+    const on = await platform();
+    if (on === "web") {
       state = "unsupported";
       return;
     }
@@ -172,7 +192,7 @@ export function warmUpLocalNumberReader(): void {
       if (!ctx) return;
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, c.width, c.height);
-      await withTimeout(recognize(c.toDataURL("image/jpeg", 0.8)), WARMUP_TIMEOUT_MS);
+      await withTimeout(recognize(c.toDataURL("image/jpeg", 0.8), on), WARMUP_TIMEOUT_MS);
       state = "ready";
     } catch (e) {
       if (isUnimplemented(e)) state = "unsupported";

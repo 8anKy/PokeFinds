@@ -79,7 +79,7 @@ const schema = z.object({
   sharp: z.number().min(0).max(1000).optional(),
   // LOKAL NUMMERLÄSNING, SKUGGLÄGE (2026-09-01): appen läser samlarnumret
   // on-device (ML Kit) ur SAMMA remsa som `detail` och skickar tolkningen
-  // (src/lib/mlkit-number.ts). ⛔ Påverkar INGET i svaret — bokförs bara
+  // (src/lib/on-device-number.ts). ⛔ Påverkar INGET i svaret — bokförs bara
   // (result.local) bredvid Geminis läsning så båda kan dömas mot facit.
   // Webben skickar aldrig fältet. Taken avvisar det absurda, klampar inget.
   localNumber: z

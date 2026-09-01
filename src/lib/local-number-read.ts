@@ -9,7 +9,7 @@
  * mätte 25,6/44,2 % exakt på riktiga remsor mot Geminis 94,9 % och ska inte
  * itereras (project_scanner_field_fingerprints_and_free_ocr).
  *
- * REN FUNKTION, delad av klienten (skanna/page.tsx via lib/mlkit-number.ts)
+ * REN FUNKTION, delad av klienten (skanna/page.tsx via lib/on-device-number.ts)
  * och mätskriptet (scripts/scanner-number-ocr-eval.ts --mlkit). Servern tolkar
  * ALDRIG om — den bokför det klienten skickade, så att en parserändring inte
  * kan skriva om historiken tyst.

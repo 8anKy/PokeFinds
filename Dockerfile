@@ -7,6 +7,10 @@ RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /v
 WORKDIR /app
 
 FROM base AS deps
+# ⛔ plugins/ FÖRE npm ci: `foilio-text-recognition` är ett file:-beroende
+# (plugins/foilio-text-recognition, egen Capacitor-plugin). Saknas katalogen i
+# lagret faller npm ci på ENOENT och hela bygget med den.
+COPY plugins ./plugins
 COPY package.json package-lock.json* ./
 RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
@@ -103,6 +107,8 @@ ENV NODE_ENV=production \
     MALLOC_ARENA_MAX=2
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/node_modules ./node_modules
+# node_modules/foilio-text-recognition är en symlänk hit — annars dinglar den.
+COPY --from=build /app/plugins ./plugins
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/public ./public
