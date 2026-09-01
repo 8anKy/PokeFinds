@@ -23,8 +23,9 @@ workflows:
         # App Store-version. 1.0 godkänd, 1.1 (Google-/Apple-inloggning) godkänd 2026-09-01 ⇒
         # 1.2 = on-device-nummerläsning (Apple Vision, skuggläge). Höj vid varje släpp:
         # bygge #42 422:ade på "train 1.1 is closed" när 1.1 redan var godkänd.
-        # ⛔ Höj även `MIN_APP_VERSION` i src/lib/app-version.ts — men först när versionen
-        # är GODKÄND i App Store: den tänder "uppdatera appen"-remsan i alla äldre byggen.
+        # "Uppdatera appen"-remsan följer App Store AUTOMATISKT sedan 2026-09-02
+        # (/api/app/min-version läser Apples lookup) — `MIN_APP_VERSION` i
+        # src/lib/app-version.ts är bara ett golv och behöver inte höjas.
         MARKETING_VERSION: "1.2"
         # Capacitor 8 = SPM-mall: inget CocoaPods, ingen .xcworkspace — bygg xcodeproj:t direkt.
         XCODE_PROJECT: "ios/App/App.xcodeproj"

@@ -32,23 +32,41 @@ import { IconSparkle, IconX } from "@/components/ui/icons";
  * bottenflikarna). Ligger på z-30: produkt-overlayn (z-40) och flikarna (z-40)
  * målas ovanpå, precis som med allt annat sidinnehåll.
  */
-const DISMISS_KEY = `foilio-update-dismissed:${MIN_APP_VERSION}`;
+// Nyckeln bär TRÖSKELN (butikens version), så en ny version nollar tystnaden.
+const dismissKey = (version: string) => `foilio-update-dismissed:${version}`;
 const DISMISS_MS = 7 * 24 * 60 * 60 * 1000;
 const HIDDEN_ROUTES = ["/skanna"];
 
-function recentlyDismissed(): boolean {
+function recentlyDismissed(version: string): boolean {
   try {
-    const at = Number(localStorage.getItem(DISMISS_KEY) ?? 0);
+    const at = Number(localStorage.getItem(dismissKey(version)) ?? 0);
     return Number.isFinite(at) && at > 0 && Date.now() - at < DISMISS_MS;
   } catch {
     return false;
   }
 }
 
+/**
+ * Tröskeln = versionen som ligger i App Store just nu (/api/app/min-version,
+ * Apples lookup, cachad 6 h på servern). Faller anropet svaras golvet
+ * `MIN_APP_VERSION` — samma beteende som före 2026-09-02, aldrig en remsa mot
+ * en version som inte går att hämta. Bara appen frågar; webben når aldrig hit.
+ */
+async function fetchMinVersion(): Promise<string> {
+  try {
+    const res = await fetch("/api/app/min-version", { cache: "no-store" });
+    if (!res.ok) return MIN_APP_VERSION;
+    const data = (await res.json()) as { ios?: unknown };
+    return typeof data.ios === "string" && data.ios.trim() ? data.ios.trim() : MIN_APP_VERSION;
+  } catch {
+    return MIN_APP_VERSION;
+  }
+}
+
 export function UpdateBanner() {
   const t = useTranslations("UpdateBanner");
   const pathname = usePathname();
-  const [outdated, setOutdated] = useState(false);
+  const [outdated, setOutdated] = useState<string | null>(null);
   const [keyboard, setKeyboard] = useState(false);
 
   useEffect(() => {
@@ -59,9 +77,9 @@ export function UpdateBanner() {
         if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "ios") return;
         if (!Capacitor.isPluginAvailable("App")) return;
         const { App } = await import("@capacitor/app");
-        const info = await App.getInfo();
-        if (cancelled || !isOutdatedAppVersion(info.version) || recentlyDismissed()) return;
-        setOutdated(true);
+        const [info, min] = await Promise.all([App.getInfo(), fetchMinVersion()]);
+        if (cancelled || !isOutdatedAppVersion(info.version, min) || recentlyDismissed(min)) return;
+        setOutdated(min);
       } catch {
         // Webb / plugin saknas → ingen remsa.
       }
@@ -87,11 +105,11 @@ export function UpdateBanner() {
 
   const dismiss = () => {
     try {
-      localStorage.setItem(DISMISS_KEY, String(Date.now()));
+      localStorage.setItem(dismissKey(outdated), String(Date.now()));
     } catch {
       // Privat läge/kvot — remsan försvinner ändå för den här sessionen.
     }
-    setOutdated(false);
+    setOutdated(null);
   };
 
   return (
@@ -105,7 +123,7 @@ export function UpdateBanner() {
         <IconSparkle size={18} className="shrink-0 text-holo-cyan" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold leading-tight text-ink">
-            {t("title", { version: MIN_APP_VERSION })}
+            {t("title", { version: outdated })}
           </p>
           <p className="mt-0.5 text-xs leading-snug text-ink-muted">{t("body")}</p>
         </div>

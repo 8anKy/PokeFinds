@@ -5,7 +5,30 @@
  * strängar) är värre än att missa en.
  */
 import { describe, expect, it } from "vitest";
-import { MIN_APP_VERSION, compareVersions, isOutdatedAppVersion } from "@/lib/app-version";
+import {
+  MIN_APP_VERSION,
+  compareVersions,
+  isOutdatedAppVersion,
+  resolveMinAppVersion,
+} from "@/lib/app-version";
+
+describe("resolveMinAppVersion — butikens version, aldrig under golvet", () => {
+  it("butiken nyare än golvet ⇒ butiken", () => {
+    expect(resolveMinAppVersion("1.2", "1.1")).toBe("1.2");
+    expect(resolveMinAppVersion(" 1.10 ", "1.9")).toBe("1.10");
+  });
+  it("butiken lika eller äldre ⇒ golvet (ett golv över butiken vore en remsa mot något som inte går att hämta — men det är golvets fel, inte uppslagets)", () => {
+    expect(resolveMinAppVersion("1.1", "1.1")).toBe("1.1");
+    expect(resolveMinAppVersion("1.0", "1.1")).toBe("1.1");
+  });
+  it("okänt/otolkbart ⇒ golvet (failar stängt, som remsan själv)", () => {
+    expect(resolveMinAppVersion(null, "1.1")).toBe("1.1");
+    expect(resolveMinAppVersion(undefined, "1.1")).toBe("1.1");
+    expect(resolveMinAppVersion("", "1.1")).toBe("1.1");
+    expect(resolveMinAppVersion("1.2-beta", "1.1")).toBe("1.1");
+    expect(resolveMinAppVersion("abc")).toBe(MIN_APP_VERSION);
+  });
+});
 
 describe("app-version", () => {
   it("MIN_APP_VERSION är en ren marknadsversion (aldrig build-nummer)", () => {
