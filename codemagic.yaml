@@ -20,10 +20,12 @@ workflows:
         # Google-inloggning i appen: iOS-klient-id:t (publikt, står i binären ändå).
         GOOGLE_IOS_CLIENT_ID: "920300522039-odqr8p38snk5ouptk3mp4g1e6ntmtojj.apps.googleusercontent.com"
         BUNDLE_ID: "se.foilio.app"
-        # App Store-version. 1.0 är godkänd ⇒ 1.1 = Google-/Apple-inloggning. Höj vid varje släpp.
+        # App Store-version. 1.0 godkänd, 1.1 (Google-/Apple-inloggning) godkänd 2026-09-01 ⇒
+        # 1.2 = on-device-nummerläsning (Apple Vision, skuggläge). Höj vid varje släpp:
+        # bygge #42 422:ade på "train 1.1 is closed" när 1.1 redan var godkänd.
         # ⛔ Höj även `MIN_APP_VERSION` i src/lib/app-version.ts — men först när versionen
         # är GODKÄND i App Store: den tänder "uppdatera appen"-remsan i alla äldre byggen.
-        MARKETING_VERSION: "1.1"
+        MARKETING_VERSION: "1.2"
         # Capacitor 8 = SPM-mall: inget CocoaPods, ingen .xcworkspace — bygg xcodeproj:t direkt.
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
