@@ -21,7 +21,9 @@
  *    700 fyrade alltså inte varje natt och dygnssnittet parkerade över 0,5 GB
  *    (> $5/mån för minnet ensamt). Under $5 TOTALT kräver snitt ≤ ~0,42 GB ⇒
  *    taket måste ligga UNDER dygn-1-nivån så omstarten i praktiken blir nattlig.
- *  - Nöd: minnet > MEMORY_RECYCLE_EMERGENCY_MB (1000) när som helst ⇒ starta om.
+ *  - Nöd: minnet > MEMORY_RECYCLE_EMERGENCY_MB (koddefault 1000; PROD KÖR 550 via
+ *    Railway-env sedan 2026-09-01 — nattlig-enbart parkerade dygnssnittet på ~0,55 GB
+ *    och taket fungerar nu som dygnet-runt-kap) när som helst ⇒ starta om.
  *    Det är NÖDGRINDEN som betalar sig, inte den nattliga: per dygn (railway-cost-
  *    report 2026-08-29) kostar en lugn dag ~0,4 GB ≈ $0,14, men 08-22 (2,9 GB snitt,
  *    crawler-skur) kostade $1,01 och 08-28 (1,6 GB) $0,56 — två skurdagar = en
