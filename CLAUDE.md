@@ -12,6 +12,11 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
 - **LIVE** på https://foilio.se — **Railway** (`divine-reflection/PokeFinds`) + Neon serverless Postgres
   (Frankfurt). Deploy = `git push origin main` (Dockerfile, node:22-slim). Ingen Vercel. Railway blockar
   SMTP-portar → mejl via Resend HTTP API (`src/lib/mailer.ts`).
+  ⛔ **`railway.json` (Config as Code) är DEPRECATED hos Railway — hård cutoff 2026-12-01.** Filen pinnar
+  `restartPolicyType: ALWAYS` (självåtervinningen KRÄVER den) och `build.watchPatterns` (sedan 2026-09-02:
+  pushar som bara rör `.github/`, `docs/`, `tests/`, `.claude/`, `ios/`, `android/` eller `*.md` deployar INTE —
+  varje deploy nollar FETCH-cachen och kostar kalla Neon-läsningar; 9 deployer/dygn mätt 09-01). Migrera till
+  `.railway/railway.ts` (Infrastructure as Code) FÖRE december, annars faller båda tillbaka på dashboardens värden.
 - **Apex är kanonisk sedan 2026-08-14** (var `www`). DNS hos Cloudflare: `foilio.se` grå (DNS-only,
   CNAME-flattening → Railway, eget cert), `www` orange och existerar BARA för Redirect Rule → 301 till apex.
   ⛔ Registrera aldrig `www` som custom domain på Railway igen — då servar den appen parallellt.
@@ -61,6 +66,10 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
 - **Katalogflödet är hands-off**: nya set + singlar (`import-new-sets.yml`, sön 03:30 UTC), sealed
   CM-pris/trend + set-etiketter (`runCardmarketRefresh`), auto-import av butiks-SKU:er (restock-skanningen).
   Inget manuellt steg återstår — bevaka bara RapidAPI-kvoten vid stora släpp.
+  ⛔ **Konstavtryck byggs på TVÅ ställen sedan 2026-09-02**: söndagsjobbet (efter bildlagningen) OCH som sista
+  steg i `cardmarket-refresh` — `jp-singles-refresh` SKAPAR kort dagligen (5 075 st 2026-09-01) och ett kort utan
+  `artFingerprint` är osynligt för skannerns bildmatchning tills nästa bygge. Appens art-index cachar 24 h
+  (`ART_INDEX_TTL_MS`) ⇒ nya avtryck syns i skannern inom ett dygn efter jobbet (eller vid deploy).
 - ⛔ **Prishistorik byggs FRAMÅT** — ingen legitim källa ger äkta retroaktiv daglig historik (CM-grafen får
   ej skrapas, RapidAPI ger bara 7d/30d-snitt). Öppna aldrig backfill-frågan igen.
 

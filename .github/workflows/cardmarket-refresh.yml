@@ -22,7 +22,8 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    # Skriver dagens pris + historik (singlar + sealed). Körtid 23–46 min och en
+    # Skriver dagens pris + historik (singlar + sealed). Körtid 23–46 min (+ upp till
+    # 60 min avtryckssteget sist, bara dagar då nya kort kom) och en
     # körning dödades vid 50m → för snävt; en timeout mitt i = partiell historik.
     # Daglig cron (24h mellan körningar) → ingen krock. Publikt repo = gratis minuter.
     timeout-minutes: 120
@@ -126,3 +127,25 @@ jobs:
         name: Korrupt prishistorik — TORRKÖRNING (raderar inget, se checklistan ovan)
         continue-on-error: true
         run: npx tsx scripts/purge-corrupt-snapshots.ts
+
+      # ── KONSTAVTRYCK FÖR KORT SOM KOM IN I DAG ───────────────────────────────
+      # jp-singles-refresh (steget "Priser + historik" ovan) SKAPAR kort när
+      # leverantören fyller på ett japanskt set — 5 075 st 2026-09-01. Avtrycken
+      # byggdes dittills BARA i söndagsjobbet (import-new-sets.yml), så ett kort
+      # som kom in på en måndag var osynligt för skannerns bildmatchning i sex
+      # dygn. Här ligger steget som ett STEG i ett fönster som redan är vaket —
+      # noll nya Neon-väckningar, till skillnad från en manuell körning av
+      # söndagsjobbet. Rör bara kort som saknar avtryck ⇒ sekunder de dagar
+      # inget nytt kom. Söndagsjobbet behåller sitt steg (det kör EFTER
+      # bildlagningen och fångar kort vars bild var död i dag).
+      #
+      # continue-on-error + egen timeout: ett hängt bildhämtande (fetch utan
+      # timeout i skriptet) får varken rödmarkera en körning som redan skrivit
+      # dagens priser eller äta upp jobbets 120 min. Söndagsjobbet är larmet.
+      # `!cancelled()`: ett rött prissteg får inte svälta det här — samma fälla
+      # som i import-new-sets.yml.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
+        name: Konstavtryck för nya kort (no-op om inga saknas)
+        continue-on-error: true
+        timeout-minutes: 60
+        run: npx tsx scripts/build-art-fingerprints.ts

@@ -1,5 +1,17 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "watchPatterns": [
+      "**",
+      "!/.github/**",
+      "!/.claude/**",
+      "!/docs/**",
+      "!/tests/**",
+      "!/ios/**",
+      "!/android/**",
+      "!/**/*.md"
+    ]
+  },
   "deploy": {
     "restartPolicyType": "ALWAYS",
     "sleepApplication": false
