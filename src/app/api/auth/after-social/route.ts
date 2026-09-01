@@ -11,14 +11,23 @@ export const dynamic = "force-dynamic";
  *
  * `next` är ÖPPEN INDATA: bara en relativ sökväg på samma origin accepteras
  * ("/…" men inte "//evil" eller "https://…"), annars katalogen.
+ *
+ * ⛔ ALDRIG `new URL(target, req.url)` här: i en route handler bakom Railways
+ * proxy är `req.url` containerns INTERNA adress (localhost:8080), inte
+ * foilio.se — Google-inloggningen slutade i "localhost refused to connect"
+ * med sessionen korrekt satt (upptäckt 2026-09-01). Middleware ser rätt host;
+ * route handlers gör det inte. Bygg alltid mot BASE_URL-mönstret (`||`, inte
+ * `??` — tom sträng är felläget).
  */
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se";
+
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) {
-    return NextResponse.redirect(new URL("/logga-in?error=OAuthCallback", req.url));
+    return NextResponse.redirect(new URL("/logga-in?error=OAuthCallback", BASE_URL));
   }
   const raw = req.nextUrl.searchParams.get("next") ?? "";
   const next = /^\/(?!\/)/.test(raw) ? raw : "/produkter";
   const target = session.user.onboardingCompleted ? next : "/onboarding";
-  return NextResponse.redirect(new URL(target, req.url));
+  return NextResponse.redirect(new URL(target, BASE_URL));
 }
