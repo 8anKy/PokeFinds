@@ -1,0 +1,74 @@
+name: Apple-relay dubbelkonto — meddela de berörda (engångsutskick)
+
+# ENGÅNGSUTSKICK 2026-09-03: två befintliga användare fick ett TOMT dubbelkonto
+# när de loggade in med Apple + "Dölj min e-post" (app 1.1, 09-01). Kontona är
+# ihopslagna i DB:n med scripts/merge-apple-relay-duplicates.ts --apply; det här
+# workflowet skickar beskedet om att det är fixat.
+#
+# ⛔ VARFÖR ETT WORKFLOW OCH INTE EN LOKAL KÖRNING: `RESEND_API_KEY` finns bara i
+# Railway och som Actions-secret — inte i utvecklingsmaskinens .env, där
+# `EMAIL_MODE=console` dessutom får mailern att LOGGA i stället för att skicka.
+# Skriptet vägrar köra i konsolläge: en grön körning utan mejl är det farligaste
+# utfallet.
+#
+# ⛔ MEJLET GÅR ALDRIG TILL RELAY-ADRESSEN — bara till den riktiga (icloud/hotmail).
+# Ett mejl till …@privaterelay.appleid.com studsar om avsändardomänen inte är
+# registrerad hos Apples relay-tjänst.
+#
+# ⛔ SKRIPTET VÄGRAR MEJLA INNAN SAMMANSLAGNINGEN ÄR GJORD (kollar att
+# ursprungskontot bär appleId och att dubbletten är borta). Mejlet PÅSTÅR att det
+# är fixat — går det ut för tidigt ljuger vi.
+#
+# ⛔ ALDRIG PÅ SCHEMA. Engångsutskick till två personer.
+#
+# ⚠️ `send_to_all: false` (standard) skickar EN förhandsgranskning till ägaren.
+on:
+  workflow_dispatch:
+    inputs:
+      send_to_all:
+        description: "SKARPT utskick till de två berörda. Tomt/false = förhandsgranskning till ägaren."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-relay-notice
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+      NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+    steps:
+      - name: Förkrav — DATABASE_URL och RESEND_API_KEY måste vara satta
+        run: |
+          # Ett saknat förkrav är ett FEL här, inte en tyst no-op: någon har tryckt
+          # på knappen och väntar sig ett utskick.
+          missing=""
+          [ -z "${DATABASE_URL}" ] && missing="${missing} DATABASE_URL"
+          [ -z "${RESEND_API_KEY}" ] && missing="${missing} RESEND_API_KEY"
+          if [ -n "${missing}" ]; then
+            echo "::error::Saknade hemligheter:${missing}"
+            exit 1
+          fi
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx prisma generate
+      - name: Skicka
+        run: |
+          if [ "${{ inputs.send_to_all }}" = "true" ]; then
+            npx tsx scripts/merge-apple-relay-duplicates.ts --send-mail --send-to-all
+          else
+            npx tsx scripts/merge-apple-relay-duplicates.ts --send-mail
+          fi

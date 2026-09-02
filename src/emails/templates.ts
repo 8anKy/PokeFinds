@@ -1125,6 +1125,38 @@ export function restockPausedEmail(name: string): EmailContent {
 }
 
 /**
+ * Engångsbesked till användare som fick ett TOMT dubbelkonto när de loggade in
+ * med Apple och "Dölj min e-post": relay-adressen matchade inte kontot de redan
+ * hade, så `findOrCreateOAuthUser` födde ett nytt. Skickas EFTER att `appleId`
+ * flyttats till ursprungskontot och dubbletten raderats, och till den RIKTIGA
+ * adressen — relay-adresser studsar om avsändardomänen inte är registrerad hos
+ * Apples relay-tjänst. Driftmeddelande om eget konto ⇒ ingen `unsubscribeUrl`.
+ */
+export function appleRelayLinkedEmail(name: string, originalEmail: string): EmailContent {
+  const subject = "Din Apple-inloggning är nu kopplad till ditt vanliga Foilio-konto";
+  const html = layout(
+    "Ditt konto är ihopkopplat igen",
+    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}!</p>
+     <p style="line-height:1.6;color:#cbd5e1;">Vi såg att du loggade in med Apple den 1 september. Eftersom <strong style="color:#ffffff;">Dölj min e-post</strong> var valt fick vi en anonym adress från Apple i stället för din vanliga, och då kunde vi inte se att det var du. Därför skapades ett nytt, tomt konto i stället för att du hamnade i ditt eget.</p>
+     <p style="line-height:1.6;color:#cbd5e1;">Det är fixat nu. Din Apple-inloggning är kopplad till ditt ursprungliga konto (<strong style="color:#ffffff;">${originalEmail}</strong>) och det tomma dubbelkontot är borttaget. Din samling, dina skanningar och dina utmärkelser finns kvar precis som förut.</p>
+     <div style="background-color:#111827;border:1px solid #2a2e38;border-radius:10px;padding:20px;margin:24px 0;">
+       <p style="margin:0;line-height:1.6;color:#cbd5e1;">Nästa gång du öppnar appen kan du logga in <strong style="color:#2dd4bf;">med Apple</strong> eller <strong style="color:#2dd4bf;">med e-post och lösenord</strong> som tidigare. Båda leder till samma konto, och du behöver inte ändra något i dina Apple-inställningar.</p>
+     </div>
+     ${button(`${APP_URL}/logga-in`, "Öppna Foilio")}
+     <p style="line-height:1.6;color:#6b7280;font-size:13px;margin:16px 0 0;">Ser något fel ut? Svara på det här mejlet så hjälper vi till.</p>`
+  );
+  const text =
+    `Hej ${name}!\n\n` +
+    `Vi såg att du loggade in med Apple den 1 september. Eftersom "Dölj min e-post" var valt fick vi en anonym adress från Apple i stället för din vanliga, och då kunde vi inte se att det var du. Därför skapades ett nytt, tomt konto i stället för att du hamnade i ditt eget.\n\n` +
+    `Det är fixat nu. Din Apple-inloggning är kopplad till ditt ursprungliga konto (${originalEmail}) och det tomma dubbelkontot är borttaget. Din samling, dina skanningar och dina utmärkelser finns kvar precis som förut.\n\n` +
+    `Nästa gång du öppnar appen kan du logga in med Apple eller med e-post och lösenord som tidigare. Båda leder till samma konto, och du behöver inte ändra något i dina Apple-inställningar.\n\n` +
+    `Öppna Foilio: ${APP_URL}/logga-in\n\n` +
+    `Ser något fel ut? Svara på det här mejlet så hjälper vi till.` +
+    textFooter;
+  return { subject, html, text };
+}
+
+/**
  * NYHETSMEJL PER SLÄPP — "det här är nytt i Foilio". Skickas av
  * scripts/send-release-notes.ts (förhandsgranskning till ägaren först).
  *

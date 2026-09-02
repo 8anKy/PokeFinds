@@ -3,7 +3,7 @@
  * Rör varken databasen eller Resend — ren förhandsvisning.
  *
  * Kör: npx tsx scripts/preview-email.ts [mall]
- * Mallar: discord-invite (default), welcome, pro-expiring, restock
+ * Mallar: discord-invite (default), welcome, pro-expiring, restock, apple-relay
  */
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -14,6 +14,7 @@ import {
   welcomeEmail,
   proExpiringEmail,
   restockAlertEmail,
+  appleRelayLinkedEmail,
   type EmailContent,
 } from "@/emails/templates";
 
@@ -23,6 +24,7 @@ const TEMPLATES: Record<string, () => EmailContent> = {
   "discord-invite": () => discordInviteEmail(NAME),
   welcome: () => welcomeEmail(NAME),
   "pro-expiring": () => proExpiringEmail(NAME, new Date(Date.now() + 3 * 864e5), 3),
+  "apple-relay": () => appleRelayLinkedEmail(NAME, "milos@example.com"),
   restock: () =>
     restockAlertEmail(
       NAME,
