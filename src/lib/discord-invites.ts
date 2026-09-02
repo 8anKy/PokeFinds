@@ -25,6 +25,14 @@ const DEFAULT_INVITE_CODE = "kpgmdEebgW";
 const WATCH_INVITE_CODE = "";
 
 /**
+ * Giveaway-utskickets egen kod (milstolpsmejlet "vi passerade 100 medlemmar").
+ * Ett massutskick är den enda ytan där vi VET hur många som såg erbjudandet, så
+ * det är också den enda där konverteringen går att räkna exakt — men bara med en
+ * egen kod. Tom sträng ⇒ fallback ovan (mejlet fungerar, bara utan mätning).
+ */
+const GIVEAWAY_INVITE_CODE = "";
+
+/**
  * Landningssidans egen kod (`/discord`). Den sidan finns för att fångas upp av
  * Google på frågor som "pokemon tcg sverige discord" — utan en egen kod går det
  * inte att skilja en besökare som HITTADE oss via sökning från en som redan var
@@ -42,4 +50,9 @@ export function watchTipInviteUrl(): string {
 /** Inbjudnings-URL för landningssidan /discord. */
 export function landingInviteUrl(): string {
   return `https://discord.gg/${LANDING_INVITE_CODE || DEFAULT_INVITE_CODE}`;
+}
+
+/** Inbjudnings-URL för giveaway-/milstolpsutskicket (src/emails/templates.ts). */
+export function giveawayInviteUrl(): string {
+  return `https://discord.gg/${GIVEAWAY_INVITE_CODE || DEFAULT_INVITE_CODE}`;
 }

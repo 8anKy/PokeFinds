@@ -3,7 +3,7 @@
  * Rör varken databasen eller Resend — ren förhandsvisning.
  *
  * Kör: npx tsx scripts/preview-email.ts [mall]
- * Mallar: discord-invite (default), welcome, pro-expiring, restock, apple-relay
+ * Mallar: discord-invite (default), welcome, pro-expiring, restock, apple-relay, giveaway
  */
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,6 +15,7 @@ import {
   proExpiringEmail,
   restockAlertEmail,
   appleRelayLinkedEmail,
+  giveawayEmail,
   type EmailContent,
 } from "@/emails/templates";
 
@@ -25,6 +26,9 @@ const TEMPLATES: Record<string, () => EmailContent> = {
   welcome: () => welcomeEmail(NAME),
   "pro-expiring": () => proExpiringEmail(NAME, new Date(Date.now() + 3 * 864e5), 3),
   "apple-relay": () => appleRelayLinkedEmail(NAME, "milos@example.com"),
+  // Avanmälningslänken är en attrapp här: `unsubscribeUrl()` signerar med en
+  // hemlighet som inte finns lokalt, och förhandsvisningen ska aldrig behöva den.
+  giveaway: () => giveawayEmail({ name: NAME, unsubscribeUrl: "https://foilio.se/avregistrera?demo=1" }),
   restock: () =>
     restockAlertEmail(
       NAME,
