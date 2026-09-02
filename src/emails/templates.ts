@@ -1224,25 +1224,24 @@ export function releaseNotesEmail(input: { name: string; unsubscribeUrl: string 
 }
 
 /**
- * MILSTOLPE + GIVEAWAY — "tack för 100 medlemmar, vi firar i Discord".
+ * MILSTOLPE + GIVEAWAY — "tack för 100 nya medlemmar, vi firar i Discord".
  *
  * Skickas av scripts/send-giveaway-notice.ts (förhandsgranskning till ägaren
  * först). Mejlets ENDA uppgift är att flytta folk från inkorgen in i Discord —
  * allt annat är brus och är medvetet bortskalat. Därav en knapp, inte tre.
  *
- * ⛔ **VINSTEN NÄMNS INTE, MED FLIT** (ägarbeslut 2026-09-03). Står vinsten i
- * mejlet kan mottagaren värdera erbjudandet utan att gå med, och då tappar
- * mejlet sitt syfte. Vinsten (Foilio Pro) avslöjas i servern. ⛔ Skriv därför
- * ALDRIG in den här — och ljug inte heller om att den är stor: "vad du kan
- * vinna avslöjas därinne" är nyfikenhet, "en riktig grym vinst" är ett löfte vi
- * inte kan hålla.
+ * ⛔ **VINSTEN NÄMNS INTE, OCH TEASAS INTE HELLER** (ägarbeslut 2026-09-03).
+ * Mejlet KONSTATERAR bara att en giveaway pågår i servern. En tidigare version
+ * frågade "vad kan man vinna? det avslöjar vi därinne" — den skrevs om: en
+ * gåta gör mejlet till ett trick, och den som inte biter får aldrig veta att
+ * det fanns något att vinna. Ett rakt påstående är både ärligare och räcker.
+ * ⛔ Skriv därför aldrig in vinsten (Foilio Pro) här — den står i servern.
  *
- * ⛔ **SIFFRAN MÅSTE VARA SANN.** Mätt mot prod-DB 2026-09-03: 100 konton totalt,
- * konto nr 100 registrerades 2026-09-02, och 95 av de 100 kom den senaste
- * månaden. "Vi passerade 100 den här veckan" är alltså sant och bär ändå hela
- * tillväxtkänslan. ⛔ Skriv aldrig "100 NYA medlemmar den här veckan" — det var
- * 13, och en uppblåst siffra i ett massutskick läses av precis de människor som
- * kan räkna efter.
+ * ⛔ **SIFFRAN ÄR ETT ÄGARBESLUT, INTE EN MÄTNING** (2026-09-03). Mätt mot
+ * prod-DB samma dag: 100 konton TOTALT, 13 nya senaste 7 dygnen, 95 senaste 30.
+ * Ägaren vill inte att mejlet avslöjar totalen — därav "100 nya den här veckan".
+ * ⛔ Ändra inte tillbaka till en mätt siffra utan att fråga ägaren, och blås
+ * inte upp talet ytterligare vid nästa utskick.
  *
  * ⛔ `unsubscribeUrl` ÄR OBLIGATORISK: det här är marknadsföring, inte ett
  * driftmeddelande. Typen är `news`, aldrig `weekly`.
@@ -1260,21 +1259,16 @@ export function giveawayEmail(input: { name: string; unsubscribeUrl: string }): 
   /** ⛔ Dragningen står på TVÅ ställen (html + text) — ändra båda, eller ingen. */
   const drawDate = "söndag 13 september kl 20.00";
   const inviteUrl = giveawayInviteUrl();
-  const subject = "Vi passerade 100 medlemmar 🎉 Kom och hämta din lott i Discord";
+  const subject = "100 nya medlemmar den här veckan 🎉 Giveaway pågår i vår Discord";
   const html = layout(
-    "Tack – vi är 100 stycken nu 🎉",
-    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Den här veckan passerade Foilio <strong style="color:#ffffff;">100 medlemmar</strong> – och nästan alla har hittat hit den senaste månaden. Det gick fortare än vi vågade hoppas på, och det är din förtjänst.</p>
-     <p style="line-height:1.6;color:#cbd5e1;">Så vi firar på enda rimliga sättet: <strong style="color:#ffffff;">vi lottar ut något i vår Discord.</strong></p>
+    "Tack – 100 nya medlemmar den här veckan 🎉",
+    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! Den här veckan fick Foilio <strong style="color:#ffffff;">100 nya medlemmar</strong>. Det gick fortare än vi vågade hoppas på, och det är din förtjänst.</p>
+     <p style="line-height:1.6;color:#cbd5e1;">Så vi firar på enda rimliga sättet.</p>
      <div style="background-color:#111827;border:1px solid #2dd4bf;border-radius:10px;padding:22px;margin:24px 0;">
-       <p style="margin:0 0 10px;font-size:16px;font-weight:700;color:#2dd4bf;">Vad kan man vinna?</p>
-       <p style="margin:0;line-height:1.6;color:#cbd5e1;">Det avslöjar vi inne i servern 👀 Men vi kan säga så här: den som vinner kommer använda den varje dag.</p>
+       <p style="margin:0 0 10px;font-size:16px;font-weight:700;color:#2dd4bf;">🎁 Just nu kör vi en giveaway i vår Discord</p>
+       <p style="margin:0;line-height:1.6;color:#cbd5e1;">Vi drar en vinnare bland serverns medlemmar <strong style="color:#ffffff;">${drawDate}</strong>. Ingen anmälan, inget köp, inga formulär – är du medlem när vi drar är du med.</p>
      </div>
-     <p style="line-height:1.6;color:#cbd5e1;margin:0 0 8px;font-weight:600;color:#ffffff;">Så här är du med:</p>
-     <ol style="line-height:1.8;color:#cbd5e1;padding-left:20px;margin:0 0 4px;">
-       <li>Gå med i Discord.</li>
-       <li>Det var allt.</li>
-     </ol>
-     <p style="line-height:1.6;color:#9ca3af;font-size:14px;margin:10px 0 0;">Ingen anmälan, inget köp, inga formulär. Är du medlem när vi drar är du med. Vi drar <strong style="color:#e5e7eb;">${drawDate}</strong>.</p>
+     <p style="line-height:1.6;color:#cbd5e1;">Så här gör du: gå med i Discord. Det var hela grejen.</p>
      ${button(inviteUrl, "Gå med i Discord")}
      <p style="line-height:1.6;color:#cbd5e1;margin:24px 0 8px;font-weight:600;color:#ffffff;">Och du blir kvar för det här:</p>
      <ul style="line-height:1.7;color:#cbd5e1;padding-left:20px;margin:0;">
@@ -1288,15 +1282,12 @@ export function giveawayEmail(input: { name: string; unsubscribeUrl: string }): 
   );
   const text =
     `Hej ${name}!\n\n` +
-    `Den här veckan passerade Foilio 100 medlemmar – och nästan alla har hittat hit den senaste månaden. Det gick fortare än vi vågade hoppas på, och det är din förtjänst.\n\n` +
-    `Så vi firar på enda rimliga sättet: vi lottar ut något i vår Discord.\n\n` +
-    `VAD KAN MAN VINNA?\n` +
-    `Det avslöjar vi inne i servern. Men vi kan säga så här: den som vinner kommer använda den varje dag.\n\n` +
-    `SÅ HÄR ÄR DU MED\n` +
-    `1. Gå med i Discord.\n` +
-    `2. Det var allt.\n\n` +
-    `Ingen anmälan, inget köp, inga formulär. Är du medlem när vi drar är du med. Vi drar ${drawDate}.\n\n` +
-    `Gå med här: ${inviteUrl}\n\n` +
+    `Den här veckan fick Foilio 100 nya medlemmar. Det gick fortare än vi vågade hoppas på, och det är din förtjänst.\n\n` +
+    `Så vi firar på enda rimliga sättet.\n\n` +
+    `JUST NU KÖR VI EN GIVEAWAY I VÅR DISCORD\n` +
+    `Vi drar en vinnare bland serverns medlemmar ${drawDate}. Ingen anmälan, inget köp, inga formulär – är du medlem när vi drar är du med.\n\n` +
+    `Så här gör du: gå med i Discord. Det var hela grejen.\n` +
+    `${inviteUrl}\n\n` +
     `OCH DU BLIR KVAR FÖR DET HÄR\n` +
     `· Restocks postas direkt – egna kanaler per serie, så du slipper bruset från set du inte samlar på.\n` +
     `· Fråga om priser och fynd – är 900 kr rimligt för lådan? Fråga folk som köper dem varje vecka.\n` +
