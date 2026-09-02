@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { isRedisAvailable } from "@/lib/queue";
 import { formatRelative, formatDateTime, formatPrice } from "@/lib/format";
-import { RENEWAL_LABELS, type RenewalStatus } from "@/lib/subscription-status";
+import { PayingCustomersTable, type PayingCustomerRow } from "@/components/features/admin/paying-customers-table";
 import { getAdminOverview, STORE_CUT } from "@/services/admin/overview";
 import { getServiceCosts, type CostSource } from "@/services/admin/service-costs";
 import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
@@ -19,14 +19,6 @@ import {
   ScanChartLazy,
   UserGrowthChartLazy,
 } from "@/components/features/admin/admin-charts-lazy";
-
-/** Förnyas = grönt, uppsagd = varning, okänt/inget = neutralt. Aldrig rött: en uppsägning är ett faktum, inte ett fel. */
-const RENEWAL_VARIANTS: Record<RenewalStatus, BadgeVariant> = {
-  yes: "success",
-  no: "warning",
-  unknown: "default",
-  none: "default",
-};
 
 export const dynamic = "force-dynamic";
 
@@ -158,6 +150,21 @@ export default async function AdminOverviewPage() {
    * ut exakt så, och ingen siffra i den gamla översikten visade det.
    */
   const payingWithoutWatch = payingUsers.filter((u) => u.watchlistCount === 0).length;
+  // Date-objekt kan inte korsa server→klient-gränsen — ISO-strängar till tabellen.
+  const payingClientRows: PayingCustomerRow[] = payingUsers.map((u) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    channel: u.channel,
+    environment: u.environment,
+    proSince: u.proSince?.toISOString() ?? null,
+    renewal: u.renewal,
+    rcExpiresAt: u.rcExpiresAt?.toISOString() ?? null,
+    createdAt: u.createdAt.toISOString(),
+    watchlistCount: u.watchlistCount,
+    collectionCount: u.collectionCount,
+    lastSeenAt: u.lastSeenAt?.toISOString() ?? null,
+  }));
 
   // ── Ringdiagrammens data ────────────────────────────────────────────────
   // ⛔ Färg per NYCKEL ur den fasta ordningen, aldrig per index i en filtrerad
@@ -503,87 +510,7 @@ export default async function AdminOverviewPage() {
             <Row label="Admin med Pro" value={nf(revenue.adminPro)} hint="Betalar inte" />
           </div>
 
-          {payingUsers.length === 0 ? (
-            <p className="text-sm text-ink-faint">Inga betalande kunder ännu.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <THead>
-                  <TR>
-                    <TH>Kund</TH>
-                    <TH>Kanal</TH>
-                    <TH title="Första betalda aktiveringen. Saknas för köp gjorda innan loggningen fanns.">Prenumerant sedan</TH>
-                    <TH title="Auto-förnyelse enligt leverantörens senaste webhook-event. Okänt = inget event sedan 2026-09-02.">Förnyas</TH>
-                    <TH>Konto skapat</TH>
-                    <TH className="text-right">Bevakningar</TH>
-                    <TH className="text-right">Samling</TH>
-                    <TH>Senast sedd</TH>
-                  </TR>
-                </THead>
-                <TBody>
-                  {payingUsers.map((u) => (
-                    <TR key={u.id}>
-                      <TD>
-                        <Link
-                          href={`/admin/anvandare/${u.id}`}
-                          className="font-medium text-ink transition-colors hover:text-holo-cyan"
-                        >
-                          {u.name}
-                        </Link>
-                        <span className="block text-xs text-ink-faint">{u.email}</span>
-                      </TD>
-                      <TD>
-                        <Badge variant={u.channel === "stripe" ? "info" : "default"}>
-                          {u.channel === "stripe" ? "Stripe" : "App Store / Play"}
-                        </Badge>
-                        {u.environment === "SANDBOX" && (
-                          <Badge
-                            variant="warning"
-                            className="ml-1"
-                            title="RevenueCat SANDBOX — ett testköp som Apple/Google aldrig debiterat. Inte en kund."
-                          >
-                            Sandbox
-                          </Badge>
-                        )}
-                      </TD>
-                      <TD className="text-sm text-ink-muted">
-                        {u.proSince ? (
-                          formatDateTime(u.proSince)
-                        ) : (
-                          <span className="text-ink-faint" title="Köpt innan loggningen fanns">–</span>
-                        )}
-                      </TD>
-                      <TD>
-                        <Badge variant={RENEWAL_VARIANTS[u.renewal]} title={RENEWAL_LABELS[u.renewal].hint}>
-                          {RENEWAL_LABELS[u.renewal].label}
-                        </Badge>
-                        {u.renewal === "no" && u.rcExpiresAt && (
-                          <span className="block text-xs text-ink-faint">t.o.m. {formatDateTime(u.rcExpiresAt)}</span>
-                        )}
-                      </TD>
-                      <TD className="text-sm text-ink-muted">{formatDateTime(u.createdAt)}</TD>
-                      <TD className="text-right">
-                        {/* Noll bevakningar hos en betalande kund är ett larm, inte en siffra. */}
-                        <span
-                          className={
-                            u.watchlistCount === 0
-                              ? "font-semibold text-holo-gold"
-                              : "text-ink"
-                          }
-                        >
-                          {nf(u.watchlistCount)}
-                        </span>
-                      </TD>
-                      <TD className="text-right text-ink">{nf(u.collectionCount)}</TD>
-                      <TD className="text-sm text-ink-muted">
-                        {u.lastSeenAt ? formatRelative(u.lastSeenAt) : "–"}
-                      </TD>
-                    </TR>
-                  ))}
-                </TBody>
-              </Table>
-            </div>
-          )}
+          <PayingCustomersTable rows={payingClientRows} />
         </CardContent>
       </Card>
 
