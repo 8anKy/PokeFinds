@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { getSession } from "next-auth/react";
+import { getSharedSession } from "@/lib/client-session";
 import { Link, useRouter } from "@/i18n/navigation";
 import { hasAuthHint } from "@/lib/auth-hint";
 import { cn } from "@/lib/utils";
@@ -89,7 +89,7 @@ export function ProductPriceCard({
   const [isPro, setIsPro] = useState(false);
   useEffect(() => {
     if (!hasAuthHint()) return;
-    void getSession().then((s) => setIsPro(!!s?.user?.isPro));
+    void getSharedSession().then((s) => setIsPro(!!s?.user?.isPro));
   }, []);
 
   // Bara källor som FAKTISKT har punkter får en knapp — en avbockningsbar källa

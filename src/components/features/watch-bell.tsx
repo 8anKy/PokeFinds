@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { getSession } from "next-auth/react";
+import { getSharedSession } from "@/lib/client-session";
 import { useRouter } from "@/i18n/navigation";
 import { useAuthHint } from "@/lib/auth-hint";
 import { useToast } from "@/components/ui/toast";
@@ -68,7 +68,7 @@ export function WatchBell({ productId, productTitle, setId, setName }: WatchBell
   // sidor, och ett sessionsanrop per kortrad var precis det som brände Active CPU.
   useEffect(() => {
     if (loggedIn !== true) return;
-    void getSession().then((s) => setIsPro(!!s?.user?.isPro));
+    void getSharedSession().then((s) => setIsPro(!!s?.user?.isPro));
   }, [loggedIn]);
 
   /**

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { getSession } from "next-auth/react";
+import { getSharedSession } from "@/lib/client-session";
 import { hasAuthHint } from "@/lib/auth-hint";
 
 /**
@@ -19,7 +19,7 @@ export function useIsAdmin(): boolean {
   const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
     if (!hasAuthHint()) return;
-    void getSession().then((s) => {
+    void getSharedSession().then((s) => {
       const role = s?.user?.role;
       setIsAdmin(role === "ADMIN" || role === "SUPERADMIN");
     });

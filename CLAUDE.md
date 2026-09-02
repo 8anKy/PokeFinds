@@ -12,11 +12,16 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
 - **LIVE** på https://foilio.se — **Railway** (`divine-reflection/PokeFinds`) + Neon serverless Postgres
   (Frankfurt). Deploy = `git push origin main` (Dockerfile, node:22-slim). Ingen Vercel. Railway blockar
   SMTP-portar → mejl via Resend HTTP API (`src/lib/mailer.ts`).
-  ⛔ **`railway.json` (Config as Code) är DEPRECATED hos Railway — hård cutoff 2026-12-01.** Filen pinnar
-  `restartPolicyType: ALWAYS` (självåtervinningen KRÄVER den) och `build.watchPatterns` (sedan 2026-09-02:
-  pushar som bara rör `.github/`, `docs/`, `tests/`, `.claude/`, `ios/`, `android/` eller `*.md` deployar INTE —
-  varje deploy nollar FETCH-cachen och kostar kalla Neon-läsningar; 9 deployer/dygn mätt 09-01). Migrera till
-  `.railway/railway.ts` (Infrastructure as Code) FÖRE december, annars faller båda tillbaka på dashboardens värden.
+  ⛔ **Railway-inställningarna bor i `.railway/railway.ts` (Infrastructure as Code) sedan 2026-09-02.**
+  `railway.json` (Config as Code) är deprecated med hård cutoff 2026-12-01 och tas bort så snart IaC-filen är
+  APPLICERAD (`railway config apply` skriver in värdena i tjänstens inställningar — tills dess är filen bara en
+  önskan och `railway config plan` visar drift). Filen pinnar `restartPolicyType: ALWAYS` (självåtervinningen
+  KRÄVER den — sajten låg nere 6,5 h 2026-08-31 när den saknades), `sleepApplication: false` och
+  `build.watchPatterns` (pushar som bara rör `.github/`, `docs/`, `tests/`, `.claude/`, `ios/`, `android/` eller
+  `*.md` deployar INTE — varje deploy nollar FETCH-cachen; 9 deployer/dygn mätt 09-01). ⛔ Kör `railway config
+  plan/apply` från **PowerShell** med `@railway/cli/bin` först i PATH — i Git Bash pekar `$_` på en MSYS-sökväg
+  och SDK:ns versionskoll säger felaktigt "kräver CLI ≥ 5.42.1". `railway` (npm, devDependency) MÅSTE finnas i
+  node_modules — CLI:n evaluerar filen med node.
 - **Apex är kanonisk sedan 2026-08-14** (var `www`). DNS hos Cloudflare: `foilio.se` grå (DNS-only,
   CNAME-flattening → Railway, eget cert), `www` orange och existerar BARA för Redirect Rule → 301 till apex.
   ⛔ Registrera aldrig `www` som custom domain på Railway igen — då servar den appen parallellt.

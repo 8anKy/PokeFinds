@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { getSession } from "next-auth/react";
+import { getSharedSession } from "@/lib/client-session";
 import { useRouter } from "@/i18n/navigation";
 import { useAuthHint } from "@/lib/auth-hint";
 import { Button } from "@/components/ui/button";
@@ -41,7 +41,7 @@ export function SetWatchButton({ setId, setName, sealedCount }: SetWatchButtonPr
 
   useEffect(() => {
     if (loggedIn !== true) return;
-    void getSession().then((s) => setIsPro(!!s?.user?.isPro));
+    void getSharedSession().then((s) => setIsPro(!!s?.user?.isPro));
     let cancelled = false;
     void getWatchedSetIds().then((ids) => {
       if (!cancelled) setWatched(ids.has(setId));

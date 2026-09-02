@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { getSession } from "next-auth/react";
+import { getSharedSession } from "@/lib/client-session";
 import { Link, useRouter } from "@/i18n/navigation";
 import { hasAuthHint } from "@/lib/auth-hint";
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,7 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
   // fo_auth-cookien finns, så utloggade aldrig träffar /api/auth/session.
   useEffect(() => {
     if (!hasAuthHint()) return;
-    void getSession().then((s) => setIsPro(!!s?.user?.isPro));
+    void getSharedSession().then((s) => setIsPro(!!s?.user?.isPro));
   }, []);
 
   // Är produkten redan i bevakningarna? Rå fetch (inte apiFetch) så en utloggad
