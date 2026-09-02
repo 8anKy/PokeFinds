@@ -75,9 +75,12 @@ async function handleEvent(stripe: Stripe, event: Stripe.Event) {
   await withDbRetry(async () => {
     const before = await prisma.user.findUnique({
       where: { id: userId },
-      select: { stripeProUntil: true },
+      select: { stripeProUntil: true, proSince: true },
     });
     if (!before) return; // raderat konto — samma hantering som RC-webhooken
+
+    // "Prenumerant sedan" = första gången Stripe faktiskt gav Pro. Sätts en gång.
+    const firstPaid = proUntil !== null && before.proSince === null;
 
     await prisma.user.updateMany({
       where: { id: userId },
@@ -85,6 +88,9 @@ async function handleEvent(stripe: Stripe, event: Stripe.Event) {
         stripeProUntil: proUntil,
         stripeCustomerId: customerId,
         stripeSubscriptionId: sub.id,
+        // Auto-förnyelse, ur den FÄRSKA prenumerationen (aldrig eventets kopia).
+        stripeCancelAtPeriodEnd: sub.cancel_at_period_end,
+        proSince: firstPaid ? new Date() : undefined,
       },
     });
     await prisma.auditLog.create({
@@ -96,6 +102,7 @@ async function handleEvent(stripe: Stripe, event: Stripe.Event) {
         metadata: {
           event: event.type,
           status: sub.status,
+          cancelAtPeriodEnd: sub.cancel_at_period_end,
           from: before.stripeProUntil?.toISOString() ?? null,
           to: proUntil?.toISOString() ?? null,
           subscriptionId: sub.id,

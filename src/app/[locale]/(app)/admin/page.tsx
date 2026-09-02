@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { isRedisAvailable } from "@/lib/queue";
 import { formatRelative, formatDateTime, formatPrice } from "@/lib/format";
+import { RENEWAL_LABELS, type RenewalStatus } from "@/lib/subscription-status";
 import { getAdminOverview, STORE_CUT } from "@/services/admin/overview";
 import { getServiceCosts, type CostSource } from "@/services/admin/service-costs";
 import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
@@ -18,6 +19,14 @@ import {
   ScanChartLazy,
   UserGrowthChartLazy,
 } from "@/components/features/admin/admin-charts-lazy";
+
+/** Förnyas = grönt, uppsagd = varning, okänt/inget = neutralt. Aldrig rött: en uppsägning är ett faktum, inte ett fel. */
+const RENEWAL_VARIANTS: Record<RenewalStatus, BadgeVariant> = {
+  yes: "success",
+  no: "warning",
+  unknown: "default",
+  none: "default",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -463,7 +472,7 @@ export default async function AdminOverviewPage() {
             <CardTitle>Betalande kunder</CardTitle>
             <p className="text-sm text-ink-muted">
               planTier=PREMIUM (app) eller aktiv Stripe-prenumeration (webb). Admin och
-              gratis Pro räknas inte.
+              gratis Pro räknas inte. Senaste prenumerant först.
             </p>
           </div>
           {payingWithoutWatch > 0 && (
@@ -503,6 +512,8 @@ export default async function AdminOverviewPage() {
                   <TR>
                     <TH>Kund</TH>
                     <TH>Kanal</TH>
+                    <TH title="Första betalda aktiveringen. Saknas för köp gjorda innan loggningen fanns.">Prenumerant sedan</TH>
+                    <TH title="Auto-förnyelse enligt leverantörens senaste webhook-event. Okänt = inget event sedan 2026-09-02.">Förnyas</TH>
                     <TH>Konto skapat</TH>
                     <TH className="text-right">Bevakningar</TH>
                     <TH className="text-right">Samling</TH>
@@ -525,6 +536,30 @@ export default async function AdminOverviewPage() {
                         <Badge variant={u.channel === "stripe" ? "info" : "default"}>
                           {u.channel === "stripe" ? "Stripe" : "App Store / Play"}
                         </Badge>
+                        {u.environment === "SANDBOX" && (
+                          <Badge
+                            variant="warning"
+                            className="ml-1"
+                            title="RevenueCat SANDBOX — ett testköp som Apple/Google aldrig debiterat. Inte en kund."
+                          >
+                            Sandbox
+                          </Badge>
+                        )}
+                      </TD>
+                      <TD className="text-sm text-ink-muted">
+                        {u.proSince ? (
+                          formatDateTime(u.proSince)
+                        ) : (
+                          <span className="text-ink-faint" title="Köpt innan loggningen fanns">–</span>
+                        )}
+                      </TD>
+                      <TD>
+                        <Badge variant={RENEWAL_VARIANTS[u.renewal]} title={RENEWAL_LABELS[u.renewal].hint}>
+                          {RENEWAL_LABELS[u.renewal].label}
+                        </Badge>
+                        {u.renewal === "no" && u.rcExpiresAt && (
+                          <span className="block text-xs text-ink-faint">t.o.m. {formatDateTime(u.rcExpiresAt)}</span>
+                        )}
                       </TD>
                       <TD className="text-sm text-ink-muted">{formatDateTime(u.createdAt)}</TD>
                       <TD className="text-right">

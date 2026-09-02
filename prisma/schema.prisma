@@ -166,7 +166,23 @@ model User {
   // löper Pro ut ändå. Skrivs BARA av src/app/api/webhooks/stripe/route.ts.
   stripeCustomerId      String?      @unique
   stripeSubscriptionId  String?
-  stripeProUntil        DateTime?
+  stripeProUntil        DateTime?
+  // Auto-förnyelse hos Stripe: `cancel_at_period_end` ur den FÄRSKT hämtade
+  // prenumerationen (true = kunden har sagt upp, Pro löper ut vid periodens slut
+  // men gäller tills dess). null = okänt — inget event sedan kolumnen kom 2026-09-02.
+  stripeCancelAtPeriodEnd Boolean?
+  // Första gången kontot fick BETALD Pro (App Store/Play eller Stripe) — aldrig
+  // bonus eller roll, aldrig ett SANDBOX-köp. Sätts en gång och skrivs aldrig över:
+  // adminens "prenumerant sedan". Bakfylld ur AuditLog i migrationen 20260902.
+  proSince              DateTime?
+  // RevenueCat-status för app-prenumerationen, skriven på VARJE RC-event — även
+  // CANCELLATION/UNCANCELLATION, som inte rör planTier (access finns kvar till
+  // EXPIRATION). willRenew = förnyas automatiskt; expiresAt = RC:s expiration_at_ms;
+  // environment = SANDBOX/PRODUCTION (ett sandbox-köp är en testare, inte en kund —
+  // 2026-08-30 syntes tre "köp" i RC som Apple aldrig sett). null = okänt.
+  rcWillRenew           Boolean?
+  rcExpiresAt           DateTime?
+  rcEnvironment         String?
   resetToken            String?      @unique
   resetTokenExpiresAt   DateTime?
   onboardingCompleted   Boolean      @default(false)

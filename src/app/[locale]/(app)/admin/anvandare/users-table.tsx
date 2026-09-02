@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useRouter } from "@/i18n/navigation";
 import type { Role, PlanTier } from "@prisma/client";
 import { formatDateTime } from "@/lib/format";
+import { RENEWAL_LABELS, type RenewalStatus } from "@/lib/subscription-status";
 import type { NotificationSettings } from "@/lib/notification-settings";
 import {
   LastSeen,
@@ -31,6 +32,12 @@ export interface AdminUserRow {
   bonusProUntil: string | null;
   /** Sammanvägd Pro-status (isPro): planTier ∪ bonus ∪ Stripe ∪ admin-roll. */
   isPro: boolean;
+  /** Förnyas den betalda prenumerationen? Se lib/subscription-status.ts. */
+  renewal: RenewalStatus;
+  /** Första betalda aktiveringen (YYYY-MM-DD), null = okänd/ingen. */
+  proSince: string | null;
+  /** RevenueCat SANDBOX — testköp, inte en kund. */
+  sandbox: boolean;
   reputationScore: number;
   emailVerified: boolean;
   notifications: NotificationSettings;
@@ -69,6 +76,13 @@ const PLAN_LABELS: Record<PlanTier, string> = {
 
 const ALL_PLANS: PlanTier[] = ["FREE", "PREMIUM"];
 
+const RENEWAL_VARIANTS: Record<RenewalStatus, BadgeVariant> = {
+  yes: "success",
+  no: "warning",
+  unknown: "default",
+  none: "default",
+};
+
 interface ColumnDef {
   label: string;
   title?: string;
@@ -104,6 +118,13 @@ function buildColumns(costWindowDays: number): ColumnDef[] {
         "Sorteras på faktisk Pro-status (planTier, bonus, Stripe eller roll) — inte bara på väljarens värde.",
     },
     { label: "Gratis Pro t.o.m.", sortKey: "bonus" },
+    {
+      // Osorterbar med flit: tre utfall (förnyas/uppsagd/okänt) har ingen
+      // rangordning, och "okänt" får aldrig se ut som "sämst".
+      label: "Prenumeration",
+      title:
+        "Betald prenumeration: sedan när, och om den förnyas automatiskt (Stripe cancel_at_period_end / RevenueCat). Okänt = inget webhook-event sedan 2026-09-02.",
+    },
     {
       // Notiser är fyra oberoende reglage utan inbördes ordning — det finns
       // inget "mer notiser än" att sortera på. Osorterbar med flit: en
@@ -477,6 +498,27 @@ export function UsersTable({
                       </button>
                     )}
                   </div>
+                </TD>
+                <TD className="whitespace-nowrap">
+                  {user.renewal === "none" ? (
+                    <span className="text-ink-faint">–</span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <Badge variant={RENEWAL_VARIANTS[user.renewal]} title={RENEWAL_LABELS[user.renewal].hint}>
+                        {RENEWAL_LABELS[user.renewal].label}
+                      </Badge>
+                      {user.proSince && (
+                        <span className="text-xs text-ink-muted" title="Första betalda aktiveringen">
+                          sedan {user.proSince}
+                        </span>
+                      )}
+                      {user.sandbox && (
+                        <Badge variant="warning" title="RevenueCat SANDBOX — testköp, inte en kund">
+                          Sandbox
+                        </Badge>
+                      )}
+                    </span>
+                  )}
                 </TD>
                 <TD>
                   <NotificationBadges settings={user.notifications} />

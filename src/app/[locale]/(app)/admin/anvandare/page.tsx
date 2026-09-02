@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { auth, hasRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { isPro } from "@/lib/plan";
+import { renewalStatus } from "@/lib/subscription-status";
 import { parseNotificationSettings } from "@/lib/notification-settings";
 import {
   COST_WINDOW_DAYS,
@@ -35,6 +36,11 @@ const ROW_SELECT = {
   // ⛔ `stripeProUntil` MÅSTE väljas när raden matar isPro() — ett ovalt
   // fält blir `undefined` och vakten failar ÖPPET (se CLAUDE.md, Stripe).
   stripeProUntil: true,
+  // Prenumerationsstatus (2026-09-02): förnyas den, sedan när, sandbox eller ej.
+  stripeCancelAtPeriodEnd: true,
+  rcWillRenew: true,
+  rcEnvironment: true,
+  proSince: true,
   reputationScore: true,
   emailVerifiedAt: true,
   notificationSettings: true,
@@ -206,6 +212,9 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
       // dagsupplöst ändå (servern lägger på slutet av dygnet vid skrivning).
       bonusProUntil: u.bonusProUntil ? u.bonusProUntil.toISOString().slice(0, 10) : null,
       isPro: isPro(u),
+      renewal: renewalStatus(u),
+      proSince: u.proSince ? u.proSince.toISOString().slice(0, 10) : null,
+      sandbox: u.rcEnvironment === "SANDBOX",
       reputationScore: u.reputationScore,
       emailVerified: u.emailVerifiedAt !== null,
       notifications: notif,

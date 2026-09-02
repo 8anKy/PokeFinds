@@ -20,6 +20,7 @@ import { Link } from "@/i18n/navigation";
 import { auth, hasRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { isPro } from "@/lib/plan";
+import { RENEWAL_LABELS, renewalStatus } from "@/lib/subscription-status";
 import { formatDateTime } from "@/lib/format";
 import { startOfMonthUtc, utcDaysAgo } from "@/lib/utils";
 import { parseNotificationSettings } from "@/lib/notification-settings";
@@ -139,6 +140,11 @@ export default async function AdminUserDetailPage({
       stripeProUntil: true,
       stripeCustomerId: true,
       stripeSubscriptionId: true,
+      stripeCancelAtPeriodEnd: true,
+      proSince: true,
+      rcWillRenew: true,
+      rcExpiresAt: true,
+      rcEnvironment: true,
       emailVerifiedAt: true,
       onboardingCompleted: true,
       isPublicCollection: true,
@@ -270,6 +276,21 @@ export default async function AdminUserDetailPage({
           </Row>
           <Row label="Stripe-kund">{user.stripeCustomerId ?? dash}</Row>
           <Row label="Prenumeration">{user.stripeSubscriptionId ?? dash}</Row>
+          <Row label="Prenumerant sedan" hint="proSince — första betalda aktiveringen (app eller Stripe), aldrig bonus/roll">
+            {user.proSince ? formatDateTime(user.proSince) : dash}
+          </Row>
+          <Row
+            label="Förnyas automatiskt"
+            hint="Stripe: cancel_at_period_end · App: RevenueCat-status. Okänt = inget event sedan 2026-09-02."
+          >
+            <span title={RENEWAL_LABELS[renewalStatus(user)].hint}>{RENEWAL_LABELS[renewalStatus(user)].label}</span>
+          </Row>
+          <Row label="App-prenumeration löper ut" hint="rcExpiresAt — RevenueCats expiration_at_ms">
+            {user.rcExpiresAt ? formatDateTime(user.rcExpiresAt) : dash}
+          </Row>
+          <Row label="Köpmiljö (RevenueCat)" hint="SANDBOX = testköp som Apple/Google aldrig debiterat">
+            {user.rcEnvironment ?? dash}
+          </Row>
           <Row label="E-post bekräftad">
             {user.emailVerifiedAt ? formatDateTime(user.emailVerifiedAt) : dash}
           </Row>

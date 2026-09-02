@@ -81,3 +81,13 @@ paths:
   genom att interpolera konstanten in i översättningarna: poängen är att någon TVINGAS läsa meningarna när talet ändras.
   ⚠️ Nedgraderings-FAQ:n lovade tidigare "bara de 10 senaste är aktiva" — en funktion som ALDRIG byggts (varken
   `watchlist.ts` eller RevenueCat-webhooken rör poster vid nedgradering). Texten säger nu vad koden faktiskt gör.
+- **PRENUMERATIONSSTATUS I ADMIN (2026-09-02)**: fem kolumner på User — `proSince` (första BETALDA
+  aktiveringen, sätts en gång, aldrig av ett SANDBOX-köp), `rcWillRenew`/`rcExpiresAt`/`rcEnvironment`
+  (RevenueCat, skrivs på VARJE event inkl. CANCELLATION/UNCANCELLATION som inte rör planTier) och
+  `stripeCancelAtPeriodEnd` (ur den färskt hämtade prenumerationen). Domen bor i `renewalStatus()`
+  (`src/lib/subscription-status.ts`): TRE UTFALL + "none" — "okänt" är inte "nej", det betyder att inget
+  event skrivit fältet sedan kolumnerna kom. ⛔ null skriver ALDRIG över ett känt värde (BILLING_ISSUE säger
+  inget om förnyelsen). ⛔ Ett SANDBOX-köp är en testare, inte en kund — adminen märker raden, och
+  `proSince` sätts inte. Bakfyllnad ur AuditLog i migrationen `20260902010000_subscription_status`; äldre
+  RC-rader saknar miljö och räknas som riktiga (går inte att skilja). Fälten ligger i GDPR-exporten.
+  Vaktat av `tests/unit/subscription-status.test.ts` + `revenuecat-subscription-state.test.ts`.

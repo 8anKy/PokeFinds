@@ -85,3 +85,78 @@ export function planChangesForEvent(event: unknown): PlanChange[] {
   if (!plan) return [];
   return isOurUserId(e.app_user_id) ? [{ userId: e.app_user_id, plan }] : [];
 }
+
+/**
+ * PRENUMERATIONSSTATUS — det eventet säger om FÖRNYELSEN, skilt från planen.
+ *
+ * `planForEvent` ovan svarar bara på "har kontot Pro?" och ignorerar därför
+ * CANCELLATION med flit (access kvar till EXPIRATION). Men adminen behöver
+ * också veta om prenumerationen FÖRNYAS: en kund som sagt upp syns annars som
+ * betalande ända tills perioden tar slut, och "vi har 8 prenumeranter" är då
+ * en lögn om nästa månad. Därför en egen dom per event:
+ *   true  = förnyas automatiskt (köp, förnyelse, ångrad uppsägning, byte)
+ *   false = förnyas INTE (uppsagd, utgången, engångsköp)
+ *   null  = eventet säger inget om förnyelsen (BILLING_ISSUE, TEST, alias …)
+ * null skrivs ALDRIG över ett känt värde — se route.ts.
+ */
+export function willRenewForEvent(type: string): boolean | null {
+  switch (type) {
+    case "INITIAL_PURCHASE":
+    case "RENEWAL":
+    case "UNCANCELLATION":
+    case "PRODUCT_CHANGE":
+    case "SUBSCRIPTION_EXTENDED":
+      return true;
+    case "CANCELLATION":
+    case "EXPIRATION":
+    case "NON_RENEWING_PURCHASE":
+      return false;
+    default:
+      return null;
+  }
+}
+
+export interface SubscriptionState {
+  userId: string;
+  willRenew: boolean | null;
+  /** RC:s `expiration_at_ms` → Date; null när eventet saknar det. */
+  expiresAt: Date | null;
+  /** "SANDBOX" | "PRODUCTION" | null. Ett sandbox-köp är en testare, inte en kund. */
+  environment: string | null;
+}
+
+function msToDate(value: unknown): Date | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? new Date(value) : null;
+}
+
+/**
+ * Status-ändringar per användare för ETT event. Speglar `planChangesForEvent`:
+ * TRANSFER läser `transferred_to`/`transferred_from` (mottagaren ärver
+ * prenumerationen och förnyas; avsändaren har ingen kvar), allt annat
+ * `app_user_id`. Returnerar tomt för anonyma id:n och för eventtyper som inte
+ * säger något om förnyelsen — då finns inget att skriva.
+ */
+export function subscriptionStatesForEvent(event: unknown): SubscriptionState[] {
+  const e = (event ?? {}) as Record<string, unknown>;
+  const type = String(e.type);
+  const expiresAt = msToDate(e.expiration_at_ms);
+  const environment = typeof e.environment === "string" ? e.environment : null;
+
+  if (type === "TRANSFER") {
+    const states: SubscriptionState[] = [];
+    for (const userId of userIds(e.transferred_to)) {
+      states.push({ userId, willRenew: true, expiresAt, environment });
+    }
+    for (const userId of userIds(e.transferred_from)) {
+      if (states.some((s) => s.userId === userId)) continue;
+      states.push({ userId, willRenew: false, expiresAt: null, environment });
+    }
+    return states;
+  }
+
+  const willRenew = willRenewForEvent(type);
+  if (willRenew === null) return [];
+  return isOurUserId(e.app_user_id)
+    ? [{ userId: e.app_user_id, willRenew, expiresAt, environment }]
+    : [];
+}

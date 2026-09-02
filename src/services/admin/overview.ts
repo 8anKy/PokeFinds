@@ -14,6 +14,7 @@
  */
 import { prisma } from "@/lib/db";
 import { payingUserWhere } from "@/lib/plan";
+import { renewalStatus, type RenewalStatus } from "@/lib/subscription-status";
 
 /** Månadspris i öre. Samma tal som prissidan visar. */
 export const PRO_PRICE_ORE = 4900;
@@ -57,6 +58,13 @@ export interface PayingUserRow {
   /** "store" = App Store/Google Play (planTier), "stripe" = webben. */
   channel: "store" | "stripe";
   stripeUntil: Date | null;
+  /** Första betalda aktiveringen (proSince) — null för köp gjorda innan loggningen fanns. */
+  proSince: Date | null;
+  /** Förnyas prenumerationen? Tre utfall + "none" — se lib/subscription-status.ts. */
+  renewal: RenewalStatus;
+  /** RevenueCat SANDBOX/PRODUCTION; sandbox = testköp, inte en kund. */
+  environment: string | null;
+  rcExpiresAt: Date | null;
   createdAt: Date;
   watchlistCount: number;
   collectionCount: number;
@@ -199,12 +207,22 @@ export async function getAdminOverview() {
     }),
     prisma.user.findMany({
       where: payingUserWhere(now),
-      orderBy: { createdAt: "asc" },
+      // Senaste prenumerant först: "vilka kom senast?" är frågan kortet svarar på.
+      // Konton utan proSince (köp före loggningen) hamnar sist, ordnade på skapad.
+      orderBy: [{ proSince: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
       select: {
         id: true,
         name: true,
         email: true,
         stripeProUntil: true,
+        role: true,
+        planTier: true,
+        bonusProUntil: true,
+        stripeCancelAtPeriodEnd: true,
+        rcWillRenew: true,
+        rcEnvironment: true,
+        rcExpiresAt: true,
+        proSince: true,
         createdAt: true,
         lastSeenAt: true,
         _count: { select: { watchlistItems: true, collectionItems: true } },
@@ -353,6 +371,10 @@ export async function getAdminOverview() {
         email: u.email,
         channel: u.stripeProUntil && u.stripeProUntil > now ? "stripe" : "store",
         stripeUntil: u.stripeProUntil ?? null,
+        proSince: u.proSince,
+        renewal: renewalStatus(u),
+        environment: u.rcEnvironment,
+        rcExpiresAt: u.rcExpiresAt,
         createdAt: u.createdAt,
         watchlistCount: u._count.watchlistItems,
         collectionCount: u._count.collectionItems,
