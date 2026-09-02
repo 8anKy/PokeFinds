@@ -17,9 +17,10 @@ export default defineRailway(() => {
     replicas: { "europe-west4-drams3a": 1 },
     // ⛔ ALWAYS, aldrig ON_FAILURE med retry-tal: självåtervinningen (src/lib/memory-recycle.ts)
     // avslutar processen med exit(1) flera gånger per dygn, och ett retry-tal som inte
-    // nollställs lämnade sajten nere 6,5 h 2026-08-31. sleepApplication: false — App
-    // Sleeping hade kastat ISR-cachen i minnet vid varje väckning.
-    deploy: { restartPolicyType: "ALWAYS", sleepApplication: false },
+    // nollställs lämnade sajten nere 6,5 h 2026-08-31. App Sleeping ska vara AV (Railways
+    // default; lagras som null, så `sleepApplication: false` här ger evig drift i plan) —
+    // det hade kastat ISR-cachen i minnet vid varje väckning.
+    deploy: { restartPolicyType: "ALWAYS" },
     // Pushar som bara rör workflows, docs, tester, agentregler, native-mapparna eller
     // Markdown skapar ingen deploy — varje deploy nollar FETCH-cachen (BUILD_ID) och
     // kostar kalla Neon-läsningar (9 deployer/dygn mätt 2026-09-01). gitignore-syntax:
