@@ -116,16 +116,21 @@ export function proUserWhere(): Prisma.UserWhereInput {
  * 245 kr redovisad MRR mot 98 kr verklig). Rollen kan inte gå ut och är därför
  * en pålitlig grind — till skillnad från planTier, som RevenueCat äger.
  *
- * ⛔ VAD DET HÄR FILTRET INTE KAN SE: en sandbox-prenumeration ser i databasen
- * exakt ut som en riktig (samma planTier, samma webhook-väg). Enda skillnaden är
- * att den förnyas varje DYGN i stället för varje månad, och att gissa på den
- * takten vore en heuristik som tyst börjar räkna bort riktiga kunder den dagen
- * någon köper två gånger. Därför listar adminvyn varje betalande konto vid namn:
+ * ⛔ SANDBOX RÄKNAS ALDRIG (2026-09-02). En sandbox-prenumeration ser i planTier
+ * exakt ut som en riktig (samma webhook-väg), men RevenueCat-webhooken skriver
+ * numera `rcEnvironment` på varje event, och ett SANDBOX-konto är en testare —
+ * ägarens eget testkonto låg annars som betalande med 49 kr/mån. Konton UTAN
+ * miljö (köp före 2026-08-30) räknas som riktiga: att gissa hade tyst räknat
+ * bort kunder. Därför `rcEnvironment` null ELLER ≠ SANDBOX — aldrig ett bart
+ * `not`, som i SQL utesluter NULL. Adminvyn listar ändå varje konto vid namn:
  * TABELLEN är facit, siffran är en sammanfattning.
  */
 export function payingUserWhere(now: Date = new Date()): Prisma.UserWhereInput {
   return {
     role: { notIn: PRO_ROLES },
     OR: [{ planTier: "PREMIUM" }, { stripeProUntil: { gt: now } }],
+    // Nästlad OR: toppnivåns OR är upptagen av betalkällorna, och en spridning
+    // (`{ ...payingUserWhere(), planTier }`) i overview.ts måste överleva.
+    AND: [{ OR: [{ rcEnvironment: null }, { rcEnvironment: { not: "SANDBOX" } }] }],
   };
 }

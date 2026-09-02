@@ -472,7 +472,7 @@ export default async function AdminOverviewPage() {
             <CardTitle>Betalande kunder</CardTitle>
             <p className="text-sm text-ink-muted">
               planTier=PREMIUM (app) eller aktiv Stripe-prenumeration (webb). Admin och
-              gratis Pro räknas inte. Senaste prenumerant först.
+              gratis Pro räknas inte, och inte sandbox-testare. Senaste prenumerant först.
             </p>
           </div>
           {payingWithoutWatch > 0 && (

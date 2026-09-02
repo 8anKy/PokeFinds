@@ -4,8 +4,7 @@ import {
   effectivePlanTier,
   isPro,
   proSource,
-  bonusUntilFromDateInput,
-} from "@/lib/plan";
+  bonusUntilFromDateInput, payingUserWhere } from "@/lib/plan";
 
 describe("bonusUntilFromDateInput (adminpanelens Pro-gåva)", () => {
   it("gäller HELA den valda dagen", () => {
@@ -132,5 +131,17 @@ describe("proUserWhere", () => {
   it("räknar Stripe-prenumeranter som mottagare", () => {
     const stripe = proUserWhere().OR?.[3] as { stripeProUntil: { gt: Date } };
     expect(stripe.stripeProUntil.gt).toBeInstanceOf(Date);
+  });
+});
+
+describe("payingUserWhere — sandbox-testare räknas aldrig som betalande", () => {
+  it("utesluter rcEnvironment=SANDBOX men behåller konton utan känd miljö", () => {
+    const where = payingUserWhere(new Date());
+    // ⛔ Ett bart `not: "SANDBOX"` hade i SQL uteslutit NULL — dvs alla köp före
+    // 2026-08-30. Formen måste vara null ELLER ≠ SANDBOX.
+    expect(where.AND).toEqual([
+      { OR: [{ rcEnvironment: null }, { rcEnvironment: { not: "SANDBOX" } }] },
+    ]);
+    expect(where.OR).toEqual([{ planTier: "PREMIUM" }, { stripeProUntil: { gt: expect.any(Date) } }]);
   });
 });
