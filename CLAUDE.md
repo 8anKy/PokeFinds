@@ -13,9 +13,9 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   (Frankfurt). Deploy = `git push origin main` (Dockerfile, node:22-slim). Ingen Vercel. Railway blockar
   SMTP-portar → mejl via Resend HTTP API (`src/lib/mailer.ts`).
   ⛔ **Railway-inställningarna bor i `.railway/railway.ts` (Infrastructure as Code) sedan 2026-09-02.**
-  `railway.json` (Config as Code) är deprecated med hård cutoff 2026-12-01 och tas bort så snart IaC-filen är
-  APPLICERAD (`railway config apply` skriver in värdena i tjänstens inställningar — tills dess är filen bara en
-  önskan och `railway config plan` visar drift). Filen pinnar `restartPolicyType: ALWAYS` (självåtervinningen
+  `railway.json` är BORTTAGEN 2026-09-02 (Config as Code, cutoff 2026-12-01) — värdena APPLICERADES med
+  `railway config apply` och ligger i tjänstens inställningar; `railway config plan` ska visa "up to date", allt
+  annat är drift från dashboarden. ⛔ Återinför aldrig railway.json — en tjänst kan inte styras av båda systemen. Filen pinnar `restartPolicyType: ALWAYS` (självåtervinningen
   KRÄVER den — sajten låg nere 6,5 h 2026-08-31 när den saknades), `sleepApplication: false` och
   `build.watchPatterns` (pushar som bara rör `.github/`, `docs/`, `tests/`, `.claude/`, `ios/`, `android/` eller
   `*.md` deployar INTE — varje deploy nollar FETCH-cachen; 9 deployer/dygn mätt 09-01). ⛔ Kör `railway config
