@@ -188,8 +188,9 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
 - **Mät ISR-effekten (~2026-09-05)**: `scripts/neon-wake-attribution.ts` mot baslinjen 19 h/dygn (08-26).
   Nästa kandidat om set-sidorna dominerar: samma skal-behandling för `/sets/[id]` (bär pris i HTML, 1 h).
 - **Community v2 (forum + meddelanden + Tradera på profilen) BYGGT 2026-09-03, VÄNTAR PÅ ÄGARENS TEST**
-  (`.claude/rules/community-v2.md`). Kvar hos ägaren: (1) nytt Codemagic-bygge 1.2 → TestFlight (UA-taggen
-  `FoilioApp/` tänder funktionerna där), (2) testa forum/bilder/köp-sälj/chatt/push/Tradera-kortet,
+  (`.claude/rules/community-v2.md`). Deployat 277140b, live-verifierat (anonym /forum → 307, taggad → 200,
+  upload enabled, stream 401). ✅ Codemagic-bygge 1.2 byggt 2026-09-03. Kvar hos ägaren:
+  (2) testa i TestFlight: forum/bilder/köp-sälj/chatt med push/blockera/anmäl/Tradera-kortet/`/admin/chatt`,
   (3) skapa Discord-kanal för Köp/Sälj/Byt + `DISCORD_MARKET_CHANNEL_ID` i Railway, (4) släpp 1.2 i App Store
   OCH sätt `COMMUNITY_V2_PUBLIC=1` i Railway (webben). Bucketen `foilio-uploads` (ams) finns och är kopplad
   via `S3_*`-referenser. ⛔ Ingen live-chatt-POLLNING — chatten är SSE-baserad; 2026-08-29-kalkylen ~$45/mån
