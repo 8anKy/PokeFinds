@@ -192,6 +192,23 @@ export abstract class ShopifyAdapter implements SourceAdapter {
    *    uppmätt på Samlarhobby är merkostnaden ~60 främmande sealed-titlar som avvisas
    *    med regex (ingen LLM, ingen extra HTTP efter första körningen). Väg det mot
    *    alternativet: ett namnfilter som strukturellt ALDRIG kan se hela sortimentet.
+   *
+   * ⛔ `/products.json` ÄR INTE EN ÖVERMÄNGD AV KOLLEKTIONERNA — MÄT BÅDA HÅLLEN.
+   *    Det är lätt att läsa "hela sortimentet" som "allt kollektionerna har, plus mer".
+   *    MÄTT 2026-09-03 på Rogerz: kollektionsvägen ger 691 produkter, `/products.json`
+   *    ger 2 249 — och **455 av de 691 finns inte i de 2 249** (nästan alla slutsålda
+   *    äldre JP-boxar). En påslagen `wholeCatalog` där hade alltså SLÄCKT 455 offers
+   *    (frånvaro ur feeden → UNKNOWN inom karensfönstret) samtidigt som den vann 23.
+   *    Samma sak, mindre skala, hos Goblinen: 30th Celebration-ETB:n svarar 200 på sin
+   *    egen `/products/<handle>.json` men syns varken i `/products.json`, i någon
+   *    kollektions-JSON eller i `/search/suggest.json`.
+   *    ⇒ Kravet för att flippa en butik hit är TVÅ tal, inte ett: hur många MÄRKTA
+   *    produkter som TILLKOMMER **och** hur många i dag TÄCKTA som FÖRSVINNER. Är det
+   *    andra talet > 0 är svaret nej. `scripts/probe-shopify-coverage.ts` mäter bara
+   *    det första — läs det aldrig ensamt.
+   *    ⚠️ Och mät med RETRY: ett enda 429 mitt i pagineringen får `fetchProducts` att
+   *    `break`:a, så en trunkerad hämtning ser ut som ett äkta bortfall (första
+   *    mätningen samma dag gav 2 000 i stället för 2 249 av precis det skälet).
    */
   protected wholeCatalog = false;
 

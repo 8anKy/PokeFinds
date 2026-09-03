@@ -121,9 +121,21 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   **VAD SOM SLUTADE FUNGERA** — allt detta ligger nere tills jobbet slås på igen:
   restock-larm via mejl/push/in-app (Pro-funktionen, `proUserWhere()` i `src/services/alerts.ts`),
   inklusive NEW_LISTING/PREORDER ur feed-först-vägen, `Offer.stockStatus` (lagerbadgen på ALLA
-  produktsidor fryser), `RestockEvent` + `/api/market/restocks`, och auto-importen av nya
-  butiks-SKU:er. ⛔ Veckobrevets "X av dina bevakade är i lager igen" är en EGEN funktion och är
-  INTE pausad; nattkedjan skriver fortfarande `RestockEvent`.
+  produktsidor fryser), `RestockEvent` + `/api/market/restocks`, och ~~auto-importen av nya
+  butiks-SKU:er~~ (LAGAD 2026-09-04, se nedan). ⛔ Veckobrevets "X av dina bevakade är i lager igen"
+  är en EGEN funktion och är INTE pausad; nattkedjan skriver fortfarande `RestockEvent`.
+  ✅ **AUTO-IMPORTEN ÄR TILLBAKA SEDAN 2026-09-04** — `scripts/feed-import-run.ts` som STEG i
+  `scrape-all.yml` (aldrig egen cron; Neon är redan vaken i det fönstret). Feed-först-grenen i
+  `runRestockScan` är den ENDA kodväg som SKAPAR katalogprodukter ur en butiksfeed — `runScrapeJob`
+  matchar bara mot BEFINTLIGA produkter och hoppar tyst över resten — så pausen tog med sig
+  nykatalogiseringen utan att det stod någonstans. MÄTT 2026-09-03, elva dygn senare: nyaste
+  `StoreListing`-raden hos VARJE av de 41 butikerna var ≤ 2026-08-22, och backloggen 3 137 offer-lösa
+  sealed feed-URL:er (1 231 i lager) varav 705 överlevde de billiga vakterna. ⛔ Steget har en
+  TIDSBUDGET (`FEED_IMPORT_BUDGET_MINUTES`, default 25) — varje offer-lös URL kostar en artigt
+  fördröjd hämtning av butikens produktsida, och en timeout i scrape-all tar HELA nattkedjan med sig.
+  Kvarvarande kö skrivs som `::warning::` på körningen; krymper talet inte mellan nätterna, höj
+  budgeten. Larmen påverkas INTE (grinden ligger vid skapandet). Mät med
+  `scripts/audit-feed-first-gap.ts`.
   ⛔ **Discord-lanen är OPÅVERKAD** — `scripts/discord-restock-run.ts` importerar bara en TYP ur
   `@prisma/client` och rör aldrig databasen. Ruttabellen (`export-restock-routes.ts`) skrevs av BÅDE
   restock-watch och `scrape-all`; nattkedjan uppdaterar den alltså fortfarande, så lanen tappar bara

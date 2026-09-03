@@ -240,6 +240,11 @@ export interface RestockScanResult {
    * Rift-booster 2026-08-12 postades aldrig av exakt det skälet).
    */
   offersCreated?: number;
+  /**
+   * Hur många offer-lösa feed-URL:er som tidsbudgeten (`importBudgetMs`) klippte bort.
+   * > 0 ⇒ eftersläpningen krymper långsammare än den växer — höj budgeten.
+   */
+  importBudgetLeft?: number;
 }
 
 /** Det minimum en restock-skanning behöver veta om en källa (cachebart som JSON). */
@@ -798,6 +803,24 @@ export async function runRestockScan(opts?: {
   shouldProcess?: (
     fetched: { sourceName: string; items: FeedItem[] }[]
   ) => boolean | Promise<boolean>;
+  /**
+   * TIDSBUDGET FÖR FEED-FÖRST-PASSET (millisekunder). Utelämnad = ingen gräns, dvs
+   * exakt det beteende snabbfilen och Discord-lanen alltid haft.
+   *
+   * ⛔ FINNS FÖR ATT AUTO-IMPORTEN NU LIGGER I NATTKEDJAN. Varje offer-lös feed-URL
+   * kostar EN hämtning av butikens produktsida (`fetchListingFacts`, artigt fördröjd)
+   * innan de billiga vakterna ens får se titeln — och när eftersläpningen är stor
+   * (3 137 URL:er mätt 2026-09-03, varav 2 026 nådde hämtningen) blir passet timmar
+   * långt. `scrape-all` har 120 min på sig TOTALT och drar redan 20–38; utan budget
+   * hade det första passet ätit upp taket och tagit HELA nattkedjan med sig
+   * (tradera-sweep m.fl. hänger på `workflow_run` och fyrar aldrig efter en timeout).
+   *
+   * ⛔ BUDGETEN ÄR MINUTER, INTE ETT ANTAL POSTER: kön är sorterad per butik, så ett
+   * antalstak hade tömt samma butiker varje natt och svultit svansen. Kvarvarande
+   * poster tas nästa natt — passet är resumerbart av naturen (en importerad URL får
+   * en Offer och hamnar aldrig i feed-först-kön igen).
+   */
+  importBudgetMs?: number;
 }): Promise<RestockScanResult> {
   let sources: RestockSourceInfo[];
   if (opts?.sources?.length) {
@@ -1068,7 +1091,17 @@ export async function runRestockScan(opts?: {
   }
 
   // ---- Feed-först: URL utan Offer (ny SKU / art-variant / produkt utanför katalogen) ----
+  // Tidsbudget (se importBudgetMs). Klockan startar HÄR, inte vid körningens början:
+  // feed-svepet och offer-diffen ovan ska aldrig kunna äta upp importens fönster.
+  const importDeadline = opts?.importBudgetMs ? Date.now() + opts.importBudgetMs : null;
+  let importBudgetLeft = 0;
   for (const [key, it] of feedFirst) {
+    if (importDeadline && Date.now() > importDeadline) {
+      // ⛔ ALDRIG TYST. Ett tak som inte syns i loggen är samma fälla som
+      // MAX_COLLECTIONS var — man tror att kön är tom när den bara är avklippt.
+      importBudgetLeft++;
+      continue;
+    }
     let newStatus = it.stockStatus;
     // Bara sealed — singlar/övrigt skulle spamma (se SEALED_FEED_CATEGORIES).
     if (!SEALED_FEED_CATEGORIES.has(it.category ?? "")) continue;
@@ -1262,6 +1295,13 @@ export async function runRestockScan(opts?: {
   console.log(
     `[restock-scan] ${sources.length} butiker, ${checked} kollade, ${restocks} restocks, ${newListings} nya, ${verified} verifierade mot produktsidan, ${soldOutReconciled} utan svar (UNKNOWN), ${sent} alerts.`
   );
+  if (importBudgetLeft > 0) {
+    console.warn(
+      `[restock-scan] TIDSBUDGETEN (${Math.round((opts?.importBudgetMs ?? 0) / 60000)} min) TOG SLUT — ` +
+        `${importBudgetLeft} offer-lösa feed-URL:er hämtades INTE denna körning. De ligger kvar i kön ` +
+        `till nästa pass; höj FEED_IMPORT_BUDGET_MINUTES om eftersläpningen inte krymper.`
+    );
+  }
   if (buyChecks > 0) {
     console.log(
       `[restock-scan] Köpbarhetskoll: ${buyChecks} uppslag, ${buyChecksBlocked} annons(er) ` +
@@ -1269,7 +1309,7 @@ export async function runRestockScan(opts?: {
         (buyChecks >= RESTOCK_BUY_CHECK_MAX ? ` — TAKET (${RESTOCK_BUY_CHECK_MAX}) NÅTT, resten litade på feeden.` : ".")
     );
   }
-  return { sources: sources.length, checked, restocks, newListings, alertsSent: sent, sourceList: sources, offersCreated };
+  return { sources: sources.length, checked, restocks, newListings, alertsSent: sent, sourceList: sources, offersCreated, importBudgetLeft };
 }
 
 /**

@@ -91,6 +91,28 @@ jobs:
         run: npx prisma generate
       - if: steps.guard.outputs.ready == 'true'
         run: npx tsx scripts/scrape-all-run.ts
+      # AUTO-IMPORT AV NYA BUTIKS-SKU:ER. ⛔ LIGGER HÄR FÖR ATT STEGET OVAN ALDRIG
+      # SKAPAR PRODUKTER: `runScrapeJob` matchar bara mot BEFINTLIGA katalogprodukter
+      # och hoppar tyst över allt annat. Den enda kodväg som skapar produkter ur en
+      # butiksfeed är feed-först-grenen i `runRestockScan` — som låg i restock-watch.yml,
+      # och följde med ner när det jobbet pausades 2026-08-23 (kostnad, se CLAUDE.md).
+      # MÄTT 2026-09-03: nyaste StoreListing-raden hos VARJE av de 41 butikerna var
+      # ≤ 2026-08-22 — elva dygn utan en enda ny butiks-SKU, backlogg 3 137 URL:er.
+      # ⛔ SOM STEG, ALDRIG EGEN CRON: Neon debiteras per vaken tid och är redan vaken
+      #    i det här fönstret (samma regel som veckobrevet/utmärkelserna).
+      # ⛔ RESTOCK_ALERTS_PAUSED=1 i env-blocket ovan gäller även här — importen skapar
+      #    produkter och offers, aldrig larmrader. Rör alltså INTE pausen.
+      # ⛔ TIDSBUDGET, inte antalstak: varje offer-lös URL kostar en artigt fördröjd
+      #    hämtning av butikens produktsida, och en timeout här tar HELA nattkedjan med
+      #    sig (led 2–3 hänger på workflow_run). Kvarvarande kö larmas som ::warning::.
+      # continue-on-error: en missad import får aldrig fälla insamlingen.
+      - if: steps.guard.outputs.ready == 'true'
+        name: Auto-importera nya butiks-SKU:er (feed-först)
+        continue-on-error: true
+        env:
+          FEED_IMPORT_BUDGET_MINUTES: "25"
+        run: npx tsx scripts/feed-import-run.ts
+
       # GTIN: hämta tillverkarens streckkod för offers som ännu saknar den (5 av 7
       # butiker publicerar den — mätt 73% täckning). En extra HTTP-request per NY
       # offer, aldrig i restock-lanen. Streckkoden gör matchningen exakt i stället för
