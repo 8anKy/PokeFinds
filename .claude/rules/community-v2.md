@@ -84,8 +84,9 @@ paths:
   ikon i forumhuvudet, och Spara-toasten säger vart tråden tog vägen.
   (3) **PROFILEN = HUVUD + TRE FLIKAR** (Inlägg · Portfölj · Tradera) i `ui/swipe-tabs.tsx`. Inlägg = `ThreadList`
   med `author=` (även sålda/avslutade — det är personens historik; `hrefBase="/community"` utanför grinden),
-  Portfölj = `portfolio-pane.tsx` (topp 20 via `computeCollectionValue(id, { topItems })`, andra ser aldrig
-  belopp), Tradera = `tradera-listings-pane.tsx` (fliken finns bara bakom grinden och när spaken är på — eller
+  Portfölj = `portfolio-pane.tsx` — SAMMA CELLRUTNÄT som /samling:s mobila rutnät (`profile-collection-grid.tsx`,
+  read-only, tryck öppnar overlayn; en ruta per vara via `groupLots`, mest värt först, tak 60), ⛔ aldrig en
+  rankad lista (ägaren avvisade den 09-03); andra ser aldrig belopp. Tradera = `tradera-listings-pane.tsx` (fliken finns bara bakom grinden och när spaken är på — eller
   på EGEN profil, då med väg till inställningen).
   **SVEP-KONVENTIONERNA** (`src/lib/swipe-gesture.ts`, rena beslut, testade): `SwipeTabs` sveper mellan flikar,
   `SwipeBack` (`ui/swipe-back.tsx`) = kant-svep tillbaka på tråd/grupp/profil/sparade (router.back, fallback vid
