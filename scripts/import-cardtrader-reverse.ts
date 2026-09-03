@@ -34,9 +34,18 @@ async function main() {
 
   console.log("\n" + "=".repeat(60));
   console.log(`Set mappade / omappade:     ${r.setsMatched} / ${r.setsUnmatched}`);
-  console.log(
-    `Set körda:                  ${r.setsProcessed}${r.stoppedOnBudget ? " (TIDSBUDGETEN TOG SLUT — resten först nästa körning)" : ""}`
-  );
+  console.log(`Set körda:                  ${r.setsProcessed}`);
+  // ⛔ EN BUDGETSTOPPAD KÖRNING FÅR INTE VARA TYST. Delvis täckning är BY DESIGN
+  // (stalast först ⇒ svansen ligger överst i morgon), så den ska inte färga
+  // körningen röd — men en `console.log` bland tusen rader syns inte, och just
+  // "grönt fast nästan inget hände" är felläget som gav 13 verkningslösa gröna
+  // körningar 2026-08-17. `::warning::` hamnar på körningens sammanfattning och
+  // syns utan att någon öppnar loggen. Utanför Actions är det bara en textrad.
+  if (r.stoppedOnBudget) {
+    console.log(
+      `::warning::Tidsbudgeten tog slut efter ${r.setsProcessed} set — resten körs först nästa natt. Sjunker talet natt för natt är passet på väg att bli för långsamt för fönstret.`
+    );
+  }
   console.log(`Kort granskade:             ${r.cardsConsidered}`);
   console.log(`  utan blueprint:           ${r.noBlueprint}`);
   console.log(`  avvisade — för tunt:      ${r.rejectedThin}`);
