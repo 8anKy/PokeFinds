@@ -6,7 +6,7 @@
  * │                                                                     │
  * │  Fas 0 (≤budget):  Namn-sök per produkt + DIREKT-match (roterar)    │
  * │  Fas 1 (≤500):     Bred sökning — sökmetoder × sidor (pool)         │
- * │  Fas 2 (≤100):     Top-säljare — GetSellerItems (pool)              │
+ * │  Fas 2 (≤100):     Top-säljare — GetSellerItems, 1 anrop/säljare    │
  * │  Fas 3 (0 anrop):  Expiry — nollställ namn-sökta utan färsk träff   │
  * └─────────────────────────────────────────────────────────────────────┘
  *
@@ -98,6 +98,14 @@ const POKEMON_CATEGORIES = [
   { id: 1001341, label: "Övrigt sealed", fallback: "OTHER" },
 ] as const;
 
+/** Pokémon-trädet som mängd — svaret för `categoryId=0` är säljarens HELA lager. */
+const POKEMON_CATEGORY_IDS: ReadonlySet<number> = new Set<number>(POKEMON_CATEGORIES.map((c) => c.id));
+
+/** Ligger annonsen i en av våra Pokémon-kategorier? Okänd kategori = nej. */
+export function isPokemonListingCategory(categoryId: number | undefined): boolean {
+  return categoryId != null && POKEMON_CATEGORY_IDS.has(categoryId);
+}
+
 // ─── XML helpers ─────────────────────────────────────────────────────────────
 
 function esc(s: string): string {
@@ -184,11 +192,18 @@ export function pickRailCandidates(
   return kept;
 }
 
-function parseItemsFromXml(xml: string): { items: TraderaItem[]; totalPages: number } {
+export function parseItemsFromXml(xml: string): { items: TraderaItem[]; totalPages: number } {
   const pagesText = xml.match(/<TotalNumberOfPages>(\d+)<\/TotalNumberOfPages>/);
   const totalPages = pagesText ? parseInt(pagesText[1], 10) : 1;
 
-  const blocks = [...xml.matchAll(/<Items>([\s\S]*?)<\/Items>/g)].map((m) => m[1]);
+  // SearchService lägger varje träff i `<Items>…</Items>`; PublicService.GetSellerItems
+  // svarar med ArrayOfItem = `<Item>…</Item>` (bekräftat live 2026-09-03). Tål båda —
+  // Fas 2 splittade på `<Items>` mot ett `<Item>`-svar och såg noll rader, tyst.
+  // `<Item>` kan inte matcha `<ItemLink>`/`<ItemType>`: regexen kräver `>` direkt.
+  let blocks = [...xml.matchAll(/<Items>([\s\S]*?)<\/Items>/g)].map((m) => m[1]);
+  if (blocks.length === 0) {
+    blocks = [...xml.matchAll(/<Item>([\s\S]*?)<\/Item>/g)].map((m) => m[1]);
+  }
   const items: TraderaItem[] = [];
 
   for (const block of blocks) {
@@ -201,8 +216,15 @@ function parseItemsFromXml(xml: string): { items: TraderaItem[]; totalPages: num
     if (!Number.isFinite(bin) || bin <= 0) continue;
 
     if (tagText(block, "IsEnded") === "true") continue;
+    // PublicService-formen: `<Status><Ended>true</Ended>…` (IsEnded finns bara i SearchService).
+    if (tagText(block, "Ended") === "true") continue;
     const itemType = tagText(block, "ItemType") ?? "";
-    if (itemType !== "PureBuyItNow" && tagText(block, "HasBids") === "true") continue;
+    // Bud: SearchService säger HasBids, PublicService bara TotalBids. En auktion
+    // med bud är ingen fastpris-annons längre (Köp nu försvinner vid första budet).
+    const hasBids =
+      tagText(block, "HasBids") === "true" ||
+      (parseInt(tagText(block, "TotalBids") ?? "0", 10) || 0) > 0;
+    if (itemType !== "PureBuyItNow" && itemType !== "ShopItem" && hasBids) continue;
 
     const lang = termAttributeValues(block, "pokemon_language")[0];
     if (lang && !/^eng/i.test(lang)) continue;
@@ -249,6 +271,16 @@ function parseItemsFromXml(xml: string): { items: TraderaItem[]; totalPages: num
 }
 
 // ─── API callers ─────────────────────────────────────────────────────────────
+
+/**
+ * GetSellerItems-kuvertet för Fas 2. ⛔ `categoryId` MÅSTE vara 0 — ett
+ * kategori-id ger tomt svar — och `filterItemType` MÅSTE vara All: butikernas
+ * fastpris-annonser är `ShopItem`, inte `PureBuyItNow` (toppsäljaren 2026-09-03:
+ * 4 735 ShopItem mot 10 PureBuyItNow). Båda filtren sitter i anroparen/parsern.
+ */
+export function buildGetSellerItemsBody(appId: string, appKey: string, sellerId: number): string {
+  return `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:trad="http://api.tradera.com">${soapHeader(appId, appKey)}<soap:Body><trad:GetSellerItems><trad:userId>${sellerId}</trad:userId><trad:categoryId>0</trad:categoryId><trad:filterActive>Active</trad:filterActive><trad:filterItemType>All</trad:filterItemType></trad:GetSellerItems></soap:Body></soap:Envelope>`;
+}
 
 async function callApi(
   endpoint: string, body: string, action: string,
@@ -594,38 +626,67 @@ export async function runTraderaSweep(
     log(`   ${name}: ${calls} anrop → +${newItems} nya (${allItems.size} totalt)${quotaHit ? " [kvot slut]" : ""}`);
   }
 
-  // ── Fas 2: Top-säljare (100 anrop) ─────────────────────────────────────
+  // ── Fas 2: Top-säljare (≤100 anrop, ETT per säljare, annons-budget) ────
+  // ⛔ TRE saker gav "+0 nya" varje natt fram till 2026-09-03, alla mätta live
+  // mot PublicService.GetSellerItems (scripts/tradera-seller-items-probe.ts):
+  //  · `categoryId` filtrerar INTE — ett Pokémon-id ger TOMT svar, 0 ger hela
+  //    lagret med rätt CategoryId per rad ⇒ 0 i kuvertet, filtret i koden.
+  //  · Svaret är ArrayOfItem = `<Item>`, inte SearchService-formen `<Items>`
+  //    ⇒ parseItemsFromXml tål båda.
+  //  · `filterItemType=PureBuyItNow` tappar BUTIKERNAS fastpris: toppsäljaren
+  //    hade 4 745 aktiva Pokémon-annonser, 4 735 `ShopItem` och 10
+  //    `PureBuyItNow` ⇒ `All` i kuvertet; parsern behåller det som har ett
+  //    Köp nu-pris och inga bud (rena auktioner faller bort där som förut).
+  // Poolen är BUDGETSTYRD: varje pool-annons kostar 2–4 Neon-frågor i
+  // matchningen (~4 annonser/s mätt 09-03) och jobbet har 60 min. En enda
+  // butik kan ge 4 700 rader, så både per-säljar-tak och totalbudget — annars
+  // äter första butiken hela fönstret. Höj via env när körtiden är mätt.
   log("\n📡 Fas 2: Top-säljare (GetSellerItems)...");
+
+  const SELLER_ITEM_CAP = parseInt(process.env.TRADERA_SELLER_ITEM_CAP ?? "1000", 10);
+  const SELLER_POOL_BUDGET = parseInt(process.env.TRADERA_SELLER_POOL_BUDGET ?? "4000", 10);
 
   const topSellers = [...sellerCounts.entries()]
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 25)
+    .slice(0, 100)
     .map(([id]) => id);
 
   let sellerCalls = 0;
+  let sellerOffCategory = 0;
+  let sellerCapped = 0;
+  let poolBudgetHit = false;
   const beforeSeller = allItems.size;
 
   for (const sellerId of topSellers) {
     if (sellerCalls >= 100) break;
-    for (const cat of POKEMON_CATEGORIES) {
-      if (sellerCalls >= 100) break;
-      try {
-        const xml = await callApi(PUBLIC_API,
-          `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:trad="http://api.tradera.com">${soapHeader(appId, appKey)}<soap:Body><trad:GetSellerItems><trad:userId>${sellerId}</trad:userId><trad:categoryId>${cat.id}</trad:categoryId><trad:filterActive>Active</trad:filterActive><trad:filterItemType>PureBuyItNow</trad:filterItemType></trad:GetSellerItems></soap:Body></soap:Envelope>`,
-          "GetSellerItems", appId, appKey);
-        sellerCalls++;
-        const result = parseItemsFromXml(xml);
-        for (const item of result.items) {
-          if (!allItems.has(item.itemId)) allItems.set(item.itemId, item);
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes("429") || msg.includes("AboveCallLimit")) break;
+    if (allItems.size - beforeSeller >= SELLER_POOL_BUDGET) { poolBudgetHit = true; break; }
+    try {
+      const xml = await callApi(
+        PUBLIC_API, buildGetSellerItemsBody(appId, appKey, sellerId), "GetSellerItems", appId, appKey
+      );
+      sellerCalls++;
+      const result = parseItemsFromXml(xml);
+      let addedForSeller = 0;
+      for (const item of result.items) {
+        if (!isPokemonListingCategory(item.categoryId)) { sellerOffCategory++; continue; }
+        if (allItems.has(item.itemId)) continue;
+        if (addedForSeller >= SELLER_ITEM_CAP) { sellerCapped++; continue; }
+        // ArrayOfItem bär inget <Seller>-block — vi vet ändå vems lager det är.
+        if (item.sellerId == null) item.sellerId = sellerId;
+        allItems.set(item.itemId, item);
+        addedForSeller++;
       }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("429") || msg.includes("AboveCallLimit")) break;
     }
   }
   callsByMethod["PS.GetSellerItems"] = sellerCalls;
-  log(`   ${sellerCalls} anrop, ${topSellers.length} säljare → +${allItems.size - beforeSeller} nya (${allItems.size} totalt)`);
+  log(
+    `   ${sellerCalls} anrop, ${topSellers.length} säljare → +${allItems.size - beforeSeller} nya (${allItems.size} totalt), ` +
+      `${sellerOffCategory} utanför Pokémon-kategorierna, ${sellerCapped} över per-säljar-taket ${SELLER_ITEM_CAP}` +
+      (poolBudgetHit ? ` [poolbudget ${SELLER_POOL_BUDGET} nådd]` : "")
+  );
 
   // ── Summering ──────────────────────────────────────────────────────────
   const totalCalls = Object.values(callsByMethod).reduce((a, b) => a + b, 0);

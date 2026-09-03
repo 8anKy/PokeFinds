@@ -55,3 +55,17 @@ paths:
   håller Fas 0 under metodkvoten 10k/dygn). Första sidan MED kandidater räcker — sorteringen är PriceAscending,
   så billigare träffar finns inte längre fram.
 - **Tradera-annonsens kortnummer måste vara produktens** (`matching.ts`): `cardNumberKey` behåller bokstavsSUFFIX (`115a` ≠ `115` — league-promo vs uncommon) och `bareCardNumbers` fångar nummer utan "/total" ("Milotic ex 42" får inte hamna på specialarten 217). Konservativ: setnamnet 151, "annons 2", mängd/pris och årtal filtreras bort. 707 gamla felmatchningar städade 2026-07-25 — alla bevisade (numret fanns som eget kort i samma set)
+- ⛔ **`GetSellerItems` (PublicService) FILTRERAR INTE PÅ `categoryId` — ETT KATEGORI-ID GER TOMT SVAR** (mätt
+  2026-09-03: en säljare vars annons bevisligen låg i 1001337 gav 0 rader för `categoryId=1001337`, men hela
+  lagret på 260 rader med rätt `CategoryId` per rad för `categoryId=0`). Skicka ALLTID 0 och filtrera i koden
+  (`isPokemonListingCategory` i svepet, `TRADERA_POKEMON_CATEGORY_IDS` i profil-libben). **Svaret är dessutom
+  `ArrayOfItem` = `<Item>…</Item>`, inte SearchService-formen `<Items>…</Items>`, OCH `filterItemType=PureBuyItNow`
+  TAPPAR BUTIKERNAS FASTPRIS — de är `ShopItem`** (toppsäljaren 2026-09-03: 4 745 aktiva Pokémon-annonser, 4 735
+  ShopItem, 10 PureBuyItNow; PureBuyItNow-kuvertet gav 48 kB, All gav 18 MB). Svepets Fas 2 gjorde alla TRE felen
+  och loggade "+0 nya" varje natt tills 2026-09-03 (100 anrop, 25 säljare, noll rader, tyst). Nu ett anrop per
+  säljare (top 100) med `All`, kuvertet byggs av `buildGetSellerItemsBody`, parsern tål båda blockformerna, läser
+  `Status/Ended` och bud via `TotalBids` (PublicService har varken `IsEnded` eller `HasBids`). ⛔ **Poolen är
+  BUDGETSTYRD**: varje pool-annons kostar 2–4 Neon-frågor i matchningen (~4/s) och jobbet har 60 min, en butik
+  kan ge 4 700 rader — `TRADERA_SELLER_ITEM_CAP` (1000/säljare) + `TRADERA_SELLER_POOL_BUDGET` (4000 totalt),
+  höj först när körtiden är mätt i sweep-loggen. Sond: `scripts/tradera-seller-items-probe.ts` (2 Tradera-anrop,
+  noll Neon). Vaktat av `tests/unit/tradera-sweep-seller-items.test.ts`.

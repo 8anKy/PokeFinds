@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 import { IconX } from "@/components/ui/icons";
 
 export interface ModalProps {
@@ -25,39 +26,9 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
   onCloseRef.current = onClose;
 
   // Tangentbordshöjd → kapa overlayn ovanför tangentbordet så panelen aldrig hamnar
-  // bakom det. VIKTIGT: native-appen kör Keyboard resize:none → WKWebView:en OCH
-  // window.visualViewport krymper INTE när tangentbordet öppnas. Enda pålitliga
-  // signalen där är Capacitor Keyboard-pluginet (via window.Capacitor-bryggan — den
-  // bundlade @capacitor-importen är undefined i den hostade webben, se push-client).
-  // På webb/PWA finns ingen brygga → falla tillbaka på visualViewport (krymper där).
-  const [kbHeight, setKbHeight] = useState(0);
-  useEffect(() => {
-    if (!open) return;
-    const cleanups: (() => void)[] = [];
-    const kb = (globalThis as { Capacitor?: { Plugins?: { Keyboard?: any } } }).Capacitor?.Plugins?.Keyboard;
-    if (kb?.addListener) {
-      const add = (ev: string, fn: (i: any) => void) => {
-        const p = kb.addListener(ev, fn);
-        Promise.resolve(p).then((h) => cleanups.push(() => h?.remove?.())).catch(() => {});
-      };
-      add("keyboardWillShow", (i: { keyboardHeight?: number }) => setKbHeight(i?.keyboardHeight ?? 0));
-      add("keyboardWillHide", () => setKbHeight(0));
-    } else if (window.visualViewport) {
-      const vp = window.visualViewport;
-      const update = () => setKbHeight(Math.max(0, window.innerHeight - vp.height - vp.offsetTop));
-      update();
-      vp.addEventListener("resize", update);
-      vp.addEventListener("scroll", update);
-      cleanups.push(() => {
-        vp.removeEventListener("resize", update);
-        vp.removeEventListener("scroll", update);
-      });
-    }
-    return () => {
-      cleanups.forEach((c) => c());
-      setKbHeight(0);
-    };
-  }, [open]);
+  // bakom det. Mätningen (Capacitor-bryggan i appen, visualViewport på webben)
+  // delas med arket och chatten — se lib/use-keyboard-height.ts.
+  const kbHeight = useKeyboardHeight(open);
 
   // Fokuserat fält (t.ex. Sälj-modalens beskrivning) scrollas in i vy när
   // tangentbordet öppnas — annars döljs det bakom tangentbordet. När fältet lämnas

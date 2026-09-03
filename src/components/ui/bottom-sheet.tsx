@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
+import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 
 /**
  * Bottenark — appens ENDA glid-upp-panel.
@@ -42,7 +43,11 @@ export function BottomSheet({
   // onClose är typiskt en inline-arrow hos anroparen (ny identitet varje
   // rendering). Läs den via ref så effekterna nedan inte startas om vid varje
   // tangenttryck — annars stjäls fokus och tangentbordet stängs.
-  const [kbHeight, setKbHeight] = useState(0);
+
+  // Tangentbordshöjd → arket lyfts ovanför tangentbordet i stället för att hamna
+  // bakom det (prisfältets sifferknappsats täckte hela panelen). Mätningen delas
+  // med modalen och chatten — se lib/use-keyboard-height.ts.
+  const kbHeight = useKeyboardHeight(open);
 
   useEffect(() => {
     if (!open) return;
@@ -61,43 +66,6 @@ export function BottomSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Tangentbordshöjd → arket lyfts ovanför tangentbordet i stället för att hamna
-  // bakom det (prisfältets sifferknappsats täckte hela panelen). Samma mätning
-  // som ui/modal.tsx: native-appen kör Keyboard resize:none, så varken
-  // WKWebView:en eller visualViewport krymper där — Capacitor-bryggan är enda
-  // pålitliga signalen. På webb/PWA finns ingen brygga → visualViewport.
-  useEffect(() => {
-    if (!open) return;
-    const cleanups: (() => void)[] = [];
-    const kb = (globalThis as { Capacitor?: { Plugins?: { Keyboard?: any } } }).Capacitor
-      ?.Plugins?.Keyboard;
-    if (kb?.addListener) {
-      const add = (ev: string, fn: (i: any) => void) => {
-        const p = kb.addListener(ev, fn);
-        Promise.resolve(p)
-          .then((h: any) => cleanups.push(() => h?.remove?.()))
-          .catch(() => {});
-      };
-      add("keyboardWillShow", (i: { keyboardHeight?: number }) =>
-        setKbHeight(i?.keyboardHeight ?? 0)
-      );
-      add("keyboardWillHide", () => setKbHeight(0));
-    } else if (typeof window !== "undefined" && window.visualViewport) {
-      const vp = window.visualViewport;
-      const update = () => setKbHeight(Math.max(0, window.innerHeight - vp.height - vp.offsetTop));
-      vp.addEventListener("resize", update);
-      vp.addEventListener("scroll", update);
-      update();
-      cleanups.push(() => {
-        vp.removeEventListener("resize", update);
-        vp.removeEventListener("scroll", update);
-      });
-    }
-    return () => {
-      cleanups.forEach((c) => c());
-      setKbHeight(0);
-    };
-  }, [open]);
 
   if (!open || typeof document === "undefined") return null;
 

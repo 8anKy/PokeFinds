@@ -3,14 +3,16 @@
 import { useEffect, useState } from "react";
 
 /**
- * Tangentbordets höjd i px (0 = nere). SAMMA mätning som ui/bottom-sheet.tsx
- * och ui/modal.tsx: native-appen kör `Keyboard resize: none`, så varken
- * WKWebView:en eller visualViewport krymper där — Capacitor-bryggan är enda
- * pålitliga signalen. På webb/PWA finns ingen brygga → visualViewport.
+ * Tangentbordets höjd i px (0 = nere) — DEN ENDA mätningen; delas av
+ * ui/bottom-sheet.tsx, ui/modal.tsx och chattens conversation-screen.tsx.
  *
- * ⚠️ Tredje kopian av mätningen (ark, modal, chatt). Nästa pass som rör
- * arket eller modalen bör lyfta ut den här hooken till lib och låta alla tre
- * dela den — de två andra filerna ägs inte av chatt-bygget.
+ * Native-appen kör `Keyboard resize: none`, så varken WKWebView:en eller
+ * window.visualViewport krymper när tangentbordet öppnas — Capacitor Keyboard-
+ * pluginet (via window.Capacitor-bryggan; den bundlade @capacitor-importen är
+ * undefined i den hostade webben, se push-client) är enda pålitliga signalen.
+ * På webb/PWA finns ingen brygga → visualViewport (krymper där).
+ *
+ * `active` = false ⇒ inga lyssnare och 0 (arket/modalen stängd).
  */
 export function useKeyboardHeight(active: boolean): number {
   const [kbHeight, setKbHeight] = useState(0);
