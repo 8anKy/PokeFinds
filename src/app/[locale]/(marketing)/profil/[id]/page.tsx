@@ -52,7 +52,7 @@ export const dynamic = "force-dynamic";
  * setjagare, fullt_set, setmastare, arsmedlem, discordare, fadder är offentliga;
  * försäljnings-, graderings- och skannermärken är affärsinformation om en
  * privatperson och visas ALDRIG för andra. `reputationScore` skrivs ingenstans i
- * kodbasen (alltid 0) — visas utan ikon tills ägaren bestämt vad det ska vara.
+ * kodbasen (alltid 0) — raden är BORTTAGEN tills ägaren bestämt vad talet ska vara.
  */
 export async function generateMetadata({
   params,
@@ -80,7 +80,6 @@ export default async function ProfilePage({ params }: { params: { locale: string
         id: true,
         name: true,
         avatarUrl: true,
-        reputationScore: true,
         isPublicCollection: true,
         createdAt: true,
         showTraderaListings: true,
@@ -197,14 +196,10 @@ export default async function ProfilePage({ params }: { params: { locale: string
           )}
           <div className="min-w-0 flex-1">
             <h1 className="font-display text-2xl font-bold text-ink">{user.name}</h1>
-            <p className="mt-1 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm text-ink-muted sm:justify-start">
-              <span>
-                <span className="tabular-nums">{user.reputationScore}</span> {t("reputation")}
-              </span>
-              <span aria-hidden="true" className="text-ink-faint">
-                ·
-              </span>
-              <span>{t("memberSince", { date: formatDate(user.createdAt) })}</span>
+            {/* Inget rykte: `reputationScore` skrivs ingenstans (alltid 0) — raden
+                togs bort 2026-09-03 tills det finns en regel bakom talet. */}
+            <p className="mt-1 text-sm text-ink-muted">
+              {t("memberSince", { date: formatDate(user.createdAt) })}
             </p>
             {trust.length > 0 && (
               <ul className="mt-2 flex flex-wrap justify-center gap-2 sm:justify-start">
