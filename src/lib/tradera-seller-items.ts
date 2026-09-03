@@ -29,7 +29,7 @@
  *     i typen (SearchService har dem) — parsern läser `Status/Ended` och tål båda.
  *
  * KOSTNAD: noll Neon. Traderas kvot är 10 000 anrop/dygn/metod; med cachen
- * nedan (1 h per Tradera-id) är taket 1 anrop per visad profil och timme.
+ * nedan (15 min per Tradera-id) är taket 4 anrop per visad profil och timme.
  * Alla fel sväljs till `[]` — profilen får aldrig falla för att Tradera ligger.
  */
 import { cachedRead, STATIC_CACHE_TAG } from "@/lib/cache";
@@ -302,13 +302,28 @@ export async function fetchTraderaSellerListings(traderaUserId: string): Promise
 }
 
 /**
- * En Tradera-rundtur per profil och timme. `STATIC_CACHE_TAG`: posten bär
+ * Cachefönstret. Var 1 h; sänkt till 15 min 2026-09-03 när ägaren lade upp en
+ * annons och profilen fortsatte visa den tomma listan som cachats strax innan.
+ * Kostnaden är BARA Tradera-anrop (10 000/dygn/metod), noll Neon — en profil
+ * som visas oavbrutet ger 96 anrop/dygn.
+ */
+const TRADERA_SELLER_ITEMS_TTL_S = 900;
+
+/**
+ * Egen tagg så att inställningsreglaget kan KASTA posten när ägaren slår på
+ * visningen (/api/users/me PATCH → revalidateTag): utan den hade en profil som
+ * visades med reglaget av fortsatt visa "inga annonser" tills fönstret löpt ut.
+ */
+export const TRADERA_SELLER_ITEMS_TAG = "tradera-seller-items";
+
+/**
+ * En Tradera-rundtur per profil och kvart. `STATIC_CACHE_TAG`: posten bär
  * Tradera-priser, inte katalogpriser — prisjobbens revalidering ska inte kasta den.
  * Returtypen är ren JSON (strängar/tal/null) eftersom unstable_cache serialiserar.
  */
 export const getTraderaSellerListingsCached = cachedRead(
   fetchTraderaSellerListings,
   "tradera-seller-items",
-  3600,
-  [STATIC_CACHE_TAG]
+  TRADERA_SELLER_ITEMS_TTL_S,
+  [STATIC_CACHE_TAG, TRADERA_SELLER_ITEMS_TAG]
 );

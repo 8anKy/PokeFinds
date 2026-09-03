@@ -70,8 +70,12 @@ paths:
   svarar `storageEnabled()` falskt och bildvalet döljs — forumet fungerar utan bilder.
 - **TRADERA-ANNONSER PÅ PROFILEN = EGEN SPAK (`User.showTraderaListings`, default av).** Kopplingen gavs för att
   SÄLJA från samlingen; att publicera annonserna är ett annat samtycke. Hämtas med `GetSellerItems` (Tradera
-  PublicService, per Pokémon-kategori, ingen användartoken) via `cachedRead` 1 h — noll DB, ~4 Tradera-anrop per
-  profil och timme mot 10 000/dygn. Tradera nere ⇒ tom lista, aldrig 500. Frånkoppling nollar spaken.
+  PublicService, ETT anrop med `categoryId=0` + Pokémon-filter i koden — se marketplace-tradera.md, ingen
+  användartoken) via `cachedRead` **15 min** (var 1 h; ägaren lade upp en annons 09-03 och profilen visade den
+  cachade tomma listan) med egen tagg `TRADERA_SELLER_ITEMS_TAG` som `/api/users/me` KASTAR när reglaget slås
+  på — noll DB, max 4 Tradera-anrop per profil och timme mot 10 000/dygn. Tradera nere ⇒ tom lista, aldrig 500.
+  Frånkoppling nollar spaken. **Offentlig samling** (`isPublicCollection`) har sedan 09-03 ett reglage i
+  Inställningar (Profil-kortet) utöver samlingens desktop-vy — det styr profilens Portfölj-flik för andra.
 - **Publika forumsidor är ISR (`revalidate = 300`) + `revalidatePath` efter skrivningar**; personligt tillstånd
   (gillat/sparat/gått med/blockerade) hämtas klient-sida från `/api/community/me`. `/meddelanden` är dynamisk
   (auth). Profilsidan var redan `force-dynamic`. Sitemap/robots: forumets läsvyer indexeras (när publikt),

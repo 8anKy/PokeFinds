@@ -39,6 +39,8 @@ export interface SettingsUser {
   traderaUserId: string | null;
   /** "Visa mina Tradera-annonser på min profil" — bara meningsfull när kopplad. */
   showTraderaListings: boolean;
+  /** "Visa min samling på min profil" — profilens Portfölj-flik för andra. */
+  isPublicCollection: boolean;
   /** Community v2 (forum/meddelanden/Tradera på profilen) synligt för den här besökaren? */
   communityV2: boolean;
   /** Discord-visningsnamnet när kontot är länkat, annars null. */
@@ -120,6 +122,33 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
       });
     } finally {
       setSavingShowListings(false);
+    }
+  }
+
+  // Offentlig samling — samma reglage som samlingens desktop-vy (collection-
+  // client.tsx) har, här så att det går att slå av och på utan att leta
+  // (ägarönskemål 2026-09-03: "add it to settings"). Optimistiskt, backa vid fel.
+  const [publicCollection, setPublicCollection] = useState(user.isPublicCollection);
+  const [savingPublicCollection, setSavingPublicCollection] = useState(false);
+
+  async function togglePublicCollection(next: boolean) {
+    setPublicCollection(next);
+    setSavingPublicCollection(true);
+    try {
+      await apiFetch("/api/users/me", { method: "PATCH", body: { isPublicCollection: next } });
+      toast({
+        title: next ? tSettings("publicCollectionOnToast") : tSettings("publicCollectionOffToast"),
+        variant: "success",
+      });
+    } catch (e) {
+      setPublicCollection(!next);
+      toast({
+        title: tSettings("saveFail"),
+        description: e instanceof Error ? e.message : undefined,
+        variant: "error",
+      });
+    } finally {
+      setSavingPublicCollection(false);
     }
   }
 
@@ -361,6 +390,24 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
               {tSettings("saveProfile")}
             </Button>
           </form>
+          {/* Offentlig samling → profilens Portfölj-flik. Andra ser kort, set och antal —
+              aldrig värden eller köppris (profilsidan filtrerar bort beloppen). */}
+          <div className="mt-5 flex items-start gap-3 border-t border-surface-border pt-4">
+            <Checkbox
+              id="public-collection"
+              checked={publicCollection}
+              disabled={savingPublicCollection}
+              onChange={(e) => void togglePublicCollection(e.target.checked)}
+            />
+            <label htmlFor="public-collection" className="cursor-pointer">
+              <span className="block text-sm font-medium text-ink">
+                {tSettings("publicCollection")}
+              </span>
+              <span className="block text-xs text-ink-muted">
+                {tSettings("publicCollectionHint")}
+              </span>
+            </label>
+          </div>
         </CardContent>
       </Card>
 

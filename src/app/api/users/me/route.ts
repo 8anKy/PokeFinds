@@ -7,6 +7,8 @@ import { isPro, proSource } from "@/lib/plan";
 import { revokeDiscordRoles } from "@/services/discord-sync";
 import { getStripe, stripeEnabled } from "@/lib/stripe";
 import { deleteUserImages } from "@/lib/object-storage";
+import { revalidateTag } from "next/cache";
+import { TRADERA_SELLER_ITEMS_TAG } from "@/lib/tradera-seller-items";
 
 export const dynamic = "force-dynamic";
 
@@ -146,6 +148,13 @@ export async function PATCH(req: Request) {
       data,
       select: profileSelect,
     });
+
+    // Slår ägaren PÅ Tradera-visningen ska annonserna synas direkt — inte när
+    // 15-minutersfönstret råkar löpa ut. Profilen kan ha cachat en tom lista
+    // medan reglaget var av (mätt 2026-09-03: ägaren la upp en annons och såg
+    // ingenting). Taggen är gemensam för alla säljare: nästa profilvisning
+    // hämtar om, kostnaden är ett Tradera-anrop per visad profil, noll Neon.
+    if (data.showTraderaListings === true) revalidateTag(TRADERA_SELLER_ITEMS_TAG);
 
     return jsonOk(publicProfile(user));
   } catch (e) {

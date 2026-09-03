@@ -38,6 +38,7 @@ export default async function SettingsPage() {
       notificationSettings: true,
       traderaUserId: true,
       showTraderaListings: true,
+      isPublicCollection: true,
       discordUsername: true,
     },
   });
@@ -62,6 +63,7 @@ export default async function SettingsPage() {
     notificationSettings: parseNotificationSettings(user.notificationSettings),
     traderaUserId: user.traderaUserId,
     showTraderaListings: user.showTraderaListings,
+    isPublicCollection: user.isPublicCollection,
     // Community v2-grinden (Tradera-annonser på profilen bor bakom den). Sidan
     // är force-dynamic, så UA + roll läses per besök precis som env-spakarna.
     communityV2: await communityV2Request(session.user.role),
