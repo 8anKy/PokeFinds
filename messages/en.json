@@ -264,7 +264,24 @@
       "denied": "We couldn't link the account: the address isn't verified by the provider, or it's missing. Sign up with email instead.",
       "orLogin": "– or sign in with –",
       "orRegister": "– or sign up with –"
-    }
+    },
+    "serverErrors": {
+      "rateLimited": "Too many attempts. Wait a moment and try again.",
+      "tooManyRequests": "Too many requests.",
+      "emailTaken": "You already have an account with this email address – log in instead.",
+      "nameTaken": "That name is taken. Pick another one.",
+      "codeThrottled": "We've already sent several codes to that address. Wait a moment and try again.",
+      "mailFailed": "The email couldn't be sent right now. Try again in a little while.",
+      "invalidId": "Invalid id.",
+      "codeMissing": "No code has been issued for this address. Tap “Send code” first.",
+      "codeExpired": "The code has expired. Request a new one.",
+      "codeLocked": "Too many incorrect attempts. Request a new code.",
+      "codeWrong": "Wrong code. Check the email and try again.",
+      "resetLinkInvalid": "The link is invalid or has expired. Request a new reset link.",
+      "verifyLinkInvalid": "Invalid or already used verification link."
+    },
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "Condition": {
     "MINT": "Mint",

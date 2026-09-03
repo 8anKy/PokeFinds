@@ -8,6 +8,7 @@ import { clientIp } from "@/lib/client-ip";
 import { sendMail } from "@/lib/mailer";
 import { signupCodeEmail } from "@/emails/templates";
 import { generateSignupCode, hashSignupCode, SIGNUP_CODE_TTL_MS } from "@/lib/signup-code";
+import { authError } from "@/lib/auth-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
     const { ok } = await rateLimit(`register-code:${clientIp(req)}`, 5, 15 * 60 * 1000);
     if (!ok) {
       return NextResponse.json(
-        { error: "För många försök. Vänta en stund och försök igen." },
+        authError("rateLimited"),
         { status: 429 }
       );
     }
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
     });
     if (nameTaken) {
       return NextResponse.json(
-        { error: "Användarnamnet är upptaget. Välj ett annat.", field: "name" },
+        authError("nameTaken", "name"),
         { status: 409 }
       );
     }
@@ -62,10 +63,7 @@ export async function POST(req: NextRequest) {
     });
     if (existing) {
       return NextResponse.json(
-        {
-          error: "Du har redan ett konto med den här e-postadressen – logga in istället.",
-          field: "email",
-        },
+        authError("emailTaken", "email"),
         { status: 409 }
       );
     }
@@ -75,7 +73,7 @@ export async function POST(req: NextRequest) {
     const perEmail = await rateLimit(`register-code:mail:${normalizedEmail}`, 3, 60 * 60 * 1000);
     if (!perEmail.ok) {
       return NextResponse.json(
-        { error: "Vi har redan skickat flera koder till den adressen. Vänta en stund och försök igen." },
+        authError("codeThrottled"),
         { status: 429 }
       );
     }
@@ -102,7 +100,7 @@ export async function POST(req: NextRequest) {
         mailError
       );
       return NextResponse.json(
-        { error: "Mejlet gick inte att skicka just nu. Försök igen om en liten stund." },
+        authError("mailFailed"),
         { status: 502 }
       );
     }

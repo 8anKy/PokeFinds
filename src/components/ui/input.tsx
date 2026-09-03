@@ -8,6 +8,7 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { IconEye, IconEyeOff } from "@/components/ui/icons";
 
@@ -26,6 +27,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
 /** Lösenordsfält med visa/dölj-öga. Ärver alla vanliga input-props utom `type`. */
 export const PasswordInput = forwardRef<HTMLInputElement, Omit<InputProps, "type">>(
   function PasswordInput({ className, ...props }, ref) {
+    // ⛔ Etiketten är det ENDA en skärmläsare hör här — knappen har bara en
+    // ikon. Den var hårdkodad på svenska och lästes upp som "Visa lösenord"
+    // mitt i det engelska formuläret (uppmätt i Android-appen 2026-09-03).
+    const t = useTranslations("Auth");
     const [show, setShow] = useState(false);
     return (
       <div className="relative">
@@ -38,7 +43,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, Omit<InputProps, "type
         <button
           type="button"
           onClick={() => setShow((s) => !s)}
-          aria-label={show ? "Dölj lösenord" : "Visa lösenord"}
+          aria-label={show ? t("hidePassword") : t("showPassword")}
           tabIndex={-1}
           className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-ink-faint hover:text-ink"
         >

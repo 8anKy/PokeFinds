@@ -4,6 +4,7 @@ import { apiError, jsonOk } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/client-ip";
 import { interpretResendEvent, type MailDeliveryStatus } from "@/lib/mail-status";
+import { authError } from "@/lib/auth-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -29,14 +30,14 @@ export async function GET(req: NextRequest) {
     // eller gissad id-lista pollas hur hårt som helst mot vår Resend-kvot.
     const { ok } = await rateLimit(`register-mailstatus:${clientIp(req)}`, 40, 15 * 60 * 1000);
     if (!ok) {
-      return NextResponse.json({ error: "För många förfrågningar." }, { status: 429 });
+      return NextResponse.json(authError("tooManyRequests"), { status: 429 });
     }
 
     const id = req.nextUrl.searchParams.get("id");
     // Formvakt: bara Resends egna id:n släpps vidare, så parametern aldrig kan
     // bli en väg att peka våra anrop mot en annan sökväg hos Resend.
     if (!id || !/^[0-9a-f-]{36}$/i.test(id)) {
-      return NextResponse.json({ error: "Ogiltigt id." }, { status: 400 });
+      return NextResponse.json(authError("invalidId"), { status: 400 });
     }
 
     const key = process.env.RESEND_API_KEY;

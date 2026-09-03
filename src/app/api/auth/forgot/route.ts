@@ -9,6 +9,7 @@ import { clientIp } from "@/lib/client-ip";
 import { hashToken } from "@/lib/tokens";
 import { sendMail } from "@/lib/mailer";
 import { passwordResetEmail } from "@/emails/templates";
+import { authError } from "@/lib/auth-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
     const { ok } = await rateLimit(`forgot:${clientIp(req)}`, 3, 15 * 60 * 1000);
     if (!ok) {
       return NextResponse.json(
-        { error: "För många försök. Vänta en stund och försök igen." },
+        authError("rateLimited"),
         { status: 429 }
       );
     }

@@ -10,6 +10,7 @@ import { sendMail } from "@/lib/mailer";
 import { welcomeEmail } from "@/emails/templates";
 import { redeemInviteAtRegistration, creditInviteOnVerify } from "@/services/invites";
 import { evaluateSignupCode, type SignupCodeVerdict } from "@/lib/signup-code";
+import { authError, type AuthErrorCode } from "@/lib/auth-errors";
 import { CREATOR_REF_COOKIE } from "@/lib/creator-ref";
 import { resolveCreatorCode } from "@/services/creator-codes";
 import { signupBonusUntil, signupCampaignFromEnv } from "@/lib/signup-campaign";
@@ -28,11 +29,12 @@ const schema = z.object({
   invite: z.string().trim().max(64).optional(),
 });
 
-const CODE_ERRORS: Record<Exclude<SignupCodeVerdict, "ok">, string> = {
-  missing: "Ingen kod är utfärdad för den här adressen. Tryck på ”Skicka kod” först.",
-  expired: "Koden har gått ut. Begär en ny kod.",
-  locked: "För många felaktiga försök. Begär en ny kod.",
-  wrong: "Fel kod. Kontrollera mejlet och försök igen.",
+/** Kodens dom → felkod. Texten bor i `Auth.serverErrors` (se lib/auth-errors). */
+const CODE_ERRORS: Record<Exclude<SignupCodeVerdict, "ok">, AuthErrorCode> = {
+  missing: "codeMissing",
+  expired: "codeExpired",
+  locked: "codeLocked",
+  wrong: "codeWrong",
 };
 
 export async function POST(req: NextRequest) {
@@ -40,7 +42,7 @@ export async function POST(req: NextRequest) {
     const { ok } = await rateLimit(`register:${clientIp(req)}`, 5, 15 * 60 * 1000);
     if (!ok) {
       return NextResponse.json(
-        { error: "För många försök. Vänta en stund och försök igen." },
+        authError("rateLimited"),
         { status: 429 }
       );
     }
@@ -54,10 +56,7 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
       return NextResponse.json(
-        {
-          error: "Du har redan ett konto med den här e-postadressen – logga in istället.",
-          field: "email",
-        },
+        authError("emailTaken", "email"),
         { status: 409 }
       );
     }
@@ -68,7 +67,7 @@ export async function POST(req: NextRequest) {
     });
     if (nameTaken) {
       return NextResponse.json(
-        { error: "Användarnamnet är upptaget. Välj ett annat.", field: "name" },
+        authError("nameTaken", "name"),
         { status: 409 }
       );
     }
@@ -88,7 +87,7 @@ export async function POST(req: NextRequest) {
           data: { attempts: { increment: 1 } },
         });
       }
-      return NextResponse.json({ error: CODE_ERRORS[verdict] }, { status: 400 });
+      return NextResponse.json(authError(CODE_ERRORS[verdict]), { status: 400 });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);

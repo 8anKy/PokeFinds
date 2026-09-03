@@ -1387,7 +1387,25 @@ function Scanner() {
           const blurry = sharp != null && sharp < SHARP_AUTO_MIN;
           const locked = liveStreak.current.n >= 3 && d?.confident === true;
           lockedPolls.current = locked && !blurry ? lockedPolls.current + 1 : 0;
-          setLiveHint({ name: top.name, number: top.number, locked, blurry });
+          // ⛔ CHIPPET NAMNGER ALDRIG ETT KORT VI INTE ÄR SÄKRA PÅ.
+          // /identify-art returnerar ALLTID en topp-5 — sökningen har inget
+          // "hittade inget", bara "närmast". En ruta HELT UTAN kort får därför
+          // också ett namn: mätt i emulatorn 2026-09-03 gav en bokhylla
+          // "Litleo (JP) #66" → "Woobat #71" → "Shuckle #136" i tur och ordning,
+          // och efter avtryckningen stod "Shuckle #136" kvar RAKT OVANFÖR
+          // resultatet "Ingen träff" — två motsägande besked samtidigt.
+          // `confident` ÄR trust-regeln (poäng + marginal, 100 % uppmätt
+          // precision i identifyCardArt) och är den enda signal vi har på att
+          // det ens ligger ett känt kort i ramen. Under den: inget chip alls.
+          // ⛔ Visa inte "söker…" i stället — hjälptexten under ramen säger
+          // redan vad handen ska göra, och ett chip som blinkar förbi vid varje
+          // poll är brus. Tystnad är det ärliga läget.
+          // ⛔ Grinden gäller BARA chippet. `liveStreak`, `locked` och
+          // auto-fångsten räknas vidare precis som förut — auto-fångsten kräver
+          // ändå `confident`, så ingen fångstlogik ändras av det här.
+          setLiveHint(
+            d?.confident === true ? { name: top.name, number: top.number, locked, blurry } : null
+          );
           // AUTO-FÅNGST: låset har hållit ≥2 pollar efter att det tändes, och
           // det här kortet har inte redan auto-fångats. Kvot-slut auto-trycker
           // inte (bara toast-spam annars); manuellt tryck funkar som vanligt.

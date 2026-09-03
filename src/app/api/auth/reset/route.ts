@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { apiError, jsonOk } from "@/lib/api";
 import { hashToken } from "@/lib/tokens";
+import { authError } from "@/lib/auth-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export async function POST(req: Request) {
     const user = await prisma.user.findUnique({ where: { resetToken: hashToken(token) } });
     if (!user || !user.resetTokenExpiresAt || user.resetTokenExpiresAt < new Date()) {
       return NextResponse.json(
-        { error: "Länken är ogiltig eller har gått ut. Begär en ny återställningslänk." },
+        authError("resetLinkInvalid"),
         { status: 400 }
       );
     }

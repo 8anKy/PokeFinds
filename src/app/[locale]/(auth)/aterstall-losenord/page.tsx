@@ -2,12 +2,14 @@
 
 import { Suspense, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
+import { useAuthErrorMessage } from "@/lib/use-auth-error";
 import { useSearchParams } from "next/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
 import { PasswordInput, Label, FieldError } from "@/components/ui/input";
 
 function ResetPasswordForm() {
   const t = useTranslations("Auth");
+  const authErrorMessage = useAuthErrorMessage();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") ?? "";
 
@@ -36,10 +38,10 @@ function ResetPasswordForm() {
         body: JSON.stringify({ token, password }),
       });
       const data = (await res.json().catch(() => null)) as
-        | { message?: string; error?: string }
+        | { message?: string; error?: string; code?: string }
         | null;
       if (!res.ok) {
-        setError(data?.error ?? t("genericError"));
+        setError(authErrorMessage(data));
         setLoading(false);
         return;
       }

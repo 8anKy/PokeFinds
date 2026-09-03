@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
+import { useAuthErrorMessage } from "@/lib/use-auth-error";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
@@ -9,6 +10,7 @@ import { EmailTypoHint, useEmailTypoHint } from "@/components/features/email-typ
 
 export default function ForgotPasswordPage() {
   const t = useTranslations("Auth");
+  const authErrorMessage = useAuthErrorMessage();
   const [email, setEmail] = useState("");
   // Samma återvändsgränd som registreringen hade, av motsatt skäl: en felstavad
   // adress matchar inget konto, så INGET mejl skickas — men svaret är ändå "om
@@ -32,10 +34,10 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({ email: email.trim() }),
       });
       const data = (await res.json().catch(() => null)) as
-        | { message?: string; error?: string }
+        | { message?: string; error?: string; code?: string }
         | null;
       if (!res.ok) {
-        setError(data?.error ?? t("genericError"));
+        setError(authErrorMessage(data));
         setLoading(false);
         return;
       }

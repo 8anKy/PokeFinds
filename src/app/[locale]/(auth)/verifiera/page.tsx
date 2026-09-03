@@ -31,7 +31,7 @@ function VerifyContent() {
           body: JSON.stringify({ token }),
         });
         const data = (await res.json().catch(() => null)) as
-          | { message?: string; error?: string }
+          | { message?: string; error?: string; code?: string }
           | null;
         if (cancelled) return;
         if (res.ok) {
@@ -39,7 +39,9 @@ function VerifyContent() {
           setMessage(data?.message ?? t("verify.fallbackSuccess"));
         } else {
           setStatus("error");
-          setMessage(data?.error ?? t("verify.errorRetry"));
+          // Koden först, serverns svenska text bara som reserv — se lib/use-auth-error.
+          const key = data?.code ? `serverErrors.${data.code}` : null;
+          setMessage(key && t.has(key) ? t(key) : (data?.error ?? t("verify.errorRetry")));
         }
       } catch {
         if (!cancelled) {

@@ -264,7 +264,24 @@
       "denied": "Vi kunde inte koppla kontot: adressen är inte bekräftad hos leverantören, eller så saknas den. Registrera dig med e-post i stället.",
       "orLogin": "– eller logga in med –",
       "orRegister": "– eller skapa konto med –"
-    }
+    },
+    "serverErrors": {
+      "rateLimited": "För många försök. Vänta en stund och försök igen.",
+      "tooManyRequests": "För många förfrågningar.",
+      "emailTaken": "Du har redan ett konto med den här e-postadressen – logga in istället.",
+      "nameTaken": "Användarnamnet är upptaget. Välj ett annat.",
+      "codeThrottled": "Vi har redan skickat flera koder till den adressen. Vänta en stund och försök igen.",
+      "mailFailed": "Mejlet gick inte att skicka just nu. Försök igen om en liten stund.",
+      "invalidId": "Ogiltigt id.",
+      "codeMissing": "Ingen kod är utfärdad för den här adressen. Tryck på ”Skicka kod” först.",
+      "codeExpired": "Koden har gått ut. Begär en ny kod.",
+      "codeLocked": "För många felaktiga försök. Begär en ny kod.",
+      "codeWrong": "Fel kod. Kontrollera mejlet och försök igen.",
+      "resetLinkInvalid": "Länken är ogiltig eller har gått ut. Begär en ny återställningslänk.",
+      "verifyLinkInvalid": "Ogiltig eller redan använd verifieringslänk."
+    },
+    "showPassword": "Visa lösenord",
+    "hidePassword": "Dölj lösenord"
   },
   "Condition": {
     "MINT": "Mint",

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { apiError, jsonOk } from "@/lib/api";
 import { hashToken } from "@/lib/tokens";
 import { creditInviteOnVerify } from "@/services/invites";
+import { authError } from "@/lib/auth-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
     const user = await prisma.user.findUnique({ where: { verificationToken: hashToken(token) } });
     if (!user) {
       return NextResponse.json(
-        { error: "Ogiltig eller redan använd verifieringslänk." },
+        authError("verifyLinkInvalid"),
         { status: 400 }
       );
     }

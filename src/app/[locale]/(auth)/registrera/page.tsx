@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
+import { useAuthErrorMessage, type AuthErrorPayload } from "@/lib/use-auth-error";
 import { Link } from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
 import { signIn } from "next-auth/react";
@@ -32,6 +33,7 @@ const MAIL_CHECK_DELAYS_MS = [8000, 20000, 45000];
 
 export default function RegisterPage() {
   const t = useTranslations("Auth");
+  const authErrorMessage = useAuthErrorMessage();
   const router = useRouter();
   // Registreringen sker i två steg: uppgifterna fylls i, en 6-siffrig kod
   // mejlas ("Skicka kod"), och kontot skapas först när koden anges — beviset
@@ -118,17 +120,15 @@ export default function RegisterPage() {
       body: JSON.stringify({ email: email.trim(), name: name.trim() }),
     });
     if (!res.ok) {
-      const data = (await res.json().catch(() => null)) as
-        | { error?: string; field?: string }
-        | null;
+      const data = (await res.json().catch(() => null)) as AuthErrorPayload | null;
       // Upptaget namn/adress fångas redan HÄR (före något mejl skickas) och
       // fästs vid sitt fält. Kommer felet under kodsteget (namnet hann tas av
       // någon annan) skickas användaren tillbaka så fältet syns.
-      if (data?.error && (data.field === "name" || data.field === "email")) {
-        setFieldErrors({ [data.field]: data.error });
+      if (data?.field === "name" || data?.field === "email") {
+        setFieldErrors({ [data.field]: authErrorMessage(data) });
         setStep("details");
       } else {
-        setError(data?.error ?? t("genericError"));
+        setError(authErrorMessage(data));
       }
       return false;
     }
@@ -201,17 +201,15 @@ export default function RegisterPage() {
         }),
       });
       if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as
-          | { error?: string; field?: string }
-          | null;
+        const data = (await res.json().catch(() => null)) as AuthErrorPayload | null;
         // Namnet/adressen hann tas mellan kodutskicket och submit (send-code
         // fångar annars detta redan i steg 1) → tillbaka till fältet. Koden
         // förbrukas inte av det, så den gäller fortfarande efter rättelsen.
-        if (data?.error && (data.field === "name" || data.field === "email")) {
-          setFieldErrors({ [data.field]: data.error });
+        if (data?.field === "name" || data?.field === "email") {
+          setFieldErrors({ [data.field]: authErrorMessage(data) });
           setStep("details");
         } else {
-          setError(data?.error ?? t("genericError"));
+          setError(authErrorMessage(data));
         }
         setLoading(false);
         return;
