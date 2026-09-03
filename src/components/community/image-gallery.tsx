@@ -33,9 +33,13 @@ export function ImageGallery({ images }: { images: ForumImage[] }) {
             type="button"
             onClick={() => setOpen(i)}
             aria-label={t("imageAlt", { n: i + 1, total: usable.length })}
+            // EN bild: ramen krymper till bildens egen storlek (w-fit + w-auto på
+            // bilden) — ett stående foto fick annars ett grått fält på var sida
+            // (ägarbeslut 2026-09-03: "make this fit only the image"). Fler bilder:
+            // kvadratiska rutor med beskärning som förut.
             className={cn(
               "group relative overflow-hidden rounded-xl bg-surface-overlay focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-holo-cyan",
-              usable.length === 1 ? "max-h-[70vh]" : "aspect-square"
+              usable.length === 1 ? "w-fit max-w-full justify-self-start" : "aspect-square"
             )}
           >
             <img
@@ -46,8 +50,10 @@ export function ImageGallery({ images }: { images: ForumImage[] }) {
               loading={i === 0 ? "eager" : "lazy"}
               decoding="async"
               className={cn(
-                "h-full w-full transition-transform duration-300 group-hover:scale-[1.02]",
-                usable.length === 1 ? "max-h-[70vh] object-contain" : "object-cover"
+                "transition-transform duration-300 group-hover:scale-[1.02]",
+                usable.length === 1
+                  ? "block h-auto max-h-[70vh] w-auto max-w-full"
+                  : "h-full w-full object-cover"
               )}
             />
           </button>
