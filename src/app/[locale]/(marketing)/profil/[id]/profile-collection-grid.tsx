@@ -80,12 +80,16 @@ export function ProfileCollectionGrid({
       {cells.map((c) => {
         const clickable = c.slug != null;
         return (
-          <div key={c.key} className="card-surface flex flex-col gap-2 p-3">
+          // h-full + flex-1 + mt-auto: rutorna i en rad sträcks lika höga och
+          // knappen ligger alltid i botten. Namn-/setblocket och antalsraden har
+          // dessutom RESERVERAD höjd, så en ruta utan set eller antal blir lika
+          // hög som en med — knappen hamnar på samma ställe i varenda ruta.
+          <div key={c.key} className="card-surface flex h-full flex-col gap-2 p-3">
             <button
               type="button"
               onClick={() => open(c.slug)}
               disabled={!clickable}
-              className="flex flex-col gap-2 text-left disabled:cursor-default"
+              className="flex flex-1 flex-col gap-2 text-left disabled:cursor-default"
             >
               {/* Bildbrunnen är SVART som resten av kortet — samma behandling som
                   Utforska-kortet och samlingens rutnät (surface-overlay är en
@@ -107,30 +111,28 @@ export function ProfileCollectionGrid({
                   </span>
                 )}
               </div>
-              <div className="min-w-0">
+              <div className="min-h-[2.5rem] min-w-0">
                 <p className="truncate text-sm font-medium text-ink">{c.name}</p>
                 {c.setName && <p className="truncate text-xs text-ink-muted">{c.setName}</p>}
               </div>
-              {(showValues || c.quantity > 1) && (
-                <div className="flex items-center justify-between gap-2">
-                  {showValues && (
-                    <span className="font-mono text-sm font-semibold tabular-nums text-ink">
-                      {c.unitValue != null ? formatPrice(c.unitValue) : "–"}
-                    </span>
-                  )}
-                  {c.quantity > 1 && (
-                    <span className="ml-auto text-xs text-ink-muted">
-                      {t("pieces", { count: c.quantity })}
-                    </span>
-                  )}
-                </div>
-              )}
+              <div className="flex min-h-[1.25rem] items-center justify-between gap-2">
+                {showValues && (
+                  <span className="font-mono text-sm font-semibold tabular-nums text-ink">
+                    {c.unitValue != null ? formatPrice(c.unitValue) : "–"}
+                  </span>
+                )}
+                {c.quantity > 1 && (
+                  <span className="ml-auto text-xs text-ink-muted">
+                    {t("pieces", { count: c.quantity })}
+                  </span>
+                )}
+              </div>
             </button>
             {ask && (
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full"
+                className="mt-auto w-full"
                 loading={askingKey === c.key}
                 disabled={askingKey != null && askingKey !== c.key}
                 onClick={() => void askForSale(c)}
