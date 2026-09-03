@@ -101,7 +101,8 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   `@@unique([userId, key, tier])` + `skipDuplicates` gör omkörning gratis. ⛔ Märken TAS ALDRIG BORT — de är
   historiska fakta, och en utmärkelse som kan försvinna är ingen utmärkelse. ⛔ Ingen daglig svit: det finns
   ingen inloggningshistorik (`AnalyticsEvent` bär medvetet ingen `userId`) och en skulle kosta en skrivning per
-  session. ⛔ Profilsidan visar bara en VITLISTA — försäljnings-, graderings- och skannermärken är privata.
+  session. ⛔ Profilsidan visar INGA utmärkelser sedan 2026-09-03 (ägarbeslut) — kommer de tillbaka gäller
+  vitlistan i sidans filhuvud: försäljnings-, graderings- och skannermärken är privata.
 - ⛔ **restock-watch ÄR PAUSAD (ägarbeslut 2026-08-23)** — `gh workflow disable restock-watch.yml`,
   status `disabled_manually`. **Den externa pingern (cron-job.org) fyrar fortfarande och får nu fel;
   stäng av den där också.** Slå på igen med `gh workflow enable restock-watch.yml`.

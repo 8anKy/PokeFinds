@@ -4,12 +4,11 @@ import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
-import { listUserAchievements } from "@/services/achievements";
 import { getFeed } from "@/services/community";
 import { communityV2Request } from "@/lib/community-v2-server";
 import { getTraderaSellerListingsCached, type SellerListing } from "@/lib/tradera-seller-items";
 import { Badge } from "@/components/ui/badge";
-import { IconCheck, IconSparkle } from "@/components/ui/icons";
+import { IconCheck } from "@/components/ui/icons";
 import { SwipeBack } from "@/components/ui/swipe-back";
 import { SwipeTabs, type SwipeTab } from "@/components/ui/swipe-tabs";
 import { ThreadList } from "@/components/community/thread-list";
@@ -45,6 +44,15 @@ export const dynamic = "force-dynamic";
  * Portföljen är samma cellrutnät som /samling (read-only). Tradera-fliken finns
  * bara bakom community-grinden och när ägaren slagit på visningen (eller på den
  * egna profilen, med en väg till inställningen).
+ *
+ * ⛔ INGA UTMÄRKELSER I HUVUDET (ägarbeslut 2026-09-03, samma kväll): raden med
+ * live-räknade märken (Veteran/Samlare/Aktiv) och lagrade utmärkelser är
+ * BORTTAGEN — huvudet bär bara namn, medlem sedan och förtroenderaden. Kommer
+ * de tillbaka gäller vitlistan som stod här: bara forsta_kortet, samlare,
+ * setjagare, fullt_set, setmastare, arsmedlem, discordare, fadder är offentliga;
+ * försäljnings-, graderings- och skannermärken är affärsinformation om en
+ * privatperson och visas ALDRIG för andra. `reputationScore` skrivs ingenstans i
+ * kodbasen (alltid 0) — visas utan ikon tills ägaren bestämt vad det ska vara.
  */
 export async function generateMetadata({
   params,
@@ -78,7 +86,7 @@ export default async function ProfilePage({ params }: { params: { locale: string
         showTraderaListings: true,
         traderaUserId: true,
         discordUserId: true,
-        _count: { select: { posts: true, sales: true } },
+        _count: { select: { sales: true } },
       },
     }),
   ]);
@@ -93,45 +101,14 @@ export default async function ProfilePage({ params }: { params: { locale: string
   const traderaUserId = communityV2 && user.showTraderaListings ? user.traderaUserId : null;
   const canSeeCollection = user.isPublicCollection || isOwnProfile;
 
-  const [posts, allAchievements, tA, listings] = await Promise.all([
+  const [posts, listings] = await Promise.all([
     // Även sålda/avslutade annonser — det är personens historik, inte ett flöde.
     getFeed({ authorId: user.id, status: "all", page: 1, pageSize: 20 }),
-    listUserAchievements(user.id),
-    getTranslations("Achievements"),
-    // Ingen DB: en Tradera-rundtur per profil och timme (cachad), annars [].
+    // Ingen DB: en Tradera-rundtur per profil och kvart (cachad), annars [].
     traderaUserId
       ? getTraderaSellerListingsCached(traderaUserId)
       : Promise.resolve<SellerListing[]>([]),
   ]);
-
-  /**
-   * ⛔ INTE ALLA UTMÄRKELSER ÄR OFFENTLIGA. Profilsidan kan läsas av vem som helst
-   * med länken, och "Första försäljningen"/"Vinstaffär" avslöjar att personen
-   * SÄLJER kort, och gör det med vinst — det är affärsinformation om en privatperson,
-   * inte en merit att sprida åt dem. Skanning och gradering avslöjar användningsmönster.
-   * Vitlista i stället för svartlista: en NY utmärkelse ska default vara PRIVAT tills
-   * någon aktivt bestämt att den tål att visas.
-   * På sin EGEN profil ser man allt — där finns ingen att skydda sig från.
-   */
-  const PUBLIC_ACHIEVEMENTS = new Set([
-    "forsta_kortet",
-    "samlare",
-    "setjagare",
-    "fullt_set",
-    "setmastare",
-    "arsmedlem",
-    "discordare",
-    "fadder",
-  ]);
-  const achievements = isOwnProfile
-    ? allAchievements
-    : allAchievements.filter((a) => PUBLIC_ACHIEVEMENTS.has(a.key));
-
-  // Enkla utmärkelser
-  const badges: { label: string; variant: "holo" | "info" | "success" }[] = [];
-  if (user.reputationScore > 100) badges.push({ label: t("badgeVeteran"), variant: "holo" });
-  if (user.isPublicCollection) badges.push({ label: t("badgeCollector"), variant: "info" });
-  if (user._count.posts > 10) badges.push({ label: t("badgeActive"), variant: "success" });
 
   /**
    * Förtroenderaden (community v2): kopplade konton + antal försäljningar via
@@ -221,8 +198,7 @@ export default async function ProfilePage({ params }: { params: { locale: string
           <div className="min-w-0 flex-1">
             <h1 className="font-display text-2xl font-bold text-ink">{user.name}</h1>
             <p className="mt-1 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm text-ink-muted sm:justify-start">
-              <span className="inline-flex items-center gap-1.5">
-                <IconSparkle size={15} className="text-holo-gold" />
+              <span>
                 <span className="tabular-nums">{user.reputationScore}</span> {t("reputation")}
               </span>
               <span aria-hidden="true" className="text-ink-faint">
@@ -241,27 +217,6 @@ export default async function ProfilePage({ params }: { params: { locale: string
                   </li>
                 ))}
               </ul>
-            )}
-            {(badges.length > 0 || achievements.length > 0) && (
-              <div className="mt-2 flex flex-wrap justify-center gap-2 sm:justify-start">
-                {badges.map((b) => (
-                  <Badge key={b.label} variant={b.variant}>
-                    {b.label}
-                  </Badge>
-                ))}
-                {/* ⚠️ De tre märkena ovan räknas LIVE och kan försvinna igen; de nedan
-                    är lagrade fakta och kan aldrig tas ifrån någon. Samma rad, olika
-                    hållbarhet — vet om det innan du slår ihop dem. */}
-                {achievements.map((a) => (
-                  <Badge
-                    key={a.id}
-                    variant={a.variant}
-                    title={tA(`${a.key}.desc`, { count: a.threshold })}
-                  >
-                    {tA(`${a.key}.name`)}
-                  </Badge>
-                ))}
-              </div>
             )}
           </div>
           {/* Bara inloggade som inte är ägaren; utloggade ser ingenting (ingen
