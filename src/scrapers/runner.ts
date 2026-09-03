@@ -89,6 +89,7 @@ import {
 import { judgeSameProduct } from "@/lib/same-product";
 import { fetchListingFacts, fetchListingGtin } from "@/scrapers/gtin-source";
 import { fetchShopifyPurchasable, statusAfterVerify, verifyStockForUrl } from "@/scrapers/stock-verify";
+import { fetchWatchedListing } from "@/scrapers/watched-listing";
 import { gtinConflict, isPokemonManufacturerGtin } from "@/lib/gtin";
 import { isDeniedListingUrl, setDynamicDenylist, dynamicDenylistSize } from "@/scrapers/import-denylist";
 import { netStockEvent, isRestock, isNewInStockArrival } from "@/scrapers/restock";
@@ -223,6 +224,19 @@ async function getRetailerForSource(sourceName: string, baseUrl: string, type: S
   });
 }
 
+/** Utfallet för EN bevakad länk i en körning. Ren diagnostik — se RestockScanResult. */
+export interface WatchedListingResult {
+  sourceName: string;
+  url: string;
+  /** Lagerstatus butiken svarade. `null` = vi fick inget svar (behåll det du visste). */
+  status?: StockStatus | null;
+  priceOre?: number | null;
+  title?: string | null;
+  error: string | null;
+  /** true = URL:en fanns i feeden ändå; bevakningen behövdes inte den här körningen. */
+  inFeed: boolean;
+}
+
 export interface RestockScanResult {
   sources: number;
   checked: number;
@@ -245,6 +259,12 @@ export interface RestockScanResult {
    * > 0 ⇒ eftersläpningen krymper långsammare än den växer — höj budgeten.
    */
   importBudgetLeft?: number;
+  /**
+   * Utfallet per bevakad länk (`WatchedListing`). DB-lanerna skriver tillbaka det i
+   * `last*`-fälten så adminlistan kan svara på "frågade vi, och vad sa butiken?".
+   * Discord-lanen ignorerar det — den har ingen databas att skriva till.
+   */
+  watchedResults?: WatchedListingResult[];
 }
 
 /** Det minimum en restock-skanning behöver veta om en källa (cachebart som JSON). */
@@ -821,6 +841,15 @@ export async function runRestockScan(opts?: {
    * en Offer och hamnar aldrig i feed-först-kön igen).
    */
   importBudgetMs?: number;
+  /**
+   * BEVAKADE LÄNKAR: butiks-URL:er vi frågar DIREKT för att ingen feed nämner dem.
+   * Se `src/scrapers/watched-listing.ts` och modellen `WatchedListing`.
+   *
+   * ⛔ SKICKAS IN, SLÅS ALDRIG UPP HÄR. Fas 1 måste vara DB-fri — Discord-lanens hela
+   * existensberättigande är att den aldrig väcker Neon. DB-lanerna läser listan ur
+   * Prisma, Discord-lanen ur den cachade ruttabellen.
+   */
+  watched?: { sourceName: string; url: string }[];
 }): Promise<RestockScanResult> {
   let sources: RestockSourceInfo[];
   if (opts?.sources?.length) {
@@ -871,6 +900,51 @@ export async function runRestockScan(opts?: {
       `${sources.length} butiker (samtidighet ${RESTOCK_SCAN_CONCURRENCY}). Långsammast: ` +
       slowest.map(([n, ms]) => `${n} ${(ms / 1000).toFixed(1)} s`).join(", ")
   );
+
+  // ---- BEVAKADE LÄNKAR (2026-09-04) ----
+  // Frågas EFTER feed-svepet och splitsas in i respektive butiks lista, så att allt
+  // nedströms — offer-diff, köpbarhetskoll, auto-import, larmvakter, Discord-routing —
+  // behandlar dem som vilken feed-post som helst. ⛔ En egen "bevakningslane" hade
+  // betytt två sanningar om samma lagerstatus, och två sanningar är hur flappen
+  // uppstår. Fortfarande DB-fritt: listan kom med `opts`.
+  // ⛔ Feeden VINNER vid krock. Har butiken börjat indexera URL:en är feedens svar det
+  // billigare och färskare — och en bevakning som överskuggade den hade gjort en
+  // borttagen bevakning till en TYST förändring av lagerstatus.
+  const watchedResults: WatchedListingResult[] = [];
+  if (opts?.watched?.length) {
+    const bySource = new Map<string, FeedItem[]>();
+    for (const { sourceName, items } of fetched) bySource.set(sourceName, items);
+    const started = Date.now();
+    await mapPool(opts.watched, RESTOCK_SCAN_CONCURRENCY, async (w) => {
+      const items = bySource.get(w.sourceName);
+      // Bevakning på en butik som inte är med i den här körningen (onlySources) —
+      // hoppa tyst, den tas i nästa fulla svep.
+      if (!items) return;
+      if (items.some((it) => it.url === w.url)) {
+        watchedResults.push({ ...w, status: null, error: null, inFeed: true });
+        return;
+      }
+      const { item, error } = await fetchWatchedListing(w.sourceName, w.url);
+      if (item) items.push(item);
+      watchedResults.push({
+        ...w,
+        status: item?.stockStatus ?? null,
+        priceOre: item?.price ?? null,
+        title: item?.title ?? null,
+        error,
+        inFeed: false,
+      });
+    });
+    const failed = watchedResults.filter((r) => r.error).length;
+    const inFeed = watchedResults.filter((r) => r.inFeed).length;
+    console.log(
+      `[restock-scan] Bevakade länkar: ${opts.watched.length} st på ${((Date.now() - started) / 1000).toFixed(1)} s ` +
+        `— ${watchedResults.length - failed - inFeed} besvarade, ${inFeed} fanns redan i feeden, ${failed} utan svar.`
+    );
+    for (const r of watchedResults.filter((x) => x.error)) {
+      console.warn(`[restock-scan]   ⚠ ${r.sourceName} ${r.url}: ${r.error}`);
+    }
+  }
 
   // Tom katalog UTAN kastat fel är osynligt annars — och det var precis den tystnaden
   // som gömde flapp-buggen 2026-07-25 (Alphaspel svarade tomt varannan körning). Logga
@@ -1309,7 +1383,7 @@ export async function runRestockScan(opts?: {
         (buyChecks >= RESTOCK_BUY_CHECK_MAX ? ` — TAKET (${RESTOCK_BUY_CHECK_MAX}) NÅTT, resten litade på feeden.` : ".")
     );
   }
-  return { sources: sources.length, checked, restocks, newListings, alertsSent: sent, sourceList: sources, offersCreated, importBudgetLeft };
+  return { sources: sources.length, checked, restocks, newListings, alertsSent: sent, sourceList: sources, offersCreated, importBudgetLeft, watchedResults };
 }
 
 /**

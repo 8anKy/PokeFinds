@@ -42,6 +42,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { SourceType } from "@prisma/client";
 import { fetchSourceFeed, getAdapter, type FeedItem, type RestockSourceInfo } from "../src/scrapers/runner";
+import { fetchWatchedListing } from "../src/scrapers/watched-listing";
 import { ShopifyAdapter } from "../src/scrapers/adapters/shopify-adapter";
 import { requestCountSnapshot } from "../src/scrapers/http";
 import { setDynamicDenylist } from "../src/scrapers/import-denylist";
@@ -93,6 +94,12 @@ interface RoutesFile {
   setNames?: string[];
   deniedUrls?: string[];
   sets?: { name: string; series: string | null; language: string | null }[];
+  /**
+   * BEVAKADE LÄNKAR: butiks-URL:er ingen feed nämner. Lanen frågar dem direkt och
+   * splitsar in svaret i butikens feedlista, så diffen och postningen är oförändrade.
+   * Saknas fältet (gammal cachad ruttabell) är listan tom — inget går sönder.
+   */
+  watched?: { sourceName: string; url: string }[];
 }
 
 function readRoutes(): RoutesFile | null {
@@ -352,6 +359,25 @@ async function main() {
   const runStore = async (source: RestockSourceInfo): Promise<number> => {
     const before = requestCountSnapshot();
     const items: FeedItem[] = await fetchSourceFeed(source);
+
+    // ---- BEVAKADE LÄNKAR (2026-09-04) ----
+    // Frågas EFTER feeden och splitsas in i SAMMA lista, så diffen, flappvakterna,
+    // cooldownen och kanalvalet nedanför inte vet skillnaden. ⛔ Feeden vinner vid
+    // krock: har butiken börjat indexera URL:en är feedens svar färskare och
+    // billigare. Räknas in i `requests` nedan, så butikens takt (intervalForSource)
+    // justerar sig själv för den extra kostnaden — artigheten är mätt, inte gissad.
+    const watchedForStore = (routesData.watched ?? []).filter((w) => w.sourceName === source.name);
+    if (watchedForStore.length && items.length > 0) {
+      const seen = new Set(items.map((it) => it.url));
+      for (const w of watchedForStore) {
+        if (seen.has(w.url)) continue;
+        const { item } = await fetchWatchedListing(source.name, w.url);
+        // Inget svar ⇒ hoppa. `deriveRestockPosts` behandlar frånvaro som "ingen
+        // information" precis som för en tom feed — aldrig som "slut i lager".
+        if (item) items.push(item);
+      }
+    }
+
     const requests = requestsForSource(before, requestCountSnapshot(), source, items[0]?.url);
 
     if (items.length === 0) {

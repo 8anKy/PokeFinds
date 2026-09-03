@@ -136,6 +136,21 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   Kvarvarande kö skrivs som `::warning::` på körningen; krymper talet inte mellan nätterna, höj
   budgeten. Larmen påverkas INTE (grinden ligger vid skapandet). Mät med
   `scripts/audit-feed-first-gap.ts`.
+- ✅ **BEVAKADE LÄNKAR sedan 2026-09-04** (`WatchedListing`, admin → *Bevakade länkar*): butiks-URL:er
+  vi frågar DIREKT för att ingen feed nämner dem. ⛔ Feedarna är inte kompletta — Goblinen publicerade
+  30th Celebration-ETB:n 2026-09-03 utan att URL:en någonsin dök upp i kollektions-JSON:en,
+  `/products.json`, sökindexet, `sitemap_products_1.xml` (1,1 MB URL:er, noll träffar) eller
+  Atom-feeden; produktsidan svarar 200. En konkurrents Discord larmade ändå — de KÄNDE URL:en.
+  ⛔ Svaret formas som en FEED-POST (`src/scrapers/watched-listing.ts`) och splitsas in i butikens
+  lista, så offer-diff, köpbarhetskoll, auto-import, larmvakter och Discord-routing är oförändrade —
+  en egen "bevakningslane" hade gett två sanningar om samma lagerstatus, och två sanningar är hur
+  flappen uppstår. ⛔ FEEDEN VINNER vid krock. ⛔ `null` = "vet inte", aldrig "slut".
+  Discord-lanen får listan via ruttabellen (aldrig DB — den ska inte väcka Neon), DB-lanerna ur Prisma.
+  ⛔ URL:en måste ligga på butikens egen domän (`sameHost`, `src/lib/watched-listing-url.ts`) — utan
+  den grinden är adminformuläret en SSRF-yta. Kandidater hittas med
+  `scripts/find-unfeeded-products.ts` (sitemap + butikens sökindex, rapport only).
+  ⚠️ Kör den rapporten INTE två gånger i rad mot samma butiker: andra sveppet får 429 och
+  ofullständiga butiker ser annars ut som "0 träffar" (den varnar numera själv).
   ⛔ **Discord-lanen är OPÅVERKAD** — `scripts/discord-restock-run.ts` importerar bara en TYP ur
   `@prisma/client` och rör aldrig databasen. Ruttabellen (`export-restock-routes.ts`) skrevs av BÅDE
   restock-watch och `scrape-all`; nattkedjan uppdaterar den alltså fortfarande, så lanen tappar bara

@@ -53,6 +53,16 @@ export interface RestockRoutesPayload {
    * setet vet vi, och en setlänk kan varken bli fel eller landa tomt.
    */
   sets: { id: string; name: string; series: string | null; language: string | null }[];
+  /**
+   * BEVAKADE LÄNKAR (`WatchedListing`): butiks-URL:er som ingen feed nämner och som
+   * lanen därför måste fråga direkt. Skickas HÄR av samma skäl som allt annat i den
+   * här filen — Discord-lanen har ingen databas att slå upp dem i, och en egen
+   * uppslagning hade väckt Neon var 2:a minut.
+   *
+   * ⛔ Bara `isActive` — en avstängd bevakning ska sluta kosta en request per tick,
+   * inte ligga kvar och bli hämtad ändå.
+   */
+  watched: { sourceName: string; url: string }[];
 }
 
 export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null> {
@@ -172,6 +182,17 @@ export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null>
   // lanen har ingen DB att slå upp den i.
   const denied = await prisma.deniedListingUrl.findMany({ select: { url: true } });
 
+  // Bevakade länkar för just de butiker lanen hämtar. `Retailer.name === ScrapeSource.name`
+  // (samma nyckel som runRestockScan använder), så namnet är det lanen kan slå upp på.
+  const watchedRows = await prisma.watchedListing.findMany({
+    where: { isActive: true, retailerId: { in: retailers.map((r) => r.id) } },
+    select: { url: true, retailerId: true },
+  });
+  const retailerNameById = new Map(retailers.map((r) => [r.id, r.name]));
+  const watched = watchedRows
+    .map((w) => ({ sourceName: retailerNameById.get(w.retailerId) ?? "", url: w.url }))
+    .filter((w) => w.sourceName);
+
   const payload: RestockRoutesPayload = {
     at: Date.now(),
     sources,
@@ -179,6 +200,7 @@ export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null>
     setNames,
     deniedUrls: denied.map((d) => d.url),
     sets,
+    watched,
   };
 
   const withSeries = Object.values(routes).filter((r) => r.series).length;
@@ -186,7 +208,7 @@ export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null>
     `[export-routes] ${sources.length} källor, ${Object.keys(routes).length} URL:er ` +
       `(${withSeries} med serie, ${Object.keys(routes).length - withSeries} utan → catch-all; ` +
       `${fromLedger} från huvudboken utan egen offer), ${setNames.length} setnamn, ` +
-      `${payload.deniedUrls.length} nekade URL:er.`
+      `${payload.deniedUrls.length} nekade URL:er, ${watched.length} bevakade länkar.`
   );
   return payload;
 }

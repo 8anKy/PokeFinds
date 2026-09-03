@@ -133,40 +133,41 @@ enum PlanTier {
 // ---------- Auth & användare ----------
 
 model User {
-  id                    String       @id @default(cuid())
-  email                 String       @unique
+  id                   String    @id @default(cuid())
+  email                String    @unique
   // Case-insensitivt unikt (lower(name)) via råmigration User_name_lower_key —
   // kan inte uttryckas här. Kör INTE `migrate dev` så att indexet tappas.
-  name                  String
+  name                 String
   // NULL = kontot skapades via Google/Apple och har inget lösenord. `authorize()`
   // i lib/auth.ts nekar då lösenordsinloggning explicit — bcrypt.compare mot null
   // kastar annars. "Glömt lösenord" fungerar ändå och SÄTTER ett (reset-routen).
-  passwordHash          String?
+  passwordHash         String?
   // Google-/Apple-inloggning: leverantörens stabila `sub` ur id_token. Unika så
   // ett Google-konto aldrig kan öppna två Foilio-konton. Samma mönster som
   // discordUserId nedan — ingen Account-/Session-tabell, ingen token lagras.
   // Apples `sub` är per utvecklarteam (samma för webb-Services-ID och appen).
-  googleId              String?      @unique
-  appleId               String?      @unique
-  role                  Role         @default(USER)
-  planTier              PlanTier     @default(FREE)
-  avatarUrl             String?
-  bio                   String?
-  emailVerifiedAt       DateTime?
-  verificationToken     String?      @unique
+  googleId             String?   @unique
+  appleId              String?   @unique
+  role                 Role      @default(USER)
+  planTier             PlanTier  @default(FREE)
+  avatarUrl            String?
+  bio                  String?
+  emailVerifiedAt      DateTime?
+  verificationToken    String?   @unique
   // Referral-Pro (#10): Pro t.o.m. detta datum, intjänat via 3 verifierade
   // inbjudningar. SEPARAT kolumn med flit: planTier ägs av RevenueCat-webhooken
   // (EXPIRATION sätter FREE) och får aldrig kunna nolla en intjänad bonus.
   // isPro()/proUserWhere() räknar båda. Se src/services/invites.ts.
-  bonusProUntil         DateTime?
+  bonusProUntil        DateTime?
   // Stripe (webbens Pro). SEPARAT från planTier av EXAKT samma skäl som
   // bonusProUntil: planTier ägs av RevenueCat-webhooken, vars EXPIRATION sätter
   // FREE ovillkorligt — en utgången Apple-sandbox hade annars kunnat säga upp en
   // betalande webbkund. Datum (inte boolean) → självläkande: missas uppsägningen
   // löper Pro ut ändå. Skrivs BARA av src/app/api/webhooks/stripe/route.ts.
-  stripeCustomerId      String?      @unique
-  stripeSubscriptionId  String?
-  stripeProUntil        DateTime?
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?
+  stripeProUntil       DateTime?
+
   // Auto-förnyelse hos Stripe: `cancel_at_period_end` ur den FÄRSKT hämtade
   // prenumerationen (true = kunden har sagt upp, Pro löper ut vid periodens slut
   // men gäller tills dess). null = okänt — inget event sedan kolumnen kom 2026-09-02.
@@ -174,32 +175,32 @@ model User {
   // Första gången kontot fick BETALD Pro (App Store/Play eller Stripe) — aldrig
   // bonus eller roll, aldrig ett SANDBOX-köp. Sätts en gång och skrivs aldrig över:
   // adminens "prenumerant sedan". Bakfylld ur AuditLog i migrationen 20260902.
-  proSince              DateTime?
+  proSince                DateTime?
   // RevenueCat-status för app-prenumerationen, skriven på VARJE RC-event — även
   // CANCELLATION/UNCANCELLATION, som inte rör planTier (access finns kvar till
   // EXPIRATION). willRenew = förnyas automatiskt; expiresAt = RC:s expiration_at_ms;
   // environment = SANDBOX/PRODUCTION (ett sandbox-köp är en testare, inte en kund —
   // 2026-08-30 syntes tre "köp" i RC som Apple aldrig sett). null = okänt.
-  rcWillRenew           Boolean?
-  rcExpiresAt           DateTime?
-  rcEnvironment         String?
-  resetToken            String?      @unique
-  resetTokenExpiresAt   DateTime?
-  onboardingCompleted   Boolean      @default(false)
+  rcWillRenew             Boolean?
+  rcExpiresAt             DateTime?
+  rcEnvironment           String?
+  resetToken              String?      @unique
+  resetTokenExpiresAt     DateTime?
+  onboardingCompleted     Boolean      @default(false)
   // ⛔ Defaulten MÅSTE spegla NOTIFICATION_DEFAULTS i src/lib/notification-settings.ts.
   // Glider de isär beter sig gamla och nya konton olika, tyst.
-  notificationSettings  Json         @default("{\"email\":true,\"push\":false,\"allRestocks\":false,\"weekly\":true}")
-  lastPushError         String? // debug: senaste APNs/push-registreringsfel (egen kolumn → ej clobbrad av settings-PATCH)
-  preferences           Json         @default("{}")
-  reputationScore       Int          @default(0)
-  isPublicCollection    Boolean      @default(false)
+  notificationSettings    Json         @default("{\"email\":true,\"push\":false,\"allRestocks\":false,\"weekly\":true}")
+  lastPushError           String? // debug: senaste APNs/push-registreringsfel (egen kolumn → ej clobbrad av settings-PATCH)
+  preferences             Json         @default("{}")
+  reputationScore         Int          @default(0)
+  isPublicCollection      Boolean      @default(false)
   // Visa användarens aktiva Tradera-annonser på den publika profilen. EGEN spak,
   // skild från Tradera-kopplingen: kopplingen gavs för att SÄLJA från samlingen,
   // inte för att publicera — samtycke till det ena är inte samtycke till det andra.
-  showTraderaListings   Boolean      @default(false)
-  traderaUserId         String? // Traderas userId när kontot är kopplat (för "Sälj på Tradera")
-  traderaToken          String? // AuthToken från FetchToken; behandlas som en hemlighet
-  traderaTokenExpiresAt DateTime? // HardExpirationTime — koppla om kontot när denna passeras
+  showTraderaListings     Boolean      @default(false)
+  traderaUserId           String? // Traderas userId när kontot är kopplat (för "Sälj på Tradera")
+  traderaToken            String? // AuthToken från FetchToken; behandlas som en hemlighet
+  traderaTokenExpiresAt   DateTime? // HardExpirationTime — koppla om kontot när denna passeras
   // Discord-koppling (Pro-rollen i vår server).
   // ⛔ Ingen OAuth-token lagras — MEDVETET, till skillnad från traderaToken ovan.
   // Användartoken behövs EN gång (guilds.join vid länkningen) och slängs sedan;
@@ -207,59 +208,60 @@ model User {
   // varken läcka eller behöva deklareras i integritetspolicyn.
   // UNIKT: ett Discord-konto får bära Pro från exakt ETT Foilio-konto, annars
   // kan en delad prenumeration ge Pro-rollen till hur många konton som helst.
-  discordUserId         String?      @unique
-  discordUsername       String? // visningsnamn, bara för att UI:t ska kunna säga VILKET konto
-  discordLinkedAt       DateTime?
+  discordUserId           String?      @unique
+  discordUsername         String? // visningsnamn, bara för att UI:t ska kunna säga VILKET konto
+  discordLinkedAt         DateTime?
   // Kreatörsspårning: vilken TikTok-kreatörs länk kontot skapades via.
   // ⛔ Sätts EN gång, vid registreringen, och skrivs aldrig om — attributionen är
   // ett historiskt faktum om hur kontot uppstod, inte ett föränderligt tillstånd.
   // onDelete: SetNull → en raderad kod tar inte användaren med sig.
-  creatorCodeId         String?
-  creatorCode           CreatorCode? @relation(fields: [creatorCodeId], references: [id], onDelete: SetNull)
-  attributedAt          DateTime?
+  creatorCodeId           String?
+  creatorCode             CreatorCode? @relation(fields: [creatorCodeId], references: [id], onDelete: SetNull)
+  attributedAt            DateTime?
   // När vi senast varnade om att en GRATIS Pro-period är på väg att ta slut.
   // Dubblettspärr för src/jobs/pro-expiry-notice.ts — utan den mejlas samma person
   // varje natt så länge hen ligger i varningsfönstret.
-  proExpiryNotifiedAt   DateTime?
+  proExpiryNotifiedAt     DateTime?
   // När veckobrevet senast gick iväg till kontot. Dubblettspärr för
   // src/jobs/weekly-digest.ts: stämplas EFTER lyckat utskick, så ett tillfälligt
   // mejlfel inte tystar användaren för veckan.
-  weeklyDigestSentAt    DateTime?
+  weeklyDigestSentAt      DateTime?
   // "Senast online" i adminpanelen. Skrivs BARA i jwt-callbacken, och bara när
   // den redan hämtat användarraden ur DB:n (var 30:e min per aktiv session) OCH
   // värdet är äldre än LAST_SEEN_THROTTLE_MS. Det ger noll extra Neon-väckningar
   // — poängen med hela konstruktionen, se src/lib/auth.ts. Fältet är därför
   // ungefärligt uppåt till ~15 min, aldrig exakt "just nu".
-  lastSeenAt            DateTime?
-  createdAt             DateTime     @default(now())
-  updatedAt             DateTime     @updatedAt
+  lastSeenAt              DateTime?
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
 
-  watchlistItems  WatchlistItem[]
-  setWatches      SetWatch[]
-  alerts          Alert[]
-  collectionItems CollectionItem[]
-  posts           CommunityPost[]
-  comments        Comment[]
-  likes           Like[]
-  scannerJobs     ScannerJob[]
-  gradingJobs     GradingJob[]
-  auditLogs       AuditLog[]
-  notifications   Notification[]
-  reports         Report[]
-  offerReports    OfferReport[]
-  savedPosts      SavedPost[]
-  pushTokens      PushToken[]
-  invitesSent     Invite[]          @relation("InviteInviter")
-  inviteUsed      Invite?           @relation("InviteUsedBy")
-  sales           Sale[]
-  achievements    UserAchievement[]
-  guestDevices    GuestDevice[]
+  watchlistItems   WatchlistItem[]
+  setWatches       SetWatch[]
+  alerts           Alert[]
+  collectionItems  CollectionItem[]
+  posts            CommunityPost[]
+  comments         Comment[]
+  likes            Like[]
+  scannerJobs      ScannerJob[]
+  gradingJobs      GradingJob[]
+  auditLogs        AuditLog[]
+  notifications    Notification[]
+  reports          Report[]
+  offerReports     OfferReport[]
+  savedPosts       SavedPost[]
+  pushTokens       PushToken[]
+  invitesSent      Invite[]                  @relation("InviteInviter")
+  inviteUsed       Invite?                   @relation("InviteUsedBy")
+  sales            Sale[]
+  achievements     UserAchievement[]
+  guestDevices     GuestDevice[]
   groupMemberships CommunityGroupMember[]
   conversations    ConversationParticipant[]
   messagesSent     Message[]
-  blocksMade       UserBlock[]  @relation("BlockBy")
-  blocksReceived   UserBlock[]  @relation("BlockOf")
+  blocksMade       UserBlock[]               @relation("BlockBy")
+  blocksReceived   UserBlock[]               @relation("BlockOf")
   chatReports      ChatReport[]
+  watchedListings  WatchedListing[]
 
   @@index([email])
   @@index([creatorCodeId])
@@ -597,9 +599,10 @@ model Retailer {
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
-  offers        Offer[]
-  restockEvents RestockEvent[]
-  storeListings StoreListing[]
+  offers          Offer[]
+  restockEvents   RestockEvent[]
+  storeListings   StoreListing[]
+  watchedListings WatchedListing[]
 }
 
 // Feed-först-huvudbok: RÅ butiksannonser per URL, oberoende av katalogen. Låter
@@ -652,6 +655,52 @@ model StoreListing {
   @@unique([retailerId, url])
   @@index([retailerId])
   @@index([productId])
+}
+
+/// BEVAKAD LÄNK: en butiks-URL vi frågar DIREKT, för att ingen feed nämner den.
+///
+/// ⛔ VARFÖR MODELLEN FINNS. Butikernas feedar är vår enda upptäcktsväg och de är
+/// inte kompletta. Goblinen publicerade 30th Celebration-ETB:n 2026-09-03: sidan
+/// svarar 200 på `/products/<handle>.json`, men URL:en finns varken i kollektions-
+/// JSON:en, `/products.json`, sökindexet, `sitemap_products_1.xml` (1,1 MB
+/// produkt-URL:er, noll träffar) eller Atom-feeden. En konkurrents Discord larmade
+/// ändå — de KÄNDE URL:en, de hittade den inte. Det är exakt det här bordet är till
+/// för: en människa lägger in länken, och lanen frågar sidan i stället för feeden.
+///
+/// ⛔ INTE SAMMA SAK SOM StoreListing. Huvudboken är feedens minne (en rad per URL vi
+/// SETT), den här listan är en INSTRUKTION (en URL vi ska FRÅGA om). En bevakad länk
+/// får sin StoreListing-rad som vanligt när svaret väl kommer in — bevakningen är
+/// upptäckten, huvudboken är bokföringen.
+///
+/// Svarsfälten (`last*`) är ren diagnostik för adminlistan: "frågade vi, och vad
+/// sa butiken?". Lagerdiffen som driver larm bor kvar i Offer/StoreListing, aldrig
+/// här — två sanningar om samma lagerstatus är hur flappen uppstår.
+model WatchedListing {
+  id         String  @id @default(cuid())
+  retailerId String
+  url        String
+  /// Varför länken lades till. Fritext, syns bara i admin.
+  note       String?
+  isActive   Boolean @default(true)
+
+  /// Vem som la in den (audit). SetNull: en raderad admin får inte ta bevakningen med sig.
+  addedById String?
+
+  lastCheckedAt DateTime?
+  lastStatus    StockStatus @default(UNKNOWN)
+  lastPriceOre  Int?
+  lastTitle     String?
+  /// Senaste felet från uppslaget (429, 404, "ingen strukturerad data"). Null = allt väl.
+  lastError     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  addedBy  User?    @relation(fields: [addedById], references: [id], onDelete: SetNull)
+
+  @@unique([retailerId, url])
+  @@index([isActive])
 }
 
 model Offer {
@@ -934,34 +983,34 @@ model CollectionItem {
 // begärda). ⛔ Foilio är ALDRIG part i affären — tråden är en anslagstavla, och
 // listingStatus sätts av säljaren själv (SOLD/CLOSED), aldrig av oss.
 model CommunityPost {
-  id        String       @id @default(cuid())
-  userId    String
-  groupId   String?
-  title     String
-  content   String
-  imageUrl  String?
-  category  PostCategory?
-  isHidden  Boolean      @default(false)
+  id             String         @id @default(cuid())
+  userId         String
+  groupId        String?
+  title          String
+  content        String
+  imageUrl       String?
+  category       PostCategory?
+  isHidden       Boolean        @default(false)
   // Marknadsfält (bara när gruppen är en marknadsplats).
-  listingKind   ListingKind?
-  listingStatus ListingStatus?
-  priceOre      Int?
-  condition     String?
-  productId     String?
-  traderaUrl    String?
+  listingKind    ListingKind?
+  listingStatus  ListingStatus?
+  priceOre       Int?
+  condition      String?
+  productId      String?
+  traderaUrl     String?
   // Senaste svar/aktivitet — driver sorteringen i flödet ("senast aktiv").
-  lastActivityAt DateTime    @default(now())
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  lastActivityAt DateTime       @default(now())
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  group      CommunityGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  product    Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
-  comments   Comment[]
-  likes      Like[]
-  reports    Report[]
-  savedPosts SavedPost[]
-  images     PostImage[]
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group         CommunityGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  product       Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  comments      Comment[]
+  likes         Like[]
+  reports       Report[]
+  savedPosts    SavedPost[]
+  images        PostImage[]
   conversations Conversation[]
 
   @@index([category, createdAt])

@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: "/admin/lankfel", label: "Länkfel" },
   { href: "/admin/halsokoll", label: "Hälsokoll" },
   { href: "/admin/butiker", label: "Butiker" },
+  { href: "/admin/bevakade", label: "Bevakade länkar" },
   { href: "/admin/engagemang", label: "Engagemang" },
   { href: "/admin/kreatorer", label: "Kreatörer" },
 ] as const;

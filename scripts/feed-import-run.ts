@@ -48,12 +48,52 @@ async function main() {
   // fastän scrape-all redan kört: skriptet ska gå att köra ensamt för hand.)
   await ensureDbAwake();
 
-  const r = await runRestockScan({ importBudgetMs: BUDGET_MINUTES * 60_000 });
+  // BEVAKADE LÄNKAR: butiks-URL:er ingen feed nämner (admin → Bevakade länkar).
+  // Läses HÄR, inte i runRestockScan — fas 1 måste vara DB-fri för Discord-lanens skull.
+  const watchedRows = await prisma.watchedListing.findMany({
+    where: { isActive: true },
+    select: { id: true, url: true, retailer: { select: { name: true } } },
+  });
+  const watched = watchedRows.map((w) => ({ sourceName: w.retailer.name, url: w.url }));
+  const idByKey = new Map(watchedRows.map((w) => [`${w.retailer.name}	${w.url}`, w.id]));
+
+  const r = await runRestockScan({ importBudgetMs: BUDGET_MINUTES * 60_000, watched });
+
+  // Svaren tillbaka till adminlistan: "frågade vi, och vad sa butiken?".
+  // ⛔ Bara diagnostik — lagerdiffen som driver larm bor i Offer/StoreListing. Två
+  // sanningar om samma lagerstatus är hur flappen uppstår.
+  for (const res of r.watchedResults ?? []) {
+    const id = idByKey.get(`${res.sourceName}	${res.url}`);
+    if (!id) continue;
+    await prisma.watchedListing.update({
+      where: { id },
+      data: {
+        lastCheckedAt: new Date(),
+        // Inget svar ⇒ rör inte statusen. `null` betyder "vet inte", aldrig "slut".
+        ...(res.status ? { lastStatus: res.status } : {}),
+        ...(res.priceOre != null ? { lastPriceOre: res.priceOre } : {}),
+        ...(res.title ? { lastTitle: res.title } : {}),
+        lastError: res.inFeed ? null : res.error,
+      },
+    });
+  }
 
   console.log(
     `[feed-import] ${r.sources} butiker, ${r.checked} feed-först-annonser prövade, ` +
-      `${r.offersCreated ?? 0} nya offers/produkter, budget ${BUDGET_MINUTES} min.`
+      `${r.offersCreated ?? 0} nya offers/produkter, ${watched.length} bevakade länkar, ` +
+      `budget ${BUDGET_MINUTES} min.`
   );
+
+  // ⛔ EN BEVAKNING SOM ALDRIG SVARAR ÄR VÄRRE ÄN INGEN: den ser ut att göra jobbet.
+  // Butiken kan ha bytt URL, tagit bort sidan eller slutat publicera strukturerad data.
+  // Syns på körningen, inte bara i loggen.
+  const mute = (r.watchedResults ?? []).filter((x) => x.error);
+  if (mute.length) {
+    console.log(
+      `::warning::${mute.length} bevakad(e) länk(ar) svarade inte: ` +
+        mute.map((m) => `${m.sourceName} ${m.url} (${m.error})`).join(" · ")
+    );
+  }
 
   // ⛔ SYNLIGT PÅ SJÄLVA KÖRNINGEN, inte bara i loggen. En kvarvarande kö betyder att
   // eftersläpningen krymper långsammare än den växer, och det är precis den sortens
