@@ -672,6 +672,7 @@
     "portfolioPrivate": "{name} håller sin samling privat.",
     "portfolioEmptyOwn": "Din samling är tom — lägg till kort så syns de här.",
     "openPortfolio": "Öppna min portfölj",
+    "portfolioMore": "+{count, plural, one {# objekt till} other {# objekt till}}",
     "itemsCount": "{count} objekt",
     "noItems": "Inga visningsbara objekt i samlingen ännu.",
     "pieces": "{count} st",

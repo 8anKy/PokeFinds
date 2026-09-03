@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
-import { computeCollectionValue } from "@/services/collection";
 import { listUserAchievements } from "@/services/achievements";
 import { getFeed } from "@/services/community";
 import { communityV2Request } from "@/lib/community-v2-server";
@@ -22,7 +21,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * ⛔ PROFILSIDAN INDEXERAS INTE (2026-08-17). Sidan är `force-dynamic` och gör
- * `auth()` + tre DB-frågor per visning — varje crawl är alltså en Neon-väckning
+ * `auth()` + flera DB-frågor per visning — varje crawl är alltså en Neon-väckning
  * (minst 300 s debiterad tid) för en sida vars enda värde är för den som redan
  * har länken. Att en användares namn, rykte och offentliga samling hamnar i ett
  * sökresultat är dessutom inget hen har bett om.
@@ -43,18 +42,16 @@ export const dynamic = "force-dynamic";
  *
  * LAYOUT (ägarbeslut 2026-09-03): huvud + TRE FLIKAR — Inlägg, Portfölj, Tradera —
  * svepbara (SwipeTabs), och kant-svep tillbaka till varifrån man kom (SwipeBack).
- * Tradera-fliken finns bara bakom community-grinden och när ägaren slagit på
- * visningen (eller på den egna profilen, med en väg till inställningen).
+ * Portföljen är samma cellrutnät som /samling (read-only). Tradera-fliken finns
+ * bara bakom community-grinden och när ägaren slagit på visningen (eller på den
+ * egna profilen, med en väg till inställningen).
  */
 export async function generateMetadata({
   params,
 }: {
   params: { locale: string; id: string };
 }): Promise<Metadata> {
-  const t = await getTranslations({
-    locale: params.locale,
-    namespace: "Profile",
-  });
+  const t = await getTranslations({ locale: params.locale, namespace: "Profile" });
   const user = await prisma.user.findUnique({
     where: { id: params.id },
     select: { name: true },
@@ -96,10 +93,9 @@ export default async function ProfilePage({ params }: { params: { locale: string
   const traderaUserId = communityV2 && user.showTraderaListings ? user.traderaUserId : null;
   const canSeeCollection = user.isPublicCollection || isOwnProfile;
 
-  const [posts, collection, allAchievements, tA, listings] = await Promise.all([
+  const [posts, allAchievements, tA, listings] = await Promise.all([
     // Även sålda/avslutade annonser — det är personens historik, inte ett flöde.
     getFeed({ authorId: user.id, status: "all", page: 1, pageSize: 20 }),
-    canSeeCollection ? computeCollectionValue(user.id, { topItems: 20 }) : Promise.resolve(null),
     listUserAchievements(user.id),
     getTranslations("Achievements"),
     // Ingen DB: en Tradera-rundtur per profil och timme (cachad), annars [].
@@ -150,10 +146,7 @@ export default async function ProfilePage({ params }: { params: { locale: string
     if (user.traderaUserId) trust.push({ key: "tradera", label: t("trustTradera") });
     if (user.discordUserId) trust.push({ key: "discord", label: t("trustDiscord") });
     if (user._count.sales > 0) {
-      trust.push({
-        key: "sales",
-        label: t("trustSales", { count: user._count.sales }),
-      });
+      trust.push({ key: "sales", label: t("trustSales", { count: user._count.sales }) });
     }
   }
 
@@ -182,7 +175,12 @@ export default async function ProfilePage({ params }: { params: { locale: string
       id: "portfolio",
       label: t("tabPortfolio"),
       content: (
-        <PortfolioPane collection={collection} isOwnProfile={isOwnProfile} userName={user.name} />
+        <PortfolioPane
+          userId={user.id}
+          canSee={canSeeCollection}
+          isOwnProfile={isOwnProfile}
+          userName={user.name}
+        />
       ),
     },
   ];
@@ -252,8 +250,8 @@ export default async function ProfilePage({ params }: { params: { locale: string
                   </Badge>
                 ))}
                 {/* ⚠️ De tre märkena ovan räknas LIVE och kan försvinna igen; de nedan
-                  är lagrade fakta och kan aldrig tas ifrån någon. Samma rad, olika
-                  hållbarhet — vet om det innan du slår ihop dem. */}
+                    är lagrade fakta och kan aldrig tas ifrån någon. Samma rad, olika
+                    hållbarhet — vet om det innan du slår ihop dem. */}
                 {achievements.map((a) => (
                   <Badge
                     key={a.id}
@@ -267,7 +265,7 @@ export default async function ProfilePage({ params }: { params: { locale: string
             )}
           </div>
           {/* Bara inloggade som inte är ägaren; utloggade ser ingenting (ingen
-            inloggningsuppmaning här — profilen är ingen försäljningsyta). */}
+              inloggningsuppmaning här — profilen är ingen försäljningsyta). */}
           {communityV2 && session?.user && !isOwnProfile && <MessageButton userId={user.id} />}
         </div>
 

@@ -1,31 +1,43 @@
 import { getTranslations } from "next-intl/server";
 import { formatPrice } from "@/lib/format";
-import type { computeCollectionValue } from "@/services/collection";
+import { groupLots } from "@/lib/collection-lots";
+import {
+  cheapestProductSlugByCard,
+  listCollection,
+  valueCollectionItems,
+} from "@/services/collection";
 import { LinkButton } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconCards, IconLock } from "@/components/ui/icons";
+import { ProfileCollectionGrid, type ProfileCollectionCell } from "./profile-collection-grid";
 
-type CollectionSummary = Awaited<ReturnType<typeof computeCollectionValue>>;
+/** Fler rutor än så här visar profilen inte — ägaren har /samling, andra har sett nog. */
+const MAX_CELLS = 60;
 
 /**
- * Profilens Portfölj-flik: personens samling på Foilio. Samma integritetsregel
- * som förut — andra ser bara objekt + antal när samlingen är publik, aldrig
- * belopp; ägaren ser sitt eget värde. `collection` är null när samlingen är
- * privat och betraktaren inte är ägaren.
+ * Profilens Portfölj-flik: personens samling på Foilio i SAMMA cellformat som
+ * samlingens eget rutnät (ägarbeslut 2026-09-03: "cell format like we already
+ * have", inte en rankad lista). Samma integritetsregel som förut — andra ser
+ * objekt + antal när samlingen är publik, ALDRIG belopp; ägaren ser sina värden.
+ *
+ * Data: samma tre läsningar som /samling (poster, live-värden, kortets
+ * billigaste produkt-slug) men utan historik/movers — sidan är redan dynamisk
+ * och det här är ett tryck på en flik, inte en crawl-yta.
  */
 export async function PortfolioPane({
-  collection,
+  userId,
+  canSee,
   isOwnProfile,
   userName,
 }: {
-  collection: CollectionSummary | null;
+  userId: string;
+  canSee: boolean;
   isOwnProfile: boolean;
   userName: string;
 }) {
-  const t = await getTranslations("Profile");
+  const [t, tc] = await Promise.all([getTranslations("Profile"), getTranslations("Collection")]);
 
-  if (!collection) {
+  if (!canSee) {
     return (
       <EmptyState
         icon={<IconLock size={32} />}
@@ -35,7 +47,8 @@ export async function PortfolioPane({
     );
   }
 
-  if (collection.topItems.length === 0) {
+  const items = await listCollection(userId);
+  if (items.length === 0) {
     return (
       <EmptyState
         icon={<IconCards size={32} />}
@@ -52,47 +65,66 @@ export async function PortfolioPane({
     );
   }
 
+  const cardIds = items.map((i) => i.cardId).filter((v): v is string => v != null);
+  const [values, slugByCard] = await Promise.all([
+    valueCollectionItems(items),
+    cheapestProductSlugByCard(cardIds),
+  ]);
+
+  // En ruta per VARA: flera köp av samma kort blir en ruta med totalantal.
+  const groups = groupLots(items);
+  const cells: ProfileCollectionCell[] = groups.map((g) => {
+    const r = g.lots[0];
+    return {
+      key: g.key,
+      name: r.card?.name ?? r.product?.title ?? r.notes ?? tc("unknownItem"),
+      setName: r.card?.set?.name ?? null,
+      imageUrl: r.imageUrl ?? r.card?.imageUrl ?? r.product?.imageUrl ?? null,
+      slug: r.product?.slug ?? (r.cardId ? (slugByCard.get(r.cardId) ?? null) : null),
+      quantity: g.quantity,
+      unitValue: values.get(r.id) ?? null,
+    };
+  });
+  // Mest värt först — samma ordning som samlingens "värde"-sortering.
+  cells.sort((a, b) => (b.unitValue ?? 0) * b.quantity - (a.unitValue ?? 0) * a.quantity);
+
+  const totalValue = cells.reduce((sum, c) => sum + (c.unitValue ?? 0) * c.quantity, 0);
+  const shown = cells.slice(0, MAX_CELLS);
+  const hidden = cells.length - shown.length;
+
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle>{t("collectionTitle")}</CardTitle>
+    <div>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="font-display text-lg font-bold text-ink">{t("collectionTitle")}</h2>
         {isOwnProfile ? (
           <span className="font-display text-lg font-bold text-holo-cyan">
-            {formatPrice(collection.totalValue)}
+            {formatPrice(totalValue)}
           </span>
         ) : (
-          <span className="text-sm text-ink-faint">
-            {t("itemsCount", { count: collection.itemCount })}
-          </span>
+          <span className="text-sm text-ink-faint">{t("itemsCount", { count: cells.length })}</span>
         )}
-      </CardHeader>
-      <CardContent className="p-0">
-        <ol className="divide-y divide-surface-border">
-          {collection.topItems.map((item, index) => (
-            <li key={item.id} className="flex items-center gap-3 px-5 py-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-holo-cyan/10 text-xs font-bold text-holo-cyan">
-                {index + 1}
-              </span>
-              <p className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{item.name}</p>
-              <span className="shrink-0 text-xs text-ink-muted">
-                {t("pieces", { count: item.quantity })}
-              </span>
-              {isOwnProfile && (
-                <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">
-                  {formatPrice(item.totalValue)}
-                </span>
-              )}
-            </li>
-          ))}
-        </ol>
-      </CardContent>
-      {isOwnProfile && (
-        <CardFooter>
-          <LinkButton href="/samling" size="sm" variant="outline">
-            {t("openPortfolio")}
-          </LinkButton>
-        </CardFooter>
+      </div>
+
+      {/* Belopp bara till ägaren: andra får rutor med namn, set och antal. */}
+      <ProfileCollectionGrid
+        cells={isOwnProfile ? shown : shown.map((c) => ({ ...c, unitValue: null }))}
+        showValues={isOwnProfile}
+      />
+
+      {(hidden > 0 || isOwnProfile) && (
+        <div className="mt-4 flex items-center justify-between gap-3">
+          {hidden > 0 ? (
+            <span className="text-sm text-ink-muted">{t("portfolioMore", { count: hidden })}</span>
+          ) : (
+            <span />
+          )}
+          {isOwnProfile && (
+            <LinkButton href="/samling" size="sm" variant="outline">
+              {t("openPortfolio")}
+            </LinkButton>
+          )}
+        </div>
       )}
-    </Card>
+    </div>
   );
 }

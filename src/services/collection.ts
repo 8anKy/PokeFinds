@@ -62,6 +62,31 @@ export async function listCollection(userId: string) {
   });
 }
 
+/**
+ * Produkt-slug per kort = kortets BILLIGASTE produkt (den man vill inspektera).
+ * Samma regel som /samling använder inline; profilens Portfölj-flik delar den.
+ * Kort utan produkt saknas i kartan.
+ */
+export async function cheapestProductSlugByCard(cardIds: string[]): Promise<Map<string, string>> {
+  const slugByCard = new Map<string, string>();
+  if (cardIds.length === 0) return slugByCard;
+  const products = await prisma.product.findMany({
+    where: { cardId: { in: cardIds } },
+    select: { cardId: true, slug: true, lowestPriceOre: true },
+  });
+  const bestPrice = new Map<string, number>();
+  for (const p of products) {
+    if (!p.cardId) continue;
+    const lp = p.lowestPriceOre ?? Number.MAX_SAFE_INTEGER;
+    const prev = bestPrice.get(p.cardId);
+    if (prev == null || lp < prev) {
+      bestPrice.set(p.cardId, lp);
+      slugByCard.set(p.cardId, p.slug);
+    }
+  }
+  return slugByCard;
+}
+
 export interface CollectionItemInput {
   cardId?: string;
   productId?: string;
