@@ -36,6 +36,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
     "@aparajita/capacitor-secure-storage": "^8.0.0",
+    "@aws-sdk/client-s3": "^3.1125.0",
+    "@aws-sdk/s3-request-presigner": "^3.1125.0",
     "@capacitor-mlkit/text-recognition": "^8.2.0",
     "@capacitor/android": "^8.0.0",
     "@capacitor/app": "^8.0.0",

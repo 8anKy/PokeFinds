@@ -60,6 +60,13 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
 - **Funktioner live**: watchlist/prisbevakning, restock-alerts (41 butiker), samlingsvärde, AI-gradering
   (`/gradera`), live kort-skanner (`/skanna`), community, admin, PWA, **set-komplettering** (Set-fliken i
   `/samling` + stapel på `/sets/[id]`).
+- **COMMUNITY V2 I KOD SEDAN 2026-09-03, GRINDAT TILLS ÄGAREN TESTAT** (`.claude/rules/community-v2.md`):
+  forum med kurerade grupper + Köp/Sälj/Byt-trådar (`/forum`), bilder i Railway Bucket, 1:1-meddelanden via SSE
+  (`/meddelanden`, aldrig pollning), Tradera-annonser på profilen (egen spak). Syns BARA för admin, för
+  native-byggen med UA-taggen `FoilioApp/` (≥ 1.2, TestFlight) och när `COMMUNITY_V2_PUBLIC=1`. Alla andra ser
+  `/community` = "snart här" som förut. ⛔ Lansering = släpp 1.2 i App Store OCH sätt `COMMUNITY_V2_PUBLIC=1`
+  i Railway (bakas in vid bygget) OCH skapa Discord-kanalen + `DISCORD_MARKET_CHANNEL_ID`. Kräver ett NYTT
+  Codemagic-bygge för att UA-taggen ska finnas (`appendUserAgent` i `capacitor.config.ts`).
 - ⛔ **TRE TAL OM ETT SET, ALDRIG BLANDADE**: `totalCards` = printedTotal (talet på kortet, som skannern
   läser — byt ALDRIG mening på den); `totalCardsFull` = hela setet inkl. secret rares (kompletteringens
   nämnare); master set-nämnaren = de TRYCKNINGAR VI listar, aldrig TCGdex tal — en nämnare användaren inte
@@ -180,9 +187,13 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   trust-grinden vidgas INTE (94 % vs 98 %), svep om ~09-15 på `recall.gm`.
 - **Mät ISR-effekten (~2026-09-05)**: `scripts/neon-wake-attribution.ts` mot baslinjen 19 h/dygn (08-26).
   Nästa kandidat om set-sidorna dominerar: samma skal-behandling för `/sets/[id]` (bär pris i HTML, 1 h).
-- **Forum (ägarbeslut 2026-08-29, nästa bygge)**: forum med grupper (Facebook-liknande), bild-uppladdning
-  till Railway Bucket ($0,015/GB), köp/sälj/byt-trådar ⇒ marknadsplatsklausul i villkoren. ⛔ Ingen
-  live-chatt — polling mot Neon hade kostat ~$45/mån ensamt.
+- **Community v2 (forum + meddelanden + Tradera på profilen) BYGGT 2026-09-03, VÄNTAR PÅ ÄGARENS TEST**
+  (`.claude/rules/community-v2.md`). Kvar hos ägaren: (1) nytt Codemagic-bygge 1.2 → TestFlight (UA-taggen
+  `FoilioApp/` tänder funktionerna där), (2) testa forum/bilder/köp-sälj/chatt/push/Tradera-kortet,
+  (3) skapa Discord-kanal för Köp/Sälj/Byt + `DISCORD_MARKET_CHANNEL_ID` i Railway, (4) släpp 1.2 i App Store
+  OCH sätt `COMMUNITY_V2_PUBLIC=1` i Railway (webben). Bucketen `foilio-uploads` (ams) finns och är kopplad
+  via `S3_*`-referenser. ⛔ Ingen live-chatt-POLLNING — chatten är SSE-baserad; 2026-08-29-kalkylen ~$45/mån
+  gällde pollning mot Neon, inte chatt som sådan.
 - **JP-singlar, kvar**: 281 utan direkt CM-länk (se jp-sets.md), Mega Series Promos saknar CM-expansion,
   ~20 SM-era-set utan logotyp, 24 JP-set utan kort hos leverantören (läker av sig själva).
 - **Gratis "sålt"-snitt**: CM:s prisguide `avg1/avg7/avg30` = snitt av FAKTISKA försäljningar — kan visas
@@ -442,6 +453,7 @@ klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
 | `ui-shell.md` | Porträttlås; bredd ensam ≠ desktop; min-height måste dra av spacer + safe-area |
 | `admin-ops.md` | Tre utfall, aldrig två: kostnadsförd / gratis / OMÄTT |
 | `legal-copy.md` | Ångerrätten är den PROPORTIONELLA modellen — villkor och checkout-samtycke är EN mekanism |
+| `community-v2.md` | Grindat tills ägaren testat (admin / `FoilioApp/`-UA / `COMMUNITY_V2_PUBLIC`); chatten pollar ALDRIG Neon; Foilio är aldrig part i en affär |
 
 ## Kommandon & lokala konton
 ```bash

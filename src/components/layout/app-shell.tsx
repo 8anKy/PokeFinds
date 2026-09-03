@@ -6,12 +6,14 @@ import { usePathname } from "@/i18n/navigation";
 import { signOut } from "next-auth/react";
 import { setAuthHint } from "@/lib/auth-hint";
 import { cn } from "@/lib/utils";
+import { useCommunityV2 } from "@/lib/use-community-v2";
 import {
   IconSearch,
   IconBell,
   IconPackage,
   IconShield,
   IconMessage,
+  IconMail,
   IconSettings,
   IconWrench,
   IconUser,
@@ -68,6 +70,19 @@ export function AppShell({
   const tNav = useTranslations("Nav");
   const tAccount = useTranslations("HeaderActions");
   const tMore = useTranslations("More");
+  // Forum + Meddelanden (community v2) visas bara för den grinden släpper in —
+  // se lib/community-v2-gate.ts. Övriga ser Community ("snart här") som förut.
+  const communityV2 = useCommunityV2();
+  const navItems = communityV2
+    ? NAV.flatMap((item) =>
+        item.key === "community"
+          ? [
+              { ...item, href: "/forum", key: "forum" },
+              { href: "/meddelanden", ns: "Nav" as const, key: "messages", icon: IconMail },
+            ]
+          : [item]
+      )
+    : NAV;
 
   const label = (ns: "Nav" | "HeaderActions", key: string) =>
     ns === "Nav" ? tNav(key) : tAccount(key);
@@ -104,7 +119,7 @@ export function AppShell({
 
   const nav = (
     <nav className="flex flex-col gap-1 p-3">
-      {NAV.map((item) => (
+      {navItems.map((item) => (
         <Link
           key={item.href}
           href={item.href}

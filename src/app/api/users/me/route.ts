@@ -6,6 +6,7 @@ import { requireUser, AuthError } from "@/lib/auth";
 import { isPro, proSource } from "@/lib/plan";
 import { revokeDiscordRoles } from "@/services/discord-sync";
 import { getStripe, stripeEnabled } from "@/lib/stripe";
+import { deleteUserImages } from "@/lib/object-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ const profileSelect = {
   preferences: true,
   reputationScore: true,
   isPublicCollection: true,
+  showTraderaListings: true,
   createdAt: true,
 } satisfies Prisma.UserSelect;
 
@@ -66,6 +68,9 @@ const patchSchema = z.object({
   notificationSettings: notificationSettingsSchema.optional(),
   preferences: z.record(z.unknown()).optional(),
   isPublicCollection: z.boolean().optional(),
+  // "Visa mina Tradera-annonser på min profil" — samtycket för profilens
+  // Tradera-kort. Nollas av /api/tradera DELETE när kopplingen bryts.
+  showTraderaListings: z.boolean().optional(),
 });
 
 export async function GET() {
@@ -98,6 +103,7 @@ export async function PATCH(req: Request) {
         role: true,
         bonusProUntil: true,
         stripeProUntil: true, // "Alla restocks" är Pro-only — webbkunder räknas
+        traderaUserId: true, // showTraderaListings kräver en koppling att visa
       },
     });
     if (!current) throw new AuthError(404, "Användaren hittades inte.");
@@ -117,6 +123,12 @@ export async function PATCH(req: Request) {
       data.name = input.name;
     }
     if (input.isPublicCollection !== undefined) data.isPublicCollection = input.isPublicCollection;
+    if (input.showTraderaListings !== undefined) {
+      // Samtycket gäller bara en KOPPLAD säljare. Utan Tradera-id finns inget att
+      // visa, och en sann flagga på ett okopplat konto hade tyst börjat visa
+      // annonser den dag ett id dyker upp — utan att någon bett om det då.
+      data.showTraderaListings = input.showTraderaListings && !!current.traderaUserId;
+    }
     if (input.notificationSettings !== undefined) {
       const existing = (current.notificationSettings ?? {}) as Record<string, unknown>;
       data.notificationSettings = {
@@ -178,6 +190,16 @@ export async function DELETE() {
       where: { reporterId: sessionUser.id },
       data: { note: null },
     });
+
+    // Forumbilder ligger i objektlagringen, utanför databasen — Cascade når dem
+    // inte. Prefixet `forum/<userId>/` gör städningen till ett list+delete-anrop
+    // (lib/object-storage.ts). Best effort: ett fel hos bucketen får aldrig
+    // stoppa raderingen (art. 17), men loggas högt så det går att städa i efterhand.
+    try {
+      await deleteUserImages(sessionUser.id);
+    } catch (storageErr) {
+      console.error(`[users/me DELETE] Kunde inte radera forumbilder för ${sessionUser.id}:`, storageErr);
+    }
 
     // Övriga relationer hanteras via onDelete: Cascade i schemat.
     await prisma.user.delete({ where: { id: sessionUser.id } });

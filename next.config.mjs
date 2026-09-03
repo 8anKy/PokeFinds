@@ -38,6 +38,10 @@ const nextConfig = {
     NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? "",
     NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID: process.env.GOOGLE_IOS_CLIENT_ID ?? "",
     NEXT_PUBLIC_APPLE_SERVICE_ID: process.env.APPLE_CLIENT_ID ?? "",
+    // Lanseringsspaken för forum + meddelanden + Tradera-annonser på profilen
+    // (lib/community-v2-gate.ts). "0" = bara admin och nya app-byggen ser dem.
+    // Sätt "1" i Railway när ägaren testat klart — bakas in vid BYGGET.
+    NEXT_PUBLIC_COMMUNITY_V2_PUBLIC: process.env.COMMUNITY_V2_PUBLIC ?? "0",
   },
   // Next håller renderade ISR-sidor + `unstable_cache`-poster i en minnes-LRU som
   // som standard får ta 50 MB. Det är resident minne dygnet runt, och minne är

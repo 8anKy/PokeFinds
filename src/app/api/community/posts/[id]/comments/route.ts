@@ -1,21 +1,23 @@
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { auth, requireUser } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { ServiceError } from "@/lib/errors";
+import { assertCommunityV2 } from "@/lib/community-v2-server";
+import { pushToUser } from "@/lib/push-to-user";
 import { addComment, listComments } from "@/services/community";
+import { revalidateForum } from "../../../_shared/revalidate";
 
 export const dynamic = "force-dynamic";
 
 const commentSchema = z.object({
-  content: z.string().trim().min(1, "Kommentaren får inte vara tom.").max(5000),
+  content: z.string().trim().min(1, "Svaret får inte vara tomt.").max(5000),
 });
 
-export async function GET(
-  _req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
+    const session = await auth();
+    await assertCommunityV2(session?.user?.role ?? null);
     const comments = await listComments(params.id);
     return jsonOk({ items: comments });
   } catch (e) {
@@ -23,23 +25,34 @@ export async function GET(
   }
 }
 
-export async function POST(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireUser();
+    await assertCommunityV2(user.role);
 
     const { ok } = await rateLimit(`community-comment:${user.id}`, 20, 10 * 60 * 1000);
     if (!ok) {
       throw new ServiceError(
         429,
-        "Du har kommenterat för många gånger på kort tid. Försök igen om en stund."
+        "Du har svarat för många gånger på kort tid. Försök igen om en stund."
       );
     }
 
     const { content } = commentSchema.parse(await req.json());
-    const comment = await addComment(params.id, user.id, content);
+    const { comment, post } = await addComment(params.id, user.id, content);
+    revalidateForum({ group: true, thread: true });
+
+    // Push till trådskaparen — aldrig till den som svarar på sin egen tråd.
+    // pushToUser respekterar användarens push-inställning och kastar aldrig.
+    if (post.userId !== user.id) {
+      const body = content.replace(/\s+/g, " ").trim();
+      void pushToUser(post.userId, {
+        title: `Nytt svar på "${post.title.length > 60 ? `${post.title.slice(0, 59)}…` : post.title}"`,
+        body: body.length > 100 ? `${body.slice(0, 99)}…` : body,
+        url: `/forum/t/${params.id}`,
+      });
+    }
+
     return jsonOk(comment, { status: 201 });
   } catch (e) {
     return apiError(e);

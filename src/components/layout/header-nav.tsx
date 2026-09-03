@@ -5,6 +5,7 @@ import { Link } from "@/i18n/navigation";
 import { usePathname } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { useIsAdmin } from "@/components/admin-only";
+import { useCommunityV2 } from "@/lib/use-community-v2";
 
 // Marknad är ADMIN-ONLY (ägarbeslut 2026-07-21): vanliga besökare ska bara se
 // Utforska, Portfölj, Community och Priser (ägarbeslut 2026-08-11: fyra huvudflikar
@@ -22,9 +23,14 @@ export function HeaderNav() {
   const t = useTranslations("Nav");
   const pathname = usePathname();
   const isAdmin = useIsAdmin();
+  // Community → Forum för den som community-grinden släpper in (lib/community-v2-gate.ts).
+  const communityV2 = useCommunityV2();
+  const links = NAV_LINKS.filter((l) => !("adminOnly" in l && l.adminOnly) || isAdmin).map((l) =>
+    communityV2 && l.key === "community" ? { href: "/forum", key: "forum" } : l
+  );
   return (
     <nav className="hidden items-center gap-1 md-tall:flex">
-      {NAV_LINKS.filter((l) => !("adminOnly" in l && l.adminOnly) || isAdmin).map((l) => {
+      {links.map((l) => {
         const active = pathname === l.href || pathname?.startsWith(`${l.href}/`);
         return (
           <Link

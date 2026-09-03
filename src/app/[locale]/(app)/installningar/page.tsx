@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { isPro } from "@/lib/plan";
 import { discordLinkingEnabled } from "@/lib/discord";
 import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
+import { communityV2Request } from "@/lib/community-v2-server";
 import { prisma } from "@/lib/db";
 // ⛔ Delad läsare — se src/lib/notification-settings.ts. Skriv ingen lokal kopia.
 import { parseNotificationSettings } from "@/lib/notification-settings";
@@ -36,6 +37,7 @@ export default async function SettingsPage() {
       stripeProUntil: true, // utan denna säger isPro() FREE för en betalande webbkund
       notificationSettings: true,
       traderaUserId: true,
+      showTraderaListings: true,
       discordUsername: true,
     },
   });
@@ -59,6 +61,10 @@ export default async function SettingsPage() {
         : null,
     notificationSettings: parseNotificationSettings(user.notificationSettings),
     traderaUserId: user.traderaUserId,
+    showTraderaListings: user.showTraderaListings,
+    // Community v2-grinden (Tradera-annonser på profilen bor bakom den). Sidan
+    // är force-dynamic, så UA + roll läses per besök precis som env-spakarna.
+    communityV2: await communityV2Request(session.user.role),
     discordUsername: user.discordUsername,
     // Kortet döljs helt när integrationen är avstängd — en knapp som bara kan
     // svara "inte tillgänglig" är sämre än ingen knapp. Sidan är force-dynamic,

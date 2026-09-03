@@ -344,7 +344,11 @@ export default async function DashboardPage() {
                       className="block px-5 py-3 transition-colors hover:bg-surface-overlay/50"
                     >
                       <div className="flex items-center gap-2">
-                        <Badge variant="info">{tPost.has(p.category) ? tPost(p.category) : p.category}</Badge>
+                        {/* `category` är nullable sedan forumet (2026-09-03) — nya trådar
+                            hör till en grupp och bär ingen kategori. */}
+                        {p.category && (
+                          <Badge variant="info">{tPost.has(p.category) ? tPost(p.category) : p.category}</Badge>
+                        )}
                         <span className="text-xs text-ink-faint">
                           {p.user.name} · {formatRelative(p.createdAt)}
                         </span>

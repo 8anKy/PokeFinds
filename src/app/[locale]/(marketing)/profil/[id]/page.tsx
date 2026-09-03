@@ -7,10 +7,14 @@ import { prisma } from "@/lib/db";
 import { formatDate, formatPrice, formatRelative } from "@/lib/format";
 import { computeCollectionValue } from "@/services/collection";
 import { listUserAchievements } from "@/services/achievements";
+import { communityV2Request } from "@/lib/community-v2-server";
+import { getTraderaSellerListingsCached, type SellerListing } from "@/lib/tradera-seller-items";
 import { POST_CATEGORY_VARIANTS } from "@/lib/community-labels";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { IconHeart, IconMessage, IconSparkle } from "@/components/ui/icons";
+import { IconCheck, IconHeart, IconMessage, IconSparkle } from "@/components/ui/icons";
+import { MessageButton } from "./message-button";
+import { TraderaListingsCard } from "./tradera-listings-card";
 
 export const dynamic = "force-dynamic";
 
@@ -66,15 +70,24 @@ export default async function ProfilePage({ params }: { params: { locale: string
         reputationScore: true,
         isPublicCollection: true,
         createdAt: true,
-        _count: { select: { posts: true } },
+        showTraderaListings: true,
+        traderaUserId: true,
+        discordUserId: true,
+        _count: { select: { posts: true, sales: true } },
       },
     }),
   ]);
   if (!user) notFound();
 
   const isOwnProfile = session?.user?.id === user.id;
+  // Community v2-grinden (forum, meddelanden, Tradera på profilen). Rollen
+  // skickas in så helpern inte kör auth() en gång till. Sidan är redan dynamisk.
+  const communityV2 = await communityV2Request(session?.user?.role ?? null);
+  // Annonserna visas bara när ägaren själv slagit på det — samtycket sitter på
+  // kontot (`showTraderaListings`) och nollas när Tradera-kopplingen bryts.
+  const traderaUserId = communityV2 && user.showTraderaListings ? user.traderaUserId : null;
 
-  const [recentPosts, collection, allAchievements, tA] = await Promise.all([
+  const [recentPosts, collection, allAchievements, tA, listings] = await Promise.all([
     prisma.communityPost.findMany({
       where: { userId: user.id, isHidden: false },
       select: {
@@ -90,6 +103,10 @@ export default async function ProfilePage({ params }: { params: { locale: string
     user.isPublicCollection || isOwnProfile ? computeCollectionValue(user.id) : Promise.resolve(null),
     listUserAchievements(user.id),
     getTranslations("Achievements"),
+    // Ingen DB: en Tradera-rundtur per profil och timme (cachad), annars [].
+    traderaUserId
+      ? getTraderaSellerListingsCached(traderaUserId)
+      : Promise.resolve<SellerListing[]>([]),
   ]);
 
   /**
@@ -121,6 +138,26 @@ export default async function ProfilePage({ params }: { params: { locale: string
   if (user.isPublicCollection) badges.push({ label: t("badgeCollector"), variant: "info" });
   if (user._count.posts > 10) badges.push({ label: t("badgeActive"), variant: "success" });
 
+  /**
+   * Förtroenderaden (community v2): kopplade konton + antal försäljningar via
+   * Foilio. Den finns för Köp/Sälj/Byt — en köpare som ska skicka pengar till en
+   * främling vill veta att personen är den hen utger sig för. ⚠️ Antalet
+   * försäljningar är samma slags uppgift som utmärkelserna ovan håller privata
+   * (personen säljer kort); här är det ägarbeslut 2026-09-03 att den tål att visas
+   * som antal — aldrig belopp, aldrig vinst — och bara bakom grinden.
+   */
+  const trust: { key: string; label: string }[] = [];
+  if (communityV2) {
+    if (user.traderaUserId) trust.push({ key: "tradera", label: t("trustTradera") });
+    if (user.discordUserId) trust.push({ key: "discord", label: t("trustDiscord") });
+    if (user._count.sales > 0) {
+      trust.push({ key: "sales", label: t("trustSales", { count: user._count.sales }) });
+    }
+  }
+
+  // Inlägg bor i forumet när grinden släppt igenom, annars i det gamla communityt.
+  const postHref = (id: string) => (communityV2 ? `/forum/t/${id}` : `/community/${id}`);
+
   const initials = user.name
     .split(/\s+/)
     .map((part) => part[0])
@@ -147,7 +184,7 @@ export default async function ProfilePage({ params }: { params: { locale: string
             {initials}
           </div>
         )}
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="font-display text-2xl font-bold text-ink">{user.name}</h1>
           <p className="mt-1 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm text-ink-muted sm:justify-start">
             <span className="inline-flex items-center gap-1.5">
@@ -157,6 +194,18 @@ export default async function ProfilePage({ params }: { params: { locale: string
             <span aria-hidden="true" className="text-ink-faint">·</span>
             <span>{t("memberSince", { date: formatDate(user.createdAt) })}</span>
           </p>
+          {trust.length > 0 && (
+            <ul className="mt-2 flex flex-wrap justify-center gap-2 sm:justify-start">
+              {trust.map((c) => (
+                <li key={c.key}>
+                  <Badge>
+                    <IconCheck size={12} className="text-holo-cyan" />
+                    {c.label}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          )}
           {(badges.length > 0 || achievements.length > 0) && (
             <div className="mt-2 flex flex-wrap justify-center gap-2 sm:justify-start">
               {badges.map((b) => (
@@ -179,6 +228,9 @@ export default async function ProfilePage({ params }: { params: { locale: string
             </div>
           )}
         </div>
+        {/* Bara inloggade som inte är ägaren; utloggade ser ingenting (ingen
+            inloggningsuppmaning här — profilen är ingen försäljningsyta). */}
+        {communityV2 && session?.user && !isOwnProfile && <MessageButton userId={user.id} />}
       </div>
 
       {/* Offentlig samling */}
@@ -223,6 +275,15 @@ export default async function ProfilePage({ params }: { params: { locale: string
         </Card>
       )}
 
+      {/* Till salu på Tradera (community v2 + ägarens eget val) */}
+      {traderaUserId && (
+        <TraderaListingsCard
+          listings={listings}
+          traderaUserId={traderaUserId}
+          isOwnProfile={isOwnProfile}
+        />
+      )}
+
       {/* Senaste inlägg */}
       <Card className="mt-8">
         <CardHeader>
@@ -238,13 +299,16 @@ export default async function ProfilePage({ params }: { params: { locale: string
               {recentPosts.map((post) => (
                 <li key={post.id}>
                   <Link
-                    href={`/community/${post.id}`}
+                    href={postHref(post.id)}
                     className="block px-5 py-3 transition-colors hover:bg-surface-overlay/50"
                   >
                     <div className="flex items-center gap-2">
-                      <Badge variant={POST_CATEGORY_VARIANTS[post.category]}>
-                        {tPost(post.category)}
-                      </Badge>
+                      {/* Kategorin är nullable sedan forumet (grupper ersatte den). */}
+                      {post.category && (
+                        <Badge variant={POST_CATEGORY_VARIANTS[post.category]}>
+                          {tPost(post.category)}
+                        </Badge>
+                      )}
                       <span className="text-xs text-ink-faint">
                         {formatRelative(post.createdAt)}
                       </span>

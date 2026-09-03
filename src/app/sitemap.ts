@@ -44,8 +44,13 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
  * borttagna med flit — se `lastmod`-noten i `sitemap()` nedan.
  */
 const getSitemapRows = cachedRead(
-  async (): Promise<{ products: string[]; sets: string[] }> => {
-    const [products, sets] = await Promise.all([
+  async (): Promise<{ products: string[]; sets: string[]; groups: string[]; threads: string[] }> => {
+    // Forumet (community v2) står med FÖRST när lanseringsspaken är satt — tills dess
+    // omdirigerar middleware /forum till "snart här" och en sitemap-URL som
+    // omdirigerar rapporteras som fel i Search Console. Samma resonemang som
+    // `/community`-noten i sitemap() nedan.
+    const forumPublic = (process.env.COMMUNITY_V2_PUBLIC ?? "").trim() === "1";
+    const [products, sets, groups, threads] = await Promise.all([
       prisma.product.findMany({
         // ⛔ Ägarens bortgömda produkter annonseras inte för crawlers. Sidorna SVARAR
         //    fortfarande på en direkt träff — Discord-embeddens produktlänk måste
@@ -72,10 +77,23 @@ const getSitemapRows = cachedRead(
         select: { id: true },
         take: 1000,
       }),
+      forumPublic
+        ? prisma.communityGroup.findMany({ select: { slug: true }, orderBy: { sortOrder: "asc" } })
+        : Promise.resolve([]),
+      forumPublic
+        ? prisma.communityPost.findMany({
+            where: { isHidden: false },
+            select: { id: true },
+            orderBy: { lastActivityAt: "desc" },
+            take: 2000,
+          })
+        : Promise.resolve([]),
     ]);
     return {
       products: products.map((p) => p.slug),
       sets: sets.map((s) => s.id),
+      groups: groups.map((g) => g.slug),
+      threads: threads.map((t) => t.id),
     };
   },
   "sitemapRows",
@@ -114,8 +132,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   let products: string[] = [];
   let sets: string[] = [];
+  let groups: string[] = [];
+  let threads: string[] = [];
   try {
-    ({ products, sets } = await withTimeout(getSitemapRows(), 8000));
+    ({ products, sets, groups, threads } = await withTimeout(getSitemapRows(), 8000));
   } catch {
     // DB ej tillgänglig eller långsam — returnera bara de statiska rutterna.
     return staticRoutes;
@@ -165,5 +185,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.5,
   }));
 
-  return [...staticRoutes, ...productRoutes, ...setRoutes];
+  // Forumet — tomt tills `COMMUNITY_V2_PUBLIC=1` (se getSitemapRows). Trådar är det
+  // innehåll som växer av sig självt; grupperna är ingångarna. Inget `lastmod` här
+  // heller: `lastActivityAt` stämplas av varje svar, inte av en innehållsändring.
+  const forumRoutes: MetadataRoute.Sitemap =
+    groups.length === 0
+      ? []
+      : [
+          { url: `${BASE_URL}/forum`, changeFrequency: "hourly", priority: 0.8 },
+          ...groups.map((slug) => ({
+            url: `${BASE_URL}/forum/g/${slug}`,
+            changeFrequency: "daily" as const,
+            priority: 0.6,
+          })),
+          ...threads.map((id) => ({
+            url: `${BASE_URL}/forum/t/${id}`,
+            changeFrequency: "weekly" as const,
+            priority: 0.5,
+          })),
+        ];
+
+  return [...staticRoutes, ...forumRoutes, ...productRoutes, ...setRoutes];
 }

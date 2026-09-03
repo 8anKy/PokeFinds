@@ -7,6 +7,7 @@ import { usePathname } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { hapticTick } from "@/lib/haptics";
 import { isEmailLandingRoute } from "@/lib/auth-routes";
+import { useCommunityV2 } from "@/lib/use-community-v2";
 import {
   IconSearch,
   IconPackage,
@@ -27,6 +28,12 @@ const TABS: { href: string; key: string; icon: (p: IconProps) => JSX.Element }[]
 export function BottomTabs() {
   const tNav = useTranslations("Nav");
   const pathname = usePathname();
+  // Forumet (community v2) är grindat tills ägaren testat — se lib/community-v2-gate.ts.
+  // Fliken byter mål/etikett Community → Forum bara för den som släpps in.
+  const communityV2 = useCommunityV2();
+  const tabs = communityV2
+    ? TABS.map((t) => (t.key === "community" ? { ...t, href: "/forum", key: "forum" } : t))
+    : TABS;
   // Tab-baren visas alltid (in- som utloggad) — den är appens primära navigering.
   // Skyddade tabbar (Portfölj/Skanna) skickar utloggade till login via middleware.
 
@@ -61,7 +68,7 @@ export function BottomTabs() {
         className="hairline-t fixed inset-x-0 bottom-0 z-40 bg-surface/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-16px_rgba(0,0,0,0.7)] backdrop-blur-md lg:hidden"
       >
       <ul className="mx-auto flex max-w-md items-stretch">
-        {TABS.map((t) => {
+        {tabs.map((t) => {
           const active = pathname === t.href || pathname?.startsWith(`${t.href}/`);
           return (
             <li key={t.href} className="flex-1">

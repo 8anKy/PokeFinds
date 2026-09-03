@@ -27,6 +27,28 @@ Sätt alla från `.env.example`. Viktigast:
 - `CRON_SECRET` — för schemalagd scraping och `/api/revalidate`
 - `REDIS_URL` — om Redis används (rekommenderas i prod; annars in-memory-fallback)
 
+### Community v2 (forum, meddelanden, Tradera-annonser på profilen)
+- `COMMUNITY_V2_PUBLIC` — `"0"` (default): forum/meddelanden/Tradera-på-profilen syns bara
+  för ADMIN/SUPERADMIN och native-byggen med `FoilioApp/`-UA. `"1"` öppnar allt för alla.
+  ⛔ Speglas till `NEXT_PUBLIC_COMMUNITY_V2_PUBLIC` i `next.config.mjs` och bakas in vid
+  BYGGET — en ändring kräver en ny deploy, inte en omstart.
+- `S3_BUCKET`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION` —
+  Railway Bucket-uppgifterna för forumbilder (`src/lib/object-storage.ts`). Railways
+  preset-namn `BUCKET`/`ENDPOINT`/`ACCESS_KEY_ID`/`SECRET_ACCESS_KEY`/`REGION` läses också.
+  Saknas de döljs bilduppladdningen i UI:t; forumet fungerar utan bilder.
+- `S3_FORCE_PATH_STYLE` — `"1"` tvingar path-style-URL:er (äldre buckets); default virtual-hosted.
+- `DISCORD_MARKET_CHANNEL_ID` — Discord-kanalen som nya Köp/Sälj/Byt-trådar speglas till.
+  Tom = ingen spegling.
+- Tradera-annonserna på profilen använder de befintliga `TRADERA_APP_ID`/`TRADERA_APP_KEY`
+  (PublicService `GetSellerItems`, cachad 1 h per profil, ingen DB).
+
+### Lansering av forum/meddelanden — checklista
+1. Testa i TestFlight 1.2 (UA-taggen `FoilioApp/1.2` öppnar grinden för testarna).
+2. Släpp 1.2 i App Store/Google Play.
+3. Sätt `COMMUNITY_V2_PUBLIC=1` i Railway — det triggar en deploy (variabeln bakas in).
+   Webben och alla appversioner får då forum, meddelanden och Tradera-kortet.
+4. Skapa Discord-kanalen för Köp/Sälj/Byt och sätt `DISCORD_MARKET_CHANNEL_ID`.
+
 ## Migrationer — spaken `RUN_MIGRATIONS`
 
 **Normalvägen är MANUELL, före push:**

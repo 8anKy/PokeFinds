@@ -20,6 +20,8 @@ export async function generateMetadata({
  * Användarvillkoren, omskrivna 2026-08-08 efter gapanalysen i det privata
  * systerrepot (TERMS-GAP.md): 20 sektioner som täcker hela dagens produktyta
  * (skanner, gradering, larm, Tradera-sälj, Discord, rangordning, Pro på webben).
+ * §21 (2026-09-03) = community-klausulen ur TERMS-DRAFT-CLAUSES.md §13, utbyggd
+ * med köp/sälj/byt-anslagstavlan, meddelanden, anmälan och blockering.
  *
  * ⚠️ Publicerade som utkast per ägarbeslut 2026-08-08; en svensk jurist ska läsa
  * hela paketet i efterhand. All copy bor i messages/{sv,en}.json → Terms.
@@ -141,6 +143,13 @@ export default async function TermsPage({
               <li key={i}>{item}</li>
             ))}
           </ul>
+        </section>
+
+        {/* Forum, köp/sälj/byt mellan användare och meddelanden. id: ska gå att
+            länka till från forumets regler och från anmälningsflödet. */}
+        <section id="forum">
+          <h2>{t("s21Title")}</h2>
+          <Paragraphs text={t("s21Body")} />
         </section>
 
         {/* E-handelslagen 8 §. Renderas bara när uppgifterna är KOMPLETTA —

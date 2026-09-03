@@ -53,6 +53,11 @@ const LOCALIZED = [
   "/mer",
   "/skanna",
   "/gradera",
+  // Privata meddelanden och forumets skrivsida — inloggade vyer, inget att indexera.
+  // Forumets läsvyer (/forum, /forum/g/…, /forum/t/…) är däremot publikt innehåll
+  // och står INTE här.
+  "/meddelanden",
+  "/forum/ny",
   // /produkter?… (filter/sök/paginering) är en oändlig URL-rymd av dynamiska
   // renders (varje träff = Neon-frågor). Produkterna nås ändå via sitemap +
   // /produkter utan query + set-sidorna, så inget innehåll göms för Google.

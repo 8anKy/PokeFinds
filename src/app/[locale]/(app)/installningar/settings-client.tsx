@@ -37,6 +37,10 @@ export interface SettingsUser {
   bonusProUntil: string | null;
   notificationSettings: NotificationSettings;
   traderaUserId: string | null;
+  /** "Visa mina Tradera-annonser på min profil" — bara meningsfull när kopplad. */
+  showTraderaListings: boolean;
+  /** Community v2 (forum/meddelanden/Tradera på profilen) synligt för den här besökaren? */
+  communityV2: boolean;
   /** Discord-visningsnamnet när kontot är länkat, annars null. */
   discordUsername: string | null;
   /** Är integrationen påslagen i miljön? Falskt → kortet visas inte alls. */
@@ -93,6 +97,31 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   // Tradera-koppling
   const [traderaUserId, setTraderaUserId] = useState(user.traderaUserId);
   const [disconnectingTradera, setDisconnectingTradera] = useState(false);
+  // Tradera-annonser på profilen — samma optimistiska mönster som samlingens
+  // "Offentlig samling"-reglage (collection-client.tsx): växla direkt, backa vid fel.
+  const [showListings, setShowListings] = useState(user.showTraderaListings);
+  const [savingShowListings, setSavingShowListings] = useState(false);
+
+  async function toggleShowListings(next: boolean) {
+    setShowListings(next);
+    setSavingShowListings(true);
+    try {
+      await apiFetch("/api/users/me", { method: "PATCH", body: { showTraderaListings: next } });
+      toast({
+        title: next ? tSettings("traderaShowOnToast") : tSettings("traderaShowOffToast"),
+        variant: "success",
+      });
+    } catch (e) {
+      setShowListings(!next);
+      toast({
+        title: tSettings("saveFail"),
+        description: e instanceof Error ? e.message : undefined,
+        variant: "error",
+      });
+    } finally {
+      setSavingShowListings(false);
+    }
+  }
 
   // Discord-koppling
   const [discordUsername, setDiscordUsername] = useState(user.discordUsername);
@@ -159,6 +188,9 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
     try {
       await apiFetch("/api/tradera", { method: "DELETE" });
       setTraderaUserId(null);
+      // Servern nollar samtycket i samma skrivning; spegla det så reglaget inte
+      // står kvar påslaget om användaren kopplar igen i samma vy.
+      setShowListings(false);
       toast({ title: tSettings("traderaDisconnectedToast"), variant: "success" });
     } catch (e) {
       toast({
@@ -492,6 +524,26 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
               </a>
             )}
           </div>
+          {/* Visa annonserna på profilen — bara när kopplad OCH community v2 syns
+              för den här besökaren. Reglaget är ett SAMTYCKE, därför default av. */}
+          {traderaUserId && user.communityV2 && (
+            <div className="mt-4 flex items-start gap-3 border-t border-surface-border pt-4">
+              <Checkbox
+                id="tradera-show-listings"
+                checked={showListings}
+                disabled={savingShowListings}
+                onChange={(e) => void toggleShowListings(e.target.checked)}
+              />
+              <label htmlFor="tradera-show-listings" className="cursor-pointer">
+                <span className="block text-sm font-medium text-ink">
+                  {tSettings("traderaShowOnProfile")}
+                </span>
+                <span className="block text-xs text-ink-muted">
+                  {tSettings("traderaShowOnProfileHint")}
+                </span>
+              </label>
+            </div>
+          )}
         </CardContent>
       </Card>
 

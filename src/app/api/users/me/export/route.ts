@@ -105,6 +105,24 @@ export async function GET() {
           select: { id: true, createdAt: true, usedAt: true, verifiedAt: true, rewardedAt: true },
         },
         inviteUsed: { select: { createdAt: true, usedAt: true, verifiedAt: true } },
+        // Meddelanden (2026-09-03): samtalen jag deltar i + MINA meddelanden.
+        // Motpartens meddelanden är motpartens data och exporteras inte här —
+        // bara vem jag pratat med, när, och vad jag själv skrivit.
+        conversations: {
+          select: {
+            conversationId: true,
+            lastReadAt: true,
+            createdAt: true,
+            conversation: {
+              select: { createdAt: true, postId: true, participants: { select: { userId: true } } },
+            },
+          },
+        },
+        messagesSent: { select: { conversationId: true, body: true, createdAt: true } },
+        blocksMade: { select: { blockedId: true, createdAt: true } },
+        chatReports: {
+          select: { conversationId: true, reason: true, status: true, createdAt: true },
+        },
       },
     });
     if (!user) throw new AuthError(404, "Användaren hittades inte.");
@@ -178,6 +196,20 @@ export async function GET() {
       pushDevices: user.pushTokens,
       invitesSent: user.invitesSent,
       inviteUsed: user.inviteUsed,
+      messages: {
+        conversations: user.conversations.map((c) => ({
+          id: c.conversationId,
+          otherParticipantId:
+            c.conversation.participants.find((p) => p.userId !== user.id)?.userId ?? null,
+          postId: c.conversation.postId,
+          createdAt: c.conversation.createdAt,
+          joinedAt: c.createdAt,
+          lastReadAt: c.lastReadAt,
+        })),
+        sent: user.messagesSent,
+      },
+      blocks: user.blocksMade,
+      chatReports: user.chatReports,
     };
 
     return new NextResponse(JSON.stringify(exportData, null, 2), {

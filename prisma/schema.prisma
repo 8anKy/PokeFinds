@@ -193,6 +193,10 @@ model User {
   preferences           Json         @default("{}")
   reputationScore       Int          @default(0)
   isPublicCollection    Boolean      @default(false)
+  // Visa användarens aktiva Tradera-annonser på den publika profilen. EGEN spak,
+  // skild från Tradera-kopplingen: kopplingen gavs för att SÄLJA från samlingen,
+  // inte för att publicera — samtycke till det ena är inte samtycke till det andra.
+  showTraderaListings   Boolean      @default(false)
   traderaUserId         String? // Traderas userId när kontot är kopplat (för "Sälj på Tradera")
   traderaToken          String? // AuthToken från FetchToken; behandlas som en hemlighet
   traderaTokenExpiresAt DateTime? // HardExpirationTime — koppla om kontot när denna passeras
@@ -250,6 +254,12 @@ model User {
   sales           Sale[]
   achievements    UserAchievement[]
   guestDevices    GuestDevice[]
+  groupMemberships CommunityGroupMember[]
+  conversations    ConversationParticipant[]
+  messagesSent     Message[]
+  blocksMade       UserBlock[]  @relation("BlockBy")
+  blocksReceived   UserBlock[]  @relation("BlockOf")
+  chatReports      ChatReport[]
 
   @@index([email])
   @@index([creatorCodeId])
@@ -564,6 +574,7 @@ model Product {
   collectionItems   CollectionItem[]
   priceSnapshots    PriceSnapshot[]
   traderaListings   TraderaListing[]
+  communityPosts    CommunityPost[]
   storeListings     StoreListing[]
 
   @@index([normalizedTitle])
@@ -914,25 +925,195 @@ model CollectionItem {
 
 // ---------- Community ----------
 
+// Forumtråd. Sedan 2026-09-03 hör varje tråd till en GRUPP (CommunityGroup);
+// "category" är kvar som valfri etikett för inlägg från den gamla, platta
+// communityn (nullable sedan samma datum — grupperna ersätter kategorierna).
+//
+// Köp/Sälj/Byt: en tråd i marknadsgruppen bär listingKind + pris/skick/status
+// och kan peka på en katalogprodukt (då visar tråden marknadspriset bredvid det
+// begärda). ⛔ Foilio är ALDRIG part i affären — tråden är en anslagstavla, och
+// listingStatus sätts av säljaren själv (SOLD/CLOSED), aldrig av oss.
 model CommunityPost {
   id        String       @id @default(cuid())
   userId    String
+  groupId   String?
   title     String
   content   String
   imageUrl  String?
-  category  PostCategory
+  category  PostCategory?
   isHidden  Boolean      @default(false)
+  // Marknadsfält (bara när gruppen är en marknadsplats).
+  listingKind   ListingKind?
+  listingStatus ListingStatus?
+  priceOre      Int?
+  condition     String?
+  productId     String?
+  traderaUrl    String?
+  // Senaste svar/aktivitet — driver sorteringen i flödet ("senast aktiv").
+  lastActivityAt DateTime    @default(now())
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group      CommunityGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  product    Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
   comments   Comment[]
   likes      Like[]
   reports    Report[]
   savedPosts SavedPost[]
+  images     PostImage[]
+  conversations Conversation[]
 
   @@index([category, createdAt])
   @@index([userId])
+  @@index([groupId, lastActivityAt])
+  @@index([lastActivityAt])
+  @@index([listingStatus, lastActivityAt])
+}
+
+enum ListingKind {
+  SELL
+  BUY
+  TRADE
+}
+
+enum ListingStatus {
+  ACTIVE
+  SOLD
+  CLOSED
+}
+
+// Grupp = "ämne man kan gå med i". Vid lanseringen är grupperna KURERADE (skapas
+// av admin/migration, aldrig av användare) och startflödet visar ALLT — en
+// community på ~100 medlemmar tål inte åtta tomma rum. Modellen är ändå den
+// riktiga gruppmodellen: att öppna för användarskapade grupper och ett
+// "dina grupper"-flöde är två defaults, ingen ombyggnad.
+model CommunityGroup {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  name          String
+  description   String
+  emoji         String?
+  sortOrder     Int      @default(0)
+  // Trådar i gruppen bär köp/sälj/byt-fält och korspostas till Discord.
+  isMarketplace Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  posts   CommunityPost[]
+  members CommunityGroupMember[]
+}
+
+model CommunityGroupMember {
+  groupId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  group CommunityGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, userId])
+  @@index([userId])
+}
+
+// Bild i en tråd. "key" = objektnyckeln i Railway Bucket (privat S3) — URL:en
+// signeras vid rendering (lib/object-storage.ts), aldrig lagrad. Klienten
+// skalar ner till ≤1600 px innan uppladdning (EXIF försvinner på köpet).
+model PostImage {
+  id        String   @id @default(cuid())
+  postId    String
+  key       String
+  width     Int?
+  height    Int?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+// ---------- Meddelanden (1:1-chatt) ----------
+//
+// ⛔ INGEN POLLNING MOT NEON. Leverans sker via en SSE-ström som Railway-processen
+// håller öppen (lib/chat-hub.ts, i minnet); ett skickat meddelande = EN skrivning +
+// en push till den som inte är ansluten. Att läsa en konversation = en fråga när
+// den öppnas. Ingen timer rör databasen.
+//
+// EN konversation per par (pairKey = de två användar-id:na sorterade). Tråden
+// den startades från sparas som kontext (postId) men konversationen är parets.
+model Conversation {
+  id            String    @id @default(cuid())
+  pairKey       String    @unique
+  postId        String?
+  lastMessageAt DateTime?
+  lastPreview   String?
+  createdAt     DateTime  @default(now())
+
+  post         CommunityPost?            @relation(fields: [postId], references: [id], onDelete: SetNull)
+  participants ConversationParticipant[]
+  messages     Message[]
+  reports      ChatReport[]
+}
+
+model ConversationParticipant {
+  conversationId String
+  userId         String
+  lastReadAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId])
+}
+
+// senderId är nullable med SetNull: raderas ett konto (GDPR) försvinner personen
+// ur meddelandena ("Raderat konto") men motpartens kopia av samtalet består —
+// den är motpartens data lika mycket som avsändarens.
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String?
+  body           String
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User?        @relation(fields: [senderId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+}
+
+// Blockering: den blockerade kan varken starta eller fortsätta en konversation
+// med blockeraren, och deras trådar/svar döljs för blockeraren. Krav från App
+// Store-riktlinje 1.2 (användargenererat innehåll).
+model UserBlock {
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("BlockBy", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlockOf", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+// Anmäld konversation. ⛔ Enda vägen för en moderator in i ett privat samtal:
+// admin läser BARA anmälda konversationer, och villkoren säger det.
+model ChatReport {
+  id             String       @id @default(cuid())
+  conversationId String
+  reporterId     String
+  reason         String
+  status         ReportStatus @default(OPEN)
+  createdAt      DateTime     @default(now())
+  resolvedAt     DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  reporter     User         @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([status])
 }
 
 model Comment {

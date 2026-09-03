@@ -4,9 +4,11 @@ import { Link } from "@/i18n/navigation";
 import { redirect } from "next/navigation";
 import { auth, hasRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { communityV2Request } from "@/lib/community-v2-server";
 import {
   IconShield,
   IconBell,
+  IconMail,
   IconSparkle,
   IconSettings,
   IconWrench,
@@ -45,10 +47,13 @@ export default async function MerPage() {
 
   // ⛔ EN rundtur, inte två. Två sekventiella await är två tur-och-retur mot
   // Frankfurt för en sida som redan är dynamisk.
-  const [watchCount, achievements, tA] = await Promise.all([
+  const [watchCount, achievements, tA, tNav, communityV2] = await Promise.all([
     prisma.watchlistItem.count({ where: { userId: session.user.id } }),
     listUserAchievements(session.user.id),
     getTranslations("Achievements"),
+    getTranslations("Nav"),
+    // Meddelanden (community v2) — grindat tills ägaren testat, se lib/community-v2-gate.ts.
+    communityV2Request(session.user.role),
   ]);
   // ⛔ RÄKNA NIVÅER, INTE MÄRKEN. "Samlare" är tre nivåer (10/100/1000), så
   // nämnaren är 18 och inte 15 — annars kan täljaren passera nämnaren.
@@ -76,6 +81,9 @@ export default async function MerPage() {
       iconClass: "text-rise",
       badge: watchCount > 0 ? t("watchesBadge", { count: watchCount }) : undefined,
     },
+    ...(communityV2
+      ? [{ href: "/meddelanden", label: tNav("messages"), icon: IconMail, iconClass: "text-holo-cyan" }]
+      : []),
     { href: "/gradera", label: t("grading"), icon: IconShield, iconClass: "text-holo-violet" },
     {
       href: "/priser",

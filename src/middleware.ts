@@ -11,6 +11,13 @@ import {
 } from "@/lib/creator-ref";
 import { LOCALE_COOKIE_NAME, dropSetCookie, shouldDropLocaleCookie } from "@/lib/locale-cookie";
 import {
+  BETA_COOKIE,
+  BETA_COOKIE_MAX_AGE,
+  GATED_FALLBACK_PATH,
+  communityV2Allowed,
+  isGatedPath,
+} from "@/lib/community-v2-gate";
+import {
   AUTH_HINT_COOKIE,
   AUTH_HINT_MAX_AGE,
   SESSION_COOKIE_NAMES,
@@ -51,7 +58,28 @@ const PROTECTED_PREFIXES = [
   "/installningar",
   "/onboarding",
   "/admin",
+  // Meddelanden och forumets skrivsida kräver konto. Läsvyerna (/forum,
+  // /forum/g/…, /forum/t/…) är publika men GRINDADE (se communityGate nedan).
+  "/meddelanden",
+  "/forum/ny",
 ];
+
+/**
+ * `fo_beta`-hinten: samma idé som `fo_auth` — en icke-httpOnly cookie som
+ * klient-chrome (bottenflikar, /mer) läser för att visa Forum/Meddelanden utan
+ * att fråga servern. Servern är facit (grinden nedan körs på varje sidvisning);
+ * cookien är bara en spegel av det senaste svaret. Skrivs BARA när den är oense
+ * med facit — ett `Set-Cookie` gör svaret ocachbart i Railways edge.
+ */
+function syncBetaHint(req: NextRequest, res: NextResponse, allowed: boolean): NextResponse {
+  const has = req.cookies.get(BETA_COOKIE)?.value === "1";
+  if (allowed && !has) {
+    res.cookies.set(BETA_COOKIE, "1", { path: "/", maxAge: BETA_COOKIE_MAX_AGE, sameSite: "lax" });
+  } else if (!allowed && has) {
+    res.cookies.set(BETA_COOKIE, "", { path: "/", maxAge: 0, sameSite: "lax" });
+  }
+  return res;
+}
 
 // Tar bort ev. /en-prefix så skydds-kollen fungerar likadant på båda språken.
 // Returnerar [avskalad väg, prefix] där prefix = "" (sv) eller "/en".
@@ -167,19 +195,36 @@ export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const [path, prefix] = splitLocale(pathname);
 
+  // `getToken` (en JWE-dekryptering) körs bara när det FINNS en sessionscookie,
+  // så utloggade besökare — merparten av den publika trafiken, och all
+  // crawler-trafik — kostar noll krypto. Token:en delas av sessionsförnyelsen,
+  // admin-grinden och community-grinden nedan.
+  const hasSession = sessionCookieCandidates().some((n) => req.cookies.has(n));
+  const token = hasSession ? await getToken({ req, secret: process.env.NEXTAUTH_SECRET }) : null;
+
+  // COMMUNITY-GRINDEN (forum, meddelanden). Lanseringsgrind, inte säkerhet — se
+  // lib/community-v2-gate.ts. Den som inte släpps in landar på "snart här".
+  const communityAllowed = communityV2Allowed({
+    userAgent: ua,
+    role: typeof token?.role === "string" ? token.role : null,
+    publicFlag: process.env.COMMUNITY_V2_PUBLIC,
+  });
+  if (isGatedPath(path) && !communityAllowed) {
+    const res = NextResponse.redirect(new URL(`${prefix}${GATED_FALLBACK_PATH}`, req.url));
+    return syncBetaHint(req, res, false);
+  }
+
   // Publika sidor auth-gatas inte — låt next-intl sköta locale-routing direkt.
   const isProtected = PROTECTED_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
   if (!isProtected) {
-    const res = captureCreatorRef(req, syncAuthHint(req, intlMiddleware(req)));
-    const hasSession = sessionCookieCandidates().some((n) => req.cookies.has(n));
+    const res = syncBetaHint(
+      req,
+      captureCreatorRef(req, syncAuthHint(req, intlMiddleware(req))),
+      communityAllowed
+    );
     // Sessionen förnyas ÄVEN på publika sidor — annars hade den som mest bläddrar
-    // i katalogen loggats ut trots daglig användning. `getToken` (en JWE-dekryptering)
-    // körs bara när det FINNS en sessionscookie, så utloggade besökare — merparten
-    // av den publika trafiken, och all crawler-trafik — kostar noll krypto.
-    if (hasSession) {
-      const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-      if (token) await renewSession(req, res, token);
-    }
+    // i katalogen loggats ut trots daglig användning.
+    if (token) await renewSession(req, res, token);
     // ⛔ SIST AV ALLT, OCH BARA HÄR. next-intl sätter `NEXT_LOCALE` på varje
     // begäran som saknar BÅDE cookien och `Accept-Language` — dvs om och om igen
     // för klienter som inte sparar cookies (crawlers, `curl`), en enda gång för
@@ -195,8 +240,6 @@ export async function middleware(req: NextRequest) {
     }
     return res;
   }
-
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
 
   if (!token) {
     // Behåll EXAKT samma origin + locale-prefix — annars cross-origin/språkbyte.
@@ -220,7 +263,11 @@ export async function middleware(req: NextRequest) {
   }
 
   // Autentiserad OK → låt next-intl sätta locale-context/rewrite.
-  const res = captureCreatorRef(req, syncAuthHint(req, intlMiddleware(req)));
+  const res = syncBetaHint(
+    req,
+    captureCreatorRef(req, syncAuthHint(req, intlMiddleware(req))),
+    communityAllowed
+  );
   await renewSession(req, res, token);
   return res;
 }

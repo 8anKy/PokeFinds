@@ -14,6 +14,9 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * dig sätta URL:en. Se docs/MOBILE.md.
  */
 const SERVER_URL = process.env.CAP_SERVER_URL?.trim() || "https://foilio.se";
+// Håll i takt med `NATIVE_UA_TAG` i src/lib/community-v2-gate.ts (kan inte
+// importeras här — filen evalueras av Capacitors CLI utan tsconfig-alias).
+const NATIVE_UA_TAG = `FoilioApp/${process.env.MARKETING_VERSION?.trim() || "1.2"}`;
 
 const config: CapacitorConfig = {
   // android/ har applicationId se.foilio.app (build.gradle); intern namespace är
@@ -58,10 +61,17 @@ const config: CapacitorConfig = {
   ios: {
     contentInset: "always",
     backgroundColor: "#0a0a0c",
+    // "FoilioApp/<version>" sist i WebView:ens User-Agent — servern känner igen
+    // en NY byggnad på taggen (lib/community-v2-gate.ts): forum + meddelanden
+    // visas i TestFlight-bygget innan de släpps för alla. Ingen byggnad före 1.2
+    // bär taggen. Versionen = MARKETING_VERSION ur codemagic.yaml (samma miljö
+    // som `cap add ios` körs i); reserven används vid lokala Android-byggen.
+    appendUserAgent: NATIVE_UA_TAG,
   },
   android: {
     allowMixedContent: false,
     backgroundColor: "#0a0a0c",
+    appendUserAgent: NATIVE_UA_TAG,
   },
   plugins: {
     // Google-/Apple-inloggning i appen (lib/social-login.ts). Bara de två

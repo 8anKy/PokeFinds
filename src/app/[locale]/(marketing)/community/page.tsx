@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { alternatesFor } from "@/lib/canonical";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { redirect } from "next/navigation";
 import { IconLock, IconMessage } from "@/components/ui/icons";
 
 export async function generateMetadata({
@@ -18,11 +19,18 @@ export async function generateMetadata({
 
 // ponytail: community är pausad → statisk "snart här"-skärm (ingen DB-hämtning).
 // Flödeskoden finns kvar i git-historiken när det är dags att öppna igen.
+//
+// SEDAN 2026-09-03 FINNS EFTERTRÄDAREN: forumet på /forum (community v2), grindat
+// tills ägaren testat (lib/community-v2-gate.ts). Den här sidan är vad alla ANDRA
+// ser under tiden. När lanseringsspaken `COMMUNITY_V2_PUBLIC=1` sätts (bakas in
+// vid bygget, därför läsbar här utan att sidan blir dynamisk) skickas alla vidare
+// till forumet — länkar till /community i appar, mejl och Discord fortsätter fungera.
 export default async function CommunityPage({
   params,
 }: {
   params: { locale: string };
 }) {
+  if (process.env.NEXT_PUBLIC_COMMUNITY_V2_PUBLIC === "1") redirect("/forum");
   setRequestLocale(params.locale);
   const t = await getTranslations("Community");
   return (
