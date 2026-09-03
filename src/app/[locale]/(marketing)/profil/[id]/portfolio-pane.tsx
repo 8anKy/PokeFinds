@@ -29,11 +29,14 @@ export async function PortfolioPane({
   canSee,
   isOwnProfile,
   userName,
+  askOwnerId,
 }: {
   userId: string;
   canSee: boolean;
   isOwnProfile: boolean;
   userName: string;
+  /** Ägarens id när betraktaren får fråga "Är den till salu?", annars null (sidan avgör). */
+  askOwnerId: string | null;
 }) {
   const [t, tc] = await Promise.all([getTranslations("Profile"), getTranslations("Collection")]);
 
@@ -77,6 +80,7 @@ export async function PortfolioPane({
     const r = g.lots[0];
     return {
       key: g.key,
+      itemId: r.id,
       name: r.card?.name ?? r.product?.title ?? r.notes ?? tc("unknownItem"),
       setName: r.card?.set?.name ?? null,
       imageUrl: r.imageUrl ?? r.card?.imageUrl ?? r.product?.imageUrl ?? null,
@@ -109,6 +113,7 @@ export async function PortfolioPane({
       <ProfileCollectionGrid
         cells={isOwnProfile ? shown : shown.map((c) => ({ ...c, unitValue: null }))}
         showValues={isOwnProfile}
+        ask={askOwnerId ? { ownerId: askOwnerId } : undefined}
       />
 
       {(hidden > 0 || isOwnProfile) && (

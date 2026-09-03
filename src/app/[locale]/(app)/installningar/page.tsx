@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db";
 import { parseNotificationSettings } from "@/lib/notification-settings";
 import { SettingsClient, type SettingsUser } from "./settings-client";
 import { PageBackButton } from "@/components/layout/page-back-button";
+import { allowsPurchaseRequests } from "@/lib/purchase-requests";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ export default async function SettingsPage() {
       traderaUserId: true,
       showTraderaListings: true,
       isPublicCollection: true,
+      preferences: true, // allowPurchaseRequests — se lib/purchase-requests.ts
       discordUsername: true,
     },
   });
@@ -64,6 +66,7 @@ export default async function SettingsPage() {
     traderaUserId: user.traderaUserId,
     showTraderaListings: user.showTraderaListings,
     isPublicCollection: user.isPublicCollection,
+    allowPurchaseRequests: allowsPurchaseRequests(user.preferences),
     // Community v2-grinden (Tradera-annonser på profilen bor bakom den). Sidan
     // är force-dynamic, så UA + roll läses per besök precis som env-spakarna.
     communityV2: await communityV2Request(session.user.role),

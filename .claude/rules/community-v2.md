@@ -76,6 +76,15 @@ paths:
   på — noll DB, max 4 Tradera-anrop per profil och timme mot 10 000/dygn. Tradera nere ⇒ tom lista, aldrig 500.
   Frånkoppling nollar spaken. **Offentlig samling** (`isPublicCollection`) har sedan 09-03 ett reglage i
   Inställningar (Profil-kortet) utöver samlingens desktop-vy — det styr profilens Portfölj-flik för andra.
+- **KÖPFÖRFRÅGNINGAR PÅ SAMLINGEN — "Är den till salu?" (ägarbeslut 2026-09-03, "Go").** Knapp under varje
+  ruta på ANDRAS offentliga Portfölj-flik (inloggad, bakom grinden, ägaren har inte sagt nej). EN rundtur
+  (`/api/chat/ask-item`, `{ ownerId, itemId }`): öppnar/återanvänder parets chatt, skickar den automatiska
+  frågan (`purchaseAskText`, svensk, namnet ur DB — aldrig ur klienten) och tar frågaren till samtalet; push
+  sköter `sendMessage` när ägaren inte är ansluten. Samma fråga om samma objekt inom 24 h skickas inte igen
+  (`sent:false`, chatten öppnas). Tak 10/timme utöver chattens 30 sändningar/min + 20 nya samtal/dygn.
+  Opt-out = `User.preferences.allowPurchaseRequests` (JSON, ingen migration, saknad nyckel = PÅ) med reglage i
+  Inställningar. ⛔ Ingen "till salu"-status, inget pris, ingen affär i Foilio — frågan är ett meddelande, resten
+  sker i chatten (Foilio är aldrig part). Rena regler + test: `src/lib/purchase-requests.ts`.
 - **Publika forumsidor är ISR (`revalidate = 300`) + `revalidatePath` efter skrivningar**; personligt tillstånd
   (gillat/sparat/gått med/blockerade) hämtas klient-sida från `/api/community/me`. `/meddelanden` är dynamisk
   (auth). Profilsidan var redan `force-dynamic`. Sitemap/robots: forumets läsvyer indexeras (när publikt),

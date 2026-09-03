@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { getFeed } from "@/services/community";
 import { communityV2Request } from "@/lib/community-v2-server";
+import { allowsPurchaseRequests } from "@/lib/purchase-requests";
 import { getTraderaSellerListingsCached, type SellerListing } from "@/lib/tradera-seller-items";
 import { Badge } from "@/components/ui/badge";
 import { IconCheck } from "@/components/ui/icons";
@@ -85,6 +86,7 @@ export default async function ProfilePage({ params }: { params: { locale: string
         showTraderaListings: true,
         traderaUserId: true,
         discordUserId: true,
+        preferences: true, // allowPurchaseRequests — se lib/purchase-requests.ts
         _count: { select: { sales: true } },
       },
     }),
@@ -99,6 +101,14 @@ export default async function ProfilePage({ params }: { params: { locale: string
   // kontot (`showTraderaListings`) och nollas när Tradera-kopplingen bryts.
   const traderaUserId = communityV2 && user.showTraderaListings ? user.traderaUserId : null;
   const canSeeCollection = user.isPublicCollection || isOwnProfile;
+  // "Är den till salu?" på rutorna: bara inloggade, bara andras OFFENTLIGA samling,
+  // bara bakom grinden och bara när ägaren inte sagt nej i Inställningar.
+  const canAsk =
+    communityV2 &&
+    !!session?.user &&
+    !isOwnProfile &&
+    user.isPublicCollection &&
+    allowsPurchaseRequests(user.preferences);
 
   const [posts, listings] = await Promise.all([
     // Även sålda/avslutade annonser — det är personens historik, inte ett flöde.
@@ -156,6 +166,7 @@ export default async function ProfilePage({ params }: { params: { locale: string
           canSee={canSeeCollection}
           isOwnProfile={isOwnProfile}
           userName={user.name}
+          askOwnerId={canAsk ? user.id : null}
         />
       ),
     },

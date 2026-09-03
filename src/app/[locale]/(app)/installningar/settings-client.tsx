@@ -41,6 +41,8 @@ export interface SettingsUser {
   showTraderaListings: boolean;
   /** "Visa min samling på min profil" — profilens Portfölj-flik för andra. */
   isPublicCollection: boolean;
+  /** "Tillåt köpförfrågningar" — knappen "Är den till salu?" på rutorna (preferences-JSON). */
+  allowPurchaseRequests: boolean;
   /** Community v2 (forum/meddelanden/Tradera på profilen) synligt för den här besökaren? */
   communityV2: boolean;
   /** Discord-visningsnamnet när kontot är länkat, annars null. */
@@ -149,6 +151,35 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
       });
     } finally {
       setSavingPublicCollection(false);
+    }
+  }
+
+  // Köpförfrågningar på samlingen — bor i preferences-JSON:en (ingen migration),
+  // saknad nyckel = på. Samma optimistiska mönster som reglagen ovan.
+  const [allowAsks, setAllowAsks] = useState(user.allowPurchaseRequests);
+  const [savingAllowAsks, setSavingAllowAsks] = useState(false);
+
+  async function toggleAllowAsks(next: boolean) {
+    setAllowAsks(next);
+    setSavingAllowAsks(true);
+    try {
+      await apiFetch("/api/users/me", {
+        method: "PATCH",
+        body: { preferences: { allowPurchaseRequests: next } },
+      });
+      toast({
+        title: next ? tSettings("allowPurchaseRequestsOnToast") : tSettings("allowPurchaseRequestsOffToast"),
+        variant: "success",
+      });
+    } catch (e) {
+      setAllowAsks(!next);
+      toast({
+        title: tSettings("saveFail"),
+        description: e instanceof Error ? e.message : undefined,
+        variant: "error",
+      });
+    } finally {
+      setSavingAllowAsks(false);
     }
   }
 
@@ -408,6 +439,27 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
               </span>
             </label>
           </div>
+          {/* "Är den till salu?"-knappen på rutorna. Bara meningsfull när samlingen är
+              offentlig — visas ändå alltid, så valet inte försvinner när man slår av
+              det ena. Community v2-grind som Tradera-reglaget. */}
+          {user.communityV2 && (
+            <div className="mt-4 flex items-start gap-3">
+              <Checkbox
+                id="allow-purchase-requests"
+                checked={allowAsks}
+                disabled={savingAllowAsks}
+                onChange={(e) => void toggleAllowAsks(e.target.checked)}
+              />
+              <label htmlFor="allow-purchase-requests" className="cursor-pointer">
+                <span className="block text-sm font-medium text-ink">
+                  {tSettings("allowPurchaseRequests")}
+                </span>
+                <span className="block text-xs text-ink-muted">
+                  {tSettings("allowPurchaseRequestsHint")}
+                </span>
+              </label>
+            </div>
+          )}
         </CardContent>
       </Card>
 
