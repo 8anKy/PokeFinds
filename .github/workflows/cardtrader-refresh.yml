@@ -100,24 +100,35 @@ jobs:
       - name: 1st Edition (WOTC-seten)
         run: npx tsx scripts/import-cardtrader-first-edition.ts
 
-      # ⛔ `SETS` ÄR EN TIDSBUDGET, INTE EN NEDSKÄRNING. Passet är sekventiellt — en
-      # Prisma-rundtur per kort mot Neon/Frankfurt från en US-runner — och hann bara
-      # ~165 set innan `timeout-minutes: 60` dödade körningen tre nätter i rad
-      # (31978303688, 31981303793, 31992805304; GitHub bokför timeout som "cancelled").
+      # ⛔ TIDSBUDGETEN ÄR `MINUTES`, INTE `SETS` (rättat 2026-09-03).
       #
-      # En dödad körning är värre än en kortare: den når aldrig
-      # `recomputeProductPriceCache()`, så nattens nya reverse-produkter blir stående
-      # med `lowestPriceOre = NULL` och göms ur katalogen — men ligger kvar i sitemapen.
+      # `SETS` var en tidsbudget uttryckt i FEL ENHET. Passet är sekventiellt — en
+      # Prisma-rundtur per kort mot Neon/Frankfurt från en US-runner — och hur lång tid
+      # ett set tar beror på hur många kort det har och hur många TCGdex-slagningar det
+      # kräver. Listan ROTERAR dessutom (stalast först), så SAMMA tal är olika lång tid
+      # varje natt: 110 set tog **44,0 min** 09-02 och var inte klara efter **52 min**
+      # 09-03, då `timeout-minutes: 60` dödade körningen mitt i set 87
+      # (33730849109). Samma sak 08-25 och 08-26. Ett handtrimmat setantal kan alltså
+      # inte hålla marginalen — den äts upp så fort rotationen råkar lägga stora set först.
       #
-      # 110 räcker i budget med marginal för `npm ci` + de två passen ovan + omräkningen.
-      # Full täckning tar två nätter i stället för en, vilket är ofarligt: ordningen är
-      # STALAST FÖRST (b6faea6), så det som hoppades över i natt ligger överst i morgon —
-      # rotationen är garanterad utan markör, migration eller extra DB-läsning.
+      # En DÖDAD körning är värre än en kortare: den når aldrig
+      # `recomputeProductPriceCache()`, så nattens nya reverse-produkter blir stående med
+      # `lowestPriceOre = NULL` och göms ur katalogen — men ligger kvar i sitemapen.
+      # `MINUTES` stoppar i stället set-loopen FRIVILLIGT och kör omräkningen. Svansen är
+      # inte förlorad: ordningen är STALAST FÖRST (b6faea6), så det som hoppades över i
+      # natt ligger överst i morgon — rotationen är garanterad utan markör, migration
+      # eller extra DB-läsning.
+      #
+      # 44 min är satt mot taket på 60: de tidigare stegen (npm ci + de två passen ovan)
+      # tog 6–8 min de senaste nätterna, gränsen prövas FÖRE ett set så det sista får
+      # köra klart (~1–2 min), och omräkningen tar sekunder. Marginal ~6 min.
       # ⛔ Höj inte `timeout-minutes` i stället. Neon debiteras på VAKEN TID och det här
-      # jobbet är redan flottans dyraste enskilda fönster.
-      # Siffran är mätt mot dagens tempo — mät om den när batchningen i
-      # `src/jobs/cardtrader-reverse.ts` landat (då ska den kunna höjas eller tas bort).
-      - name: Reverse holo (stalaste seten först — se SETS)
+      #    jobbet är redan flottans dyraste enskilda fönster.
+      # ⛔ `SETS` är kvar som TAK, inte som budget: på en snabb natt slutar körningen
+      #    som förut i stället för att köpa extra vaken tid för att beta av fler set.
+      #    Höj den bara med ett kostnadsbesked till ägaren.
+      - name: Reverse holo (stalaste seten först — MINUTES är budgeten)
         env:
           SETS: "110"
+          MINUTES: "44"
         run: npx tsx scripts/import-cardtrader-reverse.ts

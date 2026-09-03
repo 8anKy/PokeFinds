@@ -3,7 +3,13 @@
  *
  *   npx tsx scripts/import-cardtrader-reverse.ts                 # torrt, hela katalogen
  *   SETS=5 npx tsx scripts/import-cardtrader-reverse.ts          # torrt, 5 STALASTE seten
+ *   MINUTES=44 npx tsx scripts/import-cardtrader-reverse.ts      # slutar frivilligt efter 44 min
  *   APPLY=1 npx tsx scripts/import-cardtrader-reverse.ts         # SKRIVER
+ *
+ * ⛔ MINUTES ÄR DEN RIKTIGA GRINDEN I DRIFT, inte SETS. Ett setantal är en
+ * tidsbudget i fel enhet — se kommentaren vid `deadline` i
+ * src/jobs/cardtrader-reverse.ts. Sätt den LÄGRE än workflowets
+ * `timeout-minutes` minus de tidigare stegen, så att raden nedan hinner köras.
  *
  * Efter en skarp körning: `recomputeProductPriceCache()` måste ha kört, annars
  * saknar de nya produkterna `lowestPriceOre` och göms av `buildProductWhere`.
@@ -15,14 +21,22 @@ import { recomputeProductPriceCache } from "../src/services/products";
 
 const APPLY = process.env.APPLY === "1";
 const SETS = process.env.SETS ? Number(process.env.SETS) : undefined;
+const MINUTES = process.env.MINUTES ? Number(process.env.MINUTES) : undefined;
 
 async function main() {
   console.log(APPLY ? "SKARP KÖRNING — skriver till databasen" : "TORRKÖRNING — inget skrivs");
   const t0 = Date.now();
-  const r = await runCardTraderReverseImport({ apply: APPLY, setLimit: SETS });
+  const r = await runCardTraderReverseImport({
+    apply: APPLY,
+    setLimit: SETS,
+    budgetMs: MINUTES && MINUTES > 0 ? MINUTES * 60_000 : undefined,
+  });
 
   console.log("\n" + "=".repeat(60));
   console.log(`Set mappade / omappade:     ${r.setsMatched} / ${r.setsUnmatched}`);
+  console.log(
+    `Set körda:                  ${r.setsProcessed}${r.stoppedOnBudget ? " (TIDSBUDGETEN TOG SLUT — resten först nästa körning)" : ""}`
+  );
   console.log(`Kort granskade:             ${r.cardsConsidered}`);
   console.log(`  utan blueprint:           ${r.noBlueprint}`);
   console.log(`  avvisade — för tunt:      ${r.rejectedThin}`);

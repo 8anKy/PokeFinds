@@ -100,6 +100,10 @@ export interface ReverseImportResult {
   baseOffers: number;
   /** Golv som låg orimligt långt under vårt publicerade pris — ej publicerade. */
   baseImplausible: number;
+  /** Antal set körningen HANN med (≤ setLimit). */
+  setsProcessed: number;
+  /** Sant när tidsbudgeten tog slut och svansen sparades till nästa körning. */
+  stoppedOnBudget: boolean;
 }
 
 interface DexCard {
@@ -193,9 +197,14 @@ async function tcgdexHasReverse(dexCardId: string): Promise<boolean | null> {
 export async function runCardTraderReverseImport(opts: {
   apply: boolean;
   setLimit?: number;
+  /**
+   * Wall clock-budget för SET-LOOPEN. Utan den styrs körlängden av `setLimit`,
+   * som är fel enhet — se kommentaren vid `deadline` nedan.
+   */
+  budgetMs?: number;
   gapMs?: number;
 }): Promise<ReverseImportResult> {
-  const { apply, setLimit, gapMs = 700 } = opts;
+  const { apply, setLimit, budgetMs, gapMs = 700 } = opts;
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   const { eurToOre } = await getRatesOre();
   /** Vårt SEK-öre → eurocent, för vaktens reservreferens. */
@@ -217,6 +226,8 @@ export async function runCardTraderReverseImport(opts: {
     baseObservations: 0,
     baseOffers: 0,
     baseImplausible: 0,
+    setsProcessed: 0,
+    stoppedOnBudget: false,
   };
 
   const retailer = apply
@@ -286,7 +297,36 @@ export async function runCardTraderReverseImport(opts: {
     })
     .slice(0, setLimit ?? undefined);
 
+  // ⛔ BUDGETEN ÄR WALL CLOCK, INTE ETT SETANTAL (2026-09-03).
+  //
+  // `SETS` VAR en tidsbudget uttryckt i fel enhet. Tempot per set beror på hur
+  // många kort setet har och hur många TCGdex-slagningar det kräver, och listan
+  // ROTERAR (stalast först) — samma tal är alltså olika lång tid varje natt.
+  // MÄTT: 110 set tog 44,0 min 2026-09-02 men var inte klara efter 52 min
+  // 2026-09-03, då workflowets `timeout-minutes: 60` dödade jobbet mitt i set 87.
+  //
+  // En DÖDAD körning är värre än en kortare: den når aldrig
+  // `recomputeProductPriceCache()`, så nattens nya reverse-produkter blir stående
+  // med `lowestPriceOre = NULL` och göms ur katalogen — men ligger kvar i
+  // sitemapen. En gräns INNE i loopen slutar i stället i förtid och FRIVILLIGT,
+  // och svansen ligger överst i morgon eftersom ordningen är stalast först.
+  //
+  // ⛔ Höj inte `timeout-minutes` i stället. Neon debiteras på VAKEN TID och det
+  //    här jobbet är redan flottans dyraste enskilda fönster.
+  // ⛔ Gränsen prövas FÖRE ett set, aldrig mitt i: ett halvskrivet set hade lämnat
+  //    produkter utan offers. Räkna därför ett helt set (~1 min) som marginal.
+  const deadline = budgetMs && budgetMs > 0 ? Date.now() + budgetMs : null;
+
   for (const { set, exp } of targets) {
+    if (deadline && Date.now() >= deadline) {
+      res.stoppedOnBudget = true;
+      console.log(
+        `[ct-reverse] — TIDSBUDGETEN SLUT efter ${res.setsProcessed} av ${targets.length} set. Resten ligger överst nästa körning (stalast först).`
+      );
+      break;
+    }
+    res.setsProcessed++;
+
     let blueprints: CtBlueprint[];
     let market: Awaited<ReturnType<typeof ctMarketplace>>;
     try {
