@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { useKeyboardHeight } from "@/lib/use-keyboard-height";
+import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
 import { IconX } from "@/components/ui/icons";
 
 export interface ModalProps {
@@ -27,7 +27,7 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
 
   // Tangentbordshöjd → kapa overlayn ovanför tangentbordet så panelen aldrig hamnar
   // bakom det. Mätningen (Capacitor-bryggan i appen, visualViewport på webben)
-  // delas med arket och chatten — se lib/use-keyboard-height.ts.
+  // delas med arket och chatten — se hooks/use-keyboard-height.ts.
   const kbHeight = useKeyboardHeight(open);
 
   // Fokuserat fält (t.ex. Sälj-modalens beskrivning) scrollas in i vy när

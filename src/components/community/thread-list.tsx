@@ -26,9 +26,19 @@ const FILTERS: { id: MarketFilter; key: "filterAll" | "kindSell" | "kindBuy" | "
   { id: "sold", key: "filterSold" },
 ];
 
-function buildUrl(group: string | undefined, filter: MarketFilter, page: number): string {
+function buildUrl(
+  group: string | undefined,
+  author: string | undefined,
+  filter: MarketFilter,
+  page: number
+): string {
   const p = new URLSearchParams();
   if (group) p.set("group", group);
+  if (author) {
+    p.set("author", author);
+    // Profilen visar även sålda/avslutade annonser — det är personens historik.
+    p.set("status", "all");
+  }
   if (filter === "sold") p.set("status", "SOLD");
   else if (filter !== "all") p.set("kind", filter);
   p.set("page", String(page));
@@ -44,15 +54,21 @@ function buildUrl(group: string | undefined, filter: MarketFilter, page: number)
 export function ThreadList({
   initial,
   group,
+  author,
   marketplace = false,
   showGroup = true,
   emptyText,
+  hrefBase,
 }: {
   initial: FeedPage;
   group?: string;
+  /** Författar-id: listan blir personens egna trådar (profilens Inlägg-flik). */
+  author?: string;
   marketplace?: boolean;
   showGroup?: boolean;
   emptyText: string;
+  /** Vart en tråd länkar; profilen utanför grinden pekar på gamla /community. */
+  hrefBase?: string;
 }) {
   const t = useTranslations("Forum");
   const [filter, setFilter] = useState<MarketFilter>("all");
@@ -67,7 +83,7 @@ export function ThreadList({
     async (f: MarketFilter, page: number, append: boolean) => {
       setLoading(true);
       try {
-        const res = await fetch(buildUrl(group, f, page), { credentials: "include" });
+        const res = await fetch(buildUrl(group, author, f, page), { credentials: "include" });
         if (!res.ok) return;
         const data = (await res.json()) as FeedPage;
         setPages((prev) => {
@@ -86,7 +102,7 @@ export function ThreadList({
         setLoading(false);
       }
     },
-    [group]
+    [group, author]
   );
 
   function selectFilter(f: MarketFilter) {
@@ -100,7 +116,11 @@ export function ThreadList({
     <div className="space-y-3">
       {marketplace && (
         <div className="-mx-2.5 sm:mx-0" role="tablist" aria-label={t("filterLabel")}>
-          <div className="flex gap-2 overflow-x-auto px-2.5 py-1 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {/* data-swipe-ignore: raden äger sitt vågräta drag (SwipeBack/SwipeTabs rör den inte). */}
+          <div
+            data-swipe-ignore
+            className="flex gap-2 overflow-x-auto px-2.5 py-1 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
             {FILTERS.map((f) => {
               const active = f.id === filter;
               return (
@@ -132,7 +152,7 @@ export function ThreadList({
       ) : (
         <ul className="space-y-2.5">
           {current.items.map((post) => (
-            <PostCard key={post.id} post={post} showGroup={showGroup} />
+            <PostCard key={post.id} post={post} showGroup={showGroup} hrefBase={hrefBase} />
           ))}
         </ul>
       )}

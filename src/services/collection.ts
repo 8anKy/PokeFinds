@@ -239,7 +239,11 @@ function avgAtOrBefore(snaps: Snap[], end: number): number | null {
  */
 export async function computeCollectionValue(
   userId: string,
-  opts?: { maxDays?: number | null }
+  opts?: {
+    maxDays?: number | null;
+    /** Antal toppobjekt (profilens Portfölj-flik vill se fler än 5). */
+    topItems?: number;
+  }
 ) {
   const items = await prisma.collectionItem.findMany({
     where: { userId },
@@ -280,7 +284,7 @@ export async function computeCollectionValue(
   const topItems = [...items]
     .filter((i) => valueOf(i.id) != null)
     .sort((a, b) => valueOf(b.id)! * b.quantity - valueOf(a.id)! * a.quantity)
-    .slice(0, 5)
+    .slice(0, opts?.topItems ?? 5)
     .map((i) => ({
       id: i.id,
       name: i.card?.name ?? i.product?.title ?? "Okänt objekt",

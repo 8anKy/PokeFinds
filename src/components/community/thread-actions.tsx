@@ -92,7 +92,12 @@ export function ThreadActions({
       });
       setSaved(res.saved);
       invalidatePersonalState();
-      toast({ title: res.saved ? t("savedToast") : t("unsavedToast"), variant: "success" });
+      // Säg VART den tog vägen — knappen ensam pekade ingenstans.
+      toast({
+        title: res.saved ? t("savedToast") : t("unsavedToast"),
+        description: res.saved ? t("savedToastBody") : undefined,
+        variant: "success",
+      });
     } catch (e) {
       toast({
         title: t("saveFailed"),

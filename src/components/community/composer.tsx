@@ -152,7 +152,6 @@ export function Composer({ initialGroup }: { initialGroup?: string }) {
           {!groups && <option value="">{t("loading")}</option>}
           {groups?.map((g) => (
             <option key={g.slug} value={g.slug}>
-              {g.emoji ? `${g.emoji} ` : ""}
               {g.name}
             </option>
           ))}

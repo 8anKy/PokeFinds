@@ -62,6 +62,8 @@ const PROTECTED_PREFIXES = [
   // /forum/g/…, /forum/t/…) är publika men GRINDADE (se communityGate nedan).
   "/meddelanden",
   "/forum/ny",
+  // Sparade/gillade trådar är per definition personliga.
+  "/forum/sparade",
 ];
 
 /**

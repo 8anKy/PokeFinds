@@ -10,6 +10,7 @@ export interface GroupSummary {
   slug: string;
   name: string;
   description: string;
+  /** Ritas INTE längre (ägarbeslut 2026-09-03: för många emojis). Kvar i modellen, ingen migration. */
   emoji: string | null;
   sortOrder: number;
   isMarketplace: boolean;

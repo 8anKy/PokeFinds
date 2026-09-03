@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { SafeImage } from "@/components/ui/safe-image";
 import { IconChevronLeft } from "@/components/ui/icons";
+import { SwipeBack } from "@/components/ui/swipe-back";
 import { RelativeTime } from "@/components/community/relative-time";
 import { ImageGallery } from "@/components/community/image-gallery";
 import { ListingCard } from "@/components/community/listing-card";
@@ -68,10 +69,13 @@ export default async function ThreadPage({ params }: PageProps) {
   );
   const initial = post.user.name.trim().charAt(0).toUpperCase() || "?";
 
+  const backHref = post.group ? `/forum/g/${post.group.slug}` : "/forum";
+
   return (
-    <div className="mx-auto w-full max-w-3xl px-2.5 py-6 sm:px-6">
+    <SwipeBack fallback={backHref}>
+      <div className="mx-auto w-full max-w-3xl px-2.5 py-6 sm:px-6">
       <Link
-        href={post.group ? `/forum/g/${post.group.slug}` : "/forum"}
+        href={backHref}
         className="inline-flex items-center gap-1 text-sm text-ink-muted hover:text-holo-cyan"
       >
         <IconChevronLeft size={16} />
@@ -84,9 +88,8 @@ export default async function ThreadPage({ params }: PageProps) {
             {post.group && (
               <Link
                 href={`/forum/g/${post.group.slug}`}
-                className="inline-flex items-center gap-1 rounded-full border border-surface-border px-2.5 py-0.5 font-medium text-ink-muted hover:text-holo-cyan"
+                className="inline-flex items-center rounded-full border border-surface-border px-2.5 py-0.5 font-medium text-ink-muted hover:text-holo-cyan"
               >
-                {post.group.emoji && <span aria-hidden="true">{post.group.emoji}</span>}
                 {post.group.name}
               </Link>
             )}
@@ -170,6 +173,7 @@ export default async function ThreadPage({ params }: PageProps) {
 
         <Replies postId={post.id} initial={comments} />
       </article>
-    </div>
+      </div>
+    </SwipeBack>
   );
 }

@@ -18,6 +18,12 @@ export const dynamic = "force-dynamic";
 
 const feedSchema = z.object({
   group: z.string().trim().min(1).max(64).optional(),
+  /** Författar-id (profilens Inlägg-flik). Trådar är publika, så ingen auth-koppling. */
+  author: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9_-]{1,64}$/)
+    .optional(),
   kind: z.nativeEnum(ListingKind).optional(),
   status: z.union([z.nativeEnum(ListingStatus), z.literal("all")]).optional(),
   page: z.coerce.number().int().min(1).default(1),
@@ -57,6 +63,7 @@ export async function GET(req: NextRequest) {
     const params = feedSchema.parse(Object.fromEntries(req.nextUrl.searchParams.entries()));
     const feed = await getFeed({
       groupSlug: params.group,
+      authorId: params.author,
       kind: params.kind,
       status: params.status,
       page: params.page,

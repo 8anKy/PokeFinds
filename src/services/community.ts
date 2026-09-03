@@ -125,6 +125,8 @@ export interface CommentDto {
 
 export interface FeedParams {
   groupSlug?: string;
+  /** Bara en viss författares trådar (profilens Inlägg-flik). */
+  authorId?: string;
   kind?: ListingKind;
   /**
    * Annonsstatus. Utelämnad = "det som är aktuellt": vanliga trådar (null) +
@@ -185,9 +187,12 @@ async function toFeedItems(rows: FeedRow[]): Promise<FeedItem[]> {
   });
 }
 
-export function buildFeedWhere(params: Pick<FeedParams, "groupSlug" | "kind" | "status">) {
+export function buildFeedWhere(
+  params: Pick<FeedParams, "groupSlug" | "authorId" | "kind" | "status">
+) {
   const where: Prisma.CommunityPostWhereInput = { isHidden: false };
   if (params.groupSlug) where.group = { slug: params.groupSlug };
+  if (params.authorId) where.userId = params.authorId;
   if (params.kind) where.listingKind = params.kind;
   if (params.status === "all") {
     // inget statusfilter
@@ -215,6 +220,44 @@ export async function getFeed(params: FeedParams) {
   ]);
 
   const items = await toFeedItems(rows);
+  return { items, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+}
+
+/**
+ * Betraktarens SPARADE trådar, senast sparad först — dit Spara-knappen leder
+ * (/forum/sparade). Gömda trådar faller bort men raden ligger kvar; dyker
+ * tråden upp igen är den sparad som förut.
+ */
+export async function getSavedFeed(userId: string, page: number, pageSize: number) {
+  const where = { userId, post: { isHidden: false } } as const;
+  const [rows, total] = await prisma.$transaction([
+    prisma.savedPost.findMany({
+      where,
+      include: { post: { include: FEED_INCLUDE } },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.savedPost.count({ where }),
+  ]);
+  const items = await toFeedItems(rows.map((r) => r.post));
+  return { items, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+}
+
+/** Betraktarens GILLADE trådar, senast gillad först (Gillade-fliken på /forum/sparade). */
+export async function getLikedFeed(userId: string, page: number, pageSize: number) {
+  const where = { userId, post: { isHidden: false } } as const;
+  const [rows, total] = await prisma.$transaction([
+    prisma.like.findMany({
+      where,
+      include: { post: { include: FEED_INCLUDE } },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.like.count({ where }),
+  ]);
+  const items = await toFeedItems(rows.map((r) => r.post));
   return { items, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
 }
 

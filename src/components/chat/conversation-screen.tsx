@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useKeyboardHeight } from "@/lib/use-keyboard-height";
+import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
 
 /** Bottenflikarnas klarering (h-16 i BottomTabs) — plus safe-area i CSS nedan. */
 const TAB_BAR_PX = 64;

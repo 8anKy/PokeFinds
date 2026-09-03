@@ -3,7 +3,7 @@
 import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
-import { useKeyboardHeight } from "@/lib/use-keyboard-height";
+import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
 
 /**
  * Bottenark — appens ENDA glid-upp-panel.
@@ -46,7 +46,7 @@ export function BottomSheet({
 
   // Tangentbordshöjd → arket lyfts ovanför tangentbordet i stället för att hamna
   // bakom det (prisfältets sifferknappsats täckte hela panelen). Mätningen delas
-  // med modalen och chatten — se lib/use-keyboard-height.ts.
+  // med modalen och chatten — se hooks/use-keyboard-height.ts.
   const kbHeight = useKeyboardHeight(open);
 
   useEffect(() => {

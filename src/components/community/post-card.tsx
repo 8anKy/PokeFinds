@@ -19,7 +19,15 @@ import { RelativeTime } from "./relative-time";
  * ThreadList och som server i andra träd. Sålda/avslutade annonser tonas ner
  * men försvinner inte: tråden är fortfarande en sann historia.
  */
-export function PostCard({ post, showGroup = true }: { post: FeedItem; showGroup?: boolean }) {
+export function PostCard({
+  post,
+  showGroup = true,
+  hrefBase = "/forum/t",
+}: {
+  post: FeedItem;
+  showGroup?: boolean;
+  hrefBase?: string;
+}) {
   const t = useTranslations("Forum");
   const tCat = useTranslations("PostCategory");
   const muted = post.listingStatus === "SOLD" || post.listingStatus === "CLOSED";
@@ -28,7 +36,7 @@ export function PostCard({ post, showGroup = true }: { post: FeedItem; showGroup
   return (
     <li>
       <Link
-        href={`/forum/t/${post.id}`}
+        href={`${hrefBase}/${post.id}`}
         className={cn(
           "card-surface block rounded-xl p-3.5 transition-colors hover:bg-surface-overlay/50",
           muted && "opacity-60"
@@ -37,11 +45,9 @@ export function PostCard({ post, showGroup = true }: { post: FeedItem; showGroup
         <div className="flex gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              {/* Gruppnamnet utan emoji — ägarbeslut 2026-09-03 ("för många emojis"). */}
               {showGroup && post.group && (
-                <span className="inline-flex items-center gap-1 text-ink-muted">
-                  {post.group.emoji && <span aria-hidden="true">{post.group.emoji}</span>}
-                  {post.group.name}
-                </span>
+                <span className="text-ink-muted">{post.group.name}</span>
               )}
               {post.listingKind && (
                 <Badge variant={LISTING_KIND_VARIANTS[post.listingKind]}>

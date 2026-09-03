@@ -5,6 +5,7 @@ import { Link } from "@/i18n/navigation";
 import { alternatesFor } from "@/lib/canonical";
 import { LinkButton } from "@/components/ui/button";
 import { IconChevronLeft, IconPlus } from "@/components/ui/icons";
+import { SwipeBack } from "@/components/ui/swipe-back";
 import { GroupChips } from "@/components/community/group-chips";
 import { JoinGroupButton } from "@/components/community/join-group-button";
 import { ThreadList } from "@/components/community/thread-list";
@@ -42,7 +43,8 @@ export default async function GroupPage({ params }: PageProps) {
   const feed = await getFeed({ groupSlug: group.slug, page: 1, pageSize: 20 });
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-2.5 py-6 sm:px-6">
+    <SwipeBack fallback="/forum">
+      <div className="mx-auto w-full max-w-3xl px-2.5 py-6 sm:px-6">
       <Link
         href="/forum"
         className="inline-flex items-center gap-1 text-sm text-ink-muted hover:text-holo-cyan"
@@ -53,14 +55,7 @@ export default async function GroupPage({ params }: PageProps) {
 
       <header className="mt-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="font-display text-3xl font-bold text-ink">
-            {group.emoji && (
-              <span aria-hidden="true" className="mr-2">
-                {group.emoji}
-              </span>
-            )}
-            {group.name}
-          </h1>
+          <h1 className="font-display text-3xl font-bold text-ink">{group.name}</h1>
           <p className="mt-1 text-sm text-ink-muted">{group.description}</p>
           <p className="mt-2 text-xs text-ink-faint">
             {t("members", { count: group.memberCount })} · {t("threads", { count: group.threadCount })}
@@ -94,6 +89,7 @@ export default async function GroupPage({ params }: PageProps) {
           emptyText={t("emptyGroup")}
         />
       </div>
-    </div>
+      </div>
+    </SwipeBack>
   );
 }

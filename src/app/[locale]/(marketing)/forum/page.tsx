@@ -3,7 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { alternatesFor } from "@/lib/canonical";
 import { LinkButton } from "@/components/ui/button";
-import { IconMail, IconPlus } from "@/components/ui/icons";
+import { IconBookmark, IconMail, IconPlus } from "@/components/ui/icons";
 import { UnreadBadge } from "@/components/chat/unread-badge";
 import { GroupChips } from "@/components/community/group-chips";
 import { ThreadList } from "@/components/community/thread-list";
@@ -38,12 +38,19 @@ export default async function ForumPage({ params }: PageProps) {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-2.5 py-6 sm:px-6">
-      <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="font-display text-3xl font-bold text-ink">{t("h1")}</h1>
-          <p className="mt-1 text-sm text-ink-muted">{t("subtitle")}</p>
-        </div>
+      {/* Bara rubriken — ingen ingress (ägarbeslut 2026-09-03: "onödig text"). */}
+      <header className="flex items-center justify-between gap-3">
+        <h1 className="min-w-0 font-display text-3xl font-bold text-ink">{t("h1")}</h1>
         <div className="flex shrink-0 items-center gap-2">
+          {/* Dit Spara/Gilla leder — knapparna på tråden pekar hit i sin toast. */}
+          <Link
+            href="/forum/sparade"
+            aria-label={t("savedLink")}
+            title={t("savedLink")}
+            className="grid h-10 w-10 place-items-center rounded-full border border-surface-border text-ink-muted transition-colors hover:border-holo-cyan/40 hover:text-holo-cyan"
+          >
+            <IconBookmark size={18} />
+          </Link>
           <Link
             href="/meddelanden"
             aria-label={t("messages")}

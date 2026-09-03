@@ -76,6 +76,24 @@ paths:
   (gillat/sparat/gått med/blockerade) hämtas klient-sida från `/api/community/me`. `/meddelanden` är dynamisk
   (auth). Profilsidan var redan `force-dynamic`. Sitemap/robots: forumets läsvyer indexeras (när publikt),
   `/meddelanden` + `/forum/ny` är disallow.
+- **POLERINGSRUNDA EFTER ÄGARENS TESTFLIGHT-TEST (2026-09-03, samma kväll)** — tre ägarbeslut:
+  (1) **INGA EMOJIS I FORUMET** — `CommunityGroup.emoji` finns kvar i modellen men RITAS INTE (chips, kort,
+  trådhuvud, gruppsida, composer). Forumets ingress ("Pulls, samlingar…") är BORTTAGEN — bara rubriken.
+  (2) **SPARA/GILLA LEDER NÅGONSTANS**: `/forum/sparade` (dynamisk, kräver konto — `PROTECTED_PREFIXES`) med
+  två svepbara flikar Sparade/Gillade (`getSavedFeed`/`getLikedFeed`, `/api/community/saved?kind=`), bokmärkes-
+  ikon i forumhuvudet, och Spara-toasten säger vart tråden tog vägen.
+  (3) **PROFILEN = HUVUD + TRE FLIKAR** (Inlägg · Portfölj · Tradera) i `ui/swipe-tabs.tsx`. Inlägg = `ThreadList`
+  med `author=` (även sålda/avslutade — det är personens historik; `hrefBase="/community"` utanför grinden),
+  Portfölj = `portfolio-pane.tsx` (topp 20 via `computeCollectionValue(id, { topItems })`, andra ser aldrig
+  belopp), Tradera = `tradera-listings-pane.tsx` (fliken finns bara bakom grinden och när spaken är på — eller
+  på EGEN profil, då med väg till inställningen).
+  **SVEP-KONVENTIONERNA** (`src/lib/swipe-gesture.ts`, rena beslut, testade): `SwipeTabs` sveper mellan flikar,
+  `SwipeBack` (`ui/swipe-back.tsx`) = kant-svep tillbaka på tråd/grupp/profil/sparade (router.back, fallback vid
+  djuplänk). Kantzonen (28 px från vänster) tillhör ALLTID SwipeBack — SwipeTabs rör den inte. ⛔ Ytor som äger
+  sitt eget vågräta drag (grupp-chips, filterrader, grafer) MÅSTE bära `data-swipe-ignore`, annars kapar
+  bakåt-svepet en scroll som börjar vid kanten. Touch-events + `preventDefault` på vågrätt touchmove, av samma
+  skäl som produkt-overlayn (WKWebView:s systemgest). ⛔ Sätt aldrig `allowsBackForwardNavigationGestures` i
+  Capacitor — då dubbelfyrar bakåt. Hooks bor i `src/hooks/` (`use-keyboard-height.ts` delas av ark/modal/chatt).
 - **Legal (publicerat 2026-09-03, ej juristgranskat)**: villkor §21 (innehållslicens, anslagstavla/ingen part,
   anmälan + motivering + invändning [DSA], moderatorläsning av ANMÄLDA samtal, blockering, förbjudet innehåll),
   integritetspolicy (meddelanden, forumbilder, Railway Buckets, hämtning av publika Tradera-annonser).
