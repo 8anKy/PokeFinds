@@ -188,13 +188,15 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   trust-grinden vidgas INTE (94 % vs 98 %), svep om ~09-15 på `recall.gm`.
 - **Mät ISR-effekten (~2026-09-05)**: `scripts/neon-wake-attribution.ts` mot baslinjen 19 h/dygn (08-26).
   Nästa kandidat om set-sidorna dominerar: samma skal-behandling för `/sets/[id]` (bär pris i HTML, 1 h).
-- **Community v2 (forum + meddelanden + Tradera på profilen) BYGGT 2026-09-03, VÄNTAR PÅ ÄGARENS TEST**
-  (`.claude/rules/community-v2.md`). Deployat 277140b, live-verifierat (anonym /forum → 307, taggad → 200,
-  upload enabled, stream 401). ✅ Codemagic-bygge 1.2 byggt 2026-09-03. Kvar hos ägaren:
-  (2) testa i TestFlight: forum/bilder/köp-sälj/chatt med push/blockera/anmäl/Tradera-kortet/`/admin/chatt`,
-  (3) skapa Discord-kanal för Köp/Sälj/Byt + `DISCORD_MARKET_CHANNEL_ID` i Railway, (4) släpp 1.2 i App Store
-  OCH sätt `COMMUNITY_V2_PUBLIC=1` i Railway (webben). Bucketen `foilio-uploads` (ams) finns och är kopplad
-  via `S3_*`-referenser. ⛔ Ingen live-chatt-POLLNING — chatten är SSE-baserad; 2026-08-29-kalkylen ~$45/mån
+- **Community v2 (forum + meddelanden + Tradera på profilen + köpförfrågningar) BYGGT, TESTFLIGHT-TESTAT OCH
+  POLERAT 2026-09-03 — GRINDAT TILLS LANSERING** (`.claude/rules/community-v2.md`). ✅ Codemagic-bygge 1.2
+  byggt; alla poleringar efter testet är webb-serverade (inget nytt bygge). Kvar hos ägaren: (a) "go" på
+  förslaget för BLOCKERADE profiler (avskalad sida + Avblockera för blockeraren, neutralt "inte tillgänglig"
+  för den blockerade — avslöja aldrig blockering), (b) en regel för `reputationScore` (skrivs ALDRIG i dag,
+  raden är dold), (c) apptest av flik-svep/kant-svep och köpförfrågan med två konton, (d) Discord-kanal för
+  Köp/Sälj/Byt + `DISCORD_MARKET_CHANNEL_ID` i Railway, (e) släpp 1.2 i App Store OCH sätt
+  `COMMUNITY_V2_PUBLIC=1` i Railway (webben). Bucketen `foilio-uploads` (ams) finns och är kopplad via
+  `S3_*`-referenser. ⛔ Ingen live-chatt-POLLNING — chatten är SSE-baserad; 2026-08-29-kalkylen ~$45/mån
   gällde pollning mot Neon, inte chatt som sådan.
 - **JP-singlar, kvar**: 281 utan direkt CM-länk (se jp-sets.md), Mega Series Promos saknar CM-expansion,
   ~20 SM-era-set utan logotyp, 24 JP-set utan kort hos leverantören (läker av sig själva).
