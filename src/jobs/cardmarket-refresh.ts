@@ -24,6 +24,7 @@ import {
 } from "../lib/marketplace-urls";
 import { judgeSameProduct } from "../lib/same-product";
 import { expansionSetJoin } from "../lib/cm-expansion-join";
+import { backfillCardmarketIds, buildCmIdByName } from "../lib/cm-catalog-names";
 import { adoptCmName } from "./adopt-cm-name";
 import { createSetLabeler } from "./sealed-set-label";
 import { runJapaneseSetLabels } from "./jp-set-label";
@@ -796,6 +797,7 @@ export async function fetchCmGuide(): Promise<Map<number, CmGuideEntry>> {
  */
 let cmSealedIdsCache: Set<number> | null = null;
 let cmSealedExpansionsCache: Map<number, number> | null = null;
+let cmSealedIdByNameCache: Map<string, number> | null = null;
 export async function fetchCmSealedIds(): Promise<Set<number>> {
   if (cmSealedIdsCache) return cmSealedIdsCache;
   const r = await fetch(CM_NONSINGLES_URL);
@@ -803,12 +805,22 @@ export async function fetchCmSealedIds(): Promise<Set<number>> {
     console.error(`[cm-refresh] nonsingles-katalog HTTP ${r.status} — EN-guide-fallback avstår denna körning`);
     return new Set();
   }
-  const cat = (await r.json()) as { products: { idProduct: number; idExpansion?: number | null }[] };
+  const cat = (await r.json()) as { products: { idProduct: number; name: string; idExpansion?: number | null }[] };
   cmSealedIdsCache = new Set(cat.products.map((p) => p.idProduct));
   cmSealedExpansionsCache = new Map(
     cat.products.flatMap((p) => (p.idExpansion != null ? [[p.idProduct, p.idExpansion] as const] : []))
   );
+  cmSealedIdByNameCache = buildCmIdByName(cat.products);
   return cmSealedIdsCache;
+}
+
+/**
+ * Katalognamn → idProduct ur SAMMA nedladdning. Lagar RapidAPI-rader vars
+ * `cardmarket_id` ännu är null för ett helt nytt set — se src/lib/cm-catalog-names.ts.
+ */
+export async function fetchCmSealedIdByName(): Promise<Map<string, number>> {
+  if (!cmSealedIdByNameCache) await fetchCmSealedIds();
+  return cmSealedIdByNameCache ?? new Map();
 }
 
 /**
@@ -2190,6 +2202,21 @@ export async function runCardmarketRefresh(
           `Vanligaste orsaken: RapidAPI-kvoten slut (1597/3000 används normalt) eller 429/5xx.`
       );
     }
+
+    // ── NYTT SET: RapidAPI SAKNAR ÄNNU cardmarket_id (2026-09-05) ───────────────
+    // Fyll i det ur CM:s egen nonsingles-katalog på EXAKT namn INNAN indexen byggs,
+    // så allt nedströms (apiByCmId, ownedCmIds, fuzzy-grenens `best.cardmarket_id ==
+    // null → continue`, offer-URL:en) fungerar oförändrat. Utan detta kunde varken
+    // pris eller set-etikett nå ett kommande set — mätt på Delta Reign, som låg hos
+    // CM 2026-08-20 med alla 18 idProduct satta medan RapidAPI gav null på var enda.
+    // Vakterna (unikt namn, aldrig kapa en upptagen id) bor i cm-catalog-names.ts.
+    const cmIdByName = await fetchCmSealedIdByName();
+    const backfilled = backfillCardmarketIds(apiProducts, cmIdByName);
+    if (backfilled.filled || backfilled.skippedTaken)
+      console.log(
+        `[cm-refresh] cardmarket_id återfunnet ur CM-katalogen på exakt namn: ${backfilled.filled}` +
+          (backfilled.skippedTaken ? ` (${backfilled.skippedTaken} hoppade — id:t ägs redan av en annan rad)` : "")
+      );
 
     const byEpisode = new Map<string, ApiProduct[]>();
     const apiByCmId = new Map<number, ApiProduct>();

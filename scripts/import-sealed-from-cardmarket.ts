@@ -29,6 +29,7 @@ import { PrismaClient, type ProductCategory } from "@prisma/client";
 import { getRatesOre } from "../src/lib/exchange-rate";
 import { cardmarketProductUrl } from "../src/lib/marketplace-urls";
 import { classifyForm } from "../src/scrapers/matching";
+import { backfillCardmarketIds, buildCmIdByName } from "../src/lib/cm-catalog-names";
 
 const prisma = new PrismaClient();
 const HOST = process.env.CARDMARKET_RAPIDAPI_HOST ?? "cardmarket-api-tcg.p.rapidapi.com";
@@ -104,24 +105,26 @@ async function loadCatalog(): Promise<ApiProduct[]> {
 // katalog (S3) — RapidAPI-produkten saknar dateAdded, gratis-katalogen har den. Så
 // automationen fångar NYA/kommande set och hoppar över hela bakåtkatalogen. Namn +
 // expansioner behövs för gratis-katalog-fallbacken (se main).
-async function loadRecentProducts(days: number): Promise<{
+async function loadRecentProducts(days: number | null): Promise<{
   recent: Map<number, string>;
   expansionOf: Map<number, number>;
+  idByName: Map<string, number>;
 }> {
   const r = await fetch(NONSINGLES_URL);
   if (!r.ok) throw new Error(`Gratis CM-katalog (dateAdded) HTTP ${r.status}`);
   const j = (await r.json()) as {
     products: { idProduct: number; name: string; idExpansion: number; dateAdded: string }[];
   };
-  const cutoff = Date.now() - days * 86_400_000;
+  const cutoff = days != null ? Date.now() - days * 86_400_000 : null;
   const recent = new Map<number, string>();
   const expansionOf = new Map<number, number>();
   for (const p of j.products) {
     expansionOf.set(p.idProduct, p.idExpansion);
+    if (cutoff == null) continue;
     const t = Date.parse(p.dateAdded.replace(" ", "T") + "Z");
     if (!Number.isNaN(t) && t >= cutoff) recent.set(p.idProduct, p.name);
   }
-  return { recent, expansionOf };
+  return { recent, expansionOf, idByName: buildCmIdByName(j.products) };
 }
 
 // CM:s officiella prisguide (idProduct → low/trend/avg) — samma publika export som
@@ -177,11 +180,25 @@ async function main() {
   const sets = await prisma.cardSet.findMany({ where: { language: "EN" }, select: { id: true, name: true } });
   const setMap = new Map(sets.map((s) => [norm(s.name), s.id]));
 
-  const freeCatalog = RECENT_DAYS != null ? await loadRecentProducts(RECENT_DAYS) : null;
-  const recent = freeCatalog?.recent ?? null;
+  // Gratis-katalogen laddas ALLTID (S3, ingen RapidAPI-kvot): den bär både
+  // dateAdded (RECENT_DAYS-läget) och namn→idProduct-nyckeln nedan.
+  const freeCatalog = await loadRecentProducts(RECENT_DAYS);
+  const recent = RECENT_DAYS != null ? freeCatalog.recent : null;
   const recentIds = recent ? new Set(recent.keys()) : null;
 
   const catalog = await loadCatalog();
+  // ── NYTT SET: RapidAPI SAKNAR ÄNNU cardmarket_id (2026-09-05) ────────────────
+  // Utan det här är en helt ny expansion omöjlig att importera: huvudloopen skapar
+  // en produkt UTAN CM-offer (ingen länk, inget pris), RECENT_DAYS-läget hoppar
+  // över den helt (`cmid == null`), och gratis-katalog-fallbacken kräver ett
+  // EN-syskon i expansionen som per definition inte finns än. Mätt på Delta Reign
+  // 2026-09-05: 0 av 18 kunde nå katalogen. Vakterna bor i cm-catalog-names.ts.
+  const backfilled = backfillCardmarketIds(catalog, freeCatalog.idByName);
+  if (backfilled.filled || backfilled.skippedTaken)
+    console.log(
+      `cardmarket_id återfunnet ur CM-katalogen på exakt namn: ${backfilled.filled}` +
+        (backfilled.skippedTaken ? ` (${backfilled.skippedTaken} hoppade — id:t ägs redan av en annan rad)` : "")
+    );
   console.log(
     `CM-katalog: ${catalog.length} · APPLY=${APPLY}` +
       (ONLY ? ` · endast ${ONLY.join(",")}` : "") +
@@ -226,6 +243,12 @@ async function main() {
 
     stat[cat] = (stat[cat] ?? 0) + 1;
     created++;
+    // Torrkörningen sa bara HUR MÅNGA — utan raderna går den inte att granska före
+    // --apply (och gratis-katalog-grenen loggade redan sina).
+    console.log(
+      `  [rapidapi] ${cat} · ${p.name} (idProduct=${cmid ?? "SAKNAS"}, ${eur} €` +
+        `${setId ? `, set "${p.episode?.name}"` : ", SET-LÖS"})`
+    );
 
     if (APPLY) {
       await prisma.product.create({

@@ -78,6 +78,15 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
 - **Katalogflödet är hands-off**: nya set + singlar (`import-new-sets.yml`, sön 03:30 UTC), sealed
   CM-pris/trend + set-etiketter (`runCardmarketRefresh`), auto-import av butiks-SKU:er (restock-skanningen).
   Inget manuellt steg återstår — bevaka bara RapidAPI-kvoten vid stora släpp.
+  ⛔ **RAPIDAPI GER `cardmarket_id: null` FÖR ETT HELT NYTT SET** (mätt 2026-09-05 på Delta Reign: CM hade
+  alla 18 `idProduct` sedan 08-20, RapidAPI noll av dem 16 dygn senare). Utan ett id är setet OSYNLIGT för
+  HELA flödet på en gång: importens huvudloop skapar en produkt utan CM-offer (ingen länk, inget pris),
+  RECENT_DAYS-läget hoppar över den, gratis-katalog-fallbacken kräver ett EN-syskon i expansionen som ett
+  nytt set per definition saknar, och `cardmarket-refresh` gör `best.cardmarket_id == null → continue` (varken
+  pris eller set-etikett). Id:t återfinns därför ur CM:s EGNA nonsingles-katalog på EXAKT namn
+  (`src/lib/cm-catalog-names.ts`, används av båda) — ⛔ aldrig fuzzy: båda listorna är CM:s egna katalognamn,
+  och ett namn som pekar på flera `idProduct` kastas hellre än gissas (4 av 5 044). ⛔ En rad får aldrig kapa
+  ett id en annan rad redan bär — då visar en av produkterna en främmande prisgraf.
   ⛔ **Konstavtryck byggs på TVÅ ställen sedan 2026-09-02**: söndagsjobbet (efter bildlagningen) OCH som sista
   steg i `cardmarket-refresh` — `jp-singles-refresh` SKAPAR kort dagligen (5 075 st 2026-09-01) och ett kort utan
   `artFingerprint` är osynligt för skannerns bildmatchning tills nästa bygge. Appens art-index cachar 24 h
