@@ -3514,72 +3514,80 @@ function ScanDetailsSheet(props: {
   }, [item.candidates, item.match]);
 
   return (
-    <Sheet title={t("scanDetails")} onClose={props.onClose}>
-      <div className="flex flex-col gap-4">
-        {/* HERO PÅ EN RAD (2026-09-05): din bild · din träff · namn/set/pris.
-            Förut låg bildparet i full bredd (två ~240 px höga kort) med metan
-            under — arket (max 85 % av skärmen) tog slut mitt i kandidatraden och
-            "Ta bort skanning" låg ALLTID under vikningen. Miniatyrer i fast bredd
-            bredvid texten sparar ~200 px utan att arket blir högre, och
-            jämförelsen står fortfarande sida vid sida. Budgeten är räknad för
-            812 px-skärmar och uppåt; en SE scrollar fortfarande. */}
-        <div className="flex items-start gap-3">
-          <figure className="flex w-[92px] shrink-0 flex-col items-center gap-1.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={item.captured}
-              alt={t("yourImage")}
-              className="aspect-[5/7] w-full rounded-lg object-cover ring-1 ring-surface-border"
-            />
-            <figcaption className="text-[11px] text-ink-faint">{t("yourImage")}</figcaption>
-          </figure>
-          <figure className="flex w-[92px] shrink-0 flex-col items-center gap-1.5">
-            {item.match?.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
+    <Sheet title={t("scanDetails")} onClose={props.onClose} fill>
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+        {/* DIN BILD VS DIN TRÄFF — TAR DEN HÖJD SOM BLIR ÖVER (2026-09-05).
+            Arket är max 85 % av skärmen och allt annat här (meta, kandidatrad,
+            åtgärder) har fast höjd. Förut hade bildparet också det (kolumnbredd ×
+            7/5 ≈ 240 px), så på varje telefon tog arket slut mitt i kandidatraden
+            och "Ta bort skanning" låg under vikningen. Nu fyller paret det som
+            återstår: stort på en Pro Max, mindre på en 13 mini, samma layout.
+            ⛔ Proportionen viker aldrig — bilden sätts med max-h + max-w och
+            aspect-ratio, så den blir MINDRE, aldrig avlång. Golvet 112 px: under
+            det scrollar arket i stället (SE-klassen). `minmax(0,1fr)` på raden
+            och min-h-0 hela vägen ner är det som gör krympningen möjlig — en
+            auto-minimihöjd någonstans i kedjan låser bilden vid full bredd igen.
+            Ägaren 2026-09-05: den kompakta hero-raden var fel svar, "I like how
+            it was before but i just wanted it all to fit in one view". */}
+        <div className="grid min-h-[112px] flex-1 grid-cols-2 grid-rows-[minmax(0,1fr)] gap-3">
+          <figure className="flex min-h-0 flex-col items-center gap-2">
+            <div className="min-h-0 w-full flex-1">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={item.match.imageUrl}
-                alt={t("yourMatch")}
-                className="aspect-[5/7] w-full rounded-lg object-cover ring-1 ring-holo-cyan/40"
+                src={item.captured}
+                alt={t("yourImage")}
+                className="mx-auto block aspect-[5/7] h-auto max-h-full w-auto max-w-[min(100%,260px)] rounded-xl object-cover ring-1 ring-surface-border"
               />
-            ) : (
-              <span className="flex aspect-[5/7] w-full items-center justify-center rounded-lg bg-surface-overlay text-ink-faint ring-1 ring-surface-border">
-                <IconSearch size={20} />
-              </span>
-            )}
-            <figcaption className="text-[11px] text-ink-faint">
+            </div>
+            <figcaption className="shrink-0 text-xs text-ink-faint">{t("yourImage")}</figcaption>
+          </figure>
+          <figure className="flex min-h-0 flex-col items-center gap-2">
+            <div className="min-h-0 w-full flex-1">
+              {item.match?.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={item.match.imageUrl}
+                  alt={t("yourMatch")}
+                  className="mx-auto block aspect-[5/7] h-auto max-h-full w-auto max-w-[min(100%,260px)] rounded-xl object-cover ring-1 ring-holo-cyan/40"
+                />
+              ) : (
+                <span className="mx-auto flex aspect-[5/7] h-full max-w-full items-center justify-center rounded-xl bg-surface-overlay text-ink-faint ring-1 ring-surface-border">
+                  <IconSearch size={24} />
+                </span>
+              )}
+            </div>
+            <figcaption className="shrink-0 text-xs text-ink-faint">
               {item.match ? t("yourMatch") : t("noMatch")}
             </figcaption>
           </figure>
+        </div>
 
-          {/* Träff-meta — bredvid bilderna, inte under dem. */}
-          <div className="min-w-0 flex-1 self-center">
-            {item.match ? (
-              <>
-                <p className="line-clamp-2 text-base font-semibold leading-snug text-ink">
-                  {item.match.name}
-                </p>
-                <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-ink-muted">
+        {/* Träff-meta */}
+        {item.match && (
+          <div className="shrink-0">
+            <div className="flex items-baseline justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-lg font-semibold text-ink">{item.match.name}</p>
+                <p className="truncate text-sm text-ink-muted">
                   {item.match.setName} · #{item.match.number}
                   {/* Tryckningen är en del av identiteten, inte en detalj: en
                       1st Edition Base Charizard är värd tiofalt en Unlimited. */}
                   {item.match.variantLabel ? ` · ${item.match.variantLabel}` : ""}
                 </p>
-                <p className="mt-1.5 text-lg font-semibold tabular-nums text-holo-cyan">
-                  {item.match.estimatedValue != null ? formatPrice(item.match.estimatedValue) : "–"}
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-ink-muted">{t("couldntMatch")}</p>
-            )}
+              </div>
+              <p className="shrink-0 text-lg font-semibold tabular-nums text-holo-cyan">
+                {item.match.estimatedValue != null ? formatPrice(item.match.estimatedValue) : "–"}
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Alternativ */}
         {/* Varför gissningen är en gissning — sagt rakt ut, inte antytt. Flera
             OLIKA kort låg praktiskt taget lika, så listan nedan är inte
             "alternativ om jag har fel" utan "kort som var precis lika troliga". */}
         {item.uncertain && item.match && (
-          <p className="rounded-xl bg-holo-gold/10 px-3 py-2 text-xs leading-relaxed text-holo-gold ring-1 ring-holo-gold/25">
+          <p className="shrink-0 rounded-xl bg-holo-gold/10 px-3 py-2 text-xs leading-relaxed text-holo-gold ring-1 ring-holo-gold/25">
             {t("uncertainMatch")}
           </p>
         )}
@@ -3592,7 +3600,7 @@ function ScanDetailsSheet(props: {
             (-mx-5/px-5) så att ett halvt kort tittar fram i högerkanten — det är
             den affordansen som säger att raden går att svepa. */}
         {rail.length > 0 && (
-          <div>
+          <div className="shrink-0">
             <p className="mb-2 text-xs font-medium text-ink-muted">
               {item.match ? t("notRight") : t("possibleMatches")} · {rail.length}
             </p>
@@ -3626,7 +3634,7 @@ function ScanDetailsSheet(props: {
                     aria-label={
                       selected && c.slug ? `${c.name} — ${t("showProduct")}` : c.name
                     }
-                    className={`w-[140px] shrink-0 snap-start rounded-2xl border p-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan ${
+                    className={`w-[132px] shrink-0 snap-start rounded-2xl border p-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan ${
                       selected
                         ? "border-holo-cyan/60 bg-holo-cyan/5"
                         : "border-surface-border hover:border-holo-cyan/50 hover:bg-surface-overlay"
@@ -3660,19 +3668,19 @@ function ScanDetailsSheet(props: {
                     <span className="mt-2 block truncate text-sm font-semibold text-ink">
                       {c.name}
                     </span>
-                    {/* Numret på egen rad: det är DEN uppgiften som skiljer två kort
-                        med identisk konst åt, och som delsträng i en setrad drunknade
-                        den. */}
-                    <span className="block truncate text-xs tabular-nums text-ink-muted">
-                      #{c.number}
+                    {/* Numret LEDER raden — det är DEN uppgiften som skiljer två kort
+                        med identisk konst åt, och som delsträng i setraden drunknade
+                        den. Tryckningen står efter i accentfärg: utan etiketten ser
+                        tryckningarna identiska ut (samma namn, set, nummer). En rad
+                        i stället för två så att hela kortet får plats i arket. */}
+                    <span className="block truncate text-xs">
+                      <span className="tabular-nums text-ink-muted">#{c.number}</span>
+                      <span className="text-ink-faint"> · </span>
+                      <span className="font-medium text-holo-cyan">
+                        {c.variantLabel ?? t("ordinaryPrinting")}
+                      </span>
                     </span>
                     <span className="block truncate text-xs text-ink-faint">{c.setName}</span>
-                    {/* Utan etiketten ser tryckningarna identiska ut — samma namn,
-                        samma set, samma nummer. Egen rad i accentfärg: det är precis
-                        den skillnaden man är här för att välja mellan. */}
-                    <span className="block truncate text-xs font-medium text-holo-cyan">
-                      {c.variantLabel ?? t("ordinaryPrinting")}
-                    </span>
                     <span className="mt-1.5 flex items-center justify-between gap-2">
                       <span className="truncate text-sm font-semibold tabular-nums text-ink">
                         {c.estimatedValue != null ? formatPrice(c.estimatedValue) : "–"}
@@ -3707,7 +3715,7 @@ function ScanDetailsSheet(props: {
             dessutom alltid på TRÄFFEN, aldrig på den variant man nyss bytte
             till — så den kunde öppna fel produkt efter ett variantbyte.
             Sök-fallbacken finns kvar: utan produktsida vore vyn en återvändsgränd. */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           {!item.match?.slug && (
             <LinkButton
               /* ⛔ EN TOM `?q=` ÄR INTE EN SÖKNING. Vid "ingen träff" är `match`
@@ -3858,10 +3866,18 @@ function SwipeToDelete({
 function Sheet({
   title,
   onClose: onCloseProp,
+  fill = false,
   children,
 }: {
   title: string;
   onClose: () => void;
+  /**
+   * Arket tar ALLTID sina 85 % och kroppen blir en flex-kolumn, så att en del av
+   * innehållet (bildparet i skanningsdetaljerna) kan fylla det som blir över i
+   * stället för att skjuta resten under vikningen. Utan flaggan: max 85 %,
+   * innehållshöjd, scroll vid överskott — som förut.
+   */
+  fill?: boolean;
   children: ReactNode;
 }) {
   const t = useTranslations("Scanner");
@@ -4095,7 +4111,9 @@ function Sheet({
         // overscroll-behavior: contain — en studs som kedjas vidare till
         // dokumentet är ännu en väg till touchcancel mitt i draget.
         style={{ overscrollBehavior: "contain" }}
-        className="relative max-h-[85%] overflow-y-auto rounded-t-3xl border-t border-surface-border bg-surface-raised p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-card animate-fade-in-up"
+        className={`relative overflow-y-auto rounded-t-3xl border-t border-surface-border bg-surface-raised p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-card animate-fade-in-up ${
+          fill ? "flex h-[85%] flex-col" : "max-h-[85%]"
+        }`}
       >
         {/* Dragyta: handtag + rubrik. touch-action:none → ingen native scroll här.
             Kroppen går också att dra i, men bara när den står i topp. */}
@@ -4103,7 +4121,7 @@ function Sheet({
           ref={handleRef}
           data-sheet-handle
           style={{ touchAction: "none" }}
-          className="-mx-5 -mt-5 cursor-grab px-5 pb-3 pt-5 active:cursor-grabbing"
+          className="-mx-5 -mt-5 shrink-0 cursor-grab px-5 pb-3 pt-5 active:cursor-grabbing"
         >
           <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-surface-border" aria-hidden="true" />
           <h2 className="font-display text-base font-semibold text-ink">{title}</h2>
@@ -4116,7 +4134,10 @@ function Sheet({
         >
           <IconX size={18} />
         </button>
-        {children}
+        {/* min-h-0: utan den kan kolumnen aldrig bli lägre än sitt innehåll och
+            ingenting inuti får något att krympa mot. Räcker inte höjden ändå
+            (golven nedan) flödar innehållet över och panelen scrollar som förut. */}
+        {fill ? <div className="flex min-h-0 flex-1 flex-col">{children}</div> : children}
       </div>
     </div>
   );
