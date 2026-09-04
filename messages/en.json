@@ -64,6 +64,7 @@
     "planProDesc": "You have Pro. Unlimited watches, price alerts, unlimited scanning and AI grading.",
     "planFreeDesc": "With Pro you get unlimited watches, price alerts, more AI gradings and full price history.",
     "upgradeCta": "Upgrade to Pro",
+    "continueProCta": "Continue with Pro",
     "traderaTitle": "Sell on Tradera",
     "connected": "Connected",
     "notConnected": "Not connected",
@@ -293,6 +294,7 @@
     "SEALED": "Sealed"
   },
   "Collection": {
+    "sellImageReadFailed": "Couldn't read one of the images. Try another file.",
     "metaTitle": "My collection",
     "h1": "My collection",
     "unknownItem": "Unknown item",
@@ -583,6 +585,32 @@
     "composerTraderaInvalid": "The Tradera link must start with https://www.tradera.com/.",
     "composerSubmit": "Publish",
     "composerPublished": "Thread published"
+  },
+  "ForumGroups": {
+    "allmant": {
+      "name": "General",
+      "description": "Everything Pokémon TCG in Sweden: questions, news, finds and chat."
+    },
+    "kop-salj-byt": {
+      "name": "Buy, sell & trade",
+      "description": "Sell, buy or trade cards and sealed with other collectors. Foilio is not a party to the deal – you settle directly with each other."
+    },
+    "samlingar-pulls": {
+      "name": "Collections & pulls",
+      "description": "Show off your pulls, binders and collections."
+    },
+    "sealed-slapp": {
+      "name": "Sealed & releases",
+      "description": "New sets, preorders, restocks and sealed collecting."
+    },
+    "skanning-gradering": {
+      "name": "Scanning & grading",
+      "description": "The scanner, AI grading and real grading (PSA, CGC, ACE)."
+    },
+    "nyborjare": {
+      "name": "Beginners",
+      "description": "New to the hobby? There are no dumb questions here."
+    }
   },
   "Community": {
     "metaTitle": "Community for Swedish collectors",
@@ -1290,7 +1318,20 @@
     "cancel": "Cancel",
     "save": "Save",
     "delete": "Delete",
-    "edit": "Edit"
+    "edit": "Edit",
+    "close": "Close",
+    "closeNotification": "Dismiss notification",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "emptyTitle": "Nothing here yet",
+    "emptyDescription": "We couldn't find anything to show right now. Try changing your filters or come back later.",
+    "errorTitle": "Something went wrong",
+    "errorDescription": "We couldn't load the content. Please try again in a moment.",
+    "retry": "Try again",
+    "priceFlat": "Price unchanged",
+    "priceUp": "Price has gone up",
+    "priceDown": "Price has gone down",
+    "discordLink": "Foilio on Discord"
   },
   "More": {
     "metaTitle": "More",

@@ -13,6 +13,7 @@ import {
   type ListingKindValue,
 } from "@/lib/listing-rules";
 import { LISTING_KIND_KEYS } from "@/lib/community-labels";
+import { localizeGroup } from "@/lib/community-group-i18n";
 import type { GroupSummary } from "@/services/community-groups";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/input";
@@ -67,10 +68,11 @@ export function Composer({ initialGroup }: { initialGroup?: string }) {
     };
   }, [t]);
 
-  const group = useMemo(
-    () => groups?.find((g) => g.slug === groupSlug) ?? null,
-    [groups, groupSlug]
-  );
+  const tGroups = useTranslations("ForumGroups");
+  const group = useMemo(() => {
+    const found = groups?.find((g) => g.slug === groupSlug) ?? null;
+    return found ? localizeGroup(found, tGroups) : null;
+  }, [groups, groupSlug, tGroups]);
   const marketplace = group?.isMarketplace ?? false;
   const uploading = images.some((i) => i.uploading);
 
@@ -152,7 +154,7 @@ export function Composer({ initialGroup }: { initialGroup?: string }) {
           {!groups && <option value="">{t("loading")}</option>}
           {groups?.map((g) => (
             <option key={g.slug} value={g.slug}>
-              {g.name}
+              {localizeGroup(g, tGroups).name}
             </option>
           ))}
         </Select>

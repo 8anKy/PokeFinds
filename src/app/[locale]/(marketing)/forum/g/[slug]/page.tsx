@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { alternatesFor } from "@/lib/canonical";
+import { localizeGroup } from "@/lib/community-group-i18n";
 import { LinkButton } from "@/components/ui/button";
 import { IconChevronLeft, IconPlus } from "@/components/ui/icons";
 import { SwipeBack } from "@/components/ui/swipe-back";
@@ -25,9 +26,13 @@ interface PageProps {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const t = await getTranslations({ locale: params.locale, namespace: "Forum" });
-  const group = await getGroupBySlug(params.slug);
-  if (!group) return { title: t("groupNotFound") };
+  const [t, tGroups, raw] = await Promise.all([
+    getTranslations({ locale: params.locale, namespace: "Forum" }),
+    getTranslations({ locale: params.locale, namespace: "ForumGroups" }),
+    getGroupBySlug(params.slug),
+  ]);
+  if (!raw) return { title: t("groupNotFound") };
+  const group = localizeGroup(raw, tGroups);
   return {
     title: t("groupMetaTitle", { name: group.name }),
     description: group.description,
@@ -37,9 +42,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function GroupPage({ params }: PageProps) {
   setRequestLocale(params.locale);
-  const t = await getTranslations("Forum");
-  const [groups, group] = await Promise.all([listGroups(), getGroupBySlug(params.slug)]);
-  if (!group) notFound();
+  const [t, tGroups, groups, raw] = await Promise.all([
+    getTranslations("Forum"),
+    getTranslations("ForumGroups"),
+    listGroups(),
+    getGroupBySlug(params.slug),
+  ]);
+  if (!raw) notFound();
+  // Namn + beskrivning följer språket; DB-värdet är svenskt.
+  const group = localizeGroup(raw, tGroups);
   const feed = await getFeed({ groupSlug: group.slug, page: 1, pageSize: 20 });
 
   return (

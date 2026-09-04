@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
 import { IconX } from "@/components/ui/icons";
@@ -19,6 +20,7 @@ const FOCUSABLE_SELECTOR =
 
 export function Modal({ open, onClose, title, children, footer, className }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const tCommon = useTranslations("Common");
   // onClose är ofta en inline-arrow (ny identitet varje render). Läs den via ref så
   // effekten nedan BARA beror på `open` — annars körs den om vid varje tangenttryck
   // och stjäl fokus från inputen (→ tangentbordet stängs efter en siffra).
@@ -131,7 +133,7 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
           <button
             type="button"
             onClick={onClose}
-            aria-label="Stäng"
+            aria-label={tCommon("close")}
             className="rounded-lg p-1.5 text-ink-faint transition-colors hover:bg-surface-overlay hover:text-ink"
           >
             <IconX size={18} />

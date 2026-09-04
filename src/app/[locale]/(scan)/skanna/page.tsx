@@ -3515,56 +3515,64 @@ function ScanDetailsSheet(props: {
 
   return (
     <Sheet title={t("scanDetails")} onClose={props.onClose}>
-      <div className="flex flex-col gap-5">
-        {/* Din bild vs din träff */}
-        <div className="grid grid-cols-2 gap-3">
-          <figure className="flex flex-col items-center gap-2">
+      <div className="flex flex-col gap-4">
+        {/* HERO PÅ EN RAD (2026-09-05): din bild · din träff · namn/set/pris.
+            Förut låg bildparet i full bredd (två ~240 px höga kort) med metan
+            under — arket (max 85 % av skärmen) tog slut mitt i kandidatraden och
+            "Ta bort skanning" låg ALLTID under vikningen. Miniatyrer i fast bredd
+            bredvid texten sparar ~200 px utan att arket blir högre, och
+            jämförelsen står fortfarande sida vid sida. Budgeten är räknad för
+            812 px-skärmar och uppåt; en SE scrollar fortfarande. */}
+        <div className="flex items-start gap-3">
+          <figure className="flex w-[92px] shrink-0 flex-col items-center gap-1.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={item.captured}
               alt={t("yourImage")}
-              className="aspect-[5/7] w-full rounded-xl object-cover ring-1 ring-surface-border"
+              className="aspect-[5/7] w-full rounded-lg object-cover ring-1 ring-surface-border"
             />
-            <figcaption className="text-xs text-ink-faint">{t("yourImage")}</figcaption>
+            <figcaption className="text-[11px] text-ink-faint">{t("yourImage")}</figcaption>
           </figure>
-          <figure className="flex flex-col items-center gap-2">
+          <figure className="flex w-[92px] shrink-0 flex-col items-center gap-1.5">
             {item.match?.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={item.match.imageUrl}
                 alt={t("yourMatch")}
-                className="aspect-[5/7] w-full rounded-xl object-cover ring-1 ring-holo-cyan/40"
+                className="aspect-[5/7] w-full rounded-lg object-cover ring-1 ring-holo-cyan/40"
               />
             ) : (
-              <span className="flex aspect-[5/7] w-full items-center justify-center rounded-xl bg-surface-overlay text-ink-faint ring-1 ring-surface-border">
-                <IconSearch size={24} />
+              <span className="flex aspect-[5/7] w-full items-center justify-center rounded-lg bg-surface-overlay text-ink-faint ring-1 ring-surface-border">
+                <IconSearch size={20} />
               </span>
             )}
-            <figcaption className="text-xs text-ink-faint">
+            <figcaption className="text-[11px] text-ink-faint">
               {item.match ? t("yourMatch") : t("noMatch")}
             </figcaption>
           </figure>
-        </div>
 
-        {/* Träff-meta */}
-        {item.match && (
-          <div>
-            <div className="flex items-baseline justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-lg font-semibold text-ink">{item.match.name}</p>
-                <p className="truncate text-sm text-ink-muted">
+          {/* Träff-meta — bredvid bilderna, inte under dem. */}
+          <div className="min-w-0 flex-1 self-center">
+            {item.match ? (
+              <>
+                <p className="line-clamp-2 text-base font-semibold leading-snug text-ink">
+                  {item.match.name}
+                </p>
+                <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-ink-muted">
                   {item.match.setName} · #{item.match.number}
                   {/* Tryckningen är en del av identiteten, inte en detalj: en
                       1st Edition Base Charizard är värd tiofalt en Unlimited. */}
                   {item.match.variantLabel ? ` · ${item.match.variantLabel}` : ""}
                 </p>
-              </div>
-              <p className="shrink-0 text-lg font-semibold tabular-nums text-holo-cyan">
-                {item.match.estimatedValue != null ? formatPrice(item.match.estimatedValue) : "–"}
-              </p>
-            </div>
+                <p className="mt-1.5 text-lg font-semibold tabular-nums text-holo-cyan">
+                  {item.match.estimatedValue != null ? formatPrice(item.match.estimatedValue) : "–"}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-ink-muted">{t("couldntMatch")}</p>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Alternativ */}
         {/* Varför gissningen är en gissning — sagt rakt ut, inte antytt. Flera
@@ -3618,7 +3626,7 @@ function ScanDetailsSheet(props: {
                     aria-label={
                       selected && c.slug ? `${c.name} — ${t("showProduct")}` : c.name
                     }
-                    className={`w-[172px] shrink-0 snap-start rounded-2xl border p-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan ${
+                    className={`w-[140px] shrink-0 snap-start rounded-2xl border p-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan ${
                       selected
                         ? "border-holo-cyan/60 bg-holo-cyan/5"
                         : "border-surface-border hover:border-holo-cyan/50 hover:bg-surface-overlay"
@@ -4095,9 +4103,9 @@ function Sheet({
           ref={handleRef}
           data-sheet-handle
           style={{ touchAction: "none" }}
-          className="-mx-5 -mt-5 cursor-grab px-5 pb-4 pt-5 active:cursor-grabbing"
+          className="-mx-5 -mt-5 cursor-grab px-5 pb-3 pt-5 active:cursor-grabbing"
         >
-          <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-surface-border" aria-hidden="true" />
+          <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-surface-border" aria-hidden="true" />
           <h2 className="font-display text-base font-semibold text-ink">{title}</h2>
         </div>
         <button

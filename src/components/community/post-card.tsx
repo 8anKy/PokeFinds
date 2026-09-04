@@ -3,6 +3,7 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/format";
+import { localizeGroupName } from "@/lib/community-group-i18n";
 import {
   LISTING_KIND_KEYS,
   LISTING_KIND_VARIANTS,
@@ -30,6 +31,7 @@ export function PostCard({
 }) {
   const t = useTranslations("Forum");
   const tCat = useTranslations("PostCategory");
+  const tGroups = useTranslations("ForumGroups");
   const muted = post.listingStatus === "SOLD" || post.listingStatus === "CLOSED";
   const thumb = post.images[0]?.url ?? null;
 
@@ -47,7 +49,9 @@ export function PostCard({
             <div className="flex flex-wrap items-center gap-1.5 text-xs">
               {/* Gruppnamnet utan emoji — ägarbeslut 2026-09-03 ("för många emojis"). */}
               {showGroup && post.group && (
-                <span className="text-ink-muted">{post.group.name}</span>
+                <span className="text-ink-muted">
+                  {localizeGroupName(post.group.slug, post.group.name, tGroups)}
+                </span>
               )}
               {post.listingKind && (
                 <Badge variant={LISTING_KIND_VARIANTS[post.listingKind]}>

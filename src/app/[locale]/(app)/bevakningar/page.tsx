@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { listWatchlist } from "@/services/watchlist";
@@ -37,6 +37,7 @@ export default async function WatchlistPage() {
   const session = await auth();
   if (!session?.user) redirect("/logga-in");
   const t = await getTranslations("Watchlist");
+  const locale = await getLocale();
   // force-dynamic ovan → env läses per besök; ingen ISR-fördröjning här.
   const restockPaused = restockAlertsPaused();
   const pricePaused = priceAlertsPaused();
@@ -143,7 +144,7 @@ export default async function WatchlistPage() {
                     <div className="min-w-0">
                       <p className="text-sm text-ink">{a.message}</p>
                       <p className="mt-0.5 text-xs text-ink-faint">
-                        {t("triggered", { when: formatRelative(a.triggeredAt) })}
+                        {t("triggered", { when: formatRelative(a.triggeredAt, locale) })}
                         {a.sentAt ? t("sentSuffix", { when: formatDateTime(a.sentAt) }) : ""}
                       </p>
                     </div>

@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { formatPercent } from "@/lib/format";
 import { IconTrendingDown, IconTrendingUp } from "@/components/ui/icons";
@@ -11,6 +12,7 @@ export interface PriceChangeProps {
 
 /** Visar prisförändring med pil och färg: grön upp, röd ner, neutral nära noll. */
 export function PriceChange({ percent, className, hideIcon = false }: PriceChangeProps) {
+  const t = useTranslations("Common");
   const isFlat = Math.abs(percent) < 0.05;
   const isUp = percent > 0;
 
@@ -21,7 +23,7 @@ export function PriceChange({ percent, className, hideIcon = false }: PriceChang
         isFlat ? "text-ink-muted" : isUp ? "text-rise" : "text-fall",
         className
       )}
-      title={isFlat ? "Oförändrat pris" : isUp ? "Priset har gått upp" : "Priset har gått ner"}
+      title={isFlat ? t("priceFlat") : isUp ? t("priceUp") : t("priceDown")}
     >
       {!isFlat &&
         !hideIcon &&

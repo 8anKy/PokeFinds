@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { formatRelative } from "@/lib/format";
 import { useIsAdmin } from "@/components/admin-only";
@@ -55,6 +55,7 @@ function useRestocks(query: string, enabled: boolean) {
 /** Produktsidans "Restock-historik" — butikens lagerövergångar för EN produkt. */
 export function ProductRestockHistory({ productId }: { productId: string }) {
   const t = useTranslations("Detail");
+  const locale = useLocale();
   const isAdmin = useIsAdmin();
   const rows = useRestocks(`productId=${encodeURIComponent(productId)}&limit=20`, isAdmin);
 
@@ -67,7 +68,7 @@ export function ProductRestockHistory({ productId }: { productId: string }) {
       {lastInStock && (
         <p className="mt-2 text-sm text-ink-muted">
           {t.rich("lastInStock", {
-            whenText: formatRelative(lastInStock.detectedAt),
+            whenText: formatRelative(lastInStock.detectedAt, locale),
             store: lastInStock.retailer.name,
             when: (chunks) => <span className="text-rise">{chunks}</span>,
           })}
@@ -86,7 +87,7 @@ export function ProductRestockHistory({ productId }: { productId: string }) {
                 {event.retailer.name}
                 <StockBadge stockStatus={event.newStatus} className="ml-2" />
               </span>
-              <span className="text-ink-muted">{formatRelative(event.detectedAt)}</span>
+              <span className="text-ink-muted">{formatRelative(event.detectedAt, locale)}</span>
             </li>
           ))}
         </ul>
@@ -98,6 +99,7 @@ export function ProductRestockHistory({ productId }: { productId: string }) {
 /** Marknadssidans "Senaste påfyllningar" — hela katalogen, fortfarande i lager. */
 export function MarketRestocks() {
   const t = useTranslations("Market");
+  const locale = useLocale();
   const isAdmin = useIsAdmin();
   const rows = useRestocks("limit=12", isAdmin);
 
@@ -142,7 +144,7 @@ export function MarketRestocks() {
                     <StockBadge stockStatus={r.newStatus} />
                   </TD>
                   <TD className="whitespace-nowrap text-ink-muted">
-                    {formatRelative(r.detectedAt)}
+                    {formatRelative(r.detectedAt, locale)}
                   </TD>
                 </TR>
               ))}

@@ -536,7 +536,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
           )}
           {(!user.isPro || user.bonusProUntil) && (
             <LinkButton href="/priser" className="mt-4">
-              {user.bonusProUntil ? "Fortsätt med Pro" : tSettings("upgradeCta")}
+              {user.bonusProUntil ? tSettings("continueProCta") : tSettings("upgradeCta")}
             </LinkButton>
           )}
         </CardContent>

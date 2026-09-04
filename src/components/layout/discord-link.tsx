@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { DISCORD_URL } from "@/lib/social-links";
 import { IconDiscord } from "@/components/ui/brand-icons";
 
@@ -16,13 +17,14 @@ import { IconDiscord } from "@/components/ui/brand-icons";
  * headern plats med logotyp och kontoknapp, och glyfen bär igenkänningen själv.
  */
 export function DiscordLink() {
+  const t = useTranslations("Common");
   return (
     <a
       href={DISCORD_URL}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label="Foilio på Discord"
-      title="Foilio på Discord"
+      aria-label={t("discordLink")}
+      title={t("discordLink")}
       className="inline-flex items-center gap-2 rounded-xl border border-surface-border bg-surface-raised px-2.5 py-1.5 text-ink-muted transition-colors hover:border-holo-cyan/50 hover:text-ink lg:px-3.5"
     >
       <IconDiscord size={20} className="shrink-0" />

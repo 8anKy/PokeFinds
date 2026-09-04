@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 export interface EmptyStateProps {
@@ -9,13 +10,10 @@ export interface EmptyStateProps {
   className?: string;
 }
 
-export function EmptyState({
-  icon,
-  title = "Här var det tomt",
-  description = "Vi hittade inget att visa just nu. Prova att ändra dina filter eller kom tillbaka senare.",
-  action,
-  className,
-}: EmptyStateProps) {
+export function EmptyState({ icon, title, description, action, className }: EmptyStateProps) {
+  // Standardtexterna följer språket — en hårdkodad svensk fallback dök upp mitt i
+  // det engelska gränssnittet så fort en anropare utelämnade `title`.
+  const t = useTranslations("Common");
   return (
     <div
       className={cn(
@@ -28,8 +26,8 @@ export function EmptyState({
           {icon}
         </div>
       )}
-      <h3 className="font-display text-lg font-semibold text-ink">{title}</h3>
-      <p className="max-w-sm text-sm text-ink-muted">{description}</p>
+      <h3 className="font-display text-lg font-semibold text-ink">{title ?? t("emptyTitle")}</h3>
+      <p className="max-w-sm text-sm text-ink-muted">{description ?? t("emptyDescription")}</p>
       {action && <div className="mt-2">{action}</div>}
     </div>
   );

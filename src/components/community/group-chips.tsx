@@ -1,6 +1,7 @@
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
+import { localizeGroupName } from "@/lib/community-group-i18n";
 import type { GroupSummary } from "@/services/community-groups";
 
 /**
@@ -19,6 +20,7 @@ export function GroupChips({
   activeSlug?: string;
 }) {
   const t = useTranslations("Forum");
+  const tGroups = useTranslations("ForumGroups");
   return (
     <nav aria-label={t("groups")} className="-mx-2.5 sm:mx-0">
       <ul
@@ -39,7 +41,7 @@ export function GroupChips({
                     : "border-surface-border bg-surface text-ink hover:bg-surface-overlay"
                 )}
               >
-                {g.name}
+                {localizeGroupName(g.slug, g.name, tGroups)}
               </Link>
             </li>
           );

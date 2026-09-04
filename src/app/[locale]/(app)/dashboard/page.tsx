@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { redirect } from "next/navigation";
 import { auth, hasRole } from "@/lib/auth";
@@ -48,6 +48,7 @@ export default async function DashboardPage() {
   const t = await getTranslations("Dashboard");
   const tCat = await getTranslations("Category");
   const tPost = await getTranslations("PostCategory");
+  const locale = await getLocale();
 
   // Restock-huvudboken är admin-only (2026-07-26) — se restock-history.tsx. Här har vi
   // redan sessionen server-sida, så grinden är en vanlig rollkoll (ingen klient-hämtning).
@@ -174,7 +175,7 @@ export default async function DashboardPage() {
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-ink">{r.product.title}</p>
                         <p className="text-xs text-ink-muted">
-                          {r.retailer.name} · {formatRelative(r.detectedAt)}
+                          {r.retailer.name} · {formatRelative(r.detectedAt, locale)}
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
@@ -225,7 +226,7 @@ export default async function DashboardPage() {
                       >
                         {a.message}
                       </p>
-                      <p className="mt-0.5 text-xs text-ink-faint">{formatRelative(a.triggeredAt)}</p>
+                      <p className="mt-0.5 text-xs text-ink-faint">{formatRelative(a.triggeredAt, locale)}</p>
                     </div>
                   </li>
                 ))}
@@ -350,7 +351,7 @@ export default async function DashboardPage() {
                           <Badge variant="info">{tPost.has(p.category) ? tPost(p.category) : p.category}</Badge>
                         )}
                         <span className="text-xs text-ink-faint">
-                          {p.user.name} · {formatRelative(p.createdAt)}
+                          {p.user.name} · {formatRelative(p.createdAt, locale)}
                         </span>
                       </div>
                       <p className="mt-1.5 truncate text-sm font-medium text-ink">{p.title}</p>

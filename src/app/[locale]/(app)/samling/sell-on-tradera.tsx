@@ -54,7 +54,7 @@ function readAsDataUrl(file: File): Promise<string> {
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error("Kunde inte läsa bilden."));
+      reject(new Error("read"));
     };
     img.src = url;
   });
@@ -271,8 +271,13 @@ export function SellButton({
               onChange={async (e) => {
                 const files = Array.from(e.target.files ?? []);
                 if (files.length === 0) return;
-                const urls = await Promise.all(files.map(readAsDataUrl));
-                setImages((prev) => [...prev, ...urls].slice(0, 12));
+                try {
+                  const urls = await Promise.all(files.map(readAsDataUrl));
+                  setImages((prev) => [...prev, ...urls].slice(0, 12));
+                } catch {
+                  // Utan fångst blev det en ohanterad rejection — och ingenting i UI:t.
+                  setError(t("sellImageReadFailed"));
+                }
                 if (fileRef.current) fileRef.current.value = ""; // tillåt samma fil igen
               }}
             />

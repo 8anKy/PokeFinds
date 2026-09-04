@@ -5,6 +5,7 @@ import { Link } from "@/i18n/navigation";
 import { prisma } from "@/lib/db";
 import { alternatesFor } from "@/lib/canonical";
 import { ServiceError } from "@/lib/errors";
+import { localizeGroupName } from "@/lib/community-group-i18n";
 import {
   LISTING_KIND_KEYS,
   LISTING_KIND_VARIANTS,
@@ -49,9 +50,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function ThreadPage({ params }: PageProps) {
   setRequestLocale(params.locale);
-  const [t, tCat, locale] = await Promise.all([
+  const [t, tCat, tGroups, locale] = await Promise.all([
     getTranslations("Forum"),
     getTranslations("PostCategory"),
+    getTranslations("ForumGroups"),
     getLocale(),
   ]);
 
@@ -70,6 +72,13 @@ export default async function ThreadPage({ params }: PageProps) {
   const initial = post.user.name.trim().charAt(0).toUpperCase() || "?";
 
   const backHref = post.group ? `/forum/g/${post.group.slug}` : "/forum";
+  const backLabel = post.group
+    ? localizeGroupName(post.group.slug, post.group.name, tGroups)
+    : t("h1");
+  // Bara etiketter som säger något om TRÅDEN. Gruppen står redan i
+  // tillbaka-länken rakt ovanför — som chip också blev det två "Allmänt" på
+  // två rader (ägaren 2026-09-05: "one is enough").
+  const hasBadges = post.listingKind != null || post.category != null;
 
   return (
     <SwipeBack fallback={backHref}>
@@ -79,31 +88,27 @@ export default async function ThreadPage({ params }: PageProps) {
         className="inline-flex items-center gap-1 text-sm text-ink-muted hover:text-holo-cyan"
       >
         <IconChevronLeft size={16} />
-        {post.group ? post.group.name : t("h1")}
+        {backLabel}
       </Link>
 
       <article className="mt-3 space-y-6">
         <header>
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            {post.group && (
-              <Link
-                href={`/forum/g/${post.group.slug}`}
-                className="inline-flex items-center rounded-full border border-surface-border px-2.5 py-0.5 font-medium text-ink-muted hover:text-holo-cyan"
-              >
-                {post.group.name}
-              </Link>
-            )}
-            {post.listingKind && (
-              <Badge variant={LISTING_KIND_VARIANTS[post.listingKind]}>
-                {t(LISTING_KIND_KEYS[post.listingKind])}
-              </Badge>
-            )}
-            {post.category && (
-              <Badge variant={POST_CATEGORY_VARIANTS[post.category]}>{tCat(post.category)}</Badge>
-            )}
-          </div>
+          {hasBadges && (
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              {post.listingKind && (
+                <Badge variant={LISTING_KIND_VARIANTS[post.listingKind]}>
+                  {t(LISTING_KIND_KEYS[post.listingKind])}
+                </Badge>
+              )}
+              {post.category && (
+                <Badge variant={POST_CATEGORY_VARIANTS[post.category]}>{tCat(post.category)}</Badge>
+              )}
+            </div>
+          )}
 
-          <h1 className="mt-2 font-display text-2xl font-bold leading-tight text-ink sm:text-3xl">
+          <h1
+            className={`${hasBadges ? "mt-2 " : ""}font-display text-2xl font-bold leading-tight text-ink sm:text-3xl`}
+          >
             {post.title}
           </h1>
 

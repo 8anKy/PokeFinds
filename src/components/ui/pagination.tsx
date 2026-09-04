@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { IconChevronLeft, IconChevronRight } from "@/components/ui/icons";
 
@@ -26,6 +27,7 @@ function buildPages(page: number, totalPages: number): (number | "ellipsis")[] {
 }
 
 export function Pagination({ page, totalPages, onPageChange, className }: PaginationProps) {
+  const t = useTranslations("Common");
   if (totalPages <= 1) return null;
 
   const buttonBase =
@@ -37,7 +39,7 @@ export function Pagination({ page, totalPages, onPageChange, className }: Pagina
         type="button"
         onClick={() => onPageChange(page - 1)}
         disabled={page <= 1}
-        aria-label="Föregående sida"
+        aria-label={t("previousPage")}
         className={cn(buttonBase, "text-ink-muted hover:bg-surface-overlay hover:text-ink")}
       >
         <IconChevronLeft size={16} />
@@ -68,7 +70,7 @@ export function Pagination({ page, totalPages, onPageChange, className }: Pagina
         type="button"
         onClick={() => onPageChange(page + 1)}
         disabled={page >= totalPages}
-        aria-label="Nästa sida"
+        aria-label={t("nextPage")}
         className={cn(buttonBase, "text-ink-muted hover:bg-surface-overlay hover:text-ink")}
       >
         <IconChevronRight size={16} />

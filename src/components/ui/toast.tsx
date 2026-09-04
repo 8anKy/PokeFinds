@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { IconAlertTriangle, IconCheck, IconInfo, IconX } from "@/components/ui/icons";
 
@@ -47,6 +48,7 @@ const variantIcons: Record<ToastVariant, ReactNode> = {
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const tCommon = useTranslations("Common");
   const idRef = useRef(0);
 
   const dismiss = useCallback((id: number) => {
@@ -98,7 +100,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 <button
                   type="button"
                   onClick={() => dismiss(t.id)}
-                  aria-label="Stäng avisering"
+                  aria-label={tCommon("closeNotification")}
                   className="rounded p-1 text-ink-faint transition-colors hover:text-ink"
                 >
                   <IconX size={16} />

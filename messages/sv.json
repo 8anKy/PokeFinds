@@ -64,6 +64,7 @@
     "planProDesc": "Du har Pro. Obegränsade bevakningar, prislarm, obegränsad skanning och AI-gradering.",
     "planFreeDesc": "Med Pro får du obegränsade bevakningar, prislarm, fler AI-graderingar och full prishistorik.",
     "upgradeCta": "Uppgradera till Pro",
+    "continueProCta": "Fortsätt med Pro",
     "traderaTitle": "Sälj på Tradera",
     "connected": "Ansluten",
     "notConnected": "Ej ansluten",
@@ -293,6 +294,7 @@
     "SEALED": "Sealed"
   },
   "Collection": {
+    "sellImageReadFailed": "Kunde inte läsa en av bilderna. Prova en annan fil.",
     "metaTitle": "Min samling",
     "h1": "Min samling",
     "unknownItem": "Okänt objekt",
@@ -583,6 +585,32 @@
     "composerTraderaInvalid": "Tradera-länken måste börja med https://www.tradera.com/.",
     "composerSubmit": "Publicera",
     "composerPublished": "Tråden är publicerad"
+  },
+  "ForumGroups": {
+    "allmant": {
+      "name": "Allmänt",
+      "description": "Allt som rör Pokémon TCG i Sverige: frågor, nyheter, spaningar och snack."
+    },
+    "kop-salj-byt": {
+      "name": "Köp, sälj & byt",
+      "description": "Sälj, köp eller byt kort och sealed med andra samlare. Foilio är inte part i affären – ni gör upp direkt med varandra."
+    },
+    "samlingar-pulls": {
+      "name": "Samlingar & pulls",
+      "description": "Visa upp dina pulls, pärmar och samlingar."
+    },
+    "sealed-slapp": {
+      "name": "Sealed & släpp",
+      "description": "Nya set, förhandsbokningar, restocks och sealed-samlande."
+    },
+    "skanning-gradering": {
+      "name": "Skanning & gradering",
+      "description": "Skannern, AI-graderingen och riktig gradering (PSA, CGC, ACE)."
+    },
+    "nyborjare": {
+      "name": "Nybörjare",
+      "description": "Ny i hobbyn? Här finns inga dumma frågor."
+    }
   },
   "Community": {
     "metaTitle": "Community för svenska samlare",
@@ -1290,7 +1318,20 @@
     "cancel": "Avbryt",
     "save": "Spara",
     "delete": "Ta bort",
-    "edit": "Redigera"
+    "edit": "Redigera",
+    "close": "Stäng",
+    "closeNotification": "Stäng avisering",
+    "previousPage": "Föregående sida",
+    "nextPage": "Nästa sida",
+    "emptyTitle": "Här var det tomt",
+    "emptyDescription": "Vi hittade inget att visa just nu. Prova att ändra dina filter eller kom tillbaka senare.",
+    "errorTitle": "Något gick fel",
+    "errorDescription": "Vi kunde inte ladda innehållet. Försök igen om en stund.",
+    "retry": "Försök igen",
+    "priceFlat": "Oförändrat pris",
+    "priceUp": "Priset har gått upp",
+    "priceDown": "Priset har gått ner",
+    "discordLink": "Foilio på Discord"
   },
   "More": {
     "metaTitle": "Mer",

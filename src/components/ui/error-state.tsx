@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { IconAlertTriangle } from "@/components/ui/icons";
@@ -12,13 +13,8 @@ export interface ErrorStateProps {
   className?: string;
 }
 
-export function ErrorState({
-  title = "Något gick fel",
-  description = "Vi kunde inte ladda innehållet. Försök igen om en stund.",
-  onRetry,
-  retryLabel = "Försök igen",
-  className,
-}: ErrorStateProps) {
+export function ErrorState({ title, description, onRetry, retryLabel, className }: ErrorStateProps) {
+  const t = useTranslations("Common");
   return (
     <div
       role="alert"
@@ -30,11 +26,11 @@ export function ErrorState({
       <div aria-hidden="true" className="text-fall">
         <IconAlertTriangle size={32} />
       </div>
-      <h3 className="font-display text-lg font-semibold text-ink">{title}</h3>
-      <p className="max-w-sm text-sm text-ink-muted">{description}</p>
+      <h3 className="font-display text-lg font-semibold text-ink">{title ?? t("errorTitle")}</h3>
+      <p className="max-w-sm text-sm text-ink-muted">{description ?? t("errorDescription")}</p>
       {onRetry && (
         <Button variant="outline" size="sm" onClick={onRetry} className="mt-2">
-          {retryLabel}
+          {retryLabel ?? t("retry")}
         </Button>
       )}
     </div>
