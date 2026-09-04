@@ -43,16 +43,25 @@
 import { prisma } from "../lib/db";
 import { mapPool } from "../lib/concurrency";
 import { normalizeTitle } from "../lib/utils";
-import { isBlockedListingLanguage } from "../lib/listing-language";
+import { isBlockedListingLanguage, listingCardLanguage } from "../lib/listing-language";
 import { matchProduct, getListingPriceGuard } from "../scrapers/matching";
 import { traderaCategoryCompatible } from "./tradera-sweep";
 import { TRADERA_SOLD_SOURCE_NAME } from "../services/products";
+import { detectGrading, isPlausibleGradedPriceOre } from "../lib/graded-listing";
 
 const SEARCH_API = "https://api.tradera.com/v3/searchservice.asmx";
 const PUBLIC_API = "https://api.tradera.com/v3/publicservice.asmx";
 
-/** Samma fyra Pokémon-kategorier som det aktiva svepet. */
-const CATEGORIES = [1001337, 1001340, 1001339, 1001341] as const;
+/**
+ * De fyra råa Pokémon-kategorierna + GRADERADE KORT (1001338).
+ *
+ * ⛔ 1001338 kom med 2026-09-04 och den är INTE en femte rå kategori: allt som
+ * hämtas här dirigeras om till `GradedSale`. Kategorin räcker dessutom inte som
+ * grind — säljaren väljer kategori, och mätningen samma dag visade att ~1 % av
+ * annonserna i 1001337 (Löskort) i själva verket är slabbar. Domen tas därför på
+ * ANNONSEN (`detectGrading`), aldrig på kategorin. Kategorin styr bara var vi letar.
+ */
+const CATEGORIES = [1001337, 1001340, 1001339, 1001341, 1001338] as const;
 
 /**
  * Absolut acceptans- OCH dedup-fönster. ⛔ De två MÅSTE vara samma tal: läser
@@ -99,6 +108,27 @@ export interface EndedItem {
   endDate: Date;
   categoryId?: number;
   bidCount: number | null;
+  /** `pokemon_grading_issuer` ur Traderas TermAttributeValues. */
+  attrIssuer?: string;
+  /** `pokemon_grade` ur Traderas TermAttributeValues. */
+  attrGrade?: string;
+}
+
+/**
+ * Ett TermAttributeValue ur ett `<Items>`-block. Traderas Pokémon-kategorier bär
+ * `pokemon_grading_issuer` / `pokemon_grade` / `pokemon_language` / `pokemon_era`.
+ * ⛔ Blocket måste avgränsas per attribut — en enkel `<string>`-svep hade blandat
+ * ihop bolaget med språket.
+ */
+function termAttribute(block: string, name: string): string | undefined {
+  for (const m of block.matchAll(/<TermAttributeValue>([\s\S]*?)<\/TermAttributeValue>/g)) {
+    if (tagText(m[1], "Name") !== name) continue;
+    const val = [...m[1].matchAll(/<string>([^<]*)<\/string>/g)]
+      .map((x) => decodeEntities(x[1].trim()))
+      .filter(Boolean)[0];
+    if (val) return val;
+  }
+  return undefined;
 }
 
 /**
@@ -153,6 +183,8 @@ export function parseEndedFromXml(xml: string): {
       endDate,
       categoryId: catText ? parseInt(catText, 10) : undefined,
       bidCount: bidsText ? parseInt(bidsText, 10) : null,
+      attrIssuer: termAttribute(block, "pokemon_grading_issuer"),
+      attrGrade: termAttribute(block, "pokemon_grade"),
     });
   }
 
@@ -278,6 +310,12 @@ export interface TraderaSoldSweepResult {
   implausible: number;
   written: number;
   products: number;
+  /** Graderade affärer skrivna till `GradedSale` (ingår INTE i `written`). */
+  gradedWritten: number;
+  /** Graderade annonser som fälldes av den graderade prisvakten. */
+  gradedImplausible: number;
+  /** Graderade annonser som hittades i en RÅ kategori — mått på läckaget. */
+  gradedInRawCategory: number;
 }
 
 export async function runTraderaSoldSweep(
@@ -357,6 +395,15 @@ export async function runTraderaSoldSweep(
       .map((r) => r.itemId)
       .filter((v): v is string => !!v)
   );
+  // ⛔ De graderade affärerna bor i en EGEN tabell och syns inte i frågan ovan.
+  // Utan den här raden hade varje natt räknat om samma slab som "ny", stångat
+  // sig blodig mot unique-nyckeln och bränt ett GetItem-anrop per försök.
+  for (const g of await prisma.gradedSale.findMany({
+    where: { soldAt: { gte: windowCutoff } },
+    select: { itemId: true },
+  })) {
+    known.add(g.itemId);
+  }
 
   const fresh = [...ended.values()].filter((s) => !known.has(s.itemId));
   const alreadyKnown = ended.size - fresh.length;
@@ -387,10 +434,26 @@ export async function runTraderaSoldSweep(
     implausible: 0,
     written: 0,
     products: 0,
+    gradedWritten: 0,
+    gradedImplausible: 0,
+    gradedInRawCategory: 0,
   };
   const touched = new Set<string>();
   // Prisvakten hämtar facit per produkt — cacha den, flera affärer delar produkt.
   const guards = new Map<string, (priceOre: number) => boolean>();
+  // Cardmarket-referensen för den GRADERADE vakten (undre gräns, ingen övre).
+  // Egen cache av samma skäl: flera slabbar delar produkt.
+  const gradedRefs = new Map<string, number | null>();
+  const gradedRef = async (productId: string): Promise<number | null> => {
+    if (gradedRefs.has(productId)) return gradedRefs.get(productId)!;
+    const cm = await prisma.offer.findFirst({
+      where: { productId, retailer: { name: "Cardmarket" }, price: { not: null } },
+      select: { price: true },
+    });
+    const ref = cm?.price ?? null;
+    gradedRefs.set(productId, ref);
+    return ref;
+  };
   let getItemQuotaHit = false;
 
   await mapPool(fresh, DB_CONCURRENCY, async (sale) => {
@@ -421,18 +484,38 @@ export async function runTraderaSoldSweep(
       stats.categoryMismatch++;
       return;
     }
-    // Samma rimlighetsvakt som annonserna. Den bevakar lot-/felmatchning, inte
-    // "nära begärt pris" — en auktion FÅR gå billigt, och gränserna biter bara på
-    // inneboende dyra sealed-kategorier. Mätt behov: "First Partners Illustration
-    // Collection Series 2" gav 450–3 000 kr, dvs partiannonser som enstaka vara.
-    let guard = guards.get(product.id);
-    if (!guard) {
-      guard = await getListingPriceGuard(product.id);
-      guards.set(product.id, guard);
-    }
-    if (!guard(candidateOre)) {
-      stats.implausible++;
-      return;
+    // ── GRADERAD ELLER RÅ? Domen tas här, EN gång, och styr både vakt och mål ──
+    // ⛔ Kategorin duger inte som grind: mätt 2026-09-04 ligger ~1 % av annonserna
+    // i 1001337 (Löskort) i själva verket i slab. Domen tas på annonsen.
+    const grading = detectGrading({
+      title: sale.title,
+      attrIssuer: sale.attrIssuer,
+      attrGrade: sale.attrGrade,
+    });
+    if (grading && sale.categoryId !== 1001338) stats.gradedInRawCategory++;
+
+    if (grading) {
+      // ⛔ EGEN PRISVAKT. Den råa fäller allt över 4× referensen — dvs. exakt de
+      // graderade affärer serien finns för. Kvar blir den undre gränsen, som
+      // fångar felmatchning. Se `isPlausibleGradedPriceOre`.
+      if (!isPlausibleGradedPriceOre(await gradedRef(product.id), candidateOre)) {
+        stats.gradedImplausible++;
+        return;
+      }
+    } else {
+      // Samma rimlighetsvakt som annonserna. Den bevakar lot-/felmatchning, inte
+      // "nära begärt pris" — en auktion FÅR gå billigt, och gränserna biter bara på
+      // inneboende dyra sealed-kategorier. Mätt behov: "First Partners Illustration
+      // Collection Series 2" gav 450–3 000 kr, dvs partiannonser som enstaka vara.
+      let guard = guards.get(product.id);
+      if (!guard) {
+        guard = await getListingPriceGuard(product.id);
+        guards.set(product.id, guard);
+      }
+      if (!guard(candidateOre)) {
+        stats.implausible++;
+        return;
+      }
     }
 
     let priceOre: number;
@@ -463,7 +546,13 @@ export async function runTraderaSoldSweep(
         return;
       }
       // Accepterat bud kan skilja sig från utropet → pröva vakten på FACIT-priset.
-      if (!guard(verdict.priceOre)) {
+      // Samma tudelning som ovan: graderat pris mot graderad vakt.
+      if (grading) {
+        if (!isPlausibleGradedPriceOre(await gradedRef(product.id), verdict.priceOre)) {
+          stats.gradedImplausible++;
+          return;
+        }
+      } else if (!guards.get(product.id)!(verdict.priceOre)) {
         stats.implausible++;
         return;
       }
@@ -474,7 +563,38 @@ export async function runTraderaSoldSweep(
 
     touched.add(product.id);
     if (dryRun) {
-      stats.written++;
+      if (grading) stats.gradedWritten++;
+      else stats.written++;
+      return;
+    }
+
+    // ── GRADERAD AFFÄR → EGEN SERIE ──────────────────────────────────────────
+    // ⛔ Aldrig en `PriceObservation`: en PSA 10 och det ograderade kortet är
+    // olika varor och får inte dela kurva. Samma regel som skiljer "Tradera sålt"
+    // från annonskurvan, en nivå djupare.
+    if (grading) {
+      await prisma.gradedSale.upsert({
+        where: { itemId: sale.itemId },
+        // Idempotent: dedup-setet fångar normalfallet, men två kategorier kan
+        // leverera samma annons i EN körning (kategoribyte mitt i svepet).
+        update: {},
+        create: {
+          productId: product.id,
+          itemId: sale.itemId,
+          issuer: grading.issuer,
+          gradeTenths: grading.gradeTenths,
+          price: priceOre,
+          currency: "SEK",
+          language: listingCardLanguage(sale.title, sale.url),
+          title: sale.title,
+          url: sale.url,
+          soldAt: sale.endDate,
+          bidCount: sale.bidCount,
+          verify,
+          source: "tradera",
+        },
+      });
+      stats.gradedWritten++;
       return;
     }
 
@@ -520,6 +640,10 @@ export async function runTraderaSoldSweep(
   log(
     `   Ej matchade: ${stats.noMatch} | Kategorifel: ${stats.categoryMismatch} | ` +
       `Orimligt pris: ${stats.implausible}`
+  );
+  log(
+    `   🏅 Graderat: ${stats.gradedWritten} skrivna | ${stats.gradedImplausible} orimliga | ` +
+      `${stats.gradedInRawCategory} låg i en RÅ kategori (skulle ha förorenat den ograderade kurvan)`
   );
 
   return stats;

@@ -13,6 +13,7 @@ import { PRINT_VARIANT_LABELS, REVERSE_VARIANT_LABELS } from "@/lib/print-varian
 import { favoriteSetIds } from "@/lib/user-preferences";
 import { NOT_HIDDEN, NOT_HIDDEN_SQL } from "@/lib/product-visibility";
 import { getTrendingLift } from "@/services/market";
+import { getGradedSummary, type GradedSummary } from "@/services/graded";
 import {
   bestMatchScore,
   EMPTY_PERSONAL,
@@ -1411,6 +1412,12 @@ export interface ProductDetailData {
     url: string;
     imageUrl: string | null;
   }[];
+  /**
+   * GRADERADE FÖRSÄLJNINGAR — en EGEN serie, aldrig sammanblandad med den
+   * ograderade. En PSA 10 är en annan vara än det lösa kortet. Tomma `rows` →
+   * blocket visas inte alls (serien byggs framåt och börjar tom).
+   */
+  gradedSales: GradedSummary;
 }
 
 interface LiveOfferStats {
@@ -1467,7 +1474,7 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
 
   const listingCutoff = new Date();
   listingCutoff.setDate(listingCutoff.getDate() - TRADERA_LISTING_MAX_AGE_DAYS);
-  const [historyBySource, similar, railRows, rejectedItems, affiliateRetailers, variantSiblings] = await Promise.all([
+  const [historyBySource, similar, railRows, rejectedItems, affiliateRetailers, variantSiblings, gradedSales] = await Promise.all([
     getPriceHistoryBySource(product.id, DETAIL_MAX_DAYS),
     getSimilarProducts(product.id, 4),
     prisma.traderaListing.findMany({
@@ -1504,6 +1511,9 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
           select: { slug: true, variantLabel: true, offers: { select: { price: true, stockStatus: true, url: true } } },
         })
       : Promise.resolve([]),
+    // Graderade affärer (egen tabell, egen serie). Rider med i den cachade
+    // loadern → ingen extra Neon-väckning per visning.
+    getGradedSummary(product.id),
   ]);
   const variants = variantSiblings.map((v) => ({
     slug: v.slug,
@@ -1642,6 +1652,7 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
     similar,
     variants,
     traderaListings,
+    gradedSales,
   };
 }
 

@@ -69,3 +69,35 @@ paths:
   kan ge 4 700 rader — `TRADERA_SELLER_ITEM_CAP` (1000/säljare) + `TRADERA_SELLER_POOL_BUDGET` (4000 totalt),
   höj först när körtiden är mätt i sweep-loggen. Sond: `scripts/tradera-seller-items-probe.ts` (2 Tradera-anrop,
   noll Neon). Vaktat av `tests/unit/tradera-sweep-seller-items.test.ts`.
+- ⛔ **GRADERADE KORT ÄR EN EGEN VARA, EN EGEN TABELL OCH EN EGEN VAKT (2026-09-04)** — en PSA 10 och det
+  ograderade kortet delar namn men inte pris, och de får ALDRIG dela kurva. Domen tas på ANNONSEN
+  (`isGradedListing` / `detectGrading`, `src/lib/graded-listing.ts`), aldrig på Tradera-kategorin: säljaren
+  väljer kategori, och **~1 % av annonserna i 1001337 (Löskort) är i själva verket slabbar** (mätt över 100
+  annonser). Kategorin 1001338 säger alltså "leta här", inte "det här är graderat".
+  **VAD SOM VAR TRASIGT**: `guessCategory` STÄMPLADE psa/bgs/cgc-titlar som `GRADED_CARD` — men ingen
+  matchningsväg läste stämpeln, så den var ingen vakt. MÄTT I PROD 2026-09-04: **14 aktiva offers, 78
+  skena-rader och 569 prisobservationer** låg på RÅA produkter, bl.a. en **CGC 6 för 30 000 kr som "lägsta
+  pris"** på ett löskort och en RaukCard 10 för 2 400 kr på en Umbreon VMAX. Städat med
+  `scripts/purge-graded-from-raw.ts` (dry run som default); de **80 SÅLDA** raderna KASTADES INTE utan
+  FLYTTADES till `GradedSale` — det är vår egen insamlade data som bytte låda, inte en backfill.
+  ⛔ **VAKTEN SITTER I PARSERN** (`parseItemsFromXml` i tradera-sweep, `toRaws` i adaptern), inte i
+  matchningen — då täcker en rad alla tre vägarna (Fas 0, poolmatchningen, skenan). Sålt-svepet plockar upp
+  samma annonser och skriver dem i `GradedSale` i stället.
+  ⛔ **TRADERA BÄR STRUKTURERADE ATTRIBUT** — `pokemon_grading_issuer` / `pokemon_grade` /
+  `pokemon_language` / `pokemon_era` som `TermAttributeValue` i sök-svaret (täckning mätt i 1001338: bolag
+  83 %, betyg 77 %, båda 76 %). Läs dem FÖRE titeln. Vokabulären är PSA / CGC / Raukcard / ACE / Beckett /
+  **Övriga** — SGC, TAG, HGA och GMA finns alltså inte som egna värden, så bolagsnamnet måste hämtas ur
+  titeln när attributet säger "Övriga".
+  ⛔ **ASPIRATIONSSPRÅK ÄR INTE EN GRADERING**: "PSA10 Kandidat", "möjligen psa 10", "perfekt for psa 1"
+  (Tradera KAPAR slugen mitt i "psa-10") är OGRADERADE kort. Utan vetot raderar städningen riktiga råa
+  priser — det hände i dry run och fångades bara för att listan lästes rad för rad.
+  ⛔ **DEN RÅA PRISVAKTEN FÅR INTE RÖRA GRADERADE AFFÄRER**: `isPlausiblePriceFor` fäller en singel över
+  4× referensen, dvs. exakt de affärer serien finns för. Graderat har BARA en undre gräns
+  (`isPlausibleGradedPriceOre`, 15 % av CM-referensen) som fångar felmatchning.
+  ⛔ **`gradeTenths` ÄR HELTAL** (100 = 10,0 · 95 = 9,5), aldrig float och aldrig sträng — "10" sorterar
+  före "9" och skulle vända hela skalan. `null` = graderat men okänt betyg, visas "–", aldrig 0.
+  ⛔ **`n` FÖLJER ALLTID MED UT I UI:t**: kategorin avslutar bara ~128 annonser/dygn för HELA Sverige mot
+  ~20 000 singlar i katalogen, så de flesta kort landar på 0–2 affärer. Ett medianpris utan sitt urval
+  låtsas vara en marknad. Tomt underlag ⇒ sektionen visas inte alls.
+  Mät om med `scripts/audit-tradera-graded.ts` (kategorins innehåll) och `scripts/audit-tradera-graded-leak.ts`
+  (hur mycket som ligger i råa kategorier). Vaktat av `tests/unit/graded-listing.test.ts` (tvåsidigt).

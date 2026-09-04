@@ -23,6 +23,7 @@ import {
   LiveOffersTable,
 } from "@/components/features/live-product-pricing";
 import { IconCards, IconChevronLeft } from "@/components/ui/icons";
+import { GradedSales } from "./graded-sales";
 
 /** Sealed-kategorier (ej singel/gradat) — får alltid en Tradera-länk. */
 const SEALED_CATEGORIES: string[] = [
@@ -72,6 +73,8 @@ function shellToDetail(shell: ProductShellData): ProductDetailData {
     similar: [],
     variants: shell.variants.map((v) => ({ slug: v.slug, label: v.label, lowestPrice: null })),
     traderaListings: [],
+    // Skal-läget vet inget om graderade affärer — tom, aldrig påhittad.
+    gradedSales: { windowDays: 365, totalSales: 0, rows: [] },
   };
 }
 
@@ -293,6 +296,10 @@ export function ProductDetailView({
 
         {/* Restock-historik — admin-only, hämtas on-demand (se restock-history.tsx) */}
         <ProductRestockHistory productId={data.id} />
+
+        {/* GRADERADE FÖRSÄLJNINGAR — egen serie, aldrig blandad med den ograderade
+            kurvan. Visas bara när det finns affärer att visa. */}
+        <GradedSales graded={data.gradedSales} productTitle={data.title} />
 
         {/* Fler annonser på Tradera (#19) — samma produkt, andra säljare.
             Horisontell svep-skena; billigast först (svepet lagrar max 20).

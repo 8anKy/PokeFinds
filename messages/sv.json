@@ -1850,7 +1850,15 @@
     "metaDescription": "Jämför priser på {title} ({category}) hos svenska butiker. Lägsta pris just nu: {price}. Bevaka pris och restock på Foilio.",
     "metaDescriptionNoPrice": "Jämför priser på {title} ({category}) hos svenska butiker. Bevaka pris och restock på Foilio.",
     "alertsProCtaPaused": "Larmen är pausade just nu",
-    "priceModalIntroPaused": "Målpriset sparas på <b>{title}</b>, men larmen är pausade just nu — vi hör av oss när de är igång igen. Lämna tomt för att bara bevaka produkten."
+    "priceModalIntroPaused": "Målpriset sparas på <b>{title}</b>, men larmen är pausade just nu — vi hör av oss när de är igång igen. Lämna tomt för att bara bevaka produkten.",
+    "gradedTitle": "Graderade försäljningar",
+    "gradedSubtitle": "{count, plural, one {# såld slab} other {# sålda slabbar}} på Tradera",
+    "gradedColGrade": "Gradering",
+    "gradedColMedian": "Median",
+    "gradedColRange": "Lägst–högst",
+    "gradedColLast": "Senast såld",
+    "gradedSampleCount": "{count, plural, one {# affär} other {# affärer}}",
+    "gradedFootnote": "Slutpriser för graderade exemplar av {title} som sålts på Tradera det senaste året. Ett graderat kort är en annan vara än det ograderade — priserna går inte att jämföra rakt av. Med bara någon enstaka affär är siffran ett exempel, inte ett marknadspris."
   },
   "Upgrade": {
     "currentPlan": "Din nuvarande plan ✓",

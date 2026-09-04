@@ -40,7 +40,10 @@ const path = require("node:path");
 const zlib = require("node:zlib");
 const crypto = require("node:crypto");
 
-const PAGE_EPOCH = "1";
+// "2" (2026-09-04): produktsidan fick sektionen "Graderade försäljningar", som
+// ritas av klientkod ur `/api/products/[slug]/detail`. En ISR-post från förra
+// bygget pekar på gamla JS-chunks och hade aldrig visat blocket — i upp till 30 dygn.
+const PAGE_EPOCH = "2";
 const STORE_VERSION = "v1";
 /** Sidor äldre än så rensas oavsett TTL (ISR-TTL:en för produktsidor är 30 d). */
 const PAGE_MAX_AGE_MS = 45 * 24 * 3600 * 1000;

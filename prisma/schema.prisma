@@ -578,6 +578,7 @@ model Product {
   traderaListings   TraderaListing[]
   communityPosts    CommunityPost[]
   storeListings     StoreListing[]
+  gradedSales       GradedSale[]
 
   @@index([normalizedTitle])
   @@index([category])
@@ -758,6 +759,49 @@ model TraderaListing {
   @@unique([productId, itemId])
   @@index([productId, lastSeenAt])
   @@index([lastSeenAt])
+}
+
+/// GRADERADE FÖRSÄLJNINGAR — vad någon faktiskt BETALADE för en slab.
+///
+/// ⛔ EGEN TABELL, INTE `PriceObservation`. Ett graderat kort är en annan vara än
+/// det ograderade: priset styrs av (bolag, betyg), och de två får aldrig bo i
+/// samma kurva — samma regel som skiljer "Tradera sålt" från annonskurvan, fast
+/// en nivå djupare. Serien frågas alltid per (produkt, bolag, betyg) och behöver
+/// ett index på just det; en JSON-nyckel i `rawData` hade inte kunnat indexeras.
+///
+/// ⛔ `gradeTenths` är betyget × 10 (100 = 10,0 · 95 = 9,5). Heltal, aldrig float,
+/// och aldrig en sträng — "10" sorterar före "9" och skulle vända hela skalan.
+/// `null` = graderat kort med OKÄNT betyg. 0 finns inte.
+///
+/// ⛔ `itemId` är unikt: sveppet ser samma avslutade annons varje körning
+/// (lookback > körtakt) och utan nyckeln hade en affär vägt in en gång per natt.
+model GradedSale {
+  id          String       @id @default(cuid())
+  productId   String
+  /// Traderas annons-id. Unik → omkörning är gratis och idempotent.
+  itemId      String       @unique
+  /// Normaliserat bolag (PSA/BGS/CGC/SGC/ACE/RAUKCARD/TAG/HGA/GMA/ISA/AGS/GG/OTHER).
+  issuer      String
+  /// Betyg × 10. null = okänt betyg (visas som "–", aldrig som 0).
+  gradeTenths Int?
+  /// Slutpris i öre. Alltid > 0 — 0 kr är inget pris.
+  price       Int
+  currency    String       @default("SEK")
+  language    CardLanguage @default(EN)
+  title       String
+  url         String
+  /// Annonsens EGEN sluttid, aldrig körningens.
+  soldAt      DateTime
+  bidCount    Int?
+  /// Bevisväg: "bids" (budbevisad) eller "getitem" (GotWinner).
+  verify      String
+  source      String       @default("tradera")
+  createdAt   DateTime     @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, issuer, gradeTenths])
+  @@index([soldAt])
 }
 
 model TraderaMatch {

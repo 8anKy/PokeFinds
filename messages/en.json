@@ -1850,7 +1850,15 @@
     "metaDescription": "Compare prices on {title} ({category}) at Swedish stores. Lowest price right now: {price}. Track price and restock on Foilio.",
     "metaDescriptionNoPrice": "Compare prices on {title} ({category}) at Swedish stores. Track price and restock on Foilio.",
     "alertsProCtaPaused": "Alerts are paused right now",
-    "priceModalIntroPaused": "Your target price is saved on <b>{title}</b>, but alerts are paused right now — we will let you know when they are back. Leave empty to just watch the product."
+    "priceModalIntroPaused": "Your target price is saved on <b>{title}</b>, but alerts are paused right now — we will let you know when they are back. Leave empty to just watch the product.",
+    "gradedTitle": "Graded sales",
+    "gradedSubtitle": "{count, plural, one {# graded slab sold} other {# graded slabs sold}} on Tradera",
+    "gradedColGrade": "Grade",
+    "gradedColMedian": "Median",
+    "gradedColRange": "Low–high",
+    "gradedColLast": "Last sold",
+    "gradedSampleCount": "{count, plural, one {# sale} other {# sales}}",
+    "gradedFootnote": "Final prices for graded copies of {title} sold on Tradera in the past year. A graded card is a different item from the raw one — the prices are not directly comparable. With only a handful of sales the figure is an example, not a market price."
   },
   "Upgrade": {
     "currentPlan": "Your current plan ✓",

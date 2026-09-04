@@ -24,6 +24,7 @@ import { prisma } from "../lib/db";
 import { mapPool } from "../lib/concurrency";
 import { normalizeTitle } from "../lib/utils";
 import { isBlockedListingLanguage, listingCardLanguage } from "../lib/listing-language";
+import { isGradedListing } from "../lib/graded-listing";
 import {
   matchProduct,
   matchListingToProduct,
@@ -38,10 +39,16 @@ import { traderaSearchUrlSpecific, TRADERA_CATEGORY } from "../lib/marketplace-u
 // känd grupp får bara bli offerten för en produkt i SAMMA grupp.
 const TRADERA_CAT_GROUP: Record<number, string> = {
   1001337: "single", // Löskort
+  1001338: "single", // Graderade kort — en slab ÄR ett enskilt kort (se nedan)
   1001339: "pack",   // Boosterpaket (+ blister)
   1001340: "box",    // Boosterboxar
   1001341: "sealed", // Övrigt sealed (ETB, collection, tin, bundle)
 };
+// ⛔ 1001338 kom med 2026-09-04 för SÅLT-svepets skull: en graderad affär ska få
+// hitta sitt kort. Den öppnar INTE kategorin för det aktiva svepet — det hämtar
+// bara POKEMON_CATEGORIES, och graderade annonser fälls dessutom av
+// `isGradedListing` innan de kan bli en offer. Formgruppen säger bara "det här är
+// ett enskilt kort, inte en box".
 const PRODUCT_CAT_GROUP: Record<string, string> = {
   SINGLE_CARD: "single", GRADED_CARD: "single",
   BOOSTER_PACK: "pack", BLISTER: "pack",
@@ -243,6 +250,26 @@ export function parseItemsFromXml(xml: string): { items: TraderaItem[]; totalPag
     // in i katalogen — Tradera hade i praktiken ingen språkkontroll alls. Kör samma
     // detektor som butiks-importen (titel + URL-slug): katalogen är EN + JP only.
     if (isBlockedListingLanguage(title, url)) continue;
+
+    // ── GRADERINGSVAKT (2026-09-04) ──────────────────────────────────────────
+    // ⛔ Ett graderat kort är en ANNAN vara än det ograderade och får aldrig bli
+    // offer, skena-rad eller prispunkt på en rå produkt. Kategori 1001338 hämtas
+    // inte här — men säljaren väljer kategori, och mätningen visade ~1 % slabbar
+    // i 1001337 (Löskort). MÄTT I PRODUKTIONEN samma dag: 16 aktiva offers och
+    // 591 prisobservationer låg redan fel, bl.a. en CGC 6 för 30 000 kr som
+    // "lägsta pris" på ett löskort och en RaukCard 10 för 2 400 kr på en Umbreon
+    // VMAX. Vakten sitter i PARSERN, inte i matchningen, så den täcker alla tre
+    // vägarna (Fas 0-urvalet, poolmatchningen och skenan) med en rad.
+    // Sålt-svepet plockar upp samma annonser och skriver dem i `GradedSale`.
+    if (
+      isGradedListing({
+        title,
+        attrIssuer: termAttributeValues(block, "pokemon_grading_issuer")[0],
+        attrGrade: termAttributeValues(block, "pokemon_grade")[0],
+      })
+    ) {
+      continue;
+    }
 
     const catText = tagText(block, "CategoryId");
     const sellerBlock = block.match(/<Seller>([\s\S]*?)<\/Seller>/);

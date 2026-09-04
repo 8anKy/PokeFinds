@@ -21,6 +21,7 @@
  */
 import { StockStatus, SourceType } from "@prisma/client";
 import { normalizeTitle } from "../../lib/utils";
+import { isGradedListing } from "../../lib/graded-listing";
 import type {
   AdapterResult,
   NormalizedProduct,
@@ -62,6 +63,10 @@ interface TraderaApiItem {
   language?: string;
   /** Traderas attribut "condition", t.ex. "Oanvänt". */
   condition?: string;
+  /** Traderas attribut "pokemon_grading_issuer", t.ex. "PSA" / "Raukcard" / "Övriga". */
+  gradingIssuer?: string;
+  /** Traderas attribut "pokemon_grade", t.ex. "10" / "9.5". */
+  grade?: string;
   source: "tradera-api";
 }
 
@@ -155,6 +160,11 @@ function parseItem(block: string): TraderaApiItem | null {
     categoryId: categoryIdText ? parseInt(categoryIdText, 10) : undefined,
     language: termAttributeValues(block, "pokemon_language")[0],
     condition: termAttributeValues(block, "condition")[0],
+    // Traderas STRUKTURERADE graderingsfält. Mätt 2026-09-04: satt på 83 % av
+    // annonserna i kategori 1001338 — och ibland på annonser i Löskort, där
+    // titeln inte nämner gradering med ett ord.
+    gradingIssuer: termAttributeValues(block, "pokemon_grading_issuer")[0],
+    grade: termAttributeValues(block, "pokemon_grade")[0],
     source: "tradera-api",
   };
 }
@@ -266,6 +276,15 @@ export class TraderaAdapter implements SourceAdapter {
             // Språkvakt: katalogen är engelskspråkig. Annonser som uttryckligen
             // anger annat språk hoppas över (matching.ts fångar även titlar).
             if (item.language && !/^eng/i.test(item.language)) continue;
+
+            // ⛔ GRADERINGSVAKT (2026-09-04): en slab är en annan vara än det råa
+            // kortet och får inte bli offer på det. `guessCategory` STÄMPLADE dem
+            // bara som GRADED_CARD, vilket inte är en vakt — matchningen tittar
+            // inte på stämpeln, och 16 sådana offers låg i produktionen. Sålt-
+            // svepet tar hand om dem i stället (`GradedSale`).
+            if (isGradedListing({ title: item.title, attrIssuer: item.gradingIssuer, attrGrade: item.grade })) {
+              continue;
+            }
 
             products.push({
               externalId: `tradera-${item.itemId}`,

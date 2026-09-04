@@ -418,6 +418,11 @@ klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
   `utcToday()`/`utcDaysAgo()` (`src/lib/utils.ts`). `d.setHours(0,0,0,0)` ger LOKAL midnatt och på svensk tid
   skriver en manuell jobbkörning då tyst på GÅRDAGENS rad (osynligt i drift — Actions kör UTC). Samma för
   `startOfMonthUtc()`: kvotfönstret måste ha samma gräns i kvoten och i kostnadsvyn.
+- ⛔ **ETT GRADERAT KORT ÄR EN ANNAN VARA ÄN DET OGRADERADE** (2026-09-04): en PSA 10 och det lösa kortet
+  delar namn men inte pris, och de får aldrig dela kurva, offer eller skena. Domen tas på ANNONSEN
+  (`isGradedListing`, `src/lib/graded-listing.ts`), aldrig på Tradera-kategorin — säljaren väljer kategori
+  och ~1 % av "Löskort" är slabbar. Graderade affärer bor i `GradedSale`, nyckelade på (produkt, bolag,
+  betyg), och visas med sitt `n` utsatt. Detaljer + vad som var trasigt: `.claude/rules/marketplace-tradera.md`.
 - **Offers = endast direkta länkar** — visa aldrig sök-/bläddringslänkar. `isDirectOfferUrl()` vaktar både UI
   och prisstatistik. Butiksfilter kräver IN_STOCK + direkt länk. Direkt länk UTAN pris visas ändå ("–").
 - **CM-länkar = exakt slug med `?language=1`** (+ `&minCondition=2` på singlar via `withNearMint()`,
@@ -493,7 +498,7 @@ klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
 | `auth-accounts.md` | En cookie som JS skriver har inte den livslängd du anger (WebKit kapar till 7 dygn) |
 | `billing-entitlements.md` | Stripe skriver ALDRIG `planTier`; glöms grenen i `proUserWhere()` får kunden Pro i UI:t men INGA larm |
 | `alerts-setwatch.md` | Regeln utvärderas vid LARMTILLFÄLLET, i BÅDA vägarna |
-| `marketplace-tradera.md` | Sålt är en EGEN serie, ersätter aldrig annonskurvan; ingen `fillForward` |
+| `marketplace-tradera.md` | Sålt är en EGEN serie, ersätter aldrig annonskurvan; ingen `fillForward`; graderat är en EGEN vara — domen tas på annonsen, aldrig på kategorin |
 | `catalog-browse.md` | Ofiltrerad katalog personaliseras ALDRIG; bygg ingen inlärd rankning |
 | `collection-portfolio.md` | Poster (lots), aldrig ett snitt i databasen; TRE set-tal och de blandas aldrig |
 | `ui-shell.md` | Porträttlås; bredd ensam ≠ desktop; min-height måste dra av spacer + safe-area |
