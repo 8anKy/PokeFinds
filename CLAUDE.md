@@ -151,6 +151,21 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   `scripts/find-unfeeded-products.ts` (sitemap + butikens sökindex, rapport only).
   ⚠️ Kör den rapporten INTE två gånger i rad mot samma butiker: andra sveppet får 429 och
   ofullständiga butiker ser annars ut som "0 träffar" (den varnar numera själv).
+  Gissar man URL:er i stället för att läsa index: `scripts/probe-store-handles.ts` (lär butikens
+  prefix/suffix ur dess EGNA kända länkar; köpgränser som `-max-1-kund` går ALDRIG att lära sig —
+  de sitter på produkten — och är fasta kandidater; redan bevakade URL:er markeras i stället för
+  att filtreras bort, så varje körning självkontrollerar).
+- ⛔ **NOLLPRIS SLÄNGER HELA PRODUKTEN — OLAGAT, ÄGARBESLUT VÄNTAR (2026-09-04).**
+  `ShopifyAdapter.toRaws` gör `if (priceOre <= 0) return []` — butikerna prissätter OSLÄPPTA
+  produkter till 0 kr som platshållare, och då tappar vi inte priset utan HELA annonsen: den når
+  aldrig feeden, får aldrig en `StoreListing`, importeras aldrig och kan aldrig larma. Det biter
+  alltså exakt på ett osläppt set, dvs precis det folk bevakar. MÄTT över 8 Shopify-butiker: 26 av
+  2 268 (1,1 %) — Beam Cardshop 20/217, RGB Kingz 6/105, övriga sex 0 — och **alla 26 är 30th
+  Celebration**. Beams adapterfeed ger 2 av deras 21 `30th-celebration`-produkter trots att alla 21
+  ligger i deras kollektioner sedan 2026-07-28. ⛔ Motsäger regeln "Direkt länk UTAN pris visas ändå
+  ('–')" längre upp. Fix: släpp igenom med `price: null` (rör `RawProductData.price`,
+  `validateResult` och offer-skrivningen — het väg). ⛔ Patcha INTE med bevakade länkar: URL:erna
+  ligger i feeden, det är prisgrinden som fäller dem.
   ⛔ **Discord-lanen är OPÅVERKAD** — `scripts/discord-restock-run.ts` importerar bara en TYP ur
   `@prisma/client` och rör aldrig databasen. Ruttabellen (`export-restock-routes.ts`) skrevs av BÅDE
   restock-watch och `scrape-all`; nattkedjan uppdaterar den alltså fortfarande, så lanen tappar bara
