@@ -86,4 +86,20 @@ jobs:
         env:
           TRADERA_SOLD_PAGES: "200"
           TRADERA_SOLD_LOOKBACK_DAYS: "3"
+          # ── GETITEM-TAKET VAR VÅRT EGET, INTE TRADERAS (mätt 2026-09-05) ─────
+          # Traderas kvot är 10 000 anrop/dygn PER METOD, och GetItem har EN enda
+          # anropare kvar (det här svepet — `verifyDeals` är avstängt sedan
+          # 2026-08-16). Koddefaulten 2500 var alltså ett tak på 25 % av kvoten,
+          # och det BAND: 09-01 gjorde svepet 2 500 anrop och hoppade över 535
+          # avslutade annonser, 09-02 hoppade 58. Varje hoppad annons är en affär
+          # vi aldrig fick veta om — GetItem är det ENDA sättet att skilja en såld
+          # Köp nu-annons från en utgången (`GotWinner`), och 77 % av avsluten
+          # kräver den vägen.
+          # 6000 ⇒ ~2× marginal över det uppmätta behovet (~3 200 en tung dag,
+          # inkl. den nya graderade kategorin) och fortfarande 40 % kvot kvar.
+          # ⛔ Taket får INTE tas bort helt: jobbet har `timeout-minutes: 90` och
+          # en timeout dödar HELA steget, inklusive skrivningarna. Observerad
+          # körtid vid 2 500 anrop är ~22 min, så 6 000 ligger med god marginal —
+          # men mät i loggen innan det höjs igen.
+          TRADERA_SOLD_GETITEM_MAX: "6000"
         run: npx tsx scripts/tradera-sold-sweep.ts
