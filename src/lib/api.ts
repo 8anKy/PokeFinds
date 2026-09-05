@@ -8,7 +8,8 @@ import { ServiceError } from "@/lib/errors";
 
 export function apiError(error: unknown): NextResponse {
   if (error instanceof AuthError || error instanceof ServiceError) {
-    return NextResponse.json({ error: error.message }, { status: error.status });
+    const code = error instanceof ServiceError && error.code ? { code: error.code } : {};
+    return NextResponse.json({ error: error.message, ...code }, { status: error.status });
   }
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2002") {

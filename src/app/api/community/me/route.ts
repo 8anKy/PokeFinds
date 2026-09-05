@@ -5,6 +5,7 @@ import { assertCommunityV2 } from "@/lib/community-v2-server";
 import { personalPostState } from "@/services/community";
 import { joinedGroupIds } from "@/services/community-groups";
 import { blockedUserIds } from "@/services/blocks";
+import { hasAcceptedForumRules } from "@/lib/forum-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,14 @@ export async function GET(req: NextRequest) {
     const session = await auth();
     await assertCommunityV2(session?.user?.role ?? null);
     const userId = session?.user?.id;
-    const empty = { likedIds: [], savedIds: [], joinedGroupIds: [], blockedIds: [] };
+    // rulesAccepted: null = okänt (utloggad), annars om forumreglerna är godkända.
+    const empty = {
+      likedIds: [],
+      savedIds: [],
+      joinedGroupIds: [],
+      blockedIds: [],
+      rulesAccepted: null as boolean | null,
+    };
     if (!userId) return jsonOk(empty);
 
     const postIds = (req.nextUrl.searchParams.get("postIds") ?? "")
@@ -33,16 +41,18 @@ export async function GET(req: NextRequest) {
       .filter((s) => /^[A-Za-z0-9_-]{1,64}$/.test(s))
       .slice(0, MAX_POST_IDS);
 
-    const [state, groups, blocked] = await Promise.all([
+    const [state, groups, blocked, rulesAccepted] = await Promise.all([
       personalPostState(userId, postIds),
       joinedGroupIds(userId),
       blockedUserIds(userId),
+      hasAcceptedForumRules(userId),
     ]);
     return jsonOk({
       likedIds: state.likedIds,
       savedIds: state.savedIds,
       joinedGroupIds: groups,
       blockedIds: blocked,
+      rulesAccepted,
     });
   } catch (e) {
     return apiError(e);

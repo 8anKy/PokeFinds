@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
-import { apiFetch } from "@/lib/client-api";
+import { apiErrorCode, apiFetch } from "@/lib/client-api";
+import { FORUM_RULES_CODE, PROFANITY_CODE } from "@/lib/profanity";
+import { requestForumRules } from "./forum-rules-gate";
 import {
   isTraderaUrl,
   LISTING_CONDITIONS,
@@ -127,7 +129,15 @@ export function Composer({ initialGroup }: { initialGroup?: string }) {
       toast({ title: t("composerPublished"), variant: "success" });
       router.push(`/forum/t/${res.id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("somethingWrong"));
+      const code = apiErrorCode(e);
+      if (code === FORUM_RULES_CODE) {
+        requestForumRules();
+        setError(t("rulesRequired"));
+      } else if (code === PROFANITY_CODE) {
+        setError(t("profanityBlocked"));
+      } else {
+        setError(e instanceof Error ? e.message : t("somethingWrong"));
+      }
       setSaving(false);
     }
   }

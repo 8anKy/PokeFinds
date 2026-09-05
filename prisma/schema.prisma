@@ -193,6 +193,9 @@ model User {
   lastPushError           String? // debug: senaste APNs/push-registreringsfel (egen kolumn → ej clobbrad av settings-PATCH)
   preferences             Json         @default("{}")
   reputationScore         Int          @default(0)
+  // Forumets regler godkända (dialogen i forumet). NULL = inte godkänt ⇒ inga trådar/svar.
+  // Grinden ligger på servern (lib/forum-rules.ts), dialogen är bekvämlighet.
+  forumRulesAcceptedAt DateTime?
   isPublicCollection      Boolean      @default(false)
   // Visa användarens aktiva Tradera-annonser på den publika profilen. EGEN spak,
   // skild från Tradera-kopplingen: kopplingen gavs för att SÄLJA från samlingen,

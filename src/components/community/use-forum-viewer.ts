@@ -24,9 +24,17 @@ export interface ForumPersonalState {
   savedIds: string[];
   joinedGroupIds: string[];
   blockedIds: string[];
+  /** Forumreglerna godkända? null = okänt/utloggad. Läses av ForumRulesGate. */
+  rulesAccepted: boolean | null;
 }
 
-const EMPTY: ForumPersonalState = { likedIds: [], savedIds: [], joinedGroupIds: [], blockedIds: [] };
+const EMPTY: ForumPersonalState = {
+  likedIds: [],
+  savedIds: [],
+  joinedGroupIds: [],
+  blockedIds: [],
+  rulesAccepted: null,
+};
 const TTL_MS = 30_000;
 const MODERATOR_ROLES = new Set(["MODERATOR", "ADMIN", "SUPERADMIN"]);
 

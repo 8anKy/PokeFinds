@@ -584,7 +584,20 @@
     "composerTraderaPlaceholder": "https://www.tradera.com/…",
     "composerTraderaInvalid": "Tradera-länken måste börja med https://www.tradera.com/.",
     "composerSubmit": "Publicera",
-    "composerPublished": "Tråden är publicerad"
+    "composerPublished": "Tråden är publicerad",
+    "rulesTitle": "Forumets regler",
+    "rulesIntro": "Innan du använder forumet ber vi dig godkänna några enkla regler.",
+    "rules1": "Var schysst. Inga trakasserier, hot eller hat mot andra medlemmar.",
+    "rules2": "Inga bedrägerier. Beskriv kort och skick ärligt, och lova aldrig något du inte kan hålla.",
+    "rules3": "Foilio är inte part i affärer mellan medlemmar. Träffas säkert och betala aldrig i förskott till någon du inte litar på.",
+    "rules4": "Inget olagligt eller olämpligt innehåll, inga grova ord och ingen spam.",
+    "rules5": "Moderatorer kan ta bort inlägg och stänga av konton som bryter mot reglerna.",
+    "rulesLegal": "Genom att godkänna accepterar du också våra <terms>användarvillkor</terms> och vår <privacy>integritetspolicy</privacy>.",
+    "rulesAccept": "Jag godkänner",
+    "rulesDecline": "Inte nu",
+    "rulesRequired": "Du behöver godkänna forumets regler innan du kan skriva.",
+    "rulesAcceptFailed": "Kunde inte spara ditt godkännande",
+    "profanityBlocked": "Texten innehåller ord som inte är tillåtna i forumet. Ändra den och försök igen."
   },
   "ForumGroups": {
     "allmant": {

@@ -5,6 +5,23 @@
  * - Skickar JSON, kastar Error med svenskt felmeddelande vid fel.
  * - Vid 401 omdirigeras användaren till inloggningen.
  */
+/** Fel ur API:t: meddelandet är serverns text, `code` en maskinläsbar nyckel när servern satt en. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public code: string | null = null
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+/** Koden ur ett fel som apiFetch kastat, annars null. */
+export function apiErrorCode(e: unknown): string | null {
+  return e instanceof ApiError ? e.code : null;
+}
+
 export async function apiFetch<T = unknown>(
   url: string,
   init?: Omit<RequestInit, "body"> & { body?: unknown }
@@ -35,11 +52,11 @@ export async function apiFetch<T = unknown>(
   }
 
   if (!res.ok) {
+    const obj = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
     const message =
-      data && typeof data === "object" && "error" in data && typeof data.error === "string"
-        ? data.error
-        : "Något gick fel. Försök igen.";
-    throw new Error(message);
+      obj && typeof obj.error === "string" ? obj.error : "Något gick fel. Försök igen.";
+    const code = obj && typeof obj.code === "string" ? obj.code : null;
+    throw new ApiError(message, res.status, code);
   }
 
   return data as T;

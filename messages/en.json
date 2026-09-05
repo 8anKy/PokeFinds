@@ -584,7 +584,20 @@
     "composerTraderaPlaceholder": "https://www.tradera.com/…",
     "composerTraderaInvalid": "The Tradera link must start with https://www.tradera.com/.",
     "composerSubmit": "Publish",
-    "composerPublished": "Thread published"
+    "composerPublished": "Thread published",
+    "rulesTitle": "Forum rules",
+    "rulesIntro": "Before you use the forum, please agree to a few simple rules.",
+    "rules1": "Be kind. No harassment, threats or hate towards other members.",
+    "rules2": "No scams. Describe cards and condition honestly and never promise what you can't deliver.",
+    "rules3": "Foilio is not a party to deals between members. Meet safely and never pay in advance to someone you don't trust.",
+    "rules4": "No illegal or inappropriate content, no profanity and no spam.",
+    "rules5": "Moderators may remove posts and suspend accounts that break the rules.",
+    "rulesLegal": "By agreeing you also accept our <terms>Terms of Service</terms> and <privacy>Privacy Policy</privacy>.",
+    "rulesAccept": "I agree",
+    "rulesDecline": "Not now",
+    "rulesRequired": "You need to accept the forum rules before you can post.",
+    "rulesAcceptFailed": "Couldn't save your acceptance",
+    "profanityBlocked": "Your text contains words that aren't allowed in the forum. Edit it and try again."
   },
   "ForumGroups": {
     "allmant": {

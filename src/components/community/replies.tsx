@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
-import { apiFetch } from "@/lib/client-api";
+import { apiErrorCode, apiFetch } from "@/lib/client-api";
+import { FORUM_RULES_CODE, PROFANITY_CODE } from "@/lib/profanity";
+import { requestForumRules } from "./forum-rules-gate";
 import { Button, LinkButton } from "@/components/ui/button";
 import { FieldError, Label, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -68,7 +70,15 @@ export function Replies({ postId, initial }: { postId: string; initial: CommentD
     } catch (e) {
       setComments((prev) => prev.filter((c) => c.id !== tempId));
       setText(content);
-      setError(e instanceof Error ? e.message : t("somethingWrong"));
+      const code = apiErrorCode(e);
+      if (code === FORUM_RULES_CODE) {
+        requestForumRules();
+        setError(t("rulesRequired"));
+      } else if (code === PROFANITY_CODE) {
+        setError(t("profanityBlocked"));
+      } else {
+        setError(e instanceof Error ? e.message : t("somethingWrong"));
+      }
     } finally {
       setBusy(false);
     }

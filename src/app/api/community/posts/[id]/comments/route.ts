@@ -5,6 +5,8 @@ import { rateLimit } from "@/lib/rate-limit";
 import { ServiceError } from "@/lib/errors";
 import { assertCommunityV2 } from "@/lib/community-v2-server";
 import { pushToUser } from "@/lib/push-to-user";
+import { assertForumRulesAccepted } from "@/lib/forum-rules";
+import { findProfanity, PROFANITY_CODE } from "@/lib/profanity";
 import { addComment, listComments } from "@/services/community";
 import { revalidateForum } from "../../../_shared/revalidate";
 
@@ -29,6 +31,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   try {
     const user = await requireUser();
     await assertCommunityV2(user.role);
+    await assertForumRulesAccepted(user.id);
 
     const { ok } = await rateLimit(`community-comment:${user.id}`, 20, 10 * 60 * 1000);
     if (!ok) {
@@ -39,6 +42,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
 
     const { content } = commentSchema.parse(await req.json());
+    if (findProfanity(content)) {
+      throw new ServiceError(
+        400,
+        "Svaret innehåller ord som inte är tillåtna i forumet. Ändra texten och försök igen.",
+        PROFANITY_CODE
+      );
+    }
     const { comment, post } = await addComment(params.id, user.id, content);
     revalidateForum({ group: true, thread: true });
 
