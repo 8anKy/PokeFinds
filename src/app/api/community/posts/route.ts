@@ -9,7 +9,7 @@ import { ServiceError } from "@/lib/errors";
 import { assertCommunityV2 } from "@/lib/community-v2-server";
 import { imageUrl, isForumImageKey, MAX_IMAGES_PER_POST } from "@/lib/object-storage";
 import { LISTING_CONDITIONS, validateListing } from "@/lib/listing-rules";
-import { assertForumRulesAccepted } from "@/lib/forum-rules";
+import { assertForumRulesAccepted, logModerationEvent } from "@/lib/forum-rules";
 import { findProfanity, PROFANITY_CODE } from "@/lib/profanity";
 import { postMarketThreadToDiscord } from "@/lib/discord-market";
 import { createPost, getFeed } from "@/services/community";
@@ -94,8 +94,10 @@ export async function POST(req: Request) {
 
     const input = createSchema.parse(await req.json());
 
-    // Ordfiltret (lib/profanity.ts): blockera, maskera aldrig.
-    if (findProfanity(input.title) || findProfanity(input.content)) {
+    // Ordfiltret (lib/profanity.ts): blockera, maskera aldrig — men logga försöket.
+    const dirty = findProfanity(input.title) ?? findProfanity(input.content);
+    if (dirty) {
+      logModerationEvent(user.id, "POST", dirty);
       throw new ServiceError(
         400,
         "Inlägget innehåller ord som inte är tillåtna i forumet. Ändra texten och försök igen.",

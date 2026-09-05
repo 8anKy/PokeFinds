@@ -196,6 +196,8 @@ model User {
   // Forumets regler godkända (dialogen i forumet). NULL = inte godkänt ⇒ inga trådar/svar.
   // Grinden ligger på servern (lib/forum-rules.ts), dialogen är bekvämlighet.
   forumRulesAcceptedAt DateTime?
+  // Vilken regelversion som godkändes (lib/forum-rules-version.ts). < aktuell ⇒ fråga igen.
+  forumRulesVersion    Int?
   isPublicCollection      Boolean      @default(false)
   // Visa användarens aktiva Tradera-annonser på den publika profilen. EGEN spak,
   // skild från Tradera-kopplingen: kopplingen gavs för att SÄLJA från samlingen,
@@ -268,6 +270,7 @@ model User {
 
   @@index([email])
   @@index([creatorCodeId])
+  moderationEvents ModerationEvent[]
 }
 
 // Betald kreatörssamarbete (TikTok m.fl.): en kod per kreatör.
@@ -1553,4 +1556,22 @@ model UserAchievement {
   /// Samlare" hade dykt upp igen varje natt i all evighet.
   @@unique([userId, key, tier])
   @@index([userId])
+}
+
+
+// Moderationslogg (2026-09-05): försök som ordfiltret stoppade. Ingenting av det
+// publicerades — raden finns så att återfall syns för moderatorerna (admin →
+// Rapporter). `detail` = det normaliserade ordet, aldrig hela texten.
+model ModerationEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  kind      String   // PROFANITY
+  target    String   // POST | COMMENT
+  detail    String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { ReportStatus } from "@prisma/client";
 import { ReportsClient, type ReportRow } from "./reports-client";
+import { ModerationLog } from "./moderation-log";
 
 export const dynamic = "force-dynamic";
 
@@ -50,5 +51,10 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
     },
   }));
 
-  return <ReportsClient reports={rows} activeStatus={status} />;
+  return (
+    <>
+      <ReportsClient reports={rows} activeStatus={status} />
+      <ModerationLog />
+    </>
+  );
 }
