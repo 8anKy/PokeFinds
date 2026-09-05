@@ -157,18 +157,34 @@ export function ProHoloCard({
               {/* Löv-F-märket, samma fil som headern (public/brand). Ett bokstavs-F
                   här lästes som ett annat varumärkes F (ägaren 2026-09-05). */}
               <div className="absolute inset-0 flex items-center justify-center">
+                {/* Mörk platta bakom märket: foilen och märket är samma turkos, så utan
+                    den försvann löv-F:et i sin egen glans (ägaren 2026-09-05). Märket
+                    ritas dessutom VITT (brightness 0 + invert) med turkos glöd — den
+                    enfärgade varianten av märket, läsbar även när foilen sveper över.
+                    Ta bort de två första filtren för att få tillbaka det gröna märket. */}
+                <span
+                  aria-hidden="true"
+                  className="absolute rounded-full"
+                  style={{
+                    width: hero ? 168 : 128,
+                    height: hero ? 168 : 128,
+                    background:
+                      "radial-gradient(circle, rgba(2,7,7,.94) 0%, rgba(2,7,7,.8) 40%, rgba(2,7,7,.35) 62%, transparent 74%)",
+                  }}
+                />
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/brand/foilio-mark.png"
                   alt=""
-                  width={hero ? 96 : 74}
-                  height={hero ? 96 : 74}
+                  width={hero ? 100 : 76}
+                  height={hero ? 100 : 76}
                   draggable={false}
-                  className="select-none"
+                  className="relative select-none"
                   style={{
-                    width: hero ? 96 : 74,
-                    height: hero ? 96 : 74,
-                    filter: "drop-shadow(0 4px 22px rgba(45,212,191,.55))",
+                    width: hero ? 100 : 76,
+                    height: hero ? 100 : 76,
+                    filter:
+                      "brightness(0) invert(1) drop-shadow(0 0 14px rgba(45,212,191,.9)) drop-shadow(0 6px 26px rgba(45,212,191,.45))",
                   }}
                 />
               </div>
