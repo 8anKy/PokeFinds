@@ -1,15 +1,19 @@
-# Skapar upload-keystoren för Google Play + android/keystore.properties.
-# Körs EN gång av ägaren, i en EGEN PowerShell (inte via en agent — lösenordet
-# skrivs in interaktivt och hamnar aldrig i någon kommandorad eller logg).
+# Skapar upload-keystoren for Google Play + android/keystore.properties.
+# Kors EN gang av agaren, i en EGEN PowerShell (inte via en agent - losenordet
+# skrivs in interaktivt och hamnar aldrig i nagon kommandorad eller logg).
 #
 #   powershell -ExecutionPolicy Bypass -File scripts\android-keystore-setup.ps1
 #
 # Resultat:
-#   %USERPROFILE%\foilio-upload.jks      (SÄKERHETSKOPIERA — utanför repot)
-#   android\keystore.properties          (gitignorad; build.gradle läser den)
+#   %USERPROFILE%\foilio-upload.jks      (SAKERHETSKOPIERA - utanfor repot)
+#   android\keystore.properties          (gitignorad; build.gradle laser den)
 #
-# Play App Signing håller den riktiga app-signeringsnyckeln, så en förlorad
-# upload-nyckel går att byta hos Google — men det tar dagar. Spara kopian.
+# Play App Signing haller den riktiga app-signeringsnyckeln, sa en forlorad
+# upload-nyckel gar att byta hos Google - men det tar dagar. Spara kopian.
+#
+# OBS: filen ar avsiktligt ren ASCII (inga a/o med prickar, inga tankstreck) -
+# Windows PowerShell 5.1 laser .ps1 utan BOM som ANSI och parsern gick sonder
+# pa UTF-8-tecknen forsta gangen (2026-09-05).
 
 $ErrorActionPreference = "Stop"
 
@@ -18,55 +22,64 @@ $keytool = "D:\Emulator\jbr\bin\keytool.exe"
 if (-not (Test-Path $keytool)) {
   $keytool = Join-Path $env:JAVA_HOME "bin\keytool.exe"
 }
-if (-not (Test-Path $keytool)) { throw "Hittar inte keytool.exe — sätt JAVA_HOME till en JDK 21." }
+if (-not (Test-Path $keytool)) { throw "Hittar inte keytool.exe - satt JAVA_HOME till en JDK 21." }
 
 $storeFile = Join-Path $env:USERPROFILE "foilio-upload.jks"
 $propsFile = Join-Path $repo "android\keystore.properties"
 $alias = "foilio"
 
+function Read-Plain([string]$prompt) {
+  $secure = Read-Host $prompt -AsSecureString
+  $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+  try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
+  finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+}
+
 if (Test-Path $storeFile) {
   Write-Host "Keystoren finns redan: $storeFile" -ForegroundColor Yellow
-  Write-Host "Vill du bara skriva om android\keystore.properties svarar du J."
-  if ((Read-Host "Fortsätt utan att skapa ny keystore? (J/N)") -notmatch '^[JjYy]') { exit 1 }
+  $answer = Read-Host "Skriva om android\keystore.properties med dess losenord? (J/N)"
+  if ($answer -notmatch '^[JjYy]') { exit 1 }
+  $s1 = Read-Plain "Keystorens losenord"
 } else {
-  $p1 = Read-Host "Välj lösenord för keystoren (minst 8 tecken)" -AsSecureString
-  $p2 = Read-Host "Upprepa lösenordet" -AsSecureString
-  $s1 = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($p1))
-  $s2 = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($p2))
-  if ($s1 -ne $s2) { throw "Lösenorden skiljer sig." }
+  $s1 = Read-Plain "Valj losenord for keystoren (minst 8 tecken)"
+  $s2 = Read-Plain "Upprepa losenordet"
+  if ($s1 -ne $s2) { throw "Losenorden skiljer sig." }
   if ($s1.Length -lt 8) { throw "Minst 8 tecken." }
-  # Gradle läser keystore.properties som ISO-8859-1 via java.util.Properties, och
-  # backslash/mellanslag/likhetstecken har egen betydelse där → tillåt bara enkla
-  # ASCII-tecken så att lösenordet som skrivs är exakt det som läses.
+  # Gradle laser keystore.properties som ISO-8859-1 via java.util.Properties, och
+  # backslash/mellanslag/likhetstecken har egen betydelse dar -> tillat bara enkla
+  # ASCII-tecken sa att losenordet som skrivs ar exakt det som lases.
   if ($s1 -match '[^A-Za-z0-9!@#$%^&*()_+\-.,;?~]') {
-    throw "Använd bara bokstäver A–Z, siffror och !@#$%^&*()_+-.,;?~ (inga å/ä/ö, mellanslag, = eller \)."
+    throw "Anvand bara A-Z, a-z, siffror och !@#$%^&*()_+-.,;?~ (inga a/o med prickar, mellanslag, = eller backslash)."
   }
 
-  # Samma lösenord för store och key (PKCS12 kräver det i praktiken).
-  # -dname slipper de interaktiva namnfrågorna; värdena syns bara i certifikatet.
+  # Samma losenord for store och key (PKCS12 kraver det i praktiken).
+  # -dname slipper de interaktiva namnfragorna; vardena syns bara i certifikatet.
   & $keytool -genkeypair -v `
     -keystore $storeFile -storetype PKCS12 `
     -alias $alias -keyalg RSA -keysize 2048 -validity 10000 `
     -storepass $s1 -keypass $s1 `
     -dname "CN=Foilio, O=Foilio, L=Stockholm, C=SE"
   if ($LASTEXITCODE -ne 0) { throw "keytool misslyckades ($LASTEXITCODE)." }
-
-  $storeFileFwd = $storeFile -replace '\\', '/'
-  @(
-    "storeFile=$storeFileFwd"
-    "storePassword=$s1"
-    "keyAlias=$alias"
-    "keyPassword=$s1"
-  ) | Set-Content -Path $propsFile -Encoding ascii
-  $s1 = $null; $s2 = $null
+  $s2 = $null
 }
+
+$storeFileFwd = $storeFile -replace '\\', '/'
+$lines = @(
+  "storeFile=$storeFileFwd"
+  "storePassword=$s1"
+  "keyAlias=$alias"
+  "keyPassword=$s1"
+)
+[IO.File]::WriteAllLines($propsFile, $lines, (New-Object System.Text.ASCIIEncoding))
 
 Write-Host ""
 Write-Host "Klart." -ForegroundColor Green
 Write-Host "  Keystore : $storeFile"
 Write-Host "  Gradle   : $propsFile"
 Write-Host ""
-Write-Host "Upload-nyckelns SHA-1 (behövs INTE för Google-inloggning — Play App Signing-nyckelns SHA-1 tas ur Play Console → App integrity):"
-& $keytool -list -v -keystore $storeFile -alias $alias -storepass (Get-Content $propsFile | Where-Object { $_ -like 'storePassword=*' } | ForEach-Object { $_.Substring(14) }) 2>$null | Select-String "SHA1"
+Write-Host "Upload-nyckelns SHA-1 (behovs INTE for Google-inloggning - dar anvands Play App Signing-nyckelns SHA-1 fran Play Console > App integrity):"
+& $keytool -list -v -keystore $storeFile -alias $alias -storepass $s1 2>$null | Select-String "SHA1"
+$s1 = $null
 Write-Host ""
-Write-Host "Nästa steg: bygg AAB:en —  `$env:JAVA_HOME='D:\Emulator\jbr'; cd android; .\gradlew bundleRelease"
+Write-Host "Nasta steg - bygg AAB:en:"
+Write-Host '  $env:JAVA_HOME = "D:\Emulator\jbr"; cd android; .\gradlew bundleRelease'

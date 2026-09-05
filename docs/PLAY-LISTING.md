@@ -143,6 +143,31 @@ v2 för Android-användare, före iOS 1.2 och före `COMMUNITY_V2_PUBLIC=1`. Tre
 2. **Intern testning bara** tills iOS 1.2 släpps — då är det bara ägaren som ser det.
 3. Bygga Android med `MARKETING_VERSION=1.1` — gömmer community men ljuger om versionen; undvik.
 
+## Sluten testning — 12 testare i 14 dygn (Plays krav för personliga konton)
+Utkast till Discord-inlägg (kanal: #announcements eller #allmänt), skickas när den slutna
+testningen är skapad och opt-in-länken finns:
+
+```
+📱 Hjälp oss testa Foilio-appen på Android!
+
+Foilio finns snart på Google Play — men innan Google släpper igenom appen kräver de att
+12 personer testar den i två veckor. Har du en Android-telefon? Då behöver vi dig.
+
+Så här gör du (tar 2 minuter):
+1. Öppna länken på telefonen: <OPT-IN-LÄNK>
+2. Tryck "Bli testare" och sedan "Ladda ner på Google Play"
+3. Öppna appen några gånger under de kommande två veckorna — det är allt
+
+Viktigt: stanna kvar som testare hela perioden (avinstallera gärna inte förrän efter
+den <SLUTDATUM>). Hittar du något som ser fel ut — skriv i #buggar, det är guld värt.
+
+Tack! 🙏 De första 12 som testar får en shout-out när appen släpps.
+```
+⛔ Lova inga Pro-månader eller andra ersättningar i inlägget förrän ägaren sagt ja —
+det är en kostnad (och Play tillåter inte incitament för recensioner, bara för test).
+Testarna måste vara opt-in **kontinuerligt** i 14 dygn; en som hoppar av nollställer inte
+räknaren men sänker antalet — bjud in 15–20 så finns marginal.
+
 ## Ordning för första släppet
 1. `scripts/android-keystore-setup.ps1` (ägaren, egen PowerShell) → `android/keystore.properties`.
 2. `$env:JAVA_HOME='D:\Emulator\jbr'; cd android; .\gradlew bundleRelease` →
