@@ -1565,7 +1565,7 @@
     "setButton": "Bevaka sealed",
     "setButtonActive": "Bevakar sealed",
     "setButtonHint": "Restock-larm på {count} sealed-produkter, även nya som släpps.",
-    "setButtonHintPaused": "Restock-larm är pausade tills vidare — set-bevakning är därför avstängd.",
+    "setButtonHintPaused": "Larmen är pausade just nu.",
     "scopeSetPaused": "Pausad tills vidare.",
     "scopeItemPaused": "Restock-larm är pausade tills vidare.",
     "setButtonHintActive": "Du får larm när sealed-produkter i setet kommer i lager.",
@@ -1826,7 +1826,7 @@
     "progress": "{owned} av {total} · {percent} %",
     "masterTitle": "Master set",
     "printingsProgress": "{owned} av {total} tryckningar · {percent} %",
-    "printingsElsewhereNote": "Setet har {total} tryckningar totalt — vi listar {listed} av dem.",
+    "printingsElsewhereNote": "{listed} av {total} tryckningar listade",
     "catalogueShortNote": "Vi listar ännu inte alla kort i det här setet, så 100 % går inte att nå här.",
     "showMissingOnly": "Visa bara saknade",
     "noneMissing": "Du äger alla kort vi listar i det här setet."
@@ -1904,9 +1904,8 @@
   },
   "SetComposition": {
     "title": "Setets sammansättning",
-    "intro": "Antal kort per sällsynthet och vad de kostar just nu, räknat på de kort vi listar i setet.",
     "summary": "{cards} kort · {rarities} sällsyntheter",
-    "disclaimer": "The Pokémon Company publicerar inga sannolikheter för fysiska boosterpaket. Vi hittar därför inte på några dragchanser — det här är setets faktiska sammansättning, inget annat. Att en sällsynthet har få kort säger ingenting om oddsen att dra ett av dem: paket sätts samman från tryckark.",
+    "disclaimer": "Inga dragchanser här: The Pokémon Company publicerar inga sannolikheter, och antalet kort per sällsynthet säger inget om oddsen att dra ett.",
     "affiliation": "Foilio är en oberoende tjänst och är inte ansluten till, sponsrad av eller godkänd av Nintendo, The Pokémon Company eller GAME FREAK.",
     "colRarity": "Sällsynthet",
     "colCount": "Antal",

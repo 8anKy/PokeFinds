@@ -67,38 +67,32 @@ export function SetComposition({
         </p>
       </div>
 
-      <p className="mt-1 text-sm text-ink-muted">{t("intro")}</p>
+      {/* BRASKLAPPEN — synlig rad, inte fotnot, i brödtextstorlek. EN mening
+          sedan 2026-09-06 (ägaren: "för mycket text"); varumärkesnoten står som
+          fotnot under tabellen. Ingressen ("antal kort per sällsynthet…") är
+          borta — rubriken och kolumnerna säger samma sak. */}
+      <p className="mt-2 border-l-2 border-holo-cyan/50 pl-3 text-[13px] leading-relaxed text-ink-muted">
+        {t("disclaimer")}
+      </p>
 
-      {/* BRASKLAPPEN — synlig rad, inte fotnot. Accentkanten gör den till en
-          egen läsenhet utan att skrika; texten står i brödtextstorlek. */}
-      <div className="mt-3 border-l-2 border-holo-cyan/50 pl-3">
-        <p className="text-[13px] leading-relaxed text-ink-muted">
-          {t("disclaimer")}
-        </p>
-        <p className="mt-1 text-[13px] leading-relaxed text-ink-faint">
-          {t("affiliation")}
-        </p>
-      </div>
-
-      {/* `Table` bär redan `overflow-x-auto` runt sig själv, så en lång
-          sällsynthetsetikett ("Special Illustration Rare") får tabellen att
-          scrolla I SIN EGEN behållare i stället för att dra hela sidan i
-          sidled. ⛔ Den regeln är hela skälet till att etiketten får vara
-          `whitespace-nowrap` nedan — namnet kortas aldrig av. */}
+      {/* TABELLEN SKA RYMMAS PÅ 390 px UTAN SIDOSCROLL (ägaren 2026-09-06): fyra
+          kolumner på mobil — Summa visas först från lg — tät padding, och
+          sällsynthetsnamnet får radbryta ("Special Illustration Rare" på två
+          rader) i stället för att tvinga fram en scroll i sin egen behållare. */}
       <Table className="mt-4">
         <THead>
           <TR>
-            <TH className="px-2.5 py-2.5 lg:px-4 lg:py-3">{t("colRarity")}</TH>
-            <TH className="px-2.5 py-2.5 text-right lg:px-4 lg:py-3">
+            <TH className="px-2 py-2.5 lg:px-4 lg:py-3">{t("colRarity")}</TH>
+            <TH className="px-2 py-2.5 text-right lg:px-4 lg:py-3">
               {t("colCount")}
             </TH>
-            <TH className="px-2.5 py-2.5 text-right lg:px-4 lg:py-3">
+            <TH className="px-2 py-2.5 text-right lg:px-4 lg:py-3">
               {t("colShare")}
             </TH>
-            <TH className="px-2.5 py-2.5 text-right lg:px-4 lg:py-3">
+            <TH className="px-2 py-2.5 text-right lg:px-4 lg:py-3">
               {t("colMedian")}
             </TH>
-            <TH className="px-2.5 py-2.5 text-right lg:px-4 lg:py-3">
+            <TH className="hidden px-2 py-2.5 text-right lg:table-cell lg:px-4 lg:py-3">
               {t("colTotal")}
             </TH>
           </TR>
@@ -108,8 +102,8 @@ export function SetComposition({
             const sharePercent = row.share * 100;
             return (
               <TR key={row.rarity ?? "__unknown__"}>
-                <TD className="px-2.5 py-2.5 lg:px-4 lg:py-3">
-                  <span className="block whitespace-nowrap text-[13px] font-medium text-ink lg:text-sm">
+                <TD className="px-2 py-2.5 lg:px-4 lg:py-3">
+                  <span className="block text-[13px] font-medium leading-snug text-ink lg:whitespace-nowrap lg:text-sm">
                     {/* ⛔ `null` översätts HÄR — beräkningen hittar aldrig på
                         ett namn på en sällsynthet katalogen inte har. */}
                     {row.rarity ?? t("unknownRarity")}
@@ -118,7 +112,7 @@ export function SetComposition({
                       tyst påstår sig gälla hela raden (samma ärlighet som
                       samlingens "snitt 400 kr · 1 av 4"). */}
                   {row.pricedCount < row.count && (
-                    <span className="mt-0.5 block whitespace-nowrap text-[11px] tabular-nums text-ink-faint">
+                    <span className="mt-0.5 block text-[11px] tabular-nums text-ink-faint">
                       {t("pricedOf", {
                         priced: row.pricedCount,
                         count: row.count,
@@ -127,11 +121,11 @@ export function SetComposition({
                   )}
                 </TD>
 
-                <TD className="px-2.5 py-2.5 text-right text-[13px] font-semibold tabular-nums text-ink lg:px-4 lg:py-3 lg:text-sm">
+                <TD className="px-2 py-2.5 text-right text-[13px] font-semibold tabular-nums text-ink lg:px-4 lg:py-3 lg:text-sm">
                   {row.count}
                 </TD>
 
-                <TD className="px-2.5 py-2.5 text-right text-[13px] tabular-nums text-ink lg:px-4 lg:py-3 lg:text-sm">
+                <TD className="px-2 py-2.5 text-right text-[13px] tabular-nums text-ink lg:px-4 lg:py-3 lg:text-sm">
                   {formatPercent(sharePercent, false)}
                   {/* ⛔ Spåret målas på `surface-overlay` — `surface` och
                       `surface-raised` är BÅDA #000000, så ett spår där hade
@@ -151,7 +145,7 @@ export function SetComposition({
                 </TD>
 
                 <TD
-                  className={`px-2.5 py-2.5 text-right text-[13px] tabular-nums lg:px-4 lg:py-3 lg:text-sm ${
+                  className={`whitespace-nowrap px-2 py-2.5 text-right text-[13px] tabular-nums lg:px-4 lg:py-3 lg:text-sm ${
                     row.medianPriceOre === null ? "text-ink-faint" : "text-ink"
                   }`}
                 >
@@ -159,7 +153,7 @@ export function SetComposition({
                 </TD>
 
                 <TD
-                  className={`px-2.5 py-2.5 text-right text-[13px] tabular-nums lg:px-4 lg:py-3 lg:text-sm ${
+                  className={`hidden whitespace-nowrap px-2 py-2.5 text-right text-[13px] tabular-nums lg:table-cell lg:px-4 lg:py-3 lg:text-sm ${
                     row.totalPriceOre === null ? "text-ink-faint" : "text-ink-muted"
                   }`}
                 >
@@ -180,6 +174,8 @@ export function SetComposition({
           </>
         )}
       </p>
+      {/* Varumärkesnoten — kvar (den är en juridisk rad), men som fotnot. */}
+      <p className="mt-1 text-[11px] leading-relaxed text-ink-faint">{t("affiliation")}</p>
     </section>
   );
 }

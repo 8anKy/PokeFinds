@@ -1565,7 +1565,7 @@
     "setButton": "Watch sealed",
     "setButtonActive": "Watching sealed",
     "setButtonHint": "Restock alerts on {count} sealed products, including new releases.",
-    "setButtonHintPaused": "Restock alerts are paused for now — set watching is therefore turned off.",
+    "setButtonHintPaused": "Alerts are paused right now.",
     "scopeSetPaused": "Paused for now.",
     "scopeItemPaused": "Restock alerts are paused for now.",
     "setButtonHintActive": "You'll be alerted when sealed products in this set come in stock.",
@@ -1826,7 +1826,7 @@
     "progress": "{owned} of {total} · {percent}%",
     "masterTitle": "Master set",
     "printingsProgress": "{owned} of {total} printings · {percent}%",
-    "printingsElsewhereNote": "This set has {total} printings in total — we list {listed} of them.",
+    "printingsElsewhereNote": "{listed} of {total} printings listed",
     "catalogueShortNote": "We don't list every card in this set yet, so 100% isn't reachable here.",
     "showMissingOnly": "Show only missing",
     "noneMissing": "You own every card we list in this set."
@@ -1904,9 +1904,8 @@
   },
   "SetComposition": {
     "title": "Set composition",
-    "intro": "Cards per rarity and what they cost right now, counted across the cards we list in this set.",
     "summary": "{cards} cards · {rarities} rarities",
-    "disclaimer": "The Pokémon Company publishes no probabilities for physical booster packs. So we invent no pull odds — this is the set's actual composition, nothing more. A rarity having few cards says nothing about the odds of pulling one: packs are collated from print sheets.",
+    "disclaimer": "No pull odds here: The Pokémon Company publishes no probabilities, and the number of cards per rarity says nothing about the odds of pulling one.",
     "affiliation": "Foilio is an independent service and is not affiliated with, sponsored by or endorsed by Nintendo, The Pokémon Company or GAME FREAK.",
     "colRarity": "Rarity",
     "colCount": "Cards",
