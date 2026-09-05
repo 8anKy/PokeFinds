@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { listCollection, computeCollectionValue } from "@/services/collection";
@@ -25,6 +24,7 @@ import { MobileCollectionGrid } from "./mobile-collection-grid";
 import { PortfolioTabs } from "./portfolio-tabs";
 import { SoldList } from "./sold-list";
 import { SetProgressList } from "./set-progress-list";
+import { GuestPortfolio } from "./guest-portfolio";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +35,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function CollectionPage() {
   const session = await auth();
-  if (!session?.user) redirect("/logga-in");
+  // Gäst: vad portföljen gör + Skapa konto/Logga in — ingen omdirigering (QA 2026-09-05).
+  if (!session?.user) return <GuestPortfolio />;
   const userId = session.user.id;
   const t = await getTranslations("Collection");
 
