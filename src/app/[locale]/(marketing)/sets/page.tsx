@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { alternatesFor } from "@/lib/canonical";
-import { getTranslations, setRequestLocale } from "next-intl/server";
+import { getLocale, getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
@@ -30,6 +30,7 @@ export default async function SetsPage({
 }) {
   setRequestLocale(params.locale);
   const t = await getTranslations("Sets");
+  const locale = await getLocale();
   const sets = await prisma.cardSet.findMany({
     // Engelska set + de japanska set som faktiskt HAR kortrader (JP-singlar sedan
     // 2026-08-29). Rena sealed-set på JP hade ritats som tomma brickor med
@@ -83,7 +84,7 @@ export default async function SetsPage({
                           {set.name}
                         </p>
                         <p className="mt-0.5 text-xs text-ink-faint">
-                          {t("release", { date: formatDate(set.releaseDate) })}
+                          {t("release", { date: formatDate(set.releaseDate, locale) })}
                         </p>
                       </div>
                       <p className="hidden shrink-0 text-sm tabular-nums text-ink-muted sm:block">

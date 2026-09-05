@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useId, useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { formatPrice, formatPercent, formatDate } from "@/lib/format";
 import { apiFetch } from "@/lib/client-api";
@@ -124,6 +124,7 @@ export function CollectionClient({
   isPublicCollection: boolean;
 }) {
   const t = useTranslations("Collection");
+  const locale = useLocale();
   const tCond = useTranslations("Condition");
   const tLang = useTranslations("Language");
   const tc = useTranslations("Common");
@@ -678,7 +679,7 @@ export function CollectionClient({
                           <TR key={lot.id} id={lotRowId(i)} className={open ? "text-sm" : "hidden"}>
                             {/* Underraden identifieras av sitt KÖPDATUM — det är det enda
                                 som skiljer två köp av samma vara åt för ögat. */}
-                            <TD className="pl-16 text-ink-muted">{formatDate(lot.purchaseDate)}</TD>
+                            <TD className="pl-16 text-ink-muted">{formatDate(lot.purchaseDate, locale)}</TD>
                             <TD />
                             <TD className="tabular-nums text-ink-muted">{lot.quantity}</TD>
                             <TD />

@@ -15,7 +15,7 @@
  * renderas exakt som förut: ingen chevron, ingen snittrad, ingen extra krom.
  */
 import { useCallback, useId, useMemo, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { apiFetch } from "@/lib/client-api";
 import { useToast } from "@/components/ui/toast";
@@ -48,6 +48,7 @@ const LONG_PRESS_MS = 450;
 
 export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
   const t = useTranslations("Collection");
+  const locale = useLocale();
   const tc = useTranslations("Common");
   const router = useRouter();
   const { toast } = useToast();
@@ -557,7 +558,7 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
                               {lot.purchasePrice != null ? formatPrice(lot.purchasePrice) : "–"}
                             </span>
                             <span className="block truncate text-ink-faint">
-                              {formatDate(lot.purchaseDate)}
+                              {formatDate(lot.purchaseDate, locale)}
                             </span>
                           </span>
                         </button>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -73,6 +73,7 @@ export async function generateMetadata({
 
 export default async function ProfilePage({ params }: { params: { locale: string; id: string } }) {
   const t = await getTranslations("Profile");
+  const locale = await getLocale();
   const [session, user] = await Promise.all([
     auth(),
     prisma.user.findUnique({
@@ -210,7 +211,7 @@ export default async function ProfilePage({ params }: { params: { locale: string
             {/* Inget rykte: `reputationScore` skrivs ingenstans (alltid 0) — raden
                 togs bort 2026-09-03 tills det finns en regel bakom talet. */}
             <p className="mt-1 text-sm text-ink-muted">
-              {t("memberSince", { date: formatDate(user.createdAt) })}
+              {t("memberSince", { date: formatDate(user.createdAt, locale) })}
             </p>
             {trust.length > 0 && (
               <ul className="mt-2 flex flex-wrap justify-center gap-2 sm:justify-start">

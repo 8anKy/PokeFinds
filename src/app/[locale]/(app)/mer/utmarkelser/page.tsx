@@ -15,7 +15,7 @@
  * äger sidluften och bottenflikarnas spacer — lägg ingen egen här.
  */
 import type { Metadata } from "next";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
@@ -43,10 +43,11 @@ export default async function AchievementsPage() {
 
   // ⛔ Parallellt: tre sekventiella await är tre rundturer mot Frankfurt för en
   // sida som redan är dynamisk.
-  const [earned, stats, t] = await Promise.all([
+  const [earned, stats, t, locale] = await Promise.all([
     listUserAchievements(userId),
     loadUserStats(userId),
     getTranslations("Achievements"),
+    getLocale(),
   ]);
 
   const rows = buildAchievementProgress(earned, stats);
@@ -86,7 +87,7 @@ export default async function AchievementsPage() {
           </h2>
           <ul className="card-surface divide-y divide-surface-border">
             {done.map((r) => (
-              <AchievementRow key={r.key} row={r} t={t} />
+              <AchievementRow key={r.key} row={r} t={t} locale={locale} />
             ))}
           </ul>
         </section>
@@ -99,7 +100,7 @@ export default async function AchievementsPage() {
           </h2>
           <ul className="card-surface divide-y divide-surface-border">
             {todo.map((r) => (
-              <AchievementRow key={r.key} row={r} t={t} />
+              <AchievementRow key={r.key} row={r} t={t} locale={locale} />
             ))}
           </ul>
         </section>
@@ -111,7 +112,7 @@ export default async function AchievementsPage() {
 type Row = ReturnType<typeof buildAchievementProgress>[number];
 type T = Awaited<ReturnType<typeof getTranslations<"Achievements">>>;
 
-function AchievementRow({ row, t }: { row: Row; t: T }) {
+function AchievementRow({ row, t, locale }: { row: Row; t: T; locale: string }) {
   const Icon = ACHIEVEMENT_ICONS[row.icon];
   const unlocked = row.earnedTier > 0;
 
@@ -172,7 +173,7 @@ function AchievementRow({ row, t }: { row: Row; t: T }) {
 
         {row.unlockedAt && (
           <p className="mt-1 text-xs text-ink-faint">
-            {t("unlockedOn", { date: formatDate(row.unlockedAt) })}
+            {t("unlockedOn", { date: formatDate(row.unlockedAt, locale) })}
           </p>
         )}
       </div>

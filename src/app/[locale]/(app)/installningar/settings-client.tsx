@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { dateLocaleTag } from "@/lib/format";
 import { useSearchParams } from "next/navigation";
 import { useRouter } from "@/i18n/navigation";
 import { signOut } from "next-auth/react";
@@ -91,6 +92,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   const tSettings = useTranslations("Settings");
   const tc = useTranslations("Common");
   const tPause = useTranslations("RestockPause");
+  const locale = useLocale();
   // Prislarmen har en EGEN paus (2026-08-26). Klientflaggan, inte serverns: den här
   // komponenten renderas i webbläsaren och ser bara NEXT_PUBLIC_-speglingen.
   const pricePaused = priceAlertsPausedClient();
@@ -525,13 +527,13 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
               som ett fel i appen, inte som ett utgånget erbjudande. */}
           {user.bonusProUntil && (
             <p className="mt-2 text-sm font-medium text-holo-cyan">
-              Gratisperiod till och med{" "}
-              {new Date(user.bonusProUntil).toLocaleDateString("sv-SE", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
+              {tSettings("freeUntil", {
+                date: new Date(user.bonusProUntil).toLocaleDateString(dateLocaleTag(locale), {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                }),
               })}
-              .
             </p>
           )}
           {(!user.isPro || user.bonusProUntil) && (

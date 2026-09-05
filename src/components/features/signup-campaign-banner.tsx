@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import { dateLocaleTag } from "@/lib/format";
 import { useAuthHint } from "@/lib/auth-hint";
 import {
   campaignIsOpen,
@@ -29,6 +31,8 @@ import {
  * att veta i webbläsaren — att gissa hade gett hydreringsfel.
  */
 export function SignupCampaignBanner() {
+  const t = useTranslations("SignupCampaign");
+  const locale = useLocale();
   const [mounted, setMounted] = useState(false);
   const authed = useAuthHint();
 
@@ -46,25 +50,23 @@ export function SignupCampaignBanner() {
   const months = Number.parseInt(String(config.months ?? ""), 10);
   const monthLabel =
     Number.isFinite(months) && months > 0 ? months : DEFAULT_SIGNUP_BONUS_MONTHS;
-  const deadline = new Date(`${config.until}T23:59:59.999Z`).toLocaleDateString("sv-SE", {
-    day: "numeric",
-    month: "long",
-  });
+  const deadline = new Date(`${config.until}T23:59:59.999Z`).toLocaleDateString(
+    dateLocaleTag(locale),
+    { day: "numeric", month: "long" }
+  );
 
   return (
     <div className="border-b border-holo-cyan/25 bg-holo-cyan/10">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-2 gap-y-1 px-2.5 py-2 text-center text-sm sm:px-6">
         <span className="font-semibold text-holo-cyan">
-          {monthLabel} månader Foilio Pro gratis
+          {t("headline", { months: monthLabel })}
         </span>
-        <span className="text-ink-muted">
-          för alla som registrerar sig före den {deadline}.
-        </span>
+        <span className="text-ink-muted">{t("deadline", { date: deadline })}</span>
         <Link
           href="/registrera"
           className="font-semibold text-ink underline underline-offset-2 hover:text-holo-cyan"
         >
-          Skapa konto
+          {t("cta")}
         </Link>
       </div>
     </div>

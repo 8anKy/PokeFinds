@@ -63,6 +63,7 @@
     "freeBadge": "Free",
     "planProDesc": "You have Pro. Unlimited watches, price alerts, unlimited scanning and AI grading.",
     "planFreeDesc": "With Pro you get unlimited watches, price alerts, more AI gradings and full price history.",
+    "freeUntil": "Free period until {date}.",
     "upgradeCta": "Upgrade to Pro",
     "continueProCta": "Continue with Pro",
     "traderaTitle": "Sell on Tradera",
@@ -762,6 +763,11 @@
     "traderaViewAll": "See all on Tradera",
     "listingAuction": "Auction",
     "listingBuyNow": "Buy now"
+  },
+  "SignupCampaign": {
+    "headline": "{months} months of Foilio Pro free",
+    "deadline": "for everyone who signs up before {date}.",
+    "cta": "Create account"
   },
   "Cookies": {
     "bannerAria": "Cookie information",

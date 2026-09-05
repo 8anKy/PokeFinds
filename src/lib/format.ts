@@ -16,14 +16,29 @@ export function formatPercent(value: number, signed = true): string {
   return `${sign}${value.toFixed(1).replace(".", ",")} %`;
 }
 
-export function formatDate(date: Date | string | null | undefined): string {
-  if (!date) return "–";
-  return new Intl.DateTimeFormat("sv-SE", { dateStyle: "medium" }).format(new Date(date));
+/**
+ * Språk → Intl-tagg. Utan argument svenska (admin är svensk rakt igenom); med
+ * next-intls locale ("sv"/"en") följer datumet gränssnittet — "31 juli 2026" mitt
+ * i ett engelskt set-index var en av språkblandningarna i QA-svepet 2026-09-05.
+ * Engelska = en-GB (dag före månad, som prisgrafen), aldrig US.
+ */
+export function dateLocaleTag(locale?: string): string {
+  return locale && locale.startsWith("en") ? "en-GB" : "sv-SE";
 }
 
-export function formatDateTime(date: Date | string | null | undefined): string {
+export function formatDate(date: Date | string | null | undefined, locale?: string): string {
   if (!date) return "–";
-  return new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeStyle: "short" }).format(new Date(date));
+  return new Intl.DateTimeFormat(dateLocaleTag(locale), { dateStyle: "medium" }).format(
+    new Date(date)
+  );
+}
+
+export function formatDateTime(date: Date | string | null | undefined, locale?: string): string {
+  if (!date) return "–";
+  return new Intl.DateTimeFormat(dateLocaleTag(locale), {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(date));
 }
 
 /**

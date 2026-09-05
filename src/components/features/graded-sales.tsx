@@ -1,7 +1,7 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-import { formatPrice } from "@/lib/format";
+import { useLocale, useTranslations } from "next-intl";
+import { formatPrice, dateLocaleTag } from "@/lib/format";
 import { ISSUER_LABELS, formatGrade, type GradingIssuer } from "@/lib/graded-listing";
 import type { GradedSummary } from "@/services/graded";
 
@@ -27,9 +27,10 @@ export function GradedSales({
   productTitle: string;
 }) {
   const t = useTranslations("Detail");
+  const locale = useLocale();
   if (!graded || graded.rows.length === 0) return null;
 
-  const dateFmt = new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short" });
+  const dateFmt = new Intl.DateTimeFormat(dateLocaleTag(locale), { day: "numeric", month: "short" });
 
   return (
     <section className="mt-10">

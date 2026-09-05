@@ -145,7 +145,7 @@ export default async function WatchlistPage() {
                       <p className="text-sm text-ink">{a.message}</p>
                       <p className="mt-0.5 text-xs text-ink-faint">
                         {t("triggered", { when: formatRelative(a.triggeredAt, locale) })}
-                        {a.sentAt ? t("sentSuffix", { when: formatDateTime(a.sentAt) }) : ""}
+                        {a.sentAt ? t("sentSuffix", { when: formatDateTime(a.sentAt, locale) }) : ""}
                       </p>
                     </div>
                     <Badge variant={status.variant} className="shrink-0">

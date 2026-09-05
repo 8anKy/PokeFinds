@@ -1,4 +1,4 @@
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { formatPrice, formatDate } from "@/lib/format";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -31,6 +31,7 @@ function ResultText({ value }: { value: number | null }) {
 
 export async function SoldList({ sales }: { sales: SaleRow[] }) {
   const t = await getTranslations("Collection");
+  const locale = await getLocale();
   const tCond = await getTranslations("Condition");
   if (sales.length === 0) {
     return (
@@ -89,7 +90,7 @@ export async function SoldList({ sales }: { sales: SaleRow[] }) {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-ink">{s.name}</p>
               {s.setName && <p className="truncate text-xs text-ink-muted">{s.setName}</p>}
-              <p className="text-xs text-ink-muted">{formatDate(s.soldAt)}</p>
+              <p className="text-xs text-ink-muted">{formatDate(s.soldAt, locale)}</p>
             </div>
             <div className="shrink-0 text-right">
               <p className="text-sm font-semibold tabular-nums text-ink">{formatPrice(s.salePriceOre)}</p>
@@ -136,7 +137,7 @@ export async function SoldList({ sales }: { sales: SaleRow[] }) {
                 </TD>
                 <TD className="text-ink-muted">{s.setName ?? "–"}</TD>
                 <TD>{s.condition in CONDITION_LABELS ? tCond(s.condition) : s.condition}</TD>
-                <TD className="text-ink-muted">{formatDate(s.soldAt)}</TD>
+                <TD className="text-ink-muted">{formatDate(s.soldAt, locale)}</TD>
                 <TD data-price>{formatPrice(s.purchasePriceOre)}</TD>
                 <TD data-price className="font-semibold">
                   {formatPrice(s.salePriceOre)}

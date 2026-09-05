@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { alternatesFor, localeUrl } from "@/lib/canonical";
-import { getTranslations, setRequestLocale } from "next-intl/server";
+import { getLocale, getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -79,6 +79,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function SetPage({ params }: PageProps) {
   setRequestLocale(params.locale);
   const t = await getTranslations("Sets");
+  const locale = await getLocale();
   const set = await getSet(params.id);
   if (!set) notFound();
 
@@ -176,7 +177,7 @@ export default async function SetPage({ params }: PageProps) {
                 set har secret rares ovanför det. Rubriken sa då "84 kort" medan
                 rutnätet under den listade 120 och stapeln mätte mot 120. Tre tal om
                 samma set på samma skärm; nu ett. */}
-            {t("releaseColon", { date: formatDate(set.releaseDate) })} ·{" "}
+            {t("releaseColon", { date: formatDate(set.releaseDate, locale) })} ·{" "}
             {t("cards", { count: set._count.cards })} ·{" "}
             {t("products", { count: products.length })}
           </p>

@@ -63,6 +63,7 @@
     "freeBadge": "Gratis",
     "planProDesc": "Du har Pro. Obegränsade bevakningar, prislarm, obegränsad skanning och AI-gradering.",
     "planFreeDesc": "Med Pro får du obegränsade bevakningar, prislarm, fler AI-graderingar och full prishistorik.",
+    "freeUntil": "Gratisperiod till och med {date}.",
     "upgradeCta": "Uppgradera till Pro",
     "continueProCta": "Fortsätt med Pro",
     "traderaTitle": "Sälj på Tradera",
@@ -762,6 +763,11 @@
     "traderaViewAll": "Visa alla på Tradera",
     "listingAuction": "Auktion",
     "listingBuyNow": "Köp nu"
+  },
+  "SignupCampaign": {
+    "headline": "{months} månader Foilio Pro gratis",
+    "deadline": "för alla som registrerar sig före den {date}.",
+    "cta": "Skapa konto"
   },
   "Cookies": {
     "bannerAria": "Information om cookies",
