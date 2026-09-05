@@ -54,6 +54,18 @@ async function ensureConfigured(userId: string) {
 
 export const purchasesAvailable = () => Capacitor.isNativePlatform() && !!API_KEY;
 
+/**
+ * Appen körs i App Store-/Play-skalet men plattformens RevenueCat-nyckel saknas
+ * (t.ex. Android innan `NEXT_PUBLIC_RC_ANDROID_KEY` finns i Railway).
+ *
+ * ⛔ Då får köpknappen ALDRIG falla tillbaka på Stripe. Både Apple och Google
+ * förbjuder egen checkout för digitala varor inne i appen, och Play avvisar (eller
+ * drar) bygget vid granskningen. Utan den här grinden visade `/priser` — som i appen
+ * ÄR hela paywallen — Stripe-knappen så snart nyckeln fattades, eftersom
+ * `purchasesAvailable()` då är false och webbgrenen tog över. Visa "kommer snart".
+ */
+export const storeShellWithoutPurchases = () => Capacitor.isNativePlatform() && !API_KEY;
+
 /** Köp Premium. Returnerar true om köpet gav premium-entitlement. */
 export async function purchasePremium(userId: string): Promise<boolean> {
   await ensureConfigured(userId);

@@ -6,7 +6,12 @@ import { useRouter } from "@/i18n/navigation";
 import { useSession } from "next-auth/react";
 import { Button, LinkButton } from "@/components/ui/button";
 import { hasAuthHint } from "@/lib/auth-hint";
-import { purchasesAvailable, purchasePremium, restorePremium } from "@/lib/purchases";
+import {
+  purchasesAvailable,
+  purchasePremium,
+  restorePremium,
+  storeShellWithoutPurchases,
+} from "@/lib/purchases";
 
 /**
  * I native-appen (Capacitor) = riktig Apple/Google In-App Purchase via RevenueCat.
@@ -22,6 +27,8 @@ export function UpgradeButton({ webCheckout = false }: { webCheckout?: boolean }
   const router = useRouter();
   const { update } = useSession();
   const [native, setNative] = useState(false);
+  /** App-skal utan butiksköp (nyckel saknas) → aldrig Stripe, bara "kommer snart". */
+  const [storeShellNoIap, setStoreShellNoIap] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [isPro, setIsPro] = useState(false);
   /** Varför kontot har Pro — styr vad vi får lova om uppsägning. Se lib/plan. */
@@ -84,6 +91,7 @@ export function UpgradeButton({ webCheckout = false }: { webCheckout?: boolean }
 
   useEffect(() => {
     setNative(purchasesAvailable());
+    setStoreShellNoIap(storeShellWithoutPurchases());
     const logged = hasAuthHint();
     setLoggedIn(logged);
     if (logged) {
@@ -151,7 +159,7 @@ export function UpgradeButton({ webCheckout = false }: { webCheckout?: boolean }
             ⛔ Erbjud aldrig en avbryt-knapp för ett app-köp: den prenumerationen
             ägs av Apple/Google och vi har ingen väg att säga upp den. Ett löfte
             som inte går att hålla är sämre än en hänvisning som är sann. */}
-        {proSource === "stripe" && !native ? (
+        {proSource === "stripe" && !native && !storeShellNoIap ? (
           <>
             <button
               type="button"
@@ -178,7 +186,9 @@ export function UpgradeButton({ webCheckout = false }: { webCheckout?: boolean }
   }
 
   if (!native) {
-    if (!webCheckout) {
+    // ⛔ `storeShellNoIap`: Play-/App Store-bygge utan RevenueCat-nyckel. Stripe här
+    // = policybrott (egen checkout för digitala varor i appen) → "kommer snart".
+    if (!webCheckout || storeShellNoIap) {
       return (
         <>
           <Button disabled className="mt-8 w-full">{t("comingSoon")}</Button>
