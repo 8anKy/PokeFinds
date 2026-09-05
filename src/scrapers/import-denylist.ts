@@ -1167,6 +1167,9 @@ const DENIED = new Set<string>(
     // Collectors Chest 2025 (raderad produkt)
     "https://speltrollet.se/products/pokemon-tcg-collectors-chest-2025",
     "https://www.maxgaming.se/sv/pokemon/pokemon-collectors-chest",
+    // 2026-09-05 (ägarens mergar): KINESISK 10-korts Storm Emeralda-booster låg som Aquitaz-länk på den
+    // JAPANSKA boosterprodukten — kinesiskt katalogiseras aldrig (EN+JP-policy), så URL:en nekas.
+    "https://aquitaz.se/products/pokemon-scarlet-violet-storm-emeralda-booster-pack-10-kort-ch",
   ].map(normalizeListingUrl)
 );
 
