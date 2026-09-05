@@ -98,7 +98,9 @@ export function ForumRulesGate() {
     }
   }, [t, toast]);
 
-  const close = useCallback(() => setOpen(false), []);
+  // Inget X och ingen stängning via bakgrund/Escape (ägarbeslut 2026-09-06): ett
+  // kryss som lämnade användaren kvar i forumet läste som en tredje, oförklarad
+  // väg. Valet är "Inte nu" (tillbaka till start) eller "Jag godkänner".
   const decline = useCallback(() => {
     setOpen(false);
     router.push("/");
@@ -107,7 +109,8 @@ export function ForumRulesGate() {
   return (
     <Modal
       open={open}
-      onClose={close}
+      onClose={decline}
+      dismissible={false}
       title={t("rulesTitle")}
       footer={
         <div className="flex flex-wrap justify-end gap-2">

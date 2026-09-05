@@ -13,12 +13,26 @@ export interface ModalProps {
   children: ReactNode;
   footer?: ReactNode;
   className?: string;
+  /**
+   * false = ingen X-knapp, ingen stängning via bakgrund eller Escape — bara
+   * footerns egna knappar tar användaren vidare. För dialoger där valet ska vara
+   * uttryckligt (forumreglerna: "Inte nu" eller "Jag godkänner", inget tredje).
+   */
+  dismissible?: boolean;
 }
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export function Modal({ open, onClose, title, children, footer, className }: ModalProps) {
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  footer,
+  className,
+  dismissible = true,
+}: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const tCommon = useTranslations("Common");
   // onClose är ofta en inline-arrow (ny identitet varje render). Läs den via ref så
@@ -26,6 +40,8 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
   // och stjäl fokus från inputen (→ tangentbordet stängs efter en siffra).
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const dismissibleRef = useRef(dismissible);
+  dismissibleRef.current = dismissible;
 
   // Tangentbordshöjd → kapa overlayn ovanför tangentbordet så panelen aldrig hamnar
   // bakom det. Mätningen (Capacitor-bryggan i appen, visualViewport på webben)
@@ -59,7 +75,7 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onCloseRef.current();
+        if (dismissibleRef.current) onCloseRef.current();
         return;
       }
       if (e.key === "Tab" && panelRef.current) {
@@ -113,7 +129,7 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
       {/* Bakgrund */}
       <div
         className="absolute inset-0 animate-fade-in bg-surface/80 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={dismissible ? onClose : undefined}
         aria-hidden="true"
       />
       {/* Panel */}
@@ -130,14 +146,16 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
       >
         <div className="flex items-center justify-between border-b border-surface-border px-5 py-4">
           <h2 className="font-display text-lg font-semibold text-ink">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={tCommon("close")}
-            className="rounded-lg p-1.5 text-ink-faint transition-colors hover:bg-surface-overlay hover:text-ink"
-          >
-            <IconX size={18} />
-          </button>
+          {dismissible && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label={tCommon("close")}
+              className="rounded-lg p-1.5 text-ink-faint transition-colors hover:bg-surface-overlay hover:text-ink"
+            >
+              <IconX size={18} />
+            </button>
+          )}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
         {footer && (
