@@ -14,6 +14,8 @@ import { computeSetComposition, type CompositionCard } from "@/lib/set-compositi
 import { SetWatchButton } from "@/components/features/set-watch-button";
 import { isSealedCategory } from "@/lib/product-category";
 import { IconPackage } from "@/components/ui/icons";
+import { SubpageHeader } from "@/components/layout/subpage-header";
+import { SwipeBack } from "@/components/ui/swipe-back";
 
 // Set-data ändras ~en gång/dygn → cacha per set (ISR). Sparar Vercel CPU + Neon.
 export const revalidate = 3600;
@@ -148,7 +150,12 @@ export default async function SetPage({ params }: PageProps) {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-2.5 py-10 sm:px-6">
+    // Mobil: undersida med appens bakåtcirkel (SubpageHeader, rutten står i
+    // lib/subpage-routes.ts) + kant-svep tillbaka; namnet bor i raden, så h1:an
+    // och seriebrickan visas bara på desktop där brödsmulorna finns.
+    // `pt-6` på mobil = samma tal som SubpageHeaders `-mt-6`; desktop behåller py-10.
+    <SwipeBack fallback="/sets">
+    <div className="mx-auto max-w-7xl px-2.5 pb-10 pt-6 sm:px-6 lg:pt-10">
       {/* <-escapen: JSON.stringify escapar inte "<", så ett setnamn med
           "</script>" skulle annars bryta sig ut ur script-taggen. */}
       <script
@@ -157,7 +164,8 @@ export default async function SetPage({ params }: PageProps) {
           __html: JSON.stringify(breadcrumbJsonLd).replace(/</g, "\\u003c"),
         }}
       />
-      <nav aria-label={t("breadcrumb")} className="mb-6 text-sm text-ink-muted">
+      <SubpageHeader title={set.name} subtitle={set.series} fallback="/sets" mobileOnly />
+      <nav aria-label={t("breadcrumb")} className="mb-6 hidden text-sm text-ink-muted lg:block">
         <Link href="/sets" className="hover:text-ink">{t("breadcrumb")}</Link>
         <span className="mx-2 text-ink-faint" aria-hidden="true">/</span>
         <span className="text-ink">{set.name}</span>
@@ -167,7 +175,7 @@ export default async function SetPage({ params }: PageProps) {
           faller knappen ner under metaraden i stället för att tränga rubriken. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="hidden flex-wrap items-center gap-3 lg:flex">
             <h1 className="font-display text-3xl font-bold text-ink">{set.name}</h1>
             <Badge variant="holo">{set.series}</Badge>
           </div>
@@ -229,5 +237,6 @@ export default async function SetPage({ params }: PageProps) {
         />
       )}
     </div>
+    </SwipeBack>
   );
 }

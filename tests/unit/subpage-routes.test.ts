@@ -24,13 +24,14 @@ describe("isSubpageRoute", () => {
       "/mer/bjud-in",
       "/meddelanden/conv1",
       "/produkter/30th-celebration-elite-trainer-box",
+      "/sets/sv10",
     ]) {
       expect(isSubpageRoute(p), p).toBe(true);
     }
   });
 
   it("flikarnas rotsidor och listor behåller logotyphuvudet", () => {
-    for (const p of ["/", "/produkter", "/samling", "/skanna", "/forum", "/meddelanden", "/mer", "/sets", "/sets/sv1", "/marknad"]) {
+    for (const p of ["/", "/produkter", "/samling", "/skanna", "/forum", "/meddelanden", "/mer", "/sets", "/marknad"]) {
       expect(isSubpageRoute(p), p).toBe(false);
     }
   });

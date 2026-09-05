@@ -26,7 +26,7 @@ const EXACT = new Set([
   "/mer/bjud-in",
 ]);
 
-const PREFIXES = ["/forum/g/", "/forum/t/", "/meddelanden/", "/produkter/"];
+const PREFIXES = ["/forum/g/", "/forum/t/", "/meddelanden/", "/produkter/", "/sets/"];
 
 export function isSubpageRoute(pathname: string | null | undefined): boolean {
   if (!pathname) return false;
