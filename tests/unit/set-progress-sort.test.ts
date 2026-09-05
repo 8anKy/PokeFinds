@@ -7,7 +7,7 @@
  * av det vi vet minst om.
  */
 import { describe, expect, it } from "vitest";
-import { sortSetRows } from "@/app/[locale]/(app)/samling/set-progress-sort";
+import { sortSetRows } from "@/app/[locale]/(portfolio)/samling/set-progress-sort";
 import type { SetPortfolioRow } from "@/services/set-portfolio";
 
 function row(p: Partial<SetPortfolioRow> & { setId: string }): SetPortfolioRow {

@@ -123,10 +123,36 @@ interface ShopifyRaw {
   productId: number;
   variantId?: number;
   available: boolean;
-  priceOre: number;
+  /** Butikens tal rakt av (0 när de publicerar 0 kr); null = gick inte att läsa. */
+  priceOre: number | null;
 }
-function isShopifyRaw(raw: unknown): raw is { priceOre: number; available: boolean } {
+function isShopifyRaw(raw: unknown): raw is { priceOre: number | null; available: boolean } {
   return typeof raw === "object" && raw !== null && "priceOre" in raw && "available" in raw;
+}
+
+/** Shopifys "2490.00" → öre, eller null när strängen inte är ett tal. */
+function parsePriceOre(major: string | undefined): number | null {
+  const ore = Math.round(parseFloat(major ?? "") * 100);
+  return Number.isFinite(ore) ? ore : null;
+}
+
+/**
+ * ⛔ 0 KR ÄR INGET PRIS — MEN DET ÄR INTE HELLER ETT SKÄL ATT SLÄNGA ANNONSEN.
+ *
+ * Butikerna prissätter OSLÄPPTA produkter till 0 kr som platshållare. Vi slängde då
+ * HELA raden (`return []`), så annonsen nådde aldrig feeden, fick aldrig en StoreListing,
+ * importerades aldrig och kunde aldrig larma — och det bet exakt på osläppta set, dvs
+ * precis det folk bevakar. MÄTT 2026-09-04 över 8 Shopify-butiker: 26 av 2 268 (Beam
+ * Cardshop 20/217, RGB Kingz 6/105), ALLA 30th Celebration; Beams feed gav 2 av deras 21
+ * 30th-produkter fast alla 21 låg i kollektionerna sedan 07-28.
+ *
+ * Nu: ett icke-positivt eller oläsbart pris blir `price: null` ("pris okänt") och raden
+ * överlever med länk + lagerstatus. null skrivs aldrig som observation (runner.ts) och
+ * visas som "–", aldrig som 0 kr. ⛔ Aldrig 0 som stand-in — samma doktrin som
+ * `priceOreFromEur`.
+ */
+function knownPrice(ore: number | null): number | null {
+  return ore !== null && ore > 0 ? ore : null;
 }
 
 /**
@@ -334,8 +360,8 @@ export abstract class ShopifyAdapter implements SourceAdapter {
     if (split) {
       const out: RawProductData[] = [];
       for (const v of split) {
-        const priceOre = Math.round(parseFloat(v.price) * 100);
-        if (!Number.isFinite(priceOre) || priceOre <= 0) continue;
+        // 0 kr/oläsbart ⇒ pris okänt, raden behålls (se knownPrice).
+        const priceOre = parsePriceOre(v.price);
         const rawData: ShopifyRaw = { productId: p.id, variantId: v.id, available: v.available, priceOre };
         // Butikens egen namngivning av varianten ("… - Mega Emboar") — samma sträng som
         // deras JSON-LD, så länkrevisionen jämför äpplen med äpplen.
@@ -345,7 +371,7 @@ export abstract class ShopifyAdapter implements SourceAdapter {
           externalId: `${this.idPrefix}-${p.id}-${v.id}`,
           title,
           url: variantUrl(this.baseUrl, p.handle, v.id),
-          price: priceOre,
+          price: knownPrice(priceOre),
           currency: "SEK",
           stockStatus: v.available ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
           imageUrl: v.featured_image?.src ?? p.images?.[0]?.src,
@@ -358,12 +384,15 @@ export abstract class ShopifyAdapter implements SourceAdapter {
 
     const anyAvailable = variants.some((v) => v.available);
     // Visa billigaste köpbara variantens pris (annars billigaste variant alls).
+    // Bara KÄNDA priser tävlar: en 0 kr-platshållare bredvid en prissatt variant får
+    // inte "vinna" som billigast — och finns inget känt pris i poolen är priset okänt,
+    // inte 0 (knownPrice). Poolen byts ALDRIG ut: har butiken köpbara varianter utan
+    // pris vore en slutsåld variants pris en lögn om det som går att köpa.
     const pool = variants.filter((v) => v.available);
-    const priceVariant = (pool.length ? pool : variants).reduce((a, b) =>
-      parseFloat(b.price) < parseFloat(a.price) ? b : a
-    );
-    const priceOre = Math.round(parseFloat(priceVariant.price) * 100);
-    if (!Number.isFinite(priceOre) || priceOre <= 0) return [];
+    const known = (pool.length ? pool : variants)
+      .map((v) => knownPrice(parsePriceOre(v.price)))
+      .filter((ore): ore is number => ore !== null);
+    const priceOre = known.length ? Math.min(...known) : null;
     const rawData: ShopifyRaw = { productId: p.id, available: anyAvailable, priceOre };
     return [
       {
@@ -402,7 +431,8 @@ export abstract class ShopifyAdapter implements SourceAdapter {
   }
 
   extractPrice(raw: unknown): { price: number; currency: string } | null {
-    if (isShopifyRaw(raw) && Number.isFinite(raw.priceOre) && raw.priceOre > 0) {
+    // null = ingen prisobservation — 0 kr-platshållaren är inte ett pris.
+    if (isShopifyRaw(raw) && raw.priceOre !== null && Number.isFinite(raw.priceOre) && raw.priceOre > 0) {
       return { price: raw.priceOre, currency: "SEK" };
     }
     return null;
@@ -412,8 +442,9 @@ export abstract class ShopifyAdapter implements SourceAdapter {
     return (
       p.externalId.length > 0 &&
       p.title.trim().length > 0 &&
-      Number.isInteger(p.price) &&
-      p.price > 0 &&
+      // null = pris okänt och GODKÄNT (se knownPrice); ett TAL måste fortfarande vara
+      // ett positivt heltal i öre — 0 och negativa tal avvisas som förut.
+      (p.price === null || (Number.isInteger(p.price) && p.price > 0)) &&
       p.url.startsWith("http")
     );
   }

@@ -293,6 +293,7 @@ export class WebhallenAdapter implements SourceAdapter {
     return (
       p.externalId.length > 0 &&
       p.title.trim().length > 0 &&
+      p.price !== null && // okänt pris släpps BARA igenom av Shopify (types.ts) — här krävs ett tal
       Number.isInteger(p.price) &&
       p.price > 0 &&
       p.url.startsWith("http")

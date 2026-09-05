@@ -5,7 +5,7 @@ import {
   groupUnitValue,
   rowProfit,
   type LotRow,
-} from "@/app/[locale]/(app)/samling/profit";
+} from "@/app/[locale]/(portfolio)/samling/profit";
 
 function lot(over: Partial<LotRow> & { id: string }): LotRow {
   return {

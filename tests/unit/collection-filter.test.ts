@@ -3,8 +3,8 @@ import {
   filterCollectionRows,
   groupTotalValue,
   sortCollectionGroups,
-} from "@/app/[locale]/(app)/samling/collection-filter";
-import { groupCollectionLots, type LotRow } from "@/app/[locale]/(app)/samling/profit";
+} from "@/app/[locale]/(portfolio)/samling/collection-filter";
+import { groupCollectionLots, type LotRow } from "@/app/[locale]/(portfolio)/samling/profit";
 
 type Row = LotRow & { name: string; setName: string | null };
 

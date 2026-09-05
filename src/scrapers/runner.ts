@@ -1524,7 +1524,7 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
     const offerStartStatus = new Map<string, StockStatus | null>();
     const offerFinalState = new Map<
       string,
-      { productId: string; newStatus: StockStatus; price: number; category: string | null }
+      { productId: string; newStatus: StockStatus; price: number | null; category: string | null }
     >();
 
     for (const rawProduct of result.products) {
@@ -1595,8 +1595,12 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
         // ej pris-datakällorna själva): för HÖGT = trolig lot/fel variant (Tradera),
         // för LÅGT = felmatchad produkt (t.ex. en 149 kr butikslänk på en 2 333 kr
         // sealed). Skippa helt — priset hör inte till den här produkten.
+        // Okänt pris (null — Shopifys 0 kr-platshållare på osläppta produkter) kan
+        // varken vara orimligt eller en platshållare: båda vakterna nedan gäller TAL.
+        // Raden går vidare som länk + lagerstatus, utan pris och utan observation.
         const matchedCategory = categoryByProduct.get(productId) ?? null;
         if (
+          normalized.price !== null &&
           !CARDMARKET_SOURCE_NAMES.includes(source.name) &&
           !isPlausiblePriceFor(matchedCategory, cmPriceByProduct.get(productId), normalized.price)
         ) {
@@ -1661,10 +1665,15 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
         // denna offer under körningen behåller vi den (observationen sparas ändå).
         const offerKey = `${productId}:${retailer.id}:${condition}:${language}`;
         const cheaper = bestPriceThisRun.get(offerKey);
-        const skipOfferUpdate = cheaper !== undefined && cheaper <= offerPrice;
+        // Okänt pris tävlar inte: har en PRISSATT annons redan skrivit offern denna
+        // körning vinner den (ett känt pris får aldrig nollas av ett okänt), annars
+        // skrivs länk + lagerstatus med price=null UTAN att låsa nyckeln, så en senare
+        // prissatt annons på samma offer fortfarande får skriva sitt pris.
+        const skipOfferUpdate =
+          cheaper !== undefined && (offerPrice === null || cheaper <= offerPrice);
 
         if (!skipOfferUpdate) {
-          bestPriceThisRun.set(offerKey, offerPrice);
+          if (offerPrice !== null) bestPriceThisRun.set(offerKey, offerPrice);
 
           // Startstatus fångas EN gång (första annonsen för denna offer denna
           // körning) — innan vi skriver något. Senare annonser läser om
@@ -1725,16 +1734,21 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
           // offerStartStatus/offerFinalState ovan och emit-loopen efter loopen.
         }
 
-        // Rå observation — rådata lagras separat från normaliserad data
-        await prisma.priceObservation.create({
-          data: {
-            productId,
-            sourceId: source.id,
-            price: normalized.price,
-            currency: normalized.currency,
-            rawData: rawProduct.raw as Prisma.InputJsonValue,
-          },
-        });
+        // Rå observation — rådata lagras separat från normaliserad data.
+        // ⛔ INGET PRIS ÄR INGEN DATAPUNKT: en annons med okänt pris (null) får offer
+        // och lagerstatus ovan men ALDRIG en observation — historiken byggs av priser,
+        // och 0 kr får aldrig in i den (CLAUDE.md "0 KR ÄR INGET PRIS").
+        if (normalized.price !== null) {
+          await prisma.priceObservation.create({
+            data: {
+              productId,
+              sourceId: source.id,
+              price: normalized.price,
+              currency: normalized.currency,
+              rawData: rawProduct.raw as Prisma.InputJsonValue,
+            },
+          });
+        }
 
         // Dagligt prissnapshot = marknadspris (endast Cardmarket-källor).
         // Butiks-/Tradera-observationer får ALDRIG blandas in — varierande
@@ -1764,8 +1778,9 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
           });
         }
 
-        // Prisfall → kontrollera bevakningar med målpris (på det visade priset)
-        if (previousOffer?.price != null && offerPrice < previousOffer.price) {
+        // Prisfall → kontrollera bevakningar med målpris (på det visade priset).
+        // Okänt pris är inget prisfall.
+        if (offerPrice !== null && previousOffer?.price != null && offerPrice < previousOffer.price) {
           await checkPriceAlerts(productId, offerPrice);
         }
       } catch (err) {

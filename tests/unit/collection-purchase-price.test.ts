@@ -11,7 +11,7 @@ import {
   profitToneClass,
   rowProfit,
   type ProfitInput,
-} from "@/app/[locale]/(app)/samling/profit";
+} from "@/app/[locale]/(portfolio)/samling/profit";
 
 function row(overrides: Partial<ProfitInput>): ProfitInput {
   return { quantity: 1, purchasePrice: null, estimatedValue: null, ...overrides };

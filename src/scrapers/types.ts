@@ -17,8 +17,16 @@ export interface RawProductData {
   externalId: string;
   title: string;
   url: string;
-  /** Pris i öre (heltal). Används för prisobservation/historik (t.ex. CM-trend). */
-  price: number;
+  /**
+   * Pris i öre (heltal, > 0). Används för prisobservation/historik (t.ex. CM-trend).
+   * `null` = PRIS OKÄNT — aldrig 0, aldrig "gratis". Butikerna prissätter osläppta
+   * produkter till 0 kr som platshållare (2026-09-04: 26 Shopify-annonser, alla 30th
+   * Celebration); tappar vi priset ska annonsen ändå överleva som länk + lagerstatus.
+   * En annons utan pris får offer men ALDRIG en PriceObservation. Bara adaptrar som
+   * uttryckligen släpper igenom `null` i `validateResult` ger det (Shopify) — övriga
+   * kräver fortfarande ett positivt pris.
+   */
+  price: number | null;
   /**
    * Valfritt pris i öre som ska visas som butikens erbjudande, när det skiljer
    * sig från `price`. För Cardmarket: lägsta annonspris ("From") medan `price`
@@ -41,7 +49,8 @@ export interface AdapterResult {
 /** Normaliserad produktdata, redo för matchning mot Product-katalogen. */
 export interface NormalizedProduct {
   normalizedTitle: string;
-  price: number;
+  /** Öre, > 0 — eller `null` = pris okänt (se RawProductData.price). Aldrig 0. */
+  price: number | null;
   /** Erbjudandepris i öre om det skiljer sig från `price` (se RawProductData). */
   offerPrice?: number;
   currency: string;
