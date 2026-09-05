@@ -72,7 +72,18 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   (`lib/profanity.ts`) BLOCKERAR vid skrivning (kod `PROFANITY`), maskerar aldrig; listan är medvetet smal
   (vardagsord som "fan", "skitbra", "prick" är utelämnade med flit) — lägg till ord där, aldrig regexar i rutter.
   `ServiceError.code` följer med i API-svaret och blir `ApiError.code` i klienten, som översätter i stället
-  för att visa serverns svenska text.
+  för att visa serverns svenska text. **Regelversion**: `FORUM_RULES_VERSION` (`lib/forum-rules-version.ts`)
+  + `User.forumRulesVersion` — höj talet när reglerna ändras i sak ⇒ alla frågas igen. Stoppade försök loggas i
+  `ModerationEvent` (admin → Rapporter, "Blockerade ord"); ⛔ `detail` är det normaliserade ordet, aldrig texten.
+- ⛔ **SERVERFEL ÖVERSÄTTS VIA TABELL, INTE VIA KODER PER KAST (2026-09-05)**: tjänsterna kastar svensk text på
+  ~130 ställen; `apiError` (async) slår upp texten i `src/lib/api-error-i18n.ts` → nyckel i `ApiErrors`-namnrymden
+  och svarar på engelska när anroparen är engelsk (NEXT_LOCALE-cookien, annars referer `/en/`). En text utanför
+  tabellen går ut orörd. **Ny användarvänd feltext ⇒ ny rad i tabellen + båda språkfilerna** —
+  `tests/unit/api-error-i18n.test.ts` vaktar pariteten. Alla anrop är `return apiError(e)` i async-handlers.
+- **`/mer` bor i routegruppen `(mer)`, inte `(app)` (2026-09-05)**: gäster ska få språk/om/legal/Discord + konto-rad
+  där, och `(app)`-layouten skickar alla gäster till inloggningen. Inloggad ⇒ samma AppShell som (app).
+  Undersidorna (`/mer/utmarkelser`, `/mer/bjud-in`) kräver konto själva. ⛔ Streckkodsläget i skannern är
+  AVSTÄNGT (ägarbeslut 2026-09-05): `barcodeSupported()` returnerar false; koden ligger kvar.
 - ⛔ **TRE TAL OM ETT SET, ALDRIG BLANDADE**: `totalCards` = printedTotal (talet på kortet, som skannern
   läser — byt ALDRIG mening på den); `totalCardsFull` = hela setet inkl. secret rares (kompletteringens
   nämnare); master set-nämnaren = de TRYCKNINGAR VI listar, aldrig TCGdex tal — en nämnare användaren inte
