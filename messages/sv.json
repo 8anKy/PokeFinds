@@ -2062,7 +2062,9 @@
     "storesSorted": "lägst först",
     "days7Short": "7 d",
     "days30Short": "30 d",
-    "historyFootnoteSingle": "Raw, ej graderad · annonser = dagens lägsta, sålt = medianpris"
+    "historyFootnoteSingle": "Raw, ej graderad · annonser = dagens lägsta, sålt = medianpris",
+    "weekChangeSuffix": "senaste veckan",
+    "monthChangeSuffix": "senaste 30 dagarna"
   },
   "Upgrade": {
     "currentPlan": "Din nuvarande plan ✓",

@@ -2062,7 +2062,9 @@
     "storesSorted": "lowest first",
     "days7Short": "7 d",
     "days30Short": "30 d",
-    "historyFootnoteSingle": "Raw, ungraded · listings = daily low, sold = median price"
+    "historyFootnoteSingle": "Raw, ungraded · listings = daily low, sold = median price",
+    "weekChangeSuffix": "this week",
+    "monthChangeSuffix": "last 30 days"
   },
   "Upgrade": {
     "currentPlan": "Your current plan ✓",

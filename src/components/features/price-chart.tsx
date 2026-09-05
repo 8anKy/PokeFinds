@@ -7,6 +7,7 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -42,6 +43,12 @@ export interface PriceChartProps {
    *  linje/datum/endpoint/tooltip. Y-domänen skalas fortfarande till datat. */
   minimal?: boolean;
   /**
+   * Produktvyns ark (2026-09-05): döljer rutnät + y-axelns siffror men BEHÅLLER
+   * datumaxeln; högsta/lägsta i fönstret ritas som två svaga guidelinjer med
+   * en etikett i högerkanten. Tre siffror i vänsterkanten var brus bredvid priset.
+   */
+  quiet?: boolean;
+  /**
    * Tomtillståndets text. Standardtexten talar om "den här produkten" — på
    * samlingens värdegraf var det fel subjekt (QA 2026-09-05), så anroparen får
    * sätta sin egen.
@@ -76,6 +83,21 @@ function yAxisWidth(maxPriceOre: number, decimals: number): number {
     maximumFractionDigits: decimals,
   });
   return Math.max(40, Math.ceil(sample.length * 6.5) + 10);
+}
+
+/** Högsta/lägsta i fönstret som svaga guidelinjer (quiet-läget). Etiketten avrundas till hela kronor. */
+function guideLines(prices: number[]) {
+  if (prices.length < 2) return null;
+  const max = Math.max(...prices);
+  const min = Math.min(...prices);
+  if (max === min) return null;
+  const label = (v: number) => formatPrice(Math.round(v / 100) * 100);
+  return (
+    <>
+      <ReferenceLine y={max} stroke={GRID} strokeDasharray="3 4" label={{ value: label(max), position: "insideTopRight", fill: TICK, fontSize: 10 }} />
+      <ReferenceLine y={min} stroke={GRID} strokeDasharray="3 4" label={{ value: label(min), position: "insideBottomRight", fill: TICK, fontSize: 10 }} />
+    </>
+  );
 }
 
 function ChartTooltip({
@@ -178,11 +200,13 @@ function MultiSeriesChart({
   dateLocale,
   monthly,
   spansYears,
+  quiet = false,
 }: {
   series: PriceChartSeries[];
   dateLocale: string;
   monthly: boolean;
   spansYears: boolean;
+  quiet?: boolean;
 }) {
   const byKey = new Map(series.map((s) => [s.key, new Map(s.points.map((p) => [p.date, p.price]))]));
   const dates = [...new Set(series.flatMap((s) => s.points.map((p) => p.date)))].sort();
@@ -198,7 +222,8 @@ function MultiSeriesChart({
   return (
     <ResponsiveContainer width="100%" height={300}>
       <AreaChart data={rows} margin={{ top: 12, right: 30, bottom: 0, left: 0 }}>
-        <CartesianGrid stroke={GRID} strokeDasharray="2 6" vertical={false} />
+        {!quiet && <CartesianGrid stroke={GRID} strokeDasharray="2 6" vertical={false} />}
+        {quiet && guideLines(prices)}
         <XAxis
           dataKey="date"
           tickFormatter={(d: string) => shortDate(d, spansYears, monthly, dateLocale)}
@@ -211,6 +236,7 @@ function MultiSeriesChart({
           minTickGap={28}
         />
         <YAxis
+          hide={quiet}
           tickFormatter={(v: number) =>
             (v / 100).toLocaleString("sv-SE", {
               minimumFractionDigits: 0,
@@ -311,6 +337,7 @@ export function PriceChart({
   className,
   monthly = false,
   minimal = false,
+  quiet = false,
   emptyDescription,
 }: PriceChartProps) {
   const t = useTranslations("Detail");
@@ -344,6 +371,7 @@ export function PriceChart({
           dateLocale={dateLocale}
           monthly={monthly}
           spansYears={all.length > 0 && all[0].slice(0, 4) !== all[all.length - 1].slice(0, 4)}
+          quiet={quiet}
         />
       </div>
     );
@@ -472,7 +500,8 @@ export function PriceChart({
               <stop offset="100%" stopColor={LINE} stopOpacity={0} />
             </linearGradient>
           </defs>
-          {!minimal && <CartesianGrid stroke={GRID} strokeDasharray="2 6" vertical={false} />}
+          {!minimal && !quiet && <CartesianGrid stroke={GRID} strokeDasharray="2 6" vertical={false} />}
+          {quiet && guideLines(prices)}
           <XAxis
             hide={minimal}
             dataKey="date"
@@ -486,7 +515,7 @@ export function PriceChart({
             minTickGap={28}
           />
           <YAxis
-            hide={minimal}
+            hide={minimal || quiet}
             tickFormatter={formatTick}
             tick={{ fill: TICK, fontSize: 11 }}
             axisLine={false}

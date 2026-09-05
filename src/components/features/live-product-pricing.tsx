@@ -197,15 +197,13 @@ export function LivePricePanel({
 
   if (pending) {
     return (
-      <div className="mt-4 flex items-end justify-between gap-3" aria-busy="true">
-        <div className="space-y-2">
-          <Skeleton className="h-3 w-32" />
+      <div className="mt-5" aria-busy="true">
+        <Skeleton className="h-3 w-32" />
+        <div className="mt-1.5 flex items-center justify-between gap-3">
           <Skeleton className="h-9 w-36" />
-        </div>
-        <div className="flex flex-col items-end gap-2 pb-1">
           <Skeleton className="h-6 w-16 rounded-full" />
-          <Skeleton className="h-4 w-28" />
         </div>
+        <Skeleton className="mt-2 h-3 w-28" />
       </div>
     );
   }
@@ -228,58 +226,52 @@ export function LivePricePanel({
           ? t("priceLabelSingleSource", { source: source.name })
           : t("priceLabelDefault");
 
-  // PRISRADEN i arket (2026-09-05): etikett + stort pris till vänster, lagerbricka
-  // och 7/30-dagars förändring till höger. Ingen kortram — arket ÄR ramen.
-  // Högsta/snitt är brus med EN prissatt offer (alla tre tal blir samma) → en
-  // dämpad rad under, bara vid ≥ 2 offers.
+  // PRISBLOCKET i arket (2026-09-05, andra passet — "för trångt, för mycket text"):
+  // TRE rader och inte fler. Etikett, priset med lagerbrickan på samma rad, och EN
+  // förändring (veckan; 30 dagar bara när veckan saknas). Högsta/snitt flyttade
+  // till en fotnot under grafen (`LiveStatsFootnote`), 30-dagarstalet syns i grafen.
+  const change = priceChange7dPercent != null ? { pct: priceChange7dPercent, suffix: t("weekChangeSuffix") }
+    : change30 != null ? { pct: change30, suffix: t("monthChangeSuffix") } : null;
   return (
-    <div className="mt-4">
-      <div className="flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs text-ink-muted lg:text-sm">{priceLabel}</p>
-          <p
-            data-price
-            className={cn(
-              "mt-0.5 font-display text-[32px] font-bold leading-[38px] tracking-[-0.02em] text-ink transition-colors duration-700 lg:text-4xl",
-              flash && "text-rise"
-            )}
-          >
-            {formatPrice(stats.lowestPrice)}
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1.5 pb-1">
-          {stats.lowestPriceStockStatus && (
-            <StockBadge stockStatus={stats.lowestPriceStockStatus} />
+    <div className="mt-5">
+      <p className="text-xs text-ink-muted">{priceLabel}</p>
+      <div className="mt-0.5 flex items-center justify-between gap-3">
+        <p
+          data-price
+          className={cn(
+            "min-w-0 font-display text-[32px] font-bold leading-[38px] tracking-[-0.02em] text-ink transition-colors duration-700 lg:text-4xl",
+            flash && "text-rise"
           )}
-          <dl className="flex items-baseline gap-2.5 text-[13px]">
-            {priceChange7dPercent != null && (
-              <>
-                <dd className="m-0"><PriceChange percent={priceChange7dPercent} hideIcon className="text-[13px]" /></dd>
-                <dt className="text-[11px] text-ink-faint">{t("days7Short")}</dt>
-              </>
-            )}
-            {change30 != null && (
-              <>
-                <dd className="m-0"><PriceChange percent={change30} hideIcon className="text-[13px]" /></dd>
-                <dt className="text-[11px] text-ink-faint">{t("days30Short")}</dt>
-              </>
-            )}
-          </dl>
-        </div>
+        >
+          {formatPrice(stats.lowestPrice)}
+        </p>
+        {stats.lowestPriceStockStatus && <StockBadge stockStatus={stats.lowestPriceStockStatus} />}
       </div>
-      {stats.offerCount >= 2 && (
-        <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-ink-faint">
-          <div className="flex items-baseline gap-1.5">
-            <dt>{t("highestNow")}</dt>
-            <dd data-price className="font-semibold text-ink">{formatPrice(stats.highestPrice)}</dd>
-          </div>
-          <div className="flex items-baseline gap-1.5">
-            <dt>{t("avgPrice")}</dt>
-            <dd data-price className="font-semibold text-ink">{formatPrice(stats.avgPrice)}</dd>
-          </div>
-        </dl>
+      {change && (
+        <p className="mt-1 flex items-center gap-1.5 text-xs text-ink-muted">
+          <PriceChange percent={change.pct} hideIcon className="text-xs" />
+          {change.suffix}
+        </p>
       )}
     </div>
+  );
+}
+
+/**
+ * Högsta/snitt som en dämpad fotnot under grafen — bara vid ≥ 2 prissatta offers
+ * (med EN blir alla tre tal samma). Flyttad hit från prisblocket när arket
+ * bantades: talen är ett komplement till kurvan, inte till priset.
+ */
+export function LiveStatsFootnote({ className }: { className?: string }) {
+  const t = useTranslations("Detail");
+  const { stats } = useLivePricing();
+  if (stats.offerCount < 2) return null;
+  return (
+    <p className={cn("text-xs text-ink-faint", className)}>
+      {t("highestNow")} <span data-price className="font-medium text-ink-muted">{formatPrice(stats.highestPrice)}</span>
+      <span className="mx-1.5" aria-hidden="true">·</span>
+      {t("avgPrice")} <span data-price className="font-medium text-ink-muted">{formatPrice(stats.avgPrice)}</span>
+    </p>
   );
 }
 

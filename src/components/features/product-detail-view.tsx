@@ -24,6 +24,7 @@ import {
   LivePricingProvider,
   LivePricePanel,
   LiveOffersTable,
+  LiveStatsFootnote,
 } from "@/components/features/live-product-pricing";
 import { IconCards, IconChevronRight, IconStore } from "@/components/ui/icons";
 import { GradedSales } from "./graded-sales";
@@ -186,8 +187,10 @@ export function ProductDetailView({
     ? traderaSearchUrlSpecific(data.title, data.category)
     : null;
 
+  // Språket står bara när det inte är engelska (japanska singlar) — "Engelska"
+  // på varje engelsk produkt var ett ord som aldrig ändrade något.
   const metaLine = (
-    <p className="text-[13px] text-ink-muted lg:text-sm">
+    <p className="text-xs text-ink-muted lg:text-sm">
       {data.set && (
         <>
           <Link href={`/produkter?set=${data.set.id}`} className="text-holo-cyan hover:underline">
@@ -197,8 +200,12 @@ export function ProductDetailView({
         </>
       )}
       {categoryLabel}
-      <span className="mx-2 text-ink-faint" aria-hidden="true">·</span>
-      {languageLabel}
+      {data.language !== "EN" && (
+        <>
+          <span className="mx-2 text-ink-faint" aria-hidden="true">·</span>
+          {languageLabel}
+        </>
+      )}
     </p>
   );
 
@@ -301,7 +308,7 @@ export function ProductDetailView({
                 text={data.title}
                 className="font-display text-[22px] font-bold leading-7 tracking-[-0.02em] text-ink lg:text-3xl lg:leading-tight xl:text-4xl"
               />
-              <div className="mt-1.5 lg:mt-2">{metaLine}</div>
+              <div className="mt-1 lg:mt-2">{metaLine}</div>
             </header>
 
             {/* Andra Cardmarket-versioner av samma kort (common ↔ special-variant) */}
@@ -333,29 +340,31 @@ export function ProductDetailView({
               pending={pending}
             />
 
-            <div className="mt-4">
+            {/* Bevakarantalet ("4 samlare bevakar") är BORTTAGET ur arket (2026-09-05):
+                en rad till mellan pris och knappar, och fyra är inget socialt bevis. */}
+            <div className="mt-5">
               <ProductActions productId={data.id} title={data.title} />
-              {/* Noll bevakare är negativt socialt bevis — visa raden först när någon bevakar. */}
-              {!pending && data.watchCount > 0 && (
-                <p className="mt-2 text-xs text-ink-faint">{t("watchers", { count: data.watchCount })}</p>
-              )}
             </div>
 
-            {/* Prishistorik — utan kortram inne i arket; desktop får ramen tillbaka. */}
-            <div className="mt-6 lg:card-surface lg:p-5">
+            {/* Prishistorik — utan kortram och utan rubrik inne i arket (kurvan
+                förklarar sig själv; perioden ligger under den). Desktop får kortet. */}
+            <div className="mt-7 lg:card-surface lg:p-5">
               {pending ? (
                 <Skeleton className="h-52 w-full" />
               ) : (
-                <ProductPriceCard
-                  plain
-                  bySource={data.historyBySource}
-                  title={isSingle ? t("historyRawTitle") : t("historyTitle")}
-                  /* ⛔ UNDERRUBRIKEN FÅR INTE NAMNGE EN KÄLLA. Källorna namnger sig
-                     själva i chipsen (som ÄR diagrammets legend); det som återstår är
-                     kvaliteten på datat, och den måste gälla ALLA serier. */
-                  subtitle={data.chartData.length === 0 ? t("historyNone") : t("historyQuality")}
-                  series={data.chartData}
-                />
+                <>
+                  <ProductPriceCard
+                    plain
+                    bySource={data.historyBySource}
+                    title={isSingle ? t("historyRawTitle") : t("historyTitle")}
+                    /* ⛔ UNDERRUBRIKEN FÅR INTE NAMNGE EN KÄLLA. Källorna namnger sig
+                       själva i chipsen (som ÄR diagrammets legend); det som återstår är
+                       kvaliteten på datat, och den måste gälla ALLA serier. */
+                    subtitle={data.chartData.length === 0 ? t("historyNone") : t("historyQuality")}
+                    series={data.chartData}
+                  />
+                  <LiveStatsFootnote className="mt-2" />
+                </>
               )}
             </div>
 

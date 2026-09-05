@@ -71,17 +71,6 @@ function withinDays(series: PricePoint[], days: number): PricePoint[] {
  * servern; perioden filtreras i klienten — ingen URL-param (sidan kan därför ISR-
  * cachas) och ingen extra hämtning per periodbyte.
  */
-/** Utan kortram: rubrikrad + period, chips, graf, datanoten som fotnot. */
-function PlainRoot({ children }: { children: React.ReactNode; className?: string }) {
-  return <section>{children}</section>;
-}
-function PlainHead({ children }: { children: React.ReactNode; className?: string }) {
-  return <div className="flex items-center justify-between gap-3">{children}</div>;
-}
-function PlainBody({ children }: { children: React.ReactNode; className?: string }) {
-  return <div className="mt-3">{children}</div>;
-}
-
 export function ProductPriceCard({
   title,
   subtitle,
@@ -101,9 +90,6 @@ export function ProductPriceCard({
    */
   plain?: boolean;
 }) {
-  const Root = plain ? PlainRoot : Card;
-  const Head = plain ? PlainHead : CardHeader;
-  const Body = plain ? PlainBody : CardContent;
   const t = useTranslations("Detail");
   const router = useRouter();
   const [period, setPeriod] = useState<(typeof PERIODS)[number]>(DEFAULT);
@@ -174,128 +160,153 @@ export function ProductPriceCard({
       : []
     : data;
 
-  return (
-    <Root>
-      <Head className="flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-        <div>
-          {plain ? (
-            <p className="text-[15px] font-semibold text-ink">{title}</p>
-          ) : (
-            <>
-              <CardTitle>{title}</CardTitle>
-              <p className="mt-1 text-xs text-ink-muted">{subtitle}</p>
-            </>
-          )}
-        </div>
-        <div
-          className={cn(
-            "flex shrink-0 gap-0.5 self-start rounded-lg border border-surface-border bg-surface p-1",
-            plain && "p-[3px]"
-          )}
-          role="group"
-          aria-label="Period"
+  const periodControl = (
+    <div
+      className={cn(
+        "flex shrink-0 gap-0.5 self-start rounded-lg border border-surface-border bg-surface p-1",
+        plain && "p-[3px]"
+      )}
+      role="group"
+      aria-label="Period"
+    >
+      {PERIODS.map((p) => {
+        const locked = p.value === "max" && !isPro;
+        return (
+          <button
+            key={p.value}
+            type="button"
+            onClick={() => (locked ? openPaywallOrNavigate(router, { source: "chart-max" }) : setPeriod(p))}
+            aria-current={p.value === period.value ? "true" : undefined}
+            title={locked ? t("maxProOnly") : undefined}
+            className={cn(
+              "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
+              plain && "px-2",
+              p.value === period.value
+                ? "bg-holo-cyan/15 text-holo-cyan"
+                : locked
+                  ? "text-ink-faint hover:text-holo-cyan"
+                  : "text-ink-muted hover:text-ink"
+            )}
+          >
+            {locked && <IconLock size={11} />}
+            {t(p.labelKey)}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  // I arket (plain) visas chipsraden bara när det finns ett VAL att göra — minst
+  // två upplåsta källor. Ett ensamt Cardmarket-chip plus ett låst Tradera-chip var
+  // två rader text för noll valmöjligheter; Tradera-upsellen finns kvar i kortet
+  // på desktop och via MAX-perioden.
+  const unlockedCount = available.filter((k) => !isLocked(k)).length;
+  const showChips = !proGated && available.length > 1 && (!plain || unlockedCount > 1);
+  const chips = showChips && (
+    <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("sourceFilter")}>
+      {available.map((key) => {
+        const chipLocked = isLocked(key);
+        if (plain && chipLocked) return null;
+        const on = !chipLocked && !off.has(key);
+        return (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={on}
+            title={chipLocked ? t("traderaProOnly") : undefined}
+            onClick={() => {
+              // Låst chip väljer INGENTING — den säljer. Samma gest som
+              // MAX-perioden: ett tryck tar dig till prissidan.
+              if (chipLocked) {
+                openPaywallOrNavigate(router, { source: "chart-tradera" });
+                return;
+              }
+              setOff((prev) => {
+                const next = new Set(prev);
+                // Minst en källa måste vara vald — annars står man inför en
+                // tom ruta utan att förstå varför.
+                if (!next.has(key) && selected.length === 1) return prev;
+                if (next.has(key)) next.delete(key);
+                else next.add(key);
+                return next;
+              });
+            }}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors",
+              on
+                ? "border-surface-border bg-surface-overlay text-ink"
+                : chipLocked
+                  ? "border-surface-border/60 text-ink-faint hover:text-holo-cyan"
+                  : "border-surface-border/60 text-ink-faint hover:text-ink-muted"
+            )}
+          >
+            {chipLocked ? (
+              <IconLock size={11} />
+            ) : (
+              <span
+                className="inline-block h-2 w-2 rounded-full transition-opacity"
+                style={{ backgroundColor: SOURCE_COLORS[key], opacity: on ? 1 : 0.3 }}
+              />
+            )}
+            {t(`source_${key}` as never)}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  // data-swipe-ignore: horisontellt drag på grafen = tooltip-scrubbing,
+  // inte svep-tillbaka (overlayns gest hoppar över den här ytan).
+  const chart = proGated ? (
+    <EmptyState
+      icon={<IconLock size={28} />}
+      title={t("traderaProTitle")}
+      description={t("traderaProDesc")}
+      action={
+        <ProTextLink
+          source="chart-tradera"
+          className="rounded-full bg-holo-cyan/15 px-4 py-1.5 text-xs font-semibold text-holo-cyan transition-colors hover:bg-holo-cyan/25"
         >
-          {PERIODS.map((p) => {
-            const locked = p.value === "max" && !isPro;
-            return (
-              <button
-                key={p.value}
-                type="button"
-                onClick={() => (locked ? openPaywallOrNavigate(router, { source: "chart-max" }) : setPeriod(p))}
-                aria-current={p.value === period.value ? "true" : undefined}
-                title={locked ? t("maxProOnly") : undefined}
-                className={cn(
-                  "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
-                  plain && "px-2",
-                  p.value === period.value
-                    ? "bg-holo-cyan/15 text-holo-cyan"
-                    : locked
-                      ? "text-ink-faint hover:text-holo-cyan"
-                      : "text-ink-muted hover:text-ink"
-                )}
-              >
-                {locked && <IconLock size={11} />}
-                {t(p.labelKey)}
-              </button>
-            );
-          })}
+          {t("traderaProCta")}
+        </ProTextLink>
+      }
+    />
+  ) : (
+    <div data-swipe-ignore>
+      <PriceChartLazy data={chartSingle} series={chartSeries} quiet={plain} />
+    </div>
+  );
+
+  if (plain) {
+    // ARKET: kurvan först (ingen rubrik — den förklarar sig själv), perioden
+    // under den, källchips + datanot bara när det finns flera källor att välja på.
+    return (
+      <section aria-label={title}>
+        {chart}
+        <div className="mt-2 flex justify-center">{periodControl}</div>
+        {showChips && (
+          <>
+            <div className="mt-3">{chips}</div>
+            <p className="mt-2 text-[11px] text-ink-faint">{subtitle}</p>
+          </>
+        )}
+      </section>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div>
+          <CardTitle>{title}</CardTitle>
+          <p className="mt-1 text-xs text-ink-muted">{subtitle}</p>
         </div>
-      </Head>
-      <Body>
-        {/* data-swipe-ignore: horisontellt drag på grafen = tooltip-scrubbing,
-            inte svep-tillbaka (overlayns gest hoppar över den här ytan). */}
-        {!proGated && available.length > 1 && (
-          <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label={t("sourceFilter")}>
-            {available.map((key) => {
-              const chipLocked = isLocked(key);
-              const on = !chipLocked && !off.has(key);
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  aria-pressed={on}
-                  title={chipLocked ? t("traderaProOnly") : undefined}
-                  onClick={() => {
-                    // Låst chip väljer INGENTING — den säljer. Samma gest som
-                    // MAX-perioden: ett tryck tar dig till prissidan.
-                    if (chipLocked) {
-                      openPaywallOrNavigate(router, { source: "chart-tradera" });
-                      return;
-                    }
-                    setOff((prev) => {
-                      const next = new Set(prev);
-                      // Minst en källa måste vara vald — annars står man inför en
-                      // tom ruta utan att förstå varför.
-                      if (!next.has(key) && selected.length === 1) return prev;
-                      if (next.has(key)) next.delete(key);
-                      else next.add(key);
-                      return next;
-                    })
-                  }}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors",
-                    on
-                      ? "border-surface-border bg-surface-overlay text-ink"
-                      : chipLocked
-                        ? "border-surface-border/60 text-ink-faint hover:text-holo-cyan"
-                        : "border-surface-border/60 text-ink-faint hover:text-ink-muted"
-                  )}
-                >
-                  {chipLocked ? (
-                    <IconLock size={11} />
-                  ) : (
-                    <span
-                      className="inline-block h-2 w-2 rounded-full transition-opacity"
-                      style={{ backgroundColor: SOURCE_COLORS[key], opacity: on ? 1 : 0.3 }}
-                    />
-                  )}
-                  {t(`source_${key}` as never)}
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {proGated ? (
-          <EmptyState
-            icon={<IconLock size={28} />}
-            title={t("traderaProTitle")}
-            description={t("traderaProDesc")}
-            action={
-              <ProTextLink
-                source="chart-tradera"
-                className="rounded-full bg-holo-cyan/15 px-4 py-1.5 text-xs font-semibold text-holo-cyan transition-colors hover:bg-holo-cyan/25"
-              >
-                {t("traderaProCta")}
-              </ProTextLink>
-            }
-          />
-        ) : (
-          <div data-swipe-ignore>
-            <PriceChartLazy data={chartSingle} series={chartSeries} />
-          </div>
-        )}
-        {plain && <p className="mt-2 text-[11px] text-ink-faint">{subtitle}</p>}
-      </Body>
-    </Root>
+        {periodControl}
+      </CardHeader>
+      <CardContent>
+        {showChips && <div className="mb-3">{chips}</div>}
+        {chart}
+      </CardContent>
+    </Card>
   );
 }
