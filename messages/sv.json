@@ -189,6 +189,7 @@
       "confirmPlaceholder": "Upprepa lösenordet",
       "submit": "Skapa konto",
       "haveAccount": "Har du redan ett konto?",
+      "termsConsent": "Genom att skapa ett konto godkänner du våra <terms>användarvillkor</terms> och vår <privacy>integritetspolicy</privacy>.",
       "login": "Logga in",
       "errName": "Namnet måste vara minst 2 tecken.",
       "errEmail": "Ogiltig e-postadress.",
@@ -763,6 +764,10 @@
     "listingBuyNow": "Köp nu"
   },
   "Cookies": {
+    "bannerAria": "Information om cookies",
+    "bannerText": "Vi använder endast nödvändiga cookies för inloggning och funktion. Inga spårningscookies från tredje part.",
+    "bannerLink": "Läs mer i vår integritetspolicy",
+    "bannerOk": "Ok",
     "metaTitle": "Cookiepolicy",
     "metaDescription": "Information om hur Foilio använder cookies och liknande tekniker.",
     "h1": "Cookiepolicy",

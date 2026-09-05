@@ -189,6 +189,7 @@
       "confirmPlaceholder": "Repeat the password",
       "submit": "Create account",
       "haveAccount": "Already have an account?",
+      "termsConsent": "By creating an account you accept our <terms>Terms of Service</terms> and <privacy>Privacy Policy</privacy>.",
       "login": "Log in",
       "errName": "The name must be at least 2 characters.",
       "errEmail": "Invalid email address.",
@@ -763,6 +764,10 @@
     "listingBuyNow": "Buy now"
   },
   "Cookies": {
+    "bannerAria": "Cookie information",
+    "bannerText": "We only use necessary cookies for login and functionality. No third-party tracking cookies.",
+    "bannerLink": "Read more in our privacy policy",
+    "bannerOk": "OK",
     "metaTitle": "Cookie policy",
     "metaDescription": "Information on how Foilio uses cookies and similar technologies.",
     "h1": "Cookie policy",

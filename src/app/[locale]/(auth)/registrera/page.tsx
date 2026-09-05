@@ -399,6 +399,24 @@ export default function RegisterPage() {
           OAuth-vägen (medvetet). */}
       <SocialLoginButtons next="/produkter" mode="register" />
 
+      {/* Samtyckesraden (legal-copy: villkor + integritet är EN mekanism). Fanns inte
+          alls — Android-QA 2026-09-01 fynd 2, kvar 2026-09-05. Gäller båda vägarna
+          (e-post och Google/Apple), därför under de sociala knapparna. */}
+      <p className="mt-4 text-center text-xs leading-relaxed text-ink-faint">
+        {t.rich("register.termsConsent", {
+          terms: (chunks) => (
+            <Link href="/villkor" className="underline hover:text-holo-cyan">
+              {chunks}
+            </Link>
+          ),
+          privacy: (chunks) => (
+            <Link href="/integritetspolicy" className="underline hover:text-holo-cyan">
+              {chunks}
+            </Link>
+          ),
+        })}
+      </p>
+
       <p className="mt-6 text-center text-sm text-ink-muted">
         {t("register.haveAccount")}{" "}
         <Link href="/logga-in" className="font-medium text-holo-cyan hover:underline">
