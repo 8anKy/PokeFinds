@@ -52,6 +52,21 @@ describe("classifyDrag", () => {
     // ifrån sig, och draget ger ändå noll förflyttning (dy klampas till 0).
     expect(classifyDrag(0, -40, true)).toBe("own");
   });
+
+  it("från kandidatraden: nedåt är vårt bara när lodrätt tydligt dominerar", () => {
+    // Raden täcker mitten av arket — ett rakt nedåtsvep där ska stänga
+    // (ägaren 2026-09-05: "swipe it down from the middle also").
+    expect(classifyDrag(0, 40, false, true)).toBe("own");
+    expect(classifyDrag(10, 40, false, true)).toBe("own");
+    // Snett = raden bläddrar, även om lodrätt råkar vara större …
+    expect(classifyDrag(25, 40, false, true)).toBe("release");
+    expect(classifyDrag(40, 5, false, true)).toBe("release");
+    // … och uppåt i raden är fortfarande inte vårt.
+    expect(classifyDrag(0, -40, false, true)).toBe("release");
+    // Utanför raden gäller den vanliga 45-gradersgränsen som förut.
+    expect(classifyDrag(25, 40, false, false)).toBe("own");
+    expect(classifyDrag(25, 40, false)).toBe("own");
+  });
 });
 
 describe("shouldCloseSheet", () => {

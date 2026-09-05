@@ -3917,8 +3917,8 @@ function Sheet({
    * (`cancelable === false`) har vi redan förlorat.
    *
    * TRE SAKER SOM MÅSTE HÅLLAS ISÄR PÅ SAMMA YTA:
-   *  - vågrätt drag  → kandidatraden äger det (utesluts redan vid touchstart:
-   *    en gest som börjar i en sidledsscroller blir aldrig vår)
+   *  - vågrätt drag  → kandidatraden äger det; börjar gesten I raden krävs
+   *    dessutom en tydligt lodrät vinkel för att den ska bli vår (classifyDrag)
    *  - drag uppåt / kroppen redan nedscrollad → vanlig scroll
    *  - drag nedåt i topp → vi äger gesten och stänger
    * Draget får därför starta på handtaget ALLTID, men i kroppen bara när den
@@ -3964,14 +3964,20 @@ function Sheet({
     };
 
     /** true = vi äger gesten och anroparen ska blockera native scroll. */
-    const move = (x: number, y: number, t: number, fromHandle: boolean): boolean => {
+    const move = (
+      x: number,
+      y: number,
+      t: number,
+      fromHandle: boolean,
+      fromRail: boolean
+    ): boolean => {
       if (!dragging || !eligible) return false;
       const ddx = x - startX;
       const ddy = y - startY;
       if (!owning) {
         // Domen bor i src/lib/sheet-drag.ts — ren och testad, för regeln har
         // felat i fält två gånger och symtomet var båda gångerna "ibland".
-        const decision = classifyDrag(ddx, ddy, fromHandle);
+        const decision = classifyDrag(ddx, ddy, fromHandle, fromRail);
         if (decision === "wait") return false;
         // Släpp den helt: en gest vi lämnat ifrån oss tas ALDRIG tillbaka mitt
         // i, annars slåss två stycken om samma finger.
@@ -4016,31 +4022,51 @@ function Sheet({
       !!(target as HTMLElement | null)?.closest?.("[data-sheet-handle]");
 
     /**
-     * En gest som börjar i en yta med EGEN scroll (kandidatraden i sidled, en
-     * nästlad lista som inte står i topp) blir aldrig vår — beslutet tas HÄR,
-     * vid touchstart, och aldrig mitt i gesten. Mitt-i-beslut var hela skälet
-     * att raden och arket slogs om samma finger.
+     * Var gesten BÖRJAR avgör vad den får bli — beslutet tas HÄR, vid touchstart,
+     * och aldrig mitt i gesten (mitt-i-beslut var hela skälet att raden och
+     * arket slogs om samma finger):
+     *  - en nästlad lodrät lista som inte står i topp → aldrig vår; upp/ned är
+     *    dess egen scroll
+     *  - kandidatraden (sidledsscroller) → VÅR om draget är tydligt lodrätt
+     *    nedåt, radens om det lutar. Förut uteslöts raden helt, men den täcker
+     *    mitten av arket, så arket gick bara att svepa ner från handtaget och
+     *    bildparet (ägaren 2026-09-05: "swipe it down from the middle also").
+     *    Vinkelkravet bor i classifyDrag (RAIL_VERTICAL_RATIO).
+     * Sidledsscrollern känns igen på overflow-x, inte på scrollWidth ensamt —
+     * en `truncate`-text har också scrollWidth > clientWidth.
      */
-    const startsInOwnScroller = (target: EventTarget | null) => {
+    const startsInScrolledList = (target: EventTarget | null) => {
       let el = target as HTMLElement | null;
       while (el && el !== panel) {
-        if (el.scrollWidth > el.clientWidth + 1) return true;
         if (el.scrollHeight > el.clientHeight + 1 && el.scrollTop > 0) return true;
+        el = el.parentElement;
+      }
+      return false;
+    };
+    const startsInHorizontalScroller = (target: EventTarget | null) => {
+      let el = target as HTMLElement | null;
+      while (el && el !== panel) {
+        if (el.scrollWidth > el.clientWidth + 1) {
+          const ox = getComputedStyle(el).overflowX;
+          if (ox === "auto" || ox === "scroll") return true;
+        }
         el = el.parentElement;
       }
       return false;
     };
 
     let fromHandle = false;
+    let fromRail = false;
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) {
         abort();
         return;
       }
       fromHandle = isHandle(e.target);
+      fromRail = !fromHandle && startsInHorizontalScroller(e.target);
       // Kroppen får bara starta ett drag när den redan står i topp — annars
       // vore varje scroll uppåt en stängning.
-      if (!fromHandle && (panel.scrollTop > 0 || startsInOwnScroller(e.target))) {
+      if (!fromHandle && (panel.scrollTop > 0 || startsInScrolledList(e.target))) {
         dragging = false;
         eligible = false;
         return;
@@ -4049,7 +4075,13 @@ function Sheet({
     };
     const onTouchMove = (e: TouchEvent) => {
       if (!dragging || e.touches.length !== 1) return;
-      const own = move(e.touches[0].clientX, e.touches[0].clientY, e.timeStamp, fromHandle);
+      const own = move(
+        e.touches[0].clientX,
+        e.touches[0].clientY,
+        e.timeStamp,
+        fromHandle,
+        fromRail
+      );
       // Vi äger gesten: utan detta scrollar/studsar WebView:n samtidigt som
       // arket följer fingret — och värre, den TAR gesten och skickar touchcancel.
       // Sker bara efter riktningsbeslutet (3 px), så vågräta svep i
@@ -4068,7 +4100,7 @@ function Sheet({
     };
     const onPointerMove = (e: PointerEvent) => {
       if (e.pointerType !== "mouse") return;
-      move(e.clientX, e.clientY, e.timeStamp, fromHandle);
+      move(e.clientX, e.clientY, e.timeStamp, fromHandle, false);
     };
     const onPointerUp = (e: PointerEvent) => {
       if (e.pointerType !== "mouse") return;

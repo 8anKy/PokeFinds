@@ -33,6 +33,13 @@ export const CLOSE_PX = 100;
 export const FLICK_V = 0.45;
 /** … men aldrig från stillastående — någon sträcka krävs alltid. */
 export const FLICK_PX = 32;
+/**
+ * Började gesten i KANDIDATRADEN (sidledsscroller) måste lodrätt dominera så
+ * här mycket över vågrätt för att draget ska bli vårt. Raden bläddrar i
+ * sidled och en tumme drar sällan rakt — hellre att ett snett drag bläddrar
+ * bland korten än att arket stängs mitt i valet.
+ */
+export const RAIL_VERTICAL_RATIO = 2;
 
 export type DragDecision =
   /** För litet för att läsa riktning — vänta på nästa ruta. */
@@ -49,12 +56,24 @@ export type DragDecision =
  * panorera. Där finns ingen konkurrerande gest att lämna ifrån sig, så ett drag
  * uppåt är fortfarande vårt (det ger bara noll förflyttning). I KROPPEN är ett
  * drag uppåt däremot en vanlig scroll och måste släppas.
+ *
+ * `fromRail` = gesten började i kandidatraden. Förut var en sådan gest ALDRIG
+ * vår (uteslöts vid touchstart), men raden täcker mitten av arket, så i praktiken
+ * gick arket bara att svepa ner från handtaget och bildparet (ägaren 2026-09-05:
+ * "swipe it down from the middle also"). Nu är den vår om den är tydligt lodrätt
+ * nedåt — `RAIL_VERTICAL_RATIO` — annars radens.
  */
-export function classifyDrag(ddx: number, ddy: number, fromHandle: boolean): DragDecision {
+export function classifyDrag(
+  ddx: number,
+  ddy: number,
+  fromHandle: boolean,
+  fromRail = false
+): DragDecision {
   if (Math.abs(ddx) < DIRECTION_PX && Math.abs(ddy) < DIRECTION_PX) return "wait";
   // Vågrätt är alltid någon annans — i praktiken kandidatraden.
   if (Math.abs(ddx) > Math.abs(ddy)) return "release";
   if (!fromHandle && ddy <= 0) return "release";
+  if (fromRail && Math.abs(ddy) < RAIL_VERTICAL_RATIO * Math.abs(ddx)) return "release";
   return "own";
 }
 
