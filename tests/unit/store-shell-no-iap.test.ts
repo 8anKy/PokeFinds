@@ -66,7 +66,7 @@ describe("storeShellWithoutPurchases", () => {
 
   it("Uppgradera-knappen grindar webbgrenen på skal-utan-köp", () => {
     const src = readFileSync(
-      resolve(ROOT, "src/app/[locale]/(marketing)/priser/upgrade-button.tsx"),
+      resolve(ROOT, "src/components/features/upgrade-button.tsx"),
       "utf8",
     );
     expect(src).toContain("storeShellWithoutPurchases");

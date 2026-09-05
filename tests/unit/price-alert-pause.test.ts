@@ -24,14 +24,20 @@ import { alertCopyKey } from "@/lib/alert-copy";
 /** Ord som bara får stå i copy som beskriver larm vi FAKTISKT skickar. */
 const PROMISES_PRICE_ALERT = /prislarm|price alert/i;
 
+interface SpecRow {
+  label: string;
+  free: string;
+  pro: string;
+}
+/** Allt en rad SÄGER — etiketten och båda kolumnerna. */
+const rowText = (r: SpecRow) => `${r.label} ${r.free} ${r.pro}`;
+
 interface Messages {
   Pricing: {
-    freeExcluded: string[];
-    freeExcludedPrice: string[];
-    freeExcludedRestock: string[];
-    premiumFeatures: string[];
-    premiumPriceFeatures: string[];
-    premiumRestockFeatures: string[];
+    /** Spec-bladet (2026-09-05): ersätter både Pro-listan och de överstrukna gratis-punkterna. */
+    specRows: SpecRow[];
+    specRowsPrice: SpecRow[];
+    specRowsRestock: SpecRow[];
     priceAlertsPausedNotice: string;
     restockPausedNotice: string;
   };
@@ -122,17 +128,11 @@ describe("priceAlertsPaused: grinden", () => {
 });
 
 describe.each(LOCALES)("$name: paywallen säljer inga pausade prislarm", ({ m }) => {
-  it("ingen Pro-punkt i baslistan nämner prislarm", () => {
-    for (const line of m.Pricing.premiumFeatures) {
-      expect(line, `Pro-punkt lovar prislarm: "${line}"`).not.toMatch(PROMISES_PRICE_ALERT);
-    }
-  });
-
-  it("ingen överstruken gratis-punkt säljer prislarm", () => {
-    // Den överstrukna listan är lika mycket en säljpunkt som Pro-listan: den säger
-    // "det här får du om du betalar".
-    for (const line of m.Pricing.freeExcluded) {
-      expect(line, `Gratis-uteslutning säljer prislarm: "${line}"`).not.toMatch(PROMISES_PRICE_ALERT);
+  it("ingen rad i spec-bladets baslista nämner prislarm", () => {
+    // Spec-bladet är BÅDA de gamla listorna på en gång och visas även i paywall-
+    // arket: varje rad säger "det här får du om du betalar".
+    for (const row of m.Pricing.specRows) {
+      expect(rowText(row), `Spec-rad lovar prislarm: "${row.label}"`).not.toMatch(PROMISES_PRICE_ALERT);
     }
   });
 
@@ -181,82 +181,58 @@ describe.each(LOCALES)("$name: paywallen säljer inga pausade prislarm", ({ m })
   });
 });
 
-describe.each(LOCALES)("$name: punkterna är bevarade och kommer tillbaka", ({ m }) => {
-  it("prispunkterna ligger i egna listor, inte raderade", () => {
-    expect(m.Pricing.premiumPriceFeatures.length).toBeGreaterThan(0);
-    expect(m.Pricing.freeExcludedPrice.length).toBeGreaterThan(0);
-    for (const line of [...m.Pricing.premiumPriceFeatures, ...m.Pricing.freeExcludedPrice]) {
-      expect(line, `Punkt i prislistan handlar inte om prislarm: "${line}"`).toMatch(PROMISES_PRICE_ALERT);
+describe.each(LOCALES)("$name: raderna är bevarade och kommer tillbaka", ({ m }) => {
+  it("prisraderna ligger i en egen lista, inte raderade", () => {
+    expect(m.Pricing.specRowsPrice.length).toBeGreaterThan(0);
+    for (const row of m.Pricing.specRowsPrice) {
+      expect(row.label, `Rad i prislistan handlar inte om prislarm: "${row.label}"`).toMatch(PROMISES_PRICE_ALERT);
+      // Raden ska LÅSAS UPP av Pro — annars säljer den ingenting när den kommer tillbaka.
+      expect(row.free).not.toBe(row.pro);
     }
   });
 
   it("båda pausade → exakt baslistan, inget mer", () => {
     const groups = (paused: boolean) => [
-      { items: m.Pricing.premiumPriceFeatures, paused },
-      { items: m.Pricing.premiumRestockFeatures, paused },
+      { items: m.Pricing.specRowsPrice, paused },
+      { items: m.Pricing.specRowsRestock, paused },
     ];
-    expect(pausableFeatures(m.Pricing.premiumFeatures, groups(true))).toEqual(m.Pricing.premiumFeatures);
+    expect(pausableFeatures(m.Pricing.specRows, groups(true))).toEqual(m.Pricing.specRows);
   });
 
-  it("prislarm på, restock kvar pausat → bara prispunkterna tillbaka", () => {
+  it("prislarm på, restock kvar pausat → bara prisraderna tillbaka", () => {
     // Det HÄR är det troliga nästa läget: defekterna lagas medan restock fortfarande
-    // väntar på kostnad. Listan måste kunna gå halvvägs.
-    const out = pausableFeatures(m.Pricing.premiumFeatures, [
-      { items: m.Pricing.premiumPriceFeatures, paused: false },
-      { items: m.Pricing.premiumRestockFeatures, paused: true },
+    // väntar på kostnad. Bladet måste kunna gå halvvägs.
+    const out = pausableFeatures(m.Pricing.specRows, [
+      { items: m.Pricing.specRowsPrice, paused: false },
+      { items: m.Pricing.specRowsRestock, paused: true },
     ]);
-    expect(out).toHaveLength(m.Pricing.premiumFeatures.length + m.Pricing.premiumPriceFeatures.length);
-    expect(out[0]).toBe(m.Pricing.premiumFeatures[0]);
-    expect(out.slice(1, 1 + m.Pricing.premiumPriceFeatures.length)).toEqual(m.Pricing.premiumPriceFeatures);
-    for (const line of m.Pricing.premiumRestockFeatures) expect(out).not.toContain(line);
+    expect(out).toHaveLength(m.Pricing.specRows.length + m.Pricing.specRowsPrice.length);
+    expect(out[0]).toBe(m.Pricing.specRows[0]);
+    expect(out.slice(1, 1 + m.Pricing.specRowsPrice.length)).toEqual(m.Pricing.specRowsPrice);
+    for (const row of m.Pricing.specRowsRestock) expect(out).not.toContain(row);
   });
 
-  it("båda igång → varje punkt är tillbaka, prispunkterna före restock", () => {
-    const out = pausableFeatures(m.Pricing.premiumFeatures, [
-      { items: m.Pricing.premiumPriceFeatures, paused: false },
-      { items: m.Pricing.premiumRestockFeatures, paused: false },
+  it("båda igång → varje rad är tillbaka, prisraderna före restock", () => {
+    const out = pausableFeatures(m.Pricing.specRows, [
+      { items: m.Pricing.specRowsPrice, paused: false },
+      { items: m.Pricing.specRowsRestock, paused: false },
     ]);
     expect(out).toHaveLength(
-      m.Pricing.premiumFeatures.length +
-        m.Pricing.premiumPriceFeatures.length +
-        m.Pricing.premiumRestockFeatures.length
+      m.Pricing.specRows.length + m.Pricing.specRowsPrice.length + m.Pricing.specRowsRestock.length
     );
-    for (const line of [
-      ...m.Pricing.premiumFeatures,
-      ...m.Pricing.premiumPriceFeatures,
-      ...m.Pricing.premiumRestockFeatures,
-    ]) {
-      expect(out).toContain(line);
+    for (const row of [...m.Pricing.specRows, ...m.Pricing.specRowsPrice, ...m.Pricing.specRowsRestock]) {
+      expect(out).toContain(row);
     }
-    // Ordningen är inte kosmetik: bevakningspunkten överst, sedan prislarmet, sedan
-    // restock — så listan läser som före de två pauserna.
-    expect(out.indexOf(m.Pricing.premiumPriceFeatures[0]))
-      .toBeLessThan(out.indexOf(m.Pricing.premiumRestockFeatures[0]));
+    // Ordningen är inte kosmetik: bevakningsraden överst, sedan prislarmet, sedan
+    // restock — så bladet läser som före de två pauserna.
+    expect(out.indexOf(m.Pricing.specRowsPrice[0]))
+      .toBeLessThan(out.indexOf(m.Pricing.specRowsRestock[0]));
   });
 
-  it("gratislistans överstrukna punkter följer samma flaggor", () => {
-    const out = pausableFeatures(m.Pricing.freeExcluded, [
-      { items: m.Pricing.freeExcludedPrice, paused: false },
-      { items: m.Pricing.freeExcludedRestock, paused: false },
-    ]);
-    for (const line of [
-      ...m.Pricing.freeExcluded,
-      ...m.Pricing.freeExcludedPrice,
-      ...m.Pricing.freeExcludedRestock,
-    ]) {
-      expect(out).toContain(line);
-    }
-  });
-
-  it("ingen punkt står i TVÅ listor (annars dubbleras den när flaggan slås om)", () => {
-    const all = [
-      ...m.Pricing.premiumFeatures,
-      ...m.Pricing.premiumPriceFeatures,
-      ...m.Pricing.premiumRestockFeatures,
-    ];
+  it("ingen rad står i TVÅ listor (annars dubbleras den när flaggan slås om)", () => {
+    const all = [...m.Pricing.specRows, ...m.Pricing.specRowsPrice, ...m.Pricing.specRowsRestock]
+      .map((r) => r.label);
     expect(new Set(all).size).toBe(all.length);
-    const free = [...m.Pricing.freeExcluded, ...m.Pricing.freeExcludedPrice, ...m.Pricing.freeExcludedRestock];
-    expect(new Set(free).size).toBe(free.length);
   });
 });
 

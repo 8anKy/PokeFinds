@@ -13,11 +13,11 @@ import {
   getTrending,
 } from "@/services/market";
 import { MarketRestocks } from "@/components/features/restock-history";
-import { LinkButton } from "@/components/ui/button";
 import { PriceChange } from "@/components/ui/price-change";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CATEGORY_LABELS } from "@/components/features/product-card";
+import { ProCta } from "@/components/features/pro-cta";
 import {
   IconBell,
   IconChart,
@@ -289,9 +289,9 @@ export default async function MarketPage({
             {t(alertCopyKey("proDesc", priceAlertsPaused()))}
           </p>
           <div className="relative mt-6">
-            <LinkButton href="/priser" size="lg">
+            <ProCta source="market" size="lg">
               {t("proCta")}
-            </LinkButton>
+            </ProCta>
           </div>
         </div>
       </section>

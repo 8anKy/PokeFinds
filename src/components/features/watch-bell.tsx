@@ -12,6 +12,7 @@ import { IconBell, IconBellFilled } from "@/components/ui/icons";
 import { WatchBellSheet, type WatchScope } from "@/components/features/watch-bell-sheet";
 import { getWatchedSetIds, setSetWatched } from "@/lib/watched-sets";
 import { getWatchedProductIds, setProductWatched } from "@/lib/watched-products";
+import { openPaywallOrNavigate } from "@/lib/paywall";
 
 interface WatchBellProps {
   productId: string;
@@ -197,7 +198,7 @@ export function WatchBell({ productId, productTitle, setId, setName }: WatchBell
         return;
       }
       if (res.status === 403) {
-        router.push("/priser");
+        openPaywallOrNavigate(router, { source: "set-watch" });
         return;
       }
       if (!res.ok) {

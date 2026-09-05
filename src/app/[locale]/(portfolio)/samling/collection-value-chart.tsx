@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Link } from "@/i18n/navigation";
 import { PriceChartLazy } from "@/components/features/price-chart-lazy";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { IconLock, IconTrendingDown, IconTrendingUp } from "@/components/ui/icons";
 import { formatPrice, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { ProTextLink } from "@/components/features/pro-cta";
 
 type Point = { date: string; price: number };
 
@@ -103,14 +103,14 @@ export function CollectionValueChart({
           // Max är en premium-funktion: gratis-användare ser bara upp till 6 mån.
           if (opt.key === "max" && !isPremium) {
             return (
-              <Link
+              <ProTextLink
                 key={opt.key}
-                href="/priser"
-                className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold text-ink-faint transition-colors hover:text-holo-cyan"
+                source="collection-max"
+                className="rounded-full px-3 py-1.5 text-xs font-semibold text-ink-faint transition-colors hover:text-holo-cyan"
                 title={t("unlockMax")}
               >
                 <IconLock size={12} /> {t("rangeMax")}
-              </Link>
+              </ProTextLink>
             );
           }
           return (

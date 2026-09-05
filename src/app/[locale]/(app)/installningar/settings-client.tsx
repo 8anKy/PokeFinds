@@ -13,14 +13,15 @@ import { apiFetch } from "@/lib/client-api";
 import { priceAlertsPausedClient } from "@/lib/price-alerts-pause";
 import { enablePush } from "@/lib/push-client";
 import { useToast } from "@/components/ui/toast";
-import { Button, LinkButton } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { downloadFromApi } from "@/lib/download";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { Input, Label, Checkbox, FieldError } from "@/components/ui/input";
 import type { NotificationSettings } from "@/lib/notification-settings";
-import { RestockPausedBanner } from "@/components/features/restock-paused-banner";
+import { RestockPausedBanner } from "@/components/features/restock-paused-banner";
+import { ProCta } from "@/components/features/pro-cta";
 
 // ⛔ Formen bor i src/lib/notification-settings.ts tillsammans med läsaren och
 // defaultvärdena — en lokal kopia hade kunnat glida isär från det som faktiskt
@@ -537,9 +538,9 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
             </p>
           )}
           {(!user.isPro || user.bonusProUntil) && (
-            <LinkButton href="/priser" className="mt-4">
+            <ProCta source="settings" className="mt-4">
               {user.bonusProUntil ? tSettings("continueProCta") : tSettings("upgradeCta")}
-            </LinkButton>
+            </ProCta>
           )}
         </CardContent>
       </Card>

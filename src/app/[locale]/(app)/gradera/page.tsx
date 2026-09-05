@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { Button, LinkButton } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
@@ -15,7 +15,8 @@ import { SafeImage } from "@/components/ui/safe-image";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
 import { PageBackButton } from "@/components/layout/page-back-button";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { ProCta } from "@/components/features/pro-cta";
 import {
   IconAlertTriangle,
   IconCamera,
@@ -292,9 +293,9 @@ export default function GraderaPage() {
             </span>
           </span>
           {limitReached && !quota.isPremium && (
-            <LinkButton href="/priser" size="sm" variant="secondary">
+            <ProCta source="grading-quota" size="sm" variant="secondary">
               {t("upgradeCta")}
-            </LinkButton>
+            </ProCta>
           )}
         </div>
       )}

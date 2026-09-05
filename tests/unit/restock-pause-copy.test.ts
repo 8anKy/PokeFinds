@@ -34,13 +34,20 @@ const LOCALES = [
   { name: "en", m: en as unknown as Messages },
 ];
 
+interface SpecRow {
+  label: string;
+  free: string;
+  pro: string;
+}
+/** Allt en rad SÄGER — etiketten och båda kolumnerna. */
+const rowText = (r: SpecRow) => `${r.label} ${r.free} ${r.pro}`;
+
 interface Messages {
   Pricing: {
     metaDescription: string;
-    freeExcluded: string[];
-    freeExcludedRestock: string[];
-    premiumFeatures: string[];
-    premiumRestockFeatures: string[];
+    /** Spec-bladet (2026-09-05): ersätter både Pro-listan och de överstrukna gratis-punkterna. */
+    specRows: SpecRow[];
+    specRowsRestock: SpecRow[];
     restockPausedNotice: string;
     restockPausedCta: string;
   };
@@ -53,19 +60,13 @@ interface Messages {
 }
 
 describe.each(LOCALES)("$name: paywallen lovar inga pausade larm", ({ m }) => {
-  it("ingen Pro-punkt i baslistan nämner restock", () => {
-    for (const line of m.Pricing.premiumFeatures) {
-      expect(line, `Pro-punkt lovar restock: "${line}"`).not.toMatch(PROMISES_RESTOCK);
-      expect(line, `Pro-punkt säljer set-bevakning: "${line}"`).not.toMatch(PROMISES_SET_WATCH);
-    }
-  });
-
-  it("ingen överstruken gratis-punkt säljer restock", () => {
-    // Den överstrukna listan är lika mycket en säljpunkt som Pro-listan: den
-    // säger "det här får du om du betalar".
-    for (const line of m.Pricing.freeExcluded) {
-      expect(line, `Gratis-uteslutning säljer restock: "${line}"`).not.toMatch(PROMISES_RESTOCK);
-      expect(line, `Gratis-uteslutning säljer set-bevakning: "${line}"`).not.toMatch(PROMISES_SET_WATCH);
+  it("ingen rad i spec-bladets baslista nämner restock", () => {
+    // Spec-bladet är BÅDA de gamla listorna på en gång (Pro-punkterna och de
+    // överstrukna gratis-punkterna): varje rad säger "det här får du om du betalar".
+    // Samma rader visas i paywall-arket, så EN vakt täcker båda köpställena.
+    for (const row of m.Pricing.specRows) {
+      expect(rowText(row), `Spec-rad lovar restock: "${row.label}"`).not.toMatch(PROMISES_RESTOCK);
+      expect(rowText(row), `Spec-rad säljer set-bevakning: "${row.label}"`).not.toMatch(PROMISES_SET_WATCH);
     }
   });
 
@@ -91,18 +92,19 @@ describe.each(LOCALES)("$name: paywallen lovar inga pausade larm", ({ m }) => {
 });
 
 describe.each(LOCALES)("$name: punkterna finns kvar och kommer tillbaka", ({ m }) => {
-  it("restock-punkterna är BEVARADE i egna listor, inte raderade", () => {
+  it("restock-raderna är BEVARADE i en egen lista, inte raderade", () => {
     // Hela poängen med uppdelningen: prissidan konkatenerar tillbaka dem så fort
-    // restockAlertsPaused() blir false. Raderas listorna kommer de aldrig igen.
-    expect(m.Pricing.premiumRestockFeatures.length).toBeGreaterThan(0);
-    expect(m.Pricing.freeExcludedRestock.length).toBeGreaterThan(0);
-    // `some`, inte `every`: set-punkten är restock-beroende utan att säga ordet
+    // restockAlertsPaused() blir false. Raderas listan kommer de aldrig igen.
+    expect(m.Pricing.specRowsRestock.length).toBeGreaterThan(0);
+    // `some`, inte `every`: set-raden är restock-beroende utan att säga ordet
     // (se PROMISES_SET_WATCH ovan). Varje rad HÄR ska däremot vara en av de två.
-    for (const line of [...m.Pricing.premiumRestockFeatures, ...m.Pricing.freeExcludedRestock]) {
+    for (const row of m.Pricing.specRowsRestock) {
       expect(
-        PROMISES_RESTOCK.test(line) || PROMISES_SET_WATCH.test(line),
-        `Punkt i restock-listan är varken restock eller set-bevakning: "${line}"`
+        PROMISES_RESTOCK.test(row.label) || PROMISES_SET_WATCH.test(row.label),
+        `Rad i restock-listan är varken restock eller set-bevakning: "${row.label}"`
       ).toBe(true);
+      // Raden ska LÅSAS UPP av Pro — annars säljer den ingenting när den kommer tillbaka.
+      expect(row.free, `Restock-rad utan skillnad Free/Pro: "${row.label}"`).not.toBe(row.pro);
     }
   });
 
@@ -135,32 +137,23 @@ describe.each(LOCALES)("$name: punkterna finns kvar och kommer tillbaka", ({ m }
   });
 });
 
-describe.each(LOCALES)("$name: prissidans lista följer flaggan åt BÅDA håll", ({ m }) => {
+describe.each(LOCALES)("$name: spec-bladet följer flaggan åt BÅDA håll", ({ m }) => {
   it("pausat → exakt baslistan, inget mer", () => {
-    expect(withRestockFeatures(m.Pricing.premiumFeatures, m.Pricing.premiumRestockFeatures, true))
-      .toEqual(m.Pricing.premiumFeatures);
-    expect(withRestockFeatures(m.Pricing.freeExcluded, m.Pricing.freeExcludedRestock, true))
-      .toEqual(m.Pricing.freeExcluded);
+    expect(withRestockFeatures(m.Pricing.specRows, m.Pricing.specRowsRestock, true))
+      .toEqual(m.Pricing.specRows);
   });
 
-  it("igång → restock-punkterna är tillbaka, direkt efter bevakningspunkten", () => {
-    const pro = withRestockFeatures(m.Pricing.premiumFeatures, m.Pricing.premiumRestockFeatures, false);
-    expect(pro).toHaveLength(m.Pricing.premiumFeatures.length + m.Pricing.premiumRestockFeatures.length);
-    // Ordningen är inte kosmetik: bevakningspunkten ska stå kvar överst, och
-    // restock-punkterna direkt under den — så listan ser ut som före pausen.
-    expect(pro[0]).toBe(m.Pricing.premiumFeatures[0]);
-    expect(pro.slice(1, 1 + m.Pricing.premiumRestockFeatures.length))
-      .toEqual(m.Pricing.premiumRestockFeatures);
-    // ⛔ Ingen punkt får tappas bort i skarven.
-    for (const line of [...m.Pricing.premiumFeatures, ...m.Pricing.premiumRestockFeatures]) {
-      expect(pro).toContain(line);
-    }
-  });
-
-  it("igång → gratislistans överstrukna punkter är också tillbaka", () => {
-    const free = withRestockFeatures(m.Pricing.freeExcluded, m.Pricing.freeExcludedRestock, false);
-    for (const line of [...m.Pricing.freeExcluded, ...m.Pricing.freeExcludedRestock]) {
-      expect(free).toContain(line);
+  it("igång → restock-raderna är tillbaka, direkt efter bevakningsraden", () => {
+    const rows = withRestockFeatures(m.Pricing.specRows, m.Pricing.specRowsRestock, false);
+    expect(rows).toHaveLength(m.Pricing.specRows.length + m.Pricing.specRowsRestock.length);
+    // Ordningen är inte kosmetik: bevakningsraden ska stå kvar överst, och
+    // restock-raderna direkt under den — så bladet ser ut som före pausen.
+    expect(rows[0]).toBe(m.Pricing.specRows[0]);
+    expect(rows.slice(1, 1 + m.Pricing.specRowsRestock.length))
+      .toEqual(m.Pricing.specRowsRestock);
+    // ⛔ Ingen rad får tappas bort i skarven.
+    for (const row of [...m.Pricing.specRows, ...m.Pricing.specRowsRestock]) {
+      expect(rows).toContain(row);
     }
   });
 });

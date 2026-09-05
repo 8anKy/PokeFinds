@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { alternatesFor } from "@/lib/canonical";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import { IconCheck, IconPlus, IconX } from "@/components/ui/icons";
+import { IconPlus } from "@/components/ui/icons";
 import { stripeCheckoutAdvertised } from "@/lib/stripe";
 import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
-import { pausableFeatures } from "@/lib/pricing-features";
+import { pausableFeatures, type SpecRow } from "@/lib/pricing-features";
 import { priceAlertsPaused } from "@/lib/price-alerts-pause";
-import { UpgradeButton } from "./upgrade-button";
+import { UpgradeButton } from "@/components/features/upgrade-button";
+import { ProHoloCard } from "@/components/features/pro-holo-card";
+import { ProSpecTable } from "@/components/features/pro-spec-table";
 import { FreePlanCta } from "./free-plan-cta";
 import { PageBackButton } from "@/components/layout/page-back-button";
 
@@ -24,25 +26,6 @@ export async function generateMetadata({
   };
 }
 
-function FeatureList({ items, excluded = [] }: { items: string[]; excluded?: string[] }) {
-  return (
-    <ul className="space-y-3">
-      {items.map((f) => (
-        <li key={f} className="flex items-start gap-2.5 text-sm text-ink-muted">
-          <IconCheck size={18} className="mt-0.5 shrink-0 text-rise" />
-          {f}
-        </li>
-      ))}
-      {excluded.map((f) => (
-        <li key={f} className="flex items-start gap-2.5 text-sm text-ink-faint">
-          <IconX size={18} className="mt-0.5 shrink-0 text-ink-faint/70" />
-          <span className="line-through decoration-ink-faint/40">{f}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 export default async function PricingPage({
   params,
 }: {
@@ -50,34 +33,29 @@ export default async function PricingPage({
 }) {
   setRequestLocale(params.locale);
   const t = await getTranslations("Pricing");
-  const freeFeatures = t.raw("freeFeatures") as string[];
   const faq = t.raw("faqItems") as { q: string; a: string }[];
 
   /**
    * ⛔ DEN HÄR SIDAN ÄR KÖPSTÄLLET, OCH I APPEN ÄR DEN HELA PAYWALLEN (Capacitor-
-   * WebView över exakt den här rutten). Står restock-larm i punktlistan medan de
-   * är avstängda är det ett vilseledande påstående VID KÖPTILLFÄLLET, inte ett
-   * gränssnittsfel. Två kunder hann köpa under pausen 2026-08-22/24 — den ena
-   * fick pausbeskedet elva timmar efter köpet, den andra fick det aldrig
-   * (engångsutskicket hade redan gått).
+   * WebView över exakt den här rutten) tillsammans med paywall-arket, som visar
+   * SAMMA rader. Står restock-larm i spec-bladet medan de är avstängda är det ett
+   * vilseledande påstående VID KÖPTILLFÄLLET, inte ett gränssnittsfel. Två kunder
+   * hann köpa under pausen 2026-08-22/24 — den ena fick pausbeskedet elva timmar
+   * efter köpet, den andra fick det aldrig (engångsutskicket hade redan gått).
    *
-   * ⛔ DÄRFÖR LIGGER PUNKTERNA I EGNA LISTOR, INTE BORTREDIGERADE. Att stryka dem
-   * ur `premiumFeatures` hade krävt att någon MINNS att skriva tillbaka dem den
-   * dag larmen slås på — samma sorts vakt som failar öppet. Nu följer listan
-   * flaggan av sig själv.
+   * ⛔ DÄRFÖR LIGGER RADERNA I EGNA LISTOR, INTE BORTREDIGERADE. Att stryka dem ur
+   * `specRows` hade krävt att någon MINNS att skriva tillbaka dem den dag larmen
+   * slås på — samma sorts vakt som failar öppet. Nu följer bladet flaggan av sig
+   * själv. Vaktat av tests/unit/restock-pause-copy.test.ts + price-alert-pause.test.ts.
    */
   const restockPaused = restockAlertsPaused();
   // ⛔ EGEN FLAGGA, INTE SAMMA. Prislarmen pausades 2026-08-26 för att de kan påstå ett
   // pris som inte finns (mätt falskt larm samma dag), restock-larmen 2026-08-23 för att
   // de kostade för mycket compute. De kommer tillbaka vid olika tillfällen.
   const pricePaused = priceAlertsPaused();
-  const premiumFeatures = pausableFeatures(t.raw("premiumFeatures") as string[], [
-    { items: t.raw("premiumPriceFeatures") as string[], paused: pricePaused },
-    { items: t.raw("premiumRestockFeatures") as string[], paused: restockPaused },
-  ]);
-  const freeExcluded = pausableFeatures(t.raw("freeExcluded") as string[], [
-    { items: t.raw("freeExcludedPrice") as string[], paused: pricePaused },
-    { items: t.raw("freeExcludedRestock") as string[], paused: restockPaused },
+  const rows = pausableFeatures(t.raw("specRows") as SpecRow[], [
+    { items: t.raw("specRowsPrice") as SpecRow[], paused: pricePaused },
+    { items: t.raw("specRowsRestock") as SpecRow[], paused: restockPaused },
   ]);
 
   return (
@@ -85,85 +63,61 @@ export default async function PricingPage({
     // (app-sidorna har py-6); desktop behåller luftiga py-16 (knappen är lg:hidden).
     <div className="mx-auto max-w-5xl px-2.5 pb-16 pt-6 sm:px-6 lg:pt-16">
       <PageBackButton fallback="/" />
-      <div className="text-center">
-        <h1 className="font-display text-3xl font-bold text-ink sm:text-4xl">
-          {t("h1")}
-        </h1>
-        <p className="mx-auto mt-4 max-w-xl text-ink-muted">
-          {t("subtitle")}
-        </p>
-      </div>
 
-      {/* ⛔ Notisen står ovanför korten med flit: under köpknappen hade den varit
-          en brasklapp efter beslutet. Den ska läsas innan priset. */}
-      {/* Prislarmen har ingen Discord-utväg — det finns ingen gratis kanal som ersätter
-          dem — så notisen står för sig själv, utan CTA. */}
-      {pricePaused && (
-        <div className="mx-auto mt-8 max-w-2xl rounded-xl border border-holo-gold/30 bg-holo-gold/5 px-5 py-4 text-sm text-ink-muted">
-          <p>{t("priceAlertsPausedNotice")}</p>
+      {/* ⛔ Pausnotiserna står FÖRST, ovanför pris och kort, med flit: under
+          köpknappen hade de varit en brasklapp efter beslutet. De ska läsas innan
+          priset. Prislarmen har ingen Discord-utväg — det finns ingen gratis kanal
+          som ersätter dem — så den notisen står för sig själv, utan CTA. */}
+      {(pricePaused || restockPaused) && (
+        <div className="mb-8 flex flex-col gap-3">
+          {pricePaused && (
+            <div className="rounded-xl border border-holo-gold/30 bg-holo-gold/5 px-5 py-4 text-sm text-ink-muted">
+              <p>{t("priceAlertsPausedNotice")}</p>
+            </div>
+          )}
+          {restockPaused && (
+            <div className="rounded-xl border border-holo-gold/30 bg-holo-gold/5 px-5 py-4 text-sm text-ink-muted">
+              <p>{t("restockPausedNotice")}</p>
+              {/* Internt till /discord, inte rakt ut till discord.gg: den sidan
+                  FÖRKLARAR vad servern är, och en utgående länk från paywallen tar
+                  besökaren ur köpflödet utan att svara på frågan. */}
+              <Link
+                href="/discord"
+                className="mt-2 inline-block font-medium text-holo-cyan underline-offset-2 hover:underline"
+              >
+                {t("restockPausedCta")}
+              </Link>
+            </div>
+          )}
         </div>
       )}
 
-      {restockPaused && (
-        <div className="mx-auto mt-8 max-w-2xl rounded-xl border border-holo-gold/30 bg-holo-gold/5 px-5 py-4 text-sm text-ink-muted">
-          <p>{t("restockPausedNotice")}</p>
-          {/* Internt till /discord, inte rakt ut till discord.gg: den sidan
-              FÖRKLARAR vad servern är, och en utgående länk från paywallen tar
-              besökaren ur köpflödet utan att svara på frågan. */}
-          <Link
-            href="/discord"
-            className="mt-2 inline-block font-medium text-holo-cyan underline-offset-2 hover:underline"
-          >
-            {t("restockPausedCta")}
-          </Link>
-        </div>
-      )}
-
-      <div className="mt-12 grid gap-6 md:grid-cols-2">
-        {/* Free */}
-        <div className="card-surface flex flex-col p-8">
-          <h2 className="font-display text-xl font-semibold text-ink">{t("freeName")}</h2>
-          <p className="mt-1 text-sm text-ink-muted">{t("freeTagline")}</p>
-          <p className="mt-6" data-price>
-            <span className="font-display text-4xl font-bold text-ink">{t("freePrice")}</span>
-            <span className="text-ink-muted"> {t("perMonth")}</span>
+      <div className="grid gap-12 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] lg:gap-16">
+        {/* Vänster (mobil: överst): ordet, priset, kortet, köpknappen. Sticky på
+            desktop så knappen står bredvid spec-bladet hela vägen ner. */}
+        <section className="flex flex-col items-center text-center lg:sticky lg:top-24 lg:self-start lg:items-start lg:text-left">
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-holo-cyan">{t("eyebrow")}</p>
+          <h1 className="holo-word mt-2 font-display text-[76px] font-extrabold leading-[0.9] tracking-[-0.05em] sm:text-[88px]">
+            {t("heroWord")}
+          </h1>
+          <p className="mt-3 font-display text-2xl font-semibold tracking-tight text-ink" data-price>
+            {t("heroPrice")}
           </p>
-          <div className="mt-8 flex-1">
-            <FeatureList items={freeFeatures} excluded={freeExcluded} />
-          </div>
-          <FreePlanCta />
-        </div>
+          <p className="mt-1.5 max-w-xs text-sm text-ink-muted">{t("heroSub")}</p>
 
-        {/* Premium — rekommenderad: foil-linje + tydligare kant */}
-        <div className="card-surface flex flex-col overflow-hidden border-holo-cyan/40">
-          <div className="foil-line" aria-hidden="true" />
-          <div className="flex flex-1 flex-col p-8">
-            <div className="flex items-baseline justify-between gap-3">
-              <h2 className="font-display text-xl font-semibold text-ink">{t("proName")}</h2>
-              <span className="text-xs font-medium text-holo-cyan">
-                {t("proAudience")}
-              </span>
-            </div>
-            <p className="mt-1 text-sm text-ink-muted">
-              {t("proTagline")}
-            </p>
-            <p className="mt-6" data-price>
-              <span className="holo-text font-display text-4xl font-bold">{t("proPrice")}</span>
-              <span className="text-ink-muted"> {t("perMonth")}</span>
-            </p>
-            <div className="mt-8 flex-1">
-              <p className="mb-3 text-sm font-medium text-ink">{t("proLead")}</p>
-              <FeatureList items={premiumFeatures} />
-            </div>
+          <ProHoloCard className="mt-8" />
+
+          <div className="mt-6 w-full max-w-sm">
             {/* Servern äger frågan "går det att betala?" — en egen
                 NEXT_PUBLIC_-flagga hade blivit en andra sanning som glider isär
                 från STRIPE_ENABLED. */}
-            <UpgradeButton webCheckout={stripeCheckoutAdvertised()} />
+            <UpgradeButton webCheckout={stripeCheckoutAdvertised()} compact />
             {/* Apple 3.1.2: förnyelsevillkoret och BÅDA de legala länkarna måste
                 stå VID köpknappen, inte bara i sidfoten (som dessutom är dold
                 bakom bottenflikarna i appen). iOS-appen är en Capacitor-WebView
                 över exakt den här sidan, så det HÄR är app:ens paywall — ändras
-                texten slår den igenom utan nytt native-bygge. */}
+                texten slår den igenom utan nytt native-bygge. Paywall-arket bär
+                samma text vid sin knapp. */}
             <p className="mt-3 text-center text-xs text-ink-faint">{t("subRenewNote")}</p>
             <p className="mt-2 flex flex-wrap items-center justify-center gap-x-2 text-xs text-ink-muted">
               <Link href="/villkor" className="underline underline-offset-2 transition-colors duration-150 hover:text-ink">
@@ -175,31 +129,43 @@ export default async function PricingPage({
               </Link>
             </p>
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* FAQ */}
-      <section className="mt-20">
-        <h2 className="text-center font-display text-2xl font-bold text-ink">
-          {t("faqTitle")}
-        </h2>
-        <div className="mt-6 space-y-3">
-          {faq.map((item) => (
-            <details key={item.q} className="card-surface group">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 font-medium text-ink [&::-webkit-details-marker]:hidden">
-                {item.q}
-                <IconPlus
-                  size={18}
-                  className="shrink-0 text-ink-faint transition-transform group-open:rotate-45"
-                />
-              </summary>
-              <p className="border-t border-surface-border px-5 py-4 text-sm text-ink-muted">
-                {item.a}
-              </p>
-            </details>
-          ))}
-        </div>
-      </section>
+        {/* Höger (mobil: under): Free mot Pro som spec-blad, Free-raden, FAQ. */}
+        <section>
+          <h2 className="font-display text-xl font-bold text-ink">{t("specTitle")}</h2>
+          <ProSpecTable rows={rows} freeLabel={t("specFree")} proLabel={t("specPro")} className="mt-4" />
+
+          <div className="card-surface mt-4 flex items-center justify-between gap-4 px-4 py-3">
+            <div>
+              <p className="text-sm font-bold text-ink">{t("freeRowTitle")}</p>
+              <p className="mt-0.5 text-xs text-ink-faint">{t("freeRowDesc")}</p>
+            </div>
+            <p className="font-display text-lg font-bold text-ink" data-price>
+              {t("freeRowPrice")}
+            </p>
+          </div>
+          <FreePlanCta />
+
+          <h2 className="mt-14 font-display text-xl font-bold text-ink">{t("faqTitle")}</h2>
+          <div className="mt-4 space-y-3">
+            {faq.map((item) => (
+              <details key={item.q} className="card-surface group">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 font-medium text-ink [&::-webkit-details-marker]:hidden">
+                  {item.q}
+                  <IconPlus
+                    size={18}
+                    className="shrink-0 text-ink-faint transition-transform group-open:rotate-45"
+                  />
+                </summary>
+                <p className="border-t border-surface-border px-5 py-4 text-sm text-ink-muted">
+                  {item.a}
+                </p>
+              </details>
+            ))}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

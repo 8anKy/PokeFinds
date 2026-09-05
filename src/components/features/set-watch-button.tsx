@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { IconBell, IconBellFilled, IconLock } from "@/components/ui/icons";
 import { getWatchedSetIds, setSetWatched } from "@/lib/watched-sets";
 import { restockAlertsPausedClient } from "@/lib/restock-alerts-pause";
+import { openPaywallOrNavigate } from "@/lib/paywall";
 
 interface SetWatchButtonProps {
   setId: string;
@@ -60,7 +61,7 @@ export function SetWatchButton({ setId, setName, sealedCount }: SetWatchButtonPr
     // blinkade ett Pro-lås för betalande kunder vid varje sidöppning (mätt på
     // skannerns bulkknapp 2026-08-02).
     if (isPro === false) {
-      router.push("/priser");
+      openPaywallOrNavigate(router, { source: "set-watch" });
       return;
     }
     const next = !watched;
@@ -78,7 +79,7 @@ export function SetWatchButton({ setId, setName, sealedCount }: SetWatchButtonPr
         return;
       }
       if (res.status === 403) {
-        router.push("/priser");
+        openPaywallOrNavigate(router, { source: "set-watch" });
         return;
       }
       if (!res.ok) {

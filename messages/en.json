@@ -2084,55 +2084,121 @@
   "Pricing": {
     "metaTitle": "Pricing and Pro",
     "metaDescription": "Get started free with Foilio or upgrade to Pro for unlimited watches, unlimited card scanning and AI grading.",
-    "h1": "Simple pricing, no surprises",
-    "subtitle": "Get started free. Upgrade when you want full control of the market. Cancel any time.",
-    "perMonth": "/ month",
-    "freeName": "Free",
-    "freeTagline": "For those who want to test the waters.",
-    "freePrice": "0 kr",
+    "eyebrow": "Foilio Pro",
+    "heroWord": "Pro.",
+    "heroPrice": "49 kr a month.",
+    "heroSub": "Cancel any time. You keep Pro until the end of the period.",
+    "cardHint": "Touch the card",
+    "card": {
+      "aria": "Foilio Pro – 49 kr a month",
+      "name": "PRO",
+      "price": "49 kr",
+      "per": "/mo",
+      "rarity": "★ Rare",
+      "billing": "Monthly",
+      "includes": "Everything in Free included",
+      "cancel": "Cancel any time",
+      "moves": [
+        "Unlimited watches",
+        "Unlimited scanning · bulk",
+        "Tradera in the chart",
+        "15 AI gradings a month"
+      ]
+    },
+    "specTitle": "Free vs Pro",
+    "specFree": "Free",
+    "specPro": "Pro",
+    "specRows": [
+      {
+        "label": "Watches",
+        "free": "5",
+        "pro": "Unlimited"
+      },
+      {
+        "label": "Card scans per month",
+        "free": "30",
+        "pro": "Unlimited"
+      },
+      {
+        "label": "Bulk scanning · the whole row in one photo",
+        "free": "—",
+        "pro": "✓"
+      },
+      {
+        "label": "AI gradings per month",
+        "free": "3",
+        "pro": "15"
+      },
+      {
+        "label": "Stronger grading model",
+        "free": "—",
+        "pro": "✓"
+      },
+      {
+        "label": "Tradera in the chart · listings and sold",
+        "free": "—",
+        "pro": "✓"
+      },
+      {
+        "label": "Price history in the chart",
+        "free": "1 year",
+        "pro": "All"
+      },
+      {
+        "label": "Collection value chart",
+        "free": "6 months",
+        "pro": "All"
+      },
+      {
+        "label": "Collection with value overview",
+        "free": "✓",
+        "pro": "✓"
+      },
+      {
+        "label": "Market data and price charts",
+        "free": "✓",
+        "pro": "✓"
+      },
+      {
+        "label": "Weekly digest with your collection's progress",
+        "free": "✓",
+        "pro": "✓"
+      }
+    ],
+    "specRowsPrice": [
+      {
+        "label": "Price alerts on what you watch",
+        "free": "—",
+        "pro": "✓"
+      }
+    ],
+    "specRowsRestock": [
+      {
+        "label": "Restock alerts on everything you watch",
+        "free": "—",
+        "pro": "✓"
+      },
+      {
+        "label": "Watch entire sets · alerts on all sealed products",
+        "free": "—",
+        "pro": "✓"
+      },
+      {
+        "label": "All restocks · alerts for every sealed product",
+        "free": "—",
+        "pro": "✓"
+      }
+    ],
+    "freeRowTitle": "Free",
+    "freeRowPrice": "0 kr",
+    "freeRowDesc": "5 watches · 30 scans · 3 gradings a month · market data · weekly digest",
     "freeCta": "Create free account",
-    "proName": "Pro",
-    "proAudience": "For serious collectors",
-    "proTagline": "Full control of the market, before everyone else.",
-    "proPrice": "49 kr",
     "subRenewNote": "The subscription renews automatically every month until you cancel. Cancel at least 24 hours before it renews — in your App Store settings if you bought in the app.",
     "legalTerms": "Terms of Use",
     "legalPrivacy": "Privacy Policy",
-    "freeFeatures": [
-      "Save up to 5 products to your watchlist",
-      "Collection with value overview",
-      "3 AI gradings and 30 scans per month",
-      "Market data and price charts",
-      "Weekly digest with your collection's progress and the week's finds"
-    ],
-    "freeExcludedRestock": [
-      "Restock alerts",
-      "Restock alerts on every sealed product",
-      "Watch entire sets at once"
-    ],
-    "premiumRestockFeatures": [
-      "Restock alerts on everything you watch",
-      "Watch entire sets · alerts on all sealed products, including new releases",
-      "All restocks: alerts for every sealed product"
-    ],
     "restockPausedNotice": "Restock alerts by email and push are paused for now and are not part of Pro at the moment. Restocks are posted in real time in our Discord — free, no account needed.",
     "restockPausedCta": "See restocks in Discord",
-    "freeExcluded": [
-      "Unlimited watches",
-      "Unlimited card scanning",
-      "Bulk scanning of several cards in one photo",
-      "Tradera in the chart: listing prices and what it sold for",
-      "Advanced price charts and longer history"
-    ],
-    "proLead": "Everything in Free, plus:",
-    "premiumFeatures": [
-      "Unlimited watches",
-      "15 AI gradings per month (stronger model)",
-      "Unlimited card scanning (fair use)",
-      "Bulk scanning · lay out the whole row and scan every card at once",
-      "Tradera in the chart: listing prices and what it sold for",
-      "Advanced price charts and longer history"
-    ],
+    "priceAlertsPausedNotice": "Price alerts by email and push are paused for now and are not part of Pro at the moment. Your target prices stay put and the price chart keeps updating.",
     "faqTitle": "Questions about the plans",
     "faqItems": [
       {
@@ -2147,14 +2213,14 @@
         "q": "How do I pay for Pro?",
         "a": "In the app the purchase is made securely via the App Store or Google Play. On the web, payment is handled securely by Stripe — we never see your card number. You can cancel any time and keep Pro until the end of the period."
       }
-    ],
-    "premiumPriceFeatures": [
-      "Price alerts on everything you watch · we tell you when your target is hit"
-    ],
-    "freeExcludedPrice": [
-      "Price alerts on what you watch"
-    ],
-    "priceAlertsPausedNotice": "Price alerts by email and push are paused for now and are not part of Pro at the moment. Your target prices stay put and the price chart keeps updating."
+    ]
+  },
+  "Paywall": {
+    "title": "Foilio Pro",
+    "lead": "Everything in Free is included. Here is what you unlock:",
+    "notNow": "Not now",
+    "close": "Close",
+    "seeAll": "Compare Free and Pro in detail"
   },
   "Home": {
     "hero": {

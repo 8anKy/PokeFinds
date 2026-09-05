@@ -2084,55 +2084,121 @@
   "Pricing": {
     "metaTitle": "Priser och Pro",
     "metaDescription": "Kom igång gratis med Foilio eller uppgradera till Pro för obegränsade bevakningar, obegränsad kortskanning och AI-gradering.",
-    "h1": "Enkel prissättning, inga överraskningar",
-    "subtitle": "Kom igång gratis. Uppgradera när du vill ha full koll på marknaden. Säg upp när som helst.",
-    "perMonth": "/ månad",
-    "freeName": "Free",
-    "freeTagline": "För dig som vill testa vattnet.",
-    "freePrice": "0 kr",
+    "eyebrow": "Foilio Pro",
+    "heroWord": "Pro.",
+    "heroPrice": "49 kr i månaden.",
+    "heroSub": "Säg upp när du vill. Du behåller Pro perioden ut.",
+    "cardHint": "Rör kortet",
+    "card": {
+      "aria": "Foilio Pro – 49 kr i månaden",
+      "name": "PRO",
+      "price": "49 kr",
+      "per": "/mån",
+      "rarity": "★ Sällsynt",
+      "billing": "Månadsvis",
+      "includes": "Allt i Free ingår",
+      "cancel": "Säg upp när du vill",
+      "moves": [
+        "Obegränsade bevakningar",
+        "Obegränsad skanning · bulk",
+        "Tradera i grafen",
+        "15 AI-graderingar i månaden"
+      ]
+    },
+    "specTitle": "Free mot Pro",
+    "specFree": "Free",
+    "specPro": "Pro",
+    "specRows": [
+      {
+        "label": "Bevakningar",
+        "free": "5",
+        "pro": "Obegränsat"
+      },
+      {
+        "label": "Kortskanning per månad",
+        "free": "30",
+        "pro": "Obegränsat"
+      },
+      {
+        "label": "Bulkskanning · hela raden i en bild",
+        "free": "—",
+        "pro": "✓"
+      },
+      {
+        "label": "AI-graderingar per månad",
+        "free": "3",
+        "pro": "15"
+      },
+      {
+        "label": "Starkare graderingsmodell",
+        "free": "—",
+        "pro": "✓"
+      },
+      {
+        "label": "Tradera i grafen · annonser och sålt",
+        "free": "—",
+        "pro": "✓"
+      },
+      {
+        "label": "Prishistorik i grafen",
+        "free": "1 år",
+        "pro": "Allt"
+      },
+      {
+        "label": "Samlingens värdegraf",
+        "free": "6 mån",
+        "pro": "Allt"
+      },
+      {
+        "label": "Samling med värdeöversikt",
+        "free": "✓",
+        "pro": "✓"
+      },
+      {
+        "label": "Marknadsdata och prisgrafer",
+        "free": "✓",
+        "pro": "✓"
+      },
+      {
+        "label": "Veckobrev med samlingens utveckling",
+        "free": "✓",
+        "pro": "✓"
+      }
+    ],
+    "specRowsPrice": [
+      {
+        "label": "Prislarm på det du bevakar",
+        "free": "—",
+        "pro": "✓"
+      }
+    ],
+    "specRowsRestock": [
+      {
+        "label": "Restock-larm på allt du bevakar",
+        "free": "—",
+        "pro": "✓"
+      },
+      {
+        "label": "Bevaka hela set · larm på alla sealed-produkter",
+        "free": "—",
+        "pro": "✓"
+      },
+      {
+        "label": "Alla restocks · larm för varje sealed-produkt",
+        "free": "—",
+        "pro": "✓"
+      }
+    ],
+    "freeRowTitle": "Free",
+    "freeRowPrice": "0 kr",
+    "freeRowDesc": "5 bevakningar · 30 skanningar · 3 graderingar i månaden · marknadsdata · veckobrev",
     "freeCta": "Skapa gratiskonto",
-    "proName": "Pro",
-    "proAudience": "För seriösa samlare",
-    "proTagline": "Full koll på marknaden, innan alla andra.",
-    "proPrice": "49 kr",
     "subRenewNote": "Prenumerationen förnyas automatiskt varje månad tills du säger upp den. Säg upp senast ett dygn före förnyelsen — i App Store-inställningarna om du köpt i appen.",
     "legalTerms": "Användarvillkor",
     "legalPrivacy": "Integritetspolicy",
-    "freeFeatures": [
-      "Spara upp till 5 produkter i din bevakningslista",
-      "Samling med värdeöversikt",
-      "3 AI-graderingar och 30 skanningar per månad",
-      "Marknadsdata och prisgrafer",
-      "Veckobrev med samlingens utveckling och veckans fynd"
-    ],
-    "freeExcludedRestock": [
-      "Restock-larm",
-      "Restock-larm för varje sealed-produkt",
-      "Bevaka hela set på en gång"
-    ],
-    "premiumRestockFeatures": [
-      "Restock-larm på allt du bevakar",
-      "Bevaka hela set · larm på alla sealed-produkter, även nya som släpps",
-      "Alla restocks: larm för varje sealed-produkt"
-    ],
     "restockPausedNotice": "Restock-larm via mejl och push är pausade tills vidare och ingår inte i Pro just nu. Restocks postas i realtid i vår Discord — gratis, utan konto hos oss.",
     "restockPausedCta": "Se restocks i Discord",
-    "freeExcluded": [
-      "Obegränsade bevakningar",
-      "Obegränsad kortskanning",
-      "Bulkskanning av flera kort i samma bild",
-      "Tradera i grafen: annonspriser och vad varan sålts för",
-      "Avancerade prisgrafer och längre historik"
-    ],
-    "proLead": "Allt i Free, plus:",
-    "premiumFeatures": [
-      "Obegränsade bevakningar",
-      "15 AI-graderingar per månad (starkare modell)",
-      "Obegränsad kortskanning (skäligt bruk)",
-      "Bulkskanning · lägg upp hela raden och skanna alla kort på en gång",
-      "Tradera i grafen: annonspriser och vad varan sålts för",
-      "Avancerade prisgrafer och längre historik"
-    ],
+    "priceAlertsPausedNotice": "Prislarm via mejl och push är pausade tills vidare och ingår inte i Pro just nu. Dina målpriser ligger kvar och prisgrafen uppdateras som vanligt.",
     "faqTitle": "Frågor om planerna",
     "faqItems": [
       {
@@ -2147,14 +2213,14 @@
         "q": "Hur betalar jag för Pro?",
         "a": "I appen sker köpet säkert via App Store eller Google Play. På webben sköts betalningen säkert av Stripe — vi ser aldrig ditt kortnummer. Du kan säga upp när du vill; du behåller Pro perioden ut."
       }
-    ],
-    "premiumPriceFeatures": [
-      "Prislarm på det du bevakar · vi säger till när målpriset nås"
-    ],
-    "freeExcludedPrice": [
-      "Prislarm på det du bevakar"
-    ],
-    "priceAlertsPausedNotice": "Prislarm via mejl och push är pausade tills vidare och ingår inte i Pro just nu. Dina målpriser ligger kvar och prisgrafen uppdateras som vanligt."
+    ]
+  },
+  "Paywall": {
+    "title": "Foilio Pro",
+    "lead": "Allt i Free ingår. Det här låser du upp:",
+    "notNow": "Inte nu",
+    "close": "Stäng",
+    "seeAll": "Jämför Free och Pro i detalj"
   },
   "Home": {
     "hero": {

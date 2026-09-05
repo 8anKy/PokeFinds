@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { useSession } from "next-auth/react";
 import { Button, LinkButton } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { hasAuthHint } from "@/lib/auth-hint";
 import {
   purchasesAvailable,
@@ -21,8 +22,18 @@ import {
  * varor i app:en, så `purchasesAvailable()` är gränsen — inte en stilfråga.
  * `webCheckout` kommer från servern (`stripeEnabled()`), så knappen aldrig lovar
  * en betalväg som inte är konfigurerad.
+ *
+ * Bor i components/features sedan 2026-09-05: knappen används av BÅDE `/priser`
+ * och paywall-arket (`paywall-sheet.tsx`). `compact` tar bort sidans toppmarginal
+ * när knappen står i arkets fot.
  */
-export function UpgradeButton({ webCheckout = false }: { webCheckout?: boolean }) {
+export function UpgradeButton({
+  webCheckout = false,
+  compact = false,
+}: {
+  webCheckout?: boolean;
+  compact?: boolean;
+}) {
   const t = useTranslations("Upgrade");
   const router = useRouter();
   const { update } = useSession();
@@ -35,6 +46,7 @@ export function UpgradeButton({ webCheckout = false }: { webCheckout?: boolean }
   const [proSource, setProSource] = useState<"stripe" | "store" | "bonus" | "role" | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const top = compact ? "mt-0" : "mt-8";
 
   /**
    * Vänta in att Pro slår igenom efter ett köp.
@@ -153,7 +165,7 @@ export function UpgradeButton({ webCheckout = false }: { webCheckout?: boolean }
   // Redan Pro → visa nuvarande plan istället för köpknapp (oavsett native/webb).
   if (isPro) {
     return (
-      <div className="mt-8 w-full rounded-xl border border-holo-cyan/40 bg-holo-cyan/5 px-4 py-3 text-center">
+      <div className={cn(top, "w-full rounded-xl border border-holo-cyan/40 bg-holo-cyan/5 px-4 py-3 text-center")}>
         <p className="text-sm font-semibold text-holo-cyan">{t("currentPlan")}</p>
         {/* Uppsägning sker DÄR KÖPET GJORDES, och texten måste säga vilket.
             ⛔ Erbjud aldrig en avbryt-knapp för ett app-köp: den prenumerationen
@@ -191,14 +203,14 @@ export function UpgradeButton({ webCheckout = false }: { webCheckout?: boolean }
     if (!webCheckout || storeShellNoIap) {
       return (
         <>
-          <Button disabled className="mt-8 w-full">{t("comingSoon")}</Button>
+          <Button disabled className={cn(top, "w-full")}>{t("comingSoon")}</Button>
           <p className="mt-2 text-center text-xs text-ink-faint">{t("paymentSoon")}</p>
         </>
       );
     }
     if (!loggedIn) {
       return (
-        <LinkButton href="/logga-in" className="mt-8 w-full">
+        <LinkButton href="/logga-in" className={cn(top, "w-full")}>
           {t("loginToUpgrade")}
         </LinkButton>
       );
@@ -206,7 +218,7 @@ export function UpgradeButton({ webCheckout = false }: { webCheckout?: boolean }
     return (
       <>
         <Button
-          className="mt-8 w-full"
+          className={cn(top, "w-full")}
           disabled={busy}
           onClick={() => openBilling("/api/billing/checkout", t("msgFailed"))}
         >
@@ -220,7 +232,7 @@ export function UpgradeButton({ webCheckout = false }: { webCheckout?: boolean }
 
   if (!loggedIn) {
     return (
-      <LinkButton href="/logga-in" className="mt-8 w-full">
+      <LinkButton href="/logga-in" className={cn(top, "w-full")}>
         {t("loginToUpgrade")}
       </LinkButton>
     );
@@ -256,7 +268,7 @@ export function UpgradeButton({ webCheckout = false }: { webCheckout?: boolean }
   return (
     <>
       <Button
-        className="mt-8 w-full"
+        className={cn(top, "w-full")}
         disabled={busy}
         onClick={() => run(purchasePremium, t("msgThanks"))}
       >

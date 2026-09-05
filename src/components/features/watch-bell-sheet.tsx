@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Link } from "@/i18n/navigation";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
 import { cn } from "@/lib/utils";
 import { restockAlertsPausedClient } from "@/lib/restock-alerts-pause";
 import { IconBell, IconBellFilled, IconCards, IconCheck, IconLock } from "@/components/ui/icons";
+import { ProTextLink } from "@/components/features/pro-cta";
 
 export type WatchScope = "item" | "set";
 
@@ -117,12 +117,12 @@ export function WatchBellSheet({
           till kassan för en funktion vi stängt av är precis det felet den här
           grinden finns för. */}
       {setName && setLocked && !restockPaused && (
-        <Link
-          href="/priser"
+        <ProTextLink
+          source="set-watch-sheet"
           className="mt-3 block text-xs font-medium text-holo-cyan hover:underline"
         >
           {t("proCta")}
-        </Link>
+        </ProTextLink>
       )}
     </BottomSheet>
   );

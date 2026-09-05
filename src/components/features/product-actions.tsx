@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { getSharedSession } from "@/lib/client-session";
-import { Link, useRouter } from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { hasAuthHint } from "@/lib/auth-hint";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -14,6 +14,7 @@ import { DiscordRestockTip } from "@/components/features/discord-restock-tip";
 import { alertCopyKey } from "@/lib/alert-copy";
 import { priceAlertsPausedClient } from "@/lib/price-alerts-pause";
 import { restockAlertsPausedClient } from "@/lib/restock-alerts-pause";
+import { ProTextLink } from "@/components/features/pro-cta";
 
 export interface ProductActionsProps {
   productId: string;
@@ -219,9 +220,9 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
         {t("addToCollection")}
       </Button>
       {isPro === false && (
-        <Link href="/priser" className="text-xs font-medium text-holo-cyan hover:underline">
+        <ProTextLink source="product-alerts" className="text-xs font-medium text-holo-cyan hover:underline">
           {t(alertCopyKey("alertsProCta", priceAlertsPausedClient()))}
-        </Link>
+        </ProTextLink>
       )}
     </div>
 

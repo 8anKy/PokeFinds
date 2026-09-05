@@ -84,6 +84,19 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   där, och `(app)`-layouten skickar alla gäster till inloggningen. Inloggad ⇒ samma AppShell som (app).
   Undersidorna (`/mer/utmarkelser`, `/mer/bjud-in`) kräver konto själva. ⛔ Streckkodsläget i skannern är
   AVSTÄNGT (ägarbeslut 2026-09-05): `barcodeSupported()` returnerar false; koden ligger kvar.
+- **PRISSIDAN = HOLO-KORT + SPEC-BLAD, OCH UPPGRADERINGSPROMPTER ÖPPNAR ETT ARK (2026-09-05)**: `/priser`
+  visar ett holografiskt Pro-kort (`pro-holo-card.tsx`, tilt via pekare/gyro, foil/gnistor/kantljus via
+  @property-animerade CSS-variabler i globals.css) och Free mot Pro som SPEC-BLAD (`pro-spec-table.tsx`,
+  rader ur `Pricing.specRows` + pausbara `specRowsPrice`/`specRowsRestock` via `pausableFeatures`, som nu
+  är generisk). Varje Pro-låst yta (Max-perioden, Tradera-lagret, set-bevakning, bulk/kvot i skannern,
+  Uppgradera-knappar) anropar `openPaywallOrNavigate()` (`lib/paywall.ts`) ⇒ `PaywallSheetHost` i
+  rot-layouten glider upp ett bottenark med kortet, de rader där Pro skiljer sig och SAMMA `UpgradeButton`
+  (nu i `components/features/`); utan värd faller den tillbaka på `/priser`. ⛔ `/priser` finns kvar
+  (SEO, Mer-tabben, Stripes återkomst-URL, App Store-granskningen) — arket är en snabbare väg till samma
+  knapp, INTE en andra paywall: samma rader, samma pausflaggor, samma Apple 3.1.2-text vid knappen.
+  ⛔ Navigationsposter (header, sidfot, Mer) länkar fortfarande till sidan; bara PROMPTER öppnar arket.
+  Vaktat av `restock-pause-copy`/`price-alert-pause`/`watchlist-limit-copy-sync` (porterade till
+  spec-raderna) + `paywall-open.test.ts`.
 - ⛔ **TRE TAL OM ETT SET, ALDRIG BLANDADE**: `totalCards` = printedTotal (talet på kortet, som skannern
   läser — byt ALDRIG mening på den); `totalCardsFull` = hela setet inkl. secret rares (kompletteringens
   nämnare); master set-nämnaren = de TRYCKNINGAR VI listar, aldrig TCGdex tal — en nämnare användaren inte

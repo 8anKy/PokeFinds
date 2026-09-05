@@ -16,7 +16,8 @@ import { Modal } from "@/components/ui/modal";
 import { Input, Label, Checkbox } from "@/components/ui/input";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { SafeImage } from "@/components/ui/safe-image";
-import { IconCards, IconPackage } from "@/components/ui/icons";
+import { IconCards, IconPackage } from "@/components/ui/icons";
+import { ProTextLink } from "@/components/features/pro-cta";
 
 export interface WatchlistRow {
   id: string;
@@ -226,9 +227,9 @@ export function WatchlistTable({
         <div className="mb-4 rounded-lg border border-holo-cyan/30 bg-holo-cyan/5 px-4 py-3 text-sm text-ink-muted">
           {t.rich(alertCopyKey("freeAlertsBanner", pricePaused), {
             link: (c) => (
-              <Link href="/priser" className="font-medium text-holo-cyan hover:underline">
+              <ProTextLink source="watchlist-banner" className="font-medium text-holo-cyan hover:underline">
                 {c}
-              </Link>
+              </ProTextLink>
             ),
           })}
         </div>

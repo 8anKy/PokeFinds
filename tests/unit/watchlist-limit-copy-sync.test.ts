@@ -36,10 +36,17 @@ describe("gratiskontots bevakningstak vs publicerad copy", () => {
 
   for (const locale of ["sv", "en"] as const) {
     describe(locale, () => {
-      it("prissidans gratisfunktion nämner rätt tal", () => {
-        const line: string = messages(locale).Pricing.freeFeatures[0];
-        expect(line, `Pricing.freeFeatures[0] (${locale})`).toMatch(/watchlist|bevakningslista/i);
-        expect(numbersIn(line)).toContain(FREE_PLAN_WATCHLIST_LIMIT);
+      it("prissidans spec-blad nämner rätt tal på bevakningsraden", () => {
+        // Första raden är bevakningsraden med flit — pausable-mekaniken lägger in
+        // larm-raderna EFTER den (se lib/pricing-features.ts).
+        const row = messages(locale).Pricing.specRows[0];
+        expect(row.label, `Pricing.specRows[0] (${locale})`).toMatch(/watch|bevakning/i);
+        expect(numbersIn(row.free)).toContain(FREE_PLAN_WATCHLIST_LIMIT);
+      });
+
+      it("prissidans Free-rad nämner rätt tal", () => {
+        const desc: string = messages(locale).Pricing.freeRowDesc;
+        expect(numbersIn(desc)).toContain(FREE_PLAN_WATCHLIST_LIMIT);
       });
 
       it("startsidans FAQ nämner rätt tal", () => {

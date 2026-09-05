@@ -51,6 +51,7 @@ import { openProductOverlay, registerFullscreenHost } from "@/lib/product-overla
 import { hapticImpact } from "@/lib/haptics";
 import { pickAlternatives, pickSameArtRail } from "@/lib/scan-alternatives";
 import { useCameraControls } from "@/hooks/use-camera-controls";
+import { openPaywallOrNavigate } from "@/lib/paywall";
 import {
   withDeviceId,
   type ZoomPreset,
@@ -1894,7 +1895,7 @@ function Scanner() {
           const dropped = new Set(idByCell.values());
           setScans((prev) => prev.filter((s) => !dropped.has(s.id)));
           setMode("single");
-          router.push("/priser");
+          openPaywallOrNavigate(router, { source: "scanner-bulk" });
           return;
         }
         if (!res.ok || !data.cells) {
@@ -2184,7 +2185,11 @@ function Scanner() {
           zoomPresets={camera.zoomPresets}
           zoom={camera.zoom}
           onZoom={(p) => void onZoom(p)}
-          onUpgrade={() => router.push(quota?.guest ? "/registrera?callbackUrl=/skanna" : "/priser")}
+          onUpgrade={() =>
+            quota?.guest
+              ? router.push("/registrera?callbackUrl=/skanna")
+              : openPaywallOrNavigate(router, { source: "scanner-quota" })
+          }
           onRetryCamera={() => void startCamera()}
           // ⛔ `quota != null` krävs: `null` betyder "vet inte än", och att gissa
           // "slut" hade sålt Pro till en betalande kund varje gång skannern öppnas.
@@ -2233,7 +2238,8 @@ function Scanner() {
           onClose={() => setLimitOpen(false)}
           onUpgrade={() => {
             setLimitOpen(false);
-            router.push(quota?.guest ? "/registrera?callbackUrl=/skanna" : "/priser");
+            if (quota?.guest) router.push("/registrera?callbackUrl=/skanna");
+            else openPaywallOrNavigate(router, { source: "scanner-limit" });
           }}
           onLogin={() => {
             setLimitOpen(false);
@@ -2275,7 +2281,7 @@ function Scanner() {
 /* ===========================================================================
  * Capture-vy
  * ======================================================================== */
-/** Liten kvot-badge i kameravyn. Free = tappbar → /priser; Pro = bara info. */
+/** Liten kvot-badge i kameravyn. Free = tappbar → paywall-arket; Pro = bara info. */
 function QuotaBadge({ quota, onUpgrade }: { quota: ScanQuota; onUpgrade: () => void }) {
   const t = useTranslations("Scanner");
   const { remaining, isPremium, guest } = quota;

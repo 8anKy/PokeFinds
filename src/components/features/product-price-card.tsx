@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { getSharedSession } from "@/lib/client-session";
-import { Link, useRouter } from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { hasAuthHint } from "@/lib/auth-hint";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,8 @@ import { IconLock } from "@/components/ui/icons";
 import { SOURCE_ORDER, sourceGate, type SourceKey } from "@/lib/price-graph-sources";
 import { PriceChartLazy } from "@/components/features/price-chart-lazy";
 import type { PriceChartSeries } from "@/components/features/price-chart";
+import { openPaywallOrNavigate } from "@/lib/paywall";
+import { ProTextLink } from "@/components/features/pro-cta";
 
 export interface PricePoint {
   date: string; // YYYY-MM-DD
@@ -169,7 +171,7 @@ export function ProductPriceCard({
               <button
                 key={p.value}
                 type="button"
-                onClick={() => (locked ? router.push("/priser") : setPeriod(p))}
+                onClick={() => (locked ? openPaywallOrNavigate(router, { source: "chart-max" }) : setPeriod(p))}
                 aria-current={p.value === period.value ? "true" : undefined}
                 title={locked ? t("maxProOnly") : undefined}
                 className={cn(
@@ -206,7 +208,7 @@ export function ProductPriceCard({
                     // Låst chip väljer INGENTING — den säljer. Samma gest som
                     // MAX-perioden: ett tryck tar dig till prissidan.
                     if (chipLocked) {
-                      router.push("/priser");
+                      openPaywallOrNavigate(router, { source: "chart-tradera" });
                       return;
                     }
                     setOff((prev) => {
@@ -248,12 +250,12 @@ export function ProductPriceCard({
             title={t("traderaProTitle")}
             description={t("traderaProDesc")}
             action={
-              <Link
-                href="/priser"
+              <ProTextLink
+                source="chart-tradera"
                 className="rounded-full bg-holo-cyan/15 px-4 py-1.5 text-xs font-semibold text-holo-cyan transition-colors hover:bg-holo-cyan/25"
               >
                 {t("traderaProCta")}
-              </Link>
+              </ProTextLink>
             }
           />
         ) : (

@@ -29,6 +29,17 @@ export interface BottomSheetProps {
   children: ReactNode;
   /** Fast fot. Utelämnas den får arket ingen fot alls. */
   footer?: ReactNode;
+  /**
+   * Lyft arket över en helskärmsvärd (skannern är fixed z-[60] över hela appen).
+   * Samma mekanism som produkt-overlayn — se registerFullscreenHost i
+   * lib/product-overlay-open.ts. Default z-50: över sidans header, under skannern.
+   */
+  elevated?: boolean;
+  /**
+   * Extra klasser på själva panelen — t.ex. `sm:max-w-md sm:mx-auto` för ett ark som
+   * inte ska spänna hela fönsterbredden på desktop. Mobilens form är alltid densamma.
+   */
+  panelClassName?: string;
 }
 
 export function BottomSheet({
@@ -39,6 +50,8 @@ export function BottomSheet({
   headerAction,
   children,
   footer,
+  elevated = false,
+  panelClassName,
 }: BottomSheetProps) {
   // onClose är typiskt en inline-arrow hos anroparen (ny identitet varje
   // rendering). Läs den via ref så effekterna nedan inte startas om vid varje
@@ -88,7 +101,10 @@ export function BottomSheet({
       // Överlagringen slutar där tangentbordet börjar → panelen (justify-end)
       // landar ovanpå det, och max-h räknas mot den mindre ytan så innehållet
       // scrollar i stället för att tryckas utanför skärmen.
-      className="fixed inset-x-0 top-0 z-50 flex flex-col justify-end bg-black/55 backdrop-blur-[3px]"
+      className={cn(
+        "fixed inset-x-0 top-0 flex flex-col justify-end bg-black/55 backdrop-blur-[3px]",
+        elevated ? "z-[70]" : "z-50"
+      )}
       style={{ bottom: kbHeight }}
       role="dialog"
       aria-modal="true"
@@ -105,7 +121,12 @@ export function BottomSheet({
         aria-label={closeLabel}
         className="absolute inset-0 cursor-default"
       />
-      <div className="relative flex max-h-[84%] flex-col rounded-t-[20px] bg-surface pt-2 shadow-[0_-1px_0_0_rgba(255,255,255,0.06)] animate-slide-up">
+      <div
+        className={cn(
+          "relative flex max-h-[84%] flex-col rounded-t-[20px] bg-surface pt-2 shadow-[0_-1px_0_0_rgba(255,255,255,0.06)] animate-slide-up",
+          panelClassName
+        )}
+      >
         <span
           aria-hidden="true"
           className="mx-auto mb-3 mt-1.5 h-1 w-9 rounded-full bg-surface-border"

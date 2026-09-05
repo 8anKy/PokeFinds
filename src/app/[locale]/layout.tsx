@@ -17,6 +17,8 @@ import { CookieBanner } from "@/components/features/cookie-banner";
 import { ServiceWorkerRegister } from "@/components/pwa-register";
 import { BottomTabs } from "@/components/layout/bottom-tabs";
 import { ProductOverlayHost } from "@/components/features/product-overlay";
+import { PaywallSheetHost } from "@/components/features/paywall-sheet";
+import { stripeCheckoutAdvertised } from "@/lib/stripe";
 import { PushManager } from "@/components/push-manager";
 import { ScrollReset } from "@/components/scroll-reset";
 import { EngagementTracker } from "@/components/engagement-tracker";
@@ -141,6 +143,11 @@ export default async function LocaleLayout({
                 header (annars dubbel header). */}
             <ProductOverlayHost />
             <BottomTabs />
+            {/* Paywall-arket: varje Pro-låst yta öppnar det PÅ PLATS via
+                openPaywall() (lib/paywall.ts) i stället för att navigera till
+                /priser. Portalas till <body>, så DOM-ordningen här är oviktig;
+                webCheckout kommer från servern av samma skäl som på prissidan. */}
+            <PaywallSheetHost webCheckout={stripeCheckoutAdvertised()} />
             {/* Push-tap-navigering: mountad i ROT-layouten (ej (app)-gruppen) så
                 notis-tap landar rätt även när appen står på en marketing-route som
                 Utforska (/produkter). Capacitor retainar tap-eventet tills en lyssnare

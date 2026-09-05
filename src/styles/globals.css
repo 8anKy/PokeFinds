@@ -252,3 +252,173 @@ table td,
 .overlay-in {
   animation: overlay-in 0.25s ease both;
 }
+
+/* ---------------------------------------------------------------------------
+ * Pro-kortet (holografiskt) — src/components/features/pro-holo-card.tsx
+ *
+ * Lager, underifrån: yta → __face (innehållet) → __foil (regnbåge, color-dodge)
+ * → __lines (holo-ränder, overlay) → __spark (gnistor, screen, maskade kring
+ * ljuset) → __glare (vitt ljus, overlay) → __rim (kantljus som roterar mot
+ * ljuskällan). Alla följer SAMMA variabler: --mx/--my = var ljuset träffar,
+ * --rx/--ry = lutningen, --gx/--gy = glödens riktning, --ang = kantljusets vinkel.
+ * JS sätter dem från pekaren/gyrot; i vila animerar `.holo-card--idle` dem via
+ * @property så varje lager följer med utan egna keyframes. Utan @property-stöd
+ * (äldre WebView) står kortet still i vila men följer fortfarande pekaren.
+ * Reduced-motion-regeln ovan släcker svajningen.
+ * ------------------------------------------------------------------------ */
+@property --mx { syntax: "<percentage>"; inherits: true; initial-value: 50%; }
+@property --my { syntax: "<percentage>"; inherits: true; initial-value: 50%; }
+@property --rx { syntax: "<angle>"; inherits: true; initial-value: 0deg; }
+@property --ry { syntax: "<angle>"; inherits: true; initial-value: 0deg; }
+@property --ang { syntax: "<angle>"; inherits: true; initial-value: 120deg; }
+
+.holo-card {
+  --mx: 50%;
+  --my: 50%;
+  --rx: 0deg;
+  --ry: 0deg;
+  --gx: 0px;
+  --gy: 0px;
+  --ang: 120deg;
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  aspect-ratio: 5 / 7;
+  transform: rotateX(var(--rx)) rotateY(var(--ry));
+  transform-style: preserve-3d;
+  transition: transform 160ms ease-out, box-shadow 160ms ease-out;
+  background:
+    radial-gradient(120% 80% at 20% 0%, rgba(45, 212, 191, 0.3), transparent 55%),
+    radial-gradient(90% 70% at 100% 100%, rgba(167, 139, 250, 0.24), transparent 60%),
+    linear-gradient(160deg, #071514, #000 62%);
+  box-shadow:
+    calc(var(--gx) * -1) calc(var(--gy) * -1) 64px -22px rgba(45, 212, 191, 0.55),
+    0 30px 50px -30px rgba(0, 0, 0, 0.9);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  cursor: grab;
+}
+.holo-card--idle {
+  animation: holo-idle 7s ease-in-out infinite;
+}
+@keyframes holo-idle {
+  0%, 100% { --mx: 18%; --my: 22%; --rx: 3deg; --ry: -9deg; --ang: 60deg; }
+  50%      { --mx: 82%; --my: 78%; --rx: -3deg; --ry: 9deg; --ang: 240deg; }
+}
+.holo-card__face {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.holo-card__art {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(60% 60% at 30% 40%, rgba(45, 212, 191, 0.6), transparent 70%),
+    radial-gradient(50% 50% at 75% 65%, rgba(167, 139, 250, 0.55), transparent 70%),
+    radial-gradient(40% 40% at 60% 20%, rgba(244, 114, 182, 0.4), transparent 70%),
+    #050a0a;
+}
+.holo-card__art::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 7px);
+  mix-blend-mode: overlay;
+}
+.holo-card__art::after {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.85) 0.5px, transparent 1.1px);
+  background-size: 9px 9px;
+  opacity: 0.22;
+  transform: rotate(25deg);
+  mix-blend-mode: screen;
+}
+.holo-card__foil {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  mix-blend-mode: color-dodge;
+  opacity: 0.55;
+  background: linear-gradient(
+    115deg,
+    transparent 20%,
+    rgba(45, 212, 191, 0.85) 34%,
+    rgba(167, 139, 250, 0.85) 44%,
+    rgba(244, 114, 182, 0.8) 54%,
+    rgba(245, 158, 11, 0.7) 64%,
+    transparent 80%
+  );
+  background-size: 220% 220%;
+  background-position: var(--mx) var(--my);
+}
+.holo-card__lines {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  opacity: 0.45;
+  background: repeating-linear-gradient(115deg, transparent 0 6px, rgba(255, 255, 255, 0.14) 6px 7px);
+  background-size: 220% 220%;
+  background-position: var(--mx) var(--my);
+}
+.holo-card__spark {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.6;
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.95) 0.6px, transparent 1.3px),
+    radial-gradient(rgba(255, 255, 255, 0.7) 0.5px, transparent 1px);
+  background-size: 21px 21px, 13px 13px;
+  background-position:
+    calc(var(--mx) * 0.35) calc(var(--my) * 0.35),
+    calc(var(--mx) * -0.25) calc(var(--my) * 0.5);
+  -webkit-mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0, rgba(0, 0, 0, 0.55) 30%, transparent 68%);
+  mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0, rgba(0, 0, 0, 0.55) 30%, transparent 68%);
+}
+.holo-card__glare {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  background: radial-gradient(circle at var(--mx) var(--my), rgba(255, 255, 255, 0.34), transparent 46%);
+}
+.holo-card__rim {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  border-radius: inherit;
+  padding: 1px;
+  opacity: 0.9;
+  background: conic-gradient(from var(--ang), #2dd4bf, #a78bfa, #f472b6, #f59e0b, #2dd4bf);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+/* Ordet "Pro." på prissidan: en långsam foilglans genom texten. */
+.holo-word {
+  background: linear-gradient(90deg, #fafafa, #2dd4bf, #a78bfa, #fafafa);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: holo-word 9s ease-in-out infinite;
+}
+@keyframes holo-word {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
