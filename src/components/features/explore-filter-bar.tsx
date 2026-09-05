@@ -897,6 +897,9 @@ function MoreSheet({
     /** Extra chip före de enskilda värdena (bara kategorigruppen har ett). */
     bulk?: { label: string; active: boolean; onClick: () => void };
   }[] = [
+    // Språk överst (ägarbeslut 2026-09-06): tre chips som annars låg under
+    // ~45 butiker och krävde en lång scroll för det vanligaste bytet (EN/JP).
+    { label: t("language"), values: sprak, set: setSprak, all: t("allLanguages"), options: languages },
     {
       label: t("category"),
       values: kategori,
@@ -912,7 +915,6 @@ function MoreSheet({
       },
     },
     { label: t("store"), values: butik, set: setButik, all: t("allStores"), options: retailers },
-    { label: t("language"), values: sprak, set: setSprak, all: t("allLanguages"), options: languages },
   ];
 
   const anySelected = kategori.length + butik.length + sprak.length > 0;
