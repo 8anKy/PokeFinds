@@ -228,12 +228,12 @@ function MultiSeriesChart({
           dataKey="date"
           tickFormatter={(d: string) => shortDate(d, spansYears, monthly, dateLocale)}
           tick={{ fill: TICK, fontSize: 11 }}
-          angle={-40}
-          textAnchor="end"
-          height={48}
+          angle={quiet ? 0 : -40}
+          textAnchor={quiet ? "middle" : "end"}
+          height={quiet ? 22 : 48}
           axisLine={false}
           tickLine={false}
-          minTickGap={28}
+          minTickGap={quiet ? 64 : 28}
         />
         <YAxis
           hide={quiet}
@@ -502,17 +502,18 @@ export function PriceChart({
           </defs>
           {!minimal && !quiet && <CartesianGrid stroke={GRID} strokeDasharray="2 6" vertical={false} />}
           {quiet && guideLines(prices)}
+          {/* Quiet-läget: raka, glesa datum (tre–fyra) i stället för sex lutande. */}
           <XAxis
             hide={minimal}
             dataKey="date"
             tickFormatter={(d: string) => shortDate(d, spansYears, monthly, dateLocale)}
             tick={{ fill: TICK, fontSize: 11 }}
-            angle={-40}
-            textAnchor="end"
-            height={48}
+            angle={quiet ? 0 : -40}
+            textAnchor={quiet ? "middle" : "end"}
+            height={quiet ? 22 : 48}
             axisLine={false}
             tickLine={false}
-            minTickGap={28}
+            minTickGap={quiet ? 64 : 28}
           />
           <YAxis
             hide={minimal || quiet}
