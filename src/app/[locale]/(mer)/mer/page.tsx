@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import { redirect } from "next/navigation";
 import { auth, hasRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { communityV2Request } from "@/lib/community-v2-server";
@@ -20,6 +19,7 @@ import {
 } from "@/components/ui/icons";
 import { SOCIAL_CHANNELS } from "@/components/features/join-us-card";
 import { LogoutButton } from "./logout-button";
+import { GuestMore } from "./guest-more";
 import { ACHIEVEMENTS } from "@/lib/achievements";
 import { listUserAchievements } from "@/services/achievements";
 
@@ -40,8 +40,10 @@ interface MenuLink {
 
 export default async function MerPage() {
   const session = await auth();
-  if (!session?.user) redirect("/logga-in");
   const t = await getTranslations("More");
+  // Gäst: ingen inloggningsvägg. Språk, om oss, villkor och Discord finns även
+  // utan konto — inloggningen är en av raderna, inte hela sidan (QA 2026-09-05).
+  if (!session?.user) return <GuestMore />;
   const isAdmin = hasRole(session.user.role, "MODERATOR");
   const isPremium = session.user.isPro;
 

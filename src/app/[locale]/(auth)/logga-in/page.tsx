@@ -4,6 +4,7 @@ import { Suspense, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { useSearchParams } from "next/navigation";
+import { loginHintKey } from "@/lib/login-hint";
 import { useRouter } from "@/i18n/navigation";
 import { signIn } from "next-auth/react";
 import { setAuthHint } from "@/lib/auth-hint";
@@ -22,6 +23,8 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/produkter";
+  const hintKey = loginHintKey(callbackUrl);
+  const loginHint = hintKey ? t(`login.${hintKey}`) : null;
   // NextAuth landar här med ?error=… när ett Google-/Apple-flöde inte gick att
   // slutföra (pages.error i lib/auth.ts). AccessDenied = vår signIn-callback
   // nekade (obekräftad/saknad adress), allt annat = avbrutet/tekniskt fel.
@@ -65,6 +68,9 @@ function LoginForm() {
   return (
     <div>
       <h1 className="mb-5 font-display text-xl font-semibold text-ink">{t("login.title")}</h1>
+      {/* Varför man hamnade här — gästen som tryckte på Portfölj/Bevakningar möttes
+          av en naken inloggningsvägg utan värdeord (Android-QA 09-01 fynd 6). */}
+      {loginHint && <p className="-mt-3 mb-5 text-sm text-ink-muted">{loginHint}</p>}
 
       <form onSubmit={handleSubmit} className="space-y-3" noValidate>
         <div>

@@ -88,7 +88,11 @@ function detectorCtor(): BarcodeDetectorCtor | null {
  * ligger i `createBarcodeScanner()`, som returnerar null i det fallet.
  */
 export function barcodeSupported(): boolean {
-  return detectorCtor() !== null;
+  // ⛔ AVSTÄNGT (ägarbeslut 2026-09-05): streckkodsläget syns inte längre i
+  // skannern — knappen och läget grindas på den här funktionen. Koden nedan
+  // ligger kvar (identify-gtin-rutten och UPC-E-logiken) men nås inte från UI:t.
+  // Slå på igen: `return detectorCtor() !== null;`.
+  return false;
 }
 
 /**

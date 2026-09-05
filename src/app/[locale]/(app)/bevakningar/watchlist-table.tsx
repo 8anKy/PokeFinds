@@ -220,7 +220,9 @@ export function WatchlistTable({
     <>
       {/* Gratiskonto: larm avfyras aldrig (Pro-förmån) → vaddera INTE larmet som
           aktivt. Visa upsell + inaktivera reglagen nedan. */}
-      {!isPro && (
+      {/* Under pausen säger RestockPausedBanner ovanför redan allt — den här rutans
+          pausvariant var en andra banner med samma budskap (QA 2026-09-05). */}
+      {!isPro && !restockPaused && !pricePaused && (
         <div className="mb-4 rounded-lg border border-holo-cyan/30 bg-holo-cyan/5 px-4 py-3 text-sm text-ink-muted">
           {t.rich(alertCopyKey("freeAlertsBanner", pricePaused), {
             link: (c) => (

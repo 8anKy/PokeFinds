@@ -37,7 +37,9 @@ export function SetProgressList({ rows }: { rows: SetPortfolioRow[] }) {
   const [sort, setSort] = useState<SetSort>("closest");
   const sorted = useMemo(() => sortSetRows(rows, sort), [rows, sort]);
 
-  const started = rows.length;
+  // "Påbörjade" = set där man äger minst ETT kort. Ett set man bara äger sealed ur
+  // står kvar i listan (det har ett värde) men är inte påbörjat som samling.
+  const started = rows.filter((r) => !r.sealedOnly).length;
   // "Klart" mäts mot den FULLA nämnaren. Ett set utan nämnare kan aldrig räknas
   // som klart — vi vet inte hur stort det är.
   const completed = rows.filter((r) => r.total != null && r.ownedCards >= r.total).length;

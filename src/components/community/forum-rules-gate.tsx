@@ -14,7 +14,10 @@ import { fetchPersonalState, invalidatePersonalState } from "./use-forum-viewer"
  * FORUMETS REGLER — dialogen som möter en inloggad användare första gången hen
  * kommer in i forumet (ägarbeslut 2026-09-05, "like Collectr"). Godkänner hen
  * sparas det på kontot (`User.forumRulesAcceptedAt`) och dialogen kommer aldrig
- * tillbaka, på någon enhet. "Inte nu" lämnar forumet.
+ * tillbaka, på någon enhet. "Inte nu" lämnar forumet; kryss/overlay stänger BARA
+ * dialogen (ägaren 2026-09-05: ett tryck på tabbaren träffade overlayn och kastade
+ * en till Utforska i stället för den valda fliken) — skrivningarna är ändå spärrade
+ * tills reglerna är godkända, så dialogen kommer tillbaka vid nästa försök.
  *
  * ⛔ Dialogen är BEKVÄMLIGHET — regeln bor på servern (lib/forum-rules.ts): en
  * tråd eller ett svar från ett konto som inte godkänt får 403 + `FORUM_RULES`,
@@ -95,6 +98,7 @@ export function ForumRulesGate() {
     }
   }, [t, toast]);
 
+  const close = useCallback(() => setOpen(false), []);
   const decline = useCallback(() => {
     setOpen(false);
     router.push("/");
@@ -103,7 +107,7 @@ export function ForumRulesGate() {
   return (
     <Modal
       open={open}
-      onClose={decline}
+      onClose={close}
       title={t("rulesTitle")}
       footer={
         <div className="flex flex-wrap justify-end gap-2">

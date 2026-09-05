@@ -19,6 +19,8 @@ export interface ToastOptions {
   title: string;
   description?: string;
   variant?: ToastVariant;
+  /** En åtgärdsknapp i toasten ("Ångra"). Toasten lever längre när den finns. */
+  action?: { label: string; onClick: () => void };
 }
 
 interface ToastItem extends ToastOptions {
@@ -33,6 +35,8 @@ interface ToastContextValue {
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 const DISMISS_MS = 4000;
+/** Med en åtgärd måste man hinna läsa OCH trycka. */
+const DISMISS_WITH_ACTION_MS = 7000;
 
 const variantClasses: Record<ToastVariant, string> = {
   default: "border-surface-border",
@@ -59,7 +63,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     (options: ToastOptions) => {
       const id = ++idRef.current;
       setToasts((prev) => [...prev, { id, ...options }]);
-      window.setTimeout(() => dismiss(id), DISMISS_MS);
+      window.setTimeout(() => dismiss(id), options.action ? DISMISS_WITH_ACTION_MS : DISMISS_MS);
     },
     [dismiss]
   );
@@ -97,6 +101,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                     <p className="mt-0.5 text-sm text-ink-muted">{t.description}</p>
                   )}
                 </div>
+                {t.action && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      t.action?.onClick();
+                      dismiss(t.id);
+                    }}
+                    className="shrink-0 rounded-lg border border-holo-cyan/40 px-2.5 py-1 text-sm font-semibold text-holo-cyan transition-colors hover:bg-holo-cyan/10"
+                  >
+                    {t.action.label}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => dismiss(t.id)}

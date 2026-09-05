@@ -260,20 +260,25 @@ export function LivePricePanel({
       {/* Deterministisk layout (samma oavsett värdenas bredd/språk): Högsta +
           Snittpris staplade till vänster, 30-dagars uppe till höger. */}
       <dl className="flex items-start justify-between gap-4 border-t border-surface-border px-5 py-3 text-sm">
-        <div className="space-y-1.5">
-          <div className="flex items-baseline gap-2">
-            <dt className="text-ink-faint">{t("highestNow")}</dt>
-            <dd data-price className="font-semibold text-ink">
-              {formatPrice(stats.highestPrice)}
-            </dd>
+        {/* Högsta/snitt är brus med EN prissatt offer — alla tre tal blir samma. */}
+        {stats.offerCount >= 2 ? (
+          <div className="space-y-1.5">
+            <div className="flex items-baseline gap-2">
+              <dt className="text-ink-faint">{t("highestNow")}</dt>
+              <dd data-price className="font-semibold text-ink">
+                {formatPrice(stats.highestPrice)}
+              </dd>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <dt className="text-ink-faint">{t("avgPrice")}</dt>
+              <dd data-price className="font-semibold text-ink">
+                {formatPrice(stats.avgPrice)}
+              </dd>
+            </div>
           </div>
-          <div className="flex items-baseline gap-2">
-            <dt className="text-ink-faint">{t("avgPrice")}</dt>
-            <dd data-price className="font-semibold text-ink">
-              {formatPrice(stats.avgPrice)}
-            </dd>
-          </div>
-        </div>
+        ) : (
+          <div />
+        )}
         <div className="flex shrink-0 items-baseline gap-2">
           <dt className="text-ink-faint">{t("days30")}</dt>
           <dd>
@@ -367,10 +372,15 @@ export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOf
   // Visa alla offers med direkt produktlänk (sök-/bläddringslänkar filtreras
   // redan bort på servern; detta är en defensiv extra gallring). Pris kan
   // saknas (t.ex. helt nya kort utan marknadsdata) — då visas länken ändå med
-  // "–" som pris. Prissatta offers först, billigast överst.
+  // "–" som pris. Det som går att KÖPA överst (i lager, billigast först), sedan
+  // slutsålda i prisordning — förut sorterades slutsålda in mellan lagerförda
+  // på pris, så en 429 kr "Slut" låg över en 445 kr "I lager" (Android-QA 09-01).
+  const stockRank = (o: LiveOffer) => (o.stockStatus === "IN_STOCK" ? 0 : 1);
   const directOffers = offers
     .filter((o) => isDirectOfferUrl(o.url))
     .sort((a, b) => {
+      const byStock = stockRank(a) - stockRank(b);
+      if (byStock !== 0) return byStock;
       if (a.price == null && b.price == null) return 0;
       if (a.price == null) return 1;
       if (b.price == null) return -1;

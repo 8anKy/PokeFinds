@@ -107,6 +107,10 @@ export function CollectionQuickAdd({ productId, estimatedValue }: CollectionQuic
         return;
       }
       if (!res.ok) throw new Error("add");
+      // Svaret är posten som skapades ELLER den befintliga lot som stackades (samma
+      // pris ⇒ +antal, se collection-lots.ts). Ångra måste därför antingen radera
+      // raden eller dra av det vi just lade till — aldrig radera någon annans ex.
+      const saved = (await res.json().catch(() => null)) as { id?: string; quantity?: number } | null;
       setState("added");
       // Set-kompletteringen cachas 60 s i klienten. Utan den här nollställningen
       // står stapeln och "visa bara saknade" kvar på gamla siffror i upp till en
@@ -119,10 +123,38 @@ export function CollectionQuickAdd({ productId, estimatedValue }: CollectionQuic
             ? t("addedToCollectionN", { count: body.quantity })
             : t("addedToCollection"),
         variant: "success",
+        // ⛔ Ett tryck på "+" är ett tillägg utan bekräftelse (ägarbeslut 2026-09-05:
+        // ingen bekräftelsedialog) — ångra-knappen är säkerhetsnätet i stället.
+        action: saved?.id
+          ? {
+              label: t("addUndo"),
+              onClick: () => void undoAdd(saved.id!, saved.quantity ?? body.quantity, body.quantity),
+            }
+          : undefined,
       });
     } catch {
       setState("idle");
       toast({ title: t("addFailed"), variant: "error" });
+    }
+  }
+
+  async function undoAdd(itemId: string, savedQuantity: number, addedQuantity: number) {
+    try {
+      const remaining = savedQuantity - addedQuantity;
+      const res =
+        remaining > 0
+          ? await fetch(`/api/collection/${itemId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ quantity: remaining }),
+            })
+          : await fetch(`/api/collection/${itemId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("undo");
+      clearSetCompletionCache();
+      setState("idle");
+      toast({ title: t("addUndone"), variant: "default" });
+    } catch {
+      toast({ title: t("addUndoFailed"), variant: "error" });
     }
   }
 

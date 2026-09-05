@@ -272,7 +272,8 @@ export function ProductDetailView({
         />
         <div className="mt-6 flex flex-wrap items-center gap-4">
           <ProductActions productId={data.id} title={data.title} />
-          {!pending && (
+          {/* Noll bevakare är negativt socialt bevis — visa raden först när någon bevakar. */}
+          {!pending && data.watchCount > 0 && (
             <p className="text-xs text-ink-faint">
               {t("watchers", { count: data.watchCount })}
             </p>
