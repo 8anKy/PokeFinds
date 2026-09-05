@@ -278,12 +278,16 @@ export function ProductPriceCard({
   );
 
   if (plain) {
-    // ARKET: kurvan först (ingen rubrik — den förklarar sig själv), perioden
-    // under den, källchips + datanot bara när det finns flera källor att välja på.
+    // ARKET: rubrik + period på EN rad ovanför kurvan (som i design-canvasen —
+    // utan rubriken kändes ytan tom, ägaren 2026-09-05), källchips under kurvan
+    // bara när det finns flera källor att välja på. Ingen datanot.
     return (
       <section aria-label={title}>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
+          {periodControl}
+        </div>
         {chart}
-        <div className="mt-2 flex justify-center">{periodControl}</div>
         {/* Datanoten ("Raw, ej graderad · annonser = …") visas INTE i arket — den
             är en förklaring till desktopkortets rubrik, i telefonen läste den som
             brus (ägaren 2026-09-05). Chipsen är själva legenden. */}
