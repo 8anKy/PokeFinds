@@ -134,6 +134,33 @@ export interface PoliteFetchOptions {
   headers?: Record<string, string>;
 }
 
+/** Fler hopp än så är en loop, inte en flytt. */
+const MAX_REDIRECTS = 5;
+
+/**
+ * Är omdirigeringen kvar på SAMMA sajt (samma registrerbara domän, www eller inte)?
+ *
+ * ⛔ VARFÖR VI FÖLJER OMDIRIGERINGAR SJÄLVA (2026-09-05). goblinen.com svarar 301 →
+ * www.goblinen.com på `/products/<handle>.js`, och Nodes fetch (undici) STRYKER
+ * `cookie` (liksom authorization och host) så fort origin byts — även när bytet
+ * bara är butikens egen www-värd. Vår `localization=SE`-pinne försvann alltså på
+ * vägen, och från GitHub-runnern (US) serverade Shopify Markets ex-moms-priset:
+ * 639,20 kr för en ETB som kostar 799 kr. Alla fem bevakade Goblinen-länkar bar
+ * ×0,8-priser medan products.json (200 direkt på apex, ingen omdirigering) var
+ * rätt — därför syntes felet BARA på bevakade länkar. Belagt: www direkt med
+ * US-cookie ⇒ 63920, apex via omdirigering med samma cookie ⇒ geo-priset.
+ *
+ * Regeln: inom samma sajt behåller hoppet våra headers; till en annan domän följs
+ * det som förut, utan dem — en cookie ska aldrig läcka till tredje part.
+ */
+export function isSameSiteRedirect(from: URL, to: URL): boolean {
+  if (to.protocol !== "https:" && to.protocol !== "http:") return false;
+  const strip = (h: string) => h.toLowerCase().replace(/^www\./, "");
+  const a = strip(from.hostname);
+  const b = strip(to.hostname);
+  return a === b || a.endsWith(`.${b}`) || b.endsWith(`.${a}`);
+}
+
 /**
  * Hämtar en URL artigt: kontrollerar robots.txt, väntar mellan förfrågningar
  * mot samma värd, identifierar sig som FoilioBot och gör omförsök med
@@ -152,22 +179,32 @@ export async function politeFetch(
   }
 
   let lastError: unknown;
-  for (let attempt = 0; attempt <= retries; attempt++) {
+  // Omdirigeringar följs för hand (se isSameSiteRedirect): `target` är den URL vi
+  // står på just nu, hoppen räknas för sig och kostar inget omförsök.
+  let target = parsed;
+  let hops = 0;
+  let attempt = 0;
+  while (attempt <= retries) {
     // Respektera minsta fördröjning per värd
-    const last = lastRequestPerHost.get(parsed.host) ?? 0;
+    const last = lastRequestPerHost.get(target.host) ?? 0;
     const wait = last + delayMs - Date.now();
     if (wait > 0) await sleep(wait);
-    lastRequestPerHost.set(parsed.host, Date.now());
-    requestsPerHost.set(parsed.host, (requestsPerHost.get(parsed.host) ?? 0) + 1);
+    lastRequestPerHost.set(target.host, Date.now());
+    requestsPerHost.set(target.host, (requestsPerHost.get(target.host) ?? 0) + 1);
 
+    let redirectTo: URL | null = null;
     try {
-      const res = await fetch(url, {
+      const res = await fetch(target.toString(), {
         headers: { "user-agent": BOT_USER_AGENT, ...headers },
+        redirect: "manual",
         signal: AbortSignal.timeout(60_000),
       });
-      // 429/5xx → backoff och försök igen
-      if (res.status === 429 || res.status >= 500) {
-        lastError = new Error(`HTTP ${res.status} från ${parsed.host}`);
+      const location = res.headers.get("location");
+      if (res.status >= 300 && res.status < 400 && location) {
+        redirectTo = new URL(location, target);
+      } else if (res.status === 429 || res.status >= 500) {
+        // 429/5xx → backoff och försök igen
+        lastError = new Error(`HTTP ${res.status} från ${target.host}`);
       } else {
         return res;
       }
@@ -175,9 +212,30 @@ export async function politeFetch(
       lastError = err;
     }
 
-    if (attempt < retries) {
-      const backoff = 1000 * 2 ** attempt; // 1s, 2s, 4s...
-      console.warn(`[http] Försök ${attempt + 1} mot ${url} misslyckades, väntar ${backoff} ms`);
+    if (redirectTo) {
+      if (++hops > MAX_REDIRECTS) {
+        throw new Error(`för många omdirigeringar från ${parsed.host} (${hops})`);
+      }
+      if (!isSameSiteRedirect(target, redirectTo)) {
+        // Annan sajt: följ utan våra egna headers — exakt vad fetch hade gjort själv.
+        return fetch(redirectTo.toString(), {
+          headers: { "user-agent": BOT_USER_AGENT },
+          signal: AbortSignal.timeout(60_000),
+        });
+      }
+      if (!(await checkRobotsTxt(redirectTo.origin, redirectTo.pathname))) {
+        throw new Error(
+          `robots.txt förbjuder hämtning av ${redirectTo.pathname} på ${redirectTo.host}`
+        );
+      }
+      target = redirectTo;
+      continue;
+    }
+
+    attempt++;
+    if (attempt <= retries) {
+      const backoff = 1000 * 2 ** (attempt - 1); // 1s, 2s, 4s...
+      console.warn(`[http] Försök ${attempt} mot ${url} misslyckades, väntar ${backoff} ms`);
       await sleep(backoff);
     }
   }
