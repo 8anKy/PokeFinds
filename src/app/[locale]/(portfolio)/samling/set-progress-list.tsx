@@ -3,10 +3,18 @@
 /**
  * SET-FLIKEN: en rad per set användaren äger något ur.
  *
+ * ETT MÅTT PER RAD (ägarbeslut 2026-09-06 — "svårt att förstå, för mycket text"):
+ * raden visar logga, namn, "13 / 120" och EN stapel med procenten i högerkanten.
+ * Vad som mäts väljs EN gång ovanför listan: **Kort** (varje kort i setet) eller
+ * **Master set** (varje tryckning). Tidigare bar varje rad båda måtten, ett
+ * värde i kronor och två fotnoter — fem tal och fyra rader per set.
+ * ⛔ Inget kronvärde på raden: "8,69 kr" bredvid en procent läste som ett pris.
+ * Värdet finns kvar som sortering ("Högst värde"); summan bor på Samling-fliken.
+ * ⛔ Fotnoterna ("vi listar 187 av 200", "N poster saknar värde") bor på setsidan.
+ *
  * ⛔ EN LISTA, INTE ETT RUTNÄT. Vid 360 px är innerbredden 340 px (skalet äger
  * `px-2.5 sm:px-6`); ett 2-upp-rutnät ger ~165 px per cell, där setnamnet
  * trunkeras till oigenkännlighet och en 70 px stapel läses som dekoration.
- * Samma radmönster som `bevakningar`-vyn och `/sets` redan använder.
  *
  * ⛔ INGEN EGEN VÅGRÄT LUFT och ingen egen bottenpadding: skalet sätter båda,
  * och bottenflikarnas spacer + safe-area räknas redan bort där (ui-shell.md).
@@ -23,19 +31,20 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { formatPrice } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { SafeImage } from "@/components/ui/safe-image";
 import { Select } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { IconCards, IconChevronDown, IconChevronRight } from "@/components/ui/icons";
 import type { SetPortfolioRow } from "@/services/set-portfolio";
-import { SET_SORTS, sortSetRows, type SetSort } from "./set-progress-sort";
+import { SET_SORTS, sortSetRows, type SetMeasure, type SetSort } from "./set-progress-sort";
 
 export function SetProgressList({ rows }: { rows: SetPortfolioRow[] }) {
   const t = useTranslations("SetProgress");
   const [sort, setSort] = useState<SetSort>("closest");
-  const sorted = useMemo(() => sortSetRows(rows, sort), [rows, sort]);
+  const [measure, setMeasure] = useState<SetMeasure>("cards");
+  const sorted = useMemo(() => sortSetRows(rows, sort, measure), [rows, sort, measure]);
 
   // "Påbörjade" = set där man äger minst ETT kort. Ett set man bara äger sealed ur
   // står kvar i listan (det har ett värde) men är inte påbörjat som samling.
@@ -43,6 +52,9 @@ export function SetProgressList({ rows }: { rows: SetPortfolioRow[] }) {
   // "Klart" mäts mot den FULLA nämnaren. Ett set utan nämnare kan aldrig räknas
   // som klart — vi vet inte hur stort det är.
   const completed = rows.filter((r) => r.total != null && r.ownedCards >= r.total).length;
+  // Master set-växeln visas bara när något set faktiskt HAR tryckningar utöver
+  // korten — annars är den ett val mellan två likadana listor.
+  const hasMaster = rows.some((r) => r.printings != null && r.total != null && r.printings > r.total);
 
   if (rows.length === 0) {
     return (
@@ -77,7 +89,33 @@ export function SetProgressList({ rows }: { rows: SetPortfolioRow[] }) {
         </div>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-3">
+        {/* Måttet: Kort | Master set. Samma segmentform som prishistorikens
+            periodväljare, så den läses som ett läge och inte som en filterrad. */}
+        {hasMaster ? (
+          <div
+            role="group"
+            aria-label={t("measureLabel")}
+            className="flex gap-0.5 rounded-lg border border-surface-border bg-surface p-[3px]"
+          >
+            {(["cards", "master"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMeasure(m)}
+                aria-pressed={measure === m}
+                className={cn(
+                  "rounded-md px-3 py-1 text-xs font-semibold transition-colors",
+                  measure === m ? "bg-holo-cyan/15 text-holo-cyan" : "text-ink-muted hover:text-ink"
+                )}
+              >
+                {m === "cards" ? t("measureCards") : t("measureMaster")}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span />
+        )}
         <div className="relative shrink-0">
           {/* Nativ select — öppnar systemets hjulväljare på telefon. `Select` är
               appearance-none, så chevronen ritas här (samma som toolbaren). */}
@@ -89,7 +127,7 @@ export function SetProgressList({ rows }: { rows: SetPortfolioRow[] }) {
               if ((SET_SORTS as readonly string[]).includes(v)) setSort(v);
             }}
             aria-label={t("sortLabel")}
-            className="w-auto max-w-[60vw] pr-8 sm:max-w-none"
+            className="w-auto max-w-[50vw] pr-8 sm:max-w-none"
           >
             {SET_SORTS.map((value) => (
               <option key={value} value={value}>
@@ -107,31 +145,29 @@ export function SetProgressList({ rows }: { rows: SetPortfolioRow[] }) {
 
       <ul className="card-surface divide-y divide-surface-border stagger-list">
         {sorted.map((row) => (
-          <SetRow key={row.setId} row={row} />
+          <SetRow key={row.setId} row={row} measure={measure} />
         ))}
       </ul>
     </div>
   );
 }
 
-function SetRow({ row }: { row: SetPortfolioRow }) {
+function SetRow({ row, measure }: { row: SetPortfolioRow; measure: SetMeasure }) {
   const t = useTranslations("SetProgress");
 
-  const numbers =
-    row.total != null
-      ? t("progress", { owned: row.ownedCards, total: row.total, percent: row.percent ?? 0 })
+  // Radens ENDA tal: ägda / nämnare i valt mått. Saknas nämnaren → "–" (aldrig 0).
+  const owned = measure === "master" ? row.ownedPrintings : row.ownedCards;
+  const total = measure === "master" ? row.printings : row.total;
+  const percent = measure === "master" ? row.masterPercent : row.percent;
+  const count = total != null ? t("countOf", { owned, total }) : "–";
+  const ariaLabel =
+    total != null
+      ? measure === "master"
+        ? t("masterProgress", { owned, total })
+        : t("progress", { owned, total, percent: percent ?? 0 })
       : row.sealedOnly
         ? t("sealedOnly")
         : t("noCardsYet");
-
-  const master =
-    row.printings != null && row.masterPercent != null
-      ? t("masterProgress", {
-          owned: row.ownedPrintings,
-          total: row.printings,
-          percent: row.masterPercent,
-        })
-      : null;
 
   return (
     <li>
@@ -151,7 +187,7 @@ function SetRow({ row }: { row: SetPortfolioRow }) {
             />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium text-ink group-hover:text-holo-cyan">
+            <span className="block truncate text-[15px] font-medium text-ink group-hover:text-holo-cyan">
               {row.setName}
             </span>
             {row.series && (
@@ -160,12 +196,7 @@ function SetRow({ row }: { row: SetPortfolioRow }) {
               </span>
             )}
           </span>
-          <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">
-            {row.percent != null ? `${row.percent} %` : "–"}
-          </span>
-          <span className="shrink-0 tabular-nums text-sm text-ink-muted lg:w-28 lg:text-right">
-            {row.valueOre != null ? formatPrice(row.valueOre) : "–"}
-          </span>
+          <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">{count}</span>
           <IconChevronRight
             size={16}
             aria-hidden="true"
@@ -173,24 +204,18 @@ function SetRow({ row }: { row: SetPortfolioRow }) {
           />
         </div>
 
-        {row.percent != null && (
-          <ProgressBar percent={row.percent} label={numbers} />
-        )}
-
-        <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-xs text-ink-faint">
-          <span className="truncate">{numbers}</span>
-          {master && <span className="truncate tabular-nums">{master}</span>}
-        </span>
-
-        {/* ⛔ Lova aldrig "du äger alla kort" när vi VET att setet är större än
-            vår lista — då är 100 % ett tak vi själva satt. */}
-        {row.catalogShort && (
-          <span className="text-xs text-ink-faint">{t("catalogueShortNote")}</span>
-        )}
-        {row.valueMissingCount > 0 && (
-          <span className="text-xs text-ink-faint">
-            {t("valueMissing", { count: row.valueMissingCount })}
-          </span>
+        {percent != null && (
+          <div className="flex items-center gap-3">
+            <ProgressBar
+              percent={percent}
+              label={ariaLabel}
+              tone={measure === "master" ? "muted" : "cyan"}
+              className="flex-1"
+            />
+            <span className="w-10 shrink-0 text-right text-xs tabular-nums text-ink-muted">
+              {percent} %
+            </span>
+          </div>
         )}
       </Link>
     </li>

@@ -1934,7 +1934,11 @@
     "noCardsYet": "We don't list any cards in this set yet",
     "emptyTitle": "No sets started yet",
     "emptyDesc": "Add your first card and we'll keep count for you — set by set.",
-    "emptyAction": "Browse sets"
+    "emptyAction": "Browse sets",
+    "measureLabel": "Measure against",
+    "measureCards": "Cards",
+    "measureMaster": "Master set",
+    "countOf": "{owned} / {total}"
   },
   "PageNav": {
     "back": "Back"

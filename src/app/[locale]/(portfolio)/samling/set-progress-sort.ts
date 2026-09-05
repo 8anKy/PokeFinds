@@ -14,6 +14,9 @@ import type { SetPortfolioRow } from "@/services/set-portfolio";
 export const SET_SORTS = ["closest", "value", "remaining", "name"] as const;
 export type SetSort = (typeof SET_SORTS)[number];
 
+/** Vad raden mäter: varje kort (setet) eller varje tryckning (master set). */
+export type SetMeasure = "cards" | "master";
+
 /** null sist, oavsett riktning. Returnerar null när ingen av dem är null. */
 function nullsLast(a: number | null, b: number | null): number | null {
   if (a == null && b == null) return 0;
@@ -22,16 +25,25 @@ function nullsLast(a: number | null, b: number | null): number | null {
   return null;
 }
 
-export function sortSetRows(rows: SetPortfolioRow[], sort: SetSort): SetPortfolioRow[] {
+export function sortSetRows(
+  rows: SetPortfolioRow[],
+  sort: SetSort,
+  measure: SetMeasure = "cards"
+): SetPortfolioRow[] {
   const out = [...rows];
+  // I master set-läget mäts "närmast klart"/"flest kvar" mot tryckningarna —
+  // annars sorterar listan på ett tal raden inte visar.
+  const pct = (r: SetPortfolioRow) => (measure === "master" ? r.masterPercent : r.percent);
+  const owned = (r: SetPortfolioRow) => (measure === "master" ? r.ownedPrintings : r.ownedCards);
+  const total = (r: SetPortfolioRow) => (measure === "master" ? r.printings : r.total);
   switch (sort) {
     case "closest":
       out.sort((a, b) => {
-        const n = nullsLast(a.percent, b.percent);
+        const n = nullsLast(pct(a), pct(b));
         if (n != null) return n;
         // Oavgjord procent bryts på ANTAL ägda kort: 59 av 190 är en större
         // bedrift än 3 av 10, och den som är nära ett stort set vill se det.
-        return b.percent! - a.percent! || b.ownedCards - a.ownedCards;
+        return pct(b)! - pct(a)! || owned(b) - owned(a);
       });
       break;
     case "value":
@@ -43,8 +55,9 @@ export function sortSetRows(rows: SetPortfolioRow[], sort: SetSort): SetPortfoli
       break;
     case "remaining":
       out.sort((a, b) => {
-        const ra = a.total != null ? a.total - a.ownedCards : null;
-        const rb = b.total != null ? b.total - b.ownedCards : null;
+        const ta = total(a), tb = total(b);
+        const ra = ta != null ? ta - owned(a) : null;
+        const rb = tb != null ? tb - owned(b) : null;
         const n = nullsLast(ra, rb);
         if (n != null) return n;
         // Färrest kvar först — det är listan "vad kan jag bli klar med nu?".

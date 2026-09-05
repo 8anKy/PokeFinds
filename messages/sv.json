@@ -1934,7 +1934,11 @@
     "noCardsYet": "Vi listar inga kort i det här setet ännu",
     "emptyTitle": "Inga set påbörjade än",
     "emptyDesc": "Lägg till ditt första kort så börjar vi hålla räkningen åt dig — set för set.",
-    "emptyAction": "Bläddra bland set"
+    "emptyAction": "Bläddra bland set",
+    "measureLabel": "Mät mot",
+    "measureCards": "Kort",
+    "measureMaster": "Master set",
+    "countOf": "{owned} / {total}"
   },
   "PageNav": {
     "back": "Tillbaka"
