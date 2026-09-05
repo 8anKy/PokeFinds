@@ -769,6 +769,13 @@
     "deadline": "for everyone who signs up before {date}.",
     "cta": "Create account"
   },
+  "NotFound": {
+    "title": "Page not found",
+    "body": "The page you are looking for has moved, been renamed or no longer exists — a bit like a card that went missing from the binder.",
+    "home": "Go to the start page",
+    "explore": "Explore products",
+    "market": "Or check the state of the market →"
+  },
   "Cookies": {
     "bannerAria": "Cookie information",
     "bannerText": "We only use necessary cookies for login and functionality. No third-party tracking cookies.",

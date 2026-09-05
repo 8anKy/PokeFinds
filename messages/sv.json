@@ -769,6 +769,13 @@
     "deadline": "för alla som registrerar sig före den {date}.",
     "cta": "Skapa konto"
   },
+  "NotFound": {
+    "title": "Sidan kunde inte hittas",
+    "body": "Sidan du letar efter har flyttats, bytt namn eller finns inte längre — ungefär som ett kort som försvunnit ur bindern.",
+    "home": "Till startsidan",
+    "explore": "Utforska produkter",
+    "market": "Eller kolla läget på marknaden →"
+  },
   "Cookies": {
     "bannerAria": "Information om cookies",
     "bannerText": "Vi använder endast nödvändiga cookies för inloggning och funktion. Inga spårningscookies från tredje part.",

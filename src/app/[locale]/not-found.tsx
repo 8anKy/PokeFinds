@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { LinkButton } from "@/components/ui/button";
 
@@ -20,33 +22,31 @@ import { LinkButton } from "@/components/ui/button";
  * lägger själv in noindex på not-found-renderingar — en till vore ren brus, och
  * brus i robots-metadata är det man senare felsöker i tron att det betyder något.
  *
- * ⚠️ Copyn nedan är hårdkodad svenska utan next-intl: en besökare på /en får en
- * svensk 404. Fixen kräver nya nycklar i messages/*.json (ingen `NotFound`-
- * namnrymd finns) — inte gjort här, se rapporten.
+ * Copyn följer språket sedan 2026-09-05 (NotFound-namnrymden) — förut var den
+ * hårdkodad svenska och en besökare på /en/ fick en svensk 404.
  */
-// Samma ordalydelse som sidans egen <h1> nedan, med flit: fliken och rubriken är
-// två vyer av samma sida, och två olika formuleringar läser som två olika fel.
-export const metadata: Metadata = { title: "Sidan kunde inte hittas" };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("NotFound");
+  // Samma ordalydelse som sidans egen <h1>, med flit: fliken och rubriken är två
+  // vyer av samma sida, och två olika formuleringar läser som två olika fel.
+  return { title: t("title") };
+}
 
 export default function NotFound() {
+  const t = useTranslations("NotFound");
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-surface px-4 text-center">
       <p className="holo-text font-display text-7xl font-bold">404</p>
-      <h1 className="mt-4 font-display text-2xl font-bold text-ink">
-        Sidan kunde inte hittas
-      </h1>
-      <p className="mt-2 max-w-md text-ink-muted">
-        Sidan du letar efter har flyttats, bytt namn eller finns inte längre —
-        ungefär som ett kort som försvunnit ur bindern.
-      </p>
+      <h1 className="mt-4 font-display text-2xl font-bold text-ink">{t("title")}</h1>
+      <p className="mt-2 max-w-md text-ink-muted">{t("body")}</p>
       <div className="mt-8 flex flex-wrap justify-center gap-3">
-        <LinkButton href="/">Till startsidan</LinkButton>
+        <LinkButton href="/">{t("home")}</LinkButton>
         <LinkButton href="/produkter" variant="outline">
-          Utforska produkter
+          {t("explore")}
         </LinkButton>
       </div>
       <Link href="/marknad" className="mt-6 text-sm text-ink-muted hover:text-ink">
-        Eller kolla läget på marknaden →
+        {t("market")}
       </Link>
     </div>
   );
