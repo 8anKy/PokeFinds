@@ -284,12 +284,10 @@ export function ProductPriceCard({
       <section aria-label={title}>
         {chart}
         <div className="mt-2 flex justify-center">{periodControl}</div>
-        {showChips && (
-          <>
-            <div className="mt-3">{chips}</div>
-            <p className="mt-2 text-[11px] text-ink-faint">{subtitle}</p>
-          </>
-        )}
+        {/* Datanoten ("Raw, ej graderad · annonser = …") visas INTE i arket — den
+            är en förklaring till desktopkortets rubrik, i telefonen läste den som
+            brus (ägaren 2026-09-05). Chipsen är själva legenden. */}
+        {showChips && <div className="mt-3">{chips}</div>}
       </section>
     );
   }

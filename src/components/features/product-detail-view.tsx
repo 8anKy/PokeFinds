@@ -19,14 +19,13 @@ import { ProductActions } from "@/components/features/product-actions";
 import { ProductRestockHistory } from "@/components/features/restock-history";
 import { CopyOnHoldTitle } from "@/components/features/copy-on-hold-title";
 import { traderaSearchUrlSpecific } from "@/lib/marketplace-urls";
-import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import {
   LivePricingProvider,
   LivePricePanel,
   LiveOffersTable,
   LiveStatsFootnote,
 } from "@/components/features/live-product-pricing";
-import { IconCards, IconChevronRight, IconStore } from "@/components/ui/icons";
+import { IconCards } from "@/components/ui/icons";
 import { GradedSales } from "./graded-sales";
 
 /** Sealed-kategorier (ej singel/gradat) — får alltid en Tradera-länk. */
@@ -157,7 +156,6 @@ export function ProductDetailView({
   // mot viewporten fungerar i båda kontexterna: overlay-panelen är fixed inset-0,
   // så "syns i viewporten" är samma sak som "syns i panelen".
   const stageRef = useRef<HTMLDivElement>(null);
-  const storesRef = useRef<HTMLDivElement>(null);
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
     const el = stageRef.current;
@@ -179,10 +177,6 @@ export function ProductDetailView({
   const isSingle = data.category === "SINGLE_CARD";
   const categoryLabel = data.category in CATEGORY_LABELS ? tCat(data.category) : tCat("OTHER");
   const languageLabel = LANGUAGE_KEYS.includes(data.language) ? tLang(data.language) : data.language;
-  // Samma gallring som butikslistan gör (direktlänkar) — raden under grafen ska
-  // säga samma tal som rubriken "Priser hos butiker".
-  const directOffers = data.serializedOffers.filter((o) => isDirectOfferUrl(o.url));
-  const inStockCount = directOffers.filter((o) => o.stockStatus === "IN_STOCK").length;
   const traderaSearch = SEALED_CATEGORIES.includes(data.category)
     ? traderaSearchUrlSpecific(data.title, data.category)
     : null;
@@ -347,7 +341,9 @@ export function ProductDetailView({
             </div>
 
             {/* Prishistorik — utan kortram och utan rubrik inne i arket (kurvan
-                förklarar sig själv; perioden ligger under den). Desktop får kortet. */}
+                förklarar sig själv; perioden ligger under den). Desktop får kortet.
+                ⛔ Ingen "hoppa till butikerna"-rad längre: butikerna följer direkt
+                efter grafen, och raden blev "Priser hos butiker" två gånger på rad. */}
             <div className="mt-7 lg:card-surface lg:p-5">
               {pending ? (
                 <Skeleton className="h-52 w-full" />
@@ -367,26 +363,6 @@ export function ProductDetailView({
                 </>
               )}
             </div>
-
-            {/* Raden till butikerna (mobil): svaret på "var köper jag" utan att
-                scrolla i blindo. Knapp med scrollIntoView, INTE en #-länk — ett
-                hash-hopp lägger en historikpost, och overlayn stängs på popstate. */}
-            {!pending && directOffers.length > 0 && (
-              <button
-                type="button"
-                onClick={() => storesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                className="mt-4 flex w-full items-center justify-between border-t border-surface-border py-3 text-left lg:hidden"
-              >
-                <span className="inline-flex items-center gap-2.5 text-[15px] font-semibold text-ink">
-                  <IconStore size={18} className="text-ink-muted" />
-                  {t("storePrices")}
-                </span>
-                <span className="inline-flex items-center gap-1.5 text-[13px] text-ink-muted">
-                  {t("storesTeaser", { count: directOffers.length, inStock: inStockCount })}
-                  <IconChevronRight size={16} className="text-ink-faint" />
-                </span>
-              </button>
-            )}
           </div>
         </div>
 
@@ -394,9 +370,7 @@ export function ProductDetailView({
           {/* Erbjudanden — detail-payloaden är cachad ≤1h (cachedRead), ingen polling.
               Lagerstatusen här kan därför släpa efter restock-historiken nedanför,
               som är admin-only och hämtas färsk on-demand. */}
-          <div ref={storesRef} className="scroll-mt-14">
-            <LiveOffersTable pending={pending} slug={data.slug} traderaSearch={traderaSearch} />
-          </div>
+          <LiveOffersTable pending={pending} slug={data.slug} traderaSearch={traderaSearch} />
 
           {/* Restock-historik — admin-only, hämtas on-demand (se restock-history.tsx) */}
           <ProductRestockHistory productId={data.id} />
