@@ -55,6 +55,11 @@ async function matchAndUpsertOffer(
   retailerName: string,
   sourceId: string
 ): Promise<boolean> {
+  // Okänt pris (Shopify släpper igenom 0 kr-platshållare som null sedan 2026-09-04):
+  // det här manuella verktyget skriver offer + observation i ett svep och har ingen
+  // prislös väg — hoppa över raden, precis som validateResult fällde den förut.
+  // Nattkedjan (runner.ts) är den väg som tar hand om prislösa annonser.
+  if (raw.price === null) return false;
   const category = raw.category ?? "OTHER";
 
   // Kolla om denna butik säljer denna kategori

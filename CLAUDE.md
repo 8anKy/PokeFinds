@@ -181,8 +181,12 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   prefix/suffix ur dess EGNA kända länkar; köpgränser som `-max-1-kund` går ALDRIG att lära sig —
   de sitter på produkten — och är fasta kandidater; redan bevakade URL:er markeras i stället för
   att filtreras bort, så varje körning självkontrollerar).
-- ⛔ **NOLLPRIS SLÄNGER HELA PRODUKTEN — OLAGAT, ÄGARBESLUT VÄNTAR (2026-09-04).**
-  `ShopifyAdapter.toRaws` gör `if (priceOre <= 0) return []` — butikerna prissätter OSLÄPPTA
+- ✅ **NOLLPRIS-FIXEN ÄR LIVE SEDAN 2026-09-05** — koden (skriven 09-04, `price: null` släpps igenom,
+  `tests/unit/shopify-zero-price.test.ts`) råkade följa med i commit 8efc1cb under QA-rond 2 utan att ägaren
+  hunnit ge sitt "go"; ägaren är informerad. Återställning = `git revert 8efc1cb -- src/scrapers tests/unit/shopify-zero-price.test.ts`
+  (+ scripts/run-scrapers.ts). Bakgrunden nedan är kvar som historik:
+  ⛔ **NOLLPRIS SLÄNGDE HELA PRODUKTEN (upptäckt 2026-09-04).**
+  `ShopifyAdapter.toRaws` gjorde `if (priceOre <= 0) return []` — butikerna prissätter OSLÄPPTA
   produkter till 0 kr som platshållare, och då tappar vi inte priset utan HELA annonsen: den når
   aldrig feeden, får aldrig en `StoreListing`, importeras aldrig och kan aldrig larma. Det biter
   alltså exakt på ett osläppt set, dvs precis det folk bevakar. MÄTT över 8 Shopify-butiker: 26 av
