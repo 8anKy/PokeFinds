@@ -8,7 +8,8 @@ import { DropdownMenu, type DropdownItem } from "@/components/ui/dropdown";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
-import { IconChevronLeft, IconExternalLink, IconFlag, IconLock } from "@/components/ui/icons";
+import { IconExternalLink, IconFlag, IconLock } from "@/components/ui/icons";
+import { BackCircle, CIRCLE_CLASS } from "@/components/ui/back-circle";
 import { REPORT_REASON_MAX, REPORT_REASON_MIN, threadPath } from "@/lib/chat-rules";
 import { reportConversation, setBlocked, type ChatUserDto } from "@/lib/chat-client";
 import { ChatAvatar } from "./chat-avatar";
@@ -119,13 +120,9 @@ export function ConversationHeader({ conversationId, other, post, blockedByMe }:
 
   return (
     <header className="flex items-center gap-2 border-b border-surface-border pb-3">
-      <Link
-        href="/meddelanden"
-        aria-label={t("back")}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-surface-overlay hover:text-ink"
-      >
-        <IconChevronLeft size={20} />
-      </Link>
+      {/* Appens bakåtcirkel (ui/back-circle) — alltid en LÄNK till listan här:
+          samtalet öppnas lika ofta från en push som från listan. */}
+      <BackCircle href="/meddelanden" />
       {other ? (
         <Link
           href={`/profil/${other.id}`}
@@ -153,10 +150,7 @@ export function ConversationHeader({ conversationId, other, post, blockedByMe }:
         align="right"
         items={items}
         trigger={
-          <span
-            aria-label={t("menu")}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-surface-overlay hover:text-ink"
-          >
+          <span aria-label={t("menu")} className={CIRCLE_CLASS}>
             <IconDots size={20} />
           </span>
         }

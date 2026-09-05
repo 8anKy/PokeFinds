@@ -6,6 +6,7 @@ import { alternatesFor } from "@/lib/canonical";
 import { localizeGroup } from "@/lib/community-group-i18n";
 import { LinkButton } from "@/components/ui/button";
 import { IconChevronLeft, IconPlus } from "@/components/ui/icons";
+import { SubpageHeader } from "@/components/layout/subpage-header";
 import { SwipeBack } from "@/components/ui/swipe-back";
 import { GroupChips } from "@/components/community/group-chips";
 import { JoinGroupButton } from "@/components/community/join-group-button";
@@ -56,15 +57,16 @@ export default async function GroupPage({ params }: PageProps) {
   return (
     <SwipeBack fallback="/forum">
       <div className="mx-auto w-full max-w-3xl px-2.5 py-6 sm:px-6">
+      <SubpageHeader href="/forum" title={t("h1")} mobileOnly />
       <Link
         href="/forum"
-        className="inline-flex items-center gap-1 text-sm text-ink-muted hover:text-holo-cyan"
+        className="hidden items-center gap-1 text-sm text-ink-muted hover:text-holo-cyan lg:inline-flex"
       >
         <IconChevronLeft size={16} />
         {t("h1")}
       </Link>
 
-      <header className="mt-3 flex items-start justify-between gap-3">
+      <header className="flex items-start justify-between gap-3 lg:mt-3">
         <div className="min-w-0">
           <h1 className="font-display text-3xl font-bold text-ink">{group.name}</h1>
           <p className="mt-1 text-sm text-ink-muted">{group.description}</p>

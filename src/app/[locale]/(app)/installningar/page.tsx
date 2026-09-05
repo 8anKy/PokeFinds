@@ -11,7 +11,7 @@ import { prisma } from "@/lib/db";
 // ⛔ Delad läsare — se src/lib/notification-settings.ts. Skriv ingen lokal kopia.
 import { parseNotificationSettings } from "@/lib/notification-settings";
 import { SettingsClient, type SettingsUser } from "./settings-client";
-import { PageBackButton } from "@/components/layout/page-back-button";
+import { SubpageHeader } from "@/components/layout/subpage-header";
 import { allowsPurchaseRequests } from "@/lib/purchase-requests";
 
 export const dynamic = "force-dynamic";
@@ -86,11 +86,9 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-8">
       <div>
-        <PageBackButton />
-        <h1 className="font-display text-2xl font-bold text-ink">{t("pageTitle")}</h1>
-        <p className="mt-1 text-sm text-ink-muted">
-          {t("pageSubtitle")}
-        </p>
+        <SubpageHeader title={t("pageTitle")} />
+        <p className="text-sm text-ink-muted lg:hidden">{t("pageSubtitle")}</p>
+        <p className="mt-1 hidden text-sm text-ink-muted lg:block">{t("pageSubtitle")}</p>
       </div>
       <Suspense>
         <SettingsClient user={settingsUser} />

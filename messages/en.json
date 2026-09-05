@@ -2056,7 +2056,13 @@
     "gradedColRange": "Low–high",
     "gradedColLast": "Last sold",
     "gradedSampleCount": "{count, plural, one {# sale} other {# sales}}",
-    "gradedFootnote": "Final prices for graded copies of {title} sold on Tradera in the past year. A graded card is a different item from the raw one — the prices are not directly comparable. With only a handful of sales the figure is an example, not a market price."
+    "gradedFootnote": "Final prices for graded copies of {title} sold on Tradera in the past year. A graded card is a different item from the raw one — the prices are not directly comparable. With only a handful of sales the figure is an example, not a market price.",
+    "lowestTag": "Lowest",
+    "storesTeaser": "{count, plural, one {# store} other {# stores}} · {inStock, plural, =0 {none in stock} one {# in stock} other {# in stock}}",
+    "storesSorted": "lowest first",
+    "days7Short": "7 d",
+    "days30Short": "30 d",
+    "historyFootnoteSingle": "Raw, ungraded · listings = daily low, sold = median price"
   },
   "Upgrade": {
     "currentPlan": "Your current plan ✓",

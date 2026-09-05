@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { getSharedSession } from "@/lib/client-session";
 import { useRouter } from "@/i18n/navigation";
 import { hasAuthHint } from "@/lib/auth-hint";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Input, Label } from "@/components/ui/input";
@@ -22,6 +23,9 @@ export interface ProductActionsProps {
 }
 
 type ActionKey = "price" | "restock" | "collection";
+
+/** Mobil: full bredd i sin rutnätscell, 48 px hög, text 15. Desktop: knappens vanliga md-mått. */
+const ACTION_CLASS = "h-12 w-full px-3 text-[15px] sm:h-10 sm:w-auto sm:px-4 sm:text-sm";
 
 export function ProductActions({ productId, title }: ProductActionsProps) {
   const t = useTranslations("Detail");
@@ -175,15 +179,18 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
 
   return (
     <>
-    <div className="flex flex-wrap items-center gap-2">
+    {/* Mobil: två lika breda knappar i arket (48 px höga — tumvänligt); en
+        eventuell tredje (restock, när pausen hävs) får hela nästa rad. Desktop:
+        raden som förut. */}
+    <div className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
       {isPro === false ? (
-        <Button loading={loading === "price"} onClick={saveWatch}>
+        <Button loading={loading === "price"} onClick={saveWatch} className={ACTION_CLASS}>
           <IconBell size={16} />
           {t("saveToWatchlist")}
         </Button>
       ) : (
         <>
-          <Button loading={loading === "price"} onClick={openPriceWatch}>
+          <Button loading={loading === "price"} onClick={openPriceWatch} className={ACTION_CLASS}>
             <IconBell size={16} />
             {t("watchPrice")}
           </Button>
@@ -195,6 +202,7 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
           {!restockPaused && (
             <Button
               variant="secondary"
+              className={cn(ACTION_CLASS, "col-span-2")}
               loading={loading === "restock"}
               onClick={() =>
                 void post(
@@ -213,6 +221,7 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
       )}
       <Button
         variant="secondary"
+        className={ACTION_CLASS}
         loading={loading === "collection"}
         onClick={() => setCollectionModalOpen(true)}
       >
@@ -220,7 +229,7 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
         {t("addToCollection")}
       </Button>
       {isPro === false && (
-        <ProTextLink source="product-alerts" className="text-xs font-medium text-holo-cyan hover:underline">
+        <ProTextLink source="product-alerts" className="col-span-2 text-xs font-medium text-holo-cyan hover:underline">
           {t(alertCopyKey("alertsProCta", priceAlertsPausedClient()))}
         </ProTextLink>
       )}

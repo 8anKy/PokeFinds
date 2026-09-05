@@ -71,18 +71,39 @@ function withinDays(series: PricePoint[], days: number): PricePoint[] {
  * servern; perioden filtreras i klienten — ingen URL-param (sidan kan därför ISR-
  * cachas) och ingen extra hämtning per periodbyte.
  */
+/** Utan kortram: rubrikrad + period, chips, graf, datanoten som fotnot. */
+function PlainRoot({ children }: { children: React.ReactNode; className?: string }) {
+  return <section>{children}</section>;
+}
+function PlainHead({ children }: { children: React.ReactNode; className?: string }) {
+  return <div className="flex items-center justify-between gap-3">{children}</div>;
+}
+function PlainBody({ children }: { children: React.ReactNode; className?: string }) {
+  return <div className="mt-3">{children}</div>;
+}
+
 export function ProductPriceCard({
   title,
   subtitle,
   series,
   bySource,
+  plain = false,
 }: {
   title: string;
   subtitle: string;
   series: PricePoint[];
   /** Alla källors serier. Saknas den beter sig kortet exakt som förut. */
   bySource?: Partial<Record<SourceKey, PricePoint[]>>;
+  /**
+   * Inne i produktvyns ark (2026-09-05): ingen kortram, kompakt rubrikrad med
+   * perioden till höger, och datanoten (subtitle) som fotnot under grafen i
+   * stället för under rubriken.
+   */
+  plain?: boolean;
 }) {
+  const Root = plain ? PlainRoot : Card;
+  const Head = plain ? PlainHead : CardHeader;
+  const Body = plain ? PlainBody : CardContent;
   const t = useTranslations("Detail");
   const router = useRouter();
   const [period, setPeriod] = useState<(typeof PERIODS)[number]>(DEFAULT);
@@ -154,14 +175,23 @@ export function ProductPriceCard({
     : data;
 
   return (
-    <Card>
-      <CardHeader className="flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+    <Root>
+      <Head className="flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div>
-          <CardTitle>{title}</CardTitle>
-          <p className="mt-1 text-xs text-ink-muted">{subtitle}</p>
+          {plain ? (
+            <p className="text-[15px] font-semibold text-ink">{title}</p>
+          ) : (
+            <>
+              <CardTitle>{title}</CardTitle>
+              <p className="mt-1 text-xs text-ink-muted">{subtitle}</p>
+            </>
+          )}
         </div>
         <div
-          className="flex shrink-0 gap-0.5 self-start rounded-lg border border-surface-border bg-surface p-1"
+          className={cn(
+            "flex shrink-0 gap-0.5 self-start rounded-lg border border-surface-border bg-surface p-1",
+            plain && "p-[3px]"
+          )}
           role="group"
           aria-label="Period"
         >
@@ -176,6 +206,7 @@ export function ProductPriceCard({
                 title={locked ? t("maxProOnly") : undefined}
                 className={cn(
                   "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
+                  plain && "px-2",
                   p.value === period.value
                     ? "bg-holo-cyan/15 text-holo-cyan"
                     : locked
@@ -189,8 +220,8 @@ export function ProductPriceCard({
             );
           })}
         </div>
-      </CardHeader>
-      <CardContent>
+      </Head>
+      <Body>
         {/* data-swipe-ignore: horisontellt drag på grafen = tooltip-scrubbing,
             inte svep-tillbaka (overlayns gest hoppar över den här ytan). */}
         {!proGated && available.length > 1 && (
@@ -263,7 +294,8 @@ export function ProductPriceCard({
             <PriceChartLazy data={chartSingle} series={chartSeries} />
           </div>
         )}
-      </CardContent>
-    </Card>
+        {plain && <p className="mt-2 text-[11px] text-ink-faint">{subtitle}</p>}
+      </Body>
+    </Root>
   );
 }

@@ -10,7 +10,7 @@ import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Link } from "@/i18n/navigation";
 import type { JobStatus } from "@prisma/client";
-import { PageBackButton } from "@/components/layout/page-back-button";
+import { SubpageHeader } from "@/components/layout/subpage-header";
 import { FunnelChart } from "@/components/features/admin/funnel-chart";
 import { DonutChart, type DonutSlice } from "@/components/features/admin/donut-chart";
 import { CATEGORICAL, EVENT_SERIES, seriesLabel } from "@/components/features/admin/chart-palette";
@@ -247,7 +247,8 @@ export default async function AdminOverviewPage() {
 
   return (
     <div className="space-y-6">
-      <PageBackButton />
+      {/* Bara mobilraden: adminens egen rubrikrad finns redan i desktop-skalet. */}
+      <SubpageHeader title="Adminpanel" mobileOnly />
 
       {/* ── Nyckeltal ───────────────────────────────────────────────────── */}
       <section aria-label="Nyckeltal">

@@ -1,28 +1,31 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import { track } from "@/lib/track";
-import { formatPrice, formatRelative } from "@/lib/format";
+import { formatPrice } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { isCrawlerClient } from "@/lib/crawler-ua";
 import type { ProductDetailData, ProductShellData } from "@/services/products";
-import { StockBadge } from "@/components/ui/badge";
 import { SafeImage } from "@/components/ui/safe-image";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PriceChange } from "@/components/ui/price-change";
+import { BackCircle } from "@/components/ui/back-circle";
 import { ProductPriceCard } from "@/components/features/product-price-card";
 import { ProductCard, CATEGORY_LABELS } from "@/components/features/product-card";
 import { ProductActions } from "@/components/features/product-actions";
 import { ProductRestockHistory } from "@/components/features/restock-history";
 import { CopyOnHoldTitle } from "@/components/features/copy-on-hold-title";
 import { traderaSearchUrlSpecific } from "@/lib/marketplace-urls";
+import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import {
   LivePricingProvider,
   LivePricePanel,
   LiveOffersTable,
 } from "@/components/features/live-product-pricing";
-import { IconCards, IconChevronLeft } from "@/components/ui/icons";
+import { IconCards, IconChevronRight, IconStore } from "@/components/ui/icons";
 import { GradedSales } from "./graded-sales";
 
 /** Sealed-kategorier (ej singel/gradat) — får alltid en Tradera-länk. */
@@ -90,18 +93,28 @@ function shellToDetail(shell: ProductShellData): ProductDetailData {
  *     (`isCrawlerClient`): de får skalet och "–" som pris, och Neon får sova.
  *     Skälet till hela uppdelningen står i produkter/[slug]/page.tsx.
  *
- * `showBack`: bakåtknapp överst. Sätts BARA av SSR-sidan — dit landar man via
- * djuplänk/push-notis, där overlayns svep-tillbaka inte finns (man fastnade).
- * Overlayn har redan svep + SiteHeader, så den skickar inte proppen.
+ * LAYOUTEN "HJÄLTE" (ägarbeslut 2026-09-05, design-canvasen "Foilio Produktvy"):
+ * på mobil är produktbilden en SCEN över hela bredden med en flytande bakåtcirkel,
+ * och ett rundat ARK glider upp över den med titel → pris → knappar → graf →
+ * en rad som leder till butikerna. Inget logotyphuvud, inga brödsmulor, ingen
+ * "Tillbaka"-rad — de gav "webbsida", inte app. När scenen scrollat bort tar en
+ * smal rad över (cirkel + namn + pris) så bakåt aldrig försvinner. Svep höger
+ * stänger overlayn som förut. Desktop behåller brödsmulor + bild/graf i två
+ * spalter (ingen cirkel — där finns webbens huvud).
+ *
+ * `context`: "overlay" = scroll-behållaren är overlay-panelen (som redan ligger
+ * under safe-arean → den fasta raden fästs vid 0); "page" = fönstret scrollar
+ * → raden fästs under statusfältet. Overlayn har inget logotyphuvud sedan
+ * 2026-09-05; SSR-sidan får sitt dolt på mobil via `SiteHeaderGate`.
  */
 export function ProductDetailView({
   data: dataProp,
   shell,
-  showBack = false,
+  context = "page",
 }: {
   data?: ProductDetailData;
   shell?: ProductShellData;
-  showBack?: boolean;
+  context?: "overlay" | "page";
 }) {
   const t = useTranslations("Detail");
   const tCat = useTranslations("Category");
@@ -139,11 +152,55 @@ export function ProductDetailView({
     if (slug) track("product_view", slug);
   }, [slug]);
 
+  // Den smala raden tar över när SCENEN (bilden) lämnat bild. IntersectionObserver
+  // mot viewporten fungerar i båda kontexterna: overlay-panelen är fixed inset-0,
+  // så "syns i viewporten" är samma sak som "syns i panelen".
+  const stageRef = useRef<HTMLDivElement>(null);
+  const storesRef = useRef<HTMLDivElement>(null);
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([entry]) => setCollapsed(!entry.isIntersecting), {
+      // Raden är 48 px hög — byt när scenens underkant gått in under den, inte
+      // först när sista pixeln lämnat skärmen.
+      rootMargin: "-48px 0px 0px 0px",
+      threshold: 0,
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [slug]);
+
   if (!dataProp && !shell) return null;
   const data: ProductDetailData = live ?? shellToDetail(shell!);
   const pending = live === null;
 
   const isSingle = data.category === "SINGLE_CARD";
+  const categoryLabel = data.category in CATEGORY_LABELS ? tCat(data.category) : tCat("OTHER");
+  const languageLabel = LANGUAGE_KEYS.includes(data.language) ? tLang(data.language) : data.language;
+  // Samma gallring som butikslistan gör (direktlänkar) — raden under grafen ska
+  // säga samma tal som rubriken "Priser hos butiker".
+  const directOffers = data.serializedOffers.filter((o) => isDirectOfferUrl(o.url));
+  const inStockCount = directOffers.filter((o) => o.stockStatus === "IN_STOCK").length;
+  const traderaSearch = SEALED_CATEGORIES.includes(data.category)
+    ? traderaSearchUrlSpecific(data.title, data.category)
+    : null;
+
+  const metaLine = (
+    <p className="text-[13px] text-ink-muted lg:text-sm">
+      {data.set && (
+        <>
+          <Link href={`/produkter?set=${data.set.id}`} className="text-holo-cyan hover:underline">
+            {data.set.name}
+          </Link>
+          <span className="mx-2 text-ink-faint" aria-hidden="true">·</span>
+        </>
+      )}
+      {categoryLabel}
+      <span className="mx-2 text-ink-faint" aria-hidden="true">·</span>
+      {languageLabel}
+    </p>
+  );
 
   return (
     <LivePricingProvider
@@ -153,10 +210,44 @@ export function ProductDetailView({
       affiliateRetailerIds={data.affiliateRetailerIds}
       initialUpdatedAt={data.updatedAt}
     >
-      <div className="mx-auto max-w-7xl px-2.5 py-10 sm:px-6">
-        {showBack && <BackButton label={t("back")} />}
-        {/* Breadcrumb */}
-        <nav aria-label={t("breadcrumbAria")} className="mb-4 text-sm text-ink-muted">
+      {/* SMALA RADEN (mobil). Sticky med höjd 0 → tar ingen plats i flödet men
+          fäster vid scroll-behållarens topp; själva raden ligger absolut under.
+          Overlayn: panelen börjar redan under safe-arean → top-0. Sidan: fönstret
+          scrollar → fäst under statusfältet, och måla remsan ovanför. */}
+      <div
+        className={cn(
+          "sticky z-30 h-0 lg:hidden",
+          context === "overlay" ? "top-0" : "top-[env(safe-area-inset-top)]"
+        )}
+        aria-hidden={!collapsed}
+      >
+        <div
+          className={cn(
+            "hairline-b flex h-12 items-center gap-3 bg-surface/90 px-2.5 backdrop-blur-md transition-[opacity,transform] duration-200 ease-out-soft motion-reduce:transition-none",
+            context === "page" &&
+              "before:absolute before:inset-x-0 before:bottom-full before:h-[env(safe-area-inset-top)] before:bg-surface before:content-['']",
+            collapsed ? "opacity-100" : "pointer-events-none -translate-y-2 opacity-0"
+          )}
+        >
+          <BackCircle fallback="/produkter" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[15px] font-semibold leading-tight text-ink">{data.title}</div>
+            {data.set && <div className="truncate text-xs text-ink-muted">{data.set.name} · {categoryLabel}</div>}
+          </div>
+          {!pending && (
+            <div className="shrink-0 text-right">
+              <div data-price className="text-[15px] font-bold leading-tight text-ink">
+                {formatPrice(data.stats.lowestPrice)}
+              </div>
+              {data.change7 != null && <PriceChange percent={data.change7} hideIcon className="text-xs" />}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-7xl lg:px-6 lg:py-10">
+        {/* Brödsmulor — BARA desktop. På mobil är scenen + cirkeln hela chrome:n. */}
+        <nav aria-label={t("breadcrumbAria")} className="mb-4 hidden text-sm text-ink-muted lg:block">
           <Link href="/produkter" className="hover:text-ink">{t("products")}</Link>
           {data.set && (
             <>
@@ -172,261 +263,238 @@ export function ProductDetailView({
           <span className="text-ink">{data.title}</span>
         </nav>
 
-        {/* Title */}
-        <header>
-          <CopyOnHoldTitle
-            text={data.title}
-            className="font-display text-3xl font-bold text-ink sm:text-4xl"
-          />
-          <p className="mt-2 text-sm text-ink-muted">
-            {data.set && (
-              <>
-                <Link
-                  href={`/produkter?set=${data.set.id}`}
-                  className="text-holo-cyan hover:underline"
-                >
-                  {data.set.name}
-                </Link>
-                <span className="mx-2 text-ink-faint" aria-hidden="true">·</span>
-              </>
-            )}
-            {data.category in CATEGORY_LABELS ? tCat(data.category) : tCat("OTHER")}
-            <span className="mx-2 text-ink-faint" aria-hidden="true">·</span>
-            {LANGUAGE_KEYS.includes(data.language) ? tLang(data.language) : data.language}
-          </p>
-        </header>
-
-        {/* Andra Cardmarket-versioner av samma kort (common ↔ special-variant) */}
-        {data.variants.length > 0 && (
-          <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-ink-muted">{t("otherVersions")}</span>
-            {data.variants.map((v) => (
-              <Link
-                key={v.slug}
-                href={`/produkter/${v.slug}`}
-                className="card-surface rounded-full px-3 py-1 text-ink transition hover:text-holo-cyan"
-              >
-                {v.label ?? t("baseVersion")}
-                {!pending && v.lowestPrice != null && (
-                  <span className="text-ink-muted"> · {formatPrice(v.lowestPrice)}</span>
-                )}
-              </Link>
-            ))}
-          </div>
-        )}
-
-        {/* Bild | Prishistorik */}
-        <div className="mt-8 grid gap-6 lg:grid-cols-[320px_1fr]">
-          {/* Bildbrunnen är SVART som kortet — `surface-overlay` lyste som en grå
-              ruta mitt på den svarta produktsidan. Samma fix som i produktkortet. */}
-          <div className="card-surface flex aspect-[4/3] items-center justify-center overflow-hidden bg-surface lg:aspect-auto">
+        <div className="lg:grid lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start lg:gap-8">
+          {/* SCENEN. Mobil: hela bredden, 300 px, svag glöd bakom lådan (enda
+              stället ytan inte är rent svart — arkets kant måste läsas mot något).
+              Desktop: bildbrunnen som förut. */}
+          <div
+            ref={stageRef}
+            className="relative flex h-[300px] items-center justify-center pt-6 [background:radial-gradient(120%_90%_at_50%_45%,#15151a_0%,#000_72%)] lg:card-surface lg:aspect-[4/5] lg:h-auto lg:pt-0 lg:[background:#000]"
+          >
             <SafeImage
               src={data.imageUrl}
               alt={data.title}
               /* Sidans STÖRSTA bild ovanför vecket = den webbläsaren mäter som
-                 LCP. Den låg som `lazy` tillsammans med rutnätens hundratals
-                 miniatyrer, dvs hämtades efter att layouten räknats ut fast den
-                 alltid syns direkt. ⚠️ Flaggan är BARA en hämtningsordning —
-                 rutan är redan reserverad av brunnens `aspect-[4/3]`, så inget
-                 flyttar sig en pixel. ⛔ Sätt den inte på fler bilder här (varken
-                 Tradera-skenan eller liknande produkter): det är just för att de
-                 väntar som den här kommer först. */
+                 LCP. ⚠️ Flaggan är BARA en hämtningsordning — rutan är redan
+                 reserverad av scenens fasta höjd, så inget flyttar sig en pixel.
+                 ⛔ Sätt den inte på fler bilder här (varken Tradera-skenan eller
+                 liknande produkter): det är just för att de väntar som den här
+                 kommer först. */
               priority
-              className="h-full w-full object-contain p-4"
+              className="h-[232px] w-[232px] object-contain [filter:drop-shadow(0_20px_32px_rgba(0,0,0,.65))] lg:h-full lg:w-full lg:p-6 lg:[filter:none]"
               fallback={
                 <div className="flex h-full w-full items-center justify-center">
                   <IconCards size={72} className="text-ink-faint" />
                 </div>
               }
             />
+            {/* Flytande bakåt — samma cirkel som resten av appen (ui/back-circle). */}
+            <div className="absolute left-4 top-1.5 lg:hidden">
+              <BackCircle fallback="/produkter" />
+            </div>
           </div>
 
-          {pending ? (
-            <Skeleton className="card-surface min-h-64 w-full" />
-          ) : (
-          <ProductPriceCard
-            bySource={data.historyBySource}
-            title={isSingle ? t("historyRawTitle") : t("historyTitle")}
-            /* ⛔ UNDERRUBRIKEN FÅR INTE NAMNGE EN KÄLLA LÄNGRE. Den stod på
-               `trendSource` och sa "· Cardmarket" — men sedan källfiltret finns
-               kan besökaren rita CardTrader och Tradera i samma diagram, och då
-               påstod raden att kurvorna var Cardmarkets. Källorna namnger sig
-               själva i chipsen ovanför grafen (som ÄR diagrammets legend), så
-               det som återstår här är kvaliteten på datat — och den måste gälla
-               ALLA serier: Tradera-annonser har inget känt skick, så "Near Mint"
-               kan inte stå kvar heller. */
-            subtitle={data.chartData.length === 0 ? t("historyNone") : t("historyQuality")}
-            series={data.chartData}
-          />
-          )}
-        </div>
+          {/* ARKET. Mobil: rundade övre hörn, hårlinje, glider 20 px upp över scenen. */}
+          <div className="relative -mt-5 rounded-t-[24px] border-t border-surface-border bg-surface px-2.5 pt-5 shadow-[0_1px_0_0_rgba(255,255,255,.04)_inset] lg:mt-0 lg:rounded-none lg:border-0 lg:px-0 lg:pt-0 lg:shadow-none">
+            <header>
+              <CopyOnHoldTitle
+                text={data.title}
+                className="font-display text-[22px] font-bold leading-7 tracking-[-0.02em] text-ink lg:text-3xl lg:leading-tight xl:text-4xl"
+              />
+              <div className="mt-1.5 lg:mt-2">{metaLine}</div>
+            </header>
 
-        {/* Prispanel — ur detail-payloaden (overlay: redan hämtad; SSR-sida: hämtad
-            vid montering, skelett tills dess). INGEN polling. */}
-        <LivePricePanel
-          priceChange7dPercent={data.change7}
-          change30={data.change30}
-          isSingle={isSingle}
-          isJapanese={data.language === "JP"}
-          pending={pending}
-        />
-        <div className="mt-6 flex flex-wrap items-center gap-4">
-          <ProductActions productId={data.id} title={data.title} />
-          {/* Noll bevakare är negativt socialt bevis — visa raden först när någon bevakar. */}
-          {!pending && data.watchCount > 0 && (
-            <p className="text-xs text-ink-faint">
-              {t("watchers", { count: data.watchCount })}
-            </p>
-          )}
-        </div>
-        {/* Beskrivning borttagen: dubblade rubriken (Set · Kategori · Språk) och
-            fanns bara på ~54 sealed-produkter som svensk boilerplate. */}
+            {/* Andra Cardmarket-versioner av samma kort (common ↔ special-variant) */}
+            {data.variants.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-ink-muted">{t("otherVersions")}</span>
+                {data.variants.map((v) => (
+                  <Link
+                    key={v.slug}
+                    href={`/produkter/${v.slug}`}
+                    className="card-surface rounded-full px-3 py-1 text-ink transition hover:text-holo-cyan"
+                  >
+                    {v.label ?? t("baseVersion")}
+                    {!pending && v.lowestPrice != null && (
+                      <span className="text-ink-muted"> · {formatPrice(v.lowestPrice)}</span>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            )}
 
-        {/* Erbjudanden — detail-payloaden är cachad ≤1h (cachedRead), ingen polling.
-            Lagerstatusen här kan därför släpa efter restock-historiken nedanför,
-            som är admin-only och hämtas färsk on-demand. */}
-        <LiveOffersTable
-          pending={pending}
-          slug={data.slug}
-          traderaSearch={
-            SEALED_CATEGORIES.includes(data.category)
-              ? traderaSearchUrlSpecific(data.title, data.category)
-              : null
-          }
-        />
+            {/* Prisraden — ur detail-payloaden (overlay: redan hämtad; SSR-sida:
+                hämtad vid montering, skelett tills dess). INGEN polling. */}
+            <LivePricePanel
+              priceChange7dPercent={data.change7}
+              change30={data.change30}
+              isSingle={isSingle}
+              isJapanese={data.language === "JP"}
+              pending={pending}
+            />
 
-        {/* Restock-historik — admin-only, hämtas on-demand (se restock-history.tsx) */}
-        <ProductRestockHistory productId={data.id} />
-
-        {/* GRADERADE FÖRSÄLJNINGAR — egen serie, aldrig blandad med den ograderade
-            kurvan. Visas bara när det finns affärer att visa. */}
-        <GradedSales graded={data.gradedSales} productTitle={data.title} />
-
-        {/* Fler annonser på Tradera (#19) — samma produkt, andra säljare.
-            Horisontell svep-skena; billigast först (svepet lagrar max 20).
-            Klick räknas som list_click i engagemangs-spårningen. */}
-        {data.traderaListings.length > 0 && (
-          <section className="mt-10">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <h2 className="font-display text-xl font-semibold text-ink">
-                {t("traderaListings")}
-              </h2>
-              <a
-                href={traderaSearchUrlSpecific(data.title, data.category)}
-                target="_blank"
-                rel="noopener noreferrer nofollow"
-                onClick={() => track("list_click", data.slug)}
-                className="text-sm text-holo-cyan hover:underline"
-              >
-                {t("traderaSeeAll")}
-              </a>
+            <div className="mt-4">
+              <ProductActions productId={data.id} title={data.title} />
+              {/* Noll bevakare är negativt socialt bevis — visa raden först när någon bevakar. */}
+              {!pending && data.watchCount > 0 && (
+                <p className="mt-2 text-xs text-ink-faint">{t("watchers", { count: data.watchCount })}</p>
+              )}
             </div>
-            {/* data-swipe-ignore: skenan äger sitt horisontella drag — utan den
-                tolkar overlayn ett höger-svep i skenan som "stäng" och man
-                kastas tillbaka till Utforska mitt i bläddrandet. */}
-            <div
-              data-swipe-ignore
-              className="-mx-2.5 mt-4 flex snap-x gap-3 overflow-x-auto px-2.5 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0"
-            >
-              {data.traderaListings.map((l) => (
+
+            {/* Prishistorik — utan kortram inne i arket; desktop får ramen tillbaka. */}
+            <div className="mt-6 lg:card-surface lg:p-5">
+              {pending ? (
+                <Skeleton className="h-52 w-full" />
+              ) : (
+                <ProductPriceCard
+                  plain
+                  bySource={data.historyBySource}
+                  title={isSingle ? t("historyRawTitle") : t("historyTitle")}
+                  /* ⛔ UNDERRUBRIKEN FÅR INTE NAMNGE EN KÄLLA. Källorna namnger sig
+                     själva i chipsen (som ÄR diagrammets legend); det som återstår är
+                     kvaliteten på datat, och den måste gälla ALLA serier. */
+                  subtitle={data.chartData.length === 0 ? t("historyNone") : t("historyQuality")}
+                  series={data.chartData}
+                />
+              )}
+            </div>
+
+            {/* Raden till butikerna (mobil): svaret på "var köper jag" utan att
+                scrolla i blindo. Knapp med scrollIntoView, INTE en #-länk — ett
+                hash-hopp lägger en historikpost, och overlayn stängs på popstate. */}
+            {!pending && directOffers.length > 0 && (
+              <button
+                type="button"
+                onClick={() => storesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                className="mt-4 flex w-full items-center justify-between border-t border-surface-border py-3 text-left lg:hidden"
+              >
+                <span className="inline-flex items-center gap-2.5 text-[15px] font-semibold text-ink">
+                  <IconStore size={18} className="text-ink-muted" />
+                  {t("storePrices")}
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-[13px] text-ink-muted">
+                  {t("storesTeaser", { count: directOffers.length, inStock: inStockCount })}
+                  <IconChevronRight size={16} className="text-ink-faint" />
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="px-2.5 lg:px-0">
+          {/* Erbjudanden — detail-payloaden är cachad ≤1h (cachedRead), ingen polling.
+              Lagerstatusen här kan därför släpa efter restock-historiken nedanför,
+              som är admin-only och hämtas färsk on-demand. */}
+          <div ref={storesRef} className="scroll-mt-14">
+            <LiveOffersTable pending={pending} slug={data.slug} traderaSearch={traderaSearch} />
+          </div>
+
+          {/* Restock-historik — admin-only, hämtas on-demand (se restock-history.tsx) */}
+          <ProductRestockHistory productId={data.id} />
+
+          {/* GRADERADE FÖRSÄLJNINGAR — egen serie, aldrig blandad med den ograderade
+              kurvan. Visas bara när det finns affärer att visa. */}
+          <GradedSales graded={data.gradedSales} productTitle={data.title} />
+
+          {/* Fler annonser på Tradera (#19) — samma produkt, andra säljare.
+              Horisontell svep-skena; billigast först (svepet lagrar max 20).
+              Klick räknas som list_click i engagemangs-spårningen. */}
+          {data.traderaListings.length > 0 && (
+            <section className="mt-10">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h2 className="font-display text-xl font-semibold text-ink">
+                  {t("traderaListings")}
+                </h2>
                 <a
-                  key={l.itemId}
-                  href={l.url}
+                  href={traderaSearchUrlSpecific(data.title, data.category)}
                   target="_blank"
                   rel="noopener noreferrer nofollow"
                   onClick={() => track("list_click", data.slug)}
-                  className="card-surface w-44 shrink-0 snap-start overflow-hidden hover:border-holo-cyan/40"
+                  className="text-sm text-holo-cyan hover:underline"
                 >
-                  <div className="flex h-36 items-center justify-center overflow-hidden bg-surface">
-                    {l.imageUrl ? (
-                      <img
-                        src={l.imageUrl}
-                        alt={l.title}
-                        loading="lazy"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : data.imageUrl ? (
-                      <img
-                        src={data.imageUrl}
-                        alt={l.title}
-                        loading="lazy"
-                        className="h-full w-full object-contain p-2"
-                      />
-                    ) : (
-                      <IconCards size={40} className="text-ink-faint" />
-                    )}
-                  </div>
-                  <div className="p-3">
-                    <p className="line-clamp-2 text-xs text-ink-muted">{l.title}</p>
-                    <p className="mt-1 text-sm font-semibold text-ink">
-                      {formatPrice(l.price)}
-                    </p>
-                  </div>
+                  {t("traderaSeeAll")}
                 </a>
-              ))}
-            </div>
-          </section>
-        )}
+              </div>
+              {/* data-swipe-ignore: skenan äger sitt horisontella drag — utan den
+                  tolkar overlayn ett höger-svep i skenan som "stäng" och man
+                  kastas tillbaka till Utforska mitt i bläddrandet. */}
+              <div
+                data-swipe-ignore
+                className="-mx-2.5 mt-4 flex snap-x gap-3 overflow-x-auto px-2.5 pb-2 lg:mx-0 lg:px-0"
+              >
+                {data.traderaListings.map((l) => (
+                  <a
+                    key={l.itemId}
+                    href={l.url}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    onClick={() => track("list_click", data.slug)}
+                    className="card-surface w-44 shrink-0 snap-start overflow-hidden hover:border-holo-cyan/40"
+                  >
+                    <div className="flex h-36 items-center justify-center overflow-hidden bg-surface">
+                      {l.imageUrl ? (
+                        <img
+                          src={l.imageUrl}
+                          alt={l.title}
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : data.imageUrl ? (
+                        <img
+                          src={data.imageUrl}
+                          alt={l.title}
+                          loading="lazy"
+                          className="h-full w-full object-contain p-2"
+                        />
+                      ) : (
+                        <IconCards size={40} className="text-ink-faint" />
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <p className="line-clamp-2 text-xs text-ink-muted">{l.title}</p>
+                      <p className="mt-1 text-sm font-semibold text-ink">
+                        {formatPrice(l.price)}
+                      </p>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
 
-        {/* Similar products */}
-        {data.similar.length > 0 && (
-          <section className="mt-10">
-            <h2 className="font-display text-xl font-semibold text-ink">
-              {t("similar")}
-            </h2>
-            <div className="mt-4 grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3.5">
-              {data.similar.map((p) => (
-                <ProductCard
-                  key={p.slug}
-                  product={{
-                    id: p.id,
-                    slug: p.slug,
-                    title: p.title,
-                    imageUrl: p.imageUrl,
-                    category: p.category,
-                    setId: p.setId,
-                    setName: p.setName,
-                    setTotalCards: p.setTotalCards,
-                    cardName: p.cardName,
-                    cardNumber: p.cardNumber,
-                    cardRarity: p.cardRarity,
-                    variantLabel: p.variantLabel,
-                    lowestPrice: p.lowestPrice,
-                    stockStatus: p.lowestPriceStockStatus,
-                  }}
-                />
-              ))}
-            </div>
-          </section>
-        )}
+          {/* Similar products */}
+          {data.similar.length > 0 && (
+            <section className="mt-10">
+              <h2 className="font-display text-xl font-semibold text-ink">
+                {t("similar")}
+              </h2>
+              <div className="mt-4 grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3.5">
+                {data.similar.map((p) => (
+                  <ProductCard
+                    key={p.slug}
+                    product={{
+                      id: p.id,
+                      slug: p.slug,
+                      title: p.title,
+                      imageUrl: p.imageUrl,
+                      category: p.category,
+                      setId: p.setId,
+                      setName: p.setName,
+                      setTotalCards: p.setTotalCards,
+                      cardName: p.cardName,
+                      cardNumber: p.cardNumber,
+                      cardRarity: p.cardRarity,
+                      variantLabel: p.variantLabel,
+                      lowestPrice: p.lowestPrice,
+                      stockStatus: p.lowestPriceStockStatus,
+                    }}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
       </div>
     </LivePricingProvider>
-  );
-}
-
-/**
- * Bakåtknapp för SSR-produktsidan. Landar man här via en push-notis/djuplänk
- * finns ingen app-historik att svepa tillbaka till → gå då till Utforska
- * (`/produkter`) istället. Har man däremot navigerat hit inifrån appen backar
- * vi ett steg som vanligt.
- */
-function BackButton({ label }: { label: string }) {
-  const router = useRouter();
-  const onBack = () => {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-    } else {
-      router.push("/produkter");
-    }
-  };
-  return (
-    <button
-      type="button"
-      onClick={onBack}
-      className="-ml-1 mb-3 inline-flex items-center gap-1 rounded-full py-1 pr-3 pl-1 text-sm text-ink-muted transition hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-holo-cyan/60"
-    >
-      <IconChevronLeft size={18} />
-      {label}
-    </button>
   );
 }

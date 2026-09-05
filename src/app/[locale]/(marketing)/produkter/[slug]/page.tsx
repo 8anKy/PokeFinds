@@ -195,7 +195,9 @@ export default async function ProductPage({ params }: PageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: ldJson(breadcrumbLd) }}
       />
-      <ProductDetailView shell={shell} showBack />
+      {/* Mobil: logotyphuvudet döljs av SiteHeaderGate (rutten är en undersida) →
+          vyns flytande bakåtcirkel är hela chrome:n, som i overlayn. */}
+      <ProductDetailView shell={shell} context="page" />
     </>
   );
 }

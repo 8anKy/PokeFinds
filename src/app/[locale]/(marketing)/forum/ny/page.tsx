@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { IconChevronLeft } from "@/components/ui/icons";
+import { SubpageHeader } from "@/components/layout/subpage-header";
 import { Composer } from "@/components/community/composer";
 
 /**
@@ -26,14 +27,15 @@ export default async function NewThreadPage({ params, searchParams }: PageProps)
 
   return (
     <div className="mx-auto w-full max-w-2xl px-2.5 py-6 sm:px-6">
+      <SubpageHeader href="/forum" title={t("composerTitle")} subtitle={t("h1")} mobileOnly />
       <Link
         href="/forum"
-        className="inline-flex items-center gap-1 text-sm text-ink-muted hover:text-holo-cyan"
+        className="hidden items-center gap-1 text-sm text-ink-muted hover:text-holo-cyan lg:inline-flex"
       >
         <IconChevronLeft size={16} />
         {t("h1")}
       </Link>
-      <h1 className="mt-3 font-display text-3xl font-bold text-ink">{t("composerTitle")}</h1>
+      <h1 className="hidden font-display text-3xl font-bold text-ink lg:mt-3 lg:block">{t("composerTitle")}</h1>
       <div className="mt-6">
         <Composer initialGroup={initialGroup} />
       </div>

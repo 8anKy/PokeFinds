@@ -16,7 +16,8 @@ import { LinkButton } from "@/components/ui/button";
 import { IconBell, IconPlus } from "@/components/ui/icons";
 import { WatchlistTable, type WatchlistRow } from "./watchlist-table";
 import { WatchedSets } from "./watched-sets";
-import { PageBackButton } from "@/components/layout/page-back-button";
+import { SubpageHeader } from "@/components/layout/subpage-header";
+import { CircleButton } from "@/components/ui/back-circle";
 import { RestockPausedBanner } from "@/components/features/restock-paused-banner";
 
 export const dynamic = "force-dynamic";
@@ -71,22 +72,24 @@ export default async function WatchlistPage() {
   return (
     <div className="space-y-8">
       <div>
-        <PageBackButton />
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
-          <p className="mt-1 text-sm text-ink-muted">
-            {/* ⛔ Underrubriken lovade "vi larmar dig vid prisfall och målpriser".
-                Sant fram till 2026-08-26, en lögn efter — och den står rakt ovanför
-                listan med målpriser. Originaltexten är kvar under sin egen nyckel. */}
-            {t(alertCopyKey("subtitle", pricePaused))}
-          </p>
-        </div>
-        <LinkButton href="/produkter" variant="outline">
-          <IconPlus size={16} />
-          {t("findProducts")}
-        </LinkButton>
-        </div>
+        {/* ⛔ Underrubriken lovade "vi larmar dig vid prisfall och målpriser".
+            Sant fram till 2026-08-26, en lögn efter — och den står rakt ovanför
+            listan med målpriser. Originaltexten är kvar under sin egen nyckel. */}
+        <SubpageHeader
+          title={t("h1")}
+          subtitle={t(alertCopyKey("subtitle", pricePaused))}
+          action={
+            <CircleButton label={t("findProducts")} href="/produkter">
+              <IconPlus size={20} />
+            </CircleButton>
+          }
+          desktopAction={
+            <LinkButton href="/produkter" variant="outline">
+              <IconPlus size={16} />
+              {t("findProducts")}
+            </LinkButton>
+          }
+        />
       </div>
 
       {/* ⛔ Banner FÖRE bevakningarna, inte efter: set-bevakning och restock-

@@ -2056,7 +2056,13 @@
     "gradedColRange": "Lägst–högst",
     "gradedColLast": "Senast såld",
     "gradedSampleCount": "{count, plural, one {# affär} other {# affärer}}",
-    "gradedFootnote": "Slutpriser för graderade exemplar av {title} som sålts på Tradera det senaste året. Ett graderat kort är en annan vara än det ograderade — priserna går inte att jämföra rakt av. Med bara någon enstaka affär är siffran ett exempel, inte ett marknadspris."
+    "gradedFootnote": "Slutpriser för graderade exemplar av {title} som sålts på Tradera det senaste året. Ett graderat kort är en annan vara än det ograderade — priserna går inte att jämföra rakt av. Med bara någon enstaka affär är siffran ett exempel, inte ett marknadspris.",
+    "lowestTag": "Lägst",
+    "storesTeaser": "{count, plural, one {# butik} other {# butiker}} · {inStock, plural, =0 {ingen i lager} one {# i lager} other {# i lager}}",
+    "storesSorted": "lägst först",
+    "days7Short": "7 d",
+    "days30Short": "30 d",
+    "historyFootnoteSingle": "Raw, ej graderad · annonser = dagens lägsta, sålt = medianpris"
   },
   "Upgrade": {
     "currentPlan": "Din nuvarande plan ✓",

@@ -14,6 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { SafeImage } from "@/components/ui/safe-image";
 import { IconChevronLeft } from "@/components/ui/icons";
+import { SubpageHeader } from "@/components/layout/subpage-header";
 import { SwipeBack } from "@/components/ui/swipe-back";
 import { RelativeTime } from "@/components/community/relative-time";
 import { ImageGallery } from "@/components/community/image-gallery";
@@ -83,15 +84,18 @@ export default async function ThreadPage({ params }: PageProps) {
   return (
     <SwipeBack fallback={backHref}>
       <div className="mx-auto w-full max-w-3xl px-2.5 py-6 sm:px-6">
+      {/* Mobil: appens bakåtcirkel + gruppen som titel (tråden är rubriken nedanför).
+          Desktop: textlänken som förr — där finns webbens huvud. */}
+      <SubpageHeader href={backHref} title={backLabel} subtitle={post.group ? t("h1") : undefined} mobileOnly />
       <Link
         href={backHref}
-        className="inline-flex items-center gap-1 text-sm text-ink-muted hover:text-holo-cyan"
+        className="hidden items-center gap-1 text-sm text-ink-muted hover:text-holo-cyan lg:inline-flex"
       >
         <IconChevronLeft size={16} />
         {backLabel}
       </Link>
 
-      <article className="mt-3 space-y-6">
+      <article className="space-y-6 lg:mt-3">
         <header>
           {hasBadges && (
             <div className="flex flex-wrap items-center gap-1.5 text-xs">

@@ -102,3 +102,11 @@ paths:
   overlay (menypanelen i `dropdown.tsx`, träfflistan i `collection-client.tsx`) måste hovra till något LJUSARE än overlay
   (`surface-border/50`) — `surface-raised` är numera mörkare och gav en bakvänd hover. Samma sak för fyllda pillar utan kant:
   `bg-surface-raised` är osynlig på ett svart kort.
+- **EN BAKÅTKNAPP (ägarbeslut 2026-09-05)**: `BackCircle` i `src/components/ui/back-circle.tsx` — 40 px cirkel,
+  `surface-overlay` vid 85 % + oskärpa, hårlinje, chevron 20 px. Flytande över produktbilden (`left-4 top-1.5`), i
+  `SubpageHeader` på undersidor, i samtalets huvud. ⛔ Rita aldrig en egen: "‹ Tillbaka"-raden, forumets "‹ Forum"-länk
+  och chattens kantlösa chevron var fyra olika knappar i samma app. `CircleButton` = samma platta för sidans ENDA
+  högeråtgärd. Bakåt = historiken när den finns, annars `fallback`; `href` gör den till en ren länk (samtalet →
+  listan). ⛔ `SubpageHeader` kräver att rutten står i `lib/subpage-routes.ts` — `SiteHeaderGate` döljer logotyphuvudet
+  där på mobil; saknas rutten får sidan två huvuden. Raden drar sig ut med `-mx-2.5 -mt-6` (sidans `px-2.5 py-6`).
+  Produktvyns smala rad är samma form men bor i vyn (sticky med höjd 0: `top-0` i overlayn, safe-area på sidan).

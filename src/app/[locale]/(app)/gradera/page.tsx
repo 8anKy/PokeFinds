@@ -14,8 +14,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { SafeImage } from "@/components/ui/safe-image";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
-import { PageBackButton } from "@/components/layout/page-back-button";
-import { cn } from "@/lib/utils";
+import { SubpageHeader } from "@/components/layout/subpage-header";
+import { cn } from "@/lib/utils";
 import { ProCta } from "@/components/features/pro-cta";
 import {
   IconAlertTriangle,
@@ -266,11 +266,8 @@ export default function GraderaPage() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div>
-        <PageBackButton />
-        <h1 className="font-display text-2xl font-semibold text-ink">{t("h1")}</h1>
-        <p className="mt-1 text-sm text-ink-muted">
-          {t("intro")}
-        </p>
+        <SubpageHeader title={t("h1")} desktopTitleClassName="font-semibold" />
+        <p className="text-sm text-ink-muted lg:mt-1">{t("intro")}</p>
       </div>
 
       {/* Disclaimer */}

@@ -11,7 +11,7 @@ import { UpgradeButton } from "@/components/features/upgrade-button";
 import { ProHoloCard } from "@/components/features/pro-holo-card";
 import { ProSpecTable } from "@/components/features/pro-spec-table";
 import { FreePlanCta } from "./free-plan-cta";
-import { PageBackButton } from "@/components/layout/page-back-button";
+import { SubpageHeader } from "@/components/layout/subpage-header";
 
 export async function generateMetadata({
   params,
@@ -33,6 +33,7 @@ export default async function PricingPage({
 }) {
   setRequestLocale(params.locale);
   const t = await getTranslations("Pricing");
+  const tNav = await getTranslations("Nav");
   const faq = t.raw("faqItems") as { q: string; a: string }[];
 
   /**
@@ -62,7 +63,7 @@ export default async function PricingPage({
     // Mobil: pt-6 så bakåtknappen sitter i höjd med Mer-tabbens andra undersidor
     // (app-sidorna har py-6); desktop behåller luftiga py-16 (knappen är lg:hidden).
     <div className="mx-auto max-w-5xl px-2.5 pb-16 pt-6 sm:px-6 lg:pt-16">
-      <PageBackButton fallback="/" />
+      <SubpageHeader title={tNav("pricing")} fallback="/" mobileOnly />
 
       {/* ⛔ Pausnotisen står FÖRST, ovanför pris och kort, med flit: under
           köpknappen hade den varit en brasklapp efter beslutet. Den ska läsas innan

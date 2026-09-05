@@ -20,6 +20,7 @@ import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OfferClickButton } from "@/components/features/offer-click-button";
+import { RetailerLogo } from "@/components/features/retailer-logo";
 import { IconStore, IconChevronDown } from "@/components/ui/icons";
 import { hapticTick } from "@/lib/haptics";
 import { isCardmarketJpSearchUrl, isDirectOfferUrl } from "@/lib/marketplace-urls";
@@ -196,20 +197,14 @@ export function LivePricePanel({
 
   if (pending) {
     return (
-      <div className="card-surface mt-6 max-w-2xl" aria-busy="true">
-        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 px-5 py-4">
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-40" />
-            <Skeleton className="h-9 w-32" />
-          </div>
-          <Skeleton className="h-6 w-20 rounded-full" />
+      <div className="mt-4 flex items-end justify-between gap-3" aria-busy="true">
+        <div className="space-y-2">
+          <Skeleton className="h-3 w-32" />
+          <Skeleton className="h-9 w-36" />
         </div>
-        <div className="flex items-start justify-between gap-4 border-t border-surface-border px-5 py-3">
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-36" />
-            <Skeleton className="h-4 w-28" />
-          </div>
-          <Skeleton className="h-4 w-16" />
+        <div className="flex flex-col items-end gap-2 pb-1">
+          <Skeleton className="h-6 w-16 rounded-full" />
+          <Skeleton className="h-4 w-28" />
         </div>
       </div>
     );
@@ -233,63 +228,57 @@ export function LivePricePanel({
           ? t("priceLabelSingleSource", { source: source.name })
           : t("priceLabelDefault");
 
+  // PRISRADEN i arket (2026-09-05): etikett + stort pris till vänster, lagerbricka
+  // och 7/30-dagars förändring till höger. Ingen kortram — arket ÄR ramen.
+  // Högsta/snitt är brus med EN prissatt offer (alla tre tal blir samma) → en
+  // dämpad rad under, bara vid ≥ 2 offers.
   return (
-    <div className="card-surface mt-6 max-w-2xl">
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 px-5 py-4">
-        <div>
-          <p className="text-sm text-ink-muted">{priceLabel}</p>
+    <div className="mt-4">
+      <div className="flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs text-ink-muted lg:text-sm">{priceLabel}</p>
           <p
             data-price
             className={cn(
-              "mt-0.5 font-display text-3xl font-bold text-ink transition-colors duration-700",
+              "mt-0.5 font-display text-[32px] font-bold leading-[38px] tracking-[-0.02em] text-ink transition-colors duration-700 lg:text-4xl",
               flash && "text-rise"
             )}
           >
             {formatPrice(stats.lowestPrice)}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 pb-1">
+        <div className="flex shrink-0 flex-col items-end gap-1.5 pb-1">
           {stats.lowestPriceStockStatus && (
             <StockBadge stockStatus={stats.lowestPriceStockStatus} />
           )}
-          {priceChange7dPercent != null && (
-            <PriceChange percent={priceChange7dPercent} hideIcon />
-          )}
+          <dl className="flex items-baseline gap-2.5 text-[13px]">
+            {priceChange7dPercent != null && (
+              <>
+                <dd className="m-0"><PriceChange percent={priceChange7dPercent} hideIcon className="text-[13px]" /></dd>
+                <dt className="text-[11px] text-ink-faint">{t("days7Short")}</dt>
+              </>
+            )}
+            {change30 != null && (
+              <>
+                <dd className="m-0"><PriceChange percent={change30} hideIcon className="text-[13px]" /></dd>
+                <dt className="text-[11px] text-ink-faint">{t("days30Short")}</dt>
+              </>
+            )}
+          </dl>
         </div>
       </div>
-      {/* Deterministisk layout (samma oavsett värdenas bredd/språk): Högsta +
-          Snittpris staplade till vänster, 30-dagars uppe till höger. */}
-      <dl className="flex items-start justify-between gap-4 border-t border-surface-border px-5 py-3 text-sm">
-        {/* Högsta/snitt är brus med EN prissatt offer — alla tre tal blir samma. */}
-        {stats.offerCount >= 2 ? (
-          <div className="space-y-1.5">
-            <div className="flex items-baseline gap-2">
-              <dt className="text-ink-faint">{t("highestNow")}</dt>
-              <dd data-price className="font-semibold text-ink">
-                {formatPrice(stats.highestPrice)}
-              </dd>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <dt className="text-ink-faint">{t("avgPrice")}</dt>
-              <dd data-price className="font-semibold text-ink">
-                {formatPrice(stats.avgPrice)}
-              </dd>
-            </div>
+      {stats.offerCount >= 2 && (
+        <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-ink-faint">
+          <div className="flex items-baseline gap-1.5">
+            <dt>{t("highestNow")}</dt>
+            <dd data-price className="font-semibold text-ink">{formatPrice(stats.highestPrice)}</dd>
           </div>
-        ) : (
-          <div />
-        )}
-        <div className="flex shrink-0 items-baseline gap-2">
-          <dt className="text-ink-faint">{t("days30")}</dt>
-          <dd>
-            {change30 != null ? (
-              <PriceChange percent={change30} hideIcon />
-            ) : (
-              <span className="text-ink-faint">–</span>
-            )}
-          </dd>
-        </div>
-      </dl>
+          <div className="flex items-baseline gap-1.5">
+            <dt>{t("avgPrice")}</dt>
+            <dd data-price className="font-semibold text-ink">{formatPrice(stats.avgPrice)}</dd>
+          </div>
+        </dl>
+      )}
     </div>
   );
 }
@@ -398,12 +387,25 @@ export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOf
   const shownOffers = canExpand && !expanded ? directOffers.slice(0, VISIBLE_OFFERS) : directOffers;
   const hiddenCount = directOffers.length - VISIBLE_OFFERS;
 
+  // "Lägst"-taggen sitter på första raden BARA när den är köpbar med känt pris —
+  // listan sorterar in slutsålda under de lagerförda, så en slutsåld etta hade
+  // fått taggen på ett pris ingen kan betala.
+  const bestOfferId =
+    directOffers[0]?.stockStatus === "IN_STOCK" && directOffers[0].price != null ? directOffers[0].id : null;
+
   return (
     <>
-      <section className="mt-10">
-        <h2 className="font-display text-xl font-semibold text-ink">
-          {t("storePrices")}
-        </h2>
+      <section className="mt-8 lg:mt-10">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="font-display text-[17px] font-semibold text-ink lg:text-xl">
+            {t("storePrices")}
+          </h2>
+          {!pending && directOffers.length > 0 && (
+            <span className="text-xs text-ink-faint">
+              {t("storesTeaser", { count: directOffers.length, inStock: directOffers.filter((o) => o.stockStatus === "IN_STOCK").length })} · {t("storesSorted")}
+            </span>
+          )}
+        </div>
         {pending ? (
           <div className="mt-4 space-y-3" aria-busy="true">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -421,27 +423,39 @@ export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOf
           <div className="mt-4">
             {directOffers.length > 0 && (
               <>
-                {/* Mobil: staplade kort (tabellen ryms inte utan sidoscroll) */}
-                <div className="space-y-3 sm:hidden">
+                {/* Mobil: staplade kort (tabellen ryms inte utan sidoscroll).
+                    Butiksraden = variant 4 i produktvy-designen (ägarbeslut
+                    2026-09-05): kvadratisk 44 px-logga, namn + "Lägst"-tagg,
+                    pris + lagerbricka, "Till butik" till höger. */}
+                <div className="space-y-2 sm:hidden">
                   {shownOffers.map((offer, i) => (
                     <div
                       key={offer.id}
                       style={i >= VISIBLE_OFFERS ? revealStyle(i - VISIBLE_OFFERS) : undefined}
                       className={cn(
-                        "flex items-center justify-between gap-3 rounded-xl border border-surface-border p-4",
+                        "card-surface flex items-center justify-between gap-3 p-3 pr-3.5",
+                        offer.id === bestOfferId && "border-holo-cyan/45",
                         i >= VISIBLE_OFFERS && REVEAL_CLASS
                       )}
                     >
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium">{offer.retailer.name}</span>
-                          {affiliateIds.has(offer.retailerId) && <Badge>{t("adLink")}</Badge>}
-                        </div>
-                        <div className="mt-1 flex items-center gap-2">
-                          <span className="font-semibold tabular-nums">
-                            {offer.price != null ? formatPrice(offer.price) : "–"}
-                          </span>
-                          <StockBadge stockStatus={offer.stockStatus} />
+                      <div className="flex min-w-0 items-center gap-3">
+                        <RetailerLogo name={offer.retailer.name} logoUrl={offer.retailer.logoUrl} />
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] font-medium leading-5">
+                            <span className="truncate">{offer.retailer.name}</span>
+                            {offer.id === bestOfferId && (
+                              <span className="rounded-md bg-holo-cyan/[0.12] px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.06em] text-holo-cyan">
+                                {t("lowestTag")}
+                              </span>
+                            )}
+                            {affiliateIds.has(offer.retailerId) && <Badge>{t("adLink")}</Badge>}
+                          </div>
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className="font-semibold tabular-nums">
+                              {offer.price != null ? formatPrice(offer.price) : "–"}
+                            </span>
+                            <StockBadge stockStatus={offer.stockStatus} />
+                          </div>
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-2">
@@ -481,10 +495,16 @@ export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOf
                           className={i >= VISIBLE_OFFERS ? REVEAL_CLASS : undefined}
                         >
                           <TD>
-                            <span className="font-medium">{offer.retailer.name}</span>
-                            {affiliateIds.has(offer.retailerId) && (
-                              <Badge className="ml-2">{t("adLink")}</Badge>
-                            )}
+                            <span className="inline-flex items-center gap-2.5">
+                              <RetailerLogo name={offer.retailer.name} logoUrl={offer.retailer.logoUrl} size={32} className="rounded-lg" />
+                              <span className="font-medium">{offer.retailer.name}</span>
+                              {offer.id === bestOfferId && (
+                                <span className="rounded-md bg-holo-cyan/[0.12] px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.06em] text-holo-cyan">
+                                  {t("lowestTag")}
+                                </span>
+                              )}
+                              {affiliateIds.has(offer.retailerId) && <Badge>{t("adLink")}</Badge>}
+                            </span>
                           </TD>
                           <TD className="font-semibold tabular-nums">
                             {offer.price != null ? formatPrice(offer.price) : "–"}

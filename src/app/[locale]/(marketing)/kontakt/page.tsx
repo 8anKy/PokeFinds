@@ -3,7 +3,7 @@ import { alternatesFor } from "@/lib/canonical";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { IconMail, IconShield } from "@/components/ui/icons";
-import { PageBackButton } from "@/components/layout/page-back-button";
+import { SubpageHeader } from "@/components/layout/subpage-header";
 import { legalEntity } from "@/lib/legal-entity";
 
 export async function generateMetadata({
@@ -32,9 +32,9 @@ export default async function ContactPage({
     // Mobil: pt-6 så bakåtknappen sitter i höjd med Mer-tabbens andra undersidor
     // (app-sidorna har py-6); desktop behåller luftiga py-16 (knappen är lg:hidden).
     <article className="mx-auto max-w-3xl px-2.5 pb-16 pt-6 sm:px-6 lg:pt-16">
-      <PageBackButton fallback="/" />
-      <h1 className="font-display text-3xl font-bold text-ink">{t("h1")}</h1>
-      <p className="mt-2 text-ink-muted">{t("subtitle")}</p>
+      <SubpageHeader title={t("h1")} fallback="/" mobileOnly />
+      <h1 className="hidden font-display text-3xl font-bold text-ink lg:block">{t("h1")}</h1>
+      <p className="text-ink-muted lg:mt-2">{t("subtitle")}</p>
 
       <div className="mt-10 grid gap-6 sm:grid-cols-2">
         <div className="card-surface flex flex-col items-start gap-3 p-6">

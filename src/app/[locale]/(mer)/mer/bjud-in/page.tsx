@@ -11,7 +11,7 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { IconCheck, IconGift, IconShare } from "@/components/ui/icons";
-import { PageBackButton } from "@/components/layout/page-back-button";
+import { SubpageHeader } from "@/components/layout/subpage-header";
 
 interface InviteRow {
   id: string;
@@ -105,10 +105,7 @@ export default function InvitePage() {
   if (status?.earned) {
     return (
       <div className="mx-auto max-w-md space-y-6">
-        <header>
-          <PageBackButton />
-          <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
-        </header>
+        <SubpageHeader title={t("h1")} fallback="/mer" />
         <div className="rounded-2xl border border-holo-cyan/30 bg-holo-cyan/10 p-5 text-center">
           <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-holo-cyan/15 text-holo-cyan ring-1 ring-holo-cyan/30">
             <IconCheck size={24} />
@@ -126,11 +123,7 @@ export default function InvitePage() {
 
   return (
     <div className="mx-auto max-w-md space-y-6">
-      <header>
-        <PageBackButton />
-        <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
-        <p className="mt-1 text-sm text-ink-muted">{t("subtitle")}</p>
-      </header>
+      <SubpageHeader title={t("h1")} subtitle={t("subtitle")} fallback="/mer" />
 
       {/* Framsteg mot nästa månad */}
       <div className="rounded-2xl border border-holo-cyan/30 bg-holo-cyan/10 p-4">

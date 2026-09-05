@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "@/i18n/navigation";
 import type { ProductDetailData } from "@/services/products";
 import { ProductDetailView } from "@/components/features/product-detail-view";
-import { SiteHeader } from "@/components/layout/site-header";
 import {
   registerOverlayOpen,
   notifyProductOverlayOpen,
@@ -279,27 +278,38 @@ export function ProductOverlayHost() {
         style={{ touchAction: "pan-y" }}
         className="overlay-in absolute inset-x-0 bottom-0 top-[env(safe-area-inset-top)] overflow-y-auto overscroll-none bg-surface pb-[calc(4rem+env(safe-area-inset-bottom))] outline-none"
       >
-        <SiteHeader />
-        {/* showBack: synlig bakåtknapp även i overlayn (utöver svep-tillbaka) —
-            router.back() stänger overlayn via history-markören → listan avtäcks.
-            Bra för upptäckbarhet; svep-gesten är orörd. */}
-        {data ? <ProductDetailView data={data} showBack /> : <DetailSkeleton />}
+        {/* Inget logotyphuvud i overlayn sedan 2026-09-05 — produktvyn bär sin
+            egen flytande bakåtcirkel (router.back() stänger via history-markören
+            → listan avtäcks). Svep-gesten är orörd. */}
+        {data ? <ProductDetailView data={data} context="overlay" /> : <DetailSkeleton />}
       </div>
     </div>
   );
 }
 
+/** Samma siluett som vyns "Hjälte"-layout: scen, ark med titel/pris/knappar/graf. */
 function DetailSkeleton() {
   return (
-    <div className="mx-auto max-w-7xl px-2.5 py-10 sm:px-6">
-      <div className="skeleton h-4 w-40" />
-      <div className="skeleton mt-4 h-9 w-3/4" />
-      <div className="skeleton mt-2 h-4 w-1/2" />
-      <div className="mt-8 grid gap-6 lg:grid-cols-[320px_1fr]">
-        <div className="skeleton aspect-[4/3] w-full lg:aspect-auto lg:h-72" />
-        <div className="skeleton h-72 w-full" />
+    <div>
+      <div className="flex h-[300px] items-center justify-center pt-6">
+        <div className="skeleton h-[232px] w-[232px] rounded-xl" />
       </div>
-      <div className="skeleton mt-6 h-24 w-full" />
+      <div className="relative -mt-5 rounded-t-[24px] border-t border-surface-border bg-surface px-2.5 pt-5">
+        <div className="skeleton h-7 w-3/4" />
+        <div className="skeleton mt-2 h-4 w-1/2" />
+        <div className="mt-5 flex items-end justify-between">
+          <div>
+            <div className="skeleton h-3 w-28" />
+            <div className="skeleton mt-2 h-9 w-36" />
+          </div>
+          <div className="skeleton h-6 w-16 rounded-full" />
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2.5">
+          <div className="skeleton h-12 w-full rounded-lg" />
+          <div className="skeleton h-12 w-full rounded-lg" />
+        </div>
+        <div className="skeleton mt-6 h-44 w-full" />
+      </div>
     </div>
   );
 }

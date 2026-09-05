@@ -26,7 +26,7 @@ import {
 } from "@/services/achievements";
 import { ACHIEVEMENT_ICONS } from "@/components/features/achievement-badges";
 import { ProgressBar } from "@/components/ui/progress-bar";
-import { PageBackButton } from "@/components/layout/page-back-button";
+import { SubpageHeader } from "@/components/layout/subpage-header";
 import { IconCheck } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
@@ -61,10 +61,7 @@ export default async function AchievementsPage() {
 
   return (
     <div className="mx-auto max-w-md space-y-4">
-      <header className="flex items-center gap-2">
-        <PageBackButton />
-        <h1 className="font-display text-2xl font-bold text-ink">{t("title")}</h1>
-      </header>
+      <SubpageHeader title={t("title")} fallback="/mer" />
 
       <section className="rounded-2xl border border-surface-border bg-surface-raised/40 p-4">
         <div className="flex items-baseline justify-between gap-3">

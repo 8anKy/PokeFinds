@@ -97,6 +97,21 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   ⛔ Navigationsposter (header, sidfot, Mer) länkar fortfarande till sidan; bara PROMPTER öppnar arket.
   Vaktat av `restock-pause-copy`/`price-alert-pause`/`watchlist-limit-copy-sync` (porterade till
   spec-raderna) + `paywall-open.test.ts`.
+- **PRODUKTVYN = "HJÄLTE" + EN BAKÅTKNAPP I HELA APPEN (ägarbeslut 2026-09-05, gren `feat/produktvy-hjalte`)**:
+  på mobil är produktbilden en scen över hela bredden med en flytande bakåtcirkel, ett rundat ark glider upp
+  med titel → pris (`LivePricePanel`, ingen kortram) → två lika breda knappar → prishistorik (`ProductPriceCard`
+  `plain`) → en rad som scrollar till butikerna; när scenen scrollat bort tar en smal rad (cirkel + namn + pris)
+  över. Inget logotyphuvud, inga brödsmulor, ingen "Tillbaka"-rad på mobil (desktop behåller brödsmulor + två
+  spalter). Overlayn renderar INTE `SiteHeader` längre. Butiksraderna bär butikens logga (`RetailerLogo`,
+  44 px kvadrat med 10 px radie, "Lägst"-tagg på första köpbara raden). ⛔ **`BackCircle` (`ui/back-circle.tsx`)
+  är appens ENDA bakåtknapp** — `PageBackButton` är BORTTAGEN; undersidor renderar `SubpageHeader`
+  (cirkel + titel + EN högeråtgärd som `CircleButton`) och MÅSTE stå i `lib/subpage-routes.ts`, där
+  `SiteHeaderGate` döljer logotyphuvudet på mobil (annars dubbel chrome; `tests/unit/subpage-routes.test.ts`).
+  Loggorna: `scripts/fetch-retailer-logos.ts` bygger färdiga 128×128-plattor (ljus/mörk botten efter märkets
+  ljushet) i `public/retailer-logos/` och skriver `Retailer.logoUrl` med `--apply` (41 av 50 har en; resten
+  får sin initial). Cardmarket = deras officiella märke (help.cardmarket.com/en/Downloads, fritt för den som
+  länkar). ⛔ Loggorna är IDENTIFIERARE vid butikens egen annons (referensbruk) — ber en butik oss ta bort sin:
+  fil + logoUrl bort samma dag. Design-canvas: memory `product-view-redesign-directions`.
 - ⛔ **TRE TAL OM ETT SET, ALDRIG BLANDADE**: `totalCards` = printedTotal (talet på kortet, som skannern
   läser — byt ALDRIG mening på den); `totalCardsFull` = hela setet inkl. secret rares (kompletteringens
   nämnare); master set-nämnaren = de TRYCKNINGAR VI listar, aldrig TCGdex tal — en nämnare användaren inte

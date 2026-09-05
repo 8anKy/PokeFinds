@@ -10,7 +10,7 @@ import { EDGE_ZONE_PX, lockAxis, resolveBackSwipe } from "@/lib/swipe-gesture";
  * grupp, profil, sparade. Samma känsla som produkt-overlayns stäng-svep — sidan
  * följer fingret från vänsterkanten och glider ut när svepet passerar tröskeln
  * (lib/swipe-gesture). Bakåt = webbläsarhistoriken (router.back), utan historik
- * (djuplänk) landar vi på `fallback` — samma regel som PageBackButton.
+ * (djuplänk) landar vi på `fallback` — samma regel som BackCircle (ui/back-circle).
  *
  * Bara svep som BÖRJAR i kantzonen (EDGE_ZONE_PX) räknas; övriga vågräta drag
  * tillhör det som ligger under (SwipeTabs, chips-rader, grafer). Ytor som äger

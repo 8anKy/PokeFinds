@@ -5,6 +5,7 @@ import { Link } from "@/i18n/navigation";
 import { auth } from "@/lib/auth";
 import { communityV2Request } from "@/lib/community-v2-server";
 import { IconChevronLeft } from "@/components/ui/icons";
+import { SubpageHeader } from "@/components/layout/subpage-header";
 import { SwipeBack } from "@/components/ui/swipe-back";
 import { SavedThreads } from "@/components/community/saved-threads";
 import { getLikedFeed, getSavedFeed } from "@/services/community";
@@ -43,14 +44,15 @@ export default async function SavedThreadsPage({ params }: PageProps) {
   return (
     <SwipeBack fallback="/forum">
       <div className="mx-auto w-full max-w-3xl px-2.5 py-6 sm:px-6">
+        <SubpageHeader href="/forum" title={t("savedTitle")} subtitle={t("h1")} mobileOnly />
         <Link
           href="/forum"
-          className="inline-flex items-center gap-1 text-sm text-ink-muted hover:text-holo-cyan"
+          className="hidden items-center gap-1 text-sm text-ink-muted hover:text-holo-cyan lg:inline-flex"
         >
           <IconChevronLeft size={16} />
           {t("h1")}
         </Link>
-        <h1 className="mt-3 font-display text-3xl font-bold text-ink">{t("savedTitle")}</h1>
+        <h1 className="hidden font-display text-3xl font-bold text-ink lg:mt-3 lg:block">{t("savedTitle")}</h1>
         <div className="mt-4">
           <SavedThreads saved={saved} liked={liked} />
         </div>
