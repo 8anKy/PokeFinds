@@ -67,6 +67,12 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   `/community` = "snart här" som förut. ⛔ Lansering = släpp 1.2 i App Store OCH sätt `COMMUNITY_V2_PUBLIC=1`
   i Railway (bakas in vid bygget) OCH skapa Discord-kanalen + `DISCORD_MARKET_CHANNEL_ID`. Kräver ett NYTT
   Codemagic-bygge för att UA-taggen ska finnas (`appendUserAgent` i `capacitor.config.ts`).
+  **Forumregler + ordfilter sedan 2026-09-05**: `User.forumRulesAcceptedAt` — dialogen (`ForumRulesGate`) är
+  bekvämlighet, REGELN bor på servern (`lib/forum-rules.ts`: tråd/svar ⇒ 403 + kod `FORUM_RULES`). Ordfiltret
+  (`lib/profanity.ts`) BLOCKERAR vid skrivning (kod `PROFANITY`), maskerar aldrig; listan är medvetet smal
+  (vardagsord som "fan", "skitbra", "prick" är utelämnade med flit) — lägg till ord där, aldrig regexar i rutter.
+  `ServiceError.code` följer med i API-svaret och blir `ApiError.code` i klienten, som översätter i stället
+  för att visa serverns svenska text.
 - ⛔ **TRE TAL OM ETT SET, ALDRIG BLANDADE**: `totalCards` = printedTotal (talet på kortet, som skannern
   läser — byt ALDRIG mening på den); `totalCardsFull` = hela setet inkl. secret rares (kompletteringens
   nämnare); master set-nämnaren = de TRYCKNINGAR VI listar, aldrig TCGdex tal — en nämnare användaren inte
@@ -451,6 +457,11 @@ klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
   som standard-PrestaShop i toppen och avslutar med ett andra `User-agent: *` + `Disallow: /` (lurade två
   granskningar). `mapPool` (`src/lib/concurrency.ts`) i batch-jobb; runner-loopen är sekventiell med flit
   (billigast-vinner + restock-dedup).
+  ⛔ **`politeFetch` FÖLJER OMDIRIGERINGAR SJÄLV (2026-09-05)**: Nodes fetch stryker `cookie` när origin byts —
+  även apex → www. goblinen.com 301:ar `/products/<handle>.js` till www, vår `localization=SE`-pinne försvann och
+  US-runnern fick Shopify Markets EX-MOMS-pris (639,20 = 799/1,25) på alla bevakade Goblinen-länkar; products.json
+  (200 direkt på apex) var opåverkad. Inom samma sajt behålls våra headers (`isSameSiteRedirect`), till annan domän
+  följs hoppet utan dem. En butiks-URL i `WatchedListing` bör ändå vara butikens KANONISKA värd.
 
 ## Plattform & stack
 - **DB**: PROD = Neon serverless Postgres (Frankfurt), `NEON_DATABASE_URL` i `.env`. DEV = lokal PostgreSQL 18
