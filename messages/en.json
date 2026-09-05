@@ -2084,14 +2084,13 @@
   "Pricing": {
     "metaTitle": "Pricing and Pro",
     "metaDescription": "Get started free with Foilio or upgrade to Pro for unlimited watches, unlimited card scanning and AI grading.",
-    "eyebrow": "Foilio Pro",
     "heroWord": "Pro.",
     "heroPrice": "49 kr a month.",
     "heroSub": "Cancel any time. You keep Pro until the end of the period.",
     "cardHint": "Touch the card",
     "card": {
       "aria": "Foilio Pro – 49 kr a month",
-      "name": "PRO",
+      "name": "Foilio",
       "price": "49 kr",
       "per": "/mo",
       "rarity": "★ Rare",

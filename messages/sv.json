@@ -2084,14 +2084,13 @@
   "Pricing": {
     "metaTitle": "Priser och Pro",
     "metaDescription": "Kom igång gratis med Foilio eller uppgradera till Pro för obegränsade bevakningar, obegränsad kortskanning och AI-gradering.",
-    "eyebrow": "Foilio Pro",
     "heroWord": "Pro.",
     "heroPrice": "49 kr i månaden.",
     "heroSub": "Säg upp när du vill. Du behåller Pro perioden ut.",
     "cardHint": "Rör kortet",
     "card": {
       "aria": "Foilio Pro – 49 kr i månaden",
-      "name": "PRO",
+      "name": "Foilio",
       "price": "49 kr",
       "per": "/mån",
       "rarity": "★ Sällsynt",

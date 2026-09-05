@@ -154,19 +154,23 @@ export function ProHoloCard({
             </div>
 
             <div className={cn("holo-card__art flex-1", hero ? "my-2.5" : "my-2")}>
+              {/* Löv-F-märket, samma fil som headern (public/brand). Ett bokstavs-F
+                  här lästes som ett annat varumärkes F (ägaren 2026-09-05). */}
               <div className="absolute inset-0 flex items-center justify-center">
-                <span
-                  className={cn(
-                    "font-display font-extrabold tracking-[-0.04em] text-white/95",
-                    hero ? "text-[64px]" : "text-[50px]"
-                  )}
-                  style={{ textShadow: "0 2px 24px rgba(45,212,191,.6)" }}
-                >
-                  F
-                </span>
-                <span className={cn("ml-1.5 self-end font-display font-bold tracking-[0.2em] text-holo-cyan", hero ? "mb-3.5 text-sm" : "mb-3 text-xs")}>
-                  {t("card.name")}
-                </span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brand/foilio-mark.png"
+                  alt=""
+                  width={hero ? 96 : 74}
+                  height={hero ? 96 : 74}
+                  draggable={false}
+                  className="select-none"
+                  style={{
+                    width: hero ? 96 : 74,
+                    height: hero ? 96 : 74,
+                    filter: "drop-shadow(0 4px 22px rgba(45,212,191,.55))",
+                  }}
+                />
               </div>
             </div>
 

@@ -64,13 +64,16 @@ export default async function PricingPage({
     <div className="mx-auto max-w-5xl px-2.5 pb-16 pt-6 sm:px-6 lg:pt-16">
       <PageBackButton fallback="/" />
 
-      {/* ⛔ Pausnotiserna står FÖRST, ovanför pris och kort, med flit: under
-          köpknappen hade de varit en brasklapp efter beslutet. De ska läsas innan
-          priset. Prislarmen har ingen Discord-utväg — det finns ingen gratis kanal
-          som ersätter dem — så den notisen står för sig själv, utan CTA. */}
+      {/* ⛔ Pausnotisen står FÖRST, ovanför pris och kort, med flit: under
+          köpknappen hade den varit en brasklapp efter beslutet. Den ska läsas innan
+          priset. EN notis, aldrig två (ägarbeslut 2026-09-05): är restock-larmen
+          pausade visas bara restock-notisen (den har Discord-utvägen); prisnotisen
+          visas bara när prislarmen är det ENDA som är pausat. Spec-bladet säljer
+          ändå inga pausade larm — raderna följer flaggorna — så notisen är
+          "det här gäller ändå", inte den enda vakten. */}
       {(pricePaused || restockPaused) && (
         <div className="mb-8 flex flex-col gap-3">
-          {pricePaused && (
+          {pricePaused && !restockPaused && (
             <div className="rounded-xl border border-holo-gold/30 bg-holo-gold/5 px-5 py-4 text-sm text-ink-muted">
               <p>{t("priceAlertsPausedNotice")}</p>
             </div>
@@ -96,8 +99,9 @@ export default async function PricingPage({
         {/* Vänster (mobil: överst): ordet, priset, kortet, köpknappen. Sticky på
             desktop så knappen står bredvid spec-bladet hela vägen ner. */}
         <section className="flex flex-col items-center text-center lg:sticky lg:top-24 lg:self-start lg:items-start lg:text-left">
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-holo-cyan">{t("eyebrow")}</p>
-          <h1 className="holo-word mt-2 font-display text-[76px] font-extrabold leading-[0.9] tracking-[-0.05em] sm:text-[88px]">
+          {/* Ordet står EN gång här; kortet säger "Foilio", inte "Pro" igen
+              (ägaren 2026-09-05: "Pro på alldeles för många ställen"). */}
+          <h1 className="holo-word font-display text-[76px] font-extrabold leading-[0.9] tracking-[-0.05em] sm:text-[88px]">
             {t("heroWord")}
           </h1>
           <p className="mt-3 font-display text-2xl font-semibold tracking-tight text-ink" data-price>
