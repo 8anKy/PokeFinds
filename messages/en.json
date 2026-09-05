@@ -297,6 +297,7 @@
   },
   "Collection": {
     "sellImageReadFailed": "Couldn't read one of the images. Try another file.",
+    "valueChartEmpty": "We have not tracked your collection value long enough yet — the curve grows from here.",
     "metaTitle": "My collection",
     "h1": "My collection",
     "unknownItem": "Unknown item",

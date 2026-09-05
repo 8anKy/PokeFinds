@@ -297,6 +297,7 @@
   },
   "Collection": {
     "sellImageReadFailed": "Kunde inte läsa en av bilderna. Prova en annan fil.",
+    "valueChartEmpty": "Vi har inte följt din samlings värde länge nog ännu — kurvan växer härifrån.",
     "metaTitle": "Min samling",
     "h1": "Min samling",
     "unknownItem": "Okänt objekt",

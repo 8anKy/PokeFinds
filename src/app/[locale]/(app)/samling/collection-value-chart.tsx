@@ -151,7 +151,7 @@ export function CollectionValueChart({
           {heroChange} {t(r.periodKey)}
         </p>
         <div className="-mx-2.5 mt-5 sm:-mx-6">
-          <PriceChartLazy data={filtered} minimal />
+          <PriceChartLazy data={filtered} minimal emptyDescription={t("valueChartEmpty")} />
         </div>
         {selector}
       </div>
@@ -168,7 +168,7 @@ export function CollectionValueChart({
           <span className="hidden text-xs text-ink-muted sm:inline">{t(r.periodKey)}</span>
         </div>
       </div>
-      <PriceChartLazy data={filtered} minimal />
+      <PriceChartLazy data={filtered} minimal emptyDescription={t("valueChartEmpty")} />
     </div>
   );
 }

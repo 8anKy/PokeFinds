@@ -41,6 +41,12 @@ export interface PriceChartProps {
   /** Avskalad variant (portfölj): döljer rutnät + y-axelns siffror, behåller
    *  linje/datum/endpoint/tooltip. Y-domänen skalas fortfarande till datat. */
   minimal?: boolean;
+  /**
+   * Tomtillståndets text. Standardtexten talar om "den här produkten" — på
+   * samlingens värdegraf var det fel subjekt (QA 2026-09-05), så anroparen får
+   * sätta sin egen.
+   */
+  emptyDescription?: string;
 }
 
 const BRAND_LINE = "#2dd4bf"; // turquoise — brand signature line
@@ -305,6 +311,7 @@ export function PriceChart({
   className,
   monthly = false,
   minimal = false,
+  emptyDescription,
 }: PriceChartProps) {
   const t = useTranslations("Detail");
   const locale = useLocale();
@@ -346,7 +353,7 @@ export function PriceChart({
     return (
       <EmptyState
         title={t("chartEmptyTitle")}
-        description={t("chartEmptyDesc")}
+        description={emptyDescription ?? t("chartEmptyDesc")}
         className={className}
       />
     );
