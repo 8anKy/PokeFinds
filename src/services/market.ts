@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { cachedRead } from "@/lib/cache";
 import { utcDaysAgo } from "@/lib/utils";
 import { NOT_HIDDEN } from "@/lib/product-visibility";
+import { MOVER_MIN_POINTS, summarizeMove } from "@/lib/market-movers";
 
 // UTC — samma nyckelrymd som PriceSnapshot.date (@db.Date). Se utcDaysAgo.
 const daysAgo = utcDaysAgo;
@@ -15,45 +16,31 @@ interface ProductChange {
   changePercent: number;
 }
 
-/**
- * Golv för trendlistor: 10 kr. Endagssnitt (avg1) för billiga bulk-kort är
- * extremt volatila på Cardmarket (en enda försäljning à €0,02 ger ±6000 %) —
- * riktiga priser, men meningslösa som "marknadsrörelser".
- */
-const MOVER_MIN_PRICE_ORE = 1000;
-
 /** Beräknar prisförändring per produkt utifrån snapshots de senaste `days` dagarna.
- *  Aggregeras i SQL (första/sista avgPrice per produkt) — att hämta ALLA snapshot-
- *  rader (~150k) hit och vika dem i JS var Neons enskilt största egress-post
- *  (~15 MB/anrop). Nu returneras ≤1 liten rad per produkt. */
+ *  Aggregeras i SQL (dygnsvärdena per produkt som EN array, ≤ 8 tal) — att hämta
+ *  ALLA snapshot-rader (~150k) hit och vika dem i JS var Neons enskilt största
+ *  egress-post (~15 MB/anrop). Nu returneras 1 liten rad per produkt.
+ *  ⛔ Domen (median av halvorna, golv, rimlighetstak) bor i lib/market-movers.ts —
+ *  första-mot-sista gjorde listan till en glitchdetektor, se filhuvudet där. */
 async function computeChangesRaw(days = 7): Promise<ProductChange[]> {
   // Explicit datumsträng + ::date-cast: en rå timestamp-parameter jämförs mot
   // DATE-kolumnen med andra tidszons-/cast-regler än Prismas query engine och
   // förskjuter fönstret en dag.
   const since = daysAgo(days);
   const sinceStr = `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, "0")}-${String(since.getDate()).padStart(2, "0")}`;
-  const rows = await prisma.$queryRaw<
-    { productId: string; first: number; last: number }[]
-  >`
+  const rows = await prisma.$queryRaw<{ productId: string; prices: number[] }[]>`
     SELECT "productId",
-           (array_agg("avgPrice" ORDER BY date ASC))[1]  AS first,
-           (array_agg("avgPrice" ORDER BY date DESC))[1] AS last
+           array_agg("avgPrice" ORDER BY date ASC) AS prices
     FROM "PriceSnapshot"
     WHERE date >= ${sinceStr}::date
     GROUP BY "productId"
-    HAVING count(*) >= 2`;
+    HAVING count(*) >= ${MOVER_MIN_POINTS}`;
 
   const changes: ProductChange[] = [];
-  for (const { productId, first, last } of rows) {
-    if (first < MOVER_MIN_PRICE_ORE || last < MOVER_MIN_PRICE_ORE) continue;
-    const change = last - first;
-    changes.push({
-      productId,
-      firstPrice: first,
-      lastPrice: last,
-      change,
-      changePercent: Math.round((change / first) * 10000) / 100,
-    });
+  for (const { productId, prices } of rows) {
+    const move = summarizeMove(prices.map(Number));
+    if (!move) continue;
+    changes.push({ productId, ...move });
   }
   return changes;
 }
