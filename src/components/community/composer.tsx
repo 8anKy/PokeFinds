@@ -116,7 +116,9 @@ export function Composer({ initialGroup }: { initialGroup?: string }) {
         groupSlug,
         title: title.trim(),
         content: content.trim(),
-        imageKeys: images.map((i) => i.key).filter((k): k is string => !!k),
+        images: images
+          .filter((i) => !!i.key)
+          .map((i) => ({ key: i.key as string, thumbKey: i.thumbKey })),
       };
       if (marketplace && kind) {
         body.listingKind = kind;

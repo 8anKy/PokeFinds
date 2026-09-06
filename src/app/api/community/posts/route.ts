@@ -7,7 +7,12 @@ import { prisma } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
 import { ServiceError } from "@/lib/errors";
 import { assertCommunityV2 } from "@/lib/community-v2-server";
-import { imageUrl, isForumImageKey, MAX_IMAGES_PER_POST } from "@/lib/object-storage";
+import {
+  buildThumbKey,
+  imageUrl,
+  isForumImageKey,
+  MAX_IMAGES_PER_POST,
+} from "@/lib/object-storage";
 import { LISTING_CONDITIONS, validateListing } from "@/lib/listing-rules";
 import { assertForumRulesAccepted, logModerationEvent } from "@/lib/forum-rules";
 import { findProfanity, PROFANITY_CODE } from "@/lib/profanity";
@@ -44,10 +49,20 @@ const createSchema = z.object({
   groupSlug: z.string().trim().min(1).max(64),
   title: z.string().trim().min(3, "Titeln är för kort.").max(120, "Titeln är för lång."),
   content: z.string().trim().min(1, "Skriv något i tråden.").max(10000),
+  /** Kvar för klienter ur ett äldre bygge (appens WebView cachar sin JS). */
   imageKeys: z
     .array(z.string().refine(isForumImageKey, "Ogiltig bildnyckel."))
     .max(MAX_IMAGES_PER_POST)
     .default([]),
+  images: z
+    .array(
+      z.object({
+        key: z.string().refine(isForumImageKey, "Ogiltig bildnyckel."),
+        thumbKey: z.string().nullish(),
+      })
+    )
+    .max(MAX_IMAGES_PER_POST)
+    .optional(),
   listingKind: z.nativeEnum(ListingKind).optional(),
   /** Kronor från formuläret — konverteras till öre här, aldrig i klienten. */
   priceKr: z.number().nonnegative().max(1_000_000).optional(),
@@ -111,9 +126,16 @@ export async function POST(req: Request) {
     // Bildnycklar får bara peka på användarens EGET prefix — annars kan man
     // "låna" någon annans uppladdning genom att gissa nyckeln.
     const ownPrefix = `forum/${user.id.replace(/[^A-Za-z0-9_-]/g, "")}/`;
-    if (input.imageKeys.some((k) => !k.startsWith(ownPrefix))) {
+    const picked = input.images ?? input.imageKeys.map((key) => ({ key, thumbKey: null }));
+    if (picked.some((i) => !i.key.startsWith(ownPrefix))) {
       throw new ServiceError(400, "Ogiltig bildnyckel.");
     }
+    // ⛔ Miniatyrnyckeln HÄRLEDS, den tas aldrig på klientens ord: en påhittad
+    // nyckel hade annars kunnat peka tråden på någon annans bild.
+    const postImages = picked.map((i) => ({
+      key: i.key,
+      thumbKey: i.thumbKey && i.thumbKey === buildThumbKey(i.key) ? i.thumbKey : null,
+    }));
 
     const priceOre = input.priceKr != null ? Math.round(input.priceKr * 100) : null;
 
@@ -147,7 +169,7 @@ export async function POST(req: Request) {
       groupId: group.id,
       title: input.title,
       content: input.content,
-      images: input.imageKeys.map((key) => ({ key })),
+      images: postImages,
       listingKind: input.listingKind ?? null,
       priceOre: group.isMarketplace ? priceOre : null,
       condition: group.isMarketplace ? (input.condition ?? null) : null,

@@ -66,6 +66,16 @@ paths:
   uppladdning går genom `/api/community/upload` (klienten skalar ner till ≤1600 px JPEG — EXIF/GPS försvinner),
   visning via SIGNERADE läs-URL:er (7 dygn, deterministiska per timme så webbläsarcachen träffar) — ⛔ aldrig en
   lagrad URL, bara nyckeln `forum/<userId>/<uuid>.<ext>` (prefixet gör GDPR-radering till ett list+delete-anrop).
+  ⛔ **TRÅDLISTAN VISAR MINIATYREN, ALDRIG ORIGINALET (2026-09-07).** Kortets bild är 80×80 men originalet är
+  ~300 kB (mätt), så ett flöde på tjugo kort laddade ~6 MB — på mobilnätet syntes det som att bilderna
+  "aldrig kom in" medan tråden man klickade på visade dem. KLIENTEN gör en ≤320 px-kopia i samma canvas och
+  skickar den som `thumb` i uppladdningen; nyckeln HÄRLEDS (`buildThumbKey`: `…uuid_t.<ext>`) men LAGRAS i
+  `PostImage.thumbKey` — null betyder "ingen miniatyr finns" och listan faller tillbaka på originalet, i
+  stället för att gissa en nyckel och gå på en 404. ⛔ Servern skalar ALDRIG om bilder: Railway-processen
+  återvinns vid ~550 MB, och en bildpipeline där (sharp/Nexts optimizer/en proxyrutt) är precis det taket
+  inte tål. ⛔ Rutten litar aldrig på klientens `thumbKey` — den jämförs mot den härledda, annars kunde en
+  tråd peka sin miniatyr på någon annans bild. Signerings-URL:en är deterministisk per **DYGN** (var timme
+  till 09-07 — varje bild blev en ny URL varje timme och därmed en ny nedladdning).
   ⛔ Ingen presignerad PUT från webbläsaren: CORS står inte bland bucketens stödda funktioner. Utan `S3_*`-env
   svarar `storageEnabled()` falskt och bildvalet döljs — forumet fungerar utan bilder.
 - **TRADERA-ANNONSER PÅ PROFILEN = EGEN SPAK (`User.showTraderaListings`, default av).** Kopplingen gavs för att

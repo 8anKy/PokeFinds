@@ -6,7 +6,9 @@ import { assertCommunityV2 } from "@/lib/community-v2-server";
 import {
   ALLOWED_IMAGE_TYPES,
   buildImageKey,
+  buildThumbKey,
   MAX_IMAGE_BYTES,
+  MAX_THUMB_BYTES,
   putImage,
   sniffImageType,
   storageEnabled,
@@ -29,9 +31,16 @@ function parseDim(value: FormDataEntryValue | null): number | null {
 }
 
 /**
- * Tar emot EN bild (multipart `file`, valfritt `width`/`height`), verifierar
- * typen på magic bytes och lägger den i bucketen under användarens prefix.
- * Svarar med nyckeln — tråden binder nyckeln till sig vid publiceringen.
+ * Tar emot EN bild (multipart `file`, valfritt `width`/`height` samt `thumb`),
+ * verifierar typen på magic bytes och lägger den i bucketen under användarens
+ * prefix. Svarar med nyckeln — tråden binder nyckeln till sig vid publiceringen.
+ *
+ * `thumb` är samma bild i ≤320 px, gjord av KLIENTEN (canvas): trådlistan visar
+ * 80×80 och originalet är ~300 kB, så utan miniatyr laddar ett flöde på tjugo
+ * kort ~6 MB. ⛔ Servern skalar inte om — Railway-processen har ett minnestak
+ * på ~550 MB med självomstart, och en bildpipeline där är precis det taket
+ * inte tål. Uteblir miniatyren är det inget fel: tråden faller tillbaka på
+ * originalet (PostImage.thumbKey null).
  */
 export async function POST(req: Request) {
   try {
@@ -67,8 +76,34 @@ export async function POST(req: Request) {
     if (!key) throw new ServiceError(400, "Kunde inte skapa en bildnyckel.");
     await putImage(key, bytes, type);
 
+    // Miniatyren är best effort: originalet ligger redan uppe och en tråd utan
+    // miniatyr är fullt läsbar. Aldrig ett kastat fel här.
+    let thumbKey: string | null = null;
+    const thumb = form.get("thumb");
+    if (thumb instanceof Blob && thumb.size > 0 && thumb.size <= MAX_THUMB_BYTES) {
+      try {
+        const thumbBytes = new Uint8Array(await thumb.arrayBuffer());
+        const thumbType = sniffImageType(thumbBytes);
+        const derived = thumbType && ALLOWED_IMAGE_TYPES.has(thumbType) ? buildThumbKey(key) : null;
+        if (derived && thumbType) {
+          await putImage(derived, thumbBytes, thumbType);
+          thumbKey = derived;
+        }
+      } catch (err) {
+        console.error(
+          "[community] miniatyren kunde inte sparas:",
+          err instanceof Error ? err.message : err
+        );
+      }
+    }
+
     return jsonOk(
-      { key, width: parseDim(form.get("width")), height: parseDim(form.get("height")) },
+      {
+        key,
+        thumbKey,
+        width: parseDim(form.get("width")),
+        height: parseDim(form.get("height")),
+      },
       { status: 201 }
     );
   } catch (e) {

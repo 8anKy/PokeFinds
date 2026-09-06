@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   buildImageKey,
+  buildThumbKey,
   extensionFor,
   isForumImageKey,
+  isForumThumbKey,
   sniffImageType,
   storageConfig,
 } from "@/lib/object-storage";
@@ -22,6 +24,21 @@ describe("object-storage (rena delar)", () => {
     expect(isForumImageKey("forum/u1/../secret.jpg")).toBe(false);
     expect(isForumImageKey("other/u1/0f9c1d2e-1111-4222-8333-444455556666.jpg")).toBe(false);
     expect(isForumImageKey("forum/u1/0f9c1d2e-1111-4222-8333-444455556666.svg")).toBe(false);
+  });
+
+  it("miniatyrnyckeln härleds ur originalets och går inte att hitta på", () => {
+    const key = "forum/u1/0f9c1d2e-1111-4222-8333-444455556666.jpg";
+    const thumb = buildThumbKey(key);
+    expect(thumb).toBe("forum/u1/0f9c1d2e-1111-4222-8333-444455556666_t.jpg");
+    expect(isForumThumbKey(thumb!)).toBe(true);
+    // Ändelsen följer med originalet — annars pekar nyckeln på fel objekt.
+    expect(buildThumbKey("forum/u1/0f9c1d2e-1111-4222-8333-444455556666.png")).toMatch(/_t\.png$/);
+    // ⛔ En miniatyrnyckel är ingen bildnyckel och tvärtom: rutten jämför mot
+    // den HÄRLEDDA nyckeln, så en påhittad kan aldrig peka på någon annans bild.
+    expect(isForumImageKey(thumb!)).toBe(false);
+    expect(isForumThumbKey(key)).toBe(false);
+    expect(buildThumbKey("forum/u1/../secret.jpg")).toBeNull();
+    expect(buildThumbKey(thumb!)).toBeNull();
   });
 
   it("magic bytes avgör typen, inte filändelsen", () => {

@@ -25,6 +25,9 @@
 import { createHash, randomUUID } from "node:crypto";
 
 export const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // efter klientens nedskalning ~300 kB
+/** Miniatyren är ~10 kB — taket är bara en vakt mot en klient som skickar fel fil. */
+export const MAX_THUMB_BYTES = 256 * 1024;
+export const THUMB_MAX_EDGE = 320;
 export const MAX_IMAGES_PER_POST = 6;
 export const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 /** S3 tillåter max 7 dygn för presignerade URL:er. */
@@ -89,6 +92,23 @@ export function buildImageKey(userId: string, contentType: string): string | nul
 
 export function isForumImageKey(key: string): boolean {
   return /^forum\/[A-Za-z0-9_-]+\/[0-9a-f-]{36}\.(jpg|png|webp)$/.test(key);
+}
+
+/**
+ * Miniatyrens nyckel HÄRLEDS ur originalets (`…uuid.jpg` → `…uuid_t.jpg`) så
+ * att servern kan verifiera den i stället för att lita på klienten: en klient
+ * som hittar på en nyckel kan annars peka en tråds miniatyr på någon annans
+ * bild. Att den ändå LAGRAS i `PostImage.thumbKey` är för att null ska betyda
+ * "ingen miniatyr finns" — gamla bilder ska falla tillbaka på originalet, inte
+ * gå på en 404.
+ */
+export function buildThumbKey(key: string): string | null {
+  if (!isForumImageKey(key)) return null;
+  return key.replace(/\.(jpg|png|webp)$/, "_t.$1");
+}
+
+export function isForumThumbKey(key: string): boolean {
+  return /^forum\/[A-Za-z0-9_-]+\/[0-9a-f-]{36}_t\.(jpg|png|webp)$/.test(key);
 }
 
 /** Enkel magic-byte-koll så en omdöpt fil inte går igenom på MIME-typen ensam. */
@@ -195,19 +215,22 @@ export async function deleteUserImages(userId: string): Promise<number> {
 }
 
 /**
- * Signerad läs-URL. Deterministisk per (nyckel, timme): signeringstiden
- * avrundas nedåt till hel timme så samma bild ger SAMMA URL under en timme —
- * webbläsarens bildcache träffar i stället för att hämta om vid varje render.
+ * Signerad läs-URL. Deterministisk per (nyckel, DYGN): signeringstiden avrundas
+ * nedåt till hel UTC-dag så samma bild ger SAMMA URL hela dygnet — webbläsarens
+ * bildcache träffar i stället för att hämta om. ⛔ Var en TIMME till 2026-09-07,
+ * vilket gjorde varje bild till en ny URL varje timme och därmed en ny
+ * nedladdning; med 7 dygns giltighet är dygnsvis fortfarande minst 6 dygn kvar
+ * när URL:en skapas sent på dygnet, och våra ISR-sidor är som mest 5 min gamla.
  */
 export async function imageUrl(key: string): Promise<string | null> {
   const cfg = storageConfig();
-  if (!cfg || !isForumImageKey(key)) return null;
+  if (!cfg || (!isForumImageKey(key) && !isForumThumbKey(key))) return null;
   const { client, s3 } = await getClient(cfg);
   presignMod ??= await import("@aws-sdk/s3-request-presigner");
-  const hourBucket = new Date(Math.floor(Date.now() / 3_600_000) * 3_600_000);
+  const dayBucket = new Date(Math.floor(Date.now() / 86_400_000) * 86_400_000);
   return presignMod.getSignedUrl(client, new s3.GetObjectCommand({ Bucket: cfg.bucket, Key: key }), {
     expiresIn: READ_URL_TTL_SECONDS,
-    signingDate: hourBucket,
+    signingDate: dayBucket,
   });
 }
 

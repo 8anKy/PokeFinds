@@ -11,12 +11,17 @@ import { Spinner } from "@/components/ui/spinner";
 export const MAX_IMAGES = 6;
 const MAX_EDGE = 1600;
 const JPEG_QUALITY = 0.82;
+/** Miniatyren som trådlistan visar (kortet är 80×80; 2× för retina + marginal). */
+const THUMB_EDGE = 320;
+const THUMB_QUALITY = 0.72;
 
 export interface PickedImage {
   /** Lokalt id för listan (inte nyckeln — den finns först efter uppladdning). */
   id: string;
   previewUrl: string;
   key: string | null;
+  /** Miniatyrens nyckel, null när den inte gick att göra (flödet klarar sig utan). */
+  thumbKey: string | null;
   width: number | null;
   height: number | null;
   uploading: boolean;
@@ -49,7 +54,32 @@ function hasTransparency(ctx: CanvasRenderingContext2D, w: number, h: number): b
  * — canvasen ritar pixlar, inte metadata. Webbläsaren har redan roterat
  * enligt EXIF-orienteringen när <img> avkodats.
  */
-async function downscale(file: File): Promise<{ blob: Blob; width: number; height: number }> {
+async function encode(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, quality));
+  if (!blob) throw new Error("encode");
+  return blob;
+}
+
+/** Samma bild i ≤320 px — ritas ur den redan nedskalade canvasen, inte ur filen. */
+async function makeThumb(source: HTMLCanvasElement, type: string): Promise<Blob | null> {
+  try {
+    const scale = Math.min(1, THUMB_EDGE / Math.max(source.width, source.height));
+    if (scale >= 1) return null; // redan liten — originalet duger som miniatyr
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(source.width * scale));
+    canvas.height = Math.max(1, Math.round(source.height * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+    return await encode(canvas, type, type === "image/png" ? undefined : THUMB_QUALITY);
+  } catch {
+    return null;
+  }
+}
+
+async function downscale(
+  file: File
+): Promise<{ blob: Blob; thumb: Blob | null; width: number; height: number }> {
   const url = URL.createObjectURL(file);
   try {
     const img = await loadImage(url);
@@ -64,19 +94,25 @@ async function downscale(file: File): Promise<{ blob: Blob; width: number; heigh
     ctx.drawImage(img, 0, 0, width, height);
     const keepPng = file.type === "image/png" && hasTransparency(ctx, width, height);
     const type = keepPng ? "image/png" : "image/jpeg";
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, type, keepPng ? undefined : JPEG_QUALITY)
-    );
-    if (!blob) throw new Error("encode");
-    return { blob, width, height };
+    const blob = await encode(canvas, type, keepPng ? undefined : JPEG_QUALITY);
+    // Samma filtyp som originalet: serverns nyckel behåller ändelsen.
+    const thumb = await makeThumb(canvas, type);
+    return { blob, thumb, width, height };
   } finally {
     URL.revokeObjectURL(url);
   }
 }
 
-async function upload(blob: Blob, width: number, height: number): Promise<{ key: string }> {
+async function upload(
+  blob: Blob,
+  thumb: Blob | null,
+  width: number,
+  height: number
+): Promise<{ key: string; thumbKey: string | null }> {
+  const png = blob.type === "image/png";
   const form = new FormData();
-  form.append("file", blob, blob.type === "image/png" ? "bild.png" : "bild.jpg");
+  form.append("file", blob, png ? "bild.png" : "bild.jpg");
+  if (thumb) form.append("thumb", thumb, png ? "mini.png" : "mini.jpg");
   form.append("width", String(width));
   form.append("height", String(height));
   const res = await fetch("/api/community/upload", {
@@ -84,9 +120,13 @@ async function upload(blob: Blob, width: number, height: number): Promise<{ key:
     body: form,
     credentials: "include",
   });
-  const data = (await res.json().catch(() => null)) as { key?: string; error?: string } | null;
+  const data = (await res.json().catch(() => null)) as {
+    key?: string;
+    thumbKey?: string | null;
+    error?: string;
+  } | null;
   if (!res.ok || !data?.key) throw new Error(data?.error || "upload");
-  return { key: data.key };
+  return { key: data.key, thumbKey: data.thumbKey ?? null };
 }
 
 /**
@@ -138,6 +178,7 @@ export function ImagePicker({
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       previewUrl: URL.createObjectURL(f),
       key: null,
+      thumbKey: null,
       width: null,
       height: null,
       uploading: true,
@@ -149,9 +190,9 @@ export function ImagePicker({
       picked.map(async (file, i) => {
         const entry = entries[i];
         try {
-          const { blob, width, height } = await downscale(file);
-          const { key } = await upload(blob, width, height);
-          patch(entry.id, { key, width, height, uploading: false });
+          const { blob, thumb, width, height } = await downscale(file);
+          const { key, thumbKey } = await upload(blob, thumb, width, height);
+          patch(entry.id, { key, thumbKey, width, height, uploading: false });
         } catch (e) {
           patch(entry.id, {
             uploading: false,

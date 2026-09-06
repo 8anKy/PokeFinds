@@ -195,9 +195,9 @@ model User {
   reputationScore         Int          @default(0)
   // Forumets regler godkända (dialogen i forumet). NULL = inte godkänt ⇒ inga trådar/svar.
   // Grinden ligger på servern (lib/forum-rules.ts), dialogen är bekvämlighet.
-  forumRulesAcceptedAt DateTime?
+  forumRulesAcceptedAt    DateTime?
   // Vilken regelversion som godkändes (lib/forum-rules-version.ts). < aktuell ⇒ fråga igen.
-  forumRulesVersion    Int?
+  forumRulesVersion       Int?
   isPublicCollection      Boolean      @default(false)
   // Visa användarens aktiva Tradera-annonser på den publika profilen. EGEN spak,
   // skild från Tradera-kopplingen: kopplingen gavs för att SÄLJA från samlingen,
@@ -267,10 +267,10 @@ model User {
   blocksReceived   UserBlock[]               @relation("BlockOf")
   chatReports      ChatReport[]
   watchedListings  WatchedListing[]
+  moderationEvents ModerationEvent[]
 
   @@index([email])
   @@index([creatorCodeId])
-  moderationEvents ModerationEvent[]
 }
 
 // Betald kreatörssamarbete (TikTok m.fl.): en kod per kreatör.
@@ -916,16 +916,16 @@ model RestockEvent {
 // ---------- Bevakning & alerts ----------
 
 model WatchlistItem {
-  id           String   @id @default(cuid())
-  userId       String
-  productId    String
-  targetPrice  Int?
-  maxPrice     Int?
-  restockAlert Boolean  @default(true)
-  priceAlert   Boolean  @default(true)
-  channels     Json     @default("[\"IN_APP\",\"EMAIL\"]")
-  isPaused     Boolean  @default(false)
-  createdAt    DateTime @default(now())
+  id                 String    @id @default(cuid())
+  userId             String
+  productId          String
+  targetPrice        Int?
+  maxPrice           Int?
+  restockAlert       Boolean   @default(true)
+  priceAlert         Boolean   @default(true)
+  channels           Json      @default("[\"IN_APP\",\"EMAIL\"]")
+  isPaused           Boolean   @default(false)
+  createdAt          DateTime  @default(now())
   // Prislarmets SPÄRR (2026-09-06): priset vi senast larmade om + när. null = spänd.
   // Målpris: släpps när priset åter ligger över målet. Prisfall: släpps när priset
   // stigit PRICE_ALERT_REARM_PERCENT över larmnivån. Se src/lib/price-alert-rule.ts.
@@ -1130,6 +1130,13 @@ model PostImage {
   id        String   @id @default(cuid())
   postId    String
   key       String
+  // Miniatyr (≤320 px, ~10 kB) som TRÅDLISTAN visar — kortets bild är 80×80 men
+  // `key` är originalet på ~300 kB, och tjugo kort blev ~6 MB på mobilnätet
+  // (mätt 2026-09-07: bilderna "kom aldrig in" i appens flöde). Nyckeln är
+  // härledd ur `key` (buildThumbKey) men LAGRAD — null betyder "ingen miniatyr
+  // finns", och då faller listan tillbaka på originalet i stället för att gått
+  // på en 404. Klienten gör miniatyren; ingen serverbild-CPU (minnestaket).
+  thumbKey  String?
   width     Int?
   height    Int?
   sortOrder Int      @default(0)
@@ -1567,15 +1574,14 @@ model UserAchievement {
   @@index([userId])
 }
 
-
 // Moderationslogg (2026-09-05): försök som ordfiltret stoppade. Ingenting av det
 // publicerades — raden finns så att återfall syns för moderatorerna (admin →
 // Rapporter). `detail` = det normaliserade ordet, aldrig hela texten.
 model ModerationEvent {
   id        String   @id @default(cuid())
   userId    String
-  kind      String   // PROFANITY
-  target    String   // POST | COMMENT
+  kind      String // PROFANITY
+  target    String // POST | COMMENT
   detail    String?
   createdAt DateTime @default(now())
 

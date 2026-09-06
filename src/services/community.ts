@@ -48,7 +48,7 @@ const PRODUCT_SUMMARY_SELECT = {
   lowestPriceOre: true,
 } as const;
 
-const IMAGE_SELECT = { key: true, width: true, height: true } as const;
+const IMAGE_SELECT = { key: true, thumbKey: true, width: true, height: true } as const;
 
 export interface ForumAuthor {
   id: string;
@@ -151,18 +151,30 @@ function excerptOf(content: string): string {
   return flat.length <= 180 ? flat : `${flat.slice(0, 179)}…`;
 }
 
-async function signImages(
-  images: { key: string; width: number | null; height: number | null }[]
-): Promise<ForumImage[]> {
+type StoredImage = {
+  key: string;
+  thumbKey: string | null;
+  width: number | null;
+  height: number | null;
+};
+
+/**
+ * `thumb` = trådlistan, som visar 80×80: signera MINIATYREN när den finns.
+ * Utan den är kortets bild originalet på ~300 kB, och tjugo kort blev ~6 MB —
+ * på mobilnätet syntes det som att bilderna aldrig kom in (mätt 2026-09-07).
+ * Gamla bilder saknar miniatyr och faller tillbaka på originalet; ⛔ gissa
+ * aldrig fram nyckeln, en härledd nyckel utan fil är en trasig bild.
+ */
+async function signImages(images: StoredImage[], opts: { thumb?: boolean } = {}): Promise<ForumImage[]> {
   if (images.length === 0) return [];
-  const urls = await imageUrls(images.map((i) => i.key));
-  return images.map((img, i) => ({ ...img, url: urls[i] ?? null }));
+  const urls = await imageUrls(images.map((i) => (opts.thumb && i.thumbKey ? i.thumbKey : i.key)));
+  return images.map(({ thumbKey: _thumbKey, ...img }, i) => ({ ...img, url: urls[i] ?? null }));
 }
 
 async function toFeedItems(rows: FeedRow[]): Promise<FeedItem[]> {
   // EN signeringsrunda för hela sidan (ren kryptografi, men håll den samlad).
   const flat = rows.flatMap((r) => r.images);
-  const signed = await signImages(flat);
+  const signed = await signImages(flat, { thumb: true });
   let cursor = 0;
   return rows.map((r) => {
     const images = signed.slice(cursor, cursor + r.images.length);
@@ -316,7 +328,7 @@ export interface CreatePostInput {
   groupId: string;
   title: string;
   content: string;
-  images: { key: string; width?: number | null; height?: number | null }[];
+  images: { key: string; thumbKey?: string | null; width?: number | null; height?: number | null }[];
   listingKind?: ListingKind | null;
   priceOre?: number | null;
   condition?: string | null;
@@ -338,6 +350,7 @@ export async function createPost(userId: string, input: CreatePostInput) {
       images: {
         create: images.map((img, i) => ({
           key: img.key,
+          thumbKey: img.thumbKey ?? null,
           width: img.width ?? null,
           height: img.height ?? null,
           sortOrder: i,
@@ -389,7 +402,7 @@ export async function deletePost(postId: string, userId: string, userRole: Role)
     where: { id: postId },
     select: {
       userId: true,
-      images: { select: { key: true } },
+      images: { select: { key: true, thumbKey: true } },
       group: { select: { slug: true } },
     },
   });
@@ -400,7 +413,8 @@ export async function deletePost(postId: string, userId: string, userRole: Role)
   await prisma.communityPost.delete({ where: { id: postId } });
   return {
     deleted: true as const,
-    imageKeys: post.images.map((i) => i.key),
+    // Miniatyren är en egen fil i bucketen — den måste med i städningen.
+    imageKeys: post.images.flatMap((i) => (i.thumbKey ? [i.key, i.thumbKey] : [i.key])),
     groupSlug: post.group?.slug ?? null,
   };
 }
