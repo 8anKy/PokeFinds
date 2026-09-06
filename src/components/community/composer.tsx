@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
+import { useKeyboardInset } from "@/hooks/use-keyboard-inset";
 import { cn } from "@/lib/utils";
 import { apiErrorCode, apiFetch } from "@/lib/client-api";
 import { FORUM_RULES_CODE, PROFANITY_CODE } from "@/lib/profanity";
@@ -37,6 +38,8 @@ export function Composer({ initialGroup }: { initialGroup?: string }) {
   const tCond = useTranslations("Condition");
   const router = useRouter();
   const { toast } = useToast();
+  // Helsidesformulär: tangentbordet ligger ovanpå webbvyn i appen (se hooken).
+  const kbInset = useKeyboardInset();
 
   const [groups, setGroups] = useState<GroupSummary[] | null>(null);
   const [groupSlug, setGroupSlug] = useState(initialGroup ?? "");
@@ -127,6 +130,11 @@ export function Composer({ initialGroup }: { initialGroup?: string }) {
       }
       const res = await apiFetch<{ id: string }>("/api/community/posts", { method: "POST", body });
       toast({ title: t("composerPublished"), variant: "success" });
+      // ⛔ Servern invaliderar ISR-posten (revalidateForum), men Nexts KLIENT-
+      // routercache håller en förhämtad statisk rutt i 5 MINUTER — utan det här
+      // visade /forum den gamla listan tills den tiden gått ut, och tråden såg
+      // ut att "ta fem minuter att publiceras". refresh() tömmer den cachen.
+      router.refresh();
       router.push(`/forum/t/${res.id}`);
     } catch (e) {
       const code = apiErrorCode(e);
@@ -145,6 +153,7 @@ export function Composer({ initialGroup }: { initialGroup?: string }) {
   return (
     <form
       className="space-y-5"
+      style={kbInset ? { paddingBottom: kbInset } : undefined}
       onSubmit={(e) => {
         e.preventDefault();
         void submit();

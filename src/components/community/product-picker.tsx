@@ -113,6 +113,9 @@ export function ProductPicker({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => setFocused(true)}
+        // Förslagslistan (max-h-72) ritas UNDER fältet — reservera plats åt den
+        // när tangentbordet lyfter upp fältet (hooks/use-keyboard-inset.ts).
+        data-kb-reserve="288"
         placeholder={t("composerProductSearch")}
         autoComplete="off"
         role="combobox"
