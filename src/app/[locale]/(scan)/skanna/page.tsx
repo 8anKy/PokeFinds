@@ -1482,11 +1482,10 @@ function Scanner() {
     let dx = 0;
     let dragging = false;
     let axis: "x" | "y" | null = null;
-    /** "back" = granskning → kamera (ingen glidning ut), "close" = lämna skannern. */
+    /** "back" = granskning → kamera, "close" = lämna skannern. */
     let gesture: "back" | "close" = "close";
-    // Ett kort svep räcker för att gå tillbaka ett steg — samma känsla som
-    // iOS kant-svep; att stänga hela skannern kräver fortfarande en tredjedel.
-    const BACK_THRESHOLD_PX = 72;
+    /** Det som följer fingret: granskningspanelen (back) eller hela skannern (close). */
+    let target: HTMLElement = el;
 
     const onStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
@@ -1495,10 +1494,16 @@ function Scanner() {
       dragging = true;
       axis = null;
       dx = 0;
-      gesture = viewRef.current === "review" && streamRef.current ? "back" : "close";
+      const panel = el.querySelector<HTMLElement>("[data-review-panel]");
+      gesture = viewRef.current === "review" && streamRef.current && panel ? "back" : "close";
+      // Tillbaka-gesten drar BARA granskningspanelen (över skannerns svarta yta),
+      // aldrig hela skannern — Utforska under den ska inte blottas vid ett steg
+      // tillbaka. Samma mekanik som produkt-overlayns svep: fingret följer,
+      // förbi tröskeln glider panelen ut, annars fjädrar den tillbaka.
+      target = gesture === "back" && panel ? panel : el;
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
-      el.style.transition = "none";
+      target.style.transition = "none";
     };
     const onMove = (e: TouchEvent) => {
       if (!dragging) return;
@@ -1516,23 +1521,28 @@ function Scanner() {
       }
       e.preventDefault();
       dx = Math.max(0, mx);
-      // Tillbaka-gesten glider inte: under skannern ligger Utforska, och att
-      // blotta den under ett steg-tillbaka läste som "jag lämnar skannern".
-      if (gesture === "close") el.style.transform = `translateX(${dx}px)`;
+      target.style.transform = `translateX(${dx}px)`;
     };
     const onEnd = () => {
       if (!dragging) return;
       dragging = false;
       if (axis !== "x") {
-        el.style.transform = "";
+        target.style.transform = "";
         return;
       }
+      target.style.transition = "transform 0.25s ease";
       if (gesture === "back") {
-        el.style.transform = "";
-        if (dx > BACK_THRESHOLD_PX) backToCapture();
+        // Samma tröskel som produkt-overlayn (en fjärdedel): ett steg tillbaka
+        // ska vara lättare än att stänga hela skannern (en tredjedel nedan).
+        if (dx > target.offsetWidth / 4) {
+          target.style.transform = "translateX(110%)";
+          // Panelen avmonteras när vyn byter — ingen återställning behövs.
+          window.setTimeout(backToCapture, 230);
+        } else {
+          target.style.transform = "";
+        }
         return;
       }
-      el.style.transition = "transform 0.25s ease";
       if (dx > el.offsetWidth / 3) {
         el.style.transform = "translateX(110%)";
         window.setTimeout(() => {
@@ -3054,7 +3064,9 @@ function ReviewView(props: {
   const done = addedCount !== null;
 
   return (
-    <div className="relative z-10 flex min-h-0 flex-1 flex-col bg-surface">
+    // data-review-panel: det som följer fingret vid högersvep (tillbaka till
+    // kameran) — se svep-effekten i ScannerPage.
+    <div data-review-panel className="relative z-10 flex min-h-0 flex-1 flex-col bg-surface">
       <div className="flex-1 overflow-y-auto px-4 pb-40">
         <p className="py-3 text-sm text-ink-muted">
           {t("addingTo")}{" "}
