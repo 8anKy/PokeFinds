@@ -53,3 +53,51 @@ describe("Re-Ment fälls trots att titeln bär ett sealed-formord", () => {
     }
   });
 });
+
+/**
+ * BRÄDSPEL (2026-09-07). Pokémon-märkta sällskapsspel hölls tidigare ute ENBART av att
+ * `guessListingCategory` råkade svara OTHER, som feed-grinden nekar. Det är ett
+ * sammanträffande, inte en vakt: vidgas kategorierna igen (som 2026-08-15, då 436
+ * riktiga SKU:er visade sig sitta fast i just den slumpen) följer brädspelen med in.
+ *
+ * MÄTT över 16 355 levande annonser från 44 butiker: regeln fäller 7 annonser —
+ * fyra Monopoly-utgåvor och tre Ravensburger Labyrinth — och NOLL katalogprodukter,
+ * NOLL annonser som redan har en offer (scripts/measure-guard-changes.ts, oförändrad
+ * summa 1 katalogträff / 8 offer-träffar före och efter).
+ */
+describe("brädspel är merch, inte sealed", () => {
+  const BOARD_GAMES = [
+    "Monopoly Pokémon (Swe)",
+    "Monopoly Monopol Pokemon (Svensk)",
+    "Pokémon Monopol på Svenska/Finska",
+    "Pokémon – Monopoly NL",
+    "Ravensburger Pokemon Labyrinth (Svenskt)",
+    "Ravensburger Pokemon Labyrinth (Tyska regler)",
+    "Ravensburger Pokemon Glow in the Dark Labyrinth (Tyska regler)",
+  ];
+  for (const t of BOARD_GAMES) {
+    it(`fäller: ${t.slice(0, 52)}…`, () => {
+      expect(isMerchandiseListing(t)).toBe(true);
+    });
+  }
+
+  /**
+   * ⛔ Ravensburger ligger i NON_TCG_BRAND, alltså FÖRE sealed-formorden. Utan den
+   *    ordningen hade ett påhittat "Ravensburger … Booster Box" vetat merch-vakten —
+   *    exakt Re-Ment-fällan, där varenda produkt hette "Figure Collection".
+   */
+  it("märket vetar sealed-formordet, inte tvärtom", () => {
+    expect(isMerchandiseListing("Ravensburger Pokemon Booster Box")).toBe(true);
+  });
+
+  /** Riktiga SKU:er får inte fällas av de nya orden. */
+  it("rör inte riktiga sealed-produkter", () => {
+    for (const t of [
+      "Pokémon TCG: Paldean Fates Elite Trainer Box",
+      "Mega Symphonia Booster Box",
+      "Battle Academy Pikachu vs Eevee vs Cinderace",
+    ]) {
+      expect(isMerchandiseListing(t)).toBe(false);
+    }
+  });
+});

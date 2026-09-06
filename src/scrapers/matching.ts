@@ -1461,7 +1461,7 @@ export function isUnspecifiedCharacterListing(title: string): boolean {
  *    ett föremålsord.
  */
 const MERCHANDISE_SIGNS =
-  /\b(gosedjur|mjukisdjur|plush(ie)?|plysch|figur(e|er|es|in|ine|ines)?s?|funko|nendoroid|amiibo|affisch(er)?|poster|tavla|mugg(ar)?|nyckelring|keychain|t-?shirt|tr[öo]ja|hoodie|keps|m[üu]ss(a|or)|strumpor|kl[äa]der|ryggs[äa]ck|pennfodral|pussel|puzzle|lego|mega\s?construx|s[äa]ngkl[äa]der|handduk|termos|vattenflaska|matl[åa]da|godis|choklad|gumm(y|i|ies)|cand(y|ies)|blind\s*box|mynt\s*set|coin\s*set|player'?s?\s*guide|spelguide|markör(er)?|damage\s*counters?)\b|\bpok[eé]\s?ball\s+(figur|leksak|replika|beh[åa]llare)\b/i;
+  /\b(gosedjur|mjukisdjur|plush(ie)?|plysch|figur(e|er|es|in|ine|ines)?s?|funko|nendoroid|amiibo|affisch(er)?|poster|tavla|mugg(ar)?|nyckelring|keychain|t-?shirt|tr[öo]ja|hoodie|keps|m[üu]ss(a|or)|strumpor|kl[äa]der|ryggs[äa]ck|pennfodral|pussel|puzzle|lego|mega\s?construx|s[äa]ngkl[äa]der|handduk|termos|vattenflaska|matl[åa]da|godis|choklad|gumm(y|i|ies)|cand(y|ies)|blind\s*box|mynt\s*set|coin\s*set|player'?s?\s*guide|spelguide|markör(er)?|damage\s*counters?|monopol(y)?|labyrint(h)?|br[äa]dspel|familjespel)\b|\bpok[eé]\s?ball\s+(figur|leksak|replika|beh[åa]llare)\b/i;
 
 /** Formord som bevisar att annonsen ÄR en sealed TCG-vara, oavsett merch-ord.
  *  "poster collection" (2026-08-08): en riktig TCG-produktlinje (boosters + affisch,
@@ -1493,8 +1493,15 @@ const SEALED_FORM_WORD =
  *    Re-Ments egna 28 produkter. Ordgränsen skyddar mot "measurement"/"requirement".
  * ⚠️ Lägg bara till märken som ALDRIG gör TCG-varor. Ett märke som gör både (t.ex.
  *    Pokémon Center) hör inte hemma här — då fälls riktiga SKU:er tyst.
+ *
+ * **Ravensburger (2026-09-07)**: pussel- och brädspelstillverkare, gör inga TCG-varor.
+ * Deras Pokémon-titlar ("Ravensburger Pokemon Labyrinth") hölls tidigare ute ENBART av
+ * att `guessListingCategory` råkade svara OTHER — samma slump som lät 436 riktiga SKU:er
+ * fastna 2026-08-15, fast åt andra hållet. En vakt som bygger på ett sammanträffande är
+ * ingen vakt: vidgas kategorierna igen kommer brädspelen in med dem.
+ * MÄTT över 16 355 levande annonser: enda träffarna är Ravensburgers tre Labyrinth-spel.
  */
-const NON_TCG_BRAND = /\bre[-\s]?ment\b/i;
+const NON_TCG_BRAND = /\bre[-\s]?ment\b|\bravensburger\b/i;
 
 /** Merch (gosedjur, figurer, kläder, affischer) — aldrig en TCG-katalogprodukt. */
 export function isMerchandiseListing(title: string): boolean {

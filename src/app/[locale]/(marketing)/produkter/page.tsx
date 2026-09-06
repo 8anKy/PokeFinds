@@ -67,10 +67,26 @@ const getFilterSets = cachedRead(
   "produkterFilterSets",
   3600
 );
+/**
+ * Butiksfiltret listar bara butiker vi FAKTISKT har annonser från.
+ *
+ * ⛔ `offers: { some: {} }` — inte "i lager just nu". Skillnaden är hela poängen:
+ *    · Spel & Sånt och Spelbutiken är seed-rader från 2026-06-11 som ALDRIG fått en
+ *      enda offer (Spel & Sånt har ingen adapter, Spelbutiken är nedlagd). De låg
+ *      ändå i filtret som val vars enda möjliga svar var "0 produkter".
+ *    · Spelexperten hade 222 annonser men 0 i lager 2026-09-07 (hela sealed-sortimentet
+ *      slutsålt, bara pärmar och sleeves kvar). Den butiken SKA stå kvar med siffran 0 —
+ *      "vi bevakar butiken, den har inget just nu" är ett ärligt svar, och ett filter
+ *      där butiker försvinner och dyker upp med lagersaldot är omöjligt att lita på.
+ */
 const getFilterRetailers = cachedRead(
   () =>
     prisma.retailer.findMany({
-      where: { isActive: true, name: { notIn: NON_STORE_RETAILER_NAMES } },
+      where: {
+        isActive: true,
+        name: { notIn: NON_STORE_RETAILER_NAMES },
+        offers: { some: {} },
+      },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
