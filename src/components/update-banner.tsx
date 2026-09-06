@@ -30,27 +30,21 @@ import { IconSparkle, IconX } from "@/components/ui/icons";
  * förgrunden (högst en gång i timmen) — WebView:en lever i dagar och ett släpp
  * som sker medan appen sover syntes annars först vid nästa kallstart.
  *
- * Tyst i sju dygn efter "Stäng" (localStorage per version — en ny version
- * nollar den). Döljs där den skulle skymma något: skannern (helskärmskamera),
+ * "Stäng" tystar remsan BARA tills nästa kallstart (ägarbeslut 2026-09-06: den
+ * ska komma tillbaka varje gång appen öppnas på nytt). Minnet är en modul-
+ * variabel — den överlever timkontrollerna i samma session men inte en omstart.
+ * ⛔ Ingen localStorage: en sju dygns tystnad dolde remsan för ägaren själv.
+ *
+ * Döljs där den skulle skymma något: skannern (helskärmskamera),
  * mejl-landningssidorna och medan tangentbordet är uppe (samma mätning som
  * bottenflikarna). Ligger på z-30: produkt-overlayn (z-40) och flikarna (z-40)
  * målas ovanpå, precis som med allt annat sidinnehåll.
  */
-// Nyckeln bär TRÖSKELN (butikens version), så en ny version nollar tystnaden.
-const dismissKey = (version: string) => `foilio-update-dismissed:${version}`;
-const DISMISS_MS = 7 * 24 * 60 * 60 * 1000;
 const HIDDEN_ROUTES = ["/skanna"];
+/** Versionen användaren stängde i DEN HÄR sessionen — nollas av en kallstart. */
+let dismissedVersion: string | null = null;
 // Minsta avstånd mellan två kontroller — vid montering och vid varje återkomst till förgrunden.
 const RECHECK_MIN_MS = 60 * 60 * 1000;
-
-function recentlyDismissed(version: string): boolean {
-  try {
-    const at = Number(localStorage.getItem(dismissKey(version)) ?? 0);
-    return Number.isFinite(at) && at > 0 && Date.now() - at < DISMISS_MS;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Tröskeln = versionen som ligger i App Store just nu (/api/app/min-version,
@@ -95,7 +89,7 @@ export function UpdateBanner() {
           try {
             const [info, min] = await Promise.all([App.getInfo(), fetchMinVersion()]);
             if (cancelled) return;
-            setOutdated(isOutdatedAppVersion(info.version, min) && !recentlyDismissed(min) ? min : null);
+            setOutdated(isOutdatedAppVersion(info.version, min) && dismissedVersion !== min ? min : null);
           } catch {
             // Pluginet svarade inte → behåll det vi visste.
           }
@@ -136,11 +130,7 @@ export function UpdateBanner() {
   if (HIDDEN_ROUTES.some((p) => pathname === p || pathname?.startsWith(`${p}/`))) return null;
 
   const dismiss = () => {
-    try {
-      localStorage.setItem(dismissKey(outdated), String(Date.now()));
-    } catch {
-      // Privat läge/kvot — remsan försvinner ändå för den här sessionen.
-    }
+    dismissedVersion = outdated;
     setOutdated(null);
   };
 
