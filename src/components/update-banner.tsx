@@ -26,6 +26,10 @@ import { IconSparkle, IconX } from "@/components/ui/icons";
  * lib/device-id.ts): `isPluginAvailable("App")` före importen. Dynamisk import
  * som AppBoot — webbuntet drar aldrig in plugin-koden.
  *
+ * Kontrollen körs vid montering OCH varje gång appen kommer tillbaka i
+ * förgrunden (högst en gång i timmen) — WebView:en lever i dagar och ett släpp
+ * som sker medan appen sover syntes annars först vid nästa kallstart.
+ *
  * Tyst i sju dygn efter "Stäng" (localStorage per version — en ny version
  * nollar den). Döljs där den skulle skymma något: skannern (helskärmskamera),
  * mejl-landningssidorna och medan tangentbordet är uppe (samma mätning som
@@ -36,6 +40,8 @@ import { IconSparkle, IconX } from "@/components/ui/icons";
 const dismissKey = (version: string) => `foilio-update-dismissed:${version}`;
 const DISMISS_MS = 7 * 24 * 60 * 60 * 1000;
 const HIDDEN_ROUTES = ["/skanna"];
+// Minsta avstånd mellan två kontroller — vid montering och vid varje återkomst till förgrunden.
+const RECHECK_MIN_MS = 60 * 60 * 1000;
 
 function recentlyDismissed(version: string): boolean {
   try {
@@ -71,21 +77,43 @@ export function UpdateBanner() {
 
   useEffect(() => {
     let cancelled = false;
+    let lastCheckAt = 0;
+    let removeListener: (() => void) | undefined;
     void (async () => {
       try {
         const { Capacitor } = await import("@capacitor/core");
         if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "ios") return;
         if (!Capacitor.isPluginAvailable("App")) return;
         const { App } = await import("@capacitor/app");
-        const [info, min] = await Promise.all([App.getInfo(), fetchMinVersion()]);
-        if (cancelled || !isOutdatedAppVersion(info.version, min) || recentlyDismissed(min)) return;
-        setOutdated(min);
+        const check = async () => {
+          if (Date.now() - lastCheckAt < RECHECK_MIN_MS) return;
+          lastCheckAt = Date.now();
+          try {
+            const [info, min] = await Promise.all([App.getInfo(), fetchMinVersion()]);
+            if (cancelled) return;
+            setOutdated(isOutdatedAppVersion(info.version, min) && !recentlyDismissed(min) ? min : null);
+          } catch {
+            // Pluginet svarade inte → behåll det vi visste.
+          }
+        };
+        await check();
+        // ⛔ Inte bara vid montering: WebView:en lever i dagar i bakgrunden, och
+        // ett släpp som sker medan appen sover syntes annars först vid nästa
+        // KALLSTART — den som aldrig stänger appen fick aldrig remsan. Fråga om
+        // varje gång appen kommer tillbaka i förgrunden, som mest en gång i timmen
+        // (rutten är DB-fri och processcachad, men varje anrop går genom Railway).
+        const handle = await App.addListener("appStateChange", ({ isActive }) => {
+          if (isActive) void check();
+        });
+        if (cancelled) void handle.remove();
+        else removeListener = () => void handle.remove();
       } catch {
         // Webb / plugin saknas → ingen remsa.
       }
     })();
     return () => {
       cancelled = true;
+      removeListener?.();
     };
   }, []);
 

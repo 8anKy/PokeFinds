@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 /**
  * Liten, icke-känslig "inloggad?"-ledtråd i en läsbar cookie så att klient-chrome
@@ -34,13 +34,21 @@ export function onAuthHintChange(cb: () => void): () => void {
   return () => window.removeEventListener(EVENT, cb);
 }
 
-/** Reaktiv variant: uppdateras direkt när setAuthHint körs (login/logout i appen). */
+const serverSnapshot = (): null => null;
+
+/**
+ * Reaktiv variant: uppdateras direkt när setAuthHint körs (login/logout i appen).
+ *
+ * `null` = "vet inte än" och förekommer BARA i serverrenderingen och den första
+ * hydreringsrundan (`getServerSnapshot`). På klienten läses cookien SYNKRONT i
+ * första renderingen. ⛔ Inte `useState(null)` + effekt: headern ligger i varje
+ * routegrupps egen layout och REMONTERAS vid varje flikbyte (Utforska → Samling
+ * → Mer …), och en effekt-läsning gav då en runda med platshållaren (128 px)
+ * före profilcirkeln (36 px) — Discord-knappen bredvid hoppade ~90 px i sidled
+ * vid varje flikbyte (rapporterat 2026-09-06). useSyncExternalStore ger
+ * server-värdet vid hydrering (ingen mismatch) och det riktiga vid alla andra
+ * monteringar.
+ */
 export function useAuthHint(): boolean | null {
-  const [on, setOn] = useState<boolean | null>(null);
-  useEffect(() => {
-    const read = () => setOn(hasAuthHint());
-    read();
-    return onAuthHintChange(read);
-  }, []);
-  return on;
+  return useSyncExternalStore<boolean | null>(onAuthHintChange, hasAuthHint, serverSnapshot);
 }
