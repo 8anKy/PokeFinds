@@ -56,7 +56,7 @@ interface Messages {
   Settings: { notifEmailHint: string; notifAllPausedHint: string; planProDesc: string; planFreeDesc: string };
   Watch: { setButtonHintPaused: string; scopeSetPaused: string; scopeItemPaused: string; watchedSetsSubPaused: string };
   Market: { proDesc: string };
-  Detail: { alertsProCta: string };
+  Detail: { alertsProCta: string; watchRestockOptionHintPaused: string };
 }
 
 describe.each(LOCALES)("$name: paywallen lovar inga pausade larm", ({ m }) => {
@@ -119,6 +119,7 @@ describe.each(LOCALES)("$name: punkterna finns kvar och kommer tillbaka", ({ m }
       m.Watch.setButtonHintPaused,
       m.Watch.scopeSetPaused,
       m.Watch.scopeItemPaused,
+      m.Detail.watchRestockOptionHintPaused,
       m.Watch.watchedSetsSubPaused,
       m.Settings.notifAllPausedHint,
     ]) {

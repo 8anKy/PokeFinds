@@ -59,7 +59,14 @@ interface Messages {
     freeAlertsBannerPaused: string;
   };
   Market: { proDesc: string; proDescPaused: string };
-  Detail: { alertsProCta: string; alertsProCtaPaused: string; priceModalIntro: string; priceModalIntroPaused: string };
+  Detail: {
+    alertsProCta: string;
+    alertsProCtaPaused: string;
+    priceModalIntro: string;
+    priceModalIntroPaused: string;
+    watchPriceOptionHint: string;
+    watchPriceOptionHintPaused: string;
+  };
 }
 
 /**
@@ -78,6 +85,8 @@ const SURFACES: { ns: keyof Messages; key: string }[] = [
   { ns: "Market", key: "proDesc" },
   { ns: "Detail", key: "alertsProCta" },
   { ns: "Detail", key: "priceModalIntro" },
+  // Bevaka-arkets prisfall-rad (product-watch-sheet.tsx, 2026-09-06).
+  { ns: "Detail", key: "watchPriceOptionHint" },
   { ns: "Watchlist", key: "editHint" },
 ];
 
