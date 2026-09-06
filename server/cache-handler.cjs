@@ -15,8 +15,20 @@
  * volymen → byggets egna prerenderade filer i `.next/server/app` (seed, exakt
  * som FileSystemCache läser dem).
  *
- * ⛔ SIDOR DELAS ÖVER BYGGEN, DATA GÖR DET INTE.
- *   · PAGE-poster nycklas på `PAGE_EPOCH` + väg. En cachad HTML från bygge A
+ * ⛔ BARA PRODUKTSKALEN DELAS ÖVER BYGGEN — ALLA ANDRA SIDOR ÄR PER BYGGE (2026-09-06).
+ *   · Nexts klient jämför `buildId` i varje RSC-svar med sitt eget och gör en
+ *     HEL omladdning (`location.assign`) vid skillnad. En sida cachad av bygge A
+ *     som servas efter deploy B tvingar alltså fram en dokumentladdning vid VARJE
+ *     klientnavigering till/från den — i appen syntes det som att Discord-
+ *     knappen och flikraden "glitchade" (SSR-etiketten Community → Forum) vid
+ *     varje flikbyte, och Railways loggar visade sex hela sidladdningar på fyra
+ *     sekunder direkt efter en deploy (forumet cachat av förra bygget, Utforska/
+ *     Mer dynamiska = nya bygget ⇒ pingpong). Med ~9 deployer/dygn var det
+ *     normalläget. Därför: bara `/<locale>/produkter/<slug>` (63 600 vägar,
+ *     30 d, hela poängen med volymen) nycklas på `PAGE_EPOCH` + väg; allt annat
+ *     ligger under `pages-by-build/<BUILD_ID>/` och rensas av prune. En produkt-
+ *     sida ur ett gammalt bygge ger som mest EN omladdning vid nästa navigering.
+ *   · PAGE-poster (produktskalen) nycklas på `PAGE_EPOCH` + väg. En cachad HTML från bygge A
  *     refererar A:s `/_next/static/...`-chunks — de hålls kvar av
  *     `isr-cache-boot.mjs`, som ackumulerar statiska filer på volymen och
  *     kopierar tillbaka dem vid varje start. Utan det steget vore en gammal
@@ -57,6 +69,15 @@ function resolveCacheDir(env = process.env) {
   if (env.ISR_CACHE_DIR) return env.ISR_CACHE_DIR;
   if (env.RAILWAY_VOLUME_MOUNT_PATH) return path.join(env.RAILWAY_VOLUME_MOUNT_PATH, "isr");
   return null;
+}
+
+/**
+ * Produktskalen (`/sv/produkter/<slug>`, `/en/produkter/<slug>`) är de enda sidor
+ * som får överleva ett byggbyte — se filhuvudet. Nyckeln är Nexts sidnyckel:
+ * locale-prefixad väg utan frågesträng.
+ */
+function isDurablePage(key) {
+  return /^\/[a-z]{2}\/produkter\/[^/]+$/.test(String(key));
 }
 
 function sha1(s) {
@@ -186,6 +207,10 @@ class PersistentIsrCache {
   pagesDir() {
     return path.join(this.root(), "pages");
   }
+  /** Icke-produktsidor: per bygge, så en klient aldrig får två byggens RSC-svar. */
+  buildPagesDir() {
+    return path.join(this.root(), "pages-by-build", this.buildId);
+  }
   fetchDir() {
     return path.join(this.root(), "fetch", this.buildId);
   }
@@ -193,7 +218,8 @@ class PersistentIsrCache {
     return path.join(this.root(), "tags-manifest.json");
   }
   pageFile(key) {
-    return path.join(this.pagesDir(), `${sha1(`${PAGE_EPOCH}:${key}`)}.gz`);
+    const dir = isDurablePage(key) ? this.pagesDir() : this.buildPagesDir();
+    return path.join(dir, `${sha1(`${PAGE_EPOCH}:${key}`)}.gz`);
   }
   fetchFile(key) {
     return path.join(this.fetchDir(), `${sha1(key)}.gz`);
@@ -362,9 +388,10 @@ class PersistentIsrCache {
 
   /** Gamla sidor + andra byggens datacache. Körs sällan, aldrig i request-vägen. */
   async prune(now = Date.now()) {
-    if (!this.dir) return { pages: 0, fetchDirs: 0 };
+    if (!this.dir) return { pages: 0, fetchDirs: 0, pageDirs: 0 };
     let pages = 0;
     let fetchDirs = 0;
+    let pageDirs = 0;
     try {
       for (const name of await fsp.readdir(this.pagesDir())) {
         const file = path.join(this.pagesDir(), name);
@@ -388,11 +415,25 @@ class PersistentIsrCache {
         await fsp.rm(path.join(fetchRoot, name), { recursive: true, force: true });
         fetchDirs++;
       }
-      if (pages || fetchDirs) console.log(`[isr-cache] rensade ${pages} sidor, ${fetchDirs} gamla datacacher`);
+      // Andra byggens sidor (icke-produktskal) — de kan aldrig servas igen.
+      const pagesRoot = path.dirname(this.buildPagesDir());
+      let buildDirs = [];
+      try {
+        buildDirs = await fsp.readdir(pagesRoot);
+      } catch {
+        /* inga per-bygge-sidor ännu */
+      }
+      for (const name of buildDirs) {
+        if (name === this.buildId) continue;
+        await fsp.rm(path.join(pagesRoot, name), { recursive: true, force: true });
+        pageDirs++;
+      }
+      if (pages || fetchDirs || pageDirs)
+        console.log(`[isr-cache] rensade ${pages} sidor, ${fetchDirs} gamla datacacher, ${pageDirs} gamla byggens sidor`);
     } catch (err) {
       console.warn("[isr-cache] prune misslyckades:", err);
     }
-    return { pages, fetchDirs };
+    return { pages, fetchDirs, pageDirs };
   }
 }
 
@@ -400,4 +441,5 @@ module.exports = PersistentIsrCache;
 module.exports.PersistentIsrCache = PersistentIsrCache;
 module.exports.resolveCacheDir = resolveCacheDir;
 module.exports.PAGE_EPOCH = PAGE_EPOCH;
+module.exports.isDurablePage = isDurablePage;
 module.exports.PAGE_MAX_AGE_MS = PAGE_MAX_AGE_MS;

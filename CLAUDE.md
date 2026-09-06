@@ -425,8 +425,11 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   `/_next/static`-chunks på volymen så gamla sidor hydrerar. ⛔ Importera ALDRIG `getProductBySlug`/
   `loadProductDetail` (1 h) i sidan — ruttens TTL blir MIN av alla cachade läsningar. ⛔ `/api/revalidate`
   får inte `revalidatePath`:a produktsidorna igen (slaggan som nollade vinsten). ⛔ FETCH-poster nycklas
-  på BUILD_ID, PAGE-poster på `PAGE_EPOCH` — bumpa epoken när produktsidans UI/API-kontrakt ändras så att
-  det måste nå besökare inom 30 d. Ingen Product-nod i JSON-LD längre (kräver `offers`). Vaktat av
+  på BUILD_ID, PRODUKTSKALEN på `PAGE_EPOCH` — bumpa epoken när produktsidans UI/API-kontrakt ändras så att
+  det måste nå besökare inom 30 d. ⛔ **ALLA ANDRA SIDOR ÄR PER BYGGE (2026-09-06)**: Nexts klient jämför
+  `buildId` i varje RSC-svar och gör en HEL omladdning vid skillnad, så en flik cachad av förra bygget gav
+  en dokumentladdning per flikbyte i appen (Discord-knappen/flikraden "glitchade", sex laddningar på fyra
+  sekunder i loggarna). `pages-by-build/<BUILD_ID>/`, rensas av prune. Ingen Product-nod i JSON-LD längre (kräver `offers`). Vaktat av
   `tests/unit/product-page-isr-ttl.test.ts` + `isr-cache-handler.test.ts`. Verifierat lokalt:
   `s-maxage=2592000`, HIT efter processomstart. Volymkostnad ~$0,15/GB-mån (~1–2 GB).
 Publika läs-sidor är ISR-cachade (`revalidate=3600`), INTE `force-dynamic`: startsidan, `/marknad`, `/sets`,

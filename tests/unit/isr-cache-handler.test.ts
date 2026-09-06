@@ -1,7 +1,9 @@
 /**
  * Persistent ISR-cache (server/cache-handler.cjs) — kontraktet mot Next 14.2 och
  * de två regler som gör den säker över deployer:
- *   · PAGE-poster överlever ett byggbyte (det är hela poängen),
+ *   · PAGE-poster för PRODUKTSKALEN överlever ett byggbyte (det är hela poängen),
+ *   · alla ANDRA sidor gör det INTE (Nexts klient tvingar annars en hel
+ *     omladdning per navigering mellan två byggens sidor — 2026-09-06),
  *   · FETCH-poster gör det INTE (datans form följer koden).
  * Plus tagg-invalidering (revalidateTag/revalidatePath) och fail-open utan volym.
  */
@@ -19,7 +21,7 @@ type Handler = {
   get: (key: string, ctx?: Record<string, unknown>) => Promise<{ lastModified: number; value: unknown } | null>;
   set: (key: string, data: unknown, ctx?: Record<string, unknown>) => Promise<void>;
   revalidateTag: (tags: string | string[]) => Promise<void>;
-  prune: (now?: number) => Promise<{ pages: number; fetchDirs: number }>;
+  prune: (now?: number) => Promise<{ pages: number; fetchDirs: number; pageDirs: number }>;
 };
 
 let tmp: string;
@@ -91,7 +93,7 @@ describe("PersistentIsrCache", () => {
     fs.writeFileSync(path.join(pagesDir, "abandoned.gz.2.tmp"), "x");
     const old = new Date(Date.now() - 60 * 60 * 1000);
     fs.utimesSync(path.join(pagesDir, "abandoned.gz.2.tmp"), old, old);
-    expect(await a.prune()).toEqual({ pages: 1, fetchDirs: 0 });
+    expect(await a.prune()).toEqual({ pages: 1, fetchDirs: 0, pageDirs: 0 });
     expect(fs.existsSync(path.join(pagesDir, "fresh.gz.1.tmp"))).toBe(true);
   });
 
@@ -101,6 +103,25 @@ describe("PersistentIsrCache", () => {
     const b = load(distB); // nytt bygge, tomt minne
     const hit = await b.get("/sv/produkter/x", { kindHint: "app" });
     expect(hit?.value).toMatchObject({ kind: "PAGE", html: "<html>A</html>" });
+  });
+
+  it("en icke-produktsida delas INTE mellan byggen — klienten får aldrig två byggens RSC", async () => {
+    // Forumet/flikarna cachade av bygge A och servade under bygge B gav en hel
+    // omladdning vid varje flikbyte i appen (buildId-jämförelsen i Nexts router).
+    const a = load(distA);
+    await a.set("/sv/forum", page("<html>forum A</html>"));
+    await a.set("/en/sets", page("<html>sets A</html>"));
+    expect((await load(distA).get("/sv/forum", { kindHint: "app" }))?.value).toMatchObject({ html: "<html>forum A</html>" });
+    const b = load(distB);
+    expect(await b.get("/sv/forum", { kindHint: "app" })).toBeNull();
+    expect(await b.get("/en/sets", { kindHint: "app" })).toBeNull();
+  });
+
+  it("bara /<locale>/produkter/<slug> räknas som produktskal", () => {
+    const { isDurablePage } = require(handlerPath);
+    for (const k of ["/sv/produkter/x", "/en/produkter/30th-celebration-booster-bundle"]) expect(isDurablePage(k)).toBe(true);
+    for (const k of ["/sv/produkter", "/en/produkter", "/sv/forum", "/sv/sets/sv1", "/sv/produkter/x/y", "/sv/om"])
+      expect(isDurablePage(k)).toBe(false);
   });
 
   it("FETCH-poster (unstable_cache) delas INTE mellan byggen", async () => {
@@ -141,15 +162,18 @@ describe("PersistentIsrCache", () => {
     expect(hit?.value).toMatchObject({ kind: "PAGE", html: "<html>om</html>", pageData: "rsc-om" });
   });
 
-  it("prune tar gamla sidor och andra byggens datacache, aldrig det egna byggets", async () => {
+  it("prune tar gamla sidor och andra byggens datacache + sidor, aldrig det egna byggets", async () => {
     const a = load(distA);
     await a.set("/sv/produkter/old", page("old"));
+    await a.set("/sv/forum", page("forum A"));
     await a.set("fa", { kind: "FETCH", data: {}, revalidate: 60 }, { tags: [] });
     const b = load(distB);
     await b.set("fb", { kind: "FETCH", data: {}, revalidate: 60 }, { tags: [] });
+    await b.set("/sv/forum", page("forum B"));
     const r = await b.prune(Date.now() + 60 * 24 * 3600 * 1000);
-    expect(r).toEqual({ pages: 1, fetchDirs: 1 });
+    expect(r).toEqual({ pages: 1, fetchDirs: 1, pageDirs: 1 });
     expect(await b.get("fb", { kindHint: "fetch", tags: [] })).not.toBeNull();
+    expect((await b.get("/sv/forum", { kindHint: "app" }))?.value).toMatchObject({ html: "forum B" });
   });
 
   it("utan volym: fail-open (bara minne + seed), ingen kastning", async () => {
