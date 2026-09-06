@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
@@ -17,6 +17,12 @@ interface CollectionQuickAddSheetProps {
   open: boolean;
   onClose: () => void;
   onConfirm: (draft: QuickAddDraft) => void;
+  /** Produktens namn under rubriken — produktsidan visar det (som Bevaka-arket), rutnätet inte. */
+  productTitle?: string;
+  /** Sparar just nu → knappen låses så ett dubbeltryck inte lägger till två gånger. */
+  saving?: boolean;
+  /** Skickas vidare till arket (t.ex. `sm:mx-auto sm:max-w-md` på produktsidan). */
+  panelClassName?: string;
 }
 
 /** API:t (`/api/collection`) tar quantity 1..10000 — samma tak här, annars 400. */
@@ -40,11 +46,23 @@ export function CollectionQuickAddPopover({
   open,
   onClose,
   onConfirm,
+  productTitle,
+  saving = false,
+  panelClassName,
 }: CollectionQuickAddSheetProps) {
   const t = useTranslations("Product");
   const [quantity, setQuantity] = useState(1);
   const [priceText, setPriceText] = useState("");
   const [showError, setShowError] = useState(false);
+
+  // Utgångsläget varje gång arket öppnas: 1 ex, inget pris. Ett tidigare tillägg
+  // ska inte ligga kvar som förifyllt värde nästa gång.
+  useEffect(() => {
+    if (!open) return;
+    setQuantity(1);
+    setPriceText("");
+    setShowError(false);
+  }, [open]);
 
   const parsed = parseKronorToOre(priceText);
   const priceInvalid = parsed.kind === "invalid";
@@ -72,8 +90,14 @@ export function CollectionQuickAddPopover({
       title={t("quickAddTitle")}
       onClose={onClose}
       closeLabel={t("quickAddCancel")}
-      footer={<BottomSheetCta onClick={confirm}>{t("quickAddConfirm")}</BottomSheetCta>}
+      panelClassName={panelClassName}
+      footer={
+        <BottomSheetCta onClick={confirm} disabled={saving}>
+          {t("quickAddConfirm")}
+        </BottomSheetCta>
+      }
     >
+      {productTitle && <p className="mb-3 line-clamp-2 text-xs text-ink-faint">{productTitle}</p>}
       <div className="flex items-center justify-between gap-3 py-1">
         <span className="text-sm text-ink">{t("quantity")}</span>
         <div className="flex items-center gap-2">

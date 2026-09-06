@@ -8,11 +8,13 @@ import { hasAuthHint } from "@/lib/auth-hint";
 import { setProductWatched } from "@/lib/watched-products";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Modal } from "@/components/ui/modal";
-import { Input, Label } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { IconBell, IconBellFilled, IconPlus } from "@/components/ui/icons";
 import { DiscordRestockTip } from "@/components/features/discord-restock-tip";
+import {
+  CollectionQuickAddPopover,
+  type QuickAddDraft,
+} from "@/components/features/collection-quick-add-popover";
 import {
   ProductWatchSheet,
   type ProductWatchInput,
@@ -55,12 +57,10 @@ function toState(row: WatchlistRow): ProductWatchState {
  */
 export function ProductActions({ productId, title }: ProductActionsProps) {
   const t = useTranslations("Detail");
-  const tc = useTranslations("Common");
   const tw = useTranslations("Watch");
   const [loading, setLoading] = useState<ActionKey | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [collectionModalOpen, setCollectionModalOpen] = useState(false);
-  const [quantity, setQuantity] = useState("1");
+  const [collectionOpen, setCollectionOpen] = useState(false);
   /** Null = bevakas inte (eller okänt/utloggad). */
   const [watch, setWatch] = useState<ProductWatchState | null>(null);
   // Bevakning skapad HÄR OCH NU (inte "bevakas sedan tidigare") → Discord-tipset.
@@ -196,19 +196,23 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
     }
   }
 
-  async function saveCollection() {
-    const qty = Math.floor(Number(quantity));
-    if (!Number.isFinite(qty) || qty < 1) {
-      toast({ title: t("invalidPrice"), description: t("tryAgain"), variant: "error" });
+  function openCollection() {
+    if (!hasAuthHint()) {
+      router.push("/logga-in");
       return;
     }
-    setCollectionModalOpen(false);
+    setCollectionOpen(true);
+  }
+
+  /** Samma ark som långtrycket på "+" i rutnätet: antal + valfritt inköpspris. */
+  async function saveCollection(draft: QuickAddDraft) {
+    setCollectionOpen(false);
     setLoading("collection");
     try {
       const res = await fetch("/api/collection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, quantity: qty }),
+        body: JSON.stringify({ productId, ...draft }),
       });
       if (res.status === 401) {
         router.push("/logga-in");
@@ -223,7 +227,6 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
       toast({ title: t("tryAgain"), variant: "error" });
     } finally {
       setLoading(null);
-      setQuantity("1");
     }
   }
 
@@ -250,7 +253,9 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
           variant="secondary"
           className={ACTION_CLASS}
           loading={loading === "collection"}
-          onClick={() => setCollectionModalOpen(true)}
+          onClick={openCollection}
+          aria-haspopup="dialog"
+          aria-expanded={collectionOpen}
         >
           <IconPlus size={16} />
           {t("addToCollection")}
@@ -272,40 +277,17 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
         onRemove={() => void removeWatch()}
       />
 
-      <Modal
-        open={collectionModalOpen}
-        onClose={() => setCollectionModalOpen(false)}
-        title={t("addToCollection")}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setCollectionModalOpen(false)}>
-              {tc("cancel")}
-            </Button>
-            <Button onClick={() => void saveCollection()} loading={loading === "collection"}>
-              {t("addToCollection")}
-            </Button>
-          </>
-        }
-      >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void saveCollection();
-          }}
-        >
-          <Label htmlFor="collectionQuantity">{t("quantityLabel")}</Label>
-          <Input
-            id="collectionQuantity"
-            type="number"
-            inputMode="numeric"
-            min={1}
-            step={1}
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            autoFocus
-          />
-        </form>
-      </Modal>
+      {/* Samma bottenark som långtrycket på "+" i rutnäten (ägarbeslut 2026-09-06):
+          antal med stegknappar + valfritt inköpspris, i stället för en dialog med
+          ett siffer-fält. Ett ark för samlingen, ett för bevakningen — samma form. */}
+      <CollectionQuickAddPopover
+        open={collectionOpen}
+        onClose={() => setCollectionOpen(false)}
+        onConfirm={(draft) => void saveCollection(draft)}
+        productTitle={title}
+        saving={loading === "collection"}
+        panelClassName="sm:mx-auto sm:max-w-md"
+      />
     </>
   );
 }
