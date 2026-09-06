@@ -33,6 +33,8 @@ async function buildAlertEmail(alert: {
   toStatus: StockStatus | null;
   /** Setnamn när larmet kom via en set-bevakning → mallen förklarar varför. */
   reasonSetName: string | null;
+  /** Prislarmets eget pris (öre) — ETT tal i rad, mejl och push. null = äldre/lagerlarm. */
+  priceOre: number | null;
   user: { name: string };
 }): Promise<{ subject: string; html: string; text: string }> {
   // Feed-först-larm (ny produkt/restock utanför katalogen) — bygg mejlet från den
@@ -69,7 +71,8 @@ async function buildAlertEmail(alert: {
       where: { id: alert.productId },
       include: {
         offers: {
-          where: { price: { not: null } },
+          // ⛔ > 0, inte "not null": 0 kr är inget pris (defekt 6 mejlade "0 kr").
+          where: { price: { gt: 0 } },
           orderBy: { price: "asc" },
           take: 10,
           include: { retailer: true },
@@ -78,23 +81,29 @@ async function buildAlertEmail(alert: {
     });
     if (product) {
       const productUrl = `${APP_URL}/produkter/${product.slug}`;
-      const bestOffer = product.offers[0];
       if (alert.type === AlertType.PRICE_DROP || alert.type === AlertType.PRICE_TARGET) {
-        // "Se erbjudandet" ska öppna det faktiska erbjudandet (butik/Cardmarket/
-        // Tradera) där priset matchar bevakningsmålet — INTE vår webbsida (dålig
-        // upplevelse från mejl på mobil, öppnar mobil-webben, inte appen). offers är
-        // sorterade billigast först → billigaste med en DIREKT länk vinner. Fall
-        // tillbaka på vår produktsida bara om ingen direktlänk finns.
-        const dealOffer = product.offers.find((o) => isDirectOfferUrl(o.url)) ?? bestOffer;
-        const dealUrl =
-          dealOffer && isDirectOfferUrl(dealOffer.url) ? dealOffer.url : productUrl;
-        return priceAlertEmail(
-          alert.user.name,
-          product.title,
-          dealOffer?.price ?? bestOffer?.price ?? 0,
-          dealUrl
-        );
+        // ETT PRIS: larmets eget (Alert.priceOre), aldrig "billigaste offer vid
+        // utskicket" — det gav tre olika tal för samma larm (defekt 3). Länken går till
+        // larmets EGEN butik (retailerId) när den har en direktlänk, annars till den
+        // billigaste köpbara direktlänken, annars vår produktsida. Aldrig 0 kr: ett
+        // äldre larm utan sparat pris får ett mejl UTAN prisrad.
+        const alertOffer = alert.retailerId
+          ? await prisma.offer.findFirst({
+              where: { productId: product.id, retailerId: alert.retailerId, price: { gt: 0 } },
+              include: { retailer: true },
+              orderBy: { price: "asc" },
+            })
+          : null;
+        const buyable =
+          product.offers.find((o) => o.stockStatus === StockStatus.IN_STOCK && isDirectOfferUrl(o.url)) ?? null;
+        const offer = alertOffer && isDirectOfferUrl(alertOffer.url) ? alertOffer : buyable;
+        const price = alert.priceOre ?? (offer?.price && offer.price > 0 ? offer.price : null);
+        return priceAlertEmail(alert.user.name, product.title, price, offer?.url ?? productUrl, {
+          kind: alert.type === AlertType.PRICE_TARGET ? "target" : "drop",
+          storeName: offer?.retailer.name ?? null,
+        });
       }
+      const bestOffer = product.offers[0];
       if (alert.type === AlertType.RESTOCK) {
         // Restock = butiks-händelse. Länka DIREKT till butiken som fick lager igen
         // (alert.retailerId) — hämtad med EGEN fråga, inte ur prisfönstret ovan:
@@ -197,7 +206,11 @@ async function sendAlertPush(alert: {
           : "Åter i lager!"
       : alert.type === AlertType.NEW_LISTING
         ? "Ny produkt i lager!"
-        : "Prislarm";
+        : alert.type === AlertType.PRICE_TARGET
+          ? "Målpris nått!"
+          : alert.type === AlertType.PRICE_DROP
+            ? "Prisfall!"
+            : "Prislarm";
   // Katalogprodukt → in-app-sida; feed-först-larm (ingen produkt) → butikens annons-URL
   // (klienten öppnar http-länkar externt, som mejlets "Till produkten"-knapp).
   const url = alert.product

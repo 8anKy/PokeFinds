@@ -97,7 +97,7 @@ import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-
 import { isPlaceholderListingPrice } from "@/lib/listing-plausibility";
 import { isBlockedListingLanguage, listingCardLanguage } from "@/lib/listing-language";
 import type { SourceAdapter } from "@/scrapers/types";
-import { checkPriceAlerts, checkRestockAlerts, checkListingAlerts } from "@/services/alerts";
+import { checkRestockAlerts, checkListingAlerts } from "@/services/alerts";
 import { CARDMARKET_SOURCE_NAMES, HIDDEN_CATEGORIES, NON_RETAIL_SOURCE_NAMES } from "@/services/products";
 import { dispatchPendingAlerts } from "@/services/notifications";
 import { mapPool } from "@/lib/concurrency";
@@ -1778,11 +1778,10 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
           });
         }
 
-        // Prisfall → kontrollera bevakningar med målpris (på det visade priset).
-        // Okänt pris är inget prisfall.
-        if (offerPrice !== null && previousOffer?.price != null && offerPrice < previousOffer.price) {
-          await checkPriceAlerts(productId, offerPrice);
-        }
+        // Prislarmen döms INTE här per offer längre (2026-09-06): en enskild offers
+        // sänkning säger inget om produktens lägsta KÖPBARA pris. Nattkedjan tar en
+        // ögonblicksbild av bevakade produkter före passet och sveper efter
+        // recomputeProductPriceCache — se services/price-alert-sweep.ts.
       } catch (err) {
         errorCount++;
         const msg = err instanceof Error ? err.message : String(err);

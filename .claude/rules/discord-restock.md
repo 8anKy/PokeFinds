@@ -24,7 +24,11 @@ den postar om en produkt vi KÄNNER (`src/lib/restock-hits.ts` → `/api/cron/re
 - ⛔ **DOMEN TAS EN GÅNG, I LANEN.** Hitsen byggs ur `postable` — exakt det som går till Discord
   efter köpbarhetskollen — så mejlet påstår aldrig mer än kanalen. Men de köas FÖRE och OBEROENDE
   av Discords kvittens: ett 403 från Discord (08-12) får inte tysta mejlen.
-- ⛔ **BARA RUTTADE URL:er.** Utan `productSlug` finns inga bevakare. Prissänkningar är aldrig hits.
+- ⛔ **BARA RUTTADE URL:er.** Utan `productSlug` finns inga bevakare.
+- ✅ **PRISSÄNKNINGAR ÄR OCKSÅ HITS SEDAN 2026-09-06** (`kind: "PRICE_DROP"`, med lanens gamla pris).
+  Appen skriver offerns pris och dömer prislarmet på produktens lägsta KÖPBARA pris inklusive det
+  nya — en billigare butik någon annanstans ⇒ inget larm. Egen grind i rutten (`PRICE_ALERTS_PAUSED`),
+  och dedup-nyckeln i kön bär sorten, så en påfyllning och en prissänkning på samma URL är två hits.
 - ⛔ **LANENS "FRÅN" VINNER ÖVER DATABASENS** (`applyRestockHits`): Offer.stockStatus står kvar på
   IN_STOCK hela dagen medan lanen såg både utsäljningen och påfyllningen. "ABSENT" → okänt, aldrig
   en IN→IN-rad. Gömda produkter uppdaterar lager men larmar inte (samma som runner.ts).

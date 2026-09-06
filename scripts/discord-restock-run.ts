@@ -435,8 +435,8 @@ async function main() {
             if (!hitsPausedLogged) {
               hitsPausedLogged = true;
               console.log(
-                "[discord-restock] Larm-hits: appen svarar att restock-larmen är PAUSADE " +
-                  "(RESTOCK_ALERTS_PAUSED i Railway) — hitsen slängs, databasen rörs inte."
+                "[discord-restock] Larm-hits: appen svarar att larmen bakom batchen är PAUSADE " +
+                  "(RESTOCK_ALERTS_PAUSED / PRICE_ALERTS_PAUSED i Railway) — hitsen slängs, databasen rörs inte."
               );
             }
             return;
@@ -480,7 +480,8 @@ async function main() {
     hitsDirty = true;
     hitTotals.queued += hits.length;
     for (const h of hits) {
-      console.log(`[discord-restock]   larm-hit: ${h.storeName} → ${h.storeUrl} (${h.to})`);
+      const what = h.kind === "PRICE_DROP" ? `pris ${h.previousPriceOre}→${h.priceOre} öre` : h.to;
+      console.log(`[discord-restock]   larm-hit: ${h.storeName} → ${h.storeUrl} (${what})`);
     }
     flushHits();
   };
@@ -634,7 +635,10 @@ async function main() {
     if (!config) {
       // --dry-run: visa vad som HADE postats, rör inte Discord.
       for (const h of hits) {
-        console.log(`[discord-restock][dry]   larm-hit: ${h.storeName} → ${h.productSlug} (${h.from ?? "?"} → ${h.to})`);
+        console.log(
+        `[discord-restock][dry]   larm-hit: ${h.storeName} → ${h.productSlug} ` +
+          `(${h.kind === "PRICE_DROP" ? `pris ${h.previousPriceOre}→${h.priceOre} öre` : `${h.from ?? "?"} → ${h.to}`})`
+      );
       }
       for (const p of postable) {
         console.log(

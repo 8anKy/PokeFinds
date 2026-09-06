@@ -17,7 +17,9 @@ const nodeRequire =
 
 import { isRedisAvailable } from "@/lib/queue";
 import { runAllActiveSources, type ScrapeJobSummary } from "@/scrapers/runner";
+import { rearmPriceAlerts } from "@/services/alerts";
 import { dispatchPendingAlerts } from "@/services/notifications";
+import { formatSweep, snapshotWatchedPrices, sweepWatchedPriceAlerts } from "@/services/price-alert-sweep";
 import { recomputeProductPriceCache } from "@/services/products";
 
 export const SCRAPE_QUEUE_NAME = "pokefinds-jobs";
@@ -125,9 +127,19 @@ export async function runScheduledScrapesOnce(): Promise<{
   alerts: { sent: number; failed: number };
 }> {
   console.log("[scheduler] Kör schemalagt insamlingspass...");
+  // Prislarmen: bevakade produkters lägsta köpbara pris FÖRE passet — svepet efteråt
+  // jämför mot det (src/services/price-alert-sweep.ts). Tomt när larmen är pausade.
+  const watchedBefore = await snapshotWatchedPrices();
   const scrapes = await runAllActiveSources();
   // Uppdatera denormaliserat lägstapris (katalog-feed: sortering + gömning).
   await recomputeProductPriceCache();
+  try {
+    const rearmed = await rearmPriceAlerts();
+    const sweep = await sweepWatchedPriceAlerts(watchedBefore);
+    console.log(`[scheduler] Prislarm: ${formatSweep(sweep)}; ${rearmed} spärrar släppta.`);
+  } catch (e) {
+    console.error("[scheduler] Prislarmssvepet misslyckades (ignoreras):", e instanceof Error ? e.message : e);
+  }
   const alerts = await dispatchPendingAlerts();
   console.log(
     `[scheduler] Klart: ${scrapes.length} källor, ${alerts.sent} alerts skickade, ${alerts.failed} misslyckade.`

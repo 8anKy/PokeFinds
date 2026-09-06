@@ -21,19 +21,26 @@
  * ⛔ BARA RUTTADE URL:er blir hits. En okänd URL har ingen produkt och därmed inga
  *    bevakare; dess första påfyllning når fortfarande Discord, och nattkedjan skapar
  *    produkten (auto-importen) så att NÄSTA påfyllning larmar.
- * ⛔ PRISSÄNKNINGAR ÄR INTE HITS. Ett prisinlägg är ingen påfyllning (varan har stått i
- *    lager hela tiden), och prislarmen är pausade av ett helt annat skäl.
+ * ✅ PRISSÄNKNINGAR ÄR OCKSÅ HITS SEDAN 2026-09-06 (`kind: "PRICE_DROP"`): lanens
+ *    "Nytt lägre pris"-inlägg (samma golv/tak/burst/cooldown som Discord) blir en hit
+ *    med det gamla priset, och appen skriver offerns pris och kör `checkPriceAlerts` —
+ *    prislarmets dom tas på produktens lägsta KÖPBARA pris, inte på feedens tal. Egen
+ *    grind i appen (`PRICE_ALERTS_PAUSED`), skild från restock-grinden.
  */
 import { z } from "zod";
 import type { RestockPost } from "./discord-restock";
 
 export const restockHitSchema = z.object({
-  /** Lanens state-nyckel (butik + tab + url). Dedup-nyckel i kön tillsammans med `to`. */
+  /** Lanens state-nyckel (butik + tab + url). Dedup-nyckel i kön tillsammans med `kind` + `to`. */
   key: z.string().min(1).max(2200),
+  /** Påfyllning (default — äldre köposter saknar fältet) eller prissänkning. */
+  kind: z.enum(["RESTOCK", "PRICE_DROP"]).default("RESTOCK"),
   storeName: z.string().min(1).max(120),
   storeUrl: z.string().url().max(2000),
   productSlug: z.string().min(1).max(200),
   priceOre: z.number().int().nullable(),
+  /** PRICE_DROP: priset lanen SÅG SENAST (öre) — en avläsning, inget historiskt lägsta. */
+  previousPriceOre: z.number().int().nullable().default(null),
   /** Lanens "från"-status. Kan vara "ABSENT" (fanns inte i förra feeden) → appen tolkar det som okänt. */
   from: z.string().max(24).nullable(),
   to: z.enum(["IN_STOCK", "PREORDER"]),
@@ -62,13 +69,18 @@ export interface RestockHitApplyResult {
   matched: number;
   /** RestockEvent-rader skrivna (lagerhistoriken på produktsidan). */
   events: number;
-  /** Larmrader skapade (en per mottagare). */
+  /** Larmrader skapade (en per mottagare) — lager- OCH prislarm. */
   alerts: number;
   skipped: Record<string, number>;
 }
 
-export function hitDedupKey(h: Pick<RestockHit, "key" | "to">): string {
-  return `${h.key}\t${h.to}`;
+/** Vilken grind en hit lyder under. Restock och pris pausas av OLIKA skäl (CLAUDE.md). */
+export function hitKind(h: Pick<RestockHit, "kind">): RestockHit["kind"] {
+  return h.kind ?? "RESTOCK";
+}
+
+export function hitDedupKey(h: Pick<RestockHit, "key" | "to"> & { kind?: RestockHit["kind"] }): string {
+  return `${h.key}\t${h.kind ?? "RESTOCK"}\t${h.to}`;
 }
 
 /**
@@ -81,16 +93,32 @@ export function hitsFromPosts(posts: readonly RestockPost[], now: Date): Restock
   const out: RestockHit[] = [];
   for (const p of posts) {
     if (!p.productSlug) continue;
-    if (p.previousPriceOre != null) continue;
-    out.push({
+    const common = {
       key: p.key,
       storeName: p.storeName,
       storeUrl: p.storeUrl,
       productSlug: p.productSlug,
       priceOre: p.priceOre,
+      at: now.getTime(),
+    };
+    if (p.previousPriceOre != null) {
+      // Prisinlägg: varan står i lager, priset är nyheten. Bara med ett riktigt nytt pris.
+      if (p.priceOre == null || p.priceOre <= 0) continue;
+      out.push({
+        ...common,
+        kind: "PRICE_DROP",
+        previousPriceOre: p.previousPriceOre,
+        from: null,
+        to: "IN_STOCK",
+      });
+      continue;
+    }
+    out.push({
+      ...common,
+      kind: "RESTOCK",
+      previousPriceOre: null,
       from: p.transition?.from ?? null,
       to: p.preorder ? "PREORDER" : "IN_STOCK",
-      at: now.getTime(),
     });
   }
   return out;
@@ -152,7 +180,7 @@ export function removeDelivered(
 
 export interface SendHitsResult {
   ok: boolean;
-  /** Appen svarade att restock-larmen är pausade → hitsen är inte värda att spara. */
+  /** Appen svarade att larmen bakom HELA batchen är pausade → hitsen är inte värda att spara. */
   paused: boolean;
   /** 4xx: fel hemlighet eller ogiltig kropp — ett omförsök ger samma svar. */
   permanent: boolean;

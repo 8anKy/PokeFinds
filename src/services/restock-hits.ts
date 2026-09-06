@@ -13,12 +13,17 @@
  * ⛔ GÖMDA PRODUKTER (hiddenAt / gömd kategori) uppdaterar lager men larmar aldrig —
  *    exakt som `isHiddenFromAlerts` i runner.ts. Discord-inlägget gick ändå ut, det
  *    är avsiktligt (se kommentaren där).
+ * ✅ PRISSÄNKNINGS-HITS (kind PRICE_DROP, 2026-09-06): offerns pris skrivs och
+ *    `checkPriceAlerts` döms på produktens lägsta KÖPBARA pris inklusive det nya —
+ *    en billigare butik någon annanstans ⇒ inget larm. Egen grind (PRICE_ALERTS_PAUSED)
+ *    i rutten; hit-kroppen är densamma.
  */
 import { StockStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { checkRestockAlerts } from "@/services/alerts";
+import { isDirectOfferUrl } from "@/lib/marketplace-urls";
+import { checkPriceAlerts, checkRestockAlerts, lowestBuyableOffer, type BuyableOffer } from "@/services/alerts";
 import { HIDDEN_CATEGORIES } from "@/services/products";
-import type { RestockHit, RestockHitApplyResult } from "@/lib/restock-hits";
+import { hitKind, type RestockHit, type RestockHitApplyResult } from "@/lib/restock-hits";
 
 const STATUSES = new Set<string>(Object.values(StockStatus));
 
@@ -35,8 +40,8 @@ export async function applyRestockHits(hits: readonly RestockHit[]): Promise<Res
     alerts: 0,
     skipped: {},
   };
-  const skip = (why: string) => {
-    result.skipped[why] = (result.skipped[why] ?? 0) + 1;
+  const skip = (why: string, n = 1) => {
+    result.skipped[why] = (result.skipped[why] ?? 0) + n;
   };
   const now = new Date();
 
@@ -54,10 +59,51 @@ export async function applyRestockHits(hits: readonly RestockHit[]): Promise<Res
       select: {
         id: true,
         productId: true,
+        url: true,
+        price: true,
         stockStatus: true,
-        product: { select: { category: true, hiddenAt: true } },
+        product: { select: { category: true, hiddenAt: true, lowestPriceOre: true } },
       },
     });
+
+    if (hitKind(hit) === "PRICE_DROP") {
+      // PRISSÄNKNING: varan står i lager, priset är nyheten. Kräver en befintlig offer
+      // (priset ska landa på en rad vi visar) och ett riktigt pris (> 0).
+      if (!offer) {
+        skip("okänd offer");
+        continue;
+      }
+      if (hit.priceOre == null || hit.priceOre <= 0) {
+        skip("inget pris");
+        continue;
+      }
+      result.matched++;
+      const hidden = offer.product.hiddenAt != null || HIDDEN_CATEGORIES.includes(offer.product.category);
+      if (!hidden) {
+        // LARMA FÖRST, SKRIV SIST (samma ordning som lagerhits): domen tas på produktens
+        // lägsta köpbara pris MED den här offern på sitt nya pris — inte på feedens tal
+        // rakt av (en annan butik kan fortfarande vara billigare ⇒ inget att larma om).
+        const current = await lowestBuyableOffer(offer.productId);
+        const candidate: BuyableOffer | null = isDirectOfferUrl(offer.url)
+          ? { id: offer.id, productId: offer.productId, price: hit.priceOre, url: offer.url, retailerId: retailer.id, retailer: { name: hit.storeName } }
+          : null;
+        const lowest =
+          candidate && (!current || candidate.price < current.price) ? candidate : current;
+        const r = await checkPriceAlerts(offer.productId, {
+          previousOre: offer.product.lowestPriceOre,
+          lowest,
+        });
+        result.alerts += r.triggered;
+        for (const [k, v] of Object.entries(r.skipped)) skip(`pris:${k}`, v);
+      } else {
+        skip("gömd produkt");
+      }
+      await prisma.offer.update({
+        where: { id: offer.id },
+        data: { price: hit.priceOre, stockStatus: StockStatus.IN_STOCK, lastSeenAt: now },
+      });
+      continue;
+    }
     let productId: string;
     let product: { category: (typeof HIDDEN_CATEGORIES)[number]; hiddenAt: Date | null };
     if (offer) {

@@ -32,6 +32,16 @@ jobs:
       CARDMARKET_RAPIDAPI_KEY: ${{ secrets.CARDMARKET_RAPIDAPI_KEY }}
       EUR_SEK: ${{ secrets.EUR_SEK }}
       HOT_CARD_LIMIT: "400" # ~400 anrop/körning × 2 = 800/dygn (full refresh ~1100)
+      # PRISLARM (2026-09-06): kvällsrefreshen sveper bevakade produkter efteråt och
+      # skickar prislarm. ⛔ Samma spak som i scrape-all.yml/cardmarket-refresh.yml och
+      # Railway — alla måste stå lika (se src/lib/price-alerts-pause.ts).
+      PRICE_ALERTS_PAUSED: "0"
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      APNS_KEY: ${{ secrets.APNS_KEY }}
+      APNS_KEY_ID: 783RWWQFH7
+      APNS_TEAM_ID: F2XP44FF3B
+      APNS_BUNDLE_ID: se.foilio.app
+      APNS_PRODUCTION: "true"
     steps:
       # Self-healing-vakt: hoppa över grönt tills DATABASE_URL-secret finns.
       - name: Förkrav — DATABASE_URL måste vara satt

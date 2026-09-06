@@ -27,6 +27,9 @@ import {
   printLabelFromVersion,
 } from "../lib/print-variant";
 import { recomputeProductPriceCache } from "../services/products";
+import { rearmPriceAlerts } from "../services/alerts";
+import { dispatchPendingAlerts } from "../services/notifications";
+import { formatSweep, snapshotWatchedPrices, sweepWatchedPriceAlerts } from "../services/price-alert-sweep";
 import { fetchCmGuide, fetchCmSingleNames, guideNameMatches, guideRowIsSingle, singlesHeadlineEur } from "./cardmarket-refresh";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -116,6 +119,8 @@ export async function runHotCardRefresh(
     return res;
   }
   res.ran = true;
+  // Prislarmen: bevakade produkters lägsta köpbara pris FÖRE (svepet sist jämför).
+  const watchedBefore = await snapshotWatchedPrices();
 
   const api = async <T>(url: string): Promise<T | null> => {
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -252,7 +257,21 @@ export async function runHotCardRefresh(
     res.updated++;
   });
 
-  if (res.updated > 0) await recomputeProductPriceCache();
+  if (res.updated > 0) {
+    await recomputeProductPriceCache();
+    // Prislarmssvepet (se cardmarket-refresh): fel sväljs, kvällens priser är redan skrivna.
+    try {
+      const rearmed = await rearmPriceAlerts();
+      const sweep = await sweepWatchedPriceAlerts(watchedBefore);
+      console.log(`[hot-refresh] Prislarm: ${formatSweep(sweep)}; ${rearmed} spärrar släppta.`);
+      if (sweep.triggered > 0) {
+        const d = await dispatchPendingAlerts();
+        console.log(`[hot-refresh] Prislarm skickade: ${d.sent}, misslyckade: ${d.failed}.`);
+      }
+    } catch (err) {
+      console.error("[hot-refresh] Prislarmssvepet misslyckades (ignoreras):", err instanceof Error ? err.message : err);
+    }
+  }
   console.log(`[hot-refresh] ${res.updated} kort uppdaterade, ${res.apiCalls} anrop (kvot kvar ${res.remaining}).`);
   return res;
 }

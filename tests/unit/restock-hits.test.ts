@@ -3,8 +3,9 @@
  * (src/lib/restock-hits.ts + src/services/restock-hits.ts + /api/cron/restock-hit).
  *
  * Tre saker vaktas:
- *   1. Den rena domen: bara RUTTADE påfyllningar blir hits, aldrig prissänkningar; kön
- *      dedupar, TTL:ar och tappar aldrig en nyare övergång när en äldre levereras.
+ *   1. Den rena domen: bara RUTTADE inlägg blir hits — påfyllningar (RESTOCK) och, sedan
+ *      2026-09-06, prissänkningar (PRICE_DROP) med det gamla priset; kön dedupar per
+ *      sort, TTL:ar och tappar aldrig en nyare övergång när en äldre levereras.
  *   2. Appens skrivningar sker i SAMMA ordning som nattkedjans offer-diff:
  *      RestockEvent → checkRestockAlerts → Offer.stockStatus SIST.
  *   3. Invarianten som gör lanen gratis: workflowet kör med DÖD DATABASE_URL och
@@ -30,6 +31,8 @@ const offerUpdate = vi.fn();
 const productFindUnique = vi.fn();
 const restockEventCreate = vi.fn();
 const checkRestockAlerts = vi.fn();
+const checkPriceAlerts = vi.fn();
+const lowestBuyableOffer = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -44,6 +47,8 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/services/alerts", () => ({
   checkRestockAlerts: (...a: unknown[]) => checkRestockAlerts(...a),
+  checkPriceAlerts: (...a: unknown[]) => checkPriceAlerts(...a),
+  lowestBuyableOffer: (...a: unknown[]) => lowestBuyableOffer(...a),
 }));
 vi.mock("@/services/products", () => ({
   HIDDEN_CATEGORIES: ["ACCESSORY", "GRADED_CARD", "OTHER"],
@@ -74,16 +79,21 @@ function post(over: Partial<RestockPost> = {}): RestockPost {
 function hit(over: Partial<RestockHit> = {}): RestockHit {
   return {
     key: "Rogerz\thttps://rogerz.se/p/pitch-black-etb",
+    kind: "RESTOCK",
     storeName: "Rogerz",
     storeUrl: "https://rogerz.se/p/pitch-black-etb",
     productSlug: "pitch-black-etb",
     priceOre: 64900,
+    previousPriceOre: null,
     from: "OUT_OF_STOCK",
     to: "IN_STOCK",
     at: NOW.getTime(),
     ...over,
   };
 }
+
+const priceHit = (over: Partial<RestockHit> = {}): RestockHit =>
+  hit({ kind: "PRICE_DROP", previousPriceOre: 79900, from: null, to: "IN_STOCK", ...over });
 
 describe("hitsFromPosts — vad som blir en larm-hit", () => {
   it("ett ruttat påfyllningsinlägg blir en hit med lanens övergång", () => {
@@ -93,10 +103,28 @@ describe("hitsFromPosts — vad som blir en larm-hit", () => {
 
   it("en URL utan rutt (ingen produkt) blir ALDRIG en hit — det finns inga bevakare", () => {
     expect(hitsFromPosts([post({ productUrl: null, productSlug: null })], NOW)).toEqual([]);
+    expect(hitsFromPosts([post({ productUrl: null, productSlug: null, previousPriceOre: 79900 })], NOW)).toEqual([]);
   });
 
-  it("en prissänkning är ingen påfyllning", () => {
-    expect(hitsFromPosts([post({ previousPriceOre: 79900 })], NOW)).toEqual([]);
+  it("en prissänkning blir en PRICE_DROP-hit med det gamla priset — ingen övergång, varan står i lager", () => {
+    expect(hitsFromPosts([post({ previousPriceOre: 79900, transition: undefined })], NOW)).toEqual([priceHit()]);
+  });
+
+  it("en prissänkning utan riktigt nytt pris (0/null) blir ingen hit — 0 kr är inget pris", () => {
+    expect(hitsFromPosts([post({ previousPriceOre: 79900, priceOre: 0 })], NOW)).toEqual([]);
+    expect(hitsFromPosts([post({ previousPriceOre: 79900, priceOre: null })], NOW)).toEqual([]);
+  });
+
+  it("påfyllning och prissänkning på SAMMA URL är två hits i kön (olika sort)", () => {
+    const merged = mergePendingHits([hit()], [priceHit()], NOW);
+    expect(merged).toHaveLength(2);
+  });
+
+  it("en äldre köpost utan `kind` tolkas som påfyllning", () => {
+    const legacy = { ...hit() } as Partial<RestockHit>;
+    delete legacy.kind;
+    delete legacy.previousPriceOre;
+    expect(parsePendingHits({ hits: [legacy] })).toEqual([hit()]);
   });
 
   it("förhandsbokning ⇒ to = PREORDER, så copyn blir 'går nu att förhandsboka'", () => {
@@ -295,6 +323,74 @@ describe("applyRestockHits — appens skrivningar", () => {
     expect(laneStatus("ABSENT")).toBeNull();
     expect(laneStatus(null)).toBeNull();
     expect(laneStatus("PREORDER")).toBe("PREORDER");
+  });
+});
+
+describe("applyRestockHits — prissänkningar (PRICE_DROP)", () => {
+  const offerRow = {
+    id: "o1",
+    productId: "p1",
+    url: "https://rogerz.se/p/pitch-black-etb",
+    price: 79900,
+    stockStatus: "IN_STOCK",
+    product: { category: "SEALED", hiddenAt: null, lowestPriceOre: 74900 },
+  };
+  beforeEach(() => {
+    vi.clearAllMocks();
+    retailerFindUnique.mockResolvedValue({ id: "r1" });
+    offerFindFirst.mockResolvedValue(offerRow);
+    offerUpdate.mockResolvedValue({});
+    lowestBuyableOffer.mockResolvedValue(null);
+    checkPriceAlerts.mockResolvedValue({ triggered: 1, skipped: {} });
+  });
+
+  it("larmar FÖRST på lägsta köpbara pris inklusive det nya, skriver offerns pris SIST", async () => {
+    const order: string[] = [];
+    checkPriceAlerts.mockImplementation(async () => {
+      order.push("alerts");
+      return { triggered: 1, skipped: {} };
+    });
+    offerUpdate.mockImplementation(async () => order.push("write"));
+
+    const r = await applyRestockHits([priceHit({ priceOre: 64900 })]);
+
+    expect(order).toEqual(["alerts", "write"]);
+    expect(checkPriceAlerts).toHaveBeenCalledWith("p1", {
+      previousOre: 74900, // produktens cachade lägstapris = det användaren senast såg
+      lowest: expect.objectContaining({ id: "o1", price: 64900, retailerId: "r1" }),
+    });
+    expect(offerUpdate).toHaveBeenCalledWith({
+      where: { id: "o1" },
+      data: expect.objectContaining({ price: 64900, stockStatus: "IN_STOCK" }),
+    });
+    expect(r).toMatchObject({ matched: 1, events: 0, alerts: 1 });
+    expect(checkRestockAlerts).not.toHaveBeenCalled();
+    expect(restockEventCreate).not.toHaveBeenCalled();
+  });
+
+  it("en annan butik är fortfarande billigare ⇒ domen tas på DEN, inte på feedens tal", async () => {
+    lowestBuyableOffer.mockResolvedValue({ id: "o2", productId: "p1", price: 59900, url: "https://x.se/p", retailerId: "r2", retailer: { name: "X" } });
+    await applyRestockHits([priceHit({ priceOre: 64900 })]);
+    expect(checkPriceAlerts.mock.calls[0][1].lowest).toMatchObject({ id: "o2", price: 59900 });
+  });
+
+  it("utan offer på URL:en, eller utan riktigt pris, skrivs och larmas inget", async () => {
+    offerFindFirst.mockResolvedValue(null);
+    const a = await applyRestockHits([priceHit()]);
+    expect(a.skipped).toEqual({ "okänd offer": 1 });
+    offerFindFirst.mockResolvedValue(offerRow);
+    const b = await applyRestockHits([priceHit({ priceOre: 0 })]);
+    expect(b.skipped).toEqual({ "inget pris": 1 });
+    expect(checkPriceAlerts).not.toHaveBeenCalled();
+    expect(offerUpdate).not.toHaveBeenCalled();
+  });
+
+  it("gömd produkt: priset skrivs men inget larm", async () => {
+    offerFindFirst.mockResolvedValue({ ...offerRow, product: { ...offerRow.product, hiddenAt: new Date() } });
+    const r = await applyRestockHits([priceHit({ priceOre: 64900 })]);
+    expect(checkPriceAlerts).not.toHaveBeenCalled();
+    expect(offerUpdate).toHaveBeenCalledTimes(1);
+    expect(r.skipped).toEqual({ "gömd produkt": 1 });
   });
 });
 

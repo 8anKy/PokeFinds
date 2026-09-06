@@ -1,75 +1,68 @@
 /**
- * ⛔ PRISLARMEN (PRICE_TARGET) ÄR PAUSADE (ägarbeslut 2026-08-26).
+ * PRISLARMEN (PRICE_TARGET / PRICE_DROP) — PAUSFLAGGAN.
  *
- * VARFÖR — sex defekter, alla belagda 2026-08-26, ingen av dem lagad:
+ * Pausade 2026-08-26 (ägarbeslut) för SEX defekter; ALLA LAGADE 2026-09-06. Flaggan
+ * finns kvar som på/av-spak — samma mönster som restock-larmen, men en EGEN variabel:
+ * restock pausades för KOSTNAD, prislarmen för en LAGNING, och de slås på var för sig.
  *
- *  1. LARMET KAN VARA OSANT. `checkPriceAlerts` jämför målpriset mot VILKEN offer som
- *     helst som just blev billigare, utan att kolla lagerstatus, direktlänk eller
- *     källtyp. Mätt: larmet 2026-08-26 03:29 om "Prismatic Evolutions Super-Premium
- *     Collection – nu 1 338,00 kr" utlöstes av en OUT_OF_STOCK-offer hos Beam Cardshop
- *     vars URL (…/products/pokemon-scarlet-violet-prismatic-evolutions) ser felmatchad
- *     ut. Produktens verkliga lägsta pris var 2 665,55 kr och målpriset 2 000 kr — det
- *     fanns alltså inget att köpa till något pris i närheten av det larmet påstod.
- *     Jämför invarianten i CLAUDE.md: butiksfilter kräver IN_STOCK + direkt länk.
+ * VAD SOM VAR TRASIGT OCH HUR DET ÄR LAGAT (mätdata i git-historiken för den här filen):
  *
- *  2. INGEN COOLDOWN. Så länge priset ligger under målet larmar VARJE nytt litet fall,
- *     varje natt, för evigt. Mätt över 30 dygn: samma produkt+användare 7 gånger
- *     (Prismatic, 08-11→08-26) och 4 gånger (Pitch Black, 08-14→08-26). Restock-larmen
- *     har en cooldown och en flappdämpning; prislarmen har ingenting.
+ *  1. LARMET KUNDE VARA OSANT — dömdes på vilken offer som helst som råkade bli
+ *     billigare, utan lager-/direktlänks-/källkoll (mätt: "nu 1 338 kr" ur en slutsåld
+ *     offer på en produkt vars lägsta pris var 2 665 kr).
+ *     → Domen tas på produktens LÄGSTA KÖPBARA pris: i lager + direktlänk + > 0 kr
+ *       (`lowestBuyableOffer`, samma urval som produktsidans rubrikpris).
+ *  2. INGEN COOLDOWN — samma produkt+användare 7 ggr på 30 dygn.
+ *     → SPÄRR (latch) på bevakningen: `WatchlistItem.priceAlertFiredOre`. Målpris: ETT
+ *       larm per gång målet nås, släpps när priset åter ligger över målet. Prisfall:
+ *       nästa larm kräver ett nytt tydligt fall under larmnivån; släpps när priset
+ *       stigit PRICE_ALERT_REARM_PERCENT (10 %) över den. `rearmPriceAlerts()` körs
+ *       efter varje prisjobb. Dom: `src/lib/price-alert-rule.ts`.
+ *  3. MEJLET VISADE ETT ANNAT PRIS ÄN LARMET (459 kr i raden, 354,56 kr i rubriken,
+ *     ett tredje i pushen).
+ *     → `Alert.priceOre` + `Alert.retailerId` skrivs när larmet skapas; larmrad, mejl
+ *       och push läser samma tal och länkar till samma butik.
+ *  4. "LÄMNA TOMT FÖR ATT BARA BEVAKA PRISFALL" FUNGERADE ALDRIG (18 bevakningar hos
+ *     4 användare stod tysta).
+ *     → Prisfall-läget finns: utan målpris larmar bevakningen vid ett fall på minst
+ *       PRICE_ALERT_MIN_PERCENT (5 %) OCH PRICE_ALERT_MIN_ORE (10 kr) från det pris
+ *       användaren senast såg; fall över PRICE_ALERT_MAX_PERCENT (60 %) avvisas som
+ *       troligare fel data än ett pris. Copyn säger nu vad tröskeln är.
+ *  5. PRICE_DROP SKAPADES ALDRIG — bara butiksfeedarnas offer-diff nådde koden, så ett
+ *     äkta CM-prisfall på en singel larmade inte.
+ *     → Alla tre prisjobben (nattkedjan, cardmarket-refresh 13:00, hot-card 21:00) tar
+ *       en ögonblicksbild av bevakade produkters lägsta köpbara pris FÖRE och sveper
+ *       EFTER (`services/price-alert-sweep.ts`); Discord-lanens "Nytt lägre pris"
+ *       blir dessutom en PRICE_DROP-hit till `/api/cron/restock-hit` inom ~20 s.
+ *  6. MEJLET KUNDE SKRIVA "0 KR" (`?? 0`).
+ *     → Priset är > 0 per urval; ett äldre larm utan sparat pris får ett mejl utan
+ *       prisrad. Offer-urvalet i mejlet kräver `price > 0`.
  *
- *  3. MEJLET VISAR ETT ANNAT PRIS ÄN LARMET. `buildAlertEmail` bygger om priset ur
- *     billigaste offer med direktlänk VID UTSKICKET, inte ur priset som utlöste larmet.
- *     Mätt: alert-raden sa "Nuvarande pris: 459 kr" (Beam Cardshop) medan mejlets rubrik
- *     sa "nu 354,56 kr" (Cardmarkets pris i samma stund). Två tal, ett mejl. Pushen bär
- *     dessutom en TREDJE variant — den skickar `alert.message`, dvs trigger-priset — så
- *     samma larm kan nå samma person med två olika tal.
- *
- * Revisionen 2026-08-26 hittade tre defekter till, som INTE syntes i de två mejlen:
- *
- *  4. ⛔ "LÄMNA TOMT FÖR ATT BARA BEVAKA PRISFALL" HAR ALDRIG FUNGERAT. Copyn
- *     (`Detail.priceModalIntro`) föreslår aktivt att lämna målprisfältet tomt, vilket ger
- *     `targetPrice = null` — men `checkPriceAlerts` filtrerar `targetPrice: { not: null }`
- *     och hoppar över raden. MÄTT i prod: **18 aktiva bevakningar hos 4 användare** har
- *     `priceAlert=true` utan målpris (mot 3 med). Sex gånger fler bevakningar var alltså
- *     tysta av design än som faktiskt larmade, och de tillhör KUNDER, inte bara ägaren.
- *  5. `PRICE_DROP` skapas ALDRIG. Enda vägen in är butiksfeedarnas offer-diff, så ett
- *     äkta prisfall som bara syns i Cardmarket-priset (merparten av katalogens ~20k
- *     singlar) larmar inte alls — samtidigt som en enskild butiks skenbara fall larmar
- *     falskt. Funktionen missar alltså sanna fall och hittar på osanna.
- *  6. MEJLET KAN SKRIVA "0 KR". `notifications.ts` gör `dealOffer?.price ?? bestOffer?.price
- *     ?? 0` och filtrerar bara `price: { not: null }`, aldrig `> 0` — enda prisvägen i
- *     kodbasen som släpper igenom noll. Bryter invarianten "0 kr är inget pris" rakt av.
- *     (Kodväg, ingen uppmätt förekomst.)
- *
- * GRINDEN LIGGER VID SKAPANDET, INTE VID UTSKICKET — exakt samma skäl som för
- * restock-pausen: `dispatchPendingAlerts` läser inte `Alert.channel` utan skickar varje
- * PENDING-rad till användarens påslagna kanaler. En grind vid utskicket hade lämnat
- * raderna liggande och tömt hela högen i ett svep den dag larmen slås på igen.
+ * GRINDEN LIGGER VID SKAPANDET, INTE VID UTSKICKET — samma skäl som för restock-pausen:
+ * `dispatchPendingAlerts` läser inte `Alert.channel` utan skickar varje PENDING-rad till
+ * användarens påslagna kanaler. En grind vid utskicket hade lämnat raderna liggande och
+ * tömt hela högen i ett svep den dag larmen slås på igen.
  *
  * ⛔ BERÖRS INTE: veckobrevets "prisfall på det du bevakar" (en sammanfattning, inte ett
  * larm), `PriceSnapshot`/prishistoriken, "Största prisfall" på /marknad, och
  * restock-larmen (egen flagga, `restockAlertsPaused()`).
  *
- * OMFATTNING NÄR PAUSEN SATTES: exakt 3 bevakningar i hela databasen hade ett målpris,
- * alla tre ägarens egna. Ingen betalande kund fick ett prislarm den dagen pausen
- * infördes — men copyn sålde dem ändå, se nedan, och 18 bevakningar hos 4 andra
- * användare stod redan i det tysta läget i defekt 4.
- *
- * SLÅ PÅ IGEN — TRE STÄLLEN, samma som för restock:
- *   1. `PRICE_ALERTS_PAUSED=0` i env-blocket för `scrape-all.yml` (och
- *      `restock-watch.yml` om det jobbet också startas)
- *   2. `PRICE_ALERTS_PAUSED=0` i RAILWAY — den styr COPYN via speglingen i
- *      `next.config.mjs` och bakas in vid BYGGET (env-ändring ⇒ ny deploy, inte omstart)
- *   3. LAGA DE SEX DEFEKTERNA OVAN FÖRST. Att bara flippa flaggan återuppväcker ett
- *      larm som kan påstå ett pris som inte finns — och lämnar 18 bevakningar tysta.
+ * SLÅ PÅ/AV — FYRA STÄLLEN SOM MÅSTE STÅ LIKA:
+ *   1. `PRICE_ALERTS_PAUSED` i env-blocket för `scrape-all.yml` (nattkedjans svep)
+ *   2. … i `cardmarket-refresh.yml` (13:00-svepet)
+ *   3. … i `hot-card-refresh.yml` (21:00-svepet)
+ *   4. … i RAILWAY — styr Discord-lanens PRICE_DROP-hits OCH copyn via speglingen i
+ *      `next.config.mjs` + Dockerfilens ARG; bakas in vid BYGGET (env-ändring ⇒ ny
+ *      deploy, inte omstart).
  * Läses vid varje ANROP, aldrig vid modulladdning, så tester och engångsskript kan sätta
- * den utan importordningsberoende.
+ * den utan importordningsberoende. Torrkörning mot prod (vad som HADE larmat just nu):
+ * `node scripts/with-prod-db.mjs npx tsx scripts/price-alert-dry-run.ts`.
  *
  * ⛔ COPYN ÄR EN DEL AV GRINDEN, INTE EN FÖLJD AV DEN. Pausen av restock-larmen
  * 2026-08-23 rörde inte ett ord av texten, och `/priser` — som i appen ÄR hela paywallen
  * — fortsatte sälja avstängda larm tills två kunder hade betalat 49 kr/mån för dem. Här
- * flyttas prispunkterna därför till egna listor (`premiumPriceFeatures` /
- * `freeExcludedPrice`) som `pausableFeatures()` konkatenerar tillbaka när flaggan är av.
+ * ligger prispunkterna därför i egna listor (`premiumPriceFeatures` / `freeExcludedPrice`)
+ * som `pausableFeatures()` konkatenerar tillbaka när flaggan är av.
  * Vaktat av `tests/unit/price-alert-pause.test.ts`.
  */
 export function priceAlertsPaused(): boolean {

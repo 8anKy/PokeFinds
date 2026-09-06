@@ -926,6 +926,11 @@ model WatchlistItem {
   channels     Json     @default("[\"IN_APP\",\"EMAIL\"]")
   isPaused     Boolean  @default(false)
   createdAt    DateTime @default(now())
+  // Prislarmets SPÄRR (2026-09-06): priset vi senast larmade om + när. null = spänd.
+  // Målpris: släpps när priset åter ligger över målet. Prisfall: släpps när priset
+  // stigit PRICE_ALERT_REARM_PERCENT över larmnivån. Se src/lib/price-alert-rule.ts.
+  priceAlertFiredOre Int?
+  priceAlertFiredAt  DateTime?
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -958,6 +963,10 @@ model Alert {
   // null = skälet är uppenbart (egen produktbevakning / "alla restocks") eller
   // larm skapade före 2026-08-06.
   reasonSetName  String?
+  // Priset larmet HANDLAR OM (öre) för PRICE_TARGET/PRICE_DROP — det lägsta köpbara
+  // priset när larmet skapades. Larmraden, mejlet och pushen bär SAMMA tal (mätt före
+  // 2026-09-06: tre olika tal för samma larm). null = äldre larm / lagerlarm.
+  priceOre       Int?
   message        String
   channel        AlertChannel @default(IN_APP)
   status         AlertStatus  @default(PENDING)

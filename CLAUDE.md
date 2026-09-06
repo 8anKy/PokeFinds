@@ -261,34 +261,27 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   även med en oändligt snabb DB-fas. Kodhastighet är en KLIPPKANT, inte en skala: inget händer förrän
   DB-fasen kommer under 300 s. Användarna är meddelade via
   `.github/workflows/restock-paused-notice.yml` (engångsutskick, Discord som gratis alternativ).
-- ⛔ **PRISLARMEN (PRICE_TARGET) ÄR OCKSÅ PAUSADE (ägarbeslut 2026-08-26)** — egen flagga
-  `PRICE_ALERTS_PAUSED` (`src/lib/price-alerts-pause.ts`, default PAUSAT), grind vid SKAPANDET i
-  `checkPriceAlerts`. **Helt annat skäl än restock**: restock väntar på KOSTNAD, prislarmen på en
-  LAGNING — blanda aldrig ihop flaggorna, de slås på vid olika tillfällen.
-  **SEX OLAGADE DEFEKTER, belagda 2026-08-26**: (1) larmet kollar varken lagerstatus,
-  direktlänk eller källa på offern som utlöste det — larmet "nu 1 338,00 kr" kom från en
-  OUT_OF_STOCK-offer hos Beam Cardshop på en produkt vars verkliga lägsta pris var 2 665,55 kr och
-  vars mål var 2 000 kr; (2) INGEN cooldown alls — samma produkt+användare larmade 7 ggr på 30 dygn
-  (mot restock-larmens cooldown + flappdämpning); (3) mejlet visar priset ur billigaste offer VID
-  UTSKICKET, inte det som utlöste larmet (larmraden sa 459 kr, mejlrubriken 354,56 kr) — och pushen
-  bär en TREDJE variant (`alert.message`, dvs trigger-priset);
-  (4) ⛔ **"Lämna tomt för att bara bevaka prisfall" har ALDRIG fungerat** — copyn föreslår aktivt
-  ett tomt målprisfält, men frågan filtrerar `targetPrice: { not: null }`. MÄTT: **18 aktiva
-  bevakningar hos 4 användare** står i det läget, mot 3 som faktiskt larmade; (5) `PRICE_DROP`
-  skapas ALDRIG — enda vägen in är butiksfeedarnas offer-diff, så äkta CM-prisfall på ~20k singlar
-  larmar inte alls; (6) `dealOffer?.price ?? bestOffer?.price ?? 0` kan mejla **"0 kr"** (enda
-  prisvägen i kodbasen som inte kräver `> 0`).
-  ⛔ Enda anroparen är `runScrapeJob` (nattkedjan + adminens skrapknapp) — det finns ingen andra väg
-  den här gången. ⛔ Copyn är grindad som restockens: prispunkterna ligger i `premiumPriceFeatures` /
-  `freeExcludedPrice` och konkateneras tillbaka av `pausableFeatures()`; `RestockPausedBanner` väljer
-  själv mellan tre besked (restock / prislarm / båda). Notisen som sa "Prislarm fungerar som vanligt"
-  är borttagen — den var sann till 08-26 och en lögn efter. Vaktat av
-  `tests/unit/price-alert-pause.test.ts`. **SLÅ PÅ IGEN**: laga de sex defekterna FÖRST, sedan
-  `PRICE_ALERTS_PAUSED=0` i `scrape-all.yml` OCH i **Railway** (copyn, bakas in vid bygget).
-  ⛔ Räkna om cooldownen mot ett LATCH-läge, inte en tidsgräns: larmet ska gå EN gång per gång målet
-  nås, inte var gång priset rör sig nedåt under målet.
-  ⛔ Omfattning när pausen sattes: 3 bevakningar med målpris (alla ägarens egna) plus de 18 tysta i
-  defekt 4 hos 4 andra användare.
+- ✅ **PRISLARMEN LAGADE 2026-09-06 (pausade 2026-08-26 för sex defekter)** — egen flagga
+  `PRICE_ALERTS_PAUSED` (`src/lib/price-alerts-pause.ts`, default PAUSAT, grind vid SKAPANDET), skild
+  från restock-flaggan: restock pausades för KOSTNAD, prislarmen för en LAGNING. Domen bor i
+  `src/lib/price-alert-rule.ts` (ren, testad): larmet tas på produktens **LÄGSTA KÖPBARA pris** (i lager
+  + direktlänk + > 0 kr, `lowestBuyableOffer` = produktsidans rubrikpris), aldrig på offern som råkade
+  röra sig. **Målpris** = ETT larm per gång målet nås — SPÄRR `WatchlistItem.priceAlertFiredOre`,
+  släpps av `rearmPriceAlerts()` när priset åter ligger över målet. **Prisfall utan målpris** = fall
+  ≥ 5 % OCH ≥ 10 kr från priset användaren senast såg (`Product.lowestPriceOre`), tak 60 % (fel data),
+  nytt larm först vid nytt fall, spärren släpps +10 % över larmnivån (env `PRICE_ALERT_*`). Larmraden
+  bär `Alert.priceOre` + `retailerId` ⇒ rad, mejl och push visar SAMMA tal och butik; aldrig 0 kr.
+  ⛔ **VÄGARNA IN ÄR SVEP, INTE PER OFFER**: `snapshotWatchedPrices()` FÖRE + `sweepWatchedPriceAlerts()`
+  EFTER `recomputeProductPriceCache` i nattkedjan (`scheduler.ts`), `cardmarket-refresh` (13:00) och
+  `hot-card-refresh` (21:00) — så CM-prisfall på singlar larmar (defekt 5). Kostnad: två frågor + en per
+  produkt som blev billigare; pausat läge kostar noll. Dagtid: Discord-lanens "Nytt lägre pris" blir en
+  `PRICE_DROP`-hit till `/api/cron/restock-hit` (egen grind per hit-sort). `runScrapeJob` dömer inte
+  längre per offer. Torrkörning mot prod: `scripts/price-alert-dry-run.ts` (mätt 09-06: 21 aktiva
+  bevakningar, 2 hade larmat — ägarens egna, målen redan nådda — 18 prisfall-bevakningar väntar på ett
+  äkta fall). ⛔ **FLAGGAN MÅSTE STÅ LIKA PÅ FYRA STÄLLEN**: `scrape-all.yml`, `cardmarket-refresh.yml`,
+  `hot-card-refresh.yml` (alla "0" sedan 09-06) OCH Railway (copyn + hit-rutten; bakas in vid bygget).
+  Copyn är grindad som restockens (`premiumPriceFeatures` / `alertCopyKey`), vaktat av
+  `tests/unit/price-alert-pause.test.ts`; domen av `price-alert-rule.test.ts` + `alerts.test.ts`.
 - **restock-watch** = `runRestockScan()` i `src/scrapers/runner.ts`: butikskatalogerna hämtas PARALLELLT
   (fas 1 = ren HTTP → Neon sover), offers läses EN gång och lagerstatus diffas i minnet. Källistan ligger i
   diskcache (TTL 24 h) → **en ändrad restockWatch-flagga slår igenom först inom ett dygn.**

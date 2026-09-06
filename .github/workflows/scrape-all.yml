@@ -46,14 +46,13 @@ jobs:
       # SÄTT TILL "0" NÄR LARMEN SKA PÅ IGEN — och slå på restock-watch.yml samtidigt.
       # ⛔ Veckobrevet och RestockEvent-historiken berörs INTE.
       RESTOCK_ALERTS_PAUSED: "1"
-      # ⛔ PRISLARMEN ÄR OCKSÅ PAUSADE (ägarbeslut 2026-08-26) — men av HELT ANDRA SKÄL,
-      # därför en egen spak. Restock väntar på kostnad; prislarmen väntar på en LAGNING:
-      # de larmar på offers som varken är i lager eller direktlänkade (ett mätt falskt larm
-      # 2026-08-26: "nu 1 338 kr" på en produkt vars lägsta pris var 2 665 kr), de saknar
-      # cooldown helt (samma produkt larmade 7 ggr på 30 dygn), och mejlet visar ett annat
-      # pris än det som utlöste larmet. Nattkedjan här är den ENDA vägen som anropar
-      # checkPriceAlerts. Se src/lib/price-alerts-pause.ts innan du sätter "0".
-      PRICE_ALERTS_PAUSED: "1"
+      # PRISLARMEN — EGEN SPAK, skild från restock (pausades 2026-08-26 för sex defekter,
+      # alla lagade 2026-09-06: domen tas på lägsta KÖPBARA pris, spärr per bevakning,
+      # ett pris i rad/mejl/push, prisfall-läget finns, CM-fall larmar, aldrig 0 kr).
+      # Nattkedjan sveper bevakade produkter efter recomputeProductPriceCache
+      # (services/price-alert-sweep.ts). ⛔ Måste stå LIKA i cardmarket-refresh.yml,
+      # hot-card-refresh.yml och Railway — se src/lib/price-alerts-pause.ts.
+      PRICE_ALERTS_PAUSED: "0"
       # APNs (iOS push). Utan APNS_KEY blir sendPush en no-op → bara mejl, ingen pushnotis.
       # ⛔ VID NYCKELROTATION: uppdatera BÅDE GH-secreten APNS_KEY *och* APNS_KEY_ID i
       # ALLA tre workflow-filer — Railway är en HELT egen uppsättning variabler.

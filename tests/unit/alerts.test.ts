@@ -8,23 +8,31 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const productFindUnique = vi.fn();
 const watchlistFindMany = vi.fn();
+const watchlistUpdate = vi.fn();
 const userFindMany = vi.fn();
 const alertCreate = vi.fn();
 const alertFindFirst = vi.fn();
 const restockEventFindMany = vi.fn();
+const offerFindMany = vi.fn();
 const transaction = vi.fn();
+const executeRaw = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     product: { findUnique: (...args: unknown[]) => productFindUnique(...args) },
-    watchlistItem: { findMany: (...args: unknown[]) => watchlistFindMany(...args) },
+    watchlistItem: {
+      findMany: (...args: unknown[]) => watchlistFindMany(...args),
+      update: (...args: unknown[]) => watchlistUpdate(...args),
+    },
     user: { findMany: (...args: unknown[]) => userFindMany(...args) },
     alert: {
       create: (...args: unknown[]) => alertCreate(...args),
       findFirst: (...args: unknown[]) => alertFindFirst(...args),
     },
     restockEvent: { findMany: (...args: unknown[]) => restockEventFindMany(...args) },
+    offer: { findMany: (...args: unknown[]) => offerFindMany(...args) },
     $transaction: (...args: unknown[]) => transaction(...args),
+    $executeRaw: (...args: unknown[]) => executeRaw(...args),
   },
 }));
 
@@ -34,6 +42,8 @@ import {
   checkListingAlerts,
   evaluateStockFlap,
   flapPolicy,
+  lowestBuyableByProduct,
+  rearmPriceAlerts,
 } from "@/services/alerts";
 
 // Pro-mottagare = planTier PREMIUM, admin-roll, aktiv referral-bonus ELLER aktiv
@@ -50,74 +60,182 @@ const proWhereOr: unknown[] = [
 ];
 const proUserWhereMatch = { OR: proWhereOr };
 
-const PRODUCT = { id: "prod-1", title: "Surging Sparks Booster Box", slug: "surging-sparks-booster-box" };
+const PRODUCT = {
+  id: "prod-1",
+  title: "Surging Sparks Booster Box",
+  slug: "surging-sparks-booster-box",
+  hiddenAt: null,
+  lowestPriceOre: 180000,
+};
+
+/** En köpbar offer: i lager, direktlänk, pris > 0. */
+const buyable = (over: Partial<{ id: string; price: number; url: string; retailerId: string; name: string }> = {}) => ({
+  id: over.id ?? "off-1",
+  productId: "prod-1",
+  price: over.price ?? 149900,
+  url: over.url ?? "https://butik.se/products/surging-sparks-booster-box",
+  retailerId: over.retailerId ?? "ret-1",
+  retailer: { name: over.name ?? "Butiken" },
+});
 
 beforeEach(() => {
+  process.env.PRICE_ALERTS_PAUSED = "0"; // testerna handlar om domen, inte om pausen
   productFindUnique.mockReset().mockResolvedValue(PRODUCT);
   watchlistFindMany.mockReset().mockResolvedValue([]);
+  watchlistUpdate.mockReset().mockImplementation((args: unknown) => args);
   userFindMany.mockReset().mockResolvedValue([]);
   alertCreate.mockReset().mockImplementation((args: unknown) => args);
   alertFindFirst.mockReset().mockResolvedValue(null); // inget nyligt restock-larm → cooldown öppen
   restockEventFindMany.mockReset().mockResolvedValue([]); // ingen flapp-historik
+  offerFindMany.mockReset().mockResolvedValue([buyable()]);
   transaction.mockReset().mockResolvedValue([]);
+  executeRaw.mockReset().mockResolvedValue(0);
 });
 
+/**
+ * Prislarmen efter lagningen 2026-09-06 (de sex defekterna i price-alerts-pause.ts).
+ * Domen i sig testas i price-alert-rule.test.ts; här vaktas integrationen: rätt
+ * offer-urval, rätt rader, ETT pris, spärren skrivs.
+ */
 describe("checkPriceAlerts", () => {
-  it("skapar EMAIL-alert när målpris nås", async () => {
+  it("målpris nått ⇒ PRICE_TARGET-larm med larmets EGET pris + butik, och spärren skrivs i samma transaktion", async () => {
     watchlistFindMany.mockResolvedValue([
-      { userId: "user-1", targetPrice: 150000 },
-      { userId: "user-2", targetPrice: 160000 },
+      { id: "w1", userId: "user-1", targetPrice: 150000, priceAlertFiredOre: null },
+      { id: "w2", userId: "user-2", targetPrice: 160000, priceAlertFiredOre: null },
     ]);
 
-    const result = await checkPriceAlerts("prod-1", 149900);
+    const result = await checkPriceAlerts("prod-1");
 
     expect(result.triggered).toBe(2);
     expect(transaction).toHaveBeenCalledTimes(1);
     expect(alertCreate).toHaveBeenCalledTimes(2);
+    expect(watchlistUpdate).toHaveBeenCalledTimes(2);
 
     const alertArgs = alertCreate.mock.calls[0][0] as {
-      data: { userId: string; productId: string; type: string; message: string; channel: string };
+      data: { userId: string; productId: string; retailerId: string; type: string; priceOre: number; message: string; channel: string };
     };
-    expect(alertArgs.data.type).toBe("PRICE_TARGET");
-    expect(alertArgs.data.channel).toBe("EMAIL");
-    expect(alertArgs.data.userId).toBe("user-1");
-    expect(alertArgs.data.productId).toBe("prod-1");
+    expect(alertArgs.data).toMatchObject({
+      type: "PRICE_TARGET",
+      channel: "EMAIL",
+      userId: "user-1",
+      productId: "prod-1",
+      retailerId: "ret-1",
+      priceOre: 149900,
+    });
     expect(alertArgs.data.message).toContain(PRODUCT.title);
+    expect(alertArgs.data.message).toMatch(/1.499 kr/); // sv-SE-tusentalsavgränsaren är ett smalt mellanslag
+    expect(alertArgs.data.message).toContain("Butiken");
+    expect(watchlistUpdate).toHaveBeenCalledWith({
+      where: { id: "w1" },
+      data: { priceAlertFiredOre: 149900, priceAlertFiredAt: expect.any(Date) },
+    });
   });
 
-  it("filtrerar bevakningar i databasen: targetPrice >= nytt pris, aktivt prislarm, ej pausad, endast Pro", async () => {
-    await checkPriceAlerts("prod-1", 99900);
+  it("domen tas på produktens LÄGSTA KÖPBARA pris: i lager + direktlänk + > 0 kr", async () => {
+    // Defekt 1: larmet "nu 1 338 kr" kom ur en slutsåld offer. Nu frågas bara IN_STOCK
+    // och pris > 0, och sök-/bläddringslänkar hoppas — precis som produktsidan.
+    watchlistFindMany.mockResolvedValue([{ id: "w1", userId: "user-1", targetPrice: 150000, priceAlertFiredOre: null }]);
+    offerFindMany.mockResolvedValue([
+      buyable({ id: "search", price: 100000, url: "https://butik.se/search?q=surging" }), // billigast men söklänk
+      buyable({ id: "real", price: 149900 }),
+    ]);
 
+    await checkPriceAlerts("prod-1");
+
+    expect(offerFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ productId: { in: ["prod-1"] }, stockStatus: "IN_STOCK", price: { gt: 0 } }),
+        orderBy: { price: "asc" },
+      })
+    );
+    expect((alertCreate.mock.calls[0][0] as { data: { priceOre: number } }).data.priceOre).toBe(149900);
+  });
+
+  it("inget köpbart pris ⇒ inget larm, räknas som no-price", async () => {
+    watchlistFindMany.mockResolvedValue([{ id: "w1", userId: "user-1", targetPrice: 150000, priceAlertFiredOre: null }]);
+    offerFindMany.mockResolvedValue([]);
+    const result = await checkPriceAlerts("prod-1");
+    expect(result).toEqual({ triggered: 0, skipped: { "no-price": 1 } });
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it("SPÄRREN: en bevakning som redan larmat för den här målnåddheten larmar inte igen", async () => {
+    watchlistFindMany.mockResolvedValue([{ id: "w1", userId: "user-1", targetPrice: 150000, priceAlertFiredOre: 149900 }]);
+    offerFindMany.mockResolvedValue([buyable({ price: 140000 })]);
+    const result = await checkPriceAlerts("prod-1");
+    expect(result).toEqual({ triggered: 0, skipped: { latched: 1 } });
+    expect(alertCreate).not.toHaveBeenCalled();
+  });
+
+  it("prisfall-läget (inget målpris): larmar på ett tydligt fall från priset användaren senast såg", async () => {
+    // Defekt 4: "lämna tomt för att bara bevaka prisfall" — nu på riktigt. Utgångsläget
+    // är produktens cachade lägstapris när anroparen inte vet bättre.
+    watchlistFindMany.mockResolvedValue([{ id: "w1", userId: "user-1", targetPrice: null, priceAlertFiredOre: null }]);
+    offerFindMany.mockResolvedValue([buyable({ price: 160000 })]); // 180 000 → 160 000 = −11 %
+
+    const result = await checkPriceAlerts("prod-1");
+
+    expect(result.triggered).toBe(1);
+    const data = (alertCreate.mock.calls[0][0] as { data: { type: string; priceOre: number; message: string } }).data;
+    expect(data.type).toBe("PRICE_DROP");
+    expect(data.priceOre).toBe(160000);
+    expect(data.message).toContain("−11 %");
+  });
+
+  it("anroparens `previousOre` vinner över det cachade lägstapriset (svepet vet vad som gällde före jobbet)", async () => {
+    watchlistFindMany.mockResolvedValue([{ id: "w1", userId: "user-1", targetPrice: null, priceAlertFiredOre: null }]);
+    offerFindMany.mockResolvedValue([buyable({ price: 160000 })]);
+    const result = await checkPriceAlerts("prod-1", { previousOre: 162000 }); // 1,2 % — under golvet
+    expect(result).toEqual({ triggered: 0, skipped: { "too-small": 1 } });
+  });
+
+  it("filtrerar bevakningar i databasen: aktivt prislarm, ej pausad, endast Pro — målpris avgörs i koden", async () => {
+    await checkPriceAlerts("prod-1");
     expect(watchlistFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({
-          productId: "prod-1",
-          priceAlert: true,
-          isPaused: false,
-          targetPrice: { not: null, gte: 99900 },
-          user: proUserWhereMatch,
-        }),
+        where: { productId: "prod-1", priceAlert: true, isPaused: false, user: proUserWhereMatch },
       })
     );
   });
 
-  it("utlöser inget när priset ligger över alla målpriser (inga träffar)", async () => {
-    watchlistFindMany.mockResolvedValue([]); // DB-filtret gav inga träffar
-
-    const result = await checkPriceAlerts("prod-1", 999900);
-
+  it("pausat läge: inte en enda fråga", async () => {
+    process.env.PRICE_ALERTS_PAUSED = "1";
+    const result = await checkPriceAlerts("prod-1");
     expect(result.triggered).toBe(0);
-    expect(transaction).not.toHaveBeenCalled();
-    expect(alertCreate).not.toHaveBeenCalled();
+    expect(productFindUnique).not.toHaveBeenCalled();
   });
 
-  it("returnerar 0 om produkten inte finns", async () => {
+  it("returnerar 0 om produkten inte finns eller är gömd", async () => {
     productFindUnique.mockResolvedValue(null);
-
-    const result = await checkPriceAlerts("saknas", 10000);
-
-    expect(result.triggered).toBe(0);
+    expect((await checkPriceAlerts("saknas")).triggered).toBe(0);
     expect(watchlistFindMany).not.toHaveBeenCalled();
+    productFindUnique.mockResolvedValue({ ...PRODUCT, hiddenAt: new Date() });
+    expect((await checkPriceAlerts("prod-1")).triggered).toBe(0);
+    expect(watchlistFindMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("lowestBuyableByProduct", () => {
+  it("första direktlänkade i-lager-offern per produkt, billigast först; tom lista ⇒ ingen fråga", async () => {
+    offerFindMany.mockResolvedValue([
+      { ...buyable({ id: "a", price: 100, url: "https://x.se/search?q=1" }), productId: "p1" },
+      { ...buyable({ id: "b", price: 200 }), productId: "p1" },
+      { ...buyable({ id: "c", price: 300 }), productId: "p1" },
+      { ...buyable({ id: "d", price: 50 }), productId: "p2" },
+    ]);
+    const m = await lowestBuyableByProduct(["p1", "p2"]);
+    expect(m.get("p1")?.id).toBe("b");
+    expect(m.get("p2")?.id).toBe("d");
+    expect(await lowestBuyableByProduct([])).toEqual(new Map());
+    expect(offerFindMany).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("rearmPriceAlerts", () => {
+  it("släpper spärrar med EN fråga och returnerar antalet", async () => {
+    executeRaw.mockResolvedValue(3);
+    expect(await rearmPriceAlerts()).toBe(3);
+    expect(executeRaw).toHaveBeenCalledTimes(1);
   });
 });
 

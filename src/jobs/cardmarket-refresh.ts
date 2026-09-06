@@ -31,6 +31,9 @@ import { runJapaneseSetLabels } from "./jp-set-label";
 import { utcToday } from "../lib/utils";
 import { classifyForm, scoreSimilarity } from "../scrapers/matching";
 import { recomputeProductPriceCache, snapshotStorePricedProducts } from "../services/products";
+import { rearmPriceAlerts } from "../services/alerts";
+import { dispatchPendingAlerts } from "../services/notifications";
+import { formatSweep, snapshotWatchedPrices, sweepWatchedPriceAlerts } from "../services/price-alert-sweep";
 import { fetchTcgCardById, cardMarketPriceOre } from "../scrapers/adapters/pokemontcg-adapter";
 import {
   PRINT_FIRST_EDITION,
@@ -1463,6 +1466,11 @@ export async function runCardmarketRefresh(
   const cm = await prisma.retailer.findFirst({ where: { name: "Cardmarket" } });
   if (!cm) { console.warn("[cm-refresh] Cardmarket-retailer saknas."); return res; }
 
+  // Prislarmen (2026-09-06): bevakade produkters lägsta köpbara pris FÖRE refreshen —
+  // svepet sist i jobbet jämför mot det. Det här är enda vägen ett äkta CM-prisfall på
+  // en singel når ett larm (defekt 5). Tomt när larmen är pausade.
+  const watchedBefore = await snapshotWatchedPrices();
+
   if (opts.singles !== false) {
     const products = await prisma.product.findMany({
       // variantLabel:null = bas-common. Specialvarianter (GameStop-promo, reverse
@@ -2635,6 +2643,19 @@ export async function runCardmarketRefresh(
 
   // Uppdatera denormaliserat lägstapris (katalog-feed: sortering + gömning).
   await recomputeProductPriceCache();
+  // Prislarmssvepet: släpp spärrar där priset återhämtat sig, larma där det fallit,
+  // skicka. ⛔ Fel sväljs — dagens priser är redan skrivna och får inte gå röda av larmen.
+  try {
+    const rearmed = await rearmPriceAlerts();
+    const sweep = await sweepWatchedPriceAlerts(watchedBefore);
+    console.log(`[cm-refresh] Prislarm: ${formatSweep(sweep)}; ${rearmed} spärrar släppta.`);
+    if (sweep.triggered > 0) {
+      const d = await dispatchPendingAlerts();
+      console.log(`[cm-refresh] Prislarm skickade: ${d.sent}, misslyckade: ${d.failed}.`);
+    }
+  } catch (err) {
+    console.error("[cm-refresh] Prislarmssvepet misslyckades (ignoreras):", err instanceof Error ? err.message : err);
+  }
   // Daglig historikpunkt för sealed UTAN CM-trend (butiksprissatta) — annars
   // fryser deras graf. Kör SIST: CM-mappade har redan snapshot, lowestPriceOre färskt.
   const storeSnaps = await snapshotStorePricedProducts();

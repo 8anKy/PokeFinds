@@ -189,21 +189,44 @@ export function proExpiringEmail(name: string, until: Date, daysLeft: number): E
   return { subject, html, text };
 }
 
+/**
+ * Prislarm. `price` är larmets EGET pris (Alert.priceOre) — samma tal som larmraden
+ * och pushen; null bara för larm från före 2026-09-06 utan sparat pris, då utan
+ * prisrad (⛔ aldrig "0 kr"). `kind`: målpris nått eller tydligt prisfall.
+ */
 export function priceAlertEmail(
   name: string,
   productTitle: string,
-  price: number,
-  url: string
+  price: number | null,
+  url: string,
+  opts: { kind: "target" | "drop"; storeName?: string | null } = { kind: "drop" }
 ): EmailContent {
-  const subject = `Prisfall: ${productTitle} – nu ${formatSek(price)}`;
+  const target = opts.kind === "target";
+  const priceText = price != null ? formatSek(price) : null;
+  const subject = target
+    ? `Målpris nått: ${productTitle}${priceText ? ` – nu ${priceText}` : ""}`
+    : `Prisfall: ${productTitle}${priceText ? ` – nu ${priceText}` : ""}`;
+  const intro = target
+    ? "En produkt i din bevakningslista har nått ditt målpris:"
+    : "En produkt i din bevakningslista har sjunkit i pris:";
+  const priceLine = priceText
+    ? `<p style="font-size:22px;font-weight:800;color:#34d399;margin:0 0 8px;">${priceText}</p>`
+    : "";
+  const storeLine = opts.storeName
+    ? `<p style="color:#cbd5e1;margin:0 0 8px;">Hos: <strong style="color:#2dd4bf;">${opts.storeName}</strong></p>`
+    : "";
   const html = layout(
-    "Prisfall på en bevakad produkt!",
-    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! En produkt i din bevakningslista har sjunkit i pris:</p>
+    target ? "Ditt målpris är nått!" : "Prisfall på en bevakad produkt!",
+    `<p style="line-height:1.6;color:#cbd5e1;">Hej ${name}! ${intro}</p>
      <p style="font-size:16px;font-weight:700;color:#ffffff;margin:16px 0 4px;">${productTitle}</p>
-     <p style="font-size:22px;font-weight:800;color:#34d399;margin:0 0 8px;">${formatSek(price)}</p>
+     ${priceLine}
+     ${storeLine}
      ${button(url, "Se erbjudandet")}`
   );
-  const text = `Hej ${name}!\n\nPrisfall på en bevakad produkt:\n${productTitle}\nNytt pris: ${formatSek(price)}\n\nSe erbjudandet: ${url}${textFooter}`;
+  const text =
+    `Hej ${name}!\n\n${target ? "Målpris nått på en bevakad produkt" : "Prisfall på en bevakad produkt"}:\n${productTitle}` +
+    `${priceText ? `\nNytt pris: ${priceText}` : ""}${opts.storeName ? `\nHos: ${opts.storeName}` : ""}` +
+    `\n\nSe erbjudandet: ${url}${textFooter}`;
   return { subject, html, text };
 }
 

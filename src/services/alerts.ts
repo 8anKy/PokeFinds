@@ -2,7 +2,9 @@
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { isBlockedListingLanguage } from "@/lib/listing-language";
+import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { proUserWhere } from "@/lib/plan";
+import { judgePriceAlert, priceAlertPolicy, type PriceAlertVerdict } from "@/lib/price-alert-rule";
 import { priceAlertsPaused } from "@/lib/price-alerts-pause";
 import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
 import { isSealedCategory } from "@/lib/product-category";
@@ -97,56 +99,182 @@ export async function markRead(userId: string, alertId: string) {
   });
 }
 
+/** En köpbar offer: i lager, direktlänk, pris > 0 — det produktsidan visar som rubrikpris. */
+export interface BuyableOffer {
+  id: string;
+  productId: string;
+  price: number;
+  url: string;
+  retailerId: string;
+  retailer: { name: string };
+}
+
 /**
- * Kontrollerar prislarm för en produkt vid nytt pris (öre).
- * Skapar Alert (EMAIL) för bevakningar med targetPrice >= newPrice.
- *
- * ⛔ TRE KÄNDA DEFEKTER, ALLA OLAGADE (se src/lib/price-alerts-pause.ts för mätdata):
- * ingen lagerstatus-/direktlänkskontroll på offern som utlöste larmet, ingen cooldown,
- * och mejlet visar ett annat pris än det som utlöste larmet. Funktionen är därför
- * PAUSAD tills de är lagade — flippa inte flaggan utan att laga dem först.
+ * Lägsta KÖPBARA offer per produkt, i EN fråga. Samma urval som produktsidans
+ * rubrikpris (`computeLowestPrice` + `isDirectOfferUrl`): i lager, direktlänk, > 0 kr.
+ * ⛔ En OUT_OF_STOCK-offer är per definition en uppskattning (CM-guiden märks så) och
+ *    får aldrig larma — det var defekt 1 (larmet "nu 1 338 kr" ur en slutsåld offer på
+ *    en produkt vars verkliga lägsta pris var 2 665 kr).
  */
-export async function checkPriceAlerts(productId: string, newPrice: number) {
-  // ⛔ PAUSAT LÄGE: inga rader skapas alls. Grinden ligger FÖRST, före produktuppslaget
-  // — nattkedjan anropar hit en gång per prissänkning i hela katalogen och Neon
-  // debiteras per vaken tid, inte per rad.
-  if (priceAlertsPaused()) return { triggered: 0 };
+export async function lowestBuyableByProduct(productIds: string[]): Promise<Map<string, BuyableOffer>> {
+  const map = new Map<string, BuyableOffer>();
+  if (productIds.length === 0) return map;
+  const offers = await prisma.offer.findMany({
+    where: { productId: { in: productIds }, stockStatus: "IN_STOCK", price: { gt: 0 } },
+    select: {
+      id: true,
+      productId: true,
+      price: true,
+      url: true,
+      retailerId: true,
+      retailer: { select: { name: true } },
+    },
+    orderBy: { price: "asc" },
+  });
+  for (const o of offers) {
+    if (map.has(o.productId) || o.price == null || !isDirectOfferUrl(o.url)) continue;
+    map.set(o.productId, { ...o, price: o.price });
+  }
+  return map;
+}
+
+export async function lowestBuyableOffer(productId: string): Promise<BuyableOffer | null> {
+  return (await lowestBuyableByProduct([productId])).get(productId) ?? null;
+}
+
+export interface PriceAlertCheckResult {
+  triggered: number;
+  /** Varför bevakningar INTE larmade, per skäl (`PriceAlertSkipReason`). */
+  skipped: Record<string, number>;
+}
+
+/** Larmradens text — SAMMA tal som mejlet och pushen (defekt 3 var tre olika tal). */
+export function priceAlertMessage(
+  title: string,
+  verdict: Extract<PriceAlertVerdict, { fire: true }>,
+  priceOre: number,
+  storeName: string
+): string {
+  if (verdict.kind === "PRICE_TARGET") {
+    return `${title} har nått ditt målpris: nu ${formatSek(priceOre)} hos ${storeName}.`;
+  }
+  return (
+    `${title} har sjunkit till ${formatSek(priceOre)} hos ${storeName} ` +
+    `(−${Math.round(verdict.percent)} % från ${formatSek(verdict.baselineOre)}).`
+  );
+}
+
+/**
+ * Kontrollerar prislarm för en produkt. Anropas när produktens pris KAN ha fallit
+ * (nattkedjans/prisjobbens svep över bevakade produkter, eller en prissänknings-hit
+ * från Discord-lanen) — aldrig per offer-rörelse i hela katalogen.
+ *
+ * DOMEN (`src/lib/price-alert-rule.ts`) tas på produktens LÄGSTA KÖPBARA pris, inte på
+ * offern som råkade röra sig; `previousOre` är det pris användaren senast SÅG
+ * (produktens cachade `lowestPriceOre` om anroparen inte vet bättre) och är prisfall-
+ * lägets utgångsläge före första larmet. Varje larm sätter bevakningens SPÄRR
+ * (`priceAlertFiredOre`), som `rearmPriceAlerts()` släpper när priset återhämtat sig
+ * — ett larm per gång målet nås, inte per rörelse under målet (defekt 2).
+ *
+ * Larmraden bär `priceOre` + `retailerId`, så mejl och push visar exakt det priset hos
+ * exakt den butiken (defekt 3 och 6: "0 kr" kan inte uppstå — priset är > 0 per urval).
+ *
+ * ⛔ PAUSAT LÄGE: inga rader skapas alls. Grinden ligger FÖRST, före varje fråga.
+ */
+export async function checkPriceAlerts(
+  productId: string,
+  opts: {
+    /** Priset användaren senast såg (öre). `undefined` = läs produktens cachade lägstapris. */
+    previousOre?: number | null;
+    /** Redan framräknad lägsta köpbara offer (anroparen har den) — sparar en fråga. */
+    lowest?: BuyableOffer | null;
+  } = {}
+): Promise<PriceAlertCheckResult> {
+  const none: PriceAlertCheckResult = { triggered: 0, skipped: {} };
+  if (priceAlertsPaused()) return none;
   const product = await prisma.product.findUnique({
     where: { id: productId },
-    select: { id: true, title: true, slug: true },
+    select: { id: true, title: true, slug: true, hiddenAt: true, lowestPriceOre: true },
   });
-  if (!product) return { triggered: 0 };
+  // Gömda produkter larmar aldrig — samma regel som lagerlarmen (isHiddenFromAlerts).
+  if (!product || product.hiddenAt != null) return none;
 
   const watchers = await prisma.watchlistItem.findMany({
     where: {
       productId,
       priceAlert: true,
       isPaused: false,
-      targetPrice: { not: null, gte: newPrice },
       // Prislarm är en Pro-förmån (jfr restock-larm). Admins räknas som Pro — se isPro().
       user: proUserWhere(),
     },
-    select: { userId: true, targetPrice: true },
+    select: { id: true, userId: true, targetPrice: true, priceAlertFiredOre: true },
   });
-  if (watchers.length === 0) return { triggered: 0 };
+  if (watchers.length === 0) return none;
 
-  const message = `${product.title} har nått ditt målpris! Nuvarande pris: ${formatSek(newPrice)}.`;
+  const lowest = opts.lowest === undefined ? await lowestBuyableOffer(productId) : opts.lowest;
+  const skipped: Record<string, number> = {};
+  const skip = (why: string, n = 1) => {
+    skipped[why] = (skipped[why] ?? 0) + n;
+  };
+  if (!lowest) {
+    skip("no-price", watchers.length);
+    return { triggered: 0, skipped };
+  }
+  const previousOre = opts.previousOre === undefined ? product.lowestPriceOre : opts.previousOre;
+  const policy = priceAlertPolicy();
+  const now = new Date();
   const writes: Prisma.PrismaPromise<unknown>[] = [];
+  let triggered = 0;
   for (const w of watchers) {
+    const verdict = judgePriceAlert(w, lowest.price, previousOre, policy);
+    if (!verdict.fire) {
+      skip(verdict.reason);
+      continue;
+    }
+    triggered++;
     writes.push(
       prisma.alert.create({
         data: {
           userId: w.userId,
           productId,
-          type: "PRICE_TARGET",
-          message,
+          retailerId: lowest.retailerId,
+          type: verdict.kind,
+          priceOre: lowest.price,
+          message: priceAlertMessage(product.title, verdict, lowest.price, lowest.retailer.name),
           channel: "EMAIL",
         },
+      }),
+      prisma.watchlistItem.update({
+        where: { id: w.id },
+        data: { priceAlertFiredOre: lowest.price, priceAlertFiredAt: now },
       })
     );
   }
-  await prisma.$transaction(writes);
-  return { triggered: watchers.length };
+  if (writes.length > 0) await prisma.$transaction(writes);
+  return { triggered, skipped };
+}
+
+/**
+ * Släpper prislarmens spärrar där priset återhämtat sig: målpris-läget när det cachade
+ * lägstapriset åter ligger ÖVER målet, prisfall-läget när det stigit `rearmPercent` över
+ * larmnivån. EN fråga, körs efter `recomputeProductPriceCache()` i prisjobben. Rör bara
+ * rader med satt spärr (ett fåtal). Returnerar antal släppta.
+ */
+export async function rearmPriceAlerts(): Promise<number> {
+  // Heltal (samma skäl som shouldRearm): 100 + procent, jämfört mot pris × 100.
+  const factor = Math.round(100 + priceAlertPolicy().rearmPercent);
+  return prisma.$executeRaw`
+    UPDATE "WatchlistItem" w
+    SET "priceAlertFiredOre" = NULL, "priceAlertFiredAt" = NULL
+    FROM "Product" p
+    WHERE p.id = w."productId"
+      AND w."priceAlertFiredOre" IS NOT NULL
+      AND p."lowestPriceOre" IS NOT NULL AND p."lowestPriceOre" > 0
+      AND (
+        (w."targetPrice" IS NOT NULL AND p."lowestPriceOre" > w."targetPrice")
+        OR (w."targetPrice" IS NULL AND p."lowestPriceOre" * 100 >= w."priceAlertFiredOre" * ${factor})
+      )
+  `;
 }
 
 /**
