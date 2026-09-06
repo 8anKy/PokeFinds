@@ -43,7 +43,10 @@ const crypto = require("node:crypto");
 // "2" (2026-09-04): produktsidan fick sektionen "Graderade försäljningar", som
 // ritas av klientkod ur `/api/products/[slug]/detail`. En ISR-post från förra
 // bygget pekar på gamla JS-chunks och hade aldrig visat blocket — i upp till 30 dygn.
-const PAGE_EPOCH = "2";
+// "3" (2026-09-06): produktsidans knappar blev EN Bevaka-knapp med ark
+// (product-actions.tsx). Den gamla klientkoden ritade tre knappar (pris/restock/
+// samling) och svarade 409 på det andra larmet — det får inte ligga kvar i 30 dygn.
+const PAGE_EPOCH = "3";
 const STORE_VERSION = "v1";
 /** Sidor äldre än så rensas oavsett TTL (ISR-TTL:en för produktsidor är 30 d). */
 const PAGE_MAX_AGE_MS = 45 * 24 * 3600 * 1000;
