@@ -67,6 +67,9 @@ import {
   NordicTcgAdapter,
 } from "@/scrapers/adapters/prestashop-adapter";
 import { CoolcardAdapter } from "@/scrapers/adapters/starweb-adapter";
+import { SweetNerdsAdapter } from "@/scrapers/adapters/nyehandel-adapter";
+import { ToyspaceAdapter } from "@/scrapers/adapters/magento-adapter";
+import { CardHavenAdapter } from "@/scrapers/adapters/cardhaven-adapter";
 import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
 import {
   classifyForm,
@@ -185,6 +188,10 @@ const SCRAPER_ADAPTERS: Record<string, new () => SourceAdapter> = {
   Coolcard: CoolcardAdapter,
   // ---- Wave 6 (2026-08-17) ----
   "TCG Picks": TcgPicksAdapter,
+  // ---- Wave 7 (2026-09-06): svansen — en egen plattform per butik ----
+  "Sweet Nerds": SweetNerdsAdapter,
+  Toyspace: ToyspaceAdapter,
+  "Card Haven": CardHavenAdapter,
 };
 
 export function getAdapter(type: SourceType, sourceName?: string): SourceAdapter {

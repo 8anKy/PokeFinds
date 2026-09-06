@@ -317,9 +317,17 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   Övrig legalstatus: `../PokeFinds-private/docs/TERMS-GAP.md`.
 - **Kvar i legalpaketet**: F2 (datalicenser, egen utredning) + community-klausulen (publiceras med
   community). ⛔ ODR-hänvisningen är borttagen med flit (EU-plattformen nedlagd 2025-07-20) — aldrig åter.
-- **Restock Wave 3**: maxgaming, sweetnerds, Spel & Sånt, playoteket, arcadedreams — fragila HTML/SPA,
-  byggs en i taget MED verifiering. Se [[project-pending-store-adapters]]; butiker som kräver ägarbeslut
-  (EUR/DKK, Carsmästaren) står i `.claude/rules/scraping-restock.md`.
+- **Butikssvansen (wave 7, 2026-09-06 — 54 butiker, 44 bevakade)**: ✅ Sweet Nerds (Nyehandel),
+  Toyspace (Magento 2) och Card Haven (Next.js) är BYGGDA och importerade. Efter wave 4–6 finns ingen
+  hävstång kvar — varje återstående butik är sin EGEN plattform, så listan betas en i taget MED
+  verifiering (`scripts/probe-new-adapters.ts` mot butikens riktiga feed före påslag).
+  ⛔ **Kvar går INTE att bygga bort**: playoteket + arcadedreams är robots-blockerade (`Disallow: /` sist
+  i filen — öppna aldrig frågan igen), PokéBooster/CS Megastore/EvoKort är bot-vägg, Cloudflare resp. ett
+  JS-skal utan data. **Väntar på ÄGARBESLUT**: cgpremium (riktigt JSON-API men `stock` är en förvrängd
+  sträng ⇒ lagerstatus alltid UNKNOWN), Cees Cards/Poromagia (EUR), Kelz0r (DKK) — pipelinen antar SEK.
+  Kvar som ren byggnation: samlargrottan (Wix), gimmick, spelochsant (robots.txt 404:ar numera = tillåtet
+  enligt RFC 9309, men startsidan renderar inga priser — probea om före bygge).
+  Detaljer per butik: `.claude/rules/scraping-restock.md`.
 - **Stripe (webbens Pro)**: kod klar och testad. Kvar = provköp end-to-end + rotera APNs-nyckeln.
 - **Mobilapp via Capacitor** (`android/` finns): iOS-bygge kräver Mac/cloud-build (ägaren på Windows).
 - **Sealed CM-trendrad** i pristabellen kan vara fel pga felmappad `idProduct` (headline-lägsta är ändå

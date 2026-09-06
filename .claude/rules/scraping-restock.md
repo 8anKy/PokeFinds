@@ -134,6 +134,43 @@ paths:
   (sleeves/pärmar/tärningar) — splittas de blir varje FÄRG en annons med huvudboksrad och ett "ny produkt"-larm.
   Kräv därför att VARJE variant nämner en Pokémon + tillbehörsvakten. Migrering av gammal data:
   `scripts/split-shopify-variants.ts` (torrkörning default).
+- **BUTIKS-WAVE 7 = SVANSEN, EN EGEN PLATTFORM PER BUTIK (2026-09-06)**: efter wave 4–6 var varje
+  svensk Pokémon-butik på en ÅTERANVÄNDBAR plattform redan inne — det som återstod hade noll hävstång.
+  Tre byggda: **Sweet Nerds** (Nyehandel, `nyehandel-adapter.ts`), **Toyspace** (Magento 2,
+  `magento-adapter.ts`) och **Card Haven** (Next.js, `cardhaven-adapter.ts`). Registrering =
+  `scripts/setup-wave7-sources.ts --apply --restock`, engångsimport = `scripts/run-wave7-import.ts`.
+  **41 bevakade → 44; 51 → 54 butiker.** Mätt vid importen: 244 annonser, **95 matchade mot BEFINTLIGA
+  katalogprodukter**, 45 nya offers, **bara +41 nya katalograder**, 0 larm (tyst seedning).
+  Utfall per butik: Sweet Nerds 206 annonser/178 sealed/109 offers, Card Haven 24/23/21, Toyspace 14/10/8.
+  ⛔ **0 KR-FÄLLAN FINNS PÅ VARJE PLATTFORM, INTE BARA SHOPIFY.** Sweet Nerds prissätter osläppta varor
+  till 0 kr precis som Shopify-butikerna gjorde (2026-09-04): **15 av 206 annonser, varav 9 st 30th
+  Celebration** — dvs exakt de osläppta varor folk bevakar. En `continue` på nollpriset tappar inte
+  priset utan HELA annonsen (ingen feedpost, ingen StoreListing, ingen auto-import, aldrig ett larm),
+  och adaptern rapporterar ändå "206 träffar, 0 fel". **Varje ny adapter måste släppa igenom
+  `price: null`** och godkänna det i `validateResult`. Vaktat av `nyehandel-adapter.test.ts`.
+  ⛔ **LAGERKLASSEN LJUGER HOS NYEHANDEL**: `stock_status_1` bär BÅDE "Finns i lager" OCH
+  "Förbeställningsvara" — den är butikens lagerPOLICY, inte lagerläget. Domen tas på TEXTEN, som
+  allowlist (okänd text ⇒ `unknown`, aldrig `in`). Saldot "N Styck" får bara NEDGRADERA.
+  ⛔ **TOYSPACE FÅR ALDRIG PAGINERAS**: robots.txt inleds med `Disallow: /*?`, vilket blockerar VARJE
+  frågesträng — alltså Magentos egen `?p=2` OCH `?product_list_limit=`. Vi hämtar sida 1 och inget mer.
+  Det räcker i dag (14 av 14 ryms), och adaptern jämför butikens egen `toolbar-number` mot antalet
+  parsade kort och skriver ett FEL när kategorin växt förbi en sida — annars hade tappet varit tyst.
+  ⚠️ Titeln bär ibland köpgränsen ("Max 5 per kund. Pokémon TCG …"); den strippas, annars förgiftar den
+  matchningen och syns i Discord-inlägget.
+  ⛔ **CARD HAVENS LAGERSTATUS ÄR EN DENYLIST OCH DÄRFÖR SKÖR**: butiken renderar bara en NEGATIV markör
+  ("Slut i lager"-badge) — dess frånvaro betyder "i lager". Slutar butiken rendera badgen ser ALLT ut som
+  i lager och varje slutsåld vara larmar. Adaptern kräver därför att MINST ett kort i hela hämtningen bär
+  badgen (mätt: 12 av 24); noll badges i en icke-tom feed KASSERAR hela hämtningen med ett fel i stället
+  för att rapportera allt som i lager. Sidan bär ingen `__NEXT_DATA__`, ingen JSON-LD och inga
+  produktfält i flighten — allt läses ur Tailwind-markup, så parsern hänger sig på href-mönstret, `<h3>`
+  och ordet "kr", ALDRIG på en utility-klasskedja. ⛔ Priset är svensk notation med decimalKOMMA och
+  `&nbsp;` som tusentalsavgränsare ("1&nbsp;249,00&nbsp;kr" = 124 900 öre) — läses kommat som
+  tusentalsavgränsare blir det en faktor 100 fel. ⛔ Hämta INTE `/cards/pokemon` (singlar) eller
+  `/shop/graded-cards` (graderat är en EGEN vara, se marketplace-tradera.md).
+  ⛔ **SPLITTEN ÄTER UPP `href="`** — varje segment börjar med URL:en, inte med ett href-attribut. Att
+  leta efter `href="` igen ger NÄSTA korts länk, och parsern returnerar tyst noll träffar (hände under
+  bygget; probe-skriptet visade "TOM FEED" utan ett enda fel).
+
 - **BUTIKS-WAVE 6 = TCG PICKS (2026-08-17)**: ägaren såg en Storm Emeralda-restock i en KONKURRENTS
   Discord men inte i vår — butiken fanns inte som källa alls. `TcgPicksAdapter` (Shopify,
   `wholeCatalog`), registrering via `scripts/setup-wave6-sources.ts --apply --restock`. 43 bevakade.
