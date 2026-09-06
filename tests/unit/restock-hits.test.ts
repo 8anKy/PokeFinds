@@ -322,6 +322,14 @@ describe("invarianten som gör lanen gratis", () => {
     expect(lib).not.toMatch(/node:fs/);
   });
 
+  it("Dockerfile bakar in pausflaggorna i byggsteget — annars säger den statiska /priser 'pausat' medan larmen går", () => {
+    const dockerfile = readFileSync(resolve(root, "Dockerfile"), "utf8");
+    for (const name of ["RESTOCK_ALERTS_PAUSED", "PRICE_ALERTS_PAUSED"]) {
+      expect(dockerfile).toMatch(new RegExp(`^ARG ${name}$`, "m"));
+      expect(dockerfile).toContain(`${name}=$${name}`);
+    }
+  });
+
   it("rutten svarar 'paused' FÖRE ensureDbAwake — pausat läge kostar noll vaken tid", () => {
     const paused = route.indexOf("restockAlertsPaused()");
     const wake = route.indexOf("ensureDbAwake()");

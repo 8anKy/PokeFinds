@@ -28,7 +28,8 @@
  *   att röra databasen så länge flaggan står — och COPYN: prissidans Pro-punkter,
  *   inställningarnas reglage, bevakningslistan och set-klockan. Bakas in vid BYGGET
  *   via `next.config.mjs` → en env-ändring i Railway kräver en ny deploy, inte bara
- *   en omstart.
+ *   en omstart. ⛔ Och byggsteget ser variabeln BARA genom `ARG`+`ENV` i Dockerfile
+ *   (tillagt 2026-09-06 efter att första påslaget bakade in "pausat" ändå).
  * ⛔ `scrape-all.yml` BEHÅLLER `RESTOCK_ALERTS_PAUSED: "1"`: nattens offer-diff hade
  *    annars larmat en andra gång om flippar lanen redan skickat. ⛔ `restock-watch.yml`
  *    förblir avstängd — den var väckningskostnaden, och hitsen ersätter den.

@@ -52,6 +52,16 @@ ARG LEGAL_ENTITY_EMAIL
 ARG GOOGLE_CLIENT_ID
 ARG GOOGLE_IOS_CLIENT_ID
 ARG APPLE_CLIENT_ID
+# ⛔ LARMPAUSERNA BAKAS IN VID BYGGET (2026-09-06). `restockAlertsPaused()` läses under
+# `next build` av den STATISKA /priser (bannern + Pro-raderna) och speglas till
+# NEXT_PUBLIC_* i next.config.mjs för klientgrindarna (bevakningsknapp, set-klocka,
+# paywall-arket). Utan de här raderna är variablerna undefined i byggsteget ⇒ default
+# "pausat" bakas in, hur rätt de än står på Railway — appen sa "pausade" medan
+# larmen gick, exakt den omvända lögnen CLAUDE.md varnar för. Upptäckt vid första
+# påslaget 2026-09-06. Runtime (larm-rutten) läser samma variabler direkt och
+# påverkas inte. Tom (osatt) = pausat, dvs fail-safe åt rätt håll.
+ARG RESTOCK_ALERTS_PAUSED
+ARG PRICE_ALERTS_PAUSED
 ENV NODE_ENV=production \
     DATABASE_URL=$DATABASE_URL \
     NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME \
@@ -67,7 +77,9 @@ ENV NODE_ENV=production \
     LEGAL_ENTITY_EMAIL=$LEGAL_ENTITY_EMAIL \
     GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID \
     GOOGLE_IOS_CLIENT_ID=$GOOGLE_IOS_CLIENT_ID \
-    APPLE_CLIENT_ID=$APPLE_CLIENT_ID
+    APPLE_CLIENT_ID=$APPLE_CLIENT_ID \
+    RESTOCK_ALERTS_PAUSED=$RESTOCK_ALERTS_PAUSED \
+    PRICE_ALERTS_PAUSED=$PRICE_ALERTS_PAUSED
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

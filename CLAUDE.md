@@ -252,7 +252,9 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   auto-import ger den rutt till nästa. ⛔ Prissänkningar är aldrig hits. Vaktat av `tests/unit/restock-hits.test.ts`.
   **NÄR LARMEN SLÅS PÅ IGEN — ETT STÄLLE**: `RESTOCK_ALERTS_PAUSED=0` i **Railway** (ny deploy — den styr
   BÅDE rutten och copyn via `next.config.mjs`-speglingen till `NEXT_PUBLIC_RESTOCK_ALERTS_PAUSED`, bakad
-  vid BYGGET). ⛔ `scrape-all.yml` BEHÅLLER `RESTOCK_ALERTS_PAUSED: "1"` — nattens offer-diff ser annars
+  vid BYGGET). ✅ **PÅSLAGET 2026-09-06 (variabeln satt + deploy).** ⛔ Variabeln når byggsteget BARA via
+  `ARG`+`ENV` i Dockerfile (tillagt 09-06 — första bygget efter påslaget bakade in "pausat" i den statiska
+  /priser och klientbunten medan rutten skapade larm; samma fälla som STRIPE_ENABLED/GOOGLE_CLIENT_ID). ⛔ `scrape-all.yml` BEHÅLLER `RESTOCK_ALERTS_PAUSED: "1"` — nattens offer-diff ser annars
   samma OUT→IN som lanen redan larmat om (Offer.stockStatus skrivs av hiten, men en butik utan rutt-offer
   eller en flipp lanen missade skulle dubbleras). ⛔ `restock-watch.yml` FÖRBLIR AVSTÄNGD; slås den på igen
   gäller det gamla räknestycket: höj pingern FÖRE — vid 600 s är golvet ~102 väckningar × 300 s = 8,5 h/dygn
