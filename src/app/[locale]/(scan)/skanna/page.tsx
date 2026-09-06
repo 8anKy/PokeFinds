@@ -1463,6 +1463,16 @@ function Scanner() {
   // engagerar → vänster-svep (kort-radering i granskningsvyn) + vertikal scroll
   // släpps igenom orörda.
   const closeSwipe = useEventCallback(closeScanner);
+  // Granskningsvyn: högersvep = TILLBAKA TILL KAMERAN, inte ut ur skannern
+  // (ägaren 2026-09-06 — svepet lämnade till Utforska mitt i en bricka). Samma
+  // dom som tillbaka-knappen i huvudet: finns en kameraström går vi till den,
+  // annars stängs skannern som förut. Läses ur en ref så lyssnarna nedan
+  // slipper rivas vid varje vy-byte.
+  const viewRef = useRef<View>(view);
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
+  const backToCapture = useEventCallback(() => setView("capture"));
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return;
@@ -1472,6 +1482,11 @@ function Scanner() {
     let dx = 0;
     let dragging = false;
     let axis: "x" | "y" | null = null;
+    /** "back" = granskning → kamera (ingen glidning ut), "close" = lämna skannern. */
+    let gesture: "back" | "close" = "close";
+    // Ett kort svep räcker för att gå tillbaka ett steg — samma känsla som
+    // iOS kant-svep; att stänga hela skannern kräver fortfarande en tredjedel.
+    const BACK_THRESHOLD_PX = 72;
 
     const onStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
@@ -1480,6 +1495,7 @@ function Scanner() {
       dragging = true;
       axis = null;
       dx = 0;
+      gesture = viewRef.current === "review" && streamRef.current ? "back" : "close";
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
       el.style.transition = "none";
@@ -1500,13 +1516,20 @@ function Scanner() {
       }
       e.preventDefault();
       dx = Math.max(0, mx);
-      el.style.transform = `translateX(${dx}px)`;
+      // Tillbaka-gesten glider inte: under skannern ligger Utforska, och att
+      // blotta den under ett steg-tillbaka läste som "jag lämnar skannern".
+      if (gesture === "close") el.style.transform = `translateX(${dx}px)`;
     };
     const onEnd = () => {
       if (!dragging) return;
       dragging = false;
       if (axis !== "x") {
         el.style.transform = "";
+        return;
+      }
+      if (gesture === "back") {
+        el.style.transform = "";
+        if (dx > BACK_THRESHOLD_PX) backToCapture();
         return;
       }
       el.style.transition = "transform 0.25s ease";
@@ -1533,11 +1556,11 @@ function Scanner() {
       el.removeEventListener("touchend", onEnd);
       el.removeEventListener("touchcancel", onEnd);
     };
-    // ⛔ `closeSwipe` MÅSTE ha stabil identitet: `closeScanner` byter identitet
-    // varje gång `scans` ändras, och en skanning blir klar ASYNKRONT — mitt i
-    // ett svep hade lyssnarna rivits och gesten dött halvvägs ut. Exakt samma
-    // fälla som arkets svep-ner (se use-event-callback.ts).
-  }, [closeSwipe]);
+    // ⛔ `closeSwipe`/`backToCapture` MÅSTE ha stabil identitet: `closeScanner`
+    // byter identitet varje gång `scans` ändras, och en skanning blir klar
+    // ASYNKRONT — mitt i ett svep hade lyssnarna rivits och gesten dött halvvägs
+    // ut. Exakt samma fälla som arkets svep-ner (se use-event-callback.ts).
+  }, [closeSwipe, backToCapture]);
 
   // ---- Fånga / ladda upp ---------------------------------------------------
 
@@ -2110,14 +2133,16 @@ function Scanner() {
     setAddingAll(false);
     addedRef.current = true;
     setAddedCount(ok);
-    toast({
-      title: ok === matched.length ? t("addedAllTitle") : t("addedPartialTitle"),
-      description:
-        ok === matched.length
-          ? t("addedAllDesc", { count: ok })
-          : t("addedPartialDesc", { ok, total: matched.length }),
-      variant: ok === matched.length ? "success" : "error",
-    });
+    // Lyckat tillägg bekräftas av granskningsvyns egen fot ("N kort tillagda") —
+    // en toast ovanpå sa samma sak två gånger (ägaren 2026-09-06). Bara det
+    // DELVISA utfallet får en toast: det är ett fel foten inte kan uttrycka.
+    if (ok !== matched.length) {
+      toast({
+        title: t("addedPartialTitle"),
+        description: t("addedPartialDesc", { ok, total: matched.length }),
+        variant: "error",
+      });
+    }
   }
 
   const detailsItem = detailsId ? scans.find((s) => s.id === detailsId) ?? null : null;
@@ -3280,12 +3305,13 @@ function ReviewView(props: {
             </p>
           </div>
           {done ? (
-            <div className="flex items-center gap-2">
-              <LinkButton href="/samling" variant="outline">
-                {t("showCollection")}
-              </LinkButton>
-              <Button onClick={props.onScanMore}>{t("scanMore")}</Button>
-            </div>
+            // Klart: bekräftelsen står bredvid summan; knapparna får en egen rad
+            // nedanför (två lika breda, 44 px). Låg de här bredvid summan bröts
+            // "Visa samling" på två rader och knapparna fick olika höjd.
+            <p className="flex items-center gap-1 text-xs text-rise">
+              <IconCheck size={13} />
+              {t("cardsAdded", { count: addedCount })}
+            </p>
           ) : (
             <Button
               onClick={props.onAddAll}
@@ -3310,10 +3336,14 @@ function ReviewView(props: {
           )}
         </div>
         {done && (
-          <p className="mt-2 text-center text-xs text-rise">
-            <IconCheck size={13} className="mr-1 inline" />
-            {t("cardsAdded", { count: addedCount })}
-          </p>
+          <div className="mx-auto mt-3 grid max-w-2xl grid-cols-2 gap-2.5">
+            <LinkButton href="/samling" variant="outline" className="h-11 w-full whitespace-nowrap px-3">
+              {t("showCollection")}
+            </LinkButton>
+            <Button onClick={props.onScanMore} className="h-11 w-full whitespace-nowrap px-3">
+              {t("scanMore")}
+            </Button>
+          </div>
         )}
       </div>
     </div>
