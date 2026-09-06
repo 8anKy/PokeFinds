@@ -238,12 +238,24 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   `freeExcludedRestock` och konkateneras tillbaka av `withRestockFeatures()` när flaggan är av.
   Vaktat av `tests/unit/restock-pause-copy.test.ts` (tvåsidigt: punkterna måste både försvinna OCH
   komma tillbaka).
-  **NÄR DEN SLÅS PÅ IGEN — TRE STÄLLEN, inte två**: `RESTOCK_ALERTS_PAUSED=0` i `scrape-all.yml`
-  (annars är larmen tysta även med jobbet igång), `gh workflow enable restock-watch.yml`, OCH
-  `RESTOCK_ALERTS_PAUSED=0` i **Railway** — den styr copyn via `next.config.mjs`-speglingen till
-  `NEXT_PUBLIC_RESTOCK_ALERTS_PAUSED` och bakas in vid BYGGET (env-ändring ⇒ ny deploy, inte omstart).
-  Glöms den tredje ljuger gränssnittet åt andra hållet: larmen går men appen säger "pausade".
-  Höj pingern FÖRE — vid 600 s är golvet ~102 väckningar × 300 s = 8,5 h/dygn
+  ✅ **LARM-HITS SEDAN 2026-09-06 — MEJL/PUSH GÅR VIA DISCORD-LANEN, restock-watch BEHÖVS INTE MER**
+  (`src/lib/restock-hits.ts`, `services/restock-hits.ts`, `/api/cron/restock-hit`): Discord-lanen POST:ar
+  varje påfyllning den postar om en KÄND produkt (rutt i ruttabellen) till appen med `x-cron-secret`; appen
+  väcker Neon, kör SAMMA `checkRestockAlerts` + `dispatchPendingAlerts` och skriver `RestockEvent` +
+  `Offer.stockStatus` (larma först, flippa sist — som nattkedjan). Neon vaknar alltså bara när något
+  faktiskt fyllts på: MÄTT 09-05 ur lanens loggar 28 inlägg i **12 distinkta 5-minutersfönster/dygn ≈ 1 h
+  vaken tid som TAK** (mot 18,8 h för restock-watch), och de flesta fönstren är redan vakna av Googlebot.
+  Latens ≈ lanens ~20 s + väckningen. ⛔ Lanens `DATABASE_URL` är FORTFARANDE död — hitsen går över HTTP,
+  och `restockAlertsPaused()` svarar "paused" FÖRE `ensureDbAwake()` så pausat läge kostar noll. Misslyckade
+  leveranser (Railway mitt i en självomstart) köas i `.discord-restock-cache/hits.json` (TTL 2 h). ⛔ Bara
+  produkter med rutt larmar den här vägen; en helt ny SKU:s första påfyllning når Discord, och nattkedjans
+  auto-import ger den rutt till nästa. ⛔ Prissänkningar är aldrig hits. Vaktat av `tests/unit/restock-hits.test.ts`.
+  **NÄR LARMEN SLÅS PÅ IGEN — ETT STÄLLE**: `RESTOCK_ALERTS_PAUSED=0` i **Railway** (ny deploy — den styr
+  BÅDE rutten och copyn via `next.config.mjs`-speglingen till `NEXT_PUBLIC_RESTOCK_ALERTS_PAUSED`, bakad
+  vid BYGGET). ⛔ `scrape-all.yml` BEHÅLLER `RESTOCK_ALERTS_PAUSED: "1"` — nattens offer-diff ser annars
+  samma OUT→IN som lanen redan larmat om (Offer.stockStatus skrivs av hiten, men en butik utan rutt-offer
+  eller en flipp lanen missade skulle dubbleras). ⛔ `restock-watch.yml` FÖRBLIR AVSTÄNGD; slås den på igen
+  gäller det gamla räknestycket: höj pingern FÖRE — vid 600 s är golvet ~102 väckningar × 300 s = 8,5 h/dygn
   även med en oändligt snabb DB-fas. Kodhastighet är en KLIPPKANT, inte en skala: inget händer förrän
   DB-fasen kommer under 300 s. Användarna är meddelade via
   `.github/workflows/restock-paused-notice.yml` (engångsutskick, Discord som gratis alternativ).

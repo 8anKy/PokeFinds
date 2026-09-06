@@ -203,6 +203,17 @@ export interface RestockPost {
   /** Vår produktsida, när URL:en gick att slå upp i ruttabellen. */
   productUrl: string | null;
   /**
+   * Katalogproduktens slug ur rutten. Det som gör inlägget till en LARM-HIT
+   * (`src/lib/restock-hits.ts`): utan produkt finns inga bevakare att larma.
+   */
+  productSlug?: string | null;
+  /**
+   * Lagerövergången bakom inlägget, som lanen såg den ("ABSENT" = fanns inte i förra
+   * feeden). Följer med till appen så att larmets copy och RestockEvent-raden bär
+   * samma från/till som Discord-inlägget. Saknas på prisinlägg.
+   */
+  transition?: { from: string; to: string };
+  /**
    * Reservlänk till katalogen filtrerad på SETET, för inlägg där vi inte känner igen
    * butikens URL och därför inte har någon produktsida. Används bara när
    * `productUrl` saknas — en setlänk kan varken bli fel eller landa tomt, till

@@ -22,15 +22,16 @@
  * ⛔ Prislarm (PRICE_TARGET) är en EGEN funktion och är INTE pausad — användarna
  * har aldrig fått veta något annat.
  *
- * SLÅ PÅ IGEN — TRE STÄLLEN, och glöms det tredje ljuger gränssnittet åt andra
- * hållet (larmen går, men appen säger att de är pausade):
- *   1. `RESTOCK_ALERTS_PAUSED=0` i env-blocket för `scrape-all.yml`
- *   2. `gh workflow enable restock-watch.yml` (höj den externa pingern FÖRST —
- *      se kostnadsavsnittet i CLAUDE.md)
- *   3. `RESTOCK_ALERTS_PAUSED=0` i RAILWAY. Det är den som styr COPYN: prissidans
- *      Pro-punkter, inställningarnas reglage, bevakningslistan och set-klockan.
- *      Bakas in vid BYGGET via `next.config.mjs` → en env-ändring i Railway
- *      kräver en ny deploy, inte bara en omstart.
+ * SLÅ PÅ IGEN — ETT STÄLLE SEDAN 2026-09-06 (larm-hits, se src/lib/restock-hits.ts):
+ *   `RESTOCK_ALERTS_PAUSED=0` i RAILWAY. Den styr BÅDE skapandet — Discord-lanen
+ *   POST:ar varje påfyllning till `/api/cron/restock-hit`, som svarar "paused" utan
+ *   att röra databasen så länge flaggan står — och COPYN: prissidans Pro-punkter,
+ *   inställningarnas reglage, bevakningslistan och set-klockan. Bakas in vid BYGGET
+ *   via `next.config.mjs` → en env-ändring i Railway kräver en ny deploy, inte bara
+ *   en omstart.
+ * ⛔ `scrape-all.yml` BEHÅLLER `RESTOCK_ALERTS_PAUSED: "1"`: nattens offer-diff hade
+ *    annars larmat en andra gång om flippar lanen redan skickat. ⛔ `restock-watch.yml`
+ *    förblir avstängd — den var väckningskostnaden, och hitsen ersätter den.
  * Läses vid varje ANROP, aldrig vid modulladdning, så tester och engångsskript
  * kan sätta den utan importordningsberoende.
  *

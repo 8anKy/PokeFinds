@@ -12,6 +12,30 @@ paths:
 ---
 # Discord restock-lane
 
+## ✅ LARM-HITS: LANEN ÄR NU OCKSÅ MEJLENS OCH PUSHENS UPPTÄCKARE (2026-09-06)
+Den pausade 10-minuterslanen (restock-watch) höll Neon vaken 18,8 h/dygn för att hitta det
+Discord-lanen redan ser inom ~20 s. Nu skickar lanen en **hit** till appen för varje påfyllning
+den postar om en produkt vi KÄNNER (`src/lib/restock-hits.ts` → `/api/cron/restock-hit` →
+`services/restock-hits.ts`), och appen gör allt DB-arbete: `RestockEvent` → `checkRestockAlerts`
+→ `dispatchPendingAlerts` → `Offer.stockStatus` sist. MÄTT 09-05: 28 inlägg i 12 distinkta
+5-minutersfönster per dygn ≈ 1 h vaken tid som tak.
+- ⛔ **INVARIANTEN STÅR KVAR**: `DATABASE_URL` i workflowet är död, scriptet importerar aldrig
+  `lib/db`, hitsen går över HTTP med `CRON_SECRET`. Vaktat av `tests/unit/restock-hits.test.ts`.
+- ⛔ **DOMEN TAS EN GÅNG, I LANEN.** Hitsen byggs ur `postable` — exakt det som går till Discord
+  efter köpbarhetskollen — så mejlet påstår aldrig mer än kanalen. Men de köas FÖRE och OBEROENDE
+  av Discords kvittens: ett 403 från Discord (08-12) får inte tysta mejlen.
+- ⛔ **BARA RUTTADE URL:er.** Utan `productSlug` finns inga bevakare. Prissänkningar är aldrig hits.
+- ⛔ **LANENS "FRÅN" VINNER ÖVER DATABASENS** (`applyRestockHits`): Offer.stockStatus står kvar på
+  IN_STOCK hela dagen medan lanen såg både utsäljningen och påfyllningen. "ABSENT" → okänt, aldrig
+  en IN→IN-rad. Gömda produkter uppdaterar lager men larmar inte (samma som runner.ts).
+- ⛔ **PAUSAT LÄGE KOSTAR NOLL**: rutten svarar `paused` FÖRE `ensureDbAwake()`; lanen slänger
+  hitsen och loggar en rad per jobb. PÅ/AV = `RESTOCK_ALERTS_PAUSED` i Railway, ingen annanstans.
+- **KÖN** (`.discord-restock-cache/hits.json`, TTL 2 h = larmens cooldown) finns för Railways
+  självomstarter och GitHubs glapp — inte för att spara larm över natten. Leveransen körs vid
+  sidan av butiksloopen (kedjad promise, 90 s timeout: Neon-väckning + mejlutskick innan svaret).
+  4xx = permanent (slängs, körningen röd), 5xx/nätfel = ligger kvar. Sista flushen awaitas vid
+  jobbslut; resten skrivs till kön och plockas upp av nästa jobb.
+
 ## ⛔ KATALOGEN GRINDAR INTE LÄNGRE (2026-08-16) — ombygget som löste ägarens felrapport
 Symtomet: **mejl och push kom fram om påfyllningar Discord teg om, i de flesta butiker.**
 Roten var att lanen grindade på RUTTABELLEN — saknades butikens URL där postades ingenting.

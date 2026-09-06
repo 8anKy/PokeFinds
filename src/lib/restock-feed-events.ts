@@ -558,6 +558,7 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
         absoluteImage,
       }),
       preorder: isPreorderOpen,
+      transition: { from: c.from, to: c.to },
     });
   }
 
@@ -650,6 +651,7 @@ function buildPostBase(args: {
     series: route?.series ?? guessed?.series ?? null,
     language,
     productUrl: route ? `${site}/produkter/${route.slug}` : null,
+    productSlug: route?.slug ?? null,
     // ⛔ RESERVLÄNK NÄR PRODUKTSIDAN INTE FINNS (2026-08-16). En URL utan rutt har
     // ingen produktsida att peka på — inlägget stod därför helt utan väg tillbaka
     // till oss, vilket ägaren såg direkt i kanalen. Setet vet vi ändå: det är så

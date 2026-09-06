@@ -115,6 +115,20 @@ jobs:
       # runner.ts; en syntaktiskt giltig men död URL låter konstruktionen lyckas och
       # gör varje faktisk fråga till ett omedelbart, högljutt fel.
       DATABASE_URL: "postgresql://disabled:disabled@127.0.0.1:1/disabled"
+      # ── LARM-HITS: MEJL + PUSH VIA APPEN (2026-09-06) ─────────────────────────
+      # Lanen är det enda som ser en påfyllning inom sekunder, och den får aldrig röra
+      # Neon. I stället POST:ar den varje påfyllning den postar om en KÄND produkt till
+      # appens /api/cron/restock-hit (x-cron-secret), som väcker databasen, slår upp
+      # bevakarna och skickar mejl/push. Neon vaknar alltså bara när något faktiskt
+      # fyllts på — mätt 09-05: 12 distinkta 5-minutersfönster per dygn (≈ 1 h vaken
+      # tid som tak) mot 18,8 h/dygn för den pausade 10-minuterslanen restock-watch.
+      # ⛔ DATABASE_URL ovan FÖRBLIR DÖD: hitsen går via HTTP, aldrig via Prisma.
+      # ⛔ PÅ/AV STYRS I RAILWAY, inte här: RESTOCK_ALERTS_PAUSED=0 där ⇒ appen skapar
+      #    larm; annars svarar den "paused" utan att röra databasen och lanen slänger
+      #    hitsen. Tom hemlighet ⇒ lanen skickar inget (loggar en rad vid start).
+      # Misslyckade leveranser (Railway mitt i en självomstart, GitHub-glapp) köas i
+      # .discord-restock-cache/hits.json (TTL 2 h, samma som larmens cooldown).
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
       DISCORD_RESTOCK_ENABLED: ${{ vars.DISCORD_RESTOCK_ENABLED }}
       DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
       # Kanal-id:n är INGA hemligheter (till skillnad från webhook-URL:er, som är rena

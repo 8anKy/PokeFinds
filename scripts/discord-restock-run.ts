@@ -28,6 +28,11 @@
  * per vaken tid och varje väckning köper minst 300 s. Det är hela skälet att lanen är
  * gratis; tas invarianten bort blir den inte det.
  *
+ * ✅ LARM-HITS (2026-09-06): mejl och push går NUMERA härifrån — inte genom att lanen
+ * frågar databasen, utan genom att den POST:ar varje påfyllning om en KÄND produkt
+ * till appens /api/cron/restock-hit (src/lib/restock-hits.ts). Appen väcker Neon,
+ * slår upp bevakarna och skickar. Databasen vaknar bara när något faktiskt fyllts på.
+ *
  * ⛔ EGEN CACHE-NYCKEL. State-filen ligger i `.discord-restock-cache/`, INTE i
  * `.restock-cache/` som 10-min-lanen äger. Delade de katalog skulle lanarna läsa och
  * skriva varandras lagerläge — den ena hade missat restocks, den andra dubblerat dem,
@@ -64,9 +69,26 @@ import {
 import { flapPolicy } from "../src/lib/stock-flap";
 import { pricePolicy } from "../src/lib/price-drop";
 import { pollBudget, pollIntervalMs } from "../src/lib/restock-poll-interval";
+import {
+  hitsFromPosts,
+  mergePendingHits,
+  parsePendingHits,
+  removeDelivered,
+  sendRestockHits,
+  type RestockHit,
+} from "../src/lib/restock-hits";
 
 const routesFile = process.env.RESTOCK_ROUTES_FILE ?? ".restock-routes/routes.json";
 const stateFile = process.env.DISCORD_RESTOCK_STATE_FILE ?? ".discord-restock-cache/state.json";
+/**
+ * LARM-HITS (mejl/push via appen, se src/lib/restock-hits.ts). Kön ligger bredvid
+ * state-filen så att Actions-cachen tar den med sig mellan jobben; hemligheten är
+ * appens CRON_SECRET. Tom hemlighet = lanen skickar inget, loggat en gång vid start.
+ * ⛔ Det här är lanens ENDA väg till databasen, och den går via appen över HTTP —
+ *    DATABASE_URL i workflowet förblir avsiktligt död.
+ */
+const hitsFile = process.env.DISCORD_RESTOCK_HITS_FILE ?? ".discord-restock-cache/hits.json";
+const hitSecret = process.env.CRON_SECRET?.trim() ?? "";
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://foilio.se";
 const cooldownHours = Number(process.env.RESTOCK_ALERT_COOLDOWN_HOURS ?? 2);
 
@@ -124,6 +146,17 @@ function readState(): DiscordRestockState | null {
   } catch (e) {
     console.warn("[discord-restock] Kunde inte läsa state-filen:", e instanceof Error ? e.message : e);
     return null;
+  }
+}
+
+/** Larm-hits som inte hann levereras förra jobbet. Samma regel som readState: tolkningen bor i lib. */
+function readPendingHits(): RestockHit[] {
+  if (!existsSync(hitsFile)) return [];
+  try {
+    return parsePendingHits(JSON.parse(readFileSync(hitsFile, "utf8")));
+  } catch (e) {
+    console.warn("[discord-restock] Kunde inte läsa hit-kön:", e instanceof Error ? e.message : e);
+    return [];
   }
 }
 
@@ -353,6 +386,107 @@ async function main() {
   // gånger i sekunden för ingenting. Jobbets cache-save läser filen efteråt.
   const stateTimer = setInterval(writeState, 10_000);
 
+  // ---- LARM-HITS: MEJL + PUSH VIA APPEN ----
+  // Varje påfyllning lanen postar om en KÄND produkt skickas till appens
+  // /api/cron/restock-hit, som väcker Neon, slår upp bevakarna och skickar larmen.
+  // Leveransen körs VID SIDAN AV butiksloopen (kedjad promise, aldrig awaitad i
+  // varvet): en sovande Neon tar ~10–30 s att väcka och det ska inte fördröja nästa
+  // hämtning. Misslyckas leveransen (Railway mitt i en självomstart) ligger hitsen
+  // kvar i kön och försöker igen vid nästa flush; kön skrivs till fil så den överlever
+  // jobbgränsen. ⛔ Oberoende av Discord-kvittensen — se hitsFromPosts.
+  let pendingHits: RestockHit[] = readPendingHits();
+  let hitsDirty = false;
+  let hitChain: Promise<void> = Promise.resolve();
+  let hitsPausedLogged = false;
+  const hitTotals = { queued: 0, delivered: 0, alerts: 0, dropped: 0 };
+  const hitsEnabled = !DRY_RUN && hitSecret.length > 0;
+  if (!hitsEnabled) {
+    console.log(
+      DRY_RUN
+        ? "[discord-restock] Larm-hits: torrkörning — skickar inget till appen."
+        : "[discord-restock] Larm-hits AV — CRON_SECRET saknas i miljön (mejl/push går inte ut från den här lanen)."
+    );
+  } else if (pendingHits.length) {
+    console.log(`[discord-restock] Larm-hits: ${pendingHits.length} väntande från förra jobbet.`);
+  }
+  const writeHits = () => {
+    if (!hitsDirty) return;
+    hitsDirty = false;
+    try {
+      mkdirSync(dirname(hitsFile), { recursive: true });
+      writeFileSync(hitsFile, JSON.stringify({ hits: pendingHits }));
+    } catch (e) {
+      console.warn("[discord-restock] Kunde inte skriva hit-kön:", e instanceof Error ? e.message : e);
+    }
+  };
+  const hitsTimer = setInterval(writeHits, 10_000);
+  const flushHits = () => {
+    if (!hitsEnabled) return;
+    hitChain = hitChain
+      .then(async () => {
+        const batch = mergePendingHits(pendingHits, [], new Date());
+        if (!batch.length) return;
+        const res = await sendRestockHits(batch, { baseUrl, secret: hitSecret });
+        if (res.ok) {
+          pendingHits = removeDelivered(pendingHits, batch);
+          hitsDirty = true;
+          if (res.paused) {
+            hitTotals.dropped += batch.length;
+            if (!hitsPausedLogged) {
+              hitsPausedLogged = true;
+              console.log(
+                "[discord-restock] Larm-hits: appen svarar att restock-larmen är PAUSADE " +
+                  "(RESTOCK_ALERTS_PAUSED i Railway) — hitsen slängs, databasen rörs inte."
+              );
+            }
+            return;
+          }
+          hitTotals.delivered += batch.length;
+          hitTotals.alerts += res.result?.alerts ?? 0;
+          const skipped = Object.entries(res.result?.skipped ?? {})
+            .map(([k, v]) => `${k} ${v}`)
+            .join(", ");
+          console.log(
+            `[discord-restock]   larm: ${batch.length} hit(s) → ${res.result?.matched ?? 0} matchade, ` +
+              `${res.result?.alerts ?? 0} larm skapade${skipped ? ` (hoppade: ${skipped})` : ""}.`
+          );
+          return;
+        }
+        if (res.permanent) {
+          // Fel hemlighet eller ogiltig kropp: samma svar nästa gång också. Slängs, och
+          // körningen blir röd — det är den enda signal som når någon.
+          pendingHits = removeDelivered(pendingHits, batch);
+          hitsDirty = true;
+          hitTotals.dropped += batch.length;
+          totalFailures += batch.length;
+          console.error(
+            `[discord-restock] Larm-hits NEKADES av appen (HTTP ${res.status}${res.detail ? `: ${res.detail}` : ""}) — ` +
+              `${batch.length} hit(s) slängda. Kontrollera CRON_SECRET i Actions mot Railway.`
+          );
+          return;
+        }
+        console.warn(
+          `[discord-restock] Larm-hits: leveransen misslyckades (${res.status ? `HTTP ${res.status}` : res.detail ?? "nätfel"}) — ` +
+            `${batch.length} hit(s) ligger kvar i kön och försöker igen.`
+        );
+      })
+      .catch((e) => {
+        console.warn("[discord-restock] Larm-hits: oväntat fel:", e instanceof Error ? e.message : e);
+      });
+  };
+  const queueHits = (hits: RestockHit[]) => {
+    if (!hits.length) return;
+    pendingHits = mergePendingHits(pendingHits, hits, new Date());
+    hitsDirty = true;
+    hitTotals.queued += hits.length;
+    for (const h of hits) {
+      console.log(`[discord-restock]   larm-hit: ${h.storeName} → ${h.storeUrl} (${h.to})`);
+    }
+    flushHits();
+  };
+  // Det som blev över från förra jobbet skickas direkt — Railway är troligen uppe igen.
+  flushHits();
+
   const deadline = loopSeconds ? Date.now() + loopSeconds * 1000 : 0;
 
   /** Ett varv för EN butik: hämta → diffa → posta. Returnerar hämtningens kostnad. */
@@ -493,8 +627,15 @@ async function main() {
     }
     if (!postable.length) return requests;
 
+    // Larm-hits ur EXAKT det som går till Discord (efter köpbarhetskollen), men
+    // oberoende av om Discord kvitterar. Bara ruttade URL:er blir hits.
+    const hits = hitsFromPosts(postable, now);
+
     if (!config) {
       // --dry-run: visa vad som HADE postats, rör inte Discord.
+      for (const h of hits) {
+        console.log(`[discord-restock][dry]   larm-hit: ${h.storeName} → ${h.productSlug} (${h.from ?? "?"} → ${h.to})`);
+      }
       for (const p of postable) {
         console.log(
           `[discord-restock][dry] ${p.storeName} → ${p.title} ` +
@@ -518,6 +659,10 @@ async function main() {
     for (const p of postable) {
       if (p.previousPriceOre != null && p.priceOre != null) pricedKeys[p.key] = p.priceOre;
     }
+
+    // Hitsen köas FÖRE Discord-utskicket: mejlet ska inte vänta på Discords svar,
+    // och ett nekat inlägg (boten tappade en rättighet) får inte tysta mejlen.
+    queueHits(hits);
 
     const res = await postRestocks(postable, config);
     totalPosted += res.sent;
@@ -595,6 +740,13 @@ async function main() {
   clearInterval(stateTimer);
   writeState();
 
+  // Sista leveransförsöket får löpa klart (≤ 90 s) — det som ändå inte gick ut
+  // skrivs till kön och plockas upp av nästa jobb.
+  flushHits();
+  await hitChain;
+  clearInterval(hitsTimer);
+  writeHits();
+
   // ⛔ EN RAD SOM SVARAR PÅ "GJORDE LANEN SITT JOBB?". Ett jobb rör 42 butiker × ~20
   // varv; utan sammanräkningen måste man läsa hundratals rader för att se om tystnad
   // betyder "inget hände" eller "allt fälldes". Just den skillnaden var hela
@@ -614,7 +766,11 @@ async function main() {
       `${jobTotals.flap} blink/flapp, ${jobTotals.blip} feed-hicka, ${jobTotals.cooldown} cooldown, ` +
       `${jobTotals.buyBlocked} låst köpknapp` +
       `${priceSummary ? `; prisfall fällda: ${priceSummary}` : ""}` +
-      `${jobTotals.rescued ? `; ${jobTotals.rescued} räddade av rutten` : ""}.`
+      `${jobTotals.rescued ? `; ${jobTotals.rescued} räddade av rutten` : ""}.` +
+      (hitsEnabled
+        ? ` Larm-hits: ${hitTotals.queued} köade, ${hitTotals.delivered} levererade (${hitTotals.alerts} larm), ` +
+          `${hitTotals.dropped} slängda, ${pendingHits.length} väntar.`
+        : "")
   );
 
   // ⛔ NEKADE UTSKICK GÖR KÖRNINGEN RÖD. 2026-08-12 förlorade boten Send Messages i
