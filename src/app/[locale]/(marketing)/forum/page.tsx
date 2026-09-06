@@ -18,6 +18,23 @@ import { listGroups } from "@/services/community-groups";
  */
 export const revalidate = 300;
 
+// ⛔ INGET PRERENDER VID BYGGET (2026-09-07) — tom lista, precis som gruppsidan.
+// `next build` körs UTAN S3-env (Dockerfile skickar bara in det bygget behöver),
+// så `storageEnabled()` är falskt där och `imageUrl()` ger null — den prerenderade
+// HTML:en saknade DÄRFÖR bildtaggarna HELT, inte bara bilddatan. Cache-handlerns
+// seed-lager (server/cache-handler.cjs, readSeed) serverar byggets fil efter varje
+// deploy tills en runtime-render tagit över — med ~9 deployer/dygn försvann
+// trådlistans bilder därför "ibland" och kom tillbaka av sig själva, medan tråden
+// man öppnade (dynamiskt segment ⇒ aldrig prerenderad) alltid visade dem.
+// Uppmätt 2026-09-07: `x-nextjs-cache: STALE` ⇒ 0 bild-URL:er, nästa svar `HIT`
+// ⇒ 1. ⛔ Lös det ALDRIG genom att skicka in S3-hemligheterna som build-ARG:
+// då bakas signerade URL:er in i en byggartefakt. Tom lista behåller ISR men
+// flyttar första renderingen till runtime, där bilderna kan signeras — och där
+// flödet dessutom är färskt i stället för byggets ögonblicksbild.
+export async function generateStaticParams() {
+  return [];
+}
+
 interface PageProps {
   params: { locale: string };
 }

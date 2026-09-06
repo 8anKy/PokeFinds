@@ -76,6 +76,14 @@ paths:
   inte tål. ⛔ Rutten litar aldrig på klientens `thumbKey` — den jämförs mot den härledda, annars kunde en
   tråd peka sin miniatyr på någon annans bild. Signerings-URL:en är deterministisk per **DYGN** (var timme
   till 09-07 — varje bild blev en ny URL varje timme och därmed en ny nedladdning).
+  ⛔ **TRÅDFLÖDET FÅR ALDRIG PRERENDERAS VID BYGGET** (`generateStaticParams` ⇒ `[]`, vaktat av
+  `tests/unit/forum-feed-no-build-prerender.test.ts`). `next build` körs utan S3-env, så `storageEnabled()`
+  är falskt där och `imageUrl()` ger null — den prerenderade HTML:en saknade bildtaggarna HELT, och
+  cache-handlerns seed-lager serverade byggets fil efter varje deploy (~9/dygn) tills en runtime-render tog
+  över. Symptomet var att flödets bilder försvann "ibland" och kom tillbaka av sig själva, medan tråden man
+  öppnade (dynamiskt segment ⇒ aldrig prerenderad) alltid visade dem. Mätt 09-07: `x-nextjs-cache: STALE`
+  ⇒ 0 bild-URL:er i HTML:en, nästa svar `HIT` ⇒ 1. ⛔ Skicka ALDRIG in S3-hemligheterna som build-ARG för
+  att "laga" det — då bakas signerade URL:er in i en byggartefakt.
   ⛔ Ingen presignerad PUT från webbläsaren: CORS står inte bland bucketens stödda funktioner. Utan `S3_*`-env
   svarar `storageEnabled()` falskt och bildvalet döljs — forumet fungerar utan bilder.
 - **TRADERA-ANNONSER PÅ PROFILEN = EGEN SPAK (`User.showTraderaListings`, default av).** Kopplingen gavs för att
