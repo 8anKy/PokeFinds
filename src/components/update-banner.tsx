@@ -60,7 +60,11 @@ function recentlyDismissed(version: string): boolean {
  */
 async function fetchMinVersion(): Promise<string> {
   try {
-    const res = await fetch("/api/app/min-version", { cache: "no-store" });
+    // ⛔ FRÅGESTRÄNGEN ÄR CACHE-SPÄRREN, INTE `cache: "no-store"` (2026-09-06):
+    // WKWebView ignorerar fetch-alternativet och svarade ur sin EGEN HTTP-cache
+    // — ägarens telefon kallstartade tre gånger utan att en enda begäran nådde
+    // servern (Railways loggar), och "1.1" satt kvar en timme efter släppet.
+    const res = await fetch(`/api/app/min-version?t=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return MIN_APP_VERSION;
     const data = (await res.json()) as { ios?: unknown };
     return typeof data.ios === "string" && data.ios.trim() ? data.ios.trim() : MIN_APP_VERSION;

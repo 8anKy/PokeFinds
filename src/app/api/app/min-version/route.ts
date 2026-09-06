@@ -16,14 +16,13 @@ import { IOS_BUNDLE_ID, MIN_APP_VERSION, resolveMinAppVersion } from "@/lib/app-
  * den aldrig. ⛔ Ingen `unstable_cache`/Data Cache: svaret får inte ligga i
  * ISR-lagret på volymen, och ett processminne räcker.
  *
- * ⛔ KORTA CACHAR, BÅDA (2026-09-06): med 6 h i processen + `jsonCached(3600)`
- * (= 1 h i Railways edge-cache PLUS stale-while-revalidate 5 h) låg 1.2 i
- * butiken sedan 13:30 UTC medan rutten svarade "1.1" över en timme senare, och
- * ägaren på 1.1 fick ingen remsa. Remsan är värdelös om den släpar ett halvt
- * dygn efter släppet. Nu 10 min i processen och 5 min på kanten, INGEN
- * stale-while-revalidate — värsta fallet ~15 min efter att Apples lookup
- * uppdaterats. Trafiken är några dussin anrop per dygn; kanten behöver inte
- * skydda något här.
+ * ⛔ EN ENDA CACHE — PROCESSMINNET (2026-09-06, tre lager fällde remsan samma dag):
+ * 6 h i processen + `jsonCached(3600)` (1 h på Railways kant + 5 h stale-while-
+ * revalidate) + WKWebView:s egen HTTP-cache som lydde vår max-age i stället för
+ * fetchens `no-store`. 1.2 låg i butiken 13:30 UTC, rutten sa "1.1" en timme
+ * senare, och telefonen kallstartade sedan utan att ens fråga. Nu: 10 min i
+ * processen, `no-store` utåt och tidsstämpel i appens URL. Trafiken är några
+ * dussin anrop per dygn — det finns inget att skydda med en kant-cache.
  *
  * FALLER APPLE BORT (5xx, timeout, oväntad form) svaras golvet med
  * `source: "floor"` — remsan blir då som före 2026-09-02, aldrig felaktig.
@@ -50,8 +49,11 @@ const TTL_MS = 10 * 60 * 1000;
 // Ett misslyckat uppslag hålls bara så här länge — en störning hos Apple ska
 // inte låsa golvet i tio minuter.
 const FAIL_TTL_MS = 2 * 60 * 1000;
-// Railways edge-cache: kort och utan stale-while-revalidate (se filhuvudet).
-const EDGE_SECONDS = 300;
+// ⛔ INGEN HTTP-CACHE ALLS (2026-09-06): WKWebView struntar i fetchens `no-store`
+// och lade svaret i sin egen cache enligt vår max-age — telefonen kallstartade
+// utan att fråga servern och visade "1.1" en timme efter släppet. Appen bustar
+// dessutom URL:en med en tidsstämpel. Processcachen ovan är det enda lagret.
+const NO_STORE = "private, no-store, max-age=0, must-revalidate";
 const TIMEOUT_MS = 5000;
 
 interface Cached {
@@ -102,6 +104,6 @@ export async function GET() {
   const { ios, source } = await current();
   return NextResponse.json(
     { ios, floor: MIN_APP_VERSION, source },
-    { headers: { "Cache-Control": `public, max-age=${EDGE_SECONDS}, s-maxage=${EDGE_SECONDS}` } }
+    { headers: { "Cache-Control": NO_STORE } }
   );
 }

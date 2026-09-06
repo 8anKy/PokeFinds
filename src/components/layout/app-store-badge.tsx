@@ -21,8 +21,9 @@ import { IconAppleLogo } from "@/components/ui/brand-icons";
  * ovanför sökfältet innan den försvann (rapporterat 2026-09-06). Med
  * useSyncExternalStore ser serverrenderingen och hydreringen webbens värde
  * (ingen mismatch) och varje annan montering appens — brickan ritas aldrig i
- * appen vid en klientnavigering. Kallstarten i appen kan som värst visa den en
- * hydreringsrunda, som förut.
+ * appen vid en klientnavigering. Kallstarten täcks av CSS:
+ * rot-layoutens inline-skript stämplar <html data-native> före första målningen
+ * och `.web-only` döljer brickan tills React tagit bort den.
  */
 function isNativeApp(): boolean {
   return (
@@ -45,7 +46,9 @@ export function AppStoreBadge() {
       target="_blank"
       rel="noopener noreferrer"
       aria-label={t("badgeAria")}
-      className="inline-flex items-center gap-2.5 rounded-xl border border-white/25 bg-black px-3.5 py-1.5 transition-colors hover:border-white/50"
+      // `web-only`: gömd av CSS redan vid första målningen i appen (se rot-layoutens
+      // inline-skript) — useSyncExternalStore ovan tar bort den ur DOM:en efteråt.
+      className="web-only inline-flex items-center gap-2.5 rounded-xl border border-white/25 bg-black px-3.5 py-1.5 transition-colors hover:border-white/50"
     >
       <IconAppleLogo size={22} className="shrink-0 text-white" />
       <span className="flex flex-col text-left leading-tight">

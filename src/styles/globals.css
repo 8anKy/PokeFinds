@@ -425,3 +425,11 @@ table td,
   0%, 100% { background-position: 0% 50%; }
   50%      { background-position: 100% 50%; }
 }
+
+/* Native-appen (Capacitor) stämplar <html data-native="1"> via inline-skriptet i
+   rot-layouten, före första målningen. Ytor som bara hör hemma på webben
+   (App Store-brickan) får `.web-only` och försvinner utan en blinkande
+   hydreringsruta — React tar sedan bort dem ur DOM:en också. */
+html[data-native] .web-only {
+  display: none !important;
+}

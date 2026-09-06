@@ -126,8 +126,23 @@ export default async function LocaleLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={locale} className={`dark ${inter.variable}`}>
+    <html lang={locale} className={`dark ${inter.variable}`} suppressHydrationWarning>
       <body>
+        {/* Native-flaggan, SYNKRONT före allt annat i <body>: Capacitor injicerar
+            window.Capacitor vid dokumentstart, så skriptet kan stämpla <html> med
+            data-native innan första målningen — och CSS (`.web-only` i
+            globals.css) gömmer webbens ytor (App Store-brickan) utan att någon
+            komponent hinner rita dem en hydreringsruta först (rapporterat
+            2026-09-06: brickan blinkade vid varje kallstart). HTML:en är delad/
+            ISR-cachad och kan inte veta vem som läser den; skriptet vet.
+            suppressHydrationWarning på <html>: attributet är satt av skriptet, inte
+            av React, och skulle annars ge en dev-varning. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              '(function(){try{var c=window.Capacitor;if(c&&typeof c.isNativePlatform==="function"&&c.isNativePlatform()){document.documentElement.setAttribute("data-native","1")}}catch(e){}})();',
+          }}
+        />
         {/* Ingen web-laddningsskärm: laddnings-UI:t (Stitch "Foilio - Loading") bor
             i den NATIVE splashen (assets/splash.png + turkos native-spinner, se
             capacitor.config.ts) som täcker HELA app-starten tills webben är redo.
