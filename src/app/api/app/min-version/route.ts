@@ -35,6 +35,17 @@ import { IOS_BUNDLE_ID, MIN_APP_VERSION, resolveMinAppVersion } from "@/lib/app-
  */
 
 const LOOKUP_URL = `https://itunes.apple.com/lookup?bundleId=${IOS_BUNDLE_ID}&country=se`;
+/**
+ * ⛔ APPLES LOOKUP LIGGER BAKOM AKAMAI MED `max-age=86400` (mätt 2026-09-06):
+ * 1.2 släpptes 13:30 UTC, ett anrop från Sverige fick 1.2, men Railways process
+ * (Frankfurt) fick en DAGSGAMMAL "1.1" ur en annan Akamai-nod (`TCP_MEM_HIT`)
+ * och svarade "store: 1.1" i god tro. En avvikande frågesträng är en egen
+ * cache-nyckel hos Akamai (`TCP_MISS` verifierat) — därför en tidshink i URL:en:
+ * ett origin-anrop per hink, aldrig en dagsgammal kopia.
+ */
+function lookupUrl(): string {
+  return `${LOOKUP_URL}&_=${Math.floor(Date.now() / TTL_MS)}`;
+}
 const TTL_MS = 10 * 60 * 1000;
 // Ett misslyckat uppslag hålls bara så här länge — en störning hos Apple ska
 // inte låsa golvet i tio minuter.
@@ -55,7 +66,7 @@ async function lookupStoreVersion(): Promise<string | null> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(LOOKUP_URL, {
+    const res = await fetch(lookupUrl(), {
       signal: ctrl.signal,
       cache: "no-store",
       headers: { "user-agent": "Foilio/1.0 (+https://foilio.se)" },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 import { APP_STORE_URL } from "@/lib/social-links";
 import { IconAppleLogo } from "@/components/ui/brand-icons";
@@ -12,28 +12,30 @@ import { IconAppleLogo } from "@/components/ui/brand-icons";
  * formspråk, inte vårt, och ytan är ändå svart.
  *
  * Döljer sig själv i NATIVE-appen: att be en app-användare ladda ned appen är
- * brus. Webben SSR:ar brickan (ingen layout-skift där); i appen blinkar den
- * som värst en frame innan effekten hunnit läsa Capacitor. Samma dynamiska
- * import som AppBoot — webb-bundlen drar aldrig in plugin-koden.
+ * brus. Webben SSR:ar brickan (ingen layout-skift där).
+ *
+ * ⛔ Native-kollen är SYNKRON (bryggans `window.Capacitor`, injicerad av den
+ * native appen före all sidkod — samma läsning som lib/haptics.ts och
+ * cookie-banner.tsx), inte en effekt efter en dynamisk import: Utforska-sidan
+ * remonteras vid varje flikbyte, och en effekt-läsning målade brickan en runda
+ * ovanför sökfältet innan den försvann (rapporterat 2026-09-06). Med
+ * useSyncExternalStore ser serverrenderingen och hydreringen webbens värde
+ * (ingen mismatch) och varje annan montering appens — brickan ritas aldrig i
+ * appen vid en klientnavigering. Kallstarten i appen kan som värst visa den en
+ * hydreringsrunda, som förut.
  */
+function isNativeApp(): boolean {
+  return (
+    (globalThis as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() ===
+    true
+  );
+}
+const subscribeNoop = () => () => {};
+const serverSnapshot = () => false;
+
 export function AppStoreBadge() {
   const t = useTranslations("JoinUs");
-  const [nativeApp, setNativeApp] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const { Capacitor } = await import("@capacitor/core");
-        if (!cancelled && Capacitor.isNativePlatform()) setNativeApp(true);
-      } catch {
-        // Ren webb utan Capacitor → brickan visas.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const nativeApp = useSyncExternalStore(subscribeNoop, isNativeApp, serverSnapshot);
 
   if (nativeApp) return null;
 
