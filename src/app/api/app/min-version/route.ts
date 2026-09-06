@@ -1,4 +1,4 @@
-import { jsonCached } from "@/lib/api";
+import { NextResponse } from "next/server";
 import { IOS_BUNDLE_ID, MIN_APP_VERSION, resolveMinAppVersion } from "@/lib/app-version";
 
 /**
@@ -10,22 +10,37 @@ import { IOS_BUNDLE_ID, MIN_APP_VERSION, resolveMinAppVersion } from "@/lib/app-
  * i den svenska butiken — dvs exakt den version användaren kan hämta. Svaret
  * är aldrig lägre än golvet `MIN_APP_VERSION` (lib/app-version.ts).
  *
- * KOSTNAD: noll Neon (ingen DB), en extern HTTP-hämtning per 6 h per process,
- * i minnet. Appen anropar rutten en gång per start (bara iOS, bara nativt);
- * webben anropar den aldrig. ⛔ Ingen `unstable_cache`/Data Cache: svaret får
- * inte ligga i ISR-lagret på volymen, och ett processminne räcker för sex timmar.
+ * KOSTNAD: noll Neon (ingen DB), en extern HTTP-hämtning per 10 min per process,
+ * i minnet. Appen anropar rutten vid start och när den kommer tillbaka i
+ * förgrunden (högst en gång i timmen; bara iOS, bara nativt); webben anropar
+ * den aldrig. ⛔ Ingen `unstable_cache`/Data Cache: svaret får inte ligga i
+ * ISR-lagret på volymen, och ett processminne räcker.
+ *
+ * ⛔ KORTA CACHAR, BÅDA (2026-09-06): med 6 h i processen + `jsonCached(3600)`
+ * (= 1 h i Railways edge-cache PLUS stale-while-revalidate 5 h) låg 1.2 i
+ * butiken sedan 13:30 UTC medan rutten svarade "1.1" över en timme senare, och
+ * ägaren på 1.1 fick ingen remsa. Remsan är värdelös om den släpar ett halvt
+ * dygn efter släppet. Nu 10 min i processen och 5 min på kanten, INGEN
+ * stale-while-revalidate — värsta fallet ~15 min efter att Apples lookup
+ * uppdaterats. Trafiken är några dussin anrop per dygn; kanten behöver inte
+ * skydda något här.
  *
  * FALLER APPLE BORT (5xx, timeout, oväntad form) svaras golvet med
  * `source: "floor"` — remsan blir då som före 2026-09-02, aldrig felaktig.
  * ⚠️ Apples lookup släpar ibland timmar efter ett släpp: remsan tänds sent,
  * aldrig för tidigt. Det är rätt håll för en knuff.
  *
- * ⛔ Inget `force-dynamic` — det sätter no-store och slår ut cache-headern
- * (se jsonCached). `fetch(..., { cache: "no-store" })` gör rutten dynamisk ändå.
+ * ⛔ Inget `force-dynamic` — det sätter no-store och slår ut cache-headern.
+ * `fetch(..., { cache: "no-store" })` gör rutten dynamisk ändå.
  */
 
 const LOOKUP_URL = `https://itunes.apple.com/lookup?bundleId=${IOS_BUNDLE_ID}&country=se`;
-const TTL_MS = 6 * 60 * 60 * 1000;
+const TTL_MS = 10 * 60 * 1000;
+// Ett misslyckat uppslag hålls bara så här länge — en störning hos Apple ska
+// inte låsa golvet i tio minuter.
+const FAIL_TTL_MS = 2 * 60 * 1000;
+// Railways edge-cache: kort och utan stale-while-revalidate (se filhuvudet).
+const EDGE_SECONDS = 300;
 const TIMEOUT_MS = 5000;
 
 interface Cached {
@@ -62,9 +77,7 @@ async function current(): Promise<Cached> {
     inFlight = (async () => {
       const store = await lookupStoreVersion();
       const ios = resolveMinAppVersion(store);
-      // Ett misslyckat uppslag cachas KORTARE (30 min) så en tillfällig störning
-      // hos Apple inte låser golvet i sex timmar.
-      const at = store ? Date.now() : Date.now() - TTL_MS + 30 * 60 * 1000;
+      const at = store ? Date.now() : Date.now() - TTL_MS + FAIL_TTL_MS;
       cache = { ios, source: store && ios === store ? "store" : "floor", at };
       return cache;
     })().finally(() => {
@@ -76,5 +89,8 @@ async function current(): Promise<Cached> {
 
 export async function GET() {
   const { ios, source } = await current();
-  return jsonCached({ ios, floor: MIN_APP_VERSION, source }, 3600);
+  return NextResponse.json(
+    { ios, floor: MIN_APP_VERSION, source },
+    { headers: { "Cache-Control": `public, max-age=${EDGE_SECONDS}, s-maxage=${EDGE_SECONDS}` } }
+  );
 }

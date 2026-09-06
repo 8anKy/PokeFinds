@@ -54,7 +54,7 @@ function recentlyDismissed(version: string): boolean {
 
 /**
  * Tröskeln = versionen som ligger i App Store just nu (/api/app/min-version,
- * Apples lookup, cachad 6 h på servern). Faller anropet svaras golvet
+ * Apples lookup, cachad 10 min på servern + 5 min på kanten). Faller anropet svaras golvet
  * `MIN_APP_VERSION` — samma beteende som före 2026-09-02, aldrig en remsa mot
  * en version som inte går att hämta. Bara appen frågar; webben når aldrig hit.
  */
