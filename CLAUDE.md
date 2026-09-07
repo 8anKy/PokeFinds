@@ -433,7 +433,7 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   sekunder i loggarna). `pages-by-build/<BUILD_ID>/`, rensas av prune. Ingen Product-nod i JSON-LD längre (kräver `offers`). Vaktat av
   `tests/unit/product-page-isr-ttl.test.ts` + `isr-cache-handler.test.ts`. Verifierat lokalt:
   `s-maxage=2592000`, HIT efter processomstart. Volymkostnad ~$0,15/GB-mån (~1–2 GB).
-Publika läs-sidor är ISR-cachade (`revalidate=3600`), INTE `force-dynamic`: startsidan, `/marknad`, `/sets`,
+Publika läs-sidor är ISR-cachade (`revalidate=3600`), INTE `force-dynamic`: startsidan, `/sets`,
 `/sets/[id]` (och `/produkter/[slug]` med 30 d, se ovan). ⛔ **Sätt aldrig tillbaka `force-dynamic`** — det var orsaken till hög
 Active CPU + Neon-CU. Förutsättning: ingen server-`auth()`/`cookies()` i den delade chrome:n — rot-layouten,
 marketing-layouten och `SiteHeader` får INTE kalla `auth()` (då blir HELA appen dynamisk). Session läses

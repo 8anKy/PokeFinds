@@ -153,11 +153,8 @@ export default async function DashboardPage() {
         {/* Senaste restocks — admin-only */}
         {isAdmin && (
         <Card>
-          <CardHeader className="flex-row items-center justify-between">
+          <CardHeader>
             <CardTitle>{t("recentRestocks")}</CardTitle>
-            <Link href="/marknad" className="text-sm font-medium text-holo-cyan hover:underline">
-              {t("showAll")}
-            </Link>
           </CardHeader>
           <CardContent className="p-0">
             {restocks.length === 0 ? (

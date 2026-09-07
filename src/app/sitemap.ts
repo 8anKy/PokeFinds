@@ -114,7 +114,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // den samma dag community-flödet går live, inte tidigare.
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${BASE_URL}/produkter`, changeFrequency: "hourly", priority: 1 },
-    { url: `${BASE_URL}/marknad`, changeFrequency: "hourly", priority: 0.8 },
     { url: `${BASE_URL}/sets`, changeFrequency: "weekly", priority: 0.7 },
     { url: `${BASE_URL}/priser`, changeFrequency: "monthly", priority: 0.6 },
     // Discord-landningssidan: egen ingång för "foilio discord"-sökningar och den enda

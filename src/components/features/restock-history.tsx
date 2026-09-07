@@ -2,13 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Link } from "@/i18n/navigation";
 import { formatRelative } from "@/lib/format";
 import { useIsAdmin } from "@/components/admin-only";
 import { StockBadge } from "@/components/ui/badge";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
-import { IconPackage } from "@/components/ui/icons";
 import type { StockStatus } from "@prisma/client";
 
 /**
@@ -20,8 +16,8 @@ import type { StockStatus } from "@prisma/client";
  * sedan" klickar sig oftast till en slutsåld sida. Bevakarna får sina restock-larm
  * som vanligt (och de är flapp-dämpade, se checkRestockAlerts).
  *
- * Rollen läses KLIENT-sida (useIsAdmin): både produktsidan och /marknad är
- * ISR-cachade, och ett server-`auth()` där gör hela appen dynamisk igen (se
+ * Rollen läses KLIENT-sida (useIsAdmin): produktsidan är
+ * ISR-cachad, och ett server-`auth()` där gör hela appen dynamisk igen (se
  * "Caching/ISR" i CLAUDE.md). Därför ligger datat inte heller i sidans payload —
  * admins hämtar det on-demand från /api/market/restocks, som gör den RIKTIGA
  * behörighetskontrollen. Att gömma en sektion skyddar ingenting i sig.
@@ -92,66 +88,6 @@ export function ProductRestockHistory({ productId }: { productId: string }) {
           ))}
         </ul>
       )}
-    </section>
-  );
-}
-
-/** Marknadssidans "Senaste påfyllningar" — hela katalogen, fortfarande i lager. */
-export function MarketRestocks() {
-  const t = useTranslations("Market");
-  const locale = useLocale();
-  const isAdmin = useIsAdmin();
-  const rows = useRestocks("limit=12", isAdmin);
-
-  if (!isAdmin || rows == null) return null;
-
-  return (
-    <section className="mt-12">
-      <h2 className="flex items-center gap-2 font-display text-xl font-semibold text-ink">
-        <IconPackage size={20} className="text-holo-cyan" />
-        {t("restocksTitle")}
-      </h2>
-      <div className="mt-4">
-        {rows.length === 0 ? (
-          <EmptyState
-            icon={<IconPackage size={32} />}
-            title={t("noRestocksTitle")}
-            description={t("noRestocksDesc")}
-          />
-        ) : (
-          <Table>
-            <THead>
-              <TR>
-                <TH>{t("colProduct")}</TH>
-                <TH>{t("colStore")}</TH>
-                <TH>{t("colStatus")}</TH>
-                <TH>{t("colWhen")}</TH>
-              </TR>
-            </THead>
-            <TBody>
-              {rows.map((r) => (
-                <TR key={r.id}>
-                  <TD>
-                    <Link
-                      href={`/produkter/${r.product.slug}`}
-                      className="font-medium hover:text-holo-cyan"
-                    >
-                      {r.product.title}
-                    </Link>
-                  </TD>
-                  <TD className="text-ink-muted">{r.retailer.name}</TD>
-                  <TD>
-                    <StockBadge stockStatus={r.newStatus} />
-                  </TD>
-                  <TD className="whitespace-nowrap text-ink-muted">
-                    {formatRelative(r.detectedAt, locale)}
-                  </TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
-        )}
-      </div>
     </section>
   );
 }

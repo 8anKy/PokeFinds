@@ -58,7 +58,6 @@ interface Messages {
     freeAlertsBanner: string;
     freeAlertsBannerPaused: string;
   };
-  Market: { proDesc: string; proDescPaused: string };
   Detail: {
     alertsProCta: string;
     alertsProCtaPaused: string;
@@ -71,7 +70,7 @@ interface Messages {
 
 /**
  * Varje yta som lovade prislarm i löpande text, med sin pausade motsvarighet.
- * ⛔ ALLA NIO ÄR SÄLJTEXTER, ett reglage eller ett löfte vid själva inställningsmomentet.
+ * ⛔ ALLA ÄR SÄLJTEXTER, ett reglage eller ett löfte vid själva inställningsmomentet.
  * Lämnas EN kvar räcker det:
  * `freeAlertsBanner` bad uttryckligen gratisanvändaren betala "för att aktivera" larm
  * som är avstängda — exakt anspråket som kostade pengar under restock-pausen.
@@ -82,7 +81,6 @@ const SURFACES: { ns: keyof Messages; key: string }[] = [
   { ns: "Settings", key: "planFreeDesc" },
   { ns: "Watchlist", key: "subtitle" },
   { ns: "Watchlist", key: "freeAlertsBanner" },
-  { ns: "Market", key: "proDesc" },
   { ns: "Detail", key: "alertsProCta" },
   { ns: "Detail", key: "priceModalIntro" },
   // Bevaka-arkets prisfall-rad (product-watch-sheet.tsx, 2026-09-06).

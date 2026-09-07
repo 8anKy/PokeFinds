@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { useTranslations } from "next-intl";
-import { Link } from "@/i18n/navigation";
 import { LinkButton } from "@/components/ui/button";
 
 /**
@@ -45,9 +44,6 @@ export default function NotFound() {
           {t("explore")}
         </LinkButton>
       </div>
-      <Link href="/marknad" className="mt-6 text-sm text-ink-muted hover:text-ink">
-        {t("market")}
-      </Link>
     </div>
   );
 }

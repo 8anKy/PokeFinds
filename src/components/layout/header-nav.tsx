@@ -4,17 +4,15 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { usePathname } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
-import { useIsAdmin } from "@/components/admin-only";
 import { useCommunityV2 } from "@/lib/use-community-v2";
 
-// Marknad är ADMIN-ONLY (ägarbeslut 2026-07-21): vanliga besökare ska bara se
-// Utforska, Portfölj, Community och Priser (ägarbeslut 2026-08-11: fyra huvudflikar
-// på desktop, samma Portfölj-mål som mobilens tabb = /samling). Sidan Marknad finns
-// kvar och nås via URL — det här är bara navigationen.
+// Fyra huvudflikar på desktop (ägarbeslut 2026-08-11), samma Portfölj-mål som
+// mobilens tabb = /samling. ⛔ Marknad är BORTTAGEN (ägarbeslut 2026-09-07): fliken
+// var admin-only sedan 2026-07-21 och sidan tillförde inget vi inte visar bättre på
+// /produkter — hela rutten är raderad, inte bara länken.
 const NAV_LINKS = [
   { href: "/produkter", key: "explore" },
   { href: "/samling", key: "portfolio" },
-  { href: "/marknad", key: "market", adminOnly: true },
   { href: "/community", key: "community" },
   { href: "/priser", key: "pricing" },
 ] as const;
@@ -22,10 +20,9 @@ const NAV_LINKS = [
 export function HeaderNav() {
   const t = useTranslations("Nav");
   const pathname = usePathname();
-  const isAdmin = useIsAdmin();
   // Community → Forum för den som community-grinden släpper in (lib/community-v2-gate.ts).
   const communityV2 = useCommunityV2();
-  const links = NAV_LINKS.filter((l) => !("adminOnly" in l && l.adminOnly) || isAdmin).map((l) =>
+  const links = NAV_LINKS.map((l) =>
     communityV2 && l.key === "community" ? { href: "/forum", key: "forum" } : l
   );
   return (

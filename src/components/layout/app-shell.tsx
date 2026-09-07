@@ -29,9 +29,9 @@ import { SiteHeader } from "@/components/layout/site-header";
  * återanvänds med flit från Nav/HeaderActions/More — samma etikett ska heta
  * samma sak i toppnavigeringen, kontomenyn, mobilens /mer och här.
  *
- * Översikt (/dashboard), Skanna kort (/skanna) och Marknad (/marknad) är
- * BORTTAGNA ur menyn (ägarbeslut 2026-08-11). Sidorna finns kvar och nås via
- * URL respektive mobilens bottentabbar — det här är bara navigationen.
+ * Översikt (/dashboard) och Skanna kort (/skanna) är BORTTAGNA ur menyn
+ * (ägarbeslut 2026-08-11). Sidorna finns kvar och nås via mobilens bottentabbar
+ * — det här är bara navigationen. (Marknad togs bort HELT 2026-09-07.)
  */
 const NAV: {
   href: string;
@@ -108,7 +108,7 @@ export function AppShell({
       <div className={cn("flex flex-col", shellHeight)}>
         <SiteHeader />
         {/* max-w-7xl = samma spalt som headern och de publika sidorna
-            (/produkter, /marknad, /sets) — annars ligger innehållet inte i linje
+            (/produkter, /sets) — annars ligger innehållet inte i linje
             med logotypen och flikarna ovanför. Mobilens padding är oförändrad. */}
         <main className="mx-auto w-full max-w-7xl flex-1 px-2.5 py-6 sm:px-6 lg:py-10">
           {children}

@@ -41,7 +41,6 @@ slumpar seeden fram lösenord och skriver ut dem i terminalen när den är klar.
 | Utforska produkter | `/produkter` | Katalog med sök och filter (set, typ, pris) |
 | Produktsida | `/produkter/[slug]` | Prishistorik, erbjudanden per butik, lagerstatus |
 | Set | `/sets` | Alla kortset med releasedatum |
-| Marknad | `/marknad` | Trender: största prisrörelser, mest bevakat |
 | Community | `/community` | Inlägg från samlare (läsläge utan konto) |
 | Priser | `/priser` | Prisplaner |
 | Logga in / Registrera | `/logga-in`, `/registrera` | Auth |
@@ -91,7 +90,6 @@ slumpar seeden fram lösenord och skriver ut dem i terminalen när den är klar.
 3. Rapporter hamnar i adminpanelens modereringskö.
 
 ### Marknadsdata
-- `/marknad` visar största prisrörelser (upp/ner), mest bevakade produkter och settrender.
 - Prisgrafer på produktsidor visar historik från `PriceObservation`/`PriceSnapshot`.
 
 ### Adminpanel (logga in som admin@pokefinds.se)

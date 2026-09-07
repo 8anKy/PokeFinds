@@ -50,7 +50,6 @@ export async function POST(req: Request) {
     revalidateTag(PRICE_CACHE_TAG);
     revalidatePath("/[locale]/sets/[id]", "page");
     revalidatePath("/[locale]", "page");
-    revalidatePath("/[locale]/marknad", "page");
     revalidatePath("/[locale]/sets", "page");
 
     return jsonOk({ ok: true, tag: PRICE_CACHE_TAG });

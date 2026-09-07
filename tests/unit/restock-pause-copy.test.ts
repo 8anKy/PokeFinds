@@ -55,7 +55,6 @@ interface Messages {
   Watchlist: { freeAlertsBanner: string; subtitle: string };
   Settings: { notifEmailHint: string; notifAllPausedHint: string; planProDesc: string; planFreeDesc: string };
   Watch: { setButtonHintPaused: string; scopeSetPaused: string; scopeItemPaused: string; watchedSetsSubPaused: string };
-  Market: { proDesc: string };
   Detail: { alertsProCta: string; watchRestockOptionHintPaused: string };
 }
 
@@ -75,12 +74,12 @@ describe.each(LOCALES)("$name: paywallen lovar inga pausade larm", ({ m }) => {
   });
 
   it("övriga säljytor lovar inte restock", () => {
-    // ⛔ Alla fyra är UPPSÄLJNINGAR mot /priser. En av dem kvar hade räckt:
+    // ⛔ Alla tre är UPPSÄLJNINGAR mot /priser. En av dem kvar hade räckt:
     // freeAlertsBanner bad uttryckligen gratisanvändaren uppgradera "för att
-    // aktivera" pris- OCH restock-larm.
+    // aktivera" pris- OCH restock-larm. (Marknadssidans egen Pro-ruta fanns här
+    // också tills /marknad togs bort 2026-09-07.)
     expect(m.Watchlist.freeAlertsBanner).not.toMatch(PROMISES_RESTOCK);
     expect(m.Watchlist.subtitle).not.toMatch(PROMISES_RESTOCK);
-    expect(m.Market.proDesc).not.toMatch(PROMISES_RESTOCK);
     expect(m.Detail.alertsProCta).not.toMatch(PROMISES_RESTOCK);
   });
 

@@ -24,7 +24,7 @@ paths:
   aldrig återfå sin route. MÄTT på ägarens lista: **155 butiks-URL:er över 18 restock-bevakade butiker**
   (Aquitaz 41, DL 39, Coolcard 13, Rogerz 13, TCG Store 8 …) hade tystnat för alltid.
   **`Product.hiddenAt` + `apply-owner-decisions.ts --hide`** är därför NORMALVÄGEN för "ta bort ur
-  katalogen": raden försvinner ur katalog/sök, facetter, autocomplete, liknande produkter, /marknad och
+  katalogen": raden försvinner ur katalog/sök, facetter, autocomplete, liknande produkter och
   sitemap, mejl-/push-larmen tystnar (`isHiddenFromAlerts`) — men offern, routen och Discord-inlägget
   lever vidare. Ångra = `--unhide` (samma fil; omgången bär EN tidsstämpel).
   ⛔ **GÖMNING BEHÖVER INGEN DENYLIST OCH ÄR EN STARKARE SPÄRR ÄN RADERING**: `loadMatchIndex` läser hela
