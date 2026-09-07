@@ -96,6 +96,8 @@ interface Candidate {
   setName: string;
   number: string;
   rarity: string;
+  /** Kortets språk ur katalogen — se `scanLanguage()`. */
+  language?: string;
   imageUrl: string | null;
   slug: string | null;
   /** Vald variant, när kandidaten pekar på en specifik produkt. */
@@ -179,6 +181,10 @@ interface ScanItem {
    *  Visas ändå (en gissning är mer användbar än "ingen träff"), men märkt. */
   uncertain: boolean;
   quantity: number;
+  /**
+   * ⛔ PLATSHÅLLARE TILLS KORTET ÄR IDENTIFIERAT — läs ALDRIG den här direkt,
+   * använd `scanLanguage()`. Se kommentaren där.
+   */
   condition: string;
   language: string;
   errorMessage?: string;
@@ -246,6 +252,22 @@ function reportScanFeedback(
  * plats 6–15 — svansen är tom, så ett högre tak köper ingenting.
  */
 const CHOOSE_OPTIONS_MAX = 6;
+
+/**
+ * SKANNINGENS SPRÅK ÄR KORTETS SPRÅK.
+ *
+ * ⛔ `scan.language` sätts till "EN" när rutan tas — alltså INNAN vi vet vilket
+ * kort det är — och det finns ingen väljare som kan rätta den. Värdet följde
+ * rakt igenom till samlingsposten och därifrån ut i Tradera-annonsen, som sa
+ * "Språk: Engelska" om ett japanskt kort (ägaren 2026-09-07). Katalogen har en
+ * EGEN kortrad per språk, så matchningen VET svaret.
+ *
+ * Placeholdern behålls som fallback för en skanning utan träff — då finns
+ * inget kort att fråga.
+ */
+function scanLanguage(scan: { match: Candidate | null; language: string }): string {
+  return scan.match?.language ?? scan.language;
+}
 
 function chooseOptions(candidates: Candidate[]): Candidate[] {
   const seen = new Set<string>();
@@ -2127,7 +2149,7 @@ function Scanner() {
             ...(s.match!.productId ? { productId: s.match!.productId } : {}),
             quantity: s.quantity,
             condition: s.condition,
-            language: s.language,
+            language: scanLanguage(s),
             ...(s.match!.estimatedValue != null
               ? { estimatedValue: s.match!.estimatedValue }
               : {}),
@@ -2208,7 +2230,7 @@ function Scanner() {
         ...(scan.match!.productId ? { productId: scan.match!.productId } : {}),
         quantity: scan.quantity,
         condition: scan.condition,
-        language: scan.language,
+        language: scanLanguage(scan),
         ...(scan.match!.estimatedValue != null
           ? { estimatedValue: scan.match!.estimatedValue }
           : {}),
@@ -2241,7 +2263,7 @@ function Scanner() {
         setName: scan.match!.setName ?? null,
         imageUrl: scan.match!.imageUrl ?? null,
         condition: scan.condition,
-        language: scan.language,
+        language: scanLanguage(scan),
         estimatedValue: scan.match!.estimatedValue ?? null,
         isSingle: true, // skannern hittar alltid ett KORT, aldrig en förseglad produkt
         slug: scan.match!.slug ?? null,

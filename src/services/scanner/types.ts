@@ -94,6 +94,15 @@ export interface ScanCandidate {
   setName: string;
   number: string;
   rarity: string;
+  /**
+   * Kortets språk (`CardLanguage`). ⛔ FÖLJER MED TILL KLIENTEN FÖR ATT
+   * SÄLJARKET SKA KUNNA SKRIVA RÄTT (2026-09-07): skannern satte språket till
+   * "EN" när rutan togs — alltså INNAN kortet var identifierat — och det värdet
+   * följde hela vägen ut i Tradera-annonsen, som då sa "Språk: Engelska" om ett
+   * japanskt kort. Katalogen har en EGEN kortrad per språk, så matchningen VET
+   * svaret; det saknades bara i nyttolasten.
+   */
+  language: string;
   imageUrl: string | null;
   /** Produktens slug för djuplänk till produktsidan, om kortet har en produkt. */
   slug: string | null;

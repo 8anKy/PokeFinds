@@ -310,6 +310,7 @@ describe("isAmbiguous (utan avstånd till nästa KORT finns ingen träff att på
     setName: "151",
     number: "130",
     rarity: "Rare",
+    language: "EN",
     imageUrl: null,
     slug: null,
     productId,

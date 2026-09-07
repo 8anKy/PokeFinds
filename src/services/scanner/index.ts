@@ -1157,6 +1157,7 @@ export async function matchCards(
     number: true,
     numberSortKey: true,
     rarity: true,
+    language: true,
     imageUrl: true,
     hp: true,
     set: { select: { name: true, totalCards: true, releaseDate: true } },
@@ -1334,6 +1335,7 @@ export async function matchCards(
       setName: card.set.name,
       number: card.number,
       rarity: card.rarity,
+      language: card.language,
       imageUrl: card.imageUrl,
       score: Math.round(score * 1000) / 1000,
       productId: null,
@@ -1425,6 +1427,7 @@ export async function matchCards(
       name: true,
       number: true,
       rarity: true,
+      language: true,
       imageUrl: true,
       set: { select: { name: true, releaseDate: true } },
     },
@@ -1441,6 +1444,7 @@ export async function matchCards(
         setName: card.set.name,
         number: card.number,
         rarity: card.rarity,
+        language: card.language,
         imageUrl: card.imageUrl,
         // Poäng 0 = "kom hit som syskon, inte för att den matchade". Skikt-
         // sorteringen nedan bär ordningen, så en påhittad poäng skulle bara
