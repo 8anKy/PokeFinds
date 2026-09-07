@@ -35,13 +35,22 @@ import { useCommunityV2 } from "@/lib/use-community-v2";
 import {
   AUCTION_DURATIONS,
   DEFAULT_AUCTION_DURATION,
+  DEFAULT_PACKAGE_SIZE,
+  DEFAULT_VAT_RATE,
+  PACKAGE_SIZE_KEYS,
   PRICE_STEPS,
+  VAT_RATES,
   applyPricePercent,
+  cheapestShippingKr,
   conditionOptionsFor,
   gradeToCondition,
+  packageSizeLabel,
   totalBuyerKr,
+  vatShareKr,
   type ListingType,
+  type PackageSize,
 } from "@/lib/tradera-listing-options";
+import { optionsForPackage } from "@/lib/tradera-shipping";
 import { CONDITION_LABELS, LANGUAGE_LABELS } from "@/lib/collection-labels";
 
 /**
@@ -111,16 +120,7 @@ const MARKET_GROUP_SLUG = "kop-salj-byt";
 /** Forumets skick-lista saknar POOR med flit — då skickar vi inget skick alls. */
 const FORUM_CONDITIONS = new Set(["MINT", "NEAR_MINT", "EXCELLENT", "GOOD", "PLAYED", "SEALED"]);
 
-interface ShippingOption {
-  productId: number;
-  providerId: number;
-  provider: string;
-  priceKr: number;
-  tracked: boolean;
-  servicePoint: boolean;
-  minDays: number | null;
-  maxDays: number | null;
-}
+type ShippingOption = import("@/lib/tradera-shipping").ShippingOption;
 interface ShippingSpan {
   weightKg: number;
   options: ShippingOption[];
@@ -289,11 +289,22 @@ export function SellSheet({
   const [condition, setCondition] = useState(row?.condition ?? "NEAR_MINT");
   const [spans, setSpans] = useState<ShippingSpan[]>([]);
   const [weightKg, setWeightKg] = useState<number | null>(null);
-  /** Valt fraktbolag, eller null = eget belopp. */
-  const [shippingPick, setShippingPick] = useState<ShippingOption | null>(null);
+  /**
+   * VALDA fraktsätt — flera tillåtna, köparen väljer i kassan (Traderas
+   * `shippingOptions` är en lista). Nyckeln är "leverantör:produkt", eftersom
+   * produkt-id:t bara är unikt ihop med leverantören.
+   */
+  const [shippingPicks, setShippingPicks] = useState<ShippingOption[]>([]);
+  /** "Egen frakt" är ett eget val och kan kombineras med bolagen. */
+  const [ownShippingOn, setOwnShippingOn] = useState(false);
+  /** Paketets format — filtrerar vilka fraktsätt som ens tar försändelsen. */
+  const [packageSize, setPackageSize] = useState<PackageSize>(DEFAULT_PACKAGE_SIZE);
   /** Viktväljaren är dold för lösa kort (alltid 50 g) tills någon vill ändra. */
   const [showWeights, setShowWeights] = useState(false);
   const [ownShipping, setOwnShipping] = useState("20");
+  /** Moms: av för privatpersoner, på för den som redovisar moms. */
+  const [vatOn, setVatOn] = useState(false);
+  const [vatRate, setVatRate] = useState<number>(DEFAULT_VAT_RATE);
   const [description, setDescription] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [grading, setGrading] = useState(false);
@@ -306,8 +317,30 @@ export function SellSheet({
 
   const isAuction = listingType === "AUCTION";
   const activePrice = isAuction ? startPrice : price;
-  const shippingKr = shippingPick ? shippingPick.priceKr : Math.round(Number(ownShipping) || 0);
+  const ownShippingKr = Math.round(Number(ownShipping) || 0);
+  /** Alla valda fraktsätt, som de skickas till Tradera. */
+  const shippingChoices = [
+    ...shippingPicks.map((o) => ({
+      costKr: o.priceKr,
+      productId: o.productId,
+      providerId: o.providerId,
+      ...(weightKg != null ? { weightKg } : {}),
+    })),
+    ...(ownShippingOn ? [{ costKr: ownShippingKr }] : []),
+  ];
+  // Summan visar det BILLIGASTE valet — det är minimum köparen kan hamna på.
+  const shippingKr = cheapestShippingKr(shippingChoices.map((c) => c.costKr));
   const total = totalBuyerKr(Number(activePrice), shippingKr);
+  const vatKr = vatOn ? vatShareKr(Number(activePrice), vatRate) : 0;
+
+  function toggleShipping(o: ShippingOption) {
+    setShippingPicks((prev) => {
+      const has = prev.some((p) => p.productId === o.productId && p.providerId === o.providerId);
+      return has
+        ? prev.filter((p) => !(p.productId === o.productId && p.providerId === o.providerId))
+        : [...prev, o];
+    });
+  }
 
   /**
    * Fyll formuläret med ETT korts uppgifter. Körs när arket öppnas och vid varje
@@ -389,9 +422,14 @@ export function SellSheet({
     setListingType("BUY_NOW");
     setDuration(DEFAULT_AUCTION_DURATION);
     setWeightKg(null);
-    setShippingPick(null);
+    setPackageSize(DEFAULT_PACKAGE_SIZE);
+    setShippingPicks([]);
+    // Utan fraktlista (hämtningen misslyckades) är eget belopp enda vägen.
+    setOwnShippingOn(false);
     setShowWeights(false);
     setOwnShipping("20");
+    setVatOn(false);
+    setVatRate(DEFAULT_VAT_RATE);
     setAlsoForum(false);
     loadItem(items[0] ?? null);
     // ⛔ BARA `open` I BEROENDENA. `items` är typiskt en array-literal hos
@@ -432,7 +470,8 @@ export function SellSheet({
         const span =
           data.spans.find((s) => s.weightKg === wanted) ?? data.spans[0];
         setWeightKg(span.weightKg);
-        setShippingPick(span.options[0] ?? null);
+        const fitting = optionsForPackage(span.options, DEFAULT_PACKAGE_SIZE);
+        setShippingPicks(fitting[0] ? [fitting[0]] : []);
       })
       .catch(() => {
         // Tyst: utan lista står "Egen frakt" kvar, precis som förut.
@@ -443,6 +482,8 @@ export function SellSheet({
   }, [open, spans.length, isSingle]);
 
   const currentSpan = spans.find((s) => s.weightKg === weightKg) ?? null;
+  /** Bara de fraktsätt som tar ett paket av den valda storleken. */
+  const spanOptions = currentSpan ? optionsForPackage(currentSpan.options, packageSize) : [];
 
   /** Andra raden i en fraktrad: spårbart/brevlåda och hur många dagar det tar. */
   function shippingMeta(o: ShippingOption): string {
@@ -567,7 +608,10 @@ export function SellSheet({
     if (!row) return;
     const priceKr = Math.round(Number(activePrice));
     if (!Number.isFinite(priceKr) || priceKr <= 0) return setError(t("sellErrPrice"));
-    if (!Number.isFinite(shippingKr) || shippingKr < 0) return setError(t("sellErrShipping"));
+    if (shippingChoices.length === 0) return setError(t("sellErrNoShipping"));
+    if (shippingChoices.some((c) => !Number.isFinite(c.costKr) || c.costKr < 0)) {
+      return setError(t("sellErrShipping"));
+    }
     if (images.length === 0) return setError(t("sellErrPhoto"));
 
     setSaving(true);
@@ -587,14 +631,8 @@ export function SellSheet({
           ...(isAuction
             ? { startPriceKr: priceKr, durationDays: duration }
             : { priceKr }),
-          shippingKr,
-          ...(shippingPick
-            ? {
-                shippingProductId: shippingPick.productId,
-                shippingProviderId: shippingPick.providerId,
-                ...(weightKg != null ? { shippingWeightKg: weightKg } : {}),
-              }
-            : {}),
+          shippingOptions: shippingChoices,
+          ...(vatOn ? { vatPercent: vatRate } : {}),
           condition,
           description: description.trim() || undefined,
           imagesBase64: images,
@@ -685,7 +723,11 @@ export function SellSheet({
                   {isAuction ? t("sellTotalAuction") : t("sellTotalBuyNow")}
                 </span>
                 <span className="text-base font-bold tabular-nums text-ink">
-                  {total > 0 ? `${total} kr` : "–"}
+                  {total > 0
+                    ? shippingChoices.length > 1
+                      ? t("sellTotalFrom", { amount: `${total} kr` })
+                      : `${total} kr`
+                    : "–"}
                 </span>
               </div>
               <BottomSheetCta onClick={() => void submit()} disabled={saving}>
@@ -965,6 +1007,45 @@ export function SellSheet({
                       vi inte redan vet den. Ett löst kort i fodral och kuvert väger
                       alltid under 50 g; en ETB, en display och en box gör inte det,
                       så sealed får väljaren öppen. Raden går alltid att öppna. */}
+                  {/* PAKETETS FORMAT. Måtten är inte påhittade — de tre är
+                      precis de format Traderas egna fraktprodukter är byggda
+                      kring, och valet FILTRERAR listan nedan så att man inte
+                      köper en brevfrakt till en boosterbox. */}
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    {PACKAGE_SIZE_KEYS.map((size) => (
+                      <Chip
+                        key={size}
+                        active={packageSize === size}
+                        onClick={() => {
+                          setPackageSize(size);
+                          // De valda produkterna kanske inte tar det nya
+                          // formatet — behåll bara dem som gör det.
+                          setShippingPicks((prev) =>
+                            currentSpan
+                              ? prev.filter((p) =>
+                                  optionsForPackage(currentSpan.options, size).some(
+                                    (o) =>
+                                      o.productId === p.productId && o.providerId === p.providerId
+                                  )
+                                )
+                              : []
+                          );
+                        }}
+                      >
+                        <span className="block leading-tight">
+                          {t(`sellSize${size}` as "sellSizeSMALL")}
+                          <span
+                            className={cn(
+                              "block text-[10px] font-medium",
+                              packageSize === size ? "text-surface/70" : "text-ink-faint"
+                            )}
+                          >
+                            {packageSizeLabel(size)}
+                          </span>
+                        </span>
+                      </Chip>
+                    ))}
+                  </div>
                   {weightKg != null && (
                     <div className="mb-2 flex items-center gap-2 text-xs">
                       <span className="text-ink-muted">
@@ -986,8 +1067,12 @@ export function SellSheet({
                           key={s.weightKg}
                           active={weightKg === s.weightKg}
                           onClick={() => {
+                            // Nytt viktspann = andra produkter och priser; de
+                            // gamla valen pekar på produkter som inte längre
+                            // gäller, så de nollställs till det billigaste.
                             setWeightKg(s.weightKg);
-                            setShippingPick(s.options[0] ?? null);
+                            const fitting = optionsForPackage(s.options, packageSize);
+                            setShippingPicks(fitting[0] ? [fitting[0]] : []);
                           }}
                         >
                           {weightLabel(s.weightKg)}
@@ -996,15 +1081,15 @@ export function SellSheet({
                     </div>
                   )}
                   <ul className="mt-3 space-y-1.5">
-                    {(currentSpan?.options ?? []).map((o) => {
-                      const active =
-                        shippingPick?.productId === o.productId &&
-                        shippingPick?.providerId === o.providerId;
+                    {spanOptions.map((o) => {
+                      const active = shippingPicks.some(
+                        (p) => p.productId === o.productId && p.providerId === o.providerId
+                      );
                       return (
                         <li key={`${o.providerId}:${o.productId}`}>
                           <button
                             type="button"
-                            onClick={() => setShippingPick(o)}
+                            onClick={() => toggleShipping(o)}
                             aria-pressed={active}
                             className={cn(
                               "flex w-full items-center justify-between rounded-xl px-3.5 py-3 text-sm font-semibold transition-colors",
@@ -1024,7 +1109,10 @@ export function SellSheet({
                                 {shippingMeta(o)}
                               </span>
                             </span>
-                            <span className="shrink-0 tabular-nums">{o.priceKr} kr</span>
+                            <span className="flex shrink-0 items-center gap-2 tabular-nums">
+                              {o.priceKr} kr
+                              {active && <IconCheck size={16} />}
+                            </span>
                           </button>
                         </li>
                       );
@@ -1032,22 +1120,37 @@ export function SellSheet({
                     <li>
                       <button
                         type="button"
-                        onClick={() => setShippingPick(null)}
-                        aria-pressed={shippingPick === null}
+                        onClick={() => setOwnShippingOn((v) => !v)}
+                        aria-pressed={ownShippingOn}
                         className={cn(
                           "flex w-full items-center justify-between rounded-xl px-3.5 py-3 text-sm font-semibold transition-colors",
-                          shippingPick === null
+                          ownShippingOn
                             ? "bg-holo-cyan text-surface"
                             : "bg-surface-raised text-ink hover:bg-surface-overlay"
                         )}
                       >
                         {t("sellShippingOwn")}
+                        <span className="flex shrink-0 items-center gap-2 tabular-nums">
+                          {ownShippingOn && (
+                            <>
+                              {ownShippingKr} kr
+                              <IconCheck size={16} />
+                            </>
+                          )}
+                        </span>
                       </button>
                     </li>
                   </ul>
+                  {spanOptions.length === 0 && (
+                    <p className="mt-2 text-xs text-ink-muted">{t("sellShippingNoneFit")}</p>
+                  )}
+                  {/* FLERA FRAKTSÄTT ÄR TILLÅTNA — köparen väljer i kassan
+                      (Traderas shippingOptions är en lista). Ett enda val var
+                      vår begränsning, inte deras (ägaren 2026-09-07). */}
+                  <p className="mt-2 text-xs text-ink-faint">{t("sellShippingMulti")}</p>
                 </>
               )}
-              {shippingPick === null && (
+              {(ownShippingOn || spans.length === 0) && (
                 <div className="mt-2 flex items-center gap-2">
                   <Input
                     id="sellShipping"
@@ -1060,6 +1163,38 @@ export function SellSheet({
                   <span className="shrink-0 text-sm font-semibold text-ink-muted">kr</span>
                 </div>
               )}
+            </div>
+
+            {/* MOMS — bara för den som redovisar moms. ⛔ Av som standard: en
+                privatperson som säljer ur sin egen samling redovisar ingen moms,
+                och ett förifyllt fält hade fått folk att påstå motsatsen. */}
+            <div>
+              <SectionLabel>{t("sellSectionVat")}</SectionLabel>
+              <div className="rounded-xl border border-surface-border p-3">
+                <Checkbox
+                  id="sellVat"
+                  label={t("sellVatToggle")}
+                  checked={vatOn}
+                  onChange={(e) => setVatOn(e.target.checked)}
+                />
+                <p className="mt-1.5 text-xs text-ink-muted">{t("sellVatHint")}</p>
+                {vatOn && (
+                  <>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {VAT_RATES.map((rate) => (
+                        <Chip key={rate} active={vatRate === rate} onClick={() => setVatRate(rate)}>
+                          {rate} %
+                        </Chip>
+                      ))}
+                    </div>
+                    {/* Priset är INKLUSIVE moms — beloppet räknas baklänges ur
+                        det, aldrig som ett påslag ovanpå. */}
+                    <p className="mt-2.5 text-xs text-ink-muted">
+                      {t("sellVatOfPrice", { amount: `${vatKr} kr` })}
+                    </p>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* ANNONSTEXT */}

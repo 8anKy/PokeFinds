@@ -96,3 +96,58 @@ export function totalBuyerKr(priceKr: number, shippingKr: number): number {
   const s = Number.isFinite(shippingKr) && shippingKr > 0 ? Math.round(shippingKr) : 0;
   return p + s;
 }
+
+/**
+ * Momssatser en svensk säljare kan välja. 25 % är normalsatsen och den som
+ * gäller samlarkort; 12/6 finns för den som säljer något annat i samma flöde.
+ *
+ * ⛔ VALFRITT MED FLIT. En privatperson som säljer ur sin egen samling redovisar
+ * INGEN moms, och ett fält som står ifyllt som standard hade fått folk att
+ * påstå något om sin försäljning som inte stämmer. Av = inget `vat` alls
+ * skickas till Tradera.
+ */
+export const VAT_RATES = [25, 12, 6] as const;
+export const DEFAULT_VAT_RATE = 25;
+
+/**
+ * Momsen SOM REDAN LIGGER I PRISET, i hela kronor. Priser till konsument anges
+ * inklusive moms i Sverige — beloppet räknas alltså BAKLÄNGES ur priset
+ * (pris × sats/(100+sats)), aldrig som ett påslag ovanpå.
+ */
+export function vatShareKr(priceKr: number, ratePercent: number): number {
+  if (!Number.isFinite(priceKr) || priceKr <= 0 || ratePercent <= 0) return 0;
+  return Math.round((priceKr * ratePercent) / (100 + ratePercent));
+}
+
+/** Billigaste fraktsättet av dem säljaren valt — det köparen minst kan betala. */
+export function cheapestShippingKr(costs: readonly number[]): number {
+  const valid = costs.filter((c) => Number.isFinite(c) && c >= 0);
+  return valid.length === 0 ? 0 : Math.min(...valid);
+}
+
+/**
+ * Paketstorlekar säljaren kan välja, i METER (samma enhet som Traderas
+ * `packageRequirements`). Talen är inte påhittade: de tre är precis de format
+ * Traderas egna fraktprodukter är byggda kring — brev/A4-formatet, skokartongen
+ * och den långa lådan.
+ *
+ * Storleken skickas ALDRIG till Tradera (fraktraden bär bara vikt) — den
+ * FILTRERAR vilka fraktsätt som ens går att välja, så att man inte köper en
+ * 22-kronorsfrakt till en boosterbox som aldrig får plats i den.
+ */
+export const PACKAGE_SIZES = {
+  SMALL: { length: 0.34, width: 0.24, height: 0.07 },
+  MEDIUM: { length: 0.6, width: 0.4, height: 0.2 },
+  LARGE: { length: 1.2, width: 0.4, height: 0.4 },
+} as const;
+
+export type PackageSize = keyof typeof PACKAGE_SIZES;
+export const PACKAGE_SIZE_KEYS = ["SMALL", "MEDIUM", "LARGE"] as const;
+export const DEFAULT_PACKAGE_SIZE: PackageSize = "SMALL";
+
+/** "34 × 24 × 7 cm" — meter → centimeter, som folk mäter paket. */
+export function packageSizeLabel(size: PackageSize): string {
+  const d = PACKAGE_SIZES[size];
+  const cm = (m: number) => Math.round(m * 100);
+  return `${cm(d.length)} × ${cm(d.width)} × ${cm(d.height)} cm`;
+}

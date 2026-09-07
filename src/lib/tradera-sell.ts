@@ -71,7 +71,14 @@ interface ListingInput {
   startPriceKr?: number;
   itemType: number;
   durationDays: number;
-  shipping: ListingShipping;
+  /** Ett eller FLERA fraktsätt — köparen väljer i kassan. */
+  shipping: ListingShipping[];
+  /**
+   * Momssats i procent (0/6/12/25). Bara för säljare som redovisar moms —
+   * privatpersoner ska inte skicka något alls. Traderas fält heter `vat` och är
+   * en SATS, inte ett belopp (jfr `vatPercent` på fraktprodukterna).
+   */
+  vatPercent?: number;
   languageTerm?: string;
   images: { data: string; format: number }[]; // första bilden = huvudbild
 }
@@ -134,7 +141,8 @@ export async function createTraderaListing(
     description: input.description,
     autoCommit: false,
     acceptedBidderId: ACCEPTED_BIDDER_SWEDEN,
-    shippingOptions: [shippingPayload(input.shipping)],
+    shippingOptions: input.shipping.map(shippingPayload),
+    ...(input.vatPercent != null ? { vat: input.vatPercent } : {}),
     ...(input.languageTerm
       ? { attributeValues: { terms: [{ id: LANGUAGE_ATTRIBUTE_ID, values: [input.languageTerm] }] } }
       : {}),

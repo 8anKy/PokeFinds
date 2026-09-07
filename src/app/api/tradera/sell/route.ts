@@ -41,11 +41,28 @@ const schema = z.object({
     .int()
     .refine((d) => (AUCTION_DURATIONS as readonly number[]).includes(d), "Ogiltig löptid.")
     .optional(),
-  shippingKr: z.number().int().min(0),
-  /** Valt fraktbolag ur /api/tradera/shipping-options. Utelämnas → eget belopp. */
-  shippingProductId: z.number().int().positive().optional(),
-  shippingProviderId: z.number().int().positive().optional(),
-  shippingWeightKg: z.number().positive().max(50).optional(),
+  /**
+   * Ett eller flera fraktsätt. Utan `productId` är raden "eget belopp"
+   * (Traderas Alternative), annars ett riktigt fraktbolag ur
+   * /api/tradera/shipping-options.
+   */
+  shippingOptions: z
+    .array(
+      z.object({
+        costKr: z.number().int().min(0),
+        productId: z.number().int().positive().optional(),
+        providerId: z.number().int().positive().optional(),
+        weightKg: z.number().positive().max(50).optional(),
+      })
+    )
+    .min(1, "Välj minst ett fraktsätt.")
+    .max(8),
+  /** Momssats i procent — bara för den som redovisar moms. */
+  vatPercent: z
+    .number()
+    .int()
+    .refine((v) => [0, 6, 12, 25].includes(v), "Ogiltig momssats.")
+    .optional(),
   condition: z.string().optional(),
   description: z.string().trim().max(4000).optional(), // egen text; annars auto-genererad
   // data:-URL:er med foton på det egna objektet (första = huvudbild). Tradera tar max 12.
@@ -120,12 +137,13 @@ export async function POST(req: Request) {
         : BUY_NOW_DURATION_DAYS,
       priceKr: input.priceKr,
       startPriceKr: isAuction ? input.startPriceKr : undefined,
-      shipping: {
-        costKr: input.shippingKr,
-        productId: input.shippingProductId,
-        providerId: input.shippingProviderId,
-        weightKg: input.shippingWeightKg,
-      },
+      shipping: input.shippingOptions.map((o) => ({
+        costKr: o.costKr,
+        productId: o.productId,
+        providerId: o.providerId,
+        weightKg: o.weightKg,
+      })),
+      vatPercent: input.vatPercent,
       languageTerm: isSingle ? traderaLanguageTerm(item.language) : undefined,
       images: input.imagesBase64.map(parseImage),
     });

@@ -13,6 +13,8 @@
  * precis den sortens kostnad kostnadsdoktrinen förbjuder.
  */
 
+import { PACKAGE_SIZES, type PackageSize } from "./tradera-listing-options";
+
 const stripQuotes = (v: string) => v.trim().replace(/^["']|["']$/g, "");
 const APP_ID = stripQuotes(process.env.TRADERA_APP_ID ?? "");
 const APP_KEY = stripQuotes(process.env.TRADERA_APP_KEY ?? "");
@@ -36,6 +38,21 @@ export interface ShippingOption {
   servicePoint: boolean;
   minDays: number | null;
   maxDays: number | null;
+  /** Traderas mått-/viktkrav i METER. Avgör vilka paket produkten tar. */
+  limits: PackageLimits;
+}
+
+export interface PackageLimits {
+  maxWeight?: number;
+  maxLength?: number;
+  maxWidth?: number;
+  maxHeight?: number;
+  maxVolume?: number;
+  maxSumOfAllSides?: number;
+  maxLengthPlusCircumference?: number;
+  minLength?: number;
+  minWidth?: number;
+  minHeight?: number;
 }
 
 export interface ShippingWeightSpan {
@@ -50,13 +67,7 @@ interface RawProduct {
   shippingProviderId?: number;
   weight?: number;
   price?: number;
-  packageRequirements?: {
-    maxWeight?: number;
-    maxLength?: number;
-    maxWidth?: number;
-    maxHeight?: number;
-    maxVolume?: number;
-  } | null;
+  packageRequirements?: PackageLimits | null;
   deliveryInformation?: {
     servicePoint?: boolean;
     isTraceable?: boolean;
@@ -71,13 +82,73 @@ interface RawProduct {
  * riktig låda (60×40×20). Att välja den mindre "för att den kom först" hade
  * gjort att en ETB inte får plats i frakten köparen betalat för.
  */
-function capacity(p: RawProduct): number {
-  const r = p.packageRequirements ?? {};
-  if (typeof r.maxVolume === "number") return r.maxVolume;
-  const l = r.maxLength ?? 0;
-  const w = r.maxWidth ?? 0;
-  const h = r.maxHeight ?? 0;
-  return l * w * h;
+function capacity(limits: PackageLimits): number {
+  if (typeof limits.maxVolume === "number") return limits.maxVolume;
+  return (limits.maxLength ?? 0) * (limits.maxWidth ?? 0) * (limits.maxHeight ?? 0);
+}
+
+/**
+ * Får paketet plats i fraktprodukten?
+ *
+ * ⛔ SIDORNA JÄMFÖRS SORTERADE. Ett paket kan vändas, så "34 × 24 × 7" ska
+ * passa en produkt som anger "0,6 lång × 0,4 bred × 0,2 hög" oavsett i vilken
+ * ordning måtten råkar stå. Krav vi inte känner igen ignoreras — hellre ett
+ * alternativ för mycket i listan än att tyst gömma ett giltigt fraktsätt.
+ */
+export function fitsPackage(limits: PackageLimits, size: PackageSize): boolean {
+  const d = PACKAGE_SIZES[size];
+  const sides = [d.length, d.width, d.height].sort((a, b) => b - a);
+  const max = [limits.maxLength, limits.maxWidth, limits.maxHeight]
+    .filter((v): v is number => typeof v === "number")
+    .sort((a, b) => b - a);
+  for (let i = 0; i < max.length; i++) {
+    if (sides[i] > max[i] + 1e-9) return false;
+  }
+  const sum = sides[0] + sides[1] + sides[2];
+  if (limits.maxSumOfAllSides != null && sum > limits.maxSumOfAllSides + 1e-9) return false;
+  if (
+    limits.maxLengthPlusCircumference != null &&
+    sides[0] + 2 * (sides[1] + sides[2]) > limits.maxLengthPlusCircumference + 1e-9
+  ) {
+    return false;
+  }
+  const volume = sides[0] * sides[1] * sides[2];
+  if (limits.maxVolume != null && volume > limits.maxVolume + 1e-9) return false;
+  // Minimimåtten: ett för LITET paket duger inte heller (brevformat har en
+  // undre gräns). Paketet får vara minst så stort på sin längsta/näst längsta sida.
+  if (limits.minLength != null && sides[0] < limits.minLength - 1e-9) return false;
+  if (limits.minWidth != null && sides[1] < limits.minWidth - 1e-9) return false;
+  if (limits.minHeight != null && sides[2] < limits.minHeight - 1e-9) return false;
+  return true;
+}
+
+/**
+ * Fraktsätten som faktiskt går att välja för ett paket av den här storleken:
+ * filtrera på måtten FÖRST, kollapsa sedan till EN rad per leverantör
+ * (billigast; vid lika pris den som tar störst paket).
+ *
+ * ⛔ ORDNINGEN ÄR HELA POÄNGEN. Kollapsades leverantören först kunde en billig
+ * brevprodukt slå ut samma leverantörs dyrare lådprodukt — och när användaren
+ * sedan valde ett stort paket försvann leverantören ur listan trots att den
+ * hade ett giltigt alternativ.
+ */
+export function optionsForPackage(
+  options: readonly ShippingOption[],
+  size: PackageSize
+): ShippingOption[] {
+  const best = new Map<string, ShippingOption>();
+  for (const o of options) {
+    if (!fitsPackage(o.limits, size)) continue;
+    const prev = best.get(o.provider);
+    if (
+      !prev ||
+      o.priceKr < prev.priceKr ||
+      (o.priceKr === prev.priceKr && capacity(o.limits) > capacity(prev.limits))
+    ) {
+      best.set(o.provider, o);
+    }
+  }
+  return [...best.values()].sort((a, b) => a.priceKr - b.priceKr);
 }
 
 interface RawSpan {
@@ -86,9 +157,9 @@ interface RawSpan {
 }
 
 /**
- * Rå JSON → viktspann med bara det klienten behöver, "Alternative" bortsorterad
+ * Rå JSON → viktspann med allt klienten behöver, "Alternative" bortsorterad
  * (den har pris 0 och är vår egen "Egen frakt"-rad, inte ett fraktbolag).
- * Ren funktion — testad i tests/unit/tradera-shipping.test.ts.
+ * Ren funktion — testad i tests/unit/tradera-listing-options.test.ts.
  */
 export function normalizeShippingOptions(raw: unknown): ShippingWeightSpan[] {
   const spans = (raw as { productsPerWeightSpan?: RawSpan[] } | null)?.productsPerWeightSpan;
@@ -97,10 +168,7 @@ export function normalizeShippingOptions(raw: unknown): ShippingWeightSpan[] {
   for (const span of spans) {
     const weightKg = typeof span?.weight === "number" ? span.weight : null;
     if (weightKg == null || weightKg <= 0) continue;
-    // Samma leverantör kan ligga flera gånger i ett spann (olika produkter till
-    // samma pris) — behåll den BILLIGASTE per leverantör, annars blir listan en
-    // vägg av dubbletter där raderna inte går att skilja åt.
-    const cheapest = new Map<string, ShippingOption & { capacity: number }>();
+    const options: ShippingOption[] = [];
     for (const p of span.products ?? []) {
       if (
         typeof p?.id !== "number" ||
@@ -111,31 +179,22 @@ export function normalizeShippingOptions(raw: unknown): ShippingWeightSpan[] {
       }
       if (p.shippingProviderId === SHIPPING_PROVIDER_ALTERNATIVE) continue;
       if (p.price <= 0) continue;
-      const provider = p.shippingProvider ?? String(p.shippingProviderId);
-      const prev = cheapest.get(provider);
-      const better =
-        !prev ||
-        p.price < prev.priceKr ||
-        // Lika pris ⇒ den som tar det STÖRSTA paketet vinner (se capacity ovan).
-        (p.price === prev.priceKr && capacity(p) > prev.capacity);
-      if (better) {
-        const eta = p.deliveryInformation?.estimatedDeliveryTime ?? null;
-        cheapest.set(provider, {
-          productId: p.id,
-          providerId: p.shippingProviderId,
-          provider,
-          priceKr: p.price,
-          tracked: p.deliveryInformation?.isTraceable === true,
-          servicePoint: p.deliveryInformation?.servicePoint === true,
-          minDays: typeof eta?.minWeekdays === "number" && eta.minWeekdays > 0 ? eta.minWeekdays : null,
-          maxDays: typeof eta?.maxWeekdays === "number" && eta.maxWeekdays > 0 ? eta.maxWeekdays : null,
-          capacity: capacity(p),
-        });
-      }
+      const eta = p.deliveryInformation?.estimatedDeliveryTime ?? null;
+      options.push({
+        productId: p.id,
+        providerId: p.shippingProviderId,
+        provider: p.shippingProvider ?? String(p.shippingProviderId),
+        priceKr: p.price,
+        tracked: p.deliveryInformation?.isTraceable === true,
+        servicePoint: p.deliveryInformation?.servicePoint === true,
+        minDays: typeof eta?.minWeekdays === "number" && eta.minWeekdays > 0 ? eta.minWeekdays : null,
+        maxDays: typeof eta?.maxWeekdays === "number" && eta.maxWeekdays > 0 ? eta.maxWeekdays : null,
+        limits: p.packageRequirements ?? {},
+      });
     }
-    const options = [...cheapest.values()]
-      .sort((a, b) => a.priceKr - b.priceKr)
-      .map(({ capacity: _capacity, ...o }) => o);
+    // ⛔ INGEN KOLLAPS HÄR. Samma leverantör ligger med flera produkter för
+    // olika paketformat, och vilken som gäller vet först den som valt storlek —
+    // se optionsForPackage.
     if (options.length > 0) out.push({ weightKg, options });
   }
   return out.sort((a, b) => a.weightKg - b.weightKg);
