@@ -88,6 +88,11 @@ export function ConversationView({
   const locale = useLocale();
   const { toast } = useToast();
 
+  // Har vyn varit här förut i den här fliken? Då — och BARA då — kan Nexts
+  // klient-routercache ha serverat en RSC-nyttolast som är upp till 30 s gammal,
+  // och först då är det meningsfullt att fråga servern om något hänt (se
+  // catchUp nedan). Flaggan måste läsas FÖRE rememberMessages skriver om kartan.
+  const revisitRef = useRef(recallMessages(conversationId).length > 0);
   // Serverns första sida + det vyn redan sett (se rememberMessages): utan det
   // saknades ett nyss skickat meddelande i 30 s när man gick ut och in igen,
   // eftersom Nexts klient-routercache serverade samma RSC-nyttolast.
@@ -160,6 +165,29 @@ export function ConversationView({
     else pendingReadRef.current = true;
   }, [markRead]);
 
+  /**
+   * "Kom något medan jag inte tittade?" — EN fråga till servern om allt efter
+   * vyns senaste id. Två anropare: strömmen när den kommer tillbaka efter ett
+   * avbrott, och monteringen när sidan kan ha renderats ur en gammal
+   * RSC-nyttolast (revisitRef). Strömmen lever bara så länge vyn är monterad,
+   * så ett meddelande som kom medan man var någon annanstans finns varken i
+   * minnet eller i den cachade nyttolasten.
+   *
+   * ⛔ Kostar ingen extra Neon-tid: båda anroparna sitter inne i ett 300-sekunders
+   * fönster som sidrenderingen (eller besöket 30 s tidigare) redan öppnat.
+   */
+  const catchUp = useCallback(() => {
+    const last = lastIdRef.current;
+    if (!last) return;
+    fetchMessages(conversationId, { after: last })
+      .then((rows) => {
+        if (rows.length === 0) return;
+        setMessages((prev) => mergeMessages(prev, rows));
+        if (rows.some((r) => r.senderId !== meId)) readIncoming();
+      })
+      .catch(() => undefined);
+  }, [conversationId, meId, readIncoming]);
+
   // ---------- strömmen ----------
   useChatStream(true, {
     onMessage: (cid, m) => {
@@ -174,17 +202,7 @@ export function ConversationView({
     onRead: (cid, userId, readAt) => {
       if (cid === conversationId && other && userId === other.id) setOtherReadAt(readAt);
     },
-    onReconnect: () => {
-      const last = lastIdRef.current;
-      if (!last) return;
-      fetchMessages(conversationId, { after: last })
-        .then((rows) => {
-          if (rows.length === 0) return;
-          setMessages((prev) => mergeMessages(prev, rows));
-          if (rows.some((r) => r.senderId !== meId)) readIncoming();
-        })
-        .catch(() => undefined);
-    },
+    onReconnect: catchUp,
     onStatus: setConnected,
   });
 
@@ -192,6 +210,16 @@ export function ConversationView({
     lastIdRef.current = messages[messages.length - 1]?.id ?? null;
     rememberMessages(conversationId, messages);
   }, [conversationId, messages]);
+
+  // Ett återbesök inom routercachens 30 s: fråga en gång vad som hänt sedan
+  // sist. Ett FÖRSTA besök hoppar över det — då är serverns nyttolast färsk och
+  // frågan hade bara varit en tom läsning.
+  const caughtUpRef = useRef(false);
+  useEffect(() => {
+    if (caughtUpRef.current || !revisitRef.current) return;
+    caughtUpRef.current = true;
+    catchUp();
+  }, [catchUp]);
 
   // ---------- scroll ----------
   useIsoLayoutEffect(() => {
