@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { apiFetch } from "@/lib/client-api";
+import { recallPostToggle, rememberPostToggle } from "@/lib/forum-client";
 import { LISTING_STATUSES, type ListingStatusValue } from "@/lib/listing-rules";
 import { LISTING_STATUS_KEYS } from "@/lib/community-labels";
 import { Button } from "@/components/ui/button";
@@ -12,12 +13,20 @@ import { FieldError, Label, Select, Textarea } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { IconBookmark, IconFlag, IconHeart } from "@/components/ui/icons";
 import { ContactButton } from "./contact-button";
-import { invalidatePersonalState, useForumViewer } from "./use-forum-viewer";
+import { useForumViewer } from "./use-forum-viewer";
 
 /**
  * Trådens åtgärdsrad: gilla/spara/rapportera, ta bort (ägare/moderator),
  * annonsstatus (ägaren) och kontaktknappen. Personligt tillstånd hämtas
  * klient-sida — sidan är ISR och får inte kalla auth().
+ *
+ * ⛔ GILLA/SPARA VÄXLAR PÅ TRYCKET, INTE PÅ SVARET: knappen väntade förr på
+ * rundturen till servern (och på att Neon vaknade), så hjärtat fylldes en
+ * sekund eller mer efter fingret. Serverns svar rättar bara efteråt, och
+ * växlingen minns i fliken (`lib/forum-client.ts`) så att den överlever att man
+ * går ut ur tråden och in igen — sidan är ISR (300 s) och `/api/community/me`
+ * cachas 30 s i klienten. ⛔ Ingen extra läsning: växlingen läggs OVANPÅ det
+ * cachade svaret i stället för att kasta det.
  */
 export function ThreadActions({
   postId,
@@ -39,9 +48,12 @@ export function ThreadActions({
   const { toast } = useToast();
   const { loggedIn, viewer, state, ready, isModerator } = useForumViewer([postId]);
 
-  const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(initialLikeCount);
-  const [saved, setSaved] = useState(false);
+  // Vad fliken redan vet om just den här tråden vinner över ISR-HTML:ens siffra.
+  const [liked, setLiked] = useState(() => recallPostToggle(postId).liked ?? false);
+  const [likeCount, setLikeCount] = useState(
+    () => recallPostToggle(postId).likeCount ?? initialLikeCount
+  );
+  const [saved, setSaved] = useState(() => recallPostToggle(postId).saved ?? false);
   const [status, setStatus] = useState<ListingStatusValue>(listingStatus ?? "ACTIVE");
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
@@ -67,6 +79,12 @@ export function ThreadActions({
 
   async function toggleLike() {
     if (!requireLogin()) return;
+    const prevLiked = liked;
+    const prevCount = likeCount;
+    const next = !prevLiked;
+    setLiked(next);
+    setLikeCount(Math.max(0, prevCount + (next ? 1 : -1)));
+    rememberPostToggle(postId, { liked: next });
     try {
       const res = await apiFetch<{ liked: boolean; likeCount: number }>(
         `/api/community/posts/${postId}/like`,
@@ -74,8 +92,11 @@ export function ThreadActions({
       );
       setLiked(res.liked);
       setLikeCount(res.likeCount);
-      invalidatePersonalState();
+      rememberPostToggle(postId, { liked: res.liked, likeCount: res.likeCount });
     } catch (e) {
+      setLiked(prevLiked);
+      setLikeCount(prevCount);
+      rememberPostToggle(postId, { liked: prevLiked, likeCount: prevCount });
       toast({
         title: t("likeFailed"),
         description: e instanceof Error ? e.message : undefined,
@@ -86,19 +107,26 @@ export function ThreadActions({
 
   async function toggleSave() {
     if (!requireLogin()) return;
+    const prevSaved = saved;
+    const next = !prevSaved;
+    setSaved(next);
+    rememberPostToggle(postId, { saved: next });
+    // Säg VART den tog vägen — knappen ensam pekade ingenstans. Direkt, av samma
+    // skäl som knappen: en bekräftelse som kommer en sekund senare läses som fel.
+    toast({
+      title: next ? t("savedToast") : t("unsavedToast"),
+      description: next ? t("savedToastBody") : undefined,
+      variant: "success",
+    });
     try {
       const res = await apiFetch<{ saved: boolean }>(`/api/community/posts/${postId}/save`, {
         method: "POST",
       });
       setSaved(res.saved);
-      invalidatePersonalState();
-      // Säg VART den tog vägen — knappen ensam pekade ingenstans.
-      toast({
-        title: res.saved ? t("savedToast") : t("unsavedToast"),
-        description: res.saved ? t("savedToastBody") : undefined,
-        variant: "success",
-      });
+      rememberPostToggle(postId, { saved: res.saved });
     } catch (e) {
+      setSaved(prevSaved);
+      rememberPostToggle(postId, { saved: prevSaved });
       toast({
         title: t("saveFailed"),
         description: e instanceof Error ? e.message : undefined,

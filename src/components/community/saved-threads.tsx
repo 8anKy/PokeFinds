@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { recallPostToggle } from "@/lib/forum-client";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconBookmark, IconHeart } from "@/components/ui/icons";
 import { SwipeTabs } from "@/components/ui/swipe-tabs";
@@ -68,6 +69,13 @@ function PersonalList({
   const [page, setPage] = useState<FeedPage>(initial);
   const [loading, setLoading] = useState(false);
   const hasMore = page.items.length < page.total;
+  // Trådar man precis tagit bort sparningen/gillningen på ligger kvar i serverns
+  // svar: sidan är dynamisk men Nexts klient-routercache serverar samma
+  // nyttolast i 30 s. Fliken vet bättre — och det kostar ingen ny läsning.
+  const items = page.items.filter((post) => {
+    const own = recallPostToggle(post.id);
+    return kind === "saved" ? own.saved !== false : own.liked !== false;
+  });
 
   async function loadMore() {
     setLoading(true);
@@ -90,12 +98,12 @@ function PersonalList({
     }
   }
 
-  if (page.items.length === 0) return <>{empty}</>;
+  if (items.length === 0) return <>{empty}</>;
 
   return (
     <div className="space-y-3">
       <ul className="space-y-2.5">
-        {page.items.map((post) => (
+        {items.map((post) => (
           <PostCard key={post.id} post={post} />
         ))}
       </ul>

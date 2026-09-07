@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { useKeyboardInset } from "@/hooks/use-keyboard-inset";
 import { apiErrorCode, apiFetch } from "@/lib/client-api";
+import { mergeComments, recallOwnComments, rememberOwnComment } from "@/lib/forum-client";
 import { FORUM_RULES_CODE, PROFANITY_CODE } from "@/lib/profanity";
 import { requestForumRules } from "./forum-rules-gate";
 import { Button, LinkButton } from "@/components/ui/button";
@@ -20,6 +21,13 @@ import { useForumViewer } from "./use-forum-viewer";
  * på optimistiskt och byts mot serverns rad. Svar från blockerade användare
  * (åt båda hållen) döljs i klienten — servern vet inte vem som tittar på en
  * ISR-sida.
+ *
+ * ⛔ Sidan är ISR (300 s) OCH Nexts klient-routercache serverar samma RSC-
+ * nyttolast i 30 s: gick man ut ur tråden och in igen direkt efter att ha
+ * svarat renderades listan utan svaret, och det "kom tillbaka" först minuter
+ * senare. Svaret var sparat hela tiden — det var LÄSNINGEN som var gammal.
+ * Egna svar minns vi därför i fliken och slår ihop dem med serverns lista vid
+ * montering (`lib/forum-client.ts`). Det kostar ingen extra läsning.
  */
 export function Replies({ postId, initial }: { postId: string; initial: CommentDto[] }) {
   const t = useTranslations("Forum");
@@ -32,10 +40,19 @@ export function Replies({ postId, initial }: { postId: string; initial: CommentD
   // rullmånen (padding) och rullar fältet ovanför tangentbordet — samma som
   // /forum/ny. Se hooks/use-keyboard-inset.ts.
   const kbInset = useKeyboardInset();
-  const [comments, setComments] = useState<CommentDto[]>(initial);
+  const [comments, setComments] = useState<CommentDto[]>(() =>
+    mergeComments(recallOwnComments(postId), initial)
+  );
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Serverns lista bytte tråd (eller renderades om) — börja om från den, med
+  // egna svar ovanpå. ⛔ Aldrig `prev` här: rutten är ett dynamiskt segment och
+  // komponenten kan återanvändas mellan två trådar.
+  useEffect(() => {
+    setComments(mergeComments(recallOwnComments(postId), initial));
+  }, [postId, initial]);
 
   const blocked = new Set(state.blockedIds);
   const visible = comments.filter((c) => !blocked.has(c.user.id));
@@ -73,6 +90,8 @@ export function Replies({ postId, initial }: { postId: string; initial: CommentD
         body: { content },
       });
       setComments((prev) => prev.map((c) => (c.id === tempId ? saved : c)));
+      // Så att svaret finns kvar när man går ut ur tråden och in igen — se filhuvudet.
+      rememberOwnComment(postId, saved);
       toast({ title: t("replyPosted"), variant: "success" });
     } catch (e) {
       setComments((prev) => prev.filter((c) => c.id !== tempId));

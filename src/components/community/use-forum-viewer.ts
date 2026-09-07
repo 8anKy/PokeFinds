@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuthHint } from "@/lib/auth-hint";
 import { getSharedSession } from "@/lib/client-session";
+import { applyPostToggles } from "@/lib/forum-client";
 
 /**
  * Betraktarens tillstånd på forumets ISR-sidor: vem hen är (ur den delade
@@ -52,7 +53,13 @@ export function fetchPersonalState(postIds: string[]): Promise<ForumPersonalStat
   return promise;
 }
 
-/** Efter en skrivning (gå med, gilla…) — nästa läsning frågar servern igen. */
+/**
+ * Efter en skrivning som svaret inte täcker (gå med i grupp, godkänna reglerna)
+ * — nästa läsning frågar servern igen. ⛔ Gilla/spara gör INTE det längre: de
+ * växlingarna läggs ovanpå svaret av `applyPostToggles`, så en tumme upp kostar
+ * inte en ny `/api/community/me`-läsning (och därmed en Neon-väckning) på nästa
+ * trådöppning.
+ */
 export function invalidatePersonalState(): void {
   cache = null;
 }
@@ -78,7 +85,8 @@ export function useForumViewer(postIds: string[]) {
         if (cancelled) return;
         const u = session?.user;
         setViewer(u ? { id: u.id, name: u.name, role: u.role } : null);
-        setState(personal);
+        // Betraktarens egna gilla/spara vinner över serverns (möjligen cachade) svar.
+        setState(applyPostToggles(personal));
         setReady(true);
       }
     );
