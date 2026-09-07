@@ -26,6 +26,7 @@ import { apiFetch } from "@/lib/client-api";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
+import { ImageLightbox } from "@/components/ui/image-lightbox";
 import { Input, Textarea, Label, FieldError, Checkbox } from "@/components/ui/input";
 import { IconCheck, IconPackage } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/spinner";
@@ -335,6 +336,8 @@ export function SellSheet({
   const [vatRate, setVatRate] = useState<number>(DEFAULT_VAT_RATE);
   const [description, setDescription] = useState("");
   const [images, setImages] = useState<string[]>([]);
+  /** Index i helskärmsläsaren, null = stängd. */
+  const [lightbox, setLightbox] = useState<number | null>(null);
   const [grading, setGrading] = useState(false);
   const [gradeNote, setGradeNote] = useState<string | null>(null);
   const [alsoForum, setAlsoForum] = useState(false);
@@ -904,12 +907,22 @@ export function SellSheet({
               <div className="flex flex-wrap gap-2">
                 {images.map((src, i) => (
                   <div key={i} className="relative">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={src}
-                      alt={t("sellPhotoAlt", { n: i + 1 })}
-                      className="h-20 w-20 rounded-xl bg-surface-overlay object-cover"
-                    />
+                    {/* Tryck = HELSKÄRM (samma läsare som forumets bilder): miniatyren
+                        är beskuren till en kvadrat, så det man kontrollerar innan man
+                        lägger upp annonsen syns inte förrän bilden täcker skärmen. */}
+                    <button
+                      type="button"
+                      onClick={() => setLightbox(i)}
+                      aria-label={t("sellPhotoAlt", { n: i + 1 })}
+                      className="block h-20 w-20 overflow-hidden rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-holo-cyan"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={src}
+                        alt=""
+                        className="h-full w-full bg-surface-overlay object-cover"
+                      />
+                    </button>
                     <button
                       type="button"
                       aria-label={t("sellRemovePhoto")}
@@ -1358,6 +1371,17 @@ export function SellSheet({
             <FieldError message={error} />
           </div>
         )}
+
+      {/* Helskärmsläsaren portalar till <body> (z-80, över arket) — samma
+          komponent som forumet, så svep i sidled och svep ned funkar likadant.
+          ⛔ Index CLAMPAS mot listan: tar man bort bilden man tittar på skulle
+          läsaren annars stå kvar på ett index som inte finns. */}
+      <ImageLightbox
+        images={images.map((src, i) => ({ url: src, alt: t("sellPhotoAlt", { n: i + 1 }) }))}
+        index={open && lightbox != null && lightbox < images.length ? lightbox : null}
+        onIndexChange={setLightbox}
+        onClose={() => setLightbox(null)}
+      />
     </BottomSheet>
   );
 }
