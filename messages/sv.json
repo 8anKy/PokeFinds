@@ -542,7 +542,7 @@
     "sellGrade": "Betyg",
     "sellGradingNone": "Ograderat",
     "gridCopiesTitle": "Hantera exemplar",
-    "gridCopiesHint": "Välj ett exemplar högst upp och ändra dess uppgifter. Ändrar du något delas köpet upp — varje exemplar blir sin egen post.",
+    "gridCopiesHint": "Välj ett exemplar högst upp och ändra dess uppgifter. Håll in ett exemplar för att markera det för borttagning. Ändrar du något delas köpet upp — varje exemplar blir sin egen post.",
     "gridCopyLabel": "Exemplar {n}",
     "gridCopyOf": "Exemplar {n} av {total}",
     "gridCopyRemove": "Ta bort det här exemplaret",

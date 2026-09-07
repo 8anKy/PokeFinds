@@ -542,7 +542,7 @@
     "sellGrade": "Grade",
     "sellGradingNone": "Ungraded",
     "gridCopiesTitle": "Manage copies",
-    "gridCopiesHint": "Pick a copy at the top and change its details. Any change splits the purchase — each copy becomes its own entry.",
+    "gridCopiesHint": "Pick a copy at the top and change its details. Press and hold a copy to mark it for removal. Any change splits the purchase — each copy becomes its own entry.",
     "gridCopyLabel": "Copy {n}",
     "gridCopyOf": "Copy {n} of {total}",
     "gridCopyRemove": "Remove this copy",

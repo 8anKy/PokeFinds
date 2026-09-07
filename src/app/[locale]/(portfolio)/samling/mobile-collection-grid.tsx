@@ -192,6 +192,10 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
   const [copies, setCopies] = useState<CopyRow[]>([]);
   /** Vilket exemplar i remsan man redigerar. */
   const [copyIndex, setCopyIndex] = useState(0);
+  // Långtryck i remsan markerar exemplaret för borttagning — samma gest som i
+  // rutnätet, så flera kan bockas i utan att man går in i vart och ett.
+  const copyPressTimer = useRef<number | null>(null);
+  const copyLongPressed = useRef(false);
   // Köppris-redigering (per post, i kronor — lagras i öre).
   const [priceTarget, setPriceTarget] = useState<CollectionRow | null>(null);
   const [priceInput, setPriceInput] = useState("");
@@ -350,6 +354,7 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
   }
 
   function closeCopySheet() {
+    cancelCopyPress();
     setCopyLots(null);
     setCopies([]);
   }
@@ -357,6 +362,44 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
   /** Köpet ett exemplar kommer ur — bilden, namnet och setet ritas ur det. */
   function lotOf(copy: CopyRow | null): CollectionRow | undefined {
     return copy ? copyLots?.find((l) => l.id === copy.lotId) : undefined;
+  }
+
+  /** Växla borttagningsmarkeringen på ETT exemplar (index i remsan). */
+  function toggleCopyRemove(index: number) {
+    setCopies((prev) => prev.map((x, j) => (j === index ? { ...x, remove: !x.remove } : x)));
+  }
+
+  /**
+   * HÅLL IN ETT EXEMPLAR I REMSAN = markera det för borttagning.
+   *
+   * ⛔ Utan den gick flera exemplar bara att bocka i ett i taget: välj i remsan,
+   * scrolla ner till knappen, tryck, tillbaka upp, nästa (ägaren 2026-09-07).
+   * Samma gest och samma taktila kvittens som långtrycket i rutnätet — den som
+   * lärt sig den ena kan den andra.
+   */
+  function startCopyPress(index: number) {
+    copyLongPressed.current = false;
+    copyPressTimer.current = window.setTimeout(() => {
+      copyLongPressed.current = true;
+      hapticTick();
+      toggleCopyRemove(index);
+    }, LONG_PRESS_MS);
+  }
+
+  function cancelCopyPress() {
+    if (copyPressTimer.current != null) {
+      clearTimeout(copyPressTimer.current);
+      copyPressTimer.current = null;
+    }
+  }
+
+  /** Ett vanligt tryck byter exemplar — men inte när långtrycket redan svarat. */
+  function pickCopy(index: number) {
+    if (copyLongPressed.current) {
+      copyLongPressed.current = false;
+      return;
+    }
+    setCopyIndex(index);
   }
 
   /**
@@ -500,8 +543,14 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
         className={cn(
           "mb-3 flex items-center justify-between gap-2",
           selectMode &&
-            "hairline-b sticky top-0 z-20 -mx-2.5 bg-surface/95 px-2.5 py-2 backdrop-blur-md sm:-mx-6 sm:px-6"
+            "hairline-b sticky z-20 -mx-2.5 bg-surface/95 px-2.5 py-2 backdrop-blur-md sm:-mx-6 sm:px-6"
         )}
+        // ⛔ `top-0` ÄR VYPORTENS KANT, INTE INNEHÅLLETS (ägaren 2026-09-07):
+        // klockan och batteriet la sig över raden. Sticky mäter mot scrollytan
+        // och bryr sig inte om att body har `padding-top: env(safe-area-inset-top)`
+        // — offseten måste bära safe-arean själv. Inline style, inte ett
+        // arbiträrt Tailwind-värde: `calc()` med mellanslag tappas TYST där.
+        style={selectMode ? { top: "calc(env(safe-area-inset-top) + 0.5rem)" } : undefined}
       >
         {selectMode ? (
           <>
@@ -849,7 +898,12 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
                 <button
                   key={c.key}
                   type="button"
-                  onClick={() => setCopyIndex(i)}
+                  onClick={() => pickCopy(i)}
+                  onPointerDown={() => startCopyPress(i)}
+                  onPointerUp={cancelCopyPress}
+                  onPointerLeave={cancelCopyPress}
+                  onPointerCancel={cancelCopyPress}
+                  onContextMenu={(e) => e.preventDefault()}
                   aria-current={i === copyIndex}
                   aria-label={lotOf(c)?.name ?? t("gridCopyLabel", { n: i + 1 })}
                   className={cn(
