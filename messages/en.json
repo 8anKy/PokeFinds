@@ -544,10 +544,19 @@
     "sellGrade": "Grade",
     "sellGradingNone": "Ungraded",
     "gridCopiesTitle": "Manage copies",
-    "gridCopiesHint": "Tick the copies you want to remove. Changing a copy's purchase price splits the purchase.",
+    "gridCopiesHint": "Pick a copy at the top and change its details. Any change splits the purchase — each copy becomes its own entry.",
     "gridCopyLabel": "Copy {n}",
-    "gridRemoveSelected": "Remove {count}",
-    "gridCopiesNothing": "Nothing to save"
+    "gridCopyOf": "Copy {n} of {total}",
+    "gridCopyRemove": "Remove this copy",
+    "gridCopyRemoveUndo": "Undo removal",
+    "gridCopyRemoved": "Will be removed when you save.",
+    "gridCopiesSave": "Save changes",
+    "gridCopiesSaveRemove": "Save · remove {count}",
+    "gridSectionPrice": "Purchase price",
+    "gridSectionCondition": "Condition",
+    "gridSectionGrading": "Grading",
+    "gridGradingNone": "Ungraded",
+    "gridGradeLabel": "Grade"
   },
   "Legal": {
     "lastUpdated": "Last updated: {date}"

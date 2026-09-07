@@ -15,8 +15,10 @@ const updateSchema = z.object({
   purchasePrice: z.number().int().min(0).nullable().optional(), // öre
   purchaseDate: z.coerce.date().nullable().optional(),
   estimatedValue: z.number().int().min(0).optional(), // öre
-  gradingCompany: z.string().max(50).optional(),
-  grade: z.string().max(20).optional(),
+  // nullable av samma skäl som köppriset: ett kort måste gå att sätta tillbaka
+  // till OGRADERAT, inte bara byta till ett annat bolag.
+  gradingCompany: z.string().max(50).nullable().optional(),
+  grade: z.string().max(20).nullable().optional(),
   notes: z.string().max(1000).optional(),
   imageUrl: z.string().url().optional(),
 });

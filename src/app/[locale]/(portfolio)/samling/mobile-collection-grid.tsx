@@ -28,7 +28,12 @@ import { IconCheck, IconChevronDown, IconPackage, IconTrash, IconX } from "@/com
 import { openProductOverlay } from "@/lib/product-overlay-open";
 import { planCopyEdits, type LotGroup } from "@/lib/collection-lots";
 import type { CollectionRow } from "./collection-client";
+import { hapticTick } from "@/lib/haptics";
 import { parseKronorToOre } from "@/lib/purchase-price";
+// Traderas EGEN vokabulär för gradering (attribut 125/126, hämtad ur deras
+// referensdata). Samlingen använder samma ord så att en senare annons kan bära
+// värdet rakt av — utan översättning och utan att bli "Övriga" i onödan.
+import { GRADES, GRADING_ISSUERS } from "@/lib/tradera-listing-options";
 import {
   groupCollectionLots,
   groupProfit,
@@ -50,14 +55,30 @@ import { toSellItem } from "./sell-item";
 const LONG_PRESS_MS = 450;
 
 /**
+ * Skicken samlingen känner — samma nycklar som `CardCondition` i schemat.
+ * SEALED står sist: det gäller förseglade produkter, inte lösa kort, men båda
+ * kan ligga i samma rutnät.
+ */
+const COLLECTION_CONDITIONS = [
+  "MINT",
+  "NEAR_MINT",
+  "EXCELLENT",
+  "GOOD",
+  "PLAYED",
+  "POOR",
+  "SEALED",
+] as const;
+
+/**
  * ETT EXEMPLAR i exemplararket.
  *
  * ⛔ DATABASEN LAGRAR KÖP (lots) MED ANTAL, INTE EXEMPLAR. Ett köp av fyra kort
  * är EN rad med `quantity: 4` — de fyra exemplaren är oskiljaktiga där, och det
- * är rätt: de kostade samma sak samma dag. Arket veckla ut dem till fyra rader
- * så att man kan peka på ETT av dem, och `applyCopyChanges` viker ihop dem igen:
- * exemplar som fått ett eget pris bryts ut till ett EGET köp (samma regel som
- * lib/collection-lots.ts vilar på — två priser är två poster, aldrig ett snitt).
+ * är rätt: de kostade samma sak samma dag och är i samma skick. Arket vecklar ut
+ * dem så att man kan peka på ETT av dem, och `planCopyEdits` viker ihop dem
+ * igen: ett exemplar som fått egna uppgifter bryts ut till ett EGET köp (samma
+ * regel som lib/collection-lots.ts vilar på — två köp är två poster, aldrig ett
+ * snitt).
  */
 interface CopyRow {
   /** Köpet exemplaret kommer ur. Flera rader delar id när köpet hade quantity > 1. */
@@ -66,28 +87,83 @@ interface CopyRow {
   key: string;
   /** Köppris i kronor som redigerbar sträng. Tomt = inget pris (≠ 0 kr). */
   price: string;
-  /** Priset raden hade när arket öppnades — skiljer "ändrat" från "orört". */
-  original: string;
-  /** Ibockad = ska tas bort. */
+  condition: string;
+  /** "" = ograderat. Traderas vokabulär, så att en senare annons kan bära den rakt av. */
+  gradingCompany: string;
+  grade: string;
+  /** Ibockat = ska tas bort när man sparar. */
   remove: boolean;
 }
 
-/** Gruppens köp → en rad per exemplar, äldsta köpet först. */
+/** Gruppens köp → en rad per exemplar, i gruppens ordning. */
 function expandCopies(group: LotGroup<CollectionRow>): CopyRow[] {
   const out: CopyRow[] = [];
   for (const lot of group.lots) {
     for (let i = 0; i < lot.quantity; i++) {
-      const price = oreToKr(lot.purchasePrice);
-      out.push({ lotId: lot.id, key: `${lot.id}:${i}`, price, original: price, remove: false });
+      out.push({
+        lotId: lot.id,
+        key: `${lot.id}:${i}`,
+        price: oreToKr(lot.purchasePrice),
+        condition: lot.condition,
+        gradingCompany: lot.gradingCompany ?? "",
+        grade: lot.grade ?? "",
+        remove: false,
+      });
     }
   }
   return out;
+}
+
+/** Har exemplaret ändrats sedan arket öppnades? */
+function copyDiffers(copy: CopyRow, lot: CollectionRow | undefined): boolean {
+  if (!lot) return false;
+  return (
+    copy.price.trim() !== oreToKr(lot.purchasePrice).trim() ||
+    copy.condition !== lot.condition ||
+    copy.gradingCompany !== (lot.gradingCompany ?? "") ||
+    copy.grade !== (lot.grade ?? "")
+  );
+}
+
+/** Chip — samma form som säljarkets val (skick, gradering). */
+function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "rounded-full px-3.5 py-2 text-sm font-semibold transition-colors",
+        active ? "bg-holo-cyan text-surface" : "bg-surface-overlay text-ink-muted hover:text-ink"
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Rubrik över en sektion i arket — samma form som säljarket. */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+      {children}
+    </p>
+  );
 }
 
 export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
   const t = useTranslations("Collection");
   const locale = useLocale();
   const tc = useTranslations("Common");
+  const tCond = useTranslations("Condition");
   const router = useRouter();
   const { toast } = useToast();
 
@@ -103,6 +179,8 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
    */
   const [copyGroup, setCopyGroup] = useState<LotGroup<CollectionRow> | null>(null);
   const [copies, setCopies] = useState<CopyRow[]>([]);
+  /** Vilket exemplar i remsan man redigerar. */
+  const [copyIndex, setCopyIndex] = useState(0);
   // Köppris-redigering (per post, i kronor — lagras i öre).
   const [priceTarget, setPriceTarget] = useState<CollectionRow | null>(null);
   const [priceInput, setPriceInput] = useState("");
@@ -172,6 +250,10 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
       longPressed.current = false;
       pressTimer.current = window.setTimeout(() => {
         longPressed.current = true;
+        // Taktil kvittens att långtrycket löste ut — samma som snabbtillägget
+        // (collection-quick-add). Väljläget syns först när verktygsraden bytt ut
+        // sig, så utan den känns gesten som att ingenting hände.
+        hapticTick();
         setSelectMode(true);
         setSelected((prev) => {
           const next = new Set(prev);
@@ -226,8 +308,7 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
     const picked = rows.filter((r) => selected.has(r.id));
     const group = allGroups.find((g) => g.lots.some((l) => l.id === picked[0]?.id));
     if (group && picked.every((r) => group.lots.some((l) => l.id === r.id)) && group.quantity > 1) {
-      setCopies(expandCopies(group));
-      setCopyGroup(group);
+      openCopySheet(group);
       return;
     }
     if (!window.confirm(t("gridConfirmDelete", { count: selected.size }))) return;
@@ -257,8 +338,27 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
 
   /** Antal exemplar som är ibockade för borttagning. */
   const removeCount = copies.filter((c) => c.remove).length;
-  /** Något pris ändrat på ett exemplar som INTE ska bort? */
-  const priceChanged = copies.some((c) => !c.remove && c.price.trim() !== c.original.trim());
+  /** Något ändrat på ett exemplar som INTE ska bort? */
+  const copiesChanged = copies.some(
+    (c) => !c.remove && copyDiffers(c, copyGroup?.lots.find((l) => l.id === c.lotId))
+  );
+  const activeCopy = copies[copyIndex] ?? null;
+
+  /** Skriv ett fält på exemplaret man redigerar. */
+  function patchCopy(patch: Partial<CopyRow>) {
+    setCopies((prev) => prev.map((c, i) => (i === copyIndex ? { ...c, ...patch } : c)));
+  }
+
+  function openCopySheet(group: LotGroup<CollectionRow>) {
+    setCopies(expandCopies(group));
+    setCopyIndex(0);
+    setCopyGroup(group);
+  }
+
+  function closeCopySheet() {
+    setCopyGroup(null);
+    setCopies([]);
+  }
 
   /**
    * VECKAR IHOP EXEMPLAREN TILL KÖP IGEN och skriver skillnaden.
@@ -289,6 +389,10 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
               : parsed.kind === "empty"
                 ? null
                 : (lot?.purchasePrice ?? null),
+          condition: c.condition,
+          // ⛔ Bolag UTAN betyg säger ingenting om kortet — då är det ograderat.
+          gradingCompany: c.gradingCompany && c.grade ? c.gradingCompany : null,
+          grade: c.gradingCompany && c.grade ? c.grade : null,
         };
       })
     );
@@ -303,11 +407,11 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
           failed += 1;
         }
       }
-      for (const { lot, quantity, purchasePrice } of plan.patches) {
+      for (const { lot, quantity, purchasePrice, condition, gradingCompany, grade } of plan.patches) {
         try {
           await apiFetch(`/api/collection/${lot.id}`, {
             method: "PATCH",
-            body: { quantity, purchasePrice },
+            body: { quantity, purchasePrice, condition, gradingCompany, grade },
           });
         } catch {
           failed += 1;
@@ -315,7 +419,7 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
       }
       // ⛔ SIST — se `planCopyEdits`: en skapelse kan STAPLA på ett köp, och gör
       // den det innan köpet skrivits om försvinner exemplaren tyst.
-      for (const { lot, quantity, purchasePrice } of plan.creates) {
+      for (const { lot, quantity, purchasePrice, condition, gradingCompany, grade } of plan.creates) {
         try {
           await apiFetch("/api/collection", {
             method: "POST",
@@ -323,12 +427,12 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
               ...(lot.cardId ? { cardId: lot.cardId } : {}),
               ...(lot.productId ? { productId: lot.productId } : {}),
               quantity,
-              condition: lot.condition,
+              condition,
               language: lot.language,
               ...(purchasePrice != null ? { purchasePrice } : {}),
               ...(lot.purchaseDate ? { purchaseDate: lot.purchaseDate } : {}),
-              ...(lot.gradingCompany ? { gradingCompany: lot.gradingCompany } : {}),
-              ...(lot.grade ? { grade: lot.grade } : {}),
+              ...(gradingCompany ? { gradingCompany } : {}),
+              ...(grade ? { grade } : {}),
             },
           });
         } catch {
@@ -345,8 +449,7 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
       });
     } finally {
       setDeleting(false);
-      setCopyGroup(null);
-      setCopies([]);
+      closeCopySheet();
       exitSelect();
       router.refresh();
     }
@@ -698,92 +801,202 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
         })}
       </div>
 
-      {/* EXEMPLARARKET — bottenark, inte modal (ägarbeslut 2026-09-07): samma
-          glid-upp som resten av appen. Varje exemplar får en rad med sitt eget
-          köppris, så man kan peka på precis det man menar i stället för att
-          skriva en siffra i ett antalsfält.
+      {/* EXEMPLARARKET — bottenark med SAMMA form som säljarket (ägarbeslut
+          2026-09-07): en remsa med kortets bild högst upp, ett exemplar i taget
+          nedanför. Var förut en modal med ett antalsfält ("hur många ska tas
+          bort?"), som varken kunde visa vilka exemplar man har eller vad de
+          kostat — och som bara kunde ta bort.
           ⛔ INGEN autoFocus — se kommentaren vid köppris-arket nedan. */}
       <BottomSheet
         open={copyGroup != null}
-        onClose={() => {
-          setCopyGroup(null);
-          setCopies([]);
-        }}
+        onClose={closeCopySheet}
         title={t("gridCopiesTitle")}
         closeLabel={tc("cancel")}
         panelClassName="sm:mx-auto sm:max-w-md"
         footer={
-          removeCount > 0 ? (
-            <Button
-              variant="danger"
-              size="lg"
-              className="w-full"
-              loading={deleting}
-              onClick={() => void applyCopyChanges()}
-            >
-              <IconTrash size={16} />
-              {t("gridRemoveSelected", { count: removeCount })}
-            </Button>
-          ) : (
-            <BottomSheetCta
-              onClick={() => void applyCopyChanges()}
-              disabled={deleting || !priceChanged}
-            >
-              {priceChanged ? tc("save") : t("gridCopiesNothing")}
-            </BottomSheetCta>
-          )
+          <BottomSheetCta
+            onClick={() => void applyCopyChanges()}
+            disabled={deleting || (!copiesChanged && removeCount === 0)}
+          >
+            {/* ⛔ ALDRIG "Radera" (ägaren 2026-09-07): arket ändrar pris, skick
+                och gradering också — knappen får inte lova bara det ena. */}
+            {removeCount > 0
+              ? t("gridCopiesSaveRemove", { count: removeCount })
+              : t("gridCopiesSave")}
+          </BottomSheetCta>
         }
       >
-        <p className="truncate text-sm font-medium text-ink">{copyGroup?.lots[0]?.name}</p>
-        <p className="mb-3 mt-1 text-xs text-ink-muted">{t("gridCopiesHint")}</p>
-        <ul className="space-y-2">
-          {copies.map((c, i) => (
-            <li
-              key={c.key}
-              className={cn(
-                "flex items-center gap-2.5 rounded-xl border p-2.5 transition-colors",
-                c.remove ? "border-fall/50 bg-fall/10" : "border-surface-border"
-              )}
-            >
-              {/* Bocken är hela vänsterkanten — en 16 px kryssruta är inget tummål. */}
-              <button
-                type="button"
-                aria-pressed={c.remove}
-                aria-label={t("gridCopyLabel", { n: i + 1 })}
-                onClick={() =>
-                  setCopies((prev) =>
-                    prev.map((x) => (x.key === c.key ? { ...x, remove: !x.remove } : x))
-                  )
-                }
-                className={cn(
-                  "grid h-9 w-9 shrink-0 place-items-center rounded-lg border transition-colors",
-                  c.remove
-                    ? "border-fall bg-fall text-surface"
-                    : "border-surface-border text-ink-faint"
-                )}
-              >
-                {c.remove ? <IconCheck size={16} /> : <IconTrash size={16} />}
-              </button>
-              <span className="w-16 shrink-0 text-xs text-ink-muted">
-                {t("gridCopyLabel", { n: i + 1 })}
+        {/* EXEMPLARREMSAN — katalogbilden, ett kort per exemplar. Markerade för
+            borttagning tonas ner och får papperskorgen över sig. */}
+        {copies.length > 1 && (
+          <div className="-mx-[18px] mb-4 overflow-x-auto px-[18px]">
+            <div className="flex gap-2">
+              {copies.map((c, i) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => setCopyIndex(i)}
+                  aria-current={i === copyIndex}
+                  aria-label={t("gridCopyLabel", { n: i + 1 })}
+                  className={cn(
+                    "relative h-[68px] w-[52px] shrink-0 overflow-hidden rounded-lg border-2 bg-surface-overlay transition-colors",
+                    i === copyIndex ? "border-holo-cyan" : "border-transparent opacity-60"
+                  )}
+                >
+                  {copyGroup?.lots[0]?.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={copyGroup.lots[0].imageUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      draggable={false}
+                    />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center text-ink-faint">
+                      <IconPackage size={16} />
+                    </span>
+                  )}
+                  {c.remove && (
+                    <span className="absolute inset-0 flex items-center justify-center bg-fall/70 text-surface">
+                      <IconTrash size={18} />
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Kortets identitet — samma rad som säljarket har. */}
+        <div className="mb-4 flex items-center gap-3">
+          <span className="h-14 w-10 shrink-0 overflow-hidden rounded-md bg-surface-overlay">
+            {copyGroup?.lots[0]?.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={copyGroup.lots[0].imageUrl}
+                alt=""
+                className="h-full w-full object-cover"
+                draggable={false}
+              />
+            ) : (
+              <span className="flex h-full w-full items-center justify-center text-ink-faint">
+                <IconPackage size={16} />
               </span>
+            )}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-ink">{copyGroup?.lots[0]?.name}</p>
+            <p className="truncate text-xs text-ink-muted">
+              {copyGroup?.lots[0]?.setName ??
+                t("gridCopyOf", { n: copyIndex + 1, total: copies.length })}
+            </p>
+          </div>
+          {copies.length > 1 && (
+            <span className="ml-auto shrink-0 text-xs tabular-nums text-ink-faint">
+              {copyIndex + 1}/{copies.length}
+            </span>
+          )}
+        </div>
+
+        <p className="mb-4 text-xs text-ink-muted">{t("gridCopiesHint")}</p>
+
+        {activeCopy && (
+          <div className={cn("space-y-5", activeCopy.remove && "opacity-50")}>
+            <div>
+              <SectionLabel>{t("gridSectionPrice")}</SectionLabel>
               <Input
                 inputMode="decimal"
                 enterKeyHint="done"
                 aria-label={t("purchasePrice")}
                 placeholder={t("purchasePricePlaceholder")}
-                value={c.price}
-                disabled={c.remove}
-                onChange={(e) =>
-                  setCopies((prev) =>
-                    prev.map((x) => (x.key === c.key ? { ...x, price: e.target.value } : x))
-                  )
-                }
-                className="h-10 min-w-0 flex-1 bg-surface"
+                value={activeCopy.price}
+                disabled={activeCopy.remove}
+                onChange={(e) => patchCopy({ price: e.target.value })}
+                className="h-11 bg-surface"
               />
-            </li>
-          ))}
-        </ul>
+            </div>
+
+            <div>
+              <SectionLabel>{t("gridSectionCondition")}</SectionLabel>
+              <div className="flex flex-wrap gap-2">
+                {COLLECTION_CONDITIONS.map((value) => (
+                  <Chip
+                    key={value}
+                    active={activeCopy.condition === value}
+                    onClick={() => patchCopy({ condition: value })}
+                  >
+                    {tCond(value)}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+
+            {/* GRADERING — Traderas egen vokabulär (attribut 125/126), så att en
+                senare annons kan bära värdet rakt av utan översättning.
+                ⛔ Ett bolag utan betyg är inte en gradering; båda krävs. */}
+            <div>
+              <SectionLabel>{t("gridSectionGrading")}</SectionLabel>
+              <div className="flex flex-wrap gap-2">
+                <Chip
+                  active={!activeCopy.gradingCompany}
+                  onClick={() => patchCopy({ gradingCompany: "", grade: "" })}
+                >
+                  {t("gridGradingNone")}
+                </Chip>
+                {GRADING_ISSUERS.map((issuer) => (
+                  <Chip
+                    key={issuer}
+                    active={activeCopy.gradingCompany === issuer}
+                    onClick={() => patchCopy({ gradingCompany: issuer })}
+                  >
+                    {issuer}
+                  </Chip>
+                ))}
+              </div>
+              {activeCopy.gradingCompany && (
+                <>
+                  <p className="mb-2 mt-3 text-xs text-ink-muted">{t("gridGradeLabel")}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {GRADES.map((g) => (
+                      <Chip
+                        key={g}
+                        active={activeCopy.grade === g}
+                        onClick={() => patchCopy({ grade: g })}
+                      >
+                        {g}
+                      </Chip>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Borttagning per exemplar — en egen, tydligt märkt växel, aldrig gömd
+            i sparknappen. */}
+        {activeCopy && (
+          <div className="mt-5">
+            <Button
+              variant={activeCopy.remove ? "secondary" : "danger"}
+              size="md"
+              className="w-full"
+              onClick={() => patchCopy({ remove: !activeCopy.remove })}
+            >
+              {activeCopy.remove ? (
+                t("gridCopyRemoveUndo")
+              ) : (
+                <>
+                  <IconTrash size={16} />
+                  {t("gridCopyRemove")}
+                </>
+              )}
+            </Button>
+            {activeCopy.remove && (
+              <p className="mt-2 text-center text-xs text-fall">{t("gridCopyRemoved")}</p>
+            )}
+          </div>
+        )}
       </BottomSheet>
 
       {/* Köppris — BOTTENARK, inte modal (ägarbeslut 2026-09-07: samma glid-upp som

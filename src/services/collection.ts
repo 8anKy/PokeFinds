@@ -98,8 +98,11 @@ export interface CollectionItemInput {
   purchasePrice?: number | null; // öre
   purchaseDate?: Date | null;
   estimatedValue?: number; // öre
-  gradingCompany?: string;
-  grade?: string;
+  // null = nolla graderingen igen. Ett kort kan bli AVgraderat i registret
+  // (fel bolag inskrivet, eller slabben bruten) — utan null gick det bara att
+  // byta till ett annat bolag, aldrig tillbaka till ograderat.
+  gradingCompany?: string | null;
+  grade?: string | null;
   notes?: string;
   imageUrl?: string;
 }

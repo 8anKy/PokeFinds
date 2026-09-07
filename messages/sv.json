@@ -544,10 +544,19 @@
     "sellGrade": "Betyg",
     "sellGradingNone": "Ograderat",
     "gridCopiesTitle": "Hantera exemplar",
-    "gridCopiesHint": "Bocka i de exemplar du vill ta bort. Ändrar du köppriset på ett exemplar delas köpet upp.",
+    "gridCopiesHint": "Välj ett exemplar högst upp och ändra dess uppgifter. Ändrar du något delas köpet upp — varje exemplar blir sin egen post.",
     "gridCopyLabel": "Exemplar {n}",
-    "gridRemoveSelected": "Ta bort {count}",
-    "gridCopiesNothing": "Inget att spara"
+    "gridCopyOf": "Exemplar {n} av {total}",
+    "gridCopyRemove": "Ta bort det här exemplaret",
+    "gridCopyRemoveUndo": "Ångra borttagning",
+    "gridCopyRemoved": "Tas bort när du sparar.",
+    "gridCopiesSave": "Spara ändringar",
+    "gridCopiesSaveRemove": "Spara · ta bort {count}",
+    "gridSectionPrice": "Köppris",
+    "gridSectionCondition": "Skick",
+    "gridSectionGrading": "Gradering",
+    "gridGradingNone": "Ograderat",
+    "gridGradeLabel": "Betyg"
   },
   "Legal": {
     "lastUpdated": "Senast uppdaterad: {date}"

@@ -22,8 +22,18 @@ function lot(id: string, quantity: number, purchasePrice: number | null) {
 
 /** Alla exemplar ur ett köp, orörda. */
 function copiesOf(lotId: string, n: number, price: number | null): CopyEdit[] {
-  return Array.from({ length: n }, () => ({ lotId, purchasePrice: price, remove: false }));
+  return Array.from({ length: n }, () => ({
+    lotId,
+    purchasePrice: price,
+    condition: "NEAR_MINT",
+    gradingCompany: null,
+    grade: null,
+    remove: false,
+  }));
 }
+
+/** Fälten ett orört exemplar i testerna bär, till `toEqual`. */
+const RAW = { condition: "NEAR_MINT", gradingCompany: null, grade: null };
 
 describe("planCopyEdits", () => {
   it("rör ingenting när inget ändrats — att öppna arket och stänga kostar noll", () => {
@@ -39,7 +49,7 @@ describe("planCopyEdits", () => {
     const plan = planCopyEdits(lots, copies);
     expect(plan.removed).toBe(1);
     expect(plan.deletes).toEqual([]);
-    expect(plan.patches).toEqual([{ lot: lots[0], quantity: 3, purchasePrice: 10000 }]);
+    expect(plan.patches).toEqual([{ lot: lots[0], quantity: 3, purchasePrice: 10000, ...RAW }]);
     expect(plan.creates).toEqual([]);
   });
 
@@ -58,9 +68,53 @@ describe("planCopyEdits", () => {
     copies[2].purchasePrice = 25000;
     const plan = planCopyEdits(lots, copies);
     // Första gruppen behåller raden …
-    expect(plan.patches).toEqual([{ lot: lots[0], quantity: 2, purchasePrice: 10000 }]);
+    expect(plan.patches).toEqual([{ lot: lots[0], quantity: 2, purchasePrice: 10000, ...RAW }]);
     // … resten blir ett eget köp. Två priser ÄR två poster i den här modellen.
-    expect(plan.creates).toEqual([{ lot: lots[0], quantity: 1, purchasePrice: 25000 }]);
+    expect(plan.creates).toEqual([{ lot: lots[0], quantity: 1, purchasePrice: 25000, ...RAW }]);
+  });
+
+  /**
+   * ⛔ SKICK OCH GRADERING ÄR IDENTITET, INTE UTSMYCKNING (de ingår i `lotKey`).
+   * Ett graderat exemplar är en ANNAN vara än det ograderade — buntas de ihop
+   * blir både snittpriset och setkompletteringen fel.
+   */
+  it("ett graderat exemplar bryts ut även när priset är oförändrat", () => {
+    const lots = [lot("a", 3, 10000)];
+    const copies = copiesOf("a", 3, 10000);
+    copies[0].gradingCompany = "PSA";
+    copies[0].grade = "10";
+    const plan = planCopyEdits(lots, copies);
+    // Första gruppen i ordningen är det graderade exemplaret — det behåller raden …
+    expect(plan.patches).toEqual([
+      {
+        lot: lots[0],
+        quantity: 1,
+        purchasePrice: 10000,
+        condition: "NEAR_MINT",
+        gradingCompany: "PSA",
+        grade: "10",
+      },
+    ]);
+    // … och de två ograderade blir ett eget köp.
+    expect(plan.creates).toEqual([{ lot: lots[0], quantity: 2, purchasePrice: 10000, ...RAW }]);
+  });
+
+  it("ett annat skick bryter ut exemplaret på samma sätt", () => {
+    const lots = [lot("a", 2, 10000)];
+    const copies = copiesOf("a", 2, 10000);
+    copies[1].condition = "EXCELLENT";
+    const plan = planCopyEdits(lots, copies);
+    expect(plan.patches).toEqual([{ lot: lots[0], quantity: 1, purchasePrice: 10000, ...RAW }]);
+    expect(plan.creates).toEqual([
+      {
+        lot: lots[0],
+        quantity: 1,
+        purchasePrice: 10000,
+        condition: "EXCELLENT",
+        gradingCompany: null,
+        grade: null,
+      },
+    ]);
   });
 
   it("tomt pris är 'vet inte', inte 0 kr — och är en egen grupp", () => {
@@ -68,8 +122,8 @@ describe("planCopyEdits", () => {
     const copies = copiesOf("a", 2, 10000);
     copies[1].purchasePrice = null;
     const plan = planCopyEdits(lots, copies);
-    expect(plan.patches).toEqual([{ lot: lots[0], quantity: 1, purchasePrice: 10000 }]);
-    expect(plan.creates).toEqual([{ lot: lots[0], quantity: 1, purchasePrice: null }]);
+    expect(plan.patches).toEqual([{ lot: lots[0], quantity: 1, purchasePrice: 10000, ...RAW }]);
+    expect(plan.creates).toEqual([{ lot: lots[0], quantity: 1, purchasePrice: null, ...RAW }]);
     // ⛔ Aldrig 0 — noll betyder "fick gratis".
     expect(plan.creates[0].purchasePrice).not.toBe(0);
   });
@@ -77,7 +131,7 @@ describe("planCopyEdits", () => {
   it("hela köpet får ett nytt pris ⇒ ETT patch, ingen ny rad", () => {
     const lots = [lot("a", 2, 10000)];
     const plan = planCopyEdits(lots, copiesOf("a", 2, 25000));
-    expect(plan.patches).toEqual([{ lot: lots[0], quantity: 2, purchasePrice: 25000 }]);
+    expect(plan.patches).toEqual([{ lot: lots[0], quantity: 2, purchasePrice: 25000, ...RAW }]);
     expect(plan.creates).toEqual([]);
   });
 
@@ -96,11 +150,11 @@ describe("planCopyEdits", () => {
     const plan = planCopyEdits(lots, copies);
     // Båda köpen skrivs om först …
     expect(plan.patches).toEqual([
-      { lot: lots[0], quantity: 1, purchasePrice: 10000 },
-      { lot: lots[1], quantity: 1, purchasePrice: 30000 },
+      { lot: lots[0], quantity: 1, purchasePrice: 10000, ...RAW },
+      { lot: lots[1], quantity: 1, purchasePrice: 30000, ...RAW },
     ]);
     // … och först därefter läggs det utbrutna exemplaret till.
-    expect(plan.creates).toEqual([{ lot: lots[0], quantity: 1, purchasePrice: 25000 }]);
+    expect(plan.creates).toEqual([{ lot: lots[0], quantity: 1, purchasePrice: 25000, ...RAW }]);
   });
 
   it("räknar bort över flera köp i samma vara", () => {
@@ -112,8 +166,8 @@ describe("planCopyEdits", () => {
     const plan = planCopyEdits(lots, copies);
     expect(plan.removed).toBe(3);
     expect(plan.patches).toEqual([
-      { lot: lots[0], quantity: 1, purchasePrice: 10000 },
-      { lot: lots[1], quantity: 1, purchasePrice: 20000 },
+      { lot: lots[0], quantity: 1, purchasePrice: 10000, ...RAW },
+      { lot: lots[1], quantity: 1, purchasePrice: 20000, ...RAW },
     ]);
   });
 });
