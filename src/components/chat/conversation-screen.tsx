@@ -7,15 +7,6 @@ import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
 const TAB_BAR_PX = 64;
 const MIN_PX = 240;
 /**
- * Tangentbordet glider upp på ~0,2–0,25 s. iOS `keyboardWillShow` fyrar FÖRE
- * animationen och bär slutlig höjd, så en lika lång övergång gör att skrivfältet
- * följer med upp i stället för att hoppa dit på en bildruta. Android fyrar först
- * när tangentbordet redan är uppe — kortare tid gör att vi hinner ifatt.
- */
-const KEYBOARD_EASE = "cubic-bezier(0.17, 0.59, 0.4, 1)";
-const KEYBOARD_MS = 200;
-
-/**
  * Samtalets skal: en kolumn med EXAKT den höjd som finns kvar under skalets
  * chrome, så att meddelandelistan scrollar internt och skrivfältet alltid står
  * längst ner — ovanför bottenflikarna, och ovanför tangentbordet när det är uppe.
@@ -32,6 +23,12 @@ const KEYBOARD_MS = 200;
  * nedifrån: innehåll som ligger i toppen står stilla (som det ska), och en lista
  * som står vid botten dras med av bottenpinningen i conversation-view.
  *
+ * ⛔ **Höjden ÖVERGÅR INTE.** Att animera den la en layout- och målningsrunda på
+ * hela listan i varje bildruta — hackigt i WebView:en, rapporterat två gånger.
+ * Höjden sätts på EN bildruta och conversation-view glider i stället skrivfältet
+ * (och, när listan stod vid botten, bubblorna) på plats med en transform, som
+ * kompositorn klarar utan att röra layouten.
+ *
  * Tangentbord uppe: flikraden är antingen dold (webben, BottomTabs gömmer sig
  * själv) eller täckt (native, `Keyboard resize: none`) → dess klarering dras
  * inte av då, annars står skrivfältet 64 px ovanför tangentbordet.
@@ -43,10 +40,6 @@ export function ConversationScreen({ children }: { children: ReactNode }) {
   const kb = useKeyboardHeight(true);
   const [px, setPx] = useState<number | null>(null);
   const [withTabs, setWithTabs] = useState(true);
-  // Första mätningen sätter höjden från "ingen höjd" — den får INTE animeras
-  // (kolumnen vek ihop sig synligt vid inträdet). Övergången slås på efteråt,
-  // och bara när användaren inte bett om mindre rörelse.
-  const [animate, setAnimate] = useState(false);
 
   useEffect(() => {
     const compute = () => {
@@ -63,13 +56,6 @@ export function ConversationScreen({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("resize", compute);
   }, [kb]);
 
-  useEffect(() => {
-    if (px == null || animate) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const id = window.requestAnimationFrame(() => setAnimate(true));
-    return () => window.cancelAnimationFrame(id);
-  }, [px, animate]);
-
   return (
     <div
       ref={ref}
@@ -83,7 +69,6 @@ export function ConversationScreen({ children }: { children: ReactNode }) {
               : `${px}px`,
         // Före mätningen: något rimligt så första bilden inte är en tom remsa.
         minHeight: px == null ? "60dvh" : undefined,
-        transition: animate ? `height ${KEYBOARD_MS}ms ${KEYBOARD_EASE}` : undefined,
       }}
     >
       {children}
