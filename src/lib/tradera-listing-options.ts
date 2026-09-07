@@ -126,10 +126,14 @@ export function cheapestShippingKr(costs: readonly number[]): number {
 }
 
 /**
- * Paketstorlekar säljaren kan välja, i METER (samma enhet som Traderas
- * `packageRequirements`). Talen är inte påhittade: de tre är precis de format
- * Traderas egna fraktprodukter är byggda kring — brev/A4-formatet, skokartongen
- * och den långa lådan.
+ * Traderas EGNA paketstorlekar, i METER (samma enhet som `packageRequirements`).
+ *
+ * ⛔ TALEN ÄR TRADERAS, INTE VÅRA — verifierade mot deras hjälpsidor 2026-09-07
+ * (tradera.com/support/se/posts/fler-exempel-pa-matt-foer-large-paket/):
+ * Small 34×24×7, Medium 60×40×20, Large 120×40×40 cm. Samma tre steg som deras
+ * egen fraktväljare ("Välj storlek (Small, Medium eller Large)"), och de
+ * filtrerar på samma sätt: "När du väljer Large så kommer PostNord automatiskt
+ * att döljas eftersom deras mått är för små." Hitta aldrig på egna mått här.
  *
  * Storleken skickas ALDRIG till Tradera (fraktraden bär bara vikt) — den
  * FILTRERAR vilka fraktsätt som ens går att välja, så att man inte köper en

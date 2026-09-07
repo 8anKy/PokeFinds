@@ -36,6 +36,12 @@ export interface ShippingOption {
   tracked: boolean;
   /** Hämtas hos ombud (i stället för att komma hem i brevlådan). */
   servicePoint: boolean;
+  /**
+   * Ersätts försändelsen om den kommer bort? Tradera skriver ut varningen på
+   * sina egna fraktkort ("Varan är inte försäkrad") — den skillnaden mellan
+   * 22 kr och 55 kr är hela poängen med raden.
+   */
+  insured: boolean;
   minDays: number | null;
   maxDays: number | null;
   /** Traderas mått-/viktkrav i METER. Avgör vilka paket produkten tar. */
@@ -72,6 +78,7 @@ interface RawProduct {
     servicePoint?: boolean;
     isTraceable?: boolean;
     estimatedDeliveryTime?: { minWeekdays?: number; maxWeekdays?: number } | null;
+    insurance?: { hasReimbursementUpToPackageCost?: boolean } | null;
   } | null;
 }
 
@@ -187,6 +194,7 @@ export function normalizeShippingOptions(raw: unknown): ShippingWeightSpan[] {
         priceKr: p.price,
         tracked: p.deliveryInformation?.isTraceable === true,
         servicePoint: p.deliveryInformation?.servicePoint === true,
+        insured: p.deliveryInformation?.insurance?.hasReimbursementUpToPackageCost === true,
         minDays: typeof eta?.minWeekdays === "number" && eta.minWeekdays > 0 ? eta.minWeekdays : null,
         maxDays: typeof eta?.maxWeekdays === "number" && eta.maxWeekdays > 0 ? eta.maxWeekdays : null,
         limits: p.packageRequirements ?? {},

@@ -491,6 +491,9 @@ export function SellSheet({
       o.tracked ? t("sellShipTracked") : t("sellShipUntracked"),
       o.servicePoint ? t("sellShipServicePoint") : t("sellShipMailbox"),
     ];
+    // Tradera skriver själva ut varningen på sina fraktkort; utan den ser
+    // 22-kronorsfrakten bara ut som "billigast".
+    if (!o.insured) parts.push(t("sellShipNotInsured"));
     if (o.minDays != null) {
       parts.push(
         o.maxDays != null && o.maxDays !== o.minDays
@@ -1007,49 +1010,54 @@ export function SellSheet({
                       vi inte redan vet den. Ett löst kort i fodral och kuvert väger
                       alltid under 50 g; en ETB, en display och en box gör inte det,
                       så sealed får väljaren öppen. Raden går alltid att öppna. */}
-                  {/* PAKETETS FORMAT. Måtten är inte påhittade — de tre är
-                      precis de format Traderas egna fraktprodukter är byggda
-                      kring, och valet FILTRERAR listan nedan så att man inte
-                      köper en brevfrakt till en boosterbox. */}
-                  <div className="mb-3 flex flex-wrap gap-2">
-                    {PACKAGE_SIZE_KEYS.map((size) => (
-                      <Chip
-                        key={size}
-                        active={packageSize === size}
-                        onClick={() => {
-                          setPackageSize(size);
-                          // De valda produkterna kanske inte tar det nya
-                          // formatet — behåll bara dem som gör det.
-                          setShippingPicks((prev) =>
-                            currentSpan
-                              ? prev.filter((p) =>
-                                  optionsForPackage(currentSpan.options, size).some(
-                                    (o) =>
-                                      o.productId === p.productId && o.providerId === p.providerId
+                  {/* PAKETETS FORMAT — Traderas egna Small/Medium/Large, samma
+                      tre steg som deras fraktväljare, och de filtrerar listan
+                      nedan likadant. Precis som vikten frågas den BARA när vi
+                      inte redan vet svaret: ett löst kort i fodral och kuvert är
+                      alltid Small (ägaren 2026-09-07). */}
+                  {(showWeights || !isSingle) && (
+                    <div className="mb-3 flex flex-wrap gap-2">
+                      {PACKAGE_SIZE_KEYS.map((size) => (
+                        <Chip
+                          key={size}
+                          active={packageSize === size}
+                          onClick={() => {
+                            setPackageSize(size);
+                            // De valda produkterna kanske inte tar det nya
+                            // formatet — behåll bara dem som gör det.
+                            setShippingPicks((prev) =>
+                              currentSpan
+                                ? prev.filter((p) =>
+                                    optionsForPackage(currentSpan.options, size).some(
+                                      (o) =>
+                                        o.productId === p.productId && o.providerId === p.providerId
+                                    )
                                   )
-                                )
-                              : []
-                          );
-                        }}
-                      >
-                        <span className="block leading-tight">
-                          {t(`sellSize${size}` as "sellSizeSMALL")}
-                          <span
-                            className={cn(
-                              "block text-[10px] font-medium",
-                              packageSize === size ? "text-surface/70" : "text-ink-faint"
-                            )}
-                          >
-                            {packageSizeLabel(size)}
+                                : []
+                            );
+                          }}
+                        >
+                          <span className="block leading-tight">
+                            {t(`sellSize${size}` as "sellSizeSMALL")}
+                            <span
+                              className={cn(
+                                "block text-[10px] font-medium",
+                                packageSize === size ? "text-surface/70" : "text-ink-faint"
+                              )}
+                            >
+                              {packageSizeLabel(size)}
+                            </span>
                           </span>
-                        </span>
-                      </Chip>
-                    ))}
-                  </div>
+                        </Chip>
+                      ))}
+                    </div>
+                  )}
                   {weightKg != null && (
                     <div className="mb-2 flex items-center gap-2 text-xs">
                       <span className="text-ink-muted">
                         {t("sellWeightIs", { weight: weightLabel(weightKg) })}
+                        {" · "}
+                        {t("sellPackageIs", { size: t(`sellSize${packageSize}` as "sellSizeSMALL") })}
                       </span>
                       <button
                         type="button"
