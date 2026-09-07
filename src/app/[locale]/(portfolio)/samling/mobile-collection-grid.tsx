@@ -336,6 +336,12 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
 
   /** Antal exemplar som är ibockade för borttagning. */
   const removeCount = copies.filter((c) => c.remove).length;
+  /**
+   * MARKERINGSLÄGET ÄR HÄRLETT, INTE ETT EGET STATE (ägaren 2026-09-07):
+   * "är alla omarkerade är läget inte längre aktivt förrän man håller in igen".
+   * Räknar man det ur markeringarna KAN de två aldrig gå isär.
+   */
+  const removeMode = removeCount > 0;
   /** Något ändrat på ett exemplar som INTE ska bort? */
   const copiesChanged = copies.some(
     (c) => !c.remove && copyDiffers(c, copyLots?.find((l) => l.id === c.lotId))
@@ -393,13 +399,21 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
     }
   }
 
-  /** Ett vanligt tryck byter exemplar — men inte när långtrycket redan svarat. */
+  /**
+   * Ett vanligt tryck — men inte när långtrycket redan svarat.
+   *
+   * ⛔ I MARKERINGSLÄGET MARKERAR TRYCKET, det byter inte exemplar. Att behöva
+   * hålla in vart och ett var hela klagomålet: håll in EN gång, tryck sedan på
+   * resten (ägaren 2026-09-07). Ett andra tryck ångrar, och när det sista
+   * markerade släpps faller läget bort av sig självt — se `removeMode`.
+   */
   function pickCopy(index: number) {
     if (copyLongPressed.current) {
       copyLongPressed.current = false;
       return;
     }
-    setCopyIndex(index);
+    if (removeMode) toggleCopyRemove(index);
+    else setCopyIndex(index);
   }
 
   /**
@@ -543,14 +557,18 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
         className={cn(
           "mb-3 flex items-center justify-between gap-2",
           selectMode &&
-            "hairline-b sticky z-20 -mx-2.5 bg-surface/95 px-2.5 py-2 backdrop-blur-md sm:-mx-6 sm:px-6"
+            "hairline-b sticky top-0 z-20 -mx-2.5 bg-surface px-2.5 pb-2 sm:-mx-6 sm:px-6"
         )}
-        // ⛔ `top-0` ÄR VYPORTENS KANT, INTE INNEHÅLLETS (ägaren 2026-09-07):
-        // klockan och batteriet la sig över raden. Sticky mäter mot scrollytan
-        // och bryr sig inte om att body har `padding-top: env(safe-area-inset-top)`
-        // — offseten måste bära safe-arean själv. Inline style, inte ett
+        // ⛔ SAFE-AREAN LIGGER I PADDINGEN, INTE I `top` (ägaren 2026-09-07).
+        // Sticky mäter mot vyportens kant och bryr sig inte om att body har
+        // `padding-top: env(safe-area-inset-top)`. Med `top: <safe-area>` hamnade
+        // raden rätt men lämnade en GENOMSKINLIG remsa ovanför sig, där korten
+        // rullade förbi under klockan. Med `top: 0` + paddingen inuti spänner
+        // elementets egen svarta bakgrund hela vägen upp. Inline style, inte ett
         // arbiträrt Tailwind-värde: `calc()` med mellanslag tappas TYST där.
-        style={selectMode ? { top: "calc(env(safe-area-inset-top) + 0.5rem)" } : undefined}
+        style={
+          selectMode ? { paddingTop: "calc(env(safe-area-inset-top) + 0.5rem)" } : undefined
+        }
       >
         {selectMode ? (
           <>
@@ -875,6 +893,17 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
         onClose={closeCopySheet}
         title={t("gridCopiesTitle")}
         closeLabel={tc("cancel")}
+        // Vägen ut ur markeringsläget utan att scrolla till foten. Samma
+        // skrivning som fotknappen — det finns bara ETT sätt att spara.
+        headerAction={
+          removeMode
+            ? {
+                label: t("gridCopiesSaveRemove", { count: removeCount }),
+                onClick: () => void applyCopyChanges(),
+                tone: "danger",
+              }
+            : undefined
+        }
         panelClassName="sm:mx-auto sm:max-w-md"
         footer={
           <BottomSheetCta
@@ -968,7 +997,9 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
           )}
         </div>
 
-        <p className="mb-4 text-xs text-ink-muted">{t("gridCopiesHint")}</p>
+        <p className="mb-4 text-xs text-ink-muted">
+          {removeMode ? t("gridCopiesHintRemove") : t("gridCopiesHint")}
+        </p>
 
         {activeCopy && (
           <div className={cn("space-y-5", activeCopy.remove && "opacity-50")}>

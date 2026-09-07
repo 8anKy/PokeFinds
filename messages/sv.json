@@ -542,7 +542,7 @@
     "sellGrade": "Betyg",
     "sellGradingNone": "Ograderat",
     "gridCopiesTitle": "Hantera exemplar",
-    "gridCopiesHint": "Välj ett exemplar högst upp och ändra dess uppgifter. Håll in ett exemplar för att markera det för borttagning. Ändrar du något delas köpet upp — varje exemplar blir sin egen post.",
+    "gridCopiesHint": "Tryck på ett exemplar för att ändra det, håll in för att markera det för borttagning. Ett ändrat exemplar blir en egen post.",
     "gridCopyLabel": "Exemplar {n}",
     "gridCopyOf": "Exemplar {n} av {total}",
     "gridCopyRemove": "Ta bort det här exemplaret",
@@ -554,7 +554,8 @@
     "gridSectionCondition": "Skick",
     "gridSectionGrading": "Gradering",
     "gridGradingNone": "Ograderat",
-    "gridGradeLabel": "Betyg"
+    "gridGradeLabel": "Betyg",
+    "gridCopiesHintRemove": "Tryck för att markera fler, tryck igen för att ångra."
   },
   "Legal": {
     "lastUpdated": "Senast uppdaterad: {date}"

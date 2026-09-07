@@ -31,8 +31,12 @@ export interface BottomSheetProps {
   onClose: () => void;
   /** Skärmläsaretikett för den osynliga stäng-ytan bakom panelen. */
   closeLabel: string;
-  /** Valfri textknapp längst till höger i rubrikraden ("Rensa"). */
-  headerAction?: { label: string; onClick: () => void };
+  /**
+   * Valfri textknapp längst till höger i rubrikraden ("Rensa").
+   * `tone: "danger"` för en åtgärd som tar bort något — då är den röd, inte
+   * diskret grå, för en knapp som raderar får aldrig se ut som en bisak.
+   */
+  headerAction?: { label: string; onClick: () => void; tone?: "default" | "danger" };
   children: ReactNode;
   /** Fast fot. Utelämnas den får arket ingen fot alls. */
   footer?: ReactNode;
@@ -346,7 +350,12 @@ export function BottomSheet({
               <button
                 type="button"
                 onClick={headerAction.onClick}
-                className="text-xs font-medium text-ink-faint transition-colors hover:text-ink"
+                className={cn(
+                  "text-xs font-semibold transition-colors",
+                  headerAction.tone === "danger"
+                    ? "text-fall hover:text-fall/80"
+                    : "font-medium text-ink-faint hover:text-ink"
+                )}
               >
                 {headerAction.label}
               </button>
