@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { FieldError, Label, Select, Textarea } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
-import { IconBookmark, IconFlag, IconHeart } from "@/components/ui/icons";
+import { IconBookmark, IconChevronDown, IconFlag, IconHeart } from "@/components/ui/icons";
 import { ContactButton } from "./contact-button";
 import { useForumViewer } from "./use-forum-viewer";
 
@@ -213,6 +213,8 @@ export function ThreadActions({
   // huvudåtgärden i full bredd, och allt som kräver behörighet i EN ram.
   const showListingControls = !!listingKind && (isOwner || (isModerator && status === "ACTIVE"));
   const showDanger = isOwner || isModerator;
+  /** Ägarens statusväljare — den enda grenen med ett formulärfält i raden. */
+  const ownerStatus = showListingControls && isOwner;
 
   return (
     <div className="space-y-3">
@@ -255,46 +257,75 @@ export function ThreadActions({
       />
 
       {(showListingControls || showDanger) && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-surface-border p-3">
-          {showListingControls &&
-            (isOwner ? (
-              <>
-                <Label htmlFor="listingStatus" className="mb-0">
-                  {t("statusLabel")}
-                </Label>
-                <Select
-                  id="listingStatus"
-                  value={status}
-                  disabled={busy}
-                  onChange={(e) => void changeStatus(e.target.value as ListingStatusValue)}
-                  className="w-auto min-w-[10rem]"
+        <div className="rounded-xl border border-surface-border p-3">
+          {ownerStatus ? (
+            <>
+              {/* Etiketten på EGEN rad: inklistrad bredvid väljaren blev raden tre
+                  olika höga saker bredvid varandra, med ett tomrum i mitten. */}
+              <Label htmlFor="listingStatus" className="mb-1.5 text-xs text-ink-muted">
+                {t("statusLabel")}
+              </Label>
+              <div className="flex items-center gap-2">
+                {/* ⛔ SAMMA HÖJD ÄR HELA POÄNGEN: `Select` är h-10 och `Button size="sm"`
+                    är h-8 — sida vid sida såg de ut som ett misstag (ägaren 2026-09-07).
+                    Knappen är därför `md` här, aldrig `sm`. */}
+                <div className="relative min-w-0 flex-1">
+                  <Select
+                    id="listingStatus"
+                    value={status}
+                    disabled={busy}
+                    onChange={(e) => void changeStatus(e.target.value as ListingStatusValue)}
+                    className="pr-9"
+                  >
+                    {LISTING_STATUSES.map((s) => (
+                      <option key={s} value={s}>
+                        {t(LISTING_STATUS_KEYS[s])}
+                      </option>
+                    ))}
+                  </Select>
+                  {/* `appearance-none` tar bort systemets pil — utan den här läses
+                      väljaren som ett textfält. */}
+                  <IconChevronDown
+                    size={16}
+                    aria-hidden="true"
+                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-faint"
+                  />
+                </div>
+                {showDanger && (
+                  <Button
+                    variant="danger"
+                    size="md"
+                    className="shrink-0"
+                    onClick={() => setDeleteOpen(true)}
+                  >
+                    {isModerator && !isOwner ? t("deleteModerator") : t("delete")}
+                  </Button>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              {showListingControls && (
+                <Button
+                  variant="secondary"
+                  size="md"
+                  loading={busy}
+                  onClick={() => void changeStatus("CLOSED")}
                 >
-                  {LISTING_STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {t(LISTING_STATUS_KEYS[s])}
-                    </option>
-                  ))}
-                </Select>
-              </>
-            ) : (
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={busy}
-                onClick={() => void changeStatus("CLOSED")}
-              >
-                {t("closeListing")}
-              </Button>
-            ))}
-          {showDanger && (
-            <Button
-              variant="danger"
-              size="sm"
-              className="ml-auto"
-              onClick={() => setDeleteOpen(true)}
-            >
-              {isModerator && !isOwner ? t("deleteModerator") : t("delete")}
-            </Button>
+                  {t("closeListing")}
+                </Button>
+              )}
+              {showDanger && (
+                <Button
+                  variant="danger"
+                  size="md"
+                  className="ml-auto"
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  {isModerator && !isOwner ? t("deleteModerator") : t("delete")}
+                </Button>
+              )}
+            </div>
           )}
         </div>
       )}
