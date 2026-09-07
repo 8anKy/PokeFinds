@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
+import { useKeyboardInset } from "@/hooks/use-keyboard-inset";
 import { apiErrorCode, apiFetch } from "@/lib/client-api";
 import { FORUM_RULES_CODE, PROFANITY_CODE } from "@/lib/profanity";
 import { requestForumRules } from "./forum-rules-gate";
@@ -25,6 +26,12 @@ export function Replies({ postId, initial }: { postId: string; initial: CommentD
   const router = useRouter();
   const { toast } = useToast();
   const { loggedIn, viewer, state } = useForumViewer([postId]);
+  // Svarsfältet är sidans NEDERSTA element: i appen läggs tangentbordet ovanpå
+  // webbvyn (Keyboard resize:"none") utan att sidan krymper, så fältet hamnar
+  // bakom det och det finns ingen rullmån kvar att lyfta upp det med. Hooken ger
+  // rullmånen (padding) och rullar fältet ovanför tangentbordet — samma som
+  // /forum/ny. Se hooks/use-keyboard-inset.ts.
+  const kbInset = useKeyboardInset();
   const [comments, setComments] = useState<CommentDto[]>(initial);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -116,6 +123,7 @@ export function Replies({ postId, initial }: { postId: string; initial: CommentD
       {loggedIn === null ? null : loggedIn ? (
         <form
           className="space-y-3"
+          style={kbInset ? { paddingBottom: kbInset } : undefined}
           onSubmit={(e) => {
             e.preventDefault();
             void submit();
