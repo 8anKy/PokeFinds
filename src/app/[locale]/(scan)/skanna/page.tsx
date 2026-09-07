@@ -2387,6 +2387,15 @@ function Scanner() {
         open={sellOpen}
         elevated
         onClose={() => setSellOpen(false)}
+        // ⛔ KLAR ÄR INTE SAMMA SAK SOM AVBRUTEN (ägaren 2026-09-07). Att stänga
+        // arket efter en uppläggning lämnade en tillbaka i granskningsvyn, som
+        // frågade "Sälj" eller "Lägg till i samlingen" om ett kort som just gjort
+        // båda. Nu lämnar vi skannern: till tråden om vi skapade en, annars
+        // forumet — dit annonsen hör hemma.
+        onDone={({ forumPath }) => {
+          setSellOpen(false);
+          router.push(forumPath ?? "/forum");
+        }}
       />
 
       {/* Betalvägg när gratiskvoten är slut. Samma ark-form som resten av

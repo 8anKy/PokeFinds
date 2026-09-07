@@ -21,7 +21,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { apiFetch } from "@/lib/client-api";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -258,11 +258,20 @@ export function SellSheet({
   items,
   open,
   onClose,
+  onDone,
   elevated = false,
 }: {
   items: SellItem[];
   open: boolean;
   onClose: () => void;
+  /**
+   * Arket stängdes EFTER att minst en annons lagts upp — anroparen bestämmer
+   * vart man hamnar. ⛔ Utan den här kastades den som sålt ur skannern tillbaka
+   * till granskningsvyn, som frågade "Sälj eller lägg till i samlingen?" om ett
+   * kort som just gjort båda (ägaren 2026-09-07). `forumPath` är tråden vi
+   * skapade, `null` när forumkrysset var av.
+   */
+  onDone?: (dest: { forumPath: string | null }) => void;
   /** Arket öppnas ovanpå en helskärmsvärd (skannern ligger z-[60]). */
   elevated?: boolean;
 }) {
@@ -332,6 +341,8 @@ export function SellSheet({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
+  /** Senast skapade forumtråden — dit `onDone` skickar den som är klar. */
+  const [forumPostId, setForumPostId] = useState<string | null>(null);
   const [forumNote, setForumNote] = useState<string | null>(null);
 
   const isAuction = listingType === "AUCTION";
@@ -458,6 +469,7 @@ export function SellSheet({
     setVatOn(false);
     setVatRate(DEFAULT_VAT_RATE);
     setAlsoForum(false);
+    setForumPostId(null);
     loadItem(items[0] ?? null);
     // ⛔ BARA `open` I BEROENDENA. `items` är typiskt en array-literal hos
     // anroparen och byter identitet vid varje rendering — med den i listan
@@ -465,11 +477,20 @@ export function SellSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  /**
+   * Stäng arket. Har något faktiskt lagts upp är man KLAR, inte avbruten —
+   * då får anroparen bestämma vart man hamnar (se `onDone`).
+   */
+  function finish() {
+    if (listed.size > 0) onDone?.({ forumPath: forumPostId ? `/forum/t/${forumPostId}` : null });
+    onClose();
+  }
+
   /** Klar med det här kortet → nästa som INTE redan har en annons. */
   function nextItem() {
     const next = items.findIndex((it, i) => i > index && !listed.has(it.key));
     if (next === -1) {
-      onClose();
+      finish();
       return;
     }
     goTo(next);
@@ -640,7 +661,7 @@ export function SellSheet({
       const data = (await res.json()) as { key: string; thumbKey: string | null };
       keys.push({ key: data.key, thumbKey: data.thumbKey });
     }
-    await apiFetch("/api/community/posts", {
+    const created = await apiFetch<{ id: string }>("/api/community/posts", {
       method: "POST",
       body: {
         groupSlug: MARKET_GROUP_SLUG,
@@ -654,6 +675,7 @@ export function SellSheet({
         traderaUrl,
       },
     });
+    return created.id;
   }
 
   async function submit() {
@@ -699,7 +721,7 @@ export function SellSheet({
 
       if (alsoForum) {
         try {
-          await crossPostToForum(url);
+          setForumPostId(await crossPostToForum(url));
           setForumNote(t("sellForumPosted"));
         } catch (e) {
           setForumNote(e instanceof Error ? e.message : t("sellForumFailed"));
@@ -727,7 +749,7 @@ export function SellSheet({
   return (
     <BottomSheet
         open={open && row != null}
-        onClose={onClose}
+        onClose={finish}
         title={
           items.length > 1
             ? t("sellTitleOfN", { index: index + 1, total: items.length })
@@ -1354,6 +1376,7 @@ export function SellButton({
   size?: "sm" | "md";
 }) {
   const t = useTranslations("Collection");
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   // Ny array-identitet vid varje rendering hade startat om arket mitt i (effekten
   // som laddar högen tittar på `items`) — därför en stabil referens per post.
@@ -1364,7 +1387,17 @@ export function SellButton({
       <Button size={size} variant="secondary" className={className} onClick={() => setOpen(true)}>
         {t("sell")}
       </Button>
-      <SellSheet items={items} open={open} onClose={() => setOpen(false)} />
+      <SellSheet
+        items={items}
+        open={open}
+        onClose={() => setOpen(false)}
+        // Härifrån (portföljen) står man kvar där man var — UTOM när vi just skapade
+        // en forumtråd: den vill man se.
+        onDone={({ forumPath }) => {
+          setOpen(false);
+          if (forumPath) router.push(forumPath);
+        }}
+      />
     </>
   );
 }
