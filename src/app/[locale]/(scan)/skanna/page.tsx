@@ -931,10 +931,15 @@ function Scanner() {
   /** "Sälj" i granskningsfoten: hela brickan på väg till Tradera-arket. */
   const [sellItems, setSellItems] = useState<SellItem[]>([]);
   const [sellOpen, setSellOpen] = useState(false);
-  const [preparingSell, setPreparingSell] = useState(false);
   /** Har brickan redan lagts till? Läses av `removeScan`, som har tomma
    *  beroenden — en state-läsning där hade varit inaktuell. */
   const addedRef = useRef(false);
+  /**
+   * Skanning-id → samlingspostens id, för de kort som redan HAR en post
+   * (skapad av en Tradera-annons). ⛔ Utan den la "Lägg till alla" efteråt en
+   * ANDRA post på samma kort och antalet blev 2.
+   */
+  const collectionIds = useRef<Map<string, string>>(new Map());
   const [quota, setQuota] = useState<ScanQuota | null>(null);
   /** Betalväggen när gratiskvoten tar slut. Öppnas av 429 ELLER av slutaren. */
   const [limitOpen, setLimitOpen] = useState(false);
@@ -2104,6 +2109,12 @@ function Scanner() {
   async function addMatchedToCollection(): Promise<{ item: { id: string }; scan: ScanItem }[]> {
     const created: { item: { id: string }; scan: ScanItem }[] = [];
     for (const s of matched) {
+      // Redan skapad av en annons i säljarket — lägg inte till en gång till.
+      const existing = collectionIds.current.get(s.id);
+      if (existing) {
+        created.push({ item: { id: existing }, scan: s });
+        continue;
+      }
       try {
         const res = await fetch("/api/collection", {
           method: "POST",
@@ -2124,6 +2135,7 @@ function Scanner() {
         });
         if (res.ok) {
           const item = (await res.json()) as { id: string };
+          collectionIds.current.set(s.id, item.id);
           created.push({ item, scan: s });
           // Oförändrad i samlingen = bekräftat facit (servern vaktar så att en
           // tidigare KORRIGERING aldrig degraderas till bekräftelse).
@@ -2180,34 +2192,63 @@ function Scanner() {
    * BILD som annonsens framsida. Att be någon fota om ett kort de nyss fotat
    * är att begära samma arbete två gånger.
    */
-  async function sellAll() {
-    if (matched.length === 0 || preparingSell || guestBounced()) return;
-    setPreparingSell(true);
-    try {
-      const created = await addMatchedToCollection();
-      setAddedCount(created.length);
-      if (created.length === 0) {
-        toast({ title: t("sellPrepFailed"), variant: "error" });
-        return;
-      }
-      setSellItems(
-        created.map(({ item, scan }) => ({
-          collectionItemId: item.id,
-          name: scan.match!.name,
-          setName: scan.match!.setName ?? null,
-          imageUrl: scan.match!.imageUrl ?? null,
-          condition: scan.condition,
-          language: scan.language,
-          estimatedValue: scan.match!.estimatedValue ?? null,
-          isSingle: true, // skannern hittar alltid ett KORT, aldrig en förseglad produkt
-          slug: scan.match!.slug ?? null,
-          photo: scan.captured,
-        }))
-      );
-      setSellOpen(true);
-    } finally {
-      setPreparingSell(false);
-    }
+  /**
+   * Skapar samlingsposten för EN skanning — anropas av säljarket först när
+   * annonsen faktiskt läggs upp. Memoiserad per skanning: två annonsförsök på
+   * samma kort ger en post, inte två.
+   */
+  const ensureCollectionItem = useCallback(async (scan: ScanItem): Promise<string> => {
+    const existing = collectionIds.current.get(scan.id);
+    if (existing) return existing;
+    const res = await fetch("/api/collection", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cardId: scan.match!.cardId,
+        ...(scan.match!.productId ? { productId: scan.match!.productId } : {}),
+        quantity: scan.quantity,
+        condition: scan.condition,
+        language: scan.language,
+        ...(scan.match!.estimatedValue != null
+          ? { estimatedValue: scan.match!.estimatedValue }
+          : {}),
+      }),
+    });
+    if (!res.ok) throw new Error("collection");
+    const item = (await res.json()) as { id: string };
+    collectionIds.current.set(scan.id, item.id);
+    // Posten finns nu ⇒ ett "Ta bort" i remsan är städning, inte ett underkännande.
+    addedRef.current = true;
+    return item.id;
+  }, []);
+
+  /**
+   * "Sälj" på hela brickan: öppna säljarket med korten i kö, ett i taget, med
+   * SKANNERNS EGEN BILD som annonsens framsida.
+   *
+   * ⛔ INGENTING LÄGGS I SAMLINGEN HÄR. Posten skapas per kort när annonsen
+   * skapas (ensureCollectionItem) — den som öppnar arket och ångrar sig ska
+   * hitta granskningsvyn precis som hen lämnade den, inte en bricka som redan
+   * "lagts till" (ägaren 2026-09-07).
+   */
+  function sellAll() {
+    if (matched.length === 0 || guestBounced()) return;
+    setSellItems(
+      matched.map((scan) => ({
+        key: scan.id,
+        ensureCollectionItemId: () => ensureCollectionItem(scan),
+        name: scan.match!.name,
+        setName: scan.match!.setName ?? null,
+        imageUrl: scan.match!.imageUrl ?? null,
+        condition: scan.condition,
+        language: scan.language,
+        estimatedValue: scan.match!.estimatedValue ?? null,
+        isSingle: true, // skannern hittar alltid ett KORT, aldrig en förseglad produkt
+        slug: scan.match!.slug ?? null,
+        photo: scan.captured,
+      }))
+    );
+    setSellOpen(true);
   }
 
   const detailsItem = detailsId ? scans.find((s) => s.id === detailsId) ?? null : null;
@@ -2304,9 +2345,8 @@ function Scanner() {
           onRemove={removeScan}
           onChoose={chooseCandidate}
           onOpenDetails={setDetailsId}
-          preparingSell={preparingSell}
           onAddAll={() => void addAll()}
-          onSellAll={() => void sellAll()}
+          onSellAll={sellAll}
           onScanMore={() => {
             setScans([]);
             setAddedCount(null);
@@ -3102,8 +3142,6 @@ function ReviewView(props: {
   pendingChoice: number;
   total: number;
   addingAll: boolean;
-  /** Brickan är på väg till säljarket (posterna skapas först). */
-  preparingSell: boolean;
   addedCount: number | null;
   onPatch: (id: string, patch: Partial<ScanItem>) => void;
   onRemove: (id: string) => void;
@@ -3123,7 +3161,6 @@ function ReviewView(props: {
     pendingChoice,
     total,
     addingAll,
-    preparingSell,
     addedCount,
     onPatch,
     onRemove,
@@ -3368,8 +3405,8 @@ function ReviewView(props: {
 
       {/* Sticky botten-CTA */}
       <div className="absolute inset-x-0 bottom-0 border-t border-surface-border bg-surface/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
-          <div>
+        <div className="mx-auto flex max-w-2xl flex-col gap-2.5">
+          <div className="flex items-baseline justify-between gap-4">
             <p className="text-xs text-ink-muted">
               {t("matchedCount", { count: matchedCount })}
               {pendingChoice > 0 && (
@@ -3382,34 +3419,33 @@ function ReviewView(props: {
                 <span className="text-fall"> · {t("noMatchSuffix", { count: noMatchCount })}</span>
               )}
             </p>
-            <p className="text-lg font-semibold text-ink">
-              {t("total")} <span className="tabular-nums text-holo-cyan">{formatPrice(total)}</span>
-            </p>
+            {done && (
+              <p className="flex items-center gap-1 text-xs text-rise">
+                <IconCheck size={13} />
+                {t("cardsAdded", { count: addedCount })}
+              </p>
+            )}
           </div>
-          {done ? (
-            // Klart: bekräftelsen står bredvid summan; knapparna får en egen rad
-            // nedanför (två lika breda, 44 px). Låg de här bredvid summan bröts
-            // "Visa samling" på två rader och knapparna fick olika höjd.
-            <p className="flex items-center gap-1 text-xs text-rise">
-              <IconCheck size={13} />
-              {t("cardsAdded", { count: addedCount })}
-            </p>
-          ) : (
-            <div className="flex items-center gap-2">
-            {/* SÄLJ bredvid tillägget (ägarbeslut 2026-09-07). Den lägger också
-                korten i samlingen — annonsen skrivs tillbaka på posten, och det
-                man säljer äger man tills det är sålt. Sekundär vikt: att lägga
-                till är fortfarande det vanliga. */}
-            <Button
-              variant="outline"
-              onClick={props.onSellAll}
-              loading={preparingSell}
-              disabled={matchedCount === 0 || pendingChoice > 0}
-              className="px-4 disabled:opacity-40"
-            >
-              {t("sellOnTradera")}
-            </Button>
-            <Button
+          <p className="text-lg font-semibold text-ink">
+            {t("total")} <span className="tabular-nums text-holo-cyan">{formatPrice(total)}</span>
+          </p>
+          {!done && (
+            // TVÅ LIKA BREDA KNAPPAR (ägaren 2026-09-07). "Sälj" ensam sa inte
+            // vart kortet tar vägen, och en smal knapp bredvid en bred läste som
+            // en efterhandsknapp. Samma rutnät som klart-läget nedan.
+            <div className="grid grid-cols-2 gap-2.5">
+              {/* Sekundär vikt: att lägga till i samlingen är fortfarande det
+                  vanliga. Etiketten säger VART kortet tar vägen — "Sälj" ensamt
+                  svarade inte på det (ägaren 2026-09-07). */}
+              <Button
+                variant="outline"
+                onClick={props.onSellAll}
+                disabled={matchedCount === 0 || pendingChoice > 0}
+                className="h-12 w-full px-3 text-sm leading-tight disabled:opacity-40"
+              >
+                {t("sellOnTradera")}
+              </Button>
+              <Button
               onClick={props.onAddAll}
               loading={addingAll}
               // ⛔ ETT OBESVARAT VAL BLOCKERAR MASSTILLÄGGET. Alternativet — att
@@ -3421,27 +3457,27 @@ function ReviewView(props: {
               // Disabled = solid dämpad yta i FULL opacitet (ej dimmad teal). Den
               // gamla disabled:opacity-50 på teal-knappen lämnade en ljus cyan
               // "spök"-remsa i WebKit:s compositing-lager när sista kortet togs bort.
-              className="px-5 disabled:bg-surface-overlay disabled:text-ink-faint disabled:opacity-100"
-            >
-              {pendingChoice > 0
-                ? t("chooseFirstN", { count: pendingChoice })
-                : matchedCount > 0
-                  ? t("addToCollectionN", { count: matchedCount })
-                  : t("addToCollection")}
-            </Button>
+                className="h-12 w-full px-3 text-sm leading-tight disabled:bg-surface-overlay disabled:text-ink-faint disabled:opacity-100"
+              >
+                {pendingChoice > 0
+                  ? t("chooseFirstN", { count: pendingChoice })
+                  : matchedCount > 0
+                    ? t("addToCollectionN", { count: matchedCount })
+                    : t("addToCollection")}
+              </Button>
+            </div>
+          )}
+          {done && (
+            <div className="grid grid-cols-2 gap-2.5">
+              <LinkButton href="/samling" variant="outline" className="h-12 w-full whitespace-nowrap px-3">
+                {t("showCollection")}
+              </LinkButton>
+              <Button onClick={props.onScanMore} className="h-12 w-full whitespace-nowrap px-3">
+                {t("scanMore")}
+              </Button>
             </div>
           )}
         </div>
-        {done && (
-          <div className="mx-auto mt-3 grid max-w-2xl grid-cols-2 gap-2.5">
-            <LinkButton href="/samling" variant="outline" className="h-11 w-full whitespace-nowrap px-3">
-              {t("showCollection")}
-            </LinkButton>
-            <Button onClick={props.onScanMore} className="h-11 w-full whitespace-nowrap px-3">
-              {t("scanMore")}
-            </Button>
-          </div>
-        )}
       </div>
     </div>
   );

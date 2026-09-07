@@ -8,6 +8,7 @@ import type { CollectionRow } from "./collection-client";
  */
 export function toSellItem(row: CollectionRow): SellItem {
   return {
+    key: row.id,
     collectionItemId: row.id,
     name: row.name,
     setName: row.setName,

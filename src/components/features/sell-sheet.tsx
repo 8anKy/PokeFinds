@@ -27,7 +27,7 @@ import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
 import { Input, Textarea, Label, FieldError, Checkbox } from "@/components/ui/input";
-import { IconPackage } from "@/components/ui/icons";
+import { IconCheck, IconPackage } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/spinner";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -51,7 +51,20 @@ import { CONDITION_LABELS, LANGUAGE_LABELS } from "@/lib/collection-labels";
  * till korten FÖRST och skickar in id:na hit.
  */
 export interface SellItem {
-  collectionItemId: string;
+  /** Stabil nyckel i kön (samlingspostens id, eller skanningens). */
+  key: string;
+  /** Posten i samlingen, när den redan finns (portföljen). */
+  collectionItemId?: string;
+  /**
+   * Skapar posten FÖRST NÄR annonsen faktiskt läggs upp (skannern).
+   *
+   * ⛔ INGET FÅR LÄGGAS I SAMLINGEN AV ATT MAN TITTAR PÅ SÄLJARKET. Vi la
+   * tidigare in hela brickan när "Sälj" trycktes — den som ångrade sig hade då
+   * korten i samlingen ändå, och granskningsvyn hoppade till "N kort tillagda"
+   * fast ingenting sålts (ägaren 2026-09-07). Anroparen memoiserar id:t så att
+   * ett andra försök på samma kort inte skapar en till post.
+   */
+  ensureCollectionItemId?: () => Promise<string>;
   name: string;
   setName: string | null;
   /** Katalogbilden — bara till huvudet i arket, aldrig till annonsen. */
@@ -70,6 +83,20 @@ export interface SellItem {
    * att be om samma arbete två gånger.
    */
   photo?: string | null;
+}
+
+/** Det som är KORTETS eget i formuläret (allt annat gäller hela högen). */
+interface ItemDraft {
+  price: string;
+  startPrice: string;
+  baseKr: number | null;
+  step: number | null;
+  condition: string;
+  description: string;
+  images: string[];
+  gradeNote: string | null;
+  resultUrl: string | null;
+  forumNote: string | null;
 }
 
 type Translators = {
@@ -235,6 +262,14 @@ export function SellSheet({
 
   /** Vilket kort i högen vi står på. 0 när det bara finns ett. */
   const [index, setIndex] = useState(0);
+  /** Kort som redan fått en annons — bockade i väljaren, hoppas över av "nästa". */
+  const [listed, setListed] = useState<Set<string>>(new Set());
+  /**
+   * Halvfärdiga formulär per kort. ⛔ UTAN DEM RADERAS INMATNINGEN AV ETT BYTE:
+   * den som skriver ett pris på kort 3, kikar på kort 1 och kommer tillbaka ska
+   * hitta sitt pris kvar. Ref, inte state — de ritar ingenting själva.
+   */
+  const drafts = useRef<Map<string, ItemDraft>>(new Map());
   const row = items[Math.min(index, Math.max(0, items.length - 1))] ?? null;
 
   /** En LÖS singel eller en förseglad produkt — styr skick-valen och graderingen. */
@@ -283,9 +318,24 @@ export function SellSheet({
   const loadItem = useCallback(
     (item: SellItem | null) => {
       if (!item) return;
-      const single = item.isSingle;
+      const saved = drafts.current.get(item.key);
+      if (saved) {
+        // Tillbaka till ett kort man redan börjat på — visa det man skrev.
+        setPrice(saved.price);
+        setStartPrice(saved.startPrice);
+        setBaseKr(saved.baseKr);
+        setStep(saved.step);
+        setCondition(saved.condition);
+        setDescription(saved.description);
+        setImages(saved.images);
+        setGradeNote(saved.gradeNote);
+        setResultUrl(saved.resultUrl);
+        setForumNote(saved.forumNote);
+        setError(null);
+        return;
+      }
       const kr = item.estimatedValue != null ? Math.round(item.estimatedValue / 100) : null;
-      const cond = single ? item.condition : "SEALED";
+      const cond = item.isSingle ? item.condition : "SEALED";
       setPrice(kr != null ? String(kr) : "");
       setStartPrice(kr != null ? String(kr) : "");
       setBaseKr(kr);
@@ -305,9 +355,36 @@ export function SellSheet({
     []
   );
 
+  /** Spara undan det man skrivit på kortet man lämnar. */
+  function stashDraft(key: string | undefined) {
+    if (!key) return;
+    drafts.current.set(key, {
+      price,
+      startPrice,
+      baseKr,
+      step,
+      condition,
+      description,
+      images,
+      gradeNote,
+      resultUrl,
+      forumNote,
+    });
+  }
+
+  /** Hoppa till ett kort i högen (väljaren högst upp, eller "nästa"-knappen). */
+  function goTo(next: number) {
+    if (next === index || next < 0 || next >= items.length) return;
+    stashDraft(row?.key);
+    setIndex(next);
+    loadItem(items[next]);
+  }
+
   /** Arket öppnades (eller fick en ny hög) → börja om från första kortet. */
   useEffect(() => {
     if (!open) return;
+    drafts.current.clear();
+    setListed(new Set());
     setIndex(0);
     setListingType("BUY_NOW");
     setDuration(DEFAULT_AUCTION_DURATION);
@@ -323,16 +400,18 @@ export function SellSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  /** Klar med det här kortet → nästa i högen, med samma frakt-/typval kvar. */
+  /** Klar med det här kortet → nästa som INTE redan har en annons. */
   function nextItem() {
-    const next = index + 1;
-    if (next >= items.length) {
+    const next = items.findIndex((it, i) => i > index && !listed.has(it.key));
+    if (next === -1) {
       onClose();
       return;
     }
-    setIndex(next);
-    loadItem(items[next]);
+    goTo(next);
   }
+
+  /** Finns det något kvar att lägga upp efter det här kortet? */
+  const hasMore = items.some((it, i) => i > index && !listed.has(it.key));
 
   /**
    * Fraktalternativen hämtas när arket öppnas. Rutten rör ingen databas (listan
@@ -494,10 +573,16 @@ export function SellSheet({
     setSaving(true);
     setError(null);
     try {
+      // Posten skapas här när anroparen inte redan har en (skannern) — se
+      // ensureCollectionItemId. Kastar den fångas felet av catch nedan.
+      const collectionItemId =
+        row.collectionItemId ?? (row.ensureCollectionItemId ? await row.ensureCollectionItemId() : null);
+      if (!collectionItemId) throw new Error(t("genericFail"));
+
       const { url } = await apiFetch<{ url: string }>("/api/tradera/sell", {
         method: "POST",
         body: {
-          collectionItemId: row!.collectionItemId,
+          collectionItemId,
           listingType,
           ...(isAuction
             ? { startPriceKr: priceKr, durationDays: duration }
@@ -516,6 +601,7 @@ export function SellSheet({
         },
       });
       setResultUrl(url);
+      setListed((prev) => new Set(prev).add(row.key));
       toast({ title: t("sellCreatedToast"), variant: "success" });
 
       if (alsoForum) {
@@ -562,10 +648,13 @@ export function SellSheet({
             <div className="space-y-2.5">
               {/* Huvudknappen är NÄSTA KORT när det finns fler — annars fastnar
                   den som säljer fem kort i "Visa annonsen" fyra gånger i onödan. */}
-              {index + 1 < items.length ? (
+              {hasMore ? (
                 <>
                   <BottomSheetCta onClick={nextItem}>
-                    {t("sellNextItem", { index: index + 2, total: items.length })}
+                    {t("sellNextItem", {
+                      done: listed.size,
+                      total: items.length,
+                    })}
                   </BottomSheetCta>
                   <a
                     href={resultUrl}
@@ -606,6 +695,52 @@ export function SellSheet({
           )
         }
       >
+        {/* KORTVÄLJAREN: hela högen som miniatyrer, och den ligger UTANFÖR
+            resultatgrenen — utan den gick korten bara att nå i tur och ordning,
+            dvs man var tvungen att sälja kort 1 för att ens få se kort 2
+            (ägaren 2026-09-07). Bocken = kortet har redan en annons. */}
+        {items.length > 1 && (
+          <div className="-mx-[18px] mb-5 overflow-x-auto px-[18px]">
+            <div className="flex gap-2">
+              {items.map((it, i) => {
+                const isDone = listed.has(it.key);
+                return (
+                  <button
+                    key={it.key}
+                    type="button"
+                    onClick={() => goTo(i)}
+                    aria-current={i === index}
+                    aria-label={it.name}
+                    className={cn(
+                      "relative h-[68px] w-[52px] shrink-0 overflow-hidden rounded-lg border-2 bg-surface-raised transition-colors",
+                      i === index ? "border-holo-cyan" : "border-transparent opacity-60"
+                    )}
+                  >
+                    {it.photo || it.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={it.photo ?? it.imageUrl!}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        draggable={false}
+                      />
+                    ) : (
+                      <span className="flex h-full w-full items-center justify-center text-ink-faint">
+                        <IconPackage size={16} />
+                      </span>
+                    )}
+                    {isDone && (
+                      <span className="absolute inset-0 flex items-center justify-center bg-surface/70 text-holo-cyan">
+                        <IconCheck size={18} />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {resultUrl ? (
           <div className="space-y-3 pb-2">
             <p className="text-sm text-ink-muted">
