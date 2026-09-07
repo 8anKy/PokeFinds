@@ -6,6 +6,7 @@
  * Schema verifierat mot https://api.tradera.com/v4/swagger/v4/swagger.json
  */
 import { SHIPPING_PROVIDER_ALTERNATIVE } from "./tradera-shipping";
+import { GRADE_ID, GRADING_ISSUER_ID, traderaItemUrl } from "./tradera-listing-options";
 
 const stripQuotes = (v: string) => v.trim().replace(/^["']|["']$/g, "");
 const APP_ID = stripQuotes(process.env.TRADERA_APP_ID ?? "");
@@ -22,7 +23,8 @@ const BASE = "https://api.tradera.com";
 // Köpare inom Sverige (GET /v4/reference-data/accepted-bidder-types: 1=SE, 3=Int, 4=EU).
 // Krävs — utan den svarar API:t "AllowedBuyerRegionInvalid".
 const ACCEPTED_BIDDER_SWEDEN = 1;
-// Språk-attributet för Pokémon-kategorierna (GET .../attribute-definitions).
+// Språk-attributet för Pokémon-kategorierna (GET /v4/categories/{id}/attribute-definitions).
+// Bolag (125) och betyg (126) kommer ur SAMMA svar — se tradera-listing-options.ts.
 const LANGUAGE_ATTRIBUTE_ID = 124;
 
 /** ProductCategory → Traderas Pokémon-kategoriträd (samma ids som tradera-adapter.ts). */
@@ -80,6 +82,10 @@ interface ListingInput {
    */
   vatPercent?: number;
   languageTerm?: string;
+  /** Traderas term för graderingsbolaget ("PSA"), aldrig fri text. */
+  gradingIssuerTerm?: string;
+  /** Traderas term för betyget ("10", "9.5"), aldrig fri text. */
+  gradeTerm?: string;
   images: { data: string; format: number }[]; // första bilden = huvudbild
 }
 
@@ -130,6 +136,14 @@ export async function createTraderaListing(
 ): Promise<{ url: string; itemId?: string }> {
   const h = headers(input);
 
+  // Strukturerade attribut: språk, graderingsbolag och betyg. ⛔ Bara termer ur
+  // Traderas egna `possibleTermValues` — API:t avvisar allt annat.
+  const terms = [
+    input.languageTerm ? { id: LANGUAGE_ATTRIBUTE_ID, values: [input.languageTerm] } : null,
+    input.gradingIssuerTerm ? { id: GRADING_ISSUER_ID, values: [input.gradingIssuerTerm] } : null,
+    input.gradeTerm ? { id: GRADE_ID, values: [input.gradeTerm] } : null,
+  ].filter((t): t is { id: number; values: string[] } => t !== null);
+
   const created = await call("/v4/listings/items", h, {
     title: input.title.slice(0, 50),
     categoryId: input.categoryId,
@@ -143,9 +157,7 @@ export async function createTraderaListing(
     acceptedBidderId: ACCEPTED_BIDDER_SWEDEN,
     shippingOptions: input.shipping.map(shippingPayload),
     ...(input.vatPercent != null ? { vat: input.vatPercent } : {}),
-    ...(input.languageTerm
-      ? { attributeValues: { terms: [{ id: LANGUAGE_ATTRIBUTE_ID, values: [input.languageTerm] }] } }
-      : {}),
+    ...(terms.length > 0 ? { attributeValues: { terms } } : {}),
   });
   const { requestId, itemId } = (await created.json()) as { requestId: number; itemId?: number };
 
@@ -162,7 +174,7 @@ export async function createTraderaListing(
   // itemId från create-svaret = annonsens objektnr → bygg publik URL direkt.
   return {
     url: itemId
-      ? `https://www.tradera.com/item/0/${itemId}`
+      ? traderaItemUrl(itemId)
       : "https://www.tradera.com/my/items/selling",
     itemId: itemId != null ? String(itemId) : undefined,
   };

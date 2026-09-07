@@ -106,8 +106,18 @@ export interface CollectionItemInput {
 
 export async function addCollectionItem(userId: string, input: CollectionItemInput) {
   if (input.cardId) {
-    const card = await prisma.card.findUnique({ where: { id: input.cardId }, select: { id: true } });
+    const card = await prisma.card.findUnique({
+      where: { id: input.cardId },
+      select: { id: true, language: true },
+    });
     if (!card) throw new ServiceError(404, "Kortet hittades inte.");
+    // ⛔ SPRÅKET FÖLJER KORTET NÄR INGEN SÄGER NÅGOT ANNAT (2026-09-07). Kolumnen
+    // defaultar till EN i schemat och ingen av vägarna in (produktsidan,
+    // snabbtillägget, skannern) skickar språk — så varje japansk singel låg inne
+    // som ENGELSK, och Tradera-annonsen skrev ut "Språk: Engelska" på ett japanskt
+    // kort. Katalogen har en EGEN kortrad per språk, alltså är kortets språk ett
+    // faktum medan postens default var en gissning.
+    if (input.language === undefined) input = { ...input, language: card.language };
   }
   if (input.productId) {
     const product = await prisma.product.findUnique({

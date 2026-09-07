@@ -18,6 +18,8 @@ export function toSellItem(row: CollectionRow): SellItem {
     estimatedValue: row.estimatedValue,
     // Ett löst kort har ett kort-id; en förseglad produkt har bara produkt-id.
     isSingle: row.cardId != null,
+    gradingCompany: row.gradingCompany,
+    grade: row.grade,
     slug: row.slug,
   };
 }

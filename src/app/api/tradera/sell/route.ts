@@ -17,6 +17,9 @@ import {
   ITEM_TYPE_AUCTION,
   ITEM_TYPE_BUY_NOW,
   conditionLabel,
+  gradingLabel,
+  traderaGrade,
+  traderaGradingIssuer,
 } from "@/lib/tradera-listing-options";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +67,9 @@ const schema = z.object({
     .refine((v) => [0, 6, 12, 25].includes(v), "Ogiltig momssats.")
     .optional(),
   condition: z.string().optional(),
+  /** Graderingsbolag och betyg — fri text in, Traderas termer ut (se traderaGradingIssuer). */
+  gradingCompany: z.string().trim().max(50).optional(),
+  grade: z.string().trim().max(10).optional(),
   description: z.string().trim().max(4000).optional(), // egen text; annars auto-genererad
   // data:-URL:er med foton på det egna objektet (första = huvudbild). Tradera tar max 12.
   // max 8M tecken/bild (≈6 MB binärt) — utan tak kan en inloggad användare POSTa obegränsat stora bodies.
@@ -97,16 +103,30 @@ export async function POST(req: Request) {
     const setName = item.card?.set?.name ?? null;
     const number = item.card?.number ?? null;
     const condLabel = conditionLabel(input.condition ?? item.condition, isSingle);
+    // ⛔ SPRÅKET ÄR KORTETS, INTE POSTENS. `CollectionItem.language` defaultar till
+    // EN och sätts sällan av användaren, så en japansk singel fick "Språk: Engelska"
+    // i annonsen (rapporterat 2026-09-07). Katalogen har en EGEN kortrad per språk,
+    // alltså är kortets språk ett faktum medan postens är ett antagande.
+    const language = item.card?.language ?? item.language;
+    const grading = gradingLabel(
+      input.gradingCompany ?? item.gradingCompany,
+      input.grade ?? item.grade
+    );
 
-    const titleParts = [name, setName, number ? `#${number}` : null].filter(Boolean).join(" · ");
+    const titleParts = [name, setName, number ? `#${number}` : null, grading]
+      .filter(Boolean)
+      .join(" · ");
     const title = `${titleParts} · ${condLabel}`;
 
     const autoDescription = [
       `${name}${setName ? `, ${setName}` : ""}${number ? ` (#${number})` : ""}`,
+      grading ? `Gradering: ${grading}` : null,
       `Skick: ${condLabel}`,
-      isSingle ? "Språk: " + (traderaLanguageTerm(item.language) ?? item.language) : null,
+      isSingle ? "Språk: " + (traderaLanguageTerm(language) ?? language) : null,
       "",
-      "Bilden visar det exakta objektet. Säljes av privatperson.",
+      // ⛔ Ingen "Säljes av privatperson" (ägarbeslut 2026-09-07): den var varken
+      // sann för alla säljare eller något en köpare behöver läsa i varje annons.
+      "Bilden visar det exakta objektet.",
     ]
       .filter((l) => l !== null)
       .join("\n");
@@ -144,7 +164,9 @@ export async function POST(req: Request) {
         weightKg: o.weightKg,
       })),
       vatPercent: input.vatPercent,
-      languageTerm: isSingle ? traderaLanguageTerm(item.language) : undefined,
+      languageTerm: isSingle ? traderaLanguageTerm(language) : undefined,
+      gradingIssuerTerm: traderaGradingIssuer(input.gradingCompany ?? item.gradingCompany),
+      gradeTerm: traderaGrade(input.grade ?? item.grade),
       images: input.imagesBase64.map(parseImage),
     });
 

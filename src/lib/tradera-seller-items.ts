@@ -33,6 +33,7 @@
  * Alla fel sväljs till `[]` — profilen får aldrig falla för att Tradera ligger.
  */
 import { cachedRead, STATIC_CACHE_TAG } from "@/lib/cache";
+import { traderaItemUrl } from "@/lib/tradera-listing-options";
 
 export interface SellerListing {
   itemId: string;
@@ -197,7 +198,7 @@ export function parseSellerItemsXml(
     const url =
       rawUrl && /tradera\.com\/item\//.test(rawUrl)
         ? rawUrl.replace(/^http:\/\//, "https://")
-        : `https://www.tradera.com/item/0/${itemId}/`;
+        : traderaItemUrl(itemId);
 
     // /thumbs/ = 64×64, oanvändbart i ett rutnät; samma CDN serverar /medium-fit/.
     const thumb = tagText(block, "ThumbnailLink")?.replace("/thumbs/", "/medium-fit/");

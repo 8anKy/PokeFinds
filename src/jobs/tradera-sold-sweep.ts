@@ -48,6 +48,7 @@ import { matchProduct, getListingPriceGuard } from "../scrapers/matching";
 import { traderaCategoryCompatible } from "./tradera-sweep";
 import { TRADERA_SOLD_SOURCE_NAME } from "../services/products";
 import { detectGrading, isPlausibleGradedPriceOre } from "../lib/graded-listing";
+import { traderaItemUrl } from "@/lib/tradera-listing-options";
 
 const SEARCH_API = "https://api.tradera.com/v3/searchservice.asmx";
 const PUBLIC_API = "https://api.tradera.com/v3/publicservice.asmx";
@@ -163,7 +164,7 @@ export function parseEndedFromXml(xml: string): {
     const url =
       rawUrl && /tradera\.com\/item\//.test(rawUrl)
         ? rawUrl.replace(/^http:\/\//, "https://")
-        : `https://www.tradera.com/item/0/${itemId}/`;
+        : traderaItemUrl(itemId);
 
     // Samma språkvakt som det aktiva svepet: katalogen är EN + JP only, och
     // Traderas eget språkattribut är tomt hos de flesta privatsäljare.

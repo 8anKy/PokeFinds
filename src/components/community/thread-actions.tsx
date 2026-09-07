@@ -206,8 +206,16 @@ export function ThreadActions({
     }
   }
 
+  // ⛔ EN RUTA FÖR ÄGAR-/MODERATORÅTGÄRDER (ägarbeslut 2026-09-07). Förut låg
+  // "Kontakta säljaren" högerställd på en egen rad (`ml-auto` som wrappade),
+  // annonsstatusen i en nästan tom ram och Ta bort ensam längst till höger — tre
+  // rader som såg ut som tre olika gränssnitt. Nu: reaktionerna i en rad,
+  // huvudåtgärden i full bredd, och allt som kräver behörighet i EN ram.
+  const showListingControls = !!listingKind && (isOwner || (isModerator && status === "ACTIVE"));
+  const showDanger = isOwner || isModerator;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <Button
           variant={liked ? "primary" : "secondary"}
@@ -234,55 +242,60 @@ export function ThreadActions({
             {t("report")}
           </Button>
         )}
-        <span className="ml-auto">
-          <ContactButton
-            authorId={authorId}
-            postId={postId}
-            marketplace={isMarketplace}
-            callbackPath={callbackPath}
-          />
-        </span>
       </div>
 
-      {listingKind && (isOwner || (isModerator && status === "ACTIVE")) && (
+      {/* Huvudåtgärden: på en annons är det här hela poängen med tråden.
+          Komponenten renderar null för trådskaparen — då blir det ingen tom rad. */}
+      <ContactButton
+        authorId={authorId}
+        postId={postId}
+        marketplace={isMarketplace}
+        callbackPath={callbackPath}
+        className="w-full sm:w-auto"
+      />
+
+      {(showListingControls || showDanger) && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-surface-border p-3">
-          {isOwner ? (
-            <>
-              <Label htmlFor="listingStatus" className="mb-0">
-                {t("statusLabel")}
-              </Label>
-              <Select
-                id="listingStatus"
-                value={status}
-                disabled={busy}
-                onChange={(e) => void changeStatus(e.target.value as ListingStatusValue)}
-                className="w-auto min-w-[10rem]"
+          {showListingControls &&
+            (isOwner ? (
+              <>
+                <Label htmlFor="listingStatus" className="mb-0">
+                  {t("statusLabel")}
+                </Label>
+                <Select
+                  id="listingStatus"
+                  value={status}
+                  disabled={busy}
+                  onChange={(e) => void changeStatus(e.target.value as ListingStatusValue)}
+                  className="w-auto min-w-[10rem]"
+                >
+                  {LISTING_STATUSES.map((s) => (
+                    <option key={s} value={s}>
+                      {t(LISTING_STATUS_KEYS[s])}
+                    </option>
+                  ))}
+                </Select>
+              </>
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={busy}
+                onClick={() => void changeStatus("CLOSED")}
               >
-                {LISTING_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {t(LISTING_STATUS_KEYS[s])}
-                  </option>
-                ))}
-              </Select>
-            </>
-          ) : (
+                {t("closeListing")}
+              </Button>
+            ))}
+          {showDanger && (
             <Button
-              variant="secondary"
+              variant="danger"
               size="sm"
-              loading={busy}
-              onClick={() => void changeStatus("CLOSED")}
+              className="ml-auto"
+              onClick={() => setDeleteOpen(true)}
             >
-              {t("closeListing")}
+              {isModerator && !isOwner ? t("deleteModerator") : t("delete")}
             </Button>
           )}
-        </div>
-      )}
-
-      {(isOwner || isModerator) && (
-        <div className="flex justify-end">
-          <Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)}>
-            {isModerator && !isOwner ? t("deleteModerator") : t("delete")}
-          </Button>
         </div>
       )}
 

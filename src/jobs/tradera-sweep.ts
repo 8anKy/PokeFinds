@@ -32,6 +32,7 @@ import {
   getListingPriceGuard,
 } from "../scrapers/matching";
 import { traderaSearchUrlSpecific, TRADERA_CATEGORY } from "../lib/marketplace-urls";
+import { traderaItemUrl } from "@/lib/tradera-listing-options";
 
 // Tradera-kategori → produktform-grupp. Säljaren listar varje annons under EN
 // kategori; den signalen är mer pålitlig än titeln (en pack-annons kan heta bara
@@ -243,7 +244,7 @@ export function parseItemsFromXml(xml: string): { items: TraderaItem[]; totalPag
     const url =
       rawUrl && /tradera\.com\/item\//.test(rawUrl)
         ? rawUrl.replace(/^http:\/\//, "https://")
-        : `https://www.tradera.com/item/0/${itemId}/`;
+        : traderaItemUrl(itemId);
 
     // SPRÅKVAKT. pokemon_language-attributet ovan är TOMT hos de flesta privat-
     // säljare, så det ensamt släppte igenom spanska/tyska/kinesiska annonser rakt

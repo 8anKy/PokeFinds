@@ -20,11 +20,14 @@ export function ContactButton({
   postId,
   marketplace,
   callbackPath,
+  className,
 }: {
   authorId: string;
   postId: string;
   marketplace: boolean;
   callbackPath: string;
+  /** Anroparen bestämmer bredden — på en annons är det här huvudåtgärden. */
+  className?: string;
 }) {
   const t = useTranslations("Forum");
   const router = useRouter();
@@ -53,6 +56,7 @@ export function ContactButton({
         href={`/logga-in?callbackUrl=${encodeURIComponent(callbackPath)}`}
         variant="outline"
         size="sm"
+        className={className}
       >
         <IconMail size={16} />
         {t("loginToContact")}
@@ -80,7 +84,7 @@ export function ContactButton({
   }
 
   return (
-    <Button size="sm" onClick={() => void start()} loading={busy}>
+    <Button size="sm" onClick={() => void start()} loading={busy} className={className}>
       <IconMail size={16} />
       {label}
     </Button>

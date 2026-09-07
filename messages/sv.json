@@ -540,7 +540,11 @@
     "sellErrPhoto": "Ladda upp minst ett foto på objektet.",
     "sellDescCondition": "Skick: {condition}",
     "sellDescLanguage": "Språk: {language}",
-    "sellDescFooter": "Bilden visar det exakta objektet. Säljes av privatperson."
+    "sellDescFooter": "Bilden visar det exakta objektet.",
+    "sellGrading": "Gradering",
+    "sellGradingCompany": "Graderingsbolag",
+    "sellGrade": "Betyg",
+    "sellGradingNone": "Ograderat"
   },
   "Legal": {
     "lastUpdated": "Senast uppdaterad: {date}"

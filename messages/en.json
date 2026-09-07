@@ -540,7 +540,11 @@
     "sellErrPhoto": "Upload at least one photo of the item.",
     "sellDescCondition": "Condition: {condition}",
     "sellDescLanguage": "Language: {language}",
-    "sellDescFooter": "The photo shows the exact item. Sold by a private individual."
+    "sellDescFooter": "The photo shows the exact item.",
+    "sellGrading": "Grading",
+    "sellGradingCompany": "Grading company",
+    "sellGrade": "Grade",
+    "sellGradingNone": "Ungraded"
   },
   "Legal": {
     "lastUpdated": "Last updated: {date}"

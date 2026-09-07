@@ -37,6 +37,8 @@ import {
   DEFAULT_AUCTION_DURATION,
   DEFAULT_PACKAGE_SIZE,
   DEFAULT_VAT_RATE,
+  GRADES,
+  GRADING_ISSUERS,
   PACKAGE_SIZE_KEYS,
   PRICE_STEPS,
   VAT_RATES,
@@ -44,6 +46,7 @@ import {
   cheapestShippingKr,
   conditionOptionsFor,
   gradeToCondition,
+  gradingLabel,
   packageSizeLabel,
   totalBuyerKr,
   vatShareKr,
@@ -84,6 +87,9 @@ export interface SellItem {
   estimatedValue: number | null;
   /** Löst kort (true) eller förseglad produkt (false) — styr skick och gradering. */
   isSingle: boolean;
+  /** Redan graderat? Förifyller väljarna (samlingen bär fälten; skannern gör det inte). */
+  gradingCompany?: string | null;
+  grade?: string | null;
   /** Produktsida att koppla forumtråden till. */
   slug: string | null;
   /**
@@ -101,6 +107,8 @@ interface ItemDraft {
   baseKr: number | null;
   step: number | null;
   condition: string;
+  gradeCompany: string;
+  gradeValue: string;
   description: string;
   images: string[];
   gradeNote: string | null;
@@ -146,16 +154,24 @@ function weightLabel(kg: number): string {
 }
 
 /** Standardbeskrivning att förifylla textrutan med (användaren kan redigera). */
-function defaultDescription(row: SellItem, condition: string, tr: Translators): string {
+function defaultDescription(
+  row: SellItem,
+  condition: string,
+  tr: Translators,
+  grading: string | null
+): string {
   const condLabel = condition in CONDITION_LABELS ? tr.tCond(condition) : condition;
   const langLabel = row.language in LANGUAGE_LABELS ? tr.tLang(row.language) : row.language;
   return [
     `${row.name}${row.setName ? `, ${row.setName}` : ""}`,
+    grading ? `${tr.t("sellGrading")}: ${grading}` : null,
     tr.t("sellDescCondition", { condition: condLabel }),
     tr.t("sellDescLanguage", { language: langLabel }),
     "",
     tr.t("sellDescFooter"),
-  ].join("\n");
+  ]
+    .filter((l) => l !== null)
+    .join("\n");
 }
 
 /**
@@ -287,6 +303,9 @@ export function SellSheet({
   const [baseKr, setBaseKr] = useState<number | null>(null);
   const [step, setStep] = useState<number | null>(null);
   const [condition, setCondition] = useState(row?.condition ?? "NEAR_MINT");
+  /** Gradering — Traderas EGNA termer (attribut 125/126), tomt = ograderat. */
+  const [gradeCompany, setGradeCompany] = useState(row?.gradingCompany ?? "");
+  const [gradeValue, setGradeValue] = useState(row?.grade ?? "");
   const [spans, setSpans] = useState<ShippingSpan[]>([]);
   const [weightKg, setWeightKg] = useState<number | null>(null);
   /**
@@ -359,6 +378,8 @@ export function SellSheet({
         setBaseKr(saved.baseKr);
         setStep(saved.step);
         setCondition(saved.condition);
+        setGradeCompany(saved.gradeCompany);
+        setGradeValue(saved.gradeValue);
         setDescription(saved.description);
         setImages(saved.images);
         setGradeNote(saved.gradeNote);
@@ -374,7 +395,11 @@ export function SellSheet({
       setBaseKr(kr);
       setStep(kr != null ? 0 : null);
       setCondition(cond);
-      setDescription(defaultDescription(item, cond, tr));
+      const company = item.gradingCompany ?? "";
+      const gradeVal = item.grade ?? "";
+      setGradeCompany(company);
+      setGradeValue(gradeVal);
+      setDescription(defaultDescription(item, cond, tr, gradingLabel(company, gradeVal)));
       // Skannerns egen ruta ÄR framsidan — den blir annonsens huvudbild direkt.
       setImages(item.photo ? [item.photo] : []);
       setGradeNote(null);
@@ -397,6 +422,8 @@ export function SellSheet({
       baseKr,
       step,
       condition,
+      gradeCompany,
+      gradeValue,
       description,
       images,
       gradeNote,
@@ -532,11 +559,33 @@ export function SellSheet({
     // Håll beskrivningens Skick-rad i synk — men bara om texten inte redigerats
     // (dvs. fortfarande är auto-texten för nuvarande skick).
     if (row) {
+      const grading = gradingLabel(gradeCompany, gradeValue);
       setDescription((prev) =>
-        prev === defaultDescription(row, condition, tr) ? defaultDescription(row, value, tr) : prev
+        prev === defaultDescription(row, condition, tr, grading)
+          ? defaultDescription(row, value, tr, grading)
+          : prev
       );
     }
     setCondition(value);
+  }
+
+  /**
+   * Gradering — håller beskrivningen i synk på samma villkor som `pickCondition`
+   * (bara när texten inte redigerats). ⛔ Ett bolag UTAN betyg säger ingenting om
+   * kortet, så etiketten (och Tradera-attributen) kräver båda.
+   */
+  function pickGrading(company: string, grade: string) {
+    if (row) {
+      const before = gradingLabel(gradeCompany, gradeValue);
+      const after = gradingLabel(company, grade);
+      setDescription((prev) =>
+        prev === defaultDescription(row, condition, tr, before)
+          ? defaultDescription(row, condition, tr, after)
+          : prev
+      );
+    }
+    setGradeCompany(company);
+    setGradeValue(grade);
   }
 
   /**
@@ -637,6 +686,9 @@ export function SellSheet({
           shippingOptions: shippingChoices,
           ...(vatOn ? { vatPercent: vatRate } : {}),
           condition,
+          ...(gradeCompany && gradeValue
+            ? { gradingCompany: gradeCompany, grade: gradeValue }
+            : {}),
           description: description.trim() || undefined,
           imagesBase64: images,
         },
@@ -999,6 +1051,48 @@ export function SellSheet({
                 </div>
               )}
             </div>
+
+            {/* GRADERING — bara singlar. Termerna är Traderas egna (attribut 125/126),
+                så annonsen blir sökbar på "PSA 10" i deras egna filter i stället för
+                att bara nämnas i texten. Valfritt: de flesta kort är ograderade. */}
+            {isSingle && (
+              <div>
+                <SectionLabel>{t("sellGrading")}</SectionLabel>
+                <div className="flex flex-wrap gap-2">
+                  <Chip
+                    active={!gradeCompany}
+                    onClick={() => pickGrading("", "")}
+                  >
+                    {t("sellGradingNone")}
+                  </Chip>
+                  {GRADING_ISSUERS.map((issuer) => (
+                    <Chip
+                      key={issuer}
+                      active={gradeCompany === issuer}
+                      onClick={() => pickGrading(issuer, gradeValue)}
+                    >
+                      {issuer}
+                    </Chip>
+                  ))}
+                </div>
+                {gradeCompany && (
+                  <>
+                    <p className="mb-2 mt-3 text-xs text-ink-muted">{t("sellGrade")}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {GRADES.map((g) => (
+                        <Chip
+                          key={g}
+                          active={gradeValue === g}
+                          onClick={() => pickGrading(gradeCompany, g)}
+                        >
+                          {g}
+                        </Chip>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* FRAKT — Traderas egna fraktbolag och priser, per viktspann. */}
             <div>

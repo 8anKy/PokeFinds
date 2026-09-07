@@ -106,7 +106,7 @@ describe("parseSellerItemsXml", () => {
   });
 
   it("bild-URL i länkfältet ⇒ konstruerad item-URL; bilden tas ur ImageLinks", () => {
-    expect(byId["700002"].url).toBe("https://www.tradera.com/item/0/700002/");
+    expect(byId["700002"].url).toBe("https://www.tradera.com/item/700002");
     expect(byId["700002"].imageUrl).toBe("https://img.tradera.net/images/700002_big.jpg");
   });
 

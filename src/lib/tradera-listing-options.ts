@@ -14,6 +14,85 @@ export type ListingType = "BUY_NOW" | "AUCTION";
 export const ITEM_TYPE_AUCTION = 1;
 export const ITEM_TYPE_BUY_NOW = 3;
 
+/**
+ * DEN PUBLIKA LÄNKEN TILL EN ANNONS.
+ *
+ * ⛔ `/item/0/<id>` ÄR 404 — och det var länken vi la i forumtrådarna och i
+ * katalogens offers ("View on Tradera" ledde till Traderas felsida, rapporterat
+ * 2026-09-07). Traderas kanoniska form är `/item/<kategori>/<id>/<slug>`, och
+ * BÅDE en påhittad kategori (0) och en utelämnad slug ger 404. Mätt mot
+ * tradera.com samma dag:
+ *   /item/0/749317922       → 404
+ *   /item/1001337/749317922 → 404   (rätt kategori, ingen slug)
+ *   /item/749317922         → 308 → /item/1001337/749317922/dragonair-jp-…
+ * Den KORTA formen är alltså Traderas egen kanonisering: den kan slugen, vi
+ * kan den inte. ⛔ Bygg aldrig ihop en URL av kategori och id igen.
+ */
+export function traderaItemUrl(itemId: string | number): string {
+  return `https://www.tradera.com/item/${itemId}`;
+}
+
+/**
+ * Graderingsattributen i Traderas Pokémon-kategorier. ⛔ ID:N OCH TERMER ÄR
+ * TRADERAS EGNA, hämtade ur `GET /v4/categories/{id}/attribute-definitions`
+ * 2026-09-07 (`scripts/probe-tradera-attributes.ts`) — hitta aldrig på ett
+ * attribut-id, och skicka aldrig en term som inte står i listan: API:t tar
+ * bara `possibleTermValues`.
+ *
+ * ⚠️ BGS heter "Beckett" hos Tradera, och SGC/TAG/HGA/GMA finns inte alls —
+ * de är "Övriga". Listan är därför INTE `GradingIssuer` i lib/graded-listing.ts
+ * (som är vår egen, bredare taxonomi för att LÄSA andras annonser).
+ */
+export const GRADING_ISSUER_ID = 125;
+export const GRADE_ID = 126;
+export const GRADING_ISSUERS = ["PSA", "Beckett", "CGC", "ACE", "Raukcard", "Övriga"] as const;
+export const GRADES = [
+  "10",
+  "9.5",
+  "9",
+  "8.5",
+  "8",
+  "7",
+  "6",
+  "5",
+  "4",
+  "3",
+  "2",
+  "1",
+] as const;
+
+/**
+ * Samlingens fritextfält (`CollectionItem.gradingCompany`) → Traderas term.
+ * Okänt bolag blir "Övriga" — graderingen är sann även när bolaget inte är ett
+ * av Traderas fem, och att tappa den helt vore sämre.
+ */
+export function traderaGradingIssuer(company: string | null | undefined): string | undefined {
+  const v = (company ?? "").trim();
+  if (!v) return undefined;
+  const hit = GRADING_ISSUERS.find((i) => i.toLowerCase() === v.toLowerCase());
+  if (hit) return hit;
+  if (/^bgs$|beckett/i.test(v)) return "Beckett";
+  return "Övriga";
+}
+
+/** Samlingens betygsfält → Traderas term. Komma som decimaltecken tillåts. */
+export function traderaGrade(grade: string | null | undefined): string | undefined {
+  const v = (grade ?? "").trim().replace(",", ".");
+  if (!v) return undefined;
+  return (GRADES as readonly string[]).includes(v) ? v : undefined;
+}
+
+/** "PSA 10" — etiketten i annonsens rubrik och beskrivning. */
+export function gradingLabel(
+  company: string | null | undefined,
+  grade: string | null | undefined
+): string | null {
+  const issuer = traderaGradingIssuer(company);
+  const g = traderaGrade(grade);
+  if (!issuer || !g) return null;
+  return `${issuer} ${g}`;
+}
+
 /** Köp nu-annonsens löptid. 60 dagar = längsta Tradera tillåter. */
 export const BUY_NOW_DURATION_DAYS = 60;
 /** Auktionens löptid i dagar — Traderas egna val i säljformuläret. */
