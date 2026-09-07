@@ -33,7 +33,7 @@ import {
   IconX,
 } from "@/components/ui/icons";
 import { openProductOverlay } from "@/lib/product-overlay-open";
-import { planCopyEdits, type LotGroup } from "@/lib/collection-lots";
+import { planCopyEdits } from "@/lib/collection-lots";
 import type { CollectionRow } from "./collection-client";
 import { hapticTick } from "@/lib/haptics";
 import { parseKronorToOre } from "@/lib/purchase-price";
@@ -102,10 +102,10 @@ interface CopyRow {
   remove: boolean;
 }
 
-/** Gruppens köp → en rad per exemplar, i gruppens ordning. */
-function expandCopies(group: LotGroup<CollectionRow>): CopyRow[] {
+/** De valda köpen → en rad per exemplar, i markeringens ordning. */
+function expandCopies(lots: readonly CollectionRow[]): CopyRow[] {
   const out: CopyRow[] = [];
-  for (const lot of group.lots) {
+  for (const lot of lots) {
     for (let i = 0; i < lot.quantity; i++) {
       out.push({
         lotId: lot.id,
@@ -178,13 +178,17 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   /**
-   * EXEMPLARARKET: gruppen (samma vara, alla dess köp) man håller på att gå
-   * igenom, och en rad per EXEMPLAR. ⛔ Var förut en modal med ett antalsfält
-   * ("hur många ska tas bort?") — den kunde varken visa VILKA exemplar man har
-   * eller vad de kostade, och en pop-up mitt på skärmen är inte appens form
-   * (ägarbeslut 2026-09-07).
+   * EXEMPLARARKET: de markerade KÖPEN och en rad per EXEMPLAR ur dem.
+   *
+   * ⛔ Var förut en modal med ett antalsfält ("hur många ska tas bort?") — den
+   * kunde varken visa VILKA exemplar man har eller vad de kostade, och en pop-up
+   * mitt på skärmen är inte appens form (ägarbeslut 2026-09-07).
+   * ⛔ Och den tar FLERA VAROR, inte bara en: markerar man tre olika kort ska man
+   * kunna gå igenom dem i remsan, rätta pris/skick/gradering på var och en och
+   * bocka i just de som ska bort. Massraderingen finns kvar — den bor bara här
+   * inne, där man ser vad man tar bort (ägaren 2026-09-07).
    */
-  const [copyGroup, setCopyGroup] = useState<LotGroup<CollectionRow> | null>(null);
+  const [copyLots, setCopyLots] = useState<CollectionRow[] | null>(null);
   const [copies, setCopies] = useState<CopyRow[]>([]);
   /** Vilket exemplar i remsan man redigerar. */
   const [copyIndex, setCopyIndex] = useState(0);
@@ -223,22 +227,11 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
 
   const filterActive = query.trim().length > 0;
 
-  /**
-   * Markeringen inom EN och samma vara → den gruppen, annars null.
-   *
-   * ⛔ KNAPPEN OCH HANDLINGEN MÅSTE LÄSA SAMMA SVAR. Verktygsradens knapp hette
-   * "Radera" även när den öppnade exemplararket, som ändrar pris, skick och
-   * gradering minst lika ofta som det tar bort något (ägaren 2026-09-07). En
-   * etikett som lovar fel sak är värre än en tråkig — särskilt när den lovar
-   * en radering.
-   */
-  const selectedGroup = useMemo(() => {
-    if (selected.size === 0) return null;
-    const picked = rows.filter((r) => selected.has(r.id));
-    const group = allGroups.find((g) => g.lots.some((l) => l.id === picked[0]?.id));
-    if (!group) return null;
-    return picked.every((r) => group.lots.some((l) => l.id === r.id)) ? group : null;
-  }, [rows, allGroups, selected]);
+  /** De markerade köpen, i rutnätets ordning. */
+  const selectedLots = useMemo(
+    () => rows.filter((r) => selected.has(r.id)),
+    [rows, selected]
+  );
 
   // Markeringen gäller alltid ENSKILDA poster (det är dem API:t raderar). En grupp
   // markeras genom att alla dess poster markeras — allt-eller-inget, så ett andra
@@ -322,47 +315,26 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
     [router, selectMode, toggleMany, toast, t]
   );
 
-  async function deleteSelected() {
-    if (selected.size === 0) return;
-    // ⛔ EN MARKERAD VARA ⇒ ÖPPNA EXEMPLARARKET, FRÅGA INTE EFTER ETT ANTAL.
-    // Markeringen ligger på KÖP, och ett köp kan bära flera exemplar. Arket visar
-    // varje exemplar med sitt pris, skick och gradering — i stället för "hur
-    // många?", som varken sa vilka de var eller vad de kostat. Gäller även ETT
-    // exemplar: där är arket vägen att rätta pris/skick/gradering.
-    if (selectedGroup) {
-      openCopySheet(selectedGroup);
-      return;
-    }
-    if (!window.confirm(t("gridConfirmDelete", { count: selected.size }))) return;
-    setDeleting(true);
-    const ids = [...selected];
-    let ok = 0;
-    for (const id of ids) {
-      try {
-        await apiFetch(`/api/collection/${id}`, { method: "DELETE" });
-        ok += 1;
-      } catch {
-        /* fortsätt med nästa */
-      }
-    }
-    setDeleting(false);
-    exitSelect();
-    toast({
-      title: ok === ids.length ? t("gridDeletedTitle") : t("gridPartialTitle"),
-      description:
-        ok === ids.length
-          ? t("gridDeletedDesc", { count: ok })
-          : t("gridPartialDesc", { ok, total: ids.length }),
-      variant: ok === ids.length ? "success" : "error",
-    });
-    router.refresh();
+  /**
+   * Verktygsradens knapp: öppna exemplararket för ALLT som är markerat.
+   *
+   * ⛔ INGEN EGEN MASSRADERINGSVÄG LÄNGRE (ägaren 2026-09-07). Flera markerade
+   * kort gick förut rakt på `window.confirm("radera N?")` — man såg aldrig VAD
+   * man tog bort, kunde inte rätta ett pris på vägen, och knappen hette därför
+   * "Radera" fast en enskild vara öppnade en redigerare. Nu leder EN väg in:
+   * arket visar varje exemplar ur markeringen, man bockar i det som ska bort
+   * och sparar. Massraderingen finns kvar — den syns bara innan den sker.
+   */
+  function editSelected() {
+    if (selectedLots.length === 0) return;
+    openCopySheet(selectedLots);
   }
 
   /** Antal exemplar som är ibockade för borttagning. */
   const removeCount = copies.filter((c) => c.remove).length;
   /** Något ändrat på ett exemplar som INTE ska bort? */
   const copiesChanged = copies.some(
-    (c) => !c.remove && copyDiffers(c, copyGroup?.lots.find((l) => l.id === c.lotId))
+    (c) => !c.remove && copyDiffers(c, copyLots?.find((l) => l.id === c.lotId))
   );
   const activeCopy = copies[copyIndex] ?? null;
 
@@ -371,15 +343,20 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
     setCopies((prev) => prev.map((c, i) => (i === copyIndex ? { ...c, ...patch } : c)));
   }
 
-  function openCopySheet(group: LotGroup<CollectionRow>) {
-    setCopies(expandCopies(group));
+  function openCopySheet(lots: readonly CollectionRow[]) {
+    setCopies(expandCopies(lots));
     setCopyIndex(0);
-    setCopyGroup(group);
+    setCopyLots([...lots]);
   }
 
   function closeCopySheet() {
-    setCopyGroup(null);
+    setCopyLots(null);
     setCopies([]);
+  }
+
+  /** Köpet ett exemplar kommer ur — bilden, namnet och setet ritas ur det. */
+  function lotOf(copy: CopyRow | null): CollectionRow | undefined {
+    return copy ? copyLots?.find((l) => l.id === copy.lotId) : undefined;
   }
 
   /**
@@ -391,15 +368,16 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
    * ⛔ Tomt fält betyder "vet inte", inte 0 kr, och skrivs som `null`.
    */
   async function applyCopyChanges() {
-    const group = copyGroup;
-    if (!group) return;
+    const lots = copyLots;
+    if (!lots) return;
+    const total = copies.length;
     // Planen är REN och testad (lib/collection-lots.ts) — den här funktionen
     // gör bara skrivningarna, i den ordning planen anger.
     const plan = planCopyEdits(
-      group.lots,
+      lots,
       copies.map((c) => {
         const parsed = parseKronorToOre(c.price);
-        const lot = group.lots.find((l) => l.id === c.lotId);
+        const lot = lots.find((l) => l.id === c.lotId);
         return {
           lotId: c.lotId,
           remove: c.remove,
@@ -465,7 +443,7 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
         title: failed > 0 ? t("gridPartialTitle") : t("gridDeletedTitle"),
         description:
           plan.removed > 0
-            ? t("gridRemovedDesc", { count: plan.removed, total: group.quantity })
+            ? t("gridRemovedDesc", { count: plan.removed, total })
             : undefined,
         variant: failed > 0 ? "error" : "success",
       });
@@ -512,7 +490,19 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
   return (
     <section className="lg:hidden">
       {/* Sektionshuvud / väljlägets verktygsrad */}
-      <div className="mb-3 flex items-center justify-between gap-2">
+      {/* ⛔ VERKTYGSRADEN MÅSTE FÖLJA MED I VÄLJLÄGET (ägaren 2026-09-07):
+          markerade man ett kort långt ned fick man scrolla hela vägen upp igen
+          för att komma åt knappen. Sticky BARA i väljläget — annars skulle
+          sektionsrubriken ligga och klistra i vanlig bläddring. Bleedet
+          (-mx-2.5 + px-2.5) är sidans egen vågräta luft, så bakgrunden når kant
+          till kant i stället för att lämna två genomskinliga remsor. */}
+      <div
+        className={cn(
+          "mb-3 flex items-center justify-between gap-2",
+          selectMode &&
+            "hairline-b sticky top-0 z-20 -mx-2.5 bg-surface/95 px-2.5 py-2 backdrop-blur-md sm:-mx-6 sm:px-6"
+        )}
+      >
         {selectMode ? (
           <>
             <button
@@ -523,22 +513,16 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
               <IconX size={16} /> {t("gridSelectCancel")}
             </button>
             <span className="text-sm font-semibold text-ink">{t("gridSelected", { count: selected.size })}</span>
+            {/* ⛔ ALLTID "Redigera" — knappen öppnar en redigerare, aldrig en
+                radering. Att ta bort görs inifrån arket, per exemplar. */}
             <Button
-              variant={selectedGroup ? "secondary" : "danger"}
+              variant="secondary"
               size="sm"
-              onClick={deleteSelected}
+              onClick={editSelected}
               loading={deleting}
               disabled={selected.size === 0}
             >
-              {selectedGroup ? (
-                <>
-                  <IconEdit size={16} /> {tc("edit")}
-                </>
-              ) : (
-                <>
-                  <IconTrash size={16} /> {t("gridDelete")}
-                </>
-              )}
+              <IconEdit size={16} /> {tc("edit")}
             </Button>
           </>
         ) : (
@@ -838,7 +822,7 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
           kostat — och som bara kunde ta bort.
           ⛔ INGEN autoFocus — se kommentaren vid köppris-arket nedan. */}
       <BottomSheet
-        open={copyGroup != null}
+        open={copyLots != null}
         onClose={closeCopySheet}
         title={t("gridCopiesTitle")}
         closeLabel={tc("cancel")}
@@ -867,16 +851,18 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
                   type="button"
                   onClick={() => setCopyIndex(i)}
                   aria-current={i === copyIndex}
-                  aria-label={t("gridCopyLabel", { n: i + 1 })}
+                  aria-label={lotOf(c)?.name ?? t("gridCopyLabel", { n: i + 1 })}
                   className={cn(
                     "relative h-[68px] w-[52px] shrink-0 overflow-hidden rounded-lg border-2 bg-surface-overlay transition-colors",
                     i === copyIndex ? "border-holo-cyan" : "border-transparent opacity-60"
                   )}
                 >
-                  {copyGroup?.lots[0]?.imageUrl ? (
+                  {/* ⛔ Bilden per EXEMPLAR — markeringen kan spänna över flera
+                      olika kort, och då är gruppens första bild fel för resten. */}
+                  {lotOf(c)?.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={copyGroup.lots[0].imageUrl}
+                      src={lotOf(c)!.imageUrl!}
                       alt=""
                       className="h-full w-full object-cover"
                       draggable={false}
@@ -900,10 +886,10 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
         {/* Kortets identitet — samma rad som säljarket har. */}
         <div className="mb-4 flex items-center gap-3">
           <span className="h-14 w-10 shrink-0 overflow-hidden rounded-md bg-surface-overlay">
-            {copyGroup?.lots[0]?.imageUrl ? (
+            {lotOf(activeCopy)?.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={copyGroup.lots[0].imageUrl}
+                src={lotOf(activeCopy)!.imageUrl!}
                 alt=""
                 className="h-full w-full object-cover"
                 draggable={false}
@@ -915,9 +901,9 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
             )}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-ink">{copyGroup?.lots[0]?.name}</p>
+            <p className="truncate text-sm font-semibold text-ink">{lotOf(activeCopy)?.name}</p>
             <p className="truncate text-xs text-ink-muted">
-              {copyGroup?.lots[0]?.setName ??
+              {lotOf(activeCopy)?.setName ??
                 t("gridCopyOf", { n: copyIndex + 1, total: copies.length })}
             </p>
           </div>
