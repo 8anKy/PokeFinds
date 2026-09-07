@@ -24,7 +24,14 @@ import { formatPrice, formatPercent, formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
 import { Input, Label, FieldError } from "@/components/ui/input";
-import { IconCheck, IconChevronDown, IconPackage, IconTrash, IconX } from "@/components/ui/icons";
+import {
+  IconCheck,
+  IconChevronDown,
+  IconEdit,
+  IconPackage,
+  IconTrash,
+  IconX,
+} from "@/components/ui/icons";
 import { openProductOverlay } from "@/lib/product-overlay-open";
 import { planCopyEdits, type LotGroup } from "@/lib/collection-lots";
 import type { CollectionRow } from "./collection-client";
@@ -216,6 +223,23 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
 
   const filterActive = query.trim().length > 0;
 
+  /**
+   * Markeringen inom EN och samma vara → den gruppen, annars null.
+   *
+   * ⛔ KNAPPEN OCH HANDLINGEN MÅSTE LÄSA SAMMA SVAR. Verktygsradens knapp hette
+   * "Radera" även när den öppnade exemplararket, som ändrar pris, skick och
+   * gradering minst lika ofta som det tar bort något (ägaren 2026-09-07). En
+   * etikett som lovar fel sak är värre än en tråkig — särskilt när den lovar
+   * en radering.
+   */
+  const selectedGroup = useMemo(() => {
+    if (selected.size === 0) return null;
+    const picked = rows.filter((r) => selected.has(r.id));
+    const group = allGroups.find((g) => g.lots.some((l) => l.id === picked[0]?.id));
+    if (!group) return null;
+    return picked.every((r) => group.lots.some((l) => l.id === r.id)) ? group : null;
+  }, [rows, allGroups, selected]);
+
   // Markeringen gäller alltid ENSKILDA poster (det är dem API:t raderar). En grupp
   // markeras genom att alla dess poster markeras — allt-eller-inget, så ett andra
   // tryck på rutan tömmer den igen i stället för att låsa sig i "delvis vald".
@@ -300,15 +324,13 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
 
   async function deleteSelected() {
     if (selected.size === 0) return;
-    // ⛔ FLERA EXEMPLAR AV SAMMA VARA ⇒ VISA DEM, FRÅGA INTE EFTER ETT ANTAL.
-    // Markeringen ligger på KÖP, och ett köp kan bära flera exemplar. Gäller allt
-    // markerat samma vara och finns det mer än ett exemplar öppnar vi arket där
-    // varje exemplar syns med sitt pris — i stället för "hur många?", som varken
-    // sa vilka de var eller vad de kostat.
-    const picked = rows.filter((r) => selected.has(r.id));
-    const group = allGroups.find((g) => g.lots.some((l) => l.id === picked[0]?.id));
-    if (group && picked.every((r) => group.lots.some((l) => l.id === r.id)) && group.quantity > 1) {
-      openCopySheet(group);
+    // ⛔ EN MARKERAD VARA ⇒ ÖPPNA EXEMPLARARKET, FRÅGA INTE EFTER ETT ANTAL.
+    // Markeringen ligger på KÖP, och ett köp kan bära flera exemplar. Arket visar
+    // varje exemplar med sitt pris, skick och gradering — i stället för "hur
+    // många?", som varken sa vilka de var eller vad de kostat. Gäller även ETT
+    // exemplar: där är arket vägen att rätta pris/skick/gradering.
+    if (selectedGroup) {
+      openCopySheet(selectedGroup);
       return;
     }
     if (!window.confirm(t("gridConfirmDelete", { count: selected.size }))) return;
@@ -502,13 +524,21 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
             </button>
             <span className="text-sm font-semibold text-ink">{t("gridSelected", { count: selected.size })}</span>
             <Button
-              variant="danger"
+              variant={selectedGroup ? "secondary" : "danger"}
               size="sm"
               onClick={deleteSelected}
               loading={deleting}
               disabled={selected.size === 0}
             >
-              <IconTrash size={16} /> {t("gridDelete")}
+              {selectedGroup ? (
+                <>
+                  <IconEdit size={16} /> {tc("edit")}
+                </>
+              ) : (
+                <>
+                  <IconTrash size={16} /> {t("gridDelete")}
+                </>
+              )}
             </Button>
           </>
         ) : (
