@@ -127,6 +127,38 @@ export function setBlocked(userId: string, blocked: boolean): Promise<{ ok: true
   });
 }
 
+// ---------- Vad vyn redan sett ----------
+
+/**
+ * ⛔ NEXTS KLIENT-ROUTERCACHE SERVERAR SAMMA RSC-NYTTOLAST I 30 SEKUNDER för en
+ * dynamisk rutt. Gick man ut ur ett samtal och in igen direkt efter att ha
+ * skickat ett meddelande renderades sidan alltså ur den cachade nyttolasten —
+ * utan meddelandet — och det "dök upp" först en halv minut senare. Meddelandet
+ * var sparat hela tiden; det var LÄSNINGEN som var gammal.
+ *
+ * Vi minns därför de rader vyn redan sett i minnet och slår ihop dem med
+ * serverns första sida vid montering. ⛔ `router.refresh()` eller en delta-
+ * hämtning hade lagt en Neon-läsning på VARJE samtalsöppning — det här kostar
+ * ingenting. Kartan lever i fliken: en omladdning ger ändå färsk server-render.
+ */
+const REMEMBERED_MAX_CONVERSATIONS = 20;
+const REMEMBERED_MAX_MESSAGES = 200;
+const remembered = new Map<string, MessageDto[]>();
+
+export function rememberMessages(conversationId: string, messages: MessageDto[]): void {
+  remembered.delete(conversationId);
+  remembered.set(conversationId, messages.slice(-REMEMBERED_MAX_MESSAGES));
+  while (remembered.size > REMEMBERED_MAX_CONVERSATIONS) {
+    const oldest = remembered.keys().next().value;
+    if (oldest === undefined) break;
+    remembered.delete(oldest);
+  }
+}
+
+export function recallMessages(conversationId: string): MessageDto[] {
+  return remembered.get(conversationId) ?? [];
+}
+
 /** sessionStorage-nyckeln UnreadBadge cachar under — vyn nollar den när något lästs. */
 export const UNREAD_CACHE_KEY = "fo_chat_unread";
 export const UNREAD_CACHE_TTL_MS = 60_000;

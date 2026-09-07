@@ -19,6 +19,8 @@ import {
   invalidateUnreadCache,
   markConversationRead,
   postMessage,
+  recallMessages,
+  rememberMessages,
   useChatStream,
   type ChatUserDto,
   type MessageDto,
@@ -86,7 +88,12 @@ export function ConversationView({
   const locale = useLocale();
   const { toast } = useToast();
 
-  const [messages, setMessages] = useState<MessageDto[]>(initialMessages);
+  // Serverns första sida + det vyn redan sett (se rememberMessages): utan det
+  // saknades ett nyss skickat meddelande i 30 s när man gick ut och in igen,
+  // eftersom Nexts klient-routercache serverade samma RSC-nyttolast.
+  const [messages, setMessages] = useState<MessageDto[]>(() =>
+    mergeMessages(recallMessages(conversationId), initialMessages)
+  );
   const [otherReadAt, setOtherReadAt] = useState<string | null>(initialOtherReadAt);
   const [hasOlder, setHasOlder] = useState(initialMessages.length >= MESSAGES_PAGE_MAX);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -183,7 +190,8 @@ export function ConversationView({
 
   useEffect(() => {
     lastIdRef.current = messages[messages.length - 1]?.id ?? null;
-  }, [messages]);
+    rememberMessages(conversationId, messages);
+  }, [conversationId, messages]);
 
   // ---------- scroll ----------
   useIsoLayoutEffect(() => {
