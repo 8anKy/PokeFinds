@@ -175,6 +175,21 @@ export function ConversationView({
     }
   }, [messages]);
 
+  // Kolumnen KRYMPER mjukt när tangentbordet glider upp (conversation-screen).
+  // Listans scrollTop står still under tiden ⇒ de nedersta meddelandena skulle
+  // glida ut under skrivfältet och komma tillbaka först vid nästa meddelande.
+  // Håll botten pinnad varje bildruta höjden ändras — men bara när man REDAN
+  // stod vid botten, annars rycks man bort från det man läser.
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      if (stickRef.current) el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   function onListScroll() {
     const el = listRef.current;
     if (!el) return;

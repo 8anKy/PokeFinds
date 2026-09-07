@@ -6,6 +6,15 @@ import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
 /** Bottenflikarnas klarering (h-16 i BottomTabs) — plus safe-area i CSS nedan. */
 const TAB_BAR_PX = 64;
 const MIN_PX = 240;
+/**
+ * iOS animerar tangentbordet in på ~0,25 s med en egen kurva. `keyboardWillShow`
+ * fyrar FÖRE animationen och bär slutlig höjd, så en lika lång övergång på
+ * kolumnens höjd gör att skrivfältet följer med tangentbordet upp i stället för
+ * att hoppa dit på en bildruta. Android saknar motsvarande kurva — samma tid ser
+ * ändå mjuk ut där.
+ */
+const KEYBOARD_EASE = "cubic-bezier(0.17, 0.59, 0.4, 1)";
+const KEYBOARD_MS = 250;
 
 /**
  * Samtalets skal: en kolumn med EXAKT den höjd som finns kvar under skalets
@@ -27,6 +36,10 @@ export function ConversationScreen({ children }: { children: ReactNode }) {
   const kb = useKeyboardHeight(true);
   const [px, setPx] = useState<number | null>(null);
   const [withTabs, setWithTabs] = useState(true);
+  // Första mätningen sätter höjden från "ingen höjd" — den får INTE animeras
+  // (kolumnen hade vikt ihop sig synligt vid inträdet). Övergången slås på
+  // efteråt, och bara när användaren inte bett om mindre rörelse.
+  const [animate, setAnimate] = useState(false);
 
   useEffect(() => {
     const compute = () => {
@@ -43,6 +56,13 @@ export function ConversationScreen({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("resize", compute);
   }, [kb]);
 
+  useEffect(() => {
+    if (px == null || animate) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const id = window.requestAnimationFrame(() => setAnimate(true));
+    return () => window.cancelAnimationFrame(id);
+  }, [px, animate]);
+
   return (
     <div
       ref={ref}
@@ -56,6 +76,7 @@ export function ConversationScreen({ children }: { children: ReactNode }) {
               : `${px}px`,
         // Före mätningen: något rimligt så första bilden inte är en tom remsa.
         minHeight: px == null ? "60dvh" : undefined,
+        transition: animate ? `height ${KEYBOARD_MS}ms ${KEYBOARD_EASE}` : undefined,
       }}
     >
       {children}
