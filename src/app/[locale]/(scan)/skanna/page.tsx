@@ -52,6 +52,7 @@ import { hapticImpact } from "@/lib/haptics";
 import { pickAlternatives, pickSameArtRail } from "@/lib/scan-alternatives";
 import { useCameraControls } from "@/hooks/use-camera-controls";
 import { openPaywallOrNavigate } from "@/lib/paywall";
+import { SellSheet, type SellItem } from "@/components/features/sell-sheet";
 import {
   withDeviceId,
   type ZoomPreset,
@@ -927,6 +928,10 @@ function Scanner() {
 
   const [addingAll, setAddingAll] = useState(false);
   const [addedCount, setAddedCount] = useState<number | null>(null);
+  /** "Sälj" i granskningsfoten: hela brickan på väg till Tradera-arket. */
+  const [sellItems, setSellItems] = useState<SellItem[]>([]);
+  const [sellOpen, setSellOpen] = useState(false);
+  const [preparingSell, setPreparingSell] = useState(false);
   /** Har brickan redan lagts till? Läses av `removeScan`, som har tomma
    *  beroenden — en state-läsning där hade varit inaktuell. */
   const addedRef = useRef(false);
@@ -2090,17 +2095,14 @@ function Scanner() {
     // Arket stängs BARA av användaren — svep ner eller krysset.
   }, []);
 
-  async function addAll() {
-    if (matched.length === 0) return;
-    // Gäst: samlingen kräver konto. Skicka till registreringen i stället för
-    // att låta /api/collection svara 401 — och det är dessutom det bästa
-    // säljögonblicket: kortet är hittat och användaren vill spara det.
-    if (quota?.guest) {
-      router.push("/registrera?callbackUrl=/skanna");
-      return;
-    }
-    setAddingAll(true);
-    let ok = 0;
+  /**
+   * Lägger brickans träffar i samlingen och returnerar de SKAPADE posterna
+   * parade med sin skanning. Delad av "Lägg till" och "Sälj" — säljvägen behöver
+   * `collectionItemId` (annonsen skrivs tillbaka dit, se sell-sheet.tsx) och den
+   * som säljer ett kort äger det tills det är sålt, så posten hör hemma där ändå.
+   */
+  async function addMatchedToCollection(): Promise<{ item: { id: string }; scan: ScanItem }[]> {
+    const created: { item: { id: string }; scan: ScanItem }[] = [];
     for (const s of matched) {
       try {
         const res = await fetch("/api/collection", {
@@ -2121,7 +2123,8 @@ function Scanner() {
           }),
         });
         if (res.ok) {
-          ok += 1;
+          const item = (await res.json()) as { id: string };
+          created.push({ item, scan: s });
           // Oförändrad i samlingen = bekräftat facit (servern vaktar så att en
           // tidigare KORRIGERING aldrig degraderas till bekräftelse).
           //
@@ -2140,8 +2143,24 @@ function Scanner() {
         /* fortsätt med nästa */
       }
     }
-    setAddingAll(false);
     addedRef.current = true;
+    return created;
+  }
+
+  /** Gäst → registrering. Samlingen kräver konto, och det är dessutom det bästa
+   *  säljögonblicket: kortet är hittat och användaren vill spara det. */
+  function guestBounced(): boolean {
+    if (!quota?.guest) return false;
+    router.push("/registrera?callbackUrl=/skanna");
+    return true;
+  }
+
+  async function addAll() {
+    if (matched.length === 0 || guestBounced()) return;
+    setAddingAll(true);
+    const created = await addMatchedToCollection();
+    const ok = created.length;
+    setAddingAll(false);
     setAddedCount(ok);
     // Lyckat tillägg bekräftas av granskningsvyns egen fot ("N kort tillagda") —
     // en toast ovanpå sa samma sak två gånger (ägaren 2026-09-06). Bara det
@@ -2152,6 +2171,42 @@ function Scanner() {
         description: t("addedPartialDesc", { ok, total: matched.length }),
         variant: "error",
       });
+    }
+  }
+
+  /**
+   * "Sälj" på hela brickan: lägg korten i samlingen (annonsen behöver posten)
+   * och öppna säljarket med dem i kö — ett kort i taget, med SKANNERNS EGEN
+   * BILD som annonsens framsida. Att be någon fota om ett kort de nyss fotat
+   * är att begära samma arbete två gånger.
+   */
+  async function sellAll() {
+    if (matched.length === 0 || preparingSell || guestBounced()) return;
+    setPreparingSell(true);
+    try {
+      const created = await addMatchedToCollection();
+      setAddedCount(created.length);
+      if (created.length === 0) {
+        toast({ title: t("sellPrepFailed"), variant: "error" });
+        return;
+      }
+      setSellItems(
+        created.map(({ item, scan }) => ({
+          collectionItemId: item.id,
+          name: scan.match!.name,
+          setName: scan.match!.setName ?? null,
+          imageUrl: scan.match!.imageUrl ?? null,
+          condition: scan.condition,
+          language: scan.language,
+          estimatedValue: scan.match!.estimatedValue ?? null,
+          isSingle: true, // skannern hittar alltid ett KORT, aldrig en förseglad produkt
+          slug: scan.match!.slug ?? null,
+          photo: scan.captured,
+        }))
+      );
+      setSellOpen(true);
+    } finally {
+      setPreparingSell(false);
     }
   }
 
@@ -2249,7 +2304,9 @@ function Scanner() {
           onRemove={removeScan}
           onChoose={chooseCandidate}
           onOpenDetails={setDetailsId}
+          preparingSell={preparingSell}
           onAddAll={() => void addAll()}
+          onSellAll={() => void sellAll()}
           onScanMore={() => {
             setScans([]);
             setAddedCount(null);
@@ -2260,6 +2317,15 @@ function Scanner() {
           onClose={closeScanner}
         />
       )}
+
+      {/* Säljarket över skannern: `elevated` lyfter det ovanför helskärmsvärden
+          (skannern ligger z-[60]), precis som produkt-overlayn. */}
+      <SellSheet
+        items={sellItems}
+        open={sellOpen}
+        elevated
+        onClose={() => setSellOpen(false)}
+      />
 
       {/* Betalvägg när gratiskvoten är slut. Samma ark-form som resten av
           appen — inte en toast: det här är köpögonblicket, inte ett fel.
@@ -3036,12 +3102,15 @@ function ReviewView(props: {
   pendingChoice: number;
   total: number;
   addingAll: boolean;
+  /** Brickan är på väg till säljarket (posterna skapas först). */
+  preparingSell: boolean;
   addedCount: number | null;
   onPatch: (id: string, patch: Partial<ScanItem>) => void;
   onRemove: (id: string) => void;
   onChoose: (id: string, cand: Candidate) => void;
   onOpenDetails: (id: string) => void;
   onAddAll: () => void;
+  onSellAll: () => void;
   onScanMore: () => void;
   onClose: () => void;
 }) {
@@ -3054,6 +3123,7 @@ function ReviewView(props: {
     pendingChoice,
     total,
     addingAll,
+    preparingSell,
     addedCount,
     onPatch,
     onRemove,
@@ -3325,6 +3395,20 @@ function ReviewView(props: {
               {t("cardsAdded", { count: addedCount })}
             </p>
           ) : (
+            <div className="flex items-center gap-2">
+            {/* SÄLJ bredvid tillägget (ägarbeslut 2026-09-07). Den lägger också
+                korten i samlingen — annonsen skrivs tillbaka på posten, och det
+                man säljer äger man tills det är sålt. Sekundär vikt: att lägga
+                till är fortfarande det vanliga. */}
+            <Button
+              variant="outline"
+              onClick={props.onSellAll}
+              loading={preparingSell}
+              disabled={matchedCount === 0 || pendingChoice > 0}
+              className="px-4 disabled:opacity-40"
+            >
+              {t("sellOnTradera")}
+            </Button>
             <Button
               onClick={props.onAddAll}
               loading={addingAll}
@@ -3345,6 +3429,7 @@ function ReviewView(props: {
                   ? t("addToCollectionN", { count: matchedCount })
                   : t("addToCollection")}
             </Button>
+            </div>
           )}
         </div>
         {done && (

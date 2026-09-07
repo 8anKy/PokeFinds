@@ -43,7 +43,8 @@ import {
   type CollectionSort,
 } from "./collection-filter";
 import { CollectionToolbar } from "./collection-toolbar";
-import { SellButton } from "./sell-on-tradera";
+import { SellButton } from "@/components/features/sell-sheet";
+import { toSellItem } from "./sell-item";
 
 const LONG_PRESS_MS = 450;
 
@@ -487,7 +488,7 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
                   onClick={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
                 >
-                  <SellButton row={r} className="w-full" />
+                  <SellButton item={toSellItem(r)} className="w-full" />
                 </span>
               )}
 
@@ -568,7 +569,7 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
                             onClick={(e) => e.stopPropagation()}
                             onPointerDown={(e) => e.stopPropagation()}
                           >
-                            <SellButton row={lot} className="w-full" />
+                            <SellButton item={toSellItem(lot)} className="w-full" />
                           </span>
                         )}
                       </li>

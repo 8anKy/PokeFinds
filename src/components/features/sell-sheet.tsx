@@ -19,7 +19,7 @@
  * vägen mitt i ett SÄLJformulär (ägarbeslut 2026-09-07). Det sätts där det hör
  * hemma: inköpspris-arket på kortet.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { apiFetch } from "@/lib/client-api";
@@ -42,7 +42,35 @@ import {
   totalBuyerKr,
   type ListingType,
 } from "@/lib/tradera-listing-options";
-import { CONDITION_LABELS, LANGUAGE_LABELS, type CollectionRow } from "./collection-client";
+import { CONDITION_LABELS, LANGUAGE_LABELS } from "@/lib/collection-labels";
+
+/**
+ * Ett objekt att sälja. ⛔ POSTEN I SAMLINGEN ÄR IDENTITETEN: Tradera-annonsen
+ * skrivs tillbaka på `CollectionItem.traderaItemId` (sold-sync, Sålt-fliken), så
+ * en försäljning utan samlingspost går inte att följa upp. Skannern lägger därför
+ * till korten FÖRST och skickar in id:na hit.
+ */
+export interface SellItem {
+  collectionItemId: string;
+  name: string;
+  setName: string | null;
+  /** Katalogbilden — bara till huvudet i arket, aldrig till annonsen. */
+  imageUrl: string | null;
+  condition: string;
+  language: string;
+  /** Marknadsvärde i ÖRE. */
+  estimatedValue: number | null;
+  /** Löst kort (true) eller förseglad produkt (false) — styr skick och gradering. */
+  isSingle: boolean;
+  /** Produktsida att koppla forumtråden till. */
+  slug: string | null;
+  /**
+   * Foto användaren REDAN tagit (skannerns fångade ruta) — läggs in som
+   * annonsens huvudbild. Att låta någon fota om ett kort de nyss fotat är
+   * att be om samma arbete två gånger.
+   */
+  photo?: string | null;
+}
 
 type Translators = {
   t: ReturnType<typeof useTranslations>;
@@ -91,7 +119,7 @@ function weightLabel(kg: number): string {
 }
 
 /** Standardbeskrivning att förifylla textrutan med (användaren kan redigera). */
-function defaultDescription(row: CollectionRow, condition: string, tr: Translators): string {
+function defaultDescription(row: SellItem, condition: string, tr: Translators): string {
   const condLabel = condition in CONDITION_LABELS ? tr.tCond(condition) : condition;
   const langLabel = row.language in LANGUAGE_LABELS ? tr.tLang(row.language) : row.language;
   return [
@@ -176,14 +204,24 @@ function Chip({
   );
 }
 
-export function SellButton({
-  row,
-  className,
-  size = "sm",
+/**
+ * Säljarket. Tar EN ELLER FLERA poster och betar av dem i tur och ordning:
+ * skannern lämnar ifrån sig hela brickan, och den som just skannat fem kort ska
+ * inte behöva öppna fem ark själv. Valen som gäller HELA högen (annonstyp, vikt,
+ * fraktbolag, forumkryss) följer med till nästa kort; det som är kortets eget
+ * (pris, skick, foto, text) börjar om.
+ */
+export function SellSheet({
+  items,
+  open,
+  onClose,
+  elevated = false,
 }: {
-  row: CollectionRow;
-  className?: string;
-  size?: "sm" | "md";
+  items: SellItem[];
+  open: boolean;
+  onClose: () => void;
+  /** Arket öppnas ovanpå en helskärmsvärd (skannern ligger z-[60]). */
+  elevated?: boolean;
 }) {
   const { toast } = useToast();
   const t = useTranslations("Collection");
@@ -195,12 +233,16 @@ export function SellButton({
   const fileRef = useRef<HTMLInputElement>(null);
   const communityV2 = useCommunityV2();
 
-  /** En LÖS singel eller en förseglad produkt — styr skick-valen och graderingen. */
-  const isSingle = row.cardId != null;
-  /** Marknadspriset i hela kronor — förslaget procentknapparna utgår från. */
-  const suggestedKr = row.estimatedValue != null ? Math.round(row.estimatedValue / 100) : null;
+  /** Vilket kort i högen vi står på. 0 när det bara finns ett. */
+  const [index, setIndex] = useState(0);
+  const row = items[Math.min(index, Math.max(0, items.length - 1))] ?? null;
 
-  const [open, setOpen] = useState(false);
+  /** En LÖS singel eller en förseglad produkt — styr skick-valen och graderingen. */
+  const isSingle = row?.isSingle ?? true;
+  /** Marknadspriset i hela kronor — förslaget procentknapparna utgår från. */
+  const suggestedKr =
+    row?.estimatedValue != null ? Math.round(row.estimatedValue / 100) : null;
+
   const [listingType, setListingType] = useState<ListingType>("BUY_NOW");
   const [price, setPrice] = useState("");
   /** Auktionens utgångspris. Köp direkt-priset i `price` är då valfritt. */
@@ -209,7 +251,7 @@ export function SellButton({
   /** Basen procentknapparna räknar på: marknadspriset, eller talet användaren skrivit. */
   const [baseKr, setBaseKr] = useState<number | null>(null);
   const [step, setStep] = useState<number | null>(null);
-  const [condition, setCondition] = useState(row.condition);
+  const [condition, setCondition] = useState(row?.condition ?? "NEAR_MINT");
   const [spans, setSpans] = useState<ShippingSpan[]>([]);
   const [weightKg, setWeightKg] = useState<number | null>(null);
   /** Valt fraktbolag, eller null = eget belopp. */
@@ -232,26 +274,64 @@ export function SellButton({
   const shippingKr = shippingPick ? shippingPick.priceKr : Math.round(Number(ownShipping) || 0);
   const total = totalBuyerKr(Number(activePrice), shippingKr);
 
-  function openSheet() {
+  /**
+   * Fyll formuläret med ETT korts uppgifter. Körs när arket öppnas och vid varje
+   * hopp till nästa kort i högen. ⛔ Rör INTE annonstyp, vikt, fraktbolag eller
+   * forumkrysset: den som säljer fem kort ur samma bunt skickar dem likadant, och
+   * att nollställa de valen per kort hade varit fyra onödiga rundor till.
+   */
+  const loadItem = useCallback(
+    (item: SellItem | null) => {
+      if (!item) return;
+      const single = item.isSingle;
+      const kr = item.estimatedValue != null ? Math.round(item.estimatedValue / 100) : null;
+      const cond = single ? item.condition : "SEALED";
+      setPrice(kr != null ? String(kr) : "");
+      setStartPrice(kr != null ? String(kr) : "");
+      setBaseKr(kr);
+      setStep(kr != null ? 0 : null);
+      setCondition(cond);
+      setDescription(defaultDescription(item, cond, tr));
+      // Skannerns egen ruta ÄR framsidan — den blir annonsens huvudbild direkt.
+      setImages(item.photo ? [item.photo] : []);
+      setGradeNote(null);
+      setError(null);
+      setResultUrl(null);
+      setForumNote(null);
+    },
+    // tr är tre översättarfunktioner som byter identitet varje rendering; texten
+    // de producerar beror bara på språket, som inte ändras mitt i ett ark.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  /** Arket öppnades (eller fick en ny hög) → börja om från första kortet. */
+  useEffect(() => {
+    if (!open) return;
+    setIndex(0);
     setListingType("BUY_NOW");
-    setPrice(suggestedKr != null ? String(suggestedKr) : "");
-    setStartPrice(suggestedKr != null ? String(suggestedKr) : "");
     setDuration(DEFAULT_AUCTION_DURATION);
-    setBaseKr(suggestedKr);
-    setStep(suggestedKr != null ? 0 : null);
-    setCondition(isSingle ? row.condition : "SEALED");
     setWeightKg(null);
     setShippingPick(null);
     setShowWeights(false);
     setOwnShipping("20");
-    setDescription(defaultDescription(row, isSingle ? row.condition : "SEALED", tr));
-    setImages([]);
-    setGradeNote(null);
     setAlsoForum(false);
-    setError(null);
-    setResultUrl(null);
-    setForumNote(null);
-    setOpen(true);
+    loadItem(items[0] ?? null);
+    // ⛔ BARA `open` I BEROENDENA. `items` är typiskt en array-literal hos
+    // anroparen och byter identitet vid varje rendering — med den i listan
+    // nollställdes formuläret medan användaren skrev i det.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  /** Klar med det här kortet → nästa i högen, med samma frakt-/typval kvar. */
+  function nextItem() {
+    const next = index + 1;
+    if (next >= items.length) {
+      onClose();
+      return;
+    }
+    setIndex(next);
+    loadItem(items[next]);
   }
 
   /**
@@ -328,9 +408,11 @@ export function SellButton({
   function pickCondition(value: string) {
     // Håll beskrivningens Skick-rad i synk — men bara om texten inte redigerats
     // (dvs. fortfarande är auto-texten för nuvarande skick).
-    setDescription((prev) =>
-      prev === defaultDescription(row, condition, tr) ? defaultDescription(row, value, tr) : prev
-    );
+    if (row) {
+      setDescription((prev) =>
+        prev === defaultDescription(row, condition, tr) ? defaultDescription(row, value, tr) : prev
+      );
+    }
     setCondition(value);
   }
 
@@ -348,7 +430,7 @@ export function SellButton({
     try {
       const data = await apiFetch<{ overallGrade: number | null }>("/api/grading/grade", {
         method: "POST",
-        body: { front: images[0], back: images[1], cardName: row.name, locale },
+        body: { front: images[0], back: images[1], cardName: row?.name, locale },
       });
       if (data.overallGrade == null) throw new Error(t("sellGradeFailed"));
       const next = gradeToCondition(data.overallGrade);
@@ -390,19 +472,20 @@ export function SellButton({
       method: "POST",
       body: {
         groupSlug: MARKET_GROUP_SLUG,
-        title: [row.name, row.setName].filter(Boolean).join(" · ").slice(0, 120),
-        content: description.trim() || row.name,
+        title: [row!.name, row!.setName].filter(Boolean).join(" · ").slice(0, 120),
+        content: description.trim() || row!.name,
         images: keys,
         listingKind: "SELL",
         priceKr: Number(activePrice),
         ...(FORUM_CONDITIONS.has(condition) ? { condition } : {}),
-        ...(row.slug ? { productSlug: row.slug } : {}),
+        ...(row!.slug ? { productSlug: row!.slug } : {}),
         traderaUrl,
       },
     });
   }
 
   async function submit() {
+    if (!row) return;
     const priceKr = Math.round(Number(activePrice));
     if (!Number.isFinite(priceKr) || priceKr <= 0) return setError(t("sellErrPrice"));
     if (!Number.isFinite(shippingKr) || shippingKr < 0) return setError(t("sellErrShipping"));
@@ -414,7 +497,7 @@ export function SellButton({
       const { url } = await apiFetch<{ url: string }>("/api/tradera/sell", {
         method: "POST",
         body: {
-          collectionItemId: row.id,
+          collectionItemId: row!.collectionItemId,
           listingType,
           ...(isAuction
             ? { startPriceKr: priceKr, durationDays: duration }
@@ -463,27 +546,47 @@ export function SellButton({
   }
 
   return (
-    <>
-      <Button size={size} variant="secondary" className={className} onClick={openSheet}>
-        {t("sell")}
-      </Button>
-
-      <BottomSheet
-        open={open}
-        onClose={() => setOpen(false)}
-        title={t("sellTitle")}
+    <BottomSheet
+        open={open && row != null}
+        onClose={onClose}
+        title={
+          items.length > 1
+            ? t("sellTitleOfN", { index: index + 1, total: items.length })
+            : t("sellTitle")
+        }
         closeLabel={tc("cancel")}
+        elevated={elevated}
         panelClassName="sm:mx-auto sm:max-w-lg"
         footer={
           resultUrl ? (
-            <a
-              href={resultUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex w-full items-center justify-center rounded-[10px] bg-holo-cyan px-4 py-3.5 text-sm font-bold text-surface transition-opacity active:opacity-90"
-            >
-              {t("sellViewListing")}
-            </a>
+            <div className="space-y-2.5">
+              {/* Huvudknappen är NÄSTA KORT när det finns fler — annars fastnar
+                  den som säljer fem kort i "Visa annonsen" fyra gånger i onödan. */}
+              {index + 1 < items.length ? (
+                <>
+                  <BottomSheetCta onClick={nextItem}>
+                    {t("sellNextItem", { index: index + 2, total: items.length })}
+                  </BottomSheetCta>
+                  <a
+                    href={resultUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-center text-xs font-medium text-ink-faint underline underline-offset-2"
+                  >
+                    {t("sellViewListing")}
+                  </a>
+                </>
+              ) : (
+                <a
+                  href={resultUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex w-full items-center justify-center rounded-[10px] bg-holo-cyan px-4 py-3.5 text-sm font-bold text-surface transition-opacity active:opacity-90"
+                >
+                  {t("sellViewListing")}
+                </a>
+              )}
+            </div>
           ) : (
             <>
               {/* Summan står vid knappen, inte längst upp: det är sista siffran
@@ -507,7 +610,7 @@ export function SellButton({
           <div className="space-y-3 pb-2">
             <p className="text-sm text-ink-muted">
               {t.rich("sellResultText", {
-                name: row.name,
+                name: row?.name ?? "",
                 b: (chunks) => <span className="font-medium text-ink">{chunks}</span>,
               })}
             </p>
@@ -519,10 +622,10 @@ export function SellButton({
                 att man säljer RÄTT exemplar innan man börjar fylla i pris. */}
             <div className="flex items-center gap-3 rounded-xl bg-surface-raised p-3">
               <div className="h-16 w-12 shrink-0 overflow-hidden rounded-md bg-surface">
-                {row.imageUrl ? (
+                {row?.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={row.imageUrl}
+                    src={row.imageUrl!}
                     alt=""
                     loading="lazy"
                     decoding="async"
@@ -536,8 +639,8 @@ export function SellButton({
                 )}
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-ink">{row.name}</p>
-                {row.setName && <p className="truncate text-xs text-ink-muted">{row.setName}</p>}
+                <p className="truncate text-sm font-semibold text-ink">{row?.name}</p>
+                {row?.setName && <p className="truncate text-xs text-ink-muted">{row.setName}</p>}
               </div>
             </div>
 
@@ -579,7 +682,6 @@ export function SellButton({
                   </button>
                 )}
               </div>
-              <p className="mt-2 text-xs text-ink-muted">{t("sellPhotoHint")}</p>
               <input
                 ref={fileRef}
                 id="sellPhoto"
@@ -645,7 +747,7 @@ export function SellButton({
                 </div>
                 <p className="mt-2 text-xs text-ink-muted">
                   {suggestedKr != null
-                    ? t("sellSuggested", { price: formatPrice(row.estimatedValue!) })
+                    ? t("sellSuggested", { price: formatPrice(row!.estimatedValue!) })
                     : t("sellNoSuggested")}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -862,7 +964,35 @@ export function SellButton({
             <FieldError message={error} />
           </div>
         )}
-      </BottomSheet>
+    </BottomSheet>
+  );
+}
+
+/**
+ * Knappen på en samlingspost. Arket i sig klarar flera poster (skannern skickar
+ * hela brickan) — här är högen alltid ett kort.
+ */
+export function SellButton({
+  item,
+  className,
+  size = "sm",
+}: {
+  item: SellItem;
+  className?: string;
+  size?: "sm" | "md";
+}) {
+  const t = useTranslations("Collection");
+  const [open, setOpen] = useState(false);
+  // Ny array-identitet vid varje rendering hade startat om arket mitt i (effekten
+  // som laddar högen tittar på `items`) — därför en stabil referens per post.
+  const items = useMemo(() => [item], [item]);
+
+  return (
+    <>
+      <Button size={size} variant="secondary" className={className} onClick={() => setOpen(true)}>
+        {t("sell")}
+      </Button>
+      <SellSheet items={items} open={open} onClose={() => setOpen(false)} />
     </>
   );
 }

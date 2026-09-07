@@ -20,7 +20,8 @@ import {
   IconTrendingDown,
   IconTrendingUp,
 } from "@/components/ui/icons";
-import { SellButton } from "./sell-on-tradera";
+import { SellButton } from "@/components/features/sell-sheet";
+import { toSellItem } from "./sell-item";
 import { parseKronorToOre } from "@/lib/purchase-price";
 import {
   groupCollectionLots,
@@ -37,25 +38,12 @@ import {
   type CollectionSort,
 } from "./collection-filter";
 import { CollectionToolbar } from "./collection-toolbar";
+import { CONDITION_LABELS, LANGUAGE_LABELS } from "@/lib/collection-labels";
 
-export const CONDITION_LABELS: Record<string, string> = {
-  MINT: "Mint",
-  NEAR_MINT: "Near Mint",
-  EXCELLENT: "Excellent",
-  GOOD: "Good",
-  PLAYED: "Played",
-  POOR: "Poor",
-  SEALED: "Sealed",
-};
-
-export const LANGUAGE_LABELS: Record<string, string> = {
-  SV: "Svenska",
-  EN: "Engelska",
-  JP: "Japanska",
-  DE: "Tyska",
-  FR: "Franska",
-  OTHER: "Övrigt",
-};
+// Etiketterna bor i lib/collection-labels.ts sedan 2026-09-07 — skannerns
+// säljark behöver dem också, och att importera dem HÄRIFRÅN hade dragit in hela
+// samlingsklienten i skannerbunten. Re-exporten håller befintliga anropare hela.
+export { CONDITION_LABELS, LANGUAGE_LABELS } from "@/lib/collection-labels";
 
 export interface CollectionRow {
   id: string;
@@ -713,7 +701,7 @@ export function CollectionClient({
                             <TD />
                             <TD>
                               <div className="flex justify-end gap-2">
-                                <SellButton row={lot} />
+                                <SellButton item={toSellItem(lot)} />
                                 <Button size="sm" variant="ghost" onClick={() => openEdit(lot)}>
                                   {tc("edit")}
                                 </Button>
@@ -800,7 +788,7 @@ export function CollectionClient({
                   </TD>
                   <TD>
                     <div className="flex justify-end gap-2">
-                      <SellButton row={item} />
+                      <SellButton item={toSellItem(item)} />
                       <Button size="sm" variant="ghost" onClick={() => openEdit(item)}>
                         {tc("edit")}
                       </Button>
