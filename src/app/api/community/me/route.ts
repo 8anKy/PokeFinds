@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { apiError, jsonOk } from "@/lib/api";
 import { auth } from "@/lib/auth";
 import { assertCommunityV2 } from "@/lib/community-v2-server";
-import { personalPostState } from "@/services/community";
+import { personalPostState, postCounts } from "@/services/community";
 import { joinedGroupIds } from "@/services/community-groups";
 import { blockedUserIds } from "@/services/blocks";
 import { hasAcceptedForumRules } from "@/lib/forum-rules";
@@ -15,6 +15,12 @@ const MAX_POST_IDS = 50;
  * Betraktarens personliga tillstånd för ISR-sidorna (kontrakt 5 i briefen):
  * gillat/sparat bland `?postIds=a,b,c`, grupper hen gått med i, och blockerade
  * användare (åt båda hållen — svaren döljs i klienten).
+ *
+ * Sedan 2026-09-07 bär svaret också FÄRSKA RÄKNARE (`counts`) för samma
+ * `postIds`: trådsidans ISR-HTML är upp till 300 s gammal och Nexts klient-
+ * routercache lägger 30 s till, så gillningar och svar som kommit sedan
+ * renderingen fanns inte i sidan alls. Se `postCounts` — samma väckning, två
+ * små frågor, i stället för att invalidera alla trådsidor vid varje gillning.
  *
  * Utloggad ⇒ 200 med tomma listor, aldrig 401: sidan är publik, och ett 401
  * hade fått apiFetch att skicka besökaren till inloggningen. Klienten ska
@@ -32,6 +38,7 @@ export async function GET(req: NextRequest) {
       joinedGroupIds: [],
       blockedIds: [],
       rulesAccepted: null as boolean | null,
+      counts: {} as Record<string, { likeCount: number; commentCount: number }>,
     };
     if (!userId) return jsonOk(empty);
 
@@ -41,11 +48,12 @@ export async function GET(req: NextRequest) {
       .filter((s) => /^[A-Za-z0-9_-]{1,64}$/.test(s))
       .slice(0, MAX_POST_IDS);
 
-    const [state, groups, blocked, rulesAccepted] = await Promise.all([
+    const [state, groups, blocked, rulesAccepted, counts] = await Promise.all([
       personalPostState(userId, postIds),
       joinedGroupIds(userId),
       blockedUserIds(userId),
       hasAcceptedForumRules(userId),
+      postCounts(postIds),
     ]);
     return jsonOk({
       likedIds: state.likedIds,
@@ -53,6 +61,7 @@ export async function GET(req: NextRequest) {
       joinedGroupIds: groups,
       blockedIds: blocked,
       rulesAccepted,
+      counts,
     });
   } catch (e) {
     return apiError(e);

@@ -65,7 +65,14 @@ export function ThreadActions({
     if (!ready) return;
     setLiked(state.likedIds.includes(postId));
     setSaved(state.savedIds.includes(postId));
-  }, [ready, state.likedIds, state.savedIds, postId]);
+    // ⛔ SIFFRAN I ISR-HTML:EN ÄR UPP TILL 300 s GAMMAL (+30 s routercache): mätt
+    // 2026-09-07 stod ett fyllt hjärta bredvid en NOLLA, för `liked` kom från den
+    // färska /me-läsningen och `initialLikeCount` från den gamla sidan. Servern
+    // skickar därför räknaren i samma svar. Har fliken redan växlat den här
+    // tråden är dess egen siffra nyare — /me kan vara upp till 30 s cachad.
+    const fresh = state.counts[postId];
+    if (fresh && recallPostToggle(postId).liked === undefined) setLikeCount(fresh.likeCount);
+  }, [ready, state.likedIds, state.savedIds, state.counts, postId]);
 
   const isOwner = viewer?.id === authorId;
   const callbackPath = `/forum/t/${postId}`;

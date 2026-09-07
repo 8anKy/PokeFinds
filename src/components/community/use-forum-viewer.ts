@@ -27,6 +27,12 @@ export interface ForumPersonalState {
   blockedIds: string[];
   /** Forumreglerna godkända? null = okänt/utloggad. Läses av ForumRulesGate. */
   rulesAccepted: boolean | null;
+  /**
+   * FÄRSKA räknare per postId — det ISR-HTML:en inte kan bära (den är upp till
+   * 300 s gammal, plus 30 s klient-routercache). Tom karta = servern hade inget
+   * att säga; behåll då sidans egna siffror.
+   */
+  counts: Record<string, { likeCount: number; commentCount: number }>;
 }
 
 const EMPTY: ForumPersonalState = {
@@ -35,6 +41,7 @@ const EMPTY: ForumPersonalState = {
   joinedGroupIds: [],
   blockedIds: [],
   rulesAccepted: null,
+  counts: {},
 };
 const TTL_MS = 30_000;
 const MODERATOR_ROLES = new Set(["MODERATOR", "ADMIN", "SUPERADMIN"]);
@@ -48,6 +55,7 @@ export function fetchPersonalState(postIds: string[]): Promise<ForumPersonalStat
     credentials: "include",
   })
     .then((r) => (r.ok ? (r.json() as Promise<ForumPersonalState>) : EMPTY))
+    .then((s) => ({ ...EMPTY, ...s }))
     .catch(() => EMPTY);
   cache = { key, at: Date.now(), promise };
   return promise;

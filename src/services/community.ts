@@ -509,6 +509,50 @@ export async function toggleSave(postId: string, userId: string) {
   return { saved: !existing };
 }
 
+export interface PostCounts {
+  likeCount: number;
+  commentCount: number;
+}
+
+/**
+ * FÄRSKA RÄKNARE FÖR `postIds` — det ISR-HTML:en INTE kan bära.
+ *
+ * ⛔ Trådsidan är ISR-cachad (300 s) och Nexts klient-routercache serverar samma
+ * RSC-nyttolast i 30 s till. Gillningar och svar som kommer efter renderingen
+ * finns alltså inte i sidan: mätt 2026-09-07 visade flödet "1 gillning, 1 svar"
+ * medan tråden man öppnade sa 0 och "Inga svar ännu" — och hjärtat var FYLLT
+ * bredvid en nolla, för `liked` kom från den färska /me-läsningen och siffran
+ * från den gamla HTML:en. Att invalidera sidan vid varje gillning hade renderat
+ * om ALLA trådsidor (revalidatePath tar hela mönstret) för en siffra.
+ *
+ * Räknarna åker därför med i det anrop klienten ändå gör vid varje trådöppning
+ * (`/api/community/me`) — samma Neon-väckning, två extra små frågor.
+ *
+ * ⛔ Kommentarerna räknas som `listComments` listar dem (`isHidden: false`),
+ * annars skulle en gömd kommentar göra att klienten ALLTID tror att listan är
+ * gammal och hämtar om den i onödan.
+ */
+export async function postCounts(postIds: string[]): Promise<Record<string, PostCounts>> {
+  if (postIds.length === 0) return {};
+  const [likes, comments] = await Promise.all([
+    prisma.like.groupBy({
+      by: ["postId"],
+      where: { postId: { in: postIds } },
+      _count: { postId: true },
+    }),
+    prisma.comment.groupBy({
+      by: ["postId"],
+      where: { postId: { in: postIds }, isHidden: false },
+      _count: { postId: true },
+    }),
+  ]);
+  const out: Record<string, PostCounts> = {};
+  for (const id of postIds) out[id] = { likeCount: 0, commentCount: 0 };
+  for (const row of likes) if (out[row.postId]) out[row.postId].likeCount = row._count.postId;
+  for (const row of comments) if (out[row.postId]) out[row.postId].commentCount = row._count.postId;
+  return out;
+}
+
 /** Vad DEN HÄR användaren gillat/sparat bland `postIds` — två små läsningar. */
 export async function personalPostState(userId: string, postIds: string[]) {
   if (postIds.length === 0) return { likedIds: [] as string[], savedIds: [] as string[] };

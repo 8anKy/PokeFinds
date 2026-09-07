@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { useKeyboardInset } from "@/hooks/use-keyboard-inset";
@@ -33,7 +33,7 @@ export function Replies({ postId, initial }: { postId: string; initial: CommentD
   const t = useTranslations("Forum");
   const router = useRouter();
   const { toast } = useToast();
-  const { loggedIn, viewer, state } = useForumViewer([postId]);
+  const { loggedIn, viewer, state, ready } = useForumViewer([postId]);
   // Svarsfältet är sidans NEDERSTA element: i appen läggs tangentbordet ovanpå
   // webbvyn (Keyboard resize:"none") utan att sidan krymper, så fältet hamnar
   // bakom det och det finns ingen rullmån kvar att lyfta upp det med. Hooken ger
@@ -53,6 +53,26 @@ export function Replies({ postId, initial }: { postId: string; initial: CommentD
   useEffect(() => {
     setComments(mergeComments(recallOwnComments(postId), initial));
   }, [postId, initial]);
+
+  // ⛔ SERVERNS LISTA KAN VARA UPP TILL 300 s GAMMAL (ISR) + 30 s (routercache):
+  // mätt 2026-09-07 sa flödet "1 svar" medan tråden man öppnade sa "Inga svar
+  // ännu". /me bär därför en färsk räknare, och skiljer den sig från det vi
+  // renderade hämtar vi listan EN gång. Stämmer de (det vanliga) kostar det
+  // ingenting — och egna svar ligger redan i minnet, så den här vägen är för
+  // ANDRAS svar.
+  const refetched = useRef<string | null>(null);
+  useEffect(() => {
+    if (!ready) return;
+    const fresh = state.counts[postId];
+    if (!fresh || fresh.commentCount === comments.length) return;
+    if (refetched.current === postId) return;
+    refetched.current = postId;
+    void apiFetch<{ items: CommentDto[] }>(`/api/community/posts/${postId}/comments`)
+      .then((res) => setComments((prev) => mergeComments(prev, res.items)))
+      .catch(() => {
+        // nätverksfel — behåll det som visas
+      });
+  }, [ready, state.counts, postId, comments.length]);
 
   const blocked = new Set(state.blockedIds);
   const visible = comments.filter((c) => !blocked.has(c.user.id));
@@ -93,6 +113,11 @@ export function Replies({ postId, initial }: { postId: string; initial: CommentD
       // Så att svaret finns kvar när man går ut ur tråden och in igen — se filhuvudet.
       rememberOwnComment(postId, saved);
       toast({ title: t("replyPosted"), variant: "success" });
+      // Servern invaliderade ISR-posterna (revalidateForum), men Nexts KLIENT-
+      // routercache håller en förhämtad rutt i upp till 5 MINUTER — utan det här
+      // visade /forum gammal svarsräknare när man gick tillbaka. Samma skäl som
+      // composer.tsx. Neon är redan vaken av skrivningen.
+      router.refresh();
     } catch (e) {
       setComments((prev) => prev.filter((c) => c.id !== tempId));
       setText(content);
