@@ -321,7 +321,14 @@ export function ConversationView({
       <div
         ref={listRef}
         onScroll={onListScroll}
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain py-3"
+        // flex-col + `mt-auto` på bubbelspalten: ETT KORT SAMTAL LIGGER MOT
+        // BOTTEN, inte mot toppen. Med innehållet i toppen sköt tangentbordets
+        // lyft (skalet förskjuter kolumnen) upp de få meddelandena förbi
+        // klippkanten och rutan såg tom ut tills tangentbordet stängdes — och det
+        // är dessutom så en chatt ser ut. `mt-auto` blir 0 så fort innehållet är
+        // högre än rutan, så den långa listan scrollar precis som förut (⛔ till
+        // skillnad från `justify-end`, som gör toppen onåbar vid överflöd).
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain py-3"
       >
         {hasOlder && (
           <div className="mb-2 flex justify-center">
@@ -336,9 +343,9 @@ export function ConversationView({
           </div>
         )}
         {messages.length === 0 ? (
-          <p className="py-10 text-center text-sm text-ink-muted">{t("noMessages")}</p>
+          <p className="mt-auto py-10 text-center text-sm text-ink-muted">{t("noMessages")}</p>
         ) : (
-          <div className="flex flex-col gap-1.5">{items}</div>
+          <div className="mt-auto flex flex-col gap-1.5">{items}</div>
         )}
       </div>
 
