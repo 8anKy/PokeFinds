@@ -497,6 +497,12 @@ export function WatchlistTable({
               b: (chunks) => <span className="font-medium text-ink">{chunks}</span>,
             })}
           </p>
+          {/* ⛔ INGEN autoFocus. Tangentbordet öppnades då i samma commit som arket
+              monterades — Capacitor-lyssnaren i useKeyboardHeight registreras
+              asynkront, så `keyboardWillShow` hann fyra innan den fanns och arket
+              lyftes aldrig: knappsatsen låg rakt över fältet (rapporterat
+              2026-09-07). Fokus i ett nyss öppnat ark fick dessutom sidan bakom
+              att scrolla till fältet. Samma val som snabbtilläggets ark. */}
           <Label htmlFor="targetPrice">{t("targetPriceLabel")}</Label>
           <Input
             id="targetPrice"
@@ -506,7 +512,6 @@ export function WatchlistTable({
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             className="h-11 bg-surface"
-            autoFocus
           />
         </form>
       </BottomSheet>
