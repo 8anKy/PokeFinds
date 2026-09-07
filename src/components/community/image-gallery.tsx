@@ -4,20 +4,23 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
-import { Modal } from "@/components/ui/modal";
+import { ImageLightbox } from "@/components/ui/image-lightbox";
 import type { ForumImage } from "@/services/community";
 
 /**
- * Trådens bilder: en bild visas stor, fler i ett rutnät; tryck öppnar full
- * storlek i en modal. URL:erna är signerade (7 dygn) och deterministiska per
- * timme, så webbläsarens bildcache träffar mellan sidvisningar.
+ * Trådens bilder: en bild visas stor, fler i ett rutnät; tryck öppnar dem i
+ * HELSKÄRM (ui/image-lightbox) — inte i en modal. URL:erna är signerade (7 dygn)
+ * och deterministiska per timme, så webbläsarens bildcache träffar mellan
+ * sidvisningar.
+ *
+ * ⛔ Rutnätet öppnar ALLTID hela serien, aldrig bara den man tryckte på: läsaren
+ * bläddrar vidare i helskärm med ett svep, som i kamerarullen.
  */
 export function ImageGallery({ images }: { images: ForumImage[] }) {
   const t = useTranslations("Forum");
   const [open, setOpen] = useState<number | null>(null);
   const usable = images.filter((i): i is ForumImage & { url: string } => !!i.url);
   if (usable.length === 0) return null;
-  const current = open != null ? usable[open] : null;
 
   return (
     <>
@@ -72,20 +75,15 @@ export function ImageGallery({ images }: { images: ForumImage[] }) {
         ))}
       </div>
 
-      <Modal
-        open={current != null}
+      <ImageLightbox
+        images={usable.map((img, i) => ({
+          url: img.url,
+          alt: t("imageAlt", { n: i + 1, total: usable.length }),
+        }))}
+        index={open}
+        onIndexChange={setOpen}
         onClose={() => setOpen(null)}
-        title={open != null ? t("imageAlt", { n: open + 1, total: usable.length }) : ""}
-        className="max-w-3xl"
-      >
-        {current && (
-          <img
-            src={current.url}
-            alt={t("imageAlt", { n: (open ?? 0) + 1, total: usable.length })}
-            className="mx-auto max-h-[75vh] w-auto max-w-full object-contain"
-          />
-        )}
-      </Modal>
+      />
     </>
   );
 }

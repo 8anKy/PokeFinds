@@ -54,6 +54,16 @@ paths:
   Buggen var aldrig länken, den var målningsordningen. En helskärmsvärd anmäler sig med `registerFullscreenHost()`
   (`src/lib/product-overlay-open.ts`, RÄKNARE inte boolean) och BARA då lyfts overlayn till z-[70]. ⛔ Höj den
   aldrig permanent — då försvinner bottenflikarna bakom den i vanlig bläddring, vilket är hela skälet till z-40.
+- **BILDER VISAS I HELSKÄRM, ALDRIG I EN MODAL (ägarbeslut 2026-09-07)**: `src/components/ui/image-lightbox.tsx`
+  är appens ENDA bildläsare — svart yta över hela skärmen (`z-[80]`, alltså över bottenflikarna och över
+  bottenarkets `elevated`), svep i sidled mellan bilderna, svep NEDÅT för att lämna, räknare `1/N` uppe till
+  höger och punkter nedtill när det finns fler än en. Forumets galleri öppnade förut en `Modal`: en ruta med
+  rubrik och ✕ ovanpå en sida som fortfarande syntes runtomkring, dvs bilden blev MINDRE än den redan var.
+  ⛔ Bygg ingen andra bildvisare — och skriv ingen egen gest: domarna är `resolveTabSwipe` (`lib/swipe-gesture.ts`)
+  för sidledsbytet och `shouldCloseSheet` (`lib/sheet-drag.ts`) för nedåtdraget, precis som flikarna och
+  bottenarket. Riktningen låses vid `DIRECTION_PX` (3 px), ALDRIG vid 8 — den läxan står i `sheet-drag.ts` och är
+  betald två gånger. Ytan bär `touch-none` + `data-drag-surface` (studsvakten i `pwa-register.tsx` dödar annars
+  nedåtdraget) och pushar en historik-markör, så Android-bakåt stänger BILDEN i stället för att lämna tråden.
 - **SIDANS VÅGRÄTA LUFT = 10px PÅ MOBIL (2026-07-29)**: varje sidbehållare kör `px-2.5 sm:px-6` — samma tal som
   rutnätets gap (10px), så luften utanför korten är exakt luften mellan dem. Den var 16px (`px-4`) och läste som en
   bred ram runt en smal app. Talet delas av ALLT som möter kanten: sidbehållarna (marketing + app-shellens `<main>`),
