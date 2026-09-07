@@ -50,22 +50,32 @@ export default async function ConversationPage({ params }: PageProps) {
         ? t("blockedNotice")
         : null;
 
+  const otherDto = conv.other
+    ? { id: conv.other.id, name: conv.other.name, avatarUrl: conv.other.avatarUrl }
+    : null;
+
   return (
-    <ConversationScreen>
+    // ⛔ HEADERN LIGGER UTANFÖR ConversationScreen. Skalet förskjuter allt sitt
+    // innehåll uppåt när tangentbordet öppnas (transform, se komponenten) — låg
+    // headern inuti gled den upp ur bild och kom tillbaka först när tangentbordet
+    // stängdes. Utanför står den still och listan glider upp under den.
+    <>
       <ConversationHeader
         conversationId={conv.id}
-        other={conv.other ? { id: conv.other.id, name: conv.other.name, avatarUrl: conv.other.avatarUrl } : null}
+        other={otherDto}
         post={conv.post}
         blockedByMe={blocks.byMe}
       />
-      <ConversationView
-        conversationId={conv.id}
-        meId={me}
-        other={conv.other ? { id: conv.other.id, name: conv.other.name, avatarUrl: conv.other.avatarUrl } : null}
-        initialMessages={messages}
-        initialOtherReadAt={conv.other?.lastReadAt ? conv.other.lastReadAt.toISOString() : null}
-        composerNotice={composerNotice}
-      />
-    </ConversationScreen>
+      <ConversationScreen>
+        <ConversationView
+          conversationId={conv.id}
+          meId={me}
+          other={otherDto}
+          initialMessages={messages}
+          initialOtherReadAt={conv.other?.lastReadAt ? conv.other.lastReadAt.toISOString() : null}
+          composerNotice={composerNotice}
+        />
+      </ConversationScreen>
+    </>
   );
 }

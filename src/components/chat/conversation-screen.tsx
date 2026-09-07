@@ -32,6 +32,10 @@ const KEYBOARD_MS = 250;
  * sedan på kompositorn: `translate3d` rör varken layout eller målning.
  * Ytterhöljet klipper det som far upp förbi headern.
  *
+ * ⛔ **Samtalets header ska ligga UTANFÖR skalet** (den renderas som syskon i
+ * sidan). Allt som står här inne förskjuts — headern inuti gled upp ur bild när
+ * tangentbordet öppnades och kom tillbaka först när det stängdes.
+ *
  * Tangentbord uppe: flikraden är antingen dold (webben, BottomTabs gömmer sig
  * själv) eller täckt (native, `Keyboard resize: none`) → förskjutningen drar
  * därför av dess klarering, annars stannar skrivfältet 64 px ovanför tangentbordet.
