@@ -138,3 +138,24 @@ describe("dropSetCookie", () => {
     expect(() => dropSetCookie(fake, LOCALE_COOKIE_NAME)).not.toThrow();
   });
 });
+
+// ── Livslängden på NEXT_LOCALE ────────────────────────────────────────────────
+// next-intls DEFAULT (`{ name: "NEXT_LOCALE", sameSite: "lax" }`) saknar livslängd,
+// dvs SESSIONSCOOKIE. Den skrivs på två vägar — `syncCookie` i middlewaren och
+// `syncLocaleCookie` i klientroutern — och den senare körde EFTER språkväljarens
+// egen 1-årscookie och skrev över den. Följden: ett byte EN→SV höll bara till
+// nästa omstart av webbläsaren/WebViewn, sedan vann `Accept-Language` igen.
+describe("routing.localeCookie", () => {
+  it("är beständig (maxAge satt) — annars överlever språkvalet inte en omstart", async () => {
+    const { routing } = await import("@/i18n/routing");
+    expect(routing.localeCookie).toBeTruthy();
+    // `defineRouting` returnerar indata ORÖRT — namnet (`NEXT_LOCALE`) och
+    // `sameSite` fylls i först vid konsumtionen (`receiveLocaleCookie`), så ett
+    // utelämnat `name` betyder fortfarande LOCALE_COOKIE_NAME.
+    const cookie = routing.localeCookie as { name?: string; maxAge?: number };
+    expect(cookie.name ?? LOCALE_COOKIE_NAME).toBe(LOCALE_COOKIE_NAME);
+    // Minst ett halvår: kortare och en användare som inte varit inne på ett tag
+    // får sitt språk återställt av `Accept-Language`.
+    expect(cookie.maxAge).toBeGreaterThanOrEqual(60 * 60 * 24 * 180);
+  });
+});

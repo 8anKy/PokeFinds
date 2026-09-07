@@ -11,12 +11,17 @@ export function LocaleSwitcher() {
   const pathname = usePathname();
   const router = useRouter();
 
-  // Native-appen (Capacitor/WKWebView) startar ALLTID om på https://www.foilio.se
-  // (utan locale-prefix), så middlewaren kör om språkdetektering vid varje start.
-  // next-intl:s mjuka navigering sätter inte alltid en beständig cookie i WKWebView
-  // → på en engelsk enhet vann Accept-Language och appen föll tillbaka till EN.
-  // Skriv därför NEXT_LOCALE-cookien explicit (1 år) — den överlever omstart och är
-  // exakt vad middlewaren läser. Idempotent med next-intl:s egen cookie (samma namn).
+  // Native-appen (Capacitor/WKWebView) startar ALLTID om på apex utan locale-prefix,
+  // så middlewaren kör om språkdetekteringen vid varje start och `Accept-Language`
+  // vinner om ingen cookie finns. Skriv därför NEXT_LOCALE explicit (1 år).
+  //
+  // ⛔ RADEN RÄCKTE INTE I SIG. next-intls klientrouter kallar `syncLocaleCookie`
+  // vid varje locale-byte och skriver SAMMA cookie EFTER den här raden — med
+  // livslängden ur `routing.localeCookie`. Stod den på default (ingen livslängd)
+  // ersattes 1-årscookien av en SESSIONSCOOKIE, och språkvalet överlevde inte
+  // nästa omstart: EN→SV "fastnade" inte. Livslängden bor därför i
+  // `src/i18n/routing.ts` (vaktat av tests/unit/locale-cookie.test.ts); den här
+  // raden är kvar för fallet att `usePathname()` är null och routern bailar.
   function selectLocale(l: string) {
     document.cookie = `NEXT_LOCALE=${l}; path=/; max-age=31536000; samesite=lax`;
     router.replace(pathname, { locale: l });
