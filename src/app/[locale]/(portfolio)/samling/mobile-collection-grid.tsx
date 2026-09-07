@@ -22,6 +22,7 @@ import { useToast } from "@/components/ui/toast";
 import { formatPrice, formatPercent, formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
 import { Input, Label, FieldError } from "@/components/ui/input";
 import { IconCheck, IconChevronDown, IconPackage, IconTrash, IconX } from "@/components/ui/icons";
 import { openProductOverlay } from "@/lib/product-overlay-open";
@@ -617,20 +618,21 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
         </form>
       </Modal>
 
-      {/* Köppris — samma Modal+Input-mönster som borttagningsdialogen ovan. */}
-      <Modal
+      {/* Köppris — BOTTENARK, inte modal (ägarbeslut 2026-09-07: samma glid-upp som
+          resten av appen). ⛔ INGEN autoFocus: tangentbordet öppnas då i samma commit
+          som arket monteras, innan Capacitor-lyssnaren i useKeyboardHeight hunnit
+          registreras, och knappsatsen lägger sig rakt över fältet — exakt buggen som
+          målpris-arket i bevakningarna redan betalat för. */}
+      <BottomSheet
         open={priceTarget != null}
         onClose={() => setPriceTarget(null)}
         title={t("gridPurchasePriceTitle")}
+        closeLabel={tc("cancel")}
+        panelClassName="sm:mx-auto sm:max-w-md"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setPriceTarget(null)}>
-              {t("gridSelectCancel")}
-            </Button>
-            <Button onClick={() => void savePurchasePrice()} loading={savingPrice}>
-              {tc("save")}
-            </Button>
-          </>
+          <BottomSheetCta onClick={() => void savePurchasePrice()} disabled={savingPrice}>
+            {tc("save")}
+          </BottomSheetCta>
         }
       >
         <form
@@ -644,15 +646,16 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
           <Input
             id="purchasePriceKr"
             inputMode="decimal"
+            enterKeyHint="done"
             placeholder={t("purchasePricePlaceholder")}
             value={priceInput}
             onChange={(e) => setPriceInput(e.target.value)}
-            autoFocus
+            className="h-11 bg-surface"
           />
           <p className="mt-2 text-xs text-ink-muted">{t("gridPurchasePriceHint")}</p>
           <FieldError message={priceError} />
         </form>
-      </Modal>
+      </BottomSheet>
     </section>
   );
 }

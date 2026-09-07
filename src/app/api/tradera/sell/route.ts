@@ -10,6 +10,14 @@ import {
   traderaLanguageTerm,
   parseImage,
 } from "@/lib/tradera-sell";
+import {
+  AUCTION_DURATIONS,
+  BUY_NOW_DURATION_DAYS,
+  DEFAULT_AUCTION_DURATION,
+  ITEM_TYPE_AUCTION,
+  ITEM_TYPE_BUY_NOW,
+  conditionLabel,
+} from "@/lib/tradera-listing-options";
 
 export const dynamic = "force-dynamic";
 
@@ -20,22 +28,25 @@ export const dynamic = "force-dynamic";
  */
 const MAX_BODY_BYTES = 32 * 1024 * 1024;
 
-const CONDITION_LABELS: Record<string, string> = {
-  MINT: "Mint",
-  NEAR_MINT: "Near Mint",
-  EXCELLENT: "Excellent",
-  GOOD: "Good",
-  PLAYED: "Played",
-  POOR: "Poor",
-  SEALED: "Sealed",
-};
-
 const schema = z.object({
   collectionItemId: z.string().min(1),
-  priceKr: z.number().int().positive(),
+  /** Köp nu-pris. För en auktion är det ett VALFRITT "köp direkt"-pris. */
+  priceKr: z.number().int().positive().optional(),
+  /** Auktionens utgångspris. Krävs när listingType = AUCTION. */
+  startPriceKr: z.number().int().positive().optional(),
+  listingType: z.enum(["BUY_NOW", "AUCTION"]).default("BUY_NOW"),
+  /** Auktionens löptid i dagar. Köp nu ligger alltid 60 dagar. */
+  durationDays: z
+    .number()
+    .int()
+    .refine((d) => (AUCTION_DURATIONS as readonly number[]).includes(d), "Ogiltig löptid.")
+    .optional(),
   shippingKr: z.number().int().min(0),
+  /** Valt fraktbolag ur /api/tradera/shipping-options. Utelämnas → eget belopp. */
+  shippingProductId: z.number().int().positive().optional(),
+  shippingProviderId: z.number().int().positive().optional(),
+  shippingWeightKg: z.number().positive().max(50).optional(),
   condition: z.string().optional(),
-  purchasePriceKr: z.number().int().min(0).optional(), // vad användaren betalade (för vinstberäkning)
   description: z.string().trim().max(4000).optional(), // egen text; annars auto-genererad
   // data:-URL:er med foton på det egna objektet (första = huvudbild). Tradera tar max 12.
   // max 8M tecken/bild (≈6 MB binärt) — utan tak kan en inloggad användare POSTa obegränsat stora bodies.
@@ -68,15 +79,14 @@ export async function POST(req: Request) {
     const name = item.card?.name ?? item.product?.title ?? item.notes ?? "Pokémon-kort";
     const setName = item.card?.set?.name ?? null;
     const number = item.card?.number ?? null;
-    const conditionLabel =
-      CONDITION_LABELS[input.condition ?? item.condition] ?? item.condition;
+    const condLabel = conditionLabel(input.condition ?? item.condition, isSingle);
 
     const titleParts = [name, setName, number ? `#${number}` : null].filter(Boolean).join(" · ");
-    const title = `${titleParts} · ${conditionLabel}`;
+    const title = `${titleParts} · ${condLabel}`;
 
     const autoDescription = [
       `${name}${setName ? `, ${setName}` : ""}${number ? ` (#${number})` : ""}`,
-      `Skick: ${conditionLabel}`,
+      `Skick: ${condLabel}`,
       isSingle ? "Språk: " + (traderaLanguageTerm(item.language) ?? item.language) : null,
       "",
       "Bilden visar det exakta objektet. Säljes av privatperson.",
@@ -85,26 +95,48 @@ export async function POST(req: Request) {
       .join("\n");
     const description = input.description || autoDescription;
 
+    // Prisdomen bor HÄR, inte i klienten: en auktion utan utgångspris och en
+    // Köp nu utan pris är båda annonser ingen kan köpa.
+    const isAuction = input.listingType === "AUCTION";
+    if (isAuction && input.startPriceKr == null) {
+      throw new ServiceError(400, "Ange ett utgångspris för auktionen.");
+    }
+    if (!isAuction && input.priceKr == null) {
+      throw new ServiceError(400, "Ange ett pris för annonsen.");
+    }
+    if (isAuction && input.priceKr != null && input.priceKr <= input.startPriceKr!) {
+      throw new ServiceError(400, "Köp direkt-priset måste vara högre än utgångspriset.");
+    }
+
     const { url, itemId } = await createTraderaListing({
       userId: me.traderaUserId,
       token: me.traderaToken,
       title,
       description,
       categoryId: traderaCategoryId(item.product?.category ?? null, isSingle),
+      itemType: isAuction ? ITEM_TYPE_AUCTION : ITEM_TYPE_BUY_NOW,
+      durationDays: isAuction
+        ? (input.durationDays ?? DEFAULT_AUCTION_DURATION)
+        : BUY_NOW_DURATION_DAYS,
       priceKr: input.priceKr,
-      shippingKr: input.shippingKr,
+      startPriceKr: isAuction ? input.startPriceKr : undefined,
+      shipping: {
+        costKr: input.shippingKr,
+        productId: input.shippingProductId,
+        providerId: input.shippingProviderId,
+        weightKg: input.shippingWeightKg,
+      },
       languageTerm: isSingle ? traderaLanguageTerm(item.language) : undefined,
       images: input.imagesBase64.map(parseImage),
     });
 
-    // Spara objektnr (→ sold-sync) + ev. inköpspris (→ vinstberäkning i Sålt-fliken).
-    // Best-effort: annonsen är redan skapad, låt aldrig detta fälla svaret.
-    const update: { traderaItemId?: string; purchasePrice?: number } = {};
-    if (itemId) update.traderaItemId = itemId;
-    if (input.purchasePriceKr != null) update.purchasePrice = input.purchasePriceKr * 100;
-    if (Object.keys(update).length > 0) {
+    // Spara objektnr (→ sold-sync). Best-effort: annonsen är redan skapad, låt
+    // aldrig detta fälla svaret. ⛔ Inköpspriset sätts INTE här längre — det är
+    // portföljens fält och frågades i säljformuläret bara för att det råkade
+    // ligga nära; den som säljer vill ange ett SÄLJpris (ägarbeslut 2026-09-07).
+    if (itemId) {
       await prisma.collectionItem
-        .update({ where: { id: item.id }, data: update })
+        .update({ where: { id: item.id }, data: { traderaItemId: itemId } })
         .catch((e) => console.error("[tradera-sell] kunde inte spara annons-metadata:", e));
     }
 

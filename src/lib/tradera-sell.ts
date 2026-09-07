@@ -1,22 +1,24 @@
 /**
- * Tradera-listning (Fas 2) — skapar en "Köp nu"-annons via REST API v4.
+ * Tradera-listning (Fas 2) — skapar en Köp nu- eller AUKTIONS-annons via REST API v4.
  * Flöde: POST items (autoCommit=false) → POST images → POST commit → hämta
  * annonsens URL via seller-items (matchar på vår ownReference).
  * Kräver användarens token (kontokopplingen, se tradera-auth.ts).
  * Schema verifierat mot https://api.tradera.com/v4/swagger/v4/swagger.json
  */
+import { SHIPPING_PROVIDER_ALTERNATIVE } from "./tradera-shipping";
+
 const stripQuotes = (v: string) => v.trim().replace(/^["']|["']$/g, "");
 const APP_ID = stripQuotes(process.env.TRADERA_APP_ID ?? "");
 const APP_KEY = stripQuotes(process.env.TRADERA_APP_KEY ?? "");
 const BASE = "https://api.tradera.com";
 
-// Tradera item-typ 3 = "Endast Köp Nu" (fast pris). 60 dagars löptid = längsta.
-const ITEM_TYPE_BUY_NOW = 3;
-const DURATION_DAYS = 60;
+// Item-typ och löptider bor i lib/tradera-listing-options.ts (ren modul som
+// klienten också läser) — samma tal i formuläret som i anropet.
 // "Alternative"-frakt: säljaren anger egen fraktkostnad. Måste anges som
 // shippingProviderId (6), INTE shippingOptionId — API:t kräver exakt ett av dem,
 // och shippingOptionId:10 ger 500. Bekräftat via dry-run mot API:t 2026-07-02.
-const SHIPPING_PROVIDER_ALTERNATIVE = 6;
+// Ett RIKTIGT fraktbolag anges i stället med shippingProductId + providerId, och
+// `cost` är fortfarande obligatoriskt (se ItemShipping i Traderas swagger).
 // Köpare inom Sverige (GET /v4/reference-data/accepted-bidder-types: 1=SE, 3=Int, 4=EU).
 // Krävs — utan den svarar API:t "AllowedBuyerRegionInvalid".
 const ACCEPTED_BIDDER_SWEDEN = 1;
@@ -47,14 +49,29 @@ export function parseImage(dataUrl: string): { data: string; format: number } {
   return { data, format };
 }
 
+/** Vald frakt: ett riktigt fraktbolag, eller vårt gamla "eget belopp". */
+export interface ListingShipping {
+  costKr: number;
+  /** Traderas produkt-id ur referensdatan. Utelämnas → "Alternative" (eget belopp). */
+  productId?: number;
+  providerId?: number;
+  /** Viktspannet produkten hör till, i kilo. Följer med som shippingWeight. */
+  weightKg?: number;
+}
+
 interface ListingInput {
   userId: string; // Traderas userId
   token: string;
   title: string;
   description: string;
   categoryId: number;
-  priceKr: number; // Köp nu-pris i hela kronor
-  shippingKr: number; // fraktkostnad i hela kronor
+  /** Köp nu-pris i hela kronor. Utelämnas för en ren auktion. */
+  priceKr?: number;
+  /** Utgångspris i hela kronor — bara auktioner. */
+  startPriceKr?: number;
+  itemType: number;
+  durationDays: number;
+  shipping: ListingShipping;
   languageTerm?: string;
   images: { data: string; format: number }[]; // första bilden = huvudbild
 }
@@ -81,6 +98,25 @@ async function call(path: string, h: Record<string, string>, body?: unknown) {
   return res;
 }
 
+/**
+ * Fraktraden i skapa-anropet. Ett riktigt fraktbolag identifieras av sin PRODUKT
+ * (id:t är unikt bara ihop med leverantören) och `cost` måste ändå med — API:t
+ * räknar fortfarande köparens fraktpris ur det fältet. Utan produkt faller vi
+ * tillbaka på "Alternative", exakt som annonserna vi skapat hittills.
+ */
+function shippingPayload(shipping: ListingShipping): Record<string, unknown> {
+  const cost = Math.max(0, Math.round(shipping.costKr));
+  if (shipping.productId != null && shipping.providerId != null) {
+    return {
+      shippingProductId: shipping.productId,
+      shippingProviderId: shipping.providerId,
+      cost,
+      ...(shipping.weightKg != null ? { shippingWeight: shipping.weightKg } : {}),
+    };
+  }
+  return { shippingProviderId: SHIPPING_PROVIDER_ALTERNATIVE, cost };
+}
+
 /** Skapar annonsen och returnerar dess publika Tradera-URL + objektnr. Kastar vid fel. */
 export async function createTraderaListing(
   input: ListingInput
@@ -90,16 +126,15 @@ export async function createTraderaListing(
   const created = await call("/v4/listings/items", h, {
     title: input.title.slice(0, 50),
     categoryId: input.categoryId,
-    itemType: ITEM_TYPE_BUY_NOW,
-    buyItNowPrice: Math.round(input.priceKr),
-    duration: DURATION_DAYS,
+    itemType: input.itemType,
+    ...(input.priceKr != null ? { buyItNowPrice: Math.round(input.priceKr) } : {}),
+    ...(input.startPriceKr != null ? { startPrice: Math.round(input.startPriceKr) } : {}),
+    duration: input.durationDays,
     restarts: 0,
     description: input.description,
     autoCommit: false,
     acceptedBidderId: ACCEPTED_BIDDER_SWEDEN,
-    shippingOptions: [
-      { shippingProviderId: SHIPPING_PROVIDER_ALTERNATIVE, cost: Math.round(input.shippingKr) },
-    ],
+    shippingOptions: [shippingPayload(input.shipping)],
     ...(input.languageTerm
       ? { attributeValues: { terms: [{ id: LANGUAGE_ATTRIBUTE_ID, values: [input.languageTerm] }] } }
       : {}),
