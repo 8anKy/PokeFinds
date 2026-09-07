@@ -18,14 +18,15 @@ import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { apiFetch } from "@/lib/client-api";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { formatPrice, formatPercent, formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
-import { Modal } from "@/components/ui/modal";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
 import { Input, Label, FieldError } from "@/components/ui/input";
 import { IconCheck, IconChevronDown, IconPackage, IconTrash, IconX } from "@/components/ui/icons";
 import { openProductOverlay } from "@/lib/product-overlay-open";
+import { planCopyEdits, type LotGroup } from "@/lib/collection-lots";
 import type { CollectionRow } from "./collection-client";
 import { parseKronorToOre } from "@/lib/purchase-price";
 import {
@@ -48,6 +49,41 @@ import { toSellItem } from "./sell-item";
 
 const LONG_PRESS_MS = 450;
 
+/**
+ * ETT EXEMPLAR i exemplararket.
+ *
+ * ⛔ DATABASEN LAGRAR KÖP (lots) MED ANTAL, INTE EXEMPLAR. Ett köp av fyra kort
+ * är EN rad med `quantity: 4` — de fyra exemplaren är oskiljaktiga där, och det
+ * är rätt: de kostade samma sak samma dag. Arket veckla ut dem till fyra rader
+ * så att man kan peka på ETT av dem, och `applyCopyChanges` viker ihop dem igen:
+ * exemplar som fått ett eget pris bryts ut till ett EGET köp (samma regel som
+ * lib/collection-lots.ts vilar på — två priser är två poster, aldrig ett snitt).
+ */
+interface CopyRow {
+  /** Köpet exemplaret kommer ur. Flera rader delar id när köpet hade quantity > 1. */
+  lotId: string;
+  /** Radens nyckel — stabil över renderingar. */
+  key: string;
+  /** Köppris i kronor som redigerbar sträng. Tomt = inget pris (≠ 0 kr). */
+  price: string;
+  /** Priset raden hade när arket öppnades — skiljer "ändrat" från "orört". */
+  original: string;
+  /** Ibockad = ska tas bort. */
+  remove: boolean;
+}
+
+/** Gruppens köp → en rad per exemplar, äldsta köpet först. */
+function expandCopies(group: LotGroup<CollectionRow>): CopyRow[] {
+  const out: CopyRow[] = [];
+  for (const lot of group.lots) {
+    for (let i = 0; i < lot.quantity; i++) {
+      const price = oreToKr(lot.purchasePrice);
+      out.push({ lotId: lot.id, key: `${lot.id}:${i}`, price, original: price, remove: false });
+    }
+  }
+  return out;
+}
+
 export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
   const t = useTranslations("Collection");
   const locale = useLocale();
@@ -58,9 +94,15 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
-  // Stackad post (quantity>1) som ska delvis tas bort → fråga hur många.
-  const [removeTarget, setRemoveTarget] = useState<CollectionRow | null>(null);
-  const [removeQty, setRemoveQty] = useState("1");
+  /**
+   * EXEMPLARARKET: gruppen (samma vara, alla dess köp) man håller på att gå
+   * igenom, och en rad per EXEMPLAR. ⛔ Var förut en modal med ett antalsfält
+   * ("hur många ska tas bort?") — den kunde varken visa VILKA exemplar man har
+   * eller vad de kostade, och en pop-up mitt på skärmen är inte appens form
+   * (ägarbeslut 2026-09-07).
+   */
+  const [copyGroup, setCopyGroup] = useState<LotGroup<CollectionRow> | null>(null);
+  const [copies, setCopies] = useState<CopyRow[]>([]);
   // Köppris-redigering (per post, i kronor — lagras i öre).
   const [priceTarget, setPriceTarget] = useState<CollectionRow | null>(null);
   const [priceInput, setPriceInput] = useState("");
@@ -176,14 +218,17 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
 
   async function deleteSelected() {
     if (selected.size === 0) return;
-    // Exakt en stackad post vald → fråga hur många som ska tas bort istället för allt.
-    if (selected.size === 1) {
-      const only = rows.find((r) => r.id === [...selected][0]);
-      if (only && only.quantity > 1) {
-        setRemoveQty("1");
-        setRemoveTarget(only);
-        return;
-      }
+    // ⛔ FLERA EXEMPLAR AV SAMMA VARA ⇒ VISA DEM, FRÅGA INTE EFTER ETT ANTAL.
+    // Markeringen ligger på KÖP, och ett köp kan bära flera exemplar. Gäller allt
+    // markerat samma vara och finns det mer än ett exemplar öppnar vi arket där
+    // varje exemplar syns med sitt pris — i stället för "hur många?", som varken
+    // sa vilka de var eller vad de kostat.
+    const picked = rows.filter((r) => selected.has(r.id));
+    const group = allGroups.find((g) => g.lots.some((l) => l.id === picked[0]?.id));
+    if (group && picked.every((r) => group.lots.some((l) => l.id === r.id)) && group.quantity > 1) {
+      setCopies(expandCopies(group));
+      setCopyGroup(group);
+      return;
     }
     if (!window.confirm(t("gridConfirmDelete", { count: selected.size }))) return;
     setDeleting(true);
@@ -210,27 +255,98 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
     router.refresh();
   }
 
-  // Ta bort N av en stack: N<antal → minska quantity, N>=antal → radera hela posten.
-  async function confirmRemove() {
-    if (!removeTarget) return;
-    const max = removeTarget.quantity;
-    const n = Math.min(max, Math.max(1, Math.floor(Number(removeQty)) || 1));
+  /** Antal exemplar som är ibockade för borttagning. */
+  const removeCount = copies.filter((c) => c.remove).length;
+  /** Något pris ändrat på ett exemplar som INTE ska bort? */
+  const priceChanged = copies.some((c) => !c.remove && c.price.trim() !== c.original.trim());
+
+  /**
+   * VECKAR IHOP EXEMPLAREN TILL KÖP IGEN och skriver skillnaden.
+   *
+   * Per köp: de överlevande exemplaren grupperas på sitt pris. Första gruppen
+   * behåller köpets rad (PATCH antal + pris), övriga blir EGNA köp (POST) —
+   * exakt vad två priser är i den här modellen. Överlever inga raderas köpet.
+   * ⛔ Tomt fält betyder "vet inte", inte 0 kr, och skrivs som `null`.
+   */
+  async function applyCopyChanges() {
+    const group = copyGroup;
+    if (!group) return;
+    // Planen är REN och testad (lib/collection-lots.ts) — den här funktionen
+    // gör bara skrivningarna, i den ordning planen anger.
+    const plan = planCopyEdits(
+      group.lots,
+      copies.map((c) => {
+        const parsed = parseKronorToOre(c.price);
+        const lot = group.lots.find((l) => l.id === c.lotId);
+        return {
+          lotId: c.lotId,
+          remove: c.remove,
+          // Ogiltig inmatning behåller köpets nuvarande pris i stället för att
+          // tyst nolla det; tomt fält betyder "vet inte" och skrivs som null.
+          purchasePrice:
+            parsed.kind === "ok"
+              ? parsed.ore
+              : parsed.kind === "empty"
+                ? null
+                : (lot?.purchasePrice ?? null),
+        };
+      })
+    );
+
     setDeleting(true);
+    let failed = 0;
     try {
-      if (n >= max) {
-        await apiFetch(`/api/collection/${removeTarget.id}`, { method: "DELETE" });
-      } else {
-        await apiFetch(`/api/collection/${removeTarget.id}`, {
-          method: "PATCH",
-          body: { quantity: max - n },
-        });
+      for (const lot of plan.deletes) {
+        try {
+          await apiFetch(`/api/collection/${lot.id}`, { method: "DELETE" });
+        } catch {
+          failed += 1;
+        }
       }
-      toast({ title: t("gridDeletedTitle"), description: t("gridRemovedDesc", { count: n, total: max }), variant: "success" });
-    } catch {
-      toast({ title: t("gridPartialTitle"), variant: "error" });
+      for (const { lot, quantity, purchasePrice } of plan.patches) {
+        try {
+          await apiFetch(`/api/collection/${lot.id}`, {
+            method: "PATCH",
+            body: { quantity, purchasePrice },
+          });
+        } catch {
+          failed += 1;
+        }
+      }
+      // ⛔ SIST — se `planCopyEdits`: en skapelse kan STAPLA på ett köp, och gör
+      // den det innan köpet skrivits om försvinner exemplaren tyst.
+      for (const { lot, quantity, purchasePrice } of plan.creates) {
+        try {
+          await apiFetch("/api/collection", {
+            method: "POST",
+            body: {
+              ...(lot.cardId ? { cardId: lot.cardId } : {}),
+              ...(lot.productId ? { productId: lot.productId } : {}),
+              quantity,
+              condition: lot.condition,
+              language: lot.language,
+              ...(purchasePrice != null ? { purchasePrice } : {}),
+              ...(lot.purchaseDate ? { purchaseDate: lot.purchaseDate } : {}),
+              ...(lot.gradingCompany ? { gradingCompany: lot.gradingCompany } : {}),
+              ...(lot.grade ? { grade: lot.grade } : {}),
+            },
+          });
+        } catch {
+          failed += 1;
+        }
+      }
+      toast({
+        title: failed > 0 ? t("gridPartialTitle") : t("gridDeletedTitle"),
+        description:
+          plan.removed > 0
+            ? t("gridRemovedDesc", { count: plan.removed, total: group.quantity })
+            : undefined,
+        variant: failed > 0 ? "error" : "success",
+      });
     } finally {
       setDeleting(false);
-      setRemoveTarget(null);
+      setCopyGroup(null);
+      setCopies([]);
       exitSelect();
       router.refresh();
     }
@@ -582,42 +698,93 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
         })}
       </div>
 
-      <Modal
-        open={removeTarget != null}
-        onClose={() => setRemoveTarget(null)}
-        title={t("gridRemoveTitle")}
+      {/* EXEMPLARARKET — bottenark, inte modal (ägarbeslut 2026-09-07): samma
+          glid-upp som resten av appen. Varje exemplar får en rad med sitt eget
+          köppris, så man kan peka på precis det man menar i stället för att
+          skriva en siffra i ett antalsfält.
+          ⛔ INGEN autoFocus — se kommentaren vid köppris-arket nedan. */}
+      <BottomSheet
+        open={copyGroup != null}
+        onClose={() => {
+          setCopyGroup(null);
+          setCopies([]);
+        }}
+        title={t("gridCopiesTitle")}
+        closeLabel={tc("cancel")}
+        panelClassName="sm:mx-auto sm:max-w-md"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setRemoveTarget(null)}>
-              {t("gridSelectCancel")}
+          removeCount > 0 ? (
+            <Button
+              variant="danger"
+              size="lg"
+              className="w-full"
+              loading={deleting}
+              onClick={() => void applyCopyChanges()}
+            >
+              <IconTrash size={16} />
+              {t("gridRemoveSelected", { count: removeCount })}
             </Button>
-            <Button variant="danger" onClick={() => void confirmRemove()} loading={deleting}>
-              <IconTrash size={16} /> {t("gridDelete")}
-            </Button>
-          </>
+          ) : (
+            <BottomSheetCta
+              onClick={() => void applyCopyChanges()}
+              disabled={deleting || !priceChanged}
+            >
+              {priceChanged ? tc("save") : t("gridCopiesNothing")}
+            </BottomSheetCta>
+          )
         }
       >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void confirmRemove();
-          }}
-        >
-          <p className="mb-3 truncate text-sm font-medium text-ink">{removeTarget?.name}</p>
-          <Label htmlFor="removeQty">{t("gridRemoveLabel", { max: removeTarget?.quantity ?? 1 })}</Label>
-          <Input
-            id="removeQty"
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={removeTarget?.quantity ?? 1}
-            step={1}
-            value={removeQty}
-            onChange={(e) => setRemoveQty(e.target.value)}
-            autoFocus
-          />
-        </form>
-      </Modal>
+        <p className="truncate text-sm font-medium text-ink">{copyGroup?.lots[0]?.name}</p>
+        <p className="mb-3 mt-1 text-xs text-ink-muted">{t("gridCopiesHint")}</p>
+        <ul className="space-y-2">
+          {copies.map((c, i) => (
+            <li
+              key={c.key}
+              className={cn(
+                "flex items-center gap-2.5 rounded-xl border p-2.5 transition-colors",
+                c.remove ? "border-fall/50 bg-fall/10" : "border-surface-border"
+              )}
+            >
+              {/* Bocken är hela vänsterkanten — en 16 px kryssruta är inget tummål. */}
+              <button
+                type="button"
+                aria-pressed={c.remove}
+                aria-label={t("gridCopyLabel", { n: i + 1 })}
+                onClick={() =>
+                  setCopies((prev) =>
+                    prev.map((x) => (x.key === c.key ? { ...x, remove: !x.remove } : x))
+                  )
+                }
+                className={cn(
+                  "grid h-9 w-9 shrink-0 place-items-center rounded-lg border transition-colors",
+                  c.remove
+                    ? "border-fall bg-fall text-surface"
+                    : "border-surface-border text-ink-faint"
+                )}
+              >
+                {c.remove ? <IconCheck size={16} /> : <IconTrash size={16} />}
+              </button>
+              <span className="w-16 shrink-0 text-xs text-ink-muted">
+                {t("gridCopyLabel", { n: i + 1 })}
+              </span>
+              <Input
+                inputMode="decimal"
+                enterKeyHint="done"
+                aria-label={t("purchasePrice")}
+                placeholder={t("purchasePricePlaceholder")}
+                value={c.price}
+                disabled={c.remove}
+                onChange={(e) =>
+                  setCopies((prev) =>
+                    prev.map((x) => (x.key === c.key ? { ...x, price: e.target.value } : x))
+                  )
+                }
+                className="h-10 min-w-0 flex-1 bg-surface"
+              />
+            </li>
+          ))}
+        </ul>
+      </BottomSheet>
 
       {/* Köppris — BOTTENARK, inte modal (ägarbeslut 2026-09-07: samma glid-upp som
           resten av appen). ⛔ INGEN autoFocus: tangentbordet öppnas då i samma commit

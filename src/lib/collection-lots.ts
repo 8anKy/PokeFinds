@@ -131,3 +131,84 @@ export function canStackOnto(
 ): boolean {
   return (existingPurchasePrice ?? null) === (incomingPurchasePrice ?? null);
 }
+
+/* ------------------------------------------------------------------------- *
+ * EXEMPLAR → KÖP: planen bakom exemplararket
+ * ------------------------------------------------------------------------- */
+
+/** Ett exemplar som användaren pekat på i arket. */
+export interface CopyEdit {
+  /** Köpet exemplaret kommer ur. Flera exemplar delar id när köpet bar quantity > 1. */
+  lotId: string;
+  /** Nytt köppris i ÖRE, eller null = "vet inte". */
+  purchasePrice: number | null;
+  /** Ibockat = ska bort. */
+  remove: boolean;
+}
+
+/** Skrivningarna arket ska göra, i den ordning de MÅSTE ske. */
+export interface CopyPlan<T extends LotLike> {
+  /** Köp som ska raderas helt (inga exemplar kvar). */
+  deletes: T[];
+  /** Köp som ska skrivas om: nytt antal och nytt pris. */
+  patches: { lot: T; quantity: number; purchasePrice: number | null }[];
+  /** Exemplar som bryts ut till EGNA köp. ⛔ Skrivs EFTER deletes/patches. */
+  creates: { lot: T; quantity: number; purchasePrice: number | null }[];
+  /** Antal exemplar som tas bort — bara till kvittensen. */
+  removed: number;
+}
+
+/**
+ * VECKAR IHOP EXEMPLAREN TILL KÖP IGEN.
+ *
+ * Databasen lagrar KÖP med antal, inte exemplar: fyra kort köpta samtidigt är
+ * EN rad med `quantity: 4`. Arket vecklar ut dem så att man kan peka på ett av
+ * dem; den här funktionen viker ihop dem igen. Överlevande exemplar grupperas
+ * på sitt pris — första gruppen behåller köpets rad, övriga blir egna köp,
+ * vilket är exakt vad två priser ÄR i den här modellen (se filhuvudet).
+ *
+ * ⛔ ORDNINGEN ÄR INTE KOSMETISK. `addCollectionItem` STAPLAR ett nytt köp på en
+ * befintlig post med samma identitet och samma pris — vilket är rätt — men en
+ * skapelse mitt i genomgången kan landa på ett köp vi ännu inte behandlat. Nästa
+ * varv räknar utifrån antalet köpet hade NÄR ARKET ÖPPNADES och skulle skriva
+ * ner det igen; de instaplade exemplaren försvinner tyst. Därför tre listor, och
+ * `creates` körs SIST — då kan de bara lägga till.
+ *
+ * ⛔ Ett köp som ser likadant ut efter redigeringen rörs INTE (ingen skrivning
+ * alls), så att öppna arket och stänga det kostar ingenting.
+ */
+export function planCopyEdits<T extends LotLike>(
+  lots: readonly T[],
+  copies: readonly CopyEdit[]
+): CopyPlan<T> {
+  const plan: CopyPlan<T> = { deletes: [], patches: [], creates: [], removed: 0 };
+
+  for (const lot of lots) {
+    const mine = copies.filter((c) => c.lotId === lot.id);
+    const survivors = mine.filter((c) => !c.remove);
+    plan.removed += mine.length - survivors.length;
+
+    // Pris → antal exemplar. `null` (vet inte) är en egen nyckel, aldrig 0 kr.
+    const buckets = new Map<number | null, number>();
+    for (const c of survivors) buckets.set(c.purchasePrice, (buckets.get(c.purchasePrice) ?? 0) + 1);
+    const entries = [...buckets.entries()];
+
+    const unchanged =
+      entries.length === 1 &&
+      entries[0][0] === lot.purchasePrice &&
+      entries[0][1] === lot.quantity;
+    if (unchanged) continue;
+
+    if (entries.length === 0) {
+      plan.deletes.push(lot);
+      continue;
+    }
+    const [keepPrice, keepQty] = entries[0];
+    plan.patches.push({ lot, quantity: keepQty, purchasePrice: keepPrice });
+    for (const [price, qty] of entries.slice(1)) {
+      plan.creates.push({ lot, quantity: qty, purchasePrice: price });
+    }
+  }
+
+  return plan;
+}

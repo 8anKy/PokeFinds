@@ -454,8 +454,6 @@
     "gridNoProductTitle": "Ingen produktsida",
     "gridNoProductDesc": "Det här objektet saknar en kopplad produkt att inspektera.",
     "gridConfirmDelete": "Radera {count} objekt ur din samling?",
-    "gridRemoveTitle": "Ta bort ur samlingen",
-    "gridRemoveLabel": "Hur många ska tas bort? (max {max})",
     "gridRemovedDesc": "Tog bort {count} av {total}.",
     "gridDeletedTitle": "Objekt raderade",
     "gridPartialTitle": "Delvis raderat",
@@ -544,7 +542,12 @@
     "sellGrading": "Gradering",
     "sellGradingCompany": "Graderingsbolag",
     "sellGrade": "Betyg",
-    "sellGradingNone": "Ograderat"
+    "sellGradingNone": "Ograderat",
+    "gridCopiesTitle": "Hantera exemplar",
+    "gridCopiesHint": "Bocka i de exemplar du vill ta bort. Ändrar du köppriset på ett exemplar delas köpet upp.",
+    "gridCopyLabel": "Exemplar {n}",
+    "gridRemoveSelected": "Ta bort {count}",
+    "gridCopiesNothing": "Inget att spara"
   },
   "Legal": {
     "lastUpdated": "Senast uppdaterad: {date}"

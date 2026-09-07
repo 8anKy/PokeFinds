@@ -454,8 +454,6 @@
     "gridNoProductTitle": "No product page",
     "gridNoProductDesc": "This item has no linked product to inspect.",
     "gridConfirmDelete": "Delete {count} items from your collection?",
-    "gridRemoveTitle": "Remove from collection",
-    "gridRemoveLabel": "How many to remove? (max {max})",
     "gridRemovedDesc": "Removed {count} of {total}.",
     "gridDeletedTitle": "Items deleted",
     "gridPartialTitle": "Partially deleted",
@@ -544,7 +542,12 @@
     "sellGrading": "Grading",
     "sellGradingCompany": "Grading company",
     "sellGrade": "Grade",
-    "sellGradingNone": "Ungraded"
+    "sellGradingNone": "Ungraded",
+    "gridCopiesTitle": "Manage copies",
+    "gridCopiesHint": "Tick the copies you want to remove. Changing a copy's purchase price splits the purchase.",
+    "gridCopyLabel": "Copy {n}",
+    "gridRemoveSelected": "Remove {count}",
+    "gridCopiesNothing": "Nothing to save"
   },
   "Legal": {
     "lastUpdated": "Last updated: {date}"
