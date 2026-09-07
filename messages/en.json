@@ -306,9 +306,6 @@
   },
   "Collection": {
     "sellImageReadFailed": "Couldn't read one of the images. Try another file.",
-    "addUndo": "Undo",
-    "addUndone": "Removed from your collection again",
-    "addUndoFailed": "Couldn't undo — remove it from your collection instead",
     "valueChartEmpty": "We have not tracked your collection value long enough yet — the curve grows from here.",
     "guestSubtitle": "Your cards and sealed products, valued live.",
     "guestCtaTitle": "Create a free account to start your portfolio",
@@ -1475,7 +1472,8 @@
     "priceFlat": "Price unchanged",
     "priceUp": "Price has gone up",
     "priceDown": "Price has gone down",
-    "discordLink": "Foilio on Discord"
+    "discordLink": "Foilio on Discord",
+    "undo": "Undo"
   },
   "More": {
     "metaTitle": "More",
@@ -1626,11 +1624,11 @@
     "editHint": "We'll alert you when <b>{title}</b> costs at or below your target price. Leave blank to remove the target price — we'll then alert you on clear price drops instead.",
     "targetPriceLabel": "Target price (kr)",
     "targetPlaceholder": "e.g. 499",
-    "deleteTitle": "Remove watch?",
-    "deleteConfirm": "Are you sure you want to stop watching <b>{title}</b>? You won't get any more alerts for this product.",
     "subtitlePaused": "Save what you are hunting and follow the price. Alerts are paused right now.",
     "freeAlertsBannerPaused": "Alerts by email and push are paused right now — for Pro too. You can still save products and target prices here.",
-    "editHintPaused": "Your target price is saved on <b>{title}</b>, but alerts are paused right now — we will let you know when they are back. Leave empty to remove the target."
+    "editHintPaused": "Your target price is saved on <b>{title}</b>, but alerts are paused right now — we will let you know when they are back. Leave empty to remove the target.",
+    "restored": "Watch restored",
+    "restoreFail": "Couldn't undo"
   },
   "Category": {
     "SINGLE_CARD": "Single card",
@@ -1662,7 +1660,9 @@
     "quickAddCancel": "Cancel",
     "quickAddConfirm": "Add",
     "holdForOptions": "Hold for quantity and purchase price (Shift+Enter)",
-    "addedToCollectionN": "{count, plural, =1 {Added to your collection} other {# added to your collection}}"
+    "addedToCollectionN": "{count, plural, =1 {Added to your collection} other {# added to your collection}}",
+    "addUndone": "Undone",
+    "addUndoFailed": "Couldn't undo"
   },
   "Market": {
     "metaTitle": "Pokémon card market overview",

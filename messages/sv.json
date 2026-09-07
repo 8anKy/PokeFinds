@@ -306,9 +306,6 @@
   },
   "Collection": {
     "sellImageReadFailed": "Kunde inte läsa en av bilderna. Prova en annan fil.",
-    "addUndo": "Ångra",
-    "addUndone": "Borttaget ur samlingen igen",
-    "addUndoFailed": "Kunde inte ångra — ta bort det i samlingen i stället",
     "valueChartEmpty": "Vi har inte följt din samlings värde länge nog ännu — kurvan växer härifrån.",
     "guestSubtitle": "Dina kort och sealed, värderade live.",
     "guestCtaTitle": "Skapa ett gratiskonto och börja din portfölj",
@@ -1475,7 +1472,8 @@
     "priceFlat": "Oförändrat pris",
     "priceUp": "Priset har gått upp",
     "priceDown": "Priset har gått ner",
-    "discordLink": "Foilio på Discord"
+    "discordLink": "Foilio på Discord",
+    "undo": "Ångra"
   },
   "More": {
     "metaTitle": "Mer",
@@ -1626,11 +1624,11 @@
     "editHint": "Vi larmar dig när <b>{title}</b> kostar lika med eller mindre än ditt målpris. Lämna tomt för att ta bort målpriset — då larmar vi i stället vid tydliga prisfall.",
     "targetPriceLabel": "Målpris (kr)",
     "targetPlaceholder": "t.ex. 499",
-    "deleteTitle": "Ta bort bevakning?",
-    "deleteConfirm": "Är du säker på att du vill sluta bevaka <b>{title}</b>? Du får inga fler larm för den här produkten.",
     "subtitlePaused": "Spara det du jagar och följ priset. Larmen är pausade just nu.",
     "freeAlertsBannerPaused": "Larm via mejl och push är pausade just nu — även för Pro. Du kan fortfarande spara produkter och målpriser här.",
-    "editHintPaused": "Målpriset sparas på <b>{title}</b>, men larmen är pausade just nu — vi hör av oss när de är igång igen. Lämna tomt för att ta bort målpriset."
+    "editHintPaused": "Målpriset sparas på <b>{title}</b>, men larmen är pausade just nu — vi hör av oss när de är igång igen. Lämna tomt för att ta bort målpriset.",
+    "restored": "Bevakningen är tillbaka",
+    "restoreFail": "Det gick inte att ångra"
   },
   "Category": {
     "SINGLE_CARD": "Singelkort",
@@ -1662,7 +1660,9 @@
     "quickAddCancel": "Avbryt",
     "quickAddConfirm": "Lägg till",
     "holdForOptions": "Håll in för antal och inköpspris (Skift+Enter)",
-    "addedToCollectionN": "{count, plural, =1 {Tillagd i samlingen} other {# ex tillagda i samlingen}}"
+    "addedToCollectionN": "{count, plural, =1 {Tillagd i samlingen} other {# ex tillagda i samlingen}}",
+    "addUndone": "Ångrat",
+    "addUndoFailed": "Kunde inte ångra"
   },
   "Market": {
     "metaTitle": "Marknadsläget för Pokémon-kort",

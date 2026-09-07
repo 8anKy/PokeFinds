@@ -47,6 +47,7 @@ const MOVE_TOLERANCE = 10;
  */
 export function CollectionQuickAdd({ productId, estimatedValue }: CollectionQuickAddProps) {
   const t = useTranslations("Product");
+  const tc = useTranslations("Common");
   const loggedIn = useAuthHint();
   const router = useRouter();
   const { toast } = useToast();
@@ -127,7 +128,7 @@ export function CollectionQuickAdd({ productId, estimatedValue }: CollectionQuic
         // ingen bekräftelsedialog) — ångra-knappen är säkerhetsnätet i stället.
         action: saved?.id
           ? {
-              label: t("addUndo"),
+              label: tc("undo"),
               onClick: () => void undoAdd(saved.id!, saved.quantity ?? body.quantity, body.quantity),
             }
           : undefined,

@@ -91,8 +91,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 variantClasses[variant]
               )}
             >
-              <div className="flex items-start gap-3">
-                <span aria-hidden="true" className="mt-0.5 shrink-0">
+              {/* `items-center` när det bara finns en rubrik: en tvåradig rubrik
+                  bredvid en toppställd knapp såg ut som två olika element.
+                  Åtgärdsknappen får ALDRIG radbryta (`Ångra` på två rader var
+                  vad ägaren såg 2026-09-07) — det är titeln som krymper. */}
+              <div className={cn("flex gap-3", t.description ? "items-start" : "items-center")}>
+                <span aria-hidden="true" className={cn("shrink-0", t.description && "mt-0.5")}>
                   {variantIcons[variant]}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -108,7 +112,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                       t.action?.onClick();
                       dismiss(t.id);
                     }}
-                    className="shrink-0 rounded-lg border border-holo-cyan/40 px-2.5 py-1 text-sm font-semibold text-holo-cyan transition-colors hover:bg-holo-cyan/10"
+                    className="shrink-0 whitespace-nowrap rounded-lg bg-holo-cyan/10 px-3 py-1.5 text-sm font-semibold text-holo-cyan transition-colors hover:bg-holo-cyan/20"
                   >
                     {t.action.label}
                   </button>
@@ -117,7 +121,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   type="button"
                   onClick={() => dismiss(t.id)}
                   aria-label={tCommon("closeNotification")}
-                  className="rounded p-1 text-ink-faint transition-colors hover:text-ink"
+                  className="-mr-1 shrink-0 rounded p-1 text-ink-faint transition-colors hover:text-ink"
                 >
                   <IconX size={16} />
                 </button>

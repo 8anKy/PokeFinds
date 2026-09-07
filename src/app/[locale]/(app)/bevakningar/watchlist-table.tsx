@@ -12,7 +12,7 @@ import { priceAlertsPausedClient } from "@/lib/price-alerts-pause";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Modal } from "@/components/ui/modal";
+import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
 import { Input, Label, Checkbox } from "@/components/ui/input";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { SafeImage } from "@/components/ui/safe-image";
@@ -116,7 +116,6 @@ export function WatchlistTable({
   const [items, setItems] = useState(initialItems);
   const [editing, setEditing] = useState<WatchlistRow | null>(null);
   const [editValue, setEditValue] = useState("");
-  const [deleting, setDeleting] = useState<WatchlistRow | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
@@ -172,23 +171,74 @@ export function WatchlistTable({
     setEditing(null);
   }
 
-  async function confirmDelete() {
-    if (!deleting) return;
-    setSaving(true);
+  /**
+   * ETT TRYCK TAR BORT (ägarbeslut 2026-09-07: "man ska inte behöva trycka igen").
+   *
+   * Bekräftelsedialogen är utbytt mot ÅNGRA i toasten — samma säkerhetsnät som
+   * "+"-knappen i produktkortet fick, och samma skäl: dialogen kostade ett tryck
+   * i det normala fallet för att skydda mot det ovanliga. Raden försvinner
+   * optimistiskt och läggs tillbaka på SIN plats om servern säger nej, annars
+   * ljuger listan om vad som faktiskt finns.
+   */
+  async function removeWatch(item: WatchlistRow) {
+    const index = items.findIndex((it) => it.id === item.id);
+    setItems((prev) => prev.filter((it) => it.id !== item.id));
     try {
-      await apiFetch(`/api/watchlist/${deleting.id}`, { method: "DELETE" });
-      setItems((prev) => prev.filter((it) => it.id !== deleting.id));
-      toast({ title: t("removed"), variant: "success" });
+      await apiFetch(`/api/watchlist/${item.id}`, { method: "DELETE" });
       router.refresh();
+      toast({
+        title: t("removed"),
+        variant: "success",
+        action: { label: tc("undo"), onClick: () => void undoRemove(item, index) },
+      });
     } catch (e) {
+      restoreRow(item, index);
       toast({
         title: t("removeFail"),
         description: e instanceof Error ? e.message : undefined,
         variant: "error",
       });
-    } finally {
-      setSaving(false);
-      setDeleting(null);
+    }
+  }
+
+  function restoreRow(item: WatchlistRow, index: number) {
+    setItems((prev) => {
+      if (prev.some((it) => it.product.id === item.product.id)) return prev;
+      const next = [...prev];
+      next.splice(Math.min(Math.max(index, 0), next.length), 0, item);
+      return next;
+    });
+  }
+
+  async function undoRemove(item: WatchlistRow, index: number) {
+    try {
+      const restored = await apiFetch<{ id: string }>("/api/watchlist", {
+        method: "POST",
+        body: {
+          productId: item.product.id,
+          ...(item.targetPrice != null ? { targetPrice: item.targetPrice } : {}),
+          restockAlert: item.restockAlert,
+          priceAlert: item.priceAlert,
+        },
+      });
+      // Pausläget finns inte i POST-schemat — utan den här raden vaknar en pausad
+      // bevakning till liv av ett ångra, och börjar larma om något användaren
+      // medvetet tystat.
+      if (item.isPaused) {
+        await apiFetch(`/api/watchlist/${restored.id}`, {
+          method: "PATCH",
+          body: { isPaused: true },
+        });
+      }
+      restoreRow({ ...item, id: restored.id }, index);
+      router.refresh();
+      toast({ title: t("restored"), variant: "success" });
+    } catch (e) {
+      toast({
+        title: t("restoreFail"),
+        description: e instanceof Error ? e.message : undefined,
+        variant: "error",
+      });
     }
   }
 
@@ -211,7 +261,7 @@ export function WatchlistTable({
       >
         {item.isPaused ? t("resume") : t("pause")}
       </Button>
-      <Button size="sm" variant="danger" onClick={() => setDeleting(item)}>
+      <Button size="sm" variant="danger" onClick={() => void removeWatch(item)}>
         {tc("delete")}
       </Button>
     </>
@@ -419,20 +469,20 @@ export function WatchlistTable({
       </Table>
       </div>
 
-      {/* Redigera målpris */}
-      <Modal
+      {/* Redigera målpris — BOTTENARK, inte modal (ägarbeslut 2026-09-07).
+          `ui/bottom-sheet.tsx` är appens enda glid-upp-panel och äger
+          tangentbordslyftet; prisfältet öppnar sifferknappsatsen, så en egen
+          modal här hade behövt lösa samma sak en gång till. */}
+      <BottomSheet
         open={editing != null}
-        onClose={() => setEditing(null)}
         title={t("editTarget")}
+        onClose={() => setEditing(null)}
+        closeLabel={tc("cancel")}
+        panelClassName="sm:mx-auto sm:max-w-md"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setEditing(null)}>
-              {tc("cancel")}
-            </Button>
-            <Button onClick={() => void saveTargetPrice()} loading={saving}>
-              {tc("save")}
-            </Button>
-          </>
+          <BottomSheetCta onClick={() => void saveTargetPrice()} disabled={saving}>
+            {tc("save")}
+          </BottomSheetCta>
         }
       >
         <form
@@ -451,37 +501,16 @@ export function WatchlistTable({
           <Input
             id="targetPrice"
             inputMode="decimal"
+            enterKeyHint="done"
             placeholder={t("targetPlaceholder")}
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
+            className="h-11 bg-surface"
             autoFocus
           />
         </form>
-      </Modal>
+      </BottomSheet>
 
-      {/* Bekräfta borttagning */}
-      <Modal
-        open={deleting != null}
-        onClose={() => setDeleting(null)}
-        title={t("deleteTitle")}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setDeleting(null)}>
-              {tc("cancel")}
-            </Button>
-            <Button variant="danger" onClick={() => void confirmDelete()} loading={saving}>
-              {tc("delete")}
-            </Button>
-          </>
-        }
-      >
-        <p className="text-sm text-ink-muted">
-          {t.rich("deleteConfirm", {
-            title: deleting?.product.title ?? "",
-            b: (chunks) => <span className="font-medium text-ink">{chunks}</span>,
-          })}
-        </p>
-      </Modal>
     </>
   );
 }
