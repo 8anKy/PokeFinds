@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/modal";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
+import { cn } from "@/lib/utils";
 
 export interface RetailerRow {
   id: string;
@@ -45,6 +46,28 @@ function fromDateInput(value: string): string | null {
 /** Sponsringen går ut av klockan, inte av en bock — visa bara en aktiv period. */
 function isSponsoredNow(iso: string | null): boolean {
   return !!iso && new Date(iso).getTime() > Date.now();
+}
+
+/**
+ * Datumet UTSKRIVET på svenska, t.ex. "3 november 2026".
+ *
+ * ⛔ FINNS FÖR ATT `<input type="date">` RENDERAS I WEBBLÄSARENS LOKAL, INTE SIDANS.
+ *    På en engelskspråkig webbläsare visas fältet som MM/DD/YYYY. Ägaren skrev
+ *    2026-09-08 in det som lästes som "3 november" och fick 11 MARS sparat — ett
+ *    datum sex månader bakåt, vilket betyder AVSTÄNGD. Inget felmeddelande, inget
+ *    syntes: annonsen bara uteblev. Fältet kan inte tvingas till ett format, så
+ *    formuläret skriver i stället ut vad det FAKTISKT tolkade.
+ */
+function humanDate(value: string): string {
+  const d = new Date(`${value}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("sv-SE", { day: "numeric", month: "long", year: "numeric" });
+}
+
+/** Ligger datumet bakåt i tiden? Då är sponsringen i praktiken avstängd. */
+function isPastDate(value: string): boolean {
+  if (!value) return false;
+  return new Date(`${value}T23:59:59.999Z`).getTime() <= Date.now();
 }
 
 const TYPE_VARIANTS: Record<SourceType, BadgeVariant> = {
@@ -310,6 +333,21 @@ export function RetailersClient({ retailers }: { retailers: RetailerRow[] }) {
                 setEditForm((f) => ({ ...f, sponsoredUntil: e.target.value }))
               }
             />
+            {/* ⛔ KVITTENSEN ÄR INTE PYNT. Fältet renderas i WEBBLÄSARENS lokal, så
+                "03/11/2026" kan vara både 3 november och 11 mars — och ett förflutet
+                datum betyder AVSTÄNGD, tyst. Skriv därför alltid ut vad vi tolkade. */}
+            {editForm.sponsoredUntil && (
+              <p
+                className={cn(
+                  "mt-1.5 text-xs font-medium",
+                  isPastDate(editForm.sponsoredUntil) ? "text-fall" : "text-holo-cyan"
+                )}
+              >
+                {isPastDate(editForm.sponsoredUntil)
+                  ? `⚠ ${humanDate(editForm.sponsoredUntil)} har redan passerat — sparar du nu är annonsen AVSTÄNGD.`
+                  : `Annonsen visas t.o.m. ${humanDate(editForm.sponsoredUntil)}.`}
+              </p>
+            )}
             <p className="mt-1.5 text-xs leading-relaxed text-ink-faint">
               Butiken får ett eget ark märkt „Annons” ovanför butikslistan på de produkter
               den har i lager. Butikslistan under påverkas inte — så lovar villkor §8 och
