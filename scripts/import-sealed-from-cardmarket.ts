@@ -293,8 +293,18 @@ async function main() {
     // annons dyker upp igen.
     const low = c.lowest ?? null;
     const avg = c["30d_average"] ?? null;
-    if (low == null && avg == null) { skippedNoData++; continue; }
+    // ⛔ EN PRODUKT UTAN PRIS MEN MED LÄNK SKA ÄNDÅ IN (ägarbeslut 2026-09-08).
+    //    Kriteriet är Cardmarket-LÄNKEN, inte priset: bär produkten ett `cardmarket_id`
+    //    går länken till rätt sida, och att den saknar annons just nu är ett TILLFÄLLIGT
+    //    tillstånd som dagliga refreshen fyller i av sig själv. MÄTT i TCGGO-gapet: 243
+    //    kandidater saknade all prisdata, varav 54 hade ett fungerande id (30th
+    //    Celebration: Knock Out Collection, Pitch Black: Aurorus Premium Checklane …).
+    //    ⚠️ De syns INTE i katalog/sök förrän de får ett pris (`lowestPriceOre` är
+    //    filtret överallt) — produktsidan fungerar, och de är redo den dag en butik
+    //    listar dem. Utan id finns ingen länk alls och produkten hör inte hemma här.
+    if (low == null && avg == null && cmid == null) { skippedNoData++; continue; }
     const eur = low ?? avg;
+    // ⛔ Priset blir `null`, ALDRIG 0 — "–" läses som "vi vet inte", "0 kr" som "gratis".
     const priceOre = eur != null ? Math.round(eur * rates.eurToOre) : null;
     const stockStatus = low != null ? "IN_STOCK" : "OUT_OF_STOCK";
     const setId = setMap.get(norm(p.episode?.name ?? "")) ?? null;
