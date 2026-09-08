@@ -113,9 +113,9 @@ describe("printLabelInTitle — annonsens egen text", () => {
 // om en 40-kronorsannons landade på 1st Edition-produkten.
 describe("tryckningsvakt i matchListingToProduct", () => {
   const card = { name: "Ponyta", number: "60" };
-  const unlimited = { normalizedTitle: normalize("Ponyta Base 60/102 Unlimited"), card, variantLabel: PRINT_UNLIMITED };
-  const firstEd = { normalizedTitle: normalize("Ponyta Base 60/102 1st Edition"), card, variantLabel: PRINT_FIRST_EDITION };
-  const shadowless = { normalizedTitle: normalize("Ponyta Base 60/102 Shadowless"), card, variantLabel: PRINT_SHADOWLESS };
+  const unlimited = { normalizedTitle: normalize("Ponyta Base 60/102 Unlimited"), card, language: null, variantLabel: PRINT_UNLIMITED };
+  const firstEd = { normalizedTitle: normalize("Ponyta Base 60/102 1st Edition"), card, language: null, variantLabel: PRINT_FIRST_EDITION };
+  const shadowless = { normalizedTitle: normalize("Ponyta Base 60/102 Shadowless"), card, language: null, variantLabel: PRINT_SHADOWLESS };
 
   function normalize(s: string) {
     return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -136,7 +136,7 @@ describe("tryckningsvakt i matchListingToProduct", () => {
   });
 
   it("produkter UTAN tryckningsetikett påverkas inte", () => {
-    const plain = { normalizedTitle: normalize("Ponyta Base 60/102"), card, variantLabel: null };
+    const plain = { normalizedTitle: normalize("Ponyta Base 60/102"), card, language: null, variantLabel: null };
     expect(matchListingToProduct("Ponyta 60/102 Base Set", plain)).toBeGreaterThan(0);
     // Även en annons som nämner en tryckning får matcha det odelade kortet: de nio
     // andra WOTC-seten har bara EN katalogpost per kort.
@@ -147,8 +147,8 @@ describe("tryckningsvakt i matchListingToProduct", () => {
 describe("reverse holo som variant (2026-08-03)", () => {
   const card = { name: "Koraidon", number: "47" };
   const title = "koraidon pitch black 47 84";
-  const reverse = { normalizedTitle: title, card, variantLabel: VARIANT_REVERSE_HOLO };
-  const plain = { normalizedTitle: title, card, variantLabel: null };
+  const reverse = { normalizedTitle: title, card, language: null, variantLabel: VARIANT_REVERSE_HOLO };
+  const plain = { normalizedTitle: title, card, language: null, variantLabel: null };
 
   it("⛔ en annons som INTE säger reverse får inte prissätta reverse-produkten", () => {
     // Fältfallet: produktsidan visade "Lägsta pris · Tradera 3 kr" på reverse-

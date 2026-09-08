@@ -69,7 +69,7 @@ async function main() {
       rows++;
       const sameLanguage = listingCardLanguage(l.title, l.url) === p.language;
       const matches = matchListingToProduct(l.title, {
-        normalizedTitle: p.normalizedTitle, card: p.card, variantLabel: p.variantLabel,
+        normalizedTitle: p.normalizedTitle, card: p.card, language: p.language, variantLabel: p.variantLabel,
       }) != null;
       if (sameLanguage && matches) continue;
       doomed.push({ id: l.id, productId: p.id, itemId: l.itemId, title: l.title, productTitle: p.title });
@@ -182,7 +182,7 @@ async function main() {
     if (!raw?.title || !p) return false; // okänd härkomst → rör den inte
     const sameLanguage = listingCardLanguage(raw.title, raw.url ?? "") === p.language;
     const matches = matchListingToProduct(raw.title, {
-      normalizedTitle: p.normalizedTitle, card: p.card, variantLabel: p.variantLabel,
+      normalizedTitle: p.normalizedTitle, card: p.card, language: p.language, variantLabel: p.variantLabel,
     }) != null;
     return !(sameLanguage && matches);
   });

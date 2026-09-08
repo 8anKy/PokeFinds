@@ -116,6 +116,7 @@ async function main() {
         const score = matchListingToProduct(it.title, {
           normalizedTitle: c.normalizedTitle,
           card: null,
+          language: c.language ?? null,
           variantLabel: c.variantLabel,
         });
         if (score == null) continue;

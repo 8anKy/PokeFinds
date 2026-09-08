@@ -14,7 +14,7 @@ import { pickRailCandidates, type TraderaItem } from "@/jobs/tradera-sweep";
 const swshPack = {
   id: "prod-1",
   category: "BOOSTER_PACK",
-  language: "EN",
+  language: "EN" as const,
   normalizedTitle: "sword shield booster pack",
   card: null,
   variantLabel: null,
@@ -97,7 +97,7 @@ describe("pickRailCandidates", () => {
 // sa uttryckligen "base set unlimited" i titeln. Fältet är nu OBLIGATORISKT, så samma
 // miss blir ett typfel i stället för en tyst felmatchning.
 describe("pickRailCandidates — tryckningar (Base)", () => {
-  const base = { id: "prod-2", category: "SINGLE_CARD", language: "EN", card: { name: "Blastoise", number: "2" } };
+  const base = { id: "prod-2", category: "SINGLE_CARD", language: "EN" as const, card: { name: "Blastoise", number: "2" } };
   const unlimited = { ...base, normalizedTitle: "blastoise base 2 102 unlimited", variantLabel: "Unlimited" };
   const shadowless = { ...base, normalizedTitle: "blastoise base 2 102 shadowless", variantLabel: "Shadowless" };
   const firstEd = { ...base, normalizedTitle: "blastoise base 2 102 1st edition", variantLabel: "1st Edition" };

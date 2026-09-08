@@ -178,12 +178,15 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
       createdAt: { gte: windowStart },
     },
     orderBy: { createdAt: "asc" },
-    select: { id: true, title: true, slug: true, category: true, createdAt: true, gtin: true },
+    select: { id: true, title: true, slug: true, category: true, createdAt: true, gtin: true, language: true },
   });
   res.stubs = stubs.length;
   const catalog = await prisma.product.findMany({
     where: { category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY"] } },
-    select: { id: true, title: true, slug: true, category: true, setId: true, createdAt: true, gtin: true },
+    // ⛔ `language` är INTE valfri här: katalogens japanska sealed bär Cardmarkets namn
+    //    utan språkmarkör, och utan kolumnen läser vakterna dem som ENGELSKA. Det var
+    //    precis därför det här jobbet aldrig städade bort JP-stubbarna — se languageMismatch.
+    select: { id: true, title: true, slug: true, category: true, setId: true, createdAt: true, gtin: true, language: true },
   });
   log(`[dedupe-stubs] ${stubs.length} stubbar (≤${STUB_WINDOW_DAYS} dgr), ${catalog.length} sealed-produkter i katalogen.`);
 
@@ -219,7 +222,7 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
           // publicerar EN kod som landar på flera karaktärsspecifika produkter. Utan den här
           // raden mergade förfiltret "Pitch Black: GENGAR Premium Checklane" med
           // "…LUXRAY…" (2026-07-14, dry-run) — samma kod, olika Pokémon. Vakterna först.
-          !productsConflict(stub.title, c.title)
+          !productsConflict(stub.title, c.title, c.language)
       );
       if (twin) {
         // DRY_RUN MÅSTE KOLLAS I *VARJE* MERGE-VÄG. Den här grenen saknade kontrollen, så en
@@ -257,13 +260,13 @@ export async function dedupeStubs(log: (msg: string) => void = console.log): Pro
           // vakter här, så LLM:en fick döma par matchProduct aldrig hade övervägt och
           // sa "samma SKU" om US Version vs vanlig, 2019 vs 25th Anniversary, och ett
           // akrylfodral vs boosterlådan det rymmer (dry-run 2026-07-14).
-          !productsConflict(stub.title, c.title) &&
+          !productsConflict(stub.title, c.title, c.language) &&
           // Merge bara in i en mer etablerad produkt (set-märkt eller äldre) —
           // annars kan två färska stubbar sluka varandra åt fel håll.
           (c.setId != null || c.createdAt < stub.createdAt) &&
           !seriesMismatch(stubTitle, c.title) &&
           !setMarkerMismatch(stubTitle, c.title) &&
-          !languageMismatch(stubTitle, c.title) &&
+          !languageMismatch(stubTitle, c.title, c.language) &&
           // Tin-display (låda med flera tins) ≠ enskild tin — hård mekanisk spärr;
           // LLM:en luras annars av "Display = Booster Box"-ekvivalensen.
           !(

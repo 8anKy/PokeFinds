@@ -24,6 +24,7 @@ import { prisma } from "../lib/db";
 import { mapPool } from "../lib/concurrency";
 import { normalizeTitle } from "../lib/utils";
 import { isBlockedListingLanguage, listingCardLanguage } from "../lib/listing-language";
+import type { CardLanguage } from "@prisma/client";
 import { isGradedListing } from "../lib/graded-listing";
 import {
   matchProduct,
@@ -177,7 +178,7 @@ export function pickRailCandidates(
   product: {
     id: string;
     category: string;
-    language: string;
+    language: CardLanguage;
     normalizedTitle: string;
     card: { name: string; number: string } | null;
     // Tryckningen MÅSTE följa med hit — matchListingToProduct kan inte hålla isär

@@ -250,3 +250,41 @@ paths:
   butikslänk. ⛔ **EN AVVISAD LÄNK (401/403/407/451) RENSAS ALDRIG** — se `isStoreRefusal`; det var precis den förväxlingen som
   la nio friska Leksaksaffären-länkar först i rensningskön. ⛔ **INGEN DENYLIST**: en 404-URL som lämnat feeden kan inte
   återskapas av auto-importen, och kommer varan tillbaka SKA länken återskapas.
+
+## ⛔ SPRÅK LÄSES UR `Product.language`, ALDRIG BARA UR TITELN (2026-09-08)
+
+`detectListingLanguage` returnerar **"EN" som FALLBACK** när ingen markör hittades — det finns
+ingen positiv engelsk markör alls. Katalogens japanska sealed bär Cardmarkets ADOPTERADE namn
+("Abyss Eye Booster Box", "Mega Symphonia Booster Box") utan "(JP)" och lästes därför som ENGELSKA,
+medan varje svensk butik skriver "(Japansk)". JP ≠ EN ⇒ den RIKTIGA produkten föll ur
+kandidatpoolen på VARJE annons, och första butiken som sålde varan skapade en stub som BÄR "(JP)".
+Stubben blev därmed enda överlevande kandidat för alla EFTERFÖLJANDE butiker — en självmatande
+slinga. MÄTT: 43 stub-dubbletter skapade i september 2026, nästan alla JP sealed;
+Abyss Eye Booster Box gav riktig produkt 0,678 (konflikt=true) mot stub 0,857 (konflikt=false).
+
+- `languageMismatch(incoming, candidate, candidateLanguage?)` tar nu produktens språk.
+  ⛔ Undantaget är ENKÄLT: det kan bara UPPHÄVA en konflikt (omärkt kandidat + DB säger JP +
+  annonsen säger JP), aldrig SKAPA en. Symmetriskt hade det börjat blockera omärkta engelska
+  annonstitlar mot JP-produkter — en falskt blockerad korrekt länk syns aldrig.
+- ⛔ **VAKTEN SITTER PÅ TRE STÄLLEN, INTE ETT**: `productsConflict` (batteriet),
+  `matchProduct`s egen loop (den som faktiskt avgör butiksmatchningen — den anropar
+  `languageMismatch` DIREKT, inte via batteriet) och `matchListingToProduct` (Tradera).
+  Fixas bara batteriet händer ingenting i praktiken. `matchListingToProduct.product.language` är
+  därför **OBLIGATORISK** — samma skäl som `variantLabel`: ett glömt `select` ska bli ett TYPFEL,
+  inte en tyst utebliven länk. `MatchCandidate.language` + `loadMatchIndex` bär den.
+- **Två ord till hörde aldrig hemma i `nonEraDistinctiveWords`** (annonsens egna identitetsord,
+  som kandidaten måste TÄCKA, golv 0,6):
+  · **Set-koden.** `SET_CODE` kände sv/swsh/sm/me men inte den japanska M-familjen (M1S, M1L, M2,
+    M4, M5, M6a) ⇒ "M1S" räknades som produktidentitet. ⛔ HÅLL `SET_CODE` OCH `MERGE_SET_CODE_RE`
+    I SYNK — de har glidit isär två gånger (`me` 2026-08, M-familjen 2026-09) och båda gångerna
+    kostade dubbletter.
+  · **Språkordet** ("Japansk"). Språk har en EGEN vakt med DB:n som facit; att väga in det här
+    igen är att döma samma sak två gånger, andra gången mot en titel som per definition inte kan
+    vinna. Ett tvåordsnamn föll till 2/4 = 0,500.
+- **Städning**: `scripts/merge-language-marker-stubs.ts` mergar BARA par vars ordmängder är
+  identiska när språkmarkör och märkesord strukits (28 mergade 2026-09-08, 1 tvetydig avvisad).
+  ⛔ Den mergar INTE stub-dedupens alla förslag: av dess 83 var flera RIKTIGT olika varor
+  ("30th Celebration UPC" vs "Celebrations UPC", ETB "B Grade – RIPPED SEAL" vs den hela).
+  Den domen kräver ett mänskligt öga — `mergeEquivalent`-räcket som höll dem som FÖRSLAG i
+  stället för merge gjorde sitt jobb och ska inte vidgas.
+- Vaktat av `tests/unit/language-mismatch.test.ts`.

@@ -6,6 +6,7 @@
 import { prisma } from "../lib/db";
 import { decodeTitle, normalizeTitle } from "../lib/utils";
 import { detectListingLanguage } from "../lib/listing-language";
+import type { CardLanguage } from "@prisma/client";
 import { MARKETPLACE_MIN_PRICE_RATIO } from "../lib/listing-plausibility";
 import { listingFitsVariant } from "../lib/print-variant";
 import { MAX_NAME_WORDS, POKEMON_NAMES } from "./pokemon-names";
@@ -424,7 +425,21 @@ const SET_QUALIFIER_WORDS = new Set(["go"]);
  * kostade en dubblettstub: "ME04" räknades som produktidentitet i nonEraCoverage, inte som
  * den set-KOD den är. Håll dem i synk — en ny serie måste in i BÅDA.
  */
-const SET_CODE = /^(sv|swsh|sm|xy|bw|dp|hgss|me)\d{1,3}[a-z]?$/i;
+/*
+ * OBS 2: de JAPANSKA Mega Evolution-koderna (M1S, M1L, M2, M4, M5, M6a) saknades av
+ * exakt samma skäl som `me` ovan — och kostade exakt samma sak, en serie senare.
+ * Butikerna skriver "… (Japansk) – M1S", koden räknades som produktIDENTITET, och
+ * Cardmarkets namn ("Mega Symphonia Booster Box") bär den förstås inte ⇒ nonEraCoverage
+ * 0,500 mot golvet 0,600 och annonsen förkastades. Grenen kräver `m` + siffra, aldrig
+ * ett naket tal (se MERGE_SET_CODE_RE för varför ett naket tal ÄR identitet).
+ */
+const SET_CODE = /^(sv|swsh|sm|xy|bw|dp|hgss|me)\d{1,3}[a-z]?$|^m\d{1,2}[a-z]?$/i;
+/**
+ * Rena SPRÅKORD. Aldrig produktidentitet — språket avgörs av languageMismatch, som
+ * har Product.language som facit. Håll listan till orden som BARA betyder språk:
+ * "kinesisk"/"koreansk" hör hemma här av samma skäl, men ett SETNAMN får aldrig in.
+ */
+const LANGUAGE_WORDS = /^(jpn?|japansk\w*|japanese|eng|engelsk\w*|english|kinesisk\w*|chinese|koreansk\w*|korean)$/i;
 /** Inkommande titelns särskiljande ord MINUS era-varumärken, set-koder och butiksbrus. */
 function nonEraDistinctiveWords(title: string): Set<string> {
   let t = normalizeTitle(title);
@@ -435,6 +450,14 @@ function nonEraDistinctiveWords(title: string): Set<string> {
   for (const tok of t.split(" ")) if (SET_QUALIFIER_WORDS.has(tok)) words.add(tok);
   for (const n of NOISE_WORDS) words.delete(n);
   for (const w of [...words]) if (SET_CODE.test(w)) words.delete(w);
+  // ⛔ SPRÅKORDET ÄR INTE PRODUKTIDENTITET — det har en EGEN vakt (2026-09-08).
+  //    "Japansk"/"(JP)" räknades här som ett av annonsens identitetsord, som kandidaten
+  //    därmed måste TÄCKA. Cardmarkets japanska namn bär aldrig ordet ("Mega Symphonia
+  //    Booster Box"), så ett tvåordsnamn föll till nonEraCoverage 2/4 = 0,500 mot golvet
+  //    0,600 och annonsen förkastades. Språket prövas redan av languageMismatch, med
+  //    Product.language som facit — att väga in det HÄR igen är att döma samma sak två
+  //    gånger, och andra gången mot en titel som per definition inte kan vinna.
+  for (const w of [...words]) if (LANGUAGE_WORDS.test(w)) words.delete(w);
   return words;
 }
 
@@ -510,7 +533,9 @@ const MERGE_SYNONYMS: Record<string, string> = {
  * ordmängden blev identisk med "Mega Evolution BASE SET: Booster Pack" och dry-runen ville
  * merga Base Set 2 med Base Set (2026-07-13). Samma fälla gäller "151" och "Series 2".
  */
-const MERGE_SET_CODE_RE = /^(me|sv|swsh|sm|xy|bw|dp|hgss)\d{1,3}(\.\d)?[a-z]?$|^m\d[sl]$/i;
+// ⛔ HÅLL I SYNK MED `SET_CODE` ovan — de två har glidit isär två gånger nu (`me`
+//    2026-08, de japanska M-koderna 2026-09) och båda gångerna kostade det dubbletter.
+const MERGE_SET_CODE_RE = /^(me|sv|swsh|sm|xy|bw|dp|hgss)\d{1,3}(\.\d)?[a-z]?$|^m\d{1,2}[a-z]?$/i;
 
 function mergeTokens(title: string): Set<string> {
   const stripped = stripEra(normalizeTitle(title));
@@ -541,14 +566,23 @@ function mergeTokens(title: string): Set<string> {
  *
  * ALLA nya merge-vägar ska gå genom den här. En vakt som bara körs i EN kodväg är ingen vakt.
  */
-export function productsConflict(a: string, b: string): boolean {
+export function productsConflict(
+  a: string,
+  b: string,
+  /**
+   * Kandidatens `Product.language`, när anroparen har den. Behövs för att titlar ur
+   * Cardmarkets namngivning saknar språkmarkör — se languageMismatch. Utelämnad =
+   * oförändrat beteende, så anropare utan produktrad påverkas inte.
+   */
+  bLanguage?: CardLanguage | null
+): boolean {
   const na = normalizeTitle(a);
   const nb = normalizeTitle(b);
   // Tillbehör (akrylfodral, pärm, spelmatta) är aldrig samma vara som produkten det rymmer.
   if (isAccessoryListing(a) !== isAccessoryListing(b)) return true;
   if (isSingleCardListing(a) !== isSingleCardListing(b)) return true;
   return (
-    languageMismatch(na, nb) ||
+    languageMismatch(na, nb, bLanguage) ||
     setMarkerMismatch(na, nb) ||
     setCodeMismatch(a, nb) ||
     seriesMismatch(na, nb) ||
@@ -865,8 +899,38 @@ export function titleLanguage(t: string): ReturnType<typeof detectListingLanguag
  * räknades som "icke-EN" — så hamnade Shinycards "…Koreansk"-sidor som offers
  * på "(Japansk)"-produkter.
  */
-export function languageMismatch(incoming: string, candidate: string): boolean {
-  return titleLanguage(incoming) !== titleLanguage(candidate);
+export function languageMismatch(
+  incoming: string,
+  candidate: string,
+  candidateLanguage?: CardLanguage | null
+): boolean {
+  const a = titleLanguage(incoming);
+  const b = titleLanguage(candidate);
+  if (a === b) return false;
+
+  // ⛔ "EN" ÄR INTE ETT BEVIS — DET ÄR DETEKTORNS FALLBACK (2026-09-08).
+  //
+  // `detectListingLanguage` returnerar "EN" när INGEN markör hittades; det finns ingen
+  // positiv engelsk markör alls. Katalogens japanska sealed bär Cardmarkets ADOPTERADE
+  // namn ("Abyss Eye Booster Box", "Mega Symphonia Booster Box") — utan "(JP)", utan
+  // "Japansk". Vakten läste dem alltså som ENGELSKA, medan varje svensk butik skriver
+  // "(Japansk)". JP ≠ EN ⇒ den RIKTIGA produkten föll ur kandidatpoolen på VARJE
+  // annons, och den första butiken som sålde varan skapade en stub som BÄR "(JP)" i
+  // titeln. Stubben blev därmed den enda överlevande kandidaten för alla EFTERFÖLJANDE
+  // butiker också — en självmatande slinga: 43 stub-dubbletter skapade i september 2026,
+  // nästan alla JP sealed. Mätt på Abyss Eye Booster Box: riktig produkt 0,678 med
+  // konflikt=true, stub 0,857 med konflikt=false.
+  //
+  // Produktens SPRÅK står i `Product.language` — en kolumn vakten aldrig läste.
+  //
+  // ⛔ UNDANTAGET ÄR ENKÄLT MED FLIT: det kan bara UPPHÄVA en konflikt, aldrig SKAPA en.
+  //    Att låta `candidateLanguage` styra symmetriskt hade gjort vakten STRAMARE i andra
+  //    riktningen — en omärkt engelsk annonstitel mot en JP-produkt hade börjat konflikta
+  //    där den i dag länkar rätt (JP-set säljs ofta med bara setnamnet), och en falskt
+  //    BLOCKERAD korrekt länk syns aldrig. Vidga i en riktning, mät, aldrig båda på en gång.
+  if (b === "EN" && candidateLanguage === "JP" && a === "JP") return false;
+
+  return true;
 }
 
 /**
@@ -1652,6 +1716,11 @@ export type MatchCandidate = {
   card: { name: string; number: string } | null;
   /** Tryckning (Base): se tryckningsvakten i matchProduct. */
   variantLabel?: string | null;
+  /**
+   * Produktens språk ur databasen. Titeln bär det INTE för japansk sealed med
+   * Cardmarket-namn — se languageMismatch för vad det kostade.
+   */
+  language?: CardLanguage | null;
 };
 /** Hela katalogen i minnet — se matchProduct för VARFÖR. */
 export type MatchIndex = MatchCandidate[];
@@ -1671,6 +1740,7 @@ export async function loadMatchIndex(): Promise<MatchIndex> {
       id: true,
       normalizedTitle: true,
       variantLabel: true,
+      language: true,
       card: { select: { name: true, number: true } },
     },
   });
@@ -1861,8 +1931,13 @@ export async function matchProduct(
     ) {
       continue;
     }
-    // Fel språk (japansk/kinesisk utgåva) → förkasta
-    if (languageMismatch(normalized, c.normalizedTitle)) {
+    // Fel språk (japansk/kinesisk utgåva) → förkasta.
+    // ⛔ `c.language` MÅSTE med: katalogens japanska sealed bär Cardmarkets namn utan
+    //    språkmarkör och läses annars som ENGELSKA — se languageMismatch. Vakten sitter
+    //    HÄR, inte i productsConflict, så den här raden är den som faktiskt avgör
+    //    butiksmatchningen. Missas den är fixen verkningslös i just den kodväg som
+    //    skapade dubbletterna.
+    if (languageMismatch(normalized, c.normalizedTitle, c.language)) {
       continue;
     }
     // Fel sifferset (151 vs bas-S&V) → förkasta
@@ -2003,7 +2078,7 @@ export async function matchProduct(
     // returnerade bara ETT förslag, så anroparens deterministiska identitetstest
     // fick aldrig se den rätta tvillingen och en dubblett skapades. Sex av de
     // bildlösa produkterna kom till exakt så.
-    if (identicalIdentity(normalized, c.normalizedTitle) && !productsConflict(normalized, c.normalizedTitle)) {
+    if (identicalIdentity(normalized, c.normalizedTitle) && !productsConflict(normalized, c.normalizedTitle, c.language)) {
       identicalHits.push({ productId: c.id, confidence: score });
     }
 
@@ -2117,7 +2192,7 @@ export function nearestCatalogCandidate(
     //    sätter fel pris på en verklig produkt.
     if (blisterCharacterMismatch(rawTitle, c.normalizedTitle)) continue;
     if (deckCharacterMismatch(normalized, c.normalizedTitle)) continue;
-    if (productsConflict(rawTitle, c.normalizedTitle)) continue;
+    if (productsConflict(rawTitle, c.normalizedTitle, c.language)) continue;
     best = { id: c.id, normalizedTitle: c.normalizedTitle, score };
   }
   return best;
@@ -2136,6 +2211,14 @@ export function matchListingToProduct(
   product: {
     normalizedTitle: string;
     card: { name: string; number: string } | null;
+    /**
+     * OBLIGATORISKT av exakt samma skäl som `variantLabel` nedan (2026-09-08):
+     * `languageMismatch` läser annars språket ur TITELN, och Cardmarkets japanska
+     * namn saknar markör ⇒ produkten läses som ENGELSK och ingen japansk annons kan
+     * nå den. Ett obligatoriskt fält gör ett glömt `select` till ett TYPFEL i stället
+     * för en tyst utebliven länk.
+     */
+    language: CardLanguage | null;
     // OBLIGATORISKT, inte valfritt (2026-07-28). Fältet var `variantLabel?:` och
     // INGEN av anroparna valde ut det ur databasen → `undefined` föll rakt igenom
     // `isPrintVariantLabel` och tryckningsvakten nedan var i praktiken bortkopplad
@@ -2202,7 +2285,9 @@ export function matchListingToProduct(
   ) {
     return null;
   }
-  if (languageMismatch(normalized, product.normalizedTitle)) return null;
+  // Se languageMismatch: utan `product.language` läses varje Cardmarket-namngiven
+  // japansk produkt som ENGELSK, och en japansk annons kan då aldrig nå den.
+  if (languageMismatch(normalized, product.normalizedTitle, product.language)) return null;
   if (setMarkerMismatch(normalized, product.normalizedTitle)) return null;
   if (seriesMismatch(normalized, product.normalizedTitle)) return null;
   if (pokemonCenterMismatch(normalized, product.normalizedTitle)) return null;
