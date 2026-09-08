@@ -33,7 +33,7 @@ import { classifyForm, identicalIdentity, productsConflict } from "../src/scrape
 import { normalizeTitle } from "../src/lib/utils";
 import { backfillCardmarketIds } from "../src/lib/cm-catalog-names";
 import { cardmarketProductUrl } from "../src/lib/marketplace-urls";
-import { cmImageProxyUrl } from "../src/lib/cm-image";
+import { cmImageProxyUrl, cmRenderExists } from "../src/lib/cm-image";
 import { getRatesOre } from "../src/lib/exchange-rate";
 
 const prisma = new PrismaClient();
@@ -99,12 +99,18 @@ async function main() {
     const low = c.lowest ?? null;
     const eur = low ?? c["30d_average"] ?? null;
     const priceOre = eur != null ? Math.round(eur * rates.eurToOre) : null;
-    const newImage = twin.image ? cmImageProxyUrl(cmid) : null;
+    // ⛔ ATT TCGGO HAR EN BILD BETYDER INTE ATT CARDMARKET HAR EN EGEN RENDER.
+    //    Hundratals blistrar, checklanes och pin collections saknar den, och pekas
+    //    imageUrl på proxyn ändå blir rutan TOM i katalogen. Första versionen av det
+    //    här skriptet gjorde precis det och tomm-lade tre Delta Reign-blistrar —
+    //    varningen stod ordagrant i src/lib/cm-image.ts. CM:s render först, annars
+    //    TCGGO:s (som ÄR CM:s bild, serverad av leverantören). Aldrig en tom ruta.
+    const newImage = (await cmRenderExists(cmid)) ? cmImageProxyUrl(cmid) : (twin.image ?? null);
 
     linked++;
     console.log(
       `${APPLY ? "LÄNKAR " : "SKULLE "} "${p.title}"\n` +
-      `     → CM ${cmid}  ${eur == null ? "utan pris" : `${eur} €`}${newImage ? "  + CM-bild" : ""}`
+      `     → CM ${cmid}  ${eur == null ? "utan pris" : `${eur} €`}${newImage ? (newImage.startsWith("/api/") ? "  + CM-bild" : "  + TCGGO-bild") : ""}`
     );
     if (APPLY) {
       owned.set(cmid, p.title);
