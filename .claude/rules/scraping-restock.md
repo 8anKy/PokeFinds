@@ -329,3 +329,19 @@ paths:
   lagerstatus blir UNKNOWN; kräver ägarbeslut om vi vill visa pris utan lager) och **arcadedreams, som vi INTE FÅR
   hämta**: deras robots.txt listar tillåtna bottar och avslutar med `User-agent: * / Disallow: /`. Vår egen
   robots-parser blockerar den redan korrekt — ta inte bort den grinden.
+
+- **⛔ ÖVRE PRISGRÄNSEN GÄLLER BARA MARKNADSPLATSER (2026-09-08)**: `isPlausiblePriceFor` fällde allt
+  över **2,5× Cardmarket** i de dyra sealed-kategorierna, oavsett källa. På Tradera är det rätt — där
+  betyder 3× nästan alltid en LOT eller en felmatchad premiumvariant. På en BUTIK betyder det bara att
+  butiken är dyr: Cardmarket är EU-brett LÄGSTA annonspris, svensk detaljhandel har moms, frakt och
+  marginal. **Ägarbeslut: "många av butikerna vi lagt till ligger 2–3× Cardmarket, så är det bara."**
+  Felet var TYST och läste som sin motsats — loggraden sa "Orimligt pris vs marknadspris (trolig
+  lot/felmatch)" om en HELT KORREKT matchad produkt, så det såg ut som ett matchningsfel.
+  MÄTT på Cardshop Sweden: **4 av 13 sealed föll** (Inferno X Booster Box 2 190 kr mot facit 602,53;
+  Mega Brave/Ninja Spinner Box 1 199 mot ~445; Storm Emeralda Box 1 699 mot 645). Efter fixen mappar
+  13 av 13, och HELA butiken ligger 1,3–4,7× marknaden — dvs taket hade fällt en normal svensk butik.
+  `isPlausiblePriceFor(..., source)` tar nu `"store" | "marketplace"` (default marketplace, så
+  Tradera-vägarna är oförändrade); `runScrapeJob` skickar `isStoreRetailer(source.name)`.
+  ⛔ **UNDRE gränsen gäller BÅDA** — ett pris långt under ett pålitligt facit är ett öppnat exemplar
+  eller en felmatchning oavsett var det står. Rör den aldrig.
+  Vaktat av `tests/unit/store-price-ceiling.test.ts`.

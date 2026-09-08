@@ -72,6 +72,7 @@ import { SweetNerdsAdapter } from "@/scrapers/adapters/nyehandel-adapter";
 import { ToyspaceAdapter } from "@/scrapers/adapters/magento-adapter";
 import { CardHavenAdapter } from "@/scrapers/adapters/cardhaven-adapter";
 import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
+import { isStoreRetailer } from "../lib/offer-source";
 import {
   classifyForm,
   cleanListingTitle,
@@ -1605,6 +1606,12 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
         // ej pris-datakällorna själva): för HÖGT = trolig lot/fel variant (Tradera),
         // för LÅGT = felmatchad produkt (t.ex. en 149 kr butikslänk på en 2 333 kr
         // sealed). Skippa helt — priset hör inte till den här produkten.
+        //
+        // ⛔ ÖVRE gränsen gäller BARA marknadsplatser (2026-09-08). En svensk BUTIK
+        //    som ligger 2–3× Cardmarket är helt normal — CM är EU-brett lägsta
+        //    annonspris, butiken har moms, frakt och marginal. Taket fällde tidigare
+        //    äkta butiksannonser TYST med loggraden "trolig lot/felmatch": 4 av
+        //    Cardshop Swedens 13 sealed försvann så. Undre gränsen gäller båda.
         // Okänt pris (null — Shopifys 0 kr-platshållare på osläppta produkter) kan
         // varken vara orimligt eller en platshållare: båda vakterna nedan gäller TAL.
         // Raden går vidare som länk + lagerstatus, utan pris och utan observation.
@@ -1612,7 +1619,12 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
         if (
           normalized.price !== null &&
           !CARDMARKET_SOURCE_NAMES.includes(source.name) &&
-          !isPlausiblePriceFor(matchedCategory, cmPriceByProduct.get(productId), normalized.price)
+          !isPlausiblePriceFor(
+            matchedCategory,
+            cmPriceByProduct.get(productId),
+            normalized.price,
+            isStoreRetailer(source.name) ? "store" : "marketplace"
+          )
         ) {
           logs.push(`Orimligt pris vs marknadspris (trolig lot/felmatch): "${rawProduct.title}" ${normalized.price} öre`);
           continue;

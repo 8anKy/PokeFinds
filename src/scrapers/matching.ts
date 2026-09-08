@@ -2385,7 +2385,25 @@ const CHEAP_SEALED_LOWER_GUARD = new Set(["TIN", "BLISTER", "BOOSTER_PACK"]);
 export function isPlausiblePriceFor(
   category: string | null | undefined,
   cmPriceOre: number | null | undefined,
-  priceOre: number
+  priceOre: number,
+  /**
+   * Är annonsen från en MARKNADSPLATS (Tradera) eller från en BUTIK?
+   *
+   * ⛔ ÖVRE GRÄNSEN GÄLLER BARA MARKNADSPLATSER (ägarbeslut 2026-09-08).
+   *    På Tradera betyder "3× Cardmarket" nästan alltid en LOT eller en felmatchad
+   *    premiumvariant. I en svensk BUTIK betyder det bara att butiken är dyr —
+   *    ägaren: "många av butikerna vi lagt till ligger 2–3× Cardmarket, så är det
+   *    bara." Cardmarket är EU-brett lägsta annonspris; svensk detaljhandel med
+   *    moms och frakt ligger strukturellt högre. Taket 2,5× fällde därför ÄKTA
+   *    butiksannonser: mätt på Cardshop Sweden 4 av 13 sealed (Inferno X Booster
+   *    Box 2 190 kr mot facit 602 kr, Mega Brave/Ninja Spinner Box 1 199 mot ~440,
+   *    Storm Emeralda Box 1 699 mot 645). De försvann TYST — loggraden sa
+   *    "trolig lot/felmatch" om en helt korrekt matchad produkt.
+   *
+   * ⛔ UNDRE gränsen gäller BÅDA: ett pris långt under ett pålitligt facit är ett
+   *    öppnat exemplar eller en felmatchning oavsett var det står. Den rör vi inte.
+   */
+  source: "marketplace" | "store" = "marketplace"
 ): boolean {
   if (cmPriceOre == null) return true;
 
@@ -2399,10 +2417,10 @@ export function isPlausiblePriceFor(
   // Pris-vakt bara för dyra sealed-kategorier (se ovan). Billiga: alltid rimligt
   // pris-mässigt (form-matchning sköter felmatch där).
   if (!PRICE_GUARDED_SEALED_CATEGORIES.has(category ?? "")) return true;
-  return (
-    priceOre <= cmPriceOre * MARKETPLACE_MAX_PRICE_RATIO &&
-    priceOre >= cmPriceOre * SEALED_MIN_PRICE_RATIO
-  );
+  // Undre gränsen alltid; övre BARA för marknadsplatser (se `source` ovan).
+  if (priceOre < cmPriceOre * SEALED_MIN_PRICE_RATIO) return false;
+  if (source === "store") return true;
+  return priceOre <= cmPriceOre * MARKETPLACE_MAX_PRICE_RATIO;
 }
 
 /**
