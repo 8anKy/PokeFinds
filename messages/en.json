@@ -2110,7 +2110,6 @@
     "gradedSampleCount": "{count, plural, one {# sale} other {# sales}}",
     "gradedFootnote": "Final prices for graded copies of {title} sold on Tradera in the past year. A graded card is a different item from the raw one — the prices are not directly comparable. With only a handful of sales the figure is an example, not a market price.",
     "sponsoredTag": "Ad",
-    "sponsoredNote": "Paid placement. The store details come from the store, and the list below is unaffected.",
     "lowestTag": "Lowest",
     "storesTeaser": "{count, plural, one {# store} other {# stores}} · {inStock, plural, =0 {none in stock} one {# in stock} other {# in stock}}",
     "storesSorted": "lowest first",

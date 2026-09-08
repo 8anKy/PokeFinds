@@ -463,8 +463,11 @@ export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOf
                     />
                   </div>
                 </div>
-                <p className="mt-2 text-xs leading-relaxed text-ink-faint">{t("sponsoredNote")}</p>
-                <div className="mt-4 h-px bg-surface-border" />
+                {/* ⛔ INGEN FÖRKLARANDE MENING HÄR. Reklamidentifieringen (MFL §9) och
+                    löftet i villkor §8 bärs av TAGGEN + det avskilda läget — en brödtext
+                    som förklarar vår egen policy tillför inget för läsaren och väcker
+                    hellre tvivlet den skulle stilla. Ägarbeslut 2026-09-08. */}
+                <div className="mt-3 h-px bg-surface-border" />
               </div>
             )}
             {directOffers.length > 0 && (
