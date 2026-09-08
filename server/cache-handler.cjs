@@ -58,7 +58,13 @@ const crypto = require("node:crypto");
 // "3" (2026-09-06): produktsidans knappar blev EN Bevaka-knapp med ark
 // (product-actions.tsx). Den gamla klientkoden ritade tre knappar (pris/restock/
 // samling) och svarade 409 på det andra larmet — det får inte ligga kvar i 30 dygn.
-const PAGE_EPOCH = "3";
+// "4" (2026-09-08): produktsidan fick ANNONSARKET ovanför butikslistan (sponsrad
+// butik, `retailer.sponsored` i detail-payloaden). Det är ett nytt API-kontrakt som
+// GAMMAL klientkod inte talar: servern skickar fältet, men en ISR-post från förra
+// bygget pekar på JS-chunks som varken läser det eller ritar arket — så en betald
+// placering hade varit osynlig i upp till 30 dygn medan både DB och API sa "sponsrad".
+// Precis det symptom "2" och "3" beskriver; missades ändå vid första deployen.
+const PAGE_EPOCH = "4";
 const STORE_VERSION = "v1";
 /** Sidor äldre än så rensas oavsett TTL (ISR-TTL:en för produktsidor är 30 d). */
 const PAGE_MAX_AGE_MS = 45 * 24 * 3600 * 1000;
