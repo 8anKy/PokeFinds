@@ -16,6 +16,8 @@ const createSchema = z.object({
   sourceType: z.nativeEnum(SourceType).default("MANUAL"),
   affiliateEnabled: z.boolean().default(false),
   affiliateParams: z.string().max(500).optional(),
+  // Se PATCH-rutten: sponsring är en datumgräns, inte en bock.
+  sponsoredUntil: z.coerce.date().nullable().optional(),
 });
 
 export async function GET() {

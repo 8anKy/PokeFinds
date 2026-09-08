@@ -603,6 +603,21 @@ model Retailer {
   sourceType       SourceType @default(MANUAL)
   affiliateEnabled Boolean    @default(false)
   affiliateParams  String?
+  /// SPONSRAD PLACERING till och med den här tidpunkten (null = aldrig sponsrad).
+  ///
+  /// ⛔ EN DATUMGRÄNS, ALDRIG EN BOCK. En bock som glöms kvar är gratis toppplacering
+  /// för evigt — en avtalsperiod som passerat ska släckas av klockan, inte av att
+  /// någon kommer ihåg den.
+  ///
+  /// ⛔ PÅVERKAR ALDRIG DEN ORDINARIE RANGORDNINGEN. Villkor §8 och /om lovar att
+  /// sponsrade placeringar hålls ÅTSKILDA från rangordningen och aldrig påverkar den
+  /// — butiken visas i ett EGET, märkt ark ovanför butikslistan och ligger kvar på
+  /// sin naturliga prisplats i listan. Sorterar du in den i listan i stället bryts
+  /// löftet och båda legaltexterna måste skrivas om först (båda språken).
+  ///
+  /// ⛔ RÖR ALDRIG PRISET. "Lägst"-taggen, rubrikpriset, prislarmen och prisstatistiken
+  /// räknas på samma sätt som förut — sponsringen är en PLACERING, inte ett pris.
+  sponsoredUntil   DateTime?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 

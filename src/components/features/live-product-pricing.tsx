@@ -25,6 +25,7 @@ import { IconStore, IconChevronDown } from "@/components/ui/icons";
 import { hapticTick } from "@/lib/haptics";
 import { isCardmarketJpSearchUrl, isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { lowestOfferSource } from "@/lib/offer-source";
+import { pickSponsoredOffer } from "@/lib/sponsored-offer";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -34,6 +35,12 @@ export interface LiveRetailer {
   logoUrl: string | null;
   websiteUrl: string;
   affiliateEnabled: boolean;
+  /**
+   * Butiken har en betald placering just nu (Retailer.sponsoredUntil i framtiden).
+   * ⛔ Ger ETT märkt ark ovanför listan — sorteringen i listan rörs ALDRIG. Se
+   * lib/sponsored-offer.ts för varför (villkor §8 + /om).
+   */
+  sponsored?: boolean;
 }
 
 export interface LiveOffer {
@@ -385,6 +392,14 @@ export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOf
   const bestOfferId =
     directOffers[0]?.stockStatus === "IN_STOCK" && directOffers[0].price != null ? directOffers[0].id : null;
 
+  // ANNONSARKET. ⛔ Ligger UTANFÖR listan och rör den inte: `directOffers` sorteras
+  // precis som förut och den sponsrade butiken ligger kvar på sin naturliga prisplats
+  // där också. Det är inte slarv utan själva löftet i villkor §8 och /om ("Så rankar
+  // vi") — sponsrade placeringar ska vara märkta, åtskilda och aldrig påverka
+  // rangordningen. Sorterar man in raden i listan i stället måste båda legaltexterna
+  // skrivas om i BÅDA språken först. Se lib/sponsored-offer.ts.
+  const sponsoredOffer = pickSponsoredOffer(directOffers);
+
   return (
     <>
       <section className="mt-8 lg:mt-10">
@@ -413,6 +428,45 @@ export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOf
           />
         ) : (
           <div className="mt-4">
+            {sponsoredOffer && (
+              <div className="mb-4">
+                <div className="card-surface flex items-center justify-between gap-3 border-holo-cyan/25 p-3 pr-3.5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <RetailerLogo
+                      name={sponsoredOffer.retailer.name}
+                      logoUrl={sponsoredOffer.retailer.logoUrl}
+                    />
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] font-medium leading-5">
+                        <span className="truncate">{sponsoredOffer.retailer.name}</span>
+                        {/* MÄRKNINGEN. Marknadsföringslagens reklamidentifiering och vårt
+                            eget löfte kräver att den syns direkt vid raden — aldrig bara
+                            i en fotnot, aldrig bortmixad i en hovertext. */}
+                        <span className="rounded-md bg-ink/[0.08] px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.06em] text-ink-muted">
+                          {t("sponsoredTag")}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className="font-semibold tabular-nums">
+                          {sponsoredOffer.price != null ? formatPrice(sponsoredOffer.price) : "–"}
+                        </span>
+                        <StockBadge stockStatus={sponsoredOffer.stockStatus} />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="shrink-0">
+                    <OfferClickButton
+                      slug={slug}
+                      offerId={sponsoredOffer.id}
+                      fallbackUrl={sponsoredOffer.url}
+                      label={offerLabel(sponsoredOffer.url)}
+                    />
+                  </div>
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-ink-faint">{t("sponsoredNote")}</p>
+                <div className="mt-4 h-px bg-surface-border" />
+              </div>
+            )}
             {directOffers.length > 0 && (
               <>
                 {/* Mobil: staplade kort (tabellen ryms inte utan sidoscroll).

@@ -25,6 +25,9 @@ export default async function AdminRetailersPage() {
     sourceType: r.sourceType,
     affiliateEnabled: r.affiliateEnabled,
     affiliateParams: r.affiliateParams,
+    // Date → sträng HÄR. En Date som passerar server→klient-gränsen är precis den
+    // fälla som bitit oss i unstable_cache; formuläret vill ändå ha "YYYY-MM-DD".
+    sponsoredUntil: r.sponsoredUntil ? r.sponsoredUntil.toISOString() : null,
     offerCount: r._count.offers,
   }));
 

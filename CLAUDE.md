@@ -317,6 +317,22 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   Övrig legalstatus: `../PokeFinds-private/docs/TERMS-GAP.md`.
 - **Kvar i legalpaketet**: F2 (datalicenser, egen utredning) + community-klausulen (publiceras med
   community). ⛔ ODR-hänvisningen är borttagen med flit (EU-plattformen nedlagd 2025-07-20) — aldrig åter.
+- ✅ **WAVE 8 (2026-09-08): Cardshop Sweden — första SPONSRADE butiken.** Shopify, robots tillåter,
+  sv-SE + SEK på apex. `wholeCatalog` för att ingen av butikens 14 kollektioner bär "pokemon" i
+  handle/titel ⇒ kollektionsvägen ger NOLL; /products.json ger alla 15 på en hämtning och summan av
+  butikens egna "alla-produkter"-hyllor (13+2) är exakt 15, alltså bevisligen komplett (jfr Rogerz:
+  kravet är TVÅ tal, och det som försvinner är 0). Probat: 13 sealed + 2 tillbehör, 10 i lager.
+- ⛔ **SPONSRAD PLACERING = ETT EGET MÄRKT ARK, ALDRIG EN PLATS I LISTAN (2026-09-08)**:
+  `Retailer.sponsoredUntil` (DATUMGRÄNS, aldrig en bock — en glömd bock är gratis toppplacering för
+  evigt) ger butiken en egen rad märkt "Annons" OVANFÖR butikslistan på varje produkt den har
+  **i lager**; listan under sorteras precis som förut och butiken ligger kvar på sin naturliga
+  prisplats där också. ⛔ Det är inte en designsmak utan LÖFTET i **villkor §8** och **"Så rankar vi"
+  på /om**, ordagrant på båda språken: sponsrade placeringar är märkta, "hålls åtskilda från den
+  ordinarie rangordningen och aldrig påverkar den". Sorterar man in raden i listan måste BÅDA
+  legaltexterna skrivas om i BÅDA språken FÖRST. ⛔ Rör ALDRIG priset: "Lägst"-taggen, rubrikpriset,
+  prisstatistiken och prislarmen räknas oförändrat — sponsringen är en PLACERING, inte ett pris.
+  ⛔ Bara KÖPBART annonseras (IN_STOCK); pris får saknas ("–"). Domen: `src/lib/sponsored-offer.ts`
+  (ren, testad), spak: /admin/butiker → Redigera → "Sponsrad placering t.o.m.".
 - **Butikssvansen (wave 7, 2026-09-06 — 54 butiker, 44 bevakade)**: ✅ Sweet Nerds (Nyehandel),
   Toyspace (Magento 2) och Card Haven (Next.js) är BYGGDA och importerade. Efter wave 4–6 finns ingen
   hävstång kvar — varje återstående butik är sin EGEN plattform, så listan betas en i taget MED

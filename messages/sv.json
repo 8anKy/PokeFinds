@@ -2109,6 +2109,8 @@
     "gradedColLast": "Senast såld",
     "gradedSampleCount": "{count, plural, one {# affär} other {# affärer}}",
     "gradedFootnote": "Slutpriser för graderade exemplar av {title} som sålts på Tradera det senaste året. Ett graderat kort är en annan vara än det ograderade — priserna går inte att jämföra rakt av. Med bara någon enstaka affär är siffran ett exempel, inte ett marknadspris.",
+    "sponsoredTag": "Annons",
+    "sponsoredNote": "Betald placering. Butiksinformationen kommer från butiken, och listan nedan påverkas inte.",
     "lowestTag": "Lägst",
     "storesTeaser": "{count, plural, one {# butik} other {# butiker}} · {inStock, plural, =0 {ingen i lager} one {# i lager} other {# i lager}}",
     "storesSorted": "lägst först",

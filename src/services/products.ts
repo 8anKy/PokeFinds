@@ -1441,6 +1441,8 @@ interface SerializedOffer {
     logoUrl: string | null;
     websiteUrl: string;
     affiliateEnabled: boolean;
+    /** Sponsrad placering just nu (Retailer.sponsoredUntil i framtiden). Se lib/sponsored-offer.ts. */
+    sponsored: boolean;
   };
 }
 
@@ -1474,7 +1476,7 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
 
   const listingCutoff = new Date();
   listingCutoff.setDate(listingCutoff.getDate() - TRADERA_LISTING_MAX_AGE_DAYS);
-  const [historyBySource, similar, railRows, rejectedItems, affiliateRetailers, variantSiblings, gradedSales] = await Promise.all([
+  const [historyBySource, similar, railRows, rejectedItems, affiliateRetailers, sponsoredRetailers, variantSiblings, gradedSales] = await Promise.all([
     getPriceHistoryBySource(product.id, DETAIL_MAX_DAYS),
     getSimilarProducts(product.id, 4),
     prisma.traderaListing.findMany({
@@ -1504,6 +1506,16 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
       },
       select: { id: true },
     }),
+    // Sponsrade butiker just nu. Filtreras på TID i frågan, inte i koden: en avtals-
+    // period som passerat ska släckas av klockan även om ingen bockar ur i admin.
+    // ⛔ Bara PLACERINGEN påverkas — se lib/sponsored-offer.ts.
+    prisma.retailer.findMany({
+      where: {
+        id: { in: product.offers.map((o) => o.retailerId) },
+        sponsoredUntil: { gt: new Date() },
+      },
+      select: { id: true },
+    }),
     // Andra produkter för samma kort = Cardmarket-versioner (common ↔ variant).
     product.cardId
       ? prisma.product.findMany({
@@ -1526,6 +1538,10 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
     lowestPrice: computeLowestPrice(v.offers.filter((o) => isDirectOfferUrl(o.url))).price,
   }));
   const affiliateIds = new Set(affiliateRetailers.map((r) => r.id));
+  // ⚠️ Detaljen är cachad (PERSONAL_TTL/1 h) → flaggan kan släpa lika länge som allt
+  // annat i payloaden. Det är rätt avvägning: en Neon-väckning per visning för att
+  // se en sponsring sekunden den går ut vore dyrare än den är värd.
+  const sponsoredIds = new Set(sponsoredRetailers.map((r) => r.id));
 
   // Endast direkta produktlänkar visas/räknas (samma regel som produktsidan).
   const directOffers = product.offers.filter((o) => isDirectOfferUrl(o.url));
@@ -1615,6 +1631,7 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
       logoUrl: o.retailer.logoUrl,
       websiteUrl: o.retailer.websiteUrl,
       affiliateEnabled: affiliateIds.has(o.retailerId),
+      sponsored: sponsoredIds.has(o.retailerId),
     },
   }));
 

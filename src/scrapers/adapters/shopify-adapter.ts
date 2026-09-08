@@ -648,3 +648,28 @@ export class TcgPicksAdapter extends ShopifyAdapter {
   baseUrl = "https://tcgpicks.com";
   protected wholeCatalog = true;
 }
+
+// ---------- Wave 8: Shopify-butiker (2026-09-08) ----------
+// Cardshop Sweden (cardshopsweden.se) — Shopify, robots.txt tillåter allt publikt,
+// `content-language: sv-SE` och `cart_currency=SEK` direkt på apex (ingen Markets-
+// omväg). Liten butik: 15 produkter TOTALT (10 japanska boosters/displays, 2 engelska
+// sealed, 2 Ultra Pro-tillbehör, 1 övrig), mätt 2026-09-08.
+//
+// wholeCatalog för att kollektionsvägen strukturellt ger NOLL här: butikens 14
+// kollektioner heter "japanska-produkter", "engelska-produkter", "losa-packs",
+// "tillbehor", "one-piece", "lorcana", "riftbound", "alla-produkter" … — INGEN bär
+// "pokemon" i handle eller titel, så `pokemonCollections()` matchar inget alls och
+// butiken hade varit tyst tom. /products.json ger alla 15 på EN hämtning, och
+// summan av butikens egna "alla-produkter"-hyllor (13 + 2) är exakt 15 — alltså är
+// /products.json här bevisligen komplett, inte bara "hela sortimentet" (jfr Rogerz-
+// varningen på fältet: kravet är TVÅ tal, och det som försvinner är 0).
+//
+// ⛔ INGEN wholeCatalogPokemonOnly: 2 av 15 är One Piece och 2 är Ultra Pro-tillbehör
+//    utan markör. Markörfiltret hade tagit tillbehören också (riktiga varor för oss)
+//    för att vinna två One Piece-rader som ändå fälls nedströms av kravet på positiv
+//    Pokémon-evidens. Butiken är för liten för att filtret ska tjäna något.
+export class CardshopSwedenAdapter extends ShopifyAdapter {
+  name = "Cardshop Sweden";
+  baseUrl = "https://cardshopsweden.se";
+  protected wholeCatalog = true;
+}

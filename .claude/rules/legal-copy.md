@@ -24,6 +24,10 @@ paths:
   de är en mekanism, ändra dem tillsammans. ⛔ Skäligt bruk-nyckeln heter nu `Terms.s11FairUse` (f.d.
   s6FairUse), vaktad mot `PREMIUM_FAIR_USE` av `tests/unit/terms-fair-use-sync.test.ts`.
   Sponsring (ägarbeslut): märkta placeringar som ALDRIG påverkar rangordningen — löftet står i både
-  villkor §8 och /om. Status + assistentbeslut att pröva med jurist: `../PokeFinds-private/docs/
+  villkor §8 och /om. ✅ **BYGGT 2026-09-08 och byggt för att HÅLLA löftet**: `Retailer.sponsoredUntil`
+  ger ett EGET ark märkt "Annons" ovanför butikslistan, medan listan sorteras precis som förut och
+  butiken ligger kvar på sin naturliga prisplats i den. ⛔ Flyttas raden NÅGONSIN in i listan blir
+  båda texterna falska på en gång — skriv om dem i BÅDA språken FÖRST, annars är villkoren en
+  utfästelse vi bryter mot i samma skärmbild som vi ger den. Domen: `src/lib/sponsored-offer.ts`. Status + assistentbeslut att pröva med jurist: `../PokeFinds-private/docs/
   TERMS-GAP.md` (statusblocket överst). Kvar: F2 (datalicenser, egen utredning) och community-klausulen
   (publiceras först när community lanseras — utkast §13 i TERMS-DRAFT-CLAUSES.md).

@@ -20,7 +20,31 @@ export interface RetailerRow {
   sourceType: SourceType;
   affiliateEnabled: boolean;
   affiliateParams: string | null;
+  /** ISO-sträng eller null. Sponsrad placering t.o.m. — se lib/sponsored-offer.ts. */
+  sponsoredUntil: string | null;
   offerCount: number;
+}
+
+/** ISO → "YYYY-MM-DD" för <input type="date">. Tom sträng = ingen sponsring. */
+function toDateInput(iso: string | null): string {
+  return iso ? iso.slice(0, 10) : "";
+}
+
+/**
+ * "YYYY-MM-DD" → ISO vid dygnets SLUT i UTC, eller null.
+ *
+ * ⛔ Datumet är INKLUSIVE: skriver man 2026-10-31 ska annonsen synas HELA den 31:e.
+ *    En bar `new Date("2026-10-31")` blir midnatt vid dygnets BÖRJAN och hade släckt
+ *    sponsringen ett dygn för tidigt — tyst, och först när kunden hör av sig.
+ */
+function fromDateInput(value: string): string | null {
+  if (!value) return null;
+  return new Date(`${value}T23:59:59.999Z`).toISOString();
+}
+
+/** Sponsringen går ut av klockan, inte av en bock — visa bara en aktiv period. */
+function isSponsoredNow(iso: string | null): boolean {
+  return !!iso && new Date(iso).getTime() > Date.now();
 }
 
 const TYPE_VARIANTS: Record<SourceType, BadgeVariant> = {
@@ -38,6 +62,7 @@ interface EditState {
   isActive: boolean;
   affiliateEnabled: boolean;
   affiliateParams: string;
+  sponsoredUntil: string;
 }
 
 interface CreateState {
@@ -68,6 +93,7 @@ export function RetailersClient({ retailers }: { retailers: RetailerRow[] }) {
     isActive: true,
     affiliateEnabled: false,
     affiliateParams: "",
+    sponsoredUntil: "",
   });
   const [addOpen, setAddOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CreateState>(EMPTY_CREATE);
@@ -80,6 +106,7 @@ export function RetailersClient({ retailers }: { retailers: RetailerRow[] }) {
       isActive: retailer.isActive,
       affiliateEnabled: retailer.affiliateEnabled,
       affiliateParams: retailer.affiliateParams ?? "",
+      sponsoredUntil: toDateInput(retailer.sponsoredUntil),
     });
   }
 
@@ -96,6 +123,7 @@ export function RetailersClient({ retailers }: { retailers: RetailerRow[] }) {
           isActive: editForm.isActive,
           affiliateEnabled: editForm.affiliateEnabled,
           affiliateParams: editForm.affiliateParams.trim() || null,
+          sponsoredUntil: fromDateInput(editForm.sponsoredUntil),
         }),
       });
       const data: { error?: string } = await res.json();
@@ -200,11 +228,17 @@ export function RetailersClient({ retailers }: { retailers: RetailerRow[] }) {
                   )}
                 </TD>
                 <TD>
-                  {retailer.affiliateEnabled ? (
-                    <Badge variant="holo">Affiliate</Badge>
-                  ) : (
-                    <span className="text-ink-faint">–</span>
-                  )}
+                  <span className="inline-flex flex-wrap items-center gap-1.5">
+                    {retailer.affiliateEnabled && <Badge variant="holo">Affiliate</Badge>}
+                    {isSponsoredNow(retailer.sponsoredUntil) && (
+                      <Badge variant="warning">
+                        Annons t.o.m. {toDateInput(retailer.sponsoredUntil)}
+                      </Badge>
+                    )}
+                    {!retailer.affiliateEnabled && !isSponsoredNow(retailer.sponsoredUntil) && (
+                      <span className="text-ink-faint">–</span>
+                    )}
+                  </span>
                 </TD>
                 <TD>
                   <Badge variant={TYPE_VARIANTS[retailer.sourceType]}>
@@ -265,6 +299,23 @@ export function RetailersClient({ retailers }: { retailers: RetailerRow[] }) {
               }
               placeholder="t.ex. utm_source=foilio&ref=pf"
             />
+          </div>
+          <div>
+            <Label htmlFor="edit-sponsored-until">Sponsrad placering t.o.m.</Label>
+            <Input
+              id="edit-sponsored-until"
+              type="date"
+              value={editForm.sponsoredUntil}
+              onChange={(e) =>
+                setEditForm((f) => ({ ...f, sponsoredUntil: e.target.value }))
+              }
+            />
+            <p className="mt-1.5 text-xs leading-relaxed text-ink-faint">
+              Butiken får ett eget ark märkt „Annons” ovanför butikslistan på de produkter
+              den har i lager. Butikslistan under påverkas inte — så lovar villkor §8 och
+              „Så rankar vi” på /om. Töm fältet för att släcka direkt; datumet gäller hela
+              dygnet ut och släcks sedan av sig självt.
+            </p>
           </div>
           <div className="flex justify-end gap-3">
             <Button type="button" variant="ghost" onClick={() => setEditing(null)}>

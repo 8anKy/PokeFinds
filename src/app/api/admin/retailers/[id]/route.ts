@@ -17,6 +17,10 @@ const updateSchema = z.object({
   sourceType: z.nativeEnum(SourceType).optional(),
   affiliateEnabled: z.boolean().optional(),
   affiliateParams: z.string().max(500).nullable().optional(),
+  // Sponsrad placering t.o.m. (ISO-datum) — `null` släcker den direkt.
+  // ⛔ EN DATUMGRÄNS, ALDRIG EN BOCK: en avtalsperiod som passerat ska släckas av
+  //    klockan, inte av att någon kommer ihåg att bocka ur. Se lib/sponsored-offer.ts.
+  sponsoredUntil: z.coerce.date().nullable().optional(),
 });
 
 export async function PATCH(

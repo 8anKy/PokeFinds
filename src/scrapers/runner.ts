@@ -48,6 +48,7 @@ import {
   YonkoTcgAdapter,
   FiregamesAdapter,
   TcgPicksAdapter,
+  CardshopSwedenAdapter,
 } from "@/scrapers/adapters/shopify-adapter";
 import {
   SwepokeAdapter,
@@ -192,6 +193,8 @@ const SCRAPER_ADAPTERS: Record<string, new () => SourceAdapter> = {
   "Sweet Nerds": SweetNerdsAdapter,
   Toyspace: ToyspaceAdapter,
   "Card Haven": CardHavenAdapter,
+  // ---- Wave 8 (2026-09-08) ----
+  "Cardshop Sweden": CardshopSwedenAdapter,
 };
 
 export function getAdapter(type: SourceType, sourceName?: string): SourceAdapter {

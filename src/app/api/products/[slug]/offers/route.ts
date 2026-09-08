@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { NON_STORE_RETAILER_NAMES } from "@/services/products";
+import { isSponsoredNow } from "@/lib/sponsored-offer";
 
 export async function GET(
   _req: Request,
@@ -17,7 +18,14 @@ export async function GET(
         offers: {
           include: {
             retailer: {
-              select: { id: true, name: true, logoUrl: true, websiteUrl: true, affiliateEnabled: true },
+              select: {
+                id: true,
+                name: true,
+                logoUrl: true,
+                websiteUrl: true,
+                affiliateEnabled: true,
+                sponsoredUntil: true,
+              },
             },
           },
           orderBy: { price: { sort: "asc", nulls: "last" } },
@@ -42,9 +50,26 @@ export async function GET(
     const pool = inStock.length > 0 ? inStock : priced;
     const best = pool.length > 0 ? pool.reduce((a, b) => (b.price < a.price ? b : a)) : null;
 
+    // ⛔ `sponsoredUntil` går ALDRIG ut som en Date i payloaden — klienten vill ha ett
+    //    svar ("visas annonsarket?"), inte ett datum den måste tolka, och en Date som
+    //    serialiseras till sträng är precis den fällan som bränt oss i unstable_cache.
+    //    Domen tas här, en gång, mot samma klocka som produktdetaljen använder.
+    const now = new Date();
+    const serializedOffers = directOffers.map(({ retailer, ...o }) => ({
+      ...o,
+      retailer: {
+        id: retailer.id,
+        name: retailer.name,
+        logoUrl: retailer.logoUrl,
+        websiteUrl: retailer.websiteUrl,
+        affiliateEnabled: retailer.affiliateEnabled,
+        sponsored: isSponsoredNow(retailer.sponsoredUntil, now),
+      },
+    }));
+
     return jsonCached(
       {
-        offers: directOffers,
+        offers: serializedOffers,
         stats: {
           lowestPrice: best?.price ?? null,
           lowestPriceStockStatus: best?.stockStatus ?? null,
