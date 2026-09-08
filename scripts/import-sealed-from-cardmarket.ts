@@ -28,7 +28,10 @@ if (fs.existsSync(envPath)) {
 import { PrismaClient, type ProductCategory } from "@prisma/client";
 import { getRatesOre } from "../src/lib/exchange-rate";
 import { cardmarketProductUrl } from "../src/lib/marketplace-urls";
-import { classifyForm } from "../src/scrapers/matching";
+import {
+  classifyForm, identicalIdentity, loadMatchIndex, nearestCatalogCandidate, productsConflict,
+} from "../src/scrapers/matching";
+import { normalizeTitle } from "../src/lib/utils";
 import { backfillCardmarketIds, buildCmIdByName } from "../src/lib/cm-catalog-names";
 
 const prisma = new PrismaClient();
@@ -60,6 +63,24 @@ const REJECT_RE =
 // syskon-expansionsregeln (se main).
 const FALLBACK_REJECT_RE =
   /\btaiwan\b|family\s*mart|\bgym\s+promo\b|dragon\s+boat|prize\s+pack/i;
+
+/**
+ * GROSSISTFÖRPACKNINGAR — ägarbeslut 2026-09-08: importeras INTE.
+ *
+ * "Delta Reign 6 Booster Box Case" (1 500 €), "10 Elite Trainer Box Case" (1 000 €),
+ * "24 Sleeved Booster Case" och "Build & Battle Box Display" är distributionsenheter,
+ * inte konsumentvaror: ingen svensk butik listar dem, så produkten hade legat kvar utan
+ * en enda butikslänk och bara visat en Cardmarket-siffra ingen kan handla på.
+ * "Fun Pack (3 Cards)" (0,60 €) är kassalinjeskräp.
+ * MÄTT i TCGGO-gapet: 93 case + 23 display + 27 fun pack = 143 av 486 nya.
+ *
+ * ⛔ `\bcase\b` KRÄVER ordgräns — "Showcase" och "Suitcase" är riktiga produktnamn.
+ * ⛔ "Display" ensamt är FÖRBJUDET som avvisningsord: `FORM_TO_CAT` mappar display →
+ *    BOOSTER_BOX eftersom CM kallar en vanlig boosterbox "Display". Bara det
+ *    SAMMANSATTA "X Box Display" (en låda med flera lådor) fälls.
+ */
+const WHOLESALE_RE =
+  /\bcase\b|\bfun pack\b|(?:box|blister|bundle|collection|deck)\s+display\b|\bdisplay\s+case\b/i;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const norm = (s: string) =>
@@ -208,6 +229,11 @@ async function main() {
 
   const stat: Record<string, number> = {};
   let skippedHave = 0, skippedNoData = 0, skippedForm = 0, created = 0, skippedOld = 0, skippedReject = 0;
+  let skippedWholesale = 0, skippedFuzzy = 0;
+  /** Skapade men LIKNAR en befintlig — rapporteras för granskning, tigs aldrig ihjäl. */
+  const nearDupes: string[] = [];
+  // Katalogindexet EN gång: dubblettvakten nedan körs per kandidat.
+  const matchIndex = await loadMatchIndex();
 
   for (const p of catalog) {
     const form = classifyForm(p.name ?? "");
@@ -220,7 +246,45 @@ async function main() {
     if (recentIds && (cmid == null || !recentIds.has(cmid))) { skippedOld++; continue; }
     // Språk-/region-/skräpvakt (se REJECT_RE).
     if (REJECT_RE.test(p.name)) { skippedReject++; continue; }
+    // Grossistförpackningar (se WHOLESALE_RE).
+    if (WHOLESALE_RE.test(p.name)) { skippedWholesale++; continue; }
     if ((cmid != null && existingCmIds.has(cmid)) || existingTitles.has(`${cat}|${normTitle}`)) { skippedHave++; continue; }
+
+    // ── DUBBLETTVAKT: IDENTITET, INTE LIKHET (2026-09-08) ──────────────────────
+    // Exakt titel räcker inte: CM och vi namnger samma vara olika ("151
+    // Ultra-Premium Collection" mot vår "151 Ultra Premium Collection"), och då ser
+    // importen en NY produkt. MÄTT på TCGGO-gapet: 394 av 913 kandidater utan exakt
+    // titelträff pekade ändå på en produkt vi redan har.
+    //
+    // ⛔ MEN `matchProduct` FÅR INTE VARA TESTET. Den är byggd för att LÄNKA en
+    //    butiksannons, där en nära träff nästan alltid är rätt. Här är frågan den
+    //    omvända — "finns varan redan?" — och ett falskt JA betyder att en RIKTIG
+    //    produkt aldrig importeras, tyst och osynligt. MÄTT: matchProduct band
+    //    "First Partner Illustration BOOSTER Series 1" till vår "First Partner
+    //    Illustration COLLECTION: Series 1 Promo Booster Pack" på 0,912 — olika varor,
+    //    och just den produkt ägaren pekade ut som saknad.
+    //
+    // Testet är därför `identicalIdentity`: samma identitets-ORDMÄNGD (era-namn,
+    // set-koder och formord borträknade) plus hela vaktkedjan. Det är ett BEVIS, inte
+    // ett Dice-tal. Allt som bara LIKNAR skapas som förut och rapporteras i stället,
+    // så en verklig dubblett syns i granskningen i stället för att tigas ihjäl.
+    // ⛔ `identicalIdentity` RÄKNAR BORT FORMORDEN med flit (den finns för att hitta
+    //    samma vara i en annan ordföljd) — så "First Partner Illustration BOOSTER
+    //    Series 1" och "…Illustration COLLECTION Series 1" har IDENTISK identitet.
+    //    De är olika varor: en påse och en samlarbox. Utan formkravet nedan svalde
+    //    vakten precis den produkt ägaren pekade ut som saknad. Formen jämförs, inte
+    //    kategorin, eftersom kandidatindexet inte bär kategori.
+    const normForMatch = normalizeTitle(p.name);
+    const twin = matchIndex.find(
+      (c) =>
+        !c.card &&
+        classifyForm(c.normalizedTitle) === form &&
+        identicalIdentity(normForMatch, c.normalizedTitle) &&
+        !productsConflict(p.name, c.normalizedTitle, c.language)
+    );
+    if (twin) { skippedFuzzy++; continue; }
+    const near = nearestCatalogCandidate(normForMatch, p.name, matchIndex, 0.85);
+    if (near) nearDupes.push(`${near.score.toFixed(2)}  "${p.name}"  ≈  "${near.normalizedTitle}"`);
 
     const c = p.prices?.cardmarket ?? {};
     // I lager = aktuell billigaste annons (`lowest`/From) finns → visa From-priset.
@@ -369,8 +433,16 @@ async function main() {
   console.log(
     `Skippade — har redan: ${skippedHave} · ingen data: ${skippedNoData} · ej målform: ${skippedForm}` +
       (recentIds ? ` · ej nyliga: ${skippedOld}` : "") +
-      ` · språk/region/skräp: ${skippedReject}`,
+      ` · språk/region/skräp: ${skippedReject}` +
+      ` · grossist (case/display/fun pack): ${skippedWholesale}` +
+      ` · dubblett (identisk identitet): ${skippedFuzzy}`,
   );
+  if (nearDupes.length) {
+    console.log(`
+⚠ ${nearDupes.length} SKAPAS men liknar en befintlig produkt (≥0.85) — granska:`);
+    for (const r of nearDupes.slice(0, 40)) console.log(`   ${r}`);
+    if (nearDupes.length > 40) console.log(`   … och ${nearDupes.length - 40} till`);
+  }
   if (!APPLY) console.log("\n(dry run — kör APPLY=1 för att skapa produkterna)");
 }
 
