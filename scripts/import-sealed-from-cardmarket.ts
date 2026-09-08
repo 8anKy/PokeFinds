@@ -302,7 +302,13 @@ async function main() {
     //    ⚠️ De syns INTE i katalog/sök förrän de får ett pris (`lowestPriceOre` är
     //    filtret överallt) — produktsidan fungerar, och de är redo den dag en butik
     //    listar dem. Utan id finns ingen länk alls och produkten hör inte hemma här.
-    if (low == null && avg == null && cmid == null) { skippedNoData++; continue; }
+    // ⛔ UTAN `cardmarket_id` SKAPAS INGENTING — OAVSETT PRIS. Offern skrivs bara när
+    //    id:t finns (se `offers:` nedan), så en produkt utan id blir ett TOMT SKAL: ingen
+    //    länk, inget pris, ingen offer, osynlig i katalogen och värdelös för användaren.
+    //    Första versionen av villkoret släppte igenom "pris ELLER id" och skapade 13
+    //    sådana skal (Mega Tyranitar EX Premium Collection m.fl.), som fått raderas.
+    //    Ägarens regel är LÄNKEN: har vi ingen länk hör produkten inte hemma här.
+    if (cmid == null) { skippedNoData++; continue; }
     const eur = low ?? avg;
     // ⛔ Priset blir `null`, ALDRIG 0 — "–" läses som "vi vet inte", "0 kr" som "gratis".
     const priceOre = eur != null ? Math.round(eur * rates.eurToOre) : null;
