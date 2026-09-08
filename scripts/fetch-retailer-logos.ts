@@ -49,6 +49,15 @@ type Override = {
 };
 
 const OVERRIDES: Record<string, Override> = {
+  // Ägaren levererade märkesfilen 2026-09-08 (deras header-logga); butikens favicon är
+  // en tom platta, så nätet erbjuder inget användbart. Ordmärket är ~950×360 och
+  // "contain" ger en LÄSBAR platta trots det: mätt på den riktiga 44 px-rutan står
+  // "Cardshop" kvar och den gröna linjen överlever som märkescue (bara "SWEDEN" blir
+  // prickar). Därför INGEN `firstGlyph`-beskärning här — ett ensamt "C" hade kastat
+  // bort just den gröna linjen. Texten är nästan vit → plattlogiken väljer mörk botten.
+  "Cardshop Sweden": {
+    url: "repo:assets/retailer-logos/cardshop-sweden-source.png",
+  },
   Cardmarket: {
     url: "https://images.ctfassets.net/pjhgqryi6myh/7gHVLVryhcCiAKj4nzS6gq/dc02b9c0b3b63e88b38acf449ad5da77/CMLogoBlue1_-_Vertical.png",
     cropAboveGap: true,
@@ -89,6 +98,19 @@ const ROOT_GUESSES = [
 const SKIP = new Set(["Mock-datakälla", "Pokémon TCG API", "TCGdex API"]);
 
 async function fetchBytes(url: string): Promise<Buffer | null> {
+  // `repo:`-källa = en HANDPLOCKAD märkesfil som ligger i repot (assets/retailer-logos/).
+  // Behövs när butiken inte publicerar sitt märke i användbar form någonstans — deras
+  // favicon är då det enda nätet erbjuder, och den är ofta en tom platta.
+  // ⛔ Filen MÅSTE ligga i repot, inte på en lokal disk: en override som pekar på
+  //    C:\... fungerar bara på en maskin, och nästa körning skulle tyst falla tillbaka
+  //    på faviconen igen utan att någon märker det.
+  if (url.startsWith("repo:")) {
+    try {
+      return await fs.readFile(path.join(process.cwd(), url.slice("repo:".length)));
+    } catch {
+      return null;
+    }
+  }
   try {
     const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "*/*" }, redirect: "follow" });
     if (!res.ok) return null;
