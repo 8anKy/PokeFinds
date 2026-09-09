@@ -963,6 +963,14 @@ function Scanner() {
    */
   const collectionIds = useRef<Map<string, string>>(new Map());
   const [quota, setQuota] = useState<ScanQuota | null>(null);
+  /**
+   * Vilket ark en Pro-prompt i skannern ska visa. `undefined` = "vet inte än"
+   * och LÅTER VÄRDEN AVGÖRA (hint + delad session) — kvoten är den säkraste
+   * signalen vi har på om det finns ett konto (`actor.kind === "guest"` på
+   * servern), men den hämtas asynkront när skannern öppnas, och att gissa "Pro"
+   * innan svaret kommit hade sålt en prenumeration till någon utan konto.
+   */
+  const promptMode = () => (quota == null ? undefined : quota.guest ? "signup" : "pro");
   /** Betalväggen när gratiskvoten tar slut. Öppnas av 429 ELLER av slutaren. */
   const [limitOpen, setLimitOpen] = useState(false);
 
@@ -1960,7 +1968,7 @@ function Scanner() {
           const dropped = new Set(idByCell.values());
           setScans((prev) => prev.filter((s) => !dropped.has(s.id)));
           setMode("single");
-          openPaywallOrNavigate(router, { source: "scanner-bulk" });
+          openPaywallOrNavigate(router, { source: "scanner-bulk", mode: promptMode() });
           return;
         }
         if (!res.ok || !data.cells) {
@@ -2338,11 +2346,13 @@ function Scanner() {
           zoomPresets={camera.zoomPresets}
           zoom={camera.zoom}
           onZoom={(p) => void onZoom(p)}
-          onUpgrade={() =>
-            quota?.guest
-              ? router.push("/registrera?callbackUrl=/skanna")
-              : openPaywallOrNavigate(router, { source: "scanner-quota" })
-          }
+          // ⛔ ETT ARK, ALDRIG EN NAVIGERING (ägarbeslut 2026-09-09). Gästen
+          // skickades förr till /registrera — och då stängdes kameran mitt i det
+          // hen höll på med, vilket är exakt varför paywallen blev ett ark från
+          // början. Nu glider samma ark upp över kameravyn: konto för den utan
+          // konto, Pro för den som har ett.
+          onUpgrade={() => openPaywallOrNavigate(router, { source: "scanner-quota", mode: promptMode() })}
+          onUpgradeBulk={() => openPaywallOrNavigate(router, { source: "scanner-bulk", mode: promptMode() })}
           onRetryCamera={() => void startCamera()}
           // ⛔ `quota != null` krävs: `null` betyder "vet inte än", och att gissa
           // "slut" hade sålt Pro till en betalande kund varje gång skannern öppnas.
@@ -2678,6 +2688,8 @@ function CaptureView(props: {
   shutterCooling: boolean;
   quota: ScanQuota | null;
   onUpgrade: () => void;
+  /** Bulk-chippets egen prompt — samma ark, egen mätpunkt. */
+  onUpgradeBulk: () => void;
   onRetryCamera: () => void;
   onCapture: () => void;
   /** Gratiskvoten slut → slutaren säljer i stället för att skanna. */
@@ -2893,7 +2905,7 @@ function CaptureView(props: {
                 proLabel={t("pro")}
                 onClick={
                   props.bulkLocked
-                    ? props.onUpgrade
+                    ? props.onUpgradeBulk
                     : () => props.onSetMode(props.mode === "bulk" ? "single" : "bulk")
                 }
               />
