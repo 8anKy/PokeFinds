@@ -2296,7 +2296,12 @@
     "lead": "Everything in Free is included. Here is what you unlock:",
     "notNow": "Not now",
     "close": "Close",
-    "seeAll": "Compare Free and Pro in detail"
+    "seeAll": "Compare Free and Pro in detail",
+    "signupTitle": "Create an account",
+    "signupLead": "Foilio is free to start. With an account you can watch prices, value your collection and scan cards.",
+    "signupProNote": "The Tradera curve and the full price history are part of Pro, which you can add whenever you like.",
+    "signupCreate": "Create account",
+    "signupLogin": "I already have an account"
   },
   "Home": {
     "hero": {

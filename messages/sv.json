@@ -2296,7 +2296,12 @@
     "lead": "Allt i Free ingår. Det här låser du upp:",
     "notNow": "Inte nu",
     "close": "Stäng",
-    "seeAll": "Jämför Free och Pro i detalj"
+    "seeAll": "Jämför Free och Pro i detalj",
+    "signupTitle": "Skapa konto",
+    "signupLead": "Foilio är gratis att börja med. Med ett konto bevakar du priser, värderar din samling och skannar kort.",
+    "signupProNote": "Tradera-kurvan och hela prishistoriken ingår i Pro, som du kan lägga till när du vill.",
+    "signupCreate": "Skapa konto",
+    "signupLogin": "Jag har redan ett konto"
   },
   "Home": {
     "hero": {

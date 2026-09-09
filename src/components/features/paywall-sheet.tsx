@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname } from "@/i18n/navigation";
+import { LinkButton } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { ProHoloCard } from "@/components/features/pro-holo-card";
 import { ProSpecTable } from "@/components/features/pro-spec-table";
 import { UpgradeButton } from "@/components/features/upgrade-button";
 import { registerPaywallOpen } from "@/lib/paywall";
+import { hasAuthHint } from "@/lib/auth-hint";
+import { getSharedSession } from "@/lib/client-session";
 import { onOverlayElevationChange, overlayIsElevated } from "@/lib/product-overlay-open";
 import { pausableFeatures, proOnlyRows, type SpecRow } from "@/lib/pricing-features";
 import { priceAlertsPausedClient } from "@/lib/price-alerts-pause";
@@ -34,6 +37,20 @@ import { restockAlertsPausedClient } from "@/lib/restock-alerts-pause";
  */
 export function PaywallSheetHost({ webCheckout }: { webCheckout: boolean }) {
   const [open, setOpen] = useState(false);
+  /**
+   * Vilket ark som ska upp. ⛔ VALET GÖRS HÄR, INTE HOS ANROPAREN: varje Pro-låst
+   * yta (grafens MAX, Tradera-chippet, set-bevakningen, skannerns bulkläge …)
+   * anropar `openPaywall()` utan att veta vem som tittar, och får ändå rätt
+   * prompt. Lägger man domen hos anroparen glöms den på det ställe som byggs näst.
+   *
+   * Hinten läses SYNKRONT så arket öppnar direkt, och bekräftas sedan mot den
+   * delade sessionen: `fo_auth` sätts med 30 dygns max-age men WebKit kapar
+   * JS-skrivna cookies till 7 (incidenten 2026-08-06), så en inloggad kan sakna
+   * hint — och en utloggad flik kan ha kvar en. Bekräftelsen rättar båda hållen,
+   * och kostar inget extra i praktiken: `getSharedSession` är sidans delade,
+   * DB-fria hämtning och är oftast redan besvarad.
+   */
+  const [variant, setVariant] = useState<"pro" | "signup">("pro");
   // Skannern är fixed z-[60] över hela appen; öppnas arket därifrån måste det
   // lyftas över den — samma mekanism som produkt-overlayn (registerFullscreenHost).
   const [elevated, setElevated] = useState(false);
@@ -44,12 +61,85 @@ export function PaywallSheetHost({ webCheckout }: { webCheckout: boolean }) {
   }, []);
 
   useEffect(() => {
-    registerPaywallOpen(() => setOpen(true));
-    return () => registerPaywallOpen(null);
+    let alive = true;
+    registerPaywallOpen((opts) => {
+      const forced = opts?.mode;
+      setVariant(forced ?? (hasAuthHint() ? "pro" : "signup"));
+      setOpen(true);
+      if (forced) return;
+      void getSharedSession().then((session) => {
+        if (alive) setVariant(session?.user ? "pro" : "signup");
+      });
+    });
+    return () => {
+      alive = false;
+      registerPaywallOpen(null);
+    };
   }, []);
 
   if (!open) return null;
+  if (variant === "signup") return <SignupSheet onClose={() => setOpen(false)} elevated={elevated} />;
   return <PaywallSheet onClose={() => setOpen(false)} webCheckout={webCheckout} elevated={elevated} />;
+}
+
+/**
+ * Kontoarket — samma gest och samma ram som paywallen, men det ber om ett KONTO.
+ *
+ * ⛔ Ingen prislapp, ingen köpknapp och inget Pro-kort: den som inte har ett konto
+ * har inte sett produkten än, och en prenumerationsprompt som första möte är att
+ * ta betalt för något man inte fått prova. Pro nämns ändå i EN dämpad rad — annars
+ * hade arket antytt att ett gratiskonto låser upp Tradera-kurvan och hela
+ * historiken, och det gör det inte.
+ *
+ * "Jag har redan ett konto" står kvar även om hinten sa "utloggad": den kan vara
+ * fel (se värden ovan), och då måste det finnas en väg vidare som inte är att
+ * skapa ett andra konto.
+ */
+function SignupSheet({ onClose, elevated }: { onClose: () => void; elevated: boolean }) {
+  const t = useTranslations("Paywall");
+  const pathname = usePathname();
+  // Tillbaka till exakt den produkt man stod på — annars är kontot skapat och
+  // kurvan man ville se borta.
+  const back = encodeURIComponent(pathname || "/produkter");
+
+  return (
+    <BottomSheet
+      open
+      title={t("signupTitle")}
+      onClose={onClose}
+      closeLabel={t("close")}
+      elevated={elevated}
+      panelClassName="sm:mx-auto sm:mb-6 sm:w-full sm:max-w-md sm:rounded-[20px]"
+      footer={
+        <>
+          <LinkButton href={`/registrera?callbackUrl=${back}`} className="w-full justify-center">
+            {t("signupCreate")}
+          </LinkButton>
+          <LinkButton
+            href={`/logga-in?callbackUrl=${back}`}
+            variant="outline"
+            className="mt-2 w-full justify-center"
+          >
+            {t("signupLogin")}
+          </LinkButton>
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-1.5 w-full py-2 text-center text-sm text-ink-faint transition-colors hover:text-ink-muted"
+          >
+            {t("notNow")}
+          </button>
+        </>
+      }
+    >
+      <div className="pb-2 pt-1">
+        <p className="text-sm leading-relaxed text-ink-muted">{t("signupLead")}</p>
+        <p className="mt-3 border-t border-surface-border pt-3 text-[13px] leading-relaxed text-ink-faint">
+          {t("signupProNote")}
+        </p>
+      </div>
+    </BottomSheet>
+  );
 }
 
 function PaywallSheet({

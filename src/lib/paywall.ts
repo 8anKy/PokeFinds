@@ -21,6 +21,17 @@
 export interface PaywallOpenOptions {
   /** Varifrån prompten kom ("chart-max", "scanner-bulk"…) — bara för framtida mätning. */
   source?: string;
+  /**
+   * Vilket ark som ska upp. UTELÄMNA den normalt: värden avgör själv, och det är
+   * poängen — varje Pro-låst yta i appen får då rätt prompt utan att veta något
+   * om vem som tittar.
+   *
+   * ⛔ EN UTLOGGAD BESÖKARE SKA INTE SÄLJAS EN PRENUMERATION (ägarbeslut
+   * 2026-09-09). Publika produktsidor låser Tradera-kurvan och MAX-perioden precis
+   * som för en gratisanvändare, men den som inte ens har ett konto kan inte köpa
+   * något meningsfullt först — hen ska be om ett konto, inte om ett kort.
+   */
+  mode?: "pro" | "signup";
 }
 
 let handler: ((opts?: PaywallOpenOptions) => void) | null = null;
@@ -49,5 +60,5 @@ export function openPaywallOrNavigate(
   router: { push: (href: string) => void },
   opts?: PaywallOpenOptions
 ): void {
-  if (!openPaywall(opts)) router.push("/priser");
+  if (!openPaywall(opts)) router.push(opts?.mode === "signup" ? "/registrera" : "/priser");
 }

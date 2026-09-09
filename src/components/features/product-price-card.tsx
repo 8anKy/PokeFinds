@@ -196,17 +196,22 @@ export function ProductPriceCard({
     </div>
   );
 
-  // I arket (plain) visas chipsraden bara när det finns ett VAL att göra — minst
-  // två upplåsta källor. Ett ensamt Cardmarket-chip plus ett låst Tradera-chip var
-  // två rader text för noll valmöjligheter; Tradera-upsellen finns kvar i kortet
-  // på desktop och via MAX-perioden.
-  const unlockedCount = available.filter((k) => !isLocked(k)).length;
-  const showChips = !proGated && available.length > 1 && (!plain || unlockedCount > 1);
+  /**
+   * Chipsraden visas så fort det finns mer än EN källa — även när de extra är
+   * låsta.
+   *
+   * ⛔ DE LÅSTA CHIPPEN GÖMDES FÖRR I ARKET (2026-09-05) för att "ett ensamt
+   * Cardmarket-chip plus ett låst Tradera-chip var två rader text för noll
+   * valmöjligheter". OMVÄNT BESLUT 2026-09-09: gömda blev resultatet att en
+   * besökare tror att Cardmarket-kurvan är allt som finns. En låst kontroll är
+   * inte noll valmöjligheter — den är det enda stället där funktionen ens går att
+   * upptäcka, och den enda platsen upptäckten kostar något är skärmyta.
+   */
+  const showChips = !proGated && available.length > 1;
   const chips = showChips && (
     <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("sourceFilter")}>
       {available.map((key) => {
         const chipLocked = isLocked(key);
-        if (plain && chipLocked) return null;
         const on = !chipLocked && !off.has(key);
         return (
           <button
