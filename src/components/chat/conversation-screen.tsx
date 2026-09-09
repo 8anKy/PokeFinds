@@ -3,8 +3,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
 
-/** Bottenflikarnas klarering (h-16 i BottomTabs) — plus safe-area i CSS nedan. */
-const TAB_BAR_PX = 64;
 const MIN_PX = 240;
 /**
  * Samtalets skal: en kolumn med EXAKT den höjd som finns kvar under skalets
@@ -29,9 +27,9 @@ const MIN_PX = 240;
  * (och, när listan stod vid botten, bubblorna) på plats med en transform, som
  * kompositorn klarar utan att röra layouten.
  *
- * Tangentbord uppe: flikraden är antingen dold (webben, BottomTabs gömmer sig
- * själv) eller täckt (native, `Keyboard resize: none`) → dess klarering dras
- * inte av då, annars står skrivfältet 64 px ovanför tangentbordet.
+ * ⛔ Flikraden finns INTE på den här rutten (lib/immersive-routes.ts) — dra
+ * därför aldrig av dess 64 px. Kvar att dra av är bara hemknappens safe-area,
+ * och bara när tangentbordet är nere: uppe täcker det redan den ytan.
  *
  * `-mb-6` tar bort app-skalets `py-6`-botten så kolumnen når ända ner.
  */
@@ -39,7 +37,7 @@ export function ConversationScreen({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const kb = useKeyboardHeight(true);
   const [px, setPx] = useState<number | null>(null);
-  const [withTabs, setWithTabs] = useState(true);
+  const [withSafeArea, setWithSafeArea] = useState(true);
 
   useEffect(() => {
     const compute = () => {
@@ -47,9 +45,8 @@ export function ConversationScreen({ children }: { children: ReactNode }) {
       if (!el) return;
       const top = el.getBoundingClientRect().top + window.scrollY;
       const desktop = window.matchMedia("(min-width: 1024px)").matches;
-      const tabs = !desktop && kb === 0;
-      setWithTabs(tabs);
-      setPx(Math.max(MIN_PX, window.innerHeight - top - kb - (tabs ? TAB_BAR_PX : 0)));
+      setWithSafeArea(!desktop && kb === 0);
+      setPx(Math.max(MIN_PX, window.innerHeight - top - kb));
     };
     compute();
     window.addEventListener("resize", compute);
@@ -64,7 +61,7 @@ export function ConversationScreen({ children }: { children: ReactNode }) {
         height:
           px == null
             ? undefined
-            : withTabs
+            : withSafeArea
               ? `calc(${px}px - env(safe-area-inset-bottom))`
               : `${px}px`,
         // Före mätningen: något rimligt så första bilden inte är en tom remsa.

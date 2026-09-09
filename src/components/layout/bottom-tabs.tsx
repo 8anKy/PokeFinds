@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { hapticGlide, hapticTick } from "@/lib/haptics";
 import { isEmailLandingRoute } from "@/lib/auth-routes";
+import { hidesBottomTabs } from "@/lib/immersive-routes";
 import { useCommunityV2 } from "@/lib/use-community-v2";
 import { rubberBand } from "@/lib/swipe-gesture";
 import {
@@ -26,6 +27,9 @@ const TABS: { href: string; key: string; icon: (p: IconProps) => JSX.Element }[]
   { href: "/mer", key: "more", icon: IconMenu },
 ];
 
+/** Luft mellan markören och flikrutans kant (px) — se markörens kommentar nedan. */
+const MARKER_GAP = 5;
+
 export function BottomTabs() {
   const tNav = useTranslations("Nav");
   const pathname = usePathname();
@@ -34,6 +38,10 @@ export function BottomTabs() {
   const gesture = useRef<{ id: number; x: number; index: number; dragging: boolean; pathname: string; rect: DOMRect } | null>(null);
   const suppressClick = useRef(false);
   const [preview, setPreview] = useState<{ index: number; position: number; edge: number; width: number } | null>(null);
+  // Vilken flik trycket VALDE, tills rutten hunnit fram. Utan den hoppar
+  // markören tillbaka till den gamla fliken i väntan på navigeringen och glider
+  // först när sidan bytts — trycket kändes då som ett ryck i fel riktning.
+  const [pending, setPending] = useState<number | null>(null);
   // Forumet (community v2) är grindat tills ägaren testat — se lib/community-v2-gate.ts.
   // Fliken byter mål/etikett Community → Forum bara för den som släpps in.
   const communityV2 = useCommunityV2();
@@ -41,7 +49,9 @@ export function BottomTabs() {
     ? TABS.map((t) => (t.key === "community" ? { ...t, href: "/forum", key: "forum" } : t))
     : TABS;
   const activeIndex = tabs.findIndex((tab) => pathname === tab.href || pathname?.startsWith(`${tab.href}/`));
-  const selectedIndex = preview?.index ?? activeIndex;
+  const selectedIndex = preview?.index ?? pending ?? activeIndex;
+  // Markörens läge i flikar (kan vara brutet mitt i ett drag).
+  const markerPosition = preview?.position ?? pending ?? Math.max(0, activeIndex);
 
   function cancelGlide() {
     if (gesture.current) suppressClick.current = true;
@@ -53,6 +63,8 @@ export function BottomTabs() {
     // En snabb ny touch kan börja innan föregående navigerings effekt körs.
     // Avbryt bara gester som faktiskt började på den gamla sidan.
     if (gesture.current && gesture.current.pathname !== pathname) cancelGlide();
+    // Rutten har landat (eller omdirigerats) — låt den riktiga fliken styra igen.
+    setPending(null);
   }, [pathname]);
 
   function moveGlide(event: PointerEvent<HTMLUListElement>) {
@@ -103,6 +115,8 @@ export function BottomTabs() {
   // Återställ lösenord / verifiera e-post nås via e-postlänk i Safari (inte appen)
   // → visa ingen app-navigering, den lockar bara användaren att browsa webben.
   if (isEmailLandingRoute(pathname)) return null;
+  // Inne i ett samtal / en tråd äger innehållet hela skärmen — se lib/immersive-routes.ts.
+  if (hidesBottomTabs(pathname)) return null;
   // Auth/onboarding: VISA tab-baren (så man kan tabba vidare även från login) men
   // UTAN klarerings-spacern — den fixerade login-sidan (h-[100dvh]) scrollar annars.
   const noSpacer = ["/logga-in", "/registrera", "/glomt-losenord", "/aterstall-losenord", "/verifiera", "/onboarding"];
@@ -133,8 +147,11 @@ export function BottomTabs() {
           const rect = navRef.current!.getBoundingClientRect();
           const index = Math.min(tabs.length - 1, Math.max(0,
             Math.floor((event.clientX - rect.left) / (rect.width / tabs.length))));
-          gesture.current = { id: event.pointerId, x: event.clientX, index, dragging: false, pathname, rect };
-          setPreview({ index, position: index, edge: 0, width: rect.width });
+          // ⛔ Markören flyttas INTE av att man sätter ner fingret: den ska glida
+          // dit vid SLÄPPET. Draget tar över först när fingret rört sig (moveGlide).
+          const start = pending ?? (activeIndex >= 0 ? activeIndex : index);
+          gesture.current = { id: event.pointerId, x: event.clientX, index: start, dragging: false, pathname, rect };
+          setPreview({ index: start, position: start, edge: 0, width: rect.width });
         }}
         onPointerMove={moveGlide}
         onPointerUp={(event) => {
@@ -154,6 +171,7 @@ export function BottomTabs() {
               Math.floor((event.clientX - rect.left) / (rect.width / tabs.length))));
             if (index !== activeIndex) {
               if (!current.dragging) hapticTick();
+              setPending(index);
               router.push(tabs[index].href);
             }
           }
@@ -177,11 +195,18 @@ export function BottomTabs() {
           }
         }}
       >
+        {/* Markören är MARGINALSATT i sin flikruta (MARKER_GAP px på var sida), så
+            den aldrig ligger dikt an mot barens kant i vila — kanten är en ram,
+            inte en vägg. Bredden krymps med 2×gap och läget räknas därför mot
+            (100% + 2×gap) = en hel flikruta, så mitten fortfarande är flikens mitt. */}
         <li aria-hidden className={cn(
           "pointer-events-none absolute inset-y-1 left-0 rounded-full border border-ink/10 bg-ink/20 transition-[transform,opacity] duration-300 ease-out-soft motion-reduce:transition-none",
           selectedIndex < 0 && "opacity-0",
           preview && "duration-75"
-        )} style={{ width: `${100 / tabs.length}%`, transform: `translateX(${(preview?.position ?? Math.max(0, activeIndex)) * 100}%)` }} />
+        )} style={{
+          width: `calc(${100 / tabs.length}% - ${MARKER_GAP * 2}px)`,
+          transform: `translateX(calc(${markerPosition} * (100% + ${MARKER_GAP * 2}px) + ${MARKER_GAP}px))`,
+        }} />
         {tabs.map((t, index) => {
           const active = pathname === t.href || pathname?.startsWith(`${t.href}/`);
           const highlighted = index === selectedIndex;
@@ -195,7 +220,11 @@ export function BottomTabs() {
                 // ingenstans, och en vibration då läser som att något hände.
                 // Ligger på onClick (inte pointerdown) så en avbruten gest —
                 // finger som glider bort från fliken — inte vibrerar.
-                onClick={active ? undefined : hapticTick}
+                onClick={() => {
+                  if (active) return;
+                  hapticTick();
+                  setPending(index);
+                }}
                 className={cn(
                   "group flex h-full items-center justify-center rounded-full transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan motion-reduce:transition-none",
                   highlighted ? "text-holo-cyan" : "text-ink-muted hover:text-ink"
