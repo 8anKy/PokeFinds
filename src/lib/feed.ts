@@ -36,6 +36,13 @@ const isoDate = z
   .max(40)
   .refine((v) => !Number.isNaN(Date.parse(v)), "ogiltigt datum");
 
+/** Ett stycke i en text vi själva skrivit. Ingen HTML, ingen markdown — två sorters block. */
+export const eventBlockSchema = z.object({
+  type: z.enum(["h", "p"]),
+  text: z.string().min(1).max(2000),
+});
+export type EventBlock = z.infer<typeof eventBlockSchema>;
+
 export const newsItemSchema = z.object({
   /** Stabil över körningar — härledd ur URL:en, aldrig ur rubriken (som redigeras). */
   id: z.string().min(1).max(64),
@@ -55,8 +62,23 @@ export const newsItemSchema = z.object({
     .refine((v) => /^https?:\/\//i.test(v) || (v.startsWith("/") && !v.startsWith("//")), "url måste vara https:// eller en väg som börjar med /"),
   /** Källans namn som det ska stå för läsaren ("Pokémon Blog"). */
   source: z.string().min(1).max(80),
-  /** Hotlänkas från källan — vi sparar aldrig bilden. `null` ⇒ tonad platta. */
-  imageUrl: z.string().url().max(2000).nullable().default(null),
+  /**
+   * Omslaget. Extern bild HOTLÄNKAS från källan (vi sparar aldrig andras bilder);
+   * en väg som börjar med `/` är vår egen fil under `public/`. `null` ⇒ tonad platta.
+   */
+  imageUrl: z
+    .string()
+    .max(2000)
+    .nullable()
+    .default(null)
+    .refine((v) => v === null || /^https?:\/\//i.test(v) || (v.startsWith("/") && !v.startsWith("//")), "imageUrl måste vara https:// eller en väg som börjar med /"),
+  /**
+   * Hur omslaget ska fylla sin ruta. ⛔ `contain` för LOGOTYPER (setlogga,
+   * märkesbild): en bred, genomskinlig logga som beskärs med `cover` blir en
+   * suddig färgklick — det var precis vad setsläppen visade första dygnet.
+   * `cover` för foton och artikelbilder, där beskärning är rätt.
+   */
+  imageFit: z.enum(["cover", "contain"]).default("cover"),
   publishedAt: isoDate,
   category: z.enum(NEWS_CATEGORIES).default("MARKET"),
   /**
@@ -67,6 +89,19 @@ export const newsItemSchema = z.object({
    */
   internal: z.boolean().default(false),
   /**
+   * URL-delen i /nyheter/[slug] — BARA för poster vi skrivit egen text till.
+   * ⛔ En hämtad RSS-post får ALDRIG en slug: vi äger inte texten och har därför
+   * ingenting att fylla en detaljsida med. Den raden går direkt till källan.
+   */
+  slug: z
+    .string()
+    .max(120)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "slug får bara innehålla a–z, 0–9 och bindestreck")
+    .nullable()
+    .default(null),
+  /** Vår egen text om nyheten. Tom ⇒ ingen detaljsida, raden går till `url`. */
+  body: z.array(eventBlockSchema).max(40).default([]),
+  /**
    * Vilken producent posten kom ifrån. Två jobb fyller flödet: `rss` (DB-fritt,
    * flera gånger om dagen) och `foilio` (vår egen katalog, ett steg i nattkedjan
    * där Neon ändå är vaken). ⛔ Publiceringsrutten ERSÄTTER EN LANE I TAGET —
@@ -75,13 +110,6 @@ export const newsItemSchema = z.object({
   lane: z.enum(["rss", "foilio"]).default("rss"),
 });
 export type NewsItem = z.infer<typeof newsItemSchema>;
-
-/** Ett stycke i evenemangets text. Ingen HTML, ingen markdown — två sorters block. */
-export const eventBlockSchema = z.object({
-  type: z.enum(["h", "p"]),
-  text: z.string().min(1).max(2000),
-});
-export type EventBlock = z.infer<typeof eventBlockSchema>;
 
 export const eventItemSchema = z.object({
   id: z.string().min(1).max(64),
@@ -221,7 +249,21 @@ const RELEVANT = [
 ];
 
 /** Ord som ALLTID fäller posten, även om ett relevant ord också finns. */
-const IRRELEVANT = ["pokemon go", "pokémon go", "pokemon sleep", "unite", "speedrun", "anime episode"];
+const IRRELEVANT = [
+  "pokemon go",
+  "pokémon go",
+  "pokemon sleep",
+  "unite",
+  "speedrun",
+  "anime episode",
+  // ⛔ TV-SPELENS ord, tillagda efter en falsk positiv 2026-09-09: "New Pokémon
+  //    Pokopia Expansion Pass Part 2 DLC trailer" tog sig igenom på ordet
+  //    "expansion", som i TCG betyder set men i spelvärlden betyder nedladdning.
+  "dlc",
+  "expansion pass",
+  "pokopia",
+  "nintendo switch",
+];
 
 export function isTcgRelevant(...parts: (string | null | undefined)[]): boolean {
   const hay = ` ${parts.filter(Boolean).join(" ").toLowerCase()} `;

@@ -14,6 +14,16 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import type { EventCategory, NewsCategory } from "@/lib/feed";
+import {
+  IconCalendar,
+  IconCards,
+  IconNews,
+  IconSparkle,
+  IconStore,
+  IconTrendingUp,
+  IconTrophy,
+  type IconProps,
+} from "@/components/ui/icons";
 
 export function FeedSwitch({ active }: { active: "news" | "events" }) {
   const t = useTranslations("News");
@@ -88,20 +98,42 @@ const TINT: Record<NewsCategory | EventCategory, string> = {
   OTHER: "from-ink/10",
 };
 
+/**
+ * Vad som målas när posten SAKNAR omslag. ⛔ Alla källor har inte en bild att
+ * hotlänka — pokemon.com renderar sin og:image med JS och psacard.com svarar 403
+ * på vår bot (mätt 2026-09-09) — och en tom platta bredvid rader som har bild
+ * läser som ett fel. Kategorins egen ikon som vattenstämpel gör frånvaron till
+ * ett medvetet uttryck i stället.
+ */
+const FALLBACK_ICON: Record<NewsCategory | EventCategory, (p: IconProps) => JSX.Element> = {
+  RELEASE: IconCards,
+  MARKET: IconTrendingUp,
+  STORE: IconStore,
+  APP: IconSparkle,
+  EXPO: IconCalendar,
+  PRERELEASE: IconCards,
+  TOURNAMENT: IconTrophy,
+  OTHER: IconNews,
+};
+
 export function FeedCover({
   src,
   alt,
   category,
+  fit = "cover",
   className,
   children,
 }: {
   src: string | null;
   alt: string;
   category: NewsCategory | EventCategory;
+  /** `contain` för logotyper — se `imageFit` i src/lib/feed.ts. */
+  fit?: "cover" | "contain";
   className?: string;
   children?: React.ReactNode;
 }) {
   const [failed, setFailed] = useState(false);
+  const Fallback = FALLBACK_ICON[category];
   return (
     <div
       className={cn(
@@ -119,8 +151,18 @@ export function FeedCover({
           decoding="async"
           referrerPolicy="no-referrer"
           onError={() => setFailed(true)}
-          className="absolute inset-0 h-full w-full object-cover"
+          className={cn(
+            "absolute inset-0 h-full w-full",
+            // `contain` får luft: en logga som går ut i kanten läser som beskuren
+            // även när den inte är det.
+            fit === "contain" ? "object-contain p-[12%]" : "object-cover"
+          )}
         />
+      )}
+      {(!src || failed) && (
+        <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+          <Fallback className="h-[42%] max-h-16 w-auto text-ink/25" />
+        </div>
       )}
       {children}
     </div>

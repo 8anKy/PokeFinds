@@ -33,9 +33,21 @@ paths:
   **0 av 18** poster. Därför är **vår egen katalog huvudkällan** — setsläpp och nytt i katalogen är saker
   ingen annan svensk sajt vet. ⛔ Sänk inte grinden för att fylla listan; lägg till en KÄLLA i stället, och
   probea den först med `npx tsx scripts/feed-build.ts --dry`.
-- ⛔ **VI ÅTERGER ALDRIG EN ARTIKELS TEXT.** En extern nyhet är rubrik + klippt ingress + källans namn +
-  länk UT. Därför har nyheter **ingen egen detaljsida** — raden går till källan. Bilden HOTLÄNKAS
-  (`referrerPolicy="no-referrer"`), laddas aldrig ned. Evenemang har detaljsida: den texten är vår egen.
+- ⛔ **VI ÅTERGER ALDRIG EN ARTIKELS TEXT.** En HÄMTAD post är rubrik + klippt ingress + källans namn +
+  länk UT, och får därför **aldrig en `slug`** — den raden går rakt till källan. En post vi SJÄLVA skrivit
+  text om (`slug` + `body` i `news.json`) får en egen sida på `/nyheter/<slug>`: vår sammanfattning, och
+  **längst ned länken till originalet** med källans namn. Det är hela villkoret för att få sammanfatta
+  någon annans nyhet. Bilden HOTLÄNKAS (`referrerPolicy="no-referrer"`), laddas aldrig ned.
+- **OMSLAGEN, i tre steg.** (1) Posten anger `imageUrl` själv — en väg under `public/` eller en extern
+  bild. (2) Saknas den för en EXTERN post hämtar byggjobbet sidans egen `og:image` (`extractOgImage`,
+  en hämtning per post och körning). (3) Finns ingen bild målas kategorins ikon som vattenstämpel på den
+  tonade plattan — ⛔ aldrig en tom ruta, den läser som ett fel.
+  ⛔ **`imageFit: "contain"` FÖR LOGOTYPER OCH SKÄRMBILDER.** Setloggan är en bred genomskinlig PNG och
+  en skärmbild är stående; med `cover` beskärs båda till en suddig färgklick — precis vad setsläppen
+  visade sitt första dygn.
+  ⛔ **EN ARTIKELSIDA MÅSTE BEGÄRAS SOM HTML.** Med flödets `Accept` svarade psacard.com **403**; det såg
+  ut som blockering men var vårt eget huvud (`ACCEPT_PAGE` i feed-build.ts). Vissa sidor ger ändå ingen
+  bild — pokemon.com renderar sin og:image med JS — och då är vattenstämpeln svaret, inte UA-spoofing.
 - ⛔ **INTERNT ÖPPNAS INTERNT.** `NewsItem.internal` styr `Link` (samma vy) mot `<a target="_blank">`.
   Schemat fäller `//annan.sajt` och `javascript:` — utan den grinden hade "intern" länk varit en öppen
   omdirigering. Vaktat av `tests/unit/feed.test.ts`.

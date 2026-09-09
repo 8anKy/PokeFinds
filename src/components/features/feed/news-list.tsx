@@ -58,7 +58,7 @@ export function NewsList({ items }: { items: NewsItem[] }) {
 
       {hero && (
         <FeedLink item={hero} className="card-surface group overflow-hidden hover:border-holo-cyan/40">
-          <FeedCover src={hero.imageUrl} alt="" category={hero.category} className="h-48 sm:h-64">
+          <FeedCover src={hero.imageUrl} alt="" category={hero.category} fit={hero.imageFit} className="h-48 sm:h-64">
             <div className="absolute left-3 top-3">
               <CategoryPill category={hero.category} />
             </div>
@@ -70,8 +70,12 @@ export function NewsList({ items }: { items: NewsItem[] }) {
             <h2 className="text-pretty text-xl font-bold leading-tight tracking-[-0.02em] text-ink">{hero.title}</h2>
             {hero.summary && <p className="line-clamp-3 text-pretty text-sm leading-relaxed text-ink-muted">{hero.summary}</p>}
             <span className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-holo-cyan">
-              {hero.internal ? t("openInApp") : t("readAt", { source: hero.source })}
-              {!hero.internal && <IconExternalLink size={15} />}
+              {hero.slug && hero.body.length > 0
+                ? t("readArticle")
+                : hero.internal
+                  ? t("openInApp")
+                  : t("readAt", { source: hero.source })}
+              {!hero.internal && !hero.slug && <IconExternalLink size={15} />}
             </span>
           </div>
         </FeedLink>
@@ -83,6 +87,7 @@ export function NewsList({ items }: { items: NewsItem[] }) {
             src={item.imageUrl}
             alt=""
             category={item.category}
+            fit={item.imageFit}
             className="h-[78px] w-[78px] shrink-0 rounded-[11px] border border-surface-border"
           />
           <div className="flex min-w-0 flex-col gap-1.5">
@@ -101,10 +106,21 @@ export function NewsList({ items }: { items: NewsItem[] }) {
 }
 
 /**
- * Rätt sorts länk för posten. Intern ⇒ `Link` (klientnavigering, samma vy).
- * Extern ⇒ `<a target="_blank" rel="noopener noreferrer">`.
+ * Rätt sorts länk för posten, i tre lägen:
+ *  1. Har posten EGEN TEXT (slug + body) går raden till vår detaljsida — där
+ *     står vad nyheten handlar om, och längst ned länken till originalet.
+ *  2. Intern post utan egen text ⇒ `Link` rakt till målet i appen (ett setsläpp
+ *     hör hemma på setsidan, inte på en sämre kopia av den).
+ *  3. Hämtad post ⇒ `<a target="_blank">` till källan. Vi äger inte texten.
  */
 function FeedLink({ item, className, children }: { item: NewsItem; className?: string; children: ReactNode }) {
+  if (item.slug && item.body.length > 0) {
+    return (
+      <Link href={`/nyheter/${item.slug}`} className={className}>
+        {children}
+      </Link>
+    );
+  }
   if (item.internal) {
     return (
       <Link href={item.url} className={className}>

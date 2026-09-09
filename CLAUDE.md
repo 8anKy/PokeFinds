@@ -123,7 +123,10 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   Rutten ersätter EN lane i taget — utan `lane` hade det jobb som körde sist raderat det andras poster.
   ⛔ **RSS ensamt räcker inte, mätt**: PokéBeach har stängt sin feed och de flöden som svarar är
   tv-spelsbloggar (relevansgrinden släppte 0 av 18) — vår egen katalog är huvudkällan. ⛔ Vi återger aldrig
-  en artikels text: rubrik + ingress + källa + länk UT, bilden hotlänkas. Tre filer i `.github/feed/`
+  en artikels text: en HÄMTAD post är rubrik + ingress + källa + länk UT och får aldrig en `slug`; en post
+  vi SJÄLVA skrivit (`slug` + `body`) får sidan `/nyheter/<slug>` med vår text och länken till originalet
+  längst ned. Omslag i tre steg: postens egen `imageUrl` → sidans `og:image` (hämtas av jobbet) →
+  kategoriikon som vattenstämpel. `imageFit: "contain"` för loggor och skärmbilder. Tre filer i `.github/feed/`
   (utanför `watchPatterns` ⇒ ingen deploy, ingen DB): `sources.json` (RSS), `news.json` (handskrivna
   marknadsnyheter + "nytt i Foilio", kategori `APP`) och `events.json` (ingen gratis eventkälla finns).
   ⛔ Ingen "påminn mig", ingen godkännandekö (ägarbeslut).

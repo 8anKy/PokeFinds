@@ -2394,6 +2394,11 @@
     "openInApp": "Öppna i Foilio",
     "eventNotFound": "Evenemanget hittades inte",
     "eventNotFoundBody": "Evenemanget har antingen tagits bort eller så har det redan varit.",
-    "catAPP": "appen"
+    "catAPP": "appen",
+    "readArticle": "Läs mer",
+    "newsNotFound": "Nyheten hittades inte",
+    "newsNotFoundBody": "Nyheten har antingen tagits bort eller flyttats.",
+    "sourceLabel": "Källa",
+    "openInAppLabel": "Läs mer i appen"
   }
 }

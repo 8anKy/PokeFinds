@@ -40,10 +40,15 @@ function absolute(url: string | null | undefined): string | null {
   return url.startsWith("/") ? `${BASE_URL}${url}` : null;
 }
 
-function item(partial: Omit<NewsItem, "lane" | "internal" | "id"> & { id?: string }): NewsItem {
+function item(partial: Omit<NewsItem, "lane" | "internal" | "id" | "slug" | "body"> & { id?: string }): NewsItem {
   return {
     id: partial.id ?? stableId(partial.url),
     internal: true,
+    // ⛔ Ingen slug och ingen body: setsläppets "detaljsida" ÄR setsidan, som
+    //    redan har kortlistan, priserna och komplettering. En egen nyhetssida
+    //    hade varit en sämre kopia av den.
+    slug: null,
+    body: [],
     lane: "foilio",
     ...partial,
   } as NewsItem;
@@ -81,6 +86,10 @@ async function setReleases(now: Date): Promise<NewsItem[]> {
       url: `/sets/${set.id}`,
       source: "Foilio",
       imageUrl: absolute(set.logoUrl),
+      // ⛔ `contain`: setloggan är en bred, genomskinlig PNG. Med `cover` fyllde
+      //    den rutan genom att beskäras — resultatet såg ut som en suddig
+      //    färgklick, vilket är exakt vad setsläppen visade sitt första dygn.
+      imageFit: "contain",
       // ⛔ Publiceringsdatum = SLÄPPDATUMET för kommande set vore fel: listan
       // sorteras på publishedAt och ett set som släpps om två månader hade legat
       // överst i två månader. Nyheten är att vi VET datumet — alltså nu.

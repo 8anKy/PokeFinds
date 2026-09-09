@@ -28,7 +28,7 @@ import {
   type NewsCategory,
   type NewsItem,
 } from "../src/lib/feed";
-import { parseFeed } from "../src/lib/rss";
+import { extractOgImage, parseFeed } from "../src/lib/rss";
 
 const UA = "FoilioBot/1.0 (+https://foilio.se; nyhetsflode)";
 const FETCH_TIMEOUT_MS = 20_000;
@@ -45,12 +45,20 @@ interface Source {
   requireRelevance?: boolean;
 }
 
-async function fetchText(url: string): Promise<string> {
+const ACCEPT_FEED = "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.5";
+/**
+ * ⛔ EN ARTIKELSIDA MÅSTE BEGÄRAS SOM HTML. Med flödets Accept-huvud svarade
+ *    psacard.com **403** — servern såg en klient som bad om XML på en HTML-sida.
+ *    Det såg ut som blockering men var vårt eget huvud.
+ */
+const ACCEPT_PAGE = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+
+async function fetchText(url: string, accept = ACCEPT_FEED): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     const res = await fetch(url, {
-      headers: { "user-agent": UA, accept: "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.5" },
+      headers: { "user-agent": UA, accept },
       signal: controller.signal,
       redirect: "follow",
     });
@@ -58,6 +66,28 @@ async function fetchText(url: string): Promise<string> {
     return await res.text();
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/**
+ * Hämtar artikelsidans egen delningsbild för poster som saknar omslag.
+ *
+ * ⛔ EN hämtning per post och körning, och bara för EXTERNA poster utan bild —
+ *    interna poster pekar på våra egna sidor och har sin bild i `public/`.
+ *    Misslyckas hämtningen blir omslaget den tonade plattan; ett trasigt omslag
+ *    får aldrig fälla jobbet.
+ */
+async function fillMissingCovers(items: NewsItem[]): Promise<void> {
+  for (const item of items) {
+    if (item.imageUrl || item.internal || !/^https?:\/\//i.test(item.url)) continue;
+    try {
+      const html = await fetchText(item.url, ACCEPT_PAGE);
+      const image = extractOgImage(html, item.url);
+      if (image) item.imageUrl = image;
+      else console.warn(`::warning::[feed] ingen og:image på ${item.url}`);
+    } catch (error) {
+      console.warn(`::warning::[feed] kunde inte läsa omslag från ${item.url} — ${(error as Error).message}`);
+    }
   }
 }
 
@@ -94,7 +124,10 @@ async function collectNews(sources: Source[], dry: boolean): Promise<NewsItem[]>
         imageUrl: entry.imageUrl,
         publishedAt: new Date(published).toISOString(),
         category: inferNewsCategory(source.category, entry.title, entry.summary),
+        imageFit: "cover",
         internal: false,
+        slug: null,
+        body: [],
         lane: "rss",
       });
       kept++;
@@ -133,6 +166,8 @@ async function main() {
   if (dry) for (const n of curated) console.log(`        · [${n.category}] ${n.title}`);
 
   const news = [...curated, ...(await collectNews(sources, dry))];
+  await fillMissingCovers(news);
+  console.log(`[feed] omslag: ${news.filter((n) => n.imageUrl).length} av ${news.length} har bild.`);
 
   // ⛔ Ett felskrivet evenemang ska SÄGA IFRÅN, inte försvinna tyst. Jobbet
   // fortsätter med de övriga, men raden syns som en varning på körningen.

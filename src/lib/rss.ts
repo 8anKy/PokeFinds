@@ -166,3 +166,41 @@ export function parseFeed(xml: string, limit = 30): RssEntry[] {
   }
   return entries;
 }
+
+/**
+ * Artikelns egen delningsbild (`og:image`, annars `twitter:image`).
+ *
+ * VARFÖR: ett RSS-flöde bär oftast en bild, men en HANDSKRIVEN nyhet i
+ * `.github/feed/news.json` bär bara en länk — och en rad utan omslag ser ut som
+ * ett fel bredvid raderna som har ett. Byggjobbet hämtar därför artikelsidan EN
+ * gång per post och plockar ut den bild sidan själv anger för delning.
+ *
+ * ⛔ Bilden HOTLÄNKAS, laddas aldrig ned. Det är samma bild sidan ber alla
+ *    (Facebook, Slack, X) visa när länken delas — inte något vi grävt fram.
+ * ⛔ Relativa `og:image` görs absoluta mot sidans egen URL; kan de inte göras
+ *    absoluta kastas de. En halv URL är en trasig bild, och en trasig bild är
+ *    sämre än ingen (då målas den tonade plattan i stället).
+ */
+export function extractOgImage(html: string, pageUrl: string): string | null {
+  const head = html.slice(0, 200_000);
+  const patterns = [
+    /<meta[^>]+property\s*=\s*["']og:image(?::secure_url|:url)?["'][^>]*>/gi,
+    /<meta[^>]+name\s*=\s*["']og:image["'][^>]*>/gi,
+    /<meta[^>]+name\s*=\s*["']twitter:image(?::src)?["'][^>]*>/gi,
+  ];
+  for (const pattern of patterns) {
+    let m: RegExpExecArray | null;
+    while ((m = pattern.exec(head))) {
+      const content = m[0].match(/content\s*=\s*"([^"]*)"/i) ?? m[0].match(/content\s*=\s*'([^']*)'/i);
+      const raw = content?.[1] ? decodeEntities(content[1]).trim() : "";
+      if (!raw) continue;
+      try {
+        const url = new URL(raw, pageUrl);
+        if (url.protocol === "http:" || url.protocol === "https:") return url.toString();
+      } catch {
+        /* ogiltig URL — prova nästa träff */
+      }
+    }
+  }
+  return null;
+}

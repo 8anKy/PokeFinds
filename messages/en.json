@@ -2394,6 +2394,11 @@
     "openInApp": "Open in Foilio",
     "eventNotFound": "Event not found",
     "eventNotFoundBody": "The event has either been removed or has already taken place.",
-    "catAPP": "app"
+    "catAPP": "app",
+    "readArticle": "Read more",
+    "newsNotFound": "Article not found",
+    "newsNotFoundBody": "The article has either been removed or moved.",
+    "sourceLabel": "Source",
+    "openInAppLabel": "Read more in the app"
   }
 }

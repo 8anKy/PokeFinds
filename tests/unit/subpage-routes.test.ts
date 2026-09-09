@@ -26,6 +26,7 @@ describe("isSubpageRoute", () => {
       "/produkter/30th-celebration-elite-trainer-box",
       "/sets/sv10",
       "/evenemang/svenska-pokemonmassan-goteborg",
+      "/nyheter/psa-pausar-value",
     ]) {
       expect(isSubpageRoute(p), p).toBe(true);
     }

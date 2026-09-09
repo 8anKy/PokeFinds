@@ -211,16 +211,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           })),
         ];
 
-  // Evenemangssidorna kommer ur flödesfilen på volymen, inte ur databasen — därför
-  // ligger de UTANFÖR try-blocket ovan: de ska med även när Neon inte svarar.
+  // Flödets egna sidor (evenemang + nyheter med egen text) kommer ur filen på
+  // volymen, inte ur databasen — därför utanför try-blocket ovan: de ska med
+  // även när Neon inte svarar.
   let eventRoutes: MetadataRoute.Sitemap = [];
   try {
-    const { events } = await getFeed();
-    eventRoutes = events.map((event) => ({
-      url: `${BASE_URL}/evenemang/${event.slug}`,
-      changeFrequency: "weekly" as const,
-      priority: 0.5,
-    }));
+    const { events, news } = await getFeed();
+    eventRoutes = [
+      ...events.map((event) => ({
+        url: `${BASE_URL}/evenemang/${event.slug}`,
+        changeFrequency: "weekly" as const,
+        priority: 0.5,
+      })),
+      // Bara nyheter med EGEN text har en sida — en hämtad rubrik länkar ut.
+      ...news
+        .filter((item) => item.slug && item.body.length > 0)
+        .map((item) => ({
+          url: `${BASE_URL}/nyheter/${item.slug}`,
+          changeFrequency: "monthly" as const,
+          priority: 0.4,
+        })),
+    ];
   } catch {
     /* ingen flödesfil ⇒ inga evenemangssidor att bjuda in till */
   }
