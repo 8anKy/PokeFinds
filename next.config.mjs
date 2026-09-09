@@ -42,6 +42,11 @@ const nextConfig = {
     // (lib/community-v2-gate.ts). "0" = bara admin och nya app-byggen ser dem.
     // Sätt "1" i Railway när ägaren testat klart — bakas in vid BYGGET.
     NEXT_PUBLIC_COMMUNITY_V2_PUBLIC: process.env.COMMUNITY_V2_PUBLIC ?? "0",
+    // Lanseringsspaken för /nyheter + /evenemang (lib/news-feed-gate.ts). "0" =
+    // knappen döljs, sidorna svarar som 404 och de står inte i sitemapen.
+    // ⛔ Måste också stå som ARG + ENV i Dockerfile, annars bakas "0" in oavsett
+    // vad som står i Railway — samma fälla som RESTOCK_ALERTS_PAUSED gick i.
+    NEXT_PUBLIC_NEWS_FEED_PUBLIC: process.env.NEWS_FEED_PUBLIC ?? "0",
   },
   // Next håller renderade ISR-sidor + `unstable_cache`-poster i en minnes-LRU som
   // som standard får ta 50 MB. Det är resident minne dygnet runt, och minne är

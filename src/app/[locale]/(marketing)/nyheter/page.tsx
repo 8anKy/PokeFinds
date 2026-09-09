@@ -12,11 +12,18 @@ import { alternatesFor, baseOpenGraph } from "@/lib/canonical";
 import { getFeed } from "@/lib/feed-store";
 import { FeedSwitch } from "@/components/features/feed/feed-chrome";
 import { NewsList } from "@/components/features/feed/news-list";
+import { FeedHidden } from "@/components/features/feed/feed-hidden";
+import { newsFeedPublic } from "@/lib/news-feed-gate";
 
 export const revalidate = 3600;
 
 export async function generateMetadata({ params }: { params: { locale: string } }): Promise<Metadata> {
   const t = await getTranslations({ locale: params.locale, namespace: "News" });
+  // ⛔ Dold yta ⇒ noindex, och metadatan får inte röja innehållet.
+  if (!newsFeedPublic()) {
+    const tNotFound = await getTranslations({ locale: params.locale, namespace: "NotFound" });
+    return { title: tNotFound("title"), robots: { index: false, follow: false } };
+  }
   return {
     title: t("metaNewsTitle"),
     description: t("metaNewsDescription"),
@@ -31,6 +38,9 @@ export async function generateMetadata({ params }: { params: { locale: string } 
 
 export default async function NewsPage({ params }: { params: { locale: string } }) {
   setRequestLocale(params.locale);
+  // ⛔ Ytan är inte färdig (ägarbeslut) — se lib/news-feed-gate.ts. Grinden ligger
+  //    FÖRE läsningen: en dold sida ska inte ens röra flödesfilen.
+  if (!newsFeedPublic()) return <FeedHidden />;
   const t = await getTranslations("News");
   const feed = await getFeed();
 

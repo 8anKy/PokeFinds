@@ -3,6 +3,7 @@ import { cachedRead, STATIC_CACHE_TAG } from "@/lib/cache";
 import { prisma } from "@/lib/db";
 import { NOT_HIDDEN } from "@/lib/product-visibility";
 import { getFeed } from "@/lib/feed-store";
+import { newsFeedPublic } from "@/lib/news-feed-gate";
 
 // `||`, inte `??`: en saknad variabel expanderas till TOM STRÄNG (GitHub Actions,
 // och en tom Railway-variabel beter sig likadant), och `"" ?? x` ger `""` — reserven
@@ -117,12 +118,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/produkter`, changeFrequency: "hourly", priority: 1 },
     { url: `${BASE_URL}/sets`, changeFrequency: "weekly", priority: 0.7 },
     { url: `${BASE_URL}/priser`, changeFrequency: "monthly", priority: 0.6 },
-    // Nyheter och evenemang. ⛔ Till skillnad från /community är de INTE tunna
-    // stubbar: nyhetslistan fylls av nattkedjan ur vår egen katalog och står aldrig
-    // tom mer än vid allra första körningen. Evenemangens DETALJSIDOR läggs till
-    // längre ned — de finns bara när det finns evenemang.
-    { url: `${BASE_URL}/nyheter`, changeFrequency: "daily", priority: 0.6 },
-    { url: `${BASE_URL}/evenemang`, changeFrequency: "daily", priority: 0.6 },
+    // Nyheter och evenemang läggs till NEDAN, men bara när ytan är publik
+    // (lib/news-feed-gate.ts). ⛔ En sitemap är en INBJUDAN: att peka ut en yta vi
+    // själva kallar oavslutad ger den klassningen "Crawled – currently not indexed",
+    // och den stämpeln sitter kvar på URL:en långt efter att sidan blivit bra
+    // (samma skäl som /community står utanför).
     // Discord-landningssidan: egen ingång för "foilio discord"-sökningar och den enda
     // publika beskrivningen av restock-kanalerna. Ändras när kanalutbudet ändras.
     { url: `${BASE_URL}/discord`, changeFrequency: "monthly", priority: 0.5 },
@@ -214,10 +214,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Flödets egna sidor (evenemang + nyheter med egen text) kommer ur filen på
   // volymen, inte ur databasen — därför utanför try-blocket ovan: de ska med
   // även när Neon inte svarar.
+  // ⛔ Dold yta står INTE i sitemapen (lib/news-feed-gate.ts). En sitemap är en
+  // inbjudan; att peka ut något vi själva kallar oavslutat ger URL:en klassningen
+  // "Crawled – currently not indexed", och den stämpeln sitter kvar långt efter
+  // att sidan blivit bra — samma skäl som /community står utanför.
   let eventRoutes: MetadataRoute.Sitemap = [];
   try {
+    if (!newsFeedPublic()) return [...staticRoutes, ...forumRoutes, ...productRoutes, ...setRoutes];
     const { events, news } = await getFeed();
     eventRoutes = [
+      { url: `${BASE_URL}/nyheter`, changeFrequency: "daily" as const, priority: 0.6 },
+      { url: `${BASE_URL}/evenemang`, changeFrequency: "daily" as const, priority: 0.6 },
       ...events.map((event) => ({
         url: `${BASE_URL}/evenemang/${event.slug}`,
         changeFrequency: "weekly" as const,
@@ -233,7 +240,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         })),
     ];
   } catch {
-    /* ingen flödesfil ⇒ inga evenemangssidor att bjuda in till */
+    /* dold yta eller ingen flödesfil ⇒ inga sidor att bjuda in till */
   }
 
   return [...staticRoutes, ...eventRoutes, ...forumRoutes, ...productRoutes, ...setRoutes];

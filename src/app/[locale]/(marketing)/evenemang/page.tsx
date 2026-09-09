@@ -9,11 +9,17 @@ import { alternatesFor, baseOpenGraph } from "@/lib/canonical";
 import { getFeed } from "@/lib/feed-store";
 import { FeedSwitch } from "@/components/features/feed/feed-chrome";
 import { EventsList } from "@/components/features/feed/events-list";
+import { FeedHidden } from "@/components/features/feed/feed-hidden";
+import { newsFeedPublic } from "@/lib/news-feed-gate";
 
 export const revalidate = 3600;
 
 export async function generateMetadata({ params }: { params: { locale: string } }): Promise<Metadata> {
   const t = await getTranslations({ locale: params.locale, namespace: "News" });
+  if (!newsFeedPublic()) {
+    const tNotFound = await getTranslations({ locale: params.locale, namespace: "NotFound" });
+    return { title: tNotFound("title"), robots: { index: false, follow: false } };
+  }
   return {
     title: t("metaEventsTitle"),
     description: t("metaEventsDescription"),
@@ -28,6 +34,7 @@ export async function generateMetadata({ params }: { params: { locale: string } 
 
 export default async function EventsPage({ params }: { params: { locale: string } }) {
   setRequestLocale(params.locale);
+  if (!newsFeedPublic()) return <FeedHidden />;
   const t = await getTranslations("News");
   const feed = await getFeed();
 

@@ -16,6 +16,8 @@ import type { Metadata } from "next";
 import { getLocale, getTranslations, setRequestLocale } from "next-intl/server";
 import { alternatesFor, baseOpenGraph } from "@/lib/canonical";
 import { getFeed } from "@/lib/feed-store";
+import { newsFeedPublic } from "@/lib/news-feed-gate";
+import { FeedHidden } from "@/components/features/feed/feed-hidden";
 import { formatDate } from "@/lib/format";
 import { BackCircle } from "@/components/ui/back-circle";
 import { IconArrowRight, IconExternalLink } from "@/components/ui/icons";
@@ -40,6 +42,11 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   setRequestLocale(params.locale);
   const t = await getTranslations({ locale: params.locale, namespace: "News" });
+  // ⛔ Dold yta ⇒ noindex och ingen titel som röjer innehållet.
+  if (!newsFeedPublic()) {
+    const tNotFound = await getTranslations({ locale: params.locale, namespace: "NotFound" });
+    return { title: tNotFound("title"), robots: { index: false, follow: false } };
+  }
   const item = await findNews(params.slug);
   if (!item) return { title: t("newsNotFound"), robots: { index: false, follow: false } };
   return {
@@ -58,6 +65,8 @@ export async function generateMetadata({
 
 export default async function NewsArticlePage({ params }: { params: { locale: string; slug: string } }) {
   setRequestLocale(params.locale);
+  // ⛔ Ytan är inte färdig — se lib/news-feed-gate.ts.
+  if (!newsFeedPublic()) return <FeedHidden />;
   const item = await findNews(params.slug);
   const t = await getTranslations("News");
   const locale = await getLocale();

@@ -112,7 +112,14 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   får sin initial). Cardmarket = deras officiella märke (help.cardmarket.com/en/Downloads, fritt för den som
   länkar). ⛔ Loggorna är IDENTIFIERARE vid butikens egen annons (referensbruk) — ber en butik oss ta bort sin:
   fil + logoUrl bort samma dag. Design-canvas: memory `product-view-redesign-directions`.
-- **NYHETER & EVENEMANG LIVE 2026-09-09** (`.claude/rules/news-events.md`): `/nyheter` + `/evenemang`,
+- ⛔ **NYHETER & EVENEMANG ÄR DOLDA TILLS ÄGAREN SÄGER TILL (2026-09-09)** — byggt och deployat, men inte
+  färdigt. `NEWS_FEED_PUBLIC=1` i Railway öppnar det (`src/lib/news-feed-gate.ts`); spaken stänger TRE saker
+  samtidigt och alla tre behövs: headerknappen (vägen dit), sidorna (en gissad URL) och sitemapen (en
+  inbjudan till något oavslutat ger URL:en "Crawled – currently not indexed", och den stämpeln sitter kvar).
+  ⛔ Värdet BAKAS IN VID BYGGET — det speglas i `next.config.mjs` OCH står som `ARG`+`ENV` i Dockerfile;
+  ett påslag kräver därför en ny deploy. Jobben fortsätter fylla flödet under tiden, med flit: när spaken
+  slås på ska innehållet redan finnas där. Beskrivningen nedan gäller ytan när den är påslagen.
+- **NYHETER & EVENEMANG (byggt 2026-09-09)** (`.claude/rules/news-events.md`): `/nyheter` + `/evenemang`,
   nådda via headerns knapp som **ERSATTE Discord-knappen** (Discord finns kvar på /mer + i sidfoten).
   ⛔ **Flödet är en JSON-FIL på Railway-volymen, aldrig en tabell** — nyhetslistan öppnas av varje besökare
   och en Neon-väckning köper minst 300 s. Skrivs av `POST /api/cron/feed-publish` (x-cron-secret), läses av

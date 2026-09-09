@@ -62,6 +62,8 @@ ARG APPLE_CLIENT_ID
 # påverkas inte. Tom (osatt) = pausat, dvs fail-safe åt rätt håll.
 ARG RESTOCK_ALERTS_PAUSED
 ARG PRICE_ALERTS_PAUSED
+# Lanseringsspaken för /nyheter + /evenemang. Osatt = dolt (fail-safe åt rätt håll).
+ARG NEWS_FEED_PUBLIC
 ENV NODE_ENV=production \
     DATABASE_URL=$DATABASE_URL \
     NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME \

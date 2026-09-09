@@ -12,10 +12,15 @@
  */
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import { newsFeedPublic } from "@/lib/news-feed-gate";
 import { IconNews } from "@/components/ui/icons";
 
 export function NewsLink() {
   const t = useTranslations("News");
+  // ⛔ Ytan är inte färdig (ägarbeslut 2026-09-09). Knappen är BARA den synliga
+  //    vägen dit — sidorna och sitemapen grindas var för sig, se
+  //    lib/news-feed-gate.ts. Att bara ta bort knappen hade lämnat URL:en öppen.
+  if (!newsFeedPublic()) return null;
   return (
     <Link
       href="/nyheter"

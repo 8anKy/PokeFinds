@@ -15,6 +15,14 @@ paths:
 ---
 # Nyheter & evenemang (`/nyheter`, `/evenemang`)
 
+- ⛔ **YTAN ÄR DOLD TILLS ÄGAREN SÄGER TILL (2026-09-09).** `newsFeedPublic()` (`src/lib/news-feed-gate.ts`)
+  stänger headerknappen, båda listsidorna, båda detaljsidorna OCH sitemap-posterna. **Alla fem behövs** —
+  att bara ta bort knappen hade lämnat URL:en öppen, och att bara dölja sidorna hade lämnat kvar en
+  inbjudan i sitemapen. Default är DOLT: en osatt variabel får aldrig släppa ut något halvfärdigt
+  (vaktat av `tests/unit/news-feed-gate.test.ts`). PÅ = `NEWS_FEED_PUBLIC=1` i Railway + **ny deploy**,
+  eftersom värdet bakas in vid bygget (`next.config.mjs` + `ARG`/`ENV` i Dockerfile).
+  ⛔ Jobben fortsätter fylla flödet medan det är dolt — det är meningen.
+
 - ⛔ **FLÖDET ÄR EN FIL PÅ VOLYMEN, ALDRIG EN TABELL.** `$RAILWAY_VOLUME_MOUNT_PATH/feed/feed.json`
   (`src/lib/feed-store.ts`), skriven av `POST /api/cron/feed-publish` med `x-cron-secret`. Skälet är
   kostnadsdoktrinen: nyhetslistan öppnas av varje besökare, och en Neon-väckning köper minst 300 s
