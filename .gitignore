@@ -61,3 +61,6 @@ backup-catalog-*.json
 # lista till den som vill bestrida något. De bor i ../PokeFinds-private/docs/.
 docs/TERMS-GAP.md
 docs/TERMS-DRAFT-CLAUSES.md
+
+# Nyhetsflödet i utveckling (i drift ligger filen på Railway-volymen).
+.feed-cache/

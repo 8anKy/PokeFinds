@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { cachedRead, STATIC_CACHE_TAG } from "@/lib/cache";
 import { prisma } from "@/lib/db";
 import { NOT_HIDDEN } from "@/lib/product-visibility";
+import { getFeed } from "@/lib/feed-store";
 
 // `||`, inte `??`: en saknad variabel expanderas till TOM STRÄNG (GitHub Actions,
 // och en tom Railway-variabel beter sig likadant), och `"" ?? x` ger `""` — reserven
@@ -116,6 +117,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/produkter`, changeFrequency: "hourly", priority: 1 },
     { url: `${BASE_URL}/sets`, changeFrequency: "weekly", priority: 0.7 },
     { url: `${BASE_URL}/priser`, changeFrequency: "monthly", priority: 0.6 },
+    // Nyheter och evenemang. ⛔ Till skillnad från /community är de INTE tunna
+    // stubbar: nyhetslistan fylls av nattkedjan ur vår egen katalog och står aldrig
+    // tom mer än vid allra första körningen. Evenemangens DETALJSIDOR läggs till
+    // längre ned — de finns bara när det finns evenemang.
+    { url: `${BASE_URL}/nyheter`, changeFrequency: "daily", priority: 0.6 },
+    { url: `${BASE_URL}/evenemang`, changeFrequency: "daily", priority: 0.6 },
     // Discord-landningssidan: egen ingång för "foilio discord"-sökningar och den enda
     // publika beskrivningen av restock-kanalerna. Ändras när kanalutbudet ändras.
     { url: `${BASE_URL}/discord`, changeFrequency: "monthly", priority: 0.5 },
@@ -204,5 +211,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           })),
         ];
 
-  return [...staticRoutes, ...forumRoutes, ...productRoutes, ...setRoutes];
+  // Evenemangssidorna kommer ur flödesfilen på volymen, inte ur databasen — därför
+  // ligger de UTANFÖR try-blocket ovan: de ska med även när Neon inte svarar.
+  let eventRoutes: MetadataRoute.Sitemap = [];
+  try {
+    const { events } = await getFeed();
+    eventRoutes = events.map((event) => ({
+      url: `${BASE_URL}/evenemang/${event.slug}`,
+      changeFrequency: "weekly" as const,
+      priority: 0.5,
+    }));
+  } catch {
+    /* ingen flödesfil ⇒ inga evenemangssidor att bjuda in till */
+  }
+
+  return [...staticRoutes, ...eventRoutes, ...forumRoutes, ...productRoutes, ...setRoutes];
 }

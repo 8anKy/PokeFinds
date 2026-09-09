@@ -1,0 +1,69 @@
+---
+paths:
+  - "src/lib/feed.ts"
+  - "src/lib/feed-store.ts"
+  - "src/lib/rss.ts"
+  - "src/lib/event-format.ts"
+  - "src/components/features/feed/**"
+  - "src/app/**/nyheter/**"
+  - "src/app/**/evenemang/**"
+  - "src/app/api/cron/feed-publish/**"
+  - "scripts/feed-build.ts"
+  - "scripts/feed-foilio.ts"
+  - ".github/feed/**"
+  - ".github/workflows/news-feed.yml"
+---
+# Nyheter & evenemang (`/nyheter`, `/evenemang`)
+
+- ⛔ **FLÖDET ÄR EN FIL PÅ VOLYMEN, ALDRIG EN TABELL.** `$RAILWAY_VOLUME_MOUNT_PATH/feed/feed.json`
+  (`src/lib/feed-store.ts`), skriven av `POST /api/cron/feed-publish` med `x-cron-secret`. Skälet är
+  kostnadsdoktrinen: nyhetslistan öppnas av varje besökare, och en Neon-väckning köper minst 300 s
+  debiterad tid — en nyhetstabell hade varit en av de dyraste ytorna i appen. Sidorna läser filen bakom
+  `cachedRead` med **egen tagg** (`FEED_CACHE_TAG = "flode"`); publiceringsrutten `revalidateTag`:ar den så
+  en ny nyhet syns direkt i stället för att vänta ut ISR-timmen. ⛔ Lägg ALDRIG en `prisma`-import i
+  sidorna, i rutten eller i `src/lib/feed.ts`.
+- ⛔ **TVÅ PRODUCENTER, EN LANE VAR** (`NewsItem.lane`). `rss` = `news-feed.yml`, DB-fritt, 3 ggr/dygn,
+  bygger ur `.github/feed/sources.json`. `foilio` = `scripts/feed-foilio.ts`, ett **STEG i `scrape-all.yml`**
+  (aldrig egen cron — Neon är redan vaken där). Rutten ersätter EN lane i taget och behåller den andras
+  poster; utan `lane` hade det jobb som körde sist raderat det andras nyheter. `events` skickas bara av
+  rss-lanen — `null` betyder "rör dem inte", så ett jobb utan åsikt kan inte tömma evenemangslistan.
+- ⛔ **RSS ENSAMT RÄCKER INTE, OCH DET ÄR MÄTT (2026-09-09).** PokéBeach har stängt sin feed ("No feed
+  available", HTTP 500 på varje väg), pokeguardian/serebii/limitless har ingen, och de två flöden som
+  svarar (pokemonblog.com, nintendoeverything.com) är tv-spelsbloggar: relevansgrinden släppte igenom
+  **0 av 18** poster. Därför är **vår egen katalog huvudkällan** — setsläpp och nytt i katalogen är saker
+  ingen annan svensk sajt vet. ⛔ Sänk inte grinden för att fylla listan; lägg till en KÄLLA i stället, och
+  probea den först med `npx tsx scripts/feed-build.ts --dry`.
+- ⛔ **VI ÅTERGER ALDRIG EN ARTIKELS TEXT.** En extern nyhet är rubrik + klippt ingress + källans namn +
+  länk UT. Därför har nyheter **ingen egen detaljsida** — raden går till källan. Bilden HOTLÄNKAS
+  (`referrerPolicy="no-referrer"`), laddas aldrig ned. Evenemang har detaljsida: den texten är vår egen.
+- ⛔ **INTERNT ÖPPNAS INTERNT.** `NewsItem.internal` styr `Link` (samma vy) mot `<a target="_blank">`.
+  Schemat fäller `//annan.sajt` och `javascript:` — utan den grinden hade "intern" länk varit en öppen
+  omdirigering. Vaktat av `tests/unit/feed.test.ts`.
+- ⛔ **INGEN "PÅMINN MIG" PÅ EVENEMANG** (ägarbeslut 2026-09-09). Ett evenemang är ett datum, inte ett
+  lager som tar slut. Vill man ha en påminnelse finns arrangörens egen sida bakom knappen.
+- ⛔ **INGEN GODKÄNNANDEKÖ** (ägarbeslut 2026-09-09): flödet publicerar sig självt. Följden är att
+  RELEVANSGRINDEN och kategorireglerna är det enda som står mellan källan och läsaren — de är alltså
+  korrekthetskod, inte finputs.
+- **Evenemang skrivs in i `.github/feed/events.json`.** Det finns ingen gratis maskinläsbar källa för
+  svenska Pokémon-mässor (Play! Pokémons event-API svarar inte publikt, Facebook har inget gratis API).
+  Filen ligger under `.github/` MED FLIT: Railways `watchPatterns` hoppar över mappen, så ett nytt
+  evenemang kostar **ingen deploy**. `slug` är valfri (härleds ur titeln), `startsAt` är ISO med tidszon.
+  Ett evenemang städas bort av sig självt dagen efter att det slutat (`EVENT_KEEP_DAYS`).
+- **Ingången är headerns knapp** (`news-link.tsx`), som **ersatte Discord-knappen** 2026-09-09 — Discord
+  finns kvar på `/mer` och i sidfoten. ⛔ Headern har plats för EN sak bredvid kontot; två ikoner gör raden
+  till en verktygsrad. Knappen får aldrig kalla `auth()`/`cookies()` (då blir hela appen dynamisk).
+- **Detaljsidan är produktvyns "hjälte"**: scen med flytande `BackCircle` + dela-cirkel, rundat ark över.
+  ⛔ Rutten står därför i `lib/subpage-routes.ts` (`/evenemang/`) — annars ligger logotyphuvudet kvar
+  ovanför cirkeln på mobil. Nedräkningen (`EventCountdown`) renderas BARA på klienten: sidan är ISR-cachad
+  en timme och ett serverrenderat "om 24 dagar" hade kunnat vara ett dygn fel.
+- ⛔ **DETALJSIDAN ANROPAR ALDRIG `notFound()` — MÄTT 2026-09-09.** Rutten renderas statiskt
+  (`revalidate` + tom `generateStaticParams`, som `/produkter/[slug]` och `/sets/[id]`), och rotens
+  `not-found.tsx` hämtar sin copy med `getTranslations()` UTAN locale, dvs ur HEADERS. Under statisk
+  rendering fäller Next då hela svaret — "Page changed from static to dynamic at runtime, reason: headers"
+  ⇒ **HTTP 500** på varje död slug, varje gång (ingenting cachas). Sidan renderar i stället en egen mjuk
+  404 med `noindex`, alltså 200 — samma beteende som syskonrutterna redan har och som CLAUDE.md dokumenterar
+  under "MJUK 404 PÅ ISR-RUTTERNA". ⏭️ Testa om vid nästa Next-uppgradering.
+- **Kartan öppnas hos kartleverantören** (`mapUrl`), aldrig inbäddad — en inbäddad karta kostar pengar och
+  spårar besökaren.
+- **`src/lib/rss.ts` är avsiktligt en dum läsare**, inte en XML-parser: fem fält per post, tolerant mot
+  skräp, kastar aldrig. Behövs mer är svaret ett riktigt bibliotek i JOBBET, inte fler regexar där.

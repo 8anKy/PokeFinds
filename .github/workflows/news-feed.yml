@@ -1,0 +1,71 @@
+name: Nyhetsflödet (RSS + evenemang)
+
+# Bygger nyhets- och evenemangsflödet och POST:ar det till appen, som skriver det
+# till Railway-volymen. Sidorna /nyheter och /evenemang läser den filen.
+#
+# ⛔ JOBBET RÖR ALDRIG DATABASEN, OCH DET ÄR VILLKORET FÖR ATT DET SKA VARA GRATIS.
+# Neon debiteras per VAKEN TID och varje väckning köper minst 300 s. Ett nyhetsflöde
+# som väcker computen tre gånger om dagen hade kostat mer än allt det tillför.
+# Samma två spärrar som Discord-lanen håller invarianten:
+#   1. scripts/feed-build.ts importerar bara rena moduler (src/lib/feed.ts,
+#      src/lib/rss.ts) — ingen `prisma`-import finns i den kedjan.
+#   2. DATABASE_URL nedan pekar med FLIT på en oåtkomlig adress. Skulle någon lägga
+#      in en DB-fråga dör körningen omedelbart och SYNLIGT i stället för att tyst
+#      börja kosta pengar. Sätt aldrig in den riktiga strängen.
+#
+# ⛔ NYHETERNA UR VÅR EGEN KATALOG KOMMER INTE HÄRIFRÅN. De byggs av
+# scripts/feed-foilio.ts, som är ett STEG i scrape-all.yml där Neon ändå är vaken.
+# De två jobben skriver var sin "lane" i samma dokument (se src/lib/feed.ts) och
+# raderar aldrig varandras poster.
+#
+# TAKT: tre gånger om dygnet räcker. Nyheterna är inte färskvara på samma sätt som
+# lagerstatus, och GitHubs `schedule:`-cron är ändå best effort (mätt: */10 kördes i
+# praktiken var 1,5–3,5 h). Behövs snabbare publicering är svaret workflow_dispatch,
+# inte tätare cron.
+
+on:
+  schedule:
+    - cron: "10 5,11,17 * * *"
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: "Hämta och visa vad som skulle publiceras, men skicka ingenting"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: news-feed
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # ⛔ AVSIKTLIGT OÅTKOMLIG. Se filhuvudet.
+      DATABASE_URL: "postgresql://disabled:disabled@127.0.0.1:1/disabled"
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      # ⛔ APEX, aldrig www: Railways 301 följs inte av alla klienter och en tyst
+      #    omdirigering hade gjort publiceringen till en no-op (CLAUDE.md).
+      NEXT_PUBLIC_APP_URL: "https://foilio.se"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+      # Samma nyckel som de andra lanarna → delad, varm cache.
+      - id: nm
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: node_modules
+          key: nm-${{ runner.os }}-node20-${{ hashFiles('package-lock.json', 'prisma/schema.prisma') }}
+      - if: steps.nm.outputs.cache-hit != 'true'
+        run: npm ci --legacy-peer-deps
+      - if: steps.nm.outputs.cache-hit != 'true'
+        run: npx prisma generate
+
+      - name: Bygg och publicera flödet
+        run: npx tsx scripts/feed-build.ts ${{ github.event.inputs.dry == 'true' && '--dry' || '' }}

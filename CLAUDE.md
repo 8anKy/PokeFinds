@@ -112,6 +112,19 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   får sin initial). Cardmarket = deras officiella märke (help.cardmarket.com/en/Downloads, fritt för den som
   länkar). ⛔ Loggorna är IDENTIFIERARE vid butikens egen annons (referensbruk) — ber en butik oss ta bort sin:
   fil + logoUrl bort samma dag. Design-canvas: memory `product-view-redesign-directions`.
+- **NYHETER & EVENEMANG LIVE 2026-09-09** (`.claude/rules/news-events.md`): `/nyheter` + `/evenemang`,
+  nådda via headerns knapp som **ERSATTE Discord-knappen** (Discord finns kvar på /mer + i sidfoten).
+  ⛔ **Flödet är en JSON-FIL på Railway-volymen, aldrig en tabell** — nyhetslistan öppnas av varje besökare
+  och en Neon-väckning köper minst 300 s. Skrivs av `POST /api/cron/feed-publish` (x-cron-secret), läses av
+  sidorna bakom `cachedRead` med egen tagg. **Två producenter, en `lane` var**: `news-feed.yml` (DB-FRITT,
+  3 ggr/dygn, RSS ur `.github/feed/sources.json` + evenemang ur `.github/feed/events.json`) och
+  `scripts/feed-foilio.ts` som ett **STEG i `scrape-all`** (setsläpp + nytt i katalogen; aldrig egen cron).
+  Rutten ersätter EN lane i taget — utan `lane` hade det jobb som körde sist raderat det andras poster.
+  ⛔ **RSS ensamt räcker inte, mätt**: PokéBeach har stängt sin feed och de flöden som svarar är
+  tv-spelsbloggar (relevansgrinden släppte 0 av 18) — vår egen katalog är huvudkällan. ⛔ Vi återger aldrig
+  en artikels text: rubrik + ingress + källa + länk UT, bilden hotlänkas. Evenemang skrivs in i
+  `.github/feed/events.json` (ingen gratis källa finns; mappen är utanför `watchPatterns` ⇒ ingen deploy).
+  ⛔ Ingen "påminn mig", ingen godkännandekö (ägarbeslut).
 - ⛔ **TRE TAL OM ETT SET, ALDRIG BLANDADE**: `totalCards` = printedTotal (talet på kortet, som skannern
   läser — byt ALDRIG mening på den); `totalCardsFull` = hela setet inkl. secret rares (kompletteringens
   nämnare); master set-nämnaren = de TRYCKNINGAR VI listar, aldrig TCGdex tal — en nämnare användaren inte
@@ -601,6 +614,7 @@ klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
 | `ui-shell.md` | Porträttlås; bredd ensam ≠ desktop; min-height måste dra av spacer + safe-area |
 | `admin-ops.md` | Tre utfall, aldrig två: kostnadsförd / gratis / OMÄTT |
 | `legal-copy.md` | Ångerrätten är den PROPORTIONELLA modellen — villkor och checkout-samtycke är EN mekanism |
+| `news-events.md` | Flödet är en fil på volymen, aldrig en tabell; en lane per producent; artikeltext återges aldrig |
 | `community-v2.md` | Grindat tills ägaren testat (admin / `FoilioApp/`-UA / `COMMUNITY_V2_PUBLIC`); chatten pollar ALDRIG Neon; Foilio är aldrig part i en affär |
 
 ## Kommandon & lokala konton

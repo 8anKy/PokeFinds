@@ -25,13 +25,14 @@ describe("isSubpageRoute", () => {
       "/meddelanden/conv1",
       "/produkter/30th-celebration-elite-trainer-box",
       "/sets/sv10",
+      "/evenemang/svenska-pokemonmassan-goteborg",
     ]) {
       expect(isSubpageRoute(p), p).toBe(true);
     }
   });
 
   it("flikarnas rotsidor och listor behåller logotyphuvudet", () => {
-    for (const p of ["/", "/produkter", "/samling", "/skanna", "/forum", "/meddelanden", "/mer", "/sets", "/marknad"]) {
+    for (const p of ["/", "/produkter", "/samling", "/skanna", "/forum", "/meddelanden", "/mer", "/sets", "/marknad", "/nyheter", "/evenemang"]) {
       expect(isSubpageRoute(p), p).toBe(false);
     }
   });

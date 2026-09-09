@@ -227,6 +227,21 @@ jobs:
         continue-on-error: true
         run: npx tsx scripts/signup-verification-report.ts --apply
 
+      # Nyhetsflödets FOILIO-LANE: setsläpp och nytt i katalogen blir poster på
+      # /nyheter. Ligger som STEG här (aldrig egen cron): Neon debiteras per VAKEN
+      # TID och är redan vaken i det här fönstret — tre SELECT kostar då noll.
+      # ⛔ RSS-delen av flödet byggs av news-feed.yml, som är HELT DB-fritt. De två
+      # jobben skriver var sin "lane" i samma dokument och raderar aldrig varandras
+      # poster (se src/lib/feed.ts).
+      # continue-on-error: en utebliven nyhetsrad får aldrig fälla insamlingen.
+      - if: steps.guard.outputs.ready == 'true'
+        name: Bygg nyhetsflödet ur katalogen
+        continue-on-error: true
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.SITE_URL || 'https://foilio.se' }}
+        run: npx tsx scripts/feed-foilio.ts
+
       # Släng den cachade bilden av priserna — se cardmarket-refresh.yml för varför.
       - if: steps.guard.outputs.ready == 'true'
         name: Invalidera sid-cachen (priserna är skrivna)

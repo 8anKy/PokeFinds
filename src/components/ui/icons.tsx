@@ -395,3 +395,26 @@ export const IconGift = (p: IconProps) => (
     <path d="M12 8c-2.5 0-4.5-1-4.5-2.7C7.5 4 8.5 3 9.8 3 11.5 3 12 5.5 12 8ZM12 8c2.5 0 4.5-1 4.5-2.7C16.5 4 15.5 3 14.2 3 12.5 3 12 5.5 12 8Z" />
   </svg>
 );
+
+/** Nyhetsflödet — bladet med rubrikrader. Headerns knapp och flödets tomma läge. */
+export const IconNews = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h9A1.5 1.5 0 0 1 16 5.5V18a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2V5.5Z" />
+    <path d="M16 9h2.5A1.5 1.5 0 0 1 20 10.5V18a2 2 0 0 1-2 2" />
+    <path d="M7 8h6M7 11.5h6M7 15h3.5" />
+  </svg>
+);
+
+export const IconCalendar = (p: IconProps) => (
+  <svg {...base(p)}>
+    <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+    <path d="M8 3.5v3M16 3.5v3M3.5 10h17" />
+  </svg>
+);
+
+export const IconMapPin = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11Z" />
+    <circle cx="12" cy="10" r="2.6" />
+  </svg>
+);

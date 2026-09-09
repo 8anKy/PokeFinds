@@ -1,0 +1,4 @@
+{
+  "_readme": "Evenemang på /evenemang. Mässor, prereleases och turneringar har ingen gratis maskinläsbar källa i Sverige — de skrivs därför in här och plockas upp av nyhetsjobbet vid nästa körning (ingen deploy behövs, ingen databas rörs). Obligatoriskt: slug, title, category (EXPO|PRERELEASE|TOURNAMENT|OTHER) och startsAt (ISO med tidszon, t.ex. 2026-10-03T10:00:00+02:00). Allt annat är valfritt. Ett evenemang städas bort av sig självt dagen efter att det slutat.",
+  "events": []
+}
