@@ -1593,7 +1593,9 @@
     "proBody": "Unlimited price watching, AI grading and bulk scanning",
     "proPrice": "49 kr/month",
     "inviteRow": "Invite 3 friends — 1 month of Pro free",
-    "manageBody": "Manage your subscription"
+    "manageBody": "Manage your subscription",
+    "guestCardTitle": "Your collector card",
+    "guestChip": "Guest"
   },
   "Invite": {
     "h1": "Invite friends",

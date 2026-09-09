@@ -437,34 +437,78 @@ html[data-native] .web-only {
 }
 
 /* ---------------------------------------------------------------------------
- * Kontokortet överst på /mer — samlarkortet med ditt namn.
+ * Kontokortet överst på /mer — SAMMA FOLIE som Pro-kortet, medvetet inte samma
+ * KORT. Färgregeln är Pro-kortets (turkos, mörk teal, vitt — ingen violett,
+ * rosa eller guld; regnbågen var det som gjorde gamla /mer barnslig).
  *
- * ⛔ SAMMA FÄRGREGEL SOM PRO-KORTET OVAN (ägaren 2026-09-05: "för många färger"):
- * turkos (holo.cyan), mörk teal (brand.dark) och vitt. Ingen violett, rosa eller
- * guld — regnbågen är det som gjorde gamla /mer barnslig, och den ska inte smyga
- * tillbaka via en gradient.
+ * Skillnaderna mot .holo-card är alla avsiktliga:
+ *   FORM     Pro-kortet är 5:7 stående som ett riktigt kort. Det här är en bred
+ *            panel — den är sidans rubrik, inte ett föremål man betraktar.
+ *   RÖRELSE  Pro-kortet följer pekaren och gyrot. Den här rör sig BARA i vila,
+ *            och långsammare (13 s mot 7 s): kortet är en LÄNK, och ett kort som
+ *            lutar sig under fingret slåss med trycket i stället för att svara.
+ *   LAGER    folie + ränder + glans. INGEN gnistrande spark och INGEN roterande
+ *            konisk kantram — de två är Pro-kortets signatur, och en signatur
+ *            som också sitter på menysidan är ingen signatur.
  *
- * Kortet är STILLA med flit: ingen lutning, inga gnistor, ingen animering. Pro-
- * kortet på /priser får röra sig eftersom det SÄLJER; det här är bara ditt konto,
- * och ett kort som glittrar varje gång man öppnar en meny blir tröttsamt.
+ * --mx/--my är samma @property-variabler som deklareras ovan, så vilan drivs av
+ * CSS ensam utan en rad JS. Utan @property-stöd (äldre WebView) står folien
+ * still men kortet ser likadant ut. Reduced-motion-regeln längre upp släcker
+ * rörelsen helt.
  * ------------------------------------------------------------------------ */
-.account-card {
+.foil-panel {
+  --mx: 50%;
+  --my: 50%;
   position: relative;
   overflow: hidden;
+  /* Utan isolation blandar color-dodge/overlay mot sidan bakom kortet. */
+  isolation: isolate;
   background:
-    radial-gradient(120% 90% at 12% 0%, rgba(45, 212, 191, 0.22), transparent 58%),
-    radial-gradient(90% 80% at 100% 100%, rgba(15, 118, 110, 0.26), transparent 62%),
-    linear-gradient(160deg, #05100f, #000 60%);
+    radial-gradient(120% 90% at 12% 0%, rgba(45, 212, 191, 0.24), transparent 58%),
+    radial-gradient(90% 80% at 100% 100%, rgba(15, 118, 110, 0.3), transparent 62%),
+    linear-gradient(160deg, #06110f, #000 60%);
+  animation: foil-panel-idle 13s ease-in-out infinite;
 }
-/* Folieglansen: ett stilla, snedställt ljusband. */
-.account-card::after {
-  content: "";
+@keyframes foil-panel-idle {
+  0%, 100% { --mx: 12%; --my: 26%; }
+  50%      { --mx: 88%; --my: 74%; }
+}
+.foil-panel__foil,
+.foil-panel__lines,
+.foil-panel__glare {
   position: absolute;
-  left: -40%;
-  top: -60%;
-  width: 85%;
-  height: 220%;
-  transform: rotate(18deg);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+  inset: 0;
+  z-index: 1;
   pointer-events: none;
+}
+.foil-panel__foil {
+  mix-blend-mode: color-dodge;
+  opacity: 0.38;
+  background: linear-gradient(
+    100deg,
+    transparent 24%,
+    rgba(45, 212, 191, 0.7) 38%,
+    rgba(255, 255, 255, 0.6) 47%,
+    rgba(15, 118, 110, 0.75) 56%,
+    rgba(45, 212, 191, 0.5) 66%,
+    transparent 80%
+  );
+  background-size: 260% 260%;
+  background-position: var(--mx) var(--my);
+}
+.foil-panel__lines {
+  mix-blend-mode: overlay;
+  opacity: 0.3;
+  background: repeating-linear-gradient(100deg, transparent 0 7px, rgba(255, 255, 255, 0.12) 7px 8px);
+  background-size: 260% 260%;
+  background-position: var(--mx) var(--my);
+}
+.foil-panel__glare {
+  mix-blend-mode: overlay;
+  background: radial-gradient(circle at var(--mx) var(--my), rgba(255, 255, 255, 0.22), transparent 52%);
+}
+/* Innehållet ligger ÖVER folielagren — annars färgar color-dodge texten. */
+.foil-panel__face {
+  position: relative;
+  z-index: 2;
 }

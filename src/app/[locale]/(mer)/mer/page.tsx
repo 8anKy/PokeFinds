@@ -12,11 +12,10 @@ import {
   IconShield,
   IconSliders,
   IconChevronRight,
-  type IconProps,
 } from "@/components/ui/icons";
-import { SOCIAL_CHANNELS } from "@/components/features/join-us-card";
 import { LogoutButton } from "./logout-button";
 import { GuestMore } from "./guest-more";
+import { FoilPanel, FollowTiles, MenuRow, Section, type MenuLink } from "./more-ui";
 import { ACHIEVEMENTS } from "@/lib/achievements";
 import { listUserAchievements } from "@/services/achievements";
 import { getScannerQuota } from "@/services/scanner";
@@ -29,48 +28,17 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("metaTitle") };
 }
 
-interface MenuLink {
-  href: string;
-  label: string;
-  icon: (p: IconProps) => JSX.Element;
-  /** Höger om etiketten: ett tal, aldrig en färgad etikett. */
-  value?: string;
-  /** Turkos prick i stället för ett tal (olästa meddelanden). */
-  dot?: boolean;
-}
-
-/**
- * Sidans rytm: en sektion = en versal etikett + ett kort med hårlinjer emellan.
- *
- * ⛔ IKONERNA ÄR ENFÄRGADE (ink-faint) MED FLIT. Den gamla sidan gav varje rad
- * sin egen färg — cyan, grön, violett, guld, grått, violett, rött — utan att
- * färgen betydde något; sju färger som inte kodar något läser som dekor, och
- * det var det ägaren kallade barnsligt (2026-09-09). Turkos är kvar som EN
- * signal på sidan: Pro. Lägg inte tillbaka en färg per rad.
- */
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Stat({ value, label, sub }: { value: string; label: string; sub?: string }) {
   return (
-    <section>
-      <h2 className="px-1.5 pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-faint">
-        {title}
-      </h2>
-      <div className="overflow-hidden rounded-[14px] border border-surface-border">{children}</div>
-    </section>
-  );
-}
-
-function MenuRow({ link }: { link: MenuLink }) {
-  return (
-    <Link
-      href={link.href}
-      className="flex items-center gap-3.5 border-b border-surface-border px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-overlay/60 active:bg-surface-overlay"
-    >
-      <link.icon size={20} className="shrink-0 text-ink-faint" />
-      <span className="flex-1 text-[15px] font-medium tracking-[-0.005em] text-ink">{link.label}</span>
-      {link.value && <span className="text-sm tabular-nums text-ink-faint">{link.value}</span>}
-      {link.dot && <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-holo-cyan" />}
-      <IconChevronRight size={18} className="shrink-0 text-ink-faint" />
-    </Link>
+    <span className="flex flex-col">
+      <span className="text-[19px] font-semibold tabular-nums tracking-[-0.02em] text-ink">
+        {value}
+        {sub && <span className="text-sm text-ink-muted">{sub}</span>}
+      </span>
+      <span className="mt-[3px] text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-faint">
+        {label}
+      </span>
+    </span>
   );
 }
 
@@ -148,52 +116,27 @@ export default async function MerPage() {
       {/* Kontokortet ÄR sidans rubrik — "Mer / Hantera ditt konto och dina
           inställningar" sa inget som raderna under inte redan säger, och en
           rubrik som heter samma sak som fliken man just tryckte på är brus. */}
-      <Link
-        href="/installningar"
-        className="account-card block rounded-[18px] border border-surface-border p-[18px] transition-colors hover:border-ink/20"
-      >
-        <div className="relative flex items-start justify-between">
+      <FoilPanel href="/installningar">
+        <span className="flex items-start justify-between">
           <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-faint">
             {t("cardRole")}
           </span>
           <span className="rounded-full border border-ink/20 px-2.5 py-[3px] text-[10px] font-semibold uppercase tracking-[0.12em] text-ink">
             {isPremium ? t("planChipPro") : t("planChipFree")}
           </span>
-        </div>
-        <p className="relative mt-[26px] truncate font-display text-[27px] font-bold leading-8 tracking-[-0.03em] text-ink">
+        </span>
+        <span className="mt-[26px] block truncate font-display text-[27px] font-bold leading-8 tracking-[-0.03em] text-ink">
           {name}
-        </p>
-        <p className="relative mt-1 text-[13px] leading-[18px] text-ink-muted">
+        </span>
+        <span className="mt-1 block text-[13px] leading-[18px] text-ink-muted">
           {t("memberSince", { since: memberSince })}
-        </p>
-        <div className="relative mt-[22px] grid grid-cols-3 gap-3 border-t border-ink/10 pt-4">
-          <span className="flex flex-col">
-            <span className="text-[19px] font-semibold tabular-nums tracking-[-0.02em] text-ink">
-              {watchCount}
-            </span>
-            <span className="mt-[3px] text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-faint">
-              {t("statWatching")}
-            </span>
-          </span>
-          <span className="flex flex-col">
-            <span className="text-[19px] font-semibold tabular-nums tracking-[-0.02em] text-ink">
-              {unlockedLevels}
-              <span className="text-sm text-ink-muted">/{totalUnlockable}</span>
-            </span>
-            <span className="mt-[3px] text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-faint">
-              {t("statBadges")}
-            </span>
-          </span>
-          <span className="flex flex-col">
-            <span className="text-[19px] font-semibold tabular-nums tracking-[-0.02em] text-ink">
-              {scansLeft}
-            </span>
-            <span className="mt-[3px] text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-faint">
-              {t("statScans")}
-            </span>
-          </span>
-        </div>
-      </Link>
+        </span>
+        <span className="mt-[22px] grid grid-cols-3 gap-3 border-t border-ink/10 pt-4">
+          <Stat value={String(watchCount)} label={t("statWatching")} />
+          <Stat value={String(unlockedLevels)} sub={`/${totalUnlockable}`} label={t("statBadges")} />
+          <Stat value={scansLeft} label={t("statScans")} />
+        </span>
+      </FoilPanel>
 
       <Section title={t("sectionActivity")}>
         {activity.map((l) => (
@@ -228,37 +171,11 @@ export default async function MerPage() {
           <IconChevronRight size={18} className="shrink-0 text-holo-cyan" />
         </Link>
         {!hasEarnedInviteReward && (
-          <Link
-            href="/mer/bjud-in"
-            className="flex items-center gap-3.5 border-b border-surface-border px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-overlay/60 active:bg-surface-overlay"
-          >
-            <span className="flex-1 text-[15px] text-ink-muted">{t("inviteRow")}</span>
-            <IconChevronRight size={18} className="shrink-0 text-ink-faint" />
-          </Link>
+          <MenuRow link={{ href: "/mer/bjud-in", label: t("inviteRow") }} />
         )}
       </Section>
 
-      {/* Tre kanaler = en rad brickor, inte tre menyrader. Externa länkar öppnar
-          utanför appen, så de får inte se ut som appens egen navigering. */}
-      <section>
-        <h2 className="px-1.5 pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-faint">
-          {t("followTitle")}
-        </h2>
-        <div className="grid grid-cols-3 gap-2">
-          {SOCIAL_CHANNELS.map((c) => (
-            <a
-              key={c.label}
-              href={c.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex h-[66px] flex-col items-center justify-center gap-1.5 rounded-[14px] border border-surface-border text-ink-muted transition-colors hover:bg-surface-overlay/60 hover:text-ink active:bg-surface-overlay"
-            >
-              <c.icon size={20} className="shrink-0" />
-              <span className="text-xs font-medium">{c.label}</span>
-            </a>
-          ))}
-        </div>
-      </section>
+      <FollowTiles title={t("followTitle")} />
 
       <LogoutButton />
     </div>

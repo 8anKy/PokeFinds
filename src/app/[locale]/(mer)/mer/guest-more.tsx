@@ -1,18 +1,27 @@
 import { getTranslations } from "next-intl/server";
-import { Link } from "@/i18n/navigation";
 import { LinkButton } from "@/components/ui/button";
 import { LocaleSwitcher } from "@/components/locale-switcher";
-import { SOCIAL_CHANNELS } from "@/components/features/join-us-card";
-import { IconChevronRight, IconExternalLink } from "@/components/ui/icons";
+import { FoilPanel, FollowTiles, MenuRow, Section, type MenuLink } from "./more-ui";
 
 /**
  * "Mer" för en GÄST (2026-09-05). Förut: omdirigering till inloggningen utan ett
  * ord om varför. Nu: språk, om oss/villkor/integritet/cookies/kontakt, Discord —
  * och inloggning/registrering som en tydlig rad, inte som hela sidan.
+ *
+ * 2026-09-09: samma skal som den inloggade sidan (more-ui.tsx). Foliekortet står
+ * överst här också, men TOMT — det visar vad ett konto ÄR i stället för att
+ * beskriva det: samma kort, ditt namn saknas, planen står "Gäst". Det är den
+ * enda platsen på sidan som ber om något.
+ *
+ * ⛔ Kortet är INTE en länk här (till skillnad från den inloggades): det bär två
+ * knappar, och en länk runt två knappar gör hela kortet till en tredje, otydlig
+ * träffyta.
  */
 export async function GuestMore() {
   const t = await getTranslations("More");
-  const legal: { href: string; label: string }[] = [
+  // Dokumentrader utan ikon med flit — sex olika glyfer för sex texter hade
+  // blivit samma dekorbrus som färgerna på den gamla sidan.
+  const info: MenuLink[] = [
     { href: "/om", label: t("guestAbout") },
     { href: "/priser", label: t("guestPricing") },
     { href: "/villkor", label: t("guestTerms") },
@@ -22,72 +31,47 @@ export async function GuestMore() {
   ];
 
   return (
-    <div className="mx-auto max-w-md space-y-4">
-      <header>
-        <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
-        <p className="mt-1 text-sm text-ink-muted">{t("guestSubtitle")}</p>
-      </header>
-
-      {/* Konto: två knappar, inte en vägg. */}
-      <div className="rounded-2xl border border-holo-cyan/30 bg-holo-cyan/10 px-4 py-4">
-        <p className="text-sm font-semibold text-ink">{t("guestAccountTitle")}</p>
-        <p className="mt-1 text-xs text-ink-muted">{t("guestAccountBody")}</p>
-        <div className="mt-3 flex flex-wrap gap-2">
+    <div className="mx-auto max-w-md space-y-[26px]">
+      <FoilPanel>
+        <span className="flex items-start justify-between">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-faint">
+            {t("cardRole")}
+          </span>
+          <span className="rounded-full border border-ink/20 px-2.5 py-[3px] text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
+            {t("guestChip")}
+          </span>
+        </span>
+        <span className="mt-[26px] block font-display text-[27px] font-bold leading-8 tracking-[-0.03em] text-ink">
+          {t("guestCardTitle")}
+        </span>
+        <span className="mt-1.5 block text-[13px] leading-[18px] text-ink-muted">
+          {t("guestAccountBody")}
+        </span>
+        <span className="mt-5 flex gap-2 border-t border-ink/10 pt-4">
           <LinkButton href="/registrera" size="sm">
             {t("guestRegister")}
           </LinkButton>
           <LinkButton href="/logga-in?callbackUrl=%2Fmer" size="sm" variant="outline">
             {t("guestLogin")}
           </LinkButton>
-        </div>
-      </div>
+        </span>
+      </FoilPanel>
 
-      {/* Språk */}
-      <div className="flex items-center justify-between rounded-2xl border border-surface-border bg-surface-raised/40 px-4 py-3">
-        <span className="text-sm font-medium text-ink">{t("guestLanguage")}</span>
+      {/* Språk står ensamt: det är sidans enda inställning för den utan konto. */}
+      <div className="flex items-center justify-between rounded-[14px] border border-surface-border px-4 py-3">
+        <span className="text-[15px] font-medium tracking-[-0.005em] text-ink">
+          {t("guestLanguage")}
+        </span>
         <LocaleSwitcher />
       </div>
 
-      {/* Om Foilio + legal */}
-      <div className="overflow-hidden rounded-2xl border border-surface-border bg-surface-raised/40">
-        <p className="border-b border-surface-border px-4 py-3 text-sm font-semibold text-ink">
-          {t("guestInfoTitle")}
-        </p>
-        <nav className="flex flex-col">
-          {legal.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className="flex items-center gap-3 border-b border-surface-border px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-overlay/60 active:bg-surface-overlay"
-            >
-              <span className="flex-1 text-sm font-medium text-ink">{l.label}</span>
-              <IconChevronRight size={18} className="shrink-0 text-ink-muted" />
-            </Link>
-          ))}
-        </nav>
-      </div>
+      <Section title={t("guestInfoTitle")}>
+        {info.map((l) => (
+          <MenuRow key={l.href} link={l} />
+        ))}
+      </Section>
 
-      {/* Följ Foilio — samma lista som den inloggade sidan. */}
-      <div className="overflow-hidden rounded-2xl border border-surface-border bg-surface-raised/40">
-        <p className="border-b border-surface-border px-4 py-3 text-sm font-semibold text-ink">
-          {t("followTitle")}
-        </p>
-        <nav className="flex flex-col">
-          {SOCIAL_CHANNELS.map((c) => (
-            <a
-              key={c.label}
-              href={c.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 border-b border-surface-border px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-overlay/60 active:bg-surface-overlay"
-            >
-              <c.icon size={20} className="shrink-0 text-ink-muted" />
-              <span className="flex-1 text-sm font-medium text-ink">{c.label}</span>
-              <IconExternalLink size={16} className="shrink-0 text-ink-muted" />
-            </a>
-          ))}
-        </nav>
-      </div>
+      <FollowTiles title={t("followTitle")} />
     </div>
   );
 }

@@ -1593,7 +1593,9 @@
     "proBody": "Obegränsad prisbevakning, AI-gradering och bulkskanning",
     "proPrice": "49 kr/mån",
     "inviteRow": "Bjud in 3 vänner — 1 månad Pro gratis",
-    "manageBody": "Hantera din prenumeration"
+    "manageBody": "Hantera din prenumeration",
+    "guestCardTitle": "Ditt samlarkort",
+    "guestChip": "Gäst"
   },
   "Invite": {
     "h1": "Bjud in vänner",
