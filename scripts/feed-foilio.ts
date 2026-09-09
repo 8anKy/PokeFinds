@@ -3,18 +3,23 @@
  *
  * ⛔ KÖRS SOM ETT STEG I `scrape-all.yml`, ALDRIG SOM EGEN CRON. Neon debiteras
  *    per vaken tid och varje väckning köper minst 300 s — nattkedjan har redan
- *    databasen vaken, så de här tre frågorna kostar noll extra. En egen cron hade
- *    kostat en väckning i dygnet för tre SELECT. (Samma regel som
- *    achievement-sweep, se CLAUDE.md.)
+ *    databasen vaken, så frågan kostar noll extra. En egen cron hade kostat en
+ *    väckning i dygnet för EN select. (Samma regel som achievement-sweep, CLAUDE.md.)
  *
  * VARFÖR LANEN FINNS: RSS-källorna räcker inte. Uppmätt 2026-09-09 släppte
  * relevansgrinden igenom 0 av 18 poster från de två flöden som alls svarar —
  * PokéBeach har stängt sin feed ("No feed available"), och det som finns kvar är
  * tv-spelsbloggar. Vår egen katalog vet däremot saker ingen annan svensk sajt vet:
- * vilka set som släpps, vad som är nytt hos butikerna och vad som rört sig i pris.
+ * vilka set som släpps och när.
  *
  * ⛔ INGA PÅHITTADE NYHETER. Varje post är ett FAKTUM ur databasen med en länk in
  *    i appen där man kan kontrollera det. Ingen rubrik får påstå mer än raden bär.
+ * ⛔ "NYTT I KATALOGEN" ÄR BORTTAGET (ägarbeslut 2026-09-09). Lanen postade en nyhet
+ *    per ny katalogprodukt, och katalogen är inte kurerad: första körningen mot prod
+ *    gav bland annat "Ny i katalogen: … B Grade – RIPPED SEAL". En skadad vara som
+ *    butiken råkade lägga upp är ingen nyhet. Setsläpp är det — de är få, daterade
+ *    och intressanta för alla. ⛔ Bygg inte tillbaka det utan en kvalitetsgrind som
+ *    är mätt mot verklig kataloginförsel, inte gissad.
  *
  *   npx tsx scripts/feed-foilio.ts --dry     # visar, skickar ingenting
  */
@@ -27,11 +32,6 @@ const prisma = new PrismaClient();
 const UPCOMING_DAYS = 60;
 /** …och ett som redan släppts ligger kvar så här länge som "nyss släppt". */
 const RECENT_RELEASE_DAYS = 14;
-/** Nya katalogprodukter från de senaste dygnen. */
-const NEW_PRODUCT_DAYS = 3;
-/** Hur många nya produkter som får bli varsin nyhet per körning. */
-const MAX_NEW_PRODUCTS = 8;
-
 const BASE_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se").replace(/\/+$/, "");
 
 function absolute(url: string | null | undefined): string | null {
@@ -90,46 +90,11 @@ async function setReleases(now: Date): Promise<NewsItem[]> {
   });
 }
 
-/**
- * NYTT I KATALOGEN. Auto-importen skapar produkter ur butikernas feeds (steget
- * `feed-import-run.ts` i samma kedja), så det här är i praktiken "vad har svenska
- * butiker börjat sälja sedan i går".
- *
- * ⛔ Bara produkter som har ett PRIS och inte är gömda. En produkt utan pris är
- *    inte en nyhet, den är en tom sida.
- */
-async function newProducts(now: Date): Promise<NewsItem[]> {
-  const since = new Date(now.getTime() - NEW_PRODUCT_DAYS * 86_400_000);
-  const products = await prisma.product.findMany({
-    where: {
-      createdAt: { gte: since },
-      hiddenAt: null,
-      lowestPriceOre: { not: null },
-      category: { notIn: ["SINGLE_CARD", "GRADED_CARD", "ACCESSORY", "OTHER"] },
-    },
-    select: { slug: true, title: true, imageUrl: true, lowestPriceOre: true, createdAt: true, _count: { select: { offers: true } } },
-    orderBy: { createdAt: "desc" },
-    take: MAX_NEW_PRODUCTS,
-  });
-
-  return products.map((product) =>
-    item({
-      title: `Ny i katalogen: ${product.title}`,
-      summary: `Från ${Math.round((product.lowestPriceOre ?? 0) / 100)} kr hos ${product._count.offers === 1 ? "en butik" : `${product._count.offers} butiker`}.`,
-      url: `/produkter/${product.slug}`,
-      source: "Foilio",
-      imageUrl: absolute(product.imageUrl),
-      publishedAt: product.createdAt.toISOString(),
-      category: "STORE",
-    })
-  );
-}
-
 async function main() {
   const dry = process.argv.includes("--dry");
   const now = new Date();
 
-  const news = [...(await setReleases(now)), ...(await newProducts(now))];
+  const news = await setReleases(now);
 
   // ⛔ Lanen skickar ALDRIG `events` — evenemangen ägs av rss-jobbet
   //    (.github/feed/events.json). `null` = "rör dem inte".

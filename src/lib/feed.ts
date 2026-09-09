@@ -19,8 +19,11 @@
  */
 import { z } from "zod";
 
-/** Nyhetens sort. Styr färgen på pillret och filterchipsen — håll listan kort. */
-export const NEWS_CATEGORIES = ["RELEASE", "MARKET", "STORE"] as const;
+/**
+ * Nyhetens sort. Styr färgen på pillret och filterchipsen — håll listan kort.
+ * `APP` = vad som är nytt i Foilio självt; den posten pekar alltid IN i appen.
+ */
+export const NEWS_CATEGORIES = ["RELEASE", "MARKET", "STORE", "APP"] as const;
 export type NewsCategory = (typeof NEWS_CATEGORIES)[number];
 
 /** Evenemangets sort. `OTHER` finns för att en post aldrig ska falla bort. */

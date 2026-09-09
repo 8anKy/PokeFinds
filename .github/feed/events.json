@@ -1,4 +1,87 @@
 {
-  "_readme": "Evenemang på /evenemang. Mässor, prereleases och turneringar har ingen gratis maskinläsbar källa i Sverige — de skrivs därför in här och plockas upp av nyhetsjobbet vid nästa körning (ingen deploy behövs, ingen databas rörs). Obligatoriskt: slug, title, category (EXPO|PRERELEASE|TOURNAMENT|OTHER) och startsAt (ISO med tidszon, t.ex. 2026-10-03T10:00:00+02:00). Allt annat är valfritt. Ett evenemang städas bort av sig självt dagen efter att det slutat.",
-  "events": []
+  "_readme": "Evenemang på /evenemang. Mässor, prereleases och turneringar har ingen gratis maskinläsbar källa i Sverige — de skrivs därför in här och plockas upp av nyhetsjobbet vid nästa körning (ingen deploy behövs, ingen databas rörs). Obligatoriskt: title, category (EXPO|PRERELEASE|TOURNAMENT|OTHER) och startsAt (ISO MED tidszon: +02:00 sommartid, +01:00 vintertid — sommartiden 2026 slutar 25 oktober). slug härleds ur titeln om den utelämnas. Ett evenemang städas bort av sig självt dagen efter att det slutat. ⛔ Skriv bara in det som står hos ARRANGÖREN, och lägg källan i infoUrl/ticketUrl så uppgifterna går att kontrollera.",
+  "events": [
+    {
+      "slug": "card-expo-sweden-september-2026",
+      "title": "Card Expo Sweden",
+      "category": "EXPO",
+      "startsAt": "2026-09-26T12:00:00+02:00",
+      "endsAt": "2026-09-27T16:00:00+02:00",
+      "city": "Stockholm",
+      "venue": "Fryshuset",
+      "address": "Mårtensdalsgatan 2–8, Stockholm",
+      "mapUrl": "https://www.google.com/maps/search/?api=1&query=Fryshuset+Stockholm",
+      "ticketUrl": "https://www.tickster.com/se/sv/events/2udcb4a4xvd4zt9/2026-09-26/card-expo-sweden-26-september-lordag",
+      "organizer": "Card Expo Sweden",
+      "summary": "Kortmässa på Fryshuset med Pokémon, sport och andra samlarkort. Lördag och söndag.",
+      "body": [
+        { "type": "h", "text": "Öppettider" },
+        { "type": "p", "text": "Lördag 26 september: VIP-insläpp 10:00, ordinarie 12:00–17:00. Söndag 27 september: 12:00–16:00." },
+        { "type": "h", "text": "Bra att veta" },
+        { "type": "p", "text": "Biljetter köps per dag. Kontrollera tider och pris hos arrangören innan du åker — de kan ändras." }
+      ]
+    },
+    {
+      "slug": "samlarkortfestivalen-malmo-game-week",
+      "title": "Samlarkortfestivalen på Malmö Game Week",
+      "category": "EXPO",
+      "startsAt": "2026-09-26T10:00:00+02:00",
+      "endsAt": "2026-09-27T18:00:00+02:00",
+      "city": "Malmö",
+      "venue": "Malmömässan",
+      "address": "Mässgatan 6, Malmö",
+      "mapUrl": "https://www.google.com/maps/search/?api=1&query=Malm%C3%B6m%C3%A4ssan",
+      "ticketUrl": "https://www.tickster.com/se/sv/events/5bvvuk0pneyc9y0/2026-09-26/samlarkortfestivalen-pa-besok-hos-malmo-game-week",
+      "infoUrl": "https://www.samlarkortfestivalen.se/",
+      "organizer": "Kongrexum AB",
+      "summary": "Samlarkortfestivalen gästar Malmö Game Week med en egen yta för säljbord och byten.",
+      "body": [
+        { "type": "h", "text": "Vad det är" },
+        { "type": "p", "text": "Samlarkortfestivalen har en egen pop up-yta inne på Malmö Game Week, med säljbord för Pokémon och andra samlarkort." },
+        { "type": "p", "text": "Antalet biljetter per dag är begränsat — förköp rekommenderas av arrangören." }
+      ]
+    },
+    {
+      "slug": "svenska-pokemonmassan-goteborg-oktober-2026",
+      "title": "Svenska Pokémonmässan",
+      "category": "EXPO",
+      "startsAt": "2026-10-03T09:00:00+02:00",
+      "endsAt": "2026-10-04T19:00:00+02:00",
+      "city": "Mölndal",
+      "venue": "Åby Arena",
+      "address": "Åby Arenaväg 10, Mölndal",
+      "mapUrl": "https://www.google.com/maps/search/?api=1&query=%C3%85by+Arena+M%C3%B6lndal",
+      "ticketUrl": "https://www.tickster.com/se/sv/events/2w46bm6e57t06xw/2026-10-03/svenska-pokemonmassan-3-4-oktober-2026",
+      "infoUrl": "https://www.pokemonmassan.se/",
+      "organizer": "Midnight Collective",
+      "summary": "Två dagar helt tillägnade Pokémon-kort, i Åby Arena utanför Göteborg.",
+      "body": [
+        { "type": "h", "text": "Öppettider" },
+        { "type": "p", "text": "Lördag 3 oktober och söndag 4 oktober, 09:00–19:00 båda dagarna." },
+        { "type": "h", "text": "Bra att veta" },
+        { "type": "p", "text": "Mässan är renodlat Pokémon — säljare, byten och aktiviteter under båda dagarna. Kontrollera tider och pris hos arrangören innan du åker." }
+      ]
+    },
+    {
+      "slug": "samlarkortfestivalen-stockholm-oktober-2026",
+      "title": "Samlarkortfestivalen Stockholm",
+      "category": "EXPO",
+      "startsAt": "2026-10-24T11:00:00+02:00",
+      "endsAt": "2026-10-25T16:00:00+01:00",
+      "city": "Stockholm",
+      "venue": "Stockholm Waterfront",
+      "address": "Nils Ericsons Plan 4, Stockholm",
+      "mapUrl": "https://www.google.com/maps/search/?api=1&query=Stockholm+Waterfront",
+      "ticketUrl": "https://www.tickster.com/se/sv/events/u4rlrw865h6znme/2026-10-24/samlarkortfestivalen-stockholm-24-25-oktober-2026",
+      "infoUrl": "https://www.samlarkortfestivalen.se/",
+      "organizer": "Kongrexum AB",
+      "summary": "Samlarkortfestivalens höstmässa i Stockholm: Pokémon, Magic, Yu-Gi-Oh, Lorcana, sport och mer.",
+      "body": [
+        { "type": "h", "text": "Öppettider" },
+        { "type": "p", "text": "Lördag 24 oktober 11:00–18:00 (VIP 09:00, Priority 10:00). Söndag 25 oktober 11:00–16:00 (Priority 10:00)." },
+        { "type": "h", "text": "Bra att veta" },
+        { "type": "p", "text": "Arrangören uppger begränsat antal biljetter. Kontrollera tider och pris hos dem innan du åker." }
+      ]
+    }
+  ]
 }

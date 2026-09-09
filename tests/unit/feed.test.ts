@@ -8,6 +8,8 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  EVENT_CATEGORIES,
+  NEWS_CATEGORIES,
   clampSummary,
   daysUntil,
   eventItemSchema,
@@ -213,5 +215,48 @@ describe("rss-läsaren", () => {
   it("avkodar dubbelkodade entiteter", () => {
     expect(decodeEntities("Tom &amp;#39;s kort")).toBe("Tom 's kort");
     expect(stripTags("<p>a&nbsp;&amp;&nbsp;b</p>")).toBe("a & b");
+  });
+});
+
+describe("kategorierna har copy på båda språken", () => {
+  // ⛔ En ny kategori utan `cat<NAMN>`-nyckel KRASCHAR pillret i UI:t
+  // (next-intl kastar på en saknad nyckel), och det syns först i drift eftersom
+  // kategorin sätts av ett jobb — inte av koden som renderar. Testet är billigare.
+  const sv = require("../../messages/sv.json") as { News: Record<string, string> };
+  const en = require("../../messages/en.json") as { News: Record<string, string> };
+
+  it.each([...NEWS_CATEGORIES, ...EVENT_CATEGORIES])("%s", (category) => {
+    expect(sv.News[`cat${category}`], `sv saknar cat${category}`).toBeTruthy();
+    expect(en.News[`cat${category}`], `en saknar cat${category}`).toBeTruthy();
+  });
+});
+
+describe("kurerade poster (.github/feed/news.json)", () => {
+  it("en app-uppdatering pekar in i appen och öppnas i samma vy", () => {
+    const parsed = newsItemSchema.parse({
+      id: "x",
+      title: "Nyheter och evenemang finns nu i Foilio",
+      url: "/nyheter",
+      internal: true,
+      source: "Foilio",
+      category: "APP",
+      publishedAt: "2026-09-09",
+    });
+    expect(parsed.internal).toBe(true);
+    expect(parsed.category).toBe("APP");
+    // Kurerade poster tillhör rss-lanen (jobbet som läser filen).
+    expect(parsed.lane).toBe("rss");
+  });
+
+  it("filerna i repot går att läsa och validera", async () => {
+    const { readFile } = await import("fs/promises");
+    const news = JSON.parse(await readFile(".github/feed/news.json", "utf8")) as { news: unknown[] };
+    const events = JSON.parse(await readFile(".github/feed/events.json", "utf8")) as { events: unknown[] };
+    for (const raw of news.news) {
+      expect(newsItemSchema.safeParse({ id: "x", ...(raw as object) }).success, JSON.stringify(raw).slice(0, 80)).toBe(true);
+    }
+    for (const raw of events.events) {
+      expect(eventItemSchema.safeParse({ id: "x", ...(raw as object) }).success, JSON.stringify(raw).slice(0, 80)).toBe(true);
+    }
   });
 });

@@ -2393,6 +2393,7 @@
     "metaEventsDescription": "Upcoming Pokémon expos, prereleases and tournaments in Sweden.",
     "openInApp": "Open in Foilio",
     "eventNotFound": "Event not found",
-    "eventNotFoundBody": "The event has either been removed or has already taken place."
+    "eventNotFoundBody": "The event has either been removed or has already taken place.",
+    "catAPP": "app"
   }
 }

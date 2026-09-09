@@ -44,6 +44,14 @@ paths:
 - ⛔ **INGEN GODKÄNNANDEKÖ** (ägarbeslut 2026-09-09): flödet publicerar sig självt. Följden är att
   RELEVANSGRINDEN och kategorireglerna är det enda som står mellan källan och läsaren — de är alltså
   korrekthetskod, inte finputs.
+- **TRE FILER I `.github/feed/`, ALLA UTANFÖR `watchPatterns`** ⇒ en ändring i dem kostar varken deploy
+  eller databas: `sources.json` (RSS-källor), `news.json` (handskrivna nyheter — marknadsnyheter och
+  "nytt i Foilio", kategori `APP`) och `events.json`. Kurerade poster går in i rss-lanen och sorteras
+  in bland de hämtade på `publishedAt`, som ska vara **när nyheten bröt** — inte när den skrevs in.
+- ⛔ **"NYTT I KATALOGEN" ÄR BORTTAGET UR FOILIO-LANEN (ägarbeslut 2026-09-09).** Lanen postade en nyhet
+  per ny katalogprodukt; katalogen är inte kurerad, och första körningen mot prod gav bland annat
+  "Ny i katalogen: … B Grade – RIPPED SEAL". Setsläpp är kvar — de är få, daterade och angår alla.
+  ⛔ Bygg inte tillbaka det utan en kvalitetsgrind mätt mot verklig kataloginförsel.
 - **Evenemang skrivs in i `.github/feed/events.json`.** Det finns ingen gratis maskinläsbar källa för
   svenska Pokémon-mässor (Play! Pokémons event-API svarar inte publikt, Facebook har inget gratis API).
   Filen ligger under `.github/` MED FLIT: Railways `watchPatterns` hoppar över mappen, så ett nytt

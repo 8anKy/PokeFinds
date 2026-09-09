@@ -22,6 +22,7 @@ import {
   feedPublishSchema,
   inferNewsCategory,
   isTcgRelevant,
+  newsItemSchema,
   slugify,
   stableId,
   type NewsCategory,
@@ -111,8 +112,27 @@ async function main() {
 
   const { sources } = await readJson<{ sources: Source[] }>(path.join(dir, "sources.json"));
   const { events: rawEvents } = await readJson<{ events: unknown[] }>(path.join(dir, "events.json"));
+  const { news: rawCurated } = await readJson<{ news: unknown[] }>(path.join(dir, "news.json"));
 
-  const news = await collectNews(sources, dry);
+  // KURERADE POSTER FÖRST i listan (marknadsnyheter och "nytt i Foilio"). De
+  // sorteras ändå på publishedAt i `normalizeFeed` — ordningen här spelar bara
+  // roll för dubblettvakten, och en handskriven post ska vinna över en
+  // maskinhämtad med samma id.
+  // ⛔ En felskriven post ska SÄGA IFRÅN, inte försvinna tyst.
+  const curated: NewsItem[] = [];
+  for (const raw of rawCurated) {
+    const source = raw as { url?: string };
+    const parsed = newsItemSchema.safeParse({ id: stableId(source.url ?? JSON.stringify(raw)), ...(raw as object), lane: "rss" });
+    if (!parsed.success) {
+      console.warn(`::warning::[feed] kurerad nyhet hoppades över: ${parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`);
+      continue;
+    }
+    curated.push(parsed.data);
+  }
+  console.log(`[feed] kurerade poster: ${curated.length}.`);
+  if (dry) for (const n of curated) console.log(`        · [${n.category}] ${n.title}`);
+
+  const news = [...curated, ...(await collectNews(sources, dry))];
 
   // ⛔ Ett felskrivet evenemang ska SÄGA IFRÅN, inte försvinna tyst. Jobbet
   // fortsätter med de övriga, men raden syns som en varning på körningen.

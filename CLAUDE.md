@@ -118,12 +118,14 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   och en Neon-väckning köper minst 300 s. Skrivs av `POST /api/cron/feed-publish` (x-cron-secret), läses av
   sidorna bakom `cachedRead` med egen tagg. **Två producenter, en `lane` var**: `news-feed.yml` (DB-FRITT,
   3 ggr/dygn, RSS ur `.github/feed/sources.json` + evenemang ur `.github/feed/events.json`) och
-  `scripts/feed-foilio.ts` som ett **STEG i `scrape-all`** (setsläpp + nytt i katalogen; aldrig egen cron).
+  `scripts/feed-foilio.ts` som ett **STEG i `scrape-all`** (BARA setsläpp; "nytt i katalogen" är BORTTAGET
+  — katalogen är inte kurerad och gav rubriker som "Ny i katalogen: … RIPPED SEAL").
   Rutten ersätter EN lane i taget — utan `lane` hade det jobb som körde sist raderat det andras poster.
   ⛔ **RSS ensamt räcker inte, mätt**: PokéBeach har stängt sin feed och de flöden som svarar är
   tv-spelsbloggar (relevansgrinden släppte 0 av 18) — vår egen katalog är huvudkällan. ⛔ Vi återger aldrig
-  en artikels text: rubrik + ingress + källa + länk UT, bilden hotlänkas. Evenemang skrivs in i
-  `.github/feed/events.json` (ingen gratis källa finns; mappen är utanför `watchPatterns` ⇒ ingen deploy).
+  en artikels text: rubrik + ingress + källa + länk UT, bilden hotlänkas. Tre filer i `.github/feed/`
+  (utanför `watchPatterns` ⇒ ingen deploy, ingen DB): `sources.json` (RSS), `news.json` (handskrivna
+  marknadsnyheter + "nytt i Foilio", kategori `APP`) och `events.json` (ingen gratis eventkälla finns).
   ⛔ Ingen "påminn mig", ingen godkännandekö (ägarbeslut).
 - ⛔ **TRE TAL OM ETT SET, ALDRIG BLANDADE**: `totalCards` = printedTotal (talet på kortet, som skannern
   läser — byt ALDRIG mening på den); `totalCardsFull` = hela setet inkl. secret rares (kompletteringens
