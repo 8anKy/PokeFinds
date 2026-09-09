@@ -4,7 +4,6 @@ import { useTranslations } from "next-intl";
 import { signOut } from "next-auth/react";
 import { useRouter } from "@/i18n/navigation";
 import { setAuthHint } from "@/lib/auth-hint";
-import { IconLogout } from "@/components/ui/icons";
 
 export function LogoutButton() {
   const t = useTranslations("More");
@@ -20,11 +19,11 @@ export function LogoutButton() {
         setAuthHint(false);
         router.replace("/produkter");
       }}
-      // Menyrad-stil (inte fristående knapp): som sista rad i kortet ryms hela
-      // Mer-sidan utan scroll även med invite-kortet + adminraden på en mobil.
-      className="flex w-full items-center gap-3 border-t border-surface-border px-4 py-3 text-sm font-medium text-fall transition-colors hover:bg-surface-overlay/60"
+      // Fristående, dämpad knapp längst ned (2026-09-09): sidan är nu sektionerad
+      // och en röd rad inne i ett kort läste som en meny­post man kunde råka
+      // trycka på. Ingen ikon — knappen står ensam och behöver ingen.
+      className="flex h-12 w-full items-center justify-center rounded-[14px] border border-surface-border text-sm font-medium text-ink-muted transition-colors hover:bg-surface-overlay/60 hover:text-ink active:bg-surface-overlay"
     >
-      <IconLogout size={20} className="shrink-0" />
       {t("logout")}
     </button>
   );

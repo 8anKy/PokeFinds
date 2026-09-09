@@ -1579,7 +1579,21 @@
     "guestTerms": "Användarvillkor",
     "guestPrivacy": "Integritetspolicy",
     "guestCookies": "Cookiepolicy",
-    "guestContact": "Kontakt"
+    "guestContact": "Kontakt",
+    "cardRole": "Samlare",
+    "planChipFree": "Gratis",
+    "planChipPro": "Pro",
+    "memberSince": "Medlem sedan {since}",
+    "statWatching": "Bevakar",
+    "statBadges": "Märken",
+    "statScans": "Skann kvar",
+    "sectionActivity": "Din aktivitet",
+    "sectionTools": "Verktyg",
+    "sectionPro": "Pro",
+    "proBody": "Obegränsad prisbevakning, AI-gradering och bulkskanning",
+    "proPrice": "49 kr/mån",
+    "inviteRow": "Bjud in 3 vänner — 1 månad Pro gratis",
+    "manageBody": "Hantera din prenumeration"
   },
   "Invite": {
     "h1": "Bjud in vänner",

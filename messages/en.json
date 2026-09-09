@@ -1579,7 +1579,21 @@
     "guestTerms": "Terms of Service",
     "guestPrivacy": "Privacy Policy",
     "guestCookies": "Cookie policy",
-    "guestContact": "Contact"
+    "guestContact": "Contact",
+    "cardRole": "Collector",
+    "planChipFree": "Free",
+    "planChipPro": "Pro",
+    "memberSince": "Member since {since}",
+    "statWatching": "Watching",
+    "statBadges": "Badges",
+    "statScans": "Scans left",
+    "sectionActivity": "Your activity",
+    "sectionTools": "Tools",
+    "sectionPro": "Pro",
+    "proBody": "Unlimited price watching, AI grading and bulk scanning",
+    "proPrice": "49 kr/month",
+    "inviteRow": "Invite 3 friends — 1 month of Pro free",
+    "manageBody": "Manage your subscription"
   },
   "Invite": {
     "h1": "Invite friends",

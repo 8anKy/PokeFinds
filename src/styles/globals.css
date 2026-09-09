@@ -435,3 +435,36 @@ table td,
 html[data-native] .web-only {
   display: none !important;
 }
+
+/* ---------------------------------------------------------------------------
+ * Kontokortet överst på /mer — samlarkortet med ditt namn.
+ *
+ * ⛔ SAMMA FÄRGREGEL SOM PRO-KORTET OVAN (ägaren 2026-09-05: "för många färger"):
+ * turkos (holo.cyan), mörk teal (brand.dark) och vitt. Ingen violett, rosa eller
+ * guld — regnbågen är det som gjorde gamla /mer barnslig, och den ska inte smyga
+ * tillbaka via en gradient.
+ *
+ * Kortet är STILLA med flit: ingen lutning, inga gnistor, ingen animering. Pro-
+ * kortet på /priser får röra sig eftersom det SÄLJER; det här är bara ditt konto,
+ * och ett kort som glittrar varje gång man öppnar en meny blir tröttsamt.
+ * ------------------------------------------------------------------------ */
+.account-card {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 12% 0%, rgba(45, 212, 191, 0.22), transparent 58%),
+    radial-gradient(90% 80% at 100% 100%, rgba(15, 118, 110, 0.26), transparent 62%),
+    linear-gradient(160deg, #05100f, #000 60%);
+}
+/* Folieglansen: ett stilla, snedställt ljusband. */
+.account-card::after {
+  content: "";
+  position: absolute;
+  left: -40%;
+  top: -60%;
+  width: 85%;
+  height: 220%;
+  transform: rotate(18deg);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+  pointer-events: none;
+}

@@ -418,3 +418,28 @@ export const IconMapPin = (p: IconProps) => (
     <circle cx="12" cy="10" r="2.6" />
   </svg>
 );
+
+/** Medalj — utmärkelser. Ersätter stjärnan: en stjärna läser som "favorit". */
+export const IconMedal = (p: IconProps) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="9" r="5" />
+    <path d="m8.5 13.5-1.5 7 5-2.5 5 2.5-1.5-7" />
+  </svg>
+);
+
+/** Reglage — inställningar. Kugghjulet läser som "system", detta som "dina val". */
+export const IconSliders = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+    <circle cx="16" cy="7" r="2.2" />
+    <circle cx="10" cy="17" r="2.2" />
+  </svg>
+);
+
+/** Panel med rubrikrad — adminpanelen (skiftnyckeln läste som "reparation"). */
+export const IconPanel = (p: IconProps) => (
+  <svg {...base(p)}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M3 9h18M8 13h8M8 16.5h5" />
+  </svg>
+);
