@@ -8,6 +8,9 @@ import {
   computeLowestPrice,
 } from "@/services/products";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
+import { normalizePrinting, parseImportNumber } from "@/lib/import-normalize";
+import type { ImportDraftRow } from "@/lib/import-rows";
+import { resolveImportRows } from "@/services/collection-import";
 import type { CardCondition, CardLanguage } from "@prisma/client";
 
 /**
@@ -32,6 +35,10 @@ const COLLECTION_INCLUDE = {
       rarity: true,
       imageUrl: true,
       language: true,
+      // pokemontcg.io-id ("sv3pt5-25"). Bärs av CSV-exporten så att en
+      // återimport av vår egen fil träffar EXAKT rätt kort i stället för att
+      // matchas fram på nytt. Billig skalär på en rad vi ändå hämtar.
+      tcgExternalId: true,
       set: { select: { id: true, name: true } },
     },
   },
@@ -325,7 +332,7 @@ export async function computeCollectionValue(
     .slice(0, opts?.topItems ?? 5)
     .map((i) => ({
       id: i.id,
-      name: i.card?.name ?? i.product?.title ?? "Okänt objekt",
+      name: i.card?.name ?? i.product?.title ?? i.customTitle ?? "Okänt objekt",
       quantity: i.quantity,
       estimatedValue: valueOf(i.id),
       totalValue: (valueOf(i.id) ?? 0) * i.quantity,
@@ -445,7 +452,7 @@ export async function computeCollectionValue(
         if (percent <= 0) continue;
         list.push({
           id: i.id,
-          name: i.card?.name ?? i.product?.title ?? "Okänt objekt",
+          name: i.card?.name ?? i.product?.title ?? i.customTitle ?? "Okänt objekt",
           imageUrl: i.imageUrl ?? i.card?.imageUrl ?? i.product?.imageUrl ?? null,
           setName: i.card?.set?.name ?? null,
           value: valueOf(i.id),
@@ -482,6 +489,18 @@ export async function computeCollectionValue(
 
 // ---------- CSV ----------
 
+/**
+ * ⛔ DE TIO FÖRSTA KOLUMNERNA LIGGER FAST — nya läggs SIST.
+ *
+ * Exporten är någons backup. En användare som exporterade i fjol och importerar
+ * i år ska få tillbaka sin samling, och en kolumn som byter PLATS bryter varje
+ * kalkylark och skript någon byggt ovanpå filen.
+ *
+ * De fem sista tillkom 2026-09-10 och gör återimporten EXAKT i stället för
+ * gissad: `tcgId` (pokemontcg.io-id) binder singeln, `slug` binder produkten
+ * (enda vägen för sealed, som saknar kort), och set/nummer/variant gör filen
+ * läsbar för en människa som öppnar den i Excel.
+ */
 const CSV_HEADERS = [
   "name",
   "quantity",
@@ -493,6 +512,11 @@ const CSV_HEADERS = [
   "gradingCompany",
   "grade",
   "notes",
+  "set",
+  "number",
+  "variant",
+  "tcgId",
+  "slug",
 ] as const;
 
 function csvEscape(value: string): string {
@@ -507,7 +531,7 @@ export async function exportCollectionCsv(userId: string): Promise<string> {
   const items = await listCollection(userId);
   const lines = [CSV_HEADERS.join(",")];
   for (const item of items) {
-    const name = item.card?.name ?? item.product?.title ?? "";
+    const name = item.card?.name ?? item.product?.title ?? item.customTitle ?? "";
     lines.push(
       [
         csvEscape(name),
@@ -520,6 +544,11 @@ export async function exportCollectionCsv(userId: string): Promise<string> {
         csvEscape(item.gradingCompany ?? ""),
         csvEscape(item.grade ?? ""),
         csvEscape(item.notes ?? ""),
+        csvEscape(item.card?.set?.name ?? ""),
+        csvEscape(item.card?.number ?? ""),
+        csvEscape(item.product?.variantLabel ?? ""),
+        csvEscape(item.card?.tcgExternalId ?? ""),
+        csvEscape(item.product?.slug ?? ""),
       ].join(",")
     );
   }
@@ -528,6 +557,14 @@ export async function exportCollectionCsv(userId: string): Promise<string> {
 
 const importRowSchema = z.object({
   name: z.string().min(1, "Namn krävs."),
+  // Identitetsfälten. Valfria för bakåtkompatibilitet, men utan dem kan raden
+  // bara matchas på NAMN — och ett namn är inte en identitet (se nedan).
+  set: z.string().max(200).optional(),
+  setCode: z.string().max(40).optional(),
+  number: z.union([z.string(), z.number()]).optional(),
+  variant: z.string().max(60).optional(),
+  tcgId: z.string().max(100).optional(),
+  slug: z.string().max(200).optional(),
   quantity: z.coerce.number().int().min(1).default(1),
   condition: z
     .enum(["MINT", "NEAR_MINT", "EXCELLENT", "GOOD", "PLAYED", "POOR", "SEALED"])
@@ -546,11 +583,26 @@ export type ImportRow = z.input<typeof importRowSchema>;
 export interface ImportResult {
   imported: number;
   errors: { row: number; message: string }[];
+  /** Rader som inte kunde bindas till katalogen och blev fritextposter. */
+  unmatched: number;
 }
 
 /**
- * Importerar samlingsrader. Validerar varje rad och returnerar fel per rad.
- * Giltiga rader skapas i en transaktion. Matchar kort på namn om möjligt.
+ * Importerar samlingsrader (publikt API + native-klienten). Validerar varje rad,
+ * returnerar fel per rad och skapar de giltiga.
+ *
+ * ⛔ NAMNET ÄR INTE EN IDENTITET (lagat 2026-09-10). Den här funktionen gjorde
+ * `findMany({ name: { in: … } })` och tog första träffen per namn: "Pikachu"
+ * finns på hundratals kort i katalogen, så posten fick ett GODTYCKLIGT kort —
+ * fel set, fel bild, fel värde, tyst. Matchningen går nu genom samma stege som
+ * webbimporten (`services/collection-import.ts`): slug → pokemontcg-id → set +
+ * nummer → namn + nummer → namn + set → namn, och namnet får bara vinna när det
+ * är ENTYDIGT.
+ *
+ * ⛔ EN TVETYDIG RAD BLIR FRITEXT, INTE EN GISSNING. Det publika API:t har ingen
+ * användare att fråga, så en rad med flera kandidater skrivs som en post med
+ * `customTitle` — den syns i samlingen, saknar värde, och ljuger inte om vilket
+ * kort den är. `unmatched` i svaret säger hur många det blev.
  */
 export async function importCollectionRows(
   userId: string,
@@ -572,39 +624,57 @@ export async function importCollectionRows(
     }
   });
 
-  if (valid.length === 0) return { imported: 0, errors };
+  if (valid.length === 0) return { imported: 0, errors, unmatched: 0 };
 
-  // Försök matcha kort på namn (best effort)
-  const names = Array.from(new Set(valid.map((v) => v.data.name)));
-  const cards = await prisma.card.findMany({
-    where: { name: { in: names, mode: "insensitive" } },
-    select: { id: true, name: true },
-  });
-  const cardByName = new Map(cards.map((c) => [c.name.toLowerCase(), c.id]));
+  const drafts: ImportDraftRow[] = valid.map((v) => ({
+    row: v.row,
+    name: v.data.name,
+    setName: v.data.set ?? "",
+    setCode: v.data.setCode ?? "",
+    number: parseImportNumber(String(v.data.number ?? "")),
+    quantity: v.data.quantity,
+    condition: v.data.condition,
+    language: v.data.language,
+    variantLabel: v.data.variant ? normalizePrinting(v.data.variant) : null,
+    purchasePrice: v.data.purchasePrice ?? null,
+    purchaseDate: v.data.purchaseDate ?? null,
+    estimatedValue: v.data.estimatedValue ?? null,
+    gradingCompany: v.data.gradingCompany ?? null,
+    grade: v.data.grade ?? null,
+    notes: v.data.notes ?? null,
+    externalId: v.data.tcgId ?? null,
+    slug: v.data.slug ?? null,
+    itemType: null,
+  }));
+
+  const resolved = await resolveImportRows(drafts);
+  const matchByRow = new Map(resolved.map((r) => [r.row, r]));
+  let unmatched = 0;
 
   await prisma.$transaction(
-    valid.map((v) =>
-      prisma.collectionItem.create({
+    drafts.map((draft) => {
+      const hit = matchByRow.get(draft.row);
+      const match = hit?.status === "matched" ? hit.match : null;
+      if (!match) unmatched++;
+      return prisma.collectionItem.create({
         data: {
           userId,
-          cardId: cardByName.get(v.data.name.toLowerCase()),
-          quantity: v.data.quantity,
-          condition: v.data.condition,
-          language: v.data.language,
-          purchasePrice: v.data.purchasePrice,
-          purchaseDate: v.data.purchaseDate,
-          estimatedValue: v.data.estimatedValue,
-          gradingCompany: v.data.gradingCompany,
-          grade: v.data.grade,
-          notes: v.data.notes
-            ? v.data.notes
-            : cardByName.has(v.data.name.toLowerCase())
-              ? undefined
-              : `Importerad: ${v.data.name}`,
+          cardId: match?.cardId ?? undefined,
+          productId: match?.productId ?? undefined,
+          customTitle: match ? undefined : draft.name.slice(0, 300),
+          quantity: draft.quantity,
+          condition: draft.condition ?? undefined,
+          language: draft.language ?? undefined,
+          purchasePrice: draft.purchasePrice ?? undefined,
+          purchaseDate: draft.purchaseDate ?? undefined,
+          estimatedValue: draft.estimatedValue ?? undefined,
+          gradingCompany: draft.gradingCompany ?? undefined,
+          grade: draft.grade ?? undefined,
+          notes: draft.notes ?? undefined,
         },
-      })
-    )
+      });
+    })
   );
 
-  return { imported: valid.length, errors };
+  return { imported: valid.length, errors, unmatched };
 }

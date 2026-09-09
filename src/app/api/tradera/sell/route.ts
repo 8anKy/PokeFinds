@@ -99,7 +99,7 @@ export async function POST(req: Request) {
     if (!item) throw new ServiceError(404, "Objektet hittades inte i din samling.");
 
     const isSingle = !!item.cardId;
-    const name = item.card?.name ?? item.product?.title ?? item.notes ?? "Pokémon-kort";
+    const name = item.card?.name ?? item.product?.title ?? item.customTitle ?? item.notes ?? "Pokémon-kort";
     const setName = item.card?.set?.name ?? null;
     const number = item.card?.number ?? null;
     const condLabel = conditionLabel(input.condition ?? item.condition, isSingle);

@@ -81,7 +81,7 @@ export async function PortfolioPane({
     return {
       key: g.key,
       itemId: r.id,
-      name: r.card?.name ?? r.product?.title ?? r.notes ?? tc("unknownItem"),
+      name: r.card?.name ?? r.product?.title ?? r.customTitle ?? r.notes ?? tc("unknownItem"),
       setName: r.card?.set?.name ?? null,
       imageUrl: r.imageUrl ?? r.card?.imageUrl ?? r.product?.imageUrl ?? null,
       slug: r.product?.slug ?? (r.cardId ? (slugByCard.get(r.cardId) ?? null) : null),

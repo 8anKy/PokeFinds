@@ -244,6 +244,7 @@ model User {
   setWatches       SetWatch[]
   alerts           Alert[]
   collectionItems  CollectionItem[]
+  collectionImports CollectionImport[]
   posts            CommunityPost[]
   comments         Comment[]
   likes            Like[]
@@ -1034,6 +1035,18 @@ model CollectionItem {
   grade          String?
   notes          String?
   imageUrl       String?
+  /// Namnet posten ska visa när den INTE kunde bindas till katalogen — i praktiken
+  /// CSV-importens omatchade rader ("Pikachu Trophy Trainer" ur en japansk promo vi
+  /// inte listar). ⛔ Alternativet vore att stoppa namnet i `notes`, som redan
+  /// används som visningsreserv på fem ställen — men då kan en post aldrig ha BÅDE
+  /// ett namn och en anteckning, och användarens egen anteckningskolumn ur filen
+  /// hade fått skrivas över. Ett eget fält är också det ärliga: raden HAR ett namn,
+  /// den saknar ett kort. ⛔ Fyll den ALDRIG för en matchad post — då kan namnet
+  /// säga en sak och kortet en annan.
+  customTitle    String?
+  /// Vilken CSV-import posten kom ur. Bär ångra-funktionen och proveniensen
+  /// ("importerad från en CSV-fil 2026-09-10"). NULL = tillagd på annat sätt.
+  importId       String?
   // Traderas objektnr när objektet lagts ut till försäljning (för auto-borttagning vid sålt).
   traderaItemId  String?
   createdAt      DateTime      @default(now())
@@ -1042,8 +1055,49 @@ model CollectionItem {
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   card    Card?    @relation(fields: [cardId], references: [id])
   product Product? @relation(fields: [productId], references: [id])
+  /// ⛔ SetNull, aldrig Cascade: att radera importPOSTEN får aldrig kunna radera
+  /// någons samling. Ångra-vägen raderar objekten EXPLICIT och lämnar importraden
+  /// kvar märkt `undoneAt` — annars hade nästa import av samma fil varnat för en
+  /// import som inte längre finns.
+  import  CollectionImport? @relation(fields: [importId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([importId])
+}
+
+/// EN CSV-IMPORT AV EN SAMLING.
+///
+/// Finns av tre skäl, i fallande tyngd:
+/// (1) **Ångra.** En felaktig import av 3 000 rader går inte att städa för hand, och
+///     utan en gruppnyckel finns inget som skiljer de importerade posterna från de
+///     användaren lagt till själv.
+/// (2) **Dubblettvarning.** `fingerprint` är en hash av filens INNEHÅLL, inte av
+///     filnamnet — "collection (1).csv" är samma fil som "collection.csv", och det
+///     är innehållet som fördubblar samlingen.
+/// (3) **Proveniens.** Importkälla + datum på posten gör en
+///     felaktig matchning spårbar till sin källa i stället för att se ut som något
+///     användaren själv skrivit in.
+model CollectionImport {
+  id           String    @id @default(cuid())
+  userId       String
+  /// Filnamnet användaren valde. Enda handtaget hen känner igen importen på.
+  fileName     String
+  /// Profilen vi läste filen som ("tcgplayer", "foilio") eller "generic".
+  source       String    @default("generic")
+  /// SHA-256 (hex) över filens råa text.
+  fingerprint  String
+  rowCount     Int       @default(0)
+  matchedCount Int       @default(0)
+  createdAt    DateTime  @default(now())
+  /// Satt när användaren ångrat importen. Raden BEHÅLLS: en ångrad import ska
+  /// kunna göras om utan dubblettvarning, och historiken är svaret på "vart tog
+  /// mina kort vägen?".
+  undoneAt     DateTime?
+
+  user  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CollectionItem[]
+
+  @@index([userId, createdAt])
 }
 
 // ---------- Community ----------

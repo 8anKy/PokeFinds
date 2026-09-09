@@ -65,6 +65,15 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
 - **Funktioner live**: watchlist/prisbevakning, restock-alerts (41 butiker), samlingsvärde, AI-gradering
   (`/gradera`), live kort-skanner (`/skanna`), community, admin, PWA, **set-komplettering** (Set-fliken i
   `/samling` + stapel på `/sets/[id]`).
+- **CSV-IMPORT AV SAMLINGEN (2026-09-10)**: `/samling/importera` läser CSV/TSV i webbläsaren (komma,
+  semikolon, tabb eller pipe; max 5 000 rader), tolkar vanliga rubriker och låter användaren rätta
+  kolumnmappningen. Matchningsstegen är slug → externt kort-id → set + nummer → namn + nummer →
+  namn + set → entydigt namn; ⛔ en tvetydig rad gissas ALDRIG utan visas för val, och en omatchad
+  rad kan sparas som `customTitle` utan påhittat värde. Hela filen skrivs atomiskt till egna lots med
+  `CollectionImport`/`importId`, dubblettvarnas på innehållshash och kan ångras i ett svep. Utländska
+  inköpspriser räknas INTE om till dagens kurs; de lämnas tomma och redovisas i granskningen. Foilios
+  export bär nu set/nummer/variant/externt id/slug sist i filen så en återimport blir exakt utan att
+  bryta gamla kalkylark. Regler: `.claude/rules/collection-portfolio.md`.
 - **COMMUNITY V2 I KOD SEDAN 2026-09-03, GRINDAT TILLS ÄGAREN TESTAT** (`.claude/rules/community-v2.md`):
   forum med kurerade grupper + Köp/Sälj/Byt-trådar (`/forum`), bilder i Railway Bucket, 1:1-meddelanden via SSE
   (`/meddelanden`, aldrig pollning), Tradera-annonser på profilen (egen spak). Syns BARA för admin, för

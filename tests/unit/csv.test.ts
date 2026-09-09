@@ -8,6 +8,7 @@ const collectionFindMany = vi.fn();
 const collectionCreate = vi.fn();
 const cardFindMany = vi.fn();
 const transaction = vi.fn();
+const resolveImportRows = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -20,6 +21,10 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/services/collection-import", () => ({
+  resolveImportRows: (...args: unknown[]) => resolveImportRows(...args),
+}));
+
 import { exportCollectionCsv, importCollectionRows } from "@/services/collection";
 
 beforeEach(() => {
@@ -27,6 +32,16 @@ beforeEach(() => {
   collectionCreate.mockReset().mockImplementation((args: unknown) => args);
   cardFindMany.mockReset().mockResolvedValue([]);
   transaction.mockReset().mockResolvedValue([]);
+  resolveImportRows.mockReset().mockImplementation((rows: Array<{ row: number; name: string }>) =>
+    Promise.resolve(rows.map((row) => ({
+      row: row.row,
+      name: row.name,
+      status: "unmatched",
+      kind: null,
+      match: null,
+      options: [],
+    })))
+  );
 });
 
 function stubItem(overrides: Record<string, unknown> = {}) {
@@ -41,6 +56,7 @@ function stubItem(overrides: Record<string, unknown> = {}) {
     gradingCompany: null,
     grade: null,
     notes: null,
+    customTitle: null,
     card: null,
     product: null,
     createdAt: new Date(),
@@ -53,7 +69,7 @@ describe("exportCollectionCsv", () => {
     collectionFindMany.mockResolvedValue([]);
     const csv = await exportCollectionCsv("user-1");
     expect(csv).toBe(
-      "name,quantity,condition,language,purchasePrice,purchaseDate,estimatedValue,gradingCompany,grade,notes"
+      "name,quantity,condition,language,purchasePrice,purchaseDate,estimatedValue,gradingCompany,grade,notes,set,number,variant,tcgId,slug"
     );
   });
 
@@ -75,7 +91,7 @@ describe("exportCollectionCsv", () => {
     const csv = await exportCollectionCsv("user-1");
     const lines = csv.split("\n");
     expect(lines).toHaveLength(2);
-    expect(lines[1]).toBe("Pikachu,2,MINT,SV,12500,2025-02-01,20000,PSA,10,");
+    expect(lines[1]).toBe("Pikachu,2,MINT,SV,12500,2025-02-01,20000,PSA,10,,,,,,");
   });
 
   it("escapar fält med kommatecken och citattecken", async () => {
@@ -98,6 +114,21 @@ describe("exportCollectionCsv", () => {
     ]);
     const csv = await exportCollectionCsv("user-1");
     expect(csv.split("\n")[1].startsWith("Booster Box,")).toBe(true);
+  });
+
+  it("bevarar identitetskolumner och namnet på en omatchad post", async () => {
+    collectionFindMany.mockResolvedValue([
+      stubItem({
+        customTitle: "Eget promokort",
+        card: { name: "Pikachu", number: "25", tcgExternalId: "sv-test-25", set: { name: "Test Set" } },
+        product: { title: "Pikachu", slug: "pikachu-test-25", variantLabel: "Reverse Holo" },
+      }),
+      stubItem({ id: "item-2", customTitle: "Okänt kort" }),
+    ]);
+
+    const lines = (await exportCollectionCsv("user-1")).split("\n");
+    expect(lines[1]).toContain(",Test Set,25,Reverse Holo,sv-test-25,pikachu-test-25");
+    expect(lines[2].startsWith("Okänt kort,")).toBe(true);
   });
 });
 
@@ -142,19 +173,27 @@ describe("importCollectionRows", () => {
     expect(transaction).not.toHaveBeenCalled();
   });
 
-  it("matchar kort på namn (skiftlägesokänsligt)", async () => {
-    cardFindMany.mockResolvedValue([{ id: "card-9", name: "Pikachu" }]);
+  it("använder den entydiga katalogträffen", async () => {
+    resolveImportRows.mockResolvedValue([{
+      row: 1,
+      name: "pikachu",
+      status: "matched",
+      kind: "name",
+      match: { cardId: "card-9", productId: "product-9" },
+      options: [],
+    }]);
 
     await importCollectionRows("user-1", [{ name: "pikachu" }]);
 
-    const call = collectionCreate.mock.calls[0][0] as { data: { cardId?: string } };
+    const call = collectionCreate.mock.calls[0][0] as { data: { cardId?: string; productId?: string } };
     expect(call.data.cardId).toBe("card-9");
+    expect(call.data.productId).toBe("product-9");
   });
 
   it("returnerar tomt resultat utan databasanrop när alla rader är ogiltiga", async () => {
     const result = await importCollectionRows("user-1", [{}, { quantity: 3 }]);
     expect(result.imported).toBe(0);
     expect(result.errors).toHaveLength(2);
-    expect(cardFindMany).not.toHaveBeenCalled();
+    expect(resolveImportRows).not.toHaveBeenCalled();
   });
 });

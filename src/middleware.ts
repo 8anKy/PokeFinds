@@ -58,6 +58,9 @@ const PROTECTED_PREFIXES = [
   "/installningar",
   "/onboarding",
   "/admin",
+  // Själva /samling har ett avsiktligt gästläge, men en import kan inte
+  // sparas utan konto och ska inte låta gästen välja fil först.
+  "/samling/importera",
   // Meddelanden och forumets skrivsida kräver konto. Läsvyerna (/forum,
   // /forum/g/…, /forum/t/…) är publika men GRINDADE (se communityGate nedan).
   "/meddelanden",

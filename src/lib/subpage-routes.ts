@@ -22,6 +22,7 @@ const EXACT = new Set([
   "/kontakt",
   "/forum/sparade",
   "/forum/ny",
+  "/samling/importera",
   "/mer/utmarkelser",
   "/mer/bjud-in",
 ]);

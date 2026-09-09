@@ -18,7 +18,9 @@ import {
   IconReceipt,
   IconTrendingDown,
   IconTrendingUp,
+  IconUpload,
 } from "@/components/ui/icons";
+import { LinkButton } from "@/components/ui/button";
 import { CollectionClient, type CollectionRow } from "./collection-client";
 import { MobileCollectionGrid } from "./mobile-collection-grid";
 import { PortfolioTabs } from "./portfolio-tabs";
@@ -88,7 +90,7 @@ export default async function CollectionPage() {
     // vara) på den, aldrig på namnet.
     cardId: item.cardId,
     productId: item.productId,
-    name: item.card?.name ?? item.product?.title ?? item.notes ?? t("unknownItem"),
+    name: item.card?.name ?? item.product?.title ?? item.customTitle ?? item.notes ?? t("unknownItem"),
     slug: item.product?.slug ?? (item.cardId ? slugByCard.get(item.cardId) ?? null : null),
     imageUrl: item.imageUrl ?? item.card?.imageUrl ?? item.product?.imageUrl ?? null,
     setName: item.card?.set?.name ?? null,
@@ -140,7 +142,13 @@ export default async function CollectionPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
+        <LinkButton href="/samling/importera" variant="secondary" size="sm" className="lg:hidden">
+          <IconUpload size={15} />
+          {t("importCsv")}
+        </LinkButton>
+      </div>
 
       <PortfolioTabs
         soldCount={sales.length}

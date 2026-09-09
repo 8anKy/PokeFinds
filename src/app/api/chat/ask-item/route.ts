@@ -52,6 +52,7 @@ export async function POST(req: Request) {
       where: { id: input.itemId, userId: owner.id },
       select: {
         notes: true,
+        customTitle: true,
         card: { select: { name: true, set: { select: { name: true } } } },
         product: { select: { title: true } },
       },
@@ -63,7 +64,7 @@ export async function POST(req: Request) {
       throw new ServiceError(429, "Du har skickat många köpförfrågningar. Vänta en stund.");
     }
 
-    const name = item.card?.name ?? item.product?.title ?? item.notes ?? "objektet";
+    const name = item.card?.name ?? item.product?.title ?? item.customTitle ?? item.notes ?? "objektet";
     const text = purchaseAskText(name, item.card?.set?.name ?? null);
 
     const { id: conversationId } = await getOrCreateConversation(user.id, owner.id);
