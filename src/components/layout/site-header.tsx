@@ -3,6 +3,7 @@ import { HeaderNav } from "@/components/layout/header-nav";
 import { HeaderAuthActions } from "@/components/layout/header-auth-actions";
 import { BrandLogo } from "@/components/layout/brand-logo";
 import { AppStoreBadge } from "@/components/layout/app-store-badge";
+import { DiscordLink } from "@/components/layout/discord-link";
 import { NewsLink } from "@/components/layout/news-link";
 import { SiteHeaderGate } from "@/components/layout/site-header-gate";
 
@@ -25,10 +26,15 @@ export function SiteHeader() {
         </Link>
         <HeaderNav />
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Nyheter & evenemang ligger FÖRE App Store-brickan och visas i ALLA
-              storlekar: brickan är webb-only (appanvändaren har redan appen),
-              flödet gäller alla. Knappen ERSATTE Discord-knappen 2026-09-09 —
-              Discord finns kvar på /mer och i sidfoten. Se news-link.tsx. */}
+          {/* Discord ligger FÖRE App Store-brickan och visas i ALLA storlekar:
+              brickan är webb-only (appanvändaren har redan appen), communityn
+              gäller alla. Se discord-link.tsx.
+              ⛔ Knappen togs bort 2026-09-09 till förmån för nyhetsflödet och
+              ÅTERSTÄLLDES samma dag när flödet grindades — headern får inte stå
+              tom på den platsen medan flödet är dolt. Slås NEWS_FEED_PUBLIC på
+              måste ägaren välja: EN sak bredvid kontoknappen, aldrig två (två
+              ikoner gör raden till en verktygsrad). */}
+          <DiscordLink />
           <NewsLink />
           {/* App Store-brickan: desktop-headern är sticky → alltid i bild.
               Mobilen har sin egen bricka ovanför sökfältet (headern scrollar
