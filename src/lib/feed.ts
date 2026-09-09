@@ -131,7 +131,9 @@ export const eventItemSchema = z.object({
   /** Arrangörens biljettlänk. Finns den blir den sidans enda huvudknapp. */
   ticketUrl: z.string().url().max(2000).nullable().default(null),
   infoUrl: z.string().url().max(2000).nullable().default(null),
+  /** Arrangörens affisch. Hämtas av byggjobbet ur biljettsidans `og:image`. */
   imageUrl: z.string().url().max(2000).nullable().default(null),
+  imageFit: z.enum(["cover", "contain"]).default("cover"),
   organizer: z.string().max(120).nullable().default(null),
   summary: z.string().max(600).default(""),
   body: z.array(eventBlockSchema).max(60).default([]),

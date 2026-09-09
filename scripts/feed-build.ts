@@ -23,6 +23,7 @@ import {
   inferNewsCategory,
   isTcgRelevant,
   newsItemSchema,
+  type EventItem,
   slugify,
   stableId,
   type NewsCategory,
@@ -87,6 +88,29 @@ async function fillMissingCovers(items: NewsItem[]): Promise<void> {
       else console.warn(`::warning::[feed] ingen og:image på ${item.url}`);
     } catch (error) {
       console.warn(`::warning::[feed] kunde inte läsa omslag från ${item.url} — ${(error as Error).message}`);
+    }
+  }
+}
+
+/**
+ * Evenemangens affischer. Arrangörens biljettsida bär nästan alltid nyckelbilden
+ * som `og:image` — Tickster serverar den i 960×540, alltså exakt ett omslag.
+ * ⛔ Biljettsidan FÖRST, info-sidan sedan: biljettsidan visar DET HÄR evenemangets
+ *    affisch, medan arrangörens startsida ofta visar deras logotyp eller nästa
+ *    evenemang.
+ */
+async function fillEventCovers(events: EventItem[]): Promise<void> {
+  for (const event of events) {
+    if (event.imageUrl) continue;
+    const page = event.ticketUrl ?? event.infoUrl;
+    if (!page) continue;
+    try {
+      const html = await fetchText(page, ACCEPT_PAGE);
+      const image = extractOgImage(html, page);
+      if (image) event.imageUrl = image;
+      else console.warn(`::warning::[feed] ingen affisch på ${page}`);
+    } catch (error) {
+      console.warn(`::warning::[feed] kunde inte läsa affisch från ${page} — ${(error as Error).message}`);
     }
   }
 }
@@ -191,6 +215,9 @@ async function main() {
 
   // ⛔ Skickas som lane "rss": rutten behåller nattkedjans egna poster (lane
   //    "foilio"). Evenemangen ÄGS av det här jobbet — de kommer ur filen här.
+  await fillEventCovers(events);
+  console.log(`[feed] affischer: ${events.filter((e) => e.imageUrl).length} av ${events.length} evenemang har bild.`);
+
   const payload = feedPublishSchema.parse({
     lane: "rss",
     generatedAt: new Date().toISOString(),

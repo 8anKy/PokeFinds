@@ -10,8 +10,8 @@
       "source": "Foilio",
       "category": "APP",
       "publishedAt": "2026-09-09",
-      "imageUrl": "/brand/foilio-og.png",
-      "imageFit": "contain",
+      "imageUrl": "/news/nyheter-och-evenemang.png",
+      "imageFit": "cover",
       "body": [
         {
           "type": "h",
@@ -53,7 +53,7 @@
       "category": "APP",
       "publishedAt": "2026-09-08",
       "imageUrl": "/news/samling-exemplar.png",
-      "imageFit": "contain",
+      "imageFit": "cover",
       "body": [
         {
           "type": "h",
@@ -83,7 +83,7 @@
       "category": "APP",
       "publishedAt": "2026-09-08",
       "imageUrl": "/news/produktbilder.png",
-      "imageFit": "contain",
+      "imageFit": "cover",
       "body": [
         {
           "type": "h",
@@ -169,7 +169,9 @@
           "type": "p",
           "text": "Nivåer och priser ändras — kontrollera alltid aktuella villkor hos PSA innan du skickar in något."
         }
-      ]
+      ],
+      "imageUrl": "/news/psa-value-paus.png",
+      "imageFit": "cover"
     }
   ]
 }

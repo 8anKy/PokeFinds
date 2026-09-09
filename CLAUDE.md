@@ -125,8 +125,9 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   tv-spelsbloggar (relevansgrinden släppte 0 av 18) — vår egen katalog är huvudkällan. ⛔ Vi återger aldrig
   en artikels text: en HÄMTAD post är rubrik + ingress + källa + länk UT och får aldrig en `slug`; en post
   vi SJÄLVA skrivit (`slug` + `body`) får sidan `/nyheter/<slug>` med vår text och länken till originalet
-  längst ned. Omslag i tre steg: postens egen `imageUrl` → sidans `og:image` (hämtas av jobbet) →
-  kategoriikon som vattenstämpel. `imageFit: "contain"` för loggor och skärmbilder. Tre filer i `.github/feed/`
+  längst ned. Omslag i tre steg: postens egen `imageUrl` → sidans `og:image` (hämtas av jobbet; evenemangens
+  affisch tas ur BILJETTSIDAN) → kategoriikon som vattenstämpel. Våra egna nyheter får ett RITAT omslag
+  (`scripts/make-feed-cover.ts`, genereras lokalt och checkas in — aldrig `next/og` i drift, minnet är kapat). Tre filer i `.github/feed/`
   (utanför `watchPatterns` ⇒ ingen deploy, ingen DB): `sources.json` (RSS), `news.json` (handskrivna
   marknadsnyheter + "nytt i Foilio", kategori `APP`) och `events.json` (ingen gratis eventkälla finns).
   ⛔ Ingen "påminn mig", ingen godkännandekö (ägarbeslut).

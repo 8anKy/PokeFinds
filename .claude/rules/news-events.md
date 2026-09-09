@@ -38,6 +38,17 @@ paths:
   text om (`slug` + `body` i `news.json`) får en egen sida på `/nyheter/<slug>`: vår sammanfattning, och
   **längst ned länken till originalet** med källans namn. Det är hela villkoret för att få sammanfatta
   någon annans nyhet. Bilden HOTLÄNKAS (`referrerPolicy="no-referrer"`), laddas aldrig ned.
+- **EVENEMANGENS AFFISCH HÄMTAS UR BILJETTSIDAN** (`fillEventCovers`): arrangörens `og:image` är
+  evenemangets egen nyckelbild — Tickster serverar den i 960×540, alltså exakt ett omslag. ⛔ Biljettsidan
+  FÖRE info-sidan: biljettsidan visar DET HÄR evenemanget, medan arrangörens startsida ofta visar deras
+  logotyp eller nästa evenemang.
+- **VÅRA EGNA NYHETER FÅR ETT RITAT OMSLAG** (`scripts/make-feed-cover.ts`): stor rubrik på en tonad
+  märkesyta, kategoripill, logotyp — och valfri skärmbild till höger. ⛔ Bilden genereras EN GÅNG på en
+  utvecklarmaskin och checkas in i `public/news/`. Den renderas medvetet INTE i drift: `next/og` hade
+  dragit in satori + en wasm-renderare i processen, och Railway-minnet är redan kapat (heap 384 MB,
+  självåtervinning vid 550 MB). Texten sätts dessutom med systemets Arial via librsvg — en ubuntu-runner
+  hade tyst bytt typsnitt. ⛔ `ACCENT` i scriptet och `PILL`/`TINT` i `feed-chrome.tsx` måste hållas i takt:
+  omslaget och pillret bredvid det ska ha samma färg.
 - **OMSLAGEN, i tre steg.** (1) Posten anger `imageUrl` själv — en väg under `public/` eller en extern
   bild. (2) Saknas den för en EXTERN post hämtar byggjobbet sidans egen `og:image` (`extractOgImage`,
   en hämtning per post och körning). (3) Finns ingen bild målas kategorins ikon som vattenstämpel på den

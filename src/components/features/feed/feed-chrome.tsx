@@ -49,10 +49,13 @@ export function FeedSwitch({ active }: { active: "news" | "events" }) {
  * samma betydelse som på resten av sajten.
  */
 const PILL: Record<NewsCategory | EventCategory, string> = {
-  RELEASE: "bg-holo-cyan/12 text-holo-cyan ring-holo-cyan/30",
+  RELEASE: "bg-holo-violet/12 text-holo-violet ring-holo-violet/30",
   MARKET: "bg-holo-gold/12 text-holo-gold ring-holo-gold/30",
-  STORE: "bg-holo-violet/12 text-holo-violet ring-holo-violet/30",
-  APP: "bg-holo-pink/12 text-holo-pink ring-holo-pink/30",
+  STORE: "bg-holo-pink/12 text-holo-pink ring-holo-pink/30",
+  // ⛔ Vår EGEN nyhet bär märkesfärgen — och därför flyttades setsläppen till
+  //    violett: de två låg annars i samma teal i samma lista. Färgerna måste
+  //    stämma med `ACCENT` i scripts/make-feed-cover.ts, som ritar omslagen.
+  APP: "bg-holo-cyan/12 text-holo-cyan ring-holo-cyan/30",
   EXPO: "bg-holo-violet/12 text-holo-violet ring-holo-violet/30",
   PRERELEASE: "bg-holo-cyan/12 text-holo-cyan ring-holo-cyan/30",
   TOURNAMENT: "bg-holo-gold/12 text-holo-gold ring-holo-gold/30",
@@ -88,10 +91,10 @@ export function CategoryPill({
  * trasig bildikon mitt i listan läser som att appen är sönder.
  */
 const TINT: Record<NewsCategory | EventCategory, string> = {
-  RELEASE: "from-holo-cyan/25",
+  RELEASE: "from-holo-violet/25",
   MARKET: "from-holo-gold/25",
-  STORE: "from-holo-violet/25",
-  APP: "from-holo-pink/25",
+  STORE: "from-holo-pink/25",
+  APP: "from-holo-cyan/25",
   EXPO: "from-holo-violet/25",
   PRERELEASE: "from-holo-cyan/25",
   TOURNAMENT: "from-holo-gold/25",
