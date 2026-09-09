@@ -126,14 +126,12 @@ export default async function MerPage() {
   // publicerat en gräns kunden aldrig fått se. Se services/scanner/index.ts.
   const scansLeft = isPremium || isAdmin ? "∞" : String(quota.remaining);
 
+  // ⛔ BEVAKNINGAR OCH MÄRKEN BÄR INGET TAL HÄR (ägarbeslut 2026-09-09): talen
+  // står redan på kontokortet ovan, och samma siffra två gånger på en skärm gör
+  // ingen av dem trovärdig. Kortet visar TILLSTÅNDET, listan är VÄGEN dit.
   const activity: MenuLink[] = [
-    { href: "/bevakningar", label: t("watches"), icon: IconBell, value: String(watchCount) },
-    {
-      href: "/mer/utmarkelser",
-      label: tA("title"),
-      icon: IconMedal,
-      value: `${unlockedLevels} / ${totalUnlockable}`,
-    },
+    { href: "/bevakningar", label: t("watches"), icon: IconBell },
+    { href: "/mer/utmarkelser", label: tA("title"), icon: IconMedal },
     ...(communityV2
       ? [{ href: "/meddelanden", label: tNav("messages"), icon: IconMail, dot: unread > 0 }]
       : []),
