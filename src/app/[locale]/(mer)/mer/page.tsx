@@ -116,7 +116,7 @@ export default async function MerPage() {
       {/* Kontokortet ÄR sidans rubrik — "Mer / Hantera ditt konto och dina
           inställningar" sa inget som raderna under inte redan säger, och en
           rubrik som heter samma sak som fliken man just tryckte på är brus. */}
-      <FoilPanel href="/installningar">
+      <FoilPanel href="/installningar" foil={isPremium}>
         <span className="flex items-start justify-between">
           <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-faint">
             {t("cardRole")}

@@ -32,7 +32,7 @@ export async function GuestMore() {
 
   return (
     <div className="mx-auto max-w-md space-y-[26px]">
-      <FoilPanel>
+      <FoilPanel foil={false}>
         <span className="flex items-start justify-between">
           <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-faint">
             {t("cardRole")}

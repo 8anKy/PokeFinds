@@ -512,3 +512,14 @@ html[data-native] .web-only {
   position: relative;
   z-index: 2;
 }
+/* MATT = INTE PRO (ägarbeslut 2026-09-09). Folien är en FÖRMÅN, och en förmån
+   alla har är ingen förmån: gratiskontot och gästen får samma kort i samma form
+   med samma tal, men utan glans. Skillnaden är därför läsbar utan ett ord copy —
+   den som uppgraderar ser sitt eget kort tändas. Layout, radie och typografi är
+   identiska med flit; det enda som skiljer är ytan. */
+.foil-panel--matte {
+  animation: none;
+  background:
+    radial-gradient(120% 90% at 12% 0%, rgba(45, 212, 191, 0.1), transparent 58%),
+    linear-gradient(160deg, #08100f, #000 62%);
+}
