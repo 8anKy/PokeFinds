@@ -2,12 +2,13 @@
 
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { useEffect, useState } from "react";
-import { usePathname } from "@/i18n/navigation";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { usePathname, useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
-import { hapticTick } from "@/lib/haptics";
+import { hapticGlide, hapticTick } from "@/lib/haptics";
 import { isEmailLandingRoute } from "@/lib/auth-routes";
 import { useCommunityV2 } from "@/lib/use-community-v2";
+import { rubberBand } from "@/lib/swipe-gesture";
 import {
   IconSearch,
   IconPackage,
@@ -28,12 +29,56 @@ const TABS: { href: string; key: string; icon: (p: IconProps) => JSX.Element }[]
 export function BottomTabs() {
   const tNav = useTranslations("Nav");
   const pathname = usePathname();
+  const router = useRouter();
+  const navRef = useRef<HTMLElement>(null);
+  const gesture = useRef<{ id: number; x: number; index: number; dragging: boolean; pathname: string; rect: DOMRect } | null>(null);
+  const suppressClick = useRef(false);
+  const [preview, setPreview] = useState<{ index: number; position: number; edge: number; width: number } | null>(null);
   // Forumet (community v2) är grindat tills ägaren testat — se lib/community-v2-gate.ts.
   // Fliken byter mål/etikett Community → Forum bara för den som släpps in.
   const communityV2 = useCommunityV2();
   const tabs = communityV2
     ? TABS.map((t) => (t.key === "community" ? { ...t, href: "/forum", key: "forum" } : t))
     : TABS;
+  const activeIndex = tabs.findIndex((tab) => pathname === tab.href || pathname?.startsWith(`${tab.href}/`));
+  const selectedIndex = preview?.index ?? activeIndex;
+
+  function cancelGlide() {
+    if (gesture.current) suppressClick.current = true;
+    gesture.current = null;
+    setPreview(null);
+  }
+
+  useEffect(() => {
+    // En snabb ny touch kan börja innan föregående navigerings effekt körs.
+    // Avbryt bara gester som faktiskt började på den gamla sidan.
+    if (gesture.current && gesture.current.pathname !== pathname) cancelGlide();
+  }, [pathname]);
+
+  function moveGlide(event: PointerEvent<HTMLUListElement>) {
+    const current = gesture.current;
+    if (!current || current.id !== event.pointerId) return;
+    if (!current.dragging && Math.abs(event.clientX - current.x) < 6) return;
+    current.dragging = true;
+    suppressClick.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    // Mät mot den stilla ramen, aldrig den töjda ytan: annars flyttar draget
+    // sina egna träffgränser och markören börjar darra vid ändarna.
+    const rect = current.rect;
+    if (event.clientY < rect.top - 24 || event.clientY > rect.bottom + 24 ||
+        event.clientX < rect.left - 24 || event.clientX > rect.right + 24) {
+      setPreview(null);
+      return;
+    }
+    const tabWidth = rect.width / tabs.length;
+    const rawPosition = (event.clientX - rect.left) / tabWidth - 0.5;
+    const position = Math.max(0, Math.min(tabs.length - 1, rawPosition));
+    const edge = Math.max(-12, Math.min(12, rubberBand((rawPosition - position) * tabWidth)));
+    const index = Math.round(position);
+    if (index !== current.index) hapticGlide();
+    current.index = index;
+    setPreview({ index, position, edge, width: rect.width });
+  }
   // Tab-baren visas alltid (in- som utloggad) — den är appens primära navigering.
   // Skyddade tabbar (Portfölj/Skanna) skickar utloggade till login via middleware.
 
@@ -50,6 +95,10 @@ export function BottomTabs() {
     return () => vv.removeEventListener("resize", onResize);
   }, []);
 
+  useEffect(() => {
+    if (keyboard) cancelGlide();
+  }, [keyboard]);
+
   if (keyboard) return null;
   // Återställ lösenord / verifiera e-post nås via e-postlänk i Safari (inte appen)
   // → visa ingen app-navigering, den lockar bara användaren att browsa webben.
@@ -62,16 +111,82 @@ export function BottomTabs() {
     <>
       {/* Klarering: fixed nav överlappar sidans botten — denna spacer ger
           scroll-utrymme så sista innehållet inte göms (ersätter layoutens pb-20). */}
-      {!hideSpacer && <div aria-hidden className="h-16 lg:hidden" />}
+      {!hideSpacer && <div aria-hidden className="h-[var(--bottom-tabs-space)] lg:hidden" />}
       <nav
+        ref={navRef}
         aria-label="Huvudnavigering"
-        className="hairline-t fixed inset-x-0 bottom-0 z-40 bg-surface/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-16px_rgba(0,0,0,0.7)] backdrop-blur-md lg:hidden"
+        className="fixed inset-x-[18px] bottom-[calc(0.5rem_+_env(safe-area-inset-bottom))] z-40 mx-auto h-14 max-w-[420px] lg:hidden"
       >
-      <ul className="mx-auto flex max-w-md items-stretch">
-        {tabs.map((t) => {
+      <ul
+        data-drag-surface
+        className={cn(
+          "relative flex h-full touch-none select-none items-stretch rounded-full border border-ink/20 bg-surface/70 shadow-lg shadow-surface/60 backdrop-blur-2xl backdrop-saturate-150 transition-transform duration-500 ease-spring motion-reduce:!transform-none motion-reduce:transition-none [-webkit-touch-callout:none]",
+          preview && "duration-75 ease-out"
+        )}
+        style={{ transform: preview
+          ? `translateX(${preview.edge / 2}px) scaleX(${1 + Math.abs(preview.edge) / preview.width}) scaleY(${1.06 - Math.abs(preview.edge) / 400})`
+          : "translateX(0px) scaleX(1) scaleY(1)" }}
+        onPointerDown={(event) => {
+          if (!event.isPrimary) { cancelGlide(); return; }
+          if (event.button !== 0) return;
+          suppressClick.current = false;
+          const rect = navRef.current!.getBoundingClientRect();
+          const index = Math.min(tabs.length - 1, Math.max(0,
+            Math.floor((event.clientX - rect.left) / (rect.width / tabs.length))));
+          gesture.current = { id: event.pointerId, x: event.clientX, index, dragging: false, pathname, rect };
+          setPreview({ index, position: index, edge: 0, width: rect.width });
+        }}
+        onPointerMove={moveGlide}
+        onPointerUp={(event) => {
+          const current = gesture.current;
+          if (!current || current.id !== event.pointerId) return;
+          // Navigera först vid släpp: annars kan en passage över Skanna starta
+          // kameran och skyddade flikar skicka gästen till inloggningen mitt i draget.
+          const rect = current.rect;
+          const inside = event.clientY >= rect.top - 24 && event.clientY <= rect.bottom + 24 &&
+            event.clientX >= rect.left - 24 && event.clientX <= rect.right + 24;
+          if (inside && (current.dragging || event.pointerType === "touch")) {
+            // Efter ett drag kan webbläsaren utelämna nästa syntetiska click.
+            // Touch väljer därför på pointerup; undertryck ett eventuellt click
+            // så samma tryck inte ger två navigeringar eller två haptik-tick.
+            suppressClick.current = true;
+            const index = Math.max(0, Math.min(tabs.length - 1,
+              Math.floor((event.clientX - rect.left) / (rect.width / tabs.length))));
+            if (index !== activeIndex) {
+              if (!current.dragging) hapticTick();
+              router.push(tabs[index].href);
+            }
+          }
+          gesture.current = null;
+          setPreview(null);
+        }}
+        onPointerCancel={cancelGlide}
+        onLostPointerCapture={(event) => {
+          // Touch börjar med implicit capture på ikonen/länken. När raden tar
+          // över bubblar barnets lost-event hit; det får inte avbryta draget.
+          if (event.target === event.currentTarget) cancelGlide();
+        }}
+        onDragStart={(event) => event.preventDefault()}
+        onContextMenu={(event) => { if (gesture.current) event.preventDefault(); }}
+        onClickCapture={(event) => {
+          // Webbläsaren skickar även click efter ett drag. Låt inte ursprungs-
+          // länken navigera en andra gång; tangentbordets click ska fungera.
+          if (suppressClick.current && event.detail !== 0) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }}
+      >
+        <li aria-hidden className={cn(
+          "pointer-events-none absolute inset-y-1 left-0 rounded-full border border-ink/10 bg-ink/20 transition-[transform,opacity] duration-300 ease-out-soft motion-reduce:transition-none",
+          selectedIndex < 0 && "opacity-0",
+          preview && "duration-75"
+        )} style={{ width: `${100 / tabs.length}%`, transform: `translateX(${(preview?.position ?? Math.max(0, activeIndex)) * 100}%)` }} />
+        {tabs.map((t, index) => {
           const active = pathname === t.href || pathname?.startsWith(`${t.href}/`);
+          const highlighted = index === selectedIndex;
           return (
-            <li key={t.href} className="flex-1">
+            <li key={t.href} className="relative min-w-0 flex-1">
               <Link
                 href={t.href}
                 aria-current={active ? "page" : undefined}
@@ -82,27 +197,26 @@ export function BottomTabs() {
                 // finger som glider bort från fliken — inte vibrerar.
                 onClick={active ? undefined : hapticTick}
                 className={cn(
-                  "group flex flex-col items-center gap-0.5 py-1.5 text-[11px] font-medium transition-colors duration-150",
-                  active ? "text-holo-cyan" : "text-ink-muted hover:text-ink"
+                  "group flex h-full items-center justify-center rounded-full transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan motion-reduce:transition-none",
+                  highlighted ? "text-holo-cyan" : "text-ink-muted hover:text-ink"
                 )}
               >
-                {/* Pill bakom ikonen: tonas in på aktiv tab, ger tryckyta-känsla
-                    vid tap (group-active). Ikonen gör en liten "pop" vid aktivering. */}
+                {/* Den gemensamma markören följer fingret över hela flikraden. */}
                 <span
                   className={cn(
-                    "flex h-7 w-12 items-center justify-center rounded-full transition-colors duration-300 ease-out-soft",
-                    active ? "bg-holo-cyan/10" : "bg-transparent group-active:bg-ink/5"
+                    "flex h-8 w-10 items-center justify-center rounded-full transition-transform duration-150 motion-reduce:transition-none",
+                    preview && highlighted && "scale-110"
                   )}
                 >
                   <t.icon
-                    size={22}
+                    size={24}
                     className={cn(
                       "shrink-0 transition-transform duration-150 group-active:scale-90",
-                      active && "animate-tab-pop"
+                      active && !preview && "motion-safe:animate-tab-pop"
                     )}
                   />
                 </span>
-                {tNav(t.key)}
+                <span className="sr-only">{tNav(t.key)}</span>
               </Link>
             </li>
           );

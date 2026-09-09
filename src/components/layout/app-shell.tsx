@@ -89,7 +89,7 @@ export function AppShell({
 
   // ⛔ HÖJDEN MÅSTE DRA AV ALLT SOM LIGGER UTANFÖR SKALET. Tre poster, och
   // MISSAS EN ENDA går sidan att scrolla precis så mycket fast allt syns:
-  //   1. `BottomTabs` klarerings-spacer (h-16) — SYSKON i rot-layouten.
+  //   1. `BottomTabs` klarerings-spacer (--bottom-tabs-space) — SYSKON i rot-layouten.
   //   2. `body { padding-top: env(safe-area-inset-top) }` (globals.css) —
   //      statusfältets höjd, ~44-59 px på en telefon med urklipp.
   //   3. 100dvh, inte 100vh: på mobilwebb är 100vh den STORA viewporten
@@ -97,7 +97,7 @@ export function AppShell({
   // ⚠️ Post 2 är NOLL på desktop, så felet syns aldrig i en webbläsare på
   // datorn — det måste verifieras på en riktig telefon. Desktop har varken
   // tab-bar eller urklipp och kör därför ren min-h-screen.
-  const shellHeight = "min-h-[calc(100dvh_-_4rem_-_env(safe-area-inset-top))] lg:min-h-screen";
+  const shellHeight = "min-h-[calc(100dvh_-_var(--bottom-tabs-space)_-_env(safe-area-inset-top))] lg:min-h-screen";
 
   const headerLayout = HEADER_LAYOUT_PREFIXES.some(
     (p) => pathname === p || pathname?.startsWith(`${p}/`)

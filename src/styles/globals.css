@@ -3,6 +3,8 @@
 @tailwind utilities;
 
 :root {
+  /* Samma klarering i flikraden och sidskalet, inklusive telefonens hemindikator. */
+  --bottom-tabs-space: calc(4rem + env(safe-area-inset-bottom));
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;

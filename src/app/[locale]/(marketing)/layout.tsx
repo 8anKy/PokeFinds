@@ -18,7 +18,7 @@ export default function MarketingLayout({
     // Se app-shell.tsx: tab-barens spacer är ett SYSKON i rot-layouten, så
     // min-h-screen gör dokumentet 64px högre än viewporten och varje sida
     // scrollbar fast allt syns. 100dvh av samma skäl som där.
-    <div className="flex min-h-[calc(100dvh_-_4rem_-_env(safe-area-inset-top))] flex-col bg-surface lg:min-h-screen">
+    <div className="flex min-h-[calc(100dvh_-_var(--bottom-tabs-space)_-_env(safe-area-inset-top))] flex-col bg-surface lg:min-h-screen">
       {/* Kampanjremsan är en KLIENTkomponent och gör inte layouten dynamisk —
           den läser ett inbakat datum + fo_auth-hinten, aldrig auth() eller cookies()
           på servern. Se Caching/ISR i CLAUDE.md. */}

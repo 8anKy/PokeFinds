@@ -30,7 +30,7 @@ export default async function PortfolioLayout({
     );
   }
   return (
-    <div className="flex min-h-[calc(100dvh_-_4rem_-_env(safe-area-inset-top))] flex-col bg-surface lg:min-h-screen">
+    <div className="flex min-h-[calc(100dvh_-_var(--bottom-tabs-space)_-_env(safe-area-inset-top))] flex-col bg-surface lg:min-h-screen">
       <SiteHeader />
       <main className="flex-1 px-2.5 py-6 sm:px-6">{children}</main>
       <SiteFooter />
