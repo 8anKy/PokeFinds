@@ -7,6 +7,11 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
 > **Filen håller NULÄGE, durabla TVÄRGÅENDE beslut och vad som är kvar.** Delsystemsregler bor i
 > `.claude/rules/` (laddas automatiskt via `paths:`). Sessionsdagbok = git-historiken.
 > Incidentnarrativ (varför, hur det upptäcktes) = minnesfilerna.
+>
+> ⛔ **DEN HÄR FILEN SPEGLAS ORDAGRANT IN I `AGENTS.md`** — Codex och de flesta andra agenter läser
+> den, inte den här. Efter varje ändring: `npx tsx scripts/sync-agents-md.ts`. Glöms det fäller
+> `tests/unit/agents-md-sync.test.ts` sviten. CLAUDE.md är kanonisk; AGENTS.md redigeras aldrig för
+> hand nedanför sin markör.
 
 ## Nuläge
 - **LIVE** på https://foilio.se — **Railway** (`divine-reflection/PokeFinds`) + Neon serverless Postgres

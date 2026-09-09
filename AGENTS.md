@@ -4,15 +4,19 @@ Foilio är en SaaS för svenska Pokémon TCG-samlare: prisbevakning, restock-lar
 samlingsvärde, kortskanning och community. Eget varumärke, egen design, svensk copy.
 **LIVE på https://foilio.se.** En `git push origin main` DEPLOYAR direkt till produktion.
 
-## Läs det här först
+## Så är den här filen byggd
 
-1. **`CLAUDE.md` i reporoten är KANONISK.** Den håller nuläget, de durabla tvärgående besluten och vad
-   som är kvar. Läs den innan du rör något. Filen här beskriver hur du *arbetar*; CLAUDE.md beskriver
-   vad som *gäller*. ⛔ Duplicera inte innehåll mellan dem — när de säger olika saker vinner CLAUDE.md.
-2. **`.claude/rules/*.md` är delsystemens regler.** Varje fil har en `paths:`-lista i frontmatter.
+1. **Det du läser nu är den handskrivna delen** — hur du arbetar i projektet: verifiering, gränser,
+   var saker bor, och vilken av regelfilerna som gäller vilka filer.
+2. **Under markören längre ned ligger hela `CLAUDE.md` ordagrant** — projektets nuläge, alla durabla
+   beslut och alla mätta tal. Den delen är GENERERAD (`npx tsx scripts/sync-agents-md.ts`).
+   ⛔ Redigera den inte här. **`CLAUDE.md` är kanonisk**; ändra där och kör om skriptet.
+   `tests/unit/agents-md-sync.test.ts` fäller sviten om filerna glidit isär, så en glömd körning kan
+   inte bli tyst. Läs den delen — den är inte en bilaga, det är förutsättningarna för allt arbete här.
+3. **`.claude/rules/*.md` är delsystemens regler.** Varje fil har en `paths:`-lista i frontmatter.
    Claude Code laddar dem automatiskt när man rör en matchande fil; **andra agenter måste öppna dem
-   själva**. Tabellen längst ned i den här filen säger vilken du ska läsa när.
-3. Git-historiken är sessionsdagboken. Commit-meddelandena förklarar VARFÖR — läs dem när något ser
+   själva**. Tabellen längre ned säger vilken du ska läsa när.
+4. Git-historiken är sessionsdagboken. Commit-meddelandena förklarar VARFÖR — läs dem när något ser
    udda ut i stället för att anta att det är slarv.
 
 ## Kommentarerna i koden är dokumentation, inte brus
@@ -25,8 +29,8 @@ svenska, som förklarar konsekvensen — inte mekaniken.
 
 ## Kostnadsdoktrinen styr VARJE designbeslut
 
-Det här är projektets viktigaste invariant. Läs hela avsnittet i CLAUDE.md innan du föreslår något
-som rör data.
+Projektets viktigaste invariant, i kortform. **Den fullständiga versionen med alla mätta tal står
+längre ned** — läs den innan du föreslår något som rör data.
 
 - **Neons nota är VAKEN TID — räkna väckningar, aldrig rader.** Compute är ~95 % av notan och varje
   väckning köper **minst 300 s debiterad tid**. En funktion som gör en billig SQL-fråga varannan
@@ -57,6 +61,8 @@ som rör data.
   locale-prefix i serverkomponenter; i klientkomponenter är `Link` oproblematisk.
 
 ## Hårda invarianter (bryt dem inte)
+
+Urvalet nedan är det som oftast bryts. Hela listan står längre ned.
 
 - **Priser lagras i öre** (heltal) + `currency`. Visa via `formatPrice()`. Aldrig float.
 - **0 kr är inget pris.** `priceOreFromEur()` är enda vägen EUR→öre och ger `null` när resultatet
@@ -184,3 +190,656 @@ docs/                      SETUP.md, LAUNCH-CHECKLIST.md, TODO.md, SCANNER-STATU
 - **En sanning, ett ställe.** Två ställen som räknar samma sak blir förr eller senare två svar. Domar
   bor i `src/lib/`, delas av jobbet och appen, och testas.
 - **Fail-safe åt rätt håll.** En osatt variabel ska ge det säkra läget: pausat, dolt, "vi vet inte".
+
+<!-- GENERERAT AV scripts/sync-agents-md.ts — REDIGERA INTE NEDAN -->
+
+# Foilio — Pokémon TCG-marknadsplattform för Sverige
+
+SaaS för svenska Pokémon TCG-samlare: prisbevakning, restock-alerts, marknadsdata, samlingsvärde,
+kortskanning, community. Eget varumärke ("Foilio"), egen design, svensk copy. Nämn ALDRIG
+inspirations-/konkurrentsidor i kod, copy eller docs.
+
+> **Filen håller NULÄGE, durabla TVÄRGÅENDE beslut och vad som är kvar.** Delsystemsregler bor i
+> `.claude/rules/` (laddas automatiskt via `paths:`). Sessionsdagbok = git-historiken.
+> Incidentnarrativ (varför, hur det upptäcktes) = minnesfilerna.
+>
+> ⛔ **DEN HÄR FILEN SPEGLAS ORDAGRANT IN I `AGENTS.md`** — Codex och de flesta andra agenter läser
+> den, inte den här. Efter varje ändring: `npx tsx scripts/sync-agents-md.ts`. Glöms det fäller
+> `tests/unit/agents-md-sync.test.ts` sviten. CLAUDE.md är kanonisk; AGENTS.md redigeras aldrig för
+> hand nedanför sin markör.
+
+## Nuläge
+- **LIVE** på https://foilio.se — **Railway** (`divine-reflection/PokeFinds`) + Neon serverless Postgres
+  (Frankfurt). Deploy = `git push origin main` (Dockerfile, node:22-slim). Ingen Vercel. Railway blockar
+  SMTP-portar → mejl via Resend HTTP API (`src/lib/mailer.ts`).
+  ⛔ **Railway-inställningarna bor i `.railway/railway.ts` (Infrastructure as Code) sedan 2026-09-02.**
+  `railway.json` är BORTTAGEN 2026-09-02 (Config as Code, cutoff 2026-12-01) — värdena APPLICERADES med
+  `railway config apply` och ligger i tjänstens inställningar; `railway config plan` ska visa "up to date", allt
+  annat är drift från dashboarden. ⛔ Återinför aldrig railway.json — en tjänst kan inte styras av båda systemen. Filen pinnar `restartPolicyType: ALWAYS` (självåtervinningen
+  KRÄVER den — sajten låg nere 6,5 h 2026-08-31 när den saknades), `sleepApplication: false` och
+  `build.watchPatterns` (pushar som bara rör `.github/`, `docs/`, `tests/`, `.claude/`, `ios/`, `android/` eller
+  `*.md` deployar INTE — varje deploy nollar FETCH-cachen; 9 deployer/dygn mätt 09-01). ⛔ Kör `railway config
+  plan/apply` från **PowerShell** med `@railway/cli/bin` först i PATH — i Git Bash pekar `$_` på en MSYS-sökväg
+  och SDK:ns versionskoll säger felaktigt "kräver CLI ≥ 5.42.1". `railway` (npm, devDependency) MÅSTE finnas i
+  node_modules — CLI:n evaluerar filen med node.
+- **Apex är kanonisk sedan 2026-08-14** (var `www`). DNS hos Cloudflare: `foilio.se` grå (DNS-only,
+  CNAME-flattening → Railway, eget cert), `www` orange och existerar BARA för Redirect Rule → 301 till apex.
+  ⛔ Registrera aldrig `www` som custom domain på Railway igen — då servar den appen parallellt.
+  ⛔ **En 301 är gratis bara för webbläsare.** Stripes webhook-leverans, `curl` utan `-L` och de flesta
+  API-klienter följer den INTE. Varje MASKINELL URL måste peka direkt på apex: `NEXTAUTH_URL`,
+  `NEXT_PUBLIC_APP_URL`, Stripe-webhooken, OAuth-redirects (Discord/Tradera), `/api/revalidate`-defaults i
+  workflows. Missas en är felet TYST — webhooken "levereras" aldrig, cachen invalideras aldrig.
+  ⛔ Sessionscookien är host-only (`sessionCookieOptions`) → **byte av värdnamn loggar ut alla igen.**
+  ⚠️ Cachade gamla NS-poster (~2 h TTL) får sajten att se död ut för enstaka användare — mät med
+  `Resolve-DnsName foilio.se -Type NS -Server <resolver>` innan något felsöks i appen.
+- **Katalog komplett**: ~173 set, ~20k singlar + ~2100 sealed (0 saknade mot pokemontcg.io). ~868 singlar
+  + ~24 sealed saknar genuint CM-marknadsdata → ärlig "–"/döljs tills data finns.
+  **+ Japanska singlar sedan 2026-08-29** (~5 550 kort, 47 set; 24 JP-set saknar kort hos leverantören) —
+  regler i `.claude/rules/jp-sets.md`. RapidAPI-baslinjen är nu ~1 880/3 000 per dygn.
+- **Priser**: singlar = Cardmarket engelska NM-"From" (RapidAPI) × live-kurs; sealed = CM `lowest`;
+  graf/historik = CM trend.
+- **Google-/Apple-inloggning (kod klar 2026-08-29, AKTIVERAS AV ENV)**: webb = NextAuth-providers
+  (`lib/auth.ts`), app = NATIVT SDK via `@capgo/capacitor-social-login` → id_token → provider
+  `native-token` (verifieras mot JWKS i `lib/oauth-id-token.ts`). Google blockar sitt WEBBFLÖDE i
+  WebViews — därför nativt; Apple på Android kör webbflödet (`appleid.apple.com` i `allowNavigation`).
+  Knapparna visas bara när `GOOGLE_CLIENT_ID` / `APPLE_CLIENT_ID` finns (speglas till `NEXT_PUBLIC_*`
+  i `next.config.mjs`, bakas in vid BYGGET). Apples client secret SIGNERAS I RUNTIME ur `.p8`
+  (`lib/apple-client-secret.ts`, max 6 mån — hårdkoda aldrig). ⛔ `passwordHash` är nullable sedan
+  migrationen `20260829120000` — `authorize()` nekar explicit. ⛔ Apple form_post ⇒ pkce-/callback-
+  cookien MÅSTE vara `SameSite=None` (satt i `authOptions.cookies`). Konton ur OAuth får samma
+  kreatörsattribution/bonus/välkomstmejl som formuläret (`services/oauth-account.ts`). Ett nytt
+  iOS-bygge (Codemagic) krävs: `Info.plist` har `REPLACE_WITH_IOS_CLIENT_ID`-platshållare +
+  `App.entitlements` (applesignin + aps). Env-tabellen: `docs/SETUP.md`.
+- **Gästskanning i appen (2026-08-29)**: `/skanna` ligger i `(scan)` (utanför auth-gejtade `(app)`) och
+  släpper in utloggade i APPEN på ett enhets-id (`x-foilio-device`: iOS Keychain-UUID /
+  ANDROID_ID — båda överlever ominstallation; webben kräver konto). **10 skanningar livstid per enhet**,
+  konto ger 30/mån där använt = **max(konto, enhet)** — så gästens 10 ingår i första månadens 30 och
+  "radera konto, skapa nytt" ger ingen ny kvot. `GuestDevice` raderas ALDRIG med kontot (SetNull).
+  Modell: `src/lib/guest-device.ts`, DB: `services/scanner/guest-device.ts`, vem-skannar: `lib/scan-actor.ts`.
+  ⛔ Nya enhetsrader IP-bromsas (20/dygn). Vaktat av `tests/unit/guest-device.test.ts`.
+- **Funktioner live**: watchlist/prisbevakning, restock-alerts (41 butiker), samlingsvärde, AI-gradering
+  (`/gradera`), live kort-skanner (`/skanna`), community, admin, PWA, **set-komplettering** (Set-fliken i
+  `/samling` + stapel på `/sets/[id]`).
+- **COMMUNITY V2 I KOD SEDAN 2026-09-03, GRINDAT TILLS ÄGAREN TESTAT** (`.claude/rules/community-v2.md`):
+  forum med kurerade grupper + Köp/Sälj/Byt-trådar (`/forum`), bilder i Railway Bucket, 1:1-meddelanden via SSE
+  (`/meddelanden`, aldrig pollning), Tradera-annonser på profilen (egen spak). Syns BARA för admin, för
+  native-byggen med UA-taggen `FoilioApp/` (≥ 1.2, TestFlight) och när `COMMUNITY_V2_PUBLIC=1`. Alla andra ser
+  `/community` = "snart här" som förut. ⛔ Lansering = släpp 1.2 i App Store OCH sätt `COMMUNITY_V2_PUBLIC=1`
+  i Railway (bakas in vid bygget) OCH skapa Discord-kanalen + `DISCORD_MARKET_CHANNEL_ID`. Kräver ett NYTT
+  Codemagic-bygge för att UA-taggen ska finnas (`appendUserAgent` i `capacitor.config.ts`).
+  **Forumregler + ordfilter sedan 2026-09-05**: `User.forumRulesAcceptedAt` — dialogen (`ForumRulesGate`) är
+  bekvämlighet, REGELN bor på servern (`lib/forum-rules.ts`: tråd/svar ⇒ 403 + kod `FORUM_RULES`). Ordfiltret
+  (`lib/profanity.ts`) BLOCKERAR vid skrivning (kod `PROFANITY`), maskerar aldrig; listan är medvetet smal
+  (vardagsord som "fan", "skitbra", "prick" är utelämnade med flit) — lägg till ord där, aldrig regexar i rutter.
+  `ServiceError.code` följer med i API-svaret och blir `ApiError.code` i klienten, som översätter i stället
+  för att visa serverns svenska text. **Regelversion**: `FORUM_RULES_VERSION` (`lib/forum-rules-version.ts`)
+  + `User.forumRulesVersion` — höj talet när reglerna ändras i sak ⇒ alla frågas igen. Stoppade försök loggas i
+  `ModerationEvent` (admin → Rapporter, "Blockerade ord"); ⛔ `detail` är det normaliserade ordet, aldrig texten.
+- ⛔ **SERVERFEL ÖVERSÄTTS VIA TABELL, INTE VIA KODER PER KAST (2026-09-05)**: tjänsterna kastar svensk text på
+  ~130 ställen; `apiError` (async) slår upp texten i `src/lib/api-error-i18n.ts` → nyckel i `ApiErrors`-namnrymden
+  och svarar på engelska när anroparen är engelsk (NEXT_LOCALE-cookien, annars referer `/en/`). En text utanför
+  tabellen går ut orörd. **Ny användarvänd feltext ⇒ ny rad i tabellen + båda språkfilerna** —
+  `tests/unit/api-error-i18n.test.ts` vaktar pariteten. Alla anrop är `return apiError(e)` i async-handlers.
+- **`/mer` bor i routegruppen `(mer)`, inte `(app)` (2026-09-05)**: gäster ska få språk/om/legal/Discord + konto-rad
+  där, och `(app)`-layouten skickar alla gäster till inloggningen. Inloggad ⇒ samma AppShell som (app).
+  Undersidorna (`/mer/utmarkelser`, `/mer/bjud-in`) kräver konto själva. ⛔ Streckkodsläget i skannern är
+  AVSTÄNGT (ägarbeslut 2026-09-05): `barcodeSupported()` returnerar false; koden ligger kvar.
+- **PRISSIDAN = HOLO-KORT + SPEC-BLAD, OCH UPPGRADERINGSPROMPTER ÖPPNAR ETT ARK (2026-09-05)**: `/priser`
+  visar ett holografiskt Pro-kort (`pro-holo-card.tsx`, tilt via pekare/gyro, foil/gnistor/kantljus via
+  @property-animerade CSS-variabler i globals.css) och Free mot Pro som SPEC-BLAD (`pro-spec-table.tsx`,
+  rader ur `Pricing.specRows` + pausbara `specRowsPrice`/`specRowsRestock` via `pausableFeatures`, som nu
+  är generisk). Varje Pro-låst yta (Max-perioden, Tradera-lagret, set-bevakning, bulk/kvot i skannern,
+  Uppgradera-knappar) anropar `openPaywallOrNavigate()` (`lib/paywall.ts`) ⇒ `PaywallSheetHost` i
+  rot-layouten glider upp ett bottenark med kortet, de rader där Pro skiljer sig och SAMMA `UpgradeButton`
+  (nu i `components/features/`); utan värd faller den tillbaka på `/priser`. ⛔ `/priser` finns kvar
+  (SEO, Mer-tabben, Stripes återkomst-URL, App Store-granskningen) — arket är en snabbare väg till samma
+  knapp, INTE en andra paywall: samma rader, samma pausflaggor, samma Apple 3.1.2-text vid knappen.
+  ⛔ Navigationsposter (header, sidfot, Mer) länkar fortfarande till sidan; bara PROMPTER öppnar arket.
+  Vaktat av `restock-pause-copy`/`price-alert-pause`/`watchlist-limit-copy-sync` (porterade till
+  spec-raderna) + `paywall-open.test.ts`.
+- **PRODUKTVYN = "HJÄLTE" + EN BAKÅTKNAPP I HELA APPEN (ägarbeslut 2026-09-05, gren `feat/produktvy-hjalte`)**:
+  på mobil är produktbilden en scen över hela bredden med en flytande bakåtcirkel, ett rundat ark glider upp
+  med titel → pris (`LivePricePanel`, ingen kortram) → två lika breda knappar → prishistorik (`ProductPriceCard`
+  `plain`) → en rad som scrollar till butikerna; när scenen scrollat bort tar en smal rad (cirkel + namn + pris)
+  över. Inget logotyphuvud, inga brödsmulor, ingen "Tillbaka"-rad på mobil (desktop behåller brödsmulor + två
+  spalter). Overlayn renderar INTE `SiteHeader` längre. Butiksraderna bär butikens logga (`RetailerLogo`,
+  44 px kvadrat med 10 px radie, "Lägst"-tagg på första köpbara raden). ⛔ **`BackCircle` (`ui/back-circle.tsx`)
+  är appens ENDA bakåtknapp** — `PageBackButton` är BORTTAGEN; undersidor renderar `SubpageHeader`
+  (cirkel + titel + EN högeråtgärd som `CircleButton`) och MÅSTE stå i `lib/subpage-routes.ts`, där
+  `SiteHeaderGate` döljer logotyphuvudet på mobil (annars dubbel chrome; `tests/unit/subpage-routes.test.ts`).
+  Loggorna: `scripts/fetch-retailer-logos.ts` bygger färdiga 128×128-plattor (ljus/mörk botten efter märkets
+  ljushet) i `public/retailer-logos/` och skriver `Retailer.logoUrl` med `--apply` (41 av 50 har en; resten
+  får sin initial). Cardmarket = deras officiella märke (help.cardmarket.com/en/Downloads, fritt för den som
+  länkar). ⛔ Loggorna är IDENTIFIERARE vid butikens egen annons (referensbruk) — ber en butik oss ta bort sin:
+  fil + logoUrl bort samma dag. Design-canvas: memory `product-view-redesign-directions`.
+- ⛔ **NYHETER & EVENEMANG ÄR DOLDA TILLS ÄGAREN SÄGER TILL (2026-09-09)** — byggt och deployat, men inte
+  färdigt. `NEWS_FEED_PUBLIC=1` i Railway öppnar det (`src/lib/news-feed-gate.ts`); spaken stänger TRE saker
+  samtidigt och alla tre behövs: headerknappen (vägen dit), sidorna (en gissad URL) och sitemapen (en
+  inbjudan till något oavslutat ger URL:en "Crawled – currently not indexed", och den stämpeln sitter kvar).
+  ⛔ Värdet BAKAS IN VID BYGGET — det speglas i `next.config.mjs` OCH står som `ARG`+`ENV` i Dockerfile;
+  ett påslag kräver därför en ny deploy. Jobben fortsätter fylla flödet under tiden, med flit: när spaken
+  slås på ska innehållet redan finnas där. Beskrivningen nedan gäller ytan när den är påslagen.
+- **NYHETER & EVENEMANG (byggt 2026-09-09)** (`.claude/rules/news-events.md`): `/nyheter` + `/evenemang`,
+  nådda via headerns knapp som **ERSATTE Discord-knappen** (Discord finns kvar på /mer + i sidfoten).
+  ⛔ **Flödet är en JSON-FIL på Railway-volymen, aldrig en tabell** — nyhetslistan öppnas av varje besökare
+  och en Neon-väckning köper minst 300 s. Skrivs av `POST /api/cron/feed-publish` (x-cron-secret), läses av
+  sidorna bakom `cachedRead` med egen tagg. **Två producenter, en `lane` var**: `news-feed.yml` (DB-FRITT,
+  3 ggr/dygn, RSS ur `.github/feed/sources.json` + evenemang ur `.github/feed/events.json`) och
+  `scripts/feed-foilio.ts` som ett **STEG i `scrape-all`** (BARA setsläpp; "nytt i katalogen" är BORTTAGET
+  — katalogen är inte kurerad och gav rubriker som "Ny i katalogen: … RIPPED SEAL").
+  Rutten ersätter EN lane i taget — utan `lane` hade det jobb som körde sist raderat det andras poster.
+  ⛔ **RSS ensamt räcker inte, mätt**: PokéBeach har stängt sin feed och de flöden som svarar är
+  tv-spelsbloggar (relevansgrinden släppte 0 av 18) — vår egen katalog är huvudkällan. ⛔ Vi återger aldrig
+  en artikels text: en HÄMTAD post är rubrik + ingress + källa + länk UT och får aldrig en `slug`; en post
+  vi SJÄLVA skrivit (`slug` + `body`) får sidan `/nyheter/<slug>` med vår text och länken till originalet
+  längst ned. Omslag i tre steg: postens egen `imageUrl` → sidans `og:image` (hämtas av jobbet; evenemangens
+  affisch tas ur BILJETTSIDAN) → kategoriikon som vattenstämpel. Våra egna nyheter får ett RITAT omslag
+  (`scripts/make-feed-cover.ts`, genereras lokalt och checkas in — aldrig `next/og` i drift, minnet är kapat). Tre filer i `.github/feed/`
+  (utanför `watchPatterns` ⇒ ingen deploy, ingen DB): `sources.json` (RSS), `news.json` (handskrivna
+  marknadsnyheter + "nytt i Foilio", kategori `APP`) och `events.json` (ingen gratis eventkälla finns).
+  ⛔ Ingen "påminn mig", ingen godkännandekö (ägarbeslut).
+- ⛔ **TRE TAL OM ETT SET, ALDRIG BLANDADE**: `totalCards` = printedTotal (talet på kortet, som skannern
+  läser — byt ALDRIG mening på den); `totalCardsFull` = hela setet inkl. secret rares (kompletteringens
+  nämnare); master set-nämnaren = de TRYCKNINGAR VI listar, aldrig TCGdex tal — en nämnare användaren inte
+  kan NÅ är en lögn om deras samling. 0 = OKÄNT ⇒ ingen stapel alls. Regler: `.claude/rules/collection-portfolio.md`.
+- ⛔ **PULL RATES GÅR INTE ATT VISA ÄRLIGT** (utrett 2026-08-20, öppna inte frågan igen): ingen officiell
+  källa finns, den enda uppmätta är varken maskinläsbar eller tillåten att återanvända, och de breda
+  sajterna kallar sina egna tal simulerade uppskattningar. `1/(antal kort med sällsyntheten)` ÄR INTE ODDS —
+  paket sätts samman från tryckark. Vi visar `SetComposition` i stället, med en synlig rad om varför.
+- **Katalogflödet är hands-off**: nya set + singlar (`import-new-sets.yml`, sön 03:30 UTC), sealed
+  CM-pris/trend + set-etiketter (`runCardmarketRefresh`), auto-import av butiks-SKU:er (restock-skanningen).
+  Inget manuellt steg återstår — bevaka bara RapidAPI-kvoten vid stora släpp.
+  ⛔ **RAPIDAPI GER `cardmarket_id: null` FÖR ETT HELT NYTT SET** (mätt 2026-09-05 på Delta Reign: CM hade
+  alla 18 `idProduct` sedan 08-20, RapidAPI noll av dem 16 dygn senare). Utan ett id är setet OSYNLIGT för
+  HELA flödet på en gång: importens huvudloop skapar en produkt utan CM-offer (ingen länk, inget pris),
+  RECENT_DAYS-läget hoppar över den, gratis-katalog-fallbacken kräver ett EN-syskon i expansionen som ett
+  nytt set per definition saknar, och `cardmarket-refresh` gör `best.cardmarket_id == null → continue` (varken
+  pris eller set-etikett). Id:t återfinns därför ur CM:s EGNA nonsingles-katalog på EXAKT namn
+  (`src/lib/cm-catalog-names.ts`, används av båda) — ⛔ aldrig fuzzy: båda listorna är CM:s egna katalognamn,
+  och ett namn som pekar på flera `idProduct` kastas hellre än gissas (4 av 5 044). ⛔ En rad får aldrig kapa
+  ett id en annan rad redan bär — då visar en av produkterna en främmande prisgraf.
+  ⛔ **Konstavtryck byggs på TVÅ ställen sedan 2026-09-02**: söndagsjobbet (efter bildlagningen) OCH som sista
+  steg i `cardmarket-refresh` — `jp-singles-refresh` SKAPAR kort dagligen (5 075 st 2026-09-01) och ett kort utan
+  `artFingerprint` är osynligt för skannerns bildmatchning tills nästa bygge. Appens art-index cachar 24 h
+  (`ART_INDEX_TTL_MS`) ⇒ nya avtryck syns i skannern inom ett dygn efter jobbet (eller vid deploy).
+- ⛔ **Prishistorik byggs FRAMÅT** — ingen legitim källa ger äkta retroaktiv daglig historik (CM-grafen får
+  ej skrapas, RapidAPI ger bara 7d/30d-snitt). Öppna aldrig backfill-frågan igen.
+
+## Auto-uppdatering (GitHub Actions; publikt repo → obegränsade minuter)
+`cardmarket-refresh` 13:00 UTC + `hot-card-refresh` 21:00, `tradera-sweep` 04:00, `scrape-all` 02:00,
+⛔ `restock-watch` är **PAUSAD sedan 2026-08-23** (se nedan), `discord-restock` (loop-i-jobbet, egen
+takt per butik, pingas var 2:a min).
+DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
+- ⛔ **Nattkedjan får ALDRIG bli längre än tre led**: scrape-all → tradera-sweep → cardtrader-refresh är
+  länkade med `workflow_run` för att dela ETT Neon-fönster. GitHub fyrar max tre nivåer från roten; led 4
+  fyrar ALDRIG, tyst. **Nya nattjobb läggs som STEG i ett befintligt led.** `workflows:` matchar
+  `name:`-FÄLTET — byter du namn på ett uppströmsjobb slutar de efterföljande köra tyst. ⛔ Ingen
+  `conclusion`-grind (byter en synlig röd körning mot tre osynligt uteblivna). Vaktat av
+  `tests/unit/cron-chain-sync.test.ts`.
+- **Utmärkelser**: `achievement-sweep` är ett STEG i `scrape-all` (aldrig egen cron — en extra start är en
+  extra väckning à ≥300 s). Fem set-baserade satser över HELA basen, aldrig en fråga per användare;
+  `@@unique([userId, key, tier])` + `skipDuplicates` gör omkörning gratis. ⛔ Märken TAS ALDRIG BORT — de är
+  historiska fakta, och en utmärkelse som kan försvinna är ingen utmärkelse. ⛔ Ingen daglig svit: det finns
+  ingen inloggningshistorik (`AnalyticsEvent` bär medvetet ingen `userId`) och en skulle kosta en skrivning per
+  session. ⛔ Profilsidan visar INGA utmärkelser sedan 2026-09-03 (ägarbeslut) — kommer de tillbaka gäller
+  vitlistan i sidans filhuvud: försäljnings-, graderings- och skannermärken är privata.
+- ⛔ **restock-watch ÄR PAUSAD (ägarbeslut 2026-08-23)** — `gh workflow disable restock-watch.yml`,
+  status `disabled_manually`. **Den externa pingern (cron-job.org) fyrar fortfarande och får nu fel;
+  stäng av den där också.** Slå på igen med `gh workflow enable restock-watch.yml`.
+  **VARFÖR**: jobbet hade vuxit från 11 till 43 butiker och mediankörtiden från 88 s (08-15) till
+  **503 s** (08-22, n=122) medan pingern stod kvar på 600 s. Glappet mellan körningar blev ~30–100 s,
+  ALLTID under Neons autosuspend på 300 s ⇒ computen kunde matematiskt inte somna. Mätt: 18,8 h vaken
+  tid/dygn och 8,5 CU-h/dygn ≈ **$27/mån** mot ~$14 i baslinjen 2026-08-05. En körning gjorde ~420 s
+  DB-arbete och hittade **0 restocks, 0 larm**; ändringsgrinden hoppade bara 26 av 91 körningar.
+  ⛔ **ATT STÄNGA AV JOBBET RÄCKTE INTE — larmen skapas på TVÅ vägar** (upptäckt 2026-08-25: 8 mejl
+  kl 05:30 medan pause-mejlet påstod motsatsen). `runRestockScan` var bara snabbfilen; nattens
+  `scrape-all` → `runScrapeJob` diffar lagerstatus per butik och anropar SAMMA `checkRestockAlerts`.
+  Båda larmskaparna grindas nu av `restockAlertsPaused()` (`src/lib/restock-alerts-pause.ts`, default
+  PAUSAT). ⛔ Grinden ligger vid SKAPANDET: `dispatchPendingAlerts` läser inte `Alert.channel` utan
+  skickar varje PENDING-rad till användarens påslagna kanaler — en grind vid utskicket hade lämnat
+  raderna liggande och tömt hela högen i ett svep den dag larmen slås på igen.
+  **VAD SOM SLUTADE FUNGERA** — allt detta ligger nere tills jobbet slås på igen:
+  restock-larm via mejl/push/in-app (Pro-funktionen, `proUserWhere()` i `src/services/alerts.ts`),
+  inklusive NEW_LISTING/PREORDER ur feed-först-vägen, `Offer.stockStatus` (lagerbadgen på ALLA
+  produktsidor fryser), `RestockEvent` + `/api/market/restocks`, och ~~auto-importen av nya
+  butiks-SKU:er~~ (LAGAD 2026-09-04, se nedan). ⛔ Veckobrevets "X av dina bevakade är i lager igen"
+  är en EGEN funktion och är INTE pausad; nattkedjan skriver fortfarande `RestockEvent`.
+  ✅ **AUTO-IMPORTEN ÄR TILLBAKA SEDAN 2026-09-04** — `scripts/feed-import-run.ts` som STEG i
+  `scrape-all.yml` (aldrig egen cron; Neon är redan vaken i det fönstret). Feed-först-grenen i
+  `runRestockScan` är den ENDA kodväg som SKAPAR katalogprodukter ur en butiksfeed — `runScrapeJob`
+  matchar bara mot BEFINTLIGA produkter och hoppar tyst över resten — så pausen tog med sig
+  nykatalogiseringen utan att det stod någonstans. MÄTT 2026-09-03, elva dygn senare: nyaste
+  `StoreListing`-raden hos VARJE av de 41 butikerna var ≤ 2026-08-22, och backloggen 3 137 offer-lösa
+  sealed feed-URL:er (1 231 i lager) varav 705 överlevde de billiga vakterna. ⛔ Steget har en
+  TIDSBUDGET (`FEED_IMPORT_BUDGET_MINUTES`, default 25) — varje offer-lös URL kostar en artigt
+  fördröjd hämtning av butikens produktsida, och en timeout i scrape-all tar HELA nattkedjan med sig.
+  Kvarvarande kö skrivs som `::warning::` på körningen; krymper talet inte mellan nätterna, höj
+  budgeten. Larmen påverkas INTE (grinden ligger vid skapandet). Mät med
+  `scripts/audit-feed-first-gap.ts`.
+- ✅ **BEVAKADE LÄNKAR sedan 2026-09-04** (`WatchedListing`, admin → *Bevakade länkar*): butiks-URL:er
+  vi frågar DIREKT för att ingen feed nämner dem. ⛔ Feedarna är inte kompletta — Goblinen publicerade
+  30th Celebration-ETB:n 2026-09-03 utan att URL:en någonsin dök upp i kollektions-JSON:en,
+  `/products.json`, sökindexet, `sitemap_products_1.xml` (1,1 MB URL:er, noll träffar) eller
+  Atom-feeden; produktsidan svarar 200. En konkurrents Discord larmade ändå — de KÄNDE URL:en.
+  ⛔ Svaret formas som en FEED-POST (`src/scrapers/watched-listing.ts`) och splitsas in i butikens
+  lista, så offer-diff, köpbarhetskoll, auto-import, larmvakter och Discord-routing är oförändrade —
+  en egen "bevakningslane" hade gett två sanningar om samma lagerstatus, och två sanningar är hur
+  flappen uppstår. ⛔ FEEDEN VINNER vid krock. ⛔ `null` = "vet inte", aldrig "slut".
+  Discord-lanen får listan via ruttabellen (aldrig DB — den ska inte väcka Neon), DB-lanerna ur Prisma.
+  ⛔ URL:en måste ligga på butikens egen domän (`sameHost`, `src/lib/watched-listing-url.ts`) — utan
+  den grinden är adminformuläret en SSRF-yta. Kandidater hittas med
+  `scripts/find-unfeeded-products.ts` (sitemap + butikens sökindex, rapport only).
+  ⚠️ Kör den rapporten INTE två gånger i rad mot samma butiker: andra sveppet får 429 och
+  ofullständiga butiker ser annars ut som "0 träffar" (den varnar numera själv).
+  Gissar man URL:er i stället för att läsa index: `scripts/probe-store-handles.ts` (lär butikens
+  prefix/suffix ur dess EGNA kända länkar; köpgränser som `-max-1-kund` går ALDRIG att lära sig —
+  de sitter på produkten — och är fasta kandidater; redan bevakade URL:er markeras i stället för
+  att filtreras bort, så varje körning självkontrollerar).
+- ✅ **NOLLPRIS-FIXEN ÄR LIVE SEDAN 2026-09-05** — koden (skriven 09-04, `price: null` släpps igenom,
+  `tests/unit/shopify-zero-price.test.ts`) råkade följa med i commit 8efc1cb under QA-rond 2 utan att ägaren
+  hunnit ge sitt "go"; ägaren är informerad. Återställning = `git revert 8efc1cb -- src/scrapers tests/unit/shopify-zero-price.test.ts`
+  (+ scripts/run-scrapers.ts). Bakgrunden nedan är kvar som historik:
+  ⛔ **NOLLPRIS SLÄNGDE HELA PRODUKTEN (upptäckt 2026-09-04).**
+  `ShopifyAdapter.toRaws` gjorde `if (priceOre <= 0) return []` — butikerna prissätter OSLÄPPTA
+  produkter till 0 kr som platshållare, och då tappar vi inte priset utan HELA annonsen: den når
+  aldrig feeden, får aldrig en `StoreListing`, importeras aldrig och kan aldrig larma. Det biter
+  alltså exakt på ett osläppt set, dvs precis det folk bevakar. MÄTT över 8 Shopify-butiker: 26 av
+  2 268 (1,1 %) — Beam Cardshop 20/217, RGB Kingz 6/105, övriga sex 0 — och **alla 26 är 30th
+  Celebration**. Beams adapterfeed ger 2 av deras 21 `30th-celebration`-produkter trots att alla 21
+  ligger i deras kollektioner sedan 2026-07-28. ⛔ Motsäger regeln "Direkt länk UTAN pris visas ändå
+  ('–')" längre upp. Fix: släpp igenom med `price: null` (rör `RawProductData.price`,
+  `validateResult` och offer-skrivningen — het väg). ⛔ Patcha INTE med bevakade länkar: URL:erna
+  ligger i feeden, det är prisgrinden som fäller dem.
+  ⛔ **Discord-lanen är OPÅVERKAD** — `scripts/discord-restock-run.ts` importerar bara en TYP ur
+  `@prisma/client` och rör aldrig databasen. Ruttabellen (`export-restock-routes.ts`) skrevs av BÅDE
+  restock-watch och `scrape-all`; nattkedjan uppdaterar den alltså fortfarande, så lanen tappar bara
+  förfining för SKU:er som dyker upp mitt på dagen och läker till natten.
+  ⛔ **COPYN ÄR EN DEL AV PAUSEN SEDAN 2026-08-26.** Att stänga av larmen utan att röra texten sålde
+  dem vidare: `/priser` (som i appen ÄR hela paywallen — Capacitor-WebView över den rutten) listade
+  "alla restock-larm" i tre av åtta Pro-punkter, reglagen i inställningarna och bevakningslistan gick
+  att slå på, och set-klockan sålde en ren restock-funktion. **Två kunder betalade 49 kr/mån under
+  pausen** (2026-08-22 kl 12:23 och 2026-08-24 kl 20:12, båda RevenueCat INITIAL_PURCHASE); den senare
+  hann aldrig få pausbeskedet — engångsutskicket gick 2026-08-22 kl 23:57 till de 61 konton som fanns
+  DÅ. Restock-punkterna är nu FLYTTADE, inte raderade, till `premiumRestockFeatures` /
+  `freeExcludedRestock` och konkateneras tillbaka av `withRestockFeatures()` när flaggan är av.
+  Vaktat av `tests/unit/restock-pause-copy.test.ts` (tvåsidigt: punkterna måste både försvinna OCH
+  komma tillbaka).
+  ✅ **LARM-HITS SEDAN 2026-09-06 — MEJL/PUSH GÅR VIA DISCORD-LANEN, restock-watch BEHÖVS INTE MER**
+  (`src/lib/restock-hits.ts`, `services/restock-hits.ts`, `/api/cron/restock-hit`): Discord-lanen POST:ar
+  varje påfyllning den postar om en KÄND produkt (rutt i ruttabellen) till appen med `x-cron-secret`; appen
+  väcker Neon, kör SAMMA `checkRestockAlerts` + `dispatchPendingAlerts` och skriver `RestockEvent` +
+  `Offer.stockStatus` (larma först, flippa sist — som nattkedjan). Neon vaknar alltså bara när något
+  faktiskt fyllts på: MÄTT 09-05 ur lanens loggar 28 inlägg i **12 distinkta 5-minutersfönster/dygn ≈ 1 h
+  vaken tid som TAK** (mot 18,8 h för restock-watch), och de flesta fönstren är redan vakna av Googlebot.
+  Latens ≈ lanens ~20 s + väckningen. ⛔ Lanens `DATABASE_URL` är FORTFARANDE död — hitsen går över HTTP,
+  och `restockAlertsPaused()` svarar "paused" FÖRE `ensureDbAwake()` så pausat läge kostar noll. Misslyckade
+  leveranser (Railway mitt i en självomstart) köas i `.discord-restock-cache/hits.json` (TTL 2 h). ⛔ Bara
+  produkter med rutt larmar den här vägen; en helt ny SKU:s första påfyllning når Discord, och nattkedjans
+  auto-import ger den rutt till nästa. ⛔ Prissänkningar är aldrig hits. Vaktat av `tests/unit/restock-hits.test.ts`.
+  **NÄR LARMEN SLÅS PÅ IGEN — ETT STÄLLE**: `RESTOCK_ALERTS_PAUSED=0` i **Railway** (ny deploy — den styr
+  BÅDE rutten och copyn via `next.config.mjs`-speglingen till `NEXT_PUBLIC_RESTOCK_ALERTS_PAUSED`, bakad
+  vid BYGGET). ✅ **PÅSLAGET 2026-09-06 (variabeln satt + deploy).** ⛔ Variabeln når byggsteget BARA via
+  `ARG`+`ENV` i Dockerfile (tillagt 09-06 — första bygget efter påslaget bakade in "pausat" i den statiska
+  /priser och klientbunten medan rutten skapade larm; samma fälla som STRIPE_ENABLED/GOOGLE_CLIENT_ID). ⛔ `scrape-all.yml` BEHÅLLER `RESTOCK_ALERTS_PAUSED: "1"` — nattens offer-diff ser annars
+  samma OUT→IN som lanen redan larmat om (Offer.stockStatus skrivs av hiten, men en butik utan rutt-offer
+  eller en flipp lanen missade skulle dubbleras). ⛔ `restock-watch.yml` FÖRBLIR AVSTÄNGD; slås den på igen
+  gäller det gamla räknestycket: höj pingern FÖRE — vid 600 s är golvet ~102 väckningar × 300 s = 8,5 h/dygn
+  även med en oändligt snabb DB-fas. Kodhastighet är en KLIPPKANT, inte en skala: inget händer förrän
+  DB-fasen kommer under 300 s. Användarna är meddelade via
+  `.github/workflows/restock-paused-notice.yml` (engångsutskick, Discord som gratis alternativ).
+- ✅ **PRISLARMEN LAGADE 2026-09-06 (pausade 2026-08-26 för sex defekter)** — egen flagga
+  `PRICE_ALERTS_PAUSED` (`src/lib/price-alerts-pause.ts`, default PAUSAT, grind vid SKAPANDET), skild
+  från restock-flaggan: restock pausades för KOSTNAD, prislarmen för en LAGNING. Domen bor i
+  `src/lib/price-alert-rule.ts` (ren, testad): larmet tas på produktens **LÄGSTA KÖPBARA pris** (i lager
+  + direktlänk + > 0 kr, `lowestBuyableOffer` = produktsidans rubrikpris), aldrig på offern som råkade
+  röra sig. **Målpris** = ETT larm per gång målet nås — SPÄRR `WatchlistItem.priceAlertFiredOre`,
+  släpps av `rearmPriceAlerts()` när priset åter ligger över målet. **Prisfall utan målpris** = fall
+  ≥ 5 % OCH ≥ 10 kr från priset användaren senast såg (`Product.lowestPriceOre`), tak 60 % (fel data),
+  nytt larm först vid nytt fall, spärren släpps +10 % över larmnivån (env `PRICE_ALERT_*`). Larmraden
+  bär `Alert.priceOre` + `retailerId` ⇒ rad, mejl och push visar SAMMA tal och butik; aldrig 0 kr.
+  ⛔ **VÄGARNA IN ÄR SVEP, INTE PER OFFER**: `snapshotWatchedPrices()` FÖRE + `sweepWatchedPriceAlerts()`
+  EFTER `recomputeProductPriceCache` i nattkedjan (`scheduler.ts`), `cardmarket-refresh` (13:00) och
+  `hot-card-refresh` (21:00) — så CM-prisfall på singlar larmar (defekt 5). Kostnad: två frågor + en per
+  produkt som blev billigare; pausat läge kostar noll. Dagtid: Discord-lanens "Nytt lägre pris" blir en
+  `PRICE_DROP`-hit till `/api/cron/restock-hit` (egen grind per hit-sort). `runScrapeJob` dömer inte
+  längre per offer. Torrkörning mot prod: `scripts/price-alert-dry-run.ts` (mätt 09-06: 21 aktiva
+  bevakningar, 2 hade larmat — ägarens egna, målen redan nådda — 18 prisfall-bevakningar väntar på ett
+  äkta fall). ⛔ **FLAGGAN MÅSTE STÅ LIKA PÅ FYRA STÄLLEN**: `scrape-all.yml`, `cardmarket-refresh.yml`,
+  `hot-card-refresh.yml` (alla "0" sedan 09-06) OCH Railway (copyn + hit-rutten; bakas in vid bygget).
+  Copyn är grindad som restockens (`premiumPriceFeatures` / `alertCopyKey`), vaktat av
+  `tests/unit/price-alert-pause.test.ts`; domen av `price-alert-rule.test.ts` + `alerts.test.ts`.
+- **restock-watch** = `runRestockScan()` i `src/scrapers/runner.ts`: butikskatalogerna hämtas PARALLELLT
+  (fas 1 = ren HTTP → Neon sover), offers läses EN gång och lagerstatus diffas i minnet. Källistan ligger i
+  diskcache (TTL 24 h) → **en ändrad restockWatch-flagga slår igenom först inom ett dygn.**
+
+## Öppna ärenden / Nästa steg
+- **Skannern: on-device-nummerläsning i SKUGGLÄGE sedan 2026-09-01** (`.claude/rules/scanner.md`): iOS via
+  egen Apple Vision-plugin (`plugins/foilio-text-recognition`, ren SPM — ML Kit är CocoaPods-only), Android
+  via ML Kit. Kräver NYTT Codemagic-bygge (Swift-filen kompileras första gången där) för att ge rader. Läs
+  `scanner-number-ocr-eval.ts --mlkit` ~2 veckor efter bygget; fas 2 (numret avgör) först vid ≥ ~90 % i
+  vision-stratumet. Skärpegrinden mätt DÖD (skarpast missar mest — höj aldrig `SHARP_AUTO_MIN`);
+  trust-grinden vidgas INTE (94 % vs 98 %), svep om ~09-15 på `recall.gm`.
+- **Mät ISR-effekten (~2026-09-05)**: `scripts/neon-wake-attribution.ts` mot baslinjen 19 h/dygn (08-26).
+  Nästa kandidat om set-sidorna dominerar: samma skal-behandling för `/sets/[id]` (bär pris i HTML, 1 h).
+- **Community v2 (forum + meddelanden + Tradera på profilen + köpförfrågningar) BYGGT, TESTFLIGHT-TESTAT OCH
+  POLERAT 2026-09-03 — GRINDAT TILLS LANSERING** (`.claude/rules/community-v2.md`). ✅ Codemagic-bygge 1.2
+  byggt; alla poleringar efter testet är webb-serverade (inget nytt bygge). Kvar hos ägaren: (a) "go" på
+  förslaget för BLOCKERADE profiler (avskalad sida + Avblockera för blockeraren, neutralt "inte tillgänglig"
+  för den blockerade — avslöja aldrig blockering), (b) en regel för `reputationScore` (skrivs ALDRIG i dag,
+  raden är dold), (c) apptest av flik-svep/kant-svep och köpförfrågan med två konton, (d) Discord-kanal för
+  Köp/Sälj/Byt + `DISCORD_MARKET_CHANNEL_ID` i Railway, (e) släpp 1.2 i App Store OCH sätt
+  `COMMUNITY_V2_PUBLIC=1` i Railway (webben). Bucketen `foilio-uploads` (ams) finns och är kopplad via
+  `S3_*`-referenser. ⛔ Ingen live-chatt-POLLNING — chatten är SSE-baserad; 2026-08-29-kalkylen ~$45/mån
+  gällde pollning mot Neon, inte chatt som sådan.
+- **JP-singlar, kvar**: 281 utan direkt CM-länk (se jp-sets.md), Mega Series Promos saknar CM-expansion,
+  ~20 SM-era-set utan logotyp, 24 JP-set utan kort hos leverantören (läker av sig själva).
+- **Gratis "sålt"-snitt**: CM:s prisguide `avg1/avg7/avg30` = snitt av FAKTISKA försäljningar — kan visas
+  som "Sålt senast" utan kostnad (konkurrenternas "recently sold" är sannolikt just det). Ej byggt.
+- ⛔ **Integritetspolicyn är inte juristgranskad** — enda kvarvarande punkten i legalpaketet.
+  `DISCORD_ENABLED=true` kör skarpt trots att granskningen var villkoret. Utöver Discord behandlar Stripe,
+  Google/Gemini och Tradera personuppgifter i prod UTAN att stå i policyn
+  (`../PokeFinds-private/docs/PRIVACY-DISCORD-DRAFT.md`). ⛔ Discord/Tradera får ALDRIG in i
+  `Privacy.s7Items` — den listan påstår biträdesavtal, och båda är självständigt personuppgiftsansvariga.
+  Övrig legalstatus: `../PokeFinds-private/docs/TERMS-GAP.md`.
+- **Kvar i legalpaketet**: F2 (datalicenser, egen utredning) + community-klausulen (publiceras med
+  community). ⛔ ODR-hänvisningen är borttagen med flit (EU-plattformen nedlagd 2025-07-20) — aldrig åter.
+- ✅ **WAVE 8 (2026-09-08): Cardshop Sweden — första SPONSRADE butiken.** Shopify, robots tillåter,
+  sv-SE + SEK på apex. `wholeCatalog` för att ingen av butikens 14 kollektioner bär "pokemon" i
+  handle/titel ⇒ kollektionsvägen ger NOLL; /products.json ger alla 15 på en hämtning och summan av
+  butikens egna "alla-produkter"-hyllor (13+2) är exakt 15, alltså bevisligen komplett (jfr Rogerz:
+  kravet är TVÅ tal, och det som försvinner är 0). Probat: 13 sealed + 2 tillbehör, 10 i lager.
+- ⛔ **SPONSRAD PLACERING = ETT EGET MÄRKT ARK, ALDRIG EN PLATS I LISTAN (2026-09-08)**:
+  `Retailer.sponsoredUntil` (DATUMGRÄNS, aldrig en bock — en glömd bock är gratis toppplacering för
+  evigt) ger butiken en egen rad märkt "Annons" OVANFÖR butikslistan på varje produkt den har
+  **i lager**; listan under sorteras precis som förut och butiken ligger kvar på sin naturliga
+  prisplats där också. ⛔ Det är inte en designsmak utan LÖFTET i **villkor §8** och **"Så rankar vi"
+  på /om**, ordagrant på båda språken: sponsrade placeringar är märkta, "hålls åtskilda från den
+  ordinarie rangordningen och aldrig påverkar den". Sorterar man in raden i listan måste BÅDA
+  legaltexterna skrivas om i BÅDA språken FÖRST. ⛔ Rör ALDRIG priset: "Lägst"-taggen, rubrikpriset,
+  prisstatistiken och prislarmen räknas oförändrat — sponsringen är en PLACERING, inte ett pris.
+  ⛔ Bara KÖPBART annonseras (IN_STOCK); pris får saknas ("–"). Domen: `src/lib/sponsored-offer.ts`
+  (ren, testad), spak: /admin/butiker → Redigera → "Sponsrad placering t.o.m.".
+- **Butikssvansen (wave 7, 2026-09-06 — 54 butiker, 44 bevakade)**: ✅ Sweet Nerds (Nyehandel),
+  Toyspace (Magento 2) och Card Haven (Next.js) är BYGGDA och importerade. Efter wave 4–6 finns ingen
+  hävstång kvar — varje återstående butik är sin EGEN plattform, så listan betas en i taget MED
+  verifiering (`scripts/probe-new-adapters.ts` mot butikens riktiga feed före påslag).
+  ⛔ **Kvar går INTE att bygga bort**: playoteket + arcadedreams är robots-blockerade (`Disallow: /` sist
+  i filen — öppna aldrig frågan igen), PokéBooster/CS Megastore/EvoKort är bot-vägg, Cloudflare resp. ett
+  JS-skal utan data. **Väntar på ÄGARBESLUT**: cgpremium (riktigt JSON-API men `stock` är en förvrängd
+  sträng ⇒ lagerstatus alltid UNKNOWN), Cees Cards/Poromagia (EUR), Kelz0r (DKK) — pipelinen antar SEK.
+  Kvar som ren byggnation: samlargrottan (Wix), gimmick, spelochsant (robots.txt 404:ar numera = tillåtet
+  enligt RFC 9309, men startsidan renderar inga priser — probea om före bygge).
+  Detaljer per butik: `.claude/rules/scraping-restock.md`.
+- **Stripe (webbens Pro)**: kod klar och testad. Kvar = provköp end-to-end + rotera APNs-nyckeln.
+- **Mobilapp via Capacitor** (`android/` finns): iOS-bygge kräver Mac/cloud-build (ägaren på Windows).
+- **Sealed CM-trendrad** i pristabellen kan vara fel pga felmappad `idProduct` (headline-lägsta är ändå
+  rätt — butik vinner); kräver bättre sealed→idProduct-mappning.
+- **Deal-verifieraren** kan gå på Gemini (`DEALS_VERIFY_PROVIDER=gemini`) men står på **claude** med flit:
+  Geminis omdöme på just den bedömningen är OMÄTT och falska positiva blir fejkade "fynd" i en betalfunktion.
+  ~$1–2/mån är inget skäl i sig. Byt först efter mätning av samma annonspar under båda leverantörerna
+  (delad prompt/schema i `src/services/deal-verify/contract.ts` just därför).
+- **Leverantörsfrågor** (utredda, ingen åtgärd): prisbasen vilar på en ANONYM leverantör (TCGGO — inget
+  bolagsnamn, ingen jurisdiktion, inga villkor); pokemontcg.io ägs numera av Scrydex; TCGdex (gratis, MIT)
+  kan ge tryckningstaxonomi + fixa 132 döda bild-URL:er.
+- **SEO-passet 2026-08-17 — kvar hos ÄGAREN, inte i koden**: (1) fyll Discord-serverns `guild.description` +
+  svenskt servernamn, (2) lista servern på DISBOARD/Discadia/top.gg med rätt TAGGAR (⛔ inte `pokemon-sv` —
+  "SV" läses som Scarlet/Violet), (3) väx mot ~150 medlemmar (Kortjakt 97, PokeJakt 141 — Discord Discoverys
+  1000-gräns är irrelevant här). Kodsidan: ett riktigt 1200×630 OG-kort saknas (`OG_IMAGE` är märket i
+  kvadrat, därför `twitter: summary`), och `/en/`-vägarna saknas i robots-disallowen (prefixmatchning).
+- **Launch-readiness + kostnad vid skala**: `docs/LAUNCH-CHECKLIST.md` (Section 0 = hetspunkter vid
+  samtidig trafik; öppet: offers-refetch per produktvisning, `force-dynamic` på `/api/*`, ingen rate
+  limiting, collection-värde live-compute). Övrigt: `docs/TODO.md`.
+
+## Kostnadsdoktrin (styr VARJE designbeslut)
+- **NEONS NOTA ÄR VAKEN TID — RÄKNA VÄCKNINGAR, ALDRIG RADER.** Compute ≈95 % av notan, egress gratis vid
+  vår volym, och **varje väckning köper minst 300 s debiterad tid** (autosuspend ligger redan i golvet —
+  90/120/150/180/240 s ger alla `412`). Därav nattkedjan, och **personaliserade svar cachas 60 s**
+  (`PERSONAL_TTL_SECONDS`, `services/products.ts`) i stället för att gå förbi cachen — med EGEN cache-nyckel
+  ("…Personal"), aldrig delad med den utloggade.
+  ⛔ `loadPersonalIdsRaw` returnerar ARRAYER, inte Set: `unstable_cache` JSON-serialiserar och ett `Set` blir
+  `{}` — `.has()` kastar, men bara vid cache-TRÄFF, bara i produktion, bara för inloggade.
+- **EN LÄSNING PER JOBB, ALDRIG PER VARV**: uppslag i loopar med tusentals varv (denylist, källista) hämtas
+  en gång per körning och hålls synkrona. Ett DB-uppslag per varv i restock-lanen räckte för att hålla
+  computen vaken dygnet runt.
+- **CRAWLER-UA-LISTAN ÄR FÄRSKVARA — nya bot-namn dyker upp oanmält.** Symptomet är "Neon vaken dygnet runt
+  utan att jobben kör" → **kolla UA-fördelningen FÖRST** (Railways httpLogs), blockera i `blocked-bots.ts`
+  + robots.ts. ⛔ Googlebot (inkl. mobil-UA:n med Chrome-prefix) får ALDRIG in i blocklistan — testet vaktar.
+  Railway-minnet är följdsymptom, inte läcka (heap capad till 384 MB (512→384 2026-08-31, heapUsed mätt 166 MB), `MALLOC_ARENA_MAX=2` i Dockerfile).
+  ⛔ **MEN UA-LISTAN ÄR INTE LÄNGRE HUVUDSPAKEN** (mätt 2026-08-26, `scripts/neon-wake-attribution.ts`):
+  **RÄKNA TOMMA 5-MINUTERSLUCKOR, INTE REQUESTS** — Neon kan bara somna i en lucka helt utan DB-arbete,
+  så en kategori som bara DELAR luckor med en annan kostar noll att ta bort. Mätt över 24 h: 191 av 210
+  luckor hade DB-trafik (91 %, stämmer mot Neons 92 % vaken tid). Att blockera ALLA namnlösa/namngivna
+  botar frigör bara **35 luckor ≈ 2,9 h/dygn**; att få bort ALLA publika sidrenders från Postgres frigör
+  **147 luckor ≈ 12,3 h/dygn** (19 h → ~5 h). Restock-pausen ändrade INGENTING — det var aldrig jobben.
+  ⛔ **LÄNGRE `revalidate` HJÄLPER INTE MOT ETT SVEP**: ~63 600 produktvägar (31 807 × 2 locale) +
+  ~350 setvägar, `generateStaticParams()` returnerar `[]` (NOLL prerenderas), och ett svep hinner runt
+  ytan på **14–23 dygn** — när crawlern kommer tillbaka till samma URL är posten 14–23 dygn gammal mot
+  en TTL på 1 h, dvs träffkvot ≈ 0. 88 % av 1 546 dygnsträffar på `/produkter/[slug]` var kalla renders.
+  Dessutom nollar `/api/revalidate`-släggan hela lagret 3 ggr/dygn och VARJE deploy kastar det.
+  ⛔ **PRERENDERING VID BYGGET ÄR INTE FIXEN** (utrett 2026-08-26): ISR-revalidering är LAT men
+  RENDERAR ändå efter TTL:en, så en prerenderad sida blir kall igen — vinsten är latens, inte vaken tid,
+  och bygget betalar N × 25–50 Neon-frågor per deploy. **Den strukturella fixen är att ta PRISET ur den
+  ISR-cachade HTML:en** — ✅ GJORD 2026-08-29, se "Caching/ISR". Mät effekten med
+  `scripts/neon-wake-attribution.ts` efter en vecka.
+  ⛔ **SVEPEN HAR SLUTAT HA NAMN**: största enskilda källan var 416 hämtningar från **321 olika IP:n**
+  (1,3 per IP ⇒ IP-blockering är meningslös) med en FÖRFALSKAD webbläsar-UA. Den fälls av
+  `isForgedBrowserUa()` — `AppleWebKit/6xx` (Safaris motor) tillsammans med `Chrome/` är fysiskt omöjligt.
+  Ett ANDRA svep samma dygn (107 hämtningar, 49 IP:n, 100 % katalog) använde redan en helt giltig
+  Chrome-sträng och går inte att skilja från en besökare — nästa steg är alltså inte en fjärde regex.
+  ⛔ **GOLVET ÄR HÖGT OCH TVÅ DELAR AV DET GÅR INTE ATT RÖRA.** Mätt 2026-08-26: schemalagda jobb =
+  **3,4 h/dygn** (3 oberoende väckningar: nattkedjan 02:59→03:50, cardmarket 13:00, hot-card 21:00 —
+  varje fönster + 300 s svans), och **Googlebot ensam håller 57 % av 5-minutersfönstren vakna** och får
+  aldrig blockeras. Blockering av BÅDA svepen tar 93 % → ~71 %, inte till noll. `/sitemap.xml` (1
+  hämtning/dygn) och `/api/health` (DB-fri, ~279/dygn) kostar INGENTING — jaga dem aldrig.
+  ✅ `ANALYTICS_FLUSH_MS` och `CLICK_FLUSH_MS` är **30 min sedan 2026-08-29** (var 300 000 = exakt
+  autosuspend-tröskeln ⇒ fönstren kedjades ände-mot-ände vid jämn trafik). Klick-tömningen tömmer
+  även analytics-bufferten i samma fönster. ⛔ Sänk aldrig till 300 000 igen.
+  ⛔ **NEON AUTOSKALAR UPP UTAN ATT BEHÖVA DET** (mätt 2026-08-29): endpointen står på min 0,25 /
+  **max 2 CU**, och månadens `compute_time/active_time` = **0,42 CU i snitt** (230 CU-h på 28 dygn ≈
+  $26/mån) medan CPU-grafen ligger på ~0,05 vCPU nästan hela tiden — uppskalningen drivs av
+  cache-minne (LFC), inte av last. Att pinna max = 0,25 gör kostnaden = vaken tid × 0,25 (≈ $15/mån
+  vid samma vakna tid). Görs i Neon-konsolen (Edit endpoint) eller PATCH via API — ägaren gör det.
+  ⛔ Awake-rapporten räknar "≈ CU-h vid 0,25" — det är ett GOLV, inte fakturan.
+  **Railway är den lilla notan**: est. $5,92/mån (minne $5,34) mot Neons ~$26. Minnesgrafen är en
+  sågtand som nollas vid deploy och växer till ~1 GB på tre dygn TROTS heap-taket ⇒ tillväxten är
+  utanför V8. Hypotes (overifierad): kernelns sidcache för ISR-filerna Next skriver vid kalla renders.
+  `/api/health` visar `mem.rss` + `mem.cgroup` (det Railway fakturerar).
+  ✅ **Självåtervinning sedan 2026-08-29** (`src/lib/memory-recycle.ts`, startas i `instrumentation.ts`
+  bara på Railway): läser cgroup-minnet var 10:e min; > 450 MB kl 04 UTC eller > nödtaket när som helst
+  (≥ 3 h mellan — skurdagarna 08-22/08-28 kostade mer än en vecka av lugna) ⇒ töm buffertar, `exit(1)` ⇒ Railway startar om (policy ON_FAILURE). Målet är att
+  hålla notan under Hobby-krediten $5. ⛔ Kräver ON_FAILURE/ALWAYS med HÖGT omstartstal — vid 10
+  och ett tal som inte nollställs står sajten nere efter tio nätter. `MEMORY_RECYCLE_MB=0` stänger av.
+  **Nödtaket är 550 MB via Railway-env `MEMORY_RECYCLE_EMERGENCY_MB` sedan 2026-09-01** (koddefault 1000;
+  historik: 1500→1000 08-31, →550 09-01 som dygnet-runt-kap eftersom nattlig-enbart parkerade snittet
+  på ~0,55 GB > $5/mån). Sågtanden bounds nu vid ~550 ⇒ ~3–5 korta självomstarter/dygn (à ~10–30 s).
+  Rollback = sätt env till 1000 (ingen kodändring). Snittminnet som krävs för < $5 TOTALT: ≤ ~0,42 GB.
+- **INGA INFRAKOSTNADER FÖRDELAS PER ANVÄNDARE** — den som är först på morgonen "orsakar" hela väckningen.
+  Larm redovisas som ANTAL, aldrig kronor.
+- **Kostnadsbriefing FÖRE funktioner**: kostar något pengar/app/tjänst — lägg fram siffran och invänta OK.
+
+## Caching/ISR (kvot-kritiskt)
+- ✅ **PRODUKTSIDAN ÄR ETT DB-FRITT SKAL MED 30-DYGNS ISR PÅ EN VOLYM (2026-08-29)** — den strukturella fixen
+  ovan är GJORD. `/produkter/[slug]` renderas ur `loadProductShell` (namn/bild/set/varianter, egen smal
+  Prisma-fråga, `cachedRead` 30 d + `STATIC_CACHE_TAG`); priser/offers/graf/skena/liknande hämtar
+  `ProductDetailView` själv vid montering (`/api/products/[slug]/detail`, samma payload som overlayn), och
+  crawlers som kör JS hoppar över hämtningen (`lib/crawler-ua.ts` — Googlebot får skalet och "–").
+  ISR-posterna ligger i `server/cache-handler.cjs` (Next 14.2-kontraktet, gzip på `$RAILWAY_VOLUME_MOUNT_PATH/isr`,
+  aktiveras av att volymen finns) och överlever deployer; `server/isr-cache-boot.cjs` ackumulerar
+  `/_next/static`-chunks på volymen så gamla sidor hydrerar. ⛔ Importera ALDRIG `getProductBySlug`/
+  `loadProductDetail` (1 h) i sidan — ruttens TTL blir MIN av alla cachade läsningar. ⛔ `/api/revalidate`
+  får inte `revalidatePath`:a produktsidorna igen (slaggan som nollade vinsten). ⛔ FETCH-poster nycklas
+  på BUILD_ID, PRODUKTSKALEN på `PAGE_EPOCH` — bumpa epoken när produktsidans UI/API-kontrakt ändras så att
+  det måste nå besökare inom 30 d. ⛔ **ALLA ANDRA SIDOR ÄR PER BYGGE (2026-09-06)**: Nexts klient jämför
+  `buildId` i varje RSC-svar och gör en HEL omladdning vid skillnad, så en flik cachad av förra bygget gav
+  en dokumentladdning per flikbyte i appen (Discord-knappen/flikraden "glitchade", sex laddningar på fyra
+  sekunder i loggarna). `pages-by-build/<BUILD_ID>/`, rensas av prune. Ingen Product-nod i JSON-LD längre (kräver `offers`). Vaktat av
+  `tests/unit/product-page-isr-ttl.test.ts` + `isr-cache-handler.test.ts`. Verifierat lokalt:
+  `s-maxage=2592000`, HIT efter processomstart. Volymkostnad ~$0,15/GB-mån (~1–2 GB).
+Publika läs-sidor är ISR-cachade (`revalidate=3600`), INTE `force-dynamic`: startsidan, `/sets`,
+`/sets/[id]` (och `/produkter/[slug]` med 30 d, se ovan). ⛔ **Sätt aldrig tillbaka `force-dynamic`** — det var orsaken till hög
+Active CPU + Neon-CU. Förutsättning: ingen server-`auth()`/`cookies()` i den delade chrome:n — rot-layouten,
+marketing-layouten och `SiteHeader` får INTE kalla `auth()` (då blir HELA appen dynamisk). Session läses
+klient-sida i `header-auth-actions.tsx`, `bottom-tabs.tsx` (self-gate + klarerings-spacer) och
+`live-product-pricing.tsx`. `/produkter` är dynamisk med flit (searchParams).
+⚠️ Offer-tabellens lagerstatus kan släpa ≤1 h (LivePricingProvider hämtar ALDRIG själv; `refresh` är bara
+adminens knapp). Att stänga glappet är ett KOSTNADSBESLUT (en fetch per produktvisning) — fråga ägaren.
+Prishistorik: servern hämtar HELA serien en gång (`MAX_DAYS`), `product-price-card.tsx` filtrerar perioden i
+klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
+
+## SEO & indexering
+- **`/discord` är Discord-serverns landningssida** (ägarbeslut 2026-08-17). Målet "ligg överst på *pokemon
+  tcg sverige discord*" går INTE att nå med metadata: en `discord.gg`-inbjudan är en tunn sida vi varken äger
+  eller kan optimera, och en UTGÅENDE länk hjälper aldrig mottagarens rankning — frågan vinns av en sida vars
+  TEXT handlar om servern. ⛔ **Den tyngsta spaken är ändå OFF-SITE och kodlös**: serverns `guild.description`
+  och namn (tomma ⇒ Googles snippet blir Discords boilerplate "hang out with N other members"), samt DISBOARD,
+  vars sök matchar TAGGAR — inte namn, inte beskrivning. Egen inbjudningskod per yta (`discord-invites.ts`) är
+  enda mätpunkten; `/api/go/…`-loggning hade kostat en Neon-väckning per klick.
+- ⛔ **Bingbot har en EGEN robots-grupp och ÄRVER INGENTING** (RFC 9309: en crawler följer exakt EN grupp).
+  `DISALLOW`-arrayen i `src/app/robots.ts` måste därför upprepas i båda grupperna — den låg bara i `*`, så
+  Bingbot var fri att sveppa `/produkter?` (dynamisk render per träff). ⛔ Googlebot aldrig i blocklistan.
+- ⛔ **Sitemapen har INGEN `lastmod`, med flit**: `Product.updatedAt` bumpas av viewCount-nollningen,
+  omrankningen och `traderaCheckedAt`, medan den enda RIKTIGA innehållsändringen (`recomputeProductPriceCache`)
+  går via `$executeRawUnsafe` och förbigår `@updatedAt` — signalen var alltså OMVÄND. `lastmod` är det enda
+  sitemap-fält Google läser, och ett falskt värde är sämre än inget. ⛔ `priority`/`changefreq` ignoreras av
+  Google sedan år tillbaka — tuna dem aldrig, det är ren ceremoni.
+- ⛔ **Nexts metadata-merge är GRUND per TOPPFÄLT**: en sida som sätter `openGraph` ersätter rotens HELA objekt
+  och tappar `og:site_name`/`og:type`/`og:locale`. Spreada `baseOpenGraph(locale)` (`src/lib/canonical.ts`).
+  Samma fälla gör att ett barns `title` aldrig når `og:title` — en delad länk visar då startsidans rubrik.
+- **Katalogens länkgraf var en SLUTEN CIRKEL** (2026-08-17): `/produkter` är dynamisk och `/produkter?…`
+  robots-blockerad, så pagineringen är ocrawlbar och Googlebot ser bara sida 1. Sidfotens `/sets`-länk är den
+  ENDA interna vägen in i ~20k produktsidor — ta inte bort den. JSON-LD-brödsmulor ger UPPTÄCKT, inte länkkraft.
+- ⚠️ **MJUK 404 PÅ ISR-RUTTERNA, UTREDD OCH MEDVETET OLAGAD**: `/produkter/<död slug>` och
+  `/sets/<dött id>` svarar **HTTP 200** (rätt innehåll + `noindex`, fel status, cachat 1 h). Mätt
+  2026-08-17: varken `notFound()` i `generateMetadata` eller borttagen `loading.tsx` ändrar det —
+  orsaken är ISR självt (prerenderad post bär ingen statuskod), och `force-dynamic`/`dynamicParams:
+  false` kostar mer än felet. Skadan är crawl-budget + en GSC-varning, aldrig indexerat skräp.
+  ⏭️ Testa om vid Next-uppgraderingen. Gräv inte upp frågan igen utan att läsa kommentaren i
+  `produkter/[slug]/page.tsx`.
+- **Ingen fabricerad strukturerad data**: `Product` renderas INTE alls utan `offers` (en tom nod underkänns),
+  `brand: "Pokémon"` utelämnas för `ACCESSORY`/`OTHER` (tredjepartstillverkare), och `aggregateRating`/`review`
+  hittas aldrig på. `alternatesFor()` sätts från SIDAN, aldrig layouten; `BASE_URL` faller tillbaka på
+  `https://foilio.se` med `||` (inte `??` — tom sträng är felläget, och localhost i drift = tyst avindexering).
+
+## Tvärgående invarianter
+- **Priser lagras i öre** (integer) + `currency`-fält. Visa via `formatPrice()` (`src/lib/format.ts`).
+  Aldrig float.
+- ⛔ **0 KR ÄR INGET PRIS**: `priceOreFromEur()` (`src/lib/exchange-rate.ts`) är enda vägen EUR→öre och
+  returnerar `null` när resultatet inte är positivt. Nollor uppstår på TVÅ vägar: källan (RapidAPI publicerar
+  `"30d_average": 0` för kort utan engelska annonser) och AVRUNDNINGEN (äkta belopp < ~0,005 € blir 0 öre —
+  ingen `pos()`-vakt uppströms ser det, där VAR talet positivt). Konvertera aldrig med bar
+  `Math.round(eur * rates.eurToOre)`. "–" läses som "vi vet inte", "0 kr" som "gratis".
+- **Växelkurs** live via `getRatesOre()` (Frankfurter, dygnscache, fallback 1150/1050 öre); anropa i början
+  av en ingest-körning, synkrona pris-funktioner läser `getCachedRatesOre()`. ⛔ I en webbrequest MÅSTE du
+  använda `getRatesOre()` — den synkrona ger FALLBACK-kursen i en process som inte redan hämtat kursen.
+  Hårdkoda aldrig 11.50. `EUR_SEK` pinnar kursen.
+- **Dygnsnyckel = UTC, aldrig lokal midnatt**: `PriceSnapshot.date` är `@db.Date`; använd
+  `utcToday()`/`utcDaysAgo()` (`src/lib/utils.ts`). `d.setHours(0,0,0,0)` ger LOKAL midnatt och på svensk tid
+  skriver en manuell jobbkörning då tyst på GÅRDAGENS rad (osynligt i drift — Actions kör UTC). Samma för
+  `startOfMonthUtc()`: kvotfönstret måste ha samma gräns i kvoten och i kostnadsvyn.
+- ⛔ **ETT GRADERAT KORT ÄR EN ANNAN VARA ÄN DET OGRADERADE** (2026-09-04): en PSA 10 och det lösa kortet
+  delar namn men inte pris, och de får aldrig dela kurva, offer eller skena. Domen tas på ANNONSEN
+  (`isGradedListing`, `src/lib/graded-listing.ts`), aldrig på Tradera-kategorin — säljaren väljer kategori
+  och ~1 % av "Löskort" är slabbar. Graderade affärer bor i `GradedSale`, nyckelade på (produkt, bolag,
+  betyg), och visas med sitt `n` utsatt. Detaljer + vad som var trasigt: `.claude/rules/marketplace-tradera.md`.
+- **Offers = endast direkta länkar** — visa aldrig sök-/bläddringslänkar. `isDirectOfferUrl()` vaktar både UI
+  och prisstatistik. Butiksfilter kräver IN_STOCK + direkt länk. Direkt länk UTAN pris visas ändå ("–").
+- **CM-länkar = exakt slug med `?language=1`** (+ `&minCondition=2` på singlar via `withNearMint()`,
+  idempotent). ⛔ Visa aldrig en bar `prices.pokemontcg.io/cardmarket/{id}`-redirect (302:n strippar
+  language=1) — lös via `resolve-cm-urls.ts`; `runner.ts` bevarar lösta slug-länkar framför inkommande
+  redirects. Sealed: INGET minCondition (inget skick).
+- ⛔ **TCGdex anropas ALDRIG med bart `fetch()`** — `tcgdexJson()` (`src/lib/tcgdex.ts`). api.tcgdex.net
+  ligger bakom GeoDNS och GitHub-runnern (US-East) fick 2026-08-30 en DÖD nordamerikansk spegel medan Europa
+  fick fungerande; hjälparen har timeout, backoff, DoH-fallback (pinnar en spegel som svarar) och kretsbrytare.
+  `null` = "finns inte" (404), `TcgdexUnavailable` = "kunde inte fråga" — behåll då det du visste, nolla aldrig.
+- ⛔ **Aldrig `orderBy=number` i `fetchTcgCardsForSet`** — pokemontcg.io:s string-sort tappar kort mellan
+  sidor. Set kan ha >250 kort (totalCount); paginera stabilt utan orderBy.
+- **`Card.numberSortKey` är en GENERERAD kolumn** (`GENERATED ALWAYS ... STORED`) — Postgres äger den, för en
+  kolumn varje import måste minnas att fylla i är en vakt som failar öppet.
+- **Scrapers**: adapter-mönster i `src/scrapers/`; respektera robots.txt, rate limits, tydlig user-agent;
+  ingen captcha/login-bypass; rådata i `PriceObservation.rawData`. ⛔ Läs HELA robots.txt — Playotekets ser ut
+  som standard-PrestaShop i toppen och avslutar med ett andra `User-agent: *` + `Disallow: /` (lurade två
+  granskningar). `mapPool` (`src/lib/concurrency.ts`) i batch-jobb; runner-loopen är sekventiell med flit
+  (billigast-vinner + restock-dedup).
+  ⛔ **`politeFetch` FÖLJER OMDIRIGERINGAR SJÄLV (2026-09-05)**: Nodes fetch stryker `cookie` när origin byts —
+  även apex → www. goblinen.com 301:ar `/products/<handle>.js` till www, vår `localization=SE`-pinne försvann och
+  US-runnern fick Shopify Markets EX-MOMS-pris (639,20 = 799/1,25) på alla bevakade Goblinen-länkar; products.json
+  (200 direkt på apex) var opåverkad. Inom samma sajt behålls våra headers (`isSameSiteRedirect`), till annan domän
+  följs hoppet utan dem. En butiks-URL i `WatchedListing` bör ändå vara butikens KANONISKA värd.
+
+## Plattform & stack
+- **DB**: PROD = Neon serverless Postgres (Frankfurt), `NEON_DATABASE_URL` i `.env`. DEV = lokal PostgreSQL 18
+  (tjänst `postgresql-x64-18`, db `pokefinds`, user `postgres`, lösen `pokefinds-local`) — Docker behövs INTE.
+  `DB_POOL` sätter `connection_limit` för batch-jobb.
+- **Prod-DB från CLI — ANVÄND ALLTID `node scripts/with-prod-db.mjs <cmd>`** (t.ex.
+  `node scripts/with-prod-db.mjs npx tsx scripts/x.ts`). ⛔ Gräv aldrig fram hemligheten i skalet
+  (`DATABASE_URL="$(grep NEON_DATABASE_URL .env …)"`) — det materialiserar lösenordet i kommandoraden →
+  terminalhistorik, loggar, agent-transkript. Wrappern skickar värdet som miljövariabel till barnprocessen.
+  `.claude/settings.json` nekar dessutom läsning av `.env`, men det riktiga skyddet är att ingen BEHÖVER
+  hemligheten.
+- ⛔ **MIGRATIONEN MÅSTE LIGGA FÖRE KODEN** — ny kod som `select`:ar nya kolumner mot en omigrerad databas ger
+  500 för ALLA, och Dockerfilens `migrate deploy || true` är avsiktligt icke-blockerande och kan tiga ihjäl
+  felet. Kör `node scripts/with-prod-db.mjs npx prisma migrate deploy` MANUELLT före push vid schemaändring.
+  ⚠️ Timeout på advisory-låset (pooler-URL via PgBouncer): kör om med
+  `PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1` när ingen deploy pågår — våra migrationer är idempotenta.
+- **Auth**: NextAuth v4, Credentials provider + JWT-sessioner. RBAC via `role` på User
+  (USER/MODERATOR/ADMIN/SUPERADMIN).
+- **VILKEN LEVERANTÖR GÖR VAD**: `*_PROVIDER`-variablerna styr BARA de två BILD-funktionerna. **Gemini** =
+  allt användaren ser (`OCR_PROVIDER=gemini` skannern, `GRADING_PROVIDER=gemini` graderingen). **Claude** =
+  hela bakgrundspipelinen, utan provider-variabel: `judgeSameProduct` (Haiku) i auto-importens gränsfall,
+  veckans stub-dedup, JP→CM-mappningen, fynd-/Tradera-verifieringen.
+  ⛔ **`ANTHROPIC_API_KEY` är därför inte valfri även om båda bild-funktionerna står på Gemini** — utan den
+  returnerar domaren null, omöjligt att skilja från "olika produkter", och HELA gränsfallsbandet blir
+  dubbletter. Tyst, i drift. ⛔ Aldrig `gemini-2.5-*` (spärrad för nya nycklar). ✅ `SCANNER_MODEL_PRECISE` bytte
+  3.5 → `gemini-3.6-flash` 2026-08-29 (3.5 är strikt dominerad). ⚠️ Det var en DEFAULTÄNDRING, inte en
+  besparing: den precisa vägen har **aldrig kört i produktion** (0 rader i hela ScannerJob-tabellen) —
+  den kräver `isIntroScan` (default av) eller `precise: true`, som klienten aldrig skickar.
+- **Skanning**: `src/services/scanner/` — OCR-adapterinterface med mock + `ClaudeVisionOcrAdapter` +
+  `GeminiVisionOcrAdapter`. `OCR_PROVIDER=claude` är rollback.
+- **PWA/app**: `public/manifest.json` + `public/sw.js` (registreras i prod av `pwa-register.tsx`). Native =
+  Capacitor-wrapper runt samma Next-app. ⚠️ Native-ändringar (plugins, orientering, usage strings) kräver
+  `npx cap sync` + nytt bygge — `git push` räcker INTE.
+- **Övrigt**: Redis valfri (in-memory fallback i `src/lib/queue.ts`); recharts lazy via `PriceChartLazy`;
+  e-post via nodemailer-API (console/JSON i dev via `EMAIL_MODE=console`, Resend HTTP API i prod); Zod på
+  alla API-gränser.
+- **Designtokens**: SVART yta + turkos signaturaccent (`holo.cyan` = `#2dd4bf`), allt via tokens i
+  `tailwind.config.ts` — undvik hårdkodade hex/`*-blue-*`. ⛔ `surface-overlay` är en interaktiv FYLLNING,
+  inte en bakgrund, och ska INTE sänkas till svart. Sidans vågräta luft = 10px på mobil (`px-2.5 sm:px-6`)
+  och delas av ALLT som möter kanten. Detaljer: `.claude/rules/ui-shell.md`.
+
+## Regelverk per delsystem (`.claude/rules/`, laddas automatiskt via `paths:`)
+| Fil | Hårdaste regeln |
+|---|---|
+| `scraping-restock.md` | Shopifys `available` ≠ köpbar; `discontinued` är INGEN lagersignal; frånvaro ur feeden kollas, tolkas inte |
+| `discord-restock.md` | Lanen är GRATIS på villkor — når aldrig DB:n; egen cache-nyckel; domen tas på ANNONSEN, men en känd rutt övertrumfar vakterna. Feedpriset är en AVLÄSNING, inte en prislista ⇒ "nytt lägre pris", aldrig "lägstapris" |
+| `matching-import.md` | `OTHER` var det enda som höll skräpet ute — härda vakterna FÖRE en vidgning; mät mot två facit |
+| `catalog-curation.md` | Herrelösa URL:er räknas över HELA gruppen; denylist FÖRE apply; identiteten måste överleva normaliseringen |
+| `cm-pricing.md` | Singlar = CM engelska NM-"From" RAKT AV; guiden är INTE CM:s From |
+| `base-printings.md` | Tryckningen är identitet, inte en prisnivå; `variantLabel` obligatoriskt i vakterna |
+| `jp-sets.md` | JP-set kommer från CM:s expansioner; namnuppslag MÅSTE filtrera på `language` |
+| `scanner.md` | Numret är identiteten; LÄS `docs/SCANNER-STATUS.md` före ändringar |
+| `grading.md` | `maxOutputTokens` är taket för TÄNKANDE + SVAR på Gemini 3; prompt bor i contract.ts |
+| `auth-accounts.md` | En cookie som JS skriver har inte den livslängd du anger (WebKit kapar till 7 dygn) |
+| `billing-entitlements.md` | Stripe skriver ALDRIG `planTier`; glöms grenen i `proUserWhere()` får kunden Pro i UI:t men INGA larm |
+| `alerts-setwatch.md` | Regeln utvärderas vid LARMTILLFÄLLET, i BÅDA vägarna |
+| `marketplace-tradera.md` | Sålt är en EGEN serie, ersätter aldrig annonskurvan; ingen `fillForward`; graderat är en EGEN vara — domen tas på annonsen, aldrig på kategorin |
+| `catalog-browse.md` | Ofiltrerad katalog personaliseras ALDRIG; bygg ingen inlärd rankning |
+| `collection-portfolio.md` | Poster (lots), aldrig ett snitt i databasen; TRE set-tal och de blandas aldrig |
+| `ui-shell.md` | Porträttlås; bredd ensam ≠ desktop; min-height måste dra av spacer + safe-area |
+| `admin-ops.md` | Tre utfall, aldrig två: kostnadsförd / gratis / OMÄTT |
+| `legal-copy.md` | Ångerrätten är den PROPORTIONELLA modellen — villkor och checkout-samtycke är EN mekanism |
+| `news-events.md` | Flödet är en fil på volymen, aldrig en tabell; en lane per producent; artikeltext återges aldrig |
+| `community-v2.md` | Grindat tills ägaren testat (admin / `FoilioApp/`-UA / `COMMUNITY_V2_PUBLIC`); chatten pollar ALDRIG Neon; Foilio är aldrig part i en affär |
+
+## Kommandon & lokala konton
+```bash
+npm install                     # --legacy-peer-deps vid peer-konflikt
+```
+Postgres kör redan som Windows-tjänst (`postgresql-x64-18`) — ingen Docker. Seed-konton:
+admin@pokefinds.se (SUPERADMIN) och demo@pokefinds.se (USER), lösenord från
+`SEED_ADMIN_PASSWORD`/`SEED_DEMO_PASSWORD` — utelämnas de slumpar seeden fram dem och skriver ut dem
+(E2E:s inloggningstest läser samma variabel och hoppas över om den saknas). Prod-lösenorden är ROTERADE.
+
+## Regler
+- All copy på svenska, premium men lekfull ton; mörkt tema som standard
+- Inga hårdkodade hemligheter; inga fabricerade priser/data — bara verifierade källor
+- GDPR: dataminimering, export och radering måste alltid fungera
