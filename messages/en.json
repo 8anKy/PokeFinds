@@ -105,7 +105,15 @@
     "discordErrorToast": "Could not link your Discord account.",
     "notifEmailHintPaused": "Weekly digest and account email. Price alerts are paused right now.",
     "planProDescPaused": "You have Pro. Unlimited watches, unlimited scanning and AI grading. Alerts are paused right now.",
-    "planFreeDescPaused": "With Pro you get unlimited watches, more AI gradings and full price history."
+    "planFreeDescPaused": "With Pro you get unlimited watches, more AI gradings and full price history.",
+    "visibilityTitle": "Visibility",
+    "visibilityFooter": "This is everything others can see. Values and purchase prices are never shown to anyone else.",
+    "connectionsTitle": "Connections",
+    "accountSummary": "Export and deletion",
+    "summaryNone": "Nothing enabled",
+    "planPrice": "49 kr/month",
+    "searchPlaceholder": "Search settings",
+    "searchEmpty": "No setting matches \"{query}\"."
   },
   "Nav": {
     "explore": "Explore",

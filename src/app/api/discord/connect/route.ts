@@ -14,7 +14,7 @@ export async function GET() {
     return NextResponse.redirect(new URL("/logga-in", APP_URL));
   }
   if (!discordLinkingEnabled()) {
-    const url = new URL("/installningar", APP_URL);
+    const url = new URL("/installningar/kopplingar", APP_URL);
     url.searchParams.set("discord", "fel-avstangd");
     return NextResponse.redirect(url);
   }

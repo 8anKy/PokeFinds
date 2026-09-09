@@ -17,7 +17,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 /** Alla utgångar går tillbaka till inställningarna med en statuskod i URL:en. */
 function back(status: string) {
-  const url = new URL("/installningar", APP_URL);
+  const url = new URL("/installningar/kopplingar", APP_URL);
   url.searchParams.set("discord", status);
   const res = NextResponse.redirect(url);
   res.cookies.set(DISCORD_STATE_COOKIE, "", { path: "/api/discord", maxAge: 0 });

@@ -12,7 +12,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
  * direkt i URL:en. Kräver "Display token on return URL" = PÅ i appinställningarna.
  */
 export async function GET(req: NextRequest) {
-  const settingsUrl = new URL("/installningar", APP_URL);
+  const settingsUrl = new URL("/installningar/kopplingar", APP_URL);
 
   const session = await auth();
   const token = req.nextUrl.searchParams.get("token");

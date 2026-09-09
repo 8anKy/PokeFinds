@@ -86,7 +86,7 @@ function doneBody(type: UnsubscribeType): string {
   const k = KINDS[type];
   return `<p style="line-height:1.6;color:#cbd5e1;">Du får inga fler ${k.what.replace("Foilios ", "")} från Foilio. ${k.keeps}</p>
      <p style="line-height:1.6;color:#cbd5e1;">Ångrar du dig slår du på ${k.resume} igen under Inställningar i appen.</p>
-     <p style="margin:24px 0 0;"><a href="${APP_URL}/installningar" style="display:inline-block;background-color:#2dd4bf;color:#08110f;text-decoration:none;font-weight:700;padding:12px 24px;border-radius:8px;">Öppna inställningar</a></p>`;
+     <p style="margin:24px 0 0;"><a href="${APP_URL}/installningar/notiser" style="display:inline-block;background-color:#2dd4bf;color:#08110f;text-decoration:none;font-weight:700;padding:12px 24px;border-radius:8px;">Öppna inställningar</a></p>`;
 }
 
 /** Slår av typens nyckel utan att röra övriga nycklar i JSON-kolumnen. */

@@ -2,23 +2,24 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
 import { SubpageHeader } from "@/components/layout/subpage-header";
-import { loadSettingsUser } from "./settings-user";
-import { SettingsIndex } from "./index-client";
+import { loadSettingsUser } from "../settings-user";
+import { ConnectionsSection } from "../sections";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("Settings");
-  return { title: t("pageTitle") };
+  return { title: t("connectionsTitle") };
 }
 
-export default async function SettingsPage() {
+export default async function Page() {
   const [user, t] = await Promise.all([loadSettingsUser(), getTranslations("Settings")]);
   return (
     <div className="mx-auto max-w-md space-y-6">
-      <SubpageHeader title={t("pageTitle")} subtitle={t("pageSubtitle")} fallback="/mer" />
+      {/* ⛔ Bakåt landar på registret, aldrig på /mer: undersidan nåddes DÄRIFRÅN. */}
+      <SubpageHeader title={t("connectionsTitle")} fallback="/installningar" />
       <Suspense>
-        <SettingsIndex user={user} />
+        <ConnectionsSection user={user} />
       </Suspense>
     </div>
   );

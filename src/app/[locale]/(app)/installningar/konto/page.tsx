@@ -2,23 +2,24 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
 import { SubpageHeader } from "@/components/layout/subpage-header";
-import { loadSettingsUser } from "./settings-user";
-import { SettingsIndex } from "./index-client";
+import { loadSettingsUser } from "../settings-user";
+import { AccountSection } from "../sections";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("Settings");
-  return { title: t("pageTitle") };
+  return { title: t("gdprTitle") };
 }
 
-export default async function SettingsPage() {
-  const [user, t] = await Promise.all([loadSettingsUser(), getTranslations("Settings")]);
+export default async function Page() {
+  const [, t] = await Promise.all([loadSettingsUser(), getTranslations("Settings")]);
   return (
     <div className="mx-auto max-w-md space-y-6">
-      <SubpageHeader title={t("pageTitle")} subtitle={t("pageSubtitle")} fallback="/mer" />
+      {/* ⛔ Bakåt landar på registret, aldrig på /mer: undersidan nåddes DÄRIFRÅN. */}
+      <SubpageHeader title={t("gdprTitle")} fallback="/installningar" />
       <Suspense>
-        <SettingsIndex user={user} />
+        <AccountSection />
       </Suspense>
     </div>
   );

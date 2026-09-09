@@ -105,7 +105,15 @@
     "discordErrorToast": "Kunde inte länka Discord-kontot.",
     "notifEmailHintPaused": "Veckobrev och kontomejl. Prislarm är pausade just nu.",
     "planProDescPaused": "Du har Pro. Obegränsade bevakningar, obegränsad skanning och AI-gradering. Larmen är pausade just nu.",
-    "planFreeDescPaused": "Med Pro får du obegränsade bevakningar, fler AI-graderingar och full prishistorik."
+    "planFreeDescPaused": "Med Pro får du obegränsade bevakningar, fler AI-graderingar och full prishistorik.",
+    "visibilityTitle": "Synlighet",
+    "visibilityFooter": "Det här är allt andra kan se. Värden och köppris visas aldrig för någon annan.",
+    "connectionsTitle": "Kopplingar",
+    "accountSummary": "Export och radering",
+    "summaryNone": "Inget påslaget",
+    "planPrice": "49 kr/mån",
+    "searchPlaceholder": "Sök inställning",
+    "searchEmpty": "Ingen inställning matchar \"{query}\"."
   },
   "Nav": {
     "explore": "Utforska",
