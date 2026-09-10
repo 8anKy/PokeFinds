@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { collectionImportPublic } from "@/lib/collection-import-gate";
 
 /**
  * ⛔ LAYOUTEN FINNS BARA FÖR TITELN. `importera/page.tsx` är `"use client"`
@@ -17,5 +19,6 @@ export async function generateMetadata({
 }
 
 export default function ImportLayout({ children }: { children: React.ReactNode }) {
+  if (!collectionImportPublic()) notFound();
   return <>{children}</>;
 }

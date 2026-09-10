@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { readJsonCapped } from "@/lib/body-limit";
+import { collectionImportPublic } from "@/lib/collection-import-gate";
 import { importCollectionRows } from "@/services/collection";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
+  if (!collectionImportPublic()) return new Response(null, { status: 404 });
   try {
     const user = await requireUser();
     const { rows } = bodySchema.parse(await readJsonCapped(req, MAX_BODY_BYTES));

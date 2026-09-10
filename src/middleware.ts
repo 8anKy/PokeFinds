@@ -10,6 +10,7 @@ import {
   creatorRefAction,
 } from "@/lib/creator-ref";
 import { LOCALE_COOKIE_NAME, dropSetCookie, shouldDropLocaleCookie } from "@/lib/locale-cookie";
+import { collectionImportPublic } from "@/lib/collection-import-gate";
 import {
   BETA_COOKIE,
   BETA_COOKIE_MAX_AGE,
@@ -199,6 +200,12 @@ export async function middleware(req: NextRequest) {
 
   const { pathname, search } = req.nextUrl;
   const [path, prefix] = splitLocale(pathname);
+
+  // ⛔ Lanseringsgrinden ligger FÖRE auth. En dold import ska ge 404 även för
+  // utloggade som gissar URL:en, inte avslöjas genom en redirect till inloggning.
+  if (path === "/samling/importera" && !collectionImportPublic()) {
+    return new NextResponse(null, { status: 404 });
+  }
 
   // `getToken` (en JWE-dekryptering) körs bara när det FINNS en sessionscookie,
   // så utloggade besökare — merparten av den publika trafiken, och all

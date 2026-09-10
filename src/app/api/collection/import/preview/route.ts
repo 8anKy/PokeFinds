@@ -15,6 +15,7 @@ import { requireUser } from "@/lib/auth";
 import { readJsonCapped } from "@/lib/body-limit";
 import { buildDraftRows } from "@/lib/import-rows";
 import { IMPORT_FIELDS } from "@/lib/import-mapping";
+import { collectionImportPublic } from "@/lib/collection-import-gate";
 import { findDuplicateImport, resolveImportRows, IMPORT_CHUNK_LIMIT } from "@/services/collection-import";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
+  if (!collectionImportPublic()) return new Response(null, { status: 404 });
   try {
     const user = await requireUser();
     const body = bodySchema.parse(await readJsonCapped(req, MAX_BODY_BYTES));

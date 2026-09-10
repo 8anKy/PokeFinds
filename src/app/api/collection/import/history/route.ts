@@ -7,11 +7,13 @@
  */
 import { apiError, jsonOk } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
+import { collectionImportPublic } from "@/lib/collection-import-gate";
 import { listImports, undoImport } from "@/services/collection-import";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  if (!collectionImportPublic()) return new Response(null, { status: 404 });
   try {
     const user = await requireUser();
     return jsonOk({ imports: await listImports(user.id) });
@@ -21,6 +23,7 @@ export async function GET() {
 }
 
 export async function DELETE(req: Request) {
+  if (!collectionImportPublic()) return new Response(null, { status: 404 });
   try {
     const user = await requireUser();
     const id = new URL(req.url).searchParams.get("id") ?? "";

@@ -65,7 +65,10 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
 - **Funktioner live**: watchlist/prisbevakning, restock-alerts (41 butiker), samlingsvärde, AI-gradering
   (`/gradera`), live kort-skanner (`/skanna`), community, admin, PWA, **set-komplettering** (Set-fliken i
   `/samling` + stapel på `/sets/[id]`).
-- **CSV-IMPORT AV SAMLINGEN (2026-09-10)**: `/samling/importera` läser CSV/TSV i webbläsaren (komma,
+- ⛔ **CSV-IMPORT AV SAMLINGEN ÄR DOLD TILLS ÄGAREN HAR TESTAT KLART (2026-09-10).** Knappar, sida och
+  samtliga import-API:er öppnas bara när servervariabeln `COLLECTION_IMPORT_PUBLIC=1`; osatt spak ger
+  404 även på en gissad URL. Koden nedan beskriver flödet när grinden öppnas.
+  `/samling/importera` läser CSV/TSV i webbläsaren (komma,
   semikolon, tabb eller pipe; max 5 000 rader), tolkar vanliga rubriker och låter användaren rätta
   kolumnmappningen. Matchningsstegen är slug → externt kort-id → set + nummer → namn + nummer →
   namn + set → entydigt namn; ⛔ en tvetydig rad gissas ALDRIG utan visas för val, och en omatchad

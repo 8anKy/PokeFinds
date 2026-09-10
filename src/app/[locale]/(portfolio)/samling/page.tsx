@@ -27,6 +27,7 @@ import { PortfolioTabs } from "./portfolio-tabs";
 import { SoldList } from "./sold-list";
 import { SetProgressList } from "./set-progress-list";
 import { GuestPortfolio } from "./guest-portfolio";
+import { collectionImportPublic } from "@/lib/collection-import-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,7 @@ export default async function CollectionPage() {
   );
 
   const isPremium = session.user.isPro;
+  const importEnabled = collectionImportPublic();
   const [items, value, user, sales, setDenominators] = await Promise.all([
     listCollection(userId),
     // Gratis: max 6 mån historik. Premium: full (range-väljaren styr visningen).
@@ -144,10 +146,12 @@ export default async function CollectionPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-bold text-ink">{t("h1")}</h1>
-        <LinkButton href="/samling/importera" variant="secondary" size="sm" className="lg:hidden">
-          <IconUpload size={15} />
-          {t("importCsv")}
-        </LinkButton>
+        {importEnabled && (
+          <LinkButton href="/samling/importera" variant="secondary" size="sm" className="lg:hidden">
+            <IconUpload size={15} />
+            {t("importCsv")}
+          </LinkButton>
+        )}
       </div>
 
       <PortfolioTabs
@@ -323,6 +327,7 @@ export default async function CollectionPage() {
         <CollectionClient
           initialItems={rows}
           isPublicCollection={user?.isPublicCollection ?? false}
+          importEnabled={importEnabled}
         />
       </div>
           </div>

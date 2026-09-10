@@ -80,6 +80,7 @@ Alla variabler finns i `.env.example`:
 | `CRON_SECRET` | Ja (för cron) | Hemlighet för `/api/cron/scrape` — anropet måste skicka headern `x-cron-secret`. Utan satt variabel är cron-routen avstängd (503) |
 | `NEXT_PUBLIC_APP_URL` | Ja | Publik bas-URL (används bl.a. i e-postlänkar) |
 | `NEXT_PUBLIC_APP_NAME` | Ja | Appnamn, `Foilio` |
+| `COLLECTION_IMPORT_PUBLIC` | Nej | `1` öppnar CSV-importens knappar, sida och API:er. Osatt eller annat värde håller hela funktionen dold med 404 tills den är färdigtestad |
 
 ## Felsökning
 

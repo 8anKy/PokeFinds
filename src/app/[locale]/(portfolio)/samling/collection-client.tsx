@@ -108,9 +108,11 @@ const EMPTY_FORM: FormState = {
 export function CollectionClient({
   initialItems,
   isPublicCollection,
+  importEnabled,
 }: {
   initialItems: CollectionRow[];
   isPublicCollection: boolean;
+  importEnabled: boolean;
 }) {
   const t = useTranslations("Collection");
   const locale = useLocale();
@@ -461,16 +463,17 @@ export function CollectionClient({
           <IconPlus size={16} />
           {t("addManually")}
         </Button>
-        {/* CSV-import ÄR TILLBAKA 2026-09-10 (borttagen 2026-08-11 för att
-            flödet var glitchigt — det matchade kort på NAMN och skrev rakt in i
-            samlingen). Importen är nu en EGEN sida med ett granskningssteg:
-            /samling/importera. Exporten var aldrig trasig och följer med.
+        {/* CSV-importen är GRINDAD tills ägaren har testat klart. När den öppnas
+            ligger den på en egen sida med ett granskningssteg:
+            /samling/importera. Exporten är inte grindad och följer med.
             ⛔ Exporten är en vanlig länk till API:t, inte en fetch — en
             nedladdning ska webbläsaren sköta. */}
-        <Button variant="secondary" onClick={() => router.push("/samling/importera")}>
-          <IconUpload size={16} />
-          {t("importCsv")}
-        </Button>
+        {importEnabled && (
+          <Button variant="secondary" onClick={() => router.push("/samling/importera")}>
+            <IconUpload size={16} />
+            {t("importCsv")}
+          </Button>
+        )}
         <a
           href="/api/collection/export"
           className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-surface-border bg-surface px-4 text-sm text-ink transition-all duration-200 ease-out hover:bg-surface-overlay active:scale-[0.97]"
