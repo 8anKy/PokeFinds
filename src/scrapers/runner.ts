@@ -801,6 +801,20 @@ export async function fetchSourceFeed(source: RestockSourceInfo): Promise<FeedIt
   try {
     const adapter = getAdapter(source.type, source.name);
     const result = await adapter.fetchProducts();
+    // ⛔ ADAPTERFEL FÅR ALDRIG VARA TYSTA. `AdapterResult.errors` slängdes här förut, och
+    // en butik som svarade 429/403 mitt i pagineringen gav då en KORTARE katalog som såg
+    // exakt ut som en komplett — bara en HELT tom katalog loggades ("Tom katalog"). MaxGaming
+    // (10 sidor, 1 s paus) skapade av det skälet ingen enda ny StoreListing mellan 2026-08-16
+    // och 2026-09-10 trots 87 offer-lösa URL:er i feeden, däribland 30th Celebration-ETB:n:
+    // de sidorna kom aldrig med i svepet. Samma doktrin som resten av kedjan — frånvaro ur
+    // feeden KOLLAS, tolkas inte.
+    if (result.errors.length) {
+      console.warn(
+        `[restock-scan] ${source.name}: ${result.errors.length} fel under katalog-hämtningen ` +
+          `(feeden kan vara AVKLIPPT — ${result.products.length} annonser kom med): ` +
+          result.errors.slice(0, 5).join(" · ")
+      );
+    }
     return result.products
       .filter((p) => adapter.validateResult(p))
       .map((p) => {

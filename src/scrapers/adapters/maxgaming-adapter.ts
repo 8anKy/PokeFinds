@@ -104,7 +104,11 @@ export class MaxGamingAdapter implements SourceAdapter {
         const url = page === 1 ? `${this.baseUrl}/sv/pokemon` : `${this.baseUrl}/sv/pokemon?page=${page}`;
         const res = await politeFetch(url, { delayMs: PAGE_DELAY_MS });
         if (!res.ok) {
-          if (page === 1) errors.push(`${this.name}: HTTP ${res.status} ${url}`);
+          // ⛔ ÄVEN EN SIDA MITT I PAGINERINGEN ÄR ETT FEL. Rapporterades bara sida 1 förut,
+          // och ett `break` på sida 2 gav en tyst AVKLIPPT katalog: de nyaste produkterna
+          // ligger först, men allt därefter försvann utan spår. En avklippt katalog får
+          // aldrig se ut som en komplett — anroparen loggar errors (se fetchSourceFeed).
+          errors.push(`${this.name}: HTTP ${res.status} ${url} (sida ${page} av max ${MAX_PAGES})`);
           break;
         }
         const html = await res.text();
