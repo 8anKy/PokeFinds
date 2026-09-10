@@ -248,8 +248,8 @@ table td,
 /* Produkt-overlay: glider in från höger vid öppning (svep höger stänger den och
    avtäcker den riktiga listan under). Reduced-motion neutraliseras av regeln ovan. */
 @keyframes overlay-in {
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0); }
+  from { transform: translate3d(100%, 0, 0); }
+  to   { transform: translate3d(0, 0, 0); }
 }
 .overlay-in {
   animation: overlay-in 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;

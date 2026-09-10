@@ -77,7 +77,7 @@ export function ProductOverlayHost() {
     // panelens öppningsanimation; att hoppa direkt till -18 % var snäppet som
     // syntes mellan trycket på kortet och den inkommande produkten.
     element.style.transition = "none";
-    element.style.transform = "translateX(0%)";
+    element.style.transform = "translate3d(0%, 0, 0)";
     element.style.willChange = "transform";
   }, []);
 
@@ -85,7 +85,7 @@ export function ProductOverlayHost() {
     const background = backgroundRef.current;
     if (!background) return;
     background.element.style.transition = transition;
-    background.element.style.transform = `translateX(${-18 * (1 - Math.min(1, progress))}%)`;
+    background.element.style.transform = `translate3d(${-18 * (1 - Math.min(1, progress))}%, 0, 0)`;
   }, []);
 
   const restoreBackground = useCallback(() => {
@@ -270,8 +270,26 @@ export function ProductOverlayHost() {
     let startY = 0;
     let startT = 0;
     let dx = 0;
+    let frame = 0;
     let dragging = false;
     let axis: "x" | "y" | null = null;
+
+    // På vissa WebViews kommer touchmove tätare än bildskärmen ritar. En
+    // style-skrivning per touch kunde då tvinga produktsidan och den riktiga
+    // Explore-vyn att konkurrera om samma frame. Sampla i stället senaste
+    // fingerläget en gång per animation-frame; fingret äger fortfarande
+    // beslutet/preventDefault synkront nedan.
+    const paintDrag = () => {
+      frame = 0;
+      el.style.transform = `translate3d(${dx}px, 0, 0)`;
+      moveBackground(dx / (el.offsetWidth || 1));
+    };
+
+    const flushDrag = () => {
+      if (!frame) return;
+      window.cancelAnimationFrame(frame);
+      paintDrag();
+    };
 
     // TOUCH-events (ej pointer): i iOS-appen (WKWebView) kapar systemets
     // kant-svep (back-gest) annars hela höger-svepet → "stängdes direkt utan att
@@ -286,6 +304,8 @@ export function ProductOverlayHost() {
       dragging = true;
       axis = null;
       dx = 0;
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = 0;
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
       startT = e.timeStamp;
@@ -308,8 +328,7 @@ export function ProductOverlayHost() {
       }
       e.preventDefault(); // kapa native kant-svep/scroll, vi äger gesten
       dx = Math.max(0, mx);
-      el.style.transform = `translateX(${dx}px)`;
-      moveBackground(dx / (el.offsetWidth || 1));
+      if (!frame) frame = window.requestAnimationFrame(paintDrag);
     };
     const settle = (completing: boolean) => {
       const width = el.offsetWidth || 1;
@@ -319,11 +338,11 @@ export function ProductOverlayHost() {
       const backgroundTransition = pageMotionTransition("transform", duration);
       el.style.transition = reduceMotion ? "none" : panelTransition;
       if (completing) {
-        el.style.transform = `translateX(${width}px)`;
+        el.style.transform = `translate3d(${width}px, 0, 0)`;
         moveBackground(1, reduceMotion ? "none" : backgroundTransition);
         window.setTimeout(finishSwipeClose, duration);
       } else {
-        el.style.transform = "translateX(0px)";
+        el.style.transform = "translate3d(0px, 0, 0)";
         moveBackground(0, reduceMotion ? "none" : backgroundTransition);
       }
     };
@@ -337,6 +356,7 @@ export function ProductOverlayHost() {
         return;
       }
       const width = el.offsetWidth || 1;
+      flushDrag();
       const dt = Math.max(1, e.timeStamp - startT);
       settle(resolveBackSwipe({ dx, width, velocityPxPerMs: dx / dt }));
     };
@@ -359,6 +379,7 @@ export function ProductOverlayHost() {
     el.addEventListener("touchend", onEnd);
     el.addEventListener("touchcancel", onCancel);
     return () => {
+      if (frame) window.cancelAnimationFrame(frame);
       el.removeEventListener("touchstart", onStart);
       el.removeEventListener("touchmove", onMove);
       el.removeEventListener("touchend", onEnd);
@@ -388,7 +409,7 @@ export function ProductOverlayHost() {
         ref={panelRef}
         tabIndex={-1}
         style={{ touchAction: "pan-y" }}
-        className="overlay-in absolute inset-x-0 bottom-0 top-[env(safe-area-inset-top)] overflow-y-auto overscroll-none bg-surface pb-[calc(4rem+env(safe-area-inset-bottom))] outline-none"
+        className="overlay-in absolute inset-x-0 bottom-0 top-[env(safe-area-inset-top)] overflow-y-auto overscroll-none bg-surface pb-[calc(4rem+env(safe-area-inset-bottom))] outline-none will-change-transform"
       >
         {/* Inget logotyphuvud i overlayn sedan 2026-09-05 — produktvyn bär sin
             egen flytande bakåtcirkel (router.back() stänger via history-markören
