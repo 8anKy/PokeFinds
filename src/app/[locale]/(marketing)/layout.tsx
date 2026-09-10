@@ -2,7 +2,7 @@ import { setRequestLocale } from "next-intl/server";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SignupCampaignBanner } from "@/components/features/signup-campaign-banner";
-import { ForumSwipeSnapshotCapture } from "@/components/layout/forum-swipe-snapshot";
+import { RouteSwipeSnapshotCapture } from "@/components/layout/route-swipe-snapshot";
 
 export default function MarketingLayout({
   children,
@@ -23,9 +23,9 @@ export default function MarketingLayout({
       data-marketing-shell
       className="flex min-h-[calc(100dvh_-_var(--bottom-tabs-space)_-_env(safe-area-inset-top))] flex-col bg-surface lg:min-h-screen"
     >
-      {/* Behåller den redan målade forumsidan som kostnadsfri visuell bakgrund
-          när en tråd kant-sveps bort. Se komponenten för Neon-vakten. */}
-      <ForumSwipeSnapshotCapture />
+      {/* Behåller den redan målade föregående sidan som kostnadsfri visuell
+          bakgrund på SwipeBack-rutter. Se komponenten för Neon-vakten. */}
+      <RouteSwipeSnapshotCapture />
       {/* Kampanjremsan är en KLIENTkomponent och gör inte layouten dynamisk —
           den läser ett inbakat datum + fo_auth-hinten, aldrig auth() eller cookies()
           på servern. Se Caching/ISR i CLAUDE.md. */}

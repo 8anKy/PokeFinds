@@ -4,11 +4,11 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { EDGE_ZONE_PX, lockAxis, resolveBackSwipe } from "@/lib/swipe-gesture";
-import { getForumSwipeSnapshot } from "@/components/layout/forum-swipe-snapshot";
+import { getRouteSwipeSnapshot } from "@/components/layout/route-swipe-snapshot";
 
 /**
- * Kant-svep tillbaka för RIKTIGA rutter som ligger "ovanpå" forumet: tråd,
- * grupp, profil, sparade. Samma känsla som produkt-overlayns stäng-svep — sidan
+ * Kant-svep tillbaka för RIKTIGA rutter som ligger "ovanpå" en föregående vy:
+ * tråd, grupp, profil, sparade och setdetalj. Samma känsla som produkt-overlayns stäng-svep — sidan
  * följer fingret från vänsterkanten och glider ut när svepet passerar tröskeln
  * (lib/swipe-gesture). Bakåt = webbläsarhistoriken (router.back), utan historik
  * (djuplänk) landar vi på `fallback` — samma regel som BackCircle (ui/back-circle).
@@ -47,7 +47,7 @@ export function SwipeBack({
     const underlay = underlayRef.current;
     const motion = underlayMotionRef.current;
     if (!underlay || !motion) return;
-    const snapshot = getForumSwipeSnapshot(pathname);
+    const snapshot = getRouteSwipeSnapshot(pathname);
     if (!snapshot) return;
 
     const scroll = document.createElement("div");
@@ -88,9 +88,9 @@ export function SwipeBack({
       el.style.position = "relative";
       el.style.zIndex = "1";
       // ⛔ Innehållssidorna har normalt transparent bakgrund eftersom marketing-
-      // skalet målar svart bakom dem. När forumklonen ligger MELLAN skalet och
-      // tråden måste trådens egen yta vara ogenomskinlig, annars syns båda sidornas
-      // text ovanpå varandra under hela svepet. Minhöjden täcker även en kort tråd.
+      // skalet målar svart bakom dem. När den förra vyn ligger MELLAN skalet och
+      // den nya måste den nya sidans egen yta vara ogenomskinlig, annars syns båda
+      // sidornas text ovanpå varandra. Minhöjden täcker även en kort sida.
       el.style.minHeight = `${window.innerHeight}px`;
     };
 
@@ -148,6 +148,23 @@ export function SwipeBack({
       el.style.transform = `translateX(${dx}px)`;
       moveUnderlay(dx, el.offsetWidth || 1);
     };
+
+    const springBack = () => {
+      el.style.transition = reduceMotion ? "none" : "transform 0.25s ease";
+      el.style.transform = "translateX(0px)";
+      if (hasUnderlayRef.current && underlayMotion && shade) {
+        underlayMotion.style.transition = reduceMotion ? "none" : "transform 0.25s ease";
+        underlayMotion.style.transform = "translateX(-18%)";
+        shade.style.transition = reduceMotion ? "none" : "opacity 0.25s ease";
+        shade.style.opacity = "0.2";
+      }
+      window.setTimeout(() => {
+        el.style.transition = "none";
+        el.style.transform = "";
+        hideUnderlay();
+      }, 260);
+    };
+
     const onEnd = (e: TouchEvent) => {
       if (!dragging) return;
       dragging = false;
@@ -174,30 +191,31 @@ export function SwipeBack({
         window.setTimeout(() => goBackRef.current(), 200);
         return;
       }
-      el.style.transition = reduceMotion ? "none" : "transform 0.25s ease";
-      el.style.transform = "translateX(0px)";
-      if (hasUnderlayRef.current && underlayMotion && shade) {
-        underlayMotion.style.transition = reduceMotion ? "none" : "transform 0.25s ease";
-        underlayMotion.style.transform = "translateX(-18%)";
-        shade.style.transition = reduceMotion ? "none" : "opacity 0.25s ease";
-        shade.style.opacity = "0.2";
-      }
-      window.setTimeout(() => {
-        el.style.transition = "none";
+      springBack();
+    };
+
+    const onCancel = () => {
+      if (!dragging) return;
+      dragging = false;
+      // ⛔ OS:et kan avbryta touchen vid t.ex. en systemgest eller notis. Ett
+      // touchcancel är aldrig ett godkänt släpp och får därför inte råka
+      // navigera bakåt bara för att hastigheten hann passera tröskeln.
+      if (axis === "x") springBack();
+      else {
         el.style.transform = "";
         hideUnderlay();
-      }, 260);
+      }
     };
 
     el.addEventListener("touchstart", onStart, { passive: true });
     el.addEventListener("touchmove", onMove, { passive: false });
     el.addEventListener("touchend", onEnd);
-    el.addEventListener("touchcancel", onEnd);
+    el.addEventListener("touchcancel", onCancel);
     return () => {
       el.removeEventListener("touchstart", onStart);
       el.removeEventListener("touchmove", onMove);
       el.removeEventListener("touchend", onEnd);
-      el.removeEventListener("touchcancel", onEnd);
+      el.removeEventListener("touchcancel", onCancel);
     };
   }, []);
 
