@@ -10,14 +10,15 @@ function clampProgress(progress: number): number {
 }
 
 /**
- * Mer kvarvarande sträcka ger längre landning. Den gamla fasta tiden gjorde
- * ett halvt svep mycket snabbare än ett nästan färdigt svep och kändes därför
- * som ett snäpp när fingret släpptes.
+ * Mer kvarvarande sträcka ger längre landning, men aldrig så lång att ett
+ * godkänt halvsvep känns som att vyn har hängt sig. Historikstädningen sker
+ * först EFTER att den synliga rörelsen är klar, så den här tiden är bara det
+ * användaren faktiskt ser.
  */
 export function swipeSettleDuration(progress: number, completing: boolean): number {
   const p = clampProgress(progress);
   const remaining = completing ? 1 - p : p;
-  return Math.round(210 + remaining * 240);
+  return Math.round(180 + remaining * 160);
 }
 
 export function pageMotionTransition(property: "transform" | "opacity", durationMs: number): string {

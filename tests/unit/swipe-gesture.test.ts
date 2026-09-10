@@ -86,4 +86,8 @@ describe("sidövergångens landning", () => {
     expect(swipeSettleDuration(2, true)).toBe(swipeSettleDuration(1, true));
     expect(pageMotionTransition("transform", PAGE_ENTER_DURATION_MS)).toContain("420ms");
   });
+
+  it("håller ett godkänt halvsvep under en tredjedels sekund", () => {
+    expect(swipeSettleDuration(0.5, true)).toBeLessThanOrEqual(260);
+  });
 });

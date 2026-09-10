@@ -171,6 +171,16 @@ export function ProductOverlayHost() {
     if (slugRef.current !== null) window.history.back();
   }, []);
 
+  // Historikmarkören har samma URL som listan. Vid ett färdigt fingersvep kan
+  // vi därför visa listan direkt när panelen är utanför skärmen och sedan
+  // städa markören. Att vänta på popstate här gjorde returen ryckig på tröga
+  // WebViews trots att själva transform-animationen redan var färdig.
+  const finishSwipeClose = useCallback(() => {
+    if (slugRef.current === null) return;
+    softClose();
+    window.history.back();
+  }, [softClose]);
+
   // popstate (Android-bakåt, svep-back, browser-back) → stäng.
   useEffect(() => {
     const onPop = () => {
@@ -311,7 +321,7 @@ export function ProductOverlayHost() {
       if (completing) {
         el.style.transform = `translateX(${width}px)`;
         moveBackground(1, reduceMotion ? "none" : backgroundTransition);
-        window.setTimeout(close, duration);
+        window.setTimeout(finishSwipeClose, duration);
       } else {
         el.style.transform = "translateX(0px)";
         moveBackground(0, reduceMotion ? "none" : backgroundTransition);
@@ -354,7 +364,7 @@ export function ProductOverlayHost() {
       el.removeEventListener("touchend", onEnd);
       el.removeEventListener("touchcancel", onCancel);
     };
-  }, [slug, close, moveBackground]);
+  }, [slug, close, finishSwipeClose, moveBackground]);
 
   if (!slug) return null;
 
