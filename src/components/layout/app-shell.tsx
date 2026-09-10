@@ -105,7 +105,7 @@ export function AppShell({
 
   if (headerLayout) {
     return (
-      <div className={cn("flex flex-col", shellHeight)}>
+      <div data-product-overlay-background className={cn("flex flex-col", shellHeight)}>
         <SiteHeader />
         {/* max-w-7xl = samma spalt som headern och de publika sidorna
             (/produkter, /sets) — annars ligger innehållet inte i linje
@@ -152,7 +152,7 @@ export function AppShell({
   );
 
   return (
-    <div className={cn("flex", shellHeight)}>
+    <div data-product-overlay-background className={cn("flex", shellHeight)}>
       {/* Desktop sidebar */}
       <aside className="hidden w-60 shrink-0 border-r border-surface-border bg-surface-raised/40 lg:block">
         <div className="flex h-16 items-center border-b border-surface-border px-5">
