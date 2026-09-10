@@ -67,7 +67,23 @@ const crypto = require("node:crypto");
 const PAGE_EPOCH = "4";
 const STORE_VERSION = "v1";
 /** Sidor äldre än så rensas oavsett TTL (ISR-TTL:en för produktsidor är 30 d). */
-const PAGE_MAX_AGE_MS = 45 * 24 * 3600 * 1000;
+const PAGE_MAX_AGE_MS = 35 * 24 * 3600 * 1000;
+/**
+ * ⛔ VOLYMEN HAR ETT TAK, OCH ÅLDER ENSAM HÅLLER DEN INTE (2026-09-10).
+ * Volymen (5 GB) nådde 80 % på tolv dygn. Räknestycket: ~63 600 produktvägar ×
+ * ~90 KB gzippad post (HTML ~197 KB + RSC-payloaden) ≈ 5,7 GB — den durabla
+ * cachen ryms alltså inte i volymen ens vid EN epok, och en 30-dygns-TTL hinner
+ * aldrig ikapp en crawler som ändå bara varvar ytan var 14–23:e dygn. Därför en
+ * storleksbudget: äldst SKRIVEN post ryker först. ⛔ En FULL volym är värre än en
+ * tom cache — varje `set()` får ENOSPC, alltså renderas varje sida kallt igen
+ * (~25–50 Neon-frågor styck), dvs precis det volymen köptes för att slippa.
+ * Taket måste därför ligga under volymen med marginal för `static/`, per-bygge-
+ * sidorna och flödesfilen.
+ */
+function pagesMaxBytes(env = process.env) {
+  const mb = Number(env.ISR_PAGES_MAX_MB ?? 2500);
+  return Number.isFinite(mb) && mb > 0 ? mb * 1024 * 1024 : 0;
+}
 const PRUNE_INTERVAL_MS = 6 * 3600 * 1000;
 const NEXT_CACHE_TAGS_HEADER = "x-next-cache-tags";
 
@@ -210,7 +226,18 @@ class PersistentIsrCache {
   root() {
     return path.join(this.dir, STORE_VERSION);
   }
+  /**
+   * Produktskalen för DEN HÄR epoken. ⛔ EPOKEN ÄR EN KATALOG, inte bara en del av
+   * filnamnshashen (2026-09-10): en bump gjorde annars hela förra generationens
+   * filer omöjliga att känna igen — de låg kvar och åt volym tills de blev 45 dygn
+   * gamla. Tre bumpar på fem dygn (09-04, 09-06, 09-08) = tre döda generationer på
+   * disk samtidigt. Som katalog raderas de i ett svep av prune(), precis som
+   * `pages-by-build/`.
+   */
   pagesDir() {
+    return path.join(this.pagesRoot(), PAGE_EPOCH);
+  }
+  pagesRoot() {
     return path.join(this.root(), "pages");
   }
   /** Icke-produktsidor: per bygge, så en klient aldrig får två byggens RSC-svar. */
@@ -392,13 +419,21 @@ class PersistentIsrCache {
     await fsp.rename(tmp, file);
   }
 
-  /** Gamla sidor + andra byggens datacache. Körs sällan, aldrig i request-vägen. */
+  /**
+   * Gamla sidor, döda epoker, andra byggens datacache — och storleksbudgeten.
+   * Körs sällan (var 6:e h + en minut efter start), aldrig i request-vägen.
+   */
   async prune(now = Date.now()) {
-    if (!this.dir) return { pages: 0, fetchDirs: 0, pageDirs: 0 };
+    if (!this.dir) return { pages: 0, fetchDirs: 0, pageDirs: 0, epochDirs: 0, evicted: 0 };
     let pages = 0;
     let fetchDirs = 0;
     let pageDirs = 0;
+    let epochDirs = 0;
+    let evicted = 0;
     try {
+      /** Kvarlevande poster, för budgeten nedan. */
+      const live = [];
+      let bytes = 0;
       for (const name of await fsp.readdir(this.pagesDir())) {
         const file = path.join(this.pagesDir(), name);
         try {
@@ -410,11 +445,44 @@ class PersistentIsrCache {
           if (stale) {
             await fsp.unlink(file);
             pages++;
+          } else if (!name.endsWith(".tmp")) {
+            bytes += st.size;
+            live.push({ file, mtimeMs: st.mtimeMs, size: st.size });
           }
         } catch {
           /* borta redan */
         }
       }
+      // Storleksbudget: äldst skriven ryker först. En post som renderats om har
+      // ny mtime och överlever alltså längre — mtime är närmaste vi har till "senast
+      // använd" utan att skriva en gång per LÄSNING (det hade kostat en I/O per träff).
+      const max = pagesMaxBytes();
+      if (max && bytes > max) {
+        live.sort((a, b) => a.mtimeMs - b.mtimeMs);
+        for (const e of live) {
+          if (bytes <= max) break;
+          try {
+            await fsp.unlink(e.file);
+            bytes -= e.size;
+            evicted++;
+          } catch {
+            /* borta redan */
+          }
+        }
+      }
+      // Döda epoker (och den GAMLA platta layouten, där epoken bara satt i hashen).
+      let epochNames = [];
+      try {
+        epochNames = await fsp.readdir(this.pagesRoot());
+      } catch {
+        /* ingen katalog ännu */
+      }
+      for (const name of epochNames) {
+        if (name === PAGE_EPOCH) continue;
+        await fsp.rm(path.join(this.pagesRoot(), name), { recursive: true, force: true });
+        epochDirs++;
+      }
+      this.lastPagesBytes = bytes;
       const fetchRoot = path.dirname(this.fetchDir());
       for (const name of await fsp.readdir(fetchRoot)) {
         if (name === this.buildId) continue;
@@ -434,12 +502,17 @@ class PersistentIsrCache {
         await fsp.rm(path.join(pagesRoot, name), { recursive: true, force: true });
         pageDirs++;
       }
-      if (pages || fetchDirs || pageDirs)
-        console.log(`[isr-cache] rensade ${pages} sidor, ${fetchDirs} gamla datacacher, ${pageDirs} gamla byggens sidor`);
+      // Loggas ALLTID: volymens storlek är enda sättet att se att budgeten håller
+      // (Railway larmar först vid 80 % och det finns ingen shell in i containern).
+      console.log(
+        `[isr-cache] rensade ${pages} sidor, ${fetchDirs} gamla datacacher, ${pageDirs} gamla byggens sidor, ` +
+          `${epochDirs} döda epoker, ${evicted} över budget — durabla sidor: ` +
+          `${Math.round((this.lastPagesBytes || 0) / 1048576)} MB / ${Math.round(pagesMaxBytes() / 1048576)} MB`
+      );
     } catch (err) {
       console.warn("[isr-cache] prune misslyckades:", err);
     }
-    return { pages, fetchDirs, pageDirs };
+    return { pages, fetchDirs, pageDirs, epochDirs, evicted };
   }
 }
 
@@ -449,3 +522,4 @@ module.exports.resolveCacheDir = resolveCacheDir;
 module.exports.PAGE_EPOCH = PAGE_EPOCH;
 module.exports.isDurablePage = isDurablePage;
 module.exports.PAGE_MAX_AGE_MS = PAGE_MAX_AGE_MS;
+module.exports.pagesMaxBytes = pagesMaxBytes;

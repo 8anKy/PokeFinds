@@ -16,12 +16,19 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const handlerPath = path.resolve(__dirname, "../../server/cache-handler.cjs");
 const syncPath = path.resolve(__dirname, "../../server/isr-static-sync.cjs");
+const { PAGE_EPOCH } = require(handlerPath) as { PAGE_EPOCH: string };
 
 type Handler = {
   get: (key: string, ctx?: Record<string, unknown>) => Promise<{ lastModified: number; value: unknown } | null>;
   set: (key: string, data: unknown, ctx?: Record<string, unknown>) => Promise<void>;
   revalidateTag: (tags: string | string[]) => Promise<void>;
-  prune: (now?: number) => Promise<{ pages: number; fetchDirs: number; pageDirs: number }>;
+  prune: (now?: number) => Promise<{
+    pages: number;
+    fetchDirs: number;
+    pageDirs: number;
+    epochDirs: number;
+    evicted: number;
+  }>;
 };
 
 let tmp: string;
@@ -87,13 +94,13 @@ describe("PersistentIsrCache", () => {
 
   it("prune rör aldrig en färsk .tmp (pågående skrivning), bara övergivna", async () => {
     const a = load(distA);
-    const pagesDir = path.join(process.env.ISR_CACHE_DIR!, "v1", "pages");
+    const pagesDir = path.join(process.env.ISR_CACHE_DIR!, "v1", "pages", PAGE_EPOCH);
     fs.mkdirSync(pagesDir, { recursive: true });
     fs.writeFileSync(path.join(pagesDir, "fresh.gz.1.tmp"), "x");
     fs.writeFileSync(path.join(pagesDir, "abandoned.gz.2.tmp"), "x");
     const old = new Date(Date.now() - 60 * 60 * 1000);
     fs.utimesSync(path.join(pagesDir, "abandoned.gz.2.tmp"), old, old);
-    expect(await a.prune()).toEqual({ pages: 1, fetchDirs: 0, pageDirs: 0 });
+    expect(await a.prune()).toEqual({ pages: 1, fetchDirs: 0, pageDirs: 0, epochDirs: 0, evicted: 0 });
     expect(fs.existsSync(path.join(pagesDir, "fresh.gz.1.tmp"))).toBe(true);
   });
 
@@ -171,9 +178,50 @@ describe("PersistentIsrCache", () => {
     await b.set("fb", { kind: "FETCH", data: {}, revalidate: 60 }, { tags: [] });
     await b.set("/sv/forum", page("forum B"));
     const r = await b.prune(Date.now() + 60 * 24 * 3600 * 1000);
-    expect(r).toEqual({ pages: 1, fetchDirs: 1, pageDirs: 1 });
+    expect(r).toEqual({ pages: 1, fetchDirs: 1, pageDirs: 1, epochDirs: 0, evicted: 0 });
     expect(await b.get("fb", { kindHint: "fetch", tags: [] })).not.toBeNull();
     expect((await b.get("/sv/forum", { kindHint: "app" }))?.value).toMatchObject({ html: "forum B" });
+  });
+
+  // ⛔ 2026-09-10: volymen gick till 80 % (4 av 5 GB) på tolv dygn. Två orsaker,
+  // ett test var: en epok-bump lämnade hela förra generationen oigenkännlig på disk
+  // (den låg kvar tills den blev PAGE_MAX_AGE gammal), och den durabla cachen har
+  // inget tak alls — ~63 600 produktvägar × ~90 KB ryms inte i volymen ens vid EN epok.
+  it("prune tar döda epoker OCH den gamla platta layouten, aldrig den egna epoken", async () => {
+    const a = load(distA);
+    await a.set("/sv/produkter/lever", page("lever"));
+    const pagesRoot = path.join(process.env.ISR_CACHE_DIR!, "v1", "pages");
+    fs.mkdirSync(path.join(pagesRoot, "3"), { recursive: true });
+    fs.writeFileSync(path.join(pagesRoot, "3", "dead.gz"), "gammal epok");
+    fs.writeFileSync(path.join(pagesRoot, "platt.gz"), "gammal layout"); // epoken satt bara i hashen
+    const r = await a.prune();
+    expect(r.epochDirs).toBe(2);
+    expect(fs.existsSync(path.join(pagesRoot, "3"))).toBe(false);
+    expect(fs.existsSync(path.join(pagesRoot, "platt.gz"))).toBe(false);
+    expect((await a.get("/sv/produkter/lever", { kindHint: "app" }))?.value).toMatchObject({ html: "lever" });
+  });
+
+  it("prune håller den durabla katalogen under budgeten och tar äldst skriven först", async () => {
+    try {
+      const a = load(distA);
+      for (const slug of ["a", "b", "c"]) await a.set(`/sv/produkter/${slug}`, page("x".repeat(4000)));
+      const dir = path.join(process.env.ISR_CACHE_DIR!, "v1", "pages", PAGE_EPOCH);
+      const files = fs.readdirSync(dir).sort();
+      // Entydig ålder: files[0] äldst, files[2] nyast (namnen är hashar, inte ordning).
+      files.forEach((f, i) => {
+        const t = new Date(Date.now() - (3 - i) * 60_000);
+        fs.utimesSync(path.join(dir, f), t, t);
+      });
+      const sizes = files.map((f) => fs.statSync(path.join(dir, f)).size);
+      // Budget = precis de två nyaste ⇒ exakt den äldsta ska ryka.
+      process.env.ISR_PAGES_MAX_MB = String((sizes[1] + sizes[2]) / 1048576);
+      expect(await a.prune()).toMatchObject({ evicted: 1 });
+      const kvar = fs.readdirSync(dir);
+      expect(kvar).not.toContain(files[0]);
+      expect(kvar).toContain(files[2]);
+    } finally {
+      delete process.env.ISR_PAGES_MAX_MB;
+    }
   });
 
   it("utan volym: fail-open (bara minne + seed), ingen kastning", async () => {
@@ -192,6 +240,7 @@ describe("syncStaticAssets", () => {
         restored: number;
         archived: number;
         pruned: number;
+        bytes: number;
       };
     };
     const cacheDir = path.join(tmp, "vol");
@@ -206,7 +255,8 @@ describe("syncStaticAssets", () => {
     fs.utimesSync(path.join(cacheDir, "static", "chunks", "ancient-000.js"), ancient, ancient);
 
     const r = syncStaticAssets({ cacheDir, buildStaticDir: buildStatic });
-    expect(r).toEqual({ restored: 1, archived: 1, pruned: 1 });
+    expect(r).toMatchObject({ restored: 1, archived: 1, pruned: 1 });
+    expect(r.bytes).toBeGreaterThan(0);
     expect(fs.existsSync(path.join(buildStatic, "chunks", "old-def.js"))).toBe(true);
     expect(fs.existsSync(path.join(cacheDir, "static", "chunks", "new-abc.js"))).toBe(true);
     expect(fs.existsSync(path.join(cacheDir, "static", "chunks", "ancient-000.js"))).toBe(false);

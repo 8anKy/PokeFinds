@@ -686,7 +686,18 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   en dokumentladdning per flikbyte i appen (Discord-knappen/flikraden "glitchade", sex laddningar på fyra
   sekunder i loggarna). `pages-by-build/<BUILD_ID>/`, rensas av prune. Ingen Product-nod i JSON-LD längre (kräver `offers`). Vaktat av
   `tests/unit/product-page-isr-ttl.test.ts` + `isr-cache-handler.test.ts`. Verifierat lokalt:
-  `s-maxage=2592000`, HIT efter processomstart. Volymkostnad ~$0,15/GB-mån (~1–2 GB).
+  `s-maxage=2592000`, HIT efter processomstart. Volymkostnad ~$0,15/GB-mån.
+  ⛔ **VOLYMEN HAR ETT TAK OCH ÅLDER ENSAM HÅLLER DEN INTE (2026-09-10)** — 5 GB-volymen låg på 80 % efter
+  tolv dygn. Två orsaker: (1) epoken satt bara i filnamnets HASH, så en bump lämnade hela förra
+  generationen oigenkännlig på disk tills den blev `PAGE_MAX_AGE` gammal — tre bumpar på fem dygn (09-04,
+  09-06, 09-08) = tre döda generationer samtidigt; epoken är nu en KATALOG (`pages/<PAGE_EPOCH>/`) som
+  prune raderar i ett svep, precis som `pages-by-build/`. (2) Den durabla cachen hade inget tak alls:
+  ~63 600 produktvägar × ~90 KB gzippad post (HTML ~197 KB + RSC) ≈ 5,7 GB ⇒ den ryms inte i volymen ens
+  vid EN epok, och 30-dygns-TTL:en hinner aldrig ikapp en crawler som varvar ytan var 14–23:e dygn.
+  Storleksbudget `ISR_PAGES_MAX_MB` (default 2500), äldst SKRIVEN ryker först. ⛔ En FULL volym är värre än
+  en tom cache — varje `set()` får ENOSPC och sidan renderas kallt igen (~25–50 Neon-frågor styck), alltså
+  exakt det volymen köptes för att slippa. `PAGE_MAX_AGE` 45 → 35 d. Storleken loggas vid varje prune
+  (`[isr-cache] … durabla sidor: X MB / Y MB`) och `static/` vid start — det finns ingen shell in i containern.
 Publika läs-sidor är ISR-cachade (`revalidate=3600`), INTE `force-dynamic`: startsidan, `/sets`,
 `/sets/[id]` (och `/produkter/[slug]` med 30 d, se ovan). ⛔ **Sätt aldrig tillbaka `force-dynamic`** — det var orsaken till hög
 Active CPU + Neon-CU. Förutsättning: ingen server-`auth()`/`cookies()` i den delade chrome:n — rot-layouten,

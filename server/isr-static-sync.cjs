@@ -68,7 +68,17 @@ function syncStaticAssets({ cacheDir, buildStaticDir, now = Date.now(), maxAgeDa
     }
   }
   const restored = copyNew(volStatic, buildStaticDir);
-  return { restored, archived, pruned };
+  // Bytes rapporteras för att `static/` ska gå att skilja från ISR-posterna när
+  // volymen växer — det finns ingen shell in i containern att köra `du` i.
+  let bytes = 0;
+  for (const file of walk(volStatic)) {
+    try {
+      bytes += fs.statSync(file).size;
+    } catch {
+      /* ignorera */
+    }
+  }
+  return { restored, archived, pruned, bytes };
 }
 
 module.exports = { syncStaticAssets, MAX_AGE_DAYS };

@@ -15,7 +15,8 @@ if (!cacheDir) {
   try {
     const r = syncStaticAssets({ cacheDir, buildStaticDir: path.join(process.cwd(), ".next", "static") });
     console.log(
-      `[isr-cache-boot] ${cacheDir}: ${r.restored} chunks återställda, ${r.archived} arkiverade, ${r.pruned} rensade.`
+      `[isr-cache-boot] ${cacheDir}: ${r.restored} chunks återställda, ${r.archived} arkiverade, ${r.pruned} rensade, ` +
+        `static/ = ${Math.round((r.bytes || 0) / 1048576)} MB.`
     );
   } catch (err) {
     console.warn("[isr-cache-boot] misslyckades (startar ändå):", err);
