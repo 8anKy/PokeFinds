@@ -436,6 +436,7 @@ html[data-native] .web-only {
   display: none !important;
 }
 
+
 /* ---------------------------------------------------------------------------
  * Kontokortet överst på /mer — SAMMA FOLIE som Pro-kortet, medvetet inte samma
  * KORT. Färgregeln är Pro-kortets (turkos, mörk teal, vitt — ingen violett,
@@ -445,11 +446,18 @@ html[data-native] .web-only {
  *   FORM     Pro-kortet är 5:7 stående som ett riktigt kort. Det här är en bred
  *            panel — den är sidans rubrik, inte ett föremål man betraktar.
  *   RÖRELSE  Pro-kortet följer pekaren och gyrot. Den här rör sig BARA i vila,
- *            och långsammare (13 s mot 7 s): kortet är en LÄNK, och ett kort som
+ *            och långsammare (11 s mot 7 s): kortet är en LÄNK, och ett kort som
  *            lutar sig under fingret slåss med trycket i stället för att svara.
- *   LAGER    folie + ränder + glans. INGEN gnistrande spark och INGEN roterande
- *            konisk kantram — de två är Pro-kortets signatur, och en signatur
- *            som också sitter på menysidan är ingen signatur.
+ *   LAGER    folie + ränder + gnistor + glans. INGEN roterande konisk kantram —
+ *            den är Pro-kortets signatur, och en signatur som också sitter på
+ *            menysidan är ingen signatur. Gnistorna kom hit 2026-09-10 på
+ *            ägarens begäran ("jag vill att det ska poppa"): de är finare och
+ *            svagare här (0,38 mot 0,6) och saknar kantramen, så korten läser
+ *            fortfarande som två olika ytor.
+ *
+ * ⛔ FÄRGEN BOR I VARIABLER, INTE I LAGREN. Grå folie (`--grey`) är exakt samma
+ * fyra lager med en annan palett — hade lagren dubblerats hade den ena varianten
+ * drivit från den andra vid nästa justering.
  *
  * --mx/--my är samma @property-variabler som deklareras ovan, så vilan drivs av
  * CSS ensam utan en rad JS. Utan @property-stöd (äldre WebView) står folien
@@ -459,22 +467,41 @@ html[data-native] .web-only {
 .foil-panel {
   --mx: 50%;
   --my: 50%;
+  /* Paletten: allt som är färgat i lagren nedan läser HÄRIFRÅN. */
+  --foil-sweep-1: rgba(45, 212, 191, 0.92);
+  --foil-sweep-2: rgba(255, 255, 255, 0.85);
+  --foil-sweep-3: rgba(15, 118, 110, 0.95);
+  --foil-sweep-4: rgba(94, 234, 212, 0.7);
+  --foil-wash-1: rgba(45, 212, 191, 0.34);
+  --foil-wash-2: rgba(15, 118, 110, 0.42);
+  --foil-wash-3: rgba(94, 234, 212, 0.16);
+  --foil-ink: #06130f;
+  --foil-glow: rgba(45, 212, 191, 0.45);
+  --foil-edge: rgba(45, 212, 191, 0.32);
   position: relative;
   overflow: hidden;
   /* Utan isolation blandar color-dodge/overlay mot sidan bakom kortet. */
   isolation: isolate;
   background:
-    radial-gradient(120% 90% at 12% 0%, rgba(45, 212, 191, 0.24), transparent 58%),
-    radial-gradient(90% 80% at 100% 100%, rgba(15, 118, 110, 0.3), transparent 62%),
-    linear-gradient(160deg, #06110f, #000 60%);
-  animation: foil-panel-idle 13s ease-in-out infinite;
+    radial-gradient(120% 90% at 12% 0%, var(--foil-wash-1), transparent 58%),
+    radial-gradient(90% 80% at 100% 100%, var(--foil-wash-2), transparent 62%),
+    radial-gradient(70% 60% at 78% 8%, var(--foil-wash-3), transparent 66%),
+    linear-gradient(160deg, var(--foil-ink), #000 60%);
+  /* Inre kantljus + ett utfall under kortet: panelen lyfter från svarten i
+     stället för att ligga i den. Ingen roterande ram — se lagerregeln ovan. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 0 0 1px var(--foil-edge),
+    0 18px 42px -30px var(--foil-glow);
+  animation: foil-panel-idle 11s ease-in-out infinite;
 }
 @keyframes foil-panel-idle {
-  0%, 100% { --mx: 12%; --my: 26%; }
-  50%      { --mx: 88%; --my: 74%; }
+  0%, 100% { --mx: 6%; --my: 18%; }
+  50%      { --mx: 94%; --my: 82%; }
 }
 .foil-panel__foil,
 .foil-panel__lines,
+.foil-panel__spark,
 .foil-panel__glare {
   position: absolute;
   inset: 0;
@@ -483,43 +510,74 @@ html[data-native] .web-only {
 }
 .foil-panel__foil {
   mix-blend-mode: color-dodge;
-  opacity: 0.38;
+  opacity: 0.62;
   background: linear-gradient(
     100deg,
-    transparent 24%,
-    rgba(45, 212, 191, 0.7) 38%,
-    rgba(255, 255, 255, 0.6) 47%,
-    rgba(15, 118, 110, 0.75) 56%,
-    rgba(45, 212, 191, 0.5) 66%,
-    transparent 80%
+    transparent 18%,
+    var(--foil-sweep-1) 33%,
+    var(--foil-sweep-2) 44%,
+    var(--foil-sweep-3) 55%,
+    var(--foil-sweep-4) 67%,
+    transparent 82%
   );
-  background-size: 260% 260%;
+  background-size: 230% 230%;
   background-position: var(--mx) var(--my);
 }
 .foil-panel__lines {
   mix-blend-mode: overlay;
-  opacity: 0.3;
-  background: repeating-linear-gradient(100deg, transparent 0 7px, rgba(255, 255, 255, 0.12) 7px 8px);
-  background-size: 260% 260%;
+  opacity: 0.44;
+  background: repeating-linear-gradient(100deg, transparent 0 6px, rgba(255, 255, 255, 0.18) 6px 7px);
+  background-size: 230% 230%;
   background-position: var(--mx) var(--my);
 }
+/* Gnistorna maskas till en fläck runt --mx/--my — hela panelen full av prickar
+   är brus, ett vandrande band är glitter. */
+.foil-panel__spark {
+  z-index: 2;
+  mix-blend-mode: screen;
+  opacity: 0.38;
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.95) 0.55px, transparent 1.2px),
+    radial-gradient(rgba(255, 255, 255, 0.65) 0.45px, transparent 0.9px);
+  background-size: 18px 18px, 11px 11px;
+  background-position:
+    calc(var(--mx) * 0.4) calc(var(--my) * 0.4),
+    calc(var(--mx) * -0.3) calc(var(--my) * 0.55);
+  -webkit-mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0, rgba(0, 0, 0, 0.5) 26%, transparent 62%);
+  mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0, rgba(0, 0, 0, 0.5) 26%, transparent 62%);
+}
 .foil-panel__glare {
+  z-index: 2;
   mix-blend-mode: overlay;
-  background: radial-gradient(circle at var(--mx) var(--my), rgba(255, 255, 255, 0.22), transparent 52%);
+  background: radial-gradient(circle at var(--mx) var(--my), rgba(255, 255, 255, 0.32), transparent 48%);
 }
 /* Innehållet ligger ÖVER folielagren — annars färgar color-dodge texten. */
 .foil-panel__face {
   position: relative;
-  z-index: 2;
+  z-index: 3;
 }
-/* MATT = INTE PRO (ägarbeslut 2026-09-09). Folien är en FÖRMÅN, och en förmån
-   alla har är ingen förmån: gratiskontot och gästen får samma kort i samma form
-   med samma tal, men utan glans. Skillnaden är därför läsbar utan ett ord copy —
-   den som uppgraderar ser sitt eget kort tändas. Layout, radie och typografi är
-   identiska med flit; det enda som skiljer är ytan. */
-.foil-panel--matte {
-  animation: none;
-  background:
-    radial-gradient(120% 90% at 12% 0%, rgba(45, 212, 191, 0.1), transparent 58%),
-    linear-gradient(160deg, #08100f, #000 62%);
+/* GRÅ FOLIE = INTE PRO (ägarbeslut 2026-09-10, ersätter det matta kortet).
+   Folien är fortfarande en FÖRMÅN: gratiskontot och gästen får SAMMA fyra lager,
+   samma rörelse och samma form — men i silver/grafit utan en droppe turkos. Den
+   som uppgraderar ser sitt eget kort byta metall, inte tändas ur ingenting.
+   ⛔ Lägg aldrig tillbaka turkos här: turkos ÄR Pro-signalen på sidan. */
+.foil-panel--grey {
+  --foil-sweep-1: rgba(212, 216, 220, 0.8);
+  --foil-sweep-2: rgba(255, 255, 255, 0.72);
+  --foil-sweep-3: rgba(120, 126, 133, 0.85);
+  --foil-sweep-4: rgba(180, 186, 193, 0.6);
+  --foil-wash-1: rgba(203, 209, 215, 0.16);
+  --foil-wash-2: rgba(120, 126, 133, 0.2);
+  --foil-wash-3: rgba(255, 255, 255, 0.07);
+  --foil-ink: #0c0e10;
+  --foil-glow: rgba(203, 209, 215, 0.28);
+  --foil-edge: rgba(255, 255, 255, 0.12);
+}
+/* Silverfolie fångar mindre ljus än turkos — utan den här dämpningen läser den
+   grå varianten som ljusare än Pro, vilket vänder hela hierarkin. */
+.foil-panel--grey .foil-panel__foil {
+  opacity: 0.44;
+}
+.foil-panel--grey .foil-panel__spark {
+  opacity: 0.26;
 }

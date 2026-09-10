@@ -60,13 +60,16 @@ export function MenuRow({ link }: { link: MenuLink }) {
 }
 
 /**
- * Foliekortet. Glansen ligger i tre `aria-hidden`-lager UNDER innehållet
+ * Foliekortet. Glansen ligger i fyra `aria-hidden`-lager UNDER innehållet
  * (`.foil-panel__face`) — se kommentaren vid `.foil-panel` i globals.css för
  * varför det här kortet rör sig mindre än Pro-kortet.
  *
- * ⛔ `foil` ÄR PRO-FÖRMÅNEN, inte en stilinställning: gratiskontot och gästen får
- * samma kort matt. Slå aldrig på den för alla "för att det ser bättre ut" — då
- * är det ingen förmån längre, och Pro har en säljpunkt mindre.
+ * ⛔ `foil` VÄLJER METALL, den slår inte på och av glansen (2026-09-10). Pro får
+ * turkos folie, gratiskontot och gästen får grå — SAMMA fyra lager, samma
+ * rörelse, samma form. Förmånen är alltså kvar (turkos är Pro-signalen på hela
+ * sidan) men den som inte betalar får ändå ett kort som lever. Ge aldrig
+ * gratisvarianten turkos "för att det ser bättre ut" — då är det ingen förmån
+ * längre, och Pro har en säljpunkt mindre.
  */
 export function FoilPanel({
   href,
@@ -79,17 +82,14 @@ export function FoilPanel({
 }) {
   const inner = (
     <>
-      {foil && (
-        <>
-          <span aria-hidden className="foil-panel__foil" />
-          <span aria-hidden className="foil-panel__lines" />
-          <span aria-hidden className="foil-panel__glare" />
-        </>
-      )}
+      <span aria-hidden className="foil-panel__foil" />
+      <span aria-hidden className="foil-panel__lines" />
+      <span aria-hidden className="foil-panel__spark" />
+      <span aria-hidden className="foil-panel__glare" />
       <span className="foil-panel__face block">{children}</span>
     </>
   );
-  const className = `foil-panel${foil ? "" : " foil-panel--matte"} block rounded-[18px] border border-surface-border p-[18px] transition-colors`;
+  const className = `foil-panel${foil ? "" : " foil-panel--grey"} block rounded-[18px] border border-surface-border p-[18px] transition-colors`;
   // Gästens kort bär egna knappar och får därför inte vara en länk själv —
   // en länk runt två knappar gör hela kortet till en tredje, otydlig, träffyta.
   return href ? (
