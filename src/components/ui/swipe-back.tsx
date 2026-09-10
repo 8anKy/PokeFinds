@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { useRouter } from "@/i18n/navigation";
+import { usePathname, useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { EDGE_ZONE_PX, lockAxis, resolveBackSwipe } from "@/lib/swipe-gesture";
+import { takeForumSwipeSnapshot } from "@/components/layout/forum-swipe-snapshot";
 
 /**
  * Kant-svep tillbaka för RIKTIGA rutter som ligger "ovanpå" forumet: tråd,
@@ -30,7 +31,12 @@ export function SwipeBack({
   className?: string;
 }) {
   const router = useRouter();
-  const ref = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const underlayRef = useRef<HTMLDivElement>(null);
+  const underlayMotionRef = useRef<HTMLDivElement>(null);
+  const shadeRef = useRef<HTMLDivElement>(null);
+  const hasUnderlayRef = useRef(false);
   const goBackRef = useRef(() => {});
   goBackRef.current = () => {
     if (typeof window !== "undefined" && window.history.length > 1) router.back();
@@ -38,7 +44,28 @@ export function SwipeBack({
   };
 
   useEffect(() => {
-    const el = ref.current;
+    const underlay = underlayRef.current;
+    const motion = underlayMotionRef.current;
+    if (!underlay || !motion) return;
+    const snapshot = takeForumSwipeSnapshot(pathname);
+    if (!snapshot) return;
+
+    const scroll = document.createElement("div");
+    scroll.style.transform = `translateY(-${snapshot.scrollY}px)`;
+    scroll.appendChild(snapshot.shell);
+    motion.appendChild(scroll);
+    hasUnderlayRef.current = true;
+    return () => {
+      hasUnderlayRef.current = false;
+      motion.replaceChildren();
+    };
+  }, [pathname]);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    const underlay = underlayRef.current;
+    const underlayMotion = underlayMotionRef.current;
+    const shade = shadeRef.current;
     if (!el) return;
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     let startX = 0;
@@ -47,6 +74,38 @@ export function SwipeBack({
     let dx = 0;
     let dragging = false;
     let axis: "x" | "y" | null = null;
+
+    const revealUnderlay = () => {
+      if (!hasUnderlayRef.current || !underlay || !underlayMotion || !shade) return;
+      underlay.style.display = "block";
+      underlayMotion.style.transition = "none";
+      underlayMotion.style.transform = "translateX(-18%)";
+      shade.style.transition = "none";
+      shade.style.opacity = "0.2";
+      el.style.position = "relative";
+      el.style.zIndex = "1";
+    };
+
+    const moveUnderlay = (distance: number, width: number) => {
+      if (!hasUnderlayRef.current || !underlayMotion || !shade) return;
+      const progress = Math.min(1, distance / width);
+      underlayMotion.style.transform = `translateX(${-18 * (1 - progress)}%)`;
+      shade.style.opacity = `${0.2 * (1 - progress)}`;
+    };
+
+    const hideUnderlay = () => {
+      if (underlay) underlay.style.display = "none";
+      if (underlayMotion) {
+        underlayMotion.style.transition = "none";
+        underlayMotion.style.transform = "";
+      }
+      if (shade) {
+        shade.style.transition = "none";
+        shade.style.opacity = "";
+      }
+      el.style.position = "";
+      el.style.zIndex = "";
+    };
 
     const onStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
@@ -73,16 +132,19 @@ export function SwipeBack({
           dragging = false;
           return;
         }
+        revealUnderlay();
       }
       e.preventDefault();
       dx = Math.max(0, mx);
       el.style.transform = `translateX(${dx}px)`;
+      moveUnderlay(dx, el.offsetWidth || 1);
     };
     const onEnd = (e: TouchEvent) => {
       if (!dragging) return;
       dragging = false;
       if (axis !== "x") {
         el.style.transform = "";
+        hideUnderlay();
         return;
       }
       const width = el.offsetWidth || 1;
@@ -94,14 +156,27 @@ export function SwipeBack({
         }
         el.style.transition = "transform 0.22s ease";
         el.style.transform = `translateX(${width}px)`;
+        if (hasUnderlayRef.current && underlayMotion && shade) {
+          underlayMotion.style.transition = "transform 0.22s ease";
+          underlayMotion.style.transform = "translateX(0%)";
+          shade.style.transition = "opacity 0.22s ease";
+          shade.style.opacity = "0";
+        }
         window.setTimeout(() => goBackRef.current(), 200);
         return;
       }
       el.style.transition = reduceMotion ? "none" : "transform 0.25s ease";
       el.style.transform = "translateX(0px)";
+      if (hasUnderlayRef.current && underlayMotion && shade) {
+        underlayMotion.style.transition = reduceMotion ? "none" : "transform 0.25s ease";
+        underlayMotion.style.transform = "translateX(-18%)";
+        shade.style.transition = reduceMotion ? "none" : "opacity 0.25s ease";
+        shade.style.opacity = "0.2";
+      }
       window.setTimeout(() => {
         el.style.transition = "none";
         el.style.transform = "";
+        hideUnderlay();
       }, 260);
     };
 
@@ -118,8 +193,18 @@ export function SwipeBack({
   }, []);
 
   return (
-    <div ref={ref} className={cn("will-change-transform", className)}>
-      {children}
+    <div className={cn("relative", className)}>
+      <div
+        ref={underlayRef}
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-x-0 bottom-0 top-[env(safe-area-inset-top)] z-0 hidden overflow-hidden bg-surface"
+      >
+        <div ref={underlayMotionRef} className="absolute inset-0 will-change-transform" />
+        <div ref={shadeRef} className="absolute inset-0 bg-black" />
+      </div>
+      <div ref={contentRef} className="will-change-transform">
+        {children}
+      </div>
     </div>
   );
 }
