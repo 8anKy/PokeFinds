@@ -4,7 +4,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { EDGE_ZONE_PX, lockAxis, resolveBackSwipe } from "@/lib/swipe-gesture";
-import { takeForumSwipeSnapshot } from "@/components/layout/forum-swipe-snapshot";
+import { getForumSwipeSnapshot } from "@/components/layout/forum-swipe-snapshot";
 
 /**
  * Kant-svep tillbaka för RIKTIGA rutter som ligger "ovanpå" forumet: tråd,
@@ -47,12 +47,15 @@ export function SwipeBack({
     const underlay = underlayRef.current;
     const motion = underlayMotionRef.current;
     if (!underlay || !motion) return;
-    const snapshot = takeForumSwipeSnapshot(pathname);
+    const snapshot = getForumSwipeSnapshot(pathname);
     if (!snapshot) return;
 
     const scroll = document.createElement("div");
     scroll.style.transform = `translateY(-${snapshot.scrollY}px)`;
-    scroll.appendChild(snapshot.shell);
+    // Effektens setup/cleanup körs två gånger i React Strict Mode. Klona därför
+    // den sparade noden här också; att flytta originalet hade lämnat andra
+    // setup-varvet utan bakgrund och gjort felet osynligt bara i produktion.
+    scroll.appendChild(snapshot.shell.cloneNode(true));
     motion.appendChild(scroll);
     hasUnderlayRef.current = true;
     return () => {
@@ -84,6 +87,11 @@ export function SwipeBack({
       shade.style.opacity = "0.2";
       el.style.position = "relative";
       el.style.zIndex = "1";
+      // ⛔ Innehållssidorna har normalt transparent bakgrund eftersom marketing-
+      // skalet målar svart bakom dem. När forumklonen ligger MELLAN skalet och
+      // tråden måste trådens egen yta vara ogenomskinlig, annars syns båda sidornas
+      // text ovanpå varandra under hela svepet. Minhöjden täcker även en kort tråd.
+      el.style.minHeight = `${window.innerHeight}px`;
     };
 
     const moveUnderlay = (distance: number, width: number) => {
@@ -105,6 +113,7 @@ export function SwipeBack({
       }
       el.style.position = "";
       el.style.zIndex = "";
+      el.style.minHeight = "";
     };
 
     const onStart = (e: TouchEvent) => {
@@ -196,13 +205,14 @@ export function SwipeBack({
     <div className={cn("relative", className)}>
       <div
         ref={underlayRef}
+        data-swipe-back-underlay
         aria-hidden="true"
         className="pointer-events-none fixed inset-x-0 bottom-0 top-[env(safe-area-inset-top)] z-0 hidden overflow-hidden bg-surface"
       >
         <div ref={underlayMotionRef} className="absolute inset-0 will-change-transform" />
         <div ref={shadeRef} className="absolute inset-0 bg-black" />
       </div>
-      <div ref={contentRef} className="will-change-transform">
+      <div ref={contentRef} className="bg-surface will-change-transform">
         {children}
       </div>
     </div>

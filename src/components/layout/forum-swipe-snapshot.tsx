@@ -9,7 +9,8 @@ interface ForumSwipeSnapshot {
   scrollY: number;
 }
 
-let pendingSnapshot: ForumSwipeSnapshot | null = null;
+const SNAPSHOT_KEY = "__foilioForumSwipeSnapshot";
+type SwipeWindow = Window & { [SNAPSHOT_KEY]?: ForumSwipeSnapshot };
 
 function withoutLocale(pathname: string): string {
   return pathname.replace(/^\/(?:sv|en)(?=\/|$)/, "") || "/";
@@ -40,8 +41,9 @@ function rememberForum(target: EventTarget | null) {
   // forumsidans läsningar och kunnat väcka Neon igen.
   const clone = shell.cloneNode(true) as HTMLElement;
   clone.setAttribute("aria-hidden", "true");
+  clone.setAttribute("data-forum-swipe-snapshot", "");
   clone.querySelectorAll("[id]").forEach((node) => node.removeAttribute("id"));
-  pendingSnapshot = {
+  (window as SwipeWindow)[SNAPSHOT_KEY] = {
     destination,
     shell: clone,
     scrollY: window.scrollY,
@@ -56,7 +58,12 @@ export function ForumSwipeSnapshotCapture() {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!isForumFeed(pathname)) return;
+    // next-intl lämnar normalt tillbaka vägen utan locale-prefix, men under en
+    // kall klientstart kan routern först exponera den faktiska /sv|/en-vägen.
+    // Samma normalisering som destinationsmatchningen gör fångsten stabil i båda.
+    if (!isForumFeed(withoutLocale(pathname))) return;
+    // Föregående tråds visuella lager behövs inte när forumet är aktivt igen.
+    delete (window as SwipeWindow)[SNAPSHOT_KEY];
     // Mus/desktop har ingen touchgest att visa klonen i. Hoppa över arbetet där;
     // maxTouchPoints täcker WKWebView även om dess media query skulle avvika.
     if (!window.matchMedia("(pointer: coarse)").matches && navigator.maxTouchPoints === 0) return;
@@ -79,10 +86,10 @@ export function ForumSwipeSnapshotCapture() {
   return null;
 }
 
-/** Flyttar ägarskapet till SwipeBack; samma klon används aldrig två gånger. */
-export function takeForumSwipeSnapshot(pathname: string): ForumSwipeSnapshot | null {
+/** Hämtar bakgrunden. Anroparen klonar den så React Strict Modes effektprov är idempotent. */
+export function getForumSwipeSnapshot(pathname: string): ForumSwipeSnapshot | null {
+  const swipeWindow = window as SwipeWindow;
+  const pendingSnapshot = swipeWindow[SNAPSHOT_KEY];
   if (!pendingSnapshot || pendingSnapshot.destination !== withoutLocale(pathname)) return null;
-  const snapshot = pendingSnapshot;
-  pendingSnapshot = null;
-  return snapshot;
+  return pendingSnapshot;
 }
