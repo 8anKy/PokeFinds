@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { EDGE_ZONE_PX, lockAxis, resolveBackSwipe } from "@/lib/swipe-gesture";
 import { getRouteSwipeSnapshot } from "@/components/layout/route-swipe-snapshot";
+import {
+  PAGE_ENTER_DURATION_MS,
+  pageMotionTransition,
+  swipeSettleDuration,
+} from "@/lib/page-motion";
 
 /**
  * Kant-svep tillbaka för RIKTIGA rutter som ligger "ovanpå" en föregående vy:
@@ -37,16 +42,19 @@ export function SwipeBack({
   const underlayMotionRef = useRef<HTMLDivElement>(null);
   const shadeRef = useRef<HTMLDivElement>(null);
   const hasUnderlayRef = useRef(false);
+  const finishEnterRef = useRef<() => void>(() => {});
   const goBackRef = useRef(() => {});
   goBackRef.current = () => {
     if (typeof window !== "undefined" && window.history.length > 1) router.back();
     else router.push(fallback);
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const underlay = underlayRef.current;
     const motion = underlayMotionRef.current;
-    if (!underlay || !motion) return;
+    const shade = shadeRef.current;
+    const content = contentRef.current;
+    if (!underlay || !motion || !shade || !content) return;
     const snapshot = getRouteSwipeSnapshot(pathname);
     if (!snapshot) return;
 
@@ -58,7 +66,59 @@ export function SwipeBack({
     scroll.appendChild(snapshot.shell.cloneNode(true));
     motion.appendChild(scroll);
     hasUnderlayRef.current = true;
+
+    let firstFrame = 0;
+    let secondFrame = 0;
+    let finishTimer = 0;
+    const finishEnter = () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+      window.clearTimeout(finishTimer);
+      underlay.style.display = "none";
+      motion.style.transition = "none";
+      motion.style.transform = "";
+      shade.style.transition = "none";
+      shade.style.opacity = "";
+      content.style.transition = "none";
+      content.style.transform = "";
+      content.style.position = "";
+      content.style.zIndex = "";
+      content.style.minHeight = "";
+      finishEnterRef.current = () => {};
+    };
+    finishEnterRef.current = finishEnter;
+
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    if (!reduceMotion) {
+      // Den sparade sidan börjar där den faktiskt stod. Den nya sidan kommer in
+      // från höger medan den gamla glider 18 % åt vänster — samma tvåplansrörelse
+      // som produkt-overlayn, och ingen svart mellanbild under route-bytet.
+      underlay.style.display = "block";
+      motion.style.transition = "none";
+      motion.style.transform = "translateX(0%)";
+      shade.style.transition = "none";
+      shade.style.opacity = "0";
+      content.style.transition = "none";
+      content.style.transform = "translateX(100%)";
+      content.style.position = "relative";
+      content.style.zIndex = "1";
+      content.style.minHeight = `${window.innerHeight}px`;
+      firstFrame = window.requestAnimationFrame(() => {
+        secondFrame = window.requestAnimationFrame(() => {
+          const transform = pageMotionTransition("transform", PAGE_ENTER_DURATION_MS);
+          motion.style.transition = transform;
+          motion.style.transform = "translateX(-18%)";
+          shade.style.transition = pageMotionTransition("opacity", PAGE_ENTER_DURATION_MS);
+          shade.style.opacity = "0.2";
+          content.style.transition = transform;
+          content.style.transform = "translateX(0px)";
+          finishTimer = window.setTimeout(finishEnter, PAGE_ENTER_DURATION_MS + 20);
+        });
+      });
+    }
+
     return () => {
+      finishEnter();
       hasUnderlayRef.current = false;
       motion.replaceChildren();
     };
@@ -121,6 +181,9 @@ export function SwipeBack({
       const t = e.touches[0];
       if (t.clientX > EDGE_ZONE_PX) return;
       if ((e.target as HTMLElement | null)?.closest?.("[data-swipe-ignore]")) return;
+      // Om användaren hinner ta tag i sidan under öppningsanimationen lämnas
+      // kontrollen direkt till fingret från ett rent, stabilt grundläge.
+      finishEnterRef.current();
       dragging = true;
       axis = null;
       dx = 0;
@@ -150,19 +213,21 @@ export function SwipeBack({
     };
 
     const springBack = () => {
-      el.style.transition = reduceMotion ? "none" : "transform 0.25s ease";
+      const width = el.offsetWidth || 1;
+      const duration = reduceMotion ? 0 : swipeSettleDuration(dx / width, false);
+      el.style.transition = reduceMotion ? "none" : pageMotionTransition("transform", duration);
       el.style.transform = "translateX(0px)";
       if (hasUnderlayRef.current && underlayMotion && shade) {
-        underlayMotion.style.transition = reduceMotion ? "none" : "transform 0.25s ease";
+        underlayMotion.style.transition = reduceMotion ? "none" : pageMotionTransition("transform", duration);
         underlayMotion.style.transform = "translateX(-18%)";
-        shade.style.transition = reduceMotion ? "none" : "opacity 0.25s ease";
+        shade.style.transition = reduceMotion ? "none" : pageMotionTransition("opacity", duration);
         shade.style.opacity = "0.2";
       }
       window.setTimeout(() => {
         el.style.transition = "none";
         el.style.transform = "";
         hideUnderlay();
-      }, 260);
+      }, duration + 20);
     };
 
     const onEnd = (e: TouchEvent) => {
@@ -180,15 +245,16 @@ export function SwipeBack({
           goBackRef.current();
           return;
         }
-        el.style.transition = "transform 0.22s ease";
+        const duration = swipeSettleDuration(dx / width, true);
+        el.style.transition = pageMotionTransition("transform", duration);
         el.style.transform = `translateX(${width}px)`;
         if (hasUnderlayRef.current && underlayMotion && shade) {
-          underlayMotion.style.transition = "transform 0.22s ease";
+          underlayMotion.style.transition = pageMotionTransition("transform", duration);
           underlayMotion.style.transform = "translateX(0%)";
-          shade.style.transition = "opacity 0.22s ease";
+          shade.style.transition = pageMotionTransition("opacity", duration);
           shade.style.opacity = "0";
         }
-        window.setTimeout(() => goBackRef.current(), 200);
+        window.setTimeout(() => goBackRef.current(), duration);
         return;
       }
       springBack();

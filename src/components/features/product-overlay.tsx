@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname } from "@/i18n/navigation";
 import type { ProductDetailData } from "@/services/products";
 import { ProductDetailView } from "@/components/features/product-detail-view";
@@ -10,6 +10,12 @@ import {
   onOverlayElevationChange,
   overlayIsElevated,
 } from "@/lib/product-overlay-open";
+import { resolveBackSwipe } from "@/lib/swipe-gesture";
+import {
+  PAGE_ENTER_DURATION_MS,
+  pageMotionTransition,
+  swipeSettleDuration,
+} from "@/lib/page-motion";
 
 /**
  * Produkt-overlay: öppnar produktdetaljer OVANPÅ den fortfarande monterade
@@ -67,8 +73,11 @@ export function ProductOverlayHost() {
       transition: element.style.transition,
       willChange: element.style.willChange,
     };
+    // Börja i sitt riktiga läge. Förskjutningen görs först tillsammans med
+    // panelens öppningsanimation; att hoppa direkt till -18 % var snäppet som
+    // syntes mellan trycket på kortet och den inkommande produkten.
     element.style.transition = "none";
-    element.style.transform = "translateX(-18%)";
+    element.style.transform = "translateX(0%)";
     element.style.willChange = "transform";
   }, []);
 
@@ -134,6 +143,28 @@ export function ProductOverlayHost() {
   }, [restoreBackground]);
 
   useEffect(() => restoreBackground, [restoreBackground]);
+
+  // useLayoutEffect placerar bakgrunden före målningen. Två frames behövs för
+  // att webbläsaren säkert ska registrera 0 %-läget innan transitionen till
+  // -18 % startar samtidigt som produktpanelen glider in.
+  useLayoutEffect(() => {
+    if (!slug || !backgroundRef.current) return;
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    if (reduceMotion) {
+      moveBackground(0);
+      return;
+    }
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        moveBackground(0, pageMotionTransition("transform", PAGE_ENTER_DURATION_MS));
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+    };
+  }, [slug, moveBackground]);
 
   // Stäng via historiken (back) → popstate → softClose. Används av svep/Escape/✕.
   const close = useCallback(() => {
@@ -227,6 +258,7 @@ export function ProductOverlayHost() {
     if (!el) return;
     let startX = 0;
     let startY = 0;
+    let startT = 0;
     let dx = 0;
     let dragging = false;
     let axis: "x" | "y" | null = null;
@@ -246,6 +278,7 @@ export function ProductOverlayHost() {
       dx = 0;
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
+      startT = e.timeStamp;
       // .overlay-in animation:...both → fill-mode pinnar transform → nolla den.
       el.style.animation = "none";
       el.style.transition = "none";
@@ -268,22 +301,34 @@ export function ProductOverlayHost() {
       el.style.transform = `translateX(${dx}px)`;
       moveBackground(dx / (el.offsetWidth || 1));
     };
-    const onEnd = () => {
+    const settle = (completing: boolean) => {
+      const width = el.offsetWidth || 1;
+      const progress = Math.min(1, dx / width);
+      const duration = reduceMotion ? 0 : swipeSettleDuration(progress, completing);
+      const panelTransition = pageMotionTransition("transform", duration);
+      const backgroundTransition = pageMotionTransition("transform", duration);
+      el.style.transition = reduceMotion ? "none" : panelTransition;
+      if (completing) {
+        el.style.transform = `translateX(${width}px)`;
+        moveBackground(1, reduceMotion ? "none" : backgroundTransition);
+        window.setTimeout(close, duration);
+      } else {
+        el.style.transform = "translateX(0px)";
+        moveBackground(0, reduceMotion ? "none" : backgroundTransition);
+      }
+    };
+
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    const onEnd = (e: TouchEvent) => {
       if (!dragging) return;
       dragging = false;
       if (axis !== "x") {
         el.style.transform = "";
         return;
       }
-      el.style.transition = "transform 0.25s ease";
-      if (dx > el.offsetWidth / 4) {
-        el.style.transform = "translateX(110%)";
-        moveBackground(1, "transform 0.25s ease");
-        window.setTimeout(close, 230);
-      } else {
-        el.style.transform = "";
-        moveBackground(0, "transform 0.25s ease");
-      }
+      const width = el.offsetWidth || 1;
+      const dt = Math.max(1, e.timeStamp - startT);
+      settle(resolveBackSwipe({ dx, width, velocityPxPerMs: dx / dt }));
     };
 
     const onCancel = () => {
@@ -291,9 +336,12 @@ export function ProductOverlayHost() {
       dragging = false;
       // ⛔ Ett avbrott från operativsystemet är aldrig ett godkänt släpp. Om
       // touchcancel återanvänder onEnd kan en notis/systemgest stänga produkten.
-      el.style.transition = axis === "x" ? "transform 0.25s ease" : "none";
-      el.style.transform = "";
-      moveBackground(0, axis === "x" ? "transform 0.25s ease" : "none");
+      if (axis === "x") settle(false);
+      else {
+        el.style.transition = "none";
+        el.style.transform = "";
+        moveBackground(0);
+      }
     };
 
     el.addEventListener("touchstart", onStart, { passive: true });

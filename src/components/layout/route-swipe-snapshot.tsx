@@ -34,6 +34,12 @@ function rememberRoute(target: EventTarget | null) {
   const clone = shell.cloneNode(true) as HTMLElement;
   clone.setAttribute("aria-hidden", "true");
   clone.setAttribute("data-route-swipe-snapshot", "");
+  // Produkt-overlayn flyttar samma skal med inline-transform. Om en länk i
+  // overlayn går vidare till en SwipeBack-rutt får klonen inte ärva det
+  // tillfälliga -18 %-läget och sedan parallaxas en gång till.
+  clone.style.transform = "";
+  clone.style.transition = "";
+  clone.style.willChange = "";
   clone.querySelectorAll("[id]").forEach((node) => node.removeAttribute("id"));
   // En kedja som grupp → tråd eller tråd → profil får inte bädda in den förra
   // bakgrunden igen. Det hade vuxit DOM-kopian för varje navigeringsled.

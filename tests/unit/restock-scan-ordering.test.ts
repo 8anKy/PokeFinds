@@ -83,7 +83,11 @@ vi.mock("@/services/notifications", () => ({
 vi.mock("@/scrapers/adapters/mock-adapter", () => ({
   MockAdapter: class {
     async fetchProducts() {
-      return { products: [{ title: "Elite Trainer Box", url: OFFER_URL, imageUrl: null }] };
+      return {
+        products: [{ title: "Elite Trainer Box", url: OFFER_URL, imageUrl: null }],
+        // fetchSourceFeed läser sedan b9408e2 alltid AdapterResult.errors.
+        errors: [],
+      };
     }
     validateResult() {
       return true;

@@ -9,6 +9,11 @@ import {
   resolveTabSwipe,
   rubberBand,
 } from "@/lib/swipe-gesture";
+import {
+  PAGE_ENTER_DURATION_MS,
+  pageMotionTransition,
+  swipeSettleDuration,
+} from "@/lib/page-motion";
 
 const W = 400;
 const slow = (dx: number) => ({ dx, width: W, velocityPxPerMs: dx / 1000 });
@@ -60,5 +65,25 @@ describe("resolveBackSwipe", () => {
     expect(resolveBackSwipe(slow(W / 4 - 1))).toBe(false);
     expect(resolveBackSwipe(slow(-W))).toBe(false);
     expect(resolveBackSwipe(flick(-60))).toBe(false);
+  });
+});
+
+describe("sidövergångens landning", () => {
+  it("ger ett halvt fullföljt svep mer tid än ett nästan färdigt", () => {
+    expect(swipeSettleDuration(0.5, true)).toBeGreaterThan(
+      swipeSettleDuration(0.9, true)
+    );
+  });
+
+  it("ger en längre återfjädring ju längre sidan dragits", () => {
+    expect(swipeSettleDuration(0.24, false)).toBeGreaterThan(
+      swipeSettleDuration(0.05, false)
+    );
+  });
+
+  it("klampar progress och delar samma kurva för öppning och landning", () => {
+    expect(swipeSettleDuration(-1, false)).toBe(swipeSettleDuration(0, false));
+    expect(swipeSettleDuration(2, true)).toBe(swipeSettleDuration(1, true));
+    expect(pageMotionTransition("transform", PAGE_ENTER_DURATION_MS)).toContain("420ms");
   });
 });

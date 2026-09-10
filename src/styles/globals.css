@@ -252,7 +252,7 @@ table td,
   to   { transform: translateX(0); }
 }
 .overlay-in {
-  animation: overlay-in 0.25s ease both;
+  animation: overlay-in 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 /* ---------------------------------------------------------------------------
