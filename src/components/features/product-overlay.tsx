@@ -413,7 +413,10 @@ export function ProductOverlayHost() {
     // över oss — se registerFullscreenHost i lib/product-overlay-open.ts.
     <div
       ref={motionRef}
-      className={`${panelEntering ? "overlay-in " : ""}${elevated ? "fixed inset-0 z-[70]" : "fixed inset-0 z-40"} will-change-transform`}
+      // bg-surface tätar en subpixel-skarv mellan safe-area-remsan och den
+      // scrollande panelen. Utan den kunde den fokuserade turkosa kortkanten
+      // från Explore blinka fram som en enda pixel i övre vänsterhörnet.
+      className={`${panelEntering ? "overlay-in " : ""}${elevated ? "fixed inset-0 z-[70]" : "fixed inset-0 z-40"} bg-surface will-change-transform`}
       role="dialog"
       aria-label="Produktdetaljer"
       onAnimationEnd={(e) => {
