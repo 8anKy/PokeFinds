@@ -65,10 +65,21 @@ Två källor, i den här ordningen:
    `title`, `category` (`EXPO` mässa · `PRERELEASE` · `TOURNAMENT` · `OTHER`), `startsAt` och
    `endsAt` som ISO **med tidszon** (+02:00 sommartid t.o.m. 2026-10-25, sedan +01:00), `city`,
    `venue`, `address`, `organizer`, `ticketUrl` och/eller `infoUrl` (minst en — den är källan),
-   `mapUrl` (valfri, t.ex. Google Maps-sök på adressen), `summary` (1–2 meningar), `body`
-   (2–4 stycken: öppettider per dag, biljetter/pris om arrangören anger det, vad som väntar —
-   handlare, gradering på plats, turneringar — och "bra att veta"). Svenska mässor som redan
-   finns i `events.json` eller i `seen` ger inget nytt utkast.
+   `mapUrl` (valfri, t.ex. Google Maps-sök på adressen), `summary` (1–2 meningar) och `body`.
+   **`body` för ett evenemang är en riktig guide, 250–400 ord i 5–7 stycken** — läs arrangörens
+   sida, biljettsidan och gärna förra årets upplaga innan du skriver:
+   1. inledning: vad det är, var och när, vem som arrangerar, hur många gånger det hållits;
+   2. `## Öppettider` — per dag, inklusive VIP-/Priority-insläpp om det finns;
+   3. `## Biljetter` — priser per nivå om arrangören anger dem, var de köps, barn/familj,
+      om det brukar sälja slut;
+   4. `## På plats` — utställare/handlare (namn om listan finns), Trade Zone, gradering på
+      plats, turneringar, scenprogram, paköppningar, mat;
+   5. `## Hitta dit` — adress, kollektivtrafik/parkering om arrangören skriver det;
+   6. `## Bra att veta` — åldersgräns, kontanter/Swish, väskor, vad som gällde förra året.
+   Står en uppgift inte hos arrangören, skriv INTE ett stycke om den — hoppa över rubriken
+   i stället för att fylla ut. Hellre fyra stycken med fakta än sju med "kontrollera hos
+   arrangören". Svenska mässor som redan finns i `events.json` eller i `seen` ger inget nytt
+   utkast.
 
 Skriv **högst 8 nyhetsutkast och 4 evenemangsutkast per dag**, hellre 4 bra än 8 halvdana.
 Dubbletter mellan källor (samma nyhet hos två sajter) blir ETT utkast med den bästa källan.
@@ -137,7 +148,19 @@ Dubbletter mellan källor (samma nyhet hos två sajter) blir ETT utkast med den 
      "ticketUrl": "https://www.tickster.com/se/sv/events/…",
      "infoUrl": "https://kortmassan.se/uppsala",
      "summary": "Samlarkortsmässa på Fyrishov med Pokémon, sport och TCG. Lördag 10–17.",
-     "body": ["## Öppettider", "Lördag 14 november 10.00–17.00.", "## Bra att veta", "Biljetter säljs via Tickster. Kontrollera tider och pris hos arrangören innan du åker."],
+     "body": [
+       "Kortmässan kommer till Fyrishov i Uppsala lördagen den 14 november – tredje gången mässan hålls i staden. Arrangören samlar handlare och privata säljare med Pokémon, sportkort och andra TCG under en dag.",
+       "## Öppettider",
+       "Lördag 14 november 10.00–17.00. Förköpsbiljetter ger insläpp 09.30.",
+       "## Biljetter",
+       "Ordinarie 120 kr, barn under 12 år gratis i vuxens sällskap. Biljetter säljs via Tickster; förra årets upplaga sålde slut veckan innan.",
+       "## På plats",
+       "Ett 40-tal utställare enligt arrangören, en bytesyta för besökare, gradering på plats via en inbjuden graderingstjänst och paköppningar på scen under eftermiddagen.",
+       "## Hitta dit",
+       "Fyrishov, Idrottsgatan 2. Stadsbuss 2 och 8 stannar utanför; parkering finns vid hallen.",
+       "## Bra att veta",
+       "Swish och kort hos de flesta säljare, men ta med kontanter för privata bord. Väskor får tas in."
+     ],
      "origin": "web",
      "note": "Arrangören har ännu inte publicerat utställarlista."
    }
