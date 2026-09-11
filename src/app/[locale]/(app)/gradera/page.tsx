@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
 import { SubpageHeader } from "@/components/layout/subpage-header";
 import { cn } from "@/lib/utils";
+import { SwipeBack } from "@/components/ui/swipe-back";
 import { ProCta } from "@/components/features/pro-cta";
 import {
   IconAlertTriangle,
@@ -264,6 +265,7 @@ export default function GraderaPage() {
     quota != null && quota.remaining !== null && quota.remaining <= 0;
 
   return (
+    <SwipeBack fallback="/mer" coverViewport>
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div>
         <SubpageHeader title={t("h1")} desktopTitleClassName="font-semibold" />
@@ -475,5 +477,6 @@ export default function GraderaPage() {
         </CardContent>
       </Card>
     </div>
+    </SwipeBack>
   );
 }
