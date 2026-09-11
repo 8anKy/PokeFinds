@@ -32,16 +32,22 @@ export async function POST(req: NextRequest) {
 
     const payload = inboxPublishSchema.parse(await req.json());
     let added = 0;
+    let addedEvents = 0;
     // ⛔ Via updateInbox: en oläsbar fil ger 500 här i stället för att skrivas över med en tom.
     const doc = await updateInbox((current) => {
       const merged = mergeInbox(current, payload);
       added = Math.max(0, merged.items.length - current.items.length);
+      addedEvents = Math.max(0, merged.events.length - current.events.length);
       return merged.updatedAt === current.updatedAt ? current : merged;
     });
     const pending = doc.items.filter((i) => i.status === "pending").length;
+    const pendingEvents = doc.events.filter((i) => i.status === "pending").length;
 
-    console.log(`[feed-inbox] ${payload.drafts.length} utkast levererade, ${added} nya ⇒ ${pending} väntar på beslut.`);
-    return jsonOk({ ok: true, delivered: payload.drafts.length, added, pending });
+    console.log(
+      `[feed-inbox] ${payload.drafts.length} nyhetsutkast (${added} nya) + ${payload.events.length} evenemangsutkast (${addedEvents} nya) levererade ⇒ ` +
+        `${pending} nyheter och ${pendingEvents} evenemang väntar på beslut.`
+    );
+    return jsonOk({ ok: true, delivered: payload.drafts.length, added, pending, deliveredEvents: payload.events.length, addedEvents, pendingEvents });
   } catch (error) {
     return apiError(error);
   }
