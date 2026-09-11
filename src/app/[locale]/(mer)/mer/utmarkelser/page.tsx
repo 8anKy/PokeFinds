@@ -61,7 +61,7 @@ export default async function AchievementsPage() {
   const todo = rows.filter((r) => r.earnedTier === 0);
 
   return (
-    <SwipeBack fallback="/mer">
+    <SwipeBack fallback="/mer" coverViewport>
     <div className="mx-auto max-w-md space-y-4">
       <SubpageHeader title={t("title")} fallback="/mer" />
 

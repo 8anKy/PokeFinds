@@ -82,7 +82,7 @@ export default async function ThreadPage({ params }: PageProps) {
   const hasBadges = post.listingKind != null || post.category != null;
 
   return (
-    <SwipeBack fallback={backHref}>
+    <SwipeBack fallback={backHref} coverViewport viewportInset="safe">
       <div className="mx-auto w-full max-w-3xl px-2.5 py-6 sm:px-6">
       {/* Mobil: appens bakåtcirkel + gruppen som titel (tråden är rubriken nedanför).
           Desktop: textlänken som förr — där finns webbens huvud. */}

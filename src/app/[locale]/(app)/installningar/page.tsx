@@ -16,7 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function SettingsPage() {
   const [user, t] = await Promise.all([loadSettingsUser(), getTranslations("Settings")]);
   return (
-    <SwipeBack fallback="/mer">
+    <SwipeBack fallback="/mer" coverViewport>
     <div className="mx-auto max-w-md space-y-6">
       <SubpageHeader title={t("pageTitle")} subtitle={t("pageSubtitle")} fallback="/mer" />
       <Suspense>

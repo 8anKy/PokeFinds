@@ -16,7 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function Page() {
   const [user, t] = await Promise.all([loadSettingsUser(), getTranslations("Settings")]);
   return (
-    <SwipeBack fallback="/installningar">
+    <SwipeBack fallback="/installningar" coverViewport>
     <div className="mx-auto max-w-md space-y-6">
       {/* ⛔ Bakåt landar på registret, aldrig på /mer: undersidan nåddes DÄRIFRÅN. */}
       <SubpageHeader title={t("notifTitle")} fallback="/installningar" />

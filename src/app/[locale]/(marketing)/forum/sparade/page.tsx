@@ -42,7 +42,7 @@ export default async function SavedThreadsPage({ params }: PageProps) {
   ]);
 
   return (
-    <SwipeBack fallback="/forum">
+    <SwipeBack fallback="/forum" coverViewport viewportInset="safe">
       <div className="mx-auto w-full max-w-3xl px-2.5 py-6 sm:px-6">
         <SubpageHeader href="/forum" title={t("savedTitle")} subtitle={t("h1")} mobileOnly />
         <Link

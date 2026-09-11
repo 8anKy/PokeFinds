@@ -55,7 +55,7 @@ export default async function GroupPage({ params }: PageProps) {
   const feed = await getFeed({ groupSlug: group.slug, page: 1, pageSize: 20 });
 
   return (
-    <SwipeBack fallback="/forum">
+    <SwipeBack fallback="/forum" coverViewport viewportInset="safe">
       <div className="mx-auto w-full max-w-3xl px-2.5 py-6 sm:px-6">
       <SubpageHeader href="/forum" title={t("h1")} mobileOnly />
       <Link

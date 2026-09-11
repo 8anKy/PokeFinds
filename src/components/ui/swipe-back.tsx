@@ -31,12 +31,15 @@ export function SwipeBack({
   children,
   className,
   coverViewport = false,
+  viewportInset = "app",
 }: {
   fallback: string;
   children: ReactNode;
   className?: string;
   /** Helsidesdetaljer (t.ex. samtal) måste även vila över safe-area + huvud. */
   coverViewport?: boolean;
+  /** Var sidans vanliga vertikala luft bor när den täcker viewporten. */
+  viewportInset?: "app" | "safe";
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -77,8 +80,6 @@ export function SwipeBack({
       content.style.transition = "none";
       content.style.transform = "";
       content.style.position = "";
-      content.style.inset = "";
-      content.style.paddingTop = "";
       content.style.zIndex = "";
       content.style.minHeight = "";
       content.style.borderTopLeftRadius = "";
@@ -97,16 +98,7 @@ export function SwipeBack({
       underlay.style.display = "block";
       content.style.transition = "none";
       content.style.transform = "translateX(100%)";
-      if (coverViewport) {
-        content.style.position = "fixed";
-      } else {
-        // Forumet börjar direkt under safe-area medan inställningarna redan
-        // ligger efter AppShells py-6. Behåll den uppmätta startpunkten när
-        // ytan tas ur flödet, så hela vyn följer fingret utan toppremsa.
-        content.style.paddingTop = `${content.getBoundingClientRect().top}px`;
-        content.style.position = "fixed";
-        content.style.inset = "0";
-      }
+      content.style.position = coverViewport ? "fixed" : "relative";
       content.style.zIndex = "1";
       content.style.minHeight = `${window.innerHeight}px`;
       firstFrame = window.requestAnimationFrame(() => {
@@ -141,15 +133,7 @@ export function SwipeBack({
     const revealUnderlay = () => {
       if (!hasUnderlayRef.current || !underlay) return;
       underlay.style.display = "block";
-      if (coverViewport) {
-        el.style.position = "fixed";
-      } else {
-        // Samma mätning behövs när svepet börjar efter att öppningsanimationen
-        // redan städats bort: varje routgrupp har sin egen lodräta startpunkt.
-        el.style.paddingTop = `${el.getBoundingClientRect().top}px`;
-        el.style.position = "fixed";
-        el.style.inset = "0";
-      }
+      el.style.position = coverViewport ? "fixed" : "relative";
       el.style.zIndex = "1";
       // ⛔ Innehållssidorna har normalt transparent bakgrund eftersom marketing-
       // skalet målar svart bakom dem. När den förra vyn ligger MELLAN skalet och
@@ -170,8 +154,6 @@ export function SwipeBack({
     const hideUnderlay = () => {
       if (underlay) underlay.style.display = "none";
       el.style.position = "";
-      el.style.inset = "";
-      el.style.paddingTop = "";
       el.style.zIndex = "";
       el.style.minHeight = "";
       el.style.borderTopLeftRadius = "";
@@ -292,7 +274,12 @@ export function SwipeBack({
           // `fixed` lämnar dokumentets body-padding bakom sig. Helsidesytan
           // måste därför själv ta över både statusfältets inset och AppShells
           // vanliga py-6, annars hamnar samtalshuvudet under Dynamic Island.
-          coverViewport && "fixed inset-0 z-30 pt-[calc(env(safe-area-inset-top)+1.5rem)] lg:static lg:z-auto lg:pt-0"
+          coverViewport && [
+            "fixed inset-0 z-30 lg:static lg:z-auto",
+            viewportInset === "app"
+              ? "pt-[calc(env(safe-area-inset-top)+1.5rem)] lg:pt-0"
+              : "pt-[env(safe-area-inset-top)] lg:pt-0",
+          ]
         )}
       >
         {children}
