@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "@/i18n/navigation";
 import type { ProductDetailData } from "@/services/products";
 import { ProductDetailView } from "@/components/features/product-detail-view";
@@ -11,11 +11,7 @@ import {
   overlayIsElevated,
 } from "@/lib/product-overlay-open";
 import { resolveBackSwipe } from "@/lib/swipe-gesture";
-import {
-  PAGE_ENTER_DURATION_MS,
-  pageMotionTransition,
-  swipeSettleDuration,
-} from "@/lib/page-motion";
+import { pageMotionTransition, swipeSettleDuration } from "@/lib/page-motion";
 
 /**
  * Produkt-overlay: öppnar produktdetaljer OVANPÅ den fortfarande monterade
@@ -55,52 +51,12 @@ export function ProductOverlayHost() {
   // Annars lämnas en svart remsa kvar vid överkanten medan innehållet sveps ut.
   const motionRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const backgroundRef = useRef<{
-    element: HTMLElement;
-    transform: string;
-    transition: string;
-    willChange: string;
-  } | null>(null);
   const pathname = usePathname();
   // Läses vid montering OCH via prenumeration: skannern kan ha anmält sig före
   // oss, och då räcker inte enbart en framtida händelse.
   const [elevated, setElevated] = useState(overlayIsElevated);
 
   useEffect(() => onOverlayElevationChange(setElevated), []);
-
-  const prepareBackground = useCallback(() => {
-    if (backgroundRef.current) return;
-    const element = document.querySelector<HTMLElement>("[data-product-overlay-background]");
-    if (!element) return;
-    backgroundRef.current = {
-      element,
-      transform: element.style.transform,
-      transition: element.style.transition,
-      willChange: element.style.willChange,
-    };
-    // Börja i sitt riktiga läge. Förskjutningen görs först tillsammans med
-    // panelens öppningsanimation; att hoppa direkt till -18 % var snäppet som
-    // syntes mellan trycket på kortet och den inkommande produkten.
-    element.style.transition = "none";
-    element.style.transform = "translate3d(0%, 0, 0)";
-    element.style.willChange = "transform";
-  }, []);
-
-  const moveBackground = useCallback((progress: number, transition = "none") => {
-    const background = backgroundRef.current;
-    if (!background) return;
-    background.element.style.transition = transition;
-    background.element.style.transform = `translate3d(${-18 * (1 - Math.min(1, progress))}%, 0, 0)`;
-  }, []);
-
-  const restoreBackground = useCallback(() => {
-    const background = backgroundRef.current;
-    if (!background) return;
-    background.element.style.transform = background.transform;
-    background.element.style.transition = background.transition;
-    background.element.style.willChange = background.willChange;
-    backgroundRef.current = null;
-  }, []);
 
   const fetchDetail = useCallback((s: string) => {
     let p = cache.current.get(s);
@@ -116,7 +72,6 @@ export function ProductOverlayHost() {
   const open = useCallback(
     (s: string) => {
       const wasOpen = slugRef.current !== null;
-      if (!wasOpen) prepareBackground();
       if (!wasOpen) {
         panelEnteringRef.current = true;
         setPanelEntering(true);
@@ -134,7 +89,7 @@ export function ProductOverlayHost() {
         if (slugRef.current === s) setData(d);
       });
     },
-    [fetchDetail, prepareBackground]
+    [fetchDetail]
   );
 
   // Registrera den imperativa öppnaren (för kort som navigerar via onClick).
@@ -150,32 +105,7 @@ export function ProductOverlayHost() {
     setPanelEntering(false);
     setSlug(null);
     setData(null);
-    restoreBackground();
-  }, [restoreBackground]);
-
-  useEffect(() => restoreBackground, [restoreBackground]);
-
-  // useLayoutEffect placerar bakgrunden före målningen. Två frames behövs för
-  // att webbläsaren säkert ska registrera 0 %-läget innan transitionen till
-  // -18 % startar samtidigt som produktpanelen glider in.
-  useLayoutEffect(() => {
-    if (!slug || !backgroundRef.current) return;
-    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-    if (reduceMotion) {
-      moveBackground(0);
-      return;
-    }
-    let secondFrame = 0;
-    const firstFrame = window.requestAnimationFrame(() => {
-      secondFrame = window.requestAnimationFrame(() => {
-        moveBackground(0, pageMotionTransition("transform", PAGE_ENTER_DURATION_MS));
-      });
-    });
-    return () => {
-      window.cancelAnimationFrame(firstFrame);
-      window.cancelAnimationFrame(secondFrame);
-    };
-  }, [slug, moveBackground]);
+  }, []);
 
   // Stäng via historiken (back) → popstate → softClose. Används av svep/Escape/✕.
   const close = useCallback(() => {
@@ -270,9 +200,10 @@ export function ProductOverlayHost() {
     };
   }, [slug, close]);
 
-  // Svep höger för att stänga: panelen följer fingret och avtäcker den riktiga
-  // listan under. Axis-detektering → vertikalt = native scroll. Samma känsla som
-  // övriga svep. Vid släpp förbi tröskel → glid ut + close() (history.back).
+  // Svep höger för att stänga: panelen följer fingret och avtäcker den riktiga,
+  // stillastående listan under. Att också flytta hela Explore-vyn gjorde att
+  // WebView behövde composita två långa ytor samtidigt och kändes tungt precis
+  // när fingret började röra sig. Axis-detektering → vertikalt = native scroll.
   useEffect(() => {
     if (!slug) return;
     const el = motionRef.current;
@@ -293,7 +224,6 @@ export function ProductOverlayHost() {
     const paintDrag = () => {
       frame = 0;
       el.style.transform = `translate3d(${dx}px, 0, 0)`;
-      moveBackground(dx / (el.offsetWidth || 1));
     };
 
     const flushDrag = () => {
@@ -352,15 +282,12 @@ export function ProductOverlayHost() {
       const progress = Math.min(1, dx / width);
       const duration = reduceMotion ? 0 : swipeSettleDuration(progress, completing);
       const panelTransition = pageMotionTransition("transform", duration);
-      const backgroundTransition = pageMotionTransition("transform", duration);
       el.style.transition = reduceMotion ? "none" : panelTransition;
       if (completing) {
         el.style.transform = `translate3d(${width}px, 0, 0)`;
-        moveBackground(1, reduceMotion ? "none" : backgroundTransition);
         window.setTimeout(finishSwipeClose, duration);
       } else {
         el.style.transform = "translate3d(0px, 0, 0)";
-        moveBackground(0, reduceMotion ? "none" : backgroundTransition);
       }
     };
 
@@ -387,7 +314,6 @@ export function ProductOverlayHost() {
       else {
         el.style.transition = "none";
         el.style.transform = "";
-        moveBackground(0);
       }
     };
 
@@ -402,7 +328,7 @@ export function ProductOverlayHost() {
       el.removeEventListener("touchend", onEnd);
       el.removeEventListener("touchcancel", onCancel);
     };
-  }, [slug, close, finishSwipeClose, moveBackground]);
+  }, [slug, finishSwipeClose]);
 
   if (!slug) return null;
 
