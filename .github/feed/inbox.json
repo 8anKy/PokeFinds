@@ -1,5 +1,105 @@
 {
   "_readme": "NYHETSINKORGEN. Skrivs av den dagliga molnrutinen (se ROUTINE.md här bredvid), läses av .github/workflows/news-feed.yml som skickar utkasten till appen, där ägaren godkänner dem i admin → Nyheter. INGET här publiceras av sig självt. `drafts` = utkast (formen står i src/lib/feed-inbox.ts: id, title, summary, url, source, category, publishedAt, imageUrl, imageFit, origin, note, foundAt). `seen` = rutinens eget minne över varje URL den någonsin skrivit ett utkast för — ett avvisat utkast kommer därför aldrig tillbaka. Filen ligger under .github/ MED FLIT: utanför Railways watchPatterns ⇒ en push hit kostar ingen deploy och rör ingen databas.",
-  "drafts": [],
-  "seen": []
+  "drafts": [
+    {
+      "id": "jmihx91h2qmjt",
+      "title": "Pokémon TCG: 30th Celebration släpps världen över den 16 september",
+      "summary": "Jubileumssetet blir det första Pokémon TCG-släppet någonsin som lanseras samma dag globalt. Över 150 kort, ny raritet och 30 olika Pikachu-kort väntar.",
+      "url": "https://www.pokemon.com/us/news/get-ready-for-pokemon-tcg-30th-celebration",
+      "source": "Pokémon.com",
+      "category": "RELEASE",
+      "publishedAt": "2026-09-11T00:00:00.000Z",
+      "imageUrl": null,
+      "imageFit": "cover",
+      "origin": "web",
+      "note": "Exakt artikeldatum okänt (sandlådan kunde inte öppna sidan) – satt till dagens datum utifrån färsk sökträff. Släppdatumet 16 september är väl belagt av flera källor.",
+      "foundAt": "2026-09-11T15:28:24.018Z",
+      "body": [
+        "Onsdagen den 16 september firar Pokémon TCG 30 år med expansionen 30th Celebration – och för första gången i spelets historia släpps ett set samtidigt över hela världen, i stället för att rulla ut land för land.",
+        "## Vad ingår",
+        "Setet innehåller över 150 kort, bland annat 30 klassiska omtryck och 30 unika Pikachu-kort med varsin egen illustration. Med släppet introduceras även en helt ny raritet, Futuristic Rare, med Mew ex och Mewtwo ex i centrum. Samtliga kort i expansionen är folierade, även de grundläggande energikorten. Elite Trainer Box innehåller enligt tillverkaren 9 boosterpaket, ett folierat promokort, 65 sleeves och tillbehör för spel; en Pokémon Center-exklusiv variant har 11 paket och två promokort.",
+        "Förhandsbokningarna hos Pokémon Center i USA sålde slut på minuter redan i juli, och flera produkter har sedan dess sålt slut i flera omgångar – ett tecken på det stora intresset inför jubileet.",
+        "För svenska samlare innebär den globala samtidslanseringen att produkterna, till skillnad från många tidigare set, ska finnas hos europeiska återförsäljare redan från släppdagen i stället för veckor senare. Elite Trainer Box har i Europa väntats hamna i spannet 500–700 kr."
+      ]
+    },
+    {
+      "id": "z8i4p11sgqv0l",
+      "title": "Antitrustmål mot PSA:s ägare tas upp i federal domstol i dag",
+      "summary": "Rasmussen mot Collectors Holdings, som anklagar PSA-ägaren för att ha byggt ett monopol på kortgradering, förhandlas den 11 september. Collectors vill få målet avvisat.",
+      "url": "https://athlonsports.com/collectibles/psa-antitrust-lawsuit-motion-to-dismiss-2026",
+      "source": "Athlon Sports",
+      "category": "MARKET",
+      "publishedAt": "2026-09-11T00:00:00.000Z",
+      "imageUrl": null,
+      "imageFit": "cover",
+      "origin": "web",
+      "note": "Domstolsutgången är inte känd i skrivande stund.",
+      "foundAt": "2026-09-11T15:28:24.018Z",
+      "body": [
+        "Den 11 september tar en federal domstol i Kalifornien upp Rasmussen mot Collectors Holdings – en grupptalan som anklagar PSA:s moderbolag för att ha skaffat sig ett olagligt monopol på kortgradering genom att köpa upp konkurrenterna SGC och Beckett.",
+        "Enligt stämningen kontrollerar Collectors Holdings i dag omkring 80 procent av den amerikanska marknaden för gradering av enskilda kort, vilket kärandena menar har lett till högre priser och längre handläggningstider. Bolaget begär att målet ska avvisas eller gå till skiljedomstol i stället för till en vanlig rättegång, och domaren väntas ta ställning till skiljedomsfrågan först.",
+        "Målet rör i första hand den amerikanska marknaden, men PSA:s prissättning och kapacitet påverkar indirekt även svenska samlare som skickar kort till gradering, eftersom PSA är den mest efterfrågade graderingstjänsten även i Europa."
+      ]
+    },
+    {
+      "id": "yyqouw1pbnaea",
+      "title": "Sällsynt Pikachu Illustrator på auktion hos Heritage – budet över 1,1 miljoner dollar",
+      "summary": "Ett PSA-graderat Pikachu Illustrator-kort (Mint 9) ligger på över 1 175 000 dollar i bud hos Heritage Auctions, med några dagar kvar av budgivningen.",
+      "url": "https://www.gamingbible.com/news/pikachu-illustrator-pokemon-card-auction-selling-millions-701637-20260911",
+      "source": "GAMINGbible",
+      "category": "MARKET",
+      "publishedAt": "2026-09-11T00:00:00.000Z",
+      "imageUrl": null,
+      "imageFit": "cover",
+      "origin": "web",
+      "note": "Auktionen var fortfarande öppen vid skrivande stund – slutpriset är därför inte känt.",
+      "foundAt": "2026-09-11T15:28:24.018Z",
+      "body": [
+        "Ett exemplar av det ökända Pikachu Illustrator-kortet, graderat PSA Mint 9, ligger på ett bud över 1 175 000 dollar hos Heritage Auctions – vilket med köparpremien skulle landa på ungefär 1,47 miljoner dollar. Kortet är en del av auktionshusets septemberauktion för samlarkortspel, och budgivningen pågick fortfarande vid rapporteringstillfället.",
+        "Pikachu Illustrator delades bara ut till vinnare i en tävling i den japanska tidningen CoroCoro Comics 1998 och räknas som ett av de mest sällsynta Pokémonkorten som finns. Det aktuella exemplaret, graderat ett steg under högsta betyg, når inte i närheten av rekordet på 16,49 miljoner dollar som ett PSA 10-exemplar av samma kort sålde för i februari 2026, då Logan Paul var säljare.",
+        "Auktionen är ännu ett exempel på hur intresset för de allra mest sällsynta Pokémonkorten fortsätter att driva upp priserna, samtidigt som marknaden för nyare, vanligare kort har svalnat något under hösten."
+      ]
+    },
+    {
+      "id": "1bw3u5b173nofz",
+      "title": "PSA öppnar sin första graderingsanläggning i Europa",
+      "summary": "PSA öppnar en fullskalig anläggning i Frankfurt med inlämning från den 15 september. Målet är snabbare och billigare gradering för europeiska samlare än att skicka till USA.",
+      "url": "https://www.psacard.com/articles/articleview/15303/psa-to-open-first-full-scale-grading-facility-in-europe",
+      "source": "PSA",
+      "category": "MARKET",
+      "publishedAt": "2026-09-11T00:00:00.000Z",
+      "imageUrl": null,
+      "imageFit": "cover",
+      "origin": "web",
+      "note": "Exakt artikeldatum okänt (sandlådan kunde inte öppna sidan) – satt till dagens datum utifrån färsk sökträff.",
+      "foundAt": "2026-09-11T15:28:24.018Z",
+      "body": [
+        "PSA öppnar sin första fullskaliga anläggning för autentisering och gradering i Europa, i Frankfurt, med inlämning som väntas öppna den 15 september. Samtidigt gör bolaget om sina servicenivåer, med nya namn, priser och handläggningstider från och med den 14 september.",
+        "Frankfurt har enligt PSA valts för sitt centrala läge i Europas transportnät, vilket ska ge kortare och mer förutsägbara leveranstider för samlare i regionen jämfört med att skicka kort till USA. Bolaget anställer samtidigt över 100 personer inom drift, logistik, marknadsföring och kundservice för den nya anläggningen, som leds av Matthias Peuckert.",
+        "För svenska samlare kan en europeisk anläggning på sikt betyda kortare väntetider och lägre fraktkostnader vid gradering, jämfört med att skicka kort över Atlanten – något som tidigare varit ett av de största hindren för att gradera hos just PSA från Sverige."
+      ]
+    }
+  ],
+  "seen": [
+    {
+      "id": "jmihx91h2qmjt",
+      "url": "https://www.pokemon.com/us/news/get-ready-for-pokemon-tcg-30th-celebration",
+      "at": "2026-09-11T15:28:24.018Z"
+    },
+    {
+      "id": "z8i4p11sgqv0l",
+      "url": "https://athlonsports.com/collectibles/psa-antitrust-lawsuit-motion-to-dismiss-2026",
+      "at": "2026-09-11T15:28:24.018Z"
+    },
+    {
+      "id": "yyqouw1pbnaea",
+      "url": "https://www.gamingbible.com/news/pikachu-illustrator-pokemon-card-auction-selling-millions-701637-20260911",
+      "at": "2026-09-11T15:28:24.018Z"
+    },
+    {
+      "id": "1bw3u5b173nofz",
+      "url": "https://www.psacard.com/articles/articleview/15303/psa-to-open-first-full-scale-grading-facility-in-europe",
+      "at": "2026-09-11T15:28:24.018Z"
+    }
+  ]
 }
