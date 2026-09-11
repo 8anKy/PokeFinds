@@ -197,7 +197,74 @@
       "id": "662sle1n5wuvq",
       "url": "https://www.pokeguardian.com/3361286_mewtwo-30th-celebration-store-promo-revealed",
       "at": "2026-09-11T19:38:27.012Z"
+    },
+    {
+      "id": "1e3mi9i1b6h756",
+      "url": "https://www.tickster.com/se/sv/events/w4x54defz2f1clf",
+      "at": "2026-09-11T19:42:51.687Z"
+    },
+    {
+      "id": "ccfm4r1bhic8r",
+      "url": "https://www.tickster.com/se/sv/events/lg9h6bka9jfwc2m",
+      "at": "2026-09-11T19:42:51.687Z"
     }
   ],
-  "eventDrafts": []
+  "eventDrafts": [
+    {
+      "id": "1e3mi9i1b6h756",
+      "title": "Smygpremiär av dokumentären Nostalgi till salu + Pokémon-kväll i Västerås",
+      "category": "OTHER",
+      "startsAt": "2026-10-05T18:00:00+02:00",
+      "endsAt": "2026-10-05T23:00:00+02:00",
+      "city": "Västerås",
+      "venue": "Västerås Kongress",
+      "address": "Västerås Kongress, Västerås",
+      "mapUrl": "https://www.google.com/maps/search/?api=1&query=V%C3%A4ster%C3%A5s+Kongress",
+      "ticketUrl": "https://www.tickster.com/se/sv/events/w4x54defz2f1clf",
+      "infoUrl": "https://www.tickster.com/se/sv/events/w4x54defz2f1clf",
+      "imageUrl": null,
+      "imageFit": "cover",
+      "organizer": "Kongrexum AB",
+      "summary": "Förhandsvisning av dokumentären om den svenska Pokémonkortsmarknaden, med kortförsäljare och samlarcommunityt på plats. Måndag kväll, insläpp 18.00.",
+      "body": [
+        "Måndagen den 5 oktober visas dokumentären Nostalgi till salu i förhand på Västerås Kongress. Filmen, regisserad av Nikeisha Andersson, följer vuxna som gjort sin barndoms Pokémonkort till en försörjning och tar upp identitet och risk på en marknad utan regler.",
+        "## Kvällens upplägg",
+        "Insläppet öppnar 18.00 och filmen börjar 20.00. Före visningen finns etablerade handlare på plats med både sealed och lösa kort, och kvällen är tänkt som ett tillfälle att träffa profiler ur den svenska samlarkortscommunityn. Lokalen stänger 23.00.",
+        "## Bra att veta",
+        "Biljetter säljs via Tickster. Arrangören har inte publicerat något pris i evenemangsbeskrivningen – kontrollera pris och eventuell åldersgräns hos arrangören innan du åker."
+      ],
+      "origin": "web",
+      "note": "Hittad i Ticksters Pokémon-lista. Biljettpris och gatuadress saknas på biljettsidan.",
+      "foundAt": "2026-09-11T19:42:51.687Z"
+    },
+    {
+      "id": "ccfm4r1bhic8r",
+      "title": "Samlarkortfestivalen Västerås",
+      "category": "EXPO",
+      "startsAt": "2027-01-30T11:00:00+01:00",
+      "endsAt": "2027-01-31T16:00:00+01:00",
+      "city": "Västerås",
+      "venue": "Västerås Kongress",
+      "address": "Västerås Kongress, Västerås",
+      "mapUrl": "https://www.google.com/maps/search/?api=1&query=V%C3%A4ster%C3%A5s+Kongress",
+      "ticketUrl": "https://www.tickster.com/se/sv/events/lg9h6bka9jfwc2m",
+      "infoUrl": "https://www.tickster.com/se/sv/events/lg9h6bka9jfwc2m",
+      "imageUrl": null,
+      "imageFit": "cover",
+      "organizer": "Kongrexum AB",
+      "summary": "Samlarkortsmässa på Västerås Kongress med Pokémon, sport och andra TCG. Lördag 11–18 och söndag 11–16, med Trade Zone och scenprogram.",
+      "body": [
+        "Samlarkortfestivalen kommer till Västerås Kongress helgen 30–31 januari 2027. Mässan samlar handlare och privata säljare med Pokémon, Yu-Gi-Oh, Magic: The Gathering, Disney Lorcana, One Piece, Star Wars, hockey- och andra sportkort.",
+        "## Öppettider",
+        "Lördag 30 januari 11.00–18.00, med VIP-insläpp 09.00 och Priority-insläpp 10.00. Söndag 31 januari 11.00–16.00, med Priority-insläpp 10.00.",
+        "## På plats",
+        "En stor Trade Zone där besökare byter kort med varandra, scenprogram med streaming, paköppningar och föredrag, samt restaurang och café i lokalen.",
+        "## Bra att veta",
+        "Biljetter finns i tre nivåer (ordinarie, Priority och VIP) via Tickster. Priserna stod inte i beskrivningen när utkastet skrevs – kontrollera hos arrangören."
+      ],
+      "origin": "web",
+      "note": "Hittad i Ticksters Pokémon-lista. Priser saknas på biljettsidan; ~4,5 månader fram.",
+      "foundAt": "2026-09-11T19:42:51.687Z"
+    }
+  ]
 }
