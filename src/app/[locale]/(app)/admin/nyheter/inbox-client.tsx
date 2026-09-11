@@ -9,9 +9,12 @@
  * Omslaget: rutinens förslag ligger i `imageUrl`; ägaren kan klistra in en annan
  * URL eller ladda upp en egen bild, som skalas ned i webbläsaren (≤ 1600 px, JPEG)
  * innan den skickas — samma grepp som forumets bildväljare, av samma skäl (storlek
- * och EXIF).
+ * och EXIF). Bilden kan också SLÄPPAS på omslaget eller KLISTRAS IN (Ctrl+V): en fil
+ * laddas upp, en bild dragen ur en annan flik kommer som `text/html`/`text/uri-list`
+ * — en `data:`-URL blir en uppladdning, en https-URL länkas direkt (som flödets
+ * externa bilder; ägaren kan alltid ladda upp i stället om källan blockerar hotlänk).
  */
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -167,11 +170,14 @@ function PendingCard({ entry, onChange }: { entry: InboxEntry; onChange: (e: Inb
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  async function upload(file: File | undefined) {
+  const [dragging, setDragging] = useState(false);
+
+  async function upload(file: File | Blob | undefined) {
     if (!file) return;
     setBusy("upload");
     try {
-      const blob = await downscale(file);
+      const asFile = file instanceof File ? file : new File([file], "omslag", { type: file.type });
+      const blob = await downscale(asFile);
       const fd = new FormData();
       fd.append("file", blob, "omslag");
       fd.append("draftId", entry.id);
@@ -187,6 +193,35 @@ function PendingCard({ entry, onChange }: { entry: InboxEntry; onChange: (e: Inb
       if (fileRef.current) fileRef.current.value = "";
     }
   }
+
+  /** En bild från urklipp eller drag: fil ⇒ uppladdning, data-URL ⇒ uppladdning, https ⇒ länk. */
+  const takeImage = useCallback(
+    async (dt: DataTransfer | null) => {
+      if (!dt) return;
+      const file = Array.from(dt.files ?? []).find((f) => f.type.startsWith("image/"));
+      if (file) return void upload(file);
+      const html = dt.getData("text/html");
+      const fromHtml = html.match(/<img[^>]+src=["']([^"']+)["']/i)?.[1];
+      // `getData` ger "" (inte null) när typen saknas — därför `||`, inte `??`.
+      const src = (fromHtml || dt.getData("text/uri-list") || dt.getData("text/plain") || "").trim().split(/\r?\n/)[0];
+      if (!src) return;
+      if (src.startsWith("data:image/")) {
+        try {
+          const blob = await (await fetch(src)).blob();
+          return void upload(blob);
+        } catch {
+          toast({ title: "Kunde inte läsa bilden", variant: "error" });
+          return;
+        }
+      }
+      if (/^https?:\/\//i.test(src)) {
+        set("imageUrl", src);
+        toast({ title: "Bilden länkas från källan", description: "Ladda upp i stället om du vill att den ska ligga hos oss.", variant: "success" });
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- upload/set är stabila per kort
+    [entry.id]
+  );
 
   async function approve() {
     setBusy("approve");
@@ -216,10 +251,42 @@ function PendingCard({ entry, onChange }: { entry: InboxEntry; onChange: (e: Inb
   }
 
   return (
-    <Card>
+    <Card
+      onPaste={(e) => {
+        // Klistra in en bild var som helst i kortet — men inte när ägaren klistrar text i ett fält.
+        const target = e.target as HTMLElement;
+        if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+        void takeImage(e.clipboardData);
+      }}
+    >
       <CardContent className="grid gap-4 p-4 md:grid-cols-[280px_1fr]">
         <div className="space-y-2">
-          <FeedCover src={form.imageUrl} alt="" category={form.category} fit={form.imageFit} className="h-40 rounded-lg" />
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              void takeImage(e.dataTransfer);
+            }}
+            className={cn(
+              "relative rounded-lg ring-2 ring-inset transition-colors",
+              dragging ? "ring-holo-cyan" : "ring-transparent"
+            )}
+          >
+            <FeedCover src={form.imageUrl} alt="" category={form.category} fit={form.imageFit} className="h-40 rounded-lg" />
+            <span
+              className={cn(
+                "pointer-events-none absolute inset-x-0 bottom-0 rounded-b-lg bg-black/60 px-2 py-1 text-center text-[11px] text-ink-muted",
+                dragging && "text-holo-cyan"
+              )}
+            >
+              {dragging ? "Släpp för att använda bilden" : "Dra hit en bild eller klistra in (Ctrl+V)"}
+            </span>
+          </div>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"

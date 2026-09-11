@@ -9,7 +9,7 @@ admin. Hela flödet står i `src/lib/feed-inbox.ts`; det här dokumentet är din
 
 Två källor, i den här ordningen:
 
-1. **Mejlen (Gmail-kopplingen).** Sök de senaste 48 timmarna efter nyhetsbrev från butiker som
+1. **Mejlen (Gmail-kopplingen).** Sök de senaste 3 dygnen (`newer_than:3d`) efter nyhetsbrev från butiker som
    säljer Pokémon TCG (svenska i första hand, europeiska i andra). Leta efter: släppdatum och
    klockslag, förbokningar som öppnar, restock-besked, "kommer snart", exklusiva produkter,
    jubileums-/30th-Anniversary-släpp. Ett mejl som bara är rabattreklam eller inte nämner
@@ -21,12 +21,21 @@ Två källor, i den här ordningen:
    - `category` = `STORE`. `publishedAt` = mejlets datum. `origin` = `email`.
    - Nämner mejlet ett datum/klockslag, skriv det i `summary` ("Förbokning öppnar 26 september
      kl 10.00") och i `note` om det finns osäkerhet.
-2. **Webben.** Sök efter Pokémon TCG-nyheter från de senaste 48 timmarna: nya set och
-   släppdatum, officiella tillkännagivanden (pokemon.com, The Pokémon Company), stora
-   marknadsnyheter (prisrörelser på kända kort, gradering, rekordförsäljningar), Play! Pokémon
-   och svenska/nordiska händelser. Föredra primärkällor och etablerade TCG-sajter. Hoppa över:
-   tv-spelen (Pokémon GO, Sleep, Unite, Pokopia, Switch-titlar), anime, memes, rykten utan
-   källa, listicles ("10 bästa kort…").
+2. **Webben.** Sök efter Pokémon TCG-nyheter från de senaste **7 dagarna** (`seen`-listan ser
+   till att ingenting kommer två gånger, så fönstret får vara brett): nya set och släppdatum,
+   officiella tillkännagivanden (pokemon.com, The Pokémon Company), **gradering** (PSA/CGC/
+   Beckett — nya tjänster, priser, Europa-etableringar), marknadsnyheter (prisrörelser på kända
+   kort, rekordförsäljningar), Play! Pokémon och svenska/nordiska händelser. Föredra primärkällor
+   och etablerade TCG-sajter. Hoppa över: tv-spelen (Pokémon GO, Sleep, Unite, Pokopia,
+   Switch-titlar), anime, memes, rykten utan källa, listicles ("10 bästa kort…").
+   - ⛔ **Sandlådan blockerar direkta hämtningar** (WebFetch/curl) mot de flesta nyhetssajter —
+     det är normalt, inte ett fel. Arbeta då ur **sökresultatens** rubriker, datum och
+     beskrivningar; bekräfta gärna med en andra sökning. Ett datum som står i sökresultatet
+     räcker som `publishedAt`. Släpp INTE en nyhet bara för att sidan inte gick att öppna —
+     PSA:s Europa-etablering 2026-09 var precis en sådan och skulle ha blivit ett utkast.
+   - Ambitionsnivå: **3–6 utkast** en vanlig dag är rätt. Hittar du bara 1 har du sökt för smalt —
+     prova fler sökord (svenska + engelska, "Pokémon TCG" + gradering/PSA/Cardmarket/release/
+     preorder/ETB/Play! Pokémon) innan du ger upp.
    - `category`: `RELEASE` för set/produkter som släpps, `MARKET` för priser/gradering/
      marknad, `STORE` för butiksbesked. Aldrig `APP` (den är Foilios egen).
    - `publishedAt` = artikelns datum. `origin` = `web`.
@@ -34,7 +43,7 @@ Två källor, i den här ordningen:
      (`curl -sL <url> | grep -o '<meta[^>]*og:image[^>]*>'`). Hittar du ingen, lämna `null` —
      jobbet försöker självt och ägaren kan byta bild i admin.
 
-Skriv **högst 8 utkast per dag**, hellre 2 bra än 8 halvdana. Dubbletter mellan källor
+Skriv **högst 8 utkast per dag**, hellre 4 bra än 8 halvdana. Dubbletter mellan källor
 (samma nyhet hos två sajter) blir ETT utkast med den bästa källan.
 
 ## Hur du skriver
