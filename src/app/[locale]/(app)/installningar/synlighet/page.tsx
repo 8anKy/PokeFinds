@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { SubpageHeader } from "@/components/layout/subpage-header";
 import { loadSettingsUser } from "../settings-user";
 import { VisibilitySection } from "../sections";
+import { SwipeBack } from "@/components/ui/swipe-back";
 
 export const dynamic = "force-dynamic";
 
@@ -15,12 +16,12 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function Page() {
   const [user, t] = await Promise.all([loadSettingsUser(), getTranslations("Settings")]);
   return (
-    <div className="mx-auto max-w-md space-y-6">
+    <SwipeBack fallback="/installningar" coverViewport><div className="mx-auto max-w-md space-y-6">
       {/* ⛔ Bakåt landar på registret, aldrig på /mer: undersidan nåddes DÄRIFRÅN. */}
       <SubpageHeader title={t("visibilityTitle")} fallback="/installningar" />
       <Suspense>
         <VisibilitySection user={user} />
       </Suspense>
-    </div>
+    </div></SwipeBack>
   );
 }

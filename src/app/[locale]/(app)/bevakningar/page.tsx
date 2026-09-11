@@ -19,6 +19,7 @@ import { WatchedSets } from "./watched-sets";
 import { SubpageHeader } from "@/components/layout/subpage-header";
 import { CircleButton } from "@/components/ui/back-circle";
 import { RestockPausedBanner } from "@/components/features/restock-paused-banner";
+import { SwipeBack } from "@/components/ui/swipe-back";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,7 @@ export default async function WatchlistPage() {
   }));
 
   return (
-    <div className="space-y-8">
+    <SwipeBack fallback="/mer" coverViewport><div className="space-y-8">
       <div>
         {/* ⛔ Underrubriken lovade "vi larmar dig vid prisfall och målpriser".
             Sant fram till 2026-08-26, en lögn efter — och den står rakt ovanför
@@ -161,6 +162,6 @@ export default async function WatchlistPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </div></SwipeBack>
   );
 }
