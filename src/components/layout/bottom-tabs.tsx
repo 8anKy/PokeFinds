@@ -5,6 +5,7 @@ import { Link } from "@/i18n/navigation";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
+import { captureRouteSwipeSnapshot } from "@/components/layout/route-swipe-snapshot";
 import { hapticGlide, hapticTick } from "@/lib/haptics";
 import { isEmailLandingRoute } from "@/lib/auth-routes";
 import { hidesBottomTabs } from "@/lib/immersive-routes";
@@ -172,6 +173,7 @@ export function BottomTabs() {
             if (index !== activeIndex) {
               if (!current.dragging) hapticTick();
               setPending(index);
+              captureRouteSwipeSnapshot(tabs[index].href);
               router.push(tabs[index].href);
             }
           }

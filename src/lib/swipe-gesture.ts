@@ -12,8 +12,10 @@
 
 /** Fingret måste röra sig så här långt innan vi vet om det är ett svep eller en scroll. */
 export const AXIS_LOCK_PX = 8;
-/** Kantzon från vänster där ett svep betyder "tillbaka", aldrig "nästa flik". */
-export const EDGE_ZONE_PX = 28;
+/** Kantzon från vänster där ett svep betyder "tillbaka", aldrig "nästa flik".
+ * 48 px gör gesten möjlig med tummen i täta vyer (särskilt samtalets skrivfält)
+ * utan att konkurrera med vanliga sidledsdrag mitt på skärmen. */
+export const EDGE_ZONE_PX = 48;
 /** Snärt: snabbare än så här (px/ms) räcker även om draget är kort. */
 const FLICK_PX_PER_MS = 0.5;
 const FLICK_MIN_PX = 24;

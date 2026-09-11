@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/client-api";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { IconMessage } from "@/components/ui/icons";
+import { captureRouteSwipeSnapshot } from "@/components/layout/route-swipe-snapshot";
 
 /**
  * "Skicka meddelande" på någon annans profil. Sidan (force-dynamic) avgör redan
@@ -27,7 +28,9 @@ export function MessageButton({ userId }: { userId: string }) {
         method: "POST",
         body: { userId },
       });
-      router.push(`/meddelanden/${res.id}`);
+      const destination = `/meddelanden/${res.id}`;
+      captureRouteSwipeSnapshot(destination);
+      router.push(destination);
       // Ingen setLoading(false) på lyckat svar: sidan byts, och en knapp som
       // "vaknar" en bråkdel innan navigeringen läser som ett fel.
     } catch (e) {

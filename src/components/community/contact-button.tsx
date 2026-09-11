@@ -9,6 +9,7 @@ import { apiFetch } from "@/lib/client-api";
 import { Button, LinkButton } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { IconMail } from "@/components/ui/icons";
+import { captureRouteSwipeSnapshot } from "@/components/layout/route-swipe-snapshot";
 
 /**
  * "Kontakta säljaren" / "Skicka meddelande" (kontrakt 4 i briefen): startar
@@ -72,7 +73,9 @@ export function ContactButton({
         method: "POST",
         body: { userId: authorId, postId },
       });
-      router.push(`/meddelanden/${res.id}`);
+      const destination = `/meddelanden/${res.id}`;
+      captureRouteSwipeSnapshot(destination);
+      router.push(destination);
     } catch (e) {
       toast({
         title: t("contactFailed"),

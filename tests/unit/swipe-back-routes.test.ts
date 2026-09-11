@@ -11,6 +11,7 @@ describe("SwipeBack-rutter", () => {
     "/nyheter/nytt-i-foilio",
     "/evenemang/stockholm",
     "/meddelanden/conv_1",
+    "/skanna",
     "/installningar",
     "/installningar/notiser",
     "/mer/utmarkelser",

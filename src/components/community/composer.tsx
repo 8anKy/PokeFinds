@@ -23,6 +23,7 @@ import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/inpu
 import { useToast } from "@/components/ui/toast";
 import { ImagePicker, type PickedImage } from "./image-picker";
 import { ProductPicker, type PickedProduct } from "./product-picker";
+import { captureRouteSwipeSnapshot } from "@/components/layout/route-swipe-snapshot";
 
 const TITLE_MIN = 3;
 const TITLE_MAX = 120;
@@ -137,7 +138,9 @@ export function Composer({ initialGroup }: { initialGroup?: string }) {
       // visade /forum den gamla listan tills den tiden gått ut, och tråden såg
       // ut att "ta fem minuter att publiceras". refresh() tömmer den cachen.
       router.refresh();
-      router.push(`/forum/t/${res.id}`);
+      const destination = `/forum/t/${res.id}`;
+      captureRouteSwipeSnapshot(destination);
+      router.push(destination);
     } catch (e) {
       const code = apiErrorCode(e);
       if (code === FORUM_RULES_CODE) {

@@ -15,6 +15,7 @@ export function isSwipeBackDestination(pathname: string): boolean {
     normalized === "/forum/sparade" ||
     /^\/(?:nyheter|evenemang)\/[^/]+$/.test(normalized) ||
     /^\/meddelanden\/[^/]+$/.test(normalized) ||
+    normalized === "/skanna" ||
     normalized === "/installningar" ||
     /^\/installningar\/(?:konto|kopplingar|notiser|profil|synlighet)$/.test(normalized) ||
     /^\/mer\/(?:utmarkelser|bjud-in)$/.test(normalized)

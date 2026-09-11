@@ -11,6 +11,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -52,6 +53,7 @@ import { hapticImpact } from "@/lib/haptics";
 import { pickAlternatives, pickSameArtRail } from "@/lib/scan-alternatives";
 import { useCameraControls } from "@/hooks/use-camera-controls";
 import { openPaywallOrNavigate } from "@/lib/paywall";
+import { getRouteSwipeSnapshot } from "@/components/layout/route-swipe-snapshot";
 import { SellSheet, type SellItem } from "@/components/features/sell-sheet";
 import {
   withDeviceId,
@@ -844,6 +846,8 @@ function Scanner() {
   useEffect(() => registerFullscreenHost(), []);
 
   const rootRef = useRef<HTMLDivElement>(null);
+  const underlayRef = useRef<HTMLDivElement>(null);
+  const hasUnderlayRef = useRef(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Kortramen i kameravyn — captureFrame mäter den för att beskära utsnittet.
@@ -906,6 +910,29 @@ function Scanner() {
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Skannern ar en helskarms-overlay och avmonterar annars startvyn helt.
+  // Spara darfor samma ofarliga DOM-kopia som ovriga SwipeBack-rutter anvander:
+  // ett bakatsvep tillbaka till Utforska/Samling ska avslöja den riktiga, redan
+  // malade vyn i stallet for ett svart mellanrum. Klonen har inga effekter och
+  // kan alltsa inte starta kameran eller ge Neon extra lasningar.
+  useLayoutEffect(() => {
+    const underlay = underlayRef.current;
+    if (!underlay) return;
+    const snapshot = getRouteSwipeSnapshot("/skanna");
+    if (!snapshot) return;
+
+    const scroll = document.createElement("div");
+    scroll.style.transform = `translateY(-${snapshot.scrollY}px)`;
+    scroll.appendChild(snapshot.shell.cloneNode(true));
+    underlay.appendChild(scroll);
+    hasUnderlayRef.current = true;
+
+    return () => {
+      hasUnderlayRef.current = false;
+      underlay.replaceChildren();
+    };
+  }, []);
 
   const [view, setView] = useState<View>("capture");
   const [cameraState, setCameraState] = useState<CameraState>("starting");
@@ -1515,6 +1542,7 @@ function Scanner() {
   const backToCapture = useEventCallback(() => setView("capture"));
   useEffect(() => {
     const el = rootRef.current;
+    const underlay = underlayRef.current;
     if (!el) return;
     if (!window.matchMedia("(pointer: coarse)").matches) return;
     let startX = 0;
@@ -1526,6 +1554,13 @@ function Scanner() {
     let gesture: "back" | "close" = "close";
     /** Det som följer fingret: granskningspanelen (back) eller hela skannern (close). */
     let target: HTMLElement = el;
+
+    const revealUnderlay = () => {
+      if (hasUnderlayRef.current && underlay) underlay.style.display = "block";
+    };
+    const hideUnderlay = () => {
+      if (underlay) underlay.style.display = "none";
+    };
 
     const onStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
@@ -1558,6 +1593,7 @@ function Scanner() {
           return;
         }
         axis = "x";
+        if (gesture === "close") revealUnderlay();
       }
       e.preventDefault();
       dx = Math.max(0, mx);
@@ -1568,6 +1604,7 @@ function Scanner() {
       dragging = false;
       if (axis !== "x") {
         target.style.transform = "";
+        if (gesture === "close") hideUnderlay();
         return;
       }
       target.style.transition = "transform 0.25s ease";
@@ -1589,10 +1626,14 @@ function Scanner() {
           // Avbrutet (osparade träffar) → fjädra tillbaka in. Kameran
           // återupptas av closeScanner självt — dialogen kan avbrytas från
           // flera håll och alla ska sluta likadant.
-          if (!closeSwipe()) el.style.transform = "";
+          if (!closeSwipe()) {
+            el.style.transform = "";
+            hideUnderlay();
+          }
         }, 230);
       } else {
         el.style.transform = "";
+        hideUnderlay();
       }
     };
 
@@ -2287,6 +2328,12 @@ function Scanner() {
   // Skanner-overlay (capture + review) — fullskärm, immersivt
   // =========================================================================
   return (
+    <>
+      <div
+        ref={underlayRef}
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-x-0 bottom-0 top-[env(safe-area-inset-top)] z-[59] hidden overflow-hidden bg-surface"
+      />
     <div
       ref={rootRef}
       role="dialog"
@@ -2317,7 +2364,10 @@ function Scanner() {
         <div className="h-10 w-10" aria-hidden="true" />
       </div>
 
-      {view === "capture" ? (
+      <div
+        aria-hidden={view === "review" || undefined}
+        className={cn(view === "review" && "pointer-events-none absolute inset-0 z-0 isolate overflow-hidden")}
+      >
         <CaptureView
           videoRef={videoRef}
           canvasRef={canvasRef}
@@ -2364,7 +2414,9 @@ function Scanner() {
           onReview={() => setView("review")}
           onOpenDetails={setDetailsId}
         />
-      ) : (
+      </div>
+
+      {view === "review" && (
         <ReviewView
           scans={scans}
           matchedCount={matched.length}
@@ -2457,6 +2509,7 @@ function Scanner() {
         onChange={onInputChange}
       />
     </div>
+    </>
   );
 }
 

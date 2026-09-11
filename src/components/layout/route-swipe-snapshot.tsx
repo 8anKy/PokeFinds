@@ -22,10 +22,11 @@ function swipeDestination(target: EventTarget | null): string | null {
   return isSwipeBackDestination(pathname) ? pathname : null;
 }
 
-function rememberRoute(target: EventTarget | null) {
-  const destination = swipeDestination(target);
+/** Sparar nuvarande skal inför en programmatisk navigering till detaljvyn. */
+export function captureRouteSwipeSnapshot(destination: string) {
+  const normalizedDestination = normalizeSwipePathname(destination);
   const shell = document.querySelector<HTMLElement>("[data-route-swipe-shell]");
-  if (!destination || !shell) return;
+  if (!isSwipeBackDestination(normalizedDestination) || !shell) return;
 
   // ⛔ Klonen är BARA en visuell bakgrund för bakåtgesten. Den kopplas loss från
   // React och gör därför inga nya API-/DB-anrop, startar inga effekter och får
@@ -45,10 +46,15 @@ function rememberRoute(target: EventTarget | null) {
   // bakgrunden igen. Det hade vuxit DOM-kopian för varje navigeringsled.
   clone.querySelectorAll("[data-swipe-back-underlay]").forEach((node) => node.remove());
   (window as SwipeWindow)[SNAPSHOT_KEY] = {
-    destination,
+    destination: normalizedDestination,
     shell: clone,
     scrollY: window.scrollY,
   };
+}
+
+function rememberRoute(target: EventTarget | null) {
+  const destination = swipeDestination(target);
+  if (destination) captureRouteSwipeSnapshot(destination);
 }
 
 /**
@@ -60,6 +66,10 @@ export function RouteSwipeSnapshotCapture() {
     if (!window.matchMedia("(pointer: coarse)").matches && navigator.maxTouchPoints === 0) return;
 
     const onPointerDown = (event: PointerEvent) => rememberRoute(event.target);
+    // WKWebView levererar touchstart före en del av sina pointer-events när en
+    // Link navigerar samma bildruta. Spara därför här också; annars hann ruttbytet
+    // ibland före kopian och bakåtsvepet avslöjade bara en svart yta.
+    const onTouchStart = (event: TouchEvent) => rememberRoute(event.target);
     const onClick = (event: MouseEvent) => {
       // Tangentbordsaktiverade länkar saknar pointerdown. Vanliga klick fångades
       // redan där, så vi slipper klona en stor sida två gånger.
@@ -67,9 +77,11 @@ export function RouteSwipeSnapshotCapture() {
     };
 
     document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("touchstart", onTouchStart, true);
     document.addEventListener("click", onClick, true);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("touchstart", onTouchStart, true);
       document.removeEventListener("click", onClick, true);
     };
   }, []);

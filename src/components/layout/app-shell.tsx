@@ -22,6 +22,7 @@ import {
 import { BrandLogo } from "@/components/layout/brand-logo";
 import { SiteHeader } from "@/components/layout/site-header";
 import { RouteSwipeSnapshotCapture } from "@/components/layout/route-swipe-snapshot";
+import { hidesBottomTabs } from "@/lib/immersive-routes";
 
 /**
  * ⛔ SIDOMENYNS ETIKETTER MÅSTE ÖVERSÄTTAS SOM ALLT ANNAT. De stod hårdkodade
@@ -103,6 +104,10 @@ export function AppShell({
   const headerLayout = HEADER_LAYOUT_PREFIXES.some(
     (p) => pathname === p || pathname?.startsWith(`${p}/`)
   );
+  // Ett samtal eller en tråd äger hela mobilskärmen. Om SiteHeader får ligga
+  // kvar bakom visas Foilio-loggan redan I samtalet och ser ut som att
+  // bakåtsvepet har läckt igenom innan användaren ens börjat svepa.
+  const immersiveMobileRoute = hidesBottomTabs(pathname);
 
   if (headerLayout) {
     return (
@@ -167,9 +172,11 @@ export function AppShell({
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobil: SAMMA header som (marketing)-tabbarna (Utforska/Community) så
             headern inte byter utseende/position när man tabbar mellan grupperna. */}
-        <div className="lg:hidden">
-          <SiteHeader />
-        </div>
+        {!immersiveMobileRoute && (
+          <div className="lg:hidden">
+            <SiteHeader />
+          </div>
+        )}
         {/* Desktop-topbar (sidomeny finns → egen topbar med hälsning/logga ut) */}
         <header className="z-40 hidden h-16 items-center justify-between border-b border-surface-border bg-surface/85 px-4 backdrop-blur-md lg:sticky lg:top-0 lg:flex">
           <div className="flex items-center gap-3" />
