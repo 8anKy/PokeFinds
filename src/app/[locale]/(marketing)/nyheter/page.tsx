@@ -17,6 +17,16 @@ import { newsFeedPublic } from "@/lib/news-feed-gate";
 
 export const revalidate = 3600;
 
+// ⛔ ALDRIG PRERENDER VID BYGGET (2026-09-11): `next build` kör utan Railway-volymen,
+// så `getFeed()` gav ett tomt flöde och den tomma sidan bakades in i bygget —
+// cache-handlerns seed-lager serverade den efter VARJE deploy tills ISR-timmen
+// löpt ut ("Inga nyheter just nu" med sju godkända poster i feed.json). Tom
+// `generateStaticParams` behåller ISR men flyttar första renderingen till runtime.
+// Samma fälla och samma fix som forumets bilder 2026-09-07.
+export async function generateStaticParams() {
+  return [];
+}
+
 export async function generateMetadata({ params }: { params: { locale: string } }): Promise<Metadata> {
   const t = await getTranslations({ locale: params.locale, namespace: "News" });
   // ⛔ Dold yta ⇒ noindex, och metadatan får inte röja innehållet.
