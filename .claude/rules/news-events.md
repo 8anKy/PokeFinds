@@ -98,6 +98,18 @@ paths:
   som filer i `feed/covers/` på volymen och serveras av `/api/feed-cover/<namn>` (immutable) — ⛔ inte
   bucketen: dess signerade URL:er dör efter 7 dygn. Hela kedjan är DB-fri; rutinens tidpunkt är därför
   irrelevant för Neon. ⛔ Rutinen kostar plan-kvot (Pro), inte pengar — max 8 utkast/dag, en körning/dygn.
+  ⛔ **Molnsandlådan måste ha Full network access** (miljön "Default" på claude.ai/code) — med "Trusted"
+  blockerades varje nyhetssajt och rutinen skrev ur sök-snippets (09-11, tre körningar). Brödtexten är en
+  SAMMANFATTAD ARTIKEL (300–500 ord, `## `-mellanrubriker, ett stycke "vad det betyder för svenska samlare").
+  ⛔ **Inkorgen skrivs aldrig över med tom** (`InboxCorruptError` i `updateInbox`) — 09-11 förlorades fem
+  utkast när en godkänd rad med `/api/feed-cover/…` underkändes av radschemat och nästa klick skrev tillbaka
+  EMPTY_INBOX; raderna valideras nu en och en och radschemat rymmer allt admin skriver.
+- **EVENEMANG I INKORGEN (2026-09-11, ägarbeslut: svenska mässor, bara via inkorgen)**: rutinen lämnar
+  `kind: "event"`-utkast (`feedEventDraftSchema`, `inbox.json.eventDrafts`) ⇒ admin → Nyheter → *Evenemang*
+  ⇒ godkänt = `EventItem.lane = "curated"`. ⛔ `feed-publish` byter bara ut rss-evenemangen och lägger de
+  kurerade FÖRST så de vinner slug-dubblettvakten i `normalizeFeed`. `eventItemSchema.imageUrl` kräver full
+  URL ⇒ ett uppladdat omslag görs absolut mot `NEXT_PUBLIC_APP_URL` i `draftToEventItem`. Väntande evenemang
+  städas när de PASSERAT (inte efter 30 dygn); avgjorda efter 60. `events.json` är kvar som manuell reserv.
 - **FYRA FILER I `.github/feed/`, ALLA UTANFÖR `watchPatterns`** ⇒ en ändring i dem kostar varken deploy
   eller databas: `sources.json` (RSS-källor), `news.json` (handskrivna nyheter — marknadsnyheter och
   "nytt i Foilio", kategori `APP`), `events.json` och `inbox.json` (rutinens utkast + `seen`). Kurerade poster går in i rss-lanen och sorteras

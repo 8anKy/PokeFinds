@@ -141,6 +141,12 @@ export const eventItemSchema = z.object({
   organizer: z.string().max(120).nullable().default(null),
   summary: z.string().max(600).default(""),
   body: z.array(eventBlockSchema).max(60).default([]),
+  /**
+   * `rss` = ur `.github/feed/events.json` (rss-jobbet skriver om dem varje körning);
+   * `curated` = godkänt ur nyhetsinkorgen (2026-09-11). ⛔ Publiceringsrutten byter bara
+   * ut rss-evenemangen — utan lanen hade nästa jobbkörning raderat varje godkänt evenemang.
+   */
+  lane: z.enum(["rss", "curated"]).default("rss"),
 });
 export type EventItem = z.infer<typeof eventItemSchema>;
 

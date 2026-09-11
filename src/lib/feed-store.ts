@@ -17,7 +17,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { cachedRead } from "@/lib/cache";
-import { EMPTY_FEED, feedDocumentSchema, normalizeFeed, type FeedDocument, type NewsItem } from "@/lib/feed";
+import { EMPTY_FEED, feedDocumentSchema, normalizeFeed, type EventItem, type FeedDocument, type NewsItem } from "@/lib/feed";
 
 /**
  * Taggen som `/api/cron/feed-publish` invaliderar när den skrivit. Sidorna är
@@ -111,6 +111,25 @@ export async function upsertCuratedNews(item: NewsItem): Promise<FeedDocument> {
 export async function removeNewsById(id: string): Promise<FeedDocument> {
   const current = await readFeed();
   const doc = { ...current, news: current.news.filter((n) => n.id !== id) };
+  await writeFeed(doc);
+  return doc;
+}
+
+/** Som `upsertCuratedNews`, för ett godkänt evenemang. Läggs FÖRST så det vinner slug-dubblettvakten. */
+export async function upsertCuratedEvent(item: EventItem): Promise<FeedDocument> {
+  const current = await readFeed();
+  const doc = normalizeFeed({
+    generatedAt: new Date().toISOString(),
+    news: current.news,
+    events: [item, ...current.events.filter((e) => e.id !== item.id)],
+  });
+  await writeFeed(doc);
+  return doc;
+}
+
+export async function removeEventById(id: string): Promise<FeedDocument> {
+  const current = await readFeed();
+  const doc = { ...current, events: current.events.filter((e) => e.id !== id) };
   await writeFeed(doc);
   return doc;
 }

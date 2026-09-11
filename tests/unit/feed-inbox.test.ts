@@ -9,13 +9,17 @@ import { JOB_LANES, feedPublishSchema, stableId } from "@/lib/feed";
 import {
   DECIDED_KEEP_DAYS,
   PENDING_KEEP_DAYS,
+  approveEventInputSchema,
   approveInputSchema,
+  draftToEventItem,
   draftToNewsItem,
   feedDraftSchema,
+  feedEventDraftSchema,
   inboxDocumentSchema,
   mergeInbox,
   type InboxDocument,
   type InboxEntry,
+  type InboxEventEntry,
 } from "@/lib/feed-inbox";
 import { addDrafts, cleanUrl, stableId as scriptStableId, validateDraft } from "../../scripts/feed-inbox-add.mjs";
 
@@ -45,10 +49,11 @@ describe("mergeInbox", () => {
     const current: InboxDocument = {
       updatedAt: "2026-09-10T00:00:00Z",
       items: [entry("https://a.se/1", { status: "rejected", decidedAt: "2026-09-10T12:00:00Z", title: "Avvisad" })],
+      events: [],
     };
     const next = mergeInbox(
       current,
-      { generatedAt: NOW.toISOString(), drafts: [draft("https://a.se/1", { title: "Ny rubrik från rutinen" }), draft("https://a.se/2")] },
+      { generatedAt: NOW.toISOString(), drafts: [draft("https://a.se/1", { title: "Ny rubrik från rutinen" }), draft("https://a.se/2")], events: [] },
       NOW
     );
     expect(next.items).toHaveLength(2);
@@ -68,8 +73,9 @@ describe("mergeInbox", () => {
         entry("https://a.se/beslutad", { status: "approved", decidedAt: oldDecision, publishedAt: stale }),
         entry("https://a.se/kvar", { status: "approved", decidedAt: NOW.toISOString(), publishedAt: stale }),
       ],
+      events: [],
     };
-    const next = mergeInbox(current, { generatedAt: NOW.toISOString(), drafts: [] }, NOW);
+    const next = mergeInbox(current, { generatedAt: NOW.toISOString(), drafts: [], events: [] }, NOW);
     expect(next.items.map((i) => i.url)).toEqual(["https://a.se/kvar"]);
   });
 
@@ -81,6 +87,7 @@ describe("mergeInbox", () => {
         entry("https://a.se/2", { status: "approved", decidedAt: NOW.toISOString() }),
         entry("https://a.se/3", { body: ["En lång och fullständig text som redan finns."] }),
       ],
+      events: [],
     };
     const next = mergeInbox(
       current,
@@ -91,6 +98,7 @@ describe("mergeInbox", () => {
           draft("https://a.se/2", { body: ["Ska aldrig in."] }),
           draft("https://a.se/3", { body: ["Kortare."] }),
         ],
+        events: [],
       },
       NOW
     );
@@ -103,8 +111,8 @@ describe("mergeInbox", () => {
   });
 
   it("en oförändrad leverans lämnar updatedAt orörd", () => {
-    const current: InboxDocument = { updatedAt: "2026-09-10T00:00:00Z", items: [entry("https://a.se/1")] };
-    const next = mergeInbox(current, { generatedAt: NOW.toISOString(), drafts: [draft("https://a.se/1")] }, NOW);
+    const current: InboxDocument = { updatedAt: "2026-09-10T00:00:00Z", items: [entry("https://a.se/1")], events: [] };
+    const next = mergeInbox(current, { generatedAt: NOW.toISOString(), drafts: [draft("https://a.se/1")], events: [] }, NOW);
     expect(next.updatedAt).toBe(current.updatedAt);
   });
 });
@@ -114,6 +122,7 @@ describe("drafts.json på volymen", () => {
     const good = { ...entry("https://a.se/1"), status: "approved", decidedAt: NOW.toISOString(), imageUrl: "/api/feed-cover/abc-deadbeef.jpg" };
     const bad = { ...entry("https://a.se/2"), title: 1 };
     const doc = inboxDocumentSchema.parse({ updatedAt: NOW.toISOString(), items: [good, bad, entry("https://a.se/3")] });
+    expect(doc.events).toEqual([]);
     expect(doc.items.map((i) => i.url)).toEqual(["https://a.se/1", "https://a.se/3"]);
     expect(doc.items[0].imageUrl).toBe("/api/feed-cover/abc-deadbeef.jpg");
   });
@@ -208,5 +217,89 @@ describe("scripts/feed-inbox-add.mjs (rutinens beroendefria hjälpare)", () => {
     const v = validateDraft({ title: "Rubrik", summary: "Text", url: "https://x.se/a?fbclid=1", source: "S", publishedAt: "2026-09-11" }, NOW);
     expect(v.ok).toBe(true);
     expect(v.draft?.id).toBe(stableId("https://x.se/a"));
+  });
+});
+
+describe("evenemangsutkast", () => {
+  const ev = (over: Partial<InboxEventEntry> = {}): InboxEventEntry => ({
+    id: "ev1",
+    title: "Card Expo Sweden",
+    category: "EXPO",
+    startsAt: "2026-09-26T12:00:00+02:00",
+    endsAt: "2026-09-27T16:00:00+02:00",
+    city: "Stockholm",
+    venue: "Fryshuset",
+    address: null,
+    mapUrl: null,
+    ticketUrl: "https://www.tickster.com/se/sv/events/x",
+    infoUrl: null,
+    imageUrl: null,
+    imageFit: "cover",
+    organizer: "Card Expo Sweden",
+    summary: "Kortmässa på Fryshuset.",
+    body: [],
+    origin: "web",
+    note: "",
+    foundAt: NOW.toISOString(),
+    status: "pending",
+    receivedAt: NOW.toISOString(),
+    decidedAt: null,
+    ...over,
+  });
+
+  it("mergeInbox lägger nya evenemang som väntande och städar passerade väntande", () => {
+    const passed = ev({ id: "old", startsAt: "2026-09-01T10:00:00+02:00", endsAt: "2026-09-01T18:00:00+02:00" });
+    const current: InboxDocument = { updatedAt: "2026-09-10T00:00:00Z", items: [], events: [passed] };
+    const incoming = feedEventDraftSchema.parse({ ...ev(), status: undefined, receivedAt: undefined, decidedAt: undefined });
+    const next = mergeInbox(current, { generatedAt: NOW.toISOString(), drafts: [], events: [incoming] }, NOW);
+    expect(next.events.map((e) => e.id)).toEqual(["ev1"]);
+    expect(next.events[0].status).toBe("pending");
+  });
+
+  it("godkänt evenemang: lane curated, slug ur rubriken, uppladdat omslag blir absolut URL", () => {
+    const item = draftToEventItem(
+      { id: "ev1" },
+      approveEventInputSchema.parse({
+        title: "Card Expo Sweden 2026",
+        category: "EXPO",
+        startsAt: "2026-09-26T12:00:00+02:00",
+        endsAt: null,
+        city: "Stockholm",
+        venue: "Fryshuset",
+        address: null,
+        mapUrl: null,
+        ticketUrl: "https://www.tickster.com/se/sv/events/x",
+        infoUrl: null,
+        imageUrl: "/api/feed-cover/ev1-deadbeef.jpg",
+        imageFit: "cover",
+        organizer: null,
+        summary: "Kortmässa.",
+        body: ["## Öppettider", "Lördag 12–17."],
+      }),
+      "https://foilio.se"
+    );
+    expect(item.lane).toBe("curated");
+    expect(item.slug).toBe("card-expo-sweden-2026");
+    expect(item.imageUrl).toBe("https://foilio.se/api/feed-cover/ev1-deadbeef.jpg");
+    expect(item.body).toEqual([
+      { type: "h", text: "Öppettider" },
+      { type: "p", text: "Lördag 12–17." },
+    ]);
+  });
+
+  it("scriptet sorterar en rad med startsAt till eventDrafts och kräver arrangörens länk", () => {
+    const { file, report } = addDrafts(
+      { drafts: [], eventDrafts: [], seen: [] },
+      [
+        { kind: "event", title: "Svenska Pokémonmässan", summary: "Mässa.", startsAt: "2026-10-03T10:00:00+02:00", city: "Mölndal", infoUrl: "https://x.se/massan?utm_source=fb" },
+        { title: "Utan länk", summary: "Mässa.", startsAt: "2026-10-03T10:00:00+02:00" },
+      ],
+      NOW
+    );
+    expect(report.addedEvents).toBe(1);
+    expect(report.invalid).toHaveLength(1);
+    expect(file.eventDrafts[0].infoUrl).toBe("https://x.se/massan");
+    expect(file.eventDrafts[0].id).toBe(stableId("https://x.se/massan"));
+    expect(feedEventDraftSchema.safeParse(file.eventDrafts[0]).success).toBe(true);
   });
 });

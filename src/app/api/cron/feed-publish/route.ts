@@ -17,7 +17,8 @@
  *    sist raderat det andras nyheter.
  * ⛔ `events` skickas bara av den lane som äger dem. Utelämnas fältet (`null`)
  *    lämnas evenemangen orörda — ett jobb som inte har något att säga om dem ska
- *    inte kunna tömma listan.
+ *    inte kunna tömma listan. Skickas de byts BARA rss-evenemangen ut: de med lane
+ *    `curated` är godkända ur nyhetsinkorgen och finns ingen annanstans (2026-09-11).
  */
 import { type NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
@@ -45,7 +46,8 @@ export async function POST(req: NextRequest) {
     const doc = normalizeFeed({
       generatedAt: payload.generatedAt,
       news: [...current.news.filter((n) => n.lane !== payload.lane), ...payload.news],
-      events: payload.events ?? current.events,
+      // Godkända evenemang först så de vinner slug-dubblettvakten i normalizeFeed.
+      events: payload.events ? [...current.events.filter((e) => e.lane === "curated"), ...payload.events] : current.events,
     });
 
     await writeFeed(doc);

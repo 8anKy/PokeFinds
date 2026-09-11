@@ -23,7 +23,17 @@
  *      nyhet två gånger, så ett avvisat utkast kommer inte tillbaka.
  */
 import { z } from "zod";
-import { NEWS_CATEGORIES, newsItemSchema, slugify, stableId, type EventBlock, type NewsItem } from "@/lib/feed";
+import {
+  EVENT_CATEGORIES,
+  NEWS_CATEGORIES,
+  eventItemSchema,
+  newsItemSchema,
+  slugify,
+  stableId,
+  type EventBlock,
+  type EventItem,
+  type NewsItem,
+} from "@/lib/feed";
 
 const isoDate = z
   .string()
@@ -79,9 +89,42 @@ export const feedDraftSchema = z.object({
 });
 export type FeedDraft = z.infer<typeof feedDraftSchema>;
 
+const httpUrlOrNull = httpUrl.nullable().default(null);
+
+/**
+ * Ett EVENEMANGSUTKAST (2026-09-11): svenska mässor och kortträffar som rutinen hittar.
+ * Fälten speglar `eventItemSchema` men utan `slug` (härleds ur den godkända rubriken)
+ * och med brödtexten som stycken, som nyhetsutkasten. ⛔ Bara det som står hos
+ * ARRANGÖREN — datum, tider, plats och biljettlänk — och källan i `infoUrl`/`ticketUrl`.
+ */
+export const feedEventDraftSchema = z.object({
+  id: z.string().min(1).max(64),
+  title: z.string().min(3).max(200),
+  category: z.enum(EVENT_CATEGORIES).default("EXPO"),
+  /** ISO MED tidszon (+02:00 sommartid, +01:00 vintertid). */
+  startsAt: isoDate,
+  endsAt: isoDate.nullable().default(null),
+  city: z.string().max(80).nullable().default(null),
+  venue: z.string().max(160).nullable().default(null),
+  address: z.string().max(200).nullable().default(null),
+  mapUrl: httpUrlOrNull,
+  ticketUrl: httpUrlOrNull,
+  infoUrl: httpUrlOrNull,
+  imageUrl: httpUrlOrNull,
+  imageFit: z.enum(["cover", "contain"]).default("cover"),
+  organizer: z.string().max(120).nullable().default(null),
+  summary: z.string().min(1).max(600),
+  body: draftBodySchema,
+  origin: z.enum(["email", "web"]).default("web"),
+  note: z.string().max(400).default(""),
+  foundAt: isoDate,
+});
+export type FeedEventDraft = z.infer<typeof feedEventDraftSchema>;
+
 /** Filen i git: `.github/feed/inbox.json`. `seen` är rutinens minne, appen läser den inte. */
 export const inboxFileSchema = z.object({
   drafts: z.array(z.unknown()).max(500).default([]),
+  eventDrafts: z.array(z.unknown()).max(500).default([]),
   seen: z.array(z.object({ id: z.string(), url: z.string().max(2000), at: isoDate })).max(2000).default([]),
 });
 
@@ -89,6 +132,7 @@ export const inboxFileSchema = z.object({
 export const inboxPublishSchema = z.object({
   generatedAt: isoDate,
   drafts: z.array(feedDraftSchema).max(500).default([]),
+  events: z.array(feedEventDraftSchema).max(500).default([]),
 });
 export type InboxPublish = z.infer<typeof inboxPublishSchema>;
 
@@ -110,14 +154,34 @@ const imageUrlOrPath = z
  *    kvar på `https://` ⇒ första godkännandet med eget omslag gjorde HELA filen ogiltig
  *    och admin visade en tom inkorg. Radens schema måste rymma allt admin kan skriva.
  */
-export const inboxEntrySchema = feedDraftSchema.extend({
-  imageUrl: imageUrlOrPath,
+const entryState = {
   status: z.enum(DRAFT_STATUSES).default("pending"),
   /** När rutten först såg utkastet. */
   receivedAt: isoDate,
   decidedAt: isoDate.nullable().default(null),
-});
+};
+
+export const inboxEntrySchema = feedDraftSchema.extend({ imageUrl: imageUrlOrPath, ...entryState });
 export type InboxEntry = z.infer<typeof inboxEntrySchema>;
+
+export const inboxEventEntrySchema = feedEventDraftSchema.extend({ imageUrl: imageUrlOrPath, ...entryState });
+export type InboxEventEntry = z.infer<typeof inboxEventEntrySchema>;
+
+function tolerantRows<S extends z.ZodTypeAny>(schema: S, label: string) {
+  return z
+    .array(z.unknown())
+    .max(1000)
+    .default([])
+    .transform((rows) => {
+      const out: z.output<S>[] = [];
+      for (const row of rows) {
+        const parsed = schema.safeParse(row);
+        if (parsed.success) out.push(parsed.data);
+        else console.error(`[feed-inbox] ${label} hoppades över:`, parsed.error.issues.slice(0, 2), (row as { id?: string })?.id);
+      }
+      return out;
+    });
+}
 
 /**
  * ⛔ EN TRASIG RAD FÄLLER ALDRIG INKORGEN. Raderna valideras en och en; den som inte
@@ -126,23 +190,12 @@ export type InboxEntry = z.infer<typeof inboxEntrySchema>;
  */
 export const inboxDocumentSchema = z.object({
   updatedAt: isoDate,
-  items: z
-    .array(z.unknown())
-    .max(1000)
-    .default([])
-    .transform((rows) => {
-      const out: InboxEntry[] = [];
-      for (const row of rows) {
-        const parsed = inboxEntrySchema.safeParse(row);
-        if (parsed.success) out.push(parsed.data);
-        else console.error("[feed-inbox] rad hoppades över:", parsed.error.issues.slice(0, 2), (row as { id?: string })?.id);
-      }
-      return out;
-    }),
+  items: tolerantRows(inboxEntrySchema, "nyhetsrad"),
+  events: tolerantRows(inboxEventEntrySchema, "evenemangsrad"),
 });
 export type InboxDocument = z.infer<typeof inboxDocumentSchema>;
 
-export const EMPTY_INBOX: InboxDocument = { updatedAt: new Date(0).toISOString(), items: [] };
+export const EMPTY_INBOX: InboxDocument = { updatedAt: new Date(0).toISOString(), items: [], events: [] };
 
 /** Ett AVGJORT utkast ligger kvar så länge i admin (för "ångra"), sedan städas det. */
 export const DECIDED_KEEP_DAYS = 60;
@@ -191,7 +244,30 @@ export function mergeInbox(current: InboxDocument, incoming: InboxPublish, now =
     })
     .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
 
-  return { updatedAt: added > 0 || changed || items.length !== current.items.length ? now.toISOString() : current.updatedAt, items };
+  // Evenemangen: samma regler, men ett VÄNTANDE evenemang städas när det har PASSERAT —
+  // ett utkast om en mässa som redan varit har ingen läsare kvar.
+  const evById = new Map(current.events.map((e) => [e.id, e] as const));
+  for (const draft of incoming.events) {
+    const existing = evById.get(draft.id);
+    if (existing) {
+      if (existing.status === "pending" && bodyLength(draft.body) > bodyLength(existing.body)) {
+        evById.set(draft.id, { ...existing, body: draft.body });
+        changed = true;
+      }
+      continue;
+    }
+    evById.set(draft.id, { ...draft, status: "pending", receivedAt: now.toISOString(), decidedAt: null });
+    added++;
+  }
+  const events = [...evById.values()]
+    .filter((e) => {
+      if (e.status === "pending") return Date.parse(e.endsAt ?? e.startsAt) >= now.getTime() - 86_400_000;
+      return Date.parse(e.decidedAt ?? e.receivedAt) >= decidedCutoff;
+    })
+    .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
+
+  const touched = added > 0 || changed || items.length !== current.items.length || events.length !== current.events.length;
+  return { updatedAt: touched ? now.toISOString() : current.updatedAt, items, events };
 }
 
 /** Fälten ägaren får rätta i admin innan posten godkänns. */
@@ -245,4 +321,59 @@ export function draftToNewsItem(entry: Pick<InboxEntry, "id">, input: ApproveInp
 /** Rutinens id för en URL — samma funktion som byggjobbet, så id:n aldrig krockar. */
 export function draftId(url: string): string {
   return stableId(url.trim());
+}
+
+/** Fälten ägaren får rätta i admin innan ett evenemang godkänns. */
+export const approveEventInputSchema = z.object({
+  title: z.string().trim().min(3).max(200),
+  category: z.enum(EVENT_CATEGORIES),
+  startsAt: isoDate,
+  endsAt: isoDate.nullable(),
+  city: z.string().trim().max(80).nullable(),
+  venue: z.string().trim().max(160).nullable(),
+  address: z.string().trim().max(200).nullable(),
+  mapUrl: httpUrlOrNull,
+  ticketUrl: httpUrlOrNull,
+  infoUrl: httpUrlOrNull,
+  imageUrl: imageUrlOrPath,
+  imageFit: z.enum(["cover", "contain"]),
+  organizer: z.string().trim().max(120).nullable(),
+  summary: z.string().trim().max(600),
+  body: draftBodySchema,
+});
+export type ApproveEventInput = z.infer<typeof approveEventInputSchema>;
+
+/**
+ * Det godkända evenemanget som det läggs i flödet. Slug ur den godkända rubriken
+ * (evenemang HAR alltid en sida). ⛔ `eventItemSchema.imageUrl` kräver en full URL —
+ * ett uppladdat omslag (`/api/feed-cover/…`) görs absolut mot apex här.
+ */
+export function draftToEventItem(entry: Pick<InboxEventEntry, "id">, input: ApproveEventInput, baseUrl = "https://foilio.se"): EventItem {
+  const imageUrl = input.imageUrl && input.imageUrl.startsWith("/") ? `${baseUrl.replace(/\/+$/, "")}${input.imageUrl}` : input.imageUrl;
+  return eventItemSchema.parse({
+    id: entry.id,
+    slug: slugify(input.title) || entry.id,
+    title: input.title,
+    category: input.category,
+    startsAt: input.startsAt,
+    endsAt: input.endsAt,
+    city: input.city || null,
+    venue: input.venue || null,
+    address: input.address || null,
+    mapUrl: input.mapUrl,
+    ticketUrl: input.ticketUrl,
+    infoUrl: input.infoUrl,
+    imageUrl,
+    imageFit: input.imageFit,
+    organizer: input.organizer || null,
+    summary: input.summary,
+    body: paragraphsToBlocks(input.body),
+    lane: "curated",
+  });
+}
+
+/** Evenemangets id: arrangörens länk om den finns, annars namn + startdatum. */
+export function eventDraftId(d: { infoUrl?: string | null; ticketUrl?: string | null; title: string; startsAt: string }): string {
+  const key = d.infoUrl || d.ticketUrl || `${slugify(d.title)}|${d.startsAt.slice(0, 10)}`;
+  return stableId(key.trim());
 }

@@ -29,7 +29,7 @@ import {
   type NewsCategory,
   type NewsItem,
 } from "../src/lib/feed";
-import { feedDraftSchema, inboxFileSchema, inboxPublishSchema, type FeedDraft } from "../src/lib/feed-inbox";
+import { feedDraftSchema, feedEventDraftSchema, inboxFileSchema, inboxPublishSchema, type FeedDraft, type FeedEventDraft } from "../src/lib/feed-inbox";
 import { extractOgImage, parseFeed } from "../src/lib/rss";
 
 const UA = "FoilioBot/1.0 (+https://foilio.se; nyhetsflode)";
@@ -129,18 +129,19 @@ const DRAFT_COVER_MAX_AGE_DAYS = 3;
  * INTE här och går inte in i rss-lanen — se src/lib/feed-inbox.ts.
  * Ett felskrivet utkast varnas om och hoppas över, som de kurerade posterna.
  */
-async function collectDrafts(dir: string, dry: boolean): Promise<FeedDraft[]> {
+async function collectDrafts(dir: string, dry: boolean): Promise<{ drafts: FeedDraft[]; events: FeedEventDraft[] }> {
+  const empty = { drafts: [], events: [] };
   let raw: unknown;
   try {
     raw = await readJson<unknown>(path.join(dir, "inbox.json"));
   } catch (error) {
     console.warn(`::warning::[feed] inbox.json kunde inte läsas — ${(error as Error).message}`);
-    return [];
+    return empty;
   }
   const file = inboxFileSchema.safeParse(raw);
   if (!file.success) {
     console.warn(`::warning::[feed] inbox.json har fel form: ${file.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`);
-    return [];
+    return empty;
   }
   const drafts: FeedDraft[] = [];
   for (const entry of file.data.drafts) {
@@ -165,9 +166,34 @@ async function collectDrafts(dir: string, dry: boolean): Promise<FeedDraft[]> {
     }
   }
 
-  console.log(`[feed] inkorg: ${drafts.length} utkast i inbox.json.`);
-  if (dry) for (const d of drafts) console.log(`        · [${d.category}/${d.origin}] ${d.title}`);
-  return drafts;
+  // Evenemangsutkasten: samma validering; affischen ur biljett-/infosidan som för events.json.
+  const events: FeedEventDraft[] = [];
+  for (const entry of file.data.eventDrafts) {
+    const parsed = feedEventDraftSchema.safeParse(entry);
+    if (!parsed.success) {
+      console.warn(`::warning::[feed] evenemangsutkast hoppades över: ${parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`);
+      continue;
+    }
+    events.push(parsed.data);
+  }
+  for (const ev of events) {
+    if (ev.imageUrl || Date.parse(ev.foundAt) < cutoff) continue;
+    const page = ev.ticketUrl ?? ev.infoUrl;
+    if (!page) continue;
+    try {
+      const image = extractOgImage(await fetchText(page, ACCEPT_PAGE), page);
+      if (image) ev.imageUrl = image;
+    } catch (error) {
+      console.warn(`::warning::[feed] ingen affisch för utkastet ${page} — ${(error as Error).message}`);
+    }
+  }
+
+  console.log(`[feed] inkorg: ${drafts.length} nyhetsutkast + ${events.length} evenemangsutkast i inbox.json.`);
+  if (dry) {
+    for (const d of drafts) console.log(`        · [${d.category}/${d.origin}] ${d.title}`);
+    for (const e of events) console.log(`        · [${e.category}] ${e.title} ${e.startsAt.slice(0, 10)} ${e.city ?? ""}`);
+  }
+  return { drafts, events };
 }
 
 async function collectNews(sources: Source[], dry: boolean): Promise<NewsItem[]> {
@@ -277,7 +303,7 @@ async function main() {
   });
   console.log(`[feed] rss-lane: ${payload.news.length} nyheter, ${payload.events?.length ?? 0} evenemang.`);
 
-  const inbox = inboxPublishSchema.parse({ generatedAt: payload.generatedAt, drafts: await collectDrafts(dir, dry) });
+  const inbox = inboxPublishSchema.parse({ generatedAt: payload.generatedAt, ...(await collectDrafts(dir, dry)) });
 
   if (dry) {
     console.log("[feed] --dry: skickar ingenting.");
@@ -298,7 +324,7 @@ async function main() {
   console.log(`[feed] publicerat: ${text.slice(0, 200)}`);
 
   // Inkorgen sist och separat: ett fel här får inte hindra flödet, men ska synas rött.
-  if (inbox.drafts.length > 0) {
+  if (inbox.drafts.length > 0 || inbox.events.length > 0) {
     const inboxRes = await fetch(`${appUrl}/api/cron/feed-inbox`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-cron-secret": secret },

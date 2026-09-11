@@ -44,8 +44,24 @@ Två källor, i den här ordningen:
      (`curl -sL <url> | grep -o '<meta[^>]*og:image[^>]*>'`). Hittar du ingen, lämna `null` —
      jobbet försöker självt och ägaren kan byta bild i admin.
 
-Skriv **högst 8 utkast per dag**, hellre 4 bra än 8 halvdana. Dubbletter mellan källor
-(samma nyhet hos två sajter) blir ETT utkast med den bästa källan.
+3. **Evenemang — svenska mässor och kortträffar.** Sök efter kommande Pokémon-/samlarkorts-
+   mässor, kortfestivaler och conventions **i Sverige** (Card Expo, Samlarkortfestivalen,
+   Pokémonmässan, spelmässor med kortdel, "kortmässa" + stad). Källor: arrangörens egen sida,
+   biljettsidor (Tickster, Billetto, Nortic), kommunernas/arenornas evenemangskalendrar.
+   ⛔ Läs FÖRST `.github/feed/events.json` och hoppa över allt som redan står där (samma namn +
+   datum). Ett evenemang som redan passerat, eller ligger mer än ~6 månader fram, hoppar du över.
+   ⛔ Bara det som står hos ARRANGÖREN: datum, tider, plats, adress, arrangör, biljettlänk.
+   Hitta inte på öppettider eller priser. Utkastet är ett objekt med `kind: "event"`:
+   `title`, `category` (`EXPO` mässa · `PRERELEASE` · `TOURNAMENT` · `OTHER`), `startsAt` och
+   `endsAt` som ISO **med tidszon** (+02:00 sommartid t.o.m. 2026-10-25, sedan +01:00), `city`,
+   `venue`, `address`, `organizer`, `ticketUrl` och/eller `infoUrl` (minst en — den är källan),
+   `mapUrl` (valfri, t.ex. Google Maps-sök på adressen), `summary` (1–2 meningar), `body`
+   (2–4 stycken: öppettider per dag, biljetter/pris om arrangören anger det, vad som väntar —
+   handlare, gradering på plats, turneringar — och "bra att veta"). Svenska mässor som redan
+   finns i `events.json` eller i `seen` ger inget nytt utkast.
+
+Skriv **högst 8 nyhetsutkast och 4 evenemangsutkast per dag**, hellre 4 bra än 8 halvdana.
+Dubbletter mellan källor (samma nyhet hos två sajter) blir ETT utkast med den bästa källan.
 
 ## Hur du skriver
 
@@ -96,6 +112,26 @@ Skriv **högst 8 utkast per dag**, hellre 4 bra än 8 halvdana. Dubbletter mella
      }
    ]
    ```
+   Ett evenemang i samma lista ser ut så här:
+   ```json
+   {
+     "kind": "event",
+     "title": "Kortmässan Uppsala",
+     "category": "EXPO",
+     "startsAt": "2026-11-14T10:00:00+01:00",
+     "endsAt": "2026-11-14T17:00:00+01:00",
+     "city": "Uppsala",
+     "venue": "Fyrishov",
+     "address": "Idrottsgatan 2, Uppsala",
+     "organizer": "Kortmässan",
+     "ticketUrl": "https://www.tickster.com/se/sv/events/…",
+     "infoUrl": "https://kortmassan.se/uppsala",
+     "summary": "Samlarkortsmässa på Fyrishov med Pokémon, sport och TCG. Lördag 10–17.",
+     "body": ["## Öppettider", "Lördag 14 november 10.00–17.00.", "## Bra att veta", "Biljetter säljs via Tickster. Kontrollera tider och pris hos arrangören innan du åker."],
+     "origin": "web",
+     "note": "Arrangören har ännu inte publicerat utställarlista."
+   }
+   ```
 2. Kör `node scripts/feed-inbox-add.mjs /tmp/utkast.json`. Skriptet sätter id, hoppar över
    allt du redan lämnat in tidigare (`seen` i `inbox.json` — därför behöver du inte själv
    komma ihåg vad du skrev igår) och rapporterar `X nya, Y redan sedda, Z ogiltiga`. Rätta
@@ -107,7 +143,8 @@ Skriv **högst 8 utkast per dag**, hellre 4 bra än 8 halvdana. Dubbletter mella
 
 ## Vad du aldrig gör
 
-- Redigerar `news.json`, `events.json`, `sources.json` eller något under `src/`.
+- Redigerar `news.json`, `events.json`, `sources.json` eller något under `src/` — evenemang
+  du hittar går via `kind: "event"` i utkastlistan, aldrig direkt in i `events.json`.
 - Skriver `slug` i ett utkast — den härleds ur rubriken när ägaren godkänner.
 - Skapar en PR, öppnar issues, eller pushar till någon annan gren än `main`.
 - Kör `npm install`/`npm ci` — skriptet behöver inga beroenden.

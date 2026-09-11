@@ -5,9 +5,11 @@
  *   node scripts/feed-inbox-add.mjs utkast.json
  *   node scripts/feed-inbox-add.mjs utkast.json --dry
  *
- * `utkast.json` är en lista med utkast (formen: `src/lib/feed-inbox.ts`). Skriptet
- * sätter `id` ur URL:en, hoppar över allt rutinen redan sett (`seen`), städar
- * gamla utkast och skriver filen. Slutraden säger hur många som lades till.
+ * `utkast.json` är en lista med utkast (formen: `src/lib/feed-inbox.ts`). En rad med
+ * `kind: "event"` (eller ett `startsAt`) är ett EVENEMANGSUTKAST och hamnar i
+ * `eventDrafts`; övriga är nyheter och hamnar i `drafts`. Skriptet sätter `id`, hoppar
+ * över allt rutinen redan sett (`seen`), städar gamla utkast och skriver filen.
+ * Slutraden säger hur många som lades till.
  *
  * ⛔ AVSIKTLIGT UTAN BEROENDEN (ren Node ≥ 18, inget zod, inget tsx): det körs av
  *    molnrutinen i ett färskt klon där `npm ci` inte är gjort. Den STRIKTA
@@ -22,6 +24,7 @@ import path from "node:path";
 
 const INBOX = path.join(process.cwd(), ".github", "feed", "inbox.json");
 const CATEGORIES = new Set(["RELEASE", "MARKET", "STORE", "APP"]);
+const EVENT_CATEGORIES = new Set(["EXPO", "PRERELEASE", "TOURNAMENT", "OTHER"]);
 const DRAFT_KEEP_DAYS = 30;
 const SEEN_MAX = 1500;
 
@@ -110,15 +113,98 @@ export function validateDraft(raw, now = new Date()) {
   };
 }
 
+/** Slug som i src/lib/feed.ts (kopia — bara för evenemangets id-nyckel). */
+function slugifyLite(input) {
+  return String(input)
+    .toLowerCase()
+    .replace(/[åä]/g, "a").replace(/ö/g, "o").replace(/é/g, "e")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+function optUrl(v, errors, field) {
+  if (v == null || v === "") return null;
+  try {
+    const u = cleanUrl(v);
+    if (!/^https?:\/\//i.test(u)) throw new Error();
+    return u;
+  } catch {
+    errors.push(`${field} måste vara https://`);
+    return null;
+  }
+}
+
+function optText(v, max) {
+  return typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null;
+}
+
+export function isEventDraft(raw) {
+  return !!raw && typeof raw === "object" && (raw.kind === "event" || typeof raw.startsAt === "string");
+}
+
+/** Evenemangsutkast: samma grova formkoll. Id = arrangörens länk, annars namn + startdatum (som appen). */
+export function validateEventDraft(raw, now = new Date()) {
+  const errors = [];
+  const d = raw && typeof raw === "object" ? raw : {};
+  if (typeof d.title !== "string" || d.title.trim().length < 3 || d.title.length > 200) errors.push("title 3–200 tecken");
+  if (typeof d.summary !== "string" || d.summary.trim().length < 1 || d.summary.length > 600) errors.push("summary 1–600 tecken");
+  const category = d.category ?? "EXPO";
+  if (!EVENT_CATEGORIES.has(category)) errors.push(`category måste vara en av ${[...EVENT_CATEGORIES].join("/")}`);
+  const startsAt = typeof d.startsAt === "string" && !Number.isNaN(Date.parse(d.startsAt)) ? d.startsAt : null;
+  if (!startsAt) errors.push("startsAt måste vara ett datum (ISO med tidszon)");
+  const endsAt = d.endsAt == null || d.endsAt === "" ? null : !Number.isNaN(Date.parse(d.endsAt)) ? d.endsAt : (errors.push("endsAt måste vara ett datum"), null);
+  const mapUrl = optUrl(d.mapUrl, errors, "mapUrl");
+  const ticketUrl = optUrl(d.ticketUrl, errors, "ticketUrl");
+  const infoUrl = optUrl(d.infoUrl, errors, "infoUrl");
+  const imageUrl = optUrl(d.imageUrl, errors, "imageUrl");
+  if (!ticketUrl && !infoUrl) errors.push("infoUrl eller ticketUrl krävs — arrangörens sida är källan");
+  const origin = d.origin ?? "web";
+  if (origin !== "email" && origin !== "web") errors.push("origin måste vara email eller web");
+  let body = [];
+  if (d.body != null) {
+    if (!Array.isArray(d.body) || d.body.some((p) => typeof p !== "string")) errors.push("body måste vara en lista med textstycken");
+    else body = d.body.map((p) => p.trim()).filter(Boolean).slice(0, 12);
+  }
+  if (errors.length) return { ok: false, errors };
+  const key = infoUrl || ticketUrl || `${slugifyLite(d.title)}|${startsAt.slice(0, 10)}`;
+  return {
+    ok: true,
+    draft: {
+      id: stableId(key.trim()),
+      title: d.title.trim(),
+      category,
+      startsAt,
+      endsAt,
+      city: optText(d.city, 80),
+      venue: optText(d.venue, 160),
+      address: optText(d.address, 200),
+      mapUrl,
+      ticketUrl,
+      infoUrl,
+      imageUrl,
+      imageFit: d.imageFit === "contain" ? "contain" : "cover",
+      organizer: optText(d.organizer, 120),
+      summary: d.summary.trim(),
+      body,
+      origin,
+      note: typeof d.note === "string" ? d.note.slice(0, 400) : "",
+      foundAt: now.toISOString(),
+    },
+  };
+}
+
 /** Ren dom: befintlig fil + nya råutkast ⇒ ny fil + rapport. */
 export function addDrafts(file, rawDrafts, now = new Date()) {
   const drafts = Array.isArray(file.drafts) ? [...file.drafts] : [];
+  const eventDrafts = Array.isArray(file.eventDrafts) ? [...file.eventDrafts] : [];
   const seen = Array.isArray(file.seen) ? [...file.seen] : [];
-  const seenIds = new Set([...seen.map((s) => s.id), ...drafts.map((d) => d.id)]);
-  const report = { added: 0, skippedSeen: 0, invalid: [] };
+  const seenIds = new Set([...seen.map((s) => s.id), ...drafts.map((d) => d.id), ...eventDrafts.map((d) => d.id)]);
+  const report = { added: 0, addedEvents: 0, skippedSeen: 0, invalid: [] };
 
   for (const raw of rawDrafts) {
-    const v = validateDraft(raw, now);
+    const isEvent = isEventDraft(raw);
+    const v = isEvent ? validateEventDraft(raw, now) : validateDraft(raw, now);
     if (!v.ok) {
       report.invalid.push({ title: raw?.title ?? "(utan rubrik)", errors: v.errors });
       continue;
@@ -128,17 +214,25 @@ export function addDrafts(file, rawDrafts, now = new Date()) {
       continue;
     }
     seenIds.add(v.draft.id);
-    drafts.push(v.draft);
-    seen.push({ id: v.draft.id, url: v.draft.url, at: now.toISOString() });
-    report.added++;
+    if (isEvent) {
+      eventDrafts.push(v.draft);
+      seen.push({ id: v.draft.id, url: v.draft.infoUrl || v.draft.ticketUrl || "", at: now.toISOString() });
+      report.addedEvents++;
+    } else {
+      drafts.push(v.draft);
+      seen.push({ id: v.draft.id, url: v.draft.url, at: now.toISOString() });
+      report.added++;
+    }
   }
 
   const cutoff = now.getTime() - DRAFT_KEEP_DAYS * 86_400_000;
   const kept = drafts.filter((d) => Date.parse(d.foundAt) >= cutoff);
+  // Ett evenemang ligger kvar tills det har varit — ägaren kan godkänna det sent.
+  const keptEvents = eventDrafts.filter((d) => Date.parse(d.endsAt || d.startsAt) >= now.getTime() - 86_400_000);
   // Nyast sist, äldst först — och taket tar de äldsta.
   const trimmedSeen = seen.slice(Math.max(0, seen.length - SEEN_MAX));
 
-  return { file: { ...file, drafts: kept, seen: trimmedSeen }, report };
+  return { file: { ...file, drafts: kept, eventDrafts: keptEvents, seen: trimmedSeen }, report };
 }
 
 function main() {
@@ -154,10 +248,13 @@ function main() {
 
   const { file: next, report } = addDrafts(file, rawDrafts);
   for (const bad of report.invalid) console.error(`[inbox] ogiltigt utkast "${bad.title}": ${bad.errors.join("; ")}`);
-  console.log(`[inbox] ${report.added} nya, ${report.skippedSeen} redan sedda, ${report.invalid.length} ogiltiga ⇒ ${next.drafts.length} utkast i filen.`);
+  console.log(
+    `[inbox] ${report.added} nya nyheter, ${report.addedEvents} nya evenemang, ${report.skippedSeen} redan sedda, ${report.invalid.length} ogiltiga ⇒ ` +
+      `${next.drafts.length} nyhetsutkast + ${next.eventDrafts.length} evenemangsutkast i filen.`
+  );
 
   if (dry) return;
-  if (report.added === 0 && next.drafts.length === file.drafts?.length) {
+  if (report.added === 0 && report.addedEvents === 0 && next.drafts.length === (file.drafts?.length ?? 0) && next.eventDrafts.length === (file.eventDrafts?.length ?? 0)) {
     console.log("[inbox] ingenting att skriva.");
     return;
   }
