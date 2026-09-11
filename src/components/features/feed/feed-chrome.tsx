@@ -29,12 +29,14 @@ export function FeedSwitch({
   active,
   onChange,
   indicatorPosition,
+  indicatorDragging,
 }: {
   active: "news" | "events";
   /** En inbäddad mobilväxlare behåller båda ISR-lägena i samma vy. */
   onChange?: (next: "news" | "events") => void;
   /** 0 = nyheter, 1 = evenemang. Följer fingret under ett panelsvep. */
   indicatorPosition?: number;
+  indicatorDragging?: boolean;
 }) {
   const t = useTranslations("News");
   const item = "relative z-10 flex h-[38px] flex-1 items-center justify-center rounded-full text-sm font-medium transition-colors duration-150";
@@ -45,7 +47,10 @@ export function FeedSwitch({
     <div data-feed-switch className="relative flex gap-1 rounded-full border border-surface-border bg-black/40 p-1">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute bottom-1 left-1 top-1 w-[calc(50%-0.25rem)] rounded-full bg-holo-cyan/12 ring-1 ring-inset ring-holo-cyan/35 transition-transform duration-300 ease-out"
+        className={cn(
+          "pointer-events-none absolute bottom-1 left-1 top-1 w-[calc(50%-0.25rem)] rounded-full bg-holo-cyan/12 ring-1 ring-inset ring-holo-cyan/35",
+          !indicatorDragging && "transition-transform duration-300 ease-out"
+        )}
         style={{ transform: `translateX(${position * 100}%)` }}
       />
       {onChange ? (

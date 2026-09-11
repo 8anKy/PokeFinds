@@ -119,15 +119,15 @@ export function FeedPager({
         className={cn("flex will-change-transform", drag == null && "transition-transform duration-300 ease-out")}
         style={{ transform: `translateX(calc(${activeIndex === 0 ? 0 : -100}% + ${drag?.x ?? 0}px))` }}
       >
-        <section className="w-full shrink-0 px-2.5 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:py-6">
+        <section className="w-full shrink-0 px-2.5 py-4 sm:px-6 sm:py-6">
           <div className="mx-auto flex max-w-3xl flex-col gap-3">
-            <FeedSwitch active={active} onChange={select} indicatorPosition={indicatorPosition} />
+            <FeedSwitch active={active} onChange={select} indicatorPosition={indicatorPosition} indicatorDragging={drag != null} />
             <NewsList items={news} />
           </div>
         </section>
-        <section className="w-full shrink-0 px-2.5 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:py-6">
+        <section className="w-full shrink-0 px-2.5 py-4 sm:px-6 sm:py-6">
           <div className="mx-auto flex max-w-3xl flex-col gap-3">
-            <FeedSwitch active={active} onChange={select} indicatorPosition={indicatorPosition} />
+            <FeedSwitch active={active} onChange={select} indicatorPosition={indicatorPosition} indicatorDragging={drag != null} />
             <EventsList items={events} />
           </div>
         </section>
