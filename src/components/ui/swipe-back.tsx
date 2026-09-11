@@ -30,12 +30,17 @@ export function SwipeBack({
   fallback,
   children,
   className,
-  coverViewport = false,
+  coverViewport = true,
 }: {
   fallback: string;
   children: ReactNode;
   className?: string;
-  /** Helsidesdetaljer (t.ex. samtal) måste även dra med safe-area + huvud. */
+  /**
+   * En SwipeBack-rutt är en detaljyta ovanpå sin föregångare. Den måste därför
+   * alltid täcka viewporten, inklusive safe-area och sidans vanliga toppmarginal.
+   * Annars flyttar bara innehållet medan skalet blir en svart toppremsa och
+   * föregående vy läcker igenom ovanför (forumtråd/inställningar 2026-09-11).
+   */
   coverViewport?: boolean;
 }) {
   const router = useRouter();
