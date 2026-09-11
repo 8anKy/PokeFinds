@@ -50,7 +50,14 @@ Skriv **högst 8 utkast per dag**, hellre 4 bra än 8 halvdana. Dubbletter mella
 
 - **Svenska.** Rubrik ≤ 90 tecken, saklig, inga utropstecken, inga clickbait-ord. Ingress
   1–2 meningar (≤ 240 tecken) **med egna ord** — återge aldrig artikelns text, och citera inte.
-  Skriv vad som händer, när, och varför en svensk samlare bryr sig.
+  Ingressen är teasern i listan: vad som händer och när.
+- **Brödtext (`body`) — 2–4 stycken, alltid.** Posten får en egen sida på foilio.se, så läsaren
+  ska slippa klicka vidare för det viktigaste: **vad** som kommer/händer, **när** (datum,
+  klockslag, förbokning/släpp), **vad det innehåller** (produkter, antal kort, nya rariteter,
+  priser om källan anger dem), och **varför en svensk samlare bryr sig** (tillgänglighet i
+  Sverige/EU, pris i EUR/SEK om känt, vad som skiljer mot tidigare). Egna ord, ren text, inga
+  länkar i texten — sidan lägger själv källänken längst ned. Ett stycke som börjar med `## `
+  blir en mellanrubrik (använd högst två). Står en uppgift inte i någon källa, skriv den inte.
 - Nämn aldrig konkurrerande prisbevaknings-/samlarsajter eller -appar. Nämn aldrig Foilio
   självt i utkasten — de handlar om världen utanför.
 - Inga påhittade priser, datum eller antal. Står det inte i källan, står det inte i utkastet.
@@ -72,7 +79,13 @@ Skriv **högst 8 utkast per dag**, hellre 4 bra än 8 halvdana. Dubbletter mella
        "imageUrl": null,
        "imageFit": "cover",
        "origin": "email",
-       "note": "Mejlet säger 'begränsat antal' utan siffra."
+       "note": "Mejlet säger 'begränsat antal' utan siffra.",
+       "body": [
+         "Cardshop Sweden öppnar förbokningen av 30th Anniversary Elite Trainer Box fredagen den 26 september kl 10.00. Butiken tar max ett exemplar per kund och skriver att antalet är begränsat.",
+         "## Vad boxen innehåller",
+         "Enligt butikens beskrivning: nio boosterpaket, ett promokort med jubileumsstämpel, 65 sleeves, energikort och tillbehör för spel. Priset är 699 kr.",
+         "Leverans väntas till det världsomspännande släppet i oktober. Boxen är den produkt ur jubileumssetet som sålt slut snabbast hos svenska butiker hittills."
+       ]
      }
    ]
    ```
@@ -88,6 +101,6 @@ Skriv **högst 8 utkast per dag**, hellre 4 bra än 8 halvdana. Dubbletter mella
 ## Vad du aldrig gör
 
 - Redigerar `news.json`, `events.json`, `sources.json` eller något under `src/`.
-- Skriver `slug` eller `body` i ett utkast (utkast har ingen egen sida).
+- Skriver `slug` i ett utkast — den härleds ur rubriken när ägaren godkänner.
 - Skapar en PR, öppnar issues, eller pushar till någon annan gren än `main`.
 - Kör `npm install`/`npm ci` — skriptet behöver inga beroenden.

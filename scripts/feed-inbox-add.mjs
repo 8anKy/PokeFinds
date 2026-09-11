@@ -80,6 +80,15 @@ export function validateDraft(raw, now = new Date()) {
   }
   const origin = d.origin ?? "web";
   if (origin !== "email" && origin !== "web") errors.push("origin måste vara email eller web");
+  let body = [];
+  if (d.body != null) {
+    if (!Array.isArray(d.body) || d.body.some((p) => typeof p !== "string")) errors.push("body måste vara en lista med textstycken");
+    else {
+      body = d.body.map((p) => p.trim()).filter(Boolean);
+      if (body.length > 12) errors.push("body max 12 stycken");
+      if (body.some((p) => p.length > 1500)) errors.push("ett stycke i body är längre än 1500 tecken");
+    }
+  }
   if (errors.length) return { ok: false, errors };
   return {
     ok: true,
@@ -96,6 +105,7 @@ export function validateDraft(raw, now = new Date()) {
       origin,
       note: typeof d.note === "string" ? d.note.slice(0, 400) : "",
       foundAt: now.toISOString(),
+      body,
     },
   };
 }

@@ -163,7 +163,10 @@ function PendingCard({ entry, onChange }: { entry: InboxEntry; onChange: (e: Inb
     publishedAt: entry.publishedAt,
     imageUrl: entry.imageUrl,
     imageFit: entry.imageFit,
+    body: entry.body,
   });
+  /** Brödtexten redigeras som EN text; tom rad = nytt stycke, "## " = mellanrubrik. */
+  const [bodyText, setBodyText] = useState(entry.body.join("\n\n"));
   const [busy, setBusy] = useState<"approve" | "reject" | "upload" | null>(null);
 
   function set<K extends keyof ApproveInput>(key: K, value: ApproveInput[K]) {
@@ -228,7 +231,11 @@ function PendingCard({ entry, onChange }: { entry: InboxEntry; onChange: (e: Inb
     try {
       const next = await decide(entry.id, {
         action: "approve",
-        item: { ...form, imageUrl: form.imageUrl?.trim() ? form.imageUrl.trim() : null },
+        item: {
+          ...form,
+          imageUrl: form.imageUrl?.trim() ? form.imageUrl.trim() : null,
+          body: bodyText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean),
+        },
       });
       onChange(next);
       toast({ title: "Publicerad", description: "Posten ligger nu på /nyheter.", variant: "success" });
@@ -363,6 +370,15 @@ function PendingCard({ entry, onChange }: { entry: InboxEntry; onChange: (e: Inb
             </div>
           </div>
           <div>
+            <Label htmlFor={`b-${entry.id}`}>
+              Text{" "}
+              <span className="font-normal text-ink-muted">
+                — ger posten en egen sida (/nyheter/…) med källänken längst ned. Tom rad = nytt stycke, &quot;## &quot; = mellanrubrik. Lämna tom för att länka direkt till källan.
+              </span>
+            </Label>
+            <Textarea id={`b-${entry.id}`} rows={Math.min(14, Math.max(5, bodyText.split("\n").length + 1))} value={bodyText} onChange={(e) => setBodyText(e.target.value)} />
+          </div>
+          <div>
             <Label htmlFor={`u-${entry.id}`}>Länk</Label>
             <Input id={`u-${entry.id}`} value={form.url} onChange={(e) => set("url", e.target.value)} />
             <a href={form.url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs text-holo-cyan hover:underline">
@@ -371,7 +387,7 @@ function PendingCard({ entry, onChange }: { entry: InboxEntry; onChange: (e: Inb
           </div>
           <div className="flex flex-wrap gap-2 pt-1">
             <Button type="button" onClick={approve} disabled={busy !== null}>
-              {busy === "approve" ? "Publicerar…" : "Godkänn och publicera"}
+              {busy === "approve" ? "Publicerar…" : bodyText.trim() ? "Godkänn och publicera med egen sida" : "Godkänn och publicera"}
             </Button>
             <Button type="button" variant="ghost" onClick={reject} disabled={busy !== null}>
               {busy === "reject" ? "Avvisar…" : "Avvisa"}

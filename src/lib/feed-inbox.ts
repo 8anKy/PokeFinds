@@ -23,7 +23,7 @@
  *      nyhet två gånger, så ett avvisat utkast kommer inte tillbaka.
  */
 import { z } from "zod";
-import { NEWS_CATEGORIES, newsItemSchema, stableId, type NewsItem } from "@/lib/feed";
+import { NEWS_CATEGORIES, newsItemSchema, slugify, stableId, type EventBlock, type NewsItem } from "@/lib/feed";
 
 const isoDate = z
   .string()
@@ -38,9 +38,23 @@ const httpUrl = z
   .refine((v) => /^https?:\/\//i.test(v), "url måste vara https://");
 
 /**
- * Ett utkast som rutinen skriver. ⛔ ALDRIG `slug`/`body`: ägarbeslut 2026-09-11 —
- * utkasten är rubrik + ingress med egna ord + länk UT. Vill ägaren ge en post en
- * egen sida skrivs den in i `news.json` som förut.
+ * Brödtexten i ett utkast: STYCKEN som ren text, aldrig HTML/markdown. Ett stycke
+ * som börjar med `## ` blir en mellanrubrik. Rutinen skriver 2–4 stycken med egna
+ * ord (vad, när, vad ingår, varför det spelar roll); detaljsidan sätter själv
+ * länken till källan längst ned — det är villkoret för att få sammanfatta.
+ */
+export const draftBodySchema = z
+  .array(z.string().max(1500))
+  .max(12)
+  .default([])
+  // Tomma stycken (dubbla radbrytningar i admin-fältet) faller bort i stället för att fälla posten.
+  .transform((arr) => arr.map((p) => p.trim()).filter(Boolean));
+
+/**
+ * Ett utkast som rutinen skriver. ⛔ ALDRIG en egen `slug` i utkastet — den härleds
+ * ur den GODKÄNDA rubriken vid publiceringen (`draftToNewsItem`), så ägarens
+ * rättning av rubriken alltid syns i URL:en. Ägarbeslut 2026-09-11 (rev. samma dag):
+ * utkasten får en brödtext ⇒ egen sida på /nyheter/<slug>; ingressen är teasern i listan.
  */
 export const feedDraftSchema = z.object({
   /** Stabil ur URL:en (`stableId`), så samma nyhet aldrig blir två utkast. */
@@ -61,6 +75,7 @@ export const feedDraftSchema = z.object({
   note: z.string().max(400).default(""),
   /** När rutinen skrev utkastet. */
   foundAt: isoDate,
+  body: draftBodySchema,
 });
 export type FeedDraft = z.infer<typeof feedDraftSchema>;
 
@@ -108,13 +123,24 @@ export const PENDING_KEEP_DAYS = 30;
  * rutinen skickar hela filen vid varje körning, och hade den vunnit hade ägarens
  * rättningar (som sparas först vid godkännandet) inte spelat roll — men viktigare:
  * ett utkast ska se likadant ut i admin som när ägaren såg det senast.
+ * ENDA undantaget: ett VÄNTANDE utkast UTAN brödtext får sin `body` ifylld när en
+ * leverans bär en — brödtexten kom till 2026-09-11, efter de första utkasten, och
+ * en rad ägaren ännu inte rört förlorar ingenting på att bli fullständig.
  * Nya id:n blir `pending`. Gamla rader städas på ålder.
  */
 export function mergeInbox(current: InboxDocument, incoming: InboxPublish, now = new Date()): InboxDocument {
   const byId = new Map(current.items.map((e) => [e.id, e] as const));
   let added = 0;
+  let changed = false;
   for (const draft of incoming.drafts) {
-    if (byId.has(draft.id)) continue;
+    const existing = byId.get(draft.id);
+    if (existing) {
+      if (existing.status === "pending" && existing.body.length === 0 && draft.body.length > 0) {
+        byId.set(draft.id, { ...existing, body: draft.body });
+        changed = true;
+      }
+      continue;
+    }
     byId.set(draft.id, { ...draft, status: "pending", receivedAt: now.toISOString(), decidedAt: null });
     added++;
   }
@@ -128,7 +154,7 @@ export function mergeInbox(current: InboxDocument, incoming: InboxPublish, now =
     })
     .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
 
-  return { updatedAt: added > 0 || items.length !== current.items.length ? now.toISOString() : current.updatedAt, items };
+  return { updatedAt: added > 0 || changed || items.length !== current.items.length ? now.toISOString() : current.updatedAt, items };
 }
 
 /** Fälten ägaren får rätta i admin innan posten godkänns. */
@@ -146,15 +172,27 @@ export const approveInputSchema = z.object({
     .nullable()
     .refine((v) => v === null || /^https?:\/\//i.test(v) || (v.startsWith("/") && !v.startsWith("//")), "imageUrl måste vara https:// eller en väg som börjar med /"),
   imageFit: z.enum(["cover", "contain"]),
+  body: draftBodySchema,
 });
 export type ApproveInput = z.infer<typeof approveInputSchema>;
+
+/** Stycken ⇒ block. `## Rubrik` blir en mellanrubrik, allt annat ett stycke. */
+export function paragraphsToBlocks(paragraphs: string[]): EventBlock[] {
+  return paragraphs
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => (p.startsWith("## ") ? { type: "h" as const, text: p.slice(3).trim() } : { type: "p" as const, text: p }));
+}
 
 /**
  * Den godkända posten som den läggs i flödet. Id:t är utkastets — så "ta bort ur
  * flödet" i admin hittar tillbaka till raden, och en post som godkänns igen
- * ersätter sig själv i stället för att dubbleras.
+ * ersätter sig själv i stället för att dubbleras. Har posten en brödtext får den
+ * `slug` (ur rubriken) och därmed en egen sida; utan text går raden rakt till källan.
  */
 export function draftToNewsItem(entry: Pick<InboxEntry, "id">, input: ApproveInput): NewsItem {
+  const body = paragraphsToBlocks(input.body);
+  const slug = body.length > 0 ? slugify(input.title) || entry.id : null;
   return newsItemSchema.parse({
     id: entry.id,
     title: input.title,
@@ -166,8 +204,8 @@ export function draftToNewsItem(entry: Pick<InboxEntry, "id">, input: ApproveInp
     publishedAt: input.publishedAt,
     category: input.category,
     internal: false,
-    slug: null,
-    body: [],
+    slug,
+    body,
     lane: "curated",
   });
 }

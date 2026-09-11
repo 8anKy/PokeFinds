@@ -72,6 +72,32 @@ describe("mergeInbox", () => {
     expect(next.items.map((i) => i.url)).toEqual(["https://a.se/kvar"]);
   });
 
+  it("fyller i brödtext på ett väntande utkast som saknar den — men rör aldrig andra fält eller avgjorda rader", () => {
+    const current: InboxDocument = {
+      updatedAt: "2026-09-10T00:00:00Z",
+      items: [
+        entry("https://a.se/1", { title: "Ägarens rubrik" }),
+        entry("https://a.se/2", { status: "approved", decidedAt: NOW.toISOString() }),
+      ],
+    };
+    const next = mergeInbox(
+      current,
+      {
+        generatedAt: NOW.toISOString(),
+        drafts: [
+          draft("https://a.se/1", { title: "Rutinens nya rubrik", body: ["Ett stycke."] }),
+          draft("https://a.se/2", { body: ["Ska aldrig in."] }),
+        ],
+      },
+      NOW
+    );
+    const a = next.items.find((i) => i.url === "https://a.se/1")!;
+    expect(a.body).toEqual(["Ett stycke."]);
+    expect(a.title).toBe("Ägarens rubrik");
+    expect(next.items.find((i) => i.url === "https://a.se/2")!.body).toEqual([]);
+    expect(next.updatedAt).toBe(NOW.toISOString());
+  });
+
   it("en oförändrad leverans lämnar updatedAt orörd", () => {
     const current: InboxDocument = { updatedAt: "2026-09-10T00:00:00Z", items: [entry("https://a.se/1")] };
     const next = mergeInbox(current, { generatedAt: NOW.toISOString(), drafts: [draft("https://a.se/1")] }, NOW);
@@ -93,6 +119,7 @@ describe("godkännandet", () => {
         publishedAt: e.publishedAt,
         imageUrl: "/api/feed-cover/abc-deadbeef.jpg",
         imageFit: "contain",
+        body: [],
       })
     );
     expect(item.lane).toBe("curated");
@@ -109,9 +136,29 @@ describe("godkännandet", () => {
     expect(r.success).toBe(false);
   });
 
-  it("utkast får aldrig slug eller body", () => {
+  it("utkast har aldrig egen slug — den härleds ur den GODKÄNDA rubriken när det finns en brödtext", () => {
     expect("slug" in feedDraftSchema.shape).toBe(false);
-    expect("body" in feedDraftSchema.shape).toBe(false);
+    const e = entry("https://a.se/2");
+    const base = {
+      title: "Rättad rubrik om Mega Evolution",
+      summary: "Ingress.",
+      url: e.url,
+      source: e.source,
+      category: "RELEASE" as const,
+      publishedAt: e.publishedAt,
+      imageUrl: null,
+      imageFit: "cover" as const,
+    };
+    const withBody = draftToNewsItem(e, approveInputSchema.parse({ ...base, body: ["## Vad som kommer", "Första stycket.", "  ", "Andra stycket."] }));
+    expect(withBody.slug).toBe("rattad-rubrik-om-mega-evolution");
+    expect(withBody.body).toEqual([
+      { type: "h", text: "Vad som kommer" },
+      { type: "p", text: "Första stycket." },
+      { type: "p", text: "Andra stycket." },
+    ]);
+    const noBody = draftToNewsItem(e, approveInputSchema.parse({ ...base, body: [] }));
+    expect(noBody.slug).toBeNull();
+    expect(noBody.body).toEqual([]);
   });
 });
 
@@ -129,7 +176,7 @@ describe("scripts/feed-inbox-add.mjs (rutinens beroendefria hjälpare)", () => {
   it("validerar och hoppar över redan sedda, och det den lägger till klarar appens schema", () => {
     const file = { drafts: [], seen: [{ id: stableId("https://x.se/sedd"), url: "https://x.se/sedd", at: NOW.toISOString() }] };
     const raw = [
-      { title: "Ny nyhet", summary: "Ingress.", url: "https://x.se/ny?utm_source=a", source: "Butik", category: "STORE", publishedAt: "2026-09-11", origin: "email" },
+      { title: "Ny nyhet", summary: "Ingress.", url: "https://x.se/ny?utm_source=a", source: "Butik", category: "STORE", publishedAt: "2026-09-11", origin: "email", body: ["Stycke ett.", "", "Stycke två."] },
       { title: "Sedd", summary: "Ingress.", url: "https://x.se/sedd", source: "Butik", publishedAt: "2026-09-11" },
       { title: "Trasig", summary: "", url: "inte-en-url", source: "", publishedAt: "igår" },
     ];
@@ -138,6 +185,7 @@ describe("scripts/feed-inbox-add.mjs (rutinens beroendefria hjälpare)", () => {
     expect(report.invalid).toHaveLength(1);
     expect(next.drafts).toHaveLength(1);
     expect(next.drafts[0].url).toBe("https://x.se/ny");
+    expect(next.drafts[0].body).toEqual(["Stycke ett.", "Stycke två."]);
     expect(next.seen).toHaveLength(2);
     expect(feedDraftSchema.safeParse(next.drafts[0]).success).toBe(true);
   });

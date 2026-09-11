@@ -85,7 +85,8 @@ paths:
 - **NYHETSINKORGEN — TREDJE LANEN `curated`, GODKÄNNS FÖR HAND (ägarbeslut 2026-09-11)**
   (`src/lib/feed-inbox.ts`, `feed-inbox-store.ts`, admin → *Nyheter*): en daglig MOLNRUTIN (Claude Code
   routine, instruktionen bor i `.github/feed/ROUTINE.md`) söker webben + läser butikernas nyhetsbrev i
-  Gmail, skriver SVENSKA utkast (rubrik + ingress med egna ord + länk UT, aldrig `slug`/`body`) och
+  Gmail, skriver SVENSKA utkast (rubrik + ingress + BRÖDTEXT i 2–4 stycken med egna ord ⇒ egen sida
+  `/nyheter/<slug>` med källänken längst ned; `slug` härleds ur den GODKÄNDA rubriken, aldrig ur utkastet) och
   pushar dem till `.github/feed/inbox.json` med `scripts/feed-inbox-add.mjs` (⛔ beroendefritt med flit —
   rutinen kör i ett klon utan `npm ci`; `stableId` är en kopia, pariteten vaktas av
   `tests/unit/feed-inbox.test.ts`). `news-feed.yml` levererar filen till `POST /api/cron/feed-inbox` ⇒
