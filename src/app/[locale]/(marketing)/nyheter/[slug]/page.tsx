@@ -23,6 +23,7 @@ import { BackCircle } from "@/components/ui/back-circle";
 import { IconArrowRight, IconExternalLink } from "@/components/ui/icons";
 import { CategoryPill, FeedCover } from "@/components/features/feed/feed-chrome";
 import { EventShare } from "@/components/features/feed/event-share";
+import { SwipeBack } from "@/components/ui/swipe-back";
 
 export const revalidate = 3600;
 
@@ -91,6 +92,7 @@ export default async function NewsArticlePage({ params }: { params: { locale: st
   const external = /^https?:\/\//i.test(item.url);
 
   return (
+    <SwipeBack fallback="/nyheter">
     <article className="pb-8">
       {/* Scenen — samma "hjälte" som produktvyn och evenemangssidan. */}
       <FeedCover src={item.imageUrl} alt="" category={item.category} fit={item.imageFit} className="h-56 w-full sm:h-72">
@@ -146,5 +148,6 @@ export default async function NewsArticlePage({ params }: { params: { locale: st
         </a>
       </div>
     </article>
+    </SwipeBack>
   );
 }

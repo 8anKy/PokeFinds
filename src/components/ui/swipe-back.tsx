@@ -39,8 +39,6 @@ export function SwipeBack({
   const pathname = usePathname();
   const contentRef = useRef<HTMLDivElement>(null);
   const underlayRef = useRef<HTMLDivElement>(null);
-  const underlayMotionRef = useRef<HTMLDivElement>(null);
-  const shadeRef = useRef<HTMLDivElement>(null);
   const hasUnderlayRef = useRef(false);
   const finishEnterRef = useRef<() => void>(() => {});
   const goBackRef = useRef(() => {});
@@ -51,10 +49,8 @@ export function SwipeBack({
 
   useLayoutEffect(() => {
     const underlay = underlayRef.current;
-    const motion = underlayMotionRef.current;
-    const shade = shadeRef.current;
     const content = contentRef.current;
-    if (!underlay || !motion || !shade || !content) return;
+    if (!underlay || !content) return;
     const snapshot = getRouteSwipeSnapshot(pathname);
     if (!snapshot) return;
 
@@ -64,7 +60,7 @@ export function SwipeBack({
     // den sparade noden här också; att flytta originalet hade lämnat andra
     // setup-varvet utan bakgrund och gjort felet osynligt bara i produktion.
     scroll.appendChild(snapshot.shell.cloneNode(true));
-    motion.appendChild(scroll);
+    underlay.appendChild(scroll);
     hasUnderlayRef.current = true;
 
     let firstFrame = 0;
@@ -75,29 +71,25 @@ export function SwipeBack({
       window.cancelAnimationFrame(secondFrame);
       window.clearTimeout(finishTimer);
       underlay.style.display = "none";
-      motion.style.transition = "none";
-      motion.style.transform = "";
-      shade.style.transition = "none";
-      shade.style.opacity = "";
       content.style.transition = "none";
       content.style.transform = "";
       content.style.position = "";
       content.style.zIndex = "";
       content.style.minHeight = "";
+      content.style.borderTopLeftRadius = "";
+      content.style.borderBottomLeftRadius = "";
+      content.style.overflow = "";
+      content.style.boxShadow = "";
       finishEnterRef.current = () => {};
     };
     finishEnterRef.current = finishEnter;
 
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     if (!reduceMotion) {
-      // Den sparade sidan börjar där den faktiskt stod. Den nya sidan kommer in
-      // från höger medan den gamla glider 18 % åt vänster — samma tvåplansrörelse
-      // som produkt-overlayn, och ingen svart mellanbild under route-bytet.
+      // Den sparade sidan står still. Att också flytta den under fingret gjorde
+      // att WebView behövde composita två hela sidor samtidigt och gav en tung
+      // start på exakt samma sätt som den äldre produktgesten gjorde.
       underlay.style.display = "block";
-      motion.style.transition = "none";
-      motion.style.transform = "translateX(0%)";
-      shade.style.transition = "none";
-      shade.style.opacity = "0";
       content.style.transition = "none";
       content.style.transform = "translateX(100%)";
       content.style.position = "relative";
@@ -106,10 +98,6 @@ export function SwipeBack({
       firstFrame = window.requestAnimationFrame(() => {
         secondFrame = window.requestAnimationFrame(() => {
           const transform = pageMotionTransition("transform", PAGE_ENTER_DURATION_MS);
-          motion.style.transition = transform;
-          motion.style.transform = "translateX(-18%)";
-          shade.style.transition = pageMotionTransition("opacity", PAGE_ENTER_DURATION_MS);
-          shade.style.opacity = "0.2";
           content.style.transition = transform;
           content.style.transform = "translateX(0px)";
           finishTimer = window.setTimeout(finishEnter, PAGE_ENTER_DURATION_MS + 20);
@@ -120,15 +108,13 @@ export function SwipeBack({
     return () => {
       finishEnter();
       hasUnderlayRef.current = false;
-      motion.replaceChildren();
+      underlay.replaceChildren();
     };
   }, [pathname]);
 
   useEffect(() => {
     const el = contentRef.current;
     const underlay = underlayRef.current;
-    const underlayMotion = underlayMotionRef.current;
-    const shade = shadeRef.current;
     if (!el) return;
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     let startX = 0;
@@ -139,12 +125,8 @@ export function SwipeBack({
     let axis: "x" | "y" | null = null;
 
     const revealUnderlay = () => {
-      if (!hasUnderlayRef.current || !underlay || !underlayMotion || !shade) return;
+      if (!hasUnderlayRef.current || !underlay) return;
       underlay.style.display = "block";
-      underlayMotion.style.transition = "none";
-      underlayMotion.style.transform = "translateX(-18%)";
-      shade.style.transition = "none";
-      shade.style.opacity = "0.2";
       el.style.position = "relative";
       el.style.zIndex = "1";
       // ⛔ Innehållssidorna har normalt transparent bakgrund eftersom marketing-
@@ -154,26 +136,24 @@ export function SwipeBack({
       el.style.minHeight = `${window.innerHeight}px`;
     };
 
-    const moveUnderlay = (distance: number, width: number) => {
-      if (!hasUnderlayRef.current || !underlayMotion || !shade) return;
-      const progress = Math.min(1, distance / width);
-      underlayMotion.style.transform = `translateX(${-18 * (1 - progress)}%)`;
-      shade.style.opacity = `${0.2 * (1 - progress)}`;
+    const roundLeadingEdge = () => {
+      // Den rundade framkanten ger detaljen en synlig, mjuk separation från
+      // den stillastående sidan bakom utan en extra animerad yta.
+      el.style.borderTopLeftRadius = "20px";
+      el.style.borderBottomLeftRadius = "20px";
+      el.style.overflow = "hidden";
+      el.style.boxShadow = "-8px 0 24px rgb(0 0 0 / 0.22)";
     };
 
     const hideUnderlay = () => {
       if (underlay) underlay.style.display = "none";
-      if (underlayMotion) {
-        underlayMotion.style.transition = "none";
-        underlayMotion.style.transform = "";
-      }
-      if (shade) {
-        shade.style.transition = "none";
-        shade.style.opacity = "";
-      }
       el.style.position = "";
       el.style.zIndex = "";
       el.style.minHeight = "";
+      el.style.borderTopLeftRadius = "";
+      el.style.borderBottomLeftRadius = "";
+      el.style.overflow = "";
+      el.style.boxShadow = "";
     };
 
     const onStart = (e: TouchEvent) => {
@@ -205,11 +185,11 @@ export function SwipeBack({
           return;
         }
         revealUnderlay();
+        roundLeadingEdge();
       }
       e.preventDefault();
       dx = Math.max(0, mx);
       el.style.transform = `translateX(${dx}px)`;
-      moveUnderlay(dx, el.offsetWidth || 1);
     };
 
     const springBack = () => {
@@ -217,12 +197,6 @@ export function SwipeBack({
       const duration = reduceMotion ? 0 : swipeSettleDuration(dx / width, false);
       el.style.transition = reduceMotion ? "none" : pageMotionTransition("transform", duration);
       el.style.transform = "translateX(0px)";
-      if (hasUnderlayRef.current && underlayMotion && shade) {
-        underlayMotion.style.transition = reduceMotion ? "none" : pageMotionTransition("transform", duration);
-        underlayMotion.style.transform = "translateX(-18%)";
-        shade.style.transition = reduceMotion ? "none" : pageMotionTransition("opacity", duration);
-        shade.style.opacity = "0.2";
-      }
       window.setTimeout(() => {
         el.style.transition = "none";
         el.style.transform = "";
@@ -248,12 +222,6 @@ export function SwipeBack({
         const duration = swipeSettleDuration(dx / width, true);
         el.style.transition = pageMotionTransition("transform", duration);
         el.style.transform = `translateX(${width}px)`;
-        if (hasUnderlayRef.current && underlayMotion && shade) {
-          underlayMotion.style.transition = pageMotionTransition("transform", duration);
-          underlayMotion.style.transform = "translateX(0%)";
-          shade.style.transition = pageMotionTransition("opacity", duration);
-          shade.style.opacity = "0";
-        }
         window.setTimeout(() => goBackRef.current(), duration);
         return;
       }
@@ -292,10 +260,7 @@ export function SwipeBack({
         data-swipe-back-underlay
         aria-hidden="true"
         className="pointer-events-none fixed inset-x-0 bottom-0 top-[env(safe-area-inset-top)] z-0 hidden overflow-hidden bg-surface"
-      >
-        <div ref={underlayMotionRef} className="absolute inset-0 will-change-transform" />
-        <div ref={shadeRef} className="absolute inset-0 bg-black" />
-      </div>
+      />
       <div ref={contentRef} className="bg-surface will-change-transform">
         {children}
       </div>

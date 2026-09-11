@@ -24,6 +24,7 @@ import { IconCalendar, IconExternalLink, IconMapPin } from "@/components/ui/icon
 import { CategoryPill, FeedCover } from "@/components/features/feed/feed-chrome";
 import { EventCountdown } from "@/components/features/feed/event-countdown";
 import { EventShare } from "@/components/features/feed/event-share";
+import { SwipeBack } from "@/components/ui/swipe-back";
 
 export const revalidate = 3600;
 
@@ -108,6 +109,7 @@ export default async function EventPage({ params }: { params: { locale: string; 
   const cta = event.ticketUrl ?? event.infoUrl;
 
   return (
+    <SwipeBack fallback="/evenemang">
     <article className="pb-8">
       {/* Scenen */}
       <FeedCover src={event.imageUrl} alt="" category={event.category} className="h-56 w-full sm:h-72">
@@ -201,5 +203,6 @@ export default async function EventPage({ params }: { params: { locale: string; 
         )}
       </div>
     </article>
+    </SwipeBack>
   );
 }

@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/icons";
 import { BrandLogo } from "@/components/layout/brand-logo";
 import { SiteHeader } from "@/components/layout/site-header";
+import { RouteSwipeSnapshotCapture } from "@/components/layout/route-swipe-snapshot";
 
 /**
  * ⛔ SIDOMENYNS ETIKETTER MÅSTE ÖVERSÄTTAS SOM ALLT ANNAT. De stod hårdkodade
@@ -105,7 +106,8 @@ export function AppShell({
 
   if (headerLayout) {
     return (
-      <div data-product-overlay-background className={cn("flex flex-col", shellHeight)}>
+      <div data-product-overlay-background data-route-swipe-shell className={cn("flex flex-col", shellHeight)}>
+        <RouteSwipeSnapshotCapture />
         <SiteHeader />
         {/* max-w-7xl = samma spalt som headern och de publika sidorna
             (/produkter, /sets) — annars ligger innehållet inte i linje
@@ -152,7 +154,8 @@ export function AppShell({
   );
 
   return (
-    <div data-product-overlay-background className={cn("flex", shellHeight)}>
+    <div data-product-overlay-background data-route-swipe-shell className={cn("flex", shellHeight)}>
+      <RouteSwipeSnapshotCapture />
       {/* Desktop sidebar */}
       <aside className="hidden w-60 shrink-0 border-r border-surface-border bg-surface-raised/40 lg:block">
         <div className="flex h-16 items-center border-b border-surface-border px-5">

@@ -21,6 +21,7 @@ export default function MarketingLayout({
     // scrollbar fast allt syns. 100dvh av samma skäl som där.
     <div
       data-marketing-shell
+      data-route-swipe-shell
       data-product-overlay-background
       className="flex min-h-[calc(100dvh_-_var(--bottom-tabs-space)_-_env(safe-area-inset-top))] flex-col bg-surface lg:min-h-screen"
     >

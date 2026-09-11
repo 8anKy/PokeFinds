@@ -12,6 +12,11 @@ export function isSwipeBackDestination(pathname: string): boolean {
   return (
     /^\/(?:sets|profil)\/[^/]+$/.test(normalized) ||
     /^\/forum\/(?:g|t)\/[^/]+$/.test(normalized) ||
-    normalized === "/forum/sparade"
+    normalized === "/forum/sparade" ||
+    /^\/(?:nyheter|evenemang)\/[^/]+$/.test(normalized) ||
+    /^\/meddelanden\/[^/]+$/.test(normalized) ||
+    normalized === "/installningar" ||
+    /^\/installningar\/(?:konto|kopplingar|notiser|profil|synlighet)$/.test(normalized) ||
+    /^\/mer\/(?:utmarkelser|bjud-in)$/.test(normalized)
   );
 }

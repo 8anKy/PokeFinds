@@ -24,7 +24,7 @@ function swipeDestination(target: EventTarget | null): string | null {
 
 function rememberRoute(target: EventTarget | null) {
   const destination = swipeDestination(target);
-  const shell = document.querySelector<HTMLElement>("[data-marketing-shell]");
+  const shell = document.querySelector<HTMLElement>("[data-route-swipe-shell]");
   if (!destination || !shell) return;
 
   // ⛔ Klonen är BARA en visuell bakgrund för bakåtgesten. Den kopplas loss från

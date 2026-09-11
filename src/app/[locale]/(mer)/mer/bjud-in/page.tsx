@@ -12,6 +12,7 @@ import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { IconCheck, IconGift, IconShare } from "@/components/ui/icons";
 import { SubpageHeader } from "@/components/layout/subpage-header";
+import { SwipeBack } from "@/components/ui/swipe-back";
 
 interface InviteRow {
   id: string;
@@ -104,6 +105,7 @@ export default function InvitePage() {
   // men djuplänken ska landa snyggt, inte i ett halvdött formulär).
   if (status?.earned) {
     return (
+      <SwipeBack fallback="/mer">
       <div className="mx-auto max-w-md space-y-6">
         <SubpageHeader title={t("h1")} fallback="/mer" />
         <div className="rounded-2xl border border-holo-cyan/30 bg-holo-cyan/10 p-5 text-center">
@@ -118,10 +120,12 @@ export default function InvitePage() {
           </p>
         </div>
       </div>
+      </SwipeBack>
     );
   }
 
   return (
+    <SwipeBack fallback="/mer">
     <div className="mx-auto max-w-md space-y-6">
       <SubpageHeader title={t("h1")} subtitle={t("subtitle")} fallback="/mer" />
 
@@ -226,5 +230,6 @@ export default function InvitePage() {
         {t("termsLink")}
       </Link>
     </div>
+    </SwipeBack>
   );
 }

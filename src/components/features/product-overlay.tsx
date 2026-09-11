@@ -232,6 +232,22 @@ export function ProductOverlayHost() {
       paintDrag();
     };
 
+    const roundLeadingEdge = () => {
+      // Den lilla rundningen låter den riktiga listan bakom läsa som en egen vy
+      // när detaljerna lämnar skärmen, utan att lägga till någon ny animation.
+      el.style.borderTopLeftRadius = "20px";
+      el.style.borderBottomLeftRadius = "20px";
+      el.style.overflow = "hidden";
+      el.style.boxShadow = "-8px 0 24px rgb(0 0 0 / 0.22)";
+    };
+
+    const resetLeadingEdge = () => {
+      el.style.borderTopLeftRadius = "";
+      el.style.borderBottomLeftRadius = "";
+      el.style.overflow = "";
+      el.style.boxShadow = "";
+    };
+
     // TOUCH-events (ej pointer): i iOS-appen (WKWebView) kapar systemets
     // kant-svep (back-gest) annars hela höger-svepet → "stängdes direkt utan att
     // fingret följde". e.preventDefault() på horisontellt touchmove STOPPAR den
@@ -272,6 +288,7 @@ export function ProductOverlayHost() {
           dragging = false; // vertikalt → låt native scroll ta över
           return;
         }
+        roundLeadingEdge();
       }
       e.preventDefault(); // kapa native kant-svep/scroll, vi äger gesten
       dx = Math.max(0, mx);
@@ -288,6 +305,7 @@ export function ProductOverlayHost() {
         window.setTimeout(finishSwipeClose, duration);
       } else {
         el.style.transform = "translate3d(0px, 0, 0)";
+        window.setTimeout(resetLeadingEdge, duration);
       }
     };
 
@@ -314,6 +332,7 @@ export function ProductOverlayHost() {
       else {
         el.style.transition = "none";
         el.style.transform = "";
+        resetLeadingEdge();
       }
     };
 

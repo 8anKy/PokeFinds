@@ -8,6 +8,12 @@ describe("SwipeBack-rutter", () => {
     "/forum/g/kop-salj-byt",
     "/forum/t/post_1",
     "/forum/sparade",
+    "/nyheter/nytt-i-foilio",
+    "/evenemang/stockholm",
+    "/meddelanden/conv_1",
+    "/installningar",
+    "/installningar/notiser",
+    "/mer/utmarkelser",
     "/en/sets/sv8",
     "/sv/forum/t/post_1",
   ])("fångar en tidigare vy för %s", (pathname) => {
@@ -19,6 +25,8 @@ describe("SwipeBack-rutter", () => {
     "/profil",
     "/forum",
     "/forum/ny",
+    "/installningar/okand",
+    "/meddelanden",
     "/produkter/pikachu",
     "/forum/t/post_1/extra",
   ])("kopierar inte sidan för vanlig navigation till %s", (pathname) => {

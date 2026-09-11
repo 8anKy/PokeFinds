@@ -9,6 +9,7 @@ import { MESSAGES_PAGE_MAX } from "@/lib/chat-rules";
 import { ConversationScreen } from "@/components/chat/conversation-screen";
 import { ConversationHeader } from "@/components/chat/conversation-header";
 import { ConversationView } from "@/components/chat/conversation-view";
+import { SwipeBack } from "@/components/ui/swipe-back";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,7 @@ export default async function ConversationPage({ params }: PageProps) {
     // innehåll uppåt när tangentbordet öppnas (transform, se komponenten) — låg
     // headern inuti gled den upp ur bild och kom tillbaka först när tangentbordet
     // stängdes. Utanför står den still och listan glider upp under den.
+    <SwipeBack fallback="/meddelanden">
     <>
       <ConversationHeader
         conversationId={conv.id}
@@ -77,5 +79,6 @@ export default async function ConversationPage({ params }: PageProps) {
         />
       </ConversationScreen>
     </>
+    </SwipeBack>
   );
 }
