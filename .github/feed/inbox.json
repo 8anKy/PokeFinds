@@ -1,5 +1,122 @@
 {
   "_readme": "NYHETSINKORGEN. Skrivs av den dagliga molnrutinen (se ROUTINE.md här bredvid), läses av .github/workflows/news-feed.yml som skickar utkasten till appen, där ägaren godkänner dem i admin → Nyheter. INGET här publiceras av sig självt. `drafts` = utkast (formen står i src/lib/feed-inbox.ts: id, title, summary, url, source, category, publishedAt, imageUrl, imageFit, origin, note, foundAt). `seen` = rutinens eget minne över varje URL den någonsin skrivit ett utkast för — ett avvisat utkast kommer därför aldrig tillbaka. Filen ligger under .github/ MED FLIT: utanför Railways watchPatterns ⇒ en push hit kostar ingen deploy och rör ingen databas.",
-  "drafts": [],
-  "seen": []
+  "drafts": [
+    {
+      "id": "jmihx91h2qmjt",
+      "title": "Pokémon TCG: 30th Celebration släpps världen över den 16 september",
+      "summary": "Jubileumssetet blir det första Pokémon TCG-släppet någonsin som lanseras samma dag globalt. Över 150 kort, ny raritet och 30 olika Pikachu-kort väntar.",
+      "url": "https://www.pokemon.com/us/news/get-ready-for-pokemon-tcg-30th-celebration",
+      "source": "Pokémon.com",
+      "category": "RELEASE",
+      "publishedAt": "2026-09-11T00:00:00.000Z",
+      "imageUrl": null,
+      "imageFit": "cover",
+      "origin": "web",
+      "note": "Produktlistan och EU-priserna kommer från handlarguider (tcgradar.eu, pokeled.com), inte från pokemon.com – kontrollera gärna mot en svensk butik innan publicering.",
+      "foundAt": "2026-09-11T15:51:09.847Z",
+      "body": [
+        "Den 16 september släpps Pokémon TCG: 30th Celebration – setet som firar att Pokémon-kortspelet fyller 30 år. Det är första gången ett Pokémon TCG-set lanseras samma dag i hela världen, i stället för att Japan och Asien får det först och Europa väntar i månader. Svenska samlare får alltså tillgång till korten samtidigt som resten av världen.",
+        "## Vad setet innehåller",
+        "Varje kort i setet har foil-behandling, även de vanliga energikorten. Den stora dragningskraften är 30 olika Pikachu-illustrationer – ett Pikachu-kort är garanterat i varje boosterpaket – tecknade av bland andra Atsuko Nishida, Yuu Nishida och OKACHEKE. Setet introducerar också en helt ny raritet, Futuristic Rare, som debuterar med Mewtwo och Mew i konstnären YOSHIROTTENs stil.",
+        "Bland Pokémon ex finns Greninja och Sylveon, och Illustration Rare-korten visar bland annat Espeon, Umbreon, Lapras, Drifloon, Zorua och Lycanroc. Setet innehåller dessutom klassiska nytryck, som Charizard från Base Set och Pikachu & Zekrom-GX från Team Up. Nytrycken är inte tillåtna i Standard-formatet, utan är rena samlarobjekt.",
+        "## Produkterna kommer i vågor",
+        "Den 16 september släpps Elite Trainer Box, Pokémon Centers egen ETB-variant, ex Boxes med Sylveon och Greninja, Poster Collection, Tech Sticker Collection, Knock Out Collection och 2-Pack Blister. Den 2 oktober följer Booster Bundle, Day & Night Mini Tins och Binder Collection, och den 6 november kommer Ultra-Premium Collection Day & Night, Ditto Premium Collection och Figure Collection. Elite Trainer Box innehåller nio boosterpaket, ett full art-promokort med Nidorina, 65 sleeves, 16 foil-energikort, tärningar, mynt och en box med sex avdelare.",
+        "## Vad det betyder för svenska samlare",
+        "Enligt europeiska handlarguider ligger priserna i Europa på ungefär 7–9 euro per paket, 56–60 euro för Elite Trainer Box i första vågen och 180–230 euro för Ultra-Premium Collection. Efterfrågan på jubileumsprodukterna har varit hög redan under förbokningen, och flera svenska butiker har rapporterat slutsålda förbokningar på just ETB:n. Den som vill ha korten till släppet bör alltså hålla koll på butikernas lagerstatus dagarna kring den 16 september – och räkna med att flera av produkterna kommer att fyllas på i omgångar fram till november."
+      ]
+    },
+    {
+      "id": "1bw3u5b173nofz",
+      "title": "PSA öppnar sin första graderingsanläggning i Europa",
+      "summary": "PSA öppnar en fullskalig anläggning i Frankfurt med inlämning från den 15 september. Målet är snabbare och billigare gradering för europeiska samlare än att skicka till USA.",
+      "url": "https://www.psacard.com/articles/articleview/15303/psa-to-open-first-full-scale-grading-facility-in-europe",
+      "source": "PSA",
+      "category": "MARKET",
+      "publishedAt": "2026-09-09T00:00:00.000Z",
+      "imageUrl": null,
+      "imageFit": "cover",
+      "origin": "web",
+      "note": "PSA:s egen sida blockerar hämtning; uppgifterna är hämtade ur Sports Illustrateds referat (2026-09-09) av PSA:s tillkännagivande. Prisnivåerna är PSA:s amerikanska dollarpriser.",
+      "foundAt": "2026-09-11T15:51:09.847Z",
+      "body": [
+        "PSA, världens största graderingsbolag för samlarkort, öppnar sin första fullskaliga anläggning för gradering och äkthetskontroll i Europa. Anläggningen ligger i Frankfurt och börjar ta emot inlämningar den 15 september kl 00.01 centraleuropeisk tid. Samtidigt gör PSA om hela sin trappa av servicenivåer, med nya namn, priser och handläggningstider som gäller från den 14 september.",
+        "## Vad som öppnar i Frankfurt",
+        "Anläggningen tar emot kort, signerade kort, biljetter och oöppnade paket, och erbjuder samma servicenivåer som PSA har globalt. Verksamheten leds av Matthias Peuckert, chef för PSA Europe. PSA framhåller Frankfurts läge mitt i Europas transportnät som skälet till valet av stad: kortare och mer förutsägbara transporter för samlare i hela regionen.",
+        "Den stora skillnaden för europeiska kunder är att korten inte längre behöver skickas över Atlanten. Internationell frakt, försäkring, tullhantering och den väntetid som transporten i sig lägger på har varit några av de största hindren för att gradera hos PSA från Europa.",
+        "## De nya servicenivåerna",
+        "Från den 14 september heter den billigaste nivån Standard och kostar 59,99 dollar per kort, för kort värda upp till 1 000 dollar, med en beräknad handläggningstid på 90–100 arbetsdagar. Priority kostar 79 dollar (upp till 1 500 dollar, 70–80 arbetsdagar), Express 199 dollar (20–30 arbetsdagar), Premier 599 dollar (upp till 10 000 dollar, 7–10 arbetsdagar) och Premium från 999 dollar med 5–7 arbetsdagar. PSA:s så kallade Value-nivåer, de riktigt billiga, är fortsatt pausade tills bolagets kö har krympt från dagens cirka 9,9 miljoner kort till 5 miljoner.",
+        "## Vad det betyder för svenska samlare",
+        "För svenska samlare kan Frankfurt på sikt innebära lägre fraktkostnader, mindre krångel med tull och kortare total väntetid än att skicka till USA – även om själva handläggningstiderna i den nya trappan är långa på de billigare nivåerna. Att PSA-gradering blir mer tillgänglig i Europa kan också påverka marknaden för graderade Pokémon-kort här: fler kort i PSA-slabbar på Tradera och i europeiska auktioner, och en tydligare prisbild för graderade exemplar. Exakta euro-priser och hur inlämning från Sverige går till praktiskt bör kontrolleras hos PSA Europe när inlämningen öppnat."
+      ]
+    },
+    {
+      "id": "z8i4p11sgqv0l",
+      "title": "Antitrustmål mot PSA:s ägare tas upp i federal domstol i dag",
+      "summary": "Rasmussen mot Collectors Holdings, som anklagar PSA-ägaren för att ha byggt ett monopol på kortgradering, förhandlas den 11 september. Collectors vill få målet avvisat.",
+      "url": "https://athlonsports.com/collectibles/psa-antitrust-lawsuit-motion-to-dismiss-2026",
+      "source": "Athlon Sports",
+      "category": "MARKET",
+      "publishedAt": "2026-09-11T00:00:00.000Z",
+      "imageUrl": null,
+      "imageFit": "cover",
+      "origin": "web",
+      "note": "Domstolen hade inte avgjort yrkandena när texten skrevs. Detaljerna om yrkandena är kontrollerade mot Value Added Resources genomgång av handlingarna (2026-06-11).",
+      "foundAt": "2026-09-11T15:51:09.847Z",
+      "body": [
+        "I dag, den 11 september, hålls förhandling i det uppmärksammade antitrustmålet mot Collectors Holdings – bolaget som äger PSA, det dominerande graderingsföretaget för samlarkort. Målet, Rasmussen mot Collectors Holdings, drivs som en grupptalan i federal domstol i Kalifornien, och domaren John W. Holcomb ska ta ställning till två yrkanden från Collectors: att målet ska avvisas helt, och att tvisten i stället ska avgöras i skiljeförfarande.",
+        "## Vad PSA:s ägare anklagas för",
+        "Stämningen lämnades in i april 2026 av samlaren Michael Rasmussen. Den bygger på att Collectors under två år köpt upp två konkurrenter – SGC i februari 2024 och Beckett Grading i december 2025 – och därmed gått från cirka 72 procent av graderingsmarknaden till omkring 80 procent. Enligt stämningen har uppköpen lett till högre priser och längre handläggningstider för samlare. Kravet är skadestånd till gruppen och, mer långtgående, att Collectors tvingas sälja av både SGC och Beckett.",
+        "## Bolagets försvar",
+        "Collectors menar att stämningen bygger på ett felslut: att priser och köer förändrats efter uppköpen bevisar inte att uppköpen är orsaken. Bolaget pekar på att efterfrågan på gradering exploderat, att kapaciteten begränsar, och att varken SGC eller Beckett stängts eller minskat sin produktion. Man hävdar också att marknaden definierats för snävt – konkurrenter utanför USA, som säljer via eBay, borde räknas in – och att Rasmussen, som bara lämnat in kort till PSA en gång, saknar rätt att stämma SGC och Beckett. Dessutom anser Collectors att han genom PSA:s användarvillkor avsagt sig rätten till grupptalan.",
+        "## Varför det spelar roll för svenska samlare",
+        "Utfallet påverkar hela den graderade kortmarknaden, även i Sverige. PSA-slabbar är den dominerande valutan för dyra Pokémon-kort på Tradera och i internationella auktioner, och PSA:s priser och köer sätter i praktiken kostnaden för att gradera. Avvisas målet fortsätter dagens marknadsläge, med PSA som klart största aktör och Beckett och SGC under samma tak. Släpps målet vidare kan det leda till en lång process med krav på uppdelning av bolaget – något som skulle förändra konkurrensen om graderingen även för europeiska kunder, särskilt nu när PSA öppnar i Frankfurt."
+      ]
+    },
+    {
+      "id": "yyqouw1pbnaea",
+      "title": "Sällsynt Pikachu Illustrator på auktion hos Heritage – budet över 1,1 miljoner dollar",
+      "summary": "Ett PSA-graderat Pikachu Illustrator-kort (Mint 9) ligger på över 1 175 000 dollar i bud hos Heritage Auctions, med några dagar kvar av budgivningen.",
+      "url": "https://www.gamingbible.com/news/pikachu-illustrator-pokemon-card-auction-selling-millions-701637-20260911",
+      "source": "GAMINGbible",
+      "category": "MARKET",
+      "publishedAt": "2026-09-11T00:00:00.000Z",
+      "imageUrl": null,
+      "imageFit": "cover",
+      "origin": "web",
+      "note": "Auktionen var öppen när texten skrevs (avslut omkring den 18 september) – slutpriset är inte känt.",
+      "foundAt": "2026-09-11T15:51:09.847Z",
+      "body": [
+        "Ett av de mest eftertraktade Pokémon-korten som finns är ute på auktion igen. Hos Heritage Auctions ligger ett Pikachu Illustrator, graderat PSA Mint 9, på ett bud om 1 175 000 dollar – motsvarande cirka 1 468 750 dollar när köparens provision räknas in. Auktionen pågår i ungefär en vecka till, med avslut omkring den 18 september.",
+        "## Kortet som alla samlare känner till",
+        "Pikachu Illustrator delades aldrig ut i vanliga paket. Det gavs som pris i illustrationstävlingar i den japanska tidningen CoroCoro Comic 1998, och sammanlagt tillverkades bara 39 exemplar: 23 i den första tävlingen och åtta vardera i två uppföljande utdelningar. Kortet är onumrerat, har texten Illustrator i stället för Trainer och visar Pikachu med pensel i handen, tecknat av Atsuko Nishida.",
+        "PSA har graderat 15 exemplar som Mint 9, och bara ett enda kort har fått ett högre betyg. Just det kortet, PSA 10-exemplaret, är också det dyraste Pokémon-kort som någonsin sålts.",
+        "## Prisutvecklingen",
+        "Ett Mint 9-exemplar såldes via Heritage i juni 2022 för 840 000 dollar. Logan Paul köpte sitt PSA 9 för 1,275 miljoner dollar 2021 och bytte det sedan, tillsammans med 4 miljoner dollar, mot det enda PSA 10-exemplaret – som han i februari 2026 sålde via Goldin för 16 492 000 dollar. Att budet på ett Mint 9 redan nu ligger över 2022-nivån visar att toppen av marknaden fortsätter uppåt, trots att många vanliga moderna kort har fallit i pris under året.",
+        "## Vad det betyder för svenska samlare",
+        "Ingen svensk samlare kommer att köpa det här kortet på Tradera, men auktionen är ändå en signal om marknaden i stort. Priserna på de allra sällsyntaste graderade korten sätter tonen för hela segmentet graderade vintage-kort, och rekordnoteringar av det här slaget brukar följas av ökat intresse – och högre utropspriser – även för betydligt billigare kort från samma era. Slutpriset väntas omkring den 18 september."
+      ]
+    }
+  ],
+  "seen": [
+    {
+      "id": "jmihx91h2qmjt",
+      "url": "https://www.pokemon.com/us/news/get-ready-for-pokemon-tcg-30th-celebration",
+      "at": "2026-09-11T15:51:09.847Z"
+    },
+    {
+      "id": "1bw3u5b173nofz",
+      "url": "https://www.psacard.com/articles/articleview/15303/psa-to-open-first-full-scale-grading-facility-in-europe",
+      "at": "2026-09-11T15:51:09.847Z"
+    },
+    {
+      "id": "z8i4p11sgqv0l",
+      "url": "https://athlonsports.com/collectibles/psa-antitrust-lawsuit-motion-to-dismiss-2026",
+      "at": "2026-09-11T15:51:09.847Z"
+    },
+    {
+      "id": "yyqouw1pbnaea",
+      "url": "https://www.gamingbible.com/news/pikachu-illustrator-pokemon-card-auction-selling-millions-701637-20260911",
+      "at": "2026-09-11T15:51:09.847Z"
+    }
+  ]
 }
