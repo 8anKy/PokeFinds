@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
 import { DISCORD_URL } from "@/lib/social-links";
+import { newsFeedPublic } from "@/lib/news-feed-gate";
 import { IconDiscord } from "@/components/ui/brand-icons";
 
 /**
@@ -15,9 +16,14 @@ import { IconDiscord } from "@/components/ui/brand-icons";
  *
  * Etiketten visas först på lg (samma brytpunkt som brickan): på mobilen delar
  * headern plats med logotyp och kontoknapp, och glyfen bär igenkänningen själv.
+ *
+ * ⛔ VISAS BARA MEDAN NYHETSFLÖDET ÄR DOLT (ägarbeslut 2026-09-11). Slås
+ *    `NEWS_FEED_PUBLIC` på tar `NewsLink` platsen — headern har plats för EN sak
+ *    bredvid kontot, och Discord finns kvar på /mer och i sidfoten.
  */
 export function DiscordLink() {
   const t = useTranslations("Common");
+  if (newsFeedPublic()) return null;
   return (
     <a
       href={DISCORD_URL}

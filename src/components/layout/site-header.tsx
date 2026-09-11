@@ -31,9 +31,9 @@ export function SiteHeader() {
               gäller alla. Se discord-link.tsx.
               ⛔ Knappen togs bort 2026-09-09 till förmån för nyhetsflödet och
               ÅTERSTÄLLDES samma dag när flödet grindades — headern får inte stå
-              tom på den platsen medan flödet är dolt. Slås NEWS_FEED_PUBLIC på
-              måste ägaren välja: EN sak bredvid kontoknappen, aldrig två (två
-              ikoner gör raden till en verktygsrad). */}
+              tom på den platsen medan flödet är dolt. Sedan 2026-09-11 byter de
+              själva: DiscordLink renderar bara när flödet är DOLT, NewsLink bara
+              när det är PÅ — EN sak bredvid kontoknappen, aldrig två. */}
           <DiscordLink />
           <NewsLink />
           {/* App Store-brickan: desktop-headern är sticky → alltid i bild.
