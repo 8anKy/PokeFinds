@@ -92,7 +92,7 @@ export default async function NewsArticlePage({ params }: { params: { locale: st
   const external = /^https?:\/\//i.test(item.url);
 
   return (
-    <SwipeBack fallback="/nyheter">
+    <SwipeBack fallback="/nyheter" coverViewport viewportInset="safe">
     <article className="pb-8">
       {/* Scenen — samma "hjälte" som produktvyn och evenemangssidan. */}
       <FeedCover src={item.imageUrl} alt="" category={item.category} fit={item.imageFit} className="h-56 w-full sm:h-72">

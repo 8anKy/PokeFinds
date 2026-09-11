@@ -187,7 +187,7 @@ export default async function ProfilePage({ params }: { params: { locale: string
   }
 
   return (
-    <SwipeBack fallback={communityV2 ? "/forum" : "/community"}>
+    <SwipeBack fallback={communityV2 ? "/forum" : "/community"} coverViewport viewportInset="safe">
       <div className="mx-auto w-full max-w-3xl px-2.5 py-10">
         {/* Profilhuvud */}
         <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">

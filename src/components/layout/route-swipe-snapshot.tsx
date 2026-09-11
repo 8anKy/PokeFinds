@@ -6,6 +6,9 @@ import { isSwipeBackDestination, normalizeSwipePathname } from "@/lib/swipe-back
 interface RouteSwipeSnapshot {
   destination: string;
   shell: HTMLElement;
+  /** Skalets faktiska viewport-läge när länken trycktes. */
+  top: number;
+  /** Skannerns egen underlay använder fortfarande dokumentets scroll-läge. */
   scrollY: number;
 }
 
@@ -48,6 +51,10 @@ export function captureRouteSwipeSnapshot(destination: string) {
   (window as SwipeWindow)[SNAPSHOT_KEY] = {
     destination: normalizedDestination,
     shell: clone,
+    // ⛔ Mät positionen, inte bara window.scrollY. AppShell, marketing och
+    // body:s safe-area-padding börjar på olika höjd; ett eget scroll-avdrag
+    // gjorde att den klonade vyn hoppade ned eller lämnade en svart toppremsa.
+    top: shell.getBoundingClientRect().top,
     scrollY: window.scrollY,
   };
 }

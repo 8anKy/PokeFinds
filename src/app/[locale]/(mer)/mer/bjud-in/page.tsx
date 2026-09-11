@@ -105,7 +105,7 @@ export default function InvitePage() {
   // men djuplänken ska landa snyggt, inte i ett halvdött formulär).
   if (status?.earned) {
     return (
-      <SwipeBack fallback="/mer">
+      <SwipeBack fallback="/mer" coverViewport>
       <div className="mx-auto max-w-md space-y-6">
         <SubpageHeader title={t("h1")} fallback="/mer" />
         <div className="rounded-2xl border border-holo-cyan/30 bg-holo-cyan/10 p-5 text-center">
@@ -125,7 +125,7 @@ export default function InvitePage() {
   }
 
   return (
-    <SwipeBack fallback="/mer">
+    <SwipeBack fallback="/mer" coverViewport>
     <div className="mx-auto max-w-md space-y-6">
       <SubpageHeader title={t("h1")} subtitle={t("subtitle")} fallback="/mer" />
 

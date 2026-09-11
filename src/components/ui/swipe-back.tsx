@@ -61,7 +61,10 @@ export function SwipeBack({
     if (!snapshot) return;
 
     const scroll = document.createElement("div");
-    scroll.style.transform = `translateY(-${snapshot.scrollY}px)`;
+    // Klonen ligger i en fixed viewport, till skillnad från originalet i
+    // dokumentflödet. Den sparade toppositionen återger därför exakt samma
+    // safe-area och scroll-läge som produkt-overlayns riktiga underliggare.
+    scroll.style.transform = `translateY(${snapshot.top}px)`;
     // Effektens setup/cleanup körs två gånger i React Strict Mode. Klona därför
     // den sparade noden här också; att flytta originalet hade lämnat andra
     // setup-varvet utan bakgrund och gjort felet osynligt bara i produktion.
@@ -265,7 +268,7 @@ export function SwipeBack({
         ref={underlayRef}
         data-swipe-back-underlay
         aria-hidden="true"
-        className="pointer-events-none fixed inset-x-0 bottom-0 top-[env(safe-area-inset-top)] z-0 hidden overflow-hidden bg-surface"
+        className="pointer-events-none fixed inset-0 z-0 hidden overflow-hidden bg-surface"
       />
       <div
         ref={contentRef}

@@ -109,7 +109,7 @@ export default async function EventPage({ params }: { params: { locale: string; 
   const cta = event.ticketUrl ?? event.infoUrl;
 
   return (
-    <SwipeBack fallback="/evenemang">
+    <SwipeBack fallback="/evenemang" coverViewport viewportInset="safe">
     <article className="pb-8">
       {/* Scenen */}
       <FeedCover src={event.imageUrl} alt="" category={event.category} className="h-56 w-full sm:h-72">

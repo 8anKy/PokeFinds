@@ -154,7 +154,7 @@ export default async function SetPage({ params }: PageProps) {
     // lib/subpage-routes.ts) + kant-svep tillbaka; namnet bor i raden, så h1:an
     // och seriebrickan visas bara på desktop där brödsmulorna finns.
     // `pt-6` på mobil = samma tal som SubpageHeaders `-mt-6`; desktop behåller py-10.
-    <SwipeBack fallback="/sets">
+    <SwipeBack fallback="/sets" coverViewport viewportInset="safe">
     <div className="mx-auto max-w-7xl px-2.5 pb-10 pt-6 sm:px-6 lg:pt-10">
       {/* <-escapen: JSON.stringify escapar inte "<", så ett setnamn med
           "</script>" skulle annars bryta sig ut ur script-taggen. */}
