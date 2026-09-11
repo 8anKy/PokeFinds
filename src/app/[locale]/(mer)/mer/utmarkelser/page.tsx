@@ -27,7 +27,6 @@ import {
 import { ACHIEVEMENT_ICONS } from "@/components/features/achievement-badges";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { SubpageHeader } from "@/components/layout/subpage-header";
-import { SwipeBack } from "@/components/ui/swipe-back";
 import { IconCheck } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
@@ -61,7 +60,7 @@ export default async function AchievementsPage() {
   const todo = rows.filter((r) => r.earnedTier === 0);
 
   return (
-    <SwipeBack fallback="/mer" coverViewport><div className="mx-auto max-w-md space-y-4">
+    <div className="mx-auto max-w-md space-y-4">
       <SubpageHeader title={t("title")} fallback="/mer" />
 
       <section className="rounded-2xl border border-surface-border bg-surface-raised/40 p-4">
@@ -103,7 +102,7 @@ export default async function AchievementsPage() {
           </ul>
         </section>
       )}
-    </div></SwipeBack>
+    </div>
   );
 }
 

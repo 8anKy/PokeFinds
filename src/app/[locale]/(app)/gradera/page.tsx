@@ -264,7 +264,7 @@ export default function GraderaPage() {
     quota != null && quota.remaining !== null && quota.remaining <= 0;
 
   return (
-    <SwipeBack fallback="/mer" coverViewport><div className="mx-auto flex max-w-3xl flex-col gap-6">
+    <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div>
         <SubpageHeader title={t("h1")} desktopTitleClassName="font-semibold" />
         <p className="text-sm text-ink-muted lg:mt-1">{t("intro")}</p>
@@ -474,7 +474,6 @@ export default function GraderaPage() {
           )}
         </CardContent>
       </Card>
-    </div></SwipeBack>
+    </div>
   );
 }
-import { SwipeBack } from "@/components/ui/swipe-back";
