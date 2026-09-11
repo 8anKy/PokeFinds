@@ -263,11 +263,14 @@ export function SwipeBack({
 
   return (
     <div className={cn("relative", className)}>
+      {/* Klonen innehåller skalets redan uppmätta scrollposition. Den får inte
+          dessutom flyttas ner med safe-area-inset här: då får bakgrunden
+          insettet två gånger och lämnar en svart remsa överst under svepet. */}
       <div
         ref={underlayRef}
         data-swipe-back-underlay
         aria-hidden="true"
-        className="pointer-events-none fixed inset-x-0 bottom-0 top-[env(safe-area-inset-top)] z-0 hidden overflow-hidden bg-surface"
+        className="pointer-events-none fixed inset-0 z-0 hidden overflow-hidden bg-surface"
       />
       <div
         ref={contentRef}
