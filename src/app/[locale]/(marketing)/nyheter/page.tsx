@@ -14,6 +14,8 @@ import { FeedSwitch } from "@/components/features/feed/feed-chrome";
 import { NewsList } from "@/components/features/feed/news-list";
 import { FeedHidden } from "@/components/features/feed/feed-hidden";
 import { newsFeedPublic } from "@/lib/news-feed-gate";
+import { SubpageHeader } from "@/components/layout/subpage-header";
+import { SwipeBack } from "@/components/ui/swipe-back";
 
 export const revalidate = 3600;
 
@@ -55,10 +57,13 @@ export default async function NewsPage({ params }: { params: { locale: string } 
   const feed = await getFeed();
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-3 px-2.5 py-4 sm:px-6 sm:py-6">
-      <h1 className="sr-only">{t("tabNews")}</h1>
-      <FeedSwitch active="news" />
-      <NewsList items={feed.news} />
-    </div>
+    <SwipeBack fallback="/produkter" coverViewport viewportInset="safe">
+      <div className="mx-auto flex max-w-3xl flex-col gap-3 px-2.5 py-4 sm:px-6 sm:py-6">
+        <SubpageHeader title={t("tabNews")} fallback="/produkter" mobileOnly />
+        <h1 className="sr-only">{t("tabNews")}</h1>
+        <FeedSwitch active="news" />
+        <NewsList items={feed.news} />
+      </div>
+    </SwipeBack>
   );
 }

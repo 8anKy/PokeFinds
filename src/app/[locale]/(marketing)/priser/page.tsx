@@ -12,6 +12,7 @@ import { ProHoloCard } from "@/components/features/pro-holo-card";
 import { ProSpecTable } from "@/components/features/pro-spec-table";
 import { FreePlanCta } from "./free-plan-cta";
 import { SubpageHeader } from "@/components/layout/subpage-header";
+import { SwipeBack } from "@/components/ui/swipe-back";
 
 export async function generateMetadata({
   params,
@@ -62,8 +63,9 @@ export default async function PricingPage({
   return (
     // Mobil: pt-6 så bakåtknappen sitter i höjd med Mer-tabbens andra undersidor
     // (app-sidorna har py-6); desktop behåller luftiga py-16 (knappen är lg:hidden).
-    <div className="mx-auto max-w-5xl px-2.5 pb-16 pt-6 sm:px-6 lg:pt-16">
-      <SubpageHeader title={tNav("pricing")} fallback="/" mobileOnly />
+    <SwipeBack fallback="/mer" coverViewport viewportInset="safe">
+      <div className="mx-auto max-w-5xl px-2.5 pb-16 pt-6 sm:px-6 lg:pt-16">
+        <SubpageHeader title={tNav("pricing")} fallback="/mer" mobileOnly />
 
       {/* ⛔ Pausnotisen står FÖRST, ovanför pris och kort, med flit: under
           köpknappen hade den varit en brasklapp efter beslutet. Den ska läsas innan
@@ -171,6 +173,7 @@ export default async function PricingPage({
           </div>
         </section>
       </div>
-    </div>
+      </div>
+    </SwipeBack>
   );
 }

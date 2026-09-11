@@ -54,6 +54,8 @@ import { pickAlternatives, pickSameArtRail } from "@/lib/scan-alternatives";
 import { useCameraControls } from "@/hooks/use-camera-controls";
 import { openPaywallOrNavigate } from "@/lib/paywall";
 import { getRouteSwipeSnapshot } from "@/components/layout/route-swipe-snapshot";
+import { EDGE_ZONE_PX, resolveBackSwipe } from "@/lib/swipe-gesture";
+import { pageMotionTransition, swipeSettleDuration } from "@/lib/page-motion";
 import { SellSheet, type SellItem } from "@/components/features/sell-sheet";
 import {
   withDeviceId,
@@ -923,7 +925,10 @@ function Scanner() {
     if (!snapshot) return;
 
     const scroll = document.createElement("div");
-    scroll.style.transform = `translateY(-${snapshot.scrollY}px)`;
+    // Klonen ligger i en fixed viewport, medan den fångade skalytan låg i
+    // dokumentflödet. Den exakta toppositionen gör att hela föregående vy
+    // följer med även vid safe-area och scroll — aldrig ett svart toppband.
+    scroll.style.transform = `translateY(${snapshot.top}px)`;
     scroll.appendChild(snapshot.shell.cloneNode(true));
     underlay.appendChild(scroll);
     hasUnderlayRef.current = true;
@@ -1524,7 +1529,7 @@ function Scanner() {
     };
   }, [detailsId, settingsOpen, view, closeScanner]);
 
-  // Svep åt HÖGER för att stänga skannern — fingret följer och skannern glider
+  // Svep från VÄNSTERKANTEN åt HÖGER för att stänga skannern — fingret följer och skannern glider
   // ut, sedan closeScanner() (med osparade-träffar-vakten). Samma touch-event-
   // teknik som produkt-overlayn (WKWebView kapar annars gesten). BARA högersvep
   // engagerar → vänster-svep (kort-radering i granskningsvyn) + vertikal scroll
@@ -1547,6 +1552,7 @@ function Scanner() {
     if (!window.matchMedia("(pointer: coarse)").matches) return;
     let startX = 0;
     let startY = 0;
+    let startT = 0;
     let dx = 0;
     let dragging = false;
     let axis: "x" | "y" | null = null;
@@ -1564,6 +1570,7 @@ function Scanner() {
 
     const onStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
+      if (e.touches[0].clientX > EDGE_ZONE_PX) return;
       // Skanningsremsan scrollar horisontellt → svep där ska INTE stänga skannern.
       if ((e.target as HTMLElement)?.closest?.("[data-no-swipe]")) return;
       dragging = true;
@@ -1578,6 +1585,7 @@ function Scanner() {
       target = gesture === "back" && panel ? panel : el;
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
+      startT = e.timeStamp;
       target.style.transition = "none";
     };
     const onMove = (e: TouchEvent) => {
@@ -1599,7 +1607,7 @@ function Scanner() {
       dx = Math.max(0, mx);
       target.style.transform = `translateX(${dx}px)`;
     };
-    const onEnd = () => {
+    const onEnd = (e: TouchEvent) => {
       if (!dragging) return;
       dragging = false;
       if (axis !== "x") {
@@ -1607,21 +1615,30 @@ function Scanner() {
         if (gesture === "close") hideUnderlay();
         return;
       }
-      target.style.transition = "transform 0.25s ease";
+      const width = target.offsetWidth || 1;
+      const accepted = resolveBackSwipe({
+        dx,
+        width,
+        velocityPxPerMs: dx / Math.max(1, e.timeStamp - startT),
+      });
+      const settle = (complete: boolean) => {
+        const duration = swipeSettleDuration(dx / width, complete);
+        target.style.transition = pageMotionTransition("transform", duration);
+        target.style.transform = complete ? `translateX(${width}px)` : "translateX(0px)";
+        return duration;
+      };
       if (gesture === "back") {
-        // Samma tröskel som produkt-overlayn (en fjärdedel): ett steg tillbaka
-        // ska vara lättare än att stänga hela skannern (en tredjedel nedan).
-        if (dx > target.offsetWidth / 4) {
-          target.style.transform = "translateX(110%)";
+        if (accepted) {
+          const duration = settle(true);
           // Panelen avmonteras när vyn byter — ingen återställning behövs.
-          window.setTimeout(backToCapture, 230);
+          window.setTimeout(backToCapture, duration);
         } else {
-          target.style.transform = "";
+          settle(false);
         }
         return;
       }
-      if (dx > el.offsetWidth / 3) {
-        el.style.transform = "translateX(110%)";
+      if (accepted) {
+        const duration = settle(true);
         window.setTimeout(() => {
           // Avbrutet (osparade träffar) → fjädra tillbaka in. Kameran
           // återupptas av closeScanner självt — dialogen kan avbrytas från
@@ -1630,10 +1647,10 @@ function Scanner() {
             el.style.transform = "";
             hideUnderlay();
           }
-        }, 230);
+        }, duration);
       } else {
-        el.style.transform = "";
-        hideUnderlay();
+        const duration = settle(false);
+        window.setTimeout(hideUnderlay, duration + 20);
       }
     };
 
@@ -2356,7 +2373,7 @@ function Scanner() {
       <div
         ref={underlayRef}
         aria-hidden="true"
-        className="pointer-events-none fixed inset-x-0 bottom-0 top-[env(safe-area-inset-top)] z-[59] hidden overflow-hidden bg-surface"
+        className="pointer-events-none fixed inset-0 z-[59] hidden overflow-hidden bg-surface"
       />
     <div
       ref={rootRef}
