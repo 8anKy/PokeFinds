@@ -46,8 +46,14 @@ Två källor, i den här ordningen:
 
 3. **Evenemang — svenska mässor och kortträffar.** Sök efter kommande Pokémon-/samlarkorts-
    mässor, kortfestivaler och conventions **i Sverige** (Card Expo, Samlarkortfestivalen,
-   Pokémonmässan, spelmässor med kortdel, "kortmässa" + stad). Källor: arrangörens egen sida,
-   biljettsidor (Tickster, Billetto, Nortic), kommunernas/arenornas evenemangskalendrar.
+   Pokémonmässan, spelmässor med kortdel, "kortmässa" + stad). **Börja alltid med Ticksters
+   Pokémon-tagg: `https://www.tickster.com/se/sv/events/tagged/pokemon`** (WebFetch — där låg
+   två kommande evenemang 2026-09-11 som sökningarna missade) och arrangörssidorna
+   `https://www.tickster.com/se/sv/p/kongrexum-ab/samlarkort`, `https://www.pokemonmassan.se/`,
+   `https://cardexposweden.carrd.co/`. Därefter: arrangörers egna sidor, Billetto, Nortic,
+   kommunernas/arenornas evenemangskalendrar. Evenemangets URL i utkastet ska vara Ticksters
+   **publika** sida (`www.tickster.com/se/sv/events/<id>`), inte `secure.tickster.com` (den
+   kräver session och ger ingen text).
    ⛔ Läs FÖRST `.github/feed/events.json` och hoppa över allt som redan står där (samma namn +
    datum). Ett evenemang som redan passerat, eller ligger mer än ~6 månader fram, hoppar du över.
    ⛔ Bara det som står hos ARRANGÖREN: datum, tider, plats, adress, arrangör, biljettlänk.
