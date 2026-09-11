@@ -28,11 +28,12 @@ Två källor, i den här ordningen:
    kort, rekordförsäljningar), Play! Pokémon och svenska/nordiska händelser. Föredra primärkällor
    och etablerade TCG-sajter. Hoppa över: tv-spelen (Pokémon GO, Sleep, Unite, Pokopia,
    Switch-titlar), anime, memes, rykten utan källa, listicles ("10 bästa kort…").
-   - ⛔ **Sandlådan blockerar direkta hämtningar** (WebFetch/curl) mot de flesta nyhetssajter —
-     det är normalt, inte ett fel. Arbeta då ur **sökresultatens** rubriker, datum och
-     beskrivningar; bekräfta gärna med en andra sökning. Ett datum som står i sökresultatet
-     räcker som `publishedAt`. Släpp INTE en nyhet bara för att sidan inte gick att öppna —
-     PSA:s Europa-etablering 2026-09 var precis en sådan och skulle ha blivit ett utkast.
+   - **Läs artikeln** med WebFetch innan du skriver — brödtexten ska bygga på källan, inte på
+     sökresultatets snippet. Blockeras hämtningen (egress-proxy) är det inte ett fel hos dig:
+     prova en andra källa för samma nyhet, och arbeta annars ur sökresultatens rubriker, datum
+     och beskrivningar. Ett datum som står i sökresultatet räcker som `publishedAt`. Släpp INTE
+     en nyhet bara för att sidan inte gick att öppna — PSA:s Europa-etablering 2026-09 var precis
+     en sådan och skulle ha blivit ett utkast.
    - Ambitionsnivå: **3–6 utkast** en vanlig dag är rätt. Hittar du bara 1 har du sökt för smalt —
      prova fler sökord (svenska + engelska, "Pokémon TCG" + gradering/PSA/Cardmarket/release/
      preorder/ETB/Play! Pokémon) innan du ger upp.
@@ -51,13 +52,19 @@ Skriv **högst 8 utkast per dag**, hellre 4 bra än 8 halvdana. Dubbletter mella
 - **Svenska.** Rubrik ≤ 90 tecken, saklig, inga utropstecken, inga clickbait-ord. Ingress
   1–2 meningar (≤ 240 tecken) **med egna ord** — återge aldrig artikelns text, och citera inte.
   Ingressen är teasern i listan: vad som händer och när.
-- **Brödtext (`body`) — 2–4 stycken, alltid.** Posten får en egen sida på foilio.se, så läsaren
-  ska slippa klicka vidare för det viktigaste: **vad** som kommer/händer, **när** (datum,
-  klockslag, förbokning/släpp), **vad det innehåller** (produkter, antal kort, nya rariteter,
-  priser om källan anger dem), och **varför en svensk samlare bryr sig** (tillgänglighet i
-  Sverige/EU, pris i EUR/SEK om känt, vad som skiljer mot tidigare). Egna ord, ren text, inga
-  länkar i texten — sidan lägger själv källänken längst ned. Ett stycke som börjar med `## `
-  blir en mellanrubrik (använd högst två). Står en uppgift inte i någon källa, skriv den inte.
+- **Brödtext (`body`) — en SAMMANFATTAD ARTIKEL, 300–500 ord i 5–7 stycken.** Posten får en
+  egen sida på foilio.se och läsaren ska få hela bilden utan att klicka vidare. **Läs källan
+  först** (WebFetch på artikel-URL:en; gärna även en andra källa) och skriv sedan med egna ord:
+  1. ett inledande stycke som säger vad som händer och när;
+  2. `## `-mellanrubrik + detaljerna: produkter, antal kort, nya rariteter, priser, datum och
+     klockslag, villkor (t.ex. max per kund), platser — allt som står i källan och angår en samlare;
+  3. eventuell bakgrund (vad som föregick, hur det skiljer sig från tidigare);
+  4. `## `-mellanrubrik + **vad det betyder för svenska samlare**: tillgänglighet i Sverige/EU,
+     pris i EUR/SEK om känt, frakt/tullar, när svenska butiker väntas få varan.
+  Ren text, inga länkar i texten — sidan lägger själv källänken längst ned. Högst tre
+  mellanrubriker. Står en uppgift inte i någon källa, skriv den inte. ⛔ Blir källan ändå
+  omöjlig att öppna: skriv det du kan belägga ur sökresultaten (kortare är då rätt), och skriv
+  i `note` att källan inte kunde läsas, så ägaren vet att texten ska kontrolleras extra.
 - Nämn aldrig konkurrerande prisbevaknings-/samlarsajter eller -appar. Nämn aldrig Foilio
   självt i utkasten — de handlar om världen utanför.
 - Inga påhittade priser, datum eller antal. Står det inte i källan, står det inte i utkastet.

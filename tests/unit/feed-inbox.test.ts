@@ -72,12 +72,13 @@ describe("mergeInbox", () => {
     expect(next.items.map((i) => i.url)).toEqual(["https://a.se/kvar"]);
   });
 
-  it("fyller i brödtext på ett väntande utkast som saknar den — men rör aldrig andra fält eller avgjorda rader", () => {
+  it("ersätter brödtexten på ett väntande utkast när leveransen bär en LÄNGRE — men rör aldrig andra fält eller avgjorda rader", () => {
     const current: InboxDocument = {
       updatedAt: "2026-09-10T00:00:00Z",
       items: [
-        entry("https://a.se/1", { title: "Ägarens rubrik" }),
+        entry("https://a.se/1", { title: "Ägarens rubrik", body: ["Kort."] }),
         entry("https://a.se/2", { status: "approved", decidedAt: NOW.toISOString() }),
+        entry("https://a.se/3", { body: ["En lång och fullständig text som redan finns."] }),
       ],
     };
     const next = mergeInbox(
@@ -85,16 +86,18 @@ describe("mergeInbox", () => {
       {
         generatedAt: NOW.toISOString(),
         drafts: [
-          draft("https://a.se/1", { title: "Rutinens nya rubrik", body: ["Ett stycke."] }),
+          draft("https://a.se/1", { title: "Rutinens nya rubrik", body: ["Ett längre stycke än förut."] }),
           draft("https://a.se/2", { body: ["Ska aldrig in."] }),
+          draft("https://a.se/3", { body: ["Kortare."] }),
         ],
       },
       NOW
     );
     const a = next.items.find((i) => i.url === "https://a.se/1")!;
-    expect(a.body).toEqual(["Ett stycke."]);
+    expect(a.body).toEqual(["Ett längre stycke än förut."]);
     expect(a.title).toBe("Ägarens rubrik");
     expect(next.items.find((i) => i.url === "https://a.se/2")!.body).toEqual([]);
+    expect(next.items.find((i) => i.url === "https://a.se/3")!.body).toEqual(["En lång och fullständig text som redan finns."]);
     expect(next.updatedAt).toBe(NOW.toISOString());
   });
 

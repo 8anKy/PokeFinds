@@ -123,11 +123,16 @@ export const PENDING_KEEP_DAYS = 30;
  * rutinen skickar hela filen vid varje körning, och hade den vunnit hade ägarens
  * rättningar (som sparas först vid godkännandet) inte spelat roll — men viktigare:
  * ett utkast ska se likadant ut i admin som när ägaren såg det senast.
- * ENDA undantaget: ett VÄNTANDE utkast UTAN brödtext får sin `body` ifylld när en
- * leverans bär en — brödtexten kom till 2026-09-11, efter de första utkasten, och
- * en rad ägaren ännu inte rört förlorar ingenting på att bli fullständig.
+ * ENDA undantaget: ett VÄNTANDE utkast får sin `body` ERSATT när leveransen bär en
+ * LÄNGRE — ägarens rättningar sparas först vid godkännandet, så en väntande rad bär
+ * ingenting ägaren skrivit, och en fullständigare text är alltid bättre än en kortare
+ * (brödtexten kom till 2026-09-11 och de första utkasten skrevs utan källåtkomst).
  * Nya id:n blir `pending`. Gamla rader städas på ålder.
  */
+function bodyLength(body: string[]): number {
+  return body.reduce((n, p) => n + p.length, 0);
+}
+
 export function mergeInbox(current: InboxDocument, incoming: InboxPublish, now = new Date()): InboxDocument {
   const byId = new Map(current.items.map((e) => [e.id, e] as const));
   let added = 0;
@@ -135,7 +140,7 @@ export function mergeInbox(current: InboxDocument, incoming: InboxPublish, now =
   for (const draft of incoming.drafts) {
     const existing = byId.get(draft.id);
     if (existing) {
-      if (existing.status === "pending" && existing.body.length === 0 && draft.body.length > 0) {
+      if (existing.status === "pending" && bodyLength(draft.body) > bodyLength(existing.body)) {
         byId.set(draft.id, { ...existing, body: draft.body });
         changed = true;
       }
