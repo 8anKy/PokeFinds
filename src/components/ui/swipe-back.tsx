@@ -261,11 +261,13 @@ export function SwipeBack({
 
   return (
     <div className={cn("relative", className)}>
+      {/* Bakgrundsvyn ska börja vid viewportens kant. Klipps den vid safe-area
+          lämnas en orörlig svart remsa kvar tills routen byts. */}
       <div
         ref={underlayRef}
         data-swipe-back-underlay
         aria-hidden="true"
-        className="pointer-events-none fixed inset-x-0 bottom-0 top-[env(safe-area-inset-top)] z-0 hidden overflow-hidden bg-surface"
+        className="pointer-events-none fixed inset-0 z-0 hidden overflow-hidden bg-surface"
       />
       <div
         ref={contentRef}
