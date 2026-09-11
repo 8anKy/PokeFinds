@@ -14,6 +14,34 @@
       "origin": "web",
       "note": "Släppdatum, kortlista och antal (30 Pikachu-kort, Futuristic Rare-rariteten) korsverifierade mot flera källor (bl.a. pokemon.com, Dexerto). Ingen bild kunde hämtas automatiskt av rutinen.",
       "foundAt": "2026-09-11T15:03:46.243Z"
+    },
+    {
+      "id": "1vve2uisa3cma",
+      "title": "PSA öppnar sin första europeiska graderingsanläggning, i Frankfurt",
+      "summary": "PSA öppnar sitt första fullskaliga graderingskontor i Europa, i Frankfurt, och börjar ta emot inskick av bland annat Pokémonkort den 15 september. Tanken är kortare leveranstider och lägre kostnader för europeiska samlare som slipper skicka till USA.",
+      "url": "https://www.psacard.com/articles/articleview/15763/psa-new-standard-service-level",
+      "source": "PSA",
+      "category": "MARKET",
+      "publishedAt": "2026-09-11T00:00:00.000Z",
+      "imageUrl": null,
+      "imageFit": "cover",
+      "origin": "web",
+      "note": "Bekräftat i flera källor (psacard.com, SI.com) att inskick öppnar 15 september i Frankfurt. Sidan gick inte att hämta direkt i sandlådan, så exakt publiceringsdatum för artikeln är uppskattat till när nyheten hittades.",
+      "foundAt": "2026-09-11T15:17:50.532Z"
+    },
+    {
+      "id": "19f2vp912gajo5",
+      "title": "Två Neo Genesis-kort slår auktionsrekord för nära 700 000 dollar",
+      "summary": "En PSA 10-gradad Lugia (First Edition) från Neo Genesis klubbades för 360 000 dollar och en CGC Pristine 10 Typhlosion för 336 000 dollar – nya auktionsrekord för korten, tillsammans nästan 700 000 dollar.",
+      "url": "https://comicbook.com/collectibles/news/two-neo-genesis-pokemon-card-grails-annihilate-records-combine-for-nearly-700k-at-auction/",
+      "source": "ComicBook.com",
+      "category": "MARKET",
+      "publishedAt": "2026-09-06T00:00:00.000Z",
+      "imageUrl": null,
+      "imageFit": "cover",
+      "origin": "web",
+      "note": "",
+      "foundAt": "2026-09-11T15:17:50.532Z"
     }
   ],
   "seen": [
@@ -21,6 +49,16 @@
       "id": "10qvx73yf2vqn",
       "url": "https://www.pokebeach.com/2026/09/30th-celebration-english-set-guide-full-card-list-products-store-promotions-and-more",
       "at": "2026-09-11T15:03:46.243Z"
+    },
+    {
+      "id": "1vve2uisa3cma",
+      "url": "https://www.psacard.com/articles/articleview/15763/psa-new-standard-service-level",
+      "at": "2026-09-11T15:17:50.532Z"
+    },
+    {
+      "id": "19f2vp912gajo5",
+      "url": "https://comicbook.com/collectibles/news/two-neo-genesis-pokemon-card-grails-annihilate-records-combine-for-nearly-700k-at-auction/",
+      "at": "2026-09-11T15:17:50.532Z"
     }
   ]
 }
