@@ -14,14 +14,8 @@ export function isSwipeBackDestination(pathname: string): boolean {
     /^\/forum\/(?:g|t)\/[^/]+$/.test(normalized) ||
     normalized === "/forum/sparade" ||
     /^\/(?:nyheter|evenemang)\/[^/]+$/.test(normalized) ||
-    normalized === "/bevakningar" ||
-    normalized === "/gradera" ||
-    normalized === "/meddelanden" ||
     /^\/meddelanden\/[^/]+$/.test(normalized) ||
-    normalized === "/priser" ||
     normalized === "/skanna" ||
-    normalized === "/installningar" ||
-    /^\/installningar\/(?:konto|kopplingar|notiser|profil|synlighet)$/.test(normalized) ||
-    /^\/mer\/(?:utmarkelser|bjud-in)$/.test(normalized)
+    /^\/mer\/bjud-in$/.test(normalized)
   );
 }
