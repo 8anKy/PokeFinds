@@ -95,8 +95,23 @@ export type InboxPublish = z.infer<typeof inboxPublishSchema>;
 export const DRAFT_STATUSES = ["pending", "approved", "rejected"] as const;
 export type DraftStatus = (typeof DRAFT_STATUSES)[number];
 
-/** En rad i `drafts.json` på volymen: utkastet + vad ägaren gjort med det. */
+/** Extern bild ELLER en väg som börjar med `/` (ägarens uppladdade omslag). */
+const imageUrlOrPath = z
+  .string()
+  .max(2000)
+  .nullable()
+  .default(null)
+  .refine((v) => v === null || /^https?:\/\//i.test(v) || (v.startsWith("/") && !v.startsWith("//")), "imageUrl måste vara https:// eller en väg som börjar med /");
+
+/**
+ * En rad i `drafts.json` på volymen: utkastet + vad ägaren gjort med det.
+ * ⛔ Raden bär ÄGARENS fält efter godkännandet (Object.assign i adminrutten), och de
+ *    är vidare än rutinens: omslaget kan vara en uppladdad väg. 2026-09-11 låg schemat
+ *    kvar på `https://` ⇒ första godkännandet med eget omslag gjorde HELA filen ogiltig
+ *    och admin visade en tom inkorg. Radens schema måste rymma allt admin kan skriva.
+ */
 export const inboxEntrySchema = feedDraftSchema.extend({
+  imageUrl: imageUrlOrPath,
   status: z.enum(DRAFT_STATUSES).default("pending"),
   /** När rutten först såg utkastet. */
   receivedAt: isoDate,
@@ -104,9 +119,26 @@ export const inboxEntrySchema = feedDraftSchema.extend({
 });
 export type InboxEntry = z.infer<typeof inboxEntrySchema>;
 
+/**
+ * ⛔ EN TRASIG RAD FÄLLER ALDRIG INKORGEN. Raderna valideras en och en; den som inte
+ *    går igenom loggas och hoppas över, resten visas. Ett helt dokument som underkänns
+ *    hade gömt varje väntande utkast bakom ett enda felformat fält.
+ */
 export const inboxDocumentSchema = z.object({
   updatedAt: isoDate,
-  items: z.array(inboxEntrySchema).max(1000).default([]),
+  items: z
+    .array(z.unknown())
+    .max(1000)
+    .default([])
+    .transform((rows) => {
+      const out: InboxEntry[] = [];
+      for (const row of rows) {
+        const parsed = inboxEntrySchema.safeParse(row);
+        if (parsed.success) out.push(parsed.data);
+        else console.error("[feed-inbox] rad hoppades över:", parsed.error.issues.slice(0, 2), (row as { id?: string })?.id);
+      }
+      return out;
+    }),
 });
 export type InboxDocument = z.infer<typeof inboxDocumentSchema>;
 
@@ -170,12 +202,7 @@ export const approveInputSchema = z.object({
   source: z.string().trim().min(1).max(80),
   category: z.enum(NEWS_CATEGORIES),
   publishedAt: isoDate,
-  /** Extern bild ELLER en väg som börjar med `/` (ägarens uppladdade omslag). */
-  imageUrl: z
-    .string()
-    .max(2000)
-    .nullable()
-    .refine((v) => v === null || /^https?:\/\//i.test(v) || (v.startsWith("/") && !v.startsWith("//")), "imageUrl måste vara https:// eller en väg som börjar med /"),
+  imageUrl: imageUrlOrPath,
   imageFit: z.enum(["cover", "contain"]),
   body: draftBodySchema,
 });

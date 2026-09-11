@@ -12,6 +12,7 @@ import {
   approveInputSchema,
   draftToNewsItem,
   feedDraftSchema,
+  inboxDocumentSchema,
   mergeInbox,
   type InboxDocument,
   type InboxEntry,
@@ -105,6 +106,16 @@ describe("mergeInbox", () => {
     const current: InboxDocument = { updatedAt: "2026-09-10T00:00:00Z", items: [entry("https://a.se/1")] };
     const next = mergeInbox(current, { generatedAt: NOW.toISOString(), drafts: [draft("https://a.se/1")] }, NOW);
     expect(next.updatedAt).toBe(current.updatedAt);
+  });
+});
+
+describe("drafts.json på volymen", () => {
+  it("en godkänd rad med uppladdat omslag (/api/feed-cover/…) är giltig — och en trasig rad gömmer inte de andra", () => {
+    const good = { ...entry("https://a.se/1"), status: "approved", decidedAt: NOW.toISOString(), imageUrl: "/api/feed-cover/abc-deadbeef.jpg" };
+    const bad = { ...entry("https://a.se/2"), title: 1 };
+    const doc = inboxDocumentSchema.parse({ updatedAt: NOW.toISOString(), items: [good, bad, entry("https://a.se/3")] });
+    expect(doc.items.map((i) => i.url)).toEqual(["https://a.se/1", "https://a.se/3"]);
+    expect(doc.items[0].imageUrl).toBe("/api/feed-cover/abc-deadbeef.jpg");
   });
 });
 
