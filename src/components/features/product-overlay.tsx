@@ -51,6 +51,9 @@ export function ProductOverlayHost() {
   const slugRef = useRef<string | null>(null);
   const panelEnteringRef = useRef(false);
   const cache = useRef(new Map<string, Promise<ProductDetailData | null>>());
+  // Hela produktytan — även safe-area-remsan — måste följa samma transform.
+  // Annars lämnas en svart remsa kvar vid överkanten medan innehållet sveps ut.
+  const motionRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const backgroundRef = useRef<{
     element: HTMLElement;
@@ -272,7 +275,7 @@ export function ProductOverlayHost() {
   // övriga svep. Vid släpp förbi tröskel → glid ut + close() (history.back).
   useEffect(() => {
     if (!slug) return;
-    const el = panelRef.current;
+    const el = motionRef.current;
     if (!el) return;
     let startX = 0;
     let startY = 0;
@@ -409,9 +412,18 @@ export function ProductOverlayHost() {
     // UNDANTAG: en anmäld helskärmsvärd (skannern, z-[60]) skulle annars måla
     // över oss — se registerFullscreenHost i lib/product-overlay-open.ts.
     <div
-      className={elevated ? "fixed inset-0 z-[70]" : "fixed inset-0 z-40"}
+      ref={motionRef}
+      className={`${panelEntering ? "overlay-in " : ""}${elevated ? "fixed inset-0 z-[70]" : "fixed inset-0 z-40"} will-change-transform`}
       role="dialog"
       aria-label="Produktdetaljer"
+      onAnimationEnd={(e) => {
+        if (e.target !== e.currentTarget) return;
+        // ⚠️ overlay-in hade fill-mode:both kvar för alltid. Första
+        // touchstarten måste då koppla loss animationen och gav ett synligt
+        // ryck. När entrén redan är klar är ytan en vanlig composited yta.
+        panelEnteringRef.current = false;
+        setPanelEntering(false);
+      }}
     >
       {/* Solid safe-area-remsa (bg-surface, som headern) → täcker sidan bakom så
           inget skiner igenom under klockan. Panelen börjar under remsan. */}
@@ -423,15 +435,7 @@ export function ProductOverlayHost() {
         ref={panelRef}
         tabIndex={-1}
         style={{ touchAction: "pan-y" }}
-        onAnimationEnd={(e) => {
-          if (e.target !== e.currentTarget) return;
-          // ⚠️ overlay-in hade fill-mode:both kvar för alltid. Första
-          // touchstarten måste då koppla loss animationen och gav ett synligt
-          // ryck. När entrén redan är klar är panelen en vanlig composited yta.
-          panelEnteringRef.current = false;
-          setPanelEntering(false);
-        }}
-        className={`${panelEntering ? "overlay-in " : ""}absolute inset-x-0 bottom-0 top-[env(safe-area-inset-top)] overflow-y-auto overscroll-none bg-surface pb-[calc(4rem+env(safe-area-inset-bottom))] outline-none will-change-transform`}
+        className="absolute inset-x-0 bottom-0 top-[env(safe-area-inset-top)] overflow-y-auto overscroll-none bg-surface pb-[calc(4rem+env(safe-area-inset-bottom))] outline-none"
       >
         {/* Inget logotyphuvud i overlayn sedan 2026-09-05 — produktvyn bär sin
             egen flytande bakåtcirkel (router.back() stänger via history-markören
