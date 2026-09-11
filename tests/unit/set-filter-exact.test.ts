@@ -7,6 +7,7 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/lib/cache", () => ({
   cachedRead: (fn: unknown) => fn,
+  cachedReadTagged: (fn: unknown) => fn,
   singleFlight: (fn: unknown) => fn,
   STATIC_CACHE_TAG: "statisk",
 }));
