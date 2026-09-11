@@ -16,7 +16,6 @@ paths:
   - "src/app/**/evenemang/**"
   - "src/app/api/cron/feed-publish/**"
   - "scripts/feed-build.ts"
-  - "scripts/feed-foilio.ts"
   - ".github/feed/**"
   - ".github/workflows/news-feed.yml"
 ---
@@ -37,11 +36,15 @@ paths:
   `cachedRead` med **egen tagg** (`FEED_CACHE_TAG = "flode"`); publiceringsrutten `revalidateTag`:ar den så
   en ny nyhet syns direkt i stället för att vänta ut ISR-timmen. ⛔ Lägg ALDRIG en `prisma`-import i
   sidorna, i rutten eller i `src/lib/feed.ts`.
-- ⛔ **TVÅ PRODUCENTER, EN LANE VAR** (`NewsItem.lane`). `rss` = `news-feed.yml`, DB-fritt, 3 ggr/dygn,
-  bygger ur `.github/feed/sources.json`. `foilio` = `scripts/feed-foilio.ts`, ett **STEG i `scrape-all.yml`**
-  (aldrig egen cron — Neon är redan vaken där). Rutten ersätter EN lane i taget och behåller den andras
-  poster; utan `lane` hade det jobb som körde sist raderat det andras nyheter. `events` skickas bara av
-  rss-lanen — `null` betyder "rör dem inte", så ett jobb utan åsikt kan inte tömma evenemangslistan.
+- ⛔ **EN LANE PER PRODUCENT** (`NewsItem.lane`). `rss` = `news-feed.yml`, DB-fritt, 3 ggr/dygn,
+  bygger ur `.github/feed/sources.json`. `curated` = godkänt ur inkorgen (nedan). `foilio` (setsläpp ur
+  katalogen, `scripts/feed-foilio.ts` som steg i scrape-all) är **NEDLAGD 2026-09-11** (ägarbeslut:
+  posterna dubblerade inkorgens) — steget är borttaget och `feed-build.ts` skickar lanen TOM varje körning
+  tills volymen är ren. Rutten ersätter EN lane i taget och behåller de andras poster; utan `lane` hade
+  det jobb som körde sist raderat de andras nyheter. `events` skickas bara av rss-lanen — `null` betyder
+  "rör dem inte", så ett jobb utan åsikt kan inte tömma evenemangslistan.
+  ⛔ **`news.json` är TÖMD 2026-09-11** — "nytt i Foilio"-posterna och handskrivna marknadsnyheter togs
+  bort på ägarens begäran; nyheter går via inkorgen. Filen finns kvar för en post som MÅSTE in för hand.
 - ⛔ **RSS ENSAMT RÄCKER INTE, OCH DET ÄR MÄTT (2026-09-09).** PokéBeach har stängt sin feed ("No feed
   available", HTTP 500 på varje väg), pokeguardian/serebii/limitless har ingen, och de två flöden som
   svarar (pokemonblog.com, nintendoeverything.com) är tv-spelsbloggar: relevansgrinden släppte igenom

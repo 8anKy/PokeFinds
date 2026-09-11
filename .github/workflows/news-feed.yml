@@ -13,10 +13,10 @@ name: Nyhetsflödet (RSS + evenemang)
 #      in en DB-fråga dör körningen omedelbart och SYNLIGT i stället för att tyst
 #      börja kosta pengar. Sätt aldrig in den riktiga strängen.
 #
-# ⛔ NYHETERNA UR VÅR EGEN KATALOG KOMMER INTE HÄRIFRÅN. De byggs av
-# scripts/feed-foilio.ts, som är ett STEG i scrape-all.yml där Neon ändå är vaken.
-# De två jobben skriver var sin "lane" i samma dokument (se src/lib/feed.ts) och
-# raderar aldrig varandras poster.
+# ⛔ FOILIO-LANEN (setsläpp ur katalogen) ÄR NEDLAGD 2026-09-11 (ägarbeslut).
+# feed-build.ts skickar den TOM varje körning så gamla poster försvinner från
+# volymen. Lanerna (rss / curated) skriver var sin del av samma dokument och
+# raderar aldrig varandras poster (se src/lib/feed.ts).
 #
 # NYHETSINKORGEN (2026-09-11): samma körning levererar även utkasten i
 # .github/feed/inbox.json (skrivna av den dagliga molnrutinen, se ROUTINE.md)

@@ -323,6 +323,17 @@ async function main() {
   if (!res.ok) throw new Error(`publicering misslyckades: HTTP ${res.status} ${text.slice(0, 300)}`);
   console.log(`[feed] publicerat: ${text.slice(0, 200)}`);
 
+  // ⛔ FOILIO-LANEN ÄR NEDLAGD (ägarbeslut 2026-09-11): setsläppen ur katalogen
+  //    dubblerade de godkända nyheterna. Steget i scrape-all är borttaget, men det
+  //    som redan låg på volymen försvinner bara om någon skickar lanen TOM — därför
+  //    här, varje körning. Ta bort när volymen bevisligen är ren och lanen ur JOB_LANES.
+  const clear = await fetch(`${appUrl}/api/cron/feed-publish`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-cron-secret": secret },
+    body: JSON.stringify({ lane: "foilio", generatedAt: payload.generatedAt, news: [], events: null }),
+  });
+  if (!clear.ok) console.warn(`::warning::[feed] kunde inte tömma foilio-lanen: HTTP ${clear.status}`);
+
   // Inkorgen sist och separat: ett fel här får inte hindra flödet, men ska synas rött.
   if (inbox.drafts.length > 0 || inbox.events.length > 0) {
     const inboxRes = await fetch(`${appUrl}/api/cron/feed-inbox`, {

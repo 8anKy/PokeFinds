@@ -140,13 +140,14 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   nådda via headerns knapp som **ERSATTE Discord-knappen** (Discord finns kvar på /mer + i sidfoten).
   ⛔ **Flödet är en JSON-FIL på Railway-volymen, aldrig en tabell** — nyhetslistan öppnas av varje besökare
   och en Neon-väckning köper minst 300 s. Skrivs av `POST /api/cron/feed-publish` (x-cron-secret), läses av
-  sidorna bakom `cachedRead` med egen tagg. **Två producenter, en `lane` var**: `news-feed.yml` (DB-FRITT,
-  3 ggr/dygn, RSS ur `.github/feed/sources.json` + evenemang ur `.github/feed/events.json`) och
-  `scripts/feed-foilio.ts` som ett **STEG i `scrape-all`** (BARA setsläpp; "nytt i katalogen" är BORTTAGET
-  — katalogen är inte kurerad och gav rubriker som "Ny i katalogen: … RIPPED SEAL").
-  Rutten ersätter EN lane i taget — utan `lane` hade det jobb som körde sist raderat det andras poster.
-  ⛔ **RSS ensamt räcker inte, mätt**: PokéBeach har stängt sin feed och de flöden som svarar är
-  tv-spelsbloggar (relevansgrinden släppte 0 av 18) — vår egen katalog är huvudkällan. ⛔ Vi återger aldrig
+  sidorna bakom `cachedRead` med egen tagg. **En `lane` per producent**: `rss` = `news-feed.yml` (DB-FRITT,
+  3 ggr/dygn, RSS ur `.github/feed/sources.json` + evenemang ur `.github/feed/events.json`), `curated` =
+  godkänt ur inkorgen (nedan). ⛔ **`foilio`-lanen (setsläpp ur katalogen, `feed-foilio.ts` som steg i
+  scrape-all) är NEDLAGD 2026-09-11** och `news.json` är TÖMD — ägaren ville inte ha "nytt i Foilio"-
+  posterna eller de automatiska setsläppen; `feed-build.ts` skickar foilio-lanen TOM varje körning tills
+  volymen är ren. Rutten ersätter EN lane i taget — utan `lane` hade det jobb som körde sist raderat det
+  andras poster. ⛔ **RSS ensamt räcker inte, mätt**: PokéBeach har stängt sin feed och de flöden som svarar
+  är tv-spelsbloggar (relevansgrinden släppte 0 av 18) — inkorgens rutin är huvudkällan. ⛔ Vi återger aldrig
   en artikels text: en HÄMTAD post är rubrik + ingress + källa + länk UT och får aldrig en `slug`; en post
   vi SJÄLVA skrivit (`slug` + `body`) får sidan `/nyheter/<slug>` med vår text och länken till originalet
   längst ned. Omslag i tre steg: postens egen `imageUrl` → sidans `og:image` (hämtas av jobbet; evenemangens
