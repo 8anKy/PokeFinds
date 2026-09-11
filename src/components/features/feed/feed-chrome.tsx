@@ -38,7 +38,7 @@ export function FeedSwitch({
   const on = "bg-holo-cyan/12 text-holo-cyan font-semibold ring-1 ring-inset ring-holo-cyan/35";
   const off = "text-ink-muted hover:text-ink";
   return (
-    <div className="flex gap-1 rounded-full border border-surface-border bg-black/40 p-1">
+    <div data-feed-switch className="flex gap-1 rounded-full border border-surface-border bg-black/40 p-1">
       {onChange ? (
         <>
           <button type="button" onClick={() => onChange("news")} className={cn(item, active === "news" ? on : off)} aria-pressed={active === "news"}>

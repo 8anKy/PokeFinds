@@ -6,6 +6,7 @@ import { FeedSwitch } from "@/components/features/feed/feed-chrome";
 import { EventsList } from "@/components/features/feed/events-list";
 import { NewsList } from "@/components/features/feed/news-list";
 import { SubpageHeader } from "@/components/layout/subpage-header";
+import { EDGE_ZONE_PX } from "@/lib/swipe-gesture";
 import { cn } from "@/lib/utils";
 import type { EventItem, NewsItem } from "@/lib/feed";
 
@@ -13,7 +14,7 @@ type FeedTab = "news" | "events";
 
 /**
  * Två listor, en mobilvy. Båda listorna kom från samma serverrenderade ISR-läsning
- * och växlas bara i klienten: ett tryck eller svep får därför Instagram-känslan
+ * och växlas bara i klienten: ett tryck eller svep PÅ lägesväxlaren får därför Instagram-känslan
  * utan ny route, ny laddning eller databasanrop.
  */
 export function FeedPager({
@@ -43,6 +44,17 @@ export function FeedPager({
       className="overflow-hidden touch-pan-y"
       onTouchStart={(event) => {
         if (event.touches.length !== 1) return;
+        // Kort och listor måste alltid få vara just kort och listor. Att börja
+        // växla hela flödet från deras yta gör ett lite snett lodrätt drag till
+        // en oavsiktlig sidoförflyttning. Bara växlaren äger den här gesten;
+        // vänsterkanten lämnas dessutom åt SwipeBack.
+        if (
+          event.touches[0].clientX <= EDGE_ZONE_PX ||
+          !(event.target as HTMLElement).closest("[data-feed-switch]")
+        ) {
+          start.current = null;
+          return;
+        }
         start.current = { x: event.touches[0].clientX, y: event.touches[0].clientY };
         axis.current = null;
       }}
@@ -52,7 +64,9 @@ export function FeedPager({
         const dy = event.touches[0].clientY - start.current.y;
         if (!axis.current) {
           if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-          axis.current = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+          // Kräver en tydligt horisontell rörelse. På telefoner är ett normalt
+          // scroll ofta några pixlar snett, särskilt nära den flytande tabbraden.
+          axis.current = Math.abs(dx) > Math.abs(dy) * 1.35 ? "x" : "y";
         }
         if (axis.current !== "x") return;
         // Dra aldrig utanför de två lägena: nyheter ligger till vänster,

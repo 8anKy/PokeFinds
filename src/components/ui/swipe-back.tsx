@@ -189,7 +189,10 @@ export function SwipeBack({
       if (axis === null) {
         axis = lockAxis(mx, my);
         if (axis === null) return;
-        if (axis === "y") {
+        // Ett vanligt lodrätt drag är ofta lite snett. Bakåtgesten får bara
+        // vinna när riktningen är tydligt åt höger, annars känns listor som
+        // om de går att dra i sidled medan man försöker läsa vidare.
+        if (axis === "y" || mx <= 0 || Math.abs(mx) <= Math.abs(my) * 1.35) {
           dragging = false;
           return;
         }

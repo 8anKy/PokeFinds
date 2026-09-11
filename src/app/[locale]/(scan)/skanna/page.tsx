@@ -1596,7 +1596,7 @@ function Scanner() {
       if (axis === null) {
         if (Math.abs(mx) < 10 && Math.abs(my) < 10) return;
         // Bara höger-svep stänger; vänster (radera-svep) + vertikalt → släpp igenom.
-        if (mx <= 0 || Math.abs(mx) <= Math.abs(my)) {
+        if (mx <= 0 || Math.abs(mx) <= Math.abs(my) * 1.35) {
           dragging = false;
           return;
         }
