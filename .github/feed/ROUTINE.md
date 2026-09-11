@@ -50,7 +50,11 @@ Två källor, i den här ordningen:
    Pokémon-tagg: `https://www.tickster.com/se/sv/events/tagged/pokemon`** (WebFetch — där låg
    två kommande evenemang 2026-09-11 som sökningarna missade) och arrangörssidorna
    `https://www.tickster.com/se/sv/p/kongrexum-ab/samlarkort`, `https://www.pokemonmassan.se/`,
-   `https://cardexposweden.carrd.co/`. Därefter: arrangörers egna sidor, Billetto, Nortic,
+   `https://cardexposweden.carrd.co/`. ⛔ `https://samlarkortfestivalen.se/` listar ALLA
+   Kongrexums kommande mässor (Norrköping, Birka-kryssningen …) men är JavaScript-renderad —
+   WebFetch ger tom sida. Läs i stället undersidorna via sökresultat eller Ticksters
+   arrangörssida; hittar du en mässa i sökresultaten men inte på Tickster, skriv utkastet med
+   `infoUrl` = `https://samlarkortfestivalen.se/<stad>` och notera vilka fält som saknas. Därefter: arrangörers egna sidor, Billetto, Nortic,
    kommunernas/arenornas evenemangskalendrar. Evenemangets URL i utkastet ska vara Ticksters
    **publika** sida (`www.tickster.com/se/sv/events/<id>`), inte `secure.tickster.com` (den
    kräver session och ger ingen text).

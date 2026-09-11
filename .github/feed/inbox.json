@@ -207,6 +207,16 @@
       "id": "ccfm4r1bhic8r",
       "url": "https://www.tickster.com/se/sv/events/lg9h6bka9jfwc2m",
       "at": "2026-09-11T19:42:51.687Z"
+    },
+    {
+      "id": "1mh0p5dbfp855",
+      "url": "https://samlarkortfestivalen.se/norrkoping",
+      "at": "2026-09-11T20:05:43.096Z"
+    },
+    {
+      "id": "smxaulhegh2d",
+      "url": "https://samlarkortfestivalen.se/birka",
+      "at": "2026-09-11T20:05:43.096Z"
     }
   ],
   "eventDrafts": [
@@ -265,6 +275,60 @@
       "origin": "web",
       "note": "Hittad i Ticksters Pokémon-lista. Priser saknas på biljettsidan; ~4,5 månader fram.",
       "foundAt": "2026-09-11T19:42:51.687Z"
+    },
+    {
+      "id": "1mh0p5dbfp855",
+      "title": "Samlarkortfestivalen Norrköping",
+      "category": "EXPO",
+      "startsAt": "2027-03-27T11:00:00+02:00",
+      "endsAt": "2027-03-28T16:00:00+02:00",
+      "city": "Norrköping",
+      "venue": "Louis De Geer konsert & kongress",
+      "address": "Dalsgatan 15, Norrköping",
+      "mapUrl": "https://www.google.com/maps/search/?api=1&query=Louis+De+Geer+Norrk%C3%B6ping",
+      "ticketUrl": "https://www.tickster.com/se/sv/p/kongrexum-ab/samlarkort",
+      "infoUrl": "https://samlarkortfestivalen.se/norrkoping",
+      "imageUrl": "https://media.base44.com/images/public/6a51198a0c3faa2d02048225/bfbcd47de_Samlarkort_norrkoping.jpg",
+      "imageFit": "cover",
+      "organizer": "Kongrexum AB",
+      "summary": "Samlarkortfestivalen kommer till Louis De Geer i Norrköping helgen 27–28 mars 2027. Program och utställare presenteras löpande av arrangören.",
+      "body": [
+        "Samlarkortfestivalen, Sveriges återkommande mässa för samlarkort, kommer till Norrköping helgen 27–28 mars 2027. Platsen är Louis De Geer konsert & kongress i centrala Norrköping.",
+        "## Vad som väntar",
+        "Festivalen samlar handlare och privata säljare med Pokémon, Yu-Gi-Oh, Magic: The Gathering, Disney Lorcana, One Piece och sportkort, och brukar ha en Trade Zone där besökare byter kort med varandra samt scenprogram med paköppningar och föredrag. Arrangören skriver att program och utställarlista för Norrköping presenteras löpande.",
+        "## Bra att veta",
+        "Biljetter säljs via Ticksters sida för Samlarkortfestivalen. Öppettider och priser för Norrköping var inte publicerade när utkastet skrevs – tiderna här är arrangörens vanliga mässtider och ska kontrolleras mot arrangörens sida inför besöket."
+      ],
+      "origin": "web",
+      "note": "Från samlarkortfestivalen.se/norrkoping. Öppettiderna är ANTAGNA ur arrangörens övriga mässor (lör 11–18, sön 11–16) – arrangören har inte publicerat tider ännu. Årtalet 2027 följer av att 2026-datumet redan passerat.",
+      "foundAt": "2026-09-11T20:05:43.096Z"
+    },
+    {
+      "id": "smxaulhegh2d",
+      "title": "Samlarkortfestivalen Rip'N'Ship på Birka",
+      "category": "OTHER",
+      "startsAt": "2027-04-08T18:00:00+02:00",
+      "endsAt": "2027-04-09T16:00:00+02:00",
+      "city": "Stockholm",
+      "venue": "Birka Stockholm (Viking Line), Stadsgården",
+      "address": "Stadsgården, Stockholm",
+      "mapUrl": "https://www.google.com/maps/search/?api=1&query=Birka+Cruises+Stadsg%C3%A5rden+Stockholm",
+      "ticketUrl": "https://www.vikingline.se/hitta-resa/kryssningar/temakryssningar/samlarkortspel/",
+      "infoUrl": "https://samlarkortfestivalen.se/birka",
+      "imageUrl": "https://www.vikingline.se/globalassets/images/market_specific/sweden/theme_cruises/samlarkortfestival/rns-samlarkortfestival-812x501.jpg",
+      "imageFit": "cover",
+      "organizer": "Kongrexum AB / Viking Line",
+      "summary": "Dygnskryssning Stockholm–Mariehamn den 8 april 2027 med Samlarkortfestivalen ombord: säljare, byten, utbildning och underhållning. Från 590 kr per person.",
+      "body": [
+        "Den 8 april 2027 flyttar Samlarkortfestivalen ut på Östersjön. Rip'N'Ship är en dygnskryssning Stockholm–Mariehamn med Viking Lines Birka, där hela resan är ett samlarkortsevent.",
+        "## Ombord",
+        "Butiker och privata säljare finns på plats med Pokémon, One Piece, Lorcana, sportkort och andra samlarkort, och du kan köpa, sälja och byta egna kort. Arrangören utlovar också utbildning och underhållning på temat, tillsammans med mat och festlig stämning bland andra samlare.",
+        "## Bra att veta",
+        "Prisexempel enligt Viking Line: från 590 kr per person med del i insideshytt för två, inklusive bränsle- och utsläppstillägg. Priset varierar med bokningstillfälle. Giltig id-handling krävs vid ombordstigning och incheckningen stänger 20 minuter före avgång. Avgångstid och detaljerat program var inte publicerade när utkastet skrevs – se Viking Lines sida."
+      ],
+      "origin": "web",
+      "note": "Från samlarkortfestivalen.se/birka + vikingline.se. Avgångs-/ankomsttiderna här är ANTAGNA (typisk dygnskryssning) – kontrollera tidtabellen hos Viking Line.",
+      "foundAt": "2026-09-11T20:05:43.096Z"
     }
   ]
 }
