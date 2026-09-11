@@ -14,7 +14,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { apiError, jsonOk } from "@/lib/api";
 import { inboxPublishSchema, mergeInbox } from "@/lib/feed-inbox";
-import { readInbox, writeInbox } from "@/lib/feed-inbox-store";
+import { updateInbox } from "@/lib/feed-inbox-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -31,12 +31,14 @@ export async function POST(req: NextRequest) {
     }
 
     const payload = inboxPublishSchema.parse(await req.json());
-    const current = await readInbox();
-    const doc = mergeInbox(current, payload);
+    let added = 0;
+    // ⛔ Via updateInbox: en oläsbar fil ger 500 här i stället för att skrivas över med en tom.
+    const doc = await updateInbox((current) => {
+      const merged = mergeInbox(current, payload);
+      added = Math.max(0, merged.items.length - current.items.length);
+      return merged.updatedAt === current.updatedAt ? current : merged;
+    });
     const pending = doc.items.filter((i) => i.status === "pending").length;
-    const added = Math.max(0, doc.items.length - current.items.length);
-
-    if (doc.updatedAt !== current.updatedAt) await writeInbox(doc);
 
     console.log(`[feed-inbox] ${payload.drafts.length} utkast levererade, ${added} nya ⇒ ${pending} väntar på beslut.`);
     return jsonOk({ ok: true, delivered: payload.drafts.length, added, pending });

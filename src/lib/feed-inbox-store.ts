@@ -24,19 +24,37 @@ function coversDir(): string {
   return path.join(feedDir(), "covers");
 }
 
-export async function readInbox(): Promise<InboxDocument> {
+/**
+ * `corrupt` = filen FINNS men gick inte att läsa/tolka. Skillnaden mot "finns inte" är
+ * hela poängen: en läsning som misslyckas får aldrig bli en TOM inkorg som sedan skrivs
+ * tillbaka. ⛔ Så förlorades fem utkast 2026-09-11: en rad underkändes av schemat,
+ * `readInbox` svarade tomt, admin-klienten visade fortfarande sin gamla lista, och nästa
+ * klick lät `updateInbox` skriva den tomma inkorgen över filen.
+ */
+async function readInboxState(): Promise<{ doc: InboxDocument; corrupt: boolean }> {
   try {
     const raw = await fs.readFile(inboxPath(), "utf8");
     const parsed = inboxDocumentSchema.safeParse(JSON.parse(raw));
     if (!parsed.success) {
       console.error("[feed-inbox] drafts.json är ogiltig — visar tom inkorg:", parsed.error.issues.slice(0, 3));
-      return EMPTY_INBOX;
+      return { doc: EMPTY_INBOX, corrupt: true };
     }
-    return parsed.data;
+    return { doc: parsed.data, corrupt: false };
   } catch (error) {
     const code = (error as NodeJS.ErrnoException)?.code;
-    if (code !== "ENOENT") console.error("[feed-inbox] kunde inte läsa inkorgen:", error);
-    return EMPTY_INBOX;
+    if (code === "ENOENT") return { doc: EMPTY_INBOX, corrupt: false };
+    console.error("[feed-inbox] kunde inte läsa inkorgen:", error);
+    return { doc: EMPTY_INBOX, corrupt: true };
+  }
+}
+
+export async function readInbox(): Promise<InboxDocument> {
+  return (await readInboxState()).doc;
+}
+
+export class InboxCorruptError extends Error {
+  constructor() {
+    super("Inkorgens fil på volymen gick inte att läsa — ingenting skrevs, för att inte radera den.");
   }
 }
 
@@ -49,10 +67,16 @@ export async function writeInbox(doc: InboxDocument): Promise<void> {
   await fs.rename(tmp, file);
 }
 
-/** Läs–ändra–skriv i ett svep. Adminrutterna anropas en åt gången; ingen låsning behövs. */
+/**
+ * Läs–ändra–skriv i ett svep. Adminrutterna anropas en åt gången; ingen låsning behövs.
+ * ⛔ Skriver ALDRIG över en fil som inte gick att läsa (`InboxCorruptError` i stället),
+ *    och skriver ingenting alls när `fn` lämnar dokumentet orört (samma referens).
+ */
 export async function updateInbox(fn: (doc: InboxDocument) => InboxDocument | Promise<InboxDocument>): Promise<InboxDocument> {
-  const next = await fn(await readInbox());
-  await writeInbox(next);
+  const { doc, corrupt } = await readInboxState();
+  if (corrupt) throw new InboxCorruptError();
+  const next = await fn(doc);
+  if (next !== doc) await writeInbox(next);
   return next;
 }
 
