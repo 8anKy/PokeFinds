@@ -106,8 +106,12 @@ export const newsItemSchema = z.object({
    * flera gånger om dagen) och `foilio` (vår egen katalog, ett steg i nattkedjan
    * där Neon ändå är vaken). ⛔ Publiceringsrutten ERSÄTTER EN LANE I TAGET —
    * utan fältet hade det jobb som körde sist raderat det andras poster.
+   * `curated` (2026-09-11) = poster ägaren GODKÄNT ur nyhetsinkorgen
+   * (`src/lib/feed-inbox.ts`); den fylls en post i taget av adminrutten och får
+   * därför ALDRIG skickas till `feed-publish` — en lane som ersätts i klump hade
+   * raderat varje godkänd post vid nästa jobbkörning.
    */
-  lane: z.enum(["rss", "foilio"]).default("rss"),
+  lane: z.enum(["rss", "foilio", "curated"]).default("rss"),
 });
 export type NewsItem = z.infer<typeof newsItemSchema>;
 
@@ -140,8 +144,11 @@ export const eventItemSchema = z.object({
 });
 export type EventItem = z.infer<typeof eventItemSchema>;
 
-export const FEED_LANES = ["rss", "foilio"] as const;
+export const FEED_LANES = ["rss", "foilio", "curated"] as const;
 export type FeedLane = (typeof FEED_LANES)[number];
+/** Lanerna ett JOBB får ersätta i klump. ⛔ `curated` står inte här — se `NewsItem.lane`. */
+export const JOB_LANES = ["rss", "foilio"] as const;
+export type JobLane = (typeof JOB_LANES)[number];
 
 export const feedDocumentSchema = z.object({
   /** När jobbet byggde dokumentet. Visas som "uppdaterat" och styr osett-pricken. */
@@ -157,7 +164,7 @@ export type FeedDocument = z.infer<typeof feedDocumentSchema>;
  * äger dem (rss-jobbet läser evenemangsfilen) — utelämnas fältet rörs de inte.
  */
 export const feedPublishSchema = z.object({
-  lane: z.enum(FEED_LANES),
+  lane: z.enum(JOB_LANES),
   generatedAt: isoDate,
   news: z.array(newsItemSchema).max(200).default([]),
   events: z.array(eventItemSchema).max(200).nullable().default(null),

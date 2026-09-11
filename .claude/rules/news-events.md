@@ -2,6 +2,13 @@
 paths:
   - "src/lib/feed.ts"
   - "src/lib/feed-store.ts"
+  - "src/lib/feed-inbox.ts"
+  - "src/lib/feed-inbox-store.ts"
+  - "src/app/**/admin/nyheter/**"
+  - "src/app/api/admin/feed-inbox/**"
+  - "src/app/api/cron/feed-inbox/**"
+  - "src/app/api/feed-cover/**"
+  - "scripts/feed-inbox-add.mjs"
   - "src/lib/rss.ts"
   - "src/lib/event-format.ts"
   - "src/components/features/feed/**"
@@ -72,12 +79,27 @@ paths:
   omdirigering. Vaktat av `tests/unit/feed.test.ts`.
 - ⛔ **INGEN "PÅMINN MIG" PÅ EVENEMANG** (ägarbeslut 2026-09-09). Ett evenemang är ett datum, inte ett
   lager som tar slut. Vill man ha en påminnelse finns arrangörens egen sida bakom knappen.
-- ⛔ **INGEN GODKÄNNANDEKÖ** (ägarbeslut 2026-09-09): flödet publicerar sig självt. Följden är att
-  RELEVANSGRINDEN och kategorireglerna är det enda som står mellan källan och läsaren — de är alltså
-  korrekthetskod, inte finputs.
-- **TRE FILER I `.github/feed/`, ALLA UTANFÖR `watchPatterns`** ⇒ en ändring i dem kostar varken deploy
+- ⛔ **INGEN GODKÄNNANDEKÖ FÖR rss- OCH foilio-LANERNA** (ägarbeslut 2026-09-09): de publicerar sig
+  själva. Följden är att RELEVANSGRINDEN och kategorireglerna är det enda som står mellan källan och
+  läsaren — de är alltså korrekthetskod, inte finputs.
+- **NYHETSINKORGEN — TREDJE LANEN `curated`, GODKÄNNS FÖR HAND (ägarbeslut 2026-09-11)**
+  (`src/lib/feed-inbox.ts`, `feed-inbox-store.ts`, admin → *Nyheter*): en daglig MOLNRUTIN (Claude Code
+  routine, instruktionen bor i `.github/feed/ROUTINE.md`) söker webben + läser butikernas nyhetsbrev i
+  Gmail, skriver SVENSKA utkast (rubrik + ingress med egna ord + länk UT, aldrig `slug`/`body`) och
+  pushar dem till `.github/feed/inbox.json` med `scripts/feed-inbox-add.mjs` (⛔ beroendefritt med flit —
+  rutinen kör i ett klon utan `npm ci`; `stableId` är en kopia, pariteten vaktas av
+  `tests/unit/feed-inbox.test.ts`). `news-feed.yml` levererar filen till `POST /api/cron/feed-inbox` ⇒
+  `drafts.json` på volymen; ägaren rättar, byter bild och godkänner ⇒ `upsertCuratedNews` lägger EN post
+  i lane `curated`. ⛔ `curated` står INTE i `JOB_LANES`: `feed-publish` ersätter en lane i klump och de
+  godkända posterna finns ingen annanstans. ⛔ Rutinen får aldrig veta utfallet och behöver inte — den
+  för sin egen `seen`-lista i git och drar aldrig samma URL två gånger, så ett avvisat utkast kommer inte
+  tillbaka och `mergeInbox` skriver aldrig över en rad den redan har. Ägarens uppladdade omslag ligger
+  som filer i `feed/covers/` på volymen och serveras av `/api/feed-cover/<namn>` (immutable) — ⛔ inte
+  bucketen: dess signerade URL:er dör efter 7 dygn. Hela kedjan är DB-fri; rutinens tidpunkt är därför
+  irrelevant för Neon. ⛔ Rutinen kostar plan-kvot (Pro), inte pengar — max 8 utkast/dag, en körning/dygn.
+- **FYRA FILER I `.github/feed/`, ALLA UTANFÖR `watchPatterns`** ⇒ en ändring i dem kostar varken deploy
   eller databas: `sources.json` (RSS-källor), `news.json` (handskrivna nyheter — marknadsnyheter och
-  "nytt i Foilio", kategori `APP`) och `events.json`. Kurerade poster går in i rss-lanen och sorteras
+  "nytt i Foilio", kategori `APP`), `events.json` och `inbox.json` (rutinens utkast + `seen`). Kurerade poster går in i rss-lanen och sorteras
   in bland de hämtade på `publishedAt`, som ska vara **när nyheten bröt** — inte när den skrevs in.
 - ⛔ **"NYTT I KATALOGEN" ÄR BORTTAGET UR FOILIO-LANEN (ägarbeslut 2026-09-09).** Lanen postade en nyhet
   per ny katalogprodukt; katalogen är inte kurerad, och första körningen mot prod gav bland annat

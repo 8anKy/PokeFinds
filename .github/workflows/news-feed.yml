@@ -18,6 +18,11 @@ name: Nyhetsflödet (RSS + evenemang)
 # De två jobben skriver var sin "lane" i samma dokument (se src/lib/feed.ts) och
 # raderar aldrig varandras poster.
 #
+# NYHETSINKORGEN (2026-09-11): samma körning levererar även utkasten i
+# .github/feed/inbox.json (skrivna av den dagliga molnrutinen, se ROUTINE.md)
+# till /api/cron/feed-inbox. De publiceras INTE här — ägaren godkänner dem i
+# admin → Nyheter. Fortfarande utan databas.
+#
 # TAKT: tre gånger om dygnet räcker. Nyheterna är inte färskvara på samma sätt som
 # lagerstatus, och GitHubs `schedule:`-cron är ändå best effort (mätt: */10 kördes i
 # praktiken var 1,5–3,5 h). Behövs snabbare publicering är svaret workflow_dispatch,

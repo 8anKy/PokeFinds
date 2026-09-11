@@ -349,7 +349,13 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   (`scripts/make-feed-cover.ts`, genereras lokalt och checkas in — aldrig `next/og` i drift, minnet är kapat). Tre filer i `.github/feed/`
   (utanför `watchPatterns` ⇒ ingen deploy, ingen DB): `sources.json` (RSS), `news.json` (handskrivna
   marknadsnyheter + "nytt i Foilio", kategori `APP`) och `events.json` (ingen gratis eventkälla finns).
-  ⛔ Ingen "påminn mig", ingen godkännandekö (ägarbeslut).
+  ⛔ Ingen "påminn mig"; ingen godkännandekö för rss-/foilio-lanerna (ägarbeslut).
+  **+ NYHETSINKORG sedan 2026-09-11 (ägarbeslut, tredje lanen `curated`)**: en daglig Claude Code-MOLNRUTIN
+  (instruktion i `.github/feed/ROUTINE.md`) söker webben + läser butikernas nyhetsbrev i Gmail och pushar
+  svenska UTKAST till `.github/feed/inbox.json` (`scripts/feed-inbox-add.mjs`, beroendefritt); `news-feed.yml`
+  levererar dem till `/api/cron/feed-inbox` ⇒ `drafts.json` på volymen; ägaren godkänner i admin → *Nyheter*
+  (rätta text, ladda upp eget omslag → `feed/covers/` på volymen, `/api/feed-cover/`). ⛔ `curated` står inte
+  i `JOB_LANES` — `feed-publish` hade raderat de godkända. DB-fritt hela vägen. Regler: `news-events.md`.
 - ⛔ **TRE TAL OM ETT SET, ALDRIG BLANDADE**: `totalCards` = printedTotal (talet på kortet, som skannern
   läser — byt ALDRIG mening på den); `totalCardsFull` = hela setet inkl. secret rares (kompletteringens
   nämnare); master set-nämnaren = de TRYCKNINGAR VI listar, aldrig TCGdex tal — en nämnare användaren inte

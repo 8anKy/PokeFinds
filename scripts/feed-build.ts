@@ -29,6 +29,7 @@ import {
   type NewsCategory,
   type NewsItem,
 } from "../src/lib/feed";
+import { feedDraftSchema, inboxFileSchema, inboxPublishSchema, type FeedDraft } from "../src/lib/feed-inbox";
 import { extractOgImage, parseFeed } from "../src/lib/rss";
 
 const UA = "FoilioBot/1.0 (+https://foilio.se; nyhetsflode)";
@@ -117,6 +118,56 @@ async function fillEventCovers(events: EventItem[]): Promise<void> {
 
 async function readJson<T>(file: string): Promise<T> {
   return JSON.parse(await readFile(file, "utf8")) as T;
+}
+
+/** Ett utkast äldre än så här får inget omslag hämtat av oss längre — rutinen hade sin chans. */
+const DRAFT_COVER_MAX_AGE_DAYS = 3;
+
+/**
+ * NYHETSINKORGEN: utkasten den dagliga AI-rutinen pushat till `inbox.json` skickas
+ * till `/api/cron/feed-inbox`, där ägaren godkänner dem i admin. ⛔ De publiceras
+ * INTE här och går inte in i rss-lanen — se src/lib/feed-inbox.ts.
+ * Ett felskrivet utkast varnas om och hoppas över, som de kurerade posterna.
+ */
+async function collectDrafts(dir: string, dry: boolean): Promise<FeedDraft[]> {
+  let raw: unknown;
+  try {
+    raw = await readJson<unknown>(path.join(dir, "inbox.json"));
+  } catch (error) {
+    console.warn(`::warning::[feed] inbox.json kunde inte läsas — ${(error as Error).message}`);
+    return [];
+  }
+  const file = inboxFileSchema.safeParse(raw);
+  if (!file.success) {
+    console.warn(`::warning::[feed] inbox.json har fel form: ${file.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`);
+    return [];
+  }
+  const drafts: FeedDraft[] = [];
+  for (const entry of file.data.drafts) {
+    const parsed = feedDraftSchema.safeParse(entry);
+    if (!parsed.success) {
+      console.warn(`::warning::[feed] utkast hoppades över: ${parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`);
+      continue;
+    }
+    drafts.push(parsed.data);
+  }
+
+  // Omslag för FÄRSKA utkast utan bild — samma og:image-grepp som nyheterna, men
+  // bara några dagar: jobbet kör 3 ggr/dygn och ett utkast ligger kvar i 30.
+  const cutoff = Date.now() - DRAFT_COVER_MAX_AGE_DAYS * 86_400_000;
+  for (const draft of drafts) {
+    if (draft.imageUrl || Date.parse(draft.foundAt) < cutoff) continue;
+    try {
+      const image = extractOgImage(await fetchText(draft.url, ACCEPT_PAGE), draft.url);
+      if (image) draft.imageUrl = image;
+    } catch (error) {
+      console.warn(`::warning::[feed] inget omslag för utkastet ${draft.url} — ${(error as Error).message}`);
+    }
+  }
+
+  console.log(`[feed] inkorg: ${drafts.length} utkast i inbox.json.`);
+  if (dry) for (const d of drafts) console.log(`        · [${d.category}/${d.origin}] ${d.title}`);
+  return drafts;
 }
 
 async function collectNews(sources: Source[], dry: boolean): Promise<NewsItem[]> {
@@ -226,6 +277,8 @@ async function main() {
   });
   console.log(`[feed] rss-lane: ${payload.news.length} nyheter, ${payload.events?.length ?? 0} evenemang.`);
 
+  const inbox = inboxPublishSchema.parse({ generatedAt: payload.generatedAt, drafts: await collectDrafts(dir, dry) });
+
   if (dry) {
     console.log("[feed] --dry: skickar ingenting.");
     return;
@@ -243,6 +296,18 @@ async function main() {
   const text = await res.text();
   if (!res.ok) throw new Error(`publicering misslyckades: HTTP ${res.status} ${text.slice(0, 300)}`);
   console.log(`[feed] publicerat: ${text.slice(0, 200)}`);
+
+  // Inkorgen sist och separat: ett fel här får inte hindra flödet, men ska synas rött.
+  if (inbox.drafts.length > 0) {
+    const inboxRes = await fetch(`${appUrl}/api/cron/feed-inbox`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cron-secret": secret },
+      body: JSON.stringify(inbox),
+    });
+    const inboxText = await inboxRes.text();
+    if (!inboxRes.ok) throw new Error(`inkorgen misslyckades: HTTP ${inboxRes.status} ${inboxText.slice(0, 300)}`);
+    console.log(`[feed] inkorg levererad: ${inboxText.slice(0, 200)}`);
+  }
 }
 
 main().catch((error) => {

@@ -1,0 +1,5 @@
+{
+  "_readme": "NYHETSINKORGEN. Skrivs av den dagliga molnrutinen (se ROUTINE.md här bredvid), läses av .github/workflows/news-feed.yml som skickar utkasten till appen, där ägaren godkänner dem i admin → Nyheter. INGET här publiceras av sig självt. `drafts` = utkast (formen står i src/lib/feed-inbox.ts: id, title, summary, url, source, category, publishedAt, imageUrl, imageFit, origin, note, foundAt). `seen` = rutinens eget minne över varje URL den någonsin skrivit ett utkast för — ett avvisat utkast kommer därför aldrig tillbaka. Filen ligger under .github/ MED FLIT: utanför Railways watchPatterns ⇒ en push hit kostar ingen deploy och rör ingen databas.",
+  "drafts": [],
+  "seen": []
+}

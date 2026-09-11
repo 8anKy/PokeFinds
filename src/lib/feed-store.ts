@@ -17,7 +17,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { cachedRead } from "@/lib/cache";
-import { EMPTY_FEED, feedDocumentSchema, type FeedDocument } from "@/lib/feed";
+import { EMPTY_FEED, feedDocumentSchema, normalizeFeed, type FeedDocument, type NewsItem } from "@/lib/feed";
 
 /**
  * Taggen som `/api/cron/feed-publish` invaliderar när den skrivit. Sidorna är
@@ -27,7 +27,8 @@ import { EMPTY_FEED, feedDocumentSchema, type FeedDocument } from "@/lib/feed";
  */
 export const FEED_CACHE_TAG = "flode";
 
-function feedDir(): string {
+/** Flödets katalog på volymen. Delas med nyhetsinkorgen (`feed-inbox-store.ts`). */
+export function feedDir(): string {
   if (process.env.FEED_DIR) return process.env.FEED_DIR;
   if (process.env.RAILWAY_VOLUME_MOUNT_PATH) return path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "feed");
   // Utveckling: en katalog i projektet (gitignorerad), så flödet går att testa lokalt.
@@ -88,3 +89,28 @@ export async function writeFeed(doc: FeedDocument): Promise<void> {
  *    renderingen (läxan står i src/lib/cache.ts).
  */
 export const getFeed = cachedRead(readFeed, "flode", 3600, [FEED_CACHE_TAG]);
+
+/**
+ * Lägger in (eller ersätter) EN post i lane `curated` — vägen in för ett godkänt
+ * utkast ur nyhetsinkorgen. ⛔ Aldrig via `feed-publish`: den rutten ersätter en
+ * hel lane, och de godkända posterna finns bara här — inget jobb bygger om dem.
+ * Sidorna invalideras av anroparen (`revalidateTag(FEED_CACHE_TAG)`).
+ */
+export async function upsertCuratedNews(item: NewsItem): Promise<FeedDocument> {
+  const current = await readFeed();
+  const doc = normalizeFeed({
+    generatedAt: new Date().toISOString(),
+    news: [item, ...current.news.filter((n) => n.id !== item.id)],
+    events: current.events,
+  });
+  await writeFeed(doc);
+  return doc;
+}
+
+/** Tar bort en post ur flödet på id (ångra ett godkännande). Okänt id är inget fel. */
+export async function removeNewsById(id: string): Promise<FeedDocument> {
+  const current = await readFeed();
+  const doc = { ...current, news: current.news.filter((n) => n.id !== id) };
+  await writeFeed(doc);
+  return doc;
+}
