@@ -69,6 +69,34 @@ export function cachedRead<A extends unknown[], R>(
 }
 
 /**
+ * Som `cachedRead`, men varje post får dessutom en EGEN tagg ur argumenten (t.ex.
+ * `product:<slug>`), så att en admin-åtgärd kan kasta EN produkts cache i stället för
+ * hela `PRICE_CACHE_TAG` (som tömmer varje cachad läsning på sajten och ger ett svep
+ * kalla renders). `unstable_cache` tar taggarna statiskt vid wrap ⇒ wrappern byggs per
+ * anrop; nyckeln är oförändrad (samma `fn.toString()` + `key` + args) så posterna delas.
+ * ⛔ singleFlight-instansen skapas EN gång utanför — annars deduppas inget.
+ */
+export function cachedReadTagged<A extends unknown[], R>(
+  fn: (...args: A) => Promise<R>,
+  key: string,
+  tagOf: (...args: A) => string,
+  revalidateSeconds = 3600,
+  tags: string[] = [PRICE_CACHE_TAG]
+): (...args: A) => Promise<R> {
+  const shared = singleFlight(fn, (...args) => `${key}:${JSON.stringify(args)}`);
+  return (...args: A) =>
+    unstable_cache(shared, [key], {
+      revalidate: revalidateSeconds,
+      tags: [...tags, tagOf(...args)],
+    })(...args);
+}
+
+/** Per-produkt-tagg: `revalidateTag(productCacheTag(slug))` när en produkts data ändrats av hand. */
+export function productCacheTag(slug: string): string {
+  return `product:${slug}`;
+}
+
+/**
  * Slår samman SAMTIDIGA identiska anrop till ETT. Ingen cache: löftet delas bara så
  * länge det är obesvarat, och nyckeln städas när det settlar → noll inaktualitet, inget
  * minne som växer.

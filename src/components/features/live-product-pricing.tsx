@@ -77,6 +77,8 @@ interface LivePricingState {
   flash: boolean;
   affiliateIds: Set<string>;
   refresh: () => void;
+  /** Adminens "Ta bort": raden ryker lokalt, stats räknas om ur resten. */
+  removeOffer: (offerId: string) => void;
 }
 
 const LivePricingContext = createContext<LivePricingState | null>(null);
@@ -163,12 +165,34 @@ export function LivePricingProvider({
 
   // Ingen egen hämtning här: datat kommer via propparna (overlayn har det redan;
   // SSR-sidan hämtar detail-payloaden EN gång vid montering i product-detail-view).
-  // `refresh` finns kvar för adminens manuella uppdatering efter att ha tagit bort
-  // ett erbjudande.
+
+  // Adminens "Ta bort": raden tas bort ur det LOKALA tillståndet. En omhämtning
+  // hade gett tillbaka raden — `/offers` är edge-cachad 60 s (+ SWR) och servade
+  // svaret från FÖRE raderingen (sett 2026-09-11). Statsen räknas om med samma regel
+  // som rutten: lägst i lager, annars lägst prissatt.
+  const removeOffer = useCallback((offerId: string) => {
+    setOffers((prev) => {
+      const next = prev.filter((o) => o.id !== offerId);
+      const priced = next.filter((o) => o.price !== null && o.price > 0);
+      const inStock = priced.filter((o) => o.stockStatus === "IN_STOCK");
+      const pool = inStock.length > 0 ? inStock : priced;
+      const best = pool.length > 0 ? pool.reduce((a, b) => (b.price! < a.price! ? b : a)) : null;
+      const prices = priced.map((o) => o.price!);
+      setStats({
+        lowestPrice: best?.price ?? null,
+        lowestPriceStockStatus: best?.stockStatus ?? null,
+        highestPrice: prices.length > 0 ? Math.max(...prices) : null,
+        avgPrice: prices.length > 0 ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : null,
+        offerCount: next.length,
+      });
+      prevLowestRef.current = best?.price ?? null;
+      return next;
+    });
+  }, []);
 
   return (
     <LivePricingContext.Provider
-      value={{ offers, stats, updatedAt, flash, affiliateIds, refresh: fetchOffers }}
+      value={{ offers, stats, updatedAt, flash, affiliateIds, refresh: fetchOffers, removeOffer }}
     >
       {children}
     </LivePricingContext.Provider>
@@ -326,7 +350,7 @@ export interface LiveOffersTableProps {
 
 export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOffersTableProps) {
   const t = useTranslations("Detail");
-  const { offers, affiliateIds, refresh } = useLivePricing();
+  const { offers, affiliateIds, removeOffer } = useLivePricing();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   // Admin-status: produktsidan ISR-cachas → ingen server-`auth()`. Hämtar bara
@@ -346,7 +370,7 @@ export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOf
     setDeletingId(offerId);
     try {
       const res = await fetch(`/api/admin/offers/${offerId}`, { method: "DELETE" });
-      if (res.ok) refresh();
+      if (res.ok) removeOffer(offerId);
       else alert(t("removeOfferFailed"));
     } finally {
       setDeletingId(null);

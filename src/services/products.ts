@@ -3,7 +3,7 @@
  * Rena funktioner utan framework-beroenden.
  */
 import { prisma, withDbRetry } from "@/lib/db";
-import { cachedRead, singleFlight, STATIC_CACHE_TAG } from "@/lib/cache";
+import { cachedRead, cachedReadTagged, productCacheTag, singleFlight, STATIC_CACHE_TAG } from "@/lib/cache";
 import { normalizeTitle, utcDaysAgo, utcToday } from "@/lib/utils";
 import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
@@ -2104,7 +2104,7 @@ export const searchProducts: typeof searchProductsRaw = (params) =>
 // TTL-cachen → getProductBySlugRaw kördes två gånger per kall rendering (mätt i
 // produktion: 316 anrop mot 160 sidrenderingar). Nu delar de ett löfte.
 export const getProductBySlug = singleFlight(
-  cachedRead(getProductBySlugRaw, "getProductBySlug"),
+  cachedReadTagged(getProductBySlugRaw, "getProductBySlug", productCacheTag),
   (slug) => slug
 );
 export const getPriceHistory = cachedRead(getPriceHistoryRaw, "getPriceHistory");
@@ -2115,7 +2115,9 @@ export const getPriceHistoryBySource = cachedRead(
 export const getSimilarProducts = cachedRead(getSimilarProductsRaw, "getSimilarProducts");
 // Hela produktsidans data, cachad per slug → upprepade overlay-öppningar/sidvisningar
 // träffar cachen (inte Neon). Datum serialiseras till strängar — ofarligt (se ProductDetailData).
+// Per-slug-tagg: adminens "Ta bort" på en offer kastar just den här produktens post
+// (annars låg den borttagna raden kvar i upp till en timme — sett 2026-09-11).
 export const loadProductDetail = singleFlight(
-  cachedRead(loadProductDetailRaw, "loadProductDetail"),
+  cachedReadTagged(loadProductDetailRaw, "loadProductDetail", productCacheTag),
   (slug) => slug
 );

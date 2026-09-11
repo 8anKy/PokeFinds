@@ -7,6 +7,8 @@ import { recomputeProductPriceCache } from "@/services/products";
 import { purgeMismatchedMarketplaceOffer } from "@/services/marketplace-offers";
 import { normalizeListingUrl } from "@/scrapers/import-denylist";
 import { isStoreRetailer } from "@/lib/offer-source";
+import { revalidateTag } from "next/cache";
+import { productCacheTag } from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +34,7 @@ export async function DELETE(
       select: {
         id: true, productId: true, url: true, price: true, retailerId: true,
         retailer: { select: { name: true } },
-        product: { select: { category: true } },
+        product: { select: { category: true, slug: true } },
       },
     });
     if (!offer) throw new ServiceError(404, "Erbjudandet hittades inte.");
@@ -74,6 +76,9 @@ export async function DELETE(
       });
     }
     await recomputeProductPriceCache();
+    // Kasta produktens cachade detalj (1 h) — annars visar sidan raden tills TTL:en
+    // löper ut. Bara DEN HÄR produkten, aldrig hela pristaggen.
+    if (offer.product?.slug) revalidateTag(productCacheTag(offer.product.slug));
 
     await writeAuditLog({
       userId: admin.id,
