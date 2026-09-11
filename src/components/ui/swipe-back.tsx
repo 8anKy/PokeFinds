@@ -268,7 +268,10 @@ export function SwipeBack({
         ref={contentRef}
         className={cn(
           "bg-surface will-change-transform",
-          coverViewport && "fixed inset-0 z-30 lg:static lg:z-auto"
+          // `fixed` lämnar dokumentets body-padding bakom sig. Helsidesytan
+          // måste därför själv ta över både statusfältets inset och AppShells
+          // vanliga py-6, annars hamnar samtalshuvudet under Dynamic Island.
+          coverViewport && "fixed inset-0 z-30 pt-[calc(env(safe-area-inset-top)+1.5rem)] lg:static lg:z-auto lg:pt-0"
         )}
       >
         {children}
