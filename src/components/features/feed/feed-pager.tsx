@@ -28,18 +28,19 @@ export function FeedPager({
   const t = useTranslations("News");
   const [active, setActive] = useState<FeedTab>(initial);
   const [dragX, setDragX] = useState<number | null>(null);
+  const dragXRef = useRef<number | null>(null);
   const start = useRef<{ x: number; y: number } | null>(null);
   const axis = useRef<"x" | "y" | null>(null);
 
   const select = (next: FeedTab) => {
+    dragXRef.current = null;
     setDragX(null);
     setActive(next);
   };
 
   return (
     <div
-      data-swipe-ignore
-      className="overflow-hidden"
+      className="overflow-hidden touch-pan-y"
       onTouchStart={(event) => {
         if (event.touches.length !== 1) return;
         start.current = { x: event.touches[0].clientX, y: event.touches[0].clientY };
@@ -58,18 +59,22 @@ export function FeedPager({
         // evenemang till höger.
         if ((active === "news" && dx > 0) || (active === "events" && dx < 0)) return;
         event.preventDefault();
+        dragXRef.current = dx;
         setDragX(dx);
       }}
       onTouchEnd={() => {
-        if (dragX != null && Math.abs(dragX) > 56) {
-          select(dragX < 0 ? "events" : "news");
+        const releasedAt = dragXRef.current;
+        if (releasedAt != null && Math.abs(releasedAt) > 56) {
+          select(releasedAt < 0 ? "events" : "news");
         } else {
+          dragXRef.current = null;
           setDragX(null);
         }
         start.current = null;
         axis.current = null;
       }}
       onTouchCancel={() => {
+        dragXRef.current = null;
         setDragX(null);
         start.current = null;
         axis.current = null;

@@ -278,7 +278,10 @@ export function SwipeBack({
           // måste därför själv ta över både statusfältets inset och AppShells
           // vanliga py-6, annars hamnar samtalshuvudet under Dynamic Island.
           coverViewport && [
-            "fixed inset-0 z-30 lg:static lg:z-auto",
+            // En fixed helskärmsyta lämnar annars sidans dokument-scroll bakom
+            // sig. Den egna scrollcontainern gör långa listor (som Nyheter)
+            // rullbara utan att den övre svepytan tappar viewporten.
+            "fixed inset-0 z-30 overflow-y-auto overscroll-contain lg:static lg:z-auto lg:overflow-visible",
             viewportInset === "app"
               ? "pt-[calc(env(safe-area-inset-top)+1.5rem)] lg:pt-0"
               : "pt-[env(safe-area-inset-top)] lg:pt-0",
