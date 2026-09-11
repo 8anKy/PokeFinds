@@ -68,6 +68,12 @@ describe("stableId", () => {
 });
 
 describe("slugify", () => {
+  it("kapar långa rubriker vid ett ordslut, aldrig mitt i ett ord", () => {
+    const slug = slugify("Sällsynt Pikachu Illustrator på auktion hos Heritage – budet över 1,1 miljoner dollar");
+    expect(slug.length).toBeLessThanOrEqual(80);
+    expect(slug.endsWith("-miljoner")).toBe(true);
+  });
+
   it("translittererar svenska tecken i stället för att stryka dem", () => {
     expect(slugify("Samlarkortsfestivalen Malmö")).toBe("samlarkortsfestivalen-malmo");
     expect(slugify("Svenska Pokémonmässan Göteborg")).toBe("svenska-pokemonmassan-goteborg");

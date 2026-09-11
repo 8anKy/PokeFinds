@@ -207,13 +207,16 @@ const TRANSLIT: Record<string, string> = {
 };
 
 export function slugify(input: string): string {
-  return input
+  const full = input
     .toLowerCase()
     .replace(/[^a-z0-9]/g, (ch) => TRANSLIT[ch] ?? ch)
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80)
-    .replace(/-+$/g, "");
+    .replace(/^-+|-+$/g, "");
+  if (full.length <= 80) return full;
+  // Kapa vid ett ORDSLUT: "…-1-1-miljoner-dol" läser som ett fel, "…-1-1-miljoner" gör det inte.
+  const cut = full.slice(0, 80);
+  const lastDash = cut.lastIndexOf("-");
+  return (lastDash > 40 ? cut.slice(0, lastDash) : cut).replace(/-+$/g, "");
 }
 
 /**
