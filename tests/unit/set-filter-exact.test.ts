@@ -9,7 +9,9 @@ vi.mock("@/lib/cache", () => ({
   cachedRead: (fn: unknown) => fn,
   cachedReadTagged: (fn: unknown) => fn,
   singleFlight: (fn: unknown) => fn,
+  productCacheTag: (slug: string) => `produkt:${slug}`,
   STATIC_CACHE_TAG: "statisk",
+  PRICE_CACHE_TAG: "priser",
 }));
 vi.mock("@/services/market", () => ({ getTrendingLift: vi.fn() }));
 
