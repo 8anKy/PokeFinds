@@ -1,5 +1,26 @@
 {
   "_readme": "NYHETSINKORGEN. Skrivs av den dagliga molnrutinen (se ROUTINE.md här bredvid), läses av .github/workflows/news-feed.yml som skickar utkasten till appen, där ägaren godkänner dem i admin → Nyheter. INGET här publiceras av sig självt. `drafts` = utkast (formen står i src/lib/feed-inbox.ts: id, title, summary, url, source, category, publishedAt, imageUrl, imageFit, origin, note, foundAt). `seen` = rutinens eget minne över varje URL den någonsin skrivit ett utkast för — ett avvisat utkast kommer därför aldrig tillbaka. Filen ligger under .github/ MED FLIT: utanför Railways watchPatterns ⇒ en push hit kostar ingen deploy och rör ingen databas.",
-  "drafts": [],
-  "seen": []
+  "drafts": [
+    {
+      "id": "10qvx73yf2vqn",
+      "title": "30th Celebration släpps världen över den 16 september",
+      "summary": "Setet blir det första i Pokémon TCG:s historia som släpps samtidigt i hela världen. Den engelska kortlistan är nu klar, med 30 Pikachu-kort och den nya sällsyntheten Futuristic Rare med Mew ex och Mewtwo ex.",
+      "url": "https://www.pokebeach.com/2026/09/30th-celebration-english-set-guide-full-card-list-products-store-promotions-and-more",
+      "source": "PokéBeach",
+      "category": "RELEASE",
+      "publishedAt": "2026-09-09T00:00:00.000Z",
+      "imageUrl": null,
+      "imageFit": "cover",
+      "origin": "web",
+      "note": "Släppdatum, kortlista och antal (30 Pikachu-kort, Futuristic Rare-rariteten) korsverifierade mot flera källor (bl.a. pokemon.com, Dexerto). Ingen bild kunde hämtas automatiskt av rutinen.",
+      "foundAt": "2026-09-11T15:03:46.243Z"
+    }
+  ],
+  "seen": [
+    {
+      "id": "10qvx73yf2vqn",
+      "url": "https://www.pokebeach.com/2026/09/30th-celebration-english-set-guide-full-card-list-products-store-promotions-and-more",
+      "at": "2026-09-11T15:03:46.243Z"
+    }
+  ]
 }
