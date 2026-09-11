@@ -2324,6 +2324,30 @@ function Scanner() {
 
   const detailsItem = detailsId ? scans.find((s) => s.id === detailsId) ?? null : null;
 
+  const topbar = (
+    <div className="relative z-20 flex items-center justify-between gap-3 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <button
+        ref={closeBtnRef}
+        type="button"
+        onClick={
+          view === "review"
+            ? () => (streamRef.current ? setView("capture") : closeScanner())
+            : closeScanner
+        }
+        aria-label={view === "review" ? t("backToCamera") : t("closeScanner")}
+        className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-ink backdrop-blur transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
+      >
+        {view === "review" ? <IconChevronLeft size={20} /> : <IconX size={20} />}
+      </button>
+      <div className="text-center">
+        <p className="text-sm font-semibold text-ink">
+          {view === "review" ? t("reviewTitle") : t("captureTitle")}
+        </p>
+      </div>
+      <div className="h-10 w-10" aria-hidden="true" />
+    </div>
+  );
+
   // =========================================================================
   // Skanner-overlay (capture + review) — fullskärm, immersivt
   // =========================================================================
@@ -2341,28 +2365,7 @@ function Scanner() {
       aria-label={t("dialogAria")}
       className="fixed inset-0 z-[60] flex flex-col bg-black text-ink"
     >
-      {/* Topbar */}
-      <div className="relative z-20 flex items-center justify-between gap-3 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <button
-          ref={closeBtnRef}
-          type="button"
-          onClick={
-            view === "review"
-              ? () => (streamRef.current ? setView("capture") : closeScanner())
-              : closeScanner
-          }
-          aria-label={view === "review" ? t("backToCamera") : t("closeScanner")}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-ink backdrop-blur transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
-        >
-          {view === "review" ? <IconChevronLeft size={20} /> : <IconX size={20} />}
-        </button>
-        <div className="text-center">
-          <p className="text-sm font-semibold text-ink">
-            {view === "review" ? t("reviewTitle") : t("captureTitle")}
-          </p>
-        </div>
-        <div className="h-10 w-10" aria-hidden="true" />
-      </div>
+      {view === "capture" && topbar}
 
       <div
         aria-hidden={view === "review" || undefined}
@@ -2417,7 +2420,9 @@ function Scanner() {
       </div>
 
       {view === "review" && (
-        <ReviewView
+        <div data-review-panel className="absolute inset-0 z-10 flex flex-col bg-surface">
+          {topbar}
+          <ReviewView
           scans={scans}
           matchedCount={matched.length}
           noMatchCount={noMatchCount}
@@ -2438,8 +2443,9 @@ function Scanner() {
             addedRef.current = false;
             setView("capture");
           }}
-          onClose={closeScanner}
-        />
+            onClose={closeScanner}
+          />
+        </div>
       )}
 
       {/* Säljarket över skannern: `elevated` lyfter det ovanför helskärmsvärden
@@ -3269,7 +3275,7 @@ function ReviewView(props: {
   return (
     // data-review-panel: det som följer fingret vid högersvep (tillbaka till
     // kameran) — se svep-effekten i ScannerPage.
-    <div data-review-panel className="relative z-10 flex min-h-0 flex-1 flex-col bg-surface">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex-1 overflow-y-auto px-4 pb-40">
         <p className="py-3 text-sm text-ink-muted">
           {t("addingTo")}{" "}

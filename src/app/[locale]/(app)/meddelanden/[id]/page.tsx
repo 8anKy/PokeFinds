@@ -60,7 +60,7 @@ export default async function ConversationPage({ params }: PageProps) {
     // innehåll uppåt när tangentbordet öppnas (transform, se komponenten) — låg
     // headern inuti gled den upp ur bild och kom tillbaka först när tangentbordet
     // stängdes. Utanför står den still och listan glider upp under den.
-    <SwipeBack fallback="/meddelanden">
+    <SwipeBack fallback="/meddelanden" coverViewport>
     <>
       <ConversationHeader
         conversationId={conv.id}

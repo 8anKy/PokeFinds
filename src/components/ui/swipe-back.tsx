@@ -30,10 +30,13 @@ export function SwipeBack({
   fallback,
   children,
   className,
+  coverViewport = false,
 }: {
   fallback: string;
   children: ReactNode;
   className?: string;
+  /** Helsidesdetaljer (t.ex. samtal) måste även dra med safe-area + huvud. */
+  coverViewport?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -92,7 +95,7 @@ export function SwipeBack({
       underlay.style.display = "block";
       content.style.transition = "none";
       content.style.transform = "translateX(100%)";
-      content.style.position = "relative";
+      content.style.position = coverViewport ? "fixed" : "relative";
       content.style.zIndex = "1";
       content.style.minHeight = `${window.innerHeight}px`;
       firstFrame = window.requestAnimationFrame(() => {
@@ -110,7 +113,7 @@ export function SwipeBack({
       hasUnderlayRef.current = false;
       underlay.replaceChildren();
     };
-  }, [pathname]);
+  }, [pathname, coverViewport]);
 
   useEffect(() => {
     const el = contentRef.current;
@@ -127,7 +130,7 @@ export function SwipeBack({
     const revealUnderlay = () => {
       if (!hasUnderlayRef.current || !underlay) return;
       underlay.style.display = "block";
-      el.style.position = "relative";
+      el.style.position = coverViewport ? "fixed" : "relative";
       el.style.zIndex = "1";
       // ⛔ Innehållssidorna har normalt transparent bakgrund eftersom marketing-
       // skalet målar svart bakom dem. När den förra vyn ligger MELLAN skalet och
@@ -251,7 +254,7 @@ export function SwipeBack({
       el.removeEventListener("touchend", onEnd);
       el.removeEventListener("touchcancel", onCancel);
     };
-  }, []);
+  }, [coverViewport]);
 
   return (
     <div className={cn("relative", className)}>
@@ -261,7 +264,13 @@ export function SwipeBack({
         aria-hidden="true"
         className="pointer-events-none fixed inset-x-0 bottom-0 top-[env(safe-area-inset-top)] z-0 hidden overflow-hidden bg-surface"
       />
-      <div ref={contentRef} className="bg-surface will-change-transform">
+      <div
+        ref={contentRef}
+        className={cn(
+          "bg-surface will-change-transform",
+          coverViewport && "fixed inset-0 z-30 lg:static lg:z-auto"
+        )}
+      >
         {children}
       </div>
     </div>
