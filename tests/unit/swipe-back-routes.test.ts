@@ -10,6 +10,9 @@ describe("SwipeBack-rutter", () => {
     "/forum/sparade",
     "/nyheter/nytt-i-foilio",
     "/evenemang/stockholm",
+    "/bevakningar",
+    "/gradera",
+    "/meddelanden",
     "/meddelanden/conv_1",
     "/skanna",
     "/installningar",
@@ -27,7 +30,6 @@ describe("SwipeBack-rutter", () => {
     "/forum",
     "/forum/ny",
     "/installningar/okand",
-    "/meddelanden",
     "/produkter/pikachu",
     "/forum/t/post_1/extra",
   ])("kopierar inte sidan för vanlig navigation till %s", (pathname) => {
