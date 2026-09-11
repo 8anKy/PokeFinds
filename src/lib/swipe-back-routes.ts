@@ -13,8 +13,6 @@ export function isSwipeBackDestination(pathname: string): boolean {
     /^\/(?:sets|profil)\/[^/]+$/.test(normalized) ||
     /^\/forum\/(?:g|t)\/[^/]+$/.test(normalized) ||
     normalized === "/forum/sparade" ||
-    normalized === "/nyheter" ||
-    normalized === "/evenemang" ||
     /^\/(?:nyheter|evenemang)\/[^/]+$/.test(normalized) ||
     normalized === "/bevakningar" ||
     normalized === "/gradera" ||

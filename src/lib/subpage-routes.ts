@@ -19,8 +19,6 @@ const EXACT = new Set([
   "/gradera",
   "/admin",
   "/priser",
-  "/nyheter",
-  "/evenemang",
   "/kontakt",
   "/meddelanden",
   "/forum/sparade",
