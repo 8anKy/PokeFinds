@@ -7,10 +7,10 @@ import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { alternatesFor, baseOpenGraph } from "@/lib/canonical";
 import { getFeed } from "@/lib/feed-store";
-import { FeedSwitch } from "@/components/features/feed/feed-chrome";
-import { EventsList } from "@/components/features/feed/events-list";
+import { FeedPager } from "@/components/features/feed/feed-pager";
 import { FeedHidden } from "@/components/features/feed/feed-hidden";
 import { newsFeedPublic } from "@/lib/news-feed-gate";
+import { SwipeBack } from "@/components/ui/swipe-back";
 
 export const revalidate = 3600;
 
@@ -45,14 +45,11 @@ export async function generateMetadata({ params }: { params: { locale: string } 
 export default async function EventsPage({ params }: { params: { locale: string } }) {
   setRequestLocale(params.locale);
   if (!newsFeedPublic()) return <FeedHidden />;
-  const t = await getTranslations("News");
   const feed = await getFeed();
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-3 px-2.5 py-4 sm:px-6 sm:py-6">
-      <h1 className="sr-only">{t("tabEvents")}</h1>
-      <FeedSwitch active="events" />
-      <EventsList items={feed.events} />
-    </div>
+    <SwipeBack fallback="/produkter" coverViewport viewportInset="safe">
+      <FeedPager initial="events" news={feed.news} events={feed.events} />
+    </SwipeBack>
   );
 }

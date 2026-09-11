@@ -9,6 +9,7 @@ describe("SwipeBack-rutter", () => {
     "/forum/t/post_1",
     "/forum/sparade",
     "/nyheter",
+    "/evenemang",
     "/nyheter/nytt-i-foilio",
     "/evenemang/stockholm",
     "/bevakningar",

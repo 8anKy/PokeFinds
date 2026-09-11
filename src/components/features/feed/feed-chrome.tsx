@@ -25,19 +25,39 @@ import {
   type IconProps,
 } from "@/components/ui/icons";
 
-export function FeedSwitch({ active }: { active: "news" | "events" }) {
+export function FeedSwitch({
+  active,
+  onChange,
+}: {
+  active: "news" | "events";
+  /** En inbäddad mobilväxlare behåller båda ISR-lägena i samma vy. */
+  onChange?: (next: "news" | "events") => void;
+}) {
   const t = useTranslations("News");
   const item = "flex flex-1 items-center justify-center rounded-full text-sm font-medium transition-colors duration-150 h-[38px]";
   const on = "bg-holo-cyan/12 text-holo-cyan font-semibold ring-1 ring-inset ring-holo-cyan/35";
   const off = "text-ink-muted hover:text-ink";
   return (
     <div className="flex gap-1 rounded-full border border-surface-border bg-black/40 p-1">
-      <Link href="/nyheter" className={cn(item, active === "news" ? on : off)} aria-current={active === "news" ? "page" : undefined}>
-        {t("tabNews")}
-      </Link>
-      <Link href="/evenemang" className={cn(item, active === "events" ? on : off)} aria-current={active === "events" ? "page" : undefined}>
-        {t("tabEvents")}
-      </Link>
+      {onChange ? (
+        <>
+          <button type="button" onClick={() => onChange("news")} className={cn(item, active === "news" ? on : off)} aria-pressed={active === "news"}>
+            {t("tabNews")}
+          </button>
+          <button type="button" onClick={() => onChange("events")} className={cn(item, active === "events" ? on : off)} aria-pressed={active === "events"}>
+            {t("tabEvents")}
+          </button>
+        </>
+      ) : (
+        <>
+          <Link href="/nyheter" className={cn(item, active === "news" ? on : off)} aria-current={active === "news" ? "page" : undefined}>
+            {t("tabNews")}
+          </Link>
+          <Link href="/evenemang" className={cn(item, active === "events" ? on : off)} aria-current={active === "events" ? "page" : undefined}>
+            {t("tabEvents")}
+          </Link>
+        </>
+      )}
     </div>
   );
 }

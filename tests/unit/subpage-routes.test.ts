@@ -16,6 +16,7 @@ describe("isSubpageRoute", () => {
       "/admin",
       "/priser",
       "/nyheter",
+      "/evenemang",
       "/kontakt",
       "/forum/sparade",
       "/forum/ny",
@@ -35,7 +36,7 @@ describe("isSubpageRoute", () => {
   });
 
   it("flikarnas rotsidor och listor behåller logotyphuvudet", () => {
-    for (const p of ["/", "/produkter", "/samling", "/skanna", "/forum", "/mer", "/sets", "/marknad", "/evenemang"]) {
+    for (const p of ["/", "/produkter", "/samling", "/skanna", "/forum", "/mer", "/sets", "/marknad"]) {
       expect(isSubpageRoute(p), p).toBe(false);
     }
   });

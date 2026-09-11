@@ -20,6 +20,7 @@ const EXACT = new Set([
   "/admin",
   "/priser",
   "/nyheter",
+  "/evenemang",
   "/kontakt",
   "/meddelanden",
   "/forum/sparade",

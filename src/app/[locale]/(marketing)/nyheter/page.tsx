@@ -10,11 +10,9 @@ import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { alternatesFor, baseOpenGraph } from "@/lib/canonical";
 import { getFeed } from "@/lib/feed-store";
-import { FeedSwitch } from "@/components/features/feed/feed-chrome";
-import { NewsList } from "@/components/features/feed/news-list";
+import { FeedPager } from "@/components/features/feed/feed-pager";
 import { FeedHidden } from "@/components/features/feed/feed-hidden";
 import { newsFeedPublic } from "@/lib/news-feed-gate";
-import { SubpageHeader } from "@/components/layout/subpage-header";
 import { SwipeBack } from "@/components/ui/swipe-back";
 
 export const revalidate = 3600;
@@ -53,17 +51,11 @@ export default async function NewsPage({ params }: { params: { locale: string } 
   // ⛔ Ytan är inte färdig (ägarbeslut) — se lib/news-feed-gate.ts. Grinden ligger
   //    FÖRE läsningen: en dold sida ska inte ens röra flödesfilen.
   if (!newsFeedPublic()) return <FeedHidden />;
-  const t = await getTranslations("News");
   const feed = await getFeed();
 
   return (
     <SwipeBack fallback="/produkter" coverViewport viewportInset="safe">
-      <div className="mx-auto flex max-w-3xl flex-col gap-3 px-2.5 py-4 sm:px-6 sm:py-6">
-        <SubpageHeader title={t("tabNews")} fallback="/produkter" mobileOnly />
-        <h1 className="sr-only">{t("tabNews")}</h1>
-        <FeedSwitch active="news" />
-        <NewsList items={feed.news} />
-      </div>
+      <FeedPager initial="news" news={feed.news} events={feed.events} />
     </SwipeBack>
   );
 }
