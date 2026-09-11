@@ -30,17 +30,12 @@ export function SwipeBack({
   fallback,
   children,
   className,
-  coverViewport = true,
+  coverViewport = false,
 }: {
   fallback: string;
   children: ReactNode;
   className?: string;
-  /**
-   * En SwipeBack-rutt är en detaljyta ovanpå sin föregångare. Den måste därför
-   * alltid täcka viewporten, inklusive safe-area och sidans vanliga toppmarginal.
-   * Annars flyttar bara innehållet medan skalet blir en svart toppremsa och
-   * föregående vy läcker igenom ovanför (forumtråd/inställningar 2026-09-11).
-   */
+  /** Helsidesdetaljer (t.ex. samtal) måste även vila över safe-area + huvud. */
   coverViewport?: boolean;
 }) {
   const router = useRouter();
@@ -82,6 +77,8 @@ export function SwipeBack({
       content.style.transition = "none";
       content.style.transform = "";
       content.style.position = "";
+      content.style.inset = "";
+      content.style.paddingTop = "";
       content.style.zIndex = "";
       content.style.minHeight = "";
       content.style.borderTopLeftRadius = "";
@@ -100,7 +97,16 @@ export function SwipeBack({
       underlay.style.display = "block";
       content.style.transition = "none";
       content.style.transform = "translateX(100%)";
-      content.style.position = coverViewport ? "fixed" : "relative";
+      if (coverViewport) {
+        content.style.position = "fixed";
+      } else {
+        // Forumet börjar direkt under safe-area medan inställningarna redan
+        // ligger efter AppShells py-6. Behåll den uppmätta startpunkten när
+        // ytan tas ur flödet, så hela vyn följer fingret utan toppremsa.
+        content.style.paddingTop = `${content.getBoundingClientRect().top}px`;
+        content.style.position = "fixed";
+        content.style.inset = "0";
+      }
       content.style.zIndex = "1";
       content.style.minHeight = `${window.innerHeight}px`;
       firstFrame = window.requestAnimationFrame(() => {
@@ -135,7 +141,15 @@ export function SwipeBack({
     const revealUnderlay = () => {
       if (!hasUnderlayRef.current || !underlay) return;
       underlay.style.display = "block";
-      el.style.position = coverViewport ? "fixed" : "relative";
+      if (coverViewport) {
+        el.style.position = "fixed";
+      } else {
+        // Samma mätning behövs när svepet börjar efter att öppningsanimationen
+        // redan städats bort: varje routgrupp har sin egen lodräta startpunkt.
+        el.style.paddingTop = `${el.getBoundingClientRect().top}px`;
+        el.style.position = "fixed";
+        el.style.inset = "0";
+      }
       el.style.zIndex = "1";
       // ⛔ Innehållssidorna har normalt transparent bakgrund eftersom marketing-
       // skalet målar svart bakom dem. När den förra vyn ligger MELLAN skalet och
@@ -156,6 +170,8 @@ export function SwipeBack({
     const hideUnderlay = () => {
       if (underlay) underlay.style.display = "none";
       el.style.position = "";
+      el.style.inset = "";
+      el.style.paddingTop = "";
       el.style.zIndex = "";
       el.style.minHeight = "";
       el.style.borderTopLeftRadius = "";
@@ -263,14 +279,11 @@ export function SwipeBack({
 
   return (
     <div className={cn("relative", className)}>
-      {/* Klonen innehåller skalets redan uppmätta scrollposition. Den får inte
-          dessutom flyttas ner med safe-area-inset här: då får bakgrunden
-          insettet två gånger och lämnar en svart remsa överst under svepet. */}
       <div
         ref={underlayRef}
         data-swipe-back-underlay
         aria-hidden="true"
-        className="pointer-events-none fixed inset-0 z-0 hidden overflow-hidden bg-surface"
+        className="pointer-events-none fixed inset-x-0 bottom-0 top-[env(safe-area-inset-top)] z-0 hidden overflow-hidden bg-surface"
       />
       <div
         ref={contentRef}
