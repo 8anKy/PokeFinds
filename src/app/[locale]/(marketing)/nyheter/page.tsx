@@ -13,6 +13,7 @@ import { getFeed } from "@/lib/feed-store";
 import { FeedPager } from "@/components/features/feed/feed-pager";
 import { FeedHidden } from "@/components/features/feed/feed-hidden";
 import { newsFeedPublic } from "@/lib/news-feed-gate";
+import { SwipeBack } from "@/components/ui/swipe-back";
 
 export const revalidate = 3600;
 
@@ -53,6 +54,8 @@ export default async function NewsPage({ params }: { params: { locale: string } 
   const feed = await getFeed();
 
   return (
-    <FeedPager initial="news" news={feed.news} events={feed.events} />
+    <SwipeBack fallback="/produkter" coverViewport viewportInset="safe">
+      <FeedPager initial="news" news={feed.news} events={feed.events} />
+    </SwipeBack>
   );
 }
