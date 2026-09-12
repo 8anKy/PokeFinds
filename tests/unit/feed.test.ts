@@ -1,8 +1,7 @@
 /**
  * Nyhetsflödets rena dom: relevansgrinden, identiteten och gallringen.
  *
- * De tre sakerna som kostar mest om de går sönder:
- *  · relevansgrinden — utan den blir "Senaste nytt" en tv-spelsblogg,
+ * De två sakerna som kostar mest om de går sönder:
  *  · `stableId` — instabil ⇒ samma nyhet dubbleras vid varje körning,
  *  · lane-invarianten — ett jobb får aldrig radera det andras poster.
  */
@@ -14,47 +13,12 @@ import {
   daysUntil,
   eventItemSchema,
   feedPublishSchema,
-  inferNewsCategory,
-  isTcgRelevant,
   newsItemSchema,
   normalizeFeed,
   slugify,
   stableId,
 } from "@/lib/feed";
-import { decodeEntities, parseFeed, stripTags } from "@/lib/rss";
-
-describe("relevansgrinden", () => {
-  it("släpper igenom kortnyheter", () => {
-    expect(isTcgRelevant("New TCG set announced", "")).toBe(true);
-    expect(isTcgRelevant("Elite Trainer Box preorders are live", "")).toBe(true);
-    expect(isTcgRelevant("Prerelease events announced", null)).toBe(true);
-    expect(isTcgRelevant("Nya kort i katalogen", undefined)).toBe(true);
-  });
-
-  it("fäller tv-spelsnyheter — det var 18 av 18 i verkliga flöden", () => {
-    expect(isTcgRelevant("Nintendo Direct September 2026 Is Live", "")).toBe(false);
-    expect(isTcgRelevant("Pokémon GO Battle League now underway", "")).toBe(false);
-    expect(isTcgRelevant("Pokémon Pokopia update 2.0.1 is now available", "")).toBe(false);
-  });
-
-  it("ordet pokemon ensamt räcker inte — det står i varje rubrik hos källorna", () => {
-    expect(isTcgRelevant("Pokémon news roundup", "")).toBe(false);
-  });
-
-  it("en uteslutande term vinner över en relevant", () => {
-    expect(isTcgRelevant("Pokemon GO adds new card-themed avatar", "")).toBe(false);
-  });
-});
-
-describe("kategori", () => {
-  it("ett släpp känns igen oavsett källans egen kategori", () => {
-    expect(inferNewsCategory("MARKET", "Preorder opens for the new set", "")).toBe("RELEASE");
-    expect(inferNewsCategory("STORE", "Release date confirmed", "")).toBe("RELEASE");
-  });
-  it("annars behålls källans kategori", () => {
-    expect(inferNewsCategory("MARKET", "PSA raises grading prices", "")).toBe("MARKET");
-  });
-});
+import { decodeEntities, stripTags } from "@/lib/rss";
 
 describe("stableId", () => {
   it("är stabil för samma indata", () => {
@@ -177,47 +141,7 @@ describe("daysUntil", () => {
   });
 });
 
-describe("rss-läsaren", () => {
-  const rss = `<?xml version="1.0"?><rss><channel><title>Testflödet</title>
-    <item>
-      <title><![CDATA[Ny ETB &amp; mer]]></title>
-      <link>https://example.com/a</link>
-      <pubDate>Tue, 08 Sep 2026 10:00:00 +0000</pubDate>
-      <description><![CDATA[<p>Text med <b>taggar</b> och <img src="https://example.com/bild.jpg"> bild.</p>]]></description>
-    </item>
-    <item>
-      <title>Utan datum</title>
-      <link>https://example.com/b</link>
-    </item>
-  </channel></rss>`;
-
-  it("plockar rubrik, länk, datum, ren text och bild", () => {
-    const [first] = parseFeed(rss);
-    expect(first.title).toBe("Ny ETB & mer");
-    expect(first.link).toBe("https://example.com/a");
-    expect(first.publishedAt).toBe("2026-09-08T10:00:00.000Z");
-    expect(first.summary).toBe("Text med taggar och bild.");
-    expect(first.imageUrl).toBe("https://example.com/bild.jpg");
-  });
-
-  it("en post utan datum tas med men saknar publishedAt (jobbet fäller den)", () => {
-    expect(parseFeed(rss)[1].publishedAt).toBeNull();
-  });
-
-  it("kastar inte på skräp", () => {
-    expect(parseFeed("inte xml alls")).toEqual([]);
-    expect(parseFeed("<rss><channel><item><title>utan länk</title></item></channel></rss>")).toEqual([]);
-  });
-
-  it("läser Atom-poster med rel=alternate", () => {
-    const atom = `<feed><entry><title>Atomrubrik</title>
-      <link rel="replies" href="https://example.com/kommentarer"/>
-      <link rel="alternate" href="https://example.com/atom"/>
-      <updated>2026-09-07T08:00:00Z</updated></entry></feed>`;
-    const [entry] = parseFeed(atom);
-    expect(entry.link).toBe("https://example.com/atom");
-  });
-
+describe("html-hjälparna", () => {
   it("avkodar dubbelkodade entiteter", () => {
     expect(decodeEntities("Tom &amp;#39;s kort")).toBe("Tom 's kort");
     expect(stripTags("<p>a&nbsp;&amp;&nbsp;b</p>")).toBe("a & b");

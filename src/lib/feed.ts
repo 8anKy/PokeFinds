@@ -13,9 +13,12 @@
  * appen skriver den till Railway-volymen och sidorna läser filen. Noll DB-läsningar
  * per sidvisning, noll nya väckningar. Samma mönster som Discord-lanens larm-hits.
  *
- * ⛔ VI ÅTERGER ALDRIG EN ARTIKELS TEXT. En nyhet är rubrik + kort ingress + källa
- *    + länk UT till källan. Därför har nyheter ingen egen detaljsida: raden går
- *    direkt till artikeln. Evenemang har detaljsida — den texten är vår egen.
+ * ⛔ VI ÅTERGER ALDRIG EN ARTIKELS TEXT. En nyhet vi själva skrivit om (inkorgen,
+ *    `slug` + `body`) får en egen sida med vår text och länken till originalet
+ *    längst ned; en post utan `body` går rakt till källan.
+ * ⛔ RSS-LANEN ÄR NEDLAGD 2026-09-12 (ägarbeslut): den publicerade sig själv förbi
+ *    godkännandet. Lane `rss` finns kvar som namn på det jobbet som skriver
+ *    `news.json` + `events.json`; nyheter kommer ur inkorgen (`curated`).
  */
 import { z } from "zod";
 
@@ -102,10 +105,11 @@ export const newsItemSchema = z.object({
   /** Vår egen text om nyheten. Tom ⇒ ingen detaljsida, raden går till `url`. */
   body: z.array(eventBlockSchema).max(40).default([]),
   /**
-   * Vilken producent posten kom ifrån. Två jobb fyller flödet: `rss` (DB-fritt,
-   * flera gånger om dagen) och `foilio` (vår egen katalog, ett steg i nattkedjan
-   * där Neon ändå är vaken). ⛔ Publiceringsrutten ERSÄTTER EN LANE I TAGET —
-   * utan fältet hade det jobb som körde sist raderat det andras poster.
+   * Vilken producent posten kom ifrån. `rss` = news-feed.yml (DB-fritt; sedan
+   * 2026-09-12 bara handskrivna `news.json`-poster — RSS-hämtningen är nedlagd),
+   * `foilio` = nedlagd 2026-09-11, töms varje körning. ⛔ Publiceringsrutten
+   * ERSÄTTER EN LANE I TAGET — utan fältet hade det jobb som körde sist raderat
+   * det andras poster.
    * `curated` (2026-09-11) = poster ägaren GODKÄNT ur nyhetsinkorgen
    * (`src/lib/feed-inbox.ts`); den fylls en post i taget av adminrutten och får
    * därför ALDRIG skickas till `feed-publish` — en lane som ersätts i klump hade
@@ -223,82 +227,6 @@ export function slugify(input: string): string {
   const cut = full.slice(0, 80);
   const lastDash = cut.lastIndexOf("-");
   return (lastDash > 40 ? cut.slice(0, lastDash) : cut).replace(/-+$/g, "");
-}
-
-/**
- * ⛔ RELEVANSGRINDEN ÄR HELA POÄNGEN MED ATT VÅGA HÄMTA BREDA KÄLLOR. De flesta
- * Pokémon-flöden är till 80 % tv-spelsnyheter; utan grinden blir "Senaste nytt"
- * en spelblogg och kortsamlaren slutar titta. En post släpps igenom bara om
- * rubriken eller ingressen nämner något som hör till SAMLANDET.
- *
- * ⛔ Orden är avsiktligt SMALA. "pokemon" ensamt räcker inte (det står i varje
- *    rubrik hos källorna) och "game" är uteslutet (matchar tv-spelen). Vill du
- *    vidga: lägg till ord här, aldrig regexar på anropsstället.
- */
-const RELEVANT = [
-  "tcg",
-  "trading card",
-  "card game",
-  "booster",
-  "elite trainer",
-  " etb",
-  "pack",
-  "set list",
-  "expansion",
-  "psa ",
-  "cgc ",
-  "beckett",
-  "graded",
-  "grading",
-  "pull rate",
-  "chase card",
-  "illustration rare",
-  "secret rare",
-  "reverse holo",
-  "prerelease",
-  "pre-release",
-  "preorder",
-  "pre-order",
-  "restock",
-  "kort",
-  "samlar",
-  "kortsamlare",
-  "mässa",
-];
-
-/** Ord som ALLTID fäller posten, även om ett relevant ord också finns. */
-const IRRELEVANT = [
-  "pokemon go",
-  "pokémon go",
-  "pokemon sleep",
-  "unite",
-  "speedrun",
-  "anime episode",
-  // ⛔ TV-SPELENS ord, tillagda efter en falsk positiv 2026-09-09: "New Pokémon
-  //    Pokopia Expansion Pass Part 2 DLC trailer" tog sig igenom på ordet
-  //    "expansion", som i TCG betyder set men i spelvärlden betyder nedladdning.
-  "dlc",
-  "expansion pass",
-  "pokopia",
-  "nintendo switch",
-];
-
-export function isTcgRelevant(...parts: (string | null | undefined)[]): boolean {
-  const hay = ` ${parts.filter(Boolean).join(" ").toLowerCase()} `;
-  if (IRRELEVANT.some((w) => hay.includes(w))) return false;
-  return RELEVANT.some((w) => hay.includes(w));
-}
-
-const RELEASE_WORDS = ["prerelease", "pre-release", "preorder", "pre-order", "release date", "releases", "launch", "out now", "släpp"];
-
-/**
- * Kategori ur texten, med källans egen kategori som botten. En rubrik som handlar
- * om ett släpp ska hamna under "släpp" oavsett var den kom ifrån.
- */
-export function inferNewsCategory(fallback: NewsCategory, ...parts: (string | null | undefined)[]): NewsCategory {
-  const hay = ` ${parts.filter(Boolean).join(" ").toLowerCase()} `;
-  if (RELEASE_WORDS.some((w) => hay.includes(w))) return "RELEASE";
-  return fallback;
 }
 
 /** Klipper ren text till en ingress utan att kapa mitt i ett ord. */

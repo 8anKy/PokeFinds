@@ -8,54 +8,41 @@
  *   npx tsx scripts/feed-build.ts --dry     # hämtar och visar, skickar ingenting
  *   npx tsx scripts/feed-build.ts           # skickar till APP_URL med CRON_SECRET
  *
- * ⛔ EN TRASIG KÄLLA FÄLLER INTE KÖRNINGEN. Flöden går ned, byter URL och svarar
- *    500 titt som tätt; att låta det tömma nyhetssidan vore att byta ett litet
- *    problem mot ett stort. Källan varnas om och hoppas över.
+ * ⛔ RSS-KÄLLORNA ÄR BORTTAGNA 2026-09-12 (ägarbeslut). Lanen publicerade sig
+ *    själv förbi ägarens godkännande, och den sista posten som slank igenom
+ *    relevansgrinden var en Nintendo Direct-roundup. Nyheter kommer nu BARA ur
+ *    inkorgen (rutinen → admin → godkänn), och lane `rss` bär bara det som står i
+ *    `news.json` (handskrivet, normalt tomt) + evenemangen ur `events.json`. Att
+ *    lanen skickas TOM på nyheter varje körning är det som städar bort de gamla
+ *    RSS-posterna från volymen.
  * ⛔ VI SPARAR ALDRIG ARTIKELTEXT. Rubrik, en klippt ingress, källans namn och
  *    länken — inget mer. Bilden hotlänkas, den laddas aldrig ned.
  */
 import { readFile } from "fs/promises";
 import path from "path";
 import {
-  clampSummary,
   eventItemSchema,
   feedPublishSchema,
-  inferNewsCategory,
-  isTcgRelevant,
   newsItemSchema,
   type EventItem,
   slugify,
   stableId,
-  type NewsCategory,
   type NewsItem,
 } from "../src/lib/feed";
 import { feedDraftSchema, feedEventDraftSchema, inboxFileSchema, inboxPublishSchema, type FeedDraft, type FeedEventDraft } from "../src/lib/feed-inbox";
-import { extractOgImage, parseFeed } from "../src/lib/rss";
+import { extractOgImage } from "../src/lib/rss";
 
 const UA = "FoilioBot/1.0 (+https://foilio.se; nyhetsflode)";
 const FETCH_TIMEOUT_MS = 20_000;
-/** Hur gammal en post får vara för att komma med. Ett flöde med 200 poster ska
- *  inte fylla listan med sommarens nyheter första gången vi läser det. */
-const MAX_AGE_DAYS = 30;
 
-interface Source {
-  id: string;
-  name: string;
-  url: string;
-  category: NewsCategory;
-  limit?: number;
-  requireRelevance?: boolean;
-}
-
-const ACCEPT_FEED = "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.5";
 /**
- * ⛔ EN ARTIKELSIDA MÅSTE BEGÄRAS SOM HTML. Med flödets Accept-huvud svarade
- *    psacard.com **403** — servern såg en klient som bad om XML på en HTML-sida.
- *    Det såg ut som blockering men var vårt eget huvud.
+ * ⛔ EN ARTIKELSIDA MÅSTE BEGÄRAS SOM HTML. Med ett XML-Accept-huvud (från den
+ *    nedlagda RSS-hämtningen) svarade psacard.com **403** — servern såg en klient
+ *    som bad om XML på en HTML-sida. Det såg ut som blockering men var vårt eget huvud.
  */
 const ACCEPT_PAGE = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
 
-async function fetchText(url: string, accept = ACCEPT_FEED): Promise<string> {
+async function fetchText(url: string, accept = ACCEPT_PAGE): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -196,62 +183,15 @@ async function collectDrafts(dir: string, dry: boolean): Promise<{ drafts: FeedD
   return { drafts, events };
 }
 
-async function collectNews(sources: Source[], dry: boolean): Promise<NewsItem[]> {
-  const out: NewsItem[] = [];
-  const cutoff = Date.now() - MAX_AGE_DAYS * 86_400_000;
-
-  for (const source of sources) {
-    let xml: string;
-    try {
-      xml = await fetchText(source.url);
-    } catch (error) {
-      console.warn(`::warning::[feed] ${source.id}: kunde inte hämta ${source.url} — ${(error as Error).message}`);
-      continue;
-    }
-
-    const entries = parseFeed(xml, source.limit ?? 25);
-    let kept = 0;
-    for (const entry of entries) {
-      const published = entry.publishedAt ? Date.parse(entry.publishedAt) : NaN;
-      if (Number.isNaN(published) || published < cutoff) continue;
-      if (source.requireRelevance !== false && !isTcgRelevant(entry.title, entry.summary)) continue;
-
-      out.push({
-        id: stableId(entry.link),
-        title: entry.title,
-        summary: clampSummary(entry.summary),
-        url: entry.link,
-        source: source.name,
-        imageUrl: entry.imageUrl,
-        publishedAt: new Date(published).toISOString(),
-        category: inferNewsCategory(source.category, entry.title, entry.summary),
-        imageFit: "cover",
-        internal: false,
-        slug: null,
-        body: [],
-        lane: "rss",
-      });
-      kept++;
-    }
-    console.log(`[feed] ${source.id}: ${entries.length} poster i flödet, ${kept} relevanta.`);
-    // ⛔ `slice(-0)` är HELA listan — därför den explicita nollkollen.
-    if (dry && kept > 0) for (const item of out.slice(-kept)) console.log(`        · [${item.category}] ${item.title}`);
-  }
-  return out;
-}
-
 async function main() {
   const dry = process.argv.includes("--dry");
   const dir = path.join(process.cwd(), ".github", "feed");
 
-  const { sources } = await readJson<{ sources: Source[] }>(path.join(dir, "sources.json"));
   const { events: rawEvents } = await readJson<{ events: unknown[] }>(path.join(dir, "events.json"));
   const { news: rawCurated } = await readJson<{ news: unknown[] }>(path.join(dir, "news.json"));
 
-  // KURERADE POSTER FÖRST i listan (marknadsnyheter och "nytt i Foilio"). De
-  // sorteras ändå på publishedAt i `normalizeFeed` — ordningen här spelar bara
-  // roll för dubblettvakten, och en handskriven post ska vinna över en
-  // maskinhämtad med samma id.
+  // HANDSKRIVNA POSTER ur news.json — normalt tomt sedan 2026-09-11, nyheter går
+  // via inkorgen. Filen finns kvar för en post som MÅSTE in för hand.
   // ⛔ En felskriven post ska SÄGA IFRÅN, inte försvinna tyst.
   const curated: NewsItem[] = [];
   for (const raw of rawCurated) {
@@ -266,7 +206,7 @@ async function main() {
   console.log(`[feed] kurerade poster: ${curated.length}.`);
   if (dry) for (const n of curated) console.log(`        · [${n.category}] ${n.title}`);
 
-  const news = [...curated, ...(await collectNews(sources, dry))];
+  const news = [...curated];
   await fillMissingCovers(news);
   console.log(`[feed] omslag: ${news.filter((n) => n.imageUrl).length} av ${news.length} har bild.`);
 

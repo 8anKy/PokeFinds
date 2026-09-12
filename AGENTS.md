@@ -336,21 +336,20 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   ⛔ **Flödet är en JSON-FIL på Railway-volymen, aldrig en tabell** — nyhetslistan öppnas av varje besökare
   och en Neon-väckning köper minst 300 s. Skrivs av `POST /api/cron/feed-publish` (x-cron-secret), läses av
   sidorna bakom `cachedRead` med egen tagg. **En `lane` per producent**: `rss` = `news-feed.yml` (DB-FRITT,
-  3 ggr/dygn, RSS ur `.github/feed/sources.json` + evenemang ur `.github/feed/events.json`), `curated` =
-  godkänt ur inkorgen (nedan). ⛔ **`foilio`-lanen (setsläpp ur katalogen, `feed-foilio.ts` som steg i
+  3 ggr/dygn — ⛔ **RSS-HÄMTNINGEN ÄR NEDLAGD 2026-09-12**, ägaren fick en Nintendo Direct-roundup förbi
+  godkännandet; lanen bär nu bara `news.json` (normalt tom) + evenemang ur `events.json`), `curated` =
+  godkänt ur inkorgen (nedan) — **den enda vägen för nyheter**. ⛔ **`foilio`-lanen (setsläpp ur katalogen, `feed-foilio.ts` som steg i
   scrape-all) är NEDLAGD 2026-09-11** och `news.json` är TÖMD — ägaren ville inte ha "nytt i Foilio"-
   posterna eller de automatiska setsläppen; `feed-build.ts` skickar foilio-lanen TOM varje körning tills
   volymen är ren. Rutten ersätter EN lane i taget — utan `lane` hade det jobb som körde sist raderat det
-  andras poster. ⛔ **RSS ensamt räcker inte, mätt**: PokéBeach har stängt sin feed och de flöden som svarar
-  är tv-spelsbloggar (relevansgrinden släppte 0 av 18) — inkorgens rutin är huvudkällan. ⛔ Vi återger aldrig
+  andras poster. ⛔ Vi återger aldrig
   en artikels text: en HÄMTAD post är rubrik + ingress + källa + länk UT och får aldrig en `slug`; en post
   vi SJÄLVA skrivit (`slug` + `body`) får sidan `/nyheter/<slug>` med vår text och länken till originalet
   längst ned. Omslag i tre steg: postens egen `imageUrl` → sidans `og:image` (hämtas av jobbet; evenemangens
   affisch tas ur BILJETTSIDAN) → kategoriikon som vattenstämpel. Våra egna nyheter får ett RITAT omslag
-  (`scripts/make-feed-cover.ts`, genereras lokalt och checkas in — aldrig `next/og` i drift, minnet är kapat). Tre filer i `.github/feed/`
-  (utanför `watchPatterns` ⇒ ingen deploy, ingen DB): `sources.json` (RSS), `news.json` (handskrivna
-  marknadsnyheter + "nytt i Foilio", kategori `APP`) och `events.json` (ingen gratis eventkälla finns).
-  ⛔ Ingen "påminn mig"; ingen godkännandekö för rss-/foilio-lanerna (ägarbeslut).
+  (`scripts/make-feed-cover.ts`, genereras lokalt och checkas in — aldrig `next/og` i drift, minnet är kapat). Filer i `.github/feed/`
+  (utanför `watchPatterns` ⇒ ingen deploy, ingen DB): `news.json` (handskrivet, normalt tom), `events.json`
+  (manuell reserv) och `inbox.json` (rutinen). ⛔ Ingen "påminn mig"; ⛔ ingen självpublicerande källa igen.
   **+ NYHETSINKORG sedan 2026-09-11 (ägarbeslut, tredje lanen `curated`)**: en daglig Claude Code-MOLNRUTIN
   (instruktion i `.github/feed/ROUTINE.md`) söker webben + läser butikernas nyhetsbrev i Gmail och pushar
   svenska UTKAST till `.github/feed/inbox.json` (`scripts/feed-inbox-add.mjs`, beroendefritt); `news-feed.yml`

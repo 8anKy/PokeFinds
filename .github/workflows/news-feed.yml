@@ -1,7 +1,13 @@
-name: Nyhetsflödet (RSS + evenemang)
+name: Nyhetsflödet (inkorg + evenemang)
 
-# Bygger nyhets- och evenemangsflödet och POST:ar det till appen, som skriver det
-# till Railway-volymen. Sidorna /nyheter och /evenemang läser den filen.
+# Levererar nyhetsinkorgen och evenemangsflödet till appen, som skriver dem till
+# Railway-volymen. Sidorna /nyheter och /evenemang läser de filerna.
+#
+# ⛔ RSS-LANEN ÄR NEDLAGD 2026-09-12 (ägarbeslut): den publicerade poster förbi
+# ägarens godkännande (sist en Nintendo Direct-roundup). Nyheter kommer BARA ur
+# inkorgen — rutinen skriver utkast, ägaren godkänner i admin → Nyheter. Lane
+# `rss` skickas med news.json (normalt tom) + events.json, och en tom nyhetslista
+# är det som städar bort de gamla RSS-posterna från volymen.
 #
 # ⛔ JOBBET RÖR ALDRIG DATABASEN, OCH DET ÄR VILLKORET FÖR ATT DET SKA VARA GRATIS.
 # Neon debiteras per VAKEN TID och varje väckning köper minst 300 s. Ett nyhetsflöde
@@ -18,13 +24,13 @@ name: Nyhetsflödet (RSS + evenemang)
 # volymen. Lanerna (rss / curated) skriver var sin del av samma dokument och
 # raderar aldrig varandras poster (se src/lib/feed.ts).
 #
-# NYHETSINKORGEN (2026-09-11): samma körning levererar även utkasten i
+# NYHETSINKORGEN (2026-09-11): körningen levererar utkasten i
 # .github/feed/inbox.json (skrivna av den dagliga molnrutinen, se ROUTINE.md)
 # till /api/cron/feed-inbox. De publiceras INTE här — ägaren godkänner dem i
 # admin → Nyheter. Fortfarande utan databas.
 #
-# TAKT: tre gånger om dygnet räcker. Nyheterna är inte färskvara på samma sätt som
-# lagerstatus, och GitHubs `schedule:`-cron är ändå best effort (mätt: */10 kördes i
+# TAKT: tre gånger om dygnet räcker — rutinen levererar en gång per dygn och
+# evenemangens affischer ändras sällan. GitHubs `schedule:`-cron är ändå best effort (mätt: */10 kördes i
 # praktiken var 1,5–3,5 h). Behövs snabbare publicering är svaret workflow_dispatch,
 # inte tätare cron.
 
@@ -72,5 +78,5 @@ jobs:
       - if: steps.nm.outputs.cache-hit != 'true'
         run: npx prisma generate
 
-      - name: Bygg och publicera flödet
+      - name: Leverera inkorgen och publicera evenemangen
         run: npx tsx scripts/feed-build.ts ${{ github.event.inputs.dry == 'true' && '--dry' || '' }}

@@ -36,8 +36,13 @@ paths:
   `cachedRead` med **egen tagg** (`FEED_CACHE_TAG = "flode"`); publiceringsrutten `revalidateTag`:ar den så
   en ny nyhet syns direkt i stället för att vänta ut ISR-timmen. ⛔ Lägg ALDRIG en `prisma`-import i
   sidorna, i rutten eller i `src/lib/feed.ts`.
-- ⛔ **EN LANE PER PRODUCENT** (`NewsItem.lane`). `rss` = `news-feed.yml`, DB-fritt, 3 ggr/dygn,
-  bygger ur `.github/feed/sources.json`. `curated` = godkänt ur inkorgen (nedan). `foilio` (setsläpp ur
+- ⛔ **RSS-LANEN ÄR NEDLAGD 2026-09-12 (ägarbeslut).** Den publicerade sig själv förbi godkännandet och
+  en Nintendo Direct-roundup nådde /nyheter. `sources.json`, `collectNews`, `parseFeed` och relevansgrinden
+  (`isTcgRelevant`/`inferNewsCategory`) är BORTTAGNA. **Nyheter kommer BARA ur inkorgen** (`curated`).
+  ⛔ Bygg inte tillbaka en självpublicerande källa — allt som når läsaren ska ha passerat admin → Nyheter.
+- ⛔ **EN LANE PER PRODUCENT** (`NewsItem.lane`). `rss` = `news-feed.yml`, DB-fritt, 3 ggr/dygn — bär
+  numera bara `news.json` (handskrivet, normalt tomt) + evenemangen ur `events.json`; att nyhetslistan
+  skickas tom är det som städar bort gamla RSS-poster från volymen. `curated` = godkänt ur inkorgen (nedan). `foilio` (setsläpp ur
   katalogen, `scripts/feed-foilio.ts` som steg i scrape-all) är **NEDLAGD 2026-09-11** (ägarbeslut:
   posterna dubblerade inkorgens) — steget är borttaget och `feed-build.ts` skickar lanen TOM varje körning
   tills volymen är ren. Rutten ersätter EN lane i taget och behåller de andras poster; utan `lane` hade
@@ -45,12 +50,9 @@ paths:
   "rör dem inte", så ett jobb utan åsikt kan inte tömma evenemangslistan.
   ⛔ **`news.json` är TÖMD 2026-09-11** — "nytt i Foilio"-posterna och handskrivna marknadsnyheter togs
   bort på ägarens begäran; nyheter går via inkorgen. Filen finns kvar för en post som MÅSTE in för hand.
-- ⛔ **RSS ENSAMT RÄCKER INTE, OCH DET ÄR MÄTT (2026-09-09).** PokéBeach har stängt sin feed ("No feed
-  available", HTTP 500 på varje väg), pokeguardian/serebii/limitless har ingen, och de två flöden som
-  svarar (pokemonblog.com, nintendoeverything.com) är tv-spelsbloggar: relevansgrinden släppte igenom
-  **0 av 18** poster. Därför är **vår egen katalog huvudkällan** — setsläpp och nytt i katalogen är saker
-  ingen annan svensk sajt vet. ⛔ Sänk inte grinden för att fylla listan; lägg till en KÄLLA i stället, och
-  probea den först med `npx tsx scripts/feed-build.ts --dry`.
+- **Historik (2026-09-09, varför RSS aldrig bar)**: PokéBeach har stängt sin feed, pokeguardian/serebii/
+  limitless har ingen, och de två som svarade (pokemonblog.com, nintendoeverything.com) var tv-spelsbloggar —
+  relevansgrinden släppte 0 av 18 och sedan ändå en Nintendo Direct-roundup. Inkorgens rutin är källan.
 - ⛔ **VI ÅTERGER ALDRIG EN ARTIKELS TEXT.** En HÄMTAD post är rubrik + klippt ingress + källans namn +
   länk UT, och får därför **aldrig en `slug`** — den raden går rakt till källan. En post vi SJÄLVA skrivit
   text om (`slug` + `body` i `news.json`) får en egen sida på `/nyheter/<slug>`: vår sammanfattning, och
@@ -82,9 +84,9 @@ paths:
   omdirigering. Vaktat av `tests/unit/feed.test.ts`.
 - ⛔ **INGEN "PÅMINN MIG" PÅ EVENEMANG** (ägarbeslut 2026-09-09). Ett evenemang är ett datum, inte ett
   lager som tar slut. Vill man ha en påminnelse finns arrangörens egen sida bakom knappen.
-- ⛔ **INGEN GODKÄNNANDEKÖ FÖR rss- OCH foilio-LANERNA** (ägarbeslut 2026-09-09): de publicerar sig
-  själva. Följden är att RELEVANSGRINDEN och kategorireglerna är det enda som står mellan källan och
-  läsaren — de är alltså korrekthetskod, inte finputs.
+- **Godkännandekön är numera HELA vägen in** (2026-09-12): rss- och foilio-lanerna publicerade sig själva
+  utan kö (beslut 09-09) och båda är nedlagda av just det skälet. `news.json`/`events.json` är handskrivna
+  av ägaren och räknas som godkända.
 - **NYHETSINKORGEN — TREDJE LANEN `curated`, GODKÄNNS FÖR HAND (ägarbeslut 2026-09-11)**
   (`src/lib/feed-inbox.ts`, `feed-inbox-store.ts`, admin → *Nyheter*): en daglig MOLNRUTIN (Claude Code
   routine, instruktionen bor i `.github/feed/ROUTINE.md`) söker webben + läser butikernas nyhetsbrev i
@@ -113,10 +115,10 @@ paths:
   kurerade FÖRST så de vinner slug-dubblettvakten i `normalizeFeed`. `eventItemSchema.imageUrl` kräver full
   URL ⇒ ett uppladdat omslag görs absolut mot `NEXT_PUBLIC_APP_URL` i `draftToEventItem`. Väntande evenemang
   städas när de PASSERAT (inte efter 30 dygn); avgjorda efter 60. `events.json` är kvar som manuell reserv.
-- **FYRA FILER I `.github/feed/`, ALLA UTANFÖR `watchPatterns`** ⇒ en ändring i dem kostar varken deploy
-  eller databas: `sources.json` (RSS-källor), `news.json` (handskrivna nyheter — marknadsnyheter och
-  "nytt i Foilio", kategori `APP`), `events.json` och `inbox.json` (rutinens utkast + `seen`). Kurerade poster går in i rss-lanen och sorteras
-  in bland de hämtade på `publishedAt`, som ska vara **när nyheten bröt** — inte när den skrevs in.
+- **TRE FILER I `.github/feed/`, ALLA UTANFÖR `watchPatterns`** ⇒ en ändring i dem kostar varken deploy
+  eller databas: `news.json` (handskrivna nyheter, normalt tom), `events.json` (manuell reserv) och
+  `inbox.json` (rutinens utkast + `seen`). Handskrivna poster går in i rss-lanen och sorteras på
+  `publishedAt`, som ska vara **när nyheten bröt** — inte när den skrevs in.
 - ⛔ **"NYTT I KATALOGEN" ÄR BORTTAGET UR FOILIO-LANEN (ägarbeslut 2026-09-09).** Lanen postade en nyhet
   per ny katalogprodukt; katalogen är inte kurerad, och första körningen mot prod gav bland annat
   "Ny i katalogen: … B Grade – RIPPED SEAL". Setsläpp är kvar — de är få, daterade och angår alla.
@@ -142,5 +144,5 @@ paths:
   under "MJUK 404 PÅ ISR-RUTTERNA". ⏭️ Testa om vid nästa Next-uppgradering.
 - **Kartan öppnas hos kartleverantören** (`mapUrl`), aldrig inbäddad — en inbäddad karta kostar pengar och
   spårar besökaren.
-- **`src/lib/rss.ts` är avsiktligt en dum läsare**, inte en XML-parser: fem fält per post, tolerant mot
-  skräp, kastar aldrig. Behövs mer är svaret ett riktigt bibliotek i JOBBET, inte fler regexar där.
+- **`src/lib/rss.ts` är bara HTML-hjälpare kvar** (`decodeEntities`, `stripTags`, `extractOgImage`) —
+  RSS-läsaren är borttagen 09-12. Tolerant mot skräp, kastar aldrig.

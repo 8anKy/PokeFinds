@@ -176,7 +176,7 @@ Dubbletter mellan källor (samma nyhet hos två sajter) blir ETT utkast med den 
 
 ## Vad du aldrig gör
 
-- Redigerar `news.json`, `events.json`, `sources.json` eller något under `src/` — evenemang
+- Redigerar `news.json`, `events.json` eller något under `src/` — evenemang
   du hittar går via `kind: "event"` i utkastlistan, aldrig direkt in i `events.json`.
 - Skriver `slug` i ett utkast — den härleds ur rubriken när ägaren godkänner.
 - Skapar en PR, öppnar issues, eller pushar till någon annan gren än `main`.
