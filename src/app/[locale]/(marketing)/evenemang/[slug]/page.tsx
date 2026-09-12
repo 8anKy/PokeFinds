@@ -25,7 +25,6 @@ import { CategoryPill, FeedCover } from "@/components/features/feed/feed-chrome"
 import { EventCountdown } from "@/components/features/feed/event-countdown";
 import { EventShare } from "@/components/features/feed/event-share";
 import { SwipeBack } from "@/components/ui/swipe-back";
-import { EndBounce } from "@/components/ui/end-bounce";
 
 export const revalidate = 3600;
 
@@ -111,7 +110,7 @@ export default async function EventPage({ params }: { params: { locale: string; 
 
   return (
     <SwipeBack fallback="/evenemang" coverViewport viewportInset="safe">
-    <EndBounce><article className="pb-[calc(var(--bottom-tabs-space)+1rem)]">
+    <article className="pb-[calc(var(--bottom-tabs-space)+1rem)]">
       {/* Scenen */}
       <FeedCover src={event.imageUrl} alt="" category={event.category} className="h-56 w-full sm:h-72">
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-surface to-transparent" />
@@ -203,7 +202,7 @@ export default async function EventPage({ params }: { params: { locale: string; 
           </div>
         )}
       </div>
-    </article></EndBounce>
+    </article>
     </SwipeBack>
   );
 }

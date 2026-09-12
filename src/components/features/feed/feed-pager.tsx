@@ -4,7 +4,6 @@ import { useState } from "react";
 import { FeedSwitch } from "@/components/features/feed/feed-chrome";
 import { EventsList } from "@/components/features/feed/events-list";
 import { NewsList } from "@/components/features/feed/news-list";
-import { EndBounce } from "@/components/ui/end-bounce";
 import type { EventItem, NewsItem } from "@/lib/feed";
 
 type FeedTab = "news" | "events";
@@ -29,9 +28,9 @@ export function FeedPager({
     <div className="px-2.5 py-4 sm:px-6 sm:py-6">
       <div className="mx-auto flex max-w-3xl flex-col gap-3">
         <FeedSwitch active={active} onChange={setActive} />
-        <EndBounce key={active} className="animate-fade-in">
+        <div key={active} className="animate-fade-in">
           {active === "news" ? <NewsList items={news} /> : <EventsList items={events} />}
-        </EndBounce>
+        </div>
       </div>
     </div>
   );

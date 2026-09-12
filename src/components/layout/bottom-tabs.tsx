@@ -11,7 +11,6 @@ import { isEmailLandingRoute } from "@/lib/auth-routes";
 import { hidesBottomTabs } from "@/lib/immersive-routes";
 import { useCommunityV2 } from "@/lib/use-community-v2";
 import { rubberBand } from "@/lib/swipe-gesture";
-import { END_BOUNCE_EVENT, type EndBounceDetail } from "@/lib/end-bounce";
 import {
   IconSearch,
   IconPackage,
@@ -112,27 +111,6 @@ export function BottomTabs() {
   useEffect(() => {
     if (keyboard) cancelGlide();
   }, [keyboard]);
-
-  useEffect(() => {
-    const moveWithEndBounce = (event: Event) => {
-      const detail = (event as CustomEvent<EndBounceDetail>).detail;
-      const nav = navRef.current;
-      if (!detail || !nav) return;
-      nav.style.willChange = "transform";
-      nav.style.transition = detail.settling ? "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)" : "none";
-      nav.style.transform = `translate3d(0, ${detail.offset}px, 0)`;
-      if (detail.settling && detail.offset === 0) {
-        window.setTimeout(() => {
-          if (!navRef.current) return;
-          navRef.current.style.willChange = "";
-          navRef.current.style.transition = "";
-          navRef.current.style.transform = "";
-        }, 240);
-      }
-    };
-    window.addEventListener(END_BOUNCE_EVENT, moveWithEndBounce);
-    return () => window.removeEventListener(END_BOUNCE_EVENT, moveWithEndBounce);
-  }, []);
 
   if (keyboard) return null;
   // Återställ lösenord / verifiera e-post nås via e-postlänk i Safari (inte appen)
