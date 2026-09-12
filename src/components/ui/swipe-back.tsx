@@ -4,7 +4,11 @@ import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { EDGE_ZONE_PX, lockAxis, resolveBackSwipe } from "@/lib/swipe-gesture";
-import { getRouteSwipeSnapshot } from "@/components/layout/route-swipe-snapshot";
+import {
+  consumeRouteSwipeSnapshot,
+  getRouteSwipeSnapshot,
+  hasPendingRouteSwipeSnapshot,
+} from "@/components/layout/route-swipe-snapshot";
 import {
   PAGE_ENTER_DURATION_MS,
   pageMotionTransition,
@@ -71,6 +75,10 @@ export function SwipeBack({
     scroll.appendChild(snapshot.shell.cloneNode(true));
     underlay.appendChild(scroll);
     hasUnderlayRef.current = true;
+    // Förbrukas EFTER Strict Modes andra varv (setup → cleanup → setup är
+    // synkront), så båda varven hittar kopian men ingen senare pathname-ändring
+    // på samma rutt (flödets flikbyte) spelar inglidningen en gång till.
+    window.setTimeout(() => consumeRouteSwipeSnapshot(snapshot), 0);
 
     let firstFrame = 0;
     let secondFrame = 0;
@@ -116,6 +124,10 @@ export function SwipeBack({
 
     return () => {
       finishEnter();
+      // Bakgrunden behålls när ingen ny kopia väntar: flödets flikbyte ändrar
+      // pathname utan navigering, och bakåtsvepet från listan ska fortfarande
+      // visa sidan man kom ifrån. Väntar en ny kopia tar nästa varv över.
+      if (!hasPendingRouteSwipeSnapshot()) return;
       hasUnderlayRef.current = false;
       underlay.replaceChildren();
     };

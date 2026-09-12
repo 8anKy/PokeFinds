@@ -102,3 +102,19 @@ export function getRouteSwipeSnapshot(pathname: string): RouteSwipeSnapshot | nu
   if (!pendingSnapshot || pendingSnapshot.destination !== normalizeSwipePathname(pathname)) return null;
   return pendingSnapshot;
 }
+
+/**
+ * Förbrukar bakgrunden när dess inglidning spelats. ⛔ Utan det låg kopian kvar
+ * i fönstret och spelade om inglidningen varje gång pathname blev densamma
+ * igen — flödets flikbyte (replaceState /evenemang → /nyheter) "svepte" in
+ * Senaste nytt i stället för att tona (2026-09-12). Bara SAMMA objekt tas
+ * bort, så en nyare kopia från ett senare tryck aldrig raderas av misstag.
+ */
+export function consumeRouteSwipeSnapshot(snapshot: RouteSwipeSnapshot) {
+  const w = window as SwipeWindow;
+  if (w[SNAPSHOT_KEY] === snapshot) delete w[SNAPSHOT_KEY];
+}
+
+export function hasPendingRouteSwipeSnapshot(): boolean {
+  return Boolean((window as SwipeWindow)[SNAPSHOT_KEY]);
+}
