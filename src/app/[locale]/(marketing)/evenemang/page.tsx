@@ -48,7 +48,7 @@ export default async function EventsPage({ params }: { params: { locale: string 
   const feed = await getFeed();
 
   return (
-    <SwipeBack fallback="/produkter" coverViewport viewportInset="safe">
+    <SwipeBack fallback="/produkter">
       <FeedPager initial="events" news={feed.news} events={feed.events} />
     </SwipeBack>
   );
