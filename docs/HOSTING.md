@@ -59,6 +59,7 @@ Lägg till:
 | `CARDMARKET_RAPIDAPI_KEY` | din RapidAPI-nyckel |
 | `TRADERA_APP_ID` | ditt Tradera-app-id |
 | `TRADERA_APP_KEY` | din Tradera-app-nyckel |
+| `EBAY_CLIENT_ID` / `EBAY_CLIENT_SECRET` | eBay Browse (graderade begärda priser) — jobbet hoppar över utan dem |
 | `EUR_SEK` | *(valfritt — lämna tomt för live-kurs)* |
 
 Testa direkt: **Actions**-fliken → välj t.ex. *Cardmarket-priser* → **Run workflow**.

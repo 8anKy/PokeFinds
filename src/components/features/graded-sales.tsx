@@ -28,12 +28,76 @@ export function GradedSales({
 }) {
   const t = useTranslations("Detail");
   const locale = useLocale();
-  if (!graded || graded.rows.length === 0) return null;
+  const asks = graded?.asks ?? [];
+  if (!graded || (graded.rows.length === 0 && asks.length === 0)) return null;
 
   const dateFmt = new Intl.DateTimeFormat(dateLocaleTag(locale), { day: "numeric", month: "short" });
 
+  // ⛔ TVÅ TABELLER, ALDRIG EN. Sålt (Tradera, hammarpris) och till salu (eBay,
+  // begärt pris) är olika storheter — samma skarv som annons/sålt på rått. De
+  // får varsin rubrik, varsin källrad och blandas aldrig i samma rad.
   return (
     <section className="mt-10">
+      {asks.length > 0 && (
+        <div className={graded.rows.length > 0 ? "mb-8" : undefined}>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h2 className="font-display text-xl font-semibold text-ink">{t("gradedAskTitle")}</h2>
+            <span className="text-sm text-ink-muted">{t("gradedAskSubtitle")}</span>
+          </div>
+          <div className="card-surface mt-4 overflow-x-auto">
+            <table className="w-full min-w-[28rem] text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink-muted">
+                  <th className="px-4 py-3 font-medium">{t("gradedColGrade")}</th>
+                  <th className="px-4 py-3 text-right font-medium">{t("gradedAskColLowest")}</th>
+                  <th className="px-4 py-3 text-right font-medium">{t("gradedAskColListings")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {asks.map((a) => (
+                  <tr
+                    key={`${a.source}-${a.issuer}-${a.gradeTenths}`}
+                    className="border-b border-line/60 last:border-0"
+                  >
+                    <td className="px-4 py-3">
+                      <span className="font-medium text-ink">
+                        {ISSUER_LABELS[a.issuer as GradingIssuer] ?? a.issuer}
+                      </span>{" "}
+                      <span className="text-ink-muted">{formatGrade(a.gradeTenths)}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <a
+                        href={a.url}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow"
+                        className="font-semibold text-holo-cyan hover:underline"
+                      >
+                        {formatPrice(a.priceOre)}
+                      </a>
+                      {/* Originalbeloppet står ut — kursen är dagens, inte kassans. */}
+                      {a.originalCurrency !== "SEK" && (
+                        <span className="ml-2 text-xs text-ink-muted">
+                          {(a.originalMinor / 100).toFixed(2)} {a.originalCurrency}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right text-ink-muted">
+                      {t("gradedAskListingCount", { count: a.listingCount })}
+                      <span className="ml-2 text-xs">· {t("gradedAskSource", { source: a.source })}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {/* ⛔ Begärt är inte betalt, kursen är dagens och frakt/tull tillkommer —
+              allt det står UT, inte i en tooltip. */}
+          <p className="mt-3 text-xs leading-relaxed text-ink-muted">{t("gradedAskFootnote")}</p>
+        </div>
+      )}
+
+      {graded.rows.length > 0 && (
+      <>
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 className="font-display text-xl font-semibold text-ink">{t("gradedTitle")}</h2>
         <span className="text-sm text-ink-muted">
@@ -102,6 +166,8 @@ export function GradedSales({
       <p className="mt-3 text-xs leading-relaxed text-ink-muted">
         {t("gradedFootnote", { title: productTitle })}
       </p>
+      </>
+      )}
     </section>
   );
 }

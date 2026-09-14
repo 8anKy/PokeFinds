@@ -180,3 +180,18 @@ export function priceOreFromEur(
   const ore = Math.round(eur * rates.eurToOre);
   return ore > 0 ? ore : null;
 }
+
+/**
+ * USD → öre med SAMMA nollvakt som EUR-vägen. Byggd för de graderade begärda
+ * priserna (eBay, USD) 2026-09-14 — det fanns ingen USD-väg, och en bar
+ * `Math.round(usd * usdToOre)` hade återinfört exakt det 0 kr-fel vakten ovan
+ * finns för.
+ */
+export function priceOreFromUsd(
+  usd: number | null | undefined,
+  rates: Pick<RatesOre, "usdToOre">
+): number | null {
+  if (typeof usd !== "number" || !Number.isFinite(usd) || usd <= 0) return null;
+  const ore = Math.round(usd * rates.usdToOre);
+  return ore > 0 ? ore : null;
+}

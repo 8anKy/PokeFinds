@@ -238,6 +238,18 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   regler i `.claude/rules/jp-sets.md`. RapidAPI-baslinjen är nu ~1 880/3 000 per dygn.
 - **Priser**: singlar = Cardmarket engelska NM-"From" (RapidAPI) × live-kurs; sealed = CM `lowest`;
   graf/historik = CM trend.
+- **GRADERADE BEGÄRDA PRISER VIA EBAY BROWSE (byggt 2026-09-14, VÄNTAR PÅ NYCKEL)**: gratis (~5 000
+  anrop/dygn per app), EN sökning per kort i kategori 183454 med aspekten `Graded:{Yes}`, bucketad per
+  (bolag, betyg) ur TITELN med `detectGrading` (`lib/graded-ask.ts`, ren + testad) och skriven som ETT
+  TILLSTÅND i `GradedAsk` (`jobs/graded-ask-sweep.ts`, steg sist i `tradera-sold-sync.yml`). Bevakade kort
+  varje natt, resten roterar på `gradedAskCheckedAt` (~en vecka vid 4 000/dygn); läsmodellen döljer rader
+  äldre än 14 d. ⛔ **BEGÄRT ÄR INTE SÅLT**: egen tabell bredvid `GradedSale`, egen rubrik ("Graderade till
+  salu"), källa + antal + originalvaluta står UT. ⛔ Varje träff måste BEVISA sig (numret i titeln, språk,
+  tryckning, fastpris — auktionsbud är inget begärt pris, lotter kastas); hellre tom rad än främmande pris.
+  USD → öre via `priceOreFromUsd` (samma nollvakt som EUR). ⛔ 429 = sluta och skriv det som hann, aldrig
+  retry. Slås på med `EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET` som GitHub-secrets (ägaren väntar på eBays
+  verifiering); `scripts/ebay-graded-probe.ts` provar en sökning utan DB. Sålt-baserat per betyg för ALLA
+  kort finns bara att köpa (PriceCharting Legendary 49 $/mån, daglig CSV) — memory `graded-price-sources`.
 - **Google-/Apple-inloggning (kod klar 2026-08-29, AKTIVERAS AV ENV)**: webb = NextAuth-providers
   (`lib/auth.ts`), app = NATIVT SDK via `@capgo/capacitor-social-login` → id_token → provider
   `native-token` (verifieras mot JWKS i `lib/oauth-id-token.ts`). Google blockar sitt WEBBFLÖDE i

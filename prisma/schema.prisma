@@ -549,6 +549,9 @@ model Product {
   // Senast namn-sökt på Tradera (roterande full-katalog-svep). null = aldrig sökt
   // → prioriteras först. Se src/jobs/tradera-sweep.ts (Fas 0).
   traderaCheckedAt   DateTime?
+  // Senast svept efter graderade BEGÄRDA priser (eBay Browse, roterande). null =
+  // aldrig → prioriteras först. Se src/jobs/graded-ask-sweep.ts.
+  gradedAskCheckedAt DateTime?
   /// Ägaren har tagit bort produkten UR KATALOGEN utan att radera raden.
   ///
   /// ⛔ SKÄLET ÄR DISCORD-LANEN. En radering tar med sig produktens offers, och
@@ -586,6 +589,7 @@ model Product {
   communityPosts    CommunityPost[]
   storeListings     StoreListing[]
   gradedSales       GradedSale[]
+  gradedAsks        GradedAsk[]
 
   @@index([normalizedTitle])
   @@index([category])
@@ -824,6 +828,46 @@ model GradedSale {
 
   @@index([productId, issuer, gradeTenths])
   @@index([soldAt])
+}
+
+/// GRADERADE BEGÄRDA PRISER — lägsta AKTIVA annons per (produkt, källa, bolag, betyg).
+///
+/// ⛔ BEGÄRT ÄR INTE SÅLT. `GradedSale` är vad någon BETALADE (Tradera, hammarpris);
+/// den här tabellen är vad någon BEGÄR just nu (eBay Browse API, gratis). De får
+/// aldrig dela rad, kurva eller rubrik — samma skarv som annons/sålt på rått.
+///
+/// ⛔ ETT TILLSTÅND, INTE EN HÄNDELSE: raden skrivs över vid varje svep och raderas
+/// när annonsen inte längre finns. Ingen historik — en begärd-kurva hade bara
+/// ritat säljarnas önskemål över tid.
+///
+/// ⛔ `gradeTenths` är OBLIGATORISKT här (till skillnad från GradedSale): en
+/// annons utan läsbart betyg ger ingen rad — "PSA ? kostar X" säger ingenting.
+model GradedAsk {
+  id           String   @id @default(cuid())
+  productId    String
+  /// Källa: "ebay" (fler kan komma; nyckeln bär källan så de aldrig blandas).
+  source       String
+  /// Normaliserat bolag (PSA/BGS/CGC/…), samma vokabulär som GradedSale.
+  issuer       String
+  /// Betyg × 10 (100 = 10,0 · 95 = 9,5). Heltal, aldrig float.
+  gradeTenths  Int
+  /// Lägsta begärda pris i öre (konverterat med dagskursen). Alltid > 0.
+  priceOre     Int
+  /// Originalbelopp i minsta enhet + valuta, för spårbarhet ("129,00 USD").
+  originalMinor    Int
+  originalCurrency String
+  /// Antal annonser i gruppen (efter vakter). Visas ALLTID bredvid priset.
+  listingCount Int
+  /// Den billigaste annonsen: länk UT + titel + källans id.
+  url          String
+  title        String
+  itemId       String
+  observedAt   DateTime
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, source, issuer, gradeTenths])
+  @@index([observedAt])
 }
 
 model TraderaMatch {

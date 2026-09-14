@@ -15,6 +15,7 @@
  */
 import { prisma } from "../lib/db";
 import type { GradingIssuer } from "../lib/graded-listing";
+import { GRADED_ASK_MAX_AGE_DAYS } from "../lib/graded-ask";
 
 /** Hur långt bak blocket räknar. Serien byggs FRAMÅT — den börjar tom. */
 export const GRADED_WINDOW_DAYS = 365;
@@ -34,10 +35,30 @@ export interface GradedSaleRow {
   lastUrl: string;
 }
 
+/**
+ * BEGÄRT PRIS — vad någon vill ha just nu, per (källa, bolag, betyg).
+ * ⛔ Aldrig samma rad som en affär. Källan följer med ut ("eBay"), liksom
+ * antalet annonser och länken — det är ett erbjudande, inte ett marknadspris.
+ */
+export interface GradedAskRow {
+  source: string;
+  issuer: GradingIssuer;
+  gradeTenths: number;
+  /** Lägsta begärda pris, öre (konverterat). */
+  priceOre: number;
+  originalMinor: number;
+  originalCurrency: string;
+  listingCount: number;
+  url: string;
+  observedAt: string;
+}
+
 export interface GradedSummary {
   windowDays: number;
   totalSales: number;
   rows: GradedSaleRow[];
+  /** Aktiva begärda priser (tom lista när inget svepts eller allt är för gammalt). */
+  asks: GradedAskRow[];
 }
 
 function medianOre(sorted: number[]): number {
@@ -54,13 +75,48 @@ const ISSUER_ORDER: GradingIssuer[] = [
   "PSA", "BGS", "CGC", "SGC", "ACE", "RAUKCARD", "TAG", "HGA", "GMA", "ISA", "AGS", "GG", "OTHER",
 ];
 
+function sortByIssuerThenGrade<T extends { issuer: GradingIssuer; gradeTenths: number | null }>(rows: T[]): T[] {
+  return rows.sort((a, b) => {
+    const ai = ISSUER_ORDER.indexOf(a.issuer);
+    const bi = ISSUER_ORDER.indexOf(b.issuer);
+    if (ai !== bi) return ai - bi;
+    // Högsta betyg först — det är raden folk letar efter. Okänt betyg sist.
+    return (b.gradeTenths ?? -1) - (a.gradeTenths ?? -1);
+  });
+}
+
 export async function getGradedSummary(productId: string): Promise<GradedSummary> {
   const cutoff = new Date(Date.now() - GRADED_WINDOW_DAYS * 86_400_000);
-  const sales = await prisma.gradedSale.findMany({
-    where: { productId, soldAt: { gte: cutoff } },
-    orderBy: { soldAt: "desc" },
-    select: { issuer: true, gradeTenths: true, price: true, soldAt: true, url: true },
-  });
+  // Begärda priser är ett TILLSTÅND — en rad äldre än rotationens fönster är en
+  // annons vi inte vet om den finns kvar, och visas då inte.
+  const askCutoff = new Date(Date.now() - GRADED_ASK_MAX_AGE_DAYS * 86_400_000);
+  const [sales, askRows] = await Promise.all([
+    prisma.gradedSale.findMany({
+      where: { productId, soldAt: { gte: cutoff } },
+      orderBy: { soldAt: "desc" },
+      select: { issuer: true, gradeTenths: true, price: true, soldAt: true, url: true },
+    }),
+    prisma.gradedAsk.findMany({
+      where: { productId, observedAt: { gte: askCutoff } },
+      select: {
+        source: true, issuer: true, gradeTenths: true, priceOre: true, originalMinor: true,
+        originalCurrency: true, listingCount: true, url: true, observedAt: true,
+      },
+    }),
+  ]);
+  const asks: GradedAskRow[] = sortByIssuerThenGrade(
+    askRows.map((a) => ({
+      source: a.source,
+      issuer: a.issuer as GradingIssuer,
+      gradeTenths: a.gradeTenths,
+      priceOre: a.priceOre,
+      originalMinor: a.originalMinor,
+      originalCurrency: a.originalCurrency,
+      listingCount: a.listingCount,
+      url: a.url,
+      observedAt: a.observedAt.toISOString(),
+    }))
+  );
 
   const groups = new Map<string, typeof sales>();
   for (const s of sales) {
@@ -90,13 +146,7 @@ export async function getGradedSummary(productId: string): Promise<GradedSummary
     });
   }
 
-  rows.sort((a, b) => {
-    const ai = ISSUER_ORDER.indexOf(a.issuer);
-    const bi = ISSUER_ORDER.indexOf(b.issuer);
-    if (ai !== bi) return ai - bi;
-    // Högsta betyg först — det är raden folk letar efter. Okänt betyg sist.
-    return (b.gradeTenths ?? -1) - (a.gradeTenths ?? -1);
-  });
+  sortByIssuerThenGrade(rows);
 
-  return { windowDays: GRADED_WINDOW_DAYS, totalSales: sales.length, rows };
+  return { windowDays: GRADED_WINDOW_DAYS, totalSales: sales.length, rows, asks };
 }

@@ -38,9 +38,10 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    # Rymmer BÅDE synken och sålt-svepet (sista steget). Svepet matchar numera
-    # ~10k avslutade annonser/dygn mot katalogen och kan ta uppåt en timme.
-    timeout-minutes: 90
+    # Rymmer synken, sålt-svepet OCH eBay-svepet (graderade begärda priser).
+    # Sålt-svepet matchar ~10k avslutade annonser/dygn och kan ta uppåt en timme;
+    # eBay-svepet gör ≤ 4 000 anrop à ~0,3 s med 2 i taget ≈ 10–12 min.
+    timeout-minutes: 110
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DB_POOL: "10"
@@ -103,3 +104,18 @@ jobs:
           # men mät i loggen innan det höjs igen.
           TRADERA_SOLD_GETITEM_MAX: "6000"
         run: npx tsx scripts/tradera-sold-sweep.ts
+      # ── GRADERADE BEGÄRDA PRISER (eBay Browse, gratis) — 2026-09-14 ──────────
+      # Ett STEG här, aldrig egen cron: Neon är redan vaken i fönstret. EN eBay-
+      # sökning per kort, bucketad per bolag/betyg i `GradedAsk` (begärt ≠ sålt —
+      # egen tabell bredvid GradedSale). Bevakade kort varje natt, resten roterar
+      # på ~en vecka inom budgeten (eBays appkvot är ~5 000/dygn).
+      # Hoppar över grönt (notice) tills EBAY_CLIENT_ID/SECRET finns som secrets.
+      # `!cancelled()` av samma skäl som svepet ovan: stegen är oberoende.
+      - name: Graderade begärda priser (eBay Browse → GradedAsk)
+        if: steps.guard.outputs.ready == 'true' && !cancelled()
+        env:
+          EBAY_CLIENT_ID: ${{ secrets.EBAY_CLIENT_ID }}
+          EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
+          EBAY_GRADED_DAILY_BUDGET: "4000"
+          EBAY_DELIVERY_COUNTRY: "SE"
+        run: npx tsx scripts/graded-ask-sweep.ts

@@ -101,3 +101,10 @@ paths:
   låtsas vara en marknad. Tomt underlag ⇒ sektionen visas inte alls.
   Mät om med `scripts/audit-tradera-graded.ts` (kategorins innehåll) och `scripts/audit-tradera-graded-leak.ts`
   (hur mycket som ligger i råa kategorier). Vaktat av `tests/unit/graded-listing.test.ts` (tvåsidigt).
+- ⛔ **GRADERAT BEGÄRT (eBay) ÄR EN TREDJE STORHET, INTE EN ANDRA KÄLLA TILL SÅLT (2026-09-14)**:
+  `GradedAsk` bär lägsta AKTIVA fastprisannons per (produkt, källa, bolag, betyg) och är ett TILLSTÅND (upsert +
+  radera det som inte längre finns, ingen historik). `GradedSale` = betalt, `GradedAsk` = begärt — olika
+  tabeller, olika rubriker, aldrig samma rad. Titeln är enda källan till bolag/betyg (Browse-svaret bär inga
+  aspekter) ⇒ samma `detectGrading`, samma aspirationsveto, samma undre prisvakt (15 % av CM-ref). Ett bevis
+  per träff: produktens nummer i titeln (`titleCarriesNumber`), rätt språk, rätt tryckning, `FIXED_PRICE`
+  (auktionsbud är varken begärt eller betalt), ingen lott. Vaktat av `tests/unit/graded-ask.test.ts`.

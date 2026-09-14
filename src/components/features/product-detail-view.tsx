@@ -77,7 +77,7 @@ function shellToDetail(shell: ProductShellData): ProductDetailData {
     variants: shell.variants.map((v) => ({ slug: v.slug, label: v.label, lowestPrice: null })),
     traderaListings: [],
     // Skal-läget vet inget om graderade affärer — tom, aldrig påhittad.
-    gradedSales: { windowDays: 365, totalSales: 0, rows: [] },
+    gradedSales: { windowDays: 365, totalSales: 0, rows: [], asks: [] },
   };
 }
 
