@@ -7,6 +7,13 @@ import { useSession } from "next-auth/react";
 import { Button, LinkButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { hasAuthHint } from "@/lib/auth-hint";
+import { lastPaywallSource } from "@/lib/paywall";
+import { track } from "@/lib/track";
+
+/** Tratten: klicket stämplas med källan bakom prompten (arket) eller "priser" (sidan). */
+function trackUpgradeClick() {
+  track("upgrade_click", lastPaywallSource() ?? "priser");
+}
 import {
   purchasesAvailable,
   purchasePremium,
@@ -220,7 +227,10 @@ export function UpgradeButton({
         <Button
           className={cn(top, "w-full")}
           disabled={busy}
-          onClick={() => openBilling("/api/billing/checkout", t("msgFailed"))}
+          onClick={() => {
+            trackUpgradeClick();
+            openBilling("/api/billing/checkout", t("msgFailed"));
+          }}
         >
           {busy ? t("processing") : t("upgradeToPro")}
         </Button>
@@ -270,7 +280,10 @@ export function UpgradeButton({
       <Button
         className={cn(top, "w-full")}
         disabled={busy}
-        onClick={() => run(purchasePremium, t("msgThanks"))}
+        onClick={() => {
+          trackUpgradeClick();
+          void run(purchasePremium, t("msgThanks"));
+        }}
       >
         {busy ? t("processing") : t("upgradeToPro")}
       </Button>

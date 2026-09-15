@@ -2,6 +2,7 @@ import { auth, hasRole } from "@/lib/auth";
 import { Link } from "@/i18n/navigation";
 import { formatPrice } from "@/lib/format";
 import { getEngagementLeaderboard } from "@/services/market";
+import { getPaywallFunnel } from "@/services/paywall-funnel";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
@@ -31,7 +32,7 @@ export default async function AdminEngagementPage({ searchParams }: PageProps) {
   }
 
   const days = searchParams.period === "30" ? 30 : 7;
-  const rows = await getEngagementLeaderboard(days, 100);
+  const [rows, funnel] = await Promise.all([getEngagementLeaderboard(days, 100), getPaywallFunnel(days)]);
 
   return (
     <div className="space-y-5">
@@ -63,6 +64,53 @@ export default async function AdminEngagementPage({ searchParams }: PageProps) {
           })}
         </div>
       </div>
+
+      {/* KONVERTERINGSTRATTEN: såg paywallen → klickade Uppgradera → betalade. Tre
+          tal bredvid varandra — de går inte att kedja per användare (AnalyticsEvent
+          är opersonlig), men de svarar på frågan "ser folk paywallen alls?". */}
+      <section className="card-surface p-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-display text-base font-semibold text-ink">Paywall-tratt</h2>
+          <p className="text-xs text-ink-muted">
+            {nf.format(funnel.totalOpens)} öppningar · {nf.format(funnel.totalUpgradeClicks)} Uppgradera-klick ·{" "}
+            <span className="font-semibold text-holo-cyan">{nf.format(funnel.newPaying)} nya betalande</span>
+          </p>
+        </div>
+        {funnel.rows.length === 0 ? (
+          <p className="mt-3 text-sm text-ink-muted">
+            Inga paywall-händelser i fönstret ännu — spårningen började 2026-09-15.
+          </p>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[24rem] text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink-muted">
+                  <th className="py-2 pr-3 font-medium">Källa</th>
+                  <th className="py-2 pr-3 text-right font-medium">Öppningar</th>
+                  <th className="py-2 pr-3 text-right font-medium">Uppgradera-klick</th>
+                  <th className="py-2 text-right font-medium">Klick/öppning</th>
+                </tr>
+              </thead>
+              <tbody>
+                {funnel.rows.map((r) => (
+                  <tr key={r.source} className="border-b border-line/60 last:border-0">
+                    <td className="py-2 pr-3 font-mono text-xs text-ink">{r.source}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{nf.format(r.opens)}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{nf.format(r.upgradeClicks)}</td>
+                    <td className="py-2 text-right tabular-nums text-ink-muted">
+                      {r.opens > 0 ? `${Math.round((100 * r.upgradeClicks) / r.opens)} %` : "–"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="mt-3 text-xs text-ink-faint">
+          Nya betalande = konton vars första betalda Pro (proSince) föll i fönstret. Händelserna är
+          opersonliga och kan inte kedjas per konto — talen står bredvid varandra, inte i rad.
+        </p>
+      </section>
 
       {rows.length === 0 ? (
         <EmptyState

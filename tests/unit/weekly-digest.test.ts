@@ -209,6 +209,28 @@ describe("weeklyDigestEmail", () => {
     expect(mail.text).not.toContain("0 varor");
   });
 
+  // "DET DU MISSADE" (2026-09-15): gratiskontot får Pro-raden i restock-avsnittet
+  // och åtgärden pekar på /priser; Pro får avsnittet orört.
+  it("restock-avsnittet säljer Pro till gratiskontot — och ingenting till Pro", () => {
+    const restock = {
+      title: "Prismatic Evolutions ETB",
+      url: "https://foilio.se/produkter/pe-etb",
+      retailerName: "Butiken",
+      priceOre: 89900,
+      imageUrl: null,
+    };
+    const free = weeklyDigestEmail({ ...base, restocks: [restock], freeRestockNudge: true });
+    expect(free.html).toContain("Pro-medlemmar fick larm om varje");
+    expect(free.html).toContain("https://foilio.se/priser");
+    expect(free.text).toContain("Få larmen direkt med Pro: https://foilio.se/priser");
+    expect(free.text).not.toContain("Sköt dina bevakningar");
+
+    const pro = weeklyDigestEmail({ ...base, restocks: [restock], freeRestockNudge: false });
+    expect(pro.html).not.toContain("Pro-medlemmar fick larm");
+    expect(pro.html).toContain("https://foilio.se/bevakningar");
+    expect(pro.text).toContain("Sköt dina bevakningar: https://foilio.se/bevakningar");
+  });
+
   it("bär avanmälan i BÅDE html och text — text-only-läsare måste också kunna säga nej", () => {
     const mail = weeklyDigestEmail(base);
     expect(mail.html).toContain(base.unsubscribeUrl);

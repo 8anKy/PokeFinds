@@ -3,7 +3,12 @@
  * blockera UI:t (sendBeacon när det finns, annars keepalive-fetch). Får ALDRIG
  * kasta — spårning är biprodukt, inte huvudflöde.
  */
-export type TrackType = "product_view" | "list_click" | "search_click";
+/**
+ * `paywall_open`/`upgrade_click` (2026-09-15): konverteringstratten. Nyckeln är
+ * KÄLLAN ("free-restock-limit", "chart-max", "priser"…) i stället för en slug —
+ * samma opersonliga händelsetabell, ingen userId. Läses i admin → Engagemang.
+ */
+export type TrackType = "product_view" | "list_click" | "search_click" | "paywall_open" | "upgrade_click";
 
 export function track(type: TrackType, slug: string | null | undefined): void {
   if (!slug || typeof window === "undefined") return;

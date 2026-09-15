@@ -52,6 +52,7 @@ import {
   type DigestRestock,
 } from "@/emails/templates";
 import { parseNotificationSettings } from "@/lib/notification-settings";
+import { PRO_USER_SELECT, isPro } from "@/lib/plan";
 import { requireUnsubscribeSecret, unsubscribeUrl } from "@/lib/unsubscribe-token";
 import { computeCollectionValue, type CollectionMover } from "@/services/collection";
 import {
@@ -552,7 +553,8 @@ export async function runWeeklyDigest(
       email: { not: "" },
       OR: [{ weeklyDigestSentAt: null }, { weeklyDigestSentAt: { lt: resendCutoff } }],
     },
-    select: { id: true, name: true, email: true, notificationSettings: true },
+    // Plan-fälten: restock-avsnittet får Pro-raden bara för gratiskonton.
+    select: { id: true, name: true, email: true, notificationSettings: true, ...PRO_USER_SELECT },
     orderBy: { createdAt: "asc" },
   });
 
@@ -807,6 +809,9 @@ export async function runWeeklyDigest(
       collection: collection ?? undefined,
       drops,
       restocks,
+      // "Det du missade": gratiskontot fick inget (eller ett fördröjt) larm om de
+      // här — raden säger det och pekar på Pro. Pro-konton får avsnittet som förut.
+      freeRestockNudge: restocks.length > 0 && !isPro(user),
       // Tomma avsnitt skickas som tom lista → mallen utelämnar dem. Ingen utfyllnad.
       setProgress: setProgress.length > 0 ? setProgress : undefined,
       pulse,

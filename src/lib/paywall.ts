@@ -34,6 +34,8 @@ export interface PaywallOpenOptions {
   mode?: "pro" | "signup";
 }
 
+import { track } from "@/lib/track";
+
 let handler: ((opts?: PaywallOpenOptions) => void) | null = null;
 
 export function registerPaywallOpen(fn: ((opts?: PaywallOpenOptions) => void) | null): void {
@@ -60,5 +62,16 @@ export function openPaywallOrNavigate(
   router: { push: (href: string) => void },
   opts?: PaywallOpenOptions
 ): void {
+  // Tratten: varje prompt räknas på sin källa, oavsett om arket eller sidan
+  // visas. UpgradeButton läser samma källa vid klicket (lastPaywallSource).
+  lastSource = opts?.source ?? "unknown";
+  track("paywall_open", lastSource);
   if (!openPaywall(opts)) router.push(opts?.mode === "signup" ? "/registrera" : "/priser");
+}
+
+let lastSource: string | null = null;
+
+/** Källan bakom den senast öppnade prompten — UpgradeButton stämplar sitt klick med den. */
+export function lastPaywallSource(): string | null {
+  return lastSource;
 }

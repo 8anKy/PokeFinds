@@ -532,6 +532,13 @@ export interface WeeklyDigestContent {
   };
   drops: DigestDrop[];
   restocks: DigestRestock[];
+  /**
+   * GRATISKONTO med påfyllningar i listan: restock-avsnittet får raden "Pro larmar
+   * direkt på varje" och åtgärden pekar på /priser i stället för /bevakningar. Det
+   * ärligaste Pro-argumentet: det hände, du bevakade det, du fick inget larm.
+   * Utelämnas (false) för Pro — inget att sälja.
+   */
+  freeRestockNudge?: boolean;
   /** Påbörjade set, mest kompletta först. Utelämnas när inget set är påbörjat. */
   setProgress?: DigestSetProgress[];
   pulse: {
@@ -761,8 +768,12 @@ export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
         n === 1 ? "En vara du bevakar" : `${n} varor du bevakar`
       } kom tillbaka i lager den här veckan.</p>
           ${rows}`,
-      note: "Lagret kan ha ändrats sedan vi räknade — heta varor tar slut fort.",
-      action: { url: `${base}/bevakningar`, label: "Sköt dina bevakningar" },
+      note: data.freeRestockNudge
+        ? "Pro-medlemmar fick larm om varje påfyllning — direkt, via push och mejl. Lagret kan ha ändrats sedan vi räknade — heta varor tar slut fort."
+        : "Lagret kan ha ändrats sedan vi räknade — heta varor tar slut fort.",
+      action: data.freeRestockNudge
+        ? { url: `${base}/priser`, label: "Få larmen direkt med Pro" }
+        : { url: `${base}/bevakningar`, label: "Sköt dina bevakningar" },
       text: `— Tillbaka i lager —\n${
         n === 1 ? "En vara du bevakar" : `${n} varor du bevakar`
       } kom tillbaka i lager den här veckan.\n${data.restocks
@@ -770,7 +781,11 @@ export function weeklyDigestEmail(data: WeeklyDigestContent): EmailContent {
           (r) =>
             `  · ${r.title} hos ${r.retailerName}${r.priceOre != null ? ` · ${formatSek(r.priceOre)}` : ""}\n    ${r.url}`
         )
-        .join("\n")}\n  Lagret kan ha ändrats sedan vi räknade.\n  Sköt dina bevakningar: ${base}/bevakningar`,
+        .join("\n")}\n  Lagret kan ha ändrats sedan vi räknade.\n${
+        data.freeRestockNudge
+          ? `  Pro-medlemmar fick larm om varje påfyllning — direkt.\n  Få larmen direkt med Pro: ${base}/priser`
+          : `  Sköt dina bevakningar: ${base}/bevakningar`
+      }`,
     });
   }
 

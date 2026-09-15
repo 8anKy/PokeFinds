@@ -5,6 +5,8 @@ import { auth } from "@/lib/auth";
 import { listWatchlist } from "@/services/watchlist";
 import { listSetWatches } from "@/services/set-watch";
 import { listAlerts } from "@/services/alerts";
+import { countMissedRestocks } from "@/services/missed-restocks";
+import { ProTextLink } from "@/components/features/pro-cta";
 import { alertCopyKey } from "@/lib/alert-copy";
 import { priceAlertsPaused } from "@/lib/price-alerts-pause";
 import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
@@ -48,6 +50,13 @@ export default async function WatchlistPage() {
     listAlerts(session.user.id, { page: 1, pageSize: 15 }),
     listSetWatches(session.user.id),
   ]);
+  // "Det du missade": gratiskontots påfyllningar senaste veckan — det ärligaste
+  // Pro-argumentet (services/missed-restocks.ts). En fråga, bara för Free, bara
+  // när larmen är igång (under pausen hade raden sålt något vi stängt av).
+  const missed =
+    !session.user.isPro && !restockPaused && items.length > 0
+      ? await countMissedRestocks(items.map((i) => i.product.id))
+      : 0;
 
   const rows: WatchlistRow[] = items.map((item) => ({
     id: item.id,
@@ -124,7 +133,21 @@ export default async function WatchlistPage() {
           />
         )
       ) : (
-        <WatchlistTable initialItems={rows} isPro={session.user.isPro} restockPaused={restockPaused} />
+        <>
+          {missed > 0 && (
+            <div className="mb-4 rounded-lg border border-holo-cyan/40 bg-holo-cyan/10 px-4 py-3 text-sm text-ink">
+              {t.rich("missedRestocks", {
+                count: missed,
+                link: (c) => (
+                  <ProTextLink source="missed-restocks" className="font-semibold text-holo-cyan hover:underline">
+                    {c}
+                  </ProTextLink>
+                ),
+              })}
+            </div>
+          )}
+          <WatchlistTable initialItems={rows} isPro={session.user.isPro} restockPaused={restockPaused} />
+        </>
       )}
 
       {/* Alerthistorik */}

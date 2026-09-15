@@ -1750,6 +1750,7 @@
     "metaTitle": "Watches",
     "freeAlertsBanner": "Price alerts are a Pro feature. <link>Upgrade to activate them</link>. You can still save products here.",
     "freeAlertsBannerRestock": "One restock alert is included for free ({minutes} min after Pro). Price alerts and alerts on everything you watch: <link>upgrade to Pro</link>.",
+    "missedRestocks": "{count, plural, one {# of your watched products restocked} other {# of your watched products restocked}} in the past week. Pro alerts instantly on every one — <link>upgrade</link>.",
     "h1": "Watches",
     "subtitle": "We alert you on price drops and target prices, before everyone else.",
     "findProducts": "Find products to watch",

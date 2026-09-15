@@ -1750,6 +1750,7 @@
     "metaTitle": "Bevakningar",
     "freeAlertsBanner": "Prislarm är en Pro-förmån. <link>Uppgradera för att aktivera dem</link>. Du kan fortfarande spara produkter här.",
     "freeAlertsBannerRestock": "Ett restock-larm ingår gratis ({minutes} min efter Pro). Prislarm och larm på allt du bevakar: <link>uppgradera till Pro</link>.",
+    "missedRestocks": "{count, plural, one {# av dina bevakade produkter fylldes på} other {# av dina bevakade produkter fylldes på}} den senaste veckan. Pro larmar direkt på varje — <link>uppgradera</link>.",
     "h1": "Bevakningar",
     "subtitle": "Vi larmar dig vid prisfall och målpriser, innan alla andra hinner före.",
     "findProducts": "Hitta produkter att bevaka",

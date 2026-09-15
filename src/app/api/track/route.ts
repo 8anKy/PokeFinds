@@ -25,7 +25,7 @@ export const dynamic = "force-dynamic";
  * ⛔ Lägg alltså ALDRIG tillbaka en produkt-/användaruppslagning här.
  */
 const bodySchema = z.object({
-  type: z.enum(["product_view", "list_click", "search_click"]),
+  type: z.enum(["product_view", "list_click", "search_click", "paywall_open", "upgrade_click"]),
   slug: z.string().min(1).max(200),
 });
 
