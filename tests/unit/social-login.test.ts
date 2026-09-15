@@ -99,6 +99,9 @@ describe("nativt bygge — fyra filer måste vara eniga", () => {
     const src = read("src/lib/social-login.ts");
     expect(src).toMatch(/where === "ios" \? \{ apple: \{ clientId: APPLE_SERVICE_ID \} \} : \{\}/);
     expect(src).not.toMatch(/^\s*apple: \{ clientId: APPLE_SERVICE_ID \},\s*$/m);
+    // …och Google-anropet skickar inga scopes på Android (kräver patchad
+    // MainActivity; email/profile/openid är pluginets default där).
+    expect(src).toMatch(/options: where === "ios" \? \{ scopes: \["email", "profile"\] \} : \{\}/);
   });
 
   it("pluginet är ett deklarerat beroende", () => {

@@ -111,7 +111,14 @@ export async function socialLogin(provider: OAuthProvider, next: string): Promis
   try {
     const plugin = await nativePlugin(where === "ios" ? "ios" : "android");
     if (provider === "google") {
-      const res = await plugin.login({ provider: "google", options: { scopes: ["email", "profile"] } });
+      // ⛔ INGA `scopes` PÅ ANDROID: pluginet lägger själv på email/profile/openid,
+      // och en scopes-array — vilken som helst — kräver en patchad MainActivity
+      // ("You CANNOT use scopes without modifying the main activity", sett i
+      // appen 2026-09-15 direkt efter Apple-config-fixen). iOS tar dem som förut.
+      const res = await plugin.login({
+        provider: "google",
+        options: where === "ios" ? { scopes: ["email", "profile"] } : {},
+      });
       const r = res.result as GoogleLoginResponse;
       if (r.responseType === "online") {
         idToken = r.idToken;
