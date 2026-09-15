@@ -52,7 +52,7 @@ async function platform(): Promise<"web" | "ios" | "android"> {
 }
 
 let initialized = false;
-async function nativePlugin() {
+async function nativePlugin(where: "ios" | "android") {
   const { SocialLogin } = await import("@capgo/capacitor-social-login");
   if (!initialized) {
     await SocialLogin.initialize({
@@ -63,7 +63,12 @@ async function nativePlugin() {
         mode: "online",
       },
       // clientId används inte på OS-nivå på iOS — bara för att aktivera providern.
-      apple: { clientId: APPLE_SERVICE_ID },
+      // ⛔ BARA PÅ iOS. På Android kräver pluginet `apple.android.redirectUrl`
+      // (en backend-redirect vi inte har — Apple kör webbflödet i WebView:en där)
+      // och kastar annars "apple.android.redirectUrl is null or empty" ur
+      // initialize(), vilket tog GOOGLE med sig: ingen inloggning startade alls
+      // (logcat på emulatorn 2026-09-15, sett som "kunde inte slutföras").
+      ...(where === "ios" ? { apple: { clientId: APPLE_SERVICE_ID } } : {}),
     });
     initialized = true;
   }
@@ -104,7 +109,7 @@ export async function socialLogin(provider: OAuthProvider, next: string): Promis
   let idToken: string | null = null;
   let name: string | null = null;
   try {
-    const plugin = await nativePlugin();
+    const plugin = await nativePlugin(where === "ios" ? "ios" : "android");
     if (provider === "google") {
       const res = await plugin.login({ provider: "google", options: { scopes: ["email", "profile"] } });
       const r = res.result as GoogleLoginResponse;

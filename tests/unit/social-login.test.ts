@@ -92,6 +92,15 @@ describe("nativt bygge — fyra filer måste vara eniga", () => {
     expect(df).not.toContain("ARG APPLE_PRIVATE_KEY");
   });
 
+  it("Android initierar pluginet UTAN Apple-config (annars kastar initialize() och tar Google med sig)", () => {
+    // Uppmätt på emulatorn 2026-09-15: "apple.android.redirectUrl is null or
+    // empty" ur SocialLogin.initialize — ingen inloggning startade alls, och
+    // UI:t sa bara "kunde inte slutföras". Apple på Android kör webbflödet.
+    const src = read("src/lib/social-login.ts");
+    expect(src).toMatch(/where === "ios" \? \{ apple: \{ clientId: APPLE_SERVICE_ID \} \} : \{\}/);
+    expect(src).not.toMatch(/^\s*apple: \{ clientId: APPLE_SERVICE_ID \},\s*$/m);
+  });
+
   it("pluginet är ett deklarerat beroende", () => {
     const pkg = JSON.parse(read("package.json")) as { dependencies: Record<string, string> };
     expect(pkg.dependencies["@capgo/capacitor-social-login"]).toBeTruthy();
