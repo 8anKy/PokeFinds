@@ -64,7 +64,10 @@ const crypto = require("node:crypto");
 // bygget pekar på JS-chunks som varken läser det eller ritar arket — så en betald
 // placering hade varit osynlig i upp till 30 dygn medan både DB och API sa "sponsrad".
 // Precis det symptom "2" och "3" beskriver; missades ändå vid första deployen.
-const PAGE_EPOCH = "4";
+// "5" (2026-09-15): graderade priser blev ETT block (till salu + sålt per betyg),
+// gratiskontots Bevaka-ark/intro och pilarna bort — UI i produktsidans egna chunks,
+// som en cachad post från förra bygget annars hade hållit kvar i 30 dygn.
+const PAGE_EPOCH = "5";
 const STORE_VERSION = "v1";
 /** Sidor äldre än så rensas oavsett TTL (ISR-TTL:en för produktsidor är 30 d). */
 const PAGE_MAX_AGE_MS = 35 * 24 * 3600 * 1000;
