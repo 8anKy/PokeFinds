@@ -11,6 +11,7 @@ import { IconCards, IconCheck } from "@/components/ui/icons";
 import { IconDiscord } from "@/components/ui/brand-icons";
 import { DISCORD_URL } from "@/lib/social-links";
 import { cn } from "@/lib/utils";
+import { enablePush, getPushPlugin } from "@/lib/push-client";
 
 /*
  * ONBOARDINGEN ÄR TVÅ STEG (2026-08-16). Den var tre: ett obligatoriskt
@@ -50,7 +51,32 @@ export default function OnboardingPage() {
   const [sets, setSets] = useState<SetItem[]>([]);
   const [setsLoading, setSetsLoading] = useState(true);
   const [favoriteSets, setFavoriteSets] = useState<string[]>([]);
-  const [notif, setNotif] = useState({ email: true });
+  const [notif, setNotif] = useState<{ email: boolean; push?: boolean }>({ email: true });
+  // Push-raden finns bara i den nativa appen — på webben finns inget att be om.
+  const [nativePush, setNativePush] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
+  useEffect(() => {
+    void getPushPlugin().then((p) => setNativePush(!!p));
+  }, []);
+
+  // Slår man på push här ber vi om OS-tillståndet DIREKT (samma väg som
+  // inställningarna): en bock som inte leder till en prompt hade sparat
+  // `push: true` utan att någon enhet någonsin registrerats — larmen hade
+  // "varit på" och aldrig kommit.
+  async function togglePush(checked: boolean) {
+    setPushError(null);
+    if (!checked) {
+      setNotif((n) => ({ ...n, push: false }));
+      return;
+    }
+    const res = await enablePush();
+    if (!res.ok) {
+      setPushError(t("notifPushDenied"));
+      setNotif((n) => ({ ...n, push: false }));
+      return;
+    }
+    setNotif((n) => ({ ...n, push: true }));
+  }
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -215,6 +241,18 @@ export default function OnboardingPage() {
                 onChange={(e) => setNotif((n) => ({ ...n, email: e.target.checked }))}
               />
             </div>
+            {nativePush && (
+              <div className="rounded-lg border border-surface-border bg-surface-raised p-3">
+                <Checkbox
+                  id="notif-push"
+                  label={t("notifPush")}
+                  checked={!!notif.push}
+                  onChange={(e) => void togglePush(e.target.checked)}
+                />
+                <p className="mt-1.5 pl-7 text-xs text-ink-faint">{t("notifPushHint")}</p>
+                {pushError && <p className="mt-1.5 pl-7 text-xs text-fall">{pushError}</p>}
+              </div>
+            )}
 
             {/* Discord-inbjudan i SISTA steget, inte som ett eget extra steg:
                 registreringen ska inte bli längre för att vi vill ha medlemmar.

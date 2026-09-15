@@ -81,7 +81,7 @@ export function DiscordRestockTip() {
           }}
           className="mt-2 inline-block text-xs font-semibold text-holo-cyan hover:underline"
         >
-          {t("cta")} →
+          {t("cta")}
         </a>
       </div>
 

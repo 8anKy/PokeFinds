@@ -7,7 +7,7 @@ import { useRouter } from "@/i18n/navigation";
 import { hasAuthHint } from "@/lib/auth-hint";
 import { setProductWatched } from "@/lib/watched-products";
 import { openPaywallOrNavigate } from "@/lib/paywall";
-import { FREE_RESTOCK_ALERT_LIMIT_CODE, promptPushAfterWatch } from "@/lib/watch-alert-followup";
+import { FREE_RESTOCK_ALERT_LIMIT_CODE, promptChannelsAfterWatch } from "@/lib/watch-alert-followup";
 import {
   FreeWatchIntroSheet,
   freeWatchIntroSeen,
@@ -193,7 +193,11 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
         openPaywallOrNavigate(router, { source: "free-restock-limit" });
       } else {
         toast({ title: existing ? t("watchUpdated") : t("watchCreated"), variant: "success" });
-        if (row.restockAlert) void promptPushAfterWatch();
+        if (row.restockAlert) {
+          void promptChannelsAfterWatch().then((r) => {
+            if (r === "email-off") toast({ title: tw("emailOffTitle"), description: tw("emailOffDesc") });
+          });
+        }
       }
       if (!existing) setJustWatched(true);
     } catch {

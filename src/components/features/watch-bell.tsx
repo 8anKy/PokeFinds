@@ -14,7 +14,7 @@ import { getWatchedSetIds, setSetWatched } from "@/lib/watched-sets";
 import { getWatchedProductIds, setProductWatched } from "@/lib/watched-products";
 import { openPaywallOrNavigate } from "@/lib/paywall";
 import { FREE_RESTOCK_ALERT_DELAY_MINUTES } from "@/lib/free-restock-alert";
-import { promptPushAfterWatch } from "@/lib/watch-alert-followup";
+import { promptChannelsAfterWatch } from "@/lib/watch-alert-followup";
 import {
   FreeWatchIntroSheet,
   freeWatchIntroSeen,
@@ -121,6 +121,12 @@ export function WatchBell({ productId, productTitle, setId, setName }: WatchBell
     setOpen(true);
   }, [requireLogin, saving]);
 
+  /** Kanalerna efter första larmet: push-prompt i appen, toast om mejl är av. */
+  async function followUpChannels() {
+    const r = await promptChannelsAfterWatch();
+    if (r === "email-off") toast({ title: t("emailOffTitle"), description: t("emailOffDesc") });
+  }
+
   async function watchItem() {
     setSaving(true);
     try {
@@ -167,10 +173,10 @@ export function WatchBell({ productId, productTitle, setId, setName }: WatchBell
           description: t("itemWatchedFreeDesc", { minutes: FREE_RESTOCK_ALERT_DELAY_MINUTES }),
           variant: "success",
         });
-        void promptPushAfterWatch();
+        void followUpChannels();
       } else {
         toast({ title: t("itemWatched"), variant: "success" });
-        void promptPushAfterWatch();
+        void followUpChannels();
       }
     } catch {
       toast({ title: t("failed"), variant: "error" });

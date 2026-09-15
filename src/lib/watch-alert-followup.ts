@@ -1,35 +1,51 @@
 "use client";
 /**
  * Efterspelet till ett Bevaka-tryck med restock-larm (ägarbeslut 2026-09-15):
- * larmet ska kunna NÅ användaren, så i den nativa appen ber vi om push-tillstånd
- * direkt här — inte i en inställning ingen hittar. Mejl är redan på för varje
- * konto (notificationSettings.email default true), så det behöver inget samtycke
- * i det här steget.
+ * larmet ska kunna NÅ användaren. Kanalerna läses ur kontots inställningar
+ * (GET /api/users/me) och det som är AV får en knuff, en gång per sidladdning:
  *
- * ⛔ Frågar bara när OS:et inte redan avgjort saken: `enablePush()` prompt:ar
- *    bara om tillståndet är "prompt" och är no-op på webben. Blir det ja skrivs
- *    `push: true` i inställningarna (PATCH mergar) — annars registreras token
- *    utan att utskicket någonsin läser den (settings.push är master i
- *    dispatchPendingAlerts).
+ *  - push av + nativ app  ⇒ be om OS-tillståndet direkt (enablePush) och, om ja,
+ *    skriv `push: true` (PATCH mergar). Ett nej skriver ingenting.
+ *  - e-post av            ⇒ säg det till anroparen (`email-off`) så en toast kan
+ *    peka på Inställningar. ⛔ Aldrig slå PÅ mejl bakom ryggen — det är ett val
+ *    användaren gjort.
+ *
+ * ⛔ Ingen prompt när push redan är PÅ i inställningarna: enablePush() hade då
+ *    bara registrerat om enheten, och PATCH:en hade skrivit över ett medvetet AV
+ *    om OS-tillståndet råkade vara beviljat sedan tidigare.
  * ⛔ Aldrig blockerande: allt här är best effort efter att bevakningen redan är
  *    sparad. Ett nej är inte ett fel.
  */
 import { apiFetch } from "@/lib/client-api";
-import { enablePush } from "@/lib/push-client";
+import { enablePush, getPushPlugin } from "@/lib/push-client";
 
-let asked = false;
+export type WatchFollowup = "ok" | "push-enabled" | "email-off";
 
-export async function promptPushAfterWatch(): Promise<void> {
-  if (asked) return;
-  asked = true;
+let done = false;
+
+export async function promptChannelsAfterWatch(): Promise<WatchFollowup> {
+  if (done) return "ok";
+  done = true;
   try {
-    const res = await enablePush();
-    if (!res.ok) return;
-    await apiFetch("/api/users/me", { method: "PATCH", body: { notificationSettings: { push: true } } });
+    const me = await apiFetch<{ notificationSettings?: { email?: boolean; push?: boolean } }>("/api/users/me");
+    const settings = me.notificationSettings ?? {};
+    let result: WatchFollowup = "ok";
+    if (settings.push !== true && (await getPushPlugin())) {
+      const res = await enablePush();
+      if (res.ok) {
+        await apiFetch("/api/users/me", { method: "PATCH", body: { notificationSettings: { push: true } } });
+        result = "push-enabled";
+      }
+    }
+    if (settings.email === false) return "email-off";
+    return result;
   } catch {
-    // Best effort — bevakningen är redan sparad och mejlet går ändå.
+    return "ok";
   }
 }
+
+/** @deprecated namnet före 2026-09-15 — samma sak, behållet för anropare. */
+export const promptPushAfterWatch = promptChannelsAfterWatch;
 
 /**
  * Felkoden servern svarar med när gratiskontot försöker slå på ett andra
