@@ -77,6 +77,22 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
 - **Funktioner live**: watchlist/prisbevakning, restock-alerts (41 butiker), samlingsvärde, AI-gradering
   (`/gradera`), live kort-skanner (`/skanna`), community, admin, PWA, **set-komplettering** (Set-fliken i
   `/samling` + stapel på `/sets/[id]`).
+- **GRATISKONTOT HAR ETT RESTOCK-LARM, 4 MIN EFTER PRO (ägarbeslut 2026-09-15, konvertering)**: Bevaka gav
+  förut gratiskontot ingenting (raden sparades, larmet avfyrades aldrig) och ingen lärde sig vad Pro är. Nu
+  ingår ETT restock-larm = det ÄLDSTA objektet med `restockAlert` på (`lib/free-restock-alert.ts`), levererat
+  `FREE_RESTOCK_ALERT_DELAY_MINUTES` (4) efter Pro via `Alert.notBefore` + `alertDueWhere` i
+  `dispatchPendingAlerts`; push och mejl bär raden "Pro-medlemmar fick det här för 4 min sedan". ⛔ Talet är en
+  KONSTANT, inte env — copyn (spec-bladet "1 · 4 min efter Pro", arken) vaktas mot det i
+  `tests/unit/free-restock-alert.test.ts`. ⛔ 4 min är ett KOSTNADSVAL: restock-hit-rutten fyrar en timer
+  `delay + 15 s` efter hiten och Neon (autosuspend 300 s) är då fortfarande vaken — noll extra väckningar;
+  över ~4,5 min köper varje hit-fönster en väckning (≈ $1/mån). Domen tas på TVÅ ställen: skrivning
+  (`addWatchlistItem` ⇒ `restockAlertDenied`, `updateWatchlistItem` ⇒ 403 `FREE_RESTOCK_ALERT_LIMIT` ⇒
+  klienten öppnar paywall-arket) och larmtillfället (`restockWatchersFor` i `services/alerts.ts`: planen ur
+  relationen `user`, aldrig `proUserWhere()` i where — en Pro som fallit till Free får bara sitt äldsta).
+  "Alla restocks", set-bevakning och prislarm är fortfarande Pro. Första Bevaka-trycket på en enhet visar
+  `FreeWatchIntroSheet` (tak, ena larmet, Pro direkt; localStorage-nyckel `foilio:free-watch-intro:v1`) och
+  appen ber om push-tillstånd direkt efter (`promptPushAfterWatch`). ⛔ Nämn aldrig konkurrenter i copyn
+  när erbjudandet jämförs — bara vad som ingår hos oss.
 - ⛔ **CSV-IMPORT AV SAMLINGEN ÄR DOLD TILLS ÄGAREN HAR TESTAT KLART (2026-09-10).** Knappar, sida och
   samtliga import-API:er öppnas bara när servervariabeln `COLLECTION_IMPORT_PUBLIC=1`; osatt spak ger
   404 även på en gissad URL. Koden nedan beskriver flödet när grinden öppnas.
