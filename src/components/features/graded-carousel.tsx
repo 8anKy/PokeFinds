@@ -230,6 +230,7 @@ const LOGO_FILES: Partial<Record<GradingIssuer, string>> = {
   SGC: "/grading-logos/sgc.png",
   ACE: "/grading-logos/ace.png",
   TAG: "/grading-logos/tag.png",
+  RAUKCARD: "/grading-logos/raukcard.png",
 };
 
 /** Bolagets märke: filen om den finns, annars ett ordmärke. Höjd 14 px, bredd fri. */
@@ -238,7 +239,7 @@ function IssuerMark({ issuer }: { issuer: GradingIssuer }) {
   const wordmark = <span className="font-display text-[11px] font-black uppercase tracking-wide text-ink">{label}</span>;
   const src = LOGO_FILES[issuer];
   if (!src) return wordmark;
-  // Beckett är ett kvadratiskt emblem — 14 px högt blir det en prick; 18 px där.
-  const cls = issuer === "BGS" ? "h-[18px]" : "h-3.5";
+  // Beckett och RaukCard är kvadratiska emblem — 14 px höga blir de prickar; 18 px där.
+  const cls = issuer === "BGS" || issuer === "RAUKCARD" ? "h-[18px]" : "h-3.5";
   return <SafeImage src={src} alt={label} className={`${cls} w-auto max-w-[4.5rem] object-contain`} fallback={wordmark} />;
 }
