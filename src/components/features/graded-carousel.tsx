@@ -60,7 +60,10 @@ export function GradedCarousel({
 
   return (
     <div className="mt-4">
+      {/* data-swipe-ignore: rälsen äger sitt vågräta drag — utan den tolkar
+          produkt-overlayn svepet som "tillbaka" (samma som Tradera-skenan). */}
       <div
+        data-swipe-ignore
         className="-mx-2.5 flex snap-x gap-2 overflow-x-auto px-2.5 pb-1 lg:mx-0 lg:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         role="group"
         aria-label={t("gradedPricesTitle")}
@@ -113,12 +116,8 @@ export function GradedCarousel({
         panelClassName="sm:mx-auto sm:max-w-md"
       >
         {sheetFor && (
-          <div className="flex flex-col gap-2">
-            <div className="grid grid-cols-[3rem_1fr_1fr] gap-x-3 px-1 text-[10px] uppercase tracking-wide text-ink-muted">
-              <span>{t("gradedColGrade")}</span>
-              <span>{t("gradedAskLabel")} · eBay</span>
-              <span>{t("gradedSoldLabel")} · Tradera</span>
-            </div>
+          // Bottenluft + safe-area: sista raden låg under skärmkanten på iPhone.
+          <div className="flex flex-col gap-2 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
             {sheetFor.grades.map((g) => {
               const on = g.gradeTenths === gradeOf(sheetFor);
               return (

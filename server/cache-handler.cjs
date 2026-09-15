@@ -71,7 +71,8 @@ const crypto = require("node:crypto");
 // (`gradedSales.history` i detail-payloaden — nytt API-kontrakt gammal klientkod inte läser).
 // "7" (2026-09-15, natt): badge-raden (v2 av karusellen) + felgränser på produktsidan.
 // "8" (2026-09-15): bolagsmärken i badge-raden.
-const PAGE_EPOCH = "8";
+// "9" (2026-09-15): badge-rälsen svepsäker (data-swipe-ignore), betygsarket utan rubrikrad + bottenluft.
+const PAGE_EPOCH = "9";
 const STORE_VERSION = "v1";
 /** Sidor äldre än så rensas oavsett TTL (ISR-TTL:en för produktsidor är 30 d). */
 const PAGE_MAX_AGE_MS = 35 * 24 * 3600 * 1000;
