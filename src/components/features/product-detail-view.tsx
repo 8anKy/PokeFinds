@@ -171,14 +171,14 @@ export function ProductDetailView({
     return () => io.disconnect();
   }, [slug]);
 
+  // Graderingskarusellen väljer vad grafen ritar: null = ograderad kurva (som
+  // förut), annars (bolag, betyg) → eBay-begärt + Tradera-sålt för det betyget.
+  const [gradedSel, setGradedSel] = useState<GradedSelection | null>(null);
   if (!dataProp && !shell) return null;
   const data: ProductDetailData = live ?? shellToDetail(shell!);
   const pending = live === null;
 
   const isSingle = data.category === "SINGLE_CARD";
-  // Graderingskarusellen väljer vad grafen ritar: null = ograderad kurva (som
-  // förut), annars (bolag, betyg) → eBay-begärt + Tradera-sålt för det betyget.
-  const [gradedSel, setGradedSel] = useState<GradedSelection | null>(null);
   const gradedHistory = gradedSel
     ? data.gradedSales.history.find(
         (h) => h.issuer === gradedSel.issuer && h.gradeTenths === gradedSel.gradeTenths
