@@ -4,16 +4,17 @@
  * Källa: prisleverantörens `/{game}/ebay-sold-offers?tcgid=…` (eBay UK:s
  * avslutade graderade annonser, redan matchade per kort). EN ANROP PER KORT,
  * en sida (max 100 affärer) — det räcker för medianer och grafens punkter.
- * Delar RapidAPI-kvoten med Cardmarket-priserna (~1 880/dygn av 3 000), därför
- * en EGEN budget (`TCGGO_EBAY_SOLD_DAILY_BUDGET`, default 600).
+ * Delar RapidAPI-kvoten med Cardmarket-priserna (~2 300/dygn av 15 000 sedan
+ * Ultra 2026-09-16), därför en EGEN budget (`TCGGO_EBAY_SOLD_DAILY_BUDGET`,
+ * default 2 000 — hela EN-katalogen varvas på ~10 dygn).
  *
  * Urval som graded-ask-sweep: bevakade kort varje natt, resten roterar på
  * `Product.ebaySoldCheckedAt`. Idempotent: `GradedSale.itemId` är unik och
  * createMany hoppar dubbletter — en omkörning kostar bara anropen.
  *
  * ⛔ EN-kort bär pokemontcg-id i `Card.tcgExternalId` → `tcgid=`. JP-kort bär
- *    leverantörens eget id ("tcggo-jp:<id>") → `id=`; den japanska katalogen är
- *    dock Ultra-grindad hos leverantören, så JP faller ut tills planen höjs.
+ *    leverantörens eget id ("tcggo-jp:<id>") → `id=` mot `pokemon-jp` (Ultra
+ *    sedan 2026-09-16).
  * ⛔ 429 = kvoten slut: stanna, skriv det som hann.
  * ⛔ Plausibilitetsvakten är samma som Tradera-vägen: under 15 % av det
  *    ograderade CM-priset är en felmatchning, inte ett fynd.
@@ -72,8 +73,7 @@ async function selectProducts(budget: number): Promise<ProductRow[]> {
     category: "SINGLE_CARD",
     hiddenAt: null,
     card: { tcgExternalId: { not: null } },
-    // JP är Ultra-grindat hos leverantören (2026-09-15) — hoppa tills planen höjs.
-    language: "EN",
+    language: { in: ["EN", "JP"] },
   };
   const watched = await prisma.product.findMany({
     where: { ...baseWhere, watchlistItems: { some: {} } },
@@ -119,7 +119,7 @@ export async function runEbaySoldSweep(opts: EbaySoldSweepOptions = {}): Promise
     return res;
   }
   res.ran = true;
-  const budget = opts.budget ?? parseInt(process.env.TCGGO_EBAY_SOLD_DAILY_BUDGET ?? "600", 10);
+  const budget = opts.budget ?? parseInt(process.env.TCGGO_EBAY_SOLD_DAILY_BUDGET ?? "2000", 10);
   const dryRun = opts.dryRun ?? false;
   const fetchImpl = opts.fetchImpl ?? fetch;
   const rates = await getRatesOre();

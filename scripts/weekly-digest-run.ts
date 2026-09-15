@@ -24,6 +24,7 @@ if (fs.existsSync(envPath)) {
 }
 
 import { prisma } from "../src/lib/db";
+import { exitJob } from "../src/lib/job-exit";
 import { runWeeklyDigest } from "../src/jobs/weekly-digest";
 
 const force = process.argv.includes("--force");
@@ -35,4 +36,4 @@ runWeeklyDigest(new Date(), { force, dryRun, onlyEmail })
     console.error("Misslyckades:", e);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => void exitJob());

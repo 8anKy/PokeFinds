@@ -18,6 +18,7 @@ if (fs.existsSync(envPath)) {
 }
 
 import { prisma } from "../src/lib/db";
+import { exitJob } from "../src/lib/job-exit";
 import { runProExpiryNotice } from "../src/jobs/pro-expiry-notice";
 
 runProExpiryNotice()
@@ -25,4 +26,4 @@ runProExpiryNotice()
     console.error("Misslyckades:", e);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => void exitJob());

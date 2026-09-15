@@ -15,6 +15,7 @@ if (fs.existsSync(envPath)) {
 }
 
 import { prisma } from "../src/lib/db";
+import { exitJob } from "../src/lib/job-exit";
 import { dedupeStubs } from "../src/jobs/dedupe-stubs";
 
 dedupeStubs()
@@ -22,4 +23,4 @@ dedupeStubs()
     console.error("Misslyckades:", e);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => void exitJob());

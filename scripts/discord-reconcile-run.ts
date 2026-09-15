@@ -15,6 +15,7 @@ if (fs.existsSync(envPath)) {
 }
 
 import { prisma } from "../src/lib/db";
+import { exitJob } from "../src/lib/job-exit";
 import { runDiscordReconcile } from "../src/jobs/discord-reconcile";
 
 runDiscordReconcile()
@@ -22,4 +23,4 @@ runDiscordReconcile()
     console.error("Misslyckades:", e);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => void exitJob());

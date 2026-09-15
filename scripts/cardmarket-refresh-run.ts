@@ -6,6 +6,7 @@
  * Env (DATABASE_URL, CARDMARKET_RAPIDAPI_*) läses från process.env.
  */
 import { prisma, ensureDbAwake } from "../src/lib/db";
+import { exitJob } from "../src/lib/job-exit";
 import { runCardmarketRefresh } from "../src/jobs/cardmarket-refresh";
 
 // FAILA HÖGT PÅ SAKNAD NYCKEL. runCardmarketRefresh() bara WARNAR och returnerar när
@@ -47,4 +48,4 @@ ensureDbAwake()
     console.error("Misslyckades:", e);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => void exitJob());

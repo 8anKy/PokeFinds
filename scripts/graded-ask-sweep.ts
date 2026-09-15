@@ -22,6 +22,7 @@ if (fs.existsSync(envPath)) {
 }
 
 import { prisma } from "../src/lib/db";
+import { exitJob } from "../src/lib/job-exit";
 import { runGradedAskSweep } from "../src/jobs/graded-ask-sweep";
 
 runGradedAskSweep({ dryRun: process.env.DRY_RUN === "1" })
@@ -29,4 +30,4 @@ runGradedAskSweep({ dryRun: process.env.DRY_RUN === "1" })
     console.error("Misslyckades:", e);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => void exitJob());

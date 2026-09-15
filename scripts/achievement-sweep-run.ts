@@ -18,6 +18,7 @@ if (fs.existsSync(envPath)) {
 }
 
 import { prisma } from "../src/lib/db";
+import { exitJob } from "../src/lib/job-exit";
 import { runAchievementSweep } from "../src/jobs/achievement-sweep";
 
 runAchievementSweep()
@@ -25,4 +26,4 @@ runAchievementSweep()
     console.error("Misslyckades:", e);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => void exitJob());

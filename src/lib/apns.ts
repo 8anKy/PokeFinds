@@ -37,6 +37,8 @@ interface ApnSendResult {
 }
 interface ApnProvider {
   send(note: ApnNotification, tokens: string[]): Promise<ApnSendResult>;
+  /** Stänger HTTP/2-sessionerna mot APNs. */
+  shutdown(): void;
 }
 interface ApnModule {
   Provider: new (opts: unknown) => ApnProvider;
@@ -61,6 +63,25 @@ function getProvider(): ApnProvider | null {
     production: process.env.APNS_PRODUCTION === "true",
   });
   return provider;
+}
+
+/**
+ * STÄNG APNs-SESSIONEN NÄR ETT JOBB ÄR KLART. node-apn håller HTTP/2-
+ * förbindelserna öppna efter `send` och de håller Nodes event-loop vid liv:
+ * cardmarket-refresh (GitHub Actions) skrev "Klart" 17:46 den 2026-09-15 och
+ * stod sedan still i 97 minuter tills 2-timmarsgränsen dödade körningen — fyra
+ * av elva körningar, exakt de dygn prislarm hade skickats. Anropas av
+ * `exitJob()` (lib/job-exit.ts); ofarlig när ingen provider skapats.
+ */
+export function shutdownPush(): void {
+  if (provider) {
+    try {
+      provider.shutdown();
+    } catch {
+      // en redan stängd session är inget fel
+    }
+  }
+  provider = undefined;
 }
 
 /**

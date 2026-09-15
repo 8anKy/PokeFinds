@@ -18,6 +18,7 @@ if (fs.existsSync(envPath)) {
 }
 
 import { prisma } from "../src/lib/db";
+import { exitJob } from "../src/lib/job-exit";
 import { runTraderaSoldSync } from "../src/jobs/tradera-sold-sync";
 
 runTraderaSoldSync({ days: parseInt(process.env.SOLD_LOOKBACK_DAYS ?? "60", 10) })
@@ -25,4 +26,4 @@ runTraderaSoldSync({ days: parseInt(process.env.SOLD_LOOKBACK_DAYS ?? "60", 10) 
     console.error("Misslyckades:", e);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => void exitJob());

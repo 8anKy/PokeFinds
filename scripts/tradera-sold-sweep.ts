@@ -21,6 +21,7 @@ if (fs.existsSync(envPath)) {
 }
 
 import { prisma } from "../src/lib/db";
+import { exitJob } from "../src/lib/job-exit";
 import { runTraderaSoldSweep } from "../src/jobs/tradera-sold-sweep";
 
 runTraderaSoldSweep({ dryRun: process.env.DRY_RUN === "1" })
@@ -28,4 +29,4 @@ runTraderaSoldSweep({ dryRun: process.env.DRY_RUN === "1" })
     console.error("Misslyckades:", e);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => void exitJob());

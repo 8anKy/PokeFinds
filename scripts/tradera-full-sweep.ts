@@ -19,6 +19,7 @@ if (fs.existsSync(envPath)) {
 }
 
 import { prisma } from "../src/lib/db";
+import { exitJob } from "../src/lib/job-exit";
 import { runTraderaSweep } from "../src/jobs/tradera-sweep";
 import { verifyTraderaMatches } from "../src/jobs/verify-deals";
 
@@ -39,4 +40,4 @@ runTraderaSweep({
     console.error("Misslyckades:", e);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => void exitJob());

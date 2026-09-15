@@ -6,6 +6,7 @@
  * Env (DATABASE_URL, CARDMARKET_RAPIDAPI_*, HOT_CARD_LIMIT) läses från process.env.
  */
 import { prisma, ensureDbAwake } from "../src/lib/db";
+import { exitJob } from "../src/lib/job-exit";
 import { runHotCardRefresh } from "../src/jobs/hot-card-refresh";
 
 // Väck Neon före första riktiga frågan — se ensureDbAwake (en sovande endpoint
@@ -19,4 +20,4 @@ ensureDbAwake()
     console.error("Misslyckades:", e);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => void exitJob());
