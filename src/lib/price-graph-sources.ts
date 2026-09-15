@@ -12,8 +12,9 @@
  * `ebay` (2026-09-15) = lägsta BEGÄRDA pris för ett graderat betyg (GradedAskSnapshot);
  * den ritas bara i grafens graderade läge, aldrig bredvid den ograderade kurvan.
  * Fri källa — begärt pris är ett erbjudande, inte marknadsdata vi säljer.
+ * `ebaySold` = SÅLDA graderade på eBay UK (GradedSale source "ebay") — Pro, som Traderas sålt.
  */
-export const SOURCE_ORDER = ["cardmarket", "cardtrader", "ebay", "tradera", "traderaSold"] as const;
+export const SOURCE_ORDER = ["cardmarket", "cardtrader", "ebay", "ebaySold", "tradera", "traderaSold"] as const;
 export type SourceKey = (typeof SOURCE_ORDER)[number];
 
 /**
@@ -32,7 +33,7 @@ export type SourceKey = (typeof SOURCE_ORDER)[number];
  * origin-request (= Neon-väckning) per produktvisning. Samma avvägning som
  * MAX-periodens lås redan gör.
  */
-export const PRO_SOURCES: readonly SourceKey[] = ["tradera", "traderaSold"];
+export const PRO_SOURCES: readonly SourceKey[] = ["ebaySold", "tradera", "traderaSold"];
 
 export interface SourceGate {
   /** Källor besökaren får bocka i (har data OCH är inte låsta). */

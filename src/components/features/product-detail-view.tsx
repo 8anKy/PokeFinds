@@ -373,11 +373,12 @@ export function ProductDetailView({
                       plain
                       bySource={{
                         ebay: gradedHistory?.asks ?? [],
+                        ebaySold: gradedHistory?.soldEbay ?? [],
                         traderaSold: gradedHistory?.sold ?? [],
                       }}
                       title={t("historyGradedTitle", { grade: gradedTitle })}
                       subtitle={
-                        (gradedHistory?.asks.length ?? 0) + (gradedHistory?.sold.length ?? 0) === 0
+                        (gradedHistory?.asks.length ?? 0) + (gradedHistory?.sold.length ?? 0) + (gradedHistory?.soldEbay?.length ?? 0) === 0
                           ? t("historyNone")
                           : t("historyGradedQuality")
                       }

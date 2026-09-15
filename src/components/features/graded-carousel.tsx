@@ -148,16 +148,24 @@ export function GradedCarousel({
                       <span className="text-sm text-ink-faint">–</span>
                     )}
                   </span>
+                  {/* SÅLT: eBay UK och Tradera som två märkta rader — aldrig ett tal. */}
                   <span className="min-w-0">
-                    {g.sale ? (
-                      <>
-                        <span className="block text-sm font-semibold text-ink">{formatPrice(g.sale.medianOre)}</span>
-                        <span className="block text-[11px] text-ink-muted">
-                          {t("gradedSampleCount", { count: g.sale.count })}
+                    {!g.saleEbay && !g.sale && <span className="text-sm text-ink-faint">–</span>}
+                    {g.saleEbay && (
+                      <span className="block">
+                        <span className="text-sm font-semibold text-ink">{formatPrice(g.saleEbay.medianOre)}</span>
+                        <span className="ml-1 text-[10px] text-ink-muted">
+                          eBay · {t("gradedSampleCount", { count: g.saleEbay.count })}
                         </span>
-                      </>
-                    ) : (
-                      <span className="text-sm text-ink-faint">–</span>
+                      </span>
+                    )}
+                    {g.sale && (
+                      <span className="block">
+                        <span className="text-sm font-semibold text-ink">{formatPrice(g.sale.medianOre)}</span>
+                        <span className="ml-1 text-[10px] text-ink-muted">
+                          Tradera · {t("gradedSampleCount", { count: g.sale.count })}
+                        </span>
+                      </span>
                     )}
                   </span>
                 </button>
@@ -207,10 +215,11 @@ function CellPrice({ cell }: { cell: GradedGradeCell }) {
   if (cell.ask) {
     return <span className="text-sm font-semibold tabular-nums text-ink">{formatPrice(cell.ask.priceOre)}</span>;
   }
-  if (cell.sale) {
+  const sold = cell.saleEbay ?? cell.sale;
+  if (sold) {
     return (
       <span className="text-sm font-semibold tabular-nums text-ink">
-        {formatPrice(cell.sale.medianOre)}
+        {formatPrice(sold.medianOre)}
         <span className="ml-1 text-[10px] font-normal uppercase text-ink-muted">{t("gradedSoldLabel")}</span>
       </span>
     );

@@ -11,12 +11,12 @@ const ask = (issuer: GradedAskRow["issuer"], gradeTenths: number, priceOre: numb
   source: "ebay", issuer, gradeTenths, priceOre, originalMinor: 100, originalCurrency: "USD",
   listingCount: 3, url: "https://ebay.com/itm/1", observedAt: "2026-09-15T00:00:00Z",
 });
-const sale = (issuer: GradedSaleRow["issuer"], gradeTenths: number | null, medianOre: number): GradedSaleRow => ({
-  issuer, gradeTenths, count: 2, medianOre, lowOre: medianOre, highOre: medianOre,
+const sale = (issuer: GradedSaleRow["issuer"], gradeTenths: number | null, medianOre: number, source: GradedSaleRow["source"] = "tradera"): GradedSaleRow => ({
+  source, issuer, gradeTenths, count: 2, medianOre, lowOre: medianOre, highOre: medianOre,
   lastPriceOre: medianOre, lastSoldAt: "2026-09-01T00:00:00Z", lastUrl: "https://tradera.com/x",
 });
 const hist = (issuer: GradedHistory["issuer"], gradeTenths: number): GradedHistory => ({
-  issuer, gradeTenths, asks: [{ date: "2026-09-15", price: 1 }], sold: [],
+  issuer, gradeTenths, asks: [{ date: "2026-09-15", price: 1 }], sold: [], soldEbay: [],
 });
 
 describe("buildGradedCards", () => {
@@ -29,7 +29,7 @@ describe("buildGradedCards", () => {
     expect(cards.map((c) => c.issuer)).toEqual(["PSA", "BGS", "CGC", "TAG"]);
     const psa = cards[0].grades;
     expect(psa.map((g) => g.gradeTenths)).toEqual([100, 90]); // okänt betyg ⇒ ingen cell
-    expect(psa[0]).toMatchObject({ ask: { priceOre: 6_000_000 }, sale: { medianOre: 4_800_000 } });
+    expect(psa[0]).toMatchObject({ ask: { priceOre: 6_000_000 }, sale: { medianOre: 4_800_000 }, saleEbay: null });
     expect(psa[0].history?.asks).toHaveLength(1);
     expect(psa[1].sale).toBeNull();
     expect(cards[1].grades[0]).toMatchObject({ gradeTenths: 90, ask: null });
@@ -44,5 +44,13 @@ describe("buildGradedCards", () => {
     );
     expect(defaultGrade(psa)).toBe(90); // PSA 10 har bara sålt, 9 har begärt
     expect(defaultGrade(tag)).toBe(100);
+  });
+});
+
+describe("buildGradedCards: eBay-sålt är en egen cell, aldrig Traderas", () => {
+  it("source 'ebay' hamnar i saleEbay, 'tradera' i sale — samma betyg, två tal", () => {
+    const [psa] = buildGradedCards([], [sale("PSA", 100, 4_800_000, "tradera"), sale("PSA", 100, 5_200_000, "ebay")], []);
+    expect(psa.grades[0].sale?.medianOre).toBe(4_800_000);
+    expect(psa.grades[0].saleEbay?.medianOre).toBe(5_200_000);
   });
 });

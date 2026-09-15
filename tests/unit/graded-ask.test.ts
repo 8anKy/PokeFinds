@@ -200,3 +200,23 @@ describe("workflow", () => {
     expect(yml).toMatch(/EBAY_CLIENT_ID/);
   });
 });
+
+describe("promos: bokstavsprefix och plural i setnamnet", () => {
+  const celebi: GradedAskProduct = {
+    id: "p3",
+    language: "EN",
+    variantLabel: null,
+    card: { name: "Celebi", number: "XY111", set: { name: "XY Black Star Promos", totalCards: 211 } },
+  };
+  it("numret 'XY111' läses som eget ord — '#XY111', 'XY111', 'xy 111'", () => {
+    expect(titleCarriesNumber("2016 POKEMON XY BLACK STAR PROMO #XY111 FULL ART/CELEBI PSA 8", "XY111")).toBe(true);
+    expect(titleCarriesNumber("Celebi XY111 Promo 2016 Mythical Collection PSA 9", "XY111")).toBe(true);
+    expect(titleCarriesNumber("Celebi XY 111 Promo PSA 9", "XY111")).toBe(true);
+    expect(titleCarriesNumber("Celebi XY1110 PSA 9", "XY111")).toBe(false);
+    expect(titleCarriesNumber("Dialga XY77 PSA 9", "XY111")).toBe(false);
+  });
+  it("'XY Black Star Promos' möter titlar som säger 'Promo'", () => {
+    expect(titleFitsSet("2016 POKEMON XY BLACK STAR PROMO #XY111 FULL ART/CELEBI PSA 8", celebi)).toBe(true);
+    expect(titleFitsSet("Celebi XY111 Promo 2016 Mythical Collection PSA 9", celebi)).toBe(false); // "star" saknas
+  });
+});

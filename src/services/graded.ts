@@ -20,7 +20,11 @@ import { GRADED_ASK_MAX_AGE_DAYS } from "../lib/graded-ask";
 /** Hur långt bak blocket räknar. Serien byggs FRAMÅT — den börjar tom. */
 export const GRADED_WINDOW_DAYS = 365;
 
+export type GradedSaleSource = "tradera" | "ebay";
+
 export interface GradedSaleRow {
+  /** Marknad. ⛔ Aldrig ett sammanslaget tal över källor — eBay UK ≠ Tradera. */
+  source: GradedSaleSource;
   issuer: GradingIssuer;
   /** Betyg × 10 (100 = 10,0). null = graderat kort med okänt betyg → visas "–". */
   gradeTenths: number | null;
@@ -63,7 +67,10 @@ export interface GradedHistory {
   issuer: GradingIssuer;
   gradeTenths: number;
   asks: { date: string; price: number }[];
+  /** Tradera-affärer som punkter. */
   sold: { date: string; price: number }[];
+  /** eBay UK-affärer som punkter (leverantörens ebay-sold-offers, 2026-09-15). */
+  soldEbay: { date: string; price: number }[];
 }
 
 export interface GradedSummary {
@@ -109,7 +116,7 @@ export async function getGradedSummary(productId: string): Promise<GradedSummary
     prisma.gradedSale.findMany({
       where: { productId, soldAt: { gte: cutoff } },
       orderBy: { soldAt: "desc" },
-      select: { issuer: true, gradeTenths: true, price: true, soldAt: true, url: true },
+      select: { issuer: true, gradeTenths: true, price: true, soldAt: true, url: true, source: true },
     }),
     // Historiken: ett år bakåt (samma fönster som sålt), dygnspunkter per grupp.
     prisma.gradedAskSnapshot.findMany({
@@ -143,7 +150,8 @@ export async function getGradedSummary(productId: string): Promise<GradedSummary
   for (const s of sales) {
     // ⛔ null måste ha en EGEN nyckel — "okänt betyg" får inte klumpas med betyg 0
     // (som inte finns) eller smyga in i en riktig betygsgrupp.
-    const key = `${s.issuer}|${s.gradeTenths ?? "?"}`;
+    // Källan är del av nyckeln: eBay UK och Tradera blandas aldrig i samma median.
+    const key = `${s.source}|${s.issuer}|${s.gradeTenths ?? "?"}`;
     const arr = groups.get(key);
     if (arr) arr.push(s);
     else groups.set(key, [s]);
@@ -155,6 +163,7 @@ export async function getGradedSummary(productId: string): Promise<GradedSummary
     // Sorteringen ovan är på PRIS; senaste affären är arr[0] (soldAt desc).
     const last = arr[0];
     rows.push({
+      source: (last.source === "ebay" ? "ebay" : "tradera") as GradedSaleSource,
       issuer: last.issuer as GradingIssuer,
       gradeTenths: last.gradeTenths,
       count: arr.length,
@@ -175,7 +184,7 @@ export async function getGradedSummary(productId: string): Promise<GradedSummary
   const histFor = (issuer: GradingIssuer, gradeTenths: number) => {
     const key = `${issuer}|${gradeTenths}`;
     let h = hist.get(key);
-    if (!h) hist.set(key, (h = { issuer, gradeTenths, asks: [], sold: [] }));
+    if (!h) hist.set(key, (h = { issuer, gradeTenths, asks: [], sold: [], soldEbay: [] }));
     return h;
   };
   for (const s of snapshots) {
@@ -186,13 +195,18 @@ export async function getGradedSummary(productId: string): Promise<GradedSummary
   }
   for (const s of sales) {
     if (s.gradeTenths == null) continue;
-    histFor(s.issuer as GradingIssuer, s.gradeTenths).sold.push({
+    const h = histFor(s.issuer as GradingIssuer, s.gradeTenths);
+    (s.source === "ebay" ? h.soldEbay : h.sold).push({
       date: s.soldAt.toISOString().slice(0, 10),
       price: s.price,
     });
   }
   const history = [...hist.values()];
-  for (const h of history) h.sold.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  const byDate = (a: { date: string }, b: { date: string }) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  for (const h of history) {
+    h.sold.sort(byDate);
+    h.soldEbay.sort(byDate);
+  }
   sortByIssuerThenGrade(history);
 
   return { windowDays: GRADED_WINDOW_DAYS, totalSales: sales.length, rows, asks, history };

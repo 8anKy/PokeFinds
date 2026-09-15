@@ -21,9 +21,11 @@
 export const EUR_FALLBACK_ORE = 1150;
 /** Sista utväg för USD. 1 USD = 1050 öre. */
 export const USD_FALLBACK_ORE = 1050;
+/** Reserv för GBP (≈ 13,30 SEK/GBP hösten 2026). */
+export const GBP_FALLBACK_ORE = 1330;
 
 const FRANKFURTER_URL =
-  "https://api.frankfurter.dev/v1/latest?base=EUR&symbols=SEK,USD";
+  "https://api.frankfurter.dev/v1/latest?base=EUR&symbols=SEK,USD,GBP";
 const CACHE_REL = ".cache/exchange-rate.json";
 
 export interface RatesOre {
@@ -31,6 +33,8 @@ export interface RatesOre {
   eurToOre: number;
   /** Öre per 1 USD. */
   usdToOre: number;
+  /** Öre per 1 GBP (eBay UK:s sålda graderade, 2026-09-15). */
+  gbpToOre: number;
 }
 
 interface RateCache extends RatesOre {
@@ -42,6 +46,7 @@ interface RateCache extends RatesOre {
 let current: RatesOre = {
   eurToOre: EUR_FALLBACK_ORE,
   usdToOre: USD_FALLBACK_ORE,
+  gbpToOre: GBP_FALLBACK_ORE,
 };
 
 function todayUtc(): string {
@@ -92,7 +97,9 @@ async function writeCache(r: RatesOre): Promise<void> {
 
 /** Applicera ev. EUR-pin ovanpå en kurs (USD oförändrad). */
 function withPin(r: RatesOre, pin: number | null): RatesOre {
-  return pin ? { eurToOre: pin, usdToOre: r.usdToOre } : r;
+  // En disk-cache från före 2026-09-15 saknar gbpToOre → reserven, aldrig NaN.
+  const base = { ...r, gbpToOre: r.gbpToOre || GBP_FALLBACK_ORE };
+  return pin ? { ...base, eurToOre: pin } : base;
 }
 
 /**
@@ -116,14 +123,17 @@ export async function getRatesOre(): Promise<RatesOre> {
     });
     if (res.ok) {
       const json = (await res.json()) as {
-        rates?: { SEK?: number; USD?: number };
+        rates?: { SEK?: number; USD?: number; GBP?: number };
       };
       const sek = json.rates?.SEK;
       const usd = json.rates?.USD;
+      const gbp = json.rates?.GBP;
       if (sek && sek > 0 && usd && usd > 0) {
         const fresh: RatesOre = {
           eurToOre: Math.round(sek * 100),
           usdToOre: Math.round((sek / usd) * 100),
+          // GBP kom 2026-09-15; saknas den i svaret gäller reserven.
+          gbpToOre: gbp && gbp > 0 ? Math.round((sek / gbp) * 100) : GBP_FALLBACK_ORE,
         };
         await writeCache(fresh);
         current = withPin(fresh, pin);
@@ -135,8 +145,8 @@ export async function getRatesOre(): Promise<RatesOre> {
   }
 
   const fallback: RatesOre = cached
-    ? { eurToOre: cached.eurToOre, usdToOre: cached.usdToOre }
-    : { eurToOre: EUR_FALLBACK_ORE, usdToOre: USD_FALLBACK_ORE };
+    ? { eurToOre: cached.eurToOre, usdToOre: cached.usdToOre, gbpToOre: cached.gbpToOre || GBP_FALLBACK_ORE }
+    : { eurToOre: EUR_FALLBACK_ORE, usdToOre: USD_FALLBACK_ORE, gbpToOre: GBP_FALLBACK_ORE };
   current = withPin(fallback, pin);
   return current;
 }
@@ -193,5 +203,15 @@ export function priceOreFromUsd(
 ): number | null {
   if (typeof usd !== "number" || !Number.isFinite(usd) || usd <= 0) return null;
   const ore = Math.round(usd * rates.usdToOre);
+  return ore > 0 ? ore : null;
+}
+
+/** GBP → öre, samma nollvakt. eBay UK:s sålda graderade (2026-09-15). */
+export function priceOreFromGbp(
+  gbp: number | null | undefined,
+  rates: Pick<RatesOre, "gbpToOre">
+): number | null {
+  if (typeof gbp !== "number" || !Number.isFinite(gbp) || gbp <= 0) return null;
+  const ore = Math.round(gbp * rates.gbpToOre);
   return ore > 0 ? ore : null;
 }

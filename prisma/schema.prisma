@@ -552,6 +552,10 @@ model Product {
   // Senast svept efter graderade BEGÄRDA priser (eBay Browse, roterande). null =
   // aldrig → prioriteras först. Se src/jobs/graded-ask-sweep.ts.
   gradedAskCheckedAt DateTime?
+  // Senast svept efter graderade SÅLDA eBay-affärer (leverantörens ebay-sold-offers,
+  // roterande, egen budget ur RapidAPI-kvoten). null = aldrig → prioriteras först.
+  // Se src/jobs/ebay-sold-sweep.ts.
+  ebaySoldCheckedAt  DateTime?
   /// Ägaren har tagit bort produkten UR KATALOGEN utan att radera raden.
   ///
   /// ⛔ SKÄLET ÄR DISCORD-LANEN. En radering tar med sig produktens offers, och

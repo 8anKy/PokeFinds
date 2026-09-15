@@ -119,3 +119,15 @@ jobs:
           EBAY_GRADED_DAILY_BUDGET: "4000"
           EBAY_DELIVERY_COUNTRY: "SE"
         run: npx tsx scripts/graded-ask-sweep.ts
+      # ── GRADERADE SÅLDA PÅ EBAY (prisleverantörens ebay-sold-offers) — 2026-09-15 ──
+      # Samma RapidAPI-nyckel som Cardmarket-priserna, EGEN dygnsbudget ur kvoten
+      # (~1 880 används av prisjobben, 3 000 totalt). Individuella affärer in i
+      # GradedSale med source "ebay" — sålt ≠ begärt, eBay UK ≠ Tradera. Bevakade
+      # kort varje natt, resten roterar på Product.ebaySoldCheckedAt.
+      - name: Graderade sålda på eBay (leverantören → GradedSale)
+        if: steps.guard.outputs.ready == 'true' && !cancelled()
+        env:
+          CARDMARKET_RAPIDAPI_HOST: ${{ secrets.CARDMARKET_RAPIDAPI_HOST }}
+          CARDMARKET_RAPIDAPI_KEY: ${{ secrets.CARDMARKET_RAPIDAPI_KEY }}
+          TCGGO_EBAY_SOLD_DAILY_BUDGET: "600"
+        run: npx tsx scripts/ebay-sold-sweep.ts

@@ -48,6 +48,9 @@ export const SOURCE_COLORS: Record<string, string> = {
   // (CardTrader) och gul (Tradera). Ritas bara i graderat läge, där de andra
   // aldrig finns bredvid. Inte körd genom validatorn som de fyra ovan.
   ebay: "#60a5fa",
+  // eBay sålt: mörkare blå än begärt — samma marknad, annan storhet (sålt ≠ begärt),
+  // och tydligt skild från Traderas rosa sålt. Inte validerad i dataviz-validatorn.
+  ebaySold: "#2563eb",
 };
 
 /** Källordning, Pro-grinden och dess dom bor i `@/lib/price-graph-sources`. */

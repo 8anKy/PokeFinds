@@ -10,7 +10,10 @@ import type { GradedAskRow, GradedHistory, GradedSaleRow } from "@/services/grad
 export interface GradedGradeCell {
   gradeTenths: number;
   ask: GradedAskRow | null;
+  /** Sålt på Tradera. */
   sale: GradedSaleRow | null;
+  /** Sålt på eBay UK (leverantören). Egen cell — aldrig blandad med Tradera. */
+  saleEbay: GradedSaleRow | null;
   history: GradedHistory | null;
 }
 
@@ -34,12 +37,17 @@ export function buildGradedCards(
     let grades = byIssuer.get(issuer);
     if (!grades) byIssuer.set(issuer, (grades = new Map()));
     let c = grades.get(gradeTenths);
-    if (!c) grades.set(gradeTenths, (c = { gradeTenths, ask: null, sale: null, history: null }));
+    if (!c) grades.set(gradeTenths, (c = { gradeTenths, ask: null, sale: null, saleEbay: null, history: null }));
     return c;
   };
   for (const a of asks) cell(a.issuer, a.gradeTenths).ask = a;
   // ⛔ Sålt med okänt betyg (null) har ingen cell — karusellen väljer per betyg.
-  for (const s of sales) if (s.gradeTenths != null) cell(s.issuer, s.gradeTenths).sale = s;
+  for (const s of sales) {
+    if (s.gradeTenths == null) continue;
+    const c = cell(s.issuer, s.gradeTenths);
+    if (s.source === "ebay") c.saleEbay = s;
+    else c.sale = s;
+  }
   for (const h of history) cell(h.issuer, h.gradeTenths).history = h;
   return [...byIssuer.entries()]
     .sort(([a], [b]) => ISSUER_ORDER.indexOf(a) - ISSUER_ORDER.indexOf(b))

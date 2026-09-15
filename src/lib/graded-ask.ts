@@ -94,8 +94,14 @@ export function titleCarriesNumber(title: string, productNumber: string): boolea
   // Inget "X/Y" — ett bart nummer duger om det är produktens (bokstavssuffix kan
   // inte läsas då, så "115a" kräver X/Y-formen).
   const wantBare = /^\d+$/.test(want) ? parseInt(want, 10) : null;
-  if (wantBare == null) return false;
-  return bareCardNumbers(normalizeTitle(title)).includes(wantBare);
+  if (wantBare != null) return bareCardNumbers(normalizeTitle(title)).includes(wantBare);
+  // Bokstavs-PREFIX (promos: "XY111", "SWSH250", "SVP 085"): ingen X/Y-form finns,
+  // så nyckeln måste stå som eget ord i titeln — "#XY111", "xy111", "SVP085".
+  // Mätt 2026-09-15: alla XY Black Star-promos föll annars ut ur sålt-svepet.
+  const m = /^([a-z]+)(\d+)([a-z]?)$/.exec(want);
+  if (!m) return false;
+  const re = new RegExp(`(^|[^a-z0-9])${m[1]}[ ]?0*${m[2]}${m[3]}(?![a-z0-9])`);
+  return re.test(normalizeTitle(title));
 }
 
 
@@ -109,8 +115,12 @@ const SET_NAME_FILLER = new Set([
   "and", "the", "of", "set", "series", "expansion", "pokemon", "tcg", "ex", "gx",
 ]);
 
+/** Ord i normaliserad form; plural-s strippat så "Promos" möter "Promo". */
 function tokens(s: string): string[] {
-  return normalizeTitle(s).split(/[\s/-]+/).filter(Boolean);
+  return normalizeTitle(s)
+    .split(/[\s/-]+/)
+    .filter(Boolean)
+    .map((t) => (t.length > 3 && t.endsWith("s") ? t.slice(0, -1) : t));
 }
 
 /**
