@@ -218,6 +218,12 @@ paths:
   ORÖRDA**: länkarna fungerar för användare, som surfar från vanliga IP:n. Följd: inga nya produkter,
   priser eller lagerstatus därifrån. **Bevakade butiker: 42 → 41.** Vill man ha tillbaka täckningen är
   enda vägen att butiken vitlistar oss.
+  ⛔ **BLINDBOX UR BEVAKNINGEN 2026-09-15 (ägarbeslut, ingen teknisk orsak).** Shopify-feeden fungerade;
+  ägaren ville inte ha butiken. `scripts/retire-store.ts --store Blindbox --apply` (GENERISKT — använd
+  det för nästa butik också): 54 offers RADERADE, källa `isActive=false`+`restockWatch=false`, retailer
+  `isActive=false`, den enda Blindbox-exklusiva produkten (B-grade "ripped seal"-ETB) dold med `hiddenAt`,
+  priscachen omräknad. Klassen `BlindboxAdapter` står kvar som gravsten. Discord-lanen tappar butiken
+  när `routes.json` skrivs om (ruttexporten dispatchad samma dag). **Bevakade butiker: 44 → 43.**
   PrestaShop-adapter (delad bas → Leksaksaffären 37 prissatta av 102 — OOS-rader
   saknar pris och faller ur feeden, restock syns först vid omprissättning; NordicTCG 47) +
   Starweb (Coolcard, 149 varor, "N st i lager"-text). Registrering =
