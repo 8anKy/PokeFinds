@@ -67,7 +67,9 @@ const crypto = require("node:crypto");
 // "5" (2026-09-15): graderade priser blev ETT block (till salu + sålt per betyg),
 // gratiskontots Bevaka-ark/intro och pilarna bort — UI i produktsidans egna chunks,
 // som en cachad post från förra bygget annars hade hållit kvar i 30 dygn.
-const PAGE_EPOCH = "5";
+// "6" (2026-09-15, samma kväll): graderingskarusellen under grafen + graderat grafläge
+// (`gradedSales.history` i detail-payloaden — nytt API-kontrakt gammal klientkod inte läser).
+const PAGE_EPOCH = "6";
 const STORE_VERSION = "v1";
 /** Sidor äldre än så rensas oavsett TTL (ISR-TTL:en för produktsidor är 30 d). */
 const PAGE_MAX_AGE_MS = 35 * 24 * 3600 * 1000;

@@ -240,35 +240,35 @@ model User {
   createdAt               DateTime     @default(now())
   updatedAt               DateTime     @updatedAt
 
-  watchlistItems   WatchlistItem[]
-  setWatches       SetWatch[]
-  alerts           Alert[]
-  collectionItems  CollectionItem[]
+  watchlistItems    WatchlistItem[]
+  setWatches        SetWatch[]
+  alerts            Alert[]
+  collectionItems   CollectionItem[]
   collectionImports CollectionImport[]
-  posts            CommunityPost[]
-  comments         Comment[]
-  likes            Like[]
-  scannerJobs      ScannerJob[]
-  gradingJobs      GradingJob[]
-  auditLogs        AuditLog[]
-  notifications    Notification[]
-  reports          Report[]
-  offerReports     OfferReport[]
-  savedPosts       SavedPost[]
-  pushTokens       PushToken[]
-  invitesSent      Invite[]                  @relation("InviteInviter")
-  inviteUsed       Invite?                   @relation("InviteUsedBy")
-  sales            Sale[]
-  achievements     UserAchievement[]
-  guestDevices     GuestDevice[]
-  groupMemberships CommunityGroupMember[]
-  conversations    ConversationParticipant[]
-  messagesSent     Message[]
-  blocksMade       UserBlock[]               @relation("BlockBy")
-  blocksReceived   UserBlock[]               @relation("BlockOf")
-  chatReports      ChatReport[]
-  watchedListings  WatchedListing[]
-  moderationEvents ModerationEvent[]
+  posts             CommunityPost[]
+  comments          Comment[]
+  likes             Like[]
+  scannerJobs       ScannerJob[]
+  gradingJobs       GradingJob[]
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  reports           Report[]
+  offerReports      OfferReport[]
+  savedPosts        SavedPost[]
+  pushTokens        PushToken[]
+  invitesSent       Invite[]                  @relation("InviteInviter")
+  inviteUsed        Invite?                   @relation("InviteUsedBy")
+  sales             Sale[]
+  achievements      UserAchievement[]
+  guestDevices      GuestDevice[]
+  groupMemberships  CommunityGroupMember[]
+  conversations     ConversationParticipant[]
+  messagesSent      Message[]
+  blocksMade        UserBlock[]               @relation("BlockBy")
+  blocksReceived    UserBlock[]               @relation("BlockOf")
+  chatReports       ChatReport[]
+  watchedListings   WatchedListing[]
+  moderationEvents  ModerationEvent[]
 
   @@index([email])
   @@index([creatorCodeId])
@@ -576,20 +576,21 @@ model Product {
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
-  card              Card?              @relation(fields: [cardId], references: [id])
-  set               CardSet?           @relation(fields: [setId], references: [id])
-  offers            Offer[]
-  priceObservations PriceObservation[]
-  restockEvents     RestockEvent[]
-  watchlistItems    WatchlistItem[]
-  alerts            Alert[]
-  collectionItems   CollectionItem[]
-  priceSnapshots    PriceSnapshot[]
-  traderaListings   TraderaListing[]
-  communityPosts    CommunityPost[]
-  storeListings     StoreListing[]
-  gradedSales       GradedSale[]
-  gradedAsks        GradedAsk[]
+  card               Card?               @relation(fields: [cardId], references: [id])
+  set                CardSet?            @relation(fields: [setId], references: [id])
+  offers             Offer[]
+  priceObservations  PriceObservation[]
+  restockEvents      RestockEvent[]
+  watchlistItems     WatchlistItem[]
+  alerts             Alert[]
+  collectionItems    CollectionItem[]
+  priceSnapshots     PriceSnapshot[]
+  traderaListings    TraderaListing[]
+  communityPosts     CommunityPost[]
+  storeListings      StoreListing[]
+  gradedSales        GradedSale[]
+  gradedAsks         GradedAsk[]
+  gradedAskSnapshots GradedAskSnapshot[]
 
   @@index([normalizedTitle])
   @@index([category])
@@ -843,31 +844,53 @@ model GradedSale {
 /// ⛔ `gradeTenths` är OBLIGATORISKT här (till skillnad från GradedSale): en
 /// annons utan läsbart betyg ger ingen rad — "PSA ? kostar X" säger ingenting.
 model GradedAsk {
-  id           String   @id @default(cuid())
-  productId    String
+  id               String   @id @default(cuid())
+  productId        String
   /// Källa: "ebay" (fler kan komma; nyckeln bär källan så de aldrig blandas).
-  source       String
+  source           String
   /// Normaliserat bolag (PSA/BGS/CGC/…), samma vokabulär som GradedSale.
-  issuer       String
+  issuer           String
   /// Betyg × 10 (100 = 10,0 · 95 = 9,5). Heltal, aldrig float.
-  gradeTenths  Int
+  gradeTenths      Int
   /// Lägsta begärda pris i öre (konverterat med dagskursen). Alltid > 0.
-  priceOre     Int
+  priceOre         Int
   /// Originalbelopp i minsta enhet + valuta, för spårbarhet ("129,00 USD").
   originalMinor    Int
   originalCurrency String
   /// Antal annonser i gruppen (efter vakter). Visas ALLTID bredvid priset.
-  listingCount Int
+  listingCount     Int
   /// Den billigaste annonsen: länk UT + titel + källans id.
-  url          String
-  title        String
-  itemId       String
-  observedAt   DateTime
+  url              String
+  title            String
+  itemId           String
+  observedAt       DateTime
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([productId, source, issuer, gradeTenths])
   @@index([observedAt])
+}
+
+/// GRADERAD PRISHISTORIK — en punkt per (produkt, källa, bolag, betyg, UTC-dygn):
+/// lägsta begärda pris den dagen. Skrivs av graded-ask-sweep bredvid tillståndet
+/// i GradedAsk och ritar "PSA 10 · prishistorik" på produktsidan. Byggs FRAMÅT
+/// (2026-09-15) — som all vår historik; ingen källa ger retroaktiv graderad kurva
+/// vi får använda. Sålda punkter kommer från GradedSale, aldrig härifrån.
+model GradedAskSnapshot {
+  id           String   @id @default(cuid())
+  productId    String
+  source       String
+  issuer       String
+  gradeTenths  Int
+  /// UTC-dygn (utcToday) — aldrig lokal midnatt, samma regel som PriceSnapshot.
+  date         DateTime @db.Date
+  priceOre     Int
+  listingCount Int
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, source, issuer, gradeTenths, date])
+  @@index([productId, date])
 }
 
 model TraderaMatch {
@@ -1100,9 +1123,9 @@ model CollectionItem {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  card    Card?    @relation(fields: [cardId], references: [id])
-  product Product? @relation(fields: [productId], references: [id])
+  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card    Card?             @relation(fields: [cardId], references: [id])
+  product Product?          @relation(fields: [productId], references: [id])
   /// ⛔ SetNull, aldrig Cascade: att radera importPOSTEN får aldrig kunna radera
   /// någons samling. Ångra-vägen raderar objekten EXPLICIT och lämnar importraden
   /// kvar märkt `undoneAt` — annars hade nästa import av samma fil varnat för en

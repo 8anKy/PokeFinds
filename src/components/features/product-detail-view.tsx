@@ -26,7 +26,8 @@ import {
   LiveStatsFootnote,
 } from "@/components/features/live-product-pricing";
 import { IconCards } from "@/components/ui/icons";
-import { GradedSales } from "./graded-sales";
+import { GradedCarousel, type GradedSelection } from "./graded-carousel";
+import { ISSUER_LABELS, formatGrade } from "@/lib/graded-listing";
 
 /** Sealed-kategorier (ej singel/gradat) — får alltid en Tradera-länk. */
 const SEALED_CATEGORIES: string[] = [
@@ -77,7 +78,7 @@ function shellToDetail(shell: ProductShellData): ProductDetailData {
     variants: shell.variants.map((v) => ({ slug: v.slug, label: v.label, lowestPrice: null })),
     traderaListings: [],
     // Skal-läget vet inget om graderade affärer — tom, aldrig påhittad.
-    gradedSales: { windowDays: 365, totalSales: 0, rows: [], asks: [] },
+    gradedSales: { windowDays: 365, totalSales: 0, rows: [], asks: [], history: [] },
   };
 }
 
@@ -175,6 +176,17 @@ export function ProductDetailView({
   const pending = live === null;
 
   const isSingle = data.category === "SINGLE_CARD";
+  // Graderingskarusellen väljer vad grafen ritar: null = ograderad kurva (som
+  // förut), annars (bolag, betyg) → eBay-begärt + Tradera-sålt för det betyget.
+  const [gradedSel, setGradedSel] = useState<GradedSelection | null>(null);
+  const gradedHistory = gradedSel
+    ? data.gradedSales.history.find(
+        (h) => h.issuer === gradedSel.issuer && h.gradeTenths === gradedSel.gradeTenths
+      ) ?? null
+    : null;
+  const gradedTitle = gradedSel
+    ? `${ISSUER_LABELS[gradedSel.issuer] ?? gradedSel.issuer} ${formatGrade(gradedSel.gradeTenths)}`
+    : null;
   const categoryLabel = data.category in CATEGORY_LABELS ? tCat(data.category) : tCat("OTHER");
   const languageLabel = LANGUAGE_KEYS.includes(data.language) ? tLang(data.language) : data.language;
   const traderaSearch = SEALED_CATEGORIES.includes(data.category)
@@ -349,17 +361,42 @@ export function ProductDetailView({
                 <Skeleton className="h-52 w-full" />
               ) : (
                 <>
-                  <ProductPriceCard
-                    plain
-                    bySource={data.historyBySource}
-                    title={isSingle ? t("historyRawTitle") : t("historyTitle")}
-                    /* ⛔ UNDERRUBRIKEN FÅR INTE NAMNGE EN KÄLLA. Källorna namnger sig
-                       själva i chipsen (som ÄR diagrammets legend); det som återstår är
-                       kvaliteten på datat, och den måste gälla ALLA serier. */
-                    subtitle={data.chartData.length === 0 ? t("historyNone") : t("historyQuality")}
-                    series={data.chartData}
-                  />
+                  {gradedSel && gradedTitle ? (
+                    // GRADERAT LÄGE: egna serier (begärt + sålt för betyget), egen
+                    // rubrik. `key` monterar om kortet så käll-chipsens tillstånd
+                    // inte ärvs mellan lägena.
+                    <ProductPriceCard
+                      key={`graded-${gradedSel.issuer}-${gradedSel.gradeTenths}`}
+                      plain
+                      bySource={{
+                        ebay: gradedHistory?.asks ?? [],
+                        traderaSold: gradedHistory?.sold ?? [],
+                      }}
+                      title={t("historyGradedTitle", { grade: gradedTitle })}
+                      subtitle={
+                        (gradedHistory?.asks.length ?? 0) + (gradedHistory?.sold.length ?? 0) === 0
+                          ? t("historyNone")
+                          : t("historyGradedQuality")
+                      }
+                      series={gradedHistory?.asks ?? []}
+                    />
+                  ) : (
+                    <ProductPriceCard
+                      key="raw"
+                      plain
+                      bySource={data.historyBySource}
+                      title={isSingle ? t("historyRawTitle") : t("historyTitle")}
+                      /* ⛔ UNDERRUBRIKEN FÅR INTE NAMNGE EN KÄLLA. Källorna namnger sig
+                         själva i chipsen (som ÄR diagrammets legend); det som återstår är
+                         kvaliteten på datat, och den måste gälla ALLA serier. */
+                      subtitle={data.chartData.length === 0 ? t("historyNone") : t("historyQuality")}
+                      series={data.chartData}
+                    />
+                  )}
                   <LiveStatsFootnote className="mt-2" />
+                  {/* GRADERINGSKARUSELLEN — grafens graderingsväljare, under kurvan och
+                      ovanför butikerna (ägaren 2026-09-15). Ritas bara med data. */}
+                  <GradedCarousel graded={data.gradedSales} selected={gradedSel} onSelect={setGradedSel} />
                 </>
               )}
             </div>
@@ -374,10 +411,6 @@ export function ProductDetailView({
 
           {/* Restock-historik — admin-only, hämtas on-demand (se restock-history.tsx) */}
           <ProductRestockHistory productId={data.id} />
-
-          {/* GRADERADE FÖRSÄLJNINGAR — egen serie, aldrig blandad med den ograderade
-              kurvan. Visas bara när det finns affärer att visa. */}
-          <GradedSales graded={data.gradedSales} productTitle={data.title} />
 
           {/* Fler annonser på Tradera (#19) — samma produkt, andra säljare.
               Horisontell svep-skena; billigast först (svepet lagrar max 20).

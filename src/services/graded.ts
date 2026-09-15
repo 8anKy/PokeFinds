@@ -53,12 +53,27 @@ export interface GradedAskRow {
   observedAt: string;
 }
 
+/**
+ * GRADERAD PRISHISTORIK per (bolag, betyg) — det grafen ritar när besökaren
+ * väljer en gradering i karusellen. `asks` = lägsta begärda per dygn ur
+ * GradedAskSnapshot (byggs framåt sedan 2026-09-15), `sold` = varje Tradera-
+ * affär som en punkt. ⛔ Två serier, aldrig en — begärt är inte sålt.
+ */
+export interface GradedHistory {
+  issuer: GradingIssuer;
+  gradeTenths: number;
+  asks: { date: string; price: number }[];
+  sold: { date: string; price: number }[];
+}
+
 export interface GradedSummary {
   windowDays: number;
   totalSales: number;
   rows: GradedSaleRow[];
   /** Aktiva begärda priser (tom lista när inget svepts eller allt är för gammalt). */
   asks: GradedAskRow[];
+  /** Historik per (bolag, betyg) — bara grupper som har minst en punkt. */
+  history: GradedHistory[];
 }
 
 function medianOre(sorted: number[]): number {
@@ -90,11 +105,17 @@ export async function getGradedSummary(productId: string): Promise<GradedSummary
   // Begärda priser är ett TILLSTÅND — en rad äldre än rotationens fönster är en
   // annons vi inte vet om den finns kvar, och visas då inte.
   const askCutoff = new Date(Date.now() - GRADED_ASK_MAX_AGE_DAYS * 86_400_000);
-  const [sales, askRows] = await Promise.all([
+  const [sales, snapshots, askRows] = await Promise.all([
     prisma.gradedSale.findMany({
       where: { productId, soldAt: { gte: cutoff } },
       orderBy: { soldAt: "desc" },
       select: { issuer: true, gradeTenths: true, price: true, soldAt: true, url: true },
+    }),
+    // Historiken: ett år bakåt (samma fönster som sålt), dygnspunkter per grupp.
+    prisma.gradedAskSnapshot.findMany({
+      where: { productId, date: { gte: cutoff } },
+      orderBy: { date: "asc" },
+      select: { issuer: true, gradeTenths: true, date: true, priceOre: true },
     }),
     prisma.gradedAsk.findMany({
       where: { productId, observedAt: { gte: askCutoff } },
@@ -148,5 +169,31 @@ export async function getGradedSummary(productId: string): Promise<GradedSummary
 
   sortByIssuerThenGrade(rows);
 
-  return { windowDays: GRADED_WINDOW_DAYS, totalSales: sales.length, rows, asks };
+  // Historik per (bolag, betyg): begärt-punkter ur snapshotarna, sålt-punkter ur
+  // affärerna. Sålt med okänt betyg har ingen grupp att hamna i och utelämnas.
+  const hist = new Map<string, GradedHistory>();
+  const histFor = (issuer: GradingIssuer, gradeTenths: number) => {
+    const key = `${issuer}|${gradeTenths}`;
+    let h = hist.get(key);
+    if (!h) hist.set(key, (h = { issuer, gradeTenths, asks: [], sold: [] }));
+    return h;
+  };
+  for (const s of snapshots) {
+    histFor(s.issuer as GradingIssuer, s.gradeTenths).asks.push({
+      date: s.date.toISOString().slice(0, 10),
+      price: s.priceOre,
+    });
+  }
+  for (const s of sales) {
+    if (s.gradeTenths == null) continue;
+    histFor(s.issuer as GradingIssuer, s.gradeTenths).sold.push({
+      date: s.soldAt.toISOString().slice(0, 10),
+      price: s.price,
+    });
+  }
+  const history = [...hist.values()];
+  for (const h of history) h.sold.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  sortByIssuerThenGrade(history);
+
+  return { windowDays: GRADED_WINDOW_DAYS, totalSales: sales.length, rows, asks, history };
 }

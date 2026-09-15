@@ -24,6 +24,7 @@
 import { prisma } from "../lib/db";
 import type { Prisma } from "@prisma/client";
 import { mapPool } from "../lib/concurrency";
+import { utcToday } from "../lib/utils";
 import { getRatesOre, priceOreFromUsd, priceOreFromEur } from "../lib/exchange-rate";
 import { isPlausibleGradedPriceOre } from "../lib/graded-listing";
 import {
@@ -150,6 +151,7 @@ export async function runGradedAskSweep(
   const products = await selectProducts(budget);
   res.products = products.length;
   const now = new Date();
+  const today = utcToday();
   let stop = false;
 
   await mapPool(products, API_CONCURRENCY, async (p) => {
@@ -226,6 +228,23 @@ export async function runGradedAskSweep(
           },
           create: r,
           update: r,
+        })
+      ),
+      // HISTORIKEN: en punkt per grupp och UTC-dygn (upsert — en omkörning samma
+      // dygn skriver över, aldrig dubblar). Grafen "PSA 10 · prishistorik" ritas
+      // härifrån; tillståndet ovan är bara "just nu".
+      ...rows.map((r) =>
+        prisma.gradedAskSnapshot.upsert({
+          where: {
+            productId_source_issuer_gradeTenths_date: {
+              productId: r.productId, source: r.source, issuer: r.issuer, gradeTenths: r.gradeTenths, date: today,
+            },
+          },
+          create: {
+            productId: r.productId, source: r.source, issuer: r.issuer, gradeTenths: r.gradeTenths,
+            date: today, priceOre: r.priceOre, listingCount: r.listingCount,
+          },
+          update: { priceOre: r.priceOre, listingCount: r.listingCount },
         })
       ),
       prisma.product.update({ where: { id: p.id }, data: { gradedAskCheckedAt: now } }),

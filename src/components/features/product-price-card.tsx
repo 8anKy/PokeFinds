@@ -44,6 +44,10 @@ export const SOURCE_COLORS: Record<string, string> = {
   // toner av samma färg läser som "samma sak, lite annorlunda", och sålt är en
   // ANNAN storhet än annonspriset — inte en nyans av det.
   traderaSold: "#fb7185",
+  // eBay (graderat begärt): himmelsblå — skild från turkos (Cardmarket), lila
+  // (CardTrader) och gul (Tradera). Ritas bara i graderat läge, där de andra
+  // aldrig finns bredvid. Inte körd genom validatorn som de fyra ovan.
+  ebay: "#60a5fa",
 };
 
 /** Källordning, Pro-grinden och dess dom bor i `@/lib/price-graph-sources`. */

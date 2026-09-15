@@ -9,8 +9,11 @@
 /**
  * Ordningen källorna visas i — mest täckande först.
  * ⛔ Butiker ingår INTE: de är länkar, inte en marknad. Se HISTORY_SOURCE_KEYS.
+ * `ebay` (2026-09-15) = lägsta BEGÄRDA pris för ett graderat betyg (GradedAskSnapshot);
+ * den ritas bara i grafens graderade läge, aldrig bredvid den ograderade kurvan.
+ * Fri källa — begärt pris är ett erbjudande, inte marknadsdata vi säljer.
  */
-export const SOURCE_ORDER = ["cardmarket", "cardtrader", "tradera", "traderaSold"] as const;
+export const SOURCE_ORDER = ["cardmarket", "cardtrader", "ebay", "tradera", "traderaSold"] as const;
 export type SourceKey = (typeof SOURCE_ORDER)[number];
 
 /**
