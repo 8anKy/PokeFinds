@@ -23,12 +23,14 @@ export function SocialLoginButtons({ next, mode }: { next: string; mode: "login"
   const router = useRouter();
   const [busy, setBusy] = useState<OAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reason, setReason] = useState<string | null>(null);
 
   const providers = (["apple", "google"] as const).filter((p) => socialProviderEnabled[p]);
   if (providers.length === 0) return null;
 
   async function start(provider: OAuthProvider) {
     setError(null);
+    setReason(null);
     setBusy(provider);
     try {
       const outcome = await socialLogin(provider, next);
@@ -38,9 +40,13 @@ export function SocialLoginButtons({ next, mode }: { next: string; mode: "login"
         router.refresh();
         return;
       }
-      if (outcome.kind === "failed") setError(t("error"));
-    } catch {
+      if (outcome.kind === "failed") {
+        setError(t("error"));
+        setReason(outcome.reason ?? null);
+      }
+    } catch (e) {
       setError(t("error"));
+      setReason(e instanceof Error ? e.message.slice(0, 160) : null);
     }
     setBusy(null);
   }
@@ -70,6 +76,9 @@ export function SocialLoginButtons({ next, mode }: { next: string; mode: "login"
         ))}
       </div>
       <FieldError message={error} />
+      {/* Leverantörens egen felrad — teknisk med flit, den är det enda som
+          skiljer en konsolmiss (SHA-1) från ett serverfel. */}
+      {reason && <p className="mt-1 break-words text-center text-[11px] text-ink-muted">{reason}</p>}
     </div>
   );
 }

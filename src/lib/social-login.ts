@@ -76,7 +76,13 @@ export type SocialLoginOutcome =
   /** Inloggad i appen — anroparen navigerar KLIENT-side till `target` (ingen omladdning). */
   | { kind: "signed-in"; target: string }
   | { kind: "cancelled" }
-  | { kind: "failed" };
+  /**
+   * `reason` = leverantörens/pluginets egna felrad, kapad. Den visas i liten
+   * stil under det generella felet: "[28444] Developer console is not set up
+   * correctly" är skillnaden mellan en SHA-1-miss i Google Cloud och ett
+   * serverfel, och utan den står användaren (och vi) med en gissning.
+   */
+  | { kind: "failed"; reason?: string };
 
 /**
  * Starta inloggningen. Den nativa vägen slutar INTE med en omladdning: efter
@@ -115,10 +121,13 @@ export async function socialLogin(provider: OAuthProvider, next: string): Promis
     }
   } catch (e) {
     // Användaren stängde rutan ⇒ tyst. Allt annat ⇒ fel.
-    const msg = e instanceof Error ? e.message.toLowerCase() : "";
-    return { kind: /cancel|canceled|cancelled|1001/.test(msg) ? "cancelled" : "failed" };
+    const raw = e instanceof Error ? e.message : typeof e === "string" ? e : "";
+    const msg = raw.toLowerCase();
+    if (/cancel|canceled|cancelled|1001/.test(msg)) return { kind: "cancelled" };
+    console.warn(`[social-login] ${provider} native login failed:`, raw || e);
+    return { kind: "failed", reason: raw.slice(0, 160) || undefined };
   }
-  if (!idToken) return { kind: "failed" };
+  if (!idToken) return { kind: "failed", reason: `${provider}: inget id_token i svaret` };
 
   const result = await signIn("native-token", {
     provider,
@@ -126,7 +135,9 @@ export async function socialLogin(provider: OAuthProvider, next: string): Promis
     name: name ?? "",
     redirect: false,
   });
-  if (!result?.ok || result.error) return { kind: "failed" };
+  if (!result?.ok || result.error) {
+    return { kind: "failed", reason: `server: ${result?.error ?? result?.status ?? "okänt"}` };
+  }
   setAuthHint(true);
   // Samma beslut som /api/auth/after-social, men ur sessionen NextAuth just
   // utfärdade — nya konton till onboardingen, gamla till `next`.
