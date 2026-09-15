@@ -20,7 +20,7 @@
  * varken begärt eller betalt — det är ett mellanläge som ser billigt ut tills
  * sista minuten. `AUCTION`-annonser utan `FIXED_PRICE` hoppas över.
  */
-import { cardNumberKey, printedNumberKey, bareCardNumbers } from "../scrapers/matching";
+import { cardNumberKey, printedNumberKey, bareCardNumbers, extractSetNumber } from "../scrapers/matching";
 import { detectGrading, type GradingIssuer } from "./graded-listing";
 import { listingCardLanguage } from "./listing-language";
 import { listingFitsVariant } from "./print-variant";
@@ -46,7 +46,8 @@ export interface GradedAskProduct {
   id: string;
   language: CardLanguage;
   variantLabel: string | null;
-  card: { name: string; number: string; set: { name: string } };
+  /** `set.totalCards` = printedTotal (talet på kortet); 0 = okänt. */
+  card: { name: string; number: string; set: { name: string; totalCards: number } };
 }
 
 export interface GradedAskBucket {
@@ -78,7 +79,7 @@ export function buildGradedSearchQuery(p: GradedAskProduct): string {
 /**
  * Lotter, bulk och "välj kort" är inte ett pris på ETT exemplar.
  * ⛔ `lot` bara som eget ord ("Charlotte" bär det — ordgränsen behövs).
- * ⛔ Kvantitet bara som "2x"/"2 x" (siffra FÖRE x): "Mega Charizard X 108/108"
+ * ⛔ Kvantitet bara som "2x"/"2 x" (siffra FÖRE x): "Mega Charizard X 108/106"
  *    är ett kortnamn, och ett "x\d+"-mönster hade kastat varje annons på det.
  */
 const LOT_RE =
@@ -95,6 +96,48 @@ export function titleCarriesNumber(title: string, productNumber: string): boolea
   const wantBare = /^\d+$/.test(want) ? parseInt(want, 10) : null;
   if (wantBare == null) return false;
   return bareCardNumbers(normalizeTitle(title)).includes(wantBare);
+}
+
+
+/**
+ * Ord i ett setnamn som inte pekar ut setet: eran ("Scarlet & Violet", "Sword &
+ * Shield", "Sun & Moon", "XY", "Black & White") står i varje sets namn i den
+ * eran och skulle låta en "Scarlet & Violet"-titel bevisa vilket SV-set som helst.
+ */
+const SET_NAME_FILLER = new Set([
+  "scarlet", "violet", "sword", "shield", "sun", "moon", "xy", "black", "white",
+  "and", "the", "of", "set", "series", "expansion", "pokemon", "tcg", "ex", "gx",
+]);
+
+function tokens(s: string): string[] {
+  return normalizeTitle(s).split(/[\s/-]+/).filter(Boolean);
+}
+
+/**
+ * Bevisar titeln att annonsen är ur PRODUKTENS set? eBays sök täcker alla set
+ * i världen, och samma namn + nummer finns i flera: "Typhlosion 17" är både Neo
+ * Genesis (17/111, vintage) och moderna set — mätt i första torrkörningen 09-15,
+ * PSA 1 på 4 885 kr bredvid PSA 6 på 288 kr under samma rubrik. Numret ensamt
+ * (titleCarriesNumber) räcker därför inte här, till skillnad från Tradera där
+ * annonsen redan är matchad mot produkten på fler signaler.
+ *
+ * Regeln: skriver säljaren "X/Y" måste Y vara setets tryckta total (när vi
+ * känner den — 0 = okänt ⇒ ingen dom). Skriver säljaren bara "#17" måste
+ * setnamnets utpekande ord stå i titeln ("Neo Genesis", "151", "Obsidian
+ * Flames"); ett setnamn utan sådana ord (bara era-ord) kan inte bevisas ⇒ nej.
+ * Hellre tom rad än ett främmande pris.
+ */
+export function titleFitsSet(title: string, product: GradedAskProduct): boolean {
+  const printed = extractSetNumber(title);
+  const total = product.card.set.totalCards;
+  if (printed) {
+    if (total > 0) return printed.total === total;
+    return true;
+  }
+  const want = tokens(product.card.set.name).filter((t) => !SET_NAME_FILLER.has(t));
+  if (want.length === 0) return false;
+  const have = new Set(tokens(title));
+  return want.every((t) => have.has(t));
 }
 
 /**
@@ -116,6 +159,7 @@ export function bucketGradedAsks(
     // som OTHER och matchar ingen produkt.
     if (listingCardLanguage(title) !== product.language) continue;
     if (!titleCarriesNumber(title, product.card.number)) continue;
+    if (!titleFitsSet(title, product)) continue;
     // Tryckning: 1st Edition/Shadowless är egna produkter; en Unlimited-produkt
     // får inte bära 1st Edition-priset.
     if (!listingFitsVariant(product.variantLabel, title, product.card.name)) continue;

@@ -3,6 +3,7 @@ import {
   bucketGradedAsks,
   buildGradedSearchQuery,
   titleCarriesNumber,
+  titleFitsSet,
   type EbayItemSummary,
   type GradedAskProduct,
 } from "@/lib/graded-ask";
@@ -22,7 +23,7 @@ const charizard: GradedAskProduct = {
   id: "p1",
   language: "EN",
   variantLabel: null,
-  card: { name: "Charizard ex", number: "199", set: { name: "Obsidian Flames" } },
+  card: { name: "Charizard ex", number: "199", set: { name: "Obsidian Flames", totalCards: 197 } },
 };
 
 function item(
@@ -55,6 +56,50 @@ describe("titleCarriesNumber", () => {
     // Bokstavssuffix skiljer kort åt ("115a" ≠ "115") och kräver X/Y-formen.
     expect(titleCarriesNumber("Pikachu 115a/108 PSA 9", "115a")).toBe(true);
     expect(titleCarriesNumber("Pikachu 115/108 PSA 9", "115a")).toBe(false);
+  });
+});
+
+describe("titleFitsSet", () => {
+  const typhlosion: GradedAskProduct = {
+    id: "p2",
+    language: "EN",
+    variantLabel: null,
+    card: { name: "Typhlosion", number: "17", set: { name: "Neo Genesis", totalCards: 111 } },
+  };
+
+  it("X/Y: nämnaren måste vara setets tryckta total", () => {
+    expect(titleFitsSet("Typhlosion 17/111 Neo Genesis PSA 6", typhlosion)).toBe(true);
+    // Samma namn + nummer i ett modernt set — eBays sök tar båda.
+    expect(titleFitsSet("Typhlosion 17/162 Temporal Forces PSA 6", typhlosion)).toBe(false);
+    // Okänd total (0) ⇒ ingen dom på nämnaren.
+    expect(
+      titleFitsSet("Typhlosion 17/162 PSA 6", { ...typhlosion, card: { ...typhlosion.card, set: { name: "Neo Genesis", totalCards: 0 } } })
+    ).toBe(true);
+  });
+
+  it("bart nummer: setnamnets utpekande ord måste stå i titeln", () => {
+    expect(titleFitsSet("2000 Pokemon Neo Genesis #17 Typhlosion PSA 6", typhlosion)).toBe(true);
+    expect(titleFitsSet("Pokemon Typhlosion #17 Holo PSA 6", typhlosion)).toBe(false);
+    // "151" är setets namn — eBay-titlar skriver "MEW EN-151".
+    const mew151 = { ...charizard, card: { ...charizard.card, set: { name: "151", totalCards: 165 } } };
+    expect(titleFitsSet("2023 POKEMON MEW EN-151 SPECIAL ILLUSTRATION RARE #199 CHARIZARD EX PSA 7", mew151)).toBe(true);
+    // Era-ord bevisar inget: "Scarlet & Violet" står i varje SV-set.
+    const svBase = { ...charizard, card: { ...charizard.card, set: { name: "Scarlet & Violet", totalCards: 198 } } };
+    expect(titleFitsSet("Charizard ex #199 Scarlet & Violet PSA 10", svBase)).toBe(false);
+    expect(titleFitsSet("Charizard ex 199/198 Scarlet & Violet PSA 10", svBase)).toBe(true);
+  });
+
+  it("bucketGradedAsks kastar annonser ur fel set", () => {
+    const rows = bucketGradedAsks(
+      [
+        item("Typhlosion 17/111 Neo Genesis PSA 6", "300"),
+        item("Typhlosion 17/162 Temporal Forces PSA 6", "25"),
+        item("Typhlosion #17 PSA 6", "20"),
+      ],
+      typhlosion
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].amount).toBe(300);
   });
 });
 
@@ -104,14 +149,14 @@ describe("bucketGradedAsks", () => {
 
   it("'Mega Charizard X' är ett kortnamn, inte en kvantitet", () => {
     const rows = bucketGradedAsks(
-      [item("Mega Charizard X 108/108 XY Flashfire PSA 9", "60")],
-      { ...charizard, card: { name: "Mega Charizard X", number: "108", set: { name: "Flashfire" } } }
+      [item("Mega Charizard X 108/106 XY Flashfire PSA 9", "60")],
+      { ...charizard, card: { name: "Mega Charizard X", number: "108", set: { name: "Flashfire", totalCards: 106 } } }
     );
     expect(rows).toHaveLength(1);
   });
 
   it("tryckningen måste stämma — 1st Edition bär inte Unlimiteds pris", () => {
-    const unlimited = { ...charizard, card: { name: "Charizard", number: "4", set: { name: "Base" } } };
+    const unlimited = { ...charizard, card: { name: "Charizard", number: "4", set: { name: "Base", totalCards: 102 } } };
     const rows = bucketGradedAsks(
       [
         item("Charizard 4/102 Base Set 1st Edition PSA 8", "5000"),

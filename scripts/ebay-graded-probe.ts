@@ -6,6 +6,8 @@
  *
  * Env: EBAY_CLIENT_ID, EBAY_CLIENT_SECRET (+ EBAY_ENV=sandbox för sandlådan,
  *      EBAY_DELIVERY_COUNTRY="" för att stänga av leveransfiltret).
+ *      PROBE_SET_NAME / PROBE_SET_TOTAL ger set-vakten något att döma på —
+ *      utan dem faller varje "#199"-titel utan X/Y (setet kan inte bevisas).
  */
 import * as fs from "fs";
 import * as path from "path";
@@ -45,7 +47,7 @@ import { bucketGradedAsks } from "../src/lib/graded-ask";
     id: "probe",
     language,
     variantLabel: null,
-    card: { name, number, set: { name: "" } },
+    card: { name, number, set: { name: process.env.PROBE_SET_NAME ?? "", totalCards: Number(process.env.PROBE_SET_TOTAL ?? 0) } },
   });
   console.log(`\n${buckets.length} grupper efter vakterna (produkt "${name}" nr ${number}, ${language}):`);
   for (const b of buckets.sort((a, b) => b.gradeTenths - a.gradeTenths)) {

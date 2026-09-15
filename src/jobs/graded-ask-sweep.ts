@@ -74,7 +74,7 @@ async function selectProducts(budget: number): Promise<ProductRow[]> {
     id: true,
     language: true,
     variantLabel: true,
-    card: { select: { name: true, number: true, set: { select: { name: true } } } },
+    card: { select: { name: true, number: true, set: { select: { name: true, totalCards: true } } } },
     offers: {
       where: { retailer: { name: "Cardmarket" }, price: { not: null } },
       select: { price: true },
