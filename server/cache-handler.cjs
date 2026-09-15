@@ -73,7 +73,8 @@ const crypto = require("node:crypto");
 // "8" (2026-09-15): bolagsmärken i badge-raden.
 // "9" (2026-09-15): badge-rälsen svepsäker (data-swipe-ignore), betygsarket utan rubrikrad + bottenluft.
 // "10" (2026-09-15): fyra märken till (BGS, CGC, SGC, ACE).
-const PAGE_EPOCH = "10";
+// "11" (2026-09-15): RaukCard-märket bort (var Traderas ordmärke).
+const PAGE_EPOCH = "11";
 const STORE_VERSION = "v1";
 /** Sidor äldre än så rensas oavsett TTL (ISR-TTL:en för produktsidor är 30 d). */
 const PAGE_MAX_AGE_MS = 35 * 24 * 3600 * 1000;

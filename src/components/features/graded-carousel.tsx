@@ -230,7 +230,6 @@ const LOGO_FILES: Partial<Record<GradingIssuer, string>> = {
   SGC: "/grading-logos/sgc.png",
   ACE: "/grading-logos/ace.png",
   TAG: "/grading-logos/tag.png",
-  RAUKCARD: "/grading-logos/raukcard.svg",
 };
 
 /** Bolagets märke: filen om den finns, annars ett ordmärke. Höjd 14 px, bredd fri. */
