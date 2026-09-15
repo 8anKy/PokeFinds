@@ -45,7 +45,8 @@ const PRODUCT = { id: "p1", title: "Pitch Black Elite Trainer Box", slug: "pitch
 
 beforeEach(() => {
   productFindUnique.mockReset().mockResolvedValue(PRODUCT);
-  watchlistFindMany.mockReset().mockResolvedValue([{ userId: "u1" }]);
+  // Planen följer med relationen `user` sedan gratiskontots ena larm (free-restock-alert.ts).
+  watchlistFindMany.mockReset().mockResolvedValue([{ userId: "u1", user: { planTier: "PREMIUM", role: "USER", bonusProUntil: null, stripeProUntil: null } }]);
   userFindMany.mockReset().mockResolvedValue([{ id: "u2" }]);
   alertCreate.mockReset().mockImplementation((args: unknown) => args);
   transaction.mockReset().mockResolvedValue([]);

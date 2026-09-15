@@ -6,6 +6,13 @@ import { getSharedSession } from "@/lib/client-session";
 import { useRouter } from "@/i18n/navigation";
 import { hasAuthHint } from "@/lib/auth-hint";
 import { setProductWatched } from "@/lib/watched-products";
+import { openPaywallOrNavigate } from "@/lib/paywall";
+import { FREE_RESTOCK_ALERT_LIMIT_CODE, promptPushAfterWatch } from "@/lib/watch-alert-followup";
+import {
+  FreeWatchIntroSheet,
+  freeWatchIntroSeen,
+  markFreeWatchIntroSeen,
+} from "@/components/features/free-watch-intro-sheet";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -101,9 +108,18 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
     };
   }, [productId]);
 
+  const [introOpen, setIntroOpen] = useState(false);
+
   function openWatch() {
     if (!hasAuthHint()) {
       router.push("/logga-in");
+      return;
+    }
+    // Gratiskontots första Bevaka-tryck på enheten → "Så funkar bevakningar" först
+    // (samma ark som klockan i rutnätet), sedan larmarket.
+    if (isPro === false && !watch && !freeWatchIntroSeen()) {
+      markFreeWatchIntroSeen();
+      setIntroOpen(true);
       return;
     }
     setSheetOpen(true);
@@ -145,20 +161,40 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
         setSheetOpen(false);
         return;
       }
-      if (res.status === 403 && !existing) {
-        toast({ title: tw("limitReached"), description: tw("limitReachedDesc"), variant: "error" });
-        return;
+      if (res.status === 403) {
+        // Två 403: gratiskontots BEVAKNINGSTAK (5 st, bara vid ny rad) och
+        // gratiskontots ENDA RESTOCK-LARM (koden, vid PATCH) — det senare är
+        // paywallens ögonblick, inte ett fel.
+        const body = (await res.json().catch(() => null)) as { code?: string } | null;
+        if (body?.code === FREE_RESTOCK_ALERT_LIMIT_CODE) {
+          setSheetOpen(false);
+          toast({ title: tw("freeAlertLimit"), description: tw("freeAlertLimitDesc") });
+          openPaywallOrNavigate(router, { source: "free-restock-limit" });
+          return;
+        }
+        if (!existing) {
+          toast({ title: tw("limitReached"), description: tw("limitReachedDesc"), variant: "error" });
+          return;
+        }
       }
       if (!res.ok) {
         toast({ title: t("actionFailed"), description: t("tryAgain"), variant: "error" });
         return;
       }
-      const row = (await res.json()) as WatchlistRow;
+      const row = (await res.json()) as WatchlistRow & { restockAlertDenied?: boolean };
       setWatch(toState(row));
       // Den delade cachen (klockorna i rutnäten) måste följa med.
       setProductWatched(productId, true);
       setSheetOpen(false);
-      toast({ title: existing ? t("watchUpdated") : t("watchCreated"), variant: "success" });
+      if (row.restockAlertDenied) {
+        // Sparad UTAN larm: gratiskontots enda restock-larm sitter på en annan
+        // bevakning. Paywall-arket, inte ett fel.
+        toast({ title: tw("freeAlertLimit"), description: tw("freeAlertLimitDesc") });
+        openPaywallOrNavigate(router, { source: "free-restock-limit" });
+      } else {
+        toast({ title: existing ? t("watchUpdated") : t("watchCreated"), variant: "success" });
+        if (row.restockAlert) void promptPushAfterWatch();
+      }
       if (!existing) setJustWatched(true);
     } catch {
       toast({ title: t("tryAgain"), variant: "error" });
@@ -266,6 +302,14 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
           knappraden så den blir en egen rad i stället för ett till "chip". */}
       {justWatched && <DiscordRestockTip />}
 
+      <FreeWatchIntroSheet
+        open={introOpen}
+        onClose={() => setIntroOpen(false)}
+        onContinue={() => {
+          setIntroOpen(false);
+          setSheetOpen(true);
+        }}
+      />
       <ProductWatchSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}

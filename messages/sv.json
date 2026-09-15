@@ -995,6 +995,7 @@
     "askRateLimit": "Du har skickat många köpförfrågningar. Vänta en stund.",
     "blockSelf": "Du kan inte blockera dig själv.",
     "watchExists": "Produkten finns redan i din bevakningslista.",
+    "freeRestockAlertLimit": "Gratiskontot har ett restock-larm. Uppgradera till Pro för larm på allt du bevakar.",
     "watchNotFound": "Bevakningen hittades inte.",
     "setNotFound": "Setet hittades inte.",
     "cardNotFound": "Kortet hittades inte.",
@@ -1710,6 +1711,19 @@
     "scopeSetPro": "Att bevaka ett helt set ingår i Pro.",
     "proCta": "Se vad Pro innehåller",
     "itemWatched": "Bevakning tillagd",
+    "itemWatchedFree": "Bevakad — vi larmar vid restock",
+    "itemWatchedFreeDesc": "Ditt gratislarm: {minutes} min efter Pro, via mejl och push.",
+    "freeAlertLimit": "Sparad utan larm",
+    "freeAlertLimitDesc": "Gratiskontot har ett restock-larm. Pro larmar på allt du bevakar — direkt.",
+    "intro": {
+      "title": "Så funkar bevakningar",
+      "close": "Stäng",
+      "rowWatches": "{count, plural, one {# bevakning} other {# bevakningar}} ingår gratis.",
+      "rowAlert": "Ett restock-larm ingår — via mejl och push, {minutes} min efter Pro-medlemmarna.",
+      "rowPro": "Pro larmar direkt, på allt du bevakar, med prislarm och hela set.",
+      "cta": "Bevaka",
+      "seePro": "Se vad Pro innehåller"
+    },
     "itemUnwatched": "Bevakningen borttagen",
     "confirmRemove": "Sluta bevaka",
     "setWatched": "Bevakar sealed i {set}",
@@ -1735,6 +1749,7 @@
   "Watchlist": {
     "metaTitle": "Bevakningar",
     "freeAlertsBanner": "Prislarm är en Pro-förmån. <link>Uppgradera för att aktivera dem</link>. Du kan fortfarande spara produkter här.",
+    "freeAlertsBannerRestock": "Ett restock-larm ingår gratis ({minutes} min efter Pro). Prislarm och larm på allt du bevakar: <link>uppgradera till Pro</link>.",
     "h1": "Bevakningar",
     "subtitle": "Vi larmar dig vid prisfall och målpriser, innan alla andra hinner före.",
     "findProducts": "Hitta produkter att bevaka",
@@ -2187,6 +2202,8 @@
     "watchRestockOptionHintPaused": "Restock-larm är pausade tills vidare.",
     "targetPriceOptional": "Valfritt. Utan målpris larmar vi vid tydliga prisfall (minst 5 % och 10 kr).",
     "watchSheetProHint": "Larm ingår i Pro. Produkten sparas ändå i dina bevakningar.",
+    "watchSheetFreeHint": "Ett restock-larm ingår gratis, {minutes} min efter Pro. Prislarm och larm på allt du bevakar ingår i Pro.",
+    "watchRestockOptionHintFree": "Larm när produkten kommer tillbaka i lager — {minutes} min efter Pro.",
     "watchCreated": "Bevakning tillagd",
     "watchUpdated": "Bevakningen uppdaterad",
     "watchRemoved": "Bevakningen borttagen",
@@ -2331,7 +2348,7 @@
     "specRowsRestock": [
       {
         "label": "Restock-larm på allt du bevakar",
-        "free": "—",
+        "free": "1 · 4 min efter Pro",
         "pro": "✓"
       },
       {

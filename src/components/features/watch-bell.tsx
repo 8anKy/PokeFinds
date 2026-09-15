@@ -13,6 +13,13 @@ import { WatchBellSheet, type WatchScope } from "@/components/features/watch-bel
 import { getWatchedSetIds, setSetWatched } from "@/lib/watched-sets";
 import { getWatchedProductIds, setProductWatched } from "@/lib/watched-products";
 import { openPaywallOrNavigate } from "@/lib/paywall";
+import { FREE_RESTOCK_ALERT_DELAY_MINUTES } from "@/lib/free-restock-alert";
+import { promptPushAfterWatch } from "@/lib/watch-alert-followup";
+import {
+  FreeWatchIntroSheet,
+  freeWatchIntroSeen,
+  markFreeWatchIntroSeen,
+} from "@/components/features/free-watch-intro-sheet";
 
 interface WatchBellProps {
   productId: string;
@@ -49,6 +56,8 @@ export function WatchBell({ productId, productTitle, setId, setName }: WatchBell
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(false);
   const [isPro, setIsPro] = useState<boolean | null>(null);
+  /** "Så funkar bevakningar" — gratiskontots första Bevaka-tryck på enheten. */
+  const [introOpen, setIntroOpen] = useState(false);
 
   const holdTimer = useRef<number | null>(null);
   const holdStart = useRef<{ x: number; y: number } | null>(null);
@@ -118,10 +127,11 @@ export function WatchBell({ productId, productTitle, setId, setName }: WatchBell
       const res = await fetch("/api/watchlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // Gratiskonto: larmen avfyras ändå aldrig (de är Pro-only), så spara utan
-        // larmflaggor i stället för att låtsas skapa ett larm. Samma val som
-        // product-actions.tsx gör på produktsidan.
-        body: JSON.stringify({ productId, restockAlert: isPro !== false, priceAlert: false }),
+        // Restock-larmet begärs ALLTID — gratiskontot får sitt ena (fördröjda)
+        // larm, och servern svarar `restockAlertDenied` när det redan är taget;
+        // då sparas produkten utan larm och paywall-arket öppnas (nedan).
+        // Prislarm är Pro; produktsidans ark hanterar det.
+        body: JSON.stringify({ productId, restockAlert: true, priceAlert: false }),
       });
       if (res.status === 401) {
         router.push("/logga-in");
@@ -145,7 +155,23 @@ export function WatchBell({ productId, productTitle, setId, setName }: WatchBell
       }
       setItemWatched(true);
       setProductWatched(productId, true);
-      toast({ title: t("itemWatched"), variant: "success" });
+      const row = (await res.json().catch(() => null)) as { restockAlertDenied?: boolean } | null;
+      if (row?.restockAlertDenied) {
+        // Gratiskontots larm är upptaget av en annan bevakning: sparad utan larm,
+        // och DET är ögonblicket paywallen ska upp — inte ett fel.
+        toast({ title: t("freeAlertLimit"), description: t("freeAlertLimitDesc") });
+        openPaywallOrNavigate(router, { source: "free-restock-limit" });
+      } else if (isPro === false) {
+        toast({
+          title: t("itemWatchedFree"),
+          description: t("itemWatchedFreeDesc", { minutes: FREE_RESTOCK_ALERT_DELAY_MINUTES }),
+          variant: "success",
+        });
+        void promptPushAfterWatch();
+      } else {
+        toast({ title: t("itemWatched"), variant: "success" });
+        void promptPushAfterWatch();
+      }
     } catch {
       toast({ title: t("failed"), variant: "error" });
     } finally {
@@ -241,6 +267,14 @@ export function WatchBell({ productId, productTitle, setId, setName }: WatchBell
     // något som redan var på.
     if (setWatched) {
       openSheet();
+      return;
+    }
+    // Gratiskontots första Bevaka-tryck på enheten: förklara vad som ingår FÖRE
+    // bevakningen, en gång. Pro ser det aldrig; okänd plan (session ej läst) heller.
+    if (isPro === false && !freeWatchIntroSeen()) {
+      markFreeWatchIntroSeen();
+      suppressClick.current = true;
+      setIntroOpen(true);
       return;
     }
     void watchItem();
@@ -347,6 +381,14 @@ export function WatchBell({ productId, productTitle, setId, setName }: WatchBell
         setWatched={setWatched}
         itemWatched={itemWatched}
         isPro={isPro !== false}
+      />
+      <FreeWatchIntroSheet
+        open={introOpen}
+        onClose={() => setIntroOpen(false)}
+        onContinue={() => {
+          setIntroOpen(false);
+          void watchItem();
+        }}
       />
     </>
   );

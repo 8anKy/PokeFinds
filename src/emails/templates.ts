@@ -53,6 +53,7 @@ function layout(
     <div style="background-color:#1a1d24;border:1px solid #2a2e38;border-radius:12px;padding:32px 28px;color:#e5e7eb;">
       <h1 style="margin:0 0 16px;font-size:20px;color:#ffffff;">${title}</h1>
       ${bodyHtml}
+    <!--card-end-->
     </div>
     <div style="text-align:center;padding-top:24px;font-size:12px;color:#6b7280;line-height:1.6;">
       ${footerReason}<br>
@@ -71,6 +72,26 @@ function button(url: string, label: string): string {
 
 const textFooter =
   "\n\nDu kan ändra dina aviseringsinställningar i Foilio-appen.\nFoilio · Sveriges marknadsplats för Pokémon TCG";
+
+/**
+ * Lägger en notis SIST i mejlets kort (före sidfoten) — för rader som gäller
+ * oavsett mall: gratiskontots fördröjda restock-larm ("Pro-medlemmar fick det här
+ * för 4 min sedan"). Mallarna själva rörs inte; `<!--card-end-->` i layouten är
+ * ankaret. Textversionen får raden före sidfoten på samma sätt.
+ */
+export function withEmailNote(mail: EmailContent, note: string): EmailContent {
+  const html = mail.html.replace(
+    "<!--card-end-->",
+    `<p style="line-height:1.6;color:#fbbf24;font-size:13px;margin:16px 0 0;border-top:1px solid #2a2e38;padding-top:12px;">${note}</p><!--card-end-->`
+  );
+  const idx = mail.text.lastIndexOf(textFooter);
+  const text = idx >= 0 ? `${mail.text.slice(0, idx)}
+
+${note}${mail.text.slice(idx)}` : `${mail.text}
+
+${note}`;
+  return { ...mail, html, text };
+}
 
 /**
  * "Varför får jag det här?" — raden som gör ett set-bevakningslarm begripligt.

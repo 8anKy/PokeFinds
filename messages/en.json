@@ -995,6 +995,7 @@
     "askRateLimit": "You've sent many purchase requests. Wait a moment.",
     "blockSelf": "You can't block yourself.",
     "watchExists": "This product is already on your watchlist.",
+    "freeRestockAlertLimit": "Free accounts get one restock alert. Upgrade to Pro for alerts on everything you watch.",
     "watchNotFound": "Watch not found.",
     "setNotFound": "Set not found.",
     "cardNotFound": "Card not found.",
@@ -1710,6 +1711,19 @@
     "scopeSetPro": "Watching a whole set is part of Pro.",
     "proCta": "See what Pro includes",
     "itemWatched": "Watch added",
+    "itemWatchedFree": "Watching — we'll alert you on restock",
+    "itemWatchedFreeDesc": "Your free alert: {minutes} min after Pro, by email and push.",
+    "freeAlertLimit": "Saved without an alert",
+    "freeAlertLimitDesc": "Free accounts get one restock alert. Pro alerts on everything you watch — instantly.",
+    "intro": {
+      "title": "How watching works",
+      "close": "Close",
+      "rowWatches": "{count, plural, one {# watch} other {# watches}} included for free.",
+      "rowAlert": "One restock alert included — by email and push, {minutes} min after Pro members.",
+      "rowPro": "Pro alerts instantly, on everything you watch, with price alerts and whole sets.",
+      "cta": "Watch",
+      "seePro": "See what Pro includes"
+    },
     "itemUnwatched": "Watch removed",
     "confirmRemove": "Stop watching",
     "setWatched": "Watching sealed in {set}",
@@ -1735,6 +1749,7 @@
   "Watchlist": {
     "metaTitle": "Watches",
     "freeAlertsBanner": "Price alerts are a Pro feature. <link>Upgrade to activate them</link>. You can still save products here.",
+    "freeAlertsBannerRestock": "One restock alert is included for free ({minutes} min after Pro). Price alerts and alerts on everything you watch: <link>upgrade to Pro</link>.",
     "h1": "Watches",
     "subtitle": "We alert you on price drops and target prices, before everyone else.",
     "findProducts": "Find products to watch",
@@ -2187,6 +2202,8 @@
     "watchRestockOptionHintPaused": "Restock alerts are paused for now.",
     "targetPriceOptional": "Optional. Without a target price we alert on clear drops (at least 5% and 10 kr).",
     "watchSheetProHint": "Alerts are part of Pro. The product is still saved to your watchlist.",
+    "watchSheetFreeHint": "One restock alert is included for free, {minutes} min after Pro. Price alerts and alerts on everything you watch are part of Pro.",
+    "watchRestockOptionHintFree": "Alert when the product is back in stock — {minutes} min after Pro.",
     "watchCreated": "Watch added",
     "watchUpdated": "Watch updated",
     "watchRemoved": "Watch removed",
@@ -2331,7 +2348,7 @@
     "specRowsRestock": [
       {
         "label": "Restock alerts on everything you watch",
-        "free": "—",
+        "free": "1 · 4 min after Pro",
         "pro": "✓"
       },
       {

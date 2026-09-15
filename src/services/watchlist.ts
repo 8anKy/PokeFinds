@@ -1,4 +1,8 @@
 /** Bevakningslista: lista, lägg till, uppdatera, ta bort. */
+import {
+  FREE_RESTOCK_ALERT_LIMIT,
+  FREE_RESTOCK_ALERT_LIMIT_CODE,
+} from "@/lib/free-restock-alert";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import type { PlanTier } from "@prisma/client";
@@ -16,7 +20,8 @@ import type { PlanTier } from "@prisma/client";
  * bara nya tillägg (`count >= LIMIT` nedan). En användare som redan har 8 kvar
  * behåller sina 8 och kan lägga till igen när hen tagit bort ner till 4.
  */
-export const FREE_PLAN_WATCHLIST_LIMIT = 5;
+import { FREE_PLAN_WATCHLIST_LIMIT } from "@/lib/watchlist-limits";
+export { FREE_PLAN_WATCHLIST_LIMIT };
 
 /**
  * ⛔ `select`, ALDRIG `include` PÅ `product` (2026-08-05). `withLowestPrice` nedan
@@ -106,19 +111,33 @@ export async function addWatchlistItem(
     }
   }
 
+  // GRATISKONTOTS ENDA RESTOCK-LARM (lib/free-restock-alert.ts): finns redan ett
+  // objekt med larmet på sparas det nya UTAN larm och svaret säger det
+  // (`restockAlertDenied`) — produkten ska ändå in i listan, det är paywallen som
+  // ska öppnas, inte ett fel som stoppar allt. Prislarm är fortfarande Pro.
+  let restockAlert = input.restockAlert ?? true;
+  let restockAlertDenied = false;
+  if (planTier === "FREE" && restockAlert) {
+    const withAlert = await prisma.watchlistItem.count({ where: { userId, restockAlert: true } });
+    if (withAlert >= FREE_RESTOCK_ALERT_LIMIT) {
+      restockAlert = false;
+      restockAlertDenied = true;
+    }
+  }
+
   const item = await prisma.watchlistItem.create({
     data: {
       userId,
       productId: input.productId,
       targetPrice: input.targetPrice,
       maxPrice: input.maxPrice,
-      restockAlert: input.restockAlert ?? true,
+      restockAlert,
       priceAlert: input.priceAlert ?? true,
       ...(input.channels ? { channels: input.channels } : {}),
     },
     include: WATCHLIST_INCLUDE,
   });
-  return withLowestPrice(item);
+  return { ...withLowestPrice(item), restockAlertDenied };
 }
 
 export interface UpdateWatchlistInput {
@@ -133,11 +152,28 @@ export interface UpdateWatchlistInput {
 export async function updateWatchlistItem(
   userId: string,
   itemId: string,
-  input: UpdateWatchlistInput
+  input: UpdateWatchlistInput,
+  // Planen behövs bara för restock-spärren; utelämnad = ingen spärr (interna anrop).
+  planTier: PlanTier = "PREMIUM"
 ) {
   const item = await prisma.watchlistItem.findUnique({ where: { id: itemId } });
   if (!item || item.userId !== userId) {
     throw new ServiceError(404, "Bevakningen hittades inte.");
+  }
+  // Gratiskontot slår PÅ larmet på ett andra objekt → 403 med kod, klienten öppnar
+  // paywall-arket. Att slå AV, eller på för samma objekt som redan är "det ena",
+  // går alltid.
+  if (planTier === "FREE" && input.restockAlert === true && !item.restockAlert) {
+    const others = await prisma.watchlistItem.count({
+      where: { userId, restockAlert: true, id: { not: itemId } },
+    });
+    if (others >= FREE_RESTOCK_ALERT_LIMIT) {
+      throw new ServiceError(
+        403,
+        "Gratiskontot har ett restock-larm. Uppgradera till Pro för larm på allt du bevakar.",
+        FREE_RESTOCK_ALERT_LIMIT_CODE
+      );
+    }
   }
   const updated = await prisma.watchlistItem.update({
     where: { id: itemId },

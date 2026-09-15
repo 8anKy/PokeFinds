@@ -78,6 +78,9 @@ const buyable = (over: Partial<{ id: string; price: number; url: string; retaile
   retailer: { name: over.name ?? "Butiken" },
 });
 
+/** Bevakarens plan följer med relationen `user` sedan gratiskontots ena larm (free-restock-alert.ts). */
+const PRO_USER = { planTier: "PREMIUM", role: "USER", bonusProUntil: null, stripeProUntil: null } as const;
+
 beforeEach(() => {
   process.env.PRICE_ALERTS_PAUSED = "0"; // testerna handlar om domen, inte om pausen
   productFindUnique.mockReset().mockResolvedValue(PRODUCT);
@@ -100,8 +103,8 @@ beforeEach(() => {
 describe("checkPriceAlerts", () => {
   it("målpris nått ⇒ PRICE_TARGET-larm med larmets EGET pris + butik, och spärren skrivs i samma transaktion", async () => {
     watchlistFindMany.mockResolvedValue([
-      { id: "w1", userId: "user-1", targetPrice: 150000, priceAlertFiredOre: null },
-      { id: "w2", userId: "user-2", targetPrice: 160000, priceAlertFiredOre: null },
+      { id: "w1", userId: "user-1", user: PRO_USER, targetPrice: 150000, priceAlertFiredOre: null },
+      { id: "w2", userId: "user-2", user: PRO_USER, targetPrice: 160000, priceAlertFiredOre: null },
     ]);
 
     const result = await checkPriceAlerts("prod-1");
@@ -134,7 +137,7 @@ describe("checkPriceAlerts", () => {
   it("domen tas på produktens LÄGSTA KÖPBARA pris: i lager + direktlänk + > 0 kr", async () => {
     // Defekt 1: larmet "nu 1 338 kr" kom ur en slutsåld offer. Nu frågas bara IN_STOCK
     // och pris > 0, och sök-/bläddringslänkar hoppas — precis som produktsidan.
-    watchlistFindMany.mockResolvedValue([{ id: "w1", userId: "user-1", targetPrice: 150000, priceAlertFiredOre: null }]);
+    watchlistFindMany.mockResolvedValue([{ id: "w1", userId: "user-1", user: PRO_USER, targetPrice: 150000, priceAlertFiredOre: null }]);
     offerFindMany.mockResolvedValue([
       buyable({ id: "search", price: 100000, url: "https://butik.se/search?q=surging" }), // billigast men söklänk
       buyable({ id: "real", price: 149900 }),
@@ -152,7 +155,7 @@ describe("checkPriceAlerts", () => {
   });
 
   it("inget köpbart pris ⇒ inget larm, räknas som no-price", async () => {
-    watchlistFindMany.mockResolvedValue([{ id: "w1", userId: "user-1", targetPrice: 150000, priceAlertFiredOre: null }]);
+    watchlistFindMany.mockResolvedValue([{ id: "w1", userId: "user-1", user: PRO_USER, targetPrice: 150000, priceAlertFiredOre: null }]);
     offerFindMany.mockResolvedValue([]);
     const result = await checkPriceAlerts("prod-1");
     expect(result).toEqual({ triggered: 0, skipped: { "no-price": 1 } });
@@ -160,7 +163,7 @@ describe("checkPriceAlerts", () => {
   });
 
   it("SPÄRREN: en bevakning som redan larmat för den här målnåddheten larmar inte igen", async () => {
-    watchlistFindMany.mockResolvedValue([{ id: "w1", userId: "user-1", targetPrice: 150000, priceAlertFiredOre: 149900 }]);
+    watchlistFindMany.mockResolvedValue([{ id: "w1", userId: "user-1", user: PRO_USER, targetPrice: 150000, priceAlertFiredOre: 149900 }]);
     offerFindMany.mockResolvedValue([buyable({ price: 140000 })]);
     const result = await checkPriceAlerts("prod-1");
     expect(result).toEqual({ triggered: 0, skipped: { latched: 1 } });
@@ -170,7 +173,7 @@ describe("checkPriceAlerts", () => {
   it("prisfall-läget (inget målpris): larmar på ett tydligt fall från priset användaren senast såg", async () => {
     // Defekt 4: "lämna tomt för att bara bevaka prisfall" — nu på riktigt. Utgångsläget
     // är produktens cachade lägstapris när anroparen inte vet bättre.
-    watchlistFindMany.mockResolvedValue([{ id: "w1", userId: "user-1", targetPrice: null, priceAlertFiredOre: null }]);
+    watchlistFindMany.mockResolvedValue([{ id: "w1", userId: "user-1", user: PRO_USER, targetPrice: null, priceAlertFiredOre: null }]);
     offerFindMany.mockResolvedValue([buyable({ price: 160000 })]); // 180 000 → 160 000 = −11 %
 
     const result = await checkPriceAlerts("prod-1");
@@ -183,7 +186,7 @@ describe("checkPriceAlerts", () => {
   });
 
   it("anroparens `previousOre` vinner över det cachade lägstapriset (svepet vet vad som gällde före jobbet)", async () => {
-    watchlistFindMany.mockResolvedValue([{ id: "w1", userId: "user-1", targetPrice: null, priceAlertFiredOre: null }]);
+    watchlistFindMany.mockResolvedValue([{ id: "w1", userId: "user-1", user: PRO_USER, targetPrice: null, priceAlertFiredOre: null }]);
     offerFindMany.mockResolvedValue([buyable({ price: 160000 })]);
     const result = await checkPriceAlerts("prod-1", { previousOre: 162000 }); // 1,2 % — under golvet
     expect(result).toEqual({ triggered: 0, skipped: { "too-small": 1 } });
@@ -241,7 +244,7 @@ describe("rearmPriceAlerts", () => {
 
 describe("checkRestockAlerts", () => {
   it("skapar RESTOCK EMAIL-alert med butikens retailerId för aktiva bevakningar", async () => {
-    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1", user: PRO_USER }]);
 
     const result = await checkRestockAlerts("prod-1", "ret-1");
 
@@ -259,7 +262,7 @@ describe("checkRestockAlerts", () => {
   });
 
   it("tystar upprepad restock för samma produkt+butik inom cooldown-fönstret", async () => {
-    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1", user: PRO_USER }]);
     alertFindFirst.mockResolvedValue({ id: "nyligt-larm" }); // redan larmat nyss
 
     const result = await checkRestockAlerts("prod-1", "ret-1");
@@ -277,7 +280,7 @@ describe("checkRestockAlerts", () => {
   // Tre olika besked delar AlertType RESTOCK. Övergången lagras på larmet så att
   // utskicket (som kör EFTER skanningen) kan välja rätt mall och rätt push-titel.
   it("släpp (PREORDER → IN_STOCK): egen copy och lagrad övergång", async () => {
-    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1", user: PRO_USER }]);
 
     await checkRestockAlerts("prod-1", "ret-1", { from: "PREORDER", to: "IN_STOCK" });
 
@@ -289,7 +292,7 @@ describe("checkRestockAlerts", () => {
   });
 
   it("öppnad förhandsbokning (OUT → PREORDER): egen copy, inte 'i lager'", async () => {
-    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1", user: PRO_USER }]);
 
     await checkRestockAlerts("prod-1", "ret-1", { from: "OUT_OF_STOCK", to: "PREORDER" });
 
@@ -299,7 +302,7 @@ describe("checkRestockAlerts", () => {
   });
 
   it("utan angiven övergång = klassisk påfyllning (bakåtkompatibelt)", async () => {
-    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1", user: PRO_USER }]);
 
     await checkRestockAlerts("prod-1", "ret-1");
 
@@ -310,7 +313,7 @@ describe("checkRestockAlerts", () => {
   });
 
   it("cooldownen scopas på slutstatus — släppet äts inte av förhandsbokningslarmet", async () => {
-    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1", user: PRO_USER }]);
 
     await checkRestockAlerts("prod-1", "ret-1", { from: "PREORDER", to: "IN_STOCK" });
 
@@ -321,19 +324,74 @@ describe("checkRestockAlerts", () => {
     );
   });
 
-  it("filtrerar på restockAlert, ej pausad, och endast Pro-bevakare", async () => {
+  it("filtrerar på restockAlert + ej pausad och läser planen ur relationen (Pro direkt, Free fördröjt)", async () => {
     await checkRestockAlerts("prod-1");
 
+    // Sedan gratiskontots ena larm (free-restock-alert.ts) filtreras Pro INTE i
+    // frågan: bevakarens plan följer med som `user` och domen tas i koden.
     expect(watchlistFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({
-          productId: "prod-1",
-          restockAlert: true,
-          isPaused: false,
-          user: proUserWhereMatch,
-        }),
+        where: { productId: "prod-1", restockAlert: true, isPaused: false },
+        select: expect.objectContaining({ userId: true, user: expect.anything() }),
       })
     );
+  });
+
+  // GRATISKONTOTS ENA LARM (ägarbeslut 2026-09-15): Free-bevakaren får raden, men
+  // med `notBefore` några minuter fram — och bara på sitt ÄLDSTA larmobjekt.
+  it("Free-bevakare: larmet skapas med notBefore = triggat + fördröjningen", async () => {
+    const FREE = { planTier: "FREE", role: "USER", bonusProUntil: null, stripeProUntil: null } as const;
+    watchlistFindMany
+      .mockResolvedValueOnce([{ userId: "free-1", user: FREE }, { userId: "pro-1", user: PRO_USER }])
+      // Andra frågan: Free-kandidaternas alla larmobjekt → prod-1 är free-1:s äldsta.
+      .mockResolvedValueOnce([
+        { userId: "free-1", productId: "prod-1", createdAt: new Date("2026-09-01") },
+        { userId: "free-1", productId: "prod-2", createdAt: new Date("2026-09-10") },
+      ]);
+
+    const before = Date.now();
+    const result = await checkRestockAlerts("prod-1", "ret-1");
+
+    expect(result.triggered).toBe(2);
+    expect(result.delayed).toBe(1);
+    const rows = alertCreate.mock.calls.map((c) => (c[0] as { data: { userId: string; notBefore: Date | null } }).data);
+    const pro = rows.find((r) => r.userId === "pro-1")!;
+    const free = rows.find((r) => r.userId === "free-1")!;
+    expect(pro.notBefore).toBeNull();
+    expect(free.notBefore).toBeInstanceOf(Date);
+    const delayMs = free.notBefore!.getTime() - before;
+    expect(delayMs).toBeGreaterThanOrEqual(4 * 60_000 - 50);
+    expect(delayMs).toBeLessThanOrEqual(4 * 60_000 + 5_000);
+  });
+
+  it("Free-bevakare vars ÄLDSTA larmobjekt är en annan produkt får inget larm alls", async () => {
+    const FREE = { planTier: "FREE", role: "USER", bonusProUntil: null, stripeProUntil: null } as const;
+    watchlistFindMany
+      .mockResolvedValueOnce([{ userId: "free-1", user: FREE }])
+      .mockResolvedValueOnce([
+        { userId: "free-1", productId: "prod-0", createdAt: new Date("2026-08-01") }, // det ena larmet
+        { userId: "free-1", productId: "prod-1", createdAt: new Date("2026-09-10") },
+      ]);
+
+    const result = await checkRestockAlerts("prod-1", "ret-1");
+
+    expect(result.triggered).toBe(0);
+    expect(alertCreate).not.toHaveBeenCalled();
+  });
+
+  it("Free-bevakare som OCKSÅ nås via en Pro-väg (alla restocks) får ETT direkt larm, inte två", async () => {
+    const FREE = { planTier: "FREE", role: "USER", bonusProUntil: null, stripeProUntil: null } as const;
+    // Orimligt i drift (allRestocks är Pro) men vaktar dedupen: Pro-vägen vinner.
+    userFindMany.mockResolvedValue([{ id: "free-1" }]);
+    watchlistFindMany
+      .mockResolvedValueOnce([{ userId: "free-1", user: FREE }])
+      .mockResolvedValueOnce([{ userId: "free-1", productId: "prod-1", createdAt: new Date("2026-09-01") }]);
+
+    const result = await checkRestockAlerts("prod-1", "ret-1");
+
+    expect(result.triggered).toBe(1);
+    expect(result.delayed).toBe(0);
+    expect((alertCreate.mock.calls[0][0] as { data: { notBefore: Date | null } }).data.notBefore).toBeNull();
   });
 
   it("utlöser inget utan bevakare och utan alla-restocks-prenumeranter", async () => {
@@ -353,7 +411,7 @@ describe("checkRestockAlerts", () => {
   });
 
   it("dedupar: bevakare som OCKSÅ prenumererar på alla restocks får ett larm", async () => {
-    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1", user: PRO_USER }]);
     userFindMany.mockResolvedValue([{ id: "user-1" }, { id: "sub-2" }]);
 
     const result = await checkRestockAlerts("prod-1");
@@ -442,7 +500,7 @@ describe("evaluateStockFlap", () => {
 
 describe("checkRestockAlerts — flapp-dämpning", () => {
   it("tystar blinken: produkten var slut i 10 minuter", async () => {
-    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1", user: PRO_USER }]);
     restockEventFindMany.mockResolvedValue([
       { oldStatus: "OUT_OF_STOCK", detectedAt: new Date() },
       { oldStatus: "IN_STOCK", detectedAt: new Date(Date.now() - 10 * 60_000) },
@@ -459,7 +517,7 @@ describe("checkRestockAlerts — flapp-dämpning", () => {
   });
 
   it("flappande par: cooldownen vidgas till ett dygn", async () => {
-    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1", user: PRO_USER }]);
     restockEventFindMany.mockResolvedValue(
       Array.from({ length: 9 }, (_, i) => ({
         oldStatus: i % 2 === 0 ? "OUT_OF_STOCK" : "IN_STOCK",
@@ -475,7 +533,7 @@ describe("checkRestockAlerts — flapp-dämpning", () => {
   });
 
   it("lugn produkt: 2h-cooldownen står kvar", async () => {
-    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1", user: PRO_USER }]);
     restockEventFindMany.mockResolvedValue([
       { oldStatus: "OUT_OF_STOCK", detectedAt: new Date() },
       { oldStatus: "IN_STOCK", detectedAt: new Date(Date.now() - 30 * 3600_000) },
@@ -493,7 +551,7 @@ describe("checkRestockAlerts — flapp-dämpning", () => {
   });
 
   it("utan butik (retailerId saknas) frågas ingen flapp-historik", async () => {
-    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1", user: PRO_USER }]);
     await checkRestockAlerts("prod-1");
     expect(restockEventFindMany).not.toHaveBeenCalled();
   });
@@ -538,27 +596,24 @@ describe("checkListingAlerts (feed-först: rå butiksannonser utanför katalogen
   // av "Alla restocks" (mätt hål 2026-07-25: Samlarhobby 07-19).
   it("larmar Pro-bevakare av den auto-importerade produkten utan allRestocks", async () => {
     userFindMany.mockResolvedValue([]); // ingen prenumererar på alla restocks
-    watchlistFindMany.mockResolvedValue([{ userId: "watcher-1" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "watcher-1", user: PRO_USER }]);
 
     const result = await checkListingAlerts({ ...LISTING, productId: "prod-9" }, "RESTOCK");
 
     expect(result.triggered).toBe(1);
     expect((alertCreate.mock.calls[0][0] as { data: { userId: string } }).data.userId).toBe("watcher-1");
+    // Samma mottagarfråga som checkRestockAlerts: planen ur relationen, inte i where.
     expect(watchlistFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({
-          productId: "prod-9",
-          restockAlert: true,
-          isPaused: false,
-          user: proUserWhereMatch,
-        }),
+        where: { productId: "prod-9", restockAlert: true, isPaused: false },
+        select: expect.objectContaining({ userId: true, user: expect.anything() }),
       })
     );
   });
 
   it("dedupar: bevakare som OCKSÅ har allRestocks får ett larm", async () => {
     userFindMany.mockResolvedValue([{ id: "user-1" }, { id: "sub-2" }]);
-    watchlistFindMany.mockResolvedValue([{ userId: "user-1" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "user-1", user: PRO_USER }]);
 
     const result = await checkListingAlerts({ ...LISTING, productId: "prod-9" }, "NEW_LISTING");
 

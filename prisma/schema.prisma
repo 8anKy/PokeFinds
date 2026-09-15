@@ -1033,6 +1033,10 @@ model Alert {
   retryCount     Int          @default(0)
   triggeredAt    DateTime     @default(now())
   sentAt         DateTime?
+  /// Tidigast utskick. GRATISKONTOTS restock-larm levereras några minuter efter Pro
+  /// (lib/free-restock-alert.ts) — dispatchPendingAlerts hoppar över raden tills
+  /// tidpunkten passerat. null = skicka direkt (Pro, prislarm, äldre rader).
+  notBefore      DateTime?
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   product      Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)

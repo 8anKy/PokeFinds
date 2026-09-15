@@ -77,6 +77,7 @@ export const API_ERROR_KEYS: Record<string, string> = {
   "Du kan inte blockera dig själv.": "blockSelf",
   // watchlist / sets / collection
   "Produkten finns redan i din bevakningslista.": "watchExists",
+  "Gratiskontot har ett restock-larm. Uppgradera till Pro för larm på allt du bevakar.": "freeRestockAlertLimit",
   "Bevakningen hittades inte.": "watchNotFound",
   "Setet hittades inte.": "setNotFound",
   "Kortet hittades inte.": "cardNotFound",

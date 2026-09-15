@@ -27,6 +27,18 @@ export interface ProUserShape {
   stripeProUntil?: Date | string | null;
 }
 
+/**
+ * Prisma-`select` som ger exakt fälten isPro() dömer på — för frågor som hämtar
+ * relationen `user` i stället för att filtrera med proUserWhere(). Samma fyra
+ * källor; glöms en här faller isPro() tyst till "Free" för den källan.
+ */
+export const PRO_USER_SELECT = {
+  planTier: true,
+  role: true,
+  bonusProUntil: true,
+  stripeProUntil: true,
+} as const satisfies Prisma.UserSelect;
+
 /** Datum i framtiden? Tål både Date (Prisma) och ISO-sträng (JWT/cache). */
 function activeUntil(value: Date | string | null | undefined): boolean {
   return value != null && new Date(value).getTime() > Date.now();

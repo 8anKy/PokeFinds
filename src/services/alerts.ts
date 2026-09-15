@@ -3,7 +3,8 @@ import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { isBlockedListingLanguage } from "@/lib/listing-language";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
-import { proUserWhere } from "@/lib/plan";
+import { PRO_USER_SELECT, isPro, proUserWhere, type ProUserShape } from "@/lib/plan";
+import { freeRestockAlertNotBefore, pickFreeRestockAlertItems } from "@/lib/free-restock-alert";
 import { judgePriceAlert, priceAlertPolicy, type PriceAlertVerdict } from "@/lib/price-alert-rule";
 import { priceAlertsPaused } from "@/lib/price-alerts-pause";
 import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
@@ -288,6 +289,37 @@ export async function rearmPriceAlerts(): Promise<number> {
  * "alla restocks"-prenumerant få många mejl — lägg en daglig digest om det blir
  * ett problem (samla restocks under körningen och skicka en sammanfattning).
  */
+/**
+ * Produktbevakarna som ska få ett restock-larm, delade i Pro (direkt) och Free
+ * (fördröjt). Gratiskontots larm är ETT: det äldsta objektet med restockAlert på
+ * (lib/free-restock-alert.ts). Domen tas HÄR, vid larmtillfället, och inte bara
+ * vid skrivningen — en användare kan ha varit Pro när raderna skapades och fallit
+ * till Free sedan (RevenueCat EXPIRATION); då är bara det äldsta kvar.
+ *
+ * En extra fråga BARA när det finns Free-bevakare på produkten; Pro-vägen kostar
+ * som förut.
+ */
+async function restockWatchersFor(productId: string): Promise<{ pro: string[]; free: string[] }> {
+  const rows = await prisma.watchlistItem.findMany({
+    where: { productId, restockAlert: true, isPaused: false },
+    select: { userId: true, user: { select: PRO_USER_SELECT } },
+  });
+  const pro: string[] = [];
+  const freeCandidates: string[] = [];
+  for (const r of rows) {
+    if (isPro(r.user as ProUserShape)) pro.push(r.userId);
+    else freeCandidates.push(r.userId);
+  }
+  if (freeCandidates.length === 0) return { pro, free: [] };
+  const freeRows = await prisma.watchlistItem.findMany({
+    where: { userId: { in: freeCandidates }, restockAlert: true },
+    select: { userId: true, productId: true, createdAt: true },
+  });
+  const picked = pickFreeRestockAlertItems(freeRows);
+  const free = freeCandidates.filter((id) => picked.get(id) === productId);
+  return { pro, free };
+}
+
 export async function checkRestockAlerts(
   productId: string,
   retailerId?: string,
@@ -371,11 +403,8 @@ export async function checkRestockAlerts(
   const setWatchApplies = !!product.setId && isSealedCategory(product.category);
 
   const [watchers, allSubs, setWatchers] = await Promise.all([
-    prisma.watchlistItem.findMany({
-      // Restock-larm är Pro-only — även bevakade produkter larmar bara för Pro.
-      where: { productId, restockAlert: true, isPaused: false, user: proUserWhere() },
-      select: { userId: true },
-    }),
+    // Produktbevakare: Pro direkt, gratiskontots ENDA larm fördröjt (restockWatchersFor).
+    restockWatchersFor(productId),
     prisma.user.findMany({
       // "Alla restocks" är också en Pro-förmån.
       where: {
@@ -396,15 +425,24 @@ export async function checkRestockAlerts(
   ]);
 
   const userIds = new Set<string>();
-  for (const w of watchers) userIds.add(w.userId);
+  for (const id of watchers.pro) userIds.add(id);
   for (const u of allSubs) userIds.add(u.id);
   for (const s of setWatchers) userIds.add(s.userId);
+  // Free-bevakarna läggs SIST och bara om de inte redan är med på en Pro-väg — en
+  // användare får aldrig både ett direkt och ett fördröjt larm för samma händelse.
+  const delayedFor = new Set<string>();
+  for (const id of watchers.free) {
+    if (userIds.has(id)) continue;
+    userIds.add(id);
+    delayedFor.add(id);
+  }
   if (userIds.size === 0) return { triggered: 0 };
+  const notBefore = freeRestockAlertNotBefore();
 
   // Skälsraden i mejlet gäller den som INTE bevakar produkten själv: bevakar man
   // varan är "du bevakar den här varan" ingen nyhet, men får man plötsligt mejl om
   // en låda man aldrig rört är setnamnet hela förklaringen.
-  const directWatchers = new Set(watchers.map((w) => w.userId));
+  const directWatchers = new Set([...watchers.pro, ...watchers.free]);
   const setReasonFor = new Set(
     setWatchers.map((s) => s.userId).filter((id) => !directWatchers.has(id))
   );
@@ -435,12 +473,14 @@ export async function checkRestockAlerts(
           reasonSetName: setReasonFor.has(userId) ? setName : null,
           message,
           channel: "EMAIL",
+          // Gratiskontots larm: tidigast några minuter efter Pro (free-restock-alert.ts).
+          notBefore: delayedFor.has(userId) ? notBefore : null,
         },
       })
     );
   }
   await prisma.$transaction(writes);
-  return { triggered: userIds.size };
+  return { triggered: userIds.size, delayed: delayedFor.size };
 }
 
 /**
@@ -495,18 +535,11 @@ export async function checkListingAlerts(
       },
       select: { id: true },
     }),
+    // Samma mottagarregler som checkRestockAlerts: Pro direkt, gratiskontots ENDA
+    // larm fördröjt.
     listing.productId
-      ? prisma.watchlistItem.findMany({
-          // Samma mottagarregler som checkRestockAlerts: Pro, ej pausad, restockAlert på.
-          where: {
-            productId: listing.productId,
-            restockAlert: true,
-            isPaused: false,
-            user: proUserWhere(),
-          },
-          select: { userId: true },
-        })
-      : Promise.resolve([] as { userId: string }[]),
+      ? restockWatchersFor(listing.productId)
+      : Promise.resolve({ pro: [] as string[], free: [] as string[] }),
     setId
       ? prisma.setWatch.findMany({
           where: { setId, user: proUserWhere() },
@@ -517,12 +550,19 @@ export async function checkListingAlerts(
 
   const recipients = new Set<string>();
   for (const u of allSubs) recipients.add(u.id);
-  for (const w of watchers) recipients.add(w.userId);
+  for (const id of watchers.pro) recipients.add(id);
   for (const s of setWatchers) recipients.add(s.userId);
+  const delayedFor = new Set<string>();
+  for (const id of watchers.free) {
+    if (recipients.has(id)) continue;
+    recipients.add(id);
+    delayedFor.add(id);
+  }
   if (recipients.size === 0) return { triggered: 0 };
   const subs = [...recipients].map((id) => ({ id }));
+  const notBefore = freeRestockAlertNotBefore();
 
-  const directWatchers = new Set(watchers.map((w) => w.userId));
+  const directWatchers = new Set([...watchers.pro, ...watchers.free]);
   const setReasonFor = new Set(
     setWatchers.map((s) => s.userId).filter((id) => !directWatchers.has(id))
   );
@@ -553,9 +593,10 @@ export async function checkListingAlerts(
         reasonSetName: setReasonFor.has(u.id) ? setName : null,
         message,
         channel: "EMAIL",
+        notBefore: delayedFor.has(u.id) ? notBefore : null,
       },
     })
   );
   await prisma.$transaction(writes);
-  return { triggered: subs.length };
+  return { triggered: subs.length, delayed: delayedFor.size };
 }

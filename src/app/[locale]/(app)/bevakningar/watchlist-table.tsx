@@ -6,7 +6,9 @@ import { Link } from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { apiFetch } from "@/lib/client-api";
+import { ApiError, apiFetch } from "@/lib/client-api";
+import { openPaywallOrNavigate } from "@/lib/paywall";
+import { FREE_RESTOCK_ALERT_DELAY_MINUTES, FREE_RESTOCK_ALERT_LIMIT_CODE } from "@/lib/free-restock-alert";
 import { alertCopyKey } from "@/lib/alert-copy";
 import { priceAlertsPausedClient } from "@/lib/price-alerts-pause";
 import { useToast } from "@/components/ui/toast";
@@ -143,6 +145,11 @@ export function WatchlistTable({
       );
       toast({ title: successTitle, variant: "success" });
     } catch (e) {
+      // Gratiskontots ENDA restock-larm är upptaget → paywall-arket, inte ett fel.
+      if (e instanceof ApiError && e.code === FREE_RESTOCK_ALERT_LIMIT_CODE) {
+        openPaywallOrNavigate(router, { source: "free-restock-limit" });
+        return;
+      }
       toast({
         title: t("updateFail"),
         description: e instanceof Error ? e.message : undefined,
@@ -275,7 +282,8 @@ export function WatchlistTable({
           pausvariant var en andra banner med samma budskap (QA 2026-09-05). */}
       {!isPro && !restockPaused && !pricePaused && (
         <div className="mb-4 rounded-lg border border-holo-cyan/30 bg-holo-cyan/5 px-4 py-3 text-sm text-ink-muted">
-          {t.rich(alertCopyKey("freeAlertsBanner", pricePaused), {
+          {t.rich("freeAlertsBannerRestock", {
+            minutes: FREE_RESTOCK_ALERT_DELAY_MINUTES,
             link: (c) => (
               <ProTextLink source="watchlist-banner" className="font-medium text-holo-cyan hover:underline">
                 {c}
@@ -339,8 +347,8 @@ export function WatchlistTable({
             <div className="mt-3 flex flex-col items-start gap-2">
               <label className="flex items-center gap-2 text-sm text-ink">
                 <Checkbox
-                  checked={isPro && !restockPaused && item.restockAlert}
-                  disabled={busyId === item.id || !isPro || restockPaused}
+                  checked={!restockPaused && item.restockAlert}
+                  disabled={busyId === item.id || restockPaused}
                   onChange={(e) =>
                     void patchItem(
                       item.id,
@@ -427,8 +435,8 @@ export function WatchlistTable({
               <TD data-price>{item.targetPrice != null ? formatPrice(item.targetPrice) : "–"}</TD>
               <TD>
                 <Checkbox
-                  checked={isPro && !restockPaused && item.restockAlert}
-                  disabled={busyId === item.id || !isPro || restockPaused}
+                  checked={!restockPaused && item.restockAlert}
+                  disabled={busyId === item.id || restockPaused}
                   aria-label={t("restockAria", { title: item.product.title })}
                   onChange={(e) =>
                     void patchItem(

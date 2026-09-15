@@ -38,6 +38,7 @@ export async function applyRestockHits(hits: readonly RestockHit[]): Promise<Res
     matched: 0,
     events: 0,
     alerts: 0,
+    delayedAlerts: 0,
     skipped: {},
   };
   const skip = (why: string, n = 1) => {
@@ -147,6 +148,7 @@ export async function applyRestockHits(hits: readonly RestockHit[]): Promise<Res
       result.events++;
       const r = await checkRestockAlerts(productId, retailer.id, { from: laneFrom, to: toStatus });
       result.alerts += r.triggered;
+      result.delayedAlerts += r.delayed ?? 0;
     }
 
     if (offer) {

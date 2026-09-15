@@ -61,6 +61,9 @@ function createdAlerts(): { userId: string; reasonSetName: string | null }[] {
   });
 }
 
+/** Bevakarens plan följer med relationen `user` sedan gratiskontots ena larm (free-restock-alert.ts). */
+const PRO_USER = { planTier: "PREMIUM", role: "USER", bonusProUntil: null, stripeProUntil: null } as const;
+
 beforeEach(() => {
   productFindUnique.mockReset().mockResolvedValue(SEALED_PRODUCT);
   watchlistFindMany.mockReset().mockResolvedValue([]);
@@ -95,7 +98,7 @@ describe("checkRestockAlerts — set-bevakare", () => {
   });
 
   it("dedupar — den som både bevakar produkten och setet får ETT larm", async () => {
-    watchlistFindMany.mockResolvedValue([{ userId: "both" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "both", user: PRO_USER }]);
     setWatchFindMany.mockResolvedValue([{ userId: "both" }]);
 
     const result = await checkRestockAlerts("prod-1", "retailer-1");
@@ -107,7 +110,7 @@ describe("checkRestockAlerts — set-bevakare", () => {
   });
 
   it("ger skälsraden BARA till set-bevakaren när båda sorterna finns", async () => {
-    watchlistFindMany.mockResolvedValue([{ userId: "direct" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "direct", user: PRO_USER }]);
     setWatchFindMany.mockResolvedValue([{ userId: "via-set" }]);
 
     await checkRestockAlerts("prod-1", "retailer-1");
@@ -122,7 +125,7 @@ describe("checkRestockAlerts — set-bevakare", () => {
       ...SEALED_PRODUCT,
       category: "SINGLE_CARD",
     });
-    watchlistFindMany.mockResolvedValue([{ userId: "u1" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "u1", user: PRO_USER }]);
 
     await checkRestockAlerts("prod-1", "retailer-1");
 
@@ -131,7 +134,7 @@ describe("checkRestockAlerts — set-bevakare", () => {
 
   it("frågar INTE alls för tillbehör", async () => {
     productFindUnique.mockResolvedValue({ ...SEALED_PRODUCT, category: "ACCESSORY" });
-    watchlistFindMany.mockResolvedValue([{ userId: "u1" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "u1", user: PRO_USER }]);
 
     await checkRestockAlerts("prod-1", "retailer-1");
 
@@ -140,7 +143,7 @@ describe("checkRestockAlerts — set-bevakare", () => {
 
   it("frågar INTE när produkten saknar set (färsk auto-import utan etikett)", async () => {
     productFindUnique.mockResolvedValue({ ...SEALED_PRODUCT, setId: null, set: null });
-    watchlistFindMany.mockResolvedValue([{ userId: "u1" }]);
+    watchlistFindMany.mockResolvedValue([{ userId: "u1", user: PRO_USER }]);
 
     await checkRestockAlerts("prod-1", "retailer-1");
 

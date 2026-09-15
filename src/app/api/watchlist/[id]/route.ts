@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { requireEntitledUser, requireUser } from "@/lib/auth";
+import { effectivePlanTier } from "@/lib/plan";
 import { removeWatchlistItem, updateWatchlistItem } from "@/services/watchlist";
 import { AlertChannel } from "@prisma/client";
 
@@ -20,9 +21,11 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await requireUser();
+    // Plan-grindad sedan gratiskontots enda restock-larm (free-restock-alert.ts) →
+    // färsk plan ur DB, inte sessionstoken (samma regel som POST /api/watchlist).
+    const user = await requireEntitledUser();
     const input = updateSchema.parse(await req.json());
-    const item = await updateWatchlistItem(user.id, params.id, input);
+    const item = await updateWatchlistItem(user.id, params.id, input, effectivePlanTier(user));
     return jsonOk(item);
   } catch (e) {
     return apiError(e);

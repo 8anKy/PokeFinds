@@ -25,9 +25,31 @@ import { restockAlertsPaused } from "@/lib/restock-alerts-pause";
 import { hitKind, restockHitBatchSchema } from "@/lib/restock-hits";
 import { applyRestockHits } from "@/services/restock-hits";
 import { dispatchPendingAlerts } from "@/services/notifications";
+import { FREE_RESTOCK_ALERT_DELAY_MS } from "@/lib/free-restock-alert";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
+
+/**
+ * GRATISKONTOTS FÖRDRÖJDA LARM skickas av en timer i processen, `delay + 15 s`
+ * efter hiten — inte av ett nytt cron. Vid 4 min är Neon fortfarande vaken
+ * (autosuspend 300 s efter senaste fråga), så rundan kostar ingen väckning; se
+ * kalkylen i lib/free-restock-alert.ts. EN timer i taget: kommer en ny hit medan
+ * den första väntar tar dess dispatch ändå med sig allt som hunnit förfalla, och
+ * timern som redan står plockar resten. Dör processen (självåtervinningen) hämtar
+ * nästa hit eller nattkedjan upp raderna — de ligger kvar som PENDING.
+ */
+let delayedFlush: NodeJS.Timeout | null = null;
+function scheduleDelayedFlush() {
+  if (delayedFlush) return;
+  delayedFlush = setTimeout(() => {
+    delayedFlush = null;
+    void dispatchPendingAlerts()
+      .then((d) => console.log(`[restock-hit] fördröjda larm: skickade ${d.sent}, misslyckade ${d.failed}.`))
+      .catch((e) => console.error("[restock-hit] fördröjd utskicksrunda föll:", e));
+  }, FREE_RESTOCK_ALERT_DELAY_MS + 15_000);
+  delayedFlush.unref?.();
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -56,6 +78,7 @@ export async function POST(req: NextRequest) {
     if (pausedPrice > 0) applied.skipped["prislarm-pausat"] = pausedPrice;
     applied.received = hits.length;
     const dispatched = await dispatchPendingAlerts();
+    if (applied.delayedAlerts > 0) scheduleDelayedFlush();
     const skipped = Object.entries(applied.skipped)
       .map(([k, v]) => `${k} ${v}`)
       .join(", ");

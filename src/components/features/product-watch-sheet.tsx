@@ -10,6 +10,7 @@ import { priceAlertsPausedClient } from "@/lib/price-alerts-pause";
 import { restockAlertsPausedClient } from "@/lib/restock-alerts-pause";
 import { IconCheck, IconLock, IconPackage, IconTrendingDown } from "@/components/ui/icons";
 import { ProTextLink } from "@/components/features/pro-cta";
+import { FREE_RESTOCK_ALERT_DELAY_MINUTES } from "@/lib/free-restock-alert";
 
 /** Den bevakningsrad produktsidan känner till — det arket redigerar. */
 export interface ProductWatchState {
@@ -87,11 +88,14 @@ export function ProductWatchSheet({
     setInvalid(false);
   }, [open, current]);
 
+  // Gratiskonto: PRISLARMET är låst (Pro), men restock-raden går att slå på — det
+  // är gratiskontots ena larm (lib/free-restock-alert.ts). Servern nekar ett andra
+  // med kod FREE_RESTOCK_ALERT_LIMIT och anroparen öppnar paywall-arket.
   const locked = !isPro;
 
   function submit() {
     if (locked) {
-      onSave({ priceAlert: false, restockAlert: false, targetPrice: null });
+      onSave({ priceAlert: false, restockAlert: restockOn, targetPrice: null });
       return;
     }
     let targetPrice: number | null = null;
@@ -107,9 +111,9 @@ export function ProductWatchSheet({
     onSave({ priceAlert: priceOn, restockAlert: restockOn, targetPrice });
   }
 
-  // Gratiskonto som redan sparat produkten: det enda arket kan göra är att ta
-  // bort den — så säger knappen det, i stället för ett "Spara" som inte sparar.
-  const ctaRemoves = locked && current !== null;
+  // Restock-växeln är gratiskontots ena larm, så arket har alltid något att spara —
+  // borttagningen ligger som egen rad längst ned.
+  const ctaRemoves = false;
 
   return (
     <BottomSheet
@@ -164,17 +168,21 @@ export function ProductWatchSheet({
 
         <AlertOption
           on={restockOn}
-          locked={locked}
+          locked={false}
           icon={<IconPackage size={18} />}
           label={t("watchRestockOption")}
-          hint={t(alertCopyKey("watchRestockOptionHint", restockPaused))}
+          hint={
+            locked && !restockPaused
+              ? t("watchRestockOptionHintFree", { minutes: FREE_RESTOCK_ALERT_DELAY_MINUTES })
+              : t(alertCopyKey("watchRestockOptionHint", restockPaused))
+          }
           onToggle={() => setRestockOn((v) => !v)}
         />
       </div>
 
       {locked && (
         <p className="mt-3 text-xs leading-snug text-ink-faint">
-          {t("watchSheetProHint")}{" "}
+          {t("watchSheetFreeHint", { minutes: FREE_RESTOCK_ALERT_DELAY_MINUTES })}{" "}
           {/* ⛔ Ingen Pro-länk när prislarmen är pausade — samma grind som
               set-arket: skicka ingen till kassan för något vi stängt av. */}
           {!pricePaused && (

@@ -71,6 +71,8 @@ export interface RestockHitApplyResult {
   events: number;
   /** Larmrader skapade (en per mottagare) — lager- OCH prislarm. */
   alerts: number;
+  /** Varav gratiskontots FÖRDRÖJDA (notBefore satt) — rutten schemalägger en andra utskicksrunda. */
+  delayedAlerts: number;
   skipped: Record<string, number>;
 }
 
@@ -236,6 +238,7 @@ export async function sendRestockHits(
             matched: body.matched ?? 0,
             events: body.events ?? 0,
             alerts: body.alerts ?? 0,
+            delayedAlerts: body.delayedAlerts ?? 0,
             skipped: body.skipped ?? {},
           },
     };

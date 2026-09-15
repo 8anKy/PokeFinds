@@ -6,7 +6,8 @@ import { AlertStatus, AlertType, StockStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { sendMail, isPermanentMailError } from "@/lib/mailer";
 import { sendPush } from "@/lib/apns";
-import { newListingEmail, preorderEmail, priceAlertEmail, releasedEmail, restockAlertEmail } from "@/emails/templates";
+import { newListingEmail, preorderEmail, priceAlertEmail, releasedEmail, restockAlertEmail, withEmailNote } from "@/emails/templates";
+import { alertDueWhere, freeDelayMinutes, freeDelayNotice } from "@/lib/free-restock-alert";
 import { NON_RETAIL_SOURCE_NAMES } from "@/services/products";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 // ⛔ Delad läsare (samma defaultvärden som förut: email=true, push=false).
@@ -189,6 +190,8 @@ async function sendAlertPush(alert: {
   toStatus: StockStatus | null;
   product: { slug: string } | null;
   storeListing: { url: string } | null;
+  /** Fördröjt gratislarm → raden om Pro läggs sist i notisen. */
+  delayNote?: string | null;
 }): Promise<void> {
   const tokens = await prisma.pushToken.findMany({
     where: { userId: alert.userId },
@@ -218,7 +221,7 @@ async function sendAlertPush(alert: {
     : alert.storeListing?.url ?? undefined;
   const { invalidTokens } = await sendPush(
     tokens.map((t) => t.token),
-    { title, body: alert.message, url }
+    { title, body: alert.delayNote ? `${alert.message} ${alert.delayNote}` : alert.message, url }
   );
   if (invalidTokens.length > 0) {
     await prisma.pushToken.deleteMany({ where: { token: { in: invalidTokens } } });
@@ -231,7 +234,9 @@ async function sendAlertPush(alert: {
  */
 export async function dispatchPendingAlerts(): Promise<{ sent: number; failed: number }> {
   const pending = await prisma.alert.findMany({
-    where: { status: AlertStatus.PENDING, retryCount: { lt: MAX_RETRIES } },
+    // ⛔ Bara rader vars tidpunkt passerat: gratiskontots restock-larm bär `notBefore`
+    // (några minuter efter Pro) och ska ligga kvar som PENDING tills dess.
+    where: { status: AlertStatus.PENDING, retryCount: { lt: MAX_RETRIES }, ...alertDueWhere(new Date()) },
     include: { user: true, product: true, storeListing: { select: { url: true } } },
     take: 200,
     orderBy: { triggeredAt: "asc" },
@@ -242,13 +247,18 @@ export async function dispatchPendingAlerts(): Promise<{ sent: number; failed: n
 
   for (const alert of pending) {
     const settings = parseSettings(alert.user.notificationSettings);
+    // Fördröjt gratislarm: mejl OCH push säger att Pro fick det tidigare — det är
+    // hela poängen med fördröjningen (free-restock-alert.ts).
+    const delayMin = freeDelayMinutes(alert);
+    const delayNote = delayMin == null ? null : freeDelayNotice(delayMin);
     try {
       if (settings.email) {
-        const mail = await buildAlertEmail(alert);
+        const built = await buildAlertEmail(alert);
+        const mail = delayNote ? withEmailNote(built, delayNote) : built;
         await sendMail({ to: alert.user.email, ...mail });
       }
       if (settings.push) {
-        await sendAlertPush(alert);
+        await sendAlertPush({ ...alert, delayNote });
       }
 
       await prisma.alert.update({
