@@ -180,7 +180,9 @@ export function ProductDetailView({
 
   const isSingle = data.category === "SINGLE_CARD";
   const gradedHistory = gradedSel
-    ? data.gradedSales.history.find(
+    // `?? []`: detail-payloaden cachas ≤1 h — direkt efter en deploy saknar den
+    // fältet, och ett klick på ett betyg får inte fälla sidan.
+    ? (data.gradedSales.history ?? []).find(
         (h) => h.issuer === gradedSel.issuer && h.gradeTenths === gradedSel.gradeTenths
       ) ?? null
     : null;
