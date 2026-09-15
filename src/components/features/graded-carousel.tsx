@@ -225,6 +225,10 @@ function CellPrice({ cell }: { cell: GradedGradeCell }) {
  */
 const LOGO_FILES: Partial<Record<GradingIssuer, string>> = {
   PSA: "/grading-logos/psa.svg",
+  BGS: "/grading-logos/bgs.png",
+  CGC: "/grading-logos/cgc.png",
+  SGC: "/grading-logos/sgc.png",
+  ACE: "/grading-logos/ace.png",
   TAG: "/grading-logos/tag.png",
   RAUKCARD: "/grading-logos/raukcard.svg",
 };
@@ -235,5 +239,7 @@ function IssuerMark({ issuer }: { issuer: GradingIssuer }) {
   const wordmark = <span className="font-display text-[11px] font-black uppercase tracking-wide text-ink">{label}</span>;
   const src = LOGO_FILES[issuer];
   if (!src) return wordmark;
-  return <SafeImage src={src} alt={label} className="h-3.5 w-auto max-w-[4.5rem] object-contain" fallback={wordmark} />;
+  // Beckett är ett kvadratiskt emblem — 14 px högt blir det en prick; 18 px där.
+  const cls = issuer === "BGS" ? "h-[18px]" : "h-3.5";
+  return <SafeImage src={src} alt={label} className={`${cls} w-auto max-w-[4.5rem] object-contain`} fallback={wordmark} />;
 }
