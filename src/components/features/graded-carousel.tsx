@@ -1,168 +1,236 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
-import { formatPrice, dateLocaleTag } from "@/lib/format";
-import { ISSUER_LABELS, formatGrade } from "@/lib/graded-listing";
-import { buildGradedCards, defaultGrade, type GradedIssuerCard } from "@/lib/graded-merge";
+import { useTranslations } from "next-intl";
+import { formatPrice } from "@/lib/format";
+import { ISSUER_LABELS, formatGrade, type GradingIssuer } from "@/lib/graded-listing";
+import { buildGradedCards, defaultGrade, type GradedGradeCell, type GradedIssuerCard } from "@/lib/graded-merge";
 import type { GradedSummary } from "@/services/graded";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { SafeImage } from "@/components/ui/safe-image";
+import { IconChevronDown } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
 export interface GradedSelection {
-  issuer: GradedIssuerCard["issuer"];
+  issuer: GradingIssuer;
   gradeTenths: number;
 }
 
 /**
- * GRADERINGSKARUSELLEN (ägarbeslut 2026-09-15) — under grafen, ovanför butikerna.
+ * GRADERINGSBADGARNA (ägaren 2026-09-15, v2 — "för bulkigt" om v1): en låg rad
+ * under grafen. Första badgen "Ograderad" (prislistans pris), sedan en per bolag:
+ * bolagets märke · [betyg ▾] · priset för det betyget. Tryck på badgen ⇒ grafen
+ * byter till det betyget; tryck på betyget ⇒ ett ark glider upp med bolagets
+ * alla betyg och priser att välja ur.
  *
- * Första kortet är "Ograderad" (grafen som förut); sedan ett kort per bolag
- * med betygschips. Ett tryck på ett chip väljer (bolag, betyg): kortet visar
- * TILL SALU (eBay, lägsta begärda, länk) och SÅLT (Tradera, median) för det
- * betyget, och grafen ovanför byter till "PSA 10 · prishistorik". Karusellen
- * ÄR alltså grafens graderingsväljare — inget separat block, ingen lodrät lista.
- *
- * ⛔ BEGÄRT ÄR INTE SÅLT: två rader med egen etikett och källa, aldrig ett tal.
- * ⛔ Antalet står alltid bredvid priset (annonser resp. affärer).
- * ⛔ Ingen karusell utan data — tomt → null.
- * ⛔ Rälsen bleeder till kanten med sidans gutter (-mx-2.5 px-2.5, ui-shell.md).
+ * ⛔ PRISET I BADGEN ÄR LÄGSTA BEGÄRDA (eBay) för betyget — saknas det visas
+ *    Tradera-medianen med etiketten "sålt", aldrig ett omärkt tal. Arket visar
+ *    båda källorna per betyg, sida vid sida.
+ * ⛔ MÄRKENA ÄR IDENTIFIERARE vid bolagets EGNA priser (referensbruk, samma regel
+ *    som butiksloggorna). Filen `public/grading-logos/<issuer>.svg` ritas om den
+ *    finns, annars ett ordmärke i text — ingen logotyp hittas på.
+ * ⛔ Ingen rad utan data — tomt → null. Rälsen bleeder med sidans gutter.
  */
 export function GradedCarousel({
   graded,
+  rawPriceOre,
   selected,
   onSelect,
 }: {
   graded: GradedSummary | undefined;
+  /** Prislistans pris (lägsta köpbara) för "Ograderad"-badgen; null = "–". */
+  rawPriceOre: number | null;
   selected: GradedSelection | null;
   onSelect: (sel: GradedSelection | null) => void;
 }) {
   const t = useTranslations("Detail");
-  const locale = useLocale();
   const cards = useMemo(
     () => buildGradedCards(graded?.asks ?? [], graded?.rows ?? [], graded?.history ?? []),
     [graded]
   );
-  // Aktivt betyg per kort (lokalt) — kortet får minnas sitt betyg även när ett
-  // annat kort är valt i grafen.
+  // Aktivt betyg per bolag — badgen minns sitt betyg även när ett annat bolag är
+  // valt i grafen.
   const [active, setActive] = useState<Record<string, number>>({});
+  const [sheetFor, setSheetFor] = useState<GradedIssuerCard | null>(null);
   if (cards.length === 0) return null;
 
-  const dateFmt = new Intl.DateTimeFormat(dateLocaleTag(locale), { day: "numeric", month: "short" });
+  const gradeOf = (card: GradedIssuerCard) => active[card.issuer] ?? defaultGrade(card);
+  const cellOf = (card: GradedIssuerCard) =>
+    card.grades.find((g) => g.gradeTenths === gradeOf(card)) ?? card.grades[0];
 
   return (
-    <section className="mt-5" aria-label={t("gradedPricesTitle")}>
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-[15px] font-semibold text-ink">{t("gradedPricesTitle")}</h2>
-        <span className="text-xs text-ink-muted">{t("gradedCarouselHint")}</span>
-      </div>
-      <div className="-mx-2.5 mt-3 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-2.5 pb-1 lg:mx-0 lg:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {/* Ograderad — tillbaka till den vanliga kurvan. */}
-        <button
-          type="button"
-          onClick={() => onSelect(null)}
-          aria-pressed={selected === null}
-          className={cn(
-            "flex w-[8.5rem] shrink-0 snap-start flex-col items-start justify-between rounded-2xl border p-3 text-left transition-colors",
-            selected === null ? "border-holo-cyan bg-holo-cyan/10" : "border-surface-border bg-surface hover:border-surface-border/80"
-          )}
-        >
-          <span className="text-sm font-semibold text-ink">{t("gradedRawCard")}</span>
-          <span className="mt-3 text-[11px] leading-snug text-ink-muted">{t("gradedRawCardHint")}</span>
-        </button>
+    <div className="mt-4">
+      <div
+        className="-mx-2.5 flex snap-x gap-2 overflow-x-auto px-2.5 pb-1 lg:mx-0 lg:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        role="group"
+        aria-label={t("gradedPricesTitle")}
+      >
+        <Badge selected={selected === null} onClick={() => onSelect(null)}>
+          <span className="text-[11px] font-semibold text-ink">{t("gradedRawCard")}</span>
+          <span className="text-sm font-semibold tabular-nums text-ink">
+            {rawPriceOre != null ? formatPrice(rawPriceOre) : "–"}
+          </span>
+        </Badge>
 
         {cards.map((card) => {
-          const grade = active[card.issuer] ?? defaultGrade(card);
-          const cellFor = card.grades.find((g) => g.gradeTenths === grade) ?? card.grades[0];
-          const isSelected = selected?.issuer === card.issuer && selected.gradeTenths === cellFor.gradeTenths;
+          const cell = cellOf(card);
+          const isSel = selected?.issuer === card.issuer && selected.gradeTenths === cell.gradeTenths;
           return (
-            <div
+            <Badge
               key={card.issuer}
-              className={cn(
-                "w-[15.5rem] shrink-0 snap-start rounded-2xl border p-3 transition-colors",
-                isSelected ? "border-holo-cyan bg-holo-cyan/10" : "border-surface-border bg-surface"
-              )}
+              selected={isSel}
+              onClick={() => onSelect({ issuer: card.issuer, gradeTenths: cell.gradeTenths })}
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold text-ink">{ISSUER_LABELS[card.issuer] ?? card.issuer}</span>
-                {isSelected && <span className="text-[10px] font-semibold uppercase tracking-wide text-holo-cyan">{t("gradedInChart")}</span>}
-              </div>
+              <span className="flex items-center gap-1.5">
+                <IssuerMark issuer={card.issuer} />
+                {/* Betygsväljaren: egen knapp inne i badgen ⇒ arket. */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSheetFor(card);
+                  }}
+                  aria-label={t("gradedPickGrade", { issuer: ISSUER_LABELS[card.issuer] ?? card.issuer })}
+                  className="flex items-center gap-0.5 rounded-md border border-surface-border bg-surface-overlay px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-ink"
+                >
+                  {formatGrade(cell.gradeTenths)}
+                  <IconChevronDown size={11} className="text-ink-muted" />
+                </button>
+              </span>
+              <CellPrice cell={cell} />
+            </Badge>
+          );
+        })}
+      </div>
+      <p className="mt-1.5 text-[11px] text-ink-faint">{t("gradedCarouselHint")}</p>
 
-              {/* Betygschips: ett tryck väljer betyget OCH sätter grafen. */}
-              <div className="mt-2 flex flex-wrap gap-1" role="group" aria-label={t("gradedColGrade")}>
-                {card.grades.map((g) => {
-                  const on = g.gradeTenths === cellFor.gradeTenths;
-                  return (
-                    <button
-                      key={g.gradeTenths}
-                      type="button"
-                      aria-pressed={on}
-                      onClick={() => {
-                        setActive((prev) => ({ ...prev, [card.issuer]: g.gradeTenths }));
-                        onSelect({ issuer: card.issuer, gradeTenths: g.gradeTenths });
-                      }}
-                      className={cn(
-                        "rounded-md border px-2 py-0.5 text-xs font-semibold tabular-nums transition-colors",
-                        on
-                          ? "border-holo-cyan bg-holo-cyan text-surface"
-                          : "border-surface-border text-ink-muted hover:text-ink"
-                      )}
-                    >
-                      {formatGrade(g.gradeTenths)}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Två rader, två källor — aldrig ett tal. */}
-              <dl className="mt-3 grid grid-cols-2 gap-x-3">
-                <div>
-                  <dt className="text-[10px] uppercase tracking-wide text-ink-muted">{t("gradedAskLabel")} · eBay</dt>
-                  <dd className="mt-0.5">
-                    {cellFor.ask ? (
+      {/* Arket: bolagets alla betyg, båda källorna per rad. */}
+      <BottomSheet
+        open={sheetFor !== null}
+        title={sheetFor ? `${ISSUER_LABELS[sheetFor.issuer] ?? sheetFor.issuer} · ${t("gradedColGrade")}` : ""}
+        onClose={() => setSheetFor(null)}
+        closeLabel={t("watchSheetClose")}
+        panelClassName="sm:mx-auto sm:max-w-md"
+      >
+        {sheetFor && (
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-[3rem_1fr_1fr] gap-x-3 px-1 text-[10px] uppercase tracking-wide text-ink-muted">
+              <span>{t("gradedColGrade")}</span>
+              <span>{t("gradedAskLabel")} · eBay</span>
+              <span>{t("gradedSoldLabel")} · Tradera</span>
+            </div>
+            {sheetFor.grades.map((g) => {
+              const on = g.gradeTenths === gradeOf(sheetFor);
+              return (
+                <button
+                  key={g.gradeTenths}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => {
+                    setActive((prev) => ({ ...prev, [sheetFor.issuer]: g.gradeTenths }));
+                    onSelect({ issuer: sheetFor.issuer, gradeTenths: g.gradeTenths });
+                    setSheetFor(null);
+                  }}
+                  className={cn(
+                    "grid grid-cols-[3rem_1fr_1fr] items-center gap-x-3 rounded-xl border px-3 py-2.5 text-left transition-colors",
+                    on ? "border-holo-cyan bg-holo-cyan/10" : "border-surface-border bg-surface hover:border-surface-border/80"
+                  )}
+                >
+                  <span className="font-display text-lg font-semibold text-ink">{formatGrade(g.gradeTenths)}</span>
+                  <span className="min-w-0">
+                    {g.ask ? (
                       <>
-                        <a
-                          href={cellFor.ask.url}
-                          target="_blank"
-                          rel="noopener noreferrer nofollow"
-                          className="block truncate text-sm font-semibold text-holo-cyan hover:underline"
-                        >
-                          {formatPrice(cellFor.ask.priceOre)}
-                        </a>
+                        <span className="block text-sm font-semibold text-holo-cyan">{formatPrice(g.ask.priceOre)}</span>
                         <span className="block text-[11px] text-ink-muted">
-                          {t("gradedAskListingCount", { count: cellFor.ask.listingCount })}
+                          {t("gradedAskListingCount", { count: g.ask.listingCount })}
                         </span>
                       </>
                     ) : (
                       <span className="text-sm text-ink-faint">–</span>
                     )}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-[10px] uppercase tracking-wide text-ink-muted">{t("gradedSoldLabel")} · Tradera</dt>
-                  <dd className="mt-0.5">
-                    {cellFor.sale ? (
+                  </span>
+                  <span className="min-w-0">
+                    {g.sale ? (
                       <>
-                        <span className="block text-sm font-semibold text-ink">{formatPrice(cellFor.sale.medianOre)}</span>
-                        <a
-                          href={cellFor.sale.lastUrl}
-                          target="_blank"
-                          rel="noopener noreferrer nofollow"
-                          className="block truncate text-[11px] text-ink-muted hover:text-holo-cyan"
-                        >
-                          {t("gradedSampleCount", { count: cellFor.sale.count })} ·{" "}
-                          {dateFmt.format(new Date(cellFor.sale.lastSoldAt))}
-                        </a>
+                        <span className="block text-sm font-semibold text-ink">{formatPrice(g.sale.medianOre)}</span>
+                        <span className="block text-[11px] text-ink-muted">
+                          {t("gradedSampleCount", { count: g.sale.count })}
+                        </span>
                       </>
                     ) : (
                       <span className="text-sm text-ink-faint">–</span>
                     )}
-                  </dd>
-                </div>
-              </dl>
-            </div>
-          );
-        })}
-      </div>
-    </section>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </BottomSheet>
+    </div>
+  );
+}
+
+function Badge({
+  selected,
+  onClick,
+  children,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={cn(
+        "flex h-14 shrink-0 snap-start cursor-pointer flex-col justify-between rounded-xl border px-3 py-2 transition-colors",
+        selected ? "border-holo-cyan bg-holo-cyan/10" : "border-surface-border bg-surface hover:border-surface-border/80"
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** Badgens pris: begärt (eBay) i första hand, annars sålt-medianen MÄRKT. */
+function CellPrice({ cell }: { cell: GradedGradeCell }) {
+  const t = useTranslations("Detail");
+  if (cell.ask) {
+    return <span className="text-sm font-semibold tabular-nums text-ink">{formatPrice(cell.ask.priceOre)}</span>;
+  }
+  if (cell.sale) {
+    return (
+      <span className="text-sm font-semibold tabular-nums text-ink">
+        {formatPrice(cell.sale.medianOre)}
+        <span className="ml-1 text-[10px] font-normal uppercase text-ink-muted">{t("gradedSoldLabel")}</span>
+      </span>
+    );
+  }
+  return <span className="text-sm text-ink-faint">–</span>;
+}
+
+/**
+ * Bolagets märke: filen om den finns, annars ett ordmärke. Höjd 14 px, bredd fri
+ * — märkena är liggande (PSA, BECKETT, CGC…).
+ */
+function IssuerMark({ issuer }: { issuer: GradingIssuer }) {
+  const label = ISSUER_LABELS[issuer] ?? issuer;
+  return (
+    <SafeImage
+      src={`/grading-logos/${issuer.toLowerCase()}.svg`}
+      alt={label}
+      className="h-3.5 w-auto max-w-[4.5rem] object-contain"
+      fallback={<span className="font-display text-[11px] font-black uppercase tracking-wide text-ink">{label}</span>}
+    />
   );
 }

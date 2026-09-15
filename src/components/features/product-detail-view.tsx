@@ -27,6 +27,7 @@ import {
 } from "@/components/features/live-product-pricing";
 import { IconCards } from "@/components/ui/icons";
 import { GradedCarousel, type GradedSelection } from "./graded-carousel";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { ISSUER_LABELS, formatGrade } from "@/lib/graded-listing";
 
 /** Sealed-kategorier (ej singel/gradat) — får alltid en Tradera-länk. */
@@ -362,7 +363,7 @@ export function ProductDetailView({
               {pending ? (
                 <Skeleton className="h-52 w-full" />
               ) : (
-                <>
+                <ErrorBoundary name="price-history">
                   {gradedSel && gradedTitle ? (
                     // GRADERAT LÄGE: egna serier (begärt + sålt för betyget), egen
                     // rubrik. `key` monterar om kortet så käll-chipsens tillstånd
@@ -398,8 +399,15 @@ export function ProductDetailView({
                   <LiveStatsFootnote className="mt-2" />
                   {/* GRADERINGSKARUSELLEN — grafens graderingsväljare, under kurvan och
                       ovanför butikerna (ägaren 2026-09-15). Ritas bara med data. */}
-                  <GradedCarousel graded={data.gradedSales} selected={gradedSel} onSelect={setGradedSel} />
-                </>
+                  <ErrorBoundary name="graded-carousel">
+                    <GradedCarousel
+                      graded={data.gradedSales}
+                      rawPriceOre={data.stats.lowestPrice}
+                      selected={gradedSel}
+                      onSelect={setGradedSel}
+                    />
+                  </ErrorBoundary>
+                </ErrorBoundary>
               )}
             </div>
           </div>
