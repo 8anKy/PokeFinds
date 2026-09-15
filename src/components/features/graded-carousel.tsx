@@ -220,17 +220,21 @@ function CellPrice({ cell }: { cell: GradedGradeCell }) {
 }
 
 /**
- * Bolagets märke: filen om den finns, annars ett ordmärke. Höjd 14 px, bredd fri
- * — märkena är liggande (PSA, BECKETT, CGC…).
+ * Bolagens märken som FINNS som fil (public/grading-logos/, hämtade 2026-09-15 ur
+ * bolagens egna sajter — referensbruk vid deras egna priser). Övriga får ett
+ * ordmärke i text; listan hindrar en 404-begäran per okänt bolag och sida.
  */
+const LOGO_FILES: Partial<Record<GradingIssuer, string>> = {
+  PSA: "/grading-logos/psa.svg",
+  TAG: "/grading-logos/tag.png",
+  RAUKCARD: "/grading-logos/raukcard.svg",
+};
+
+/** Bolagets märke: filen om den finns, annars ett ordmärke. Höjd 14 px, bredd fri. */
 function IssuerMark({ issuer }: { issuer: GradingIssuer }) {
   const label = ISSUER_LABELS[issuer] ?? issuer;
-  return (
-    <SafeImage
-      src={`/grading-logos/${issuer.toLowerCase()}.svg`}
-      alt={label}
-      className="h-3.5 w-auto max-w-[4.5rem] object-contain"
-      fallback={<span className="font-display text-[11px] font-black uppercase tracking-wide text-ink">{label}</span>}
-    />
-  );
+  const wordmark = <span className="font-display text-[11px] font-black uppercase tracking-wide text-ink">{label}</span>;
+  const src = LOGO_FILES[issuer];
+  if (!src) return wordmark;
+  return <SafeImage src={src} alt={label} className="h-3.5 w-auto max-w-[4.5rem] object-contain" fallback={wordmark} />;
 }
