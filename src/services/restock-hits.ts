@@ -147,6 +147,16 @@ export async function applyRestockHits(hits: readonly RestockHit[]): Promise<Res
         continue;
       }
       console.log(`[restock-hit] Oruttad hit bunden: ${hit.storeName} → ${hit.storeUrl} → ${boundId}`);
+      // Spårbart i admin → Kopplingar: en felbindning ska gå att hitta och ta bort
+      // på tio sekunder, inte dyka upp som en främmande butik på en produktsida.
+      await prisma.auditLog.create({
+        data: {
+          action: "restock-hit.bind",
+          entityType: "Offer",
+          entityId: offer.id,
+          metadata: { storeName: hit.storeName, url: hit.storeUrl, title: hit.title, productId: boundId, priceOre: hit.priceOre },
+        },
+      });
     }
 
     if (hitKind(hit) === "PRICE_DROP") {

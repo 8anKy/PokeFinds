@@ -20,6 +20,7 @@
  */
 
 import { useId, useState } from "react";
+import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { SURFACE } from "./chart-palette";
 
@@ -30,6 +31,8 @@ export interface DonutSlice {
   color: string;
   /** Färdigformaterat värde (t.ex. "1 234 kr"). Utan det visas råa antalet. */
   display?: string;
+  /** Gör etiketten i förklaringen till en länk (t.ex. användarens detaljsida). */
+  href?: string;
 }
 
 const nf = new Intl.NumberFormat("sv-SE");
@@ -181,7 +184,16 @@ export function DonutChart({
                 className="h-2 w-2 shrink-0 rounded-full"
                 style={{ backgroundColor: s.color }}
               />
-              <span className="min-w-0 flex-1 truncate text-ink-muted">{s.label}</span>
+              {s.href ? (
+                <Link
+                  href={s.href}
+                  className="min-w-0 flex-1 truncate text-holo-cyan transition-opacity hover:opacity-80"
+                >
+                  {s.label}
+                </Link>
+              ) : (
+                <span className="min-w-0 flex-1 truncate text-ink-muted">{s.label}</span>
+              )}
               <span className="shrink-0 tabular-nums font-medium text-ink">
                 {s.display ?? nf.format(s.value)}
               </span>

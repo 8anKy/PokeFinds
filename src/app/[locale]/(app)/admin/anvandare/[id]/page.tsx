@@ -21,7 +21,7 @@ import { auth, hasRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { isPro } from "@/lib/plan";
 import { RENEWAL_LABELS, renewalStatus } from "@/lib/subscription-status";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatPrice } from "@/lib/format";
 import { startOfMonthUtc, utcDaysAgo } from "@/lib/utils";
 import { parseNotificationSettings } from "@/lib/notification-settings";
 import {
@@ -32,7 +32,8 @@ import {
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AdminRequired } from "../../admin-required";
-import { LastSeen, describeDevices, formatCostOre } from "../user-bits";
+import { LastSeen, PlanBadge, describeDevices, formatCostOre } from "../user-bits";
+import { UserActions } from "../user-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,22 @@ function Row({
 }
 
 const dash = <span className="text-ink-faint">–</span>;
+
+/**
+ * NYCKELTAL ÖVERST (ägaren 2026-09-16: "ögat ska fånga det direkt, som i
+ * översikten"). Samma tegel som översiktens StatCard: etikett, stort tal, en
+ * rad förklaring. Talen är de man faktiskt kommer hit för — kostnaden och
+ * användningen denna månad, bevakningarna, samlingen.
+ */
+function StatTile({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
+  return (
+    <Card className="p-4">
+      <p className="text-xs text-ink-muted">{label}</p>
+      <p className="mt-1 font-display text-2xl font-bold tabular-nums text-ink">{value}</p>
+      {hint && <p className="mt-1 text-xs text-ink-faint">{hint}</p>}
+    </Card>
+  );
+}
 
 /** En funktions kostnadsrad. Omätta rader står ALLTID bredvid beloppet. */
 function FeatureBlock({
@@ -160,6 +177,21 @@ export default async function AdminUserDetailPage({
       attributedAt: true,
       creatorCode: { select: { code: true, creatorName: true } },
       pushTokens: { select: { platform: true, createdAt: true } },
+      // Vad hen bevakar — det ägaren vill se bredvid siffrorna.
+      watchlistItems: {
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        select: {
+          id: true,
+          restockAlert: true,
+          priceAlert: true,
+          targetPrice: true,
+          isPaused: true,
+          createdAt: true,
+          product: { select: { title: true, slug: true, lowestPriceOre: true } },
+        },
+      },
+      setWatches: { select: { set: { select: { id: true, name: true } } } },
       _count: {
         select: {
           watchlistItems: true,
@@ -190,11 +222,17 @@ export default async function AdminUserDetailPage({
   const notif = parseNotificationSettings(user.notificationSettings);
   const pro = isPro(user);
 
+  const activeWatches = user.watchlistItems.filter((w) => !w.isPaused);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-xl font-semibold">{user.name}</h2>
+          <h2 className="flex items-center gap-2 text-xl font-semibold">
+            {user.name}
+            <PlanBadge isPro={pro} planTier={user.planTier} />
+            {user.role !== "USER" && <Badge variant="warning">{user.role}</Badge>}
+          </h2>
           <p className="text-sm text-ink-muted">{user.email}</p>
         </div>
         <Link
@@ -205,7 +243,90 @@ export default async function AdminUserDetailPage({
         </Link>
       </div>
 
-      {/* KOSTNAD — det vyn finns för. Överst med flit. */}
+      {/* NYCKELTAL — det ögat ska fånga först. "Denna månad" = kvotens fönster. */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <StatTile label="Skanningar denna månad" value={month.scanner.rows} hint={`${user._count.scannerJobs} totalt`} />
+        <StatTile label="Graderingar denna månad" value={month.grading.rows} hint={`${user._count.gradingJobs} totalt`} />
+        <StatTile
+          label="AI-kostnad denna månad"
+          value={formatCostOre(month.totalOre)}
+          hint={month.totalUnmeasured > 0 ? `+${month.totalUnmeasured} omätta` : `${formatCostOre(window.totalOre)} senaste ${COST_WINDOW_DAYS} d`}
+        />
+        <StatTile label="Bevakningar" value={activeWatches.length} hint={`${user._count.setWatches} bevakade set`} />
+        <StatTile label="Samling" value={user._count.collectionItems} hint={`${user._count.sales} sålda`} />
+        <StatTile label="Senast sedd" value={<LastSeen iso={user.lastSeenAt?.toISOString() ?? null} />} hint={`konto sedan ${user.createdAt.toISOString().slice(0, 10)}`} />
+      </div>
+
+      {/* ÅTGÄRDER — plan, Pro-gåva, roll. Flyttade hit från listan 2026-09-16. */}
+      <Card className="p-4">
+        <h3 className="mb-3 font-semibold">Åtgärder</h3>
+        <UserActions
+          userId={user.id}
+          name={user.name}
+          role={user.role}
+          planTier={user.planTier}
+          bonusProUntil={user.bonusProUntil ? user.bonusProUntil.toISOString().slice(0, 10) : null}
+          isPro={pro}
+          isSelf={user.id === session.user.id}
+          isSuperAdmin={hasRole(session.user.role, "SUPERADMIN")}
+        />
+      </Card>
+
+      {/* BEVAKAR — vad kontot faktiskt väntar på. */}
+      <Card className="p-4">
+        <div className="mb-2 flex items-baseline justify-between gap-2">
+          <h3 className="font-semibold">Bevakar</h3>
+          <span className="text-xs text-ink-muted">
+            {activeWatches.length} aktiva · {user.watchlistItems.length - activeWatches.length} pausade
+            {user.watchlistItems.length >= 100 && " · visar de 100 senaste"}
+          </span>
+        </div>
+        {user.watchlistItems.length === 0 && user.setWatches.length === 0 ? (
+          <p className="text-sm text-ink-faint">Bevakar ingenting.</p>
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+            <ul className="divide-y divide-surface-border/60">
+              {user.watchlistItems.map((w) => (
+                <li key={w.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
+                  <Link href={`/produkter/${w.product.slug}`} className="min-w-0 flex-1 truncate text-holo-cyan hover:opacity-80">
+                    {w.product.title}
+                  </Link>
+                  <span className="tabular-nums text-ink-muted" title="Lägsta köpbara pris just nu">
+                    {w.product.lowestPriceOre != null ? formatPrice(w.product.lowestPriceOre) : "–"}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1">
+                    {w.isPaused && <Badge variant="default">Pausad</Badge>}
+                    {w.restockAlert && <Badge variant="info">Restock</Badge>}
+                    {w.priceAlert && (
+                      <Badge variant="success" title={w.targetPrice != null ? "Målpris" : "Prisfall"}>
+                        {w.targetPrice != null ? `Mål ${formatPrice(w.targetPrice)}` : "Prisfall"}
+                      </Badge>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div>
+              <p className="mb-1 text-xs text-ink-muted">Bevakade set</p>
+              {user.setWatches.length === 0 ? (
+                <p className="text-sm text-ink-faint">–</p>
+              ) : (
+                <ul className="space-y-1 text-sm">
+                  {user.setWatches.map((sw) => (
+                    <li key={sw.set.id}>
+                      <Link href={`/sets/${sw.set.id}`} className="text-holo-cyan hover:opacity-80">
+                        {sw.set.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* KOSTNAD per funktion. */}
       <Card className="p-4">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="font-semibold">Kostnad per funktion</h3>

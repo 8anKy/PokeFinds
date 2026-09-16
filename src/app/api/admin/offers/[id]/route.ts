@@ -74,6 +74,13 @@ export async function DELETE(
           createdById: admin.id,
         },
       });
+      // Huvudboksraden också (2026-09-16): ruttabellen byggs ur BÅDE offers och
+      // StoreListing.productId — stod bindningen kvar där hade lanen fortsatt
+      // rutta URL:en till fel produkt och hit-vägen larmat bevakarna av den.
+      await prisma.storeListing.updateMany({
+        where: { retailerId: offer.retailerId, url: offer.url! },
+        data: { productId: null, productMatchTitle: null },
+      });
     }
     await recomputeProductPriceCache();
     // Kasta produktens cachade detalj (1 h) — annars visar sidan raden tills TTL:en

@@ -12,6 +12,7 @@ import {
 import { utcDaysAgo } from "@/lib/utils";
 import { AdminRequired } from "../admin-required";
 import { UsersTable, type AdminUserRow } from "./users-table";
+import { UsageDonuts, type UsageSlice } from "./usage-donuts";
 import {
   isDbSortable,
   needsAllCosts,
@@ -138,6 +139,42 @@ async function rankComputed(
   };
 }
 
+/**
+ * VEM STÅR FÖR ANVÄNDNINGEN? (ägaren 2026-09-16) Två ringar över listan: skanningar
+ * och AI-graderingar de senaste COST_WINDOW_DAYS dygnen, fördelade per konto.
+ * Del-av-helhet på riktigt (varje rad tillhör exakt ett konto), så ringen är
+ * laglig — se donut-chart.tsx. Fyra namngivna + "Övriga": paletten har fyra
+ * kategorifärger och en femte får ALDRIG en genererad färg.
+ */
+const DONUT_TOP = 4;
+
+async function usageSplit(since: Date): Promise<{ scans: UsageSlice[]; grades: UsageSlice[] }> {
+  const [scanRows, gradeRows] = await Promise.all([
+    prisma.scannerJob.groupBy({ by: ["userId"], where: { createdAt: { gte: since } }, _count: { _all: true } }),
+    prisma.gradingJob.groupBy({ by: ["userId"], where: { createdAt: { gte: since } }, _count: { _all: true } }),
+  ]);
+  const ids = new Set([...scanRows, ...gradeRows].map((r) => r.userId));
+  const names = new Map(
+    (
+      await prisma.user.findMany({
+        where: { id: { in: [...ids] } },
+        select: { id: true, name: true },
+      })
+    ).map((u) => [u.id, u.name])
+  );
+  const split = (rows: { userId: string; _count: { _all: number } }[]): UsageSlice[] => {
+    const sorted = rows
+      .map((r) => ({ userId: r.userId, name: names.get(r.userId) ?? "(borttagen)", count: r._count._all }))
+      .sort((a, b) => b.count - a.count);
+    const top = sorted.slice(0, DONUT_TOP);
+    const rest = sorted.slice(DONUT_TOP).reduce((sum, r) => sum + r.count, 0);
+    const out: UsageSlice[] = top.map((r) => ({ userId: r.userId, name: r.name, count: r.count }));
+    if (rest > 0) out.push({ userId: null, name: `Övriga (${sorted.length - DONUT_TOP})`, count: rest });
+    return out;
+  };
+  return { scans: split(scanRows), grades: split(gradeRows) };
+}
+
 export default async function AdminUsersPage({ searchParams }: PageProps) {
   const session = await auth();
   if (!session?.user || !hasRole(session.user.role, "ADMIN")) {
@@ -158,6 +195,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
     : {};
 
   const since = utcDaysAgo(COST_WINDOW_DAYS);
+  const usage = await usageSplit(since);
 
   let users: UserRow[];
   let total: number;
@@ -229,17 +267,18 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
   });
 
   return (
-    <UsersTable
-      users={rows}
-      total={total}
-      page={page}
-      totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))}
-      query={q}
-      sort={sort}
-      dir={dir}
-      currentUserId={session.user.id}
-      isSuperAdmin={hasRole(session.user.role, "SUPERADMIN")}
-      costWindowDays={COST_WINDOW_DAYS}
-    />
+    <div className="space-y-6">
+      <UsageDonuts scans={usage.scans} grades={usage.grades} windowDays={COST_WINDOW_DAYS} />
+      <UsersTable
+        users={rows}
+        total={total}
+        page={page}
+        totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))}
+        query={q}
+        sort={sort}
+        dir={dir}
+        costWindowDays={COST_WINDOW_DAYS}
+      />
+    </div>
   );
 }
