@@ -148,6 +148,11 @@ interface ScanQuota {
   isPremium: boolean;
   /** Skannar UTAN konto (appen, enhets-id). 10 livstid; konto ger 20 till. */
   guest?: boolean;
+  /**
+   * Räknaren i remsan + nudgen om Pro (förhandsvisning, lib/feature-preview.ts).
+   * Servern avgör — klienten visar bara det den får.
+   */
+  counter?: boolean;
 }
 
 /**
@@ -308,6 +313,17 @@ const MIN_MATCH_CONF = 0.2;
  * och äter live-chippet om den syns i onödan (se kommentaren i QuotaBadge).
  */
 const LOW_QUOTA = 5;
+
+/**
+ * RÄKNAREN I REMSAN (förhandsvisning, `quota.counter`). Väggen vid 0 säljer Pro
+ * bevisat (3 av 14 betalande köpte direkt efter skanning 30, mätt 2026-09-16),
+ * men den kom utan förvarning: badgen ovan göms så fort remsan visas. Från
+ * COUNTER_FROM kvar står talet i remsans fot (ingen konflikt med live-chippet),
+ * från NUDGE_FROM kvar en rad om Pro som går att stänga — en gång per månad.
+ */
+const COUNTER_FROM = 15;
+const NUDGE_FROM = 10;
+const nudgeKey = () => `foilio:scan-nudge:${new Date().toISOString().slice(0, 7)}`;
 
 type CameraState = "starting" | "live" | "error" | "unsupported";
 type View = "capture" | "review";
@@ -2492,6 +2508,7 @@ function Scanner() {
         <ScanLimitSheet
           limit={quota?.limit ?? 30}
           guest={quota?.guest === true}
+          counter={quota?.counter === true}
           onClose={() => setLimitOpen(false)}
           onUpgrade={() => {
             setLimitOpen(false);
@@ -2952,7 +2969,15 @@ function CaptureView(props: {
           </p>
         )}
 
-        {scans.length > 0 && <ScanStrip scans={scans} total={total} onOpen={props.onOpenDetails} />}
+        {scans.length > 0 && (
+          <ScanStrip
+            scans={scans}
+            total={total}
+            onOpen={props.onOpenDetails}
+            quota={quota}
+            onUpgrade={props.onUpgrade}
+          />
+        )}
 
         {scans.length === 0 && cameraState === "live" && (
           <div className="flex flex-col items-center gap-3">
@@ -3148,14 +3173,61 @@ function ScanStrip({
   scans,
   total,
   onOpen,
+  quota,
+  onUpgrade,
 }: {
   scans: ScanItem[];
   total: number;
   onOpen: (id: string) => void;
+  quota: ScanQuota | null;
+  onUpgrade: () => void;
 }) {
   const t = useTranslations("Scanner");
+  // Räknaren (se COUNTER_FROM). Bara gratiskonton i förhandsvisningen, aldrig
+  // gäster (deras badge ÄR erbjudandet) och aldrig Pro (säljs som obegränsat).
+  const counted = quota != null && quota.counter === true && !quota.isPremium && !quota.guest;
+  const remaining = quota?.remaining ?? 0;
+  const showCount = counted && remaining > 0 && remaining <= COUNTER_FROM;
+  const [nudgeDismissed, setNudgeDismissed] = useState(true);
+  useEffect(() => {
+    if (!counted) return;
+    try {
+      setNudgeDismissed(localStorage.getItem(nudgeKey()) === "1");
+    } catch {
+      setNudgeDismissed(false);
+    }
+  }, [counted]);
+  const showNudge = showCount && remaining <= NUDGE_FROM && !nudgeDismissed;
+  const dismissNudge = () => {
+    setNudgeDismissed(true);
+    try {
+      localStorage.setItem(nudgeKey(), "1");
+    } catch {
+      /* privat läge — nudgen kommer igen nästa gång, det är okej */
+    }
+  };
   return (
     <div data-no-swipe className="rounded-2xl bg-black/55 p-2.5 backdrop-blur">
+      {showNudge && (
+        <div className="mb-2 flex items-center gap-2 rounded-xl bg-holo-cyan/10 px-2.5 py-1.5 ring-1 ring-holo-cyan/30">
+          <button
+            type="button"
+            onClick={onUpgrade}
+            className="min-w-0 flex-1 text-left text-[12px] font-medium leading-snug text-ink"
+          >
+            {t("nudgeLine", { count: remaining })}{" "}
+            <span className="text-holo-cyan">{t("nudgeCta")}</span>
+          </button>
+          <button
+            type="button"
+            onClick={dismissNudge}
+            aria-label={t("nudgeDismiss")}
+            className="shrink-0 rounded-full p-1 text-ink-faint transition-colors hover:text-ink"
+          >
+            <IconX size={14} />
+          </button>
+        </div>
+      )}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {scans.map((s) => (
           <button
@@ -3213,8 +3285,22 @@ function ScanStrip({
         ))}
       </div>
       <div className="flex items-center justify-between px-1 pt-1.5">
-        <span className="text-[11px] text-ink-faint">
-          {t("scansCount", { count: scans.length })}
+        <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-ink-faint">
+          <span className="truncate">{t("scansCount", { count: scans.length })}</span>
+          {showCount && (
+            <button
+              type="button"
+              onClick={onUpgrade}
+              className={cn(
+                "shrink-0 rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums ring-1 transition-colors",
+                remaining <= NUDGE_FROM
+                  ? "bg-holo-cyan/15 text-holo-cyan ring-holo-cyan/40"
+                  : "bg-white/8 text-ink-muted ring-white/10"
+              )}
+            >
+              {t("leftChip", { count: remaining })}
+            </button>
+          )}
         </span>
         <span className="text-sm font-semibold text-ink">
           {t("total")} <span className="tabular-nums text-holo-cyan">{formatPrice(total)}</span>
@@ -3653,6 +3739,8 @@ function ScanLimitSheet(props: {
   limit: number;
   /** Gäst i appen: säljer KONTOT (20 skanningar till), inte Pro. */
   guest?: boolean;
+  /** Förhandsvisning (quota.counter): extra rad om pärmen. */
+  counter?: boolean;
   onClose: () => void;
   onUpgrade: () => void;
   onLogin?: () => void;
@@ -3686,6 +3774,9 @@ function ScanLimitSheet(props: {
     <Sheet title={t("limitTitle")} onClose={props.onClose}>
       <div className="flex flex-col gap-4">
         <p className="text-sm text-ink-muted">{t("limitBody", { count: props.limit })}</p>
+        {/* Förhandsvisning (quota.counter): säg VAD kunden just gjorde — hen
+            skannade hela kvoten, alltså är hen den skannern är byggd för. */}
+        {props.counter && <p className="text-sm text-ink">{t("limitBinder")}</p>}
         <div>
           <p className="mb-2 text-sm font-medium text-ink">{t("limitProLead")}</p>
           <ul className="space-y-2">

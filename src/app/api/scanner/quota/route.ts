@@ -4,6 +4,7 @@
  * enhets-id). Gäst i appen: 10 livstid per enhet. Se src/lib/guest-device.ts.
  */
 import { apiError, jsonOk } from "@/lib/api";
+import { previewAllowedFor } from "@/lib/feature-preview";
 import { effectivePlanTier, isPro } from "@/lib/plan";
 import { resolveScanActor } from "@/lib/scan-actor";
 import { getScannerQuota } from "@/services/scanner";
@@ -16,7 +17,7 @@ export async function GET(req: Request) {
     const actor = await resolveScanActor(req);
     if (actor.kind === "guest") {
       const { remaining, limit } = await getGuestQuota(actor.deviceId, actor.ip);
-      return jsonOk({ remaining, limit, isPremium: false, guest: true });
+      return jsonOk({ remaining, limit, isPremium: false, guest: true, counter: false });
     }
     const { user, deviceId } = actor;
     // Enheten länkas till kontot redan här: den som skapade konto efter tio
@@ -28,7 +29,14 @@ export async function GET(req: Request) {
       user.role,
       deviceId
     );
-    return jsonOk({ remaining, limit, isPremium: isPro(user), guest: false });
+    // `counter`: räknaren i skannerremsan + nudgen (förhandsvisning, feature-preview.ts).
+    return jsonOk({
+      remaining,
+      limit,
+      isPremium: isPro(user),
+      guest: false,
+      counter: previewAllowedFor("SCAN_COUNTER", user),
+    });
   } catch (e) {
     return apiError(e);
   }

@@ -10,6 +10,8 @@ import { newListingEmail, preorderEmail, priceAlertEmail, releasedEmail, restock
 import { alertDueWhere, freeDelayMinutes, freeDelayNotice } from "@/lib/free-restock-alert";
 import { NON_RETAIL_SOURCE_NAMES } from "@/services/products";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
+import { previewAllowedFor } from "@/lib/feature-preview";
+import { pushAlertUrl } from "@/lib/push-alert-url";
 // ⛔ Delad läsare (samma defaultvärden som förut: email=true, push=false).
 // Fanns i tre handskrivna kopior — se src/lib/notification-settings.ts.
 import { parseNotificationSettings as parseSettings } from "@/lib/notification-settings";
@@ -188,8 +190,10 @@ async function sendAlertPush(alert: {
   message: string;
   fromStatus: StockStatus | null;
   toStatus: StockStatus | null;
-  product: { slug: string } | null;
+  retailerId?: string | null;
+  product: { id: string; slug: string } | null;
   storeListing: { url: string } | null;
+  user?: { role?: string | null; email?: string | null } | null;
   /** Fördröjt gratislarm → raden om Pro läggs sist i notisen. */
   delayNote?: string | null;
 }): Promise<void> {
@@ -216,9 +220,24 @@ async function sendAlertPush(alert: {
             : "Prislarm";
   // Katalogprodukt → in-app-sida; feed-först-larm (ingen produkt) → butikens annons-URL
   // (klienten öppnar http-länkar externt, som mejlets "Till produkten"-knapp).
-  const url = alert.product
-    ? `/produkter/${alert.product.slug}`
-    : alert.storeListing?.url ?? undefined;
+  // Restock DIREKT till butiken (push-alert-url.ts) — förhandsvisning tills
+  // FEATURE_PUSH_TO_STORE_PUBLIC=1 (feature-preview.ts). Butikens offer hämtas
+  // med egen fråga av samma skäl som i mejlet: prisfönstret saknar ofta den.
+  const toStore = previewAllowedFor("PUSH_TO_STORE", alert.user);
+  const storeOffer =
+    toStore && alert.product && alert.retailerId
+      ? await prisma.offer.findFirst({
+          where: { productId: alert.product.id, retailerId: alert.retailerId },
+          select: { url: true },
+        })
+      : null;
+  const url = pushAlertUrl({
+    type: alert.type,
+    productSlug: alert.product?.slug ?? null,
+    listingUrl: alert.storeListing?.url ?? null,
+    storeUrl: storeOffer?.url ?? null,
+    toStore,
+  });
   const { invalidTokens } = await sendPush(
     tokens.map((t) => t.token),
     { title, body: alert.delayNote ? `${alert.message} ${alert.delayNote}` : alert.message, url }
