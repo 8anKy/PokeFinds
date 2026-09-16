@@ -2172,7 +2172,7 @@
     "baseVersion": "Regular version",
     "historyRawTitle": "Ungraded price history",
     "historyGradedTitle": "{grade} · price history",
-    "historyGradedQuality": "eBay asking price per day (built forward) and every slab sold on Tradera as a point. Asking is not sold.",
+    "historyGradedQuality": "Every slab sold as a point (eBay and Tradera, last year). Asking price per day can be added — asking is not sold.",
     "historyTitle": "Price history",
     "rawSubtitle": "Raw (Near Mint), ungraded · Cardmarket",
     "historyQuality": "Raw, ungraded · listings = daily low, sold = median price",

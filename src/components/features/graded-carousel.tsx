@@ -148,14 +148,18 @@ export function GradedCarousel({
                       <span className="text-sm text-ink-faint">–</span>
                     )}
                   </span>
-                  {/* SÅLT: eBay UK och Tradera som två märkta rader — aldrig ett tal. */}
+                  {/* SÅLT: eBay UK och Tradera som två rader. Källan skrivs ut BARA
+                      när båda finns — annars går raderna inte att skilja; med en
+                      ensam källa räcker antalet (ägaren 2026-09-16), källan står i
+                      arkets underrubrik. */}
                   <span className="min-w-0">
                     {!g.saleEbay && !g.sale && <span className="text-sm text-ink-faint">–</span>}
                     {g.saleEbay && (
                       <span className="block">
                         <span className="text-sm font-semibold text-ink">{formatPrice(g.saleEbay.medianOre)}</span>
                         <span className="ml-1 text-[10px] text-ink-muted">
-                          eBay · {t("gradedSampleCount", { count: g.saleEbay.count })}
+                          {g.sale ? "eBay · " : ""}
+                          {t("gradedSampleCount", { count: g.saleEbay.count })}
                         </span>
                       </span>
                     )}
@@ -163,7 +167,8 @@ export function GradedCarousel({
                       <span className="block">
                         <span className="text-sm font-semibold text-ink">{formatPrice(g.sale.medianOre)}</span>
                         <span className="ml-1 text-[10px] text-ink-muted">
-                          Tradera · {t("gradedSampleCount", { count: g.sale.count })}
+                          {g.saleEbay ? "Tradera · " : ""}
+                          {t("gradedSampleCount", { count: g.sale.count })}
                         </span>
                       </span>
                     )}

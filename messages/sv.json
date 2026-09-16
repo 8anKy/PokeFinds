@@ -2172,7 +2172,7 @@
     "baseVersion": "Vanlig version",
     "historyRawTitle": "Ograderad prishistorik",
     "historyGradedTitle": "{grade} · prishistorik",
-    "historyGradedQuality": "Begärt pris på eBay per dag (byggs framåt) och varje såld slab på Tradera som en punkt. Begärt är inte sålt.",
+    "historyGradedQuality": "Varje såld slab som en punkt (eBay och Tradera, senaste året). Begärt pris per dag går att lägga till — begärt är inte sålt.",
     "historyTitle": "Prishistorik",
     "rawSubtitle": "Raw (Near Mint), ej graderad · Cardmarket",
     "historyQuality": "Raw, ej graderad · annonser = dagens lägsta, sålt = medianpris",

@@ -383,6 +383,7 @@ export function ProductDetailView({
                           : t("historyGradedQuality")
                       }
                       series={gradedHistory?.asks ?? []}
+                      preferSources={["ebaySold", "traderaSold", "ebay"]}
                     />
                   ) : (
                     <ProductPriceCard

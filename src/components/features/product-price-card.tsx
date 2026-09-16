@@ -84,6 +84,7 @@ export function ProductPriceCard({
   series,
   bySource,
   plain = false,
+  preferSources,
 }: {
   title: string;
   subtitle: string;
@@ -96,6 +97,13 @@ export function ProductPriceCard({
    * stället för under rubriken.
    */
   plain?: boolean;
+  /**
+   * Vilken källa grafen ÖPPNAR på, i prioritetsordning (första tillgängliga
+   * vinner). Graderat läge skickar sålt före begärt (ägaren 2026-09-16: "grafen
+   * för graderat ska vara sålt, inte till salu"). Utan prop: Cardmarket, annars
+   * första tillgängliga — som förut.
+   */
+  preferSources?: readonly SourceKey[];
 }) {
   const t = useTranslations("Detail");
   const router = useRouter();
@@ -103,9 +111,18 @@ export function ProductPriceCard({
   // Full historik (MAX) är en Pro-förmån. Sidan ISR-cachas → plan läses klient-sida.
   // null/false = ej Pro → MAX låst (klick → prissida). Utloggad räknas som ej Pro.
   const [isPro, setIsPro] = useState(false);
+  // Sant först när planen är AVGJORD (utloggad = avgjord direkt). Startkällan
+  // nedan kan vara Pro-låst, och reserven får inte väljas innan vi vet.
+  const [proKnown, setProKnown] = useState(false);
   useEffect(() => {
-    if (!hasAuthHint()) return;
-    void getSharedSession().then((s) => setIsPro(!!s?.user?.isPro));
+    if (!hasAuthHint()) {
+      setProKnown(true);
+      return;
+    }
+    void getSharedSession().then((s) => {
+      setIsPro(!!s?.user?.isPro);
+      setProKnown(true);
+    });
   }, []);
 
   // Bara källor som FAKTISKT har punkter får en knapp — en avbockningsbar källa
@@ -125,12 +142,25 @@ export function ProductPriceCard({
    * deras historik. Ett hårdkodat "cardmarket" hade öppnat dem på en tom ruta.
    */
   const [off, setOff] = useState<Set<string>>(() => {
-    const primary = available.includes("cardmarket") ? "cardmarket" : available[0];
+    const primary =
+      (preferSources ?? ["cardmarket"]).find((k) => available.includes(k)) ?? available[0];
     return new Set(available.filter((k) => k !== primary));
   });
   // Pro-grinden: Tradera-serierna är låsta för gratisanvändare. Domen är ren och
   // testad — se @/lib/price-graph-sources.
-  const { selected, isLocked, proGated } = sourceGate(available, off, isPro);
+  const { selected, unlocked, isLocked, proGated } = sourceGate(available, off, isPro);
+  // Startkällan var Pro-låst för den här besökaren (graderat: sålt är Pro) →
+  // öppna på första olåsta i stället för en tom ruta. Körs först när planen är
+  // känd, annars hade en Pro-kund fått TVÅ kurvor (reserven + sin egen).
+  useEffect(() => {
+    if (!proKnown || selected.length > 0 || unlocked.length === 0) return;
+    const first = unlocked[0];
+    setOff((prev) => {
+      const next = new Set(prev);
+      next.delete(first);
+      return next;
+    });
+  }, [proKnown, selected.length, unlocked]);
 
   const filtered = withinDays(series, period.days);
   // Gles historik (t.ex. äldre sealed med en ensam arkivpunkt): har vald period
