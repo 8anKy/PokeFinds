@@ -11,6 +11,7 @@ import { rateLimit, peekRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { isPro } from "@/lib/plan";
 import { SESSION_MAX_AGE } from "@/lib/session-cookie";
 import type { Role, PlanTier } from "@prisma/client";
+import { creditInviteOnReturn, isFirstReturn } from "@/services/invites";
 
 declare module "next-auth" {
   interface Session {
@@ -290,9 +291,18 @@ export const authOptions: NextAuthOptions = {
           // inloggade. En saknad tidsstämpel är en tom cell i adminpanelen.
           const seenAt = fresh.lastSeenAt?.getTime() ?? 0;
           if (Date.now() - seenAt > LAST_SEEN_THROTTLE_MS) {
+            const now = new Date();
             await prisma.user
-              .update({ where: { id: fresh.id }, data: { lastSeenAt: new Date() } })
+              .update({ where: { id: fresh.id }, data: { lastSeenAt: now } })
               .catch(() => undefined);
+            // Återbesöksgrinden för inbjudningar (services/invites.ts): FÖRSTA gången
+            // kontot ses en senare dag än det skapades kan inviterns belöning
+            // öppnas. Fyrar högst en gång per konto någonsin — en fråga, sväljs.
+            if (isFirstReturn(fresh, now)) {
+              await creditInviteOnReturn(fresh.id).catch((e) =>
+                console.error("creditInviteOnReturn misslyckades:", e)
+              );
+            }
           }
         }
       }

@@ -16,6 +16,34 @@ import { proRewardEmail } from "@/emails/templates";
 import { syncDiscordRoles } from "@/services/discord-sync";
 
 export const INVITES_REQUIRED = 3;
+
+/**
+ * ÅTERBESÖKSGRINDEN (2026-09-17). En inbjuden räknas först när kontot varit
+ * inne EN SENARE UTC-DAG än det skapades. Bakgrund: en användare skapade tre
+ * konton på sex minuter (egna adresser), bekräftade mejlen och fick månaden —
+ * verifieringen kostar fem minuter, återbesöket är det en fejk aldrig gör.
+ * ⛔ Ingen IP-/enhetsheuristik (VPN, familjens delade telefon = falska
+ * positiva) och inget aktivitetskrav (en vän som bara tittar räknas).
+ * Ren funktion — testad.
+ */
+export function inviteeReturned(
+  invitee: { createdAt: Date; lastSeenAt: Date | null } | null | undefined
+): boolean {
+  if (!invitee?.lastSeenAt) return false;
+  return utcDay(invitee.lastSeenAt) > utcDay(invitee.createdAt);
+}
+
+/** Är det här FÖRSTA gången kontot ses en senare dag? Den enda stunden grinden kan öppnas. */
+export function isFirstReturn(
+  user: { createdAt: Date; lastSeenAt: Date | null },
+  now: Date
+): boolean {
+  return utcDay(now) > utcDay(user.createdAt) && !inviteeReturned(user);
+}
+
+function utcDay(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
 /** Max olösta koder per användare — spärr mot länkspam, inte en produktgräns. */
 export const MAX_OPEN_INVITES = 10;
 
@@ -72,21 +100,41 @@ export async function creditInviteOnVerify(verifiedUserId: string): Promise<void
     data: { verifiedAt: new Date() },
   });
 
-  // Engångs: har invitern redan fått sin månad delas ingen ny belöning ut
-  // (verifieringen ovan är ändå harmlös att markera).
-  if (await hasEarnedReward(invite.inviterId)) return;
+  await tryRewardInviter(invite.inviterId);
+}
 
-  const group = await prisma.invite.findMany({
-    where: { inviterId: invite.inviterId, verifiedAt: { not: null }, rewardedAt: null },
-    orderBy: { verifiedAt: "asc" },
-    take: INVITES_REQUIRED,
-    select: { id: true },
+/**
+ * Körs första gången en inbjuden användare ses en senare dag (auth.ts, i samma
+ * andetag som lastSeenAt bumpas). Det är då återbesöksgrinden öppnas.
+ */
+export async function creditInviteOnReturn(returnedUserId: string): Promise<void> {
+  const invite = await prisma.invite.findUnique({
+    where: { usedById: returnedUserId },
+    select: { inviterId: true, verifiedAt: true, rewardedAt: true },
   });
+  if (!invite || !invite.verifiedAt || invite.rewardedAt) return;
+  await tryRewardInviter(invite.inviterId);
+}
+
+/**
+ * Dela ut belöning till invitern om en full 3-grupp uppstått: verifierade,
+ * obetalda OCH återbesökta inbjudningar (se inviteeReturned).
+ */
+async function tryRewardInviter(inviterId: string): Promise<void> {
+  // Engångs: har invitern redan fått sin månad delas ingen ny belöning ut.
+  if (await hasEarnedReward(inviterId)) return;
+
+  const candidates = await prisma.invite.findMany({
+    where: { inviterId, verifiedAt: { not: null }, rewardedAt: null },
+    orderBy: { verifiedAt: "asc" },
+    select: { id: true, usedBy: { select: { createdAt: true, lastSeenAt: true } } },
+  });
+  const group = candidates.filter((c) => inviteeReturned(c.usedBy)).slice(0, INVITES_REQUIRED);
   if (group.length < INVITES_REQUIRED) return;
 
   const now = new Date();
   const granted = await prisma.$transaction(async (tx) => {
-    // Atomär spärr: markera gruppen; hann en parallell verifiering före är
+    // Atomär spärr: markera gruppen; hann en parallell utdelning före är
     // count < 3 och DENNA process delar inte ut något (den andra gjorde det).
     const marked = await tx.invite.updateMany({
       where: { id: { in: group.map((g) => g.id) }, rewardedAt: null },
@@ -94,13 +142,13 @@ export async function creditInviteOnVerify(verifiedUserId: string): Promise<void
     });
     if (marked.count < INVITES_REQUIRED) return null;
     const inviter = await tx.user.findUnique({
-      where: { id: invite.inviterId },
+      where: { id: inviterId },
       select: { name: true, email: true, bonusProUntil: true },
     });
     if (!inviter) return null;
     const until = extendBonus(inviter.bonusProUntil, now);
     await tx.user.update({
-      where: { id: invite.inviterId },
+      where: { id: inviterId },
       data: { bonusProUntil: until },
     });
     return { name: inviter.name, email: inviter.email, until };
@@ -111,7 +159,7 @@ export async function creditInviteOnVerify(verifiedUserId: string): Promise<void
     // den inte i Discord förrän nattens avstämning. ⛔ UTANFÖR transaktionen:
     // ett HTTP-anrop mot Discord hör inte hemma i en DB-transaktion (den hålls
     // öppen medan vi väntar på ett nätverkssvar).
-    await syncDiscordRoles(invite.inviterId, "Foilio: Pro via inbjudningar");
+    await syncDiscordRoles(inviterId, "Foilio: Pro via inbjudningar");
     try {
       await sendMail({ to: granted.email, ...proRewardEmail(granted.name, granted.until) });
     } catch (e) {
@@ -132,7 +180,7 @@ export async function getInviteStatus(userId: string) {
         usedAt: true,
         verifiedAt: true,
         rewardedAt: true,
-        usedBy: { select: { name: true } },
+        usedBy: { select: { name: true, createdAt: true, lastSeenAt: true } },
       },
     }),
     prisma.user.findUnique({
@@ -140,7 +188,10 @@ export async function getInviteStatus(userId: string) {
       select: { bonusProUntil: true },
     }),
   ]);
-  const verifiedUnrewarded = invites.filter((i) => i.verifiedAt && !i.rewardedAt).length;
+  // Framsteg = verifierad OCH återbesökt (återbesöksgrinden), aldrig bara verifierad.
+  const verifiedUnrewarded = invites.filter(
+    (i) => i.verifiedAt && !i.rewardedAt && inviteeReturned(i.usedBy)
+  ).length;
   return {
     invites: invites.map((i) => ({
       id: i.id,
@@ -149,6 +200,8 @@ export async function getInviteStatus(userId: string) {
       verifiedAt: i.verifiedAt,
       rewardedAt: i.rewardedAt,
       usedByName: i.usedBy?.name ?? null,
+      /** Har den inbjudna varit inne en senare dag? Verifierad utan detta räknas inte än. */
+      returned: inviteeReturned(i.usedBy),
     })),
     /** Framsteg mot belöningen (0–2; 3 delas ut direkt). */
     progress: verifiedUnrewarded,

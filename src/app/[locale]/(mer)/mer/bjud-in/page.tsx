@@ -19,6 +19,7 @@ interface InviteRow {
   createdAt: string;
   usedAt: string | null;
   verifiedAt: string | null;
+  returned: boolean;
   rewardedAt: string | null;
   usedByName: string | null;
 }
@@ -206,11 +207,13 @@ export default function InvitePage() {
                 <span className="min-w-0 flex-1 truncate text-ink">
                   {i.usedByName ?? t("unknownFriend")}
                 </span>
-                {i.verifiedAt ? (
+                {i.verifiedAt && (i.returned || i.rewardedAt) ? (
                   <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-rise">
                     <IconCheck size={14} />
                     {t("statusVerified")}
                   </span>
+                ) : i.verifiedAt ? (
+                  <span className="shrink-0 text-xs text-ink-muted">{t("statusAwaitingReturn")}</span>
                 ) : (
                   <span className="shrink-0 text-xs text-ink-muted">{t("statusPending")}</span>
                 )}

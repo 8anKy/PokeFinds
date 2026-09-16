@@ -54,3 +54,30 @@ describe("isPro med referral-bonus", () => {
     expect(Math.abs(bonus!.bonusProUntil.gt.getTime() - Date.now())).toBeLessThan(5000);
   });
 });
+
+import { inviteeReturned, isFirstReturn } from "@/services/invites";
+
+describe("återbesöksgrinden — en inbjuden räknas först en SENARE UTC-dag", () => {
+  const created = new Date("2026-09-16T22:14:00Z");
+
+  it("aldrig sedd, eller sedd samma dygn (fem minuter efter registreringen) → räknas inte", () => {
+    expect(inviteeReturned(null)).toBe(false);
+    expect(inviteeReturned({ createdAt: created, lastSeenAt: null })).toBe(false);
+    expect(inviteeReturned({ createdAt: created, lastSeenAt: new Date("2026-09-16T23:59:59Z") })).toBe(false);
+  });
+
+  it("sedd en senare UTC-dag → räknas (även en minut efter midnatt)", () => {
+    expect(inviteeReturned({ createdAt: created, lastSeenAt: new Date("2026-09-17T00:01:00Z") })).toBe(true);
+    expect(inviteeReturned({ createdAt: created, lastSeenAt: new Date("2026-10-01T12:00:00Z") })).toBe(true);
+  });
+
+  it("isFirstReturn fyrar bara EN gång: senare dag och inte redan återbesökt", () => {
+    const now = new Date("2026-09-17T09:00:00Z");
+    expect(isFirstReturn({ createdAt: created, lastSeenAt: null }, now)).toBe(true);
+    expect(isFirstReturn({ createdAt: created, lastSeenAt: new Date("2026-09-16T22:30:00Z") }, now)).toBe(true);
+    // Redan sedd en senare dag → grinden är redan öppnad, fyra inte igen.
+    expect(isFirstReturn({ createdAt: created, lastSeenAt: new Date("2026-09-17T08:00:00Z") }, now)).toBe(false);
+    // Samma dygn som registreringen → inte än.
+    expect(isFirstReturn({ createdAt: created, lastSeenAt: null }, new Date("2026-09-16T23:00:00Z"))).toBe(false);
+  });
+});
