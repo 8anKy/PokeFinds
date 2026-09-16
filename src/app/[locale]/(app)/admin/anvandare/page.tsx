@@ -12,7 +12,7 @@ import {
 import { utcDaysAgo } from "@/lib/utils";
 import { AdminRequired } from "../admin-required";
 import { UsersTable, type AdminUserRow } from "./users-table";
-import { UsageDonuts, type UsageSlice } from "./usage-donuts";
+import { UsageDonuts, type RecentUse, type UsageSlice } from "./usage-donuts";
 import {
   isDbSortable,
   needsAllCosts,
@@ -148,12 +148,33 @@ async function rankComputed(
  */
 const DONUT_TOP = 4;
 
-async function usageSplit(since: Date): Promise<{ scans: UsageSlice[]; grades: UsageSlice[] }> {
-  const [scanRows, gradeRows] = await Promise.all([
+const RECENT_N = 6;
+
+async function usageSplit(
+  since: Date
+): Promise<{ scans: UsageSlice[]; grades: UsageSlice[]; recentScans: RecentUse[]; recentGrades: RecentUse[] }> {
+  const [scanRows, gradeRows, lastScans, lastGrades] = await Promise.all([
     prisma.scannerJob.groupBy({ by: ["userId"], where: { createdAt: { gte: since } }, _count: { _all: true } }),
     prisma.gradingJob.groupBy({ by: ["userId"], where: { createdAt: { gte: since } }, _count: { _all: true } }),
+    // "Vem skannade senast?" — de senaste raderna, EN per konto (samma konto som
+    // skannar en pärm ska inte fylla alla sex platserna).
+    prisma.scannerJob.findMany({ orderBy: { createdAt: "desc" }, take: 60, select: { userId: true, createdAt: true } }),
+    prisma.gradingJob.findMany({ orderBy: { createdAt: "desc" }, take: 60, select: { userId: true, createdAt: true } }),
   ]);
-  const ids = new Set([...scanRows, ...gradeRows].map((r) => r.userId));
+  const recentOf = (rows: { userId: string; createdAt: Date }[]) => {
+    const seen = new Set<string>();
+    const out: { userId: string; createdAt: Date }[] = [];
+    for (const r of rows) {
+      if (seen.has(r.userId)) continue;
+      seen.add(r.userId);
+      out.push(r);
+      if (out.length === RECENT_N) break;
+    }
+    return out;
+  };
+  const rs = recentOf(lastScans);
+  const rg = recentOf(lastGrades);
+  const ids = new Set([...scanRows, ...gradeRows, ...rs, ...rg].map((r) => r.userId));
   const names = new Map(
     (
       await prisma.user.findMany({
@@ -172,7 +193,9 @@ async function usageSplit(since: Date): Promise<{ scans: UsageSlice[]; grades: U
     if (rest > 0) out.push({ userId: null, name: `Övriga (${sorted.length - DONUT_TOP})`, count: rest });
     return out;
   };
-  return { scans: split(scanRows), grades: split(gradeRows) };
+  const recent = (rows: { userId: string; createdAt: Date }[]): RecentUse[] =>
+    rows.map((r) => ({ userId: r.userId, name: names.get(r.userId) ?? "(borttagen)", at: r.createdAt.toISOString() }));
+  return { scans: split(scanRows), grades: split(gradeRows), recentScans: recent(rs), recentGrades: recent(rg) };
 }
 
 export default async function AdminUsersPage({ searchParams }: PageProps) {
@@ -268,7 +291,13 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-6">
-      <UsageDonuts scans={usage.scans} grades={usage.grades} windowDays={COST_WINDOW_DAYS} />
+      <UsageDonuts
+        scans={usage.scans}
+        grades={usage.grades}
+        recentScans={usage.recentScans}
+        recentGrades={usage.recentGrades}
+        windowDays={COST_WINDOW_DAYS}
+      />
       <UsersTable
         users={rows}
         total={total}
