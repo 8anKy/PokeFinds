@@ -149,7 +149,7 @@ interface ScanQuota {
   /** Skannar UTAN konto (appen, enhets-id). 10 livstid; konto ger 20 till. */
   guest?: boolean;
   /**
-   * Räknaren i remsan + nudgen om Pro (förhandsvisning, lib/feature-preview.ts).
+   * Räknaren i remsan + GRATIS-raden vid ≤ LOW_QUOTA (förhandsvisning, lib/feature-preview.ts).
    * Servern avgör — klienten visar bara det den får.
    */
   counter?: boolean;
@@ -317,13 +317,13 @@ const LOW_QUOTA = 5;
 /**
  * RÄKNAREN I REMSAN (förhandsvisning, `quota.counter`). Väggen vid 0 säljer Pro
  * bevisat (3 av 14 betalande köpte direkt efter skanning 30, mätt 2026-09-16),
- * men den kom utan förvarning: badgen ovan göms så fort remsan visas. Från
- * COUNTER_FROM kvar står talet i remsans fot (ingen konflikt med live-chippet),
- * från NUDGE_FROM kvar en rad om Pro som går att stänga — en gång per månad.
+ * men den kom utan förvarning: badgen ovan göms så fort remsan visas. ETT besked
+ * i taget (ägaren 2026-09-16 — tre saker sa "4 kvar" och högen växte upp i
+ * kortramen): före första skanningen den flytande badgen; från COUNTER_FROM
+ * kvar ett chip i remsans fot; från LOW_QUOTA kvar flyttar GRATIS-raden IN i
+ * remsan som en enda rad (chippet göms, badgen flyter aldrig ovanpå remsan).
  */
 const COUNTER_FROM = 15;
-const NUDGE_FROM = 10;
-const nudgeKey = () => `foilio:scan-nudge:${new Date().toISOString().slice(0, 7)}`;
 
 type CameraState = "starting" | "live" | "error" | "unsupported";
 type View = "capture" | "review";
@@ -2959,9 +2959,13 @@ function CaptureView(props: {
             utan förvarning mitt i en pärm. Den stannar kvar när det börjar ta
             slut — det är precis då den är värd sin plats. Vid gott om kvot
             döljs den fortfarande, annars äter den live-chippet. */}
-        {quota && (scans.length === 0 || (!quota.isPremium && quota.remaining <= LOW_QUOTA)) && (
-          <QuotaBadge quota={quota} onUpgrade={props.onUpgrade} />
-        )}
+        {/* Förhandsvisning (quota.counter): remsan bär raden själv vid ≤ LOW_QUOTA —
+            badge + remsa staplade växte upp i kortramen (fält 2026-09-16). */}
+        {quota &&
+          (scans.length === 0 ||
+            (!quota.counter && !quota.isPremium && quota.remaining <= LOW_QUOTA)) && (
+            <QuotaBadge quota={quota} onUpgrade={props.onUpgrade} />
+          )}
 
         {isMock && (
           <p className="mx-auto rounded-full bg-black/70 px-3 py-1 text-center text-[11px] font-medium text-holo-gold ring-1 ring-holo-gold/30 backdrop-blur">
@@ -3187,46 +3191,25 @@ function ScanStrip({
   // gäster (deras badge ÄR erbjudandet) och aldrig Pro (säljs som obegränsat).
   const counted = quota != null && quota.counter === true && !quota.isPremium && !quota.guest;
   const remaining = quota?.remaining ?? 0;
-  const showCount = counted && remaining > 0 && remaining <= COUNTER_FROM;
-  const [nudgeDismissed, setNudgeDismissed] = useState(true);
-  useEffect(() => {
-    if (!counted) return;
-    try {
-      setNudgeDismissed(localStorage.getItem(nudgeKey()) === "1");
-    } catch {
-      setNudgeDismissed(false);
-    }
-  }, [counted]);
-  const showNudge = showCount && remaining <= NUDGE_FROM && !nudgeDismissed;
-  const dismissNudge = () => {
-    setNudgeDismissed(true);
-    try {
-      localStorage.setItem(nudgeKey(), "1");
-    } catch {
-      /* privat läge — nudgen kommer igen nästa gång, det är okej */
-    }
-  };
+  const low = counted && remaining > 0 && remaining <= LOW_QUOTA;
+  const showChip = counted && !low && remaining > 0 && remaining <= COUNTER_FROM;
   return (
     <div data-no-swipe className="rounded-2xl bg-black/55 p-2.5 backdrop-blur">
-      {showNudge && (
-        <div className="mb-2 flex items-center gap-2 rounded-xl bg-holo-cyan/10 px-2.5 py-1.5 ring-1 ring-holo-cyan/30">
-          <button
-            type="button"
-            onClick={onUpgrade}
-            className="min-w-0 flex-1 text-left text-[12px] font-medium leading-snug text-ink"
-          >
-            {t("nudgeLine", { count: remaining })}{" "}
-            <span className="text-holo-cyan">{t("nudgeCta")}</span>
-          </button>
-          <button
-            type="button"
-            onClick={dismissNudge}
-            aria-label={t("nudgeDismiss")}
-            className="shrink-0 rounded-full p-1 text-ink-faint transition-colors hover:text-ink"
-          >
-            <IconX size={14} />
-          </button>
-        </div>
+      {low && (
+        <button
+          type="button"
+          onClick={onUpgrade}
+          className="mb-2 flex w-full items-center gap-2 rounded-xl bg-white/8 px-2.5 py-1.5 text-left transition-colors hover:bg-white/12 focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
+        >
+          <span className="shrink-0 rounded-md bg-holo-cyan/20 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-holo-cyan ring-1 ring-holo-cyan/40">
+            {t("free")}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-ink">
+            {t("scansLeft", { count: remaining })}
+            <span className="font-normal text-ink-muted"> · {t("tapForMore")}</span>
+          </span>
+          <IconArrowRight size={15} className="shrink-0 text-ink-muted" />
+        </button>
       )}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {scans.map((s) => (
@@ -3287,16 +3270,11 @@ function ScanStrip({
       <div className="flex items-center justify-between px-1 pt-1.5">
         <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-ink-faint">
           <span className="truncate">{t("scansCount", { count: scans.length })}</span>
-          {showCount && (
+          {showChip && (
             <button
               type="button"
               onClick={onUpgrade}
-              className={cn(
-                "shrink-0 rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums ring-1 transition-colors",
-                remaining <= NUDGE_FROM
-                  ? "bg-holo-cyan/15 text-holo-cyan ring-holo-cyan/40"
-                  : "bg-white/8 text-ink-muted ring-white/10"
-              )}
+              className="shrink-0 rounded-full bg-white/8 px-1.5 py-px text-[10px] font-semibold tabular-nums text-ink-muted ring-1 ring-white/10 transition-colors hover:text-ink"
             >
               {t("leftChip", { count: remaining })}
             </button>
