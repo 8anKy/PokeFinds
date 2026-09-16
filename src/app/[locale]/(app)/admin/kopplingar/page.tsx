@@ -60,5 +60,37 @@ export default async function AdminBindingsPage() {
     };
   });
 
-  return <BindingsClient rows={rows} windowDays={WINDOW_DAYS} />;
+  // VÄNTANDE LÄNKAR: huvudboksrader bundna till en produkt men UTAN offer — en
+  // URL vi vet vart den hör (förbunden för hand inför ett släpp, eller feed-först
+  // utan pris) som ännu inte gett ett pris. Osynlig på produktsidan tills dess;
+  // här syns att bindningen finns och väntar.
+  const pending = await prisma.$queryRaw<
+    { id: string; url: string; title: string; stockStatus: string; lastSeenAt: Date; retailer: string; productTitle: string; slug: string }[]
+  >`
+    select sl.id, sl.url, sl.title, sl."stockStatus"::text as "stockStatus", sl."lastSeenAt",
+           r.name as retailer, p.title as "productTitle", p.slug
+    from "StoreListing" sl
+    join "Retailer" r on r.id = sl."retailerId"
+    join "Product" p on p.id = sl."productId"
+    where sl."productId" is not null
+      and not exists (select 1 from "Offer" o where o."retailerId" = sl."retailerId" and o.url = sl.url)
+      and sl."firstSeenAt" >= now() - interval '30 days'
+    order by sl."firstSeenAt" desc
+    limit 100
+  `;
+
+  return (
+    <BindingsClient
+      rows={rows}
+      windowDays={WINDOW_DAYS}
+      pending={pending.map((x) => ({
+        id: x.id,
+        storeName: x.retailer,
+        url: x.url,
+        storeTitle: x.title,
+        stockStatus: x.stockStatus,
+        product: { title: x.productTitle, slug: x.slug },
+      }))}
+    />
+  );
 }
