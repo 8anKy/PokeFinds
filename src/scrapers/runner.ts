@@ -402,7 +402,14 @@ export async function ensureListingProduct(
    * dokumenterar som opålitlig (`take: 200` utan `orderBy` = godtycklig delmängd →
    * rätt kandidat föll ofta utanför). Anroparen laddar den EN gång och delar den.
    */
-  index?: MatchIndex
+  index?: MatchIndex,
+  /**
+   * `existingOnly` (2026-09-16, larm-hits): matcha BARA mot befintliga produkter —
+   * skapa aldrig en ny. Används i webbrequesten som tar emot lanens oruttade hits
+   * på släppdagen; samma vakter och samma matchning som nattkedjan, men en
+   * omatchad annons blir ingen stubb mitt på dagen — nattkedjan tar den.
+   */
+  opts?: { existingOnly?: boolean }
 ): Promise<string | null> {
   const category = (it.category ?? null) as ProductCategory | null;
   if (!category) return null;
@@ -612,6 +619,10 @@ export async function ensureListingProduct(
     }
   }
 
+  if (!productId && opts?.existingOnly) {
+    console.log(`[import] Ingen säker befintlig match (existingOnly) — skapar inget: "${cleanTitle}"`);
+    return null;
+  }
   if (!productId) {
     // POSITIV POKÉMON-EVIDENS: franchise-blocklistan ovan kan bara stoppa spel den
     // KÄNNER TILL — "KPop Demon Hunters Energy Edition Booster Box" bar inget känt

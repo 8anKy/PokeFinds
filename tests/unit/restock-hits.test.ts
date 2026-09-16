@@ -18,6 +18,7 @@ import type { RestockPost } from "@/lib/discord-restock";
 import {
   HIT_TTL_MS,
   hitsFromPosts,
+  restockHitSchema,
   mergePendingHits,
   parsePendingHits,
   removeDelivered,
@@ -83,6 +84,7 @@ function hit(over: Partial<RestockHit> = {}): RestockHit {
     storeName: "Rogerz",
     storeUrl: "https://rogerz.se/p/pitch-black-etb",
     productSlug: "pitch-black-etb",
+    title: null,
     priceOre: 64900,
     previousPriceOre: null,
     from: "OUT_OF_STOCK",
@@ -101,9 +103,23 @@ describe("hitsFromPosts — vad som blir en larm-hit", () => {
     expect(hits).toEqual([hit()]);
   });
 
-  it("en URL utan rutt (ingen produkt) blir ALDRIG en hit — det finns inga bevakare", () => {
-    expect(hitsFromPosts([post({ productUrl: null, productSlug: null })], NOW)).toEqual([]);
+  it("en URL utan rutt blir en ORUTTAD hit med butikens titel — appen matchar (släppdagen, 2026-09-16)", () => {
+    expect(hitsFromPosts([post({ productUrl: null, productSlug: null })], NOW)).toEqual([
+      hit({ productSlug: null, title: "Pitch Black Elite Trainer Box" }),
+    ]);
+    // Utan titel finns inget att matcha på.
+    expect(hitsFromPosts([post({ productUrl: null, productSlug: null, title: "" })], NOW)).toEqual([]);
+  });
+
+  it("en prissänkning utan rutt blir ALDRIG en hit — priset ska landa på en offer vi visar", () => {
     expect(hitsFromPosts([post({ productUrl: null, productSlug: null, previousPriceOre: 79900 })], NOW)).toEqual([]);
+  });
+
+  it("schemat: en gammal köpost utan title/slug-fält tolkas som ruttad (default null på title)", () => {
+    const legacy = { ...hit() } as Record<string, unknown>;
+    delete legacy.title;
+    expect(restockHitSchema.parse(legacy)).toEqual(hit());
+    expect(restockHitSchema.parse({ ...hit(), productSlug: null, title: "X" }).productSlug).toBeNull();
   });
 
   it("en prissänkning blir en PRICE_DROP-hit med det gamla priset — ingen övergång, varan står i lager", () => {

@@ -37,7 +37,16 @@ export const restockHitSchema = z.object({
   kind: z.enum(["RESTOCK", "PRICE_DROP"]).default("RESTOCK"),
   storeName: z.string().min(1).max(120),
   storeUrl: z.string().url().max(2000),
-  productSlug: z.string().min(1).max(200),
+  /**
+   * Vår produkt (ruttabellen). null = ORUTTAD (2026-09-16): en URL lanen aldrig sett
+   * en rutt för — typiskt ett SLÄPP. Appen matchar då `title` mot katalogen med
+   * nattkedjans egna vakter (existingOnly) och larmar bara vid säker träff.
+   * Äldre köposter saknar fältet ⇒ default null hade brutit dem; strängen krävdes
+   * förr, så en gammal post bär alltid en slug.
+   */
+  productSlug: z.string().min(1).max(200).nullable().default(null),
+  /** Butikens titel — bara för oruttade hits (matchningen). */
+  title: z.string().min(1).max(300).nullable().default(null),
   priceOre: z.number().int().nullable(),
   /** PRICE_DROP: priset lanen SÅG SENAST (öre) — en avläsning, inget historiskt lägsta. */
   previousPriceOre: z.number().int().nullable().default(null),
@@ -94,17 +103,22 @@ export function hitDedupKey(h: Pick<RestockHit, "key" | "to"> & { kind?: Restock
 export function hitsFromPosts(posts: readonly RestockPost[], now: Date): RestockHit[] {
   const out: RestockHit[] = [];
   for (const p of posts) {
-    if (!p.productSlug) continue;
+    const routed = !!p.productSlug;
+    // ORUTTAD + ingen titel = inget att matcha på. (Prissänkning utan rutt: nedan.)
+    if (!routed && !p.title) continue;
     const common = {
       key: p.key,
       storeName: p.storeName,
       storeUrl: p.storeUrl,
-      productSlug: p.productSlug,
+      productSlug: p.productSlug ?? null,
+      title: routed ? null : p.title,
       priceOre: p.priceOre,
       at: now.getTime(),
     };
     if (p.previousPriceOre != null) {
-      // Prisinlägg: varan står i lager, priset är nyheten. Bara med ett riktigt nytt pris.
+      // Prisinlägg: varan står i lager, priset är nyheten. Bara med ett riktigt nytt pris,
+      // och bara på en RUTTAD vara — priset ska landa på en offer vi redan visar.
+      if (!routed) continue;
       if (p.priceOre == null || p.priceOre <= 0) continue;
       out.push({
         ...common,

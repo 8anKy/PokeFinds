@@ -24,6 +24,68 @@ import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { checkPriceAlerts, checkRestockAlerts, lowestBuyableOffer, type BuyableOffer } from "@/services/alerts";
 import { HIDDEN_CATEGORIES } from "@/services/products";
 import { hitKind, type RestockHit, type RestockHitApplyResult } from "@/lib/restock-hits";
+import { guessListingCategory } from "@/scrapers/listing-category";
+import { loadMatchIndex, type MatchIndex } from "@/scrapers/matching";
+import { ensureListingProduct } from "@/scrapers/runner";
+
+/**
+ * ORUTTADE HITS = SLÄPPDAGEN (2026-09-16).
+ *
+ * Miniature Metropolis publicerade 30th Celebration-ETB:n 19:00: lanen postade den
+ * i Discord, men push/mejl uteblev för 109 bevakare — URL:en hade ingen rutt, och
+ * rutten skapas först av nattkedjan. Alltså nådde exakt den flipp alla väntade på
+ * bara Discord. Nu skickar lanen även oruttade inlägg (med butikens titel), och vi
+ * binder URL:en här med NATTKEDJANS EGEN portvakt (`ensureListingProduct`,
+ * existingOnly): samma språk-/tillbehörs-/singel-/franchise-vakter, GTIN-exakt
+ * först, sedan titelmatchning. ⛔ Aldrig en ny produkt mitt på dagen — en omatchad
+ * annons blir ingen stubb, den väntar på nattkedjan. Hellre inget larm än ett
+ * främmande.
+ *
+ * Katalogindexet (~30 k rader) laddas bara när en oruttad hit faktiskt kommer och
+ * hålls i processen en stund — Neon är redan vaken av hiten.
+ */
+const MATCH_INDEX_TTL_MS = 30 * 60_000;
+let matchIndexCache: { at: number; index: MatchIndex } | null = null;
+async function cachedMatchIndex(): Promise<MatchIndex> {
+  const now = Date.now();
+  if (matchIndexCache && now - matchIndexCache.at < MATCH_INDEX_TTL_MS) return matchIndexCache.index;
+  const index = await loadMatchIndex();
+  matchIndexCache = { at: now, index };
+  return index;
+}
+
+/** Binder en oruttad hit till en BEFINTLIG produkt. null = ingen säker match. */
+async function bindUnroutedHit(
+  hit: RestockHit,
+  retailerId: string,
+  toStatus: StockStatus
+): Promise<string | null> {
+  const title = hit.title?.trim();
+  if (!title) return null;
+  // Huvudboksraden FÖRST: rememberListingProduct (i portvakten) är ett updateMany och
+  // landar bara om raden finns. Skrivs oavsett utfall — nattkedjan ser då URL:en
+  // som känd i stället för ny.
+  await prisma.storeListing.upsert({
+    where: { retailerId_url: { retailerId, url: hit.storeUrl } },
+    create: { retailerId, url: hit.storeUrl, title, price: hit.priceOre, stockStatus: toStatus },
+    update: { title, price: hit.priceOre ?? undefined, stockStatus: toStatus, lastSeenAt: new Date() },
+  });
+  const index = await cachedMatchIndex();
+  return ensureListingProduct(
+    {
+      title,
+      url: hit.storeUrl,
+      price: hit.priceOre,
+      imageUrl: null,
+      retailerId,
+      category: guessListingCategory(title),
+      sourceName: hit.storeName,
+    },
+    toStatus,
+    index,
+    { existingOnly: true }
+  );
+}
 
 const STATUSES = new Set<string>(Object.values(StockStatus));
 
@@ -55,17 +117,37 @@ export async function applyRestockHits(hits: readonly RestockHit[]): Promise<Res
       skip("okänd butik");
       continue;
     }
-    const offer = await prisma.offer.findFirst({
+    const offerSelect = {
+      id: true,
+      productId: true,
+      url: true,
+      price: true,
+      stockStatus: true,
+      product: { select: { category: true, hiddenAt: true, lowestPriceOre: true } },
+    } as const;
+    let offer = await prisma.offer.findFirst({
       where: { url: hit.storeUrl, retailerId: retailer.id },
-      select: {
-        id: true,
-        productId: true,
-        url: true,
-        price: true,
-        stockStatus: true,
-        product: { select: { category: true, hiddenAt: true, lowestPriceOre: true } },
-      },
+      select: offerSelect,
     });
+    // ORUTTAD påfyllning (ingen offer, ingen slug): bind nu, med nattkedjans portvakt.
+    // Portvakten skriver offern själv vid träff → läs om den så resten av varvet är
+    // exakt som för en ruttad hit.
+    if (!offer && !hit.productSlug && hitKind(hit) === "RESTOCK") {
+      const boundId = await bindUnroutedHit(hit, retailer.id, hit.to as StockStatus);
+      if (!boundId) {
+        skip("oruttad: ingen säker match");
+        continue;
+      }
+      offer = await prisma.offer.findFirst({
+        where: { url: hit.storeUrl, retailerId: retailer.id },
+        select: offerSelect,
+      });
+      if (!offer) {
+        skip("oruttad: bunden utan offer");
+        continue;
+      }
+      console.log(`[restock-hit] Oruttad hit bunden: ${hit.storeName} → ${hit.storeUrl} → ${boundId}`);
+    }
 
     if (hitKind(hit) === "PRICE_DROP") {
       // PRISSÄNKNING: varan står i lager, priset är nyheten. Kräver en befintlig offer
@@ -112,6 +194,10 @@ export async function applyRestockHits(hits: readonly RestockHit[]): Promise<Res
       product = offer.product;
     } else {
       // Rutten kan komma ur en bunden StoreListing (feed-först) som ännu saknar Offer.
+      if (!hit.productSlug) {
+        skip("okänd produkt");
+        continue;
+      }
       const bySlug = await prisma.product.findUnique({
         where: { slug: hit.productSlug },
         select: { id: true, category: true, hiddenAt: true },

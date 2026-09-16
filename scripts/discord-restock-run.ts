@@ -636,7 +636,7 @@ async function main() {
       // --dry-run: visa vad som HADE postats, rör inte Discord.
       for (const h of hits) {
         console.log(
-        `[discord-restock][dry]   larm-hit: ${h.storeName} → ${h.productSlug} ` +
+        `[discord-restock][dry]   larm-hit: ${h.storeName} → ${h.productSlug ?? `(oruttad: ${h.title})`} ` +
           `(${h.kind === "PRICE_DROP" ? `pris ${h.previousPriceOre}→${h.priceOre} öre` : `${h.from ?? "?"} → ${h.to}`})`
       );
       }
