@@ -39,6 +39,12 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Användare · Admin" };
 
+/**
+ * Etikett + värde SIDA VID SIDA, värdet direkt efter etiketten (ägaren
+ * 2026-09-17: "svårt att urskilja" — förut låg etiketten längst till vänster
+ * och värdet längst till höger i ett 900 px brett kort, så ögat fick resa för
+ * varje rad). Etikettkolumnen är smal och fast, värdet vänsterställt.
+ */
 function Row({
   label,
   children,
@@ -49,11 +55,11 @@ function Row({
   hint?: string;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-surface-border/60 py-2 last:border-0">
-      <span className="text-sm text-ink-muted" title={hint}>
+    <div className="grid grid-cols-[9.5rem_1fr] items-baseline gap-x-3 border-b border-surface-border/50 py-1.5 last:border-0">
+      <span className="truncate text-xs text-ink-muted" title={hint}>
         {label}
       </span>
-      <span className="text-right text-sm">{children}</span>
+      <span className="min-w-0 text-sm text-ink">{children}</span>
     </div>
   );
 }
@@ -93,14 +99,11 @@ function FeatureBlock({
 }) {
   return (
     <div className="rounded-lg border border-surface-border p-3">
-      <div className="mb-2 flex items-baseline justify-between gap-2">
+      <div className="mb-1 flex items-baseline gap-2">
         <h3 className="font-medium">{title}</h3>
-        <span className="text-lg tabular-nums">{formatCostOre(monthly.costOre)}</span>
+        <span className="font-display text-lg font-bold tabular-nums">{formatCostOre(monthly.costOre)}</span>
+        <span className="text-xs text-ink-faint">denna månad · {formatCostOre(window.costOre)} / {windowDays} d</span>
       </div>
-      <p className="mb-3 text-xs text-ink-faint">
-        Denna månad (samma fönster som kvoten). Senaste {windowDays} dygnen:{" "}
-        {formatCostOre(window.costOre)}.
-      </p>
       <Row label="Anrop denna månad" hint="Rader som kostade ett API-anrop och gick att prissätta">
         {monthly.pricedCalls}
       </Row>
@@ -340,7 +343,7 @@ export default async function AdminUserDetailPage({
             )}
           </span>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 lg:grid-cols-3">
           <FeatureBlock
             title="Kortskanning"
             monthly={month.scanner}
@@ -354,37 +357,29 @@ export default async function AdminUserDetailPage({
             window={window.grading}
             windowDays={COST_WINDOW_DAYS}
           />
-        </div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div className="rounded-lg border border-surface-border p-3">
-            <h3 className="mb-2 font-medium">Utskickade larm (denna månad)</h3>
-            <Row label="E-post" hint="Resend. Redovisas som antal — abonnemanget är fast, inte per mejl.">
+            <h3 className="mb-1 font-medium">Utskickade larm</h3>
+            <p className="mb-2 text-xs text-ink-faint">Denna månad. Antal, aldrig kronor.</p>
+            <Row label="E-post" hint="Resend. Abonnemanget är fast, inte per mejl.">
               {month.emailAlerts}
             </Row>
             <Row label="Push" hint="APNs/FCM — kostar inget per utskick.">
               {month.pushAlerts}
             </Row>
           </div>
-          <div className="rounded-lg border border-surface-border p-3">
-            <h3 className="mb-2 font-medium">Så räknas beloppet</h3>
-            <p className="text-xs text-ink-faint">
-              Leverantörens publicerade pris per miljon tokens × API:ts egna
-              tokental för varje anrop. Ingen schablon. Rader utan tokental
-              räknas som <strong>omätta</strong>, aldrig som noll kronor —
-              spårningen startade 2026-08-14, så äldre aktivitet saknas.
-              Infrastruktur (Neon, Railway, Resend) är delad och fördelas inte
-              per användare.
-            </p>
-          </div>
         </div>
+        {/* Så räknas beloppet — en rad, inte ett kort. Detaljerna bor i user-costs.ts. */}
+        <p className="mt-3 text-xs text-ink-faint">
+          Belopp = leverantörens pris per miljon tokens × API:ts egna tokental. Rader utan tokental är{" "}
+          <strong>omätta</strong>, aldrig noll (spårning sedan 2026-08-14). Infrastruktur fördelas inte per användare.
+        </p>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
         <Card className="p-4">
-          <h3 className="mb-2 font-semibold">Konto</h3>
-          <Row label="Roll">{user.role}</Row>
+          <h3 className="mb-2 font-semibold">Plan & prenumeration</h3>
           <Row label="Plan">
-            <span className="flex items-center justify-end gap-2">
+            <span className="flex items-center gap-2">
               {user.planTier}
               {pro && <Badge variant="info">Pro</Badge>}
             </span>
@@ -401,17 +396,22 @@ export default async function AdminUserDetailPage({
             {user.proSince ? formatDateTime(user.proSince) : dash}
           </Row>
           <Row
-            label="Förnyas automatiskt"
+            label="Förnyas"
             hint="Stripe: cancel_at_period_end · App: RevenueCat-status. Okänt = inget event sedan 2026-09-02."
           >
             <span title={RENEWAL_LABELS[renewalStatus(user)].hint}>{RENEWAL_LABELS[renewalStatus(user)].label}</span>
           </Row>
-          <Row label="App-prenumeration löper ut" hint="rcExpiresAt — RevenueCats expiration_at_ms">
+          <Row label="App löper ut" hint="rcExpiresAt — RevenueCats expiration_at_ms">
             {user.rcExpiresAt ? formatDateTime(user.rcExpiresAt) : dash}
           </Row>
-          <Row label="Köpmiljö (RevenueCat)" hint="SANDBOX = testköp som Apple/Google aldrig debiterat">
+          <Row label="Köpmiljö" hint="RevenueCat. SANDBOX = testköp som Apple/Google aldrig debiterat">
             {user.rcEnvironment ?? dash}
           </Row>
+        </Card>
+
+        <Card className="p-4">
+          <h3 className="mb-2 font-semibold">Konto</h3>
+          <Row label="Roll">{user.role}</Row>
           <Row label="E-post bekräftad">
             {user.emailVerifiedAt ? formatDateTime(user.emailVerifiedAt) : dash}
           </Row>
@@ -422,10 +422,31 @@ export default async function AdminUserDetailPage({
           <Row label="Senast sedd" hint="Senaste autentiserade aktivitet, uppdateras var 15:e minut">
             <LastSeen iso={user.lastSeenAt?.toISOString() ?? null} />
           </Row>
+          <Row label="Discord">
+            {user.discordUsername
+              ? `${user.discordUsername} (${formatDateTime(user.discordLinkedAt)})`
+              : dash}
+          </Row>
+          <Row label="Tradera">
+            {user.traderaUserId
+              ? `${user.traderaUserId}${
+                  user.traderaTokenExpiresAt
+                    ? ` · token t.o.m. ${formatDateTime(user.traderaTokenExpiresAt)}`
+                    : ""
+                }`
+              : dash}
+          </Row>
+          <Row label="Kreatörskod" hint="Vilken kreatörslänk kontot skapades via">
+            {user.creatorCode
+              ? `${user.creatorCode.code} — ${user.creatorCode.creatorName}${
+                  user.attributedAt ? ` (${formatDateTime(user.attributedAt)})` : ""
+                }`
+              : dash}
+          </Row>
         </Card>
 
         <Card className="p-4">
-          <h3 className="mb-2 font-semibold">Notiser och enheter</h3>
+          <h3 className="mb-2 font-semibold">Notiser & enheter</h3>
           <Row label="E-postnotiser">{notif.email ? "På" : "Av"}</Row>
           <Row label="Push-notiser">{notif.push ? "På" : "Av"}</Row>
           <Row label="Alla restocks" hint="Pro-opt-in: larm för vilken sealed-produkt som helst">
@@ -457,31 +478,6 @@ export default async function AdminUserDetailPage({
               <span className="text-fall">{user.lastPushError.slice(0, 120)}</span>
             </Row>
           )}
-        </Card>
-
-        <Card className="p-4">
-          <h3 className="mb-2 font-semibold">Kopplingar</h3>
-          <Row label="Discord">
-            {user.discordUsername
-              ? `${user.discordUsername} (${formatDateTime(user.discordLinkedAt)})`
-              : dash}
-          </Row>
-          <Row label="Tradera">
-            {user.traderaUserId
-              ? `${user.traderaUserId}${
-                  user.traderaTokenExpiresAt
-                    ? ` · token t.o.m. ${formatDateTime(user.traderaTokenExpiresAt)}`
-                    : ""
-                }`
-              : dash}
-          </Row>
-          <Row label="Kreatörskod" hint="Vilken kreatörslänk kontot skapades via">
-            {user.creatorCode
-              ? `${user.creatorCode.code} — ${user.creatorCode.creatorName}${
-                  user.attributedAt ? ` (${formatDateTime(user.attributedAt)})` : ""
-                }`
-              : dash}
-          </Row>
         </Card>
 
         <Card className="p-4">
