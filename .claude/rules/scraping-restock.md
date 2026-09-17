@@ -245,6 +245,10 @@ paths:
   ORÖRDA**: länkarna fungerar för användare, som surfar från vanliga IP:n. Följd: inga nya produkter,
   priser eller lagerstatus därifrån. **Bevakade butiker: 42 → 41.** Vill man ha tillbaka täckningen är
   enda vägen att butiken vitlistar oss.
+  **ROGERZ + POKEXCLUSIVE UR LARMEN 2026-09-17 (ägarbeslut)** — INTE retirerade: `config.restockWatch=false`
+  via `scripts/set-restock-watch.ts --off <butik> --apply` + `gh workflow run restock-routes-export.yml`.
+  Källan förblir aktiv ⇒ nattkedjan uppdaterar pris/lager och produktsidan visar butiken, men ruttabellen
+  (och därmed Discord-lanen, larm-hitsen, push/mejl) utelämnar den. `--on` ångrar. **Bevakade: 44 → 42.**
   ⛔ **BLINDBOX UR BEVAKNINGEN 2026-09-15 (ägarbeslut, ingen teknisk orsak).** Shopify-feeden fungerade;
   ägaren ville inte ha butiken. `scripts/retire-store.ts --store Blindbox --apply` (GENERISKT — använd
   det för nästa butik också): 54 offers RADERADE, källa `isActive=false`+`restockWatch=false`, retailer
