@@ -242,9 +242,10 @@ export function ExploreFilterPanel({
     return [...top, ...pinned];
   };
 
-  // SETEN FÖLJER SPRÅKFILTRET (ägaren 2026-09-17): med "Japanese" valt visar
-  // snabblistan (och arket) bara JP-set, med "English" bara EN — annars alla.
-  // Setets `language` är samma kolumn som språkfacetten filtrerar på.
+  // SNABBLISTAN FÖLJER SPRÅKFILTRET (ägaren 2026-09-17): med "Japanese" valt visar
+  // den bara JP-set, med "English" bara EN — annars alla. ARKET visar däremot
+  // alltid båda flikarna, öppnar på det valda språket och byter språkfiltret när
+  // man byter flik. Setets `language` är samma kolumn som språkfacetten filtrerar på.
   const setsForLanguage = useMemo(
     () => (activeLanguage ? sets.filter((s) => s.language === activeLanguage) : sets),
     [sets, activeLanguage]
@@ -435,14 +436,14 @@ export function ExploreFilterPanel({
 
         <Section title={t("set")}>
           <div>{visibleRows(setsByCount, false, (s) => activeSet === s.id).map(setRow)}</div>
-          {setsForLanguage.length > COLLAPSED_ROWS && (
+          {sets.length > COLLAPSED_ROWS && (
             <button
               type="button"
               aria-haspopup="dialog"
               onClick={() => setSetSheetOpen(true)}
               className="mt-1 px-1.5 text-sm text-holo-cyan transition-colors hover:text-ink focus-visible:outline-none focus-visible:underline"
             >
-              {t("browseAllSets", { count: setsForLanguage.length })}
+              {t("browseAllSets", { count: sets.length })}
             </button>
           )}
         </Section>
@@ -479,7 +480,9 @@ export function ExploreFilterPanel({
           direkt och stänger arket. */}
       <SetSheet
         open={setSheetOpen}
-        sets={setsForLanguage}
+        sets={sets}
+        initialLang={activeLanguage === "JP" ? "JP" : activeLanguage === "EN" ? "EN" : undefined}
+        onLanguageChange={(lang) => apply({ sprak: lang })}
         activeSetId={activeSet || undefined}
         total={total}
         onClose={() => setSetSheetOpen(false)}

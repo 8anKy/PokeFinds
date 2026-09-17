@@ -389,6 +389,8 @@ export function ExploreFilterBar({
           pushParams({ set: id });
           setSheet(null);
         }}
+        initialLang={searchParams.sprak === "JP" ? "JP" : searchParams.sprak === "EN" ? "EN" : undefined}
+        onLanguageChange={(lang) => pushParams({ sprak: lang })}
       />
 
       <PriceSheet
@@ -547,6 +549,8 @@ export function SetSheet({
   total,
   onClose,
   onPick,
+  initialLang,
+  onLanguageChange,
 }: {
   open: boolean;
   sets: FilterSet[];
@@ -554,6 +558,10 @@ export function SetSheet({
   total: number;
   onClose: () => void;
   onPick: (id: string | undefined) => void;
+  /** Språkfiltrets val — arket öppnar på DEN fliken (ägaren 2026-09-17). Utan: EN. */
+  initialLang?: "EN" | "JP";
+  /** Flikbyte i arket byter också språkfiltret — ett val, en sanning. */
+  onLanguageChange?: (lang: "EN" | "JP") => void;
 }) {
   const t = useTranslations("Products");
   // Japanska set finns bara när vi säljer något ur dem (jp-set-label.ts) — saknas
@@ -565,8 +573,8 @@ export function SetSheet({
   // ser det ut som att valet försvunnit.
   const activeIsJp = jpSets.some((s) => s.id === activeSetId);
   useEffect(() => {
-    if (open) setLang(activeIsJp ? "JP" : "EN");
-  }, [open, activeIsJp]);
+    if (open) setLang(activeIsJp ? "JP" : (initialLang ?? "EN"));
+  }, [open, activeIsJp, initialLang]);
 
   // EN rubrik per SERIE — inte en per löpande grupp. Listan kommer sorterad på
   // releaseDate (nyast först), och promo-/POP-set ligger inklämda mitt bland
@@ -644,7 +652,10 @@ export function SetSheet({
             <button
               key={code}
               type="button"
-              onClick={() => setLang(code)}
+              onClick={() => {
+                setLang(code);
+                onLanguageChange?.(code);
+              }}
               className={cn(
                 "flex-1 rounded-md px-3 py-2 text-[13px] font-medium transition-colors",
                 lang === code ? "bg-holo-cyan/10 text-holo-cyan" : "text-ink-muted"
