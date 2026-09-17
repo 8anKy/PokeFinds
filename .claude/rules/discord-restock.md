@@ -413,3 +413,10 @@ någon annan. **Uppmätt effekt för en CDN-butik: ~66 s snittlatens → ~20 s.*
   (`checkRestockAlerts`, `flapPolicy()`-defaults) är orörda — variablerna sätts inte i Railway. Flapptaket
   (40/dygn ⇒ 24 h) står kvar som spamgolv. Läs `Klart:`-raden: `cooldown`/`blink/flapp` är de tal som
   visar vad dämpningen åt.
+
+- **PRO-SPEGELN = KORGLÄNKEN I DISCORD (ägarbeslut 2026-09-17)**: `"pro"` i `DISCORD_RESTOCK_CHANNELS`
+  (repo-variabel) — `"pro":"<id>"` för EN Pro-kanal, eller `"pro":{default,sets,series,languages}` för
+  full spegling med samma routing. Lanen postar samma embed en gång till i Pro-kanalen med
+  `Offer.cartUrl` (Shopify/Woo) som länk; publika kanaler får ALLTID butikens produktsida — korgen är
+  Pro-förmånen (push + Pro-kanal). Kanalen måste vara synlig bara för Pro-rollen (Discord-kopplingen ger
+  rollen). Prissänkningar speglas inte. Ett nekat Pro-inlägg gör körningen röd men rör inte cooldownen.

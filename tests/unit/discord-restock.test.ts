@@ -13,7 +13,7 @@
  * Alla fyra felen är tysta i produktion.
  */
 import { describe, expect, it } from "vitest";
-import { chunk, resolveChannelId, buildRestockEmbed, postTestMessages } from "@/lib/discord-restock";
+import { chunk, resolveChannelId, buildRestockEmbed, postTestMessages, discordRestockConfig } from "@/lib/discord-restock";
 import {
   deriveRestockPosts,
   markPosted,
@@ -736,6 +736,14 @@ describe("buildRestockEmbed", () => {
     expect(buildRestockEmbed(post).url).toBe(URL_ETB);
   });
 
+  it("⛔ korglänken bara i Pro-spegeln (ägarbeslut 2026-09-17): publikt = produktsidan, cart = korgen", () => {
+    const cart = "https://dragonslair.se/cart/add?id=1&quantity=1";
+    expect(buildRestockEmbed({ ...post, cartUrl: cart }).url).toBe(URL_ETB);
+    expect(buildRestockEmbed({ ...post, cartUrl: cart }, { cart: true }).url).toBe(cart);
+    // Utan korglänk faller Pro-spegeln tillbaka på produktsidan.
+    expect(buildRestockEmbed({ ...post, cartUrl: null }, { cart: true }).url).toBe(URL_ETB);
+  });
+
   it("tar med pris, butik, set och en länk till vår produktsida", () => {
     const fields = buildRestockEmbed(post).fields;
     expect(fields.find((f) => f.name === "Butik")?.value).toBe("Dragon's Lair");
@@ -839,6 +847,7 @@ describe("postTestMessages kanalfilter", () => {
     languageChannels: { jp: "333" },
     defaultChannelId: "999",
     priceChannelId: null,
+    pro: null,
   };
 
   it("⛔ ett filter som inte träffar rapporteras som FEL, aldrig som grönt", async () => {
@@ -1221,5 +1230,33 @@ describe("pricePolicy", () => {
     expect(pricePolicy()).not.toBeNull();
     if (before === undefined) delete process.env.DISCORD_PRICE_DROPS_ENABLED;
     else process.env.DISCORD_PRICE_DROPS_ENABLED = before;
+  });
+});
+
+describe("discordRestockConfig — Pro-spegeln (\"pro\")", () => {
+  const withEnv = (channels: unknown, fn: () => void) => {
+    const prev = { e: process.env.DISCORD_RESTOCK_ENABLED, t: process.env.DISCORD_BOT_TOKEN, c: process.env.DISCORD_RESTOCK_CHANNELS };
+    process.env.DISCORD_RESTOCK_ENABLED = "true"; process.env.DISCORD_BOT_TOKEN = "x"; process.env.DISCORD_RESTOCK_CHANNELS = JSON.stringify(channels);
+    try { fn(); } finally {
+      process.env.DISCORD_RESTOCK_ENABLED = prev.e; process.env.DISCORD_BOT_TOKEN = prev.t; process.env.DISCORD_RESTOCK_CHANNELS = prev.c;
+    }
+  };
+  it("saknad pro ⇒ null (ingen spegel)", () => {
+    withEnv({ default: "1" }, () => expect(discordRestockConfig()?.pro).toBeNull());
+  });
+  it("\"pro\":\"<id>\" ⇒ en kanal för allt", () => {
+    withEnv({ default: "1", pro: "42" }, () => {
+      const pro = discordRestockConfig()!.pro!;
+      expect(pro.defaultChannelId).toBe("42");
+      expect(resolveChannelId("Pitch Black", "Mega Evolution", pro, "EN")).toBe("42");
+    });
+  });
+  it("\"pro\":{…} ⇒ samma routing som de publika", () => {
+    withEnv({ default: "1", pro: { default: "42", sets: { "Pitch Black": "43" }, languages: { JP: "44" } } }, () => {
+      const pro = discordRestockConfig()!.pro!;
+      expect(resolveChannelId("Pitch Black", "Mega Evolution", pro, "EN")).toBe("43");
+      expect(resolveChannelId("Ninja Spinner", "Mega Evolution", pro, "JP")).toBe("44");
+      expect(resolveChannelId("Annat", null, pro, "EN")).toBe("42");
+    });
   });
 });

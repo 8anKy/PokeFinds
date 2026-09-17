@@ -21,6 +21,7 @@
  * en artighet.
  */
 import { discordFetch } from "@/lib/discord";
+import { buyLink } from "@/lib/cart-url";
 import { formatPercent, formatPrice } from "@/lib/format";
 
 /** Turkos signaturaccent (`holo.cyan` = #2dd4bf) som heltal, för embed-kanten. */
@@ -63,6 +64,21 @@ export interface DiscordRestockConfig {
    * DISCORD_RESTOCK_CHANNELS.
    */
   priceChannelId: string | null;
+  /**
+   * PRO-SPEGEL (ägarbeslut 2026-09-17): kanaler som bara Pro-rollen ser, där samma
+   * inlägg postas EN GÅNG TILL men med LÄGG-I-KORGEN-länken (Offer.cartUrl) i stället
+   * för butikens produktsida. Korgen är Pro-förmånen; de publika kanalerna får aldrig
+   * den. `"pro":"<id>"` = en kanal för allt, `"pro":{default,sets,series,languages}` =
+   * full spegling med samma routing som de publika. null = ingen spegel.
+   * ⛔ Discord kan inte visa olika länkar för olika medlemmar i SAMMA inlägg — därför
+   *    en egen kanal, inte en knapp. Prissänkningar speglas inte (ingen korg att sälja).
+   */
+  pro: {
+    setChannels: Record<string, string>;
+    seriesChannels: Record<string, string>;
+    languageChannels: Record<string, string>;
+    defaultChannelId: string | null;
+  } | null;
 }
 
 /**
@@ -98,6 +114,7 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
     series?: unknown;
     languages?: unknown;
     prices?: unknown;
+    pro?: unknown;
   };
   try {
     parsed = JSON.parse(raw) as typeof parsed;
@@ -127,6 +144,23 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
   if (!defaultChannelId && !Object.keys(setChannels).length && !Object.keys(seriesChannels).length) {
     return null;
   }
+
+  let pro: DiscordRestockConfig["pro"] = null;
+  if (typeof parsed.pro === "string" && parsed.pro.trim()) {
+    pro = { setChannels: {}, seriesChannels: {}, languageChannels: {}, defaultChannelId: parsed.pro.trim() };
+  } else if (parsed.pro && typeof parsed.pro === "object") {
+    const o = parsed.pro as { default?: unknown; sets?: unknown; series?: unknown; languages?: unknown };
+    const candidate = {
+      setChannels: readMap(o.sets),
+      seriesChannels: readMap(o.series),
+      languageChannels: readMap(o.languages),
+      defaultChannelId: typeof o.default === "string" && o.default.trim() ? o.default.trim() : null,
+    };
+    if (candidate.defaultChannelId || Object.keys(candidate.setChannels).length || Object.keys(candidate.seriesChannels).length) {
+      pro = candidate;
+    }
+  }
+
   return {
     botToken,
     setChannels,
@@ -134,6 +168,7 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
     languageChannels,
     defaultChannelId,
     priceChannelId,
+    pro,
   };
 }
 
@@ -250,7 +285,7 @@ function clamp(s: string, max: number): string {
  * ska kunna köra direkt: varan är slutsåld igen om några minuter. Vår produktsida
  * ligger som en egen rad när vi känner igen URL:en.
  */
-export function buildRestockEmbed(post: RestockPost) {
+export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = {}) {
   // ⛔ BÅDA TALEN MÅSTE VARA RIKTIGA PRISER. `previousPriceOre` sätts bara av
   //    prisdomen, men embedden byggs också av testläget och av äldre state — och en
   //    nolla i nämnaren hade gett "−Infinity %" i en publik kanal.
@@ -294,10 +329,10 @@ export function buildRestockEmbed(post: RestockPost) {
 
   return {
     title: clamp(priceDrop ? `Nytt lägre pris — ${post.title}` : post.title, MAX_TITLE),
-    // ⛔ PRODUKTSIDAN, INTE KORGEN (ägarbeslut 2026-09-17): korglänken är Pro-pushens
-    //    försprång. Kanalen och mejlet får butikens produktsida. `cartUrl` följer ändå
-    //    med posten → hiten → offern, så pushen får den.
-    url: post.storeUrl,
+    // ⛔ PRODUKTSIDAN I DE PUBLIKA KANALERNA, KORGEN BARA I PRO-SPEGELN (ägarbeslut
+    //    2026-09-17): korglänken är Pro-förmånen (push + Pro-kanal). `cartUrl` följer
+    //    med posten → hiten → offern, så pushen får den också.
+    url: opts.cart ? buyLink(post.cartUrl, post.storeUrl) : post.storeUrl,
     description: priceDrop
       ? `Sänkt från ${formatPrice(post.previousPriceOre)} till ${formatPrice(post.priceOre)} ` +
         `(${formatPercent(-priceDrop.percent)}).`
@@ -444,7 +479,7 @@ export async function postRestocks(
       const res = await discordFetch(`/channels/${channelId}/messages`, {
         method: "POST",
         authorization: `Bot ${config.botToken}`,
-        body: JSON.stringify({ embeds: batch.map(buildRestockEmbed) }),
+        body: JSON.stringify({ embeds: batch.map((p) => buildRestockEmbed(p)) }),
       });
       if (res.ok) {
         sent += batch.length;
@@ -460,5 +495,37 @@ export async function postRestocks(
       );
     }
   }
+  // ── PRO-SPEGELN: samma inlägg, korglänk, bara i Pro-kanalerna ────────────────
+  // Postas EFTER de publika så en trasig Pro-kanal aldrig håller de publika. Ett
+  // nekat Pro-inlägg räknas som `failed` (körningen blir röd — felkonfiguration ska
+  // synas) men rör inte `postedKeys`: cooldownen stämplas på det publika utfallet.
+  if (config.pro) {
+    const byPro = new Map<string, RestockPost[]>();
+    for (const p of posts) {
+      if (p.previousPriceOre != null) continue; // prissänkningar: ingen korg att sälja
+      if (!postedKeys.includes(p.key)) continue; // bara det som faktiskt gick ut publikt
+      const channelId = resolveChannelId(p.setName, p.series, config.pro, p.language);
+      if (!channelId) continue;
+      const list = byPro.get(channelId);
+      if (list) list.push(p);
+      else byPro.set(channelId, [p]);
+    }
+    for (const [channelId, list] of byPro) {
+      for (const batch of chunk(list, MAX_EMBEDS_PER_MESSAGE)) {
+        const res = await discordFetch(`/channels/${channelId}/messages`, {
+          method: "POST",
+          authorization: `Bot ${config.botToken}`,
+          body: JSON.stringify({ embeds: batch.map((p) => buildRestockEmbed(p, { cart: true })) }),
+        });
+        if (res.ok) continue;
+        failed += batch.length;
+        console.error(
+          `[discord-restock] Kunde inte posta ${batch.length} Pro-larm i kanal ${channelId}: ` +
+            `${res.status} ${await res.text().catch(() => "")}`
+        );
+      }
+    }
+  }
+
   return { sent, postedKeys, failed };
 }
