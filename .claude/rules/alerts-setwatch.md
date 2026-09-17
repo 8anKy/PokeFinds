@@ -41,8 +41,10 @@ paths:
   stänga av). ⛔ Setsidan förblir ISR: plan och tillstånd läses KLIENT-sida bakom `fo_auth`-hinten, och bevakade set-id:n
   hämtas EN gång per sida via `src/lib/watched-sets.ts` — en fetch per kort hade blivit 20-40 Neon-väckningar per vy.
 
-- **KORGEN FÖRE PRODUKTSIDAN (ägarbeslut 2026-09-17)**: restock-push, Discord-embeddens länk och
-  restock-mejlets knapp går till en LÄGG-I-KORGEN-länk när butiken har en (`Offer.cartUrl`,
+- **KORGEN ÄR PUSHENS FÖRSPRÅNG (ägarbeslut 2026-09-17)**: BARA restock-PUSHEN går till en
+  LÄGG-I-KORGEN-länk — Discord-embedden och restock-mejlet länkar till butikens PRODUKTSIDA. Skälet är
+  konvertering: pushen är Pro, korgen ska vara ett skäl att köpa Pro. ⛔ Flytta inte korglänken till
+  kanalen/mejlet utan ägarens ord. Länken finns när butiken har en (`Offer.cartUrl`,
   `src/lib/cart-url.ts`): Shopify `/cart/add?id=<variant>&quantity=1` (probat 27/27 butiker → 302 /cart),
   WooCommerce `/?add-to-cart=<id>` (bara `type: simple`; verifierat "lagts i din varukorg" hos Fantasia
   North). Alla andra plattformar (Alphaspel, Webhallen, Quickbutik, SF-Bok…) har ingen GET-länk ⇒

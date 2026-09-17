@@ -21,7 +21,6 @@
  * en artighet.
  */
 import { discordFetch } from "@/lib/discord";
-import { buyLink } from "@/lib/cart-url";
 import { formatPercent, formatPrice } from "@/lib/format";
 
 /** Turkos signaturaccent (`holo.cyan` = #2dd4bf) som heltal, för embed-kanten. */
@@ -295,7 +294,10 @@ export function buildRestockEmbed(post: RestockPost) {
 
   return {
     title: clamp(priceDrop ? `Nytt lägre pris — ${post.title}` : post.title, MAX_TITLE),
-    url: buyLink(post.cartUrl, post.storeUrl),
+    // ⛔ PRODUKTSIDAN, INTE KORGEN (ägarbeslut 2026-09-17): korglänken är Pro-pushens
+    //    försprång. Kanalen och mejlet får butikens produktsida. `cartUrl` följer ändå
+    //    med posten → hiten → offern, så pushen får den.
+    url: post.storeUrl,
     description: priceDrop
       ? `Sänkt från ${formatPrice(post.previousPriceOre)} till ${formatPrice(post.priceOre)} ` +
         `(${formatPercent(-priceDrop.percent)}).`

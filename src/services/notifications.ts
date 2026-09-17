@@ -12,7 +12,6 @@ import { NON_RETAIL_SOURCE_NAMES } from "@/services/products";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { previewAllowedFor } from "@/lib/feature-preview";
 import { pushAlertUrl } from "@/lib/push-alert-url";
-import { buyLink } from "@/lib/cart-url";
 // ⛔ Delad läsare (samma defaultvärden som förut: email=true, push=false).
 // Fanns i tre handskrivna kopior — se src/lib/notification-settings.ts.
 import { parseNotificationSettings as parseSettings } from "@/lib/notification-settings";
@@ -134,12 +133,13 @@ async function buildAlertEmail(alert: {
         // RESTOCK täcker tre olika besked — mallen väljs på lagerövergången, inte på
         // offerns status HÄR (den hann redan bli det nya läget under skanningen).
         // Saknas övergången (larm från före kolumnerna) → påfyllning, som förut.
-        // Korgen före produktsidan när butiken har en korglänk (src/lib/cart-url.ts).
+        // ⛔ PRODUKTSIDAN, INTE KORGEN (ägarbeslut 2026-09-17): korglänken är Pro-pushens
+        //    försprång (pushAlertUrl); mejlet länkar till butikens produktsida.
         const args = [
           alert.user.name,
           product.title,
           retailOffer?.retailer.name ?? "en återförsäljare",
-          retailOffer ? buyLink(retailOffer.cartUrl, retailOffer.url) : productUrl,
+          retailOffer?.url ?? productUrl,
           retailOffer?.price ?? undefined,
         ] as const;
         if (alert.toStatus === StockStatus.PREORDER)
