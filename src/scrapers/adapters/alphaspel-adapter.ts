@@ -20,8 +20,15 @@ import { guessListingCategory } from "../listing-category";
 const BASE_URL = "https://www.alphaspel.se";
 
 // Alphaspel Pokémon TCG-kategori (verifierad 2026-06-11, 48 produkter/sida, ?page=N)
-const CATEGORY_URLS = [
-  "/1762-pokemon-tcg/",
+// + butikens "Nyheter" (/news/, hela sortimentets 48 nyaste, 46 sidor — vi läser BARA
+// första sidan). 30th Celebration-släppet 2026-09-17 12:00 var åtta HELT NYA produktsidor
+// som skapades direkt bokningsbara; de landade i kategorin samma sekund, men /news/ är
+// den yta som per definition bär det nyaste först, så den läses FÖRE kategorin. Samma
+// kort-markup, samma kanoniska URL:er (/1762-pokemon-tcg/…) ⇒ dedup på URL räcker.
+// Kostnad: en (1) extra förfrågan per hämtning.
+const CATEGORY_URLS: { path: string; maxPages: number }[] = [
+  { path: "/news/", maxPages: 1 },
+  { path: "/1762-pokemon-tcg/", maxPages: 10 },
 ];
 
 type AlphaspelStock = "in" | "preorder" | "out";
@@ -168,13 +175,14 @@ export class AlphaspelAdapter implements SourceAdapter {
   async fetchProducts(): Promise<AdapterResult> {
     const products: RawProductData[] = [];
     const errors: string[] = [];
+    const seen = new Set<string>();
 
-    for (const categoryPath of CATEGORY_URLS) {
+    for (const { path: categoryPath, maxPages } of CATEGORY_URLS) {
       try {
         let page = 1;
         let hasMore = true;
 
-        while (hasMore && page <= 10) {
+        while (hasMore && page <= maxPages) {
           const url = `${BASE_URL}${categoryPath}${page > 1 ? `?page=${page}` : ""}`;
           const res = await politeFetch(url, { delayMs: 2000 });
           if (!res.ok) {
@@ -190,6 +198,8 @@ export class AlphaspelAdapter implements SourceAdapter {
 
           for (const item of found) {
             if (!/pok[eé]mon/i.test(item.title) && !/tcg/i.test(item.title)) continue;
+            if (seen.has(item.url)) continue;
+            seen.add(item.url);
 
             products.push({
               externalId: `alphaspel-${Buffer.from(item.url).toString("base64url").slice(0, 40)}`,

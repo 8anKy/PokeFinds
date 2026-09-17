@@ -10,8 +10,12 @@
  *     … <span data-artnr="34492" …> …
  *     <span class="PT_PrisNormal">399 kr</span>
  *     <div class="PT_text_Lagerstatus Lager_{N}_SV">I lager | Tillfälligt slut | Slutsåld</div>
- * Lagerkoder: Lager_1_SV = "I lager" (IN_STOCK); allt annat (2 = Tillfälligt
- * slut, 10 = Slutsåld) = OUT_OF_STOCK.
+ * Lagerkoder (mätt 2026-09-17 över 204 kort): Lager_1 = "I lager" (IN_STOCK),
+ * Lager_8 = "Förhandsboka" (PREORDER — produktsidan har en AKTIV Förhandsboka-knapp),
+ * Lager_2 = "Tillfälligt slut", Lager_10 = "Slutsåld", Lager_12 = "Kommer snart"
+ * (OUT_OF_STOCK — ingen köpknapp alls). Gridet bär inga knappar, så koden ÄR domen.
+ * ⛔ Lager_8 låg som OUT fram till 2026-09-17: samma miss som Alphaspels Boka-knapp —
+ * en öppen förhandsbokning är KÖPBAR och lanen postar OUT→PREORDER som "preorder-open".
  *
  * robots.txt (verifierad 2026-06-15): tillåter /sv/pokemon (endast /cgi-bin/,
  * /webbadmin och /sok är Disallow). ETIK: politeFetch (robots.txt, delay,
@@ -50,11 +54,35 @@ function parseSekPrice(text: string): number | null {
 }
 
 
+type MaxStock = "in" | "preorder" | "out";
+
+/**
+ * Lagerkod → dom. Okänd kod faller tillbaka på texten i samma div (allowlist:
+ * "förhandsboka" → preorder, "i lager" → in, annars out — hellre ur lager än falskt köpbar).
+ */
+export function maxgamingStock(lagerCode: string | null, text: string): MaxStock {
+  if (lagerCode === "1") return "in";
+  if (lagerCode === "8") return "preorder";
+  if (lagerCode === "2" || lagerCode === "10" || lagerCode === "12") return "out";
+  const t = text.toLowerCase();
+  if (/förhandsbok|forhandsbok/.test(t)) return "preorder";
+  if (/i lager/.test(t)) return "in";
+  return "out";
+}
+
+const STATUS_BY_STOCK: Record<MaxStock, StockStatus> = {
+  in: StockStatus.IN_STOCK,
+  preorder: StockStatus.PREORDER,
+  out: StockStatus.OUT_OF_STOCK,
+};
+
 interface MaxRaw {
   title: string;
   priceOre: number;
   url: string;
+  /** Kvar för gamla rawData-rader (före 2026-09-17); nya rader bär `stock`. */
   inStock: boolean;
+  stock?: MaxStock;
   artnr?: string;
 }
 function isMaxRaw(raw: unknown): raw is MaxRaw {
@@ -87,10 +115,10 @@ export class MaxGamingAdapter implements SourceAdapter {
       if (!priceM) continue;
       const priceOre = parseSekPrice(priceM[1]);
       if (!priceOre) continue;
-      const lagerM = card.match(/class="PT_text_Lagerstatus\s+Lager_(\d+)_SV"/);
-      const inStock = lagerM ? lagerM[1] === "1" : /I lager/i.test(card);
+      const lagerM = card.match(/class="PT_text_Lagerstatus\s+Lager_(\d+)_SV"[^>]*>([\s\S]*?)<\//);
+      const stock = maxgamingStock(lagerM?.[1] ?? null, lagerM?.[2] ?? card);
       const artnr = card.match(/data-artnr="(\d+)"/)?.[1];
-      out.push({ title, priceOre, url, inStock, artnr });
+      out.push({ title, priceOre, url, inStock: stock === "in", stock, artnr });
     }
     return out;
   }
@@ -125,7 +153,7 @@ export class MaxGamingAdapter implements SourceAdapter {
             url: item.url,
             price: item.priceOre,
             currency: "SEK",
-            stockStatus: item.inStock ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
+            stockStatus: STATUS_BY_STOCK[item.stock ?? (item.inStock ? "in" : "out")],
             category: guessListingCategory(item.title),
             raw: item,
           });
@@ -151,7 +179,7 @@ export class MaxGamingAdapter implements SourceAdapter {
   }
 
   detectStockStatus(raw: unknown): StockStatus {
-    if (isMaxRaw(raw)) return raw.inStock ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK;
+    if (isMaxRaw(raw)) return STATUS_BY_STOCK[raw.stock ?? (raw.inStock ? "in" : "out")];
     return StockStatus.UNKNOWN;
   }
 

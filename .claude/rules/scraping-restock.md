@@ -52,6 +52,22 @@ paths:
   att köpa) — och lanen postar redan OUT_OF_STOCK→PREORDER som "preorder-open". `alphaspelStockStatus`
   dömer på knappen, texten är fallback när kortet saknar knapp. Samma läxa som Shopify 08-15: bara
   KÖPKNAPPEN vet. Vaktat av `tests/unit/alphaspel-stock.test.ts`.
+  **Det var dessutom ÅTTA HELT NYA produktsidor** (id 357412–357435, aldrig sedda av nattkedjan, först
+  på butikens /news/), skapade direkt bokningsbara — konkurrentens bot postade "Ny produkt i lager".
+  En ny URL med OUT som första status är tyst per konstruktion; med PREORDER som första status postar
+  lanen `preorder-new` (testat sedan 08-21). Alphaspel läser nu `/news/` (EN sida, 48 nyaste i hela
+  butiken, dedup på URL) FÖRE kategorin.
+  **SVEP ÖVER ALLA ICKE-SHOPIFY-ADAPTRAR SAMMA DAG** (bokningsbar förhandsbokning ⇒ köpbar?):
+  **MaxGaming hade SAMMA fel** — gridet bär inga knappar, `Lager_8_SV` "Förhandsboka" (produktsidan
+  har en aktiv knapp) låg som OUT; nu PREORDER (`maxgamingStock`, `tests/unit/maxgaming-stock.test.ts`).
+  `Lager_12` "Kommer snart" har ingen köpknapp och förblir OUT. OK utan ändring: Quickbutik-butikerna
+  (bokningsbar = "I lager." + cart-form ⇒ IN_STOCK; Shinycards `/forhandsboka` läses redan via
+  SEALED_MARKER), Webhallen (`release` i framtiden ⇒ PREORDER; 30th stod "Förväntas v39",
+  `isShippable:false`), Sweet Nerds/Card Haven (egna PREORDER-grenar), NordicTCG/Toyspace (dömer på
+  cart-form). OMÄTTA: Spelexperten (bara "Bevaka" vs knapp i dag), Coolcard (bara "N st i lager"/
+  "Slutsåld"), Woo ×3 (`is_in_stock`) — ingen förhandsbokning fanns att mäta; en "Förboka"-rad med
+  köpknapp passerar som köpbar i alla tre. ⛔ Nyckelfrågan för VARJE adapter: "vad visar butiken när
+  varan går att BOKA men inte finns i hyllan?" — mät den innan butiken slås på.
 - **⛔ `discontinued` HOS WEBHALLEN ÄR INTE EN LAGERSIGNAL — PRÖVAT OCH ÅTERSTÄLLT SAMMA DAG (2026-08-14)**:
   ägaren fick ett restock-larm på Mega Greninja ex Premium Collection och såg "Produkten har utgått ur
   sortimentet" på Webhallens sida. Jag drog slutsatsen att `stock.web` ljög, hittade produkt-API:ts
