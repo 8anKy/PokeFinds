@@ -166,6 +166,21 @@ jobs:
       # över dubbelt så lång täckning. ⛔ Höj inte vidare utan att väga in att ett
       # HÄNGT jobb blockerar lanen tills timeout-minutes löper ut.
       DISCORD_RESTOCK_LOOP_SECONDS: "1200"
+      # ── DÄMPNINGEN I KANALERNA, LÖSARE ÄN I APPEN (ägarbeslut 2026-09-17) ──────────
+      # Släppdagen för 30th Celebration: Alphaspel öppnade Poster Collection 13:35, 14:05
+      # och 14:29 (varje våg en äkta bokningsbar period). Vi postade 13:35; 14:05 åt den
+      # 2-timmars cooldownen (`1 cooldown` i loggen) och 14:29 blinkfönstret på 20 min
+      # (`1 blink/flapp`). Konkurrentens kanal postade alla tre. Kanalen är den yta där
+      # varje våg ÄR nyheten — läsaren har ingen bevakning, bara flödet.
+      # ⛔ GÄLLER BARA LANEN. Appens push/mejl (`checkRestockAlerts`) har sin egen 2 h-
+      #    cooldown + flappregel via `flapPolicy()` — de här env-variablerna sätts inte
+      #    i Railway, så användarnas telefoner blir inte högljuddare av det här.
+      # ⛔ Flapptaket (12 övergångar/dygn ⇒ 24 h cooldown) står kvar som spamgolv: en
+      #    butik som pytsar var 5:e minut hela dagen (Dragon's Lair 45 flippar/3 dygn)
+      #    tystas fortfarande efter ett dussin.
+      RESTOCK_ALERT_COOLDOWN_HOURS: "0.25"
+      RESTOCK_MIN_AWAY_MINUTES: "5"
+      RESTOCK_FLAP_MAX_TRANSITIONS: "12"
       # ⛔ WEBHALLEN VAR SVANSEN I SVEPET. MÄTT 2026-08-15: hela svepet över 42 butiker
       # tog 54,4 s och Webhallen ensam 52,3 s av dem — dess live-koll slår upp varje
       # icke-i-lager-produkt (~48 st) sekventiellt med 800 ms paus. Sedan svepet ersatts
