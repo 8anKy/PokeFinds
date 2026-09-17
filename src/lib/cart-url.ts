@@ -73,8 +73,16 @@ export const NORDISK_CART_SHOPS: Readonly<Record<string, string>> = {
 /** Artikelnummer hos Nordisk e-handel: siffror (MaxGaming) eller leverantörskod (Spelexperten "HABG7161681"). */
 const NORDISK_ARTNR = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
 
-/** Appens absoluta bas — `||`, inte `??`: tom sträng är felläget (samma regel som canonical.ts). */
-const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://foilio.se").replace(/\/+$/, "");
+/**
+ * Bryggans bas. ⛔ BARA en https-adress duger: länken skrivs i Offer.cartUrl i PROD-databasen
+ * och hamnar i pushar/Discord — en lokal körning med `.env`:s `http://localhost:3000` skrev
+ * 112 MaxGaming-offers med localhost-länkar 2026-09-18 (backfill mot prod). Allt annat än
+ * https ⇒ apex. `||`, inte `??`: tom sträng är felläget (samma regel som canonical.ts).
+ */
+const APP_URL = (() => {
+  const v = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/+$/, "");
+  return /^https:\/\//.test(v) ? v : "https://foilio.se";
+})();
 
 /**
  * Nordisk e-handel: länk till VÅR brygga, som POST:ar varan i butikens korg. `null` när

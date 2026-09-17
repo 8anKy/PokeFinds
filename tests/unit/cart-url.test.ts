@@ -35,6 +35,8 @@ describe("cart-url — lägg-i-korgen-länkar (ägarbeslut 2026-09-17)", () => {
     expect(nordiskCartUrl("https://www.spelexperten.com", "HABG7161681")).toBe(
       "https://foilio.se/api/go/korg?shop=www.spelexperten.com&artnr=HABG7161681"
     );
+    // ⛔ .env:s http://localhost:3000 får ALDRIG in i prod-databasen (hände 2026-09-18) — bara https räknas
+    expect(nordiskCartUrl("https://www.maxgaming.se", "1")).toMatch(/^https:\/\//);
     expect(nordiskCartUrl("https://www.maxgaming.se", undefined)).toBeNull();
     expect(nordiskCartUrl("https://www.maxgaming.se", "41363 or 1=1")).toBeNull();
     // ⛔ allowlist — en butik som inte är Nordisk e-handel får aldrig en bryggelänk
