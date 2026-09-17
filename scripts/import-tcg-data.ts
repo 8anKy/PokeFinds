@@ -178,6 +178,23 @@ async function main() {
 
     for (const tcgCard of cards) {
       const imageUrl = tcgCard.images?.large ?? tcgCard.images?.small ?? null;
+      // ADOPTION (2026-09-17): ett kort som skapades ur prisleverantören på
+      // släppdagen (import-en-set-from-provider.ts, tcgExternalId "tcggo:<id>")
+      // ska bli DET HÄR kortet, inte få en tvilling. Samma set + samma nummer +
+      // samma namn, och bara rader utan pokemontcg.io-id — exakt, aldrig fuzzy.
+      const orphanCard = await prisma.card.findFirst({
+        where: {
+          setId: set.id,
+          number: tcgCard.number,
+          name: { equals: tcgCard.name, mode: "insensitive" },
+          OR: [{ tcgExternalId: null }, { tcgExternalId: { startsWith: "tcggo:" } }],
+        },
+        select: { id: true, tcgExternalId: true },
+      });
+      if (orphanCard && orphanCard.tcgExternalId !== tcgCard.id) {
+        await prisma.card.update({ where: { id: orphanCard.id }, data: { tcgExternalId: tcgCard.id } });
+        console.log(`   🔗 Adopterade ${tcgCard.name} ${tcgCard.number} (${orphanCard.tcgExternalId ?? "utan id"} → ${tcgCard.id})`);
+      }
       // Identitet via globalt unikt API-id (tcgExternalId). Kortnummer är inte
       // unikt inom ett set, så composite-nyckeln skulle kollapsa varianter
       // (t.ex. Celebrations Classic Collections fyra kort med nummer 15).
