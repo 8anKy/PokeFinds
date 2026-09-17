@@ -52,3 +52,10 @@ paths:
   Ägaren är medveten om att länken hoppar över "max N per kund"-texten. Vaktat av `tests/unit/cart-url.test.ts`.
   ⏭️ Steg 2 (kräver nytt native-bygge): notistrycket ska öppna länken DIREKT ur native-hanteraren utan
   att Foilios WebView bootar (dagens "laddningsskärm").
+  ✅ **STEG 2 I KOD SEDAN 2026-09-17 (iOS-bygge 1.3)**: `ios/App/App/AppDelegate.swift` öppnar notisens
+  `url` (http/https) natively — kallstart ur `launchOptions[.remoteNotification]`, varm app via ett
+  UNUserNotificationCenter-omslag runt Capacitors `NotificationRouter` (allt vidarebefordras, så JS får
+  eventet som förut). `push-manager.tsx` hoppar över `window.open` när UA:n bär `FoilioApp/≥1.3` på iOS
+  (`nativeOpensExternalPushUrls`), annars hade butikssidan öppnats två gånger; äldre byggen öppnar som
+  förut. ⛔ Android-push är fortfarande AV (ingen FCM) — inget att göra där. `MARKETING_VERSION` = 1.3 i
+  codemagic.yaml; kräver nytt Codemagic-bygge + `npx cap sync ios` görs av bygget.

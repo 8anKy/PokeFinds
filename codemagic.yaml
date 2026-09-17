@@ -26,7 +26,9 @@ workflows:
         # "Uppdatera appen"-remsan följer App Store AUTOMATISKT sedan 2026-09-02
         # (/api/app/min-version läser Apples lookup) — `MIN_APP_VERSION` i
         # src/lib/app-version.ts är bara ett golv och behöver inte höjas.
-        MARKETING_VERSION: "1.2"
+        # 1.3 = push-trycket öppnar butikens korg-/produktlänk natively (AppDelegate),
+        #       utan att vänta på WebView:en — lib/community-v2-gate.ts läser taggen.
+        MARKETING_VERSION: "1.3"
         # Capacitor 8 = SPM-mall: inget CocoaPods, ingen .xcworkspace — bygg xcodeproj:t direkt.
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
@@ -64,20 +66,14 @@ workflows:
           # fail-loud om imageset:en inte skapades (mall ändrad).
           ./node_modules/.bin/capacitor-assets generate --ios --splashBackgroundColor '#0a0a0c' --splashBackgroundColorDark '#0a0a0c'
           test -f ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732.png
-          # Fixa headern som glider NER efter scroll: WKWebView lägger automatiskt
-          # på top-contentInset för safe-area (default .automatic) OVANPÅ vår CSS
-          # padding-top: env(safe-area-inset-top) → dubbel topp efter första scroll.
-          # .never = stäng av auto-inseten, vår CSS sköter notchen. Nollar även bounce.
-          # CSS/JS kan INTE röra detta (native scrollView). Walka från windows.
-          perl -0pi -e 's/func applicationDidBecomeActive\(_ application: UIApplication\) \{/func applicationDidBecomeActive(_ application: UIApplication) {\n        func killBounce(_ v: UIView) {\n            if let sv = v as? UIScrollView { sv.contentInsetAdjustmentBehavior = .never; sv.bounces = false; sv.alwaysBounceVertical = false }\n            v.subviews.forEach(killBounce)\n        }\n        application.windows.forEach(killBounce)\n        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { application.windows.forEach(killBounce) }/' ios/App/App/AppDelegate.swift
-          # Misslyckas högt om injektet inte tog (mall ändrad) → slipp falsk patch.
+          # AppDelegate: hela filen bor i repot (native/ios/AppDelegate.swift) sedan
+          # 2026-09-17 — förut två perl-injekt (killBounce + APNs-token-vidarebefordran),
+          # nu även push-trycket som öppnar butikens länk natively (bygge 1.3). Kopiera
+          # över mallens och verifiera högt att alla tre delar finns.
+          cp native/ios/AppDelegate.swift ios/App/App/AppDelegate.swift
           grep -q killBounce ios/App/App/AppDelegate.swift
-          # Push: Capacitor levererar APNs-token via NotificationCenter, men default-
-          # AppDelegaten postar den INTE (verifierat även i Capacitor 8-mallen) →
-          # register() ger varken token eller fel (tyst).
-          # Injicera de två vidarebefordrings-metoderna direkt i klassen.
-          perl -0pi -e 's/(class AppDelegate: UIResponder, UIApplicationDelegate \{)/$1\n    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {\n        NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)\n    }\n    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {\n        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)\n    }/' ios/App/App/AppDelegate.swift
           grep -q capacitorDidRegisterForRemoteNotifications ios/App/App/AppDelegate.swift
+          grep -q openExternalUrl ios/App/App/AppDelegate.swift
           # Kamera (skanna kort): WKWebView DÖLJER navigator.mediaDevices.getUserMedia
           # om Info.plist saknar NSCameraUsageDescription → appen visar "Kamera stöds
           # inte här". Lägg till usage-strings (Add faller om nyckeln finns → Set).

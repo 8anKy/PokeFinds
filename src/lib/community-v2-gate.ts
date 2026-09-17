@@ -45,6 +45,31 @@ export function nativeAppVersion(userAgent: string | null | undefined): string |
   return m ? m[1] : null;
 }
 
+/** true om UA-versionen (`FoilioApp/1.3`) är ≥ `min` ("1.3"). Saknad version = false. */
+export function nativeAppAtLeast(userAgent: string | null | undefined, min: string): boolean {
+  const v = nativeAppVersion(userAgent);
+  if (!v) return false;
+  const a = v.split(".").map(Number);
+  const b = min.split(".").map(Number);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const x = a[i] ?? 0;
+    const y = b[i] ?? 0;
+    if (x !== y) return x > y;
+  }
+  return true;
+}
+
+/**
+ * Från iOS-bygge 1.3 öppnar AppDelegate.swift externa push-länkar (http/https) själv i
+ * samma ögonblick som notisen trycks — före WebView:en bootat. JS får fortfarande
+ * `pushNotificationActionPerformed` men ska då INTE öppna länken igen. Äldre byggen
+ * (ingen native-hanterare) fortsätter öppna via window.open som förut.
+ */
+export const NATIVE_PUSH_OPENS_EXTERNAL_FROM = "1.3";
+export function nativeOpensExternalPushUrls(platform: string, userAgent: string | null | undefined): boolean {
+  return platform === "ios" && nativeAppAtLeast(userAgent, NATIVE_PUSH_OPENS_EXTERNAL_FROM);
+}
+
 export interface GateInput {
   userAgent?: string | null;
   role?: string | null;

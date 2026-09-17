@@ -61,3 +61,20 @@ describe("isGatedPath", () => {
     expect(isGatedPath("/forumet")).toBe(false);
   });
 });
+
+describe("nativeOpensExternalPushUrls — iOS ≥ 1.3 öppnar push-länkar natively (2026-09-17)", async () => {
+  const { nativeAppAtLeast, nativeOpensExternalPushUrls } = await import("../../src/lib/community-v2-gate");
+  it("versionsjämförelsen är numerisk per segment", () => {
+    expect(nativeAppAtLeast("Mozilla/5.0 … FoilioApp/1.3", "1.3")).toBe(true);
+    expect(nativeAppAtLeast("… FoilioApp/1.10", "1.3")).toBe(true);
+    expect(nativeAppAtLeast("… FoilioApp/1.2", "1.3")).toBe(false);
+    expect(nativeAppAtLeast("… FoilioApp/2.0", "1.3")).toBe(true);
+    expect(nativeAppAtLeast("Mozilla/5.0 utan tagg", "1.3")).toBe(false);
+  });
+  it("bara iOS, bara från 1.3 — äldre byggen och Android öppnar via window.open som förut", () => {
+    expect(nativeOpensExternalPushUrls("ios", "… FoilioApp/1.3")).toBe(true);
+    expect(nativeOpensExternalPushUrls("ios", "… FoilioApp/1.2")).toBe(false);
+    expect(nativeOpensExternalPushUrls("android", "… FoilioApp/1.3")).toBe(false);
+    expect(nativeOpensExternalPushUrls("web", null)).toBe(false);
+  });
+});

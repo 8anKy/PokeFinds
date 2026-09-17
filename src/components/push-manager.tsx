@@ -7,6 +7,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "@/i18n/navigation";
 import { getPushPlugin, refreshPush } from "@/lib/push-client";
+import { nativeOpensExternalPushUrls } from "@/lib/community-v2-gate";
 
 export function PushManager() {
   const router = useRouter();
@@ -20,6 +21,9 @@ export function PushManager() {
     void (async () => {
       const p = await getPushPlugin();
       if (!p) return;
+      // iOS ≥ 1.3: AppDelegate öppnade redan en extern länk natively (ingen laddnings-
+      // skärm) — ett window.open här hade öppnat samma butikssida en gång till.
+      const nativeOpensExternal = nativeOpensExternalPushUrls(p.platform, navigator.userAgent);
       const handle = await p.PushNotifications.addListener(
         "pushNotificationActionPerformed",
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -39,6 +43,7 @@ export function PushManager() {
             if (document.readyState === "complete") go();
             else window.addEventListener("load", go, { once: true });
           } else if (/^https?:\/\//.test(url)) {
+            if (nativeOpensExternal) return;
             window.open(url, "_blank");
           }
         }
