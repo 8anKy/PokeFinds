@@ -242,7 +242,14 @@ export function ExploreFilterPanel({
     return [...top, ...pinned];
   };
 
-  const setsByCount = useMemo(() => [...sets].sort((a, b) => b.count - a.count), [sets]);
+  // SETEN FÖLJER SPRÅKFILTRET (ägaren 2026-09-17): med "Japanese" valt visar
+  // snabblistan (och arket) bara JP-set, med "English" bara EN — annars alla.
+  // Setets `language` är samma kolumn som språkfacetten filtrerar på.
+  const setsForLanguage = useMemo(
+    () => (activeLanguage ? sets.filter((s) => s.language === activeLanguage) : sets),
+    [sets, activeLanguage]
+  );
+  const setsByCount = useMemo(() => [...setsForLanguage].sort((a, b) => b.count - a.count), [setsForLanguage]);
 
   /**
    * "Alla sealed" — en genväg, inte en kategori (samma regel som mobilens
@@ -417,16 +424,25 @@ export function ExploreFilterPanel({
           </div>
         </Section>
 
+        <Section title={t("language")}>
+          <Segmented
+            label={t("language")}
+            value={activeLanguage}
+            onChange={(v) => apply({ sprak: v || null })}
+            options={[{ value: "", label: t("all") }, ...languages.map((l) => ({ value: l.value, label: l.label }))]}
+          />
+        </Section>
+
         <Section title={t("set")}>
           <div>{visibleRows(setsByCount, false, (s) => activeSet === s.id).map(setRow)}</div>
-          {sets.length > COLLAPSED_ROWS && (
+          {setsForLanguage.length > COLLAPSED_ROWS && (
             <button
               type="button"
               aria-haspopup="dialog"
               onClick={() => setSetSheetOpen(true)}
               className="mt-1 px-1.5 text-sm text-holo-cyan transition-colors hover:text-ink focus-visible:outline-none focus-visible:underline"
             >
-              {t("browseAllSets", { count: sets.length })}
+              {t("browseAllSets", { count: setsForLanguage.length })}
             </button>
           )}
         </Section>
@@ -452,15 +468,6 @@ export function ExploreFilterPanel({
           )}
         </Section>
 
-        <Section title={t("language")}>
-          <Segmented
-            label={t("language")}
-            value={activeLanguage}
-            onChange={(v) => apply({ sprak: v || null })}
-            options={[{ value: "", label: t("all") }, ...languages.map((l) => ({ value: l.value, label: l.label }))]}
-          />
-        </Section>
-
         <div className="p-3">
           <Button type="button" className="w-full" onClick={scrollToResults}>
             {t("showResults", { results: t("resultCount", { count: total }) })}
@@ -472,7 +479,7 @@ export function ExploreFilterPanel({
           direkt och stänger arket. */}
       <SetSheet
         open={setSheetOpen}
-        sets={sets}
+        sets={setsForLanguage}
         activeSetId={activeSet || undefined}
         total={total}
         onClose={() => setSetSheetOpen(false)}
