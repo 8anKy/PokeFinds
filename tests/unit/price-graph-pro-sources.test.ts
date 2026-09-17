@@ -16,11 +16,11 @@ const onlyOn = (...on: SourceKey[]) => new Set<string>(SOURCE_ORDER.filter((k) =
  * på någon annan väg heller. Se @/lib/price-graph-sources.
  */
 describe("Tradera-serierna är Pro-låsta", () => {
-  it("låser exakt sålt-/Tradera-serierna, aldrig Cardmarket/CardTrader/eBay-begärt", () => {
-    // eBay SÅLT (2026-09-15) är Pro som Traderas sålt; eBay BEGÄRT är fritt.
+  it("låser graderat (eBay begärt + sålt) och Tradera-serierna, aldrig Cardmarket/CardTrader", () => {
+    // Graderade priser är Pro hela vägen sedan 2026-09-17 (begärt OCH sålt).
     const { isLocked } = sourceGate(SOURCE_ORDER, none, false);
-    expect(SOURCE_ORDER.filter(isLocked)).toEqual(["ebaySold", "tradera", "traderaSold"]);
-    expect([...PRO_SOURCES]).toEqual(["ebaySold", "tradera", "traderaSold"]);
+    expect(SOURCE_ORDER.filter(isLocked)).toEqual(["ebay", "ebaySold", "tradera", "traderaSold"]);
+    expect([...PRO_SOURCES]).toEqual(["ebay", "ebaySold", "tradera", "traderaSold"]);
   });
 
   it("låser ingenting för Pro", () => {

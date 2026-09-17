@@ -33,7 +33,9 @@ export type SourceKey = (typeof SOURCE_ORDER)[number];
  * origin-request (= Neon-väckning) per produktvisning. Samma avvägning som
  * MAX-periodens lås redan gör.
  */
-export const PRO_SOURCES: readonly SourceKey[] = ["ebaySold", "tradera", "traderaSold"];
+// `ebay` (graderade BEGÄRDA priser) är Pro sedan 2026-09-17 (ägarbeslut: graderade
+// priser är en Pro-funktion, hela vägen — karusellen, arket och grafen).
+export const PRO_SOURCES: readonly SourceKey[] = ["ebay", "ebaySold", "tradera", "traderaSold"];
 
 export interface SourceGate {
   /** Källor besökaren får bocka i (har data OCH är inte låsta). */

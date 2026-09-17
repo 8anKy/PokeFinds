@@ -1,14 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useRouter } from "@/i18n/navigation";
 import { formatPrice } from "@/lib/format";
+import { getSharedSession } from "@/lib/client-session";
+import { hasAuthHint } from "@/lib/auth-hint";
+import { openPaywallOrNavigate } from "@/lib/paywall";
 import { ISSUER_LABELS, formatGrade, type GradingIssuer } from "@/lib/graded-listing";
 import { buildGradedCards, defaultGrade, type GradedGradeCell, type GradedIssuerCard } from "@/lib/graded-merge";
 import type { GradedSummary } from "@/services/graded";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { SafeImage } from "@/components/ui/safe-image";
-import { IconChevronDown } from "@/components/ui/icons";
+import { IconChevronDown, IconLock } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
 export interface GradedSelection {
@@ -44,10 +48,20 @@ export function GradedCarousel({
   onSelect: (sel: GradedSelection | null) => void;
 }) {
   const t = useTranslations("Detail");
+  const router = useRouter();
   const cards = useMemo(
     () => buildGradedCards(graded?.asks ?? [], graded?.rows ?? [], graded?.history ?? []),
     [graded]
   );
+  // GRADERADE PRISER ÄR PRO (ägarbeslut 2026-09-17). Sidan ISR-cachas ⇒ planen
+  // läses klient-sida, som i prishistorikkortet. Utloggad = inte Pro. Låst badge
+  // VÄLJER INGENTING — den säljer (samma regel som Tradera-chippet i grafen).
+  const [isPro, setIsPro] = useState(false);
+  useEffect(() => {
+    if (!hasAuthHint()) return;
+    void getSharedSession().then((s) => setIsPro(!!s?.user?.isPro));
+  }, []);
+  const sell = () => openPaywallOrNavigate(router, { source: "graded" });
   // Aktivt betyg per bolag — badgen minns sitt betyg även när ett annat bolag är
   // valt i grafen.
   const [active, setActive] = useState<Record<string, number>>({});
@@ -78,6 +92,24 @@ export function GradedCarousel({
         {cards.map((card) => {
           const cell = cellOf(card);
           const isSel = selected?.issuer === card.issuer && selected.gradeTenths === cell.gradeTenths;
+          if (!isPro) {
+            // Låst: bolaget och betyget syns (det FINNS data), priset ersätts av
+            // låset och trycket går till paywallen. Inget betygsark.
+            return (
+              <Badge key={card.issuer} selected={false} onClick={sell} title={t("gradedProOnly")}>
+                <span className="flex items-center gap-1.5">
+                  <IssuerMark issuer={card.issuer} />
+                  <span className="rounded-md border border-surface-border bg-surface-overlay px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-ink">
+                    {formatGrade(cell.gradeTenths)}
+                  </span>
+                </span>
+                <span className="flex items-center gap-1 text-sm font-semibold text-holo-cyan">
+                  <IconLock size={13} />
+                  Pro
+                </span>
+              </Badge>
+            );
+          }
           return (
             <Badge
               key={card.issuer}
@@ -105,7 +137,7 @@ export function GradedCarousel({
           );
         })}
       </div>
-      <p className="mt-1.5 text-[11px] text-ink-faint">{t("gradedCarouselHint")}</p>
+      <p className="mt-1.5 text-[11px] text-ink-faint">{isPro ? t("gradedCarouselHint") : t("gradedProHint")}</p>
 
       {/* Arket: bolagets alla betyg, båda källorna per rad. */}
       <BottomSheet
@@ -187,13 +219,16 @@ function Badge({
   selected,
   onClick,
   children,
+  title,
 }: {
   selected: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  title?: string;
 }) {
   return (
     <div
+      title={title}
       role="button"
       tabIndex={0}
       aria-pressed={selected}

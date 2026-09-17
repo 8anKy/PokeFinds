@@ -2242,6 +2242,8 @@
     "gradedSoldLabel": "Sålt",
     "gradedLastSold": "senast {price} {date}",
     "gradedCarouselHint": "Tryck på betyget för fler nivåer · svep för att jämföra bolag",
+    "gradedProOnly": "Graderade priser ingår i Pro. Tryck för att uppgradera",
+    "gradedProHint": "Graderade priser (PSA, BGS, CGC — begärt och sålt) ingår i Pro.",
     "gradedPickGrade": "Välj betyg för {issuer}",
     "gradedRawCard": "Ograderad",
     "gradedRawCardHint": "Löst kort, som prislistan ovan.",
@@ -2333,6 +2335,11 @@
       },
       {
         "label": "Tradera i grafen · annonser och sålt",
+        "free": "—",
+        "pro": "✓"
+      },
+      {
+        "label": "Graderade priser · PSA, BGS, CGC begärt och sålt",
         "free": "—",
         "pro": "✓"
       },

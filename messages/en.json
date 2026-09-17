@@ -2242,6 +2242,8 @@
     "gradedSoldLabel": "Sold",
     "gradedLastSold": "last {price} {date}",
     "gradedCarouselHint": "Tap the grade for more levels · swipe to compare companies",
+    "gradedProOnly": "Graded prices are part of Pro. Tap to upgrade",
+    "gradedProHint": "Graded prices (PSA, BGS, CGC — asking and sold) are part of Pro.",
     "gradedPickGrade": "Pick a grade for {issuer}",
     "gradedRawCard": "Raw",
     "gradedRawCardHint": "Ungraded card, as in the price list above.",
@@ -2333,6 +2335,11 @@
       },
       {
         "label": "Tradera in the chart · listings and sold",
+        "free": "—",
+        "pro": "✓"
+      },
+      {
+        "label": "Graded prices · PSA, BGS, CGC asking and sold",
         "free": "—",
         "pro": "✓"
       },
