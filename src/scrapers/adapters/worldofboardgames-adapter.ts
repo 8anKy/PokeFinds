@@ -146,7 +146,8 @@ export class WorldOfBoardGamesAdapter implements SourceAdapter {
     const push = (item: WobgItem) => {
       if (seen.has(item.url)) return false;
       seen.add(item.url);
-      if (!/pok[eé]mon/i.test(item.title) && !/tcg/i.test(item.title)) return false;
+      // Bara Pokémon — "tcg" ensamt släppte igenom Cyberpunk TCG ur /nya_produkter/ (2026-09-17).
+      if (!/pok[eé]mon/i.test(item.title)) return false;
       const raw: WobgRaw = { priceOre: item.priceOre, stock: item.stock, button: item.button, url: item.url, itemId: item.itemId };
       products.push({
         externalId: item.itemId ? `wobg-${item.itemId}` : `wobg-${Buffer.from(item.url).toString("base64url").slice(0, 40)}`,
