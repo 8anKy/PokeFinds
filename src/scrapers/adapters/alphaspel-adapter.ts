@@ -24,12 +24,16 @@ const CATEGORY_URLS = [
   "/1762-pokemon-tcg/",
 ];
 
+type AlphaspelStock = "in" | "preorder" | "out";
+
 interface AlphaspelRaw {
   title: string;
   priceText: string;
   priceOre: number;
   url: string;
+  /** Kvar för gamla rawData-rader (före 2026-09-17); nya rader bär `stock`. */
   inStock: boolean;
+  stock?: AlphaspelStock;
   imageUrl?: string;
 }
 
@@ -58,6 +62,34 @@ export function alphaspelInStock(stockText: string): boolean {
   );
 }
 
+/**
+ * Alphaspels lagerstatus ur KNAPPEN, inte texten. Varje grid-kort bär en
+ * `add-to-cart`-knapp i tre lägen (mätt 2026-09-17 över 188 kort):
+ *   `btn-success add-to-cart` "Köp"          → i lager
+ *   `btn-primary add-to-cart` "Boka"         → bokningsbar förhandsbokning (KÖPBAR)
+ *   `btn-default disabled add-to-cart` "Köp" → går inte att köpa
+ * Texten ensam missade 30th Celebration-släppet 2026-09-17 12:00: en öppen
+ * förhandsbokning står som "Preliminärt <datum>" (eller t.o.m. "Ej i lager") med
+ * en aktiv Boka-knapp, och allowlisten dömde den ur lager hela vägen tills
+ * "Första leveransen fullbokad" — noll flippar, noll inlägg, medan konkurrenten
+ * larmade. Knappen är butikens EGEN köpbarhetsdom; texten är bara fallback när
+ * kortet saknar knapp.
+ */
+export function alphaspelStockStatus(stockText: string, buttonHtml: string | null): AlphaspelStock {
+  if (buttonHtml) {
+    if (/\bdisabled\b/.test(buttonHtml)) return "out";
+    if (/fa-hourglass|>\s*Boka\s*</i.test(buttonHtml)) return "preorder";
+    return "in";
+  }
+  return alphaspelInStock(stockText) ? "in" : "out";
+}
+
+const STATUS_BY_STOCK: Record<AlphaspelStock, StockStatus> = {
+  in: StockStatus.IN_STOCK,
+  preorder: StockStatus.PREORDER,
+  out: StockStatus.OUT_OF_STOCK,
+};
+
 /** Avkodar de vanligaste HTML-entiteterna i titlar. */
 function decodeEntities(text: string): string {
   return text
@@ -77,6 +109,7 @@ function decodeEntities(text: string): string {
  *     </a>
  *     <div class="price-and-stock"> ... <div class="price text-success">119 kr</div>
  *       <div class="stock">I lager / Slutsåld / Fler än 20 i butiken...</div>
+ *     <a class="btn w-100 btn-success add-to-cart" href="...">Köp</a>   (se alphaspelStockStatus)
  */
 function extractProducts(html: string): AlphaspelRaw[] {
   const products: AlphaspelRaw[] = [];
@@ -101,10 +134,11 @@ function extractProducts(html: string): AlphaspelRaw[] {
     const priceOre = parseSekPrice(priceMatch[1]);
     if (!priceOre) continue;
 
-    // Lagerstatus ur stock-diven (se alphaspelInStock).
+    // Lagerstatus ur köpknappen, texten som fallback (se alphaspelStockStatus).
     const stockMatch = block.match(/<div class="stock">\s*([\s\S]*?)\s*<\/div>/);
     const stockText = stockMatch?.[1]?.replace(/<br\s*\/?>/gi, " ") ?? "";
-    const inStock = alphaspelInStock(stockText);
+    const buttonMatch = block.match(/<a\b[^>]*class="[^"]*\badd-to-cart\b[^"]*"[^>]*>[\s\S]*?<\/a>/);
+    const stock = alphaspelStockStatus(stockText, buttonMatch?.[0] ?? null);
 
     const imgMatch = block.match(/<img[^>]*src="(\/media\/[^"]+)"/);
     const imageUrl = imgMatch?.[1] ? `${BASE_URL}${imgMatch[1]}` : undefined;
@@ -114,7 +148,8 @@ function extractProducts(html: string): AlphaspelRaw[] {
       priceText: priceMatch[0],
       priceOre,
       url: `${BASE_URL}${url}`,
-      inStock,
+      inStock: stock === "in",
+      stock,
       imageUrl,
     });
   }
@@ -162,7 +197,7 @@ export class AlphaspelAdapter implements SourceAdapter {
               url: item.url,
               price: item.priceOre,
               currency: "SEK",
-              stockStatus: item.inStock ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
+              stockStatus: STATUS_BY_STOCK[item.stock ?? (item.inStock ? "in" : "out")],
               imageUrl: item.imageUrl,
               category: guessListingCategory(item.title),
               raw: item,
@@ -198,7 +233,7 @@ export class AlphaspelAdapter implements SourceAdapter {
 
   detectStockStatus(raw: unknown): StockStatus {
     if (isAlphaspelRaw(raw)) {
-      return raw.inStock ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK;
+      return STATUS_BY_STOCK[raw.stock ?? (raw.inStock ? "in" : "out")];
     }
     return StockStatus.UNKNOWN;
   }

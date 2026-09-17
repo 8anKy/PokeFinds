@@ -41,6 +41,17 @@ paths:
   release-produkter), rättade i prod 2026-08-15. Verktyg:
   `scripts/verify-instock-buyable-run.ts` (`--all`, `--store=`, `--apply`) och
   `scripts/probe-shopify-buy-button.ts` (mäter detektorn mot en feed-dump).
+- **⛔ ALPHASPELS LAGERSTATUS TAS PÅ KNAPPEN, INTE TEXTEN (2026-09-17)**: 30th Celebration släpptes
+  hos Alphaspel kl 12:00, en konkurrents Discord larmade, vår tystnade — Discord-lanen pollade butiken
+  var 60:e sekund hela tiden och såg NOLL flippar. Orsak: `alphaspelInStock` var en text-allowlist
+  ("i lager / i butiken / på postorder"), och en ÖPPEN förhandsbokning står som `Preliminärt <datum>`
+  (eller t.o.m. "Ej i lager") med en aktiv **Boka**-knapp. Allowlisten dömde den ur lager från "Kommande"
+  via öppen bokning till "Första leveransen fullbokad" — samma status hela vägen, alltså inget att posta.
+  MÄTT över 188 grid-kort: knappen har exakt tre lägen — `btn-success add-to-cart` "Köp" (i lager),
+  `btn-primary add-to-cart` "Boka" (bokningsbar = KÖPBAR ⇒ PREORDER), `btn-default disabled` (går inte
+  att köpa) — och lanen postar redan OUT_OF_STOCK→PREORDER som "preorder-open". `alphaspelStockStatus`
+  dömer på knappen, texten är fallback när kortet saknar knapp. Samma läxa som Shopify 08-15: bara
+  KÖPKNAPPEN vet. Vaktat av `tests/unit/alphaspel-stock.test.ts`.
 - **⛔ `discontinued` HOS WEBHALLEN ÄR INTE EN LAGERSIGNAL — PRÖVAT OCH ÅTERSTÄLLT SAMMA DAG (2026-08-14)**:
   ägaren fick ett restock-larm på Mega Greninja ex Premium Collection och såg "Produkten har utgått ur
   sortimentet" på Webhallens sida. Jag drog slutsatsen att `stock.web` ljög, hittade produkt-API:ts
