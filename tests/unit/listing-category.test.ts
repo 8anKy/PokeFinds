@@ -51,6 +51,13 @@ describe("guessListingCategory — de sju ursprungliga formerna", () => {
     // Tillbehör med mekaniken i namnet är fortfarande inget samlingspaket.
     expect(guessListingCategory("Ultra Pro Charizard ex Deck Box")).not.toBe("COLLECTION_BOX");
   });
+
+  it("'Binder Collection' och 'Super Premium Coll.' är samlingspaket (SF-Bok 2026-09-17)", () => {
+    expect(guessListingCategory("Pokemon TCG: 30th Celebration Binder Collection")).toBe("COLLECTION_BOX");
+    expect(guessListingCategory("Pokemon TCG: Prismatic Evolution Super Premium Coll.")).toBe("COLLECTION_BOX");
+    // En pärm utan boosters är fortfarande tillbehör.
+    expect(guessListingCategory("Ultra Pro 9-Pocket Binder Pikachu")).not.toBe("COLLECTION_BOX");
+  });
 });
 
 describe("guessListingCategory — formerna som föll till OTHER (2026-08-15)", () => {

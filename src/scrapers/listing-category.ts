@@ -74,6 +74,9 @@ export function guessListingCategory(title: string): ListingCategory {
   //    andra vågen av släppet — utan rutt fanns inget som räddade dem. Kräver mekaniken
   //    DIREKT före "box", så "Charizard ex Deck Box" (tillbehör) matchar inte.
   if (/\b(?:ex|v|vmax|vstar|gx)\s*box\b/.test(t)) return "COLLECTION_BOX";
+  // "Binder Collection" (pärm + boosters, 30th Celebration/Prismatic) och butikernas
+  // förkortade "Super Premium Coll." (SF-Bok) — samma hylla som Premium Collection.
+  if (/\bbinder\s*collection\b|\bpremium\s*coll\b\.?/.test(t)) return "COLLECTION_BOX";
 
   // ── Tin ────────────────────────────────────────────────────────────────────
   // ⛔ `\btin\b` med BÅDA ordgränserna: utan den inledande matchar tyska "Karmesin"

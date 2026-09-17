@@ -71,6 +71,8 @@ import { CoolcardAdapter } from "@/scrapers/adapters/starweb-adapter";
 import { SweetNerdsAdapter } from "@/scrapers/adapters/nyehandel-adapter";
 import { ToyspaceAdapter } from "@/scrapers/adapters/magento-adapter";
 import { CardHavenAdapter } from "@/scrapers/adapters/cardhaven-adapter";
+import { SfBokAdapter } from "@/scrapers/adapters/sfbok-adapter";
+import { WorldOfBoardGamesAdapter } from "@/scrapers/adapters/worldofboardgames-adapter";
 import { MaxGamingAdapter } from "@/scrapers/adapters/maxgaming-adapter";
 import { isStoreRetailer } from "../lib/offer-source";
 import {
@@ -196,6 +198,9 @@ const SCRAPER_ADAPTERS: Record<string, new () => SourceAdapter> = {
   "Card Haven": CardHavenAdapter,
   // ---- Wave 8 (2026-09-08) ----
   "Cardshop Sweden": CardshopSwedenAdapter,
+  // ---- Wave 9 (2026-09-17) ----
+  "SF-Bok": SfBokAdapter,
+  "World of Board Games": WorldOfBoardGamesAdapter,
 };
 
 export function getAdapter(type: SourceType, sourceName?: string): SourceAdapter {

@@ -161,6 +161,25 @@ paths:
   (sleeves/pärmar/tärningar) — splittas de blir varje FÄRG en annons med huvudboksrad och ett "ny produkt"-larm.
   Kräv därför att VARJE variant nämner en Pokémon + tillbehörsvakten. Migrering av gammal data:
   `scripts/split-shopify-variants.ts` (torrkörning default).
+- **BUTIKS-WAVE 9 = SF-BOK + WORLD OF BOARD GAMES (ägarbeslut 2026-09-17: "jag vill ha restock på deras drops")**:
+  `sfbok-adapter.ts` + `worldofboardgames-adapter.ts`, registrering `scripts/setup-wave9-sources.ts --apply --restock`.
+  **SF-Bok** (Next.js + Norce): ⛔ TCG-kategorin har bara 8 produkter — hela sortimentet (21, inkl. hela
+  30th-raden) ligger under `/sv/universum/pokemon?GameFamily=Pokémon TCG`, hämtad som RSC-flight (`RSC: 1`,
+  ~420 kB, EN förfrågan; HTML är 1 MB). Domen är butikens egen `webDisplay.buttonState`: 0 = köp online,
+  3/4 = **butiksvara** (lager > 0 ⇒ IN_STOCK = "reservera i butik"), 2 = Bevaka (isPreOrder ⇒ PREORDER).
+  ⛔ **HELA POKÉMON TCG-SORTIMENTET VAR BUTIKSVARA VID PROBEN** ("går inte att beställa via hemsidan, kan inte
+  förhandsbokas, max 3 ex per kund") — ett larm härifrån betyder "finns i fysisk butik", inte en köpknapp.
+  Ägaren valde det medvetet. JSON-LD säger OutOfStock även för butiksvaror i lager ⇒ `STORE_STOCK_STRATEGY`
+  = `none`. ⛔ Två GENERISKA titlar ("30th Celebration Tin Box" = Sylveon/Greninja, "Tech Sticker
+  Collection" = Lucario/Exeggutor) är denylistade — matchningen gissade, och identitet gissas aldrig.
+  **World of Board Games** (egen PHP-butik, Umeå): kategorin `/sallskapsspel/pokemon_tcg/` (40/sida,
+  `/40/`, `/80/`) — ⛔ TOM vid proben: sajtens sök visade 501 Pokémon TCG-produkter, ALLA "Utgått"
+  ("inte troligt att vi får in produkten igen"), ingen 30th på släppdagen. Kategorin visar bara
+  icke-utgångna, så ett släpp syns som NY URL. Knappen dömer: `add-to-cart` Köp ⇒ IN, `preorder.php`
+  Boka ⇒ PREORDER, `gametip.php` Bevaka / `product_status.php` Utgått+Kommande ⇒ OUT. ⛔ Sök-sidan
+  (`/sok/pokemon`, 1,7 MB, 907 kort) används INTE. `/kortspel/pokemon_tcg/` är en dublett som alltid är tom.
+  Mätt vid importen: SF-Bok 21 annonser → 14 offers (5 IN, alla butiksvara); WOBG 0. **Bevakade: 42 → 44,
+  butiker 54 → 56.** Vaktat av `tests/unit/wave9-adapters.test.ts`.
 - **BUTIKS-WAVE 7 = SVANSEN, EN EGEN PLATTFORM PER BUTIK (2026-09-06)**: efter wave 4–6 var varje
   svensk Pokémon-butik på en ÅTERANVÄNDBAR plattform redan inne — det som återstod hade noll hävstång.
   Tre byggda: **Sweet Nerds** (Nyehandel, `nyehandel-adapter.ts`), **Toyspace** (Magento 2,

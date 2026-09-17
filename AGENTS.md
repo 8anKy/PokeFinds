@@ -608,6 +608,7 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   prisstatistiken och prislarmen räknas oförändrat — sponsringen är en PLACERING, inte ett pris.
   ⛔ Bara KÖPBART annonseras (IN_STOCK); pris får saknas ("–"). Domen: `src/lib/sponsored-offer.ts`
   (ren, testad), spak: /admin/butiker → Redigera → "Sponsrad placering t.o.m.".
+- **Wave 9 (2026-09-17): SF-Bok + World of Board Games** på ägarbeslut — SF-Boks Pokémon TCG är BUTIKSVARA (IN_STOCK = finns i fysisk butik, reservera), WOBG:s kategori var TOM (allt "Utgått"); detaljer i `scraping-restock.md`. **56 butiker, 44 bevakade.**
 - **Butikssvansen (wave 7, 2026-09-06 — 54 butiker, 42 bevakade; Blindbox ur bevakningen 2026-09-15 på ägarbeslut, `scripts/retire-store.ts`; Rogerz + Pokexclusive UR LARMEN 2026-09-17 på ägarbeslut men kvar som pris-/lagerkällor — `scripts/set-restock-watch.ts --off`, ruttexport efteråt)**: ✅ Sweet Nerds (Nyehandel),
   Toyspace (Magento 2) och Card Haven (Next.js) är BYGGDA och importerade. Efter wave 4–6 finns ingen
   hävstång kvar — varje återstående butik är sin EGEN plattform, så listan betas en i taget MED
