@@ -92,9 +92,13 @@ describe("notisdefaulterna speglar schema.prisma", () => {
     // en OPT-OUT-spak: saknad i JSON:en ⇒ PÅ, både i parsern och i utskickets
     // `coalesce(..., true)`. Då beter sig gamla och nya konton lika utan migration.
     // En parser-only-nyckel med default `false` hade däremot krävt kolumndefaulten.
+    // Ett VAL (`pushTarget`, 2026-09-17: "cart" | "store" | "foilio") är inte en spak:
+    // kravet är då bara att saknad nyckel ger samma svar som koddefaulten.
     for (const key of Object.keys(NOTIFICATION_DEFAULTS)) {
       if (!(key in fromSchema)) {
-        expect(NOTIFICATION_DEFAULTS[key as keyof typeof NOTIFICATION_DEFAULTS], key).toBe(true);
+        const d = NOTIFICATION_DEFAULTS[key as keyof typeof NOTIFICATION_DEFAULTS];
+        if (typeof d === "boolean") expect(d, key).toBe(true);
+        else expect(parseNotificationSettings({})[key as keyof typeof NOTIFICATION_DEFAULTS], key).toBe(d);
       }
     }
   });

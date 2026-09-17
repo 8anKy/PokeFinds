@@ -1,6 +1,7 @@
 import type { AlertType } from "@prisma/client";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { buyLink } from "@/lib/cart-url";
+import type { PushTarget } from "@/lib/notification-settings";
 
 /**
  * VART EN PUSH-NOTIS SKA LEDA.
@@ -30,10 +31,14 @@ export function pushAlertUrl(input: {
   cartUrl?: string | null;
   /** Förhandsvisningsgrinden (feature-preview.ts). */
   toStore: boolean;
+  /** Användarens val (notificationSettings.pushTarget). Saknas ⇒ "cart". */
+  target?: PushTarget;
 }): string | undefined {
-  const { type, productSlug, listingUrl, storeUrl, cartUrl, toStore } = input;
+  const { type, productSlug, listingUrl, storeUrl, cartUrl, toStore, target = "cart" } = input;
   if (!productSlug) return listingUrl ?? undefined;
   const race = type === "RESTOCK" || type === "NEW_LISTING";
-  if (toStore && race && storeUrl && isDirectOfferUrl(storeUrl)) return buyLink(cartUrl, storeUrl);
+  if (toStore && race && target !== "foilio" && storeUrl && isDirectOfferUrl(storeUrl)) {
+    return target === "cart" ? buyLink(cartUrl, storeUrl) : storeUrl;
+  }
   return `/produkter/${productSlug}`;
 }

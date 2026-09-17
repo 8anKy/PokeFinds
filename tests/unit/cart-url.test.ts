@@ -52,3 +52,28 @@ describe("pushAlertUrl — korgen före butikens produktsida", () => {
     );
   });
 });
+
+describe("pushAlertUrl — användarens val (notificationSettings.pushTarget, 2026-09-17)", () => {
+  const base = {
+    type: "RESTOCK" as const,
+    productSlug: "30th-celebration-elite-trainer-box",
+    listingUrl: null,
+    storeUrl: "https://goblinen.com/products/30th-celebration-etb",
+    cartUrl: "https://goblinen.com/cart/add?id=1&quantity=1",
+    toStore: true,
+  };
+  it("cart (default) ⇒ korgen; utan korglänk ⇒ butikens produktsida", () => {
+    expect(pushAlertUrl({ ...base, target: "cart" })).toBe(base.cartUrl);
+    expect(pushAlertUrl({ ...base })).toBe(base.cartUrl);
+    expect(pushAlertUrl({ ...base, target: "cart", cartUrl: null })).toBe(base.storeUrl);
+  });
+  it("store ⇒ butikens produktsida även när korglänk finns", () => {
+    expect(pushAlertUrl({ ...base, target: "store" })).toBe(base.storeUrl);
+  });
+  it("foilio ⇒ vår produktsida", () => {
+    expect(pushAlertUrl({ ...base, target: "foilio" })).toBe("/produkter/30th-celebration-elite-trainer-box");
+  });
+  it("prislarm går till Foilio oavsett val", () => {
+    expect(pushAlertUrl({ ...base, type: "PRICE_DROP", target: "cart" })).toBe("/produkter/30th-celebration-elite-trainer-box");
+  });
+});

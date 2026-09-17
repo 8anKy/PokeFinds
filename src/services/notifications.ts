@@ -14,7 +14,7 @@ import { previewAllowedFor } from "@/lib/feature-preview";
 import { pushAlertUrl } from "@/lib/push-alert-url";
 // ⛔ Delad läsare (samma defaultvärden som förut: email=true, push=false).
 // Fanns i tre handskrivna kopior — se src/lib/notification-settings.ts.
-import { parseNotificationSettings as parseSettings } from "@/lib/notification-settings";
+import { parseNotificationSettings as parseSettings, type PushTarget } from "@/lib/notification-settings";
 
 const MAX_RETRIES = 3;
 // ⛔ `||`, ALDRIG `??`: en TOM sträng är det verkliga felläget, inte `undefined`. En
@@ -198,6 +198,8 @@ async function sendAlertPush(alert: {
   user?: { role?: string | null; email?: string | null } | null;
   /** Fördröjt gratislarm → raden om Pro läggs sist i notisen. */
   delayNote?: string | null;
+  /** Vart restock-pushen leder (notificationSettings.pushTarget). */
+  target?: PushTarget;
 }): Promise<void> {
   const tokens = await prisma.pushToken.findMany({
     where: { userId: alert.userId },
@@ -240,6 +242,7 @@ async function sendAlertPush(alert: {
     storeUrl: storeOffer?.url ?? null,
     cartUrl: storeOffer?.cartUrl ?? null,
     toStore,
+    target: alert.target,
   });
   const { invalidTokens } = await sendPush(
     tokens.map((t) => t.token),
@@ -280,7 +283,7 @@ export async function dispatchPendingAlerts(): Promise<{ sent: number; failed: n
         await sendMail({ to: alert.user.email, ...mail });
       }
       if (settings.push) {
-        await sendAlertPush({ ...alert, delayNote });
+        await sendAlertPush({ ...alert, delayNote, target: settings.pushTarget });
       }
 
       await prisma.alert.update({

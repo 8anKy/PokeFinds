@@ -61,3 +61,7 @@ paths:
   (`nativeOpensExternalPushUrls`), annars hade butikssidan öppnats två gånger; äldre byggen öppnar som
   förut. ⛔ Android-push är fortfarande AV (ingen FCM) — inget att göra där. `MARKETING_VERSION` = 1.3 i
   codemagic.yaml; kräver nytt Codemagic-bygge + `npx cap sync ios` görs av bygget.
+  **VALET ÄR ANVÄNDARENS sedan samma dag**: `notificationSettings.pushTarget` = `cart` (default) |
+  `store` | `foilio` — raden "Restock-push öppnar" under push i /installningar. Servern väljer URL:en
+  vid utskicket (`pushAlertUrl({ target })`), så valet slår igenom utan app-bygge. Saknad nyckel ⇒ cart
+  (ingen migration; `weekly-digest.test.ts` speglar regeln). Prislarm ⇒ alltid Foilio.

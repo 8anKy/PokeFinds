@@ -16,7 +16,7 @@ import { openPaywallOrNavigate } from "@/lib/paywall";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { Input, Label, FieldError } from "@/components/ui/input";
+import { Input, Label, FieldError, Select } from "@/components/ui/input";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { RestockPausedBanner } from "@/components/features/restock-paused-banner";
 import type { NotificationSettings } from "@/lib/notification-settings";
@@ -229,7 +229,8 @@ export function NotificationsSection({ user }: { user: SettingsUser }) {
     }
   }
 
-  async function toggle(key: keyof NotificationSettings, checked: boolean) {
+  type ToggleKey = { [K in keyof NotificationSettings]: NotificationSettings[K] extends boolean ? K : never }[keyof NotificationSettings];
+  async function toggle(key: ToggleKey, checked: boolean) {
     // Slår man på push i den native appen → be om tillstånd + registrera enheten.
     if (key === "push" && checked) {
       const res = await enablePush();
@@ -245,7 +246,7 @@ export function NotificationsSection({ user }: { user: SettingsUser }) {
     await save({ ...settings, [key]: checked });
   }
 
-  function row(key: keyof NotificationSettings, label: string, hint?: string, indent?: boolean) {
+  function row(key: ToggleKey, label: string, hint?: string, indent?: boolean) {
     return (
       <SettingsRow
         key={key}
@@ -297,6 +298,25 @@ export function NotificationsSection({ user }: { user: SettingsUser }) {
           />
         )}
         {row("push", t("notifPush"), t("notifPushHint"))}
+        {/* Vart restock-pushen leder — servern väljer URL:en vid utskicket, så valet
+            slår igenom utan nytt app-bygge. Prislarm går alltid till Foilio. */}
+        <SettingsRow
+          label={t("notifPushTarget")}
+          hint={t("notifPushTargetHint")}
+          indent
+          control={
+            <Select
+              aria-label={t("notifPushTarget")}
+              value={settings.pushTarget}
+              onChange={(e) => void save({ ...settings, pushTarget: e.target.value as NotificationSettings["pushTarget"] })}
+              className="h-9 w-auto min-w-[168px] text-sm"
+            >
+              <option value="cart">{t("notifPushTargetCart")}</option>
+              <option value="store">{t("notifPushTargetStore")}</option>
+              <option value="foilio">{t("notifPushTargetFoilio")}</option>
+            </Select>
+          }
+        />
       </SettingsSection>
     </div>
   );

@@ -58,6 +58,9 @@ function publicProfile(user: Prisma.UserGetPayload<{ select: typeof profileSelec
 const notificationSettingsSchema = z.object({
   email: z.boolean().optional(),
   push: z.boolean().optional(),
+  // Vart restock-pushen leder (lib/notification-settings.ts). ⛔ Zod strippar okända
+  // nycklar — utan raden hade valet i /installningar varit en tyst no-op.
+  pushTarget: z.enum(["cart", "store", "foilio"]).optional(),
   allRestocks: z.boolean().optional(),
   news: z.boolean().optional(),
   // Veckobrevet. ⛔ Måste stå här — Zod strippar okända nycklar, så en glömd rad

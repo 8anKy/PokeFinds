@@ -19,11 +19,25 @@
  *    `favoriteSetIds()` i user-preferences.ts.
  */
 
+/**
+ * Vart en RESTOCK-push leder när den trycks (ägarbeslut 2026-09-17):
+ *   cart   = varan i butikens korg när butiken har en korglänk (Offer.cartUrl), annars
+ *            butikens produktsida — DEFAULT, det snabbaste sättet att hinna köpa
+ *   store  = butikens produktsida (den som vill läsa "max per kund" först)
+ *   foilio = vår produktsida (jämför butiker först)
+ * Prislarm går ALLTID till Foilio — där är jämförelsen poängen. Servern väljer URL:en
+ * vid utskicket (push-alert-url.ts), så inget nytt app-bygge krävs för spaken.
+ */
+export type PushTarget = "cart" | "store" | "foilio";
+export const PUSH_TARGETS: readonly PushTarget[] = ["cart", "store", "foilio"];
+
 export interface NotificationSettings {
   /** Master-toggle för e-post. Respekteras i dispatchPendingAlerts. */
   email: boolean;
   /** Native push (APNs/FCM). Kräver dessutom en registrerad PushToken. */
   push: boolean;
+  /** Vart restock-pushen leder, se PushTarget. */
+  pushTarget: PushTarget;
   /** Pro-opt-in: restock-larm för VILKEN sealed-produkt som helst. */
   allRestocks: boolean;
   /**
@@ -52,6 +66,7 @@ export interface NotificationSettings {
 export const NOTIFICATION_DEFAULTS: NotificationSettings = {
   email: true,
   push: false,
+  pushTarget: "cart",
   allRestocks: false,
   // Opt-out, inte opt-in: brevet är kontots egen sammanfattning (samlingens
   // värde, dina bevakningar) och inte reklam från tredje part. Speglar
@@ -69,6 +84,9 @@ export function parseNotificationSettings(json: unknown): NotificationSettings {
   return {
     email: typeof o.email === "boolean" ? o.email : NOTIFICATION_DEFAULTS.email,
     push: typeof o.push === "boolean" ? o.push : NOTIFICATION_DEFAULTS.push,
+    pushTarget: PUSH_TARGETS.includes(o.pushTarget as PushTarget)
+      ? (o.pushTarget as PushTarget)
+      : NOTIFICATION_DEFAULTS.pushTarget,
     allRestocks:
       typeof o.allRestocks === "boolean"
         ? o.allRestocks
