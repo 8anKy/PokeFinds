@@ -89,8 +89,9 @@ const config: CapacitorConfig = {
     // var det tidigare en SVART skärm (nätverks-/hydreringsgapet). launchAutoHide:false
     // håller splashen uppe tills webben är redo och själv anropar SplashScreen.hide()
     // (AppBoot) → inget svart gap. Splash-bilden (assets/splash.png) = F-märket
-    // CENTRERAT på mörk yta med grön glöd (byggd ur public/brand/foilio-logo.png,
-    // 5016 px — den gamla var ett 428 px-märke och såg suddigt ut på skärmen).
+    // CENTRERAT på mörk yta med grön glöd, byggd ur VEKTORN public/brand/foilio-mark.svg
+    // med scripts/make-splash.mjs (märket 300 px brett — ägarval 2026-09-17; alla
+    // PNG-märken i repot är rasteruppskalningar och blev suddiga på skärmen).
     // ⛔ INGEN SPINNER (ägarbeslut 2026-09-17): den native-spinnern renderas mitt på
     //    skärmen, dvs rakt över märket. backgroundColor matchar appen så kanterna
     //    inte blinkar.
