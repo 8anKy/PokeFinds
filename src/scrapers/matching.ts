@@ -1054,7 +1054,9 @@ export function seriesMismatch(a: string, b: string): boolean {
  * från olika butiker blir dubblettprodukter.
  */
 const LISTING_TITLE_JUNK: RegExp[] = [
-  /\(?\bmax\.? ?\d+(?: ?st\.?)?\s*(?:\/|per\b)? ?(?:kund|hushåll|person|customer)?!?\)?/gi,
+  // `\d+\.?` — World of Board Games skriver "(Max 1. Per Kund)" med punkt efter talet
+  // (2026-09-17); utan den blev resten ". Per Kund)" kvar i titeln.
+  /\(?\bmax\.? ?\d+\.?(?: ?st\.?)?\s*(?:\/|per\b)? ?(?:kund|hushåll|person|customer)?!?\)?/gi,
   /\(?\bförhandsbok\w*\)?/gi,
   /\(?\bpre-?order\w*\)?/gi,
   /\((?:copy|kopia)(?: \d+)?\)/gi,

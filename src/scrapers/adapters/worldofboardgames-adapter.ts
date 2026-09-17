@@ -23,6 +23,13 @@
  *   `product_status.php?productStatusTypeID=5` "Kommande" (ej beställbar)  ⇒ OUT_OF_STOCK
  *   ingen känd knapp                                                       ⇒ UNKNOWN
  * Paginering: 40 kort/sida, `/{offset}/` (`/40/`, `/80/` …).
+ *
+ * ⛔ BUTIKEN AVPUBLICERAR EFTER SLÄPPET. 30th Celebration ETB såldes här 2026-09-17 och
+ *    var samma eftermiddag borta ur kategorin, söket OCH sitemapen — URL:en renderar en
+ *    generisk listning med produktens <title> kvar. Ett släpp är alltså en URL som finns
+ *    i några timmar. Därför läses ÄVEN `/nya_produkter/` (butikens 40 senast tillagda,
+ *    ~170 kB) varje varv: en ny Pokémon-produkt ligger överst där oavsett hur butiken
+ *    kategoriserat den. Titelfiltret (pokémon/tcg) fäller resten.
  */
 import { StockStatus, SourceType } from "@prisma/client";
 import { politeFetch } from "../http";
@@ -37,6 +44,8 @@ import { guessListingCategory } from "../listing-category";
 
 const BASE_URL = "https://www.worldofboardgames.com";
 const CATEGORY_PATH = "/sallskapsspel/pokemon_tcg/";
+/** Butikens 40 senast tillagda produkter (alla kategorier) — bara första sidan. */
+const NEW_PRODUCTS_PATH = "/nya_produkter/";
 const PAGE_SIZE = 40;
 const MAX_PAGES = 10;
 const PAGE_DELAY_MS = 1500;
@@ -134,7 +143,35 @@ export class WorldOfBoardGamesAdapter implements SourceAdapter {
     const products: RawProductData[] = [];
     const errors: string[] = [];
     const seen = new Set<string>();
+    const push = (item: WobgItem) => {
+      if (seen.has(item.url)) return false;
+      seen.add(item.url);
+      if (!/pok[eé]mon/i.test(item.title) && !/tcg/i.test(item.title)) return false;
+      const raw: WobgRaw = { priceOre: item.priceOre, stock: item.stock, button: item.button, url: item.url, itemId: item.itemId };
+      products.push({
+        externalId: item.itemId ? `wobg-${item.itemId}` : `wobg-${Buffer.from(item.url).toString("base64url").slice(0, 40)}`,
+        title: item.title,
+        url: item.url,
+        price: item.priceOre,
+        currency: "SEK",
+        stockStatus: STATUS_BY_STOCK[item.stock],
+        imageUrl: item.imageUrl,
+        category: guessListingCategory(item.title),
+        raw,
+      });
+      return true;
+    };
 
+    // 1. Nya produkter (första sidan) — se filhuvudet om varför den läses först.
+    try {
+      const res = await politeFetch(`${BASE_URL}${NEW_PRODUCTS_PATH}`, { delayMs: PAGE_DELAY_MS });
+      if (res.ok) for (const item of parseWobgListing(await res.text())) push(item);
+      else errors.push(`${this.name}: HTTP ${res.status} ${BASE_URL}${NEW_PRODUCTS_PATH}`);
+    } catch (err) {
+      errors.push(`${this.name}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // 2. Pokémon-kategorin, paginerad.
     for (let page = 0; page < MAX_PAGES; page++) {
       const url = `${BASE_URL}${CATEGORY_PATH}${page > 0 ? `${page * PAGE_SIZE}/` : ""}`;
       let html: string;
@@ -159,24 +196,7 @@ export class WorldOfBoardGamesAdapter implements SourceAdapter {
         break;
       }
       let added = 0;
-      for (const item of items) {
-        if (seen.has(item.url)) continue;
-        seen.add(item.url);
-        if (!/pok[eé]mon/i.test(item.title) && !/tcg/i.test(item.title)) continue;
-        added++;
-        const raw: WobgRaw = { priceOre: item.priceOre, stock: item.stock, button: item.button, url: item.url, itemId: item.itemId };
-        products.push({
-          externalId: item.itemId ? `wobg-${item.itemId}` : `wobg-${Buffer.from(item.url).toString("base64url").slice(0, 40)}`,
-          title: item.title,
-          url: item.url,
-          price: item.priceOre,
-          currency: "SEK",
-          stockStatus: STATUS_BY_STOCK[item.stock],
-          imageUrl: item.imageUrl,
-          category: guessListingCategory(item.title),
-          raw,
-        });
-      }
+      for (const item of items) if (push(item)) added++;
       if (added === 0 || items.length < PAGE_SIZE) break;
     }
     return { products, errors };

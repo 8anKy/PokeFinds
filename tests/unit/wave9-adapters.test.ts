@@ -110,6 +110,13 @@ describe("parseWobgListing", () => {
     expect(items[2]).toMatchObject({ stock: "preorder", itemId: "62903" });
   });
 
+  it("30th-ETB:n som fanns 2026-09-17 (Max 1. Per Kund) läses som i lager", () => {
+    const html = card("Pokémon TCG: 30th Celebration - Elite Trainer Box (Max 1. Per Kund)", "pokemon-tcg-30th-celebration-elite-trainer-box-max-1-per-kund", "899", BTN_BUY);
+    const [item] = parseWobgListing(html);
+    expect(item).toMatchObject({ stock: "in", priceOre: 89900 });
+    expect(item.title).toBe("Pokémon TCG: 30th Celebration - Elite Trainer Box (Max 1. Per Kund)");
+  });
+
   it("tom kategori ('inga träffar') ger noll kort utan att kasta", () => {
     expect(parseWobgListing(`<div class="grid-item">Ditt urval/din sökning gav tyvärr inga träffar.</div>`)).toEqual([]);
   });
