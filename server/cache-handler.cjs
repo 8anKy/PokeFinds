@@ -76,7 +76,7 @@ const crypto = require("node:crypto");
 // "11" (2026-09-15): RaukCard-märket bort (var Traderas ordmärke).
 // "12" (2026-09-15): RaukCards riktiga emblem.
 // "13" (2026-09-16): eBay-sålt som egen källa i badge-arket och grafen (`soldEbay` i payloaden).
-const PAGE_EPOCH = "13";
+const PAGE_EPOCH = "14";
 const STORE_VERSION = "v1";
 /** Sidor äldre än så rensas oavsett TTL (ISR-TTL:en för produktsidor är 30 d). */
 const PAGE_MAX_AGE_MS = 35 * 24 * 3600 * 1000;

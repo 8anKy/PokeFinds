@@ -19,6 +19,8 @@ import { ProductActions } from "@/components/features/product-actions";
 import { ProductRestockHistory } from "@/components/features/restock-history";
 import { CopyOnHoldTitle } from "@/components/features/copy-on-hold-title";
 import { traderaSearchUrlSpecific } from "@/lib/marketplace-urls";
+import { getSharedSession } from "@/lib/client-session";
+import { hasAuthHint } from "@/lib/auth-hint";
 import {
   LivePricingProvider,
   LivePricePanel,
@@ -80,6 +82,7 @@ function shellToDetail(shell: ProductShellData): ProductDetailData {
     traderaListings: [],
     // Skal-läget vet inget om graderade affärer — tom, aldrig påhittad.
     gradedSales: { windowDays: 365, totalSales: 0, rows: [], asks: [], history: [] },
+    gradedTeaser: [],
   };
 }
 
@@ -147,6 +150,32 @@ export function ProductDetailView({
       alive = false;
     };
   }, [dataProp, shell]);
+
+  // PRO-GRINDEN FÖR GRADERAT (2026-09-17): payloaden bär inga graderade tal.
+  // Planen läses klient-sida (sidan ISR-cachas); Pro hämtar talen ur den
+  // plangrindade routen och de läggs in i `live`. Utloggad = inte Pro.
+  const [isPro, setIsPro] = useState(false);
+  useEffect(() => {
+    if (!hasAuthHint()) return;
+    void getSharedSession().then((s) => setIsPro(!!s?.user?.isPro));
+  }, []);
+  useEffect(() => {
+    if (!isPro || !slug || !live) return;
+    if (live.gradedSales.rows.length + live.gradedSales.asks.length > 0) return; // redan hämtat
+    let alive = true;
+    fetch(`/api/products/${slug}/graded`)
+      .then((r) => (r.ok ? (r.json() as Promise<ProductDetailData["gradedSales"]>) : null))
+      .then((g) => {
+        if (alive && g) setLive((prev) => (prev && prev.slug === slug ? { ...prev, gradedSales: g } : prev));
+      })
+      .catch(() => {
+        /* karusellen står låst/tom — aldrig ett påhittat pris */
+      });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPro, slug, live?.slug]);
 
   // Engagemang: en produktvy per klientmontering (både SSR-sidan och overlayn
   // renderar den här komponenten → immunt mot ISR-cachen). Fire-and-forget.
@@ -404,6 +433,8 @@ export function ProductDetailView({
                   <ErrorBoundary name="graded-carousel">
                     <GradedCarousel
                       graded={data.gradedSales}
+                      teaser={data.gradedTeaser ?? []}
+                      isPro={isPro}
                       rawPriceOre={data.stats.lowestPrice}
                       selected={gradedSel}
                       onSelect={setGradedSel}

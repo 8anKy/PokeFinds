@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { formatPrice } from "@/lib/format";
-import { getSharedSession } from "@/lib/client-session";
-import { hasAuthHint } from "@/lib/auth-hint";
 import { openPaywallOrNavigate } from "@/lib/paywall";
 import { ISSUER_LABELS, formatGrade, type GradingIssuer } from "@/lib/graded-listing";
 import { buildGradedCards, defaultGrade, type GradedGradeCell, type GradedIssuerCard } from "@/lib/graded-merge";
@@ -37,11 +35,17 @@ export interface GradedSelection {
  */
 export function GradedCarousel({
   graded,
+  teaser,
+  isPro,
   rawPriceOre,
   selected,
   onSelect,
 }: {
+  /** Pro: hela sammanställningen (hämtad ur den plangrindade routen). Annars tom. */
   graded: GradedSummary | undefined;
+  /** Vilka (bolag, betyg) som finns — utan tal. Den låsta karusellen ritas ur den. */
+  teaser: { issuer: string; gradeTenths: number }[];
+  isPro: boolean;
   /** Prislistans pris (lägsta köpbara) för "Ograderad"-badgen; null = "–". */
   rawPriceOre: number | null;
   selected: GradedSelection | null;
@@ -53,19 +57,49 @@ export function GradedCarousel({
     () => buildGradedCards(graded?.asks ?? [], graded?.rows ?? [], graded?.history ?? []),
     [graded]
   );
-  // GRADERADE PRISER ÄR PRO (ägarbeslut 2026-09-17). Sidan ISR-cachas ⇒ planen
-  // läses klient-sida, som i prishistorikkortet. Utloggad = inte Pro. Låst badge
-  // VÄLJER INGENTING — den säljer (samma regel som Tradera-chippet i grafen).
-  const [isPro, setIsPro] = useState(false);
-  useEffect(() => {
-    if (!hasAuthHint()) return;
-    void getSharedSession().then((s) => setIsPro(!!s?.user?.isPro));
-  }, []);
+  // GRADERADE PRISER ÄR PRO (ägarbeslut 2026-09-17). Talen finns bara hos Pro
+  // (payloaden bär en teaser utan pris); en låst badge VÄLJER INGENTING — den
+  // säljer (samma regel som Tradera-chippet i grafen).
   const sell = () => openPaywallOrNavigate(router, { source: "graded" });
   // Aktivt betyg per bolag — badgen minns sitt betyg även när ett annat bolag är
   // valt i grafen.
   const [active, setActive] = useState<Record<string, number>>({});
   const [sheetFor, setSheetFor] = useState<GradedIssuerCard | null>(null);
+  if (!isPro) {
+    if (teaser.length === 0) return null;
+    return (
+      <div className="mt-4">
+        <div
+          data-swipe-ignore
+          className="-mx-2.5 flex snap-x gap-2 overflow-x-auto px-2.5 pb-1 lg:mx-0 lg:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          role="group"
+          aria-label={t("gradedPricesTitle")}
+        >
+          <Badge selected={selected === null} onClick={() => onSelect(null)}>
+            <span className="text-[11px] font-semibold text-ink">{t("gradedRawCard")}</span>
+            <span className="text-sm font-semibold tabular-nums text-ink">
+              {rawPriceOre != null ? formatPrice(rawPriceOre) : "–"}
+            </span>
+          </Badge>
+          {teaser.map((tz) => (
+            <Badge key={tz.issuer} selected={false} onClick={sell} title={t("gradedProOnly")}>
+              <span className="flex items-center gap-1.5">
+                <IssuerMark issuer={tz.issuer as GradingIssuer} />
+                <span className="rounded-md border border-surface-border bg-surface-overlay px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-ink">
+                  {formatGrade(tz.gradeTenths)}
+                </span>
+              </span>
+              <span className="flex items-center gap-1 text-sm font-semibold text-holo-cyan">
+                <IconLock size={13} />
+                Pro
+              </span>
+            </Badge>
+          ))}
+        </div>
+        <p className="mt-1.5 text-[11px] text-ink-faint">{t("gradedProHint")}</p>
+      </div>
+    );
+  }
   if (cards.length === 0) return null;
 
   const gradeOf = (card: GradedIssuerCard) => active[card.issuer] ?? defaultGrade(card);
@@ -92,24 +126,6 @@ export function GradedCarousel({
         {cards.map((card) => {
           const cell = cellOf(card);
           const isSel = selected?.issuer === card.issuer && selected.gradeTenths === cell.gradeTenths;
-          if (!isPro) {
-            // Låst: bolaget och betyget syns (det FINNS data), priset ersätts av
-            // låset och trycket går till paywallen. Inget betygsark.
-            return (
-              <Badge key={card.issuer} selected={false} onClick={sell} title={t("gradedProOnly")}>
-                <span className="flex items-center gap-1.5">
-                  <IssuerMark issuer={card.issuer} />
-                  <span className="rounded-md border border-surface-border bg-surface-overlay px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-ink">
-                    {formatGrade(cell.gradeTenths)}
-                  </span>
-                </span>
-                <span className="flex items-center gap-1 text-sm font-semibold text-holo-cyan">
-                  <IconLock size={13} />
-                  Pro
-                </span>
-              </Badge>
-            );
-          }
           return (
             <Badge
               key={card.issuer}
@@ -137,7 +153,7 @@ export function GradedCarousel({
           );
         })}
       </div>
-      <p className="mt-1.5 text-[11px] text-ink-faint">{isPro ? t("gradedCarouselHint") : t("gradedProHint")}</p>
+      <p className="mt-1.5 text-[11px] text-ink-faint">{t("gradedCarouselHint")}</p>
 
       {/* Arket: bolagets alla betyg, båda källorna per rad. */}
       <BottomSheet

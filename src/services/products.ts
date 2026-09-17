@@ -14,6 +14,7 @@ import { favoriteSetIds } from "@/lib/user-preferences";
 import { NOT_HIDDEN, NOT_HIDDEN_SQL } from "@/lib/product-visibility";
 import { getTrendingLift } from "@/services/market";
 import { getGradedSummary, type GradedSummary } from "@/services/graded";
+import { buildGradedCards, defaultGrade } from "@/lib/graded-merge";
 import {
   bestMatchScore,
   EMPTY_PERSONAL,
@@ -1416,8 +1417,15 @@ export interface ProductDetailData {
    * GRADERADE FÖRSÄLJNINGAR — en EGEN serie, aldrig sammanblandad med den
    * ograderade. En PSA 10 är en annan vara än det lösa kortet. Tomma `rows` →
    * blocket visas inte alls (serien byggs framåt och börjar tom).
+   *
+   * ⛔ PRO SEDAN 2026-09-17: den här payloaden är delad (ISR/cachad för alla), så
+   * den bär ALDRIG graderade priser — bara `gradedTeaser` (vilka bolag/betyg som
+   * FINNS, utan tal) för den låsta karusellen. Priserna hämtas av Pro-klienten ur
+   * `/api/products/[slug]/graded`, som kontrollerar planen. Fältet står kvar TOMT
+   * så äldre bundlar (`?? []`) inte kraschar.
    */
   gradedSales: GradedSummary;
+  gradedTeaser: { issuer: string; gradeTenths: number }[];
 }
 
 interface LiveOfferStats {
@@ -1669,9 +1677,36 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
     similar,
     variants,
     traderaListings,
-    gradedSales,
+    // Pro-grinden: inga graderade tal i den delade payloaden (se typen).
+    gradedSales: EMPTY_GRADED,
+    gradedTeaser: gradedTeaserOf(gradedSales),
   };
 }
+
+const EMPTY_GRADED: GradedSummary = { windowDays: 365, totalSales: 0, rows: [], asks: [], history: [] };
+
+/** Vilka (bolag, betyg) som finns — utan ett enda pris. Bolagets förvalda betyg, som karusellen. */
+function gradedTeaserOf(summary: GradedSummary): { issuer: string; gradeTenths: number }[] {
+  return buildGradedCards(summary.asks ?? [], summary.rows ?? [], summary.history ?? []).map((card) => ({
+    issuer: card.issuer,
+    gradeTenths: defaultGrade(card),
+  }));
+}
+
+/**
+ * Graderade priser för Pro (routen `/api/products/[slug]/graded` kontrollerar
+ * planen FÖRE anropet). Samma cache-tagg och TTL som detaljen ⇒ delad post,
+ * ingen extra Neon-väckning utöver det detaljen redan kostar.
+ */
+export const loadGradedForSlug = cachedReadTagged(
+  async (slug: string): Promise<GradedSummary | null> => {
+    const product = await prisma.product.findUnique({ where: { slug }, select: { id: true } });
+    if (!product) return null;
+    return getGradedSummary(product.id);
+  },
+  "loadGradedForSlug",
+  productCacheTag
+);
 
 /**
  * PRODUKTSIDANS SKAL — allt som INTE är pris (2026-08-29).
