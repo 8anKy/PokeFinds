@@ -20,6 +20,7 @@ import type {
   RawProductData,
   SourceAdapter,
 } from "../types";
+import { quickbutikCartUrl } from "@/lib/cart-url";
 import { guessListingCategory } from "../listing-category";
 
 const MAX_CATEGORIES = 24;
@@ -163,6 +164,8 @@ interface QbRaw {
   priceOre: number;
   url: string;
   inStock: boolean;
+  /** Quickbutiks produkt-id (`data-pid`) — nyckeln till korglänken (src/lib/cart-url.ts). */
+  pid?: string;
 }
 function isQbRaw(raw: unknown): raw is QbRaw {
   return typeof raw === "object" && raw !== null && "priceOre" in raw && "inStock" in raw;
@@ -248,6 +251,8 @@ export abstract class QuickbutikAdapter implements SourceAdapter {
     const dblocks = html.split(/data-pid="/);
     for (let i = 1; i < dblocks.length; i++) {
       const block = dblocks[i].slice(0, 6000);
+      // Blocket börjar med själva id:t: `data-pid="` + `1326"` → korglänkens product_id.
+      const pid = block.match(/^(\d+)"/)?.[1];
       const priceM = block.match(/data-s-price="([0-9]+(?:\.[0-9]+)?)"/);
       const titleM = block.match(/data-s-title="([^"]+)"/);
       if (!priceM || !titleM) continue;
@@ -256,7 +261,7 @@ export abstract class QuickbutikAdapter implements SourceAdapter {
       const href = productHrefInBlock(block);
       if (!href) continue;
       const title = titleM[1].replace(/&amp;/g, "&").replace(/&[a-z]+;/g, " ").replace(/\s+/g, " ").trim();
-      byData.push({ title, priceOre, url: `${this.baseUrl}${href}`, inStock: qbBlockStock(block).buyable });
+      byData.push({ title, priceOre, url: `${this.baseUrl}${href}`, inStock: qbBlockStock(block).buyable, pid });
     }
     if (byData.length > 0) return byData;
 
@@ -339,6 +344,7 @@ export abstract class QuickbutikAdapter implements SourceAdapter {
               price: item.priceOre,
               currency: "SEK",
               stockStatus: item.inStock ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
+              cartUrl: item.pid ? quickbutikCartUrl(this.baseUrl, item.pid) : null,
               category: guessListingCategory(item.title),
               raw: item,
             });

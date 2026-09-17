@@ -30,6 +30,7 @@ import type {
   RawProductData,
   SourceAdapter,
 } from "../types";
+import { nordiskCartUrl } from "@/lib/cart-url";
 import { guessListingCategory } from "../listing-category";
 
 const MAX_PAGES = 10; // ~597 pokemon-artiklar / 60 per sida → täcker hela kategorin
@@ -154,6 +155,9 @@ export class MaxGamingAdapter implements SourceAdapter {
             price: item.priceOre,
             currency: "SEK",
             stockStatus: STATUS_BY_STOCK[item.stock ?? (item.inStock ? "in" : "out")],
+            // Korgen tar bara POST hos Nordisk e-handel ⇒ länken går via vår brygga
+            // (/api/go/korg). Samma `artnr` som externalId; saknas det finns ingen länk.
+            cartUrl: nordiskCartUrl(this.baseUrl, item.artnr),
             category: guessListingCategory(item.title),
             raw: item,
           });

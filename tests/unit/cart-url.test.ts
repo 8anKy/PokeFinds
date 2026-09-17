@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { shopifyCartUrl, wooCartUrl, buyLink } from "../../src/lib/cart-url";
+import { shopifyCartUrl, wooCartUrl, quickbutikCartUrl, nordiskCartUrl, nordiskCartForm, buyLink } from "../../src/lib/cart-url";
 import { pushAlertUrl } from "../../src/lib/push-alert-url";
 
 describe("cart-url — lägg-i-korgen-länkar (ägarbeslut 2026-09-17)", () => {
@@ -19,6 +19,40 @@ describe("cart-url — lägg-i-korgen-länkar (ägarbeslut 2026-09-17)", () => {
     expect(wooCartUrl("https://fantasianorth.se", 4711, "simple")).toBe("https://fantasianorth.se/?add-to-cart=4711");
     expect(wooCartUrl("https://fantasianorth.se", 4711, undefined)).toBe("https://fantasianorth.se/?add-to-cart=4711");
     expect(wooCartUrl("https://fantasianorth.se", 4711, "variable")).toBeNull();
+  });
+
+  it("Quickbutik: /cart/add?product_id=<pid>&qty=1 — probat Mystery Shack 2026-09-18 (302 → /cart/index)", () => {
+    expect(quickbutikCartUrl("https://mysteryshack.se", "1326")).toBe("https://mysteryshack.se/cart/add?product_id=1326&qty=1");
+    expect(quickbutikCartUrl("https://www.swepoke.se/", 8134)).toBe("https://www.swepoke.se/cart/add?product_id=8134&qty=1");
+    expect(quickbutikCartUrl("https://mysteryshack.se", "")).toBeNull();
+    expect(quickbutikCartUrl("https://mysteryshack.se", "12a")).toBeNull();
+  });
+
+  it("Nordisk e-handel: korgen tar bara POST ⇒ länken går via bryggan /api/go/korg", () => {
+    expect(nordiskCartUrl("https://www.maxgaming.se", "41363")).toBe(
+      "https://foilio.se/api/go/korg?shop=www.maxgaming.se&artnr=41363"
+    );
+    expect(nordiskCartUrl("https://www.spelexperten.com", "HABG7161681")).toBe(
+      "https://foilio.se/api/go/korg?shop=www.spelexperten.com&artnr=HABG7161681"
+    );
+    expect(nordiskCartUrl("https://www.maxgaming.se", undefined)).toBeNull();
+    expect(nordiskCartUrl("https://www.maxgaming.se", "41363 or 1=1")).toBeNull();
+    // ⛔ allowlist — en butik som inte är Nordisk e-handel får aldrig en bryggelänk
+    expect(nordiskCartUrl("https://goblinen.com", "41363")).toBeNull();
+    expect(nordiskCartUrl("not a url", "41363")).toBeNull();
+  });
+
+  it("nordiskCartForm: fälten browsern skickar (funk=laggtill, artnr, altnr=artnr, antal=1) — probat 2026-09-18", () => {
+    expect(nordiskCartForm("www.maxgaming.se", "40749")).toEqual({
+      action: "https://www.maxgaming.se/shop",
+      shopName: "MaxGaming",
+      fields: { funk: "laggtill", artnr: "40749", altnr: "40749", antal: "1" },
+    });
+    expect(nordiskCartForm("WWW.MAXGAMING.SE", "40749")?.action).toBe("https://www.maxgaming.se/shop");
+    // ⛔ främmande host eller skräp-artnr ⇒ null ⇒ 400, aldrig ett formulär mot en okänd sajt
+    expect(nordiskCartForm("evil.example", "1")).toBeNull();
+    expect(nordiskCartForm("www.maxgaming.se", '"><script>')).toBeNull();
+    expect(nordiskCartForm(null, null)).toBeNull();
   });
 
   it("buyLink: korgen när den finns, annars produktsidan", () => {
