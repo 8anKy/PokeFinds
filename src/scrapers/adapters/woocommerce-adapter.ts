@@ -26,6 +26,7 @@
  */
 import { StockStatus, SourceType } from "@prisma/client";
 import { politeFetch } from "../http";
+import { wooCartUrl } from "../../lib/cart-url";
 import { normalizeTitle } from "../../lib/utils";
 import type {
   AdapterResult,
@@ -47,6 +48,8 @@ interface WooPrices {
 interface WooProduct {
   id: number;
   name: string;
+  /** Store API v1: "simple" | "variable" | … — bara enkla får en korglänk. */
+  type?: string;
   permalink: string;
   sku?: string;
   prices?: WooPrices;
@@ -166,6 +169,7 @@ export abstract class WooCommerceAdapter implements SourceAdapter {
         price: priceOre,
         currency: "SEK",
         stockStatus: p.is_in_stock ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
+        cartUrl: wooCartUrl(this.baseUrl, p.id, p.type),
         imageUrl: p.images?.[0]?.src,
         category: guessListingCategory(p.name),
         raw: { productId: p.id, priceOre, available: !!p.is_in_stock, sku: p.sku } satisfies WooRaw,

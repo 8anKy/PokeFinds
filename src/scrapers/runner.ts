@@ -352,6 +352,8 @@ export type FeedItem = {
   price: number | null;
   imageUrl: string | null;
   category: string | null;
+  /** Lägg-i-korgen-länk (Shopify/Woo), se src/lib/cart-url.ts. null = ingen. */
+  cartUrl?: string | null;
 };
 
 /**
@@ -716,7 +718,7 @@ async function rememberListingProduct(
  * bevisad felaktig butikslänk, hittad med ren SQL utan en enda LLM-token.
  */
 async function upsertListingOffer(
-  it: { title: string; url: string; price: number | null; retailerId: string; category?: string | null },
+  it: { title: string; url: string; price: number | null; retailerId: string; category?: string | null; cartUrl?: string | null },
   productId: string,
   stockStatus: StockStatus,
   gtin: string | null
@@ -736,7 +738,7 @@ async function upsertListingOffer(
   });
   if (!existing) {
     await prisma.offer.create({
-      data: { productId, retailerId: it.retailerId, condition: "SEALED", language: offerLanguage, price, currency: "SEK", stockStatus, url: it.url, gtin },
+      data: { productId, retailerId: it.retailerId, condition: "SEALED", language: offerLanguage, price, currency: "SEK", stockStatus, url: it.url, cartUrl: it.cartUrl ?? null, gtin },
     });
     return;
   }
@@ -842,6 +844,7 @@ export async function fetchSourceFeed(source: RestockSourceInfo): Promise<FeedIt
           price: n.offerPrice ?? n.price ?? null,
           imageUrl: n.imageUrl ?? p.imageUrl ?? null,
           category: n.category ?? null,
+          cartUrl: p.cartUrl ?? null,
         };
       });
   } catch (err) {
@@ -1767,6 +1770,7 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
               currency: normalized.currency,
               stockStatus: normalized.stockStatus,
               url: urlToStore,
+              cartUrl: rawProduct.cartUrl ?? null,
               lastSeenAt: new Date(),
             },
             create: {
@@ -1778,6 +1782,7 @@ export async function runScrapeJob(sourceId: string, maps?: CatalogMaps): Promis
               currency: normalized.currency,
               stockStatus: normalized.stockStatus,
               url: urlToStore,
+              cartUrl: rawProduct.cartUrl ?? null,
             },
           });
           urlOwner.set(urlToStore, productId); // vakten ska se även denna körnings nya länkar

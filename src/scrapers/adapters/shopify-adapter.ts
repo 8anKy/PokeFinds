@@ -14,6 +14,7 @@
  */
 import { StockStatus, SourceType } from "@prisma/client";
 import { politeFetch } from "../http";
+import { shopifyCartUrl } from "../../lib/cart-url";
 import { normalizeTitle } from "../../lib/utils";
 import { characterNames, isAccessoryListing } from "../matching";
 import { guessListingCategory } from "../listing-category";
@@ -369,6 +370,7 @@ export abstract class ShopifyAdapter implements SourceAdapter {
         if (this.dropTitles?.test(title)) continue;
         out.push({
           externalId: `${this.idPrefix}-${p.id}-${v.id}`,
+          cartUrl: shopifyCartUrl(this.baseUrl, v.id),
           title,
           url: variantUrl(this.baseUrl, p.handle, v.id),
           price: knownPrice(priceOre),
@@ -394,9 +396,16 @@ export abstract class ShopifyAdapter implements SourceAdapter {
       .filter((ore): ore is number => ore !== null);
     const priceOre = known.length ? Math.min(...known) : null;
     const rawData: ShopifyRaw = { productId: p.id, available: anyAvailable, priceOre };
+    // Korglänken pekar på den variant priset kom ifrån (billigaste köpbara), annars
+    // den första köpbara, annars den första — samma val som produktsidan gör själv.
+    const cartVariant =
+      (pool.length ? pool : variants).find((v) => knownPrice(parsePriceOre(v.price)) === priceOre) ??
+      pool[0] ??
+      variants[0];
     return [
       {
         externalId: `${this.idPrefix}-${p.id}`,
+        cartUrl: cartVariant ? shopifyCartUrl(this.baseUrl, cartVariant.id) : null,
         title: p.title.trim(),
         url: `${this.baseUrl}/products/${p.handle}`,
         price: priceOre,

@@ -72,6 +72,8 @@ export interface FeedItemFull {
   imageUrl: string | null;
   /** Adapterns formgissning (`guessListingCategory`). Vägs in av vaktkedjan. */
   category?: string | null;
+  /** Lägg-i-korgen-länk (src/lib/cart-url.ts) — följer med inlägget och hiten. */
+  cartUrl?: string | null;
 }
 
 export interface FullFeedGroup {
@@ -643,6 +645,7 @@ function buildPostBase(args: {
     title: route?.title || verdict.title || item.title,
     storeName: sourceName,
     storeUrl: item.url,
+    cartUrl: item.cartUrl ?? null,
     priceOre: item.price,
     // Butikens egen bild först (den visar exakt varan), katalogbilden som reserv —
     // de flesta feedar bär ingen bild alls och embedden stod bildlös.

@@ -21,6 +21,7 @@
  * en artighet.
  */
 import { discordFetch } from "@/lib/discord";
+import { buyLink } from "@/lib/cart-url";
 import { formatPercent, formatPrice } from "@/lib/format";
 
 /** Turkos signaturaccent (`holo.cyan` = #2dd4bf) som heltal, för embed-kanten. */
@@ -194,6 +195,12 @@ export interface RestockPost {
   storeName: string;
   /** Butikens produktsida — alltid känd, det är den man ska klicka på. */
   storeUrl: string;
+  /**
+   * Lägg-i-korgen-länk (Shopify/Woo, src/lib/cart-url.ts). Embeddens titel-länk går
+   * HIT när den finns — restock är ett lopp, och ett klick ska lämna läsaren med varan
+   * i korgen (ägarbeslut 2026-09-17). null = butikens produktsida som förut.
+   */
+  cartUrl?: string | null;
   priceOre: number | null;
   imageUrl: string | null;
   setName: string | null;
@@ -288,7 +295,7 @@ export function buildRestockEmbed(post: RestockPost) {
 
   return {
     title: clamp(priceDrop ? `Nytt lägre pris — ${post.title}` : post.title, MAX_TITLE),
-    url: post.storeUrl,
+    url: buyLink(post.cartUrl, post.storeUrl),
     description: priceDrop
       ? `Sänkt från ${formatPrice(post.previousPriceOre)} till ${formatPrice(post.priceOre)} ` +
         `(${formatPercent(-priceDrop.percent)}).`

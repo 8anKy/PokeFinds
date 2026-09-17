@@ -255,6 +255,9 @@ export async function applyRestockHits(hits: readonly RestockHit[]): Promise<Res
           lastSeenAt: now,
           // Feedpriset är en AVLÄSNING vi ändå har; null = "vet inte" → rör inte.
           ...(hit.priceOre != null ? { price: hit.priceOre } : {}),
+          // Korglänken följer med hiten så pushen/mejlet (dispatch EFTER loopen) får den
+          // även för en offer nattkedjan inte hunnit skriva. null = rör inte.
+          ...(hit.cartUrl ? { cartUrl: hit.cartUrl } : {}),
         },
       });
     }

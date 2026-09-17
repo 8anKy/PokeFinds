@@ -747,6 +747,9 @@ model Offer {
   // Två offers på samma produkt med OLIKA gtin = bevisad felaktig butikslänk
   // (ren SQL-detektor, noll LLM). null = butiken publicerar ingen kod (normalt).
   gtin          String?
+  // Lägg-i-korgen-länk (Shopify/Woo) — skrivs av samma jobb som `url`, se src/lib/cart-url.ts.
+  // null = butiken har ingen (larmet länkar till produktsidan som förut).
+  cartUrl       String?
   shippingPrice Int?
   condition     CardCondition @default(SEALED)
   language      CardLanguage  @default(EN)

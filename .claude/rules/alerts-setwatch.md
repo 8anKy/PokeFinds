@@ -40,3 +40,15 @@ paths:
   Knapp i setsidans rubrikrad + "Bevakade set" på /bevakningar (utan den listan är bevakningen osynlig och går inte att
   stänga av). ⛔ Setsidan förblir ISR: plan och tillstånd läses KLIENT-sida bakom `fo_auth`-hinten, och bevakade set-id:n
   hämtas EN gång per sida via `src/lib/watched-sets.ts` — en fetch per kort hade blivit 20-40 Neon-väckningar per vy.
+
+- **KORGEN FÖRE PRODUKTSIDAN (ägarbeslut 2026-09-17)**: restock-push, Discord-embeddens länk och
+  restock-mejlets knapp går till en LÄGG-I-KORGEN-länk när butiken har en (`Offer.cartUrl`,
+  `src/lib/cart-url.ts`): Shopify `/cart/add?id=<variant>&quantity=1` (probat 27/27 butiker → 302 /cart),
+  WooCommerce `/?add-to-cart=<id>` (bara `type: simple`; verifierat "lagts i din varukorg" hos Fantasia
+  North). Alla andra plattformar (Alphaspel, Webhallen, Quickbutik, SF-Bok…) har ingen GET-länk ⇒
+  produktsidan som förut. ⛔ Adaptern sätter `cartUrl` ur feedens variant-/produkt-id — aldrig ur en
+  URL-gissning; kvantiteten är alltid 1. Länken skrivs av nattkedjans upsert, feed-först-vägen OCH
+  larm-hiten (så pushen får den innan nattkedjan hunnit). Prislarm går fortfarande till VÅR produktsida.
+  Ägaren är medveten om att länken hoppar över "max N per kund"-texten. Vaktat av `tests/unit/cart-url.test.ts`.
+  ⏭️ Steg 2 (kräver nytt native-bygge): notistrycket ska öppna länken DIREKT ur native-hanteraren utan
+  att Foilios WebView bootar (dagens "laddningsskärm").

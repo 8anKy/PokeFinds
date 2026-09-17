@@ -37,6 +37,8 @@ export const restockHitSchema = z.object({
   kind: z.enum(["RESTOCK", "PRICE_DROP"]).default("RESTOCK"),
   storeName: z.string().min(1).max(120),
   storeUrl: z.string().url().max(2000),
+  /** Lägg-i-korgen-länk (src/lib/cart-url.ts) — skrivs på offern så pushen/mejlet får den. */
+  cartUrl: z.string().url().max(2000).nullable().default(null),
   /**
    * Vår produkt (ruttabellen). null = ORUTTAD (2026-09-16): en URL lanen aldrig sett
    * en rutt för — typiskt ett SLÄPP. Appen matchar då `title` mot katalogen med
@@ -110,6 +112,7 @@ export function hitsFromPosts(posts: readonly RestockPost[], now: Date): Restock
       key: p.key,
       storeName: p.storeName,
       storeUrl: p.storeUrl,
+      cartUrl: p.cartUrl ?? null,
       productSlug: p.productSlug ?? null,
       title: routed ? null : p.title,
       priceOre: p.priceOre,

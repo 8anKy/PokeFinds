@@ -83,6 +83,7 @@ function hit(over: Partial<RestockHit> = {}): RestockHit {
     kind: "RESTOCK",
     storeName: "Rogerz",
     storeUrl: "https://rogerz.se/p/pitch-black-etb",
+    cartUrl: null,
     productSlug: "pitch-black-etb",
     title: null,
     priceOre: 64900,

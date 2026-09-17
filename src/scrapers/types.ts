@@ -37,6 +37,11 @@ export interface RawProductData {
   stockStatus: StockStatus;
   imageUrl?: string;
   category?: string;
+  /**
+   * Lägg-i-korgen-länk när butikens plattform har en (Shopify, WooCommerce) — se
+   * src/lib/cart-url.ts. Adaptern sätter den, aldrig en URL-gissning. Saknas → null.
+   */
+  cartUrl?: string | null;
   /** Oförändrad rådata från källan — lagras i PriceObservation.rawData. */
   raw: unknown;
 }
