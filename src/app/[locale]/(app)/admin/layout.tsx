@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth, hasRole } from "@/lib/auth";
 import { AdminNav } from "./admin-nav";
+import { SubpageHeader } from "@/components/layout/subpage-header";
 
 /**
  * Adminens sidor hade INGEN egen titel (2026-08-17) och ärvde därför rot-layoutens
@@ -26,7 +27,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="space-y-6">
-      <div>
+      {/* MOBILRADEN BOR I LAYOUTEN (2026-09-17): den låg i översiktens page.tsx med
+          `-mt-6` och gled upp ÖVER flikraden, så på telefonen syntes bara
+          Översikt. Nu ligger raden överst för alla adminvyer, och flikraden under. */}
+      <SubpageHeader title="Adminpanel" mobileOnly fallback="/dashboard" />
+      <div className="hidden lg:block">
         <h1 className="font-display text-2xl font-bold text-ink">Adminpanel</h1>
         <p className="mt-1 text-sm text-ink-muted">
           Hantera användare, datakällor, moderering och butiker.
