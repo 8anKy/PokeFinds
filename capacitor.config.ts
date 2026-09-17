@@ -88,19 +88,17 @@ const config: CapacitorConfig = {
     // webbappen över nätet i WebView:en → mellan native-start och att webben renderat
     // var det tidigare en SVART skärm (nätverks-/hydreringsgapet). launchAutoHide:false
     // håller splashen uppe tills webben är redo och själv anropar SplashScreen.hide()
-    // (AppBoot) → inget svart gap. Splash-bilden (assets/splash.png) = "Foilio"-ordmärke
-    // ovanför mitten på mörk yta; den animerade native-spinnern (turkos) renderas
-    // centrerad → hamnar UNDER ordmärket = Stitch-laddningsskärmen, native (en statisk
-    // splash-bild kan inte själv animera). backgroundColor matchar appen så kanterna
-    // inte blinkar.
+    // (AppBoot) → inget svart gap. Splash-bilden (assets/splash.png) = F-märket
+    // CENTRERAT på mörk yta med grön glöd (byggd ur public/brand/foilio-logo.png,
+    // 5016 px — den gamla var ett 428 px-märke och såg suddigt ut på skärmen).
+    // ⛔ INGEN SPINNER (ägarbeslut 2026-09-17): den native-spinnern renderas mitt på
+    //    skärmen, dvs rakt över märket. backgroundColor matchar appen så kanterna
+    //    inte blinkar.
     SplashScreen: {
       launchAutoHide: false,
       backgroundColor: "#0a0a0c",
       androidScaleType: "CENTER_CROP",
-      showSpinner: true,
-      spinnerColor: "#2dd4bf",
-      iosSpinnerStyle: "large",
-      androidSpinnerStyle: "large",
+      showSpinner: false,
       launchFadeOutDuration: 250,
     },
   },

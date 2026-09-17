@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 /**
  * Döljer den NATIVE splash-skärmen när appen är redo (#21). Splashen ("Foilio" +
- * turkos native-spinner = Stitch-laddningsdesignen) hålls uppe tills nu
+ * F-märket på mörk yta, ingen spinner sedan 2026-09-17) hålls uppe tills nu
  * (launchAutoHide:false) så att app-starten inte visar en svart skärm medan
  * WebView:en laddar den hostade webben över nätet; här — efter hydrering
  * (useEffect = efter första commit/paint) — lämnar vi över DIREKT till appen.
