@@ -406,10 +406,10 @@ någon annan. **Uppmätt effekt för en CDN-butik: ~66 s snittlatens → ~20 s.*
   `DISCORD_RESTOCK_STORES=all` öppnar upp.
 
 - **KANALENS DÄMPNING ÄR LÖSARE ÄN APPENS (ägarbeslut 2026-09-17)**: `discord-restock.yml` sätter
-  `RESTOCK_ALERT_COOLDOWN_HOURS=0.25`, `RESTOCK_MIN_AWAY_MINUTES=5`, `RESTOCK_FLAP_MAX_TRANSITIONS=12`.
+  `RESTOCK_ALERT_COOLDOWN_HOURS=0.25`, `RESTOCK_MIN_AWAY_MINUTES=5`, `RESTOCK_FLAP_MAX_TRANSITIONS=40` (12 → 40 samma dag: Poster Collection slog i 12 vid ~16:00 och 16:33-vågen åts av 24 h-muten).
   Släppdagen för 30th Celebration öppnade Alphaspel Poster Collection 13:35, 14:05 och 14:29 — vi postade
   bara 13:35: 14:05 föll på 2 h-cooldownen (`1 cooldown` i loggen), 14:29 på 20-minutersblinken
   (`1 blink/flapp`). Konkurrenten postade alla tre. I kanalen ÄR varje våg nyheten. ⛔ Appens push/mejl
   (`checkRestockAlerts`, `flapPolicy()`-defaults) är orörda — variablerna sätts inte i Railway. Flapptaket
-  (12/dygn ⇒ 24 h) står kvar som spamgolv. Läs `Klart:`-raden: `cooldown`/`blink/flapp` är de tal som
+  (40/dygn ⇒ 24 h) står kvar som spamgolv. Läs `Klart:`-raden: `cooldown`/`blink/flapp` är de tal som
   visar vad dämpningen åt.

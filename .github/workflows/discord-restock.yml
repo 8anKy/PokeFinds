@@ -175,12 +175,15 @@ jobs:
       # ⛔ GÄLLER BARA LANEN. Appens push/mejl (`checkRestockAlerts`) har sin egen 2 h-
       #    cooldown + flappregel via `flapPolicy()` — de här env-variablerna sätts inte
       #    i Railway, så användarnas telefoner blir inte högljuddare av det här.
-      # ⛔ Flapptaket (12 övergångar/dygn ⇒ 24 h cooldown) står kvar som spamgolv: en
-      #    butik som pytsar var 5:e minut hela dagen (Dragon's Lair 45 flippar/3 dygn)
-      #    tystas fortfarande efter ett dussin.
+      # ⛔ Flapptaket står kvar som spamgolv men är 40/dygn (12 → 40 samma dag): Alphaspels
+      #    Poster Collection öppnade och stängde var 20–30:e minut hela släppdagen och slog
+      #    i 12 vid ~16:00 — 16:33-vågen loggades som `1 cooldown` (24 h-muten) medan
+      #    konkurrenten postade. Med 15-minuterscooldownen ovan är 40 ändå ett golv långt
+      #    under vad en het vara kan ge på ett dygn (max 96), och en butik som pytsar var
+      #    5:e minut dygnet runt (Dragon's Lair 45 flippar/3 dygn) tystas fortfarande.
       RESTOCK_ALERT_COOLDOWN_HOURS: "0.25"
       RESTOCK_MIN_AWAY_MINUTES: "5"
-      RESTOCK_FLAP_MAX_TRANSITIONS: "12"
+      RESTOCK_FLAP_MAX_TRANSITIONS: "40"
       # ⛔ WEBHALLEN VAR SVANSEN I SVEPET. MÄTT 2026-08-15: hela svepet över 42 butiker
       # tog 54,4 s och Webhallen ensam 52,3 s av dem — dess live-koll slår upp varje
       # icke-i-lager-produkt (~48 st) sekventiellt med 800 ms paus. Sedan svepet ersatts
