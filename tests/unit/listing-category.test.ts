@@ -42,6 +42,15 @@ describe("guessListingCategory — de sju ursprungliga formerna", () => {
   it("kräver ordgränser runt 'etb'", () => {
     expect(guessListingCategory("Pokémon Sableye ex Box")).not.toBe("ETB");
   });
+
+  it("'<Pokémon> ex/V/VMAX Box' är en collection box, inte OTHER (Alphaspel 30th 2026-09-17)", () => {
+    expect(guessListingCategory("Pokemon TCG: 30th Celebration Greninja ex Box")).toBe("COLLECTION_BOX");
+    expect(guessListingCategory("Pokemon TCG: 30th Celebration Sylveon ex Box")).toBe("COLLECTION_BOX");
+    expect(guessListingCategory("Pokémon Pikachu V Box")).toBe("COLLECTION_BOX");
+    expect(guessListingCategory("Pokémon Eevee VMAX Box")).toBe("COLLECTION_BOX");
+    // Tillbehör med mekaniken i namnet är fortfarande inget samlingspaket.
+    expect(guessListingCategory("Ultra Pro Charizard ex Deck Box")).not.toBe("COLLECTION_BOX");
+  });
 });
 
 describe("guessListingCategory — formerna som föll till OTHER (2026-08-15)", () => {

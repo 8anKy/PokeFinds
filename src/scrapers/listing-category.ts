@@ -68,6 +68,12 @@ export function guessListingCategory(title: string): ListingCategory {
 
   // ── Boxade samlingar ───────────────────────────────────────────────────────
   if (/collection\s*box|premium\s*collection/.test(t)) return "COLLECTION_BOX";
+  // "<Pokémon> ex Box" / "V Box" / "VMAX Box" är TPCi:s egen produktlinje (promo + boosters).
+  // ⛔ Föll till OTHER fram till 2026-09-17: Alphaspels "30th Celebration Greninja ex Box"
+  //    och "Sylveon ex Box" stoppades som `unknown-form` i Discord-lanen mitt under
+  //    andra vågen av släppet — utan rutt fanns inget som räddade dem. Kräver mekaniken
+  //    DIREKT före "box", så "Charizard ex Deck Box" (tillbehör) matchar inte.
+  if (/\b(?:ex|v|vmax|vstar|gx)\s*box\b/.test(t)) return "COLLECTION_BOX";
 
   // ── Tin ────────────────────────────────────────────────────────────────────
   // ⛔ `\btin\b` med BÅDA ordgränserna: utan den inledande matchar tyska "Karmesin"
