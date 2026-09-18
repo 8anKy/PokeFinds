@@ -3,11 +3,15 @@ import { shopifyCartUrl, wooCartUrl, quickbutikCartUrl, nordiskCartUrl, nordiskC
 import { pushAlertUrl } from "../../src/lib/push-alert-url";
 
 describe("cart-url — lägg-i-korgen-länkar (ägarbeslut 2026-09-17)", () => {
-  it("Shopify: /cart/add?id=<variant>&quantity=1 — probat 27/27 butiker 2026-09-17", () => {
+  it("Shopify: /cart/add?id=<variant>&quantity=1&return_to=/checkout — kassan, inte korgen (ägarbeslut 2026-09-18)", () => {
     expect(shopifyCartUrl("https://goblinen.com", 55235346891096)).toBe(
-      "https://goblinen.com/cart/add?id=55235346891096&quantity=1"
+      "https://goblinen.com/cart/add?id=55235346891096&quantity=1&return_to=/checkout"
     );
-    expect(shopifyCartUrl("https://goblinen.com/", "123")).toBe("https://goblinen.com/cart/add?id=123&quantity=1");
+    expect(shopifyCartUrl("https://goblinen.com/", "123")).toBe(
+      "https://goblinen.com/cart/add?id=123&quantity=1&return_to=/checkout"
+    );
+    // ⛔ aldrig cart-permalinken /cart/<variant>:1 — den tömmer korgen
+    expect(shopifyCartUrl("https://goblinen.com", "123")).not.toMatch(/\/cart\/\d+:1/);
     expect(shopifyCartUrl("https://goblinen.com", "abc")).toBeNull();
   });
 

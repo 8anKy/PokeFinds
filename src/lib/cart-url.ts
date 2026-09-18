@@ -5,14 +5,21 @@
  * användaren med varan REDAN I KORGEN, inte på en produktsida med en köpknapp kvar
  * att hitta. Bara butiker vars plattform exponerar en GET-länk för det kan få en:
  *
- *   Shopify      `/cart/add?id=<variant>&quantity=1` → 302 till /cart med varan i.
- *                Probat 2026-09-17 mot ALLA 27 Shopify-butiker vi bevakar: 27/27 svarar
- *                302 → /cart (ingen kö-/bot-app blockerar). Variant-id:t kommer ur
- *                feeden vi redan hämtar (products.json), aldrig ur URL-gissning.
+ *   Shopify      `/cart/add?id=<variant>&quantity=1&return_to=/checkout` → 302 till
+ *                /checkout med varan i (BEFINTLIG korg behålls). Probat 2026-09-17 mot ALLA
+ *                27 Shopify-butiker vi bevakar: 27/27 svarar 302 på /cart/add (ingen kö-/
+ *                bot-app blockerar); `return_to=/checkout` verifierat i riktig Chrome
+ *                2026-09-18 (Dragon's Lair 302 → /checkout, Goblinen landade i Shop Pay-
+ *                kassan med varan). Ägarbeslut 2026-09-18: KASSAN, inte korgen — utan
+ *                `return_to` stannade RahTech på /cart. ⛔ Inte cart-permalinken
+ *                `/cart/<variant>:1` — den TÖMMER korgen och skickar via shop.app.
+ *                Variant-id:t kommer ur feeden vi redan hämtar (products.json), aldrig ur
+ *                URL-gissning.
  *   WooCommerce  `/?add-to-cart=<produkt-id>` för ENKLA produkter (variabla kräver
  *                variations-id som Store API v1 inte ger på listningen).
- *   Quickbutik   `/cart/add?product_id=<pid>&qty=1` → 302 till /cart/index med varan i.
- *                Probat 2026-09-18 (Mystery Shack, cart/fetch bekräftade raden). `pid` =
+ *   Quickbutik   `/cart/add?product_id=<pid>&qty=1` → 302 till /cart/index → 302 vidare till
+ *                checkout.quickbutik.com med varan i (verifierat i Chrome 2026-09-18, Mystery
+ *                Shack). Probat 2026-09-18 (cart/fetch bekräftade raden). `pid` =
  *                `data-pid` i kategoriblocket = `qs-cart-pid` på produktsidan. En produkt
  *                MED alternativ (Packs on Packs "Öppna live / Skicka sealed") studsar
  *                tillbaka till produktsidan med tom korg — dvs vår vanliga fallback, ofarligt.
@@ -38,11 +45,11 @@
  *    tas av adaptern som SER variant-id:t; hjälparna här formar bara URL:en.
  */
 
-/** Shopify: en variant i korgen. `baseUrl` utan avslutande snedstreck. */
+/** Shopify: en variant i korgen och vidare till kassan. `baseUrl` utan avslutande snedstreck. */
 export function shopifyCartUrl(baseUrl: string, variantId: number | string): string | null {
   const id = String(variantId).trim();
   if (!/^\d+$/.test(id)) return null;
-  return `${baseUrl.replace(/\/+$/, "")}/cart/add?id=${id}&quantity=1`;
+  return `${baseUrl.replace(/\/+$/, "")}/cart/add?id=${id}&quantity=1&return_to=/checkout`;
 }
 
 /** WooCommerce: en enkel produkt i korgen (variabla produkter får ingen länk). */
