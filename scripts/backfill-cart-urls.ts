@@ -11,6 +11,7 @@
 import { SourceType } from "@prisma/client";
 import { prisma, ensureDbAwake } from "../src/lib/db";
 import { getAdapter } from "../src/scrapers/runner";
+import { fetchWatchedListing } from "../src/scrapers/watched-listing";
 import { exitJob } from "../src/lib/job-exit";
 
 const norm = (u: string) => u.replace(/\/+$/, "").toLowerCase();
@@ -31,6 +32,20 @@ async function main() {
     const feed = await adapter.fetchProducts();
     const byUrl = new Map<string, string>();
     for (const p of feed.products) if (p.cartUrl) byUrl.set(norm(p.url), p.cartUrl);
+    // Bevakade länkar (WatchedListing) står utanför feeden — fråga dem som lanen gör.
+    const watched = await prisma.watchedListing.findMany({
+      where: { retailerId: retailer.id, isActive: true },
+      select: { url: true },
+    });
+    let watchedHits = 0;
+    for (const w of watched) {
+      if (byUrl.has(norm(w.url))) continue;
+      const { item } = await fetchWatchedListing(name, w.url);
+      if (item?.cartUrl) {
+        byUrl.set(norm(w.url), item.cartUrl);
+        watchedHits++;
+      }
+    }
     const offers = await prisma.offer.findMany({
       where: { retailerId: retailer.id },
       select: { id: true, url: true, cartUrl: true },
@@ -48,7 +63,7 @@ async function main() {
       if (apply) await prisma.offer.update({ where: { id: o.id }, data: { cartUrl: next } });
     }
     console.log(
-      `${name}: feed ${feed.products.length} (${byUrl.size} med korglänk), offers ${offers.length}, ` +
+      `${name}: feed ${feed.products.length} + bevakade ${watchedHits}/${watched.length} (${byUrl.size} med korglänk), offers ${offers.length}, ` +
         `${apply ? "skrev" : "skulle skriva"} ${changed}, utan feedträff ${unmatched}` +
         (feed.errors.length ? ` — fel: ${feed.errors.join("; ")}` : "")
     );

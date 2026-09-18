@@ -40,6 +40,7 @@ import {
   stockFromJsonLd,
   fetchShopifyPurchasable,
 } from "./stock-verify";
+import { shopifyCartUrl } from "@/lib/cart-url";
 
 /** Samma form som `fetchSourceFeed` ger — se filhuvudet för varför det är ett krav. */
 export interface WatchedFeedItem {
@@ -49,6 +50,13 @@ export interface WatchedFeedItem {
   price: number | null;
   imageUrl: string | null;
   category: string | null;
+  /**
+   * Lägg-i-korgen-länk (src/lib/cart-url.ts). Bevakade länkar är per definition de
+   * varor feeden INTE nämner — Goblinens 30th-ETB — dvs precis de restocks folk jagar;
+   * utan fältet här fick just de pushen till produktsidan (upptäckt 2026-09-18, backfill
+   * lämnade 17 Goblinen- + 46 RahTech-offers utan länk). null = ingen.
+   */
+  cartUrl?: string | null;
 }
 
 export interface WatchedFetchResult {
@@ -157,12 +165,17 @@ export async function fetchWatchedListing(
       const title = (data.title ?? "").trim();
       if (!title) return { item: null, error: "Shopify svarade utan titel" };
 
+      // Samma variantval som ShopifyAdapter: URL:ens variant om den finns, annars den
+      // första köpbara, annars den första.
+      const cartVariant =
+        variant ?? (data.variants ?? []).find((v) => v.available) ?? (data.variants ?? [])[0];
       return {
         item: {
           url,
           stockStatus: status,
           title,
           price,
+          cartUrl: cartVariant?.id != null ? shopifyCartUrl(origin, cartVariant.id) : null,
           imageUrl:
             absolutize(variant?.featured_image?.src, url) ??
             absolutize(data.featured_image, url) ??
