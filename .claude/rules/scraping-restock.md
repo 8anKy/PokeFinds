@@ -41,6 +41,26 @@ paths:
   release-produkter), rättade i prod 2026-08-15. Verktyg:
   `scripts/verify-instock-buyable-run.ts` (`--all`, `--store=`, `--apply`) och
   `scripts/probe-shopify-buy-button.ts` (mäter detektorn mot en feed-dump).
+- **⛔ EN BORTTAGEN PRODUKTSIDA ÄR SLUTSÅLD, INTE "OKÄND" (2026-09-20)**: Goblinens 30th Celebration-ETB
+  stod "I lager" i fyra dygn efter att butiken avpublicerat sidan (URL:en är BEVAKAD — de återanvänder
+  den vid nästa drop). Tre orsaker: (1) `verifyStockForUrl` gav null på 404 "med flit" ⇒ UNKNOWN, och
+  UNKNOWN→IN_STOCK larmar aldrig ⇒ nästa drop hade varit TYST; nu ⇒ OUT_OF_STOCK, som är sanningen nu
+  OCH ger ett äkta OUT→IN-larm när sidan kommer tillbaka. ⛔ **Shopify svarar inte 404 på en avpublicerad
+  sidas HTML utan 302:ar till STARTSIDAN** (Goblinen + Beam mätt) — `pageIsGone` dömer på 404/410 ELLER
+  en omdirigering som tappar slug:en; www-hopp och språkprefix räknas inte. 429/5xx/403 är fortfarande
+  "vet inte". (2) Verify-passet var ren ålderskö med tak 20/körning; som nattsteg (en gång/dygn) mot
+  ~200 försvunna offers hann det aldrig ikapp. Nu PÅSTÅENDEN FÖRST (IN/PREORDER/LIMITED — de ljuger för
+  kunden), sedan äldst först, och `feed-import-run` skickar `verifyMax` 150 (`FEED_IMPORT_VERIFY_MAX`);
+  taket loggas när det nås. (3) `scripts/verify-stale-offers.ts` = samma dom för hand (torrkörning /
+  `--apply` / `--store=` / `--all`); körd 09-20: 23 rader rättade. ⛔ Rogerz/Pokexclusive (ur
+  restockWatch) och Leksaksaffären nås INTE av passet — deras försvunna offers (Rogerz 58 IN_STOCK
+  09-20) fryser tills någon bygger frånvarokoll i `runScrapeJob`. Vaktat av `stock-verify-gone.test.ts`.
+- **⛔ WEBHALLEN: BUTIKSVARA = I LAGER (ägarbeslut 2026-09-20)**: 30th Celebration var ett rent
+  BUTIKSSLÄPP — `web: 0`, `isShippable: false`, "kan endast hämtas i butik", "Lvl 9+" — men de numeriska
+  nycklarna i `stock` (butikssaldon, kapade vid `displayCap` 50) summerade ~420 ex, och vi visade "Slut i
+  lager". `webhallenStoreStock()` summerar dem; `web > 0` ⇒ IN, framtida release ⇒ PREORDER (går inte
+  att hämta före släppdagen), annars butikssaldo > 0 ⇒ IN_STOCK, samma dom som SF-Bok i wave 9. Ett
+  larm härifrån betyder "finns i fysisk butik". `isSentFromStore` är 0 på ALLT och säger inget.
 - **⛔ ALPHASPELS LAGERSTATUS TAS PÅ KNAPPEN, INTE TEXTEN (2026-09-17)**: 30th Celebration släpptes
   hos Alphaspel kl 12:00, en konkurrents Discord larmade, vår tystnade — Discord-lanen pollade butiken
   var 60:e sekund hela tiden och såg NOLL flippar. Orsak: `alphaspelInStock` var en text-allowlist

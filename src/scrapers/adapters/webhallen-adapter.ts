@@ -74,7 +74,12 @@ interface WebhallenProduct {
   id: number;
   name: string;
   price: { price: string; currency: string } | null;
-  stock?: { web?: number | null } | null;
+  /**
+   * `web` = säljbart webblager. De NUMERISKA nycklarna ("2", "5", "31" …) är fysiska
+   * butikers saldon (kapade vid `displayCap`, 50 = "Fler än 50 st"); `webStock` är
+   * samma butiker räknade som webblager och används inte (se webhallenStockStatus).
+   */
+  stock?: ({ web?: number | null; webStock?: unknown; displayCap?: number } & Record<string, unknown>) | null;
   regularPrice?: { price: string };
   /** Unix-tidsstämpel (sekunder) för lanseringsdatum. Framtida datum = förhandsbokning. */
   release?: { timestamp?: number | null } | null;
@@ -115,13 +120,33 @@ function isWebhallenRaw(raw: unknown): raw is WebhallenRaw {
  * `stock.web` är rätt fält för köpbarhet. Webhallen skickar FRÅN BUTIK, så en enhet i
  * en fysisk butik räknas som webblager och ÄR säljbar (`webStock["992"]`, det rena
  * webblagret, är 0 för fullt köpbara varor — använd inte heller det).
+ *
+ * ⛔ BUTIKSVARA = I LAGER (ägarbeslut 2026-09-20, samma som SF-Bok i wave 9): 30th
+ * Celebration släpptes hos Webhallen som ett rent BUTIKSSLÄPP — `web: 0`,
+ * `isShippable: false`, sidan säger "kan endast hämtas i butik", men de fysiska
+ * butikerna bar ~420 ex (48 + "Fler än 50 st" × 7 …). Den gamla regeln visade
+ * "Slut i lager" bredvid ett fullt lager. Numeriska nycklar i `stock` är butikssaldon;
+ * summan > 0 efter släppet ⇒ IN_STOCK. Ordningen spelar roll: en FRAMTIDA release med
+ * butikssaldo är fortfarande PREORDER — varan går inte att hämta förrän släppdagen.
+ * ⚠️ Medlemsnivåkrav ("Lvl 9+") går inte att uttrycka — ett larm härifrån betyder
+ * "finns i fysisk butik", inte "en köpknapp för alla".
  */
+export function webhallenStoreStock(stock: WebhallenProduct["stock"]): number {
+  if (!stock) return 0;
+  let sum = 0;
+  for (const [key, value] of Object.entries(stock)) {
+    if (/^\d+$/.test(key) && typeof value === "number" && value > 0) sum += value;
+  }
+  return sum;
+}
+
 export function webhallenStockStatus(item: WebhallenProduct): StockStatus {
   if ((item.stock?.web ?? 0) > 0) return StockStatus.IN_STOCK;
   const releaseTs = item.release?.timestamp;
   if (typeof releaseTs === "number" && releaseTs * 1000 > Date.now()) {
     return StockStatus.PREORDER;
   }
+  if (webhallenStoreStock(item.stock) > 0) return StockStatus.IN_STOCK;
   return StockStatus.OUT_OF_STOCK;
 }
 
