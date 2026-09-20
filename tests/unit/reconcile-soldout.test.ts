@@ -25,6 +25,17 @@ const run = (offers: ReturnType<typeof offer>[], freshKeys: Set<string>, retaile
   offersToVerify(offers, freshKeys, retailers, NOW, GRACE);
 
 describe("offersToVerify", () => {
+  it("PÅSTÅENDEN FÖRST: en stale IN_STOCK/PREORDER går före äldre OUT/UNKNOWN (taket är 20/körning)", () => {
+    const older = new Date(NOW.getTime() - 200 * 3600_000);
+    const out = offer({ url: "https://s/out", stockStatus: StockStatus.OUT_OF_STOCK, lastSeenAt: older });
+    const unk = offer({ url: "https://s/unk", stockStatus: StockStatus.UNKNOWN, lastSeenAt: older });
+    const pre = offer({ url: "https://s/pre", stockStatus: StockStatus.PREORDER, lastSeenAt: long });
+    const inn = offer({ url: "https://s/in", stockStatus: StockStatus.IN_STOCK, lastSeenAt: new Date(long.getTime() - 3600_000) });
+    const order = run([out, unk, pre, inn], new Set<string>()).map((o) => o.url);
+    // Påståendena först (äldst av dem först), sedan resten äldst först.
+    expect(order).toEqual(["https://s/in", "https://s/pre", "https://s/out", "https://s/unk"]);
+  });
+
   it("tar upp en försvunnen in-stock offer som varit borta längre än grace", () => {
     expect(run([offer({})], new Set<string>())).toHaveLength(1);
   });

@@ -315,12 +315,44 @@ export function statusAfterVerify(current: StockStatus, verified: StockStatus | 
     : StockStatus.UNKNOWN;
 }
 
+/** HTTP-statusar som betyder "sidan finns inte" — ett SVAR, inte ett uteblivet svar. */
+const GONE_STATUSES = new Set([404, 410]);
+
 /**
- * Slår upp lagerstatus för en butiks-URL. Kastar ALDRIG: nätfel, 404, 429 och butiker
- * utan strukturerad data ger alla null = "vet inte" (anroparen behåller UNKNOWN).
+ * Är produktsidan BORTA? 404/410, eller en omdirigering BORT från produkten: Shopify
+ * (Goblinen, Beam Cardshop, mätt 2026-09-20) svarar inte 404 på en avpublicerad
+ * produktsidas HTML utan 302:ar till startsidan — 200, 230 kB, noll Product-noder.
+ * Utan den här vakten läses startsidans JSON-LD (null ⇒ "vet inte") eller, värre, en
+ * kategorisidas. Ett hopp som BEHÅLLER slug:en (www-hopp, språkprefix) räknas inte.
+ */
+function pageIsGone(requested: string, res: Response): boolean {
+  if (GONE_STATUSES.has(res.status)) return true;
+  if (!res.url) return false;
+  try {
+    const want = new URL(requested).pathname.replace(/\/+$/, "");
+    const got = new URL(res.url).pathname.replace(/\/+$/, "");
+    if (want === got) return false;
+    const slug = want.split("/").filter(Boolean).pop() ?? "";
+    return slug.length > 0 && !got.toLowerCase().includes(slug.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Slår upp lagerstatus för en butiks-URL. Kastar ALDRIG: nätfel, 429, 5xx och butiker
+ * utan strukturerad data ger alla null = "vet inte" (anroparen behåller det den visste).
  *
- * 404 nollas MED FLIT inte till slutsåld: en borttagen sida betyder att länken är död,
- * inte att varan sålt slut. Döda länkar är länkrevisionens jobb (scripts/audit-links.ts).
+ * ⛔ EN BORTTAGEN SIDA ÄR SLUTSÅLD, INTE "OKÄND" (2026-09-20). Förr gav 404 null "med
+ * flit" (döda länkar var länkrevisionens jobb) — men null faller till UNKNOWN, och det
+ * har två fel ur kundens synvinkel: raden visar "Okänd" bredvid ett fyra dagar gammalt
+ * pris, och UNKNOWN→IN_STOCK är ingen äkta övergång, så när butiken publicerar sidan
+ * IGEN larmar den aldrig. Goblinen avpublicerade 30th Celebration-ETB:n efter släppet
+ * (URL:en är BEVAKAD — de återanvänder den vid nästa drop) och raden stod "I lager" i
+ * fyra dygn. En sida som svarar 404/410 går inte att köpa från, punkt; OUT_OF_STOCK är
+ * sanningen NU och ger dessutom ett riktigt OUT→IN-larm när sidan kommer tillbaka.
+ * ⛔ Bara 404/410 döms så — 429/5xx/timeout är fortfarande "vet inte" (politeFetch
+ * kastar efter backoff ⇒ catch ⇒ null). Ett strypt svar får aldrig bli en lagerstatus.
  */
 export async function verifyStockForUrl(sourceName: string, url: string): Promise<StockStatus | null> {
   const strategy = resolveStockStrategy(sourceName, url);
@@ -339,6 +371,8 @@ export async function verifyStockForUrl(sourceName: string, url: string): Promis
       // Ingen `.js` ⇒ butiken är inte Shopify trots `/products/`-formen (Mystery Shack
       // kör Quickbutik på samma väg). Fall tillbaka på JSON-LD i stället för att svara
       // "vet inte" — annars hade formgissningen gjort verifieringen SÄMRE för dem.
+      // Är även SIDAN borta (404, eller Shopifys 302 till startsidan) är varan borta
+      // ur butiken — se pageIsGone.
       if (!res.ok) return await stockFromPageJsonLd(url);
       const fromJs = stockFromShopifyJs((await res.json()) as ShopifyJsProduct, variantIdFromUrl(url));
       // `available: false` är definitivt — Shopify ljuger aldrig ÅT DET HÅLLET.
@@ -355,6 +389,7 @@ export async function verifyStockForUrl(sourceName: string, url: string): Promis
       const id = webhallenIdFromUrl(url);
       if (!id) return null;
       const res = await politeFetch(`https://www.webhallen.com/api/product/${id}`, { delayMs: 800 });
+      if (GONE_STATUSES.has(res.status)) return StockStatus.OUT_OF_STOCK;
       if (!res.ok) return null;
       const data = (await res.json()) as { product?: Parameters<typeof webhallenStockStatus>[0] };
       return data.product ? webhallenStockStatus(data.product) : null;
@@ -367,9 +402,13 @@ export async function verifyStockForUrl(sourceName: string, url: string): Promis
   }
 }
 
-/** Hämtar produktsidan och läser lagerstatus ur dess JSON-LD. Null = vet inte. */
+/**
+ * Hämtar produktsidan och läser lagerstatus ur dess JSON-LD. Null = vet inte.
+ * 404/410 eller omdirigerad bort från produkten = borta = går inte att köpa (pageIsGone).
+ */
 async function stockFromPageJsonLd(url: string): Promise<StockStatus | null> {
   const res = await politeFetch(url, { delayMs: 800 });
+  if (pageIsGone(url, res)) return StockStatus.OUT_OF_STOCK;
   if (!res.ok) return null;
   return stockFromJsonLd(await res.text());
 }

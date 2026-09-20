@@ -790,11 +790,20 @@ async function upsertListingOffer(
  * DEBOUNCE (`graceMs`): ett enda missat besök får inte utlösa uppslag — kräv att offern
  * varit borta i minst `graceMs` (senast sedd `lastSeenAt` äldre än så). Anroparen bumpar
  * `lastSeenAt` efter uppslaget, så varje offer frågas högst en gång per karensfönster
- * hur ofta lanen än kör. Äldst först: taket (RESTOCK_VERIFY_MAX) roterar då rättvist.
+ * hur ofta lanen än kör.
+ *
+ * ⛔ PÅSTÅENDEN FÖRST, SEDAN ÄLDST FÖRST (2026-09-20). Kön var ren ålderskö med taket
+ * RESTOCK_VERIFY_MAX=20 per körning — och när lanen bara kör EN gång per dygn (steget i
+ * scrape-all sedan 09-04) mot ~200 försvunna offers hann den aldrig ikapp: Goblinens
+ * 30th-ETB stod "I lager" i fyra dygn medan taket ägnades åt gamla OUT_OF_STOCK-rader.
+ * En felaktig IN_STOCK/PREORDER/LIMITED är ett LÖFTE till kunden ("gå dit och köp") och
+ * kostar mer än en försenad OUT→IN-upptäckt, så de tas alltid först.
  */
 export function offersToVerify<
   T extends { retailerId: string; url: string; stockStatus: StockStatus; lastSeenAt: Date | null }
 >(offers: T[], freshKeys: Set<string>, feedRetailers: Set<string>, now: Date, graceMs: number): T[] {
+  const claims = (s: StockStatus) =>
+    s === StockStatus.IN_STOCK || s === StockStatus.PREORDER || s === StockStatus.LIMITED ? 0 : 1;
   return offers
     .filter(
       (o) =>
@@ -802,7 +811,11 @@ export function offersToVerify<
         !freshKeys.has(`${o.retailerId}:${o.url}`) &&
         (o.lastSeenAt == null || now.getTime() - o.lastSeenAt.getTime() >= graceMs)
     )
-    .sort((a, b) => (a.lastSeenAt?.getTime() ?? 0) - (b.lastSeenAt?.getTime() ?? 0));
+    .sort(
+      (a, b) =>
+        claims(a.stockStatus) - claims(b.stockStatus) ||
+        (a.lastSeenAt?.getTime() ?? 0) - (b.lastSeenAt?.getTime() ?? 0)
+    );
 }
 
 /**
@@ -894,6 +907,12 @@ export async function runRestockScan(opts?: {
    * Prisma, Discord-lanen ur den cachade ruttabellen.
    */
   watched?: { sourceName: string; url: string }[];
+  /**
+   * Tak för uppslag mot produktsidan av offers som försvunnit ur feeden (default env
+   * `RESTOCK_VERIFY_MAX`, 20). 20 är dimensionerat för en lane som kör var 10:e minut;
+   * nattsteget kör EN gång per dygn och skickar in ett högre tak (se feed-import-run.ts).
+   */
+  verifyMax?: number;
 }): Promise<RestockScanResult> {
   let sources: RestockSourceInfo[];
   if (opts?.sources?.length) {
@@ -1359,12 +1378,13 @@ export async function runRestockScan(opts?: {
     await prisma.offer.updateMany({ where: { id: { in: seenOfferIds } }, data: { lastSeenAt: now } });
   }
   const graceMs = Number(process.env.RESTOCK_SOLDOUT_GRACE_HOURS ?? 24) * 3600_000;
-  const verifyMax = Number(process.env.RESTOCK_VERIFY_MAX ?? 20);
+  const verifyMax = opts?.verifyMax ?? Number(process.env.RESTOCK_VERIFY_MAX ?? 20);
   const retailerNameById = new Map<string, string>();
   for (const [name, id] of retailerByName) retailerNameById.set(id, name);
   let soldOutReconciled = 0;
   let verified = 0;
-  for (const o of offersToVerify(offers, freshKeys, feedRetailers, now, graceMs).slice(0, verifyMax)) {
+  const verifyQueue = offersToVerify(offers, freshKeys, feedRetailers, now, graceMs);
+  for (const o of verifyQueue.slice(0, verifyMax)) {
     // FRÅGA BUTIKEN i stället för att tolka tystnaden. Frånvaro ur feeden betyder
     // olika saker i olika butiker (Speltrollet listar inte slutsålt i sina Pokémon-
     // kollektioner, Swepoke roterar sortimentet) — men produktsidan vet alltid.
@@ -1413,6 +1433,18 @@ export async function runRestockScan(opts?: {
   console.log(
     `[restock-scan] ${sources.length} butiker, ${checked} kollade, ${restocks} restocks, ${newListings} nya, ${verified} verifierade mot produktsidan, ${soldOutReconciled} utan svar (UNKNOWN), ${sent} alerts.`
   );
+  // Ett tak som nås varje körning är en TYST gräns (samma sort som lät ETB:n stå
+  // "I lager" i fyra dygn) — säg det, med hur många påståenden som fick vänta.
+  if (verifyQueue.length > verifyMax) {
+    const waitingClaims = verifyQueue
+      .slice(verifyMax)
+      .filter((o) => o.stockStatus !== StockStatus.OUT_OF_STOCK && o.stockStatus !== StockStatus.UNKNOWN).length;
+    console.warn(
+      `[restock-scan] Verifieringstaket (${verifyMax}) nått: ${verifyQueue.length - verifyMax} försvunna offers väntar` +
+        (waitingClaims ? `, varav ${waitingClaims} som fortfarande påstår i lager/förhandsbokning` : "") +
+        ". Höj taket om talet inte krymper mellan körningarna."
+    );
+  }
   if (importBudgetLeft > 0) {
     console.warn(
       `[restock-scan] TIDSBUDGETEN (${Math.round((opts?.importBudgetMs ?? 0) / 60000)} min) TOG SLUT — ` +

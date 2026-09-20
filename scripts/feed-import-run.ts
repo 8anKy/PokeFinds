@@ -42,6 +42,15 @@ import { runRestockScan } from "../src/scrapers/runner";
 
 /** Default 25 min: scrape-all ligger på 20–38 min av sina 120, GTIN-passet tar sitt. */
 const BUDGET_MINUTES = Math.max(1, Number(process.env.FEED_IMPORT_BUDGET_MINUTES ?? 25));
+/**
+ * Tak för uppslag av offers som försvunnit ur feeden. Runnerns default (20) är
+ * dimensionerad för en lane var 10:e minut; det här steget kör EN gång per dygn och
+ * kön låg på ~200 (2026-09-20) — vid 20/natt hann den aldrig ikapp, och Goblinens
+ * 30th-ETB stod "I lager" i fyra dygn efter att sidan avpublicerats. Ett uppslag är
+ * 1–2 artiga hämtningar (~1,5–2,5 s), så 150 ≈ 4–6 min i ett fönster där Neon redan är
+ * vaken. Passet loggar när taket nås.
+ */
+const VERIFY_MAX = Math.max(0, Number(process.env.FEED_IMPORT_VERIFY_MAX ?? 150));
 
 async function main() {
   // Väck Neon före första riktiga frågan — se ensureDbAwake. (Anropas här också
@@ -57,7 +66,7 @@ async function main() {
   const watched = watchedRows.map((w) => ({ sourceName: w.retailer.name, url: w.url }));
   const idByKey = new Map(watchedRows.map((w) => [`${w.retailer.name}	${w.url}`, w.id]));
 
-  const r = await runRestockScan({ importBudgetMs: BUDGET_MINUTES * 60_000, watched });
+  const r = await runRestockScan({ importBudgetMs: BUDGET_MINUTES * 60_000, watched, verifyMax: VERIFY_MAX });
 
   // Svaren tillbaka till adminlistan: "frågade vi, och vad sa butiken?".
   // ⛔ Bara diagnostik — lagerdiffen som driver larm bor i Offer/StoreListing. Två
