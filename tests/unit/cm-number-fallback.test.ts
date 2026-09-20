@@ -116,3 +116,85 @@ describe("cmCardNameAgrees", () => {
     expect(cmCardNameAgrees("Fire Reader", "Water Reader")).toBe(false);
   });
 });
+
+// Regression 2026-09-20: pokemontcg.io delar "30th Celebration" i huvudset (me55) +
+// underset "30th Celebration: Classic Collection" (me55c), medan RapidAPI publicerar
+// hela släppet som EN episod där Classic-korten bär ursprungssetets kod i numret
+// ("BS004" = Base Set Charizard). Ingen nyckel nådde dem: tcgid null, episodnamnet
+// pekar på huvudsetet, "bs4" finns inte där. 30 singlar, 0 CM-offers → körningen röd.
+import { cmSubsetParentKey, cmNumberKeyOriginCode, pickSubsetCandidate, pickBestSubsetHit } from "../../src/jobs/cardmarket-refresh";
+
+describe("cmSubsetParentKey", () => {
+  it("prefixet före kolon är episodens namn", () => {
+    expect(cmSubsetParentKey("30th Celebration: Classic Collection")).toBe(cmSetNameKey("30th Celebration"));
+    expect(cmSubsetParentKey("Celebrations: Classic Collection")).toBe(cmSetNameKey("Celebrations"));
+  });
+  it("utan kolon är setet inget underset", () => {
+    expect(cmSubsetParentKey("30th Celebration")).toBe("");
+    expect(cmSubsetParentKey(null)).toBe("");
+  });
+});
+
+describe("cmNumberKeyOriginCode", () => {
+  it("ursprungssetets kod skalas av även UTAN separator — det är hela poängen", () => {
+    expect(cmNumberKeyOriginCode("BS004")).toBe("4");
+    expect(cmNumberKeyOriginCode("PLB097")).toBe("97");
+    expect(cmNumberKeyOriginCode("TM 99")).toBe("99");
+    expect(cmNumberKeyOriginCode("004")).toBe("4");
+  });
+  it("bokstavssuffix står kvar", () => {
+    expect(cmNumberKeyOriginCode("BS115a")).toBe("115a");
+  });
+});
+
+describe("pickSubsetCandidate", () => {
+  const me55c = [
+    { entry: "charizard", cardName: "Charizard", numKey: "4" },
+    { entry: "pikachu", cardName: "Pikachu", numKey: "58" },
+    { entry: "pikazek", cardName: "Pikachu & Zekrom-GX", numKey: "33" },
+    { entry: "genesect", cardName: "Genesect-EX", numKey: "11" },
+    { entry: "metagross", cardName: "Metagross", numKey: "11" },
+    { entry: "celebi", cardName: "Shining Celebi", numKey: "106" },
+    { entry: "gardevoir", cardName: "M Gardevoir-EX", numKey: "106" },
+    { entry: "palkia", cardName: "Palkia LV.X", numKey: "106" },
+    { entry: "n", cardName: "N", numKey: "101" },
+    { entry: "mewvmax", cardName: "Mew VMAX", numKey: "114" },
+  ];
+  const pick = (name: string, num: string) => pickSubsetCandidate(me55c, name, cmNumberKeyOriginCode(num));
+
+  it("nummer + namn", () => {
+    expect(pick("Charizard", "BS004")).toEqual({ entry: "charizard", viaNumber: true, exact: true });
+    expect(pick("Pikachu", "BS058")).toEqual({ entry: "pikachu", viaNumber: true, exact: true });
+    expect(pick("N", "NVI101")).toEqual({ entry: "n", viaNumber: true, exact: true });
+    // Prefixregeln gäller MED nummer: leverantören skriver ut mer än vi ("Uxie Lv.55" mot "Uxie").
+    expect(pickSubsetCandidate([{ entry: "uxie", cardName: "Uxie", numKey: "43" }], "Uxie Lv.55", "43"))
+      .toEqual({ entry: "uxie", viaNumber: true, exact: false });
+  });
+  it("dubblettnummer avgörs av namnet — me55c har tre kort med nummer 106", () => {
+    expect(pick("Metagross δ Delta Species", "DS011")?.entry).toBe("metagross");
+    expect(pick("Palkia LV.X", "GE106")?.entry).toBe("palkia");
+    expect(pick("Shining Celebi", "NDE106")?.entry).toBe("celebi");
+  });
+  it("numret oense (Genesect 11 mot PLB097) ⇒ EXAKT namn ensamt duger när det är entydigt", () => {
+    expect(pick("Genesect EX", "PLB097")).toEqual({ entry: "genesect", viaNumber: false, exact: true });
+    expect(pick("MGardevoir EX", "PRC108")).toEqual({ entry: "gardevoir", viaNumber: false, exact: true });
+    expect(pick("Pikachu", "999")?.entry).toBe("pikachu");
+  });
+  it("⛔ utan nummerträff räcker inte ett PREFIX — 'N' är prefix till varje Nidoran, 'Mew' till 'Mew VMAX'", () => {
+    expect(pick("Nidoran [F]", "87")).toBeNull();
+    expect(pick("Mew", "B/RGB")).toBeNull();
+    expect(pick("Pikachu ex", "999")).toBeNull(); // inget kort heter exakt så, prefix räcker inte
+  });
+  it("samma nummer i två set: nummer slår namn, exakt namn slår prefix, lika ⇒ inget", () => {
+    const main = { viaNumber: true, exact: false, id: "me55 Pikachu #33" };
+    const sub = { viaNumber: true, exact: true, id: "me55c Pikachu & Zekrom-GX #33" };
+    expect(pickBestSubsetHit([main, sub])?.id).toBe(sub.id);
+    expect(pickBestSubsetHit([{ viaNumber: false, exact: true, id: "a" }, { viaNumber: true, exact: false, id: "b" }])?.id).toBe("b");
+    expect(pickBestSubsetHit([main, { ...main, id: "x" }])).toBeNull();
+    expect(pickBestSubsetHit([])).toBeNull();
+  });
+  it("fel namn ⇒ ingen match oavsett nummer", () => {
+    expect(pick("Blastoise", "4")).toBeNull();
+    expect(pickSubsetCandidate([], "Charizard", "4")).toBeNull();
+  });
+});

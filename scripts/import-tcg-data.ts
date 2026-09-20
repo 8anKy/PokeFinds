@@ -39,6 +39,14 @@ import {
 } from "../src/scrapers/adapters/pokemontcg-adapter";
 import { getRatesOre } from "../src/lib/exchange-rate";
 import { normalizeTitle, slugify } from "../src/lib/utils";
+import {
+  cmNumberKey,
+  cmNumberKeyOriginCode,
+  cmSetNameKey,
+  cmSubsetParentKey,
+  pickSubsetCandidate,
+  type SubsetCandidate,
+} from "../src/jobs/cardmarket-refresh";
 
 const prisma = new PrismaClient();
 
@@ -53,6 +61,42 @@ const SET_IDS = (process.env.TCG_SET_IDS ?? "")
   .filter(Boolean);
 // Automationens läge: bara set vars externalId saknas i DB (nya släpp).
 const NEW_ONLY = process.env.TCG_NEW_ONLY === "1";
+
+
+// ── TVILLINGADOPTION ÖVER SETGRÄNSEN (2026-09-20) ────────────────────────────
+// Leverantörsimporten (import-en-set-from-provider.ts) lägger HELA släppet i ett
+// set med leverantörens nummer, medan pokemontcg.io delar ut ett UNDERSET
+// ("30th Celebration: Classic Collection") med egna nummer: leverantörens "BS004"
+// är pokemontcg.io:s "4" i undersetet, "B/RGB" är "B". Den exakta adoptionen
+// (samma set + samma nummer) missade dem, 30 kort fick tvillingar och prisjobbet
+// blev rött ("me55c har 30 singlar och 0 CM-offers"). Kandidaterna är
+// leverantörskorten i setet SJÄLVT och i HUVUDSETET (namnet före kolon); domen
+// är cardmarket-refreshens underset-reserv: nummer med ursprungskoden avskalad +
+// namn, eller exakt namn ensamt när det är entydigt. Redan skapade tvillingar:
+// scripts/merge-subset-twins.ts.
+const PROVIDER_PREFIX = "tcggo:";
+type ProviderTwin = { id: string; setId: string; number: string; tcgExternalId: string | null };
+
+/** Leverantörens nummer → jämförbar nyckel: "BS004" → "4", "B/RGB" → "b", "87" → "87". */
+function providerNumKey(number: string): string {
+  const k = cmNumberKeyOriginCode(number);
+  return /\d/.test(k) ? k : cmNumberKey(number.split("/")[0]);
+}
+
+async function loadProviderTwins(setId: string, setName: string): Promise<SubsetCandidate<ProviderTwin>[]> {
+  const setIds = [setId];
+  const parentKey = cmSubsetParentKey(setName);
+  if (parentKey) {
+    const parents = (await prisma.cardSet.findMany({ where: { language: "EN" }, select: { id: true, name: true } }))
+      .filter((s) => s.id !== setId && cmSetNameKey(s.name) === parentKey);
+    if (parents.length === 1) setIds.push(parents[0].id);
+  }
+  const rows = await prisma.card.findMany({
+    where: { setId: { in: setIds }, tcgExternalId: { startsWith: PROVIDER_PREFIX } },
+    select: { id: true, setId: true, number: true, name: true, tcgExternalId: true },
+  });
+  return rows.map((c) => ({ entry: c, cardName: c.name, numKey: providerNumKey(c.number) }));
+}
 
 async function main() {
   // Färsk EUR/USD-kurs (öre) en gång → cardMarketPriceOre() läser den synkront.
@@ -175,6 +219,8 @@ async function main() {
       continue;
     }
     console.log(`   [${si + 1}/${sets.length}] ${tcgSet.name} (${tcgSet.id}): ${cards.length} kort`);
+    // EN läsning per set, aldrig per kort: leverantörskort som kan vara tvillingar.
+    const providerTwins = await loadProviderTwins(set.id, tcgSet.name);
 
     for (const tcgCard of cards) {
       const imageUrl = tcgCard.images?.large ?? tcgCard.images?.small ?? null;
@@ -194,6 +240,24 @@ async function main() {
       if (orphanCard && orphanCard.tcgExternalId !== tcgCard.id) {
         await prisma.card.update({ where: { id: orphanCard.id }, data: { tcgExternalId: tcgCard.id } });
         console.log(`   🔗 Adopterade ${tcgCard.name} ${tcgCard.number} (${orphanCard.tcgExternalId ?? "utan id"} → ${tcgCard.id})`);
+      } else if (!orphanCard) {
+        // Tvilling med ANNAT nummer eller i HUVUDSETET (se loadProviderTwins).
+        const twin = pickSubsetCandidate(providerTwins, tcgCard.name, cmNumberKey(tcgCard.number));
+        if (twin && twin.entry.tcgExternalId !== tcgCard.id) {
+          const t = twin.entry;
+          await prisma.$transaction([
+            prisma.card.update({
+              where: { id: t.id },
+              data: { setId: set.id, number: tcgCard.number, tcgExternalId: tcgCard.id },
+            }),
+            prisma.product.updateMany({ where: { cardId: t.id }, data: { setId: set.id } }),
+          ]);
+          providerTwins.splice(providerTwins.findIndex((c) => c.entry.id === t.id), 1);
+          console.log(
+            `   🔗 Adopterade ${tcgCard.name} ${tcgCard.number} (${t.tcgExternalId} #${t.number}` +
+            `${t.setId !== set.id ? " ur huvudsetet" : ""} → ${tcgCard.id})`,
+          );
+        }
       }
       // Identitet via globalt unikt API-id (tcgExternalId). Kortnummer är inte
       // unikt inom ett set, så composite-nyckeln skulle kollapsa varianter

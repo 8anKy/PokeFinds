@@ -402,6 +402,79 @@ export function cmSetNameKey(name: string | null | undefined): string {
   return String(name ?? "").toLowerCase().normalize("NFD").replace(/[^a-z0-9]/g, "");
 }
 
+// ── UNDERSET-RESERVEN (2026-09-20) ────────────────────────────────────────────
+// pokemontcg.io delar upp ett släpp i ett HUVUDSET och ett UNDERSET med kolon i
+// namnet ("30th Celebration" + "30th Celebration: Classic Collection"), medan
+// RapidAPI publicerar HELA släppet som EN episod, där undersetets kort bär sitt
+// URSPRUNGSSET som prefix i numret: "BS004" (Base Set 4 = Charizard), "PLB097",
+// "TM099". Ingen befintlig nyckel nådde dem: tcgid är null, `cardmarket_id` ligger
+// bara i kartan för kort UTAN tcgid, episodnamnet pekar på huvudsetet och "bs4"
+// finns inte där. Mätt 2026-09-20: me55c (30 kort) föddes ur söndagsimporten och
+// prisjobbet blev rött samma eftermiddag ("30 singlar och 0 CM-offers").
+// Reserven är EXAKT som de andra: rätt underset (episodens namn är prefixet), rätt
+// nummer när prefixet skalats av, OCH kortnamnet måste hålla med. Nummer räcker
+// inte ensamt — Classic-seten har dubbletter (me55c har tre kort med nummer 106).
+
+/** "30th Celebration: Classic Collection" → nyckeln för "30th Celebration"; "" utan kolon. */
+export function cmSubsetParentKey(setName: string | null | undefined): string {
+  const s = String(setName ?? "");
+  const i = s.indexOf(":");
+  return i > 0 ? cmSetNameKey(s.slice(0, i)) : "";
+}
+
+/**
+ * Nummernyckel för ett kort ur ett UNDERSET, där feeden skriver ursprungssetets
+ * kod ihop med numret: "BS004" → "4", "PLB097" → "97", "TM 99" → "99".
+ * ⛔ Får BARA användas i underset-uppslaget: i huvudkatalogen ÄR "TG10" hela
+ * numret (se cmNumberKeyNoSetCode), men i ett underset står numret för kortets
+ * ursprung och prefixet är setkoden — och namnvakten dömer ändå varje träff.
+ */
+export function cmNumberKeyOriginCode(v: string | number | null | undefined): string {
+  const s = String(v ?? "").trim();
+  const m = /^[A-Za-z]{1,5}[\s._-]*(\d+[A-Za-z]?)$/.exec(s);
+  return cmNumberKey(m ? m[1] : s);
+}
+
+export interface SubsetCandidate<E> {
+  entry: E;
+  cardName: string;
+  numKey: string;
+}
+
+/**
+ * Välj kortet i undersetet som feed-raden avser. Nummer + namn (prefixregeln, som
+ * de andra reserverna) först; saknas en nummerträff (pokemontcg.io och leverantören
+ * är oense om Genesect-EX: 11 mot PLB097) duger NAMNET ENSAMT — men då EXAKT
+ * namnnyckel, inte prefix, och bara när exakt ETT kort i undersetet bär det.
+ * ⛔ Prefix utan nummer är farligt: "N" är prefix till varje Nidoran, "Mew" till
+ * "Mew VMAX". `viaNumber` säger hur stark träffen är, så anroparen kan låta en
+ * nummerträff i ett set vinna över en ren namnträff i ett annat.
+ */
+export function pickSubsetCandidate<E>(
+  cands: SubsetCandidate<E>[],
+  cmName: string | null | undefined,
+  numKey: string,
+): { entry: E; viaNumber: boolean; exact: boolean } | null {
+  if (!cmName || cands.length === 0) return null;
+  const key = cmNameKey(cmName);
+  const isExact = (c: SubsetCandidate<E>) => !!key && cmNameKey(c.cardName) === key;
+  const byNum = numKey ? cands.filter((c) => c.numKey === numKey && cmCardNameAgrees(c.cardName, cmName)) : [];
+  // Flera på samma nummer som alla håller med på prefix: det med EXAKT namn vinner, annars inget.
+  const numPick = byNum.length === 1 ? byNum : byNum.filter(isExact);
+  if (numPick.length === 1) return { entry: numPick[0].entry, viaNumber: true, exact: isExact(numPick[0]) };
+  if (byNum.length > 1) return null;
+  const exact = cands.filter(isExact);
+  return exact.length === 1 ? { entry: exact[0].entry, viaNumber: false, exact: true } : null;
+}
+
+/** Bland flera sets anspråk: nummerträff slår namnträff, exakt namn slår prefix; lika ⇒ inget. */
+export function pickBestSubsetHit<H extends { viaNumber: boolean; exact: boolean }>(hits: H[]): H | null {
+  const strength = (h: H) => (h.viaNumber ? 2 : 0) + (h.exact ? 1 : 0);
+  const top = Math.max(-1, ...hits.map(strength));
+  const best = hits.filter((h) => strength(h) === top);
+  return best.length === 1 ? best[0] : null;
+}
+
 // ── TÄCKNINGSVAKT (2026-07-26) ────────────────────────────────────────────────
 // Det som gjorde 366 saknade singlar möjliga var inte matchningsregeln — det var att
 // INGENTING larmade. Tre hela set låg utan Cardmarket-data i veckor och varje körning
@@ -1522,6 +1595,12 @@ export async function runCardmarketRefresh(
       string,
       { entry: { productId: string; offerId?: string; url?: string }; idProduct: number; cardName: string }
     >();
+    // UNDERSET-RESERVEN: setId → alla kort i setet (nummer + namn). Fylls för ALLA
+    // set; vilka som är underset avgörs först vid uppslaget (subsetsByParent).
+    const bySubset = new Map<
+      string,
+      SubsetCandidate<{ productId: string; offerId?: string; url?: string }>[]
+    >();
     for (const p of products) {
       const entry = { productId: p.id, offerId: p.offers[0]?.id, url: p.offers[0]?.url };
       const ext = p.card?.tcgExternalId;
@@ -1563,6 +1642,11 @@ export async function runCardmarketRefresh(
         const key = `${p.setId}|${numKey}`;
         byNumber.set(key, byNumber.has(key) ? null : { entry, cardName: p.card.name });
       }
+      if (p.setId && numKey && p.card?.name) {
+        const list = bySubset.get(p.setId) ?? [];
+        list.push({ entry, cardName: p.card.name, numKey });
+        bySubset.set(p.setId, list);
+      }
       // Kandidat för guide-reserven: bara ORDINARIE kort (tryckningarna hoppade
       // av ovan) och bara när vår länk pekar ut CM-produkten.
       const linkedId = Number(entry.url?.match(/idProduct=(\d+)/)?.[1] ?? NaN);
@@ -1575,9 +1659,14 @@ export async function runCardmarketRefresh(
     // ("Black Bolt", "151"). Utan grinden hade ett japanskt set kunnat vinna
     // uppslaget och prissatt engelska kort.
     const setsByName = new Map<string, string | null>();
+    // Episodnamn → UNDERSET (setnamn med kolon, prefixet = episoden). Se
+    // cmSubsetParentKey; uppslaget i processCards kräver namn + nummer ändå.
+    const subsetsByParent = new Map<string, string[]>();
     for (const s of await prisma.cardSet.findMany({ where: { language: "EN" }, select: { id: true, name: true } })) {
       const key = cmSetNameKey(s.name);
       if (key) setsByName.set(key, setsByName.has(key) ? null : s.id);
+      const parent = cmSubsetParentKey(s.name);
+      if (parent) subsetsByParent.set(parent, [...(subsetsByParent.get(parent) ?? []), s.id]);
     }
 
     // Promo-/specialset utan pokemontcg.io-tcgid (t.ex. MEP Black Star Promos) →
@@ -1699,6 +1788,7 @@ export async function runCardmarketRefresh(
     // singleOps: de ska inte räknas av haveribrytaren och inte skriva historikpunkter.
     const linkOnlyByProduct = new Map<string, string>();
     let byNumberHits = 0, byNumberNameRejects = 0;
+    let subsetHits = 0;
     // Rader vars `cardmarket_id` pekade på en produkt med ett ANNAT kortnamn. Loggas
     // för att en tyst uppgång ska synas: växer talet har leverantören tappat fler
     // id:n, och då är det nummerreserven som bär korten.
@@ -1797,6 +1887,24 @@ export async function runCardmarketRefresh(
             } else {
               byNumberNameRejects++;
             }
+          }
+        }
+        // UNDERSET-RESERVEN: episoden pekar på huvudsetet, men raden bär ett
+        // ursprungsset-kodat nummer ("BS004") som bara finns i ett underset med
+        // episodens namn som prefix. Nummer + namn, eller namnet ensamt när det
+        // är entydigt i undersetet — se pickSubsetCandidate.
+        if (!entry) {
+          const subsets = subsetsByParent.get(cmSetNameKey(card.episode?.name)) ?? [];
+          const numKey = cmNumberKeyOriginCode(card.card_number);
+          const hits = subsets.flatMap((setId) => {
+            const c = pickSubsetCandidate(bySubset.get(setId) ?? [], card.name, numKey);
+            return c ? [c] : [];
+          });
+          const best = pickBestSubsetHit(hits);
+          if (best) {
+            entry = best.entry;
+            rank = MATCH_RANK.number;
+            subsetHits++;
           }
         }
         if (!entry) continue;
@@ -2171,6 +2279,11 @@ export async function runCardmarketRefresh(
         // samma kort matcha reserven (exakt en av dem vinner, se feedRowWins).
         `[cm-refresh] Set+nummer-reserven: ${byNumberHits} feed-rader matchade utan användbar tcgid ` +
         `(${byNumberNameRejects} avvisade på kortnamn).`
+      );
+    if (subsetHits)
+      console.log(
+        `[cm-refresh] Underset-reserven: ${subsetHits} feed-rader med ursprungsset-kodat nummer ` +
+        `("BS004") matchade ett underset till episoden (Classic Collection-mönstret).`
       );
     if (cmidNameRejects)
       console.log(
