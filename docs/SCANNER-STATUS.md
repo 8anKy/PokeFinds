@@ -1384,6 +1384,32 @@ OMÄTT och inte byggs utan facit.
    processminne, laddas latt vid första skanningen, och Neon-arbetet per skanning
    GICK NER (bilden ger kort-id → uppslag på primärnyckel). Ingen pgvector.
    Vill man höja modellen står kostnadstabellen i `CLAUDE.md`.
+6. **PARKERAT 2026-09-20 — kvalitetscoach före singel- och bulkskanning.**
+   Ägaren vill senare kunna varna live när underlag, belysning, blänk, skärpa,
+   placering eller mellanrum gör bilden olämplig. Bygg INTE detta som ett nytt
+   AI-anrop: analysen ska ske lokalt på nedskalade kamerarutor och får inte ge
+   fler databasväckningar eller någon löpande infrastrukturkostnad. Befintliga
+   byggstenar ska återanvändas: `frameSharpness`, bulkdetektorns `busySurface`
+   samt foliesondens luminans- och klippmått.
+
+   Rekommenderat flöde är små statusindikatorer under kameran (grön = redo,
+   gul = rätta till, grå = analyserar) och EN konkret instruktion åt gången,
+   exempelvis "Byt till ett enfärgat underlag", "Flytta lampan eller telefonen"
+   eller "Sära på korten". Autofångst får vänta på godkänd kvalitet, men ett
+   manuellt slutarklick får ALDRIG blockeras av en osäker heuristik.
+
+   **Etapp 1:** exponera de tillförlitliga signalerna — rörelse/skärpa, extrem
+   under-/överexponering, stökigt underlag, överlappning, avklippta kort och
+   placering. **Etapp 2:** kalibrera blänk på 20–30 riktiga bra/dåliga bilder
+   med folie, sleeves, pärmfickor, mörker och taklampsreflexer. Blänk är svårast:
+   ljus kortkonst och holografi kan se ut som reflexer, så det ska först vara en
+   gul rekommendation, inte ett rött stopp. Temporal förflyttning av utfrätta
+   områden mellan kamerarutor kan användas som extra bevis.
+
+   Grov arbetsuppskattning: 1–2 utvecklingsdagar för etapp 1 och ytterligare
+   2–4 dagar för kalibrerad blänkdetektion och livefeedback i bulk. Förväntad
+   löpande driftkostnad: **0 kr**. Trösklar får inte skeppas på syntetiska bilder
+   eller magkänsla; mät mot de riktiga testbilderna och behåll ett osäkert läge.
 
 ## Verktygen (allt är resumerbart och läser bara)
 
