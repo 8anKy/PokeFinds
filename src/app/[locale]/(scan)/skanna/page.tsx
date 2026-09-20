@@ -2366,7 +2366,10 @@ function Scanner() {
   const detailsItem = detailsId ? scans.find((s) => s.id === detailsId) ?? null : null;
 
   const topbar = (
-    <div className="relative z-20 flex items-center justify-between gap-3 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+    // ⛔ ÖVER KAMERANS HELHÖGA KONTROLLAGER. Zoomradens behållare sträcker sig
+    // från topp till botten längs högerkanten; när båda låg på z-20 fångade den
+    // trycket på informationsknappen på telefoner med flera zoomlägen.
+    <div className="relative z-[40] flex items-center justify-between gap-3 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
       <button
         ref={closeBtnRef}
         type="button"
@@ -2753,8 +2756,10 @@ function CameraControls(props: {
     p === 0.5 ? t("zoomHalf") : p === 2 ? t("zoomTwo") : t("zoomOne");
   if (props.zoomPresets.length <= 1) return null;
   return (
-    <div className="absolute inset-y-0 right-3 z-20 flex flex-col items-end justify-center">
-      <div className="flex flex-col items-center gap-1 rounded-full bg-black/50 p-1 backdrop-blur">
+    // Behållaren är helhög för centreringen men får aldrig bli en osynlig
+    // klicksköld över huvudets knappar. Bara den synliga pillen tar pekhändelser.
+    <div className="pointer-events-none absolute inset-y-0 right-3 z-20 flex flex-col items-end justify-center">
+      <div className="pointer-events-auto flex flex-col items-center gap-1 rounded-full bg-black/50 p-1 backdrop-blur">
         {props.zoomPresets.map((o) => (
           <button
             key={o.preset}
