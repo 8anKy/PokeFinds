@@ -58,6 +58,10 @@ import { EDGE_ZONE_PX, resolveBackSwipe } from "@/lib/swipe-gesture";
 import { pageMotionTransition, swipeSettleDuration } from "@/lib/page-motion";
 import { SellSheet, type SellItem } from "@/components/features/sell-sheet";
 import {
+  ScanPreparationSheet,
+  type ScanGuideMode,
+} from "@/components/features/scan-preparation-sheet";
+import {
   withDeviceId,
   type ZoomPreset,
   type ZoomPresetOption,
@@ -76,6 +80,7 @@ import {
   IconCheck,
   IconChevronLeft,
   IconFlashlight,
+  IconInfo,
   IconLock,
   IconScan,
   IconSearch,
@@ -991,6 +996,7 @@ function Scanner() {
   const [flash, setFlash] = useState(false);
   const [shutterCooling, setShutterCooling] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [guideMode, setGuideMode] = useState<ScanGuideMode | null>(null);
   const [defaultCondition, setDefaultCondition] = useState("NEAR_MINT");
   // Skannern är endast engelska — inget språkval.
   const defaultLanguage = "EN";
@@ -1413,7 +1419,8 @@ function Scanner() {
       view !== "capture" ||
       mode !== "single" ||
       detailsId !== null ||
-      settingsOpen
+      settingsOpen ||
+      guideMode !== null
     ) {
       setLiveHint(null);
       liveStreak.current = { id: "", n: 0 };
@@ -1520,7 +1527,7 @@ function Scanner() {
         });
     }, 600);
     return () => window.clearInterval(iv);
-  }, [cameraState, view, mode, detailsId, settingsOpen]);
+  }, [cameraState, view, mode, detailsId, settingsOpen, guideMode]);
 
 
   // Lås body-scroll + Escape-stäng medan skannern är öppen.
@@ -1532,7 +1539,8 @@ function Scanner() {
     // :focus-visible-ring på X/tillbaka-knappen. Escape lyssnar på window ändå.
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (detailsId) setDetailsId(null);
+        if (guideMode) setGuideMode(null);
+        else if (detailsId) setDetailsId(null);
         else if (settingsOpen) setSettingsOpen(false);
         else if (view === "review") setView("capture");
         else closeScanner();
@@ -1543,7 +1551,7 @@ function Scanner() {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
-  }, [detailsId, settingsOpen, view, closeScanner]);
+  }, [guideMode, detailsId, settingsOpen, view, closeScanner]);
 
   // Svep från VÄNSTERKANTEN åt HÖGER för att stänga skannern — fingret följer och skannern glider
   // ut, sedan closeScanner() (med osparade-träffar-vakten). Samma touch-event-
@@ -2377,7 +2385,19 @@ function Scanner() {
           {view === "review" ? t("reviewTitle") : t("captureTitle")}
         </p>
       </div>
-      <div className="h-10 w-10" aria-hidden="true" />
+      {view === "capture" && mode !== "barcode" ? (
+        <button
+          type="button"
+          onClick={() => setGuideMode(mode === "bulk" ? "bulk" : "single")}
+          aria-label={t("scanGuideOpenAria")}
+          title={t("scanGuideOpen")}
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-ink backdrop-blur transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
+        >
+          <IconInfo size={20} />
+        </button>
+      ) : (
+        <div className="h-10 w-10" aria-hidden="true" />
+      )}
     </div>
   );
 
@@ -2528,6 +2548,14 @@ function Scanner() {
           condition={defaultCondition}
           onCondition={setDefaultCondition}
           onClose={() => setSettingsOpen(false)}
+        />
+      )}
+
+      {guideMode && (
+        <ScanPreparationSheet
+          open
+          initialMode={guideMode}
+          onClose={() => setGuideMode(null)}
         />
       )}
 
