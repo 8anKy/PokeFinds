@@ -143,8 +143,11 @@ async function main() {
 
     await prisma.$transaction(async (tx) => {
       // 1. Kortet: pokemontcg.io:s rad behålls; leverantörens cardmarketId följer med.
-      if (prov.cardmarketId != null && twin.cardmarketId == null)
+      //    ⛔ Kolumnen är UNIK — släpp den från leverantörsraden FÖRST, annars P2002.
+      if (prov.cardmarketId != null && twin.cardmarketId == null) {
+        await tx.card.update({ where: { id: prov.id }, data: { cardmarketId: null } });
         await tx.card.update({ where: { id: twin.id }, data: { cardmarketId: prov.cardmarketId } });
+      }
       // 2. Samlingsposter som pekar på leverantörens KORT → tvillingen.
       await tx.collectionItem.updateMany({ where: { cardId: prov.id }, data: { cardId: twin.id } });
       // 3. Produkten: flytta till tvillingens kort + set, ny titel i pokemontcg.io:s format.
