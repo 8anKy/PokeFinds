@@ -6,11 +6,21 @@ import { Input } from "@/components/ui/input";
 import { BottomSheet, BottomSheetCta } from "@/components/ui/bottom-sheet";
 import { cn } from "@/lib/utils";
 import { parseKronorToOre } from "@/lib/purchase-price";
+import { PortfolioChips } from "@/components/features/portfolio-chips";
+import { PortfolioCreateSheet } from "@/components/features/portfolio-sheets";
+import {
+  loadPortfolios,
+  preferredPortfolioId,
+  setLastPortfolioId,
+  type PortfolioSummary,
+} from "@/lib/portfolios-client";
 
 export interface QuickAddDraft {
   quantity: number;
   /** Öre, heltal. Utelämnas helt när fältet lämnats blankt (≠ 0 kr). */
   purchasePrice?: number;
+  /** Pärm att spara i. Utelämnad = standardpärmen. */
+  portfolioId?: string;
 }
 
 interface CollectionQuickAddSheetProps {
@@ -54,14 +64,31 @@ export function CollectionQuickAddPopover({
   const [quantity, setQuantity] = useState(1);
   const [priceText, setPriceText] = useState("");
   const [showError, setShowError] = useState(false);
+  // Pärmar (2026-09-21): raden visas bara när kontot har fler än en. Listan
+  // delas med skannern (lib/portfolios-client), en hämtning per sidladdning.
+  const [portfolios, setPortfolios] = useState<PortfolioSummary[]>([]);
+  const [portfolioId, setPortfolioId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   // Utgångsläget varje gång arket öppnas: 1 ex, inget pris. Ett tidigare tillägg
-  // ska inte ligga kvar som förifyllt värde nästa gång.
+  // ska inte ligga kvar som förifyllt värde nästa gång. Pärmen däremot MINNS —
+  // den som fyller "Byteshögen" vill inte välja om per kort.
   useEffect(() => {
     if (!open) return;
     setQuantity(1);
     setPriceText("");
     setShowError(false);
+    let active = true;
+    loadPortfolios()
+      .then((p) => {
+        if (!active) return;
+        setPortfolios(p.portfolios);
+        setPortfolioId(preferredPortfolioId(p.portfolios));
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
   }, [open]);
 
   const parsed = parseKronorToOre(priceText);
@@ -81,6 +108,8 @@ export function CollectionQuickAddPopover({
       // påstående; blankt betyder "vet inte" — de får inte slås ihop, för
       // portföljens vinstberäkning utesluter poster utan inköpspris med flit.
       ...(parsed.kind === "ok" ? { purchasePrice: parsed.ore } : {}),
+      // Skickas bara när det finns något att välja mellan — annars standardpärmen.
+      ...(portfolios.length > 1 && portfolioId ? { portfolioId } : {}),
     });
   }
 
@@ -166,6 +195,32 @@ export function CollectionQuickAddPopover({
           {t("purchasePriceInvalid")}
         </p>
       )}
+
+      {portfolios.length > 1 && (
+        <div className="mt-4">
+          <p className="mb-1.5 text-sm text-ink">{t("quickAddPortfolio")}</p>
+          <PortfolioChips
+            portfolios={portfolios}
+            value={portfolioId}
+            onChange={(id) => {
+              setPortfolioId(id);
+              if (id) setLastPortfolioId(id);
+            }}
+            onCreate={() => setCreateOpen(true)}
+            size="sm"
+            className="flex-wrap"
+          />
+        </div>
+      )}
+      <PortfolioCreateSheet
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={(created) => {
+          setPortfolios((prev) => [...prev, created]);
+          setPortfolioId(created.id);
+          setLastPortfolioId(created.id);
+        }}
+      />
     </BottomSheet>
   );
 }

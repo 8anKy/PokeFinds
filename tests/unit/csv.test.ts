@@ -17,6 +17,13 @@ vi.mock("@/lib/db", () => ({
       create: (...args: unknown[]) => collectionCreate(...args),
     },
     card: { findMany: (...args: unknown[]) => cardFindMany(...args) },
+    // Pärmarna (kolumnen `portfolio`, sist): standardpärmen + en till.
+    portfolio: {
+      findMany: async () => [
+        { id: "pf-default", name: "Min samling", isDefault: true },
+        { id: "pf-trade", name: "Byteshögen", isDefault: false },
+      ],
+    },
     $transaction: (...args: unknown[]) => transaction(...args),
   },
 }));
@@ -69,7 +76,7 @@ describe("exportCollectionCsv", () => {
     collectionFindMany.mockResolvedValue([]);
     const csv = await exportCollectionCsv("user-1");
     expect(csv).toBe(
-      "name,quantity,condition,language,purchasePrice,purchaseDate,estimatedValue,gradingCompany,grade,notes,set,number,variant,tcgId,slug"
+      "name,quantity,condition,language,purchasePrice,purchaseDate,estimatedValue,gradingCompany,grade,notes,set,number,variant,tcgId,slug,portfolio"
     );
   });
 
@@ -91,7 +98,7 @@ describe("exportCollectionCsv", () => {
     const csv = await exportCollectionCsv("user-1");
     const lines = csv.split("\n");
     expect(lines).toHaveLength(2);
-    expect(lines[1]).toBe("Pikachu,2,MINT,SV,12500,2025-02-01,20000,PSA,10,,,,,,");
+    expect(lines[1]).toBe("Pikachu,2,MINT,SV,12500,2025-02-01,20000,PSA,10,,,,,,,Min samling");
   });
 
   it("escapar fält med kommatecken och citattecken", async () => {
@@ -129,6 +136,19 @@ describe("exportCollectionCsv", () => {
     const lines = (await exportCollectionCsv("user-1")).split("\n");
     expect(lines[1]).toContain(",Test Set,25,Reverse Holo,sv-test-25,pikachu-test-25");
     expect(lines[2].startsWith("Okänt kort,")).toBe(true);
+  });
+
+  it("skriver pärmens namn SIST — null-posten tillhör standardpärmen", async () => {
+    collectionFindMany.mockResolvedValue([
+      stubItem({ card: { name: "Pikachu" }, portfolioId: null }),
+      stubItem({ id: "item-2", card: { name: "Mew" }, portfolioId: "pf-trade" }),
+      stubItem({ id: "item-3", card: { name: "Ditto" }, portfolioId: "pf-gone" }),
+    ]);
+    const lines = (await exportCollectionCsv("user-1")).split("\n");
+    expect(lines[1].endsWith(",Min samling")).toBe(true);
+    expect(lines[2].endsWith(",Byteshögen")).toBe(true);
+    // Raderad pärm (kan inte hända — FK SetNull — men kolumnen ljuger inte).
+    expect(lines[3].endsWith(",")).toBe(true);
   });
 });
 

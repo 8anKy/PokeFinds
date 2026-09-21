@@ -11,7 +11,15 @@ import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { normalizePrinting, parseImportNumber } from "@/lib/import-normalize";
 import type { ImportDraftRow } from "@/lib/import-rows";
 import { resolveImportRows } from "@/services/collection-import";
+import { resolvePortfolioIdForWrite } from "@/services/portfolios";
 import type { CardCondition, CardLanguage } from "@prisma/client";
+
+/**
+ * Pärmfilter: `undefined` = hela samlingen, annars posterna i EN pärm
+ * (standardpärmen = `portfolioId: null`, se lib/portfolio-limit.ts —
+ * anroparen översätter med `portfolioItemWhere()`).
+ */
+export type PortfolioFilter = { portfolioId: string | null } | undefined;
 
 /**
  * ⛔ `select`, ALDRIG `include` PÅ `card` (2026-08-05). Ett bart `include` hämtar
@@ -61,9 +69,9 @@ const COLLECTION_INCLUDE = {
   },
 } as const;
 
-export async function listCollection(userId: string) {
+export async function listCollection(userId: string, portfolio?: PortfolioFilter) {
   return prisma.collectionItem.findMany({
-    where: { userId },
+    where: { userId, ...(portfolio ?? {}) },
     include: COLLECTION_INCLUDE,
     orderBy: { createdAt: "desc" },
   });
@@ -112,9 +120,14 @@ export interface CollectionItemInput {
   grade?: string | null;
   notes?: string;
   imageUrl?: string;
+  /** Pärm: undefined = rör inte (ny post ⇒ standardpärmen), null = standardpärmen. */
+  portfolioId?: string | null;
 }
 
 export async function addCollectionItem(userId: string, input: CollectionItemInput) {
+  // Främmande/okänd pärm ⇒ 404 här, aldrig tyst standardpärm.
+  const portfolioId = await resolvePortfolioIdForWrite(userId, input.portfolioId);
+  input = { ...input, portfolioId };
   if (input.cardId) {
     const card = await prisma.card.findUnique({
       where: { id: input.cardId },
@@ -169,6 +182,8 @@ export async function addCollectionItem(userId: string, input: CollectionItemInp
       // Samma pris — `null` matchar `null`, dvs två prislösa tillägg stackar
       // som förut. Prisma jämför här exakt, precis som canStackOnto gör i JS.
       purchasePrice: input.purchasePrice ?? null,
+      // Samma PÄRM: samma kort i två pärmar är två poster med flit.
+      portfolioId: portfolioId ?? null,
     },
   });
   if (stackable) {
@@ -179,7 +194,7 @@ export async function addCollectionItem(userId: string, input: CollectionItemInp
     });
   }
   return prisma.collectionItem.create({
-    data: { userId, ...input, quantity: addQty },
+    data: { userId, ...input, portfolioId: portfolioId ?? null, quantity: addQty },
     include: COLLECTION_INCLUDE,
   });
 }
@@ -193,9 +208,10 @@ export async function updateCollectionItem(
   if (!item || item.userId !== userId) {
     throw new ServiceError(404, "Samlingsobjektet hittades inte.");
   }
+  const portfolioId = await resolvePortfolioIdForWrite(userId, input.portfolioId);
   return prisma.collectionItem.update({
     where: { id: itemId },
-    data: input,
+    data: { ...input, ...(portfolioId !== undefined ? { portfolioId } : {}) },
     include: COLLECTION_INCLUDE,
   });
 }
@@ -288,10 +304,12 @@ export async function computeCollectionValue(
     maxDays?: number | null;
     /** Antal toppobjekt (profilens Portfölj-flik vill se fler än 5). */
     topItems?: number;
+    /** En pärm i taget: värde, graf, vinst och topplista följer valet. */
+    portfolio?: PortfolioFilter;
   }
 ) {
   const items = await prisma.collectionItem.findMany({
-    where: { userId },
+    where: { userId, ...(opts?.portfolio ?? {}) },
     include: COLLECTION_INCLUDE,
   });
 
@@ -517,6 +535,9 @@ const CSV_HEADERS = [
   "variant",
   "tcgId",
   "slug",
+  // 2026-09-21: pärmens namn, SIST enligt regeln ovan. Läses inte av importen
+  // (allt importerat landar i standardpärmen) — kolumnen finns för människan.
+  "portfolio",
 ] as const;
 
 function csvEscape(value: string): string {
@@ -528,7 +549,12 @@ function csvEscape(value: string): string {
 
 /** Genererar en CSV-sträng av användarens samling. Priser i öre. */
 export async function exportCollectionCsv(userId: string): Promise<string> {
-  const items = await listCollection(userId);
+  const [items, portfolios] = await Promise.all([
+    listCollection(userId),
+    prisma.portfolio.findMany({ where: { userId }, select: { id: true, name: true, isDefault: true } }),
+  ]);
+  const portfolioName = (id: string | null) =>
+    (id == null ? portfolios.find((p) => p.isDefault) : portfolios.find((p) => p.id === id))?.name ?? "";
   const lines = [CSV_HEADERS.join(",")];
   for (const item of items) {
     const name = item.card?.name ?? item.product?.title ?? item.customTitle ?? "";
@@ -549,6 +575,7 @@ export async function exportCollectionCsv(userId: string): Promise<string> {
         csvEscape(item.product?.variantLabel ?? ""),
         csvEscape(item.card?.tcgExternalId ?? ""),
         csvEscape(item.product?.slug ?? ""),
+        csvEscape(portfolioName(item.portfolioId)),
       ].join(",")
     );
   }

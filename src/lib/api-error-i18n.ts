@@ -82,6 +82,12 @@ export const API_ERROR_KEYS: Record<string, string> = {
   "Setet hittades inte.": "setNotFound",
   "Kortet hittades inte.": "cardNotFound",
   "Samlingsobjektet hittades inte.": "collectionItemNotFound",
+  // pärmar
+  "Pärmen hittades inte.": "portfolioNotFound",
+  "Pärmen behöver ett namn.": "portfolioNameRequired",
+  "Standardpärmen kan inte tas bort.": "portfolioDefaultUndeletable",
+  "Gratiskontot har en pärm. Uppgradera till Pro för upp till fem.": "portfolioLimitFree",
+  "Du har redan så många pärmar som Pro tillåter.": "portfolioLimitPro",
   "Importen innehöll inga rader.": "collectionImportEmpty",
   "Importen innehåller fler än 5 000 rader.": "collectionImportTooLarge",
   "Importen hittades inte.": "collectionImportNotFound",

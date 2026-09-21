@@ -36,7 +36,9 @@ Alla endpoints ligger under `/api`. Autentisering via NextAuth-session (cookie).
 ## Samling
 | GET/POST | /api/collection | ✅ | Lista/lägg till objekt |
 | PATCH/DELETE | /api/collection/[id] | ✅ | Uppdatera/ta bort |
-| GET | /api/collection/value | ✅ | Totalvärde, vinst/förlust, utveckling |
+| GET | /api/collection/value | ✅ | Totalvärde, vinst/förlust, utveckling (`?portfolio=<id>` för en pärm) |
+| GET/POST | /api/portfolios | ✅ | Pärmar (lista + tak), skapa (403 `PORTFOLIO_LIMIT` vid fullt konto) |
+| PATCH/DELETE | /api/portfolios/[id] | ✅ | Döp om / offentlig, ta bort (posterna faller till standardpärmen) |
 | GET | /api/collection/export | ✅ | CSV-export |
 | POST | /api/collection/import | ✅ | CSV-import (JSON-rader) |
 

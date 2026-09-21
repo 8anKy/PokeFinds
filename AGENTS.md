@@ -288,6 +288,13 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   `FreeWatchIntroSheet` (tak, ena larmet, Pro direkt; localStorage-nyckel `foilio:free-watch-intro:v1`) och
   appen ber om push-tillstånd direkt efter (`promptPushAfterWatch`). ⛔ Nämn aldrig konkurrenter i copyn
   när erbjudandet jämförs — bara vad som ingår hos oss.
+- **PÄRMAR I SAMLINGEN (2026-09-21)**: `Portfolio` + `CollectionItem.portfolioId` — EN samling, flera etiketter.
+  ⛔ Standardpärmen = `portfolioId NULL` på posten (ingen backfill, inga ändrade skrivvägar); pärm ↔ where bara via
+  `lib/portfolio-limit.ts`. Totalvärde/set-komplettering/utmärkelser/veckobrev räknar ALLA poster; `/samling?parm=`
+  visar EN pärms värde/graf/vinst. Offentlig/privat PER PÄRM (profilen visar bara offentliga), `User.isPublicCollection`
+  är en SPEGEL ("minst en offentlig"). **Tak 1 gratis / 5 Pro** (ägarbeslut; andra pärmen = paywallen, kod
+  `PORTFOLIO_LIMIT`). Väljare i skannern, snabbtillägget, desktopformuläret; "Flytta" i mobilens väljläge. Regler:
+  `.claude/rules/collection-portfolio.md`.
 - ⛔ **CSV-IMPORT AV SAMLINGEN ÄR DOLD TILLS ÄGAREN HAR TESTAT KLART (2026-09-10).** Knappar, sida och
   samtliga import-API:er öppnas bara när servervariabeln `COLLECTION_IMPORT_PUBLIC=1`; osatt spak ger
   404 även på en gissad URL. Koden nedan beskriver flödet när grinden öppnas.

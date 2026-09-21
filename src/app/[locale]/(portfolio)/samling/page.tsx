@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { listCollection, computeCollectionValue } from "@/services/collection";
+import { listCollection, computeCollectionValue, valueCollectionItems } from "@/services/collection";
 import { loadSetDenominators, buildSetPortfolio } from "@/services/set-portfolio";
 import { listSales } from "@/services/sales";
 import { syncSoldCollectionItems } from "@/jobs/tradera-sold-sync";
@@ -28,6 +28,9 @@ import { SoldList } from "./sold-list";
 import { SetProgressList } from "./set-progress-list";
 import { GuestPortfolio } from "./guest-portfolio";
 import { collectionImportPublic } from "@/lib/collection-import-gate";
+import { listPortfolios, portfolioAllowance } from "@/services/portfolios";
+import { portfolioItemWhere } from "@/lib/portfolio-limit";
+import { PortfolioBar } from "./portfolio-bar";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +39,12 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("metaTitle") };
 }
 
-export default async function CollectionPage() {
+export default async function CollectionPage({
+  searchParams,
+}: {
+  /** `parm` = vald pärm (id). Utelämnad = hela samlingen. */
+  searchParams?: { parm?: string };
+}) {
   const session = await auth();
   // Gäst: vad portföljen gör + Skapa konto/Logga in — ingen omdirigering (QA 2026-09-05).
   if (!session?.user) return <GuestPortfolio />;
@@ -51,20 +59,32 @@ export default async function CollectionPage() {
 
   const isPremium = session.user.isPro;
   const importEnabled = collectionImportPublic();
-  const [items, value, user, sales, setDenominators] = await Promise.all([
+  const locale = (await getLocale()) === "en" ? "en" : "sv";
+
+  // PÄRMEN FÖRST: värde, graf, vinst och topplista räknas för den valda pärmen,
+  // medan set-kompletteringen alltid ser hela samlingen (en privat pärm är
+  // fortfarande ens kort). Ett okänt/främmande id i URL:en = "Alla", tyst.
+  const [portfolios, allowance] = await Promise.all([
+    listPortfolios(userId, { locale }),
+    portfolioAllowance(userId, isPremium),
+  ]);
+  const selectedPortfolio = portfolios.find((p) => p.id === searchParams?.parm) ?? null;
+  const portfolioFilter = selectedPortfolio ? portfolioItemWhere(selectedPortfolio) : undefined;
+
+  const [allItems, value, sales, setDenominators] = await Promise.all([
     listCollection(userId),
     // Gratis: max 6 mån historik. Premium: full (range-väljaren styr visningen).
-    computeCollectionValue(userId, { maxDays: isPremium ? null : 183 }),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { isPublicCollection: true },
-    }),
+    computeCollectionValue(userId, { maxDays: isPremium ? null : 183, portfolio: portfolioFilter }),
     listSales(userId),
     // Nämnarna per set är IDENTISKA för alla användare och cachas globalt 24 h
     // — en cache-träff kostar noll Neon-rundturer, och en miss är EN sats som
     // rider på en request som redan väckt databasen.
     loadSetDenominators(),
   ]);
+  // Raderna nedan (rutnät/tabell) följer pärmvalet; set-raderna byggs ur ALLA.
+  const items = portfolioFilter
+    ? allItems.filter((i) => i.portfolioId === portfolioFilter.portfolioId)
+    : allItems;
 
   // Slug per singel-kort → produktsida att inspektera (kortets billigaste produkt).
   const slugByCard = new Map<string, string>();
@@ -106,12 +126,20 @@ export default async function CollectionPage() {
     gradingCompany: item.gradingCompany,
     grade: item.grade,
     notes: item.notes,
+    portfolioId: item.portfolioId,
   }));
 
   // Set-raderna byggs i MINNET ur data sidan redan hämtat — noll extra
   // Neon-rundturer. `itemValues` är värde per styck; aggregeringen multiplicerar
-  // med antalet, precis som totalvärdet ovanför gör.
-  const setRows = buildSetPortfolio(items, value.itemValues, setDenominators);
+  // med antalet, precis som totalvärdet ovanför gör. ⛔ Över HELA samlingen —
+  // en privat pärm är fortfarande ens kort, och set-fliken får aldrig säga "du
+  // saknar kort du har". Med en pärm vald bär `value.itemValues` bara den
+  // pärmens värden, så resten värderas i en egen pass (en fråga till, på en
+  // databas som redan är vaken av sidan).
+  const setValues = portfolioFilter
+    ? Object.fromEntries(await valueCollectionItems(allItems))
+    : value.itemValues;
+  const setRows = buildSetPortfolio(allItems, setValues, setDenominators);
 
   const chartData = value.valueOverTime.map((p) => ({
     date: p.date,
@@ -153,6 +181,12 @@ export default async function CollectionPage() {
           </LinkButton>
         )}
       </div>
+
+      <PortfolioBar
+        portfolios={portfolios}
+        selectedId={selectedPortfolio?.id ?? null}
+        canCreate={allowance.canCreate}
+      />
 
       <PortfolioTabs
         soldCount={sales.length}
@@ -320,13 +354,14 @@ export default async function CollectionPage() {
       )}
 
       {/* Samlingen som rutnät (mobil) — tryck = inspektera, håll inne = väljläge */}
-      {rows.length > 0 && <MobileCollectionGrid rows={rows} />}
+      {rows.length > 0 && <MobileCollectionGrid rows={rows} portfolios={portfolios} />}
 
       {/* Tabell + verktyg (klient) — desktop */}
       <div className="hidden lg:block">
         <CollectionClient
           initialItems={rows}
-          isPublicCollection={user?.isPublicCollection ?? false}
+          portfolios={portfolios}
+          selectedPortfolioId={selectedPortfolio?.id ?? null}
           importEnabled={importEnabled}
         />
       </div>

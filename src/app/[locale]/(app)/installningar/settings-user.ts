@@ -1,3 +1,4 @@
+import { listPortfolios } from "@/services/portfolios";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { isPro } from "@/lib/plan";
@@ -23,8 +24,10 @@ export interface SettingsUser {
   traderaUserId: string | null;
   /** "Visa mina Tradera-annonser på min profil" — bara meningsfull när kopplad. */
   showTraderaListings: boolean;
-  /** "Visa min samling på min profil" — profilens Portfölj-flik för andra. */
+  /** "Visa min samling på min profil" — spegel av "minst en pärm är offentlig". */
   isPublicCollection: boolean;
+  /** Pärmarna med sin egen offentlig-flagga — synligheten styrs PER PÄRM (2026-09-21). */
+  portfolios: { id: string; name: string; isPublic: boolean; isDefault: boolean; itemCount: number }[];
   /** "Tillåt köpförfrågningar" — knappen "Är den till salu?" på rutorna (preferences-JSON). */
   allowPurchaseRequests: boolean;
   /** Community v2 (forum/meddelanden/Tradera på profilen) synligt för den här besökaren? */
@@ -95,6 +98,7 @@ export async function loadSettingsUser(): Promise<SettingsUser> {
     traderaUserId: user.traderaUserId,
     showTraderaListings: user.showTraderaListings,
     isPublicCollection: user.isPublicCollection,
+    portfolios: await listPortfolios(session.user.id),
     allowPurchaseRequests: allowsPurchaseRequests(user.preferences),
     // Community v2-grinden (Tradera-annonser på profilen bor bakom den). Sidorna
     // är force-dynamic, så UA + roll läses per besök precis som env-spakarna.

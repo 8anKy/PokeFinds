@@ -6,6 +6,7 @@ import {
   listCollection,
   valueCollectionItems,
 } from "@/services/collection";
+import { listPortfolios, listPublicPortfolios } from "@/services/portfolios";
 import { LinkButton } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconCards, IconLock } from "@/components/ui/icons";
@@ -50,7 +51,15 @@ export async function PortfolioPane({
     );
   }
 
-  const items = await listCollection(userId);
+  // PÄRMAR (2026-09-21): andra ser bara de OFFENTLIGA pärmarna, ägaren alla.
+  // `canSee` ovan är "minst en pärm är offentlig" (User.isPublicCollection
+  // speglas av pärm-tjänsten); här filtreras posterna ned till just dem.
+  const [allItems, visiblePortfolios] = await Promise.all([
+    listCollection(userId),
+    isOwnProfile ? listPortfolios(userId) : listPublicPortfolios(userId),
+  ]);
+  const visibleKeys = new Set(visiblePortfolios.map((p) => (p.isDefault ? null : p.id)));
+  const items = allItems.filter((i) => visibleKeys.has(i.portfolioId));
   if (items.length === 0) {
     return (
       <EmptyState
@@ -75,26 +84,38 @@ export async function PortfolioPane({
   ]);
 
   // En ruta per VARA: flera köp av samma kort blir en ruta med totalantal.
-  const groups = groupLots(items);
-  const cells: ProfileCollectionCell[] = groups.map((g) => {
-    const r = g.lots[0];
-    return {
-      key: g.key,
-      itemId: r.id,
-      name: r.card?.name ?? r.product?.title ?? r.customTitle ?? r.notes ?? tc("unknownItem"),
-      setName: r.card?.set?.name ?? null,
-      imageUrl: r.imageUrl ?? r.card?.imageUrl ?? r.product?.imageUrl ?? null,
-      slug: r.product?.slug ?? (r.cardId ? (slugByCard.get(r.cardId) ?? null) : null),
-      quantity: g.quantity,
-      unitValue: values.get(r.id) ?? null,
-    };
-  });
-  // Mest värt först — samma ordning som samlingens "värde"-sortering.
-  cells.sort((a, b) => (b.unitValue ?? 0) * b.quantity - (a.unitValue ?? 0) * a.quantity);
-
-  const totalValue = cells.reduce((sum, c) => sum + (c.unitValue ?? 0) * c.quantity, 0);
-  const shown = cells.slice(0, MAX_CELLS);
-  const hidden = cells.length - shown.length;
+  // Grupperingen sker PER PÄRM — samma kort i två pärmar är två rutor med flit.
+  const toCells = (lots: typeof items): ProfileCollectionCell[] => {
+    const cells = groupLots(lots).map((g) => {
+      const r = g.lots[0];
+      return {
+        key: g.key,
+        itemId: r.id,
+        name: r.card?.name ?? r.product?.title ?? r.customTitle ?? r.notes ?? tc("unknownItem"),
+        setName: r.card?.set?.name ?? null,
+        imageUrl: r.imageUrl ?? r.card?.imageUrl ?? r.product?.imageUrl ?? null,
+        slug: r.product?.slug ?? (r.cardId ? (slugByCard.get(r.cardId) ?? null) : null),
+        quantity: g.quantity,
+        unitValue: values.get(r.id) ?? null,
+      };
+    });
+    // Mest värt först — samma ordning som samlingens "värde"-sortering.
+    cells.sort((a, b) => (b.unitValue ?? 0) * b.quantity - (a.unitValue ?? 0) * a.quantity);
+    return cells;
+  };
+  // En sektion per synlig pärm (rubrik bara när det finns fler än en).
+  const sections = visiblePortfolios
+    .map((p) => ({
+      portfolio: p,
+      cells: toCells(items.filter((i) => i.portfolioId === (p.isDefault ? null : p.id))),
+    }))
+    .filter((s) => s.cells.length > 0);
+  const cellCount = sections.reduce((n, s) => n + s.cells.length, 0);
+  const totalValue = sections.reduce(
+    (sum, s) => sum + s.cells.reduce((acc, c) => acc + (c.unitValue ?? 0) * c.quantity, 0),
+    0
+  );
+  let hidden = 0;
 
   return (
     <div>
@@ -105,16 +126,37 @@ export async function PortfolioPane({
             {formatPrice(totalValue)}
           </span>
         ) : (
-          <span className="text-sm text-ink-faint">{t("itemsCount", { count: cells.length })}</span>
+          <span className="text-sm text-ink-faint">{t("itemsCount", { count: cellCount })}</span>
         )}
       </div>
 
       {/* Belopp bara till ägaren: andra får rutor med namn, set och antal. */}
-      <ProfileCollectionGrid
-        cells={isOwnProfile ? shown : shown.map((c) => ({ ...c, unitValue: null }))}
-        showValues={isOwnProfile}
-        ask={askOwnerId ? { ownerId: askOwnerId } : undefined}
-      />
+      {sections.map(({ portfolio, cells }) => {
+        const shown = cells.slice(0, MAX_CELLS);
+        hidden += cells.length - shown.length;
+        return (
+          <div key={portfolio.id} className="mb-5 last:mb-0">
+            {sections.length > 1 && (
+              <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink">
+                {portfolio.name}
+                <span className="text-xs font-normal text-ink-faint">
+                  {t("itemsCount", { count: cells.length })}
+                </span>
+                {isOwnProfile && !portfolio.isPublic && (
+                  <span className="text-ink-faint" title={t("binderPrivate")}>
+                    <IconLock size={12} />
+                  </span>
+                )}
+              </p>
+            )}
+            <ProfileCollectionGrid
+              cells={isOwnProfile ? shown : shown.map((c) => ({ ...c, unitValue: null }))}
+              showValues={isOwnProfile}
+              ask={askOwnerId ? { ownerId: askOwnerId } : undefined}
+            />
+          </div>
+        );
+      })}
 
       {(hidden > 0 || isOwnProfile) && (
         <div className="mt-4 flex items-center justify-between gap-3">

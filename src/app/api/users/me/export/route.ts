@@ -64,8 +64,10 @@ export async function GET() {
           include: {
             card: { select: { name: true, number: true } },
             product: { select: { title: true } },
+            portfolio: { select: { name: true } },
           },
         },
+        portfolios: true,
         posts: true,
         comments: true,
         alerts: true,
@@ -183,6 +185,8 @@ export async function GET() {
       watchlist: user.watchlistItems,
       setWatches: user.setWatches,
       collection: user.collectionItems,
+      // Pärmarna (2026-09-21). En post utan `portfolio` ligger i standardpärmen.
+      portfolios: user.portfolios,
       sales: user.sales,
       posts: user.posts,
       comments: user.comments,

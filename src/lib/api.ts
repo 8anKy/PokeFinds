@@ -14,7 +14,7 @@ import { apiErrorKeyFor } from "@/lib/api-error-i18n";
  * inget här — cookien NEXT_LOCALE (skrivs av språkväljaren) är facit, referer-
  * vägen (/en/…) reserven, svenska standard. Utanför en request-scope (jobb) ⇒ sv.
  */
-function requestLocale(): "sv" | "en" {
+export function requestLocale(): "sv" | "en" {
   try {
     const c = cookies().get("NEXT_LOCALE")?.value;
     if (c === "en" || c === "sv") return c;

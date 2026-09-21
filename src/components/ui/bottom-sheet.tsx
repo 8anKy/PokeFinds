@@ -386,17 +386,23 @@ export function BottomSheetCta({
   children,
   onClick,
   disabled,
+  tone = "default",
 }: {
   children: ReactNode;
   onClick: () => void;
   disabled?: boolean;
+  /** `danger` = röd fot för en bekräftelse som tar bort något. */
+  tone?: "default" | "danger";
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="w-full rounded-[10px] bg-holo-cyan px-4 py-3.5 text-sm font-bold tabular-nums text-surface transition-opacity active:opacity-90 disabled:opacity-50"
+      className={cn(
+        "w-full rounded-[10px] px-4 py-3.5 text-sm font-bold tabular-nums text-surface transition-opacity active:opacity-90 disabled:opacity-50",
+        tone === "danger" ? "bg-fall/90 hover:bg-fall" : "bg-holo-cyan"
+      )}
     >
       {children}
     </button>

@@ -198,6 +198,10 @@ model User {
   forumRulesAcceptedAt    DateTime?
   // Vilken regelversion som godkändes (lib/forum-rules-version.ts). < aktuell ⇒ fråga igen.
   forumRulesVersion       Int?
+  /// SPEGEL av "minst en pärm är offentlig" sedan 2026-09-21 (se `Portfolio`).
+  /// Skrivs av portfolio-tjänsten (`syncUserPublicFlag`), aldrig direkt. Kvar som
+  /// kolumn för att profilsidan, adminens chip, GDPR-exporten och native-
+  /// klienter läser den — sanningen bor per pärm.
   isPublicCollection      Boolean      @default(false)
   // Visa användarens aktiva Tradera-annonser på den publika profilen. EGEN spak,
   // skild från Tradera-kopplingen: kopplingen gavs för att SÄLJA från samlingen,
@@ -245,6 +249,7 @@ model User {
   alerts            Alert[]
   collectionItems   CollectionItem[]
   collectionImports CollectionImport[]
+  portfolios        Portfolio[]
   posts             CommunityPost[]
   comments          Comment[]
   likes             Like[]
@@ -1102,6 +1107,39 @@ model Notification {
 
 // ---------- Samling ----------
 
+/// EN PÄRM I SAMLINGEN (2026-09-21).
+///
+/// Samlingen är EN, pärmarna är etiketter på posterna: totalvärde, set-
+/// komplettering, utmärkelser och veckobrevet räknar fortfarande per `userId`
+/// över ALLA poster — en privat pärm är fortfarande ens kort. Det pärmen styr
+/// är (1) vad som visas när man väljer den på /samling (värde, graf, vinst,
+/// topplista följer valet) och (2) om posterna syns på den publika profilen.
+///
+/// ⛔ STANDARDPÄRMEN ÄR `portfolioId = NULL` PÅ POSTEN. Varje användare har
+/// exakt en rad med `isDefault`, men dess poster bär null — inte radens id.
+/// Därför behövde inga skrivvägar (import, skanner, API) ändras och ingen
+/// backfill göras; en post utan pärm har alltid tillhört standardpärmen.
+/// `portfolioItemWhere()` i lib/portfolio-limit.ts är det enda stället som
+/// översätter "pärm → where". Radera en pärm ⇒ SetNull ⇒ posterna faller
+/// tillbaka i standardpärmen, aldrig bort.
+///
+/// Tak: 1 pärm gratis, 5 med Pro (`lib/portfolio-limit.ts`). En Pro som fallit
+/// till Free behåller sina pärmar — bara NYA nekas.
+model Portfolio {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  isPublic  Boolean  @default(false)
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CollectionItem[]
+
+  @@index([userId])
+}
+
 model CollectionItem {
   id             String        @id @default(cuid())
   userId         String
@@ -1131,10 +1169,13 @@ model CollectionItem {
   importId       String?
   // Traderas objektnr när objektet lagts ut till försäljning (för auto-borttagning vid sålt).
   traderaItemId  String?
+  /// Vilken pärm posten ligger i. NULL = standardpärmen (se `Portfolio`).
+  portfolioId    String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolio Portfolio?        @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
   card    Card?             @relation(fields: [cardId], references: [id])
   product Product?          @relation(fields: [productId], references: [id])
   /// ⛔ SetNull, aldrig Cascade: att radera importPOSTEN får aldrig kunna radera
@@ -1145,6 +1186,7 @@ model CollectionItem {
 
   @@index([userId])
   @@index([importId])
+  @@index([portfolioId])
 }
 
 /// EN CSV-IMPORT AV EN SAMLING.

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { isItemPublic } from "@/services/portfolios";
 import { ServiceError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
 import { assertCommunityV2 } from "@/lib/community-v2-server";
@@ -53,11 +54,17 @@ export async function POST(req: Request) {
       select: {
         notes: true,
         customTitle: true,
+        portfolioId: true,
         card: { select: { name: true, set: { select: { name: true } } } },
         product: { select: { title: true } },
       },
     });
     if (!item) throw new ServiceError(404, "Objektet finns inte i samlingen.");
+    // Pärmen posten ligger i måste vara offentlig — kontots flagga säger bara
+    // att MINST EN pärm är det, och en privat pärms kort får aldrig gå att fråga om.
+    if (!(await isItemPublic({ userId: owner.id, portfolioId: item.portfolioId }))) {
+      throw new ServiceError(403, "Samlingen är inte offentlig.");
+    }
 
     const limit = await rateLimit(`ask-item:${user.id}`, ASKS_PER_HOUR, 60 * 60 * 1000);
     if (!limit.ok) {

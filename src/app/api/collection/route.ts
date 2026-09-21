@@ -20,6 +20,8 @@ const collectionItemSchema = z
     grade: z.string().max(20).optional(),
     notes: z.string().max(1000).optional(),
     imageUrl: z.string().url().optional(),
+    /** Pärm att lägga posten i. Utelämnad = standardpärmen. */
+    portfolioId: z.string().min(1).optional(),
   })
   .refine((d) => d.cardId || d.productId || d.notes, {
     message: "Ange kort, produkt eller en anteckning.",

@@ -8,7 +8,38 @@ paths:
   - "src/services/set-portfolio.ts"
   - "src/services/set-completion.ts"
   - "src/app/[locale]/(app)/samling/**"
+  - "src/lib/portfolio-limit.ts"
+  - "src/lib/portfolios-client.ts"
+  - "src/services/portfolios.ts"
+  - "src/app/api/portfolios/**"
+  - "src/components/features/portfolio-*.tsx"
 ---
+# Pärmar: EN samling, flera etiketter (2026-09-21)
+
+- **EN PÄRM ÄR EN ETIKETT PÅ POSTEN, INTE EN EGEN SAMLING.** `Portfolio` (namn, `isPublic`, `isDefault`) +
+  `CollectionItem.portfolioId`. Totalvärde på "Alla", set-komplettering, utmärkelser och veckobrevet räknar
+  fortfarande över ALLA poster per `userId` — en privat pärm är fortfarande ens kort. Pärmen styr (1) vad
+  `/samling` visar när den väljs (`?parm=<id>`: värde, graf, vinst, topplista och rutnät följer valet, set-fliken
+  aldrig) och (2) om posterna syns på den publika profilen (`PortfolioPane` visar bara offentliga pärmar, en
+  sektion per pärm; `ask-item` kräver att POSTENS pärm är offentlig).
+- ⛔ **STANDARDPÄRMEN ÄR `portfolioId = NULL` PÅ POSTEN.** Raden med `isDefault` finns (kan döpas om och
+  publiceras, aldrig raderas) men dess poster bär null. Därför fick inga skrivvägar (CSV-import, skanner-confirm,
+  publikt API, seed) ändras och ingen backfill göras. `portfolioItemWhere()` / `portfolioIdForWrite()` i
+  `lib/portfolio-limit.ts` är de ENDA översättningarna pärm ↔ where/skrivvärde. Radera en pärm ⇒ FK `SetNull` ⇒
+  posterna faller tillbaka i standardpärmen, aldrig bort. `addCollectionItem` stackar bara inom SAMMA pärm.
+- ⛔ **`User.isPublicCollection` ÄR EN SPEGEL** = "minst en pärm är offentlig", skriven av `syncUserPublicFlag`
+  i `services/portfolios.ts`. Profilsidans `canSee`, adminens chip, GDPR-exporten och `PATCH /api/users/me`
+  (native-klienter: slår om ALLA pärmar) läser den. Skriv den aldrig direkt.
+- **TAK 1 GRATIS / 5 PRO (ägarbeslut 2026-09-21, inte 2/5)**: den andra pärmen är gratiskontots första
+  organiserings-ögonblick = paywallen (403 + kod `PORTFOLIO_LIMIT` ⇒ `openPaywallOrNavigate`, källa
+  `portfolio-limit`). En Pro som fallit till Free behåller sina pärmar och kan lägga kort i dem — bara NYA nekas.
+  Talen står i `Pricing.specRows` på båda språken; `tests/unit/portfolio-limit.test.ts` vaktar. "+"-chipen visas
+  ALLTID (även för gratis) — paywallen ska förklara, inte en saknad knapp.
+- **VÄLJAREN**: `PortfolioChips` (samma chip-form som skick-chipsen) i skannerns granskningsvy ("Lägger till i"),
+  snabbtilläggsarket (bara när kontot har > 1 pärm) och desktopformuläret (select). Senast valda pärm minns per
+  enhet (`foilio:portfolio:last`); `lib/portfolios-client.ts` cachar listan 5 min och invalideras vid varje
+  skrivning. Mobilens väljläge har "Flytta" (PATCH `portfolioId` per POST, null = standard).
+
 # Samlingen: poster, inköpspris och värde
 
 - **SAMLINGEN LAGRAR POSTER (LOTS), VISAR SNITT (ägarbeslut 2026-08-02)**: köper man samma kort två gånger till

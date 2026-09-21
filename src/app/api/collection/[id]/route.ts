@@ -21,6 +21,8 @@ const updateSchema = z.object({
   grade: z.string().max(20).nullable().optional(),
   notes: z.string().max(1000).optional(),
   imageUrl: z.string().url().optional(),
+  // Flytta till pärm: id, eller null = standardpärmen.
+  portfolioId: z.string().min(1).nullable().optional(),
 });
 
 export async function PATCH(

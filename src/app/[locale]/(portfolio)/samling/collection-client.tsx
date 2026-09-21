@@ -8,7 +8,8 @@ import { apiFetch } from "@/lib/client-api";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { Input, Textarea, Select, Label, Checkbox, FieldError } from "@/components/ui/input";
+import { Input, Textarea, Select, Label, FieldError } from "@/components/ui/input";
+import type { PortfolioSummary } from "@/lib/portfolios-client";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -66,6 +67,8 @@ export interface CollectionRow {
   gradingCompany: string | null;
   grade: string | null;
   notes: string | null;
+  /** Pärm; null = standardpärmen. */
+  portfolioId: string | null;
 }
 
 interface CardHit {
@@ -88,6 +91,8 @@ interface FormState {
   gradingCompany: string;
   grade: string;
   notes: string;
+  /** Pärm-id; "" = standardpärmen (servern skriver null). */
+  portfolioId: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -103,15 +108,19 @@ const EMPTY_FORM: FormState = {
   gradingCompany: "",
   grade: "",
   notes: "",
+  portfolioId: "",
 };
 
 export function CollectionClient({
   initialItems,
-  isPublicCollection,
+  portfolios,
+  selectedPortfolioId,
   importEnabled,
 }: {
   initialItems: CollectionRow[];
-  isPublicCollection: boolean;
+  portfolios: PortfolioSummary[];
+  /** Vald pärm på sidan (null = Alla) — nya poster hamnar där som standard. */
+  selectedPortfolioId: string | null;
   importEnabled: boolean;
 }) {
   const t = useTranslations("Collection");
@@ -126,7 +135,10 @@ export function CollectionClient({
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [isPublic, setIsPublic] = useState(isPublicCollection);
+  // Standardpärmen skrivs som "" i formuläret (servern får null). Chip-raden
+  // (`PortfolioBar`) sköter offentlig/privat — den gamla kryssrutan är borta.
+  const defaultPortfolioId = portfolios.find((p) => p.isDefault)?.id ?? "";
+  const formPortfolioId = (id: string | null) => (id === null || id === defaultPortfolioId ? "" : id);
   // Utfällda grupper. Lokalt state, INGA URL-parametrar (se Caching/ISR i CLAUDE.md).
   const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
   const rowIdBase = useId();
@@ -226,6 +238,8 @@ export function CollectionClient({
       gradingCompany: f.gradingCompany.trim() || undefined,
       grade: f.grade.trim() || undefined,
       ...(notes ? { notes } : {}),
+      // "" = standardpärmen ⇒ nyckeln utelämnas, servern skriver null.
+      ...(f.portfolioId ? { portfolioId: f.portfolioId } : {}),
     };
   }
 
@@ -264,6 +278,7 @@ export function CollectionClient({
       gradingCompany: item.gradingCompany ?? "",
       grade: item.grade ?? "",
       notes: item.notes ?? "",
+      portfolioId: formPortfolioId(item.portfolioId),
     });
     setFormError(null);
   }
@@ -299,6 +314,10 @@ export function CollectionClient({
           ...(form.gradingCompany.trim() ? { gradingCompany: form.gradingCompany.trim() } : {}),
           ...(form.grade.trim() ? { grade: form.grade.trim() } : {}),
           ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
+          // Flytt mellan pärmar: bara när valet ändrats. null = standardpärmen.
+          ...(editing && formPortfolioId(editing.portfolioId) !== form.portfolioId
+            ? { portfolioId: form.portfolioId || null }
+            : {}),
         },
       });
       toast({ title: t("updatedToast"), variant: "success" });
@@ -331,26 +350,24 @@ export function CollectionClient({
     }
   }
 
-  async function togglePublic(next: boolean) {
-    setIsPublic(next);
-    try {
-      await apiFetch("/api/users/me", { method: "PATCH", body: { isPublicCollection: next } });
-      toast({
-        title: next ? t("nowPublicToast") : t("nowPrivateToast"),
-        variant: "success",
-      });
-    } catch (e) {
-      setIsPublic(!next);
-      toast({
-        title: t("visibilityFailToast"),
-        description: e instanceof Error ? e.message : undefined,
-        variant: "error",
-      });
-    }
-  }
-
   const sharedFields = (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {portfolios.length > 1 && (
+        <div className="sm:col-span-2">
+          <Label htmlFor="portfolio">{t("portfolioField")}</Label>
+          <Select
+            id="portfolio"
+            value={form.portfolioId}
+            onChange={(e) => setField("portfolioId", e.target.value)}
+          >
+            {portfolios.map((p) => (
+              <option key={p.id} value={p.isDefault ? "" : p.id}>
+                {p.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
       <div>
         <Label htmlFor="quantity">{t("quantity")}</Label>
         <Input
@@ -454,7 +471,8 @@ export function CollectionClient({
       <div className="flex flex-wrap items-center gap-3">
         <Button
           onClick={() => {
-            setForm(EMPTY_FORM);
+            // Nytt manuellt tillägg landar i pärmen man står i.
+            setForm({ ...EMPTY_FORM, portfolioId: formPortfolioId(selectedPortfolioId) });
             setFormError(null);
             setSearch("");
             setAddOpen(true);
@@ -480,14 +498,6 @@ export function CollectionClient({
         >
           {t("exportCsv")}
         </a>
-        <div className="ml-auto">
-          <Checkbox
-            id="publicCollection"
-            label={t("publicCollection")}
-            checked={isPublic}
-            onChange={(e) => void togglePublic(e.target.checked)}
-          />
-        </div>
       </div>
 
       {/* Tabell */}
@@ -496,7 +506,16 @@ export function CollectionClient({
           icon={<IconPackage size={32} />}
           title={t("emptyTitle")}
           description={t("emptyDesc")}
-          action={<Button onClick={() => setAddOpen(true)}>{t("addFirst")}</Button>}
+          action={
+            <Button
+              onClick={() => {
+                setForm({ ...EMPTY_FORM, portfolioId: formPortfolioId(selectedPortfolioId) });
+                setAddOpen(true);
+              }}
+            >
+              {t("addFirst")}
+            </Button>
+          }
         />
       ) : (
         <>

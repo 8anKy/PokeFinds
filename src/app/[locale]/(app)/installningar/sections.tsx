@@ -147,12 +147,57 @@ export function ProfileSection({ user }: { user: SettingsUser }) {
 
 // ------------------------------------------------------------- Synlighet
 
+/**
+ * Offentlig/privat PER PÄRM (2026-09-21). Optimistiskt som reglagen ovan, men mot
+ * /api/portfolios/<id> — kontots gamla flagga speglas av tjänsten.
+ */
+function PortfolioVisibilityRows({ portfolios }: { portfolios: SettingsUser["portfolios"] }) {
+  const { toast } = useToast();
+  const t = useTranslations("Settings");
+  const [state, setState] = useState(portfolios);
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  async function set(id: string, next: boolean) {
+    setState((rows) => rows.map((r) => (r.id === id ? { ...r, isPublic: next } : r)));
+    setSavingId(id);
+    try {
+      await apiFetch(`/api/portfolios/${id}`, { method: "PATCH", body: { isPublic: next } });
+      toast({ title: next ? t("publicCollectionOnToast") : t("publicCollectionOffToast"), variant: "success" });
+    } catch (e) {
+      setState((rows) => rows.map((r) => (r.id === id ? { ...r, isPublic: !next } : r)));
+      toast({
+        title: t("saveFail"),
+        description: e instanceof Error ? e.message : undefined,
+        variant: "error",
+      });
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  return (
+    <>
+      {state.map((p, i) => (
+        <SettingsRow
+          key={p.id}
+          label={state.length > 1 ? p.name : t("publicCollection")}
+          hint={i === 0 ? t("publicCollectionHint") : undefined}
+          control={
+            <Toggle
+              checked={p.isPublic}
+              disabled={savingId === p.id}
+              label={state.length > 1 ? t("publicBinderAria", { name: p.name }) : t("publicCollection")}
+              onChange={(next) => void set(p.id, next)}
+            />
+          }
+        />
+      ))}
+    </>
+  );
+}
+
 export function VisibilitySection({ user }: { user: SettingsUser }) {
   const t = useTranslations("Settings");
-  const collection = useOptimisticToggle(user.isPublicCollection, {
-    on: t("publicCollectionOnToast"),
-    off: t("publicCollectionOffToast"),
-  });
   const asks = useOptimisticToggle(user.allowPurchaseRequests, {
     on: t("allowPurchaseRequestsOnToast"),
     off: t("allowPurchaseRequestsOffToast"),
@@ -160,18 +205,7 @@ export function VisibilitySection({ user }: { user: SettingsUser }) {
 
   return (
     <SettingsSection title={t("visibilityTitle")} footer={t("visibilityFooter")}>
-      <SettingsRow
-        label={t("publicCollection")}
-        hint={t("publicCollectionHint")}
-        control={
-          <Toggle
-            checked={collection.value}
-            disabled={collection.saving}
-            label={t("publicCollection")}
-            onChange={(next) => void collection.set(next, { isPublicCollection: next })}
-          />
-        }
-      />
+      <PortfolioVisibilityRows portfolios={user.portfolios} />
       {/* "Är den till salu?"-knappen på rutorna. Bara meningsfull när samlingen är
           offentlig — visas ändå alltid, så valet inte försvinner när man slår av
           det ena. Community v2-grind som Tradera-reglaget. */}

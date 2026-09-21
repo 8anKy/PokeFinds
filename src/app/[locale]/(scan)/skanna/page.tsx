@@ -53,6 +53,14 @@ import { hapticImpact } from "@/lib/haptics";
 import { pickAlternatives, pickSameArtRail } from "@/lib/scan-alternatives";
 import { useCameraControls } from "@/hooks/use-camera-controls";
 import { openPaywallOrNavigate } from "@/lib/paywall";
+import { PortfolioChips } from "@/components/features/portfolio-chips";
+import { PortfolioCreateSheet } from "@/components/features/portfolio-sheets";
+import {
+  loadPortfolios,
+  preferredPortfolioId,
+  setLastPortfolioId,
+  type PortfolioSummary,
+} from "@/lib/portfolios-client";
 import { getRouteSwipeSnapshot } from "@/components/layout/route-swipe-snapshot";
 import { EDGE_ZONE_PX, resolveBackSwipe } from "@/lib/swipe-gesture";
 import { pageMotionTransition, swipeSettleDuration } from "@/lib/page-motion";
@@ -1018,6 +1026,21 @@ function Scanner() {
   const collectionIds = useRef<Map<string, string>>(new Map());
   const [quota, setQuota] = useState<ScanQuota | null>(null);
   /**
+   * PÄRMEN KORTEN SPARAS I (2026-09-21). Laddas när kvoten säger "konto" (en
+   * gäst har ingen samling) och förvals till senast valda på enheten — den
+   * som sorterar en hel bricka i "Byteshögen" ska slippa välja om per kort.
+   * `null` tills listan finns ⇒ POST utan portfolioId ⇒ standardpärmen.
+   */
+  const [portfolios, setPortfolios] = useState<PortfolioSummary[]>([]);
+  const [portfolioId, setPortfolioId] = useState<string | null>(null);
+  const [portfolioCreateOpen, setPortfolioCreateOpen] = useState(false);
+  const portfolioIdRef = useRef<string | null>(null);
+  portfolioIdRef.current = portfolioId;
+  const pickPortfolio = useCallback((id: string | null) => {
+    setPortfolioId(id);
+    if (id) setLastPortfolioId(id);
+  }, []);
+  /**
    * Vilket ark en Pro-prompt i skannern ska visa. `undefined` = "vet inte än"
    * och LÅTER VÄRDEN AVGÖRA (hint + delad session) — kvoten är den säkraste
    * signalen vi har på om det finns ett konto (`actor.kind === "guest"` på
@@ -1034,7 +1057,18 @@ function Scanner() {
     scanFetch("/api/scanner/quota")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (active && d && typeof d.remaining === "number") setQuota(d as ScanQuota);
+        if (active && d && typeof d.remaining === "number") {
+          setQuota(d as ScanQuota);
+          if (!(d as ScanQuota).guest) {
+            loadPortfolios()
+              .then((p) => {
+                if (!active) return;
+                setPortfolios(p.portfolios);
+                setPortfolioId(preferredPortfolioId(p.portfolios));
+              })
+              .catch(() => undefined);
+          }
+        }
       })
       .catch(() => undefined);
     return () => {
@@ -2243,6 +2277,7 @@ function Scanner() {
             ...(s.match!.estimatedValue != null
               ? { estimatedValue: s.match!.estimatedValue }
               : {}),
+            ...(portfolioIdRef.current ? { portfolioId: portfolioIdRef.current } : {}),
           }),
         });
         if (res.ok) {
@@ -2324,6 +2359,7 @@ function Scanner() {
         ...(scan.match!.estimatedValue != null
           ? { estimatedValue: scan.match!.estimatedValue }
           : {}),
+        ...(portfolioIdRef.current ? { portfolioId: portfolioIdRef.current } : {}),
       }),
     });
     if (!res.ok) throw new Error("collection");
@@ -2492,6 +2528,10 @@ function Scanner() {
           onOpenDetails={setDetailsId}
           onAddAll={() => void addAll()}
           onSellAll={sellAll}
+          portfolios={portfolios}
+          portfolioId={portfolioId}
+          onPickPortfolio={pickPortfolio}
+          onCreatePortfolio={() => setPortfolioCreateOpen(true)}
           onScanMore={() => {
             setScans([]);
             setAddedCount(null);
@@ -2519,6 +2559,17 @@ function Scanner() {
         onDone={({ forumPath }) => {
           setSellOpen(false);
           router.push(forumPath ?? "/forum");
+        }}
+      />
+
+      {/* Ny pärm från granskningsvyn. Paywallen vid fullt konto öppnas av arket självt. */}
+      <PortfolioCreateSheet
+        open={portfolioCreateOpen}
+        elevated
+        onClose={() => setPortfolioCreateOpen(false)}
+        onCreated={(created) => {
+          setPortfolios((prev) => [...prev, created]);
+          pickPortfolio(created.id);
         }}
       />
 
@@ -3367,6 +3418,11 @@ function ReviewView(props: {
   onSellAll: () => void;
   onScanMore: () => void;
   onClose: () => void;
+  /** Pärmarna (tom lista = gäst eller inte laddat ⇒ raden säger bara "Min samling"). */
+  portfolios: PortfolioSummary[];
+  portfolioId: string | null;
+  onPickPortfolio: (id: string | null) => void;
+  onCreatePortfolio: () => void;
 }) {
   const t = useTranslations("Scanner");
   const tCond = useTranslations("Condition");
@@ -3391,10 +3447,26 @@ function ReviewView(props: {
     // kameran) — se svep-effekten i ScannerPage.
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex-1 overflow-y-auto px-4 pb-40">
-        <p className="py-3 text-sm text-ink-muted">
-          {t("addingTo")}{" "}
-          <span className="font-semibold text-holo-cyan">{t("myCollection")}</span>
-        </p>
+        {/* Vart korten tar vägen. Med pärmar: chips att välja bland + "+" för en ny
+            (gratiskontot får paywallen där). Utan: samma rad som förut. */}
+        {props.portfolios.length > 0 ? (
+          <div className="py-3">
+            <p className="mb-2 text-sm text-ink-muted">{t("addingTo")}</p>
+            <PortfolioChips
+              portfolios={props.portfolios}
+              value={props.portfolioId}
+              onChange={props.onPickPortfolio}
+              onCreate={props.onCreatePortfolio}
+              size="sm"
+              className="-mx-4 px-4"
+            />
+          </div>
+        ) : (
+          <p className="py-3 text-sm text-ink-muted">
+            {t("addingTo")}{" "}
+            <span className="font-semibold text-holo-cyan">{t("myCollection")}</span>
+          </p>
+        )}
 
         {scans.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-16 text-center">

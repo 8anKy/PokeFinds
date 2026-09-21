@@ -58,6 +58,8 @@ import {
 import { CollectionToolbar } from "./collection-toolbar";
 import { SellButton } from "@/components/features/sell-sheet";
 import { toSellItem } from "./sell-item";
+import { PortfolioChips } from "@/components/features/portfolio-chips";
+import type { PortfolioSummary } from "@/lib/portfolios-client";
 
 const LONG_PRESS_MS = 450;
 
@@ -166,8 +168,16 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
+export function MobileCollectionGrid({
+  rows,
+  portfolios,
+}: {
+  rows: CollectionRow[];
+  /** Pärmarna — "Flytta" i väljläget visas bara när det finns fler än en. */
+  portfolios: PortfolioSummary[];
+}) {
   const t = useTranslations("Collection");
+  const tp = useTranslations("Portfolios");
   const locale = useLocale();
   const tc = useTranslations("Common");
   const tCond = useTranslations("Condition");
@@ -332,6 +342,46 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
   function editSelected() {
     if (selectedLots.length === 0) return;
     openCopySheet(selectedLots);
+  }
+
+  /**
+   * FLYTTA TILL PÄRM (2026-09-21): väljläget + "Flytta" öppnar ett ark med
+   * pärm-chips; valet PATCH:ar varje markerad POST (`portfolioId`, null =
+   * standardpärmen). Poster, inte exemplar — en pärm är en etikett på köpet.
+   */
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveTarget, setMoveTarget] = useState<string | null>(null);
+  const [moving, setMoving] = useState(false);
+  const defaultPortfolioId = portfolios.find((p) => p.isDefault)?.id ?? null;
+  async function moveSelected() {
+    if (!moveTarget || selectedLots.length === 0 || moving) return;
+    setMoving(true);
+    const portfolioId = moveTarget === defaultPortfolioId ? null : moveTarget;
+    let ok = 0;
+    for (const lot of selectedLots) {
+      if ((lot.portfolioId ?? null) === portfolioId) {
+        ok++;
+        continue;
+      }
+      try {
+        await apiFetch(`/api/collection/${lot.id}`, { method: "PATCH", body: { portfolioId } });
+        ok++;
+      } catch {
+        /* räknas i toasten */
+      }
+    }
+    setMoving(false);
+    setMoveOpen(false);
+    exitSelect();
+    const name = portfolios.find((p) => p.id === moveTarget)?.name ?? "";
+    toast({
+      title:
+        ok === selectedLots.length
+          ? tp("movedToast", { count: ok, name })
+          : tp("movedPartialToast", { ok, total: selectedLots.length, name }),
+      variant: ok === selectedLots.length ? "success" : "error",
+    });
+    router.refresh();
   }
 
   /** Antal exemplar som är ibockade för borttagning. */
@@ -582,15 +632,32 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
             <span className="text-sm font-semibold text-ink">{t("gridSelected", { count: selected.size })}</span>
             {/* ⛔ ALLTID "Redigera" — knappen öppnar en redigerare, aldrig en
                 radering. Att ta bort görs inifrån arket, per exemplar. */}
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={editSelected}
-              loading={deleting}
-              disabled={selected.size === 0}
-            >
-              <IconEdit size={16} /> {tc("edit")}
-            </Button>
+            <div className="flex items-center gap-2">
+              {portfolios.length > 1 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    // Förval: den pärm de markerade redan ligger i, om alla delar en.
+                    const ids = new Set(selectedLots.map((l) => l.portfolioId ?? defaultPortfolioId));
+                    setMoveTarget(ids.size === 1 ? [...ids][0] : defaultPortfolioId);
+                    setMoveOpen(true);
+                  }}
+                  disabled={selected.size === 0}
+                >
+                  {tp("move")}
+                </Button>
+              )}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={editSelected}
+                loading={deleting}
+                disabled={selected.size === 0}
+              >
+                <IconEdit size={16} /> {tc("edit")}
+              </Button>
+            </div>
           </>
         ) : (
           <>
@@ -1137,6 +1204,27 @@ export function MobileCollectionGrid({ rows }: { rows: CollectionRow[] }) {
           <p className="mt-2 text-xs text-ink-muted">{t("gridPurchasePriceHint")}</p>
           <FieldError message={priceError} />
         </form>
+      </BottomSheet>
+
+      {/* Flytta markerade poster till en pärm */}
+      <BottomSheet
+        open={moveOpen}
+        title={tp("moveTitle", { count: selectedLots.length })}
+        onClose={() => setMoveOpen(false)}
+        closeLabel={tp("cancel")}
+        footer={
+          <BottomSheetCta onClick={() => void moveSelected()} disabled={!moveTarget || moving}>
+            {tp("moveConfirm")}
+          </BottomSheetCta>
+        }
+      >
+        <PortfolioChips
+          portfolios={portfolios}
+          value={moveTarget}
+          onChange={setMoveTarget}
+          counts
+          className="flex-wrap"
+        />
       </BottomSheet>
     </section>
   );

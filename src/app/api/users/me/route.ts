@@ -9,6 +9,7 @@ import { getStripe, stripeEnabled } from "@/lib/stripe";
 import { deleteUserImages } from "@/lib/object-storage";
 import { revalidateTag } from "next/cache";
 import { TRADERA_SELLER_ITEMS_TAG } from "@/lib/tradera-seller-items";
+import { setAllPortfoliosPublic } from "@/services/portfolios";
 
 export const dynamic = "force-dynamic";
 
@@ -127,7 +128,11 @@ export async function PATCH(req: Request) {
       if (nameTaken) throw new AuthError(409, "Användarnamnet är upptaget. Välj ett annat.");
       data.name = input.name;
     }
-    if (input.isPublicCollection !== undefined) data.isPublicCollection = input.isPublicCollection;
+    if (input.isPublicCollection !== undefined) {
+      // Sedan 2026-09-21 bor synligheten PER PÄRM. Det gamla reglaget (native-
+      // klienter, äldre appbyggen) slår om alla pärmar; tjänsten speglar flaggan.
+      await setAllPortfoliosPublic(sessionUser.id, input.isPublicCollection);
+    }
     if (input.showTraderaListings !== undefined) {
       // Samtycket gäller bara en KOPPLAD säljare. Utan Tradera-id finns inget att
       // visa, och en sann flagga på ett okopplat konto hade tyst börjat visa
