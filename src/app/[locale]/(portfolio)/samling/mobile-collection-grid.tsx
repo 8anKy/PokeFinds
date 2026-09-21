@@ -59,6 +59,7 @@ import { CollectionToolbar } from "./collection-toolbar";
 import { SellButton } from "@/components/features/sell-sheet";
 import { toSellItem } from "./sell-item";
 import { PortfolioChips } from "@/components/features/portfolio-chips";
+import { SEALED_CONDITION_OPENED, SEALED_ITEM_CONDITIONS } from "@/lib/collection-labels";
 import type { PortfolioSummary } from "@/lib/portfolios-client";
 
 const LONG_PRESS_MS = 450;
@@ -397,6 +398,8 @@ export function MobileCollectionGrid({
     (c) => !c.remove && copyDiffers(c, copyLots?.find((l) => l.id === c.lotId))
   );
   const activeCopy = copies[copyIndex] ?? null;
+  /** Köpet exemplaret hör till — avgör om skick/gradering är kort- eller sealed-vokabulär. */
+  const activeLot = activeCopy ? (copyLots?.find((l) => l.id === activeCopy.lotId) ?? null) : null;
 
   /** Skriv ett fält på exemplaret man redigerar. */
   function patchCopy(patch: Partial<CopyRow>) {
@@ -540,6 +543,9 @@ export function MobileCollectionGrid({
               ...(lot.purchaseDate ? { purchaseDate: lot.purchaseDate } : {}),
               ...(gradingCompany ? { gradingCompany } : {}),
               ...(grade ? { grade } : {}),
+              // ⛔ SAMMA PÄRM SOM KÖPET DEN KNOPPADES AV (bugg 2026-09-22): utan
+              // den landade det utbrutna exemplaret i standardpärmen.
+              ...(lot.portfolioId ? { portfolioId: lot.portfolioId } : {}),
             },
           });
         } catch {
@@ -1087,13 +1093,17 @@ export function MobileCollectionGrid({
             <div>
               <SectionLabel>{t("gridSectionCondition")}</SectionLabel>
               <div className="flex flex-wrap gap-2">
-                {COLLECTION_CONDITIONS.map((value) => (
+                {/* Förseglad produkt: BARA förseglad/öppnad (ägarbeslut 2026-09-22) —
+                    Mint/Played är kortvokabulär. Se lib/collection-labels.ts. */}
+                {(activeLot?.sealed ? SEALED_ITEM_CONDITIONS : COLLECTION_CONDITIONS).map((value) => (
                   <Chip
                     key={value}
                     active={activeCopy.condition === value}
                     onClick={() => patchCopy({ condition: value })}
                   >
-                    {tCond(value)}
+                    {activeLot?.sealed && value === SEALED_CONDITION_OPENED
+                      ? t("conditionOpened")
+                      : tCond(value)}
                   </Chip>
                 ))}
               </div>
@@ -1101,7 +1111,9 @@ export function MobileCollectionGrid({
 
             {/* GRADERING — Traderas egen vokabulär (attribut 125/126), så att en
                 senare annons kan bära värdet rakt av utan översättning.
-                ⛔ Ett bolag utan betyg är inte en gradering; båda krävs. */}
+                ⛔ Ett bolag utan betyg är inte en gradering; båda krävs.
+                Döljs för förseglade produkter — en ETB graderas inte. */}
+            {!activeLot?.sealed && (
             <div>
               <SectionLabel>{t("gridSectionGrading")}</SectionLabel>
               <div className="flex flex-wrap gap-2">
@@ -1138,6 +1150,7 @@ export function MobileCollectionGrid({
                 </>
               )}
             </div>
+            )}
           </div>
         )}
 

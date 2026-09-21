@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Input, Textarea, Select, Label, FieldError } from "@/components/ui/input";
 import type { PortfolioSummary } from "@/lib/portfolios-client";
+import { SEALED_CONDITION_OPENED, SEALED_ITEM_CONDITIONS } from "@/lib/collection-labels";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -69,6 +70,8 @@ export interface CollectionRow {
   notes: string | null;
   /** Pärm; null = standardpärmen. */
   portfolioId: string | null;
+  /** Förseglad produkt (ingen kortrad): två skick, ingen gradering. */
+  sealed: boolean;
 }
 
 interface CardHit {
@@ -138,6 +141,13 @@ export function CollectionClient({
   // Standardpärmen skrivs som "" i formuläret (servern får null). Chip-raden
   // (`PortfolioBar`) sköter offentlig/privat — den gamla kryssrutan är borta.
   const defaultPortfolioId = portfolios.find((p) => p.isDefault)?.id ?? "";
+  /** Skicketikett: en sealed-post läser NEAR_MINT som "Öppnad". */
+  const condLabel = (value: string, sealed: boolean) =>
+    sealed && value === SEALED_CONDITION_OPENED
+      ? t("conditionOpened")
+      : value in CONDITION_LABELS
+        ? tCond(value)
+        : value;
   const formPortfolioId = (id: string | null) => (id === null || id === defaultPortfolioId ? "" : id);
   // Utfällda grupper. Lokalt state, INGA URL-parametrar (se Caching/ISR i CLAUDE.md).
   const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
@@ -385,9 +395,10 @@ export function CollectionClient({
           value={form.condition}
           onChange={(e) => setField("condition", e.target.value)}
         >
-          {Object.keys(CONDITION_LABELS).map((value) => (
+          {/* Förseglad produkt: bara förseglad/öppnad (lib/collection-labels.ts). */}
+          {(editing?.sealed ? SEALED_ITEM_CONDITIONS : Object.keys(CONDITION_LABELS)).map((value) => (
             <option key={value} value={value}>
-              {tCond(value)}
+              {condLabel(value, editing?.sealed ?? false)}
             </option>
           ))}
         </Select>
@@ -435,24 +446,28 @@ export function CollectionClient({
           onChange={(e) => setField("estimatedValue", e.target.value)}
         />
       </div>
-      <div>
-        <Label htmlFor="gradingCompany">{t("gradingCompany")}</Label>
-        <Input
-          id="gradingCompany"
-          placeholder={t("gradingCompanyPlaceholder")}
-          value={form.gradingCompany}
-          onChange={(e) => setField("gradingCompany", e.target.value)}
-        />
-      </div>
-      <div>
-        <Label htmlFor="grade">{t("grade")}</Label>
-        <Input
-          id="grade"
-          placeholder={t("gradePlaceholder")}
-          value={form.grade}
-          onChange={(e) => setField("grade", e.target.value)}
-        />
-      </div>
+      {!editing?.sealed && (
+        <>
+          <div>
+            <Label htmlFor="gradingCompany">{t("gradingCompany")}</Label>
+            <Input
+              id="gradingCompany"
+              placeholder={t("gradingCompanyPlaceholder")}
+              value={form.gradingCompany}
+              onChange={(e) => setField("gradingCompany", e.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="grade">{t("grade")}</Label>
+            <Input
+              id="grade"
+              placeholder={t("gradePlaceholder")}
+              value={form.grade}
+              onChange={(e) => setField("grade", e.target.value)}
+            />
+          </div>
+        </>
+      )}
       <div className="sm:col-span-2">
         <Label htmlFor="notes">{t("notes")}</Label>
         <Textarea
@@ -606,7 +621,7 @@ export function CollectionClient({
                       </TD>
                       <TD className="text-ink-muted">{item.setName ?? "–"}</TD>
                       <TD className="tabular-nums">{g.quantity}</TD>
-                      <TD>{item.condition in CONDITION_LABELS ? tCond(item.condition) : item.condition}</TD>
+                      <TD>{condLabel(item.condition, item.sealed)}</TD>
                       <TD>{item.language in LANGUAGE_LABELS ? tLang(item.language) : item.language}</TD>
                       {/* Snittet, med sitt underlag utskrivet. Ett snitt som tyst gäller
                           1 av 4 exemplar är samma sorts lögn som ett saknat pris läst som 0. */}
@@ -778,7 +793,7 @@ export function CollectionClient({
                   </TD>
                   <TD className="text-ink-muted">{item.setName ?? "–"}</TD>
                   <TD className="tabular-nums">{item.quantity}</TD>
-                  <TD>{item.condition in CONDITION_LABELS ? tCond(item.condition) : item.condition}</TD>
+                  <TD>{condLabel(item.condition, item.sealed)}</TD>
                   <TD>{item.language in LANGUAGE_LABELS ? tLang(item.language) : item.language}</TD>
                   <TD data-price>{formatPrice(item.purchasePrice)}</TD>
                   <TD data-price className="font-semibold">

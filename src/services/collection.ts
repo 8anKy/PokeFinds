@@ -159,6 +159,12 @@ export async function addCollectionItem(userId: string, input: CollectionItemInp
     // ⚠️ Sealed har `cardId = null` på produkten — då blir posten oförändrat
     // kortlös, vilket är rätt: en ETB är inget kort i setet.
     if (!input.cardId && product.cardId) input = { ...input, cardId: product.cardId };
+    // En förseglad produkt (ingen kortrad) läggs till FÖRSEGLAD när inget annat
+    // sägs — schemats default NEAR_MINT är kortvokabulär och gav varje ETB
+    // "Near Mint" (2026-09-22). Skannern/formulären som skickar skick vinner.
+    if (!input.cardId && !product.cardId && input.condition === undefined) {
+      input = { ...input, condition: "SEALED" };
+    }
   }
   const addQty = input.quantity ?? 1;
   // Stacka på befintlig identisk post istället för att skapa en ny (samma kort/produkt,

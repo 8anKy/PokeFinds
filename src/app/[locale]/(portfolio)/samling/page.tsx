@@ -30,6 +30,7 @@ import { GuestPortfolio } from "./guest-portfolio";
 import { collectionImportPublic } from "@/lib/collection-import-gate";
 import { listPortfolios, portfolioAllowance } from "@/services/portfolios";
 import { portfolioItemWhere } from "@/lib/portfolio-limit";
+import { isSealedCollectionItem } from "@/lib/collection-labels";
 import { PortfolioBar } from "./portfolio-bar";
 
 export const dynamic = "force-dynamic";
@@ -127,6 +128,7 @@ export default async function CollectionPage({
     grade: item.grade,
     notes: item.notes,
     portfolioId: item.portfolioId,
+    sealed: isSealedCollectionItem(item),
   }));
 
   // Set-raderna byggs i MINNET ur data sidan redan hämtat — noll extra
