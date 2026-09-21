@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { webhallenStockStatus, webhallenStoreStock } from "@/scrapers/adapters/webhallen-adapter";
+import { webhallenStockStatus, webhallenStoreOnly, webhallenStoreStock } from "@/scrapers/adapters/webhallen-adapter";
 
 // Minimal WebhallenProduct-form; bara fälten webhallenStockStatus läser spelar roll.
 const item = (stockWeb: number, releaseTs?: number, stores: Record<string, number> = {}) =>
@@ -34,5 +34,19 @@ describe("webhallenStockStatus", () => {
     expect(webhallenStoreStock({ web: 0, displayCap: 50, isSentFromStore: 0, isTrue: true, webStock: { "992": 3 } })).toBe(0);
     expect(webhallenStoreStock({ web: 0, "2": 48, "5": 51, "27": 0 })).toBe(99);
     expect(webhallenStoreStock(null)).toBe(0);
+  });
+});
+
+// Etiketten på larmet: "hämta i butik" vs "beställ". Rör inte lagerdomen.
+describe("webhallenStoreOnly", () => {
+  it("web=0 + butikssaldo = endast i butik", () => {
+    expect(webhallenStoreOnly(item(0, past, { "2": 48 }))).toBe(true);
+  });
+  it("webblager = online, även om butikerna också har saldo", () => {
+    expect(webhallenStoreOnly(item(3, past, { "2": 48 }))).toBe(false);
+  });
+  it("slut/förhandsbokning är aldrig 'endast i butik'", () => {
+    expect(webhallenStoreOnly(item(0, past))).toBe(false);
+    expect(webhallenStoreOnly(item(0, future, { "2": 48 }))).toBe(false);
   });
 });

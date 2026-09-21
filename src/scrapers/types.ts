@@ -42,6 +42,14 @@ export interface RawProductData {
    * src/lib/cart-url.ts. Adaptern sätter den, aldrig en URL-gissning. Saknas → null.
    */
   cartUrl?: string | null;
+  /**
+   * true = "butiksvara": går bara att köpa/reservera i butikens FYSISKA butik, inte
+   * beställa online (SF-Bok `buttonState` 3/4, Webhallen `web: 0` med butikssaldo).
+   * Lagerdomen är oförändrad (butiksvara = IN_STOCK, ägarbeslut 2026-09-17/20) —
+   * flaggan är en ETIKETT på larmet så läsaren vet om det är en köpknapp eller en
+   * bilresa. Saknas/false = beställningsbar online (eller okänt).
+   */
+  storeOnly?: boolean;
   /** Oförändrad rådata från källan — lagras i PriceObservation.rawData. */
   raw: unknown;
 }

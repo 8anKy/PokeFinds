@@ -546,6 +546,10 @@ model Product {
   // paginering (infinite scroll) utan att läsa in alla offers. Räknas om av
   // recomputeProductPriceCache() efter scrape/refresh.
   lowestPriceOre     Int?
+  // Rekommenderat pris (MSRP) i öre, satt av ägaren (scripts/set-msrp.ts). null =
+  // okänt ⇒ kategoridefault ur src/lib/msrp.ts, annars ingen jämförelse alls.
+  // ⛔ En JÄMFÖRELSEPUNKT för Discord-inlägget — rör aldrig rubrikpris/Lägst/larm.
+  msrpOre            Int?
   // Senast namn-sökt på Tradera (roterande full-katalog-svep). null = aldrig sökt
   // → prioriteras först. Se src/jobs/tradera-sweep.ts (Fas 0).
   traderaCheckedAt   DateTime?

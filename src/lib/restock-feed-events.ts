@@ -74,6 +74,8 @@ export interface FeedItemFull {
   category?: string | null;
   /** Lägg-i-korgen-länk (src/lib/cart-url.ts) — följer med inlägget och hiten. */
   cartUrl?: string | null;
+  /** Butiksvara — bara i fysisk butik (RawProductData.storeOnly). */
+  storeOnly?: boolean;
 }
 
 export interface FullFeedGroup {
@@ -94,6 +96,12 @@ export interface RouteEntry {
   language?: string | null;
   /** Katalogbilden — reserv för embed-miniatyren när butiksfeeden saknar bild. */
   imageUrl?: string | null;
+  /**
+   * Rekommenderat pris i öre (`Product.msrpOre`, annars kategoridefault ur
+   * `src/lib/msrp.ts`), löst vid exporten. Lanen är DB-fri — talet måste färdas hit.
+   * Saknas/null ⇒ inlägget visar ingen jämförelse alls, aldrig en gissning.
+   */
+  msrpOre?: number | null;
 }
 
 export type RouteTable = Record<string, RouteEntry>;
@@ -646,7 +654,9 @@ function buildPostBase(args: {
     storeName: sourceName,
     storeUrl: item.url,
     cartUrl: item.cartUrl ?? null,
+    storeOnly: item.storeOnly === true,
     priceOre: item.price,
+    msrpOre: route?.msrpOre ?? null,
     // Butikens egen bild först (den visar exakt varan), katalogbilden som reserv —
     // de flesta feedar bär ingen bild alls och embedden stod bildlös.
     imageUrl: item.imageUrl ?? absoluteImage(route?.imageUrl),

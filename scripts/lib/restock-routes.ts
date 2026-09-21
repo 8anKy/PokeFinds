@@ -15,7 +15,9 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import type { ProductCategory } from "@prisma/client";
 import { prisma } from "../../src/lib/db";
+import { resolveMsrpOre } from "../../src/lib/msrp";
 import type { RestockSourceInfo } from "../../src/scrapers/runner";
 import type { RouteTable } from "../../src/lib/restock-feed-events";
 
@@ -99,6 +101,8 @@ export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null>
           slug: true,
           language: true,
           imageUrl: true,
+          category: true,
+          msrpOre: true,
           set: { select: { name: true, series: true } },
         },
       },
@@ -111,7 +115,15 @@ export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null>
   const routes: RouteTable = {};
   const put = (
     url: string,
-    product: { title: string; slug: string; language: string | null; imageUrl: string | null; set: { name: string; series: string | null } | null }
+    product: {
+      title: string;
+      slug: string;
+      language: string | null;
+      imageUrl: string | null;
+      category: ProductCategory;
+      msrpOre: number | null;
+      set: { name: string; series: string | null } | null;
+    }
   ) => {
     if (routes[url]) return;
     routes[url] = {
@@ -125,6 +137,9 @@ export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null>
       language: product.language,
       // Katalogbilden som reserv för embed-miniatyren — butiksfeedarna bär sällan bild.
       imageUrl: product.imageUrl ?? null,
+      // Rek. pris löses HÄR (egen kolumn, annars kategoridefault): lanen har ingen
+      // katalog att fråga, så talet måste ligga färdigt i tabellen.
+      msrpOre: resolveMsrpOre(product),
     };
   };
   for (const o of offers) put(o.url, o.product);
@@ -149,6 +164,8 @@ export async function buildRestockRoutes(): Promise<RestockRoutesPayload | null>
           slug: true,
           language: true,
           imageUrl: true,
+          category: true,
+          msrpOre: true,
           set: { select: { name: true, series: true } },
         },
       },

@@ -23,9 +23,18 @@
 import { discordFetch } from "@/lib/discord";
 import { buyLink } from "@/lib/cart-url";
 import { formatPercent, formatPrice } from "@/lib/format";
+import { msrpDelta } from "@/lib/msrp";
 
 /** Turkos signaturaccent (`holo.cyan` = #2dd4bf) som heltal, för embed-kanten. */
 const BRAND_COLOR = 0x2dd4bf;
+/**
+ * Kantfärg när rek. pris är känt: grön på/under, röd över. Discord kan inte färga
+ * löpande text i ett embed, så "procenten blir grön/röd" (ägarönskan 2026-09-21)
+ * bärs av TVÅ saker: kanten OCH en 🟢/🔴 framför talet — mobilklienten visar kanten
+ * smalt, så emojin är det som faktiskt läses där.
+ */
+const GOOD_PRICE_COLOR = 0x22c55e;
+const BAD_PRICE_COLOR = 0xef4444;
 
 /** Discords hårda tak. Överskrids något svarar API:t 400 och HELA batchen tappas. */
 const MAX_EMBEDS_PER_MESSAGE = 10;
@@ -236,6 +245,18 @@ export interface RestockPost {
    */
   cartUrl?: string | null;
   priceOre: number | null;
+  /**
+   * Rekommenderat pris i öre ur ruttabellen (`Product.msrpOre` eller kategoridefault,
+   * `src/lib/msrp.ts`). Satt ⇒ inlägget visar avvikelsen; saknas ⇒ ingenting, aldrig
+   * en gissning. Följer bara med när URL:en har en rutt — en okänd SKU har inget.
+   */
+  msrpOre?: number | null;
+  /**
+   * true = butiksvara: går bara att köpa/reservera i butikens fysiska butik
+   * (SF-Bok, Webhallens butikssläpp). Lagerdomen är oförändrad — det här är
+   * etiketten som skiljer "beställ nu" från "åk dit".
+   */
+  storeOnly?: boolean;
   imageUrl: string | null;
   setName: string | null;
   series: string | null;
@@ -297,10 +318,26 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
     post.priceOre < post.previousPriceOre
       ? { percent: ((post.previousPriceOre - post.priceOre) / post.previousPriceOre) * 100 }
       : null;
+  // Rek. pris-jämförelsen: bara när BÅDA talen är riktiga priser (msrpDelta vaktar).
+  const delta = msrpDelta(post.priceOre, post.msrpOre);
   const fields: { name: string; value: string; inline: boolean }[] = [
     { name: "Butik", value: clamp(post.storeName, MAX_FIELD_VALUE), inline: true },
     { name: "Pris", value: formatPrice(post.priceOre), inline: true },
+    // Online eller bara i butik — ett larm om en butiksvara är en bilresa, inte ett
+    // klick, och det ska stå bredvid priset, inte gömmas i butikens sida.
+    { name: "Köp", value: post.storeOnly ? "🏬 Endast i butik" : "🌐 Online", inline: true },
   ];
+  if (delta) {
+    fields.push({
+      name: "Rek. pris",
+      value: clamp(
+        `${formatPrice(delta.msrpOre)} · ${delta.verdict === "good" ? "🟢" : "🔴"} ` +
+          `${formatPercent(delta.percent)} (${delta.diffOre > 0 ? "+" : ""}${formatPrice(delta.diffOre)})`,
+        MAX_FIELD_VALUE
+      ),
+      inline: true,
+    });
+  }
   if (post.setName) {
     fields.push({ name: "Set", value: clamp(post.setName, MAX_FIELD_VALUE), inline: true });
   }
@@ -339,7 +376,7 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
       : post.preorder
         ? "Går nu att förhandsboka."
         : "Finns i lager igen.",
-    color: BRAND_COLOR,
+    color: delta ? (delta.verdict === "good" ? GOOD_PRICE_COLOR : BAD_PRICE_COLOR) : BRAND_COLOR,
     fields,
     ...(post.imageUrl ? { thumbnail: { url: post.imageUrl } } : {}),
     footer: { text: "Foilio · foilio.se" },

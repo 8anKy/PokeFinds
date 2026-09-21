@@ -752,6 +752,39 @@ describe("buildRestockEmbed", () => {
     expect(fields.find((f) => f.name === "Prishistorik")?.value).toContain(post.productUrl);
   });
 
+  it("säger om varan går att beställa online eller bara finns i butik", () => {
+    const online = buildRestockEmbed(post).fields.find((f) => f.name === "Köp")?.value;
+    const store = buildRestockEmbed({ ...post, storeOnly: true }).fields.find((f) => f.name === "Köp")?.value;
+    expect(online).toBe("🌐 Online");
+    expect(store).toBe("🏬 Endast i butik");
+  });
+
+  it("rek. pris: grönt på/under, rött över — kant OCH emoji (Discord färgar ingen löptext)", () => {
+    const rek = (p: Parameters<typeof buildRestockEmbed>[0]) =>
+      buildRestockEmbed(p).fields.find((f) => f.name === "Rek. pris")?.value;
+    // 549 mot 599 ⇒ −8,3 %, −50 kr.
+    const good = buildRestockEmbed({ ...post, msrpOre: 59900 });
+    expect(rek({ ...post, msrpOre: 59900 })).toContain("🟢");
+    expect(rek({ ...post, msrpOre: 59900 })).toContain("-8,3 %");
+    expect(rek({ ...post, msrpOre: 59900 })).toContain("599");
+    expect(good.color).toBe(0x22c55e);
+    // 549 mot 499 ⇒ +10,0 %, +50 kr.
+    const bad = buildRestockEmbed({ ...post, msrpOre: 49900 });
+    expect(rek({ ...post, msrpOre: 49900 })).toContain("🔴");
+    expect(rek({ ...post, msrpOre: 49900 })).toContain("+10,0 %");
+    expect(bad.color).toBe(0xef4444);
+    // Exakt rek. pris räknas som bra.
+    expect(rek({ ...post, msrpOre: 54900 })).toContain("🟢");
+  });
+
+  it("⛔ utan rek. pris eller utan riktigt pris: ingen jämförelse, ingen färgdom, aldrig Infinity", () => {
+    expect(buildRestockEmbed(post).fields.some((f) => f.name === "Rek. pris")).toBe(false);
+    expect(buildRestockEmbed(post).color).toBe(0x2dd4bf);
+    expect(buildRestockEmbed({ ...post, msrpOre: 0 }).fields.some((f) => f.name === "Rek. pris")).toBe(false);
+    expect(buildRestockEmbed({ ...post, priceOre: null, msrpOre: 59900 }).fields.some((f) => f.name === "Rek. pris")).toBe(false);
+    expect(buildRestockEmbed({ ...post, priceOre: 0, msrpOre: 59900 }).color).toBe(0x2dd4bf);
+  });
+
   it("kapar titlar över Discords 256-teckensgräns (annars 400 → HELA batchen tappas)", () => {
     const embed = buildRestockEmbed({ ...post, title: "x".repeat(400) });
     expect(embed.title.length).toBeLessThanOrEqual(256);

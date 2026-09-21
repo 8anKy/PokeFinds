@@ -354,6 +354,8 @@ export type FeedItem = {
   category: string | null;
   /** Lägg-i-korgen-länk (Shopify/Woo), se src/lib/cart-url.ts. null = ingen. */
   cartUrl?: string | null;
+  /** Butiksvara — bara i fysisk butik (se RawProductData.storeOnly). */
+  storeOnly?: boolean;
 };
 
 /**
@@ -858,6 +860,7 @@ export async function fetchSourceFeed(source: RestockSourceInfo): Promise<FeedIt
           imageUrl: n.imageUrl ?? p.imageUrl ?? null,
           category: n.category ?? null,
           cartUrl: p.cartUrl ?? null,
+          storeOnly: p.storeOnly === true,
         };
       });
   } catch (err) {

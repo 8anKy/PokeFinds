@@ -140,6 +140,14 @@ export function webhallenStoreStock(stock: WebhallenProduct["stock"]): number {
   return sum;
 }
 
+/**
+ * Butiksvara: inget webblager men saldo i fysisk butik ⇒ larmet betyder "hämta i
+ * butik", inte "beställ". Bara meningsfullt när domen ovan landar på IN_STOCK.
+ */
+export function webhallenStoreOnly(item: WebhallenProduct): boolean {
+  return (item.stock?.web ?? 0) <= 0 && webhallenStockStatus(item) === StockStatus.IN_STOCK;
+}
+
 export function webhallenStockStatus(item: WebhallenProduct): StockStatus {
   if ((item.stock?.web ?? 0) > 0) return StockStatus.IN_STOCK;
   const releaseTs = item.release?.timestamp;
@@ -219,6 +227,7 @@ export class WebhallenAdapter implements SourceAdapter {
             stockStatus,
             imageUrl: item.thumbnail,
             category: guessListingCategory(item.name),
+            storeOnly: webhallenStoreOnly(item),
             raw,
           });
         }

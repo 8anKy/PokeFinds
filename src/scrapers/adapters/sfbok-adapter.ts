@@ -224,6 +224,7 @@ export class SfBokAdapter implements SourceAdapter {
         stockStatus: STATUS_BY_STOCK[stock],
         imageUrl: imageUrl ?? undefined,
         category: guessListingCategory(p.displayName),
+        storeOnly,
         raw,
       });
     }
