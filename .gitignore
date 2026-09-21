@@ -64,3 +64,6 @@ docs/TERMS-DRAFT-CLAUSES.md
 
 # Nyhetsflödet i utveckling (i drift ligger filen på Railway-volymen).
 .feed-cache/
+
+# mätsond: leverantörens prisuppdateringstakt (scripts/probe-cm-freshness.ts)
+.cm-freshness/

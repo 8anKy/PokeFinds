@@ -1,0 +1,47 @@
+name: CM-prisfärskhet (mätsond)
+
+# MÄTSOND (2026-09-22): när byter leverantören (TCGGO/RapidAPI) sina Cardmarket-tal?
+# Docs säger bara "multiple times daily", svaret bär ingen tidsstämpel. Sonden tar samma
+# 80 rader varannan timme och diffar mot alla tidigare punkter — det första intervallet
+# med ett hopp ramar in deras refresh. Svaret avgör om cardmarket-refresh kan flyttas till
+# natten (memory `cardmarket-refresh-night-run-parked`).
+#
+# DB-FRI (ingen Neon-väckning). 4 RapidAPI-anrop/körning × 12/dygn = 48 av 15 000.
+# GitHubs cron-fördröjning spelar ingen roll: skriptet stämplar FAKTISK hämtningstid.
+# Snapshots ligger i Actions-cachen (restore senaste, spara under ny nyckel — samma
+# mönster som discord-restock). ⛔ Stäng av sonden när frågan är besvarad:
+#   gh workflow disable cm-freshness-probe.yml
+
+on:
+  schedule:
+    - cron: "15 */2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: cm-freshness-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CARDMARKET_RAPIDAPI_HOST: ${{ secrets.CARDMARKET_RAPIDAPI_HOST }}
+      CARDMARKET_RAPIDAPI_KEY: ${{ secrets.CARDMARKET_RAPIDAPI_KEY }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .cm-freshness
+          key: cm-freshness-${{ github.run_id }}
+          restore-keys: |
+            cm-freshness-
+      - run: npm ci --legacy-peer-deps --ignore-scripts
+      - name: Mätpunkt + diff
+        run: |
+          npx tsx scripts/probe-cm-freshness.ts | tee probe.log
+          { echo '```'; cat probe.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
