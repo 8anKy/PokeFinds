@@ -20,8 +20,20 @@
  * att tvinga fram omrendering av hela katalogen.
  */
 import { revalidatePath, revalidateTag } from "next/cache";
+import { z } from "zod";
 import { apiError, jsonOk } from "@/lib/api";
-import { PRICE_CACHE_TAG } from "@/lib/cache";
+import { PRICE_CACHE_TAG, productCacheTag } from "@/lib/cache";
+import { routing } from "@/i18n/routing";
+
+/**
+ * ENSKILDA PRODUKTER: `{ "slugs": [...] }` i kroppen kastar BARA de sidorna —
+ * skalet (namn/bild, 30 d) OCH ISR-posten per locale. Det är vägen när en
+ * produkts identitet rättats för hand (bild-URL som ruttnat, fel titel) och
+ * inte kan vänta 30 dygn. Den konkreta vägen (`/sv/produkter/<slug>`) blir en
+ * `_N_T_`-tagg som både sidan och skalets unstable_cache-post bär, så den
+ * träffar exakt en produkt — inte hela mönstret (se förbudet nedan).
+ */
+const bodySchema = z.object({ slugs: z.array(z.string().min(1).max(200)).max(500) }).partial();
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +59,16 @@ export async function POST(req: Request) {
     // en volym (server/cache-handler.cjs) just för att INTE kastas.
     // Set-sidorna bär fortfarande priser i HTML:en → de invalideras som förr
     // (~350 sidor, renderas om lat vid nästa besök).
+    const body = bodySchema.parse(await req.json().catch(() => ({})));
+    if (body.slugs?.length) {
+      const slugs = [...new Set(body.slugs)];
+      for (const slug of slugs) {
+        revalidateTag(productCacheTag(slug));
+        for (const locale of routing.locales) revalidatePath(`/${locale}/produkter/${slug}`);
+      }
+      return jsonOk({ ok: true, slugs: slugs.length });
+    }
+
     revalidateTag(PRICE_CACHE_TAG);
     revalidatePath("/[locale]/sets/[id]", "page");
     revalidatePath("/[locale]", "page");
