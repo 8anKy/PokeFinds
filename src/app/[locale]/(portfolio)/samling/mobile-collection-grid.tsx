@@ -354,6 +354,11 @@ export function MobileCollectionGrid({
   const [moveTarget, setMoveTarget] = useState<string | null>(null);
   const [moving, setMoving] = useState(false);
   const defaultPortfolioId = portfolios.find((p) => p.isDefault)?.id ?? null;
+  /** Pärmar att flytta TILL: alla utom den pärm samtliga markerade redan ligger i. */
+  const moveTargets = useMemo(() => {
+    const from = new Set(selectedLots.map((l) => l.portfolioId ?? defaultPortfolioId));
+    return from.size === 1 ? portfolios.filter((p) => !from.has(p.id)) : portfolios;
+  }, [portfolios, selectedLots, defaultPortfolioId]);
   async function moveSelected() {
     if (!moveTarget || selectedLots.length === 0 || moving) return;
     setMoving(true);
@@ -644,9 +649,10 @@ export function MobileCollectionGrid({
                   variant="secondary"
                   size="sm"
                   onClick={() => {
-                    // Förval: den pärm de markerade redan ligger i, om alla delar en.
-                    const ids = new Set(selectedLots.map((l) => l.portfolioId ?? defaultPortfolioId));
-                    setMoveTarget(ids.size === 1 ? [...ids][0] : defaultPortfolioId);
+                    // Inget förval: målet ska vara ett aktivt val. Pärmen som ALLA
+                    // markerade redan ligger i döljs i arket (ägaren 2026-09-22) —
+                    // att "flytta" dit är ingen flytt.
+                    setMoveTarget(null);
                     setMoveOpen(true);
                   }}
                   disabled={selected.size === 0}
@@ -1232,7 +1238,7 @@ export function MobileCollectionGrid({
         }
       >
         <PortfolioChips
-          portfolios={portfolios}
+          portfolios={moveTargets}
           value={moveTarget}
           onChange={setMoveTarget}
           counts
