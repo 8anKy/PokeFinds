@@ -1450,6 +1450,7 @@
     "closeScanner": "Stäng skannern",
     "scanGuideOpen": "Bildtips",
     "scanGuideOpenAria": "Visa tips för en bättre skanning",
+    "scanGuideNudge": "Tryck här först — så får du bäst träff på skanningen.",
     "scanGuideSingleTitle": "Så skannar du ett kort",
     "scanGuideBulkTitle": "Så skannar du flera kort",
     "scanGuideModeLabel": "Välj skanningsläge för bildtipsen",

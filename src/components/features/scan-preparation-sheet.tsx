@@ -9,6 +9,30 @@ import { cn } from "@/lib/utils";
 
 export type ScanGuideMode = "single" | "bulk";
 
+/**
+ * Första gången skannern öppnas på en enhet pekar en bubbla på informations-
+ * knappen tills den trycks. Nyckeln sätts först när knappen faktiskt TRYCKS,
+ * aldrig vid visning: bubblan ska komma tillbaka tills tipsen lästs en gång.
+ * Fel-säkert: kastar lagringen ⇒ "sett" (visa inte om och om igen).
+ */
+const GUIDE_NUDGE_KEY = "foilio:scan-guide-nudge:v1";
+
+export function scanGuideNudgeSeen(): boolean {
+  try {
+    return window.localStorage.getItem(GUIDE_NUDGE_KEY) === "1";
+  } catch {
+    return true;
+  }
+}
+
+export function markScanGuideNudgeSeen(): void {
+  try {
+    window.localStorage.setItem(GUIDE_NUDGE_KEY, "1");
+  } catch {
+    // Privat läge / blockerad lagring — bubblan visas då nästa gång, vilket är ofarligt.
+  }
+}
+
 const GUIDE_IMAGES = {
   single: {
     good: "/scan-guide/single-good.webp",

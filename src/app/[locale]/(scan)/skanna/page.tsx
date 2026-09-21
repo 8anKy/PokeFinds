@@ -67,6 +67,8 @@ import { pageMotionTransition, swipeSettleDuration } from "@/lib/page-motion";
 import { SellSheet, type SellItem } from "@/components/features/sell-sheet";
 import {
   ScanPreparationSheet,
+  markScanGuideNudgeSeen,
+  scanGuideNudgeSeen,
   type ScanGuideMode,
 } from "@/components/features/scan-preparation-sheet";
 import {
@@ -1005,6 +1007,18 @@ function Scanner() {
   const [shutterCooling, setShutterCooling] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [guideMode, setGuideMode] = useState<ScanGuideMode | null>(null);
+  // Bubblan vid informationsknappen — ligger kvar tills knappen tryckts en
+  // gång på enheten (localStorage). Läses i en effekt så SSR och första
+  // klientrenderingen är lika.
+  const [guideNudge, setGuideNudge] = useState(false);
+  useEffect(() => {
+    if (!scanGuideNudgeSeen()) setGuideNudge(true);
+  }, []);
+  const openGuide = () => {
+    markScanGuideNudgeSeen();
+    setGuideNudge(false);
+    setGuideMode(mode === "bulk" ? "bulk" : "single");
+  };
   const [defaultCondition, setDefaultCondition] = useState("NEAR_MINT");
   // Skannern är endast engelska — inget språkval.
   const defaultLanguage = "EN";
@@ -2425,15 +2439,46 @@ function Scanner() {
         </p>
       </div>
       {view === "capture" && mode !== "barcode" ? (
-        <button
-          type="button"
-          onClick={() => setGuideMode(mode === "bulk" ? "bulk" : "single")}
-          aria-label={t("scanGuideOpenAria")}
-          title={t("scanGuideOpen")}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-ink backdrop-blur transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan"
-        >
-          <IconInfo size={20} />
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={openGuide}
+            aria-label={t("scanGuideOpenAria")}
+            title={t("scanGuideOpen")}
+            className={cn(
+              "relative flex h-10 w-10 items-center justify-center rounded-full backdrop-blur transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-cyan",
+              guideNudge
+                ? "bg-holo-cyan text-black hover:bg-holo-cyan/90"
+                : "bg-white/10 text-ink hover:bg-white/15"
+            )}
+          >
+            {guideNudge && (
+              <span
+                aria-hidden="true"
+                className="absolute inset-0 animate-ping rounded-full bg-holo-cyan/60 motion-reduce:hidden"
+              />
+            )}
+            <span className="relative">
+              <IconInfo size={20} />
+            </span>
+          </button>
+          {guideNudge && (
+            // Första gången: pekar på knappen tills den trycks. Ingen egen
+            // stängknapp med flit — vägen bort är att läsa tipsen, och en
+            // användare som aldrig sett dem tar sneda suddiga bilder och
+            // tror att skannern är dålig.
+            <div
+              role="status"
+              className="absolute right-0 top-full mt-2 w-56 rounded-xl bg-holo-cyan px-3 py-2 text-[13px] font-semibold leading-snug text-black shadow-lg"
+            >
+              <span
+                aria-hidden="true"
+                className="absolute -top-1.5 right-3.5 h-3 w-3 rotate-45 rounded-sm bg-holo-cyan"
+              />
+              {t("scanGuideNudge")}
+            </div>
+          )}
+        </div>
       ) : (
         <div className="h-10 w-10" aria-hidden="true" />
       )}

@@ -1450,6 +1450,7 @@
     "closeScanner": "Close the scanner",
     "scanGuideOpen": "Photo tips",
     "scanGuideOpenAria": "Show tips for a better scan",
+    "scanGuideNudge": "Tap here first — it makes your scans hit far more often.",
     "scanGuideSingleTitle": "How to scan one card",
     "scanGuideBulkTitle": "How to scan multiple cards",
     "scanGuideModeLabel": "Choose a scanning mode for the photo tips",
