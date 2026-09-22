@@ -55,11 +55,9 @@ export interface RawProductData {
    * meningsfullt tillsammans med `storeOnly` — det är där talet avgör om resan är
    * värd att göra. `null` på ett fält = "vet inte", ALDRIG noll.
    *
-   * ⛔ `stores` ÄR ANTAL BUTIKER, INTE VILKA. Webhallens saldon ligger på namnlösa
-   * numeriska nycklar (`"5": 22`) och det finns ingen publik uppslagning id → namn
-   * (probat 2026-09-22: /api/store, /api/store/{id}, sektionssidan och produktsidan
-   * ger inget namn) — SF-Bok ger bara ett totaltal. Ett filialnamn hade alltså
-   * krävts gissat fram, och ett gissat butiksnamn skickar folk till fel stad.
+   * `locations` namnger butikerna när källan gör det möjligt (Webhallen via
+   * `/api/store/se`); SF-Bok ger bara ett totaltal och lämnar den tom. Saknas den
+   * står `stores` kvar som ANTAL — ett larm utan namn är sämre, inte trasigt.
    */
   storeStock?: StoreStock | null;
   /** Oförändrad rådata från källan — lagras i PriceObservation.rawData. */
@@ -76,10 +74,27 @@ export interface StoreStock {
   /** Antal BUTIKER som har minst ett exemplar. null = källan bryter inte ner det. */
   stores: number | null;
   /**
+   * Butikerna med saldo, störst först. Tom = källan namnger dem inte (SF-Bok) eller
+   * uppslagningen fallerade — då återstår `units`/`stores`.
+   * ⛔ ALDRIG ETT GISSAT NAMN. En rad här måste komma från butikens egen
+   *    uppslagning; ett påhittat filialnamn skickar folk till fel stad.
+   */
+  locations?: StoreStockLocation[];
+  /**
    * true = minst en butik låg på källans visningstak (Webhallens `displayCap`, 50 =
    * "Fler än 50 st") ⇒ `units` är ett GOLV, inte ett facit, och copyn måste säga
    * "minst". Utan flaggan hade vi publicerat ett exakt tal som är fel nedåt.
    */
+  capped: boolean;
+}
+
+/** En namngiven fysisk butik med saldo. */
+export interface StoreStockLocation {
+  /** Butikens namn, med ort när den inte framgår av namnet ("Ringen, Stockholm"). */
+  label: string;
+  /** Antal exemplar i just den butiken. */
+  units: number;
+  /** true = butiken låg på källans visningstak ⇒ talet är ett golv. */
   capped: boolean;
 }
 

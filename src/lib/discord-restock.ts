@@ -378,6 +378,42 @@ export function formatStoreStock(stock: StoreStock | null | undefined): string |
   return unitPart ?? `Finns i ${storePart}`;
 }
 
+/**
+ * Hur många namngivna butiker som ryms i fältet innan resten blir en "+N fler"-rad.
+ * Fyra rader är vad som får plats utan att embedden blir en vägg; resten summeras.
+ */
+const MAX_STORE_LINES = 4;
+
+/**
+ * Butikerna med saldo, en per rad: "Bredden (InfraCity), Upplands Väsby · 14 ex".
+ * `null` när källan inte namnger dem — då står sammanfattningen ensam.
+ *
+ * ⛔ SUMMAN STÅR KVAR PÅ FÖRSTA RADEN även när listan kapas. Utan den läser fyra
+ *    rader som hela sanningen, och den som har närmast till butik nr 5 åker ingenstans.
+ */
+export function formatStoreLocations(stock: StoreStock | null | undefined): string | null {
+  const locations = stock?.locations ?? [];
+  if (!locations.length) return null;
+  const head = locations.slice(0, MAX_STORE_LINES);
+  const rest = locations.slice(MAX_STORE_LINES);
+  const lines = head.map((l) => `${l.label} · ${l.capped ? "minst " : ""}${l.units} ex`);
+  if (rest.length) {
+    const restUnits = rest.reduce((sum, l) => sum + l.units, 0);
+    lines.push(`+${rest.length} ${rest.length === 1 ? "butik till" : "butiker till"} · ${restUnits} ex`);
+  }
+  return lines.join("\n");
+}
+
+/**
+ * "Webhallen Bredden (InfraCity), Upplands Väsby" när varan står i EN namngiven
+ * butik, annars "Webhallens fysiska butiker". Se kommentaren vid anropet.
+ */
+function storeOnlyWhere(post: RestockPost): string {
+  const locations = post.storeStock?.locations ?? [];
+  if (locations.length === 1) return `${post.storeName} ${locations[0].label}`;
+  return `${post.storeName}s fysiska butiker`;
+}
+
 function clamp(s: string, max: number): string {
   return s.length <= max ? s : `${s.slice(0, max - 1)}…`;
 }
@@ -419,10 +455,21 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
   //    påståendet vilar på butikens egna butikssaldon, och det ska stå i inlägget så
   //    att läsaren kan värdera det FÖRE bilresan, inte efter.
   if (storeOnly) {
-    // Talet FÖRE källan: det är saldot som avgör om resan är värd att göra.
-    const onShelf = formatStoreStock(post.storeStock);
-    if (onShelf) fields.push({ name: "I lager", value: clamp(onShelf, MAX_FIELD_VALUE), inline: true });
     fields.push({ name: "Källa", value: "Butikens lagersaldo", inline: true });
+    // Saldot SIST bland raderna och på egen full bredd: det är flera rader, och
+    // inline hade tryckt ihop butiksnamnen till oläsliga spalter.
+    const summary = formatStoreStock(post.storeStock);
+    const perStore = formatStoreLocations(post.storeStock);
+    if (summary || perStore) {
+      fields.push({
+        name: "I lager",
+        value: clamp(
+          summary && perStore ? `**${summary}**\n${perStore}` : (perStore ?? summary ?? ""),
+          MAX_FIELD_VALUE
+        ),
+        inline: false,
+      });
+    }
   }
   if (delta) {
     fields.push({
@@ -478,10 +525,11 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
       ? `Sänkt från ${formatPrice(post.previousPriceOre)} till ${formatPrice(post.priceOre)} ` +
         `(${formatPercent(-priceDrop.percent)}).`
       : storeOnly
-        ? // ⛔ VILKEN butik som har den vet vi INTE: Webhallens saldon ligger på
-          //   numeriska nycklar utan namn, och SF-Bok ger bara ett ja. Skriv därför
-          //   "butikerna", aldrig ett butiksnamn vi gissat fram.
-          `Finns i ${post.storeName}s fysiska butiker just nu. ` +
+        ? // ⛔ NAMNET BARA NÄR DET ÄR EN ENDA BUTIK, och bara när källan gav oss det.
+          //   Står varan i sex butiker är ett namn i rubriken missvisande, och ett
+          //   gissat namn skickar folk till fel stad — då säger vi "butikerna" och
+          //   låter "I lager"-fältet räkna upp dem.
+          `Finns i ${storeOnlyWhere(post)} just nu. ` +
           "Går inte att köpa i webbutiken, bara på plats."
         : post.preorder
           ? "Går nu att förhandsboka."

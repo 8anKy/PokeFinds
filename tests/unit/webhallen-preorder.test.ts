@@ -5,6 +5,7 @@ import {
   webhallenStoreStock,
   webhallenStoreBreakdown,
 } from "@/scrapers/adapters/webhallen-adapter";
+import { parseWebhallenStores, storeLabel } from "@/scrapers/adapters/webhallen-stores";
 
 // Minimal WebhallenProduct-form; bara fälten webhallenStockStatus läser spelar roll.
 const item = (stockWeb: number, releaseTs?: number, stores: Record<string, number> = {}) =>
@@ -75,7 +76,7 @@ describe("webhallenStoreBreakdown", () => {
 
   it("⛔ bara numeriska butiksnycklar — web/webStock/displayCap är inga saldon", () => {
     const r = webhallenStoreBreakdown({ web: 7, displayCap: 50, isSentFromStore: 0, isTrue: true, webStock: { "992": 3 } });
-    expect(r).toEqual({ units: 0, stores: 0, capped: false });
+    expect(r).toEqual({ units: 0, stores: 0, capped: false, locations: [] });
   });
 
   it("utan lagerobjekt är allt OKÄNT, aldrig noll", () => {
@@ -85,5 +86,61 @@ describe("webhallenStoreBreakdown", () => {
   it("webhallenStoreStock är oförändrad — lagerdomen får inte röras", () => {
     expect(webhallenStoreStock({ web: 0, "2": 48, "5": 51, "27": 0 })).toBe(99);
     expect(webhallenStoreStock(null)).toBe(0);
+  });
+});
+
+/**
+ * BUTIKSNAMNEN (2026-09-22). De numeriska lagernycklarna är id:n i Webhallens egen
+ * butikslista, `/api/store/se` — endpointen står i klartext i deras frontend-bundle.
+ * ⛔ Lärdomen är generell: läs butikens JS innan du förklarar en uppgift omöjlig.
+ *    Första probningen gissade URL:er (/api/store, /api/store/{id}) och drog fel slutsats.
+ */
+describe("webhallens butikslista", () => {
+  const api = {
+    stores: [
+      { id: 31, name: "Bredden (InfraCity)", city: "Upplands Väsby" },
+      { id: 33, name: "Solna Centrum", city: "Solna" },
+      { id: 32, name: "Ringen", city: "Stockholm" },
+      { id: 0, name: "", city: "Ingen" },
+    ],
+  };
+
+  it("läser id, namn och ort och hoppar över namnlösa rader", () => {
+    const m = parseWebhallenStores(api);
+    expect(m.size).toBe(3);
+    expect(m.get(31)!.name).toBe("Bredden (InfraCity)");
+    expect(m.get(0)).toBeUndefined();
+  });
+
+  it("⛔ ett trasigt svar ger en TOM karta, aldrig ett kast — namnen får inte tysta larmet", () => {
+    expect(parseWebhallenStores(null).size).toBe(0);
+    expect(parseWebhallenStores({ stores: "nope" }).size).toBe(0);
+    expect(parseWebhallenStores({}).size).toBe(0);
+  });
+
+  it("orten läggs till bara när den inte redan framgår av namnet", () => {
+    expect(storeLabel({ id: 32, name: "Ringen", city: "Stockholm" })).toBe("Ringen, Stockholm");
+    expect(storeLabel({ id: 33, name: "Solna Centrum", city: "Solna" })).toBe("Solna Centrum");
+    expect(storeLabel({ id: 9, name: "Täby Centrum", city: "Täby" })).toBe("Täby Centrum");
+    expect(storeLabel({ id: 1, name: "X", city: null })).toBe("X");
+  });
+
+  it("nedbrytningen namnger butikerna och sorterar störst först", () => {
+    const names = parseWebhallenStores(api);
+    const r = webhallenStoreBreakdown({ web: 0, displayCap: 50, "31": 4, "32": 9, "33": 1 }, names);
+    expect(r.locations!.map((l) => l.label)).toEqual([
+      "Ringen, Stockholm",
+      "Bredden (InfraCity), Upplands Väsby",
+      "Solna Centrum",
+    ]);
+    expect(r.units).toBe(14);
+  });
+
+  it("⛔ ett OKÄNT id får INGEN rad — men räknas fortfarande i summan och antalet", () => {
+    // Annars försvinner en nyöppnad butiks saldo ur talet, och ingen skulle märka det.
+    const r = webhallenStoreBreakdown({ web: 0, "31": 4, "77": 6 }, parseWebhallenStores(api));
+    expect(r.units).toBe(10);
+    expect(r.stores).toBe(2);
+    expect(r.locations!.map((l) => l.label)).toEqual(["Bredden (InfraCity), Upplands Väsby"]);
   });
 });

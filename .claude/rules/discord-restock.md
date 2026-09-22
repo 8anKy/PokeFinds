@@ -256,10 +256,22 @@ priskanalen.
   en självmotsägelse i en publik kanal.
   ⛔ **`displayCap` ÄR ETT VISNINGSTAK, INTE ETT SALDO** (50 = "Fler än 50 st") — en butik på taket
   sätter `capped` och copyn skriver "minst N ex". Utan den publicerar vi ett exakt tal som är fel nedåt.
-  ⛔ **ANTAL BUTIKER, ALDRIG VILKA.** Webhallens saldon ligger på namnlösa numeriska id:n och det
-  finns ingen publik uppslagning id → namn (probat 2026-09-22: `/api/store`, `/api/store/{id}`,
-  `/api/section*`, sektions- och produktsidan — alla ger JS-skal eller 404). Ett filialnamn hade
-  alltså behövt gissas, och ett gissat butiksnamn skickar folk till fel stad.
+  ✅ **BUTIKERNA NAMNGES** (`/api/store/se` → `src/scrapers/adapters/webhallen-stores.ts`): inlägget
+  räknar upp "Fridhemsplan, Stockholm · 14 ex" per butik, störst först, max fyra rader + "+N butiker
+  till". Står varan i EN butik står namnet i löptexten ("Finns i Webhallen Bredden (InfraCity),
+  Upplands Väsby just nu"); i flera säger texten "butikerna" och fältet räknar upp dem.
+  ⛔ **LÄS BUTIKENS FRONTEND-BUNDLE INNAN DU SÄGER ATT NÅGOT ÄR OMÖJLIGT.** Första probningen
+  2026-09-22 GISSADE endpointen (`/api/store`, `/api/store/{id}`, `/api/section*` — JS-skal eller
+  404) och drog slutsatsen "ingen publik uppslagning finns, visa bara ANTAL". Fel: SPA:n anropar
+  `store/se`, vilket står i klartext i `webhallen.com/js/app.*.js`. Ett SPA-skal säger ingenting om
+  vilka API:er som finns bakom det.
+  ⛔ **ALDRIG ETT GISSAT NAMN.** Ett okänt id (nyöppnad butik) får INGEN rad men räknas fortfarande i
+  summan och antalet — annars försvinner dess saldo ur talet utan att någon märker det. Fallerar
+  hela uppslagningen är den fail soft: tom karta ⇒ "N ex i M butiker" som förut, aldrig ett tyst larm.
+  Orten läggs till bara när den inte framgår av namnet ("Solna Centrum", men "Ringen, Stockholm").
+  ⛔ Butikslistan hämtas i RUNTIME (en 12 kB-hämtning per process, 24 h cache) i stället för att
+  checkas in: en incheckad lista blir tyst inaktuell den dag en butik öppnar, och då står fel ort i
+  en publik kanal.
   ⛔ Saldot visas ALDRIG på en online-vara: där är det butikens webblager som gäller.
   ⛔ **INGEN UPPDATERINGSTAKT I FOTEN** ("uppdateras varje timme" e.d.): butikerna pollas i olika takt
   (`restock-poll-interval.ts`) och saldot kan ändras mellan två pollningar. Foten säger "kan ändras

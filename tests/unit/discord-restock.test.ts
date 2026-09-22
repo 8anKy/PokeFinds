@@ -18,6 +18,7 @@ import {
   resolveChannelId,
   resolveRestockChannelId,
   formatStoreStock,
+  formatStoreLocations,
   buildRestockEmbed,
   postTestMessages,
   discordRestockConfig,
@@ -822,6 +823,8 @@ describe("buildRestockEmbed", () => {
     expect(embed.title).toBe("Finns bara i butik: Pitch Black Elite Trainer Box");
     expect(embed.description).toContain("Dragon's Lair");
     expect(embed.description).toContain("Går inte att köpa i webbutiken");
+    // Utan namngivna butiker: "butikerna", aldrig ett gissat filialnamn.
+    expect(embed.description).toContain("fysiska butiker");
     expect(embed.fields.find((f) => f.name === "Pris i butik")?.value).toContain("549");
     expect(embed.fields.find((f) => f.name === "Källa")?.value).toBe("Butikens lagersaldo");
     expect(embed.footer.text).toContain("ring butiken");
@@ -838,6 +841,88 @@ describe("buildRestockEmbed", () => {
     expect(f({ units: 36, stores: 6, capped: false })).toBe("36 ex i 6 butiker");
     // SF-Bok bryter inte ner per butik: bara antalet exemplar.
     expect(f({ units: 10, stores: null, capped: false })).toBe("10 ex");
+  });
+
+  it("namnger butikerna, störst först, med summan kvar överst", () => {
+    // Mätt på 30th Celebration Binder Collection 2026-09-22 (Webhallen /api/store/se).
+    const embed = buildRestockEmbed({
+      ...post,
+      storeOnly: true,
+      storeStock: {
+        units: 36,
+        stores: 6,
+        capped: false,
+        locations: [
+          { label: "Fridhemsplan, Stockholm", units: 14, capped: false },
+          { label: "Grönbystaden, Uppsala", units: 10, capped: false },
+          { label: "Ringen, Stockholm", units: 8, capped: false },
+          { label: "Täby Centrum", units: 2, capped: false },
+          { label: "Barkarby Handelsplats, Järfälla", units: 1, capped: false },
+          { label: "Farsta Centrum", units: 1, capped: false },
+        ],
+      },
+    });
+    const v = embed.fields.find((f) => f.name === "I lager")!;
+    expect(v.inline).toBe(false); // flera rader — inline hade tryckt ihop namnen
+    expect(v.value.split("\n")[0]).toBe("**36 ex i 6 butiker**");
+    expect(v.value).toContain("Fridhemsplan, Stockholm · 14 ex");
+    // ⛔ Listan kapas vid fyra, men SUMMAN står kvar överst — annars läser fyra rader
+    //    som hela sanningen och den som bor närmast butik nr 5 åker ingenstans.
+    expect(v.value).toContain("+2 butiker till · 2 ex");
+    expect(v.value).not.toContain("Farsta Centrum ·");
+  });
+
+  it("EN namngiven butik ⇒ namnet står i texten; flera ⇒ \"butikerna\"", () => {
+    const one = buildRestockEmbed({
+      ...post,
+      storeOnly: true,
+      storeStock: {
+        units: 21,
+        stores: 1,
+        capped: false,
+        locations: [{ label: "Bredden (InfraCity), Upplands Väsby", units: 21, capped: false }],
+      },
+    });
+    expect(one.description).toContain("Dragon's Lair Bredden (InfraCity), Upplands Väsby");
+    // ⛔ Sex butiker och ETT namn i texten hade varit missvisande — då räknar fältet upp dem.
+    const many = buildRestockEmbed({
+      ...post,
+      storeOnly: true,
+      storeStock: {
+        units: 30,
+        stores: 2,
+        capped: false,
+        locations: [
+          { label: "Ringen, Stockholm", units: 20, capped: false },
+          { label: "Solna Centrum", units: 10, capped: false },
+        ],
+      },
+    });
+    expect(many.description).toContain("fysiska butiker");
+  });
+
+  it("⛔ utan namn från källan står sammanfattningen ensam — aldrig ett gissat butiksnamn", () => {
+    const v = buildRestockEmbed({
+      ...post,
+      storeOnly: true,
+      storeStock: { units: 10, stores: null, capped: false },
+    }).fields.find((f) => f.name === "I lager")!;
+    expect(v.value).toBe("10 ex");
+    expect(formatStoreLocations({ units: 10, stores: null, capped: false })).toBeNull();
+  });
+
+  it("⛔ en butik på visningstaket skrivs som MINST även på sin egen rad", () => {
+    expect(
+      formatStoreLocations({
+        units: 53,
+        stores: 2,
+        capped: true,
+        locations: [
+          { label: "Ringen, Stockholm", units: 50, capped: true },
+          { label: "Solna Centrum", units: 3, capped: false },
+        ],
+      })
+    ).toBe("Ringen, Stockholm · minst 50 ex\nSolna Centrum · 3 ex");
   });
 
   it("⛔ visningstaket skrivs som MINST — 50 betyder \"Fler än 50 st\", inte 50", () => {

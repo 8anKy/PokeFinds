@@ -16,7 +16,9 @@ import type {
   RawProductData,
   SourceAdapter,
   StoreStock,
+  StoreStockLocation,
 } from "../types";
+import { fetchWebhallenStores, storeLabel, type WebhallenStore } from "./webhallen-stores";
 import { guessListingCategory } from "../listing-category";
 
 const BASE_URL = "https://www.webhallen.com";
@@ -147,19 +149,32 @@ export function webhallenStoreStock(stock: WebhallenProduct["stock"]): number {
  *    publicerar ingen uppslagning (probat 2026-09-22). Därför ett ANTAL, aldrig ett
  *    filialnamn.
  */
-export function webhallenStoreBreakdown(stock: WebhallenProduct["stock"]): StoreStock {
+export function webhallenStoreBreakdown(
+  stock: WebhallenProduct["stock"],
+  /**
+   * Uppslagning id → butik (`fetchWebhallenStores`). Utelämnad eller ofullständig ⇒
+   * raden får inget namn och faller tillbaka på antalet. ⛔ Gissa ALDRIG ett namn.
+   */
+  names?: Map<number, WebhallenStore>
+): StoreStock {
   if (!stock) return { units: null, stores: null, capped: false };
   const cap = typeof stock.displayCap === "number" && stock.displayCap > 0 ? stock.displayCap : null;
   let units = 0;
   let stores = 0;
   let capped = false;
+  const locations: StoreStockLocation[] = [];
   for (const [key, value] of Object.entries(stock)) {
     if (!/^\d+$/.test(key) || typeof value !== "number" || value <= 0) continue;
     units += value;
     stores += 1;
-    if (cap != null && value >= cap) capped = true;
+    const atCap = cap != null && value >= cap;
+    if (atCap) capped = true;
+    const store = names?.get(Number(key));
+    if (store) locations.push({ label: storeLabel(store), units: value, capped: atCap });
   }
-  return { units, stores, capped };
+  // Störst först: den som ska åka vill se var chansen är bäst, inte id-ordningen.
+  locations.sort((a, b) => b.units - a.units || a.label.localeCompare(b.label, "sv"));
+  return { units, stores, capped, locations };
 }
 
 /**
@@ -190,6 +205,9 @@ export class WebhallenAdapter implements SourceAdapter {
   async fetchProducts(): Promise<AdapterResult> {
     const products: RawProductData[] = [];
     const errors: string[] = [];
+    // Butiksnamnen FÖRE feeden: en hämtning per process (24 h cache), fail soft till
+    // en tom karta ⇒ larmen visar antal butiker utan namn i stället för att utebli.
+    const storeNames = await fetchWebhallenStores();
 
     try {
       const seen = new Set<number>();
@@ -250,7 +268,7 @@ export class WebhallenAdapter implements SourceAdapter {
             imageUrl: item.thumbnail,
             category: guessListingCategory(item.name),
             storeOnly: webhallenStoreOnly(item),
-            storeStock: webhallenStoreBreakdown(item.stock),
+            storeStock: webhallenStoreBreakdown(item.stock, storeNames),
             raw,
           });
         }
