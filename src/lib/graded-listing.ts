@@ -244,6 +244,36 @@ export function detectGrading(input: GradedListingInput): GradingInfo | null {
   };
 }
 
+/** Produktkategorier där en gradering betyder något — bara KORT slabbas. */
+const GRADEABLE_CATEGORIES = new Set(["SINGLE_CARD", "GRADED_CARD"]);
+
+export type SaleGradingVerdict =
+  | { kind: "raw" }
+  | { kind: "graded"; grading: GradingInfo }
+  | { kind: "skip" };
+
+/**
+ * ⛔ EN FÖRSEGLAD PRODUKT HAR INGEN GRADERAD SERIE (2026-09-22).
+ * Mätt: 17 "graderade" affärer låg på 12 boosterpaket/ETB:er, alla `OTHER` —
+ * säljarna fyller i Traderas graderingsfält ("Övriga") även på förseglat, och
+ * attribut-vägen i `isGradedListing` litar på fältet. Produktsidan visade då
+ * "Annat bolag 10 · 80 kr SÅLT" under ett boosterpaket.
+ *
+ *  - Kort ⇒ domen som förut.
+ *  - Förseglat + bara ATTRIBUTET säger graderat ⇒ säljarens felifyllning, affären
+ *    är en vanlig förseglad affär (`raw`).
+ *  - Förseglat + TITELN säger graderat ("PSA 9 booster pack") ⇒ en slabbad
+ *    förpackning är en annan vara än den vi listar — varken graderad serie eller
+ *    rå kurva (`skip`).
+ */
+export function gradingVerdictFor(category: string, input: GradedListingInput): SaleGradingVerdict {
+  if (GRADEABLE_CATEGORIES.has(category)) {
+    const grading = detectGrading(input);
+    return grading ? { kind: "graded", grading } : { kind: "raw" };
+  }
+  return isGradedListing({ title: input.title }) ? { kind: "skip" } : { kind: "raw" };
+}
+
 /**
  * ⛔ DEN RÅA PRISVAKTEN FÅR INTE RÖRA GRADERADE AFFÄRER.
  * `isPlausiblePriceFor` fäller en singel som kostar > 4× referensen OCH > 400 kr

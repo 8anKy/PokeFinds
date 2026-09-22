@@ -47,7 +47,7 @@ import { isBlockedListingLanguage, listingCardLanguage } from "../lib/listing-la
 import { matchProduct, getListingPriceGuard } from "../scrapers/matching";
 import { traderaCategoryCompatible } from "./tradera-sweep";
 import { TRADERA_SOLD_SOURCE_NAME } from "../services/products";
-import { detectGrading, isPlausibleGradedPriceOre } from "../lib/graded-listing";
+import { gradingVerdictFor, isPlausibleGradedPriceOre } from "../lib/graded-listing";
 import { traderaItemUrl } from "@/lib/tradera-listing-options";
 
 const SEARCH_API = "https://api.tradera.com/v3/searchservice.asmx";
@@ -317,6 +317,8 @@ export interface TraderaSoldSweepResult {
   gradedImplausible: number;
   /** Graderade annonser som hittades i en RÅ kategori — mått på läckaget. */
   gradedInRawCategory: number;
+  /** Slabbade FÖRSEGLADE förpackningar — en annan vara än den vi listar, skrivs inte alls. */
+  gradedSealedSkipped: number;
 }
 
 export async function runTraderaSoldSweep(
@@ -438,6 +440,7 @@ export async function runTraderaSoldSweep(
     gradedWritten: 0,
     gradedImplausible: 0,
     gradedInRawCategory: 0,
+    gradedSealedSkipped: 0,
   };
   const touched = new Set<string>();
   // Prisvakten hämtar facit per produkt — cacha den, flera affärer delar produkt.
@@ -488,11 +491,17 @@ export async function runTraderaSoldSweep(
     // ── GRADERAD ELLER RÅ? Domen tas här, EN gång, och styr både vakt och mål ──
     // ⛔ Kategorin duger inte som grind: mätt 2026-09-04 ligger ~1 % av annonserna
     // i 1001337 (Löskort) i själva verket i slab. Domen tas på annonsen.
-    const grading = detectGrading({
+    // ⛔ Förseglat har ingen graderad serie — se `gradingVerdictFor`.
+    const verdictKind = gradingVerdictFor(product.category, {
       title: sale.title,
       attrIssuer: sale.attrIssuer,
       attrGrade: sale.attrGrade,
     });
+    if (verdictKind.kind === "skip") {
+      stats.gradedSealedSkipped++;
+      return;
+    }
+    const grading = verdictKind.kind === "graded" ? verdictKind.grading : null;
     if (grading && sale.categoryId !== 1001338) stats.gradedInRawCategory++;
 
     if (grading) {
@@ -644,7 +653,8 @@ export async function runTraderaSoldSweep(
   );
   log(
     `   🏅 Graderat: ${stats.gradedWritten} skrivna | ${stats.gradedImplausible} orimliga | ` +
-      `${stats.gradedInRawCategory} låg i en RÅ kategori (skulle ha förorenat den ograderade kurvan)`
+      `${stats.gradedInRawCategory} låg i en RÅ kategori (skulle ha förorenat den ograderade kurvan) | ` +
+      `${stats.gradedSealedSkipped} slabbade förseglade (skippade)`
   );
 
   return stats;

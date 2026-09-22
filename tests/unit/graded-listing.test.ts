@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectGrading, isGradedListing } from "@/lib/graded-listing";
+import { detectGrading, gradingVerdictFor, isGradedListing } from "@/lib/graded-listing";
 
 /**
  * ⛔ TVÅSIDIG VAKT. Ett för snävt filter släpper in slabbar i den råa kurvan
@@ -124,5 +124,32 @@ describe("detectGrading", () => {
   it("returnerar null för ograderade kort", () => {
     expect(detectGrading({ title: "Poliwrath 13/102 Base set Pokemonkort" })).toBeNull();
     expect(detectGrading({ title: "PSA10 Kandidat - Cubone 60/112" })).toBeNull();
+  });
+});
+
+/**
+ * ⛔ FÖRSEGLAT HAR INGEN GRADERAD SERIE (2026-09-22). Titlarna är verkliga
+ * Tradera-affärer som låg i `GradedSale` på boosterpaket och ETB:er — säljaren
+ * hade fyllt i graderingsfältet ("Övriga") på en förseglad vara.
+ */
+describe("gradingVerdictFor", () => {
+  it("förseglat + bara attributet ⇒ vanlig förseglad affär", () => {
+    for (const title of [
+      "Pokemon 1x Pitch Black booster pack sealed",
+      "Pokemon Elite Trainer Box Mega Evolution Pitch Black",
+      "Pokemon \"Ascended Heroes\" Boosterpaket",
+    ]) {
+      expect(gradingVerdictFor("BOOSTER_PACK", { title, attrIssuer: "Övriga", attrGrade: "10" })).toEqual({ kind: "raw" });
+    }
+  });
+
+  it("förseglat + graderat i titeln ⇒ skippas helt", () => {
+    expect(gradingVerdictFor("BOOSTER_PACK", { title: "PSA 9 Evolving Skies booster pack" })).toEqual({ kind: "skip" });
+  });
+
+  it("kort ⇒ samma dom som förut", () => {
+    const v = gradingVerdictFor("SINGLE_CARD", { title: "Charizard 4/102", attrIssuer: "PSA", attrGrade: "10" });
+    expect(v.kind).toBe("graded");
+    expect(gradingVerdictFor("SINGLE_CARD", { title: "Charizard 4/102" })).toEqual({ kind: "raw" });
   });
 });
