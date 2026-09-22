@@ -809,11 +809,9 @@ describe("buildRestockEmbed", () => {
     expect(fields.find((f) => f.name === "Prishistorik")?.value).toContain(post.productUrl);
   });
 
-  it("säger om varan går att beställa online eller bara finns i butik", () => {
-    const online = buildRestockEmbed(post).fields.find((f) => f.name === "Köp")?.value;
-    const store = buildRestockEmbed({ ...post, storeOnly: true }).fields.find((f) => f.name === "Köp")?.value;
-    expect(online).toBe("🌐 Online");
-    expect(store).toBe("🏬 Endast i butik");
+  it("bär inget Köp-fält — kanalen säger redan online eller butik", () => {
+    expect(buildRestockEmbed(post).fields.some((f) => f.name === "Köp")).toBe(false);
+    expect(buildRestockEmbed({ ...post, storeOnly: true }).fields.some((f) => f.name === "Köp")).toBe(false);
   });
 
   it("butiksvaran säger det i RUBRIKEN och i texten — inte bara i ett fält", () => {

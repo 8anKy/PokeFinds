@@ -77,8 +77,8 @@ export interface DiscordRestockConfig {
   /**
    * EN kanal som tar ALLA butiksvaror (`"stores":"<id>"`) — produkter som bara går att
    * hämta i en fysisk butik (`RestockPost.storeOnly`, se SF-Bok och Webhallens
-   * butikssläpp). Valfri: utan den routas de som allt annat, med "🏬 Endast i butik"
-   * som enda skillnad.
+   * butikssläpp). Valfri: utan den routas de som allt annat och skiljs bara av sin
+   * egen rubrik/copy ("Finns bara i butik: …").
    *
    * ⛔ SYFTET ÄR ATT DE ANDRA KANALERNA SKA VARA RENT ONLINE (ägarbeslut 2026-09-22).
    * Ett restock-larm är ett lopp man springer med ett klick; en butiksvara är en
@@ -440,16 +440,10 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
   const storeOnly = post.storeOnly === true;
   const fields: { name: string; value: string; inline: boolean }[] = [
     { name: "Butik", value: clamp(post.storeName, MAX_FIELD_VALUE), inline: true },
+    // Inget "Köp: Online/Endast i butik"-fält (borttaget 2026-09-22, ägarbeslut): kanalen
+    // säger det redan (`stores` tar alla butiksvaror), och en butiksvara har dessutom egen
+    // rubrik, "Pris i butik", källa och fot.
     { name: storeOnly ? "Pris i butik" : "Pris", value: formatPrice(post.priceOre), inline: true },
-    // Online eller bara i butik — ett larm om en butiksvara är en bilresa, inte ett
-    // klick, och det ska stå bredvid priset, inte gömmas i butikens sida. I den egna
-    // butikskanalen säger rubriken redan samma sak, men fältet står kvar: embedden
-    // hamnar i en vanlig kanal så länge `stores` inte är konfigurerad.
-    {
-      name: "Köp",
-      value: storeOnly ? "🏬 Endast i butik" : "🌐 Online",
-      inline: true,
-    },
   ];
   // ⛔ VARIFRÅN VI VET DET. En butiksvara går inte att verifiera med en köpknapp —
   //    påståendet vilar på butikens egna butikssaldon, och det ska stå i inlägget så
