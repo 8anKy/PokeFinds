@@ -584,23 +584,19 @@ html[data-native] .web-only {
 
 @layer utilities {
   /* FAKTAPANELEN på produktsidan (product-facts-panel.tsx) får sin höjd av
-     högerspalten, inte av sitt innehåll. Raderna är rangordnade i tre nivåer och
-     de lägre döljs när panelen är låg — en CONTAINER-fråga på panelen själv, för
-     höjden beror på om grafen bär graderingskarusellen, inte på viewporten.
-     Mätt: ~236 px utan karusell, ~335 px med. Tailwind 3.4 saknar @container-
-     varianter utan plugin, därav ren CSS här. ⛔ Ligger i @layer utilities: `Fact`
-     bär `flex` (en utility), och en components-regel förlorar mot den. */
-  .facts-panel {
-    container-type: size;
+     högerspalten, inte av sitt innehåll. Raderna är rangordnade i nivåer och
+     panelen MÄTER vilken nivå som ryms (`data-fit`, satt av komponenten):
+     1 = utan flavour text, 2 = även utan regulation mark/Pokédex/setraden,
+     3 = inte ens kärnan ryms ⇒ hela panelen osynlig (visibility, inte display —
+     annars har ResizeObservern ingen höjd att mäta när spalten växer igen).
+     ⛔ Ligger i @layer utilities: `Fact` bär `flex` (en utility), och en
+     components-regel förlorar mot den. */
+  .facts-panel[data-fit="1"] .facts-t3,
+  .facts-panel[data-fit="2"] .facts-t3,
+  .facts-panel[data-fit="2"] .facts-t2 {
+    display: none;
   }
-  @container (max-height: 259px) {
-    .facts-t2 {
-      display: none;
-    }
-  }
-  @container (max-height: 329px) {
-    .facts-t3 {
-      display: none;
-    }
+  .facts-panel[data-fit="3"] {
+    visibility: hidden;
   }
 }

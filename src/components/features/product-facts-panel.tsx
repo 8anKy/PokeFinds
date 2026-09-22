@@ -8,15 +8,21 @@
  * och panelen ligger ABSOLUT under bildbrunnen (product-detail-view.tsx), ur
  * flödet. Underkanten ligger därför ALLTID i linje med prishistorikkortets
  * underkant, oavsett hur många rader den har. Får allt inte plats döljs raderna
- * NIVÅVIS via container-frågor i globals.css (`.facts-t2`, `.facts-t3`) — aldrig
- * en kapad rad: nivå 1 = kärnfakta, nivå 2 = regulation mark/Pokédex + setraden,
- * nivå 3 = flavour text. Panelen växer aldrig sidan, och den renderas först när
+ * NIVÅVIS (`data-fit`, CSS i globals.css) — aldrig en kapad rad: nivå 1 =
+ * kärnfakta, nivå 2 = regulation mark/Pokédex + setraden, nivå 3 = flavour text.
+ * ⛔ NIVÅN MÄTS, den gissas inte (2026-09-22). Den var en container-fråga på
+ * fasta höjder (260/330 px) som bara räknade med KORTENS rader — förseglat hade
+ * ingen nivå alls, och en ETB-lista med 12 rader + en setrad på två rader kapades
+ * nedtill när högerspalten var låg. Nu provas nivåerna mot panelens verkliga
+ * höjd; får inte ens kärnan plats döljs hela panelen (`visibility`, så att
+ * ResizeObservern fortsätter mäta och tar tillbaka den när spalten växer). Panelen växer aldrig sidan, och den renderas först när
  * priset är hämtat (skelettet gör högerspalten för kort).
  *
  * Datat kommer ur skalet (`ProductFacts`, DB-fritt och 30 d ISR) — inget hämtas.
  * Singlar med färre än `MIN_CARD_FACTS` fakta får ingen panel alls (product-facts.ts).
  */
 
+import { useLayoutEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -59,6 +65,29 @@ export function ProductFactsPanel({
   const t = useTranslations("Detail");
   const tLang = useTranslations("Language");
   const locale = useLocale();
+  const ref = useRef<HTMLElement>(null);
+  const [fit, setFit] = useState(0);
+  // Minsta nivå där innehållet ryms. Nivån sätts på elementet FÖRE mätningen
+  // (synkront, samma bildruta) — React skriver sedan samma värde via `data-fit`.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      for (let level = 0; level <= 2; level++) {
+        el.dataset.fit = String(level);
+        if (el.scrollHeight <= el.clientHeight + 1) {
+          setFit(level);
+          return;
+        }
+      }
+      el.dataset.fit = "3";
+      setFit(3);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [facts]);
   // `?? null`: detail-payloaden cachas ≤1 h — direkt efter en deploy saknar
   // äldre svar fältet, och panelen ska då bara utebli.
   const f = facts ?? null;
@@ -85,6 +114,8 @@ export function ProductFactsPanel({
 
   return (
     <section
+      ref={ref}
+      data-fit={fit}
       aria-label={isCard ? t("factsCardTitle") : t("factsSealedTitle")}
       className={cn("facts-panel card-surface flex flex-col gap-2.5 overflow-hidden p-4", className)}
     >
@@ -144,7 +175,7 @@ export function ProductFactsPanel({
 
       {/* SETRADEN — en kompakt rad längst ned (`mt-auto`), inte ett rutnät. */}
       {setLine.length > 0 && (
-        <p className={cn("mt-auto border-t border-surface-border/60 pt-2.5 text-[11px] leading-4 text-ink-muted", isCard && "facts-t2")}>
+        <p className="facts-t2 mt-auto border-t border-surface-border/60 pt-2.5 text-[11px] leading-4 text-ink-muted">
           {setLine.map((part, i) => (
             <span key={i}>
               {i > 0 && <span className="mx-1.5 text-ink-faint" aria-hidden="true">·</span>}
