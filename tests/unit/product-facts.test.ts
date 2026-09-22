@@ -129,6 +129,9 @@ describe("buildProductFacts", () => {
     expect(f?.setCards).toBeNull();
     expect(f?.contents?.length).toBe(10);
   });
+  it("förseglat utan innehållslista ⇒ null — setraden ensam är ingen panel", () => {
+    expect(buildProductFacts(sealed("COLLECTION_BOX", "Charizard ex Premium Collection"))).toBeNull();
+  });
   it("inget att visa ⇒ null (panelen renderas inte)", () => {
     expect(buildProductFacts({ category: "ACCESSORY", language: "EN", title: "Sleeves", releaseDate: null, set: null, card: null })).toBeNull();
   });

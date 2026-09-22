@@ -354,8 +354,9 @@ export function buildProductFacts(input: FactsInput): ProductFacts | null {
     setCards,
     language: input.language,
   };
-  // Singlar: hellre ingen panel än en gles — setraden ensam räddar den inte.
+  // Hellre ingen panel än en gles — setraden ensam räddar den inte (ägaren
+  // 2026-09-22: en "I lådan" med bara serie/datum såg trasig ut).
   if (card) return countCardFacts(card) >= MIN_CARD_FACTS ? facts : null;
-  if (!contents && !facts.series && !facts.releaseDate && !setCards) return null;
+  if (!contents || contents.length === 0) return null;
   return facts;
 }
