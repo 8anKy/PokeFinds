@@ -76,7 +76,7 @@ describe("tvillingen först i raderna", () => {
     ]);
   });
   it("alternativlistan: tvillingen först", () => {
-    const alts = pickAlternatives(rows, { cardId: "match", productId: "p1" });
+    const alts = pickAlternatives(rows, { cardId: "match", productId: "p1", score: 1.2, name: "Primarina" });
     expect(alts[0].cardId).toBe("jp");
   });
 });

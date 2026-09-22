@@ -9,6 +9,7 @@ import type { PlanTier, Prisma, ScannerJob } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { FINGERPRINT_BYTES, STRUCT_BYTES } from "@/lib/art-fingerprint";
+import { subsetAliasExternalIds } from "@/lib/subset-number-alias";
 import { cardNumberSortKey } from "@/lib/card-number-order";
 // ⛔ Delad med graderingen OCH adminens kostnadsvy — kvotfönstret måste vara
 // samma gräns överallt. Se src/lib/utils.ts.
@@ -1190,11 +1191,17 @@ export async function matchCards(
   // signal — det är hela poängen med den: den fungerar när texten är oläslig.
   if (tokens.length === 0 && !guessedNum && !artScores?.size) return [];
 
+  // Underseriens nummer ("29/30" på 30th Celebration-Pikachu #51) — se
+  // lib/subset-number-alias.ts. Ett exakt uppslag på unik nyckel.
+  const aliasExternalIds = subsetAliasExternalIds(guessedNum);
+  const aliasIdSet = new Set(aliasExternalIds);
+
   const select = {
     id: true,
     name: true,
     number: true,
     numberSortKey: true,
+    tcgExternalId: true,
     rarity: true,
     language: true,
     imageUrl: true,
@@ -1240,6 +1247,10 @@ export async function matchCards(
           select,
           orderBy,
         })
+      : Promise.resolve([]),
+    // 5: underseriens nummer, se aliasExternalIds ovan.
+    aliasExternalIds.length
+      ? prisma.card.findMany({ where: { tcgExternalId: { in: aliasExternalIds } }, select, orderBy })
       : Promise.resolve([]),
   ]);
 
@@ -1363,7 +1374,11 @@ export async function matchCards(
     // Probopass, namnet dämpades korrekt till 0,25 — och Rhydon 35 vann på den
     // odämpade nummerbonusen (0,346 mot bildens 0,217). Samma modellsvar, samma
     // misstro. Därför ligger grenvalet i numberMatchBonus och vikten HÄR.
-    if (guessedNum && card.numberSortKey === guessedNum.sortKey) {
+    if (guessedNum && card.tcgExternalId && aliasIdSet.has(card.tcgExternalId)) {
+      // Nummer OCH underseriens total stämmer — lika starkt som en vanlig
+      // nummer+total-träff, och samma misstro (nameWeight).
+      score += 0.5 * nameWeight;
+    } else if (guessedNum && card.numberSortKey === guessedNum.sortKey) {
       score += numberMatchBonus(card, guessedNum.total, namesWithConfirmedTotal) * nameWeight;
     }
     // Explicit typad — `satisfies` hade smalnat slug/estimatedValue till `null`,

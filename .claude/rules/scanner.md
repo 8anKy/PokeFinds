@@ -435,3 +435,12 @@ Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md p
   (annars fyrar "?"/valsteget på varje tvillingskanning). ⛔ Konstlikheten räknas bara när bildsökningen körde
   (samma grind som `sameArt`). `recall.lh` bokför hinten — mät om: korrigeringar med relationen
   SPRÅKTVILLING ska falla. Vaktat av `tests/unit/scan-language-twin.test.ts`.
+- **UNDERSERIENS NUMMER ("29/30") ÄR ETT ALIAS, INTE ETT FEL (2026-09-22)**: 30th Celebration-Pikachu #23–#52
+  bär också "1/30"–"30/30", och Gemini läser ofta DET numret — "29/30" gav 30th Celebration #29 (också en
+  Pikachu!) i stället för #51. MÄTT över alla domar där läsningen var "N/30": #N+22 i 51 (15 aktiva val),
+  #N i 3 (alla masstryck). Tabellen `SUBSET_NUMBER_ALIASES` (`lib/subset-number-alias.ts`, ren + testad)
+  lägger till kortet som egen kandidatkälla (unik `tcgExternalId`) med nummer+total-bonus (0,5 × nameWeight).
+  ⛔ Bara VERIFIERADE underserier — en generell "offset när totalen inte stämmer"-regel hade gjort varje
+  felläst total till bevis för ett tredje kort. ⛔ Utredd och FÖRKASTAD samma dag: "bildens etta slår ett
+  nummer som pekar utanför bildens topp-15" (22 rättade mot 19 där texten stod kvar — de vintage omtrycken
+  Base/Base Set 2 förlorade) och "lokala numret väljer bland bildens topp-15" (1 rättad, 4 förstörda).
