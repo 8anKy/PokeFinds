@@ -228,6 +228,30 @@ priset kommer ur feeden vi ändå hämtar, ingen DB rörs.
   ALDRIG läsas som "av"), `DISCORD_PRICE_DROP_MIN_PERCENT` / `_MIN_ORE` / `_MAX_PERCENT` /
   `_MAX_PER_STORE` / `_COOLDOWN_HOURS`. Egen kanal via `"prices":"<id>"` i
   `DISCORD_RESTOCK_CHANNELS` — utan den routas prisinläggen som påfyllningarna.
+  ⛔ `"stores"` vinner över `"prices"`: en prissänkning på en butiksvara hör hemma i butikskanalen.
+
+## ⛔ BUTIKSVAROR HAR EN EGEN KANAL — DE ÖVRIGA ÄR RENT ONLINE (ägarbeslut 2026-09-22)
+`"stores":"<id>"` i `DISCORD_RESTOCK_CHANNELS` tar ALLA inlägg där `RestockPost.storeOnly` är sant
+(SF-Boks `buttonState` 3/4, Webhallens butikssläpp — `web: 0` + butikssaldo). **Domen bor i
+`resolveRestockChannelId` (ren, testad)**, och butikskanalen vinner över set-, serie-, språk- OCH
+priskanalen.
+- **VARFÖR EN EGEN KANAL OCH INTE BARA "Köp"-ETIKETTEN** (som lades till 09-21): ett restock-larm är
+  ett lopp man springer med ett klick; en butiksvara är en bilresa till en hylla som kan vara tom när
+  man kommer fram. Ligger de i samma kanal lär sig läsaren att larmen ibland inte går att agera på —
+  och då tappar ALLA larm sin brådska. Etiketten löser inte det, för den läses först efter att man
+  redan reagerat på rubriken.
+- ⛔ **UTAN `stores` ÄR ROUTINGEN OFÖRÄNDRAD** — butiksvarorna går dit de alltid gått, med etiketten
+  som enda skillnad. Fail closed här hade tystat larm på en konfiguration som inte ändrats.
+- **Inlägget ser annorlunda ut**: rubriken "Finns bara i butik: …", texten "Går inte att köpa i
+  webbutiken, bara på plats", fältet heter "Pris i butik", och ett fält "Källa: Butikens lagersaldo"
+  säger varifrån påståendet kommer — det går inte att verifiera med en köpknapp.
+  ⛔ **INGEN UPPDATERINGSTAKT I FOTEN** ("uppdateras varje timme" e.d.): butikerna pollas i olika takt
+  (`restock-poll-interval.ts`) och saldot kan ändras mellan två pollningar. Foten säger "kan ändras
+  snabbt — ring butiken innan du åker", vilket är sant oavsett takt.
+  ⛔ **VILKEN butik som har varan vet vi INTE** — Webhallens saldon ligger på numeriska nycklar utan
+  namn och SF-Bok ger bara ett ja. Texten säger "i <butik>s fysiska butiker", aldrig ett filialnamn.
+- ⛔ **PRO-SPEGELN HOPPAR ÖVER BUTIKSVAROR**: spegelns hela innehåll är korglänken, och en vara som
+  bara finns på en hylla har ingen korg att lägga i.
 
 ## ⛔ SVEPET ÄR BORTTAGET — VARJE BUTIK GÅR I SIN EGEN TAKT (2026-08-16)
 Lanen var ett SVEP: alla butiker hämtades parallellt, och först när den LÅNGSAMMASTE svarat kördes

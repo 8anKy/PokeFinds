@@ -13,7 +13,14 @@
  * Alla fyra felen är tysta i produktion.
  */
 import { describe, expect, it } from "vitest";
-import { chunk, resolveChannelId, buildRestockEmbed, postTestMessages, discordRestockConfig } from "@/lib/discord-restock";
+import {
+  chunk,
+  resolveChannelId,
+  resolveRestockChannelId,
+  buildRestockEmbed,
+  postTestMessages,
+  discordRestockConfig,
+} from "@/lib/discord-restock";
 import {
   deriveRestockPosts,
   markPosted,
@@ -174,6 +181,54 @@ describe("resolveChannelId", () => {
     expect(resolveChannelId("Prismatic Evolutions", "Scarlet & Violet", config, null)).toBe("777");
     expect(resolveChannelId("Prismatic Evolutions", "Scarlet & Violet", config, undefined)).toBe("777");
     expect(resolveChannelId("Prismatic Evolutions", "Scarlet & Violet", config, "EN")).toBe("777");
+  });
+});
+
+/**
+ * BUTIKSKANALEN (ägarbeslut 2026-09-22). En butiksvara är en bilresa till en hylla som
+ * kan vara tom när man kommer fram; ett vanligt restock-larm är ett klick. Blandas de
+ * i samma kanal lär sig läsaren att larmen ibland inte går att agera på — och då
+ * tappar ALLA larm sin brådska. Därför en egen kanal, och därför vinner den över
+ * allt annat: "går det att köpa härifrån soffan?" är en grövre fråga än vilket set
+ * varan tillhör.
+ */
+describe("resolveRestockChannelId — butiksvaror får en egen kanal", () => {
+  const config = {
+    setChannels: { "pitch black": "777" },
+    seriesChannels: { "mega evolution": "111" },
+    languageChannels: { jp: "555" },
+    defaultChannelId: "999",
+    priceChannelId: "888",
+    storeChannelId: "444",
+  };
+  const post = { setName: "Pitch Black", series: "Mega Evolution", language: "EN" };
+
+  it("online-varor routas precis som förut", () => {
+    expect(resolveRestockChannelId(post, config)).toBe("777");
+    expect(resolveRestockChannelId({ ...post, storeOnly: false }, config)).toBe("777");
+  });
+
+  it("butiksvaran går till butikskanalen i stället för setkanalen", () => {
+    expect(resolveRestockChannelId({ ...post, storeOnly: true }, config)).toBe("444");
+  });
+
+  it("⛔ butikskanalen vinner även över priskanalen och språkkanalen", () => {
+    // Annars hade en prissänkning eller en japansk butiksvara läckt tillbaka in i en
+    // kanal som ska vara rent online.
+    expect(
+      resolveRestockChannelId({ ...post, storeOnly: true, previousPriceOre: 59900 }, config)
+    ).toBe("444");
+    expect(resolveRestockChannelId({ ...post, storeOnly: true, language: "JP" }, config)).toBe(
+      "444"
+    );
+  });
+
+  it("utan konfigurerad butikskanal är routingen OFÖRÄNDRAD — inget larm tappas tyst", () => {
+    const withoutStore = { ...config, storeChannelId: null };
+    expect(resolveRestockChannelId({ ...post, storeOnly: true }, withoutStore)).toBe("777");
+    expect(
+      resolveRestockChannelId({ ...post, storeOnly: true, previousPriceOre: 59900 }, withoutStore)
+    ).toBe("888");
   });
 });
 
@@ -759,6 +814,28 @@ describe("buildRestockEmbed", () => {
     expect(store).toBe("🏬 Endast i butik");
   });
 
+  it("butiksvaran säger det i RUBRIKEN och i texten — inte bara i ett fält", () => {
+    // Rubriken är allt de flesta läser i en full kanal; gömmer vi "bara i butik" i ett
+    // fält har vi sålt en bilresa som ett klick.
+    const embed = buildRestockEmbed({ ...post, storeOnly: true });
+    expect(embed.title).toBe("Finns bara i butik: Pitch Black Elite Trainer Box");
+    expect(embed.description).toContain("Dragon's Lair");
+    expect(embed.description).toContain("Går inte att köpa i webbutiken");
+    expect(embed.fields.find((f) => f.name === "Pris i butik")?.value).toContain("549");
+    expect(embed.fields.find((f) => f.name === "Källa")?.value).toBe("Butikens lagersaldo");
+    expect(embed.footer.text).toContain("ring butiken");
+    // ⛔ Ingen uppdateringstakt utlovas: lanen pollar butikerna i olika takt.
+    expect(embed.footer.text).not.toContain("varje timme");
+  });
+
+  it("⛔ online-inlägget är oförändrat — ingen butikscopy läcker in", () => {
+    const embed = buildRestockEmbed(post);
+    expect(embed.title).toBe("Pitch Black Elite Trainer Box");
+    expect(embed.description).toBe("Finns i lager igen.");
+    expect(embed.fields.some((f) => f.name === "Källa")).toBe(false);
+    expect(embed.footer.text).toBe("Foilio · foilio.se");
+  });
+
   it("rek. pris: grönt på/under, rött över — kant OCH emoji (Discord färgar ingen löptext)", () => {
     const rek = (p: Parameters<typeof buildRestockEmbed>[0]) =>
       buildRestockEmbed(p).fields.find((f) => f.name === "Rek. pris")?.value;
@@ -880,6 +957,7 @@ describe("postTestMessages kanalfilter", () => {
     languageChannels: { jp: "333" },
     defaultChannelId: "999",
     priceChannelId: null,
+    storeChannelId: null,
     pro: null,
   };
 

@@ -74,6 +74,21 @@ export interface DiscordRestockConfig {
    */
   priceChannelId: string | null;
   /**
+   * EN kanal som tar ALLA butiksvaror (`"stores":"<id>"`) — produkter som bara går att
+   * hämta i en fysisk butik (`RestockPost.storeOnly`, se SF-Bok och Webhallens
+   * butikssläpp). Valfri: utan den routas de som allt annat, med "🏬 Endast i butik"
+   * som enda skillnad.
+   *
+   * ⛔ SYFTET ÄR ATT DE ANDRA KANALERNA SKA VARA RENT ONLINE (ägarbeslut 2026-09-22).
+   * Ett restock-larm är ett lopp man springer med ett klick; en butiksvara är en
+   * bilresa till en hylla som kan vara tom när man kommer fram. Blandas de i samma
+   * kanal lär sig läsaren att larmen ibland inte går att agera på, och då tappar
+   * ALLA larm sin brådska. Därför en egen kanal — och därför vinner den över både
+   * set-, serie-, språk- och priskanalen: "går att köpa nu" är en grövre indelning
+   * än vilket set varan tillhör.
+   */
+  storeChannelId: string | null;
+  /**
    * PRO-SPEGEL (ägarbeslut 2026-09-17): kanaler som bara Pro-rollen ser, där samma
    * inlägg postas EN GÅNG TILL men med LÄGG-I-KORGEN-länken (Offer.cartUrl) i stället
    * för butikens produktsida. Korgen är Pro-förmånen; de publika kanalerna får aldrig
@@ -96,11 +111,13 @@ export interface DiscordRestockConfig {
  *    "sets":{"Prismatic Evolutions":"456"},
  *    "series":{"Scarlet & Violet":"789","Mega Evolution":"012"},
  *    "languages":{"JP":"345"},
- *    "prices":"678"}
+ *    "prices":"678",
+ *    "stores":"901"}
  * `sets` är valfri och vinner över `series` (se resolveChannelId). `languages` är
  * valfri och gäller icke-engelska produkter (utan den går de till catch-all).
  * `prices` är valfri och är EN kanal-id (inte en karta) som tar alla
- * prissänkningsinlägg — utan den routas de som påfyllningarna.
+ * prissänkningsinlägg — utan den routas de som påfyllningarna. `stores` är valfri och
+ * tar alla butiksvaror (endast i fysisk butik) så att övriga kanaler blir rent online.
  *
  * ⛔ Kanal-id:n är INTE hemligheter (till skillnad från webhook-URL:er, som är rena
  * bärartokens — vem som helst med URL:en kan posta i kanalen). Därför bot-token +
@@ -123,6 +140,7 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
     series?: unknown;
     languages?: unknown;
     prices?: unknown;
+    stores?: unknown;
     pro?: unknown;
   };
   try {
@@ -149,6 +167,8 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
     typeof parsed.default === "string" && parsed.default.trim() ? parsed.default.trim() : null;
   const priceChannelId =
     typeof parsed.prices === "string" && parsed.prices.trim() ? parsed.prices.trim() : null;
+  const storeChannelId =
+    typeof parsed.stores === "string" && parsed.stores.trim() ? parsed.stores.trim() : null;
 
   if (!defaultChannelId && !Object.keys(setChannels).length && !Object.keys(seriesChannels).length) {
     return null;
@@ -177,6 +197,7 @@ export function discordRestockConfig(): DiscordRestockConfig | null {
     languageChannels,
     defaultChannelId,
     priceChannelId,
+    storeChannelId,
     pro,
   };
 }
@@ -225,6 +246,36 @@ export function resolveChannelId(
     if (hit) return hit;
   }
   return config.defaultChannelId;
+}
+
+/**
+ * Vilken kanal ETT FÄRDIGT INLÄGG hamnar i — hela routingdomen på ett ställe, ren och
+ * testbar. `postRestocks` gör inget eget val; den grupperar bara på svaret härifrån.
+ *
+ * Ordningen är en rangordning av hur GROVT beslutet är för läsaren:
+ *  1. BUTIKSVARA (`stores`) — "går det att köpa härifrån soffan?" är en grövre fråga
+ *     än vilket set varan tillhör, och hela poängen med kanalen är att de övriga ska
+ *     vara rent online. Gäller därför även en prissänkning på en butiksvara.
+ *  2. PRISSÄNKNING (`prices`) — volymen är omätt och får inte dränka påfyllningarna.
+ *  3. Set → serie → språk → catch-all (`resolveChannelId`).
+ *
+ * `null` = posta inte alls (fail closed, se resolveChannelId).
+ */
+export function resolveRestockChannelId(
+  post: Pick<RestockPost, "setName" | "series" | "language" | "storeOnly" | "previousPriceOre">,
+  config: Pick<
+    DiscordRestockConfig,
+    | "setChannels"
+    | "seriesChannels"
+    | "languageChannels"
+    | "defaultChannelId"
+    | "priceChannelId"
+    | "storeChannelId"
+  >
+): string | null {
+  if (post.storeOnly === true && config.storeChannelId) return config.storeChannelId;
+  if (post.previousPriceOre != null && config.priceChannelId) return config.priceChannelId;
+  return resolveChannelId(post.setName, post.series, config, post.language);
 }
 
 export interface RestockPost {
@@ -320,13 +371,26 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
       : null;
   // Rek. pris-jämförelsen: bara när BÅDA talen är riktiga priser (msrpDelta vaktar).
   const delta = msrpDelta(post.priceOre, post.msrpOre);
+  const storeOnly = post.storeOnly === true;
   const fields: { name: string; value: string; inline: boolean }[] = [
     { name: "Butik", value: clamp(post.storeName, MAX_FIELD_VALUE), inline: true },
-    { name: "Pris", value: formatPrice(post.priceOre), inline: true },
+    { name: storeOnly ? "Pris i butik" : "Pris", value: formatPrice(post.priceOre), inline: true },
     // Online eller bara i butik — ett larm om en butiksvara är en bilresa, inte ett
-    // klick, och det ska stå bredvid priset, inte gömmas i butikens sida.
-    { name: "Köp", value: post.storeOnly ? "🏬 Endast i butik" : "🌐 Online", inline: true },
+    // klick, och det ska stå bredvid priset, inte gömmas i butikens sida. I den egna
+    // butikskanalen säger rubriken redan samma sak, men fältet står kvar: embedden
+    // hamnar i en vanlig kanal så länge `stores` inte är konfigurerad.
+    {
+      name: "Köp",
+      value: storeOnly ? "🏬 Endast i butik" : "🌐 Online",
+      inline: true,
+    },
   ];
+  // ⛔ VARIFRÅN VI VET DET. En butiksvara går inte att verifiera med en köpknapp —
+  //    påståendet vilar på butikens egna butikssaldon, och det ska stå i inlägget så
+  //    att läsaren kan värdera det FÖRE bilresan, inte efter.
+  if (storeOnly) {
+    fields.push({ name: "Källa", value: "Butikens lagersaldo", inline: true });
+  }
   if (delta) {
     fields.push({
       name: "Rek. pris",
@@ -365,7 +429,14 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
   }
 
   return {
-    title: clamp(priceDrop ? `Nytt lägre pris — ${post.title}` : post.title, MAX_TITLE),
+    title: clamp(
+      priceDrop
+        ? `Nytt lägre pris — ${post.title}`
+        : storeOnly
+          ? `Finns bara i butik: ${post.title}`
+          : post.title,
+      MAX_TITLE
+    ),
     // ⛔ PRODUKTSIDAN I DE PUBLIKA KANALERNA, KORGEN BARA I PRO-SPEGELN (ägarbeslut
     //    2026-09-17): korglänken är Pro-förmånen (push + Pro-kanal). `cartUrl` följer
     //    med posten → hiten → offern, så pushen får den också.
@@ -373,13 +444,26 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
     description: priceDrop
       ? `Sänkt från ${formatPrice(post.previousPriceOre)} till ${formatPrice(post.priceOre)} ` +
         `(${formatPercent(-priceDrop.percent)}).`
-      : post.preorder
-        ? "Går nu att förhandsboka."
-        : "Finns i lager igen.",
+      : storeOnly
+        ? // ⛔ VILKEN butik som har den vet vi INTE: Webhallens saldon ligger på
+          //   numeriska nycklar utan namn, och SF-Bok ger bara ett ja. Skriv därför
+          //   "butikerna", aldrig ett butiksnamn vi gissat fram.
+          `Finns i ${post.storeName}s fysiska butiker just nu. ` +
+          "Går inte att köpa i webbutiken, bara på plats."
+        : post.preorder
+          ? "Går nu att förhandsboka."
+          : "Finns i lager igen.",
     color: delta ? (delta.verdict === "good" ? GOOD_PRICE_COLOR : BAD_PRICE_COLOR) : BRAND_COLOR,
     fields,
     ...(post.imageUrl ? { thumbnail: { url: post.imageUrl } } : {}),
-    footer: { text: "Foilio · foilio.se" },
+    footer: {
+      // ⛔ INGEN UPPDATERINGSTAKT I TEXTEN. Lanen pollar butikerna i olika takt
+      //    (restock-poll-interval.ts) och saldot kan dessutom ändras mellan två
+      //    pollningar — "uppdateras varje timme" hade varit ett löfte vi inte håller.
+      text: storeOnly
+        ? "Foilio · Butikslagret kan ändras snabbt — ring butiken innan du åker."
+        : "Foilio · foilio.se",
+    },
     timestamp: new Date().toISOString(),
   };
 }
@@ -420,6 +504,9 @@ export async function postTestMessages(
     ...Object.entries(config.languageChannels).map(([k, v]) => ({ channelId: v, rule: `språk: ${k}` })),
     ...(config.priceChannelId
       ? [{ channelId: config.priceChannelId, rule: "prissänkningar" }]
+      : []),
+    ...(config.storeChannelId
+      ? [{ channelId: config.storeChannelId, rule: "butiksvaror (endast i fysisk butik)" }]
       : []),
     ...(config.defaultChannelId
       ? [{ channelId: config.defaultChannelId, rule: "default (allt utan egen kanal)" }]
@@ -490,12 +577,7 @@ export async function postRestocks(
 ): Promise<{ sent: number; postedKeys: string[]; failed: number }> {
   const byChannel = new Map<string, RestockPost[]>();
   for (const p of posts) {
-    // Prisinlägg kan styras till EN egen kanal — se priceChannelId. Utan den följer de
-    // samma routing som påfyllningarna.
-    const channelId =
-      p.previousPriceOre != null && config.priceChannelId
-        ? config.priceChannelId
-        : resolveChannelId(p.setName, p.series, config, p.language);
+    const channelId = resolveRestockChannelId(p, config);
     if (!channelId) {
       console.warn(
         `[discord-restock] Ingen kanal för set "${p.setName ?? "(saknas)"}" / serie ` +
@@ -540,6 +622,7 @@ export async function postRestocks(
     const byPro = new Map<string, RestockPost[]>();
     for (const p of posts) {
       if (p.previousPriceOre != null) continue; // prissänkningar: ingen korg att sälja
+      if (p.storeOnly === true) continue; // butiksvara: det finns ingen korg att lägga i
       if (!postedKeys.includes(p.key)) continue; // bara det som faktiskt gick ut publikt
       const channelId = resolveChannelId(p.setName, p.series, config.pro, p.language);
       if (!channelId) continue;
