@@ -1563,7 +1563,7 @@ export async function runCardmarketRefresh(
         id: true,
         setId: true,
         variantLabel: true,
-        card: { select: { tcgExternalId: true, number: true, name: true } },
+        card: { select: { tcgExternalId: true, number: true, name: true, cardmarketId: true } },
         offers: { where: { retailerId: cm.id }, select: { id: true, url: true }, take: 1 },
       },
     });
@@ -1597,6 +1597,17 @@ export async function runCardmarketRefresh(
     >();
     // UNDERSET-RESERVEN: setId → alla kort i setet (nummer + namn). Fylls för ALLA
     // set; vilka som är underset avgörs först vid uppslaget (subsetsByParent).
+    // SISTA-UTVÄGS-CMID (2026-09-22): kort som HAR ett pokemontcg.io-id men där
+    // feeden skriver både tcgid och nummer på sitt eget sätt. 30th Celebrations
+    // RGB-Mew heter "me55-B" / "B" hos oss men "30C-B/RGB" / "B/RGB" i feeden ⇒
+    // tcgid, set+nummer och underset missade alla tre, och korten frös på sitt
+    // släppdagspris (282 250 kr mot dagens ~32 000 kr) utan en enda grafpunkt.
+    // `cmidMap` ovan byggs bara av tcgid-lösa kort, så `cardmarketId` var död nyckel
+    // för dem. Konsulteras SIST, med namnvakt; `null` = två kort delar id ⇒ avstå.
+    const cmidLastResort = new Map<
+      number,
+      { entry: { productId: string; offerId?: string; url?: string }; cardName: string } | null
+    >();
     const bySubset = new Map<
       string,
       SubsetCandidate<{ productId: string; offerId?: string; url?: string }>[]
@@ -1637,6 +1648,10 @@ export async function runCardmarketRefresh(
         continue;
       }
       if (ext) map.set(ext, entry);
+      if (p.card?.cardmarketId != null && p.card.name) {
+        const id = p.card.cardmarketId;
+        cmidLastResort.set(id, cmidLastResort.has(id) ? null : { entry, cardName: p.card.name });
+      }
       const numKey = cmNumberKey(p.card?.number);
       if (p.setId && numKey && p.card?.name) {
         const key = `${p.setId}|${numKey}`;
@@ -1788,7 +1803,7 @@ export async function runCardmarketRefresh(
     // singleOps: de ska inte räknas av haveribrytaren och inte skriva historikpunkter.
     const linkOnlyByProduct = new Map<string, string>();
     let byNumberHits = 0, byNumberNameRejects = 0;
-    let subsetHits = 0;
+    let subsetHits = 0, cmidLastResortHits = 0;
     // Rader vars `cardmarket_id` pekade på en produkt med ett ANNAT kortnamn. Loggas
     // för att en tyst uppgång ska synas: växer talet har leverantören tappat fler
     // id:n, och då är det nummerreserven som bär korten.
@@ -1905,6 +1920,14 @@ export async function runCardmarketRefresh(
             entry = best.entry;
             rank = MATCH_RANK.number;
             subsetHits++;
+          }
+        }
+        if (!entry && card.cardmarket_id != null) {
+          const cand = cmidLastResort.get(card.cardmarket_id);
+          if (cand && cmCardNameAgrees(cand.cardName, card.name)) {
+            entry = cand.entry;
+            rank = MATCH_RANK.cmid;
+            cmidLastResortHits++;
           }
         }
         if (!entry) continue;
@@ -2285,6 +2308,8 @@ export async function runCardmarketRefresh(
         `[cm-refresh] Underset-reserven: ${subsetHits} feed-rader med ursprungsset-kodat nummer ` +
         `("BS004") matchade ett underset till episoden (Classic Collection-mönstret).`
       );
+    if (cmidLastResortHits)
+      console.log(`[cm-refresh] Cmid-sista-utvägen: ${cmidLastResortHits} feed-rader matchade på cardmarket_id + namn (tcgid och nummer skrivna annorlunda i feeden).`);
     if (cmidNameRejects)
       console.log(
         `[cm-refresh] Namnvakt på cardmarket_id: ${cmidNameRejects} feed-rader pekade ut en produkt ` +
