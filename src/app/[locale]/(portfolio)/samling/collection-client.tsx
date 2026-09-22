@@ -119,12 +119,18 @@ export function CollectionClient({
   portfolios,
   selectedPortfolioId,
   importEnabled,
+  showTable = true,
 }: {
   initialItems: CollectionRow[];
   portfolios: PortfolioSummary[];
   /** Vald pärm på sidan (null = Alla) — nya poster hamnar där som standard. */
   selectedPortfolioId: string | null;
   importEnabled: boolean;
+  /**
+   * ⛔ Av sedan 2026-09-22 på /samling: desktop visar SAMMA rutnät som mobilen
+   * (MobileCollectionGrid). Kvar här är verktygsraden + lägg till/export.
+   */
+  showTable?: boolean;
 }) {
   const t = useTranslations("Collection");
   const locale = useLocale();
@@ -532,7 +538,7 @@ export function CollectionClient({
             </Button>
           }
         />
-      ) : (
+      ) : !showTable ? null : (
         <>
         {/* Sök + sortering av samlingen (klient-sida, inga URL-parametrar). */}
         <CollectionToolbar

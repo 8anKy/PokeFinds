@@ -606,7 +606,10 @@ export function MobileCollectionGrid({
   }
 
   return (
-    <section className="lg:hidden">
+    // ⛔ SAMMA RUTNÄT PÅ DESKTOP (ägarbeslut 2026-09-22): tabellen gick inte att
+    // klicka sig vidare från och såg ut som en annan app. Nu fyra rutor per rad
+    // från lg, fem från 2xl — samma rutor, samma ark, bara bredare.
+    <section>
       {/* Sektionshuvud / väljlägets verktygsrad */}
       {/* ⛔ VERKTYGSRADEN MÅSTE FÖLJA MED I VÄLJLÄGET (ägaren 2026-09-07):
           markerade man ett kort långt ned fick man scrolla hela vägen upp igen
@@ -618,7 +621,7 @@ export function MobileCollectionGrid({
         className={cn(
           "mb-3 flex items-center justify-between gap-2",
           selectMode &&
-            "hairline-b sticky top-0 z-20 -mx-2.5 bg-surface px-2.5 pb-2 sm:-mx-6 sm:px-6"
+            "hairline-b sticky top-0 z-20 -mx-2.5 bg-surface px-2.5 pb-2 sm:-mx-6 sm:px-6 lg:top-16"
         )}
         // ⛔ SAFE-AREAN LIGGER I PADDINGEN, INTE I `top` (ägaren 2026-09-07).
         // Sticky mäter mot vyportens kant och bryr sig inte om att body har
@@ -718,7 +721,7 @@ export function MobileCollectionGrid({
 
       {/* Rutnätet renderas alltid; är listan tom ritas ingenting (tomläget ovan
           bär beskedet), så resten av filen står kvar orörd. */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4 2xl:grid-cols-5">
         {groups.map((g, index) => {
           const r = g.lots[0];
           const multi = g.lots.length > 1;
@@ -755,11 +758,23 @@ export function MobileCollectionGrid({
               role="button"
               tabIndex={0}
               onClick={() => handleClick(g.lots)}
-              onPointerDown={() => startPress(ids)}
+              onKeyDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  handleClick(g.lots);
+                }
+              }}
+              onPointerDown={(e) => {
+                // Långtryck är en TOUCH-gest. Med mus markerar man via "Välj" —
+                // ett långt musklick som plötsligt byter läge känns som en bugg.
+                if (e.pointerType === "mouse") return;
+                startPress(ids);
+              }}
               onPointerUp={cancelPress}
               onPointerLeave={cancelPress}
               onContextMenu={(e) => e.preventDefault()}
-              className={`card-surface relative flex flex-col gap-2 p-3 text-left transition-colors ${
+              className={`card-surface relative flex cursor-pointer flex-col gap-2 p-3 text-left transition-colors lg:p-4 lg:hover:border-holo-cyan/40 ${
                 anySelected ? "border-holo-cyan ring-1 ring-holo-cyan" : ""
               }`}
             >
@@ -780,7 +795,7 @@ export function MobileCollectionGrid({
                   fyllning (hover, flikar, skeletons), inte en bakgrund: som brunn lyste
                   den som en grå ruta bakom varje bild och fick hela portföljen att läsa
                   som en annan yta än katalogen. Saknad bild → ikonen bär platshållaren. */}
-              <div className="h-28 w-full overflow-hidden rounded-lg bg-surface">
+              <div className="h-28 w-full overflow-hidden rounded-lg bg-surface lg:h-48">
                 {r.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -1231,6 +1246,7 @@ export function MobileCollectionGrid({
         title={tp("moveTitle", { count: selectedLots.length })}
         onClose={() => setMoveOpen(false)}
         closeLabel={tp("cancel")}
+        panelClassName="sm:mx-auto sm:max-w-md"
         footer={
           <BottomSheetCta onClick={() => void moveSelected()} disabled={!moveTarget || moving}>
             {tp("moveConfirm")}

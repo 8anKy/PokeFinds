@@ -355,18 +355,21 @@ export default async function CollectionPage({
         </section>
       )}
 
-      {/* Samlingen som rutnät (mobil) — tryck = inspektera, håll inne = väljläge */}
-      {rows.length > 0 && <MobileCollectionGrid rows={rows} portfolios={portfolios} />}
-
-      {/* Tabell + verktyg (klient) — desktop */}
+      {/* Verktyg (lägg till / export) + tomläget — desktop. Tabellen är ersatt av
+          rutnätet nedan (ägarbeslut 2026-09-22). */}
       <div className="hidden lg:block">
         <CollectionClient
           initialItems={rows}
           portfolios={portfolios}
           selectedPortfolioId={selectedPortfolio?.id ?? null}
           importEnabled={importEnabled}
+          showTable={false}
         />
       </div>
+
+      {/* Samlingen som rutnät — mobil OCH desktop. Tryck = öppna produkten,
+          håll inne (touch) / "Välj" = väljläge. */}
+      {rows.length > 0 && <MobileCollectionGrid rows={rows} portfolios={portfolios} />}
           </div>
         }
       />
