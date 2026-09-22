@@ -1820,9 +1820,10 @@ export async function listScannerJobs(userId: string, take = 10) {
 }
 
 /**
- * Uppskattar ett korts aktuella marknadsvärde (öre) via kortets produkt
- * (lägsta pris = Cardmarket-trend) — samma mått som produktsidan och samlingens
- * live-värdering. Returnerar null om data saknas.
+ * Uppskattar ett korts aktuella marknadsvärde (öre) via kortets produkt —
+ * **Cardmarket först**, lägsta direkta offer som reserv (`getCardValues` →
+ * `productMarketValue`). Samma mått som samlingens live-värdering, och sedan
+ * 2026-09-22 medvetet INTE samma som produktsidans rubrikpris. Null om data saknas.
  */
 export async function estimateCardValue(cardId: string): Promise<number | null> {
   const values = await getCardValues([cardId]);

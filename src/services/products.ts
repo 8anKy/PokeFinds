@@ -8,6 +8,7 @@ import { normalizeTitle, utcDaysAgo, utcToday } from "@/lib/utils";
 import { ServiceError } from "@/lib/errors";
 import { isDirectOfferUrl } from "@/lib/marketplace-urls";
 import { visibleListings } from "@/lib/listing-plausibility";
+import { pickCardValue, productMarketValue, type MarketValue } from "@/lib/market-value";
 import { compareCardNumbers } from "@/lib/card-number-order";
 import { PRINT_VARIANT_LABELS, REVERSE_VARIANT_LABELS } from "@/lib/print-variant";
 import { favoriteSetIds } from "@/lib/user-preferences";
@@ -2007,9 +2008,25 @@ async function getSimilarProductsRaw(productId: string, limit = 8) {
 }
 
 /**
- * Aktuellt marknadsvärde (öre) per produkt-id = produktens lägsta pris
- * (singel = Cardmarket-trend, sealed = lägsta butikspris). Samma mått som
- * produktsidans rubrik. Produkter utan prissatt offer utelämnas.
+ * Offer-fälten värderingen behöver. `retailer.name` är nytt sedan CM-först
+ * (2026-09-22) — utan det kan `productMarketValue` inte se vilken källa talet kom
+ * från och faller tyst tillbaka på lägsta pris, dvs exakt felet den ska rätta.
+ */
+const VALUE_OFFER_SELECT = {
+  price: true,
+  stockStatus: true,
+  url: true,
+  retailer: { select: { name: true } },
+} as const;
+
+/**
+ * Aktuellt marknadsvärde (öre) per produkt-id — **Cardmarket först**, lägsta
+ * direkta offer som reserv (`productMarketValue`, src/lib/market-value.ts).
+ * Produkter utan prissatt offer utelämnas.
+ *
+ * ⛔ INTE samma mått som produktsidans rubrik längre (ägarbeslut 2026-09-22).
+ * Rubriken är "billigast just nu" och får vara en Tradera-annons; ett
+ * SAMLINGSVÄRDE får inte det. Se market-value.ts för mätningen bakom beslutet.
  */
 export async function getProductValues(
   productIds: string[]
@@ -2018,10 +2035,10 @@ export async function getProductValues(
   if (productIds.length === 0) return map;
   const products = await prisma.product.findMany({
     where: { id: { in: productIds } },
-    select: { id: true, offers: { select: { price: true, stockStatus: true, url: true } } },
+    select: { id: true, offers: { select: VALUE_OFFER_SELECT } },
   });
   for (const p of products) {
-    const { price } = computeLowestPrice(p.offers.filter((o) => isDirectOfferUrl(o.url)));
+    const { price } = productMarketValue(p.offers);
     if (price != null) map.set(p.id, price);
   }
   return map;
@@ -2041,7 +2058,8 @@ export async function getProductValues(
  * CardTraders reverse-golv för varje kort där det råkar underskrida Cardmarkets
  * baspris, dvs ett värde för en vara användaren inte skannade. Priserna kommer
  * dessutom från OLIKA marknadsplatser, så vilket som är lägst avgörs delvis av
- * vilken marknadsplats som är billigast — inte av vad kortet är värt.
+ * vilken marknadsplats som är billigast — inte av vad kortet är värt. Samma insikt
+ * är sedan 2026-09-22 generaliserad till HELA värderingen: Cardmarket först.
  *
  * Tryckningar (Unlimited/Shadowless/1st Edition) undantas INTE: för Base finns
  * ingen etikettlös produkt alls, så ett generellt `variantLabel: null`-filter
@@ -2054,14 +2072,22 @@ export async function getCardValues(
   if (cardIds.length === 0) return map;
   const products = await prisma.product.findMany({
     where: { cardId: { in: cardIds }, NOT: { variantLabel: { in: [...REVERSE_VARIANT_LABELS] } } },
-    select: { cardId: true, offers: { select: { price: true, stockStatus: true, url: true } } },
+    select: { cardId: true, offers: { select: VALUE_OFFER_SELECT } },
   });
+  const byCard = new Map<string, MarketValue[]>();
   for (const p of products) {
     if (!p.cardId) continue;
-    const { price } = computeLowestPrice(p.offers.filter((o) => isDirectOfferUrl(o.url)));
-    if (price == null) continue;
-    const prev = map.get(p.cardId);
-    if (prev == null || price < prev) map.set(p.cardId, price);
+    const v = productMarketValue(p.offers);
+    if (v.price == null) continue;
+    const bucket = byCard.get(p.cardId);
+    if (bucket) bucket.push(v);
+    else byCard.set(p.cardId, [v]);
+  }
+  for (const [cardId, values] of byCard) {
+    // ⛔ pickCardValue, inte Math.min: CM-produkterna jämförs bara med varandra,
+    // annars vinner ett syskons Tradera-utrop över kortets egna CM-pris.
+    const { price } = pickCardValue(values);
+    if (price != null) map.set(cardId, price);
   }
   return map;
 }

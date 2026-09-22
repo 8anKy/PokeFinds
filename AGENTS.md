@@ -817,6 +817,15 @@ klienten (ingen URL-param → ISR-bar, ingen extra hämtning per periodbyte).
   `utcToday()`/`utcDaysAgo()` (`src/lib/utils.ts`). `d.setHours(0,0,0,0)` ger LOKAL midnatt och på svensk tid
   skriver en manuell jobbkörning då tyst på GÅRDAGENS rad (osynligt i drift — Actions kör UTC). Samma för
   `startOfMonthUtc()`: kvotfönstret måste ha samma gräns i kvoten och i kostnadsvyn.
+- ⛔ **SAMLINGSVÄRDE ≠ RUBRIKPRIS: VÄRDET TAS PÅ CARDMARKET FÖRST (ägarbeslut 2026-09-22)**. Produktsidans
+  rubrik svarar "billigast just nu" och får vara en Tradera-annons; `computeCollectionValue` och skannerns
+  `estimateCardValue` svarar "vad är min samling värd" och tar CM-offern när den finns, lägsta direkta offer
+  bara som reserv. Domen är ren och testad: `src/lib/market-value.ts` (`productMarketValue` + `pickCardValue`),
+  anropad ur `getCardValues`/`getProductValues`. ⛔ Förut var värdet `computeLowestPrice` över ALLA källor —
+  397 singlar värderades av CardTrader, 243 av Tradera, och 380 produkter låg under sin egen CM-offer
+  (Brock's Rhydon 67 kr mot CM 327 kr). Det gjorde också att värdet rörde sig vid varje butiksskrapning i
+  stället för vid prisjobben. ⛔ CM-produkter jämförs BARA med varandra — annars vinner ett syskons utrop.
+  Detaljer + mätning: `.claude/rules/collection-portfolio.md`.
 - ⛔ **ETT GRADERAT KORT ÄR EN ANNAN VARA ÄN DET OGRADERADE** (2026-09-04): en PSA 10 och det lösa kortet
   delar namn men inte pris, och de får aldrig dela kurva, offer eller skena. Domen tas på ANNONSEN
   (`isGradedListing`, `src/lib/graded-listing.ts`), aldrig på Tradera-kategorin — säljaren väljer kategori

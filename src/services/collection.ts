@@ -2,12 +2,8 @@
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
-import {
-  getCardValues,
-  getProductValues,
-  computeLowestPrice,
-} from "@/services/products";
-import { isDirectOfferUrl } from "@/lib/marketplace-urls";
+import { getCardValues, getProductValues } from "@/services/products";
+import { pickCardValue, productMarketValue, type MarketValue } from "@/lib/market-value";
 import { normalizePrinting, parseImportNumber } from "@/lib/import-normalize";
 import type { ImportDraftRow } from "@/lib/import-rows";
 import { resolveImportRows } from "@/services/collection-import";
@@ -282,7 +278,12 @@ export interface CollectionMover {
 }
 
 type Snap = { date: Date; avgPrice: number };
-const SNAP_OFFER_SELECT = { price: true, stockStatus: true, url: true } as const;
+const SNAP_OFFER_SELECT = {
+  price: true,
+  stockStatus: true,
+  url: true,
+  retailer: { select: { name: true } },
+} as const;
 const dayKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 /** Senaste avgPrice med datum <= `end`, annars äldsta tillgängliga (snaps är sorterade asc). */
@@ -395,18 +396,25 @@ export async function computeCollectionValue(
         : Promise.resolve([]),
     ]);
 
-    // Per kort: snapshots från produkten med lägst aktuellt pris (= getCardValues).
+    // Per kort: snapshots från den produkt som SATTE värdet — samma urval som
+    // `getCardValues` (Cardmarket först, lägsta som reserv). ⛔ Glider urvalen isär
+    // ankras kurvan i en annan produkts trend än den siffra den ska förklara.
     const cardSnaps = new Map<string, Snap[]>();
-    const cardPrice = new Map<string, number>();
+    const cardCandidates = new Map<string, { value: MarketValue; snaps: Snap[] }[]>();
     for (const p of cardProducts) {
       if (!p.cardId) continue;
-      const { price } = computeLowestPrice(p.offers.filter((o) => isDirectOfferUrl(o.url)));
-      if (price == null) continue;
-      const prev = cardPrice.get(p.cardId);
-      if (prev == null || price < prev) {
-        cardPrice.set(p.cardId, price);
-        cardSnaps.set(p.cardId, p.priceSnapshots);
-      }
+      const value = productMarketValue(p.offers);
+      if (value.price == null) continue;
+      const bucket = cardCandidates.get(p.cardId);
+      if (bucket) bucket.push({ value, snaps: p.priceSnapshots });
+      else cardCandidates.set(p.cardId, [{ value, snaps: p.priceSnapshots }]);
+    }
+    for (const [cardId, candidates] of cardCandidates) {
+      const winner = pickCardValue(candidates.map((c) => c.value));
+      const match = candidates.find(
+        (c) => c.value.price === winner.price && c.value.fromCardmarket === winner.fromCardmarket
+      );
+      if (match) cardSnaps.set(cardId, match.snaps);
     }
     const prodSnaps = new Map<string, Snap[]>();
     for (const p of prods) prodSnaps.set(p.id, p.priceSnapshots);
