@@ -17,6 +17,7 @@ import {
   chunk,
   resolveChannelId,
   resolveRestockChannelId,
+  formatStoreStock,
   buildRestockEmbed,
   postTestMessages,
   discordRestockConfig,
@@ -826,6 +827,43 @@ describe("buildRestockEmbed", () => {
     expect(embed.footer.text).toContain("ring butiken");
     // ⛔ Ingen uppdateringstakt utlovas: lanen pollar butikerna i olika takt.
     expect(embed.footer.text).not.toContain("varje timme");
+  });
+
+  it("butikssaldot står i inlägget — talet avgör om bilresan är värd att göra", () => {
+    const f = (storeStock: Parameters<typeof buildRestockEmbed>[0]["storeStock"]) =>
+      buildRestockEmbed({ ...post, storeOnly: true, storeStock }).fields.find(
+        (x) => x.name === "I lager"
+      )?.value;
+    expect(f({ units: 22, stores: 1, capped: false })).toBe("22 ex i 1 butik");
+    expect(f({ units: 36, stores: 6, capped: false })).toBe("36 ex i 6 butiker");
+    // SF-Bok bryter inte ner per butik: bara antalet exemplar.
+    expect(f({ units: 10, stores: null, capped: false })).toBe("10 ex");
+  });
+
+  it("⛔ visningstaket skrivs som MINST — 50 betyder \"Fler än 50 st\", inte 50", () => {
+    expect(formatStoreStock({ units: 50, stores: 1, capped: true })).toBe("minst 50 ex i 1 butik");
+  });
+
+  it("⛔ OKÄNT saldo ger INGEN rad — \"0 ex\" bredvid ett larm om att varan finns är en lögn", () => {
+    expect(formatStoreStock(null)).toBeNull();
+    expect(formatStoreStock(undefined)).toBeNull();
+    expect(formatStoreStock({ units: null, stores: null, capped: false })).toBeNull();
+    expect(formatStoreStock({ units: 0, stores: 0, capped: false })).toBeNull();
+    expect(
+      buildRestockEmbed({ ...post, storeOnly: true }).fields.some((x) => x.name === "I lager")
+    ).toBe(false);
+    // Källraden står kvar — påståendet ska alltid kunna härledas.
+    expect(
+      buildRestockEmbed({ ...post, storeOnly: true }).fields.some((x) => x.name === "Källa")
+    ).toBe(true);
+  });
+
+  it("⛔ saldot visas ALDRIG på en online-vara — där är det butikens webblager som gäller", () => {
+    expect(
+      buildRestockEmbed({ ...post, storeStock: { units: 9, stores: 3, capped: false } }).fields.some(
+        (x) => x.name === "I lager"
+      )
+    ).toBe(false);
   });
 
   it("⛔ online-inlägget är oförändrat — ingen butikscopy läcker in", () => {

@@ -62,6 +62,7 @@ import {
   type KnownSet,
 } from "@/lib/discord-restock-filter";
 import type { StockStatus } from "@prisma/client";
+import type { StoreStock } from "@/scrapers/types";
 
 /** Feed-annonsen med allt inlägget behöver (superset av FeedItemLite). */
 export interface FeedItemFull {
@@ -76,6 +77,8 @@ export interface FeedItemFull {
   cartUrl?: string | null;
   /** Butiksvara — bara i fysisk butik (RawProductData.storeOnly). */
   storeOnly?: boolean;
+  /** Butikssaldot bakom butiksvaran (antal ex / antal butiker). null = okänt. */
+  storeStock?: StoreStock | null;
 }
 
 export interface FullFeedGroup {
@@ -655,6 +658,7 @@ function buildPostBase(args: {
     storeUrl: item.url,
     cartUrl: item.cartUrl ?? null,
     storeOnly: item.storeOnly === true,
+    storeStock: item.storeStock ?? null,
     priceOre: item.price,
     msrpOre: route?.msrpOre ?? null,
     // Butikens egen bild först (den visar exakt varan), katalogbilden som reserv —

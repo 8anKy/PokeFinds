@@ -103,7 +103,7 @@ import { netStockEvent, isRestock, isNewInStockArrival } from "@/scrapers/restoc
 import { isCardmarketRedirect, isEnglishCardmarketUrl } from "@/lib/marketplace-urls";
 import { isPlaceholderListingPrice } from "@/lib/listing-plausibility";
 import { isBlockedListingLanguage, listingCardLanguage } from "@/lib/listing-language";
-import type { SourceAdapter } from "@/scrapers/types";
+import type { SourceAdapter, StoreStock } from "@/scrapers/types";
 import { checkRestockAlerts, checkListingAlerts } from "@/services/alerts";
 import { CARDMARKET_SOURCE_NAMES, HIDDEN_CATEGORIES, NON_RETAIL_SOURCE_NAMES } from "@/services/products";
 import { dispatchPendingAlerts } from "@/services/notifications";
@@ -356,6 +356,8 @@ export type FeedItem = {
   cartUrl?: string | null;
   /** Butiksvara — bara i fysisk butik (se RawProductData.storeOnly). */
   storeOnly?: boolean;
+  /** Butikssaldot bakom butiksvaran (antal ex / antal butiker). null = okänt. */
+  storeStock?: StoreStock | null;
 };
 
 /**
@@ -861,6 +863,7 @@ export async function fetchSourceFeed(source: RestockSourceInfo): Promise<FeedIt
           category: n.category ?? null,
           cartUrl: p.cartUrl ?? null,
           storeOnly: p.storeOnly === true,
+          storeStock: p.storeStock ?? null,
         };
       });
   } catch (err) {

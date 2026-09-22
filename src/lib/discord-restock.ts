@@ -24,6 +24,7 @@ import { discordFetch } from "@/lib/discord";
 import { buyLink } from "@/lib/cart-url";
 import { formatPercent, formatPrice } from "@/lib/format";
 import { msrpDelta } from "@/lib/msrp";
+import type { StoreStock } from "@/scrapers/types";
 
 /** Turkos signaturaccent (`holo.cyan` = #2dd4bf) som heltal, för embed-kanten. */
 const BRAND_COLOR = 0x2dd4bf;
@@ -308,6 +309,13 @@ export interface RestockPost {
    * etiketten som skiljer "beställ nu" från "åk dit".
    */
   storeOnly?: boolean;
+  /**
+   * Hur mycket som står i de fysiska butikerna (`StoreStock`). Visas bara på
+   * butiksvaror — det är TALET som avgör om resan är värd att göra.
+   * ⛔ `stores` är ett ANTAL butiker, aldrig VILKA: Webhallens saldon ligger på
+   *    namnlösa id:n och det finns ingen publik uppslagning (probat 2026-09-22).
+   */
+  storeStock?: StoreStock | null;
   imageUrl: string | null;
   setName: string | null;
   series: string | null;
@@ -346,6 +354,28 @@ export interface RestockPost {
    * katalogens övriga regler finns för att förhindra.
    */
   previousPriceOre?: number | null;
+}
+
+/**
+ * "22 ex i 1 butik", "36 ex i 6 butiker", "minst 50 ex i 2 butiker", "10 ex".
+ * `null` = säg ingenting alls.
+ *
+ * ⛔ TRE UTFALL, INTE TVÅ. `units: null` (källan säger bara "finns i butik") och
+ *    `stores: null` (SF-Bok bryter inte ner per butik) är OKÄNT, inte noll — och ett
+ *    "0 ex" bredvid ett larm om att varan FINNS är en självmotsägelse i en publik
+ *    kanal. Okänt ⇒ raden uteblir hellre.
+ * ⛔ `capped` ⇒ "minst": talet är Webhallens visningstak, inte butikens saldo.
+ */
+export function formatStoreStock(stock: StoreStock | null | undefined): string | null {
+  if (!stock) return null;
+  const units = typeof stock.units === "number" && stock.units > 0 ? stock.units : null;
+  const stores = typeof stock.stores === "number" && stock.stores > 0 ? stock.stores : null;
+  if (units == null && stores == null) return null;
+  const unitPart =
+    units == null ? null : `${stock.capped ? "minst " : ""}${units} ex`;
+  const storePart = stores == null ? null : `${stores} ${stores === 1 ? "butik" : "butiker"}`;
+  if (unitPart && storePart) return `${unitPart} i ${storePart}`;
+  return unitPart ?? `Finns i ${storePart}`;
 }
 
 function clamp(s: string, max: number): string {
@@ -389,6 +419,9 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
   //    påståendet vilar på butikens egna butikssaldon, och det ska stå i inlägget så
   //    att läsaren kan värdera det FÖRE bilresan, inte efter.
   if (storeOnly) {
+    // Talet FÖRE källan: det är saldot som avgör om resan är värd att göra.
+    const onShelf = formatStoreStock(post.storeStock);
+    if (onShelf) fields.push({ name: "I lager", value: clamp(onShelf, MAX_FIELD_VALUE), inline: true });
     fields.push({ name: "Källa", value: "Butikens lagersaldo", inline: true });
   }
   if (delta) {

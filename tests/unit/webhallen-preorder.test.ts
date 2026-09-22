@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { webhallenStockStatus, webhallenStoreOnly, webhallenStoreStock } from "@/scrapers/adapters/webhallen-adapter";
+import {
+  webhallenStockStatus,
+  webhallenStoreOnly,
+  webhallenStoreStock,
+  webhallenStoreBreakdown,
+} from "@/scrapers/adapters/webhallen-adapter";
 
 // Minimal WebhallenProduct-form; bara fälten webhallenStockStatus läser spelar roll.
 const item = (stockWeb: number, releaseTs?: number, stores: Record<string, number> = {}) =>
@@ -48,5 +53,37 @@ describe("webhallenStoreOnly", () => {
   it("slut/förhandsbokning är aldrig 'endast i butik'", () => {
     expect(webhallenStoreOnly(item(0, past))).toBe(false);
     expect(webhallenStoreOnly(item(0, future, { "2": 48 }))).toBe(false);
+  });
+});
+
+// Talet i butikskanalens inlägg: hur många ex och i hur många butiker.
+describe("webhallenStoreBreakdown", () => {
+  it("summerar exemplar och räknar butiker med saldo", () => {
+    // Mätt på 30th Celebration Binder Collection 2026-09-22.
+    const r = webhallenStoreBreakdown({ web: 0, displayCap: 50, "5": 10, "9": 2, "14": 1, "15": 14, "19": 1, "32": 8, "2": 0 });
+    expect(r.units).toBe(36);
+    expect(r.stores).toBe(6);
+    expect(r.capped).toBe(false);
+  });
+
+  it("⛔ displayCap är ett VISNINGSTAK — en butik på taket gör summan till ett GOLV", () => {
+    // 50 betyder "Fler än 50 st". Publicerar vi 50 som ett exakt tal är det fel nedåt.
+    const r = webhallenStoreBreakdown({ web: 0, displayCap: 50, "5": 50, "9": 3 });
+    expect(r.capped).toBe(true);
+    expect(r.units).toBe(53);
+  });
+
+  it("⛔ bara numeriska butiksnycklar — web/webStock/displayCap är inga saldon", () => {
+    const r = webhallenStoreBreakdown({ web: 7, displayCap: 50, isSentFromStore: 0, isTrue: true, webStock: { "992": 3 } });
+    expect(r).toEqual({ units: 0, stores: 0, capped: false });
+  });
+
+  it("utan lagerobjekt är allt OKÄNT, aldrig noll", () => {
+    expect(webhallenStoreBreakdown(null)).toEqual({ units: null, stores: null, capped: false });
+  });
+
+  it("webhallenStoreStock är oförändrad — lagerdomen får inte röras", () => {
+    expect(webhallenStoreStock({ web: 0, "2": 48, "5": 51, "27": 0 })).toBe(99);
+    expect(webhallenStoreStock(null)).toBe(0);
   });
 });

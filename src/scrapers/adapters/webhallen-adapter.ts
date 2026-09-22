@@ -15,6 +15,7 @@ import type {
   NormalizedProduct,
   RawProductData,
   SourceAdapter,
+  StoreStock,
 } from "../types";
 import { guessListingCategory } from "../listing-category";
 
@@ -132,12 +133,33 @@ function isWebhallenRaw(raw: unknown): raw is WebhallenRaw {
  * "finns i fysisk butik", inte "en köpknapp för alla".
  */
 export function webhallenStoreStock(stock: WebhallenProduct["stock"]): number {
-  if (!stock) return 0;
-  let sum = 0;
+  return webhallenStoreBreakdown(stock).units ?? 0;
+}
+
+/**
+ * Samma numeriska nycklar som ovan, men nedbrutet: hur många exemplar och i hur många
+ * butiker. Det är talen som avgör om en bilresa är värd att göra.
+ *
+ * ⛔ `displayCap` ÄR ETT VISNINGSTAK, INTE ETT SALDO (`50` = "Fler än 50 st"). Ligger
+ *    en butik på taket är summan ett GOLV — `capped` säger det, och copyn skriver
+ *    "minst". Utan den hade vi publicerat ett exakt tal som är fel nedåt.
+ * ⛔ VILKA butikerna är vet vi INTE: nycklarna är namnlösa id:n och Webhallen
+ *    publicerar ingen uppslagning (probat 2026-09-22). Därför ett ANTAL, aldrig ett
+ *    filialnamn.
+ */
+export function webhallenStoreBreakdown(stock: WebhallenProduct["stock"]): StoreStock {
+  if (!stock) return { units: null, stores: null, capped: false };
+  const cap = typeof stock.displayCap === "number" && stock.displayCap > 0 ? stock.displayCap : null;
+  let units = 0;
+  let stores = 0;
+  let capped = false;
   for (const [key, value] of Object.entries(stock)) {
-    if (/^\d+$/.test(key) && typeof value === "number" && value > 0) sum += value;
+    if (!/^\d+$/.test(key) || typeof value !== "number" || value <= 0) continue;
+    units += value;
+    stores += 1;
+    if (cap != null && value >= cap) capped = true;
   }
-  return sum;
+  return { units, stores, capped };
 }
 
 /**
@@ -228,6 +250,7 @@ export class WebhallenAdapter implements SourceAdapter {
             imageUrl: item.thumbnail,
             category: guessListingCategory(item.name),
             storeOnly: webhallenStoreOnly(item),
+            storeStock: webhallenStoreBreakdown(item.stock),
             raw,
           });
         }

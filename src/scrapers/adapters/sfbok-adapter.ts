@@ -225,6 +225,12 @@ export class SfBokAdapter implements SourceAdapter {
         imageUrl: imageUrl ?? undefined,
         category: guessListingCategory(p.displayName),
         storeOnly,
+        // ⛔ SF-Bok ger ETT totaltal, ingen nedbrytning per butik — `stores: null`
+        //    betyder "vet inte", och copyn skriver då bara antalet exemplar.
+        storeStock:
+          typeof v.stockQuantity === "number" && v.stockQuantity > 0
+            ? { units: v.stockQuantity, stores: null, capped: false }
+            : null,
         raw,
       });
     }

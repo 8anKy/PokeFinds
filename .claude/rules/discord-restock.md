@@ -232,7 +232,10 @@ priset kommer ur feeden vi ändå hämtar, ingen DB rörs.
 
 ## ⛔ BUTIKSVAROR HAR EN EGEN KANAL — DE ÖVRIGA ÄR RENT ONLINE (ägarbeslut 2026-09-22)
 `"stores":"<id>"` i `DISCORD_RESTOCK_CHANNELS` tar ALLA inlägg där `RestockPost.storeOnly` är sant
-(SF-Boks `buttonState` 3/4, Webhallens butikssläpp — `web: 0` + butikssaldo). **Domen bor i
+(SF-Boks `buttonState` 3/4, Webhallens butikssläpp — `web: 0` + butikssaldo). ⛔ **BARA DE TVÅ
+adaptrarna sätter `storeOnly`** — ingen annan butiksfeed skiljer webblager från hyllsaldo. Alphaspel
+har texten ("N i butiken" / "N på postorder") men domen tas på KNAPPEN och de skickar postorder, så
+den är inte en butiksvara i vår mening. **Domen bor i
 `resolveRestockChannelId` (ren, testad)**, och butikskanalen vinner över set-, serie-, språk- OCH
 priskanalen.
 - **VARFÖR EN EGEN KANAL OCH INTE BARA "Köp"-ETIKETTEN** (som lades till 09-21): ett restock-larm är
@@ -243,8 +246,21 @@ priskanalen.
 - ⛔ **UTAN `stores` ÄR ROUTINGEN OFÖRÄNDRAD** — butiksvarorna går dit de alltid gått, med etiketten
   som enda skillnad. Fail closed här hade tystat larm på en konfiguration som inte ändrats.
 - **Inlägget ser annorlunda ut**: rubriken "Finns bara i butik: …", texten "Går inte att köpa i
-  webbutiken, bara på plats", fältet heter "Pris i butik", och ett fält "Källa: Butikens lagersaldo"
-  säger varifrån påståendet kommer — det går inte att verifiera med en köpknapp.
+  webbutiken, bara på plats", fältet heter "Pris i butik", ett fält **"I lager"** bär saldot
+  ("36 ex i 6 butiker") och "Källa: Butikens lagersaldo" säger varifrån påståendet kommer — det går
+  inte att verifiera med en köpknapp.
+- **SALDOT: `StoreStock` (`units` / `stores` / `capped`), formaterat av `formatStoreStock`.**
+  Webhallen bryter ner per butik (`webhallenStoreBreakdown` över de numeriska nycklarna), SF-Bok ger
+  ett totaltal och `stores: null`.
+  ⛔ **TRE UTFALL, INTE TVÅ**: okänt ⇒ raden UTEBLIR. "0 ex" bredvid ett larm om att varan FINNS är
+  en självmotsägelse i en publik kanal.
+  ⛔ **`displayCap` ÄR ETT VISNINGSTAK, INTE ETT SALDO** (50 = "Fler än 50 st") — en butik på taket
+  sätter `capped` och copyn skriver "minst N ex". Utan den publicerar vi ett exakt tal som är fel nedåt.
+  ⛔ **ANTAL BUTIKER, ALDRIG VILKA.** Webhallens saldon ligger på namnlösa numeriska id:n och det
+  finns ingen publik uppslagning id → namn (probat 2026-09-22: `/api/store`, `/api/store/{id}`,
+  `/api/section*`, sektions- och produktsidan — alla ger JS-skal eller 404). Ett filialnamn hade
+  alltså behövt gissas, och ett gissat butiksnamn skickar folk till fel stad.
+  ⛔ Saldot visas ALDRIG på en online-vara: där är det butikens webblager som gäller.
   ⛔ **INGEN UPPDATERINGSTAKT I FOTEN** ("uppdateras varje timme" e.d.): butikerna pollas i olika takt
   (`restock-poll-interval.ts`) och saldot kan ändras mellan två pollningar. Foten säger "kan ändras
   snabbt — ring butiken innan du åker", vilket är sant oavsett takt.

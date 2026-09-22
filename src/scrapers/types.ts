@@ -50,8 +50,37 @@ export interface RawProductData {
    * bilresa. Saknas/false = beställningsbar online (eller okänt).
    */
   storeOnly?: boolean;
+  /**
+   * Hur mycket som står i de FYSISKA butikerna, när källan säger det. Bara
+   * meningsfullt tillsammans med `storeOnly` — det är där talet avgör om resan är
+   * värd att göra. `null` på ett fält = "vet inte", ALDRIG noll.
+   *
+   * ⛔ `stores` ÄR ANTAL BUTIKER, INTE VILKA. Webhallens saldon ligger på namnlösa
+   * numeriska nycklar (`"5": 22`) och det finns ingen publik uppslagning id → namn
+   * (probat 2026-09-22: /api/store, /api/store/{id}, sektionssidan och produktsidan
+   * ger inget namn) — SF-Bok ger bara ett totaltal. Ett filialnamn hade alltså
+   * krävts gissat fram, och ett gissat butiksnamn skickar folk till fel stad.
+   */
+  storeStock?: StoreStock | null;
   /** Oförändrad rådata från källan — lagras i PriceObservation.rawData. */
   raw: unknown;
+}
+
+/**
+ * Butikssaldot bakom en butiksvara. Alla fält får vara `null` — en källa som bara
+ * säger "finns i butik" ska kunna säga just det utan att uppfinna ett tal.
+ */
+export interface StoreStock {
+  /** Antal exemplar totalt i fysiska butiker. null = okänt. */
+  units: number | null;
+  /** Antal BUTIKER som har minst ett exemplar. null = källan bryter inte ner det. */
+  stores: number | null;
+  /**
+   * true = minst en butik låg på källans visningstak (Webhallens `displayCap`, 50 =
+   * "Fler än 50 st") ⇒ `units` är ett GOLV, inte ett facit, och copyn måste säga
+   * "minst". Utan flaggan hade vi publicerat ett exakt tal som är fel nedåt.
+   */
+  capped: boolean;
 }
 
 export interface AdapterResult {
