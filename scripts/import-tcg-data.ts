@@ -37,6 +37,7 @@ import {
   parseTcgDate,
   TCG_PAGE_SIZE,
 } from "../src/scrapers/adapters/pokemontcg-adapter";
+import { factsFromPokemontcg } from "../src/lib/card-facts-source";
 import { getRatesOre } from "../src/lib/exchange-rate";
 import { normalizeTitle, slugify } from "../src/lib/utils";
 import {
@@ -50,6 +51,19 @@ import {
 
 const prisma = new PrismaClient();
 
+
+/** Bara de faktafält källan bär — null/tom lista skrivs aldrig över befintligt. */
+function definedFacts(f: ReturnType<typeof factsFromPokemontcg>) {
+  const out: Record<string, unknown> = {};
+  if (f.types.length > 0) out.types = f.types;
+  if (f.weaknessType) out.weaknessType = f.weaknessType;
+  if (f.weaknessValue) out.weaknessValue = f.weaknessValue;
+  if (f.retreatCost != null) out.retreatCost = f.retreatCost;
+  if (f.regulationMark) out.regulationMark = f.regulationMark;
+  if (f.dexId != null) out.dexId = f.dexId;
+  if (f.flavorText) out.flavorText = f.flavorText;
+  return out;
+}
 // 0 = alla set (ingen begränsning). Sätts till 0 som standard för att hämta hela katalogen.
 const SET_LIMIT = Number(process.env.TCG_SET_LIMIT ?? 0);
 // 0 = inget tak per set (paginerar tills alla kort hämtats, även set >250 kort)
@@ -262,8 +276,12 @@ async function main() {
       // Identitet via globalt unikt API-id (tcgExternalId). Kortnummer är inte
       // unikt inom ett set, så composite-nyckeln skulle kollapsa varianter
       // (t.ex. Celebrations Classic Collections fyra kort med nummer 15).
+      const facts = factsFromPokemontcg(tcgCard);
       const card = await prisma.card.upsert({
         where: { tcgExternalId: tcgCard.id },
+        // Kortfakta (types/svaghet/reträtt/regulation mark/dex/flavour text) ur
+        // samma svar — panelen "Om kortet". Vid update bara fält källan BÄR, så en
+        // tunn respons aldrig nollar det backfill-card-facts.ts redan fyllt.
         update: {
           name: tcgCard.name,
           rarity: tcgCard.rarity ?? "Unknown",
@@ -273,6 +291,7 @@ async function main() {
           subtype: tcgCard.subtypes?.[0] ?? null,
           artist: tcgCard.artist ?? null,
           hp: parseTcgHp(tcgCard.hp),
+          ...definedFacts(facts),
         },
         create: {
           setId: set.id,
@@ -286,6 +305,8 @@ async function main() {
           subtype: tcgCard.subtypes?.[0] ?? null,
           artist: tcgCard.artist ?? null,
           hp: parseTcgHp(tcgCard.hp),
+          ...definedFacts(facts),
+          factsCheckedAt: new Date(),
         },
       });
       cardCount++;

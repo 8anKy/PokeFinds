@@ -46,7 +46,36 @@ export interface CardFacts {
   number: string;
   /** Tryckt total (talet på kortet), 0 = okänt. */
   printedTotal: number;
+  /** Energityper på engelska som källan ger dem ("Grass") — UI:t översätter. */
+  types: string[];
+  weakness: { type: string; value: string | null } | null;
+  retreatCost: number | null;
+  regulationMark: string | null;
+  dexId: number | null;
+  flavorText: string | null;
 }
+
+/** Antal rader panelen kan visa för ett kort — under `MIN_CARD_FACTS` visas ingen panel. */
+export function countCardFacts(c: CardFacts): number {
+  return [
+    c.artist,
+    c.rarity,
+    c.stage,
+    c.hp,
+    c.types.length > 0 ? c.types : null,
+    c.weakness,
+    c.retreatCost,
+    c.regulationMark,
+    c.dexId,
+    c.flavorText,
+  ].filter((v) => v != null).length;
+}
+
+/**
+ * Färre fakta än så här ⇒ panelen är tre etiketter och luft (ägaren 2026-09-22:
+ * "så lite information att det såg tomt ut"). Hellre ingen panel än en gles.
+ */
+export const MIN_CARD_FACTS = 4;
 
 export interface ProductFacts {
   card: CardFacts | null;
@@ -77,6 +106,13 @@ export interface FactsInput {
     subtype: string | null;
     hp: number | null;
     number: string;
+    types?: string[];
+    weaknessType?: string | null;
+    weaknessValue?: string | null;
+    retreatCost?: number | null;
+    regulationMark?: string | null;
+    dexId?: number | null;
+    flavorText?: string | null;
   } | null;
 }
 
@@ -165,6 +201,14 @@ export function buildProductFacts(input: FactsInput): ProductFacts | null {
           hp: input.card.hp ?? null,
           number: input.card.number,
           printedTotal: input.set?.totalCards ?? 0,
+          types: input.card.types ?? [],
+          weakness: input.card.weaknessType
+            ? { type: input.card.weaknessType, value: input.card.weaknessValue ?? null }
+            : null,
+          retreatCost: input.card.retreatCost ?? null,
+          regulationMark: input.card.regulationMark || null,
+          dexId: input.card.dexId ?? null,
+          flavorText: input.card.flavorText || null,
         }
       : null;
   const contents = card ? null : sealedContents(input);
@@ -180,7 +224,8 @@ export function buildProductFacts(input: FactsInput): ProductFacts | null {
     setCards,
     language: input.language,
   };
-  const hasCard = !!card && (card.artist || card.rarity || card.hp != null || card.stage);
-  if (!hasCard && !contents && !facts.series && !facts.releaseDate && !setCards) return null;
+  // Singlar: hellre ingen panel än en gles — setraden ensam räddar den inte.
+  if (card) return countCardFacts(card) >= MIN_CARD_FACTS ? facts : null;
+  if (!contents && !facts.series && !facts.releaseDate && !setCards) return null;
   return facts;
 }

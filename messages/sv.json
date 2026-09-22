@@ -2354,7 +2354,25 @@
       "boostersOne": "boosterpaket"
     },
     "factSetCardsLine": "{printed} kort ({full} inkl. secret rares)",
-    "factSetCardsLineShort": "{printed} kort"
+    "factSetCardsLineShort": "{printed} kort",
+    "factType": "Typ",
+    "factWeakness": "Svaghet",
+    "factRetreat": "Reträtt",
+    "factRegulationMark": "Regulation mark",
+    "factDex": "Pokédex",
+    "energyType": {
+      "Grass": "Gräs",
+      "Fire": "Eld",
+      "Water": "Vatten",
+      "Lightning": "Elektrisk",
+      "Psychic": "Psykisk",
+      "Fighting": "Kamp",
+      "Darkness": "Mörker",
+      "Metal": "Metall",
+      "Dragon": "Drake",
+      "Fairy": "Fe",
+      "Colorless": "Färglös"
+    }
   },
   "Upgrade": {
     "currentPlan": "Din nuvarande plan ✓",

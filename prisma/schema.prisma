@@ -470,6 +470,23 @@ model Card {
   // från pokemontcg.io. Null för trainers/energi (har inget HP) och kort som
   // saknas uppströms.
   hp                Int?
+  // KORTFAKTA (2026-09-22) — det produktsidans "Om kortet"-panel visar utöver
+  // artist/rarity/subtype/hp. Fylls av scripts/backfill-card-facts.ts (TCGdex,
+  // pokemontcg.io som reserv) och av import-tcg-data för nya set. Null = okänt
+  // ⇒ raden döljs; en backfill skriver aldrig null över ett värde (COALESCE).
+  // `types` är tom lista = okänt. Svagheten lagras som typ + värde ("Fire", "×2")
+  // så typen kan översättas i UI:t. `dexId` = första nationella Pokédex-numret.
+  types             String[]     @default([])
+  weaknessType      String?
+  weaknessValue     String?
+  retreatCost       Int?
+  regulationMark    String?
+  dexId             Int?
+  flavorText        String?
+  // När backfill-card-facts.ts senast FRÅGADE källorna om kortet — oavsett svar.
+  // Utan stämpeln hade varje trainer (ingen flavour text, inga typer) sett ut som
+  // "saknas" för evigt och frågats om varje körning.
+  factsCheckedAt    DateTime?
   // SAMLARORDNING: sorterbar nyckel för `number` ("1, 2, 3 … 102", inte "1, 10,
   // 100, 11"). Räknas av POSTGRES (GENERATED ALWAYS ... STORED, se migrationen
   // 20260728210000) — skriv den ALDRIG från appen: fältet skickas aldrig i

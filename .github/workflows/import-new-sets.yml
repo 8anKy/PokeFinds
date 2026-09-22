@@ -91,6 +91,16 @@ jobs:
         name: Fyll set-nämnarna (pokemontcg.io total + TCGdex-tryckningar)
         run: npx tsx scripts/import-set-denominators.ts
 
+      # KORTFAKTA (illustratör, typ, svaghet, reträtt, regulation mark, Pokédex,
+      # flavour text) för produktsidans "Om kortet"-panel. Importen ovan skriver
+      # dem ur pokemontcg.io när den svarar; det här steget fyller hålen ur
+      # TCGdex och stämplar `Card.factsCheckedAt` ⇒ billig no-op när inget nytt
+      # kom. Set ur leverantörsvägen (import-en-set-from-provider) får sina fakta
+      # BARA härifrån. Se scripts/backfill-card-facts.ts.
+      - if: ${{ !cancelled() && steps.guard.outputs.ready == 'true' }}
+        name: Fyll kortfakta för nya kort (no-op om inga saknas)
+        run: npx tsx scripts/backfill-card-facts.ts
+
       # DÖDA BILDLÄNKAR — hotlinkar vi inte äger ruttnar, och en död bild är inte
       # ett skönhetsfel: `Card.artFingerprint` byggs UR bilden, så kortet blir
       # osynligt för skannerns bildmatchning. MÄTT 2026-08-03: TCGGO roterade sina

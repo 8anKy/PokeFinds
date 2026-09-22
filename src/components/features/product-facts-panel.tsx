@@ -7,12 +7,14 @@
  * Höjden är INTE panelens egen: vänsterspalten sträcks till högerspaltens höjd
  * och panelen ligger ABSOLUT under bildbrunnen (product-detail-view.tsx), ur
  * flödet. Underkanten ligger därför ALLTID i linje med prishistorikkortets
- * underkant, oavsett hur många rader den har — får innehållet inte plats kapas
- * det nedtill (`overflow-hidden`), i prioritetsordning: innehållslistan/
- * kortfälten först, setfakta sist. Panelen växer aldrig sidan, och den
- * renderas först när priset är hämtat (skelettet gör högerspalten för kort).
+ * underkant, oavsett hur många rader den har. Får allt inte plats döljs raderna
+ * NIVÅVIS via container-frågor i globals.css (`.facts-t2`, `.facts-t3`) — aldrig
+ * en kapad rad: nivå 1 = kärnfakta, nivå 2 = regulation mark/Pokédex + setraden,
+ * nivå 3 = flavour text. Panelen växer aldrig sidan, och den renderas först när
+ * priset är hämtat (skelettet gör högerspalten för kort).
  *
  * Datat kommer ur skalet (`ProductFacts`, DB-fritt och 30 d ISR) — inget hämtas.
+ * Singlar med färre än `MIN_CARD_FACTS` fakta får ingen panel alls (product-facts.ts).
  */
 
 import { useLocale, useTranslations } from "next-intl";
@@ -21,10 +23,24 @@ import { cn } from "@/lib/utils";
 import type { ProductFacts } from "@/lib/product-facts";
 
 const LANGUAGE_KEYS = ["SV", "EN", "JP", "DE", "FR", "OTHER"];
+/** Energityperna som källorna stavar dem — nyckel i `Detail.energyType.*`. */
+const ENERGY_TYPES = [
+  "Grass",
+  "Fire",
+  "Water",
+  "Lightning",
+  "Psychic",
+  "Fighting",
+  "Darkness",
+  "Metal",
+  "Dragon",
+  "Fairy",
+  "Colorless",
+];
 
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+function Fact({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
-    <div className="flex min-w-0 flex-col gap-0.5">
+    <div className={cn("flex min-w-0 flex-col gap-0.5", className)}>
       <span className="text-[11px] text-ink-faint">{label}</span>
       <span className="truncate text-xs text-ink">{children}</span>
     </div>
@@ -49,7 +65,10 @@ export function ProductFactsPanel({
   if (!f) return null;
 
   const isCard = f.card != null;
+  // Skal från förra epoken kan sakna de nyare kortfälten — aldrig ett kast här.
+  const cardTypes = f.card?.types ?? [];
   const languageLabel = LANGUAGE_KEYS.includes(f.language) ? tLang(f.language) : f.language;
+  const energy = (type: string) => (ENERGY_TYPES.includes(type) ? t(`energyType.${type}`) : type);
   const cardNumber =
     f.card && f.card.printedTotal > 0 ? `${f.card.number}/${f.card.printedTotal}` : f.card?.number ?? null;
   const setLine: string[] = [];
@@ -67,7 +86,7 @@ export function ProductFactsPanel({
   return (
     <section
       aria-label={isCard ? t("factsCardTitle") : t("factsSealedTitle")}
-      className={cn("card-surface flex flex-col gap-3 overflow-hidden p-4", className)}
+      className={cn("facts-panel card-surface flex flex-col gap-2.5 overflow-hidden p-4", className)}
     >
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-sm font-bold text-ink">{isCard ? t("factsCardTitle") : t("factsSealedTitle")}</h2>
@@ -79,15 +98,36 @@ export function ProductFactsPanel({
           {f.card.artist && (
             <div className="flex flex-col gap-0.5">
               <span className="text-[11px] text-ink-faint">{t("factArtist")}</span>
-              <span className="text-[15px] font-semibold text-ink">{f.card.artist}</span>
+              <span className="truncate text-[15px] font-semibold text-ink">{f.card.artist}</span>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
             {f.card.rarity && <Fact label={t("factRarity")}>{f.card.rarity}</Fact>}
+            {cardTypes.length > 0 && <Fact label={t("factType")}>{cardTypes.map(energy).join(" · ")}</Fact>}
             {f.card.stage && <Fact label={t("factStage")}>{f.card.stage}</Fact>}
             {f.card.hp != null && <Fact label={t("factHp")}>{f.card.hp}</Fact>}
+            {f.card.weakness && (
+              <Fact label={t("factWeakness")}>
+                {energy(f.card.weakness.type)}
+                {f.card.weakness.value ? ` ${f.card.weakness.value}` : ""}
+              </Fact>
+            )}
+            {f.card.retreatCost != null && <Fact label={t("factRetreat")}>{f.card.retreatCost}</Fact>}
+            {f.card.regulationMark && (
+              <Fact label={t("factRegulationMark")} className="facts-t2">
+                {f.card.regulationMark}
+              </Fact>
+            )}
+            {f.card.dexId != null && (
+              <Fact label={t("factDex")} className="facts-t2">
+                #{f.card.dexId}
+              </Fact>
+            )}
             {f.language !== "EN" && <Fact label={t("factLanguage")}>{languageLabel}</Fact>}
           </div>
+          {f.card.flavorText && (
+            <p className="facts-t3 line-clamp-2 text-[11px] italic leading-4 text-ink-muted">{f.card.flavorText}</p>
+          )}
         </>
       )}
 
@@ -102,11 +142,9 @@ export function ProductFactsPanel({
         </ul>
       )}
 
-      {/* SETRADEN — en kompakt rad längst ned (`mt-auto`), inte ett rutnät:
-          panelens höjd är given av högerspalten (~235 px) och innehållslistan
-          + ett tvåradigt faktarutnät sprängde den med ~70 px. */}
+      {/* SETRADEN — en kompakt rad längst ned (`mt-auto`), inte ett rutnät. */}
       {setLine.length > 0 && (
-        <p className="mt-auto border-t border-surface-border/60 pt-3 text-[11px] leading-4 text-ink-muted">
+        <p className={cn("mt-auto border-t border-surface-border/60 pt-2.5 text-[11px] leading-4 text-ink-muted", isCard && "facts-t2")}>
           {setLine.map((part, i) => (
             <span key={i}>
               {i > 0 && <span className="mx-1.5 text-ink-faint" aria-hidden="true">·</span>}

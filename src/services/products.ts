@@ -1768,7 +1768,13 @@ async function loadProductShellRaw(slug: string): Promise<ProductShellData> {
         cardId: true,
         releaseDate: true,
         set: { select: { id: true, name: true, series: true, releaseDate: true, totalCards: true, totalCardsFull: true } },
-        card: { select: { artist: true, rarity: true, subtype: true, hp: true, number: true } },
+        card: {
+          select: {
+            artist: true, rarity: true, subtype: true, hp: true, number: true,
+            types: true, weaknessType: true, weaknessValue: true, retreatCost: true,
+            regulationMark: true, dexId: true, flavorText: true,
+          },
+        },
       },
     })
   );

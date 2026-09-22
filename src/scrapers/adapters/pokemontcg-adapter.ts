@@ -55,6 +55,13 @@ export interface TcgCard {
   artist?: string;
   /** HP som STRÄNG i API:t ("90"); saknas för trainers/energi. */
   hp?: string;
+  // Kortfakta (Card.types/weakness/retreatCost/regulationMark/dexId/flavorText).
+  types?: string[];
+  weaknesses?: { type: string; value: string }[];
+  retreatCost?: string[];
+  regulationMark?: string;
+  nationalPokedexNumbers?: number[];
+  flavorText?: string;
   set: { id: string; name: string };
   images?: { small?: string; large?: string };
   cardmarket?: {
@@ -174,7 +181,8 @@ export async function fetchTcgCardsForSet(
   maxCards = TCG_PAGE_SIZE
 ): Promise<TcgCard[]> {
   const select =
-    "id,name,number,rarity,supertype,subtypes,artist,hp,set,images,cardmarket,tcgplayer";
+    "id,name,number,rarity,supertype,subtypes,artist,hp,set,images,cardmarket,tcgplayer," +
+    "types,weaknesses,retreatCost,regulationMark,nationalPokedexNumbers,flavorText";
   const byId = new Map<string, TcgCard>();
   let page = 1;
   while (byId.size < maxCards) {

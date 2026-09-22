@@ -2354,7 +2354,25 @@
       "boostersOne": "booster pack"
     },
     "factSetCardsLine": "{printed} cards ({full} incl. secret rares)",
-    "factSetCardsLineShort": "{printed} cards"
+    "factSetCardsLineShort": "{printed} cards",
+    "factType": "Type",
+    "factWeakness": "Weakness",
+    "factRetreat": "Retreat",
+    "factRegulationMark": "Regulation mark",
+    "factDex": "Pokédex",
+    "energyType": {
+      "Grass": "Grass",
+      "Fire": "Fire",
+      "Water": "Water",
+      "Lightning": "Lightning",
+      "Psychic": "Psychic",
+      "Fighting": "Fighting",
+      "Darkness": "Darkness",
+      "Metal": "Metal",
+      "Dragon": "Dragon",
+      "Fairy": "Fairy",
+      "Colorless": "Colorless"
+    }
   },
   "Upgrade": {
     "currentPlan": "Your current plan ✓",

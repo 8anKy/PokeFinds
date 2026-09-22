@@ -43,19 +43,26 @@ describe("sealedContents — era-tabellen", () => {
 });
 
 describe("buildProductFacts", () => {
+  const single = (card: FactsInput["card"]): FactsInput => ({
+    category: "SINGLE_CARD",
+    language: "EN",
+    title: "Exeggcute · Surging Sparks 192/191",
+    releaseDate: null,
+    set: { series: "Scarlet & Violet", releaseDate: "2024-11-08T00:00:00.000Z", totalCards: 191, totalCardsFull: 252 },
+    card,
+  });
   it("singel: kortfält + tryckt nummer, inget innehåll", () => {
-    const f = buildProductFacts({
-      category: "SINGLE_CARD",
-      language: "EN",
-      title: "Exeggcute · Surging Sparks 192/191",
-      releaseDate: null,
-      set: { series: "Scarlet & Violet", releaseDate: "2024-11-08T00:00:00.000Z", totalCards: 191, totalCardsFull: 252 },
-      card: { artist: "Yuriko Akase", rarity: "Illustration Rare", subtype: "Basic", hp: 30, number: "192" },
-    });
-    expect(f?.card).toEqual({ artist: "Yuriko Akase", rarity: "Illustration Rare", stage: "Basic", hp: 30, number: "192", printedTotal: 191 });
+    const f = buildProductFacts(
+      single({ artist: "Yuriko Akase", rarity: "Illustration Rare", subtype: "Basic", hp: 30, number: "192", types: ["Grass"], weaknessType: "Fire", weaknessValue: "×2", retreatCost: 1, regulationMark: "H", dexId: 102 })
+    );
+    expect(f?.card).toMatchObject({ artist: "Yuriko Akase", stage: "Basic", hp: 30, number: "192", printedTotal: 191, types: ["Grass"], weakness: { type: "Fire", value: "×2" }, retreatCost: 1, regulationMark: "H", dexId: 102, flavorText: null });
     expect(f?.contents).toBeNull();
     expect(f?.releaseDate).toBe("2024-11-08T00:00:00.000Z");
     expect(f?.setCards).toEqual({ printed: 191, full: 252 });
+  });
+  it("singel med färre än fyra fakta ⇒ ingen panel (hellre ingen än en gles)", () => {
+    expect(buildProductFacts(single({ artist: null, rarity: "Common", subtype: "Basic", hp: 30, number: "1" }))).toBeNull();
+    expect(buildProductFacts(single({ artist: "X", rarity: "Common", subtype: "Basic", hp: 30, number: "1" }))).not.toBeNull();
   });
   it("förseglat: produktens eget datum vinner över setets; 0 kort = okänt ⇒ ingen rad", () => {
     const f = buildProductFacts({ ...sealed("ETB", "X Elite Trainer Box"), releaseDate: new Date("2026-10-01T00:00:00Z"), set: { ...set("Mega Evolution"), totalCards: 0 } });

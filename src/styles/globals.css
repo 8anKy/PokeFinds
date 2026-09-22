@@ -581,3 +581,26 @@ html[data-native] .web-only {
 .foil-panel--grey .foil-panel__spark {
   opacity: 0.26;
 }
+
+@layer utilities {
+  /* FAKTAPANELEN på produktsidan (product-facts-panel.tsx) får sin höjd av
+     högerspalten, inte av sitt innehåll. Raderna är rangordnade i tre nivåer och
+     de lägre döljs när panelen är låg — en CONTAINER-fråga på panelen själv, för
+     höjden beror på om grafen bär graderingskarusellen, inte på viewporten.
+     Mätt: ~236 px utan karusell, ~335 px med. Tailwind 3.4 saknar @container-
+     varianter utan plugin, därav ren CSS här. ⛔ Ligger i @layer utilities: `Fact`
+     bär `flex` (en utility), och en components-regel förlorar mot den. */
+  .facts-panel {
+    container-type: size;
+  }
+  @container (max-height: 259px) {
+    .facts-t2 {
+      display: none;
+    }
+  }
+  @container (max-height: 329px) {
+    .facts-t3 {
+      display: none;
+    }
+  }
+}
