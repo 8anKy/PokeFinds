@@ -46,6 +46,12 @@ const MAX_CANDIDATES = 12;
 
 /** Hur många namn-syskon som hämtas in utöver de poängsatta kandidaterna. */
 const SIBLING_LIMIT = 12;
+/**
+ * Hur många kort med vinnarens namn (EN + "(JP)") som hämtas för att rangordnas
+ * på konstlikhet. Täcker de största namngrupperna (Pikachu ~180 kort med JP);
+ * konstlikheten räknas i processminnet, så taket är en DB-fråga, inte CPU.
+ */
+const SIBLING_POOL = 250;
 
 /**
  * Hur många av kandidatplatserna som GARANTERAS åt namn-syskon. Se
@@ -335,6 +341,8 @@ export async function recordScanUsage(
     gm?: number | null;
     /** Agree-grenens villkor var uppfyllt — utan biten går den grenen inte att svepa. */
     agree?: boolean;
+    /** Språket klienten bad om vid lika konst (`langHint`), när det skickades. */
+    lh?: string;
   } | null,
   /**
    * FÄLTAVTRYCKET (2026-08-30) — skrivs för ALLA användare. Ägarbeslut: målet
@@ -428,6 +436,7 @@ export async function recordScanUsage(
                 ...(recall.sharp != null ? { sharp: recall.sharp } : {}),
                 ...(recall.gm != null ? { gm: recall.gm } : {}),
                 ...(recall.agree ? { agree: true } : {}),
+                ...(recall.lh ? { lh: recall.lh } : {}),
               },
               ...(fp && fp.color.length > 0
                 ? { fp: { v: 1, color: fp.color.slice(0, 7), struct: fp.struct.slice(0, 7) } }
@@ -840,6 +849,24 @@ function cardBaseName(name: string): string {
 }
 
 /**
+ * Ska språktvillingen ta över som svar? Bara när användaren har ett språk i
+ * sessionen och tvillingen talar det medan vinnaren inte gör det.
+ *
+ * MÄTT 2026-09-22 (508 domar där rätt kort hade en tvilling i bildens topp-5):
+ * "samma språk som förra valet (< 30 min)" 92,3 % (n=455) · "EN vinner"
+ * 79,5 % · "bildens ordning" 75,0 %. En skanningssession är nästan alltid ett
+ * språk — 31 av 41 användare med domar har aldrig blandat. Utan en hint står
+ * vinnaren kvar (ägarbeslutet "EN vid lika läsning" gäller då som förut).
+ */
+export function preferTwinLanguage(
+  winnerLanguage: string,
+  twinLanguage: string,
+  langHint: string | null | undefined
+): boolean {
+  return !!langHint && winnerLanguage !== langHint && twinLanguage === langHint;
+}
+
+/**
  * Språktvillingarna till bildens etta bland dess närmaste rivaler, plus vilket
  * id som ska VINNA om bilden avgör gruppen: EN-utgåvan när den finns
  * (ägarbeslut 2026-08-29 — "EN vid lika läsning, JP som val i raden").
@@ -849,7 +876,9 @@ function cardBaseName(name: string): string {
  */
 const TWIN_SCAN = 5;
 export async function languageTwinsOfTop(
-  matches: ArtMatch[]
+  matches: ArtMatch[],
+  /** Språket användaren senast valde i sessionen — se `preferTwinLanguage`. */
+  langHint?: string | null
 ): Promise<{ isTwinOfTop: (id: string) => boolean; preferred: string | null }> {
   const none = { isTwinOfTop: () => false, preferred: null };
   if (matches.length < 2) return none;
@@ -866,11 +895,19 @@ export async function languageTwinsOfTop(
     if (sim !== null && sim >= SAME_ART_MIN) twins.add(m.cardId);
   }
   if (twins.size === 0) return none;
+  // Användarens senaste språk i sessionen vinner när gruppen har det — se
+  // `preferTwinLanguage`. Annars ägarbeslutet 2026-08-29: EN.
+  const hinted = langHint
+    ? [head[0].cardId, ...head.filter((m) => twins.has(m.cardId)).map((m) => m.cardId)].find(
+        (id) => artMetaCache.get(id)?.language === langHint
+      )
+    : undefined;
   const preferred =
-    top.language === "EN"
+    hinted ??
+    (top.language === "EN"
       ? head[0].cardId
       : (head.find((m) => twins.has(m.cardId) && artMetaCache.get(m.cardId)?.language === "EN")?.cardId ??
-        head[0].cardId);
+        head[0].cardId));
   return { isTwinOfTop: (id) => twins.has(id), preferred };
 }
 
@@ -1142,7 +1179,9 @@ export async function matchCards(
    * ART_TRUST_*). Det får en bonus som slår en ren namnträff, så ett hallucinerat
    * kortnamn inte kan överrösta en bevisat säker bildidentifiering.
    */
-  artConfidentCardId?: string | null
+  artConfidentCardId?: string | null,
+  /** Språket användaren senast valde i sessionen — se `preferTwinLanguage`. */
+  langHint?: string | null
 ): Promise<ScanCandidate[]> {
   const query = ocr.guessedName?.trim() || ocr.rawText.trim();
   const tokens = query ? nameTokens(query) : [];
@@ -1398,8 +1437,80 @@ export async function matchCards(
   // VINNAREN avgörs av poängen ENSAM, före all syskonsortering nedan. Annars
   // skulle "lyft syskon" kunna byta ut själva träffen, och då rankar man om
   // svaret i stället för alternativen.
-  const winner = ranked[0].candidate;
-  const winnerName = winner.name.toLowerCase();
+  let winner = ranked[0].candidate;
+
+  // ── SPRÅKTVILLINGEN (2026-09-22) ─────────────────────────────────────────
+  // Samma kort på engelska och japanska har samma konst, och bilden kan inte
+  // skilja dem. MÄTT i fält (30 dygn): språktvillingen var den STÖRSTA
+  // korrigeringshinken — ~70 av ~220 rättelser — och i 23 av dem låg tvillingen
+  // på plats 4+, för syskonen hämtades i id-ordning och "Primarina (JP)"
+  // räknades inte som syskon till "Primarina" (namnen skiljer).
+  // Nu: hela namngruppen (EN + JP) hämtas, rangordnas på konstlikhet mot
+  // vinnaren, och tvillingen läggs DIREKT under vinnaren. Språket avgörs av
+  // användarens senaste val i sessionen när det finns (92 % rätt mot 80 % för
+  // "EN vinner", 455 domar) — se `preferTwinLanguage`.
+  const winnerBase = cardBaseName(winner.name);
+  const namePool = await prisma.card.findMany({
+    where: {
+      OR: [
+        { name: { equals: winnerBase, mode: "insensitive" } },
+        { name: { equals: `${winnerBase} (JP)`, mode: "insensitive" } },
+      ],
+    },
+    select: {
+      id: true,
+      name: true,
+      number: true,
+      rarity: true,
+      language: true,
+      imageUrl: true,
+      set: { select: { name: true, releaseDate: true } },
+    },
+    orderBy: { id: "asc" },
+    take: SIBLING_POOL,
+  });
+  // Konstlikhet mot vinnaren ur indexet i minnet — ingen DB-fråga.
+  // ⛔ Bara när bildmatchningen kördes — annars tvingar en ren textskanning fram
+  // en lat inläsning av hela 5,4 MB-indexet (samma grind som `sameArt` nedan).
+  // Utan bild: ingen tvilling (vi VET inte att konsten är densamma) och id-ordning.
+  const artToWinner = new Map<string, number>();
+  if (artScores?.size) {
+    for (const c of namePool) {
+      if (c.id === winner.cardId) continue;
+      const sim = await artPairSimilarity(winner.cardId, c.id);
+      if (sim !== null) artToWinner.set(c.id, sim);
+    }
+  }
+  const twinRow = namePool
+    .filter((c) => c.language !== winner.language && (artToWinner.get(c.id) ?? 0) >= SAME_ART_MIN)
+    .sort((a, b) => (artToWinner.get(b.id) ?? 0) - (artToWinner.get(a.id) ?? 0))[0];
+  const originalWinnerId = winner.cardId;
+  if (twinRow && preferTwinLanguage(winner.language, twinRow.language, langHint)) {
+    const inRanked = ranked.find((r) => r.candidate.cardId === twinRow.id);
+    if (inRanked) {
+      inRanked.candidate.score = Math.max(inRanked.candidate.score, winner.score);
+      winner = inRanked.candidate;
+    } else {
+      winner = {
+        cardId: twinRow.id,
+        name: twinRow.name,
+        setName: twinRow.set.name,
+        number: twinRow.number,
+        rarity: twinRow.rarity,
+        language: twinRow.language,
+        imageUrl: twinRow.imageUrl,
+        // Samma konst, samma kort — bara språket skiljer. Poängen följer med.
+        score: winner.score,
+        productId: null,
+        variantLabel: null,
+        slug: null,
+        estimatedValue: null,
+      };
+      ranked.push({ ...ranked[0], candidate: winner, released: twinRow.set.releaseDate?.getTime() ?? 0 });
+    }
+  }
+  // Tvillingen till den (ev. nya) vinnaren — den som ska ligga direkt under.
+  const twinIdOfWinner = !twinRow ? null : twinRow.id === winner.cardId ? originalWinnerId : twinRow.id;
 
   // SYSKON FÖRST I "VÄLJ ETT ANNAT" (2026-07-29). Bildmatchningen kan per
   // definition inte skilja tryckningar med identisk konst, och 92 % av korten
@@ -1413,30 +1524,21 @@ export async function matchCards(
   // Japanska kort heter "<engelskt namn> (JP)" (jp-singles-refresh). Ägarbeslut
   // 2026-08-29: EN-kortet vinner vid lika läsning (namnbonusen faller bara ut för
   // det exakta namnet), men JP-utgåvan ska finnas som val i listan — och tvärtom.
-  const baseName = winner.name.replace(/\s*\(JP\)\s*$/i, "");
-  const sameNameCards = await prisma.card.findMany({
-    where: {
-      OR: [
-        { name: { equals: baseName, mode: "insensitive" } },
-        { name: { equals: `${baseName} (JP)`, mode: "insensitive" } },
-      ],
-      id: { notIn: ranked.slice(0, MAX_CANDIDATES).map((r) => r.candidate.cardId) },
-    },
-    select: {
-      id: true,
-      name: true,
-      number: true,
-      rarity: true,
-      language: true,
-      imageUrl: true,
-      set: { select: { name: true, releaseDate: true } },
-    },
-    orderBy: { id: "asc" },
-    take: SIBLING_LIMIT,
-  });
+  // Syskonen ur namnpoolen ovan: mest lik konst först (tvillingen och omtrycken
+  // med identisk konst överst), inte id-ordning — med 178 Pikachu var urvalet
+  // annars en slumpdragning. Poolen är redan hämtad: ingen extra fråga.
+  const topIds = new Set(ranked.slice(0, MAX_CANDIDATES).map((r) => r.candidate.cardId));
+  const sameNameCards = namePool
+    .filter((c) => !topIds.has(c.id) && c.id !== winner.cardId)
+    .sort(
+      (a, b) => (artToWinner.get(b.id) ?? -1) - (artToWinner.get(a.id) ?? -1) || a.id.localeCompare(b.id)
+    )
+    .slice(0, SIBLING_LIMIT);
 
   const merged = [
     ...ranked.slice(0, MAX_CANDIDATES),
+    // En tvilling som blev vinnare utanför topplistan måste med.
+    ...(topIds.has(winner.cardId) ? [] : ranked.filter((r) => r.candidate.cardId === winner.cardId)),
     ...sameNameCards.map((card) => ({
       candidate: {
         cardId: card.id,
@@ -1475,6 +1577,8 @@ export async function matchCards(
   // hallucinerade namnets syskon hela listan och rätt kort syntes inte alls.
   const tierOf = (c: ScanCandidate): number => {
     if (c.cardId === winner.cardId) return 0;
+    // Språktvillingen: samma kort på det andra språket — alltid ett tryck bort.
+    if (c.cardId === twinIdOfWinner) return 1;
     // ⛔ Och när namnet är MISSTROTT är dess syskon per definition en lista över
     // fel kort — då räcker det att kortet är en bildkandidat alls. ART_STRONG
     // (0,75) är ett absolut golv som bulk-cellerna missar med marginal: en
@@ -1483,7 +1587,7 @@ export async function matchCards(
     // kort (2026-08-01).
     if ((artScores?.get(c.cardId) ?? 0) >= ART_STRONG) return 2;
     if (nameWeight !== 1 && artScores?.has(c.cardId)) return 2;
-    if (c.name.toLowerCase() === winnerName) return 3;
+    if (cardBaseName(c.name) === winnerBase) return 3;
     return 4;
   };
   const releasedOf = new Map(merged.map((m) => [m.candidate.cardId, m.released]));
@@ -1512,7 +1616,7 @@ export async function matchCards(
    * och rör sig aldrig.
    */
   const siblingSet = new Set(
-    sorted.filter((c) => c.cardId !== winner.cardId && c.name.toLowerCase() === winnerName)
+    sorted.filter((c) => c.cardId !== winner.cardId && cardBaseName(c.name) === winnerBase)
       .slice(0, SIBLING_RESERVED)
   );
   const otherRank = new Map(
@@ -1522,6 +1626,10 @@ export async function matchCards(
   const top = sorted.filter(
     (c) => siblingSet.has(c) || (otherRank.get(c) ?? Number.POSITIVE_INFINITY) < otherBudget
   );
+
+  // Språktvillingen är samma kort — den ska inte räknas som en RIVAL i "?"/valsteget
+  // (se isAmbiguous/isTied), bara finnas ett tryck bort.
+  for (const c of top) if (c.cardId === twinIdOfWinner) c.languageTwin = true;
 
   // Värde + djuplänk. Varje VARIANT värderas på sin egen produkt — annars hade
   // alla tre Base-tryckningarna visat samma pris (den billigaste), vilket är
@@ -2020,7 +2128,9 @@ export async function identifyCellsArt(
    * niokortsfångst och rättelsen gick förlorad — och det är just rättelser som
    * bygger facitsetet, dvs hela förbättringsslingan.
    */
-  owner?: { userId: string; isAdmin: boolean }
+  owner?: { userId: string; isAdmin: boolean },
+  /** Språket användaren senast valde i sessionen — se `preferTwinLanguage`. */
+  langHint?: string | null
 ): Promise<BulkCellResult[]> {
   const out: BulkCellResult[] = [];
   for (const [i, cell] of cells.entries()) {
@@ -2031,14 +2141,15 @@ export async function identifyCellsArt(
     }
     const artMatches = await searchByFingerprints(sweep, ART_CANDIDATES);
     const artScores = new Map(artMatches.map((m) => [m.cardId, m.score]));
-    const twins = await languageTwinsOfTop(artMatches);
+    const twins = await languageTwinsOfTop(artMatches, langHint);
     const confidentRaw = artConfidentFrom(artMatches, [], twins.isTwinOfTop);
     const confidentId = confidentRaw !== null && twins.preferred !== null ? twins.preferred : confidentRaw;
     const candidates = await matchCards(
       // Samma tomma OCR som när vision hoppas över: bilden bär hela bedömningen.
       { rawText: "", confidence: confidentId ? 0.95 : 0 },
       artScores,
-      confidentId
+      confidentId,
+      langHint
     );
     // Bara SÄKRA celler bokförs: en osäker cell skickas vidare av klienten till
     // /identify och bokförs DÄR — annars skulle samma kort räknas två gånger.
@@ -2131,6 +2242,8 @@ export async function identifyCard(
     /** Strukturavtryck, parade positionsvis med färgavtrycken ovan. */
     structFingerprints?: string[];
     structFrames?: string[][];
+    /** Språket användaren senast valde i sessionen — se `preferTwinLanguage`. */
+    langHint?: string | null;
   } = {}
 ): Promise<IdentifyResult> {
   const adapter = getOcrAdapter(opts.precise);
@@ -2158,7 +2271,7 @@ export async function identifyCard(
   // poängen ensam skiljer inte rätt från fel. Med full ruta-samstämmighet
   // sänks marginalkravet (temporalt bevis) — se artConfidentFrom/ART_AGREE_MARGIN.
   // Språktvillingar (EN/JP, samma konst) är inte rivaler — se artConfidentFrom.
-  const twins = await languageTwinsOfTop(artMatches);
+  const twins = await languageTwinsOfTop(artMatches, opts.langHint);
   const artConfidentCardId = (() => {
     const id = artConfidentFrom(artMatches, detailed.frameTops, twins.isTwinOfTop);
     return id !== null && twins.preferred !== null ? twins.preferred : id;
@@ -2176,7 +2289,7 @@ export async function identifyCard(
 
   // Bilden ensam räcker som signal — texten kan vara helt oläslig.
   const [candidates, artTopLabel] = await Promise.all([
-    matchCards(ocr, artScores, artConfidentCardId),
+    matchCards(ocr, artScores, artConfidentCardId, opts.langHint),
     describeArtMatches(artMatches.slice(0, 3)),
   ]);
 
@@ -2306,7 +2419,8 @@ export async function identifyCardArt(opts: {
 export function isAmbiguous(candidates: ScanCandidate[]): boolean {
   const top = candidates[0];
   if (!top) return false;
-  const rival = candidates.find((c) => c.cardId !== top.cardId);
+  // Språktvillingen är samma kort på ett annat språk, inte en rival.
+  const rival = candidates.find((c) => c.cardId !== top.cardId && !c.languageTwin);
   if (!rival) return false; // bara tryckningar av ett och samma kort
   return top.score - rival.score < MATCH_MARGIN_MIN;
 }
@@ -2343,7 +2457,7 @@ export const TIE_MARGIN = 0.01;
 export function isTied(candidates: ScanCandidate[]): boolean {
   const top = candidates[0];
   if (!top) return false;
-  const rival = candidates.find((c) => c.cardId !== top.cardId);
+  const rival = candidates.find((c) => c.cardId !== top.cardId && !c.languageTwin);
   if (!rival) return false;
   return top.score - rival.score < TIE_MARGIN;
 }

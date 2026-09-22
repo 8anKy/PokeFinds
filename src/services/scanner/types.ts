@@ -137,6 +137,13 @@ export interface ScanCandidate {
    */
   sameArt?: boolean;
   /**
+   * SAMMA KORT PÅ DET ANDRA SPRÅKET (EN ↔ JP) som vinnaren — samma konst, eget
+   * katalogkort. Ligger alltid direkt under vinnaren och räknas INTE som rival i
+   * `isAmbiguous`/`isTied`: språket är ett val om SAMMA kort, inte en osäkerhet
+   * om vilket kort det är (2026-09-22).
+   */
+  languageTwin?: boolean;
+  /**
    * Kandidatens plats i BILDENS egen topplista (1 = bildens bästa gissning).
    * Odefinierad när kortet inte låg i bildens topp alls.
    *

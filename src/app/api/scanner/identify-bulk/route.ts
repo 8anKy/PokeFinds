@@ -35,6 +35,8 @@ const schema = z.object({
     // när taket överskrids, inte bara överskottet — ligger det lägre än
     // klientens tak misslyckas varje stor fångst med 400 i stället för att kapas.
     .max(15),
+  /** Språket användaren senast valde i sessionen — se `preferTwinLanguage`. */
+  langHint: z.enum(["EN", "JP"]).optional(),
   /**
    * ADMIN-FELSÖKNING: detekteringsbilden (~480 px JPEG) + antal funna
    * regioner. Bordsfångster går inte att felsöka mot syntetiska modeller —
@@ -70,7 +72,7 @@ export async function POST(req: Request) {
     // binder samtidigt CPU:n (varje anrop är upp till ~100 indexsökningar).
     const { ok } = await rateLimit(`scanner-bulk:${user.id}`, 20, 60 * 1000);
     if (!ok) throw new ServiceError(429, "För många förfrågningar — vänta en stund.");
-    const { cells, debug } = schema.parse(await req.json());
+    const { cells, debug, langHint } = schema.parse(await req.json());
 
     const isAdmin = user.role === "ADMIN" || user.role === "SUPERADMIN";
     if (debug && isAdmin) {
@@ -88,7 +90,7 @@ export async function POST(req: Request) {
     if (cells.length === 0) return jsonOk({ cells: [] });
     // Bokför säkra celler på användaren: de identifierar ett kort (= kvot) och
     // en korrigering behöver ett jobb-id att fästa vid. Se identifyCellsArt.
-    return jsonOk({ cells: await identifyCellsArt(cells, { userId: user.id, isAdmin }) });
+    return jsonOk({ cells: await identifyCellsArt(cells, { userId: user.id, isAdmin }, langHint) });
   } catch (e) {
     return apiError(e);
   }

@@ -30,6 +30,7 @@ import {
 import { foilProbeFromRgb, type FoilSample } from "@/lib/foil-probe";
 import { frameSharpness, SHARP_AUTO_MIN } from "@/lib/frame-sharpness";
 import { readNumberStripNative, warmUpLocalNumberReader } from "@/lib/on-device-number";
+import { readLangHint, rememberLangHint } from "@/lib/scan-language-hint";
 import { classifyDrag, shouldCloseSheet } from "@/lib/sheet-drag";
 import { useEventCallback } from "@/hooks/use-event-callback";
 import {
@@ -130,6 +131,8 @@ interface Candidate {
   sameArt?: boolean;
   /** Plats i BILDENS topplista (1 = bildens bästa gissning) — visas alltid. */
   artRank?: number;
+  /** Samma kort på det andra språket (EN ↔ JP) som träffen — se ScanCandidate. */
+  languageTwin?: boolean;
   estimatedValue: number | null;
 }
 
@@ -1140,6 +1143,7 @@ function Scanner() {
         // en efterhandsrapport hade saknat raden i 43 % av fallen (ingen dom).
         // Se src/lib/on-device-number.ts.
         const localNumber = strip ? await readNumberStripNative(strip) : undefined;
+        const langHint = readLangHint();
         // Standard = billiga Haiku-modellen (ingen `precise`) — håller scan-kostnaden
         // mot Pro-priset. Sonnet körs bara på uttryckligt "försök igen, skarpare".
         const res = await scanFetch("/api/scanner/identify", {
@@ -1162,6 +1166,8 @@ function Scanner() {
             // produktionen låg på 30,5 %.
             ...(sharp != null ? { sharp } : {}),
             ...(localNumber ? { localNumber } : {}),
+            // Språket användaren senast valde — avgör EN/JP-tvillingen (samma konst).
+            ...(langHint ? { langHint } : {}),
           }),
         });
         const data = (await res.json()) as IdentifyResponse & { error?: string };
@@ -2067,6 +2073,7 @@ function Scanner() {
     const patch = (id: string, p: Partial<ScanItem>) =>
       setScans((prev) => prev.map((s) => (s.id === id ? { ...s, ...p } : s)));
 
+    const bulkLangHint = readLangHint();
     void (async () => {
       try {
         const res = await fetch("/api/scanner/identify-bulk", {
@@ -2078,6 +2085,7 @@ function Scanner() {
               structFingerprints: cell.structFingerprints,
             })),
             debug,
+            ...(bulkLangHint ? { langHint: bulkLangHint } : {}),
           }),
         });
         const data = (await res.json()) as {
@@ -2217,6 +2225,9 @@ function Scanner() {
   }, []);
 
   const chooseCandidate = useCallback((id: string, cand: Candidate) => {
+    // Användarens eget val sätter sessionens språk (EN/JP-tvillingen) — se
+    // lib/scan-language-hint.ts.
+    rememberLangHint(cand.language);
     setScans((prev) =>
       prev.map((s) => {
         if (s.id !== id) return s;
@@ -2333,6 +2344,8 @@ function Scanner() {
     setAddingAll(true);
     const created = await addMatchedToCollection();
     const ok = created.length;
+    // Det man lade till är vad man bekräftade — sista kortets språk blir sessionens.
+    if (ok > 0) rememberLangHint(matched[matched.length - 1]?.match?.language);
     setAddingAll(false);
     setAddedCount(ok);
     // Lyckat tillägg bekräftas av granskningsvyns egen fot ("N kort tillagda") —

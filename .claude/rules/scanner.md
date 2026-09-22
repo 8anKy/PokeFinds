@@ -421,3 +421,17 @@ Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md p
   `artMetaCache`); vinnaren i gruppen är EN när den finns (ägarregeln), JP ligger i raden. Replay på de
   43 fp-raderna: fri **1 → 15**, alla 15 samma kort som Geminis svar. ⛔ Bara SPRÅK-tvillingar — samma
   konst i två EN-set är ett tryckningsval och ska förbli osäkert. Vaktat i `art-confidence.test.ts`.
+- **SPRÅKTVILLINGEN: SESSIONENS SPRÅK AVGÖR, OCH TVILLINGEN LIGGER ALLTID ETT TRYCK BORT (2026-09-22)**:
+  MÄTT (30 dygn): EN ↔ JP-tvillingen var den STÖRSTA korrigeringshinken, ~70 av ~220 rättelser; i 30 hade
+  bildens etta redan varit det japanska kortet men regeln "EN vid lika konst" vann, och i 23 låg tvillingen
+  på plats 4+ (syskonen hämtades i id-ordning, och "Primarina (JP)" räknades inte som syskon till "Primarina").
+  Språksignaler mot 508 domar med tvilling i bildens topp-5: **användarens förra val (< 30 min) 92,3 %** (n=455)
+  · "EN vinner" 79,5 % · bildens ordning 75,0 %. Därför: klienten minns språket på användarens EGNA val
+  (val ur listan / tillägg, aldrig skannerns gissning — annars förstärker EN sig själv) i sessionStorage
+  (`lib/scan-language-hint.ts`, 30 min) och skickar `langHint`; `preferTwinLanguage` (ren, testad) byter
+  vinnare till tvillingen bara när hinten är tvillingens språk. Utan hint gäller ägarregeln EN som förut.
+  Namngruppen (EN + "(JP)", `SIBLING_POOL` 250) rangordnas på konstlikhet mot vinnaren i stället för id;
+  tvillingen får skikt 1 och `languageTwin: true`, och ⛔ räknas INTE som rival i `isAmbiguous`/`isTied`
+  (annars fyrar "?"/valsteget på varje tvillingskanning). ⛔ Konstlikheten räknas bara när bildsökningen körde
+  (samma grind som `sameArt`). `recall.lh` bokför hinten — mät om: korrigeringar med relationen
+  SPRÅKTVILLING ska falla. Vaktat av `tests/unit/scan-language-twin.test.ts`.

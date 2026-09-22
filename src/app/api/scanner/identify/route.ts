@@ -93,6 +93,9 @@ const schema = z.object({
       err: z.enum(["timeout", "plugin"]).optional(),
     })
     .optional(),
+  // SPRÅKET användaren senast valde i sessionen (EN/JP). Avgör vilken språk-
+  // tvilling (samma konst) som blir svaret — se `preferTwinLanguage`.
+  langHint: z.enum(["EN", "JP"]).optional(),
   // Starkare (dyrare) vision-modell — körs bara vid bekräftelse/uppladdning,
   // inte för varje live-ruta.
   precise: z.boolean().optional(),
@@ -127,6 +130,7 @@ export async function POST(req: Request) {
       foil,
       sharp,
       localNumber,
+      langHint,
       precise,
     } = schema.parse(await req.json());
     if (image.length + (detail?.length ?? 0) > MAX_IMAGE_BYTES * 1.4) {
@@ -162,6 +166,7 @@ export async function POST(req: Request) {
       fingerprintFrames,
       structFingerprints,
       structFrames,
+      langHint,
     });
 
     // Bokför mot kvoten: varje genomförd skanning räknas (träff eller no-match),
@@ -289,6 +294,7 @@ export async function POST(req: Request) {
         // villkoret. ⛔ `margin` ovan är den RÅA; ett tröskelsvep ska läsa `gm`.
         gm: result.artGateMargin,
         agree: result.artAgree,
+        ...(langHint ? { lh: langHint } : {}),
       },
       // FÄLTAVTRYCKET — för ALLA användare, se recordScanUsage. Första rutans
       // hela variantsvep; struktur följer positionsvis (kan saknas från en äldre

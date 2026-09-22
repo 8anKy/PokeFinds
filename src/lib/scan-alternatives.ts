@@ -15,6 +15,8 @@ export interface AlternativeLike {
   sameArt?: boolean;
   /** Plats i BILDENS egen topplista (1 = bildens bästa gissning). */
   artRank?: number;
+  /** Samma kort som träffen på det ANDRA språket (EN ↔ JP) — alltid först bland alternativen. */
+  languageTwin?: boolean;
 }
 
 /**
@@ -207,7 +209,12 @@ export function pickSameArtRail<T extends RailLike>(
 
   // Träffens EGET kort först — raden ska börja där blicken redan är.
   const ordered = [...sameArt].sort(
-    (a, b) => Number(isMatchCard(b)) - Number(isMatchCard(a)) || b.score - a.score
+    (a, b) =>
+      Number(isMatchCard(b)) - Number(isMatchCard(a)) ||
+      // Språktvillingen (EN ↔ JP) direkt efter träffen: den största enskilda
+      // rättelsen i fält 2026-09-22 (~70 av ~220), och ofta långt ned i raden.
+      Number(b.languageTwin ?? false) - Number(a.languageTwin ?? false) ||
+      b.score - a.score
   );
 
   // ⛔ KAPA PÅ KORT, EXPANDERA SEDAN. Låg `flatMap` före `slice` åt ett kort med
@@ -309,6 +316,7 @@ export function pickAlternatives<T extends AlternativeLike>(
       // och ska inte kastas om för att göra plats åt en ny regel.
       .sort(
         (a, b) =>
+          Number(b.languageTwin ?? false) - Number(a.languageTwin ?? false) ||
           Number(b.sameArt ?? false) - Number(a.sameArt ?? false) ||
           (a.artRank ?? Number.POSITIVE_INFINITY) - (b.artRank ?? Number.POSITIVE_INFINITY) ||
           Number(sameName(b)) - Number(sameName(a)) ||
