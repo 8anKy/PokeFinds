@@ -608,7 +608,7 @@ export function MobileCollectionGrid({
   return (
     // ⛔ SAMMA RUTNÄT PÅ DESKTOP (ägarbeslut 2026-09-22): tabellen gick inte att
     // klicka sig vidare från och såg ut som en annan app. Nu fyra rutor per rad
-    // från lg, fem från 2xl — samma rutor, samma ark, bara bredare.
+    // från lg (sidan är max 1280 px bred) — samma rutor, samma ark, bara bredare.
     <section>
       {/* Sektionshuvud / väljlägets verktygsrad */}
       {/* ⛔ VERKTYGSRADEN MÅSTE FÖLJA MED I VÄLJLÄGET (ägaren 2026-09-07):
@@ -721,7 +721,7 @@ export function MobileCollectionGrid({
 
       {/* Rutnätet renderas alltid; är listan tom ritas ingenting (tomläget ovan
           bär beskedet), så resten av filen står kvar orörd. */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4 2xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4">
         {groups.map((g, index) => {
           const r = g.lots[0];
           const multi = g.lots.length > 1;
