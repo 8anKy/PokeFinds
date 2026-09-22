@@ -750,8 +750,11 @@ async function main() {
       const slot = negativt[row.stratum];
       if (kind === "rejected") slot.rejected++;
       else slot.searched++;
-      // Låg kortet ÄNDÅ i bildens lista? Då fallerade presentationen, inte
-      // recall — en UI-fråga, inte en modellfråga.
+      // ⛔ `artRank` är här det BORTTAGNA kortets plats — det kort vi visade och
+      // användaren underkände — INTE det rätta kortets (det vet vi aldrig för en
+      // radering). Talet lästes 2026-09-22 som "rätt kort låg i topp-15" och
+      // motiverade en funktion innan felet upptäcktes. Det mäter bara hur ofta
+      // det vi visade också kom ur bildens lista.
       if (row.artRank > 0 && row.artRank <= 15) slot.iArt++;
       continue;
     }
@@ -921,8 +924,7 @@ async function main() {
     `\n--- 1g. NEGATIVT FACIT (vision) ---\n` +
       `  raderade skanningen (rejected)      : ${neg.rejected}\n` +
       `  gick till manuell sökning (searched): ${neg.searched}\n` +
-      `  ...varav kortet ÄNDÅ låg i bildens topp-15: ${neg.iArt}` +
-      `  (då fallerade presentationen, inte recall)\n` +
+      `  ...varav det BORTTAGNA (visade) kortet låg i bildens topp-15: ${neg.iArt} — säger INGET om var rätt kort låg\n` +
       `  ⛔ Ingår ALDRIG i recall-talen ovan — det finns inget valt kort att ranka.` +
       (neg.rejected + neg.searched === 0
         ? `\n  ⚠️ NOLL rader: kanalen finns först i v2. Före den skrevs ingen userChosen\n` +

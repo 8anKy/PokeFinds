@@ -1527,6 +1527,7 @@
     "noScansYet": "Inga skanningar ännu.",
     "condition": "Skick",
     "remove": "Ta bort",
+    "wrongCard": "Fel kort?",
     "scanStopped": "Skanning stoppad",
     "couldntMatch": "Kunde inte matcha kortet automatiskt.",
     "searchManually": "Sök manuellt",

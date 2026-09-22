@@ -3608,13 +3608,27 @@ function ReviewView(props: {
                         value={s.quantity}
                         onChange={(q) => onPatch(s.id, { quantity: q })}
                       />
-                      <button
-                        type="button"
-                        onClick={() => onRemove(s.id)}
-                        className="text-xs text-ink-faint underline-offset-2 hover:text-fall hover:underline"
-                      >
-                        {t("remove")}
-                      </button>
+                      <div className="flex items-center gap-3">
+                        {/* FEL KORT? (ägarbeslut 2026-09-22): förslagen + manuell
+                            sökning bodde bara bakom ett tryck på miniatyren, som
+                            ingen visste om — den som såg fel kort tog bort
+                            skanningen i stället. Samma ark, en synlig väg dit;
+                            ett val där bokförs som en korrigering, inte en radering. */}
+                        <button
+                          type="button"
+                          onClick={() => onOpenDetails(s.id)}
+                          className="text-xs font-medium text-holo-cyan underline-offset-2 hover:underline"
+                        >
+                          {t("wrongCard")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onRemove(s.id)}
+                          className="text-xs text-ink-faint underline-offset-2 hover:text-fall hover:underline"
+                        >
+                          {t("remove")}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

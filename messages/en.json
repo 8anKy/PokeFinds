@@ -1527,6 +1527,7 @@
     "noScansYet": "No scans yet.",
     "condition": "Condition",
     "remove": "Remove",
+    "wrongCard": "Wrong card?",
     "scanStopped": "Scan stopped",
     "couldntMatch": "Couldn't match the card automatically.",
     "searchManually": "Search manually",
