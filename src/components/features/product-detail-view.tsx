@@ -18,6 +18,7 @@ import { ProductCard, CATEGORY_LABELS } from "@/components/features/product-card
 import { ProductActions } from "@/components/features/product-actions";
 import { ProductRestockHistory } from "@/components/features/restock-history";
 import { CopyOnHoldTitle } from "@/components/features/copy-on-hold-title";
+import { ProductFactsPanel } from "@/components/features/product-facts-panel";
 import { traderaSearchUrlSpecific } from "@/lib/marketplace-urls";
 import { getSharedSession } from "@/lib/client-session";
 import { hasAuthHint } from "@/lib/auth-hint";
@@ -62,6 +63,7 @@ function shellToDetail(shell: ProductShellData): ProductDetailData {
     watchCount: 0,
     updatedAt: "",
     set: shell.set,
+    facts: shell.facts ?? null,
     chartData: [],
     historyBySource: { cardmarket: [], cardtrader: [], tradera: [], traderaSold: [] },
     trendSource: "cardmarket",
@@ -309,6 +311,15 @@ export function ProductDetailView({
         </nav>
 
         <div className="lg:grid lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start lg:gap-8">
+          {/* VÄNSTERSPALTEN (desktop): bildbrunnen + faktapanelen. Spalten sträcks
+              till högerspaltens höjd och panelen ligger ABSOLUT under brunnen
+              (top = 450 px brunn + 16 px luft) — den är alltså ur flödet och kan
+              aldrig göra gridraden högre. Underkanten hamnar därför alltid i
+              linje med prishistorikkortet; får innehållet inte plats kapas det
+              (se product-facts-panel.tsx). ⛔ `top` måste följa brunnen: 360 px
+              spalt × 5/4 = 450. På mobil är omslaget osynligt: scenen ligger kvar
+              som förut och arket glider upp över den. */}
+          <div className="lg:relative lg:self-stretch">
           {/* SCENEN. Mobil: hela bredden, 300 px, svag glöd bakom lådan (enda
               stället ytan inte är rent svart — arkets kant måste läsas mot något).
               Desktop: bildbrunnen som förut. */}
@@ -337,6 +348,16 @@ export function ProductDetailView({
             <div className="absolute left-4 top-1.5 lg:hidden">
               <BackCircle fallback="/produkter" />
             </div>
+          </div>
+          {/* Inte förrän priset är hämtat: med skelettet är högerspalten kortare
+              än brunnen och panelen hade blivit en kapad rubrik i en sekund. */}
+          {!pending && (
+            <ProductFactsPanel
+              facts={data.facts}
+              categoryLabel={categoryLabel}
+              className="hidden lg:absolute lg:inset-x-0 lg:bottom-0 lg:top-[466px] lg:flex"
+            />
+          )}
           </div>
 
           {/* ARKET. Mobil: rundade övre hörn, hårlinje, glider 20 px upp över scenen. */}

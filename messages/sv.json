@@ -2331,7 +2331,30 @@
     "days30Short": "30 d",
     "historyFootnoteSingle": "Raw, ej graderad · annonser = dagens lägsta, sålt = medianpris",
     "weekChangeSuffix": "senaste veckan",
-    "monthChangeSuffix": "senaste 30 dagarna"
+    "monthChangeSuffix": "senaste 30 dagarna",
+    "factsCardTitle": "Om kortet",
+    "factsSealedTitle": "I lådan",
+    "factArtist": "Illustratör",
+    "factRarity": "Sällsynthet",
+    "factStage": "Stadie",
+    "factHp": "HP",
+    "factLanguage": "Språk",
+    "factReleased": "Släppt",
+    "contents": {
+      "boosters": "boosterpaket",
+      "sleeves": "kortsleeves",
+      "energyCards": "energikort",
+      "damageDice": "tärningar",
+      "coinDie": "myntkast-tärning",
+      "conditionMarkers": "tillståndsmarkörer",
+      "playersGuide": "spelarguide",
+      "codeCard": "TCG Live-kodkort",
+      "dividers": "avdelare",
+      "promoCard": "promokort",
+      "boostersOne": "boosterpaket"
+    },
+    "factSetCardsLine": "{printed} kort ({full} inkl. secret rares)",
+    "factSetCardsLineShort": "{printed} kort"
   },
   "Upgrade": {
     "currentPlan": "Din nuvarande plan ✓",

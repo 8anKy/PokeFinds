@@ -2331,7 +2331,30 @@
     "days30Short": "30 d",
     "historyFootnoteSingle": "Raw, ungraded · listings = daily low, sold = median price",
     "weekChangeSuffix": "this week",
-    "monthChangeSuffix": "last 30 days"
+    "monthChangeSuffix": "last 30 days",
+    "factsCardTitle": "About the card",
+    "factsSealedTitle": "In the box",
+    "factArtist": "Illustrator",
+    "factRarity": "Rarity",
+    "factStage": "Stage",
+    "factHp": "HP",
+    "factLanguage": "Language",
+    "factReleased": "Released",
+    "contents": {
+      "boosters": "booster packs",
+      "sleeves": "card sleeves",
+      "energyCards": "energy cards",
+      "damageDice": "damage dice",
+      "coinDie": "coin-flip die",
+      "conditionMarkers": "condition markers",
+      "playersGuide": "player's guide",
+      "codeCard": "TCG Live code card",
+      "dividers": "box dividers",
+      "promoCard": "promo card",
+      "boostersOne": "booster pack"
+    },
+    "factSetCardsLine": "{printed} cards ({full} incl. secret rares)",
+    "factSetCardsLineShort": "{printed} cards"
   },
   "Upgrade": {
     "currentPlan": "Your current plan ✓",

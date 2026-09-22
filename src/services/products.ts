@@ -15,6 +15,7 @@ import { NOT_HIDDEN, NOT_HIDDEN_SQL } from "@/lib/product-visibility";
 import { getTrendingLift } from "@/services/market";
 import { getGradedSummary, type GradedSummary } from "@/services/graded";
 import { buildGradedCards, defaultGrade } from "@/lib/graded-merge";
+import { buildProductFacts, type ProductFacts } from "@/lib/product-facts";
 import {
   bestMatchScore,
   EMPTY_PERSONAL,
@@ -1365,6 +1366,8 @@ export interface ProductDetailData {
   watchCount: number;
   updatedAt: string;
   set: { id: string; name: string } | null;
+  /** Faktablocket under bilden (desktop) — se `lib/product-facts.ts`. */
+  facts: ProductFacts | null;
   /** Cardmarket-trendserie (hela perioden; klienten filtrerar). */
   chartData: SourceHistoryPoint[];
   /** Serierna grafen får rita (utan butiker — se HISTORY_SOURCE_KEYS). Ingen extra
@@ -1654,6 +1657,7 @@ async function loadProductDetailRaw(slug: string): Promise<ProductDetailData | n
     watchCount: product.watchCount,
     updatedAt: new Date(product.updatedAt).toISOString(),
     set: product.set ? { id: product.set.id, name: product.set.name } : null,
+    facts: buildProductFacts(product),
     chartData,
     historyBySource: {
       cardmarket: historyBySource.cardmarket,
@@ -1740,6 +1744,8 @@ export interface ProductShellData {
   description: string | null;
   imageUrl: string | null;
   set: { id: string; name: string } | null;
+  /** Faktablocket under bilden (desktop) — se `lib/product-facts.ts`. */
+  facts: ProductFacts | null;
   /** Andra tryckningar/versioner av samma kort — bara identitet, priset hämtas live. */
   variants: { slug: string; label: string | null }[];
 }
@@ -1760,7 +1766,9 @@ async function loadProductShellRaw(slug: string): Promise<ProductShellData> {
         description: true,
         imageUrl: true,
         cardId: true,
-        set: { select: { id: true, name: true } },
+        releaseDate: true,
+        set: { select: { id: true, name: true, series: true, releaseDate: true, totalCards: true, totalCardsFull: true } },
+        card: { select: { artist: true, rarity: true, subtype: true, hp: true, number: true } },
       },
     })
   );
@@ -1780,6 +1788,7 @@ async function loadProductShellRaw(slug: string): Promise<ProductShellData> {
     description: product.description,
     imageUrl: product.imageUrl,
     set: product.set ? { id: product.set.id, name: product.set.name } : null,
+    facts: buildProductFacts(product),
     variants: siblings.map((v) => ({ slug: v.slug, label: v.variantLabel })),
   };
 }
