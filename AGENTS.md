@@ -347,6 +347,17 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   ⛔ Navigationsposter (header, sidfot, Mer) länkar fortfarande till sidan; bara PROMPTER öppnar arket.
   Vaktat av `restock-pause-copy`/`price-alert-pause`/`watchlist-limit-copy-sync` (porterade till
   spec-raderna) + `paywall-open.test.ts`.
+- **FAKTAPANEL UNDER PRODUKTBILDEN PÅ DESKTOP (2026-09-22)**: `product-facts-panel.tsx`, data ur skalet
+  (`lib/product-facts.ts`, DB-fritt, 30 d ISR ⇒ formändring = PAGE_EPOCH-bump). Ligger ABSOLUT i vänsterspalten
+  (`top-[466px]` = 450 px brunn + 16) så underkanten ALLTID är i linje med prishistorikkortet och raden aldrig
+  växer; renderas först när priset hämtats; rader döljs NIVÅVIS via container-frågor i globals.css
+  (`.facts-t2/.facts-t3`, `@layer utilities` — `flex` på Fact slår components). Singlar: "Om kortet" ur
+  `Card.artist/types/weakness*/retreatCost/regulationMark/dexId/flavorText` (backfill
+  `scripts/backfill-card-facts.ts`: TCGdex + pokemontcg.io-reserv, COALESCE per fält, stämpel `factsCheckedAt`,
+  steg i `import-new-sets.yml`); < 4 fakta ⇒ ingen panel. Förseglat: "I lådan" ur VERIFIERADE familjeregler
+  (ETB per era, EN/JP-box, bundle, blister, mini/Poké Ball/ex-tin, ex-box, tech sticker …) + kurerad tabell per
+  slug med källa (`src/data/sealed-contents-curated.ts`, vinner). ⛔ **Aldrig LLM, aldrig butikstext, aldrig ett
+  gissat antal (ägarbeslut)** — overifierat ⇒ null. Revision: `scripts/audit-sealed-contents.ts`.
 - **PRODUKTVYN = "HJÄLTE" + EN BAKÅTKNAPP I HELA APPEN (ägarbeslut 2026-09-05, gren `feat/produktvy-hjalte`)**:
   på mobil är produktbilden en scen över hela bredden med en flytande bakåtcirkel, ett rundat ark glider upp
   med titel → pris (`LivePricePanel`, ingen kortram) → två lika breda knappar → prishistorik (`ProductPriceCard`
