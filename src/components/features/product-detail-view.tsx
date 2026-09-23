@@ -377,7 +377,7 @@ export function ProductDetailView({
                 {data.variants.map((v) => (
                   <Link
                     key={v.slug}
-                    href={`/produkter/${v.slug}`}
+                    href={`/produkter/${v.slug}`} prefetch={false}
                     className="card-surface rounded-full px-3 py-1 text-ink transition hover:text-holo-cyan"
                   >
                     {v.label ?? t("baseVersion")}

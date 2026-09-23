@@ -186,7 +186,7 @@ export function ProductCard({ product, className, priority = false }: ProductCar
         {/* Bara det officiella namnet — set och nummer får egna rader nedan. */}
         <h3 className="line-clamp-2 min-h-[2.1rem] text-[12px] font-semibold leading-snug tracking-[-0.01em] text-ink transition-colors group-hover:text-holo-cyan">
           <Link
-            href={`/produkter/${product.slug}`}
+            href={`/produkter/${product.slug}`} prefetch={false}
             className="outline-none after:absolute after:inset-0 after:content-['']"
           >
             {name}

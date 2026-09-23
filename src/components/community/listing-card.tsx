@@ -74,7 +74,7 @@ export function ListingCard({ post }: { post: ThreadDetail }) {
 
       {post.product && (
         <Link
-          href={`/produkter/${post.product.slug}`}
+          href={`/produkter/${post.product.slug}`} prefetch={false}
           className="mt-4 flex items-center gap-3 rounded-lg border border-surface-border p-2.5 transition-colors hover:bg-surface-overlay/50"
         >
           <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-md bg-surface-overlay">

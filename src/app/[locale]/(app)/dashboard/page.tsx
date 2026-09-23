@@ -166,7 +166,7 @@ export default async function DashboardPage() {
                 {restocks.map((r) => (
                   <li key={r.id}>
                     <Link
-                      href={`/produkter/${r.product.slug}`}
+                      href={`/produkter/${r.product.slug}`} prefetch={false}
                       className="flex items-center justify-between gap-3 px-5 py-3 transition-colors hover:bg-surface-overlay/50"
                     >
                       <div className="min-w-0">
@@ -254,7 +254,7 @@ export default async function DashboardPage() {
               {topDrops.map((d) => (
                 <li key={d.productId}>
                   <Link
-                    href={`/produkter/${d.product.slug}`}
+                    href={`/produkter/${d.product.slug}`} prefetch={false}
                     className="flex items-center justify-between gap-3 px-5 py-3 transition-colors hover:bg-surface-overlay/50"
                   >
                     <div className="min-w-0">
@@ -297,7 +297,7 @@ export default async function DashboardPage() {
                 {recommended.map((d) => (
                   <li key={d.productId}>
                     <Link
-                      href={`/produkter/${d.product.slug}`}
+                      href={`/produkter/${d.product.slug}`} prefetch={false}
                       className="flex items-center justify-between gap-3 px-5 py-3 transition-colors hover:bg-surface-overlay/50"
                     >
                       <div className="min-w-0">

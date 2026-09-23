@@ -309,7 +309,7 @@ export function WatchlistTable({
               <RowThumb product={item.product} className="w-12" />
               <div className="min-w-0 flex-1">
                 <Link
-                  href={`/produkter/${item.product.slug}`}
+                  href={`/produkter/${item.product.slug}`} prefetch={false}
                   className="break-words font-medium text-ink transition-colors hover:text-holo-cyan"
                 >
                   {item.product.title}
@@ -418,7 +418,7 @@ export function WatchlistTable({
                   <RowThumb product={item.product} className="w-9" />
                   <div className="min-w-0">
                     <Link
-                      href={`/produkter/${item.product.slug}`}
+                      href={`/produkter/${item.product.slug}`} prefetch={false}
                       className="font-medium text-ink transition-colors hover:text-holo-cyan"
                     >
                       {item.product.title}

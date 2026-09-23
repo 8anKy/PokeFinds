@@ -342,7 +342,7 @@ export default async function CollectionPage({
               );
               const cls = "card-surface pressable flex flex-col gap-2 p-3";
               return slug ? (
-                <Link key={m.id} href={`/produkter/${slug}`} className={cls}>
+                <Link key={m.id} href={`/produkter/${slug}`} prefetch={false} className={cls}>
                   {content}
                 </Link>
               ) : (
