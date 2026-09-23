@@ -157,4 +157,10 @@ EXPOSE 3000
 # SPAKEN: sätt RUN_MIGRATIONS=1 (eller "true") på Railway-tjänsten för att slå på
 # boot-migrationen igen — t.ex. under en engångsåterställning där ingen har CLI-åtkomst.
 # Dokumenterad i docs/DEPLOYMENT.md.
-CMD ["sh", "-c", "node server/isr-cache-boot.cjs || true; if [ \"$RUN_MIGRATIONS\" = \"1\" ] || [ \"$RUN_MIGRATIONS\" = \"true\" ]; then npx prisma migrate deploy || true; fi; npm start"]
+#
+# ⛔ `exec node node_modules/next/dist/bin/next start`, INTE `npm start` (2026-09-23): npm är en egen
+# Node-process (~50 MB) som låg kvar som förälder hela containerns liv — och Railway
+# fakturerar cgroup-minnet, dvs ALLA processer. `exec` ersätter dessutom sh som PID 1,
+# så SIGTERM når Next direkt (sh som PID 1 vidarebefordrar inga signaler ⇒ buffertarna
+# som töms på SIGTERM hann aldrig tömmas före SIGKILL).
+CMD ["sh", "-c", "node server/isr-cache-boot.cjs || true; if [ \"$RUN_MIGRATIONS\" = \"1\" ] || [ \"$RUN_MIGRATIONS\" = \"true\" ]; then npx prisma migrate deploy || true; fi; exec node node_modules/next/dist/bin/next start"]

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decideRecycle, pageCacheToReclaim, parseMemoryStat, recycleConfigFromEnv } from "@/lib/memory-recycle";
+import { decideRecycle, parseMemoryStat, recycleConfigFromEnv } from "@/lib/memory-recycle";
 
 const MB = 1048576;
 const cfg = recycleConfigFromEnv({});
@@ -27,17 +27,12 @@ describe("decideRecycle", () => {
   });
 });
 
-describe("sidcache-vräkningen", () => {
+describe("memory.stat", () => {
   it("läser anon och file ur cgroup v2:s memory.stat", () => {
     const text = "anon 402653184\nfile 367001600\nkernel 1234\nactive_file 1000\n";
     expect(parseMemoryStat(text)).toEqual({ anon: 402653184, file: 367001600 });
   });
   it("ger null när fälten saknas (cgroup v1 har andra namn)", () => {
     expect(parseMemoryStat("cache 100\nrss 200\n")).toBeNull();
-  });
-  it("begär bara det som ligger över golvet, och först när det samlats en del", () => {
-    expect(pageCacheToReclaim(50 * MB)).toBe(0);
-    expect(pageCacheToReclaim(96 * MB)).toBe(0);
-    expect(pageCacheToReclaim(400 * MB)).toBe(352 * MB);
   });
 });

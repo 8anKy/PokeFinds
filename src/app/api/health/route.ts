@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pageCacheReclaimStatus, readCgroupMemoryBytes, readCgroupMemoryStat } from "@/lib/memory-recycle";
+import { readCgroupMemoryBytes, readCgroupMemoryStat } from "@/lib/memory-recycle";
 
 // Liveness-check för uptime-monitorn. MEDVETET ingen DB-fråga: en monitor som
 // pingar var minut skulle annars hålla Neon vaken dygnet runt = onödig compute.
@@ -26,10 +26,9 @@ export function GET() {
       external: mb(m.external),
       arrayBuffers: mb(m.arrayBuffers),
       cgroup: cg === null ? null : mb(cg),
-      // anon = processminne, file = sidcache (se memory-recycle.ts, "SIDCACHEN RÄKNAS").
+      // anon = processminne (alla processer i containern), file = sidcache.
       anon: stat ? mb(stat.anon) : null,
       file: stat ? mb(stat.file) : null,
-      reclaim: pageCacheReclaimStatus(),
     },
   });
 }

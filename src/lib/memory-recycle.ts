@@ -48,10 +48,7 @@
 // Ingen statisk fs-import: instrumentation.ts buntas även för edge-runtimen och webpack
 // vägrar "node:fs" där. process.getBuiltinModule (Node ≥ 22.3) laddar modulen utan att
 // webpack ser den; saknas den (edge/äldre Node) blir svaret null = "ingen container".
-type FsLike = {
-  readFileSync(path: string, enc: string): string;
-  writeFileSync(path: string, data: string): void;
-};
+type FsLike = { readFileSync(path: string, enc: string): string };
 function nodeFs(): FsLike | null {
   const get = (process as unknown as { getBuiltinModule?: (id: string) => unknown }).getBuiltinModule;
   if (typeof get !== "function") return null;
@@ -83,41 +80,23 @@ export function readCgroupMemoryBytes(): number | null {
 }
 
 /**
- * SIDCACHEN RÄKNAS SOM MINNE — OCH FAKTURERAS (mätt 2026-09-23).
+ * `anon` (processminne, alla processer i containern) och `file` (sidcache) ur cgroup
+ * v2:s memory.stat — för /api/health, inte för beslut.
  *
- * `memory.current` = Nodes RSS + kernelns sidcache för filerna containern läst och
- * skrivit. ISR-cachen skriver en gzippad sida till volymen per kall render, och varje
- * skriven fil ligger kvar i sidcachen tills kernelns minnestryck vräker den — vilket
- * aldrig kommer: containerns tak ligger långt över det vi använder. Mätt: /api/health
- * rss 580 / cgroup 753 MB en halvtimme efter en deploy, och Railways minnesgraf följer
- * cgroup-talet, inte RSS. Vi betalade alltså $10/GB-mån för en cache som kernel
- * hade släppt gratis, och `exit(1)`-vakten nedan dödade friska processer för den.
- *
- * cgroup v2 har en knapp för just det: att skriva ett antal byte till
- * `memory.reclaim` ber kernel vräka så mycket ur gruppen, sidcache först (utan
- * swap går anonymt minne inte att vräka alls). Vi begär bara den FIL-backade delen
- * ovanför ett litet golv. Går filen inte att skriva (read-only cgroupfs, äldre
- * kernel) noteras felet EN gång och resten av modulen beter sig som förut.
- * Status syns i /api/health (`mem.reclaim`).
+ * ⛔ MÄTT 2026-09-23: sidcachen går INTE att vräka härifrån. `memory.reclaim` gav
+ * EROFS — Railway monterar cgroupfs read-only. Och den är liten: `file` ~115 MB mot
+ * `anon` ~510 MB en kvart efter boot. Minnesnotan är PROCESSEN, inte sidcachen.
  */
-const CGROUP_STAT = "/sys/fs/cgroup/memory.stat";
-const CGROUP_RECLAIM = "/sys/fs/cgroup/memory.reclaim";
-/** Sidcache under golvet lämnas i fred — den är den varma delen (koden, heta sidor). */
-const RECLAIM_FLOOR_BYTES = 48 * 1048576;
-/** Så här mycket sidcache måste ha samlats innan vi ber om en vräkning. */
-const RECLAIM_TRIGGER_BYTES = 96 * 1048576;
-
 export interface CgroupMemoryStat {
   anon: number;
   file: number;
 }
 
-/** `anon` + `file` ur cgroup v2:s memory.stat, eller null (v1/ingen container). */
 export function readCgroupMemoryStat(): CgroupMemoryStat | null {
   const fs = nodeFs();
   if (!fs) return null;
   try {
-    return parseMemoryStat(fs.readFileSync(CGROUP_STAT, "utf8"));
+    return parseMemoryStat(fs.readFileSync("/sys/fs/cgroup/memory.stat", "utf8"));
   } catch {
     return null;
   }
@@ -134,50 +113,6 @@ export function parseMemoryStat(text: string): CgroupMemoryStat | null {
   if (!Number.isFinite(anon) || !Number.isFinite(file)) return null;
   return { anon: anon as number, file: file as number };
 }
-
-/** Hur många byte sidcache vi ska be kernel vräka nu (0 = inget). Ren, testbar. */
-export function pageCacheToReclaim(fileBytes: number): number {
-  if (!(fileBytes > RECLAIM_TRIGGER_BYTES)) return 0;
-  return fileBytes - RECLAIM_FLOOR_BYTES;
-}
-
-let reclaimStatus: string = "not-run";
-/** För /api/health: "ok", felkoden från första misslyckade försöket, eller "not-run". */
-export function pageCacheReclaimStatus(): string {
-  return reclaimStatus;
-}
-
-/** Ber kernel vräka gruppens överflödiga sidcache. Returnerar vräkta byte (≈), 0 vid inget/fel. */
-export function reclaimPageCache(): number {
-  if (reclaimStatus !== "not-run" && reclaimStatus !== "ok") return 0; // gick inte förra gången
-  const fs = nodeFs();
-  const stat = readCgroupMemoryStat();
-  if (!fs || !stat) return 0;
-  const want = pageCacheToReclaim(stat.file);
-  if (want <= 0) return 0;
-  try {
-    fs.writeFileSync(CGROUP_RECLAIM, String(want));
-  } catch (e) {
-    // EAGAIN = kernel hann inte vräka ALLT vi bad om — delvis lyckat, inte ett fel.
-    const code = (e as { code?: string }).code ?? "error";
-    if (code !== "EAGAIN") {
-      reclaimStatus = code;
-      console.log(`[memory-recycle] memory.reclaim går inte att använda här (${code}) — sidcachen lämnas åt kernel.`);
-      return 0;
-    }
-  }
-  const after = readCgroupMemoryStat();
-  const freed = after ? Math.max(0, stat.file - after.file) : 0;
-  if (reclaimStatus === "not-run") {
-    console.log(
-      `[memory-recycle] memory.reclaim fungerar: sidcache ${Math.round(stat.file / 1048576)} → ${Math.round((after?.file ?? 0) / 1048576)} MB.`
-    );
-  }
-  reclaimStatus = "ok";
-  return freed;
-}
-
-const RECLAIM_MS = 2 * 60 * 1000;
 
 export interface RecycleConfig {
   thresholdMb: number;
@@ -239,24 +174,8 @@ export function startMemoryRecycler(): boolean {
     console.log("[memory-recycle] Inget cgroup-minne att läsa — ingen container, vakten startas inte.");
     return false;
   }
-  // Sidcachen töms OFTARE än omstartsvakten tittar: ett crawlersvep skriver ~200 MB
-  // ISR-filer i timmen, och varje minut de ligger kvar är fakturerad.
-  const reclaimTimer = setInterval(() => {
-    try {
-      reclaimPageCache();
-    } catch {
-      /* får aldrig fälla processen */
-    }
-  }, RECLAIM_MS);
-  reclaimTimer.unref?.();
   let lastEmergencyAt: number | null = null;
   const timer = setInterval(async () => {
-    // Vräk sidcachen FÖRE beslutet — omstarten ska bara ta det kernel inte kan släppa.
-    try {
-      reclaimPageCache();
-    } catch {
-      /* ignoreras */
-    }
     const bytes = readCgroupMemoryBytes();
     if (bytes === null) return;
     const decision = decideRecycle(bytes, Date.now(), process.uptime(), lastEmergencyAt, cfg);
