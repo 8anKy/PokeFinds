@@ -669,12 +669,7 @@
     "gridSectionGrading": "Gradering",
     "gridGradingNone": "Ograderat",
     "gridGradeLabel": "Betyg",
-    "gridCopiesHintRemove": "Tryck för att markera fler, tryck igen för att ångra.",
-    "dailyTitle": "Idag",
-    "dailySubtitle": "sedan förra prisuppdateringen",
-    "dailyUnchanged": "Oförändrat sedan förra prisuppdateringen.",
-    "dailyEmpty": "Lägg till kort så ser du här hur samlingen rör sig varje dag.",
-    "dailyEmptyCta": "Skanna ett kort"
+    "gridCopiesHintRemove": "Tryck för att markera fler, tryck igen för att ångra."
   },
   "Legal": {
     "lastUpdated": "Senast uppdaterad: {date}"

@@ -225,11 +225,6 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   `/api/feature-preview`, ingen ombyggnad). ⛔ Skanna är sista steget (kameratillstånd), turen väntar ut cookie-bannern
   (den täcker flikarna på mobilwebben), ett mål som inte dyker upp hoppas över i stället för att lämna skärmen mörk.
   ⛔ "+", klockan och Bevaka är INFO-steg (tryck vs håll in förklaras) — de skapar riktig data och öppnar ark ovanpå turen.
-- **"IDAG"-KORTET ÖVERST I SAMLINGEN (2026-09-23)**: samlingens rörelse sedan förra prisdagen + de tre största rörelserna
-  (upp och ned, en rad per vara även med flera lots). Ren dom `src/lib/collection-daily.ts`, räknad i
-  `computeCollectionValue` ur SAMMA snapshots och SAMMA ankring (nuvärdet) som värdegrafen — kostar ingen extra fråga,
-  därför på /samling och inte på Utforska. ⛔ Bara mätbart räknas (två på varandra följande prisdagar, färsk, ägd dagen
-  före); inget mätbart ⇒ inget kort. ⛔ FÖRHANDSVISNING: `FEATURE_DAILY_CARD_PUBLIC=1` släpper det för alla.
 - ⛔ **TRE TAL OM ETT SET, ALDRIG BLANDADE**: `totalCards` = printedTotal (talet på kortet, som skannern
   läser — byt ALDRIG mening på den); `totalCardsFull` = hela setet inkl. secret rares (kompletteringens
   nämnare); master set-nämnaren = de TRYCKNINGAR VI listar, aldrig TCGdex tal — en nämnare användaren inte

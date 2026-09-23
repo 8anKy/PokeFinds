@@ -669,12 +669,7 @@
     "gridSectionGrading": "Grading",
     "gridGradingNone": "Ungraded",
     "gridGradeLabel": "Grade",
-    "gridCopiesHintRemove": "Tap to mark more, tap again to undo.",
-    "dailyTitle": "Today",
-    "dailySubtitle": "since the last price update",
-    "dailyUnchanged": "Unchanged since the last price update.",
-    "dailyEmpty": "Add cards and you'll see here how your collection moves every day.",
-    "dailyEmptyCta": "Scan a card"
+    "gridCopiesHintRemove": "Tap to mark more, tap again to undo."
   },
   "Legal": {
     "lastUpdated": "Last updated: {date}"

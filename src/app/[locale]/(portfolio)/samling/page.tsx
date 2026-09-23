@@ -32,8 +32,6 @@ import { listPortfolios, portfolioAllowance } from "@/services/portfolios";
 import { portfolioItemWhere } from "@/lib/portfolio-limit";
 import { isSealedCollectionItem } from "@/lib/collection-labels";
 import { PortfolioBar } from "./portfolio-bar";
-import { DailyChangeCard } from "./daily-change-card";
-import { previewAllowedFor } from "@/lib/feature-preview";
 
 export const dynamic = "force-dynamic";
 
@@ -198,12 +196,6 @@ export default async function CollectionPage({
         sets={<SetProgressList rows={setRows} />}
         collection={
           <div className="space-y-8">
-      {/* "Idag" — samlingens rörelse sedan förra prisdagen (förhandsvisning: bara admin
-          tills FEATURE_DAILY_CARD_PUBLIC=1). Ingen extra fråga: talen kommer ur samma
-          snapshots som grafen. */}
-      {previewAllowedFor("DAILY_CARD", session.user) && (
-        <DailyChangeCard daily={value.daily} empty={value.uniqueItems === 0} slugByItem={slugByItem} />
-      )}
       {/* Mobil-hero: totalt värde + förändring över vald period + graf */}
       <section className="lg:hidden">
         <CollectionValueChart
