@@ -11,8 +11,9 @@
  * ⛔ BARA MOBIL (bottenflikarna). Desktop har en annan meny och skulle behöva egna mål.
  * ⛔ SKANNA ÄR SISTA STEGET MED FLIT: sidan startar kameran och ber om tillstånd.
  *    Mitt i turen hade det avbrutit den; som sista tryck ÄR det turens slut.
- * ⛔ Bevaka-steget kräver aldrig ett tryck — knappen skapar en RIKTIG bevakning
- *    (och öppnar arket för gratiskontot). Man får trycka, men "Nästa" räcker.
+ * ⛔ SNABBKNAPPARNA ("+" och klockan) OCH BEVAKA ÄR INFO-STEG — de skapar RIKTIG data
+ *    (ett samlingsexemplar, en bevakning) och öppnar ark ovanpå turen. De visas och
+ *    förklaras (tryck vs håll in), men "Nästa" tar en vidare; målet går inte att trycka.
  */
 
 export type TourAdvance =
@@ -37,6 +38,8 @@ export interface TourStep {
   guestInfoOnly?: boolean;
   /** Gästens egen text, när steget lovar något kontot krävs för. */
   guestCopy?: string;
+  /** Steget finns inte för gäster (målet renderas bara för inloggade, t.ex. Bevakningar i Mer). */
+  guestSkip?: boolean;
   /**
    * Hur länge målet får dröja innan steget hoppas över (ms). Default 4 s. Bevaka-knappen
    * finns först när produktvyn HÄMTAT produkten — på ett långsamt mobilnät tar det tid.
@@ -46,6 +49,9 @@ export interface TourStep {
 
 export const TOUR_STEPS: TourStep[] = [
   { id: "search", target: "explore-search", copy: "search", advance: { kind: "next" } },
+  // Snabbknapparna på produktkortet — samma gestmodell: tryck = direkt, håll in = val.
+  { id: "quickAdd", target: "quick-add", copy: "quickAdd", guestCopy: "quickAddGuest", advance: { kind: "next" } },
+  { id: "bell", target: "watch-bell", copy: "bell", guestCopy: "bellGuest", advance: { kind: "next" } },
   { id: "product", target: "product-card", copy: "product", advance: { kind: "product-open" } },
   {
     id: "watch",
@@ -62,8 +68,28 @@ export const TOUR_STEPS: TourStep[] = [
     advance: { kind: "route", path: "/samling" },
     guestInfoOnly: true,
   },
+  { id: "more", target: "tab-more", copy: "more", advance: { kind: "route", path: "/mer" } },
+  { id: "watches", target: "watches-row", copy: "watches", advance: { kind: "next" }, guestSkip: true },
   { id: "scan", target: "tab-scan", copy: "scan", advance: { kind: "route", path: "/skanna" } },
 ];
+
+/** Nästa steg efter `from` för den här besökaren (gäster hoppar över `guestSkip`). null = turen är slut. */
+export function nextStepIndex(from: number, guest: boolean): number | null {
+  for (let i = from + 1; i < TOUR_STEPS.length; i++) {
+    if (!(guest && TOUR_STEPS[i].guestSkip)) return i;
+  }
+  return null;
+}
+
+/** Antal steg den här besökaren faktiskt ser — "Steg 3 av 8" ska inte räkna ett överhoppat steg. */
+export function visibleStepCount(guest: boolean): number {
+  return TOUR_STEPS.filter((s) => !(guest && s.guestSkip)).length;
+}
+
+/** Stegets nummer (1-baserat) bland de steg besökaren ser. */
+export function visibleStepNumber(index: number, guest: boolean): number {
+  return TOUR_STEPS.slice(0, index + 1).filter((s) => !(guest && s.guestSkip)).length;
+}
 
 /** Sidan turen startar på (första besöket). */
 export const TOUR_START_PATH = "/produkter";

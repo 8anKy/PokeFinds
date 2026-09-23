@@ -9,7 +9,15 @@ import fs from "node:fs";
 import path from "node:path";
 import sv from "../../messages/sv.json";
 import en from "../../messages/en.json";
-import { TOUR_STEPS, bubblePlacement, isProductPage, routeReached } from "@/lib/app-tour";
+import {
+  TOUR_STEPS,
+  bubblePlacement,
+  isProductPage,
+  nextStepIndex,
+  routeReached,
+  visibleStepCount,
+  visibleStepNumber,
+} from "@/lib/app-tour";
 
 const SRC = path.resolve(__dirname, "../../src");
 function allSource(dir: string): string {
@@ -40,12 +48,31 @@ describe("app-tour", () => {
     for (const s of TOUR_STEPS) {
       const literal = src.includes(`data-tour="${s.target}"`);
       const tab = s.target.startsWith("tab-") && src.includes("data-tour={`tab-${t.key}`}");
-      expect(literal || tab, s.target).toBe(true);
+      // Mer-raderna bär målet som data (`tour: "watches-row"` → MenuRow).
+      const menuRow = src.includes(`tour: "${s.target}"`) && src.includes("data-tour={link.tour}");
+      expect(literal || tab || menuRow, s.target).toBe(true);
     }
   });
 
   it("skanna är sista steget (kameran ber om tillstånd)", () => {
     expect(TOUR_STEPS.at(-1)?.id).toBe("scan");
+  });
+
+  it("snabbknapparna och Bevaka är info-steg — de skapar riktig data", () => {
+    for (const id of ["quickAdd", "bell", "watch"]) {
+      expect(TOUR_STEPS.find((s) => s.id === id)?.advance.kind, id).toBe("next");
+    }
+  });
+
+  it("gäster hoppar över Bevakningar-raden och räknar rätt antal steg", () => {
+    const watches = TOUR_STEPS.findIndex((s) => s.id === "watches");
+    const more = TOUR_STEPS.findIndex((s) => s.id === "more");
+    expect(nextStepIndex(more, true)).toBe(watches + 1);
+    expect(nextStepIndex(more, false)).toBe(watches);
+    expect(visibleStepCount(true)).toBe(TOUR_STEPS.length - 1);
+    expect(visibleStepCount(false)).toBe(TOUR_STEPS.length);
+    expect(visibleStepNumber(TOUR_STEPS.length - 1, true)).toBe(TOUR_STEPS.length - 1);
+    expect(nextStepIndex(TOUR_STEPS.length - 1, false)).toBeNull();
   });
 
   it("rutt-steg känner igen sin väg, med och utan undersidor", () => {

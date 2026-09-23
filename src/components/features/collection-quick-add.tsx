@@ -215,6 +215,7 @@ export function CollectionQuickAdd({ productId, estimatedValue }: CollectionQuic
       <button
         ref={buttonRef}
         type="button"
+        data-tour="quick-add"
         onClick={onClick}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}

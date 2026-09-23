@@ -34,7 +34,10 @@ import {
   bubblePlacement,
   isProductPage,
   markAppTourSeen,
+  nextStepIndex,
   routeReached,
+  visibleStepCount,
+  visibleStepNumber,
   type Rect,
 } from "@/lib/app-tour";
 
@@ -66,15 +69,20 @@ export function AppTour() {
     setRect(null);
   }, []);
 
+  // Gästläget läses via ref så `next` kan vara stabil (den ligger i effekters deps).
+  const guestRef = useRef(true);
+  guestRef.current = loggedIn !== true;
+
   const next = useCallback(() => {
     setRect(null);
     setStep((s) => {
       if (s == null) return s;
-      if (s + 1 >= TOUR_STEPS.length) {
+      const n = nextStepIndex(s, guestRef.current);
+      if (n == null) {
         markAppTourSeen();
         return null;
       }
-      return s + 1;
+      return n;
     });
   }, []);
 
@@ -180,7 +188,7 @@ export function AppTour() {
   const hole = { top: rect.top - PAD, left: rect.left - PAD, width: rect.width + PAD * 2, height: rect.height + PAD * 2 };
   const place = bubblePlacement(hole, { width: vw, height: vh }, bubbleSize);
   const copyKey = guest && current.guestCopy ? current.guestCopy : current.copy;
-  const last = step === TOUR_STEPS.length - 1;
+  const last = nextStepIndex(step, guest) == null;
 
   return (
     // ⛔ Behållaren släpper igenom tryck (pointer-events-none) — annars fångar den
@@ -215,7 +223,7 @@ export function AppTour() {
           }
         />
         <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-holo-cyan">
-          {t("progress", { step: step + 1, total: TOUR_STEPS.length })}
+          {t("progress", { step: visibleStepNumber(step, guest), total: visibleStepCount(guest) })}
         </div>
         <h2 className="mt-1 text-pretty text-base font-bold leading-snug text-ink">{t(`${copyKey}Title`)}</h2>
         <p className="mt-1 text-pretty text-sm leading-relaxed text-ink-muted">{t(`${copyKey}Body`)}</p>

@@ -2721,12 +2721,24 @@
     "productTitle": "Öppna en produkt",
     "productBody": "Tryck på en produkt för att se priset hos alla butiker och hur det har ändrats.",
     "watchTitle": "Bevaka",
-    "watchBody": "Tryck här när du vill ha en vara, så säger vi till när den kommer i lager hos någon av de över 40 butikerna vi följer.",
+    "watchBody": "Inne på produkten väljer du vad du vill bli larmad om: när den kommer i lager, eller när priset sjunker (prislarm ingår i Pro).",
     "watchGuestTitle": "Bevaka",
     "watchGuestBody": "Med ett gratis konto kan du bevaka en vara och få ett larm när den kommer i lager hos någon av de över 40 butikerna vi följer.",
     "portfolioTitle": "Din samling",
     "portfolioBody": "Lägg till dina kort och produkter och se vad samlingen är värd, varje dag.",
     "scanTitle": "Skanna ett kort",
-    "scanBody": "Håll kameran mot ett kort så ser du vilket det är och vad det är värt. Tryck för att prova!"
+    "scanBody": "Håll kameran mot ett kort så ser du vilket det är och vad det är värt. Tryck för att prova!",
+    "quickAddTitle": "Snabbknappen +",
+    "quickAddBody": "Tryck på + så läggs ett exemplar i din samling direkt. Håll in knappen för att välja antal, inköpspris och pärm.",
+    "quickAddGuestTitle": "Snabbknappen +",
+    "quickAddGuestBody": "Med ett gratis konto lägger du till kort och produkter här. Tryck för ett exemplar direkt, håll in för att välja antal och inköpspris.",
+    "bellTitle": "Snabbevaka med klockan",
+    "bellBody": "Tryck på klockan så bevakar du varan direkt. Håll in för att välja mellan varan och hela setet (hela setet ingår i Pro).",
+    "bellGuestTitle": "Snabbevaka med klockan",
+    "bellGuestBody": "Med ett gratis konto bevakar du varan med ett tryck på klockan. Håll in för att välja mellan varan och hela setet.",
+    "moreTitle": "Mer",
+    "moreBody": "Under Mer hittar du dina bevakningar, inställningar och ditt konto.",
+    "watchesTitle": "Dina bevakningar",
+    "watchesBody": "Allt du bevakar samlas här. Här ändrar du larmen eller slutar bevaka."
   }
 }

@@ -100,7 +100,7 @@ export default async function MerPage() {
   // står redan på kontokortet ovan, och samma siffra två gånger på en skärm gör
   // ingen av dem trovärdig. Kortet visar TILLSTÅNDET, listan är VÄGEN dit.
   const activity: MenuLink[] = [
-    { href: "/bevakningar", label: t("watches"), icon: IconBell },
+    { href: "/bevakningar", label: t("watches"), icon: IconBell, tour: "watches-row" },
     { href: "/mer/utmarkelser", label: tA("title"), icon: IconMedal },
     ...(communityV2
       ? [{ href: "/meddelanden", label: tNav("messages"), icon: IconMail, dot: unread > 0 }]

@@ -2721,12 +2721,24 @@
     "productTitle": "Open a product",
     "productBody": "Tap a product to see its price at every store and how it has changed.",
     "watchTitle": "Watch",
-    "watchBody": "Tap here when you want an item, and we'll tell you when it's back in stock at any of the 40+ stores we track.",
+    "watchBody": "On the product you choose what to be alerted about: when it's back in stock, or when the price drops (price alerts are part of Pro).",
     "watchGuestTitle": "Watch",
     "watchGuestBody": "With a free account you can watch an item and get an alert when it's back in stock at any of the 40+ stores we track.",
     "portfolioTitle": "Your collection",
     "portfolioBody": "Add your cards and products and see what your collection is worth, every day.",
     "scanTitle": "Scan a card",
-    "scanBody": "Point the camera at a card to see which one it is and what it's worth. Tap to try it!"
+    "scanBody": "Point the camera at a card to see which one it is and what it's worth. Tap to try it!",
+    "quickAddTitle": "The + quick button",
+    "quickAddBody": "Tap + to add one copy to your collection right away. Hold the button to choose quantity, purchase price and binder.",
+    "quickAddGuestTitle": "The + quick button",
+    "quickAddGuestBody": "With a free account you add cards and products here. Tap to add one copy right away, hold to choose quantity and purchase price.",
+    "bellTitle": "Quick-watch with the bell",
+    "bellBody": "Tap the bell to watch the item right away. Hold it to choose between the item and the whole set (the whole set is part of Pro).",
+    "bellGuestTitle": "Quick-watch with the bell",
+    "bellGuestBody": "With a free account you watch an item with one tap on the bell. Hold it to choose between the item and the whole set.",
+    "moreTitle": "More",
+    "moreBody": "Under More you'll find your watches, settings and your account.",
+    "watchesTitle": "Your watches",
+    "watchesBody": "Everything you watch is collected here. Change the alerts or stop watching here."
   }
 }

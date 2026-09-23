@@ -337,6 +337,7 @@ export function WatchBell({ productId, productTitle, setId, setName }: WatchBell
           }
         }}
         disabled={saving}
+        data-tour="watch-bell"
         aria-label={active ? t("watching") : t("watch")}
         title={t("holdForOptions")}
         aria-haspopup="dialog"

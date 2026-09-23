@@ -22,6 +22,8 @@ export interface MenuLink {
   value?: string;
   /** Turkos prick i stället för ett tal (olästa meddelanden). */
   dot?: boolean;
+  /** `data-tour`-mål för appens guidade tur (lib/app-tour.ts). */
+  tour?: string;
 }
 
 /**
@@ -48,6 +50,7 @@ export function MenuRow({ link }: { link: MenuLink }) {
   return (
     <Link
       href={link.href}
+      data-tour={link.tour}
       className="flex items-center gap-3.5 border-b border-surface-border px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-overlay/60 active:bg-surface-overlay"
     >
       {link.icon && <link.icon size={20} className="shrink-0 text-ink-faint" />}
