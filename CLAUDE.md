@@ -219,10 +219,9 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   Nås via sidfoten, sitemapen (med ärligt `lastModified`) och "Läs guiden"-länken på setsidan (`guideForSet`).
 - **GUIDAD TUR I APPEN (2026-09-23, ägarbeslut: "användaren trycker")**: 9 steg på mobil (sök → "+" → klockan → produkt →
   Bevaka → Samling → Mer → Bevakningar-raden → Skanna; gäster 8, utan Bevakningar) som markerar RIKTIGA knappar (`data-tour`-attribut) och går vidare när användaren själv tryckt
-  (rutt/overlay), "Hoppa över" i varje steg. Steg + regler: `src/lib/app-tour.ts`, ritning `components/features/app-tour.tsx`
-  (rot-layouten), tillstånd = localStorage, "Visa guiden igen" i Mer (`/produkter?guide=1`). ⛔ **FÖRHANDSVISNING**: bara
-  admin / `FEATURE_PREVIEW_EMAILS` tills `FEATURE_APP_TOUR_PUBLIC=1` sätts i Railway (läses i runtime via
-  `/api/feature-preview`, ingen ombyggnad). ⛔ Skanna är sista steget (kameratillstånd), turen väntar ut cookie-bannern
+  (rutt/overlay), "Avsluta guiden" i varje steg (var "Hoppa över" — lästes som att bara steget hoppades över). Steg + regler: `src/lib/app-tour.ts`, ritning `components/features/app-tour.tsx`
+  (rot-layouten), tillstånd = localStorage, "Visa guiden igen" i Mer (`/produkter?guide=1`). ✅ **SLÄPPT FÖR ALLA 2026-09-23** (`FEATURE_APP_TOUR_PUBLIC=1` i Railway,
+  läses i runtime via `/api/feature-preview`); befintliga användare får den en gång per enhet (localStorage). ⛔ Skanna är sista steget (kameratillstånd), turen väntar ut cookie-bannern
   (den täcker flikarna på mobilwebben), ett mål som inte dyker upp hoppas över i stället för att lämna skärmen mörk.
   ⛔ "+", klockan och Bevaka är INFO-steg (tryck vs håll in förklaras) — de skapar riktig data och öppnar ark ovanpå turen.
 - ⛔ **TRE TAL OM ETT SET, ALDRIG BLANDADE**: `totalCards` = printedTotal (talet på kortet, som skannern

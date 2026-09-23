@@ -2712,7 +2712,7 @@
   "Tour": {
     "label": "Guided tour of the app",
     "progress": "Step {step} of {total}",
-    "skip": "Skip",
+    "skip": "End tour",
     "next": "Next",
     "done": "Done",
     "tapHint": "Tap the highlighted item to continue",

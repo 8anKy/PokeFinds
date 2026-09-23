@@ -2712,7 +2712,7 @@
   "Tour": {
     "label": "Guidad tur genom appen",
     "progress": "Steg {step} av {total}",
-    "skip": "Hoppa över",
+    "skip": "Avsluta guiden",
     "next": "Nästa",
     "done": "Klar",
     "tapHint": "Tryck på det markerade för att gå vidare",

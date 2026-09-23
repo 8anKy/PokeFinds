@@ -1,7 +1,8 @@
 /**
  * APPENS GUIDADE TUR (ägarbeslut 2026-09-23): markerar riktiga knappar en i taget
  * och ANVÄNDAREN TRYCKER själv för att gå vidare — ett bildspel lär inte ut vägen
- * genom appen, att själv ha tryckt på den gör det. "Hoppa över" finns i varje steg.
+ * genom appen, att själv ha tryckt på den gör det. "Avsluta guiden" finns i varje steg
+ * (ägarbeslut: "Hoppa över" lästes som att bara STEGET hoppades över).
  *
  * Ren data + rena funktioner här; `components/features/app-tour.tsx` ritar.
  *
