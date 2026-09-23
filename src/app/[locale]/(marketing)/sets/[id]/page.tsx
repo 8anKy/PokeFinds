@@ -16,6 +16,7 @@ import { isSealedCategory } from "@/lib/product-category";
 import { IconPackage } from "@/components/ui/icons";
 import { SubpageHeader } from "@/components/layout/subpage-header";
 import { SwipeBack } from "@/components/ui/swipe-back";
+import { guideForSet } from "@/content/guides";
 
 // Set-data ändras ~en gång/dygn → cacha per set (ISR). Sparar Vercel CPU + Neon.
 export const revalidate = 3600;
@@ -84,6 +85,10 @@ export default async function SetPage({ params }: PageProps) {
   const locale = await getLocale();
   const set = await getSet(params.id);
   if (!set) notFound();
+  const tGuides = await getTranslations("Guides");
+  // DB-fri: guiderna är en incheckad fil. Länken är setsidans väg IN i guiden och
+  // guidens starkaste interna länk (en sida med riktig brödtext om setet).
+  const guide = guideForSet(set.id);
 
   const products = set.products.map((p) => {
     const priced = p.offers.filter(
@@ -189,6 +194,11 @@ export default async function SetPage({ params }: PageProps) {
             {t("cards", { count: set._count.cards })} ·{" "}
             {t("products", { count: products.length })}
           </p>
+          {guide && (
+            <Link href={`/guider/${guide.slug}`} className="mt-1 inline-block text-sm font-semibold text-holo-cyan hover:underline">
+              {tGuides("readGuide", { name: set.name })}
+            </Link>
+          )}
         </div>
         {/* Knappen finns BARA när setet faktiskt har sealed att bevaka — annars
             vore den ett löfte om larm som aldrig kan avfyras (singlar restockar

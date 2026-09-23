@@ -210,7 +210,8 @@
     "terms": "Terms of use",
     "privacy": "Privacy policy",
     "cookies": "Cookie policy",
-    "copyright": "© {year} Foilio. Pokémon and all related names are trademarks of their respective owners. Foilio is an independent service."
+    "copyright": "© {year} Foilio. Pokémon and all related names are trademarks of their respective owners. Foilio is an independent service.",
+    "guides": "Guides"
   },
   "JoinUs": {
     "title": "Join us",
@@ -2688,5 +2689,22 @@
     "newsNotFoundBody": "The article has either been removed or moved.",
     "sourceLabel": "Source",
     "openInAppLabel": "Read more in the app"
+  },
+  "Guides": {
+    "metaTitle": "Pokémon TCG guides – sets, releases and card values",
+    "metaDescription": "Foilio's guides to Pokémon cards: upcoming sets and release dates, what each product contains, the most sought-after cards and how to find out what your cards are worth.",
+    "h1": "Guides",
+    "intro": "Everything about upcoming and current Pokémon sets: release dates, what the products contain and which cards are most sought after. Plus guides on valuing your collection.",
+    "kindSet": "Set guide",
+    "kindGuide": "Guide",
+    "updated": "Updated {date}",
+    "factsTitle": "Quick facts",
+    "sourcesTitle": "Sources",
+    "seeSet": "See the set and all prices",
+    "breadcrumb": "Guides",
+    "notFound": "Guide not found",
+    "notFoundBody": "This guide has been moved or removed.",
+    "readGuide": "Read the {name} guide",
+    "swedishOnly": "Our guides are written in Swedish."
   }
 }

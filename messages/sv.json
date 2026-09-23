@@ -210,7 +210,8 @@
     "terms": "Användarvillkor",
     "privacy": "Integritetspolicy",
     "cookies": "Cookiepolicy",
-    "copyright": "© {year} Foilio. Pokémon och alla relaterade namn är varumärken som tillhör sina respektive ägare. Foilio är en oberoende tjänst."
+    "copyright": "© {year} Foilio. Pokémon och alla relaterade namn är varumärken som tillhör sina respektive ägare. Foilio är en oberoende tjänst.",
+    "guides": "Guider"
   },
   "JoinUs": {
     "title": "Häng med oss",
@@ -2688,5 +2689,22 @@
     "newsNotFoundBody": "Nyheten har antingen tagits bort eller flyttats.",
     "sourceLabel": "Källa",
     "openInAppLabel": "Läs mer i appen"
+  },
+  "Guides": {
+    "metaTitle": "Guider om Pokémon TCG – set, släpp och kortvärde",
+    "metaDescription": "Foilios guider om Pokémonkort: kommande set och släppdatum, vad produkterna innehåller, de mest eftertraktade korten och hur du tar reda på vad dina kort är värda.",
+    "h1": "Guider",
+    "intro": "Allt om kommande och aktuella Pokémon-set: släppdatum, vad produkterna innehåller och vilka kort som är mest eftertraktade. Plus guider om hur du värderar din samling.",
+    "kindSet": "Set-guide",
+    "kindGuide": "Guide",
+    "updated": "Uppdaterad {date}",
+    "factsTitle": "Snabbfakta",
+    "sourcesTitle": "Källor",
+    "seeSet": "Se setet och alla priser",
+    "breadcrumb": "Guider",
+    "notFound": "Guiden finns inte",
+    "notFoundBody": "Den här guiden har flyttats eller tagits bort.",
+    "readGuide": "Läs guiden om {name}",
+    "swedishOnly": "Guiderna är skrivna på svenska."
   }
 }

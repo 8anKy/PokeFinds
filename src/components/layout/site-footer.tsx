@@ -26,6 +26,8 @@ export async function SiteFooter() {
                 ~20k produktsidor vilade därmed helt på XML-sitemapen.
                 Länken här är den enda som bryter cirkeln — ta inte bort den. */}
             <li><Link href="/sets" className="transition-colors duration-150 hover:text-ink">{t("allSets")}</Link></li>
+            {/* Set-guiderna (src/content/guides.ts) — deras enda länk från varje sida. */}
+            <li><Link href="/guider" className="transition-colors duration-150 hover:text-ink">{t("guides")}</Link></li>
             <li><Link href="/skanna" className="transition-colors duration-150 hover:text-ink">{t("scanCards")}</Link></li>
             <li><Link href="/priser" className="transition-colors duration-150 hover:text-ink">{t("pricingPro")}</Link></li>
           </ul>

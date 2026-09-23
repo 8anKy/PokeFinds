@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { NOT_HIDDEN } from "@/lib/product-visibility";
 import { getFeed } from "@/lib/feed-store";
 import { newsFeedPublic } from "@/lib/news-feed-gate";
+import { GUIDES } from "@/content/guides";
 
 // `||`, inte `??`: en saknad variabel expanderas till TOM STRÄNG (GitHub Actions,
 // och en tom Railway-variabel beter sig likadant), och `"" ?? x` ger `""` — reserven
@@ -117,6 +118,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${BASE_URL}/produkter`, changeFrequency: "hourly", priority: 1 },
     { url: `${BASE_URL}/sets`, changeFrequency: "weekly", priority: 0.7 },
+    // Guiderna är en incheckad fil (src/content/guides.ts) — de står här bland de
+    // statiska vägarna så att de följer med även när Neon inte svarar. Bara svenska:
+    // `/en/guider/*` pekar sin kanoniska URL på svenska.
+    // `lastModified` är ÄRLIGT här, till skillnad från katalogen nedan: `updatedAt`
+    // sätts för hand när texten ändras, aldrig av en skrivning som råkar röra raden.
+    { url: `${BASE_URL}/guider`, changeFrequency: "weekly", priority: 0.6 },
+    ...GUIDES.map((g) => ({
+      url: `${BASE_URL}/guider/${g.slug}`,
+      lastModified: g.updatedAt,
+      changeFrequency: "monthly" as const,
+      priority: 0.6,
+    })),
     { url: `${BASE_URL}/priser`, changeFrequency: "monthly", priority: 0.6 },
     // Nyheter och evenemang läggs till NEDAN, men bara när ytan är publik
     // (lib/news-feed-gate.ts). ⛔ En sitemap är en INBJUDAN: att peka ut en yta vi

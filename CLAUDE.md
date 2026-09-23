@@ -210,6 +210,11 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   levererar dem till `/api/cron/feed-inbox` ⇒ `drafts.json` på volymen; ägaren godkänner i admin → *Nyheter*
   (rätta text, ladda upp eget omslag → `feed/covers/` på volymen, `/api/feed-cover/`). ⛔ `curated` står inte
   i `JOB_LANES` — `feed-publish` hade raderat de godkända. DB-fritt hela vägen. Regler: `news-events.md`.
+- **GUIDER FÖR SEO (`/guider`, 2026-09-23, ägarbeslut)**: set-guider + köpguider, skilda från /nyheter (appens
+  flöde). ⛔ Innehållet är en INCHECKAD FIL (`src/content/guides.ts`) — helstatiska sidor, prerenderade vid bygget,
+  ingen DB/volym; ny guide = ny post + push. ⛔ Bara verifierade fakta med källa i `sources`, INGA priser i texten
+  (vaktat av `tests/unit/guides-content.test.ts`), texten är svensk även under `/en/` ⇒ kanonisk URL alltid svensk.
+  Nås via sidfoten, sitemapen (med ärligt `lastModified`) och "Läs guiden"-länken på setsidan (`guideForSet`).
 - ⛔ **TRE TAL OM ETT SET, ALDRIG BLANDADE**: `totalCards` = printedTotal (talet på kortet, som skannern
   läser — byt ALDRIG mening på den); `totalCardsFull` = hela setet inkl. secret rares (kompletteringens
   nämnare); master set-nämnaren = de TRYCKNINGAR VI listar, aldrig TCGdex tal — en nämnare användaren inte
