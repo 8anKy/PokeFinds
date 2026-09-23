@@ -360,6 +360,8 @@ export type FeedItem = {
   storeStock?: StoreStock | null;
   /** De fysiska butikernas eget lagerspår (se RawProductData.storeStatus). */
   storeStatus?: StockStatus;
+  /** Medlemsnivåkrav (se RawProductData.minRankLevel). */
+  minRankLevel?: number | null;
 };
 
 /**
@@ -867,6 +869,7 @@ export async function fetchSourceFeed(source: RestockSourceInfo): Promise<FeedIt
           storeOnly: p.storeOnly === true,
           storeStock: p.storeStock ?? null,
           ...(p.storeStatus ? { storeStatus: p.storeStatus } : {}),
+          ...(p.minRankLevel != null ? { minRankLevel: p.minRankLevel } : {}),
         };
       });
   } catch (err) {

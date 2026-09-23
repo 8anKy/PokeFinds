@@ -69,6 +69,18 @@ const LIVE_POLL_DELAY_MS = Math.max(100, Number(process.env.WEBHALLEN_LIVE_POLL_
  */
 let livePollCursor = 0;
 
+/**
+ * SENASTE LIVE-SVARET PER PRODUKT (2026-09-23). I loop-läge kollas bara en skiva av
+ * kandidaterna per tick — resten fick sökindexets (släpande) svar, så en vara vars
+ * index låg efter läste "slut" tre tick av fyra och "i lager" det fjärde. Varje sådant
+ * byte blev en lagerflipp i lanen: blinkar som åt riktiga påfyllningar och en
+ * flapphistorik som till slut gav 24 h tystnad. Nu vinner ett FÄRSKT live-svar över
+ * indexet även de tick produkten inte slås upp. TTL:en är flera rotationsvarv lång —
+ * en vara där live och index är oense förblir kandidat och hålls därmed färsk.
+ */
+const LIVE_CACHE_TTL_MS = 15 * 60_000;
+const liveCache = new Map<number, { product: WebhallenProduct; at: number }>();
+
 function searchUrl(page: number): string {
   return `${BASE_URL}/api/productdiscovery/search/${encodeURIComponent(SEARCH_QUERY)}?page=${page}&touchpoint=DESKTOP&totalProductCountSet=true`;
 }
@@ -89,6 +101,13 @@ interface WebhallenProduct {
   /** T.ex. "Leksaker & Hobby/Samlarkortspel/Pokémon" */
   categoryTree?: string | null;
   thumbnail?: string;
+  /**
+   * false = "kan endast hämtas i butik". Finns BARA i produkt-API:t, inte i sökindexet.
+   * Ett webblager på en sådan vara är en hämtning i butik, inte en beställning.
+   */
+  isShippable?: boolean | null;
+  /** Lägsta medlemsnivå för att få köpa ("Lvl 9+"). Bara i produkt-API:t. */
+  minimumRankLevel?: number | null;
 }
 
 interface WebhallenRaw {
@@ -131,8 +150,8 @@ function isWebhallenRaw(raw: unknown): raw is WebhallenRaw {
  * "Slut i lager" bredvid ett fullt lager. Numeriska nycklar i `stock` är butikssaldon;
  * summan > 0 efter släppet ⇒ IN_STOCK. Ordningen spelar roll: en FRAMTIDA release med
  * butikssaldo är fortfarande PREORDER — varan går inte att hämta förrän släppdagen.
- * ⚠️ Medlemsnivåkrav ("Lvl 9+") går inte att uttrycka — ett larm härifrån betyder
- * "finns i fysisk butik", inte "en köpknapp för alla".
+ * Medlemsnivåkravet ("Lvl 9+") står i produkt-API:ts `minimumRankLevel` och följer med
+ * larmet som `minRankLevel` (se webhallenMinRankLevel).
  */
 export function webhallenStoreStock(stock: WebhallenProduct["stock"]): number {
   return webhallenStoreBreakdown(stock).units ?? 0;
@@ -170,19 +189,56 @@ export function webhallenStoreBreakdown(
     const atCap = cap != null && value >= cap;
     if (atCap) capped = true;
     const store = names?.get(Number(key));
-    if (store) locations.push({ label: storeLabel(store), units: value, capped: atCap });
+    if (store) locations.push({ id: key, label: storeLabel(store), units: value, capped: atCap });
   }
   // Störst först: den som ska åka vill se var chansen är bäst, inte id-ordningen.
   locations.sort((a, b) => b.units - a.units || a.label.localeCompare(b.label, "sv"));
-  return { units, stores, capped, locations };
+  // ALLA butiker, nollor inräknade — lanen diffar varje butik för sig.
+  const byStore: Record<string, number> = {};
+  for (const [key, value] of Object.entries(stock)) {
+    if (/^\d+$/.test(key) && typeof value === "number") byStore[key] = Math.max(0, value);
+  }
+  return { units, stores, capped, locations, byStore };
 }
 
 /**
  * Butiksvara: inget webblager men saldo i fysisk butik ⇒ larmet betyder "hämta i
  * butik", inte "beställ". Bara meningsfullt när domen ovan landar på IN_STOCK.
+ *
+ * ⛔ `isShippable: false` ÄR OCKSÅ EN BUTIKSVARA (2026-09-23): 30th Celebration fick
+ *    ett kort webblager 12:57 UTC medan sidan sa "kan endast hämtas i butik" — lanen
+ *    postade då alla sex varorna i ONLINE-kanalerna. Ett webblager man bara kan hämta
+ *    ut i butik är ingen beställning. (Fältet finns bara i produkt-API:t; sökindexet
+ *    säger inget, och då gäller webblagret som förut.)
  */
 export function webhallenStoreOnly(item: WebhallenProduct): boolean {
-  return (item.stock?.web ?? 0) <= 0 && webhallenStockStatus(item) === StockStatus.IN_STOCK;
+  if (webhallenStockStatus(item) !== StockStatus.IN_STOCK) return false;
+  return (item.stock?.web ?? 0) <= 0 || item.isShippable === false;
+}
+
+/** Medlemsnivåkravet, eller null när alla får köpa (nivå 1 = alla). */
+export function webhallenMinRankLevel(item: WebhallenProduct): number | null {
+  const lvl = item.minimumRankLevel;
+  return typeof lvl === "number" && Number.isFinite(lvl) && lvl > 1 ? Math.round(lvl) : null;
+}
+
+/** Skriver ett live-svar på annonsen — samma fält oavsett om svaret är nytt eller cachat. */
+function applyLiveDetail(
+  p: RawProductData,
+  product: WebhallenProduct,
+  storeNames: Map<number, WebhallenStore>
+): void {
+  const live = webhallenStockStatus(product);
+  p.storeOnly = webhallenStoreOnly(product);
+  p.storeStock = webhallenStoreBreakdown(product.stock, storeNames);
+  p.storeStatus = webhallenStorePickupStatus(product);
+  p.minRankLevel = webhallenMinRankLevel(product);
+  if (live !== p.stockStatus) {
+    const raw = p.raw as WebhallenRaw;
+    p.stockStatus = live;
+    raw.stockStatus = live;
+    raw.rawProduct = product;
+  }
 }
 
 /**
@@ -302,9 +358,26 @@ export class WebhallenAdapter implements SourceAdapter {
       // varje tick nästa skiva i stället för samma första N om och om igen.
       // + butiksvarorna (IN_STOCK men `web: 0`): sedan webblagret och butikerna är två
       // spår i Discord-lanen är deras WEBB-påfyllning en egen nyhet, och den är loppet.
-      const candidates = products.filter(
-        (p) => p.stockStatus !== StockStatus.IN_STOCK || p.storeOnly === true
-      );
+      // Indexets dom först (den avgör kandidaterna), SEDAN ett färskt live-svar ovanpå.
+      // En vara där de två är oense förblir kandidat — annars slutar vi slå upp den och
+      // indexets släpande svar tar över igen när cachen gått ut.
+      const now = Date.now();
+      const candidateSet = new Set<RawProductData>();
+      for (const p of products) {
+        const indexSaysCandidate = p.stockStatus !== StockStatus.IN_STOCK || p.storeOnly === true;
+        const cached = liveCache.get((p.raw as WebhallenRaw).id);
+        if (cached && now - cached.at < LIVE_CACHE_TTL_MS) {
+          const indexStatus = p.stockStatus;
+          applyLiveDetail(p, cached.product, storeNames);
+          if (indexSaysCandidate || p.stockStatus !== indexStatus || p.storeOnly === true) {
+            candidateSet.add(p);
+          }
+        } else if (indexSaysCandidate) {
+          candidateSet.add(p);
+        }
+      }
+      for (const [id, e] of liveCache) if (now - e.at >= LIVE_CACHE_TTL_MS) liveCache.delete(id);
+      const candidates = products.filter((p) => candidateSet.has(p));
       const start = candidates.length ? livePollCursor % candidates.length : 0;
       const ordered = [...candidates.slice(start), ...candidates.slice(0, start)];
       livePollCursor = start + Math.min(LIVE_POLL_MAX, candidates.length);
@@ -326,21 +399,14 @@ export class WebhallenAdapter implements SourceAdapter {
           if (!res.ok) continue;
           const detail = (await res.json()) as { product?: WebhallenProduct };
           if (!detail.product) continue;
-          const live = webhallenStockStatus(detail.product);
           // ⛔ BUTIKSVARAN MÅSTE FÖLJA MED LIVE-SVARET (2026-09-23). Live-kollen är vägen
           //    en påfyllning hittas FÖRST (sökindexet släpar ~50 min), men bara statusen
           //    skrevs om: `storeOnly`/`storeStock` stod kvar från sökindexets "slut" ⇒
           //    30th Celebrations butikspåfyllning postades som en ONLINE-restock i de
           //    vanliga kanalerna, utan saldo, och butikskanalen teg. När indexet sedan
           //    hann ikapp var statusen redan IN — ingen flipp, inget andra inlägg.
-          p.storeOnly = webhallenStoreOnly(detail.product);
-          p.storeStock = webhallenStoreBreakdown(detail.product.stock, storeNames);
-          p.storeStatus = webhallenStorePickupStatus(detail.product);
-          if (live !== p.stockStatus) {
-            p.stockStatus = live;
-            raw.stockStatus = live;
-            raw.rawProduct = detail.product;
-          }
+          liveCache.set(raw.id, { product: detail.product, at: Date.now() });
+          applyLiveDetail(p, detail.product, storeNames);
         } catch {
           /* best effort — sök-feedens status står kvar, precis som före live-kollen */
         }

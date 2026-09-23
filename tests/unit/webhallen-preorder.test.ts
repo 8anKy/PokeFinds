@@ -76,7 +76,7 @@ describe("webhallenStoreBreakdown", () => {
 
   it("⛔ bara numeriska butiksnycklar — web/webStock/displayCap är inga saldon", () => {
     const r = webhallenStoreBreakdown({ web: 7, displayCap: 50, isSentFromStore: 0, isTrue: true, webStock: { "992": 3 } });
-    expect(r).toEqual({ units: 0, stores: 0, capped: false, locations: [] });
+    expect(r).toEqual({ units: 0, stores: 0, capped: false, locations: [], byStore: {} });
   });
 
   it("utan lagerobjekt är allt OKÄNT, aldrig noll", () => {

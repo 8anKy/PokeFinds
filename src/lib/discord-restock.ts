@@ -327,6 +327,18 @@ export interface RestockPost {
    * larmas) via onlinespåret. Discord-inlägget går ut som vanligt.
    */
   noHit?: boolean;
+  /**
+   * Fler state-nycklar att stämpla i cooldown-kartan när inlägget gått ut — ett
+   * butiksinlägg bär en nyckel per butik som fyllts på (`#butik@<id>`).
+   */
+  extraKeys?: string[];
+  /** Butiks-id:n som just fick saldo — märks "🆕" i "I lager"-fältet. */
+  newStoreIds?: string[];
+  /**
+   * Medlemsnivåkrav för köp (Webhallens `minimumRankLevel`). Satt ⇒ eget fält, för ett
+   * larm om en vara man inte får köpa är annars en bilresa i onödan.
+   */
+  minRankLevel?: number | null;
   imageUrl: string | null;
   setName: string | null;
   series: string | null;
@@ -402,12 +414,21 @@ const MAX_STORE_LINES = 4;
  * ⛔ SUMMAN STÅR KVAR PÅ FÖRSTA RADEN även när listan kapas. Utan den läser fyra
  *    rader som hela sanningen, och den som har närmast till butik nr 5 åker ingenstans.
  */
-export function formatStoreLocations(stock: StoreStock | null | undefined): string | null {
-  const locations = stock?.locations ?? [];
-  if (!locations.length) return null;
+export function formatStoreLocations(
+  stock: StoreStock | null | undefined,
+  /** Butiker som just fick saldo: märks 🆕 och står FÖRST, så kapningen aldrig tar dem. */
+  newStoreIds: readonly string[] = []
+): string | null {
+  const fresh = new Set(newStoreIds);
+  const all = stock?.locations ?? [];
+  if (!all.length) return null;
+  const isNew = (l: { id?: string }) => l.id != null && fresh.has(l.id);
+  const locations = [...all.filter(isNew), ...all.filter((l) => !isNew(l))];
   const head = locations.slice(0, MAX_STORE_LINES);
   const rest = locations.slice(MAX_STORE_LINES);
-  const lines = head.map((l) => `${l.label} · ${l.capped ? "minst " : ""}${l.units} ex`);
+  const lines = head.map(
+    (l) => `${isNew(l) ? "🆕 " : ""}${l.label} · ${l.capped ? "minst " : ""}${l.units} ex`
+  );
   if (rest.length) {
     const restUnits = rest.reduce((sum, l) => sum + l.units, 0);
     lines.push(`+${rest.length} ${rest.length === 1 ? "butik till" : "butiker till"} · ${restUnits} ex`);
@@ -423,6 +444,18 @@ function storeOnlyWhere(post: RestockPost): string {
   const locations = post.storeStock?.locations ?? [];
   if (locations.length === 1) return `${post.storeName} ${locations[0].label}`;
   return `${post.storeName}s fysiska butiker`;
+}
+
+/**
+ * "Nytt i Webhallen Farsta Centrum, Stockholm. " när en ENDA namngiven butik fick
+ * saldo medan fler redan hade varan — annars säger rubriken inte vad som är nytt.
+ */
+function newStoreLead(post: RestockPost): string {
+  const ids = post.newStoreIds ?? [];
+  const locations = post.storeStock?.locations ?? [];
+  if (ids.length !== 1 || locations.length < 2) return "";
+  const hit = locations.find((l) => l.id === ids[0]);
+  return hit ? `Nytt i ${post.storeName} ${hit.label}. ` : "";
 }
 
 function clamp(s: string, max: number): string {
@@ -462,7 +495,7 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
     // Saldot SIST bland raderna och på egen full bredd: det är flera rader, och
     // inline hade tryckt ihop butiksnamnen till oläsliga spalter.
     const summary = formatStoreStock(post.storeStock);
-    const perStore = formatStoreLocations(post.storeStock);
+    const perStore = formatStoreLocations(post.storeStock, post.newStoreIds);
     if (summary || perStore) {
       fields.push({
         name: "I lager",
@@ -473,6 +506,9 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
         inline: false,
       });
     }
+  }
+  if (post.minRankLevel != null && post.minRankLevel > 1) {
+    fields.push({ name: "Kräver", value: `Nivå ${post.minRankLevel}+`, inline: true });
   }
   if (delta) {
     fields.push({
@@ -532,6 +568,7 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
           //   Står varan i sex butiker är ett namn i rubriken missvisande, och ett
           //   gissat namn skickar folk till fel stad — då säger vi "butikerna" och
           //   låter "I lager"-fältet räkna upp dem.
+          newStoreLead(post) +
           `Finns i ${storeOnlyWhere(post)} just nu. ` +
           (post.alsoOnline
             ? "Går även att beställa i webbutiken."
@@ -688,7 +725,7 @@ export async function postRestocks(
       });
       if (res.ok) {
         sent += batch.length;
-        for (const p of batch) postedKeys.push(p.key);
+        for (const p of batch) postedKeys.push(p.key, ...(p.extraKeys ?? []));
         continue;
       }
       // 403 här betyder nästan alltid att boten saknar "Send Messages" i kanalen,

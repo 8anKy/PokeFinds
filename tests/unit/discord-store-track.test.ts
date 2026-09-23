@@ -176,3 +176,86 @@ describe("butiksspåret i Discord-lanen", () => {
     expect(Object.keys(nextState.stock)).toEqual([MAIN]);
   });
 });
+
+describe("en nyckel per fysisk butik (2026-09-23)", () => {
+  const LOC = (id: string) => `${MAIN}#butik@${id}`;
+  const LOCATIONS = { "2": "Farsta Centrum, Stockholm", "15": "Fridhemsplan, Stockholm" };
+  function storeFeed(byStore: Record<string, number>, minRankLevel?: number): FullFeedGroup[] {
+    const units = Object.values(byStore).reduce((a, b) => a + b, 0);
+    const locations = Object.entries(byStore)
+      .filter(([, u]) => u > 0)
+      .map(([id, u]) => ({ id, label: LOCATIONS[id as keyof typeof LOCATIONS], units: u, capped: false }));
+    return [
+      {
+        sourceName: SRC,
+        items: [
+          {
+            url: URL,
+            stockStatus: units > 0 ? "IN_STOCK" : "OUT_OF_STOCK",
+            title: "Pokemon 30th Celebration Greninja Ex Box",
+            price: 34900,
+            imageUrl: null,
+            category: "BOX",
+            storeOnly: units > 0,
+            storeStock: { units, stores: locations.length, capped: false, locations, byStore },
+            storeStatus: units > 0 ? "IN_STOCK" : "OUT_OF_STOCK",
+            ...(minRankLevel ? { minRankLevel } : {}),
+          },
+        ],
+      },
+    ];
+  }
+
+  it("⛔ en ANDRA butik som fyller på postas fast varan redan fanns i en butik", () => {
+    const state = st({
+      [MAIN]: "OUT_OF_STOCK",
+      [STORE]: "IN_STOCK",
+      [LOC("2")]: "IN_STOCK",
+      [LOC("15")]: "OUT_OF_STOCK",
+    });
+    const { posts } = derive(state, storeFeed({ "2": 3, "15": 5 }));
+    expect(posts).toHaveLength(1);
+    const p = posts[0];
+    expect(p.key).toBe(STORE);
+    expect(p.extraKeys).toEqual([LOC("15")]);
+    expect(p.newStoreIds).toEqual(["15"]);
+    // Appen larmades redan när varan kom till den första butiken.
+    expect(p.noHit).toBe(true);
+    const embed = buildRestockEmbed(p);
+    expect(embed.description).toContain("Nytt i Webhallen Fridhemsplan, Stockholm.");
+    const lager = embed.fields.find((f) => f.name === "I lager")!.value;
+    expect(lager).toContain("🆕 Fridhemsplan, Stockholm · 5 ex");
+    expect(lager).toContain("Farsta Centrum, Stockholm · 3 ex");
+    expect(lager.indexOf("Fridhemsplan")).toBeLessThan(lager.indexOf("Farsta"));
+  });
+
+  it("två butiker samma varv ⇒ ETT inlägg, med hit när ingen butik hade varan", () => {
+    const state = st({
+      [MAIN]: "OUT_OF_STOCK",
+      [STORE]: "OUT_OF_STOCK",
+      [LOC("2")]: "OUT_OF_STOCK",
+      [LOC("15")]: "OUT_OF_STOCK",
+    });
+    const { posts } = derive(state, storeFeed({ "2": 3, "15": 5 }));
+    expect(posts).toHaveLength(1);
+    expect(posts[0].extraKeys?.sort()).toEqual([LOC("15"), LOC("2")].sort());
+    expect(posts[0].noHit).toBeUndefined();
+    expect(hitsFromPosts(posts, NOW)).toHaveLength(1);
+  });
+
+  it("⛔ första varvet med butiksnycklar seedas tyst", () => {
+    const { posts, nextState } = derive(
+      st({ [MAIN]: "OUT_OF_STOCK", [STORE]: "IN_STOCK" }),
+      storeFeed({ "2": 3, "15": 5 })
+    );
+    expect(posts).toHaveLength(0);
+    expect(nextState.stock[LOC("15")]).toBe("IN_STOCK");
+  });
+
+  it("medlemsnivåkravet står i inlägget", () => {
+    const state = st({ [MAIN]: "OUT_OF_STOCK", [STORE]: "OUT_OF_STOCK", [LOC("2")]: "OUT_OF_STOCK" });
+    const { posts } = derive(state, storeFeed({ "2": 3 }, 9));
+    expect(posts[0].minRankLevel).toBe(9);
+    expect(buildRestockEmbed(posts[0]).fields).toContainEqual({ name: "Kräver", value: "Nivå 9+", inline: true });
+  });
+});

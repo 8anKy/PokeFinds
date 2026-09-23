@@ -68,6 +68,12 @@ export interface RawProductData {
    * DB-vägen läser. Saknas = källan har inget separat butiksspår.
    */
   storeStatus?: StockStatus;
+  /**
+   * Lägsta medlemsnivå som krävs för att köpa varan (Webhallens `minimumRankLevel`,
+   * "Lvl 9+"). null/≤1 = alla kan köpa. Visas i Discord-inlägget — ett larm om en vara
+   * man inte får köpa är annars en bilresa i onödan.
+   */
+  minRankLevel?: number | null;
   /** Oförändrad rådata från källan — lagras i PriceObservation.rawData. */
   raw: unknown;
 }
@@ -94,10 +100,19 @@ export interface StoreStock {
    * "minst". Utan flaggan hade vi publicerat ett exakt tal som är fel nedåt.
    */
   capped: boolean;
+  /**
+   * Saldo per butiks-id för ALLA butiker källan listar, nollor inräknade (Webhallens
+   * numeriska nycklar). Discord-lanen diffar varje butik för sig, så en ny butiks
+   * påfyllning postas även när en annan butik redan hade varan. Saknas = källan bryter
+   * inte ner per butik.
+   */
+  byStore?: Record<string, number>;
 }
 
 /** En namngiven fysisk butik med saldo. */
 export interface StoreStockLocation {
+  /** Källans butiks-id (Webhallens numeriska nyckel) — markerar NYA butiker i inlägget. */
+  id?: string;
   /** Butikens namn, med ort när den inte framgår av namnet ("Ringen, Stockholm"). */
   label: string;
   /** Antal exemplar i just den butiken. */

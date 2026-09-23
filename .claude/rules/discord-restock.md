@@ -294,6 +294,23 @@ priskanalen.
   TYST (annars hade hela butikssortimentet postats vid deployen). ⛔ BARA I LANEN — `stockStatus`
   (DB-vägen) är orörd. Webhallens live-koll tar numera även butiksvarorna (deras WEBB-påfyllning är
   loppet). Vaktat av `tests/unit/discord-store-track.test.ts`.
+- ⛔ **VARJE FYSISK BUTIK ÄR ETT EGET SPÅR (ägarbeslut 2026-09-23)**: `#butik` betyder "finns i NÅGON
+  butik" — stod varan redan i Farsta syntes Fridhemsplans påfyllning aldrig (aggregatet var IN hela
+  tiden). `StoreStock.byStore` (alla butiks-id, nollor inräknade) ger en nyckel `<url>#butik@<id>` per
+  butik; DE postar, aggregatet står kvar i state men postar inte när `byStore` finns. Flera butiker i
+  samma varv ⇒ ETT inlägg (`extraKeys` stämplas i cooldown, `newStoreIds` märks 🆕 och står först,
+  "Nytt i Webhallen X." när det är en enda). Stod varan redan i någon butik ⇒ `noHit` (appen larmad
+  redan). Nya `#butik@`-nycklar seedas tyst per källa.
+- ⛔ **`isShippable: false` ÄR EN BUTIKSVARA ÄVEN MED WEBBLAGER (2026-09-23)**: 12:57 UTC fick sex 30th-
+  varor ett kort `web > 0` medan sidan sa "kan endast hämtas i butik" ⇒ de postades i ONLINE-kanalerna.
+  Fältet finns bara i produkt-API:t, därför:
+- ⛔ **FÄRSKT LIVE-SVAR VINNER ÖVER SÖKINDEXET ÄVEN NÄR PRODUKTEN INTE SLÅS UPP (2026-09-23)**: loopen slår
+  bara upp 16 kandidater per tick; övriga fick indexets släpande svar ⇒ en vara pendlade index/live varje
+  tick (flippar, blinkar, flapptak ⇒ 24 h tystnad). `liveCache` (15 min) läggs ovanpå indexet; en vara där
+  live och index är oense förblir kandidat så cachen hålls färsk.
+- **MEDLEMSNIVÅ**: Webhallens `minimumRankLevel` (bara produkt-API:t) ⇒ `minRankLevel` ⇒ fältet
+  "Kräver: Nivå 9+". ≤1 = alla ⇒ inget fält. Splash-texten ("Lvl9+") är marknadsföring och kan ligga
+  efter fältet (30th: splash 9+, fältet 5) — fältet gäller.
 - ⛔ **PRO-SPEGELN HOPPAR ÖVER BUTIKSVAROR**: spegelns hela innehåll är korglänken, och en vara som
   bara finns på en hylla har ingen korg att lägga i.
 
