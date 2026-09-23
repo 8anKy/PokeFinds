@@ -2739,6 +2739,10 @@
     "moreTitle": "Mer",
     "moreBody": "Under Mer hittar du dina bevakningar, inställningar och ditt konto.",
     "watchesTitle": "Dina bevakningar",
-    "watchesBody": "Allt du bevakar samlas här. Här ändrar du larmen eller slutar bevaka."
+    "watchesBody": "Allt du bevakar samlas här. Här ändrar du larmen eller slutar bevaka.",
+    "welcomeTitle": "Välkommen till Foilio!",
+    "welcomeBody": "Priser från över 40 svenska butiker, restock-larm och en kortskanner som visar vad dina kort är värda.",
+    "welcomeStart": "Visa mig runt",
+    "welcomeDismiss": "Jag klarar mig själv"
   }
 }

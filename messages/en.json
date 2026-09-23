@@ -2739,6 +2739,10 @@
     "moreTitle": "More",
     "moreBody": "Under More you'll find your watches, settings and your account.",
     "watchesTitle": "Your watches",
-    "watchesBody": "Everything you watch is collected here. Change the alerts or stop watching here."
+    "watchesBody": "Everything you watch is collected here. Change the alerts or stop watching here.",
+    "welcomeTitle": "Welcome to Foilio!",
+    "welcomeBody": "Prices from over 40 Swedish stores, restock alerts and a card scanner that shows what your cards are worth.",
+    "welcomeStart": "Show me around",
+    "welcomeDismiss": "I'll explore on my own"
   }
 }

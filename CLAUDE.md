@@ -224,6 +224,8 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   läses i runtime via `/api/feature-preview`); befintliga användare får den en gång per enhet (localStorage). ⛔ Skanna är sista steget (kameratillstånd), turen väntar ut cookie-bannern
   (den täcker flikarna på mobilwebben), ett mål som inte dyker upp hoppas över i stället för att lämna skärmen mörk.
   ⛔ "+", klockan och Bevaka är INFO-steg (tryck vs håll in förklaras) — de skapar riktig data och öppnar ark ovanpå turen.
+  **Välkomstskärm före turen** (EN skärm, inte tre bilder — ägarbeslut): "Visa mig runt" startar turen, "Jag klarar mig
+  själv" markerar den sedd. Visas för den som inte sett turen, första gången på Utforska; `?guide=1` hoppar över den.
 - ⛔ **TRE TAL OM ETT SET, ALDRIG BLANDADE**: `totalCards` = printedTotal (talet på kortet, som skannern
   läser — byt ALDRIG mening på den); `totalCardsFull` = hela setet inkl. secret rares (kompletteringens
   nämnare); master set-nämnaren = de TRYCKNINGAR VI listar, aldrig TCGdex tal — en nämnare användaren inte

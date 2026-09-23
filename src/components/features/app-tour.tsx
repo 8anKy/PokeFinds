@@ -26,6 +26,7 @@ import { useTranslations } from "next-intl";
 import { usePathname } from "@/i18n/navigation";
 import { useAuthHint } from "@/lib/auth-hint";
 import { onProductOverlayOpen } from "@/lib/product-overlay-open";
+import { BrandLogo } from "@/components/layout/brand-logo";
 import {
   TOUR_RESTART_PARAM,
   TOUR_START_PATH,
@@ -59,6 +60,14 @@ export function AppTour() {
   const pathname = usePathname();
   const loggedIn = useAuthHint();
   const [step, setStep] = useState<number | null>(null);
+  /**
+   * VÄLKOMSTSKÄRMEN (ägarbeslut 2026-09-23) — EN skärm före turen, inte tre bilder:
+   * turen visar redan hur appen fungerar, så bilder hade upprepat den. Skärmen FRÅGAR
+   * i stället för att mörka skärmen oannonserat: "Visa mig runt" startar turen,
+   * "Jag klarar mig själv" markerar turen som sedd (den finns kvar i Mer).
+   * ⛔ `?guide=1` (Mer → "Visa guiden igen") hoppar över den — där har man redan valt.
+   */
+  const [welcome, setWelcome] = useState(false);
   const [rect, setRect] = useState<Rect | null>(null);
   const [bubbleSize, setBubbleSize] = useState({ width: 300, height: 150 });
   const bubbleRef = useRef<HTMLDivElement>(null);
@@ -88,7 +97,7 @@ export function AppTour() {
 
   // ── Start: första besöket på Utforska i mobillayouten, eller ?guide=1 ────
   useEffect(() => {
-    if (step != null || pathname !== TOUR_START_PATH) return;
+    if (step != null || welcome || pathname !== TOUR_START_PATH) return;
     if (!window.matchMedia("(max-width: 1023px)").matches) return;
     const restart = new URLSearchParams(window.location.search).has(TOUR_RESTART_PARAM);
     if (!restart && appTourSeen()) return;
@@ -110,13 +119,14 @@ export function AppTour() {
       }
       if (allowed === null || waited < 900 || document.querySelector("[data-cookie-banner]")) return;
       window.clearInterval(id);
-      setStep(0);
+      if (restart) setStep(0);
+      else setWelcome(true);
     }, 300);
     return () => {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [pathname, step]);
+  }, [pathname, step, welcome]);
 
   const current = step != null ? TOUR_STEPS[step] : null;
   const guest = loggedIn !== true;
@@ -178,6 +188,45 @@ export function AppTour() {
     if (width !== bubbleSize.width || height !== bubbleSize.height) setBubbleSize({ width, height });
     // Bubblans höjd byts med stegets text (och gästtexten) — mät om då.
   }, [step, hasTarget, guest, bubbleSize.width, bubbleSize.height]);
+
+  if (welcome) {
+    return (
+      <div
+        className="fixed inset-0 z-[90] flex items-end justify-center bg-black/70 px-2.5 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:items-center"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="app-tour-welcome"
+      >
+        <div className="w-full max-w-sm rounded-3xl border border-surface-border bg-surface-raised p-6 text-center shadow-xl motion-safe:animate-fade-in">
+          <BrandLogo className="justify-center" markSize={40} textClass="text-2xl" />
+          <h2 id="app-tour-welcome" className="mt-5 text-pretty font-display text-2xl font-bold text-ink">
+            {t("welcomeTitle")}
+          </h2>
+          <p className="mt-2 text-pretty text-[15px] leading-relaxed text-ink-muted">{t("welcomeBody")}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setWelcome(false);
+              setStep(0);
+            }}
+            className="mt-6 inline-flex min-h-[48px] w-full items-center justify-center rounded-xl bg-holo-cyan px-5 text-base font-semibold text-surface transition-colors hover:bg-holo-cyan/90"
+          >
+            {t("welcomeStart")}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setWelcome(false);
+              markAppTourSeen();
+            }}
+            className="mt-2 inline-flex min-h-[44px] w-full items-center justify-center text-sm font-medium text-ink-faint transition-colors hover:text-ink"
+          >
+            {t("welcomeDismiss")}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Målet laddas fortfarande (overlayn hämtar produkten, listan renderar) — rita
   // ingenting än: en mörk skärm utan bubbla ser ut som att appen hängt sig.
