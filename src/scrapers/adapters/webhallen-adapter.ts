@@ -311,6 +311,14 @@ export class WebhallenAdapter implements SourceAdapter {
           const detail = (await res.json()) as { product?: WebhallenProduct };
           if (!detail.product) continue;
           const live = webhallenStockStatus(detail.product);
+          // ⛔ BUTIKSVARAN MÅSTE FÖLJA MED LIVE-SVARET (2026-09-23). Live-kollen är vägen
+          //    en påfyllning hittas FÖRST (sökindexet släpar ~50 min), men bara statusen
+          //    skrevs om: `storeOnly`/`storeStock` stod kvar från sökindexets "slut" ⇒
+          //    30th Celebrations butikspåfyllning postades som en ONLINE-restock i de
+          //    vanliga kanalerna, utan saldo, och butikskanalen teg. När indexet sedan
+          //    hann ikapp var statusen redan IN — ingen flipp, inget andra inlägg.
+          p.storeOnly = webhallenStoreOnly(detail.product);
+          p.storeStock = webhallenStoreBreakdown(detail.product.stock, storeNames);
           if (live !== p.stockStatus) {
             p.stockStatus = live;
             raw.stockStatus = live;

@@ -824,7 +824,8 @@ describe("buildRestockEmbed", () => {
     // Utan namngivna butiker: "butikerna", aldrig ett gissat filialnamn.
     expect(embed.description).toContain("fysiska butiker");
     expect(embed.fields.find((f) => f.name === "Pris i butik")?.value).toContain("549");
-    expect(embed.fields.find((f) => f.name === "Källa")?.value).toBe("Butikens lagersaldo");
+    // Ingen källrad (ägarbeslut 2026-09-23) — foten bär förbehållet.
+    expect(embed.fields.some((f) => f.name === "Källa")).toBe(false);
     expect(embed.footer.text).toContain("ring butiken");
     // ⛔ Ingen uppdateringstakt utlovas: lanen pollar butikerna i olika takt.
     expect(embed.footer.text).not.toContain("varje timme");
@@ -935,10 +936,6 @@ describe("buildRestockEmbed", () => {
     expect(
       buildRestockEmbed({ ...post, storeOnly: true }).fields.some((x) => x.name === "I lager")
     ).toBe(false);
-    // Källraden står kvar — påståendet ska alltid kunna härledas.
-    expect(
-      buildRestockEmbed({ ...post, storeOnly: true }).fields.some((x) => x.name === "Källa")
-    ).toBe(true);
   });
 
   it("⛔ saldot visas ALDRIG på en online-vara — där är det butikens webblager som gäller", () => {

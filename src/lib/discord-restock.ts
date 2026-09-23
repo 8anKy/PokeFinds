@@ -445,11 +445,9 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
     // rubrik, "Pris i butik", källa och fot.
     { name: storeOnly ? "Pris i butik" : "Pris", value: formatPrice(post.priceOre), inline: true },
   ];
-  // ⛔ VARIFRÅN VI VET DET. En butiksvara går inte att verifiera med en köpknapp —
-  //    påståendet vilar på butikens egna butikssaldon, och det ska stå i inlägget så
-  //    att läsaren kan värdera det FÖRE bilresan, inte efter.
+  // Inget "Källa"-fält (borttaget 2026-09-23, ägarbeslut): foten säger redan att
+  // butikslagret kan ändras och att man ska ringa innan.
   if (storeOnly) {
-    fields.push({ name: "Källa", value: "Butikens lagersaldo", inline: true });
     // Saldot SIST bland raderna och på egen full bredd: det är flera rader, och
     // inline hade tryckt ihop butiksnamnen till oläsliga spalter.
     const summary = formatStoreStock(post.storeStock);

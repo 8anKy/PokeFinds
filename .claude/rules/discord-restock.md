@@ -247,8 +247,13 @@ priskanalen.
   som enda skillnad. Fail closed här hade tystat larm på en konfiguration som inte ändrats.
 - **Inlägget ser annorlunda ut**: rubriken "Finns bara i butik: …", texten "Går inte att köpa i
   webbutiken, bara på plats", fältet heter "Pris i butik", ett fält **"I lager"** bär saldot
-  ("36 ex i 6 butiker") och "Källa: Butikens lagersaldo" säger varifrån påståendet kommer — det går
-  inte att verifiera med en köpknapp.
+  ("36 ex i 6 butiker"). "Källa: Butikens lagersaldo"-fältet är BORTTAGET 2026-09-23 (ägarbeslut) —
+  foten bär förbehållet.
+- ⛔ **WEBHALLENS LIVE-KOLL MÅSTE BÄRA BUTIKSDOMEN (2026-09-23)**: påfyllningen hittas nästan alltid av
+  live-kollen (`/api/product/{id}`), inte av sökindexet (släpar ~50 min). Den skrev bara om STATUSEN, så
+  `storeOnly`/`storeStock` stod kvar från indexets "slut" ⇒ 30th Celebrations butikspåfyllning gick som
+  ONLINE-restock i de vanliga kanalerna, utan saldo, och butikskanalen teg (indexet hann ikapp när statusen
+  redan var IN = ingen flipp). Vaktat av `tests/unit/webhallen-live-poll-store-only.test.ts`.
 - **SALDOT: `StoreStock` (`units` / `stores` / `capped`), formaterat av `formatStoreStock`.**
   Webhallen bryter ner per butik (`webhallenStoreBreakdown` över de numeriska nycklarna), SF-Bok ger
   ett totaltal och `stores: null`.
