@@ -10,6 +10,7 @@ import { Link } from "@/i18n/navigation";
 import { alternatesFor, baseOpenGraph } from "@/lib/canonical";
 import { formatDate } from "@/lib/format";
 import { guidesNewestFirst } from "@/content/guides";
+import { KIND_KEY } from "@/components/features/guide-kind";
 import { IconArrowRight } from "@/components/ui/icons";
 
 export async function generateMetadata({ params }: { params: { locale: string } }): Promise<Metadata> {
@@ -43,7 +44,7 @@ export default async function GuidesPage({ params }: { params: { locale: string 
             >
               <div className="min-w-0 flex-1">
                 <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-holo-cyan">
-                  {g.kind === "set" ? t("kindSet") : t("kindGuide")}
+                  {t(KIND_KEY[g.kind])}
                 </div>
                 <h2 className="mt-1 text-pretty text-base font-semibold leading-snug text-ink">{g.title}</h2>
                 <p className="mt-1 text-pretty text-sm leading-relaxed text-ink-muted">{g.description}</p>

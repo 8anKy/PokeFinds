@@ -14,7 +14,13 @@ const allText = (g: (typeof GUIDES)[number]) =>
     g.intro,
     ...(g.facts ?? []).flatMap((f) => [f.label, f.value]),
     ...g.body.flatMap((b) =>
-      b.type === "list" ? b.items : b.type === "links" ? b.items.flatMap((i) => [i.label, i.note ?? ""]) : [b.text]
+      b.type === "list"
+        ? b.items
+        : b.type === "links"
+          ? b.items.flatMap((i) => [i.label, i.note ?? ""])
+          : b.type === "note"
+            ? [b.title, b.text]
+            : [b.text]
     ),
   ].join("\n");
 
@@ -60,8 +66,20 @@ describe("guider", () => {
     for (const g of withSet) expect(guideForSet(g.setId!)?.slug).toBe(g.slug);
   });
 
-  it("listan är nyast först", () => {
-    const dates = guidesNewestFirst().map((g) => g.publishedAt);
+  it("listan har kalendern först och resten nyast först", () => {
+    const list = guidesNewestFirst();
+    const calendars = list.filter((g) => g.kind === "calendar");
+    expect(list.slice(0, calendars.length)).toEqual(calendars);
+    const dates = list.filter((g) => g.kind !== "calendar").map((g) => g.publishedAt);
     expect([...dates].sort().reverse()).toEqual(dates);
+  });
+
+  it("interna guidelänkar pekar på guider som finns", () => {
+    const slugs = new Set(GUIDES.map((g) => g.slug));
+    for (const g of GUIDES)
+      for (const b of g.body)
+        if (b.type === "links")
+          for (const i of b.items)
+            if (i.href.startsWith("/guider/")) expect(slugs.has(i.href.slice(8)), `${g.slug} → ${i.href}`).toBe(true);
   });
 });

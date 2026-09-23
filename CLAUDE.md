@@ -214,6 +214,8 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   flöde). ⛔ Innehållet är en INCHECKAD FIL (`src/content/guides.ts`) — helstatiska sidor, prerenderade vid bygget,
   ingen DB/volym; ny guide = ny post + push. ⛔ Bara verifierade fakta med källa i `sources`, INGA priser i texten
   (vaktat av `tests/unit/guides-content.test.ts`), texten är svensk även under `/en/` ⇒ kanonisk URL alltid svensk.
+  ⛔ Läckor/butikslistningar/varumärken står BARA i ett `note`-block med `tone: "rumor"` (gul ruta "Obekräftat"),
+  aldrig i löptexten. Kalendern `kommande-pokemon-set` (EN + JP) är navet och ligger först i listan.
   Nås via sidfoten, sitemapen (med ärligt `lastModified`) och "Läs guiden"-länken på setsidan (`guideForSet`).
 - ⛔ **TRE TAL OM ETT SET, ALDRIG BLANDADE**: `totalCards` = printedTotal (talet på kortet, som skannern
   läser — byt ALDRIG mening på den); `totalCardsFull` = hela setet inkl. secret rares (kompletteringens

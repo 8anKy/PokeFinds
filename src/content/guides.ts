@@ -29,7 +29,13 @@ export type GuideBlock =
   | { type: "h"; text: string }
   | { type: "p"; text: string }
   | { type: "list"; items: string[] }
-  | { type: "links"; items: { href: string; label: string; note?: string }[] };
+  | { type: "links"; items: { href: string; label: string; note?: string }[] }
+  /**
+   * En markerad ruta. `rumor` = OBEKRÄFTAT (läckor, butikslistningar, varumärkes-
+   * registreringar): står alltid i en egen gul ruta, aldrig i löptexten — läsaren ska
+   * aldrig kunna ta en läcka för ett besked från Pokémon.
+   */
+  | { type: "note"; tone: "rumor" | "info"; title: string; text: string };
 
 export interface Guide {
   slug: string;
@@ -37,7 +43,7 @@ export interface Guide {
   title: string;
   /** Meta-beskrivning + ingress i listan, ~150 tecken. */
   description: string;
-  kind: "set" | "guide";
+  kind: "set" | "guide" | "calendar";
   /** ISO-datum (YYYY-MM-DD). */
   publishedAt: string;
   updatedAt: string;
@@ -67,6 +73,7 @@ export const GUIDES: Guide[] = [
       { label: "Serie", value: "Mega Evolution" },
       { label: "Antal kort", value: "Över 135" },
       { label: "Huvudkort", value: "Mega Rayquaza ex, Mega Golurk ex, Mega Malamar ex, Mega Golisopod ex" },
+      { label: "Japansk motsvarighet", value: "Storm Emeralda (Japan 31 juli 2026) + japanska ex Starter Sets" },
     ],
     body: [
       { type: "h", text: "Vad är nytt i Delta Reign?" },
@@ -133,10 +140,13 @@ export const GUIDES: Guide[] = [
         items: [
           { href: "/sets/cmtnj78kh0000ecn60yv8dti6", label: "Alla Delta Reign-produkter", note: "Setsidan med aktuella priser" },
           { href: "/discord", label: "Foilios Discord", note: "Restock-larm från svenska butiker" },
+          { href: "/sets/cmsj7zlx400bcn4gaklmtzqk2", label: "Storm Emeralda (japanska)", note: "Samma kort, släppta i Japan i juli" },
+          { href: "/guider/kommande-pokemon-set", label: "Alla kommande set", note: "Engelska och japanska släppdatum" },
         ],
       },
     ],
     sources: [
+      { label: "Bulbapedia: Delta Reign (TCG)", url: "https://bulbapedia.bulbagarden.net/wiki/Delta_Reign_(TCG)" },
       {
         label: "Pokémon: The Pokémon TCG: Mega Evolution—Delta Reign Expansion Arrives November 6, 2026",
         url: "https://www.pokemon.com/us/news/the-pokemon-tcg-mega-evolution-delta-reign-expansion-arrives-november-6-2026",
@@ -312,6 +322,7 @@ export const GUIDES: Guide[] = [
           { href: "/produkter/pitch-black-booster-bundle", label: "Pitch Black Booster Bundle" },
           { href: "/produkter/pitch-black-build-battle-box", label: "Pitch Black Build & Battle Box" },
           { href: "/sets/cmrreegww0001173z06a8i647", label: "Alla Pitch Black-produkter", note: "Setsidan" },
+          { href: "/sets/cmsj3qex8000014oizz36uwgd", label: "Abyss Eye (japanska)", note: "Samma kort, släppta i Japan i maj" },
         ],
       },
     ],
@@ -323,6 +334,326 @@ export const GUIDES: Guide[] = [
       {
         label: "Bulbapedia: Pitch Black (TCG)",
         url: "https://bulbapedia.bulbagarden.net/wiki/Pitch_Black_(TCG)",
+      },
+    ],
+  },
+  {
+    slug: "kommande-pokemon-set",
+    title: "Kommande Pokémon-set 2026–2027: släppdatum för engelska och japanska set",
+    description:
+      "Alla kommande Pokémon TCG-set med släppdatum: Delta Reign, Aura Seeker, MEGA x MEGA Parade och vad som har visats för 2027. Engelska och japanska set på ett ställe.",
+    kind: "calendar",
+    publishedAt: "2026-09-23",
+    updatedAt: "2026-09-23",
+    intro:
+      "Här samlar vi alla Pokémon-set som är på väg, både engelska och japanska. Japan släpper först och de engelska seten bygger på de japanska, så den japanska kalendern visar vad som kommer hit några månader senare. Det Pokémon har bekräftat står i listorna. Läckor och rykten står i en egen ruta märkt som obekräftade.",
+    body: [
+      { type: "h", text: "Kommande engelska set" },
+      {
+        type: "list",
+        items: [
+          "6 november 2026: Delta Reign, med Mega Rayquaza ex.",
+          "30th Celebration fortsätter med fler produkter: Booster Bundle och Mini Tins 2 oktober, Battle Decks 30 oktober, Ultra-Premium-, Premium- och Figure Collections 6 november och Binder Collection 4 december.",
+        ],
+      },
+      {
+        type: "links",
+        items: [
+          { href: "/guider/delta-reign", label: "Guide: Delta Reign" },
+          { href: "/guider/30th-celebration", label: "Guide: 30th Celebration" },
+        ],
+      },
+      { type: "h", text: "Kommande japanska set" },
+      {
+        type: "list",
+        items: [
+          "27 november 2026: Aura Seeker (ハドウシーカー), med Mega Lucario Z ex, den första Z-Mega Evolution i kortspelet.",
+          "19 februari 2027: MEGA x MEGA Parade (MEGA×MEGAパレード), en High Class Pack med Mega Raichu X och Mega Raichu Y.",
+        ],
+      },
+      {
+        type: "links",
+        items: [
+          { href: "/guider/aura-seeker", label: "Guide: Aura Seeker" },
+          { href: "/guider/mega-x-mega-parade", label: "Guide: MEGA x MEGA Parade" },
+        ],
+      },
+      { type: "h", text: "Visat men utan släppdatum" },
+      {
+        type: "p",
+        text: "När VM i Pokémon avslutades 31 augusti 2026 visade Pokémon flera saker som kommer men som ännu inte har något datum:",
+      },
+      {
+        type: "list",
+        items: [
+          "Mega Lucario Z ex och Sigilyph ex. Kortens engelska versioner bär setkoden FLO, så de hamnar i ett engelskt set vars namn börjar på F.",
+          "Mega Attack Rare, en ny typ av kort. Mega Rayquaza ex, Mega Darkrai ex, Mega Greninja ex och Mega Zygarde ex visades.",
+          "En ny ex★-serie (ex Star), med Raikou, Entei och Suicune i den första teasern.",
+        ],
+      },
+      {
+        type: "note",
+        tone: "rumor",
+        title: "Obekräftat: nästa engelska set",
+        text: "Butikslistningar pekar på att setet med Mega Lucario Z ex (koden FLO) släpps på engelska i början av 2027. Pokémon har varken bekräftat namn eller datum. Vi uppdaterar guiden när det kommer ett besked.",
+      },
+      { type: "h", text: "Så hänger japanska och engelska set ihop" },
+      {
+        type: "p",
+        text: "Varje engelskt set i Mega Evolution-serien bygger på ett japanskt set som släppts tidigare. Under 2026 har avståndet varit ungefär två månader. Delta Reign kommer drygt tre månader efter sin japanska förlaga, med 30th Celebration emellan.",
+      },
+      {
+        type: "list",
+        items: [
+          "Nihil Zero (Japan 23 januari) → Perfect Order (27 mars)",
+          "Ninja Spinner (Japan 13 mars) → Chaos Rising (22 maj)",
+          "Abyss Eye (Japan 22 maj) → Pitch Black (17 juli)",
+          "Storm Emeralda (Japan 31 juli) → Delta Reign (6 november)",
+        ],
+      },
+      {
+        type: "links",
+        items: [
+          { href: "/sets/cmsj3qkmz000u14oisq7h9z20", label: "Nihil Zero", note: "Japanska" },
+          { href: "/sets/cmq97mnnm000gxurq6vvy4cqc", label: "Perfect Order", note: "Engelska" },
+          { href: "/sets/cmsj3qm00001314oimo8w1elm", label: "Ninja Spinner", note: "Japanska" },
+          { href: "/sets/cmq97mnnq000hxurqrrmblcz4", label: "Chaos Rising", note: "Engelska" },
+          { href: "/sets/cmsj3qex8000014oizz36uwgd", label: "Abyss Eye", note: "Japanska" },
+          { href: "/sets/cmrreegww0001173z06a8i647", label: "Pitch Black", note: "Engelska" },
+          { href: "/sets/cmsj7zlx400bcn4gaklmtzqk2", label: "Storm Emeralda", note: "Japanska" },
+        ],
+      },
+      { type: "h", text: "Missa inte släppen" },
+      {
+        type: "p",
+        text: "Bevaka en produkt i Foilio så säger vi till när den kommer i lager hos någon av de över 40 svenska butikerna vi följer. I vår Discord postas påfyllningarna, oftast inom en minut.",
+      },
+      {
+        type: "links",
+        items: [
+          { href: "/sets", label: "Alla set", note: "Engelska och japanska" },
+          { href: "/discord", label: "Foilios Discord", note: "Restock-larm från svenska butiker" },
+        ],
+      },
+    ],
+    sources: [
+      {
+        label: "Pokémon: The Pokémon TCG: Mega Evolution—Delta Reign Expansion Arrives November 6, 2026",
+        url: "https://www.pokemon.com/us/news/the-pokemon-tcg-mega-evolution-delta-reign-expansion-arrives-november-6-2026",
+      },
+      {
+        label: "Pokémon: Pokémon TCG: 30th Celebration Product Showcase",
+        url: "https://www.pokemon.com/us/news/pokemon-tcg-30th-celebration-product-showcase",
+      },
+      {
+        label: "PokéBeach: \"Aura Seeker\" Japanese TCG Set to Release in November",
+        url: "https://www.pokebeach.com/2026/05/aura-seeker-japanese-tcg-set-to-release-in-november",
+      },
+      {
+        label: "PokéBeach: \"MEGA x MEGA Parade\" High Class Pokemon TCG Set to Release in February",
+        url: "https://www.pokebeach.com/2026/08/mega-x-mega-parade-high-class-pokemon-tcg-set-to-release-in-february",
+      },
+      {
+        label: "PokeGuardian: Mega Lucario Z ex revealed, Mega Attack Rare cards revealed & ex Star series teased",
+        url: "https://www.pokeguardian.com/3346278_mega-lucario-z-ex-revealed-more-mega-attack-rare-cards-revealed-ex-star-series-teased",
+      },
+      {
+        label: "Bulbapedia: Mega Lucario Z ex (FLO 58)",
+        url: "https://bulbapedia.bulbagarden.net/wiki/Mega_Lucario_Z_ex_(FLO_58)",
+      },
+      { label: "Bulbapedia: Perfect Order (TCG)", url: "https://bulbapedia.bulbagarden.net/wiki/Perfect_Order_(TCG)" },
+      { label: "Bulbapedia: Chaos Rising (TCG)", url: "https://bulbapedia.bulbagarden.net/wiki/Chaos_Rising_(TCG)" },
+      { label: "Bulbapedia: Pitch Black (TCG)", url: "https://bulbapedia.bulbagarden.net/wiki/Pitch_Black_(TCG)" },
+      { label: "Bulbapedia: Delta Reign (TCG)", url: "https://bulbapedia.bulbagarden.net/wiki/Delta_Reign_(TCG)" },
+    ],
+  },
+  {
+    slug: "aura-seeker",
+    title: "Aura Seeker: japanska setet med Mega Lucario Z ex – släppdatum och det vi vet",
+    description:
+      "Aura Seeker (ハドウシーカー) släpps i Japan 27 november 2026 med Mega Lucario Z ex, den första Z-Mega Evolution. Här är det som är bekräftat och när setet kan komma på engelska.",
+    kind: "set",
+    publishedAt: "2026-09-23",
+    updatedAt: "2026-09-23",
+    intro:
+      "Aura Seeker är nästa japanska huvudset i Mega Evolution-serien, och det för in något helt nytt: Z-Mega Evolution. Stjärnan är Mega Lucario Z ex, en ny Mega-form från Mega Dimension-tillägget till Pokémon Legends: Z-A. Här är det som är känt hittills.",
+    facts: [
+      { label: "Släppdatum", value: "27 november 2026 (Japan)" },
+      { label: "Japanskt namn", value: "ハドウシーカー (Hadou Seeker)" },
+      { label: "Serie", value: "Mega Evolution" },
+      { label: "Huvudkort", value: "Mega Lucario Z ex" },
+      { label: "Engelsk version", value: "Inte annonserad ännu" },
+    ],
+    body: [
+      { type: "h", text: "Vad är Z-Mega Evolution?" },
+      {
+        type: "p",
+        text: "Z-Mega Evolution är nya Mega-former som introducerades i Mega Dimension, tillägget till Pokémon Legends: Z-A. Mega Lucario Z ex är det första sådana kortet i kortspelet. Kortets förmåga heter just Aura Seeker och låter dig söka upp ett Supporter-kort ur leken.",
+      },
+      { type: "h", text: "Kort som har visats" },
+      {
+        type: "p",
+        text: "Mega Lucario Z ex och Sigilyph ex visades när VM i Pokémon avslutades 31 augusti 2026. Resten av kortlistan presenteras normalt av Pokémon Japan veckorna före släppet. Vi fyller på guiden när den kommer.",
+      },
+      { type: "h", text: "När kommer Aura Seeker på engelska?" },
+      {
+        type: "p",
+        text: "Det är inte annonserat. De engelska versionerna av Mega Lucario Z ex bär setkoden FLO, så korten hamnar i ett engelskt set vars namn börjar på F. Under 2026 har de engelska seten kommit ungefär två till tre månader efter de japanska.",
+      },
+      {
+        type: "note",
+        tone: "rumor",
+        title: "Obekräftat",
+        text: "Butikslistningar pekar på ett engelskt släpp i början av 2027. Pokémon har inte bekräftat varken namn eller datum.",
+      },
+      { type: "h", text: "Köpa japanska boosters i Sverige" },
+      {
+        type: "p",
+        text: "Japanska boosters säljs av flera svenska butiker, ofta som förbeställning veckorna före släppet. När Aura Seeker-produkterna dyker upp hos butikerna vi följer läggs de in i katalogen.",
+      },
+      {
+        type: "links",
+        items: [
+          { href: "/guider/kommande-pokemon-set", label: "Alla kommande set", note: "Engelska och japanska släppdatum" },
+          { href: "/guider/japanska-pokemonkort", label: "Japanska eller engelska kort?", note: "Skillnaderna förklarade" },
+          { href: "/sets/cmsj7zlx400bcn4gaklmtzqk2", label: "Storm Emeralda", note: "Förra japanska huvudsetet" },
+        ],
+      },
+    ],
+    sources: [
+      {
+        label: "PokéBeach: \"Aura Seeker\" Japanese TCG Set to Release in November",
+        url: "https://www.pokebeach.com/2026/05/aura-seeker-japanese-tcg-set-to-release-in-november",
+      },
+      { label: "Bulbapedia: Aura Seeker (TCG)", url: "https://bulbapedia.bulbagarden.net/wiki/Aura_Seeker_(TCG)" },
+      {
+        label: "Bulbapedia: Mega Lucario Z ex (FLO 58)",
+        url: "https://bulbapedia.bulbagarden.net/wiki/Mega_Lucario_Z_ex_(FLO_58)",
+      },
+      {
+        label: "PokeGuardian: Mega Lucario Z ex revealed, Mega Attack Rare cards revealed & ex Star series teased",
+        url: "https://www.pokeguardian.com/3346278_mega-lucario-z-ex-revealed-more-mega-attack-rare-cards-revealed-ex-star-series-teased",
+      },
+    ],
+  },
+  {
+    slug: "mega-x-mega-parade",
+    title: "MEGA x MEGA Parade: japansk High Class Pack med Mega Raichu – släppdatum och innehåll",
+    description:
+      "MEGA x MEGA Parade släpps i Japan 19 februari 2027 som High Class Pack med Mega Raichu X och Y. Här är vad en High Class Pack är och vad som är bekräftat om setet.",
+    kind: "set",
+    publishedAt: "2026-09-23",
+    updatedAt: "2026-09-23",
+    intro:
+      "Japans High Class Packs är premiumset med dyrare boosters, fler kort per paket och ett garanterat fint kort i varje. Nästa heter MEGA x MEGA Parade, och i centrum står Mega Raichu X och Mega Raichu Y.",
+    facts: [
+      { label: "Släppdatum", value: "19 februari 2027 (Japan)" },
+      { label: "Japanskt namn", value: "MEGA×MEGAパレード" },
+      { label: "Typ", value: "High Class Pack" },
+      { label: "I varje booster", value: "10 kort, varav ett garanterat high-rarity-kort" },
+      { label: "Rekommenderat pris i Japan", value: "550 yen per booster" },
+      { label: "Huvudkort", value: "Mega Raichu X och Mega Raichu Y" },
+      { label: "Engelsk version", value: "Inte annonserad ännu" },
+    ],
+    body: [
+      { type: "h", text: "Vad är en High Class Pack?" },
+      {
+        type: "p",
+        text: "En vanlig japansk booster har fem kort och ingen garanti. En High Class Pack har tio kort och minst ett high-rarity-kort i varje paket. Innehållet är till stor del kort från årets tidigare set, kompletterat med nya specialillustrationer som bara finns här. Det gör seten populära både hos spelare som missat kort och hos samlare som jagar de nya illustrationerna.",
+      },
+      { type: "h", text: "Mega Raichu X och Mega Raichu Y" },
+      {
+        type: "p",
+        text: "Båda formerna kommer från Mega Dimension, tillägget till Pokémon Legends: Z-A. Som namnet antyder innehåller setet även många andra Mega Evolution-kort.",
+      },
+      { type: "h", text: "Varför i februari?" },
+      {
+        type: "p",
+        text: "High Class Packs har tidigare släppts i november eller december. Den här kommer i februari, efter att 30th Celebration släpptes samtidigt över hela världen i september.",
+      },
+      { type: "h", text: "Kommer den på engelska?" },
+      {
+        type: "p",
+        text: "Det är inte annonserat. Pokémon visade nya Mega Attack Rare-kort (Mega Rayquaza ex, Mega Darkrai ex, Mega Greninja ex och Mega Zygarde ex) vid VM i augusti, men vilka engelska produkter de hamnar i är inte bekräftat.",
+      },
+      {
+        type: "note",
+        tone: "rumor",
+        title: "Obekräftat",
+        text: "Mega Attack Rare-korten som visades vid VM kopplas av flera nyhetssajter till just den här High Class Packen. Pokémon har inte sagt det.",
+      },
+      {
+        type: "links",
+        items: [
+          { href: "/guider/kommande-pokemon-set", label: "Alla kommande set", note: "Engelska och japanska släppdatum" },
+          { href: "/guider/japanska-pokemonkort", label: "Japanska eller engelska kort?", note: "Skillnaderna förklarade" },
+        ],
+      },
+    ],
+    sources: [
+      {
+        label: "PokéBeach: \"MEGA x MEGA Parade\" High Class Pokemon TCG Set to Release in February",
+        url: "https://www.pokebeach.com/2026/08/mega-x-mega-parade-high-class-pokemon-tcg-set-to-release-in-february",
+      },
+      {
+        label: "Tech Times: Pokémon TCG Japan High Class Pack Crowns Mega Raichu Its February 2027 Headliner",
+        url: "https://www.techtimes.com/articles/325739/20260827/pokemon-tcg-japan-high-class-pack-crowns-mega-raichu-its-february-2027-headliner.htm",
+      },
+      {
+        label: "PokeGuardian: Mega Lucario Z ex revealed, Mega Attack Rare cards revealed & ex Star series teased",
+        url: "https://www.pokeguardian.com/3346278_mega-lucario-z-ex-revealed-more-mega-attack-rare-cards-revealed-ex-star-series-teased",
+      },
+    ],
+  },
+  {
+    slug: "japanska-pokemonkort",
+    title: "Japanska eller engelska Pokémonkort? Skillnaderna du bör känna till",
+    description:
+      "Japanska Pokémonkort släpps tidigare, har andra paket och ett eget pris. Så skiljer sig japanska och engelska kort och vad du ska tänka på när du köper eller värderar dem.",
+    kind: "guide",
+    publishedAt: "2026-09-23",
+    updatedAt: "2026-09-23",
+    intro:
+      "Allt fler svenska samlare köper japanska Pokémonkort. Motiven är desamma, men korten släpps vid andra tidpunkter, i andra paket och har egna marknadspriser. Här är skillnaderna.",
+    body: [
+      { type: "h", text: "Japan släpper först" },
+      {
+        type: "p",
+        text: "Varje engelskt set i Mega Evolution-serien bygger på ett japanskt set som kommit tidigare. Under 2026 har avståndet varit ungefär två till tre månader. Pitch Black kom till exempel på engelska i juli, två månader efter japanska Abyss Eye. Vill du se ett set först, titta på den japanska kalendern.",
+      },
+      {
+        type: "links",
+        items: [{ href: "/guider/kommande-pokemon-set", label: "Kommande set", note: "Japanska och engelska släppdatum" }],
+      },
+      { type: "h", text: "Olika paket" },
+      {
+        type: "p",
+        text: "En vanlig japansk booster innehåller fem kort, mot tio i en engelsk. Japanska premiumset, så kallade High Class Packs, har tio kort och ett garanterat fint kort i varje paket. Produktlinjerna skiljer sig också, så en japansk box och en engelsk Booster Box innehåller olika antal paket.",
+      },
+      { type: "h", text: "Olika set-indelning" },
+      {
+        type: "p",
+        text: "Ett engelskt set är inte alltid en exakt kopia av ett japanskt. Delta Reign innehåller till exempel kort från både Storm Emeralda och de japanska ex Starter Sets. Numret på kortet skiljer sig därför ofta mellan språken.",
+      },
+      { type: "h", text: "Eget pris för varje språk" },
+      {
+        type: "p",
+        text: "Ett japanskt och ett engelskt exemplar av samma kort är olika varor med olika marknader och priser. Ibland är det japanska billigare, ibland dyrare. Jämför därför alltid med priset för samma språk som ditt kort. Foilio har japanska singlar och sealed i katalogen, med egna priser skilda från de engelska.",
+      },
+      {
+        type: "links",
+        items: [
+          { href: "/sets", label: "Alla set", note: "Engelska och japanska" },
+          { href: "/guider/vad-ar-mina-pokemonkort-varda", label: "Vad är mina kort värda?", note: "Så värderar du dina kort" },
+        ],
+      },
+    ],
+    sources: [
+      { label: "Bulbapedia: Pitch Black (TCG)", url: "https://bulbapedia.bulbagarden.net/wiki/Pitch_Black_(TCG)" },
+      { label: "Bulbapedia: Delta Reign (TCG)", url: "https://bulbapedia.bulbagarden.net/wiki/Delta_Reign_(TCG)" },
+      {
+        label: "Tech Times: Pokémon TCG Japan High Class Pack Crowns Mega Raichu Its February 2027 Headliner",
+        url: "https://www.techtimes.com/articles/325739/20260827/pokemon-tcg-japan-high-class-pack-crowns-mega-raichu-its-february-2027-headliner.htm",
       },
     ],
   },
@@ -392,9 +723,18 @@ export function guideForSet(setId: string): Guide | null {
   return GUIDES.find((g) => g.setId === setId) ?? null;
 }
 
-/** Nyast först; vid samma datum behålls filens ordning (den är redaktionell). */
+/**
+ * Kalendern ("kommande set") först — den är navet som länkar till resten och den
+ * sida en besökare oftast letar efter. Sedan nyast först; vid samma datum behålls
+ * filens ordning (den är redaktionell).
+ */
 export function guidesNewestFirst(): Guide[] {
   return GUIDES.map((g, i) => ({ g, i }))
-    .sort((a, b) => b.g.publishedAt.localeCompare(a.g.publishedAt) || a.i - b.i)
+    .sort(
+      (a, b) =>
+        Number(b.g.kind === "calendar") - Number(a.g.kind === "calendar") ||
+        b.g.publishedAt.localeCompare(a.g.publishedAt) ||
+        a.i - b.i
+    )
     .map(({ g }) => g);
 }

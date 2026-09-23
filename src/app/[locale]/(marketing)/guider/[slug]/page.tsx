@@ -18,6 +18,7 @@ import { routing } from "@/i18n/routing";
 import { baseOpenGraph, localeUrl } from "@/lib/canonical";
 import { formatDate } from "@/lib/format";
 import { GUIDES, getGuide, type GuideBlock } from "@/content/guides";
+import { KIND_KEY } from "@/components/features/guide-kind";
 import { IconArrowRight, IconExternalLink } from "@/components/ui/icons";
 
 export function generateStaticParams() {
@@ -65,6 +66,24 @@ function Block({ block }: { block: GuideBlock }) {
             <li key={item}>{item}</li>
           ))}
         </ul>
+      );
+    case "note":
+      // Obekräftat står i en egen gul ruta — aldrig i löptexten (se GuideBlock).
+      return (
+        <aside
+          className={
+            block.tone === "rumor"
+              ? "rounded-2xl border border-holo-gold/40 bg-holo-gold/[0.06] p-4"
+              : "rounded-2xl border border-surface-border bg-surface-overlay p-4"
+          }
+        >
+          <div
+            className={`text-[10px] font-bold uppercase tracking-[0.1em] ${block.tone === "rumor" ? "text-holo-gold" : "text-ink-faint"}`}
+          >
+            {block.title}
+          </div>
+          <p className="mt-1.5 text-pretty text-sm leading-relaxed text-ink-muted">{block.text}</p>
+        </aside>
       );
     case "links":
       return (
@@ -150,7 +169,7 @@ export default async function GuidePage({ params }: { params: { locale: string; 
       </nav>
 
       <div className="mt-4 text-[10px] font-bold uppercase tracking-[0.1em] text-holo-cyan">
-        {guide.kind === "set" ? t("kindSet") : t("kindGuide")}
+        {t(KIND_KEY[guide.kind])}
       </div>
       <h1 className="mt-2 text-pretty font-display text-[28px] font-bold leading-[1.15] tracking-[-0.02em] text-ink sm:text-4xl">
         {guide.title}
