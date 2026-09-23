@@ -66,6 +66,52 @@ export function isForgedBrowserUa(userAgent: string): boolean {
   return true;
 }
 
+/**
+ * SVEPET MED 35 000 IP:N (mätt 2026-09-23, Railways httpLogs över 21 h).
+ *
+ * ~61 000 hämtningar/dygn av `/produkter/[slug]` från **35 613 olika IP-adresser**
+ * (1,7 per IP), jämnt ~2 800/h dygnet runt, med en UA ur en roterande lista av
+ * hundratals strängar. Det var **2,4 av Railways 3,8 GB utgående trafik per dygn** och
+ * den största posten på Railway-notan (egress $0,05/GB) — plus en kall ISR-render och
+ * en skriven volympost per träff, som i sin tur blåser upp minnet (sidcachen).
+ *
+ * Strängarna ser giltiga ut men påstår saker som ingen riktig webbläsare längre skickar.
+ * Sedan UA-reduktionen (Chrome ≥ 110, Firefox ≥ 87) är versionsdetaljerna FRUSNA:
+ *   · Chrome på Windows/macOS skriver `Chrome/134.0.0.0` — aldrig `134.0.6998.45`.
+ *     (Mobil-Chrome/Android WebView skriver hela versionen och rörs INTE — bara skrivbord.)
+ *   · Chrome OCH Safari på macOS skriver alltid `Mac OS X 10_15_7`, aldrig `14_4_0`.
+ *   · Firefox på macOS skriver alltid `Mac OS X 10.15`, aldrig `12.3`.
+ *   · Chrome skriver alltid fyra versionsdelar, aldrig `Chrome/125.0 Safari/…`.
+ * Mätt: de fyra reglerna fäller ~1,9 av svepets 2,4 GB/dygn och NOLL av appens,
+ * Googlebots eller de UA:er som ser ut som riktiga besökare.
+ *
+ * ⛔ Bara en "REN" Chrome-sträng dömer (slutar på versionen eller `Safari/537.36`):
+ * Electron, Steam, Discord-klienten och andra inbäddade Chromium skriver HELA versionen
+ * men lägger en egen produkttoken efter — de står utanför med flit. Googlebot/Bingbot
+ * saknar skrivbordsmarkören (`Windows NT`/`Macintosh`) och har `compatible;` —
+ * dubbelt utanför. Vaktat av tests/unit/blocked-bots.test.ts.
+ */
+const PURE_CHROME_TAIL = String.raw`Chrome\/\d+(?:\.\d+){3}(?: Safari\/537\.36)?$`;
+const DESKTOP_FULL_CHROME = new RegExp(
+  String.raw`^Mozilla\/5\.0 \((?:Windows NT|Macintosh)[^)]*\) AppleWebKit\/537\.36 \(KHTML, like Gecko\) Chrome\/\d+\.0\.[1-9]\d*\.\d+(?: Safari\/537\.36)?$`
+);
+const MAC_UNFROZEN_CHROME = new RegExp(
+  String.raw`^Mozilla\/5\.0 \(Macintosh; Intel Mac OS X 1[1-9]_\d+(?:_\d+)?\) AppleWebKit\/537\.36 \(KHTML, like Gecko\) ` +
+    PURE_CHROME_TAIL
+);
+const MAC_UNFROZEN_FIREFOX =
+  /^Mozilla\/5\.0 \(Macintosh; Intel Mac OS X 1[1-9]\.\d+; rv:\d+\.\d+\) Gecko\/20100101 Firefox\/\d+\.\d+$/;
+const TWO_PART_CHROME = /^Mozilla\/5\.0 \([^)]*\) AppleWebKit\/537\.36 \(KHTML, like Gecko\) Chrome\/\d+\.\d+ Safari\/537\.36$/;
+
+export function isImpossibleVersionUa(userAgent: string): boolean {
+  return (
+    DESKTOP_FULL_CHROME.test(userAgent) ||
+    MAC_UNFROZEN_CHROME.test(userAgent) ||
+    MAC_UNFROZEN_FIREFOX.test(userAgent) ||
+    TWO_PART_CHROME.test(userAgent)
+  );
+}
+
 export function isBlockedBot(userAgent: string): boolean {
-  return BLOCKED_BOTS.test(userAgent) || isForgedBrowserUa(userAgent);
+  return BLOCKED_BOTS.test(userAgent) || isForgedBrowserUa(userAgent) || isImpossibleVersionUa(userAgent);
 }

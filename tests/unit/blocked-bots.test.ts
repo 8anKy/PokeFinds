@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isBlockedBot, isForgedBrowserUa } from "@/lib/blocked-bots";
+import { isBlockedBot, isForgedBrowserUa, isImpossibleVersionUa } from "@/lib/blocked-bots";
 
 /**
  * Regressionsskydd för crawler-blocklistan. Listan är EN 400 tecken lång regex-rad
@@ -142,5 +142,54 @@ describe("isForgedBrowserUa: den omöjliga webbläsarsträngen", () => {
 
   it("tom UA är inte en förfalskning (den fångas av andra skäl eller inte alls)", () => {
     expect(isForgedBrowserUa("")).toBe(false);
+  });
+});
+
+/**
+ * SVEPET MED 35 000 IP:N (mätt 2026-09-23): ~61 000 produktsidor/dygn, 1,7 hämtningar
+ * per IP, 2,4 GB/dygn av Railways egress. UA:erna är giltigt FORMADE men påstår
+ * versionsdetaljer som UA-reduktionen fryste för flera år sedan. Strängarna nedan är
+ * kopierade ur Railways httpLogs samma dygn.
+ */
+describe("isImpossibleVersionUa: frusna versionsfält som svepet inte fryser", () => {
+  it.each([
+    // Skrivbords-Chrome med hel byggversion (riktig skriver 134.0.0.0).
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.116 Safari/537.36",
+    // ...även utan Safari-svansen.
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.6998.45",
+    // macOS-version som Chrome aldrig skriver (frusen till 10_15_7).
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
+    // Firefox på Mac skriver alltid 10.15.
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 12.3; rv:136.0) Gecko/20100101 Firefox/136.0",
+    // Chrome med två versionsdelar.
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36",
+  ])("blockar %s", (ua) => {
+    expect(isImpossibleVersionUa(ua)).toBe(true);
+    expect(isBlockedBot(ua)).toBe(true);
+  });
+
+  it.each([
+    ["Chrome på Windows", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"],
+    ["Chrome på Mac", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"],
+    ["Edge", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36 Edg/153.0.3405.52"],
+    ["Opera", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 OPR/135.0.0.0"],
+    ["Firefox på Mac", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:150.0) Gecko/20100101 Firefox/150.0"],
+    ["Firefox på Windows", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:150.0) Gecko/20100101 Firefox/150.0"],
+    ["Safari på Mac", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15"],
+    // Mobil-Chrome, Android WebView och Samsung skriver HELA versionen på riktigt.
+    ["Android WebView", "Mozilla/5.0 (Linux; Android 14; Pixel 8 Build/AP2A; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/153.0.8010.52 Mobile Safari/537.36"],
+    ["Samsung Internet", "Mozilla/5.0 (Linux; Android 14; SM-S921B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/28.0 Chrome/130.0.6723.86 Mobile Safari/537.36"],
+    ["Chrome på iOS", "Mozilla/5.0 (iPhone; CPU iPhone OS 26_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/153.0.8010.24 Mobile/15E148 Safari/604.1"],
+    // Inbäddad Chromium skriver hela versionen men har en egen token efter.
+    ["Electron-app", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) discord/1.0.9 Chrome/124.0.6367.243 Electron/30.2.0 Safari/537.36"],
+    ["Google-InspectionTool", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.52 Safari/537.36 (compatible; Google-InspectionTool/1.0;)"],
+    // ⛔ Googlebot/Bingbot: hel version, men ingen skrivbordsmarkör och `compatible;`.
+    ["Googlebot (desktop)", "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Chrome/153.0.8010.52 Safari/537.36"],
+    ["Googlebot (mobil)", "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.52 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"],
+    ["Bingbot (desktop)", "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm) Chrome/116.0.1938.76 Safari/537.36"],
+    ["Foilio-appen", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 FoilioApp/1.3"],
+  ])("släpper igenom %s", (_namn, ua) => {
+    expect(isImpossibleVersionUa(ua)).toBe(false);
+    expect(isBlockedBot(ua)).toBe(false);
   });
 });

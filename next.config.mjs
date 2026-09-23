@@ -144,6 +144,14 @@ const nextConfig = {
         headers: [{ key: "Cache-Control", value: "private, no-store" }],
       },
       {
+        // BILDER UR public/ (2026-09-23): Next serverar dem med `max-age=0`, så varje
+        // sidvisning laddade om loggan/set-logotyperna — egress är en av de två stora
+        // posterna på Railway-notan ($0,05/GB). Ett dygn i webbläsaren räcker; en
+        // ersatt fil slår igenom inom 24 h. Aldrig `immutable` — filnamnen är inte hashade.
+        source: "/:dir(brand|set-logos|retailer-logos|grading-logos|product-images|scan-guide|news)/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
+      },
+      {
         // Universella länkar: Apple hämtar /.well-known/apple-app-site-association
         // och KRÄVER application/json. Filen är avsiktligt utan filändelse (Apples
         // krav) → `send` hittar ingen mime-typ och skulle svara

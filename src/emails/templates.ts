@@ -666,7 +666,7 @@ function digestBlockHtml(block: DigestBlock, lead: boolean): string {
 /**
  * Brevets skal.
  *
- * ⛔ **INGEN LOGOTYPBILD.** `public/brand/foilio-logo.png` finns, men den är 800 kB,
+ * ⛔ **INGEN LOGOTYPBILD.** `public/brand/foilio-logo.png` finns (41 kB sedan 2026-09-23, var 800 kB),
  * blockeras av Outlook som standard och blev en trasig ruta i det skarpa utskicket
  * 2026-08-16 (tom bas-URL). En ordbild i text kan inte gå sönder, väger noll och
  * renderas likadant i varje klient. Bilderna i brevet ska vara KORT — det är de

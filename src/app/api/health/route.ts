@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readCgroupMemoryBytes } from "@/lib/memory-recycle";
+import { pageCacheReclaimStatus, readCgroupMemoryBytes, readCgroupMemoryStat } from "@/lib/memory-recycle";
 
 // Liveness-check för uptime-monitorn. MEDVETET ingen DB-fråga: en monitor som
 // pingar var minut skulle annars hålla Neon vaken dygnet runt = onödig compute.
@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 export function GET() {
   const m = process.memoryUsage();
   const cg = readCgroupMemoryBytes();
+  const stat = readCgroupMemoryStat();
   const mb = (n: number) => Math.round(n / 1048576);
   return NextResponse.json({
     status: "ok",
@@ -25,6 +26,10 @@ export function GET() {
       external: mb(m.external),
       arrayBuffers: mb(m.arrayBuffers),
       cgroup: cg === null ? null : mb(cg),
+      // anon = processminne, file = sidcache (se memory-recycle.ts, "SIDCACHEN RÄKNAS").
+      anon: stat ? mb(stat.anon) : null,
+      file: stat ? mb(stat.file) : null,
+      reclaim: pageCacheReclaimStatus(),
     },
   });
 }
