@@ -1750,7 +1750,8 @@
     "inviteRow": "Invite 3 friends — 1 month of Pro free",
     "manageBody": "Manage your subscription",
     "guestCardTitle": "Your collector card",
-    "guestChip": "Guest"
+    "guestChip": "Guest",
+    "tourAgain": "Show the guide again"
   },
   "Invite": {
     "h1": "Invite friends",
@@ -2707,5 +2708,25 @@
     "notFoundBody": "This guide has been moved or removed.",
     "readGuide": "Read the {name} guide",
     "swedishOnly": "Our guides are written in Swedish."
+  },
+  "Tour": {
+    "label": "Guided tour of the app",
+    "progress": "Step {step} of {total}",
+    "skip": "Skip",
+    "next": "Next",
+    "done": "Done",
+    "tapHint": "Tap the highlighted item to continue",
+    "searchTitle": "Search and filter",
+    "searchBody": "Find over 20,000 cards and products here. Filter by set, store, language and price.",
+    "productTitle": "Open a product",
+    "productBody": "Tap a product to see its price at every store and how it has changed.",
+    "watchTitle": "Watch",
+    "watchBody": "Tap here when you want an item, and we'll tell you when it's back in stock at any of the 40+ stores we track.",
+    "watchGuestTitle": "Watch",
+    "watchGuestBody": "With a free account you can watch an item and get an alert when it's back in stock at any of the 40+ stores we track.",
+    "portfolioTitle": "Your collection",
+    "portfolioBody": "Add your cards and products and see what your collection is worth, every day.",
+    "scanTitle": "Scan a card",
+    "scanBody": "Point the camera at a card to see which one it is and what it's worth. Tap to try it!"
   }
 }

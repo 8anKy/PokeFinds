@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { auth, hasRole } from "@/lib/auth";
+import { previewAllowedFor } from "@/lib/feature-preview";
 import { prisma } from "@/lib/db";
 import { communityV2Request } from "@/lib/community-v2-server";
 import {
@@ -12,6 +13,7 @@ import {
   IconShield,
   IconSliders,
   IconChevronRight,
+  IconInfo,
 } from "@/components/ui/icons";
 import { LogoutButton } from "./logout-button";
 import { GuestMore } from "./guest-more";
@@ -109,6 +111,10 @@ export default async function MerPage() {
     { href: "/gradera", label: t("grading"), icon: IconShield },
     { href: "/installningar", label: t("settings"), icon: IconSliders },
     ...(isAdmin ? [{ href: "/admin", label: t("admin"), icon: IconPanel }] : []),
+    // Startar om appens guidade tur (lib/app-tour.ts) — bara där turen är öppen.
+    ...(previewAllowedFor("APP_TOUR", session?.user)
+      ? [{ href: "/produkter?guide=1", label: t("tourAgain"), icon: IconInfo }]
+      : []),
   ];
 
   return (

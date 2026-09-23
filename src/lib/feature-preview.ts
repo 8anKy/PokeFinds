@@ -13,7 +13,8 @@
  * som collection-import-gate och community-v2-gate. Ren funktion — servern
  * skickar in env och användare, testerna slipper process.env.
  */
-export type PreviewFeature = "SCAN_COUNTER" | "PUSH_TO_STORE";
+/** APP_TOUR = appens guidade tur (lib/app-tour.ts), öppnas för alla med `FEATURE_APP_TOUR_PUBLIC=1`. */
+export type PreviewFeature = "SCAN_COUNTER" | "PUSH_TO_STORE" | "APP_TOUR";
 
 const ADMIN_ROLES = new Set(["ADMIN", "SUPERADMIN"]);
 

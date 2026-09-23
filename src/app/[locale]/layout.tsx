@@ -18,6 +18,7 @@ import { ServiceWorkerRegister } from "@/components/pwa-register";
 import { BottomTabs } from "@/components/layout/bottom-tabs";
 import { ProductOverlayHost } from "@/components/features/product-overlay";
 import { PaywallSheetHost } from "@/components/features/paywall-sheet";
+import { AppTour } from "@/components/features/app-tour";
 import { stripeCheckoutAdvertised } from "@/lib/stripe";
 import { PushManager } from "@/components/push-manager";
 import { ScrollReset } from "@/components/scroll-reset";
@@ -158,6 +159,8 @@ export default async function LocaleLayout({
                 header (annars dubbel header). */}
             <ProductOverlayHost />
             <BottomTabs />
+            {/* Guidade turen (mobil, första besöket) — ritar inget förrän den startar. */}
+            <AppTour />
             {/* Paywall-arket: varje Pro-låst yta öppnar det PÅ PLATS via
                 openPaywall() (lib/paywall.ts) i stället för att navigera till
                 /priser. Portalas till <body>, så DOM-ordningen här är oviktig;

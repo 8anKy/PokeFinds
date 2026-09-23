@@ -23,6 +23,11 @@ describe("previewAllowed — förhandsvisning bara för ägaren tills spaken sl�
     expect(previewAllowed({ feature: "SCAN_COUNTER", role: "USER", email: "nope@foilio.se", previewEmails })).toBe(false);
     expect(previewAllowed({ feature: "SCAN_COUNTER", role: "USER", email: "", previewEmails: "," })).toBe(false);
   });
+  it("guidade turen (APP_TOUR): admin ser den, gäster först när den släppts", () => {
+    expect(previewAllowed({ feature: "APP_TOUR", role: "SUPERADMIN" })).toBe(true);
+    expect(previewAllowed({ feature: "APP_TOUR", role: null, email: null })).toBe(false);
+    expect(previewAllowed({ feature: "APP_TOUR", role: null, publicFlag: "1" })).toBe(true);
+  });
   it("parsePreviewEmails ignorerar tomma poster", () => {
     expect([...parsePreviewEmails(" a@b.se,, ,C@d.se ")]).toEqual(["a@b.se", "c@d.se"]);
   });

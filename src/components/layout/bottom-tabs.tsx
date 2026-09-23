@@ -216,6 +216,7 @@ export function BottomTabs() {
             <li key={t.href} className="relative min-w-0 flex-1">
               <Link
                 href={t.href}
+                data-tour={`tab-${t.key}`}
                 aria-current={active ? "page" : undefined}
                 // Taktil kvittens på flikbytet. ⛔ BARA när fliken FAKTISKT
                 // byts: ett tryck på den flik man redan står på navigerar

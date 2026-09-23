@@ -276,6 +276,7 @@ export function ProductActions({ productId, title }: ProductActionsProps) {
           Desktop: raden som förut. */}
       <div className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
         <Button
+          data-tour="watch-button"
           variant={watch ? "outline" : "primary"}
           loading={loading === "watch"}
           onClick={openWatch}

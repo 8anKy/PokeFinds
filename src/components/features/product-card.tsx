@@ -128,6 +128,7 @@ export function ProductCard({ product, className, priority = false }: ProductCar
     // är ogiltig HTML. Produktlänken täcker i stället hela kortet via after:inset-0
     // ("stretched link") och set-länken lyfts över den med relative z-10.
     <div
+      data-tour="product-card"
       className={cn(
         "card-surface group relative flex h-full flex-col overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:border-holo-cyan/40 hover:shadow-glow active:scale-[0.98] focus-within:border-holo-cyan/40 focus-within:ring-2 focus-within:ring-holo-cyan",
         className

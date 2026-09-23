@@ -368,7 +368,7 @@ export default async function ProductsPage({
           <div className="flex justify-center">
             <AppStoreBadge />
           </div>
-          <form key={filterKey} method="GET" action="/produkter">
+          <form key={filterKey} method="GET" action="/produkter" data-tour="explore-search">
             <ExploreFilterBar
               searchParams={searchParams}
               sets={sets}

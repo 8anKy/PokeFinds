@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { LinkButton } from "@/components/ui/button";
+import { previewAllowedFor } from "@/lib/feature-preview";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { FoilPanel, FollowTiles, MenuRow, Section, type MenuLink } from "./more-ui";
 
@@ -28,6 +29,8 @@ export async function GuestMore() {
     { href: "/integritetspolicy", label: t("guestPrivacy") },
     { href: "/cookies", label: t("guestCookies") },
     { href: "/kontakt", label: t("guestContact") },
+    // Startar om appens guidade tur (lib/app-tour.ts) — bara när turen är släppt för alla.
+    ...(previewAllowedFor("APP_TOUR", null) ? [{ href: "/produkter?guide=1", label: t("tourAgain") }] : []),
   ];
 
   return (

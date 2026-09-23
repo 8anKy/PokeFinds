@@ -412,6 +412,13 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   ⛔ Läckor/butikslistningar/varumärken står BARA i ett `note`-block med `tone: "rumor"` (gul ruta "Obekräftat"),
   aldrig i löptexten. Kalendern `kommande-pokemon-set` (EN + JP) är navet och ligger först i listan.
   Nås via sidfoten, sitemapen (med ärligt `lastModified`) och "Läs guiden"-länken på setsidan (`guideForSet`).
+- **GUIDAD TUR I APPEN (2026-09-23, ägarbeslut: "användaren trycker")**: 5 steg på mobil (sök → produkt → Bevaka →
+  Samling → Skanna) som markerar RIKTIGA knappar (`data-tour`-attribut) och går vidare när användaren själv tryckt
+  (rutt/overlay), "Hoppa över" i varje steg. Steg + regler: `src/lib/app-tour.ts`, ritning `components/features/app-tour.tsx`
+  (rot-layouten), tillstånd = localStorage, "Visa guiden igen" i Mer (`/produkter?guide=1`). ⛔ **FÖRHANDSVISNING**: bara
+  admin / `FEATURE_PREVIEW_EMAILS` tills `FEATURE_APP_TOUR_PUBLIC=1` sätts i Railway (läses i runtime via
+  `/api/feature-preview`, ingen ombyggnad). ⛔ Skanna är sista steget (kameratillstånd), turen väntar ut cookie-bannern
+  (den täcker flikarna på mobilwebben), ett mål som inte dyker upp hoppas över i stället för att lämna skärmen mörk.
 - ⛔ **TRE TAL OM ETT SET, ALDRIG BLANDADE**: `totalCards` = printedTotal (talet på kortet, som skannern
   läser — byt ALDRIG mening på den); `totalCardsFull` = hela setet inkl. secret rares (kompletteringens
   nämnare); master set-nämnaren = de TRYCKNINGAR VI listar, aldrig TCGdex tal — en nämnare användaren inte

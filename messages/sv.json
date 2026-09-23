@@ -1750,7 +1750,8 @@
     "inviteRow": "Bjud in 3 vänner — 1 månad Pro gratis",
     "manageBody": "Hantera din prenumeration",
     "guestCardTitle": "Ditt samlarkort",
-    "guestChip": "Gäst"
+    "guestChip": "Gäst",
+    "tourAgain": "Visa guiden igen"
   },
   "Invite": {
     "h1": "Bjud in vänner",
@@ -2707,5 +2708,25 @@
     "notFoundBody": "Den här guiden har flyttats eller tagits bort.",
     "readGuide": "Läs guiden om {name}",
     "swedishOnly": "Guiderna är skrivna på svenska."
+  },
+  "Tour": {
+    "label": "Guidad tur genom appen",
+    "progress": "Steg {step} av {total}",
+    "skip": "Hoppa över",
+    "next": "Nästa",
+    "done": "Klar",
+    "tapHint": "Tryck på det markerade för att gå vidare",
+    "searchTitle": "Sök och filtrera",
+    "searchBody": "Här hittar du över 20 000 kort och produkter. Filtrera på set, butik, språk och pris.",
+    "productTitle": "Öppna en produkt",
+    "productBody": "Tryck på en produkt för att se priset hos alla butiker och hur det har ändrats.",
+    "watchTitle": "Bevaka",
+    "watchBody": "Tryck här när du vill ha en vara, så säger vi till när den kommer i lager hos någon av de över 40 butikerna vi följer.",
+    "watchGuestTitle": "Bevaka",
+    "watchGuestBody": "Med ett gratis konto kan du bevaka en vara och få ett larm när den kommer i lager hos någon av de över 40 butikerna vi följer.",
+    "portfolioTitle": "Din samling",
+    "portfolioBody": "Lägg till dina kort och produkter och se vad samlingen är värd, varje dag.",
+    "scanTitle": "Skanna ett kort",
+    "scanBody": "Håll kameran mot ett kort så ser du vilket det är och vad det är värt. Tryck för att prova!"
   }
 }
