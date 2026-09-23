@@ -19,21 +19,35 @@
  *   node scripts/with-prod-db.mjs npx tsx scripts/purge-magnet-tradera-matches.ts [--apply]
  */
 import { prisma } from "../src/lib/db";
-import { loadMatchIndex, matchProduct } from "../src/scrapers/matching";
+import { distinctiveOverlap, loadMatchIndex, matchProduct } from "../src/scrapers/matching";
 import { recomputeProductPriceCache } from "../src/services/products";
 
-const MAGNET = /\b(go|xy|dp)\b/;
+/**
+ * En produkt var en MAGNET om den, utan go/xy/dp, saknade särskiljande ord — exakt
+ * villkoret för felet (distinctiveOverlap gav 1 mot varje set-lös titel).
+ * ⛔ Ett bredare urval (varje produkt med "go"/"xy" i titeln) fångade tusentals
+ *    KORT-rader från Fas 0, som matchas med matchListingToProduct och inte kan dömas
+ *    om med matchProduct här.
+ */
+const QUALIFIER = /\b(go|xy|dp)\b/g;
+const wasMagnet = (normalizedTitle: string) =>
+  /\b(go|xy|dp)\b/.test(normalizedTitle) &&
+  distinctiveOverlap("", normalizedTitle.replace(QUALIFIER, " ")) === 1;
 
 async function main() {
   const apply = process.argv.includes("--apply");
   const index = await loadMatchIndex();
-  const magnets = index.filter((p) => MAGNET.test(p.normalizedTitle));
+  const magnets = index.filter((p) => wasMagnet(p.normalizedTitle));
+  for (const m of magnets) console.log(`  magnet: ${m.normalizedTitle}`);
   const magnetIds = magnets.map((p) => p.id);
   const titleOf = new Map(index.map((p) => [p.id, p.normalizedTitle]));
-  console.log(`${magnets.length} produkter bär go/xy/dp i titeln.\n`);
+  console.log(`${magnets.length} magnet-produkter.\n`);
 
+  // ⛔ En annons som SJÄLV nämner go/xy/dp rör vi inte, även om den lagade matcharen
+  //    inte hittar den ("Pokemon go ETB" — förkortningen ETB läses inte, ett separat
+  //    och äldre glapp). Felet var set-LÖSA titlar; bara de döms här.
   const stillMatches = async (productId: string, title: string) =>
-    (await matchProduct(title, index, title))?.productId === productId;
+    /\b(go|xy|dp)\b/i.test(title) || (await matchProduct(title, index, title))?.productId === productId;
 
   // ── Prisobservationer (aktiva svepet + sålt-svepet) ──
   const obs = await prisma.$queryRawUnsafe<{ id: string; productId: string; title: string; url: string | null; price: number }[]>(
