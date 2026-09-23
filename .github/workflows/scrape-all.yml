@@ -112,6 +112,19 @@ jobs:
           FEED_IMPORT_BUDGET_MINUTES: "25"
         run: npx tsx scripts/feed-import-run.ts
 
+      # Försvunna offers hos AKTIVA men OBEVAKADE butiker (Rogerz, Pokexclusive …).
+      # Feed-importens verify-pass hämtar bara de bevakade butikernas feedar och når
+      # dem aldrig — MÄTT 2026-09-23: 18 rader stod "I lager" medan butikens egen sida
+      # sa slut (Pokexclusive 15, Rogerz 3). Deras offers bumpas av scrape-all-run ovan,
+      # så 2 h karens = "fanns inte i nattens feed". Ingen larmväg (IN→OUT larmar aldrig,
+      # och butikerna är ur larmen på ägarbeslut). continue-on-error: aldrig fälla kedjan.
+      - if: steps.guard.outputs.ready == 'true'
+        name: Verifiera försvunna offers hos obevakade butiker
+        continue-on-error: true
+        env:
+          RESTOCK_SOLDOUT_GRACE_HOURS: "2"
+        run: npx tsx scripts/verify-stale-offers.ts --unwatched --apply --max=150
+
       # GTIN: hämta tillverkarens streckkod för offers som ännu saknar den (5 av 7
       # butiker publicerar den — mätt 73% täckning). En extra HTTP-request per NY
       # offer, aldrig i restock-lanen. Streckkoden gör matchningen exakt i stället för

@@ -922,6 +922,19 @@ export async function runRestockScan(opts?: {
    * nattsteget kör EN gång per dygn och skickar in ett högre tak (se feed-import-run.ts).
    */
   verifyMax?: number;
+  /**
+   * Karens innan en offer som saknas i feeden slås upp (default env
+   * `RESTOCK_SOLDOUT_GRACE_HOURS`, 24 h). 24 h är dimensionerat för en lane var 10:e
+   * minut — där skyddar den mot att samma URL frågas om varje körning.
+   *
+   * ⛔ NATTSTEGET SKICKAR EN KORT KARENS (2026-09-23). Vid EN körning per dygn gav 24 h
+   * upp till ~48 h "I lager" på en avpublicerad sida: Alphaspels Destined Rivals-ETB
+   * sågs senast 09-22 08:34 (ankaret bumpades mitt på dagen), var ~18 h gammal vid
+   * nattens pass, hoppades över — och hade stått kvar till NÄSTA natt. Uppslaget är
+   * själva kontrollen (butikens egen sida svarar), inte en tolkning av frånvaron, så
+   * en kort karens kostar bara fler uppslag, inom samma `verifyMax`-tak.
+   */
+  graceMs?: number;
 }): Promise<RestockScanResult> {
   let sources: RestockSourceInfo[];
   if (opts?.sources?.length) {
@@ -1386,7 +1399,7 @@ export async function runRestockScan(opts?: {
   if (seenOfferIds.length) {
     await prisma.offer.updateMany({ where: { id: { in: seenOfferIds } }, data: { lastSeenAt: now } });
   }
-  const graceMs = Number(process.env.RESTOCK_SOLDOUT_GRACE_HOURS ?? 24) * 3600_000;
+  const graceMs = opts?.graceMs ?? Number(process.env.RESTOCK_SOLDOUT_GRACE_HOURS ?? 24) * 3600_000;
   const verifyMax = opts?.verifyMax ?? Number(process.env.RESTOCK_VERIFY_MAX ?? 20);
   const retailerNameById = new Map<string, string>();
   for (const [name, id] of retailerByName) retailerNameById.set(id, name);

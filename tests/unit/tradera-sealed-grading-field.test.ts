@@ -100,6 +100,12 @@ describe("set-lösa titlar och korta set-namn (matchProduct)", () => {
     }
   });
 
+  it("ETB betyder Elite Trainer Box — och står formen redan ut blir den inte dubbel", async () => {
+    expect(await match("Pokemon go ETB")).toBe("pokemon go elite trainer box");
+    expect(applySetAliases("pokemon go etb")).toBe("pokemon go elite trainer box");
+    expect(applySetAliases("30th celebration elite trainer box etb")).toBe("30th celebration elite trainer box");
+  });
+
   it("aliaset rör inte titlar som redan säger Celebration, och aldrig 25-årets Celebrations", async () => {
     expect(applySetAliases("30th celebration booster bundle")).toBe("30th celebration booster bundle");
     expect(await match("Pokémon Celebrations Elite Trainer Box")).toBe("celebrations elite trainer box");

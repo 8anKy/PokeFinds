@@ -1784,6 +1784,12 @@ const SET_ALIASES: { re: RegExp; to: string }[] = [
 export function applySetAliases(normalized: string): string {
   let t = normalized;
   for (const { re, to } of SET_ALIASES) t = t.replace(re, to);
+  // ⛔ "ETB" ⇒ "elite trainer box" (2026-09-23). Katalogen skriver ALLTID formen ut,
+  //    och kandidatpoolen hämtas per ORD ur katalogtitlarna — en annons som bara säger
+  //    "Pokemon go ETB" fick därför aldrig in GO-ETB:n i poolen (ingen katalogtitel
+  //    innehåller "etb") och matchade ingenting. Står formen redan ut ("Elite Trainer
+  //    Box (ETB)") stryks förkortningen i stället, så ingen titel får formen två gånger.
+  t = /\belite trainer box\b/.test(t) ? t.replace(/\betb\b/g, " ") : t.replace(/\betb\b/g, "elite trainer box");
   return t.replace(/\s+/g, " ").trim();
 }
 

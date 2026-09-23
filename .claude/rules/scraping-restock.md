@@ -52,9 +52,16 @@ paths:
   ~200 försvunna offers hann det aldrig ikapp. Nu PÅSTÅENDEN FÖRST (IN/PREORDER/LIMITED — de ljuger för
   kunden), sedan äldst först, och `feed-import-run` skickar `verifyMax` 150 (`FEED_IMPORT_VERIFY_MAX`);
   taket loggas när det nås. (3) `scripts/verify-stale-offers.ts` = samma dom för hand (torrkörning /
-  `--apply` / `--store=` / `--all`); körd 09-20: 23 rader rättade. ⛔ Rogerz/Pokexclusive (ur
-  restockWatch) och Leksaksaffären nås INTE av passet — deras försvunna offers (Rogerz 58 IN_STOCK
-  09-20) fryser tills någon bygger frånvarokoll i `runScrapeJob`. Vaktat av `stock-verify-gone.test.ts`.
+  `--apply` / `--store=` / `--all`); körd 09-20: 23 rader rättade. Vaktat av `stock-verify-gone.test.ts`.
+  ✅ **2026-09-23: KARENSEN VAR FÖR LÅNG FÖR ETT NATTPASS + OBEVAKADE BUTIKER NÅDDES ALDRIG.** Alphaspels
+  Destined Rivals-ETB (404) stod "I lager": ankaret bumpades 09-22 08:34, var ~18 h gammalt vid nattens
+  pass och hoppades över av 24 h-karensen — nästa chans var natten efter (~48 h). `feed-import-run` skickar
+  nu `graceMs` 2 h (`FEED_IMPORT_VERIFY_GRACE_HOURS`; runnerns default 24 h gäller lanen). Obevakade
+  AKTIVA butiker (Rogerz, Pokexclusive) verifieras av ett eget nattsteg:
+  `verify-stale-offers.ts --unwatched --apply` (2 h karens, räknar om priscachen). Mätt samma dag: 26 rader
+  rättade för hand (Pokexclusive 15, Alphaspel 1 + 5 LIMITED, Rogerz 3, Cardlevels 1, RahTech 1).
+  ⚠️ Butiker UTAN verifieringsstrategi (SF-Bok, CardGame, Swepoke, Mystery Shack, Toyspace) kan inte svara —
+  en försvunnen IN där faller till UNKNOWN, aldrig OUT. Leksaksaffären blockar oss (403) och förblir frusen.
 - **⛔ WEBHALLEN: BUTIKSVARA = I LAGER (ägarbeslut 2026-09-20)**: 30th Celebration var ett rent
   BUTIKSSLÄPP — `web: 0`, `isShippable: false`, "kan endast hämtas i butik", "Lvl 9+" — men de numeriska
   nycklarna i `stock` (butikssaldon, kapade vid `displayCap` 50) summerade ~420 ex, och vi visade "Slut i

@@ -51,6 +51,13 @@ const BUDGET_MINUTES = Math.max(1, Number(process.env.FEED_IMPORT_BUDGET_MINUTES
  * vaken. Passet loggar när taket nås.
  */
 const VERIFY_MAX = Math.max(0, Number(process.env.FEED_IMPORT_VERIFY_MAX ?? 150));
+/**
+ * Karens (timmar) innan en offer som saknas i nattens feed slås upp mot butikens sida.
+ * Runnerns default 24 h gav upp till ~48 h "I lager" på en avpublicerad sida när passet
+ * bara kör en gång per dygn — se `graceMs` i runRestockScan. 2 h räcker för att inte
+ * fråga om det passet självt nyss bumpade.
+ */
+const VERIFY_GRACE_HOURS = Math.max(0, Number(process.env.FEED_IMPORT_VERIFY_GRACE_HOURS ?? 2));
 
 async function main() {
   // Väck Neon före första riktiga frågan — se ensureDbAwake. (Anropas här också
@@ -66,7 +73,12 @@ async function main() {
   const watched = watchedRows.map((w) => ({ sourceName: w.retailer.name, url: w.url }));
   const idByKey = new Map(watchedRows.map((w) => [`${w.retailer.name}	${w.url}`, w.id]));
 
-  const r = await runRestockScan({ importBudgetMs: BUDGET_MINUTES * 60_000, watched, verifyMax: VERIFY_MAX });
+  const r = await runRestockScan({
+    importBudgetMs: BUDGET_MINUTES * 60_000,
+    watched,
+    verifyMax: VERIFY_MAX,
+    graceMs: VERIFY_GRACE_HOURS * 3600_000,
+  });
 
   // Svaren tillbaka till adminlistan: "frågade vi, och vad sa butiken?".
   // ⛔ Bara diagnostik — lagerdiffen som driver larm bor i Offer/StoreListing. Två
