@@ -188,7 +188,12 @@ describe("pickAlternatives", () => {
 
   it("utan träff (ingen match) mäts fönstret mot listans bästa kandidat", () => {
     const out = pickAlternatives(
-      [card({ cardId: "a", score: 0.8 }), card({ cardId: "b", score: 0.75 }), card({ cardId: "c", score: 0.2 })],
+      // Olika namn: sedan 2026-09-23 är ettans namnsyskon alltid med även utan träff.
+      [
+        card({ cardId: "a", score: 0.8, name: "A" }),
+        card({ cardId: "b", score: 0.75, name: "B" }),
+        card({ cardId: "c", score: 0.2, name: "C" }),
+      ],
       null
     );
     expect(out.map((c) => c.cardId)).toEqual(["a", "b"]);
@@ -499,5 +504,18 @@ describe("svep-raden som anroparen sätter ihop den", () => {
     const b = rail({ cardId: "b", productId: "p-b", score: 0.75 });
     const out = railFor([a, b], null);
     expect(out.map((c) => c.cardId)).toEqual(["a", "b"]);
+  });
+});
+
+describe("utan träff (Ingen träff / valsteget) — fält 2026-09-23", () => {
+  it("⛔ serverns etta ensam med sameArt får INTE svälja de andra korten", () => {
+    // Dark Tyranitar: servern skickade 12 kandidater, ettan (TRR #19) bar
+    // sameArt=true mot sig själv — raden visade bara den.
+    const trr = rail({ cardId: "trr-19", productId: "p-trr", name: "Dark Tyranitar", score: 1.3, sameArt: true });
+    const cc = rail({ cardId: "cc-19", productId: "p-cc", name: "Dark Tyranitar", score: 1.1 });
+    const jp = rail({ cardId: "jp-144", productId: "p-jp", name: "Dark Tyranitar (JP)", score: 0.9, artRank: 3 });
+    expect(pickSameArtRail([trr, cc, jp], null)).toEqual([]);
+    const out = pickAlternatives([trr, cc, jp], null);
+    expect(out.map((c) => c.cardId)).toEqual(["trr-19", "jp-144", "cc-19"]);
   });
 });

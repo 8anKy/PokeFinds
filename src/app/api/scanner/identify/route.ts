@@ -285,6 +285,8 @@ export async function POST(req: Request) {
         // Den SMALARE tröskeln — den som faktiskt visar valsteget. Skillnaden
         // mot `amb` är hur mycket vi skulle störa om frågan vidgades.
         ask: result.tied,
+        // Inget kort i bilden (NO_CARD_ART_MAX) — listan hölls tom med flit.
+        ...(result.noCard ? { nc: true } : {}),
         // Fångstkvaliteten klienten mätte. ⛔ Den enda vägen till ett svar på
         // "hur mycket av missarna är dålig fångst?" — revisionen 2026-08-29 kunde
         // bara mäta TAKTEN som proxy (< 1,5 s → 34,1 % miss mot 15,3 % vid > 60 s)

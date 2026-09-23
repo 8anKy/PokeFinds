@@ -156,6 +156,8 @@ interface IdentifyResponse {
    *  — det är den här som får FRÅGA, se TIE_MARGIN i services/scanner/index.ts. */
   tied?: boolean;
   remaining?: number;
+  /** Inget kort i bilden (vision tyst + bilden under slumpnivå) — se NO_CARD_ART_MAX. */
+  noCard?: boolean;
   /** Admin: skanningens jobb-id — gör användarens korrigering till facit. */
   jobId?: string | null;
 }
@@ -215,6 +217,8 @@ interface ScanItem {
   condition: string;
   language: string;
   errorMessage?: string;
+  /** Servern hittade inget kort i bilden — raden säger det i stället för "ingen träff". */
+  noCard?: boolean;
   /** Skanningens jobb-id — användarens korrigering rapporteras som facit.
    *  Sätts för ALLA användare sedan 2026-08-15 (var admin-only). */
   jobId?: string | null;
@@ -1026,6 +1030,8 @@ function Scanner() {
   // Skannern är endast engelska — inget språkval.
   const defaultLanguage = "EN";
   const [detailsId, setDetailsId] = useState<string | null>(null);
+  /** Detaljarket öppnat via "Sök manuellt" ⇒ börjar i sökläget. */
+  const [detailsSearch, setDetailsSearch] = useState(false);
 
   const [addingAll, setAddingAll] = useState(false);
   const [addedCount, setAddedCount] = useState<number | null>(null);
@@ -1276,7 +1282,13 @@ function Scanner() {
               jobId: data.jobId ?? null,
             };
           }
-          return { ...s, status: "nomatch", candidates: data.candidates, jobId: data.jobId ?? null };
+          return {
+            ...s,
+            status: "nomatch",
+            candidates: data.candidates,
+            jobId: data.jobId ?? null,
+            ...(data.noCard ? { noCard: true } : {}),
+          };
         })
       );
     },
@@ -2224,6 +2236,11 @@ function Scanner() {
     setDetailsId((d) => (d === id ? null : d));
   }, []);
 
+  const openDetails = useCallback((id: string) => {
+    setDetailsSearch(false);
+    setDetailsId(id);
+  }, []);
+
   const chooseCandidate = useCallback((id: string, cand: Candidate) => {
     // Användarens eget val sätter sessionens språk (EN/JP-tvillingen) — se
     // lib/scan-language-hint.ts.
@@ -2261,7 +2278,13 @@ function Scanner() {
           rank: s.candidates.findIndex((c) => c.cardId === cand.cardId) + 1,
         });
         // Användaren valde själv ur listan → inte längre en gissning.
-        return { ...s, status: "matched", match: cand, uncertain: false };
+        // Ett kort ur den MANUELLA sökningen finns inte i serverns lista — lägg det
+        // först, annars saknas det valda kortet i raden (rättningsvägarna bygger på
+        // `candidates`). Rangen ovan är redan bokförd som 0 = "fanns inte i listan".
+        const candidates = s.candidates.some((c) => c.cardId === cand.cardId)
+          ? s.candidates
+          : [cand, ...s.candidates];
+        return { ...s, status: "matched", match: cand, candidates, uncertain: false, noCard: false };
       })
     );
     // ⛔ ARKET STÄNGS INTE AV ETT VAL (ägarbeslut 2026-08-04). Att välja
@@ -2565,7 +2588,7 @@ function Scanner() {
           onGallery={() => fileInputRef.current?.click()}
           onSettings={() => setSettingsOpen(true)}
           onReview={() => setView("review")}
-          onOpenDetails={setDetailsId}
+          onOpenDetails={openDetails}
         />
       </div>
 
@@ -2583,7 +2606,11 @@ function Scanner() {
           onPatch={patchScan}
           onRemove={removeScan}
           onChoose={chooseCandidate}
-          onOpenDetails={setDetailsId}
+          onOpenDetails={openDetails}
+          onSearchManually={(id) => {
+            setDetailsSearch(true);
+            setDetailsId(id);
+          }}
           onAddAll={() => void addAll()}
           onSellAll={sellAll}
           portfolios={portfolios}
@@ -2674,8 +2701,13 @@ function Scanner() {
       {/* Scan-details-sheet */}
       {detailsItem && (
         <ScanDetailsSheet
+          key={detailsItem.id}
           item={detailsItem}
-          onClose={() => setDetailsId(null)}
+          startInSearch={detailsSearch}
+          onClose={() => {
+            setDetailsId(null);
+            setDetailsSearch(false);
+          }}
           onChoose={(c) => chooseCandidate(detailsItem.id, c)}
           onRemove={() => removeScan(detailsItem.id)}
         />
@@ -3472,6 +3504,8 @@ function ReviewView(props: {
   onRemove: (id: string) => void;
   onChoose: (id: string, cand: Candidate) => void;
   onOpenDetails: (id: string) => void;
+  /** Öppnar detaljarket direkt i sökläget — skannern lämnas aldrig. */
+  onSearchManually: (id: string) => void;
   onAddAll: () => void;
   onSellAll: () => void;
   onScanMore: () => void;
@@ -3733,15 +3767,19 @@ function ReviewView(props: {
                   />
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-ink">
-                      {s.status === "error" && s.errorMessage ? t("scanStopped") : t("noMatch")}
+                      {s.status === "error" && s.errorMessage
+                        ? t("scanStopped")
+                        : s.noCard
+                          ? t("noCardFound")
+                          : t("noMatch")}
                     </p>
                     <p className="text-xs text-ink-muted">
-                      {s.errorMessage ?? t("couldntMatch")}
+                      {s.errorMessage ?? (s.noCard ? t("noCardFoundHint") : t("couldntMatch"))}
                     </p>
                     <div className="mt-2 flex items-center gap-3">
                       <button
                         type="button"
-                        onClick={() => onOpenDetails(s.id)}
+                        onClick={() => props.onSearchManually(s.id)}
                         className="text-xs font-medium text-holo-cyan hover:underline"
                       >
                         {t("searchManually")}
@@ -3992,6 +4030,8 @@ function SettingsSheet(props: {
  * ======================================================================== */
 function ScanDetailsSheet(props: {
   item: ScanItem;
+  /** Öppnat via "Sök manuellt" ⇒ börja i sökläget. Läses bara vid montering. */
+  startInSearch?: boolean;
   onClose: () => void;
   onChoose: (c: Candidate) => void;
   onRemove: () => void;
@@ -3999,6 +4039,27 @@ function ScanDetailsSheet(props: {
   const t = useTranslations("Scanner");
   const router = useRouter();
   const { item } = props;
+  const [searchOpen, setSearchOpen] = useState(props.startInSearch === true);
+
+  /**
+   * ⛔ "SÖK MANUELLT" LÄMNAR ALDRIG SKANNERN (ägarens fältrapport 2026-09-23).
+   * Den var en länk till katalogen — skannern avmonterades och ALLA skanningar i
+   * brickan försvann (de finns bara i minnet). Sökningen sker nu här i arket och
+   * ett valt kort blir träffen. Att användaren gick till sökningen är fortfarande
+   * ett negativt facit och rapporteras som förut.
+   */
+  const openSearch = useCallback(() => {
+    reportScanFeedback(item.jobId, item.match?.cardId ?? null, "searched", { via: "pick" });
+    setSearchOpen(true);
+  }, [item.jobId, item.match?.cardId]);
+  const didReportStart = useRef(false);
+  useEffect(() => {
+    if (!props.startInSearch || didReportStart.current) return;
+    didReportStart.current = true;
+    reportScanFeedback(item.jobId, item.match?.cardId ?? null, "searched", { via: "pick" });
+    // Bara vid montering — öppningen via raden ÄR sökningen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /**
    * ETT ANDRA TRYCK PÅ DET VALDA KORTET = produkt & prishistorik.
@@ -4049,6 +4110,18 @@ function ScanDetailsSheet(props: {
 
   return (
     <Sheet title={t("scanDetails")} onClose={props.onClose} fill>
+      {searchOpen ? (
+        <ScannerCardSearch
+          captured={item.captured}
+          initialQuery={item.match?.name ?? item.candidates[0]?.name ?? ""}
+          selectedCardId={item.match?.cardId ?? null}
+          onPick={(c) => {
+            props.onChoose(c);
+            setSearchOpen(false);
+          }}
+          onBack={() => setSearchOpen(false)}
+        />
+      ) : (
       <div className="flex min-h-0 flex-1 flex-col gap-4">
         {/* DIN BILD VS DIN TRÄFF — TAR DEN HÖJD SOM BLIR ÖVER (2026-09-05).
             Arket är max 85 % av skärmen och allt annat här (meta, kandidatrad,
@@ -4250,39 +4323,171 @@ function ScanDetailsSheet(props: {
             till — så den kunde öppna fel produkt efter ett variantbyte.
             Sök-fallbacken finns kvar: utan produktsida vore vyn en återvändsgränd. */}
         <div className="flex shrink-0 flex-wrap gap-2">
-          {!item.match?.slug && (
-            <LinkButton
-              /* ⛔ EN TOM `?q=` ÄR INTE EN SÖKNING. Vid "ingen träff" är `match`
-                 null, så länken blev `/produkter?q=` — en ofiltrerad katalog som
-                 SER ut som ett sökresultat, och dessutom en robots-blockerad
-                 dynamisk render. Utan namn skickar vi till katalogen rakt av. */
-              href={
-                item.match?.name
-                  ? `/produkter?q=${encodeURIComponent(item.match.name)}`
-                  : "/produkter"
-              }
-              variant="outline"
-              /* ⛔ ATT LÄMNA SKANNERN ÄR ETT NEGATIVT FACIT — och det kastades
-                 tyst. Den som inte hittar sitt kort söker manuellt, lägger till
-                 det från katalogen och rapporterar ingenting; mätt 2026-08-29
-                 saknade 54 % av alla mätrader dom helt, och det är precis de
-                 SVÅRA fallen. Rapporteras FÖRE navigeringen — efteråt är
-                 komponenten avmonterad. */
-              onClick={() =>
-                reportScanFeedback(item.jobId, item.match?.cardId ?? null, "searched", {
-                  via: "pick",
-                })
-              }
-            >
-              <IconSearch size={15} /> {t("searchManually")}
-            </LinkButton>
-          )}
+          {/* Alltid synlig: även en träff MED produktsida kan vara fel kort, och
+              raden ovan bär bara det skannern själv hittade. */}
+          <Button variant="outline" onClick={openSearch}>
+            <IconSearch size={15} /> {t("searchManually")}
+          </Button>
           <Button variant="ghost" onClick={props.onRemove}>
             {t("removeScan")}
           </Button>
         </div>
       </div>
+      )}
     </Sheet>
+  );
+}
+
+/**
+ * MANUELL SÖKNING I DETALJARKET (2026-09-23) — se `openSearch` i ScanDetailsSheet.
+ * En fråga per paus i skrivandet (debounce), aldrig per tangent: varje sökning är
+ * en katalogfråga mot databasen. Resultaten har skanningens kandidatform, så ett
+ * val går samma väg (`onChoose`) som ett val ur raden.
+ */
+const SEARCH_DEBOUNCE_MS = 350;
+
+function ScannerCardSearch(props: {
+  captured: string;
+  initialQuery: string;
+  selectedCardId: string | null;
+  onPick: (c: Candidate) => void;
+  onBack: () => void;
+}) {
+  const t = useTranslations("Scanner");
+  const [query, setQuery] = useState(props.initialQuery);
+  const [results, setResults] = useState<Candidate[] | null>(null);
+  const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults(null);
+      setState("idle");
+      return;
+    }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => {
+      setState("loading");
+      scanFetch(`/api/scanner/search?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((d: { candidates?: Candidate[] }) => {
+          setResults(d.candidates ?? []);
+          setState("idle");
+        })
+        .catch(() => {
+          if (!ctrl.signal.aborted) setState("error");
+        });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
+  }, [query]);
+
+  // En rad per TRYCKNING — samma regel som raden (reverse holo ska gå att välja).
+  const rows = useMemo(
+    () =>
+      (results ?? []).flatMap((c) =>
+        c.variants && c.variants.length > 1
+          ? c.variants.map((v) => ({
+              ...c,
+              productId: v.productId,
+              variantLabel: v.label,
+              slug: v.slug,
+              estimatedValue: v.estimatedValue,
+            }))
+          : [c]
+      ),
+    [results]
+  );
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="flex shrink-0 items-center gap-2">
+        <button
+          type="button"
+          onClick={props.onBack}
+          aria-label={t("searchCardBack")}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-overlay text-ink ring-1 ring-surface-border"
+        >
+          <IconChevronLeft size={18} />
+        </button>
+        {/* Den egna bilden bredvid fältet: man skriver det man SER på kortet. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={props.captured}
+          alt={t("yourImage")}
+          className="h-12 w-[2.15rem] shrink-0 rounded object-cover ring-1 ring-surface-border"
+        />
+        <input
+          type="search"
+          inputMode="search"
+          enterKeyHint="search"
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t("searchCardPlaceholder")}
+          className="h-11 min-w-0 flex-1 rounded-xl bg-surface-overlay px-3 text-base text-ink placeholder:text-ink-faint ring-1 ring-surface-border focus:outline-none focus:ring-holo-cyan/60"
+        />
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        {query.trim().length < 2 ? (
+          <p className="px-1 py-4 text-sm text-ink-faint">{t("searchCardHint")}</p>
+        ) : state === "error" ? (
+          <p className="px-1 py-4 text-sm text-fall">{t("searchCardError")}</p>
+        ) : results == null || (state === "loading" && rows.length === 0) ? (
+          <p className="px-1 py-4 text-sm text-ink-faint">…</p>
+        ) : rows.length === 0 ? (
+          <p className="px-1 py-4 text-sm text-ink-faint">{t("searchCardEmpty")}</p>
+        ) : (
+          <ul className={`flex flex-col gap-1.5 ${state === "loading" ? "opacity-60" : ""}`}>
+            {rows.map((c) => {
+              const selected = c.cardId === props.selectedCardId;
+              return (
+                <li key={`${c.cardId}:${c.productId ?? ""}`}>
+                  <button
+                    type="button"
+                    onClick={() => props.onPick(c)}
+                    className={`flex w-full items-center gap-3 rounded-xl p-2 text-left ring-1 transition-colors ${
+                      selected
+                        ? "bg-holo-cyan/10 ring-holo-cyan/50"
+                        : "bg-surface-overlay/40 ring-surface-border hover:bg-surface-overlay"
+                    }`}
+                  >
+                    {c.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={c.imageUrl}
+                        alt={c.name}
+                        loading="lazy"
+                        className="h-16 w-[2.85rem] shrink-0 rounded object-cover"
+                      />
+                    ) : (
+                      <span className="h-16 w-[2.85rem] shrink-0 rounded bg-surface-overlay" />
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-ink">{c.name}</span>
+                      <span className="block truncate text-xs">
+                        <span className="tabular-nums text-ink-muted">#{c.number}</span>
+                        <span className="text-ink-faint"> · </span>
+                        <span className="font-medium text-holo-cyan">
+                          {c.variantLabel ?? t("ordinaryPrinting")}
+                        </span>
+                      </span>
+                      <span className="block truncate text-xs text-ink-faint">{c.setName}</span>
+                    </span>
+                    <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">
+                      {c.estimatedValue != null ? formatPrice(c.estimatedValue) : "–"}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -444,3 +444,18 @@ Innehållet nedan är flyttat oförändrat. Ändra reglerna HÄR — CLAUDE.md p
   felläst total till bevis för ett tredje kort. ⛔ Utredd och FÖRKASTAD samma dag: "bildens etta slår ett
   nummer som pekar utanför bildens topp-15" (22 rättade mot 19 där texten stod kvar — de vintage omtrycken
   Base/Base Set 2 förlorade) och "lokala numret väljer bland bildens topp-15" (1 rättad, 4 förstörda).
+- **FÄLTRAPPORT 2026-09-23 — TRE FIXAR**:
+  (1) ⛔ **"SÖK MANUELLT" LÄMNAR ALDRIG SKANNERN**: den var en länk till `/produkter` ⇒ skannern avmonterades och
+  alla skanningar i brickan (bara i minnet) försvann. Nu söker detaljarket självt (`ScannerCardSearch` →
+  `GET /api/scanner/search` → `searchScannerCards`, samma kandidatform som skanningen: varianter + värde via
+  `fillScanValues`). Frågan tolkas av `lib/scan-search-query.ts` (namnord i kort- ELLER setnamn, ETT nummer på
+  `numberSortKey`; noll träffar med nummer ⇒ numret söks som ord). Gäster får söka, ingen kvot. Ett val går via
+  `chooseCandidate` (rank 0 = fanns inte i listan) och läggs först i `candidates`.
+  (2) ⛔ **UTAN TRÄFF GER `pickSameArtRail` ALLTID []**: serverns `sameArt` är räknad mot SERVERNS etta, som är
+  `true` mot sig själv ⇒ vid "Ingen träff"/valsteget höll raden bara ettan och kastade elva kandidater (Dark
+  Tyranitar: Classic Collection #19 + JP #144 låg i svaret men syntes inte). Fallbacken `pickAlternatives`
+  använder då ettans namn som namnreferens.
+  (3) **INGET KORT I BILDEN** (`NO_CARD_ART_MAX` 0,62): vision läste varken namn eller nummer OCH bildens etta under
+  0,62 ⇒ tom lista + `noCard` ("Inget kort i bilden"), `recall.nc`. Mätt: alla 31 sådana enkelskanningar sedan 08-01
+  låg 0,41–0,60 med marginal ≤ 0,02; enda riktiga kortet i hinken var en Mewtwo V-UNION-bit (0,463).
+  ⛔ Gäller inte art-avgjorda skanningar (tomma textfält per konstruktion).

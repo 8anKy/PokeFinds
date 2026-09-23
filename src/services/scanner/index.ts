@@ -11,6 +11,7 @@ import { ServiceError } from "@/lib/errors";
 import { FINGERPRINT_BYTES, STRUCT_BYTES } from "@/lib/art-fingerprint";
 import { subsetAliasExternalIds } from "@/lib/subset-number-alias";
 import { cardNumberSortKey } from "@/lib/card-number-order";
+import { parseScanSearch } from "@/lib/scan-search-query";
 // ⛔ Delad med graderingen OCH adminens kostnadsvy — kvotfönstret måste vara
 // samma gräns överallt. Se src/lib/utils.ts.
 import { startOfMonthUtc } from "@/lib/utils";
@@ -945,6 +946,23 @@ export async function languageTwinsOfTop(
  *  det kräver fortfarande ART_TRUST_*. Marginalgolvet skiljer "bilden pekar
  *  någonstans" från "bilden singlar slant" (Rayquaza-regressionen: 0,011). */
 const ART_OPINION_SCORE = 0.6;
+
+/**
+ * INGET KORT I BILDEN (2026-09-23, ägaren fotade sin hand och fick "Hisuian Samurott V").
+ * Läser vision VARKEN namn eller nummer och bildens etta ligger under den här
+ * nivån visas ingen lista alls — den enda signal som är kvar är brus.
+ *
+ * MÄTT över alla enkelskanningar sedan 2026-08-01 där vision svarade tomt (n=31):
+ * bildens etta låg på 0,41–0,60 med marginal ≤ 0,02 till tvåan (slumpbaslinjen för
+ * två orelaterade kort är ~0,61, se scan-alternatives.ts), och varje rad med dom var
+ * "avvisad" — utom EN Mewtwo V-UNION-bit (0,463, en fjärdedels kortbild). Närmaste
+ * riktiga kort i samma hink låg på 0,729 (Team Rocket's Murkrow). 0,62 ligger över
+ * hela brushinken och långt under den. Det kortet som faller bort går att söka fram
+ * manuellt i skannern.
+ * ⛔ Gäller BARA när vision körde och svarade tomt: en art-avgjord skanning har också
+ *    tomma textfält, men där har bilden redan bevisat sig (ART_TRUST_*).
+ */
+export const NO_CARD_ART_MAX = 0.62;
 const ART_OPINION_MARGIN = 0.04;
 const NAME_AGREE_MIN = 0.5;
 /** Vikten ett MISSTROTT modellsvar (namn OCH nummer) behåller.
@@ -1650,37 +1668,7 @@ export async function matchCards(
   // alla tre Base-tryckningarna visat samma pris (den billigaste), vilket är
   // hela felet valet finns för att rätta, och en reverse holo hade visat det
   // ordinarie kortets pris trots att den ofta är värd mer.
-  const productIds = [
-    ...new Set(
-      top.flatMap((c) => [
-        ...(c.productId ? [c.productId] : []),
-        ...(c.variants?.map((v) => v.productId) ?? []),
-      ])
-    ),
-  ];
-  const cardOnlyIds = top.filter((c) => !c.productId).map((c) => c.cardId);
-  const [productValues, cardValues, fallbackProducts] = await Promise.all([
-    getProductValues(productIds),
-    getCardValues(cardOnlyIds),
-    cardOnlyIds.length
-      ? prisma.product.findMany({
-          where: { cardId: { in: cardOnlyIds } },
-          select: { cardId: true, slug: true },
-        })
-      : Promise.resolve([]),
-  ]);
-  const slugByCard = new Map(
-    fallbackProducts.flatMap((p) => (p.cardId ? [[p.cardId, p.slug] as const] : []))
-  );
-  for (const c of top) {
-    for (const v of c.variants ?? []) v.estimatedValue = productValues.get(v.productId) ?? null;
-    if (c.productId) {
-      c.estimatedValue = productValues.get(c.productId) ?? null;
-    } else {
-      c.estimatedValue = cardValues.get(c.cardId) ?? null;
-      c.slug = slugByCard.get(c.cardId) ?? null;
-    }
-  }
+  await fillScanValues(top);
 
   /**
    * SAMMA KONST SOM TRÄFFEN? — flaggan som styr vad detaljvyn alltid visar.
@@ -1787,6 +1775,44 @@ export function artRankTargets<T extends { cardId: string }>(
  * och länk, utan att det ordinarie kortet ens gick att välja. En variant är en
  * egenskap hos träffen (som skicket), inte en egen träff.
  */
+/**
+ * Värde + djuplänk för en kandidatlista (muterar). Delad av skanningen och den
+ * manuella sökningen i skannern — samma pris oavsett hur kortet hittades.
+ */
+async function fillScanValues(top: ScanCandidate[]): Promise<void> {
+  const productIds = [
+    ...new Set(
+      top.flatMap((c) => [
+        ...(c.productId ? [c.productId] : []),
+        ...(c.variants?.map((v) => v.productId) ?? []),
+      ])
+    ),
+  ];
+  const cardOnlyIds = top.filter((c) => !c.productId).map((c) => c.cardId);
+  const [productValues, cardValues, fallbackProducts] = await Promise.all([
+    getProductValues(productIds),
+    getCardValues(cardOnlyIds),
+    cardOnlyIds.length
+      ? prisma.product.findMany({
+          where: { cardId: { in: cardOnlyIds } },
+          select: { cardId: true, slug: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  const slugByCard = new Map(
+    fallbackProducts.flatMap((p) => (p.cardId ? [[p.cardId, p.slug] as const] : []))
+  );
+  for (const c of top) {
+    for (const v of c.variants ?? []) v.estimatedValue = productValues.get(v.productId) ?? null;
+    if (c.productId) {
+      c.estimatedValue = productValues.get(c.productId) ?? null;
+    } else {
+      c.estimatedValue = cardValues.get(c.cardId) ?? null;
+      c.slug = slugByCard.get(c.cardId) ?? null;
+    }
+  }
+}
+
 async function attachVariants(candidates: ScanCandidate[]): Promise<ScanCandidate[]> {
   const cardIds = [...new Set(candidates.map((c) => c.cardId))];
   if (cardIds.length === 0) return candidates;
@@ -1948,6 +1974,87 @@ export async function listScannerJobs(userId: string, take = 10) {
  * `productMarketValue`). Samma mått som samlingens live-värdering, och sedan
  * 2026-09-22 medvetet INTE samma som produktsidans rubrikpris. Null om data saknas.
  */
+/**
+ * MANUELL SÖKNING I SKANNERN (2026-09-23). "Sök manuellt" skickade förut till
+ * katalogen — skannern avmonterades och alla skanningar i brickan försvann
+ * (de finns bara i minnet). Nu söker arket i skannern och ett valt kort blir
+ * skanningens träff, med samma kandidatform (varianter + värde) som bilden ger.
+ *
+ * ⛔ EN FRÅGA PER SÖKNING, aldrig per tangent: klienten debouncar. Namnord måste
+ *    finnas i kortets ELLER setets namn (AND över orden); numret jämförs på
+ *    `numberSortKey` (samma nyckel som matchningen). Ger numret noll träffar
+ *    söks det som ett vanligt ord i stället ("charizard 151").
+ */
+export async function searchScannerCards(raw: string, limit = 24): Promise<ScanCandidate[]> {
+  const q = parseScanSearch(raw);
+  if (q.words.join("").length < 2 && !q.number) return [];
+  if (q.words.length === 0 && q.number && q.number.length < 2) return [];
+
+  const find = (words: string[], number: string | null) =>
+    prisma.card.findMany({
+      where: {
+        AND: [
+          ...words.map((w) => ({
+            OR: [
+              { name: { contains: w, mode: "insensitive" as const } },
+              { set: { name: { contains: w, mode: "insensitive" as const } } },
+            ],
+          })),
+          ...(number ? [{ numberSortKey: cardNumberSortKey(number) }] : []),
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        number: true,
+        rarity: true,
+        language: true,
+        imageUrl: true,
+        set: { select: { name: true, releaseDate: true } },
+      },
+      take: 200,
+    });
+
+  let rows = await find(q.words, q.number);
+  if (rows.length === 0 && q.number && q.words.length > 0) {
+    rows = await find([...q.words, q.number.toLowerCase()], null);
+  }
+
+  const phrase = q.words.join(" ");
+  const rank = (name: string) => {
+    const n = name.toLowerCase().replace(/\s*\(jp\)$/, "");
+    if (n === phrase) return 0;
+    if (n.startsWith(phrase)) return 1;
+    return 2;
+  };
+  rows.sort(
+    (a, b) =>
+      rank(a.name) - rank(b.name) ||
+      // EN före JP vid lika — ägarregeln för språktvillingar.
+      Number(a.language !== "EN") - Number(b.language !== "EN") ||
+      (b.set.releaseDate?.getTime() ?? 0) - (a.set.releaseDate?.getTime() ?? 0) ||
+      cardNumberSortKey(a.number).localeCompare(cardNumberSortKey(b.number))
+  );
+
+  const top: ScanCandidate[] = rows.slice(0, limit).map((card) => ({
+    cardId: card.id,
+    name: card.name,
+    setName: card.set.name,
+    number: card.number,
+    rarity: card.rarity,
+    language: card.language,
+    imageUrl: card.imageUrl,
+    score: 0,
+    productId: null,
+    variantLabel: null,
+    slug: null,
+    estimatedValue: null,
+  }));
+  await attachVariants(top);
+  await fillScanValues(top);
+  return top;
+}
+
 export async function estimateCardValue(cardId: string): Promise<number | null> {
   const values = await getCardValues([cardId]);
   return values.get(cardId) ?? null;
@@ -1956,6 +2063,11 @@ export async function estimateCardValue(cardId: string): Promise<number | null> 
 export interface IdentifyResult {
   /** Adaptern som användes ("mock" = simulerad, "claude" = riktig vision). */
   provider: string;
+  /**
+   * Inget kort i bilden: vision läste varken namn eller nummer OCH bilden liknar
+   * ingenting (se NO_CARD_ART_MAX). `candidates` är då tom med flit.
+   */
+  noCard?: boolean;
   guessedName: string | null;
   guessedNumber: string | null;
   /** Modellens ramgenerations-klassning ("wotc" … "sv"), null när osäker. */
@@ -2303,10 +2415,18 @@ export async function identifyCard(
     : await adapter.extractCardInfo(imageDataUrl, opts.detailDataUrl);
 
   // Bilden ensam räcker som signal — texten kan vara helt oläslig.
-  const [candidates, artTopLabel] = await Promise.all([
+  const [matched, artTopLabel] = await Promise.all([
     matchCards(ocr, artScores, artConfidentCardId, opts.langHint),
     describeArtMatches(artMatches.slice(0, 3)),
   ]);
+  // INGET KORT I BILDEN (2026-09-23): en hand fick "Hisuian Samurott V" på 0,449.
+  // Se NO_CARD_ART_MAX — vision tyst OCH bilden under slumpnivå ⇒ ingen lista.
+  const noCard =
+    !skipVision &&
+    !ocr.guessedName &&
+    !ocr.guessedNumber &&
+    (artMatches.length === 0 || artMatches[0].score < NO_CARD_ART_MAX);
+  const candidates = noCard ? [] : matched;
 
   // FABRICERADE NUMMER SER UT SOM BEVIS (mätt 2026-07-30): modellen läste
   // "Dragonite 4/102" ur en suddig fångst → exakt träff på Fossil Dragonite,
@@ -2324,6 +2444,7 @@ export async function identifyCard(
     !artScores.has(top.cardId);
 
   return {
+    ...(noCard ? { noCard: true } : {}),
     provider: skipVision ? "bild" : adapter.name,
     // Hoppades vision över kostade skanningen ingenting — då finns ingen modell
     // att prissätta, och raden ska räknas som gratis, inte som omätt.

@@ -197,7 +197,15 @@ export function pickSameArtRail<T extends RailLike>(
   candidates: readonly T[],
   match: { cardId: string; productId: string | null } | null
 ): T[] {
-  const isMatchCard = (c: T) => match != null && c.cardId === match.cardId;
+  // ⛔ UTAN TRÄFF FINNS INGEN KONST ATT JÄMFÖRA MED (fält 2026-09-23). Serverns
+  //    `sameArt` är räknad mot SERVERNS etta, som är `true` mot sig själv. Vid
+  //    "Ingen träff"/valsteget är ettan inte vald, så regeln nedan höll kvar just
+  //    den och kastade de andra elva: Dark Tyranitar visade bara Team Rocket
+  //    Returns #19 medan Classic Collection #19 och JP #144 låg i svaret. Tom rad ⇒
+  //    anroparen faller tillbaka på `pickAlternatives`, som visar hela urvalet.
+  if (match == null) return [];
+
+  const isMatchCard = (c: T) => c.cardId === match.cardId;
 
   // Träffens EGET kort räknas inte som ett alternativ — det var ledet som gjorde
   // raden osänkbar. Serverns `sameArt` är dessutom `true` på vinnaren själv
@@ -256,7 +264,9 @@ export function pickAlternatives<T extends AlternativeLike>(
   // orelaterade kort som råkade vara bildens tvåa och trea på 0,26 mot träffens
   // 1,45. Listan visade alltså brus och gömde precis de kort en felmatchning
   // troligen ÄR.
-  const matchName = match?.name?.toLowerCase();
+  // Utan träff är serverns etta namnreferensen: dess namnsyskon (omtryck med samma
+  // namn) är de troligaste korten även när ingen träff påstås.
+  const matchName = (match ? match.name : candidates[0]?.name)?.toLowerCase();
   const sameName = (c: AlternativeLike) =>
     matchName != null && c.name.toLowerCase() === matchName;
 
