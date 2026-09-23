@@ -60,6 +60,14 @@ export interface RawProductData {
    * står `stores` kvar som ANTAL — ett larm utan namn är sämre, inte trasigt.
    */
   storeStock?: StoreStock | null;
+  /**
+   * De FYSISKA butikernas lagerläge som ett EGET spår, oberoende av webblagret —
+   * bara när källan skiljer dem åt (i dag Webhallen: numeriska butiksnycklar mot `web`).
+   * Discord-lanen diffar det separat, så en vara som fylls på BÅDE online och i butik
+   * ger ett inlägg i varje kanal (ägarbeslut 2026-09-23). Rör inte `stockStatus`, som
+   * DB-vägen läser. Saknas = källan har inget separat butiksspår.
+   */
+  storeStatus?: StockStatus;
   /** Oförändrad rådata från källan — lagras i PriceObservation.rawData. */
   raw: unknown;
 }

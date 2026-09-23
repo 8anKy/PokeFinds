@@ -283,6 +283,17 @@ priskanalen.
   snabbt — ring butiken innan du åker", vilket är sant oavsett takt.
   ⛔ **VILKEN butik som har varan vet vi INTE** — Webhallens saldon ligger på numeriska nycklar utan
   namn och SF-Bok ger bara ett ja. Texten säger "i <butik>s fysiska butiker", aldrig ett filialnamn.
+- ⛔ **ONLINE OCH BUTIK ÄR TVÅ SPÅR (ägarbeslut 2026-09-23)**: 30th Celebration fylldes på hos Webhallen
+  i webblagret OCH i butikerna samtidigt, men annonsen hade EN status ⇒ bara onlineinlägget. Nu sätter
+  en källa som skiljer dem åt `RawProductData.storeStatus` (bara Webhallen: butikssaldo > 0 efter
+  släppdagen), och `laneGroups` (`restock-feed-events.ts`) delar annonsen i huvudnyckeln = WEBBLAGRET
+  (en butiksvara räknas där som SLUT) och `<url>#butik` = de fysiska butikerna. Spåren diffas,
+  cooldownas och flappdäms var för sig. Butiksinlägg när webben SAMTIDIGT har varan: `alsoOnline`
+  ("Finns i butik: …", "Går även att beställa i webbutiken") + `noHit` — onlinespåret larmar appen,
+  och Offer.stockStatus var IN hela tiden. ⛔ En källa utan `#butik`-nycklar i state seedar spåret
+  TYST (annars hade hela butikssortimentet postats vid deployen). ⛔ BARA I LANEN — `stockStatus`
+  (DB-vägen) är orörd. Webhallens live-koll tar numera även butiksvarorna (deras WEBB-påfyllning är
+  loppet). Vaktat av `tests/unit/discord-store-track.test.ts`.
 - ⛔ **PRO-SPEGELN HOPPAR ÖVER BUTIKSVAROR**: spegelns hela innehåll är korglänken, och en vara som
   bara finns på en hylla har ingen korg att lägga i.
 

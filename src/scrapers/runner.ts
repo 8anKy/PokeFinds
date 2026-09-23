@@ -358,6 +358,8 @@ export type FeedItem = {
   storeOnly?: boolean;
   /** Butikssaldot bakom butiksvaran (antal ex / antal butiker). null = okänt. */
   storeStock?: StoreStock | null;
+  /** De fysiska butikernas eget lagerspår (se RawProductData.storeStatus). */
+  storeStatus?: StockStatus;
 };
 
 /**
@@ -864,6 +866,7 @@ export async function fetchSourceFeed(source: RestockSourceInfo): Promise<FeedIt
           cartUrl: p.cartUrl ?? null,
           storeOnly: p.storeOnly === true,
           storeStock: p.storeStock ?? null,
+          ...(p.storeStatus ? { storeStatus: p.storeStatus } : {}),
         };
       });
   } catch (err) {

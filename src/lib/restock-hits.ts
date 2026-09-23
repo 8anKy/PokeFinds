@@ -105,6 +105,9 @@ export function hitDedupKey(h: Pick<RestockHit, "key" | "to"> & { kind?: Restock
 export function hitsFromPosts(posts: readonly RestockPost[], now: Date): RestockHit[] {
   const out: RestockHit[] = [];
   for (const p of posts) {
+    // Butiksinlägg för en vara som redan går att beställa online: onlinespåret har
+    // larmat (eller larmar) appen, och Offer.stockStatus var IN hela tiden.
+    if (p.noHit) continue;
     const routed = !!p.productSlug;
     // ORUTTAD + ingen titel = inget att matcha på. (Prissänkning utan rutt: nedan.)
     if (!routed && !p.title) continue;

@@ -316,6 +316,17 @@ export interface RestockPost {
    *    namnlösa id:n och det finns ingen publik uppslagning (probat 2026-09-22).
    */
   storeStock?: StoreStock | null;
+  /**
+   * Butiksinlägg för en vara som SAMTIDIGT går att beställa online (butiksspåret,
+   * `restock-feed-events.ts`). Copyn säger då "finns även i butik" i stället för
+   * "går inte att köpa i webbutiken".
+   */
+  alsoOnline?: boolean;
+  /**
+   * Ingen larm-hit för det här inlägget: appen är redan larmad (eller behöver inte
+   * larmas) via onlinespåret. Discord-inlägget går ut som vanligt.
+   */
+  noHit?: boolean;
   imageUrl: string | null;
   setName: string | null;
   series: string | null;
@@ -505,7 +516,7 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
       priceDrop
         ? `Nytt lägre pris — ${post.title}`
         : storeOnly
-          ? `Finns bara i butik: ${post.title}`
+          ? `${post.alsoOnline ? "Finns i butik" : "Finns bara i butik"}: ${post.title}`
           : post.title,
       MAX_TITLE
     ),
@@ -522,7 +533,9 @@ export function buildRestockEmbed(post: RestockPost, opts: { cart?: boolean } = 
           //   gissat namn skickar folk till fel stad — då säger vi "butikerna" och
           //   låter "I lager"-fältet räkna upp dem.
           `Finns i ${storeOnlyWhere(post)} just nu. ` +
-          "Går inte att köpa i webbutiken, bara på plats."
+          (post.alsoOnline
+            ? "Går även att beställa i webbutiken."
+            : "Går inte att köpa i webbutiken, bara på plats.")
         : post.preorder
           ? "Går nu att förhandsboka."
           : "Finns i lager igen.",

@@ -185,6 +185,17 @@ export function webhallenStoreOnly(item: WebhallenProduct): boolean {
   return (item.stock?.web ?? 0) <= 0 && webhallenStockStatus(item) === StockStatus.IN_STOCK;
 }
 
+/**
+ * De FYSISKA butikernas eget lagerspår (`RawProductData.storeStatus`), oberoende av
+ * webblagret: butikssaldo > 0 efter släppdagen ⇒ IN_STOCK. Före släppdagen går varan
+ * inte att hämta, hur mycket som än står på lagret ⇒ OUT_OF_STOCK.
+ */
+export function webhallenStorePickupStatus(item: WebhallenProduct): StockStatus {
+  const releaseTs = item.release?.timestamp;
+  if (typeof releaseTs === "number" && releaseTs * 1000 > Date.now()) return StockStatus.OUT_OF_STOCK;
+  return webhallenStoreStock(item.stock) > 0 ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK;
+}
+
 export function webhallenStockStatus(item: WebhallenProduct): StockStatus {
   if ((item.stock?.web ?? 0) > 0) return StockStatus.IN_STOCK;
   const releaseTs = item.release?.timestamp;
@@ -269,6 +280,7 @@ export class WebhallenAdapter implements SourceAdapter {
             category: guessListingCategory(item.name),
             storeOnly: webhallenStoreOnly(item),
             storeStock: webhallenStoreBreakdown(item.stock, storeNames),
+            storeStatus: webhallenStorePickupStatus(item),
             raw,
           });
         }
@@ -288,7 +300,11 @@ export class WebhallenAdapter implements SourceAdapter {
       // och IN→OUT larmar aldrig). Cappad + politeFetch-delay av artighet mot butiken.
       // Kandidaterna i feed-ordning, sedan ROTERADE med markören: i loop-läge tar
       // varje tick nästa skiva i stället för samma första N om och om igen.
-      const candidates = products.filter((p) => p.stockStatus !== StockStatus.IN_STOCK);
+      // + butiksvarorna (IN_STOCK men `web: 0`): sedan webblagret och butikerna är två
+      // spår i Discord-lanen är deras WEBB-påfyllning en egen nyhet, och den är loppet.
+      const candidates = products.filter(
+        (p) => p.stockStatus !== StockStatus.IN_STOCK || p.storeOnly === true
+      );
       const start = candidates.length ? livePollCursor % candidates.length : 0;
       const ordered = [...candidates.slice(start), ...candidates.slice(0, start)];
       livePollCursor = start + Math.min(LIVE_POLL_MAX, candidates.length);
@@ -319,6 +335,7 @@ export class WebhallenAdapter implements SourceAdapter {
           //    hann ikapp var statusen redan IN — ingen flipp, inget andra inlägg.
           p.storeOnly = webhallenStoreOnly(detail.product);
           p.storeStock = webhallenStoreBreakdown(detail.product.stock, storeNames);
+          p.storeStatus = webhallenStorePickupStatus(detail.product);
           if (live !== p.stockStatus) {
             p.stockStatus = live;
             raw.stockStatus = live;

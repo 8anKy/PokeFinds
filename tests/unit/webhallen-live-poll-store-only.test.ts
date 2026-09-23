@@ -41,6 +41,7 @@ describe("Webhallen live-koll", () => {
     const p = products[0];
     expect(p.stockStatus).toBe("IN_STOCK");
     expect(p.storeOnly).toBe(true);
+    expect(p.storeStatus).toBe("IN_STOCK");
     expect(p.storeStock?.units).toBe(13);
     expect(p.storeStock?.stores).toBe(2);
     expect(p.storeStock?.locations?.[0]).toMatchObject({ label: "Ringen, Stockholm", units: 9 });

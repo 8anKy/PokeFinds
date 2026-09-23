@@ -79,6 +79,63 @@ export interface FeedItemFull {
   storeOnly?: boolean;
   /** Butikssaldot bakom butiksvaran (antal ex / antal butiker). null = okänt. */
   storeStock?: StoreStock | null;
+  /** De fysiska butikernas EGET lagerspår (RawProductData.storeStatus). Se `laneGroups`. */
+  storeStatus?: StockStatus | null;
+}
+
+/**
+ * Nyckelsuffix för butiksspåret. `…\t<url>#butik` kan aldrig krocka med en riktig
+ * annons: nyckeln är aldrig en URL någon hämtar, och `#` når aldrig servern.
+ */
+export const STORE_TRACK_SUFFIX = "#butik";
+
+/** Lanens bild av en feed: en annons kan bli två spår (online + butik). */
+type LaneItem = FeedItemFull & {
+  /** Satt på butiksspåret: den riktiga annonsens URL (länkar, rutt, hits). */
+  storeTrackOf?: string;
+};
+
+/**
+ * ONLINE OCH BUTIK ÄR TVÅ SPÅR (ägarbeslut 2026-09-23). Webhallen fyllde på 30th
+ * Celebration i webblagret OCH i butikerna samtidigt — men varan var EN annons med EN
+ * status, så den postades bara som online-restock och butikskanalen teg.
+ *
+ * För en källa med eget butiksspår (`storeStatus` satt) blir annonsen två nycklar:
+ *  · huvudnyckeln = WEBBLAGRET: en butiksvara (`storeOnly`) räknas där som slut —
+ *    den går inte att beställa;
+ *  · `<url>#butik` = de FYSISKA butikerna, med butiksvarans copy och saldo.
+ * Båda diffas, cooldownas och flappdäms var för sig ⇒ en påfyllning på båda ställena
+ * ger ett inlägg i varje kanal, och en butikspåfyllning medan webben redan har varan
+ * ger bara butiksinlägget.
+ *
+ * ⛔ BARA I LANEN. `stockStatus` (DB-vägen, produktsidan) är orörd — där är en
+ *    butiksvara fortfarande IN_STOCK (ägarbeslut 2026-09-20).
+ */
+function laneGroups(groups: FullFeedGroup[]): { sourceName: string; items: LaneItem[] }[] {
+  return groups.map((g) => {
+    if (!g.items.some((it) => it.storeStatus)) return g;
+    const items: LaneItem[] = [];
+    for (const it of g.items) {
+      if (!it.storeStatus) {
+        items.push(it);
+        continue;
+      }
+      items.push({
+        ...it,
+        stockStatus: it.storeOnly ? (OUT_OF_STOCK as StockStatus) : it.stockStatus,
+        storeOnly: false,
+      });
+      items.push({
+        ...it,
+        url: `${it.url}${STORE_TRACK_SUFFIX}`,
+        storeTrackOf: it.url,
+        stockStatus: it.storeStatus,
+        storeOnly: true,
+        cartUrl: null,
+      });
+    }
+    return { sourceName: g.sourceName, items };
+  });
 }
 
 export interface FullFeedGroup {
@@ -315,7 +372,9 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
   const prev = state ?? emptyState();
   const seeded = state == null || Object.keys(prev.stock).length === 0;
 
-  const nextStock = mergeStateMap(prev.stock, groups);
+  // Lagerdiffen går på LANENS bild (online + butiksspår); prisminnet på feeden som den är.
+  const lane = laneGroups(groups);
+  const nextStock = mergeStateMap(prev.stock, lane);
   const stats: DeriveResult["stats"] = {
     changes: 0,
     seeded,
@@ -341,7 +400,7 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
   for (const [k, e] of Object.entries(prev.absent ?? {})) {
     if (e && typeof e.t === "number" && e.t >= absentCutoff) absent[k] = e;
   }
-  for (const g of groups) {
+  for (const g of lane) {
     if (g.items.length === 0) continue; // tom feed = ingen information, rör inget
     const prefix = `${g.sourceName}\t`;
     for (const [k, s] of Object.entries(prev.stock)) {
@@ -381,7 +440,15 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
     Object.keys(prev.stock).map((k) => k.slice(0, k.indexOf("\t")))
   );
   const freshSources = new Set<string>();
-  for (const g of groups) {
+  // Samma regel för BUTIKSSPÅRET (2026-09-23): en källa vars state saknar `#butik`-
+  // nycklar har aldrig haft spåret — hela dess butikssortiment hade annars postats som
+  // påfyllningar första varvet efter deployen.
+  const storeTrackSources = new Set(
+    Object.keys(prev.stock)
+      .filter((k) => k.endsWith(STORE_TRACK_SUFFIX))
+      .map((k) => k.slice(0, k.indexOf("	")))
+  );
+  for (const g of lane) {
     if (g.items.length > 0 && !prevSources.has(g.sourceName)) {
       freshSources.add(g.sourceName);
       stats.seededSources.push(g.sourceName);
@@ -413,6 +480,7 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
     const source = sourceOf(key);
     // En KÄLLA vi aldrig fört bok över seedas tyst — hela dess sortiment ser nytt ut.
     if (freshSources.has(source)) return "silent";
+    if (key.endsWith(STORE_TRACK_SUFFIX) && !storeTrackSources.has(source)) return "silent";
     const remembered = absentMemory(prev.absent, key);
     if (rotating.has(source)) {
       // Rotation kan inte fabricera ett OBSERVERAT slutsålt. Allt annat (en URL som
@@ -445,7 +513,7 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
   //    dyker upp som en URL vi aldrig sett med PREORDER som FÖRSTA status, så
   //    `preorder-open` (OUT_OF_STOCK → PREORDER) kan per konstruktion aldrig fånga den.
   //    Läs kostnadsresonemanget vid ChangeOptions i feed-state-diff.ts.
-  const changes = actionableChanges(prev.stock, groups, new Set(), {
+  const changes = actionableChanges(prev.stock, lane, new Set(), {
     newUrlPreorder: true,
   }).filter((c) => {
     if (c.from !== "ABSENT") return true;
@@ -476,8 +544,8 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
   }
 
   // Uppslag från nyckel → feed-annonsen, för titel/pris/bild.
-  const itemByKey = new Map<string, { item: FeedItemFull; sourceName: string }>();
-  for (const g of groups) {
+  const itemByKey = new Map<string, { item: LaneItem; sourceName: string }>();
+  for (const g of lane) {
     for (const it of g.items) itemByKey.set(`${g.sourceName}\t${it.url}`, { item: it, sourceName: g.sourceName });
   }
 
@@ -505,11 +573,21 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
 
     const found = itemByKey.get(c.key);
     if (!found) continue;
+    // Butiksspåret bär en syntetisk URL — allt utåt (rutt, vakter, länk, hit) går på
+    // den riktiga annonsen.
+    const realUrl = found.item.storeTrackOf ?? found.item.url;
+    const item: FeedItemFull = { ...found.item, url: realUrl };
+    const storeTrack = found.item.storeTrackOf != null;
+    // Står varan SAMTIDIGT i webblagret är butiksinlägget ett tillägg, inte hela
+    // beskedet: copyn säger "även i butik", och hiten uteblir — onlineinlägget (nu
+    // eller tidigare) har redan larmat appen, och Offer.stockStatus var IN hela tiden.
+    const alsoOnline =
+      storeTrack && nextStock[`${found.sourceName}	${realUrl}`] === IN_STOCK;
 
     // ---- VAKTKEDJAN: är det här en Pokémon-vara vi vill posta? ----
-    const route = routes[found.item.url];
+    const route = routes[realUrl];
     const verdict = classifyDiscordListing(
-      { title: found.item.title, url: found.item.url, category: found.item.category },
+      { title: item.title, url: realUrl, category: item.category },
       filter
     );
     if (!verdict.ok) {
@@ -562,7 +640,7 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
     posts.push({
       ...buildPostBase({
         key: c.key,
-        item: found.item,
+        item,
         sourceName: found.sourceName,
         route,
         verdict,
@@ -572,6 +650,7 @@ export function deriveRestockPosts(opts: DeriveOptions): DeriveResult {
       }),
       preorder: isPreorderOpen,
       transition: { from: c.from, to: c.to },
+      ...(alsoOnline ? { alsoOnline: true, noHit: true } : {}),
     });
   }
 
