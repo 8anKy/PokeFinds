@@ -342,6 +342,15 @@ function distinctiveWords(normalized: string): Set<string> {
           (!/^\d/.test(t) || NUMERIC_SET_NAMES.has(t))
       )
   );
+  // ⛔ SET-MARKÖRER ("go") RÄKNAS PÅ BÅDA SIDOR (2026-09-23). De är för korta för
+  //    längdfiltret ovan, och låg förut bara i nonEraDistinctiveWords, alltså bara på
+  //    ANNONS-sidan. Katalogens "Pokémon GO Elite Trainer Box" fick då NOLL
+  //    särskiljande ord ("pokemon" är stoppord, "go" för kort), och distinctiveOverlap
+  //    ger 1 när båda sidor saknar särskiljande ord — varje set-lös ETB-titel blev en
+  //    perfekt träff. MÄTT i prod: 17 av 17 Tradera-affärer på GO-ETB:n var
+  //    30th Celebration-ETB:er ("Pokemon 30th elite trainer box" → konfidens 1,00), och
+  //    "Pokemon TCG Booster Pack" landade på GO-boostern.
+  for (const tok of normalized.split(" ")) if (SET_QUALIFIER_WORDS.has(tok)) words.add(tok);
   // "base" är vintage-set-IDENTITET (Base Set 1999) BARA utan era-fras. Med en era-fras
   // ("Scarlet & Violet Base Boosterpack") är "base" en redundant kvalificerare — räkna
   // det då inte som identitet, annars kolliderar S&V-"Base"-annonser med vintage
@@ -408,9 +417,17 @@ const NOISE_WORDS = new Set([
  * men som ÄR det enda som skiljer två annars identiska produkter åt.
  * "go" = Pokémon GO (SWSH10.5) — utan detta matchar "...10.5 Pokémon GO Booster
  * Pack" fel mot bas-"Sword & Shield Booster Pack" (sword/shield är en era-fras).
- * Lägg till fler markörer här vid behov.
+ * "xy"/"dp" = XY- resp. Diamond & Pearl-basseten ("XY Booster", "DP Collection").
+ *
+ * ⛔ EN KATALOGPRODUKT UTAN ETT ENDA SÄRSKILJANDE ORD ÄR EN MAGNET (2026-09-23):
+ *    distinctiveOverlap ger 1 när båda sidor saknar särskiljande ord, så varje
+ *    set-lös annons ("Pokemon TCG Booster Pack", "Elite Trainer Box") blev en perfekt
+ *    träff på den. MÄTT efter GO-fixen: exakt tre sådana produkter kvar i katalogen,
+ *    "xy booster", "xy booster box" och "dp collection" — därav orden här. Räkna om
+ *    magneterna (`distinctiveOverlap("", titel) === 1` över katalogen) när ett set
+ *    med ett namn på 1–2 tecken kommer in. Vaktat av tradera-sealed-grading-field.test.ts.
  */
-const SET_QUALIFIER_WORDS = new Set(["go"]);
+const SET_QUALIFIER_WORDS = new Set(["go", "xy", "dp"]);
 /**
  * Set-koder (sv01, swsh12, sm11 …) är IDENTIFIERARE för setet, inte särskiljande
  * delprodukt-ord. En äkta engelsk "SV01 Scarlet & Violet Booster Pack" fick annars
@@ -444,10 +461,8 @@ const LANGUAGE_WORDS = /^(jpn?|japansk\w*|japanese|eng|engelsk\w*|english|kinesi
 function nonEraDistinctiveWords(title: string): Set<string> {
   let t = normalizeTitle(title);
   for (const re of ERA_PHRASES) t = t.replace(re, " ");
+  // Set-markörer ("go") följer med ur distinctiveWords — se regeln där.
   const words = distinctiveWords(t);
-  // Behåll set-markörer (t.ex. "go") som distinctiveWords tappar — annars osynlig
-  // skillnad mot en bas-produkt som saknar markören.
-  for (const tok of t.split(" ")) if (SET_QUALIFIER_WORDS.has(tok)) words.add(tok);
   for (const n of NOISE_WORDS) words.delete(n);
   for (const w of [...words]) if (SET_CODE.test(w)) words.delete(w);
   // ⛔ SPRÅKORDET ÄR INTE PRODUKTIDENTITET — det har en EGEN vakt (2026-09-08).
@@ -1749,6 +1764,30 @@ export async function loadMatchIndex(): Promise<MatchIndex> {
 }
 
 /**
+ * SVENSKA/ALTERNATIVA NAMN PÅ ETT SET → katalogens namn, på en NORMALISERAD titel.
+ *
+ * VARFÖR (2026-09-23): säljare skriver "Pokémon TCG: 30-årsjubileum Elite Trainer Box"
+ * och "Pokemon 30th elite trainer box" — katalogens "30th Celebration" har identitets-
+ * ordet "celebration", som ingen av titlarna bär. Siffror räknas inte som identitet, så
+ * titlarna var set-lösa och föll (före GO-fixen ovan) på Pokémon GO-ETB:n. Med GO-fixen
+ * hade de i stället inte matchat alls; med aliaset hittar de rätt set.
+ *
+ * ⛔ Bara entydiga uttryck. "30th" utan "celebration" är 30-årsjubileets set och inget
+ *    annat i katalogen (25-årsjubileet heter "Celebrations"). Lägg aldrig till ett alias
+ *    som kan betyda två set — hellre ingen träff än fel set.
+ */
+const SET_ALIASES: { re: RegExp; to: string }[] = [
+  { re: /\b30\s*-?\s*ars\s*-?\s*(?:jubileum|jubileet|jubileums|firande|firandet)\b/g, to: "30th celebration" },
+  { re: /\b30th\s+anniversary\b/g, to: "30th celebration" },
+  { re: /\b30th\b(?!\s+celebration)/g, to: "30th celebration" },
+];
+export function applySetAliases(normalized: string): string {
+  let t = normalized;
+  for (const { re, to } of SET_ALIASES) t = t.replace(re, to);
+  return t.replace(/\s+/g, " ").trim();
+}
+
+/**
  * @param rawTitle Butikens OBEARBETADE titel. Vakterna nedan behöver den: normalizeTitle
  *   kastar parenteser och bindestreck, och då försvinner just de tecken som avslöjar en
  *   singel ("(sm12a 220)") eller ett antal ("1-pack"). Utelämnas den hoppas de vakterna
@@ -1766,7 +1805,7 @@ export async function matchProduct(
   rawTitle?: string,
   excludeProductId?: string
 ): Promise<{ productId: string; confidence: number } | null> {
-  const normalized = normalizeTitle(normalizedTitle);
+  const normalized = applySetAliases(normalizeTitle(normalizedTitle));
   if (!normalized) return null;
   // Avkoda entiteter men BEHÅLL parenteser/bindestreck — vakterna nedan bygger på dem.
   const raw = decodeTitle(rawTitle ?? normalizedTitle);

@@ -467,7 +467,8 @@ export async function runTraderaSoldSweep(
     const candidateOre = bidsOre ?? sale.buyItNowOre ?? sale.maxBidOre;
     if (!candidateOre || candidateOre <= 0) return;
 
-    const match = await matchProduct(normalizeTitle(sale.title));
+    // Råtiteln MED — matchProducts vakter läser tecken som normalizeTitle kastar.
+    const match = await matchProduct(normalizeTitle(sale.title), undefined, sale.title);
     if (!match) {
       stats.noMatch++;
       return;

@@ -25,7 +25,7 @@ import { mapPool } from "../lib/concurrency";
 import { normalizeTitle } from "../lib/utils";
 import { isBlockedListingLanguage, listingCardLanguage } from "../lib/listing-language";
 import type { CardLanguage } from "@prisma/client";
-import { isGradedListing } from "../lib/graded-listing";
+import { gradingVerdictFor, isGradedListing } from "../lib/graded-listing";
 import {
   matchProduct,
   matchListingToProduct,
@@ -157,6 +157,29 @@ export interface TraderaItem {
   imageUrl?: string;
   categoryId?: number;
   sellerId?: number;
+  /**
+   * Traderas graderingsfält, när säljaren fyllt i dem men TITELN inte säger graderat.
+   * Domen kan inte tas i parsern — den beror på vilken produkt annonsen matchar (se
+   * `gradingBlocksListing`).
+   */
+  gradingAttr?: { issuer?: string; grade?: string };
+}
+
+/**
+ * Får annonsen bli offer/skena-rad på en produkt i `productCategory`?
+ * ⛔ Samma dom som sålt-svepet (`gradingVerdictFor`): på ett KORT är graderingsfältet en
+ * slab och blockerar; på FÖRSEGLAT är ett ensamt graderingsfält säljarens felifyllning
+ * (de fyller i "Övriga" även på boosterpaket) och annonsen är en vanlig förseglad annons.
+ */
+export function gradingBlocksListing(productCategory: string, item: TraderaItem): boolean {
+  if (!item.gradingAttr) return false;
+  return (
+    gradingVerdictFor(productCategory, {
+      title: item.title,
+      attrIssuer: item.gradingAttr.issuer,
+      attrGrade: item.gradingAttr.grade,
+    }).kind !== "raw"
+  );
 }
 
 /** Max lagrade skena-annonser per produkt (produktsidans "Fler annonser på Tradera"). */
@@ -194,6 +217,7 @@ export function pickRailCandidates(
     seen.add(item.itemId);
     if (rejected.has(`${item.itemId}|${product.id}`)) continue;
     if (!traderaCategoryCompatible(product.category, item.categoryId)) continue;
+    if (gradingBlocksListing(product.category, item)) continue;
     if (listingCardLanguage(item.title, item.url) !== product.language) continue;
     if (matchListingToProduct(item.title, product) == null) continue;
     kept.push(item);
@@ -263,15 +287,18 @@ export function parseItemsFromXml(xml: string): { items: TraderaItem[]; totalPag
     // VMAX. Vakten sitter i PARSERN, inte i matchningen, så den täcker alla tre
     // vägarna (Fas 0-urvalet, poolmatchningen och skenan) med en rad.
     // Sålt-svepet plockar upp samma annonser och skriver dem i `GradedSale`.
-    if (
-      isGradedListing({
-        title,
-        attrIssuer: termAttributeValues(block, "pokemon_grading_issuer")[0],
-        attrGrade: termAttributeValues(block, "pokemon_grade")[0],
-      })
-    ) {
-      continue;
-    }
+    //
+    // ⛔ TITELN DÖMER HÄR, FÄLTET DÖMS VID MATCHNINGEN (2026-09-23). Säljare fyller i
+    // graderingsfältet ("Övriga") även på FÖRSEGLAT, och vakten kastade då hela den
+    // förseglade annonsen — samma fel som gav boosterpaketen en graderad serie i
+    // sålt-svepet. Säger TITELN graderat är annonsen aldrig en rå vara, oavsett
+    // produkt. Säger bara FÄLTET det följer det med annonsen, och
+    // `gradingBlocksListing` dömer mot produktens kategori.
+    const attrIssuer = termAttributeValues(block, "pokemon_grading_issuer")[0];
+    const attrGrade = termAttributeValues(block, "pokemon_grade")[0];
+    if (isGradedListing({ title })) continue;
+    const gradingAttr =
+      attrIssuer?.trim() || attrGrade?.trim() ? { issuer: attrIssuer, grade: attrGrade } : undefined;
 
     const catText = tagText(block, "CategoryId");
     const sellerBlock = block.match(/<Seller>([\s\S]*?)<\/Seller>/);
@@ -293,6 +320,7 @@ export function parseItemsFromXml(xml: string): { items: TraderaItem[]; totalPag
       imageUrl: thumb && /^https?:\/\//.test(thumb) ? thumb : undefined,
       categoryId: catText ? parseInt(catText, 10) : undefined,
       sellerId: sellerIdText ? parseInt(sellerIdText, 10) : undefined,
+      ...(gradingAttr ? { gradingAttr } : {}),
     });
   }
 
@@ -724,7 +752,7 @@ export async function runTraderaSweep(
   // ── Matchning ──────────────────────────────────────────────────────────
   log("\n🔗 Matchar mot databasen...");
 
-  let matched = 0, noMatch = 0, implausible = 0, categoryMismatch = 0;
+  let matched = 0, noMatch = 0, implausible = 0, categoryMismatch = 0, gradedBlocked = 0;
   const bestByProduct = new Map<string, { price: number; item: TraderaItem }>();
 
   const itemsArr = [...allItems.values()];
@@ -733,7 +761,9 @@ export async function runTraderaSweep(
     if (++processed % 2000 === 0) log(`   [${processed}/${itemsArr.length}] matchade: ${matched}`);
 
     const normalized = normalizeTitle(item.title);
-    const match = await matchProduct(normalized);
+    // Råtiteln MED: matchProducts vakter för singlar/antal läser parenteser och
+    // bindestreck som normalizeTitle kastar (se @param rawTitle där).
+    const match = await matchProduct(normalized, undefined, item.title);
     if (!match) { noMatch++; return; }
 
     const product = await prisma.product.findUnique({
@@ -743,6 +773,7 @@ export async function runTraderaSweep(
     if (!product) { noMatch++; return; }
 
     if (!traderaCategoryCompatible(product.category, item.categoryId)) { categoryMismatch++; return; }
+    if (gradingBlocksListing(product.category, item)) { gradedBlocked++; return; }
 
     if (!(await isPlausibleListingPrice(product.id, item.priceOre))) { implausible++; return; }
 
@@ -762,7 +793,7 @@ export async function runTraderaSweep(
   }
 
   log(`   Matchade: ${matched} pool-annonser + ${directMatches.size} direkt (Fas 0) → ${bestByProduct.size} unika produkter`);
-  log(`   Ej matchade: ${noMatch} | Kategorifel: ${categoryMismatch} | Orimligt pris: ${implausible}`);
+  log(`   Ej matchade: ${noMatch} | Kategorifel: ${categoryMismatch} | Orimligt pris: ${implausible} | Graderat kort: ${gradedBlocked}`);
 
   let written = 0;
   let priceUpdated = 0;

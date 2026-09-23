@@ -21,7 +21,7 @@
  */
 import { StockStatus, SourceType } from "@prisma/client";
 import { normalizeTitle } from "../../lib/utils";
-import { isGradedListing } from "../../lib/graded-listing";
+import { gradingVerdictFor, isGradedListing } from "../../lib/graded-listing";
 import type {
   AdapterResult,
   NormalizedProduct,
@@ -282,7 +282,18 @@ export class TraderaAdapter implements SourceAdapter {
             // bara som GRADED_CARD, vilket inte är en vakt — matchningen tittar
             // inte på stämpeln, och 16 sådana offers låg i produktionen. Sålt-
             // svepet tar hand om dem i stället (`GradedSale`).
-            if (isGradedListing({ title: item.title, attrIssuer: item.gradingIssuer, attrGrade: item.grade })) {
+            // ⛔ Titeln dömer alltid; graderingsFÄLTET bara på kort — säljare fyller i
+            // det även på förseglat, och då kastades hela den förseglade annonsen
+            // (samma dom som sålt-svepets `gradingVerdictFor`, 2026-09-23).
+            if (isGradedListing({ title: item.title })) continue;
+            const category = guessCategory(item.title, fallbackCategory);
+            if (
+              gradingVerdictFor(category, {
+                title: item.title,
+                attrIssuer: item.gradingIssuer,
+                attrGrade: item.grade,
+              }).kind !== "raw"
+            ) {
               continue;
             }
 
@@ -294,7 +305,7 @@ export class TraderaAdapter implements SourceAdapter {
               currency: "SEK",
               stockStatus: StockStatus.IN_STOCK,
               imageUrl: item.imageUrl,
-              category: guessCategory(item.title, fallbackCategory),
+              category,
               raw: item,
             });
           }
