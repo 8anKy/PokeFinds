@@ -1,4 +1,5 @@
 /** Samlingstjänster: CRUD, värdering, CSV-export/-import. */
+import { computeDailyChange, type DailyChange } from "@/lib/collection-daily";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
@@ -370,6 +371,8 @@ export async function computeCollectionValue(
 
   const valueOverTime: { date: string; value: number }[] = [];
   let movers: CollectionMover[] = [];
+  // "Idag"-kortet (lib/collection-daily.ts) — null tills minst en post går att mäta.
+  let daily: DailyChange | null = null;
 
   if (valued.length > 0) {
     const startDay = valued.map(ownedFrom).reduce((a, b) => (b < a ? b : a));
@@ -494,6 +497,19 @@ export async function computeCollectionValue(
       list.sort((a, b) => b.percent - a.percent);
       movers = list;
     }
+
+    // Samma snapshots och samma ankring (nuvärdet) som grafen ovan.
+    daily = computeDailyChange(
+      valued.map((i) => ({
+        id: i.id,
+        groupKey: i.cardId ?? i.productId ?? i.id,
+        name: i.card?.name ?? i.product?.title ?? i.customTitle ?? "Okänt objekt",
+        quantity: i.quantity,
+        current: valueOf(i.id) ?? 0,
+        ownedFrom: ownedFrom(i).getTime(),
+        snaps: snapsForItem(i) ?? [],
+      }))
+    );
   }
 
   return {
@@ -513,6 +529,7 @@ export async function computeCollectionValue(
     itemsWithoutPurchasePrice,
     topItems,
     movers,
+    daily,
     valueOverTime,
     /** itemId → aktuellt värde per styck (öre). För live-priser i tabellen. */
     itemValues: Object.fromEntries(itemValues),

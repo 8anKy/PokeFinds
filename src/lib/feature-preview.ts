@@ -13,8 +13,11 @@
  * som collection-import-gate och community-v2-gate. Ren funktion — servern
  * skickar in env och användare, testerna slipper process.env.
  */
-/** APP_TOUR = appens guidade tur (lib/app-tour.ts), öppnas för alla med `FEATURE_APP_TOUR_PUBLIC=1`. */
-export type PreviewFeature = "SCAN_COUNTER" | "PUSH_TO_STORE" | "APP_TOUR";
+/**
+ * APP_TOUR = appens guidade tur (lib/app-tour.ts), öppnas för alla med `FEATURE_APP_TOUR_PUBLIC=1`.
+ * DAILY_CARD = "Idag"-kortet i samlingen (lib/collection-daily.ts), `FEATURE_DAILY_CARD_PUBLIC=1`.
+ */
+export type PreviewFeature = "SCAN_COUNTER" | "PUSH_TO_STORE" | "APP_TOUR" | "DAILY_CARD";
 
 const ADMIN_ROLES = new Set(["ADMIN", "SUPERADMIN"]);
 
