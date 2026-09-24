@@ -2334,6 +2334,7 @@
     "gradedRawCardHint": "Löst kort, som prislistan ovan.",
     "gradedInChart": "I grafen",
     "sponsoredTag": "Annons",
+    "cardshopProOffer": "1 månad Foilio Pro på köpet – kod från butiken",
     "lowestTag": "Lägst",
     "storesTeaser": "{count, plural, one {# butik} other {# butiker}} · {inStock, plural, =0 {ingen i lager} one {# i lager} other {# i lager}}",
     "storesSorted": "lägst först",

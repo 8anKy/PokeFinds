@@ -27,6 +27,8 @@ import { isCardmarketJpSearchUrl, isDirectOfferUrl } from "@/lib/marketplace-url
 import { lowestOfferSource } from "@/lib/offer-source";
 import { pickSponsoredOffer } from "@/lib/sponsored-offer";
 
+const CARD_SHOP_SWEDEN = "Cardshop Sweden";
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface LiveRetailer {
@@ -476,6 +478,9 @@ export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOf
                         </span>
                         <StockBadge stockStatus={sponsoredOffer.stockStatus} />
                       </div>
+                      {sponsoredOffer.retailer.name === CARD_SHOP_SWEDEN && (
+                        <p className="mt-1 text-xs text-holo-cyan">{t("cardshopProOffer")}</p>
+                      )}
                     </div>
                   </div>
                   <div className="shrink-0">
@@ -529,6 +534,9 @@ export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOf
                             </span>
                             <StockBadge stockStatus={offer.stockStatus} />
                           </div>
+                          {offer.retailer.name === CARD_SHOP_SWEDEN && (
+                            <p className="mt-1 text-xs text-holo-cyan">{t("cardshopProOffer")}</p>
+                          )}
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-2">
@@ -568,16 +576,23 @@ export function LiveOffersTable({ slug, traderaSearch, pending = false }: LiveOf
                           className={i >= VISIBLE_OFFERS ? REVEAL_CLASS : undefined}
                         >
                           <TD>
-                            <span className="inline-flex items-center gap-2.5">
+                            <div className="flex items-center gap-2.5">
                               <RetailerLogo name={offer.retailer.name} logoUrl={offer.retailer.logoUrl} size={32} className="rounded-lg" />
-                              <span className="font-medium">{offer.retailer.name}</span>
-                              {offer.id === bestOfferId && (
-                                <span className="rounded-md bg-holo-cyan/[0.12] px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.06em] text-holo-cyan">
-                                  {t("lowestTag")}
+                              <div>
+                                <span className="inline-flex flex-wrap items-center gap-2">
+                                  <span className="font-medium">{offer.retailer.name}</span>
+                                  {offer.id === bestOfferId && (
+                                    <span className="rounded-md bg-holo-cyan/[0.12] px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.06em] text-holo-cyan">
+                                      {t("lowestTag")}
+                                    </span>
+                                  )}
+                                  {affiliateIds.has(offer.retailerId) && <Badge>{t("adLink")}</Badge>}
                                 </span>
-                              )}
-                              {affiliateIds.has(offer.retailerId) && <Badge>{t("adLink")}</Badge>}
-                            </span>
+                                {offer.retailer.name === CARD_SHOP_SWEDEN && (
+                                  <p className="mt-0.5 text-xs text-holo-cyan">{t("cardshopProOffer")}</p>
+                                )}
+                              </div>
+                            </div>
                           </TD>
                           <TD className="font-semibold tabular-nums">
                             {offer.price != null ? formatPrice(offer.price) : "–"}
