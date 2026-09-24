@@ -2,6 +2,7 @@ import type Stripe from "stripe";
 import { prisma, withDbRetry } from "@/lib/db";
 import { getStripe, stripeEnabled, subscriptionPeriodEnd } from "@/lib/stripe";
 import { syncDiscordRoles } from "@/services/discord-sync";
+import { recordCheckoutPromotionRedemptions } from "@/services/stripe-promotion-redemptions";
 import { HANDLED_EVENTS, proUntilForSubscription } from "./mapping";
 
 export const dynamic = "force-dynamic";
@@ -117,6 +118,19 @@ async function handleEvent(stripe: Stripe, event: Stripe.Event) {
   // aldrig — ett Discord-fel får inte ge 500 här, för då gör Stripe om försöket
   // i tre dygn för något som nattjobbet ändå rättar inom ett dygn.
   await syncDiscordRoles(userId, "Foilio: Stripe-prenumerationen ändrades");
+
+  if (event.type === "checkout.session.completed" && proUntil) {
+    const session = event.data.object as Stripe.Checkout.Session;
+    // En kod är inlöst först när Checkout faktiskt gav Pro. Vid ett övergående
+    // Stripe-/DB-fel får webhooken 500 och återförsöks; Pro är redan skrivet.
+    await recordCheckoutPromotionRedemptions(
+      stripe,
+      session.id,
+      sub.id,
+      userId,
+      new Date(event.created * 1000),
+    );
+  }
 }
 
 /**

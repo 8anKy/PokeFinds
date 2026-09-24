@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Checkbox } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,12 +10,16 @@ import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
 import type { CreatorCodeStats } from "@/services/creator-codes";
+import { PROMOTION_REDEMPTIONS_PAGE_SIZE } from "@/lib/stripe-promotion";
+import type { StripePromotionRedemptions } from "@/services/admin/stripe-promotion-redemptions";
 
 const nf = new Intl.NumberFormat("sv-SE");
 const df = new Intl.DateTimeFormat("sv-SE", { dateStyle: "short" });
+const dtf = new Intl.DateTimeFormat("sv-SE", { dateStyle: "medium", timeStyle: "short" });
 
 interface Props {
   rows: CreatorCodeStats[];
+  redemptions: StripePromotionRedemptions;
   appUrl: string;
 }
 
@@ -27,12 +31,21 @@ const EMPTY_FORM = {
   note: "",
 };
 
-export function CreatorCodesClient({ rows, appUrl }: Props) {
+export function CreatorCodesClient({ rows, redemptions, appUrl }: Props) {
   const router = useRouter();
   const { toast } = useToast();
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [redemptionFilter, setRedemptionFilter] = useState(redemptions.query);
+
+  function redemptionHref(page: number, code = redemptionFilter) {
+    const params = new URLSearchParams();
+    if (code.trim()) params.set("kod", code.trim());
+    if (page > 1) params.set("sida", String(page));
+    const search = params.toString();
+    return `/admin/kreatorer${search ? `?${search}` : ""}`;
+  }
 
   /** Länken kreatören lägger i sin bio. Landar på webben, aldrig i appbutiken. */
   const linkFor = (code: string) => `${appUrl}/?ref=${code}`;
@@ -131,7 +144,127 @@ export function CreatorCodesClient({ rows, appUrl }: Props) {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="font-display text-xl font-bold text-ink">Kreatörer</h1>
+        <h1 className="font-display text-xl font-bold text-ink">Kreatörer och rabattkoder</h1>
+      </div>
+
+      <section aria-labelledby="redemptions-heading" className="space-y-3">
+        <div>
+          <h2 id="redemptions-heading" className="font-display text-lg font-semibold text-ink">
+            Inlösta Stripe-koder
+          </h2>
+          <p className="mt-1 text-sm text-ink-muted">
+            Slutförda Pro-köp där en rabattkod användes. Namnet hämtas från Stripe Checkout;
+            Foilio-kontot visas också för kontroll.
+          </p>
+        </div>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            router.push(redemptionHref(1));
+          }}
+          className="flex flex-wrap items-end gap-2"
+        >
+          <div className="w-full max-w-xs">
+            <Label htmlFor="redemption-code">Sök kod</Label>
+            <Input
+              id="redemption-code"
+              value={redemptionFilter}
+              onChange={(event) => setRedemptionFilter(event.target.value)}
+              placeholder="Kod eller Stripe kampanj-ID"
+            />
+          </div>
+          <Button type="submit">Sök</Button>
+          {redemptions.query && (
+            <button
+              type="button"
+              onClick={() => {
+                setRedemptionFilter("");
+                router.push(redemptionHref(1, ""));
+              }}
+              className="px-2 py-2 text-sm text-ink-muted hover:text-ink"
+            >
+              Rensa
+            </button>
+          )}
+        </form>
+        <p className="text-sm text-ink-muted">
+          {nf.format(redemptions.total)} inlösningar
+          {redemptions.query ? ` för ”${redemptions.query}”` : ""}
+        </p>
+        {redemptions.rows.length === 0 ? (
+          <div className="card-surface px-4 py-6 text-sm text-ink-muted">
+            Inga inlösningar hittades. Raderna fylls när en kod används i Foilios Stripe-kassa.
+          </div>
+        ) : (
+          <Table>
+            <THead>
+              <TR>
+                <TH>Kod</TH>
+                <TH>Namn / Foilio-konto</TH>
+                <TH>Inlöst</TH>
+                <TH>Källa</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {redemptions.rows.map((redemption) => (
+                <TR key={`${redemption.checkoutSessionId}:${redemption.promotionCodeId}`}>
+                  <TD>
+                    <span className="font-mono font-semibold text-holo-cyan">{redemption.code}</span>
+                    {redemption.couponId && (
+                      <span className="block text-xs text-ink-faint">{redemption.couponId}</span>
+                    )}
+                  </TD>
+                  <TD>
+                    <Link
+                      href={`/admin/anvandare/${redemption.user.id}`}
+                      className="font-medium text-ink hover:underline"
+                    >
+                      {redemption.checkoutName || "Namn saknas i Stripe"}
+                    </Link>
+                    <span className="block text-xs text-ink-faint">
+                      Foilio: {redemption.user.name || redemption.user.email} · {redemption.user.email}
+                    </span>
+                  </TD>
+                  <TD className="whitespace-nowrap text-sm text-ink-muted">
+                    {dtf.format(redemption.redeemedAt)}
+                  </TD>
+                  <TD>
+                    {redemption.livemode ? (
+                      <span className="text-xs text-ink-muted">Live</span>
+                    ) : (
+                      <Badge>Test</Badge>
+                    )}
+                  </TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+        )}
+        {redemptions.total > PROMOTION_REDEMPTIONS_PAGE_SIZE && (
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <button
+              type="button"
+              disabled={redemptions.page <= 1}
+              onClick={() => router.push(redemptionHref(redemptions.page - 1, redemptions.query))}
+              className="text-holo-cyan disabled:text-ink-faint"
+            >
+              Föregående
+            </button>
+            <span className="text-ink-muted">Sida {redemptions.page}</span>
+            <button
+              type="button"
+              disabled={redemptions.page * PROMOTION_REDEMPTIONS_PAGE_SIZE >= redemptions.total}
+              onClick={() => router.push(redemptionHref(redemptions.page + 1, redemptions.query))}
+              className="text-holo-cyan disabled:text-ink-faint"
+            >
+              Nästa
+            </button>
+          </div>
+        )}
+      </section>
+
+      <div>
+        <h2 className="font-display text-lg font-semibold text-ink">Kreatörslänkar</h2>
         <p className="mt-1 text-sm text-ink-muted">
           En kod per betalt samarbete. <strong className="text-ink">Konton</strong> räknar alla som
           registrerat sig via kreatörens länk — oavsett om de köpt Pro. Det är siffran du betalar på.

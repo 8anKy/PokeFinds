@@ -274,6 +274,7 @@ model User {
   chatReports       ChatReport[]
   watchedListings   WatchedListing[]
   moderationEvents  ModerationEvent[]
+  stripePromotionRedemptions StripePromotionRedemption[]
 
   @@index([email])
   @@index([creatorCodeId])
@@ -312,6 +313,30 @@ model CreatorCode {
   users User[]
 
   @@index([isActive])
+}
+
+// En inlöst Stripe promotion code i ett SLUTFÖRT Checkout, inte ett besök via
+// kreatörslänk. Separat från CreatorCode-attributionen: en kod kan skrivas in
+// av ett redan befintligt konto och ska då ändå räknas som en inlösning.
+// ⛔ Samma checkout-event kan levereras flera gånger. Sammansatt nyckel gör
+// varje faktisk kod+session till EN rad; kontoradering tar bort personkopplingen.
+model StripePromotionRedemption {
+  checkoutSessionId String
+  promotionCodeId   String
+  couponId          String?
+  userId            String
+  code              String
+  checkoutName      String?
+  redeemedAt        DateTime
+  livemode          Boolean
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([checkoutSessionId, promotionCodeId])
+  @@index([redeemedAt])
+  @@index([code, redeemedAt])
+  @@index([couponId, redeemedAt])
+  @@index([userId, redeemedAt])
 }
 
 // Engångskod som bevisar e-postägarskap FÖRE kontot skapas ("Skicka kod" i

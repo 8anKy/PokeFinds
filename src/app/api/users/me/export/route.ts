@@ -75,6 +75,9 @@ export async function GET() {
         // gör att en ny relation aldrig hamnar här av sig själv — lägg till den när
         // en ny personkopplad tabell införs.
         sales: true,
+        stripePromotionRedemptions: {
+          select: { checkoutSessionId: true, code: true, promotionCodeId: true, couponId: true, checkoutName: true, redeemedAt: true, livemode: true },
+        },
         setWatches: { include: { set: { select: { name: true } } } },
         // Utmärkelser är uppgifter OM personen (vad de gjort och när) — art. 15/20.
         achievements: true,
@@ -188,6 +191,7 @@ export async function GET() {
       // Pärmarna (2026-09-21). En post utan `portfolio` ligger i standardpärmen.
       portfolios: user.portfolios,
       sales: user.sales,
+      stripePromotionRedemptions: user.stripePromotionRedemptions,
       posts: user.posts,
       comments: user.comments,
       likes: user.likes,

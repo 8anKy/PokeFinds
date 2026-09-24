@@ -1233,7 +1233,7 @@
       },
       {
         "lead": "Payment details:",
-        "text": "your subscription status and a customer ID with our payment provider. We never see or store your card details; they are handled by Stripe or by App Store and Google Play."
+        "text": "your subscription status, redeemed promotion codes, the name you enter in Stripe Checkout, and a customer ID with our payment provider. We never see or store your card details; they are handled by Stripe or by App Store and Google Play."
       },
       {
         "lead": "Connected accounts:",

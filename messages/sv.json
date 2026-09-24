@@ -1233,7 +1233,7 @@
       },
       {
         "lead": "Betalningsuppgifter:",
-        "text": "din prenumerationsstatus och ett kund-id hos vår betalleverantör. Vi ser eller lagrar aldrig dina kortuppgifter; de hanteras av Stripe respektive App Store och Google Play."
+        "text": "din prenumerationsstatus, använda rabattkoder, namn du anger i Stripes kassa och ett kund-id hos vår betalleverantör. Vi ser eller lagrar aldrig dina kortuppgifter; de hanteras av Stripe respektive App Store och Google Play."
       },
       {
         "lead": "Kopplade konton:",
