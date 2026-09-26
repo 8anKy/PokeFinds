@@ -2040,6 +2040,8 @@
     "detailTitle": "{name} — priser och kort",
     "h1": "Set",
     "intro": "Alla set vi följer, med produkter, priser och prisindex.",
+    "upcomingGuide": "Se kommande Pokémon-set",
+    "buyingGuide": "Jämför priser och butiker",
     "emptyTitle": "Inga set ännu",
     "emptyDesc": "Vi håller på att fylla på med set och produkter. Titta tillbaka snart.",
     "release": "Release {date}",
@@ -2700,10 +2702,10 @@
     "openInAppLabel": "Läs mer i appen"
   },
   "Guides": {
-    "metaTitle": "Guider om Pokémon TCG – set, släpp och kortvärde",
-    "metaDescription": "Foilios guider om Pokémonkort: kommande set och släppdatum, vad produkterna innehåller, de mest eftertraktade korten och hur du tar reda på vad dina kort är värda.",
+    "metaTitle": "Pokémon TCG-guider – set, priser och köp",
+    "metaDescription": "Guider om Pokémonkort: kommande set, kortvärde, var du köper Pokémon TCG i Sverige och hur du jämför priser, boxar och butikserbjudanden.",
     "h1": "Guider",
-    "intro": "Allt om kommande och aktuella Pokémon-set: släppdatum, vad produkterna innehåller och vilka kort som är mest eftertraktade. Plus guider om hur du värderar din samling.",
+    "intro": "Läs om kommande Pokémon-set, kortvärde och hur du jämför produkter och priser hos svenska butiker. Vi skiljer på bekräftade uppgifter och sådant som ännu är osäkert.",
     "kindSet": "Set-guide",
     "kindGuide": "Guide",
     "kindCalendar": "Kalender",

@@ -2040,6 +2040,8 @@
     "detailTitle": "{name} — prices and cards",
     "h1": "Sets",
     "intro": "Every set we track, with products, prices and a price index.",
+    "upcomingGuide": "See upcoming Pokémon sets",
+    "buyingGuide": "Compare prices and stores",
     "emptyTitle": "No sets yet",
     "emptyDesc": "We're still filling in sets and products. Check back soon.",
     "release": "Released {date}",
@@ -2700,10 +2702,10 @@
     "openInAppLabel": "Read more in the app"
   },
   "Guides": {
-    "metaTitle": "Pokémon TCG guides – sets, releases and card values",
-    "metaDescription": "Foilio's guides to Pokémon cards: upcoming sets and release dates, what each product contains, the most sought-after cards and how to find out what your cards are worth.",
+    "metaTitle": "Pokémon TCG guides – sets, prices and buying",
+    "metaDescription": "Guides to Pokémon cards: upcoming sets, card values, where to buy Pokémon TCG in Sweden and how to compare prices, boxes and store offers.",
     "h1": "Guides",
-    "intro": "Everything about upcoming and current Pokémon sets: release dates, what the products contain and which cards are most sought after. Plus guides on valuing your collection.",
+    "intro": "Read about upcoming Pokémon sets, card values and how to compare products and prices at Swedish stores. We separate confirmed details from what is still uncertain.",
     "kindSet": "Set guide",
     "kindGuide": "Guide",
     "kindCalendar": "Calendar",

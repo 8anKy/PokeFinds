@@ -612,7 +612,7 @@ export const GUIDES: Guide[] = [
       "Japanska Pokémonkort släpps tidigare, har andra paket och ett eget pris. Så skiljer sig japanska och engelska kort och vad du ska tänka på när du köper eller värderar dem.",
     kind: "guide",
     publishedAt: "2026-09-23",
-    updatedAt: "2026-09-23",
+    updatedAt: "2026-09-26",
     intro:
       "Allt fler svenska samlare köper japanska Pokémonkort. Motiven är desamma, men korten släpps vid andra tidpunkter, i andra paket och har egna marknadspriser. Här är skillnaderna.",
     body: [
@@ -645,6 +645,7 @@ export const GUIDES: Guide[] = [
         items: [
           { href: "/sets", label: "Alla set", note: "Engelska och japanska" },
           { href: "/guider/vad-ar-mina-pokemonkort-varda", label: "Vad är mina kort värda?", note: "Så värderar du dina kort" },
+          { href: "/guider/var-koper-man-billiga-pokemonkort", label: "Var köper man billiga Pokémonkort?", note: "Jämför rätt språk och erbjudande" },
         ],
       },
     ],
@@ -664,7 +665,7 @@ export const GUIDES: Guide[] = [
       "Så kollar du vad ett Pokémonkort är värt: rätt tryckning, skick och språk, varför Cardmarket är referensen i Europa, och hur graderade kort skiljer sig.",
     kind: "guide",
     publishedAt: "2026-09-23",
-    updatedAt: "2026-09-23",
+    updatedAt: "2026-09-26",
     intro:
       "Hittat en gammal pärm eller fått en träff i en booster? Ett korts värde avgörs av mer än namnet. Samma Pokémon kan vara värd en krona eller flera tusen beroende på tryckning, skick och språk. Så här tar du reda på vad just ditt kort är värt.",
     body: [
@@ -707,6 +708,98 @@ export const GUIDES: Guide[] = [
         items: [
           { href: "/skanna", label: "Skanna ett kort", note: "Kortskannern" },
           { href: "/sets", label: "Bläddra bland alla set", note: "Hitta ditt kort via setet" },
+          { href: "/guider/var-koper-man-billiga-pokemonkort", label: "Jämför priser på Pokémonkort", note: "Hitta rätt vara och butik" },
+        ],
+      },
+    ],
+    sources: [],
+  },
+  {
+    slug: "var-koper-man-billiga-pokemonkort",
+    title: "Var köper man billiga Pokémonkort? Jämför priser i Sverige",
+    description:
+      "Hitta rätt Pokémonkort, booster eller box och jämför butikernas priser och lagerstatus. Så ser du vilket erbjudande som faktiskt passar dig.",
+    kind: "guide",
+    publishedAt: "2026-09-26",
+    updatedAt: "2026-09-26",
+    intro:
+      "Det billigaste Pokémonköpet börjar med rätt vara. Samma namn kan dölja olika språk, set eller produktformer. Här är ett enkelt sätt att jämföra erbjudanden innan du går vidare till butiken.",
+    body: [
+      { type: "h", text: "Börja med produkten, inte butiken" },
+      {
+        type: "p",
+        text: "Sök efter setets namn och välj sedan rätt produkt: ett enskilt kort, en booster, en Booster Box eller en Elite Trainer Box. Kontrollera språk och variant. Ett japanskt kort och ett engelskt kort med samma motiv har olika priser, och en box ska inte jämföras med ett löst paket.",
+      },
+      {
+        type: "links",
+        items: [
+          { href: "/produkter", label: "Sök Pokémonkort och sealed", note: "Jämför produkter och butikserbjudanden" },
+          { href: "/sets", label: "Hitta rätt set", note: "Bläddra bland seten i katalogen" },
+        ],
+      },
+      { type: "h", text: "Jämför köpbara erbjudanden" },
+      {
+        type: "p",
+        text: "Öppna produkten på Foilio för att se de butikserbjudanden vi känner till. Titta både på priset och om varan finns i lager. Ett lågt pris hjälper inte om produkten är slutsåld. Gå alltid vidare till butikens egen sida och kontrollera slutpris, frakt och lagerstatus innan du betalar; uppgifterna kan ändras mellan våra uppdateringar.",
+      },
+      { type: "h", text: "Välj efter vad du vill samla" },
+      {
+        type: "p",
+        text: "Letar du efter ett visst kort är det mer träffsäkert att söka efter kortets set och nummer än att jämföra slumpmässiga boosters. Vill du öppna paket, jämför i stället samma förseglade produkt hos olika butiker. Om du funderar på en box eller en Elite Trainer Box behöver du också jämföra vad som faktiskt ingår.",
+      },
+      {
+        type: "links",
+        items: [
+          { href: "/guider/jamfor-booster-box-och-etb", label: "Booster Box eller Elite Trainer Box?", note: "Jämför innehåll och pris" },
+          { href: "/guider/vad-ar-mina-pokemonkort-varda", label: "Vad är mina Pokémonkort värda?", note: "Hitta rätt kort och prisreferens" },
+          { href: "/guider/japanska-pokemonkort", label: "Japanska eller engelska Pokémonkort?", note: "Skillnader att känna till" },
+        ],
+      },
+      { type: "h", text: "Håll koll på kommande släpp" },
+      {
+        type: "p",
+        text: "För ett set som ännu inte släppts: börja med att kontrollera släppdatum och vilka produkter som är bekräftade. När erbjudanden dyker upp kan du jämföra just den produkt du vill ha i katalogen. Ett datum eller en butikssida är inte i sig ett bevis på att varan finns att köpa.",
+      },
+      {
+        type: "links",
+        items: [{ href: "/guider/kommande-pokemon-set", label: "Kommande Pokémon-set", note: "Släppdatum och bekräftade uppgifter" }],
+      },
+    ],
+    sources: [],
+  },
+  {
+    slug: "jamfor-booster-box-och-etb",
+    title: "Pokémon Booster Box eller Elite Trainer Box? Jämför pris och innehåll",
+    description:
+      "Ska du köpa Pokémon Booster Box eller Elite Trainer Box? Jämför rätt set, språk, verifierat innehåll, totalpris och lagerstatus innan du bestämmer dig.",
+    kind: "guide",
+    publishedAt: "2026-09-26",
+    updatedAt: "2026-09-26",
+    intro:
+      "Booster Box och Elite Trainer Box är olika produkter. Det bästa valet beror på om du främst vill öppna paket eller också vill ha tillbehören i lådan. Jämför innehållet och hela köpet, inte bara priset på etiketten.",
+    body: [
+      { type: "h", text: "Kontrollera set, språk och innehåll" },
+      {
+        type: "p",
+        text: "Börja med att kontrollera att du tittar på rätt set och språk. Läs sedan vad som faktiskt ingår i varje produkt. En Elite Trainer Box kan innehålla tillbehör utöver boosters; exakt innehåll varierar mellan utgåvor. Utgå aldrig från att två boxar har samma antal paket. Där Foilio har verifierade uppgifter visas de på produktsidan.",
+      },
+      { type: "h", text: "Jämför kostnaden för det du vill ha" },
+      {
+        type: "p",
+        text: "Vill du främst öppna boosters kan pris per paket vara användbart, men bara när paketantalet är bekräftat för just de produkter du jämför. Vill du också ha tillbehören behöver de vägas in. Räkna dessutom med frakt och kontrollera slutpriset hos butiken. Ett lägre listpris är inte alltid det billigaste köpet.",
+      },
+      { type: "h", text: "Se vilka erbjudanden som går att köpa" },
+      {
+        type: "p",
+        text: "Sök upp den exakta boxen på Foilio och jämför kända butikserbjudanden och lagerstatus. Öppna sedan butiken för att bekräfta pris, innehåll och leveransvillkor. Om en produkt saknar säkra innehållsuppgifter är butikens produktbeskrivning viktigare än en gissad jämförelse per paket.",
+      },
+      {
+        type: "links",
+        items: [
+          { href: "/produkter", label: "Jämför Pokémonprodukter", note: "Sök boxar och se butikserbjudanden" },
+          { href: "/sets", label: "Bläddra bland set", note: "Välj rätt utgåva" },
+          { href: "/guider/var-koper-man-billiga-pokemonkort", label: "Var köper man billiga Pokémonkort?", note: "Så jämför du hela köpet" },
+          { href: "/guider/kommande-pokemon-set", label: "Kommande Pokémon-set", note: "Se vad som är på väg" },
         ],
       },
     ],

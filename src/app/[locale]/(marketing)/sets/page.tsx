@@ -59,6 +59,21 @@ export default async function SetsPage({
       <p className="mt-2 text-ink-muted">
         {t("intro")}
       </p>
+      <p className="mt-3 text-sm text-ink-muted">
+        <a
+          href={`${locale === "en" ? "/en" : ""}/guider/kommande-pokemon-set`}
+          className="font-medium text-holo-cyan hover:underline"
+        >
+          {t("upcomingGuide")}
+        </a>
+        <span aria-hidden="true"> · </span>
+        <a
+          href={`${locale === "en" ? "/en" : ""}/guider/var-koper-man-billiga-pokemonkort`}
+          className="font-medium text-holo-cyan hover:underline"
+        >
+          {t("buyingGuide")}
+        </a>
+      </p>
 
       {sets.length === 0 ? (
         <EmptyState
