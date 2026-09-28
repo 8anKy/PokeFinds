@@ -12,6 +12,7 @@ import { isSealedCategory } from "@/lib/product-category";
 // Lokalt bruk (checkRestockAlerts nedan). Re-exporten längre ner är för utomstående
 // importvägar — `export … from` binder INTE namnen i den här modulens scope.
 import { FLAP_WINDOW_HOURS, evaluateStockFlap, flapPolicy } from "@/lib/stock-flap";
+import { priceAlertQuietUntil } from "@/lib/quiet-hours";
 import type { AlertChannel, AlertType, Prisma, StockStatus } from "@prisma/client";
 
 function formatSek(ore: number): string {
@@ -224,6 +225,8 @@ export async function checkPriceAlerts(
   const previousOre = opts.previousOre === undefined ? product.lowestPriceOre : opts.previousOre;
   const policy = priceAlertPolicy();
   const now = new Date();
+  // Nattens prislarm väntar till 07:00 svensk tid (cardmarket-refresh går på natten).
+  const notBefore = priceAlertQuietUntil(now);
   const writes: Prisma.PrismaPromise<unknown>[] = [];
   let triggered = 0;
   for (const w of watchers) {
@@ -243,6 +246,7 @@ export async function checkPriceAlerts(
           priceOre: lowest.price,
           message: priceAlertMessage(product.title, verdict, lowest.price, lowest.retailer.name),
           channel: "EMAIL",
+          notBefore,
         },
       }),
       prisma.watchlistItem.update({

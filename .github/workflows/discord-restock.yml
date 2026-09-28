@@ -103,6 +103,53 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # ── VÄCKARKLOCKAN FÖR NATTJOBBEN (2026-09-28) ─────────────────────────────────
+  # GitHubs `schedule:` är best effort och går 3–5 h sent i vår drift (cardmarket-refresh
+  # "13:00" startade 16:48–17:37 UTC vecka 39; scrape-all "02:00" 06:58–08:05). Lanen
+  # startar ett nytt jobb var ~20:e minut dygnet runt, så den får starta nattjobben på
+  # klockslaget i stället. GITHUB_TOKEN får trigga workflow_dispatch (det enda
+  # event-slaget GitHub tillåter från ett workflow) — ingen PAT, ingen extern tjänst.
+  # ⛔ EGET JOBB MED EGEN RÄTTIGHET: `actions: write` ska inte ligga på jobbet som läser
+  #    butikernas feedar och kör hela npm-trädet. Det här jobbet kör bara `gh`.
+  # ⛔ EN START PER DYGN: "finns en körning skapad sedan klockslaget?" (alla statusar,
+  #    även köade) — annars startas den. Fönstret är brett så en lane som legat nere
+  #    ändå startar jobbet när den kommer tillbaka.
+  kickoff:
+    if: github.event.inputs.test != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Starta nattjobb som inte startats än
+        run: |
+          set -euo pipefail
+          kick() { # workflow-fil, ISO-tid sedan när
+            n=$(gh run list -w "$1" --created ">=$2" --limit 20 --json databaseId -q 'length')
+            if [ "$n" = "0" ]; then
+              gh workflow run "$1" --ref main
+              echo "::notice::Väckarklockan startade $1 (ingen körning sedan $2)."
+            else
+              echo "$1: redan startad sedan $2 ($n körning(ar))."
+            fi
+          }
+          h=$((10#$(date -u +%H)))
+          # Cardmarket-priser 01:00 UTC: färdigt ~02:00, långt före morgonen och före
+          # nattkedjan (scrape-all, som i praktiken startar ~07 UTC). Fönster till 12 UTC.
+          if [ "$h" -ge 1 ] && [ "$h" -lt 12 ]; then
+            kick cardmarket-refresh.yml "$(date -u +%F)T01:00:00Z"
+          fi
+          # Morgonrundan för nattens prislarm (tysta timmar, lib/quiet-hours.ts): 07–10
+          # svensk tid, sommar- och vintertid via TZ.
+          sh=$((10#$(TZ=Europe/Stockholm date +%H)))
+          if [ "$sh" -ge 7 ] && [ "$sh" -lt 10 ]; then
+            since=$(date -u -d "@$(TZ=Europe/Stockholm date -d "$(TZ=Europe/Stockholm date +%F) 07:00" +%s)" +%FT%TZ)
+            kick morning-alerts.yml "$since"
+          fi
+
   post:
     runs-on: ubuntu-latest
     # Loopbudgeten är 1200 s (20 min) och en butiks sista varv får löpa klart efter

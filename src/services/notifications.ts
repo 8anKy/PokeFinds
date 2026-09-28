@@ -274,7 +274,11 @@ export async function dispatchPendingAlerts(): Promise<{ sent: number; failed: n
     const settings = parseSettings(alert.user.notificationSettings);
     // Fördröjt gratislarm: mejl OCH push säger att Pro fick det tidigare — det är
     // hela poängen med fördröjningen (free-restock-alert.ts).
-    const delayMin = freeDelayMinutes(alert);
+    // ⛔ Bara restock-larm: ett PRISLARM med notBefore är nattens tysta timmar
+    // (lib/quiet-hours.ts), inte gratiskontots fördröjning — det fick ALDRIG säga
+    // "Pro-medlemmar fick det här för 240 min sedan".
+    const isPriceAlert = alert.type === "PRICE_DROP" || alert.type === "PRICE_TARGET";
+    const delayMin = isPriceAlert ? null : freeDelayMinutes(alert);
     const delayNote = delayMin == null ? null : freeDelayNotice(delayMin);
     try {
       if (settings.email) {

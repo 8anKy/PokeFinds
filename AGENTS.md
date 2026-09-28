@@ -449,10 +449,19 @@ inspirations-/konkurrentsidor i kod, copy eller docs.
   ej skrapas, RapidAPI ger bara 7d/30d-snitt). Öppna aldrig backfill-frågan igen.
 
 ## Auto-uppdatering (GitHub Actions; publikt repo → obegränsade minuter)
-`cardmarket-refresh` 13:00 UTC + `hot-card-refresh` 21:00, `tradera-sweep` 04:00, `scrape-all` 02:00,
+`cardmarket-refresh` **01:00 UTC via väckarklockan** + `hot-card-refresh` 21:00, `tradera-sweep` 04:00, `scrape-all` 02:00,
 ⛔ `restock-watch` är **PAUSAD sedan 2026-08-23** (se nedan), `discord-restock` (loop-i-jobbet, egen
 takt per butik, pingas var 2:a min).
 DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
+- ⛔ **ETT `schedule:`-KLOCKSLAG ÄR ETT GOLV, INTE EN STARTTID** — mätt vecka 39: `scrape-all` "02:00"
+  startade 06:58–08:05 UTC, `cardmarket-refresh` "13:00" 16:48–17:37. **Väckarklockan (2026-09-28)** =
+  `kickoff`-jobbet i `discord-restock.yml` (lanen startar ett jobb var ~20:e min dygnet runt) startar
+  `cardmarket-refresh` 01:00 UTC och `morning-alerts` 07:00 svensk tid med `gh workflow run` (GITHUB_TOKEN
+  får trigga workflow_dispatch — ingen PAT). En start per dygn ("finns en körning sedan klockslaget?").
+  CM-jobbets egen schedule (14:00) är RESERV och hoppar över sig själv när nattkörningen gått (`gate`).
+  ⛔ Prislarm skapade 22–07 svensk tid bär `notBefore` = 07:00 (`lib/quiet-hours.ts`); `morning-alerts`
+  → `/api/cron/alerts-due` skickar dem (en Neon-väckning/dygn). Restock-larm har inga tysta timmar.
+  ⛔ `freeDelayMinutes`-raden ("Pro fick det för N min sedan") gäller BARA restock — ett nattlarm hade annars sagt "240 min".
 - ⛔ **Nattkedjan får ALDRIG bli längre än tre led**: scrape-all → tradera-sweep → cardtrader-refresh är
   länkade med `workflow_run` för att dela ETT Neon-fönster. GitHub fyrar max tre nivåer från roten; led 4
   fyrar ALDRIG, tyst. **Nya nattjobb läggs som STEG i ett befintligt led.** `workflows:` matchar
@@ -581,7 +590,7 @@ DB-skrivningar kör med `mapPool`-samtidighet så de hinner klart före timeout.
   nytt larm först vid nytt fall, spärren släpps +10 % över larmnivån (env `PRICE_ALERT_*`). Larmraden
   bär `Alert.priceOre` + `retailerId` ⇒ rad, mejl och push visar SAMMA tal och butik; aldrig 0 kr.
   ⛔ **VÄGARNA IN ÄR SVEP, INTE PER OFFER**: `snapshotWatchedPrices()` FÖRE + `sweepWatchedPriceAlerts()`
-  EFTER `recomputeProductPriceCache` i nattkedjan (`scheduler.ts`), `cardmarket-refresh` (13:00) och
+  EFTER `recomputeProductPriceCache` i nattkedjan (`scheduler.ts`), `cardmarket-refresh` (01:00 UTC) och
   `hot-card-refresh` (21:00) — så CM-prisfall på singlar larmar (defekt 5). Kostnad: två frågor + en per
   produkt som blev billigare; pausat läge kostar noll. Dagtid: Discord-lanens "Nytt lägre pris" blir en
   `PRICE_DROP`-hit till `/api/cron/restock-hit` (egen grind per hit-sort). `runScrapeJob` dömer inte

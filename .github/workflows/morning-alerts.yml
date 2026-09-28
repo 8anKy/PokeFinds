@@ -1,0 +1,38 @@
+name: Morgonrunda för nattens prislarm
+
+# Prislarm som skapas under tysta timmar (22–07 svensk tid, src/lib/quiet-hours.ts)
+# väntar på `Alert.notBefore` = 07:00. Det här jobbet skickar dem. Startas en gång per
+# morgon av väckarklockan i discord-restock.yml (kickoff-jobbet) — aldrig av en egen
+# cron, som i vår drift går 3–5 h sent.
+#
+# KOSTNAD: en Neon-väckning per dygn (≈ 5 min debiterad tid). Inga beroenden installeras;
+# jobbet är ett curl-anrop mot appen, som gör DB-arbetet.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morning-alerts
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Skicka förfallna larm
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::warning::CRON_SECRET saknas — nattens prislarm skickas först med nästa larm-hit."
+            exit 0
+          fi
+          # ⛔ Apex direkt: en 301 följs inte av curl utan -L (CLAUDE.md).
+          url="${SITE_URL:-https://foilio.se}/api/cron/alerts-due"
+          code=$(curl -sS -o out.json -w '%{http_code}' --max-time 120 -X POST -H "x-cron-secret: ${CRON_SECRET}" "$url")
+          echo "alerts-due → HTTP $code $(cat out.json)"
+          test "$code" = "200"

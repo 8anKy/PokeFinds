@@ -3,9 +3,17 @@ name: Cardmarket-priser (dagligen)
 # Uppdaterar singel- + sealed-priser från CardMarket API TCG (RapidAPI) en gång
 # per dygn. Körs i molnet via GitHub Actions — kräver INTE att datorn är på.
 on:
+  # ⛔ NATTKÖRNING SEDAN 2026-09-28: startas 01:00 UTC av väckarklockan i
+  # discord-restock.yml (kickoff-jobbet) så priser + samlingsvärde är färska när
+  # användarna vaknar. GitHubs schedule går 3–5 h sent i vår drift ("13:00" startade
+  # 16:48–17:37 UTC vecka 39), så den står bara kvar som RESERV om lanen legat nere hela
+  # natten — och hoppar över sig själv om nattkörningen redan gått (gate-jobbet nedan).
+  # Leverantörens (TCGGO) CM-data byter tal flera gånger per dygn, även 00–05 UTC
+  # (cm-freshness-probe, 09-22→09-28), så en nattkörning läser inte gårdagens tal.
+  # RapidAPI-kvoten (Ultra 15 000/dygn, reset 12:59 UTC) är inte längre ett skäl för klockslaget.
   schedule:
-    - cron: "0 13 * * *" # 13:00 UTC — direkt efter RapidAPI-kvotens dagsreset (12:59 UTC) så fulla refreshen får färsk kvot först
-  workflow_dispatch: {} # manuell "Run workflow"-knapp
+    - cron: "0 14 * * *" # RESERV — se ovan
+  workflow_dispatch: {} # väckarklockan + manuell "Run workflow"-knapp
 
 # Minsta möjliga rättighet. INGET jobb i det här repot skriver till GitHub — de läser
 # koden och skriver till Neon. Utan blocket får GITHUB_TOKEN repots STANDARD-rättigheter,
@@ -20,7 +28,35 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Reservens spärr: en schemalagd körning när nattkörningen redan gått vore en andra
+  # full refresh (~45 min Neon, dubbla prislarmsvep). Manuella/väckarklockans körningar
+  # passerar alltid.
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      actions: read
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          n=$(gh run list -w cardmarket-refresh.yml --created ">=$(date -u +%F)T00:00:00Z" --limit 20  --json databaseId,event -q "[.[] | select(.databaseId != ${{ github.run_id }})] | length")
+          if [ "$n" != "0" ]; then
+            echo "Nattkörningen har redan gått idag ($n körning(ar)) — reserven hoppar över."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Ingen nattkörning idag — väckarklockan (discord-restock) har inte startat den. Reserven kör."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
   refresh:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     # Skriver dagens pris + historik (singlar + sealed). Körtid 23–46 min (+ upp till
     # 60 min avtryckssteget sist, bara dagar då nya kort kom) och en
