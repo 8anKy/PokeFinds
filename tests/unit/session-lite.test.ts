@@ -31,7 +31,17 @@ describe("readSessionLite", () => {
 
   it("giltig cookie ⇒ namn, roll och Pro ur token — utan auth() (ingen DB)", async () => {
     const token = await encode({
-      token: { id: "u1", name: "Milos", email: "m@x.se", role: "ADMIN", planTier: "PREMIUM", refreshedAt: 0 },
+      token: {
+        id: "u1",
+        name: "Milos",
+        email: "m@x.se",
+        role: "ADMIN",
+        planTier: "PREMIUM",
+        bonusProUntil: null,
+        stripeProUntil: null,
+        onboardingCompleted: true,
+        refreshedAt: 0,
+      },
       secret: SECRET,
     });
     jar.set("__Secure-next-auth.session-token", token);

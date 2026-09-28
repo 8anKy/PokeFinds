@@ -10,7 +10,7 @@ import { CardLanguage, ProductCategory, StockStatus } from "@prisma/client";
 const feedSchema = z.object({
   query: z.string().trim().max(200).optional(),
   category: csvEnum(ProductCategory),
-  setId: z.string().optional(),
+  setId: csvString,
   retailerId: csvString,
   minPrice: z.coerce.number().int().min(0).optional(),
   maxPrice: z.coerce.number().int().min(0).optional(),

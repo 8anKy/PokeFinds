@@ -160,7 +160,16 @@ export function ExploreFilterBar({
     : defaultSort;
   const sortActive = sort !== defaultSort;
 
-  const activeSet = sets.find((s) => s.id === searchParams.set) ?? null;
+  // Set är flerval (?set=a,b). Chipet heter setets namn vid ETT, "3 set" vid fler.
+  const activeSetIds = csvList(searchParams.set);
+  // Logotypen i chipet bara vid ETT set — flera logotyper får inte plats.
+  const soleActiveSet = activeSetIds.length === 1 ? (sets.find((s) => s.id === activeSetIds[0]) ?? null) : null;
+  const activeSetLabel =
+    activeSetIds.length === 0
+      ? null
+      : activeSetIds.length === 1
+        ? (sets.find((s) => s.id === activeSetIds[0])?.name ?? t("set"))
+        : t("setsSelected", { count: activeSetIds.length });
   const inStock = searchParams.lager === "1";
 
   const minKr = parseKr(searchParams.minPris) ?? 0;
@@ -266,15 +275,15 @@ export function ExploreFilterBar({
           style={{ touchAction: "pan-x pan-y" }}
         >
           <Chip
-            active={!!activeSet}
-            label={activeSet?.name ?? t("set")}
+            active={activeSetLabel !== null}
+            label={activeSetLabel ?? t("set")}
             onOpen={() => setSheet("set")}
-            onClear={activeSet ? () => pushParams({ set: undefined }) : undefined}
+            onClear={activeSetLabel !== null ? () => pushParams({ set: undefined }) : undefined}
             clearAriaLabel={t("clearSet")}
             leading={
-              activeSet?.logoUrl ? (
+              soleActiveSet?.logoUrl ? (
                 <SafeImage
-                  src={activeSet.logoUrl}
+                  src={soleActiveSet.logoUrl}
                   alt=""
                   className="h-3.5 w-[26px] shrink-0 object-contain"
                   fallback={<></>}
@@ -382,11 +391,12 @@ export function ExploreFilterBar({
       <SetSheet
         open={sheet === "set"}
         sets={sets}
-        activeSetId={searchParams.set}
+        activeSetIds={activeSetIds}
+        baseSelection={{ ...searchParams, set: undefined }}
         total={total}
         onClose={() => setSheet(null)}
-        onPick={(id) => {
-          pushParams({ set: id });
+        onApply={(ids) => {
+          pushParams({ set: ids.length > 0 ? ids.join(",") : undefined });
           setSheet(null);
         }}
         initialLang={searchParams.sprak === "JP" ? "JP" : searchParams.sprak === "EN" ? "EN" : undefined}
@@ -545,19 +555,24 @@ function Sheet({
 export function SetSheet({
   open,
   sets,
-  activeSetId,
+  activeSetIds,
+  baseSelection,
   total,
   onClose,
-  onPick,
+  onApply,
   initialLang,
   onLanguageChange,
 }: {
   open: boolean;
   sets: FilterSet[];
-  activeSetId?: string;
+  /** Applicerade set ur URL:en. FLERVAL sedan 2026-09-28 (`?set=a,b`). */
+  activeSetIds: string[];
+  /** Övriga applicerade filter — knappens antal räknas på dem + setvalet. */
+  baseSelection: CountSelection;
   total: number;
   onClose: () => void;
-  onPick: (id: string | undefined) => void;
+  /** Tom lista = inget setfilter. */
+  onApply: (ids: string[]) => void;
   /** Språkfiltrets val — arket öppnar på DEN fliken (ägaren 2026-09-17). Utan: EN. */
   initialLang?: "EN" | "JP";
   /** Flikbyte i arket byter också språkfiltret — ett val, en sanning. */
@@ -569,9 +584,19 @@ export function SetSheet({
   const jpSets = useMemo(() => sets.filter((s) => s.language === "JP"), [sets]);
   const enSets = useMemo(() => sets.filter((s) => s.language !== "JP"), [sets]);
   const [lang, setLang] = useState<"EN" | "JP">("EN");
-  // Öppnar man arket med ett japanskt set valt ska man landa på DESS flik — annars
-  // ser det ut som att valet försvunnit.
-  const activeIsJp = jpSets.some((s) => s.id === activeSetId);
+  // FLERVAL (ägaren 2026-09-28): brickorna kryssas i och ur lokalt, knappen
+  // applicerar — samma mönster som "Fler filter". Förut applicerade ett tryck
+  // direkt och stängde arket, så det gick bara att välja ett set.
+  const [picked, setPicked] = useState<string[]>(activeSetIds);
+  const activeKey = activeSetIds.join(",");
+  useEffect(() => {
+    if (open) setPicked(activeKey ? activeKey.split(",") : []);
+  }, [open, activeKey]);
+  const pendingCount = usePendingCount(open, { ...baseSelection, set: picked.join(",") || undefined }, total);
+  // Öppnar man arket med bara japanska set valda ska man landa på DERAS flik —
+  // annars ser det ut som att valet försvunnit.
+  const activeIsJp =
+    activeSetIds.length > 0 && activeSetIds.every((id) => jpSets.some((s) => s.id === id));
   useEffect(() => {
     if (open) setLang(activeIsJp ? "JP" : (initialLang ?? "EN"));
   }, [open, activeIsJp, initialLang]);
@@ -602,12 +627,13 @@ export function SetSheet({
   const groupedJp = useMemo(() => groupBySeries(jpSets), [jpSets]);
 
   const tile = (s: FilterSet) => {
-    const selected = s.id === activeSetId;
+    const selected = picked.includes(s.id);
     return (
       <button
         key={s.id}
         type="button"
-        onClick={() => onPick(selected ? undefined : s.id)}
+        aria-pressed={selected}
+        onClick={() => setPicked((prev) => (selected ? prev.filter((id) => id !== s.id) : [...prev, s.id]))}
         className="flex flex-col gap-1.5 text-center"
       >
         <span
@@ -643,8 +669,9 @@ export function SetSheet({
       open={open}
       title={t("chooseSet")}
       onClose={onClose}
-      onClear={activeSetId ? () => onPick(undefined) : undefined}
-      cta={t("resultCount", { count: total })}
+      onClear={picked.length > 0 ? () => setPicked([]) : undefined}
+      cta={t("resultCount", { count: pendingCount })}
+      onCta={() => onApply(picked)}
     >
       {jpSets.length > 0 && (
         <div className="mb-4 flex gap-1.5 rounded-lg bg-surface-overlay/60 p-1">

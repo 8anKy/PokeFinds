@@ -31,7 +31,18 @@ describe("setfiltret är exakt", () => {
     const setClause = clauses.find((c) => "OR" in c) as { OR: Record<string, unknown>[] } | undefined;
 
     expect(setClause).toBeDefined();
-    expect(setClause!.OR).toEqual([{ setId: "set_sv" }, { card: { setId: "set_sv" } }]);
+    expect(setClause!.OR).toEqual([{ setId: { in: ["set_sv"] } }, { card: { setId: { in: ["set_sv"] } } }]);
+    expect(JSON.stringify(where)).not.toContain("normalizedTitle");
+  });
+
+  it("flera set (2026-09-28) ⇒ produkten ligger i NÅGOT av dem, fortfarande bara på setId", async () => {
+    const where = await buildProductWhere({ setId: ["set_sv", "set_151"] });
+    const clauses = (where.AND as Record<string, unknown>[]) ?? [];
+    const setClause = clauses.find((c) => "OR" in c) as { OR: Record<string, unknown>[] } | undefined;
+    expect(setClause!.OR).toEqual([
+      { setId: { in: ["set_sv", "set_151"] } },
+      { card: { setId: { in: ["set_sv", "set_151"] } } },
+    ]);
     expect(JSON.stringify(where)).not.toContain("normalizedTitle");
   });
 

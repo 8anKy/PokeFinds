@@ -76,7 +76,8 @@ export interface SearchProductsParams {
   // är flerval). Ett ensamt värde behålls som giltig form så äldre anropare —
   // /api/products, desktop-sidofältets <select> — kan skicka en sträng som förut.
   category?: ProductCategory | ProductCategory[];
-  setId?: string;
+  // Set är flerval sedan 2026-09-28 (ägaren: "välja flera set och sortera bland dem").
+  setId?: string | string[];
   retailerId?: string | string[];
   minPrice?: number; // öre
   maxPrice?: number; // öre
@@ -396,7 +397,11 @@ export async function buildProductWhere(
   // hela Black Star Promos, "Dragon" varenda Dragonair, "Base" alla Secret Base-
   // kort, "151" varje kort med nummer 151 i vilket set som helst.
   // Återinför den ALDRIG utan ett facit som visar att den tillför något.
-  if (setId) andClauses.push({ OR: [{ setId }, { card: { setId } }] });
+  // Flerval (2026-09-28): produkten ligger i NÅGOT av de valda seten.
+  const setIds = toList(setId);
+  if (setIds.length > 0) {
+    andClauses.push({ OR: [{ setId: { in: setIds } }, { card: { setId: { in: setIds } } }] });
+  }
 
   const where: Prisma.ProductWhereInput = andClauses.length > 0 ? { AND: andClauses } : {};
   // Ägarens borttagna produkter — se NOT_HIDDEN. Ligger på `where` och inte bland

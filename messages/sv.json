@@ -1964,6 +1964,7 @@
     "closeSheet": "Stäng",
     "showResults": "Visa {results}",
     "chooseSet": "Välj set",
+    "setsSelected": "{count} set",
     "setLanguageEn": "Engelska",
     "setLanguageJp": "Japanska",
     "priceRange": "Prisintervall",

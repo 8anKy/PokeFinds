@@ -192,7 +192,8 @@ export function ExploreFilterPanel({
 
   const activeCategories = getCsv("kategori");
   const activeStores = getCsv("butik");
-  const activeSet = sp?.get("set") ?? "";
+  // Set är flerval sedan 2026-09-28 (?set=a,b), som kategori och butik.
+  const activeSets = getCsv("set");
   const activeLanguage = sp?.get("sprak") ?? "";
   const inStockOnly = sp?.get("lager") === "1";
   const minPris = sp?.get("minPris") ?? "";
@@ -268,7 +269,7 @@ export function ExploreFilterPanel({
   const activeCount =
     activeCategories.length +
     activeStores.length +
-    (activeSet ? 1 : 0) +
+    activeSets.length +
     (activeLanguage ? 1 : 0) +
     (inStockOnly ? 1 : 0) +
     (currentMin !== null || currentMax !== null ? 1 : 0);
@@ -294,7 +295,7 @@ export function ExploreFilterPanel({
   const setRow = (s: FilterSetOption) => (
     <FacetRow
       key={s.id}
-      checked={activeSet === s.id}
+      checked={activeSets.includes(s.id)}
       label={s.name}
       count={s.count > 0 ? s.count : undefined}
       thumb={
@@ -307,7 +308,7 @@ export function ExploreFilterPanel({
           />
         </span>
       }
-      onToggle={() => apply({ set: activeSet === s.id ? null : s.id })}
+      onToggle={() => toggleCsv("set", s.id)}
     />
   );
 
@@ -435,7 +436,7 @@ export function ExploreFilterPanel({
         </Section>
 
         <Section title={t("set")}>
-          <div>{visibleRows(setsByCount, false, (s) => activeSet === s.id).map(setRow)}</div>
+          <div>{visibleRows(setsByCount, false, (s) => activeSets.includes(s.id)).map(setRow)}</div>
           {sets.length > COLLAPSED_ROWS && (
             <button
               type="button"
@@ -483,12 +484,13 @@ export function ExploreFilterPanel({
         sets={sets}
         initialLang={activeLanguage === "JP" ? "JP" : activeLanguage === "EN" ? "EN" : undefined}
         onLanguageChange={(lang) => apply({ sprak: lang })}
-        activeSetId={activeSet || undefined}
+        activeSetIds={activeSets}
+        baseSelection={{ ...Object.fromEntries(sp?.entries() ?? []), set: undefined }}
         total={total}
         onClose={() => setSetSheetOpen(false)}
-        onPick={(id) => {
+        onApply={(ids) => {
           setSetSheetOpen(false);
-          apply({ set: id ?? null });
+          apply({ set: ids.length > 0 ? ids.join(",") : null });
         }}
       />
     </>
@@ -535,12 +537,11 @@ export function ExploreActiveChips({
     });
   }
 
-  const set = sp?.get("set");
-  if (set) {
+  for (const value of getCsv("set")) {
     chips.push({
-      key: "set",
-      label: setName.get(set) ?? t("set"),
-      onRemove: () => apply({ set: null }),
+      key: `set-${value}`,
+      label: setName.get(value) ?? t("set"),
+      onRemove: () => toggleCsv("set", value),
     });
   }
 

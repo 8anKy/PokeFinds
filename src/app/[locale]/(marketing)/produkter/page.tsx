@@ -170,7 +170,7 @@ function csv(value: string | undefined): string[] | undefined {
 }
 
 function buildParams(sp: CatalogSearchParams, isAdmin: boolean): SearchProductsParams {
-  // Kategori/butik/språk är FLERVAL (kommaseparerat i URL:en). Okända värden
+  // Kategori/set/butik/språk är FLERVAL (kommaseparerat i URL:en). Okända värden
   // kastas tyst — en gammal länk med en borttagen butik ska visa katalogen, inte
   // ett tomt resultat.
   const category = csv(sp.kategori)?.filter(
@@ -190,7 +190,7 @@ function buildParams(sp: CatalogSearchParams, isAdmin: boolean): SearchProductsP
   return {
     query: sp.q?.trim() || undefined,
     category: category?.length ? category : undefined,
-    setId: sp.set || undefined,
+    setId: csv(sp.set),
     retailerId: csv(sp.butik),
     minPrice: parseKr(sp.minPris),
     maxPrice: parseKr(sp.maxPris),
@@ -225,7 +225,8 @@ function buildFeedQuery(p: SearchProductsParams): string {
   if (p.query) s.set("query", p.query);
   const category = join(p.category);
   if (category) s.set("category", category);
-  if (p.setId) s.set("setId", p.setId);
+  const setId = join(p.setId);
+  if (setId) s.set("setId", setId);
   const retailerId = join(p.retailerId);
   if (retailerId) s.set("retailerId", retailerId);
   if (p.minPrice !== undefined) s.set("minPrice", String(p.minPrice));
