@@ -45,9 +45,9 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           if [ "${{ github.event_name }}" != "schedule" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
-          n=$(gh run list -w cardmarket-refresh.yml --created ">=$(date -u +%F)T00:00:00Z" --limit 20  --json databaseId,event -q "[.[] | select(.databaseId != ${{ github.run_id }})] | length")
+          n=$(gh run list -w cardmarket-refresh.yml --created ">=$(date -u -d "20 hours ago" +%FT%TZ)" --limit 20  --json databaseId,event -q "[.[] | select(.databaseId != ${{ github.run_id }})] | length")
           if [ "$n" != "0" ]; then
-            echo "Nattkörningen har redan gått idag ($n körning(ar)) — reserven hoppar över."
+            echo "En körning har redan gått de senaste 20 h ($n st) — reserven hoppar över."
             echo "run=false" >> "$GITHUB_OUTPUT"
           else
             echo "::warning::Ingen nattkörning idag — väckarklockan (discord-restock) har inte startat den. Reserven kör."
